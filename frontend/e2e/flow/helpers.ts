@@ -221,7 +221,18 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     throw new Error(`[ensureTestEntities] 色号查询失败: ${(e as Error).message}`);
   }
   if (ctx.colorNos.length === 0) {
-    throw new Error('[ensureTestEntities] 产品无任何色号，依赖色号的测试无法进行');
+    // 新建产品天然无色号——真实创建一个（CreateProductColorRequest），非占位兜底
+    const created = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      `/products/${ctx.productIds[0]}/colors`,
+      { color_no: `E2E-C${Date.now().toString().slice(-6)}`, color_name: 'E2E色号' }
+    );
+    if (!created.data?.id) {
+      throw new Error(`[ensureTestEntities] 色号创建失败: ${JSON.stringify(created)}`);
+    }
+    ctx.productColorIds = [created.data.id];
+    ctx.colorNos = [`E2E-C${Date.now().toString().slice(-6)}`];
   }
 
   // ---- 4. 供应商（UI 创建）----

@@ -183,7 +183,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
   test('6-10 验证 CSRF 保护', async ({ page }) => {
     // 不带 CSRF Token 的 POST 请求应被拒绝
     const csrfToken = 'invalid-token';
-    const response = await page.request.fetch('http://localhost:8082/api/v1/erp/departments', {
+    const response = await page.request.fetch('http://127.0.0.1:8082/api/v1/erp/departments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

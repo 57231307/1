@@ -56,7 +56,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     // P1.1 fail-closed 落地后：客户导出为敏感资源端点，
     // 无 download_token 必须 403（此处验证 fail-closed 生效而非文件内容）
     const exportResp = await page.request
-      .get(`${process.env.API_BASE || 'http://localhost:8082'}${API_PREFIX}/crm/customers/export`)
+      .get(`${process.env.API_BASE || 'http://127.0.0.1:8082'}${API_PREFIX}/crm/customers/export`)
       .catch(e => {
         console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
         return null;

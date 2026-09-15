@@ -22,7 +22,7 @@ import { loginViaUI, apiCall, apiCallRaw } from './helpers';
  * 全部真实后端 + 真实 PostgreSQL，每步显式日志
  */
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
+const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
 const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
 const uniqueKey = (prefix: string) => `${prefix}${TS}`;

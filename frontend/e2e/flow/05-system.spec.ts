@@ -354,7 +354,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
         expect(status);
       } catch (e) {
         console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 健康检查端点可能在 /health（非 API 前缀）
-        const response = await fetch('http://localhost:8082/health');
+        const response = await fetch('http://127.0.0.1:8082/health');
         expect(response.ok).toBeTruthy();
       }
     }

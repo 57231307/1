@@ -18,7 +18,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-1 健康检查', async () => {
-    const response = await fetch('http://localhost:8082/health');
+    const response = await fetch('http://127.0.0.1:8082/health');
     expect(response.ok).toBeTruthy();
   });
 
