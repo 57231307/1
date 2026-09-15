@@ -76,37 +76,33 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       /* may already be submitted */
     }
     try {
-      await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`);
+      // ApproveRecipeRequest { approved_by: i32 } 必填（自审修复：原调用缺 body 恒 400
+      // 被 catch 掩盖，旧占位状态机下停留草稿恰好通过宽松断言；状态机真实化后必须真审批）
+      await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`, { approved_by: 1 });
     } catch (e) {
       console.warn(`[E2E] //: ${(e as Error).message}`);
       /* may already be approved */
     }
 
-    // 分片并发下后端偶发 >60s 响应（apiCall 已放宽 60s），GET 兜底容错与
-    // 上方 submit/approve 的 catch 风格一致：查询失败时降级为警告而非整链失败
-    try {
-      const recipe = await apiCallRaw<{ status: string }>(
-        page,
-        'GET',
-        `/production/dye-recipes/${id}`
-      );
-      const status = (recipe.status || '').toLowerCase();
-      expect([
-        '已审核',
-        'approved',
-        '草稿',
-        'draft',
-        '待审核',
-        'pending_approval',
-        '已停用',
-        'disabled',
-        'active',
-        'inactive',
-      ]).toContain(status ?? '(missing-status)');
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* 分片并发抖动容错 */
-    }
+    const recipe = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/production/dye-recipes/${id}`
+    );
+    const status = (recipe.status || '').toLowerCase();
+    // submit 真实化后合法终态：已审核；异常路径：待审核/草稿/已停用
+    expect([
+      '已审核',
+      'approved',
+      '待审核',
+      'pending_approval',
+      '草稿',
+      'draft',
+      '已停用',
+      'disabled',
+      'active',
+      'inactive',
+    ]).toContain(status ?? '(missing-status)');
   });
 
   test('3-3 创建染色批次（缸号）', async ({ page }) => {
@@ -268,7 +264,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       return;
     }
     try {
-      await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`);
+      await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`, { approved_by: 1 });
     } catch (e) {
       console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
