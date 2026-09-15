@@ -141,7 +141,7 @@ const handleSearch = () => {
   syncQueryParams();
   page.value = 1;
   // 静默处理：审计日志查询失败不向用户弹出错误
-  fetchAuditLogs().catch(() => {});
+  fetchAuditLogs().catch(e => console.error('[AuditTab] 审计日志加载失败:', e));
 };
 
 defineExpose({ refresh: fetchAuditLogs });

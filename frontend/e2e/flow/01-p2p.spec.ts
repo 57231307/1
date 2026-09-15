@@ -32,7 +32,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         'POST',
         '/purchase/orders',
         {
-          supplier_id: ctx.supplierId || 1,
+          supplier_id: ctx.supplierId,
           warehouse_id: ctx.warehouseIds[0] || 1,
           // 后端 validate_order_request 要求 department_id 必填（"部门 ID 不能为空"）
           department_id: ctx.departmentIds[0] || 1,
@@ -245,7 +245,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         try {
           const result = await apiCall<{ id?: number }>(page, 'POST', '/ap/invoices', {
             // CreateApInvoiceRequest：invoice_no 非后端字段（应 inset_type），保留 amount/tax_amount/invoice_date
-            supplier_id: ctx.supplierId || 1,
+            supplier_id: ctx.supplierId,
             amount: 56500,
             tax_amount: 6500,
             invoice_date: new Date().toISOString().split('T')[0],

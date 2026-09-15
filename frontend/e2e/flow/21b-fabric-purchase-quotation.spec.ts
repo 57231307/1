@@ -29,7 +29,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     const receiptData = {
       order_id: ctx.purchaseOrderId,
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       receipt_date: new Date().toISOString().slice(0, 10),
       warehouse_id: ctx.warehouseIds[0],
       items: [
@@ -124,7 +124,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     const expectedWithTax = (parseFloat(unitPrice) * (1 + parseFloat(taxRate) / 100)).toFixed(2);
 
     const quotationData = {
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       sales_user_id: 1,
       quotation_date: new Date().toISOString().slice(0, 10),
       valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),

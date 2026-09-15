@@ -30,13 +30,12 @@ test.describe.serial('44f 真实实体全流转链', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     const po = await apiCall<{ id?: number }>(page, 'POST', '/production/orders', {
-      product_id: ctx.productIds?.[0] || 1,
+      product_id: ctx.productIds[0],
       planned_quantity: 100,
       planned_start_date: new Date().toISOString().slice(0, 10),
     });
     const id = po?.data?.id;
-    test.skip(!id, '生产订单创建失败');
-    if (!id) return;
+        expect(id, '生产订单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/production/orders/${id}`, label: '[44f-1] 生产订单' });
 
     const st0 = await apiCall<{ status?: string }>(page, 'GET', `/production/orders/${id}`);
@@ -61,22 +60,20 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const ctx = getCtx();
     // 前置生产订单
     const porder = await apiCall<{ id?: number }>(page, 'POST', '/production/orders', {
-      product_id: ctx.productIds?.[0] || 1,
+      product_id: ctx.productIds[0],
       planned_quantity: 50,
     });
     const porderId = porder?.data?.id;
-    test.skip(!porderId, '生产订单创建失败');
-    if (!porderId) return;
+        expect(porderId, '生产订单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/production/orders/${porderId}`, label: '[44f-2] 生产订单' });
 
     const fc = await apiCall<{ id?: number }>(page, 'POST', '/flow-cards', {
       production_order_id: porderId,
-      product_id: ctx.productIds?.[0] || 1,
+      product_id: ctx.productIds[0],
       color_no: `44F${Date.now().toString().slice(-5)}`,
     });
     const id = fc?.data?.id;
-    test.skip(!id, '流转卡创建失败');
-    if (!id) return;
+        expect(id, '流转卡创建失败').toBeTruthy();
     CLEANUP.push({ path: `/flow-cards/${id}`, label: '[44f-2] 流转卡' });
 
     const rd = async () => {
@@ -110,14 +107,13 @@ test.describe.serial('44f 真实实体全流转链', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     const tf = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
-      from_warehouse_id: ctx.warehouseIds?.[0] || 1,
-      to_warehouse_id: ctx.warehouseIds?.[1] || 2,
+      from_warehouse_id: ctx.warehouseIds[0],
+      to_warehouse_id: ctx.warehouseIds[1],
       transfer_date: new Date().toISOString(),
-      items: [{ product_id: ctx.productIds?.[0] || 1, quantity: 5 }],
+      items: [{ product_id: ctx.productIds[0], quantity: 5 }],
     });
     const id = tf?.data?.id;
-    test.skip(!id, '调拨单创建失败');
-    if (!id) return;
+        expect(id, '调拨单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/inventory/transfers/${id}`, label: '[44f-3] 调拨' });
 
     // pending 时 ship 被拒
@@ -144,31 +140,30 @@ test.describe.serial('44f 真实实体全流转链', () => {
       'POST',
       '/purchase/orders',
       {
-        supplier_id: ctx.supplierId || 1,
-        warehouse_id: ctx.warehouseIds?.[0] || 1,
-        department_id: ctx.departmentIds?.[0] || 1,
+        supplier_id: ctx.supplierId,
+        warehouse_id: ctx.warehouseIds[0],
+        department_id: ctx.departmentIds[0],
         order_date: new Date().toISOString().slice(0, 10),
         expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-        items: [{ material_id: ctx.productIds?.[0] || 1, quantity: 10, unit_price: '2.50' }],
+        items: [{ material_id: ctx.productIds[0], quantity: 10, unit_price: '2.50' }],
       }
     );
     const poId = po?.data?.id;
-    test.skip(!poId, 'PO 创建失败');
-    if (!poId) return;
+        expect(poId, 'PO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/orders/${poId}`, label: '[44f-4] PO' });
     await apiCall(page, 'POST', `/purchase/orders/${poId}/submit`);
     await apiCall(page, 'POST', `/purchase/orders/${poId}/approve`);
 
     const receipt = await apiCall<{ id?: number }>(page, 'POST', '/purchase/receipts', {
       order_id: poId,
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       receipt_date: new Date().toISOString().slice(0, 10),
-      warehouse_id: ctx.warehouseIds?.[0] || 1,
-      department_id: ctx.departmentIds?.[0] || 1,
+      warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
       items: [
         {
           line_no: 1,
-          material_id: ctx.productIds?.[0] || 1,
+          material_id: ctx.productIds[0],
           material_code: `44F${Date.now().toString().slice(-6)}`,
           material_name: '44f 收货物料',
           quantity: 10,
@@ -177,8 +172,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       ],
     });
     const receiptId = receipt?.data?.id;
-    test.skip(!receiptId, '收货单创建失败');
-    if (!receiptId) return;
+        expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[44f-4] 收货单' });
 
     const c1 = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
@@ -194,13 +188,12 @@ test.describe.serial('44f 真实实体全流转链', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       order_date: new Date().toISOString().slice(0, 10),
-      items: [{ material_id: ctx.productIds?.[0] || 1, quantity: 5, unit_price: '8.00' }],
+      items: [{ material_id: ctx.productIds[0], quantity: 5, unit_price: '8.00' }],
     });
     const soId = so?.data?.id;
-    test.skip(!soId, 'SO 创建失败');
-    if (!soId) return;
+        expect(soId, 'SO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/sales/orders/${soId}`, label: '[44f-5] SO' });
     await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
@@ -208,7 +201,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const ship = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
       warehouse_code: 'WH-MAIN',
-      items: [{ product_id: ctx.productIds?.[0] || 1, quantity: 5 }],
+      items: [{ product_id: ctx.productIds[0], quantity: 5 }],
     });
     expect(ship.status, '发货应成功').toBeLessThan(300);
 
@@ -237,8 +230,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       ],
     });
     const id = v?.data?.id;
-    test.skip(!id, '凭证创建失败');
-    if (!id) return;
+        expect(id, '凭证创建失败').toBeTruthy();
     CLEANUP.push({ path: `/vouchers/${id}`, label: '[44f-6] 凭证' });
 
     await apiCall(page, 'POST', `/vouchers/${id}/submit`);
@@ -266,11 +258,10 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const ctx = getCtx();
     const r = await apiCall<{ id?: number }>(page, 'POST', '/production/production-recipes', {
       recipe_no: `44F${Date.now().toString().slice(-6)}`,
-      product_id: ctx.productIds?.[0] || 1,
+      product_id: ctx.productIds[0],
     });
     const id = r?.data?.id;
-    test.skip(!id, '处方创建失败（字段契约差异，需对照 production_recipe_handler）');
-    if (!id) return;
+        expect(id, '处方创建失败（字段契约差异，需对照 production_recipe_handler）').toBeTruthy();
     CLEANUP.push({ path: `/production/production-recipes/${id}`, label: '[44f-7] 处方' });
     await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`);
     expect(
@@ -284,14 +275,13 @@ test.describe.serial('44f 真实实体全流转链', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     const r = await apiCall<{ id?: number }>(page, 'POST', '/production/lab-dip/requests', {
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       customer_color_no: `44F${Date.now().toString().slice(-5)}`,
       customer_color_name: '44f 打样色号',
       main_light_source: 'D65',
     });
     const id = r?.data?.id;
-    test.skip(!id, '打样单创建失败');
-    if (!id) return;
+        expect(id, '打样单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/production/lab-dip/requests/${id}`, label: '[44f-8] 打样' });
 
     const rd = async () =>
@@ -317,8 +307,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       color_name: '44f 配方色名',
     });
     const id = r?.data?.id;
-    test.skip(!id, '配方创建失败');
-    if (!id) return;
+        expect(id, '配方创建失败').toBeTruthy();
     CLEANUP.push({ path: `/production/dye-recipes/${id}`, label: '[44f-9] 配方' });
 
     // ApproveRecipeRequest { approved_by: i32 } 必填
@@ -331,9 +320,8 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const del = await apiCallExpectFail(page, 'DELETE', `/production/dye-recipes/${id}`);
     expect(del.status, '已审核配方删除应被拒').toBeGreaterThanOrEqual(400);
     // approved→disabled→approved（:101-117 可逆对）
-    await apiCall(page, 'POST', `/production/dye-recipes/${id}/disable`).catch(async () => {
-      // 端点可能是 PUT /{id}/status
-      await apiCall(page, 'PUT', `/production/dye-recipes/${id}`, { status: 'disabled' });
-    });
+    // 唯一停用路径：PUT /{id}（UpdateDyeRecipeRequest.status，后端常量"已停用"，
+    // validate_status_transition: APPROVED→DISABLED 合法边）
+    await apiCall(page, 'PUT', `/production/dye-recipes/${id}`, { status: '已停用' });
   });
 });

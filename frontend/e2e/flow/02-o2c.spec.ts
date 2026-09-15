@@ -29,7 +29,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
-        customer_id: ctx.customerId || 1,
+        customer_id: ctx.customerId,
         sales_user_id: 1,
         quotation_date: new Date().toISOString().split('T')[0],
         valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
@@ -278,7 +278,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
         try {
           const result = await apiCall<{ id?: number }>(page, 'POST', '/ar/invoices', {
             // CreateArInvoiceRequest：金额字段为 invoice_amount（无 invoice_no/tax_amount）
-            customer_id: ctx.customerId || 1,
+            customer_id: ctx.customerId,
             invoice_amount: 113000,
             invoice_date: new Date().toISOString().split('T')[0],
           });

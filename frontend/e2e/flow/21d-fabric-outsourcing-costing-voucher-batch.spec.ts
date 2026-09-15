@@ -26,7 +26,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     const orderData = {
       order_no: genCode('OS'),
       order_type: 'dyeing',
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       dye_batch_id: ctx.dyeBatchId,
       color_no: colorNo,
       dye_lot_no: dyeLotNo,

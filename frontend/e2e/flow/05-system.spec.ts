@@ -150,7 +150,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
         order_no: genCode('CO'),
-        customer_id: ctx.customerId || 1,
+        customer_id: ctx.customerId,
         product_id: ctx.productIds[0] || 1,
         color_id: ctx.productColorIds[0],
         spec: '65%棉35%涤 40S 133x72 150cm',

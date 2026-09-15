@@ -71,7 +71,7 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: '<script>alert("xss")</script>',
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [],
@@ -85,7 +85,7 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: genCode('PO'),
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [
@@ -107,7 +107,7 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: genCode('PO'),
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [
@@ -172,7 +172,7 @@ test.describe('异常处理与边界条件', () => {
 
     const soData = {
       order_no: genCode('SO'),
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [
@@ -274,7 +274,7 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: genCode('PO'),
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       notes: longString,

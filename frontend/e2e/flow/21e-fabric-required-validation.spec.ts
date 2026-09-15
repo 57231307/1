@@ -23,7 +23,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 创建不带色号的销售订单
     const soData = {
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       order_date: new Date().toISOString().slice(0, 10),
       items: [
         {
@@ -55,7 +55,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 创建缺少 material_code 的采购收货
     const receiptData = {
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       receipt_date: new Date().toISOString().slice(0, 10),
       warehouse_id: ctx.warehouseIds[0],
       items: [
@@ -81,7 +81,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     const ctx = getCtx();
 
     const receiptData = {
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       receipt_date: new Date().toISOString().slice(0, 10),
       warehouse_id: ctx.warehouseIds[0],
       items: [

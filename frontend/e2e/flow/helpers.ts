@@ -129,23 +129,18 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   }
   if (ctx.warehouseIds.length < 2) {
     // API 创建（CreateWarehouseRequest：name/code 经 serde alias 兼容 warehouse_*）
+    // 创建失败直接抛错：前置实体缺失时后续测试的断言无意义，禁止兜底掩盖
     for (let i = ctx.warehouseIds.length; i < 2; i++) {
-      try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
-          name: `E2E仓库${Date.now().toString().slice(-6)}${i}`,
-          code: `E2E-W${Date.now().toString().slice(-6)}${i}`,
-        });
-        if (result.data?.id) {
-          ctx.warehouseIds.push(result.data.id);
-        } else {
-          console.error('[ensureTestEntities] 仓库 API 创建未返回 id:', JSON.stringify(result));
-        }
-      } catch (e) {
-        console.error('[ensureTestEntities] 仓库 API 创建失败:', (e as Error).message);
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
+        name: `E2E仓库${Date.now().toString().slice(-6)}${i}`,
+        code: `E2E-W${Date.now().toString().slice(-6)}${i}`,
+      });
+      if (!result.data?.id) {
+        throw new Error(`[ensureTestEntities] 仓库创建失败: ${JSON.stringify(result)}`);
       }
+      ctx.warehouseIds.push(result.data.id);
     }
   }
-  if (ctx.warehouseIds.length < 2) ctx.warehouseIds = [1, 2];
 
   // ---- 2. 产品（UI 创建）----
   // 前置：确保"面料"产品分类存在（表单 category_id 必填，系统初始化不创建分类种子数据）
@@ -167,8 +162,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       console.log('[ensureTestEntities] 创建产品分类"面料":', created.code);
     }
   } catch (e) {
-    // 分类创建失败仅告警（可能已存在），产品创建失败时诊断信息会暴露详情
-    console.warn('[ensureTestEntities] 产品分类检查/创建失败:', (e as Error).message);
+    throw new Error(`[ensureTestEntities] 产品分类检查/创建失败: ${(e as Error).message}`);
   }
   try {
     ctx.productIds = await readEntityIds(page, '/product', `${API_PREFIX}/products`);
@@ -178,21 +172,18 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   }
   if (ctx.productIds.length === 0) {
     // 先 UI 尝试一次（下拉交互脆弱：分类 select 点击后偶发不更新 v-model）
-    // API 创建（CreateProductRequest：code/name/category_id/unit）
-    try {
-      const catId = ctx.productCategoryIds?.[0];
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
-        code: `E2E-P${Date.now().toString().slice(-6)}`,
-        name: `E2E产品${Date.now().toString().slice(-6)}`,
-        unit: '米',
-        ...(catId ? { category_id: catId } : {}),
-      });
-      if (result.data?.id) {
-        ctx.productIds.push(result.data.id);
-      }
-    } catch (e) {
-      console.warn('[ensureTestEntities] 产品 API 创建失败:', (e as Error).message);
+    // API 创建（CreateProductRequest：code/name/category_id/unit）；失败即抛错
+    const catId = ctx.productCategoryIds?.[0];
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+      code: `E2E-P${Date.now().toString().slice(-6)}`,
+      name: `E2E产品${Date.now().toString().slice(-6)}`,
+      unit: '米',
+      ...(catId ? { category_id: catId } : {}),
+    });
+    if (!result.data?.id) {
+      throw new Error(`[ensureTestEntities] 产品创建失败: ${JSON.stringify(result)}`);
     }
+    ctx.productIds.push(result.data.id);
     // API 兜底补齐到 3 个
     while (ctx.productIds.length < 3) {
       try {
@@ -215,7 +206,6 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       }
     }
   }
-  if (ctx.productIds.length === 0) ctx.productIds = [1];
 
   // ---- 3. 产品色号（仍用 API，因为色号在详情页创建且依赖 product_id）----
   try {
@@ -228,11 +218,11 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.productColorIds = colors?.map(c => c.id) || [];
     ctx.colorNos = colors?.map(c => c.color_no) || ['TEST-COLOR'];
   } catch (e) {
-    console.warn('[ensureTestEntities] 色号查询失败（产品可能无色号）:', (e as Error).message);
-    ctx.colorNos = ['TEST-COLOR'];
-    ctx.productColorIds = [1];
+    throw new Error(`[ensureTestEntities] 色号查询失败: ${(e as Error).message}`);
   }
-  if (ctx.colorNos.length === 0) ctx.colorNos = ['TEST-COLOR'];
+  if (ctx.colorNos.length === 0) {
+    throw new Error('[ensureTestEntities] 产品无任何色号，依赖色号的测试无法进行');
+  }
 
   // ---- 4. 供应商（UI 创建）----
   try {
@@ -242,35 +232,16 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.supplierId = undefined;
   }
   if (!ctx.supplierId) {
-    // API 创建（CreateSupplierRequest：supplier_short_name min=2、credit_code equal=18）
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
-        supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
-        supplier_short_name: 'E2E供',
-        contact_phone: '13800000001',
-      });
-      ctx.supplierId = result.data?.id;
-      if (!ctx.supplierId) {
-        console.error('[ensureTestEntities] 供应商 API 创建未返回 id:', JSON.stringify(result));
-      }
-    } catch (e) {
-      console.error('[ensureTestEntities] 供应商 API 创建失败:', (e as Error).message);
+    // API 创建（CreateSupplierRequest：supplier_short_name min=2、contact_phone）；失败即抛错
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
+      supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
+      supplier_short_name: 'E2E供',
+      contact_phone: '13800000001',
+    });
+    if (!result.data?.id) {
+      throw new Error(`[ensureTestEntities] 供应商创建失败: ${JSON.stringify(result)}`);
     }
-    if (!ctx.supplierId) {
-      try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
-          supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
-          supplier_short_name: 'E2E供',
-          contact_phone: '13800000001',
-        });
-        ctx.supplierId = result.data?.id;
-        if (!ctx.supplierId) {
-          console.error('[ensureTestEntities] 供应商 API 兜底未返回 id:', JSON.stringify(result));
-        }
-      } catch (e) {
-        console.error('[ensureTestEntities] 供应商 API 兜底创建失败:', (e as Error).message);
-      }
-    }
+    ctx.supplierId = result.data.id;
   }
 
   // ---- 5. 客户（仍用 API，表单字段较多且下拉依赖复杂）----
@@ -282,8 +253,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     );
     ctx.customerId = customers.items?.[0]?.id;
   } catch (e) {
-    console.error('[ensureTestEntities] customerId 创建失败:', (e as Error).message);
-    ctx.customerId = undefined;
+    throw new Error(`[ensureTestEntities] 客户创建失败: ${(e as Error).message}`);
   }
   if (!ctx.customerId) {
     try {
@@ -331,7 +301,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         console.error('[ensureTestEntities] 部门 API 创建未返回 id:', JSON.stringify(result));
       }
     } catch (e) {
-      console.error('[ensureTestEntities] 部门 API 创建失败:', (e as Error).message);
+      throw new Error(`[ensureTestEntities] 部门创建失败: ${(e as Error).message}`);
     }
   }
 

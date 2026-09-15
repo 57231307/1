@@ -26,7 +26,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     const pantoneCode = 'TPX-19-4052';
 
     const soData = {
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       order_date: new Date().toISOString(),
       required_date: new Date().toISOString(),
       shipping_address: '面料收货地址',

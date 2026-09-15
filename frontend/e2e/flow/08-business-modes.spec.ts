@@ -89,7 +89,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
         {
           order_no: genCode('OUT'),
           product_id: ctx.productIds[0] || 1,
-          supplier_id: ctx.supplierId || 1,
+          supplier_id: ctx.supplierId,
           quantity: 500,
           unit: '米',
           expected_delivery_date: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],

@@ -210,7 +210,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         '/production/production-recipes',
         {
           recipe_no: genCode('PR'),
-          work_order_id: ctx.productionOrderId || 1,
+          work_order_id: ctx.productionOrderId,
           dye_batch_id: ctx.dyeBatchId,
           source_recipe_id: ctx.dyeRecipeId,
           customer_id: ctx.customerId,

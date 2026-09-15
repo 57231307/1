@@ -305,7 +305,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         fabric_no: genCode('GF'),
         fabric_name: genName('E2E坯布'),
         product_id: ctx.productIds[0] || 1,
-        supplier_id: ctx.supplierId || 1,
+        supplier_id: ctx.supplierId,
         warehouse_id: ctx.warehouseIds[0] || 1,
         composition: '65%棉 35%涤',
         yarn_count: '40S',

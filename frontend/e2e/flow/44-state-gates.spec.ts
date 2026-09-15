@@ -71,16 +71,14 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
 
   test('44d-1 借贷不平衡：提交被拒（workflow.rs:200-205）', async ({ page }) => {
     const id = await createVoucher(page, '100.00', '99.00');
-    test.skip(!id, '凭证创建失败');
-    if (!id) return;
+        expect(id, '凭证创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
     expectBadRequest(r, '借贷不平衡凭证提交应被拒');
   });
 
   test('44d-2 借贷不平衡：审核被拒（workflow.rs 双重闸）', async ({ page }) => {
     const id = await createVoucher(page, '100.00', '99.00');
-    test.skip(!id, '凭证创建失败');
-    if (!id) return;
+        expect(id, '凭证创建失败').toBeTruthy();
     // 不平衡凭证无法经正常途径到 submitted，直接对 draft 调审核也应被状态门拦截
     const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/review`);
     expectBadRequest(r, 'draft 凭证直接审核应被状态门拒绝');
@@ -88,16 +86,14 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
 
   test('44d-3 状态不可逆：draft 直接过账被拒', async ({ page }) => {
     const id = await createVoucher(page, '100.00', '100.00');
-    test.skip(!id, '凭证创建失败');
-    if (!id) return;
+        expect(id, '凭证创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/post`);
     expectBadRequest(r, 'draft 凭证直接过账应被拒（仅 reviewed 可过账 workflow.rs:131-133）');
   });
 
   test('44d-4 状态机不可逆：提交→提交重复被拒（防重复提交）', async ({ page }) => {
     const id = await createVoucher(page, '100.00', '100.00');
-    test.skip(!id, '凭证创建失败');
-    if (!id) return;
+        expect(id, '凭证创建失败').toBeTruthy();
     const r1 = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
     expect(r1.status(), '平衡凭证首次提交应成功').toBeLessThan(300);
     const r2 = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
@@ -112,14 +108,14 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
     await ensureTestEntities(page);
     const ctx = getCtx();
     const r = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
-      supplier_id: ctx.supplierId || 1,
-      warehouse_id: ctx.warehouseIds?.[0] || 1,
-      department_id: ctx.departmentIds?.[0] || 1,
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
       items: [
         {
-          material_id: ctx.productIds?.[0] || 1,
+          material_id: ctx.productIds[0],
           quantity: 100,
           unit_price: '10.50',
         },
@@ -138,9 +134,9 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
     await ensureTestEntities(page);
     const ctx = getCtx();
     const r = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
-      supplier_id: ctx.supplierId || 1,
-      warehouse_id: ctx.warehouseIds?.[0] || 1,
-      department_id: ctx.departmentIds?.[0] || 1,
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
       items: [],
@@ -150,8 +146,7 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
 
   test('44b-2 二次提交拦截（contract.rs:63-71 仅 DRAFT/REJECTED 可提交）', async ({ page }) => {
     orderId = await createOrder(page);
-    test.skip(!orderId, 'PO 创建失败');
-    if (!orderId) return;
+        expect(orderId, 'PO 创建失败').toBeTruthy();
     const r1 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${orderId}/submit`);
     expect(r1.status(), '首次提交应成功').toBeLessThan(300);
     const r2 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${orderId}/submit`);
@@ -162,8 +157,7 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
     page,
   }) => {
     const id = await createOrder(page);
-    test.skip(!id, 'PO 创建失败');
-    if (!id) return;
+        expect(id, 'PO 创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/approve`);
     expectBadRequest(r, 'DRAFT 订单直接审批应被状态门拒绝');
   });
@@ -175,8 +169,7 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
 
   test('44b-5 close 状态门（lifecycle.rs:43 订单状态不允许关闭）', async ({ page }) => {
     const id = await createOrder(page);
-    test.skip(!id, 'PO 创建失败');
-    if (!id) return;
+        expect(id, 'PO 创建失败').toBeTruthy();
     // DRAFT 不在可关闭状态集
     const r = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/close`);
     expectBadRequest(r, 'DRAFT 订单关闭应被拒（订单状态不允许关闭）');
@@ -184,8 +177,7 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
 
   test('44b-6 取消状态门：DRAFT 可取消（正向）+ 二次取消被拒', async ({ page }) => {
     const id = await createOrder(page);
-    test.skip(!id, 'PO 创建失败');
-    if (!id) return;
+        expect(id, 'PO 创建失败').toBeTruthy();
     const r1 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`);
     expect(r1.status(), 'DRAFT 取消应成功（contract.rs:271-274）').toBeLessThan(300);
     const r2 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`);

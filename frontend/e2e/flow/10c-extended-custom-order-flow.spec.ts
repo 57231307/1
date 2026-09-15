@@ -26,7 +26,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
         order_no: genCode('CO'),
-        customer_id: ctx.customerId || 1,
+        customer_id: ctx.customerId,
         product_id: ctx.productIds[0] || 1,
         color_id: ctx.productColorIds[0],
         spec: '65%棉35%涤 40S 133x72 150cm',
@@ -108,7 +108,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/production/lab-dip/requests', {
-        customer_id: ctx.customerId || 1,
+        customer_id: ctx.customerId,
         product_id: ctx.productIds[0] || 1,
         color_no: 'RED-001',
         color_name: '大红',

@@ -96,7 +96,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
     try {
       // 小额报价单
       const result = await apiCall<{ id?: number; status?: string }>(page, 'POST', '/quotations', {
-        customer_id: ctx.customerId || 1,
+        customer_id: ctx.customerId,
         quotation_date: new Date().toISOString().split('T')[0],
         valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
         items: [{ product_id: ctx.productIds[0] || 1, quantity: 1, unit_price: 1, tax_rate: 13 }],

@@ -64,7 +64,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
         username,
         password: 'E2e@TestPass2026!',
         email: `e2e_${Date.now().toString().slice(-6)}@test.com`,
-        role_id: ctx.roleId || 1,
+        role_id: ctx.roleId,
         department_id: ctx.departmentIds[0] || 1,
         is_active: true,
       });

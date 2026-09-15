@@ -51,16 +51,16 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       order_date: new Date().toISOString().slice(0, 10),
-      items: [{ material_id: ctx.productIds?.[0] || 1, quantity: 1, unit_price: '1.00' }],
+      items: [{ material_id: ctx.productIds[0], quantity: 1, unit_price: '1.00' }],
     });
     const id = so?.data?.id;
-    test.skip(!id, 'SO 创建失败');
-    if (!id) return;
+        expect(id, 'SO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/sales/orders/${id}`, label: '[44e-2] SO' });
     // draft 态可删（对照）；构造 shipped 态需要完整发货链——此处验证 draft 删除接口可达性+审批态保护
-    await apiCall(page, 'POST', `/sales/orders/${id}/submit`).catch(() => {});
+    const sub = await apiCall(page, 'POST', `/sales/orders/${id}/submit`);
+    expect([200, 0]).toContain((sub as { code?: number })?.code ?? 200);
     // 审批后取消接口存在性验证
     const r = await apiCallExpectFail(page, 'POST', `/sales/orders/${id}/cancel`);
     void r;
@@ -80,14 +80,13 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     const tf = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
-      from_warehouse_id: ctx.warehouseIds?.[0] || 1,
-      to_warehouse_id: ctx.warehouseIds?.[1] || 2,
-      items: [{ material_id: ctx.productIds?.[0] || 1, quantity: 1 }],
+      from_warehouse_id: ctx.warehouseIds[0],
+      to_warehouse_id: ctx.warehouseIds[1],
+      items: [{ material_id: ctx.productIds[0], quantity: 1 }],
     });
     const id = tf?.data?.id;
     if (id) CLEANUP.push({ path: `/inventory/transfers/${id}`, label: '[44e-4] 调拨' });
-    test.skip(!id, '调拨单创建失败');
-    if (!id) return;
+        expect(id, '调拨单创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/inventory/transfers/${id}/ship`);
     expect(r.status, 'pending 调拨直接发出应被拒（仅 approved）').toBeGreaterThanOrEqual(400);
   });
@@ -138,13 +137,12 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       order_date: new Date().toISOString().slice(0, 10),
-      items: [{ material_id: ctx.productIds?.[0] || 1, quantity: 2, unit_price: '3.50' }],
+      items: [{ material_id: ctx.productIds[0], quantity: 2, unit_price: '3.50' }],
     });
     const id = so?.data?.id;
-    test.skip(!id, 'SO 创建失败');
-    if (!id) return;
+        expect(id, 'SO 创建失败').toBeTruthy();
     // 详情含 items 明细（第十二轮采购订单同款缺陷防线）
     const detail = await apiCall<{ items?: unknown[] }>(page, 'GET', `/sales/orders/${id}`);
     expect(

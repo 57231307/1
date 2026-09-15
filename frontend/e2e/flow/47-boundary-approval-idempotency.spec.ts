@@ -58,16 +58,15 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     const { getCtx } = await import('./helpers');
     const ctx = getCtx();
     const po = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
-      supplier_id: ctx.supplierId || 1,
-      warehouse_id: ctx.warehouseIds?.[0] || 1,
-      department_id: ctx.departmentIds?.[0] || 1,
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-      items: [{ material_id: ctx.productIds?.[0] || 1, quantity: 1, unit_price: '1.00' }],
+      items: [{ material_id: ctx.productIds[0], quantity: 1, unit_price: '1.00' }],
     });
     const id = po?.data?.id;
-    test.skip(!id, 'PO 创建失败');
-    if (!id) return;
+        expect(id, 'PO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/orders/${id}`, label: '[47-A1] PO' });
 
     await apiCall(page, 'POST', `/purchase/orders/${id}/submit`);
@@ -86,8 +85,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     // 前置角色
     const role = await apiCallRawSafe(page, 'GET', '/roles?page=1&page_size=1');
     const roleId = (role as { roles?: Array<{ id: number }> })?.roles?.[0]?.id;
-    test.skip(!roleId, '无可用角色');
-    if (!roleId) return;
+        expect(roleId, '无可用角色').toBeTruthy();
 
     const r1 = await apiCall<{ id?: number }>(page, 'POST', '/users', {
       username,
@@ -97,8 +95,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     });
     const uid = r1?.data?.id;
     if (uid) CLEANUP.push({ path: `/users/${uid}`, label: '[47-I1] 用户' });
-    test.skip(!uid, '首个用户创建失败');
-    if (!uid) return;
+        expect(uid, '首个用户创建失败').toBeTruthy();
 
     const r2 = await apiCallExpectFail(page, 'POST', '/users', {
       username,
@@ -119,8 +116,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     });
     const rid = r1?.data?.id;
     if (rid) CLEANUP.push({ path: `/roles/${rid}`, label: '[47-I2] 角色' });
-    test.skip(!rid, '首个角色创建失败');
-    if (!rid) return;
+        expect(rid, '首个角色创建失败').toBeTruthy();
 
     const r2 = await apiCallExpectFail(page, 'POST', '/roles', {
       name: `47幂等角色重复${code}`,
@@ -138,8 +134,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     const name = `47审计部门${Date.now().toString().slice(-8)}`;
     const r = await apiCall<{ id?: number }>(page, 'POST', '/departments', { name });
     const id = r?.data?.id;
-    test.skip(!id, '部门创建失败');
-    if (!id) return;
+        expect(id, '部门创建失败').toBeTruthy();
     CLEANUP.push({ path: `/departments/${id}`, label: '[47-AU1] 部门' });
 
     // 回查审计日志（admin 可查 system.rs:264）
