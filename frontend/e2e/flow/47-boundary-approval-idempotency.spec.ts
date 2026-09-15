@@ -52,8 +52,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
   test('47-A1 PO 审批后拒绝被拒（contract.rs:218-221 仅 PENDING_APPROVAL 可拒绝）', async ({
     page,
   }) => {
-    const { ensureTestEntities, getCtx } = await import('./helpers');
-    await ensureTestEntities(page);
+    const { getCtx } = await import('./helpers');
     const ctx = getCtx();
     const po = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
       supplier_id: ctx.supplierId || 1,
