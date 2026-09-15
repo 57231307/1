@@ -1,4 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
+import { loginViaUI, ensureTestEntities, BASE_URL } from './helpers';
 
 /**
  * 44f 真实实体全流转链（创建→逐状态推进→每步 API 回读）

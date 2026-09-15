@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallExpectFail, tryCleanup, genCode } from './helpers';
+import { loginViaUI, ensureTestEntities, apiCall, apiCallExpectFail, tryCleanup, genCode } from './helpers';
 
 /**
  * 47 边界值 / 审批纵深 / 幂等 / 审计完整性（L3+L4+L5+审计防线合并）
