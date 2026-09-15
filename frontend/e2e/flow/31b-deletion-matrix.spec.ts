@@ -14,7 +14,7 @@ import { loginViaUI, apiCall, tryCleanup } from './helpers';
  * 每步显式日志（诊断模式）。
  */
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
+const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
 const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
 

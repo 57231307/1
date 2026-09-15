@@ -15,7 +15,7 @@ import { APPROVE_ENDPOINTS } from './endpoints.config';
  * 四套专用流 spec（export/role-change/transfer/writeoffs）覆盖
  */
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
+const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
 const API_PREFIX = '/api/v1/erp';
 
 test.describe('P5.11 审批端点全量矩阵', () => {

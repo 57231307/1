@@ -13,7 +13,7 @@ import { loginViaUI } from './helpers';
  * 5xx 永远真失败。
  */
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
+const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
 const API_PREFIX = '/api/v1/erp';
 
 test.describe('P5.11b 专用审批流', () => {

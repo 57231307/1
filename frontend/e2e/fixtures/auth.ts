@@ -138,7 +138,7 @@ export async function mockBusinessApi(context: BrowserContext): Promise<void> {
 export async function applyAuthMocks(context: BrowserContext): Promise<void> {
   const { request } = await import('@playwright/test');
 
-  const apiBase = process.env.API_BASE || 'http://localhost:8082';
+  const apiBase = process.env.API_BASE || 'http://127.0.0.1:8082';
   const apiPrefix = '/api/v1/erp';
   const shardIndex = process.env.E2E_SHARD_INDEX ?? '';
   const baseUsername = process.env.E2E_BASE_USERNAME || 'e2e_admin';

@@ -24,7 +24,7 @@ async function getUnreadNotifications(
 > {
   try {
     const res = await page.request.get(
-      'http://localhost:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50'
+      'http://127.0.0.1:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50'
     );
     if (!res.ok()) return [];
     const body = await res.json();
@@ -40,7 +40,7 @@ async function deleteNotification(
   id: number
 ): Promise<void> {
   try {
-    await page.request.delete(`http://localhost:8082/api/v1/erp/notifications/notification/${id}`);
+    await page.request.delete(`http://127.0.0.1:8082/api/v1/erp/notifications/notification/${id}`);
     console.log(`[31e] 清理通知 id=${id} ✅`);
   } catch (e) {
     console.warn(`[31e] 清理通知 id=${id} 失败: ${(e as Error).message}`);
@@ -78,7 +78,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     // GET 回读
     let got: { title?: string; content?: string; status?: string } | null = null;
     try {
-      const res = await page.request.get(`http://localhost:8082/api/v1/erp/oa-announcements/${id}`);
+      const res = await page.request.get(`http://127.0.0.1:8082/api/v1/erp/oa-announcements/${id}`);
       if (res.ok()) {
         const body = await res.json();
         got = body?.data;
@@ -103,7 +103,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
     // GET 验证编辑
     try {
-      const res = await page.request.get(`http://localhost:8082/api/v1/erp/oa-announcements/${id}`);
+      const res = await page.request.get(`http://127.0.0.1:8082/api/v1/erp/oa-announcements/${id}`);
       if (res.ok()) {
         const body = await res.json();
         console.log(`[31e-1] 编辑后回读 title=${body?.data?.title}`);
@@ -122,7 +122,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     // 查当前用户 id（通过 /users/me 或 auth context）
     let currentUserId: number | undefined;
     try {
-      const res = await page.request.get('http://localhost:8082/api/v1/erp/users/me');
+      const res = await page.request.get('http://127.0.0.1:8082/api/v1/erp/users/me');
       if (res.ok()) {
         const body = await res.json();
         currentUserId = body?.data?.id;
@@ -165,7 +165,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     let notifiedCount = 0;
     try {
       const res = await page.request.post(
-        `http://localhost:8082/api/v1/erp/oa-announcements/${announcementId}/publish`
+        `http://127.0.0.1:8082/api/v1/erp/oa-announcements/${announcementId}/publish`
       );
       if (res.ok()) {
         const body = await res.json();
@@ -240,7 +240,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     test.setTimeout(120_000);
     let currentUserId: number | undefined;
     try {
-      const res = await page.request.get('http://localhost:8082/api/v1/erp/users/me');
+      const res = await page.request.get('http://127.0.0.1:8082/api/v1/erp/users/me');
       if (res.ok()) {
         currentUserId = (await res.json())?.data?.id;
       }
@@ -258,7 +258,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     // 需要管理员权限
     try {
       const res = await page.request.post(
-        'http://localhost:8082/api/v1/erp/notifications/announcement',
+        'http://127.0.0.1:8082/api/v1/erp/notifications/announcement',
         {
           data: { user_ids: [currentUserId], title, content: 'P0直发通知测试内容' },
         }
@@ -289,7 +289,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
       // 测试已读
       try {
         const readRes = await page.request.post(
-          `http://localhost:8082/api/v1/erp/notifications/notification/${directNotif.id}/read`
+          `http://127.0.0.1:8082/api/v1/erp/notifications/notification/${directNotif.id}/read`
         );
         console.log(`[31e-4] 标记已读 HTTP ${readRes.status()}`);
       } catch (e) {
@@ -312,7 +312,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     test.setTimeout(120_000);
     let currentUserId: number | undefined;
     try {
-      const res = await page.request.get('http://localhost:8082/api/v1/erp/users/me');
+      const res = await page.request.get('http://127.0.0.1:8082/api/v1/erp/users/me');
       if (res.ok()) currentUserId = (await res.json())?.data?.id;
     } catch {
       /* skip */
@@ -326,7 +326,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     const titles = [`P0-CRUD-1-${TS}`, `P0-CRUD-2-${TS}`, `P0-CRUD-3-${TS}`];
     for (const t of titles) {
       try {
-        await page.request.post('http://localhost:8082/api/v1/erp/notifications/announcement', {
+        await page.request.post('http://127.0.0.1:8082/api/v1/erp/notifications/announcement', {
           data: { user_ids: [currentUserId], title: t, content: 'CRUD 测试' },
         });
       } catch {
@@ -344,7 +344,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
       const first = myNotifs[0];
       try {
         const res = await page.request.post(
-          `http://localhost:8082/api/v1/erp/notifications/notification/${first.id}/read`
+          `http://127.0.0.1:8082/api/v1/erp/notifications/notification/${first.id}/read`
         );
         console.log(`[31e-5] 单条已读 HTTP ${res.status()}`);
       } catch (e) {
@@ -355,7 +355,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
       if (myNotifs.length >= 3) {
         try {
           const res = await page.request.post(
-            'http://localhost:8082/api/v1/erp/notifications/batch-read',
+            'http://127.0.0.1:8082/api/v1/erp/notifications/batch-read',
             {
               data: { ids: [myNotifs[1].id, myNotifs[2].id] },
             }
@@ -369,7 +369,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
       // 全部已读
       try {
         const res = await page.request.post(
-          'http://localhost:8082/api/v1/erp/notifications/read-all'
+          'http://127.0.0.1:8082/api/v1/erp/notifications/read-all'
         );
         console.log(`[31e-5] 全部已读 HTTP ${res.status()}`);
       } catch (e) {
