@@ -74,7 +74,11 @@ async function loadAll() {
 
     // 钻取 2026 年 → 月
     const monthly = await getDrilldownYearToMonth(2026);
-    monthlyData.value = monthly.data;
+    // 响应形态兜底：数组或 { items } 分页包装（防 el-table r is not iterable 白屏）
+    const _p = monthly.data as unknown;
+    monthlyData.value = Array.isArray(_p)
+      ? _p
+      : ((_p as { items?: TimeSeriesPoint[] })?.items ?? []);
 
     renderCharts();
   } catch (e) {

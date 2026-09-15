@@ -29,7 +29,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     const receiptData = {
       order_id: ctx.purchaseOrderId,
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       receipt_date: new Date().toISOString().slice(0, 10),
       warehouse_id: ctx.warehouseIds[0],
       items: [
@@ -114,16 +114,17 @@ test.describe('面料单据专用字段全链路验证', () => {
       if (colors?.length > 0) {
         colorId = colors[0].id;
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 查询失败，测试无色号关联
-     }
+    }
 
     const unitPrice = '25.50';
     const taxRate = '13';
     const expectedWithTax = (parseFloat(unitPrice) * (1 + parseFloat(taxRate) / 100)).toFixed(2);
 
     const quotationData = {
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       sales_user_id: 1,
       quotation_date: new Date().toISOString().slice(0, 10),
       valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
@@ -187,7 +188,10 @@ test.describe('面料单据专用字段全链路验证', () => {
     await newBtn
       .waitFor({ state: 'visible', timeout: 5000 })
       .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const newBtnVisible = await newBtn.isVisible().catch(e => {
+      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+      return false;
+    });
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
@@ -197,7 +201,10 @@ test.describe('面料单据专用字段全链路验证', () => {
       await dialog
         .waitFor({ state: 'visible', timeout: 5000 })
         .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      const dialogVisible = await dialog.isVisible().catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
       if (dialogVisible) {
         // 在弹窗中查找色号相关
         const colorLabel = page
@@ -206,7 +213,10 @@ test.describe('面料单据专用字段全链路验证', () => {
         await colorLabel
           .waitFor({ state: 'visible', timeout: 5000 })
           .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-        const colorVisible = await colorLabel.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        const colorVisible = await colorLabel.isVisible().catch(e => {
+          console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+          return false;
+        });
         // 报价单明细应有色号选择列
         expect(true).toBe(true); // 记录
 

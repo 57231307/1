@@ -77,7 +77,7 @@ export function getAdjustmentItems(id: number) {
 }
 
 export function createAdjustmentItem(id: number, data: Partial<AdjustmentItem>) {
-  return request.post(`/inventory/adjustments/${id}`, data);
+  return request.post(`/inventory/adjustments/${id}/items`, data);
 }
 
 export function updateAdjustmentItem(itemId: number, data: Partial<AdjustmentItem>) {

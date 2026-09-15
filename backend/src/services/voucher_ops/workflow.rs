@@ -187,6 +187,66 @@ impl VoucherService {
         Ok(updated)
     }
 
+    /// 凭证反过账（仅 posted 可反过账：状态回 reviewed + 冲销科目余额取负回写）
+    pub async fn unpost(&self, id: i32, user_id: i32) -> Result<voucher::Model, AppError> {
+        info!("凭证反过账 ID: {}", id);
+
+        // 与 post 一致：事务内 lock_exclusive 串行化并发状态变更
+        let txn = (*self.db).begin().await?;
+        let voucher = voucher::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
+
+        if voucher.status != crate::models::status::voucher::VOUCHER_POSTED {
+            return Err(AppError::bad_request("只有已过账的凭证可以反过账"));
+        }
+
+        // 检查期间锁定（反过账同样受会计期间锁约束）
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
+            self.db.clone(),
+        );
+        period_svc.check_date_locked(voucher.voucher_date).await?;
+
+        // 1. 冲销科目余额（过账时累加的发生额取负回写）
+        self.reverse_account_balances(id, user_id, &txn).await?;
+
+        // 2. 状态回 reviewed，清空过账人/过账时间
+        let mut active_model: voucher::ActiveModel = voucher.into_active_model();
+        active_model.status =
+            sea_orm::Set(crate::models::status::voucher::VOUCHER_REVIEWED.to_string());
+        active_model.posted_by = sea_orm::Set(None);
+        active_model.posted_at = sea_orm::Set(None);
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(user_id),
+        )
+        .await?;
+
+        // 提交事务
+        txn.commit().await?;
+
+        info!("凭证反过账成功：no={}", updated.voucher_no);
+
+        // 触发财务指标更新事件（与 post 对称）
+        let period = format!(
+            "{:04}-{:02}",
+            updated.voucher_date.year(),
+            updated.voucher_date.month()
+        );
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::FinancialIndicatorUpdate {
+                period,
+                trigger_source: format!("voucher_unposted:{}", updated.voucher_no),
+            },
+        );
+
+        Ok(updated)
+    }
+
     /// 验证凭证（借贷平衡）
     async fn validate_voucher(&self, id: i32) -> Result<(), AppError> {
         let items = voucher_item::Entity::find()

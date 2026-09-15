@@ -58,7 +58,7 @@ export interface OaAnnouncementQuery extends QueryParams {
 export function listOaAnnouncements(
   params?: OaAnnouncementQuery
 ): Promise<ApiResponse<{ items: OaAnnouncement[]; total: number }>> {
-  return request.get('/oa-announcements/', { params });
+  return request.get('/oa-announcements', { params });
 }
 
 export function getOaAnnouncement(id: number): Promise<ApiResponse<OaAnnouncement>> {
@@ -68,7 +68,7 @@ export function getOaAnnouncement(id: number): Promise<ApiResponse<OaAnnouncemen
 export function createOaAnnouncement(
   data: CreateOaAnnouncementRequest
 ): Promise<ApiResponse<OaAnnouncement>> {
-  return request.post('/oa-announcements/', data);
+  return request.post('/oa-announcements', data);
 }
 
 export function updateOaAnnouncement(

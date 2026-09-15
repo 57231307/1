@@ -10,9 +10,9 @@
 //! - 版本管理（仅已审核可建新版本，version+1，parent_recipe_id 关联）
 
 use rust_decimal::Decimal;
-use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -97,12 +97,19 @@ impl DyeRecipeService {
         format!("DR-{}-{:04}", timestamp, random)
     }
 
-    /// 校验配方状态流转是否合法（草稿 → 已审核 / 已停用；已审核 → 已停用；已停用 → 已审核）
+    /// 校验配方状态流转是否合法
+    /// （批次 423B 引入"待审核"中间态：草稿 → 待审核 → 已审核 / 已停用；支持待审核撤回草稿；
+    /// 保留草稿直审兼容路径）
     pub fn validate_status_transition(current: &str, new: &str) -> Result<(), AppError> {
         let valid = match current {
-            recipe_status::DRAFT => {
-                matches!(new, recipe_status::APPROVED | recipe_status::DISABLED)
-            }
+            recipe_status::DRAFT => matches!(
+                new,
+                recipe_status::PENDING_APPROVAL | recipe_status::APPROVED | recipe_status::DISABLED
+            ),
+            recipe_status::PENDING_APPROVAL => matches!(
+                new,
+                recipe_status::APPROVED | recipe_status::DISABLED | recipe_status::DRAFT
+            ),
             recipe_status::APPROVED => matches!(new, recipe_status::DISABLED),
             recipe_status::DISABLED => matches!(new, recipe_status::APPROVED),
             _ => false,
@@ -124,15 +131,37 @@ impl DyeRecipeService {
         Ok(())
     }
 
-    /// 校验配方是否允许审核（仅草稿状态可审核）
+    /// 校验配方是否允许审核（草稿或待审核状态均可审核）
     pub fn validate_can_approve(status: Option<&str>) -> Result<(), AppError> {
-        if status != Some(recipe_status::DRAFT) {
+        if status != Some(recipe_status::DRAFT) && status != Some(recipe_status::PENDING_APPROVAL)
+        {
             return Err(AppError::business(format!(
-                "只有草稿状态的配方可以审核，当前状态：{}",
+                "只有草稿或待审核状态的配方可以审核，当前状态：{}",
                 status.unwrap_or("未知")
             )));
         }
         Ok(())
+    }
+
+    /// 提交配方审核（批次 423B：草稿 → 待审核，贯通化验室打样审批流）
+    pub async fn submit(&self, id: i32) -> Result<DyeRecipeModel, AppError> {
+        let model = self.get_by_id(id).await?;
+        if model.status.as_deref() != Some(recipe_status::DRAFT) {
+            return Err(AppError::business(format!(
+                "只有草稿状态的配方可以提交审核，当前状态：{}",
+                model.status.as_deref().unwrap_or("未知")
+            )));
+        }
+
+        let mut active: ActiveModel = model.into();
+        active.status = Set(Some(recipe_status::PENDING_APPROVAL.to_string()));
+        // 清除历史提交产生的 approved_by=-1 占位（批次 423B 前遗留）
+        if active.approved_by.is_set() {
+            active.approved_by = NotSet;
+        }
+        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
     }
 
     /// 校验配方是否允许创建新版本（仅已审核状态可建新版本）

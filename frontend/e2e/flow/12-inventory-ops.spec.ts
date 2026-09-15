@@ -85,7 +85,8 @@ test.describe('库存调拨完整流程', () => {
     expect(created.status.toLowerCase()).toBe('draft');
 
     // 审批调拨
-    await apiCall(page, 'POST', `/inventory/transfers/${transferId}/approve`);
+    // ApproveTransferRequest { approved: bool, notes? } 必填
+    await apiCall(page, 'POST', `/inventory/transfers/${transferId}/approve`, { approved: true });
     const approved = await apiCallRaw<{ status: string }>(
       page,
       'GET',
@@ -132,7 +133,10 @@ test.describe('库存调拨完整流程', () => {
       )
       .first()
       .isVisible()
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
     expect(tableVisible).toBe(true);
   });
 

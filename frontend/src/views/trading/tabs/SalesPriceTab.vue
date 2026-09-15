@@ -261,7 +261,7 @@ const openSalesPriceDialog = async (row?: TradingPrice) => {
   resetPriceForm();
   if (row) {
     try {
-      const res = await getTradingPrice(row.id);
+      const res = await getTradingPrice(row.id, 'sales');
       const d = res.data;
       if (d) {
         priceEditingId.value = d.id;
@@ -293,7 +293,7 @@ const onSubmitPrice = async () => {
     priceSubmitting.value = true;
     try {
       if (priceEditingId.value !== null) {
-        await updateTradingPrice(priceEditingId.value, { ...priceForm });
+        await updateTradingPrice(priceEditingId.value, { ...priceForm }, 'sales');
         ElMessage.success(t('trading.salesPriceTab.messageUpdateSuccess'));
       } else {
         await createTradingPrice({ ...priceForm, type: 'sales' });

@@ -15,7 +15,7 @@ import { APPROVE_ENDPOINTS } from './endpoints.config';
  * 四套专用流 spec（export/role-change/transfer/writeoffs）覆盖
  */
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
+const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
 const API_PREFIX = '/api/v1/erp';
 
 test.describe('P5.11 审批端点全量矩阵', () => {
@@ -32,12 +32,9 @@ test.describe('P5.11 审批端点全量矩阵', () => {
       // （50 分片并发同库时 storageState 里的一次性 csrf 易被竞争消费，
       // 手动构造请求无恢复逻辑会把 CSRF 拒绝误判为权限缺陷）
       try {
-        const data = await apiCall<Record<string, unknown>>(
-          page,
-          'POST',
-          resolvedPath,
-          { comments: 'E2E 审批矩阵测试' },
-        );
+        const data = await apiCall<Record<string, unknown>>(page, 'POST', resolvedPath, {
+          comments: 'E2E 审批矩阵测试',
+        });
         // 200 + code 200：审批调用成功（或后端接受该请求）
         expect(data.code, `${resolvedPath} 业务码应 200`).toBe(200);
       } catch (e) {
@@ -48,11 +45,7 @@ test.describe('P5.11 审批端点全量矩阵', () => {
 
         // 权限拒绝：admin 持 *:* 被拒为真缺陷
         // forbidden_response 业务码为数字 403（response.rs:164），另有 PERMISSION_DENIED 字符串形态
-        if (
-          bizCode === '403' ||
-          bizCode.includes('PERMISSION') ||
-          bizCode.includes('FORBIDDEN')
-        ) {
+        if (bizCode === '403' || bizCode.includes('PERMISSION') || bizCode.includes('FORBIDDEN')) {
           throw new Error(`${resolvedPath} admin 账号被权限拒绝——${msg}`);
         }
         // 其余（实体缺失 NOT_FOUND/状态机 BUSINESS_ERROR/校验 VALIDATION 等）＝前置数据缺失

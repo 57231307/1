@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw } from './helpers';
-import { safeGoto } from './ui-helpers';
+import { loginViaUI, apiCall, apiCallRaw, tryCleanup } from './helpers';
+import { safeGoto, findTableRow } from './ui-helpers';
 
 /**
  * P0 停用系统覆盖（2026-09-11 用户指令："删除/停用测试需要系统覆盖"）
@@ -17,7 +17,7 @@ import { safeGoto } from './ui-helpers';
  * 6. API 删除清理（闭环，不留测试残留）
  */
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
+const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
 const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
@@ -36,26 +36,9 @@ async function openEditDialog(
     await safeGoto(page, route);
     await page.waitForTimeout(1500);
   }
-  // 只统计当前可见行：/system 页隐藏 Tab 的表格行仍渲染在 DOM（68 行假象），必须用 :visible 排除
-  const rows = page.locator('.el-table__row:visible');
-  const count = await rows.count();
-  console.log(`[31c] ${route} 列表 ${count} 行，查找 ${rowText}`);
-  let target: import('@playwright/test').Locator | null = null;
-  for (let i = 0; i < count; i++) {
-    const txt = await rows
-      .nth(i)
-      .textContent()
-      .catch(e => {
-        console.warn(`[31c] 行文本读取失败: ${(e as Error).message}`);
-        return '';
-      });
-    if (txt?.includes(rowText)) {
-      target = rows.nth(i);
-      break;
-    }
-  }
+  const target = await findTableRow(page, rowText);
   if (!target) {
-    editFailReason = `未找到目标行 ${rowText}（列表${count}行）`;
+    editFailReason = `未找到目标行 ${rowText}`;
     console.error(`[31c] ${editFailReason}`);
     return false;
   }
@@ -259,12 +242,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       expect(toggled, '[31c-客户] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);
     }
     // 清理
-    try {
-      await apiCall(page, 'DELETE', `/customers/${id}`);
-      console.log(`[31c-客户] 清理删除 id=${id} ✅`);
-    } catch (e) {
-      console.warn(`[31c-客户] 清理删除失败（记录）: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/customers/${id}`, '[31c-客户]');
   });
 
   test('用户：UI 编辑弹窗停用→API 回读 is_active=false→删除清理', async ({ page }) => {
@@ -376,12 +354,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       console.warn('[31c-用户] UI 停用未完成（控件结构差异），已记录诊断日志');
       expect(toggled, `[31c-用户] UI 编辑弹窗停用操作应可完成，诊断链: ${diag}`).toBe(true);
     }
-    try {
-      await apiCall(page, 'DELETE', `/users/${id}`);
-      console.log(`[31c-用户] 清理删除 id=${id} ✅`);
-    } catch (e) {
-      console.warn(`[31c-用户] 清理删除失败（记录）: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/users/${id}`, '[31c-用户]');
   });
 
   test('产品：UI 编辑弹窗停用→API 回读 status≠active→删除清理', async ({ page }) => {
@@ -450,12 +423,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       console.warn('[31c-产品] UI 停用未完成（控件结构差异），已记录诊断日志');
       expect(toggled, '[31c-产品] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);
     }
-    try {
-      await apiCall(page, 'DELETE', `/products/${id}`);
-      console.log(`[31c-产品] 清理删除 id=${id} ✅`);
-    } catch (e) {
-      console.warn(`[31c-产品] 清理删除失败（记录）: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/products/${id}`, '[31c-产品]');
   });
 
   test('部门：UI 编辑弹窗停用→API 回读 status=0→删除清理', async ({ page }) => {
@@ -504,11 +472,6 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       console.warn('[31c-部门] UI 停用未完成（控件结构差异），已记录诊断日志');
       expect(toggled, '[31c-部门] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);
     }
-    try {
-      await apiCall(page, 'DELETE', `/departments/${id}`);
-      console.log(`[31c-部门] 清理删除 id=${id} ✅`);
-    } catch (e) {
-      console.warn(`[31c-部门] 清理删除失败（记录）: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/departments/${id}`, '[31c-部门]');
   });
 });

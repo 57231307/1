@@ -12,7 +12,7 @@
 
 import { TRAVERSAL_MODULES } from './modules.config';
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
+const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
 const API_PREFIX = '/api/v1/erp';
 
 export interface RoutePermission {
@@ -68,12 +68,12 @@ export const ROUTE_PERMISSIONS: Record<string, string | null> = {
 export function hasPermission(userPermissions: string[], required: string | null): boolean {
   if (required === null) return true;
   return userPermissions.some(
-    (p) =>
+    p =>
       p === '*' ||
       p === '*:*' ||
       p === required ||
       // `users:*` 覆盖 `users:read`
-      (p.endsWith(':*') && required.startsWith(p.slice(0, -1))),
+      (p.endsWith(':*') && required.startsWith(p.slice(0, -1)))
   );
 }
 
@@ -83,24 +83,26 @@ export function hasPermission(userPermissions: string[], required: string | null
  */
 export async function fetchRolePermissions(
   roleId: number,
-  authHeaders: Record<string, string>,
+  authHeaders: Record<string, string>
 ): Promise<string[]> {
   const resp = await fetch(`${API_BASE}${API_PREFIX}/roles/${roleId}`, {
     headers: authHeaders,
-  }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+  }).catch(e => {
+    console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+    return null;
+  });
   if (!resp || !resp.ok) return [];
-  const body = (await resp.json().catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; })) as
-    | { data?: { permissions?: string[] } }
-    | null;
+  const body = (await resp.json().catch(e => {
+    console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+    return null;
+  })) as { data?: { permissions?: string[] } } | null;
   return body?.data?.permissions ?? [];
 }
 
 /**
  * 推导角色可达路由集合
  */
-export function deriveReachableRoutes(
-  userPermissions: string[],
-): Map<string, boolean> {
+export function deriveReachableRoutes(userPermissions: string[]): Map<string, boolean> {
   const result = new Map<string, boolean>();
   for (const mod of TRAVERSAL_MODULES) {
     const required = ROUTE_PERMISSIONS[mod.id] ?? null;
@@ -114,22 +116,16 @@ export function deriveReachableRoutes(
  * 基线文件不存在时返回 null（首轮生成基线）
  */
 export async function compareWithBaseline(
-  accessMap: RoleAccessMap,
+  accessMap: RoleAccessMap
 ): Promise<RoleAccessEntry[] | null> {
   const fs = await import('fs');
   const baselinePath = 'e2e/traversal/access-map-baseline.json';
   if (!fs.existsSync(baselinePath)) return null;
 
-  const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf-8')) as Record<
-    string,
-    string[]
-  >;
+  const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf-8')) as Record<string, string[]>;
   const baselineRoutes = new Set(baseline[accessMap.role] ?? []);
 
-  return accessMap.entries.filter(
-    (e) =>
-      baselineRoutes.has(e.route) !== (e.actual === 'reachable'),
-  );
+  return accessMap.entries.filter(e => baselineRoutes.has(e.route) !== (e.actual === 'reachable'));
 }
 
 /**
@@ -140,9 +136,7 @@ export async function writeBaseline(accessMaps: RoleAccessMap[]): Promise<void> 
   const baselinePath = 'e2e/traversal/access-map-baseline.json';
   const baseline: Record<string, string[]> = {};
   for (const map of accessMaps) {
-    baseline[map.role] = map.entries
-      .filter((e) => e.actual === 'reachable')
-      .map((e) => e.route);
+    baseline[map.role] = map.entries.filter(e => e.actual === 'reachable').map(e => e.route);
   }
   fs.writeFileSync(baselinePath, JSON.stringify(baseline, null, 2));
 }

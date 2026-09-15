@@ -47,6 +47,10 @@ test.describe
   .serial('Shard 7: 匹号领域真实链路（报工逐匹→染色外发回仓→净布例外→仓库约束→四维追溯）', () => {
   const dyeLotNo = genDyeLotNo();
   const colorNo = `CN-${genCode('C')}`;
+
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+  });
   let greigeWarehouseId = 0;
   let finishedWarehouseId = 0;
   let productionOrderId = 0;
@@ -58,7 +62,6 @@ test.describe
   const machineNo = 'M-E2E-001';
 
   test('7-1 前置：创建胚布仓 + 成品仓（仓库类型约束基础）', async ({ page }) => {
-    await loginViaUI(page);
     await ensureTestEntities(page);
     const ctx = getCtx();
     // 复用已有仓库，缺失则补建；优先用 API 查询
@@ -94,7 +97,6 @@ test.describe
   });
 
   test('7-2 创建生产订单（生产匹的承载单号）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     productionOrderNo = genCode('PO');
     console.log('[7-2] 创建生产订单', productionOrderNo, 'product_id=', ctx.productIds[0]);
@@ -115,7 +117,6 @@ test.describe
   });
 
   test('7-3 创建流转卡并推进至备布完成', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const card = await apiCall<{ id: number; card_no: string }>(
       page,
@@ -142,7 +143,6 @@ test.describe
   });
 
   test('7-4 生产报工逐匹登记（2 匹生产匹，胚布仓）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     // 启动工序
     const step = await apiCall<{ id: number }>(page, 'POST', '/production/flow-cards/steps/start', {
@@ -198,7 +198,6 @@ test.describe
   });
 
   test('7-5 仓库类型约束：生产匹入成品仓被拒', async ({ page }) => {
-    await loginViaUI(page);
     const pieceNo = `GR-${genCode('P')}-FAIL`;
     // 用 apiCall（带 CSRF 恢复）+ try/catch 捕获业务错误
     // apiCallExpectFail 不走 CSRF 恢复，会因 token 过期返回 403 误判
@@ -233,7 +232,6 @@ test.describe
   });
 
   test('7-6 染色外发：订单 + 发料 + 回仓确认（染色匹生成）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const orderNo = genCode('OS');
     const issueDate = new Date().toISOString().slice(0, 10);
@@ -315,7 +313,6 @@ test.describe
   });
 
   test('7-7 净布外发：无缸号回仓（胚布匹例外，允许入成品仓）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const orderNo = genCode('OS-NET');
     const issueDate = new Date().toISOString().slice(0, 10);
@@ -381,7 +378,6 @@ test.describe
   });
 
   test('7-8 四维追溯：按产品 + 缸号查询染色匹', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const productId = ctx.productIds[0];
     // 按产品过滤

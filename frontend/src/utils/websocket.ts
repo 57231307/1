@@ -157,7 +157,7 @@ export class WebSocketClient extends EventTarget {
       };
     } catch (err) {
       this.isConnecting = false;
-      console.error('WebSocket 连接失败:', err);
+      console.warn('WebSocket 连接失败（将自动重连）:', err);
       this.scheduleReconnect();
     }
   }

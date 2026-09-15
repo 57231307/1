@@ -35,7 +35,7 @@ test.describe('采购退货完整流程', () => {
     // 后端 CreatePurchaseReturnRequest 真实字段
     const returnData = {
       order_id: poId,
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       return_date: new Date().toISOString().slice(0, 10),
       warehouse_id: warehouseId,
       reason_type: 'quality',
@@ -73,7 +73,7 @@ test.describe('采购退货完整流程', () => {
       `/purchase/returns/${returnId}`
     );
     expect((created.return_status ?? '').toLowerCase()).toBe('draft');
-    expect(created.supplier_id).toBe(ctx.supplierId || 1);
+    expect(created.supplier_id).toBe(ctx.supplierId);
 
     // 提交退货单
     await apiCall(page, 'POST', `/purchase/returns/${returnId}/submit`);
@@ -114,7 +114,10 @@ test.describe('采购退货完整流程', () => {
       )
       .first()
       .isVisible()
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .catch(e => {
+        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
+        return false;
+      });
     expect(tableVisible).toBe(true);
   });
 
@@ -135,7 +138,7 @@ test.describe('采购退货完整流程', () => {
     // 后端 CreateSalesReturnRequest 真实字段
     const returnData = {
       order_id: soId,
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       return_date: new Date().toISOString().slice(0, 10),
       warehouse_id: warehouseId,
       reason_type: 'customer_cancel',

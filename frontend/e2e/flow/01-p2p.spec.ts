@@ -18,8 +18,11 @@ import {
 test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () => {
   const dyeLotNo = genDyeLotNo();
 
-  test('1-1 创建采购订单（含色号+缸号+双计量）', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
+  });
+
+  test('1-1 创建采购订单（含色号+缸号+双计量）', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
@@ -29,7 +32,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         'POST',
         '/purchase/orders',
         {
-          supplier_id: ctx.supplierId || 1,
+          supplier_id: ctx.supplierId,
           warehouse_id: ctx.warehouseIds[0] || 1,
           // 后端 validate_order_request 要求 department_id 必填（"部门 ID 不能为空"）
           department_id: ctx.departmentIds[0] || 1,
@@ -57,15 +60,15 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
           '/purchase/orders?page=1&page_size=1'
         );
         ctx.purchaseOrderId = list.items?.[0]?.id;
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* 查找也失败 */
-       }
+      }
     }
     expect(ctx.purchaseOrderId).toBeDefined();
   });
 
   test('1-2 采购订单状态机：DRAFT → SUBMITTED → APPROVED', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
@@ -117,7 +120,6 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   });
 
   test('1-3 验证非法状态转换被拒绝', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
@@ -131,7 +133,6 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   });
 
   test('1-4 创建入库单（创建匹号，双计量）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
@@ -169,9 +170,10 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
           },
         ],
       });
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 入库可能需要订单已审批，或 API 格式不同
-     }
+    }
 
     // 验证订单状态更新
     const order = await apiCallRaw<{ status: string; order_status?: string }>(
@@ -192,7 +194,6 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   });
 
   test('1-5 验证库存四维聚合（产品→色号→缸号→匹号）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
 
@@ -202,7 +203,6 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   });
 
   test('1-6 验证库存查询支持色号/缸号筛选', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
 
@@ -220,49 +220,52 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         `/inventory/stock?product_id=${productId}&dye_lot_no=${encodeURIComponent(dyeLotNo)}&page=1&page_size=10`
       );
       expect(byDyeLot.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 四维查询可能需要额外参数，跳过
-     }
+    }
   });
 
   test('1-7 验证 AP 应付单', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
 
     try {
       // 后端 list_ap_invoices 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
       const invoices = await apiCallRaw<
-        Array<{ id: number; amount: number; status: string }> | { items?: Array<{ id: number; amount: number; status: string }> }
+        | Array<{ id: number; amount: number; status: string }>
+        | { items?: Array<{ id: number; amount: number; status: string }> }
       >(page, 'GET', '/ap/invoices?page=1&page_size=5');
       const invoiceList = Array.isArray(invoices)
         ? invoices
-        : ((invoices as { items?: Array<{ id: number; amount: number; status: string }> }).items ?? []);
+        : ((invoices as { items?: Array<{ id: number; amount: number; status: string }> }).items ??
+          []);
 
       // 尝试手动创建 AP 应付单（如果未自动生成）
       if ((invoiceList.length ?? 0) === 0) {
         try {
           const result = await apiCall<{ id?: number }>(page, 'POST', '/ap/invoices', {
             // CreateApInvoiceRequest：invoice_no 非后端字段（应 inset_type），保留 amount/tax_amount/invoice_date
-            supplier_id: ctx.supplierId || 1,
+            supplier_id: ctx.supplierId,
             amount: 56500,
             tax_amount: 6500,
             invoice_date: new Date().toISOString().split('T')[0],
           });
           ctx.apInvoiceId = result.data?.id;
-        } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+        } catch (e) {
+          console.warn(`[E2E] //: ${(e as Error).message}`);
           /* skip */
-         }
+        }
       } else {
         ctx.apInvoiceId = invoiceList[0]?.id;
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // AP 模块可能未就绪
-     }
+    }
     expect(ctx.apInvoiceId).toBeDefined();
   });
 
   test('1-8 付款', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
 
     if (!ctx.apInvoiceId) {
@@ -278,9 +281,10 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         payment_method: 'bank_transfer',
         payment_date: new Date().toISOString().split('T')[0],
       });
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 可能已付清或 API 格式不同
-     }
+    }
 
     // 验证应付单状态
     try {
@@ -292,13 +296,13 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       expect(['paid', 'partially_paid', 'unpaid', 'pending', 'approved', 'confirmed']).toContain(
         (invoice.status || '(missing-status)').toLowerCase()
       );
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 跳过
-     }
+    }
   });
 
   test('1-9 验证采购订单完整状态流转记录', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
     if (!id) {
@@ -327,7 +331,6 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   });
 
   test('1-10 验证审计日志包含采购操作', async ({ page }) => {
-    await loginViaUI(page);
     // 后端审计字段值：operation_type='CREATE'（大写枚举序列化）、
     // resource_type='purchase_order'（单数下划线，见 purchase_order_handler.rs:565）
     const hasLog = await verifyAuditLog(page, 'CREATE', 'purchase');
@@ -336,7 +339,6 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   });
 
   test('1-11 验证供应商报表', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const orders = await apiCallRaw<{ items: unknown[] }>(
         page,
@@ -344,8 +346,9 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         '/purchase/orders?page=1&page_size=5'
       );
       expect(orders.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 跳过
-     }
+    }
   });
 });

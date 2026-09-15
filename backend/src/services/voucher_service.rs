@@ -52,6 +52,8 @@ pub struct CreateVoucherRequest {
 #[derive(Debug, Clone)]
 pub struct VoucherItemRequest {
     pub line_no: Option<i32>,
+    /// 科目 ID（契约对齐：前端 VoucherEntry.subject_id / account_subject_id）
+    pub subject_id: Option<i32>,
     pub subject_code: Option<String>,
     pub subject_name: Option<String>,
     pub debit: Decimal,

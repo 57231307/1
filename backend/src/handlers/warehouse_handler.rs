@@ -46,6 +46,11 @@ pub struct CreateWarehouseRequest {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
+    /// 联系人（契约对齐：前端创建表单 contact_person）
+    #[validate(length(max = 100, message = "联系人最长100字符"))]
+    pub contact_person: Option<String>,
+    /// 默认仓库标志（契约对齐：前端创建表单 is_default 开关）
+    pub is_default: Option<bool>,
     /// 仓库容量（批次 158 v11 真实接入：扩展 schema 持久化，原 #[allow(dead_code)] 移除）
     pub capacity: Option<i32>,
     // 批次 93 P1 扩展：description 已接入 WarehouseService::create（写入 notes 列）
@@ -65,6 +70,11 @@ pub struct UpdateWarehouseRequest {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
+    /// 联系人（契约对齐：前端编辑表单 contact_person）
+    #[validate(length(max = 100, message = "联系人最长100字符"))]
+    pub contact_person: Option<String>,
+    /// 默认仓库标志（契约对齐：前端编辑表单 is_default 开关）
+    pub is_default: Option<bool>,
     /// 仓库容量（批次 158 v11 真实接入：扩展 schema 持久化，原 #[allow(dead_code)] 移除）
     pub capacity: Option<i32>,
     pub status: Option<String>,

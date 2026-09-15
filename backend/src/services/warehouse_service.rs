@@ -1,4 +1,5 @@
 use chrono::Utc;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set,
@@ -102,6 +103,9 @@ impl WarehouseService {
             country: Set(None),
             postal_code: Set(None),
             phone: Set(req.phone),
+            // 契约对齐：前端创建表单 contact_person / is_default
+            contact_person: Set(req.contact_person),
+            is_default: Set(req.is_default.unwrap_or(false)),
             email: Set(None),
             manager_id: Set(manager_id),
             is_active: Set(true),
@@ -116,7 +120,29 @@ impl WarehouseService {
         };
 
         let result = active_model.insert(&*self.db).await?;
+
+        // 默认仓库全局唯一：新仓库为默认时，清除其他仓库的默认标志
+        if result.is_default {
+            Self::clear_other_default(&self.db, result.id).await?;
+        }
+
         Ok(result)
+    }
+
+    /// 保证默认仓库全局唯一：将除 `keep_id` 外的仓库 is_default 置为 false
+    async fn clear_other_default(db: &sea_orm::DatabaseConnection, keep_id: i32) -> Result<(), AppError> {
+        use sea_orm::TransactionTrait;
+        let txn = db.begin().await?;
+        warehouse::Entity::update_many()
+            .col_expr(warehouse::Column::IsDefault, Expr::value(false))
+            .filter(warehouse::Column::Id.ne(keep_id))
+            .filter(warehouse::Column::IsDefault.eq(true))
+            .exec(&txn)
+            .await?;
+        txn.commit()
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?;
+        Ok(())
     }
 
     /// 更新仓库（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证审计日志能追溯实际更新人。）
@@ -154,6 +180,13 @@ impl WarehouseService {
         if let Some(p) = req.phone {
             wh.phone = Set(Some(p));
         }
+        // 契约对齐：前端编辑表单 contact_person / is_default
+        if let Some(cp) = req.contact_person {
+            wh.contact_person = Set(Some(cp));
+        }
+        if let Some(def) = req.is_default {
+            wh.is_default = Set(def);
+        }
         if let Some(s) = req.status {
             wh.is_active = Set(s == master_data::ACTIVE);
         }
@@ -171,6 +204,12 @@ impl WarehouseService {
             Some(user_id),
         )
         .await?;
+
+        // 默认仓库全局唯一：更新为默认时，清除其他仓库的默认标志
+        if result.is_default {
+            Self::clear_other_default(&self.db, result.id).await?;
+        }
+
         Ok(result)
     }
 

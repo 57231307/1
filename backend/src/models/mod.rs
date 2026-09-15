@@ -270,6 +270,8 @@ pub mod notification_template;
 pub mod user_notification_setting;
 // 批次 127 v8 复审 P2 修复：导入任务记录表（替代 list_import_tasks 空列表占位）
 pub mod import_task;
+pub mod system_update_task;
+pub mod system_update_backup;
 // 数据权限模块
 pub mod data_permission;
 // 字段权限模块

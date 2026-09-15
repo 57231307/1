@@ -436,12 +436,12 @@ pub fn notifications() -> Router<AppState> {
             post(notification_handler::create_announcement),
         )
         .route(
-            "/notification/{id}",
+            "/{id}",
             get(notification_handler::get_notification)
                 .delete(notification_handler::delete_notification),
         )
         .route(
-            "/notification/{id}/read",
+            "/{id}/read",
             post(notification_handler::mark_as_read),
         )
         .route("/unread-count", get(notification_handler::get_unread_count))

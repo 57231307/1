@@ -1,15 +1,11 @@
 /* eslint-disable no-console */
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 // ESM 环境无 require（Playwright 原生 ESM 加载链），fs/crypto 必须静态导入；
 // 此前 require('fs')/require('crypto') 抛 "require is not defined" 导致
 // getRoleCredential 恒返 null（全角色 credentials not found）与 generateTotp 崩溃
 import { existsSync, readFileSync } from 'fs';
 import * as nodeCrypto from 'crypto';
 import {
-  createWarehouseUI,
-  createDepartmentUI,
-  createSupplierUI,
-  createProductUI,
   createColorCardUI,
   createDyeBatchUI,
   createDyeRecipeUI,
@@ -19,7 +15,7 @@ import {
   readEntityIds,
 } from './ui-helpers';
 
-export const API_BASE = process.env.API_BASE || 'http://localhost:8082';
+export const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
 export const API_PREFIX = '/api/v1/erp';
 export const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 // 分片专属账号：优先级 E2E_SHARD_INDEX（派生 e2e_admin_s{n}）> TEST_USERNAME > 默认。
@@ -132,18 +128,19 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.warehouseIds = [];
   }
   if (ctx.warehouseIds.length < 2) {
+    // API 创建（CreateWarehouseRequest：name/code 经 serde alias 兼容 warehouse_*）
+    // 创建失败直接抛错：前置实体缺失时后续测试的断言无意义，禁止兜底掩盖
     for (let i = ctx.warehouseIds.length; i < 2; i++) {
-      const id = await uiCreateWithRetry(page, createWarehouseUI);
-      if (id) {
-        ctx.warehouseIds.push(id);
-      } else {
-        console.error(
-          '[ensureTestEntities] 仓库 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
-        );
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
+        name: `E2E仓库${Date.now().toString().slice(-6)}${i}`,
+        code: `E2E-W${Date.now().toString().slice(-6)}${i}`,
+      });
+      if (!result.data?.id) {
+        throw new Error(`[ensureTestEntities] 仓库创建失败: ${JSON.stringify(result)}`);
       }
+      ctx.warehouseIds.push(result.data.id);
     }
   }
-  if (ctx.warehouseIds.length < 2) ctx.warehouseIds = [1, 2];
 
   // ---- 2. 产品（UI 创建）----
   // 前置：确保"面料"产品分类存在（表单 category_id 必填，系统初始化不创建分类种子数据）
@@ -165,8 +162,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       console.log('[ensureTestEntities] 创建产品分类"面料":', created.code);
     }
   } catch (e) {
-    // 分类创建失败仅告警（可能已存在），产品创建失败时诊断信息会暴露详情
-    console.warn('[ensureTestEntities] 产品分类检查/创建失败:', (e as Error).message);
+    throw new Error(`[ensureTestEntities] 产品分类检查/创建失败: ${(e as Error).message}`);
   }
   try {
     ctx.productIds = await readEntityIds(page, '/product', `${API_PREFIX}/products`);
@@ -176,14 +172,18 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   }
   if (ctx.productIds.length === 0) {
     // 先 UI 尝试一次（下拉交互脆弱：分类 select 点击后偶发不更新 v-model）
-    const uiId = await uiCreateWithRetry(page, createProductUI);
-    if (uiId) {
-      ctx.productIds.push(uiId);
-    } else {
-      console.warn(
-        '[ensureTestEntities] 产品 UI 创建失败，改用 API 兜底创建（保证后续流程不被阻塞）'
-      );
+    // API 创建（CreateProductRequest：code/name/category_id/unit）；失败即抛错
+    const catId = ctx.productCategoryIds?.[0];
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+      code: `E2E-P${Date.now().toString().slice(-6)}`,
+      name: `E2E产品${Date.now().toString().slice(-6)}`,
+      unit: '米',
+      ...(catId ? { category_id: catId } : {}),
+    });
+    if (!result.data?.id) {
+      throw new Error(`[ensureTestEntities] 产品创建失败: ${JSON.stringify(result)}`);
     }
+    ctx.productIds.push(result.data.id);
     // API 兜底补齐到 3 个
     while (ctx.productIds.length < 3) {
       try {
@@ -206,7 +206,6 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       }
     }
   }
-  if (ctx.productIds.length === 0) ctx.productIds = [1];
 
   // ---- 3. 产品色号（仍用 API，因为色号在详情页创建且依赖 product_id）----
   try {
@@ -219,11 +218,28 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.productColorIds = colors?.map(c => c.id) || [];
     ctx.colorNos = colors?.map(c => c.color_no) || ['TEST-COLOR'];
   } catch (e) {
-    console.warn('[ensureTestEntities] 色号查询失败（产品可能无色号）:', (e as Error).message);
-    ctx.colorNos = ['TEST-COLOR'];
-    ctx.productColorIds = [1];
+    throw new Error(`[ensureTestEntities] 色号查询失败: ${(e as Error).message}`);
   }
-  if (ctx.colorNos.length === 0) ctx.colorNos = ['TEST-COLOR'];
+  if (ctx.colorNos.length === 0) {
+    // 新建产品天然无色号——真实创建一个（CreateProductColorRequest），非占位兜底
+    const created = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      `/products/${ctx.productIds[0]}/colors`,
+      {
+        color_no: `E2E-C${Date.now().toString().slice(-6)}`,
+        color_name: 'E2E色号',
+        // CreateProductColorRequest 必填：color_type/extra_cost
+        color_type: '纯色',
+        extra_cost: 0,
+      }
+    );
+    if (!created.data?.id) {
+      throw new Error(`[ensureTestEntities] 色号创建失败: ${JSON.stringify(created)}`);
+    }
+    ctx.productColorIds = [created.data.id];
+    ctx.colorNos = [`E2E-C${Date.now().toString().slice(-6)}`];
+  }
 
   // ---- 4. 供应商（UI 创建）----
   try {
@@ -233,24 +249,16 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.supplierId = undefined;
   }
   if (!ctx.supplierId) {
-    const id = await uiCreateWithRetry(page, createSupplierUI);
-    ctx.supplierId = id;
-    if (!id) {
-      console.warn('[ensureTestEntities] 供应商 UI 创建失败，改用 API 兜底创建');
-      try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
-          supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
-          supplier_short_name: 'E2E供',
-          contact_phone: '13800000001',
-        });
-        ctx.supplierId = result.data?.id;
-        if (!ctx.supplierId) {
-          console.error('[ensureTestEntities] 供应商 API 兜底未返回 id:', JSON.stringify(result));
-        }
-      } catch (e) {
-        console.error('[ensureTestEntities] 供应商 API 兜底创建失败:', (e as Error).message);
-      }
+    // API 创建（CreateSupplierRequest：supplier_short_name min=2、contact_phone）；失败即抛错
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
+      supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
+      supplier_short_name: 'E2E供',
+      contact_phone: '13800000001',
+    });
+    if (!result.data?.id) {
+      throw new Error(`[ensureTestEntities] 供应商创建失败: ${JSON.stringify(result)}`);
     }
+    ctx.supplierId = result.data.id;
   }
 
   // ---- 5. 客户（仍用 API，表单字段较多且下拉依赖复杂）----
@@ -262,8 +270,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     );
     ctx.customerId = customers.items?.[0]?.id;
   } catch (e) {
-    console.error('[ensureTestEntities] customerId 创建失败:', (e as Error).message);
-    ctx.customerId = undefined;
+    throw new Error(`[ensureTestEntities] 客户创建失败: ${(e as Error).message}`);
   }
   if (!ctx.customerId) {
     try {
@@ -300,13 +307,18 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     }
   }
   if (ctx.departmentIds.length === 0) {
-    const id = await uiCreateWithRetry(page, createDepartmentUI);
-    if (id) {
-      ctx.departmentIds.push(id);
-    } else {
-      console.error(
-        '[ensureTestEntities] 部门 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
-      );
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
+        name: `E2E部门${Date.now().toString().slice(-6)}`,
+        code: `E2E-D${Date.now().toString().slice(-6)}`,
+      });
+      if (result.data?.id) {
+        ctx.departmentIds.push(result.data.id);
+      } else {
+        console.error('[ensureTestEntities] 部门 API 创建未返回 id:', JSON.stringify(result));
+      }
+    } catch (e) {
+      throw new Error(`[ensureTestEntities] 部门创建失败: ${(e as Error).message}`);
     }
   }
 
@@ -1890,5 +1902,106 @@ export function getRoleCredential(role: string): RoleCredential | null {
   } catch (e) {
     console.error(`[getRoleCredential] 凭证文件读取异常: ${(e as Error).message}`);
     return null;
+  }
+}
+
+// ===========================================================================
+// 公共步骤原语（消除 spec 重复代码）
+// ===========================================================================
+
+/**
+ * 尽力执行清理操作（DELETE/PUT），失败仅告警不 rethrow
+ *
+ * 替代各 spec 中重复的:
+ *   try { await apiCall(page, 'DELETE', `/xxx/${id}`); } catch (e) { console.warn(...) }
+ */
+export async function tryCleanup(
+  page: Page,
+  method: 'DELETE' | 'PUT' | 'POST',
+  path: string,
+  label?: string
+): Promise<void> {
+  try {
+    await apiCall(page, method, path);
+  } catch (e) {
+    console.warn(`[cleanup] ${label ?? path} 失败: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * 断言 API 响应被拒绝（权限 403）
+ *
+ * 替代各 spec 中重复的: expect(result.status).toBe(403)
+ */
+export function expectDenied(result: { status: number }, context = ''): void {
+  expect(result.status, context || '应返回 403 权限拒绝').toBe(403);
+}
+
+/**
+ * 断言 API 响应为业务错误（status >= 400）
+ *
+ * 替代各 spec 中重复的: expect(result.status >= 400).toBe(true)
+ */
+export function expectBadRequest(result: { status: number }, context = ''): void {
+  expect(result.status, context || '应返回 400+ 业务错误').toBeGreaterThanOrEqual(400);
+}
+
+/**
+ * 创建业务实体 → 执行回调 → finally DELETE 清理（编排级封装）
+ *
+ * 替代各 spec 中重复的"POST 创建 → 存 id → 测试 → finally DELETE"模式。
+ * 创建失败时自动尝试查找已有实体（兜底）。
+ *
+ * @param page        Playwright Page
+ * @param createPath  POST 创建路径
+ * @param createBody  请求体
+ * @param run         回调（参数为创建的 id）
+ * @param deletePath  清理路径模板（默认 `${createPath}/${id}`）
+ * @param findPath    兜底查找路径（GET，取第一条 id）
+ */
+export async function withEntity(
+  page: Page,
+  createPath: string,
+  createBody: Record<string, unknown>,
+  run: (id: number) => Promise<void>,
+  options?: {
+    deletePath?: (id: number) => string;
+    findPath?: string;
+    label?: string;
+  }
+): Promise<void> {
+  const label = options?.label ?? createPath;
+  let id: number | undefined;
+
+  try {
+    const result = await apiCall<{ id?: number }>(page, 'POST', createPath, createBody);
+    id = result?.data?.id;
+  } catch (e) {
+    console.warn(`[withEntity] ${label} 创建失败: ${(e as Error).message}`);
+    if (options?.findPath) {
+      try {
+        const list = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+          page,
+          'GET',
+          options.findPath
+        );
+        id = list?.items?.[0]?.id;
+        console.log(`[withEntity] ${label} 兜底查找到 id=${id}`);
+      } catch (e2) {
+        console.warn(`[withEntity] ${label} 兜底查找也失败: ${(e2 as Error).message}`);
+      }
+    }
+  }
+
+  if (!id) {
+    console.warn(`[withEntity] ${label} 无可用 id，跳过回调`);
+    return;
+  }
+
+  try {
+    await run(id);
+  } finally {
+    const delPath = options?.deletePath ? options.deletePath(id) : `${createPath}/${id}`;
+    await tryCleanup(page, 'DELETE', delPath, label);
   }
 }

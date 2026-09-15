@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall } from './helpers';
+import { loginViaUI, apiCall, tryCleanup } from './helpers';
 
 /**
  * P0 自动通知全链路覆盖（2026-09-11 用户指令："自动产生的通知需要详细覆盖所有功能，每条链路都要触发验证通知"）
@@ -18,9 +18,14 @@ import { loginViaUI, apiCall } from './helpers';
 const TS = Date.now().toString().slice(-8);
 
 /** 查询当前用户通知列表，返回未读通知 */
-async function getUnreadNotifications(page: import('@playwright/test').Page, userId?: number): Promise<{ id: number; title: string; content: string; businessType?: string }[]> {
+async function getUnreadNotifications(
+  page: import('@playwright/test').Page,
+  userId?: number
+): Promise<{ id: number; title: string; content: string; businessType?: string }[]> {
   try {
-    const res = await page.request.get(`http://localhost:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50`);
+    const res = await page.request.get(
+      `http://127.0.0.1:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50`
+    );
     if (!res.ok()) {
       console.warn(`[31d] 通知列表查询 HTTP ${res.status()}`);
       return [];
@@ -35,9 +40,12 @@ async function getUnreadNotifications(page: import('@playwright/test').Page, use
 }
 
 /** 删除通知（清理） */
-async function deleteNotification(page: import('@playwright/test').Page, id: number): Promise<void> {
+async function deleteNotification(
+  page: import('@playwright/test').Page,
+  id: number
+): Promise<void> {
   try {
-    await page.request.delete(`http://localhost:8082/api/v1/erp/notifications/notification/${id}`);
+    await page.request.delete(`http://127.0.0.1:8082/api/v1/erp/notifications/notification/${id}`);
     console.log(`[31d] 清理通知 id=${id} ✅`);
   } catch (e) {
     console.warn(`[31d] 清理通知 id=${id} 失败: ${(e as Error).message}`);
@@ -47,8 +55,12 @@ async function deleteNotification(page: import('@playwright/test').Page, id: num
 /** 标记通知已读（清理，避免影响后续用例） */
 async function markRead(page: import('@playwright/test').Page, id: number): Promise<void> {
   try {
-    await page.request.post(`http://localhost:8082/api/v1/erp/notifications/notification/${id}/read`);
-  } catch { /* 静默 */ }
+    await page.request.post(
+      `http://127.0.0.1:8082/api/v1/erp/notifications/notification/${id}/read`
+    );
+  } catch {
+    /* 静默 */
+  }
 }
 
 test.describe.serial('P0 自动通知全链路：业务动作→通知产生验证', () => {
@@ -73,7 +85,10 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     } catch (e) {
       console.error(`[31d-A] 订单创建失败: ${(e as Error).message}`);
     }
-    if (!orderId) { test.skip(); return; }
+    if (!orderId) {
+      test.skip();
+      return;
+    }
     console.log(`[31d-A] 订单创建成功 id=${orderId}`);
 
     // submit 端点触发通知
@@ -87,8 +102,8 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     await page.waitForTimeout(3000);
     const after = await getUnreadNotifications(page);
     console.log(`[31d-A] 提交后未读通知 ${after.length} 条`);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const orderNotif = newOnes.find((n) => n.title?.includes('订单') || n.businessType === 'ORDER');
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    const orderNotif = newOnes.find(n => n.title?.includes('订单') || n.businessType === 'ORDER');
     console.log(`[31d-A] 新增通知 ${newOnes.length} 条，匹配订单通知: ${!!orderNotif}`);
 
     if (orderNotif) {
@@ -100,12 +115,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     }
 
     // 清理订单
-    try {
-      await apiCall(page, 'DELETE', `/sales/orders/${orderId}`);
-      console.log(`[31d-A] 清理订单 id=${orderId} ✅`);
-    } catch (e) {
-      console.warn(`[31d-A] 清理订单失败: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-A]');
   });
 
   test('B. 订单审批→创建人收到审批通知', async ({ page }) => {
@@ -122,7 +132,10 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     } catch (e) {
       console.error(`[31d-B] 订单创建失败: ${(e as Error).message}`);
     }
-    if (!orderId) { test.skip(); return; }
+    if (!orderId) {
+      test.skip();
+      return;
+    }
     console.log(`[31d-B] 订单创建成功 id=${orderId}`);
 
     try {
@@ -142,8 +155,10 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     await page.waitForTimeout(3000);
     const after = await getUnreadNotifications(page);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const approvalNotif = newOnes.find((n) => n.title?.includes('审批') || n.title?.includes('approve') || n.businessType === 'ORDER');
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    const approvalNotif = newOnes.find(
+      n => n.title?.includes('审批') || n.title?.includes('approve') || n.businessType === 'ORDER'
+    );
     console.log(`[31d-B] 新增通知 ${newOnes.length} 条，匹配审批通知: ${!!approvalNotif}`);
 
     if (approvalNotif) {
@@ -153,12 +168,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
       console.warn('[31d-B] 未找到订单审批通知（可能通知服务未配置或已读）');
     }
 
-    try {
-      await apiCall(page, 'DELETE', `/sales/orders/${orderId}`);
-      console.log(`[31d-B] 清理订单 id=${orderId} ✅`);
-    } catch (e) {
-      console.warn(`[31d-B] 清理订单失败: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-B]');
   });
 
   test('C. 订单发货→创建人收到发货通知', async ({ page }) => {
@@ -174,12 +184,23 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     } catch (e) {
       console.error(`[31d-C] 订单创建失败: ${(e as Error).message}`);
     }
-    if (!orderId) { test.skip(); return; }
+    if (!orderId) {
+      test.skip();
+      return;
+    }
     console.log(`[31d-C] 订单创建成功 id=${orderId}`);
 
     // 提交+审批后才能发货
-    try { await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`); } catch (e) { console.warn(`[31d-C] 提交失败: ${(e as Error).message}`); }
-    try { await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`); } catch (e) { console.warn(`[31d-C] 审批失败: ${(e as Error).message}`); }
+    try {
+      await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
+    } catch (e) {
+      console.warn(`[31d-C] 提交失败: ${(e as Error).message}`);
+    }
+    try {
+      await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
+    } catch (e) {
+      console.warn(`[31d-C] 审批失败: ${(e as Error).message}`);
+    }
 
     const before = await getUnreadNotifications(page);
 
@@ -196,8 +217,10 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     await page.waitForTimeout(3000);
     const after = await getUnreadNotifications(page);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const shipNotif = newOnes.find((n) => n.title?.includes('发货') || n.title?.includes('ship') || n.businessType === 'ORDER');
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    const shipNotif = newOnes.find(
+      n => n.title?.includes('发货') || n.title?.includes('ship') || n.businessType === 'ORDER'
+    );
     console.log(`[31d-C] 新增通知 ${newOnes.length} 条，匹配发货通知: ${!!shipNotif}`);
 
     if (shipNotif) {
@@ -207,12 +230,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
       console.warn('[31d-C] 未找到发货通知（可能通知服务未配置或库存不足拒绝发货）');
     }
 
-    try {
-      await apiCall(page, 'DELETE', `/sales/orders/${orderId}`);
-      console.log(`[31d-C] 清理订单 id=${orderId} ✅`);
-    } catch (e) {
-      console.warn(`[31d-C] 清理订单失败: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-C]');
   });
 
   test('D. 库存预警→admin/manager收到预警通知', async ({ page }) => {
@@ -222,7 +240,9 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     // GET /inventory/stock/low-stock 触发 check_low_stock → 发布事件 → 通知 admin/manager
     try {
-      const res = await page.request.get('http://localhost:8082/api/v1/erp/inventory/stock/low-stock');
+      const res = await page.request.get(
+        'http://127.0.0.1:8082/api/v1/erp/inventory/stock/low-stock'
+      );
       console.log(`[31d-D] low-stock 检查 HTTP ${res.status()}`);
     } catch (e) {
       console.warn(`[31d-D] low-stock 检查异常: ${(e as Error).message}`);
@@ -230,8 +250,14 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     await page.waitForTimeout(5000);
     const after = await getUnreadNotifications(page);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const stockNotif = newOnes.find((n) => n.title?.includes('库存') || n.title?.includes('stock') || n.title?.includes('预警') || n.businessType === 'INVENTORY');
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    const stockNotif = newOnes.find(
+      n =>
+        n.title?.includes('库存') ||
+        n.title?.includes('stock') ||
+        n.title?.includes('预警') ||
+        n.businessType === 'INVENTORY'
+    );
     console.log(`[31d-D] 新增通知 ${newOnes.length} 条，匹配库存预警通知: ${!!stockNotif}`);
 
     if (stockNotif) {
@@ -269,7 +295,10 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     } catch (e) {
       console.error(`[31d-F] 付款申请创建失败: ${(e as Error).message}`);
     }
-    if (!requestId) { test.skip(); return; }
+    if (!requestId) {
+      test.skip();
+      return;
+    }
     console.log(`[31d-F] 付款申请创建成功 id=${requestId}`);
 
     const before = await getUnreadNotifications(page);
@@ -283,8 +312,10 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     await page.waitForTimeout(3000);
     const after = await getUnreadNotifications(page);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const payNotif = newOnes.find((n) => n.title?.includes('付款') || n.title?.includes('payment') || n.businessType === 'FINANCE');
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    const payNotif = newOnes.find(
+      n => n.title?.includes('付款') || n.title?.includes('payment') || n.businessType === 'FINANCE'
+    );
     console.log(`[31d-F] 新增通知 ${newOnes.length} 条，匹配付款申请通知: ${!!payNotif}`);
 
     if (payNotif) {

@@ -53,13 +53,13 @@ export interface DataPermissionQueryParams extends QueryParams {
 }
 
 export const getDataPermissionList = (params?: DataPermissionQueryParams) =>
-  request.get<ApiResponse<DataPermission[]>>('/data-permissions/', { params });
+  request.get<ApiResponse<DataPermission[]>>('/data-permissions', { params });
 
 export const getDataPermission = (id: number) =>
   request.get<ApiResponse<DataPermission>>(`/data-permissions/${id}`);
 
 export const createDataPermission = (data: Partial<DataPermission>) =>
-  request.post<ApiResponse<DataPermission>>('/data-permissions/', data);
+  request.post<ApiResponse<DataPermission>>('/data-permissions', data);
 
 export const updateDataPermission = (id: number, data: Partial<DataPermission>) =>
   request.put<ApiResponse<DataPermission>>(`/data-permissions/${id}`, data);
@@ -68,7 +68,7 @@ export const deleteDataPermission = (id: number) =>
   request.delete<ApiResponse<void>>(`/data-permissions/${id}`);
 
 export const setDataPermission = (data: SetDataPermissionRequest) =>
-  request.post<ApiResponse<DataPermissionRole>>('/data-permissions/', data);
+  request.post<ApiResponse<DataPermissionRole>>('/data-permissions', data);
 
 export const getRoleDataPermissionList = (roleId: number) =>
   request.get<ApiResponse<DataPermissionRole[]>>(`/data-permissions/roles/${roleId}`);

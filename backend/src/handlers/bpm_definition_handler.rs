@@ -207,3 +207,45 @@ pub async fn create_from_template(
     let res = service.create_from_template(template_id, req).await?;
     Ok(Json(ApiResponse::success(model_to_frontend_json(res))))
 }
+
+/// 模板分类标记（与 bpm_process_definition_service 的 TEMPLATE_CATEGORY 常量保持一致）
+const BPM_TEMPLATE_CATEGORY: &str = "__TEMPLATE__";
+
+/// GET /bpm/templates/{template_id} - 获取 BPM 模板详情
+/// （对应前端 api/bpm-enhanced.ts getBpmTemplateById；仅返回 category=__TEMPLATE__ 的记录）
+pub async fn get_template(
+    State(state): State<AppState>,
+    Path(template_id): Path<i32>,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let res = service.get_process_definition(template_id).await?;
+    match res {
+        Some(model) if model.category.as_deref() == Some(BPM_TEMPLATE_CATEGORY) => {
+            Ok(Json(ApiResponse::success(model_to_frontend_json(model))))
+        }
+        _ => Err(AppError::not_found(format!(
+            "流程模板不存在: {}",
+            template_id
+        ))),
+    }
+}
+
+/// DELETE /bpm/templates/{template_id} - 删除 BPM 模板
+/// （对应前端 api/bpm-enhanced.ts deleteBpmTemplate；校验记录为模板后复用流程定义删除逻辑）
+pub async fn delete_template(
+    State(state): State<AppState>,
+    Path(template_id): Path<i32>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let res = service.get_process_definition(template_id).await?;
+    match res {
+        Some(model) if model.category.as_deref() == Some(BPM_TEMPLATE_CATEGORY) => {
+            service.delete_process_definition(template_id).await?;
+            Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
+        }
+        _ => Err(AppError::not_found(format!(
+            "流程模板不存在: {}",
+            template_id
+        ))),
+    }
+}

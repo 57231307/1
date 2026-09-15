@@ -5,6 +5,12 @@ test.describe('inventory-adjustment 页面冒烟测试', () => {
   test('页面加载', async ({ page }) => {
     await gotoWithRetry(page, '/inventory-adjustment');
     await expect(page.locator('body')).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('.el-table, .el-table-v2, .el-card, .el-form, .el-tabs, .dashboard-container, canvas, .echarts, .el-result, .error-page, .el-empty').first()).toBeAttached({ timeout: 30_000 });
+    await expect(
+      page
+        .locator(
+          '.el-table, .el-table-v2, .el-card, .el-form, .el-tabs, .dashboard-container, canvas, .echarts, .el-result, .error-page, .el-empty'
+        )
+        .first()
+    ).toBeAttached({ timeout: 30_000 });
   });
 });

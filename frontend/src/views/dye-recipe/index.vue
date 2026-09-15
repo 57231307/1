@@ -53,10 +53,10 @@
             clearable
             @change="handleQuery"
           >
-            <el-option :label="t('dyeRecipe.index.optionDraft')" value="DRAFT" />
-            <el-option :label="t('dyeRecipe.index.optionPending')" value="PENDING" />
-            <el-option :label="t('dyeRecipe.index.optionApproved')" value="APPROVED" />
-            <el-option :label="t('dyeRecipe.index.optionInactive')" value="INACTIVE" />
+            <el-option :label="t('dyeRecipe.index.optionDraft')" value="草稿" />
+            <el-option :label="t('dyeRecipe.index.optionPending')" value="待审核" />
+            <el-option :label="t('dyeRecipe.index.optionApproved')" value="已审核" />
+            <el-option :label="t('dyeRecipe.index.optionInactive')" value="已停用" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -144,7 +144,7 @@
               t('dyeRecipe.index.buttonView')
             }}</el-button>
             <el-button
-              v-if="row.status === 'DRAFT'"
+              v-if="row.status === '草稿' || row.status === 'DRAFT'"
               type="primary"
               link
               size="small"
@@ -152,7 +152,7 @@
               >{{ t('dyeRecipe.index.buttonEdit') }}</el-button
             >
             <el-button
-              v-if="row.status === 'DRAFT'"
+              v-if="row.status === '草稿' || row.status === 'DRAFT'"
               type="success"
               link
               size="small"
@@ -160,7 +160,7 @@
               >{{ t('dyeRecipe.index.buttonSubmit') }}</el-button
             >
             <el-button
-              v-if="row.status === 'PENDING'"
+              v-if="row.status === '待审核' || row.status === 'PENDING'"
               type="success"
               link
               size="small"
@@ -566,6 +566,10 @@ const handleCurrentChange = (val: number) => {
 // 获取状态类型
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
+    草稿: 'info',
+    待审核: 'warning',
+    已审核: 'success',
+    已停用: 'danger',
     DRAFT: 'info',
     PENDING: 'warning',
     APPROVED: 'success',
@@ -577,6 +581,10 @@ const getStatusType = (status: string) => {
 // 获取状态标签（响应式求值）
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
+    草稿: t('dyeRecipe.index.optionDraft'),
+    待审核: t('dyeRecipe.index.optionPending'),
+    已审核: t('dyeRecipe.index.optionApproved'),
+    已停用: t('dyeRecipe.index.optionInactive'),
     DRAFT: t('dyeRecipe.index.optionDraft'),
     PENDING: t('dyeRecipe.index.optionPending'),
     APPROVED: t('dyeRecipe.index.optionApproved'),

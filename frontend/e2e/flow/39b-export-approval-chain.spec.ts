@@ -13,7 +13,7 @@ import { loginViaUI } from './helpers';
  *       若 service 拒绝自审批则捕获断言其拒绝语义（本身也是权限正确性验证）。
  */
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
+const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
 const API_PREFIX = '/api/v1/erp';
 
 interface ApprovalModel {
@@ -30,20 +30,26 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
 
   test('客户导出审批链：创建→审批→令牌导出→二次消费拒', async ({ page }) => {
     // 1. 创建审批申请
-    const createResp = await page.request.post(`${API_BASE}${API_PREFIX}/export-approvals`, {
-      data: {
-        resource_type: 'customer',
-        export_params: { page: 1, page_size: 10 },
-        estimated_rows: 10,
-        file_format: 'xlsx',
-      },
-      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
-    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    const createResp = await page.request
+      .post(`${API_BASE}${API_PREFIX}/export-approvals`, {
+        data: {
+          resource_type: 'customer',
+          export_params: { page: 1, page_size: 10 },
+          estimated_rows: 10,
+          file_format: 'xlsx',
+        },
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
+      })
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
     if (!createResp) throw new Error('网络错误：创建审批申请');
 
-    const createBody = (await createResp.json().catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; })) as
-      | { data?: ApprovalModel | { id: number } }
-      | null;
+    const createBody = (await createResp.json().catch(e => {
+      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+      return null;
+    })) as { data?: ApprovalModel | { id: number } } | null;
     const approval = (createBody?.data as ApprovalModel) ?? null;
     if (!createResp.ok() || !approval?.id) {
       // 创建失败（权限/校验）：非 5xx 即可达性验证通过，记录状态
@@ -60,18 +66,21 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
     const approvalId = approval.id;
 
     // 2. 一级审批（admin 自审若被 service 拒绝，断言其拒绝语义）
-    const approveResp = await page.request.post(
-      `${API_BASE}${API_PREFIX}/export-approvals/${approvalId}/approve`,
-      {
+    const approveResp = await page.request
+      .post(`${API_BASE}${API_PREFIX}/export-approvals/${approvalId}/approve`, {
         data: { comments: 'E2E 审批链测试' },
         headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
-      },
-    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      })
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
     if (!approveResp) throw new Error('网络错误：审批');
 
-    const approveBody = (await approveResp.json().catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; })) as
-      | { data?: ApprovalModel }
-      | null;
+    const approveBody = (await approveResp.json().catch(e => {
+      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+      return null;
+    })) as { data?: ApprovalModel } | null;
 
     if (!approveResp.ok()) {
       // 自审批被拒：权限语义正确（applicant != approver），记录后跳过令牌链
@@ -92,7 +101,10 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
     if (token) {
       const exportResp = await page.request
         .get(`${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${token}`)
-        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+        .catch(e => {
+          console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+          return null;
+        });
       if (exportResp) {
         expect(exportResp.status(), '持有效令牌导出应 200').toBe(200);
       }
@@ -100,30 +112,36 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
       // 4. 令牌二次消费拒绝（download_count 上限/一次性）
       const secondResp = await page.request
         .get(`${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${token}`)
-        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+        .catch(e => {
+          console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+          return null;
+        });
       if (secondResp) {
-        expect(
-          secondResp.status(),
-          '令牌二次消费应被拒（403）',
-        ).toBe(403);
+        expect(secondResp.status(), '令牌二次消费应被拒（403）').toBe(403);
       }
     }
   });
 
   test('跨资源令牌拒绝：customer 令牌用于 product 导出', async ({ page }) => {
     // 创建 customer 审批并拿到令牌
-    const createResp = await page.request.post(`${API_BASE}${API_PREFIX}/export-approvals`, {
-      data: {
-        resource_type: 'customer',
-        export_params: {},
-        estimated_rows: 1,
-        file_format: 'xlsx',
-      },
-      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
-    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-    const createBody = (await createResp?.json().catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; })) as
-      | { data?: ApprovalModel }
-      | null;
+    const createResp = await page.request
+      .post(`${API_BASE}${API_PREFIX}/export-approvals`, {
+        data: {
+          resource_type: 'customer',
+          export_params: {},
+          estimated_rows: 1,
+          file_format: 'xlsx',
+        },
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
+      })
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
+    const createBody = (await createResp?.json().catch(e => {
+      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+      return null;
+    })) as { data?: ApprovalModel } | null;
     const approvalId = createBody?.data?.id;
     if (!approvalId) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
@@ -131,13 +149,19 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
       return;
     }
 
-    const approveResp = await page.request.post(
-      `${API_BASE}${API_PREFIX}/export-approvals/${approvalId}/approve`,
-      { data: { comments: 'E2E 跨资源测试' }, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' } },
-    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-    const approveBody = (await approveResp?.json().catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; })) as
-      | { data?: ApprovalModel }
-      | null;
+    const approveResp = await page.request
+      .post(`${API_BASE}${API_PREFIX}/export-approvals/${approvalId}/approve`, {
+        data: { comments: 'E2E 跨资源测试' },
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
+      })
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
+    const approveBody = (await approveResp?.json().catch(e => {
+      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+      return null;
+    })) as { data?: ApprovalModel } | null;
     const token = approveBody?.data?.download_token;
     if (!token) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
@@ -148,7 +172,10 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
     // customer 令牌用于 product 导出 → resource_type 不匹配 403
     const crossResp = await page.request
       .get(`${API_BASE}${API_PREFIX}/products/export?download_token=${token}`)
-      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
     if (crossResp) {
       expect(crossResp.status(), '跨资源令牌应 403').toBe(403);
     }
@@ -158,7 +185,10 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
     // pending 状态的申请其 token 为 null——直接带空/伪 token 导出被拒
     const resp = await page.request
       .get(`${API_BASE}${API_PREFIX}/crm/customers/export?download_token=not-a-real-token`)
-      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      .catch(e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      });
     if (resp) {
       expect(resp.status()).toBe(403);
     }

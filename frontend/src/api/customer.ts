@@ -58,7 +58,7 @@ export function getCustomerList(
 export async function getCustomerSelectList(): Promise<{ label: string; value: number }[]> {
   const res =
     await request.get<ApiResponse<{ list: Customer[]; total: number } | Customer[]>>(
-      '/customers/select'
+      '/crm/customers/select'
     );
   const data = res?.data;
   const list: Customer[] = (Array.isArray(data) ? data : data?.list) ?? [];
@@ -93,3 +93,146 @@ export const getCustomerCreditInfo = (id: number) =>
 // 水印已由后端注入（操作员/IP/时间戳），前端只需下载 Blob
 export const exportCustomers = (params?: CustomerQueryParams) =>
   request.get<Blob>('/crm/customers/export', { params, responseType: 'blob' });
+
+// ============== 客户地址簿/CLV/审计日志（Batch 补齐 API 封装）==============
+
+/** 客户收货地址（对应后端 models/customer_address.rs::Model） */
+export interface CustomerAddress {
+  id: number;
+  customer_id: number;
+  contact_name: string;
+  contact_phone: string;
+  province?: string;
+  city?: string;
+  district?: string;
+  address: string;
+  postal_code?: string;
+  is_default: boolean;
+  remark?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 创建地址请求（对应后端 CreateCustomerAddressDto） */
+export interface CustomerAddressInput {
+  contact_name: string;
+  contact_phone: string;
+  province?: string;
+  city?: string;
+  district?: string;
+  address: string;
+  postal_code?: string;
+  is_default?: boolean;
+  remark?: string;
+}
+
+/** 更新地址请求（对应后端 UpdateCustomerAddressDto，全字段可选） */
+export type CustomerAddressUpdate = Partial<CustomerAddressInput>;
+
+/** 客户全生命周期价值（对应后端 models/customer_lifetime_value.rs::Model） */
+export interface CustomerClv {
+  id: number;
+  customer_id: number;
+  total_orders: number;
+  total_revenue: number;
+  avg_order_value: number;
+  first_order_date?: string;
+  last_order_date?: string;
+  customer_lifespan_days: number;
+  purchase_frequency: number;
+  clv_score: number;
+  /** 客户分层：champion/loyal/potential/at_risk/lost */
+  segment?: string;
+  calculated_at?: string;
+}
+
+/** 客户操作日志（对应后端 models/customer_audit_log.rs::Model） */
+export interface CustomerAuditLog {
+  id: number;
+  customer_id: number;
+  /** 操作类型：create/update/delete/view/export */
+  operation: string;
+  field_name?: string;
+  old_value?: string;
+  new_value?: string;
+  user_id: number;
+  user_name: string;
+  ip_address?: string;
+  user_agent?: string;
+  created_at?: string;
+}
+
+/** 创建客户操作日志请求（对应后端 crm_handler.rs::CreateAuditLogRequest） */
+export interface CustomerAuditLogInput {
+  operation: string;
+  field_name?: string;
+  old_value?: string;
+  new_value?: string;
+  ip_address?: string;
+  user_agent?: string;
+}
+
+/**
+ * 获取客户收货地址列表（默认地址在前）
+ * 后端路由：GET /api/v1/erp/crm/customers/{id}/addresses（routes/crm.rs customers + customer_address_handler）
+ */
+export const getCustomerAddressList = (customerId: number) =>
+  request.get<ApiResponse<CustomerAddress[]>>(`/crm/customers/${customerId}/addresses`);
+
+/**
+ * 创建客户收货地址（设为默认时后端自动清除其他默认标记）
+ * 后端路由：POST /api/v1/erp/crm/customers/{id}/addresses（routes/crm.rs customers + customer_address_handler）
+ */
+export const createCustomerAddress = (customerId: number, data: CustomerAddressInput) =>
+  request.post<ApiResponse<CustomerAddress>>(`/crm/customers/${customerId}/addresses`, data);
+
+/**
+ * 更新客户收货地址
+ * 后端路由：PUT /api/v1/erp/crm/customers/{customer_id}/addresses/{address_id}（routes/crm.rs customers + customer_address_handler）
+ */
+export const updateCustomerAddress = (
+  customerId: number,
+  addressId: number,
+  data: CustomerAddressUpdate
+) =>
+  request.put<ApiResponse<CustomerAddress>>(
+    `/crm/customers/${customerId}/addresses/${addressId}`,
+    data
+  );
+
+/**
+ * 删除客户收货地址
+ * 后端路由：DELETE /api/v1/erp/crm/customers/{customer_id}/addresses/{address_id}（routes/crm.rs customers + customer_address_handler）
+ */
+export const deleteCustomerAddress = (customerId: number, addressId: number) =>
+  request.delete<ApiResponse<string>>(`/crm/customers/${customerId}/addresses/${addressId}`);
+
+/**
+ * 获取客户 CLV（全生命周期价值；未计算时 data 为 null）
+ * 后端路由：GET /api/v1/erp/crm/customers/{id}/clv（routes/crm.rs crm_customer_enhancement_routes）
+ */
+export const getCustomerClv = (customerId: number) =>
+  request.get<ApiResponse<CustomerClv | null>>(`/crm/customers/${customerId}/clv`);
+
+/**
+ * 计算并落库客户 CLV（依据全部销售订单）
+ * 后端路由：POST /api/v1/erp/crm/customers/{id}/clv/calculate（routes/crm.rs crm_customer_enhancement_routes）
+ */
+export const calculateCustomerClv = (customerId: number) =>
+  request.post<ApiResponse<CustomerClv>>(`/crm/customers/${customerId}/clv/calculate`);
+
+/**
+ * 获取客户操作日志列表（可按操作类型过滤）
+ * 后端路由：GET /api/v1/erp/crm/customers/{id}/audit-logs（routes/crm.rs crm_customer_enhancement_routes）
+ */
+export const getCustomerAuditLogs = (customerId: number, params?: { operation?: string }) =>
+  request.get<ApiResponse<CustomerAuditLog[]>>(`/crm/customers/${customerId}/audit-logs`, {
+    params,
+  });
+
+/**
+ * 创建客户操作日志（后端返回 data=null）
+ * 后端路由：POST /api/v1/erp/crm/customers/{id}/audit-logs（routes/crm.rs crm_customer_enhancement_routes）
+ */
+export const createCustomerAuditLog = (customerId: number, data: CustomerAuditLogInput) =>
+  request.post<ApiResponse<null>>(`/crm/customers/${customerId}/audit-logs`, data);

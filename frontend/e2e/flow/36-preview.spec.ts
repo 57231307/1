@@ -30,11 +30,12 @@ test.describe('P5.6 预览', () => {
 
     // 对第一个模板调预览 API
     const templateId = items[0].id;
-    const previewResp = await apiCall(
-      page,
-      'GET',
-      `/print-templates/${templateId}/preview`,
-    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    const previewResp = await apiCall(page, 'GET', `/print-templates/${templateId}/preview`).catch(
+      e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      }
+    );
 
     // 预览应返回内容（HTML 或文档数据）
     expect(previewResp !== null).toBeTruthy();
@@ -44,7 +45,12 @@ test.describe('P5.6 预览', () => {
   test('report-templates 预览 API', async ({ page }) => {
     const collector = trackPageHealth(page);
 
-    const listResp = await apiCall(page, 'GET', '/report-templates?page=1&page_size=10').catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    const listResp = await apiCall(page, 'GET', '/report-templates?page=1&page_size=10').catch(
+      e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      }
+    );
     const items = listResp?.items ?? listResp?.data?.items;
     if (!items || items.length === 0) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
@@ -53,11 +59,12 @@ test.describe('P5.6 预览', () => {
     }
 
     const templateId = items[0].id;
-    const previewResp = await apiCall(
-      page,
-      'GET',
-      `/report-templates/${templateId}/preview`,
-    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    const previewResp = await apiCall(page, 'GET', `/report-templates/${templateId}/preview`).catch(
+      e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      }
+    );
 
     expect(previewResp !== null).toBeTruthy();
     await assertPageHealthy(page, collector, { allowConsoleWarn: true });
@@ -66,7 +73,10 @@ test.describe('P5.6 预览', () => {
   test('BPM 模板预览 API', async ({ page }) => {
     const collector = trackPageHealth(page);
 
-    const listResp = await apiCall(page, 'GET', '/bpm/templates?page=1&page_size=10').catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    const listResp = await apiCall(page, 'GET', '/bpm/templates?page=1&page_size=10').catch(e => {
+      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+      return null;
+    });
     const items = listResp?.items ?? listResp?.data?.items;
     if (!items || items.length === 0) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
@@ -75,11 +85,12 @@ test.describe('P5.6 预览', () => {
     }
 
     const templateId = items[0].id;
-    const previewResp = await apiCall(
-      page,
-      `GET`,
-      `/bpm/templates/${templateId}/preview`,
-    ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    const previewResp = await apiCall(page, `GET`, `/bpm/templates/${templateId}/preview`).catch(
+      e => {
+        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+        return null;
+      }
+    );
 
     expect(previewResp !== null).toBeTruthy();
     await assertPageHealthy(page, collector, { allowConsoleWarn: true });

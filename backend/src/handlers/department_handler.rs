@@ -25,9 +25,14 @@ pub struct DepartmentListQuery {
 pub struct CreateDepartmentRequest {
     #[validate(length(min = 1, max = 100, message = "部门名称不能为空且最长100字符"))]
     pub name: String,
+    /// 部门编码（契约对齐：前端 DepartmentCreateRequest.code；不传时后端自动生成 DEPT_时间戳）
+    #[validate(length(max = 50, message = "部门编码最长50字符"))]
+    pub code: Option<String>,
     pub description: Option<String>,
     pub parent_id: Option<i32>,
     pub manager_id: Option<i32>,
+    /// 排序号（契约对齐：前端 DepartmentCreateRequest.sort_order；不传时默认 0）
+    pub sort_order: Option<i32>,
 }
 
 /// 更新部门请求
@@ -39,6 +44,8 @@ pub struct UpdateDepartmentRequest {
     pub description: Option<String>,
     pub parent_id: Option<i32>,
     pub manager_id: Option<i32>,
+    /// 排序号（契约对齐：前端 DepartmentUpdateRequest.sort_order）
+    pub sort_order: Option<i32>,
     #[serde(alias = "status", alias = "is_active")]
     pub is_active: Option<bool>,
 }

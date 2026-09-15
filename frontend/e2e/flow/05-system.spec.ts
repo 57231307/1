@@ -9,11 +9,15 @@ import {
   getCtx,
   genCode,
   ensureTestEntities,
+  expectBadRequest,
 } from './helpers';
 
 test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
-  test('5-1 审计日志查询（按操作类型/资源筛选）', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
+  });
+
+  test('5-1 审计日志查询（按操作类型/资源筛选）', async ({ page }) => {
     try {
       const logs = await apiCallRaw<{
         items: Array<{ id: number; action: string; resource_type: string; username: string }>;
@@ -31,14 +35,14 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/system/omni-audit?page=1&page_size=20'
         );
         expect(logs.items);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
   });
 
   test('5-2 用户列表 + 角色列表 + 部门列表', async ({ page }) => {
-    await loginViaUI(page);
     const users = await apiCallRaw<{ items: Array<{ id: number; username: string }> }>(
       page,
       'GET',
@@ -63,7 +67,6 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-3 数据权限验证（行级隔离）', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const perms = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -71,25 +74,25 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
         '/data-permissions?page=1&page_size=5'
       );
       expect(perms.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('5-4 字段级权限验证（染色配方导出仅 dye_recipe_master 可）', async ({ page }) => {
-    await loginViaUI(page);
     // admin 角色应可以访问（有 *:* 权限）
     try {
       const result = await apiCallExpectFail(page, 'GET', '/production/dye-recipes/export');
       // admin 可能被允许或被拒绝（取决于角色黑名单）
-      expect(result.status >= 400).toBe(true); // 应返回错误码
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      expectBadRequest(result); // 应返回错误码
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 跳过
-     }
+    }
   });
 
   test('5-5 BPM 流程定义', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const defs = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -105,14 +108,14 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/bpm/definitions?page=1&page_size=5'
         );
         expect(defs.items);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
   });
 
   test('5-6 BPM 审批任务', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const tasks = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -134,20 +137,20 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/bpm/tasks?page=1&page_size=5'
         );
         expect(tasks.items);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
   });
 
   test('5-7 定制订单 7 阶段状态机', async ({ page }) => {
-    await loginViaUI(page);
     await ensureTestEntities(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
         order_no: genCode('CO'),
-        customer_id: ctx.customerId || 1,
+        customer_id: ctx.customerId,
         product_id: ctx.productIds[0] || 1,
         color_id: ctx.productColorIds[0],
         spec: '65%棉35%涤 40S 133x72 150cm',
@@ -166,9 +169,10 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/custom-orders?page=1&page_size=1'
         );
         ctx.customOrderId = list.items?.[0]?.id;
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
 
     if (ctx.customOrderId) {
@@ -195,7 +199,6 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-8 定制订单状态门校验（非法跳跃应拒绝）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const id = ctx.customOrderId;
     if (!id) {
@@ -208,11 +211,10 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     const result = await apiCallExpectFail(page, 'POST', `/custom-orders/${id}/advance`, {
       to_status: 'dyeing',
     });
-    expect(result.status >= 400).toBe(true); // 非法转换应被拒
+    expectBadRequest(result); // 非法转换应被拒
   });
 
   test('5-9 大货批色审批（8 态状态机）', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
         page,
@@ -233,13 +235,13 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           'scrapped',
         ]).toContain(status ?? '(missing-status)');
       }
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 大货批色模块可能未就绪
-     }
+    }
   });
 
   test('5-10 坯布五维追溯（产品→色号→缸号→匹号）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const trace = await apiCallRaw<{
@@ -255,14 +257,14 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/analytics/business-trace?page=1&page_size=5'
         );
         expect(trace.items);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
   });
 
   test('5-11 AI 工艺优化', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -278,14 +280,14 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/ai/process-optimizations?page=1&page_size=5'
         );
         expect(list.items);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
   });
 
   test('5-12 AI 质量预测', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -301,14 +303,14 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
           '/ai/quality-predictions?page=1&page_size=5'
         );
         expect(list.items);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         /* skip */
-       }
+      }
     }
   });
 
   test('5-13 通知列表', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const notifications = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -316,30 +318,33 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
         '/notifications?page=1&page_size=5'
       );
       expect(notifications.items);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */
-     }
+    }
   });
 
   test('5-14 仪表盘', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const dash = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/dashboard');
       expect(dash);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       try {
         const stats = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/dashboard');
         expect(stats);
-      } catch (e) { console.warn(`[E2E] skip（容错忽略）: ${(e as Error).message}`); }
-     }
+      } catch (e) {
+        console.warn(`[E2E] skip（容错忽略）: ${(e as Error).message}`);
+      }
+    }
   });
 
   test('5-15 系统健康状态', async ({ page }) => {
-    await loginViaUI(page);
     try {
       const status = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/system/health');
       expect(status);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       try {
         const status = await apiCallRaw<Record<string, unknown>>(
           page,
@@ -349,9 +354,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
         expect(status);
       } catch (e) {
         console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 健康检查端点可能在 /health（非 API 前缀）
-        const response = await fetch('http://localhost:8082/health');
+        const response = await fetch('http://127.0.0.1:8082/health');
         expect(response.ok).toBeTruthy();
       }
-     }
+    }
   });
 });

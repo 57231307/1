@@ -188,7 +188,7 @@ const buildReturnDetailLines = (d: TradingReturn): string[] => {
 // 批次 157a P1-1 修复：接入 getTradingReturn API 展示销售退货详情
 const viewSalesReturn = async (row: TradingReturn) => {
   try {
-    const res = await getTradingReturn(row.id);
+    const res = await getTradingReturn(row.id, 'sales');
     const d = res.data;
     if (!d) {
       ElMessage.warning(t('trading.salesReturnTab.messageDetailNotFound'));
@@ -211,7 +211,7 @@ const approveSalesReturn = async (row: TradingReturn) => {
       t('trading.salesReturnTab.confirmTitle'),
       { type: 'info' }
     );
-    await approveTradingReturn(row.id);
+    await approveTradingReturn(row.id, 'sales');
     ElMessage.success(t('trading.salesReturnTab.messageApproveSuccess'));
     fetchSalesReturns();
   } catch (e) {
@@ -229,7 +229,7 @@ const deleteSalesReturn = async (row: TradingReturn) => {
       t('trading.salesReturnTab.confirmTitle'),
       { type: 'warning' }
     );
-    await deleteTradingReturn(row.id);
+    await deleteTradingReturn(row.id, 'sales');
     ElMessage.success(t('trading.salesReturnTab.messageDeleteSuccess'));
     fetchSalesReturns();
   } catch (e) {

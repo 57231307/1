@@ -198,7 +198,7 @@ const buildContractDetailLines = (d: TradingContract): string[] => {
 // 批次 157a P1-1 修复：接入 getTradingContract API 展示采购合同详情
 const viewPurchaseContract = async (row: TradingContract) => {
   try {
-    const res = await getTradingContract(row.id);
+    const res = await getTradingContract(row.id, 'purchase');
     const d = res.data;
     if (!d) {
       ElMessage.warning(t('trading.purchaseContractTab.messageDetailNotFound'));
@@ -221,7 +221,7 @@ const approvePurchaseContract = async (row: TradingContract) => {
       t('trading.purchaseContractTab.confirmTitle'),
       { type: 'info' }
     );
-    await approveTradingContract(row.id);
+    await approveTradingContract(row.id, 'purchase');
     ElMessage.success(t('trading.purchaseContractTab.messageApproveSuccess'));
     fetchPurchaseContracts();
   } catch (e) {
@@ -239,7 +239,7 @@ const executePurchaseContract = async (row: TradingContract) => {
       t('trading.purchaseContractTab.confirmTitle'),
       { type: 'info' }
     );
-    await executeTradingContract(row.id);
+    await executeTradingContract(row.id, 'purchase');
     ElMessage.success(t('trading.purchaseContractTab.messageExecuteSuccess'));
     fetchPurchaseContracts();
   } catch (e) {
@@ -257,7 +257,7 @@ const deletePurchaseContract = async (row: TradingContract) => {
       t('trading.purchaseContractTab.confirmTitle'),
       { type: 'warning' }
     );
-    await deleteTradingContract(row.id);
+    await deleteTradingContract(row.id, 'purchase');
     ElMessage.success(t('trading.purchaseContractTab.messageDeleteSuccess'));
     fetchPurchaseContracts();
   } catch (e) {

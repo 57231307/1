@@ -37,6 +37,9 @@ pub mod dye_recipe {
     /// 草稿：配方初始状态
     pub const DRAFT: &str = "草稿";
 
+    /// 待审核：配方已提交，等待化验室主管审核（批次 423B 状态机贯通）
+    pub const PENDING_APPROVAL: &str = "待审核";
+
     /// 已审核：配方已审核通过
     pub const APPROVED: &str = "已审核";
 
