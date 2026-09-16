@@ -21,13 +21,13 @@ import { loginViaUI, API_BASE, API_PREFIX } from './helpers';
 
 // 后端 routes/*.rs 全部无参数路由（grep .route(" 提取，2026-09-13 同步）
 const ROUTES: string[] = [
+  '/ai/health',
+  '/ai/summary',
   '/advanced/ai/anomaly-detection',
-  '/advanced/ai/health',
   '/advanced/ai/quality-prediction',
   '/advanced/ai/recipe-optimization',
   '/advanced/ai/recommendations',
   '/advanced/ai/sales-forecast',
-  '/advanced/ai/summary',
   '/alerts',
   '/ap/invoices',
   '/ap/payments',
@@ -106,7 +106,6 @@ const ROUTES: string[] = [
   '/products',
   '/products/select',
   '/purchase-prices',
-  '/read-all',
   '/receipts',
   '/reports/templates',
   '/roles',
