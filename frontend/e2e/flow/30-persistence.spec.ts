@@ -421,12 +421,8 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       status: 'active',
     });
     const prodId = prod?.data?.id;
-    if (!custId || !prodId) {
-      console.warn(`[P0-销售订单] 前置数据缺失（cust=${custId} prod=${prodId}），跳过`);
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(custId, '[P0-销售订单] 客户创建失败').toBeTruthy();
+    expect(prodId, '[P0-销售订单] 产品创建失败').toBeTruthy();
     const orderDate = new Date().toISOString().slice(0, 10);
     const payload = {
       customer_id: custId,

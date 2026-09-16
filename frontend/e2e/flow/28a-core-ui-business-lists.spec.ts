@@ -49,8 +49,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     }
 
     // 新建采购单
-    const dialogVisible = await clickNewAndVerifyDialog(page, '新建采购单');
-    if (dialogVisible) {
+    await clickNewAndVerifyDialog(page, '新建采购单');
+    {
       // 验证表单字段
       const supplierSelect = page.locator('.el-dialog .el-select').first();
       await supplierSelect.waitFor({ state: 'visible', timeout: 3000 });
@@ -117,8 +117,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     }
 
     // 新建订单
-    const dialogVisible = await clickNewAndVerifyDialog(page, '新建订单');
-    if (dialogVisible) {
+    await clickNewAndVerifyDialog(page, '新建订单');
+    {
       // 验证客户选择器
       const customerSelect = page.locator('.el-dialog .el-select').first();
       await customerSelect.waitFor({ state: 'visible', timeout: 3000 });
@@ -194,8 +194,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     expect(hasColorColumn).toBe(true);
 
     // 新建配方
-    const dialogVisible = await clickNewAndVerifyDialog(page, '新建配方');
-    if (dialogVisible) {
+    await clickNewAndVerifyDialog(page, '新建配方');
+    {
       // 验证色号字段（el-form-item label 渲染为 <label>，hasText 兼容；CI 慢环境放宽 10s）
       const colorField = page
         .locator('.el-dialog .el-form-item')
@@ -227,8 +227,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     }
 
     // 新建批次
-    const dialogVisible = await clickNewAndVerifyDialog(page, '新建批次');
-    if (dialogVisible) {
+    await clickNewAndVerifyDialog(page, '新建批次');
+    {
       // 验证缸号/色号字段
       const inputs = page.locator('.el-dialog .el-input input');
       const inputCount = await inputs.count();
@@ -246,8 +246,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     expect(tableVisible).toBe(true);
 
     // 新增凭证
-    const dialogVisible = await clickNewAndVerifyDialog(page, '新增凭证');
-    if (dialogVisible) {
+    await clickNewAndVerifyDialog(page, '新增凭证');
+    {
       // 必填校验
       const hasError = await verifyRequiredValidation(page);
       expect(hasError).toBe(true);
@@ -266,8 +266,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     expect(treeRowCount).toBeGreaterThanOrEqual(0);
 
     // 新建科目
-    const dialogVisible = await clickNewAndVerifyDialog(page, '新建科目');
-    if (dialogVisible) {
+    await clickNewAndVerifyDialog(page, '新建科目');
+    {
       // CI 慢环境放宽 10s（3s 不足）；科目编码输入框无 placeholder 文案，
       // 按表单 label（含"编码"）定位其输入框
       const codeInput = page
@@ -309,8 +309,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     }
 
     // 新建用户
-    const dialogVisible = await clickNewAndVerifyDialog(page, '新建用户');
-    if (dialogVisible) {
+    await clickNewAndVerifyDialog(page, '新建用户');
+    {
       const hasError = await verifyRequiredValidation(page);
       expect(hasError).toBe(true);
       await closeDialogByX(page);

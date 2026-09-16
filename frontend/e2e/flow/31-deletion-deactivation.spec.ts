@@ -49,11 +49,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     const productName = nameCell?.trim() || '';
     console.log(`[P0-删除-产品] 目标行产品名: ${productName}`);
 
-    if (!productName) {
-      console.warn('[P0-删除-产品] 无法获取产品名称，跳过');
-      test.skip();
-      return;
-    }
+    expect(productName, '无法获取产品名称（列表页渲染或 API 异常）').toBeTruthy();
 
     // UI 删除
     const deleted = await uiDeleteRow(page, '/product', { column: 'name', value: productName });
@@ -257,11 +253,7 @@ async function createThenUiDelete(
 ): Promise<void> {
   const createResp = await apiCall<{ id?: number }>(page, 'POST', createApi, createPayload);
   const id = createResp?.data?.id;
-  if (!id) {
-    console.warn(`[P0-删除-${label}] 创建失败（可能缺前置数据），跳过 UI 删除验证`);
-    test.skip();
-    return;
-  }
+  expect(id, `[P0-删除-${label}] 创建失败（前置数据缺失或 API 异常）`).toBeTruthy();
   console.log(`[P0-删除-${label}] 数据准备完成 id=${id}`);
 
   // 在列表页通过 API 回读确认数据存在（先确认数据落库）

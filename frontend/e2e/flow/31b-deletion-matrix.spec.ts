@@ -37,11 +37,7 @@ async function createThenApiDelete(
 ): Promise<void> {
   const resp = await apiCall<{ id?: number }>(page, 'POST', c.createApi, c.payload);
   const id = resp?.data?.id;
-  if (!id) {
-    console.warn(`[31b-${c.label}] 创建响应无 id（跳过删除验证）`);
-    test.skip();
-    return;
-  }
+  expect(id, `[31b-${c.label}] 创建响应无 id（创建 API 异常）`).toBeTruthy();
   console.log(`[31b-${c.label}] 创建成功 id=${id}`);
 
   // 1) 列表回读确认存在
@@ -590,11 +586,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       }
     );
     const indicatorId = ind?.data?.id;
-    if (!indicatorId) {
-      console.warn('[31b-供应商评估] 无指标 id，跳过');
-      test.skip();
-      return;
-    }
+    expect(indicatorId, '[31b-供应商评估] 评估指标创建失败').toBeTruthy();
     console.log(`[31b-供应商评估] 指标创建成功 id=${indicatorId}`);
     await createThenApiDelete(page, {
       label: '供应商评估',
@@ -625,11 +617,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       remarks: 'P0疵点检验备注',
     });
     const inspectionId = ins?.data?.id;
-    if (!inspectionId) {
-      console.warn('[31b-疵点] 无检验单 id，跳过');
-      test.skip();
-      return;
-    }
+    expect(inspectionId, '[31b-疵点] 检验单创建失败').toBeTruthy();
     console.log(`[31b-疵点] 检验单创建成功 id=${inspectionId}`);
     await createThenApiDelete(page, {
       label: '疵点',
@@ -665,11 +653,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       remarks: 'P0工资工艺备注',
     });
     const routeId = rt?.data?.id;
-    if (!routeId) {
-      console.warn('[31b-工资率] 无工艺路线 id，跳过');
-      test.skip();
-      return;
-    }
+    expect(routeId, '[31b-工资率] 工艺路线创建失败').toBeTruthy();
     console.log(`[31b-工资率] 工艺路线创建成功 id=${routeId}`);
     await createThenApiDelete(page, {
       label: '工资率',
@@ -707,11 +691,8 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     });
     const idA = ra?.data?.id;
     const idB = rb?.data?.id;
-    if (!idA || !idB) {
-      console.warn('[31b-角色互斥] 角色未就绪，跳过');
-      test.skip();
-      return;
-    }
+    expect(idA, '[31b-角色互斥] 互斥角色 A 创建失败').toBeTruthy();
+    expect(idB, '[31b-角色互斥] 互斥角色 B 创建失败').toBeTruthy();
     console.log(`[31b-角色互斥] 角色就绪 A=${idA}(${codeA}) B=${idB}(${codeB})`);
     let relDeleted = false;
     await apiCall(page, 'POST', '/role-relations', {
@@ -760,11 +741,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       description: 'P0数据权限角色',
     });
     const roleId = r?.data?.id;
-    if (!roleId) {
-      console.warn('[31b-数据权限] 无角色 id，跳过');
-      test.skip();
-      return;
-    }
+    expect(roleId, '[31b-数据权限] 角色创建失败').toBeTruthy();
     await createThenApiDelete(page, {
       label: '数据权限',
       createApi: '/data-permissions',

@@ -43,13 +43,10 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     console.log(
       `[P0-导出-产品] 结果: ${result ? `✅ 文件=${result.filename} 大小=${result.size}B` : '❌ 下载未触发'}`
     );
-    if (!result) {
-      // 产品导出为敏感资源（enforce_export_download fail-closed）：无审批令牌 403 属预期行为，
-      // 与客户/供应商导出测试对齐 skip；带令牌的下载成功路径由 39-export（API 级审批流）覆盖
-      console.warn('[P0-导出-产品] 产品导出需审批令牌（敏感资源 fail-closed 403），跳过下载验证');
-      test.skip();
-      return;
-    }
+    expect(
+      result,
+      '[P0-导出-产品] 产品导出应触发下载（无审批令牌应显式 403 而非静默无反应；带令牌成功路径由 39-export 覆盖）'
+    ).toBeTruthy();
     expect(result!.size, '导出文件应 >1KB').toBeGreaterThan(1024);
 
     // 验证文件类型（xlsx/csv/json）

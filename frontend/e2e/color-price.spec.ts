@@ -38,17 +38,11 @@ test.describe('面料多色号定价扩展', () => {
   test('2. 详情页查看历史图表', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE_URL}/color-prices/list`);
-    // 点击第一个详情链接
+    // 点击第一个详情链接（列表页应渲染详情入口；无入口=列表为空或页面异常，必须失败暴露）
     const detailLink = page.locator('a:has-text("详情"), button:has-text("详情")').first();
-    if (
-      await detailLink.isVisible({ timeout: 3000 }).catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      })
-    ) {
-      await detailLink.click();
-      await page.waitForLoadState('networkidle');
-    }
+    await expect(detailLink, '[color-prices] 详情链接应可见').toBeVisible({ timeout: 3000 });
+    await detailLink.click();
+    await page.waitForLoadState('networkidle');
   });
 
   test('3. 批量调价页面加载', async ({ page }) => {

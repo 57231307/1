@@ -1418,13 +1418,10 @@ export async function verifyButton(page: Page, text: string): Promise<boolean> {
 /** 点击新建按钮并验证弹窗出现（基于 openDialog，消除 waitForTimeout(1000)） */
 export async function clickNewAndVerifyDialog(page: Page, btnText: string): Promise<boolean> {
   const btn = page.locator(`button:has-text("${btnText}")`).first();
-  await btn
-    .waitFor({ state: 'visible', timeout: 5000 })
-    .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-  const visible = await btn.isVisible().catch(() => false);
-  if (!visible) return false;
+  // 按钮不可见或弹窗未出现=页面异常，直接失败暴露（失败必须修复，禁止静默返回 false）
+  await btn.waitFor({ state: 'visible', timeout: 5000 });
   await btn.click();
-  const dialog = await waitForDialog(page, 5000).catch(() => null);
+  const dialog = await waitForDialog(page, 5000);
   return dialog !== null;
 }
 

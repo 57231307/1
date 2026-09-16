@@ -169,10 +169,11 @@ test.describe('批量操作与弹窗确认', () => {
       await page.waitForTimeout(500);
 
       // 验证下拉选项出现（只统计可见 dropdown 的 item，页面可能有隐藏 dropdown 实例）。
-      // 供应商列表依赖前置数据，CI 环境可能为空 → 空时跳过交互验证而非硬失败
+      // 供应商列表依赖前置数据，空列表=前置数据缺失，必须失败暴露
       const dropdownItems = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
       const itemCount = await dropdownItems.count();
-      if (itemCount > 0) {
+      expect(itemCount, '[下拉级联] 供应商下拉无选项（前置供应商数据缺失）').toBeGreaterThan(0);
+      {
         // 选择第一项
         await dropdownItems.first().click();
         await page.waitForTimeout(500);
@@ -183,8 +184,6 @@ test.describe('批量操作与弹窗确认', () => {
           .first()
           .textContent();
         expect(selectedValue).toBeTruthy();
-      } else {
-        console.warn('[下拉级联] 下拉无选项（供应商列表为空），跳过选择交互验证');
       }
     }
 

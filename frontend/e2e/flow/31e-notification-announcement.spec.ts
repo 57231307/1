@@ -288,8 +288,11 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     const list = await getUnreadNotifications(page);
     const myNotifs = list.filter(n => titles.includes(n.title));
     console.log(`[31e-5] 发送 3 条，找到 ${myNotifs.length} 条匹配通知`);
-
-    if (myNotifs.length >= 2) {
+    expect(
+      myNotifs.length,
+      '[31e-5] 发送 3 条通知后应能检索到（通知创建或列表 API 异常）'
+    ).toBeGreaterThanOrEqual(3);
+    {
       // 单条已读
       const first = myNotifs[0];
       const readRes = await page.request.post(
@@ -324,8 +327,6 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
       for (const n of myNotifs) {
         await deleteNotification(page, n.id);
       }
-    } else {
-      console.warn('[31e-5] 通知数不足，跳过 CRUD 验证（可能非管理员）');
     }
   });
 });
