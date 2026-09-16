@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw, tryCleanup } from './helpers';
+import { loginViaUI, apiCall, apiCallRaw, tryCleanup, getCtx, ensureTestEntities } from './helpers';
 import { safeGoto, findTableRow } from './ui-helpers';
 
 /**
@@ -144,6 +144,7 @@ async function toggleStatusInDialog(
 test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读验证', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
   });
 
   test('客户：UI 编辑弹窗停用→API 回读 inactive→UI 回显→删除清理', async ({ page }) => {
@@ -311,7 +312,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     const r = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name,
       code: `P0-DISP-${TS}`,
-      category_id: 1,
+      category_id: getCtx().productCategoryIds[0],
       unit: '米',
       status: 'active',
       product_type: 'fabric',

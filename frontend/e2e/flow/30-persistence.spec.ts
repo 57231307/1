@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw } from './helpers';
+import { loginViaUI, apiCall, apiCallRaw, getCtx, ensureTestEntities } from './helpers';
 
 /**
  * P0 级数据持久性验证（2026-09-10 用户指令）
@@ -43,9 +43,12 @@ async function ensureSharedEntities(page: import('@playwright/test').Page): Prom
     customer_type: 'retail',
   });
   shared.custId = cust?.data?.id;
+  await ensureTestEntities(page);
   const prod = await apiCall<{ id?: number }>(page, 'POST', '/products', {
     name: `P0共享产品${TS}`,
     code: uniqueKey('P0-SPRD-'),
+    category_id: getCtx().productCategoryIds[0],
+    unit: '米',
     standard_price: 5,
     status: 'active',
   });

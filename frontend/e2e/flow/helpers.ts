@@ -153,13 +153,21 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     const catItems = Array.isArray(cats)
       ? cats
       : (cats as { items?: { id: number }[] }).items || [];
-    const hasFabric = catItems.some(c => (c as { name?: string }).name?.includes('面料'));
-    if (!hasFabric) {
-      const created = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
-        name: '面料',
-        code: 'FABRIC',
-      });
-      console.log('[ensureTestEntities] 创建产品分类"面料":', created.code);
+    const fabricCat = catItems.find(c => (c as { name?: string }).name?.includes('面料'));
+    if (fabricCat) {
+      ctx.productCategoryIds.push((fabricCat as { id: number }).id);
+    } else {
+      const created = await apiCall<{ data?: { id?: number } }>(
+        page,
+        'POST',
+        '/product-categories',
+        { name: '面料', code: 'FABRIC' }
+      );
+      if (!created.data?.id) {
+        throw new Error(`[ensureTestEntities] 产品分类创建未返回 id: ${JSON.stringify(created)}`);
+      }
+      ctx.productCategoryIds.push(created.data.id);
+      console.log('[ensureTestEntities] 创建产品分类"面料" id=', created.data.id);
     }
   } catch (e) {
     throw new Error(`[ensureTestEntities] 产品分类检查/创建失败: ${(e as Error).message}`);
@@ -172,13 +180,14 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   }
   if (ctx.productIds.length === 0) {
     // 先 UI 尝试一次（下拉交互脆弱：分类 select 点击后偶发不更新 v-model）
-    // API 创建（CreateProductRequest：code/name/category_id/unit）；失败即抛错
-    const catId = ctx.productCategoryIds?.[0];
+    // API 创建（CreateProductRequest：code/name/category_id 必填真实值，外键 fk_products_category）；失败即抛错
+    const catId = ctx.productCategoryIds[0];
+    expect(catId, '[ensureTestEntities] 产品分类 id 缺失').toBeTruthy();
     const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       code: `E2E-P${Date.now().toString().slice(-6)}`,
       name: `E2E产品${Date.now().toString().slice(-6)}`,
       unit: '米',
-      ...(catId ? { category_id: catId } : {}),
+      category_id: catId,
     });
     if (!result.data?.id) {
       throw new Error(`[ensureTestEntities] 产品创建失败: ${JSON.stringify(result)}`);

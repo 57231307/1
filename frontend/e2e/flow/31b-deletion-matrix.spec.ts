@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, tryCleanup } from './helpers';
+import { loginViaUI, apiCall, tryCleanup, getCtx, ensureTestEntities } from './helpers';
 
 /**
  * P0 删除系统覆盖矩阵（2026-09-11 用户指令："需要系统覆盖所有需要删除/停用测试的功能"）
@@ -90,6 +90,7 @@ async function createThenApiDelete(
 test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读验证', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
   });
 
   for (const c of [
@@ -100,11 +101,10 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
         name: `P0仓库${TS}`,
         code: `P0-WH-${TS}`,
         address: 'P0测试地址',
-        manager: 'P0管理员',
         phone: '13800000001',
         capacity: 1000,
         description: 'P0仓库描述',
-        warehouse_type: '成品仓',
+        warehouse_type: 'finished',
       },
     },
     {
@@ -150,7 +150,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       payload: {
         name: `P0产品${TS}`,
         code: `P0-PRD-${TS}`,
-        category_id: 1,
+        category_id: getCtx().productCategoryIds[0],
         specification: 'P0规格',
         unit: '米',
         standard_price: 25.5,

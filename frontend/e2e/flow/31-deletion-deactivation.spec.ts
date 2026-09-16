@@ -293,7 +293,7 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       page,
       '部门',
       '/departments',
-      { dept_name: `P0部门${EXT_TS}`, dept_code: `P0-DEPT-${EXT_TS}` },
+      { name: `P0部门${EXT_TS}`, code: `P0-DEPT-${EXT_TS}` },
       '/departments',
       `P0部门${EXT_TS}`
     );

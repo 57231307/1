@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, BASE_URL } from './helpers';
+import { loginViaUI, apiCall, BASE_URL, getCtx, ensureTestEntities } from './helpers';
 import { findTableRow } from './ui-helpers';
 
 /**
@@ -16,6 +16,7 @@ import { findTableRow } from './ui-helpers';
 test.describe.serial('新域业务流转链', () => {
   test('质量 8D：定制单→上报质量问题→启动→推进 D1（tagged enum）', async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
     await page.goto(`${BASE_URL}/quality-8d`);
     await expect(page.locator('.page')).toBeVisible();
 

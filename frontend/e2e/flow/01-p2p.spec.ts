@@ -126,7 +126,11 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       warehouse_id: ctx.warehouseIds[0] || 1,
       items: [
         {
-          product_id: productId,
+          line_no: 1,
+          material_id: productId,
+          material_code: 'P2P-MAT-001',
+          material_name: 'P2P 测试面料',
+          unit_master: 'm',
           quantity: 500,
           quantity_alt: 100,
           color_code: 'RED-001',
@@ -135,7 +139,11 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
           piece_no: pieceNo1,
         },
         {
-          product_id: productId,
+          line_no: 2,
+          material_id: productId,
+          material_code: 'P2P-MAT-001',
+          material_name: 'P2P 测试面料',
+          unit_master: 'm',
           quantity: 500,
           quantity_alt: 100,
           color_code: 'RED-001',
