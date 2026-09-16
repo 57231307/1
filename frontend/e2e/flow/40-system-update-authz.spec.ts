@@ -47,6 +47,11 @@ test.describe('P5.10 系统更新授权', () => {
     });
     // viewer 应被拒绝或返回 403
     // 如果 apiCall 抛出 403，resp 为 null——也算通过
-    expect(resp === null || resp?.error).toBeTruthy();
+    // viewer 应被拒：apiCall 403 时 throw resp=null（通过）；或 resp.code 非 200
+    const denied = resp === null || (resp?.code !== 200 && resp?.code !== 0);
+    expect(
+      denied,
+      `viewer 查询系统更新应被拒，实际 resp=${JSON.stringify(resp)?.slice(0, 200)}`
+    ).toBeTruthy();
   });
 });

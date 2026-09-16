@@ -36,29 +36,29 @@ test.describe.serial('44f 真实实体全流转链', () => {
   test('44f-1 生产订单 DRAFT→PENDING_APPROVAL→APPROVED 全链+每步回读', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    const po = await apiCall<{ id?: number }>(page, 'POST', '/production/orders', {
+    const po = await apiCall<{ id?: number }>(page, 'POST', '/production-orders/orders', {
       product_id: ctx.productIds[0],
       planned_quantity: 100,
       planned_start_date: new Date().toISOString().slice(0, 10),
     });
     const id = po?.data?.id;
     expect(id, '生产订单创建失败').toBeTruthy();
-    CLEANUP.push({ path: `/production/orders/${id}`, label: '[44f-1] 生产订单' });
+    CLEANUP.push({ path: `/production-orders/orders/${id}`, label: '[44f-1] 生产订单' });
 
-    const st0 = await apiCall<{ status?: string }>(page, 'GET', `/production/orders/${id}`);
+    const st0 = await apiCall<{ status?: string }>(page, 'GET', `/production-orders/orders/${id}`);
     expect((st0 as { status?: string })?.status ?? 'DRAFT', '初始应为 DRAFT').toContain('DRAFT');
 
-    await apiCall(page, 'POST', `/production/orders/${id}/submit`);
-    const st1 = await apiCall<{ status?: string }>(page, 'GET', `/production/orders/${id}`);
+    await apiCall(page, 'POST', `/production-orders/orders/${id}/submit`);
+    const st1 = await apiCall<{ status?: string }>(page, 'GET', `/production-orders/orders/${id}`);
     expect(JSON.stringify(st1).toUpperCase()).toContain('PENDING_APPROVAL');
 
     // 提交后再次提交被拒（防重复）
-    const dup = await apiCallExpectFail(page, 'POST', `/production/orders/${id}/submit`);
+    const dup = await apiCallExpectFail(page, 'POST', `/production-orders/orders/${id}/submit`);
     expect(dup.status, 'PENDING_APPROVAL 二次提交应被拒').toBeGreaterThanOrEqual(400);
 
     // ApprovalRequest { approved: bool, opinion? } 必填（自审修复：缺 body 恒 400）
-    await apiCall(page, 'POST', `/production/orders/${id}/approve`, { approved: true });
-    const st2 = await apiCall<{ status?: string }>(page, 'GET', `/production/orders/${id}`);
+    await apiCall(page, 'POST', `/production-orders/orders/${id}/approve`, { approved: true });
+    const st2 = await apiCall<{ status?: string }>(page, 'GET', `/production-orders/orders/${id}`);
     expect(JSON.stringify(st2).toUpperCase()).toContain('APPROVED');
   });
 
@@ -66,13 +66,13 @@ test.describe.serial('44f 真实实体全流转链', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     // 前置生产订单
-    const porder = await apiCall<{ id?: number }>(page, 'POST', '/production/orders', {
+    const porder = await apiCall<{ id?: number }>(page, 'POST', '/production-orders/orders', {
       product_id: ctx.productIds[0],
       planned_quantity: 50,
     });
     const porderId = porder?.data?.id;
     expect(porderId, '生产订单创建失败').toBeTruthy();
-    CLEANUP.push({ path: `/production/orders/${porderId}`, label: '[44f-2] 生产订单' });
+    CLEANUP.push({ path: `/production-orders/orders/${porderId}`, label: '[44f-2] 生产订单' });
 
     const fc = await apiCall<{ id?: number }>(page, 'POST', '/flow-cards', {
       production_order_id: porderId,

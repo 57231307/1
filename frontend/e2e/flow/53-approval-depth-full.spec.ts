@@ -99,13 +99,13 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       console.log('[53-0] 审批人已存在 id=', exists.id);
       return;
     }
-    const roles = await apiCall<{ items?: Array<{ id: number; code: string }> }>(
+    // apiCall 返回完整 body {code,data,message}；RoleListResponse 在 data.roles 下
+    const rolesResp = await apiCallRaw<{ roles?: Array<{ id: number; code: string }> }>(
       page,
       'GET',
       '/roles?page=1&page_size=50'
     );
-    // RoleListResponse 序列化 {roles: [...], total}——无 items 包装（自审修复）
-    const roleList = (roles as { roles?: Array<{ id: number; code: string }> })?.roles ?? [];
+    const roleList = rolesResp?.roles ?? [];
     const adminRole = roleList.find(r => r.code === 'admin') ?? roleList[0];
     expect(adminRole, '无可用角色').toBeTruthy();
     const r = await apiCall<{ id?: number }>(page, 'POST', '/users', {

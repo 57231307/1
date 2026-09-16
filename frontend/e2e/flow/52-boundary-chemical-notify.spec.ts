@@ -36,7 +36,10 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
       standard_price: '-1.00',
     });
     expect(r.status, '标准价负数必须拒绝').toBeGreaterThanOrEqual(400);
-    expect(String(r.message ?? ''), '消息应提示标准价').toContain('标准价');
+    // 后端 public_message 脱敏，改断言 code
+    expect(String(r.code ?? ''), 'code 应含 VALIDATION 或 BUSINESS').toMatch(
+      /VALIDATION|BUSINESS|BAD_REQUEST/
+    );
   });
 
   test('52-B2 化料成本价为负拒绝（master.rs:65）', async ({ page }) => {
@@ -46,7 +49,9 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
       cost_price: '-0.50',
     });
     expect(r.status, '成本价负数必须拒绝').toBeGreaterThanOrEqual(400);
-    expect(String(r.message ?? ''), '消息应提示成本价').toContain('成本价');
+    expect(String(r.code ?? ''), 'code 应含 VALIDATION 或 BUSINESS').toMatch(
+      /VALIDATION|BUSINESS|BAD_REQUEST/
+    );
   });
 
   test('52-B3 化料安全库存为负拒绝（master.rs:69）', async ({ page }) => {

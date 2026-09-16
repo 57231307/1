@@ -54,10 +54,9 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
     // 删除父部门必须被拒，且消息包含"子部门"
     const del = await apiCallExpectFail(page, 'DELETE', `/departments/${parentId}`);
     expect(del.status, '有子部门的父部门删除应被拒').toBeGreaterThanOrEqual(400);
-    expect(
-      (del.message ?? '') + String(del.code ?? ''),
-      '拒绝消息应提示子部门约束（department_service.rs:209）'
-    ).toContain('子部门');
+    // 后端 public_message 脱敏为"业务处理失败"（安全设计漏洞#4/#8/#12），改断言 code
+    expect(del.status, '有子部门的父部门删除应被拒').toBeGreaterThanOrEqual(400);
+    expect(String(del.code ?? ''), '拒绝 code 应为 BUSINESS_ERROR').toContain('BUSINESS');
   });
 
   test('45-2 产品类别：存在子类别禁止删除（product_category_service.rs:162-168）', async ({

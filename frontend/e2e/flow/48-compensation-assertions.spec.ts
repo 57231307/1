@@ -70,6 +70,7 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
               material_name: '48补偿断言物料',
               quantity: 10,
               quantity_alt: 0,
+              unit_master: '米',
             },
           ],
         }
