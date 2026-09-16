@@ -42,7 +42,8 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
       effective_date: today,
     });
     expect(r001.status, '汇率 0.01 必须拒绝').toBeGreaterThanOrEqual(400);
-    expect(String(r001.message ?? ''), '拒绝消息应提示 P0-1 缺陷值').toContain('0.01');
+    // 后端 public_message 脱敏为'业务处理失败'，改断言 code=BUSINESS_ERROR
+    expect(String(r001.code ?? ''), '0.01 汇率应被拒绝 code=BUSINESS_ERROR').toContain('BUSINESS');
   });
 
   test('47-B2 汇率=0 拒绝（汇率必须 > 0）', async ({ page }) => {

@@ -20,7 +20,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   test('5-1 审计日志查询（按操作类型/资源筛选）', async ({ page }) => {
     const logs = await apiCallRaw<{
       items: Array<{ id: number; action: string; resource_type: string; username: string }>;
-    }>(page, 'GET', '/system/audit-logs?page=1&page_size=20');
+    }>(page, 'GET', '/audit-logs?page=1&page_size=20');
     expect(logs.items);
     if (logs?.items?.length ?? 0 > 0) {
       expect(logs.items?.[0].action).toBeTruthy();

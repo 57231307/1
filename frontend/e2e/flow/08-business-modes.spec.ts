@@ -24,7 +24,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
   test('M1-1 验证业务模式列表（6 种模式）', async ({ page }) => {
     const modes = await apiCallRaw<{
       items: Array<{ mode_code: string; mode_name: string; mode_category: string }>;
-    }>(page, 'GET', '/business-modes?page=1&page_size=20');
+    }>(page, 'GET', '/production/business-modes?page=1&page_size=20');
     expect(modes.items);
     // 验证至少有一种模式
     if (modes?.items?.length ?? 0 > 0) {
@@ -103,7 +103,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
     const rules = await apiCallRaw<{ items: Array<{ rule_code: string; rule_type: string }> }>(
       page,
       'GET',
-      '/business-modes/rules?page=1&page_size=20'
+      '/production/business-modes/rules?page=1&page_size=20'
     );
     expect(rules.items);
   });

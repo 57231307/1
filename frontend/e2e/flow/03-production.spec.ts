@@ -12,6 +12,7 @@ import {
   genPieceNo,
   ensureTestEntities,
   expectBadRequest,
+  genName,
 } from './helpers';
 
 test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', () => {

@@ -22,7 +22,7 @@ test.describe.serial('新域业务流转链', () => {
 
     // 前置：创建真实客户+产品（外键约束 custom_orders_customer_id_fkey）
     const ts = Date.now().toString().slice(-6);
-    const customer = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
+    const customer = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
       name: `54Cust${ts}`,
       code: `54C${ts}`,
       contact_person: '54测试',

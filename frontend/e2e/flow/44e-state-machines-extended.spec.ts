@@ -53,7 +53,7 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId,
       order_date: new Date().toISOString().slice(0, 10),
-      items: [{ material_id: ctx.productIds[0], quantity: 1, unit_price: '1.00' }],
+      items: [{ product_id: ctx.productIds[0], quantity: 1, unit_price: '1.00' }],
     });
     const id = so?.data?.id;
     expect(id, 'SO 创建失败').toBeTruthy();

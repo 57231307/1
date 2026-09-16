@@ -56,12 +56,26 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
   test('2-2 报价单状态机：draft → submitted → approved', async ({ page }) => {
     const ctx = getCtx();
-    const id = ctx.quotationId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    // 独立创建 quotation 做状态机（不依赖共享数据，消除分片间竞争）
+    const ts = Date.now().toString().slice(-6);
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
+      quotation_no: `E2E-QT-22-${ts}`,
+      customer_id: ctx.customerId,
+      quotation_date: new Date().toISOString().slice(0, 10),
+      valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+      status: 'draft',
+      items: [
+        {
+          product_id: ctx.productIds[0],
+          quantity: 10,
+          unit_price: '2.50',
+        },
+      ],
+      notes: 'E2E 2-2 状态机独立报价',
+    });
+    const id = result.data?.id;
+    expect(id, '2-2 独立报价单创建失败').toBeTruthy();
+    CLEANUP.push({ path: `/quotations/${id}`, label: '[2-2] 报价单' });
 
     // 提交审批
     await apiCall(page, 'POST', `/quotations/${id}/submit`);

@@ -123,6 +123,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
 
     await apiCall(page, 'POST', '/purchase/receipts', {
       purchase_order_id: id,
+      supplier_id: ctx.supplierIds[0] || ctx.supplierId || 1,
       warehouse_id: ctx.warehouseIds[0] || 1,
       items: [
         {

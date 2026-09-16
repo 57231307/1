@@ -131,10 +131,10 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       'GET',
       '/roles?page=1&page_size=50'
     );
+    const roleList = (roles as { roles?: Array<{ id: number; code: string }> })?.roles ?? [];
     const sensitive =
-      roles?.items?.find(r =>
-        ['admin', 'finance', 'finance_admin', 'super_admin'].includes(r.code)
-      ) ?? roles?.items?.[0];
+      roleList.find(r => ['admin', 'finance', 'finance_admin', 'super_admin'].includes(r.code)) ??
+      roleList[0];
     expect(sensitive, '无敏感角色').toBeTruthy();
 
     const me = await apiCall<{ id?: number }>(page, 'GET', '/users/me');

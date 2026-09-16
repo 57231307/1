@@ -129,7 +129,10 @@ test.describe.serial('页面崩溃巡检（生产崩溃回归防线）', () => {
       const errors: string[] = [];
       page.on('pageerror', err => errors.push(String(err)));
       await page.goto(`${BASE_URL}${path}`, { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(2000);
+      await page
+        .locator('.el-table, .el-card, .el-empty')
+        .first()
+        .waitFor({ state: 'visible', timeout: 15000 });
       expect(errors, `${label}(${path}) 不应有未捕获异常`).toHaveLength(0);
       const hasTable = await page.locator('.el-table, .el-card, .el-empty').first().isVisible();
       expect(hasTable, `${label}(${path}) 表格/卡片容器应渲染`).toBe(true);

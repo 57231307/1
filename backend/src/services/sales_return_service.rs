@@ -200,6 +200,7 @@ impl SalesReturnService {
             product_id: Set(req.product_id),
             quantity: Set(req.quantity),
             unit_price: Set(req.unit_price),
+            unit_price_foreign: Set(Decimal::ZERO),
             notes: Set(req.reason),
             quantity_alt: Set(Decimal::ZERO),
             ..Default::default()

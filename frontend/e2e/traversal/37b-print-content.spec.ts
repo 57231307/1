@@ -41,9 +41,22 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     orderNo = sos.items?.[0]?.order_no;
     if (!salesOrderId) {
       console.log('[37b] 无销售订单，API 兜底创建（含库存前置）');
+      // 先查真实仓库+产品（不硬编码 id=1，CI 空库会 500）
+      const whList = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/warehouses?page=1&page_size=5'
+      );
+      const whId = whList?.items?.[0]?.id ?? 1;
+      const prodList = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/products?page=1&page_size=5'
+      );
+      const prodId = prodList?.items?.[0]?.id ?? 1;
       const stock = await apiCall<{ id?: number }>(page, 'POST', '/inventory/stock/fabric', {
-        warehouse_id: 1,
-        product_id: 1,
+        warehouse_id: whId,
+        product_id: prodId,
         batch_no: `E2E-PC${Date.now().toString().slice(-6)}`,
         color_no: 'TEST-COLOR',
         grade: '一等品',

@@ -192,7 +192,7 @@ impl InventoryCountService {
                 // 面料追溯字段使用 NotSet，由 DB 默认值处理
                 color_no: sea_orm::ActiveValue::NotSet,
                 dye_lot_no: sea_orm::ActiveValue::NotSet,
-                batch_no: sea_orm::ActiveValue::NotSet,
+                batch_no: sea_orm::ActiveValue::Set(String::new()),
             };
             item_models.push(item.insert(txn).await?);
         }

@@ -76,12 +76,8 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     const receiptId = receipt?.data?.id;
     expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[48-1] 收货单' });
-    const confirm = await apiCallExpectFail(
-      page,
-      'POST',
-      `/purchase/receipts/${receiptId}/confirm`
-    );
-    expect(confirm.status, '收货确认应成功').toBeLessThan(300);
+    const confirm = await apiCall(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
+    expect(confirm, '收货确认应成功').toBeTruthy();
     // 3. 补偿产物断言：AP 列表存在该 supplier 关联的未付记录
     const ap = await apiCall<{ items?: Array<{ supplier_id?: number; po_id?: number }> }>(
       page,
