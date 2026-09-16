@@ -12,7 +12,7 @@ import { loginAsRole, apiCall } from './helpers';
  */
 test.describe('P5.10 系统更新授权', () => {
   test('admin 可查询版本与状态', async ({ page }) => {
-    await loginAsRole(page, 'admin');
+    await loginViaUI(page);
 
     const versionResp = await apiCall(page, 'GET', '/system-update/version');
     expect(versionResp).toBeTruthy();
@@ -22,7 +22,7 @@ test.describe('P5.10 系统更新授权', () => {
   });
 
   test('admin 可查询更新状态', async ({ page }) => {
-    await loginAsRole(page, 'admin');
+    await loginViaUI(page);
 
     // 后端真实路径 /system-update/update-status（原 /status 与 init 路由冲突已重命名）
     const statusResp = await apiCall(page, 'GET', '/system-update/update-status');

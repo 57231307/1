@@ -59,7 +59,7 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
     const analyses = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
-      '/financial-analysis?page=1&page_size=5'
+      '/financial-analysis/reports?page=1&page_size=5'
     );
     expect(analyses.items);
   });

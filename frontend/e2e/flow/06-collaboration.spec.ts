@@ -38,7 +38,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
     const result = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
       // CreateRoleRequest 仅接受 name/code/description/is_system（data_scope 由角色管理页维护）
       name: genName('E2E采购员'),
-      code: genCode('ROLE-PUR'),
+      code: 'role_pur_' + Date.now().toString().slice(-6),
       description: 'E2E 多角色协作-采购员（可 create 不可 approve）',
       is_system: false,
     });

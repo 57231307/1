@@ -95,7 +95,7 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
     const id = await createVoucher(page, '100.00', '100.00');
     expect(id, '凭证创建失败').toBeTruthy();
     const r1 = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
-    expect(r1.status(), '平衡凭证首次提交应成功').toBeLessThan(300);
+    expect(r1.status, '平衡凭证首次提交应成功').toBeLessThan(300);
     const r2 = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
     expectBadRequest(r2, '已提交凭证再次提交应被拒（draft→submitted 不可逆）');
   });
@@ -148,7 +148,7 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
     orderId = await createOrder(page);
     expect(orderId, 'PO 创建失败').toBeTruthy();
     const r1 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${orderId}/submit`);
-    expect(r1.status(), '首次提交应成功').toBeLessThan(300);
+    expect(r1.status, '首次提交应成功').toBeLessThan(300);
     const r2 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${orderId}/submit`);
     expectBadRequest(r2, '已提交订单二次提交应被拒（防重复提交幂等）');
   });
@@ -179,7 +179,7 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
     const id = await createOrder(page);
     expect(id, 'PO 创建失败').toBeTruthy();
     const r1 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`);
-    expect(r1.status(), 'DRAFT 取消应成功（contract.rs:271-274）').toBeLessThan(300);
+    expect(r1.status, 'DRAFT 取消应成功（contract.rs:271-274）').toBeLessThan(300);
     const r2 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`);
     expectBadRequest(r2, 'CANCELLED 为终态，二次取消应被拒');
     // 取消后提交被拒（终态拦截）

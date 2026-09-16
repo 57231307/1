@@ -68,12 +68,9 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
     const ctx = getCtx();
     const result = await apiCall<{ id?: number }>(page, 'POST', '/production/outsourcing-orders', {
       order_no: genCode('OUT'),
-      product_id: ctx.productIds[0] || 1,
-      supplier_id: ctx.supplierId,
-      quantity: 500,
-      unit: '米',
+      order_type: 'dyeing',
+      supplier_id: ctx.supplierId || 1,
       expected_delivery_date: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-      status: 'draft',
       remarks: 'E2E 委外加工订单',
     });
     expect(result.data?.id).toBeDefined();

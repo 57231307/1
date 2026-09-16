@@ -68,6 +68,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
         {
           product_id: ctx.productIds[0],
           quantity: 10,
+          unit: 'm',
           unit_price: '2.50',
         },
       ],

@@ -677,8 +677,8 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
   // ===== 角色互斥（依赖两个角色先建，闭环删除）=====
   test('角色互斥：双角色→互斥关系→删除→回读', async ({ page }) => {
     test.setTimeout(150_000);
-    const codeA = `P0RA${TS}`,
-      codeB = `P0RB${TS}`;
+    const codeA = `p0ra_${TS}`,
+      codeB = `p0rb_${TS}`;
     const ra = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
       name: `P0角色A${TS}`,
       code: codeA,
@@ -737,7 +737,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     test.setTimeout(120_000);
     const r = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
       name: `P0DP角色${TS}`,
-      code: `P0DP${TS}`,
+      code: `p0dp_${TS}`,
       description: 'P0数据权限角色',
     });
     const roleId = r?.data?.id;
