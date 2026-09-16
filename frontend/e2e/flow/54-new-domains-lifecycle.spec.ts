@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, BASE_URL } from './helpers';
+import { loginViaUI, apiCall, BASE_URL } from './helpers';
 import { findTableRow } from './ui-helpers';
 
 /**
