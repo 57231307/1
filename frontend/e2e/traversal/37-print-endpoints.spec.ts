@@ -28,21 +28,10 @@ test.describe('P5.7 打印端点全量矩阵', () => {
     if (resolvedPath.includes('{')) continue;
 
     test(`PRINT ${resolvedPath}`, async ({ page }) => {
-      const resp = await page.request.get(`${API_BASE}${API_PREFIX}${resolvedPath}`).catch(e => {
-        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-        return null;
-      });
-
-      if (!resp) {
-        // 网络错误：后端不可达，全矩阵统一失败
-        throw new Error(`网络错误: ${resolvedPath}`);
-      }
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}${resolvedPath}`);
 
       const status = resp.status();
-      const body = await resp.body().catch(e => {
-        console.warn(`[37] 响应体读取失败（返回空 Buffer）: ${(e as Error).message}`);
-        return Buffer.alloc(0);
-      });
+      const body = await resp.body();
 
       if (status === 404 || status === 400) {
         // CI 种子数据无 id=1 实体：记录为数据缺失，非系统缺陷

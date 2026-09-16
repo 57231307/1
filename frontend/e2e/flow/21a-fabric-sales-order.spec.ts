@@ -139,27 +139,17 @@ test.describe('面料单据专用字段全链路验证', () => {
         .first()
         .locator('button:has-text("查看"), .el-link:has-text("详情"), button:has-text("详情")')
         .first();
-      await detailBtn
-        .waitFor({ state: 'visible', timeout: 3000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const detailVisible = await detailBtn.isVisible().catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      });
+      await detailBtn.waitFor({ state: 'visible', timeout: 3000 });
+      const detailVisible = await detailBtn.isVisible();
       if (detailVisible) {
         await detailBtn.click();
         await page.waitForTimeout(2000);
 
         const detailPanel = page.locator('.el-dialog, .el-drawer, .el-main').first();
-        await detailPanel
-          .waitFor({ state: 'visible', timeout: 10_000 })
-          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+        await detailPanel.waitFor({ state: 'visible', timeout: 10_000 });
 
         // 验证详情中有面料相关文本
-        const detailText = await detailPanel.textContent().catch(e => {
-          console.warn(`[21a] 面料详情查询失败: ${(e as Error).message}`);
-          return '';
-        });
+        const detailText = await detailPanel.textContent();
         // 面料信息可能在详情中显示
         const fabricKeywords = ['色号', '缸号', '克重', '幅宽', '等级', '批次'];
         const hasFabricInfo = fabricKeywords.some(kw => detailText?.includes(kw));
@@ -181,54 +171,33 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 点击新建订单
     const newBtn = page.locator('button:has-text("新建订单")').first();
-    await newBtn.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await newBtn.click();
     await page.waitForTimeout(1000);
 
     const dialog = page.locator('.el-dialog').first();
-    await dialog
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await dialog.waitFor({ state: 'visible', timeout: 10_000 });
 
     // 验证表单字段存在
     const customerSelect = page.locator('.el-dialog .el-select').first();
-    await customerSelect
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const customerVisible = await customerSelect.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await customerSelect.waitFor({ state: 'visible', timeout: 5000 });
+    const customerVisible = await customerSelect.isVisible();
     expect(customerVisible).toBe(true);
 
     // 验证明细行有产品选择列
     const productSelect = page
       .locator('.el-dialog .el-table .el-select, .el-dialog select:has(option)')
       .first();
-    await productSelect
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const productVisible = await productSelect.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await productSelect.waitFor({ state: 'visible', timeout: 5000 });
+    const productVisible = await productSelect.isVisible();
     // 检查表单是否有面料字段输入（色号/缸号/克重/幅宽）
     // 当前前端可能未显示这些字段
     const colorLabel = page.locator('.el-dialog:has-text("色号")').first();
-    await colorLabel
-      .waitFor({ state: 'visible', timeout: 3000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const colorLabelVisible = await colorLabel.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await colorLabel.waitFor({ state: 'visible', timeout: 3000 });
+    const colorLabelVisible = await colorLabel.isVisible();
     // 记录色号字段是否在表单中（当前可能缺失）
 
     // 关闭弹窗
-    await page
-      .locator('.el-dialog__headerbtn')
-      .first()
-      .click()
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await page.locator('.el-dialog__headerbtn').first().click();
   });
 
   // ============================================================

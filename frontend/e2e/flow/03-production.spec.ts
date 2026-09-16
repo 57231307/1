@@ -24,39 +24,25 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   test('3-1 创建染色配方（小样处方）', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', {
-        recipe_no: genCode('DR'),
-        recipe_name: genName('E2E染色配方'),
-        color_no: 'RED-001',
-        color_name: '大红',
-        formula: ' reactive red 3%, sodium sulfate 20g/L',
-        temperature: 80,
-        time_minutes: 45,
-        ph_value: 7,
-        liquor_ratio: 10,
-        fabric_type: '棉涤',
-        dye_type: 'reactive',
-        auxiliaries: [
-          { name: '匀染剂', amount: 2, unit: 'g/L' },
-          { name: '固色剂', amount: 5, unit: 'g/L' },
-        ],
-        status: '草稿',
-      });
-      ctx.dyeRecipeId = result.data?.id;
-    } catch {
-      try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/production/dye-recipes?page=1&page_size=1'
-        );
-        ctx.dyeRecipeId = list.items?.[0]?.id;
-      } catch (e) {
-        console.warn(`[E2E] //: ${(e as Error).message}`);
-        /* skip */
-      }
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', {
+      recipe_no: genCode('DR'),
+      recipe_name: genName('E2E染色配方'),
+      color_no: 'RED-001',
+      color_name: '大红',
+      formula: ' reactive red 3%, sodium sulfate 20g/L',
+      temperature: 80,
+      time_minutes: 45,
+      ph_value: 7,
+      liquor_ratio: 10,
+      fabric_type: '棉涤',
+      dye_type: 'reactive',
+      auxiliaries: [
+        { name: '匀染剂', amount: 2, unit: 'g/L' },
+        { name: '固色剂', amount: 5, unit: 'g/L' },
+      ],
+      status: '草稿',
+    });
+    ctx.dyeRecipeId = result.data?.id;
     expect(ctx.dyeRecipeId).toBeDefined();
   });
 
@@ -69,20 +55,10 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       return;
     }
 
-    try {
-      await apiCall(page, 'POST', `/production/dye-recipes/${id}/submit`);
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* may already be submitted */
-    }
-    try {
-      // ApproveRecipeRequest { approved_by: i32 } 必填（自审修复：原调用缺 body 恒 400
-      // 被 catch 掩盖，旧占位状态机下停留草稿恰好通过宽松断言；状态机真实化后必须真审批）
-      await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`, { approved_by: 1 });
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* may already be approved */
-    }
+    await apiCall(page, 'POST', `/production/dye-recipes/${id}/submit`);
+    // ApproveRecipeRequest { approved_by: i32 } 必填（自审修复：原调用缺 body 恒 400
+    // 被 catch 掩盖，旧占位状态机下停留草稿恰好通过宽松断言；状态机真实化后必须真审批）
+    await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`, { approved_by: 1 });
 
     const recipe = await apiCallRaw<{ status: string }>(
       page,
@@ -107,31 +83,16 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
 
   test('3-3 创建染色批次（缸号）', async ({ page }) => {
     const ctx = getCtx();
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
-        batch_no: genCode('缸'),
-        dye_lot_no: dyeLotNo,
-        greige_fabric_id: ctx.greigeFabricId,
-        color_no: 'RED-001',
-        planned_quantity: 1000,
-        status: '待生产',
-      });
-      ctx.dyeBatchId = result.data?.id;
-      ctx.dyeLotNo = dyeLotNo;
-    } catch {
-      try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/production/dye-batches?page=1&page_size=1'
-        );
-        ctx.dyeBatchId = list.items?.[0]?.id;
-        ctx.dyeLotNo = dyeLotNo;
-      } catch (e) {
-        console.warn(`[E2E] //: ${(e as Error).message}`);
-        /* skip */
-      }
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
+      batch_no: genCode('缸'),
+      dye_lot_no: dyeLotNo,
+      greige_fabric_id: ctx.greigeFabricId,
+      color_no: 'RED-001',
+      planned_quantity: 1000,
+      status: '待生产',
+    });
+    ctx.dyeBatchId = result.data?.id;
+    ctx.dyeLotNo = dyeLotNo;
     expect(ctx.dyeBatchId).toBeDefined();
   });
 
@@ -151,14 +112,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       { status: '已完成' }, // 生产中 → 已完成
     ];
     for (const step of legalFlow) {
-      try {
-        await apiCall(page, 'PUT', `/production/dye-batches/${id}`, {
-          status: step.status,
-        });
-      } catch (e) {
-        console.warn(`[E2E] //: ${(e as Error).message}`);
-        // 流转被拒（可能测试重跑时状态已推进）：重新读取当前状态决定后续
-      }
+      await apiCall(page, 'PUT', `/production/dye-batches/${id}`, {
+        status: step.status,
+      });
       const batch = await apiCallRaw<{ status?: string }>(
         page,
         'GET',
@@ -203,55 +159,45 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
 
   test('3-6 创建大货处方（关联工单+缸号+配方）', async ({ page }) => {
     const ctx = getCtx();
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/production/production-recipes',
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/production/production-recipes', {
+      recipe_no: genCode('PR'),
+      work_order_id: ctx.productionOrderId,
+      dye_batch_id: ctx.dyeBatchId,
+      source_recipe_id: ctx.dyeRecipeId,
+      customer_id: ctx.customerId,
+      color_no: 'RED-001',
+      fabric_name: '棉涤布',
+      fabric_spec: '65%棉35%涤 40S 133x72',
+      fabric_width: 150,
+      gram_weight: 200,
+      fabric_weight: 200,
+      equipment_no: '染缸001',
+      liquor_ratio: '1:10',
+      bath_volume: 2000,
+      adjustment_factor: 1.05,
+      recipe_detail: [
         {
-          recipe_no: genCode('PR'),
-          work_order_id: ctx.productionOrderId,
-          dye_batch_id: ctx.dyeBatchId,
-          source_recipe_id: ctx.dyeRecipeId,
-          customer_id: ctx.customerId,
-          color_no: 'RED-001',
-          fabric_name: '棉涤布',
-          fabric_spec: '65%棉35%涤 40S 133x72',
-          fabric_width: 150,
-          gram_weight: 200,
-          fabric_weight: 200,
-          equipment_no: '染缸001',
-          liquor_ratio: '1:10',
-          bath_volume: 2000,
-          adjustment_factor: 1.05,
-          recipe_detail: [
-            {
-              material_code: 'R001',
-              material_name: '活性红',
-              concentration: 3,
-              unit: '%',
-              amount: 6,
-              category: 'dye',
-            },
-            {
-              material_code: 'A001',
-              material_name: '匀染剂',
-              concentration: 2,
-              unit: 'g/L',
-              amount: 40,
-              category: 'auxiliary',
-            },
-          ],
-          total_dye_cost: 120,
-          total_auxiliary_cost: 80,
-          status: 'draft',
-        }
-      );
-      ctx.productionRecipeId = result.data?.id;
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      // 跳过
-    }
+          material_code: 'R001',
+          material_name: '活性红',
+          concentration: 3,
+          unit: '%',
+          amount: 6,
+          category: 'dye',
+        },
+        {
+          material_code: 'A001',
+          material_name: '匀染剂',
+          concentration: 2,
+          unit: 'g/L',
+          amount: 40,
+          category: 'auxiliary',
+        },
+      ],
+      total_dye_cost: 120,
+      total_auxiliary_cost: 80,
+      status: 'draft',
+    });
+    ctx.productionRecipeId = result.data?.id;
     expect(ctx.productionRecipeId).toBeDefined();
   });
 
@@ -263,14 +209,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       test.skip();
       return;
     }
-    try {
-      await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`, {
-        approved_by: 1,
-      });
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
-    }
+    await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`, {
+      approved_by: 1,
+    });
     const recipe = await apiCallRaw<{ status: string }>(
       page,
       'GET',
@@ -284,62 +225,34 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   test('3-8 创建 BOM', async ({ page }) => {
     const ctx = getCtx();
     const productIds = ctx.productIds.length > 0 ? ctx.productIds : [1, 2];
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/catalog/boms', {
-        product_id: productIds[0],
-        version: 1,
-        is_default: true,
-        status: 'ACTIVE',
-        items: productIds.slice(1).map((pid, i) => ({
-          material_id: pid,
-          quantity: 10 + i * 5,
-          unit: '米',
-        })),
-      });
-      ctx.bomId = result.data?.id;
-    } catch {
-      try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/catalog/boms?page=1&page_size=1'
-        );
-        ctx.bomId = list.items?.[0]?.id;
-      } catch (e) {
-        console.warn(`[E2E] //: ${(e as Error).message}`);
-        /* skip */
-      }
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/catalog/boms', {
+      product_id: productIds[0],
+      version: 1,
+      is_default: true,
+      status: 'ACTIVE',
+      items: productIds.slice(1).map((pid, i) => ({
+        material_id: pid,
+        quantity: 10 + i * 5,
+        unit: '米',
+      })),
+    });
+    ctx.bomId = result.data?.id;
     expect(ctx.bomId).toBeDefined();
   });
 
   test('3-9 创建生产工单', async ({ page }) => {
     const ctx = getCtx();
-    try {
-      const poUrl = '/production/production-orders/orders';
-      const result = await apiCall<{ id?: number }>(page, 'POST', poUrl, {
-        // CreateProductionOrderPayload：order_no 必填，quantity → planned_quantity
-        order_no: genCode('PO-E2E'),
-        product_id: ctx.productIds[0] || 1,
-        planned_quantity: 1000,
-        planned_start_date: new Date().toISOString().split('T')[0],
-        planned_end_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-        remarks: 'E2E 生产工单',
-      });
-      ctx.productionOrderId = result.data?.id;
-    } catch {
-      try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/production/production-orders/orders?page=1&page_size=1'
-        );
-        ctx.productionOrderId = list.items?.[0]?.id;
-      } catch (e) {
-        console.warn(`[E2E] //: ${(e as Error).message}`);
-        /* skip */
-      }
-    }
+    const poUrl = '/production/production-orders/orders';
+    const result = await apiCall<{ id?: number }>(page, 'POST', poUrl, {
+      // CreateProductionOrderPayload：order_no 必填，quantity → planned_quantity
+      order_no: genCode('PO-E2E'),
+      product_id: ctx.productIds[0] || 1,
+      planned_quantity: 1000,
+      planned_start_date: new Date().toISOString().split('T')[0],
+      planned_end_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+      remarks: 'E2E 生产工单',
+    });
+    ctx.productionOrderId = result.data?.id;
     expect(ctx.productionOrderId).toBeDefined();
   });
 
@@ -358,12 +271,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     ];
 
     for (const t of transitions) {
-      try {
-        await apiCall(page, 'POST', `/production/production-orders/orders/${id}/${t.action}`);
-      } catch (e) {
-        console.warn(`[E2E] //: ${(e as Error).message}`);
-        // 状态可能不允许
-      }
+      await apiCall(page, 'POST', `/production/production-orders/orders/${id}/${t.action}`);
     }
 
     const order = await apiCallRaw<{ status: string }>(

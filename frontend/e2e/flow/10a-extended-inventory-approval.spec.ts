@@ -20,22 +20,17 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
   });
 
   test('L1-1 验证库存预留机制（pending → locked → consumed）', async ({ page }) => {
-    try {
-      const reservations = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/inventory/reservations?page=1&page_size=10'
+    const reservations = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+      page,
+      'GET',
+      '/inventory/reservations?page=1&page_size=10'
+    );
+    expect(reservations.items);
+    if (reservations?.items?.length ?? 0 > 0) {
+      const status = (reservations.items?.[0].status || '').toLowerCase();
+      expect(['pending', 'locked', 'consumed', 'released', 'cancelled']).toContain(
+        status ?? '(missing-status)'
       );
-      expect(reservations.items);
-      if (reservations?.items?.length ?? 0 > 0) {
-        const status = (reservations.items?.[0].status || '').toLowerCase();
-        expect(['pending', 'locked', 'consumed', 'released', 'cancelled']).toContain(
-          status ?? '(missing-status)'
-        );
-      }
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
     }
   });
 
@@ -62,32 +57,22 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
     }
 
     // 验证采购订单关联入库单
-    try {
-      const receipts = await apiCallRaw<{
-        items: Array<{ id: number; purchase_order_id: number }>;
-      }>(
-        page,
-        'GET',
-        `/purchase/receipts?purchase_order_id=${ctx.purchaseOrderId}&page=1&page_size=5`
-      );
-      expect(receipts.items);
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
-    }
+    const receipts = await apiCallRaw<{
+      items: Array<{ id: number; purchase_order_id: number }>;
+    }>(
+      page,
+      'GET',
+      `/purchase/receipts?purchase_order_id=${ctx.purchaseOrderId}&page=1&page_size=5`
+    );
+    expect(receipts.items);
 
     // 验证入库单关联应付单
-    try {
-      const apInvoices = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/ap/invoices?page=1&page_size=5'
-      );
-      expect(apInvoices.items);
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
-    }
+    const apInvoices = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/ap/invoices?page=1&page_size=5'
+    );
+    expect(apInvoices.items);
   });
 
   test('L1-4 验证双计量换算（米→公斤）', async () => {
@@ -102,60 +87,45 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
   });
 
   test('L1-6 验证库存盘点', async ({ page }) => {
-    try {
-      const counts = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/inventory/counts?page=1&page_size=5'
+    const counts = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+      page,
+      'GET',
+      '/inventory/counts?page=1&page_size=5'
+    );
+    expect(counts.items);
+    if (counts?.items?.length ?? 0 > 0) {
+      const status = (counts.items?.[0].status || '').toLowerCase();
+      expect(['pending', 'completed', 'draft', 'approved', 'rejected']).toContain(
+        status ?? '(missing-status)'
       );
-      expect(counts.items);
-      if (counts?.items?.length ?? 0 > 0) {
-        const status = (counts.items?.[0].status || '').toLowerCase();
-        expect(['pending', 'completed', 'draft', 'approved', 'rejected']).toContain(
-          status ?? '(missing-status)'
-        );
-      }
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
     }
   });
 
   test('L1-7 验证库存调拨状态机', async ({ page }) => {
-    try {
-      const transfers = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/inventory/transfers?page=1&page_size=5'
+    const transfers = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+      page,
+      'GET',
+      '/inventory/transfers?page=1&page_size=5'
+    );
+    expect(transfers.items);
+    if (transfers?.items?.length ?? 0 > 0) {
+      const status = (transfers.items?.[0].status || '').toLowerCase();
+      expect(['pending', 'approved', 'rejected', 'shipped', 'completed']).toContain(
+        status ?? '(missing-status)'
       );
-      expect(transfers.items);
-      if (transfers?.items?.length ?? 0 > 0) {
-        const status = (transfers.items?.[0].status || '').toLowerCase();
-        expect(['pending', 'approved', 'rejected', 'shipped', 'completed']).toContain(
-          status ?? '(missing-status)'
-        );
-      }
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
     }
   });
 
   test('L1-8 验证库存调整状态机', async ({ page }) => {
-    try {
-      const adjustments = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/inventory/adjustments?page=1&page_size=5'
-      );
-      expect(adjustments.items);
-      if (adjustments?.items?.length ?? 0 > 0) {
-        const status = (adjustments.items?.[0].status || '').toLowerCase();
-        expect(['pending', 'approved', 'rejected']).toContain(status ?? '(missing-status)');
-      }
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
+    const adjustments = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+      page,
+      'GET',
+      '/inventory/adjustments?page=1&page_size=5'
+    );
+    expect(adjustments.items);
+    if (adjustments?.items?.length ?? 0 > 0) {
+      const status = (adjustments.items?.[0].status || '').toLowerCase();
+      expect(['pending', 'approved', 'rejected']).toContain(status ?? '(missing-status)');
     }
   });
 
@@ -180,17 +150,12 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       );
       expect(alerts.items);
     } catch {
-      try {
-        const alerts = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/material-shortage?page=1&page_size=5'
-        );
-        expect(alerts.items);
-      } catch (e) {
-        console.warn(`[E2E] //: ${(e as Error).message}`);
-        /* skip */
-      }
+      const alerts = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/material-shortage?page=1&page_size=5'
+      );
+      expect(alerts.items);
     }
   });
 });

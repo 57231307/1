@@ -45,24 +45,15 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
     const collector = trackPageHealth(page);
     await loginAsRole(page, role);
 
-    await page
-      .waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 })
-      .catch(e => {
-        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
-      });
+    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 });
 
     // 读取侧边栏菜单项（路由 href 集合）
-    const menuHrefs = await page
-      .evaluate(() => {
-        const links = Array.from(
-          document.querySelectorAll('.el-menu a[href], aside a[href], nav a[href]')
-        );
-        return links.map(a => (a as HTMLAnchorElement).getAttribute('href') ?? '');
-      })
-      .catch(e => {
-        console.warn(`[44] 文本收集失败（返回空）: ${(e as Error).message}`);
-        return [] as string[];
-      });
+    const menuHrefs = await page.evaluate(() => {
+      const links = Array.from(
+        document.querySelectorAll('.el-menu a[href], aside a[href], nav a[href]')
+      );
+      return links.map(a => (a as HTMLAnchorElement).getAttribute('href') ?? '');
+    });
 
     // 拉取角色权限做推导（从 storageState cookie 登录态调 API）
     const derived = await deriveFromMenu(menuHrefs);
@@ -75,20 +66,11 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
 
       if (expectedReachable) {
         // 应可达 → 访问 + 健康断言
-        await page.goto(mod.route).catch(e => {
-          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
-        });
-        await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(e => {
-          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
-        });
+        await page.goto(mod.route);
+        await page.waitForLoadState('networkidle', { timeout: 10000 });
 
-        let actual: 'reachable' | 'denied' | 'error' = 'reachable';
-        try {
-          await assertPageHealthy(page, collector, { allowConsoleWarn: true });
-        } catch (e) {
-          console.warn(`[E2E] catch: ${(e as Error).message}`);
-          actual = 'error';
-        }
+        let actual: 'reachable' | 'denied' = 'reachable';
+        await assertPageHealthy(page, collector, { allowConsoleWarn: true });
 
         const currentPath = page.url().replace(process.env.BASE_URL || 'http://localhost:3000', '');
         if (currentPath.includes('/login') || currentPath.includes('/403')) {
@@ -103,12 +85,8 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
         });
       } else {
         // 应被拒 → 直接输 URL 应被拦截（403 页/跳转登录/菜单无此项）
-        await page.goto(mod.route).catch(e => {
-          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
-        });
-        await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(e => {
-          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
-        });
+        await page.goto(mod.route);
+        await page.waitForLoadState('networkidle', { timeout: 10000 });
 
         const currentPath = page.url().replace(process.env.BASE_URL || 'http://localhost:3000', '');
         const blocked =
@@ -127,12 +105,7 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
     }
 
     // 界面显示健康：未翻译 key / NaN / undefined 渲染抽样
-    const pageText = await page
-      .evaluate(() => document.body.innerText)
-      .catch(e => {
-        console.warn(`[44] 页面文本读取失败: ${(e as Error).message}`);
-        return '';
-      });
+    const pageText = await page.evaluate(() => document.body.innerText);
     const untranslatedKeys = pageText.match(/\b[a-z]+\.[a-z]+(\.[a-z]+)+\b/g) ?? [];
     const renderedNaN = /\bNaN\b|\bundefined\b/.test(pageText);
 

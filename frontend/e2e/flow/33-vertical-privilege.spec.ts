@@ -86,11 +86,7 @@ test.describe('P5.3 垂直越权矩阵', () => {
     const reachable: string[] = [];
     const unexpected: string[] = [];
     for (const ep of ADMIN_READONLY_ENDPOINTS) {
-      const resp = await page.request.get(`${API_BASE}${API_PREFIX}${ep}`).catch(e => {
-        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-        return null;
-      });
-      if (!resp) continue;
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}${ep}`);
       const status = resp.status();
       if (status < 400) reachable.push(ep);
       else if (status !== 404 && status !== 400) unexpected.push(`${ep}=${status}`);

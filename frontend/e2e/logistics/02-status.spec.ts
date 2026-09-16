@@ -13,51 +13,23 @@ test.describe('02 运单状态流转', () => {
   test('02-01 待发货运单可发货（pending → shipped）', async ({ page }) => {
     await page.goto('/logistics');
     const shipBtn = page.getByRole('link', { name: /发货/ }).first();
-    if (
-      await shipBtn.isVisible({ timeout: 3000 }).catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      })
-    ) {
+    if (await shipBtn.isVisible({ timeout: 3000 })) {
       await shipBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/发货成功/))
-        .toBeVisible({ timeout: 30000 })
-        .catch(e => {
-          console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-          return null;
-        });
+      await expect(page.getByText(/发货成功/)).toBeVisible({ timeout: 30000 });
     }
   });
 
   test('02-02 已发货运单可更新状态至运输中（shipped → in_transit）', async ({ page }) => {
     await page.goto('/logistics');
     const updateBtn = page.getByRole('link', { name: /更新状态/ }).first();
-    if (
-      await updateBtn.isVisible({ timeout: 3000 }).catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      })
-    ) {
+    if (await updateBtn.isVisible({ timeout: 3000 })) {
       await updateBtn.click();
-      await expect(page.locator('.el-dialog'))
-        .toBeVisible({ timeout: 3000 })
-        .catch(e => {
-          console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-          return null;
-        });
+      await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 3000 });
       await page.getByLabel(/新状态/).click();
       await page.getByRole('option').first().click();
       await page.getByRole('button', { name: /确认/ }).click();
-      await expect(page.getByText(/更新成功/))
-        .toBeVisible({ timeout: 30000 })
-        .catch(e => {
-          console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-          return null;
-        });
+      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 30000 });
     }
   });
 
@@ -67,12 +39,7 @@ test.describe('02 运单状态流转', () => {
       .locator('.el-tag')
       .filter({ hasText: /已签收/ })
       .first();
-    if (
-      await deliveredTag.isVisible({ timeout: 3000 }).catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      })
-    ) {
+    if (await deliveredTag.isVisible({ timeout: 3000 })) {
       const row = deliveredTag.locator('xpath=ancestor::tr');
       const actions = row.locator('button, a').filter({ hasText: /发货|更新状态/ });
       await expect(actions).toHaveCount(0);
@@ -82,12 +49,7 @@ test.describe('02 运单状态流转', () => {
   test('02-04 运单详情可查看', async ({ page }) => {
     await page.goto('/logistics');
     const viewBtn = page.getByRole('link', { name: /查看/ }).first();
-    if (
-      await viewBtn.isVisible({ timeout: 3000 }).catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      })
-    ) {
+    if (await viewBtn.isVisible({ timeout: 3000 })) {
       await viewBtn.click();
       await expect(page.locator('.el-dialog')).toBeVisible();
       await expect(page.getByText(/运单号|物流公司/)).toBeVisible();

@@ -57,13 +57,7 @@ test.describe('39c 导出内容断言', () => {
     console.log(`[39c] 仓库列表行数=${listCount}（total=${list.total}）`);
 
     // ---- 2. 真实导出 ----
-    const exportResp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/warehouses/export`)
-      .catch(e => {
-        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-        return null;
-      });
-    if (!exportResp) throw new Error('网络错误: /warehouses/export');
+    const exportResp = await page.request.get(`${API_BASE}${API_PREFIX}/warehouses/export`);
     const status = exportResp.status();
     console.log(`[39c] /warehouses/export → ${status}`);
     if (status === 404 || status === 400) {
@@ -116,27 +110,15 @@ test.describe('39c 导出内容断言', () => {
   test('库存导出 xlsx 行数与列表一致', async ({ page }) => {
     test.setTimeout(120_000);
 
-    let listCount = 0;
-    let firstText = '';
-    try {
-      const list = await apiCallRaw<{
-        items: Array<{ id: number; batch_no?: string; product_name?: string }>;
-        total: number;
-      }>(page, 'GET', '/inventory/stock?page=1&page_size=100');
-      listCount = list.items?.length ?? 0;
-      firstText = list.items?.[0]?.batch_no ?? '';
-      console.log(`[39c] 库存列表行数=${listCount}，首条=${firstText}`);
-    } catch (e) {
-      console.log('[39c] 库存列表查询失败:', (e as Error).message);
-    }
+    const list = await apiCallRaw<{
+      items: Array<{ id: number; batch_no?: string; product_name?: string }>;
+      total: number;
+    }>(page, 'GET', '/inventory/stock?page=1&page_size=100');
+    const listCount = list.items?.length ?? 0;
+    const firstText = list.items?.[0]?.batch_no ?? '';
+    console.log(`[39c] 库存列表行数=${listCount}，首条=${firstText}`);
 
-    const exportResp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/inventory/stock/export`)
-      .catch(e => {
-        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-        return null;
-      });
-    if (!exportResp) throw new Error('网络错误: /inventory/stock/export');
+    const exportResp = await page.request.get(`${API_BASE}${API_PREFIX}/inventory/stock/export`);
     const status = exportResp.status();
     console.log(`[39c] /stock/export → ${status}`);
     if (status === 404 || status === 400) {

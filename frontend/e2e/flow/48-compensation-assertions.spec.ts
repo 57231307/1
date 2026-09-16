@@ -50,35 +50,30 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     // 2. 建收货单→确认（CreatePurchaseReceiptRequest: order_id/supplier_id/receipt_date/
     //    warehouse_id/department_id/items[{line_no,material_id,material_code,material_name,
     //    quantity,quantity_alt}]——purchase_receipt_dto.rs:11-95）
-    let receiptId: number | undefined;
-    try {
-      const receipt = await apiCall<{ id?: number; data?: { id?: number } }>(
-        page,
-        'POST',
-        '/purchase/receipts',
-        {
-          order_id: poId,
-          supplier_id: ctx.supplierId,
-          receipt_date: new Date().toISOString().slice(0, 10),
-          warehouse_id: ctx.warehouseIds[0],
-          department_id: ctx.departmentIds[0],
-          items: [
-            {
-              line_no: 1,
-              material_id: ctx.productIds[0],
-              material_code: `M48${Date.now().toString().slice(-6)}`,
-              material_name: '48补偿断言物料',
-              quantity: 10,
-              quantity_alt: 0,
-              unit_master: '米',
-            },
-          ],
-        }
-      );
-      receiptId = receipt?.data?.id;
-    } catch (e) {
-      console.error('[48-1] 收货单创建请求失败:', (e as Error).message);
-    }
+    const receipt = await apiCall<{ id?: number; data?: { id?: number } }>(
+      page,
+      'POST',
+      '/purchase/receipts',
+      {
+        order_id: poId,
+        supplier_id: ctx.supplierId,
+        receipt_date: new Date().toISOString().slice(0, 10),
+        warehouse_id: ctx.warehouseIds[0],
+        department_id: ctx.departmentIds[0],
+        items: [
+          {
+            line_no: 1,
+            material_id: ctx.productIds[0],
+            material_code: `M48${Date.now().toString().slice(-6)}`,
+            material_name: '48补偿断言物料',
+            quantity: 10,
+            quantity_alt: 0,
+            unit_master: '米',
+          },
+        ],
+      }
+    );
+    const receiptId = receipt?.data?.id;
     expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[48-1] 收货单' });
     const confirm = await apiCallExpectFail(
@@ -113,18 +108,11 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
     // 发货（ShipOrderRequest{order_id,warehouse_code,items[{product_id,quantity}]}——
     // services/so/delivery.rs:37-61）
-    let shipOk = false;
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${soId}/ship`, {
-        order_id: soId,
-        warehouse_code: `WH-MAIN`,
-        items: [{ product_id: ctx.productIds[0], quantity: 5 }],
-      });
-      shipOk = true;
-    } catch (e) {
-      console.error('[48-2] 发货请求失败:', (e as Error).message);
-    }
-    expect(shipOk, '发货请求失败').toBeTruthy();
+    await apiCall(page, 'POST', `/sales/orders/${soId}/ship`, {
+      order_id: soId,
+      warehouse_code: `WH-MAIN`,
+      items: [{ product_id: ctx.productIds[0], quantity: 5 }],
+    });
     // 补偿产物：凭证列表应含收入凭证（source_module=so 或摘要含订单号）
     const vouchers = await apiCall<{ items?: Array<Record<string, unknown>> }>(
       page,

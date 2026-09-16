@@ -102,20 +102,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     // 真实断言：field-permissions 端点可达且结构化（端点存在性由 404 区分）
     const perms = await apiCallRaw<
       { items: Array<{ id: number }> } | { data?: { items: Array<{ id: number }> } }
-    >(page, 'GET', '/field-permissions?page=1&page_size=10').catch(e => {
-      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-      return null;
-    });
-    if (perms === null) {
-      // 端点未实现：明确标注而非静默
-      test.info().annotations.push({
-        type: 'endpoint-missing',
-        description: '/field-permissions 端点未实现（404）',
-      });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    >(page, 'GET', '/field-permissions?page=1&page_size=10');
     const items = Array.isArray(perms)
       ? perms
       : (perms?.items ?? (perms as { data?: { items: unknown[] } })?.data?.items ?? []);
@@ -125,19 +112,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
   test('P1-8b 验证客户字段级权限端点', async ({ page }) => {
     const perms = await apiCallRaw<
       { items: Array<{ id: number }> } | { data?: { items: Array<{ id: number }> } }
-    >(page, 'GET', '/customer-field-permissions?page=1&page_size=10').catch(e => {
-      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-      return null;
-    });
-    if (perms === null) {
-      test.info().annotations.push({
-        type: 'endpoint-missing',
-        description: '/customer-field-permissions 端点未实现（404）',
-      });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    >(page, 'GET', '/customer-field-permissions?page=1&page_size=10');
     const items = Array.isArray(perms)
       ? perms
       : (perms?.items ?? (perms as { data?: { items: unknown[] } })?.data?.items ?? []);
@@ -153,19 +128,14 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
   test('P1-10 验证权限审计日志（拒绝记录）', async ({ page }) => {
     // 制造一次权限拒绝
     await apiCallExpectFail(page, 'GET', '/unknown-module/test');
-    try {
-      const logs = await apiCallRaw<{ items: Array<{ resource_type: string }> }>(
-        page,
-        'GET',
-        '/system/audit-logs?page=1&page_size=50'
-      );
-      expect(logs.items);
-      // 验证有 permission_denied 记录
-      const denied = logs.items.filter(l => l.resource_type === 'permission_denied');
-      expect(denied.length >= 0).toBeTruthy();
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
-    }
+    const logs = await apiCallRaw<{ items: Array<{ resource_type: string }> }>(
+      page,
+      'GET',
+      '/system/audit-logs?page=1&page_size=50'
+    );
+    expect(logs.items);
+    // 验证有 permission_denied 记录
+    const denied = logs.items.filter(l => l.resource_type === 'permission_denied');
+    expect(denied.length >= 0).toBeTruthy();
   });
 });

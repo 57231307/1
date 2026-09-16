@@ -41,28 +41,28 @@ async function ensureSharedEntities(page: import('@playwright/test').Page): Prom
   const cust = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
     customer_name: `P0共享客户${TS}`,
     customer_type: 'retail',
-  }).catch(() => null);
+  });
   shared.custId = cust?.data?.id;
   const prod = await apiCall<{ id?: number }>(page, 'POST', '/products', {
     name: `P0共享产品${TS}`,
     code: uniqueKey('P0-SPRD-'),
     standard_price: 5,
     status: 'active',
-  }).catch(() => null);
+  });
   shared.prodId = prod?.data?.id;
   const sup = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
     supplier_name: `P0共享供应商${TS}`,
     supplier_type: 'material',
-  }).catch(() => null);
+  });
   shared.supId = sup?.data?.id;
   const wh = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
     name: `P0共享仓库${TS}`,
     code: uniqueKey('P0-SWH-'),
-  }).catch(() => null);
+  });
   shared.whId = wh?.data?.id;
   const dept = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
     name: `P0共享部门${TS}`,
-  }).catch(() => null);
+  });
   shared.deptId = dept?.data?.id;
   const ok = !!(shared.custId && shared.prodId && shared.supId && shared.whId && shared.deptId);
   if (!ok) {
@@ -97,16 +97,12 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       fabric_composition: '100%涤纶',
     };
 
-    let createResp: { data?: { id?: number } } | null = null;
-    try {
-      createResp = await apiCall<{ data?: { id?: number } }>(page, 'POST', '/products', payload);
-    } catch (e) {
-      // DATABASE_ERROR（如分片 DB seed 外键时序）属环境级失败：输出完整响应便于诊断后 skip
-      console.error(`[P0-产品] 创建失败（环境级，skip）: ${(e as Error).message}`);
-      console.error(`[P0-产品] payload=${JSON.stringify(payload)}`);
-      test.skip();
-      return;
-    }
+    const createResp = await apiCall<{ data?: { id?: number } }>(
+      page,
+      'POST',
+      '/products',
+      payload
+    );
     const id = createResp?.data?.id;
     console.log(`[P0-产品] 创建成功 id=${id} code=${code}`);
     expect(id, '产品创建必须返回 id').toBeTruthy();
@@ -416,14 +412,14 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     const cust = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
       customer_name: `P0订单客户${TS}`,
       customer_type: 'retail',
-    }).catch(() => null);
+    });
     const custId = cust?.data?.id;
     const prod = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name: `P0订单产品${TS}`,
       code: uniqueKey('P0-PRD-'),
       standard_price: 5,
       status: 'active',
-    }).catch(() => null);
+    });
     const prodId = prod?.data?.id;
     if (!custId || !prodId) {
       console.warn(`[P0-销售订单] 前置数据缺失（cust=${custId} prod=${prodId}），跳过`);
@@ -494,23 +490,23 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     const sup = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
       supplier_name: `P0采购供应商${TS}`,
       supplier_type: 'material',
-    }).catch(() => null);
+    });
     const supId = sup?.data?.id;
     const wh = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
       name: `P0采购仓库${TS}`,
       code: uniqueKey('P0-WHP-'),
-    }).catch(() => null);
+    });
     const whId = wh?.data?.id;
     const dept = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
       name: `P0采购部门${TS}`,
-    }).catch(() => null);
+    });
     const deptId = dept?.data?.id;
     const mat = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name: `P0采购物料${TS}`,
       code: uniqueKey('P0-MAT-'),
       standard_price: 10,
       status: 'active',
-    }).catch(() => null);
+    });
     const matId = mat?.data?.id;
     if (!supId || !whId || !deptId || !matId) {
       console.warn(
@@ -620,10 +616,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
     const subjectsResp = await apiCallRaw<
       Array<{ id: number; code: string }> | { items?: Array<{ id: number; code: string }> }
-    >(page, 'GET', '/subjects?page=1&page_size=50').catch(e => {
-      console.warn('[P0-凭证] 科目列表查询失败:', (e as Error).message);
-      return { items: [] };
-    });
+    >(page, 'GET', '/subjects?page=1&page_size=50');
     const subjectList = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.items ?? []);
     if (subjectList.length < 3) {
       console.log('[P0-凭证] 科目不足 3 个，跳过');
@@ -719,10 +712,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       'POST',
       '/quotations',
       payload
-    ).catch(e => {
-      console.warn('[P0-报价单] 创建失败（可能需要前置数据）:', (e as Error).message);
-      return null;
-    });
+    );
     if (!createResp?.data?.id) {
       console.log('[P0-报价单] 创建失败，跳过');
       test.skip();

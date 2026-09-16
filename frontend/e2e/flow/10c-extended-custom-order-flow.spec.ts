@@ -42,17 +42,12 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       });
       ctx.customOrderId = result.data?.id;
     } catch {
-      try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/custom-orders?page=1&page_size=1'
-        );
-        ctx.customOrderId = list.items?.[0]?.id;
-      } catch (e) {
-        console.warn(`[E2E] //: ${(e as Error).message}`);
-        /* skip */
-      }
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/custom-orders?page=1&page_size=1'
+      );
+      ctx.customOrderId = list.items?.[0]?.id;
     }
     expect(ctx.customOrderId).toBeDefined();
   });
@@ -106,103 +101,78 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
 
   test('C1-4 创建打样通知单（lab_dip_request）', async ({ page }) => {
     const ctx = getCtx();
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/production/lab-dip/requests', {
-        customer_id: ctx.customerId,
-        product_id: ctx.productIds[0] || 1,
-        color_no: 'RED-001',
-        color_name: '大红',
-        fabric_type: '棉涤',
-        status: 'pending',
-      });
-      expect(result.data?.id).toBeDefined();
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/production/lab-dip/requests', {
+      customer_id: ctx.customerId,
+      product_id: ctx.productIds[0] || 1,
+      color_no: 'RED-001',
+      color_name: '大红',
+      fabric_type: '棉涤',
+      status: 'pending',
+    });
+    expect(result.data?.id).toBeDefined();
   });
 
   test('C1-5 验证打样状态机（pending → sampling → submitted → approved/rejected）', async ({
     page,
   }) => {
-    try {
-      const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/production/lab-dip/requests?page=1&page_size=5'
+    const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+      page,
+      'GET',
+      '/production/lab-dip/requests?page=1&page_size=5'
+    );
+    expect(list.items);
+    if (list?.items?.length ?? 0 > 0) {
+      const status = (list.items?.[0].status || '').toLowerCase();
+      expect(['pending', 'sampling', 'submitted', 'approved', 'rejected', 'completed']).toContain(
+        status ?? '(missing-status)'
       );
-      expect(list.items);
-      if (list?.items?.length ?? 0 > 0) {
-        const status = (list.items?.[0].status || '').toLowerCase();
-        expect(['pending', 'sampling', 'submitted', 'approved', 'rejected', 'completed']).toContain(
-          status ?? '(missing-status)'
-        );
-      }
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
     }
   });
 
   test('C1-6 验证打样小样状态机（pending → matched/not_matched/selected）', async ({ page }) => {
-    try {
-      const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/production/lab-dip/samples?page=1&page_size=5'
+    const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+      page,
+      'GET',
+      '/production/lab-dip/samples?page=1&page_size=5'
+    );
+    expect(list.items);
+    if (list?.items?.length ?? 0 > 0) {
+      const status = (list.items?.[0].status || '').toLowerCase();
+      expect(['pending', 'matched', 'not_matched', 'selected']).toContain(
+        status ?? '(missing-status)'
       );
-      expect(list.items);
-      if (list?.items?.length ?? 0 > 0) {
-        const status = (list.items?.[0].status || '').toLowerCase();
-        expect(['pending', 'matched', 'not_matched', 'selected']).toContain(
-          status ?? '(missing-status)'
-        );
-      }
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
     }
   });
 
   test('C1-7 验证大货批色 8 态状态机', async ({ page }) => {
-    try {
-      const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/bulk-color-approvals?page=1&page_size=5'
-      );
-      expect(list.items);
-      if (list?.items?.length ?? 0 > 0) {
-        const status = (list.items?.[0].status || '').toLowerCase();
-        expect([
-          'pending',
-          'sampled',
-          'sent_to_customer',
-          'approved',
-          'rejected',
-          'rework',
-          'downgraded',
-          'scrapped',
-        ]).toContain(status ?? '(missing-status)');
-      }
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
+    const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+      page,
+      'GET',
+      '/bulk-color-approvals?page=1&page_size=5'
+    );
+    expect(list.items);
+    if (list?.items?.length ?? 0 > 0) {
+      const status = (list.items?.[0].status || '').toLowerCase();
+      expect([
+        'pending',
+        'sampled',
+        'sent_to_customer',
+        'approved',
+        'rejected',
+        'rework',
+        'downgraded',
+        'scrapped',
+      ]).toContain(status ?? '(missing-status)');
     }
   });
 
   test('C1-8 验证大货批色回修流程（rework → sampled）', async ({ page }) => {
-    try {
-      const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/bulk-color-approvals?status=rework&page=1&page_size=5'
-      );
-      expect(list.items);
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
-    }
+    const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+      page,
+      'GET',
+      '/bulk-color-approvals?status=rework&page=1&page_size=5'
+    );
+    expect(list.items);
   });
 
   test('C1-9 验证坯布五维追溯链', async ({ page }) => {
@@ -214,42 +184,27 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       );
       expect(trace.items);
     } catch {
-      try {
-        const trace = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/business-trace?page=1&page_size=5'
-        );
-        expect(trace.items);
-      } catch (e) {
-        console.warn(`[E2E] //: ${(e as Error).message}`);
-        /* skip */
-      }
+      const trace = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/business-trace?page=1&page_size=5'
+      );
+      expect(trace.items);
     }
   });
 
   test('C1-10 验证工艺跟踪大屏数据', async ({ page }) => {
-    try {
-      const nodes = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/production/process-nodes?page=1&page_size=5'
-      );
-      expect(nodes.items);
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
-    }
-    try {
-      const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/production/process-logs?page=1&page_size=5'
-      );
-      expect(logs.items);
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      /* skip */
-    }
+    const nodes = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+      page,
+      'GET',
+      '/production/process-nodes?page=1&page_size=5'
+    );
+    expect(nodes.items);
+    const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/production/process-logs?page=1&page_size=5'
+    );
+    expect(logs.items);
   });
 });

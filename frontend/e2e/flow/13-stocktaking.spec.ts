@@ -37,19 +37,8 @@ test.describe('库存盘点完整流程', () => {
       notes: 'E2E 盘点测试',
     };
 
-    let countId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
-      countId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/inventory/counts?page=1&page_size=1'
-      );
-      countId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
+    const countId = result.data?.id!;
     expect(countId).toBeDefined();
 
     // 验证初始状态
@@ -63,18 +52,13 @@ test.describe('库存盘点完整流程', () => {
     // 录入实盘数据（后端 RecordItemInput 真实字段：stock_id + quantity_actual 字符串）
     // 先查询库存 stock_id
     let stockId = 1;
-    try {
-      const stockList = await apiCallRaw<{ items: Array<{ id: number; product_id: number }> }>(
-        page,
-        'GET',
-        `/inventory/stock?product_id=${productId}&warehouse_id=${warehouseId}&page=1&page_size=5`
-      );
-      if (stockList.items && stockList.items.length > 0) {
-        stockId = stockList.items?.[0].id;
-      }
-    } catch (e) {
-      console.warn(`[E2E] //: ${(e as Error).message}`);
-      // 查询失败用默认 stock_id
+    const stockList = await apiCallRaw<{ items: Array<{ id: number; product_id: number }> }>(
+      page,
+      'GET',
+      `/inventory/stock?product_id=${productId}&warehouse_id=${warehouseId}&page=1&page_size=5`
+    );
+    if (stockList.items && stockList.items.length > 0) {
+      stockId = stockList.items?.[0].id;
     }
 
     await apiCall(page, 'POST', `/inventory/counts/${countId}/record`, {
@@ -126,19 +110,8 @@ test.describe('库存盘点完整流程', () => {
       count_date: new Date().toISOString(),
     };
 
-    let countId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
-      countId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/inventory/counts?page=1&page_size=1'
-      );
-      countId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
+    const countId = result.data?.id!;
 
     // 录入负数实盘数量（后端应拒绝）
     const illegalRecord = await apiCallExpectFail(
@@ -172,30 +145,11 @@ test.describe('库存盘点完整流程', () => {
       count_date: new Date().toISOString(),
     };
 
-    let countId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
-      countId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/inventory/counts?page=1&page_size=1'
-      );
-      countId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
+    const countId = result.data?.id!;
 
-    try {
-      await apiCall(page, 'POST', `/inventory/counts/${countId}/submit`);
-    } catch (e) {
-      console.log(`submit 结果: ${(e as { message?: string }).message || e}`);
-    }
-    try {
-      await apiCall(page, 'POST', `/inventory/counts/${countId}/approve`);
-    } catch (e) {
-      console.log(`approve 结果: ${(e as { message?: string }).message || e}`);
-    }
+    await apiCall(page, 'POST', `/inventory/counts/${countId}/submit`);
+    await apiCall(page, 'POST', `/inventory/counts/${countId}/approve`);
 
     const illegalSubmit = await apiCallExpectFail(
       page,

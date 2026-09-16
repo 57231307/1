@@ -15,9 +15,7 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-form, .el-empty, .el-tabs, .dashboard-container, canvas, .el-result, .error-page, body'
       )
       .first();
-    await container
-      .waitFor({ state: 'visible', timeout: 30_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await container.waitFor({ state: 'visible', timeout: 30_000 });
     return container;
   }
 
@@ -28,13 +26,8 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await table.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await table.waitFor({ state: 'visible', timeout: 10_000 });
+    const visible = await table.isVisible();
     if (visible) {
       const headers = table.locator('th, .el-table-v2__header-cell');
       const count = await headers.count();
@@ -46,35 +39,19 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   // 辅助：验证新建按钮+弹窗
   async function verifyNewButton(page: import('@playwright/test').Page, btnText: string) {
     const btn = page.locator(`button:has-text("${btnText}")`).first();
-    await btn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await btn.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await btn.waitFor({ state: 'visible', timeout: 5000 });
+    const visible = await btn.isVisible();
     if (visible) {
-      const disabled = await btn.isDisabled().catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      });
+      const disabled = await btn.isDisabled();
       expect(disabled).toBe(false);
       await btn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
       const dialogVisible = await dialog
         .waitFor({ state: 'visible', timeout: 5000 })
-        .then(() => true)
-        .catch(e => {
-          console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-          return false;
-        });
+        .then(() => true);
       if (dialogVisible) {
-        await page
-          .locator('.el-dialog__headerbtn')
-          .first()
-          .click()
-          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+        await page.locator('.el-dialog__headerbtn').first().click();
         await page.waitForTimeout(500);
       }
       return dialogVisible;

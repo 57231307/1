@@ -87,15 +87,9 @@ export async function fetchRolePermissions(
 ): Promise<string[]> {
   const resp = await fetch(`${API_BASE}${API_PREFIX}/roles/${roleId}`, {
     headers: authHeaders,
-  }).catch(e => {
-    console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-    return null;
   });
-  if (!resp || !resp.ok) return [];
-  const body = (await resp.json().catch(e => {
-    console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-    return null;
-  })) as { data?: { permissions?: string[] } } | null;
+  if (!resp.ok) return [];
+  const body = (await resp.json()) as { data?: { permissions?: string[] } } | null;
   return body?.data?.permissions ?? [];
 }
 

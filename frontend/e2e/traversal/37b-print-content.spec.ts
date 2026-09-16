@@ -32,17 +32,13 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     // ---- 1. 取真实销售订单（列表回读；无则兜底创建，字段与 helpers.ts 建单链一致）----
     let salesOrderId: number | undefined;
     let orderNo: string | undefined;
-    try {
-      const sos = await apiCallRaw<{ items: Array<{ id: number; order_no: string }> }>(
-        page,
-        'GET',
-        '/sales/orders?page=1&page_size=1'
-      );
-      salesOrderId = sos.items?.[0]?.id;
-      orderNo = sos.items?.[0]?.order_no;
-    } catch (e) {
-      console.log('[37b] 销售订单列表查询失败（可能空库）:', (e as Error).message);
-    }
+    const sos = await apiCallRaw<{ items: Array<{ id: number; order_no: string }> }>(
+      page,
+      'GET',
+      '/sales/orders?page=1&page_size=1'
+    );
+    salesOrderId = sos.items?.[0]?.id;
+    orderNo = sos.items?.[0]?.order_no;
     if (!salesOrderId) {
       console.log('[37b] 无销售订单，API 兜底创建（含库存前置）');
       const stock = await apiCall<{ id?: number }>(page, 'POST', '/inventory/stock/fabric', {
@@ -53,11 +49,8 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
         grade: '一等品',
         quantity_meters: '10000',
         quantity_kg: '5000',
-      }).catch(e => {
-        console.warn('[37b] 库存兜底创建失败（可能已存在）:', (e as Error).message);
-        return null;
       });
-      console.log('[37b] 库存兜底结果 id=', stock?.data?.id);
+      console.log('[37b] 库存兜底结果 id=', stock.data?.id);
       const result = await apiCall<{ id?: number; order_no?: string }>(
         page,
         'POST',
@@ -67,13 +60,9 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
           order_date: new Date().toISOString().slice(0, 10),
           items: [{ product_id: 1, quantity: '1', unit_price: '1' }],
         }
-      ).catch(e => {
-        // 建单 BUSINESS_ERROR（库存不足/客户缺失等业务约束）→ 记录后走 missing-data skip
-        console.warn('[37b] 销售订单兜底创建失败:', (e as Error).message);
-        return null;
-      });
-      salesOrderId = result?.data?.id;
-      orderNo = result?.data?.order_no;
+      );
+      salesOrderId = result.data?.id;
+      orderNo = result.data?.order_no;
     }
     // 空库极端场景：连兜底创建都失败 → 记录数据缺失跳过（非系统缺陷）
     if (!salesOrderId) {
@@ -90,13 +79,9 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     );
 
     // ---- 2. 真实打印请求（浏览器上下文 cookie + 真实后端）----
-    const printResp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/sales/orders/${salesOrderId}/print`)
-      .catch(e => {
-        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-        return null;
-      });
-    if (!printResp) throw new Error(`网络错误: /sales/orders/${salesOrderId}/print`);
+    const printResp = await page.request.get(
+      `${API_BASE}${API_PREFIX}/sales/orders/${salesOrderId}/print`
+    );
     const printStatus = printResp.status();
     console.log(`[37b] 打印请求 /sales/orders/${salesOrderId}/print → ${printStatus}`);
 
@@ -136,13 +121,9 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     }
 
     // ---- 4. 打印审计闭环：audit-logs 出现 PRINT 记录 ----
-    const auditResp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/audit-logs?operation_type=PRINT&page=1&page_size=20`)
-      .catch(e => {
-        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-        return null;
-      });
-    if (!auditResp) throw new Error('网络错误: /audit-logs');
+    const auditResp = await page.request.get(
+      `${API_BASE}${API_PREFIX}/audit-logs?operation_type=PRINT&page=1&page_size=20`
+    );
     expect(auditResp.status(), '审计列表应可查询（admin）').toBe(200);
     const auditJson = (await auditResp.json()) as ApiResponse<{
       items: Array<{
@@ -170,17 +151,11 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     test.setTimeout(120_000);
 
     // 凭证列表回读（/vouchers 记账凭证；空库则 skip）
-    let voucherId: number | undefined;
-    let voucherNo: string | undefined;
-    try {
-      const vs = await apiCallRaw<{
-        items: Array<{ id: number; voucher_no?: string; no?: string }>;
-      }>(page, 'GET', '/vouchers?page=1&page_size=1');
-      voucherId = vs.items?.[0]?.id;
-      voucherNo = vs.items?.[0]?.voucher_no ?? vs.items?.[0]?.no;
-    } catch (e) {
-      console.log('[37b] 凭证列表查询失败（空库场景）:', (e as Error).message);
-    }
+    const vs = await apiCallRaw<{
+      items: Array<{ id: number; voucher_no?: string; no?: string }>;
+    }>(page, 'GET', '/vouchers?page=1&page_size=1');
+    const voucherId = vs.items?.[0]?.id;
+    const voucherNo = vs.items?.[0]?.voucher_no ?? vs.items?.[0]?.no;
     if (!voucherId) {
       test.info().annotations.push({
         type: 'missing-data',
@@ -192,13 +167,9 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     }
     console.log(`[37b] 凭证 voucherId=${voucherId} no=${voucherNo ?? '?'}`);
 
-    const printResp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/vouchers/${voucherId}/print`)
-      .catch(e => {
-        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-        return null;
-      });
-    if (!printResp) throw new Error(`网络错误: /vouchers/${voucherId}/print`);
+    const printResp = await page.request.get(
+      `${API_BASE}${API_PREFIX}/vouchers/${voucherId}/print`
+    );
     const status = printResp.status();
     console.log(`[37b] 凭证打印 → ${status}`);
     if (status === 404 || status === 400) {

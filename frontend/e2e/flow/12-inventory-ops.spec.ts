@@ -56,24 +56,13 @@ test.describe('库存调拨完整流程', () => {
       ],
     };
 
-    let transferId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/inventory/transfers',
-        transferData
-      );
-      transferId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/inventory/transfers?page=1&page_size=1'
-      );
-      transferId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/inventory/transfers',
+      transferData
+    );
+    const transferId = result.data?.id!;
     expect(transferId).toBeDefined();
 
     // 验证初始状态
@@ -132,11 +121,7 @@ test.describe('库存调拨完整流程', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first()
-      .isVisible()
-      .catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      });
+      .isVisible();
     expect(tableVisible).toBe(true);
   });
 
@@ -156,24 +141,13 @@ test.describe('库存调拨完整流程', () => {
       ],
     };
 
-    let transferId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/inventory/transfers',
-        transferData
-      );
-      transferId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/inventory/transfers?page=1&page_size=1'
-      );
-      transferId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/inventory/transfers',
+      transferData
+    );
+    const transferId = result.data?.id!;
 
     // draft 状态直接入库应被拒
     const illegalReceive = await apiCallExpectFail(

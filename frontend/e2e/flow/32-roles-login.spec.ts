@@ -53,11 +53,7 @@ test.describe('P5.2 全量角色登录', () => {
       await loginAsRole(page, role);
 
       // 等待跳转离开 /login
-      await page
-        .waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 })
-        .catch(e => {
-          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
-        });
+      await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 });
 
       // 空权限角色可能被重定向回登录或 403 页——也算通过（权限下界生效）
       const currentPath = page.url();
@@ -69,16 +65,12 @@ test.describe('P5.2 全量角色登录', () => {
 
       // 正常角色应到达 Dashboard 或主页
       // Dashboard 内容为懒加载组件+统计接口异步渲染，立即检测会误报白屏（0 字符）
-      await page
-        .waitForFunction(
-          () =>
-            (document.querySelector('.app-container, .el-main, main, #app')?.textContent?.trim()
-              .length ?? 0) >= 10,
-          { timeout: 20000 }
-        )
-        .catch(() => {
-          console.warn('[32-roles] 20s 内主容器内容未渲染，交由健康断言判定');
-        });
+      await page.waitForFunction(
+        () =>
+          (document.querySelector('.app-container, .el-main, main, #app')?.textContent?.trim()
+            .length ?? 0) >= 10,
+        { timeout: 20000 }
+      );
       await assertPageHealthy(page, collector, { allowConsoleWarn: true });
     });
   }

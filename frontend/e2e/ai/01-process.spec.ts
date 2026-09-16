@@ -36,12 +36,8 @@ test.describe('01 AI 工艺优化', () => {
       .getByRole('button', { name: /确认|提交/ })
       .last()
       .click();
-    await expect(page.getByText(/创建成功|保存成功|推荐完成/))
-      .toBeVisible({ timeout: 30000 })
-      .catch(e => {
-        console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-        return null;
-      });
+    await expect(page.getByText(/创建成功|保存成功|推荐完成/)).toBeVisible({
+      timeout: 30000,
+    });
   });
 });

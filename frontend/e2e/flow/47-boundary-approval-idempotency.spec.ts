@@ -4,6 +4,7 @@ import {
   ensureTestEntities,
   apiCall,
   apiCallExpectFail,
+  apiCallRaw,
   tryCleanup,
   genCode,
 } from './helpers';
@@ -90,7 +91,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     const username = `47dup${genCode('U').slice(-6)}`;
     const { rolesResp } = await (async () => ({ rolesResp: null }))();
     // 前置角色
-    const role = await apiCallRawSafe(page, 'GET', '/roles?page=1&page_size=1');
+    const role = await apiCallRaw(page, 'GET', '/roles?page=1&page_size=1');
     const roleId = (role as { roles?: Array<{ id: number }> })?.roles?.[0]?.id;
     expect(roleId, '无可用角色').toBeTruthy();
 
@@ -145,7 +146,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     CLEANUP.push({ path: `/departments/${id}`, label: '[47-AU1] 部门' });
 
     // 回查审计日志（admin 可查 system.rs:264）
-    const logs = await apiCallRawSafe(
+    const logs = await apiCallRaw(
       page,
       'GET',
       `/audit-logs?page=1&page_size=20&table_name=departments`
@@ -162,16 +163,3 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     ).toBe(true);
   });
 });
-
-async function apiCallRawSafe(
-  page: import('@playwright/test').Page,
-  method: 'GET' | 'POST',
-  path: string
-): Promise<unknown> {
-  try {
-    const { apiCallRaw } = await import('./helpers');
-    return await apiCallRaw(page, method, path);
-  } catch {
-    return null;
-  }
-}

@@ -99,10 +99,7 @@ test.describe.serial('页面崩溃巡检（生产崩溃回归防线）', () => {
       await page.waitForTimeout(2500); // 等异步数据加载 + 渲染
 
       // 白屏检测：#app 根容器必须有实际内容
-      const rootText = await page
-        .locator('#app')
-        .innerText()
-        .catch(() => '');
+      const rootText = await page.locator('#app').innerText();
       if (rootText.trim().length < 10) {
         crashes.push(`[白屏] ${route.path} 根容器文本长度 ${rootText.trim().length}`);
       }
@@ -134,11 +131,7 @@ test.describe.serial('页面崩溃巡检（生产崩溃回归防线）', () => {
       await page.goto(`${BASE_URL}${path}`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2000);
       expect(errors, `${label}(${path}) 不应有未捕获异常`).toHaveLength(0);
-      const hasTable = await page
-        .locator('.el-table, .el-card, .el-empty')
-        .first()
-        .isVisible()
-        .catch(() => false);
+      const hasTable = await page.locator('.el-table, .el-card, .el-empty').first().isVisible();
       expect(hasTable, `${label}(${path}) 表格/卡片容器应渲染`).toBe(true);
     }
   });

@@ -31,34 +31,17 @@ test.describe('01 采购合同', () => {
       .getByRole('button', { name: /确认|保存|提交/ })
       .last()
       .click();
-    await expect(page.getByText(/创建成功|保存成功/))
-      .toBeVisible({ timeout: 30000 })
-      .catch(e => {
-        console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-        return null;
-      });
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
   });
 
   test('01-03 草稿合同可审批', async ({ page }) => {
     await page.goto('/purchase-ext');
     await page.getByRole('tab', { name: /合同/ }).click();
     const approveBtn = page.getByRole('link', { name: /审批/ }).first();
-    if (
-      await approveBtn.isVisible({ timeout: 3000 }).catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      })
-    ) {
+    if (await approveBtn.isVisible({ timeout: 3000 })) {
       await approveBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/审批成功/))
-        .toBeVisible({ timeout: 30000 })
-        .catch(e => {
-          console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-          return null;
-        });
+      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 });
     }
   });
 
@@ -66,21 +49,10 @@ test.describe('01 采购合同', () => {
     await page.goto('/purchase-ext');
     await page.getByRole('tab', { name: /合同/ }).click();
     const execBtn = page.getByRole('link', { name: /执行/ }).first();
-    if (
-      await execBtn.isVisible({ timeout: 3000 }).catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      })
-    ) {
+    if (await execBtn.isVisible({ timeout: 3000 })) {
       await execBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/执行成功/))
-        .toBeVisible({ timeout: 30000 })
-        .catch(e => {
-          console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-          return null;
-        });
+      await expect(page.getByText(/执行成功/)).toBeVisible({ timeout: 30000 });
     }
   });
 });

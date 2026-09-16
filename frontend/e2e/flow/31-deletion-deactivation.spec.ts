@@ -30,9 +30,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     test.setTimeout(120_000);
     // 先通过 UI 创建一个产品（确保有可删数据）
     await page.goto(`${BASE_URL}/product`);
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(e => {
-      console.warn(`[P0] networkidle 超时（页面可能仍在加载）: ${(e as Error).message}`);
-    });
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
     console.log('[P0-删除-产品] 导航到产品列表页');
 
@@ -47,14 +45,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
 
     // 取第一行的产品名称作为标识
     const firstRow = page.locator('.el-table__row').first();
-    const nameCell = await firstRow
-      .locator('td')
-      .nth(1)
-      .textContent()
-      .catch(e => {
-        console.warn(`[P0] 单元格文本读取失败: ${(e as Error).message}`);
-        return '';
-      });
+    const nameCell = await firstRow.locator('td').nth(1).textContent();
     const productName = nameCell?.trim() || '';
     console.log(`[P0-删除-产品] 目标行产品名: ${productName}`);
 
@@ -75,9 +66,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
   test('客户：UI 删除行→验证列表行消失', async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE_URL}/customer`);
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(e => {
-      console.warn(`[P0] networkidle 超时（页面可能仍在加载）: ${(e as Error).message}`);
-    });
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
 
     const rowsBefore = await page.locator('.el-table__row').count();
@@ -89,14 +78,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     }
 
     const firstRow = page.locator('.el-table__row').first();
-    const nameCell = await firstRow
-      .locator('td')
-      .nth(1)
-      .textContent()
-      .catch(e => {
-        console.warn(`[P0] 单元格文本读取失败: ${(e as Error).message}`);
-        return '';
-      });
+    const nameCell = await firstRow.locator('td').nth(1).textContent();
     const customerName = nameCell?.trim() || '';
     console.log(`[P0-删除-客户] 目标行客户名: ${customerName}`);
     if (!customerName) {
@@ -113,9 +95,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
   test('供应商：UI 删除行→验证列表行消失', async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE_URL}/supplier`);
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(e => {
-      console.warn(`[P0] networkidle 超时（页面可能仍在加载）: ${(e as Error).message}`);
-    });
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
 
     const rowsBefore = await page.locator('.el-table__row').count();
@@ -126,14 +106,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     }
 
     const firstRow = page.locator('.el-table__row').first();
-    const nameCell = await firstRow
-      .locator('td')
-      .nth(1)
-      .textContent()
-      .catch(e => {
-        console.warn(`[P0] 单元格文本读取失败: ${(e as Error).message}`);
-        return '';
-      });
+    const nameCell = await firstRow.locator('td').nth(1).textContent();
     const supplierName = nameCell?.trim() || '';
     console.log(`[P0-删除-供应商] 目标行: ${supplierName}`);
     if (!supplierName) {
@@ -150,9 +123,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
   test('仓库：UI 删除行→验证列表行消失', async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE_URL}/warehouse`);
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(e => {
-      console.warn(`[P0] networkidle 超时（页面可能仍在加载）: ${(e as Error).message}`);
-    });
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
 
     const rowsBefore = await page.locator('.el-table__row').count();
@@ -163,14 +134,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     }
 
     const firstRow = page.locator('.el-table__row').first();
-    const nameCell = await firstRow
-      .locator('td')
-      .nth(1)
-      .textContent()
-      .catch(e => {
-        console.warn(`[P0] 单元格文本读取失败: ${(e as Error).message}`);
-        return '';
-      });
+    const nameCell = await firstRow.locator('td').nth(1).textContent();
     const warehouseName = nameCell?.trim() || '';
     console.log(`[P0-删除-仓库] 目标行: ${warehouseName}`);
     if (!warehouseName) {
@@ -187,9 +151,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
   test('客户：UI 切换状态→验证状态文本变更', async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE_URL}/customer`);
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(e => {
-      console.warn(`[P0] networkidle 超时（页面可能仍在加载）: ${(e as Error).message}`);
-    });
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
 
     const rows = page.locator('.el-table__row');
@@ -208,37 +170,18 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
       const statusBtn = row
         .locator('button:has-text("停用"), button:has-text("启用"), button:has-text("禁用")')
         .first();
-      if (
-        await switchEl.isVisible({ timeout: 2000 }).catch(e => {
-          console.warn(`[P0] 开关可见性查询失败: ${(e as Error).message}`);
-          return false;
-        })
-      ) {
-        const beforeState = await switchEl.getAttribute('class').catch(e => {
-          console.warn(`[P0] 开关 class 读取失败: ${(e as Error).message}`);
-          return '';
-        });
+      if (await switchEl.isVisible({ timeout: 2000 })) {
+        const beforeState = await switchEl.getAttribute('class');
         await switchEl.click();
         await page.waitForTimeout(2000);
-        const afterState = await switchEl.getAttribute('class').catch(e => {
-          console.warn(`[P0] 开关 class 读取失败: ${(e as Error).message}`);
-          return '';
-        });
+        const afterState = await switchEl.getAttribute('class');
         console.log(
           `[P0-停用-客户] 第 ${i + 1} 行状态切换：${beforeState?.includes('is-checked') ? '启用→停用' : '停用→启用'}（class: ${beforeState?.slice(0, 30)} → ${afterState?.slice(0, 30)}）`
         );
         toggled = true;
         break;
-      } else if (
-        await statusBtn.isVisible({ timeout: 2000 }).catch(e => {
-          console.warn(`[P0] 开关可见性查询失败: ${(e as Error).message}`);
-          return false;
-        })
-      ) {
-        const beforeText = await statusBtn.textContent().catch(e => {
-          console.warn(`[P0] 单元格文本读取失败: ${(e as Error).message}`);
-          return '';
-        });
+      } else if (await statusBtn.isVisible({ timeout: 2000 })) {
+        const beforeText = await statusBtn.textContent();
         await statusBtn.click();
         await page.waitForTimeout(2000);
         console.log(`[P0-停用-客户] 第 ${i + 1} 行状态按钮：${beforeText} → 已点击`);
@@ -256,9 +199,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
   test('产品：UI 切换状态→验证状态文本变更', async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE_URL}/product`);
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(e => {
-      console.warn(`[P0] networkidle 超时（页面可能仍在加载）: ${(e as Error).message}`);
-    });
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
 
     const rows = page.locator('.el-table__row');
@@ -274,33 +215,17 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
       const row = rows.nth(i);
       const switchEl = row.locator('.el-switch').first();
       const statusBtn = row.locator('button:has-text("停用"), button:has-text("启用")').first();
-      if (
-        await switchEl.isVisible({ timeout: 2000 }).catch(e => {
-          console.warn(`[P0] 开关可见性查询失败: ${(e as Error).message}`);
-          return false;
-        })
-      ) {
-        const beforeState = await switchEl.getAttribute('class').catch(e => {
-          console.warn(`[P0] 开关 class 读取失败: ${(e as Error).message}`);
-          return '';
-        });
+      if (await switchEl.isVisible({ timeout: 2000 })) {
+        const beforeState = await switchEl.getAttribute('class');
         await switchEl.click();
         await page.waitForTimeout(2000);
-        const afterState = await switchEl.getAttribute('class').catch(e => {
-          console.warn(`[P0] 开关 class 读取失败: ${(e as Error).message}`);
-          return '';
-        });
+        const afterState = await switchEl.getAttribute('class');
         console.log(
           `[P0-停用-产品] 第 ${i + 1} 行开关切换：${beforeState?.slice(0, 30)} → ${afterState?.slice(0, 30)}`
         );
         toggled = true;
         break;
-      } else if (
-        await statusBtn.isVisible({ timeout: 2000 }).catch(e => {
-          console.warn(`[P0] 开关可见性查询失败: ${(e as Error).message}`);
-          return false;
-        })
-      ) {
+      } else if (await statusBtn.isVisible({ timeout: 2000 })) {
         await statusBtn.click();
         await page.waitForTimeout(2000);
         console.log(`[P0-停用-产品] 第 ${i + 1} 行状态按钮已点击`);
@@ -330,12 +255,7 @@ async function createThenUiDelete(
   listRoute: string,
   rowName: string | number
 ): Promise<void> {
-  const createResp = await apiCall<{ id?: number }>(page, 'POST', createApi, createPayload).catch(
-    e => {
-      console.error(`[P0-删除-${label}] 创建失败:`, (e as Error).message);
-      return null;
-    }
-  );
+  const createResp = await apiCall<{ id?: number }>(page, 'POST', createApi, createPayload);
   const id = createResp?.data?.id;
   if (!id) {
     console.warn(`[P0-删除-${label}] 创建失败（可能缺前置数据），跳过 UI 删除验证`);
@@ -345,19 +265,14 @@ async function createThenUiDelete(
   console.log(`[P0-删除-${label}] 数据准备完成 id=${id}`);
 
   // 在列表页通过 API 回读确认数据存在（先确认数据落库）
-  const listCheck = await page.request
-    .get(`${API_BASE}${API_PREFIX}${createApi}?page=1&page_size=200`, {
+  const listCheck = await page.request.get(
+    `${API_BASE}${API_PREFIX}${createApi}?page=1&page_size=200`,
+    {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    .catch(e => {
-      console.warn(`[P0-删除-${label}] 列表回读请求失败: ${(e as Error).message}`);
-      return null;
-    });
+    }
+  );
   if (listCheck?.ok()) {
-    const body = await listCheck.json().catch(e => {
-      console.warn(`[P0-删除-${label}] 列表回读响应非 JSON: ${(e as Error).message}`);
-      return null;
-    });
+    const body = await listCheck.json();
     const items = body?.data?.items ?? body?.data?.roles ?? body?.data ?? [];
     const arr = Array.isArray(items) ? items : [];
     const exists = arr.some((i: Record<string, unknown>) => i.id === id);

@@ -34,9 +34,7 @@ test.describe('P5.1 登录瀑布', () => {
     await safeGoto(page, '/');
     // 等登录表单渲染后再填（dev server 冷启动 504 重试后表单可能延迟出现）
     const userInput = page.locator('input[placeholder*="用户名"], input[name="username"]').first();
-    await userInput.waitFor({ state: 'visible', timeout: 45000 }).catch(e => {
-      console.warn(`[E2E] 登录表单未出现: ${(e as Error).message}`);
-    });
+    await userInput.waitFor({ state: 'visible', timeout: 45000 });
     // 表单出现后再开始记录请求：app 启动瀑布（/auth/me、/auth/refresh 401 探测）
     // 发生在表单渲染前/期间，与"点击登录是否触发 refresh"的断言无关，必须排除
     await page.waitForTimeout(1500);
@@ -50,30 +48,22 @@ test.describe('P5.1 登录瀑布', () => {
     // 勾选协议：点击视觉方块 .el-checkbox__inner（点击 label 中心会命中《用户协议》链接导致不勾选）
     const cbInner = page.locator('.el-checkbox__inner').first();
     const cbInput = page.locator('.el-checkbox input').first();
-    const cbVisible = await cbInner.isVisible().catch(() => false);
+    const cbVisible = await cbInner.isVisible();
     if (cbVisible) {
-      const checkedBefore = await cbInput.isChecked().catch(() => false);
+      const checkedBefore = await cbInput.isChecked();
       if (!checkedBefore) {
-        await cbInner.click().catch(() => {});
+        await cbInner.click();
         await page.waitForTimeout(300);
-        const nowChecked = await cbInput.isChecked().catch(() => false);
+        const nowChecked = await cbInput.isChecked();
         if (!nowChecked) {
-          await page
-            .locator('.el-checkbox')
-            .first()
-            .click()
-            .catch(() => {});
+          await page.locator('.el-checkbox').first().click();
         }
       }
     }
     await page.click('button[type="submit"], button:has-text("登录")');
 
     // 等待错误提示出现
-    await expect(page.locator('.el-message--error'))
-      .toBeVisible({ timeout: 10000 })
-      .catch(e => {
-        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
-      });
+    await expect(page.locator('.el-message--error')).toBeVisible({ timeout: 10000 });
 
     // 断言：只有 login 请求，没有 refresh
     const loginCalls = requests.filter(r => r === '/auth/login');

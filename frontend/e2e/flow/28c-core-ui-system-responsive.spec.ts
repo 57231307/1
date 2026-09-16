@@ -26,53 +26,30 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     const usernameInput = loginPage
       .locator('input[placeholder="用户名"], input[placeholder="Username"]')
       .first();
-    await usernameInput
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const usernameVisible = await usernameInput.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await usernameInput.waitFor({ state: 'visible', timeout: 10_000 });
+    const usernameVisible = await usernameInput.isVisible();
     expect(usernameVisible).toBe(true);
 
     // 验证密码输入框
     const passwordInput = loginPage
       .locator('input[placeholder="密码"], input[placeholder="Password"]')
       .first();
-    await passwordInput
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const passwordVisible = await passwordInput.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await passwordInput.waitFor({ state: 'visible', timeout: 5000 });
+    const passwordVisible = await passwordInput.isVisible();
     expect(passwordVisible).toBe(true);
 
     // 验证登录按钮
     const loginBtn = loginPage.locator('form button.el-button--primary').first();
-    await loginBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const loginBtnVisible = await loginBtn.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await loginBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const loginBtnVisible = await loginBtn.isVisible();
     expect(loginBtnVisible).toBe(true);
-    const loginBtnDisabled = await loginBtn.isDisabled().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    const loginBtnDisabled = await loginBtn.isDisabled();
     expect(loginBtnDisabled).toBe(false);
 
     // 验证复选框（用户协议）
     const checkbox = loginPage.locator('.el-checkbox').first();
-    await checkbox
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const checkboxVisible = await checkbox.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await checkbox.waitFor({ state: 'visible', timeout: 5000 });
+    const checkboxVisible = await checkbox.isVisible();
     expect(checkboxVisible).toBe(true);
 
     // 验证空表单提交触发校验
@@ -81,16 +58,11 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await loginPage
       .locator('.el-form-item__error, .el-message--error')
       .first()
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      .waitFor({ state: 'visible', timeout: 5000 });
     const hasError = await loginPage
       .locator('.el-form-item__error, .el-message--error')
       .first()
-      .isVisible()
-      .catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      });
+      .isVisible();
     expect(hasError).toBe(true);
 
     await context.close();
@@ -107,13 +79,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     const menu = page
       .locator('.el-menu, .el-aside, .sidebar-container, [class*="sidebar"]')
       .first();
-    await menu
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const menuVisible = await menu.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await menu.waitFor({ state: 'visible', timeout: 10_000 });
+    const menuVisible = await menu.isVisible();
     if (menuVisible) {
       // 验证菜单项存在
       const menuItems = menu.locator('.el-menu-item, .el-sub-menu__title');
@@ -122,7 +89,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
 
       // 点击第一个菜单项验证跳转
       const firstItem = menuItems.first();
-      await firstItem.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await firstItem.click();
       await page.waitForTimeout(2000);
       const url = page.url();
       expect(url).toContain('localhost:3000');
@@ -136,17 +103,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await page.setViewportSize({ width: 768, height: 600 });
     await page.goto(`${BASE_URL}/dashboard`);
     await page.waitForTimeout(3000);
-    await page
-      .locator('body')
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const bodyVisible = await page
-      .locator('body')
-      .isVisible()
-      .catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      });
+    await page.locator('body').waitFor({ state: 'visible', timeout: 10_000 });
+    const bodyVisible = await page.locator('body').isVisible();
     expect(bodyVisible).toBe(true);
     await page.setViewportSize({ width: 1280, height: 800 });
   });
@@ -155,17 +113,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto(`${BASE_URL}/dashboard`);
     await page.waitForTimeout(3000);
-    await page
-      .locator('body')
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const bodyVisible = await page
-      .locator('body')
-      .isVisible()
-      .catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      });
+    await page.locator('body').waitFor({ state: 'visible', timeout: 10_000 });
+    const bodyVisible = await page.locator('body').isVisible();
     expect(bodyVisible).toBe(true);
     await page.setViewportSize({ width: 1280, height: 800 });
   });
@@ -204,13 +153,8 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const tableVisible = await table.isVisible().catch(e => {
-      console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-      return false;
-    });
+    await table.waitFor({ state: 'visible', timeout: 10_000 });
+    const tableVisible = await table.isVisible();
     expect(tableVisible).toBe(true);
   });
 });

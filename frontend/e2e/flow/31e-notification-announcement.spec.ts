@@ -22,17 +22,13 @@ async function getUnreadNotifications(
 ): Promise<
   { id: number; title: string; content: string; businessType?: string; status?: string }[]
 > {
-  try {
-    const res = await page.request.get(
-      'http://127.0.0.1:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50'
-    );
-    if (!res.ok()) return [];
-    const body = await res.json();
-    const items = body?.data?.items || body?.data?.data || body?.data || [];
-    return Array.isArray(items) ? items : [];
-  } catch {
-    return [];
-  }
+  const res = await page.request.get(
+    'http://127.0.0.1:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50'
+  );
+  if (!res.ok()) return [];
+  const body = await res.json();
+  const items = body?.data?.items || body?.data?.data || body?.data || [];
+  return Array.isArray(items) ? items : [];
 }
 
 async function deleteNotification(
@@ -56,19 +52,15 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     test.setTimeout(120_000);
     let id: number | undefined;
     const title = `P0公告CRUD${TS}`;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/oa-announcements/', {
-        title,
-        content: 'P0公告CRUD测试内容',
-        announcement_type: 'NOTICE',
-        publish_date: new Date().toISOString().slice(0, 10),
-        effective_date: new Date().toISOString().slice(0, 10),
-        visibility_scope: 'ALL',
-      });
-      id = r?.data?.id;
-    } catch (e) {
-      console.error(`[31e-1] 创建失败: ${(e as Error).message}`);
-    }
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/oa-announcements/', {
+      title,
+      content: 'P0公告CRUD测试内容',
+      announcement_type: 'NOTICE',
+      publish_date: new Date().toISOString().slice(0, 10),
+      effective_date: new Date().toISOString().slice(0, 10),
+      visibility_scope: 'ALL',
+    });
+    id = r?.data?.id;
     if (!id) {
       test.skip();
       return;
@@ -77,40 +69,30 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
     // GET 回读
     let got: { title?: string; content?: string; status?: string } | null = null;
-    try {
-      const res = await page.request.get(`http://127.0.0.1:8082/api/v1/erp/oa-announcements/${id}`);
-      if (res.ok()) {
-        const body = await res.json();
-        got = body?.data;
-        console.log(`[31e-1] 回读 title=${got?.title} status=${got?.status}`);
-      }
-    } catch (e) {
-      console.warn(`[31e-1] 回读失败: ${(e as Error).message}`);
+    const res = await page.request.get(`http://127.0.0.1:8082/api/v1/erp/oa-announcements/${id}`);
+    if (res.ok()) {
+      const body = await res.json();
+      got = body?.data;
+      console.log(`[31e-1] 回读 title=${got?.title} status=${got?.status}`);
     }
     expect(got?.title, '[31e-1] 回读 title 应匹配').toBe(title);
     expect(got?.status, '[31e-1] 新建应为草稿状态').toBe('DRAFT');
 
     // PUT 编辑
-    try {
-      await apiCall(page, 'PUT', `/oa-announcements/${id}`, {
-        title: `P0公告编辑后${TS}`,
-        content: '编辑后内容',
-      });
-      console.log('[31e-1] 编辑成功');
-    } catch (e) {
-      console.error(`[31e-1] 编辑失败: ${(e as Error).message}`);
-    }
+    await apiCall(page, 'PUT', `/oa-announcements/${id}`, {
+      title: `P0公告编辑后${TS}`,
+      content: '编辑后内容',
+    });
+    console.log('[31e-1] 编辑成功');
 
     // GET 验证编辑
-    try {
-      const res = await page.request.get(`http://127.0.0.1:8082/api/v1/erp/oa-announcements/${id}`);
-      if (res.ok()) {
-        const body = await res.json();
-        console.log(`[31e-1] 编辑后回读 title=${body?.data?.title}`);
-        expect(body?.data?.title, '[31e-1] 编辑后 title 应更新').toBe(`P0公告编辑后${TS}`);
-      }
-    } catch (e) {
-      console.warn(`[31e-1] 编辑后回读失败: ${(e as Error).message}`);
+    const resAfterEdit = await page.request.get(
+      `http://127.0.0.1:8082/api/v1/erp/oa-announcements/${id}`
+    );
+    if (resAfterEdit.ok()) {
+      const body = await resAfterEdit.json();
+      console.log(`[31e-1] 编辑后回读 title=${body?.data?.title}`);
+      expect(body?.data?.title, '[31e-1] 编辑后 title 应更新').toBe(`P0公告编辑后${TS}`);
     }
 
     // DELETE 清理
@@ -121,15 +103,11 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     test.setTimeout(180_000);
     // 查当前用户 id（通过 /users/me 或 auth context）
     let currentUserId: number | undefined;
-    try {
-      const res = await page.request.get('http://127.0.0.1:8082/api/v1/erp/users/me');
-      if (res.ok()) {
-        const body = await res.json();
-        currentUserId = body?.data?.id;
-        console.log(`[31e-2] 当前用户 id=${currentUserId}`);
-      }
-    } catch (e) {
-      console.warn(`[31e-2] 获取当前用户失败: ${(e as Error).message}`);
+    const meRes = await page.request.get('http://127.0.0.1:8082/api/v1/erp/users/me');
+    if (meRes.ok()) {
+      const body = await meRes.json();
+      currentUserId = body?.data?.id;
+      console.log(`[31e-2] 当前用户 id=${currentUserId}`);
     }
     if (!currentUserId) {
       test.skip();
@@ -139,20 +117,16 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     // 创建草稿公告（visibility_scope=CUSTOM, user_ids=[当前用户]）
     let announcementId: number | undefined;
     const title = `P0发布联动${TS}`;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/oa-announcements/', {
-        title,
-        content: 'P0发布联动通知测试内容',
-        announcement_type: 'ANNOUNCEMENT',
-        publish_date: new Date().toISOString().slice(0, 10),
-        effective_date: new Date().toISOString().slice(0, 10),
-        visibility_scope: 'CUSTOM',
-        visible_scope_config: { user_ids: [currentUserId] },
-      });
-      announcementId = r?.data?.id;
-    } catch (e) {
-      console.error(`[31e-2] 公告创建失败: ${(e as Error).message}`);
-    }
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/oa-announcements/', {
+      title,
+      content: 'P0发布联动通知测试内容',
+      announcement_type: 'ANNOUNCEMENT',
+      publish_date: new Date().toISOString().slice(0, 10),
+      effective_date: new Date().toISOString().slice(0, 10),
+      visibility_scope: 'CUSTOM',
+      visible_scope_config: { user_ids: [currentUserId] },
+    });
+    announcementId = r?.data?.id;
     if (!announcementId) {
       test.skip();
       return;
@@ -163,19 +137,15 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
     // 发布 → 联动通知
     let notifiedCount = 0;
-    try {
-      const res = await page.request.post(
-        `http://127.0.0.1:8082/api/v1/erp/oa-announcements/${announcementId}/publish`
-      );
-      if (res.ok()) {
-        const body = await res.json();
-        notifiedCount = body?.data?.notified_count ?? 0;
-        console.log(`[31e-2] 发布成功 notified_count=${notifiedCount}`);
-      } else {
-        console.warn(`[31e-2] 发布 HTTP ${res.status()}`);
-      }
-    } catch (e) {
-      console.error(`[31e-2] 发布失败: ${(e as Error).message}`);
+    const res = await page.request.post(
+      `http://127.0.0.1:8082/api/v1/erp/oa-announcements/${announcementId}/publish`
+    );
+    if (res.ok()) {
+      const body = await res.json();
+      notifiedCount = body?.data?.notified_count ?? 0;
+      console.log(`[31e-2] 发布成功 notified_count=${notifiedCount}`);
+    } else {
+      console.warn(`[31e-2] 发布 HTTP ${res.status()}`);
     }
 
     await page.waitForTimeout(3000);
@@ -214,14 +184,14 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
     // 新建按钮可见
     const createBtn = page.locator('button:has-text("新建")').first();
-    const createVisible = await createBtn.isVisible({ timeout: 5000 }).catch(() => false);
+    const createVisible = await createBtn.isVisible({ timeout: 5000 });
     console.log(`[31e-3] 新建按钮可见: ${createVisible}`);
 
     if (createVisible) {
       await createBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog:visible').first();
-      const dialogVisible = await dialog.isVisible({ timeout: 5000 }).catch(() => false);
+      const dialogVisible = await dialog.isVisible({ timeout: 5000 });
       console.log(`[31e-3] 新建弹窗可见: ${dialogVisible}`);
       if (dialogVisible) {
         // 填写标题
@@ -239,13 +209,9 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
   test('4. 通知公告直发：POST /notifications/announcement→通知产生→已读→删除', async ({ page }) => {
     test.setTimeout(120_000);
     let currentUserId: number | undefined;
-    try {
-      const res = await page.request.get('http://127.0.0.1:8082/api/v1/erp/users/me');
-      if (res.ok()) {
-        currentUserId = (await res.json())?.data?.id;
-      }
-    } catch (e) {
-      console.warn(`[31e-4] 获取当前用户失败: ${(e as Error).message}`);
+    const meRes = await page.request.get('http://127.0.0.1:8082/api/v1/erp/users/me');
+    if (meRes.ok()) {
+      currentUserId = (await meRes.json())?.data?.id;
     }
     if (!currentUserId) {
       test.skip();
@@ -256,25 +222,21 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     const before = await getUnreadNotifications(page);
 
     // 需要管理员权限
-    try {
-      const res = await page.request.post(
-        'http://127.0.0.1:8082/api/v1/erp/notifications/announcement',
-        {
-          data: { user_ids: [currentUserId], title, content: 'P0直发通知测试内容' },
-        }
-      );
-      if (res.ok()) {
-        const body = await res.json();
-        console.log(`[31e-4] 公告发送成功 delivered_count=${body?.data?.delivered_count ?? 0}`);
-      } else {
-        console.warn(`[31e-4] 公告发送 HTTP ${res.status()}（可能非管理员）`);
-        if (res.status() === 403) {
-          test.skip();
-          return;
-        }
+    const res = await page.request.post(
+      'http://127.0.0.1:8082/api/v1/erp/notifications/announcement',
+      {
+        data: { user_ids: [currentUserId], title, content: 'P0直发通知测试内容' },
       }
-    } catch (e) {
-      console.error(`[31e-4] 公告发送失败: ${(e as Error).message}`);
+    );
+    if (res.ok()) {
+      const body = await res.json();
+      console.log(`[31e-4] 公告发送成功 delivered_count=${body?.data?.delivered_count ?? 0}`);
+    } else {
+      console.warn(`[31e-4] 公告发送 HTTP ${res.status()}（可能非管理员）`);
+      if (res.status() === 403) {
+        test.skip();
+        return;
+      }
     }
 
     await page.waitForTimeout(2000);
@@ -287,14 +249,10 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
       expect(directNotif.title, '[31e-4] 通知标题应匹配').toBe(title);
 
       // 测试已读
-      try {
-        const readRes = await page.request.post(
-          `http://127.0.0.1:8082/api/v1/erp/notifications/notification/${directNotif.id}/read`
-        );
-        console.log(`[31e-4] 标记已读 HTTP ${readRes.status()}`);
-      } catch (e) {
-        console.warn(`[31e-4] 标记已读失败: ${(e as Error).message}`);
-      }
+      const readRes = await page.request.post(
+        `http://127.0.0.1:8082/api/v1/erp/notifications/notification/${directNotif.id}/read`
+      );
+      console.log(`[31e-4] 标记已读 HTTP ${readRes.status()}`);
 
       // 验证已读后 unread 列表不再包含
       const afterRead = await getUnreadNotifications(page);
@@ -311,12 +269,8 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
   test('5. 通知 CRUD：列表→单条已读→批量已读→全部已读→删除', async ({ page }) => {
     test.setTimeout(120_000);
     let currentUserId: number | undefined;
-    try {
-      const res = await page.request.get('http://127.0.0.1:8082/api/v1/erp/users/me');
-      if (res.ok()) currentUserId = (await res.json())?.data?.id;
-    } catch {
-      /* skip */
-    }
+    const meRes = await page.request.get('http://127.0.0.1:8082/api/v1/erp/users/me');
+    if (meRes.ok()) currentUserId = (await meRes.json())?.data?.id;
     if (!currentUserId) {
       test.skip();
       return;
@@ -325,13 +279,9 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     // 发 3 条通知
     const titles = [`P0-CRUD-1-${TS}`, `P0-CRUD-2-${TS}`, `P0-CRUD-3-${TS}`];
     for (const t of titles) {
-      try {
-        await page.request.post('http://127.0.0.1:8082/api/v1/erp/notifications/announcement', {
-          data: { user_ids: [currentUserId], title: t, content: 'CRUD 测试' },
-        });
-      } catch {
-        /* 非管理员跳过 */
-      }
+      await page.request.post('http://127.0.0.1:8082/api/v1/erp/notifications/announcement', {
+        data: { user_ids: [currentUserId], title: t, content: 'CRUD 测试' },
+      });
     }
     await page.waitForTimeout(2000);
 
@@ -342,39 +292,27 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     if (myNotifs.length >= 2) {
       // 单条已读
       const first = myNotifs[0];
-      try {
-        const res = await page.request.post(
-          `http://127.0.0.1:8082/api/v1/erp/notifications/notification/${first.id}/read`
-        );
-        console.log(`[31e-5] 单条已读 HTTP ${res.status()}`);
-      } catch (e) {
-        console.warn(`[31e-5] 单条已读失败: ${(e as Error).message}`);
-      }
+      const readRes = await page.request.post(
+        `http://127.0.0.1:8082/api/v1/erp/notifications/notification/${first.id}/read`
+      );
+      console.log(`[31e-5] 单条已读 HTTP ${readRes.status()}`);
 
       // 批量已读
       if (myNotifs.length >= 3) {
-        try {
-          const res = await page.request.post(
-            'http://127.0.0.1:8082/api/v1/erp/notifications/batch-read',
-            {
-              data: { ids: [myNotifs[1].id, myNotifs[2].id] },
-            }
-          );
-          console.log(`[31e-5] 批量已读 HTTP ${res.status()}`);
-        } catch (e) {
-          console.warn(`[31e-5] 批量已读失败: ${(e as Error).message}`);
-        }
+        const batchRes = await page.request.post(
+          'http://127.0.0.1:8082/api/v1/erp/notifications/batch-read',
+          {
+            data: { ids: [myNotifs[1].id, myNotifs[2].id] },
+          }
+        );
+        console.log(`[31e-5] 批量已读 HTTP ${batchRes.status()}`);
       }
 
       // 全部已读
-      try {
-        const res = await page.request.post(
-          'http://127.0.0.1:8082/api/v1/erp/notifications/read-all'
-        );
-        console.log(`[31e-5] 全部已读 HTTP ${res.status()}`);
-      } catch (e) {
-        console.warn(`[31e-5] 全部已读失败: ${(e as Error).message}`);
-      }
+      const readAllRes = await page.request.post(
+        'http://127.0.0.1:8082/api/v1/erp/notifications/read-all'
+      );
+      console.log(`[31e-5] 全部已读 HTTP ${readAllRes.status()}`);
 
       // 验证未读数为 0
       const afterAll = await getUnreadNotifications(page);

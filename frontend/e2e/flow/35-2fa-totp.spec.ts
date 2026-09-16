@@ -28,17 +28,12 @@ test.describe('P5.5 2FA TOTP', () => {
     const totpCode = generateTotp(secret);
 
     // 3. enable（后端 TotpVerifyRequest { token }，字段名为 token 非 code）
-    let enableErr: string | undefined;
     const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', {
       token: totpCode,
-    }).catch(e => {
-      enableErr = (e as Error).message;
-      console.error(`[35-totp] enable 失败: ${enableErr}`);
-      return null;
     });
     expect(
-      enableResp !== null,
-      `[35-totp] enable 应成功（secret=${secret?.slice(0, 8)}… code=${totpCode}）: ${enableErr ?? 'enable 返回 null'}`
+      enableResp !== null && enableResp !== undefined,
+      `[35-totp] enable 应成功（secret=${secret?.slice(0, 8)}… code=${totpCode}）`
     ).toBeTruthy();
 
     await assertPageHealthy(page, collector, { allowConsoleWarn: true });
@@ -56,12 +51,10 @@ test.describe('P5.5 2FA TOTP', () => {
     }
 
     // 故意用错 code（后端 TotpVerifyRequest { token }，字段名为 token）
+    // 负向测试：错 code 触发 apiCall 抛错（code!=200），catch 转 null 供断言
     const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', {
       token: '000000',
-    }).catch(e => {
-      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-      return null;
-    });
+    }).catch(() => null);
 
     // 应失败或返回错误
     expect(enableResp === null || enableResp?.error).toBeTruthy();

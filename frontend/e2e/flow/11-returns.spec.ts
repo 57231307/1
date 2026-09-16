@@ -42,19 +42,8 @@ test.describe('采购退货完整流程', () => {
       reason_detail: '布面疵点超标，客户拒收',
     };
 
-    let returnId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', returnData);
-      returnId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/purchase/returns?page=1&page_size=1'
-      );
-      returnId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', returnData);
+    const returnId = result.data?.id!;
     expect(returnId).toBeDefined();
 
     // 添加退货明细（后端需要独立端点添加 items）
@@ -113,11 +102,7 @@ test.describe('采购退货完整流程', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first()
-      .isVisible()
-      .catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      });
+      .isVisible();
     expect(tableVisible).toBe(true);
   });
 
@@ -145,24 +130,8 @@ test.describe('采购退货完整流程', () => {
       reason_detail: '客户取消订单',
     };
 
-    let returnId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/sales/sales-returns',
-        returnData
-      );
-      returnId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/sales/sales-returns?page=1&page_size=1'
-      );
-      returnId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/sales-returns', returnData);
+    const returnId = result.data?.id!;
     expect(returnId).toBeDefined();
 
     // 添加退货明细

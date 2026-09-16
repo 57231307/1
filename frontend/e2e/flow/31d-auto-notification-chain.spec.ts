@@ -4,13 +4,14 @@ import { loginViaUI, apiCall, tryCleanup } from './helpers';
 /**
  * P0 自动通知全链路覆盖（2026-09-11 用户指令："自动产生的通知需要详细覆盖所有功能，每条链路都要触发验证通知"）
  *
- * 5 条可测链路 + 1 条死代码 skip：
+ * 5 条可测链路：
  * A. 订单提交 → notify_order_submitted → 创建人收到通知
  * B. 订单审批 → notify_order_approved → 创建人收到通知
  * C. 订单发货 → notify_order_shipped → 创建人收到通知
  * D. 库存预警 → notify_inventory_alert_batch → admin/manager 收到通知
- * E. 应收到期 → notify_ar_due → 死代码（已实现无调用方），skip 并记录
  * F. 付款申请提交 → notify_multiple_users → admin/manager 审批人收到通知
+ *
+ * （原 E 链路 notify_ar_due 为死代码：已实现无调用方，其 skip 占位测试已移除）
  *
  * 验证模式：触发业务动作 → 查询通知列表 → 断言通知产生（标题/内容匹配）→ 清理
  */
@@ -22,21 +23,16 @@ async function getUnreadNotifications(
   page: import('@playwright/test').Page,
   userId?: number
 ): Promise<{ id: number; title: string; content: string; businessType?: string }[]> {
-  try {
-    const res = await page.request.get(
-      `http://127.0.0.1:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50`
-    );
-    if (!res.ok()) {
-      console.warn(`[31d] 通知列表查询 HTTP ${res.status()}`);
-      return [];
-    }
-    const body = await res.json();
-    const items = body?.data?.items || body?.data?.data || body?.data || [];
-    return Array.isArray(items) ? items : [];
-  } catch (e) {
-    console.warn(`[31d] 通知列表查询异常: ${(e as Error).message}`);
+  const res = await page.request.get(
+    `http://127.0.0.1:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50`
+  );
+  if (!res.ok()) {
+    console.warn(`[31d] 通知列表查询 HTTP ${res.status()}`);
     return [];
   }
+  const body = await res.json();
+  const items = body?.data?.items || body?.data?.data || body?.data || [];
+  return Array.isArray(items) ? items : [];
 }
 
 /** 删除通知（清理） */
@@ -75,16 +71,12 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     console.log(`[31d-A] 提交前未读通知 ${before.length} 条`);
 
     let orderId: number | undefined;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-        customer_id: 1,
-        order_date: new Date().toISOString().slice(0, 10),
-        items: [{ product_id: 1, quantity: 10, unit_price: 25.5 }],
-      });
-      orderId = r?.data?.id;
-    } catch (e) {
-      console.error(`[31d-A] 订单创建失败: ${(e as Error).message}`);
-    }
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+      customer_id: 1,
+      order_date: new Date().toISOString().slice(0, 10),
+      items: [{ product_id: 1, quantity: 10, unit_price: 25.5 }],
+    });
+    orderId = r?.data?.id;
     if (!orderId) {
       test.skip();
       return;
@@ -92,12 +84,8 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     console.log(`[31d-A] 订单创建成功 id=${orderId}`);
 
     // submit 端点触发通知
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
-      console.log(`[31d-A] 订单提交成功`);
-    } catch (e) {
-      console.error(`[31d-A] 订单提交失败: ${(e as Error).message}`);
-    }
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
+    console.log(`[31d-A] 订单提交成功`);
 
     await page.waitForTimeout(3000);
     const after = await getUnreadNotifications(page);
@@ -122,36 +110,24 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     test.setTimeout(180_000);
     // 创建+提交订单，再审批
     let orderId: number | undefined;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-        customer_id: 1,
-        order_date: new Date().toISOString().slice(0, 10),
-        items: [{ product_id: 1, quantity: 5, unit_price: 30 }],
-      });
-      orderId = r?.data?.id;
-    } catch (e) {
-      console.error(`[31d-B] 订单创建失败: ${(e as Error).message}`);
-    }
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+      customer_id: 1,
+      order_date: new Date().toISOString().slice(0, 10),
+      items: [{ product_id: 1, quantity: 5, unit_price: 30 }],
+    });
+    orderId = r?.data?.id;
     if (!orderId) {
       test.skip();
       return;
     }
     console.log(`[31d-B] 订单创建成功 id=${orderId}`);
 
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
-    } catch (e) {
-      console.warn(`[31d-B] 订单提交失败: ${(e as Error).message}`);
-    }
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
 
     const before = await getUnreadNotifications(page);
 
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
-      console.log(`[31d-B] 订单审批成功`);
-    } catch (e) {
-      console.error(`[31d-B] 订单审批失败: ${(e as Error).message}`);
-    }
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
+    console.log(`[31d-B] 订单审批成功`);
 
     await page.waitForTimeout(3000);
     const after = await getUnreadNotifications(page);
@@ -174,16 +150,12 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
   test('C. 订单发货→创建人收到发货通知', async ({ page }) => {
     test.setTimeout(180_000);
     let orderId: number | undefined;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-        customer_id: 1,
-        order_date: new Date().toISOString().slice(0, 10),
-        items: [{ product_id: 1, quantity: 8, unit_price: 20 }],
-      });
-      orderId = r?.data?.id;
-    } catch (e) {
-      console.error(`[31d-C] 订单创建失败: ${(e as Error).message}`);
-    }
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+      customer_id: 1,
+      order_date: new Date().toISOString().slice(0, 10),
+      items: [{ product_id: 1, quantity: 8, unit_price: 20 }],
+    });
+    orderId = r?.data?.id;
     if (!orderId) {
       test.skip();
       return;
@@ -191,29 +163,17 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     console.log(`[31d-C] 订单创建成功 id=${orderId}`);
 
     // 提交+审批后才能发货
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
-    } catch (e) {
-      console.warn(`[31d-C] 提交失败: ${(e as Error).message}`);
-    }
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
-    } catch (e) {
-      console.warn(`[31d-C] 审批失败: ${(e as Error).message}`);
-    }
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
 
     const before = await getUnreadNotifications(page);
 
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${orderId}/ship`, {
-        order_id: orderId,
-        warehouse_code: 'WH001',
-        items: [{ product_id: 1, quantity: 8 }],
-      });
-      console.log(`[31d-C] 订单发货成功`);
-    } catch (e) {
-      console.error(`[31d-C] 订单发货失败: ${(e as Error).message}`);
-    }
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/ship`, {
+      order_id: orderId,
+      warehouse_code: 'WH001',
+      items: [{ product_id: 1, quantity: 8 }],
+    });
+    console.log(`[31d-C] 订单发货成功`);
 
     await page.waitForTimeout(3000);
     const after = await getUnreadNotifications(page);
@@ -239,14 +199,10 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     console.log(`[31d-D] 触发前未读通知 ${before.length} 条`);
 
     // GET /inventory/stock/low-stock 触发 check_low_stock → 发布事件 → 通知 admin/manager
-    try {
-      const res = await page.request.get(
-        'http://127.0.0.1:8082/api/v1/erp/inventory/stock/low-stock'
-      );
-      console.log(`[31d-D] low-stock 检查 HTTP ${res.status()}`);
-    } catch (e) {
-      console.warn(`[31d-D] low-stock 检查异常: ${(e as Error).message}`);
-    }
+    const res = await page.request.get(
+      'http://127.0.0.1:8082/api/v1/erp/inventory/stock/low-stock'
+    );
+    console.log(`[31d-D] low-stock 检查 HTTP ${res.status()}`);
 
     await page.waitForTimeout(5000);
     const after = await getUnreadNotifications(page);
@@ -269,32 +225,20 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     }
   });
 
-  test('E. 应收到期通知（死代码，skip）', async () => {
-    // notify_ar_due 在 event_notification_service.rs:615 已实现但无任何调用方
-    // 既无 HTTP 端点也无定时调度触发——已实现的死代码
-    // 需后续补接触发链路（定时扫描应收账款到期表 → notify_ar_due）
-    test.skip();
-    console.log('[31d-E] notify_ar_due 为死代码（已实现无调用方），skip');
-  });
-
   test('F. 付款申请提交→admin/manager审批人收到通知', async ({ page }) => {
     test.setTimeout(180_000);
     let requestId: number | undefined;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/finance/ap/payment-requests', {
-        request_no: `P0-NOTIF-${TS}`,
-        request_date: new Date().toISOString().slice(0, 10),
-        supplier_id: 1,
-        payment_type: 'bank_transfer',
-        payment_method: 'bank',
-        request_amount: 5000,
-        currency: 'CNY',
-        exchange_rate: 1,
-      });
-      requestId = r?.data?.id;
-    } catch (e) {
-      console.error(`[31d-F] 付款申请创建失败: ${(e as Error).message}`);
-    }
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/finance/ap/payment-requests', {
+      request_no: `P0-NOTIF-${TS}`,
+      request_date: new Date().toISOString().slice(0, 10),
+      supplier_id: 1,
+      payment_type: 'bank_transfer',
+      payment_method: 'bank',
+      request_amount: 5000,
+      currency: 'CNY',
+      exchange_rate: 1,
+    });
+    requestId = r?.data?.id;
     if (!requestId) {
       test.skip();
       return;
@@ -303,12 +247,8 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     const before = await getUnreadNotifications(page);
 
-    try {
-      await apiCall(page, 'POST', `/finance/ap/payment-requests/${requestId}/submit`);
-      console.log(`[31d-F] 付款申请提交成功`);
-    } catch (e) {
-      console.error(`[31d-F] 付款申请提交失败: ${(e as Error).message}`);
-    }
+    await apiCall(page, 'POST', `/finance/ap/payment-requests/${requestId}/submit`);
+    console.log(`[31d-F] 付款申请提交成功`);
 
     await page.waitForTimeout(3000);
     const after = await getUnreadNotifications(page);

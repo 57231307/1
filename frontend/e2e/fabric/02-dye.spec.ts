@@ -28,34 +28,17 @@ test.describe('02 染色批次', () => {
       .getByRole('button', { name: /确认|保存|提交/ })
       .last()
       .click();
-    await expect(page.getByText(/创建成功|保存成功/))
-      .toBeVisible({ timeout: 30000 })
-      .catch(e => {
-        console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-        return null;
-      });
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
   });
 
   test('02-03 染色批次可标记为完成', async ({ page }) => {
     await page.goto('/fabric');
     await page.getByRole('tab', { name: /染色|批次/ }).click();
     const completeBtn = page.getByRole('link', { name: /完成/ }).first();
-    if (
-      await completeBtn.isVisible({ timeout: 3000 }).catch(e => {
-        console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`);
-        return false;
-      })
-    ) {
+    if (await completeBtn.isVisible({ timeout: 3000 })) {
       await completeBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/完成成功/))
-        .toBeVisible({ timeout: 30000 })
-        .catch(e => {
-          console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-          return null;
-        });
+      await expect(page.getByText(/完成成功/)).toBeVisible({ timeout: 30000 });
     }
   });
 });

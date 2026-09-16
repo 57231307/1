@@ -39,26 +39,13 @@ test.describe('面料单据专用字段全链路验证', () => {
       ],
     };
 
-    let transferId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/inventory/transfers',
-        transferData
-      );
-      transferId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[21c] 调拨单创建失败（回退查询列表）: ${(e as Error).message}`);
-      // list_transfers 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
-      const list = await apiCallRaw<Array<{ id: number }> | { items?: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/inventory/transfers?page=1&page_size=1'
-      );
-      const transferList = Array.isArray(list) ? list : (list.items ?? []);
-      transferId = transferList[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/inventory/transfers',
+      transferData
+    );
+    const transferId = result.data?.id!;
 
     if (transferId) {
       const detail = await apiCallRaw<{
@@ -217,54 +204,20 @@ test.describe('面料单据专用字段全链路验证', () => {
       status: 'active',
     };
 
-    let fabricId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/production/greige-fabrics',
-        fabricData
-      );
-      fabricId = result.data?.id!;
-    } catch {
-      try {
-        const result = await apiCall<{ id?: number }>(
-          page,
-          'POST',
-          '/production/greige-fabrics',
-          fabricData
-        );
-        fabricId = result.data?.id!;
-      } catch (e) {
-        console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/greige-fabrics?page=1&page_size=1'
-        ).catch(e => {
-          console.warn(`[E2E] 失败: ${(e as Error).message}`);
-          return { items: [] };
-        });
-        fabricId = list.items?.[0]?.id;
-      }
-    }
+    const result = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/greige-fabrics',
+      fabricData
+    );
+    const fabricId = result.data?.id!;
 
     if (fabricId) {
-      let detail: Record<string, unknown> | null = null;
-      try {
-        detail = await apiCallRaw<Record<string, unknown>>(
-          page,
-          'GET',
-          `/greige-fabrics/${fabricId}`
-        );
-      } catch (e) {
-        console.warn(`[E2E] catch: ${(e as Error).message}`);
-        detail = await apiCallRaw<Record<string, unknown>>(
-          page,
-          'GET',
-          `/production/greige-fabrics/${fabricId}`
-        );
-      }
+      const detail = await apiCallRaw<Record<string, unknown>>(
+        page,
+        'GET',
+        `/production/greige-fabrics/${fabricId}`
+      );
 
       if (detail) {
         expect(detail.fabric_name).toBe(fabricName);

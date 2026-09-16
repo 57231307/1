@@ -32,11 +32,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
       await loginAsRole(page, role);
       console.log(`[33b] ${role} 登录成功（凭证据 ensureRoleUsers 补建）`);
 
-      const resp = await page.request.get(`${API_BASE}${API_PREFIX}/boms/1/print`).catch(e => {
-        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-        return null;
-      });
-      if (!resp) throw new Error('网络错误: /boms/1/print');
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}/boms/1/print`);
 
       const status = resp.status();
       if (status === 404) {
@@ -62,13 +58,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
     }) => {
       await loginAsRole(page, role);
 
-      const resp = await page.request
-        .get(`${API_BASE}${API_PREFIX}/inventory/stock/export`)
-        .catch(e => {
-          console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-          return null;
-        });
-      if (!resp) throw new Error('网络错误: /inventory/stock/export');
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}/inventory/stock/export`);
 
       // /inventory/stock/export 是非敏感导出：黑名单是唯一防线——403 即黑名单直接生效，
       // 若 200 放行则 EXPORT_DENIED 黑名单失效（真缺陷）
@@ -85,13 +75,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
   test('manager 调染料配方导出 → 403（DYE_RECIPE 导出禁单）', async ({ page }) => {
     await loginAsRole(page, 'manager');
 
-    const resp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/production/dye-recipes/export`)
-      .catch(e => {
-        console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-        return null;
-      });
-    if (!resp) throw new Error('网络错误: /production/dye-recipes/export');
+    const resp = await page.request.get(`${API_BASE}${API_PREFIX}/production/dye-recipes/export`);
 
     const status = resp.status();
     if (status === 404) {
@@ -113,11 +97,7 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
   test('admin 对照：同打印端点可达（区分端点缺失与黑名单拒绝）', async ({ page }) => {
     await loginAsRole(page, 'admin');
 
-    const resp = await page.request.get(`${API_BASE}${API_PREFIX}/boms/1/print`).catch(e => {
-      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
-      return null;
-    });
-    if (!resp) throw new Error('网络错误: /boms/1/print');
+    const resp = await page.request.get(`${API_BASE}${API_PREFIX}/boms/1/print`);
 
     const status = resp.status();
     if (status === 404) {

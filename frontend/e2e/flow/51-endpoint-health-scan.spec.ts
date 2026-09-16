@@ -145,8 +145,8 @@ test.describe.serial('51 全端点健康扫描（admin 全权上下文）', () =
           timeout: 30_000,
         });
         status = resp.status();
-        // 释放 body 防连接堆积
-        await resp.body().catch(() => {});
+        // 释放 body 防连接堆积（读取失败同样计入网络异常）
+        await resp.body();
       } catch (e) {
         crashes.push(`GET ${path} → 网络异常: ${(e as Error).message.slice(0, 120)}`);
         continue;

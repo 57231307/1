@@ -26,14 +26,14 @@ test.describe.serial('新域业务流转链', () => {
       code: `54C${ts}`,
       contact_person: '54测试',
       phone: '13800000054',
-    }).catch(() => null);
+    });
     const customerId = customer?.data?.id ?? 1;
     const product = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name: `54Prod${ts}`,
       code: `54P${ts}`,
       category_id: 1,
       unit: 'm',
-    }).catch(() => null);
+    });
     const productId = product?.data?.id ?? 1;
 
     // 前置：quality_issues 外键必须有真实记录——创建定制订单+上报质量问题
