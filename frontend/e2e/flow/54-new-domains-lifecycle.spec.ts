@@ -19,11 +19,27 @@ test.describe.serial('新域业务流转链', () => {
     await page.goto(`${BASE_URL}/quality-8d`);
     await expect(page.locator('.page')).toBeVisible();
 
-    // 前置：quality_issues 外键必须有真实记录——创建定制订单+上报质量问题（对就是对，
-    // 禁止假设种子 issueId=1 存在）
+    // 前置：创建真实客户+产品（外键约束 custom_orders_customer_id_fkey）
+    const ts = Date.now().toString().slice(-6);
+    const customer = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
+      name: `54Cust${ts}`,
+      code: `54C${ts}`,
+      contact_person: '54测试',
+      phone: '13800000054',
+    }).catch(() => null);
+    const customerId = customer?.data?.id ?? 1;
+    const product = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+      name: `54Prod${ts}`,
+      code: `54P${ts}`,
+      category_id: 1,
+      unit: 'm',
+    }).catch(() => null);
+    const productId = product?.data?.id ?? 1;
+
+    // 前置：quality_issues 外键必须有真实记录——创建定制订单+上报质量问题
     const co = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {
-      customer_id: 1,
-      product_id: 1,
+      customer_id: customerId,
+      product_id: productId,
       spec: 'E2E-8D-SPEC',
       quantity: 10,
       unit: 'm',

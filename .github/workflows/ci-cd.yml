@@ -184,7 +184,7 @@ jobs:
   ci-fmt-rust:
     name: 🔧 Rust 格式检查
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     needs: ci-info
     # 自动修正格式后需要提交 push，故需 contents: write
     permissions:
@@ -314,7 +314,7 @@ jobs:
   ci-fmt-fe:
     name: 🔧 前端格式检查
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     needs: ci-info
     steps:
       - name: 检出代码
@@ -421,7 +421,7 @@ jobs:
   ci-lint-rust:
     name: 🔍 Rust Clippy
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     needs: ci-info
     # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
     # baseline 机制：首次跑自动建立基线，后续 PR 仅"新增警告"阻塞 CI
@@ -1014,7 +1014,7 @@ jobs:
   ci-lint-fe:
     name: 🔍 前端 ESLint
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     needs: ci-info
     steps:
       - name: 检出代码
@@ -1139,7 +1139,7 @@ jobs:
   ci-type-check:
     name: 🔬 前端类型检查
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     needs: ci-info
     steps:
       - name: 检出代码
@@ -1199,7 +1199,7 @@ jobs:
           retention-days: 90
 
 # ==============================================================================
-# Job 7: Rust 测试预编译（nextest archive，避免 30 个分片各自编译）
+# Job 7: Rust 测试预编译（nextest archive，避免 10 个分片各自编译）
 # ==============================================================================
   ci-build-test-artifacts:
     name: 📦 Rust 测试预编译
@@ -1261,25 +1261,25 @@ jobs:
   # Job 8: Rust 单元测试分片（从 archive 运行，不重复编译）
   # ==============================================================================
   # ==============================================================================
-  # Rust 测试分片：30 个并行 partition（nextest --partition hash:m/30）
+  # Rust 测试分片：10 个并行 partition（nextest --partition hash:m/10）
   # 预编译 archive 由 ci-build-test-artifacts 产出，各分片仅下载运行。
   # ==============================================================================
   ci-test-rust:
-    name: 🧪 Rust 测试 (${{ matrix.partition }}/30)
+    name: 🧪 Rust 测试 (${{ matrix.partition }}/10)
     runs-on: ubuntu-latest
-    # 30 个分片仅从 archive 运行测试（不编译），时间大幅缩短
+    # 10 个分片仅从 archive 运行测试（不编译），时间大幅缩短
     timeout-minutes: 360
     needs: ci-build-test-artifacts
     # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
     if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
-      # 智能并行：GitHub 免费 runner 单 repo 并发上限 20，30 个分区用 max-parallel 20 一轮跑完大半
+      # 智能并行：GitHub 免费 runner 单 repo 并发上限 20，10 个分区用 max-parallel 20 一轮跑完大半
       # （每分区 job 是独立 runner，互不抢内存，并行度只受 GitHub 配额限制）
-      max-parallel: 20
+      max-parallel: 10
       matrix:
         # nextest --partition hash:m/n 要求 1 ≤ m ≤ n
-        partition: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+        partition: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     # 集成测试依赖 PostgreSQL，使用 service container 提供数据库实例
     services:
       postgres:
@@ -1320,7 +1320,7 @@ jobs:
           name: nextest-archive
           path: backend/
 
-      - name: 运行测试分片 ${{ matrix.partition }}/30（nextest archive run --partition hash:${{ matrix.partition }}/30）
+      - name: 运行测试分片 ${{ matrix.partition }}/10（nextest archive run --partition hash:${{ matrix.partition }}/10）
         working-directory: backend
         # --no-fail-fast 确保分片内所有测试都跑完，暴露全部失败
         # --test-threads=1 串行执行，避免集成测试竞态
@@ -1329,7 +1329,7 @@ jobs:
           set +e
           cargo nextest run \
             --archive-file nextest-archive.tar.zst \
-            --partition hash:${{ matrix.partition }}/30 \
+            --partition hash:${{ matrix.partition }}/10 \
             --test-threads=1 \
             --no-fail-fast \
             > reports/nextest-output.txt 2>&1
@@ -1344,10 +1344,10 @@ jobs:
 
           # 生成报告
           {
-            echo "# Rust 测试分片报告（${{ matrix.partition }}/30）"
+            echo "# Rust 测试分片报告（${{ matrix.partition }}/10）"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**分片**: ${{ matrix.partition }}/30  "
+            echo "**分片**: ${{ matrix.partition }}/10  "
             echo "**通过**: $PASSED  "
             echo "**失败**: $FAILED  "
             echo "**跳过**: $SKIPPED  "
@@ -1379,7 +1379,7 @@ jobs:
 
           # 写入 Step Summary
           {
-            echo "## 🧪 Rust 测试分片 ${{ matrix.partition }}/30"
+            echo "## 🧪 Rust 测试分片 ${{ matrix.partition }}/10"
             echo ""
             if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
               echo "❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
@@ -1412,7 +1412,7 @@ jobs:
 
   # ==============================================================================
   # Rust 覆盖率合并（信息性，不阻塞 CI）
-  # 在所有 30 个分片完成后运行，逐一跑所有测试收集覆盖率
+  # 在所有 10 个分片完成后运行，逐一跑所有测试收集覆盖率
   # ==============================================================================
   ci-coverage-rust:
     name: 📊 Rust 覆盖率
@@ -1623,7 +1623,7 @@ jobs:
   ci-audit:
     name: 🛡️ 依赖审计
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     needs: ci-info
     # 批次 21 修复：移除 continue-on-error，让审计命令本身失败时阻塞 CI。
     # 4.7 依赖漏洞扫描加固：high/critical 级别漏洞也会阻塞 CI（exit 1），
@@ -1772,7 +1772,7 @@ jobs:
   ci-deps:
     name: 📦 依赖图记录
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     needs: ci-info
     # P3-8 修复：移除 job 级 continue-on-error，改为 step 级精细控制
     # cargo tree --locked 失败时阻塞 CI（暴露 lockfile 漂移），npm ls 非关键允许失败
@@ -1822,7 +1822,7 @@ jobs:
   ci-perf-bench:
     name: ⚡ 性能基准回归监控
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     needs: ci-info
     # V15 批次 06 P1-10：informational job，continue-on-error 避免性能波动阻塞主 CI
     # 性能回归 > 10% 会写入报告并标注，但不阻塞合并（避免硬件差异导致误报）
@@ -2076,7 +2076,7 @@ jobs:
   ci-build-fe:
     name: 🏗️ 前端构建
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 60
     needs: ci-info
     steps:
       - name: 检出代码
@@ -2401,7 +2401,7 @@ jobs:
 # Job 15: E2E 端到端测试（8 分片并行，每分片独立后端实例）
 # ==============================================================================
   ci-e2e:
-    name: 🎭 E2E 测试 (${{ matrix.shard }}/75)
+    name: "🎭 E2E: ${{ matrix.label }}"
     runs-on: ubuntu-latest
     timeout-minutes: 360
     needs: [ci-build-fe, ci-build-rust]
@@ -2410,9 +2410,59 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        # 75 分片（用户指令 2026-09-10）：0-49 flow（50 片）/
-        # 50-54 smoke（5 片）/ 55-74 traversal（20 片：42a-d 遍历 + 37/39/41 端点矩阵）
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74]
+        # 25 分片：0-14 flow（15 片）/ 15-19 smoke（5 片）/ 20-24 traversal（5 片）
+        # label 按实际测试 spec 内容命名（Playwright --shard hash 分配，无空载）
+        include:
+          - shard: 0
+            label: "flow: 00-deploy+responsive+03-production+04-finance"
+          - shard: 1
+            label: "flow: 05-system~10d-extended"
+          - shard: 2
+            label: "flow: 11~22-returns/inventory/crm"
+          - shard: 3
+            label: "flow: 23~29a-color-card/production/route-coverage"
+          - shard: 4
+            label: "flow: 29b~31b-route-coverage/persistence/deletion"
+          - shard: 5
+            label: "flow: 31c~32-deactivation/notification/import/roles"
+          - shard: 6
+            label: "flow: 33~44e-privilege/state-gates/dye-batch"
+          - shard: 7
+            label: "flow: 44f~54-lifecycle/scan/chemical/approval/new-domains"
+          - shard: 8
+            label: "flow: 03~08-production/finance/system/collab"
+          - shard: 9
+            label: "flow: 09~19-permissions/extended/returns/stocktaking"
+          - shard: 10
+            label: "flow: 20~26-status/fabric/crm/production"
+          - shard: 11
+            label: "flow: 27~29d-other-modules/core-ui/route-coverage"
+          - shard: 12
+            label: "flow: 30~31c-persistence/deactivation"
+          - shard: 13
+            label: "flow: 31d~38-notification/import/privilege/print"
+          - shard: 14
+            label: "flow: 39b~54-export/approval/scan/chemical/new-domains"
+          - shard: 15
+            label: "smoke: 页面加载(1/5)"
+          - shard: 16
+            label: "smoke: 页面加载(2/5)"
+          - shard: 17
+            label: "smoke: 页面加载(3/5)"
+          - shard: 18
+            label: "smoke: 页面加载(4/5)"
+          - shard: 19
+            label: "smoke: 页面加载(5/5)"
+          - shard: 20
+            label: "traversal: 37-print+39-export-endpoints"
+          - shard: 21
+            label: "traversal: 39c-export+41-approve+42a-c/supply"
+          - shard: 22
+            label: "traversal: 37-print+42d-finance+44-role-matrix"
+          - shard: 23
+            label: "traversal: 37b-print+39-export+39c+41-approve"
+          - shard: 24
+            label: "traversal: 42a~42d+44-role-matrix"
     services:
       postgres:
         image: postgres:16-alpine
@@ -2591,7 +2641,7 @@ jobs:
           echo "=== 后端日志最后 10 行 ==="
           tail -10 /tmp/e2e-logs/backend.log 2>/dev/null || echo "(无后端日志)"
 
-      - name: 运行 E2E 测试（分片 ${{ matrix.shard }}/75）
+      - name: 运行 E2E 测试（${{ matrix.label }}）
         working-directory: frontend
         env:
           # 分片索引：globalSetup 经 API 创建并登录 e2e_admin_s{shard} 独立账号。
@@ -2607,16 +2657,15 @@ jobs:
           set +e
           echo "本分片使用独立账号: ${TEST_USERNAME}"
           SHARD=${{ matrix.shard }}
-          if [ "$SHARD" -le 49 ]; then
-            # 分片 0-49: 运行 flow/ 全流程测试，按 shard 自动分配（50 片）
-            # 挂起治理（run 34041167918~34073033540 连续六轮十余分片 exit 124）：
-            # Playwright Node 事件循环假死时 420s 单测超时与 ensure 5min guard
-            # 全部失效，进程存活但输出停滞。watchdog 每 30s 检查输出文件尺寸，
-            # 停滞超 120s 即 kill 进程树并重跑该分片（最多 3 轮，600s/轮硬上限）
+          if [ "$SHARD" -le 14 ]; then
+            # 分片 0-14: 运行 flow/ 全流程测试（15 片）
+            # 挂起治理：Playwright Node 事件循环假死时进程存活但输出停滞。
+            # watchdog 每 30s 检查输出文件尺寸，停滞超 180s 即 kill 进程树，
+            # 让分片直接失败（不重试，失败即修复）
             run_shard() {
               # 单轮：输出重定向到轮次文件，watchdog 每 30s 检查尺寸停滞
               local out=reports/playwright-output-r$1.txt
-              npx playwright test --project=chromium --retries=1 --shard=$((SHARD + 1))/50 e2e/flow/ > "$out" 2>&1 &
+              npx playwright test --project=chromium --shard=$((SHARD + 1))/15 e2e/flow/ > "$out" 2>&1 &
               local pw_pid=$!
               local last_size=0 stall=0
               while kill -0 "$pw_pid" 2>/dev/null; do
@@ -2629,7 +2678,7 @@ jobs:
                   stall=0
                   last_size=$cur_size
                 fi
-                if [ "$stall" -ge 120 ]; then
+                if [ "$stall" -ge 180 ]; then
                   echo "::warning::Playwright 输出停滞 ${stall}s，判定挂起，kill 进程树后重跑"
                   kill -9 "$pw_pid" 2>/dev/null
                   # 连带清理 playwright worker/chromium 子进程
@@ -2644,38 +2693,27 @@ jobs:
               echo $?
               return $?
             }
-            EXIT_CODE=124
-            for attempt in 1 2 3; do
-              echo "=== 分片 $SHARD 第 $attempt 轮执行 ==="
-              timeout 600 bash -c "$(declare -f run_shard); SHARD=$SHARD run_shard $attempt" > /tmp/shard-exit.txt
-              EXIT_CODE=$(tail -1 /tmp/shard-exit.txt)
-              echo "第 $attempt 轮 exit: $EXIT_CODE"
-              [ "$EXIT_CODE" = "0" ] && break
-            done
+            timeout 1500 bash -c "$(declare -f run_shard); SHARD=$SHARD run_shard 1" > /tmp/shard-exit.txt
+            EXIT_CODE=$(tail -1 /tmp/shard-exit.txt)
+            echo "exit: $EXIT_CODE"
             # 最终输出供后续报告步骤使用
-            if [ "$EXIT_CODE" = "0" ]; then
-              cp reports/playwright-output-r*.txt /dev/null 2>/dev/null || true
-              LAST=$(ls reports/playwright-output-r*.txt 2>/dev/null | tail -1)
-            else
-              LAST=$(ls reports/playwright-output-r*.txt 2>/dev/null | tail -1)
-            fi
+            LAST=$(ls reports/playwright-output-r*.txt 2>/dev/null | tail -1)
             [ -n "$LAST" ] && cp "$LAST" reports/playwright-output.txt
             set +e
-          elif [ "$SHARD" -le 54 ]; then
-            # 分片 50-54: 运行 smoke 页面加载测试，按 shard 分配（5 片）
-            SMOKE_SHARD=$((SHARD - 49))
-            timeout 1200 npx playwright test --project=chromium --shard=${SMOKE_SHARD}/5 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
+          elif [ "$SHARD" -le 19 ]; then
+            # 分片 15-19: 运行 smoke 页面加载测试（5 片）
+            SMOKE_SHARD=$((SHARD - 14))
+            timeout 2400 npx playwright test --project=chromium --shard=${SMOKE_SHARD}/5 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
             EXIT_CODE=$?
           else
-            # 分片 55-74: 运行 traversal 全量遍历 + 端点矩阵（20 片）
-            # TRV_SHARD = SHARD-55（0 基），shard=(TRV_SHARD+1)/20：
-            # 55→1/20 … 74→20/20（原 SHARD-54 导致 2/20 起跑、74 越界 21/20）
-            TRV_SHARD=$((SHARD - 55))
+            # 分片 20-24: 运行 traversal 全量遍历 + 端点矩阵（5 片）
+            # TRV_SHARD = SHARD-20（0 基），shard=(TRV_SHARD+1)/5：
+            TRV_SHARD=$((SHARD - 20))
             mkdir -p reports
             set +e
             run_trv_shard() {
               local out=reports/playwright-output-r$1.txt
-              npx playwright test --project=chromium --retries=1 --shard=$((TRV_SHARD + 1))/20 e2e/traversal/ > "$out" 2>&1 &
+              npx playwright test --project=chromium --shard=$((TRV_SHARD + 1))/5 e2e/traversal/ > "$out" 2>&1 &
               local pw_pid=$!
               local last_size=0 stall=0
               while kill -0 "$pw_pid" 2>/dev/null; do
@@ -2688,7 +2726,7 @@ jobs:
                   stall=0
                   last_size=$cur_size
                 fi
-                if [ "$stall" -ge 120 ]; then
+                if [ "$stall" -ge 180 ]; then
                   echo "::warning::traversal Playwright 输出停滞 ${stall}s，判定挂起，kill 进程树后重跑"
                   kill -9 "$pw_pid" 2>/dev/null
                   pkill -9 -P "$pw_pid" 2>/dev/null
@@ -2702,22 +2740,17 @@ jobs:
               echo $?
               return $?
             }
-            EXIT_CODE=124
-            for attempt in 1 2 3; do
-              echo "=== traversal 分片 $TRV_SHARD 第 $attempt 轮执行 ==="
-              timeout 900 bash -c "$(declare -f run_trv_shard); TRV_SHARD=$TRV_SHARD run_trv_shard $attempt" > /tmp/trv-exit.txt
-              EXIT_CODE=$(tail -1 /tmp/trv-exit.txt)
-              echo "第 $attempt 轮 exit: $EXIT_CODE"
-              [ "$EXIT_CODE" = "0" ] && break
-            done
+            timeout 1800 bash -c "$(declare -f run_trv_shard); TRV_SHARD=$TRV_SHARD run_trv_shard 1" > /tmp/trv-exit.txt
+            EXIT_CODE=$(tail -1 /tmp/trv-exit.txt)
+            echo "exit: $EXIT_CODE"
             LAST=$(ls reports/playwright-output-r*.txt 2>/dev/null | tail -1)
             [ -n "$LAST" ] && cp "$LAST" reports/playwright-output.txt
           fi
           set -e
           {
-            echo "# E2E 测试报告（分片 ${{ matrix.shard }}/75）"; echo ""
-            if [ "$EXIT_CODE" -eq "0" ]; then echo "## ✅ 分片 ${{ matrix.shard }} 全部通过"
-            else echo "## ❌ 分片 ${{ matrix.shard }} 部分失败"; echo '```'; head -200 reports/playwright-output.txt; echo '```'
+            echo "# E2E 测试报告（${{ matrix.label }}）"; echo ""
+            if [ "$EXIT_CODE" -eq "0" ]; then echo "## ✅ ${{ matrix.label }} 全部通过"
+            else echo "## ❌ ${{ matrix.label }} 部分失败"; echo '```'; head -200 reports/playwright-output.txt; echo '```'
             fi
           } > reports/e2e-report.md
           echo "$EXIT_CODE" > reports/e2e-exit-code.txt
@@ -2725,7 +2758,7 @@ jobs:
           # 压缩为 check annotation（annotation 可通过公开 API 读取），定位完成后需移除本段
           if [ "$EXIT_CODE" -ne "0" ]; then
             LINES=$(wc -l < reports/playwright-output.txt 2>/dev/null || echo 0)
-            echo "::error::E2E-分片 ${{ matrix.shard }} 退出码=$EXIT_CODE 输出行数=$LINES"
+            echo "::error::E2E ${{ matrix.label }} 退出码=$EXIT_CODE 输出行数=$LINES"
             TAILTXT=$(tail -n 25 reports/playwright-output.txt 2>/dev/null | cut -c1-140 \
               | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/@NL@/' | tr -d '\n' | sed 's/@NL@/%0A/g')
             echo "::error::E2E-TAIL: $TAILTXT"
@@ -2756,7 +2789,7 @@ jobs:
         if: always()
         working-directory: frontend
         run: |
-          echo "## E2E UI 操作失败统计（分片 ${{ matrix.shard }}/75）" > reports/ui-failures.md
+          echo "## E2E UI 操作失败统计（${{ matrix.label }}）" > reports/ui-failures.md
           echo "" >> reports/ui-failures.md
           # 扫描 Playwright 输出中的 "[E2E] 操作失败" 日志（catch 清理后的显式日志）
           FAIL_COUNT=$(grep -c "\[E2E\] 操作失败" reports/playwright-output.txt 2>/dev/null || echo 0)
@@ -2766,7 +2799,7 @@ jobs:
           if [ "$TOTAL_FAIL" -eq "0" ]; then
             echo "✅ 无 UI 操作失败" >> reports/ui-failures.md
             echo "操作失败: 0 | 登录失败: 0 | 超时: 0" >> reports/ui-failures.md
-            echo "::notice::E2E 分片 ${{ matrix.shard }} UI 操作检查通过（无失败）"
+            echo "::notice::E2E ${{ matrix.label }} UI 操作检查通过（无失败）"
           else
             echo "❌ 发现 $TOTAL_FAIL 处 UI 操作失败" >> reports/ui-failures.md
             echo "- 操作失败(catch): $FAIL_COUNT" >> reports/ui-failures.md
@@ -2778,7 +2811,7 @@ jobs:
             grep "\[E2E\] 操作失败\|UI 登录失败" reports/playwright-output.txt 2>/dev/null | head -30 >> reports/ui-failures.md || true
             echo '```' >> reports/ui-failures.md
             # 有操作失败记失败（但不阻塞 CI，仅记录统计）
-            echo "::warning::E2E 分片 ${{ matrix.shard }} 有 $TOTAL_FAIL 处 UI 操作失败（操作失败 $FAIL_COUNT + 登录失败 $LOGIN_FAIL + 超时 $TIMEOUT_FAIL）"
+            echo "::warning::E2E ${{ matrix.label }} 有 $TOTAL_FAIL 处 UI 操作失败（操作失败 $FAIL_COUNT + 登录失败 $LOGIN_FAIL + 超时 $TIMEOUT_FAIL）"
           fi
           # 汇总到 step summary
           cat reports/ui-failures.md >> "$GITHUB_STEP_SUMMARY"

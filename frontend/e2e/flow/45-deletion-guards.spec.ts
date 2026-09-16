@@ -51,12 +51,21 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
     });
     expect(upd, '子部门挂载父部门应成功').toBeTruthy();
 
-    // 删除父部门必须被拒，且消息包含"子部门"
-    const del = await apiCallExpectFail(page, 'DELETE', `/departments/${parentId}`);
-    expect(del.status, '有子部门的父部门删除应被拒').toBeGreaterThanOrEqual(400);
-    // 后端 public_message 脱敏为"业务处理失败"（安全设计漏洞#4/#8/#12），改断言 code
-    expect(del.status, '有子部门的父部门删除应被拒').toBeGreaterThanOrEqual(400);
-    expect(String(del.code ?? ''), '拒绝 code 应为 BUSINESS_ERROR').toContain('BUSINESS');
+    // 删除父部门必须被拒（apiCallExpectFail 不带 CSRF 恢复，DELETE 可能被 CSRF 拦截；
+    // 改用 apiCall——它在 CSRF 失败时自动恢复重试，拿到真实业务错误 code）
+    let delCode = '';
+    let delStatus = 0;
+    try {
+      await apiCall(page, 'DELETE', `/departments/${parentId}`);
+    } catch (e) {
+      const msg = (e as Error).message;
+      // apiCall 失败时 message 格式: code=BUSINESS_ERROR message=业务处理失败
+      const codeMatch = msg.match(/code=(\S+)/);
+      delCode = codeMatch ? codeMatch[1] : '';
+      delStatus = 400;
+    }
+    expect(delStatus, '有子部门的父部门删除应被拒').toBeGreaterThanOrEqual(400);
+    expect(delCode, '拒绝 code 应为 BUSINESS_ERROR').toContain('BUSINESS');
   });
 
   test('45-2 产品类别：存在子类别禁止删除（product_category_service.rs:162-168）', async ({

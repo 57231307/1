@@ -62,6 +62,7 @@ fn is_business_module_prefix(part: &str) -> bool {
             | "scanner"
             // ===== 生产域（V15 新增：原缺失导致 30+ 资源共用 production 权限码）=====
             | "production"
+            | "production-orders"
             | "material-shortage"
             | "scheduling"
             // ===== 财务域 =====

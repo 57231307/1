@@ -927,6 +927,13 @@ export async function loginViaUI(
   // 原因：P1.2 已将 check_lock_status 改为 OptionalAuthContext，
   // 匿名预检不再 401，16 分片并发挂起若复现属真实性能问题另立项
 
+  // force 模式：清除旧 cookie + 重置 LOGGED_IN，确保切换到新角色
+  // 不清除时旧 access_token 会让 /login 自动重定向到首页，新角色登录表单不执行
+  if (force) {
+    await page.context().clearCookies();
+    LOGGED_IN.done = false;
+  }
+
   // 检查 cookie 是否还在（同 BrowserContext 内已登录则跳过）
   // 注意：必须同时检查 access_token 和 csrf_token —— CSRF 失效场景下前端会清空 csrf_token
   // Cookie 并跳转登录页，仅凭 access_token 存在就跳过登录会导致后续所有 POST 请求 403。
@@ -1179,7 +1186,9 @@ export async function loginAsRole(page: Page, role: string): Promise<void> {
       `E2E role credentials not found for role: ${role}（env E2E_${role.toUpperCase()}_USERNAME 与 role-credentials.json 均无）`
     );
   }
-  await loginViaUI(page, cred.username, cred.password);
+  // force=true：清除旧 cookie + 跳过 LOGGED_IN 短路，确保切换到目标角色
+  // 不传 force 时 loginViaUI 检测到旧 access_token 会跳过登录，导致仍用上一个角色的 cookie
+  await loginViaUI(page, cred.username, cred.password, true);
 }
 
 export async function healthCheck(): Promise<boolean> {

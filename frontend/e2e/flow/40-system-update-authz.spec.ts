@@ -33,20 +33,28 @@ test.describe('P5.10 系统更新授权', () => {
   });
 
   test('viewer 无权限查询系统更新（403）', async ({ page }) => {
-    await loginAsRole(page, 'report_viewer').catch(async () => {
-      // report_viewer 可能未创建，尝试 readonly
-      await loginAsRole(page, 'e2e_readonly').catch(e => {
-        console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-        test.skip();
-      });
-    });
+    // report_viewer 不存在则尝试 e2e_readonly；两者都不可用则 skip
+    let viewerOk = false;
+    try {
+      await loginAsRole(page, 'report_viewer');
+      viewerOk = true;
+    } catch {
+      try {
+        await loginAsRole(page, 'e2e_readonly');
+        viewerOk = true;
+      } catch {
+        console.warn('[E2E] test.skip: report_viewer 与 e2e_readonly 凭证均不可用');
+      }
+    }
+    if (!viewerOk) {
+      test.skip();
+      return;
+    }
 
     const resp = await apiCall(page, 'GET', '/system-update/version').catch(e => {
-      console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`);
+      console.warn(`[E2E] 操作失败: ${(e as Error).message}`);
       return null;
     });
-    // viewer 应被拒绝或返回 403
-    // 如果 apiCall 抛出 403，resp 为 null——也算通过
     // viewer 应被拒：apiCall 403 时 throw resp=null（通过）；或 resp.code 非 200
     const denied = resp === null || (resp?.code !== 200 && resp?.code !== 0);
     expect(
