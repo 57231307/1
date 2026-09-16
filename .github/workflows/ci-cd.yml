@@ -3642,7 +3642,7 @@ jobs:
               exit 1
             fi
           done
-          echo "✅ 全部 E2E job（ci-e2e 75 分片 / setup-wizard / role-permission-matrix）真实执行成功"
+          echo "✅ 全部 E2E job（ci-e2e 25 分片 / setup-wizard / role-permission-matrix）真实执行成功"
 
       - name: 静态校验——E2E 源码禁止 mock 拦截
         run: |
