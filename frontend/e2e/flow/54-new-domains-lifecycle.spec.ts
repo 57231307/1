@@ -30,12 +30,10 @@ test.describe.serial('新域业务流转链', () => {
     });
     const coId = co?.data?.id;
     expect(coId, '定制订单创建失败').toBeTruthy();
-    const issue = await apiCall<{ id?: number }>(
-      page,
-      'POST',
-      `/custom-orders/${coId}/issues`,
-      { issue_type: 'after_sales_reported', description: 'E2E 8D 前置质量问题' }
-    );
+    const issue = await apiCall<{ id?: number }>(page, 'POST', `/custom-orders/${coId}/issues`, {
+      issue_type: 'after_sales_reported',
+      description: 'E2E 8D 前置质量问题',
+    });
     const issueId = issue?.data?.id;
     expect(issueId, '质量问题创建失败').toBeTruthy();
 

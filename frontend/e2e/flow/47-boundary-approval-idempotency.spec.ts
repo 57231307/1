@@ -1,5 +1,12 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, ensureTestEntities, apiCall, apiCallExpectFail, tryCleanup, genCode } from './helpers';
+import {
+  loginViaUI,
+  ensureTestEntities,
+  apiCall,
+  apiCallExpectFail,
+  tryCleanup,
+  genCode,
+} from './helpers';
 
 /**
  * 47 边界值 / 审批纵深 / 幂等 / 审计完整性（L3+L4+L5+审计防线合并）
@@ -66,7 +73,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
       items: [{ material_id: ctx.productIds[0], quantity: 1, unit_price: '1.00' }],
     });
     const id = po?.data?.id;
-        expect(id, 'PO 创建失败').toBeTruthy();
+    expect(id, 'PO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/orders/${id}`, label: '[47-A1] PO' });
 
     await apiCall(page, 'POST', `/purchase/orders/${id}/submit`);
@@ -85,7 +92,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     // 前置角色
     const role = await apiCallRawSafe(page, 'GET', '/roles?page=1&page_size=1');
     const roleId = (role as { roles?: Array<{ id: number }> })?.roles?.[0]?.id;
-        expect(roleId, '无可用角色').toBeTruthy();
+    expect(roleId, '无可用角色').toBeTruthy();
 
     const r1 = await apiCall<{ id?: number }>(page, 'POST', '/users', {
       username,
@@ -95,7 +102,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     });
     const uid = r1?.data?.id;
     if (uid) CLEANUP.push({ path: `/users/${uid}`, label: '[47-I1] 用户' });
-        expect(uid, '首个用户创建失败').toBeTruthy();
+    expect(uid, '首个用户创建失败').toBeTruthy();
 
     const r2 = await apiCallExpectFail(page, 'POST', '/users', {
       username,
@@ -116,7 +123,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     });
     const rid = r1?.data?.id;
     if (rid) CLEANUP.push({ path: `/roles/${rid}`, label: '[47-I2] 角色' });
-        expect(rid, '首个角色创建失败').toBeTruthy();
+    expect(rid, '首个角色创建失败').toBeTruthy();
 
     const r2 = await apiCallExpectFail(page, 'POST', '/roles', {
       name: `47幂等角色重复${code}`,
@@ -134,7 +141,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     const name = `47审计部门${Date.now().toString().slice(-8)}`;
     const r = await apiCall<{ id?: number }>(page, 'POST', '/departments', { name });
     const id = r?.data?.id;
-        expect(id, '部门创建失败').toBeTruthy();
+    expect(id, '部门创建失败').toBeTruthy();
     CLEANUP.push({ path: `/departments/${id}`, label: '[47-AU1] 部门' });
 
     // 回查审计日志（admin 可查 system.rs:264）

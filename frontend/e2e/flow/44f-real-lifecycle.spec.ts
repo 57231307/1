@@ -1,5 +1,12 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, ensureTestEntities, getCtx, apiCall, apiCallExpectFail, BASE_URL } from './helpers';
+import {
+  loginViaUI,
+  ensureTestEntities,
+  getCtx,
+  apiCall,
+  apiCallExpectFail,
+  BASE_URL,
+} from './helpers';
 
 /**
  * 44f 真实实体全流转链（创建→逐状态推进→每步 API 回读）
@@ -35,7 +42,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       planned_start_date: new Date().toISOString().slice(0, 10),
     });
     const id = po?.data?.id;
-        expect(id, '生产订单创建失败').toBeTruthy();
+    expect(id, '生产订单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/production/orders/${id}`, label: '[44f-1] 生产订单' });
 
     const st0 = await apiCall<{ status?: string }>(page, 'GET', `/production/orders/${id}`);
@@ -64,7 +71,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       planned_quantity: 50,
     });
     const porderId = porder?.data?.id;
-        expect(porderId, '生产订单创建失败').toBeTruthy();
+    expect(porderId, '生产订单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/production/orders/${porderId}`, label: '[44f-2] 生产订单' });
 
     const fc = await apiCall<{ id?: number }>(page, 'POST', '/flow-cards', {
@@ -73,7 +80,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       color_no: `44F${Date.now().toString().slice(-5)}`,
     });
     const id = fc?.data?.id;
-        expect(id, '流转卡创建失败').toBeTruthy();
+    expect(id, '流转卡创建失败').toBeTruthy();
     CLEANUP.push({ path: `/flow-cards/${id}`, label: '[44f-2] 流转卡' });
 
     const rd = async () => {
@@ -113,7 +120,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       items: [{ product_id: ctx.productIds[0], quantity: 5 }],
     });
     const id = tf?.data?.id;
-        expect(id, '调拨单创建失败').toBeTruthy();
+    expect(id, '调拨单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/inventory/transfers/${id}`, label: '[44f-3] 调拨' });
 
     // pending 时 ship 被拒
@@ -149,7 +156,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       }
     );
     const poId = po?.data?.id;
-        expect(poId, 'PO 创建失败').toBeTruthy();
+    expect(poId, 'PO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/orders/${poId}`, label: '[44f-4] PO' });
     await apiCall(page, 'POST', `/purchase/orders/${poId}/submit`);
     await apiCall(page, 'POST', `/purchase/orders/${poId}/approve`);
@@ -172,7 +179,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       ],
     });
     const receiptId = receipt?.data?.id;
-        expect(receiptId, '收货单创建失败').toBeTruthy();
+    expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[44f-4] 收货单' });
 
     const c1 = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
@@ -193,7 +200,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       items: [{ material_id: ctx.productIds[0], quantity: 5, unit_price: '8.00' }],
     });
     const soId = so?.data?.id;
-        expect(soId, 'SO 创建失败').toBeTruthy();
+    expect(soId, 'SO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/sales/orders/${soId}`, label: '[44f-5] SO' });
     await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
@@ -230,7 +237,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       ],
     });
     const id = v?.data?.id;
-        expect(id, '凭证创建失败').toBeTruthy();
+    expect(id, '凭证创建失败').toBeTruthy();
     CLEANUP.push({ path: `/vouchers/${id}`, label: '[44f-6] 凭证' });
 
     await apiCall(page, 'POST', `/vouchers/${id}/submit`);
@@ -261,7 +268,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       product_id: ctx.productIds[0],
     });
     const id = r?.data?.id;
-        expect(id, '处方创建失败（字段契约差异，需对照 production_recipe_handler）').toBeTruthy();
+    expect(id, '处方创建失败（字段契约差异，需对照 production_recipe_handler）').toBeTruthy();
     CLEANUP.push({ path: `/production/production-recipes/${id}`, label: '[44f-7] 处方' });
     await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`);
     expect(
@@ -281,7 +288,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       main_light_source: 'D65',
     });
     const id = r?.data?.id;
-        expect(id, '打样单创建失败').toBeTruthy();
+    expect(id, '打样单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/production/lab-dip/requests/${id}`, label: '[44f-8] 打样' });
 
     const rd = async () =>
@@ -307,7 +314,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       color_name: '44f 配方色名',
     });
     const id = r?.data?.id;
-        expect(id, '配方创建失败').toBeTruthy();
+    expect(id, '配方创建失败').toBeTruthy();
     CLEANUP.push({ path: `/production/dye-recipes/${id}`, label: '[44f-9] 配方' });
 
     // ApproveRecipeRequest { approved_by: i32 } 必填

@@ -264,7 +264,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       return;
     }
     try {
-      await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`, { approved_by: 1 });
+      await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`, {
+        approved_by: 1,
+      });
     } catch (e) {
       console.warn(`[E2E] //: ${(e as Error).message}`);
       /* skip */

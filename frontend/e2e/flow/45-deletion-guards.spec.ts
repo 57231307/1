@@ -35,7 +35,7 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
       description: '45-1 父',
     });
     const parentId = parent?.data?.id;
-        expect(parentId, '父部门创建失败').toBeTruthy();
+    expect(parentId, '父部门创建失败').toBeTruthy();
     CLEANUP.push({ path: `/departments/${parentId}`, label: '[45-1] 父部门' });
 
     const child = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
@@ -43,7 +43,7 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
       description: '45-1 子',
     });
     const childId = child?.data?.id;
-        expect(childId, '子部门创建失败').toBeTruthy();
+    expect(childId, '子部门创建失败').toBeTruthy();
 
     // 建立父子关系（update parent_id）
     const upd = await apiCall(page, 'PUT', `/departments/${childId}`, {
@@ -68,7 +68,7 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
       name: `45守卫父分类${ts}`,
     });
     const parentId = parent?.data?.id;
-        expect(parentId, '父分类创建失败').toBeTruthy();
+    expect(parentId, '父分类创建失败').toBeTruthy();
     CLEANUP.push({ path: `/product-categories/${parentId}`, label: '[45-2] 父分类' });
 
     const child = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
@@ -76,7 +76,7 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
       parent_id: parentId,
     });
     const childId = child?.data?.id;
-        expect(childId, '子分类创建失败').toBeTruthy();
+    expect(childId, '子分类创建失败').toBeTruthy();
     CLEANUP.push({ path: `/product-categories/${childId}`, label: '[45-2] 子分类' });
 
     const del = await apiCallExpectFail(page, 'DELETE', `/product-categories/${parentId}`);
@@ -109,7 +109,7 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
       contact_phone: '13800000045',
     });
     const supId = sup?.data?.id;
-        expect(supId, '供应商创建失败').toBeTruthy();
+    expect(supId, '供应商创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/suppliers/${supId}`, label: '[45-4] 供应商' });
 
     const po = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
@@ -121,7 +121,7 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
       items: [{ material_id: ctx.productIds[0], quantity: 1, unit_price: '1.00' }],
     });
     const poId = po?.data?.id;
-        expect(poId, 'PO 创建失败').toBeTruthy();
+    expect(poId, 'PO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/orders/${poId}`, label: '[45-4] PO' });
 
     // 删除有活跃 PO 的供应商必须被拒
@@ -138,7 +138,7 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
       description: '45-5 对照',
     });
     const id = r?.data?.id;
-        expect(id, '创建失败').toBeTruthy();
+    expect(id, '创建失败').toBeTruthy();
     // 直接删除应成功（无子部门无用户关联）
     const del = await apiCallExpectFail(page, 'DELETE', `/departments/${id}`);
     expect(del.status, '无关联部门删除应成功').toBeLessThan(300);

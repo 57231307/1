@@ -43,7 +43,7 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
       items: [{ material_id: ctx.productIds[0], quantity: 10, unit_price: '2.50' }],
     });
     const poId = po?.data?.id;
-        expect(poId, 'PO 创建失败').toBeTruthy();
+    expect(poId, 'PO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/orders/${poId}`, label: '[48-1] PO' });
     await apiCall(page, 'POST', `/purchase/orders/${poId}/submit`);
     await apiCall(page, 'POST', `/purchase/orders/${poId}/approve`);
@@ -78,7 +78,7 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     } catch (e) {
       console.error('[48-1] 收货单创建请求失败:', (e as Error).message);
     }
-        expect(receiptId, '收货单创建失败').toBeTruthy();
+    expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[48-1] 收货单' });
     const confirm = await apiCallExpectFail(
       page,
@@ -93,7 +93,7 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
       `/ap-invoices?page=1&page_size=50`
     );
     const apList = ap?.items ?? [];
-    const hit = apList.some(x => x.supplier_id === (ctx.supplierId) || x.po_id === poId);
+    const hit = apList.some(x => x.supplier_id === ctx.supplierId || x.po_id === poId);
     expect(hit, '收货确认后必须生成 AP 应付单（补偿失败后端仅 warn——账实脱节缺陷防线）').toBe(true);
   });
 
@@ -106,7 +106,7 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
       items: [{ material_id: ctx.productIds[0], quantity: 5, unit_price: '8.00' }],
     });
     const soId = so?.data?.id;
-        expect(soId, 'SO 创建失败').toBeTruthy();
+    expect(soId, 'SO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/sales/orders/${soId}`, label: '[48-2] SO' });
     await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);

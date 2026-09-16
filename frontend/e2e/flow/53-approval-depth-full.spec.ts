@@ -104,8 +104,10 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       'GET',
       '/roles?page=1&page_size=50'
     );
-    const adminRole = roles?.items?.find(r => r.code === 'admin') ?? roles?.items?.[0];
-        expect(adminRole, '无可用角色').toBeTruthy();
+    // RoleListResponse 序列化 {roles: [...], total}——无 items 包装（自审修复）
+    const roleList = (roles as { roles?: Array<{ id: number; code: string }> })?.roles ?? [];
+    const adminRole = roleList.find(r => r.code === 'admin') ?? roleList[0];
+    expect(adminRole, '无可用角色').toBeTruthy();
     const r = await apiCall<{ id?: number }>(page, 'POST', '/users', {
       username: APPROVER.username,
       password: APPROVER.password,
@@ -132,7 +134,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       roles?.items?.find(r =>
         ['admin', 'finance', 'finance_admin', 'super_admin'].includes(r.code)
       ) ?? roles?.items?.[0];
-        expect(sensitive, '无敏感角色').toBeTruthy();
+    expect(sensitive, '无敏感角色').toBeTruthy();
 
     const me = await apiCall<{ id?: number }>(page, 'GET', '/users/me');
     const myId =
@@ -153,7 +155,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     );
     const apId =
       (created as { id?: number })?.id ?? (created as { data?: { id?: number } })?.data?.id;
-        expect(apId, '角色变更申请创建失败').toBeTruthy();
+    expect(apId, '角色变更申请创建失败').toBeTruthy();
     CLEANUP.push({ path: `/role-change-approvals/${apId}`, label: '[53-1] 申请' });
 
     // A 自己审批 L1 → 必须被拒（:2 防自审批）
@@ -183,7 +185,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     );
     const sensitive =
       roles?.items?.find(r => ['finance', 'finance_admin'].includes(r.code)) ?? roles?.items?.[0];
-        expect(sensitive, '无敏感角色').toBeTruthy();
+    expect(sensitive, '无敏感角色').toBeTruthy();
 
     const me = await apiCall<{ id?: number }>(page, 'GET', '/users/me');
     const myId =
@@ -203,7 +205,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     );
     const apId =
       (created as { id?: number })?.id ?? (created as { data?: { id?: number } })?.data?.id;
-        expect(apId, '申请创建失败').toBeTruthy();
+    expect(apId, '申请创建失败').toBeTruthy();
     CLEANUP.push({ path: `/role-change-approvals/${apId}`, label: '[53-2] 申请' });
 
     // B 完成 L1
@@ -232,7 +234,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     const normal = roles?.items?.find(
       r => !['admin', 'super_admin', 'finance', 'finance_admin'].includes(r.code)
     );
-        expect(normal, '无非敏感角色可对照').toBeTruthy();
+    expect(normal, '无非敏感角色可对照').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', '/role-change-approvals', {
       change_type: 'grant',
       target_role_id: normal.id,

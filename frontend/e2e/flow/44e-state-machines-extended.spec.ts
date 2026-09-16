@@ -56,7 +56,7 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
       items: [{ material_id: ctx.productIds[0], quantity: 1, unit_price: '1.00' }],
     });
     const id = so?.data?.id;
-        expect(id, 'SO 创建失败').toBeTruthy();
+    expect(id, 'SO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/sales/orders/${id}`, label: '[44e-2] SO' });
     // draft 态可删（对照）；构造 shipped 态需要完整发货链——此处验证 draft 删除接口可达性+审批态保护
     const sub = await apiCall(page, 'POST', `/sales/orders/${id}/submit`);
@@ -86,7 +86,7 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     });
     const id = tf?.data?.id;
     if (id) CLEANUP.push({ path: `/inventory/transfers/${id}`, label: '[44e-4] 调拨' });
-        expect(id, '调拨单创建失败').toBeTruthy();
+    expect(id, '调拨单创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/inventory/transfers/${id}/ship`);
     expect(r.status, 'pending 调拨直接发出应被拒（仅 approved）').toBeGreaterThanOrEqual(400);
   });
@@ -142,7 +142,7 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
       items: [{ material_id: ctx.productIds[0], quantity: 2, unit_price: '3.50' }],
     });
     const id = so?.data?.id;
-        expect(id, 'SO 创建失败').toBeTruthy();
+    expect(id, 'SO 创建失败').toBeTruthy();
     // 详情含 items 明细（第十二轮采购订单同款缺陷防线）
     const detail = await apiCall<{ items?: unknown[] }>(page, 'GET', `/sales/orders/${id}`);
     expect(
