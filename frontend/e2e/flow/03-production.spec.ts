@@ -91,14 +91,14 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       greige_fabric_id: ctx.greigeFabricId,
       color_no: 'RED-001',
       planned_quantity: 1000,
-      status: 'pending',
+      status: 'pending_schedule',
     });
     ctx.dyeBatchId = result.data?.id;
     ctx.dyeLotNo = dyeLotNo;
     expect(ctx.dyeBatchId).toBeDefined();
   });
 
-  test('3-4 缸号状态机流转（后端 6 态：pending→in_progress→completed）', async ({ page }) => {
+  test('3-4 缸号状态机流转（14 态：pending_schedule→scheduled→preparing→dyeing→stored）', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
     if (!id) {
@@ -107,11 +107,13 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       return;
     }
 
-    // 后端缸号状态英文 key（pending/in_progress/completed/cancelled/failed/on_hold）
-    // 流转通过 PUT /production/dye-batches/{id}（update 内含 can_transition_to 校验）
+    // 后端缸号 14 态 lifecycle_status 英文 key
+    // 流转通过 PUT /production/dye-batches/{id}（update 内含 is_valid_status_transition 校验）
     const legalFlow: Array<{ status: string }> = [
-      { status: 'in_progress' }, // pending → in_progress
-      { status: 'completed' }, // in_progress → completed
+      { status: 'scheduled' }, // pending_schedule → scheduled
+      { status: 'preparing' }, // scheduled → preparing
+      { status: 'dyeing' }, // preparing → dyeing
+      { status: 'stored' }, // dyeing → ... → stored
     ];
     for (const step of legalFlow) {
       await apiCall(page, 'PUT', `/production/dye-batches/${id}`, {
@@ -122,10 +124,12 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         'GET',
         `/production/dye-batches/${id}`
       );
-      // 断言当前状态 ∈ 后端合法状态集（且不得倒退）
-      expect(['pending', 'in_progress', 'completed', 'cancelled', 'failed', 'on_hold']).toContain(
-        (batch.status || '').trim()
-      );
+      // 断言当前状态 ∈ 后端 14 态合法状态集
+      expect([
+        'pending_schedule', 'scheduled', 'preparing', 'dyeing',
+        'washing', 'fixing', 'dehydrating', 'drying', 'inspecting',
+        'stored', 'shipped', 'cancelled', 'terminated', 'rework', 'on_hold', 'failed',
+      ]).toContain((batch.status || '').trim());
     }
   });
 
@@ -138,22 +142,23 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       return;
     }
 
-    // completed/cancelled 是终态，任何进一步流转都应被拒
+    // shipped/cancelled/terminated/failed 是终态，任何进一步流转都应被拒
     const batch = await apiCallRaw<{ status?: string }>(
       page,
       'GET',
       `/production/dye-batches/${id}`
     );
     const status = (batch.status || '').trim();
-    if (status === 'completed' || status === 'cancelled') {
+    const isTerminal = ['shipped', 'cancelled', 'terminated', 'failed'].includes(status);
+    if (isTerminal) {
       const result = await apiCallExpectFail(page, 'PUT', `/production/dye-batches/${id}`, {
-        status: 'in_progress',
+        status: 'dyeing',
       });
       expectBadRequest(result);
     } else {
-      // 终态之外：非法跨状态（如 pending → completed 直跳）应被 can_transition_to 拒绝
+      // 终态之外：非法跨状态（如 pending_schedule → stored 直跳）应被拒绝
       const result = await apiCallExpectFail(page, 'PUT', `/production/dye-batches/${id}`, {
-        status: 'completed',
+        status: 'stored',
       });
       expectBadRequest(result);
     }

@@ -13,7 +13,7 @@ export interface DyeBatch {
   unit: string;
   recipe_id: number;
   recipe_name: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'pending_schedule' | 'scheduled' | 'preparing' | 'dyeing' | 'washing' | 'fixing' | 'dehydrating' | 'drying' | 'inspecting' | 'stored' | 'shipped' | 'cancelled' | 'terminated' | 'rework' | 'on_hold' | 'failed';
   start_date: string;
   end_date: string;
   machine_code: string;

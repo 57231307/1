@@ -117,7 +117,7 @@ const formData = reactive({
   planned_quantity: 0,
   actual_quantity: 0,
   start_date: '',
-  status: 'pending' as 'pending' | 'in_progress' | 'completed' | 'cancelled',
+  status: 'pending_schedule' as DyeBatch['status'],
 });
 
 const resetForm = () => {
@@ -128,7 +128,7 @@ const resetForm = () => {
   formData.planned_quantity = 0;
   formData.actual_quantity = 0;
   formData.start_date = '';
-  formData.status = 'pending';
+  formData.status = 'pending_schedule';
 };
 
 watch(
