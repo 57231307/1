@@ -59,6 +59,7 @@ test.describe('P5.4 水平越权', () => {
       order_no: orderNo,
       supplier_id: ctx.supplierId || 1,
       warehouse_id: ctx.warehouseIds[0] || 1,
+      department_id: ctx.departmentIds[0] || 1,
       order_date: new Date().toISOString().slice(0, 10),
     });
     expect(createResp !== undefined).toBeTruthy();
