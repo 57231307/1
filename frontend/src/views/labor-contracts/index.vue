@@ -6,7 +6,7 @@
           <span>劳动合同管理</span>
           <span class="toolbar">
             <el-button plain @click="onScanWarnings">扫描到期预警</el-button>
-            <el-button type="primary" @click="dialogVisible = true">新建合同</el-button>
+            <el-button type="primary" @click="openCreate">新建合同</el-button>
           </span>
         </div>
       </template>
@@ -54,7 +54,7 @@
             class="w-full"
         /></el-form-item>
         <el-form-item label="合同号" required
-          ><el-input v-model="form.contract_no" :disabled="!!editingId"
+          ><el-input v-model="form.contract_no" readonly
         /></el-form-item>
         <el-form-item label="类型" required>
           <el-select v-model="form.contract_type" class="w-full">
@@ -106,6 +106,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { generateUniqueDocNo } from '@/utils/document-no';
 import {
   createLaborContract,
   getLaborContractList,
@@ -121,6 +122,12 @@ const loading = ref(false);
 const saving = ref(false);
 const dialogVisible = ref(false);
 const editingId = ref<number | null>(null);
+
+/** 打开新建合同：自动预生成合同号（查重唯一后只读展示，防手动输入重复） */
+const openCreate = async () => {
+  form.contract_no = await generateUniqueDocNo('LC', 'labor_contract');
+  dialogVisible.value = true;
+};
 
 const form = reactive({
   worker_id: undefined as number | undefined,

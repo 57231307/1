@@ -86,7 +86,7 @@
     <el-dialog v-model="createVisible" title="新建发票" width="520px" @close="resetForm">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="发票号" prop="invoice_no">
-          <el-input v-model="formData.invoice_no" placeholder="必填" />
+          <el-input v-model="formData.invoice_no" readonly />
         </el-form-item>
         <el-form-item label="发票金额" prop="amount">
           <el-input-number
@@ -128,6 +128,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { generateUniqueDocNo } from '@/utils/document-no';
 import {
   getFinanceInvoiceList,
   getFinanceInvoice,
@@ -262,7 +263,10 @@ const runAction = async (action: StatusAction, row: FinanceInvoice) => {
   }
 };
 
-const handleCreate = () => {
+const handleCreate = async () => {
+  resetForm();
+  // 新建时预生成发票号（查重唯一后只读展示，防手动输入重复）
+  formData.invoice_no = await generateUniqueDocNo('INV', 'finance_invoice');
   createVisible.value = true;
 };
 

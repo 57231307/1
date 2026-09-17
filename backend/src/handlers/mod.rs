@@ -9,6 +9,7 @@ pub mod bulk_product_handler;
 pub mod business_trace_handler;
 pub mod crm_handler;
 pub mod customer_handler;
+pub mod document_no_handler;
 pub mod dashboard_handler;
 pub mod department_handler;
 pub mod dual_unit_converter_handler;

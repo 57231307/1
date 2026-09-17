@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>委外管理</span>
-          <el-button type="primary" @click="dialogVisible = true">新建委外单</el-button>
+          <el-button type="primary" @click="openCreate">新建委外单</el-button>
         </div>
       </template>
       <el-table v-loading="loading" :data="orders" border>
@@ -68,7 +68,7 @@
     <el-dialog v-model="dialogVisible" title="新建委外单" width="560">
       <el-form :model="form" label-width="110px">
         <el-form-item label="委外单号" required>
-          <el-input v-model="form.order_no" placeholder="OUT-YYYYMMDD-XXX" />
+          <el-input v-model="form.order_no" readonly />
         </el-form-item>
         <el-form-item label="类型" required>
           <el-select v-model="form.order_type" class="w-full">
@@ -119,6 +119,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { generateUniqueDocNo } from '@/utils/document-no';
 import {
   cancelOutsourcingOrder,
   closeOutsourcingOrder,
@@ -135,6 +136,12 @@ const orders = ref<OutsourcingOrder[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const dialogVisible = ref(false);
+
+/** 打开新建委外单：自动预生成单据号（查重唯一后只读展示，防手动输入重复） */
+const openCreate = async () => {
+  form.order_no = await generateUniqueDocNo('OUT', 'outsourcing_order');
+  dialogVisible.value = true;
+};
 
 const form = reactive({
   order_no: '',

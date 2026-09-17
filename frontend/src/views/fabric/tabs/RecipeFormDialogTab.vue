@@ -28,7 +28,7 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('fabric.recipeFormDialog.labelRecipeNo')" prop="recipe_no">
-            <el-input v-model="formData.recipe_no" :disabled="!!formData.id" />
+            <el-input v-model="formData.recipe_no" readonly />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -75,6 +75,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance } from 'element-plus';
 import { createDyeRecipe, updateDyeRecipe, type DyeRecipe } from '@/api/dye-recipe';
+import { generateUniqueDocNo } from '@/utils/document-no';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -125,6 +126,10 @@ watch(
         Object.assign(formData, props.currentRow);
       } else {
         resetForm();
+        // 新建时预生成配方号（查重唯一后只读展示，防手动输入重复）
+        generateUniqueDocNo('DR', 'dye_recipe').then(no => {
+          formData.recipe_no = no;
+        });
       }
     }
   }

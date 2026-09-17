@@ -24,7 +24,7 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('fabric.dyeFormDialog.labelBatchNo')" prop="batch_no">
-            <el-input v-model="formData.batch_no" :disabled="!!formData.id" />
+            <el-input v-model="formData.batch_no" readonly />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -87,6 +87,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance } from 'element-plus';
 import { createDyeBatch, updateDyeBatch, type DyeBatch } from '@/api/dye-batch';
+import { generateUniqueDocNo } from '@/utils/document-no';
 import type { GreigeFabric } from '@/api/greige-fabric';
 import { logger } from '@/utils/logger';
 
@@ -139,6 +140,10 @@ watch(
         Object.assign(formData, props.currentRow);
       } else {
         resetForm();
+        // 新建时预生成缸号（查重唯一后只读展示，防手动输入重复）
+        generateUniqueDocNo('DB', 'dye_batch').then(no => {
+          formData.batch_no = no;
+        });
       }
     }
   }

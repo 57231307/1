@@ -263,6 +263,14 @@ pub fn health() -> Router<AppState> {
         .route("/health/liveness", get(health_handler::liveness_check))
 }
 
+/// 单据号查重路由（/document-no/check：前端生成单据号后确认唯一性）
+pub fn document_no() -> Router<AppState> {
+    Router::new().route(
+        "/document-no/check",
+        get(crate::handlers::document_no_handler::check_doc_no),
+    )
+}
+
 /// 审计日志查询路由（/audit-logs：列表/详情/xlsx 导出/前端打印埋点/导出二次审计记录）
 pub fn audit_logs() -> Router<AppState> {
     use crate::handlers::audit_log_handler;
@@ -474,4 +482,5 @@ pub fn routes() -> Router<AppState> {
         .merge(ws())
         .merge(audit_logs())
         .merge(slow_queries())
+        .merge(document_no())
 }
