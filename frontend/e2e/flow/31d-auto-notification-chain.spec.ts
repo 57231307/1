@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, tryCleanup } from './helpers';
+import { loginViaUI, apiCall, tryCleanup, ensureTestEntities, getCtx } from './helpers';
 
 /**
  * P0 自动通知全链路覆盖（2026-09-11 用户指令："自动产生的通知需要详细覆盖所有功能，每条链路都要触发验证通知"）
@@ -66,15 +66,17 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
   test('A. 订单提交→创建人收到提交通知', async ({ page }) => {
     test.setTimeout(180_000);
+    await ensureTestEntities(page);
+    const ctx = getCtx();
     // 先记录已有通知数（基线）
     const before = await getUnreadNotifications(page);
     console.log(`[31d-A] 提交前未读通知 ${before.length} 条`);
 
     let orderId: number | undefined;
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: 1,
+      customer_id: ctx.customerId,
       order_date: new Date().toISOString().slice(0, 10),
-      items: [{ product_id: 1, quantity: 10, unit_price: 25.5 }],
+      items: [{ product_id: ctx.productIds[0], quantity: 10, unit_price: 25.5 }],
     });
     orderId = r?.data?.id;
     if (!orderId) {
@@ -108,12 +110,14 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
   test('B. 订单审批→创建人收到审批通知', async ({ page }) => {
     test.setTimeout(180_000);
+    await ensureTestEntities(page);
+    const ctx = getCtx();
     // 创建+提交订单，再审批
     let orderId: number | undefined;
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: 1,
+      customer_id: ctx.customerId,
       order_date: new Date().toISOString().slice(0, 10),
-      items: [{ product_id: 1, quantity: 5, unit_price: 30 }],
+      items: [{ product_id: ctx.productIds[0], quantity: 5, unit_price: 30 }],
     });
     orderId = r?.data?.id;
     if (!orderId) {

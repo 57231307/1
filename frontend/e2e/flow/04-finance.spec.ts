@@ -80,7 +80,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     }
 
     await apiCall(page, 'POST', `/vouchers/${id}/submit`);
-    // posted 可能需要审核步骤
+    await apiCall(page, 'POST', `/vouchers/${id}/review`);
     await apiCall(page, 'POST', `/vouchers/${id}/post`);
 
     const v = await apiCallRaw<{ status: string }>(page, 'GET', `/vouchers/${id}`);
