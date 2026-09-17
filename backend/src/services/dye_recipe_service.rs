@@ -28,6 +28,7 @@ use crate::utils::error::AppError;
 pub struct CreateDyeRecipeRequest {
     pub recipe_no: Option<String>,
     pub recipe_name: Option<String>,
+    pub color_no: Option<String>,
     pub color_code: Option<String>,
     pub color_name: Option<String>,
     pub fabric_type: Option<String>,
@@ -48,6 +49,7 @@ pub struct CreateDyeRecipeRequest {
 /// 更新染色配方请求
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct UpdateDyeRecipeRequest {
+    pub color_no: Option<String>,
     pub color_code: Option<String>,
     pub color_name: Option<String>,
     pub fabric_type: Option<String>,
@@ -185,9 +187,9 @@ impl DyeRecipeService {
             recipe_name: Set(Some(
                 req.recipe_name.unwrap_or_else(|| "未命名配方".to_string()),
             )),
-            color_no: Set(req.color_code.clone()),
+            color_no: Set(req.color_no.clone()),
             formula: Set(req.chemical_formula.clone()),
-            color_code: Set(req.color_code),
+            color_code: Set(req.color_code.clone()),
             color_name: Set(req.color_name),
             fabric_type: Set(req.fabric_type),
             dye_type: Set(req.dye_type),
@@ -277,6 +279,9 @@ impl DyeRecipeService {
             .unwrap_or_else(|| recipe_status::DRAFT.to_string());
         let mut active: ActiveModel = model.into();
 
+        if let Some(color_no) = req.color_no {
+            active.color_no = Set(Some(color_no));
+        }
         if let Some(color_code) = req.color_code {
             active.color_code = Set(Some(color_code));
         }
