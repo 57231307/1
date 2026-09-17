@@ -84,12 +84,13 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
   // ===== 1. 产品（全字段：name/code/category_id/specification/unit/standard_price/cost_price/description/status/product_type/fabric_composition） =====
   test('产品：全字段填写→创建→列表回读→详情二次访问（逐字段比对）', async ({ page }) => {
     test.setTimeout(60_000);
+    await ensureTestEntities(page);
     const code = uniqueKey('P0-PRD-');
     const name = `P0测试产品${TS}`;
     const payload = {
       code,
       name,
-      category_id: 1,
+      category_id: getCtx().productCategoryIds[0],
       specification: 'P0测试规格100D',
       unit: '米',
       standard_price: 25.5,
