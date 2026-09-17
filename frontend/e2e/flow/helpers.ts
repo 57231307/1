@@ -15,7 +15,7 @@ import {
   readEntityIds,
 } from './ui-helpers';
 
-export const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+export const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 export const API_PREFIX = '/api/v1/erp';
 export const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 // 分片专属账号：优先级 E2E_SHARD_INDEX（派生 e2e_admin_s{n}）> TEST_USERNAME > 默认。

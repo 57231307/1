@@ -13,7 +13,7 @@ import { loginViaUI } from './helpers';
  *       若 service 拒绝自审批则捕获断言其拒绝语义（本身也是权限正确性验证）。
  */
 
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 
 interface ApprovalModel {

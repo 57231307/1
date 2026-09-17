@@ -1,7 +1,7 @@
 import { request } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'fs';
 
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp'; // 分片专属账号：每个 CI runner（matrix.shard）独享，根除跨分片并发登录的 CSRF 互踢。
 // 分片账号通过真实 UI（用户管理页面）创建，属于测试前置数据准备（ensureTestEntities 同级，
 // 不属于测试验证手段），UI 测试本身仍全部走真实用户操作。

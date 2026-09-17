@@ -17,6 +17,7 @@ import {
 
 test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', () => {
   const dyeLotNo = genDyeLotNo();
+  const CLEANUP: Array<{ path: string; label: string }> = [];
 
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);

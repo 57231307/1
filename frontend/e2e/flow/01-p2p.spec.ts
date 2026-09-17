@@ -17,6 +17,7 @@ import {
 
 test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () => {
   const dyeLotNo = genDyeLotNo();
+  const CLEANUP: Array<{ path: string; label: string }> = [];
 
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
@@ -249,6 +250,13 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       request_amount: 56500,
       currency: 'CNY',
       exchange_rate: 1,
+      items: [
+        {
+          invoice_id: ctx.apInvoiceId,
+          apply_amount: 56500,
+          notes: 'E2E 1-8 付款申请明细',
+        },
+      ],
     });
     const requestId = payReq?.data?.id;
     if (!requestId) {

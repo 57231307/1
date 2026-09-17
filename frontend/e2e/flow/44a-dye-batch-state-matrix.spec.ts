@@ -117,7 +117,7 @@ async function checkTransition(
   code: string
 ): Promise<boolean | undefined> {
   const r = await page.request.get(
-    `${process.env.API_BASE || 'http://127.0.0.1:8082'}/api/v1/erp${CHECK}?from_status=${from}&to_status=${to}&transition_code=${code}`
+    `${process.env.API_BASE || 'http://localhost:8082'}/api/v1/erp${CHECK}?from_status=${from}&to_status=${to}&transition_code=${code}`
   );
   if (!r.ok()) return undefined;
   const body = await r.json();
@@ -203,7 +203,7 @@ test.describe.serial('44a 缸号状态机规则矩阵（dye_batch_state_machine_
   test('44a-5 allowed-transitions 端点聚合一致性（与 check 交叉验证）', async ({ page }) => {
     // 对 dyeing：check 逐条验证过的合法目标，allowed-transitions 也必须包含
     const r = await page.request.get(
-      `${process.env.API_BASE || 'http://127.0.0.1:8082'}/api/v1/erp/production/dye-batch-state-rules/allowed-transitions?from_status=dyeing`
+      `${process.env.API_BASE || 'http://localhost:8082'}/api/v1/erp/production/dye-batch-state-rules/allowed-transitions?from_status=dyeing`
     );
     expect(r.ok(), 'allowed-transitions 端点应可达').toBe(true);
     const body = await r.json();

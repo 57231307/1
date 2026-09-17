@@ -31,7 +31,7 @@ import {
 
 const role = process.env.E2E_MATRIX_ROLE || 'admin';
 
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 
 test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
   test('登录 + 全模块三分支断言 + access-map 生成', async ({ page }) => {

@@ -18,7 +18,7 @@ import { loginAsRole, apiCallExpectFail, expectDenied } from './helpers';
  * 修复 09-permissions 恒真断言后的真实越权矩阵（本 spec 承接详尽断言）。
  */
 
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 
 /** admin 专属只读端点（GET，越权测试主要面） */

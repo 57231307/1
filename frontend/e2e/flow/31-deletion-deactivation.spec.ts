@@ -16,7 +16,7 @@ import { uiDeleteRow, uiToggleStatus } from './ui-helpers';
  */
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
 

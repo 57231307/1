@@ -14,7 +14,7 @@ import { PRINT_ENDPOINTS } from './modules.config';
  * JSZip 深度解包断言（document.xml 非空）在 jszip devDep 加入后启用
  */
 
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 
 test.describe('P5.7 打印端点全量矩阵', () => {

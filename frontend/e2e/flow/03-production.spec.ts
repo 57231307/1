@@ -109,13 +109,17 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       return;
     }
 
-    // 后端缸号 14 态 lifecycle_status 英文 key
-    // 流转通过 PUT /production/dye-batches/{id}（update 内含 is_valid_status_transition 校验）
+    // 后端缸号 14 态 lifecycle_status，完整工序链（规则表驱动校验）
     const legalFlow: Array<{ status: string }> = [
       { status: 'scheduled' }, // pending_schedule → scheduled
       { status: 'preparing' }, // scheduled → preparing
       { status: 'dyeing' }, // preparing → dyeing
-      { status: 'stored' }, // dyeing → ... → stored
+      { status: 'washing' }, // dyeing → washing
+      { status: 'fixing' }, // washing → fixing
+      { status: 'dehydrating' }, // fixing → dehydrating
+      { status: 'drying' }, // dehydrating → drying
+      { status: 'inspecting' }, // drying → inspecting
+      { status: 'stored' }, // inspecting → stored
     ];
     for (const step of legalFlow) {
       await apiCall(page, 'PUT', `/production/dye-batches/${id}`, {

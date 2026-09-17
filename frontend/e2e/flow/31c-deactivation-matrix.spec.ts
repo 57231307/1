@@ -17,7 +17,7 @@ import { safeGoto, findTableRow } from './ui-helpers';
  * 6. API 删除清理（闭环，不留测试残留）
  */
 
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';

@@ -20,7 +20,7 @@ import { loginAsRole } from './helpers';
  * 每步显式日志
  */
 
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 
 /** 黑名单角色：持 print/export 权限码仍必须被拒 */

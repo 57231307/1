@@ -19,7 +19,7 @@ async function visitModule(
 
   if (mod.tier === 'A' && mod.listApi) {
     const resp = await page.request.get(
-      `${process.env.API_BASE || 'http://127.0.0.1:8082'}/api/v1/erp${mod.listApi.startsWith('/') ? '' : '/'}${mod.listApi}?page=1&page_size=1`
+      `${process.env.API_BASE || 'http://localhost:8082'}/api/v1/erp${mod.listApi.startsWith('/') ? '' : '/'}${mod.listApi}?page=1&page_size=1`
     );
     expect(resp.status()).toBeLessThan(500);
   }

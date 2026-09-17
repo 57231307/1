@@ -24,7 +24,7 @@ async function getUnreadNotifications(
   userId?: number
 ): Promise<{ id: number; title: string; content: string; businessType?: string }[]> {
   const res = await page.request.get(
-    `http://127.0.0.1:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50`
+    `http://localhost:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50`
   );
   if (!res.ok()) {
     console.warn(`[31d] 通知列表查询 HTTP ${res.status()}`);
@@ -41,7 +41,7 @@ async function deleteNotification(
   id: number
 ): Promise<void> {
   try {
-    await page.request.delete(`http://127.0.0.1:8082/api/v1/erp/notifications/notification/${id}`);
+    await page.request.delete(`http://localhost:8082/api/v1/erp/notifications/notification/${id}`);
     console.log(`[31d] 清理通知 id=${id} ✅`);
   } catch (e) {
     console.warn(`[31d] 清理通知 id=${id} 失败: ${(e as Error).message}`);
@@ -52,7 +52,7 @@ async function deleteNotification(
 async function markRead(page: import('@playwright/test').Page, id: number): Promise<void> {
   try {
     await page.request.post(
-      `http://127.0.0.1:8082/api/v1/erp/notifications/notification/${id}/read`
+      `http://localhost:8082/api/v1/erp/notifications/notification/${id}/read`
     );
   } catch {
     /* 静默 */
@@ -204,7 +204,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     // GET /inventory/stock/low-stock 触发 check_low_stock → 发布事件 → 通知 admin/manager
     const res = await page.request.get(
-      'http://127.0.0.1:8082/api/v1/erp/inventory/stock/low-stock'
+      'http://localhost:8082/api/v1/erp/inventory/stock/low-stock'
     );
     console.log(`[31d-D] low-stock 检查 HTTP ${res.status()}`);
 

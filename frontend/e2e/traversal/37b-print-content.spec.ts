@@ -25,7 +25,7 @@ import {
  * 全部基于真实后端 + 真实 PostgreSQL（IR 2026-09-07），每步显式日志（IR 2026-09-03）
  */
 
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 
 test.describe('37b 打印内容匹配与审计闭环', () => {

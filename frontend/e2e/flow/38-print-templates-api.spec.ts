@@ -13,7 +13,7 @@ import { loginViaUI, apiCallRaw } from './helpers';
  * 断言：列表结构化 + 首个模板 detail 可达 + 字段完整性
  */
 
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 
 test.describe('P5.8 print-templates API 链路', () => {

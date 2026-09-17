@@ -12,7 +12,7 @@
 
 import { TRAVERSAL_MODULES } from './modules.config';
 
-const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8082';
+const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 
 export interface RoutePermission {
