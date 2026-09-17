@@ -344,12 +344,13 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   }
   if (!ctx.purchaseOrderId) {
     try {
+      // 前置实体（供应商/仓库/部门/产品）已在上方确保存在，缺失时让创建错误真实暴露
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
-        supplier_id: ctx.supplierId || 1,
-        warehouse_id: ctx.warehouseIds[0] || 1,
-        department_id: ctx.departmentIds[0] || 1,
+        supplier_id: ctx.supplierId,
+        warehouse_id: ctx.warehouseIds[0],
+        department_id: ctx.departmentIds[0],
         order_date: new Date().toISOString().slice(0, 10),
-        items: [{ material_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
+        items: [{ material_id: ctx.productIds[0], quantity_ordered: '1', unit_price: '1' }],
       });
       ctx.purchaseOrderId = result.data?.id;
     } catch (e) {
@@ -380,6 +381,11 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         ctx.colorNos[0]
       );
       if (existingStock) {
+        // 登记库存 ID 供清理链使用（新建的库存不在历史记录中）
+        const stockId = Number(existingStock.id);
+        if (stockId && !ctx.stockIds.includes(stockId)) {
+          ctx.stockIds.push(stockId);
+        }
         console.log('[ensureTestEntities] 产品库存已确保 product_id=', ctx.productIds[0]);
       }
     } catch (e) {
@@ -388,10 +394,11 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   }
   if (!ctx.salesOrderId) {
     try {
-      // 先创建库存记录（销售订单创建会锁库存，无库存 → BUSINESS_ERROR）
+      // 先创建库存记录（销售订单创建会锁库存，无库存 → BUSINESS_ERROR）；
+      // 前置实体已在上方确保存在，缺失时让创建错误真实暴露
       const stock = await apiCall<{ id?: number }>(page, 'POST', '/inventory/stock/fabric', {
-        warehouse_id: ctx.warehouseIds[0] || 1,
-        product_id: ctx.productIds[0] || 1,
+        warehouse_id: ctx.warehouseIds[0],
+        product_id: ctx.productIds[0],
         batch_no: `E2E-STK${Date.now().toString().slice(-6)}`,
         color_no: ctx.colorNos[0] || 'TEST-COLOR',
         grade: '一等品',
@@ -405,9 +412,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         console.error('[ensureTestEntities] 库存兜底创建未返回 id:', JSON.stringify(stock));
       }
       const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-        customer_id: ctx.customerId || 1,
+        customer_id: ctx.customerId,
         order_date: new Date().toISOString().slice(0, 10),
-        items: [{ product_id: ctx.productIds[0] || 1, quantity: '1', unit_price: '1' }],
+        items: [{ product_id: ctx.productIds[0], quantity: '1', unit_price: '1' }],
       });
       ctx.salesOrderId = result.data?.id;
     } catch (e) {
@@ -430,8 +437,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   if (!ctx.quotationId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
-        customer_id: ctx.customerId || 1,
-        sales_user_id: 1,
+        customer_id: ctx.customerId,
+        sales_user_id: ctx.userIds[0],
         quotation_date: new Date().toISOString().slice(0, 10),
         valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
         currency: 'CNY',
@@ -442,7 +449,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         tax_rate: '13',
         items: [
           {
-            product_id: ctx.productIds[0] || 1,
+            product_id: ctx.productIds[0],
             unit: '米',
             quantity: '1',
             unit_price: '1',
@@ -1403,9 +1410,9 @@ export async function ensureStockInWarehouse(
   });
   if (anywhere) return anywhere;
 
-  // 3. 都没有 → 在指定仓库创建（仓库 ID 缺失时回退 1）
+  // 3. 都没有 → 在指定仓库创建（调用方须保证仓库已存在，缺失时错误真实暴露）
   await apiCall(page, 'POST', '/inventory/stock/fabric', {
-    warehouse_id: preferredWarehouseId || 1,
+    warehouse_id: preferredWarehouseId,
     product_id: productId,
     batch_no: `E2E-STK${Date.now().toString().slice(-6)}`,
     color_no: colorNo || 'TEST-COLOR',
