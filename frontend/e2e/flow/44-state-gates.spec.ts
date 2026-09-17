@@ -69,26 +69,30 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
     await loginViaUI(page);
   });
 
-  test('44d-1 借贷不平衡：提交被拒（workflow.rs:200-205）', async ({ page }) => {
-    const id = await createVoucher(page, '100.00', '99.00');
-    expect(id, '凭证创建失败').toBeTruthy();
-    const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
-    expectBadRequest(r, '借贷不平衡凭证提交应被拒');
+  test('44d-1 借贷不平衡：创建被拒（crud.rs:123-128 create 时校验平衡）', async ({ page }) => {
+    const r = await apiCallExpectFail(page, 'POST', '/vouchers', {
+      voucher_type: '记',
+      voucher_date: new Date().toISOString().slice(0, 10),
+      items: [
+        { subject_code: '1001', debit: '100.00', credit: '0.00', summary: '44d-1 借方' },
+        { subject_code: '1002', debit: '0.00', credit: '99.00', summary: '44d-1 贷方' },
+      ],
+    });
+    expectBadRequest(r, '借贷不平衡凭证创建应被拒（借100 != 贷99）');
   });
 
-  test('44d-2 借贷不平衡：审核被拒（workflow.rs 双重闸）', async ({ page }) => {
-    const id = await createVoucher(page, '100.00', '99.00');
-    expect(id, '凭证创建失败').toBeTruthy();
-    // 不平衡凭证无法经正常途径到 submitted，直接对 draft 调审核也应被状态门拦截
-    const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/review`);
-    expectBadRequest(r, 'draft 凭证直接审核应被状态门拒绝');
+  test('44d-2 借贷平衡：draft 直接过账被拒（workflow.rs:131-133 仅 reviewed 可过账）', async ({ page }) => {
+    const id = await createVoucher(page, '100.00', '100.00');
+    expect(id, '平衡凭证创建失败').toBeTruthy();
+    const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/post`);
+    expectBadRequest(r, 'draft 凭证直接过账应被拒（仅 reviewed 可过账）');
   });
 
-  test('44d-3 状态不可逆：draft 直接过账被拒', async ({ page }) => {
+  test('44d-3 状态不可逆：draft 直接审核被拒（需先 submit）', async ({ page }) => {
     const id = await createVoucher(page, '100.00', '100.00');
     expect(id, '凭证创建失败').toBeTruthy();
-    const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/post`);
-    expectBadRequest(r, 'draft 凭证直接过账应被拒（仅 reviewed 可过账 workflow.rs:131-133）');
+    const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/review`);
+    expectBadRequest(r, 'draft 凭证直接审核应被拒（需先 submit → reviewed）');
   });
 
   test('44d-4 状态机不可逆：提交→提交重复被拒（防重复提交）', async ({ page }) => {
@@ -178,9 +182,9 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
   test('44b-6 取消状态门：DRAFT 可取消（正向）+ 二次取消被拒', async ({ page }) => {
     const id = await createOrder(page);
     expect(id, 'PO 创建失败').toBeTruthy();
-    const r1 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`);
+    const r1 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`, { reason: 'E2E 44b-6 取消测试' });
     expect(r1.status, 'DRAFT 取消应成功（contract.rs:271-274）').toBeLessThan(300);
-    const r2 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`);
+    const r2 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`, { reason: 'E2E 44b-6 二次取消' });
     expectBadRequest(r2, 'CANCELLED 为终态，二次取消应被拒');
     // 取消后提交被拒（终态拦截）
     const r3 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/submit`);

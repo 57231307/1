@@ -17,7 +17,7 @@ import { loginViaUI, apiCallExpectFail } from './helpers';
  *   - on_hold resume 恢复 7 工序（V15 Batch05-P1-1 :240-250）
  */
 
-const CHECK = '/dye-batch-state-rules/check';
+const CHECK = '/production/dye-batch-state-rules/check';
 
 // 与后端 builtin_transition_rules() 逐条对齐（45 条）
 const LEGAL: Array<[string, string, string]> = [
@@ -203,7 +203,7 @@ test.describe.serial('44a 缸号状态机规则矩阵（dye_batch_state_machine_
   test('44a-5 allowed-transitions 端点聚合一致性（与 check 交叉验证）', async ({ page }) => {
     // 对 dyeing：check 逐条验证过的合法目标，allowed-transitions 也必须包含
     const r = await page.request.get(
-      `${process.env.API_BASE || 'http://127.0.0.1:8082'}/api/v1/erp/dye-batch-state-rules/allowed-transitions?from_status=dyeing`
+      `${process.env.API_BASE || 'http://127.0.0.1:8082'}/api/v1/erp/production/dye-batch-state-rules/allowed-transitions?from_status=dyeing`
     );
     expect(r.ok(), 'allowed-transitions 端点应可达').toBe(true);
     const body = await r.json();
