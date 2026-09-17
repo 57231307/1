@@ -51,7 +51,7 @@ test.describe('库存调拨完整流程', () => {
           product_id: productId,
           quantity: '5',
           color_no: ctx.colorNos[0],
-          dye_lot_no: ctx.dyeLotNo,
+          dye_lot_no: ctx.dyeLotNo || `E2E-DL-${Date.now().toString().slice(-6)}`,
           batch_no: 'E2E-BATCH-12',
         },
       ],

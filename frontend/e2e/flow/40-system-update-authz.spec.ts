@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginAsRole, apiCall } from './helpers';
+import { loginAsRole, loginViaUI, apiCall } from './helpers';
 
 /**
  * P5.10 系统更新授权测试

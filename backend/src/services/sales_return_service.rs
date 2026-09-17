@@ -201,6 +201,7 @@ impl SalesReturnService {
             quantity: Set(req.quantity),
             unit_price: Set(req.unit_price),
             unit_price_foreign: Set(Decimal::ZERO),
+            discount_percent: Set(Decimal::ZERO),
             notes: Set(req.reason),
             quantity_alt: Set(Decimal::ZERO),
             ..Default::default()

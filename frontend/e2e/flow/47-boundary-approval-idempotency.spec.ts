@@ -117,7 +117,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
 
   test('47-I2 角色编码重复创建被拒（role_permission_service.rs:167-174）', async ({ page }) => {
     await ensureTestEntities(page);
-    const code = `47R${genCode('C').slice(-5)}`;
+    const code = `47r_${genCode('c').slice(-5)}`.toLowerCase().replace(/-/g, '_');
     const r1 = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
       name: `47幂等角色${code}`,
       code,
