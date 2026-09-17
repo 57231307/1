@@ -125,6 +125,7 @@ export function useOlv() {
     items: [] as {
       product_id: number;
       product_name: string;
+      dye_lot_no?: string;
       quantity: number;
       delivered_quantity: number;
       deliver_quantity: number;
@@ -361,6 +362,7 @@ export function useOlv() {
         row.items?.map(item => ({
           product_id: item.product_id,
           product_name: item.product_name,
+          dye_lot_no: item.dye_lot_no || '',
           quantity: item.quantity,
           delivered_quantity: item.delivered_quantity || 0,
           deliver_quantity: 0,

@@ -68,6 +68,7 @@
         :label="$t('arReconciliationModule.sourceNo')"
         width="150"
       />
+      <el-table-column prop="dye_lot_no" :label="$t('arReconciliationModule.dyeLotNo')" width="120" />
       <el-table-column prop="source_date" :label="$t('arReconciliationModule.date')" width="120" />
       <el-table-column
         prop="amount"

@@ -27,6 +27,7 @@ export interface SalesOrderItem {
   product_id: number;
   product_name: string;
   product_code: string;
+  dye_lot_no?: string;
   quantity: number;
   unit?: string;
   unit_price: number;

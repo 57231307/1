@@ -65,7 +65,13 @@ pub struct ShipOrderItemRequest {
 // =====================================================
 
 /// v14 批次 421 T-P1-5：缸号同订单校验
-/// 依据：fabric-industry-research.md §2.3 约束 5；业务规则：出库时，同一订单必须使用相同缸号的面料，系统校验订单中所有该面料是否来自同一批次，不一致则报警提示；业务语义：一个缸号代表一次染色，同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺；校验逻辑：同一 product_id 的所有发货明细必须使用相同的 dye_lot_no；同 product_id 但 dye_lot_no 不一致 → 返回业务错误（避免混缸色差）；dye_lot_no 均为 None → 视为未指定缸号，跳过校验（兼容无缸号场景）；单 product_id 单 dye_lot_no → 通过校验
+/// 缸号一致性提示（2026-09-17 业务规则更新：同缸面料出完后允许使用其他缸面料）
+/// 依据：fabric-industry-research.md §2.3 约束 5 + 用户业务指令（2026-09-17）
+/// 业务规则演变：原"同一订单同面料必须同缸"硬性校验过严——同缸库存出完后
+/// 应允许使用其他缸面料继续供货（有得发优先于色差零容忍）；
+/// 色差风险保留为警告提示（裁床铺布时同床尽量同缸，多缸需分开裁剪）。
+/// 校验逻辑：同 product_id 出现多个 dye_lot_no 时记录警告日志（提示色差风险），
+/// 不再阻断发货；dye_lot_no 均为 None 跳过；单缸或空 → 正常通过
 pub fn validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<(), AppError> {
     use std::collections::HashMap;
 
@@ -82,15 +88,15 @@ pub fn validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<()
         }
     }
 
-    // 校验每个 product_id 下不能有多个不同的 dye_lot_no
+    // 多缸号 → 警告（不阻断）：同缸出完允许换缸，提示裁床分缸裁剪避免色差
     for (product_id, dye_lots) in &product_dye_lots {
         if dye_lots.len() > 1 {
             let dye_lot_list: Vec<String> = dye_lots.iter().cloned().collect();
-            return Err(AppError::business(format!(
-                "产品 {} 在同一订单中使用了多个不同缸号 {}，违反缸号同订单校验：同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺",
-                product_id,
-                dye_lot_list.join("/")
-            )));
+            tracing::warn!(
+                product_id = %product_id,
+                dye_lots = %dye_lot_list.join("/"),
+                "【缸号提示】同一订单同产品使用多个缸号：同缸面料已出完或分配多缸供货，裁床请分缸裁剪避免色差"
+            );
         }
     }
 

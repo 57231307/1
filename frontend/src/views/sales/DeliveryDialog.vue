@@ -63,6 +63,7 @@
           :aria-label="t('sales.delivery.itemsTableAriaLabel')"
         >
           <el-table-column prop="product_name" :label="t('sales.delivery.product')" width="150" />
+          <el-table-column prop="dye_lot_no" :label="t('sales.delivery.dyeLotNo')" width="120" />
           <el-table-column prop="quantity" :label="t('sales.delivery.orderQuantity')" width="100" />
           <el-table-column
             prop="delivered_quantity"
@@ -114,6 +115,7 @@ const { t } = useI18n({ useScope: 'global' });
 interface DeliveryItem {
   product_id: number;
   product_name: string;
+  dye_lot_no?: string;
   quantity: number;
   delivered_quantity: number;
   deliver_quantity: number;
