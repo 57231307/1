@@ -40,15 +40,28 @@ pub enum DyeBatchStatus {
 }
 
 impl DyeBatchStatus {
-    pub fn from_chinese_str(s: &str) -> Option<Self> {
+    /// 从状态字符串解析（英文 key，与 DB 默认值/前端类型一致）
+    pub fn from_str(s: &str) -> Option<Self> {
         match s {
-            "待生产" => Some(Self::Pending),
-            "生产中" => Some(Self::InProgress),
-            "已完成" => Some(Self::Completed),
-            "已取消" => Some(Self::Cancelled),
-            "失败" => Some(Self::Failed),
-            "暂停" => Some(Self::OnHold),
+            "pending" => Some(Self::Pending),
+            "in_progress" => Some(Self::InProgress),
+            "completed" => Some(Self::Completed),
+            "cancelled" => Some(Self::Cancelled),
+            "failed" => Some(Self::Failed),
+            "on_hold" => Some(Self::OnHold),
             _ => None,
+        }
+    }
+
+    /// 转为 DB 存储字符串
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::InProgress => "in_progress",
+            Self::Completed => "completed",
+            Self::Cancelled => "cancelled",
+            Self::Failed => "failed",
+            Self::OnHold => "on_hold",
         }
     }
 
@@ -159,12 +172,12 @@ pub async fn create_dye_batch(
     // 验证状态值
     let status = match req.status {
         Some(s) => {
-            if DyeBatchStatus::from_chinese_str(&s).is_none() {
+            if DyeBatchStatus::from_str(&s).is_none() {
                 return Err(AppError::bad_request(format!("无效的缸号状态：{}", s)));
             }
             Some(s)
         }
-        None => Some("待生产".to_string()),
+        None => Some("pending".to_string()),
     };
 
     // 自动生成缸号
@@ -245,13 +258,13 @@ pub async fn update_dye_batch(
         // 验证状态流转
         let current_status = match &batch.status {
             sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
-            _ => "待生产",
+            _ => "pending",
         };
-        let target_status = DyeBatchStatus::from_chinese_str(&status);
+        let target_status = DyeBatchStatus::from_str(&status);
 
         if let Some(target) = target_status {
             let current =
-                DyeBatchStatus::from_chinese_str(current_status).unwrap_or(DyeBatchStatus::Pending);
+                DyeBatchStatus::from_str(current_status).unwrap_or(DyeBatchStatus::Pending);
             if !current.can_transition_to(&target) {
                 return Err(AppError::business(format!(
                     "状态流转不合法：{} -> {}",
@@ -262,16 +275,17 @@ pub async fn update_dye_batch(
             return Err(AppError::bad_request(format!("无效的状态：{}", status)));
         }
 
-        batch.status = Set(Some(status.clone()));
+        let status_key = DyeBatchStatus::from_str(&status).map(|s| s.as_str().to_string()).unwrap_or(status.clone());
+        batch.status = Set(Some(status_key));
 
         // 自动设置时间戳
-        if status == "生产中" {
+        if status_key == "in_progress" {
             let needs_start_time = batch.started_at.as_ref().is_none();
             if needs_start_time {
                 batch.started_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
             }
         }
-        if status == "已完成" {
+        if status_key == "completed" {
             batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
         }
     }
@@ -296,7 +310,7 @@ pub async fn delete_dye_batch(
         .await?
         .ok_or_else(|| AppError::not_found("缸号不存在"))?;
 
-    if batch.status.as_deref() == Some("生产中") {
+    if batch.status.as_deref() == Some("in_progress") {
         return Err(AppError::business("生产中的缸号不允许删除，请先取消或完成"));
     }
 
@@ -323,14 +337,14 @@ pub async fn complete_dye_batch(
     // 检查当前状态是否允许完成
     let current_status = match &batch.status {
         sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
-        _ => "待生产",
+        _ => "pending",
     };
     let current =
-        DyeBatchStatus::from_chinese_str(current_status).unwrap_or(DyeBatchStatus::Pending);
+        DyeBatchStatus::from_str(current_status).unwrap_or(DyeBatchStatus::Pending);
 
     if !current.can_transition_to(&DyeBatchStatus::Completed) {
         return Err(AppError::business(format!(
-            "状态流转不合法：{} -> 已完成",
+            "状态流转不合法：{} -> completed",
             current_status
         )));
     }
@@ -339,7 +353,7 @@ pub async fn complete_dye_batch(
     // 原实现仅做状态更新，未发布任何业务事件，导致下游（质检单生成、染缸产能统计、
     // 成本结转、BI 生产报表）无法被动感知染色完成节点。
     // 修复：在 update 成功后构造 DyeBatchCompleted 事件并发布到事件总线。
-    batch.status = Set(Some("已完成".to_string()));
+    batch.status = Set(Some("completed".to_string()));
     batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
     batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 

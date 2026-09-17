@@ -91,14 +91,14 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       greige_fabric_id: ctx.greigeFabricId,
       color_no: 'RED-001',
       planned_quantity: 1000,
-      status: '待生产',
+      status: 'pending',
     });
     ctx.dyeBatchId = result.data?.id;
     ctx.dyeLotNo = dyeLotNo;
     expect(ctx.dyeBatchId).toBeDefined();
   });
 
-  test('3-4 缸号状态机流转（后端 6 态：待生产→生产中→已完成）', async ({ page }) => {
+  test('3-4 缸号状态机流转（后端 6 态：pending→in_progress→completed）', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
     if (!id) {
@@ -107,11 +107,11 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       return;
     }
 
-    // 后端缸号状态为中文 6 态：待生产/生产中/已完成/已取消/失败/暂停
+    // 后端缸号状态英文 key（pending/in_progress/completed/cancelled/failed/on_hold）
     // 流转通过 PUT /production/dye-batches/{id}（update 内含 can_transition_to 校验）
     const legalFlow: Array<{ status: string }> = [
-      { status: '生产中' }, // 待生产 → 生产中
-      { status: '已完成' }, // 生产中 → 已完成
+      { status: 'in_progress' }, // pending → in_progress
+      { status: 'completed' }, // in_progress → completed
     ];
     for (const step of legalFlow) {
       await apiCall(page, 'PUT', `/production/dye-batches/${id}`, {
@@ -123,7 +123,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         `/production/dye-batches/${id}`
       );
       // 断言当前状态 ∈ 后端合法状态集（且不得倒退）
-      expect(['待生产', '生产中', '已完成', '已取消', '失败', '暂停']).toContain(
+      expect(['pending', 'in_progress', 'completed', 'cancelled', 'failed', 'on_hold']).toContain(
         (batch.status || '').trim()
       );
     }
@@ -138,22 +138,22 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       return;
     }
 
-    // 已完成/已取消 是终态，任何进一步流转都应被拒
+    // completed/cancelled 是终态，任何进一步流转都应被拒
     const batch = await apiCallRaw<{ status?: string }>(
       page,
       'GET',
       `/production/dye-batches/${id}`
     );
     const status = (batch.status || '').trim();
-    if (status === '已完成' || status === '已取消') {
+    if (status === 'completed' || status === 'cancelled') {
       const result = await apiCallExpectFail(page, 'PUT', `/production/dye-batches/${id}`, {
-        status: '生产中',
+        status: 'in_progress',
       });
       expectBadRequest(result);
     } else {
-      // 终态之外：非法跨状态（如 待生产 → 已完成 直跳）应被 can_transition_to 拒绝
+      // 终态之外：非法跨状态（如 pending → completed 直跳）应被 can_transition_to 拒绝
       const result = await apiCallExpectFail(page, 'PUT', `/production/dye-batches/${id}`, {
-        status: '已完成',
+        status: 'completed',
       });
       expectBadRequest(result);
     }
