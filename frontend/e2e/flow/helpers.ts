@@ -369,6 +369,18 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   } catch (e) {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
   }
+  // 9.1 确保 ctx.productIds[0] 有库存记录（销售订单创建会锁库存）
+  // 独立于 salesOrderId 逻辑：即使已有销售订单，新建订单仍需库存
+  if (ctx.productIds[0]) {
+    try {
+      const existingStock = await ensureStockInWarehouse(page, ctx.productIds[0], ctx.warehouseIds[0], ctx.colorNos[0]);
+      if (existingStock) {
+        console.log('[ensureTestEntities] 产品库存已确保 product_id=', ctx.productIds[0]);
+      }
+    } catch (e) {
+      console.warn('[ensureTestEntities] 库存确保失败:', (e as Error).message);
+    }
+  }
   if (!ctx.salesOrderId) {
     try {
       // 先创建库存记录（销售订单创建会锁库存，无库存 → BUSINESS_ERROR）
