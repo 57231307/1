@@ -52,7 +52,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     test.setTimeout(120_000);
     let id: number | undefined;
     const title = `P0公告CRUD${TS}`;
-    const r = await apiCall<{ id?: number }>(page, 'POST', '/oa-announcements/', {
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/oa-announcements', {
       title,
       content: 'P0公告CRUD测试内容',
       announcement_type: 'NOTICE',
@@ -117,7 +117,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
     // 创建草稿公告（visibility_scope=CUSTOM, user_ids=[当前用户]）
     let announcementId: number | undefined;
     const title = `P0发布联动${TS}`;
-    const r = await apiCall<{ id?: number }>(page, 'POST', '/oa-announcements/', {
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/oa-announcements', {
       title,
       content: 'P0发布联动通知测试内容',
       announcement_type: 'ANNOUNCEMENT',

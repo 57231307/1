@@ -151,7 +151,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     test.setTimeout(180_000);
     const name = `P0停用客户${TS}`;
     let id: number | undefined;
-    const r = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
       customer_name: name,
       customer_code: `P0-DIS-${TS}`,
       contact_person: 'P0联系人',
@@ -175,7 +175,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     }
     // API 回读验证状态真变更
     let statusAfter = '';
-    const chk = await page.request.get(`${API_BASE}${API_PREFIX}/customers/${id}`);
+    const chk = await page.request.get(`${API_BASE}${API_PREFIX}/crm/customers/${id}`);
     if (chk.ok()) {
       const body = await chk.json();
       statusAfter = String(body?.data?.status ?? '');
@@ -205,7 +205,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       expect(toggled, '[31c-客户] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);
     }
     // 清理
-    await tryCleanup(page, 'DELETE', `/customers/${id}`, '[31c-客户]');
+    await tryCleanup(page, 'DELETE', `/crm/customers/${id}`, '[31c-客户]');
   });
 
   test('用户：UI 编辑弹窗停用→API 回读 is_active=false→删除清理', async ({ page }) => {
