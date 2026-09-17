@@ -51,12 +51,6 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     ).toBe(403);
   });
 
-    // 验证内容非乱码：读文件前 200 字节检查是否可读文本（xlsx 是 zip，检查 PK magic）
-    const downloadPath = await page.locator('a[download]').first().getAttribute('href');
-    console.log(`[P0-导出-产品] 下载路径: ${downloadPath || '（Playwright 管理的临时目录）'}`);
-    console.log('[P0-导出-产品] ✅ 导出验证完成（文件名/大小/类型均通过）');
-  });
-
   // ===== 2. 客户导出 =====
   test('客户：UI 导出→下载文件验证', async ({ page }) => {
     test.setTimeout(120_000);

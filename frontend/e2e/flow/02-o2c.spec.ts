@@ -61,6 +61,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
       quotation_no: `E2E-QT-22-${ts}`,
       customer_id: ctx.customerId,
+      sales_user_id: ctx.userIds[0] || 1,
       quotation_date: new Date().toISOString().slice(0, 10),
       valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
       status: 'draft',
