@@ -81,7 +81,9 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
     expectBadRequest(r, '借贷不平衡凭证创建应被拒（借100 != 贷99）');
   });
 
-  test('44d-2 借贷平衡：draft 直接过账被拒（workflow.rs:131-133 仅 reviewed 可过账）', async ({ page }) => {
+  test('44d-2 借贷平衡：draft 直接过账被拒（workflow.rs:131-133 仅 reviewed 可过账）', async ({
+    page,
+  }) => {
     const id = await createVoucher(page, '100.00', '100.00');
     expect(id, '平衡凭证创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/post`);
@@ -182,9 +184,13 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
   test('44b-6 取消状态门：DRAFT 可取消（正向）+ 二次取消被拒', async ({ page }) => {
     const id = await createOrder(page);
     expect(id, 'PO 创建失败').toBeTruthy();
-    const r1 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`, { reason: 'E2E 44b-6 取消测试' });
+    const r1 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`, {
+      reason: 'E2E 44b-6 取消测试',
+    });
     expect(r1.status, 'DRAFT 取消应成功（contract.rs:271-274）').toBeLessThan(300);
-    const r2 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`, { reason: 'E2E 44b-6 二次取消' });
+    const r2 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`, {
+      reason: 'E2E 44b-6 二次取消',
+    });
     expectBadRequest(r2, 'CANCELLED 为终态，二次取消应被拒');
     // 取消后提交被拒（终态拦截）
     const r3 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/submit`);

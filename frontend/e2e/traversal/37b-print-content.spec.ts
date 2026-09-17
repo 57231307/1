@@ -1,6 +1,13 @@
 import { test, expect } from '../diagnose-fixture';
 import JSZip from 'jszip';
-import { loginViaUI, apiCall, apiCallRaw, ensureTestEntities, getCtx, type ApiResponse } from '../flow/helpers';
+import {
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  ensureTestEntities,
+  getCtx,
+  type ApiResponse,
+} from '../flow/helpers';
 
 /**
  * 37b 打印内容匹配 + 打印审计闭环（doto 2026-09-09 印刷缺口两项）
@@ -49,11 +56,9 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
       // ensureTestEntities 已建库存+销售订单，优先用 ctx.salesOrderId
       if (ctx.salesOrderId) {
         salesOrderId = ctx.salesOrderId;
-        const so = await apiCallRaw<{ order_no?: string } & { items?: Array<{ id: number; order_no: string }> }>(
-          page,
-          'GET',
-          '/sales/orders?page=1&page_size=1'
-        );
+        const so = await apiCallRaw<
+          { order_no?: string } & { items?: Array<{ id: number; order_no: string }> }
+        >(page, 'GET', '/sales/orders?page=1&page_size=1');
         orderNo = so.items?.[0]?.order_no;
       } else if (whId && prodId && custId) {
         // ctx 无销售订单时，用真实仓库/产品/客户兜底建单

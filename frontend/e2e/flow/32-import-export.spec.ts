@@ -40,10 +40,9 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
   test('产品：无审批令牌导出应 403（fail-closed，成功路径由 39-export 覆盖）', async ({ page }) => {
     test.setTimeout(60_000);
     // 敏感导出 fail-closed：无 download_token 应返回 403 而非静默下载
-    const resp = await page.request.get(
-      `${API_BASE}${API_PREFIX}/products/export`,
-      { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
-    );
+    const resp = await page.request.get(`${API_BASE}${API_PREFIX}/products/export`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
     console.log(`[P0-导出-产品] 无令牌导出 HTTP ${resp.status()}`);
     expect(
       resp.status(),

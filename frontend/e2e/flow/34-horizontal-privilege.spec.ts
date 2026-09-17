@@ -1,5 +1,12 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallExpectFail, genName, ensureTestEntities, getCtx } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  apiCallExpectFail,
+  genName,
+  ensureTestEntities,
+  getCtx,
+} from './helpers';
 
 /**
  * P5.4 水平越权测试

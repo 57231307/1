@@ -373,7 +373,12 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // 独立于 salesOrderId 逻辑：即使已有销售订单，新建订单仍需库存
   if (ctx.productIds[0]) {
     try {
-      const existingStock = await ensureStockInWarehouse(page, ctx.productIds[0], ctx.warehouseIds[0], ctx.colorNos[0]);
+      const existingStock = await ensureStockInWarehouse(
+        page,
+        ctx.productIds[0],
+        ctx.warehouseIds[0],
+        ctx.colorNos[0]
+      );
       if (existingStock) {
         console.log('[ensureTestEntities] 产品库存已确保 product_id=', ctx.productIds[0]);
       }

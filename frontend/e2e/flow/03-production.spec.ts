@@ -98,7 +98,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     expect(ctx.dyeBatchId).toBeDefined();
   });
 
-  test('3-4 缸号状态机流转（14 态：pending_schedule→scheduled→preparing→dyeing→stored）', async ({ page }) => {
+  test('3-4 缸号状态机流转（14 态：pending_schedule→scheduled→preparing→dyeing→stored）', async ({
+    page,
+  }) => {
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
     if (!id) {
@@ -126,9 +128,22 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       );
       // 断言当前状态 ∈ 后端 14 态合法状态集
       expect([
-        'pending_schedule', 'scheduled', 'preparing', 'dyeing',
-        'washing', 'fixing', 'dehydrating', 'drying', 'inspecting',
-        'stored', 'shipped', 'cancelled', 'terminated', 'rework', 'on_hold', 'failed',
+        'pending_schedule',
+        'scheduled',
+        'preparing',
+        'dyeing',
+        'washing',
+        'fixing',
+        'dehydrating',
+        'drying',
+        'inspecting',
+        'stored',
+        'shipped',
+        'cancelled',
+        'terminated',
+        'rework',
+        'on_hold',
+        'failed',
       ]).toContain((batch.status || '').trim());
     }
   });

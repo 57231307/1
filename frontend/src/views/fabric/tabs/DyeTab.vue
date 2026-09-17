@@ -62,7 +62,17 @@
               t('fabric.dyeTab.buttonEdit')
             }}</el-button>
             <el-button
-              v-if="['preparing', 'dyeing', 'washing', 'fixing', 'dehydrating', 'drying', 'inspecting'].includes(row.status)"
+              v-if="
+                [
+                  'preparing',
+                  'dyeing',
+                  'washing',
+                  'fixing',
+                  'dehydrating',
+                  'drying',
+                  'inspecting',
+                ].includes(row.status)
+              "
               type="success"
               link
               size="small"
