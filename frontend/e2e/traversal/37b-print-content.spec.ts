@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import JSZip from 'jszip';
-import { loginViaUI, apiCall, apiCallRaw, type ApiResponse } from '../flow/helpers';
+import { loginViaUI, apiCall, apiCallRaw, ensureTestEntities, getCtx, type ApiResponse } from '../flow/helpers';
 
 /**
  * 37b 打印内容匹配 + 打印审计闭环（doto 2026-09-09 印刷缺口两项）
@@ -40,42 +40,36 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     salesOrderId = sos.items?.[0]?.id;
     orderNo = sos.items?.[0]?.order_no;
     if (!salesOrderId) {
-      console.log('[37b] 无销售订单，API 兜底创建（含库存前置）');
-      // 先查真实仓库+产品（不硬编码 id=1，CI 空库会 500）
-      const whList = await apiCallRaw<{ items?: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/warehouses?page=1&page_size=5'
-      );
-      const whId = whList?.items?.[0]?.id ?? 1;
-      const prodList = await apiCallRaw<{ items?: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/products?page=1&page_size=5'
-      );
-      const prodId = prodList?.items?.[0]?.id ?? 1;
-      const stock = await apiCall<{ id?: number }>(page, 'POST', '/inventory/stock/fabric', {
-        warehouse_id: whId,
-        product_id: prodId,
-        batch_no: `E2E-PC${Date.now().toString().slice(-6)}`,
-        color_no: 'TEST-COLOR',
-        grade: '一等品',
-        quantity_meters: '10000',
-        quantity_kg: '5000',
-      });
-      console.log('[37b] 库存兜底结果 id=', stock.data?.id);
-      const result = await apiCall<{ id?: number; order_no?: string }>(
-        page,
-        'POST',
-        '/sales/orders',
-        {
-          customer_id: 1,
-          order_date: new Date().toISOString().slice(0, 10),
-          items: [{ product_id: 1, quantity: '1', unit_price: '1' }],
-        }
-      );
-      salesOrderId = result.data?.id;
-      orderNo = result.data?.order_no;
+      console.log('[37b] 无销售订单，ensureTestEntities 兜底创建（含库存前置）');
+      await ensureTestEntities(page);
+      const ctx = getCtx();
+      const whId = ctx.warehouseIds[0];
+      const prodId = ctx.productIds[0];
+      const custId = ctx.customerId;
+      // ensureTestEntities 已建库存+销售订单，优先用 ctx.salesOrderId
+      if (ctx.salesOrderId) {
+        salesOrderId = ctx.salesOrderId;
+        const so = await apiCallRaw<{ order_no?: string } & { items?: Array<{ id: number; order_no: string }> }>(
+          page,
+          'GET',
+          '/sales/orders?page=1&page_size=1'
+        );
+        orderNo = so.items?.[0]?.order_no;
+      } else if (whId && prodId && custId) {
+        // ctx 无销售订单时，用真实仓库/产品/客户兜底建单
+        const result = await apiCall<{ id?: number; order_no?: string }>(
+          page,
+          'POST',
+          '/sales/orders',
+          {
+            customer_id: custId,
+            order_date: new Date().toISOString().slice(0, 10),
+            items: [{ product_id: prodId, quantity: '1', unit_price: '1' }],
+          }
+        );
+        salesOrderId = result.data?.id;
+        orderNo = result.data?.order_no;
+      }
     }
     // 空库极端场景：连兜底创建都失败 → 记录数据缺失跳过（非系统缺陷）
     if (!salesOrderId) {
