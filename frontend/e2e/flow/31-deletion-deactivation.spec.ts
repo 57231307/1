@@ -355,6 +355,7 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         name: `P0待删报表${EXT_TS}`,
         code: `P0RT${EXT_TS}`,
         report_type: 'table',
+        category: 'custom',
         columns: [],
         description: 'P0报表模板',
       },
