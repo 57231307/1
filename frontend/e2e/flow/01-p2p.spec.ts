@@ -125,6 +125,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       purchase_order_id: id,
       supplier_id: ctx.supplierId || 1,
       warehouse_id: ctx.warehouseIds[0] || 1,
+      receipt_date: new Date().toISOString().slice(0, 10),
       items: [
         {
           line_no: 1,

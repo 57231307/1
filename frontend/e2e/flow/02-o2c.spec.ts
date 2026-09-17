@@ -70,6 +70,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
           quantity: 10,
           unit: 'm',
           unit_price: '2.50',
+          unit_price_with_tax: '2.83',
         },
       ],
       notes: 'E2E 2-2 状态机独立报价',
