@@ -29,7 +29,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
       customer_id: ctx.customerId,
-      sales_user_id: 1,
+      sales_user_id: ctx.userIds[0] || 1,
       quotation_date: new Date().toISOString().split('T')[0],
       valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
       currency: 'CNY',
@@ -65,6 +65,12 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       quotation_date: new Date().toISOString().slice(0, 10),
       valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
       status: 'draft',
+      currency: 'CNY',
+      exchange_rate: '1',
+      base_currency: 'CNY',
+      price_terms: 'FOB',
+      tax_inclusive: false,
+      tax_rate: '0.13',
       items: [
         {
           product_id: ctx.productIds[0],

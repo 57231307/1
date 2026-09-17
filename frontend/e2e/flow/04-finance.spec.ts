@@ -189,7 +189,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
-      '/system/audit-logs?page=1&page_size=10'
+      '/audit-logs?page=1&page_size=10'
     );
     expect(logs.items);
   });
