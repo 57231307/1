@@ -100,7 +100,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
 
     // 搜索
     const searchInput = page
-      .locator('input[placeholder*="订单"], input[placeholder*("客户")]')
+      .locator('input[placeholder*="订单"], input[placeholder*="客户"]')
       .first();
     await searchInput.waitFor({ state: 'visible', timeout: 5000 });
     const searchVisible = await searchInput.isVisible();
@@ -293,7 +293,7 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
 
     // 搜索
     const searchInput = page
-      .locator('input[placeholder*="用户名"], input[placeholder*("姓名")]')
+      .locator('input[placeholder*="用户名"], input[placeholder*="姓名"]')
       .first();
     await searchInput.waitFor({ state: 'visible', timeout: 5000 });
     const searchVisible = await searchInput.isVisible();
