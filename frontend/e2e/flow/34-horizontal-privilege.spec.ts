@@ -61,13 +61,19 @@ test.describe('P5.4 水平越权', () => {
     // 基础断言：创建成功
     await ensureTestEntities(page);
     const ctx = getCtx();
-    const orderNo = genName('HozPO');
     const createResp = await apiCall(page, 'POST', '/purchase/orders', {
-      order_no: orderNo,
-      supplier_id: ctx.supplierId || 1,
-      warehouse_id: ctx.warehouseIds[0] || 1,
-      department_id: ctx.departmentIds[0] || 1,
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
+      // 明细必传：避免制造无明细的脏数据订单
+      items: [
+        {
+          material_id: ctx.productIds[0],
+          quantity_ordered: '1',
+          unit_price: '1',
+        },
+      ],
     });
     expect(createResp !== undefined).toBeTruthy();
   });

@@ -36,7 +36,7 @@
         order?.contact_phone
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('sales.orderView.deliveryAddress')" :span="2">{{
-        order?.delivery_address
+        order?.shipping_address
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('sales.orderView.orderAmount')">
         ¥{{ order?.total_amount?.toLocaleString() }}

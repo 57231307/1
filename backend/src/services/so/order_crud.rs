@@ -267,7 +267,12 @@ impl SalesService {
             order_no: sea_orm::ActiveValue::Set(order_no),
             customer_id: sea_orm::ActiveValue::Set(request.customer_id),
             opportunity_id: sea_orm::ActiveValue::Set(request.opportunity_id),
-            order_date: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            // 订单日期：用户指定优先，缺省为当前时间
+            order_date: sea_orm::ActiveValue::Set(
+                request.order_date.unwrap_or_else(chrono::Utc::now),
+            ),
+            contact_person: sea_orm::ActiveValue::Set(request.contact_person.clone()),
+            contact_phone: sea_orm::ActiveValue::Set(request.contact_phone.clone()),
             required_date: sea_orm::ActiveValue::Set(required_date),
             ship_date: sea_orm::ActiveValue::NotSet,
             status: sea_orm::ActiveValue::Set(

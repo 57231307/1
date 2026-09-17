@@ -36,8 +36,8 @@ export interface OrderForm {
   required_date: string;
   contact_person: string;
   contact_phone: string;
-  delivery_address: string;
-  remark: string;
+  shipping_address: string;
+  notes: string;
   items: OrderItemForm[];
   total_amount?: number;
 }
@@ -93,8 +93,8 @@ export function useOlv() {
     required_date: '',
     contact_person: '',
     contact_phone: '',
-    delivery_address: '',
-    remark: '',
+    shipping_address: '',
+    notes: '',
     items: [
       {
         id: Date.now(),
@@ -294,8 +294,8 @@ export function useOlv() {
       required_date: '',
       contact_person: '',
       contact_phone: '',
-      delivery_address: '',
-      remark: '',
+      shipping_address: '',
+      notes: '',
       items: [
         {
           id: Date.now(),
@@ -323,8 +323,8 @@ export function useOlv() {
       required_date: row.required_date || '',
       contact_person: row.contact_person || '',
       contact_phone: row.contact_phone || '',
-      delivery_address: row.delivery_address || '',
-      remark: row.remark || '',
+      shipping_address: row.shipping_address || '',
+      notes: row.notes || '',
       items: row.items?.map((it: SalesOrderItem) => ({
         id: it.id || Date.now(),
         product_id: it.product_id,

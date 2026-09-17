@@ -210,6 +210,16 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'sales/orders/:id',
+        name: 'SalesOrderDetail',
+        component: () => import('@/views/sales/OrderDetail.vue'),
+        meta: {
+          title: '销售订单详情',
+          permission: 'sales:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'purchase',
         name: 'Purchase',
         component: () => import('@/views/purchase/index.vue'),
@@ -1183,6 +1193,17 @@ const routes: RouteRecordRaw[] = [
           requiresAuth: true,
           hidden: true,
         }, // 批次 22（v5 P0-4）：补齐 meta.permission
+      },
+      {
+        path: 'custom-orders/:id/edit',
+        name: 'CustomOrderEdit',
+        component: () => import('@/views/custom-orders/edit.vue'),
+        meta: {
+          title: '定制订单编辑',
+          permission: 'inventory:read',
+          requiresAuth: true,
+          hidden: true,
+        },
       },
       {
         path: 'custom-orders/:id/track',

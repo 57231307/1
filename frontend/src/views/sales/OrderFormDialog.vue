@@ -76,9 +76,9 @@
           style="width: 50%"
         />
       </el-form-item>
-      <el-form-item :label="t('sales.orderForm.deliveryAddress')" prop="delivery_address">
+      <el-form-item :label="t('sales.orderForm.deliveryAddress')" prop="shipping_address">
         <el-input
-          v-model="localData.delivery_address"
+          v-model="localData.shipping_address"
           type="textarea"
           :rows="2"
           :placeholder="t('sales.orderForm.deliveryAddressPlaceholder')"
@@ -152,7 +152,7 @@
       <el-divider content-position="left">{{ t('sales.orderForm.otherInfo') }}</el-divider>
       <el-form-item :label="t('sales.orderForm.remark')">
         <el-input
-          v-model="localData.remark"
+          v-model="localData.notes"
           type="textarea"
           :rows="3"
           :placeholder="t('sales.orderForm.remarkPlaceholder')"
@@ -220,8 +220,8 @@ interface OrderForm {
   required_date: string;
   contact_person: string;
   contact_phone: string;
-  delivery_address: string;
-  remark: string;
+  shipping_address: string;
+  notes: string;
   items: OrderItemForm[];
   total_amount?: number;
 }
@@ -252,8 +252,8 @@ const localData = reactive<OrderForm>({
   required_date: '',
   contact_person: '',
   contact_phone: '',
-  delivery_address: '',
-  remark: '',
+  shipping_address: '',
+  notes: '',
   items: [],
   total_amount: 0,
 });
@@ -287,7 +287,7 @@ const formRules = computed<FormRules>(() => ({
       trigger: 'blur',
     },
   ],
-  delivery_address: [
+  shipping_address: [
     { required: true, message: t('sales.orderForm.deliveryAddressRequired'), trigger: 'blur' },
   ],
 }));

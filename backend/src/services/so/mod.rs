@@ -121,6 +121,12 @@ pub struct CreateSalesOrderRequest {
     #[validate(range(min = 1, message = "客户ID必须大于0"))]
     pub customer_id: i32,
     pub opportunity_id: Option<i32>,
+    /// 订单日期：可空，缺省落库为当前时间
+    pub order_date: Option<chrono::DateTime<chrono::Utc>>,
+    /// 收货联系人快照（可从客户档案带出）
+    pub contact_person: Option<String>,
+    /// 收货联系电话快照
+    pub contact_phone: Option<String>,
     pub required_date: Option<chrono::DateTime<chrono::Utc>>,
     #[validate(length(max = 50, message = "状态长度不能超过50个字符"))]
     pub status: Option<String>,
