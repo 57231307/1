@@ -41,6 +41,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       'POST',
       '/production/production-orders/orders',
       {
+        order_no: `E2E-PO-${Date.now().toString().slice(-6)}`,
         product_id: ctx.productIds[0],
         planned_quantity: 100,
         planned_start_date: new Date().toISOString().slice(0, 10),
@@ -94,6 +95,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
       'POST',
       '/production/production-orders/orders',
       {
+        order_no: `E2E-PO2-${Date.now().toString().slice(-6)}`,
         product_id: ctx.productIds[0],
         planned_quantity: 50,
       }
