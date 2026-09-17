@@ -107,12 +107,8 @@ pub async fn get_customer(
     Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
 }
 
-/// CRM 增强客户更新请求 DTO（S10 31c 根因修复）
-///
-/// 原 handler 误用 UpdateLeadRequest（线索域 DTO，无客户 status 字段）走
-/// update_lead 链路，前端编辑弹窗提交的 status（active/inactive）被 serde
-/// 静默丢弃 → UI 停用后 API 回读仍 active。改走客户域 CustomerService
-/// 真实更新链路（UpdateCustomerArgs 含 status）。
+/// CRM 增强客户更新请求 DTO：客户编辑弹窗提交字段，含状态（active/inactive）
+/// 走客户域 CustomerService 更新链路落库
 #[derive(Debug, serde::Deserialize)]
 pub struct UpdateEnhancedCustomerRequest {
     pub customer_name: Option<String>,
@@ -130,7 +126,7 @@ pub struct UpdateEnhancedCustomerRequest {
     pub status: Option<String>,
 }
 
-/// PUT /api/v1/erp/crm/customers/enhanced/:id - 更新客户（增强路由）
+/// PUT /api/v1/erp/crm/customers/enhanced/:id - 更新客户（增强路由，客户域落库含 status）
 pub async fn update_customer(
     State(state): State<AppState>,
     auth: AuthContext,

@@ -65,17 +65,14 @@ pub struct ShipOrderItemRequest {
 // =====================================================
 
 /// v14 批次 421 T-P1-5：缸号同订单校验
-/// 缸号一致性提示（2026-09-17 业务规则更新：同缸面料出完后允许使用其他缸面料）
-/// 依据：fabric-industry-research.md §2.3 约束 5 + 用户业务指令（2026-09-17）
-/// 业务规则演变：原"同一订单同面料必须同缸"硬性校验过严——同缸库存出完后
-/// 应允许使用其他缸面料继续供货（有得发优先于色差零容忍）；
-/// 色差风险保留为警告提示（裁床铺布时同床尽量同缸，多缸需分开裁剪）。
-/// 校验逻辑：同 product_id 出现多个 dye_lot_no 时记录警告日志（提示色差风险），
-/// 不再阻断发货；dye_lot_no 均为 None 跳过；单缸或空 → 正常通过
+/// 缸号一致性提示：校验发货明细的缸号使用情况
+/// 业务规则：同缸面料优先、同缸出完后允许使用其他缸面料继续供货；
+/// 同一产品出现多个缸号时记录警告日志（提示裁床分缸裁剪避免色差），不阻断发货；
+/// 缸号均为空视为未指定，跳过校验
 pub fn validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<(), AppError> {
     use std::collections::HashMap;
 
-    // 按 product_id 分组收集 dye_lot_no
+    // 按 product_id 分组收集缸号集合
     let mut product_dye_lots: HashMap<i32, std::collections::HashSet<String>> = HashMap::new();
     for item in items {
         if let Some(dye_lot_no) = &item.dye_lot_no {
@@ -88,14 +85,14 @@ pub fn validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<()
         }
     }
 
-    // 多缸号 → 警告（不阻断）：同缸出完允许换缸，提示裁床分缸裁剪避免色差
+    // 同产品多缸号：记录警告日志（不阻断发货）
     for (product_id, dye_lots) in &product_dye_lots {
         if dye_lots.len() > 1 {
             let dye_lot_list: Vec<String> = dye_lots.iter().cloned().collect();
             tracing::warn!(
                 product_id = %product_id,
                 dye_lots = %dye_lot_list.join("/"),
-                "【缸号提示】同一订单同产品使用多个缸号：同缸面料已出完或分配多缸供货，裁床请分缸裁剪避免色差"
+                "同一订单同产品使用多个缸号，裁床请分缸裁剪避免色差"
             );
         }
     }

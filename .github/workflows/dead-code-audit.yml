@@ -45,7 +45,7 @@ jobs:
   audit:
     name: 死代码审计
     runs-on: ubuntu-latest
-    # 冷缓存时全量 cargo check --all-targets 可超 30 分钟（历史 run 05:57→06:07 被杀）
+    # 全量 cargo check --all-targets 冷缓存耗时长，预留充足窗口
     timeout-minutes: 60
     permissions:
       contents: read
@@ -57,10 +57,9 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 复用共享复合动作（修复历史 exit 143 根因）：
-      # 1) 共享 cargo-/rustup-/sccache- 缓存键（主 CI 成功 job 已预热，旧 audit- 专用键从未保存成功）
-      # 2) 智能内存探测设 CARGO_BUILD_JOBS（旧版默认并行度冷编译触发 OOM，exit 143）
-      # 3) sccache 关闭 + 7GB/单元：与 Clippy job 同款 --all-targets 防 OOM 配置
+      # 复用共享复合动作：与主 CI 共用 cargo-/rustup- 缓存键（已预热），
+      # 智能内存探测设 CARGO_BUILD_JOBS 防 OOM，sccache 关闭 + 7GB/单元
+      # 与 Clippy job 同款 --all-targets 内存配置
       - name: Setup Rust（共享主 cargo- 缓存，防 OOM 并行度）
         uses: ./.github/actions/setup-rust
         with:
