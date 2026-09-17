@@ -16,7 +16,7 @@ use crate::models::crm_tag;
 use crate::models::dto::crm_dto::{CreateLeadRequest, LeadQuery, UpdateLeadRequest};
 use crate::services::crm::cust::CrmService;
 use crate::services::customer_service::{
-    CreateCustomerContactRequest, CustomerService, UpdateCustomerContactRequest,
+    CreateCustomerContactRequest, CustomerService, UpdateCustomerArgs, UpdateCustomerContactRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -107,17 +107,63 @@ pub async fn get_customer(
     Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
 }
 
-/// PUT /api/v1/erp/crm/customers/:id - 更新客户
+/// CRM 增强客户更新请求 DTO（S10 31c 根因修复）
+///
+/// 原 handler 误用 UpdateLeadRequest（线索域 DTO，无客户 status 字段）走
+/// update_lead 链路，前端编辑弹窗提交的 status（active/inactive）被 serde
+/// 静默丢弃 → UI 停用后 API 回读仍 active。改走客户域 CustomerService
+/// 真实更新链路（UpdateCustomerArgs 含 status）。
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateEnhancedCustomerRequest {
+    pub customer_name: Option<String>,
+    pub contact_person: Option<String>,
+    pub contact_phone: Option<String>,
+    pub contact_email: Option<String>,
+    pub address: Option<String>,
+    pub customer_type: Option<String>,
+    /// 税号（前端字段名 tax_number → 后端 tax_id）
+    pub tax_number: Option<String>,
+    pub credit_limit: Option<rust_decimal::Decimal>,
+    pub bank_name: Option<String>,
+    pub bank_account: Option<String>,
+    /// 客户状态（active/inactive）——31c 停用矩阵的核心字段
+    pub status: Option<String>,
+}
+
+/// PUT /api/v1/erp/crm/customers/enhanced/:id - 更新客户（增强路由）
 pub async fn update_customer(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<UpdateLeadRequest>,
+    Json(req): Json<UpdateEnhancedCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = CrmService::new(state.db.clone());
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
+
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-    let lead = service.update_lead(id, req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
+    let customer = customer_service
+        .update_customer(UpdateCustomerArgs {
+            customer_id: id,
+            customer_name: req.customer_name,
+            contact_person: req.contact_person,
+            contact_phone: req.contact_phone,
+            contact_email: req.contact_email,
+            address: req.address,
+            city: None,
+            province: None,
+            postal_code: None,
+            credit_limit: req.credit_limit,
+            payment_terms: None,
+            tax_id: req.tax_number,
+            bank_name: req.bank_name,
+            bank_account: req.bank_account,
+            customer_type: req.customer_type,
+            status: req.status,
+            notes: None,
+            user_id: auth.user_id,
+        })
+        .await?;
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(customer)?)))
 }
 
 /// DELETE /api/v1/erp/crm/customers/:id - 删除客户
