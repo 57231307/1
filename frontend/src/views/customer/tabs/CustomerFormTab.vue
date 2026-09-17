@@ -248,6 +248,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { Customer } from '@/api/customer';
+import { createCustomer, updateCustomer } from '@/api/customer';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -387,11 +388,27 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
-    ElMessage.success(t('customer.form.message.saveSuccess'));
+    // 信用额度后端 DTO 为字符串类型（显式格式校验），提交前转字符串防 422
+    const payload = {
+      ...formData,
+      credit_limit: String(formData.credit_limit ?? '0'),
+      annual_purchase:
+        formData.annual_purchase === null || formData.annual_purchase === undefined
+          ? undefined
+          : formData.annual_purchase,
+    };
+    if (formData.id) {
+      await updateCustomer(formData.id, payload);
+      ElMessage.success(t('customer.form.message.saveSuccess'));
+    } else {
+      await createCustomer(payload);
+      ElMessage.success(t('customer.form.message.saveSuccess'));
+    }
     visible.value = false;
     emit('submitted');
   } catch (error) {
     const err = error as Error;
+    ElMessage.error(err.message || t('customer.form.message.validationFailed'));
     logger.warn(t('customer.form.message.validationFailed'), err.message);
   } finally {
     submitLoading.value = false;
