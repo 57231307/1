@@ -234,17 +234,34 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   test('1-8 付款', async ({ page }) => {
     const ctx = getCtx();
 
-    if (!ctx.apInvoiceId) {
+    if (!ctx.apInvoiceId || !ctx.supplierId) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
       return;
     }
 
-    await apiCall(page, 'POST', '/ap/payments', {
-      ap_invoice_id: ctx.apInvoiceId,
-      amount: 56500,
+    // 先创建付款申请（POST /ap/payment-requests），再用 request_id 创建付款
+    const payReq = await apiCall<{ data?: { id?: number } }>(page, 'POST', '/ap/payment-requests', {
+      supplier_id: ctx.supplierId,
+      request_date: new Date().toISOString().split('T')[0],
+      payment_type: 'purchase',
       payment_method: 'bank_transfer',
+      request_amount: 56500,
+      currency: 'CNY',
+      exchange_rate: 1,
+    });
+    const requestId = payReq?.data?.id;
+    if (!requestId) {
+      console.warn('[E2E] test.skip: 付款申请创建失败');
+      test.skip();
+      return;
+    }
+    CLEANUP.push({ path: `/ap/payment-requests/${requestId}`, label: '[1-8] 付款申请' });
+
+    await apiCall(page, 'POST', '/ap/payments', {
+      request_id: requestId,
       payment_date: new Date().toISOString().split('T')[0],
+      notes: 'E2E 1-8 付款测试',
     });
 
     // 验证应付单状态
