@@ -218,6 +218,8 @@ fn is_misc_direct_resource(part: &str) -> bool {
         | "logs"
         | "health"
         | "system-config"
+        // ===== 单据号查重（前端自动生成单据号后确认唯一性）=====
+        | "document-no"
         // V16 P0：审批流与 AI 模型直接资源（traversal 全量对照补齐，admin 被拒修复）
         | "export-approvals"
         | "role-change-approvals"

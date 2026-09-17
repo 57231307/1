@@ -23,7 +23,7 @@ async function getUnreadNotifications(
   { id: number; title: string; content: string; businessType?: string; status?: string }[]
 > {
   const res = await page.request.get(
-    'http://localhost:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50'
+    'http://localhost:8082/api/v1/erp/notifications?status=unread&page=1&page_size=50'
   );
   if (!res.ok()) return [];
   const body = await res.json();
@@ -36,7 +36,7 @@ async function deleteNotification(
   id: number
 ): Promise<void> {
   try {
-    await page.request.delete(`http://localhost:8082/api/v1/erp/notifications/notification/${id}`);
+    await page.request.delete(`http://localhost:8082/api/v1/erp/notifications/${id}`);
     console.log(`[31e] 清理通知 id=${id} ✅`);
   } catch (e) {
     console.warn(`[31e] 清理通知 id=${id} 失败: ${(e as Error).message}`);
@@ -250,7 +250,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
       // 测试已读
       const readRes = await page.request.post(
-        `http://localhost:8082/api/v1/erp/notifications/notification/${directNotif.id}/read`
+        `http://localhost:8082/api/v1/erp/notifications/${directNotif.id}/read`
       );
       console.log(`[31e-4] 标记已读 HTTP ${readRes.status()}`);
 
@@ -296,7 +296,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
       // 单条已读
       const first = myNotifs[0];
       const readRes = await page.request.post(
-        `http://localhost:8082/api/v1/erp/notifications/notification/${first.id}/read`
+        `http://localhost:8082/api/v1/erp/notifications/${first.id}/read`
       );
       console.log(`[31e-5] 单条已读 HTTP ${readRes.status()}`);
 

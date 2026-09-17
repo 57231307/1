@@ -778,11 +778,9 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       test.skip();
       return;
     }
-    await apiCall(page, 'DELETE', `/notifications/notification/${targetId}`);
+    await apiCall(page, 'DELETE', `/notifications/${targetId}`);
     console.log(`[31b-通知] DELETE 通知 ${targetId} ✅`);
-    const chk = await page.request.get(
-      `${API_BASE}${API_PREFIX}/notifications/notification/${targetId}`
-    );
+    const chk = await page.request.get(`${API_BASE}${API_PREFIX}/notifications/${targetId}`);
     console.log(`[31b-通知] 删除后回读 HTTP ${chk.status()}`);
     expect(chk.status(), '[31b-通知] 删除后详情应 404').toBe(404);
   });

@@ -24,7 +24,7 @@ async function getUnreadNotifications(
   userId?: number
 ): Promise<{ id: number; title: string; content: string; businessType?: string }[]> {
   const res = await page.request.get(
-    `http://localhost:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50`
+    `http://localhost:8082/api/v1/erp/notifications?status=unread&page=1&page_size=50`
   );
   if (!res.ok()) {
     console.warn(`[31d] 通知列表查询 HTTP ${res.status()}`);
@@ -41,7 +41,7 @@ async function deleteNotification(
   id: number
 ): Promise<void> {
   try {
-    await page.request.delete(`http://localhost:8082/api/v1/erp/notifications/notification/${id}`);
+    await page.request.delete(`http://localhost:8082/api/v1/erp/notifications/${id}`);
     console.log(`[31d] 清理通知 id=${id} ✅`);
   } catch (e) {
     console.warn(`[31d] 清理通知 id=${id} 失败: ${(e as Error).message}`);
@@ -51,9 +51,7 @@ async function deleteNotification(
 /** 标记通知已读（清理，避免影响后续用例） */
 async function markRead(page: import('@playwright/test').Page, id: number): Promise<void> {
   try {
-    await page.request.post(
-      `http://localhost:8082/api/v1/erp/notifications/notification/${id}/read`
-    );
+    await page.request.post(`http://localhost:8082/api/v1/erp/notifications/${id}/read`);
   } catch {
     /* 静默 */
   }

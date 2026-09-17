@@ -237,9 +237,14 @@ fn quality_standards_routes() -> Router<AppState> {
         )
 }
 
-/// 用户中心路由（path 前缀 /user）
+/// 用户中心路由（path 前缀 /user：个人资料查询/更新 + 头像上传）
 fn user_profile_routes() -> Router<AppState> {
-    Router::new().route("/user/profile", get(user_handler::get_current_user_profile))
+    Router::new()
+        .route(
+            "/user/profile",
+            get(user_handler::get_current_user_profile).put(user_handler::update_current_user_profile),
+        )
+        .route("/user/avatar", post(user_handler::upload_avatar))
 }
 
 /// 系统更新补充路由（path 前缀 /system-update）

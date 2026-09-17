@@ -19,7 +19,7 @@ use crate::services::auth::password_policy_service::{
 use crate::utils::response::ApiResponse;
 use axum::{
     Json,
-    extract::{Extension, Path, State},
+    extract::{Extension, Multipart, Path, State},
 };
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
@@ -103,6 +103,8 @@ pub struct UpdateUserRequest {
 pub struct UserResponse {
     pub id: i32,
     pub username: String,
+    pub real_name: Option<String>,
+    pub avatar: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub role_id: Option<i32>,
@@ -116,6 +118,8 @@ impl From<user::Model> for UserResponse {
         Self {
             id: user.id,
             username: user.username,
+            real_name: user.real_name,
+            avatar: user.avatar,
             email: user.email,
             phone: user.phone,
             role_id: user.role_id,
@@ -176,6 +180,106 @@ pub async fn get_user(
 
 /// 获取当前登录用户个人信息
 pub async fn get_current_user_profile(
+    auth: AuthContext,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<UserResponse>>, AppError> {
+    let user_service = UserService::new(state.db.clone());
+    let user = user_service.find_by_id(auth.user_id).await?;
+    Ok(Json(ApiResponse::success(user.into())))
+}
+
+/// 当前用户可自改资料字段（角色/部门/状态等管理字段不自改，走管理员用户管理链路）
+#[derive(Debug, Deserialize)]
+pub struct UpdateCurrentUserProfileRequest {
+    pub real_name: Option<String>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+}
+
+/// PUT /api/v1/erp/user/profile - 更新当前登录用户资料（姓名/邮箱/电话）
+pub async fn update_current_user_profile(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Json(payload): Json<UpdateCurrentUserProfileRequest>,
+) -> Result<Json<ApiResponse<UserResponse>>, AppError> {
+    let user_service = UserService::new(state.db.clone());
+    let user = user_service
+        .update_current_profile(
+            auth.user_id,
+            payload.real_name,
+            payload.email,
+            payload.phone,
+        )
+        .await?;
+    Ok(Json(ApiResponse::success_with_message(
+        user.into(),
+        "个人资料已更新",
+    )))
+}
+
+/// POST /api/v1/erp/user/avatar - 上传当前用户头像（multipart 图片，返回访问 URL）
+pub async fn upload_avatar(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let mut avatar_url: Option<String> = None;
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::validation(format!("头像文件读取失败：{}", e)))?
+    {
+        if field.name() != Some("avatar") {
+            continue;
+        }
+        let file_name = field.file_name().unwrap_or("avatar.png").to_string();
+        let ext = std::path::Path::new(&file_name)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase())
+            .unwrap_or_else(|| "png".to_string());
+        // 仅接受常见图片格式
+        if !matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp") {
+            return Err(AppError::validation("头像仅支持 png/jpg/jpeg/gif/webp 格式"));
+        }
+        let data = field
+            .bytes()
+            .await
+            .map_err(|e| AppError::validation(format!("头像文件读取失败：{}", e)))?;
+        // 2MB 上限（与前端上传前校验一致，双保险）
+        if data.len() > 2 * 1024 * 1024 {
+            return Err(AppError::validation("头像文件不能超过 2MB"));
+        }
+        let dir = std::path::Path::new("uploads/avatars");
+        tokio::fs::create_dir_all(dir)
+            .await
+            .map_err(|e| AppError::internal(format!("创建头像目录失败：{}", e)))?;
+        let file_path = dir.join(format!("{}.{}", auth.user_id, ext));
+        tokio::fs::write(&file_path, &data)
+            .await
+            .map_err(|e| AppError::internal(format!("头像写入失败：{}", e)))?;
+        avatar_url = Some(format!(
+            "/uploads/avatars/{}",
+            file_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default()
+        ));
+        break;
+    }
+
+    let url = avatar_url
+        .ok_or_else(|| AppError::validation("请求中未找到 avatar 文件字段"))?;
+
+    let user_service = UserService::new(state.db.clone());
+    user_service.update_avatar(auth.user_id, &url).await?;
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "avatar_url": url }),
+    )))
+}
+
+/// GET /api/v1/erp/users/me - 当前登录用户信息（静态段路由，避免被 /users/{id} 捕获）
+pub async fn get_user_me(
     auth: AuthContext,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<UserResponse>>, AppError> {
