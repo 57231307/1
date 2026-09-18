@@ -122,6 +122,83 @@
       <el-button type="primary" link @click="addItem">
         <el-icon><Plus /></el-icon>{{ t('inventoryAdjustment.formDialogTab.buttonAddItem') }}
       </el-button>
+
+      <!-- 详情回源：查看模式下展示后端最新明细，pending 态支持行编辑/删除/新增 -->
+      <template v-if="mode === 'view' && formData.id">
+        <el-divider content-position="left">{{
+          t('inventoryAdjustment.formDialogTab.dividerServerItems')
+        }}</el-divider>
+        <el-table
+          v-loading="detailLoading"
+          :data="serverItems"
+          border
+          size="small"
+          max-height="300"
+        >
+          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column
+            prop="stock_id"
+            :label="t('inventoryAdjustment.formDialogTab.colStockId')"
+            width="90"
+          />
+          <el-table-column
+            prop="quantity_before"
+            :label="t('inventoryAdjustment.formDialogTab.colQuantityBefore')"
+            width="110"
+          />
+          <el-table-column :label="t('inventoryAdjustment.formDialogTab.colQuantity')" width="150">
+            <template #default="{ row }">
+              <el-input-number
+                v-if="isPending"
+                v-model="row.quantity"
+                :min="0"
+                size="small"
+                controls-position="right"
+              />
+              <span v-else>{{ row.quantity }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="quantity_after"
+            :label="t('inventoryAdjustment.formDialogTab.colQuantityAfter')"
+            width="110"
+          />
+          <el-table-column
+            :label="t('inventoryAdjustment.formDialogTab.colOperation')"
+            width="140"
+            fixed="right"
+          >
+            <template #default="{ row }">
+              <template v-if="isPending">
+                <el-button link type="primary" size="small" @click="handleSaveItem(row)">{{
+                  t('inventoryAdjustment.formDialogTab.buttonSaveItem')
+                }}</el-button>
+                <el-button link type="danger" size="small" @click="handleDeleteItem(row)">{{
+                  t('inventoryAdjustment.formDialogTab.buttonDeleteItem')
+                }}</el-button>
+              </template>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div v-if="isPending" class="add-item-bar">
+          <el-input-number
+            v-model="newItem.stock_id"
+            :min="1"
+            :placeholder="t('inventoryAdjustment.formDialogTab.colStockId')"
+            style="width: 150px"
+          />
+          <el-input-number
+            v-model="newItem.quantity"
+            :min="1"
+            style="width: 130px"
+            :placeholder="t('inventoryAdjustment.formDialogTab.placeholderQuantity')"
+          />
+          <el-button type="primary" plain :loading="itemSaving" @click="handleAddItem">{{
+            t('inventoryAdjustment.formDialogTab.buttonAddItem')
+          }}</el-button>
+        </div>
+      </template>
     </el-form>
     <template v-if="mode !== 'view'" #footer>
       <el-button @click="emit('update:modelValue', false)">{{
@@ -135,15 +212,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
 import { Plus, Delete } from '@element-plus/icons-vue';
 import {
   createInventoryAdjustment,
   updateInventoryAdjustment,
   generateInventoryAdjustmentNo,
+  getInventoryAdjustment,
+  createAdjustmentItem,
+  updateAdjustmentItem,
+  deleteAdjustmentItem,
   type InventoryAdjustmentEntity,
 } from '@/api/inventory-adjustment';
 import type { Warehouse } from '@/api/warehouse';
@@ -227,6 +308,7 @@ watch(
         if (!formData.items || formData.items.length === 0) {
           formData.items = [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }];
         }
+        if (props.mode === 'view' && formData.id) await fetchServerItems();
       } else {
         resetForm();
         await generateNo();
@@ -240,6 +322,91 @@ onMounted(() => {
     generateNo();
   }
 });
+
+// ===== 查看模式：后端明细回源与行级维护（getInventoryAdjustment + 明细 CRUD） =====
+interface ServerItem {
+  id: number;
+  stock_id: number;
+  quantity: number;
+  quantity_before: number;
+  quantity_after: number;
+  unit_cost?: number;
+  amount?: number;
+  notes?: string | null;
+}
+
+const serverItems = ref<ServerItem[]>([]);
+const detailLoading = ref(false);
+const itemSaving = ref(false);
+const newItem = reactive({ stock_id: 1, quantity: 1 });
+
+const isPending = computed(() => (formData.status || '').toLowerCase() === 'pending');
+
+const fetchServerItems = async () => {
+  detailLoading.value = true;
+  try {
+    const res = (await getInventoryAdjustment(formData.id)) as {
+      data?: { items?: ServerItem[] };
+      items?: ServerItem[];
+    };
+    serverItems.value = res.data?.items ?? res.items ?? [];
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('inventoryAdjustment.listTab.messageFailure'));
+  } finally {
+    detailLoading.value = false;
+  }
+};
+
+const handleAddItem = async () => {
+  if (!formData.id || !newItem.stock_id || !newItem.quantity) {
+    ElMessage.warning(t('inventoryAdjustment.formDialogTab.placeholderQuantity'));
+    return;
+  }
+  itemSaving.value = true;
+  try {
+    await createAdjustmentItem(formData.id, {
+      stock_id: newItem.stock_id,
+      quantity: newItem.quantity,
+    });
+    ElMessage.success(t('inventoryAdjustment.listTab.messageSuccess'));
+    await fetchServerItems();
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('inventoryAdjustment.listTab.messageFailure'));
+  } finally {
+    itemSaving.value = false;
+  }
+};
+
+const handleSaveItem = async (row: ServerItem) => {
+  try {
+    await updateAdjustmentItem(row.id, { stock_id: row.stock_id, quantity: Number(row.quantity) });
+    ElMessage.success(t('inventoryAdjustment.listTab.messageSuccess'));
+    await fetchServerItems();
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('inventoryAdjustment.listTab.messageFailure'));
+  }
+};
+
+const handleDeleteItem = async (row: ServerItem) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryAdjustment.formDialogTab.messageDeleteItemConfirm'),
+      t('inventoryAdjustment.listTab.titleDeleteConfirm'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteAdjustmentItem(row.id);
+    ElMessage.success(t('inventoryAdjustment.listTab.messageSuccess'));
+    await fetchServerItems();
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error((e as Error).message || t('inventoryAdjustment.listTab.messageFailure'));
+    }
+  }
+};
 
 const handleSubmit = async () => {
   submitLoading.value = true;
