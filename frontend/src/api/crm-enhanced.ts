@@ -74,11 +74,11 @@ export type AssignableCustomer = PoolCustomer;
 export interface RecycleRule {
   id: number;
   name: string;
-  days_limit: number;
-  follow_up_required: boolean;
-  min_follow_up_count: number;
-  status: 'active' | 'inactive';
+  /** 未跟进超过 N 天后自动回收到公海 */
+  days: number;
+  is_enabled: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface AssignmentRecord {

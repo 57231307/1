@@ -47,44 +47,34 @@
               show-overflow-tooltip
             />
             <el-table-column
-              prop="strategy"
-              :label="t('crmAssignment.ruleTable.strategy')"
+              prop="days"
+              :label="t('crmAssignment.ruleTable.days')"
               width="120"
               align="center"
-            >
-              <template #default="{ row }">
-                <el-tag>{{ getStrategyLabel(row.strategy) }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="user_names"
-              :label="t('crmAssignment.ruleTable.assignees')"
-              min-width="200"
-              show-overflow-tooltip
             />
             <el-table-column
-              prop="priority"
-              :label="t('crmAssignment.ruleTable.priority')"
-              width="100"
-              align="center"
-            />
-            <el-table-column
-              prop="enabled"
+              prop="is_enabled"
               :label="t('crmAssignment.ruleTable.status')"
               width="100"
               align="center"
             >
               <template #default="{ row }">
-                <el-tag v-if="row.enabled" type="success">{{
+                <el-tag v-if="row.is_enabled" type="success">{{
                   t('crmAssignment.ruleTable.enabled')
                 }}</el-tag>
                 <el-tag v-else type="info">{{ t('crmAssignment.ruleTable.disabled') }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column
+              prop="created_at"
+              :label="t('crmAssignment.ruleTable.createdAt')"
+              width="170"
+              align="center"
+            />
+            <el-table-column
               prop="updated_at"
               :label="t('crmAssignment.ruleTable.updatedAt')"
-              width="160"
+              width="170"
               align="center"
             />
             <el-table-column
@@ -139,6 +129,9 @@
                 <el-button type="primary" @click="fetchAssignableCustomers">{{
                   t('crmAssignment.manualFilter.query')
                 }}</el-button>
+                <el-button type="success" plain @click="batchAssignVisible = true">
+                  {{ t('crmAssignment.batchAssign.title') }}
+                </el-button>
               </el-form-item>
             </el-form>
           </div>
@@ -212,6 +205,42 @@
       :users="users"
       @submitted="fetchAssignableCustomers"
     />
+
+    <!-- 批量分配（batchAssignCustomers：多客户一次分配给同一销售员） -->
+    <el-dialog
+      v-model="batchAssignVisible"
+      :title="t('crmAssignment.batchAssign.title')"
+      width="520"
+    >
+      <el-form :model="batchForm" label-width="110px">
+        <el-form-item :label="t('crmAssignment.batchAssign.customerIds')" required>
+          <el-input
+            v-model="batchForm.customerIdsText"
+            type="textarea"
+            :rows="3"
+            :placeholder="t('crmAssignment.batchAssign.idsPlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item :label="t('crmAssignment.batchAssign.assignTo')" required>
+          <el-select v-model="batchForm.assignTo" style="width: 100%" filterable>
+            <el-option
+              v-for="user in users"
+              :key="user.id"
+              :label="user.real_name || user.username"
+              :value="user.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchAssignVisible = false">{{
+          t('crmAssignment.batchAssign.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="batchSaving" @click="handleBatchAssign">
+          {{ t('crmAssignment.batchAssign.confirm') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -220,12 +249,15 @@ import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { getUserList, type User } from '@/api/user';
+import type { User } from '@/api/user';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import {
   getRecycleRuleList,
+  deleteRecycleRule,
+  getSalesUserList,
+  batchAssignCustomers,
   getCustomerPoolList,
   type AssignableCustomer,
 } from '@/api/crm-enhanced';
@@ -246,14 +278,12 @@ const assignQuery = reactive({ keyword: '' });
 
 const users = ref<User[]>([]);
 
+// 规则行对齐后端 RecycleRule 契约（name/days/is_enabled）
 interface RuleRow {
   id?: number;
   name?: string;
-  strategy?: string;
-  userIds?: number[];
-  priority?: number;
-  enabled?: boolean;
-  remark?: string;
+  days?: number;
+  is_enabled?: boolean;
 }
 
 const ruleDialogVisible = ref(false);
@@ -294,8 +324,10 @@ const fetchAssignableCustomers = async () => {
 
 const fetchUsers = async () => {
   try {
-    const res = await getUserList();
-    users.value = res.data?.data || [];
+    // 有差异修正：手动分配的分配对象应为销售员（后端 /crm/sales-users），
+    // 原实现取全量系统用户（getUserList），语义不符
+    const res = await getSalesUserList();
+    users.value = (res.data || []) as unknown as User[];
   } catch (error) {
     users.value = [];
   }
@@ -319,6 +351,43 @@ const openAssignDialog = (row: { id: number; customer_name: string }) => {
   assignDialogVisible.value = true;
 };
 
+// ===== 批量分配（batchAssignCustomers） =====
+const batchAssignVisible = ref(false);
+const batchSaving = ref(false);
+const batchForm = reactive({
+  customerIdsText: '',
+  assignTo: undefined as number | undefined,
+});
+
+const handleBatchAssign = async () => {
+  const ids = batchForm.customerIdsText
+    .split(/[,，;；\s]+/)
+    .map(s => Number(s.trim()))
+    .filter(n => Number.isInteger(n) && n > 0);
+  if (ids.length === 0 || !batchForm.assignTo) {
+    ElMessage.warning(t('crmAssignment.batchAssign.required'));
+    return;
+  }
+  batchSaving.value = true;
+  try {
+    await batchAssignCustomers({
+      assignments: ids.map(customer_id => ({
+        customer_id,
+        assign_to: batchForm.assignTo as number,
+      })),
+    });
+    ElMessage.success(t('crmAssignment.batchAssign.success', { count: ids.length }));
+    batchAssignVisible.value = false;
+    batchForm.customerIdsText = '';
+    await fetchAssignableCustomers();
+  } catch (error) {
+    const err = error as Error;
+    ElMessage.error(err.message || t('crmAssignment.batchAssign.failed'));
+  } finally {
+    batchSaving.value = false;
+  }
+};
+
 const handleDeleteRule = async (row: { id: number; name: string }) => {
   try {
     await ElMessageBox.confirm(
@@ -328,6 +397,8 @@ const handleDeleteRule = async (row: { id: number; name: string }) => {
         type: 'warning',
       }
     );
+    // 修复假删除：实际调用 deleteRecycleRule 移除规则
+    await deleteRecycleRule(row.id);
     ElMessage.success(t('crmAssignment.message.deleteSuccess'));
     fetchRules();
   } catch (error) {
@@ -336,16 +407,6 @@ const handleDeleteRule = async (row: { id: number; name: string }) => {
       ElMessage.error(err.message || t('crmAssignment.message.deleteFailed'));
     }
   }
-};
-
-const getStrategyLabel = (strategy: string) => {
-  const labelMap: Record<string, string> = {
-    average: t('crmAssignment.strategy.average'),
-    region: t('crmAssignment.strategy.region'),
-    industry: t('crmAssignment.strategy.industry'),
-    scale: t('crmAssignment.strategy.scale'),
-  };
-  return labelMap[strategy] || strategy;
 };
 
 onMounted(() => {
