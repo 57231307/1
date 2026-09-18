@@ -1,8 +1,6 @@
 <template>
-  <div class="seasonal-rules">
-    <el-page-header :content="$t('colorPrices.seasonalRules.title')" @back="$router.back()" />
-
-    <el-card style="margin-top: 20px">
+  <div class="seasonal-rules-tab">
+    <el-card>
       <div class="toolbar">
         <el-button type="primary" @click="handleCreate">{{
           $t('colorPrices.seasonalRules.create')
@@ -309,7 +307,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.seasonal-rules {
+.seasonal-rules-tab {
   padding: 20px;
 }
 .toolbar {

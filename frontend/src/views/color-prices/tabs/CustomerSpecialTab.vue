@@ -1,8 +1,6 @@
 <template>
-  <div class="customer-special">
-    <el-page-header :content="$t('colorPrices.customerSpecial.title')" @back="$router.back()" />
-
-    <el-card style="margin-top: 20px">
+  <div class="customer-special-tab">
+    <el-card>
       <div class="toolbar">
         <el-button type="primary" @click="handleCreate">{{
           $t('colorPrices.customerSpecial.create')
@@ -206,7 +204,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.customer-special {
+.customer-special-tab {
   padding: 20px;
 }
 .toolbar {
