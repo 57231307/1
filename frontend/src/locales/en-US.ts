@@ -7092,7 +7092,6 @@ export default {
       emptyText: 'No quotations',
       tableAriaLabel: 'Quotation List',
       colQuotationNo: 'Quotation No.',
-      colCustomer: 'Customer',
       colQuotationDate: 'Quotation Date',
       colValidUntil: 'Valid Until',
       colPriceTerms: 'Price Terms',

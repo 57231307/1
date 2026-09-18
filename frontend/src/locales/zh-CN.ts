@@ -7085,7 +7085,6 @@ export default {
       emptyText: '暂无报价单',
       tableAriaLabel: '报价单列表',
       colQuotationNo: '报价单号',
-      colCustomer: '客户',
       colQuotationDate: '报价日期',
       colValidUntil: '有效期',
       colPriceTerms: '价格条款',
