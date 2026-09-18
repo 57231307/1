@@ -118,6 +118,78 @@
       <el-button type="primary" link @click="addItem">
         <el-icon><Plus /></el-icon>{{ $t('inventoryTransfer.transferForm.addItem') }}
       </el-button>
+
+      <!-- 查看模式：后端明细回源与行级维护 -->
+      <template v-if="mode === 'view' && formData.id">
+        <el-divider content-position="left">{{
+          $t('inventoryTransfer.transferForm.serverItemsDivider')
+        }}</el-divider>
+        <el-table
+          v-loading="detailLoading"
+          :data="serverItems"
+          border
+          size="small"
+          max-height="300"
+        >
+          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column
+            prop="product_id"
+            :label="$t('inventoryTransfer.transferForm.colProductId')"
+            width="100"
+          />
+          <el-table-column :label="$t('inventoryTransfer.transferForm.colQuantity')" width="150">
+            <template #default="{ row }">
+              <el-input-number
+                v-if="editable"
+                v-model="row.quantity"
+                :min="1"
+                size="small"
+                controls-position="right"
+              />
+              <span v-else>{{ row.quantity }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="shipped_quantity"
+            :label="$t('inventoryTransfer.transferForm.colShipped')"
+            width="110"
+          />
+          <el-table-column
+            prop="received_quantity"
+            :label="$t('inventoryTransfer.transferForm.colReceived')"
+            width="110"
+          />
+          <el-table-column
+            :label="$t('inventoryTransfer.transferForm.colOperation')"
+            width="140"
+            fixed="right"
+          >
+            <template #default="{ row }">
+              <template v-if="editable">
+                <el-button link type="primary" size="small" @click="handleSaveItem(row)">{{
+                  $t('inventoryTransfer.transferForm.saveItem')
+                }}</el-button>
+                <el-button link type="danger" size="small" @click="handleDeleteItem(row)">{{
+                  $t('inventoryTransfer.transferForm.deleteItem')
+                }}</el-button>
+              </template>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div v-if="editable" class="add-item-bar">
+          <el-input-number
+            v-model="newItem.product_id"
+            :min="1"
+            :placeholder="$t('inventoryTransfer.transferForm.colProductId')"
+            style="width: 150px"
+          />
+          <el-input-number v-model="newItem.quantity" :min="1" style="width: 130px" />
+          <el-button type="primary" plain :loading="itemSaving" @click="handleAddItem">
+            {{ $t('inventoryTransfer.transferForm.addItem') }}
+          </el-button>
+        </div>
+      </template>
     </el-form>
     <template v-if="mode !== 'view'" #footer>
       <el-button @click="emit('update:modelValue', false)">{{
@@ -131,14 +203,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
 import { Plus, Delete } from '@element-plus/icons-vue';
 import {
   createInventoryTransfer,
   updateInventoryTransfer,
+  getInventoryTransfer,
+  createTransferItem,
+  updateTransferItem,
+  deleteTransferItem,
   type InventoryTransferEntity,
 } from '@/api/inventory-transfer';
 import type { Warehouse } from '@/api/warehouse';
@@ -216,12 +292,100 @@ watch(
         if (!formData.items || formData.items.length === 0) {
           formData.items = [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }];
         }
+        if (props.mode === 'view' && formData.id) void fetchServerItems();
       } else {
         resetForm();
       }
     }
   }
 );
+
+// ===== 查看模式：后端明细回源与行级维护（getInventoryTransfer + 明细 CRUD） =====
+interface ServerItem {
+  id: number;
+  product_id: number;
+  quantity: number;
+  shipped_quantity: number;
+  received_quantity: number;
+  unit_cost?: number;
+  notes?: string | null;
+}
+
+const serverItems = ref<ServerItem[]>([]);
+const detailLoading = ref(false);
+const itemSaving = ref(false);
+const newItem = reactive({ product_id: 1, quantity: 1 });
+
+const editable = computed(() => {
+  const s = (formData.status || '').toLowerCase();
+  return s !== 'shipped' && s !== 'received' && s !== 'completed';
+});
+
+const fetchServerItems = async () => {
+  detailLoading.value = true;
+  try {
+    const res = (await getInventoryTransfer(formData.id)) as {
+      data?: { items?: ServerItem[] };
+      items?: ServerItem[];
+    };
+    serverItems.value = res.data?.items ?? res.items ?? [];
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('inventoryTransfer.transferList.message.failure'));
+  } finally {
+    detailLoading.value = false;
+  }
+};
+
+const handleAddItem = async () => {
+  if (!formData.id || !newItem.product_id || !newItem.quantity) return;
+  itemSaving.value = true;
+  try {
+    await createTransferItem(formData.id, {
+      product_id: newItem.product_id,
+      quantity: newItem.quantity,
+    });
+    ElMessage.success(t('inventoryTransfer.transferList.message.success'));
+    await fetchServerItems();
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('inventoryTransfer.transferList.message.failure'));
+  } finally {
+    itemSaving.value = false;
+  }
+};
+
+const handleSaveItem = async (row: ServerItem) => {
+  try {
+    await updateTransferItem(row.id, {
+      product_id: row.product_id,
+      quantity: Number(row.quantity),
+    });
+    ElMessage.success(t('inventoryTransfer.transferList.message.success'));
+    await fetchServerItems();
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('inventoryTransfer.transferList.message.failure'));
+  }
+};
+
+const handleDeleteItem = async (row: ServerItem) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryTransfer.transferForm.deleteItemConfirm'),
+      t('inventoryTransfer.transferList.message.deleteTitle'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteTransferItem(row.id);
+    ElMessage.success(t('inventoryTransfer.transferList.message.success'));
+    await fetchServerItems();
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error((e as Error).message || t('inventoryTransfer.transferList.message.failure'));
+    }
+  }
+};
 
 const handleSubmit = async () => {
   submitLoading.value = true;

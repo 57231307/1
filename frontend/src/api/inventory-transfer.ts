@@ -30,8 +30,12 @@ export interface TransferItem {
   grade?: string;
   unit?: string;
   quantity: number;
-  cost_price: number;
-  amount: number;
+  shipped_quantity?: number;
+  received_quantity?: number;
+  unit_cost?: number;
+  notes?: string | null;
+  cost_price?: number;
+  amount?: number;
   remark?: string;
 }
 
