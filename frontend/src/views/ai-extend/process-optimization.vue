@@ -9,6 +9,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   createProcessOptimization,
   deleteProcessOptimization,
+  batchCreateProcessOptimizations,
   SOURCE_LABELS,
   type AiProcessOptimization,
   type ProcessOptRequest,
@@ -76,6 +77,38 @@ function openCreate() {
   form.dye_type = '';
   form.k = 5;
   dialogVisible.value = true;
+}
+
+// ===== 批量创建（batchCreateProcessOptimizations） =====
+const batchVisible = ref(false);
+const batchSaving = ref(false);
+const batchText = ref('');
+
+async function handleBatchCreate() {
+  let requests: unknown;
+  try {
+    requests = JSON.parse(batchText.value || '[]');
+  } catch {
+    ElMessage.warning('JSON 格式有误');
+    return;
+  }
+  if (!Array.isArray(requests) || requests.length === 0) {
+    ElMessage.warning('请填写请求数组');
+    return;
+  }
+  batchSaving.value = true;
+  try {
+    const res = await batchCreateProcessOptimizations(requests as never[]);
+    ElMessage.success(`批量完成：成功 ${res.succeeded} / 失败 ${res.failed} / 共 ${res.total}`);
+    batchVisible.value = false;
+    batchText.value = '';
+    page.value = 1;
+    await load();
+  } catch (e) {
+    ElMessage.error((e as Error).message || '批量创建失败');
+  } finally {
+    batchSaving.value = false;
+  }
 }
 
 async function submitCreate() {
@@ -156,6 +189,7 @@ const appliedOptions = computed(() => [
         <el-button type="primary" @click="openCreate">{{
           $t('aiExtend.process.newRecommend')
         }}</el-button>
+        <el-button plain @click="batchVisible = true">批量创建</el-button>
       </div>
     </div>
 
@@ -386,6 +420,20 @@ const appliedOptions = computed(() => [
         <el-button type="primary" :loading="submitting" @click="submitCreate">{{
           $t('aiExtend.process.generate')
         }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量创建（batchCreateProcessOptimizations） -->
+    <el-dialog v-model="batchVisible" title="批量工艺优化（JSON 数组）" width="560">
+      <el-input
+        v-model="batchText"
+        type="textarea"
+        :rows="7"
+        placeholder='[{"color_no":"R001","fabric_type":"全棉","dye_type":"活性"},{"color_no":"R002","fabric_type":"涤棉"}]'
+      />
+      <template #footer>
+        <el-button @click="batchVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchSaving" @click="handleBatchCreate">提交</el-button>
       </template>
     </el-dialog>
   </div>
