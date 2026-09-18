@@ -50,6 +50,17 @@
           </el-form-item>
         </el-col>
       </el-row>
+      <el-form-item
+        :label="t('purchaseReturn.form.label.reasonType') || '原因类型'"
+        prop="reasonType"
+      >
+        <el-select v-model="localFormData.reasonType" style="width: 100%">
+          <el-option label="质量问题" value="quality" />
+          <el-option label="数量错误" value="quantity" />
+          <el-option label="规格不符" value="spec" />
+          <el-option label="其他" value="other" />
+        </el-select>
+      </el-form-item>
       <el-form-item :label="t('purchaseReturn.form.label.reason')" prop="reason">
         <el-input
           v-model="localFormData.reason"
@@ -174,7 +185,9 @@ interface Product {
 interface FormDataType {
   id?: number | undefined;
   purchaseOrderId?: number | undefined;
+  supplierId?: number | undefined;
   returnDate?: string;
+  reasonType?: string;
   reason?: string;
   remarks?: string;
   items?: Partial<PurchaseReturnItem>[];

@@ -8667,6 +8667,7 @@ export default {
         returnDate: 'Return Date',
         returnAmount: 'Return Amount',
         status: 'Status',
+        reasonType: 'Reason Type',
         reason: 'Reason',
         remarks: 'Remarks',
       },

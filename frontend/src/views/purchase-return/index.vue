@@ -131,10 +131,19 @@ const onCreate = () => {
   dialogVisible.value = true;
 };
 
-/** 编辑 */
-const onEdit = (row: PurchaseReturn) => {
+/** 编辑（先按 ID 回源最新退货单，失败保留行数据） */
+const onEdit = async (row: PurchaseReturn) => {
   isEdit.value = true;
-  prRtn.prepareEdit(row);
+  try {
+    await prRtn.fetchDetail(row.id!);
+    if (prRtn.detailData.value?.id === row.id) {
+      prRtn.prepareEdit(prRtn.detailData.value as unknown as PurchaseReturn);
+    } else {
+      prRtn.prepareEdit(row);
+    }
+  } catch {
+    prRtn.prepareEdit(row);
+  }
   dialogVisible.value = true;
 };
 

@@ -8741,6 +8741,7 @@ export default {
         returnDate: '退货日期',
         returnAmount: '退货金额',
         status: '状态',
+        reasonType: '原因类型',
         reason: '退货原因',
         remarks: '备注',
       },
