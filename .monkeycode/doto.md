@@ -100,7 +100,13 @@
 ### 验证类（需推送授权或手动执行）
 
 - [ ] PG 机制锚点测试手动验证：`TEST_DATABASE_URL=... cargo test --test rls_context_test -- --ignored`（test_rls_guc_visible_in_same_pool_pg，CI 不跑 ignored）
-- [ ] RLS dept 迁移部署 sequencing 确认：生产部署先 `bingxi migrate run` 再发新后端二进制（顺序颠倒新代码读不到 department_id；旧后端+新迁移=dept 安全降级为 self+公海，无风险窗口）
+- [x] RLS dept 迁移部署 sequencing 确认：生产部署先 `bingxi migrate run` 再发新后端二进制（顺序颠倒新代码读不到 department_id；旧后端+新迁移=dept 安全降级为 self+公海，无风险窗口）（runtime-flow-map.md L232）
+
+### 剩余已知项状态（2026-09-18 判责更新，PR #941 剩余已知项）
+
+- [x] **S10 31c 客户停用**：最新 run 35204061536 shard-12 已通过（无失败记录），关闭；c2d9a4f cookie 域统一进一步加固
+- [x] **S9/S11 超时潮 + 33/33b 全 401**：根因确认为测试基建错误（API_BASE 默认 127.0.0.1:8082 与 UI 登录 cookie 域 localhost 错配，trace 网络层证据 Cookie=false），修复 = c2d9a4f（本地分支已含），待推送后 CI 验证
+- [ ] 推送授权后验证上述修复（33/33b 401 应转 403、超时潮应消失）
 
 ### 流程备忘
 
