@@ -12,7 +12,12 @@ import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
 import { request } from '@/api/request';
-import { type PurchaseReceiptEntity, type ReceiptItem } from '@/api/purchase-receipt';
+import {
+  type PurchaseReceiptEntity,
+  type ReceiptItem,
+  generatePurchaseReceiptNo,
+} from '@/api/purchase-receipt';
+import { getProductList, type Product } from '@/api/product';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -87,7 +92,7 @@ export function usePrc() {
   // 选项
   const supplierOptions = ref<{ label: string; value: number }[]>([]);
   const warehouseOptions = ref<{ label: string; value: number }[]>([]);
-  const productOptions = ref<{ label: string; value: number }[]>([]);
+  const productOptions = ref<{ label: string; value: number; code?: string; name?: string }[]>([]);
 
   /** 加载供应商 */
   const loadSuppliers = async () => {
@@ -115,14 +120,19 @@ export function usePrc() {
     }
   };
 
-  /** 加载产品 */
+  /** 加载产品（修复：原直接将 /products/select 分页对象赋给数组，下拉恒为空） */
   const loadProducts = async () => {
     try {
-      const res: { data: { label: string; value: number }[] | null } = (await request.get(
-        '/products/select'
-      )) as { data: { label: string; value: number }[] | null };
-      // 安全检查：防止后端返回 data 为 null 时崩溃
-      if (res.data) productOptions.value = res.data;
+      const res = await getProductList({ page: 1, page_size: 1000 });
+      const items = (res.data?.items ||
+        (res.data as unknown as { list?: Product[] })?.list ||
+        []) as Product[];
+      productOptions.value = items.map(p => ({
+        label: `${p.product_code} - ${p.product_name}`,
+        value: p.id,
+        code: p.product_code,
+        name: p.product_name,
+      }));
     } catch (error) {
       logger.warn('加载产品失败:', error);
     }

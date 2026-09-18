@@ -7,9 +7,15 @@
  * 设计说明：通过 callbacks 接收 usePrc 的状态引用（Reactive 包装层）；
  * 由于 usePrc 返回 reactive({...})，父组件传入 prc.searchForm 等会自动解包为值
  */
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import {
+  createReceiptItem,
+  updateReceiptItem,
+  deleteReceiptItem,
+  generatePurchaseReceiptNo,
+} from '@/api/purchase-receipt';
 import {
   getPurchaseReceipt,
   getReceiptItems,
@@ -65,7 +71,7 @@ export function usePrcProc(cb: PrcCallbacks) {
     cb.loadData();
   };
 
-  /** 打开新增对话框 */
+  /** 打开新增对话框（预生成单号供参考，后端保存时以最终生成为准） */
   const openAddDialog = () => {
     cb.dialogTitle = '新增入库';
     cb.form = {
@@ -77,6 +83,18 @@ export function usePrcProc(cb: PrcCallbacks) {
       items: [{ product_id: 0, quantity: 0, price: 0, amount: 0 }],
     };
     cb.dialogVisible = true;
+    // 预生成单号展示（generatePurchaseReceiptNo，后端保存时最终生成）
+    void generatePurchaseReceiptNo()
+      .then(res => {
+        const no = res.data?.receipt_no;
+        if (no && !cb.form.id) {
+          cb.form.receipt_no = no;
+          cb.dialogTitle = `新增入库（预生成单号 ${no}）`;
+        }
+      })
+      .catch(() => {
+        /* 预生成失败不阻断新建 */
+      });
   };
 
   /** 打开编辑对话框 */
@@ -107,9 +125,12 @@ export function usePrcProc(cb: PrcCallbacks) {
     cb.form.items.push({ product_id: 0, quantity: 0, price: 0, amount: 0 });
   };
 
-  /** 删除明细 */
+  /** 删除明细（编辑态记录已删除的明细 ID，提交时走 deleteReceiptItem） */
+  const removedItemIds = ref<number[]>([]);
   const removeItem = (index: number) => {
     if ((cb.form.items || []).length > 1) {
+      const removed = cb.form.items![index];
+      if (cb.form.id && removed?.id) removedItemIds.value.push(removed.id);
       cb.form.items!.splice(index, 1);
     }
   };
@@ -129,13 +150,40 @@ export function usePrcProc(cb: PrcCallbacks) {
       return;
     }
 
+    // 明细字段映射到后端 CreateReceiptItemRequest 契约（material_id/material_code/material_name/
+    // line_no/quantity/quantity_alt/unit_master；原直接发 product_id/price 会被后端拒绝）
+    const mapItem = (it: ReceiptItem, idx: number) => ({
+      line_no: idx + 1,
+      material_id: it.product_id,
+      material_code: it.product_code || `P${it.product_id}`,
+      material_name: it.product_name || `物料${it.product_id}`,
+      quantity: it.quantity,
+      quantity_alt: it.quantity,
+      unit_master: it.unit || 'm',
+      unit_price: it.price || undefined,
+    });
+
     try {
-      const data = { ...cb.form, items: validItems };
       if (cb.form.id) {
-        await updatePurchaseReceipt(cb.form.id, data as PurchaseReceiptEntity);
+        // 编辑：明细走 item 级端点（PUT /{id} 仅接受表头字段，原整单 PUT 会静默丢弃明细改动）
+        await updatePurchaseReceipt(cb.form.id, cb.form as PurchaseReceiptEntity);
+        let idx = 0;
+        for (const it of validItems) {
+          if (it.id) {
+            await updateReceiptItem(cb.form.id, it.id, mapItem(it, idx));
+          } else {
+            await createReceiptItem(cb.form.id, mapItem(it, idx));
+          }
+          idx += 1;
+        }
+        for (const itemId of removedItemIds.value) {
+          await deleteReceiptItem(cb.form.id, itemId);
+        }
+        removedItemIds.value = [];
         msg.success('updateSuccess');
       } else {
-        await createPurchaseReceipt(data as PurchaseReceiptEntity);
+        const data = { ...cb.form, items: validItems.map(mapItem) };
+        await createPurchaseReceipt(data as unknown as PurchaseReceiptEntity);
         msg.success('createSuccess');
       }
       cb.dialogVisible = false;
