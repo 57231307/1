@@ -223,6 +223,7 @@ import {
   approveBudget as approveBudgetApi,
   adjustBudget,
   getBudget,
+  BUDGET_STATUS,
   type Budget,
 } from '@/api/budget';
 import { logger } from '@/utils/logger';
@@ -309,13 +310,7 @@ const getStatusLabel = (status: Budget['status']) => {
 };
 
 const getStatusType = (status: Budget['status']) => {
-  const map: Record<Budget['status'], string> = {
-    draft: 'info',
-    pending: 'warning',
-    approved: 'success',
-    rejected: 'danger',
-  };
-  return map[status] || 'info';
+  return BUDGET_STATUS[status]?.type || 'info';
 };
 
 const handleSearch = () => {
