@@ -490,6 +490,17 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '社保管理', icon: 'Umbrella', permission: 'users:read', requiresAuth: true },
       },
       {
+        path: 'environmental-compliance',
+        name: 'EnvironmentalCompliance',
+        component: () => import('@/views/environmental-compliance/index.vue'),
+        meta: {
+          title: '环保合规',
+          icon: 'Leaf',
+          permission: 'users:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'occupational-health',
         name: 'OccupationalHealth',
         component: () => import('@/views/occupational-health/index.vue'),
