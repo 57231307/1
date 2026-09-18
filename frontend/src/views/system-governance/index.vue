@@ -4,6 +4,9 @@
       <!-- 权限委托 -->
       <el-tab-pane label="权限委托" name="delegation">
         <div class="toolbar mb">
+          <el-button type="primary" @click="delegationDialogVisible = true">新建委托</el-button>
+          <el-button plain @click="loadDelegations">全部委托</el-button>
+          <el-button plain @click="onLoadActiveDelegations">生效中委托</el-button>
           <el-button plain @click="onExpireOverdue">清理过期委托</el-button>
         </div>
         <el-table v-loading="loading" :data="delegations" border>
@@ -16,8 +19,9 @@
               show-overflow-tooltip
             />
           </template>
-          <el-table-column label="操作" width="120" fixed="right">
+          <el-table-column label="操作" width="180" fixed="right">
             <template #default="{ row }">
+              <el-button size="small" @click="onDelegationDetail(row)">详情</el-button>
               <el-button size="small" type="danger" plain @click="onRevoke(row)">撤销</el-button>
             </template>
           </el-table-column>
@@ -92,6 +96,9 @@
           <el-button type="primary" :loading="roleChangeLoading" @click="loadRoleChanges">
             刷新
           </el-button>
+          <el-button type="primary" plain @click="roleChangeDialogVisible = true"
+            >新建审批</el-button
+          >
         </div>
         <el-table v-loading="roleChangeLoading" :data="roleChanges" border>
           <el-table-column prop="id" label="ID" width="70" />
@@ -103,8 +110,9 @@
               show-overflow-tooltip
             />
           </template>
-          <el-table-column label="操作" width="300" fixed="right">
+          <el-table-column label="操作" width="360" fixed="right">
             <template #default="{ row }">
+              <el-button size="small" @click="onRoleChangeDetail(row)">详情</el-button>
               <el-button
                 v-if="row.status === 'pending_l1'"
                 size="small"
@@ -137,6 +145,7 @@
         <div class="toolbar mb">
           <el-tag>在线设备：{{ onlineCount }}</el-tag>
           <el-button type="primary" @click="deviceDialogVisible = true">注册设备</el-button>
+          <el-button plain @click="onCleanupTimeoutDevices">清理超时设备</el-button>
         </div>
         <el-table v-loading="loadingDevices" :data="devices" border>
           <el-table-column prop="id" label="ID" width="70" />
@@ -148,6 +157,17 @@
               show-overflow-tooltip
             />
           </template>
+          <el-table-column label="操作" width="220" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" @click="onDeviceDetail(row)">详情</el-button>
+              <el-button size="small" type="success" plain @click="onDeviceHeartbeat(row)">
+                心跳
+              </el-button>
+              <el-button size="small" type="warning" plain @click="onDisconnectDevice(row)">
+                断开
+              </el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
     </el-tabs>
@@ -203,6 +223,59 @@
         <el-button type="primary" @click="onRegisterDevice">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="delegationDialogVisible" title="新建权限委托" width="480">
+      <el-form :model="delegationForm" label-width="110px">
+        <el-form-item label="受托人ID" required
+          ><el-input-number v-model="delegationForm.delegatee_id" :min="1"
+        /></el-form-item>
+        <el-form-item label="权限码" required
+          ><el-input
+            v-model="delegationForm.permission_codes"
+            placeholder="多个用英文逗号分隔，如 user:read,user:write"
+          />
+        </el-form-item>
+        <el-form-item label="开始日期"
+          ><el-input v-model="delegationForm.start_date"
+        /></el-form-item>
+        <el-form-item label="结束日期"><el-input v-model="delegationForm.end_date" /></el-form-item>
+        <el-form-item label="委托原因"><el-input v-model="delegationForm.reason" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="delegationDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="onSaveDelegation">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="roleChangeDialogVisible" title="新建角色变更审批" width="500">
+      <el-form :model="roleChangeForm" label-width="120px">
+        <el-form-item label="变更类型" required>
+          <el-select v-model="roleChangeForm.change_type" style="width: 100%">
+            <el-option label="新增角色" value="create_role" />
+            <el-option label="修改角色" value="update_role" />
+            <el-option label="删除角色" value="delete_role" />
+            <el-option label="权限变更" value="permission_change" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="目标角色ID" required
+          ><el-input-number v-model="roleChangeForm.target_role_id" :min="1"
+        /></el-form-item>
+        <el-form-item label="目标用户ID"
+          ><el-input-number v-model="roleChangeForm.target_user_id" :min="1"
+        /></el-form-item>
+        <el-form-item label="变更原因" required
+          ><el-input v-model="roleChangeForm.reason" type="textarea" :rows="3"
+        /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="roleChangeDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="onSaveRoleChange">提交</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="detailDialogVisible" title="详情" width="560">
+      <pre class="detail-json">{{ detailJson }}</pre>
+    </el-dialog>
   </div>
 </template>
 
@@ -231,10 +304,19 @@ import {
   logDecision,
   getDecisionLogs,
   getRoleChangeApprovals,
+  getRoleChangeApproval,
+  createRoleChangeApproval,
   approveRoleChangeL1,
   approveRoleChangeL2,
   rejectRoleChangeApproval,
   cancelRoleChangeApproval,
+  createPermissionDelegation,
+  getDelegation,
+  getActiveDelegatedPermissions,
+  getDeviceConnection,
+  sendDeviceHeartbeat,
+  disconnectDevice,
+  cleanupTimeoutDevices,
   checkMutualExclusive,
 } from '@/api/system-governance';
 
@@ -275,6 +357,85 @@ async function onRevoke(row: Record<string, unknown>) {
   await revokeDelegation(row.id as number);
   ElMessage.success('已撤销');
   await loadDelegations();
+}
+
+// 委托详情弹窗（复用 detail-json 展示）
+const detailDialogVisible = ref(false);
+const detailJson = ref('');
+
+async function showDetail(data: unknown) {
+  detailJson.value = JSON.stringify(data, null, 2);
+  detailDialogVisible.value = true;
+}
+
+async function onDelegationDetail(row: Record<string, unknown>) {
+  try {
+    const res = await getDelegation(Number(row.id));
+    await showDetail(res.data ?? res);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+}
+
+// 生效中委托：按受托人查询 active 状态委托
+async function onLoadActiveDelegations() {
+  let delegateeId = 0;
+  try {
+    const { value } = await ElMessageBox.prompt('请输入受托人用户ID', '生效中委托', {
+      inputPattern: /^\d+$/,
+      inputErrorMessage: '请输入数字ID',
+    });
+    delegateeId = Number(value);
+  } catch {
+    return;
+  }
+  loading.value = true;
+  try {
+    const res = await getActiveDelegatedPermissions(delegateeId);
+    delegations.value = unwrapList(res.data ?? res);
+    ElMessage.success(`受托人 ${delegateeId} 的生效中委托已加载`);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    loading.value = false;
+  }
+}
+
+// 新建委托
+const delegationDialogVisible = ref(false);
+const delegationForm = reactive({
+  delegatee_id: 1,
+  permission_codes: '',
+  start_date: '',
+  end_date: '',
+  reason: '',
+});
+
+async function onSaveDelegation() {
+  if (!delegationForm.delegatee_id || !delegationForm.permission_codes.trim()) {
+    ElMessage.warning('请填写受托人与权限码');
+    return;
+  }
+  try {
+    await createPermissionDelegation({
+      delegatee_id: delegationForm.delegatee_id,
+      permission_codes: delegationForm.permission_codes
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean),
+      start_date: delegationForm.start_date || undefined,
+      end_date: delegationForm.end_date || undefined,
+      reason: delegationForm.reason || undefined,
+    });
+    ElMessage.success('委托已创建');
+    delegationDialogVisible.value = false;
+    await loadDelegations();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
 }
 
 // 角色关系
@@ -396,6 +557,63 @@ async function onRegisterDevice() {
   await loadDevices();
 }
 
+// 设备详情
+async function onDeviceDetail(row: Record<string, unknown>) {
+  try {
+    const res = await getDeviceConnection(String(row.id));
+    await showDetail(res.data ?? res);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+}
+
+// 设备心跳
+async function onDeviceHeartbeat(row: Record<string, unknown>) {
+  try {
+    await sendDeviceHeartbeat(String(row.id));
+    ElMessage.success(`设备 #${row.id} 心跳已发送`);
+    await loadDevices();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+}
+
+// 断开设备
+async function onDisconnectDevice(row: Record<string, unknown>) {
+  try {
+    await ElMessageBox.confirm(`确认断开设备 #${row.id}？`, '确认', { type: 'warning' });
+  } catch {
+    return;
+  }
+  try {
+    await disconnectDevice(String(row.id));
+    ElMessage.success('设备已断开');
+    await loadDevices();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+}
+
+// 清理超时设备
+async function onCleanupTimeoutDevices() {
+  try {
+    await ElMessageBox.confirm('确认清理所有超时设备连接？', '确认', { type: 'warning' });
+  } catch {
+    return;
+  }
+  try {
+    await cleanupTimeoutDevices();
+    ElMessage.success('超时设备已清理');
+    await loadDevices();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+}
+
 // 模型版本状态变更（激活/弃用）
 const onModelStatus = async (row: Record<string, unknown>, status: string) => {
   try {
@@ -463,6 +681,47 @@ const loadRoleChanges = async () => {
   }
 };
 
+// 新建角色变更审批
+const roleChangeDialogVisible = ref(false);
+const roleChangeForm = reactive({
+  change_type: 'permission_change',
+  target_role_id: 1,
+  target_user_id: undefined as number | undefined,
+  reason: '',
+});
+
+const onSaveRoleChange = async () => {
+  if (!roleChangeForm.reason.trim()) {
+    ElMessage.warning('请填写变更原因');
+    return;
+  }
+  try {
+    await createRoleChangeApproval({
+      change_type: roleChangeForm.change_type,
+      target_role_id: roleChangeForm.target_role_id,
+      target_user_id: roleChangeForm.target_user_id,
+      reason: roleChangeForm.reason,
+    });
+    ElMessage.success('审批单已创建');
+    roleChangeDialogVisible.value = false;
+    await loadRoleChanges();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+};
+
+// 审批单详情
+const onRoleChangeDetail = async (row: Record<string, unknown>) => {
+  try {
+    const res = await getRoleChangeApproval(Number(row.id));
+    await showDetail(res.data ?? res);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+};
+
 const onRoleChangeAction = async (
   row: Record<string, unknown>,
   action: 'approve-l1' | 'approve-l2' | 'reject' | 'cancel'
@@ -522,5 +781,15 @@ onMounted(() => {
   overflow: auto;
   white-space: pre-wrap;
   margin-top: 12px;
+}
+.detail-json {
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  padding: 12px;
+  font-size: 12px;
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre-wrap;
+  margin: 0;
 }
 </style>
