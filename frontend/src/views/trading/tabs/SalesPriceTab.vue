@@ -64,7 +64,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('trading.salesPriceTab.columnActions')" width="120">
+        <el-table-column :label="t('trading.salesPriceTab.columnActions')" width="200">
           <template #default="{ row }">
             <el-button
               type="primary"
@@ -72,6 +72,21 @@
               size="small"
               @click="openSalesPriceDialog(row as unknown as TradingPrice)"
               >{{ t('trading.salesPriceTab.buttonEdit') }}</el-button
+            >
+            <el-button
+              v-if="(row as TradingPrice).status === 'draft'"
+              type="success"
+              link
+              size="small"
+              @click="handleApprovePrice(row as TradingPrice)"
+              >{{ t('trading.salesPriceTab.buttonApprove') }}</el-button
+            >
+            <el-button
+              type="danger"
+              link
+              size="small"
+              @click="handleDeletePrice(row as TradingPrice)"
+              >{{ t('trading.salesPriceTab.buttonDelete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -158,13 +173,15 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import {
   getTradingPriceList,
   getTradingPrice,
   createTradingPrice,
   updateTradingPrice,
+  deleteTradingPrice,
+  approveTradingPrice,
   type TradingPrice,
 } from '@/api/trading-price';
 
@@ -308,6 +325,40 @@ const onSubmitPrice = async () => {
       priceSubmitting.value = false;
     }
   });
+};
+
+const handleApprovePrice = async (row: TradingPrice) => {
+  try {
+    await ElMessageBox.confirm(
+      t('trading.salesPriceTab.confirmApproveText', { name: row.product_name }),
+      t('trading.salesPriceTab.confirmApproveTitle'),
+      { type: 'warning' }
+    );
+    await approveTradingPrice(row.id, 'sales');
+    ElMessage.success(t('trading.salesPriceTab.messageApproveSuccess'));
+    fetchSalesPrices();
+  } catch (e) {
+    if (e === 'cancel') return;
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('trading.salesPriceTab.messageOperationFailed'));
+  }
+};
+
+const handleDeletePrice = async (row: TradingPrice) => {
+  try {
+    await ElMessageBox.confirm(
+      t('trading.salesPriceTab.confirmDeleteText', { name: row.product_name }),
+      t('trading.salesPriceTab.confirmDeleteTitle'),
+      { type: 'warning' }
+    );
+    await deleteTradingPrice(row.id, 'sales');
+    ElMessage.success(t('trading.salesPriceTab.messageDeleteSuccess'));
+    fetchSalesPrices();
+  } catch (e) {
+    if (e === 'cancel') return;
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('trading.salesPriceTab.messageOperationFailed'));
+  }
 };
 
 defineExpose({ refresh: fetchSalesPrices });

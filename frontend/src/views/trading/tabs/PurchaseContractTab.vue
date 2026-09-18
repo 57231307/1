@@ -55,7 +55,7 @@
         </el-table-column>
         <el-table-column
           :label="t('trading.purchaseContractTab.columnActions')"
-          width="200"
+          width="260"
           fixed="right"
         >
           <template #default="{ row }">
@@ -65,6 +65,14 @@
               size="small"
               @click="viewPurchaseContract(row as unknown as TradingContract)"
               >{{ t('trading.purchaseContractTab.buttonView') }}</el-button
+            >
+            <el-button
+              v-if="row.status === 'draft'"
+              type="primary"
+              link
+              size="small"
+              @click="openEditContractDialog(row as unknown as TradingContract)"
+              >{{ t('trading.purchaseContractTab.buttonEdit') }}</el-button
             >
             <el-button
               v-if="row.status === 'draft'"
@@ -93,11 +101,43 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- 编辑合同对话框 -->
+    <el-dialog
+      v-model="editDialogVisible"
+      :title="t('trading.purchaseContractTab.editDialogTitle')"
+      width="480px"
+    >
+      <el-form ref="editFormRef" :model="editForm" label-width="100px">
+        <el-form-item :label="t('trading.purchaseContractTab.detailContractNo')">
+          <span>{{ editForm.contract_no }}</span>
+        </el-form-item>
+        <el-form-item :label="t('trading.purchaseContractTab.detailSupplier')">
+          <el-input v-model="editForm.supplier_name" />
+        </el-form-item>
+        <el-form-item :label="t('trading.purchaseContractTab.detailContractAmount')">
+          <el-input-number
+            v-model="editForm.total_amount"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">{{
+          t('trading.purchaseContractTab.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="editSubmitting" @click="onSubmitEdit">{{
+          t('trading.purchaseContractTab.buttonConfirm')
+        }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -105,6 +145,7 @@ import {
   getTradingContractList,
   getTradingContract,
   createTradingContract,
+  updateTradingContract,
   approveTradingContract,
   executeTradingContract,
   deleteTradingContract,
@@ -269,6 +310,57 @@ const deletePurchaseContract = async (row: TradingContract) => {
 };
 
 defineExpose({ refresh: fetchPurchaseContracts });
+
+const editDialogVisible = ref(false);
+const editSubmitting = ref(false);
+const editFormRef = ref();
+const editForm = reactive({
+  id: 0,
+  contract_no: '',
+  supplier_name: '',
+  total_amount: 0,
+});
+
+const openEditContractDialog = async (row: TradingContract) => {
+  try {
+    const res = await getTradingContract(row.id, 'purchase');
+    const d = res.data;
+    if (!d) {
+      ElMessage.warning(t('trading.purchaseContractTab.messageDetailNotFound'));
+      return;
+    }
+    editForm.id = d.id;
+    editForm.contract_no = d.contract_no;
+    editForm.supplier_name = d.supplier_name || '';
+    editForm.total_amount = d.total_amount;
+    editDialogVisible.value = true;
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('trading.purchaseContractTab.messageFetchDetailFailed'));
+  }
+};
+
+const onSubmitEdit = async () => {
+  editSubmitting.value = true;
+  try {
+    await updateTradingContract(
+      editForm.id,
+      {
+        supplier_name: editForm.supplier_name,
+        total_amount: editForm.total_amount,
+      },
+      'purchase'
+    );
+    ElMessage.success(t('trading.purchaseContractTab.messageEditSuccess'));
+    editDialogVisible.value = false;
+    fetchPurchaseContracts();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('trading.purchaseContractTab.messageOperationFailed'));
+  } finally {
+    editSubmitting.value = false;
+  }
+};
 
 onMounted(() => {
   fetchPurchaseContracts();

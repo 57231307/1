@@ -58,3 +58,8 @@ export const deleteTradingPrice = (id: number, type: 'purchase' | 'sales') =>
   type === 'purchase'
     ? request.delete<ApiResponse<null>>(`/purchase/purchase-prices/${id}`)
     : request.delete<ApiResponse<null>>(`/sales/sales-prices/${id}`);
+
+export const approveTradingPrice = (id: number, type: 'purchase' | 'sales') =>
+  type === 'purchase'
+    ? request.post<ApiResponse<TradingPrice>>(`/purchase/purchase-prices/${id}/approve`)
+    : request.post<ApiResponse<TradingPrice>>(`/sales/sales-prices/${id}/approve`);
