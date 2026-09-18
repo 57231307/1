@@ -49,7 +49,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" :label="t('mrp.history.createdAt')" width="180" />
-        <el-table-column :label="t('mrp.history.operation')" width="150" fixed="right">
+        <el-table-column :label="t('mrp.history.operation')" width="230" fixed="right">
           <template #default="{ row }">
             <el-button
               type="primary"
@@ -59,6 +59,24 @@
               @click="viewResult(row as MrpHistoryRecord)"
             >
               {{ t('mrp.history.viewResult') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'calculating' || row.status === 'pending'"
+              type="warning"
+              link
+              size="small"
+              @click="handleCancelCalculation(row as MrpHistoryRecord)"
+            >
+              {{ t('mrp.history.cancelCalculation') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'completed'"
+              type="success"
+              link
+              size="small"
+              @click="handleExportResult(row as MrpHistoryRecord)"
+            >
+              {{ t('mrp.history.exportResult') }}
             </el-button>
           </template>
         </el-table-column>
@@ -192,17 +210,74 @@
             :label="t('mrp.history.suggestedDate')"
             width="130"
           />
+          <el-table-column :label="t('mrp.history.operation')" width="110" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" size="small" @click="showMaterialDetail(row)">{{
+                t('mrp.history.viewSupplyDetail')
+              }}</el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </template>
+    </el-dialog>
+
+    <!-- 供需明细对话框（getMaterialRequirementDetail） -->
+    <el-dialog v-model="supplyVisible" :title="t('mrp.history.supplyDetailTitle')" width="640">
+      <el-descriptions v-if="supplyMaterial" :column="2" border size="small" class="supply-header">
+        <el-descriptions-item :label="t('mrp.history.materialCode')">{{
+          supplyMaterial.material_code
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('mrp.history.materialName')">{{
+          supplyMaterial.material_name
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('mrp.history.netRequirement')">{{
+          supplyMaterial.net_requirement
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('mrp.history.suggestedDate')">{{
+          supplyMaterial.suggested_date || '-'
+        }}</el-descriptions-item>
+      </el-descriptions>
+      <el-table
+        v-loading="supplyLoading"
+        :data="supplyDetails"
+        border
+        size="small"
+        max-height="280"
+      >
+        <el-table-column label="供应类型" width="110">
+          <template #default="{ row }">
+            <el-tag v-if="row.source_type === 'stock'" type="success">库存</el-tag>
+            <el-tag v-else-if="row.source_type === 'in_transit'" type="warning">在途</el-tag>
+            <el-tag v-else type="primary">计划订单</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="available_quantity" label="可用数量" width="120" align="right" />
+        <el-table-column prop="suggested_quantity" label="建议数量" width="120" align="right" />
+        <el-table-column prop="expected_date" label="预计可用日期" width="140">
+          <template #default="{ row }">{{ row.expected_date || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="source_no" label="来源单号" min-width="140">
+          <template #default="{ row }">{{ row.source_no || '-' }}</template>
+        </el-table-column>
+      </el-table>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
-import { getMrpResult, type MrpHistoryRecord, type MrpCalculationResult } from '../../api/mrp';
+import {
+  getMrpResult,
+  getMaterialRequirementDetail,
+  cancelMrpCalculation,
+  exportMrpResult,
+  type MrpHistoryRecord,
+  type MrpCalculationResult,
+  type MrpMaterialRequirement,
+  type MrpSupplyDetail,
+} from '../../api/mrp';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -274,6 +349,64 @@ const viewResult = async (row: MrpHistoryRecord) => {
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('mrp.history.fetchResultError')
     );
+  }
+};
+
+// ===== 供需明细（getMaterialRequirementDetail） =====
+const supplyVisible = ref(false);
+const supplyLoading = ref(false);
+const supplyMaterial = ref<MrpMaterialRequirement | null>(null);
+const supplyDetails = ref<MrpSupplyDetail[]>([]);
+
+const showMaterialDetail = async (row: MrpMaterialRequirement) => {
+  if (!currentResult.value?.id) return;
+  supplyMaterial.value = row;
+  supplyDetails.value = [];
+  supplyVisible.value = true;
+  supplyLoading.value = true;
+  try {
+    const res = await getMaterialRequirementDetail(currentResult.value.id, row.id);
+    supplyDetails.value = (res.data?.supply_details ?? []) as MrpSupplyDetail[];
+  } catch (e: unknown) {
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('mrp.history.fetchResultError')
+    );
+  } finally {
+    supplyLoading.value = false;
+  }
+};
+
+// ===== 取消计算（cancelMrpCalculation） =====
+const handleCancelCalculation = async (row: MrpHistoryRecord) => {
+  try {
+    await ElMessageBox.confirm(`确定取消 MRP 计算 #${row.id} 吗？`, t('common.confirmTitle'), {
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  try {
+    await cancelMrpCalculation(row.id);
+    ElMessage.success(t('common.success'));
+    fetchData();
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : String(e));
+  }
+};
+
+// ===== 导出结果（exportMrpResult，xlsx blob 下载） =====
+const handleExportResult = async (row: MrpHistoryRecord) => {
+  try {
+    const blob = (await exportMrpResult(row.id)) as unknown as Blob;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mrp_result_${row.id}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    ElMessage.success(t('common.success'));
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : String(e));
   }
 };
 
