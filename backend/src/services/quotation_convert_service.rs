@@ -137,6 +137,8 @@ impl QuotationConvertService {
             balance_amount: Set(quotation.total_amount),
             shipping_address: Set(None),
             billing_address: Set(None),
+            contact_person: Set(None),
+            contact_phone: Set(None),
             notes: Set(Some(format!(
                 "[源自报价单 {}]\n{}",
                 quotation.quotation_no,

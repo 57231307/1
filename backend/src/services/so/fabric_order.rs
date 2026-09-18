@@ -373,6 +373,8 @@ impl SalesService {
             balance_amount: Set(total_amount),
             shipping_address: Set(req.shipping_address.clone()),
             billing_address: Set(req.delivery_address.clone()),
+            contact_person: Set(None),
+            contact_phone: Set(None),
             notes: Set(req.remarks.clone()),
             batch_no: Set(Some(String::new())),
             color_no: Set(Some(String::new())),

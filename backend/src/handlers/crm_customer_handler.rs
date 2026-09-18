@@ -154,6 +154,12 @@ pub async fn update_customer(
             bank_account: req.bank_account,
             customer_type: req.customer_type,
             status: req.status,
+            country: None,
+            customer_industry: None,
+            main_products: None,
+            annual_purchase: None,
+            quality_requirement: None,
+            inspection_standard: None,
             notes: None,
             user_id: auth.user_id,
         })
