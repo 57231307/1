@@ -46,6 +46,11 @@ export function createFabricDefect(data: Record<string, unknown>) {
   return request.post('/fabric-defects', data);
 }
 
+/** 按验布单查询疵点列表（GET /fabric-inspections/{inspectionId}/defects） */
+export function listFabricDefectsByInspection(inspectionId: number) {
+  return request.get(`/fabric-inspections/${inspectionId}/defects`);
+}
+
 export function getFabricDefect(id: number) {
   return request.get(`/fabric-defects/${id}`);
 }

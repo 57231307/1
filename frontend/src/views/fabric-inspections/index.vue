@@ -120,6 +120,39 @@
           detailRow.remarks || '-'
         }}</el-descriptions-item>
       </el-descriptions>
+
+      <h4 class="section-title">疵点明细</h4>
+      <el-table
+        v-loading="defectListLoading"
+        :data="defectList"
+        border
+        size="small"
+        max-height="240"
+      >
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="defect_type" label="类型" width="110" />
+        <el-table-column prop="position_yards" label="位置(码)" width="90" />
+        <el-table-column prop="defect_length_inches" label="长度(英寸)" width="100" />
+        <el-table-column prop="direction" label="方向" width="70">
+          <template #default="{ row }">{{ row.direction || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="description" label="描述" min-width="130" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.description || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="130" fixed="right">
+          <template #default="{ row }">
+            <el-button link size="small" @click="viewDefect(row)">查看</el-button>
+            <el-button
+              v-if="detailRow?.status === 'inspecting'"
+              link
+              type="danger"
+              size="small"
+              @click="removeDefect(row)"
+              >删除</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
       </template>
@@ -254,6 +287,9 @@ import {
   updateFabricInspection,
   addFabricRoll,
   createFabricDefect,
+  listFabricDefectsByInspection,
+  getFabricDefect,
+  deleteFabricDefect,
   INSPECTION_STATUS_LABEL,
   type FabricInspection,
 } from '@/api/fabric-inspection';
@@ -355,9 +391,11 @@ async function onSave() {
   }
 }
 
-// ===== 详情回源（getFabricInspectionDetail） =====
+// ===== 详情回源（getFabricInspectionDetail）+ 疵点明细（list/get/deleteFabricDefect） =====
 const detailVisible = ref(false);
 const detailRow = ref<Record<string, unknown> | null>(null);
+const defectList = ref<Array<Record<string, unknown>>>([]);
+const defectListLoading = ref(false);
 
 async function openDetail(row: FabricInspection) {
   detailRow.value = row as unknown as Record<string, unknown>;
@@ -370,6 +408,50 @@ async function openDetail(row: FabricInspection) {
     }
   } catch {
     /* 回源失败保留行数据 */
+  }
+  defectListLoading.value = true;
+  try {
+    const res = await listFabricDefectsByInspection(row.id);
+    const d = res.data as unknown;
+    defectList.value = Array.isArray(d)
+      ? d
+      : ((d as { items?: Array<Record<string, unknown>> })?.items ?? []);
+  } catch {
+    defectList.value = [];
+  } finally {
+    defectListLoading.value = false;
+  }
+}
+
+// 疵点详情回源
+async function viewDefect(row: Record<string, unknown>) {
+  try {
+    const res = await getFabricDefect(row.id as number);
+    const d = (res.data ?? {}) as Record<string, unknown>;
+    ElMessageBox.alert(
+      Object.entries(d)
+        .map(([k, v]) => `${k}: ${v ?? '-'}`)
+        .join('\n'),
+      `疵点 #${row.id}`
+    );
+  } catch (e) {
+    ElMessage.error((e as Error).message || '查询疵点失败');
+  }
+}
+
+// 疵点删除（仅 inspecting 态）
+async function removeDefect(row: Record<string, unknown>) {
+  try {
+    await ElMessageBox.confirm(`确认删除疵点 #${row.id}？`, '删除确认', { type: 'warning' });
+  } catch {
+    return;
+  }
+  try {
+    await deleteFabricDefect(row.id as number);
+    ElMessage.success('疵点已删除');
+    if (detailRow.value?.id) await openDetail({ id: detailRow.value.id } as FabricInspection);
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error((e as Error).message || '删除失败');
   }
 }
 
@@ -526,6 +608,10 @@ onMounted(load);
 </script>
 
 <style scoped>
+.section-title {
+  margin: 14px 0 8px;
+  font-size: 14px;
+}
 .card-header {
   display: flex;
   justify-content: space-between;
