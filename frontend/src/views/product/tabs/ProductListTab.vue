@@ -350,6 +350,7 @@ import {
 } from '@element-plus/icons-vue';
 import {
   getProductCategoryList,
+  getProductCategoryTree,
   deleteProduct,
   getProductById,
   batchDeleteProducts,
@@ -410,25 +411,6 @@ const stats = reactive({
   avgPrice: 0,
 });
 
-const buildTree = (items: ProductCategory[]): ProductCategory[] => {
-  const map = new Map<number, ProductCategory>();
-  const tree: ProductCategory[] = [];
-  items.forEach(item => {
-    map.set(item.id, { ...item, children: [] });
-  });
-  items.forEach(item => {
-    const node = map.get(item.id);
-    if (!node) return;
-    if (item.parent_id && map.has(item.parent_id)) {
-      const parent = map.get(item.parent_id);
-      if (parent?.children) parent.children.push(node);
-    } else {
-      tree.push(node);
-    }
-  });
-  return tree;
-};
-
 // 批次 277：watch data 自动更新统计指标（原 fetchData 内联逻辑迁移至此）
 watch(products, () => {
   stats.totalProducts = total.value;
@@ -439,12 +421,19 @@ watch(products, () => {
       : 0;
 });
 
+// countNodes：递归统计树节点数（用于统计指标）
+const countNodes = (nodes: ProductCategory[]): number =>
+  nodes.reduce((sum, n) => sum + 1 + countNodes(n.children || []), 0);
+
 const fetchCategories = async () => {
   try {
-    const res = await getProductCategoryList();
-    categories.value = (res.data as ProductCategory[] | undefined) || [];
-    categoryTree.value = buildTree(categories.value);
-    stats.totalCategories = categories.value.length;
+    const [flatRes, treeRes] = await Promise.all([
+      getProductCategoryList(),
+      getProductCategoryTree(),
+    ]);
+    categories.value = (flatRes.data as ProductCategory[] | undefined) || [];
+    categoryTree.value = (treeRes.data as ProductCategory[] | undefined) || [];
+    stats.totalCategories = countNodes(categoryTree.value);
   } catch (error) {
     // 主入口已记录日志
   }
