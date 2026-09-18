@@ -20,10 +20,15 @@ export interface Notification {
 
 export interface NotificationSetting {
   id?: number;
-  businessType?: string;
-  enableInternal?: boolean;
-  enableEmail?: boolean;
-  enableSms?: boolean;
+  user_id?: number;
+  email_enabled: boolean;
+  internal_enabled: boolean;
+  order_notification_type: string;
+  approval_notification_type: string;
+  inventory_notification_type: string;
+  purchase_notification_type: string;
+  finance_notification_type: string;
+  system_notification_type: string;
 }
 
 export interface BatchOperationRequest {
@@ -31,10 +36,14 @@ export interface BatchOperationRequest {
 }
 
 export interface UpdateSettingRequest {
-  businessType: string;
-  enableInternal: boolean;
-  enableEmail: boolean;
-  enableSms: boolean;
+  email_enabled?: boolean;
+  internal_enabled?: boolean;
+  order_notification_type?: string;
+  approval_notification_type?: string;
+  inventory_notification_type?: string;
+  purchase_notification_type?: string;
+  finance_notification_type?: string;
+  system_notification_type?: string;
 }
 
 /** 系统公告发送请求（仅管理员） */
@@ -81,14 +90,14 @@ export function deleteNotification(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/notifications/${id}`);
 }
 
-export function getSettings(): Promise<ApiResponse<NotificationSetting[]>> {
-  return request.get('/notifications/settings');
+export function getSettings(): Promise<ApiResponse<NotificationSetting>> {
+  return request.get('/user-notification-settings');
 }
 
 export function updateSetting(
   data: UpdateSettingRequest
 ): Promise<ApiResponse<NotificationSetting>> {
-  return request.put('/notifications/settings', data);
+  return request.put('/user-notification-settings', data);
 }
 
 /**

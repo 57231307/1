@@ -22,6 +22,16 @@
           }}</el-radio-button>
           <el-radio-button value="READ">{{ t('notification.index.optionRead') }}</el-radio-button>
         </el-radio-group>
+        <el-button
+          type="primary"
+          plain
+          size="small"
+          :disabled="selectedIds.length === 0"
+          @click="handleBatchRead"
+        >
+          批量已读（{{ selectedIds.length }}）
+        </el-button>
+        <el-button plain size="small" @click="openSettings">通知设置</el-button>
       </div>
 
       <div class="notification-list">
@@ -32,6 +42,10 @@
           :class="{ unread: item.status === 'UNREAD' }"
         >
           <div class="item-header">
+            <el-checkbox
+              :model-value="selectedIds.includes(item.id)"
+              @change="toggleSelect(item.id)"
+            />
             <div class="item-type">
               <el-tag v-if="item.notificationType === 'SYSTEM'" type="danger">{{
                 t('notification.index.typeSystem')
@@ -125,11 +139,71 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 通知设置（getSettings / updateSetting，当前用户单条偏好） -->
+    <el-dialog v-model="settingsVisible" title="通知设置" width="520">
+      <el-form v-loading="settingsLoading" :model="settingForm" label-width="150px">
+        <el-form-item label="邮件通知">
+          <el-switch v-model="settingForm.email_enabled" />
+        </el-form-item>
+        <el-form-item label="站内通知">
+          <el-switch v-model="settingForm.internal_enabled" />
+        </el-form-item>
+        <el-form-item label="订单通知接收">
+          <el-select v-model="settingForm.order_notification_type" style="width: 100%">
+            <el-option label="实时" value="realtime" />
+            <el-option label="每日摘要" value="daily_digest" />
+            <el-option label="关闭" value="none" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="审批通知接收">
+          <el-select v-model="settingForm.approval_notification_type" style="width: 100%">
+            <el-option label="实时" value="realtime" />
+            <el-option label="每日摘要" value="daily_digest" />
+            <el-option label="关闭" value="none" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="库存通知接收">
+          <el-select v-model="settingForm.inventory_notification_type" style="width: 100%">
+            <el-option label="实时" value="realtime" />
+            <el-option label="每日摘要" value="daily_digest" />
+            <el-option label="关闭" value="none" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="采购通知接收">
+          <el-select v-model="settingForm.purchase_notification_type" style="width: 100%">
+            <el-option label="实时" value="realtime" />
+            <el-option label="每日摘要" value="daily_digest" />
+            <el-option label="关闭" value="none" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="财务通知接收">
+          <el-select v-model="settingForm.finance_notification_type" style="width: 100%">
+            <el-option label="实时" value="realtime" />
+            <el-option label="每日摘要" value="daily_digest" />
+            <el-option label="关闭" value="none" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="系统通知接收">
+          <el-select v-model="settingForm.system_notification_type" style="width: 100%">
+            <el-option label="实时" value="realtime" />
+            <el-option label="每日摘要" value="daily_digest" />
+            <el-option label="关闭" value="none" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="settingsVisible = false">取消</el-button>
+        <el-button type="primary" :loading="settingsSaving" @click="handleSaveSetting">
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -137,8 +211,12 @@ import {
   getNotification,
   markAsRead,
   markAllAsRead,
+  batchMarkAsRead,
+  getSettings,
+  updateSetting,
   deleteNotification,
   getUnreadCount,
+  type NotificationSetting,
   type Notification,
 } from '@/api/notification';
 import { useTableApi } from '@/composables/useTableApi';
@@ -214,6 +292,78 @@ const handleMarkRead = async (item: Notification) => {
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('notification.index.messageOperationFailed')
     );
+  }
+};
+
+// ===== 批量已读（batchMarkAsRead） =====
+const selectedIds = ref<number[]>([]);
+
+const toggleSelect = (id: number) => {
+  const idx = selectedIds.value.indexOf(id);
+  if (idx >= 0) selectedIds.value.splice(idx, 1);
+  else selectedIds.value.push(id);
+};
+
+const handleBatchRead = async () => {
+  if (selectedIds.value.length === 0) return;
+  try {
+    await batchMarkAsRead({ ids: selectedIds.value });
+    ElMessage.success(t('notification.index.messageOperationSuccess'));
+    selectedIds.value = [];
+    fetchNotifications();
+    fetchUnreadCount();
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : String(e));
+  }
+};
+
+// ===== 通知设置（getSettings / updateSetting，当前用户单条偏好） =====
+const settingsVisible = ref(false);
+const settingsLoading = ref(false);
+const settingsSaving = ref(false);
+const settingForm = reactive<NotificationSetting>({
+  email_enabled: false,
+  internal_enabled: true,
+  order_notification_type: 'realtime',
+  approval_notification_type: 'realtime',
+  inventory_notification_type: 'realtime',
+  purchase_notification_type: 'realtime',
+  finance_notification_type: 'realtime',
+  system_notification_type: 'realtime',
+});
+
+const openSettings = async () => {
+  settingsVisible.value = true;
+  settingsLoading.value = true;
+  try {
+    const res = await getSettings();
+    if (res.data) Object.assign(settingForm, res.data);
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : String(e));
+  } finally {
+    settingsLoading.value = false;
+  }
+};
+
+const handleSaveSetting = async () => {
+  settingsSaving.value = true;
+  try {
+    await updateSetting({
+      email_enabled: settingForm.email_enabled,
+      internal_enabled: settingForm.internal_enabled,
+      order_notification_type: settingForm.order_notification_type,
+      approval_notification_type: settingForm.approval_notification_type,
+      inventory_notification_type: settingForm.inventory_notification_type,
+      purchase_notification_type: settingForm.purchase_notification_type,
+      finance_notification_type: settingForm.finance_notification_type,
+      system_notification_type: settingForm.system_notification_type,
+    });
+    ElMessage.success(t('notification.index.messageOperationSuccess'));
+    settingsVisible.value = false;
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : String(e));
+  } finally {
+    settingsSaving.value = false;
   }
 };
 
