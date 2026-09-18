@@ -56,6 +56,10 @@ const emit = defineEmits<{
   approve: [row: SalesOrder];
   delivery: [row: SalesOrder];
   cancel: [row: SalesOrder];
+  submitOrder: [row: SalesOrder];
+  reject: [row: SalesOrder];
+  deleteOrder: [row: SalesOrder];
+  detail: [row: SalesOrder];
 }>();
 
 /** 组装完整列定义：父列 + 操作列 */
@@ -64,7 +68,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
   {
     key: '__actions__',
     title: t('sales.table.operation'),
-    width: 280,
+    width: 340,
     fixed: 'right',
     renderCell: (row: SalesOrder) => {
       const buttons = [
@@ -73,7 +77,64 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
           { size: 'small', link: true, onClick: () => emit('view', row) },
           { default: () => t('sales.table.view') }
         ),
+        h(
+          ElButton,
+          {
+            size: 'small',
+            link: true,
+            onClick: () => emit('detail', row),
+          },
+          { default: () => t('common.detail') || '详情' }
+        ),
       ];
+      if (row.status === 'draft') {
+        buttons.push(
+          h(
+            ElButton,
+            {
+              size: 'small',
+              link: true,
+              type: 'warning',
+              onClick: () => emit('submitOrder', row),
+            },
+            { default: () => t('sales.table.submit') || '提交' }
+          ),
+          h(
+            ElButton,
+            {
+              size: 'small',
+              link: true,
+              type: 'danger',
+              onClick: () => emit('deleteOrder', row),
+            },
+            { default: () => t('sales.table.delete') || '删除' }
+          )
+        );
+      }
+      if (row.status === 'submitted') {
+        buttons.push(
+          h(
+            ElButton,
+            {
+              size: 'small',
+              link: true,
+              type: 'primary',
+              onClick: () => emit('approve', row),
+            },
+            { default: () => t('sales.table.approve') }
+          ),
+          h(
+            ElButton,
+            {
+              size: 'small',
+              link: true,
+              type: 'danger',
+              onClick: () => emit('reject', row),
+            },
+            { default: () => t('sales.table.reject') || '驳回' }
+          )
+        );
+      }
       if (row.status === 'pending') {
         buttons.push(
           h(
