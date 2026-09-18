@@ -191,10 +191,12 @@ import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import {
   getRoleDataPermissionList,
   setDataPermission,
-  getDataPermission,
-  deleteDataPermission,
+  updateDataPermission,
+  getDataPermissionByRole,
+  deleteDataPermissionByRole,
   getScopeTypeList,
   DEFAULT_SCOPE_TYPES,
+  type DataPermission,
   type DataPermissionRole,
   type ScopeType,
   type CustomCondition,
@@ -312,11 +314,14 @@ const handleAddPermission = () => {
 
 const handleEditPermission = async (row: DataPermissionRow) => {
   isEdit.value = true;
-  let source: DataPermissionRow = row;
+  let source: DataPermissionRole = row;
   try {
-    // 编辑前按 ID 回源最新权限配置
-    const res = await getDataPermission(row.id);
-    if (res.data) source = res.data as unknown as DataPermissionRow;
+    // 编辑前按角色+资源类型回源最新权限配置
+    const res = await getDataPermissionByRole(
+      row.role_id ?? parseInt(selectedRoleId.value),
+      row.resource_type ?? ''
+    );
+    if (res.data) source = res.data as DataPermissionRole;
   } catch {
     /* 回源失败保留行数据 */
   }
@@ -340,21 +345,37 @@ const handleSavePermission = async () => {
 
     submitLoading.value = true;
     try {
-      await setDataPermission({
-        role_id: permissionForm.role_id!,
-        resource_type: permissionForm.resource_type,
-        scope_type: permissionForm.scope_type,
-        custom_condition: permissionForm.custom_condition || undefined,
-        allowed_fields: permissionForm.allowed_fields || undefined,
-        hidden_fields: permissionForm.hidden_fields || undefined,
-      });
-      ElMessage.success(t('dataPermission.index.messageSaveSuccess'));
+      if (isEdit.value && permissionForm.id) {
+        // 编辑走 PUT 更新
+        await updateDataPermission(permissionForm.id, {
+          resource_type: permissionForm.resource_type,
+          scope_type: permissionForm.scope_type,
+          custom_condition: permissionForm.custom_condition || undefined,
+          allowed_fields: permissionForm.allowed_fields || undefined,
+          hidden_fields: permissionForm.hidden_fields || undefined,
+        } as Partial<DataPermission>);
+        ElMessage.success(t('dataPermission.index.messageUpdateSuccess'));
+      } else {
+        // 新增走 POST
+        await setDataPermission({
+          role_id: permissionForm.role_id!,
+          resource_type: permissionForm.resource_type,
+          scope_type: permissionForm.scope_type,
+          custom_condition: permissionForm.custom_condition || undefined,
+          allowed_fields: permissionForm.allowed_fields || undefined,
+          hidden_fields: permissionForm.hidden_fields || undefined,
+        });
+        ElMessage.success(t('dataPermission.index.messageSaveSuccess'));
+      }
       permissionDialogVisible.value = false;
       fetchPermissions();
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
       ElMessage.error(
-        (e instanceof Error ? e.message : String(e)) || t('dataPermission.index.messageSaveFailed')
+        (e instanceof Error ? e.message : String(e)) ||
+          (isEdit.value
+            ? t('dataPermission.index.messageUpdateFailed')
+            : t('dataPermission.index.messageSaveFailed'))
       );
     } finally {
       submitLoading.value = false;
@@ -363,7 +384,9 @@ const handleSavePermission = async () => {
 };
 
 const handleDeletePermission = async (row: DataPermissionRow) => {
-  if (!row.id) return;
+  const roleId = row.role_id ?? parseInt(selectedRoleId.value);
+  const resourceType = row.resource_type ?? '';
+  if (!roleId || !resourceType) return;
 
   try {
     await ElMessageBox.confirm(
@@ -376,7 +399,8 @@ const handleDeletePermission = async (row: DataPermissionRow) => {
       }
     );
 
-    await deleteDataPermission(row.id);
+    // 按角色+资源类型删除
+    await deleteDataPermissionByRole(roleId, resourceType);
     ElMessage.success(t('dataPermission.index.messageDeleteSuccess'));
     fetchPermissions();
   } catch (e: unknown) {
