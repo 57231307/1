@@ -30,6 +30,9 @@
         <div class="toolbar mb">
           <el-button type="primary" @click="shareVisible = true">共享客户</el-button>
           <el-button plain @click="onExpireOverdue">清理过期共享</el-button>
+          <el-button plain @click="onSharesByCustomer">按客户查共享</el-button>
+          <el-button plain @click="onSharesByUser">按用户查共享</el-button>
+          <el-button plain @click="onCheckSharePermission">共享权限检查</el-button>
         </div>
         <el-table v-loading="loadingShare" :data="shares" border>
           <el-table-column prop="id" label="ID" width="70" />
@@ -62,6 +65,15 @@
           >
           <el-form-item
             ><el-button plain @click="teamVisible = true">添加成员</el-button></el-form-item
+          >
+          <el-form-item label="用户ID"
+            ><el-input-number v-model="teamUserId" :min="1"
+          /></el-form-item>
+          <el-form-item
+            ><el-button plain @click="onListUserTeams">按用户查团队</el-button></el-form-item
+          >
+          <el-form-item
+            ><el-button plain @click="onCheckTeamMember">成员校验</el-button></el-form-item
           >
         </el-form>
         <el-table :data="teamMembers" border>
@@ -158,6 +170,11 @@ import {
   addTeamMember,
   createCustomerShare,
   expireOverdueShares,
+  getSharesByCustomer,
+  getSharesByUser,
+  checkSharePermission,
+  isTeamMember,
+  listUserTeams,
   listCustomerShares,
   listSignedContracts,
   listTeamMembers,
@@ -308,6 +325,93 @@ async function onRemoveMember(row: Record<string, unknown>) {
   await removeTeamMember(row.id as number);
   ElMessage.success('已移除');
   await onLoadTeam();
+}
+
+// ===== 共享/团队查询与校验工具（getSharesByCustomer/getSharesByUser/checkSharePermission/isTeamMember/listUserTeams） =====
+async function onSharesByCustomer() {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入客户ID', '按客户查共享', {
+      inputPattern: /^\d+$/,
+      inputErrorMessage: '请输入数字ID',
+    });
+    const res = await getSharesByCustomer(Number(value));
+    shares.value = unwrapList(res);
+    ElMessage.success(`客户 ${value} 的共享已加载`);
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error((e as Error).message || '查询失败');
+  }
+}
+
+async function onSharesByUser() {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入用户ID', '按用户查共享', {
+      inputPattern: /^\d+$/,
+      inputErrorMessage: '请输入数字ID',
+    });
+    const res = await getSharesByUser(Number(value));
+    shares.value = unwrapList(res);
+    ElMessage.success(`用户 ${value} 的共享已加载`);
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error((e as Error).message || '查询失败');
+  }
+}
+
+async function onCheckSharePermission() {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '请输入检查参数 JSON，如 {"customer_id":1,"user_id":2}',
+      '共享权限检查',
+      { inputValue: '{"customer_id":1,"user_id":2}' }
+    );
+    let params: Record<string, unknown>;
+    try {
+      params = JSON.parse(value);
+    } catch {
+      ElMessage.warning('JSON 格式有误');
+      return;
+    }
+    const res = await checkSharePermission(params);
+    ElMessageBox.alert(JSON.stringify(res.data ?? res, null, 2), '权限检查结果');
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error((e as Error).message || '检查失败');
+  }
+}
+
+const teamUserId = ref<number | undefined>();
+
+async function onListUserTeams() {
+  if (!teamUserId.value) {
+    ElMessage.warning('请填写用户ID');
+    return;
+  }
+  try {
+    const res = await listUserTeams(teamUserId.value);
+    teamMembers.value = unwrapList(res);
+    teamCols.value = cols(teamMembers.value, ['id'], 6);
+    ElMessage.success(`用户 ${teamUserId.value} 的团队已加载`);
+  } catch (e) {
+    ElMessage.error((e as Error).message || '查询失败');
+  }
+}
+
+async function onCheckTeamMember() {
+  if (!teamCustomerId.value || !teamUserId.value) {
+    ElMessage.warning('请填写客户ID与用户ID');
+    return;
+  }
+  try {
+    const res = await isTeamMember({
+      customer_id: teamCustomerId.value,
+      user_id: teamUserId.value,
+    });
+    const d = res.data as { is_member?: boolean } | undefined;
+    ElMessageBox.alert(
+      d?.is_member ? '该用户是此客户团队成员' : '该用户不是此客户团队成员',
+      '成员校验结果'
+    );
+  } catch (e) {
+    ElMessage.error((e as Error).message || '校验失败');
+  }
 }
 
 onMounted(() => {
