@@ -174,6 +174,30 @@
               @click="handleSubmit(row)"
               >{{ t('inventoryCount.listTab.buttonComplete') }}</el-button
             >
+            <el-button
+              v-if="row.status === 'in_review'"
+              type="success"
+              link
+              size="small"
+              @click="handleApprove(row)"
+              >{{ t('inventoryCount.listTab.buttonApprove') }}</el-button
+            >
+            <el-button
+              v-if="row.status === 'in_review'"
+              type="warning"
+              link
+              size="small"
+              @click="handleReject(row)"
+              >{{ t('inventoryCount.listTab.buttonReject') }}</el-button
+            >
+            <el-button
+              v-if="row.status === 'pending'"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row)"
+              >{{ t('inventoryCount.listTab.buttonDelete') }}</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -197,7 +221,13 @@ import { reactive, watch, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue';
-import { submitInventoryCount, type InventoryCountEntity } from '@/api/inventory-count';
+import {
+  submitInventoryCount,
+  approveInventoryCount,
+  rejectInventoryCount,
+  deleteInventoryCount,
+  type InventoryCountEntity,
+} from '@/api/inventory-count';
 // 批次 280：接入 useTableApi，消除手写 counts/loading/total/fetchCounts 重复
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -286,6 +316,57 @@ const handleSubmit = async (row: InventoryCountEntity) => {
       { type: 'warning' }
     );
     await submitInventoryCount(row.id as number);
+    ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
+    fetchCounts();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
+    }
+  }
+};
+
+const handleApprove = async (row: InventoryCountEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryCount.listTab.messageApproveConfirm'),
+      t('inventoryCount.listTab.titleApproveConfirm'),
+      { type: 'warning' }
+    );
+    await approveInventoryCount(row.id as number);
+    ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
+    fetchCounts();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
+    }
+  }
+};
+
+const handleReject = async (row: InventoryCountEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryCount.listTab.messageRejectConfirm'),
+      t('inventoryCount.listTab.titleRejectConfirm'),
+      { type: 'warning' }
+    );
+    await rejectInventoryCount(row.id as number, '');
+    ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
+    fetchCounts();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
+    }
+  }
+};
+
+const handleDelete = async (row: InventoryCountEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryCount.listTab.messageDeleteConfirm'),
+      t('inventoryCount.listTab.titleDeleteConfirm'),
+      { type: 'warning' }
+    );
+    await deleteInventoryCount(row.id as number);
     ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
     fetchCounts();
   } catch (error) {

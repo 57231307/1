@@ -17,18 +17,13 @@ export interface InventoryCountEntity {
 export interface CountItem {
   id?: number;
   count_id: number;
+  stock_id: number;
   product_id: number;
-  product_code?: string;
-  product_name?: string;
-  color_no?: string;
-  grade?: string;
-  unit?: string;
-  system_qty: number;
-  actual_qty: number;
-  diff_qty: number;
-  cost_price: number;
-  diff_amount: number;
-  remark?: string;
+  warehouse_id?: number;
+  quantity_before: number;
+  quantity_actual: number;
+  quantity_difference?: number;
+  notes?: string | null;
 }
 
 // P2-9c 修复（批次 82 v1 复审）：库存盘点列表查询参数强类型化
@@ -58,8 +53,10 @@ export const approveInventoryCount = (id: number) =>
   request.post(`/inventory/counts/${id}/approve`);
 
 /// 提交盘点明细（POST /counts/:id/record），对齐后端 record_count_items 端点
-export const recordCountItems = (id: number, items: Partial<CountItem>[]) =>
-  request.post(`/inventory/counts/${id}/record`, { items });
+export const recordCountItems = (
+  id: number,
+  items: Array<{ stock_id: number; quantity_actual: number; notes?: string | null }>
+) => request.post(`/inventory/counts/${id}/record`, { items });
 
 /// 提交盘点单审批（POST /counts/:id/submit），对齐后端 submit_for_approval 端点
 export const submitInventoryCount = (id: number) => request.post(`/inventory/counts/${id}/submit`);
@@ -70,8 +67,10 @@ export const rejectInventoryCount = (id: number, reason: string) =>
 
 export const getCountItems = (id: number) => request.get(`/inventory/counts/${id}`);
 
-export const updateCountItem = (itemId: number, data: Partial<CountItem>) =>
-  request.put(`/inventory/counts/items/${itemId}`, data);
+export const updateCountItem = (
+  itemId: number,
+  data: { quantity_actual?: number; notes?: string | null }
+) => request.put(`/inventory/counts/items/${itemId}`, data);
 
 export const deleteCountItem = (itemId: number) =>
   request.delete(`/inventory/counts/items/${itemId}`);
