@@ -13,6 +13,7 @@ import {
   deleteBpmDefinition,
   updateBpmDefinition,
   createBpmDefinition,
+  getBpmDefinitionById,
   createBpmVersion,
   activateBpmVersion,
   saveBpmAsTemplate,
@@ -126,16 +127,23 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
     cb.dialogVisible = true;
   };
 
-  /** 编辑 */
-  const handleEdit = (row: ProcessDefinition) => {
+  /** 编辑（按 ID 回源最新定义，失败保留行数据） */
+  const handleEdit = async (row: ProcessDefinition) => {
     cb.isEdit = true;
+    let source: ProcessDefinition = row;
+    try {
+      const res = await getBpmDefinitionById(row.id);
+      if (res.data) source = res.data;
+    } catch (e) {
+      logger.warn('流程定义回源失败，使用行数据', e instanceof Error ? e.message : String(e));
+    }
     Object.assign(cb.formData, {
-      id: row.id,
-      process_key: row.process_key,
-      process_name: row.process_name,
-      description: row.description || '',
-      category: row.category || 'finance',
-      nodes: row.nodes || [],
+      id: source.id,
+      process_key: source.process_key,
+      process_name: source.process_name,
+      description: source.description || '',
+      category: source.category || 'finance',
+      nodes: source.nodes || [],
     });
     cb.dialogVisible = true;
   };
