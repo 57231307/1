@@ -59,6 +59,16 @@
             <el-table-column label="备注" min-width="140" show-overflow-tooltip>
               <template #default="{ row }">{{ row.remarks || '-' }}</template>
             </el-table-column>
+            <el-table-column label="操作" width="120" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="primary" size="small" @click="openEditContact(row)"
+                  >编辑</el-button
+                >
+                <el-button link type="danger" size="small" @click="handleDeleteContact(row)"
+                  >删除</el-button
+                >
+              </template>
+            </el-table-column>
           </el-table>
         </el-tab-pane>
 
@@ -83,6 +93,16 @@
               <template #default="{ row }">
                 <el-tag v-if="row.is_expired" type="danger" size="small">已过期</el-tag>
                 <el-tag v-else type="success" size="small">有效</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="primary" size="small" @click="openEditQualification(row)"
+                  >编辑</el-button
+                >
+                <el-button link type="danger" size="small" @click="handleDeleteQualification(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -114,6 +134,41 @@
             </el-table-column>
             <el-table-column prop="status" label="状态" width="110" />
             <el-table-column prop="item_count" label="商品项数" width="100" align="right" />
+          </el-table>
+
+          <h3 class="section-title">供应商评估</h3>
+          <div class="toolbar" style="margin-bottom: 8px">
+            <el-input-number v-model="evalForm.score" :min="0" :max="100" placeholder="评分" />
+            <el-select v-model="evalForm.rating" style="width: 120px" placeholder="评级">
+              <el-option label="A" value="A" />
+              <el-option label="B" value="B" />
+              <el-option label="C" value="C" />
+              <el-option label="D" value="D" />
+            </el-select>
+            <el-input
+              v-model="evalForm.remark"
+              placeholder="评估备注（可选）"
+              style="width: 220px"
+            />
+            <el-button type="primary" :loading="evalSubmitting" @click="handleEvaluate">
+              提交评估
+            </el-button>
+            <el-button :loading="evalHistoryLoading" @click="loadEvaluationHistory">
+              查询评估历史
+            </el-button>
+          </div>
+          <el-table v-if="evaluationHistory.length" :data="evaluationHistory" border size="small">
+            <el-table-column prop="id" label="ID" width="70" />
+            <el-table-column prop="score" label="评分" width="90" />
+            <el-table-column prop="rating" label="评级" width="90" />
+            <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.remark || '-' }}</template>
+            </el-table-column>
+            <el-table-column prop="evaluated_at" label="评估时间" min-width="160">
+              <template #default="{ row }">{{
+                row.evaluated_at || row.created_at || '-'
+              }}</template>
+            </el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>
@@ -231,11 +286,17 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
   createSupplierContact,
   createSupplierQualification,
+  updateSupplierContact,
+  updateSupplierQualification,
+  deleteSupplierContact,
+  deleteSupplierQualification,
+  evaluateSupplier,
+  getSupplierEvaluationHistory,
   getSupplierBalance,
   getSupplierById,
   getSupplierContactList,
@@ -360,11 +421,12 @@ const loadAll = async () => {
   pageLoading.value = false;
 };
 
-// ============== 新增联系人 ==============
+// ============== 新增/编辑联系人 ==============
 
 const contactDialogVisible = ref(false);
 const contactSubmitting = ref(false);
 const contactFormRef = ref<FormInstance>();
+const editingContactId = ref<number | null>(null);
 
 const contactForm = reactive<SupplierContactInput>({
   contact_name: '',
@@ -400,7 +462,44 @@ const resetContactForm = () => {
 
 const openContactDialog = () => {
   resetContactForm();
+  editingContactId.value = null;
   contactDialogVisible.value = true;
+};
+
+const openEditContact = (row: SupplierContact) => {
+  editingContactId.value = row.id;
+  Object.assign(contactForm, {
+    contact_name: row.contact_name,
+    department: row.department || '',
+    position: row.position || '',
+    mobile_phone: row.mobile_phone,
+    tel_phone: row.tel_phone || '',
+    email: row.email || '',
+    wechat: row.wechat || '',
+    qq: row.qq || '',
+    is_primary: row.is_primary,
+    remarks: row.remarks || '',
+  });
+  contactDialogVisible.value = true;
+};
+
+const handleDeleteContact = async (row: SupplierContact) => {
+  const id = supplierId.value;
+  if (!id) return;
+  try {
+    await ElMessageBox.confirm(`确认删除联系人「${row.contact_name}」？`, '确认', {
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  try {
+    await deleteSupplierContact(id, row.id);
+    ElMessage.success('联系人删除成功');
+    await loadContacts();
+  } catch {
+    ElMessage.error('联系人删除失败');
+  }
 };
 
 const submitContact = async () => {
@@ -414,7 +513,7 @@ const submitContact = async () => {
     if (!valid) return;
     contactSubmitting.value = true;
     try {
-      await createSupplierContact(id, {
+      const payload = {
         contact_name: contactForm.contact_name,
         department: contactForm.department || undefined,
         position: contactForm.position || undefined,
@@ -425,43 +524,64 @@ const submitContact = async () => {
         qq: contactForm.qq || undefined,
         is_primary: contactForm.is_primary,
         remarks: contactForm.remarks || undefined,
-      });
-      ElMessage.success('联系人创建成功');
+      };
+      if (editingContactId.value) {
+        await updateSupplierContact(id, editingContactId.value, payload);
+        ElMessage.success('联系人更新成功');
+      } else {
+        await createSupplierContact(id, payload);
+        ElMessage.success('联系人创建成功');
+      }
       contactDialogVisible.value = false;
       await loadContacts();
     } catch {
-      ElMessage.error('联系人创建失败');
+      ElMessage.error('联系人保存失败');
     } finally {
       contactSubmitting.value = false;
     }
   });
 };
 
-// ============== 新增资质 ==============
+// ============== 新增/编辑资质 ==============
+const openQualificationDialog = () => {
+  resetQualificationForm();
+  editingQualificationId.value = null;
+  qualificationDialogVisible.value = true;
+};
 
-const qualificationDialogVisible = ref(false);
-const qualificationSubmitting = ref(false);
-const qualificationFormRef = ref<FormInstance>();
+const openEditQualification = (row: SupplierQualification) => {
+  editingQualificationId.value = row.id;
+  Object.assign(qualificationForm, {
+    qualification_name: row.qualification_name,
+    qualification_type: row.qualification_type,
+    qualification_no: row.qualification_no,
+    issuing_authority: row.issuing_authority,
+    issue_date: row.issue_date,
+    valid_until: row.valid_until,
+    attachment_path: row.attachment_path || '',
+    need_annual_check: row.need_annual_check,
+    annual_check_record: row.annual_check_record || '',
+  });
+  qualificationDialogVisible.value = true;
+};
 
-const qualificationForm = reactive<SupplierQualificationInput>({
-  qualification_name: '',
-  qualification_type: '',
-  qualification_no: '',
-  issuing_authority: '',
-  issue_date: '',
-  valid_until: '',
-  attachment_path: '',
-  need_annual_check: false,
-  annual_check_record: '',
-});
-
-const qualificationRules: FormRules = {
-  qualification_name: [{ required: true, message: '请输入资质名称', trigger: 'blur' }],
-  qualification_type: [{ required: true, message: '请输入资质类型', trigger: 'blur' }],
-  qualification_no: [{ required: true, message: '请输入证照编号', trigger: 'blur' }],
-  issuing_authority: [{ required: true, message: '请输入发证机关', trigger: 'blur' }],
-  issue_date: [{ required: true, message: '请选择发证日期', trigger: 'change' }],
-  valid_until: [{ required: true, message: '请选择有效期至', trigger: 'change' }],
+const handleDeleteQualification = async (row: SupplierQualification) => {
+  const id = supplierId.value;
+  if (!id) return;
+  try {
+    await ElMessageBox.confirm(`确认删除资质「${row.qualification_name}」？`, '确认', {
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  try {
+    await deleteSupplierQualification(id, row.id);
+    ElMessage.success('资质删除成功');
+    await loadQualifications();
+  } catch {
+    ElMessage.error('资质删除失败');
+  }
 };
 
 const resetQualificationForm = () => {
@@ -477,8 +597,26 @@ const resetQualificationForm = () => {
   qualificationFormRef.value?.resetFields();
 };
 
+// 资质对话框状态（此前被引用但未声明，打开即抛 ReferenceError，此处补齐修复）
+const qualificationDialogVisible = ref(false);
+const qualificationSubmitting = ref(false);
+const qualificationFormRef = ref<FormInstance>();
+const editingQualificationId = ref<number | null>(null);
+const qualificationForm = reactive<SupplierQualificationInput>({
+  qualification_name: '',
+  qualification_type: '',
+  qualification_no: '',
+  issuing_authority: '',
+  issue_date: '',
+  valid_until: '',
+  attachment_path: '',
+  need_annual_check: false,
+  annual_check_record: '',
+});
+
 const openQualificationDialog = () => {
   resetQualificationForm();
+  editingQualificationId.value = null;
   qualificationDialogVisible.value = true;
 };
 
@@ -493,7 +631,7 @@ const submitQualification = async () => {
     if (!valid) return;
     qualificationSubmitting.value = true;
     try {
-      await createSupplierQualification(id, {
+      const payload = {
         qualification_name: qualificationForm.qualification_name,
         qualification_type: qualificationForm.qualification_type,
         qualification_no: qualificationForm.qualification_no,
@@ -503,16 +641,67 @@ const submitQualification = async () => {
         attachment_path: qualificationForm.attachment_path || undefined,
         need_annual_check: qualificationForm.need_annual_check,
         annual_check_record: qualificationForm.annual_check_record || undefined,
-      });
-      ElMessage.success('资质创建成功');
+      };
+      if (editingQualificationId.value) {
+        await updateSupplierQualification(id, editingQualificationId.value, payload);
+        ElMessage.success('资质更新成功');
+      } else {
+        await createSupplierQualification(id, payload);
+        ElMessage.success('资质创建成功');
+      }
       qualificationDialogVisible.value = false;
       await loadQualifications();
     } catch {
-      ElMessage.error('资质创建失败');
+      ElMessage.error('资质保存失败');
     } finally {
       qualificationSubmitting.value = false;
     }
   });
+};
+
+// ============== 供应商评估 ==============
+const evalForm = reactive({ score: 80, rating: 'A', remark: '' });
+const evalSubmitting = ref(false);
+const evalHistoryLoading = ref(false);
+const evaluationHistory = ref<Array<Record<string, unknown>>>([]);
+
+const handleEvaluate = async () => {
+  const id = supplierId.value;
+  if (!id) {
+    ElMessage.warning('请先输入供应商 ID 并查询');
+    return;
+  }
+  evalSubmitting.value = true;
+  try {
+    await evaluateSupplier(id, {
+      score: evalForm.score,
+      rating: evalForm.rating,
+      remark: evalForm.remark || undefined,
+    });
+    ElMessage.success('评估已提交');
+    await loadEvaluationHistory();
+  } catch {
+    ElMessage.error('评估提交失败');
+  } finally {
+    evalSubmitting.value = false;
+  }
+};
+
+const loadEvaluationHistory = async () => {
+  const id = supplierId.value;
+  if (!id) {
+    ElMessage.warning('请先输入供应商 ID 并查询');
+    return;
+  }
+  evalHistoryLoading.value = true;
+  try {
+    const res = await getSupplierEvaluationHistory(id);
+    evaluationHistory.value = unwrapList(res);
+  } catch {
+    ElMessage.error('查询评估历史失败');
+  } finally {
+    evalHistoryLoading.value = false;
+  }
 };
 </script>
 
