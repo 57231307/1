@@ -19,6 +19,9 @@
       @view="srProc.handleView"
       @edit="onEdit"
       @approve="srProc.handleApprove"
+      @submit="srProc.handleSubmitForApproval"
+      @reject="srProc.handleReject"
+      @execute="srProc.handleExecute"
     />
 
     <ReturnDetailDialog

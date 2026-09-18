@@ -44,7 +44,8 @@
       <div style="margin-top: 20px">
         <h4>{{ t('salesReturns.detailDialog.titleReturnDetails') }}</h4>
         <el-table
-          :data="currentReturn.items || []"
+          :data="serverItems.length ? serverItems : currentReturn.items || []"
+          v-loading="itemsLoading"
           border
           size="small"
           :aria-label="t('salesReturns.detailDialog.detailsTableAriaLabel')"
@@ -64,20 +65,54 @@
           />
           <el-table-column prop="amount" :label="t('salesReturns.detailDialog.columnAmount')" />
           <el-table-column prop="reason" :label="t('salesReturns.detailDialog.columnReason')" />
+          <el-table-column
+            v-if="editable"
+            :label="t('salesReturns.detailDialog.columnOperation')"
+            width="140"
+            fixed="right"
+          >
+            <template #default="{ row }">
+              <el-button link type="danger" size="small" @click="handleDeleteItem(row)">{{
+                t('salesReturns.detailDialog.buttonDeleteItem')
+              }}</el-button>
+            </template>
+          </el-table-column>
         </el-table>
+        <div v-if="editable" class="add-item-bar">
+          <el-input-number v-model="newItem.productId" :min="1" style="width: 140px" />
+          <el-input-number v-model="newItem.quantity" :min="1" style="width: 120px" />
+          <el-input-number
+            v-model="newItem.unitPrice"
+            :min="0"
+            :precision="2"
+            style="width: 130px"
+          />
+          <el-input v-model="newItem.reason" style="width: 160px" placeholder="退货原因" />
+          <el-button type="primary" plain :loading="itemSaving" @click="handleAddItem">
+            {{ t('salesReturns.detailDialog.buttonAddItem') }}
+          </el-button>
+        </div>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { getStatusType, formatAmount } from '../composables/srFmts';
-import type { SalesReturn } from '@/api/sales-return';
+import {
+  getSalesReturnItemList,
+  createSalesReturnItem,
+  deleteSalesReturnItem,
+  type SalesReturn,
+  type SalesReturnItem,
+} from '@/api/sales-return';
 
 const { t } = useI18n({ useScope: 'global' });
 
-defineProps<{
+const props = defineProps<{
   visible: boolean;
   currentReturn: SalesReturn | null;
 }>();
@@ -85,6 +120,86 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'update:visible', val: boolean): void;
 }>();
+
+// ===== 明细回源与行级维护（DRAFT 态） =====
+const serverItems = ref<SalesReturnItem[]>([]);
+const itemsLoading = ref(false);
+const itemSaving = ref(false);
+const newItem = reactive({ productId: 1, quantity: 1, unitPrice: 0, reason: '' });
+
+const editable = computed(() => (props.currentReturn?.status ?? '') === 'DRAFT');
+
+// 对话框打开时按 ID 回源最新明细
+watch(
+  () => props.visible,
+  async val => {
+    if (val && props.currentReturn?.id) {
+      itemsLoading.value = true;
+      try {
+        const res = await getSalesReturnItemList(props.currentReturn.id);
+        const data = res.data as unknown;
+        serverItems.value = Array.isArray(data)
+          ? data
+          : ((data as { items?: SalesReturnItem[] })?.items ?? []);
+      } catch {
+        serverItems.value = [];
+      } finally {
+        itemsLoading.value = false;
+      }
+    } else if (!val) {
+      serverItems.value = [];
+    }
+  }
+);
+
+const handleAddItem = async () => {
+  if (!props.currentReturn?.id) return;
+  itemSaving.value = true;
+  try {
+    await createSalesReturnItem(props.currentReturn.id, {
+      productId: newItem.productId,
+      quantity: newItem.quantity,
+      unitPrice: newItem.unitPrice,
+      reason: newItem.reason || undefined,
+    });
+    ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
+    const res = await getSalesReturnItemList(props.currentReturn.id);
+    const data = res.data as unknown;
+    serverItems.value = Array.isArray(data)
+      ? data
+      : ((data as { items?: SalesReturnItem[] })?.items ?? []);
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('salesReturns.detailDialog.itemFailed'));
+  } finally {
+    itemSaving.value = false;
+  }
+};
+
+const handleDeleteItem = async (row: SalesReturnItem) => {
+  if (!props.currentReturn?.id || !row.id) return;
+  try {
+    await ElMessageBox.confirm(
+      t('salesReturns.detailDialog.deleteItemConfirm'),
+      t('salesReturns.detailDialog.deleteItemTitle'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteSalesReturnItem(props.currentReturn.id, row.id);
+    ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
+    const res = await getSalesReturnItemList(props.currentReturn.id);
+    const data = res.data as unknown;
+    serverItems.value = Array.isArray(data)
+      ? data
+      : ((data as { items?: SalesReturnItem[] })?.items ?? []);
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error((e as Error).message || t('salesReturns.detailDialog.itemFailed'));
+    }
+  }
+};
 
 /** 获取退货状态标签（i18n 响应式） */
 const getStatusLabel = (status: string) => {
@@ -101,3 +216,11 @@ const onClose = (val: boolean) => {
   emit('update:visible', val);
 };
 </script>
+
+<style scoped>
+.add-item-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+</style>
