@@ -10,10 +10,18 @@
       <template #header>
         <div class="card-header">
           <span class="title">{{ t('quotations.list.title') }}</span>
-          <el-button type="primary" @click="$router.push('/quotations/new')">
-            <el-icon><Plus /></el-icon>
-            {{ t('quotations.list.createNew') }}
-          </el-button>
+          <div style="display: flex; gap: 8px">
+            <el-button @click="showExpiring(false)">
+              {{ t('quotations.list.expiringSoon') || '即将到期' }}
+            </el-button>
+            <el-button @click="showExpiring(true)">
+              {{ t('quotations.list.expired') || '已过期' }}
+            </el-button>
+            <el-button type="primary" @click="$router.push('/quotations/new')">
+              <el-icon><Plus /></el-icon>
+              {{ t('quotations.list.createNew') }}
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -108,7 +116,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('quotations.list.colAction')" width="280" fixed="right">
+        <el-table-column :label="t('quotations.list.colAction')" width="340" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="goDetail(row)">{{
               t('quotations.list.view')
@@ -139,6 +147,9 @@
             >
               {{ t('quotations.list.cancel') }}
             </el-button>
+            <el-button link type="warning" @click="showTerms(row)">
+              {{ t('quotations.list.terms') || '条款' }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -154,6 +165,50 @@
         @size-change="onSizeChange"
       />
     </el-card>
+
+    <!-- 到期/过期报价弹窗（getExpiringQuotationList / getExpiredQuotationList） -->
+    <el-dialog
+      v-model="expiringVisible"
+      :title="t('quotations.list.expiringSoon') || '即将到期'"
+      width="720px"
+    >
+      <el-table :data="expiringRows" border size="small" max-height="420">
+        <el-table-column
+          prop="quotation_no"
+          :label="t('quotations.list.colNo') || '报价单号'"
+          min-width="150"
+        />
+        <el-table-column
+          prop="customer_name"
+          :label="t('quotations.list.colCustomer') || '客户'"
+          min-width="140"
+        />
+        <el-table-column prop="valid_until" label="有效期至" width="120" />
+        <el-table-column prop="status" label="状态" width="100" />
+      </el-table>
+    </el-dialog>
+
+    <!-- 贸易条款查看/维护弹窗（getQuotationTerms / setQuotationTerms） -->
+    <el-dialog v-model="termsVisible" :title="t('quotations.list.terms') || '条款'" width="600px">
+      <el-table v-loading="termsLoading" :data="termsRows" border size="small">
+        <el-table-column prop="term_type" label="条款类型" width="120" />
+        <el-table-column prop="content" label="条款内容" min-width="220" />
+        <el-table-column :label="t('common.action')" width="90">
+          <template #default="{ row }">
+            <el-button size="small" type="danger" link @click="removeTerm(row)">
+              {{ t('common.delete') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div style="display: flex; gap: 8px; margin-top: 12px">
+        <el-input v-model="newTermType" placeholder="条款类型（如 PAYMENT）" style="width: 200px" />
+        <el-input v-model="newTermContent" placeholder="条款内容" />
+        <el-button type="primary" :loading="termsSaving" @click="addTerm">
+          {{ t('common.save') }}
+        </el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -170,6 +225,13 @@ import { useTableApi } from '@/composables/useTableApi';
 import {
   cancelQuotation,
   convertQuotation,
+  getQuotationTerms,
+  setQuotationTerms,
+  getExpiringQuotationList,
+  getExpiredQuotationList,
+  calculatePrice,
+  getColorPrices,
+  setColorPrice,
   QUOTATION_STATUS_LABELS,
   QUOTATION_STATUS_TAG_TYPES,
   type QuotationResponseDto,
@@ -314,6 +376,91 @@ function formatAmount(value?: number): string {
 onMounted(() => {
   loadCustomers();
 });
+
+// 贸易条款维护（getQuotationTerms / setQuotationTerms）
+const termsVisible = ref(false);
+const termsLoading = ref(false);
+const termsSaving = ref(false);
+const termsRows = ref<Array<Record<string, unknown>>>([]);
+const currentQuotationId = ref<number | null>(null);
+const newTermType = ref('');
+const newTermContent = ref('');
+
+const showTerms = async (row: QuotationResponseDto) => {
+  currentQuotationId.value = row.id;
+  termsVisible.value = true;
+  termsLoading.value = true;
+  try {
+    const res = await getQuotationTerms(row.id);
+    termsRows.value = (res.data as unknown as Array<Record<string, unknown>>) || [];
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    termsLoading.value = false;
+  }
+};
+
+const addTerm = async () => {
+  if (!currentQuotationId.value) return;
+  if (!newTermType.value.trim() || !newTermContent.value.trim()) {
+    ElMessage.warning(t('quotations.list.termRequired') || '请填写条款类型与内容');
+    return;
+  }
+  termsSaving.value = true;
+  try {
+    await setQuotationTerms(currentQuotationId.value, [
+      ...(termsRows.value as unknown as Array<{ term_type: string; content: string }>),
+      { term_type: newTermType.value.trim(), content: newTermContent.value.trim() },
+    ]);
+    ElMessage.success(t('common.success'));
+    newTermType.value = '';
+    newTermContent.value = '';
+    const res = await getQuotationTerms(currentQuotationId.value);
+    termsRows.value = (res.data as unknown as Array<Record<string, unknown>>) || [];
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    termsSaving.value = false;
+  }
+};
+
+const removeTerm = async (row: Record<string, unknown>) => {
+  if (!currentQuotationId.value) return;
+  const remain = (termsRows.value as Array<{ id?: number }>).filter(r => r.id !== row.id);
+  termsSaving.value = true;
+  try {
+    await setQuotationTerms(
+      currentQuotationId.value,
+      remain as unknown as Array<{ term_type: string; content: string }>
+    );
+    ElMessage.success(t('common.success'));
+    termsRows.value = remain as unknown as Array<Record<string, unknown>>;
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    termsSaving.value = false;
+  }
+};
+
+// 到期/过期报价查询（弹窗展示，用于催单提醒）
+const expiringVisible = ref(false);
+const expiringRows = ref<QuotationResponseDto[]>([]);
+const showExpiring = async (expired: boolean) => {
+  expiringVisible.value = true;
+  expiringRows.value = [];
+  try {
+    const res = expired ? await getExpiredQuotationList() : await getExpiringQuotationList();
+    const d = res.data as unknown as
+      QuotationResponseDto[] | { list?: QuotationResponseDto[]; items?: QuotationResponseDto[] };
+    expiringRows.value = Array.isArray(d) ? d : d?.list || d?.items || [];
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+};
 </script>
 
 <style scoped>

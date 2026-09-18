@@ -6849,6 +6849,12 @@ export default {
     list: {
       title: '报价单管理',
       createNew: '新建报价单',
+      terms: '条款',
+      expiringSoon: '即将到期',
+      expired: '已过期',
+      termRequired: '请填写条款类型与内容',
+      colNo: '报价单号',
+      colCustomer: '客户',
       filterAriaLabel: '报价单筛选表单',
       labelCustomer: '客户',
       allCustomers: '全部客户',

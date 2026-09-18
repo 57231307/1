@@ -6857,6 +6857,12 @@ export default {
     list: {
       title: 'Quotation Management',
       createNew: 'Create Quotation',
+      terms: 'Terms',
+      expiringSoon: 'Expiring Soon',
+      expired: 'Expired',
+      termRequired: 'Term type and content are required',
+      colNo: 'Quotation No.',
+      colCustomer: 'Customer',
       filterAriaLabel: 'Quotation Filter Form',
       labelCustomer: 'Customer',
       allCustomers: 'All Customers',
