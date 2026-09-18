@@ -21,22 +21,24 @@ export interface DataPermission {
 
 export interface DataPermissionRole {
   id?: number;
-  roleId?: number;
-  resourceType?: string;
-  scopeType?: string;
-  customCondition?: CustomCondition;
-  allowedFields?: AllowedFields;
-  hiddenFields?: HiddenFields;
-  isEnabled?: boolean;
+  role_id?: number;
+  resource_type?: string;
+  scope_type?: string;
+  custom_condition?: CustomCondition;
+  allowed_fields?: AllowedFields;
+  hidden_fields?: HiddenFields;
+  is_enabled?: boolean;
 }
 
+export type DataPermissionRow = DataPermissionRole;
+
 export interface SetDataPermissionRequest {
-  roleId: number;
-  resourceType: string;
-  scopeType: string;
-  customCondition?: CustomCondition;
-  allowedFields?: AllowedFields;
-  hiddenFields?: HiddenFields;
+  role_id: number;
+  resource_type: string;
+  scope_type: string;
+  custom_condition?: CustomCondition;
+  allowed_fields?: AllowedFields;
+  hidden_fields?: HiddenFields;
 }
 
 export interface ScopeType {

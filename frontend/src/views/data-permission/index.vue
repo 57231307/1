@@ -32,33 +32,33 @@
             :aria-label="t('dataPermission.index.ariaTable')"
           >
             <el-table-column
-              prop="resourceType"
+              prop="resource_type"
               :label="t('dataPermission.index.colResourceType')"
             />
-            <el-table-column prop="scopeType" :label="t('dataPermission.index.colScopeType')">
+            <el-table-column prop="scope_type" :label="t('dataPermission.index.colScopeType')">
               <template #default="{ row }">
-                <el-tag v-if="row.scopeType === 'ALL'" type="success">{{
+                <el-tag v-if="row.scope_type === 'ALL'" type="success">{{
                   t('dataPermission.index.scopeAll')
                 }}</el-tag>
-                <el-tag v-else-if="row.scopeType === 'DEPT'" type="primary">{{
+                <el-tag v-else-if="row.scope_type === 'DEPT'" type="primary">{{
                   t('dataPermission.index.scopeDept')
                 }}</el-tag>
-                <el-tag v-else-if="row.scopeType === 'DEPT_AND_BELOW'" type="warning">{{
+                <el-tag v-else-if="row.scope_type === 'DEPT_AND_BELOW'" type="warning">{{
                   t('dataPermission.index.scopeDeptAndBelow')
                 }}</el-tag>
-                <el-tag v-else-if="row.scopeType === 'SELF'" type="info">{{
+                <el-tag v-else-if="row.scope_type === 'SELF'" type="info">{{
                   t('dataPermission.index.scopeSelf')
                 }}</el-tag>
                 <el-tag v-else type="danger">{{ t('dataPermission.index.scopeCustom') }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column
-              prop="isEnabled"
+              prop="is_enabled"
               :label="t('dataPermission.index.colStatus')"
               width="100"
             >
               <template #default="{ row }">
-                <el-tag v-if="row.isEnabled" type="success">{{
+                <el-tag v-if="row.is_enabled" type="success">{{
                   t('dataPermission.index.statusEnabled')
                 }}</el-tag>
                 <el-tag v-else type="danger">{{ t('dataPermission.index.statusDisabled') }}</el-tag>
@@ -70,14 +70,14 @@
                   v-permission="'data_permission:update'"
                   link
                   type="primary"
-                  @click="handleEditPermission(row as DataPermissionRole)"
+                  @click="handleEditPermission(row as DataPermissionRow)"
                   >{{ t('dataPermission.index.buttonEdit') }}</el-button
                 >
                 <el-button
                   v-permission="'data_permission:delete'"
                   link
                   type="danger"
-                  @click="handleDeletePermission(row as DataPermissionRole)"
+                  @click="handleDeletePermission(row as DataPermissionRow)"
                   >{{ t('dataPermission.index.buttonDelete') }}</el-button
                 >
               </template>
@@ -105,9 +105,9 @@
         label-width="120px"
         :aria-label="t('dataPermission.index.ariaForm')"
       >
-        <el-form-item :label="t('dataPermission.index.colResourceType')" prop="resourceType">
+        <el-form-item :label="t('dataPermission.index.colResourceType')" prop="resource_type">
           <el-select
-            v-model="permissionForm.resourceType"
+            v-model="permissionForm.resource_type"
             :placeholder="t('dataPermission.index.placeholderSelect')"
             style="width: 100%"
           >
@@ -122,9 +122,9 @@
             <el-option :label="t('dataPermission.index.optionFinance')" value="finance" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('dataPermission.index.colScopeType')" prop="scopeType">
+        <el-form-item :label="t('dataPermission.index.colScopeType')" prop="scope_type">
           <el-select
-            v-model="permissionForm.scopeType"
+            v-model="permissionForm.scope_type"
             :placeholder="t('dataPermission.index.placeholderSelect')"
             style="width: 100%"
           >
@@ -142,28 +142,28 @@
           </el-select>
         </el-form-item>
         <el-form-item
-          v-if="permissionForm.scopeType === 'CUSTOM'"
+          v-if="permissionForm.scope_type === 'CUSTOM'"
           :label="t('dataPermission.index.labelCustomCondition')"
-          prop="customCondition"
+          prop="custom_condition"
         >
           <el-input
-            v-model="permissionForm.customCondition"
+            v-model="permissionForm.custom_condition"
             type="textarea"
             :rows="4"
             :placeholder="t('dataPermission.index.placeholderCustomCondition')"
           />
         </el-form-item>
-        <el-form-item :label="t('dataPermission.index.labelAllowedFields')" prop="allowedFields">
+        <el-form-item :label="t('dataPermission.index.labelAllowedFields')" prop="allowed_fields">
           <el-input
-            v-model="permissionForm.allowedFields"
+            v-model="permissionForm.allowed_fields"
             type="textarea"
             :rows="2"
             :placeholder="t('dataPermission.index.placeholderAllowedFields')"
           />
         </el-form-item>
-        <el-form-item :label="t('dataPermission.index.labelHiddenFields')" prop="hiddenFields">
+        <el-form-item :label="t('dataPermission.index.labelHiddenFields')" prop="hidden_fields">
           <el-input
-            v-model="permissionForm.hiddenFields"
+            v-model="permissionForm.hidden_fields"
             type="textarea"
             :rows="2"
             :placeholder="t('dataPermission.index.placeholderHiddenFields')"
@@ -191,7 +191,8 @@ import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import {
   getRoleDataPermissionList,
   setDataPermission,
-  deleteDataPermissionByRole,
+  getDataPermission,
+  deleteDataPermission,
   getScopeTypeList,
   DEFAULT_SCOPE_TYPES,
   type DataPermissionRole,
@@ -199,6 +200,7 @@ import {
   type CustomCondition,
   type AllowedFields,
   type HiddenFields,
+  type DataPermissionRow,
 } from '@/api/data-permission';
 import { getRoleList } from '@/api/role';
 
@@ -233,23 +235,24 @@ const submitLoading = ref(false);
 const permissionFormRef = ref();
 
 const permissionForm = reactive({
-  roleId: undefined as number | undefined,
-  resourceType: '',
-  scopeType: '',
-  customCondition: '',
-  allowedFields: '',
-  hiddenFields: '',
+  id: undefined as number | undefined,
+  role_id: undefined as number | undefined,
+  resource_type: '',
+  scope_type: '',
+  custom_condition: '',
+  allowed_fields: '',
+  hidden_fields: '',
 });
 
 const permissionRules = {
-  resourceType: [
+  resource_type: [
     {
       required: true,
       message: t('dataPermission.index.ruleResourceTypeRequired'),
       trigger: 'change',
     },
   ],
-  scopeType: [
+  scope_type: [
     { required: true, message: t('dataPermission.index.ruleScopeTypeRequired'), trigger: 'change' },
   ],
 };
@@ -307,15 +310,24 @@ const handleAddPermission = () => {
   permissionDialogVisible.value = true;
 };
 
-const handleEditPermission = (row: DataPermissionRole) => {
+const handleEditPermission = async (row: DataPermissionRow) => {
   isEdit.value = true;
+  let source: DataPermissionRow = row;
+  try {
+    // 编辑前按 ID 回源最新权限配置
+    const res = await getDataPermission(row.id);
+    if (res.data) source = res.data as unknown as DataPermissionRow;
+  } catch {
+    /* 回源失败保留行数据 */
+  }
   Object.assign(permissionForm, {
-    roleId: row.roleId,
-    resourceType: row.resourceType,
-    scopeType: row.scopeType,
-    customCondition: row.customCondition || '',
-    allowedFields: row.allowedFields || '',
-    hiddenFields: row.hiddenFields || '',
+    id: source.id,
+    role_id: source.role_id,
+    resource_type: source.resource_type,
+    scope_type: source.scope_type,
+    custom_condition: (source.custom_condition as unknown as string) || '',
+    allowed_fields: (source.allowed_fields as unknown as string) || '',
+    hidden_fields: (source.hidden_fields as unknown as string) || '',
   });
   permissionDialogVisible.value = true;
 };
@@ -329,18 +341,12 @@ const handleSavePermission = async () => {
     submitLoading.value = true;
     try {
       await setDataPermission({
-        roleId: permissionForm.roleId!,
-        resourceType: permissionForm.resourceType,
-        scopeType: permissionForm.scopeType,
-        customCondition: permissionForm.customCondition
-          ? (permissionForm.customCondition as unknown as CustomCondition)
-          : undefined,
-        allowedFields: permissionForm.allowedFields
-          ? (permissionForm.allowedFields as unknown as AllowedFields)
-          : undefined,
-        hiddenFields: permissionForm.hiddenFields
-          ? (permissionForm.hiddenFields as unknown as HiddenFields)
-          : undefined,
+        role_id: permissionForm.role_id!,
+        resource_type: permissionForm.resource_type,
+        scope_type: permissionForm.scope_type,
+        custom_condition: permissionForm.custom_condition || undefined,
+        allowed_fields: permissionForm.allowed_fields || undefined,
+        hidden_fields: permissionForm.hidden_fields || undefined,
       });
       ElMessage.success(t('dataPermission.index.messageSaveSuccess'));
       permissionDialogVisible.value = false;
@@ -356,8 +362,8 @@ const handleSavePermission = async () => {
   });
 };
 
-const handleDeletePermission = async (row: DataPermissionRole) => {
-  if (!row.roleId || !row.resourceType) return;
+const handleDeletePermission = async (row: DataPermissionRow) => {
+  if (!row.id) return;
 
   try {
     await ElMessageBox.confirm(
@@ -370,7 +376,7 @@ const handleDeletePermission = async (row: DataPermissionRole) => {
       }
     );
 
-    await deleteDataPermissionByRole(row.roleId, row.resourceType);
+    await deleteDataPermission(row.id);
     ElMessage.success(t('dataPermission.index.messageDeleteSuccess'));
     fetchPermissions();
   } catch (e: unknown) {
