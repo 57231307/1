@@ -37,18 +37,11 @@ import type {
   KpiSummary,
   TimeSeriesPoint,
   CustomerRank,
+  ProductRank,
   RegionStat,
   ProfitAnalysis,
   CategoryStat,
   DrilldownOrderItem,
-} from '@/api/bi';
-import type {
-  KpiSummary,
-  TimeSeriesPoint,
-  CustomerRank,
-  ProductRank,
-  RegionStat,
-  ProfitAnalysis,
 } from '@/api/bi';
 import logger from '@/utils/logger';
 

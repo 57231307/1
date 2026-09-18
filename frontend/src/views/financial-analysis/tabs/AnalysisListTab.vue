@@ -588,23 +588,35 @@ const viewReport = async (row: FinancialReport) => {
     if (res.data) {
       const detail = res.data;
       const lines = [
-        t('financialAnalysis.analysisListTab.detailReportName', { value: detail.reportName || '-' }),
+        t('financialAnalysis.analysisListTab.detailReportName', {
+          value: detail.reportName || '-',
+        }),
         t('financialAnalysis.analysisListTab.detailReportType', {
           value: getReportTypeLabel(detail.reportType),
         }),
         t('financialAnalysis.analysisListTab.detailPeriod', { value: detail.period || '-' }),
-        t('financialAnalysis.analysisListTab.detailStatus', { value: getStatusLabel(detail.status) }),
-        t('financialAnalysis.analysisListTab.detailExecutedAt', { value: detail.executedAt || '-' }),
+        t('financialAnalysis.analysisListTab.detailStatus', {
+          value: getStatusLabel(detail.status),
+        }),
+        t('financialAnalysis.analysisListTab.detailExecutedAt', {
+          value: detail.executedAt || '-',
+        }),
         t('financialAnalysis.analysisListTab.detailCreatedAt', { value: detail.createdAt || '-' }),
         t('financialAnalysis.analysisListTab.detailUpdatedAt', { value: detail.updatedAt || '-' }),
-  ];
-  await ElMessageBox.alert(
-    lines.join('\n'),
-    t('financialAnalysis.analysisListTab.dialogTitleDetail'),
-    {
-      confirmButtonText: t('financialAnalysis.analysisListTab.buttonClose'),
+      ];
+      await ElMessageBox.alert(
+        lines.join('\n'),
+        t('financialAnalysis.analysisListTab.dialogTitleDetail'),
+        {
+          confirmButtonText: t('financialAnalysis.analysisListTab.buttonClose'),
+        }
+      );
     }
-  );
+  } catch (err) {
+    ElMessage.error(
+      (err as Error).message || t('financialAnalysis.analysisListTab.messageFetchFailed')
+    );
+  }
 };
 
 const deleteReport = async (row: FinancialReport) => {

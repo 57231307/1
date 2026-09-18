@@ -130,7 +130,7 @@
               type="warning"
               link
               size="small"
-              @click="handleSubmit(row as Bom)"
+              @click="handleSubmitApproval(row as Bom)"
             >
               {{ $t('bomModule.table.submit') }}
             </el-button>
@@ -430,7 +430,7 @@ const handleSetDefault = async (row: Bom) => {
 };
 
 // ===== 提交审核（submitBom：非 PENDING 态 → PENDING） =====
-const handleSubmit = async (row: Bom) => {
+const handleSubmitApproval = async (row: Bom) => {
   try {
     await ElMessageBox.confirm(
       t('bomModule.approve.submitConfirm', { version: row.version }),

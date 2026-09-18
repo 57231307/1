@@ -614,12 +614,6 @@ const qualificationForm = reactive<SupplierQualificationInput>({
   annual_check_record: '',
 });
 
-const openQualificationDialog = () => {
-  resetQualificationForm();
-  editingQualificationId.value = null;
-  qualificationDialogVisible.value = true;
-};
-
 const submitQualification = async () => {
   const id = supplierId.value;
   if (!id) {
