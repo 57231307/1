@@ -54,7 +54,25 @@
                   @click="onCancel(row)"
                   >取消</el-button
                 >
+                <el-button
+                  v-if="row.status === 'draft'"
+                  size="small"
+                  type="warning"
+                  plain
+                  @click="onEditRecord(row)"
+                  >编辑</el-button
+                >
+                <el-button
+                  v-if="row.status === 'draft'"
+                  size="small"
+                  type="danger"
+                  @click="onDeleteRecord(row)"
+                  >删除</el-button
+                >
                 <el-button size="small" @click="onDetails(row)">明细</el-button>
+                <el-button size="small" type="success" plain @click="onExportDetails(row)">
+                  导出
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -64,6 +82,7 @@
       <el-tab-pane label="工资费率" name="rates">
         <div class="card-header" style="margin-bottom: 12px">
           <el-button type="primary" @click="rateDialogVisible = true">新建费率</el-button>
+          <el-button plain @click="effectiveVisible = true">生效费率查询</el-button>
         </div>
         <el-table v-loading="rateLoading" :data="wageRates" border>
           <el-table-column prop="id" label="ID" width="70" />
@@ -140,6 +159,12 @@
     </el-dialog>
 
     <el-dialog v-model="detailsVisible" title="工资明细" width="720">
+      <div class="toolbar" style="margin-bottom: 8px">
+        <el-input-number v-model="workerId" :min="1" placeholder="工人ID" style="width: 140px" />
+        <el-button type="primary" plain :loading="workerLoading" @click="onWorkerDetails">
+          按工人查询工资历史
+        </el-button>
+      </div>
       <el-table :data="details" border max-height="420">
         <el-table-column
           v-for="col in detailCols"
@@ -150,6 +175,34 @@
           show-overflow-tooltip
         />
       </el-table>
+    </el-dialog>
+
+    <!-- 编辑工资单（updateWageRecord：draft 态修改车间/备注） -->
+    <el-dialog v-model="recordEditVisible" title="编辑工资单" width="480">
+      <el-form :model="recordEditForm" label-width="90px">
+        <el-form-item label="车间">
+          <el-input v-model="recordEditForm.workshop" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="recordEditForm.remarks" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="recordEditVisible = false">取消</el-button>
+        <el-button type="primary" :loading="recordSaving" @click="onSaveRecord">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 生效费率查询（getEffectiveWageRate） -->
+    <el-dialog v-model="effectiveVisible" title="生效费率查询" width="440">
+      <div class="toolbar" style="margin-bottom: 8px">
+        <el-input-number v-model="effectiveForm.route_id" :min="1" placeholder="工序路线ID" />
+        <el-input v-model="effectiveForm.date" placeholder="日期 2026-01-01" style="width: 160px" />
+        <el-button type="primary" :loading="effectiveLoading" @click="onQueryEffective">
+          查询
+        </el-button>
+      </div>
+      <pre v-if="effectiveResult" class="effective-result">{{ effectiveResult }}</pre>
     </el-dialog>
   </div>
 </template>
@@ -171,6 +224,11 @@ import {
   deleteWageRate,
   activateWageRate,
   disableWageRate,
+  updateWageRecord,
+  deleteWageRecord,
+  exportWageRecordDetails,
+  getWageDetailsByWorker,
+  getEffectiveWageRate,
   WAGE_RECORD_STATUS_LABEL,
   type WageRecord,
   type CreateWageRatePayload,
@@ -245,6 +303,106 @@ async function onDetails(row: WageRecord) {
   details.value = unwrapList(payload);
   detailCols.value = details.value.length ? Object.keys(details.value[0]).slice(0, 8) : [];
   detailsVisible.value = true;
+}
+
+// ===== 编辑/删除工资单（draft 态） =====
+const recordEditVisible = ref(false);
+const recordSaving = ref(false);
+const recordEditForm = reactive({ id: 0, workshop: '', remarks: '' });
+
+function onEditRecord(row: WageRecord) {
+  recordEditForm.id = row.id;
+  recordEditForm.workshop = (row as Record<string, unknown>).workshop as string;
+  recordEditForm.remarks = (row as Record<string, unknown>).remarks as string;
+  recordEditVisible.value = true;
+}
+
+async function onSaveRecord() {
+  recordSaving.value = true;
+  try {
+    await updateWageRecord(recordEditForm.id, {
+      workshop: recordEditForm.workshop || undefined,
+      remarks: recordEditForm.remarks || undefined,
+    });
+    ElMessage.success('工资单已更新');
+    recordEditVisible.value = false;
+    await load();
+  } catch (e) {
+    ElMessage.error((e as Error).message || '更新失败');
+  } finally {
+    recordSaving.value = false;
+  }
+}
+
+async function onDeleteRecord(row: WageRecord) {
+  try {
+    await ElMessageBox.confirm(`确认删除工资单 #${row.id}？`, '删除确认', { type: 'warning' });
+  } catch {
+    return;
+  }
+  try {
+    await deleteWageRecord(row.id);
+    ElMessage.success('删除成功');
+    await load();
+  } catch (e) {
+    ElMessage.error((e as Error).message || '删除失败');
+  }
+}
+
+// ===== 导出工资明细（xlsx blob 下载） =====
+async function onExportDetails(row: WageRecord) {
+  try {
+    const blob = await exportWageRecordDetails(row.id);
+    const url = URL.createObjectURL(blob as unknown as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `wage_details_${row.id}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    ElMessage.success('明细已导出');
+  } catch (e) {
+    ElMessage.error((e as Error).message || '导出失败');
+  }
+}
+
+// ===== 按工人查询工资历史（getWageDetailsByWorker） =====
+const workerId = ref(1);
+const workerLoading = ref(false);
+
+async function onWorkerDetails() {
+  workerLoading.value = true;
+  try {
+    const payload = await getWageDetailsByWorker(workerId.value);
+    details.value = unwrapList(payload);
+    detailCols.value = details.value.length ? Object.keys(details.value[0]).slice(0, 8) : [];
+    ElMessage.success(details.value.length ? '' : '暂无该工人工资历史');
+  } catch (e) {
+    ElMessage.error((e as Error).message || '查询失败');
+  } finally {
+    workerLoading.value = false;
+  }
+}
+
+// ===== 生效费率查询（getEffectiveWageRate） =====
+const effectiveVisible = ref(false);
+const effectiveLoading = ref(false);
+const effectiveResult = ref('');
+const effectiveForm = reactive({ route_id: 1, date: '' });
+
+async function onQueryEffective() {
+  if (!effectiveForm.date) {
+    ElMessage.warning('请输入查询日期');
+    return;
+  }
+  effectiveLoading.value = true;
+  try {
+    const res = await getEffectiveWageRate(effectiveForm.route_id, effectiveForm.date);
+    effectiveResult.value = JSON.stringify(res.data ?? res, null, 2);
+  } catch (e) {
+    ElMessage.error((e as Error).message || '查询失败');
+  } finally {
+    effectiveLoading.value = false;
+  }
 }
 
 onMounted(load);
@@ -355,5 +513,20 @@ const onDeleteRate = async (row: Record<string, unknown>) => {
 }
 .w-full {
   width: 100%;
+}
+.effective-result {
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  padding: 12px;
+  font-size: 12px;
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  margin: 0;
+}
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 </style>
