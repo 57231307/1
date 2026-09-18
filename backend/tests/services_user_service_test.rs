@@ -25,6 +25,8 @@ fn make_user_model(id: i32, username: &str, is_active: bool) -> user::Model {
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
         agreed_to_terms_at: None,
+        real_name: None,
+        avatar: None,
         gender: None,
         birth_date: None,
     }
