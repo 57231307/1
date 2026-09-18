@@ -10908,7 +10908,8 @@ export default {
       messageCreateFailed: 'Failed to create',
       messageUpdateSuccess: 'Updated successfully',
       messageUpdateFailed: 'Failed to update',
-      messageJsonInvalid: 'Invalid JSON format — check custom condition / allowed fields / hidden fields input',
+      messageJsonInvalid:
+        'Invalid JSON format — check custom condition / allowed fields / hidden fields input',
     },
   },
   inventoryBatch: {
