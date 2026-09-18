@@ -311,8 +311,15 @@ const runAction = async (_row: ProductionRecipe, label: string, fn: () => Promis
   }
 };
 
-const handleApprove = (row: ProductionRecipe) =>
-  runAction(row, '审批', () => approveProductionRecipe(row.id, { approved_by: 1 }));
+const handleApprove = (row: ProductionRecipe) => {
+  const userStore = useUserStore();
+  const approvedBy = userStore.userInfo?.id;
+  if (!approvedBy) {
+    ElMessage.warning('当前登录用户信息缺失，无法登记审批人');
+    return Promise.resolve();
+  }
+  return runAction(row, '审批', () => approveProductionRecipe(row.id, { approved_by: approvedBy }));
+};
 const handleClose = (row: ProductionRecipe) =>
   runAction(row, '关闭', () => closeProductionRecipe(row.id));
 const handleCancel = (row: ProductionRecipe) =>
