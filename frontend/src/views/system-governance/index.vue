@@ -55,6 +55,8 @@
           <el-button type="primary" @click="versionDialogVisible = true">注册模型版本</el-button>
           <el-button plain @click="onReconcile">月度对账</el-button>
           <el-button plain @click="onAccuracyReports">准确率报表</el-button>
+          <el-button plain @click="onModelEvaluation">模型评估</el-button>
+          <el-button plain @click="onDecisionLogs">决策日志</el-button>
         </div>
         <el-table v-loading="loadingModels" :data="modelVersions" border>
           <el-table-column prop="id" label="ID" width="70" />
@@ -66,17 +68,68 @@
               show-overflow-tooltip
             />
           </template>
-          <el-table-column label="操作" width="260" fixed="right">
+          <el-table-column label="操作" width="340" fixed="right">
             <template #default="{ row }">
               <el-button size="small" type="success" @click="onApprove(row)">审批</el-button>
               <el-button size="small" type="primary" plain @click="onDrift(row)"
                 >漂移检测</el-button
               >
               <el-button size="small" @click="onEvaluations(row)">评估记录</el-button>
+              <el-button size="small" type="warning" plain @click="onModelStatus(row, 'active')"
+                >激活</el-button
+              >
+              <el-button size="small" type="info" plain @click="onModelStatus(row, 'deprecated')"
+                >弃用</el-button
+              >
             </template>
           </el-table-column>
         </el-table>
         <pre v-if="aiResult" class="result-box">{{ aiResult }}</pre>
+      </el-tab-pane>
+
+      <el-tab-pane label="角色变更审批" name="role-change">
+        <div class="toolbar mb">
+          <el-button type="primary" :loading="roleChangeLoading" @click="loadRoleChanges">
+            刷新
+          </el-button>
+        </div>
+        <el-table v-loading="roleChangeLoading" :data="roleChanges" border>
+          <el-table-column prop="id" label="ID" width="70" />
+          <template v-for="col in roleChangeCols" :key="col">
+            <el-table-column
+              :prop="col"
+              :label="col.replace(/_/g, ' ')"
+              min-width="130"
+              show-overflow-tooltip
+            />
+          </template>
+          <el-table-column label="操作" width="300" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.status === 'pending_l1'"
+                size="small"
+                type="success"
+                @click="onRoleChangeAction(row, 'approve-l1')"
+                >一级审批</el-button
+              >
+              <el-button
+                v-if="row.status === 'pending_l2'"
+                size="small"
+                type="success"
+                @click="onRoleChangeAction(row, 'approve-l2')"
+                >二级审批</el-button
+              >
+              <el-button
+                v-if="row.status === 'pending_l1' || row.status === 'pending_l2'"
+                size="small"
+                type="danger"
+                @click="onRoleChangeAction(row, 'reject')"
+                >驳回</el-button
+              >
+              <el-button size="small" @click="onRoleChangeAction(row, 'cancel')">撤销</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </el-tab-pane>
 
       <!-- 设备连接 -->
@@ -173,6 +226,16 @@ import {
   getRoleRelations,
   registerDevice,
   revokeDelegation,
+  changeModelStatus,
+  createModelEvaluation,
+  logDecision,
+  getDecisionLogs,
+  getRoleChangeApprovals,
+  approveRoleChangeL1,
+  approveRoleChangeL2,
+  rejectRoleChangeApproval,
+  cancelRoleChangeApproval,
+  checkMutualExclusive,
 } from '@/api/system-governance';
 
 const activeTab = ref('delegation');
@@ -332,6 +395,103 @@ async function onRegisterDevice() {
   deviceDialogVisible.value = false;
   await loadDevices();
 }
+
+// 模型版本状态变更（激活/弃用）
+const onModelStatus = async (row: Record<string, unknown>, status: string) => {
+  try {
+    await changeModelStatus(Number(row.id), { status });
+    ElMessage.success(`模型版本已${status === 'active' ? '激活' : '弃用'}`);
+    loadModels();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+};
+
+// 模型评估登记（对选中版本创建评估记录）
+const onModelEvaluation = async (row?: Record<string, unknown>) => {
+  const versionId = row ? Number(row.id) : modelVersions.value[0]?.id;
+  if (!versionId) {
+    ElMessage.warning('暂无模型版本');
+    return;
+  }
+  try {
+    await createModelEvaluation({
+      model_version_id: versionId,
+      evaluation_type: 'periodic',
+      result: { note: 'manual evaluation' },
+    });
+    ElMessage.success('评估记录已创建');
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+};
+
+// 决策日志查询（弹窗展示）
+const onDecisionLogs = async () => {
+  try {
+    const res = await getDecisionLogs({});
+    const logs = unwrapList<Record<string, unknown>>(res.data);
+    const lines = logs
+      .slice(0, 20)
+      .map(l => `#${l.id} ${l.decision_type || ''} ${l.created_at || ''}`);
+    ElMessageBox.alert(lines.join('\n') || '暂无决策日志', 'AI 决策日志（最近 20 条）', {
+      type: 'info',
+    });
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+};
+
+// 角色变更审批：列表 + L1/L2 审批/驳回/撤销
+const roleChanges = ref<Record<string, unknown>[]>([]);
+const roleChangeLoading = ref(false);
+const roleChangeCols = ['id', 'role_id', 'status', 'reason', 'created_at'];
+
+const loadRoleChanges = async () => {
+  roleChangeLoading.value = true;
+  try {
+    const res = await getRoleChangeApprovals({});
+    roleChanges.value = unwrapList<Record<string, unknown>>(res.data);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    roleChangeLoading.value = false;
+  }
+};
+
+const onRoleChangeAction = async (
+  row: Record<string, unknown>,
+  action: 'approve-l1' | 'approve-l2' | 'reject' | 'cancel'
+) => {
+  let reason = '';
+  if (action === 'reject') {
+    try {
+      const { value } = await ElMessageBox.prompt('请输入驳回原因', `驳回 #${row.id}`, {
+        type: 'warning',
+        inputPattern: /\S+/,
+        inputErrorMessage: '驳回原因不能为空',
+      });
+      reason = value;
+    } catch {
+      return;
+    }
+  }
+  try {
+    if (action === 'approve-l1') await approveRoleChangeL1(Number(row.id));
+    else if (action === 'approve-l2') await approveRoleChangeL2(Number(row.id));
+    else if (action === 'reject') await rejectRoleChangeApproval(Number(row.id), reason);
+    else await cancelRoleChangeApproval(Number(row.id));
+    ElMessage.success(t('common.success'));
+    loadRoleChanges();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+};
 
 onMounted(() => {
   loadDelegations();
