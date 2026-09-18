@@ -128,7 +128,9 @@
         :data="products"
         stripe
         :aria-label="t('product.productListTab.tableAriaLabel')"
+        @selection-change="handleSelectionChange"
       >
+        <el-table-column type="selection" width="45" align="center" />
         <el-table-column
           prop="product_code"
           :label="t('product.productListTab.colProductCode')"
@@ -197,7 +199,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('product.productListTab.colActions')" width="200" fixed="right">
+        <el-table-column :label="t('product.productListTab.colActions')" width="260" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="emit('openForm', 'view', row)">{{
               t('product.productListTab.buttonDetail')
@@ -205,6 +207,9 @@
             <el-button type="primary" link size="small" @click="emit('openForm', 'edit', row)">{{
               t('product.productListTab.buttonEdit')
             }}</el-button>
+            <el-button type="warning" link size="small" @click="openColorDialog(row)">
+              {{ t('product.productListTab.buttonColors') || '色号' }}
+            </el-button>
             <el-button type="danger" link size="small" @click="handleDelete(row)">{{
               t('product.productListTab.buttonDelete')
             }}</el-button>
@@ -213,6 +218,11 @@
       </el-table>
 
       <div class="pagination-wrapper">
+        <el-button v-if="selectedIds.length" type="danger" size="small" @click="handleBatchDelete">
+          {{ t('product.productListTab.buttonBatchDelete') || '批量删除' }}（{{
+            selectedIds.length
+          }}）
+        </el-button>
         <el-pagination
           v-model:current-page="page"
           v-model:page-size="pageSize"
@@ -246,8 +256,13 @@ import {
 import {
   getProductCategoryList,
   deleteProduct,
+  getProductById,
+  batchDeleteProducts,
+  createProductColor,
+  updateProductColor,
   type Product,
   type ProductCategory,
+  type ProductColor,
 } from '@/api/product';
 import { exportFabrics } from '@/api/fabric';
 import { useTableApi } from '@/composables/useTableApi';
@@ -399,6 +414,103 @@ const handleDelete = async (row: Product) => {
     );
     await deleteProduct(row.id);
     ElMessage.success(t('product.productListTab.messageDeleteSuccess'));
+    fetchData();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error((error as Error).message || t('product.productListTab.messageDeleteFailed'));
+    }
+  }
+};
+
+// 产品详情回源（getProductById：行数据为列表裁剪字段，详情补全全部字段）
+const handleViewDetail = async (row: Product) => {
+  try {
+    const res = await getProductById(row.id);
+    if (res.data) {
+      emit('openForm', 'view', res.data);
+    }
+  } catch {
+    emit('openForm', 'view', row);
+  }
+};
+
+// 产品色号管理（createProductColor/updateProductColor）弹窗
+const colorDialogVisible = ref(false);
+const colorProduct = ref<Product | null>(null);
+const colorRows = ref<ProductColor[]>([]);
+const colorForm = reactive({ color_no: '', color_name: '' });
+const colorEditingId = ref<number | null>(null);
+const colorSubmitting = ref(false);
+
+const openColorDialog = async (row: Product) => {
+  colorProduct.value = row;
+  colorEditingId.value = null;
+  colorForm.color_no = '';
+  colorForm.color_name = '';
+  colorDialogVisible.value = true;
+  try {
+    const { getProductColorList } = await import('@/api/product');
+    const res = await getProductColorList(row.id);
+    colorRows.value = (res.data as unknown as ProductColor[]) || [];
+  } catch {
+    colorRows.value = [];
+  }
+};
+
+const submitColor = async () => {
+  if (!colorProduct.value) return;
+  if (!colorForm.color_no.trim()) {
+    ElMessage.warning(t('product.productListTab.messageColorNoRequired') || '请输入色号');
+    return;
+  }
+  colorSubmitting.value = true;
+  try {
+    if (colorEditingId.value) {
+      await updateProductColor(colorProduct.value.id, colorEditingId.value, colorForm);
+    } else {
+      await createProductColor(colorProduct.value.id, colorForm);
+    }
+    ElMessage.success(t('common.success'));
+    colorEditingId.value = null;
+    colorForm.color_no = '';
+    colorForm.color_name = '';
+    const { getProductColorList } = await import('@/api/product');
+    const res = await getProductColorList(colorProduct.value.id);
+    colorRows.value = (res.data as unknown as ProductColor[]) || [];
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    colorSubmitting.value = false;
+  }
+};
+
+const editColor = (row: ProductColor) => {
+  colorEditingId.value = row.id;
+  colorForm.color_no = row.color_no || '';
+  colorForm.color_name = row.color_name || '';
+};
+
+// 批量删除（勾选行 batchDeleteProducts）
+const selectedIds = ref<number[]>([]);
+const handleSelectionChange = (rows: Product[]) => {
+  selectedIds.value = rows.map(r => r.id);
+};
+const handleBatchDelete = async () => {
+  if (!selectedIds.value.length) {
+    ElMessage.warning(t('product.productListTab.messageSelectFirst') || '请先勾选要删除的产品');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      t('product.productListTab.messageBatchDeleteConfirm', { count: selectedIds.value.length }) ||
+        `确认删除选中的 ${selectedIds.value.length} 个产品？`,
+      t('product.productListTab.messageDeleteTitle'),
+      { type: 'warning' }
+    );
+    await batchDeleteProducts(selectedIds.value);
+    ElMessage.success(t('product.productListTab.messageDeleteSuccess'));
+    selectedIds.value = [];
     fetchData();
   } catch (error) {
     if (error !== 'cancel') {
