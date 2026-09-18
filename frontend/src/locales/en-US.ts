@@ -1760,6 +1760,8 @@ export default {
       operation: 'Operation',
       edit: 'Edit',
       approve: 'Approve',
+      adjust: 'Adjust',
+      reject: 'Reject',
       delete: 'Delete',
       paginationAriaLabel: 'Budget list pagination',
     },

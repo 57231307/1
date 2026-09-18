@@ -1754,6 +1754,8 @@ export default {
       operation: '操作',
       edit: '编辑',
       approve: '审核',
+      adjust: '预算调整',
+      reject: '驳回',
       delete: '删除',
       paginationAriaLabel: '预算列表分页',
     },

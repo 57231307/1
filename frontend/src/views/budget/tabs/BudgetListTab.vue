@@ -103,6 +103,16 @@
               >{{ $t('budget.table.approve') }}</el-button
             >
             <el-button
+              v-if="row.id"
+              v-permission="'budget:update'"
+              type="warning"
+              link
+              size="small"
+              plain
+              @click="openAdjustDialog(row)"
+              >{{ $t('budget.table.adjust') }}</el-button
+            >
+            <el-button
               v-permission="'budget:delete'"
               type="danger"
               link
@@ -172,6 +182,32 @@
         }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 预算调整对话框（adjustBudget：{item_id, adjust_amount, reason}） -->
+    <el-dialog v-model="adjustVisible" :title="t('budget.table.adjust')" width="480">
+      <el-form :model="adjustForm" label-width="110px">
+        <el-form-item label="明细项" required>
+          <el-select v-model="adjustForm.item_id" style="width: 100%">
+            <el-option
+              v-for="item in detailBudget?.items || []"
+              :key="item.id"
+              :label="item.subject_name || `明细 #${item.id}`"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="调整金额" required>
+          <el-input-number v-model="adjustForm.adjust_amount" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="调整原因">
+          <el-input v-model="adjustForm.reason" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="adjustVisible = false">取消</el-button>
+        <el-button type="primary" :loading="adjustSaving" @click="handleAdjust">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -185,6 +221,8 @@ import {
   updateBudget,
   deleteBudget as deleteBudgetApi,
   approveBudget as approveBudgetApi,
+  adjustBudget,
+  getBudget,
   type Budget,
 } from '@/api/budget';
 import { logger } from '@/utils/logger';
@@ -350,6 +388,68 @@ const approveBudget = async (row: Budget) => {
       const err = e as Error;
       ElMessage.error(err.message || t('budget.message.auditFailed'));
     }
+  }
+};
+
+// ===== 预算调整（adjustBudget：{item_id, adjust_amount, reason}） =====
+const adjustVisible = ref(false);
+const adjustSaving = ref(false);
+const adjustForm = reactive({
+  item_id: undefined as number | undefined,
+  adjust_amount: 0,
+  reason: '',
+});
+
+const openAdjustDialog = async (row: Budget) => {
+  adjustForm.item_id = undefined;
+  adjustForm.adjust_amount = 0;
+  adjustForm.reason = '';
+  adjustVisible.value = true;
+  try {
+    // 回源取预算明细项（getBudget）
+    const res = await getBudget(row.id);
+    detailBudget.value = res.data ?? null;
+  } catch {
+    detailBudget.value = null;
+  }
+};
+
+const detailBudget = ref<Budget | null>(null);
+
+const handleAdjust = async () => {
+  if (!adjustForm.item_id || adjustForm.adjust_amount === 0) {
+    ElMessage.warning('请选择明细项并填写调整金额');
+    return;
+  }
+  adjustSaving.value = true;
+  try {
+    await adjustBudget({
+      item_id: adjustForm.item_id,
+      adjust_amount: adjustForm.adjust_amount,
+      reason: adjustForm.reason || undefined,
+    });
+    ElMessage.success('预算已调整');
+    adjustVisible.value = false;
+    fetchBudgets();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error((e as Error).message || '调整失败');
+  } finally {
+    adjustSaving.value = false;
+  }
+};
+
+const handleRejectPlan = async () => {
+  if (!rejectPlanRow.value) return;
+  rejectPlanSaving.value = true;
+  try {
+    await rejectBudgetPlan(rejectPlanRow.value.id, rejectPlanComment.value || undefined);
+    ElMessage.success(t('budget.auditSuccess'));
+    rejectPlanVisible.value = false;
+    fetchBudgets();
+  } catch (e) {
+    ElMessage.error((e as Error).message || '驳回失败');
+  } finally {
+    rejectPlanSaving.value = false;
   }
 };
 
