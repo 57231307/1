@@ -68,10 +68,13 @@
           <el-table-column
             v-if="editable"
             :label="t('salesReturns.detailDialog.columnOperation')"
-            width="140"
+            width="180"
             fixed="right"
           >
             <template #default="{ row }">
+              <el-button link type="primary" size="small" @click="handleEditItem(row)">{{
+                t('salesReturns.detailDialog.buttonEditItem')
+              }}</el-button>
               <el-button link type="danger" size="small" @click="handleDeleteItem(row)">{{
                 t('salesReturns.detailDialog.buttonDeleteItem')
               }}</el-button>
@@ -79,7 +82,12 @@
           </el-table-column>
         </el-table>
         <div v-if="editable" class="add-item-bar">
-          <el-input-number v-model="newItem.productId" :min="1" style="width: 140px" />
+          <el-input-number
+            v-model="newItem.productId"
+            :min="1"
+            :disabled="editingItemId !== null"
+            style="width: 140px"
+          />
           <el-input-number v-model="newItem.quantity" :min="1" style="width: 120px" />
           <el-input-number
             v-model="newItem.unitPrice"
@@ -88,9 +96,23 @@
             style="width: 130px"
           />
           <el-input v-model="newItem.reason" style="width: 160px" placeholder="退货原因" />
-          <el-button type="primary" plain :loading="itemSaving" @click="handleAddItem">
+          <el-button
+            v-if="editingItemId === null"
+            type="primary"
+            plain
+            :loading="itemSaving"
+            @click="handleAddItem"
+          >
             {{ t('salesReturns.detailDialog.buttonAddItem') }}
           </el-button>
+          <template v-else>
+            <el-button type="primary" plain :loading="itemSaving" @click="handleUpdateItem">
+              {{ t('salesReturns.detailDialog.buttonUpdateItem') }}
+            </el-button>
+            <el-button plain @click="cancelEditItem">
+              {{ t('salesReturns.detailDialog.buttonCancelEdit') }}
+            </el-button>
+          </template>
         </div>
       </div>
     </template>
@@ -105,6 +127,7 @@ import { getStatusType, formatAmount } from '../composables/srFmts';
 import {
   getSalesReturnItemList,
   createSalesReturnItem,
+  updateSalesReturnItem,
   deleteSalesReturnItem,
   type SalesReturn,
   type SalesReturnItem,
@@ -126,6 +149,16 @@ const serverItems = ref<SalesReturnItem[]>([]);
 const itemsLoading = ref(false);
 const itemSaving = ref(false);
 const newItem = reactive({ productId: 1, quantity: 1, unitPrice: 0, reason: '' });
+const editingItemId = ref<number | null>(null);
+
+const refreshServerItems = async () => {
+  if (!props.currentReturn?.id) return;
+  const res = await getSalesReturnItemList(props.currentReturn.id);
+  const data = res.data as unknown;
+  serverItems.value = Array.isArray(data)
+    ? data
+    : ((data as { items?: SalesReturnItem[] })?.items ?? []);
+};
 
 const editable = computed(() => (props.currentReturn?.status ?? '') === 'DRAFT');
 
@@ -163,16 +196,48 @@ const handleAddItem = async () => {
       reason: newItem.reason || undefined,
     });
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
-    const res = await getSalesReturnItemList(props.currentReturn.id);
-    const data = res.data as unknown;
-    serverItems.value = Array.isArray(data)
-      ? data
-      : ((data as { items?: SalesReturnItem[] })?.items ?? []);
+    await refreshServerItems();
   } catch (e) {
     ElMessage.error((e as Error).message || t('salesReturns.detailDialog.itemFailed'));
   } finally {
     itemSaving.value = false;
   }
+};
+
+/** 行编辑：回填添加栏并切换为更新模式 */
+const handleEditItem = (row: SalesReturnItem) => {
+  editingItemId.value = row.id ?? null;
+  newItem.productId = row.productId ?? 1;
+  newItem.quantity = row.quantity ?? 1;
+  newItem.unitPrice = row.unitPrice ?? 0;
+  newItem.reason = row.reason || '';
+};
+
+const handleUpdateItem = async () => {
+  if (!props.currentReturn?.id || !editingItemId.value) return;
+  itemSaving.value = true;
+  try {
+    await updateSalesReturnItem(props.currentReturn.id, editingItemId.value, {
+      quantity: newItem.quantity,
+      unitPrice: newItem.unitPrice,
+      reason: newItem.reason || undefined,
+    });
+    ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
+    editingItemId.value = null;
+    await refreshServerItems();
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('salesReturns.detailDialog.itemFailed'));
+  } finally {
+    itemSaving.value = false;
+  }
+};
+
+const cancelEditItem = () => {
+  editingItemId.value = null;
+  newItem.productId = 1;
+  newItem.quantity = 1;
+  newItem.unitPrice = 0;
+  newItem.reason = '';
 };
 
 const handleDeleteItem = async (row: SalesReturnItem) => {
@@ -189,11 +254,7 @@ const handleDeleteItem = async (row: SalesReturnItem) => {
   try {
     await deleteSalesReturnItem(props.currentReturn.id, row.id);
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
-    const res = await getSalesReturnItemList(props.currentReturn.id);
-    const data = res.data as unknown;
-    serverItems.value = Array.isArray(data)
-      ? data
-      : ((data as { items?: SalesReturnItem[] })?.items ?? []);
+    await refreshServerItems();
   } catch (e) {
     if (e !== 'cancel') {
       ElMessage.error((e as Error).message || t('salesReturns.detailDialog.itemFailed'));
