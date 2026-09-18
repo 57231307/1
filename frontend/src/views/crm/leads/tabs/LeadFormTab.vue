@@ -141,7 +141,7 @@ import { ref, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { Lead } from '@/api/crm';
+import { createLead, updateLead, type Lead } from '@/api/crm';
 import type { User } from '@/api/user';
 import { logger } from '@/utils/logger';
 
@@ -236,11 +236,17 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
+    if (formData.id) {
+      await updateLead(formData.id, formData);
+    } else {
+      await createLead(formData);
+    }
     ElMessage.success(t('crmLeads.leadForm.message.saveSuccess'));
     visible.value = false;
     emit('submitted');
   } catch (error) {
     const err = error as Error;
+    ElMessage.error(err.message || t('crmLeads.leadForm.message.validationFailed'));
     logger.warn(t('crmLeads.leadForm.message.validationFailed'), err.message);
   } finally {
     submitLoading.value = false;

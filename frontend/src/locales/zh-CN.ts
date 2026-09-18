@@ -3711,6 +3711,7 @@ export default {
       contact: '联系',
       convert: '转化',
       lost: '流失',
+      score: '评分',
       paginationAriaLabel: '线索分页',
     },
     dialog: {
@@ -3755,6 +3756,8 @@ export default {
       exportSuccess: '导出成功',
       exportFailed: '导出失败',
       selectionChanged: '选择变化',
+      scoreEmpty: '评分完成，暂无评分明细',
+      scoreFailed: '评分失败',
     },
     exportFile: {
       filename: '线索列表',
@@ -5949,6 +5952,8 @@ export default {
       negotiation: '谈判',
       won: '成交',
       lost: '流失',
+      toOrder: '转订单',
+      analytics: '分析',
     },
     priority: {
       low: '低',
@@ -6009,6 +6014,10 @@ export default {
       exportSuccess: '导出成功',
       exportFailed: '导出失败',
       exportFilename: 'CRM商机',
+      convertConfirm: '确认将该商机转为销售订单？',
+      convertSuccess: '转单成功',
+      convertFailed: '转单失败',
+      analyticsLoading: '分析加载中…',
     },
   },
   crmOpportunityFollow: {

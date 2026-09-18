@@ -3695,6 +3695,7 @@ export default {
       qualified: 'Qualified',
       converted: 'Converted',
       lost: 'Lost',
+      score: 'Score',
     },
     priority: {
       low: 'Low',
@@ -5958,6 +5959,8 @@ export default {
       negotiation: 'Negotiation',
       won: 'Won',
       lost: 'Lost',
+      toOrder: 'To Order',
+      analytics: 'Analytics',
     },
     priority: {
       low: 'Low',
@@ -6018,6 +6021,10 @@ export default {
       exportSuccess: 'Exported successfully',
       exportFailed: 'Failed to export',
       exportFilename: 'CRM Opportunities',
+      convertConfirm: 'Convert this opportunity into a sales order?',
+      convertSuccess: 'Converted to sales order',
+      convertFailed: 'Conversion failed',
+      analyticsLoading: 'Loading analytics…',
     },
   },
   crmOpportunityFollow: {

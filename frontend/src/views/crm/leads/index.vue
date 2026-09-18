@@ -254,6 +254,14 @@
               @click="handleLost(row)"
               >{{ $t('crmLeads.table.lost') }}</el-button
             >
+            <el-button
+              v-if="row.lead_status !== 'CONVERTED'"
+              type="warning"
+              link
+              size="small"
+              @click="handleScore(row)"
+              >{{ $t('crmLeads.table.score') || '评分' }}</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -293,6 +301,7 @@ import {
   updateLeadStatus,
   convertLead,
   getLead,
+  scoreLead,
   type Lead,
 } from '@/api/crm';
 import { getUserList, type User } from '@/api/user';
@@ -479,6 +488,24 @@ const handleLost = async (row: LeadRow) => {
       logger.warn(t('crmLeads.message.lostFailed'), (error as Error).message);
       ElMessage.error(t('crmLeads.message.lostFailed'));
     }
+  }
+};
+
+// 线索评分：调用后端评分引擎，弹窗展示评分结果
+const handleScore = async (row: LeadRow) => {
+  try {
+    const res = await scoreLead(row.id);
+    const d = (res.data ?? {}) as Record<string, unknown>;
+    const lines = Object.entries(d).map(([k, v]) => `${k}: ${v}`);
+    ElMessageBox.alert(
+      lines.join('\n') || t('crmLeads.message.scoreEmpty') || '评分完成，暂无评分明细',
+      `${t('crmLeads.table.score') || '评分'} - ${row.contact_name}`,
+      { type: 'info' }
+    );
+    getList();
+  } catch (error) {
+    logger.warn('lead score failed', (error as Error).message);
+    ElMessage.error(t('crmLeads.message.scoreFailed') || '评分失败');
   }
 };
 
