@@ -1313,6 +1313,28 @@ const routes: RouteRecordRaw[] = [
           requiresAuth: true,
         }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
+      {
+        path: 'color-prices/seasonal-rules',
+        name: 'ColorPriceSeasonalRules',
+        component: () => import('@/views/color-prices/seasonal-rules.vue'),
+        meta: {
+          title: '季节性调价规则',
+          icon: 'Goods',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'color-prices/customer-special',
+        name: 'ColorPriceCustomerSpecial',
+        component: () => import('@/views/color-prices/customer-special.vue'),
+        meta: {
+          title: '客户专属价',
+          icon: 'Goods',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
       // P2-4 AI 分析深化（工艺优化 + 质量预测）
       {
         path: 'ai-extend',
