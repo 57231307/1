@@ -10954,6 +10954,8 @@ export default {
       buttonPrint: '打印',
       buttonEdit: '编辑',
       buttonDelete: '删除',
+      buttonDetail: '详情',
+      buttonLocations: '库位',
       buttonSave: '保存',
       buttonCancel: '取消',
       buttonConfirm: '确认',

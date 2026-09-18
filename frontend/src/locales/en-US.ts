@@ -10857,6 +10857,8 @@ export default {
       buttonPrint: 'Print',
       buttonEdit: 'Edit',
       buttonDelete: 'Delete',
+      buttonDetail: 'Detail',
+      buttonLocations: 'Locations',
       buttonSave: 'Save',
       buttonCancel: 'Cancel',
       buttonConfirm: 'Confirm',
