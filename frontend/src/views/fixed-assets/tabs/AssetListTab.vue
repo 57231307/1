@@ -114,8 +114,11 @@
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('fixedAssets.table.operation')" width="240" fixed="right">
+        <el-table-column :label="$t('fixedAssets.table.operation')" width="290" fixed="right">
           <template #default="{ row }">
+            <el-button type="info" link size="small" @click="openDetail(row as FixedAsset)">{{
+              $t('fixedAssets.table.detail') || '详情'
+            }}</el-button>
             <el-button type="primary" link size="small" @click="openDialog(row)">{{
               $t('fixedAssets.table.edit')
             }}</el-button>
@@ -349,6 +352,47 @@
         }}</el-button>
       </template>
     </el-dialog>
+    <!-- 资产详情（getAsset 回源） -->
+    <el-dialog
+      v-model="detailVisible"
+      :title="$t('fixedAssets.table.detail') || '资产详情'"
+      width="560"
+    >
+      <el-descriptions v-if="detailAsset" :column="2" border>
+        <el-descriptions-item label="资产编码">{{ detailAsset.asset_code }}</el-descriptions-item>
+        <el-descriptions-item label="资产名称">{{ detailAsset.asset_name }}</el-descriptions-item>
+        <el-descriptions-item label="类别">{{ detailAsset.category || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="getStatusType(detailAsset.status)">{{
+            getStatusLabel(detailAsset.status)
+          }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="购置日期">{{
+          detailAsset.purchase_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="购置金额">{{
+          detailAsset.purchase_amount ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="残值">{{
+          detailAsset.salvage_value ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="使用年限(月)">{{
+          detailAsset.useful_life_months ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="折旧方法">{{
+          detailAsset.depreciation_method || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="存放位置">{{
+          detailAsset.location || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="保管人">{{
+          detailAsset.custodian || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="累计折旧">{{
+          detailAsset.accumulated_depreciation ?? '-'
+        }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
@@ -358,6 +402,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus, Refresh, Download } from '@element-plus/icons-vue';
 import {
+  getAsset,
   createAsset,
   updateAsset,
   deleteAsset as deleteAssetApi,
@@ -564,6 +609,24 @@ const handleReset = () => {
   queryForm.category = '';
   queryForm.status = '';
   handleSearch();
+};
+
+// ===== 资产详情（getAsset 按 ID 回源） =====
+const detailVisible = ref(false);
+const detailAsset = ref<FixedAsset | null>(null);
+
+const openDetail = async (row: FixedAsset) => {
+  detailVisible.value = true;
+  detailAsset.value = row;
+  try {
+    const res = await getAsset(row.id);
+    if (res.data) {
+      detailAsset.value = res.data;
+      detailVisible.value = true;
+    }
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error((e as Error).message || '获取详情失败');
+  }
 };
 
 const openDialog = (row?: FixedAsset) => {

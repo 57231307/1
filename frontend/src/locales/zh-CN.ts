@@ -2165,6 +2165,7 @@ export default {
       netValue: '净值',
       status: '状态',
       operation: '操作',
+      detail: '详情',
       edit: '编辑',
       depreciate: '折旧',
       dispose: '处置',
