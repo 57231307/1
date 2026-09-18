@@ -11,7 +11,7 @@
       <h2 class="page-title">{{ t('apiGateway.index.title') }}</h2>
     </div>
 
-    <el-tabs v-model="activeTab">
+    <el-tabs v-model="activeTab" @tab-change="onTabChange">
       <el-tab-pane :label="t('apiGateway.index.tabEndpoints')" name="endpoints">
         <ApiEndpointTab
           v-model:page="ep.page"
@@ -62,6 +62,18 @@
           @update:query-params="(v: LogQuery) => Object.assign(log.logQuery, v)"
         />
       </el-tab-pane>
+
+      <el-tab-pane :label="t('apiGateway.index.tabStats')" name="stats" lazy>
+        <div v-loading="statsLoading" class="stats-grid">
+          <el-card v-for="item in statCards" :key="item.label" class="stat-card">
+            <div class="stat-label">{{ item.label }}</div>
+            <div class="stat-value">{{ item.value }}</div>
+          </el-card>
+        </div>
+        <el-button v-if="stats" plain @click="loadStats">
+          {{ t('apiGateway.index.buttonRefreshStats') }}
+        </el-button>
+      </el-tab-pane>
     </el-tabs>
 
     <ApiEndpointForm
@@ -96,11 +108,12 @@
 // 此文件为 API 网关页面入口，组合 useApiEp/useApiKey/useApiLog 三个 composable。
 // 批次 281：3 个 composable 已接入 useTableApi，自动管理分页和数据加载，无需 onMounted 调用 fetch。
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useApiEp } from './composables/useApiEp';
 import { useApiKey } from './composables/useApiKey';
 import { useApiLog } from './composables/useApiLog';
+import { getApiStats, type ApiStats } from '@/api/api-gateway';
 import ApiEndpointForm from './components/ApiEndpointForm.vue';
 import KeyForm from './components/KeyForm.vue';
 import LogDetail from './components/LogDetail.vue';
@@ -115,6 +128,40 @@ const activeTab = ref('endpoints');
 const ep = useApiEp();
 const key = useApiKey();
 const log = useApiLog();
+
+// ===== 网关统计（getApiStats） =====
+const stats = ref<ApiStats | null>(null);
+const statsLoading = ref(false);
+
+const statCards = computed(() => {
+  const s = stats.value;
+  if (!s) return [];
+  return [
+    { label: t('apiGateway.stats.totalEndpoints'), value: s.total_endpoints },
+    { label: t('apiGateway.stats.activeEndpoints'), value: s.active_endpoints },
+    { label: t('apiGateway.stats.inactiveEndpoints'), value: s.inactive_endpoints },
+    { label: t('apiGateway.stats.totalKeys'), value: s.total_keys },
+    { label: t('apiGateway.stats.activeKeys'), value: s.active_keys },
+    { label: t('apiGateway.stats.totalRequests'), value: s.total_requests },
+    { label: t('apiGateway.stats.totalErrors'), value: s.total_errors },
+    { label: t('apiGateway.stats.avgResponseTime'), value: s.avg_response_time_ms },
+  ];
+});
+
+async function loadStats() {
+  statsLoading.value = true;
+  try {
+    const res = await getApiStats();
+    stats.value = res.data ?? null;
+  } finally {
+    statsLoading.value = false;
+  }
+}
+
+// 统计 tab 首次展开时加载
+const onTabChange = async (name: string | number) => {
+  if (String(name) === 'stats' && !stats.value) await loadStats();
+};
 </script>
 
 <style scoped>
@@ -138,5 +185,23 @@ const log = useApiLog();
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.stat-card {
+  text-align: center;
+}
+.stat-label {
+  color: #909399;
+  font-size: 13px;
+}
+.stat-value {
+  font-size: 22px;
+  font-weight: 600;
+  margin-top: 6px;
 }
 </style>

@@ -9014,6 +9014,18 @@ export default {
       tabEndpoints: '接口管理',
       tabKeys: 'API 密钥',
       tabLogs: '调用日志',
+      tabStats: '网关统计',
+      buttonRefreshStats: '刷新统计',
+    },
+    stats: {
+      totalEndpoints: '接口总数',
+      activeEndpoints: '启用接口',
+      inactiveEndpoints: '停用接口',
+      totalKeys: '密钥总数',
+      activeKeys: '启用密钥',
+      totalRequests: '调用总数',
+      totalErrors: '错误总数',
+      avgResponseTime: '平均响应(ms)',
     },
     endpointForm: {
       editTitle: '编辑接口',

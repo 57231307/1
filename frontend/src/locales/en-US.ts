@@ -8940,6 +8940,18 @@ export default {
       tabEndpoints: 'Endpoint Management',
       tabKeys: 'API Keys',
       tabLogs: 'Call Logs',
+      tabStats: 'Gateway Stats',
+      buttonRefreshStats: 'Refresh Stats',
+    },
+    stats: {
+      totalEndpoints: 'Total Endpoints',
+      activeEndpoints: 'Active Endpoints',
+      inactiveEndpoints: 'Inactive Endpoints',
+      totalKeys: 'Total Keys',
+      activeKeys: 'Active Keys',
+      totalRequests: 'Total Requests',
+      totalErrors: 'Total Errors',
+      avgResponseTime: 'Avg Response (ms)',
     },
     endpointForm: {
       editTitle: 'Edit Endpoint',
