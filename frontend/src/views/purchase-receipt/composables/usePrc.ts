@@ -12,11 +12,7 @@ import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
 import { request } from '@/api/request';
-import {
-  type PurchaseReceiptEntity,
-  type ReceiptItem,
-  generatePurchaseReceiptNo,
-} from '@/api/purchase-receipt';
+import { type PurchaseReceiptEntity, type ReceiptItem } from '@/api/purchase-receipt';
 import { getProductList, type Product } from '@/api/product';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';

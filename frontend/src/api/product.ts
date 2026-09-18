@@ -21,7 +21,9 @@ export interface Product {
 export interface ProductColor {
   id: number;
   product_id: number;
-  color_code: string;
+  /** 色号（对应后端 product_color.color_no） */
+  color_no: string;
+  color_code?: string;
   color_name: string;
   rgb?: string;
   price_adjustment?: number;

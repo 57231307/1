@@ -15,6 +15,10 @@ export interface SalesOrder {
   contact_person?: string;
   contact_phone?: string;
   delivery_address?: string;
+  /** 后端 sales_orders.shipping_address（收货地址快照） */
+  shipping_address?: string;
+  /** 后端 sales_orders.notes（备注） */
+  notes?: string;
   remark?: string;
   creator_name?: string;
   created_at?: string;

@@ -260,6 +260,7 @@ import {
   batchAssignCustomers,
   getCustomerPoolList,
   type AssignableCustomer,
+  type RecycleRule,
 } from '@/api/crm-enhanced';
 import RuleDialogTab from './tabs/RuleDialogTab.vue';
 import ManualAssignDialogTab from './tabs/ManualAssignDialogTab.vue';
@@ -270,7 +271,7 @@ const hasLoaded = createLazyLoader();
 
 const activeTab = ref('rules');
 const ruleLoading = ref(false);
-const ruleList = ref<unknown[]>([]);
+const ruleList = ref<RecycleRule[]>([]);
 
 const assignLoading = ref(false);
 const assignableCustomers = ref<unknown[]>([]);
@@ -279,16 +280,9 @@ const assignQuery = reactive({ keyword: '' });
 const users = ref<User[]>([]);
 
 // 规则行对齐后端 RecycleRule 契约（name/days/is_enabled）
-interface RuleRow {
-  id?: number;
-  name?: string;
-  days?: number;
-  is_enabled?: boolean;
-}
-
 const ruleDialogVisible = ref(false);
 const ruleDialogTitle = ref('');
-const currentRuleRow = ref<RuleRow | null>(null);
+const currentRuleRow = ref<RecycleRule | null>(null);
 const assignDialogVisible = ref(false);
 const currentCustomerId = ref<number | null>(null);
 const currentCustomerName = ref('');
@@ -299,7 +293,7 @@ const fetchRules = async () => {
     // P1-5：调用真实 API 获取分配规则（后端使用 recycle-rules 接口承载规则）
     const res = await getRecycleRuleList();
     // crm API 不嵌套 .data（直接返回 data），保留 ?? 容错
-    ruleList.value = (res.data ?? res) as unknown as RuleRow[];
+    ruleList.value = (res.data ?? res) as unknown as RecycleRule[];
   } catch (error) {
     const err = error as Error;
     logger.warn(t('crmAssignment.message.loadRulesFailed'), err.message);
@@ -339,7 +333,7 @@ const openCreateRuleDialog = () => {
   ruleDialogVisible.value = true;
 };
 
-const openEditRuleDialog = (row: RuleRow) => {
+const openEditRuleDialog = (row: RecycleRule) => {
   currentRuleRow.value = row;
   ruleDialogTitle.value = t('crmAssignment.ruleDialogTitle.edit');
   ruleDialogVisible.value = true;

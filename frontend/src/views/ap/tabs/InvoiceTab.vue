@@ -272,20 +272,24 @@ const { t } = useI18n({ useScope: 'global' });
 const autoGenerating = ref(false);
 const handleAutoGenerate = async () => {
   try {
-    await ElMessageBox.confirm(
+    // 后端契约：按入库单 ID 生成应付单，需用户输入入库单 ID
+    const { value } = await ElMessageBox.prompt(
       t('apModule.invoice.autoGenerateConfirm'),
       t('apModule.invoice.autoGenerate'),
-      { type: 'info' }
+      {
+        type: 'info',
+        inputValidator: v => {
+          const n = Number(v);
+          return Number.isInteger(n) && n > 0 ? true : '请输入有效的入库单 ID';
+        },
+      }
     );
-  } catch {
-    return;
-  }
-  autoGenerating.value = true;
-  try {
-    await autoGenerateAPInvoices({});
+    autoGenerating.value = true;
+    await autoGenerateAPInvoices({ receipt_id: Number(value) });
     ElMessage.success(t('apModule.invoice.autoGenerateSuccess'));
     fetchInvoices();
   } catch (e) {
+    if (e === 'cancel') return;
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));
   } finally {

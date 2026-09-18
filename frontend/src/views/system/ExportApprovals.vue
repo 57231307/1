@@ -131,7 +131,7 @@
           detailRow.applicant_username || '-'
         }}</ElDescriptionsItem>
         <ElDescriptionsItem label="状态">
-          <ElTag :type="statusTagType(detailRow.status)">{{ detailRow.status }}</ElTag>
+          <ElTag :type="statusTagType(String(detailRow.status))">{{ detailRow.status }}</ElTag>
         </ElDescriptionsItem>
         <ElDescriptionsItem label="预计行数">{{
           detailRow.estimated_rows ?? '-'

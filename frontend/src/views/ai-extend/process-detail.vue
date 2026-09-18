@@ -91,7 +91,7 @@ async function handleApply() {
 // 按色号 + 布类查询历史（列表模式 + 详情页联动查询）
 const historyVisible = ref(false);
 const historyLoading = ref(false);
-const historyItems = ref<Array<Record<string, unknown>>>([]);
+const historyItems = ref<AiProcessOptimization[]>([]);
 
 async function handleHistoryQuery() {
   if (!model.value?.color_no) {
@@ -110,7 +110,7 @@ async function handleHistoryQuery() {
       fabric_type: value.trim(),
       limit: 20,
     });
-    historyItems.value = (res.items ?? []) as Array<Record<string, unknown>>;
+    historyItems.value = res.items ?? [];
   } catch (e) {
     if (e !== 'cancel') ElMessage.error((e as Error).message || '查询历史失败');
   } finally {

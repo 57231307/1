@@ -265,10 +265,19 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
+    // 后端契约：customer_id/owner_id 为整数，opportunity_stage 为大写枚举，提交前归一化；id 空值转为 undefined
+    const payload = {
+      ...formData,
+      id: formData.id ?? undefined,
+      customer_id: Number(formData.customer_id),
+      owner_id: formData.owner_id === '' ? undefined : Number(formData.owner_id),
+      opportunity_stage: (formData.opportunity_stage ||
+        undefined) as Opportunity['opportunity_stage'],
+    };
     if (formData.id) {
-      await updateOpportunity(formData.id, formData);
+      await updateOpportunity(formData.id, payload);
     } else {
-      await createOpportunity(formData);
+      await createOpportunity(payload);
     }
     ElMessage.success(t('crmOpportunityForm.message.saveSuccess'));
     visible.value = false;

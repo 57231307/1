@@ -189,9 +189,9 @@
         <el-form-item label="明细项" required>
           <el-select v-model="adjustForm.item_id" style="width: 100%">
             <el-option
-              v-for="item in detailBudget?.items || []"
+              v-for="item in detailBudget ? [detailBudget] : []"
               :key="item.id"
-              :label="item.subject_name || `明细 #${item.id}`"
+              :label="item.item_name || `明细 #${item.id}`"
               :value="item.id"
             />
           </el-select>
@@ -222,9 +222,10 @@ import {
   deleteBudget as deleteBudgetApi,
   approveBudget as approveBudgetApi,
   adjustBudget,
-  getBudget,
+  getBudgetDetail,
   BUDGET_STATUS,
   type Budget,
+  type BudgetItem,
 } from '@/api/budget';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
@@ -401,15 +402,15 @@ const openAdjustDialog = async (row: Budget) => {
   adjustForm.reason = '';
   adjustVisible.value = true;
   try {
-    // 回源取预算明细项（getBudget）
-    const res = await getBudget(row.id);
+    // 回源取预算明细（getBudgetDetail：GET /finance/budgets/{id} 返回单个明细项）
+    const res = await getBudgetDetail(row.id);
     detailBudget.value = res.data ?? null;
   } catch {
     detailBudget.value = null;
   }
 };
 
-const detailBudget = ref<Budget | null>(null);
+const detailBudget = ref<BudgetItem | null>(null);
 
 const handleAdjust = async () => {
   if (!adjustForm.item_id || adjustForm.adjust_amount === 0) {
@@ -430,21 +431,6 @@ const handleAdjust = async () => {
     if (e !== 'cancel') ElMessage.error((e as Error).message || '调整失败');
   } finally {
     adjustSaving.value = false;
-  }
-};
-
-const handleRejectPlan = async () => {
-  if (!rejectPlanRow.value) return;
-  rejectPlanSaving.value = true;
-  try {
-    await rejectBudgetPlan(rejectPlanRow.value.id, rejectPlanComment.value || undefined);
-    ElMessage.success(t('budget.auditSuccess'));
-    rejectPlanVisible.value = false;
-    fetchBudgets();
-  } catch (e) {
-    ElMessage.error((e as Error).message || '驳回失败');
-  } finally {
-    rejectPlanSaving.value = false;
   }
 };
 

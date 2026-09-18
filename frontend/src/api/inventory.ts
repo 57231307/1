@@ -89,6 +89,8 @@ export interface ReservationData {
   warehouse_id: number;
   quantity: number;
   expire_date?: string;
+  /** 备注（对应后端 CreateReservationRequest::notes） */
+  notes?: string;
 }
 
 export interface TransferData {

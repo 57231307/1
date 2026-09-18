@@ -415,10 +415,27 @@ const handleSubmit = async () => {
       (sum, item) => sum + item.cost_price * item.quantity,
       0
     );
+    // 表单条目字段与实体存在差异（product_id/cost_price/remark），按实体字段映射后提交
+    const payload: Partial<InventoryAdjustmentEntity> = {
+      id: formData.id || undefined,
+      adjust_no: formData.adjust_no,
+      adjust_date: formData.adjust_date,
+      warehouse_id: formData.warehouse_id,
+      reason: formData.reason,
+      status: formData.status,
+      total_amount: formData.total_amount,
+      items: formData.items.map(item => ({
+        stock_id: item.product_id,
+        quantity: item.quantity,
+        unit_cost: item.cost_price,
+        amount: item.amount,
+        notes: item.remark,
+      })),
+    };
     if (formData.id) {
-      await updateInventoryAdjustment(formData.id, formData as Partial<InventoryAdjustmentEntity>);
+      await updateInventoryAdjustment(formData.id, payload);
     } else {
-      await createInventoryAdjustment(formData as Partial<InventoryAdjustmentEntity>);
+      await createInventoryAdjustment(payload);
     }
     ElMessage.success(t('inventoryAdjustment.formDialogTab.messageSuccess'));
     emit('update:modelValue', false);

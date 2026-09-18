@@ -190,13 +190,11 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import {
   getRoleDataPermissionList,
-  setDataPermission,
-  updateDataPermission,
   getDataPermissionByRole,
+  setDataPermission,
   deleteDataPermissionByRole,
   getScopeTypeList,
   DEFAULT_SCOPE_TYPES,
-  type DataPermission,
   type DataPermissionRole,
   type ScopeType,
   type CustomCondition,
@@ -343,30 +341,44 @@ const handleSavePermission = async () => {
   await permissionFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return;
 
+    // 表单字段为 JSON 文本，提交前解析为 API 契约对象类型（解析失败直接暴露错误）
+    const parseCondition = (text: string): CustomCondition | undefined => {
+      if (!text.trim()) return undefined;
+      return JSON.parse(text) as CustomCondition;
+    };
+    const parseFieldList = (text: string): AllowedFields | undefined => {
+      if (!text.trim()) return undefined;
+      const arr = JSON.parse(text) as string[];
+      return Array.isArray(arr) ? arr : undefined;
+    };
+    let customCondition: CustomCondition | undefined;
+    let allowedFields: AllowedFields | undefined;
+    let hiddenFields: HiddenFields | undefined;
+    try {
+      customCondition = parseCondition(permissionForm.custom_condition);
+      allowedFields = parseFieldList(permissionForm.allowed_fields);
+      hiddenFields = parseFieldList(permissionForm.hidden_fields);
+    } catch {
+      ElMessage.error(t('dataPermission.index.messageJsonInvalid'));
+      return;
+    }
+
     submitLoading.value = true;
     try {
-      if (isEdit.value && permissionForm.id) {
-        // 编辑走 PUT 更新
-        await updateDataPermission(permissionForm.id, {
-          resource_type: permissionForm.resource_type,
-          scope_type: permissionForm.scope_type,
-          custom_condition: permissionForm.custom_condition || undefined,
-          allowed_fields: permissionForm.allowed_fields || undefined,
-          hidden_fields: permissionForm.hidden_fields || undefined,
-        } as Partial<DataPermission>);
-        ElMessage.success(t('dataPermission.index.messageUpdateSuccess'));
-      } else {
-        // 新增走 POST
-        await setDataPermission({
-          role_id: permissionForm.role_id!,
-          resource_type: permissionForm.resource_type,
-          scope_type: permissionForm.scope_type,
-          custom_condition: permissionForm.custom_condition || undefined,
-          allowed_fields: permissionForm.allowed_fields || undefined,
-          hidden_fields: permissionForm.hidden_fields || undefined,
-        });
-        ElMessage.success(t('dataPermission.index.messageSaveSuccess'));
-      }
+      // set_data_permission 为 upsert（按 role_id + resource_type 幂等），编辑与新增同走 POST
+      await setDataPermission({
+        role_id: permissionForm.role_id!,
+        resource_type: permissionForm.resource_type,
+        scope_type: permissionForm.scope_type,
+        custom_condition: customCondition,
+        allowed_fields: allowedFields,
+        hidden_fields: hiddenFields,
+      });
+      ElMessage.success(
+        isEdit.value
+          ? t('dataPermission.index.messageUpdateSuccess')
+          : t('dataPermission.index.messageSaveSuccess')
+      );
       permissionDialogVisible.value = false;
       fetchPermissions();
     } catch (e: unknown) {

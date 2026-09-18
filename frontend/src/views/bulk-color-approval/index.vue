@@ -88,7 +88,9 @@
         <el-descriptions-item label="申请人">{{
           detailRow.applicant_name || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ statusText(detailRow.status) }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{
+          statusText(String(detailRow.status ?? ''))
+        }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{
           detailRow.notes || '-'
         }}</el-descriptions-item>

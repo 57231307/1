@@ -281,7 +281,9 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import type { ApiResponse } from '@/types/api';
 import {
   approveModelVersion,
   reconcileMonthly,
@@ -301,7 +303,6 @@ import {
   revokeDelegation,
   changeModelStatus,
   createModelEvaluation,
-  logDecision,
   getDecisionLogs,
   getRoleChangeApprovals,
   getRoleChangeApproval,
@@ -317,8 +318,9 @@ import {
   sendDeviceHeartbeat,
   disconnectDevice,
   cleanupTimeoutDevices,
-  checkMutualExclusive,
 } from '@/api/system-governance';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const activeTab = ref('delegation');
 const unwrapList = <T,>(p: unknown): T[] =>
@@ -370,7 +372,7 @@ async function showDetail(data: unknown) {
 
 async function onDelegationDetail(row: Record<string, unknown>) {
   try {
-    const res = await getDelegation(Number(row.id));
+    const res = (await getDelegation(Number(row.id))) as ApiResponse<unknown>;
     await showDetail(res.data ?? res);
   } catch (e) {
     const err = e as { message?: string };
@@ -392,7 +394,7 @@ async function onLoadActiveDelegations() {
   }
   loading.value = true;
   try {
-    const res = await getActiveDelegatedPermissions(delegateeId);
+    const res = (await getActiveDelegatedPermissions(delegateeId)) as ApiResponse<unknown>;
     delegations.value = unwrapList(res.data ?? res);
     ElMessage.success(`受托人 ${delegateeId} 的生效中委托已加载`);
   } catch (e) {
@@ -560,7 +562,7 @@ async function onRegisterDevice() {
 // 设备详情
 async function onDeviceDetail(row: Record<string, unknown>) {
   try {
-    const res = await getDeviceConnection(String(row.id));
+    const res = (await getDeviceConnection(String(row.id))) as ApiResponse<unknown>;
     await showDetail(res.data ?? res);
   } catch (e) {
     const err = e as { message?: string };
@@ -649,7 +651,7 @@ const onModelEvaluation = async (row?: Record<string, unknown>) => {
 // 决策日志查询（弹窗展示）
 const onDecisionLogs = async () => {
   try {
-    const res = await getDecisionLogs({});
+    const res = (await getDecisionLogs({})) as ApiResponse<unknown>;
     const logs = unwrapList<Record<string, unknown>>(res.data);
     const lines = logs
       .slice(0, 20)
@@ -671,7 +673,7 @@ const roleChangeCols = ['id', 'role_id', 'status', 'reason', 'created_at'];
 const loadRoleChanges = async () => {
   roleChangeLoading.value = true;
   try {
-    const res = await getRoleChangeApprovals({});
+    const res = (await getRoleChangeApprovals({})) as ApiResponse<unknown>;
     roleChanges.value = unwrapList<Record<string, unknown>>(res.data);
   } catch (e) {
     const err = e as { message?: string };
@@ -714,7 +716,7 @@ const onSaveRoleChange = async () => {
 // 审批单详情
 const onRoleChangeDetail = async (row: Record<string, unknown>) => {
   try {
-    const res = await getRoleChangeApproval(Number(row.id));
+    const res = (await getRoleChangeApproval(Number(row.id))) as ApiResponse<unknown>;
     await showDetail(res.data ?? res);
   } catch (e) {
     const err = e as { message?: string };
@@ -742,7 +744,8 @@ const onRoleChangeAction = async (
   try {
     if (action === 'approve-l1') await approveRoleChangeL1(Number(row.id));
     else if (action === 'approve-l2') await approveRoleChangeL2(Number(row.id));
-    else if (action === 'reject') await rejectRoleChangeApproval(Number(row.id), reason);
+    else if (action === 'reject')
+      await rejectRoleChangeApproval(Number(row.id), { opinion: reason });
     else await cancelRoleChangeApproval(Number(row.id));
     ElMessage.success(t('common.success'));
     loadRoleChanges();

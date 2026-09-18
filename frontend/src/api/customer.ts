@@ -70,11 +70,16 @@ export const getCustomerById = (id: number) =>
   request.get<ApiResponse<Customer>>(`/crm/customers/${id}`);
 
 // D14 Batch 5b：原 customerApi.create 转为风格 B 函数
-export const createCustomer = (data: Partial<Customer>) =>
+/** 创建/更新客户入参：后端 CreateCustomerRequest 的 credit_limit 为字符串（显式格式校验），兼容历史 number 传参 */
+export interface CustomerCreatePayload extends Partial<Omit<Customer, 'credit_limit'>> {
+  credit_limit?: string | number;
+}
+
+export const createCustomer = (data: CustomerCreatePayload) =>
   request.post<ApiResponse<Customer>>('/crm/customers', data);
 
 // D14 Batch 5b：原 customerApi.update 转为风格 B 函数
-export const updateCustomer = (id: number, data: Partial<Customer>) =>
+export const updateCustomer = (id: number, data: CustomerCreatePayload) =>
   request.put<ApiResponse<Customer>>(`/crm/customers/${id}`, data);
 
 // D14 Batch 5b：原 customerApi.delete 转为风格 B 函数

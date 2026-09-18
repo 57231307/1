@@ -63,8 +63,8 @@ export const getDataPermission = (id: number) =>
 export const createDataPermission = (data: Partial<DataPermission>) =>
   request.post<ApiResponse<DataPermission>>('/data-permissions', data);
 
-export const updateDataPermission = (id: number, data: Partial<DataPermission>) =>
-  request.put<ApiResponse<DataPermission>>(`/data-permissions/${id}`, data);
+// 数据权限 upsert 走 set_data_permission（POST /，按 role_id+resource_type 幂等），
+// 后端无 PUT /{id} 路由，故不提供 update 封装（规则 0：禁止指向不存在端点的封装）。
 
 export const deleteDataPermission = (id: number) =>
   request.delete<ApiResponse<void>>(`/data-permissions/${id}`);

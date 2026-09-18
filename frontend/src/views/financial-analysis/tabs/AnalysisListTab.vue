@@ -583,6 +583,7 @@ const handleTrendQuery = async () => {
 
 // 批次 157b P1-1 修复：展示报表详情（现接入 getFinancialReport 按 ID 回源最新数据）
 const viewReport = async (row: FinancialReport) => {
+  if (row.id === undefined) return;
   try {
     const res = await getFinancialReport(row.id);
     if (res.data) {

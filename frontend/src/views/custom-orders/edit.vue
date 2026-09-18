@@ -145,7 +145,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import { createCustomOrder, getCustomOrder, updateCustomOrder } from '@/api/custom-order';
+import { getCustomOrder, updateCustomOrder } from '@/api/custom-order';
 
 const route = useRoute();
 const router = useRouter();

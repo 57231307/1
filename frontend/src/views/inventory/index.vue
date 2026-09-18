@@ -493,7 +493,15 @@ const submitStock = async () => {
       await updateStock(stockEditingId.value, stockForm);
     } else {
       const { createStock } = await import('@/api/inventory');
-      await createStock(stockForm);
+      // 按后端 CreateStockFabricRequest DTO 字段提交：色号/数量映射到 color_no/quantity_meters
+      await createStock({
+        warehouse_id: stockForm.warehouse_id,
+        product_id: stockForm.product_id,
+        batch_no: stockForm.batch_no,
+        color_no: stockForm.color_code,
+        grade: 'A',
+        quantity_meters: stockForm.quantity,
+      });
     }
     ElMessage.success(t('common.success'));
     stockDialogVisible.value = false;

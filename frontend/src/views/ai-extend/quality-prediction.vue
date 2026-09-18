@@ -194,7 +194,7 @@ async function handleBatchCreate() {
 const byProductVisible = ref(false);
 const byProductLoading = ref(false);
 const byProductId = ref(1);
-const byProductItems = ref<Array<Record<string, unknown>>>([]);
+const byProductItems = ref<AiQualityPrediction[]>([]);
 
 function openByProduct() {
   byProductVisible.value = true;
@@ -208,7 +208,7 @@ async function loadByProduct() {
       product_id: byProductId.value,
       limit: 20,
     });
-    byProductItems.value = (res.items ?? []) as Array<Record<string, unknown>>;
+    byProductItems.value = res.items ?? [];
   } catch (e) {
     ElMessage.error((e as Error).message || '查询失败');
   } finally {

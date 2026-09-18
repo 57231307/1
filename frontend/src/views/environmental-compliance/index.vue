@@ -167,6 +167,7 @@ import {
   getPollutantMonitoringRecordList,
   createPollutantMonitoringRecord,
   scanExceedanceAlerts,
+  type PollutantMonitoringRecord,
 } from '@/api/compliance';
 
 const activeTab = ref('permits');
@@ -260,7 +261,7 @@ const handleRevoke = async (row: Record<string, unknown>) => {
 };
 
 // ===== 污染物监测 =====
-const records = ref<Array<Record<string, unknown>>>([]);
+const records = ref<PollutantMonitoringRecord[]>([]);
 const recordLoading = ref(false);
 const recordDialogVisible = ref(false);
 const recordSaving = ref(false);
@@ -282,7 +283,7 @@ async function loadRecords() {
   recordLoading.value = true;
   try {
     const res = await getPollutantMonitoringRecordList({ page: 1, page_size: 50 });
-    records.value = (res.data?.items ?? []) as Array<Record<string, unknown>>;
+    records.value = res.data?.items ?? [];
   } finally {
     recordLoading.value = false;
   }

@@ -386,7 +386,7 @@ async function onListUserTeams() {
   }
   try {
     const res = await listUserTeams(teamUserId.value);
-    teamMembers.value = unwrapList(res);
+    teamMembers.value = unwrapList(res.data ?? res);
     teamCols.value = cols(teamMembers.value, ['id'], 6);
     ElMessage.success(`用户 ${teamUserId.value} 的团队已加载`);
   } catch (e) {

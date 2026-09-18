@@ -136,8 +136,9 @@ const onEdit = async (row: PurchaseReturn) => {
   isEdit.value = true;
   try {
     await prRtn.fetchDetail(row.id!);
-    if (prRtn.detailData.value?.id === row.id) {
-      prRtn.prepareEdit(prRtn.detailData.value as unknown as PurchaseReturn);
+    // prRtn 为 reactive 包装，detailData 的 ref 已自动解包
+    if (prRtn.detailData?.id === row.id) {
+      prRtn.prepareEdit(prRtn.detailData);
     } else {
       prRtn.prepareEdit(row);
     }

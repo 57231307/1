@@ -446,6 +446,16 @@ const contactRules: FormRules = {
   mobile_phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
 };
 
+// 资质弹窗校验规则（模板 :rules="qualificationRules" 引用，缺失会导致弹窗声明崩溃）
+const qualificationRules: FormRules = {
+  qualification_name: [{ required: true, message: '请输入资质名称', trigger: 'blur' }],
+  qualification_type: [{ required: true, message: '请输入资质类型', trigger: 'blur' }],
+  qualification_no: [{ required: true, message: '请输入证照编号', trigger: 'blur' }],
+  issuing_authority: [{ required: true, message: '请输入发证机关', trigger: 'blur' }],
+  issue_date: [{ required: true, message: '请选择发证日期', trigger: 'change' }],
+  valid_until: [{ required: true, message: '请选择有效期至', trigger: 'change' }],
+};
+
 const resetContactForm = () => {
   contactForm.contact_name = '';
   contactForm.department = '';

@@ -401,9 +401,10 @@ async function openDetail(row: FabricInspection) {
   detailRow.value = row as unknown as Record<string, unknown>;
   detailVisible.value = true;
   try {
-    const res = await getFabricInspectionDetail(row.id);
+    // 回源接口未声明返回类型，调用处按 ApiResponse 结构标注
+    const res = (await getFabricInspectionDetail(row.id)) as { data?: FabricInspection };
     if (res.data) {
-      detailRow.value = res.data as unknown as Record<string, unknown>;
+      detailRow.value = res.data;
       detailVisible.value = true;
     }
   } catch {
@@ -411,8 +412,8 @@ async function openDetail(row: FabricInspection) {
   }
   defectListLoading.value = true;
   try {
-    const res = await listFabricDefectsByInspection(row.id);
-    const d = res.data as unknown;
+    const res = (await listFabricDefectsByInspection(row.id)) as { data?: unknown };
+    const d = res.data;
     defectList.value = Array.isArray(d)
       ? d
       : ((d as { items?: Array<Record<string, unknown>> })?.items ?? []);
@@ -426,8 +427,8 @@ async function openDetail(row: FabricInspection) {
 // 疵点详情回源
 async function viewDefect(row: Record<string, unknown>) {
   try {
-    const res = await getFabricDefect(row.id as number);
-    const d = (res.data ?? {}) as Record<string, unknown>;
+    const res = (await getFabricDefect(row.id as number)) as { data?: Record<string, unknown> };
+    const d = res.data ?? {};
     ElMessageBox.alert(
       Object.entries(d)
         .map(([k, v]) => `${k}: ${v ?? '-'}`)

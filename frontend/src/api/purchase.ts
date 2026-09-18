@@ -16,6 +16,8 @@ export interface PurchaseOrder {
   contact_person?: string;
   contact_phone?: string;
   delivery_address?: string;
+  /** 后端 purchase_orders.notes（备注） */
+  notes?: string;
   remark?: string;
   remarks?: string;
   creator_name?: string;

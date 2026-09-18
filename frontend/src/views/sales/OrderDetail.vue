@@ -80,7 +80,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { getSalesOrder, type SalesOrder } from '@/api/sales';
+import { getSalesOrderById, type SalesOrder } from '@/api/sales';
 
 const route = useRoute();
 const router = useRouter();
@@ -92,7 +92,7 @@ const loading = ref(false);
 onMounted(async () => {
   loading.value = true;
   try {
-    const res = await getSalesOrder(Number(route.params.id));
+    const res = await getSalesOrderById(Number(route.params.id));
     order.value = res.data ?? null;
   } finally {
     loading.value = false;

@@ -220,7 +220,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Back, Search, Refresh } from '@element-plus/icons-vue';
 import { getUserList, type User } from '@/api/user';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';

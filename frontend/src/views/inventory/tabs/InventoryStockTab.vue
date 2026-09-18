@@ -81,23 +81,15 @@
         @row-click="(row: InventoryStock) => emit('view', row)"
         @page-change="handlePageChange"
         @size-change="handleSizeChange"
-      >
-        <template #operation="{ row }">
-          <el-button size="small" type="primary" link @click.stop="emit('edit', row)">
-            {{ t('common.edit') }}
-          </el-button>
-          <el-button size="small" type="danger" link @click.stop="emit('delete', row)">
-            {{ t('common.delete') }}
-          </el-button>
-        </template>
-      </V2Table>
+      />
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { h, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElButton } from 'element-plus';
 import { Search, Refresh } from '@element-plus/icons-vue';
 import V2Table from '@/components/V2Table/index.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
@@ -182,7 +174,42 @@ const { columns: stockColumns } = useTableColumns<InventoryStock>([
     formatter: (row: InventoryStock) => getStatusText(row.status),
   },
   { key: 'location', title: t('inventory.stockTab.colLocation'), width: 100 },
-  { key: 'operation', title: t('inventory.stockTab.colOperation'), width: 120, slot: 'operation' },
+  {
+    key: 'operation',
+    title: t('inventory.stockTab.colOperation'),
+    width: 120,
+    fixed: 'right',
+    // V2Table 通过 renderCell 渲染操作列（无插槽机制）
+    renderCell: (row: InventoryStock) =>
+      h('div', { class: 'operation-cell' }, [
+        h(
+          ElButton,
+          {
+            size: 'small',
+            type: 'primary',
+            link: true,
+            onClick: (e: Event) => {
+              e.stopPropagation();
+              emit('edit', row);
+            },
+          },
+          () => t('common.edit')
+        ),
+        h(
+          ElButton,
+          {
+            size: 'small',
+            type: 'danger',
+            link: true,
+            onClick: (e: Event) => {
+              e.stopPropagation();
+              emit('delete', row);
+            },
+          },
+          () => t('common.delete')
+        ),
+      ]),
+  },
 ]);
 
 const handlePageChange = (newPage: number) => {

@@ -82,7 +82,7 @@
           <el-input-number v-model="form.payment_amount" :min="0.01" :precision="2" />
         </el-form-item>
         <el-form-item :label="t('arModule.payment.notes')">
-          <el-input v-model="form.notes" type="textarea" :rows="2" />
+          <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -182,7 +182,8 @@ const form = reactive({
   payment_date: new Date().toISOString().split('T')[0],
   payment_method: 'bank_transfer',
   payment_amount: 0,
-  notes: '',
+  bank_account: '',
+  remark: '',
 });
 
 const rules: FormRules = {
@@ -203,7 +204,7 @@ const openCreateDialog = () => {
   form.payment_date = new Date().toISOString().split('T')[0];
   form.payment_method = 'bank_transfer';
   form.payment_amount = 0;
-  form.notes = '';
+  form.remark = '';
   dialogVisible.value = true;
 };
 
@@ -213,7 +214,7 @@ const openEditDialog = (row: ARPayment) => {
   form.payment_date = row.payment_date;
   form.payment_method = row.payment_method;
   form.payment_amount = Number(row.payment_amount ?? 0);
-  form.notes = row.notes || '';
+  form.remark = row.remark || '';
   dialogVisible.value = true;
 };
 

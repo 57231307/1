@@ -42,10 +42,7 @@
           :class="{ unread: item.status === 'UNREAD' }"
         >
           <div class="item-header">
-            <el-checkbox
-              :model-value="selectedIds.includes(item.id)"
-              @change="toggleSelect(item.id)"
-            />
+            <el-checkbox :model-value="isSelected(item.id)" @change="toggleSelect(item.id)" />
             <div class="item-type">
               <el-tag v-if="item.notificationType === 'SYSTEM'" type="danger">{{
                 t('notification.index.typeSystem')
@@ -298,11 +295,15 @@ const handleMarkRead = async (item: Notification) => {
 // ===== 批量已读（batchMarkAsRead） =====
 const selectedIds = ref<number[]>([]);
 
-const toggleSelect = (id: number) => {
+const toggleSelect = (id?: number) => {
+  if (!id) return;
   const idx = selectedIds.value.indexOf(id);
   if (idx >= 0) selectedIds.value.splice(idx, 1);
   else selectedIds.value.push(id);
 };
+
+// Notification.id 可为 undefined，模板勾选状态需要安全判断
+const isSelected = (id?: number) => (id !== undefined ? selectedIds.value.includes(id) : false);
 
 const handleBatchRead = async () => {
   if (selectedIds.value.length === 0) return;

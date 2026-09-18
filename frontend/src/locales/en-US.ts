@@ -5395,24 +5395,6 @@ export default {
       reconciliation: 'Reconciliation',
       report: 'AP Reports',
     },
-    paymentRequest: {
-      create: 'Create Payment Request',
-      edit: 'Edit Payment Request',
-      submit: 'Submit for Approval',
-      approve: 'Approve',
-      reject: 'Reject',
-      submitConfirm: 'Submit this payment request for approval?',
-      approveConfirm: 'Approve this payment request?',
-      rejectReason: 'Please enter rejection reason',
-      rejectReasonRequired: 'Rejection reason is required',
-      deleteConfirm: 'Delete this payment request?',
-    },
-    report: {
-      statistics: 'Statistics',
-      daily: 'Daily',
-      monthly: 'Monthly',
-      aging: 'Aging Analysis',
-    },
     invoice: {
       title: 'AP Invoice',
       create: 'Create Invoice',
@@ -10926,6 +10908,7 @@ export default {
       messageCreateFailed: 'Failed to create',
       messageUpdateSuccess: 'Updated successfully',
       messageUpdateFailed: 'Failed to update',
+      messageJsonInvalid: 'Invalid JSON format — check custom condition / allowed fields / hidden fields input',
     },
   },
   inventoryBatch: {

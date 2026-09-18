@@ -187,7 +187,6 @@ import { Plus } from '@element-plus/icons-vue';
 import {
   getAPReconciliationList,
   getAPReconciliation,
-  getAPReconciliationSummary,
   autoReconcileAllAP,
   generateAPReconciliation,
   confirmAPReconciliation,
@@ -335,7 +334,13 @@ const handleAutoReconcile = async () => {
   }
   autoReconciling.value = true;
   try {
-    await autoReconcileAllAP({});
+    // 后端契约：/ap/reconciliations/auto 需要日期范围，默认覆盖近 90 天
+    const end = new Date();
+    const start = new Date(end.getTime() - 90 * 24 * 60 * 60 * 1000);
+    await autoReconcileAllAP({
+      start_date: start.toISOString().split('T')[0],
+      end_date: end.toISOString().split('T')[0],
+    });
     ElMessage.success(t('apModule.reconciliation.autoReconcileSuccess'));
     fetchReconciliations();
   } catch (e) {
@@ -351,8 +356,17 @@ const summaryVisible = ref(false);
 const summaryRow = ref<Record<string, number> | null>(null);
 const showSummary = async () => {
   try {
-    const res = await getAPReconciliationSummary();
-    summaryRow.value = (res.data as Record<string, number>) || {};
+    // 后端汇总接口按供应商维度返回，这里按对账单状态在客户端聚合展示
+    if (reconciliations.value.length === 0) await fetchReconciliations();
+    const list = reconciliations.value;
+    summaryRow.value = {
+      total: list.length,
+      confirmed: list.filter(r => r.status === 'confirmed').length,
+      pending: list.filter(r => r.status === 'pending').length,
+      disputed: list.filter(r => r.status === 'disputed').length,
+      total_invoice_amount: list.reduce((s, r) => s + Number(r.total_invoice_amount ?? 0), 0),
+      total_payment_amount: list.reduce((s, r) => s + Number(r.total_payment_amount ?? 0), 0),
+    };
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));

@@ -174,7 +174,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   const handleStatistics = async () => {
     try {
       const res = await getSalesOrderStatistics({});
-      const d = (res.data ?? {}) as Record<string, unknown>;
+      const d = (res.data ?? {}) as unknown as Record<string, unknown>;
       const lines = Object.entries(d).map(([k, v]) => `${k}: ${v}`);
       ElMessageBox.alert(lines.join('\n') || '暂无统计数据', '销售统计', { type: 'info' });
     } catch (error) {

@@ -320,7 +320,6 @@ import {
   issueOutsourcingOrder,
   processOutsourcingOrder,
   settleOutsourcingOrder,
-  getOutsourcingOrderDetail,
   updateOutsourcingOrder,
   deleteOutsourcingOrder,
   getOutsourcingItems,

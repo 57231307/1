@@ -291,8 +291,8 @@ const openEditDialog = (row: APPaymentRequest) => {
   editId.value = row.id;
   form.supplier_id = row.supplier_id;
   form.request_date = row.request_date;
-  form.payment_type = row.payment_type;
-  form.payment_method = row.payment_method;
+  form.payment_type = row.payment_type || '';
+  form.payment_method = row.payment_method || '';
   form.request_amount = Number(row.request_amount ?? 0);
   form.currency = row.currency || 'CNY';
   form.bank_name = row.bank_name || '';

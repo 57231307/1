@@ -204,12 +204,40 @@
       </div>
       <pre v-if="effectiveResult" class="effective-result">{{ effectiveResult }}</pre>
     </el-dialog>
+
+    <!-- 工资费率新建/编辑（createWageRate/updateWageRate） -->
+    <el-dialog v-model="rateDialogVisible" title="工资费率" width="440">
+      <el-form :model="rateForm" label-width="90px">
+        <el-form-item label="工序路线" required>
+          <el-input-number v-model="rateForm.route_id" :min="1" class="w-full" />
+        </el-form-item>
+        <el-form-item label="工序名称" required>
+          <el-input v-model="rateForm.process_name" />
+        </el-form-item>
+        <el-form-item label="费率">
+          <el-input-number v-model="rateForm.wage_rate" :min="0" :precision="2" class="w-full" />
+        </el-form-item>
+        <el-form-item label="生效日期">
+          <el-date-picker
+            v-model="rateForm.effective_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            class="w-full"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="rateDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="rateSaving" @click="onSaveRate">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import type { ApiResponse } from '@/types/api';
 import {
   calculateWageRecord,
   cancelWageRecord,
@@ -396,7 +424,10 @@ async function onQueryEffective() {
   }
   effectiveLoading.value = true;
   try {
-    const res = await getEffectiveWageRate(effectiveForm.route_id, effectiveForm.date);
+    const res = (await getEffectiveWageRate(
+      effectiveForm.route_id,
+      effectiveForm.date
+    )) as ApiResponse<unknown>;
     effectiveResult.value = JSON.stringify(res.data ?? res, null, 2);
   } catch (e) {
     ElMessage.error((e as Error).message || '查询失败');
@@ -425,7 +456,7 @@ const rateForm = reactive({
 const loadRates = async () => {
   rateLoading.value = true;
   try {
-    const res = await getWageRateList();
+    const res = (await getWageRateList()) as ApiResponse<unknown>;
     const d = res.data as unknown;
     wageRates.value = Array.isArray(d)
       ? (d as Array<Record<string, unknown>>)

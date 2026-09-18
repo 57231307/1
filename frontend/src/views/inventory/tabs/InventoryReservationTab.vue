@@ -176,10 +176,18 @@ const rules: FormRules = {
 
 const handleSubmit = async () => {
   const valid = await formRef.value?.validate();
-  if (!valid) return;
+  if (!valid || !form.product_id || !form.warehouse_id) return;
   submitting.value = true;
   try {
-    await createReservation(form);
+    // 按 ReservationData DTO 提交：order_id/order_no 为必填占位，备注映射到 notes
+    await createReservation({
+      order_id: 0,
+      order_no: '',
+      product_id: form.product_id,
+      warehouse_id: form.warehouse_id,
+      quantity: form.quantity,
+      notes: form.remark,
+    });
     ElMessage.success(t('common.success'));
     dialogVisible.value = false;
     fetchReservations();
@@ -191,11 +199,7 @@ const handleSubmit = async () => {
   }
 };
 
-const runAction = async (
-  row: Record<string, unknown>,
-  action: () => Promise<unknown>,
-  msg: string
-) => {
+const runAction = async (action: () => Promise<unknown>, msg: string) => {
   try {
     await action();
     ElMessage.success(msg);
@@ -207,14 +211,10 @@ const runAction = async (
 };
 
 const lockReservationRow = (row: Record<string, unknown>) =>
-  runAction(row, () => lockReservation(Number(row.id)), t('inventory.reservation.lockSuccess'));
+  runAction(() => lockReservation(Number(row.id)), t('inventory.reservation.lockSuccess'));
 
 const releaseReservationRow = (row: Record<string, unknown>) =>
-  runAction(
-    row,
-    () => releaseReservation(Number(row.id)),
-    t('inventory.reservation.releaseSuccess')
-  );
+  runAction(() => releaseReservation(Number(row.id)), t('inventory.reservation.releaseSuccess'));
 
 const cancelReservationRow = async (row: Record<string, unknown>) => {
   try {
@@ -225,7 +225,6 @@ const cancelReservationRow = async (row: Record<string, unknown>) => {
     return;
   }
   await runAction(
-    row,
     () => cancelReservation(Number(row.id)),
     t('inventory.reservation.cancelSuccess')
   );

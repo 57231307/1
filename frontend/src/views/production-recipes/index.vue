@@ -11,11 +11,11 @@
 
       <el-table v-loading="loading" :data="list" border>
         <el-table-column prop="recipe_no" label="配方编号" min-width="160" />
-        <el-table-column prop="recipe_name" label="配方名称" min-width="140">
-          <template #default="{ row }">{{ row.recipe_name || '-' }}</template>
+        <el-table-column prop="fabric_name" label="面料名称" min-width="140">
+          <template #default="{ row }">{{ row.fabric_name || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="product_name" label="产品" min-width="120">
-          <template #default="{ row }">{{ row.product_name || '-' }}</template>
+        <el-table-column prop="fabric_spec" label="面料规格" min-width="120">
+          <template #default="{ row }">{{ row.fabric_spec || '-' }}</template>
         </el-table-column>
         <el-table-column prop="color_no" label="色号" width="120">
           <template #default="{ row }">{{ row.color_no || '-' }}</template>
@@ -79,17 +79,17 @@
       width="520px"
     >
       <el-form :model="form" label-width="90px">
-        <el-form-item label="配方名称" required>
-          <el-input v-model="form.recipe_name" />
+        <el-form-item label="面料名称" required>
+          <el-input v-model="form.fabric_name" />
         </el-form-item>
-        <el-form-item label="产品 ID" required>
-          <el-input-number v-model="form.product_id" :min="1" style="width: 100%" />
+        <el-form-item label="备布重量" required>
+          <el-input-number v-model="form.fabric_weight" :min="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="色号">
           <el-input v-model="form.color_no" />
         </el-form-item>
-        <el-form-item label="染色类型">
-          <el-input v-model="form.dye_type" placeholder="如：活性染料" />
+        <el-form-item label="浴比" required>
+          <el-input v-model="form.liquor_ratio" placeholder="如：1:10" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -101,15 +101,15 @@
     <el-dialog v-model="detailVisible" title="配方详情" width="760px">
       <el-descriptions v-if="detailRow" :column="2" border>
         <el-descriptions-item label="配方编号">{{ detailRow.recipe_no }}</el-descriptions-item>
-        <el-descriptions-item label="配方名称">{{
-          detailRow.recipe_name || '-'
+        <el-descriptions-item label="面料名称">{{
+          detailRow.fabric_name || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="产品">{{
-          detailRow.product_name || detailRow.product_id
+        <el-descriptions-item label="面料规格">{{
+          detailRow.fabric_spec || '-'
         }}</el-descriptions-item>
         <el-descriptions-item label="色号">{{ detailRow.color_no || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="染色类型">{{
-          detailRow.dye_type || '-'
+        <el-descriptions-item label="浴比">{{
+          detailRow.liquor_ratio || '-'
         }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ statusText(detailRow.status) }}</el-descriptions-item>
       </el-descriptions>
@@ -225,11 +225,18 @@ import { useUserStore } from '@/store/user';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getProductionRecipeList,
+  getProductionRecipe,
   createProductionRecipe,
+  updateProductionRecipe,
   deleteProductionRecipe,
   approveProductionRecipe,
   closeProductionRecipe,
   cancelProductionRecipe,
+  calculateRecipeAmounts,
+  listRecipeAdditions,
+  createRecipeAddition,
+  approveRecipeAddition,
+  closeRecipeAddition,
   type ProductionRecipe,
   type ProductionRecipeStatus,
 } from '@/api/production-recipe';
@@ -240,10 +247,8 @@ const dialogVisible = ref(false);
 const list = ref<ProductionRecipe[]>([]);
 
 const form = reactive({
-  recipe_name: '',
-  product_id: 1,
+  fabric_name: '',
   color_no: '',
-  dye_type: '',
   fabric_weight: 100,
   liquor_ratio: '1:10',
 });
@@ -273,10 +278,8 @@ const loadList = async () => {
 
 const handleCreate = () => {
   Object.assign(form, {
-    recipe_name: '',
-    product_id: 1,
+    fabric_name: '',
     color_no: '',
-    dye_type: '',
     fabric_weight: 100,
     liquor_ratio: '1:10',
   });
@@ -284,8 +287,8 @@ const handleCreate = () => {
 };
 
 const submitCreate = async () => {
-  if (!form.recipe_name) {
-    ElMessage.warning('配方名称必填');
+  if (!form.fabric_name) {
+    ElMessage.warning('面料名称必填');
     return;
   }
   submitting.value = true;
@@ -335,12 +338,10 @@ const editingId = ref<number | null>(null);
 const openEdit = (row: ProductionRecipe) => {
   editingId.value = row.id;
   Object.assign(form, {
-    recipe_name: row.recipe_name || '',
-    product_id: row.product_id || 1,
+    fabric_name: row.fabric_name || '',
     color_no: row.color_no || '',
-    dye_type: row.dye_type || '',
-    fabric_weight: 100,
-    liquor_ratio: '1:10',
+    fabric_weight: Number(row.fabric_weight) || 100,
+    liquor_ratio: row.liquor_ratio || '1:10',
   });
   dialogVisible.value = true;
 };
@@ -350,10 +351,10 @@ const submitForm = async () => {
     submitting.value = true;
     try {
       await updateProductionRecipe(editingId.value, {
-        recipe_name: form.recipe_name,
-        product_id: form.product_id,
+        fabric_name: form.fabric_name || undefined,
         color_no: form.color_no || undefined,
-        dye_type: form.dye_type || undefined,
+        fabric_weight: form.fabric_weight,
+        liquor_ratio: form.liquor_ratio,
       });
       ElMessage.success('配方已更新');
       dialogVisible.value = false;

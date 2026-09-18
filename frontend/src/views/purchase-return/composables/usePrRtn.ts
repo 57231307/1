@@ -15,7 +15,6 @@ import {
   getPurchaseReturnById,
   updatePurchaseReturn,
   createPurchaseReturn,
-  getPurchaseReturnItemList,
   createPurchaseReturnItem,
   updatePurchaseReturnItem,
   deletePurchaseReturnItem,
@@ -211,7 +210,7 @@ export function usePrRtn() {
       returnDate: row.returnDate,
       reasonType: (row as unknown as { reason_type?: string }).reason_type || 'quality',
       reason: row.reason,
-      items: (row.items || []).map(it => normalizeItem(it as Record<string, unknown>)),
+      items: (row.items || []).map(it => normalizeItem(it as unknown as Record<string, unknown>)),
     });
   };
 

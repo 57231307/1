@@ -50,7 +50,7 @@
           align="right"
         >
           <template #default="{ row }">
-            {{ formatMoney(row.verification_amount) }}
+            {{ formatMoney(row.total_amount) }}
           </template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('common.status')" width="90" align="center">
@@ -151,23 +151,15 @@
         <el-descriptions-item :label="$t('common.status')">{{
           detailRow.status
         }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('apModule.verification.invoiceAmount')">
-          {{
-            Number(detailRow.invoice_amount ?? 0).toLocaleString('zh-CN', {
-              minimumFractionDigits: 2,
-            })
-          }}
+        <el-descriptions-item :label="$t('apModule.verification.verificationNo')">
+          {{ detailRow.verification_no }}
         </el-descriptions-item>
-        <el-descriptions-item :label="$t('apModule.verification.paymentAmount')">
-          {{
-            Number(detailRow.payment_amount ?? 0).toLocaleString('zh-CN', {
-              minimumFractionDigits: 2,
-            })
-          }}
+        <el-descriptions-item :label="$t('apModule.verification.verificationDate') || '核销日期'">
+          {{ detailRow.verification_date }}
         </el-descriptions-item>
-        <el-descriptions-item :label="$t('apModule.verification.verifiedAmount')" :span="2">
+        <el-descriptions-item :label="$t('apModule.verification.verificationAmount')" :span="2">
           {{
-            Number(detailRow.verified_amount ?? 0).toLocaleString('zh-CN', {
+            Number(detailRow.total_amount ?? 0).toLocaleString('zh-CN', {
               minimumFractionDigits: 2,
             })
           }}
@@ -313,10 +305,23 @@ const handleAutoVerify = async () => {
   }
   autoVerifying.value = true;
   try {
-    await autoVerifyAP({});
+    // 后端契约：/ap/verifications/auto 需要供应商 ID
+    const { value } = await ElMessageBox.prompt(
+      t('apModule.verification.autoVerifyConfirm'),
+      t('apModule.verification.autoVerify'),
+      {
+        type: 'info',
+        inputValidator: v => {
+          const n = Number(v);
+          return Number.isInteger(n) && n > 0 ? true : '请输入有效的供应商 ID';
+        },
+      }
+    );
+    await autoVerifyAP({ supplier_id: Number(value) });
     ElMessage.success(t('apModule.verification.autoVerifySuccess'));
     fetchVerifications();
   } catch (e) {
+    if (e === 'cancel') return;
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));
   } finally {

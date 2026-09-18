@@ -152,10 +152,19 @@ const rules: FormRules = {
 
 const handleSubmit = async () => {
   const valid = await formRef.value?.validate();
-  if (!valid) return;
+  if (!valid || !form.product_id || !form.warehouse_id) return;
   submitting.value = true;
   try {
-    await createStockFabric(form);
+    // 表单字段与 CreateStockRequest 一致，显式构造强类型请求体
+    await createStockFabric({
+      product_id: form.product_id,
+      warehouse_id: form.warehouse_id,
+      batch_no: form.batch_no,
+      color_no: form.color_no,
+      grade: form.grade,
+      quantity_meters: form.quantity_meters,
+      quantity_kg: form.quantity_kg,
+    });
     ElMessage.success(t('common.success'));
     dialogVisible.value = false;
     fetchFabricStock();

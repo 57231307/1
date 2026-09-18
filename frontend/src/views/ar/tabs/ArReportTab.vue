@@ -86,7 +86,7 @@ const fetchReport = async () => {
               new Date().getFullYear(),
               new Date().getMonth() + 1
             )
-          : await fetcher();
+          : await (fetcher as () => Promise<unknown>)();
     const d = res as unknown as
       | { list?: Record<string, unknown>[]; items?: Record<string, unknown>[]; data?: unknown }
       | Record<string, unknown>[]

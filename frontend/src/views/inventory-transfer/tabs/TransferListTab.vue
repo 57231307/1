@@ -245,11 +245,11 @@ import { reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue';
+import { executeInventoryTransfer } from '@/api/inventory';
 import {
-  executeInventoryTransfer,
   generateInventoryTransferNo,
   type InventoryTransferEntity,
-} from '@/api/inventory';
+} from '@/api/inventory-transfer';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
 import { formatCurrency } from '@/utils';

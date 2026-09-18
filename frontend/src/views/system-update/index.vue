@@ -82,7 +82,7 @@
       <el-descriptions v-if="upd.currentBackupDetail" :column="2" border>
         <el-descriptions-item label="ID">{{ upd.currentBackupDetail.id }}</el-descriptions-item>
         <el-descriptions-item label="备份名称">{{
-          upd.currentBackupDetail.backup_name
+          upd.currentBackupDetail.backup_code
         }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{
           upd.currentBackupDetail.status

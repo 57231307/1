@@ -192,7 +192,7 @@
     <el-dialog v-model="termsVisible" :title="t('quotations.list.terms') || '条款'" width="600px">
       <el-table v-loading="termsLoading" :data="termsRows" border size="small">
         <el-table-column prop="term_type" label="条款类型" width="120" />
-        <el-table-column prop="content" label="条款内容" min-width="220" />
+        <el-table-column prop="term_value" label="条款内容" min-width="220" />
         <el-table-column :label="t('common.action')" width="90">
           <template #default="{ row }">
             <el-button size="small" type="danger" link @click="removeTerm(row)">
@@ -229,13 +229,12 @@ import {
   setQuotationTerms,
   getExpiringQuotationList,
   getExpiredQuotationList,
-  calculatePrice,
-  getColorPrices,
-  setColorPrice,
   QUOTATION_STATUS_LABELS,
   QUOTATION_STATUS_TAG_TYPES,
   type QuotationResponseDto,
   type QuotationStatus,
+  type CreateQuotationTermDto,
+  type TermType,
 } from '@/api/quotation';
 import { getCustomerList } from '@/api/customer';
 
@@ -401,6 +400,14 @@ const showTerms = async (row: QuotationResponseDto) => {
   }
 };
 
+/** 将条款行/表单输入映射为后端 CreateQuotationTermDto（sequence 按顺序重排） */
+const mapTermDto = (row: Record<string, unknown>, idx: number): CreateQuotationTermDto => ({
+  term_type: String(row.term_type || '') as TermType,
+  term_key: String(row.term_key ?? row.term_type ?? ''),
+  term_value: String(row.term_value ?? row.content ?? ''),
+  sequence: idx + 1,
+});
+
 const addTerm = async () => {
   if (!currentQuotationId.value) return;
   if (!newTermType.value.trim() || !newTermContent.value.trim()) {
@@ -409,9 +416,15 @@ const addTerm = async () => {
   }
   termsSaving.value = true;
   try {
+    const newTerm: CreateQuotationTermDto = {
+      term_type: newTermType.value.trim() as TermType,
+      term_key: newTermType.value.trim(),
+      term_value: newTermContent.value.trim(),
+      sequence: termsRows.value.length + 1,
+    };
     await setQuotationTerms(currentQuotationId.value, [
-      ...(termsRows.value as unknown as Array<{ term_type: string; content: string }>),
-      { term_type: newTermType.value.trim(), content: newTermContent.value.trim() },
+      ...termsRows.value.map((row, idx) => mapTermDto(row, idx)),
+      newTerm,
     ]);
     ElMessage.success(t('common.success'));
     newTermType.value = '';
@@ -433,7 +446,7 @@ const removeTerm = async (row: Record<string, unknown>) => {
   try {
     await setQuotationTerms(
       currentQuotationId.value,
-      remain as unknown as Array<{ term_type: string; content: string }>
+      remain.map((r, idx) => mapTermDto(r, idx))
     );
     ElMessage.success(t('common.success'));
     termsRows.value = remain as unknown as Array<Record<string, unknown>>;

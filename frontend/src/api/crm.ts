@@ -4,6 +4,22 @@ import type { ApiResponse, QueryParams } from '@/types/api';
 export interface Lead {
   id: number;
   lead_no: string;
+  // 后端 crm_lead 契约字段（CreateLeadRequest / crm_lead.rs Model）
+  lead_source?: string;
+  lead_status?: string;
+  company_name?: string;
+  contact_name?: string;
+  contact_title?: string;
+  mobile_phone?: string;
+  tel_phone?: string;
+  wechat?: string;
+  qq?: string;
+  owner_id?: number;
+  owner_name?: string;
+  priority?: string;
+  requirement_desc?: string;
+  remarks?: string;
+  // 兼容历史前端字段
   name: string;
   phone: string;
   email: string;
@@ -37,6 +53,13 @@ export interface ImportLeadsResult {
 export interface Opportunity {
   id: number;
   opportunity_no: string;
+  // 后端 CreateOpportunityRequest / crm_opportunity 契约字段
+  opportunity_name?: string;
+  opportunity_type?: string;
+  win_probability?: number;
+  owner_id?: number;
+  product_desc?: string;
+  remarks?: string;
   name: string;
   customer_id: number;
   customer_name: string;

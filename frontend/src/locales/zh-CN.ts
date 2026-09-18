@@ -10943,6 +10943,7 @@ export default {
       messageSaveFailed: '保存失败',
       messageUpdateSuccess: '更新成功',
       messageUpdateFailed: '更新失败',
+      messageJsonInvalid: 'JSON 格式有误，请检查自定义条件/允许字段/隐藏字段输入',
       messageDeleteSuccess: '删除成功',
       messageDeleteFailed: '删除失败',
       messageConfirmDelete: '确定要删除该数据权限吗？',

@@ -76,10 +76,10 @@ export function submitProductionOrder(id: number): Promise<ApiResponse<void>> {
   return request.post(`/production/production-orders/orders/${id}/submit-approval`);
 }
 
-// 审核生产订单（后端: POST /production/production-orders/orders/:id/approve）
+// 审核生产订单（后端: POST /production/production-orders/orders/:id/approve，ApprovalRequest { approved, opinion }）
 export function approveProductionOrder(
   id: number,
-  data: { approved: boolean; remark?: string }
+  data: { approved: boolean; opinion?: string }
 ): Promise<ApiResponse<void>> {
   return request.post(`/production/production-orders/orders/${id}/approve`, data);
 }

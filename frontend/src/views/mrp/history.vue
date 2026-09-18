@@ -318,6 +318,7 @@ const {
   page,
   pageSize,
   total,
+  refresh,
 } = useTableApi<MrpHistoryRecord>({
   url: '/production/mrp-history',
   listKey: 'list',
@@ -359,13 +360,13 @@ const supplyMaterial = ref<MrpMaterialRequirement | null>(null);
 const supplyDetails = ref<MrpSupplyDetail[]>([]);
 
 const showMaterialDetail = async (row: MrpMaterialRequirement) => {
-  if (!currentResult.value?.id) return;
+  if (!currentResult.value?.calculation_id) return;
   supplyMaterial.value = row;
   supplyDetails.value = [];
   supplyVisible.value = true;
   supplyLoading.value = true;
   try {
-    const res = await getMaterialRequirementDetail(currentResult.value.id, row.id);
+    const res = await getMaterialRequirementDetail(currentResult.value.calculation_id, row.id);
     supplyDetails.value = (res.data?.supply_details ?? []) as MrpSupplyDetail[];
   } catch (e: unknown) {
     ElMessage.error(
@@ -388,7 +389,7 @@ const handleCancelCalculation = async (row: MrpHistoryRecord) => {
   try {
     await cancelMrpCalculation(row.id);
     ElMessage.success(t('common.success'));
-    fetchData();
+    refresh();
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : String(e));
   }

@@ -352,7 +352,6 @@ import {
   getProductCategoryList,
   getProductCategoryTree,
   deleteProduct,
-  getProductById,
   batchDeleteProducts,
   batchCreateProducts,
   batchUpdateProducts,
@@ -507,18 +506,6 @@ const handleDelete = async (row: Product) => {
     if (error !== 'cancel') {
       ElMessage.error((error as Error).message || t('product.productListTab.messageDeleteFailed'));
     }
-  }
-};
-
-// 产品详情回源（getProductById：行数据为列表裁剪字段，详情补全全部字段）
-const handleViewDetail = async (row: Product) => {
-  try {
-    const res = await getProductById(row.id);
-    if (res.data) {
-      emit('openForm', 'view', res.data);
-    }
-  } catch {
-    emit('openForm', 'view', row);
   }
 };
 

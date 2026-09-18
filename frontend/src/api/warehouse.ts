@@ -13,6 +13,8 @@ export interface Warehouse {
   status: string;
   is_default?: boolean;
   description?: string;
+  /** 后端 warehouses.notes（表单 description 写入该列） */
+  notes?: string;
   created_at?: string;
 }
 

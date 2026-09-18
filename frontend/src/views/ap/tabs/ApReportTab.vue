@@ -74,7 +74,12 @@ const fetchers = {
 const fetchReport = async () => {
   loading.value = true;
   try {
-    const res = await fetchers[reportType.value]();
+    const res =
+      reportType.value === 'daily'
+        ? await getAPDailyReport(new Date().toISOString().split('T')[0])
+        : reportType.value === 'monthly'
+          ? await getAPMonthlyReport(new Date().getFullYear(), new Date().getMonth() + 1)
+          : await fetchers[reportType.value]();
     const d = res.data as unknown as
       | { list?: Record<string, unknown>[]; items?: Record<string, unknown>[] }
       | Record<string, unknown>[]

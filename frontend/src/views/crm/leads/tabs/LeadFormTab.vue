@@ -236,10 +236,16 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
+    // 后端 owner_id 为整数，表单下拉值可能为字符串，提交前归一化；id 空值转为 undefined
+    const payload = {
+      ...formData,
+      id: formData.id ?? undefined,
+      owner_id: formData.owner_id === '' ? undefined : Number(formData.owner_id),
+    };
     if (formData.id) {
-      await updateLead(formData.id, formData);
+      await updateLead(formData.id, payload);
     } else {
-      await createLead(formData);
+      await createLead(payload);
     }
     ElMessage.success(t('crmLeads.leadForm.message.saveSuccess'));
     visible.value = false;

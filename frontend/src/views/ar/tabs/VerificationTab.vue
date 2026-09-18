@@ -138,6 +138,8 @@ import {
   getUnverifiedARInvoices,
   getUnverifiedARPayments,
   type ARVerification,
+  type ARInvoice,
+  type ARPayment,
 } from '@/api/ar';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -150,8 +152,8 @@ const detailVisible = ref(false);
 const detailRow = ref<ARVerification | null>(null);
 const submitting = ref(false);
 const manualFormRef = ref<FormInstance>();
-const unverifiedInvoices = ref<Array<Record<string, unknown>>>([]);
-const unverifiedPayments = ref<Array<Record<string, unknown>>>([]);
+const unverifiedInvoices = ref<ARInvoice[]>([]);
+const unverifiedPayments = ref<ARPayment[]>([]);
 
 const formatMoney = (amount: number | string | undefined) => {
   const n = Number(amount ?? 0);
@@ -189,7 +191,7 @@ const handleAutoVerify = async () => {
   }
   autoVerifying.value = true;
   try {
-    await autoVerifyAR({});
+    await autoVerifyAR();
     ElMessage.success(t('arModule.verification.autoSuccess'));
     fetchVerifications();
   } catch (e) {
@@ -228,12 +230,12 @@ const openManualDialog = async () => {
       getUnverifiedARInvoices(),
       getUnverifiedARPayments(),
     ]);
-    const inv = invRes.data as unknown as
-      Record<string, unknown>[] | { list?: Record<string, unknown>[] } | undefined;
-    unverifiedInvoices.value = Array.isArray(inv) ? inv : inv?.list || [];
-    const pay = payRes.data as unknown as
-      Record<string, unknown>[] | { list?: Record<string, unknown>[] } | undefined;
-    unverifiedPayments.value = Array.isArray(pay) ? pay : pay?.list || [];
+    const inv = invRes.data as
+      { list?: ARInvoice[]; items?: ARInvoice[] } | ARInvoice[] | undefined;
+    unverifiedInvoices.value = Array.isArray(inv) ? inv : inv?.list || inv?.items || [];
+    const pay = payRes.data as
+      { list?: ARPayment[]; items?: ARPayment[] } | ARPayment[] | undefined;
+    unverifiedPayments.value = Array.isArray(pay) ? pay : pay?.list || pay?.items || [];
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));
@@ -242,10 +244,14 @@ const openManualDialog = async () => {
 
 const submitManual = async () => {
   const valid = await manualFormRef.value?.validate();
-  if (!valid) return;
+  if (!valid || !manualForm.invoice_id || !manualForm.payment_id) return;
   submitting.value = true;
   try {
-    await manualVerifyAR(manualForm);
+    await manualVerifyAR({
+      invoice_id: manualForm.invoice_id,
+      payment_id: manualForm.payment_id,
+      amount: manualForm.verification_amount,
+    });
     ElMessage.success(t('common.success'));
     manualVisible.value = false;
     fetchVerifications();

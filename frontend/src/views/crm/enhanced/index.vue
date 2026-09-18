@@ -435,9 +435,10 @@ import {
   type CustomerClv,
 } from '@/api/customer';
 import {
-  getCustomerDetail,
   getCustomerRfmScore,
   getCustomerAssignmentHistory,
+  type RfmScore,
+  type AssignmentRecord,
 } from '@/api/crm-enhanced';
 
 const activeTab = ref('funnel');
@@ -848,22 +849,9 @@ const handleSaveAuditLog = async () => {
   }
 };
 
-// 客户 360 详情回源（getCustomerDetail：列表行补全字段）
-const detailVisible = ref(false);
-const detailRow = ref<Record<string, unknown> | null>(null);
-const handleCustomerDetail = async (row: Record<string, unknown>) => {
-  try {
-    const res = await getCustomerDetail(Number(row.id));
-    detailRow.value = (res.data as Record<string, unknown>) || row;
-  } catch {
-    detailRow.value = row;
-  }
-  detailVisible.value = true;
-};
-
 // RFM 评分查询（getCustomerRfmScore，与 CLV 同客户 ID）
 const rfmLoading = ref(false);
-const rfmRow = ref<Record<string, unknown> | null>(null);
+const rfmRow = ref<RfmScore | null>(null);
 const handleRfmScore = async () => {
   const customerId = clvCustomerId.value;
   if (!customerId) {
@@ -873,7 +861,7 @@ const handleRfmScore = async () => {
   rfmLoading.value = true;
   try {
     const res = await getCustomerRfmScore(customerId);
-    rfmRow.value = (res.data as Record<string, unknown>) || {};
+    rfmRow.value = res.data ?? null;
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || '加载 RFM 评分失败');
@@ -883,7 +871,7 @@ const handleRfmScore = async () => {
 };
 
 // 客户分配历史（getCustomerAssignmentHistory）
-const assignmentHistory = ref<Record<string, unknown>[]>([]);
+const assignmentHistory = ref<AssignmentRecord[]>([]);
 const assignmentLoading = ref(false);
 const loadAssignmentHistory = async () => {
   const customerId = clvCustomerId.value;
@@ -893,8 +881,8 @@ const loadAssignmentHistory = async () => {
   }
   assignmentLoading.value = true;
   try {
-    const res = await getCustomerAssignmentHistory(customerId);
-    assignmentHistory.value = (res.data as Record<string, unknown>[]) || [];
+    const res = await getCustomerAssignmentHistory({ customer_id: customerId });
+    assignmentHistory.value = res.data?.items ?? res.data?.list ?? res.data?.data ?? [];
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || '加载分配历史失败');

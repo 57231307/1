@@ -1,4 +1,5 @@
 import { request } from './request';
+import type { ApiResponse } from '@/types/api';
 
 export interface Signature {
   id: number;
@@ -43,7 +44,7 @@ export function getSharesByUser(userId: number) {
 }
 
 export function checkSharePermission(params: Record<string, unknown>) {
-  return request.get('/customer-shares/check', { params });
+  return request.get<ApiResponse<Record<string, unknown>>>('/customer-shares/check', { params });
 }
 
 export function revokeShare(shareId: number, data?: Record<string, unknown>) {
@@ -67,9 +68,13 @@ export function listTeamMembers(customerId: number) {
 }
 
 export function listUserTeams(userId: number) {
-  return request.get(`/customer-team-members/by-user/${userId}`);
+  return request.get<ApiResponse<Record<string, unknown>[]>>(
+    `/customer-team-members/by-user/${userId}`
+  );
 }
 
 export function isTeamMember(params: Record<string, unknown>) {
-  return request.get('/customer-team-members/check', { params });
+  return request.get<ApiResponse<{ is_member?: boolean }>>('/customer-team-members/check', {
+    params,
+  });
 }

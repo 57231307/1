@@ -166,7 +166,10 @@ export function usePrcProc(cb: PrcCallbacks) {
     try {
       if (cb.form.id) {
         // 编辑：明细走 item 级端点（PUT /{id} 仅接受表头字段，原整单 PUT 会静默丢弃明细改动）
-        await updatePurchaseReceipt(cb.form.id, cb.form as PurchaseReceiptEntity);
+        await updatePurchaseReceipt(
+          cb.form.id,
+          cb.form as unknown as Partial<PurchaseReceiptEntity>
+        );
         let idx = 0;
         for (const it of validItems) {
           if (it.id) {

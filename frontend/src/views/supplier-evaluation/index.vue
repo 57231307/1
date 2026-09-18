@@ -341,6 +341,42 @@
         >
       </el-descriptions>
     </el-dialog>
+
+    <!-- 新增评估指标对话框（createIndicator + handleSaveIndicator） -->
+    <el-dialog
+      v-model="indicatorDialogVisible"
+      :title="t('supplierEvaluation.index.indicators.dialogTitle')"
+      width="520px"
+    >
+      <el-form :model="indicatorForm" label-width="110px">
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.code')" required>
+          <el-input v-model="indicatorForm.indicatorCode" />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.name')" required>
+          <el-input v-model="indicatorForm.indicatorName" />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.category')" required>
+          <el-input v-model="indicatorForm.category" />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.weight')">
+          <el-input-number v-model="indicatorForm.weight" :min="0" :max="100" />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.maxScore')">
+          <el-input-number v-model="indicatorForm.maxScore" :min="0" :max="100" />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.description')">
+          <el-input v-model="indicatorForm.description" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="indicatorDialogVisible = false">{{
+          t('supplierEvaluation.index.dialog.button.cancel')
+        }}</el-button>
+        <el-button type="primary" @click="handleSaveIndicator">{{
+          t('supplierEvaluation.index.dialog.button.save')
+        }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -358,7 +394,6 @@ import {
   getEvaluationRecord,
   getEvaluationList,
   getEvaluation,
-  createEvaluation,
   updateEvaluation,
   deleteEvaluation,
   getSupplierScore,

@@ -495,7 +495,7 @@ const handleLost = async (row: LeadRow) => {
 const handleScore = async (row: LeadRow) => {
   try {
     const res = await scoreLead(row.id);
-    const d = (res.data ?? {}) as Record<string, unknown>;
+    const d = (res.data ?? {}) as unknown as Record<string, unknown>;
     const lines = Object.entries(d).map(([k, v]) => `${k}: ${v}`);
     ElMessageBox.alert(
       lines.join('\n') || t('crmLeads.message.scoreEmpty') || '评分完成，暂无评分明细',
