@@ -6315,6 +6315,7 @@ export default {
         export: 'Export',
         edit: 'Edit',
         delete: 'Delete',
+        detail: 'Detail',
         query: 'Search',
         reset: 'Reset',
       },
@@ -6366,10 +6367,14 @@ export default {
         deleteConfirmTitle: 'Delete Confirmation',
         deleteConfirmMessage: 'Are you sure you want to delete customer "{name}"?',
       },
+      detail: {
+        title: 'Customer Detail',
+      },
       message: {
         deleteSuccess: 'Delete Success',
         deleteFailed: 'Delete Failed',
         fetchListFailed: 'Failed to fetch customer list',
+        fetchFailure: 'Failed to fetch customer detail',
       },
       print: {
         title: 'Customer List',

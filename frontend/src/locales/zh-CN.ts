@@ -6308,6 +6308,7 @@ export default {
         export: '导出',
         edit: '编辑',
         delete: '删除',
+        detail: '详情',
         query: '查询',
         reset: '重置',
       },
@@ -6359,10 +6360,14 @@ export default {
         deleteConfirmTitle: '删除确认',
         deleteConfirmMessage: '确定删除客户 "{name}" 吗？',
       },
+      detail: {
+        title: '客户详情',
+      },
       message: {
         deleteSuccess: '删除成功',
         deleteFailed: '删除失败',
         fetchListFailed: '获取客户列表失败',
+        fetchFailure: '获取客户详情失败',
       },
       print: {
         title: '客户列表',

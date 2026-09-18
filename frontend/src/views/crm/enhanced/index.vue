@@ -183,11 +183,26 @@
             <el-button type="primary" :loading="clvLoading" @click="loadCustomerValue">
               查询
             </el-button>
+            <el-button :loading="clvCalculating" @click="handleCalculateClv">计算 CLV</el-button>
+            <el-button :loading="creditLoading" @click="handleCreditQuery">查询信用</el-button>
             <el-button :loading="rfmLoading" @click="handleRfmScore">RFM 评分</el-button>
             <el-button :loading="assignmentLoading" @click="loadAssignmentHistory">
               分配历史
             </el-button>
           </div>
+
+          <!-- 信用额度信息 -->
+          <el-descriptions v-if="creditInfo" :column="3" border style="margin-bottom: 16px">
+            <el-descriptions-item label="信用额度">{{
+              fmtAmount(creditInfo.credit_limit)
+            }}</el-descriptions-item>
+            <el-descriptions-item label="当前占用">{{
+              fmtAmount(creditInfo.current_balance)
+            }}</el-descriptions-item>
+            <el-descriptions-item label="可用额度">{{
+              fmtAmount(creditInfo.available)
+            }}</el-descriptions-item>
+          </el-descriptions>
 
           <!-- RFM 评分结果 -->
           <el-descriptions v-if="rfmRow" :column="3" border style="margin-bottom: 16px">
@@ -244,6 +259,11 @@
           </el-descriptions>
 
           <h3 class="section-title">地址簿</h3>
+          <div class="toolbar" style="margin-bottom: 8px">
+            <el-button type="primary" plain size="small" @click="openCreateAddress">
+              新增地址
+            </el-button>
+          </div>
           <el-table v-loading="clvLoading" :data="addresses" border>
             <el-table-column prop="contact_name" label="收货人" width="110" />
             <el-table-column prop="contact_phone" label="联系电话" width="130" />
@@ -270,9 +290,24 @@
             <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip>
               <template #default="{ row }">{{ row.remark || '-' }}</template>
             </el-table-column>
+            <el-table-column label="操作" width="130" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="primary" size="small" @click="openEditAddress(row)"
+                  >编辑</el-button
+                >
+                <el-button link type="danger" size="small" @click="handleDeleteAddress(row)"
+                  >删除</el-button
+                >
+              </template>
+            </el-table-column>
           </el-table>
 
           <h3 class="section-title">审计日志</h3>
+          <div class="toolbar" style="margin-bottom: 8px">
+            <el-button type="primary" plain size="small" @click="openCreateAuditLog">
+              登记日志
+            </el-button>
+          </div>
           <el-table v-loading="clvLoading" :data="auditLogs" border>
             <el-table-column prop="operation" label="操作类型" width="110" />
             <el-table-column prop="field_name" label="字段" width="130">
@@ -315,12 +350,65 @@
         <el-button type="primary" :loading="mergeLoading" @click="submitMerge">确定合并</el-button>
       </template>
     </el-dialog>
+
+    <!-- 新增/编辑地址弹窗 -->
+    <el-dialog
+      v-model="addressDialogVisible"
+      :title="editingAddressId ? '编辑地址' : '新增地址'"
+      width="520px"
+    >
+      <el-form :model="addressForm" label-width="100px">
+        <el-form-item label="收货人" required>
+          <el-input v-model="addressForm.contact_name" />
+        </el-form-item>
+        <el-form-item label="联系电话" required>
+          <el-input v-model="addressForm.contact_phone" />
+        </el-form-item>
+        <el-form-item label="省份"><el-input v-model="addressForm.province" /></el-form-item>
+        <el-form-item label="城市"><el-input v-model="addressForm.city" /></el-form-item>
+        <el-form-item label="区县"><el-input v-model="addressForm.district" /></el-form-item>
+        <el-form-item label="详细地址" required>
+          <el-input v-model="addressForm.address" type="textarea" :rows="2" />
+        </el-form-item>
+        <el-form-item label="邮编"><el-input v-model="addressForm.postal_code" /></el-form-item>
+        <el-form-item label="默认地址">
+          <el-switch v-model="addressForm.is_default" />
+        </el-form-item>
+        <el-form-item label="备注"><el-input v-model="addressForm.remark" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addressDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="addressSaving" @click="handleSaveAddress">
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 登记审计日志弹窗 -->
+    <el-dialog v-model="auditDialogVisible" title="登记客户操作日志" width="480px">
+      <el-form :model="auditForm" label-width="100px">
+        <el-form-item label="操作类型" required>
+          <el-select v-model="auditForm.operation" style="width: 100%">
+            <el-option v-for="op in operationOptions" :key="op" :label="op" :value="op" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="字段名"><el-input v-model="auditForm.field_name" /></el-form-item>
+        <el-form-item label="旧值"><el-input v-model="auditForm.old_value" /></el-form-item>
+        <el-form-item label="新值"><el-input v-model="auditForm.new_value" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="auditDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="auditSaving" @click="handleSaveAuditLog">
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   detectDuplicateLeads,
   getLeadFunnelReport,
@@ -336,6 +424,12 @@ import {
   getCustomerAddressList,
   getCustomerAuditLogs,
   getCustomerClv,
+  createCustomerAddress,
+  updateCustomerAddress,
+  deleteCustomerAddress,
+  calculateCustomerClv,
+  getCustomerCreditInfo,
+  createCustomerAuditLog,
   type CustomerAddress,
   type CustomerAuditLog,
   type CustomerClv,
@@ -566,6 +660,192 @@ const loadCustomerValue = async () => {
 
 const handleAuditOperationChange = () => {
   if (clvCustomerId.value) loadCustomerValue();
+};
+
+// ===== CLV 计算 =====
+const clvCalculating = ref(false);
+const handleCalculateClv = async () => {
+  const customerId = clvCustomerId.value;
+  if (!customerId) {
+    ElMessage.warning('请输入客户 ID');
+    return;
+  }
+  clvCalculating.value = true;
+  try {
+    const res = await calculateCustomerClv(customerId);
+    clv.value = res.data ?? null;
+    ElMessage.success('CLV 已计算');
+  } catch {
+    ElMessage.error('CLV 计算失败');
+  } finally {
+    clvCalculating.value = false;
+  }
+};
+
+// ===== 客户信用 =====
+const creditLoading = ref(false);
+const creditInfo = ref<{ credit_limit: number; current_balance: number; available: number } | null>(
+  null
+);
+const handleCreditQuery = async () => {
+  const customerId = clvCustomerId.value;
+  if (!customerId) {
+    ElMessage.warning('请输入客户 ID');
+    return;
+  }
+  creditLoading.value = true;
+  try {
+    const res = await getCustomerCreditInfo(customerId);
+    creditInfo.value = res.data ?? null;
+  } catch {
+    ElMessage.error('查询客户信用失败');
+  } finally {
+    creditLoading.value = false;
+  }
+};
+
+// ===== 地址簿管理 =====
+const addressDialogVisible = ref(false);
+const editingAddressId = ref<number | null>(null);
+const addressSaving = ref(false);
+const addressForm = ref({
+  contact_name: '',
+  contact_phone: '',
+  province: '',
+  city: '',
+  district: '',
+  address: '',
+  postal_code: '',
+  is_default: false,
+  remark: '',
+});
+
+const openCreateAddress = () => {
+  if (!clvCustomerId.value) {
+    ElMessage.warning('请输入客户 ID');
+    return;
+  }
+  editingAddressId.value = null;
+  addressForm.value = {
+    contact_name: '',
+    contact_phone: '',
+    province: '',
+    city: '',
+    district: '',
+    address: '',
+    postal_code: '',
+    is_default: false,
+    remark: '',
+  };
+  addressDialogVisible.value = true;
+};
+
+const openEditAddress = (row: CustomerAddress) => {
+  editingAddressId.value = row.id;
+  addressForm.value = {
+    contact_name: row.contact_name,
+    contact_phone: row.contact_phone,
+    province: row.province || '',
+    city: row.city || '',
+    district: row.district || '',
+    address: row.address,
+    postal_code: row.postal_code || '',
+    is_default: row.is_default,
+    remark: row.remark || '',
+  };
+  addressDialogVisible.value = true;
+};
+
+const handleSaveAddress = async () => {
+  const customerId = clvCustomerId.value;
+  if (!customerId) {
+    ElMessage.warning('请输入客户 ID');
+    return;
+  }
+  if (
+    !addressForm.value.contact_name ||
+    !addressForm.value.contact_phone ||
+    !addressForm.value.address
+  ) {
+    ElMessage.warning('请填写收货人/电话/详细地址');
+    return;
+  }
+  addressSaving.value = true;
+  try {
+    if (editingAddressId.value) {
+      await updateCustomerAddress(customerId, editingAddressId.value, addressForm.value);
+      ElMessage.success('地址已更新');
+    } else {
+      await createCustomerAddress(customerId, addressForm.value);
+      ElMessage.success('地址已添加');
+    }
+    addressDialogVisible.value = false;
+    const res = await getCustomerAddressList(customerId);
+    addresses.value = unwrapList<CustomerAddress>(res.data);
+  } catch {
+    ElMessage.error('保存地址失败');
+  } finally {
+    addressSaving.value = false;
+  }
+};
+
+const handleDeleteAddress = async (row: CustomerAddress) => {
+  const customerId = clvCustomerId.value;
+  if (!customerId) return;
+  try {
+    await ElMessageBox.confirm(`确认删除地址 #${row.id}？`, '确认', { type: 'warning' });
+  } catch {
+    return;
+  }
+  try {
+    await deleteCustomerAddress(customerId, row.id);
+    ElMessage.success('地址已删除');
+    const res = await getCustomerAddressList(customerId);
+    addresses.value = unwrapList<CustomerAddress>(res.data);
+  } catch {
+    ElMessage.error('删除地址失败');
+  }
+};
+
+// ===== 审计日志登记 =====
+const auditDialogVisible = ref(false);
+const auditSaving = ref(false);
+const auditForm = ref({
+  operation: 'update',
+  field_name: '',
+  old_value: '',
+  new_value: '',
+});
+
+const openCreateAuditLog = () => {
+  if (!clvCustomerId.value) {
+    ElMessage.warning('请输入客户 ID');
+    return;
+  }
+  auditForm.value = { operation: 'update', field_name: '', old_value: '', new_value: '' };
+  auditDialogVisible.value = true;
+};
+
+const handleSaveAuditLog = async () => {
+  const customerId = clvCustomerId.value;
+  if (!customerId) return;
+  auditSaving.value = true;
+  try {
+    await createCustomerAuditLog(customerId, {
+      operation: auditForm.value.operation,
+      field_name: auditForm.value.field_name || undefined,
+      old_value: auditForm.value.old_value || undefined,
+      new_value: auditForm.value.new_value || undefined,
+    });
+    ElMessage.success('日志已登记');
+    auditDialogVisible.value = false;
+    const res = await getCustomerAuditLogs(customerId);
+    auditLogs.value = unwrapList<CustomerAuditLog>(res.data);
+  } catch {
+    ElMessage.error('登记日志失败');
+  } finally {
+    auditSaving.value = false;
+  }
 };
 
 // 客户 360 详情回源（getCustomerDetail：列表行补全字段）

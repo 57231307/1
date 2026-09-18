@@ -178,6 +178,9 @@
               @click="openEditDialog(row)"
               >{{ $t('customer.index.button.edit') }}</el-button
             >
+            <el-button type="primary" link size="small" @click="openDetailDialog(row)">{{
+              $t('customer.index.button.detail')
+            }}</el-button>
             <el-button
               v-permission="PERMISSIONS.CUSTOMER_DELETE"
               type="danger"
@@ -210,6 +213,42 @@
       :row-data="currentRow"
       @submitted="handleFormSubmitted"
     />
+
+    <!-- 客户详情对话框（getCustomerById 回源） -->
+    <el-dialog v-model="detailDialogVisible" :title="$t('customer.index.detail.title')" width="640">
+      <el-descriptions v-if="detailCustomer" :column="2" border>
+        <el-descriptions-item :label="$t('customer.index.table.column.customerCode')">{{
+          detailCustomer.customer_code
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('customer.index.table.column.customerName')">{{
+          detailCustomer.customer_name
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('customer.index.table.column.contactPerson')">{{
+          detailCustomer.contact_person
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('customer.index.table.column.phone')">{{
+          detailCustomer.contact_phone
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('customer.index.table.column.email')">{{
+          detailCustomer.contact_email || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('customer.index.table.column.type')">{{
+          detailCustomer.customer_type
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('customer.index.table.column.province')">{{
+          detailCustomer.province || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('customer.index.table.column.creditLimit')">{{
+          detailCustomer.credit_limit ? formatCurrency(detailCustomer.credit_limit) : '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('customer.index.table.column.paymentTerms')">{{
+          detailCustomer.payment_terms || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('customer.index.table.column.status')">{{
+          detailCustomer.status
+        }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
@@ -218,7 +257,7 @@ import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';
-import { deleteCustomer, type Customer } from '@/api/customer';
+import { deleteCustomer, getCustomerById, type Customer } from '@/api/customer';
 import { formatCurrency } from '@/utils';
 // V15 P0-S12 + P0-S15 修复（Batch 474）：客户导出改用后端带水印 xlsx 接口
 // 保留 exportData 仅用于兼容场景（本视图已切换为 exportFromBackend）
@@ -321,6 +360,24 @@ const openEditDialog = (row: Customer) => {
   currentRow.value = row;
   formDialogTitle.value = t('customer.index.dialog.editTitle');
   formDialogVisible.value = true;
+};
+
+// 客户详情对话框（getCustomerById 按行 ID 回源最新数据）
+const detailDialogVisible = ref(false);
+const detailCustomer = ref<Customer | null>(null);
+
+const openDetailDialog = async (row: Customer) => {
+  detailDialogVisible.value = true;
+  detailCustomer.value = row;
+  try {
+    const res = await getCustomerById(row.id);
+    if (res.data) {
+      detailCustomer.value = res.data;
+      detailDialogVisible.value = true;
+    }
+  } catch (e) {
+    logger.error(t('customer.index.message.fetchFailure'), e);
+  }
 };
 
 const handleFormSubmitted = () => {
