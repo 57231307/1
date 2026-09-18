@@ -6596,11 +6596,49 @@ export default {
       tab: {
         records: 'Evaluation Records',
         rankings: 'Supplier Rankings',
+        indicators: 'Indicators',
+        evaluations: 'Evaluations',
       },
       button: {
         create: 'Create Evaluation',
         refresh: 'Refresh Rankings',
         view: 'View',
+      },
+      indicators: {
+        tableAriaLabel: 'Evaluation indicator list',
+        dialogTitle: 'Create Evaluation Indicator',
+        label: {
+          code: 'Indicator Code',
+          name: 'Indicator Name',
+          category: 'Category',
+          weight: 'Weight',
+          maxScore: 'Max Score',
+          description: 'Description',
+        },
+        placeholder: {
+          code: 'e.g. QUALITY',
+          name: 'e.g. Quality Pass Rate',
+          category: 'e.g. Quality',
+        },
+      },
+      evaluations: {
+        tableAriaLabel: 'Evaluation management list',
+        button: {
+          edit: 'Edit',
+          delete: 'Delete',
+        },
+        message: {
+          deleteConfirm: 'Delete this evaluation?',
+          deleteSuccess: 'Deleted',
+        },
+      },
+      score: {
+        label: 'Supplier Score Query',
+        placeholder: 'Enter supplier ID',
+        button: 'Query Score',
+        totalScore: 'Total Score',
+        rating: 'Rating',
+        rank: 'Rank',
       },
       column: {
         supplierName: 'Supplier Name',
@@ -6657,6 +6695,11 @@ export default {
         fetchRankingsFailed: 'Failed to fetch rankings',
         saveSuccess: 'Save Success',
         saveFailed: 'Save Failed',
+        fetchIndicatorsFailed: 'Failed to fetch indicators',
+        fetchEvaluationsFailed: 'Failed to fetch evaluations',
+        fetchScoreFailed: 'Failed to fetch supplier score',
+        fetchDetailFailed: 'Failed to fetch evaluation detail',
+        deleteFailed: 'Delete failed',
       },
     },
   },

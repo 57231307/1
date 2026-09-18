@@ -6589,11 +6589,49 @@ export default {
       tab: {
         records: '评估记录',
         rankings: '供应商排名',
+        indicators: '评估指标',
+        evaluations: '评估管理',
       },
       button: {
         create: '新建评估',
         refresh: '刷新排名',
         view: '查看',
+      },
+      indicators: {
+        tableAriaLabel: '评估指标列表',
+        dialogTitle: '新建评估指标',
+        label: {
+          code: '指标编码',
+          name: '指标名称',
+          category: '指标类别',
+          weight: '权重',
+          maxScore: '最高分',
+          description: '指标说明',
+        },
+        placeholder: {
+          code: '例如：QUALITY',
+          name: '例如：质量合格率',
+          category: '例如：质量',
+        },
+      },
+      evaluations: {
+        tableAriaLabel: '评估管理列表',
+        button: {
+          edit: '编辑',
+          delete: '删除',
+        },
+        message: {
+          deleteConfirm: '确认删除该评估？',
+          deleteSuccess: '删除成功',
+        },
+      },
+      score: {
+        label: '供应商评分查询',
+        placeholder: '输入供应商ID',
+        button: '查询评分',
+        totalScore: '总分',
+        rating: '评级',
+        rank: '排名',
       },
       column: {
         supplierName: '供应商名称',
@@ -6650,6 +6688,11 @@ export default {
         fetchRankingsFailed: '获取排名失败',
         saveSuccess: '保存成功',
         saveFailed: '保存失败',
+        fetchIndicatorsFailed: '获取评估指标失败',
+        fetchEvaluationsFailed: '获取评估列表失败',
+        fetchScoreFailed: '获取供应商评分失败',
+        fetchDetailFailed: '获取评估详情失败',
+        deleteFailed: '删除失败',
       },
     },
   },

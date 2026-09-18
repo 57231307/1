@@ -111,6 +111,133 @@
             </el-table-column>
           </el-table>
         </el-tab-pane>
+
+        <el-tab-pane :label="t('supplierEvaluation.index.tab.indicators')" name="indicators">
+          <div class="toolbar">
+            <el-button type="primary" @click="indicatorDialogVisible = true">{{
+              t('supplierEvaluation.index.indicators.dialogTitle')
+            }}</el-button>
+          </div>
+          <el-table
+            v-loading="indicatorLoading"
+            :data="indicatorList"
+            border
+            stripe
+            :aria-label="t('supplierEvaluation.index.indicators.tableAriaLabel')"
+          >
+            <el-table-column
+              prop="indicatorCode"
+              :label="t('supplierEvaluation.index.indicators.label.code')"
+              width="140"
+            />
+            <el-table-column
+              prop="indicatorName"
+              :label="t('supplierEvaluation.index.indicators.label.name')"
+            />
+            <el-table-column
+              prop="category"
+              :label="t('supplierEvaluation.index.indicators.label.category')"
+              width="120"
+            />
+            <el-table-column
+              prop="weight"
+              :label="t('supplierEvaluation.index.indicators.label.weight')"
+              width="90"
+            />
+            <el-table-column
+              prop="maxScore"
+              :label="t('supplierEvaluation.index.indicators.label.maxScore')"
+              width="90"
+            />
+            <el-table-column
+              prop="status"
+              :label="t('supplierEvaluation.index.column.status')"
+              width="100"
+            />
+            <el-table-column
+              prop="description"
+              :label="t('supplierEvaluation.index.indicators.label.description')"
+              min-width="160"
+              show-overflow-tooltip
+            />
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane :label="t('supplierEvaluation.index.tab.evaluations')" name="evaluations">
+          <div class="toolbar">
+            <el-button type="primary" @click="handleCreateEvaluation">{{
+              t('supplierEvaluation.index.button.create')
+            }}</el-button>
+          </div>
+          <el-table
+            v-loading="evaluationLoading"
+            :data="evaluationList"
+            border
+            stripe
+            :aria-label="t('supplierEvaluation.index.evaluations.tableAriaLabel')"
+          >
+            <el-table-column prop="id" label="ID" width="80" />
+            <el-table-column
+              prop="supplierName"
+              :label="t('supplierEvaluation.index.column.supplierName')"
+            />
+            <el-table-column prop="period" :label="t('supplierEvaluation.index.column.period')" />
+            <el-table-column
+              prop="totalScore"
+              :label="t('supplierEvaluation.index.column.totalScore')"
+            />
+            <el-table-column prop="rating" :label="t('supplierEvaluation.index.column.rating')" />
+            <el-table-column prop="status" :label="t('supplierEvaluation.index.column.status')" />
+            <el-table-column
+              :label="t('supplierEvaluation.index.column.operation')"
+              fixed="right"
+              width="220"
+            >
+              <template #default="{ row }">
+                <el-button
+                  link
+                  type="primary"
+                  @click="handleViewEvaluation(row as EvaluationRecord)"
+                  >{{ t('supplierEvaluation.index.button.view') }}</el-button
+                >
+                <el-button
+                  link
+                  type="primary"
+                  @click="handleEditEvaluation(row as EvaluationRecord)"
+                  >{{ t('supplierEvaluation.index.evaluations.button.edit') }}</el-button
+                >
+                <el-button
+                  link
+                  type="danger"
+                  @click="handleDeleteEvaluation(row as EvaluationRecord)"
+                  >{{ t('supplierEvaluation.index.evaluations.button.delete') }}</el-button
+                >
+              </template>
+            </el-table-column>
+          </el-table>
+          <div class="toolbar">
+            <span class="score-label">{{ t('supplierEvaluation.index.score.label') }}</span>
+            <el-input
+              v-model="scoreSupplierId"
+              :placeholder="t('supplierEvaluation.index.score.placeholder')"
+              style="width: 160px"
+            />
+            <el-button type="primary" plain @click="handleQueryScore">{{
+              t('supplierEvaluation.index.score.button')
+            }}</el-button>
+            <el-descriptions v-if="scoreResult" :column="3" border class="score-result">
+              <el-descriptions-item :label="t('supplierEvaluation.index.score.totalScore')">{{
+                scoreResult.totalScore
+              }}</el-descriptions-item>
+              <el-descriptions-item :label="t('supplierEvaluation.index.score.rating')">{{
+                scoreResult.rating
+              }}</el-descriptions-item>
+              <el-descriptions-item :label="t('supplierEvaluation.index.score.rank')">{{
+                scoreResult.rank
+              }}</el-descriptions-item>
+            </el-descriptions>
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
 
@@ -221,14 +348,25 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { useTableApi } from '@/composables/useTableApi';
 import {
   createEvaluationRecord,
   getSupplierRankings,
+  getEvaluationIndicatorList,
+  createIndicator,
+  getEvaluationRecord,
+  getEvaluationList,
+  getEvaluation,
+  createEvaluation,
+  updateEvaluation,
+  deleteEvaluation,
+  getSupplierScore,
   type EvaluationRecord,
+  type EvaluationIndicator,
   type SupplierScore,
   type CreateEvaluationRequest,
+  type CreateEvaluationIndicatorRequest,
 } from '@/api/supplier-evaluation';
 import { getSupplierList, type Supplier } from '@/api/supplier';
 import { logger } from '@/utils/logger';
@@ -317,6 +455,155 @@ const handleCreateRecord = () => {
 const handleViewRecord = (row: EvaluationRecord) => {
   currentRecord.value = row;
   detailDialogVisible.value = true;
+  void handleViewRecordRemote(row);
+};
+
+// 详情回源：按 ID 重新拉取最新数据，失败时保留行数据
+const handleViewRecordRemote = async (row: EvaluationRecord) => {
+  if (!row.id) return;
+  try {
+    const res = await getEvaluationRecord(row.id);
+    if (res.data) {
+      currentRecord.value = res.data;
+      detailDialogVisible.value = true;
+    }
+  } catch {
+    logger.error(t('supplierEvaluation.index.message.fetchDetailFailed'), String(row.id));
+  }
+};
+
+// 评估指标管理
+const indicatorList = ref<EvaluationIndicator[]>([]);
+const indicatorLoading = ref(false);
+const indicatorDialogVisible = ref(false);
+const indicatorForm = reactive({
+  indicatorCode: '',
+  indicatorName: '',
+  category: '',
+  weight: 10,
+  maxScore: 100,
+  description: '',
+});
+
+const fetchIndicators = async () => {
+  indicatorLoading.value = true;
+  try {
+    const res = await getEvaluationIndicatorList({ page: 1, pageSize: 100 });
+    indicatorList.value = res.data?.items || [];
+  } catch {
+    ElMessage.error(t('supplierEvaluation.index.message.fetchIndicatorsFailed'));
+  } finally {
+    indicatorLoading.value = false;
+  }
+};
+
+const handleSaveIndicator = async () => {
+  if (!indicatorForm.indicatorCode || !indicatorForm.indicatorName || !indicatorForm.category) {
+    ElMessage.warning(
+      `${t('supplierEvaluation.index.indicators.label.code')}/${t('supplierEvaluation.index.indicators.label.name')}/${t('supplierEvaluation.index.indicators.label.category')}`
+    );
+    return;
+  }
+  try {
+    await createIndicator(indicatorForm as CreateEvaluationIndicatorRequest);
+    ElMessage.success(t('supplierEvaluation.index.message.saveSuccess'));
+    indicatorDialogVisible.value = false;
+    await fetchIndicators();
+  } catch (e: unknown) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    ElMessage.error(errMsg || t('supplierEvaluation.index.message.saveFailed'));
+  }
+};
+
+// 评估管理（正式评估 CRUD）
+const evaluationList = ref<EvaluationRecord[]>([]);
+const evaluationLoading = ref(false);
+const editingEvaluationId = ref<number | null>(null);
+
+const fetchEvaluations = async () => {
+  evaluationLoading.value = true;
+  try {
+    const res = await getEvaluationList({ page: 1, pageSize: 50 });
+    evaluationList.value = res.data?.items || [];
+  } catch {
+    ElMessage.error(t('supplierEvaluation.index.message.fetchEvaluationsFailed'));
+  } finally {
+    evaluationLoading.value = false;
+  }
+};
+
+const handleCreateEvaluation = () => {
+  isEdit.value = false;
+  editingEvaluationId.value = null;
+  Object.assign(recordForm, { supplierId: undefined, period: '', remark: '' });
+  recordDialogVisible.value = true;
+};
+
+const handleEditEvaluation = (row: EvaluationRecord) => {
+  isEdit.value = true;
+  editingEvaluationId.value = row.id ?? null;
+  Object.assign(recordForm, {
+    supplierId: row.supplierId,
+    period: row.period || '',
+    remark: row.remark || '',
+  });
+  recordDialogVisible.value = true;
+};
+
+const handleViewEvaluation = async (row: EvaluationRecord) => {
+  currentRecord.value = row;
+  detailDialogVisible.value = true;
+  if (!row.id) return;
+  try {
+    const res = await getEvaluation(row.id);
+    if (res.data) {
+      currentRecord.value = res.data;
+      detailDialogVisible.value = true;
+    }
+  } catch {
+    logger.error(t('supplierEvaluation.index.message.fetchDetailFailed'), String(row.id));
+  }
+};
+
+const handleDeleteEvaluation = async (row: EvaluationRecord) => {
+  if (!row.id) return;
+  try {
+    await ElMessageBox.confirm(
+      t('supplierEvaluation.index.evaluations.message.deleteConfirm'),
+      t('common.warning'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteEvaluation(row.id);
+    ElMessage.success(t('supplierEvaluation.index.evaluations.message.deleteSuccess'));
+    await fetchEvaluations();
+  } catch {
+    ElMessage.error(t('supplierEvaluation.index.message.deleteFailed'));
+  }
+};
+
+// 供应商评分查询
+const scoreSupplierId = ref('');
+const scoreResult = ref<SupplierScore | null>(null);
+
+const handleQueryScore = async () => {
+  const supplierId = Number(scoreSupplierId.value);
+  if (!supplierId) {
+    ElMessage.warning(t('supplierEvaluation.index.score.placeholder'));
+    return;
+  }
+  try {
+    const res = await getSupplierScore(supplierId);
+    scoreResult.value = res.data ?? null;
+    if (!scoreResult.value) {
+      ElMessage.info(t('supplierEvaluation.index.message.fetchScoreFailed'));
+    }
+  } catch {
+    ElMessage.error(t('supplierEvaluation.index.message.fetchScoreFailed'));
+  }
 };
 
 const handleSaveRecord = async () => {
@@ -327,11 +614,18 @@ const handleSaveRecord = async () => {
 
     submitLoading.value = true;
     try {
-      // v11 批次 176 P2-1 修复：recordForm as any 改为 as CreateEvaluationRequest
-      await createEvaluationRecord(recordForm as CreateEvaluationRequest);
+      if (isEdit.value && editingEvaluationId.value) {
+        await updateEvaluation(editingEvaluationId.value, {
+          period: recordForm.period,
+          remark: recordForm.remark,
+        });
+      } else {
+        await createEvaluationRecord(recordForm as CreateEvaluationRequest);
+      }
       ElMessage.success(t('supplierEvaluation.index.message.saveSuccess'));
       recordDialogVisible.value = false;
       fetchRecords();
+      if (activeTab.value === 'evaluations') await fetchEvaluations();
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);
       ElMessage.error(errMsg || t('supplierEvaluation.index.message.saveFailed'));
@@ -352,6 +646,8 @@ const hasLoaded = createLazyLoader();
 onMounted(() => {
   loadIfNot('rankings', fetchRankings, hasLoaded);
   loadIfNot('suppliers', fetchSuppliers, hasLoaded);
+  loadIfNot('indicators', fetchIndicators, hasLoaded);
+  loadIfNot('evaluations', fetchEvaluations, hasLoaded);
 });
 </script>
 
@@ -364,6 +660,16 @@ onMounted(() => {
 
 .supplier-evaluation .toolbar {
   margin-bottom: 16px;
+}
+
+.supplier-evaluation .score-label {
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.supplier-evaluation .score-result {
+  margin-top: 12px;
+  width: 100%;
 }
 
 .supplier-evaluation .el-table {
