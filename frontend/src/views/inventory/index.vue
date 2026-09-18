@@ -55,6 +55,10 @@
           @view="handleView"
           @query="fetchData"
           @reset="handleReset"
+          @create="openStockDialog()"
+          @edit="openStockDialog"
+          @delete="handleDeleteStock"
+          @export="handleExportStock"
           @update:query-params="(v: StockQuery) => Object.assign(queryParams, v)"
         />
       </el-tab-pane>
@@ -71,6 +75,18 @@
           @approve-transfer="handleApproveTransfer"
         />
       </el-tab-pane>
+
+      <el-tab-pane :label="t('inventory.page.tabTransaction')" name="transaction" lazy>
+        <InventoryTransactionTab />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('inventory.page.tabReservation')" name="reservation" lazy>
+        <InventoryReservationTab />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('inventory.page.tabFabricStock')" name="fabricStock" lazy>
+        <FabricStockTab />
+      </el-tab-pane>
     </el-tabs>
 
     <AdjustmentDialog
@@ -78,6 +94,54 @@
       :initial-form="adjustmentForm"
       @submit="onSubmitAdjustment"
     />
+
+    <!-- 库存记录新建/编辑对话框 -->
+    <el-dialog
+      v-model="stockDialogVisible"
+      :title="stockEditingId ? t('inventory.stockTab.edit') : t('inventory.stockTab.create')"
+      width="520px"
+    >
+      <el-form :model="stockForm" label-width="110px">
+        <el-form-item :label="t('inventory.stockTab.colProductCode')">
+          <el-input-number v-model="stockForm.product_id" :min="1" />
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colWarehouse')">
+          <el-select v-model="stockForm.warehouse_id" filterable>
+            <el-option
+              v-for="wh in warehouses"
+              :key="wh.id"
+              :label="wh.warehouse_name"
+              :value="wh.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colBatchNo')">
+          <el-input v-model="stockForm.batch_no" />
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colColorCode')">
+          <el-input v-model="stockForm.color_code" />
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colLocation')">
+          <el-input v-model="stockForm.location" />
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colQuantity')">
+          <el-input-number v-model="stockForm.quantity" :min="0" :precision="2" />
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colStatus')">
+          <el-select v-model="stockForm.status">
+            <el-option :label="t('inventory.stockTab.statusNormal')" value="normal" />
+            <el-option :label="t('inventory.stockTab.statusWarning')" value="warning" />
+            <el-option :label="t('inventory.stockTab.statusFrozen')" value="frozen" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="stockDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="stockSubmitLoading" @click="submitStock">
+          {{ t('common.save') }}
+        </el-button>
+      </template>
+    </el-dialog>
 
     <TransferDialog
       v-model:visible="transferDialogVisible"
@@ -110,6 +174,9 @@ import type { Warehouse } from '@/api/warehouse';
 import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue';
 import InventoryAlertTab from './tabs/InventoryAlertTab.vue';
 import InventoryTransferTab from './tabs/InventoryTransferTab.vue';
+import InventoryTransactionTab from './tabs/InventoryTransactionTab.vue';
+import InventoryReservationTab from './tabs/InventoryReservationTab.vue';
+import FabricStockTab from './tabs/FabricStockTab.vue';
 import StatCards from './components/StatCards.vue';
 import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDialog.vue';
 import TransferDialog from './components/TransferDialog.vue';
@@ -388,6 +455,92 @@ const handleApproveTransfer = async (row: InventoryTransfer) => {
     }
   }
 };
+// 库存记录新建/编辑对话框（createStock / updateStock）
+const stockDialogVisible = ref(false);
+const stockEditingId = ref<number | null>(null);
+const stockSubmitLoading = ref(false);
+const stockForm = reactive({
+  product_id: undefined as number | undefined,
+  warehouse_id: undefined as number | undefined,
+  batch_no: '',
+  color_code: '',
+  location: '',
+  quantity: 0,
+  status: 'normal',
+});
+
+const openStockDialog = (row?: InventoryStock) => {
+  stockEditingId.value = row ? row.id : null;
+  stockForm.product_id = row?.product_id;
+  stockForm.warehouse_id = row?.warehouse_id;
+  stockForm.batch_no = row?.batch_no || '';
+  stockForm.color_code = row?.color_code || '';
+  stockForm.location = row?.location || '';
+  stockForm.quantity = Number(row?.quantity ?? 0);
+  stockForm.status = row?.status || 'normal';
+  stockDialogVisible.value = true;
+};
+
+const submitStock = async () => {
+  if (!stockForm.product_id || !stockForm.warehouse_id) {
+    ElMessage.warning(t('inventory.message.productWarehouseRequired'));
+    return;
+  }
+  stockSubmitLoading.value = true;
+  try {
+    if (stockEditingId.value) {
+      const { updateStock } = await import('@/api/inventory');
+      await updateStock(stockEditingId.value, stockForm);
+    } else {
+      const { createStock } = await import('@/api/inventory');
+      await createStock(stockForm);
+    }
+    ElMessage.success(t('common.success'));
+    stockDialogVisible.value = false;
+    fetchData();
+  } catch (error: unknown) {
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('common.failed'));
+  } finally {
+    stockSubmitLoading.value = false;
+  }
+};
+
+// 删除库存记录（deleteStock，确认后执行）
+const handleDeleteStock = async (row: InventoryStock) => {
+  try {
+    await ElMessageBox.confirm(t('inventory.message.deleteStockConfirm'), t('common.delete'), {
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  try {
+    const { deleteStock } = await import('@/api/inventory');
+    await deleteStock(row.id);
+    ElMessage.success(t('common.success'));
+    fetchData();
+  } catch (error: unknown) {
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('common.failed'));
+  }
+};
+
+// 导出库存 xlsx（exportStock，Blob 下载）
+const handleExportStock = async () => {
+  try {
+    const { exportStock } = await import('@/api/inventory');
+    const res = await exportStock(queryParams);
+    const blob = res as unknown as Blob;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inventory-${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error: unknown) {
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('common.failed'));
+  }
+};
+
 // 批次 157a P1-1 修复：接入 getStockById API 展示库存详情
 const handleView = async (row: InventoryStock) => {
   try {

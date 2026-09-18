@@ -56,11 +56,20 @@
             <el-icon><Refresh /></el-icon>
             {{ t('inventory.stockTab.reset') }}
           </el-button>
+          <el-button type="success" @click="emit('create')">
+            {{ t('inventory.stockTab.create') }}
+          </el-button>
+          <el-button @click="emit('export')">{{ t('inventory.stockTab.export') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
+      <div class="table-toolbar">
+        <el-button size="small" @click="emit('create')">
+          {{ t('inventory.stockTab.create') }}
+        </el-button>
+      </div>
       <V2Table
         :data="stocks"
         :columns="stockColumns"
@@ -72,7 +81,16 @@
         @row-click="(row: InventoryStock) => emit('view', row)"
         @page-change="handlePageChange"
         @size-change="handleSizeChange"
-      />
+      >
+        <template #operation="{ row }">
+          <el-button size="small" type="primary" link @click.stop="emit('edit', row)">
+            {{ t('common.edit') }}
+          </el-button>
+          <el-button size="small" type="danger" link @click.stop="emit('delete', row)">
+            {{ t('common.delete') }}
+          </el-button>
+        </template>
+      </V2Table>
     </el-card>
   </div>
 </template>
@@ -110,6 +128,10 @@ const emit = defineEmits<{
   view: [row: InventoryStock];
   query: [];
   reset: [];
+  create: [];
+  edit: [row: InventoryStock];
+  delete: [row: InventoryStock];
+  export: [];
   'update:queryParams': [value: StockQuery];
 }>();
 
@@ -160,6 +182,7 @@ const { columns: stockColumns } = useTableColumns<InventoryStock>([
     formatter: (row: InventoryStock) => getStatusText(row.status),
   },
   { key: 'location', title: t('inventory.stockTab.colLocation'), width: 100 },
+  { key: 'operation', title: t('inventory.stockTab.colOperation'), width: 120, slot: 'operation' },
 ]);
 
 const handlePageChange = (newPage: number) => {
