@@ -115,6 +115,9 @@
           <el-button @click="emit('openImport')">
             <el-icon><Upload /></el-icon>{{ t('product.productListTab.buttonImport') }}
           </el-button>
+          <el-button @click="batchProductVisible = true">
+            {{ t('product.productListTab.batchProductTitle') }}
+          </el-button>
           <el-button :loading="exporting" @click="handleExport">
             <el-icon><Download /></el-icon>{{ t('common.export') }}
           </el-button>
@@ -235,6 +238,98 @@
         />
       </div>
     </el-card>
+
+    <!-- 产品色号管理对话框（createProductColor/updateProductColor/deleteProductColor/batchCreateProductColors） -->
+    <el-dialog
+      v-model="colorDialogVisible"
+      :title="`${t('product.productListTab.buttonColors')} - ${colorProduct?.product_name || ''}`"
+      width="640"
+    >
+      <el-form :model="colorForm" :inline="true" class="color-form">
+        <el-form-item :label="t('product.productListTab.colColorNo')">
+          <el-input v-model="colorForm.color_no" style="width: 140px" />
+        </el-form-item>
+        <el-form-item :label="t('product.productListTab.colColorName')">
+          <el-input v-model="colorForm.color_name" style="width: 160px" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="colorSubmitting" @click="submitColor">
+            {{
+              colorEditingId
+                ? t('product.productListTab.buttonSave')
+                : t('product.productListTab.buttonAdd')
+            }}
+          </el-button>
+          <el-button v-if="colorEditingId" @click="colorEditingId = null">
+            {{ t('common.cancel') }}
+          </el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-table :data="colorRows" border size="small" max-height="260">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column
+          prop="color_no"
+          :label="t('product.productListTab.colColorNo')"
+          width="120"
+        />
+        <el-table-column
+          prop="color_name"
+          :label="t('product.productListTab.colColorName')"
+          min-width="120"
+        />
+        <el-table-column
+          :label="t('product.productListTab.colOperation')"
+          width="140"
+          fixed="right"
+        >
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="editColor(row)">{{
+              t('product.productListTab.buttonEdit')
+            }}</el-button>
+            <el-button link type="danger" size="small" @click="handleDeleteColor(row)">{{
+              t('product.productListTab.buttonDelete')
+            }}</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="batch-color-bar">
+        <el-input
+          v-model="batchColorsText"
+          type="textarea"
+          :rows="3"
+          :placeholder="t('product.productListTab.batchColorsPlaceholder')"
+        />
+        <el-button type="primary" plain :loading="batchColorSaving" @click="handleBatchColors">
+          {{ t('product.productListTab.buttonBatchColors') }}
+        </el-button>
+      </div>
+    </el-dialog>
+
+    <!-- 批量维护产品（batchCreateProducts / batchUpdateProducts） -->
+    <el-dialog
+      v-model="batchProductVisible"
+      :title="t('product.productListTab.batchProductTitle')"
+      width="620"
+    >
+      <el-radio-group v-model="batchProductMode" style="margin-bottom: 8px">
+        <el-radio value="create">{{ t('product.productListTab.batchProductCreate') }}</el-radio>
+        <el-radio value="update">{{ t('product.productListTab.batchProductUpdate') }}</el-radio>
+      </el-radio-group>
+      <el-input
+        v-model="batchProductText"
+        type="textarea"
+        :rows="8"
+        :placeholder="t('product.productListTab.batchProductPlaceholder')"
+      />
+      <template #footer>
+        <el-button @click="batchProductVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="batchProductSaving" @click="handleBatchProduct">
+          {{ t('common.confirm') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -258,8 +353,12 @@ import {
   deleteProduct,
   getProductById,
   batchDeleteProducts,
+  batchCreateProducts,
+  batchUpdateProducts,
   createProductColor,
   updateProductColor,
+  deleteProductColor,
+  batchCreateProductColors,
   type Product,
   type ProductCategory,
   type ProductColor,
@@ -491,11 +590,104 @@ const editColor = (row: ProductColor) => {
   colorForm.color_name = row.color_name || '';
 };
 
+// 删除色号（deleteProductColor）
+const handleDeleteColor = async (row: ProductColor) => {
+  if (!colorProduct.value) return;
+  try {
+    await ElMessageBox.confirm(
+      t('product.productListTab.colorDeleteConfirm', { no: row.color_no }),
+      t('product.productListTab.colorDeleteTitle'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteProductColor(colorProduct.value.id, row.id);
+    ElMessage.success(t('common.success'));
+    const { getProductColorList } = await import('@/api/product');
+    const res = await getProductColorList(colorProduct.value.id);
+    colorRows.value = (res.data as unknown as ProductColor[]) || [];
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error((e as { message?: string }).message || t('common.failed'));
+    }
+  }
+};
+
+// 批量添加色号（batchCreateProductColors：JSON 数组）
+const batchColorsText = ref('');
+const batchColorSaving = ref(false);
+
+const handleBatchColors = async () => {
+  if (!colorProduct.value) return;
+  let colors: unknown;
+  try {
+    colors = JSON.parse(batchColorsText.value || '[]');
+  } catch {
+    ElMessage.warning(t('product.productListTab.batchColorsInvalid'));
+    return;
+  }
+  if (!Array.isArray(colors) || colors.length === 0) {
+    ElMessage.warning(t('product.productListTab.batchColorsInvalid'));
+    return;
+  }
+  batchColorSaving.value = true;
+  try {
+    await batchCreateProductColors(colorProduct.value.id, colors as Partial<ProductColor>[]);
+    ElMessage.success(t('common.success'));
+    batchColorsText.value = '';
+    const { getProductColorList } = await import('@/api/product');
+    const res = await getProductColorList(colorProduct.value.id);
+    colorRows.value = (res.data as unknown as ProductColor[]) || [];
+  } catch (e) {
+    ElMessage.error((e as { message?: string }).message || t('common.failed'));
+  } finally {
+    batchColorSaving.value = false;
+  }
+};
+
 // 批量删除（勾选行 batchDeleteProducts）
 const selectedIds = ref<number[]>([]);
 const handleSelectionChange = (rows: Product[]) => {
   selectedIds.value = rows.map(r => r.id);
 };
+// ===== 批量维护产品（batchCreateProducts / batchUpdateProducts，JSON 数组） =====
+const batchProductVisible = ref(false);
+const batchProductSaving = ref(false);
+const batchProductMode = ref<'create' | 'update'>('create');
+const batchProductText = ref('');
+
+const handleBatchProduct = async () => {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(batchProductText.value || '[]');
+  } catch {
+    ElMessage.warning(t('product.productListTab.batchColorsInvalid'));
+    return;
+  }
+  if (!Array.isArray(payload) || payload.length === 0) {
+    ElMessage.warning(t('product.productListTab.batchColorsInvalid'));
+    return;
+  }
+  batchProductSaving.value = true;
+  try {
+    if (batchProductMode.value === 'create') {
+      await batchCreateProducts(payload as Partial<Product>[]);
+    } else {
+      await batchUpdateProducts(payload as Partial<Product>[]);
+    }
+    ElMessage.success(t('common.success'));
+    batchProductVisible.value = false;
+    batchProductText.value = '';
+    fetchData();
+  } catch (e) {
+    ElMessage.error((e as { message?: string }).message || t('common.failed'));
+  } finally {
+    batchProductSaving.value = false;
+  }
+};
+
 const handleBatchDelete = async () => {
   if (!selectedIds.value.length) {
     ElMessage.warning(t('product.productListTab.messageSelectFirst') || '请先勾选要删除的产品');
@@ -606,5 +798,11 @@ onMounted(() => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+.batch-color-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
 }
 </style>
