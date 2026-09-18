@@ -183,7 +183,37 @@
             <el-button type="primary" :loading="clvLoading" @click="loadCustomerValue">
               查询
             </el-button>
+            <el-button :loading="rfmLoading" @click="handleRfmScore">RFM 评分</el-button>
+            <el-button :loading="assignmentLoading" @click="loadAssignmentHistory">
+              分配历史
+            </el-button>
           </div>
+
+          <!-- RFM 评分结果 -->
+          <el-descriptions v-if="rfmRow" :column="3" border style="margin-bottom: 16px">
+            <el-descriptions-item label="最近消费(R)">{{
+              rfmRow.recency ?? '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="消费频率(F)">{{
+              rfmRow.frequency ?? '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="消费金额(M)">{{
+              rfmRow.monetary ?? '-'
+            }}</el-descriptions-item>
+          </el-descriptions>
+
+          <!-- 分配历史 -->
+          <el-table
+            v-if="assignmentHistory.length"
+            :data="assignmentHistory"
+            border
+            size="small"
+            style="margin-bottom: 16px"
+          >
+            <el-table-column prop="id" label="ID" width="70" />
+            <el-table-column prop="operation" label="操作" width="120" />
+            <el-table-column prop="created_at" label="时间" width="170" />
+          </el-table>
 
           <h3 class="section-title">客户全生命周期价值（CLV）</h3>
           <el-empty v-if="!clv" description="暂无 CLV 数据" :image-size="60" />
@@ -310,6 +340,11 @@ import {
   type CustomerAuditLog,
   type CustomerClv,
 } from '@/api/customer';
+import {
+  getCustomerDetail,
+  getCustomerRfmScore,
+  getCustomerAssignmentHistory,
+} from '@/api/crm-enhanced';
 
 const activeTab = ref('funnel');
 
@@ -531,6 +566,61 @@ const loadCustomerValue = async () => {
 
 const handleAuditOperationChange = () => {
   if (clvCustomerId.value) loadCustomerValue();
+};
+
+// 客户 360 详情回源（getCustomerDetail：列表行补全字段）
+const detailVisible = ref(false);
+const detailRow = ref<Record<string, unknown> | null>(null);
+const handleCustomerDetail = async (row: Record<string, unknown>) => {
+  try {
+    const res = await getCustomerDetail(Number(row.id));
+    detailRow.value = (res.data as Record<string, unknown>) || row;
+  } catch {
+    detailRow.value = row;
+  }
+  detailVisible.value = true;
+};
+
+// RFM 评分查询（getCustomerRfmScore，与 CLV 同客户 ID）
+const rfmLoading = ref(false);
+const rfmRow = ref<Record<string, unknown> | null>(null);
+const handleRfmScore = async () => {
+  const customerId = clvCustomerId.value;
+  if (!customerId) {
+    ElMessage.warning('请输入客户 ID');
+    return;
+  }
+  rfmLoading.value = true;
+  try {
+    const res = await getCustomerRfmScore(customerId);
+    rfmRow.value = (res.data as Record<string, unknown>) || {};
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || '加载 RFM 评分失败');
+  } finally {
+    rfmLoading.value = false;
+  }
+};
+
+// 客户分配历史（getCustomerAssignmentHistory）
+const assignmentHistory = ref<Record<string, unknown>[]>([]);
+const assignmentLoading = ref(false);
+const loadAssignmentHistory = async () => {
+  const customerId = clvCustomerId.value;
+  if (!customerId) {
+    ElMessage.warning('请输入客户 ID');
+    return;
+  }
+  assignmentLoading.value = true;
+  try {
+    const res = await getCustomerAssignmentHistory(customerId);
+    assignmentHistory.value = (res.data as Record<string, unknown>[]) || [];
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || '加载分配历史失败');
+  } finally {
+    assignmentLoading.value = false;
+  }
 };
 
 onMounted(() => {

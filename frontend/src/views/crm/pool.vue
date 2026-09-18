@@ -17,7 +17,7 @@
         </el-breadcrumb>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="handleClaimSelected">
+        <el-button type="primary" :loading="claiming" @click="handleClaimSelected">
           <el-icon><Plus /></el-icon>
           {{ t('crmPool.batchClaim') }}
         </el-button>
@@ -226,6 +226,7 @@ import { getUserList, type User } from '@/api/user';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
 import { type PoolCustomer } from '@/api/crm-enhanced';
+import { batchClaimCustomersFromPool } from '@/api/crm-enhanced';
 import { useTableApi } from '@/composables/useTableApi';
 import ClaimDialogTab from './tabs/ClaimDialogTab.vue';
 import TransferDialogTab from './tabs/TransferDialogTab.vue';
@@ -305,12 +306,38 @@ const openReleaseDialog = (row: { id: number; customer_name: string }) => {
   releaseDialogVisible.value = true;
 };
 
-const handleClaimSelected = () => {
-  ElMessage.info(t('crmPool.message.selectToClaim'));
+const handleClaimSelected = async () => {
+  const ids = selectedRows.value.map(r => r.id);
+  if (!ids.length) {
+    ElMessage.info(t('crmPool.message.selectToClaim'));
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(`确认认领选中的 ${ids.length} 个客户？`, t('crmPool.batchClaim'), {
+      type: 'info',
+    });
+  } catch {
+    return;
+  }
+  claiming.value = true;
+  try {
+    await batchClaimCustomersFromPool(ids);
+    ElMessage.success(t('crmPool.message.claimSuccess') || '认领成功');
+    selectedRows.value = [];
+    getList();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    claiming.value = false;
+  }
 };
 
-const handleSelectionChange = () => {
-  // 选区变化
+const selectedRows = ref<Array<{ id: number; customer_name: string }>>([]);
+const claiming = ref(false);
+
+const handleSelectionChange = (rows: Array<{ id: number; customer_name: string }>) => {
+  selectedRows.value = rows;
 };
 
 const handleSizeChange = (val: number) => {
