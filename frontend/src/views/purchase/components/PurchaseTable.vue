@@ -62,11 +62,35 @@
         </template>
       </el-table-column>
       <el-table-column prop="creator_name" :label="t('purchase.table.colCreator')" width="100" />
-      <el-table-column :label="t('purchase.table.colOperation')" width="200" fixed="right">
+      <el-table-column :label="t('purchase.table.colOperation')" width="320" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="onView(row as PurchaseOrder)">{{
             t('purchase.table.detail')
           }}</el-button>
+          <el-button
+            v-if="row.status === 'draft'"
+            type="warning"
+            link
+            size="small"
+            @click="onSubmitOrder(row as PurchaseOrder)"
+            >{{ t('purchase.table.submit') || '提交' }}</el-button
+          >
+          <el-button
+            v-if="row.status === 'draft'"
+            type="primary"
+            link
+            size="small"
+            @click="onEdit(row as PurchaseOrder)"
+            >{{ t('common.edit') }}</el-button
+          >
+          <el-button
+            v-if="row.status === 'draft'"
+            type="danger"
+            link
+            size="small"
+            @click="onDeleteOrder(row as PurchaseOrder)"
+            >{{ t('common.delete') }}</el-button
+          >
           <el-button
             v-if="row.status === 'approved'"
             v-permission="PERMISSIONS.PURCHASE_ORDER_RECEIVE"
@@ -84,6 +108,14 @@
             size="small"
             @click="onApprove(row as PurchaseOrder)"
             >{{ t('purchase.table.approve') }}</el-button
+          >
+          <el-button
+            v-if="row.status === 'pending'"
+            type="danger"
+            link
+            size="small"
+            @click="onReject(row as PurchaseOrder)"
+            >{{ t('purchase.table.reject') || '驳回' }}</el-button
           >
         </template>
       </el-table-column>
@@ -137,6 +169,14 @@ const props = defineProps<{
   onApprove: (row: PurchaseOrder) => void;
   // 收货
   onReceive: (row: PurchaseOrder) => void;
+  // 提交审批（draft 态）
+  onSubmitOrder: (row: PurchaseOrder) => void;
+  // 驳回（submitted 态）
+  onReject: (row: PurchaseOrder) => void;
+  // 编辑
+  onEdit: (row: PurchaseOrder) => void;
+  // 删除（draft 态）
+  onDeleteOrder: (row: PurchaseOrder) => void;
   // 查询回调
   onQuery: () => void;
   // 状态类型

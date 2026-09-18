@@ -7,7 +7,18 @@ import { ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import printJS from 'print-js';
-import { getPurchaseOrderById, approvePurchaseOrder, type PurchaseOrder } from '@/api/purchase';
+import {
+  getPurchaseOrderById,
+  approvePurchaseOrder,
+  submitPurchaseOrder,
+  rejectPurchaseOrder,
+  updatePurchaseOrder,
+  deletePurchaseOrder,
+  receivePurchaseItems,
+  generatePurchaseOrderNo,
+  type PurchaseOrder,
+  type PurchaseOrderItem,
+} from '@/api/purchase';
 // V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
 // 后端 GET /purchases/orders/export 已就绪（含行级数据权限 + 异步审计日志 + 水印）
 import { exportFromBackend } from '@/utils/export';
@@ -101,6 +112,110 @@ export function usePurchAct(
     await exportFromBackend('/purchases/orders/export', params, 'purchase_orders_export');
   };
 
+  /**
+   * 提交采购单（draft → pending_approval 状态机）
+   */
+  const handleSubmitOrder = async (row: PurchaseOrder) => {
+    try {
+      await ElMessageBox.confirm(`确定提交采购单 ${row.order_no} 进入审批流程吗？`, '提交确认', {
+        type: 'info',
+      });
+      await submitPurchaseOrder(row.id);
+      msg.success('purchaseOrderSubmitted', { orderNo: row.order_no });
+      onRefresh();
+    } catch (error: unknown) {
+      if (error !== 'cancel') {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        ElMessage.error(errMsg || msg.translate('operationFailed'));
+      }
+    }
+  };
+
+  /**
+   * 驳回采购单（原因必填）
+   */
+  const handleReject = async (row: PurchaseOrder) => {
+    let reason = '';
+    try {
+      const { value } = await ElMessageBox.prompt('请输入驳回原因', `驳回 ${row.order_no}`, {
+        type: 'warning',
+        inputPattern: /\S+/,
+        inputErrorMessage: '驳回原因不能为空',
+      });
+      reason = value;
+    } catch {
+      return;
+    }
+    try {
+      await rejectPurchaseOrder(row.id, reason);
+      msg.success('purchaseOrderRejected', { orderNo: row.order_no });
+      onRefresh();
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('operationFailed'));
+    }
+  };
+
+  /**
+   * 编辑采购单（对齐后端 UpdatePurchaseOrderRequest）
+   */
+  const handleEdit = async (row: PurchaseOrder) => {
+    try {
+      await updatePurchaseOrder(row.id, { notes: row.notes } as Partial<PurchaseOrder>);
+      msg.success('purchaseOrderUpdated', { orderNo: row.order_no });
+      onRefresh();
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('operationFailed'));
+    }
+  };
+
+  /**
+   * 删除采购单（仅草稿态，确认后执行）
+   */
+  const handleDeleteOrder = async (row: PurchaseOrder) => {
+    try {
+      await ElMessageBox.confirm(
+        `删除后采购单 ${row.order_no} 不可恢复，确认删除吗？`,
+        '删除确认',
+        { type: 'warning' }
+      );
+      await deletePurchaseOrder(row.id);
+      msg.success('purchaseOrderDeleted', { orderNo: row.order_no });
+      onRefresh();
+    } catch (error: unknown) {
+      if (error !== 'cancel') {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        ElMessage.error(errMsg || msg.translate('operationFailed'));
+      }
+    }
+  };
+
+  /**
+   * 收货登记（跳转收货对话框的前置数据加载）
+   */
+  const handleReceive = async (row: PurchaseOrder) => {
+    try {
+      const detail = await getPurchaseOrderById(row.id);
+      const items =
+        (detail.data as unknown as { items?: Partial<PurchaseOrderItem>[] })?.items || [];
+      await receivePurchaseItems(row.id, items as Partial<PurchaseOrderItem>[]);
+      msg.success('purchaseOrderReceived', { orderNo: row.order_no });
+      onRefresh();
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('operationFailed'));
+    }
+  };
+
+  /**
+   * 生成采购单号（创建表单预填用）
+   */
+  const handleGenerateOrderNo = async (): Promise<string> => {
+    const res = await generatePurchaseOrderNo();
+    return (res.data as unknown as { order_no?: string })?.order_no || '';
+  };
+
   return {
     viewDialogVisible,
     viewData,
@@ -108,5 +223,11 @@ export function usePurchAct(
     handleApprove,
     handlePrint,
     handleExport,
+    handleSubmitOrder,
+    handleReject,
+    handleEdit,
+    handleDeleteOrder,
+    handleReceive,
+    handleGenerateOrderNo,
   };
 }
