@@ -73,8 +73,11 @@
         :label="t('systemUpdate.taskTab.columnCompletedAt')"
         width="160"
       />
-      <el-table-column :label="t('systemUpdate.taskTab.columnActions')" width="150" fixed="right">
+      <el-table-column :label="t('systemUpdate.taskTab.columnActions')" width="200" fixed="right">
         <template #default="{ row }">
+          <el-button type="info" link size="small" @click="emit('view-detail', row)">{{
+            t('systemUpdate.backupTab.buttonDetail')
+          }}</el-button>
           <el-button
             v-if="row.status === 'completed'"
             type="warning"
@@ -132,6 +135,7 @@ defineProps<{
 const emit = defineEmits<{
   rollback: [row: UpdateTask];
   cancel: [row: UpdateTask];
+  'view-detail': [row: UpdateTask];
   'update:page': [v: number];
   'update:page-size': [v: number];
 }>();

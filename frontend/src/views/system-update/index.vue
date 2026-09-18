@@ -52,6 +52,7 @@
           :task-status-type-map="taskStatusTypeMap"
           @rollback="proc.handleRollback"
           @cancel="proc.handleCancelTask"
+          @view-detail="upd.viewTaskDetail"
         />
       </el-tab-pane>
 
@@ -67,9 +68,54 @@
           @download="proc.handleDownloadBackup"
           @restore="proc.handleRestore"
           @delete="proc.handleDeleteBackup"
+          @view-detail="upd.viewBackupDetail"
         />
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 备份详情（getSystemBackup 回源） -->
+    <el-dialog
+      v-model="backupDetailVisible"
+      :title="t('systemUpdate.backupTab.buttonDetail')"
+      width="520"
+    >
+      <el-descriptions v-if="upd.currentBackupDetail" :column="2" border>
+        <el-descriptions-item label="ID">{{ upd.currentBackupDetail.id }}</el-descriptions-item>
+        <el-descriptions-item label="备份名称">{{
+          upd.currentBackupDetail.backup_name
+        }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{
+          upd.currentBackupDetail.status
+        }}</el-descriptions-item>
+        <el-descriptions-item label="大小">{{
+          formatFileSize(upd.currentBackupDetail.file_size)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间" :span="2">{{
+          upd.currentBackupDetail.created_at
+        }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
+
+    <!-- 任务详情（getUpdateTask 回源） -->
+    <el-dialog
+      v-model="taskDetailVisible"
+      :title="t('systemUpdate.taskTab.buttonDetail')"
+      width="520"
+    >
+      <el-descriptions v-if="upd.currentTaskDetail" :column="2" border>
+        <el-descriptions-item label="ID">{{ upd.currentTaskDetail.id }}</el-descriptions-item>
+        <el-descriptions-item label="任务类型">{{
+          upd.currentTaskDetail.task_type
+        }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{ upd.currentTaskDetail.status }}</el-descriptions-item>
+        <el-descriptions-item label="进度 %">{{
+          upd.currentTaskDetail.progress ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间" :span="2">{{
+          upd.currentTaskDetail.created_at
+        }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
 
     <SystemUpdateVersionDetail
       v-model:visible="versionDetailVisible"
@@ -87,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Refresh, FolderAdd } from '@element-plus/icons-vue';
 import { useSysUpd } from './composables/useSysUpd';
@@ -106,6 +152,17 @@ const activeTab = ref('versions');
 
 // 批次 283：useSysUpd 返回 reactive 包装，改为 upd.xxx 访问
 const upd = useSysUpd();
+
+// 备份/任务详情对话框可见性（内容来自 useSysUpd 的 currentBackupDetail/currentTaskDetail）
+const backupDetailVisible = ref(false);
+const taskDetailVisible = ref(false);
+watch(
+  () => [upd.currentBackupDetail, upd.currentTaskDetail] as const,
+  ([b, task]) => {
+    if (b) backupDetailVisible.value = true;
+    if (task) taskDetailVisible.value = true;
+  }
+);
 
 // 流程性方法（下载/安装/回滚/取消/恢复/下载备份/删除）
 const proc = useSysUpdProc({
