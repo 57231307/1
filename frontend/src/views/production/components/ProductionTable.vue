@@ -69,17 +69,70 @@ const emit = defineEmits<{
   'open-edit': [row: ProductionOrder];
   'status-change': [row: ProductionOrder, status: string];
   delete: [row: ProductionOrder];
+  'submit-approval': [row: ProductionOrder];
+  'approve-order': [row: ProductionOrder, approved: boolean];
+  'report-progress': [row: ProductionOrder];
+  'view-logs': [row: ProductionOrder];
 }>();
 
 /** 创建操作按钮 vnode（≤50 行） */
 const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
+  // 后端状态机为大写（DRAFT/PENDING_APPROVAL/SCHEDULED/IN_PROGRESS/COMPLETED/REJECTED）
   const buttons: ReturnType<typeof h>[] = [
     h(
       ElButton,
       { type: 'primary', link: true, size: 'small', onClick: () => emit('view-detail', row) },
       { default: () => t('production.table.buttonView') }
     ),
+    h(
+      ElButton,
+      { type: 'info', link: true, size: 'small', onClick: () => emit('view-logs', row) },
+      { default: () => '日志' }
+    ),
   ];
+  const upper = String(row.status || '').toUpperCase();
+  if (upper === 'DRAFT') {
+    buttons.push(
+      h(
+        ElButton,
+        { type: 'warning', link: true, size: 'small', onClick: () => emit('submit-approval', row) },
+        { default: () => '提交审批' }
+      )
+    );
+  }
+  if (upper === 'PENDING_APPROVAL') {
+    buttons.push(
+      h(
+        ElButton,
+        {
+          type: 'success',
+          link: true,
+          size: 'small',
+          onClick: () => emit('approve-order', row, true),
+        },
+        { default: () => '审批通过' }
+      ),
+      h(
+        ElButton,
+        {
+          type: 'danger',
+          link: true,
+          size: 'small',
+          onClick: () => emit('approve-order', row, false),
+        },
+        { default: () => '驳回' }
+      )
+    );
+  }
+  if (upper === 'IN_PROGRESS') {
+    buttons.push(
+      h(
+        ElButton,
+        { type: 'warning', link: true, size: 'small', onClick: () => emit('report-progress', row) },
+        { default: () => '汇报进度' }
+      )
+    );
+  }
   if (row.status === 'draft') {
     if (can('production_order:update')) {
       buttons.push(
