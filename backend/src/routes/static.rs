@@ -194,7 +194,7 @@ async fn serve_avatar_file(Path(path): Path<String>) -> Result<Response, Infalli
     };
     // 边界校验：仅允许头像目录内文件
     if !resolved.starts_with(
-        &tokio::fs::canonicalize("uploads/avatars")
+        tokio::fs::canonicalize("uploads/avatars")
             .await
             .unwrap_or_default(),
     ) {
