@@ -19,6 +19,7 @@ use crate::services::dye_batch_state_machine_service::{
     CreateStateRuleRequest, DyeBatchStateRuleService, StateRuleQuery, UpdateStateRuleRequest,
     validate_lifecycle_status, validate_transition_code,
 };
+use crate::services::dye_batch_state_machine_validation as state_rule_validation;
 use crate::utils::error::AppError;
 
 impl DyeBatchStateRuleService {
@@ -141,7 +142,15 @@ impl DyeBatchStateRuleService {
             q = q.filter(dye_batch_state_rule::Column::FromStatus.eq(fs));
         }
         let count = q.count(&*self.db).await?;
-        Ok(count > 0)
+        if count > 0 {
+            return Ok(true);
+        }
+        // DB 规则未命中（seed 不全时）回退内建状态机规则表，保证 44a 全量合法转换一致
+        Ok(state_rule_validation::is_valid_transition(
+            from_status,
+            to_status,
+            transition_code,
+        ))
     }
 
     /// 查询允许的流转列表

@@ -177,11 +177,17 @@ pub async fn update_dye_batch(
     _auth: AuthContext,
     Json(req): Json<UpdateDyeBatchRequest>,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
-    let mut batch: dye_batch::ActiveModel = dye_batch::Entity::find_by_id(id)
+    let model = dye_batch::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::not_found("缸号不存在"))?
-        .into();
+        .ok_or_else(|| AppError::not_found("缸号不存在"))?;
+    // 从 Model 读取当前状态（Model -> ActiveModel 转换后值语义为 Unchanged，
+    // 用 ActiveValue::Set 匹配会恒落到默认分支，导致状态流转前置校验失真）
+    let current_status = model
+        .status
+        .clone()
+        .unwrap_or_else(|| "pending_schedule".to_string());
+    let mut batch: dye_batch::ActiveModel = model.into();
 
     if let Some(greige_fabric_id) = req.greige_fabric_id {
         batch.greige_fabric_id = Set(Some(greige_fabric_id));
@@ -201,11 +207,7 @@ pub async fn update_dye_batch(
             return Err(AppError::bad_request(format!("无效的状态：{}", status)));
         }
         // 验证状态流转合法性
-        let current_status = match &batch.status {
-            sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
-            _ => "pending_schedule",
-        };
-        if !dye_batch_state_machine_validation::is_valid_status_transition(current_status, &status) {
+        if !dye_batch_state_machine_validation::is_valid_status_transition(&current_status, &status) {
             return Err(AppError::business(format!(
                 "状态流转不合法：{} -> {}",
                 current_status, status
@@ -273,18 +275,19 @@ pub async fn complete_dye_batch(
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
-    let mut batch: dye_batch::ActiveModel = dye_batch::Entity::find_by_id(id)
+    let model = dye_batch::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::not_found("缸号不存在"))?
-        .into();
+        .ok_or_else(|| AppError::not_found("缸号不存在"))?;
+    // 与 update_dye_batch 一致：从 Model 读当前状态，Model -> ActiveModel 后值语义非 Set
+    let current_status = model
+        .status
+        .clone()
+        .unwrap_or_else(|| "pending_schedule".to_string());
+    let mut batch: dye_batch::ActiveModel = model.into();
 
     // 检查当前状态是否允许完成（流转到 stored 终态前态）
-    let current_status = match &batch.status {
-        sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
-        _ => "pending_schedule",
-    };
-    if !dye_batch_state_machine_validation::is_valid_status_transition(current_status, "stored") {
+    if !dye_batch_state_machine_validation::is_valid_status_transition(&current_status, "stored") {
         return Err(AppError::business(format!(
             "状态流转不合法：{} -> stored",
             current_status
