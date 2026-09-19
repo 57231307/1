@@ -292,12 +292,12 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     }
 
     const transitions = [
-      { action: 'submit-approval', to: ['pending_approval', 'approved'] },
-      { action: 'approve', to: ['approved', 'scheduled', 'in_progress'] },
+      { action: 'submit-approval', body: {}, to: ['pending_approval', 'approved'] },
+      { action: 'approve', body: { approved: true }, to: ['approved', 'scheduled', 'in_progress'] },
     ];
 
     for (const t of transitions) {
-      await apiCall(page, 'POST', `/production/production-orders/orders/${id}/${t.action}`, {});
+      await apiCall(page, 'POST', `/production/production-orders/orders/${id}/${t.action}`, t.body);
     }
 
     const order = await apiCallRaw<{ status: string }>(

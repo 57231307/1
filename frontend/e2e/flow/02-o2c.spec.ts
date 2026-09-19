@@ -291,6 +291,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     // 第一次收款 50%
     await apiCall(page, 'POST', '/ar/payments', {
       ar_invoice_id: ctx.arInvoiceId,
+      customer_id: ctx.customerId,
       amount: 56500,
       payment_method: 'bank_transfer',
       payment_date: new Date().toISOString().split('T')[0],
@@ -309,6 +310,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     // 第二次收款 50%
     await apiCall(page, 'POST', '/ar/payments', {
       ar_invoice_id: ctx.arInvoiceId,
+      customer_id: ctx.customerId,
       amount: 56500,
       payment_method: 'bank_transfer',
       payment_date: new Date().toISOString().split('T')[0],
