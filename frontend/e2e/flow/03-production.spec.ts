@@ -297,7 +297,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     ];
 
     for (const t of transitions) {
-      await apiCall(page, 'POST', `/production/production-orders/orders/${id}/${t.action}`);
+      await apiCall(page, 'POST', `/production/production-orders/orders/${id}/${t.action}`, {});
     }
 
     const order = await apiCallRaw<{ status: string }>(
