@@ -38,7 +38,7 @@ const shared: {
 } = {};
 async function ensureSharedEntities(page: import('@playwright/test').Page): Promise<boolean> {
   if (shared.custId && shared.prodId && shared.supId && shared.whId && shared.deptId) return true;
-  const cust = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
+  const cust = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
     customer_name: `P0共享客户${TS}`,
     customer_type: 'retail',
   });
@@ -414,7 +414,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
   test('销售订单：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
     test.setTimeout(180_000);
     // 前置：动态创建客户与产品（CI 库种子不保证 id=1 存在，写死 id 会"客户 1 不存在"BUSINESS_ERROR）
-    const cust = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
+    const cust = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
       customer_name: `P0订单客户${TS}`,
       customer_type: 'retail',
     });
