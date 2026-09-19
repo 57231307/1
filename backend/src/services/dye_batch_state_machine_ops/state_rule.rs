@@ -8,6 +8,7 @@
 //! struct 定义 + new 构造函数保留在 facade（dye_batch_state_machine_service.rs），
 //! 本模块通过 `impl DyeBatchStateRuleService` 追加业务方法。
 
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
@@ -191,6 +192,8 @@ impl DyeBatchStateRuleService {
                     validation_logic: None,
                     description: None,
                     is_active: true,
+                    created_at: Utc::now().into(),
+                    updated_at: Utc::now().into(),
                 });
             }
         }
