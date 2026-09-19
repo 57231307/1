@@ -251,7 +251,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   test('3-8 创建 BOM', async ({ page }) => {
     const ctx = getCtx();
     const productIds = ctx.productIds.length > 0 ? ctx.productIds : [1, 2];
-    const result = await apiCall<{ id?: number }>(page, 'POST', '/catalog/boms', {
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/boms', {
       product_id: productIds[0],
       version: 1,
       is_default: true,

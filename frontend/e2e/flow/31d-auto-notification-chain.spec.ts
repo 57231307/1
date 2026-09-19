@@ -128,7 +128,15 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     const before = await getUnreadNotifications(page);
 
-    await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
+    // 小额订单 submit 时后端可能直接终审 approved，重复 approve 会 400，已 approved 则跳过
+    const afterSubmit = await apiCallRaw<{ status?: string }>(
+      page,
+      'GET',
+      `/sales/orders/${orderId}`
+    );
+    if ((afterSubmit.status || '').toLowerCase() !== 'approved') {
+      await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
+    }
     console.log(`[31d-B] 订单审批成功`);
 
     await page.waitForTimeout(3000);
@@ -166,7 +174,14 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     // 提交+审批后才能发货
     await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
-    await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
+    const afterCSubmit = await apiCallRaw<{ status?: string }>(
+      page,
+      'GET',
+      `/sales/orders/${orderId}`
+    );
+    if ((afterCSubmit.status || '').toLowerCase() !== 'approved') {
+      await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
+    }
 
     const before = await getUnreadNotifications(page);
 

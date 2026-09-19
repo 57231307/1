@@ -124,6 +124,17 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       return;
     }
 
+    // 后端规则：仅 approved 状态可转订单；2-1 仅创建为 draft，这里先 submit+approve（小额自批兼容）
+    const before = await apiCallRaw<{ status?: string }>(page, 'GET', `/quotations/${qid}`);
+    const st = (before.status || '').toLowerCase();
+    if (st === 'draft' || st === 'rejected') {
+      await apiCall(page, 'POST', `/quotations/${qid}/submit`);
+      const after = await apiCallRaw<{ status?: string }>(page, 'GET', `/quotations/${qid}`);
+      if ((after.status || '').toLowerCase() !== 'approved') {
+        await apiCall(page, 'POST', `/quotations/${qid}/approve`);
+      }
+    }
+
     const result = await apiCall<{ id?: number; order_id?: number }>(
       page,
       'POST',

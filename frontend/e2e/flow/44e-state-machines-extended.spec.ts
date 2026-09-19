@@ -82,7 +82,13 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     const tf = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
       from_warehouse_id: ctx.warehouseIds[0],
       to_warehouse_id: ctx.warehouseIds[1],
-      items: [{ material_id: ctx.productIds[0], quantity: 1 }],
+      items: [
+        {
+          material_id: ctx.productIds[0],
+          quantity: 1,
+          batch_no: `E2E-TF${Date.now().toString().slice(-6)}`,
+        },
+      ],
     });
     const id = tf?.data?.id;
     if (id) CLEANUP.push({ path: `/inventory/transfers/${id}`, label: '[44e-4] 调拨' });

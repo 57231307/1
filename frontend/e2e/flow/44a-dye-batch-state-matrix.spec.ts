@@ -116,8 +116,9 @@ async function checkTransition(
   to: string,
   code: string
 ): Promise<boolean | undefined> {
+  // 后端 dye_batch_transition_code 常量为小写（schedule/cancel/...），LEGAL 列表用大写，统一小写化发送
   const r = await page.request.get(
-    `${process.env.API_BASE || 'http://localhost:8082'}/api/v1/erp${CHECK}?from_status=${from}&to_status=${to}&transition_code=${code}`
+    `${process.env.API_BASE || 'http://localhost:8082'}/api/v1/erp${CHECK}?from_status=${from}&to_status=${to}&transition_code=${code.toLowerCase()}`
   );
   if (!r.ok()) return undefined;
   const body = await r.json();

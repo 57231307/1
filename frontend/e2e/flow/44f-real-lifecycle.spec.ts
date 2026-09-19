@@ -108,39 +108,43 @@ test.describe.serial('44f 真实实体全流转链', () => {
       label: '[44f-2] 生产订单',
     });
 
-    const fc = await apiCall<{ id?: number }>(page, 'POST', '/flow-cards', {
+    const fc = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards', {
       production_order_id: porderId,
       product_id: ctx.productIds[0],
       color_no: `44F${Date.now().toString().slice(-5)}`,
     });
     const id = fc?.data?.id;
     expect(id, '流转卡创建失败').toBeTruthy();
-    CLEANUP.push({ path: `/flow-cards/${id}`, label: '[44f-2] 流转卡' });
+    CLEANUP.push({ path: `/production/flow-cards/${id}`, label: '[44f-2] 流转卡' });
 
     const rd = async () => {
-      const r = await apiCall<{ status?: string }>(page, 'GET', `/flow-cards/${id}`);
+      const r = await apiCall<{ status?: string }>(page, 'GET', `/production/flow-cards/${id}`);
       return JSON.stringify(r).toLowerCase();
     };
     expect(await rd()).toContain('pending');
 
     // pending 态非法直跳 dyeing（start-dyeing 端点应被状态门拒绝）
-    const skip = await apiCallExpectFail(page, 'POST', `/flow-cards/${id}/start-dyeing`);
+    const skip = await apiCallExpectFail(page, 'POST', `/production/flow-cards/${id}/start-dyeing`);
     expect(skip.status, 'pending 直跳 dyeing 应被拒').toBeGreaterThanOrEqual(400);
 
-    await apiCall(page, 'POST', `/flow-cards/${id}/schedule`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/schedule`);
     expect(await rd()).toContain('scheduled');
     // scheduled 态非法直跳 complete-dyeing
-    const skip2 = await apiCallExpectFail(page, 'POST', `/flow-cards/${id}/complete-dyeing`);
+    const skip2 = await apiCallExpectFail(
+      page,
+      'POST',
+      `/production/flow-cards/${id}/complete-dyeing`
+    );
     expect(skip2.status, 'scheduled 直跳 dyed 应被拒').toBeGreaterThanOrEqual(400);
 
-    await apiCall(page, 'POST', `/flow-cards/${id}/start-preparing`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/start-preparing`);
     expect(await rd()).toContain('preparing');
-    await apiCall(page, 'POST', `/flow-cards/${id}/complete-preparing`);
-    await apiCall(page, 'POST', `/flow-cards/${id}/start-dyeing`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/complete-preparing`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/start-dyeing`);
     expect(await rd()).toContain('dyeing');
-    await apiCall(page, 'POST', `/flow-cards/${id}/complete-dyeing`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/complete-dyeing`);
     expect(await rd()).toContain('dyed');
-    await apiCall(page, 'POST', `/flow-cards/${id}/start-inspecting`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/start-inspecting`);
     expect(await rd()).toContain('inspecting');
   });
 

@@ -276,6 +276,16 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     }
     CLEANUP.push({ path: `/ap/payment-requests/${requestId}`, label: '[1-8] 付款申请' });
 
+    // 后端规则：付款申请为 DRAFT 时不可创建付款单，先审批付款申请（幂等：仅 draft 调用）
+    const payReqStatus = await apiCallRaw<{ status?: string }>(
+      page,
+      'GET',
+      `/ap/payment-requests/${requestId}`
+    );
+    if ((payReqStatus.status || '').toLowerCase() === 'draft') {
+      await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/approve`);
+    }
+
     await apiCall(page, 'POST', '/ap/payments', {
       request_id: requestId,
       payment_date: new Date().toISOString().split('T')[0],
