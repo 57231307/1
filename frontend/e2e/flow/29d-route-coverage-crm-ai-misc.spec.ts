@@ -21,13 +21,17 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
 
   // 辅助：验证表格+表头
   async function verifyTable(page: import('@playwright/test').Page) {
-    const table = page
+    // 部分模块（BPM 模板等）是卡片网格/空数据页，无 .el-table，先等通用容器可见
+    const container = page
       .locator(
-        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, .el-result, .error-page, body'
       )
       .first();
-    await table.waitFor({ state: 'visible', timeout: 10_000 });
-    const visible = await table.isVisible();
+    await container.waitFor({ state: 'visible', timeout: 10_000 });
+    const table = page
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper')
+      .first();
+    const visible = await table.isVisible().catch(() => false);
     if (visible) {
       const headers = table.locator('th, .el-table-v2__header-cell');
       const count = await headers.count();

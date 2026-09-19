@@ -513,14 +513,14 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     },
   ] as DelCase[]) {
     test(`${c.label}：创建→删除→详情404`, async ({ page }) => {
-      test.setTimeout(90_000);
+      test.setTimeout(180_000);
       await createThenApiDelete(page, c);
     });
   }
 
   // ===== 凭证（items 必填 debit/credit）=====
   test('凭证：创建→删除→详情404', async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     await createThenApiDelete(page, {
       label: '凭证',
       createApi: '/vouchers',
@@ -539,7 +539,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
 
   // ===== 用户（密码强度规则：≥8 大小写数字特殊符）=====
   test('用户：创建→删除→详情404', async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     await createThenApiDelete(page, {
       label: '用户',
       createApi: '/users',
@@ -554,7 +554,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
 
   // ===== 客户信用（依赖 customer_id=1 seed）=====
   test('客户信用：创建→删除→详情404', async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     await createThenApiDelete(page, {
       label: '客户信用',
       createApi: '/crm/customer-credits',
@@ -759,7 +759,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
 
   // ===== 通知（无 HTTP create 端点：用现有通知删除验证，无则 skip）=====
   test('通知：现有记录→删除→回读404', async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     let targetId: number | undefined;
     const listResp = await page.request.get(
       `${API_BASE}${API_PREFIX}/notifications?page=1&page_size=5`

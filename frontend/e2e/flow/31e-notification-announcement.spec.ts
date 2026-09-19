@@ -276,12 +276,14 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
       return;
     }
 
-    // 发 3 条通知
+    // 发 3 条通知（content 各异，规避 5 分钟去重窗口内同 dedup_key 折叠）
     const titles = [`P0-CRUD-1-${TS}`, `P0-CRUD-2-${TS}`, `P0-CRUD-3-${TS}`];
+    let idx = 0;
     for (const t of titles) {
       await page.request.post('http://localhost:8082/api/v1/erp/notifications/announcement', {
-        data: { user_ids: [currentUserId], title: t, content: 'CRUD 测试' },
+        data: { user_ids: [currentUserId], title: t, content: `CRUD 测试 ${idx + 1}-${TS}` },
       });
+      idx += 1;
     }
     await page.waitForTimeout(2000);
 

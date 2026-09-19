@@ -70,14 +70,20 @@ async function toggleStatusInDialog(
     .locator(`.el-radio:has-text("${inactiveText}"), .el-radio-button:has-text("${inactiveText}")`)
     .first();
   const sw = dialog.locator('.el-switch').first();
-  const radioVisible = await radio.waitFor({ state: 'visible', timeout: 4000 }).then(() => true);
+  const radioVisible = await radio
+    .waitFor({ state: 'visible', timeout: 4000 })
+    .then(() => true)
+    .catch(() => false);
   let toggledOk = false;
   if (radioVisible) {
     await radio.click();
     console.log(`[31c] 已点击 radio「${inactiveText}」`);
     toggledOk = true;
   } else {
-    const swVisible = await sw.waitFor({ state: 'visible', timeout: 4000 }).then(() => true);
+    const swVisible = await sw
+      .waitFor({ state: 'visible', timeout: 4000 })
+      .then(() => true)
+      .catch(() => false);
     if (swVisible) {
       const before = await sw.getAttribute('class');
       if (before?.includes('is-checked')) {
