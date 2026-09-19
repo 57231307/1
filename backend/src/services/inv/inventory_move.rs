@@ -278,7 +278,7 @@ impl InventoryTransferService {
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 // P1 batch-18 缺陷 6.2：面料行业追溯字段强制写入（白坯布除外）
                 color_no: sea_orm::ActiveValue::Set(color_no),
-                dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
+                dye_lot_no: sea_orm::ActiveValue::Set(Some(dye_lot_no.unwrap_or_default())),
                 batch_no: sea_orm::ActiveValue::Set(batch_no),
             };
             item.insert(txn).await?;
@@ -453,7 +453,7 @@ impl InventoryTransferService {
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 // P1 batch-18 缺陷 6.2：面料行业追溯字段强制写入（白坯布除外）
                 color_no: sea_orm::ActiveValue::Set(color_no),
-                dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
+                dye_lot_no: sea_orm::ActiveValue::Set(Some(dye_lot_no.unwrap_or_default())),
                 batch_no: sea_orm::ActiveValue::Set(batch_no),
             };
             item.insert(txn).await?;

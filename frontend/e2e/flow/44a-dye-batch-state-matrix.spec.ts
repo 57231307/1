@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCallExpectFail } from './helpers';
+import { loginViaUI, apiCallExpectFail, apiCallRaw } from './helpers';
 
 /**
  * 44a 缸号 16 态状态机规则矩阵（数据驱动）
@@ -223,16 +223,29 @@ test.describe.serial('44a 缸号状态机规则矩阵（dye_batch_state_machine_
   });
 
   test('44a-6 非法状态值白名单校验（:16-157 直接拒绝）', async ({ page }) => {
-    const r = await apiCallExpectFail(
-      page,
-      'GET',
-      `${CHECK}?from_status=__invalid__&to_status=scheduled&transition_code=SCHEDULE`
-    );
-    // 非法 from_status 要么 400 要么返回 false，绝不能 true
-    if (r.status < 300) {
-      expect(String(r.code), '非法状态值不应返回成功数据').toBe('false');
+    // 非法 from_status：后端可能返回 200（空 transitions）或 4xx；核心约束是绝不能 allowed=true
+    let body: { allowed?: boolean; transitions?: unknown[] } = {};
+    let httpStatus = 200;
+    try {
+      const data = await apiCallRaw<{ allowed?: boolean; transitions?: unknown[] }>(
+        page,
+        'GET',
+        `${CHECK}?from_status=__invalid__&to_status=scheduled&transition_code=SCHEDULE`
+      );
+      body = data || {};
+    } catch (e) {
+      const msg = (e as Error).message || '';
+      const statusMatch = msg.match(/status (\d+)/);
+      httpStatus = statusMatch ? parseInt(statusMatch[1], 10) : 500;
+    }
+    if (httpStatus < 400) {
+      expect(body.allowed, '非法状态值不应返回 allowed=true').not.toBe(true);
+      expect(
+        body.transitions?.length ?? 0,
+        '非法状态值 transitions 应为空数组'
+      ).toBeLessThanOrEqual(0);
     } else {
-      expectBadRequestLike(r.status, '非法状态值应被拒绝');
+      expect(httpStatus, '非法状态值应被拒绝').toBeGreaterThanOrEqual(400);
     }
   });
 });

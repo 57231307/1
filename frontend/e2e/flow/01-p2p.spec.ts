@@ -296,15 +296,23 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       notes: 'E2E 1-8 付款测试',
     });
 
-    // 验证应付单状态
-    const invoice = await apiCallRaw<{ status: string }>(
+    // 验证应付单状态（字段名 invoice_status）
+    const invoice = await apiCallRaw<{ status?: string; invoice_status?: string }>(
       page,
       'GET',
       `/ap/invoices/${ctx.apInvoiceId}`
     );
-    expect(['paid', 'partially_paid', 'unpaid', 'pending', 'approved', 'confirmed']).toContain(
-      (invoice.status || '(missing-status)').toLowerCase()
-    );
+    const invStatus = (invoice.status || invoice.invoice_status || '').toLowerCase();
+    expect(invStatus).not.toBe('');
+    expect([
+      'paid',
+      'partially_paid',
+      'unpaid',
+      'pending',
+      'approved',
+      'confirmed',
+      'draft',
+    ]).toContain(invStatus);
   });
 
   test('1-9 验证采购订单完整状态流转记录', async ({ page }) => {

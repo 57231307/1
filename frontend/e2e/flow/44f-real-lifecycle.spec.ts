@@ -137,14 +137,14 @@ test.describe.serial('44f 真实实体全流转链', () => {
     );
     expect(skip2.status, 'scheduled 直跳 dyed 应被拒').toBeGreaterThanOrEqual(400);
 
-    await apiCall(page, 'POST', `/production/flow-cards/${id}/start-preparing`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/start-preparing`, {});
     expect(await rd()).toContain('preparing');
-    await apiCall(page, 'POST', `/production/flow-cards/${id}/complete-preparing`);
-    await apiCall(page, 'POST', `/production/flow-cards/${id}/start-dyeing`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/complete-preparing`, {});
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/start-dyeing`, {});
     expect(await rd()).toContain('dyeing');
-    await apiCall(page, 'POST', `/production/flow-cards/${id}/complete-dyeing`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/complete-dyeing`, {});
     expect(await rd()).toContain('dyed');
-    await apiCall(page, 'POST', `/production/flow-cards/${id}/start-inspecting`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/start-inspecting`, {});
     expect(await rd()).toContain('inspecting');
   });
 

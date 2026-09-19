@@ -148,8 +148,8 @@ impl QuotationConvertService {
             color_no: Set(Some(String::new())),
             dye_lot_no: Set(Some(String::new())),
             grade: Set(Some(String::new())),
-            packaging_requirement: Set(None),
-            quality_standard: Set(None),
+            packaging_requirement: Set(Some(String::new())),
+            quality_standard: Set(Some(String::new())),
             created_by: Set(Some(user_id)),
             // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
             department_id: sea_orm::ActiveValue::NotSet,
