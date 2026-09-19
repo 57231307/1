@@ -114,7 +114,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     },
     {
       label: '客户',
-      createApi: '/customers',
+      createApi: '/crm/customers',
       payload: {
         customer_name: `P0客户${TS}`,
         customer_code: `P0-CUST-${TS}`,

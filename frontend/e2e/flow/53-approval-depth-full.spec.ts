@@ -148,7 +148,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       'POST',
       '/role-change-approvals',
       {
-        change_type: 'grant',
+        change_type: 'assign_role',
         target_user_id: myId,
         target_role_id: sensitive.id,
         target_role_code: sensitive.code,
@@ -198,7 +198,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       'POST',
       '/role-change-approvals',
       {
-        change_type: 'grant',
+        change_type: 'assign_role',
         target_user_id: myId,
         target_role_id: sensitive.id,
         target_role_code: sensitive.code,
@@ -237,7 +237,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     );
     expect(normal, '无非敏感角色可对照').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', '/role-change-approvals', {
-      change_type: 'grant',
+      change_type: 'assign_role',
       target_role_id: normal.id,
       target_role_code: normal.code,
     });

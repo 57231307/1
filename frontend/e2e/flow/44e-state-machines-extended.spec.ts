@@ -84,7 +84,7 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
       to_warehouse_id: ctx.warehouseIds[1],
       items: [
         {
-          material_id: ctx.productIds[0],
+          product_id: ctx.productIds[0],
           quantity: 1,
           batch_no: `E2E-TF${Date.now().toString().slice(-6)}`,
         },

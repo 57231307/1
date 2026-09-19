@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, BASE_URL, getCtx, ensureTestEntities } from './helpers';
+import { loginViaUI, apiCall, apiCallRaw, BASE_URL, getCtx, ensureTestEntities } from './helpers';
 import { findTableRow } from './ui-helpers';
 
 /**
@@ -29,10 +29,17 @@ test.describe.serial('新域业务流转链', () => {
       phone: '13800000054',
     });
     const customerId = customer?.data?.id ?? 1;
+    // 真实分类 id（fk_products_category 外键约束，硬编码 1 不存在）
+    const cats = await apiCallRaw<Array<{ id?: number }>>(
+      page,
+      'GET',
+      '/categories?page=1&page_size=5'
+    );
+    const categoryId = cats?.[0]?.id ?? 1;
     const product = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name: `54Prod${ts}`,
       code: `54P${ts}`,
-      category_id: 1,
+      category_id: categoryId,
       unit: 'm',
     });
     const productId = product?.data?.id ?? 1;

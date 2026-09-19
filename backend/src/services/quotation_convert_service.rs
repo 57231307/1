@@ -147,7 +147,7 @@ impl QuotationConvertService {
             batch_no: Set(Some(String::new())),
             color_no: Set(Some(String::new())),
             dye_lot_no: Set(Some(String::new())),
-            grade: Set(None),
+            grade: Set(Some(String::new())),
             packaging_requirement: Set(None),
             quality_standard: Set(None),
             created_by: Set(Some(user_id)),

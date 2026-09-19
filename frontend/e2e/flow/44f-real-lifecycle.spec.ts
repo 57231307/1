@@ -127,7 +127,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const skip = await apiCallExpectFail(page, 'POST', `/production/flow-cards/${id}/start-dyeing`);
     expect(skip.status, 'pending 直跳 dyeing 应被拒').toBeGreaterThanOrEqual(400);
 
-    await apiCall(page, 'POST', `/production/flow-cards/${id}/schedule`);
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/schedule`, {});
     expect(await rd()).toContain('scheduled');
     // scheduled 态非法直跳 complete-dyeing
     const skip2 = await apiCallExpectFail(

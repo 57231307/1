@@ -147,8 +147,9 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     expect(detail?.name, `详情 name 应为 ${name}`).toBe(name);
     expect(detail?.unit, `详情 unit 应为 米`).toBe('米');
     expect(detail?.specification, `详情 specification 应为 P0测试规格100D`).toBe('P0测试规格100D');
-    expect(detail?.standard_price, `详情 standard_price 应为 25.5`).toBe(25.5);
-    expect(detail?.cost_price, `详情 cost_price 应为 18.0`).toBe(18.0);
+    // 后端 Decimal 序列化为字符串，转为数值比对
+    expect(Number(detail?.standard_price), `详情 standard_price 应为 25.5`).toBeCloseTo(25.5);
+    expect(Number(detail?.cost_price), `详情 cost_price 应为 18.0`).toBeCloseTo(18.0);
     expect(detail?.description, '详情 description 应一致').toBe(payload.description);
     expect(detail?.product_type, '详情 product_type 应为 fabric').toBe('fabric');
     expect(detail?.fabric_composition, '详情 fabric_composition 应为 100%涤纶').toBe('100%涤纶');

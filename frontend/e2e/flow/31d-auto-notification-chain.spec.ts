@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, tryCleanup, ensureTestEntities, getCtx } from './helpers';
+import { loginViaUI, apiCall, apiCallRaw, tryCleanup, ensureTestEntities, getCtx } from './helpers';
 
 /**
  * P0 自动通知全链路覆盖（2026-09-11 用户指令："自动产生的通知需要详细覆盖所有功能，每条链路都要触发验证通知"）
