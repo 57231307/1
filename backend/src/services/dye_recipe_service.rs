@@ -189,12 +189,12 @@ impl DyeRecipeService {
             )),
             color_no: Set(req.color_no.clone()),
             formula: Set(req.chemical_formula.clone()),
-            color_code: Set(
+            color_code: Set(Some(
                 req.color_code
                     .clone()
                     .or_else(|| req.color_no.clone())
                     .unwrap_or_default(),
-            ),
+            )),
             color_name: Set(req.color_name),
             fabric_type: Set(req.fabric_type),
             dye_type: Set(req.dye_type),
