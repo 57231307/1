@@ -25,7 +25,7 @@ import { loginViaUI, apiCall, apiCallRaw, getCtx, ensureTestEntities } from './h
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
-const uniqueKey = (prefix: string) => `${prefix}${TS}`;
+const uniqueKey = (prefix: string) => `${prefix}${TS}-${Math.random().toString(36).slice(2, 8)}`;
 
 // 共享前置资源（跨 test 复用）：CI 库种子不保证 id=1 存在，订单类测试的
 // customer/supplier/warehouse/department/product 引用必须动态创建
