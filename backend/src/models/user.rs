@@ -10,6 +10,10 @@ pub struct Model {
     pub id: i32,
     pub username: String,
     pub password_hash: String,
+    /// 用户姓名（个人资料展示用）
+    pub real_name: Option<String>,
+    /// 头像 URL（上传后返回的访问地址）
+    pub avatar: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub role_id: Option<i32>,

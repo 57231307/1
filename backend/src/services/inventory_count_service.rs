@@ -192,7 +192,7 @@ impl InventoryCountService {
                 // 面料追溯字段使用 NotSet，由 DB 默认值处理
                 color_no: sea_orm::ActiveValue::NotSet,
                 dye_lot_no: sea_orm::ActiveValue::NotSet,
-                batch_no: sea_orm::ActiveValue::NotSet,
+                batch_no: sea_orm::ActiveValue::Set(String::new()),
             };
             item_models.push(item.insert(txn).await?);
         }
@@ -556,6 +556,95 @@ impl InventoryCountService {
     }
 
     /// 驳回审批，盘点单退回 pending 状态
+    /// 重算盘点单统计（counted_items / variance_items），单条明细更新/删除后调用
+    async fn recalc_count_stats(
+        txn: &sea_orm::DatabaseTransaction,
+        count_id: i32,
+    ) -> Result<(), AppError> {
+        let items = inventory_count_item::Entity::find()
+            .filter(inventory_count_item::Column::CountId.eq(count_id))
+            .all(txn)
+            .await?;
+        let counted = items.len() as i32;
+        let variance = items
+            .iter()
+            .filter(|it| it.quantity_difference != Decimal::ZERO)
+            .count() as i32;
+        let model = inventory_count::Entity::find_by_id(count_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
+        let mut active: inventory_count::ActiveModel = model.into();
+        active.counted_items = Set(counted);
+        active.variance_items = Set(variance);
+        active.updated_at = Set(Utc::now());
+        active.update(txn).await?;
+        Ok(())
+    }
+
+    /// 更新单条盘点明细（实盘数量/备注；仅待盘点状态可改）
+    pub async fn update_count_item(
+        &self,
+        item_id: i32,
+        quantity_actual: Option<Decimal>,
+        notes: Option<String>,
+    ) -> Result<inventory_count_item::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+        let item = inventory_count_item::Entity::find_by_id(item_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点明细 {} 不存在", item_id)))?;
+        let count_model = inventory_count::Entity::find_by_id(item.count_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", item.count_id)))?;
+        if count_model.status != count_status::PENDING {
+            return Err(AppError::business(
+                "只有待盘点状态的盘点单可以修改盘点明细".to_string(),
+            ));
+        }
+
+        let mut active: inventory_count_item::ActiveModel = item.clone().into();
+        if let Some(q) = quantity_actual {
+            active.quantity_actual = Set(q);
+            active.quantity_difference = Set(q - item.quantity_before);
+        }
+        if let Some(n) = notes {
+            active.notes = Set(Some(n));
+        }
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&txn).await?;
+
+        Self::recalc_count_stats(&txn, item.count_id).await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// 删除单条盘点明细（仅待盘点状态可删；删除后重算统计）
+    pub async fn delete_count_item(&self, item_id: i32) -> Result<(), AppError> {
+        let txn = (*self.db).begin().await?;
+        let item = inventory_count_item::Entity::find_by_id(item_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点明细 {} 不存在", item_id)))?;
+        let count_model = inventory_count::Entity::find_by_id(item.count_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", item.count_id)))?;
+        if count_model.status != count_status::PENDING {
+            return Err(AppError::business(
+                "只有待盘点状态的盘点单可以删除盘点明细".to_string(),
+            ));
+        }
+
+        inventory_count_item::Entity::delete_by_id(item_id).exec(&txn).await?;
+        Self::recalc_count_stats(&txn, item.count_id).await?;
+        txn.commit().await?;
+        Ok(())
+    }
+
     pub async fn reject_count(&self, count_id: i32) -> Result<inventory_count::Model, AppError> {
         let txn = (*self.db).begin().await?;
         let count_model = inventory_count::Entity::find_by_id(count_id)

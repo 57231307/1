@@ -16,12 +16,49 @@ pub struct DepartmentTreeNode {
     pub name: String,
     pub description: Option<String>,
     pub parent_id: Option<i32>,
+    /// 负责人姓名（契约对齐：前端「负责人」列，查 users 表填充）
+    pub manager_name: Option<String>,
     pub children: Vec<DepartmentTreeNode>,
 }
 
 crate::define_service!(DepartmentService);
 
 impl DepartmentService {
+    /// 批量填充部门负责人姓名（manager_id → users.username）
+    ///
+    /// 填充失败仅记录 warn，不阻塞列表/详情返回（manager_name 为展示字段）。
+    async fn fill_manager_names(
+        db: &sea_orm::DatabaseConnection,
+        departments: &mut [department::Model],
+    ) {
+        let manager_ids: std::collections::HashSet<i32> =
+            departments.iter().filter_map(|d| d.manager_id).collect();
+        if manager_ids.is_empty() {
+            return;
+        }
+        let users = crate::models::user::Entity::find()
+            .filter(
+                crate::models::user::Column::Id
+                    .is_in(manager_ids.into_iter().collect::<Vec<_>>()),
+            )
+            .all(db)
+            .await;
+        match users {
+            Ok(users) => {
+                let name_map: std::collections::HashMap<i32, String> =
+                    users.into_iter().map(|u| (u.id, u.username)).collect();
+                for d in departments.iter_mut() {
+                    if let Some(mid) = d.manager_id {
+                        d.manager_name = name_map.get(&mid).cloned();
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!("填充部门负责人姓名失败（忽略，manager_name 置空）: {}", e);
+            }
+        }
+    }
+
     /// 获取部门列表（支持分页和过滤）
     pub async fn list(
         &self,
@@ -50,13 +87,15 @@ impl DepartmentService {
         let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
 
         // 应用分页和排序
-        let departments = q
+        let mut departments = q
             .order_by(department::Column::Name, Order::Asc)
             .offset(page.saturating_sub(1) * page_size)
             .limit(page_size)
             .into_model::<department::Model>()
             .all(&*self.db)
             .await?;
+
+        Self::fill_manager_names(&self.db, &mut departments).await;
 
         Ok(crate::utils::response::PaginatedResponse::new(
             departments,
@@ -68,10 +107,14 @@ impl DepartmentService {
 
     /// 获取部门详情
     pub async fn get(&self, id: i32) -> Result<department::Model, AppError> {
-        DepartmentEntity::find_by_id(id)
+        let mut dept = DepartmentEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("部门 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("部门 ID {} 不存在", id)))?;
+
+        Self::fill_manager_names(&self.db, std::slice::from_mut(&mut dept)).await;
+
+        Ok(dept)
     }
 
     /// 创建部门
@@ -104,18 +147,25 @@ impl DepartmentService {
 
         let active_model = department::ActiveModel {
             id: NotSet,
-            code: Set(format!("DEPT_{}", Utc::now().timestamp_millis())),
+            // 契约对齐：前端 DepartmentCreateRequest.code 优先；不传/为空时自动生成
+            code: Set(req
+                .code
+                .filter(|c| !c.trim().is_empty())
+                .unwrap_or_else(|| format!("DEPT_{}", Utc::now().timestamp_millis()))),
             name: Set(req.name),
             parent_id: Set(req.parent_id),
             manager_id: Set(req.manager_id),
             description: Set(req.description),
-            sort_order: Set(0),
+            // 契约对齐：前端 DepartmentCreateRequest.sort_order 优先；不传时默认 0
+            sort_order: Set(req.sort_order.unwrap_or(0)),
             is_active: Set(true),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
 
-        let result = active_model.insert(&*self.db).await?;
+        let mut result = active_model.insert(&*self.db).await?;
+
+        Self::fill_manager_names(&self.db, std::slice::from_mut(&mut result)).await;
 
         // 审计日志：记录部门创建操作
         let after_snapshot = serde_json::to_value(&result).ok();
@@ -185,6 +235,10 @@ impl DepartmentService {
             dept.manager_id = Set(req.manager_id);
         }
 
+        if let Some(so) = req.sort_order {
+            dept.sort_order = Set(so);
+        }
+
         if let Some(ia) = req.is_active {
             dept.is_active = Set(ia);
         }
@@ -236,10 +290,12 @@ impl DepartmentService {
 
     /// 获取部门树形结构
     pub async fn get_department_tree(&self) -> Result<Vec<DepartmentTreeNode>, AppError> {
-        let all_departments = DepartmentEntity::find()
+        let mut all_departments = DepartmentEntity::find()
             .order_by(department::Column::Name, Order::Asc)
             .all(&*self.db)
             .await?;
+
+        Self::fill_manager_names(&self.db, &mut all_departments).await;
 
         // 构建部门树
         let mut tree: Vec<DepartmentTreeNode> = Vec::new();
@@ -255,6 +311,7 @@ impl DepartmentService {
                     name: dept.name,
                     description: dept.description,
                     parent_id: dept.parent_id,
+                    manager_name: dept.manager_name,
                     children: Vec::new(),
                 },
             );

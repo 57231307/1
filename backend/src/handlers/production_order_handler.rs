@@ -33,8 +33,8 @@ use std::sync::Arc;
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateProductionOrderPayload {
-    #[validate(length(min = 1, message = "订单编号不能为空"))]
-    pub order_no: String,
+    /// 订单编号：可空，缺省时由后端自动生成（防止单据号重复）
+    pub order_no: Option<String>,
     pub sales_order_id: Option<i32>,
     pub product_id: i32,
     pub planned_quantity: Decimal,
@@ -130,7 +130,7 @@ pub async fn create_production_order(
     let service = ProductionOrderService::new(state.db.clone());
 
     let req = CreateProductionOrderRequest {
-        order_no: Some(payload.order_no),
+        order_no: payload.order_no,
         sales_order_id: payload.sales_order_id,
         product_id: payload.product_id,
         planned_quantity: Some(payload.planned_quantity),

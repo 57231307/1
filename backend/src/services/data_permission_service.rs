@@ -283,10 +283,32 @@ impl DataPermissionService {
 
     /// V15 P1 10.4-2：根据用户 ID 查询关联的客户 ID
     /// 客户门户场景：当前 user 表无 customer_id 字段，暂返回 None。；后续如需支持客户门户角色，应在 user 表新增 customer_id 字段或；建立 user_customer 映射表，届时在此方法补充查询逻辑。
-    async fn get_customer_id_by_user(&self, _user_id: i32) -> Result<Option<i64>, AppError> {
-        // 当前 user 表无 customer_id 字段，客户门户角色暂无数据访问权限
-        // TODO: 后续 user 表新增 customer_id 字段后补充查询逻辑
-        Ok(None)
+    async fn get_customer_id_by_user(&self, user_id: i32) -> Result<Option<i64>, AppError> {
+        // 批次 423C：客户门户用户 → 客户映射真实接入。
+        // 映射规则：users.email = customers.contact_email 的首个活跃客户（客户主数据
+        // 以 contact_email 标识门户账号归属，无需 user 表结构变更即可接通数据权限）。
+        use crate::models::customer::{self, Column as CustomerColumn, Entity as CustomerEntity};
+        use crate::models::user::Entity as UserEntity;
+
+        let user = UserEntity::find_by_id(user_id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::internal(format!("查询门户用户失败: {}", e)))?;
+        let email = match user.and_then(|u| u.email) {
+            Some(e) if !e.is_empty() => e,
+            _ => return Ok(None),
+        };
+
+        let customer = CustomerEntity::find()
+            .filter(CustomerColumn::ContactEmail.eq(email))
+            .filter(
+                customer::Column::Status
+                    .eq(crate::models::status::general::master_data::ACTIVE),
+            )
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::internal(format!("查询门户客户映射失败: {}", e)))?;
+        Ok(customer.map(|c| c.id as i64))
     }
 
     /// V15 P1 10.4-2：检查用户是否可查看成本数据

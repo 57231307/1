@@ -54,10 +54,11 @@ export const copyBom = (id: number) => request.post<ApiResponse<Bom>>(`/boms/${i
 export const setDefaultBom = (id: number) => request.put<ApiResponse<Bom>>(`/boms/${id}/default`);
 
 // D14 Batch 5b：原 bomApi.getVersions 转为风格 B 函数（获取BOM版本历史）
+// 后端真实路由：GET /boms/versions/{product_id}（catalog.rs boms()）
 export const getBomVersionList = (productId: number) =>
   request.get<
     ApiResponse<{ id: number; version: string; created_at: string; is_default: boolean }[]>
-  >(`/boms/product/${productId}/versions`);
+  >(`/boms/versions/${productId}`);
 
 // D14 Batch 5b：原 bomApi.submit 转为风格 B 函数（提交BOM审核）
 export const submitBom = (id: number) => request.put<ApiResponse<void>>(`/boms/${id}/submit`);

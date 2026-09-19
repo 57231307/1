@@ -27,25 +27,17 @@ test.describe('库存管理 - 03 库存调拨', () => {
     await page.getByRole('button', { name: /添加产品|添加|新增/ }).click();
     await expect(page.getByText(/数量/)).toBeVisible();
     await page.getByRole('button', { name: /确认/ }).click();
-    await expect(page.getByText(/成功|已提交|已创建/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-      return null;
-        });
+    await expect(page.getByText(/成功|已提交|已创建/)).toBeVisible({ timeout: 30000 });
   });
 
   test('审批待审批调拨单', async ({ page }) => {
     await page.goto('/inventory');
     await page.getByRole('tab', { name: /库存调拨/ }).click();
     const approveBtn = page.getByRole('link', { name: /审批/ }).first();
-    if (await approveBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
+    if (await approveBtn.isVisible({ timeout: 3000 })) {
       await approveBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-        return null;
-          });
+      await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 });
     }
   });
 });

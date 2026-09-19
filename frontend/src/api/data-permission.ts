@@ -21,22 +21,24 @@ export interface DataPermission {
 
 export interface DataPermissionRole {
   id?: number;
-  roleId?: number;
-  resourceType?: string;
-  scopeType?: string;
-  customCondition?: CustomCondition;
-  allowedFields?: AllowedFields;
-  hiddenFields?: HiddenFields;
-  isEnabled?: boolean;
+  role_id?: number;
+  resource_type?: string;
+  scope_type?: string;
+  custom_condition?: CustomCondition;
+  allowed_fields?: AllowedFields;
+  hidden_fields?: HiddenFields;
+  is_enabled?: boolean;
 }
 
+export type DataPermissionRow = DataPermissionRole;
+
 export interface SetDataPermissionRequest {
-  roleId: number;
-  resourceType: string;
-  scopeType: string;
-  customCondition?: CustomCondition;
-  allowedFields?: AllowedFields;
-  hiddenFields?: HiddenFields;
+  role_id: number;
+  resource_type: string;
+  scope_type: string;
+  custom_condition?: CustomCondition;
+  allowed_fields?: AllowedFields;
+  hidden_fields?: HiddenFields;
 }
 
 export interface ScopeType {
@@ -53,22 +55,22 @@ export interface DataPermissionQueryParams extends QueryParams {
 }
 
 export const getDataPermissionList = (params?: DataPermissionQueryParams) =>
-  request.get<ApiResponse<DataPermission[]>>('/data-permissions/', { params });
+  request.get<ApiResponse<DataPermission[]>>('/data-permissions', { params });
 
 export const getDataPermission = (id: number) =>
   request.get<ApiResponse<DataPermission>>(`/data-permissions/${id}`);
 
 export const createDataPermission = (data: Partial<DataPermission>) =>
-  request.post<ApiResponse<DataPermission>>('/data-permissions/', data);
+  request.post<ApiResponse<DataPermission>>('/data-permissions', data);
 
-export const updateDataPermission = (id: number, data: Partial<DataPermission>) =>
-  request.put<ApiResponse<DataPermission>>(`/data-permissions/${id}`, data);
+// 数据权限 upsert 走 set_data_permission（POST /，按 role_id+resource_type 幂等），
+// 后端无 PUT /{id} 路由，故不提供 update 封装（规则 0：禁止指向不存在端点的封装）。
 
 export const deleteDataPermission = (id: number) =>
   request.delete<ApiResponse<void>>(`/data-permissions/${id}`);
 
 export const setDataPermission = (data: SetDataPermissionRequest) =>
-  request.post<ApiResponse<DataPermissionRole>>('/data-permissions/', data);
+  request.post<ApiResponse<DataPermissionRole>>('/data-permissions', data);
 
 export const getRoleDataPermissionList = (roleId: number) =>
   request.get<ApiResponse<DataPermissionRole[]>>(`/data-permissions/roles/${roleId}`);

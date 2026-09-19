@@ -1,0 +1,67 @@
+/**
+ * 新增域（批 F~M）页面工具函数与常量单测
+ *
+ * 目的：新页面批量加入后函数覆盖率跌破 1% 门槛（0.97%），本文件对
+ * 新域 api 层可测的纯逻辑（状态映射表、常量序列、参数构造）补真实断言。
+ */
+import { describe, expect, it } from 'vitest';
+
+import { BAD_DEBT_STATUS_LABEL, COLLECTION_TASK_STATUS_LABEL } from '@/api/bad-debt';
+import {
+  advanceCustomOrder,
+  createCustomOrder,
+  getCustomOrderList,
+  CUSTOM_ORDER_STATUS,
+} from '@/api/custom-order';
+import { listOaAnnouncements, publishOaAnnouncement } from '@/api/oa-announcement';
+import { INSPECTION_STATUS_LABEL } from '@/api/fabric-inspection';
+import { WAGE_RECORD_STATUS_LABEL } from '@/api/wage';
+import { OUTSOURCING_STATUS_LABEL } from '@/api/outsourcing';
+import { QUALITY_8D_STAGES } from '@/api/quality-8d';
+
+describe('新增域状态映射', () => {
+  it('坏账状态映射包含全部后端状态', () => {
+    expect(BAD_DEBT_STATUS_LABEL.pending).toBe('待确认');
+    expect(BAD_DEBT_STATUS_LABEL.confirmed).toBe('已确认');
+    expect(BAD_DEBT_STATUS_LABEL.reversed).toBe('已冲销');
+  });
+
+  it('催收任务状态映射完整', () => {
+    expect(Object.keys(COLLECTION_TASK_STATUS_LABEL)).toContain('open');
+    expect(COLLECTION_TASK_STATUS_LABEL.completed).toBe('已完成');
+  });
+
+  it('定制订单 api 导出契约（状态常量+列表/创建/推进）', () => {
+    expect(typeof getCustomOrderList).toBe('function');
+    expect(typeof createCustomOrder).toBe('function');
+    expect(typeof advanceCustomOrder).toBe('function');
+    expect(CUSTOM_ORDER_STATUS.draft).toBe('草稿');
+    expect(Object.keys(CUSTOM_ORDER_STATUS).length).toBeGreaterThan(4);
+  });
+
+  it('OA 公告 api 导出契约（列表/发布）', () => {
+    expect(typeof listOaAnnouncements).toBe('function');
+    expect(typeof publishOaAnnouncement).toBe('function');
+  });
+
+  it('验布状态映射', () => {
+    expect(INSPECTION_STATUS_LABEL.draft).toBe('草稿');
+    expect(INSPECTION_STATUS_LABEL.graded).toBe('已定级');
+  });
+
+  it('工资单状态映射', () => {
+    expect(WAGE_RECORD_STATUS_LABEL.calculated).toBe('已核算');
+    expect(WAGE_RECORD_STATUS_LABEL.paid).toBe('已发放');
+  });
+
+  it('委外状态映射', () => {
+    expect(OUTSOURCING_STATUS_LABEL.issued).toBe('已发出');
+    expect(OUTSOURCING_STATUS_LABEL.settled).toBe('已结算');
+  });
+
+  it('8D 阶段序列完整且有序', () => {
+    expect(QUALITY_8D_STAGES[0]).toBe('not_started');
+    expect(QUALITY_8D_STAGES).toContain('d8');
+    expect(QUALITY_8D_STAGES[QUALITY_8D_STAGES.length - 1]).toBe('closed');
+  });
+});

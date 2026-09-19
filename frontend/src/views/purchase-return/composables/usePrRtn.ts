@@ -8,10 +8,16 @@
  */
 import { ref, reactive, watch } from 'vue';
 import { msg } from '@/utils/message';
+import { getPurchaseOrderList, type PurchaseOrder } from '@/api/purchase';
+import { getSupplierList } from '@/api/supplier';
+import { getProductList, type Product } from '@/api/product';
 import {
   getPurchaseReturnById,
   updatePurchaseReturn,
   createPurchaseReturn,
+  createPurchaseReturnItem,
+  updatePurchaseReturnItem,
+  deletePurchaseReturnItem,
   type PurchaseReturn,
   type PurchaseReturnItem,
 } from '@/api/purchase-return';
@@ -88,7 +94,9 @@ export function usePrRtn() {
   const formData = reactive({
     id: undefined as number | undefined,
     purchaseOrderId: undefined as number | undefined,
+    supplierId: undefined as number | undefined,
     returnDate: '',
+    reasonType: 'quality',
     reason: '',
     remarks: '',
     items: [] as Partial<PurchaseReturnItem>[],
@@ -124,28 +132,33 @@ export function usePrRtn() {
     }
   };
 
-  /** 加载供应商列表（模拟） */
+  /** 加载供应商列表（修复假数据：改走真实供应商列表） */
   const fetchSuppliers = async () => {
-    suppliers.value = [
-      { id: 1, name: '供应商A' },
-      { id: 2, name: '供应商B' },
-    ];
+    const res = await getSupplierList({ page: 1, page_size: 1000 });
+    suppliers.value = (res.data?.items || []).map((s: { id: number; supplier_name: string }) => ({
+      id: s.id,
+      name: s.supplier_name,
+    }));
   };
 
-  /** 加载采购订单列表（模拟） */
+  /** 加载采购订单列表 */
   const fetchPurchaseOrders = async () => {
-    purchaseOrders.value = [
-      { id: 1, order_no: 'CG20260101001' },
-      { id: 2, order_no: 'CG20260101002' },
-    ];
+    // 修复假数据：原为硬编码数组，改走真实 /purchase/orders 列表
+    const res = await getPurchaseOrderList({ page: 1, page_size: 500 });
+    purchaseOrders.value = (res.data?.items || []) as unknown as PurchaseOrder[];
   };
 
-  /** 加载产品列表（模拟） */
+  /** 加载产品列表（修复假数据：原为硬编码数组，改走真实产品列表） */
   const fetchProducts = async () => {
-    products.value = [
-      { id: 1, name: '产品A', price: 100 },
-      { id: 2, name: '产品B', price: 200 },
-    ];
+    const res = await getProductList({ page: 1, page_size: 1000 });
+    const items = (res.data?.items ||
+      (res.data as unknown as { list?: Product[] })?.list ||
+      []) as Product[];
+    products.value = items.map(p => ({
+      id: p.id,
+      name: p.product_name,
+      price: 0,
+    }));
   };
 
   /** 查询：先同步日期范围，重置页码，触发加载 */
@@ -193,14 +206,23 @@ export function usePrRtn() {
     Object.assign(formData, {
       id: row.id,
       purchaseOrderId: row.purchaseOrderId,
+      supplierId: (row as unknown as { supplier_id?: number }).supplier_id,
       returnDate: row.returnDate,
+      reasonType: (row as unknown as { reason_type?: string }).reason_type || 'quality',
       reason: row.reason,
-      remarks: row.remarks,
-      items: row.items || [],
+      items: (row.items || []).map(it => normalizeItem(it as unknown as Record<string, unknown>)),
     });
   };
 
-  /** 获取详情 */
+  /** 获取详情（后端 snake_case 明细归一化为前端 camelCase，供编辑/详情直接使用） */
+  const normalizeItem = (raw: Record<string, unknown>): Partial<PurchaseReturnItem> => ({
+    id: raw.id as number,
+    productId: (raw.product_id ?? raw.material_id) as number,
+    productName: (raw.product_name ?? raw.material_name) as string,
+    quantity: (raw.quantity ?? raw.quantity_returned) as number,
+    unitPrice: (raw.unit_price ?? 0) as number,
+  });
+
   const fetchDetail = async (id: number) => {
     try {
       const res = await getPurchaseReturnById(id);
@@ -212,11 +234,11 @@ export function usePrRtn() {
 
   /** 采购订单变化（模拟加载明细） */
   const handleOrderChange = (orderId: number) => {
+    // 修复假明细：原硬编码“产品A x10”，改为按所选采购单派生供应商，明细由用户自行添加
     const order = purchaseOrders.value.find(o => o.id === orderId);
     if (order) {
-      formData.items = [
-        { productId: 1, productName: '产品A', quantity: 10, unitPrice: 100, reason: '' },
-      ];
+      formData.supplierId = (order as unknown as { supplier_id?: number }).supplier_id;
+      formData.items = [{ productId: undefined, productName: '', quantity: 1, unitPrice: 0 }];
     }
   };
 
@@ -231,8 +253,11 @@ export function usePrRtn() {
     });
   };
 
-  /** 删除明细 */
+  /** 删除明细（编辑态记录被删明细 ID，提交时走 deletePurchaseReturnItem） */
+  const removedItemIds = ref<number[]>([]);
   const handleRemoveItem = (index: number) => {
+    const removed = formData.items[index];
+    if (formData.id && removed?.id) removedItemIds.value.push(removed.id);
     formData.items.splice(index, 1);
   };
 
@@ -245,23 +270,62 @@ export function usePrRtn() {
     }
   };
 
-  /** 提交表单（新建/编辑） */
+  /** 提交表单（新建/编辑；对齐后端契约：Create 含 order_id/supplier_id/reason_type，
+   *  items 走 item 级端点；Update 仅 reason_type/reason_detail/notes，PUT 不含 items） */
+  const mapItemPayload = (it: Partial<PurchaseReturnItem>, idx: number) => ({
+    line_no: idx + 1,
+    material_id: it.productId as number,
+    quantity_returned: it.quantity ?? 0,
+    unit_price: it.unitPrice ?? 0,
+    notes: it.reason || undefined,
+  });
+
   const handleFormSubmit = async (isEdit: boolean): Promise<boolean> => {
     try {
-      // 显式字段映射（避免 as unknown as 双重断言）；items 单重 as：Partial<T>[] → T[] 合法
-      const submitData: Partial<PurchaseReturn> = {
-        id: formData.id,
-        purchaseOrderId: formData.purchaseOrderId,
-        returnDate: formData.returnDate,
-        reason: formData.reason,
-        remarks: formData.remarks,
-        items: formData.items as PurchaseReturnItem[],
-      };
+      const validItems = formData.items.filter(e => (e.productId as number) > 0);
+      if (validItems.length === 0) {
+        msg.warning('pleaseAddReturnDetail');
+        return false;
+      }
       if (isEdit && formData.id) {
-        await updatePurchaseReturn(formData.id, submitData);
+        // 编辑：表头 PUT 仅接受三个字段（原发驼峰全被后端忽略，假保存）；明细走 item 级端点
+        await updatePurchaseReturn(formData.id, {
+          reason_type: formData.reasonType,
+          reason_detail: formData.reason,
+          notes: formData.remarks || undefined,
+        });
+        let idx = 0;
+        for (const it of validItems) {
+          if (it.id) {
+            await updatePurchaseReturnItem(formData.id, it.id, mapItemPayload(it, idx));
+          } else {
+            await createPurchaseReturnItem(formData.id, mapItemPayload(it, idx));
+          }
+          idx += 1;
+        }
+        for (const itemId of removedItemIds.value) {
+          await deletePurchaseReturnItem(formData.id, itemId);
+        }
+        removedItemIds.value = [];
         msg.success('updateSuccess');
       } else {
-        await createPurchaseReturn(submitData);
+        // 新建：CreatePurchaseReturnRequest 不含 items，先建单再逐条加明细
+        const created = await createPurchaseReturn({
+          order_id: formData.purchaseOrderId,
+          supplier_id: formData.supplierId as number,
+          return_date: formData.returnDate,
+          reason_type: formData.reasonType,
+          reason_detail: formData.reason || undefined,
+          notes: formData.remarks || undefined,
+        } as never);
+        const returnId = (created.data as unknown as { id?: number })?.id;
+        if (returnId) {
+          let idx = 0;
+          for (const it of validItems) {
+            await createPurchaseReturnItem(returnId, mapItemPayload(it, idx));
+            idx += 1;
+          }
+        }
         msg.success('createSuccess');
       }
       fetchData();

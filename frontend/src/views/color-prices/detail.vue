@@ -9,7 +9,20 @@
 
     <el-row :gutter="20" style="margin-top: 20px">
       <el-col :span="12">
-        <el-card :header="$t('colorPrices.detail.basicInfo')">
+        <el-card>
+          <template #header>
+            <div class="card-header">
+              <span>{{ $t('colorPrices.detail.basicInfo') }}</span>
+              <span>
+                <el-button size="small" type="primary" plain @click="openEditDialog">{{
+                  $t('colorPrices.detail.edit')
+                }}</el-button>
+                <el-button size="small" type="success" plain @click="openApproveDialog">{{
+                  $t('colorPrices.detail.approve')
+                }}</el-button>
+              </span>
+            </div>
+          </template>
           <el-descriptions :column="2" border>
             <el-descriptions-item :label="$t('colorPrices.detail.info.id')">{{
               price?.id
@@ -190,6 +203,73 @@
         }}</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="editDialogVisible"
+      :title="$t('colorPrices.detail.editDialog.title')"
+      width="480"
+    >
+      <el-form :model="editForm" label-width="110px">
+        <el-form-item :label="$t('colorPrices.detail.editDialog.basePrice')" required>
+          <el-input-number v-model="editForm.base_price" :precision="2" :min="0" />
+        </el-form-item>
+        <el-form-item :label="$t('colorPrices.detail.editDialog.effectiveFrom')" required>
+          <el-input v-model="editForm.effective_from" placeholder="2026-01-01" />
+        </el-form-item>
+        <el-form-item :label="$t('colorPrices.detail.editDialog.effectiveTo')">
+          <el-input v-model="editForm.effective_to" placeholder="2026-12-31" />
+        </el-form-item>
+        <el-form-item :label="$t('colorPrices.detail.editDialog.priority')">
+          <el-input-number v-model="editForm.priority" :min="0" :max="999" />
+        </el-form-item>
+        <el-form-item :label="$t('colorPrices.detail.editDialog.notes')">
+          <el-input v-model="editForm.notes" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">{{
+          $t('colorPrices.common.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="editSaving" @click="onSubmitEdit">{{
+          $t('colorPrices.common.confirm')
+        }}</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="approveDialogVisible"
+      :title="$t('colorPrices.detail.approveDialog.title')"
+      width="440"
+    >
+      <el-form :model="approveForm" label-width="110px">
+        <el-form-item :label="$t('colorPrices.detail.approveDialog.decision')" required>
+          <el-radio-group v-model="approveForm.decision">
+            <el-radio value="APPROVED">{{
+              $t('colorPrices.detail.approveDialog.approved')
+            }}</el-radio>
+            <el-radio value="REJECTED">{{
+              $t('colorPrices.detail.approveDialog.rejected')
+            }}</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item :label="$t('colorPrices.detail.approveDialog.comments')">
+          <el-input
+            v-model="approveForm.comments"
+            type="textarea"
+            :rows="2"
+            :placeholder="$t('colorPrices.detail.approveDialog.commentsPlaceholder')"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="approveDialogVisible = false">{{
+          $t('colorPrices.common.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="approveSaving" @click="onSubmitApprove">{{
+          $t('colorPrices.common.confirm')
+        }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -205,6 +285,8 @@ import {
   getTierList,
   createTier,
   deleteTier,
+  updateColorPrice,
+  approveColorPrice,
   formatPrice,
   getLevelColor,
   getSeasonColor,
@@ -333,6 +415,88 @@ const handleDeleteTier = async (row: PriceTier) => {
     ElMessage.error(
       t('colorPrices.message.deleteFailed', { msg: e instanceof Error ? e.message : String(e) })
     );
+  }
+};
+
+// 编辑色号价格（updateColorPrice）
+const editDialogVisible = ref(false);
+const editSaving = ref(false);
+const editForm = reactive({
+  base_price: 0,
+  effective_from: '',
+  effective_to: '',
+  priority: 0,
+  notes: '',
+});
+
+const openEditDialog = () => {
+  if (!price.value) return;
+  Object.assign(editForm, {
+    base_price: Number(price.value.base_price) || 0,
+    effective_from: price.value.effective_from || '',
+    effective_to: price.value.effective_to || '',
+    priority: price.value.priority || 0,
+    notes: price.value.notes || '',
+  });
+  editDialogVisible.value = true;
+};
+
+const onSubmitEdit = async () => {
+  if (!editForm.effective_from) {
+    ElMessage.warning(t('colorPrices.detail.editDialog.effectiveFrom'));
+    return;
+  }
+  editSaving.value = true;
+  try {
+    await updateColorPrice(priceId, {
+      base_price: editForm.base_price,
+      effective_from: editForm.effective_from,
+      effective_to: editForm.effective_to || null,
+      priority: editForm.priority,
+      notes: editForm.notes || null,
+    });
+    ElMessage.success(t('colorPrices.message.createSuccess'));
+    editDialogVisible.value = false;
+    loadData();
+  } catch (e: unknown) {
+    ElMessage.error(
+      t('colorPrices.message.loadFailed', { msg: e instanceof Error ? e.message : String(e) })
+    );
+  } finally {
+    editSaving.value = false;
+  }
+};
+
+// 价格审批（approveColorPrice）
+const approveDialogVisible = ref(false);
+const approveSaving = ref(false);
+const approveForm = reactive({
+  decision: 'APPROVED' as 'APPROVED' | 'REJECTED',
+  comments: '',
+});
+
+const openApproveDialog = () => {
+  approveForm.decision = 'APPROVED';
+  approveForm.comments = '';
+  approveDialogVisible.value = true;
+};
+
+const onSubmitApprove = async () => {
+  approveSaving.value = true;
+  try {
+    await approveColorPrice(priceId, {
+      decision: approveForm.decision,
+      comments: approveForm.comments || undefined,
+    });
+    ElMessage.success(t('colorPrices.message.createSuccess'));
+    approveDialogVisible.value = false;
+    loadData();
+  } catch (e: unknown) {
+    ElMessage.error(
+      t('colorPrices.message.loadFailed', { msg: e instanceof Error ? e.message : String(e) })
+    );
+  } finally {
+    approveSaving.value = false;
   }
 };
 

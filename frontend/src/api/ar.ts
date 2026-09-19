@@ -147,11 +147,8 @@ export function getARVerification(id: number): Promise<ApiResponse<ARVerificatio
   return request.get(`/ar/verifications/${id}`);
 }
 
-export function autoVerifyAR(data: {
-  invoice_id: number;
-  payment_id?: number;
-}): Promise<ApiResponse<ARVerification>> {
-  return request.post('/ar/verifications/auto', data);
+export function autoVerifyAR(): Promise<ApiResponse<unknown>> {
+  return request.post('/ar/verifications/auto');
 }
 
 export function manualVerifyAR(data: {

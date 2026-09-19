@@ -127,3 +127,7 @@ export function getDefectList(params?: QueryParams): Promise<ApiResponse<Defect[
 export function processDefect(id: number, data: { remark: string }): Promise<ApiResponse<void>> {
   return request.post(`/production/quality-inspection/defects/${id}/process`, data);
 }
+
+export function archiveQualityStandard(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/quality-standards/${id}/archive`);
+}

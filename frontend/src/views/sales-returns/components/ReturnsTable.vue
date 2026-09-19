@@ -30,6 +30,29 @@
           >{{ t('salesReturns.table.buttonEdit') }}</el-button
         >
         <el-button
+          v-if="row.status === 'DRAFT'"
+          size="small"
+          type="primary"
+          plain
+          @click="emit('submit', row)"
+          >{{ t('salesReturns.table.buttonSubmit') }}</el-button
+        >
+        <el-button
+          v-if="row.status === 'SUBMITTED'"
+          size="small"
+          type="warning"
+          plain
+          @click="emit('reject', row)"
+          >{{ t('salesReturns.table.buttonReject') }}</el-button
+        >
+        <el-button
+          v-if="row.status === 'APPROVED'"
+          size="small"
+          type="success"
+          @click="emit('execute', row)"
+          >{{ t('salesReturns.table.buttonExecute') }}</el-button
+        >
+        <el-button
           v-if="row.status === 'PENDING'"
           size="small"
           type="primary"
@@ -59,6 +82,9 @@ const emit = defineEmits<{
   (e: 'view', row: SalesReturn): void;
   (e: 'edit', row: SalesReturn): void;
   (e: 'approve', row: SalesReturn): void;
+  (e: 'submit', row: SalesReturn): void;
+  (e: 'reject', row: SalesReturn): void;
+  (e: 'execute', row: SalesReturn): void;
 }>();
 
 /** 获取退货状态标签（i18n 响应式） */

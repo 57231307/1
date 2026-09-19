@@ -27,19 +27,19 @@ export const getTradingPurchaseContractList = () =>
   request.get<ApiResponse<TradingPurchaseContract[]>>('/trading/purchase-contracts');
 
 export const createTradingPurchaseContract = (data: PurchaseContractCreateRequest) =>
-  request.post<ApiResponse<TradingPurchaseContract>>('/trading/purchase-contracts', data);
+  request.post<ApiResponse<TradingPurchaseContract>>('/purchase/purchase-contracts', data);
 
 export const updateTradingPurchaseContract = (id: number, data: PurchaseContractUpdateRequest) =>
-  request.put<ApiResponse<TradingPurchaseContract>>(`/trading/purchase-contracts/${id}`, data);
+  request.put<ApiResponse<TradingPurchaseContract>>(`/purchase/purchase-contracts/${id}`, data);
 
 export const deleteTradingPurchaseContract = (id: number) =>
-  request.delete<ApiResponse<null>>(`/trading/purchase-contracts/${id}`);
+  request.delete<ApiResponse<null>>(`/purchase/purchase-contracts/${id}`);
 
 export const approveTradingPurchaseContract = (id: number) =>
-  request.post<ApiResponse<TradingPurchaseContract>>(`/trading/purchase-contracts/${id}/approve`);
+  request.post<ApiResponse<TradingPurchaseContract>>(`/purchase/purchase-contracts/${id}/approve`);
 
 export const executeTradingPurchaseContract = (id: number) =>
-  request.post<ApiResponse<TradingPurchaseContract>>(`/trading/purchase-contracts/${id}/execute`);
+  request.put<ApiResponse<TradingPurchaseContract>>(`/purchase/purchase-contracts/${id}/execute`);
 
 // 采购价格
 export interface TradingPurchasePrice {
@@ -58,16 +58,16 @@ export const getTradingPurchasePriceList = () =>
   request.get<ApiResponse<TradingPurchasePrice[]>>('/trading/purchase-prices');
 
 export const createTradingPurchasePrice = (data: PurchasePriceCreateRequest) =>
-  request.post<ApiResponse<TradingPurchasePrice>>('/trading/purchase-prices', data);
+  request.post<ApiResponse<TradingPurchasePrice>>('/purchase/purchase-prices', data);
 
 export const updateTradingPurchasePrice = (id: number, data: PurchasePriceUpdateRequest) =>
-  request.put<ApiResponse<TradingPurchasePrice>>(`/trading/purchase-prices/${id}`, data);
+  request.put<ApiResponse<TradingPurchasePrice>>(`/purchase/purchase-prices/${id}`, data);
 
 export const deleteTradingPurchasePrice = (id: number) =>
-  request.delete<ApiResponse<null>>(`/trading/purchase-prices/${id}`);
+  request.delete<ApiResponse<null>>(`/purchase/purchase-prices/${id}`);
 
 export const approveTradingPurchasePrice = (id: number) =>
-  request.post<ApiResponse<TradingPurchasePrice>>(`/trading/purchase-prices/${id}/approve`);
+  request.post<ApiResponse<TradingPurchasePrice>>(`/purchase/purchase-prices/${id}/approve`);
 
 // 销售合同
 export interface TradingSalesContract {
@@ -83,16 +83,16 @@ export const getTradingSalesContractList = () =>
   request.get<ApiResponse<TradingSalesContract[]>>('/trading/sales-contracts');
 
 export const createTradingSalesContract = (data: SalesContractCreateRequest) =>
-  request.post<ApiResponse<TradingSalesContract>>('/trading/sales-contracts', data);
+  request.post<ApiResponse<TradingSalesContract>>('/sales/sales-contracts', data);
 
 export const updateTradingSalesContract = (id: number, data: SalesContractUpdateRequest) =>
-  request.put<ApiResponse<TradingSalesContract>>(`/trading/sales-contracts/${id}`, data);
+  request.put<ApiResponse<TradingSalesContract>>(`/sales/sales-contracts/${id}`, data);
 
 export const deleteTradingSalesContract = (id: number) =>
-  request.delete<ApiResponse<null>>(`/trading/sales-contracts/${id}`);
+  request.delete<ApiResponse<null>>(`/sales/sales-contracts/${id}`);
 
 export const approveTradingSalesContract = (id: number) =>
-  request.post<ApiResponse<TradingSalesContract>>(`/trading/sales-contracts/${id}/approve`);
+  request.post<ApiResponse<TradingSalesContract>>(`/sales/sales-contracts/${id}/approve`);
 
 // 销售价格
 export interface TradingSalesPrice {
@@ -110,16 +110,16 @@ export const getTradingSalesPriceList = () =>
   request.get<ApiResponse<TradingSalesPrice[]>>('/trading/sales-prices');
 
 export const createTradingSalesPrice = (data: SalesPriceCreateRequest) =>
-  request.post<ApiResponse<TradingSalesPrice>>('/trading/sales-prices', data);
+  request.post<ApiResponse<TradingSalesPrice>>('/sales/sales-prices', data);
 
 export const updateTradingSalesPrice = (id: number, data: SalesPriceUpdateRequest) =>
-  request.put<ApiResponse<TradingSalesPrice>>(`/trading/sales-prices/${id}`, data);
+  request.put<ApiResponse<TradingSalesPrice>>(`/sales/sales-prices/${id}`, data);
 
 export const deleteTradingSalesPrice = (id: number) =>
-  request.delete<ApiResponse<null>>(`/trading/sales-prices/${id}`);
+  request.delete<ApiResponse<null>>(`/sales/sales-prices/${id}`);
 
 export const approveTradingSalesPrice = (id: number) =>
-  request.post<ApiResponse<TradingSalesPrice>>(`/trading/sales-prices/${id}/approve`);
+  request.post<ApiResponse<TradingSalesPrice>>(`/sales/sales-prices/${id}/approve`);
 
 // 销售退货
 export interface TradingSalesReturn {
@@ -137,10 +137,10 @@ export const getTradingSalesReturnList = () =>
   request.get<ApiResponse<TradingSalesReturn[]>>('/trading/sales-returns');
 
 export const createTradingSalesReturn = (data: SalesReturnCreateRequest) =>
-  request.post<ApiResponse<TradingSalesReturn>>('/trading/sales-returns', data);
+  request.post<ApiResponse<TradingSalesReturn>>('/sales/sales-returns', data);
 
 export const updateTradingSalesReturn = (id: number, data: SalesReturnUpdateRequest) =>
-  request.put<ApiResponse<TradingSalesReturn>>(`/trading/sales-returns/${id}`, data);
+  request.put<ApiResponse<TradingSalesReturn>>(`/sales/sales-returns/${id}`, data);
 
 export const deleteTradingSalesReturn = (id: number) =>
-  request.delete<ApiResponse<null>>(`/trading/sales-returns/${id}`);
+  request.delete<ApiResponse<null>>(`/sales/sales-returns/${id}`);

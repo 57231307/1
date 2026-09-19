@@ -604,6 +604,7 @@ impl ArService {
         };
         crate::services::voucher_service::VoucherItemRequest {
             line_no: Some(line_no),
+            subject_id: None,
             subject_code: Some(subject_code.to_string()),
             subject_name: Some(subject_name.to_string()),
             debit,

@@ -30,8 +30,12 @@ export interface TransferItem {
   grade?: string;
   unit?: string;
   quantity: number;
-  cost_price: number;
-  amount: number;
+  shipped_quantity?: number;
+  received_quantity?: number;
+  unit_cost?: number;
+  notes?: string | null;
+  cost_price?: number;
+  amount?: number;
   remark?: string;
 }
 
@@ -74,7 +78,7 @@ export function getTransferItems(id: number) {
 }
 
 export function createTransferItem(id: number, data: Partial<TransferItem>) {
-  return request.post(`/inventory/transfers/${id}`, data);
+  return request.post(`/inventory/transfers/${id}/items`, data);
 }
 
 export function updateTransferItem(itemId: number, data: Partial<TransferItem>) {

@@ -234,6 +234,15 @@ fn count_routes() -> Router<AppState> {
             "/counts/{id}/reject",
             post(inventory_count_handler::reject_count),
         )
+        .route(
+            "/counts/generate-no",
+            get(inventory_count_handler::generate_no),
+        )
+        .route(
+            "/counts/items/{item_id}",
+            put(inventory_count_handler::update_count_item)
+                .delete(inventory_count_handler::delete_count_item),
+        )
 }
 
 /// 存货跌价准备路由（path 前缀 /write-downs，V15 P2 B08-16）

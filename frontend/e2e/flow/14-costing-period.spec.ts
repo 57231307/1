@@ -39,24 +39,13 @@ test.describe('成本核算完整流程', () => {
       output_quantity_kg: '200',
     };
 
-    let costId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/production/cost-collections',
-        costData
-      );
-      costId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/production/cost-collections?page=1&page_size=1'
-      );
-      costId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/cost-collections',
+      costData
+    );
+    const costId = result.data?.id!;
     expect(costId).toBeDefined();
 
     // 验证初始状态
@@ -108,7 +97,12 @@ test.describe('成本核算完整流程', () => {
     expect(byBatch.items?.length).toBeGreaterThanOrEqual(0);
 
     // 验证审计日志
-    const auditLogged = await verifyAuditLog(page, 'CREATE', 'production', '/production/cost-collections');
+    const auditLogged = await verifyAuditLog(
+      page,
+      'CREATE',
+      'production',
+      '/production/cost-collections'
+    );
     expect(auditLogged).toBe(true);
   });
 
@@ -153,19 +147,8 @@ test.describe('成本核算完整流程', () => {
       ],
     };
 
-    let voucherId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
-      voucherId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/vouchers?page=1&page_size=1'
-      );
-      voucherId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
+    const voucherId = result.data?.id!;
 
     // 验证凭证借贷平衡
     const voucher = await apiCallRaw<{
@@ -237,25 +220,24 @@ test.describe('成本核算完整流程', () => {
         location: '一车间',
       };
 
-      try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/fixed-assets', assetData);
-        const newAssetId = result.data?.id;
-        if (newAssetId) {
-          const depResult = await apiCall<{ depreciation_amount: string }>(
-            page,
-            'POST',
-            `/fixed-assets/${newAssetId}/depreciate`
-          ).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      const result = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/finance/fixed-assets',
+        assetData
+      );
+      const newAssetId = result.data?.id;
+      if (newAssetId) {
+        const depResult = await apiCall<{ depreciation_amount: string }>(
+          page,
+          'POST',
+          `/fixed-assets/${newAssetId}/depreciate`
+        );
 
-          if (depResult) {
-            expect(parseFloat(String(depResult.data?.depreciation_amount || '0'))).toBeGreaterThan(
-              0
-            );
-          }
+        if (depResult) {
+          expect(parseFloat(String(depResult.data?.depreciation_amount || '0'))).toBeGreaterThan(0);
         }
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
-        // 创建可能因缺少必填字段失败
-       }
+      }
     }
   });
 
@@ -280,7 +262,7 @@ test.describe('成本核算完整流程', () => {
         total_budget: string;
         total_executed: string;
         execution_rate: string;
-      }>(page, 'GET', `/budgets/control/${budget.id}`).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      }>(page, 'GET', `/budgets/control/${budget.id}`);
 
       if (control) {
         expect(parseFloat(control.total_budget)).toBeGreaterThanOrEqual(0);

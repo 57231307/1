@@ -258,8 +258,8 @@ pub async fn get_system_resources(
         .map(|r| r.try_get::<i64>("", "count").unwrap_or(0) as u32)
         .unwrap_or(0);
 
-    // 获取缓存命中率（从 metrics 服务）
-    let cache_hit_rate = 0.0; // TODO: 从 metrics 服务获取
+    // 获取缓存命中率（从 metrics 服务，business_metrics 计数器实时计算）
+    let cache_hit_rate = state.metrics.business_metrics.cache_hit_ratio();
 
     let dashboard = SystemResourceDashboard {
         cpu_usage,

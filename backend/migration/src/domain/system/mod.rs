@@ -196,6 +196,10 @@ ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "remark" VARCH
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "temperature" DECIMAL(18,4);
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "total_qty" DECIMAL(18,4);
 ALTER TABLE "role_permissions" ADD COLUMN IF NOT EXISTS "permission_code" VARCHAR(255);
+ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "contact_person" VARCHAR(100);
+ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "contact_phone" VARCHAR(50);
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "real_name" VARCHAR(100);
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar" VARCHAR(500);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "last_event" VARCHAR(255);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "last_payload" VARCHAR(255);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "user_id" INTEGER;

@@ -25,6 +25,7 @@ import {
   type FiveDimensionStatsResponse,
   type FiveDimensionItem,
 } from '@/api/five-dimension';
+import { getAssistRecordsByFiveDimension, type AssistRecord } from '@/api/assist-accounting';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -55,6 +56,25 @@ const {
 
 const viewDialogVisible = ref(false);
 const viewData = ref<FiveDimensionStatsResponse | null>(null);
+
+// 五维详情钻取：按五维 ID 查关联辅助核算记录
+const assistRecords = ref<AssistRecord[]>([]);
+const assistRecordsLoading = ref(false);
+
+const loadAssistRecords = async (fiveDimensionId: number) => {
+  assistRecordsLoading.value = true;
+  try {
+    const res = (await getAssistRecordsByFiveDimension(fiveDimensionId)) as {
+      data?: AssistRecord[] | { records?: AssistRecord[] };
+    };
+    const d = res.data;
+    assistRecords.value = Array.isArray(d) ? d : (d?.records ?? []);
+  } catch {
+    assistRecords.value = [];
+  } finally {
+    assistRecordsLoading.value = false;
+  }
+};
 
 const parseInput = ref('');
 const parseResult = ref<FiveDimensionItem | null>(null);
@@ -132,6 +152,7 @@ const openViewDialog = async (item: FiveDimensionStatsResponse) => {
     };
     viewData.value = res.data || null;
     viewDialogVisible.value = true;
+    loadAssistRecords(item.dimension.five_dimension_id!);
   } catch (error) {
     ElMessage.error(t('fiveDimension.index.messageFetchDetailFailed'));
   }
@@ -438,6 +459,29 @@ const selectFromSearch = (item: FiveDimensionItem) => {
               prop="quantity_kg"
               :label="t('fiveDimension.index.colKg')"
               width="120"
+              align="right"
+            />
+          </ElTable>
+        </div>
+        <div style="margin-top: 20px">
+          <h4>{{ t('fiveDimension.index.titleAssistRecords') }}</h4>
+          <ElTable
+            :data="assistRecords"
+            v-loading="assistRecordsLoading"
+            border
+            style="width: 100%"
+            :aria-label="t('fiveDimension.index.ariaAssistTable')"
+          >
+            <ElTableColumn prop="record_no" :label="t('fiveDimension.index.colRecordNo')" />
+            <ElTableColumn
+              prop="business_type"
+              :label="t('fiveDimension.index.colBusinessType')"
+              width="140"
+            />
+            <ElTableColumn
+              prop="amount"
+              :label="t('fiveDimension.index.colAmount')"
+              width="140"
               align="right"
             />
           </ElTable>

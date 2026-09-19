@@ -19,6 +19,8 @@ pub fn users() -> Router<AppState> {
     Router::new()
         .route("/users", get(user_handler::list_users))
         .route("/users", post(user_handler::create_user))
+        // 静态段 "me" 必须在 {id} 参数路由之外显式注册，否则解析 i32 失败返回 422
+        .route("/users/me", get(user_handler::get_user_me))
         .route("/users/{id}", get(user_handler::get_user))
         .route("/users/{id}", put(user_handler::update_user))
         .route("/users/{id}", delete(user_handler::delete_user))

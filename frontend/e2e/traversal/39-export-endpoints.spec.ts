@@ -25,32 +25,26 @@ test.describe('P5.9 敏感导出 fail-closed 矩阵', () => {
 
   for (const { path, resource } of SENSITIVE_EXPORT_ENDPOINTS) {
     test(`FAIL-CLOSED ${path} [${resource}] 无 token 403`, async ({ page }) => {
-      const resp = await page.request
-        .get(`${API_BASE}${API_PREFIX}${path}`)
-        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-
-      if (!resp) throw new Error(`网络错误: ${path}`);
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}${path}`);
 
       // fail-closed：无 token 必须被拒绝（403 无权限 / 400 参数校验先行均属拒绝，绝不允许 200/2xx）
       const status = resp.status();
       expect(
         [400, 401, 403].includes(status),
-        `${path} 无审批令牌应被拒绝（400/401/403，fail-closed），实际 ${status}`,
+        `${path} 无审批令牌应被拒绝（400/401/403，fail-closed），实际 ${status}`
       ).toBe(true);
     });
 
     test(`FAIL-CLOSED ${path} [${resource}] 伪造 token 403`, async ({ page }) => {
-      const resp = await page.request
-        .get(`${API_BASE}${API_PREFIX}${path}?download_token=fake-token-for-e2e-test`)
-        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-
-      if (!resp) throw new Error(`网络错误: ${path}`);
+      const resp = await page.request.get(
+        `${API_BASE}${API_PREFIX}${path}?download_token=fake-token-for-e2e-test`
+      );
 
       // fail-closed：伪造令牌必须被拒绝（400/401/403）
       const status = resp.status();
       expect(
         [400, 401, 403].includes(status),
-        `${path} 伪造令牌应被拒绝（400/401/403，fail-closed），实际 ${status}`,
+        `${path} 伪造令牌应被拒绝（400/401/403，fail-closed），实际 ${status}`
       ).toBe(true);
     });
   }
@@ -63,11 +57,7 @@ test.describe('P5.9 非敏感导出矩阵', () => {
 
   for (const path of NON_SENSITIVE_EXPORT_ENDPOINTS) {
     test(`EXPORT ${path}`, async ({ page }) => {
-      const resp = await page.request
-        .get(`${API_BASE}${API_PREFIX}${path}`)
-        .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-
-      if (!resp) throw new Error(`网络错误: ${path}`);
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}${path}`);
 
       const status = resp.status();
       if (status === 404 || status === 400) {

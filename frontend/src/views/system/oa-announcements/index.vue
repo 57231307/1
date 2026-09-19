@@ -486,7 +486,7 @@ const fetchOptions = async () => {
     /* 静默 */
   }
   try {
-    const dres = await request.get<{ items?: { id: number; name: string }[] }>('/departments/', {
+    const dres = await request.get<{ items?: { id: number; name: string }[] }>('/departments', {
       params: { page: 1, page_size: 200 },
     });
     const raw = dres as unknown as {

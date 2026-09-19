@@ -15,23 +15,23 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-form, .el-empty, .el-tabs, .dashboard-container, canvas, .el-result, .error-page, body'
       )
       .first();
-    await container
-      .waitFor({ state: 'visible', timeout: 30_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await container.waitFor({ state: 'visible', timeout: 30_000 });
     return container;
   }
 
   // 辅助：验证表格+表头
   async function verifyTable(page: import('@playwright/test').Page) {
-    const table = page
+    // 部分模块（BPM 模板等）是卡片网格/空数据页，无 .el-table，先等通用容器可见
+    const container = page
       .locator(
-        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, .el-result, .error-page, body'
       )
       .first();
-    await table
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await container.waitFor({ state: 'visible', timeout: 10_000 });
+    const table = page
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper')
+      .first();
+    const visible = await table.isVisible().catch(() => false);
     if (visible) {
       const headers = table.locator('th, .el-table-v2__header-cell');
       const count = await headers.count();
@@ -43,26 +43,19 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   // 辅助：验证新建按钮+弹窗
   async function verifyNewButton(page: import('@playwright/test').Page, btnText: string) {
     const btn = page.locator(`button:has-text("${btnText}")`).first();
-    await btn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await btn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await btn.waitFor({ state: 'visible', timeout: 5000 });
+    const visible = await btn.isVisible();
     if (visible) {
-      const disabled = await btn.isDisabled().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      const disabled = await btn.isDisabled();
       expect(disabled).toBe(false);
       await btn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
       const dialogVisible = await dialog
         .waitFor({ state: 'visible', timeout: 5000 })
-        .then(() => true)
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        .then(() => true);
       if (dialogVisible) {
-        await page
-          .locator('.el-dialog__headerbtn')
-          .first()
-          .click()
-          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+        await page.locator('.el-dialog__headerbtn').first().click();
         await page.waitForTimeout(500);
       }
       return dialogVisible;
@@ -94,10 +87,8 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('色卡价格新建 /color-prices/create', async ({ page }) => {
     await visitPage(page, '/color-prices/create');
     const form = page.locator('.el-form, .el-card').first();
-    await form
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await form.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await form.waitFor({ state: 'visible', timeout: 15_000 });
+    const visible = await form.isVisible();
     expect(visible).toBe(true);
   });
   test('色卡价格详情 /color-prices/detail/:id', async ({ page }) => {
@@ -110,10 +101,8 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('定制订单新建 /custom-orders/new', async ({ page }) => {
     await visitPage(page, '/custom-orders/new');
     const form = page.locator('.el-form, .el-card').first();
-    await form
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await form.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await form.waitFor({ state: 'visible', timeout: 15_000 });
+    const visible = await form.isVisible();
     expect(visible).toBe(true);
   });
   test('定制订单详情 /custom-orders/:id', async ({ page }) => {
@@ -131,28 +120,22 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('AI扩展 /ai-extend', async ({ page }) => {
     await visitPage(page, '/ai-extend');
     const card = page.locator('.el-card, .el-table, body').first();
-    await card
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await card.waitFor({ state: 'visible', timeout: 15_000 });
+    const visible = await card.isVisible();
     expect(visible).toBe(true);
   });
   test('AI工艺优化 /ai-extend/process-optimization', async ({ page }) => {
     await visitPage(page, '/ai-extend/process-optimization');
     const card = page.locator('.el-card, .el-table, body').first();
-    await card
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await card.waitFor({ state: 'visible', timeout: 15_000 });
+    const visible = await card.isVisible();
     expect(visible).toBe(true);
   });
   test('AI质量预测 /ai-extend/quality-prediction', async ({ page }) => {
     await visitPage(page, '/ai-extend/quality-prediction');
     const card = page.locator('.el-card, .el-table, body').first();
-    await card
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await card.waitFor({ state: 'visible', timeout: 15_000 });
+    const visible = await card.isVisible();
     expect(visible).toBe(true);
   });
   test('AI工艺详情 /ai-extend/process-detail/:id', async ({ page }) => {
@@ -163,10 +146,8 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('BPM /bpm', async ({ page }) => {
     await visitPage(page, '/bpm');
     const tab = page.locator('.el-tabs, .el-table, .el-card').first();
-    await tab
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await tab.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await tab.waitFor({ state: 'visible', timeout: 15_000 });
+    const visible = await tab.isVisible();
     expect(visible).toBe(true);
   });
   test('BPM审批 /bpm/approval', async ({ page }) => {
@@ -186,19 +167,15 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test('BI销售分析 /bi/sales-analysis', async ({ page }) => {
     await visitPage(page, '/bi/sales-analysis');
     const card = page.locator('.el-card, canvas, .echarts, body').first();
-    await card
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await card.waitFor({ state: 'visible', timeout: 15_000 });
+    const visible = await card.isVisible();
     expect(visible).toBe(true);
   });
   test('扫码 /barcode-scanner', async ({ page }) => {
     await visitPage(page, '/barcode-scanner');
     const card = page.locator('.el-card, .el-input, body').first();
-    await card
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await card.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await card.waitFor({ state: 'visible', timeout: 15_000 });
+    const visible = await card.isVisible();
     expect(visible).toBe(true);
   });
   test('组件示例 /components-demo', async ({ page }) => {

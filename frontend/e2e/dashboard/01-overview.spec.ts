@@ -12,34 +12,32 @@ test.describe('仪表盘', () => {
 
   test('仪表盘 KPI 统计卡片正常加载', async ({ page }) => {
     await page.goto('/dashboard');
-    await expect(page.locator('.el-card, .kpi-card, [class*="stat"]').first()).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.el-card, .kpi-card, [class*="stat"]').first()).toBeVisible({
+      timeout: 30000,
+    });
   });
 
   test('仪表盘销售趋势图正常加载', async ({ page }) => {
     await page.goto('/dashboard');
-    const chartContainer = page.locator('div').filter({ has: page.locator('.echarts, .chart, svg') });
+    const chartContainer = page
+      .locator('div')
+      .filter({ has: page.locator('.echarts, .chart, svg') });
     await expect(chartContainer.first()).toBeVisible({ timeout: 30000 });
   });
 
   test('仪表盘最近活动表正常加载', async ({ page }) => {
     await page.goto('/dashboard');
-    await expect(page.getByText(/最近活动|活动记录/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-      return null;
-        });
+    await expect(page.getByText(/最近活动|活动记录/)).toBeVisible({
+      timeout: 30000,
+    });
     const activityTable = page.locator('table, .el-table');
-    await expect(activityTable).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-      return null;
-        });
+    await expect(activityTable).toBeVisible({ timeout: 30000 });
   });
 
   test('仪表盘日期筛选功能可用', async ({ page }) => {
     await page.goto('/dashboard');
     const dateRange = page.getByLabel(/日期/).first();
-    if (await dateRange.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
+    if (await dateRange.isVisible({ timeout: 3000 })) {
       await dateRange.click();
       await page.keyboard.press('Escape');
     }

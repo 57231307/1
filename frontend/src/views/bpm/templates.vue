@@ -248,7 +248,7 @@ import {
   Connection,
 } from '@element-plus/icons-vue';
 // D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
-import { createBpmFromTemplate, deleteBpmTemplate } from '@/api/bpm-enhanced';
+import { createBpmFromTemplate, deleteBpmTemplate, getBpmTemplateById } from '@/api/bpm-enhanced';
 import type { ProcessTemplate } from '@/api/bpm-enhanced';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
@@ -356,6 +356,15 @@ const handleSizeChange = (s: number) => {
 const handleViewDetail = (row: ProcessTemplate) => {
   currentTemplate.value = row;
   detailDialogVisible.value = true;
+  // 详情回源：按 ID 拉取最新模板，失败保留行数据
+  void getBpmTemplateById(row.id)
+    .then(res => {
+      if (res.data) {
+        currentTemplate.value = res.data;
+        detailDialogVisible.value = true;
+      }
+    })
+    .catch(err => logger.warn('模板详情回源失败', String(err)));
 };
 
 const handleCreateFromTemplate = (row: ProcessTemplate | null) => {

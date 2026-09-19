@@ -42,7 +42,11 @@ export interface APPaymentRequest {
   request_date: string;
   status: string;
   payment_method?: string;
+  payment_type?: string;
+  currency?: string;
+  bank_name?: string;
   bank_account?: string;
+  notes?: string;
   remark?: string;
   created_at: string;
 }
@@ -50,13 +54,17 @@ export interface APPaymentRequest {
 export interface APVerification {
   id: number;
   verification_no: string;
+  supplier_id?: number;
+  verification_type?: string;
+  verification_date: string;
+  total_amount: number;
+  verification_status?: string;
   invoice_id: number;
   invoice_no: string;
   payment_id?: number;
   payment_no?: string;
-  verification_amount: number;
-  verification_date: string;
   status: string;
+  notes?: string;
   created_at: string;
 }
 
@@ -109,8 +117,8 @@ export function cancelAPInvoice(id: number): Promise<ApiResponse<void>> {
 }
 
 export function autoGenerateAPInvoices(data: {
-  order_ids: number[];
-}): Promise<ApiResponse<{ invoice_ids: number[] }>> {
+  receipt_id: number;
+}): Promise<ApiResponse<APInvoice>> {
   return request.post('/ap/invoices/auto-generate', data);
 }
 
@@ -205,10 +213,7 @@ export function getAPVerification(id: number): Promise<ApiResponse<APVerificatio
   return request.get(`/ap/verifications/${id}`);
 }
 
-export function autoVerifyAP(data: {
-  invoice_id: number;
-  payment_id?: number;
-}): Promise<ApiResponse<APVerification>> {
+export function autoVerifyAP(data: { supplier_id: number }): Promise<ApiResponse<APVerification>> {
   return request.post('/ap/verifications/auto', data);
 }
 
@@ -258,8 +263,11 @@ export function disputeAPReconciliation(id: number, reason: string): Promise<Api
   return request.post(`/ap/reconciliations/${id}/dispute`, { reason });
 }
 
-export function autoReconcileAllAP(): Promise<ApiResponse<void>> {
-  return request.post('/ap/reconciliations/auto');
+export function autoReconcileAllAP(data: {
+  start_date: string;
+  end_date: string;
+}): Promise<ApiResponse<void>> {
+  return request.post('/ap/reconciliations/auto', data);
 }
 
 // 供应商汇总

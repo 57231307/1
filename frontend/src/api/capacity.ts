@@ -30,19 +30,20 @@ export interface CapacitySummary {
 
 // D14 Batch 5b：原 capacityApi.getSummary 转为风格 B 函数
 export const getCapacitySummary = () =>
-  request.get<ApiResponse<CapacitySummary>>('/capacity/summary');
+  request.get<ApiResponse<CapacitySummary>>('/production/capacity/summary');
 
 // D14 Batch 5b：原 capacityApi.getTrend 转为风格 B 函数
 export const getCapacityTrend = (params?: { days?: number; work_center_id?: number }) =>
-  request.get<ApiResponse<CapacityTrend[]>>('/capacity/trend', { params });
+  request.get<ApiResponse<CapacityTrend[]>>('/production/capacity/trend', { params });
 
 // D14 Batch 5b：原 capacityApi.listWorkCenters 转为风格 B 函数
 export const getWorkCenterList = (params?: {
   page?: number;
   page_size?: number;
   status?: string;
-}) => request.get<ApiResponse<PageResult<WorkCenter>>>('/capacity/work-centers', { params });
+}) =>
+  request.get<ApiResponse<PageResult<WorkCenter>>>('/production/capacity/work-centers', { params });
 
 // D14 Batch 5b：原 capacityApi.getBottlenecks 转为风格 B 函数
 export const getCapacityBottlenecks = () =>
-  request.get<ApiResponse<WorkCenter[]>>('/capacity/bottlenecks');
+  request.get<ApiResponse<WorkCenter[]>>('/production/capacity/bottlenecks');

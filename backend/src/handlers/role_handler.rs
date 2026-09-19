@@ -199,10 +199,7 @@ pub async fn create_role(
         is_system: payload.is_system,
     };
 
-    let role = service
-        .create_role(request)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let role = service.create_role(request).await?;
 
     // P1 8-3 修复：create_role 补审计日志
     let event = AuditEvent {

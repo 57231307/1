@@ -62,7 +62,17 @@
               t('fabric.dyeTab.buttonEdit')
             }}</el-button>
             <el-button
-              v-if="row.status === 'in_progress'"
+              v-if="
+                [
+                  'preparing',
+                  'dyeing',
+                  'washing',
+                  'fixing',
+                  'dehydrating',
+                  'drying',
+                  'inspecting',
+                ].includes(row.status)
+              "
               type="success"
               link
               size="small"
@@ -93,20 +103,44 @@ const loading = ref(false);
 
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
-    pending: 'info',
-    in_progress: 'warning',
-    completed: 'success',
+    pending_schedule: 'info',
+    scheduled: 'info',
+    preparing: 'warning',
+    dyeing: 'warning',
+    washing: 'warning',
+    fixing: 'warning',
+    dehydrating: 'warning',
+    drying: 'warning',
+    inspecting: 'warning',
+    stored: 'success',
+    shipped: 'success',
     cancelled: 'danger',
+    terminated: 'danger',
+    rework: 'warning',
+    on_hold: 'warning',
+    failed: 'danger',
   };
   return map[status] || 'info';
 };
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    pending: t('fabric.dyeTab.statusPending'),
-    in_progress: t('fabric.dyeTab.statusInProgress'),
-    completed: t('fabric.dyeTab.statusCompleted'),
+    pending_schedule: t('fabric.dyeTab.statusPendingSchedule'),
+    scheduled: t('fabric.dyeTab.statusScheduled'),
+    preparing: t('fabric.dyeTab.statusPreparing'),
+    dyeing: t('fabric.dyeTab.statusDyeing'),
+    washing: t('fabric.dyeTab.statusWashing'),
+    fixing: t('fabric.dyeTab.statusFixing'),
+    dehydrating: t('fabric.dyeTab.statusDehydrating'),
+    drying: t('fabric.dyeTab.statusDrying'),
+    inspecting: t('fabric.dyeTab.statusInspecting'),
+    stored: t('fabric.dyeTab.statusStored'),
+    shipped: t('fabric.dyeTab.statusShipped'),
     cancelled: t('fabric.dyeTab.statusCancelled'),
+    terminated: t('fabric.dyeTab.statusTerminated'),
+    rework: t('fabric.dyeTab.statusRework'),
+    on_hold: t('fabric.dyeTab.statusOnHold'),
+    failed: t('fabric.dyeTab.statusFailed'),
   };
   return map[status] || status;
 };
@@ -116,7 +150,9 @@ const fetchBatches = async () => {
   try {
     const { getDyeBatchList } = await import('@/api/dye-batch');
     const res = await getDyeBatchList();
-    batches.value = (res.data as DyeBatch[] | undefined) || [];
+    // 响应形态兜底：数组或 { items } 分页包装（防 el-table r is not iterable 白屏）
+    const _p = res.data as unknown;
+    batches.value = Array.isArray(_p) ? _p : ((_p as { items?: DyeBatch[] })?.items ?? []);
   } catch (error) {
     const err = error as Error;
     logger.error(t('fabric.dyeTab.fetchFailed'), err.message);

@@ -89,6 +89,8 @@ export interface ReservationData {
   warehouse_id: number;
   quantity: number;
   expire_date?: string;
+  /** 备注（对应后端 CreateReservationRequest::notes） */
+  notes?: string;
 }
 
 export interface TransferData {
@@ -221,3 +223,153 @@ export const getInventoryReport = (params: InventoryReportParams) =>
       params,
     }
   );
+
+// ============== 库存创建/导出/面料/流水/预留锁定（Batch 补齐 API 封装）==============
+
+/** 库存创建请求（对应后端 inventory_stock_handler_dto.rs::CreateStockFabricRequest） */
+export interface CreateStockRequest {
+  warehouse_id: number;
+  product_id: number;
+  batch_no: string;
+  color_no: string;
+  dye_lot_no?: string;
+  grade: string;
+  quantity_meters: number;
+  quantity_kg?: number;
+  gram_weight?: number;
+  width?: number;
+  location_id?: number;
+  shelf_no?: string;
+  layer_no?: string;
+}
+
+/** 库存基础响应（对应后端 inventory_stock_handler_dto.rs::StockResponse） */
+export interface StockResponse {
+  id: number;
+  warehouse_id: number;
+  product_id: number;
+  quantity_on_hand: number;
+  quantity_available: number;
+  quantity_reserved: number;
+  reorder_point: number;
+  max_stock_point: number;
+  bin_location?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 面料库存响应（对应后端 inventory_stock_handler_dto.rs::StockFabricResponse） */
+export interface StockFabricResponse {
+  id: number;
+  warehouse_id: number;
+  product_id: number;
+  batch_no: string;
+  color_no: string;
+  dye_lot_no?: string;
+  grade: string;
+  quantity_on_hand: number;
+  quantity_available: number;
+  quantity_reserved: number;
+  quantity_meters: number;
+  quantity_kg: number;
+  gram_weight?: number;
+  width?: number;
+  bin_location?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 库存事务响应（对应后端 inventory_stock_handler_dto.rs::TransactionResponse） */
+export interface TransactionResponse {
+  id: number;
+  transaction_type: string;
+  product_id: number;
+  warehouse_id: number;
+  batch_no: string;
+  color_no: string;
+  quantity_meters: number;
+  quantity_kg: number;
+  quantity_before_meters: number;
+  quantity_before_kg: number;
+  quantity_after_meters: number;
+  quantity_after_kg: number;
+  source_bill_type?: string;
+  source_bill_no?: string;
+  remarks?: string;
+  created_at: string;
+}
+
+/** 面料库存查询参数（对应后端 ListStockFabricParams） */
+export interface StockFabricQueryParams {
+  page?: number;
+  page_size?: number;
+  warehouse_id?: number;
+  product_id?: number;
+  batch_no?: string;
+  color_no?: string;
+  grade?: string;
+}
+
+/** 库存事务查询参数（对应后端 ListTransactionParams） */
+export interface TransactionQueryParams {
+  page?: number;
+  page_size?: number;
+  product_id?: number;
+  warehouse_id?: number;
+  batch_no?: string;
+  color_no?: string;
+  transaction_type?: string;
+  start_date?: string;
+  end_date?: string;
+}
+
+/**
+ * 创建库存记录
+ * 后端路由：POST /api/v1/erp/inventory/stock（routes/inventory.rs stock_routes）
+ */
+export const createStock = (data: CreateStockRequest) =>
+  request.post<ApiResponse<StockResponse>>('/inventory/stock', data);
+
+/**
+ * 导出库存列表 xlsx（V15 P0-S12；返回带水印的 Blob）
+ * 后端路由：GET /api/v1/erp/inventory/stock/export（routes/inventory.rs stock_routes）
+ */
+export const exportStock = (params?: InventoryQueryParams) =>
+  request.get<Blob>('/inventory/stock/export', { params, responseType: 'blob' });
+
+/**
+ * 面料库存列表（按批次+色号+仓库查询）
+ * 后端路由：GET /api/v1/erp/inventory/stock/fabric（routes/inventory.rs stock_routes）
+ */
+export const getStockFabricList = (params?: StockFabricQueryParams) =>
+  request.get<ApiResponse<StockFabricResponse[]>>('/inventory/stock/fabric', { params });
+
+/**
+ * 创建面料库存（提供克重与幅宽时后端自动换算公斤数）
+ * 后端路由：POST /api/v1/erp/inventory/stock/fabric（routes/inventory.rs stock_routes）
+ */
+export const createStockFabric = (data: CreateStockRequest) =>
+  request.post<ApiResponse<StockFabricResponse>>('/inventory/stock/fabric', data);
+
+/**
+ * 库存出入库流水（分页）
+ * 后端路由：GET /api/v1/erp/inventory/stock/transactions（routes/inventory.rs stock_routes）
+ */
+export const getTransactionList = (params?: TransactionQueryParams) =>
+  request.get<
+    ApiResponse<{ items: TransactionResponse[]; total: number; page: number; page_size: number }>
+  >('/inventory/stock/transactions', { params });
+
+/**
+ * 锁定预留（pending → locked）
+ * 后端路由：POST /api/v1/erp/inventory/reservations/{id}/lock（routes/inventory.rs reservation_routes）
+ */
+export const lockReservation = (id: number) =>
+  request.post<ApiResponse<InventoryReservation>>(`/inventory/reservations/${id}/lock`);
+
+/**
+ * 释放预留（locked/pending → released）
+ * 后端路由：POST /api/v1/erp/inventory/reservations/{id}/release（routes/inventory.rs reservation_routes）
+ */
+export const releaseReservation = (id: number) =>
+  request.post<ApiResponse<InventoryReservation>>(`/inventory/reservations/${id}/release`);

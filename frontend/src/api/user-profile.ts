@@ -46,7 +46,7 @@ export function updateUserProfile(
 }
 
 export function changePassword(data: ChangePasswordRequest): Promise<ApiResponse<void>> {
-  return request.post('/user/change-password', data);
+  return request.post('/users/change-password', data);
 }
 
 export function uploadAvatar(file: File): Promise<ApiResponse<AvatarUploadResponse>> {

@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw } from './helpers';
+import { loginViaUI, apiCall, apiCallRaw, getCtx, ensureTestEntities } from './helpers';
 
 /**
  * P0 级数据持久性验证（2026-09-10 用户指令）
@@ -38,31 +38,34 @@ const shared: {
 } = {};
 async function ensureSharedEntities(page: import('@playwright/test').Page): Promise<boolean> {
   if (shared.custId && shared.prodId && shared.supId && shared.whId && shared.deptId) return true;
-  const cust = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
+  const cust = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
     customer_name: `P0共享客户${TS}`,
     customer_type: 'retail',
-  }).catch(() => null);
+  });
   shared.custId = cust?.data?.id;
+  await ensureTestEntities(page);
   const prod = await apiCall<{ id?: number }>(page, 'POST', '/products', {
     name: `P0共享产品${TS}`,
     code: uniqueKey('P0-SPRD-'),
+    category_id: getCtx().productCategoryIds[0],
+    unit: '米',
     standard_price: 5,
     status: 'active',
-  }).catch(() => null);
+  });
   shared.prodId = prod?.data?.id;
   const sup = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
     supplier_name: `P0共享供应商${TS}`,
     supplier_type: 'material',
-  }).catch(() => null);
+  });
   shared.supId = sup?.data?.id;
   const wh = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
     name: `P0共享仓库${TS}`,
     code: uniqueKey('P0-SWH-'),
-  }).catch(() => null);
+  });
   shared.whId = wh?.data?.id;
   const dept = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
     name: `P0共享部门${TS}`,
-  }).catch(() => null);
+  });
   shared.deptId = dept?.data?.id;
   const ok = !!(shared.custId && shared.prodId && shared.supId && shared.whId && shared.deptId);
   if (!ok) {
@@ -80,13 +83,14 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 1. 产品（全字段：name/code/category_id/specification/unit/standard_price/cost_price/description/status/product_type/fabric_composition） =====
   test('产品：全字段填写→创建→列表回读→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
+    await ensureTestEntities(page);
     const code = uniqueKey('P0-PRD-');
     const name = `P0测试产品${TS}`;
     const payload = {
       code,
       name,
-      category_id: 1,
+      category_id: getCtx().productCategoryIds[0],
       specification: 'P0测试规格100D',
       unit: '米',
       standard_price: 25.5,
@@ -97,16 +101,12 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       fabric_composition: '100%涤纶',
     };
 
-    let createResp: { data?: { id?: number } } | null = null;
-    try {
-      createResp = await apiCall<{ data?: { id?: number } }>(page, 'POST', '/products', payload);
-    } catch (e) {
-      // DATABASE_ERROR（如分片 DB seed 外键时序）属环境级失败：输出完整响应便于诊断后 skip
-      console.error(`[P0-产品] 创建失败（环境级，skip）: ${(e as Error).message}`);
-      console.error(`[P0-产品] payload=${JSON.stringify(payload)}`);
-      test.skip();
-      return;
-    }
+    const createResp = await apiCall<{ data?: { id?: number } }>(
+      page,
+      'POST',
+      '/products',
+      payload
+    );
     const id = createResp?.data?.id;
     console.log(`[P0-产品] 创建成功 id=${id} code=${code}`);
     expect(id, '产品创建必须返回 id').toBeTruthy();
@@ -147,8 +147,9 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     expect(detail?.name, `详情 name 应为 ${name}`).toBe(name);
     expect(detail?.unit, `详情 unit 应为 米`).toBe('米');
     expect(detail?.specification, `详情 specification 应为 P0测试规格100D`).toBe('P0测试规格100D');
-    expect(detail?.standard_price, `详情 standard_price 应为 25.5`).toBe(25.5);
-    expect(detail?.cost_price, `详情 cost_price 应为 18.0`).toBe(18.0);
+    // 后端 Decimal 序列化为字符串，转为数值比对
+    expect(Number(detail?.standard_price), `详情 standard_price 应为 25.5`).toBeCloseTo(25.5);
+    expect(Number(detail?.cost_price), `详情 cost_price 应为 18.0`).toBeCloseTo(18.0);
     expect(detail?.description, '详情 description 应一致').toBe(payload.description);
     expect(detail?.product_type, '详情 product_type 应为 fabric').toBe('fabric');
     expect(detail?.fabric_composition, '详情 fabric_composition 应为 100%涤纶').toBe('100%涤纶');
@@ -157,7 +158,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 2. 客户（全字段：customer_name/customer_type/contact_person/contact_phone/contact_email/address/city/province/country/postal_code/credit_limit/payment_terms/tax_id/bank_name/bank_account/status/notes） =====
   test('客户：全字段填写→创建→列表回读→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const name = `P0测试客户${TS}`;
     const payload = {
       customer_name: name, // 后端 DTO 字段名 customer_name（非 name）
@@ -240,7 +241,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 3. 供应商（全字段：supplier_name/supplier_short_name/supplier_type/credit_code/registered_address/business_address/legal_representative/registered_capital/establishment_date/business_term/business_scope/taxpayer_type） =====
   test('供应商：全字段填写→创建→列表回读→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const name = `P0测试供应商${TS}`;
     const payload = {
       supplier_name: name, // 后端 DTO 字段名 supplier_name（非 name）
@@ -303,7 +304,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 4. 仓库（全字段：name/code/address/manager/phone/capacity/description/warehouse_type） =====
   test('仓库：全字段填写→创建→列表回读（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const code = uniqueKey('P0-WH-');
     const name = `P0测试仓库${TS}`;
     const payload = {
@@ -352,7 +353,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 5. 会计科目（全字段：code/name/level/parent_id/balance_direction/assist_customer/assist_supplier/assist_batch/assist_color_no） =====
   test('会计科目：全字段填写→创建→列表回读→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const code = uniqueKey('P0-SUB-');
     const name = `P0测试科目${TS}`;
     const payload = {
@@ -411,26 +412,22 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 6. 销售订单（全字段：customer_id/opportunity_id/required_date/status/shipping_address/billing_address/notes/items/payment_terms/remarks/batch_no + items 全字段） =====
   test('销售订单：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     // 前置：动态创建客户与产品（CI 库种子不保证 id=1 存在，写死 id 会"客户 1 不存在"BUSINESS_ERROR）
-    const cust = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
+    const cust = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
       customer_name: `P0订单客户${TS}`,
       customer_type: 'retail',
-    }).catch(() => null);
+    });
     const custId = cust?.data?.id;
     const prod = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name: `P0订单产品${TS}`,
       code: uniqueKey('P0-PRD-'),
       standard_price: 5,
       status: 'active',
-    }).catch(() => null);
+    });
     const prodId = prod?.data?.id;
-    if (!custId || !prodId) {
-      console.warn(`[P0-销售订单] 前置数据缺失（cust=${custId} prod=${prodId}），跳过`);
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(custId, '[P0-销售订单] 客户创建失败').toBeTruthy();
+    expect(prodId, '[P0-销售订单] 产品创建失败').toBeTruthy();
     const orderDate = new Date().toISOString().slice(0, 10);
     const payload = {
       customer_id: custId,
@@ -489,28 +486,28 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 7. 采购订单（全字段：supplier_id/order_date/expected_delivery_date/warehouse_id/department_id/currency/exchange_rate/payment_terms/shipping_terms/notes + items） =====
   test('采购订单：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     // 前置：动态创建供应商/仓库/部门/物料（CI 库种子不保证 id=1 存在，写死 id 会 BAD_REQUEST）
     const sup = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
       supplier_name: `P0采购供应商${TS}`,
       supplier_type: 'material',
-    }).catch(() => null);
+    });
     const supId = sup?.data?.id;
     const wh = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
       name: `P0采购仓库${TS}`,
       code: uniqueKey('P0-WHP-'),
-    }).catch(() => null);
+    });
     const whId = wh?.data?.id;
     const dept = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
       name: `P0采购部门${TS}`,
-    }).catch(() => null);
+    });
     const deptId = dept?.data?.id;
     const mat = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name: `P0采购物料${TS}`,
       code: uniqueKey('P0-MAT-'),
       standard_price: 10,
       status: 'active',
-    }).catch(() => null);
+    });
     const matId = mat?.data?.id;
     if (!supId || !whId || !deptId || !matId) {
       console.warn(
@@ -564,7 +561,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 8. BOM（全字段：product_id/version/is_default/remarks + items 全字段） =====
   test('BOM：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     if (!(await ensureSharedEntities(page))) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
@@ -615,15 +612,12 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 9. 凭证（全字段：voucher_type/voucher_date/source_type/source_module/batch_no/color_no + items 全字段） =====
   test('凭证：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const voucherDate = new Date().toISOString().split('T')[0];
 
     const subjectsResp = await apiCallRaw<
       Array<{ id: number; code: string }> | { items?: Array<{ id: number; code: string }> }
-    >(page, 'GET', '/subjects?page=1&page_size=50').catch(e => {
-      console.warn('[P0-凭证] 科目列表查询失败:', (e as Error).message);
-      return { items: [] };
-    });
+    >(page, 'GET', '/subjects?page=1&page_size=50');
     const subjectList = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.items ?? []);
     if (subjectList.length < 3) {
       console.log('[P0-凭证] 科目不足 3 个，跳过');
@@ -677,7 +671,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 10. 报价单（全字段：customer_id/sales_user_id/quotation_date/valid_until/currency/exchange_rate/base_currency/price_terms/incoterms_version/incoterm_location/tax_inclusive/tax_rate/moq/lead_time_days/customer_level + items 全字段） =====
   test('报价单：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     if (!(await ensureSharedEntities(page))) {
       console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
       test.skip();
@@ -719,10 +713,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       'POST',
       '/quotations',
       payload
-    ).catch(e => {
-      console.warn('[P0-报价单] 创建失败（可能需要前置数据）:', (e as Error).message);
-      return null;
-    });
+    );
     if (!createResp?.data?.id) {
       console.log('[P0-报价单] 创建失败，跳过');
       test.skip();

@@ -76,7 +76,10 @@ export async function autoFillField(page: Page, field: FormField): Promise<void>
     case 'select':
       // Element Plus el-select：点击触发下拉 → 选择匹配项
       await locator.click();
-      await page.waitForSelector('.el-select-dropdown__item', { state: 'visible', timeout: 15_000 });
+      await page.waitForSelector('.el-select-dropdown__item', {
+        state: 'visible',
+        timeout: 15_000,
+      });
       // 选择包含目标文本的选项
       await page
         .locator('.el-select-dropdown__item')
@@ -224,16 +227,11 @@ export async function waitForTableLoaded(
 ): Promise<void> {
   const table = page.locator(tableSelector).first();
   await table.waitFor({ state: 'attached', timeout });
-  // 等待至少一行数据或空状态提示出现
+  // 等待至少一行数据或空状态提示出现（30s 超时=页面未渲染任何数据，必须失败暴露）
   await page
     .locator(`${tableSelector} .el-table-v2__row, .el-empty, .el-table__empty-text`)
     .first()
-    .waitFor({ state: 'attached', timeout: 30_000 })
-    .catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-      // 超时不阻塞（可能是虚拟滚动未渲染）
-        });
+    .waitFor({ state: 'attached', timeout: 30_000 });
 }
 
 /**

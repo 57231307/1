@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginAsRole, apiCall } from './helpers';
+import { loginAsRole, loginViaUI, apiCall } from './helpers';
 
 /**
  * P5.10 系统更新授权测试
@@ -12,7 +12,7 @@ import { loginAsRole, apiCall } from './helpers';
  */
 test.describe('P5.10 系统更新授权', () => {
   test('admin 可查询版本与状态', async ({ page }) => {
-    await loginAsRole(page, 'admin');
+    await loginViaUI(page);
 
     const versionResp = await apiCall(page, 'GET', '/system-update/version');
     expect(versionResp).toBeTruthy();
@@ -22,7 +22,7 @@ test.describe('P5.10 系统更新授权', () => {
   });
 
   test('admin 可查询更新状态', async ({ page }) => {
-    await loginAsRole(page, 'admin');
+    await loginViaUI(page);
 
     // 后端真实路径 /system-update/update-status（原 /status 与 init 路由冲突已重命名）
     const statusResp = await apiCall(page, 'GET', '/system-update/update-status');
@@ -33,17 +33,33 @@ test.describe('P5.10 系统更新授权', () => {
   });
 
   test('viewer 无权限查询系统更新（403）', async ({ page }) => {
-    await loginAsRole(page, 'report_viewer').catch(async () => {
-      // report_viewer 可能未创建，尝试 readonly
-      await loginAsRole(page, 'e2e_readonly').catch((e) => {
-        console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-        test.skip();
-      });
-    });
+    // report_viewer 不存在则尝试 e2e_readonly；两者都不可用则 skip
+    let viewerOk = false;
+    try {
+      await loginAsRole(page, 'report_viewer');
+      viewerOk = true;
+    } catch {
+      try {
+        await loginAsRole(page, 'e2e_readonly');
+        viewerOk = true;
+      } catch {
+        console.warn('[E2E] test.skip: report_viewer 与 e2e_readonly 凭证均不可用');
+      }
+    }
+    if (!viewerOk) {
+      test.skip();
+      return;
+    }
 
-    const resp = await apiCall(page, 'GET', '/system-update/version').catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-    // viewer 应被拒绝或返回 403
-    // 如果 apiCall 抛出 403，resp 为 null——也算通过
-    expect(resp === null || resp?.error).toBeTruthy();
+    const resp = await apiCall(page, 'GET', '/system-update/version').catch(e => {
+      console.warn(`[E2E] 操作失败: ${(e as Error).message}`);
+      return null;
+    });
+    // viewer 应被拒：apiCall 403 时 throw resp=null（通过）；或 resp.code 非 200
+    const denied = resp === null || (resp?.code !== 200 && resp?.code !== 0);
+    expect(
+      denied,
+      `viewer 查询系统更新应被拒，实际 resp=${JSON.stringify(resp)?.slice(0, 200)}`
+    ).toBeTruthy();
   });
 });

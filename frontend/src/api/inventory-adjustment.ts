@@ -22,16 +22,13 @@ export interface InventoryAdjustmentEntity {
 export interface AdjustmentItem {
   id?: number;
   adjustment_id?: number;
-  product_id: number;
-  product_code?: string;
-  product_name?: string;
-  color_no?: string;
-  grade?: string;
-  unit?: string;
+  stock_id: number;
   quantity: number;
-  cost_price: number;
-  amount: number;
-  remark?: string;
+  quantity_before?: number;
+  quantity_after?: number;
+  unit_cost?: number;
+  amount?: number;
+  notes?: string | null;
 }
 
 // P2-9c 修复（批次 82 v1 复审）：库存调整列表查询参数强类型化
@@ -77,7 +74,7 @@ export function getAdjustmentItems(id: number) {
 }
 
 export function createAdjustmentItem(id: number, data: Partial<AdjustmentItem>) {
-  return request.post(`/inventory/adjustments/${id}`, data);
+  return request.post(`/inventory/adjustments/${id}/items`, data);
 }
 
 export function updateAdjustmentItem(itemId: number, data: Partial<AdjustmentItem>) {

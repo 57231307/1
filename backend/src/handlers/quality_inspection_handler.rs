@@ -21,6 +21,7 @@ use axum::{
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
+use validator::Validate;
 
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -142,6 +143,110 @@ pub async fn get_record(
     info!("质量检验记录查询成功，ID：{}", record.id);
 
     Ok(Json(ApiResponse::success(record)))
+}
+
+/// 更新质检记录请求（对应前端 api/quality.ts updateQualityRecord 传 Partial<QualityRecord>，全字段可选）
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateInspectionRecordRequest {
+    #[validate(length(max = 50, message = "检验类型长度不得超过 50 字符"))]
+    pub inspection_type: Option<String>,
+    #[validate(length(max = 100, message = "批次号长度不得超过 100 字符"))]
+    pub batch_no: Option<String>,
+    pub inspection_date: Option<chrono::NaiveDate>,
+    pub inspector_id: Option<i32>,
+    pub total_qty: Option<rust_decimal::Decimal>,
+    pub inspected_qty: Option<rust_decimal::Decimal>,
+    pub qualified_qty: Option<rust_decimal::Decimal>,
+    pub unqualified_qty: Option<rust_decimal::Decimal>,
+    pub qualification_rate: Option<rust_decimal::Decimal>,
+    #[validate(length(max = 20, message = "检验结果长度不得超过 20 字符"))]
+    pub inspection_result: Option<String>,
+    pub remark: Option<String>,
+    #[validate(length(max = 50, message = "缺陷类型长度不得超过 50 字符"))]
+    pub defect_type: Option<String>,
+    #[validate(length(max = 10, message = "等级长度不得超过 10 字符"))]
+    pub grade: Option<String>,
+    #[validate(length(max = 100, message = "色号长度不得超过 100 字符"))]
+    pub color_no: Option<String>,
+    #[validate(length(max = 100, message = "缸号长度不得超过 100 字符"))]
+    pub dye_lot_no: Option<String>,
+}
+
+/// PUT /api/v1/erp/production/quality-inspection/records/{id} - 编辑质检记录
+/// （对应前端 api/quality.ts updateQualityRecord；参照 create_record 的字段集，仅更新请求中显式提供的字段）
+pub async fn update_record(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    auth: AuthContext,
+    Json(req): Json<UpdateInspectionRecordRequest>,
+) -> Result<Json<ApiResponse<quality_inspection_record::Model>>, AppError> {
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+    info!("用户 {} 正在更新质量检验记录，ID: {}", auth.user_id, id);
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
+    let existing = quality_inspection_record::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("质量检验记录不存在：{}", id)))?;
+
+    let mut active: quality_inspection_record::ActiveModel = existing.into();
+    if let Some(v) = req.inspection_type {
+        active.inspection_type = Set(v);
+    }
+    if let Some(v) = req.batch_no {
+        active.batch_no = Set(Some(v));
+    }
+    if let Some(v) = req.inspection_date {
+        active.inspection_date = Set(v);
+    }
+    if let Some(v) = req.inspector_id {
+        active.inspector_id = Set(Some(v));
+    }
+    if let Some(v) = req.total_qty {
+        active.total_qty = Set(v);
+    }
+    if let Some(v) = req.inspected_qty {
+        active.inspected_qty = Set(v);
+    }
+    if let Some(v) = req.qualified_qty {
+        active.qualified_qty = Set(Some(v));
+    }
+    if let Some(v) = req.unqualified_qty {
+        active.unqualified_qty = Set(Some(v));
+    }
+    if let Some(v) = req.qualification_rate {
+        active.qualification_rate = Set(Some(v));
+    }
+    if let Some(v) = req.inspection_result {
+        active.inspection_result = Set(v);
+    }
+    if let Some(v) = req.remark {
+        active.remark = Set(Some(v));
+    }
+    if let Some(v) = req.defect_type {
+        active.defect_type = Set(Some(v));
+    }
+    if let Some(v) = req.grade {
+        active.grade = Set(Some(v));
+    }
+    if let Some(v) = req.color_no {
+        active.color_no = Set(Some(v));
+    }
+    if let Some(v) = req.dye_lot_no {
+        active.dye_lot_no = Set(Some(v));
+    }
+    active.updated_at = Set(chrono::Utc::now());
+
+    let updated = active.update(state.db.as_ref()).await?;
+    info!("质量检验记录更新成功，ID：{}", updated.id);
+
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "质量检验记录更新成功",
+    )))
 }
 
 pub async fn list_defects(

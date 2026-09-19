@@ -50,6 +50,7 @@ pub struct UpdateSalesReturnRequest {
 /// 添加退货明细项请求
 #[derive(Deserialize)]
 pub struct CreateSalesReturnItemRequest {
+    pub line_no: Option<i32>,
     pub product_id: i32,
     pub quantity: Decimal,
     pub unit_price: Decimal,
@@ -182,11 +183,25 @@ impl SalesReturnService {
             )));
         }
 
+        // line_no：请求传入或按现有明细数自增（NOT NULL 约束）
+        let line_no = match req.line_no {
+            Some(n) => n,
+            None => {
+                let existing = sales_return_item::Entity::find()
+                    .filter(sales_return_item::Column::ReturnId.eq(return_id))
+                    .all(&txn)
+                    .await?;
+                (existing.len() as i32) + 1
+            }
+        };
         let item = sales_return_item::ActiveModel {
             return_id: Set(return_id),
+            line_no: Set(line_no),
             product_id: Set(req.product_id),
             quantity: Set(req.quantity),
             unit_price: Set(req.unit_price),
+            unit_price_foreign: Set(Decimal::ZERO),
+            discount_percent: Set(Decimal::ZERO),
             notes: Set(req.reason),
             quantity_alt: Set(Decimal::ZERO),
             ..Default::default()

@@ -30,7 +30,7 @@ export const useCp = () => {
     queryParams,
     refresh: fetchWorkCenters,
   } = useTableApi<WorkCenter>({
-    url: '/capacity/work-centers',
+    url: '/production/capacity/work-centers',
     defaultPageSize: 10,
     onError: (err: unknown) => {
       logger.error('获取工作中心列表失败:', err);

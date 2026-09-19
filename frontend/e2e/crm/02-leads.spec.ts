@@ -27,53 +27,48 @@ test.describe('02 线索管理', () => {
     await page.getByLabel(/线索来源/).click();
     await page.getByRole('option').first().click();
     await page.getByLabel(/备注/).fill('E2E 测试线索');
-    await page.getByRole('button', { name: /保存|确认|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-      return null;
-        });
+    await page
+      .getByRole('button', { name: /保存|确认|提交/ })
+      .last()
+      .click();
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({
+      timeout: 30000,
+    });
   });
 
   test('02-03 线索可标记为已联系（NEW → CONTACTED）', async ({ page }) => {
     await page.goto('/crm/leads');
     const contactBtn = page.getByRole('link', { name: /联系/ }).first();
-    if (await contactBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
+    if (await contactBtn.isVisible({ timeout: 3000 })) {
       await contactBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-        return null;
-          });
+      await expect(page.getByText(/更新成功/)).toBeVisible({
+        timeout: 30000,
+      });
     }
   });
 
   test('02-04 合格线索可转化为客户', async ({ page }) => {
     await page.goto('/crm/leads');
     const convertBtn = page.getByRole('link', { name: /转化/ }).first();
-    if (await convertBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
+    if (await convertBtn.isVisible({ timeout: 3000 })) {
       await convertBtn.click();
       await page.getByRole('button', { name: /确定|确认/ }).click();
-      await expect(page.getByText(/转化成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-        return null;
-          });
+      await expect(page.getByText(/转化成功/)).toBeVisible({
+        timeout: 30000,
+      });
     }
   });
 
   test('02-05 线索可标记为丢失', async ({ page }) => {
     await page.goto('/crm/leads');
     const loseBtn = page.getByRole('link', { name: /丢失/ }).first();
-    if (await loseBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
+    if (await loseBtn.isVisible({ timeout: 3000 })) {
       await loseBtn.click();
       await page.getByRole('button', { name: /确定|确认/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-        return null;
-          });
+      await expect(page.getByText(/更新成功/)).toBeVisible({
+        timeout: 30000,
+      });
     }
   });
 });

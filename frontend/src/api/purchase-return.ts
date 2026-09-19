@@ -14,6 +14,10 @@ export interface PurchaseReturn {
   totalAmount?: number;
   items?: PurchaseReturnItem[];
   remarks?: string;
+  /** 后端 purchase_return snake_case 契约字段（UpdatePurchaseReturnRequest） */
+  reason_type?: string;
+  reason_detail?: string;
+  notes?: string;
   createdBy?: number;
   approved_by?: number;
   createdAt?: string;
@@ -32,6 +36,12 @@ export interface PurchaseReturnItem {
   amount?: number;
   reason?: string;
   batchNo?: string;
+  /** 后端采购退货明细 snake_case 契约字段（Create/UpdateReturnItemRequest） */
+  line_no?: number;
+  material_id?: number;
+  quantity_returned?: number;
+  unit_price?: number;
+  notes?: string;
 }
 
 export interface PurchaseReturnQueryParams {

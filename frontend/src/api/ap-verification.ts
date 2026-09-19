@@ -2,6 +2,9 @@
 // 实际定义在 ap.ts 中
 export {
   getAPVerificationList,
+  getAPVerification,
+  autoVerifyAP,
+  cancelAPVerification,
   manualVerifyAP,
   getUnverifiedAPInvoices,
   getUnverifiedAPPayments,

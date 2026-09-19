@@ -35,26 +35,15 @@ test.describe('采购退货完整流程', () => {
     // 后端 CreatePurchaseReturnRequest 真实字段
     const returnData = {
       order_id: poId,
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       return_date: new Date().toISOString().slice(0, 10),
       warehouse_id: warehouseId,
       reason_type: 'quality',
       reason_detail: '布面疵点超标，客户拒收',
     };
 
-    let returnId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', returnData);
-      returnId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/purchase/returns?page=1&page_size=1'
-      );
-      returnId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', returnData);
+    const returnId = result.data?.id!;
     expect(returnId).toBeDefined();
 
     // 添加退货明细（后端需要独立端点添加 items）
@@ -73,7 +62,7 @@ test.describe('采购退货完整流程', () => {
       `/purchase/returns/${returnId}`
     );
     expect((created.return_status ?? '').toLowerCase()).toBe('draft');
-    expect(created.supplier_id).toBe(ctx.supplierId || 1);
+    expect(created.supplier_id).toBe(ctx.supplierId);
 
     // 提交退货单
     await apiCall(page, 'POST', `/purchase/returns/${returnId}/submit`);
@@ -113,8 +102,7 @@ test.describe('采购退货完整流程', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first()
-      .isVisible()
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .isVisible();
     expect(tableVisible).toBe(true);
   });
 
@@ -135,31 +123,15 @@ test.describe('采购退货完整流程', () => {
     // 后端 CreateSalesReturnRequest 真实字段
     const returnData = {
       order_id: soId,
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       return_date: new Date().toISOString().slice(0, 10),
       warehouse_id: warehouseId,
       reason_type: 'customer_cancel',
       reason_detail: '客户取消订单',
     };
 
-    let returnId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/sales/sales-returns',
-        returnData
-      );
-      returnId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/sales/sales-returns?page=1&page_size=1'
-      );
-      returnId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/sales-returns', returnData);
+    const returnId = result.data?.id!;
     expect(returnId).toBeDefined();
 
     // 添加退货明细

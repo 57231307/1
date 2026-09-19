@@ -157,6 +157,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { Opportunity } from '@/api/crm';
+import { createOpportunity, updateOpportunity } from '@/api/crm';
 import type { User } from '@/api/user';
 import type { Customer } from '@/api/customer';
 import { logger } from '@/utils/logger';
@@ -264,12 +265,26 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
-    // 调用由父组件处理实际的保存逻辑（通过 emit）
+    // 后端契约：customer_id/owner_id 为整数，opportunity_stage 为大写枚举，提交前归一化；id 空值转为 undefined
+    const payload = {
+      ...formData,
+      id: formData.id ?? undefined,
+      customer_id: Number(formData.customer_id),
+      owner_id: formData.owner_id === '' ? undefined : Number(formData.owner_id),
+      opportunity_stage: (formData.opportunity_stage ||
+        undefined) as Opportunity['opportunity_stage'],
+    };
+    if (formData.id) {
+      await updateOpportunity(formData.id, payload);
+    } else {
+      await createOpportunity(payload);
+    }
     ElMessage.success(t('crmOpportunityForm.message.saveSuccess'));
     visible.value = false;
     emit('submitted');
   } catch (error) {
     const err = error as Error;
+    ElMessage.error(err.message || t('crmOpportunityForm.message.validationFailed'));
     logger.warn(t('crmOpportunityForm.message.validationFailed'), err.message);
   } finally {
     submitLoading.value = false;

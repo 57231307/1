@@ -27,6 +27,10 @@ pub struct Model {
     pub failed_rows: i64,
     /// 操作用户 ID
     pub user_id: Option<i32>,
+    /// 导入源文件名（m0054 补列，上传时记录）
+    pub file_name: Option<String>,
+    /// 关联导入模板 ID（m0054 补列，历史任务无归属为空）
+    pub template_id: Option<i32>,
     /// 创建时间
     pub created_at: DateTimeWithTimeZone,
     /// 更新时间

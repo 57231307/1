@@ -11,6 +11,7 @@ import {
   TEST_USERNAME,
   TEST_PASSWORD,
   ensureTestEntities,
+  expectBadRequest,
 } from './helpers';
 
 test.describe('异常处理与边界条件', () => {
@@ -33,7 +34,7 @@ test.describe('异常处理与边界条件', () => {
     const updateData2 = { notes: `并发修改2-${Date.now()}` };
 
     // 第一个 page 先更新
-    const result1 = await apiCall(page, 'PUT', `/purchase/orders/${poId}`, updateData1).catch((e) => { console.warn(`[E2E] 操作失败: ${(e as Error).message}`); return null; });
+    const result1 = await apiCall(page, 'PUT', `/purchase/orders/${poId}`, updateData1);
 
     // 第二个 page 也尝试更新（可能因乐观锁/版本号冲突被拒）
     const csrf2 = (await context.cookies()).find(c => c.name === 'csrf_token')?.value || '';
@@ -67,7 +68,7 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: '<script>alert("xss")</script>',
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [],
@@ -81,7 +82,7 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: genCode('PO'),
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [
@@ -103,7 +104,7 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: genCode('PO'),
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [
@@ -113,11 +114,9 @@ test.describe('异常处理与边界条件', () => {
           unit_price: 123.4567,
         },
       ],
-    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    });
 
-    if (result) {
-      expect(result.status < 500).toBe(true);
-    }
+    expect(result.status < 500).toBe(true);
   });
 
   test('未认证请求返回 401', async ({ browser }) => {
@@ -165,7 +164,7 @@ test.describe('异常处理与边界条件', () => {
 
     const soData = {
       order_no: genCode('SO'),
-      customer_id: ctx.customerId || 1,
+      customer_id: ctx.customerId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [
@@ -178,25 +177,12 @@ test.describe('异常处理与边界条件', () => {
       ],
     };
 
-    let soId: number | null = null;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', soData);
-      soId = result.data?.id ?? null;
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
-      // 创建可能因库存不足直接被拒
-     }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', soData);
+    const soId = result.data?.id ?? null;
 
     if (soId) {
-      try {
-        await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
-      } catch (e) {
-        console.log(`submit: ${(e as { message?: string }).message || e}`);
-      }
-      try {
-        await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
-      } catch (e) {
-        console.log(`approve: ${(e as { message?: string }).message || e}`);
-      }
+      await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
+      await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
 
       // 发货应被阻断
       const shipResult = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`);
@@ -212,7 +198,7 @@ test.describe('异常处理与边界条件', () => {
   test('会计期间关闭后凭证录入应被阻断', async ({ page }) => {
     const periods = await apiCallRaw<{
       items: Array<{ id: number; status: string; period_name: string }>;
-    }>(page, 'GET', '/finance/accounting-periods?page=1&page_size=50').catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
+    }>(page, 'GET', '/finance/accounting-periods?page=1&page_size=50');
 
     const closedPeriod = periods.items?.find(p => p.status === 'closed' || p.status === '已关闭');
 
@@ -226,7 +212,7 @@ test.describe('异常处理与边界条件', () => {
         ],
       });
 
-      expect(result.status >= 400).toBe(true);
+      expectBadRequest(result);
     }
   });
 
@@ -252,7 +238,7 @@ test.describe('异常处理与边界条件', () => {
             status: '生产中',
           }
         );
-        expect(result.status >= 400).toBe(true);
+        expectBadRequest(result);
       }
     }
   });
@@ -263,15 +249,13 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: genCode('PO'),
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       notes: longString,
       items: [],
-    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    });
 
-    if (result) {
-      expect(result.status < 500).toBe(true);
-    }
+    expect(result.status < 500).toBe(true);
   });
 });

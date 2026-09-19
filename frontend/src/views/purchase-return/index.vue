@@ -131,10 +131,20 @@ const onCreate = () => {
   dialogVisible.value = true;
 };
 
-/** 编辑 */
-const onEdit = (row: PurchaseReturn) => {
+/** 编辑（先按 ID 回源最新退货单，失败保留行数据） */
+const onEdit = async (row: PurchaseReturn) => {
   isEdit.value = true;
-  prRtn.prepareEdit(row);
+  try {
+    await prRtn.fetchDetail(row.id!);
+    // prRtn 为 reactive 包装，detailData 的 ref 已自动解包
+    if (prRtn.detailData?.id === row.id) {
+      prRtn.prepareEdit(prRtn.detailData);
+    } else {
+      prRtn.prepareEdit(row);
+    }
+  } catch {
+    prRtn.prepareEdit(row);
+  }
   dialogVisible.value = true;
 };
 

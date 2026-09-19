@@ -133,7 +133,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="t('salesExt.contractTab.labelContractNo')" prop="contract_no">
-              <el-input v-model="contractForm.contract_no" :disabled="!!contractForm.id" />
+              <el-input v-model="contractForm.contract_no" readonly />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -394,6 +394,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
+import { generateUniqueDocNo } from '@/utils/document-no';
 import {
   getSalesContractList,
   getSalesContract,
@@ -518,6 +519,8 @@ const openContractDialog = async (row?: SalesContract) => {
       payment_terms: '',
       delivery_terms: '',
     });
+    // 新建时预生成合同号（查重唯一后只读展示，防手动输入重复）
+    contractForm.contract_no = await generateUniqueDocNo('SC', 'sales_contract');
   }
   contractDialogVisible.value = true;
 };

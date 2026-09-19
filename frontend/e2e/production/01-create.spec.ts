@@ -30,18 +30,14 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
     await page.getByRole('option').first().click();
     await page.getByLabel(/备注/).fill('E2E 测试生产工单');
     await page.getByRole('button', { name: /确认/ }).click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-      return null;
-        });
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
   });
 
   test('草稿工单可编辑', async ({ page }) => {
     await page.goto('/production');
     await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 30000 });
     const editBtn = page.getByRole('link', { name: /编辑/ }).first();
-    if (await editBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
+    if (await editBtn.isVisible({ timeout: 3000 })) {
       await editBtn.click();
       await expect(page.locator('.el-dialog')).toBeVisible();
       await expect(page.getByLabel(/订单编号/)).toBeVisible();
@@ -53,14 +49,10 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
     await page.goto('/production');
     await expect(page.locator('.el-table, .v2-table')).toBeVisible({ timeout: 30000 });
     const scheduleBtn = page.getByRole('link', { name: /计划排产|排产/ }).first();
-    if (await scheduleBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
+    if (await scheduleBtn.isVisible({ timeout: 3000 })) {
       await scheduleBtn.click();
       await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/排产成功|状态更新成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-        return null;
-          });
+      await expect(page.getByText(/排产成功|状态更新成功/)).toBeVisible({ timeout: 30000 });
     }
   });
 });

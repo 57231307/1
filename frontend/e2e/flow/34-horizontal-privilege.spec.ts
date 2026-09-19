@@ -1,5 +1,12 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallExpectFail, genName } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  apiCallExpectFail,
+  genName,
+  ensureTestEntities,
+  getCtx,
+} from './helpers';
 
 /**
  * P5.4 水平越权测试
@@ -52,13 +59,22 @@ test.describe('P5.4 水平越权', () => {
   test('用户无法删除他人创建的采购订单', async ({ page }) => {
     // 创建采购订单后尝试用另一账号删除
     // 基础断言：创建成功
-    const orderNo = genName('HozPO');
+    await ensureTestEntities(page);
+    const ctx = getCtx();
     const createResp = await apiCall(page, 'POST', '/purchase/orders', {
-      order_no: orderNo,
-      supplier_id: 1,
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
-    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-    // 即使创建失败（缺供应商），也不断言——主要验证 API 可达
+      // 明细必传：避免制造无明细的脏数据订单
+      items: [
+        {
+          material_id: ctx.productIds[0],
+          quantity_ordered: '1',
+          unit_price: '1',
+        },
+      ],
+    });
     expect(createResp !== undefined).toBeTruthy();
   });
 });

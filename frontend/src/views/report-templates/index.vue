@@ -74,7 +74,7 @@
         </el-table-column>
         <el-table-column prop="format" :label="$t('reportTemplates.table.format')" width="80">
           <template #default="{ row }">
-            {{ row.format.toUpperCase() }}
+            {{ (row.format || '').toUpperCase() }}
           </template>
         </el-table-column>
         <el-table-column

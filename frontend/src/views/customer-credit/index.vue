@@ -81,9 +81,15 @@
         <el-table-column
           :label="t('customerCredit.index.table.column.action')"
           fixed="right"
-          width="300"
+          width="520"
         >
           <template #default="{ row }">
+            <el-button link type="primary" @click="handleViewDetail(row)">{{
+              t('customerCredit.index.button.view')
+            }}</el-button>
+            <el-button link type="warning" @click="handleEdit(row)">{{
+              t('customerCredit.index.button.edit')
+            }}</el-button>
             <el-button link type="primary" @click="openAdjustDialog(row)">{{
               t('customerCredit.index.button.adjust')
             }}</el-button>
@@ -93,6 +99,9 @@
             <el-button link type="primary" @click="openReleaseDialog(row)">{{
               t('customerCredit.index.button.release')
             }}</el-button>
+            <el-button link type="primary" @click="handleEvaluate(row)">{{
+              t('customerCredit.index.button.evaluate')
+            }}</el-button>
             <el-button
               v-if="row.status === 'active'"
               link
@@ -100,6 +109,9 @@
               @click="handleDeactivate(row)"
               >{{ t('customerCredit.index.button.deactivate') }}</el-button
             >
+            <el-button link type="danger" @click="handleDelete(row)">{{
+              t('customerCredit.index.button.delete')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -133,6 +145,86 @@
       :operation-type="amountOperationType"
       @submitted="fetchCredits"
     />
+
+    <!-- 详情对话框 -->
+    <el-dialog
+      v-model="detailDialogVisible"
+      :title="t('customerCredit.index.detail.title')"
+      width="500px"
+    >
+      <el-descriptions :column="1" border>
+        <el-descriptions-item :label="t('customerCredit.index.table.column.customerName')">{{
+          detailRecord.customer_name
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('customerCredit.index.table.column.creditGrade')">{{
+          detailRecord.credit_rating
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('customerCredit.index.table.column.creditLimit')">{{
+          detailRecord.credit_limit
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('customerCredit.index.table.column.usedCredit')">{{
+          detailRecord.used_credit
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('customerCredit.index.table.column.availableCredit')">{{
+          detailRecord.available_credit
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('customerCredit.index.table.column.status')">{{
+          detailRecord.status === 'active'
+            ? t('customerCredit.index.status.active')
+            : t('customerCredit.index.status.inactive')
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('customerCredit.index.detail.validFrom')">{{
+          detailRecord.valid_from
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('customerCredit.index.detail.validTo')">{{
+          detailRecord.valid_to
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('customerCredit.index.detail.remarks')">{{
+          detailRecord.remarks
+        }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
+
+    <!-- 编辑对话框 -->
+    <el-dialog
+      v-model="editDialogVisible"
+      :title="t('customerCredit.index.edit.title')"
+      width="480px"
+    >
+      <el-form
+        ref="editFormRef"
+        :model="editForm"
+        label-width="100px"
+        :aria-label="t('customerCredit.index.edit.ariaLabel')"
+      >
+        <el-form-item :label="t('customerCredit.index.table.column.creditLimit')">
+          <el-input-number v-model="editForm.credit_limit" :min="0" controls-position="right" />
+        </el-form-item>
+        <el-form-item :label="t('customerCredit.index.table.column.status')">
+          <el-select v-model="editForm.status" style="width: 100%">
+            <el-option :label="t('customerCredit.index.status.active')" value="active" />
+            <el-option :label="t('customerCredit.index.status.inactive')" value="inactive" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('customerCredit.index.detail.validFrom')">
+          <el-input v-model="editForm.valid_from" />
+        </el-form-item>
+        <el-form-item :label="t('customerCredit.index.detail.validTo')">
+          <el-input v-model="editForm.valid_to" />
+        </el-form-item>
+        <el-form-item :label="t('customerCredit.index.detail.remarks')">
+          <el-input v-model="editForm.remarks" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">{{
+          t('customerCredit.index.dialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="editSubmitting" @click="submitEdit">{{
+          t('customerCredit.index.dialog.confirm')
+        }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -140,7 +232,14 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { deactivateCredit, type CustomerCredit } from '@/api/customer-credit';
+import {
+  deactivateCredit,
+  deleteCustomerCredit,
+  evaluateCustomerCredit,
+  getCustomerCredit,
+  updateCustomerCredit,
+  type CustomerCredit,
+} from '@/api/customer-credit';
 import { getCustomerList, type Customer } from '@/api/customer';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
@@ -176,6 +275,11 @@ const adjustDialogVisible = ref(false);
 const amountDialogVisible = ref(false);
 const amountOperationType = ref<'occupy' | 'release'>('occupy');
 const currentCustomerId = ref<number | null>(null);
+const detailDialogVisible = ref(false);
+const detailRecord = ref<Partial<CustomerCredit>>({});
+const editDialogVisible = ref(false);
+const editSubmitting = ref(false);
+const editForm = ref<Partial<CustomerCredit>>({});
 
 // fetchCredits 由 useTableApi 的 refresh 提供（批次 272）
 
@@ -215,6 +319,101 @@ const openReleaseDialog = (row: CustomerCredit) => {
   currentCustomerId.value = row.id;
   amountOperationType.value = 'release';
   amountDialogVisible.value = true;
+};
+
+const handleViewDetail = async (row: CustomerCredit) => {
+  if (!row.id) return;
+  try {
+    const res = await getCustomerCredit(row.id);
+    detailRecord.value = res.data || {};
+    detailDialogVisible.value = true;
+  } catch (e) {
+    const err = e as Error;
+    ElMessage.error(err.message || t('customerCredit.index.message.fetchDetailFailed'));
+    logger.warn(t('customerCredit.index.log.fetchDetailFailed'), String(e));
+  }
+};
+
+const handleEvaluate = async (row: CustomerCredit) => {
+  if (!row.id || !row.customer_id) return;
+  try {
+    await ElMessageBox.confirm(
+      t('customerCredit.index.dialog.evaluateConfirmMessage'),
+      t('customerCredit.index.dialog.evaluateConfirmTitle'),
+      {
+        confirmButtonText: t('customerCredit.index.dialog.confirm'),
+        cancelButtonText: t('customerCredit.index.dialog.cancel'),
+        type: 'info',
+      }
+    );
+
+    await evaluateCustomerCredit({
+      id: row.id,
+      customer_id: row.customer_id,
+      evaluation_date: new Date().toISOString().slice(0, 10),
+    });
+    ElMessage.success(t('customerCredit.index.message.evaluateSuccess'));
+    fetchCredits();
+  } catch (e) {
+    if (e !== 'cancel') {
+      const err = e as Error;
+      ElMessage.error(err.message || t('customerCredit.index.message.evaluateFailed'));
+    }
+  }
+};
+
+const handleEdit = (row: CustomerCredit) => {
+  if (!row.id) return;
+  currentCustomerId.value = row.id;
+  editForm.value = {
+    credit_limit: row.credit_limit,
+    status: row.status,
+    valid_from: row.valid_from,
+    valid_to: row.valid_to,
+    remarks: row.remarks,
+  };
+  editDialogVisible.value = true;
+};
+
+const submitEdit = async () => {
+  if (!currentCustomerId.value) return;
+  editSubmitting.value = true;
+  try {
+    await updateCustomerCredit(currentCustomerId.value, editForm.value);
+    ElMessage.success(t('customerCredit.index.message.updateSuccess'));
+    editDialogVisible.value = false;
+    fetchCredits();
+  } catch (e) {
+    const err = e as Error;
+    ElMessage.error(err.message || t('customerCredit.index.message.updateFailed'));
+  } finally {
+    editSubmitting.value = false;
+  }
+};
+
+const handleDelete = async (row: CustomerCredit) => {
+  if (!row.id) return;
+
+  try {
+    await ElMessageBox.confirm(
+      t('customerCredit.index.dialog.deleteConfirmMessage'),
+      t('customerCredit.index.dialog.deleteConfirmTitle'),
+      {
+        confirmButtonText: t('customerCredit.index.dialog.confirm'),
+        cancelButtonText: t('customerCredit.index.dialog.cancel'),
+        type: 'warning',
+      }
+    );
+
+    await deleteCustomerCredit(row.id);
+    ElMessage.success(t('customerCredit.index.message.deleteSuccess'));
+    fetchCredits();
+  } catch (e) {
+    if (e !== 'cancel') {
+      const err = e as Error;
+      ElMessage.error(err.message || t('customerCredit.index.message.deleteFailed'));
+    }
+  }
 };
 
 const handleDeactivate = async (row: CustomerCredit) => {

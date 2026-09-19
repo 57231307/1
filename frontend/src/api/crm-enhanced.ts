@@ -74,11 +74,11 @@ export type AssignableCustomer = PoolCustomer;
 export interface RecycleRule {
   id: number;
   name: string;
-  days_limit: number;
-  follow_up_required: boolean;
-  min_follow_up_count: number;
-  status: 'active' | 'inactive';
+  /** 未跟进超过 N 天后自动回收到公海 */
+  days: number;
+  is_enabled: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface AssignmentRecord {
@@ -176,8 +176,6 @@ export interface AssignmentQueryParams extends QueryParams {
 
 // 客户列表（含标签、联系人）
 // D14 Batch 5b：原 crmEnhancedApi.getCustomerList 转为风格 B 函数
-export const getCustomerList = (params?: QueryParams) =>
-  request.get<ApiResponse<PageResult<CustomerWithTags>>>('/crm/customers/enhanced', { params });
 
 // 客户详情
 // D14 Batch 5b：原 crmEnhancedApi.getCustomerDetail 转为风格 B 函数
@@ -186,18 +184,12 @@ export const getCustomerDetail = (id: number) =>
 
 // 创建客户
 // D14 Batch 5b：原 crmEnhancedApi.createCustomer 转为风格 B 函数
-export const createCustomer = (data: Partial<CustomerWithTags>) =>
-  request.post<ApiResponse<CustomerWithTags>>('/crm/customers/enhanced', data);
 
 // 更新客户
 // D14 Batch 5b：原 crmEnhancedApi.updateCustomer 转为风格 B 函数
-export const updateCustomer = (id: number, data: Partial<CustomerWithTags>) =>
-  request.put<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`, data);
 
 // 删除客户
 // D14 Batch 5b：原 crmEnhancedApi.deleteCustomer 转为风格 B 函数
-export const deleteCustomer = (id: number) =>
-  request.delete<ApiResponse<void>>(`/crm/customers/enhanced/${id}`);
 
 // 客户 360 视图
 // D14 Batch 5b：原 crmEnhancedApi.getCustomer360 转为风格 B 函数
@@ -205,15 +197,18 @@ export const getCustomer360 = (id: number) =>
   request.get<ApiResponse<Customer360>>(`/crm/customers/${id}/360`);
 
 // 标签管理
+// 注意：后端 crm.rs 的 crm_tags() 相对路径自带 /crm 前缀，nest 到 /api/v1/erp/crm 后
+// 实际装配为 /api/v1/erp/crm/crm/tags（后端双前缀装配缺陷，待后端批次修复后回改为 /crm/tags）
 // D14 Batch 5b：原 crmEnhancedApi.getTags 转为风格 B 函数
-export const getCrmTagList = () => request.get<ApiResponse<CustomerTag[]>>('/crm/tags');
+export const getCrmTagList = () => request.get<ApiResponse<CustomerTag[]>>('/crm/crm/tags');
 
 // D14 Batch 5b：原 crmEnhancedApi.createTag 转为风格 B 函数
 export const createCrmTag = (data: { name: string; color: string; category: string }) =>
-  request.post<ApiResponse<CustomerTag>>('/crm/tags', data);
+  request.post<ApiResponse<CustomerTag>>('/crm/crm/tags', data);
 
 // D14 Batch 5b：原 crmEnhancedApi.deleteTag 转为风格 B 函数
-export const deleteCrmTag = (id: number) => request.delete<ApiResponse<void>>(`/crm/tags/${id}`);
+export const deleteCrmTag = (id: number) =>
+  request.delete<ApiResponse<void>>(`/crm/crm/tags/${id}`);
 
 // D14 Batch 5b：原 crmEnhancedApi.createTagForCustomer 转为风格 B 函数
 export const createTagForCustomer = (customerId: number, tagId: number) =>
@@ -316,3 +311,21 @@ export const updateCustomerContact = (customerId: number, contactId: number, dat
 // D14 Batch 5b：原 crmEnhancedApi.deleteContact 转为风格 B 函数
 export const deleteCustomerContact = (customerId: number, contactId: number) =>
   request.delete<ApiResponse<void>>(`/crm/customers/${customerId}/contacts/${contactId}`);
+
+// ===== 客户增强 CRUD（端点 /crm/customers/enhanced，与 customer.ts 的 /customers 是不同域）=====
+
+// D14 Batch 5b：原 crmEnhancedApi.getCustomerList 转为风格 B 函数
+export const getCustomerList = (params?: QueryParams) =>
+  request.get<ApiResponse<PageResult<CustomerWithTags>>>('/crm/customers/enhanced', { params });
+
+// D14 Batch 5b：原 crmEnhancedApi.createCustomer 转为风格 B 函数
+export const createCustomer = (data: Partial<CustomerWithTags>) =>
+  request.post<ApiResponse<CustomerWithTags>>('/crm/customers/enhanced', data);
+
+// D14 Batch 5b：原 crmEnhancedApi.updateCustomer 转为风格 B 函数
+export const updateCustomer = (id: number, data: Partial<CustomerWithTags>) =>
+  request.put<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`, data);
+
+// D14 Batch 5b：原 crmEnhancedApi.deleteCustomer 转为风格 B 函数
+export const deleteCustomer = (id: number) =>
+  request.delete<ApiResponse<void>>(`/crm/customers/enhanced/${id}`);

@@ -106,8 +106,13 @@ impl PurchaseReceiptService {
                 receipt_id: Set(receipt_id),
                 order_item_id: Set(item_req.order_item_id),
                 product_id: Set(item_req.material_id),
+                line_no: Set(item_req.line_no),
+                material_code: Set(item_req.material_code.clone()),
+                material_name: Set(item_req.material_name.clone()),
                 quantity: Set(item_req.quantity),
                 quantity_alt: Set(Some(item_req.quantity_alt)),
+                unit_master: Set(item_req.unit_master.clone()),
+                unit_alt: Set(item_req.unit_alt.clone()),
                 unit_price: Set(Some(
                     item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)),
                 )),

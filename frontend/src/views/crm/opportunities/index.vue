@@ -222,6 +222,17 @@
               @click="handleLost(row)"
               >{{ t('crmOpportunities.table.lost') }}</el-button
             >
+            <el-button
+              v-if="row.opportunity_stage === 'WON'"
+              type="success"
+              link
+              size="small"
+              @click="handleConvertToOrder(row)"
+              >{{ t('crmOpportunities.table.toOrder') || '转订单' }}</el-button
+            >
+            <el-button type="info" link size="small" @click="handleCrmAnalytics(row)">
+              {{ t('crmOpportunities.table.analytics') || '分析' }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -306,6 +317,17 @@
         }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
+
+    <!-- 商机分析弹窗 -->
+    <el-dialog
+      v-model="analyticsVisible"
+      :title="t('crmOpportunities.table.analytics') || '商机分析'"
+      width="560px"
+    >
+      <div class="analytics-lines" style="white-space: pre-wrap; line-height: 1.8">
+        {{ analyticsLines.join('\n') }}
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -314,7 +336,15 @@ import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue';
-import { updateOpportunity, exportOpportunities, type Opportunity } from '@/api/crm';
+import {
+  updateOpportunity,
+  exportOpportunities,
+  convertOpportunityToOrder,
+  getForecastAccuracy,
+  getConversionRate,
+  getStageDuration,
+  type Opportunity,
+} from '@/api/crm';
 import { getUserList, type User } from '@/api/user';
 import { getCustomerList, type Customer } from '@/api/customer';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
@@ -455,6 +485,67 @@ const handleWin = async (row: OpportunityRow) => {
       ElMessage.error(t('crmOpportunities.message.winFailed'));
     }
   }
+};
+
+// 赢单商机一键转销售订单（后端生成订单草稿并回填关联）
+const handleConvertToOrder = async (row: OpportunityRow) => {
+  try {
+    await ElMessageBox.confirm(
+      `${t('crmOpportunities.message.convertConfirm') || '确认将该商机转为销售订单？'}（${row.opportunity_name}）`,
+      t('crmOpportunities.table.toOrder') || '转订单',
+      { type: 'info' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    const res = await convertOpportunityToOrder(row.id);
+    const orderId = (res.data as unknown as { order_id?: number })?.order_id;
+    ElMessage.success(
+      orderId
+        ? `${t('crmOpportunities.message.convertSuccess') || '转单成功'}：SO #${orderId}`
+        : t('crmOpportunities.message.convertSuccess') || '转单成功'
+    );
+    getList();
+  } catch (error) {
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('crmOpportunities.message.convertFailed') || '转单失败');
+  }
+};
+
+// 商机分析弹窗：预测准确率 + 转化率 + 阶段时长（汇总文本展示）
+const analyticsVisible = ref(false);
+const analyticsLines = ref<string[]>([]);
+const handleCrmAnalytics = async (row: OpportunityRow) => {
+  analyticsVisible.value = true;
+  analyticsLines.value = [t('crmOpportunities.message.analyticsLoading') || '分析加载中…'];
+  const lines: string[] = [];
+  try {
+    const res = await getForecastAccuracy({ year: new Date().getFullYear() });
+    const d = res.data as unknown as Record<string, unknown> | null;
+    lines.push(...Object.entries(d || {}).map(([k, v]) => `预测准确率.${k}: ${v}`));
+  } catch (e) {
+    lines.push(`预测准确率: ${(e as Error).message}`);
+  }
+  try {
+    const res = await getConversionRate({ months_back: 12 });
+    const d = res.data as unknown as Record<string, unknown> | null;
+    lines.push(...Object.entries(d || {}).map(([k, v]) => `转化率.${k}: ${v}`));
+  } catch (e) {
+    lines.push(`转化率: ${(e as Error).message}`);
+  }
+  try {
+    const res = await getStageDuration({ opportunity_id: row.id });
+    const d = res.data as unknown as Array<Record<string, unknown>> | null;
+    lines.push(
+      ...((d || []) as Array<{ stage?: string; days?: number }>).map(
+        it => `阶段时长.${it.stage}: ${it.days} 天`
+      )
+    );
+  } catch (e) {
+    lines.push(`阶段时长: ${(e as Error).message}`);
+  }
+  analyticsLines.value = lines.length ? lines : ['暂无分析数据'];
 };
 
 const handleLost = async (row: OpportunityRow) => {

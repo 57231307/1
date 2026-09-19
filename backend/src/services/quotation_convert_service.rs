@@ -137,6 +137,8 @@ impl QuotationConvertService {
             balance_amount: Set(quotation.total_amount),
             shipping_address: Set(None),
             billing_address: Set(None),
+            contact_person: Set(None),
+            contact_phone: Set(None),
             notes: Set(Some(format!(
                 "[源自报价单 {}]\n{}",
                 quotation.quotation_no,
@@ -145,9 +147,9 @@ impl QuotationConvertService {
             batch_no: Set(Some(String::new())),
             color_no: Set(Some(String::new())),
             dye_lot_no: Set(Some(String::new())),
-            grade: Set(None),
-            packaging_requirement: Set(None),
-            quality_standard: Set(None),
+            grade: Set(Some(String::new())),
+            packaging_requirement: Set(Some(String::new())),
+            quality_standard: Set(Some(String::new())),
             created_by: Set(Some(user_id)),
             // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
             department_id: sea_orm::ActiveValue::NotSet,

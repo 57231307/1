@@ -231,11 +231,20 @@ fn quality_standards_routes() -> Router<AppState> {
             "/quality-standards/{id}/publish",
             post(quality_standard_handler::publish_standard),
         )
+        .route(
+            "/quality-standards/{id}/archive",
+            post(quality_standard_handler::archive_standard),
+        )
 }
 
-/// 用户中心路由（path 前缀 /user）
+/// 用户中心路由（path 前缀 /user：个人资料查询/更新 + 头像上传）
 fn user_profile_routes() -> Router<AppState> {
-    Router::new().route("/user/profile", get(user_handler::get_current_user_profile))
+    Router::new()
+        .route(
+            "/user/profile",
+            get(user_handler::get_current_user_profile).put(user_handler::update_current_user_profile),
+        )
+        .route("/user/avatar", post(user_handler::upload_avatar))
 }
 
 /// 系统更新补充路由（path 前缀 /system-update）
@@ -251,17 +260,62 @@ fn system_update_extra_routes() -> Router<AppState> {
         )
         .route(
             "/system-update/backups",
-            get(system_update_handler::get_backup_versions),
+            get(system_update_handler::get_backup_versions)
+                .post(system_update_handler::create_backup_task),
+        )
+        // 更新任务详情/取消（对应前端 api/system-update.ts getUpdateTask / cancelUpdateTask）
+        .route(
+            "/system-update/tasks/{id}",
+            get(system_update_handler::get_update_task_by_id),
+        )
+        .route(
+            "/system-update/tasks/{id}/cancel",
+            post(system_update_handler::cancel_update_task),
+        )
+        // 版本详情/下载/安装（对应前端 api/system-update.ts getSystemVersion / downloadUpdate / installUpdate）
+        // 注意：versions 下三条路由共享同一 matchit 参数节点，参数名必须统一为 {versionId}
+        .route(
+            "/system-update/versions/{versionId}",
+            get(system_update_handler::get_system_version_by_id),
+        )
+        .route(
+            "/system-update/versions/{versionId}/download",
+            post(system_update_handler::download_version_update),
+        )
+        .route(
+            "/system-update/versions/{versionId}/install",
+            post(system_update_handler::install_version_update),
         )
 }
 
 /// 打印模板路由（path 前缀 /print-templates）
 fn print_templates_routes() -> Router<AppState> {
     Router::new()
-        .route("/print-templates", get(print_handler::list_print_templates))
+        .route(
+            "/print-templates",
+            get(print_handler::list_print_templates).post(print_handler::create_print_template),
+        )
         .route(
             "/print-templates/{id}",
-            get(print_handler::get_print_template),
+            get(print_handler::get_print_template)
+                .put(print_handler::update_print_template)
+                .delete(print_handler::delete_print_template),
+        )
+        .route(
+            "/print-templates/{id}/preview",
+            post(print_handler::preview_print_template),
+        )
+        .route(
+            "/print-templates/{id}/print",
+            post(print_handler::print_print_template),
+        )
+        .route(
+            "/print-templates/{id}/set-default",
+            put(print_handler::set_default_print_template),
+        )
+        .route(
+            "/print-templates/{id}/copy",
+            post(print_handler::copy_print_template),
         )
 }
 
@@ -273,8 +327,37 @@ fn data_import_routes() -> Router<AppState> {
             get(import_export_handler::list_import_templates),
         )
         .route(
+            "/data-import/templates/{id}",
+            get(import_export_handler::get_import_template_by_id)
+                .put(import_export_handler::update_import_template)
+                .delete(import_export_handler::delete_import_template),
+        )
+        .route(
+            "/data-import/templates/{id}/download",
+            get(import_export_handler::download_import_template_by_id)
+                .post(import_export_handler::download_import_template_by_id),
+        )
+        .route(
             "/data-import/tasks",
-            get(import_export_handler::list_import_tasks),
+            get(import_export_handler::list_import_tasks)
+                .post(import_export_handler::create_import_task_from_upload),
+        )
+        // 导入任务生命周期（对应前端 api/data-import.ts 任务详情/取消/重试/错误日志）
+        .route(
+            "/data-import/tasks/{id}",
+            get(import_export_handler::get_import_task_detail),
+        )
+        .route(
+            "/data-import/tasks/{id}/cancel",
+            post(import_export_handler::cancel_import_task),
+        )
+        .route(
+            "/data-import/tasks/{id}/retry",
+            post(import_export_handler::retry_import_task),
+        )
+        .route(
+            "/data-import/tasks/{id}/error-log",
+            get(import_export_handler::get_import_task_error_log),
         )
 }
 

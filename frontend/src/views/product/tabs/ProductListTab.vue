@@ -115,6 +115,9 @@
           <el-button @click="emit('openImport')">
             <el-icon><Upload /></el-icon>{{ t('product.productListTab.buttonImport') }}
           </el-button>
+          <el-button @click="batchProductVisible = true">
+            {{ t('product.productListTab.batchProductTitle') }}
+          </el-button>
           <el-button :loading="exporting" @click="handleExport">
             <el-icon><Download /></el-icon>{{ t('common.export') }}
           </el-button>
@@ -128,7 +131,9 @@
         :data="products"
         stripe
         :aria-label="t('product.productListTab.tableAriaLabel')"
+        @selection-change="handleSelectionChange"
       >
+        <el-table-column type="selection" width="45" align="center" />
         <el-table-column
           prop="product_code"
           :label="t('product.productListTab.colProductCode')"
@@ -197,7 +202,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('product.productListTab.colActions')" width="200" fixed="right">
+        <el-table-column :label="t('product.productListTab.colActions')" width="260" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="emit('openForm', 'view', row)">{{
               t('product.productListTab.buttonDetail')
@@ -205,6 +210,9 @@
             <el-button type="primary" link size="small" @click="emit('openForm', 'edit', row)">{{
               t('product.productListTab.buttonEdit')
             }}</el-button>
+            <el-button type="warning" link size="small" @click="openColorDialog(row)">
+              {{ t('product.productListTab.buttonColors') || '色号' }}
+            </el-button>
             <el-button type="danger" link size="small" @click="handleDelete(row)">{{
               t('product.productListTab.buttonDelete')
             }}</el-button>
@@ -213,6 +221,11 @@
       </el-table>
 
       <div class="pagination-wrapper">
+        <el-button v-if="selectedIds.length" type="danger" size="small" @click="handleBatchDelete">
+          {{ t('product.productListTab.buttonBatchDelete') || '批量删除' }}（{{
+            selectedIds.length
+          }}）
+        </el-button>
         <el-pagination
           v-model:current-page="page"
           v-model:page-size="pageSize"
@@ -225,6 +238,98 @@
         />
       </div>
     </el-card>
+
+    <!-- 产品色号管理对话框（createProductColor/updateProductColor/deleteProductColor/batchCreateProductColors） -->
+    <el-dialog
+      v-model="colorDialogVisible"
+      :title="`${t('product.productListTab.buttonColors')} - ${colorProduct?.product_name || ''}`"
+      width="640"
+    >
+      <el-form :model="colorForm" :inline="true" class="color-form">
+        <el-form-item :label="t('product.productListTab.colColorNo')">
+          <el-input v-model="colorForm.color_no" style="width: 140px" />
+        </el-form-item>
+        <el-form-item :label="t('product.productListTab.colColorName')">
+          <el-input v-model="colorForm.color_name" style="width: 160px" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="colorSubmitting" @click="submitColor">
+            {{
+              colorEditingId
+                ? t('product.productListTab.buttonSave')
+                : t('product.productListTab.buttonAdd')
+            }}
+          </el-button>
+          <el-button v-if="colorEditingId" @click="colorEditingId = null">
+            {{ t('common.cancel') }}
+          </el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-table :data="colorRows" border size="small" max-height="260">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column
+          prop="color_no"
+          :label="t('product.productListTab.colColorNo')"
+          width="120"
+        />
+        <el-table-column
+          prop="color_name"
+          :label="t('product.productListTab.colColorName')"
+          min-width="120"
+        />
+        <el-table-column
+          :label="t('product.productListTab.colOperation')"
+          width="140"
+          fixed="right"
+        >
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="editColor(row)">{{
+              t('product.productListTab.buttonEdit')
+            }}</el-button>
+            <el-button link type="danger" size="small" @click="handleDeleteColor(row)">{{
+              t('product.productListTab.buttonDelete')
+            }}</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="batch-color-bar">
+        <el-input
+          v-model="batchColorsText"
+          type="textarea"
+          :rows="3"
+          :placeholder="t('product.productListTab.batchColorsPlaceholder')"
+        />
+        <el-button type="primary" plain :loading="batchColorSaving" @click="handleBatchColors">
+          {{ t('product.productListTab.buttonBatchColors') }}
+        </el-button>
+      </div>
+    </el-dialog>
+
+    <!-- 批量维护产品（batchCreateProducts / batchUpdateProducts） -->
+    <el-dialog
+      v-model="batchProductVisible"
+      :title="t('product.productListTab.batchProductTitle')"
+      width="620"
+    >
+      <el-radio-group v-model="batchProductMode" style="margin-bottom: 8px">
+        <el-radio value="create">{{ t('product.productListTab.batchProductCreate') }}</el-radio>
+        <el-radio value="update">{{ t('product.productListTab.batchProductUpdate') }}</el-radio>
+      </el-radio-group>
+      <el-input
+        v-model="batchProductText"
+        type="textarea"
+        :rows="8"
+        :placeholder="t('product.productListTab.batchProductPlaceholder')"
+      />
+      <template #footer>
+        <el-button @click="batchProductVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="batchProductSaving" @click="handleBatchProduct">
+          {{ t('common.confirm') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -245,9 +350,18 @@ import {
 } from '@element-plus/icons-vue';
 import {
   getProductCategoryList,
+  getProductCategoryTree,
   deleteProduct,
+  batchDeleteProducts,
+  batchCreateProducts,
+  batchUpdateProducts,
+  createProductColor,
+  updateProductColor,
+  deleteProductColor,
+  batchCreateProductColors,
   type Product,
   type ProductCategory,
+  type ProductColor,
 } from '@/api/product';
 import { exportFabrics } from '@/api/fabric';
 import { useTableApi } from '@/composables/useTableApi';
@@ -296,25 +410,6 @@ const stats = reactive({
   avgPrice: 0,
 });
 
-const buildTree = (items: ProductCategory[]): ProductCategory[] => {
-  const map = new Map<number, ProductCategory>();
-  const tree: ProductCategory[] = [];
-  items.forEach(item => {
-    map.set(item.id, { ...item, children: [] });
-  });
-  items.forEach(item => {
-    const node = map.get(item.id);
-    if (!node) return;
-    if (item.parent_id && map.has(item.parent_id)) {
-      const parent = map.get(item.parent_id);
-      if (parent?.children) parent.children.push(node);
-    } else {
-      tree.push(node);
-    }
-  });
-  return tree;
-};
-
 // 批次 277：watch data 自动更新统计指标（原 fetchData 内联逻辑迁移至此）
 watch(products, () => {
   stats.totalProducts = total.value;
@@ -325,12 +420,19 @@ watch(products, () => {
       : 0;
 });
 
+// countNodes：递归统计树节点数（用于统计指标）
+const countNodes = (nodes: ProductCategory[]): number =>
+  nodes.reduce((sum, n) => sum + 1 + countNodes(n.children || []), 0);
+
 const fetchCategories = async () => {
   try {
-    const res = await getProductCategoryList();
-    categories.value = (res.data as ProductCategory[] | undefined) || [];
-    categoryTree.value = buildTree(categories.value);
-    stats.totalCategories = categories.value.length;
+    const [flatRes, treeRes] = await Promise.all([
+      getProductCategoryList(),
+      getProductCategoryTree(),
+    ]);
+    categories.value = (flatRes.data as ProductCategory[] | undefined) || [];
+    categoryTree.value = (treeRes.data as ProductCategory[] | undefined) || [];
+    stats.totalCategories = countNodes(categoryTree.value);
   } catch (error) {
     // 主入口已记录日志
   }
@@ -399,6 +501,184 @@ const handleDelete = async (row: Product) => {
     );
     await deleteProduct(row.id);
     ElMessage.success(t('product.productListTab.messageDeleteSuccess'));
+    fetchData();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error((error as Error).message || t('product.productListTab.messageDeleteFailed'));
+    }
+  }
+};
+
+// 产品色号管理（createProductColor/updateProductColor）弹窗
+const colorDialogVisible = ref(false);
+const colorProduct = ref<Product | null>(null);
+const colorRows = ref<ProductColor[]>([]);
+const colorForm = reactive({ color_no: '', color_name: '' });
+const colorEditingId = ref<number | null>(null);
+const colorSubmitting = ref(false);
+
+const openColorDialog = async (row: Product) => {
+  colorProduct.value = row;
+  colorEditingId.value = null;
+  colorForm.color_no = '';
+  colorForm.color_name = '';
+  colorDialogVisible.value = true;
+  try {
+    const { getProductColorList } = await import('@/api/product');
+    const res = await getProductColorList(row.id);
+    colorRows.value = (res.data as unknown as ProductColor[]) || [];
+  } catch {
+    colorRows.value = [];
+  }
+};
+
+const submitColor = async () => {
+  if (!colorProduct.value) return;
+  if (!colorForm.color_no.trim()) {
+    ElMessage.warning(t('product.productListTab.messageColorNoRequired') || '请输入色号');
+    return;
+  }
+  colorSubmitting.value = true;
+  try {
+    if (colorEditingId.value) {
+      await updateProductColor(colorProduct.value.id, colorEditingId.value, colorForm);
+    } else {
+      await createProductColor(colorProduct.value.id, colorForm);
+    }
+    ElMessage.success(t('common.success'));
+    colorEditingId.value = null;
+    colorForm.color_no = '';
+    colorForm.color_name = '';
+    const { getProductColorList } = await import('@/api/product');
+    const res = await getProductColorList(colorProduct.value.id);
+    colorRows.value = (res.data as unknown as ProductColor[]) || [];
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    colorSubmitting.value = false;
+  }
+};
+
+const editColor = (row: ProductColor) => {
+  colorEditingId.value = row.id;
+  colorForm.color_no = row.color_no || '';
+  colorForm.color_name = row.color_name || '';
+};
+
+// 删除色号（deleteProductColor）
+const handleDeleteColor = async (row: ProductColor) => {
+  if (!colorProduct.value) return;
+  try {
+    await ElMessageBox.confirm(
+      t('product.productListTab.colorDeleteConfirm', { no: row.color_no }),
+      t('product.productListTab.colorDeleteTitle'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteProductColor(colorProduct.value.id, row.id);
+    ElMessage.success(t('common.success'));
+    const { getProductColorList } = await import('@/api/product');
+    const res = await getProductColorList(colorProduct.value.id);
+    colorRows.value = (res.data as unknown as ProductColor[]) || [];
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error((e as { message?: string }).message || t('common.failed'));
+    }
+  }
+};
+
+// 批量添加色号（batchCreateProductColors：JSON 数组）
+const batchColorsText = ref('');
+const batchColorSaving = ref(false);
+
+const handleBatchColors = async () => {
+  if (!colorProduct.value) return;
+  let colors: unknown;
+  try {
+    colors = JSON.parse(batchColorsText.value || '[]');
+  } catch {
+    ElMessage.warning(t('product.productListTab.batchColorsInvalid'));
+    return;
+  }
+  if (!Array.isArray(colors) || colors.length === 0) {
+    ElMessage.warning(t('product.productListTab.batchColorsInvalid'));
+    return;
+  }
+  batchColorSaving.value = true;
+  try {
+    await batchCreateProductColors(colorProduct.value.id, colors as Partial<ProductColor>[]);
+    ElMessage.success(t('common.success'));
+    batchColorsText.value = '';
+    const { getProductColorList } = await import('@/api/product');
+    const res = await getProductColorList(colorProduct.value.id);
+    colorRows.value = (res.data as unknown as ProductColor[]) || [];
+  } catch (e) {
+    ElMessage.error((e as { message?: string }).message || t('common.failed'));
+  } finally {
+    batchColorSaving.value = false;
+  }
+};
+
+// 批量删除（勾选行 batchDeleteProducts）
+const selectedIds = ref<number[]>([]);
+const handleSelectionChange = (rows: Product[]) => {
+  selectedIds.value = rows.map(r => r.id);
+};
+// ===== 批量维护产品（batchCreateProducts / batchUpdateProducts，JSON 数组） =====
+const batchProductVisible = ref(false);
+const batchProductSaving = ref(false);
+const batchProductMode = ref<'create' | 'update'>('create');
+const batchProductText = ref('');
+
+const handleBatchProduct = async () => {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(batchProductText.value || '[]');
+  } catch {
+    ElMessage.warning(t('product.productListTab.batchColorsInvalid'));
+    return;
+  }
+  if (!Array.isArray(payload) || payload.length === 0) {
+    ElMessage.warning(t('product.productListTab.batchColorsInvalid'));
+    return;
+  }
+  batchProductSaving.value = true;
+  try {
+    if (batchProductMode.value === 'create') {
+      await batchCreateProducts(payload as Partial<Product>[]);
+    } else {
+      await batchUpdateProducts(payload as Partial<Product>[]);
+    }
+    ElMessage.success(t('common.success'));
+    batchProductVisible.value = false;
+    batchProductText.value = '';
+    fetchData();
+  } catch (e) {
+    ElMessage.error((e as { message?: string }).message || t('common.failed'));
+  } finally {
+    batchProductSaving.value = false;
+  }
+};
+
+const handleBatchDelete = async () => {
+  if (!selectedIds.value.length) {
+    ElMessage.warning(t('product.productListTab.messageSelectFirst') || '请先勾选要删除的产品');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      t('product.productListTab.messageBatchDeleteConfirm', { count: selectedIds.value.length }) ||
+        `确认删除选中的 ${selectedIds.value.length} 个产品？`,
+      t('product.productListTab.messageDeleteTitle'),
+      { type: 'warning' }
+    );
+    await batchDeleteProducts(selectedIds.value);
+    ElMessage.success(t('product.productListTab.messageDeleteSuccess'));
+    selectedIds.value = [];
     fetchData();
   } catch (error) {
     if (error !== 'cancel') {
@@ -494,5 +774,11 @@ onMounted(() => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+.batch-color-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
 }
 </style>

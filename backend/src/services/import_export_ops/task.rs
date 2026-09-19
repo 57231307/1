@@ -23,6 +23,8 @@ impl ImportExportService {
         import_type: &str,
         total_rows: u64,
         user_id: i32,
+        file_name: Option<String>,
+        template_id: Option<i32>,
     ) -> Result<i32, AppError> {
         // 批次 357 v13 复审 baseline 清零：移除 unused import self（仅使用 ActiveModel）
         use crate::models::import_task::ActiveModel;
@@ -36,6 +38,8 @@ impl ImportExportService {
             imported_rows: Set(0),
             failed_rows: Set(0),
             user_id: Set(Some(user_id)),
+            file_name: Set(file_name),
+            template_id: Set(template_id),
             created_at: Set(now.into()),
             updated_at: Set(now.into()),
             ..Default::default()

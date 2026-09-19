@@ -126,6 +126,50 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '财务管理', icon: 'Money', permission: 'finance:read', requiresAuth: true },
       },
       {
+        path: 'period-adjustments',
+        name: 'PeriodAdjustments',
+        component: () => import('@/views/period-adjustments/index.vue'),
+        meta: {
+          title: '期末调整',
+          icon: 'Money',
+          permission: 'finance:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'budgets',
+        name: 'BudgetApprovals',
+        component: () => import('@/views/budgets/index.vue'),
+        meta: {
+          title: '预算审批',
+          icon: 'Money',
+          permission: 'finance:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'invoice-details',
+        name: 'InvoiceDetails',
+        component: () => import('@/views/invoice-details/index.vue'),
+        meta: {
+          title: '发票审批',
+          icon: 'Tickets',
+          permission: 'finance:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'periods',
+        name: 'AccountingPeriods',
+        component: () => import('@/views/periods/index.vue'),
+        meta: {
+          title: '会计期间',
+          icon: 'Calendar',
+          permission: 'finance:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'ap',
         name: 'AP',
         component: () => import('@/views/ap/index.vue'),
@@ -161,6 +205,16 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '销售管理',
           icon: 'ShoppingCart',
+          permission: 'sales:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'sales/orders/:id',
+        name: 'SalesOrderDetail',
+        component: () => import('@/views/sales/OrderDetail.vue'),
+        meta: {
+          title: '销售订单详情',
           permission: 'sales:read',
           requiresAuth: true,
         },
@@ -411,6 +465,168 @@ const routes: RouteRecordRaw[] = [
         name: 'Production',
         component: () => import('@/views/production/index.vue'),
         meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+      },
+      {
+        path: 'customer-collab',
+        name: 'CustomerCollab',
+        component: () => import('@/views/customer-collab/index.vue'),
+        meta: {
+          title: '合同签署与客户协作',
+          icon: 'Stamp',
+          permission: 'customers:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'labor-contracts',
+        name: 'LaborContracts',
+        component: () => import('@/views/labor-contracts/index.vue'),
+        meta: { title: '劳动合同', icon: 'Postcard', permission: 'users:read', requiresAuth: true },
+      },
+      {
+        path: 'social-insurance',
+        name: 'SocialInsurance',
+        component: () => import('@/views/social-insurance/index.vue'),
+        meta: { title: '社保管理', icon: 'Umbrella', permission: 'users:read', requiresAuth: true },
+      },
+      {
+        path: 'environmental-compliance',
+        name: 'EnvironmentalCompliance',
+        component: () => import('@/views/environmental-compliance/index.vue'),
+        meta: {
+          title: '环保合规',
+          icon: 'Leaf',
+          permission: 'users:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'occupational-health',
+        name: 'OccupationalHealth',
+        component: () => import('@/views/occupational-health/index.vue'),
+        meta: {
+          title: '职业健康',
+          icon: 'FirstAidKit',
+          permission: 'users:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'system-governance',
+        name: 'SystemGovernance',
+        component: () => import('@/views/system-governance/index.vue'),
+        meta: {
+          title: '系统治理中心',
+          icon: 'Setting',
+          permission: 'admin:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'export-compliance',
+        name: 'ExportCompliance',
+        component: () => import('@/views/export-compliance/index.vue'),
+        meta: { title: '外贸合规中心', icon: 'Ship', permission: 'sales:read', requiresAuth: true },
+      },
+      {
+        path: 'wage',
+        name: 'Wage',
+        component: () => import('@/views/wage/index.vue'),
+        meta: {
+          title: '产量工资',
+          icon: 'Coin',
+          permission: 'production:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'chemicals',
+        name: 'Chemicals',
+        component: () => import('@/views/chemicals/index.vue'),
+        meta: {
+          title: '染化料管理',
+          icon: 'Connection',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'fabric-inspections',
+        name: 'FabricInspections',
+        component: () => import('@/views/fabric-inspections/index.vue'),
+        meta: {
+          title: '验布管理',
+          icon: 'Search',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'quality-8d',
+        name: 'Quality8d',
+        component: () => import('@/views/quality-8d/index.vue'),
+        meta: {
+          title: '质量 8D',
+          icon: 'Checked',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'bad-debts',
+        name: 'BadDebts',
+        component: () => import('@/views/bad-debts/index.vue'),
+        meta: { title: '坏账管理', icon: 'Money', permission: 'finance:read', requiresAuth: true },
+      },
+      {
+        path: 'outsourcing',
+        name: 'Outsourcing',
+        component: () => import('@/views/outsourcing/index.vue'),
+        meta: { title: '委外管理', icon: 'Box', permission: 'inventory:read', requiresAuth: true },
+      },
+      {
+        path: 'flow-cards',
+        name: 'FlowCards',
+        component: () => import('@/views/flow-cards/index.vue'),
+        meta: {
+          title: '流转卡管理',
+          icon: 'Tickets',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'lab-dip',
+        name: 'LabDip',
+        component: () => import('@/views/lab-dip/index.vue'),
+        meta: {
+          title: '打样管理',
+          icon: 'Brush',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'bulk-color-approval',
+        name: 'BulkColorApproval',
+        component: () => import('@/views/bulk-color-approval/index.vue'),
+        meta: {
+          title: '大货批色审批',
+          icon: 'Checked',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'production-recipes',
+        name: 'ProductionRecipes',
+        component: () => import('@/views/production-recipes/index.vue'),
+        meta: {
+          title: '生产配方',
+          icon: 'Document',
+          permission: 'inventory:read',
+          requiresAuth: true,
+        },
       },
       {
         path: 'bom',
@@ -673,6 +889,30 @@ const routes: RouteRecordRaw[] = [
           title: '增强版应收对账',
           icon: 'Money',
           permission: 'finance:read',
+          requiresAuth: true,
+        },
+      },
+      // 新增路由 - CRM 高级分析
+      {
+        path: 'crm-enhanced',
+        name: 'CrmEnhanced',
+        component: () => import('@/views/crm/enhanced/index.vue'),
+        meta: {
+          title: 'CRM 高级分析',
+          icon: 'User',
+          permission: 'customers:read',
+          requiresAuth: true,
+        },
+      },
+      // 新增路由 - 供应商 360
+      {
+        path: 'supplier-enhanced',
+        name: 'SupplierEnhanced',
+        component: () => import('@/views/supplier/enhanced/index.vue'),
+        meta: {
+          title: '供应商 360',
+          icon: 'OfficeBuilding',
+          permission: 'suppliers:read',
           requiresAuth: true,
         },
       },
@@ -964,6 +1204,17 @@ const routes: RouteRecordRaw[] = [
           requiresAuth: true,
           hidden: true,
         }, // 批次 22（v5 P0-4）：补齐 meta.permission
+      },
+      {
+        path: 'custom-orders/:id/edit',
+        name: 'CustomOrderEdit',
+        component: () => import('@/views/custom-orders/edit.vue'),
+        meta: {
+          title: '定制订单编辑',
+          permission: 'inventory:read',
+          requiresAuth: true,
+          hidden: true,
+        },
       },
       {
         path: 'custom-orders/:id/track',

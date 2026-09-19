@@ -36,8 +36,8 @@ export interface OrderForm {
   required_date: string;
   contact_person: string;
   contact_phone: string;
-  delivery_address: string;
-  remark: string;
+  shipping_address: string;
+  notes: string;
   items: OrderItemForm[];
   total_amount?: number;
 }
@@ -93,8 +93,8 @@ export function useOlv() {
     required_date: '',
     contact_person: '',
     contact_phone: '',
-    delivery_address: '',
-    remark: '',
+    shipping_address: '',
+    notes: '',
     items: [
       {
         id: Date.now(),
@@ -125,6 +125,7 @@ export function useOlv() {
     items: [] as {
       product_id: number;
       product_name: string;
+      dye_lot_no?: string;
       quantity: number;
       delivered_quantity: number;
       deliver_quantity: number;
@@ -220,10 +221,18 @@ export function useOlv() {
   /** 加载客户 */
   const fetchCustomers = async () => {
     try {
-      const res = await request.get<{ list?: Customer[] } | Customer[]>('/customers');
-      const d = res;
+      // 后端真实路由：GET /crm/customers（PaginatedResponse，业务数组在 data.items）
+      const res = await request.get<
+        | {
+            data?: { items?: Customer[]; list?: Customer[]; total?: number };
+          }
+        | Customer[]
+      >('/crm/customers');
+      const d = res as unknown as { data?: { items?: Customer[] } } & { list?: Customer[] };
       if (Array.isArray(d)) {
         customers.value = d;
+      } else if (d && typeof d === 'object' && 'items' in (d.data ?? {})) {
+        customers.value = d.data?.items || [];
       } else if (d && typeof d === 'object' && 'list' in d) {
         customers.value = d.list || [];
       } else {
@@ -285,8 +294,8 @@ export function useOlv() {
       required_date: '',
       contact_person: '',
       contact_phone: '',
-      delivery_address: '',
-      remark: '',
+      shipping_address: '',
+      notes: '',
       items: [
         {
           id: Date.now(),
@@ -314,8 +323,8 @@ export function useOlv() {
       required_date: row.required_date || '',
       contact_person: row.contact_person || '',
       contact_phone: row.contact_phone || '',
-      delivery_address: row.delivery_address || '',
-      remark: row.remark || '',
+      shipping_address: row.shipping_address || '',
+      notes: row.notes || '',
       items: row.items?.map((it: SalesOrderItem) => ({
         id: it.id || Date.now(),
         product_id: it.product_id,
@@ -353,6 +362,7 @@ export function useOlv() {
         row.items?.map(item => ({
           product_id: item.product_id,
           product_name: item.product_name,
+          dye_lot_no: item.dye_lot_no || '',
           quantity: item.quantity,
           delivered_quantity: item.delivered_quantity || 0,
           deliver_quantity: 0,

@@ -167,6 +167,39 @@ pub fn is_terminal_status(status: &str) -> bool {
     )
 }
 
+/// 校验 from→to 状态流转是否合法（忽略 transition_code，用于 PUT update 的简化校验）
+pub fn is_valid_status_transition(from_status: &str, to_status: &str) -> bool {
+    if is_terminal_status(from_status) {
+        return false;
+    }
+    let rules = builtin_transition_rules();
+    rules.iter().any(|(from, to, _)| *from == from_status && *to == to_status)
+}
+
+/// 校验状态值是否为合法的 14 态之一
+pub fn is_valid_status(status: &str) -> bool {
+    use dye_batch_lifecycle_status::*;
+    matches!(
+        status,
+        PENDING_SCHEDULE
+            | SCHEDULED
+            | PREPARING
+            | DYEING
+            | WASHING
+            | FIXING
+            | DEHYDRATING
+            | DRYING
+            | INSPECTING
+            | STORED
+            | SHIPPED
+            | CANCELLED
+            | TERMINATED
+            | REWORK
+            | ON_HOLD
+            | FAILED
+    )
+}
+
 /// 内置流转规则表（与 SQL 预置数据 dye_batch_state_rule 一致）
 fn builtin_transition_rules() -> Vec<(&'static str, &'static str, &'static str)> {
     use dye_batch_lifecycle_status::*;

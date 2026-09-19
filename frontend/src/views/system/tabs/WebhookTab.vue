@@ -216,7 +216,7 @@ const deleteWebhook = async (row: WebhookRow) => {
       t('system.webhook.message.deleteTitle'),
       { type: 'warning' }
     );
-    await request.delete(`/webhooks/integrations/${row.id}`);
+    await request.delete(`/webhooks/integrations/integration/${row.id}`);
     ElMessage.success(t('system.webhook.message.deleteSuccess'));
     fetchWebhooks();
   } catch (e) {
@@ -229,7 +229,7 @@ const deleteWebhook = async (row: WebhookRow) => {
 
 const testWebhook = async (row: WebhookRow) => {
   try {
-    await request.post(`/webhooks/integrations/${row.id}`);
+    await request.post(`/webhooks/integrations/test-integration/${row.id}`);
     ElMessage.success(t('system.webhook.message.testSent'));
   } catch (e) {
     const err = e as { message?: string };

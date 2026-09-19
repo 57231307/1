@@ -19,6 +19,8 @@ export interface SystemVersion {
 export interface UpdateTask {
   id: number;
   task_code: string;
+  /** 任务类型（对齐后端 system_update_task.task_type） */
+  task_type?: string;
   from_version: string;
   to_version: string;
   status:

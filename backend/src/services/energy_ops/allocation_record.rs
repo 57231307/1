@@ -335,6 +335,7 @@ impl EnergyAllocationRecordService {
             items: vec![
                 VoucherItemRequest {
                     line_no: None,
+                    subject_id: None,
                     subject_code: Some("500103".to_string()),
                     subject_name: Some("生产成本-制造费用".to_string()),
                     debit: amount,
@@ -356,6 +357,7 @@ impl EnergyAllocationRecordService {
                 },
                 VoucherItemRequest {
                     line_no: None,
+                    subject_id: None,
                     subject_code: Some("2202".to_string()),
                     subject_name: Some("应付账款-水电费".to_string()),
                     debit: Decimal::ZERO,

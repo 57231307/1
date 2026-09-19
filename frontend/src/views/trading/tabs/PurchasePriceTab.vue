@@ -64,7 +64,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('trading.purchasePriceTab.columnActions')" width="120">
+        <el-table-column :label="t('trading.purchasePriceTab.columnActions')" width="200">
           <template #default="{ row }">
             <el-button
               type="primary"
@@ -72,6 +72,21 @@
               size="small"
               @click="openPurchasePriceDialog(row as unknown as TradingPrice)"
               >{{ t('trading.purchasePriceTab.buttonEdit') }}</el-button
+            >
+            <el-button
+              v-if="(row as TradingPrice).status === 'draft'"
+              type="success"
+              link
+              size="small"
+              @click="handleApprovePrice(row as TradingPrice)"
+              >{{ t('trading.purchasePriceTab.buttonApprove') }}</el-button
+            >
+            <el-button
+              type="danger"
+              link
+              size="small"
+              @click="handleDeletePrice(row as TradingPrice)"
+              >{{ t('trading.purchasePriceTab.buttonDelete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -161,13 +176,15 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import {
   getTradingPriceList,
   getTradingPrice,
   createTradingPrice,
   updateTradingPrice,
+  deleteTradingPrice,
+  approveTradingPrice,
   type TradingPrice,
 } from '@/api/trading-price';
 
@@ -266,7 +283,7 @@ const openPurchasePriceDialog = async (row?: TradingPrice) => {
   resetPriceForm();
   if (row) {
     try {
-      const res = await getTradingPrice(row.id);
+      const res = await getTradingPrice(row.id, 'purchase');
       const d = res.data;
       if (d) {
         priceEditingId.value = d.id;
@@ -298,7 +315,7 @@ const onSubmitPrice = async () => {
     priceSubmitting.value = true;
     try {
       if (priceEditingId.value !== null) {
-        await updateTradingPrice(priceEditingId.value, { ...priceForm });
+        await updateTradingPrice(priceEditingId.value, { ...priceForm }, 'purchase');
         ElMessage.success(t('trading.purchasePriceTab.messageUpdateSuccess'));
       } else {
         await createTradingPrice({ ...priceForm, type: 'purchase' });
@@ -313,6 +330,40 @@ const onSubmitPrice = async () => {
       priceSubmitting.value = false;
     }
   });
+};
+
+const handleApprovePrice = async (row: TradingPrice) => {
+  try {
+    await ElMessageBox.confirm(
+      t('trading.purchasePriceTab.confirmApproveText', { name: row.product_name }),
+      t('trading.purchasePriceTab.confirmApproveTitle'),
+      { type: 'warning' }
+    );
+    await approveTradingPrice(row.id, 'purchase');
+    ElMessage.success(t('trading.purchasePriceTab.messageApproveSuccess'));
+    fetchPurchasePrices();
+  } catch (e) {
+    if (e === 'cancel') return;
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('trading.purchasePriceTab.messageOperationFailed'));
+  }
+};
+
+const handleDeletePrice = async (row: TradingPrice) => {
+  try {
+    await ElMessageBox.confirm(
+      t('trading.purchasePriceTab.confirmDeleteText', { name: row.product_name }),
+      t('trading.purchasePriceTab.confirmDeleteTitle'),
+      { type: 'warning' }
+    );
+    await deleteTradingPrice(row.id, 'purchase');
+    ElMessage.success(t('trading.purchasePriceTab.messageDeleteSuccess'));
+    fetchPurchasePrices();
+  } catch (e) {
+    if (e === 'cancel') return;
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('trading.purchasePriceTab.messageOperationFailed'));
+  }
 };
 
 defineExpose({ refresh: fetchPurchasePrices });

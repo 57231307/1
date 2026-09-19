@@ -253,6 +253,14 @@
       </el-tab-pane>
 
       <el-tab-pane :label="$t('bpm.tab.monitor')" name="monitor">
+        <div class="monitor-toolbar">
+          <el-button type="primary" @click="openStartProcessDialog">{{
+            $t('bpm.monitorTable.startProcess')
+          }}</el-button>
+          <el-button @click="openBusinessRelationDialog">{{
+            $t('bpm.monitorTable.businessRelation')
+          }}</el-button>
+        </div>
         <el-card shadow="hover" class="table-card">
           <el-table :data="processInstances" stripe :aria-label="$t('bpm.monitorTable.ariaLabel')">
             <el-table-column
@@ -307,13 +315,131 @@
             </el-table-column>
           </el-table>
         </el-card>
+
+        <el-card shadow="hover" class="table-card">
+          <template #header>{{ $t('bpm.monitorTable.pendingTasksTitle') }}</template>
+          <el-table
+            :data="monitorPendingTasks"
+            stripe
+            :aria-label="$t('bpm.monitorTable.pendingTasksAriaLabel')"
+          >
+            <el-table-column
+              prop="task_name"
+              :label="$t('bpm.pendingTable.taskName')"
+              min-width="180"
+              fixed
+            />
+            <el-table-column
+              prop="process_name"
+              :label="$t('bpm.pendingTable.processName')"
+              width="150"
+            />
+            <el-table-column
+              prop="assignee_name"
+              :label="$t('bpm.pendingTable.applicant')"
+              width="120"
+            />
+            <el-table-column
+              prop="created_at"
+              :label="$t('bpm.pendingTable.applyTime')"
+              width="160"
+            />
+            <el-table-column prop="priority" :label="$t('bpm.pendingTable.priority')" width="100">
+              <template #default="{ row }">
+                <el-tag :type="getPriorityType(row.priority)" size="small">
+                  {{ getPriorityText(row.priority) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
       </el-tab-pane>
     </el-tabs>
+
+    <el-dialog
+      v-model="startProcessDialog.visible"
+      :title="$t('bpm.startProcessDialog.title')"
+      width="500px"
+      destroy-on-close
+      :aria-label="$t('bpm.startProcessDialog.ariaLabel')"
+    >
+      <el-form
+        :model="startProcessDialog"
+        label-width="100px"
+        :aria-label="$t('bpm.startProcessDialog.formAriaLabel')"
+      >
+        <el-form-item :label="$t('bpm.startProcessDialog.processKey')">
+          <el-input
+            v-model="startProcessDialog.processKey"
+            :placeholder="$t('bpm.startProcessDialog.processKeyPlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('bpm.startProcessDialog.businessKey')">
+          <el-input
+            v-model="startProcessDialog.businessKey"
+            :placeholder="$t('bpm.startProcessDialog.businessKeyPlaceholder')"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="startProcessDialog.visible = false">{{
+          $t('bpm.startProcessDialog.cancel')
+        }}</el-button>
+        <el-button
+          type="primary"
+          :loading="startProcessDialog.loading"
+          @click="handleStartProcess"
+          >{{ $t('bpm.startProcessDialog.confirm') }}</el-button
+        >
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="businessRelation.visible"
+      :title="$t('bpm.businessRelationDialog.title')"
+      width="520px"
+      destroy-on-close
+      :aria-label="$t('bpm.businessRelationDialog.ariaLabel')"
+    >
+      <el-form label-width="100px" :aria-label="$t('bpm.businessRelationDialog.formAriaLabel')">
+        <el-form-item :label="$t('bpm.businessRelationDialog.businessType')">
+          <el-input
+            v-model="businessRelation.businessType"
+            :placeholder="$t('bpm.businessRelationDialog.businessTypePlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('bpm.businessRelationDialog.businessId')">
+          <el-input-number
+            v-model="businessRelation.businessId"
+            :placeholder="$t('bpm.businessRelationDialog.businessIdPlaceholder')"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQueryBusinessRelation">{{
+            $t('bpm.businessRelationDialog.query')
+          }}</el-button>
+        </el-form-item>
+      </el-form>
+      <div v-if="businessRelation.result" class="relation-result">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item :label="$t('bpm.businessRelationDialog.instanceId')">{{
+            businessRelation.result.instance_id
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('bpm.businessRelationDialog.processName')">{{
+            businessRelation.result.process_name
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('bpm.businessRelationDialog.status')">{{
+            getProcessStatusText(businessRelation.result.status)
+          }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue';
@@ -328,6 +454,10 @@ import {
   getBpmApprovalChain,
   getBpmProcessVisualization,
   cancelBpmInstance,
+  startBpmProcess,
+  getBpmBusinessRelation,
+  getBpmMonitorStats,
+  getBpmPendingTaskList,
 } from '@/api/bpm';
 import type { BPMTask, BPMInstance } from '@/api/bpm';
 import { logger } from '@/utils/logger';
@@ -340,10 +470,10 @@ type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
 const activeTab = ref('pending');
 
 const stats = ref({
-  pendingTasks: 8,
-  completedTasks: 156,
-  urgentTasks: 3,
-  avgProcessingTime: 4.5,
+  pendingTasks: 0,
+  completedTasks: 0,
+  urgentTasks: 0,
+  avgProcessingTime: 0,
 });
 
 // v11 批次 162 P2-1 修复：any[] 改为具体类型 BPMTask[]/BPMInstance[]
@@ -351,6 +481,27 @@ const pendingTasks = ref<BPMTask[]>([]);
 const initiatedProcesses = ref<BPMInstance[]>([]);
 const processedTasks = ref<BPMTask[]>([]);
 const processInstances = ref<BPMInstance[]>([]);
+// 监控待办任务（/bpm/monitor/pending-tasks，区别于审批中心的待办）
+const monitorPendingTasks = ref<BPMTask[]>([]);
+// 业务关系查询结果（startBpmProcess 后查询关联实例）
+const businessRelation = reactive<{
+  visible: boolean;
+  businessType: string;
+  businessId: number | null;
+  result: { instance_id: string; process_name: string; status: string } | null;
+}>({
+  visible: false,
+  businessType: '',
+  businessId: null,
+  result: null,
+});
+// 启动流程对话框
+const startProcessDialog = reactive<{
+  visible: boolean;
+  loading: boolean;
+  processKey: string;
+  businessKey: string;
+}>({ visible: false, loading: false, processKey: '', businessKey: '' });
 
 const getPriorityType = (priority: string): TagType => {
   const map: Record<string, TagType> = { high: 'danger', medium: 'warning', low: 'info' };
@@ -399,6 +550,8 @@ const handleTabChange = (tabName: string) => {
     fetchProcessedTasks();
   } else if (tabName === 'monitor') {
     fetchProcessInstances();
+    fetchMonitorStats();
+    fetchMonitorPendingTasks();
   }
 };
 
@@ -456,6 +609,107 @@ const fetchProcessInstances = async () => {
     );
     processInstances.value = [];
   }
+};
+
+// 监控统计：接入 getBpmMonitorStats（/bpm/monitor/stats）填充首页 4 个统计卡片
+const fetchMonitorStats = async () => {
+  try {
+    const res = await getBpmMonitorStats();
+    const d = res.data;
+    if (d) {
+      stats.value.pendingTasks = d.pending_tasks ?? 0;
+      stats.value.completedTasks = d.completed_instances ?? 0;
+      stats.value.urgentTasks = d.overdue_tasks ?? 0;
+      stats.value.avgProcessingTime = 0;
+    }
+  } catch (error: unknown) {
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('bpm.message.fetchMonitorStatsFailed')
+    );
+  }
+};
+
+// 监控待办任务：接入 getBpmPendingTaskList（/bpm/monitor/pending-tasks）
+const fetchMonitorPendingTasks = async () => {
+  try {
+    const res = await getBpmPendingTaskList();
+    monitorPendingTasks.value = res.data?.data || [];
+  } catch (error: unknown) {
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('bpm.message.fetchMonitorPendingFailed')
+    );
+    monitorPendingTasks.value = [];
+  }
+};
+
+// 启动流程：接入 startBpmProcess（/bpm/process/start）
+const handleStartProcess = async () => {
+  if (!startProcessDialog.processKey) {
+    ElMessage.warning(t('bpm.message.processKeyRequired'));
+    return;
+  }
+  startProcessDialog.loading = true;
+  try {
+    const res = await startBpmProcess({
+      process_key: startProcessDialog.processKey,
+      business_key: startProcessDialog.businessKey || undefined,
+    });
+    ElMessage.success(
+      t('bpm.message.startProcessSuccess', { instanceId: res.data?.instance_id || '' })
+    );
+    startProcessDialog.visible = false;
+    startProcessDialog.processKey = '';
+    startProcessDialog.businessKey = '';
+    fetchMonitorStats();
+    fetchProcessInstances();
+  } catch (error: unknown) {
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('bpm.message.startProcessFailed')
+    );
+  } finally {
+    startProcessDialog.loading = false;
+  }
+};
+
+// 业务关系查询：接入 getBpmBusinessRelation（/bpm/business-relation）
+const handleQueryBusinessRelation = async () => {
+  if (!businessRelation.businessType || businessRelation.businessId == null) {
+    ElMessage.warning(t('bpm.message.businessRelationInputRequired'));
+    return;
+  }
+  try {
+    const res = await getBpmBusinessRelation(
+      businessRelation.businessType,
+      businessRelation.businessId
+    );
+    businessRelation.result = res.data
+      ? {
+          instance_id: res.data.instance_id,
+          process_name: res.data.process_name,
+          status: res.data.status,
+        }
+      : null;
+    if (!businessRelation.result) {
+      ElMessage.info(t('bpm.message.businessRelationNotFound'));
+    }
+  } catch (error: unknown) {
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('bpm.message.fetchBusinessRelationFailed')
+    );
+    businessRelation.result = null;
+  }
+};
+
+const openStartProcessDialog = () => {
+  startProcessDialog.visible = true;
+};
+
+const openBusinessRelationDialog = () => {
+  businessRelation.visible = true;
 };
 
 const handleApprove = async (row: BPMTask) => {
@@ -656,6 +910,7 @@ const handleProcessImage = async (row: BPMInstance) => {
 
 onMounted(() => {
   fetchPendingTasks();
+  fetchMonitorStats();
 });
 </script>
 
@@ -756,6 +1011,14 @@ onMounted(() => {
 }
 .table-card {
   margin-bottom: 20px;
+}
+.monitor-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.relation-result {
+  margin-top: 16px;
 }
 .overdue {
   color: #f56c6c;

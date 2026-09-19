@@ -25,12 +25,13 @@ test.describe('01 流程定义', () => {
     await page.getByLabel(/分类/).click();
     await page.getByRole('option').first().click();
     await page.getByLabel(/描述/).fill('E2E 测试流程定义');
-    await page.getByRole('button', { name: /确认|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-      return null;
-        });
+    await page
+      .getByRole('button', { name: /确认|提交/ })
+      .last()
+      .click();
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({
+      timeout: 30000,
+    });
   });
 
   test('01-03 流程定义筛选功能可用', async ({ page }) => {
@@ -45,7 +46,7 @@ test.describe('01 流程定义', () => {
   test('01-04 流程定义可编辑', async ({ page }) => {
     await page.goto('/bpm/definitions');
     const editBtn = page.getByRole('button', { name: /编辑/ }).first();
-    if (await editBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
+    if (await editBtn.isVisible({ timeout: 3000 })) {
       await editBtn.click();
       await expect(page.locator('.el-dialog')).toBeVisible();
       await expect(page.getByLabel(/流程标识/)).toBeVisible();

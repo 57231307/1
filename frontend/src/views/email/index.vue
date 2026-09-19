@@ -17,6 +17,10 @@
             <el-icon><Plus /></el-icon>
             {{ t('email.index.buttonCreateTemplate') }}
           </el-button>
+          <el-button type="success" @click="openSendDialog">
+            <el-icon><Promotion /></el-icon>
+            {{ t('email.index.buttonSendEmail') }}
+          </el-button>
         </div>
 
         <el-table
@@ -57,8 +61,15 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column :label="t('email.index.colOperation')" width="200" fixed="right">
+          <el-table-column :label="t('email.index.colOperation')" width="260" fixed="right">
             <template #default="{ row }">
+              <el-button
+                v-permission="'email_template:read'"
+                size="small"
+                link
+                @click="handleViewTemplate(row)"
+                >{{ t('email.index.buttonView') }}</el-button
+              >
               <el-button
                 v-permission="'email_template:update'"
                 size="small"
@@ -274,6 +285,49 @@
         }}</el-button>
       </template>
     </el-dialog>
+    <!-- 发送邮件对话框 -->
+    <el-dialog
+      v-model="sendDialogVisible"
+      :title="t('email.index.titleSendEmail')"
+      width="600px"
+      :aria-label="t('email.index.ariaSendDialog')"
+    >
+      <el-form
+        ref="sendFormRef"
+        :model="sendForm"
+        :rules="sendRules"
+        label-width="80px"
+        :aria-label="t('email.index.ariaSendForm')"
+      >
+        <el-form-item :label="t('email.index.colRecipient')" prop="to">
+          <el-input
+            v-model="sendForm.to"
+            type="textarea"
+            :rows="2"
+            :placeholder="t('email.index.placeholderSendTo')"
+          />
+        </el-form-item>
+        <el-form-item :label="t('email.index.labelSubject')" prop="subject">
+          <el-input v-model="sendForm.subject" :placeholder="t('email.index.placeholderSubject')" />
+        </el-form-item>
+        <el-form-item :label="t('email.index.labelBody')">
+          <el-input
+            v-model="sendForm.html_content"
+            type="textarea"
+            :rows="10"
+            :placeholder="t('email.index.placeholderBody')"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="sendDialogVisible = false">{{
+          t('email.index.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="sendLoading" @click="handleSubmitEmail">{{
+          t('email.index.buttonConfirm')
+        }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -281,15 +335,18 @@
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, Promotion } from '@element-plus/icons-vue';
 import {
+  sendEmail,
   getEmailStatistics,
+  getEmailTemplateById,
   updateEmailTemplate,
   createEmailTemplate,
   deleteEmailTemplate,
   type EmailTemplate,
   type EmailLog,
   type EmailStatistics,
+  type SendEmailRequest,
 } from '@/api/email';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
@@ -384,10 +441,6 @@ const initPage = () => {
   loadTab(activeTab.value);
 };
 
-// 批次 280：组件 setup 阶段 useTableApi 已自动加载，但 email 页用 lazy-loader 按 tab 加载
-// 需要在首次进入 tab 时触发加载（lazy-loader 的 loadIfNot 会调用 fetchTemplates/fetchRecords）
-initPage();
-
 const fetchStatistics = async () => {
   try {
     const res = await getEmailStatistics();
@@ -398,6 +451,12 @@ const fetchStatistics = async () => {
     logger.error(t('email.index.messageFetchStatisticsFailed'), error);
   }
 };
+
+// 批次 280：组件 setup 阶段 useTableApi 已自动加载，但 email 页用 lazy-loader 按 tab 加载
+// 需要在首次进入 tab 时触发加载（lazy-loader 的 loadIfNot 会调用 fetchTemplates/fetchRecords）
+// TDZ 修复：initPage→loadTab 求值 tabLoaders 时引用 fetchStatistics，
+// 声明必须先于 initPage() 调用，否则生产构建抛 "Cannot access before initialization" 白屏
+initPage();
 
 const handleCreateTemplate = () => {
   isEditTemplate.value = false;
@@ -474,6 +533,65 @@ const handleResetRecordQuery = () => {
   recordStatus.value = '';
   recordDateRange.value = null;
   handleSearchRecords();
+};
+
+// ===== 发送邮件（sendEmail） =====
+const sendDialogVisible = ref(false);
+const sendLoading = ref(false);
+const sendFormRef = ref();
+const sendForm = reactive<SendEmailRequest>({
+  to: '',
+  subject: '',
+  html_content: '',
+});
+const sendRules = {
+  to: [{ required: true, message: t('email.index.ruleRecipientRequired'), trigger: 'blur' }],
+  subject: [{ required: true, message: t('email.index.ruleSubjectRequired'), trigger: 'blur' }],
+};
+
+const openSendDialog = () => {
+  sendForm.to = '';
+  sendForm.subject = '';
+  sendForm.html_content = '';
+  sendDialogVisible.value = true;
+};
+
+const handleSubmitEmail = async () => {
+  try {
+    await sendFormRef.value?.validate();
+    sendLoading.value = true;
+    await sendEmail(sendForm);
+    ElMessage.success(t('email.index.messageSendSuccess'));
+    sendDialogVisible.value = false;
+  } catch (error) {
+    if (error !== false) {
+      logger.error(t('email.index.messageSendFailed'), error);
+    }
+  } finally {
+    sendLoading.value = false;
+  }
+};
+
+// 查看模板详情（getEmailTemplateById：回源最新数据，避免使用行快照）
+const handleViewTemplate = async (row: EmailTemplate) => {
+  try {
+    const res = await getEmailTemplateById(row.id!);
+    const detail = res.data;
+    if (!detail) return;
+    ElMessageBox.alert(
+      [
+        `<p><strong>${t('email.index.colTemplateName')}:</strong> ${detail.name}</p>`,
+        `<p><strong>${t('email.index.colTemplateCode')}:</strong> ${detail.code}</p>`,
+        `<p><strong>${t('email.index.labelSubject')}:</strong> ${detail.subject_template}</p>`,
+        `<p><strong>${t('email.index.labelBody')}:</strong></p>`,
+        `<pre style="white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto;">${detail.body_template}</pre>`,
+      ].join(''),
+      t('email.index.titleViewTemplate'),
+      { dangerouslyUseHTMLString: true }
+    );
+  } catch (error) {
+    logger.error(t('email.index.messageFetchTemplateFailed'), error);
+  }
 };
 
 const getStatusType = (status: string) => {

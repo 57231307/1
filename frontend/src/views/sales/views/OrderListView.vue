@@ -36,6 +36,10 @@
       @approve="olvProc.handleApprove"
       @delivery="onDelivery"
       @cancel="olvProc.handleCancel"
+      @submit-order="olvProc.handleSubmitOrder"
+      @reject="olvProc.handleReject"
+      @delete-order="olvProc.handleDelete"
+      @detail="olvProc.handleDetail"
     />
 
     <!-- 拆分后的对话框子组件 -->

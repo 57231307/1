@@ -1,5 +1,10 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginAsRole, trackPageHealth, assertPageHealthy, getRoleCredential } from '../flow/helpers';
+import {
+  loginAsRole,
+  trackPageHealth,
+  assertPageHealthy,
+  getRoleCredential,
+} from '../flow/helpers';
 import { TRAVERSAL_MODULES } from './modules.config';
 import {
   ROUTE_PERMISSIONS,
@@ -40,15 +45,15 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
     const collector = trackPageHealth(page);
     await loginAsRole(page, role);
 
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 });
 
     // 读取侧边栏菜单项（路由 href 集合）
     const menuHrefs = await page.evaluate(() => {
       const links = Array.from(
-        document.querySelectorAll('.el-menu a[href], aside a[href], nav a[href]'),
+        document.querySelectorAll('.el-menu a[href], aside a[href], nav a[href]')
       );
-      return links.map((a) => (a as HTMLAnchorElement).getAttribute('href') ?? '');
-    }).catch((e) => { console.warn(`[44] 文本收集失败（返回空）: ${(e as Error).message}`); return [] as string[]; });
+      return links.map(a => (a as HTMLAnchorElement).getAttribute('href') ?? '');
+    });
 
     // 拉取角色权限做推导（从 storageState cookie 登录态调 API）
     const derived = await deriveFromMenu(menuHrefs);
@@ -61,26 +66,27 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
 
       if (expectedReachable) {
         // 应可达 → 访问 + 健康断言
-        await page.goto(mod.route).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-        await page.waitForLoadState('networkidle', { timeout: 10000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+        await page.goto(mod.route);
+        await page.waitForLoadState('networkidle', { timeout: 10000 });
 
-        let actual: 'reachable' | 'denied' | 'error' = 'reachable';
-        try {
-          await assertPageHealthy(page, collector, { allowConsoleWarn: true });
-        } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
-          actual = 'error';
-         }
+        let actual: 'reachable' | 'denied' = 'reachable';
+        await assertPageHealthy(page, collector, { allowConsoleWarn: true });
 
         const currentPath = page.url().replace(process.env.BASE_URL || 'http://localhost:3000', '');
         if (currentPath.includes('/login') || currentPath.includes('/403')) {
           actual = 'denied';
         }
 
-        entries.push({ route: mod.route, derived: 'reachable', actual, match: actual === 'reachable' });
+        entries.push({
+          route: mod.route,
+          derived: 'reachable',
+          actual,
+          match: actual === 'reachable',
+        });
       } else {
         // 应被拒 → 直接输 URL 应被拦截（403 页/跳转登录/菜单无此项）
-        await page.goto(mod.route).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-        await page.waitForLoadState('networkidle', { timeout: 10000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+        await page.goto(mod.route);
+        await page.waitForLoadState('networkidle', { timeout: 10000 });
 
         const currentPath = page.url().replace(process.env.BASE_URL || 'http://localhost:3000', '');
         const blocked =
@@ -88,7 +94,7 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
           currentPath.includes('/403') ||
           currentPath.includes('/404');
 
-        const menuHasIt = menuHrefs.some((h) => h.startsWith(mod.route));
+        const menuHasIt = menuHrefs.some(h => h.startsWith(mod.route));
         entries.push({
           route: mod.route,
           derived: 'denied',
@@ -99,7 +105,7 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
     }
 
     // 界面显示健康：未翻译 key / NaN / undefined 渲染抽样
-    const pageText = await page.evaluate(() => document.body.innerText).catch((e) => { console.warn(`[44] 页面文本读取失败: ${(e as Error).message}`); return ''; });
+    const pageText = await page.evaluate(() => document.body.innerText);
     const untranslatedKeys = pageText.match(/\b[a-z]+\.[a-z]+(\.[a-z]+)+\b/g) ?? [];
     const renderedNaN = /\bNaN\b|\bundefined\b/.test(pageText);
 
@@ -109,8 +115,8 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
       menuDiff: { unexpected: [], missing: [] },
       summary: {
         total: entries.length,
-        match: entries.filter((e) => e.match).length,
-        drift: entries.filter((e) => !e.match).length,
+        match: entries.filter(e => e.match).length,
+        drift: entries.filter(e => !e.match).length,
       },
     };
 
@@ -118,7 +124,11 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
     fs.mkdirSync('e2e/.auth/access-map', { recursive: true });
     fs.writeFileSync(
       `e2e/.auth/access-map/${role}.json`,
-      JSON.stringify({ ...accessMap, untranslatedKeys: untranslatedKeys.slice(0, 10), renderedNaN }, null, 2),
+      JSON.stringify(
+        { ...accessMap, untranslatedKeys: untranslatedKeys.slice(0, 10), renderedNaN },
+        null,
+        2
+      )
     );
 
     // 矩阵断言（双模）：
@@ -130,14 +140,19 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
     if (hasBaseline) {
       expect(
         accessMap.summary.drift,
-        `角色 ${role} 存在 ${accessMap.summary.drift} 项权限漂移: ${entries.filter((e) => !e.match).map((e) => `${e.route}(期望${e.derived}/实际${e.actual})`).join('; ')}`,
+        `角色 ${role} 存在 ${accessMap.summary.drift} 项权限漂移: ${entries
+          .filter(e => !e.match)
+          .map(e => `${e.route}(期望${e.derived}/实际${e.actual})`)
+          .join('; ')}`
       ).toBe(0);
     } else {
       test.info().annotations.push({
         type: 'baseline-missing',
         description: `角色 ${role} 首轮矩阵：${accessMap.summary.drift} 项漂移待人工审核后固化基线`,
       });
-      console.warn(`[role-matrix] 角色 ${role} 首轮：${accessMap.summary.drift} 项漂移（无基线，不 fail）`);
+      console.warn(
+        `[role-matrix] 角色 ${role} 首轮：${accessMap.summary.drift} 项漂移（无基线，不 fail）`
+      );
     }
 
     // 未翻译 key 与 NaN 渲染不阻塞但记录在报告中
@@ -152,9 +167,7 @@ async function deriveFromMenu(menuHrefs: string[]): Promise<Map<string, boolean>
   const result = new Map<string, boolean>();
   for (const mod of TRAVERSAL_MODULES) {
     // 菜单 href 精确或前缀匹配模块路由
-    const inMenu = menuHrefs.some(
-      (h) => h === mod.route || h.startsWith(`${mod.route}/`),
-    );
+    const inMenu = menuHrefs.some(h => h === mod.route || h.startsWith(`${mod.route}/`));
     result.set(mod.id, inMenu);
   }
   return result;

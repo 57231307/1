@@ -12,6 +12,9 @@ import {
   getCurrentVersion,
   checkForUpdates,
   createSystemBackup,
+  getSystemBackup,
+  getSystemVersion,
+  getUpdateTask,
   type SystemVersion,
   type UpdateTask,
   type SystemBackup,
@@ -86,6 +89,8 @@ export function useSysUpd() {
 
   // 版本详情
   const currentVersionDetail = ref<SystemVersion | null>(null);
+  const currentBackupDetail = ref<SystemBackup | null>(null);
+  const currentTaskDetail = ref<UpdateTask | null>(null);
 
   /** 加载当前版本 */
   const fetchCurrentVersion = async () => {
@@ -143,6 +148,38 @@ export function useSysUpd() {
   /** 打开版本详情（父组件需自行打开对话框） */
   const viewVersionDetail = (row: SystemVersion) => {
     currentVersionDetail.value = row;
+    // 详情回源：按 ID 拉取最新版本信息，失败保留行数据
+    void getSystemVersion(row.id)
+      .then(res => {
+        if (res.data) currentVersionDetail.value = res.data;
+      })
+      .catch(() => {
+        /* 回源失败保留行数据 */
+      });
+  };
+
+  // 备份详情回源
+  const viewBackupDetail = (row: SystemBackup) => {
+    currentBackupDetail.value = row;
+    void getSystemBackup(row.id)
+      .then(res => {
+        if (res.data) currentBackupDetail.value = res.data;
+      })
+      .catch(() => {
+        /* 回源失败保留行数据 */
+      });
+  };
+
+  // 任务详情回源
+  const viewTaskDetail = (row: UpdateTask) => {
+    currentTaskDetail.value = row;
+    void getUpdateTask(row.id)
+      .then(res => {
+        if (res.data) currentTaskDetail.value = res.data;
+      })
+      .catch(() => {
+        /* 回源失败保留行数据 */
+      });
   };
 
   // 批次 283：返回 reactive 包装（父组件通过 upd.xxx 访问）
@@ -182,5 +219,10 @@ export function useSysUpd() {
     // 版本详情
     currentVersionDetail,
     viewVersionDetail,
+    // 备份/任务详情
+    currentBackupDetail,
+    viewBackupDetail,
+    currentTaskDetail,
+    viewTaskDetail,
   });
 }

@@ -11,6 +11,10 @@
         <el-button type="primary" @click="openInvoiceDialog()">
           <el-icon><Plus /></el-icon> {{ $t('apModule.invoice.create') }}
         </el-button>
+        <el-button :loading="autoGenerating" @click="handleAutoGenerate">
+          {{ $t('apModule.invoice.autoGenerate') }}
+        </el-button>
+        <el-button @click="showAgingAnalysis">{{ $t('apModule.invoice.agingAnalysis') }}</el-button>
         <el-button v-permission="'ap.invoice.print'" @click="handlePrintInvoices">
           <el-icon><Printer /></el-icon> {{ $t('common.print') }}
         </el-button>
@@ -225,6 +229,19 @@
         }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 账龄分析弹窗 -->
+    <el-dialog v-model="agingVisible" :title="$t('apModule.invoice.agingAnalysis')" width="520px">
+      <el-table :data="agingRows" border size="small">
+        <el-table-column prop="bucket" label="账龄区间" min-width="140" />
+        <el-table-column prop="count" label="发票数" width="100" align="right" />
+        <el-table-column prop="amount" label="金额" width="140" align="right">
+          <template #default="{ row }">{{
+            Number(row.amount ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })
+          }}</template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -246,9 +263,57 @@ import {
 } from '@/api/ap-invoice';
 import { exportFromBackend } from '@/utils/export';
 import { logger } from '@/utils/logger';
+import { autoGenerateAPInvoices, getAPAgingAnalysis } from '@/api/ap';
 import type { Supplier } from '@/api/supplier';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 应付发票自动生成（按到期的采购收货单批量开票）
+const autoGenerating = ref(false);
+const handleAutoGenerate = async () => {
+  try {
+    // 后端契约：按入库单 ID 生成应付单，需用户输入入库单 ID
+    const { value } = await ElMessageBox.prompt(
+      t('apModule.invoice.autoGenerateConfirm'),
+      t('apModule.invoice.autoGenerate'),
+      {
+        type: 'info',
+        inputValidator: v => {
+          const n = Number(v);
+          return Number.isInteger(n) && n > 0 ? true : '请输入有效的入库单 ID';
+        },
+      }
+    );
+    autoGenerating.value = true;
+    await autoGenerateAPInvoices({ receipt_id: Number(value) });
+    ElMessage.success(t('apModule.invoice.autoGenerateSuccess'));
+    fetchInvoices();
+  } catch (e) {
+    if (e === 'cancel') return;
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    autoGenerating.value = false;
+  }
+};
+
+// 账龄分析：调后端账龄接口，弹窗展示汇总
+const agingVisible = ref(false);
+const agingRows = ref<Array<{ bucket: string; amount: number; count: number }>>([]);
+const showAgingAnalysis = async () => {
+  try {
+    const res = await getAPAgingAnalysis();
+    const d = res.data as unknown as
+      | { buckets?: Array<{ bucket: string; amount: number; count: number }> }
+      | Array<{ bucket: string; amount: number; count: number }>
+      | undefined;
+    agingRows.value = Array.isArray(d) ? d : d?.buckets || [];
+    agingVisible.value = true;
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+};
 
 const invoices = ref<APInvoice[]>([]);
 const invoiceLoading = ref(false);

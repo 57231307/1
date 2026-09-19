@@ -8,7 +8,13 @@
 import { ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
-import { approveSalesReturn, type SalesReturn } from '@/api/sales-return';
+import {
+  approveSalesReturn,
+  submitSalesReturn,
+  rejectSalesReturn,
+  executeSalesReturn,
+  type SalesReturn,
+} from '@/api/sales-return';
 
 /**
  * 销售退货业务流程 composable
@@ -68,6 +74,68 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
     }
   };
 
+  /**
+   * 提交退货单进入审批（DRAFT → SUBMITTED）
+   */
+  const handleSubmitForApproval = async (row: SalesReturn) => {
+    if (!row.id) return;
+    try {
+      await ElMessageBox.confirm(`确定提交退货单 ${row.returnNo} 吗？`, '提交确认', {
+        type: 'warning',
+      });
+      await submitSalesReturn(row.id);
+      msg.success('auditSuccess');
+      await sr.loadReturns();
+    } catch (error: unknown) {
+      if (error !== 'cancel') {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        ElMessage.error(errMsg || msg.translate('auditFailed'));
+      }
+    }
+  };
+
+  /**
+   * 驳回退货单（SUBMITTED → DRAFT）
+   */
+  const handleReject = async (row: SalesReturn) => {
+    if (!row.id) return;
+    try {
+      const { value } = await ElMessageBox.prompt('请输入驳回原因', `驳回 ${row.returnNo}`, {
+        type: 'warning',
+        inputPattern: /\S+/,
+        inputErrorMessage: '驳回原因不能为空',
+      });
+      await rejectSalesReturn(row.id, value);
+      msg.success('auditSuccess');
+      await sr.loadReturns();
+    } catch (error: unknown) {
+      if (error !== 'cancel') {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        ElMessage.error(errMsg || msg.translate('auditFailed'));
+      }
+    }
+  };
+
+  /**
+   * 执行退货（APPROVED → COMPLETED，真实扣减销售订单库存/生成入库）
+   */
+  const handleExecute = async (row: SalesReturn) => {
+    if (!row.id) return;
+    try {
+      await ElMessageBox.confirm(`确定执行退货单 ${row.returnNo} 吗？`, '执行确认', {
+        type: 'warning',
+      });
+      await executeSalesReturn(row.id);
+      msg.success('auditSuccess');
+      await sr.loadReturns();
+    } catch (error: unknown) {
+      if (error !== 'cancel') {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        ElMessage.error(errMsg || msg.translate('auditFailed'));
+      }
+    }
+  };
+
   return {
     viewDialogVisible,
     handleView,
@@ -75,5 +143,8 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
     handleEdit,
     handleSubmit,
     handleApprove,
+    handleSubmitForApproval,
+    handleReject,
+    handleExecute,
   };
 }

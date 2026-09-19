@@ -136,7 +136,7 @@ const notifSaving = ref(false);
 
 const fetchNotificationSetting = async () => {
   try {
-    const res = await request.get<Partial<NotificationForm>>('/user/notification-setting');
+    const res = await request.get<Partial<NotificationForm>>('/user-notification-settings');
     if (res) {
       Object.assign(notificationForm, res);
     }
@@ -148,7 +148,7 @@ const fetchNotificationSetting = async () => {
 const saveNotificationSetting = async () => {
   notifSaving.value = true;
   try {
-    await request.put('/user/notification-setting', notificationForm);
+    await request.put('/user-notification-settings', notificationForm);
     ElMessage.success(t('system.notification.message.saveSuccess'));
   } catch (e) {
     const err = e as { message?: string };

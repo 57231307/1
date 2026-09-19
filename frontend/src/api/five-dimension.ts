@@ -92,10 +92,11 @@ export interface SearchQueryParams {
 
 export const getFiveDimensionStatsList = (params?: StatsQueryParams) =>
   request.get('/crm/five-dimension/stats', { params });
-export const getStatsByFiveDimensionId = (id: number) =>
-  request.get(`/crm/five-dimension/stats/${id}`);
+// 后端真实路由：GET /five-dimension/{five_dimension_id}（crm.rs five_dimension()）
+export const getStatsByFiveDimensionId = (id: number) => request.get(`/crm/five-dimension/${id}`);
+// 后端真实路由：POST /five-dimension/parse，body { five_dimension_id }（crm.rs five_dimension()）
 export const parseFiveDimensionId = (id: number | string) =>
-  request.get(`/crm/five-dimension/parse/${id}`);
+  request.post('/crm/five-dimension/parse', { five_dimension_id: id });
 export const searchFiveDimension = (params?: SearchQueryParams) =>
   request.get('/crm/five-dimension/search', { params });
 

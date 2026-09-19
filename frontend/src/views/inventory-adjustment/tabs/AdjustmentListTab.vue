@@ -189,6 +189,14 @@
               @click="emit('openApprove', row)"
               >{{ t('inventoryAdjustment.listTab.buttonApprove') }}</el-button
             >
+            <el-button
+              v-if="row.status === 'pending'"
+              type="danger"
+              link
+              size="small"
+              @click="emit('delete', row)"
+              >{{ t('inventoryAdjustment.listTab.buttonDelete') }}</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -222,6 +230,7 @@ const { t } = useI18n({ useScope: 'global' });
 const emit = defineEmits<{
   openForm: [mode: 'create' | 'edit' | 'view', row: InventoryAdjustmentEntity | null];
   openApprove: [row: InventoryAdjustmentEntity];
+  delete: [row: InventoryAdjustmentEntity];
 }>();
 
 const {

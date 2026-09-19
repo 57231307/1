@@ -67,9 +67,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { PRODUCTION_ORDER_STATUS, type ProductionOrder } from '@/api/production';
+import { ElMessage } from 'element-plus';
+import {
+  getProductionOrder,
+  PRODUCTION_ORDER_STATUS,
+  type ProductionOrder,
+} from '@/api/production';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -81,6 +86,28 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:visible': [v: boolean];
 }>();
+
+// 详情回源：打开时按 ID 拉取最新订单，失败保留行数据
+const freshOrder = ref<ProductionOrder | null>(null);
+
+watch(
+  () => props.visible,
+  async val => {
+    if (val && props.order?.id) {
+      try {
+        const res = await getProductionOrder(props.order.id);
+        if (res.data) freshOrder.value = res.data;
+      } catch (e) {
+        ElMessage.error((e as Error).message || '获取生产订单详情失败');
+      }
+    } else if (!val) {
+      freshOrder.value = null;
+    }
+  }
+);
+
+// 模板优先展示回源后的最新数据，回源失败回退行数据
+const order = computed(() => freshOrder.value ?? props.order);
 
 /** 状态标签：优先 i18n，回退到 PRODUCTION_ORDER_STATUS 字典 */
 const statusLabel = (status: string): string => {

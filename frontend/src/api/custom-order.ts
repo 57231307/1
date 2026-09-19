@@ -269,6 +269,8 @@ export interface CustomOrderDetail extends CustomOrderListItem {
   yarn_spec?: string;
   dye_method?: string;
   finishing_method?: string;
+  /** 定制要求（JSONB，含 note 等自由键） */
+  custom_requirements?: unknown;
   updated_at: string;
   process_nodes: CustomOrderProcessNode[];
   // v11 批次 181 P2-1 修复：详情接口返回的关联字段，之前未声明导致前端用 unknown[] 绕过

@@ -67,8 +67,8 @@ pub async fn refresh_token(
         jar,
         Json(ApiResponse::success(RefreshTokenResponse {
             csrf_token: csrf_token.clone(),
-            // 与 access_token Cookie max_age(minutes(30)) = 1800 秒对齐
-            expires_in: 1800,
+        // 与 access_token Cookie max_age(hours(8)) = 28800 秒对齐
+        expires_in: 28800,
         })),
     )
         .into_response();
@@ -76,7 +76,7 @@ pub async fn refresh_token(
     // 旧 token 已被强制轮换清除，若此处不下发，前端刷新一次后所有写请求都会 403。
     // 同样不可写 "HttpOnly=false"——RFC 6265 §5.2 只认属性名并忽略值。
     let csrf_cookie_header = format!(
-        "csrf_token={}; Path=/; SameSite=Strict; Max-Age=1800",
+        "csrf_token={}; Path=/; SameSite=Strict; Max-Age=28800",
         csrf_token
     );
     resp.headers_mut().append(
@@ -256,7 +256,7 @@ fn build_refresh_cookies(
             .http_only(true)
             .secure(is_secure)
             .same_site(SameSite::Strict)
-            .max_age(CookieDuration::minutes(30))
+            .max_age(CookieDuration::hours(8))
             .build();
     let new_refresh = axum_extra::extract::cookie::Cookie::build((
         "refresh_token",

@@ -9,6 +9,9 @@ import {
   createQualityPrediction,
   acknowledgeQualityPrediction,
   deleteQualityPrediction,
+  getQualityPrediction,
+  getQualityPredictionListByProduct,
+  batchCreateQualityPredictions,
   RISK_LEVEL_LABELS,
   RISK_LEVEL_COLORS,
   TREND_LABELS,
@@ -143,6 +146,74 @@ async function handleDelete(row: AiQualityPrediction) {
 function showDetail(row: AiQualityPrediction) {
   detailModel.value = row;
   detailVisible.value = true;
+  void refreshDetail(row.id);
+}
+
+// 详情回源（getQualityPrediction）
+async function refreshDetail(id: number) {
+  try {
+    const res = await getQualityPrediction(id);
+    if (res) detailModel.value = res;
+  } catch {
+    /* 回源失败保留行数据 */
+  }
+}
+
+// ===== 批量预测 =====
+const batchCreateVisible = ref(false);
+const batchSaving = ref(false);
+const batchText = ref('');
+
+async function handleBatchCreate() {
+  let requests: unknown;
+  try {
+    requests = JSON.parse(batchText.value || '[]');
+  } catch {
+    ElMessage.warning('JSON 格式有误');
+    return;
+  }
+  if (!Array.isArray(requests) || requests.length === 0 || requests.length > 20) {
+    ElMessage.warning('请填写 1-20 条请求');
+    return;
+  }
+  batchSaving.value = true;
+  try {
+    const res = await batchCreateQualityPredictions(requests as never[]);
+    ElMessage.success(`批量完成：成功 ${res.succeeded} / 失败 ${res.failed} / 共 ${res.total}`);
+    batchCreateVisible.value = false;
+    batchText.value = '';
+    await load();
+  } catch (e) {
+    ElMessage.error((e as Error).message || '批量预测失败');
+  } finally {
+    batchSaving.value = false;
+  }
+}
+
+// ===== 按产品查询 =====
+const byProductVisible = ref(false);
+const byProductLoading = ref(false);
+const byProductId = ref(1);
+const byProductItems = ref<AiQualityPrediction[]>([]);
+
+function openByProduct() {
+  byProductVisible.value = true;
+  if (byProductItems.value.length === 0) void loadByProduct();
+}
+
+async function loadByProduct() {
+  byProductLoading.value = true;
+  try {
+    const res = await getQualityPredictionListByProduct({
+      product_id: byProductId.value,
+      limit: 20,
+    });
+    byProductItems.value = res.items ?? [];
+  } catch (e) {
+    ElMessage.error((e as Error).message || '查询失败');
+  } finally {
+    byProductLoading.value = false;
+  }
 }
 
 function resetFilter() {
@@ -193,6 +264,8 @@ const detailRecommendations = computed(() => {
         <el-button type="primary" @click="openCreate">{{
           $t('aiExtend.qualityPrediction.newPredict')
         }}</el-button>
+        <el-button plain @click="batchCreateVisible = true">批量预测</el-button>
+        <el-button plain @click="openByProduct">按产品查询</el-button>
       </div>
     </div>
 
@@ -543,6 +616,52 @@ const detailRecommendations = computed(() => {
         </div>
       </template>
     </el-drawer>
+
+    <!-- 批量预测（batchCreateQualityPredictions，最多 20 条） -->
+    <el-dialog
+      v-model="batchCreateVisible"
+      title="批量质量预测（JSON 数组，最多 20 条）"
+      width="560"
+    >
+      <el-input
+        v-model="batchText"
+        type="textarea"
+        :rows="7"
+        placeholder='[{"product_id":1,"inspection_type":"final","window_days":90},...]'
+      />
+      <template #footer>
+        <el-button @click="batchCreateVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchSaving" @click="handleBatchCreate">提交</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 按产品查询（getQualityPredictionListByProduct） -->
+    <el-dialog v-model="byProductVisible" title="按产品查询预测历史" width="680">
+      <div class="toolbar" style="margin-bottom: 8px">
+        <el-input-number v-model="byProductId" :min="1" placeholder="产品 ID" />
+        <el-button type="primary" plain :loading="byProductLoading" @click="loadByProduct">
+          查询
+        </el-button>
+      </div>
+      <el-table
+        v-if="byProductItems.length"
+        :data="byProductItems"
+        border
+        size="small"
+        max-height="320"
+      >
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column prop="product_id" label="产品 ID" width="90" />
+        <el-table-column prop="inspection_type" label="检验类型" width="110" />
+        <el-table-column prop="risk_level" label="风险等级" width="100" />
+        <el-table-column prop="created_at" label="创建时间" min-width="150">
+          <template #default="{ row }">{{ row.created_at || '-' }}</template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="byProductVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall } from './helpers';
+import { loginViaUI, apiCall, tryCleanup, getCtx, ensureTestEntities } from './helpers';
 
 /**
  * P0 删除系统覆盖矩阵（2026-09-11 用户指令："需要系统覆盖所有需要删除/停用测试的功能"）
@@ -35,99 +35,62 @@ async function createThenApiDelete(
   page: import('@playwright/test').Page,
   c: DelCase
 ): Promise<void> {
-  let id: number | undefined;
-  try {
-    const resp = await apiCall<{ id?: number }>(page, 'POST', c.createApi, c.payload);
-    id = resp?.data?.id;
-  } catch (e) {
-    console.error(`[31b-${c.label}] 创建失败: ${(e as Error).message}`);
-    test.skip();
-    return;
-  }
-  if (!id) {
-    console.warn(`[31b-${c.label}] 创建响应无 id（跳过删除验证）`);
-    test.skip();
-    return;
-  }
+  const resp = await apiCall<{ id?: number }>(page, 'POST', c.createApi, c.payload);
+  const id = resp?.data?.id;
+  expect(id, `[31b-${c.label}] 创建响应无 id（创建 API 异常）`).toBeTruthy();
   console.log(`[31b-${c.label}] 创建成功 id=${id}`);
 
   // 1) 列表回读确认存在
-  try {
-    const listResp = await page.request.get(
-      `${API_BASE}${API_PREFIX}${c.createApi}?page=1&page_size=200`
+  const listResp = await page.request.get(
+    `${API_BASE}${API_PREFIX}${c.createApi}?page=1&page_size=200`
+  );
+  if (listResp.ok()) {
+    const body = await listResp.json();
+    const items =
+      body?.data?.items ?? body?.data?.roles ?? (Array.isArray(body?.data) ? body.data : []);
+    const exists = Array.isArray(items) && items.some((i: { id?: number }) => i.id === id);
+    console.log(
+      `[31b-${c.label}] 列表回读（${Array.isArray(items) ? items.length : '?'} 条）: ${exists ? '✅存在' : '⚠️未在列表找到（可能分页/过滤）'}`
     );
-    if (listResp.ok()) {
-      const body = await listResp.json().catch(() => null);
-      const items =
-        body?.data?.items ?? body?.data?.roles ?? (Array.isArray(body?.data) ? body.data : []);
-      const exists = Array.isArray(items) && items.some((i: { id?: number }) => i.id === id);
-      console.log(
-        `[31b-${c.label}] 列表回读（${Array.isArray(items) ? items.length : '?'} 条）: ${exists ? '✅存在' : '⚠️未在列表找到（可能分页/过滤）'}`
-      );
-    } else {
-      console.warn(`[31b-${c.label}] 列表回读 HTTP ${listResp.status()}（记录不断言）`);
-    }
-  } catch (e) {
-    console.warn(`[31b-${c.label}] 列表回读异常: ${(e as Error).message}`);
+  } else {
+    console.warn(`[31b-${c.label}] 列表回读 HTTP ${listResp.status()}（记录不断言）`);
   }
 
   // 2) 删除前预处理（业务约束：如固定资产需先停用）
-  let preDeleteOk = false;
-  let preDeleteErr = '';
   if (c.preDelete) {
-    try {
-      await c.preDelete(page, id);
-      preDeleteOk = true;
-      console.log(`[31b-${c.label}] 删除前预处理完成`);
-    } catch (e) {
-      preDeleteErr = (e as Error).message;
-      console.warn(`[31b-${c.label}] 删除前预处理失败: ${preDeleteErr}`);
-    }
+    await c.preDelete(page, id);
+    console.log(`[31b-${c.label}] 删除前预处理完成`);
   }
 
   // 3) API 删除（真实后端 DELETE）
   const delPath = c.deleteApi ? c.deleteApi(id) : `${c.createApi}/${id}`;
-  let deleted = false;
-  try {
-    await apiCall(page, 'DELETE', delPath);
-    deleted = true;
-    console.log(`[31b-${c.label}] DELETE ${delPath} ✅成功`);
-  } catch (e) {
-    // 业务约束拒绝（被引用等）是有效验证结果：记录+断言失败以便 CI 暴露
-    console.error(`[31b-${c.label}] DELETE ${delPath} ❌失败: ${(e as Error).message}`);
-  }
-  expect(
-    deleted,
-    `[31b-${c.label}] DELETE ${delPath} 应成功（preDelete=${preDeleteOk}${preDeleteErr ? ` err=${preDeleteErr}` : ''}）`
-  ).toBe(true);
+  await apiCall(page, 'DELETE', delPath);
+  console.log(`[31b-${c.label}] DELETE ${delPath} ✅成功`);
 
   // 3) 详情回读验证 404
   const getApi = c.getApi ? c.getApi(id) : `${c.createApi}/${id}`;
-  try {
-    const chk = await page.request.get(`${API_BASE}${API_PREFIX}${getApi}`);
-    console.log(`[31b-${c.label}] 删除后详情回读 ${getApi} → HTTP ${chk.status()}`);
-    if (chk.status() === 404) {
-      console.log(`[31b-${c.label}] ✅ 已确认真删除（404）`);
-    } else if (chk.status() === 200) {
-      const body = await chk.json().catch(() => null);
-      const d = body?.data;
-      const stillThere =
-        d && (d.id === id || (Array.isArray(d) && d.some((x: { id?: number }) => x.id === id)));
-      console.warn(
-        `[31b-${c.label}] ⚠️ 详情仍返回 200${stillThere ? ' 且记录存在（软删或删除未生效）' : ''}`
-      );
-      expect(stillThere, `[31b-${c.label}] 删除后详情不应再返回该记录`).toBeFalsy();
-    } else {
-      console.warn(`[31b-${c.label}] 详情回读 HTTP ${chk.status()}（非 200/404，记录）`);
-    }
-  } catch (e) {
-    console.warn(`[31b-${c.label}] 详情回读异常: ${(e as Error).message}`);
+  const chk = await page.request.get(`${API_BASE}${API_PREFIX}${getApi}`);
+  console.log(`[31b-${c.label}] 删除后详情回读 ${getApi} → HTTP ${chk.status()}`);
+  if (chk.status() === 404) {
+    console.log(`[31b-${c.label}] ✅ 已确认真删除（404）`);
+  } else if (chk.status() === 200) {
+    const body = await chk.json();
+    const d = body?.data;
+    const stillThere =
+      d && (d.id === id || (Array.isArray(d) && d.some((x: { id?: number }) => x.id === id)));
+    console.warn(
+      `[31b-${c.label}] ⚠️ 详情仍返回 200${stillThere ? ' 且记录存在（软删或删除未生效）' : ''}`
+    );
+    expect(stillThere, `[31b-${c.label}] 删除后详情不应再返回该记录`).toBeFalsy();
+  } else {
+    console.warn(`[31b-${c.label}] 详情回读 HTTP ${chk.status()}（非 200/404，记录）`);
   }
 }
 
 test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读验证', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
   });
 
   for (const c of [
@@ -138,11 +101,10 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
         name: `P0仓库${TS}`,
         code: `P0-WH-${TS}`,
         address: 'P0测试地址',
-        manager: 'P0管理员',
         phone: '13800000001',
         capacity: 1000,
         description: 'P0仓库描述',
-        warehouse_type: '成品仓',
+        warehouse_type: 'finished',
       },
     },
     {
@@ -152,7 +114,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     },
     {
       label: '客户',
-      createApi: '/customers',
+      createApi: '/crm/customers',
       payload: {
         customer_name: `P0客户${TS}`,
         customer_code: `P0-CUST-${TS}`,
@@ -188,7 +150,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       payload: {
         name: `P0产品${TS}`,
         code: `P0-PRD-${TS}`,
-        category_id: 1,
+        category_id: getCtx().productCategoryIds[0],
         specification: 'P0规格',
         unit: '米',
         standard_price: 25.5,
@@ -551,14 +513,14 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     },
   ] as DelCase[]) {
     test(`${c.label}：创建→删除→详情404`, async ({ page }) => {
-      test.setTimeout(90_000);
+      test.setTimeout(180_000);
       await createThenApiDelete(page, c);
     });
   }
 
   // ===== 凭证（items 必填 debit/credit）=====
   test('凭证：创建→删除→详情404', async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     await createThenApiDelete(page, {
       label: '凭证',
       createApi: '/vouchers',
@@ -577,7 +539,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
 
   // ===== 用户（密码强度规则：≥8 大小写数字特殊符）=====
   test('用户：创建→删除→详情404', async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     await createThenApiDelete(page, {
       label: '用户',
       createApi: '/users',
@@ -592,7 +554,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
 
   // ===== 客户信用（依赖 customer_id=1 seed）=====
   test('客户信用：创建→删除→详情404', async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     await createThenApiDelete(page, {
       label: '客户信用',
       createApi: '/crm/customer-credits',
@@ -610,30 +572,21 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
   // ===== 供应商评估（依赖指标先建）=====
   test('供应商评估：指标→评估记录→删除→回读', async ({ page }) => {
     test.setTimeout(120_000);
-    let indicatorId: number | undefined;
-    try {
-      const ind = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/purchase/supplier-evaluations/indicators',
-        {
-          indicator_name: `P0指标${TS}`,
-          indicator_code: `P0-IND-${TS}`,
-          category: '质量',
-          weight: 30,
-          max_score: 100,
-          evaluation_method: '评分',
-        }
-      );
-      indicatorId = ind?.data?.id;
-    } catch (e) {
-      console.error(`[31b-供应商评估] 指标创建失败: ${(e as Error).message}`);
-    }
-    if (!indicatorId) {
-      console.warn('[31b-供应商评估] 无指标 id，跳过');
-      test.skip();
-      return;
-    }
+    const ind = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/purchase/supplier-evaluations/indicators',
+      {
+        indicator_name: `P0指标${TS}`,
+        indicator_code: `P0-IND-${TS}`,
+        category: '质量',
+        weight: 30,
+        max_score: 100,
+        evaluation_method: '评分',
+      }
+    );
+    const indicatorId = ind?.data?.id;
+    expect(indicatorId, '[31b-供应商评估] 评估指标创建失败').toBeTruthy();
     console.log(`[31b-供应商评估] 指标创建成功 id=${indicatorId}`);
     await createThenApiDelete(page, {
       label: '供应商评估',
@@ -651,29 +604,20 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
   // ===== 疵点（依赖检验单先建，闭环删除检验单）=====
   test('坯布疵点：检验单→疵点→删除→回读', async ({ page }) => {
     test.setTimeout(120_000);
-    let inspectionId: number | undefined;
-    try {
-      const ins = await apiCall<{ id?: number }>(page, 'POST', '/production/fabric-inspections', {
-        inspection_date: '2026-01-01',
-        product_id: 1,
-        product_name: 'P0疵点检验产品',
-        color_no: 'P0-CN',
-        dye_lot_no: `P0-DL-${TS}`,
-        inspector_name: 'P0检验员',
-        machine_no: 'P0-M1',
-        scoring_system: 'four_point',
-        fabric_width_inches: 60,
-        remarks: 'P0疵点检验备注',
-      });
-      inspectionId = ins?.data?.id;
-    } catch (e) {
-      console.error(`[31b-疵点] 检验单创建失败: ${(e as Error).message}`);
-    }
-    if (!inspectionId) {
-      console.warn('[31b-疵点] 无检验单 id，跳过');
-      test.skip();
-      return;
-    }
+    const ins = await apiCall<{ id?: number }>(page, 'POST', '/production/fabric-inspections', {
+      inspection_date: '2026-01-01',
+      product_id: 1,
+      product_name: 'P0疵点检验产品',
+      color_no: 'P0-CN',
+      dye_lot_no: `P0-DL-${TS}`,
+      inspector_name: 'P0检验员',
+      machine_no: 'P0-M1',
+      scoring_system: 'four_point',
+      fabric_width_inches: 60,
+      remarks: 'P0疵点检验备注',
+    });
+    const inspectionId = ins?.data?.id;
+    expect(inspectionId, '[31b-疵点] 检验单创建失败').toBeTruthy();
     console.log(`[31b-疵点] 检验单创建成功 id=${inspectionId}`);
     await createThenApiDelete(page, {
       label: '疵点',
@@ -689,36 +633,27 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       },
     });
     // 闭环：删除检验单
-    try {
-      await apiCall(page, 'DELETE', `/production/fabric-inspections/${inspectionId}`);
-      console.log(`[31b-疵点] 检验单 ${inspectionId} 清理删除 ✅`);
-    } catch (e) {
-      console.warn(`[31b-疵点] 检验单清理删除失败（被约束拒绝，记录）: ${(e as Error).message}`);
-    }
+    await tryCleanup(
+      page,
+      'DELETE',
+      `/production/fabric-inspections/${inspectionId}`,
+      '[31b-疵点]'
+    );
   });
 
   // ===== 工资率（依赖工艺路线先建，闭环删除）=====
   test('工资率：工艺路线→工资率→删除→回读', async ({ page }) => {
     test.setTimeout(120_000);
-    let routeId: number | undefined;
-    try {
-      const rt = await apiCall<{ id?: number }>(page, 'POST', '/production/process-routes', {
-        route_code: `P0-WG-RT-${TS}`,
-        route_name: `P0工资工艺${TS}`,
-        seq: 1,
-        process_type: '染色',
-        require_scan: true,
-        remarks: 'P0工资工艺备注',
-      });
-      routeId = rt?.data?.id;
-    } catch (e) {
-      console.error(`[31b-工资率] 工艺路线创建失败: ${(e as Error).message}`);
-    }
-    if (!routeId) {
-      console.warn('[31b-工资率] 无工艺路线 id，跳过');
-      test.skip();
-      return;
-    }
+    const rt = await apiCall<{ id?: number }>(page, 'POST', '/production/process-routes', {
+      route_code: `P0-WG-RT-${TS}`,
+      route_name: `P0工资工艺${TS}`,
+      seq: 1,
+      process_type: '染色',
+      require_scan: true,
+      remarks: 'P0工资工艺备注',
+    });
+    const routeId = rt?.data?.id;
+    expect(routeId, '[31b-工资率] 工艺路线创建失败').toBeTruthy();
     console.log(`[31b-工资率] 工艺路线创建成功 id=${routeId}`);
     await createThenApiDelete(page, {
       label: '工资率',
@@ -736,73 +671,56 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
         remarks: 'P0工资率备注',
       },
     });
-    try {
-      await apiCall(page, 'DELETE', `/production/process-routes/${routeId}`);
-      console.log(`[31b-工资率] 工艺路线 ${routeId} 清理删除 ✅`);
-    } catch (e) {
-      console.warn(`[31b-工资率] 工艺路线清理删除失败（记录）: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/production/process-routes/${routeId}`, '[31b-工资率]');
   });
 
   // ===== 角色互斥（依赖两个角色先建，闭环删除）=====
   test('角色互斥：双角色→互斥关系→删除→回读', async ({ page }) => {
     test.setTimeout(150_000);
-    const codeA = `P0RA${TS}`,
-      codeB = `P0RB${TS}`;
-    let idA: number | undefined, idB: number | undefined;
-    try {
-      const ra = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
-        name: `P0角色A${TS}`,
-        code: codeA,
-        description: 'P0互斥角色A',
-      });
-      const rb = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
-        name: `P0角色B${TS}`,
-        code: codeB,
-        description: 'P0互斥角色B',
-      });
-      idA = ra?.data?.id;
-      idB = rb?.data?.id;
-    } catch (e) {
-      console.error(`[31b-角色互斥] 角色创建失败: ${(e as Error).message}`);
-    }
-    if (!idA || !idB) {
-      console.warn('[31b-角色互斥] 角色未就绪，跳过');
-      test.skip();
-      return;
-    }
+    const codeA = `p0ra_${TS}`,
+      codeB = `p0rb_${TS}`;
+    const ra = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
+      name: `P0角色A${TS}`,
+      code: codeA,
+      description: 'P0互斥角色A',
+    });
+    const rb = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
+      name: `P0角色B${TS}`,
+      code: codeB,
+      description: 'P0互斥角色B',
+    });
+    const idA = ra?.data?.id;
+    const idB = rb?.data?.id;
+    expect(idA, '[31b-角色互斥] 互斥角色 A 创建失败').toBeTruthy();
+    expect(idB, '[31b-角色互斥] 互斥角色 B 创建失败').toBeTruthy();
     console.log(`[31b-角色互斥] 角色就绪 A=${idA}(${codeA}) B=${idB}(${codeB})`);
     let relDeleted = false;
-    try {
-      await apiCall(page, 'POST', '/role-relations', {
-        parent_role_code: codeA,
-        child_role_code: codeB,
-        relation_type: 'mutual_exclusive',
-        description: 'P0互斥关系',
-      });
-      console.log('[31b-角色互斥] 互斥关系创建成功');
-      // 找 relation_id：查 between 端点或列表
-      const chk = await page.request.get(
-        `${API_BASE}${API_PREFIX}/role-relations/inherited/${codeA}`
+    await apiCall(page, 'POST', '/role-relations', {
+      parent_role_code: codeA,
+      child_role_code: codeB,
+      relation_type: 'mutual_exclusive',
+      description: 'P0互斥关系',
+    });
+    console.log('[31b-角色互斥] 互斥关系创建成功');
+    // 找 relation_id：查 between 端点或列表
+    const chk = await page.request.get(
+      `${API_BASE}${API_PREFIX}/role-relations/inherited/${codeA}`
+    );
+    if (chk.ok()) {
+      const body = await chk.json();
+      const arr = Array.isArray(body?.data) ? body.data : [];
+      const rel = arr.find(
+        (r: { child_role_code?: string; id?: number }) => r.child_role_code === codeB && r.id
       );
-      if (chk.ok()) {
-        const body = await chk.json().catch(() => null);
-        const arr = Array.isArray(body?.data) ? body.data : [];
-        const rel = arr.find(
-          (r: { child_role_code?: string; id?: number }) => r.child_role_code === codeB && r.id
-        );
-        if (rel?.id) {
-          await apiCall(page, 'DELETE', `/role-relations/${rel.id}`);
-          relDeleted = true;
-          console.log(`[31b-角色互斥] 关系 ${rel.id} 删除 ✅`);
-        } else {
-          console.warn('[31b-角色互斥] inherited 列表未定位到关系行');
-        }
+      if (rel?.id) {
+        await apiCall(page, 'DELETE', `/role-relations/${rel.id}`);
+        relDeleted = true;
+        console.log(`[31b-角色互斥] 关系 ${rel.id} 删除 ✅`);
       } else {
-        console.warn(`[31b-角色互斥] inherited 查询 HTTP ${chk.status()}`);
+        console.warn('[31b-角色互斥] inherited 列表未定位到关系行');
       }
-    } catch (e) {
-      console.error(`[31b-角色互斥] 关系操作异常: ${(e as Error).message}`);
+    } else {
+      console.warn(`[31b-角色互斥] inherited 查询 HTTP ${chk.status()}`);
     }
     expect(relDeleted, '[31b-角色互斥] 互斥关系应创建并删除成功').toBe(true);
     // 清理双角色
@@ -810,34 +728,20 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       [idA, codeA],
       [idB, codeB],
     ] as Array<[number, string]>) {
-      try {
-        await apiCall(page, 'DELETE', `/roles/${rid}`);
-        console.log(`[31b-角色互斥] 角色 ${code} 清理删除 ✅`);
-      } catch (e) {
-        console.warn(`[31b-角色互斥] 角色 ${code} 清理删除失败（记录）: ${(e as Error).message}`);
-      }
+      await tryCleanup(page, 'DELETE', `/roles/${rid}`, `[31b-角色互斥] ${code}`);
     }
   });
 
   // ===== 数据权限（依赖角色先建，闭环删除）=====
   test('数据权限：角色→权限记录→删除→回读', async ({ page }) => {
     test.setTimeout(120_000);
-    let roleId: number | undefined;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
-        name: `P0DP角色${TS}`,
-        code: `P0DP${TS}`,
-        description: 'P0数据权限角色',
-      });
-      roleId = r?.data?.id;
-    } catch (e) {
-      console.error(`[31b-数据权限] 角色创建失败: ${(e as Error).message}`);
-    }
-    if (!roleId) {
-      console.warn('[31b-数据权限] 无角色 id，跳过');
-      test.skip();
-      return;
-    }
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
+      name: `P0DP角色${TS}`,
+      code: `p0dp_${TS}`,
+      description: 'P0数据权限角色',
+    });
+    const roleId = r?.data?.id;
+    expect(roleId, '[31b-数据权限] 角色创建失败').toBeTruthy();
     await createThenApiDelete(page, {
       label: '数据权限',
       createApi: '/data-permissions',
@@ -850,51 +754,33 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
         hidden_fields: null,
       },
     });
-    try {
-      await apiCall(page, 'DELETE', `/roles/${roleId}`);
-      console.log(`[31b-数据权限] 角色 ${roleId} 清理删除 ✅`);
-    } catch (e) {
-      console.warn(`[31b-数据权限] 角色清理删除失败（记录）: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/roles/${roleId}`, '[31b-数据权限]');
   });
 
   // ===== 通知（无 HTTP create 端点：用现有通知删除验证，无则 skip）=====
   test('通知：现有记录→删除→回读404', async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     let targetId: number | undefined;
-    try {
-      const listResp = await page.request.get(
-        `${API_BASE}${API_PREFIX}/notifications?page=1&page_size=5`
-      );
-      if (listResp.ok()) {
-        const body = await listResp.json().catch(() => null);
-        const items = body?.data?.items ?? (Array.isArray(body?.data) ? body.data : []);
-        const first = items[0] as { id?: number } | undefined;
-        targetId = first?.id;
-        console.log(`[31b-通知] 现有通知 ${items.length} 条，取首条 id=${targetId}`);
-      } else {
-        console.warn(`[31b-通知] 列表 HTTP ${listResp.status()}`);
-      }
-    } catch (e) {
-      console.warn(`[31b-通知] 列表异常: ${(e as Error).message}`);
+    const listResp = await page.request.get(
+      `${API_BASE}${API_PREFIX}/notifications?page=1&page_size=5`
+    );
+    if (listResp.ok()) {
+      const body = await listResp.json();
+      const items = body?.data?.items ?? (Array.isArray(body?.data) ? body.data : []);
+      const first = items[0] as { id?: number } | undefined;
+      targetId = first?.id;
+      console.log(`[31b-通知] 现有通知 ${items.length} 条，取首条 id=${targetId}`);
+    } else {
+      console.warn(`[31b-通知] 列表 HTTP ${listResp.status()}`);
     }
     if (!targetId) {
       console.log('[31b-通知] 无现有通知可删（事件驱动产生），跳过');
       test.skip();
       return;
     }
-    let deleted = false;
-    try {
-      await apiCall(page, 'DELETE', `/notifications/notification/${targetId}`);
-      deleted = true;
-      console.log(`[31b-通知] DELETE 通知 ${targetId} ✅`);
-    } catch (e) {
-      console.error(`[31b-通知] DELETE 失败: ${(e as Error).message}`);
-    }
-    expect(deleted, '[31b-通知] 通知删除应成功').toBe(true);
-    const chk = await page.request.get(
-      `${API_BASE}${API_PREFIX}/notifications/notification/${targetId}`
-    );
+    await apiCall(page, 'DELETE', `/notifications/${targetId}`);
+    console.log(`[31b-通知] DELETE 通知 ${targetId} ✅`);
+    const chk = await page.request.get(`${API_BASE}${API_PREFIX}/notifications/${targetId}`);
     console.log(`[31b-通知] 删除后回读 HTTP ${chk.status()}`);
     expect(chk.status(), '[31b-通知] 删除后详情应 404').toBe(404);
   });

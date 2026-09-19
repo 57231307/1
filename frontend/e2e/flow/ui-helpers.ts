@@ -8,7 +8,7 @@
  * - 所有 waitFor 超时提升到 30s（CI 16 shard 并发环境慢）
  * - 失败时截图 + DOM 快照 + 详细错误日志，不静默吞掉
  */
-import type { Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { BASE_URL, API_PREFIX } from './helpers';
 
 // 简单的唯一 ID 生成（避免循环依赖）
@@ -71,7 +71,9 @@ async function safeGotoInner(page: Page, url: string): Promise<void> {
       // 设置 locale
       await page
         .evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN'))
-        .catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+        .catch(e => {
+          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+        });
       page.off('console', handler);
       return; // 成功
     } catch (e) {
@@ -109,18 +111,21 @@ async function diagnoseFailure(page: Page, label: string): Promise<void> {
     const bodyText = await page
       .locator('body')
       .innerText()
-      .catch((e) => { console.warn(`[E2E] 文本兜底读取: ${(e as Error).message}`); return '<兜底>'; });
+      .catch(e => {
+        console.warn(`[E2E] 文本兜底读取: ${(e as Error).message}`);
+        return '<兜底>';
+      });
     const elMessages = await page
       .locator('.el-message__content')
       .allTextContents()
-      .catch((e) => {
+      .catch(e => {
         console.warn('[ui-helpers] 选择器批量查询失败:', (e as Error).message);
         return [];
       });
     const formErrors = await page
       .locator('.el-form-item__error')
       .allTextContents()
-      .catch((e) => {
+      .catch(e => {
         console.warn('[ui-helpers] 选择器批量查询失败:', (e as Error).message);
         return [];
       });
@@ -132,17 +137,22 @@ async function diagnoseFailure(page: Page, label: string): Promise<void> {
     const errorBoundary = await page
       .locator('.error-boundary')
       .count()
-      .catch((e) => { console.warn(`[E2E] 计数兜底: ${(e as Error).message}`); return 0; });
+      .catch(e => {
+        console.warn(`[E2E] 计数兜底: ${(e as Error).message}`);
+        return 0;
+      });
     if (errorBoundary > 0) {
       const detailBtn = page.locator('.error-boundary button:has-text("查看详情")').first();
       if ((await detailBtn.count()) > 0) {
-        await detailBtn.click().catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+        await detailBtn.click().catch(e => {
+          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+        });
         await page.waitForTimeout(300);
       }
       const stack = await page
         .locator('.error-boundary__detail')
         .textContent()
-        .catch((e) => {
+        .catch(e => {
           console.warn('[ui-helpers] error-boundary 详情读取失败:', (e as Error).message);
           return '';
         });
@@ -150,7 +160,10 @@ async function diagnoseFailure(page: Page, label: string): Promise<void> {
     }
     console.error(`  页面文本(前500字): ${bodyText.slice(0, 500)}`);
   } catch (e) {
-    console.warn('[ui-helpers] 页面截图失败（截图功能降级，诊断信息见上方日志）:', (e as Error).message);
+    console.warn(
+      '[ui-helpers] 页面截图失败（截图功能降级，诊断信息见上方日志）:',
+      (e as Error).message
+    );
   }
 }
 
@@ -189,14 +202,26 @@ async function fillInField(
       if ((await inp.count()) === 0) {
         // 兜底：取任意 input 或 textarea
         const inp2 = formItem.locator('input, textarea').first();
-        await inp2.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-        await inp2.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-        await inp2.fill(field.value).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+        await inp2.waitFor({ state: 'visible', timeout: 20000 }).catch(e => {
+          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+        });
+        await inp2.click({ clickCount: 3 }).catch(e => {
+          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+        });
+        await inp2.fill(field.value).catch(e => {
+          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+        });
         return;
       }
-      await inp.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-      await inp.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-      await inp.fill(field.value).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+      await inp.waitFor({ state: 'visible', timeout: 20000 }).catch(e => {
+        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      });
+      await inp.click({ clickCount: 3 }).catch(e => {
+        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      });
+      await inp.fill(field.value).catch(e => {
+        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      });
       break;
     }
     case 'inputNumber': {
@@ -215,12 +240,20 @@ async function fillInField(
     }
     case 'date': {
       const inp = formItem.locator('input').first();
-      await inp.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-      await inp.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-      await inp.fill(field.value).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+      await inp.waitFor({ state: 'visible', timeout: 20000 }).catch(e => {
+        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      });
+      await inp.click({ clickCount: 3 }).catch(e => {
+        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      });
+      await inp.fill(field.value).catch(e => {
+        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      });
       // el-date-picker fill 后需 Enter 确认（Escape 会取消选择清空值，
       // 导致"请选择染色日期"校验失败 → 请求不发 → 超时）
-      await inp.press('Enter').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+      await inp.press('Enter').catch(e => {
+        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      });
       await page.waitForTimeout(300);
       break;
     }
@@ -234,22 +267,30 @@ async function fillInField(
         }
         return;
       }
-      await wrapper.click({ timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+      await wrapper.click({ timeout: 10_000 }).catch(e => {
+        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      });
       await page.waitForTimeout(300);
       const dropdown = page.locator('.el-select-dropdown:visible').last();
-      await dropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+      await dropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(e => {
+        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      });
       if ((await dropdown.count()) === 0) break;
       const item = dropdown
         .locator('.el-select-dropdown__item')
         .filter({ hasText: new RegExp(field.value, 'i') })
         .first();
       if ((await item.count()) > 0) {
-        await item.click({ timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+        await item.click({ timeout: 10_000 }).catch(e => {
+          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+        });
       } else {
         // 无匹配项时选第一项（避免空点击报错拖到 120s 测试超时）
         const firstItem = dropdown.locator('.el-select-dropdown__item').first();
         if ((await firstItem.count()) > 0) {
-          await firstItem.click({ timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+          await firstItem.click({ timeout: 10_000 }).catch(e => {
+            console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+          });
         }
       }
       break;
@@ -271,7 +312,7 @@ async function waitCreateResponse(
       r => r.url().includes(apiPath) && r.request().method() === 'POST' && r.status() !== 403,
       { timeout }
     );
-    const json = await resp.json().catch((e) => {
+    const json = await resp.json().catch(e => {
       console.warn(`[waitCreateResponse] POST ${apiPath} 响应非 JSON:`, (e as Error).message);
       return {};
     });
@@ -288,7 +329,7 @@ async function waitListResponse(page: Page, apiPath: string, timeout = 20000): P
       r => r.url().includes(apiPath) && r.request().method() === 'GET',
       { timeout }
     );
-    const json = await resp.json().catch((e) => {
+    const json = await resp.json().catch(e => {
       console.warn(`[waitListResponse] GET ${apiPath} 响应非 JSON:`, (e as Error).message);
       return {};
     });
@@ -390,7 +431,9 @@ export async function createDepartmentUI(page: Page): Promise<number | undefined
   // 缺该字段会触发 formRef.validate 失败 → 提交请求不发 → waitCreateResponse 超时
   // 路由 chunk 偶发加载失败（页面只有 layout 无组件内容），先 reload 保证组件挂载
   await safeGoto(page, '/departments');
-  await page.reload({ waitUntil: 'domcontentloaded' }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+  await page.reload({ waitUntil: 'domcontentloaded' }).catch(e => {
+    console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+  });
   await page.waitForTimeout(500);
   const fields: UiField[] = [
     { kind: 'input', label: '部门名称', value: _genName('E2E部门') },
@@ -439,7 +482,9 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
   // 确保分类下拉的 categories prop 在“面料”分类创建之后加载。
   // 若页面此前已挂载（分类列表为旧缓存），reload 强制刷新。
   await safeGoto(page, '/product');
-  await page.reload({ waitUntil: 'domcontentloaded' }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+  await page.reload({ waitUntil: 'domcontentloaded' }).catch(e => {
+    console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+  });
   // 等待 GET /product-categories 响应完成（分类下拉数据就绪），避免异步竞态
   await page
     .waitForResponse(
@@ -448,7 +493,9 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
         timeout: 15_000,
       }
     )
-    .catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    .catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
   await page.waitForTimeout(500);
   // 打开新建产品 dialog
   const addBtn = page.getByRole('button', { name: /新建产品/ }).first();
@@ -478,7 +525,9 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
     .locator('input')
     .first();
   if ((await unitInput.count()) > 0) {
-    await unitInput.fill('米').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await unitInput.fill('米').catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
   }
   // 分类下拉：用 placeholder 定位 select，点击后从全局 dropdown 选“面料”
   const categorySelect = dialog
@@ -495,7 +544,9 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
     .locator('.el-select-dropdown__item')
     .first()
     .waitFor({ state: 'visible', timeout: 10_000 })
-    .catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    .catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
   const fabricItem = dropdown
     .locator('.el-select-dropdown__item')
     .filter({ hasText: /面料/i })
@@ -661,7 +712,9 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
     await productSelect.waitFor({ state: 'visible', timeout: 20000 });
     await productSelect.click();
     const prodDropdown = page.locator('.el-select-dropdown:visible').last();
-    await prodDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await prodDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
     const e2eProd = prodDropdown
       .locator('.el-select-dropdown__item')
       .filter({ hasText: /E2E/i })
@@ -680,8 +733,12 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
       .filter({ hasText: '版本' })
       .locator('input')
       .first();
-    await versionInput.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-    await versionInput.fill('1').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await versionInput.waitFor({ state: 'visible', timeout: 20000 }).catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
+    await versionInput.fill('1').catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
 
     // 状态下拉（选"启用"或第一项）
     const statusItem = dialog.locator('.el-form-item').filter({ hasText: '状态' }).first();
@@ -689,7 +746,9 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
     if ((await statusSelect.count()) > 0) {
       await statusSelect.click();
       const statusDropdown = page.locator('.el-select-dropdown:visible').last();
-      await statusDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+      await statusDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(e => {
+        console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      });
       const activeOpt = statusDropdown
         .locator('.el-select-dropdown__item')
         .filter({ hasText: /启用|active/i })
@@ -714,7 +773,9 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
         if ((await matSelect.count()) > 0) {
           await matSelect.click();
           const matDropdown = page.locator('.el-select-dropdown:visible').last();
-          await matDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+          await matDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(e => {
+            console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+          });
           const matE2e = matDropdown
             .locator('.el-select-dropdown__item')
             .filter({ hasText: /E2E/i })
@@ -729,8 +790,12 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
         }
         const unitInput = firstRow.locator('input').nth(2);
         if ((await unitInput.count()) > 0) {
-          await unitInput.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-          await unitInput.fill('米').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+          await unitInput.click({ clickCount: 3 }).catch(e => {
+            console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+          });
+          await unitInput.fill('米').catch(e => {
+            console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+          });
         }
       }
     }
@@ -786,17 +851,31 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
     const specInput = page
       .locator('.el-form-item:has(:text-is("规格")) input, input[placeholder*="规格"]')
       .first();
-    await specInput.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-    await specInput.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-    await specInput.fill('E2E 定制规格').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await specInput.waitFor({ state: 'visible', timeout: 20000 }).catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
+    await specInput.click({ clickCount: 3 }).catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
+    await specInput.fill('E2E 定制规格').catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
     // 数量定位须限定"数量"label 的 form-item：页面另有 total_amount 等
     // el-input-number，.last() 会误选 total_amount 导致 quantity 空校验失败
     const quantityInput = page.locator('.el-form-item:has(:text-is("数量")) input').first();
-    await quantityInput.waitFor({ state: 'visible', timeout: 20000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-    await quantityInput.click({ clickCount: 3 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-    await quantityInput.fill('100').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await quantityInput.waitFor({ state: 'visible', timeout: 20000 }).catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
+    await quantityInput.click({ clickCount: 3 }).catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
+    await quantityInput.fill('100').catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
     // el-input-number 需 blur/Enter 同步 v-model，fill 后触发 blur
-    await quantityInput.press('Tab').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    await quantityInput.press('Tab').catch(e => {
+      console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+    });
     await page.waitForTimeout(300);
     const submitBtn = page.getByRole('button', { name: /保存草稿|保存|确定/ }).first();
     await submitBtn.waitFor({ state: 'visible', timeout: 20000 });
@@ -836,7 +915,7 @@ export async function readFirstEntityId(
     const resp = await page.request.get(listApiPath, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     });
-    const json = (await resp.json().catch((e) => {
+    const json = (await resp.json().catch(e => {
       console.warn(`[readFirstEntityId] ${listApiPath} 响应非 JSON:`, (e as Error).message);
       return {};
     })) as {
@@ -857,30 +936,24 @@ export async function readEntityIds(
   listApiPath: string,
   limit = 10
 ): Promise<number[]> {
-  try {
-    await safeGoto(page, route);
-    const items = await waitListResponse(page, listApiPath, 20000);
-    const ids = items
-      .slice(0, limit)
-      .map(it => (it as Record<string, unknown>)?.id as number)
-      .filter((id): id is number => typeof id === 'number');
-    if (ids.length > 0) return ids;
-  } catch (e) {
-    console.warn(`[readEntityIds] ${route} 查找失败: ${(e as Error).message}`);
-  }
-  // 页面路径未命中列表响应时 API 直查兜底：防止误判"实体不存在"导致
-  // 每个测试都重复兜底创建（run 34067844812 产品 id 2,3→5,6→8,9→11,12 风暴）
+  // API 直查（唯一路径）：实体查询语义不变（查真实存在的实体列表），
+  // 但跳过 safeGoto 页面渲染等待——16 分片并发下 UI 渲染是 ensureTestEntities
+  // 超 420s 测试上限的根因，页面级覆盖由 46 崩溃巡检承担
   try {
     const resp = await page.request.get(listApiPath, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     });
-    const json = (await resp.json().catch((e) => {
+    const json = (await resp.json().catch(e => {
       console.warn(`[readEntityIds] ${listApiPath} 响应非 JSON:`, (e as Error).message);
       return {};
     })) as {
-      data?: { items?: Array<{ id?: number }>; list?: Array<{ id?: number }> };
+      data?:
+        { items?: Array<{ id?: number }>; list?: Array<{ id?: number }> } | Array<{ id?: number }>;
     };
-    const items = json?.data?.items ?? json?.data?.list ?? [];
+    const raw = json?.data;
+    const items = (Array.isArray(raw) ? raw : (raw?.items ?? raw?.list ?? [])) as Array<{
+      id?: number;
+    }>;
     return items
       .slice(0, limit)
       .map(it => it?.id as number)
@@ -928,29 +1001,19 @@ export async function uiDeleteRow(
     await safeGoto(page, route);
     await page.waitForTimeout(1000);
 
-    // 找目标行：遍历行，匹配标识列值
-    const rows = page.locator('.el-table__row');
-    const rowCount = await rows.count();
-    console.log(`[uiDeleteRow] ${entityLabel} 列表共 ${rowCount} 行，查找 ${rowIdentifier.column}=${rowIdentifier.value}`);
-
-    let targetRow: import('@playwright/test').Locator | null = null;
-    for (let i = 0; i < rowCount; i++) {
-      const row = rows.nth(i);
-      const cellText = await row.locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch((e) => { console.warn(`[uiDeleteRow] 单元格文本读取异常: ${(e as Error).message}`); return ''; });
-      if (cellText && cellText.includes(String(rowIdentifier.value))) {
-        targetRow = row;
-        console.log(`[uiDeleteRow] 匹配到目标行（第 ${i + 1} 行）`);
-        break;
-      }
-    }
-
+    // 找目标行
+    const targetRow = await findTableRow(page, rowIdentifier.value);
     if (!targetRow) {
-      console.warn(`[uiDeleteRow] ${entityLabel} 未找到 ${rowIdentifier.column}=${rowIdentifier.value} 的行`);
+      console.warn(
+        `[uiDeleteRow] ${entityLabel} 未找到 ${rowIdentifier.column}=${rowIdentifier.value} 的行`
+      );
       return false;
     }
 
     // 点删除按钮（el-button type=danger link）
-    const deleteBtn = targetRow.locator('button.el-button--danger, button:has-text("删除")').first();
+    const deleteBtn = targetRow
+      .locator('button.el-button--danger, button:has-text("删除")')
+      .first();
     await deleteBtn.waitFor({ state: 'visible', timeout: 5000 });
     await deleteBtn.click();
     console.log(`[uiDeleteRow] 已点击删除按钮`);
@@ -958,7 +1021,12 @@ export async function uiDeleteRow(
     // 确认弹窗
     await page.waitForTimeout(500);
     const confirmBtn = page.getByRole('button', { name: confirmText }).last();
-    if (await confirmBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[uiDeleteRow] 确认弹窗可见性查询失败: ${(e as Error).message}`); return false; })) {
+    if (
+      await confirmBtn.isVisible({ timeout: 3000 }).catch(e => {
+        console.warn(`[uiDeleteRow] 确认弹窗可见性查询失败: ${(e as Error).message}`);
+        return false;
+      })
+    ) {
       await confirmBtn.click();
       console.log(`[uiDeleteRow] 已确认删除`);
     }
@@ -966,28 +1034,21 @@ export async function uiDeleteRow(
     // 等待列表刷新
     await page.waitForTimeout(2000);
     if (options?.listApiPath) {
-      await waitListResponse(page, options.listApiPath, 15000).catch((e) => {
+      await waitListResponse(page, options.listApiPath, 15000).catch(e => {
         console.warn(`[uiDeleteRow] 列表刷新响应等待失败:`, (e as Error).message);
       });
     }
 
     // 验证行消失
-    const rowsAfter = page.locator('.el-table__row');
-    const countAfter = await rowsAfter.count();
-    let stillExists = false;
-    for (let i = 0; i < countAfter; i++) {
-      const cellText = await rowsAfter.nth(i).locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch((e) => { console.warn(`[E2E] 文本读取失败: ${(e as Error).message}`); return ''; });
-      if (cellText && cellText.includes(String(rowIdentifier.value))) {
-        stillExists = true;
-        break;
-      }
-    }
+    const stillExists = await findTableRow(page, rowIdentifier.value);
 
     if (stillExists) {
-      console.error(`[uiDeleteRow] ❌ ${entityLabel} 删除后行仍存在（${rowIdentifier.column}=${rowIdentifier.value}）`);
+      console.error(
+        `[uiDeleteRow] ❌ ${entityLabel} 删除后行仍存在（${rowIdentifier.column}=${rowIdentifier.value}）`
+      );
       return false;
     }
-    console.log(`[uiDeleteRow] ✅ ${entityLabel} 删除成功，行已消失（列表 ${rowCount}→${countAfter} 行）`);
+    console.log(`[uiDeleteRow] ✅ ${entityLabel} 删除成功，行已消失`);
     return true;
   } catch (e) {
     console.error(`[uiDeleteRow] ${entityLabel} 删除异常:`, (e as Error).message);
@@ -1013,17 +1074,7 @@ export async function uiToggleStatus(
     await safeGoto(page, route);
     await page.waitForTimeout(1000);
 
-    const rows = page.locator('.el-table__row');
-    const rowCount = await rows.count();
-    let targetRow: import('@playwright/test').Locator | null = null;
-    for (let i = 0; i < rowCount; i++) {
-      const row = rows.nth(i);
-      const cellText = await row.locator('td').filter({ hasText: String(rowIdentifier.value) }).first().textContent().catch((e) => { console.warn(`[uiDeleteRow] 单元格文本读取异常: ${(e as Error).message}`); return ''; });
-      if (cellText && cellText.includes(String(rowIdentifier.value))) {
-        targetRow = row;
-        break;
-      }
-    }
+    const targetRow = await findTableRow(page, rowIdentifier.value);
     if (!targetRow) {
       console.warn(`[uiToggleStatus] ${entityLabel} 未找到目标行`);
       return false;
@@ -1031,11 +1082,23 @@ export async function uiToggleStatus(
 
     // 找状态开关（el-switch 或 el-button 带"停用"/"启用"文案）
     const switchEl = targetRow.locator('.el-switch').first();
-    const statusBtn = targetRow.locator('button:has-text("停用"), button:has-text("启用"), button:has-text("禁用")').first();
-    if (await switchEl.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 可见性查询失败: ${(e as Error).message}`); return false; })) {
+    const statusBtn = targetRow
+      .locator('button:has-text("停用"), button:has-text("启用"), button:has-text("禁用")')
+      .first();
+    if (
+      await switchEl.isVisible({ timeout: 3000 }).catch(e => {
+        console.warn(`[E2E] 可见性查询失败: ${(e as Error).message}`);
+        return false;
+      })
+    ) {
       await switchEl.click();
       console.log(`[uiToggleStatus] 已点击状态开关`);
-    } else if (await statusBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 可见性查询失败: ${(e as Error).message}`); return false; })) {
+    } else if (
+      await statusBtn.isVisible({ timeout: 3000 }).catch(e => {
+        console.warn(`[E2E] 可见性查询失败: ${(e as Error).message}`);
+        return false;
+      })
+    ) {
       await statusBtn.click();
       console.log(`[uiToggleStatus] 已点击状态按钮`);
     } else {
@@ -1046,7 +1109,10 @@ export async function uiToggleStatus(
     await page.waitForTimeout(2000);
 
     // 验证状态文本
-    const rowText = await targetRow.textContent().catch((e) => { console.warn(`[uiToggleStatus] 行文本读取失败: ${(e as Error).message}`); return ''; });
+    const rowText = await targetRow.textContent().catch(e => {
+      console.warn(`[uiToggleStatus] 行文本读取失败: ${(e as Error).message}`);
+      return '';
+    });
     if (rowText.includes(expectedStatusAfter)) {
       console.log(`[uiToggleStatus] ✅ ${entityLabel} 状态切换成功，当前=${expectedStatusAfter}`);
       return true;
@@ -1091,7 +1157,12 @@ export async function uiExportDownload(
     if (options?.acceptConfirm) {
       await page.waitForTimeout(500);
       const confirmBtn = page.getByRole('button', { name: /确定|确认|导出/ }).last();
-      if (await confirmBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 可见性查询失败: ${(e as Error).message}`); return false; })) {
+      if (
+        await confirmBtn.isVisible({ timeout: 3000 }).catch(e => {
+          console.warn(`[E2E] 可见性查询失败: ${(e as Error).message}`);
+          return false;
+        })
+      ) {
         await confirmBtn.click();
       }
     }
@@ -1144,8 +1215,15 @@ export async function uiImportUpload(
 
     // 可选：下载模板
     if (options?.templateDownloadText) {
-      const templateBtn = dialog.getByRole('button', { name: options.templateDownloadText }).first();
-      if (await templateBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[uiImportUpload] 模板下载按钮不可见: ${(e as Error).message}`); return false; })) {
+      const templateBtn = dialog
+        .getByRole('button', { name: options.templateDownloadText })
+        .first();
+      if (
+        await templateBtn.isVisible({ timeout: 3000 }).catch(e => {
+          console.warn(`[uiImportUpload] 模板下载按钮不可见: ${(e as Error).message}`);
+          return false;
+        })
+      ) {
         const templateDownload = page.waitForEvent('download', { timeout: 10000 });
         await templateBtn.click();
         const templateFile = await templateDownload;
@@ -1162,7 +1240,12 @@ export async function uiImportUpload(
 
     // 点击确认导入
     const submitBtn = dialog.getByRole('button', { name: submitText }).first();
-    if (await submitBtn.isVisible({ timeout: 5000 }).catch((e) => { console.warn(`[uiImportUpload] 确认按钮不可见: ${(e as Error).message}`); return false; })) {
+    if (
+      await submitBtn.isVisible({ timeout: 5000 }).catch(e => {
+        console.warn(`[uiImportUpload] 确认按钮不可见: ${(e as Error).message}`);
+        return false;
+      })
+    ) {
       await submitBtn.click();
       console.log(`[uiImportUpload] 已点击确认导入`);
     }
@@ -1170,11 +1253,204 @@ export async function uiImportUpload(
     // 等待结果提示
     await page.waitForTimeout(3000);
     const message = page.locator('.el-message__content').last();
-    const messageText = await message.textContent().catch((e) => { console.warn(`[uiImportUpload] 结果提示文本读取失败: ${(e as Error).message}`); return ''; });
+    const messageText = await message.textContent().catch(e => {
+      console.warn(`[uiImportUpload] 结果提示文本读取失败: ${(e as Error).message}`);
+      return '';
+    });
     console.log(`[uiImportUpload] ${entityLabel} 导入结果: ${messageText || '无提示消息'}`);
     return messageText || null;
   } catch (e) {
     console.error(`[uiImportUpload] ❌ ${entityLabel} 导入异常:`, (e as Error).message);
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 通用 UI 操作原语（消除 spec 重复步骤）
+// ---------------------------------------------------------------------------
+
+/**
+ * 按列值查找可见表格行
+ *
+ * 替代各 spec 中重复的"遍历 .el-table__row → textContent 匹配 → 返回 target"循环。
+ * 仅搜索可见行（:visible），排除隐藏 Tab 渲染的 DOM。
+ *
+ * @param page      Playwright Page
+ * @param value     要匹配的列值（toString 后 includes 匹配）
+ * @param minRows   最少等待行数（默认 1），列表未渲染时先等
+ * @returns 目标行 Locator 或 null
+ */
+export async function findTableRow(
+  page: Page,
+  value: string | number,
+  minRows = 1
+): Promise<Locator | null> {
+  const rows = page.locator('.el-table__row:visible');
+  await rows
+    .first()
+    .waitFor({ state: 'visible', timeout: 10000 })
+    .catch(() => {});
+  const rowCount = await rows.count();
+  if (rowCount < minRows) {
+    console.warn(`[findTableRow] 列表仅 ${rowCount} 行（期望≥${minRows}），可能未加载`);
+  }
+  const target = String(value);
+  for (let i = 0; i < rowCount; i++) {
+    const txt = await rows
+      .nth(i)
+      .textContent()
+      .catch(() => '');
+    if (txt?.includes(target)) {
+      return rows.nth(i);
+    }
+  }
+  return null;
+}
+
+/**
+ * 点击触发按钮并等待对话框可见
+ *
+ * @param page         Playwright Page
+ * @param triggerText  触发按钮文案（getByRole name 正则）
+ * @returns dialog Locator（已可见）
+ */
+export async function openDialog(page: Page, triggerText: string | RegExp): Promise<Locator> {
+  const btn = page.getByRole('button', { name: triggerText }).first();
+  await btn.click();
+  const dialog = page.locator('.el-dialog:visible').first();
+  await dialog.waitFor({ state: 'visible', timeout: 15000 });
+  return dialog;
+}
+
+/**
+ * 在可见对话框内点击提交/确认按钮
+ *
+ * @param dialog    对话框 Locator
+ * @param btnText   按钮文案正则（默认 /确定|确认|保存|提交/）
+ */
+export async function submitDialog(
+  dialog: Locator,
+  btnText: RegExp = /确定|确认|保存|提交/
+): Promise<void> {
+  const btn = dialog.getByRole('button', { name: btnText }).last();
+  await btn.waitFor({ state: 'visible', timeout: 5000 });
+  await btn.click();
+}
+
+/** 关闭对话框（点取消/关闭按钮或按 ESC） */
+export async function closeDialog(dialog: Locator): Promise<void> {
+  const cancel = dialog.getByRole('button', { name: /取消|关闭/ }).first();
+  if (await cancel.isVisible().catch(() => false)) {
+    await cancel.click();
+  } else {
+    await dialog.page().keyboard.press('Escape');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 语义化等待（替代硬编码 waitForTimeout）
+// ---------------------------------------------------------------------------
+
+/** 等待对话框可见（替代 waitForTimeout + locator 检查） */
+export async function waitForDialog(page: Page, timeout = 15000): Promise<Locator> {
+  const dialog = page.locator('.el-dialog:visible').first();
+  await dialog.waitFor({ state: 'visible', timeout });
+  return dialog;
+}
+
+/** 等待表格至少 N 行可见（替代 waitForTimeout 等列表加载） */
+export async function waitForTableRows(page: Page, minCount = 1, timeout = 10000): Promise<number> {
+  const rows = page.locator('.el-table__row:visible');
+  await rows
+    .first()
+    .waitFor({ state: 'visible', timeout })
+    .catch(() => {});
+  return rows.count();
+}
+
+/** 等待 toast 消息出现并获取文本（替代 waitForTimeout + textContent） */
+export async function waitForToast(page: Page, timeout = 5000): Promise<string> {
+  const msg = page.locator('.el-message__content').last();
+  await msg.waitFor({ state: 'visible', timeout }).catch(() => {});
+  return (await msg.textContent().catch(() => '')) ?? '';
+}
+
+/** 等待 toast 消息消失 */
+export async function waitForToastGone(page: Page, timeout = 5000): Promise<void> {
+  await page
+    .locator('.el-message')
+    .waitFor({ state: 'detached', timeout })
+    .catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
+// 核心业务页面验证原语（从 28 系列提取，消除 3×105 行重复）
+// ---------------------------------------------------------------------------
+
+/** 访问页面并验证表格/容器已加载，返回表格 Locator */
+export async function visitAndVerifyTable(page: Page, path: string): Promise<Locator> {
+  await page.goto(`${BASE_URL}${path}`);
+  const container = page
+    .locator(
+      '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty, .el-form'
+    )
+    .first();
+  await container
+    .waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+  return page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper').first();
+}
+
+/** 验证按钮可见且可点击 */
+export async function verifyButton(page: Page, text: string): Promise<boolean> {
+  const btn = page.locator(`button:has-text("${text}")`).first();
+  await btn
+    .waitFor({ state: 'visible', timeout: 5000 })
+    .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+  const visible = await btn.isVisible().catch(() => false);
+  if (visible) {
+    const disabled = await btn.isDisabled().catch(() => false);
+    expect(disabled).toBe(false);
+  }
+  return visible;
+}
+
+/** 点击新建按钮并验证弹窗出现（基于 openDialog，消除 waitForTimeout(1000)） */
+export async function clickNewAndVerifyDialog(page: Page, btnText: string): Promise<boolean> {
+  const btn = page.locator(`button:has-text("${btnText}")`).first();
+  // 按钮不可见或弹窗未出现=页面异常，直接失败暴露（失败必须修复，禁止静默返回 false）
+  await btn.waitFor({ state: 'visible', timeout: 5000 });
+  await btn.click();
+  const dialog = await waitForDialog(page, 5000);
+  return dialog !== null;
+}
+
+/** 验证表单必填校验：点击 footer 主按钮→检查 .el-message / .el-form-item__error */
+export async function verifyRequiredValidation(page: Page): Promise<boolean> {
+  const dialog = page.locator('.el-dialog:visible').first();
+  const saveBtn = dialog.locator('.el-dialog__footer .el-button--primary').first();
+  try {
+    await saveBtn.click({ timeout: 10_000 });
+  } catch {
+    return false;
+  }
+  await page
+    .locator('.el-message, .el-form-item__error')
+    .first()
+    .waitFor({ state: 'visible', timeout: 5000 })
+    .catch(() => {});
+  return page
+    .locator('.el-message, .el-form-item__error')
+    .first()
+    .isVisible()
+    .catch(() => false);
+}
+
+/** 关闭弹窗（点 headerbtn，替代 waitForTimeout(500)） */
+export async function closeDialogByX(page: Page): Promise<void> {
+  await page
+    .locator('.el-dialog__headerbtn')
+    .first()
+    .click()
+    .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 }

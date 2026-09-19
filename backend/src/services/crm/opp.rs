@@ -481,6 +481,8 @@ impl CrmService {
             balance_amount: Set(total_amount),
             shipping_address: Set(None),
             billing_address: Set(None),
+            contact_person: Set(None),
+            contact_phone: Set(None),
             notes: Set(Some(format!(
                 "从商机自动创建: {} - 预期金额: {:?}",
                 opportunity.opportunity_name, opportunity.estimated_amount

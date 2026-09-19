@@ -115,6 +115,9 @@
           >
             <el-icon><Plus /></el-icon>{{ t('inventoryTransfer.transferList.button.create') }}
           </el-button>
+          <el-button plain @click="handleGenerateNo">
+            {{ t('inventoryTransfer.transferList.button.generateNo') }}
+          </el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -202,6 +205,22 @@
               @click="emit('openApprove', row)"
               >{{ t('inventoryTransfer.transferList.button.approve') }}</el-button
             >
+            <el-button
+              v-if="row.status === 'approved'"
+              type="warning"
+              link
+              size="small"
+              @click="handleShip(row)"
+              >{{ t('inventoryTransfer.transferList.button.ship') }}</el-button
+            >
+            <el-button
+              v-if="row.status === 'pending'"
+              type="danger"
+              link
+              size="small"
+              @click="emit('delete', row)"
+              >{{ t('inventoryTransfer.transferList.button.delete') }}</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -224,9 +243,13 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue';
-import { type InventoryTransferEntity } from '@/api/inventory-transfer';
+import { executeInventoryTransfer } from '@/api/inventory';
+import {
+  generateInventoryTransferNo,
+  type InventoryTransferEntity,
+} from '@/api/inventory-transfer';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
 import { formatCurrency } from '@/utils';
@@ -237,6 +260,7 @@ const { t } = useI18n({ useScope: 'global' });
 const emit = defineEmits<{
   openForm: [mode: 'create' | 'edit' | 'view', row: InventoryTransferEntity | null];
   openApprove: [row: InventoryTransferEntity];
+  delete: [row: InventoryTransferEntity];
 }>();
 
 // 批次 391：接入 useTableApi，统一分页规范（1-based），由 setup 自动加载 + watch page/pageSize 触发。
@@ -310,6 +334,45 @@ const handleReset = () => {
 
 // 保留父组件调用接口：expose refresh 代替原 fetchTransfers
 defineExpose({ fetchTransfers });
+
+// 发货（executeInventoryTransfer：approved → shipped，按调拨明细扣减/增加在途库存）
+const handleShip = async (row: InventoryTransferEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryTransfer.transferList.message.shipConfirm'),
+      t('inventoryTransfer.transferList.message.shipTitle'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await executeInventoryTransfer(row.id as number);
+    ElMessage.success(t('inventoryTransfer.transferList.message.shipSuccess'));
+    await fetchTransfers();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(
+        (error as Error).message || t('inventoryTransfer.transferList.message.failure')
+      );
+    }
+  }
+};
+
+// 取号：预生成调拨单号（供线下单据核对/登记使用）
+const handleGenerateNo = async () => {
+  try {
+    const res = await generateInventoryTransferNo();
+    const no =
+      (res.data as { transfer_no?: string })?.transfer_no ??
+      (res as { transfer_no?: string })?.transfer_no;
+    ElMessageBox.alert(no || '-', t('inventoryTransfer.transferList.message.generateNoTitle'));
+  } catch (error) {
+    ElMessage.error(
+      (error as Error).message || t('inventoryTransfer.transferList.message.failure')
+    );
+  }
+};
 </script>
 
 <style scoped>
