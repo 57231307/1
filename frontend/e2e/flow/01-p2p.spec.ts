@@ -312,6 +312,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       'approved',
       'confirmed',
       'draft',
+      'audited',
+      'auditing',
     ]).toContain(invStatus);
   });
 

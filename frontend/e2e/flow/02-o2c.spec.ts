@@ -153,10 +153,15 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       return;
     }
 
-    // 提交审批
-    await apiCall(page, 'POST', `/sales/orders/${id}/submit`);
-    // 审批通过
-    await apiCall(page, 'POST', `/sales/orders/${id}/approve`);
+    // 先检查订单状态：convert 可能已自动 approved
+    const before = await apiCallRaw<{ status?: string }>(page, 'GET', `/sales/orders/${id}`);
+    const st = (before.status || '').toLowerCase();
+    if (st !== 'approved' && st !== 'confirmed') {
+      // 提交审批
+      await apiCall(page, 'POST', `/sales/orders/${id}/submit`);
+      // 审批通过
+      await apiCall(page, 'POST', `/sales/orders/${id}/approve`);
+    }
 
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
     const status = (order.status || '').toLowerCase();

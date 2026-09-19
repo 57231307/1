@@ -262,7 +262,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         unit: '米',
       })),
     });
-    ctx.bomId = result.data?.id;
+    ctx.bomId = result.data?.bom?.id ?? result.data?.id;
     expect(ctx.bomId).toBeDefined();
   });
 
