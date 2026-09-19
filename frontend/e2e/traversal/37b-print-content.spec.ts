@@ -68,7 +68,7 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
           '/sales/orders',
           {
             customer_id: custId,
-            order_date: new Date().toISOString().slice(0, 10),
+            order_date: new Date().toISOString(),
             items: [{ product_id: prodId, quantity: '1', unit_price: '1' }],
           }
         );

@@ -251,13 +251,8 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       if (kwVisible) {
         await keywordInput.fill(username);
         await keywordInput.press('Enter');
-        // 等待搜索结果行渲染（keyword 请求+表格重渲染需要时间，固定 2s 可能落在空窗期）
-        await page.waitForFunction(
-          () => document.querySelectorAll('.el-table__row:visible').length > 0,
-          {
-            timeout: 10000,
-          }
-        );
+        // 等待搜索结果行渲染（keyword 请求+表格重渲染需要时间；waitForFunction 内 querySelectorAll 不支持 :visible 伪类，改用 locator 原生等待）
+        await page.locator('.el-table__row').first().waitFor({ state: 'visible', timeout: 10_000 });
         await page.waitForTimeout(500);
         console.log('[31c-用户] 已按用户名过滤列表');
         diag += '；搜索OK';

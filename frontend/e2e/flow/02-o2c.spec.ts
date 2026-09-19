@@ -89,8 +89,11 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
     // 提交审批
     await apiCall(page, 'POST', `/quotations/${id}/submit`);
-    // 审批通过
-    await apiCall(page, 'POST', `/quotations/${id}/approve`);
+    // 审批通过：后端小额自批规则（金额 < 10 万 submit 即直接 approved），已自批则跳过 approve
+    const afterSubmit = await apiCallRaw<{ status?: string }>(page, 'GET', `/quotations/${id}`);
+    if ((afterSubmit.status || '').toLowerCase() !== 'approved') {
+      await apiCall(page, 'POST', `/quotations/${id}/approve`);
+    }
 
     const q = await apiCallRaw<{ status: string }>(page, 'GET', `/quotations/${id}`);
     const status = (q.status || '').toLowerCase();

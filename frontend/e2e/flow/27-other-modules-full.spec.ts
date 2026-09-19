@@ -243,13 +243,12 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
       await newBtn.click();
       await page.waitForTimeout(1000);
       // 定制订单的真实交互是路由跳转到独立创建页（全屏表单，无 el-dialog）——
-      // 断言"新建入口可用"：弹窗出现，或已跳转创建页且表单渲染
-      const dialog = page.locator('.el-dialog:visible').first();
-      await dialog.waitFor({ state: 'visible', timeout: 5000 });
-      const dialogVisible = await dialog.isVisible();
+      // 断言"新建入口可用"：弹窗出现（5s 竞态窗口），或已跳转创建页且表单渲染
       const urlAfter = page.url();
       const onCreatePage =
         urlAfter.includes('custom-orders/create') || urlAfter.includes('custom-orders/new');
+      const dialog = page.locator('.el-dialog:visible').first();
+      const dialogVisible = await dialog.isVisible().catch(() => false);
       if (!dialogVisible && onCreatePage) {
         const createForm = page
           .locator('.el-form:visible')
@@ -257,6 +256,9 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
           .first();
         await createForm.waitFor({ state: 'visible', timeout: 10_000 });
         expect(await createForm.isVisible()).toBe(true);
+      } else if (!dialogVisible) {
+        await dialog.waitFor({ state: 'visible', timeout: 5000 });
+        expect(await dialog.isVisible()).toBe(true);
       } else {
         expect(dialogVisible).toBe(true);
       }

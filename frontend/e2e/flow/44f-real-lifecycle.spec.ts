@@ -5,6 +5,7 @@ import {
   getCtx,
   apiCall,
   apiCallExpectFail,
+  tryCleanup,
   BASE_URL,
 } from './helpers';
 
@@ -58,7 +59,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
     );
     expect((st0 as { status?: string })?.status ?? 'DRAFT', '初始应为 DRAFT').toContain('DRAFT');
 
-    await apiCall(page, 'POST', `/production/production-orders/orders/${id}/submit`);
+    await apiCall(page, 'POST', `/production/production-orders/orders/${id}/submit-approval`);
     const st1 = await apiCall<{ status?: string }>(
       page,
       'GET',
@@ -70,7 +71,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const dup = await apiCallExpectFail(
       page,
       'POST',
-      `/production/production-orders/orders/${id}/submit`
+      `/production/production-orders/orders/${id}/submit-approval`
     );
     expect(dup.status, 'PENDING_APPROVAL 二次提交应被拒').toBeGreaterThanOrEqual(400);
 
@@ -229,7 +230,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const ctx = getCtx();
     const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId,
-      order_date: new Date().toISOString().slice(0, 10),
+      order_date: new Date().toISOString(),
       items: [{ material_id: ctx.productIds[0], quantity: 5, unit_price: '8.00' }],
     });
     const soId = so?.data?.id;

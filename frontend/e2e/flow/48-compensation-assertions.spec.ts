@@ -94,7 +94,7 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     const ctx = getCtx();
     const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId,
-      order_date: new Date().toISOString().slice(0, 10),
+      order_date: new Date().toISOString(),
       items: [{ material_id: ctx.productIds[0], quantity: 5, unit_price: '8.00' }],
     });
     const soId = so?.data?.id;

@@ -126,12 +126,12 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
   }) => {
     await loginViaUI(page);
     // 查一个敏感角色 id（admin/finance）
-    const roles = await apiCall<{ items?: Array<{ id: number; code: string }> }>(
+    const roleResp = await apiCallRaw<{ roles?: Array<{ id: number; code: string }> }>(
       page,
       'GET',
       '/roles?page=1&page_size=50'
     );
-    const roleList = (roles as { roles?: Array<{ id: number; code: string }> })?.roles ?? [];
+    const roleList = roleResp?.roles ?? [];
     const sensitive =
       roleList.find(r => ['admin', 'finance', 'finance_admin', 'super_admin'].includes(r.code)) ??
       roleList[0];

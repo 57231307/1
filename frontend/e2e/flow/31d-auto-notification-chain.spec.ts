@@ -73,7 +73,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     let orderId: number | undefined;
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId,
-      order_date: new Date().toISOString().slice(0, 10),
+      order_date: new Date().toISOString(),
       items: [{ product_id: ctx.productIds[0], quantity: 10, unit_price: 25.5 }],
     });
     orderId = r?.data?.id;
@@ -114,7 +114,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     let orderId: number | undefined;
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId,
-      order_date: new Date().toISOString().slice(0, 10),
+      order_date: new Date().toISOString(),
       items: [{ product_id: ctx.productIds[0], quantity: 5, unit_price: 30 }],
     });
     orderId = r?.data?.id;
@@ -154,7 +154,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     let orderId: number | undefined;
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: 1,
-      order_date: new Date().toISOString().slice(0, 10),
+      order_date: new Date().toISOString(),
       items: [{ product_id: 1, quantity: 8, unit_price: 20 }],
     });
     orderId = r?.data?.id;

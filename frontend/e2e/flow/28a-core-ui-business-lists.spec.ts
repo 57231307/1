@@ -157,10 +157,16 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       if (newBtnVisible) {
         await newBtn.click();
         await page.waitForTimeout(2000);
-        // 可能跳转到创建页或弹窗
+        // 新建报价单可能跳转独立创建页（路由页）或弹窗，兼容两者
         const url = page.url();
-        await page.locator('.el-dialog').first().waitFor({ state: 'visible', timeout: 3000 });
-        const hasDialog = await page.locator('.el-dialog').first().isVisible();
+        const dialog = page.locator('.el-dialog').first();
+        const hasDialog = await dialog.isVisible().catch(() => false);
+        if (!hasDialog && /\/quotations\/(new|create)/.test(url)) {
+          await page
+            .locator('.el-form, .el-card')
+            .first()
+            .waitFor({ state: 'visible', timeout: 5000 });
+        }
         expect(url.includes('quotations') || hasDialog).toBe(true);
       }
     }

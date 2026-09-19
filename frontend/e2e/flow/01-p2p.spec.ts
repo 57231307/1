@@ -241,6 +241,16 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       return;
     }
 
+    // 后端规则：DRAFT/CANCELLED 应付单不可申请付款，先审核应付单（幂等：仅 draft 状态调用）
+    const inv = await apiCallRaw<{ invoice_status?: string }>(
+      page,
+      'GET',
+      `/ap/invoices/${ctx.apInvoiceId}`
+    );
+    if ((inv.invoice_status || '').toLowerCase() === 'draft') {
+      await apiCall(page, 'POST', `/ap/invoices/${ctx.apInvoiceId}/approve`);
+    }
+
     // 先创建付款申请（POST /ap/payment-requests），再用 request_id 创建付款
     const payReq = await apiCall<{ data?: { id?: number } }>(page, 'POST', '/ap/payment-requests', {
       supplier_id: ctx.supplierId,

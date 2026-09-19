@@ -2,6 +2,7 @@ import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
+  apiCallRaw,
   apiCallExpectFail,
   expectBadRequest,
   tryCleanup,
@@ -32,12 +33,32 @@ function afterEachCleanupHook() {
 test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则表）', () => {
   let voucherId: number | undefined;
 
+  /** 确保会计科目 1001/1002 存在（subjects 表无 seed，凭证校验科目必须存在） */
+  async function ensureSubjects(page: import('@playwright/test').Page): Promise<void> {
+    const list = await apiCallRaw<Array<{ code?: string }>>(page, 'GET', '/subjects');
+    const codes = new Set((list ?? []).map(s => s.code));
+    for (const [code, name] of [
+      ['1001', '库存现金'],
+      ['1002', '银行存款'],
+    ] as const) {
+      if (!codes.has(code)) {
+        await apiCall(page, 'POST', '/subjects', {
+          code,
+          name,
+          level: 1,
+          balance_direction: 'debit',
+        });
+      }
+    }
+  }
+
   /** 创建一张借贷平衡的草稿凭证（可指定不平衡金额注入负例） */
   async function createVoucher(
     page: import('@playwright/test').Page,
     debit: string,
     credit: string
   ): Promise<number | undefined> {
+    await ensureSubjects(page);
     const r = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
       voucher_type: '记',
       voucher_date: new Date().toISOString().slice(0, 10),

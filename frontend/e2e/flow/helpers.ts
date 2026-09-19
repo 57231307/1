@@ -413,7 +413,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       }
       const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
         customer_id: ctx.customerId,
-        order_date: new Date().toISOString().slice(0, 10),
+        order_date: new Date().toISOString(),
         items: [{ product_id: ctx.productIds[0], quantity: '1', unit_price: '1' }],
       });
       ctx.salesOrderId = result.data?.id;
