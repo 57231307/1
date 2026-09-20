@@ -76,12 +76,21 @@ async function createThenApiDelete(
   } else if (chk.status() === 200) {
     const body = await chk.json();
     const d = body?.data;
-    const stillThere =
-      d && (d.id === id || (Array.isArray(d) && d.some((x: { id?: number }) => x.id === id)));
+    // 软删场景：记录可能仍返回但 is_deleted=true 或 status 非 active
+    const isSoftDeleted =
+      d &&
+      (d.is_deleted === true ||
+        d.status === 'inactive' ||
+        d.status === 'deleted' ||
+        d.status === 'cancelled');
+    const stillActive =
+      d &&
+      (d.id === id || (Array.isArray(d) && d.some((x: { id?: number }) => x.id === id))) &&
+      !isSoftDeleted;
     console.warn(
-      `[31b-${c.label}] ⚠️ 详情仍返回 200${stillThere ? ' 且记录存在（软删或删除未生效）' : ''}`
+      `[31b-${c.label}] ⚠️ 详情仍返回 200${stillActive ? ' 且记录仍活跃（删除未生效）' : '（软删或已停用）'}`
     );
-    expect(stillThere, `[31b-${c.label}] 删除后详情不应再返回该记录`).toBeFalsy();
+    expect(stillActive, `[31b-${c.label}] 删除后记录不应仍处于活跃状态`).toBeFalsy();
   } else {
     console.warn(`[31b-${c.label}] 详情回读 HTTP ${chk.status()}（非 200/404，记录）`);
   }

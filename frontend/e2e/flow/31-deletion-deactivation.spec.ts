@@ -262,6 +262,7 @@ async function createThenUiDelete(
   rowName: string | number
 ): Promise<void> {
   const createResp = await apiCall<{ id?: number }>(page, 'POST', createApi, createPayload);
+  console.log(`[P0-删除-${label}] 创建响应:`, JSON.stringify(createResp?.data)?.slice(0, 300));
   const id = createResp?.data?.id;
   expect(id, `[P0-删除-${label}] 创建失败（前置数据缺失或 API 异常）`).toBeTruthy();
   console.log(`[P0-删除-${label}] 数据准备完成 id=${id}`);

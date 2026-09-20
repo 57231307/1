@@ -428,6 +428,20 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     const prodId = prod?.data?.id;
     expect(custId, '[P0-销售订单] 客户创建失败').toBeTruthy();
     expect(prodId, '[P0-销售订单] 产品创建失败').toBeTruthy();
+    // 销售订单创建会锁库存，需先确保产品有库存记录
+    try {
+      const ctx = getCtx();
+      const whId = ctx.warehouseIds[0] || 1;
+      await apiCall(page, 'POST', '/inventory/stock/fabric', {
+        product_id: prodId,
+        warehouse_id: whId,
+        quantity: 100,
+        batch_no: `P0-STK-${TS}-${Math.random().toString(36).slice(2, 6)}`,
+      });
+      console.log('[P0-销售订单] 库存记录已创建 prodId=', prodId);
+    } catch (e) {
+      console.warn('[P0-销售订单] 库存创建失败（可能已存在）:', (e as Error).message);
+    }
     const orderDate = new Date().toISOString().slice(0, 10);
     const payload = {
       customer_id: custId,
