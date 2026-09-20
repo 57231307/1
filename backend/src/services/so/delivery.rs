@@ -132,6 +132,11 @@ impl SalesService {
         // P1 3-8 修复（批次 60）：包裹事务，确保单号生成的 advisory_xact_lock
         // 与 INSERT 在同一事务内，锁覆盖完整临界区
         let txn = (*self.db).begin().await?;
+        // customer_id 必须来自订单本身：硬编码 0 会让发货单脱离客户归属，破坏按客户维度统计
+        let order = sales_order::Entity::find_by_id(order_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("销售订单不存在"))?;
         let delivery = sales_delivery::ActiveModel {
             id: Default::default(),
             // P1 3-8 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
@@ -145,7 +150,7 @@ impl SalesService {
                 .await?,
             ),
             order_id: Set(order_id),
-            customer_id: Set(0),
+            customer_id: Set(order.customer_id),
             warehouse_id: Set(warehouse_id),
             delivery_date: Set(chrono::Utc::now().date_naive()),
             status: Set(delivery_status::PENDING.to_string()),

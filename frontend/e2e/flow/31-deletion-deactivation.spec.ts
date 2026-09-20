@@ -440,6 +440,30 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
 
   test('坯布：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
+    // 引用字段取真实前置数据 ID（与产品色号用例约定一致），禁止硬编码 ID
+    const products = await apiCallRaw<{ items?: Array<{ id: number }> } | Array<{ id: number }>>(
+      page,
+      'GET',
+      '/products?page=1&page_size=1'
+    );
+    const prodArr = Array.isArray(products) ? products : (products?.items ?? []);
+    const warehouses = await apiCallRaw<{ items?: Array<{ id: number }> } | Array<{ id: number }>>(
+      page,
+      'GET',
+      '/warehouses?page=1&page_size=1'
+    );
+    const whArr = Array.isArray(warehouses) ? warehouses : (warehouses?.items ?? []);
+    const suppliers = await apiCallRaw<{ items?: Array<{ id: number }> } | Array<{ id: number }>>(
+      page,
+      'GET',
+      '/suppliers?page=1&page_size=1'
+    );
+    const supArr = Array.isArray(suppliers) ? suppliers : (suppliers?.items ?? []);
+    if (prodArr.length === 0 || whArr.length === 0 || supArr.length === 0) {
+      console.log('[P0-删除-坯布] 缺少产品/仓库/供应商前置数据，跳过');
+      test.skip();
+      return;
+    }
     await createThenUiDelete(
       page,
       '坯布',
@@ -447,9 +471,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       {
         fabric_no: `P0-GF-${EXT_TS}`,
         fabric_name: `P0待删坯布${EXT_TS}`,
-        product_id: 1,
-        supplier_id: 1,
-        warehouse_id: 1,
+        product_id: prodArr[0].id,
+        supplier_id: supArr[0].id,
+        warehouse_id: whArr[0].id,
         fabric_type: 'fabric',
         quantity_meters: 100,
         quantity_kg: 50,

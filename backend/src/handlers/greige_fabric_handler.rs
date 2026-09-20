@@ -6,7 +6,8 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use serde::Deserialize;
 
@@ -195,7 +196,8 @@ pub async fn create_greige_fabric(
     });
 
     let fabric = greige_fabric::ActiveModel {
-        id: Set(0),
+        // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
+        id: NotSet,
         fabric_no: Set(fabric_no),
         fabric_name: Set(req.fabric_name.unwrap_or_else(|| "未命名坯布".to_string())),
         product_id: Set(req.product_id),

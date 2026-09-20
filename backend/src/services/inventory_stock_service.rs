@@ -7,8 +7,8 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter, Set,
-    TransactionTrait,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait,
+    QueryFilter, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -655,7 +655,8 @@ impl InventoryStockService {
         let meters = Decimal::from_f64_retain(quantity_meters).unwrap_or(Decimal::ZERO);
         let kg = Decimal::from_f64_retain(quantity_kg).unwrap_or(Decimal::ZERO);
         let batch = inventory_stock::ActiveModel {
-            id: Set(0),
+            // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
+            id: NotSet,
             warehouse_id: Set(warehouse_id),
             product_id: Set(product_id),
             batch_no: Set(batch_no),
@@ -827,7 +828,8 @@ impl InventoryStockService {
             }
             None => {
                 let new_batch = inventory_stock::ActiveModel {
-                    id: Set(0),
+                    // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
+                    id: NotSet,
                     warehouse_id: Set(to_warehouse_id),
                     product_id: Set(source.product_id),
                     batch_no: Set(source.batch_no.clone()),
