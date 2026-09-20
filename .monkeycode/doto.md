@@ -52,6 +52,57 @@
 
 ## 未完成任务清单
 
+### Round 7-iter23（2026-09-21，三个结构性根因突破）
+
+> run 35524492654（head `de92d458`）进行中：65 job，46 success / 3 failure（05-system~10d、
+> 20~26、44f~54）/ 9 in_progress / 4 queued，非 E2E 仍全绿。
+> 判责证据源突破：artifact 内 `reports/playwright-output.txt`（全量 stdout）与
+> `reports/backend.log` 才是完整信号，job 日志只有 E2E-HEAD/TAIL、`error-context.md`
+> 只有最后一条断言文本——此前 16 轮的判责一直建立在残缺信号上。
+> 本轮修复 commit：`71d76858`（BPM fixture）、`09b234c0`（通知链路）、`225a1380`（产品契约）。
+
+- [x] **根因 1｜销售订单 submit 被异步自动审批**（02-o2c 2-5 报 `BUSINESS_ERROR/业务处理失败`）：
+  `ensureTestEntities` 建的 `sales_order_approval` 流程定义用 `node_id/node_name/node_type`
+  且无 `edges`，后端 `bpm_service.rs:138 resolve_first_task_node` 只认 `id/name/type`
+  （`start_event`→`user_task`）与 `edges`，解析为 `None` 时 `bpm_ops/instance.rs:84`
+  走「无任务节点，自动完成流程」→ 发布 `BpmProcessFinished{approved:true}` →
+  `listener.rs:1302` 异步把订单 pending→approved，抢在用例显式 approve 之前。
+  对外消息被 `utils/error.rs:428` 脱敏为「业务处理失败」（真实原因只进服务端日志），
+  故 16 轮无从定位。18-resilience / 44f / 48 / 31d 里「status!==approved 才 approve」
+  的条件兜底全部是为绕开它写的。
+- [x] **根因 2｜通知列表读取恒为空，31d/31e 全线假通过**（31e-5 显式失败）：
+  `notification_handler.rs:75` 的 payload key 是 `list`，两个 spec 的本地 reader 取
+  `data.items`，再经 `|| data.data || data || []` + `if(!res.ok()) return []` 层层兜底
+  退化成空数组；`status=unread` 小写也被后端大写匹配静默忽略。叠加硬编码
+  `http://localhost:8082` 绕过 CSRF 头注入，publish/announcement 等 POST 被拒后无人检查响应。
+  结果：P0 通知链路（提交/审批/发货/公告联动/直发/批量已读）一条断言都没跑到。
+- [x] **根因 3｜产品前后端字段契约不一致**（31c-产品 `未找到目标行` 的直接原因）：
+  后端实体 `name/code/status/standard_price` vs 前端 `Product` 契约
+  `product_name/product_code/is_active/price`，无映射层 → 产品列表名称/编码/状态列恒空、
+  状态恒显示"停用"；UI 新建产品提交的三个字段后端识别不到，名称被缺省成
+  `产品_<时间戳>`；列表 `keyword/is_active` 两个筛选参数不在 `ProductListQuery` 中，
+  搜索框与状态筛选是死控件（QuotationItemEditor 的 `is_active:true` 同）。
+  修复采用「读侧权限过滤后补别名 + 写侧边界映射」，避免逐个改 18+ 视图引入新风险。
+
+#### iter23 新增待办
+
+- [ ] **产品列表两列仍无数据源**：`barcode`（products 表无该列）、`category_name`（list 未 join
+  product_category）。需决定：后端出 VO，还是前端用已持有的 categories 列表本地解析。
+- [ ] **真空断言成片**（flow/smoke/traversal 内 `expect(expr);` 无匹配器 ≥48 处，另有
+  `expect(x.length).toBeGreaterThanOrEqual(0)` 恒真断言）：这类"永远绿"的断言是本轮三个
+  根因能长期潜伏的放大器。建议 eslint 加 `@typescript-eslint/no-unused-expressions`
+  并把 `e2e/` 从 ignores 移出 + 接入 CI lint（**动 eslint 配置/CI 需用户授权**）。
+- [ ] **31d-D 库存预警**仍为条件分支：要硬断言需先把某商品 `safety_stock`（或等价字段）
+  抬到现有库存之上构造确定前提。
+- [ ] **31d-F 付款申请通知**：`payment-requests/:id/submit` 侧未检索到 `notify_*` 调用，
+  需确认该链路是否真实接入；未接入则按「功能真实接入」补实现而不是删测试。
+- [ ] `views/quotations/components/QuotationItemEditor.vue:249` 等多处
+  `catch { products.value = [] }` 静默吞错（不静默日志违规，属前端视图批量项）。
+- [ ] run 35524492654 的 `20~26`、`44f~54` 两个失败分片待 job 结束后取
+  `reports/playwright-output.txt` 判责。
+- [ ] 沿 iter22：CI 只跑 `e2e/flow|smoke|traversal`，另有 20 个目录 218 个用例从不执行；
+  `check-i18n.mjs` 未接入 CI（两项均需用户授权改 `ci-cd.yml`）。
+
 ### Round 7-iter22（2026-09-20/21，首个真实 E2E 全量信号判责）
 
 > run 35515772653 全 67 job：9 失败（8 个 E2E 分片 + 收尾清理级联），**非 E2E 全绿**。
