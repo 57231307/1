@@ -75,21 +75,25 @@ async function createThenApiDelete(
     console.log(`[31b-${c.label}] ✅ 已确认真删除（404）`);
   } else if (chk.status() === 200) {
     const body = await chk.json();
-    const d = body?.data;
-    // 软删场景：记录可能仍返回但 is_deleted=true 或 status 非 active
+    const d = body?.data as Record<string, unknown> | undefined;
+    // 软删场景：记录可能仍返回但 is_deleted=true 或 status 标记为非活跃
     const isSoftDeleted =
-      d &&
+      d != null &&
       (d.is_deleted === true ||
         d.status === 'inactive' ||
         d.status === 'deleted' ||
         d.status === 'cancelled');
-    const stillActive =
-      d &&
-      (d.id === id || (Array.isArray(d) && d.some((x: { id?: number }) => x.id === id))) &&
-      !isSoftDeleted;
-    console.warn(
-      `[31b-${c.label}] ⚠️ 详情仍返回 200${stillActive ? ' 且记录仍活跃（删除未生效）' : '（软删或已停用）'}`
-    );
+    const recordMatches =
+      d != null &&
+      (d.id === id || (Array.isArray(d) && d.some((x: { id?: number }) => x.id === id)));
+    const stillActive = recordMatches && !isSoftDeleted;
+    if (isSoftDeleted) {
+      console.log(`[31b-${c.label}] ✅ 软删生效（is_deleted/status 标记为非活跃）`);
+    } else if (stillActive) {
+      console.warn(`[31b-${c.label}] ⚠️ 记录仍处于活跃状态（删除未生效）`);
+    } else {
+      console.log(`[31b-${c.label}] ✅ 记录已不可见或已被移除`);
+    }
     expect(stillActive, `[31b-${c.label}] 删除后记录不应仍处于活跃状态`).toBeFalsy();
   } else {
     console.warn(`[31b-${c.label}] 详情回读 HTTP ${chk.status()}（非 200/404，记录）`);

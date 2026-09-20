@@ -223,33 +223,41 @@ test.describe.serial('44a 缸号状态机规则矩阵（dye_batch_state_machine_
   });
 
   test('44a-6 非法状态值白名单校验（:16-157 直接拒绝）', async ({ page }) => {
-    // 非法 from_status：后端可能返回 200（空 transitions）或 4xx；核心约束是绝不能 allowed=true
-    let body: { allowed?: boolean; transitions?: unknown[] } = {};
-    let httpStatus = 200;
+    // 非法 from_status：后端必须拒绝，绝不能返回 allowed=true 或非空 transitions
+    // 两种合规响应：4xx（直接拒绝）或 200 + 空 transitions + allowed≠true
+    let body: { allowed?: boolean; transitions?: unknown[] } | null = null;
+    let httpStatus: number | null = null;
     try {
       const data = await apiCallRaw<{ allowed?: boolean; transitions?: unknown[] }>(
         page,
         'GET',
         `${CHECK}?from_status=__invalid__&to_status=scheduled&transition_code=SCHEDULE`
       );
-      body = data || {};
+      body = data ?? null;
+      httpStatus = 200;
     } catch (e) {
       const msg = (e as Error).message || '';
       const statusMatch = msg.match(/status (\d+)/);
-      httpStatus = statusMatch ? parseInt(statusMatch[1], 10) : 500;
+      if (statusMatch) {
+        httpStatus = parseInt(statusMatch[1], 10);
+      } else {
+        // 无法解析 HTTP 状态，说明是 JSON 解析或其他异常——必须暴露
+        throw new Error(`[44a-6] 无法确定响应状态: ${msg}`);
+      }
     }
-    if (httpStatus < 400) {
+
+    if (httpStatus !== null && httpStatus >= 400) {
+      // 4xx 是合规拒绝
+      expect(httpStatus, '非法状态值应被拒绝（4xx）').toBeGreaterThanOrEqual(400);
+    } else if (httpStatus === 200 && body != null) {
+      // 200 响应必须明确拒绝：allowed≠true 且 transitions 为空
       expect(body.allowed, '非法状态值不应返回 allowed=true').not.toBe(true);
       expect(
-        body.transitions?.length ?? 0,
+        Array.isArray(body.transitions) ? body.transitions.length : 0,
         '非法状态值 transitions 应为空数组'
-      ).toBeLessThanOrEqual(0);
+      ).toBe(0);
     } else {
-      expect(httpStatus, '非法状态值应被拒绝').toBeGreaterThanOrEqual(400);
+      throw new Error(`[44a-6] 非法响应：httpStatus=${httpStatus}, body=${JSON.stringify(body)}`);
     }
   });
 });
-
-function expectBadRequestLike(status: number, msg: string) {
-  expect(status, msg).toBeGreaterThanOrEqual(400);
-}
