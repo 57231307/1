@@ -11,6 +11,8 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
+  trackPageHealth,
+  assertPageHealthy,
 } from './helpers';
 
 test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
@@ -269,20 +271,31 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
   });
 
   test('安全设置 UI：修改密码表单', async ({ page }) => {
+    // run 35515772653 实测该路由渲染出 ErrorBoundary「页面加载出错」，而原实现只
+    // waitFor('.el-form') 超时，报 TimeoutError 却不带任何异常信息，无法定位根因；
+    // 且其后的 `if (formVisible)` 分支在表单不可见时会让用例静默通过。
+    // 先挂健康采集，失败时把页面异常与 console 错误一并带进报告。
+    const collector = trackPageHealth(page);
+
     await page.goto(`${BASE_URL}/security/change-password`);
     await page.waitForTimeout(3000);
-    await page
-      .locator('.el-card, .el-form, body')
-      .first()
-      .waitFor({ state: 'visible', timeout: 30_000 });
+
+    const errorBoundary = page.getByText('页面加载出错');
+    expect(
+      await errorBoundary.count(),
+      '修改密码页命中错误边界；页面异常=' +
+        (collector.pageErrors.join(' | ') || '(无 pageerror)') +
+        ' console错误=' +
+        (collector.consoleErrors.slice(0, 3).join(' | ') || '(无)')
+    ).toBe(0);
+
     const form = page.locator('.el-form').first();
-    await form.waitFor({ state: 'visible', timeout: 10_000 });
-    const formVisible = await form.isVisible();
-    if (formVisible) {
-      const inputs = form.locator('input');
-      const inputCount = await inputs.count();
-      expect(inputCount).toBeGreaterThan(0);
-    }
+    await form.waitFor({ state: 'visible', timeout: 15_000 });
+    const inputCount = await form.locator('input').count();
+    console.log(`[E2E][27] 修改密码表单 input 数量=${inputCount}`);
+    expect(inputCount).toBeGreaterThan(0);
+
+    await assertPageHealthy(page, collector);
   });
 
   test('坯布管理 UI 页面', async ({ page }) => {
