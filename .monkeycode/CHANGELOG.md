@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-09-21
+
+| PR | 一句话总结 |
+|----|-----------|
+| PR #941 | Round 7-iter23：定位并修掉潜伏 16 轮的三个结构性根因——① E2E 的 sales_order_approval 流程定义节点 schema（node_id/node_type、无 edges）与后端 resolve_first_task_node 需要的 id/type+edges 不符，后端走「无任务节点自动完成」异步回写 approved 抢跑用例的显式 approve（02-o2c 2-5），连带清掉 02-o2c/18/44f/48/31d 为绕开它写的条件兜底；② 通知列表读 data.items 而后端 key 是 data.list，叠加硬编码 localhost:8082 绕过 CSRF 头注入，31d/31e 全部 P0 通知链路 0 断言空转（31e-5 显式失败），改为 helpers.listNotifications + 固定标题硬断言 + 全量走 apiCall；③ 产品前后端字段契约不一致（name/code/status/standard_price vs product_name/product_code/is_active/price）致名称编码状态三列恒空、UI 建产品丢名字、keyword/is_active 两个筛选为死控件，修法为读侧权限过滤后补别名 + 写侧 toProductPayload 边界映射。判责证据源修正为 artifact 的 reports/playwright-output.txt + backend.log；登记 barcode/category_name 无数据源、真空断言成片、31d-D/F 前提缺失等 8 项 |
+
+---
+
 ## 2026-09-20
 
 | PR | 一句话总结 |
