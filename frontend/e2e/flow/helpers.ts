@@ -807,6 +807,38 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
  * 其余测试的执行窗口（一个分片约 13 个测试 × 5 分钟 ensure 上限，
  * 最坏情况也不会触及 20 分钟分片强杀）。
  */
+/**
+ * 通知列表项。后端 notification_handler.rs:75 的 list_notifications 返回
+ * `{ list, total, page, page_size }`，key 是 list 而非 items；
+ * status 过滤仅接受大写 UNREAD/READ/PROCESSED（小写会匹配不到而被静默忽略）。
+ */
+export interface NotificationItem {
+  id: number;
+  title: string;
+  content?: string;
+  status?: string;
+}
+
+/** 读取当前用户通知；响应缺少 list 数组时直接抛错，不再退化成"0 条通知" */
+export async function listNotifications(
+  page: Page,
+  status: 'UNREAD' | 'READ' | 'PROCESSED' = 'UNREAD'
+): Promise<NotificationItem[]> {
+  const body = await apiCallRaw<{ list?: NotificationItem[] }>(
+    page,
+    'GET',
+    `/notifications?status=${status}&page=1&page_size=50`
+  );
+  if (!Array.isArray(body?.list)) {
+    throw new Error(
+      `[listNotifications] /notifications 响应缺少 list 数组，实际 keys=${JSON.stringify(
+        Object.keys(body ?? {})
+      )}`
+    );
+  }
+  return body.list;
+}
+
 export async function ensureTestEntities(page: Page): Promise<void> {
   const GUARD_MS = 300_000;
   let timer: ReturnType<typeof setTimeout> | undefined;

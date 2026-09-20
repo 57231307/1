@@ -205,12 +205,14 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-13 通知列表', async ({ page }) => {
-    const notifications = await apiCallRaw<{ items: Array<{ id: number }> }>(
+    // 后端 notification_handler.rs:75 的 payload key 是 list，不是 items；
+    // 原实现 expect(notifications.items) 没有匹配器，是永远为真的空断言
+    const notifications = await apiCallRaw<{ list: Array<{ id: number }> }>(
       page,
       'GET',
       '/notifications?page=1&page_size=5'
     );
-    expect(notifications.items);
+    expect(Array.isArray(notifications.list), '通知列表应返回 list 数组').toBe(true);
   });
 
   test('5-14 仪表盘', async ({ page }) => {
