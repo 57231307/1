@@ -17,6 +17,9 @@ import {
 
 test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', () => {
   const dyeLotNo = genDyeLotNo();
+  /** 2-8 新建的分次收款专用应收单金额；2-9 按此金额做 50% + 50% 两笔收款并断言状态流转 */
+  const AR_INVOICE_AMOUNT = 113000;
+  const AR_PAYMENT_HALF = AR_INVOICE_AMOUNT / 2;
   const CLEANUP: Array<{ path: string; label: string }> = [];
 
   test.beforeEach(async ({ page }) => {
@@ -278,18 +281,20 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       : ((invoices as { items?: Array<{ id: number; amount: number; status: string }> }).items ??
         []);
 
-    if ((invoiceList.length ?? 0) === 0) {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/ar/invoices', {
-        // CreateArInvoiceRequest：金额字段为 invoice_amount（无 invoice_no/tax_amount）
-        customer_id: ctx.customerId,
-        invoice_amount: 113000,
-        invoice_date: new Date().toISOString().split('T')[0],
-      });
-      ctx.arInvoiceId = result.data?.id;
-    } else {
-      ctx.arInvoiceId = invoiceList[0]?.id;
-    }
-    expect(ctx.arInvoiceId).toBeDefined();
+    // 后端 list_ar_invoices 返回 ApiResponse<Vec<Model>>，data 为数组；
+    // 若结构退化为对象或缺失 data，这里应直接暴露而非静默当作空列表
+    expect(Array.isArray(invoiceList), 'AR 应收单列表 data 应为数组').toBe(true);
+
+    // 分次收款用例要求应收单金额已知。复用列表中的任意一张会让"50%"前提失效
+    // （其金额与已收金额均不确定，首付 50% 可能直接结清），故始终新建专用单。
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/ar/invoices', {
+      // CreateArInvoiceRequest：金额字段为 invoice_amount（无 invoice_no/tax_amount）
+      customer_id: ctx.customerId,
+      invoice_amount: AR_INVOICE_AMOUNT,
+      invoice_date: new Date().toISOString().split('T')[0],
+    });
+    ctx.arInvoiceId = result.data?.id;
+    expect(ctx.arInvoiceId, '创建应收单应返回 id').toBeDefined();
   });
 
   test('2-9 分次收款（50% + 50%）', async ({ page }) => {
@@ -303,30 +308,41 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     // 第一次收款 50%（invoice_ids 复数字段对应后端 CreateArPaymentRequest）
     await apiCall(page, 'POST', '/ar/payments', {
       customer_id: ctx.customerId,
-      amount: 56500,
+      amount: AR_PAYMENT_HALF,
       payment_method: 'bank_transfer',
       payment_date: new Date().toISOString().split('T')[0],
       invoice_ids: [ctx.arInvoiceId],
     });
 
-    // 验证状态为部分付款
-    const inv = await apiCallRaw<{ status: string }>(
+    // 后端决策函数（ar_invoice_service::decide_ar_status）：
+    // received >= invoice → PAID，否则 PARTIAL_PAID。首次只收一半，状态必须精确为 PARTIAL_PAID。
+    // 原断言写成 6 值宽白名单 + `|| 'partially_paid'` 兜底：状态缺失时会用兜底值凑成通过，
+    // 且白名单里的 partially_paid 并非后端存在的值，等于恒不成立时才失败。
+    const partial = await apiCallRaw<{ status: string }>(
       page,
       'GET',
       `/ar/invoices/${ctx.arInvoiceId}`
     );
-    expect(['partially_paid', 'paid', 'unpaid', 'pending', 'partial', 'confirmed']).toContain(
-      (inv.status || '').toLowerCase() || 'partially_paid'
-    );
+    console.log(`[E2E][2-9] 首付 50% 后应收单状态=${partial.status}（期望 PARTIAL_PAID）`);
+    expect(partial.status).toBe('PARTIAL_PAID');
 
-    // 第二次收款 50%
+    // 第二次收款 50%（结清）
     await apiCall(page, 'POST', '/ar/payments', {
       customer_id: ctx.customerId,
-      amount: 56500,
+      amount: AR_PAYMENT_HALF,
       payment_method: 'bank_transfer',
       payment_date: new Date().toISOString().split('T')[0],
       invoice_ids: [ctx.arInvoiceId],
     });
+
+    // 原实现在此完全没有断言，"分次收款至结清"的后半段等于未验证
+    const settled = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/ar/invoices/${ctx.arInvoiceId}`
+    );
+    console.log(`[E2E][2-9] 二次收款结清后状态=${settled.status}（期望 PAID）`);
+    expect(settled.status).toBe('PAID');
   });
 
   test('2-10 验证销售报表（按色号/缸号维度）', async ({ page }) => {
