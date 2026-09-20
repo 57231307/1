@@ -1,127 +1,152 @@
 /**
- * E2E-AUTHENTICITY-EXEMPT: 依赖响应伪造（mockApiError/mockNetworkFailure），
- * 违反 E2E 真实数据强制 IR（2026-09-07：E2E 一律真实后端 + 真实 PostgreSQL）。
- * 恢复方案：以真实后端异常源（越权账号 403 / 越界 ID 404 / 超限载荷 422）重写
- * 后方可移除本标记与 skip，恢复需人工确认。
+ * 网络韧性测试：真实网络中断 / 真实弱网 / 中断后自愈
  *
- * 网络韧性测试：模拟后端异常返回 / 弱网环境 / 网络中断
+ * 异常源全部为真实链路，不使用任何响应伪造：
+ * - 网络中断：浏览器上下文级 `context.setOffline(true)`，请求真实失败于
+ *   net::ERR_INTERNET_DISCONNECTED，走 axios 真实错误拦截与真实重试路径。
+ * - 弱网：Chromium DevTools Protocol `Network.emulateNetworkConditions` 施加真实链路延迟，
+ *   请求真实发出、响应真实返回，仅链路被真实劣化（不限吞吐，避免拖垮 SPA bundle 加载）。
  *
- * 批次 262：验证前端对后端异常与弱网环境的容错处理。
+ * 断言依据为 src/api/request.ts 的真实实现：
+ * 无 response 的网络错误使 shouldRetry() 返回 true，幂等 GET 最多重试 3 次
+ * （退避 min(1000*n + rand*1000, 5000)），穷尽后 showErrorOnce(getSafeErrorMessage())
+ * 弹出无状态码兜底文案 '请求失败，请稍后重试'。
  *
- * 测试范围：
- * - 后端 500 错误：前端应显示错误提示而非崩溃
- * - 后端 403 错误：前端应显示权限不足提示
- * - 弱网环境（慢速返回）：前端应显示 loading 状态
- * - 网络中断：前端应显示网络错误提示
- *
- * 设计说明：
- * - 使用 smoke 测试的 mock 模式（不依赖真实后端的异常注入）
- * - 通过 fixtures/network.ts 的工具函数注入异常
- * - 与 fixtures/auth.ts 的 mock 配合，确保页面可访问
+ * HTTP 4xx/5xx 的前端处理不在本文件重复，其异常源同为真实链路且已覆盖：
+ * - 403：33 垂直越权矩阵 / 33b 角色黑名单（真实低权账号登录）
+ * - 全站不崩溃：各 flow spec 的 assertPageHealthy 含"零 5xx"门禁
+ * 原实现以 mockApiError / mockNetworkFailure / simulateSlowNetwork 伪造上述响应，
+ * 违反 E2E 真实数据强制 IR（2026-09-07），故整体重写而非保留 skip 与豁免标记。
  */
-import { test, expect } from '@playwright/test';
-import { applyAuthMocks } from '../smoke/_helpers';
-import { mockApiError, mockNetworkFailure, simulateSlowNetwork } from '../fixtures/network';
+import { test, expect, type Page } from '../diagnose-fixture';
+import {
+  loginAsRole,
+  trackPageHealth,
+  assertPageHealthy,
+  expectSingleToast,
+} from '../flow/helpers';
 
-test.skip(true, 'E2E-AUTHENTICITY-EXEMPT: 依赖响应伪造，违反 E2E 真实数据 IR，待人工确认恢复方案');
+const API_PREFIX = '/api/v1/erp';
+/** 网络错误需经 3 次重试（最坏累计退避约 9s）才弹提示，留足以余量 */
+const RETRY_SETTLE_TIMEOUT = 45_000;
 
-test.describe('网络韧性：后端异常返回处理', () => {
-  test.beforeEach(async ({ context }) => {
-    // 应用基础 mock（鉴权 + 初始化状态）
-    await applyAuthMocks(context);
+/** 收集真实失败的网络请求，用于证明重试链路确实生效而非常驻真断言 */
+function trackFailedRequests(page: Page): string[] {
+  const failed: string[] = [];
+  page.on('requestfailed', request => {
+    failed.push(`${request.method()} ${request.url()} → ${request.failure()?.errorText ?? '?'}`);
   });
+  return failed;
+}
 
-  test('后端 500 错误时前端不崩溃', async ({ page }) => {
-    // 注入销售订单接口 500 错误
-    await mockApiError(page, '**/api/v1/erp/sales/orders**', {
-      status: 500,
-      errorCode: 'INTERNAL_ERROR',
-      errorMessage: '模拟的服务器内部错误',
-    });
-
-    await page.goto('/sales');
-    // 页面应正常渲染（不崩溃白屏），表格组件应存在
-    await expect(page.locator('.el-table-v2').first()).toBeAttached({ timeout: 30_000 });
-    // 页面应保持可交互（不卡死）
-    await expect(page.locator('body')).toBeVisible();
+/** 收集真实成功的应用数据响应（须在触发动作之前注册，否则漏采） */
+function trackOkApiResponses(page: Page): number[] {
+  const ok: number[] = [];
+  page.on('response', response => {
+    if (response.url().includes(API_PREFIX) && response.status() === 200) ok.push(200);
   });
+  return ok;
+}
 
-  test('后端 403 错误时前端显示错误提示', async ({ page }) => {
-    // 注入权限不足错误
-    await mockApiError(page, '**/api/v1/erp/sales/orders**', {
-      status: 403,
-      errorCode: 'PERMISSION_DENIED',
-      errorMessage: '权限不足',
-    });
+/** 点击侧边栏首个菜单项触发 SPA 路由切换，使应用自身发起真实数据请求。
+ *  按 role 而非文案定位，避免中英 i18n 切换导致定位失败。 */
+async function navigateViaFirstMenuItem(page: Page): Promise<void> {
+  const firstMenuItem = page.locator('[role="menuitem"]').first();
+  await expect(firstMenuItem, '侧边栏应渲染可点击菜单项').toBeVisible({ timeout: 30_000 });
+  const label = (await firstMenuItem.innerText()).trim();
+  console.log(`[network-resilience] 点击菜单项「${label}」触发 SPA 内导航与应用自身请求`);
+  await firstMenuItem.click();
+}
 
+test.describe('网络韧性：真实网络中断', () => {
+  test('中断后不崩溃、按真实重试策略提示，恢复后重新拉到数据', async ({ page, context }) => {
+    const collector = trackPageHealth(page);
+    const failedRequests = trackFailedRequests(page);
+
+    await loginAsRole(page, 'admin');
     await page.goto('/sales');
-    // 页面应正常渲染
-    await expect(page.locator('.el-table-v2').first()).toBeAttached({ timeout: 30_000 });
-  });
+    await expect(page.locator('[role="menuitem"]').first()).toBeVisible({ timeout: 30_000 });
+    console.log('[network-resilience] admin 真实登录完成，/sales 列表页已在线加载');
 
-  test('网络中断时前端不卡死', async ({ page }) => {
-    // 注入网络中断
-    await mockNetworkFailure(page, '**/api/v1/erp/sales/orders**');
+    failedRequests.length = 0;
+    await context.setOffline(true);
+    console.log('[network-resilience] 上下文已置离线，触发应用自身数据请求');
 
-    await page.goto('/sales');
-    // 即使网络中断，页面骨架应正常渲染
-    await expect(page.locator('body')).toBeVisible({ timeout: 30_000 });
+    await navigateViaFirstMenuItem(page);
+
+    // 断言 1：错误提示文案精确匹配 getSafeErrorMessage 的无状态码分支
+    const toast = page.locator('.el-message--error');
+    await expect(toast, '离线时应弹出错误提示').toBeVisible({ timeout: RETRY_SETTLE_TIMEOUT });
+    const toastText = (await toast.first().innerText()).trim();
+    console.log(`[network-resilience] 离线错误提示文案：「${toastText}」`);
+    expect(toastText).toBe('请求失败，请稍后重试');
+    await expectSingleToast(page, '请求失败，请稍后重试');
+
+    // 断言 2：幂等 GET 的真实重试确实发生，且失败原因是真实中断而非伪造响应
+    const apiFailures = failedRequests.filter(line => line.includes(API_PREFIX));
+    console.log(
+      `[network-resilience] 离线期间真实失败请求 ${apiFailures.length} 条，样例：` +
+        apiFailures.slice(0, 2).join(' | ')
+    );
+    expect(
+      apiFailures.length,
+      '离线期间应至少出现 2 次真实失败，以证明重试链路生效'
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      apiFailures.every(line => line.includes('ERR_INTERNET_DISCONNECTED')),
+      '失败原因应为真实网络中断'
+    ).toBe(true);
+
+    // 断言 3：中断不产生未捕获异常与 5xx；离线场景浏览器自身的 console error
+    // 属预期噪声，故允许 console 噪声但禁止 pageerror 与白屏
+    await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+
+    // 断言 4：恢复网络后应用自愈，真实重新拉到数据
+    await context.setOffline(false);
+    const okResponses = trackOkApiResponses(page);
+    console.log('[network-resilience] 已恢复在线，重新加载页面验证自愈');
+    await page.goto('/sales', { timeout: 60_000 });
+    console.log(`[network-resilience] 恢复后捕获 200 数据响应 ${okResponses.length} 条`);
+    expect(okResponses.length, '恢复在线后应用应真实拉到数据').toBeGreaterThan(0);
+    await expect(page.locator('[role="menuitem"]').first()).toBeVisible({ timeout: 30_000 });
+    await assertPageHealthy(page, collector, { allowConsoleWarn: true });
   });
 });
 
-test.describe('网络韧性：弱网环境处理', () => {
-  test.beforeEach(async ({ context }) => {
-    await applyAuthMocks(context);
-  });
+test.describe('网络韧性：真实弱网链路', () => {
+  test('CDP 真实链路延迟下页面仍可加载且无未捕获异常', async ({ page, context }) => {
+    const collector = trackPageHealth(page);
+    await loginAsRole(page, 'admin');
+    console.log('[network-resilience] admin 真实登录完成，准备经 CDP 施加真实链路延迟');
 
-  test('慢速网络下页面可正常加载', async ({ page }) => {
-    // 模拟弱网：所有 API 请求延迟 1.5 秒
-    await simulateSlowNetwork(page, '**/api/v1/erp/**', 1500);
-
-    await page.goto('/sales');
-    // 即使慢速，页面最终应加载完成
-    await expect(page.locator('.el-table-v2').first()).toBeAttached({ timeout: 30_000 });
-  });
-
-  test('慢速网络下表格组件渲染', async ({ page }) => {
-    // 模拟弱网：延迟 800ms
-    await simulateSlowNetwork(page, '**/api/v1/erp/**', 800);
-
-    await page.goto('/sales');
-    // 表格组件应渲染
-    const table = page.locator('.el-table-v2').first();
-    await expect(table).toBeAttached({ timeout: 30_000 });
-  });
-});
-
-test.describe('网络韧性：业务错误码处理', () => {
-  test.beforeEach(async ({ context }) => {
-    await applyAuthMocks(context);
-  });
-
-  test('业务校验错误前端不崩溃', async ({ page }) => {
-    // 注入业务校验错误（HTTP 400 + 业务码）
-    await mockApiError(page, '**/api/v1/erp/sales/orders**', {
-      status: 400,
-      errorCode: 'VALIDATION_ERROR',
-      errorMessage: '参数校验失败',
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Network.enable');
+    await cdp.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: 800,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
     });
+    console.log('[network-resilience] CDP 已施加真实弱网：每请求额外延迟 800ms');
 
-    await page.goto('/sales');
-    // 前端应正常处理业务错误，不崩溃
-    await expect(page.locator('body')).toBeVisible({ timeout: 30_000 });
-  });
+    const startedAt = Date.now();
+    await page.goto('/sales', { timeout: 90_000 });
+    const elapsed = Date.now() - startedAt;
+    console.log(`[network-resilience] 弱网下 /sales 加载耗时 ${elapsed}ms`);
 
-  test('未授权错误前端处理', async ({ page }) => {
-    // 注入 401 未授权（模拟 token 过期）
-    await mockApiError(page, '**/api/v1/erp/sales/orders**', {
-      status: 401,
-      errorCode: 'UNAUTHORIZED',
-      errorMessage: '登录已过期',
+    // 弱网必须真实生效，否则该用例退化为普通加载测试
+    expect(elapsed, '真实弱网未生效（耗时未超过注入的单请求延迟）').toBeGreaterThan(800);
+
+    await expect(page.locator('[role="menuitem"]').first()).toBeVisible({ timeout: 60_000 });
+    await assertPageHealthy(page, collector);
+
+    await cdp.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: 0,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
     });
-
-    await page.goto('/sales');
-    // 前端应处理 401（可能跳转登录或显示提示），不崩溃
-    await expect(page.locator('body')).toBeVisible({ timeout: 30_000 });
+    await cdp.detach();
+    console.log('[network-resilience] 弱网条件已解除并断开 CDP 会话');
   });
 });
