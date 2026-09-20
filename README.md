@@ -61,7 +61,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | 前端 Views 子模块 | 110 个                                                                                                                        |
 | 前端 API 模块     | 121 个                                                                                                                        |
 | 前端 i18n 翻译键  | 10,079 个（zh/en 键对齐校验 0 缺失）                                                                                          |
-| 前端 E2E 测试     | 1,332 个 / 259 个 spec 文件（75 flow 工作流 + 116 冒烟 + 10 traversal 端点遍历 + 58 其他业务域）                              |
+| 前端 E2E 测试     | 1,265 个 / 259 个 spec 文件（665 flow 工作流 + 266 traversal 端点遍历 + 116 冒烟 + 14 enhanced + 9 Setup 向导 + 195 其余 18 个业务目录）                              |
 | Clippy Baseline   | 4,274 行（185 条唯一警告）                                                                                                    |
 | 最新版本          | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001）                                                                |
 | 安全漏洞存量      | 0（密钥泄露扫描工作区+git 历史：0 发现）                                                                                      |
@@ -491,10 +491,17 @@ sudo journalctl -u bingxi-backend -f
 | --------------------- | --------------------- | --------------------- | ------------------------------------------------------------------------------------ |
 | 后端集成测试          | 249 文件 / 2,050 函数 | cargo test + nextest  | 服务层 + API 层                                                                      |
 | 前端 E2E 冒烟测试     | 116                   | Playwright            | 全部前端路由（1:1 映射，5 分片并行）                                                 |
-| 前端 E2E 工作流测试   | 849                   | Playwright            | 75 个 flow spec 文件，业务闭环 + 纺织领域 + 权限矩阵 + 健康巡检                      |
-| 前端 E2E 真实链路测试 | 9                     | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录                           |
+| 前端 E2E 工作流测试   | 665                   | Playwright            | 75 个 flow spec 文件，业务闭环 + 纺织领域 + 权限矩阵 + 健康巡检                      |
 | 前端 E2E 端点遍历     | 266                   | Playwright            | 10 个 traversal spec：打印/导出/审批端点矩阵 + 42a-d 全模块遍历 + 角色矩阵（5 分片） |
+| 前端 E2E 真实链路测试 | 9                     | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录                           |
+| 前端 E2E 增强链路     | 14                    | Playwright（零 mock） | 3 个 enhanced spec：多角色协同 / RPA 取数 / 真实网络韧性（离线 + CDP 链路延迟）      |
+| 前端 E2E 其余业务域   | 195                   | Playwright            | 18 个目录：采购/销售/库存/生产/财务/CRM/BPM/质量/AI/报价/物流/色卡/定制订单等        |
+| **前端 E2E 合计**     | **1,265**             | —                     | 259 个 spec 文件（chromium project 计数）                                            |
 | 性能基准              | 4                     | criterion             | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算                                    |
+
+> E2E 数量口径：`npx playwright test --list` 在 chromium project 下的实测用例数（2026-09-20），
+> 非估算。`firefox` project 另跑 116 个冒烟用例，`webkit` project 与 chromium 同集（1,265），
+> 故 `--list` 全 project 总计为 2,646。
 
 ### E2E 测试覆盖
 

@@ -91,14 +91,28 @@
   `MEMORY.md` `## 二、常规规则` 重复两次导致章节编号断裂 → 去重并恢复连续编号
 - [ ] **Round 7-iter5~iter20 的 E2E 修复首次真实 CI 验证**：本轮编译阻塞清除后 E2E 将首次实跑，
   预期暴露新的失败面，需按判责纪律逐测试归因（源代码/测试文件/测试配置/环境 flaky/测试基建）
-- [ ] **`network-resilience.spec.ts` 整文件 `test.skip(true)`**（`frontend/e2e/enhanced/`，规则 0）：
-  仍依赖 `applyAuthMocks` + `mockApiError`/`mockNetworkFailure`/`simulateSlowNetwork` 响应伪造。
-  文件头部已自述恢复方案：改用真实异常源（越权账号 403 / 越界 ID 404 / 超限载荷 422）+
-  浏览器级真实离线（`context.setOffline`）重写，重写后方可移除 EXEMPT 标记与 skip
-- [ ] **`import_export_ops/task.rs:4,20` 与 `models/import_task.rs:5` 注释失实**：以现在时描述
-  已删除的 `import_csv`，`task.rs:20` 另含变更日志式表述与重复标点 `，；`（IR 注释规范 09-17）
+- [x] **`network-resilience.spec.ts` 整文件 `test.skip(true)`**（规则 0）：已重写为真实网络条件并解除 skip 与
+  E2E-AUTHENTICITY-EXEMPT 标记 → `66167f92`。中断改 `context.setOffline(true)`（请求真实失败于
+  ERR_INTERNET_DISCONNECTED），弱网改 CDP `Network.emulateNetworkConditions` 真实链路延迟；
+  断言取 `src/api/request.ts` 真实契约（提示文案精确为 '请求失败，请稍后重试' +
+  `requestfailed` 计数 ≥2 证明幂等 GET 三次重试链路生效），原"body 可见/table attached"式弱断言全部替换。
+  本地验证：`playwright test --list` 收集到 4 用例（chromium+webkit），门禁脚本本地复跑
+  **violations=0 且 exempted=0**（全仓 E2E 首次零豁免）。
+  原 403/422/401/500 伪造用例不保留等价版本：403 已由 33/33b 真实低权账号覆盖，
+  5xx 不崩溃由各 flow spec 的 assertPageHealthy 零 5xx 门禁全站覆盖。
+  ⚠️ 待 CI 实跑验证（IR 禁止本地起服务，无法本地执行 E2E）。
+- [x] **`import_export_ops/task.rs` 与 `models/import_task.rs` 注释失实**：以现在时描述
+  已删除的 `import_csv`，另含变更日志式表述与重复标点 `，；` → `4203d71e`。
+  migration 内同类历史注释不动（已应用记录，改源恐影响迁移校验和）。
+- [ ] **README E2E 数据口径修正**：`--list` 实测 1,265 用例 / 259 spec 文件，
+  原写 1,332（flow 849 实为 665，虚高 184）→ 已按实测重写并补记口径来源。
+  ⚠️ 其余 README 统计行（后端 294,000 行 / 1,360 文件 / 前端 376 Vue 等）仍为 2026-09-09 快照，
+  未在本轮重测，后续更新需一并校准。
 - [ ] **clippy baseline 按 message 匹配的机制缺陷**：同一 message 的新发生会被判"非新增"而放行
   （本次 `unused_imports` 即实证），需评估改为 `file:line + message` 复合键
+- [ ] **`#![allow(dead_code)]` 覆盖 301/314 个 model 文件**：属全仓 SeaORM entity 既有惯例（PH），
+  项目级移除会一次暴露数百条告警并直接打红 CI，本轮不动；如需治理应单独立项并同步重建 baseline
+
 
 
 ### E2E 权限与打印覆盖缺口（2026-09-09 审计，待推送授权后立项）
