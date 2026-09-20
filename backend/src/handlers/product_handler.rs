@@ -164,6 +164,35 @@ pub struct ExportProductsQuery {
 /// 获取产品列表
 use crate::utils::field_mask::mask_sensitive_fields;
 
+/// 前端 `Product` 契约（frontend/src/api/product.ts:6）按 product_name / product_code /
+/// is_active / price 读取，而 products 实体字段是 name / code / status / standard_price，
+/// 导致产品列表与编辑弹窗的名称、编码、状态在 UI 上恒为空（18+ 个视图消费该契约，
+/// 含销售/采购/BOM 的产品选择器）。这里在字段级权限过滤**之后**补别名，且别名只从
+/// 过滤后的对象取值，避免用新键位绕过 hidden_fields 把已隐藏字段重新暴露出去。
+/// TODO(doto)：长期应收敛为单一契约（后端出 VO 或前端改读实体字段），避免一名两值。
+fn append_frontend_aliases(obj: &mut serde_json::Value) {
+    let Some(map) = obj.as_object_mut() else {
+        return;
+    };
+    for (alias, column) in [
+        ("product_name", "name"),
+        ("product_code", "code"),
+        ("price", "standard_price"),
+    ] {
+        let value = map.get(column).cloned();
+        if let Some(value) = value {
+            map.insert(alias.to_string(), value);
+        }
+    }
+    let is_active = map
+        .get("status")
+        .and_then(|status| status.as_str())
+        .map(|status| status == master_data::ACTIVE);
+    if let Some(is_active) = is_active {
+        map.insert("is_active".to_string(), serde_json::json!(is_active));
+    }
+}
+
 pub async fn list_products(
     Extension(auth): Extension<AuthContext>,
     State(state): State<AppState>,
@@ -212,6 +241,11 @@ pub async fn list_products(
         }
     }
 
+    // 权限过滤完成后再补前端契约别名，避免别名键绕过 hidden_fields 暴露被隐藏字段
+    for item in masked_products.iter_mut() {
+        append_frontend_aliases(item);
+    }
+
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         masked_products,
         total,
@@ -219,7 +253,6 @@ pub async fn list_products(
         page_size,
     ))))
 }
-
 /// 获取产品详情
 pub async fn get_product(
     State(state): State<AppState>,
@@ -244,6 +277,8 @@ pub async fn get_product(
             );
         }
     }
+
+    append_frontend_aliases(&mut product_json);
 
     Ok(Json(ApiResponse::success(product_json)))
 }

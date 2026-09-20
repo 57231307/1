@@ -91,12 +91,12 @@
         </el-form-item>
         <el-form-item :label="t('product.productListTab.labelStatus')">
           <el-select
-            v-model="queryParams.is_active"
+            v-model="queryParams.status"
             :placeholder="t('product.productListTab.placeholderStatus')"
             clearable
           >
-            <el-option :label="t('product.productListTab.statusActive')" :value="true" />
-            <el-option :label="t('product.productListTab.statusInactive')" :value="false" />
+            <el-option :label="t('product.productListTab.statusActive')" value="active" />
+            <el-option :label="t('product.productListTab.statusInactive')" value="inactive" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -389,7 +389,7 @@ const {
   defaultParams: {
     keyword: '',
     category_id: undefined as number | undefined,
-    is_active: undefined as boolean | undefined,
+    status: undefined as 'active' | 'inactive' | undefined,
   },
   onError: (err: unknown) => {
     // 批次 277：类型守卫处理错误，避免直接 as Error 强转
@@ -440,9 +440,9 @@ const fetchCategories = async () => {
 
 // 批次 277：将 queryParams 筛选字段同步到 setQueryParam，确保请求参数生效
 const syncQueryParams = () => {
-  setQueryParam('keyword', queryParams.value.keyword);
+  setQueryParam('search', queryParams.value.keyword);
   setQueryParam('category_id', queryParams.value.category_id);
-  setQueryParam('is_active', queryParams.value.is_active);
+  setQueryParam('status', queryParams.value.status);
 };
 
 // 批次 277：分页页码变化处理（由 useTableApi watch 自动触发重载）
@@ -464,7 +464,7 @@ const handleQuery = () => {
 const handleReset = () => {
   queryParams.value.keyword = '';
   queryParams.value.category_id = undefined;
-  queryParams.value.is_active = undefined;
+  queryParams.value.status = undefined;
   handleQuery();
 };
 

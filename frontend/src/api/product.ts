@@ -42,9 +42,10 @@ export interface ProductCategory {
 
 export interface ProductQueryParams extends QueryParams {
   category_id?: number;
-  is_active?: boolean;
-  min_price?: number;
-  max_price?: number;
+  /** 后端 handlers/product_handler.rs ProductListQuery.status（products.status 为小写枚举） */
+  status?: 'active' | 'inactive';
+  /** 后端 ProductListQuery.search：名称/编码模糊匹配 */
+  search?: string;
 }
 
 /** 产品导入结果 */
@@ -63,24 +64,47 @@ export const getProductList = (params?: ProductQueryParams) =>
 // D14 Batch 5b：原 productApi.getById 转为风格 B 函数
 export const getProductById = (id: number) => request.get<ApiResponse<Product>>(`/products/${id}`);
 
+/**
+ * UI 侧 Product 模型沿用 product_name / product_code / is_active / price，
+ * 后端 products 实体与 Create/UpdateProductRequest 的字段是 name / code / status /
+ * standard_price。此前直接提交导致后端把名称当成缺省值（handler 里 name 缺省为
+ * "产品_<时间戳>"），UI 新建的产品名称全被丢掉。这里在请求边界做一次完整映射，
+ * 未提供的字段保持不发送（由后端按自身默认值处理），不做任何取值兜底。
+ */
+function toProductPayload(data: Partial<Product>) {
+  const { product_name, product_code, is_active, price, ...rest } = data;
+  const payload: Record<string, unknown> = { ...rest };
+  if (product_name !== undefined) payload.name = product_name;
+  if (product_code !== undefined) payload.code = product_code;
+  if (is_active !== undefined) payload.status = is_active ? 'active' : 'inactive';
+  if (price !== undefined) payload.standard_price = price;
+  return payload;
+}
+
 // D14 Batch 5b：原 productApi.create 转为风格 B 函数
 export const createProduct = (data: Partial<Product>) =>
-  request.post<ApiResponse<Product>>('/products', data);
+  request.post<ApiResponse<Product>>('/products', toProductPayload(data));
 
 // D14 Batch 5b：原 productApi.update 转为风格 B 函数
 export const updateProduct = (id: number, data: Partial<Product>) =>
-  request.put<ApiResponse<Product>>(`/products/${id}`, data);
+  request.put<ApiResponse<Product>>(`/products/${id}`, toProductPayload(data));
 
 // D14 Batch 5b：原 productApi.delete 转为风格 B 函数
 export const deleteProduct = (id: number) => request.delete<ApiResponse<null>>(`/products/${id}`);
 
 // D14 Batch 5b：原 productApi.batchCreate 转为风格 B 函数
 export const batchCreateProducts = (data: Partial<Product>[]) =>
-  request.post<ApiResponse<{ success: number; failed: number }>>('/products/batch/create', data);
+  request.post<ApiResponse<{ success: number; failed: number }>>(
+    '/products/batch/create',
+    data.map(toProductPayload)
+  );
 
 // D14 Batch 5b：原 productApi.batchUpdate 转为风格 B 函数
 export const batchUpdateProducts = (data: Partial<Product>[]) =>
-  request.post<ApiResponse<{ success: number; failed: number }>>('/products/batch/update', data);
+  request.post<ApiResponse<{ success: number; failed: number }>>(
+    '/products/batch/update',
+    data.map(toProductPayload)
+  );
 
 // D14 Batch 5b：原 productApi.batchDelete 转为风格 B 函数
 export const batchDeleteProducts = (ids: number[]) =>

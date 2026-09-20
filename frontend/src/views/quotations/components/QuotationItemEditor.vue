@@ -243,7 +243,9 @@ function formatAmount(value?: number): string {
 
 onMounted(async () => {
   try {
-    const res = await getProductList({ page: 1, page_size: 1000, is_active: true });
+    // 后端 ProductListQuery 只认 status（小写枚举），原 is_active:true 被忽略，
+    // 已停用产品也会出现在报价明细的产品下拉里
+    const res = await getProductList({ page: 1, page_size: 1000, status: 'active' });
     products.value = res.data?.items || [];
   } catch {
     products.value = [];
