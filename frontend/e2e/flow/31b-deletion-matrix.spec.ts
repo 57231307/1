@@ -148,7 +148,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     },
     {
       label: '供应商',
-      createApi: '/suppliers',
+      createApi: '/purchase/suppliers',
       payload: {
         supplier_name: `P0供应商${TS}`,
         supplier_short_name: `P0简${TS}`,

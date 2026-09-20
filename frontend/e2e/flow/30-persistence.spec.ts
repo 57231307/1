@@ -594,24 +594,27 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       ],
     };
 
-    const createResp = await apiCall<{ id?: number }>(page, 'POST', '/boms', payload);
-    const id = createResp.data?.id;
+    const createResp = await apiCall<{ bom?: { id?: number } }>(page, 'POST', '/boms', payload);
+    const id = createResp.data?.bom?.id;
     console.log(`[P0-BOM] 创建成功 id=${id}`);
     expect(id, 'BOM 创建必须返回 id').toBeTruthy();
 
     const detail = await apiCallRaw<{
-      id: number;
-      product_id?: number;
-      version?: number;
-      is_default?: boolean;
-      remarks?: string;
+      bom?: {
+        id: number;
+        product_id?: number;
+        version?: number;
+        is_default?: boolean;
+        remarks?: string;
+      };
       items?: Array<Record<string, unknown>>;
     }>(page, 'GET', `/boms/${id}`);
+    const bom = detail?.bom;
     console.log(
-      `[P0-BOM] 详情二次访问 → product_id=${detail?.product_id} version=${detail?.version} is_default=${detail?.is_default} items=${detail?.items?.length ?? 0} 条`
+      `[P0-BOM] 详情二次访问 → product_id=${bom?.product_id} version=${bom?.version} is_default=${bom?.is_default} items=${detail?.items?.length ?? 0} 条`
     );
-    expect(detail?.id, '详情 id 应一致').toBe(id);
-    expect(detail?.product_id, '详情 product_id 应为 1').toBe(1);
+    expect(bom?.id, '详情 id 应一致').toBe(id);
+    expect(bom?.product_id, '详情 product_id 应为 1').toBe(1);
     expect(detail?.version, '详情 version 应为 1').toBe(1);
     expect(detail?.is_default, '详情 is_default 应为 true').toBe(true);
     expect(detail?.items?.length ?? 0, 'BOM 应有 1 条明细').toBe(1);

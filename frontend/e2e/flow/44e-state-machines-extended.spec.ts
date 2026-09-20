@@ -2,6 +2,7 @@ import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
+  apiCallRaw,
   apiCallExpectFail,
   tryCleanup,
   ensureTestEntities,
@@ -150,11 +151,8 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     const id = so?.data?.id;
     expect(id, 'SO 创建失败').toBeTruthy();
     // 详情含 items 明细（第十二轮采购订单同款缺陷防线）
-    const detail = await apiCall<{ items?: unknown[] }>(page, 'GET', `/sales/orders/${id}`);
-    expect(
-      Array.isArray((detail as { items?: unknown[] })?.items),
-      'SO 详情应装配 items 明细数组'
-    ).toBe(true);
+    const detail = await apiCallRaw<{ items?: unknown[] }>(page, 'GET', `/sales/orders/${id}`);
+    expect(Array.isArray(detail?.items), 'SO 详情应装配 items 明细数组').toBe(true);
     const del = await apiCallExpectFail(page, 'DELETE', `/sales/orders/${id}`);
     expect(del.status, 'draft SO 删除应成功').toBeLessThan(300);
     // 删除后回读 404

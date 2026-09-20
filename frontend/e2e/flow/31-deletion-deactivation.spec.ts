@@ -456,7 +456,7 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
     const suppliers = await apiCallRaw<{ items?: Array<{ id: number }> } | Array<{ id: number }>>(
       page,
       'GET',
-      '/suppliers?page=1&page_size=1'
+      '/purchase/suppliers?page=1&page_size=1'
     );
     const supArr = Array.isArray(suppliers) ? suppliers : (suppliers?.items ?? []);
     if (prodArr.length === 0 || whArr.length === 0 || supArr.length === 0) {
