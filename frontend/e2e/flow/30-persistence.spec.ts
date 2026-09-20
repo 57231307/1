@@ -614,9 +614,14 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       `[P0-BOM] 详情二次访问 → product_id=${bom?.product_id} version=${bom?.version} is_default=${bom?.is_default} items=${detail?.items?.length ?? 0} 条`
     );
     expect(bom?.id, '详情 id 应一致').toBe(id);
-    expect(bom?.product_id, '详情 product_id 应为 1').toBe(1);
-    expect(detail?.version, '详情 version 应为 1').toBe(1);
-    expect(detail?.is_default, '详情 is_default 应为 true').toBe(true);
+    // 逐字段比对必须对照本用例真实创建时使用的值。
+    // 原实现写 toBe(1) 把 product_id 硬编码成字面量 1，而创建用的是动态 shared.prodId
+    // （本次 CI 实际为 6），等于假定库里第一个产品永远是本项目造的测试数据。
+    expect(bom?.product_id, `详情 product_id 应为创建时的 ${shared.prodId}`).toBe(shared.prodId);
+    // version/is_default 属于响应里的 bom 对象（结构为 { bom, items }），
+    // 原实现从 detail 顶层取，恒为 undefined
+    expect(bom?.version, '详情 version 应为 1').toBe(1);
+    expect(bom?.is_default, '详情 is_default 应为 true').toBe(true);
     expect(detail?.items?.length ?? 0, 'BOM 应有 1 条明细').toBe(1);
     const item = detail?.items?.[0] as Record<string, unknown>;
     expect(item?.quantity, '明细 quantity 应为 5').toBeTruthy();

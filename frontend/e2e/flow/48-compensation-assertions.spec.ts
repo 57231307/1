@@ -6,6 +6,7 @@ import {
   apiCallExpectFail,
   tryCleanup,
   ensureTestEntities,
+  ensureStockInWarehouse,
   getCtx,
 } from './helpers';
 
@@ -114,18 +115,33 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId,
       order_date: new Date().toISOString(),
-      items: [{ material_id: ctx.productIds[0], quantity: 5, unit_price: '8.00' }],
+      // SO 明细字段为 product_id（后端 422 明示 items[0]: missing field `product_id`），
+      // 原实现误写 material_id
+      items: [{ product_id: ctx.productIds[0], quantity: 5, unit_price: '8.00' }],
     });
     const soId = so?.data?.id;
     expect(soId, 'SO 创建失败').toBeTruthy();
     CLEANUP.push({ path: `/sales/orders/${soId}`, label: '[48-2] SO' });
     await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
+
+    // 发货仓库必须取真实仓库编码：ship.rs:135 按 warehouse::Column::WarehouseCode 查仓，
+    // 原实现硬编码 `WH-MAIN` 在 CI 空库中不存在，会直接导致发货失败、后续凭证断言失去前提。
+    const warehouseId = ctx.warehouseIds[0];
+    await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
+    const wh = await apiCallRaw<{ warehouse_code?: string }>(
+      page,
+      'GET',
+      `/warehouses/${warehouseId}`
+    );
+    const warehouseCode = wh?.warehouse_code;
+    expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+
     // 发货（ShipOrderRequest{order_id,warehouse_code,items[{product_id,quantity}]}——
     // services/so/delivery.rs:37-61）
     await apiCall(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
-      warehouse_code: `WH-MAIN`,
+      warehouse_code: warehouseCode,
       items: [{ product_id: ctx.productIds[0], quantity: 5 }],
     });
     // 补偿产物：凭证列表应含收入凭证（source_module=so 或摘要含订单号）

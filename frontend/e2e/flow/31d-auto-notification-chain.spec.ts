@@ -1,5 +1,13 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw, tryCleanup, ensureTestEntities, getCtx } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  tryCleanup,
+  ensureTestEntities,
+  ensureStockInWarehouse,
+  getCtx,
+} from './helpers';
 
 /**
  * P0 自动通知全链路覆盖（2026-09-11 用户指令："自动产生的通知需要详细覆盖所有功能，每条链路都要触发验证通知"）
@@ -159,17 +167,18 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
   test('C. 订单发货→创建人收到发货通知', async ({ page }) => {
     test.setTimeout(180_000);
+    await ensureTestEntities(page);
+    const ctx = getCtx();
     let orderId: number | undefined;
+    // 客户/产品取 ensureTestEntities 真实保障的实体。原实现硬编码 customer_id:1 /
+    // product_id:1，在 CI 空库中依赖种子恰好存在，一旦漂移订单创建就拿不到 id
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: 1,
+      customer_id: ctx.customerId,
       order_date: new Date().toISOString(),
-      items: [{ product_id: 1, quantity: 8, unit_price: 20 }],
+      items: [{ product_id: ctx.productIds[0], quantity: 8, unit_price: 20 }],
     });
     orderId = r?.data?.id;
-    if (!orderId) {
-      test.skip();
-      return;
-    }
+    expect(orderId, '[31d-C] 销售订单创建失败，发货通知链路无从验证').toBeTruthy();
     console.log(`[31d-C] 订单创建成功 id=${orderId}`);
 
     // 提交+审批后才能发货
@@ -185,12 +194,24 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     const before = await getUnreadNotifications(page);
 
+    // ship.rs:135 按 warehouse::Column::WarehouseCode 查仓，原实现硬编码 'WH001'
+    // 在 CI 空库中不存在 → 发货接口回 NOT_FOUND。改为按 ctx 真实仓库反查其编码，
+    // 并保障该仓库有可发出库存。
+    const warehouseId = ctx.warehouseIds[0];
+    await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
+    const wh = await apiCallRaw<{ warehouse_code?: string }>(
+      page,
+      'GET',
+      `/warehouses/${warehouseId}`
+    );
+    expect(wh?.warehouse_code, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+
     await apiCall(page, 'POST', `/sales/orders/${orderId}/ship`, {
       order_id: orderId,
-      warehouse_code: 'WH001',
-      items: [{ product_id: 1, quantity: 8 }],
+      warehouse_code: wh.warehouse_code,
+      items: [{ product_id: ctx.productIds[0], quantity: 8 }],
     });
-    console.log(`[31d-C] 订单发货成功`);
+    console.log(`[31d-C] 订单发货成功（仓库编码 ${wh.warehouse_code}）`);
 
     await page.waitForTimeout(3000);
     const after = await getUnreadNotifications(page);
