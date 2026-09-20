@@ -555,30 +555,6 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.productionRecipeId = undefined;
   }
 
-  // ---- 12.5 BPM 流程定义（测试前置：销售订单 submit 触发 BPM 审批流程，
-  //        "sales_order_approval" 定义不存在则 submit 400 回滚 → approve/ship 连锁失败）----
-  try {
-    await apiCall<{ id?: number }>(page, 'POST', '/bpm/definitions', {
-      name: '销售订单审批流程',
-      code: 'sales_order_approval',
-      description: 'E2E 测试用销售订单审批流程定义',
-      category: 'sales',
-      version: '1.0',
-      config: {
-        nodes: [
-          { node_id: 'start', node_name: '提交审批', node_type: 'start' },
-          { node_id: 'approve', node_name: '审批', node_type: 'approval' },
-          { node_id: 'end', node_name: '完成', node_type: 'end' },
-        ],
-      },
-      status: 'ACTIVE',
-    });
-    console.log('[ensureTestEntities] BPM sales_order_approval 定义已创建/已存在');
-  } catch (e) {
-    // 已存在或 CSRF 恢复失败均视为成功（幂等）
-    console.warn('[ensureTestEntities] BPM 定义创建跳过:', (e as Error).message);
-  }
-
   // ---- 13. BOM（UI 创建）----
   try {
     const boms = await apiCallRaw<{ items: Array<{ id: number }> }>(
@@ -780,6 +756,46 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     console.log('[ensureTestEntities] 当前用户 id=', me.id, 'username=', me.username);
   } catch (e) {
     throw new Error(`[ensureTestEntities] 当前用户查询失败: ${(e as Error).message}`);
+  }
+
+  // ---- 24. BPM 销售订单审批流程定义 ----
+  // 节点 schema 必须匹配后端 bpm_service.rs::resolve_first_task_node：
+  // 键为 nodes[].id / nodes[].name / nodes[].type，取值为 start_event / user_task / end_event，
+  // 且首任务需由 edges 从 start_event 串出（无 edges 时回退查找第一个 user_task）。
+  // 此前用 node_id / node_name / node_type 且无 edges，后端解析不到任务节点，
+  // 走 bpm_ops/instance.rs 的「无任务节点，自动完成流程」分支：submit 即异步回写
+  // approved，用例随后显式 approve 撞「订单状态为 approved，无法审核」。
+  // assignee_value 需为字符串（后端 as_str() 后 parse::<i32>），故用 String(approverId)。
+  try {
+    const approverId = ctx.userIds[0];
+    const res = await apiCall<{ id?: number }>(page, 'POST', '/bpm/definitions', {
+      name: '销售订单审批流程',
+      code: 'sales_order_approval',
+      description: 'E2E 测试用销售订单审批流程定义',
+      category: 'sales',
+      version: '1.0',
+      config: {
+        nodes: [
+          { id: 'start', name: '提交审批', type: 'start_event' },
+          {
+            id: 'approve_task',
+            name: '销售订单审批',
+            type: 'user_task',
+            assignee_value: String(approverId),
+          },
+          { id: 'end', name: '完成', type: 'end_event' },
+        ],
+        edges: [
+          { source: 'start', target: 'approve_task' },
+          { source: 'approve_task', target: 'end' },
+        ],
+      },
+      status: 'ACTIVE',
+    });
+    console.log(`[ensureTestEntities] BPM sales_order_approval 定义已提交 id=${res?.data?.id}`);
+  } catch (e) {
+    // 同 code 已存在时后端拒绝重复创建，属预期；真实是否可用由消费方用例断言兜住
+    console.warn('[ensureTestEntities] BPM 定义创建返回异常:', (e as Error).message);
   }
 }
 

@@ -157,42 +157,55 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     expect(ctx.salesOrderId).toBeDefined();
   });
 
-  test('2-5 销售订单审批（含 SoD 验证：创建者不能审批）', async ({ page }) => {
+  test('2-5 销售订单审批：draft → pending → approved，并校验 BPM 首任务待办', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.salesOrderId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(id, '2-4 未产出销售订单，审批链路无从验证').toBeTruthy();
 
-    // convert 后订单可能已自动 approved（小额自批场景）
-    // 先 GET 确认当前状态，按状态决定是否需要 submit+approve
-    const before = await apiCallRaw<{ status?: string }>(page, 'GET', `/sales/orders/${id}`);
-    const st = (before.status || '').toLowerCase();
-    if (st !== 'approved' && st !== 'confirmed') {
-      // 状态非 approved：需要 submit → approve 流程
-      await apiCall(page, 'POST', `/sales/orders/${id}/submit`, {});
-      const afterSubmit = await apiCallRaw<{ status?: string }>(page, 'GET', `/sales/orders/${id}`);
-      const st2 = (afterSubmit.status || '').toLowerCase();
-      // submit 后如果仍非 approved，执行 approve
-      if (st2 !== 'approved' && st2 !== 'confirmed') {
-        await apiCall(page, 'POST', `/sales/orders/${id}/approve`, {});
-      }
-    }
+    // quotation_convert_service.rs:129 转单落库状态固定为 draft，这是审批的唯一合法起点。
+    // 原实现用 8 个状态的白名单（其中 confirmed/pending_shipment/partial_shipped/submitted
+    // 在 models/status/sales.rs 的 so_status 里根本不存在）+ 条件跳过 approve，
+    // 等于无论后端怎么改都能"通过"，这里改成逐状态精确断言。
+    const before = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
+    console.log(`[2-5] 订单 ${id} 审批前状态=${before.status}`);
+    expect(before.status, '2-4 转单后订单应为 draft').toBe('draft');
 
-    const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
-    const status = (order.status || '').toLowerCase();
-    expect([
-      'approved',
-      'confirmed',
-      'pending_shipment',
-      'shipped',
-      'partially_shipped',
-      'completed',
-      'draft',
-      'submitted',
-    ]).toContain(status ?? '(missing-status)');
+    // so/order_workflow.rs:132 submit 仅接受 draft，:184 置为 pending，
+    // :205 以 process_key=sales_order_approval / business_type=sales_order 拉起 BPM
+    await apiCall(page, 'POST', `/sales/orders/${id}/submit`);
+    const afterSubmit = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
+    console.log(`[2-5] 提交后状态=${afterSubmit.status}`);
+    expect(afterSubmit.status, 'submit 后订单应为 pending').toBe('pending');
+
+    // BPM 真实拉起校验：若流程定义解析不到 user_task 首节点，instance.rs 会走
+    // "无任务节点，自动完成流程"，实例直接 COMPLETED 并异步回写 approve，
+    // 与本用例的显式 approve 抢状态 → 这里先把它钉住。
+    const rel = await apiCallRaw<{
+      has_process: boolean;
+      instance_id: number;
+      process_status: string;
+      task_count: number;
+      pending_tasks: number;
+    }>(page, 'GET', `/bpm/business-relation?business_type=sales_order&business_id=${id}`);
+    console.log(
+      `[2-5] BPM 关联: has_process=${rel.has_process} instance_id=${rel.instance_id} ` +
+        `status=${rel.process_status} tasks=${rel.pending_tasks}/${rel.task_count}`
+    );
+    expect(rel.has_process, 'submit 后必须存在 BPM 流程实例').toBe(true);
+    expect(rel.process_status, 'BPM 实例应处于 PROCESSING（未自动完成）').toBe('PROCESSING');
+    expect(rel.task_count, '流程应创建 1 个首任务').toBe(1);
+    expect(rel.pending_tasks, '首任务应处于待审批').toBe(1);
+
+    await apiCall(page, 'POST', `/sales/orders/${id}/approve`);
+    const afterApprove = await apiCallRaw<{ status: string; approved_by: number | null }>(
+      page,
+      'GET',
+      `/sales/orders/${id}`
+    );
+    console.log(`[2-5] 审批后状态=${afterApprove.status} approved_by=${afterApprove.approved_by}`);
+    expect(afterApprove.status, 'approve 后订单应为 approved').toBe('approved');
+    // P1-11：审批人必须落真实 user_id（原实现 Some(0) 硬编码导致审计无法追溯）
+    expect(afterApprove.approved_by, 'approve 必须写入真实审批人 ID').toBe(ctx.userIds[0]);
   });
 
   test('2-6 发货（扫码匹号出库，双计量扣减）', async ({ page }) => {
