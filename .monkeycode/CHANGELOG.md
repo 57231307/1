@@ -9,6 +9,8 @@
 
 | PR | 一句话总结 |
 |----|-----------|
+| PR #941 | Round 7-iter22：拉 run 35515772653 全 67 job（9 失败=8 E2E 分片+收尾级联，非 E2E 全绿）与 17 个 error-context 判责；修 5 处请求体违反后端 DTO（调拨 approve 缺 approved、色号缺 color_type/extra_cost、角色 code 大写被拒、质量问题缺 custom_order_id/severity、SO 明细 material_id 应为 product_id 且 44f-5 同错潜伏）、4 处测试硬编码与 1 处静默 skip（31d-C customer/product/warehouse_code、48-2 WH-MAIN、30-persistence BOM toBe(1) 与 version 取自 detail 而非 bom）、5-1 响应层级（iter20 参照错 handler 把 items 改成不存在的 list）、色卡用例命中隐藏 Tab 表格改 :visible 并去条件式空转；登记 42a-core/47-AU1/31e/31c 待 CI 迭代与环境级 flaky 3 例 |
+
 | PR #941 | Round 7-iter21：拉 run 35510302989 全量失败日志判责，确认 iter20 自身把 bingxi-backend lib 编坏（E0596 shipped_pool 缺 mut + E0609 receipt Option 误取字段），致 Clippy/测试预编译/后端构建三 job 同根因 exit 101、E2E 与覆盖率/发布全链 skipped，即 iter5~iter20 共 16 轮 E2E 修复从未被 CI 实跑；同时修掉该重构丢失预留状态作用域导致的 released/cancelled 二次回加虚增可用库存、consumed 行被改写 cancelled 并回减 shipped 抹除真实出库与消耗审计，removed consumed 回滚量 or_insert 兜底改显式跳过+告警；listener 补偿应付不采纳编译器 unwrap 建议改 match 三分支并消除 if let Ok 对 DbErr 的零日志静默；AUTH_ONLY_PATHS 安全豁免白名单由 csrf/permission 两份手工同步副本收敛到 public_routes 单一真相源；删除 event_kafka 无 mod tests 支撑的死导入（并暴露 clippy baseline 按 message 匹配致新发生漏网）；文档同步 bug.md §三 import_csv 结论全部过时、MEMORY.md 常规规则章节重复致编号断裂 |
 
 ## 2026-09-05

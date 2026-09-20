@@ -52,6 +52,50 @@
 
 ## 未完成任务清单
 
+### Round 7-iter22（2026-09-20/21，首个真实 E2E 全量信号判责）
+
+> run 35515772653 全 67 job：9 失败（8 个 E2E 分片 + 收尾清理级联），**非 E2E 全绿**。
+> 逐分片拉 artifact `error-context.md`（17 个失败上下文含断言原文）后判责分类如下。
+> 已修部分见 commit `baa9792f` / `be8548b6` / `3a9a5921`。
+
+- [x] **5-1 审计日志 TypeError**：iter20 参照 `audit_enhanced_handler`（挂在 analytics 域 `/logs`，
+  响应键 `list`）把用例改成读 `list`，而 `GET /audit-logs` 实际由 `routes/system.rs:279` 绑定的
+  `audit_log_handler::list_audit_logs` 处理，响应键是 `items`（`audit_log_handler.rs:132-137`）
+  → 改回 items + 先断言数组与非空再索引 → `3a9a5921`
+- [x] **色卡借出记录命中隐藏 Tab 表格**：`.first()` 取到 `aria-label="发放中列表"` 的隐藏节点
+  （34 × resolved to hidden），IR 2026-09-12 已记过同类教训 → 选择器加 `:visible` +
+  去掉 `if (tableVisible)` 条件式空转 → `3a9a5921`
+- [x] **5 处请求体违反后端 DTO**：调拨 approve 缺必填 `approved`（EOF 400）、色号缺
+  `color_type`+`extra_cost`、角色 code 含大写被 `role_permission_service.rs:153-159` 拒、
+  质量问题缺 `custom_order_id`+`severity`、SO 明细误写 `material_id`（应为 `product_id`，
+  44f-5 与 48-2 同错，后者此前被 44f-3 串行失败挡住未跑） → `baa9792f`
+- [x] **4 处测试硬编码 + 1 处静默 skip**：31d-C 的 `customer_id:1`/`product_id:1`/
+  `warehouse_code:'WH001'`（NOT_FOUND 真因是 `ship.rs:135` 按 code 查仓）、48-2 的
+  `'WH-MAIN'`、30-persistence BOM `toBe(1)` 与从 `detail` 顶层误取 `version`/`is_default`
+  （结构是 `{bom, items}`）→ 全部改真实实体/反查编码/对照 `shared.prodId`；
+  `if(!orderId) test.skip()` 改显式断言 → `be8548b6`
+- [ ] **42a-core `report-templates (A)` 新建断言 false**：页面侧接线正常
+  （`index.vue:10 @click="openDialog()"`、`openDialog` 在 409 行置 `dialogVisible=true`、
+  `el-dialog` 在 155 行存在），`visitModule` 用 `.el-dialog:visible,.el-drawer:visible` 的
+  `.first()` + 800ms 等待，疑点集中在遍历上下文（快照显示"系统管理"菜单已展开，
+  可能命中另一页的按钮/弹窗或被折叠菜单遮挡）。**需 CI 迭代定位，不靠猜改。**
+- [ ] **47-AU1 审计记录 0 条**（`table_name=department`）：需确认部门创建写入的
+  `resource_type` 实际取值与查询侧是否一致（iter20 已从 `departments` 改为单数 `department`，
+  但仍 0 条，需查 `audit_log_service` 落库路径与异步轮询时机）
+- [ ] **31e-5 通知 CRUD 0 条**：用例内联硬编码 `http://localhost:8082/api/v1/erp/...`
+  （应改用 `API_BASE`/`API_PREFIX` helper），且 `!currentUserId` 与 403 两处均
+  `test.skip()` 静默跳过；需先判定"发 3 条通知后列表查不到"是通知未落库（源代码缺陷）
+  还是查询参数不匹配（测试缺陷）
+- [ ] **31c 产品编辑弹窗停用返回 false**：断言"UI 停用操作应可完成"失败，
+  需按诊断日志判定是弹窗交互未生效还是 `status` 回写不符
+- [ ] **环境级 flaky 3 例**：M1-4 `Error: Channel closed`、24-排程甘特 `write EPIPE`、
+  53-1 `waiting for locator('input[name="username"]')` 超时——浏览器进程侧崩溃/级联，
+  非用例逻辑问题；CI 已按用户要求删除全部重试，故这类崩溃会直接红
+- [ ] **API 一致性**：同一逻辑资源两套列表端点响应键不一致（`/audit-logs` 用 `items`、
+  `/analytics/.../logs` 用 `list`），统一会牵动前端调用点，需单独立项
+
+
+
 ### Round 7-iter21（2026-09-20，拉 run 35510302989 全量失败日志判责）
 
 > **本轮关键结论**：`c3b83cf6`（iter20）自身把 `bingxi-backend` lib 编坏，导致
