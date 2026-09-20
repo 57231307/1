@@ -148,16 +148,17 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
 
     // 回查审计日志：后端 list_audit_logs 把 table_name 映射到 resource_type 列，
     // 部门服务写的是 "department"（单数，department_service.rs:180）；
-    // 响应结构是 { list, total, page, page_size }，无 items 键。
+    // GET /audit-logs 由 audit_log_handler 处理，响应结构是 { items, total, page, page_size }
+    // （挂 analytics 域 /logs 的 audit_enhanced_handler 才用 list，两者不可混用）。
     // 部门创建走 record_async（mpsc channel 异步落库），需轮询等待写入完成。
     let items: Array<Record<string, unknown>> = [];
     for (let i = 0; i < 20; i++) {
-      const logs = await apiCallRaw<{ list: Array<Record<string, unknown>> }>(
+      const logs = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
         page,
         'GET',
         `/audit-logs?page=1&page_size=100&table_name=department`
       );
-      items = logs?.list ?? [];
+      items = logs?.items ?? [];
       if (items.some(l => String(l.resource_name ?? '') === name)) break;
       await new Promise(r => setTimeout(r, 500));
     }
