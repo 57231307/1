@@ -1,14 +1,18 @@
 //! 销售发货-库存辅助子模块（delivery_ops/inventory）
 //!
 //! 批次 488 D10-3 拆分：从原 `so/delivery.rs` L747-1082 迁移。
-//! 包含 4 个库存辅助方法：
+//! 包含 6 个库存辅助方法：
 //! - check_inventory（库存充足性校验，批量查询消除 N+1）
 //! - lock_inventory（锁定库存，创建预留记录）
 //! - reduce_inventory（扣减库存，返回变更前后数量 + 色号/缸号）
-//! - release_reservations（释放订单的库存预留记录）
+//! - release_reservations（释放订单未出库的预留，保留预留行用于审计追溯）
+//! - delete_reservations（订单硬删除前还原全部库存效果并物理删除预留行）
+//! - restore_reserved_stock（按状态作用域回滚预留占用的库存，供上两者复用）
+
+use std::collections::HashMap;
 
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QuerySelect, Set};
+use sea_orm::{ColumnTrait, Condition, EntityTrait, ExprTrait, QueryFilter, QuerySelect, Set};
 
 use crate::models::status::inventory_reservation as reservation_status;
 use crate::models::{inventory_reservation, inventory_stock, sales_order_item};
@@ -16,6 +20,32 @@ use crate::utils::error::AppError;
 
 use super::super::delivery::ShipOrderItemRequest;
 use super::super::order::SalesService;
+
+/// 软终态（拒绝/取消）需要回滚的预留状态：仅尚未出库的 pending/locked。
+///
+/// `consumed` 代表货物已实际出库，其 available 扣减与 shipped 累加都是真实发生的业务事实；
+/// 拒绝或取消订单不改变已发货部分，反向抹除会让账面凭空回退并销毁消耗审计。
+/// `released`/`cancelled` 的库存效果已在此前回滚过，再次回加会虚增可用库存。
+const RELEASE_SCOPED_STATUSES: &[&str] = &[reservation_status::PENDING, reservation_status::LOCKED];
+
+/// 订单硬删除需要回滚的预留状态：在软终态范围之外，额外还原 `consumed` 的 shipped 扣减。
+///
+/// 主表与预留行都将被物理删除，追溯载体随之消失，因此必须把该订单造成的全部库存效果还原，
+/// 否则 shipped 数量永久偏高；`released`/`cancelled` 同样必须排除，理由同上。
+const DELETE_SCOPED_STATUSES: &[&str] = &[
+    reservation_status::PENDING,
+    reservation_status::LOCKED,
+    reservation_status::CONSUMED,
+];
+
+/// 把预留状态集合拼成 OR 过滤条件，使查询与状态更新共用同一份作用域清单。
+fn reservation_status_filter(statuses: &[&str]) -> Condition {
+    let mut any = Condition::any();
+    for status in statuses {
+        any = any.add(inventory_reservation::Column::Status.eq(*status));
+    }
+    any
+}
 
 impl SalesService {
     // ========== 库存辅助方法（私有） ==========
@@ -356,18 +386,22 @@ impl SalesService {
         ))
     }
 
-    /// 释放订单的库存预留记录（回滚预留占用的库存；保留预留行用于审计追溯）
+    /// 释放订单的库存预留记录（回滚未出库预留占用的库存；保留预留行用于审计追溯）
     ///
     /// 用于拒绝/取消等软终态场景：订单主表仍存在，预留行必须保留，否则后续查询与追溯丢失。
+    /// 仅处理 pending/locked 行：已 consumed 的行代表实际出库事实，既不回滚其库存，
+    /// 也不改写成 cancelled，否则消耗审计被抹除且账面凭空回退。
     pub(crate) async fn release_reservations(
         &self,
         order_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        self.restore_reserved_stock(order_id, txn).await?;
+        self.restore_reserved_stock(order_id, RELEASE_SCOPED_STATUSES, txn)
+            .await?;
 
         inventory_reservation::Entity::update_many()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
+            .filter(reservation_status_filter(RELEASE_SCOPED_STATUSES))
             .col_expr(
                 inventory_reservation::Column::Status,
                 sea_orm::sea_query::Expr::val(reservation_status::CANCELLED.to_string()),
@@ -388,15 +422,19 @@ impl SalesService {
 
     /// 硬删除订单预留记录并回滚库存（订单主表将被物理删除）
     ///
-    /// 批次 260920 修复（订单硬删除 500 根因）：fk_inventory_reservations_order 无 ON DELETE 动作，
-    /// 遗留任何预留行都会阻断 sales_orders 主表删除，报"数据关联错误"并返回 500。
-    /// 原实现只把预留行 status 改为 cancelled（行仍在），因此硬删除必然触发外键冲突。
+    /// fk_inventory_reservations_order 无 ON DELETE 动作，遗留任何预留行都会阻断 sales_orders
+    /// 主表删除，报"数据关联错误"并返回 500。因此本方法物理删除该订单的全部预留行。
+    ///
+    /// 回滚范围含 consumed：主表与预留行都即将消失，追溯载体随之删除，必须把该订单造成的
+    /// 全部库存效果还原，否则 quantity_shipped 永久偏高。released/cancelled 排除，
+    /// 它们的库存效果此前已回滚，重复回加会虚增可用库存。
     pub(crate) async fn delete_reservations(
         &self,
         order_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        self.restore_reserved_stock(order_id, txn).await?;
+        self.restore_reserved_stock(order_id, DELETE_SCOPED_STATUSES, txn)
+            .await?;
 
         inventory_reservation::Entity::delete_many()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
@@ -406,12 +444,15 @@ impl SalesService {
         Ok(())
     }
 
-    /// 回滚订单预留占用的库存（按 (product_id, warehouse_id) 聚合，不修改预留行）
+    /// 回滚指定状态集合内预留记录占用的库存（按 (product_id, warehouse_id) 聚合，不修改预留行）
     ///
     /// 与 lock_inventory / reduce_inventory 严格对称：
     /// - pending/locked：create_order 时只执行 quantity_available -= qty（仅锁定），回滚时回加 available；
     /// - consumed：发货时 reduce_inventory 执行 available -= qty 且 quantity_shipped += qty，
     ///   回滚时只能回减 shipped（available 已在发货时扣减，重复回加会导致库存超发）。
+    ///
+    /// `statuses` 由调用方给出，用于把"可回滚"限定在仍持有库存效果的行上，
+    /// 使重复释放/已释放行不会被二次回加。
     ///
     /// 部分发货注意：reduce_inventory 会把整行预留标记为 consumed，但只扣减实际发货数量，
     /// 所以 consumed 行的回滚量必须取 min(res.quantity, 订单明细 shipped_quantity)，
@@ -419,10 +460,12 @@ impl SalesService {
     async fn restore_reserved_stock(
         &self,
         order_id: i32,
+        statuses: &[&str],
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
         let reservations = inventory_reservation::Entity::find()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
+            .filter(reservation_status_filter(statuses))
             .all(txn)
             .await?;
 
@@ -432,28 +475,34 @@ impl SalesService {
 
         // 订单明细实际已发货数量（权威值，用于修正部分发货场景的 consumed 预留行）
         // 同一产品可能有多行明细，先按 product_id 汇总为可回滚的 shipped 池
-        let shipped_pool: std::collections::HashMap<i32, Decimal> = sales_order_item::Entity::find()
+        let mut shipped_pool: HashMap<i32, Decimal> = sales_order_item::Entity::find()
             .filter(sales_order_item::Column::OrderId.eq(order_id))
             .all(txn)
             .await?
             .into_iter()
             .filter(|it| it.shipped_quantity > Decimal::ZERO)
-            .fold(
-                std::collections::HashMap::new(),
-                |mut map, it| {
-                    *map.entry(it.product_id).or_insert(Decimal::ZERO) += it.shipped_quantity;
-                    map
-                },
-            );
+            .fold(HashMap::new(), |mut map, it| {
+                *map.entry(it.product_id).or_insert(Decimal::ZERO) += it.shipped_quantity;
+                map
+            });
 
-        use std::collections::HashMap;
         let mut restore: HashMap<(i32, i32), (Decimal, Decimal)> = HashMap::new();
         for res in &reservations {
             let entry = restore
                 .entry((res.product_id, res.warehouse_id))
                 .or_insert((Decimal::ZERO, Decimal::ZERO));
             if res.status == reservation_status::CONSUMED {
-                let remaining = shipped_pool.entry(res.product_id).or_insert(res.quantity);
+                // shipped 池无该产品 = 订单明细 shipped_quantity 为 0，说明没有真实出库量可回减；
+                // 此处按 0 处理并留痕，不能臆造回滚量（否则会把 shipped 回减成不存在的负值区间）
+                let Some(remaining) = shipped_pool.get_mut(&res.product_id) else {
+                    tracing::warn!(
+                        order_id,
+                        product_id = res.product_id,
+                        reserved_quantity = %res.quantity,
+                        "预留行状态为 consumed 但订单明细无已发货数量，跳过 shipped 回减，需人工核查账实一致性"
+                    );
+                    continue;
+                };
                 if *remaining <= Decimal::ZERO {
                     // shipped 已耗尽：实际发货量已被其他预留行回滚，跳过避免扣成负数
                     continue;
