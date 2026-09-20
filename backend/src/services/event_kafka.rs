@@ -31,9 +31,6 @@ use tokio::sync::mpsc;
 use super::event_kafka_payload::EventPayload;
 use crate::config::settings::KafkaSettings;
 use crate::services::event_bus::BusinessEvent;
-// 批次 353 v12 复审 P1-3：ShippedItem 仅在测试模块使用，加 #[cfg(test)] 避免非测试编译 unused_imports
-#[cfg(test)]
-use crate::services::event_bus::ShippedItem;
 
 /// Kafka 后端错误类型（实际消息以中文描述，便于运维排查；调用方拿到后选择降级还是中断。）
 #[derive(Debug, Clone)]
