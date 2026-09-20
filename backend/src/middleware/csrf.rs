@@ -20,7 +20,7 @@
 use crate::container::AppState;
 use crate::middleware::audit_context::extract_client_ip as extract_client_ip_helper;
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::public_routes::is_public_path;
+use crate::middleware::public_routes::{is_auth_only_path, is_public_path};
 use crate::utils::cache::CsrfConsumeResult;
 use axum::{
     Json,
@@ -228,20 +228,6 @@ pub async fn csrf_middleware(
     }
 
     Ok(next.run(request).await)
-}
-
-/// 认证豁免 CSRF+RBAC 的路径清单（仅需 JWT 认证，不消耗一次性 CSRF token）。
-/// 端点：/audit-logs/record-print（前端打印审计埋点，读类、无业务写副作用）
-/// ws/ticket：WS 一次性票据签发（读类、无业务写副作用，鉴权强依赖 JWT）
-const AUTH_ONLY_PATHS: &[&str] = &[
-    "/api/v1/erp/audit-logs/record-print",
-    "/api/v1/erp/ws/ticket",
-];
-
-/// 路径是否仅需认证（豁免 CSRF 一次性消费与 RBAC 权限码校验）
-pub fn is_auth_only_path(path: &str) -> bool {
-    let clean_path = path.split(['?', '#']).next().unwrap_or(path);
-    AUTH_ONLY_PATHS.contains(&clean_path)
 }
 
 /// 构造 403 CSRF 错误响应（统一 JSON 格式）

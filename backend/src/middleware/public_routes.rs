@@ -1,7 +1,11 @@
-//! 公开路径白名单
+//! 路径白名单（单一真相源）
 //!
 //! 安全原则：最小化公开端点，仅保留认证必需和基础设施健康检查。
 //! 所有业务端点必须经过 JWT 验证。
+//!
+//! 两类清单语义不同，均集中在此模块维护，避免各中间件各存一份副本而产生豁免漂移：
+//! - [`PUBLIC_PATHS`]：完全匿名，跳过 JWT 认证
+//! - [`AUTH_ONLY_PATHS`]：仍需 JWT 认证，但跳过 CSRF 一次性 token 消费与 RBAC 权限码校验
 
 pub const PUBLIC_PATHS: &[&str] = &[
     // 基础设施健康检查（负载均衡器 / 监控探针，无需认证）
@@ -54,4 +58,25 @@ pub fn is_public_path(path: &str) -> bool {
     // 改为仅精确匹配，如确需子路径公开，单独显式登记到 PUBLIC_PATHS。
     let clean_path = path.split(['?', '#']).next().unwrap_or(path);
     PUBLIC_PATHS.contains(&clean_path)
+}
+
+/// 认证豁免清单：已通过 JWT 认证后，额外跳过 CSRF 一次性 token 消费与 RBAC 权限码校验。
+///
+/// ⚠️ **安全约束**：新增条目必须经安全评审，且必须逐条论证"无业务写副作用"——
+/// 豁免 CSRF 意味着该端点接受跨站携带 cookie 的请求，任何真实的写操作都可能被伪造。
+///
+/// - `/audit-logs/record-print`：前端打印审计埋点，仅追加一条 PRINT 审计记录，
+///   不改动任何业务数据；任何已认证用户均可上报。
+/// - `/ws/ticket`：WebSocket 一次性票据签发。票据本身即属"鉴权材料"而非业务写操作，
+///   鉴权强依赖 JWT。若不豁免，WS 重连风暴（1~30s 退避）会与页面其它 POST 争抢
+///   一次性 CSRF token，把并发请求全部打成 CSRF_TOKEN_INVALID。
+pub const AUTH_ONLY_PATHS: &[&str] = &[
+    "/api/v1/erp/audit-logs/record-print",
+    "/api/v1/erp/ws/ticket",
+];
+
+/// 路径是否仅需认证（严格精确匹配，语义与 [`is_public_path`] 一致，不做子路径前缀放行）
+pub fn is_auth_only_path(path: &str) -> bool {
+    let clean_path = path.split(['?', '#']).next().unwrap_or(path);
+    AUTH_ONLY_PATHS.contains(&clean_path)
 }

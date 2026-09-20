@@ -1,6 +1,6 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::public_routes::is_public_path;
+use crate::middleware::public_routes::{is_auth_only_path, is_public_path};
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::role_permission;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
@@ -79,23 +79,6 @@ fn extract_route_info(
         .or_else(|| extract_action_from_path(path))
         .unwrap_or_else(|| method_to_action(method));
     (resource_type, resource_id, action)
-}
-
-/// V15 P1-5-3：认证豁免 RBAC 的路径清单（仅跳过权限码校验，仍需 JWT 认证）
-// 端点：/audit-logs/record-print（前端打印审计埋点，任何已认证用户均可上报，无副作用）
-// ws/ticket：WS 一次性票据签发（读类、无业务写副作用，鉴权强依赖 JWT）。
-// 加入认证豁免：票据 POST 不消耗会话 CSRF token——WS 重连风暴（1~30s 退避重连）
-// 与页面其它 POST 竞争一次性 CSRF token 时，会把并发请求全部打成 CSRF_TOKEN_INVALID。
-// 与 record-print 先例同语义：仅需认证，跳过 CSRF+RBAC 权限码校验。
-const AUTH_ONLY_PATHS: &[&str] = &[
-    "/api/v1/erp/audit-logs/record-print",
-    "/api/v1/erp/ws/ticket",
-];
-
-/// V15 P1-5-3：检查路径是否仅需认证（跳过 RBAC 权限码校验）
-fn is_auth_only_path(path: &str) -> bool {
-    let clean_path = path.split(['?', '#']).next().unwrap_or(path);
-    AUTH_ONLY_PATHS.contains(&clean_path)
 }
 
 /// 权限校验中间件：公共路径放行，非公共路径校验 role_id + 资源/动作权限
