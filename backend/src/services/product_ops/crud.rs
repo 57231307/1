@@ -21,6 +21,7 @@ use sea_orm::{
 };
 
 use crate::models::product::{self, Entity as ProductEntity};
+use crate::models::product_category;
 use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -169,6 +170,17 @@ impl ProductService {
             factory_address,
             product_grade,
         } = args;
+        // 外键预校验：products.category_id REFERENCES product_categories(id)，
+        // 无 ON DELETE 动作。若未预校验，非法 category_id 会在 insert 时抛出
+        // "violates foreign key constraint fk_products_category" 并被映射成 500 DATABASE_ERROR，
+        // 调用方无法区分数据错误与系统故障。
+        if let Some(cat_id) = category_id {
+            product_category::Entity::find_by_id(cat_id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::business(format!("产品分类 {} 不存在", cat_id)))?;
+        }
+
         let active_model = product::ActiveModel {
             id: NotSet,
             name: Set(name),

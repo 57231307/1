@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw, BASE_URL, getCtx, ensureTestEntities } from './helpers';
+import { loginViaUI, apiCall, BASE_URL, getCtx, ensureTestEntities } from './helpers';
 import { findTableRow } from './ui-helpers';
 
 /**
@@ -28,21 +28,23 @@ test.describe.serial('新域业务流转链', () => {
       contact_person: '54测试',
       phone: '13800000054',
     });
-    const customerId = customer?.data?.id ?? 1;
-    // 真实分类 id（fk_products_category 外键约束，硬编码 1 不存在）
-    const cats = await apiCallRaw<Array<{ id?: number }>>(
-      page,
-      'GET',
-      '/categories?page=1&page_size=5'
-    );
-    const categoryId = cats?.[0]?.id ?? 1;
+    const customerId = customer?.data?.id;
+    expect(customerId, '客户创建失败').toBeTruthy();
+    // 分类列表在新环境为空，先真实创建分类（fk_products_category 外键指向 product_categories.id）
+    const cat = await apiCall<{ id?: number }>(page, 'POST', '/categories', {
+      name: `54Cat${ts}`,
+      code: `54CAT${ts}`,
+    });
+    const categoryId = cat?.data?.id;
+    expect(categoryId, '产品分类创建失败').toBeTruthy();
     const product = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name: `54Prod${ts}`,
       code: `54P${ts}`,
       category_id: categoryId,
       unit: 'm',
     });
-    const productId = product?.data?.id ?? 1;
+    const productId = product?.data?.id;
+    expect(productId, '产品创建失败').toBeTruthy();
 
     // 前置：quality_issues 外键必须有真实记录——创建定制订单+上报质量问题
     const co = await apiCall<{ id?: number }>(page, 'POST', '/custom-orders', {

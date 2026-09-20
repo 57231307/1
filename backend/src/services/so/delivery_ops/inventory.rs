@@ -11,7 +11,7 @@ use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QuerySelect, Set};
 
 use crate::models::status::inventory_reservation as reservation_status;
-use crate::models::{inventory_reservation, inventory_stock};
+use crate::models::{inventory_reservation, inventory_stock, sales_order_item};
 use crate::utils::error::AppError;
 
 use super::super::delivery::ShipOrderItemRequest;
@@ -356,49 +356,18 @@ impl SalesService {
         ))
     }
 
-    /// 释放订单的库存预留记录
+    /// 释放订单的库存预留记录（回滚预留占用的库存；保留预留行用于审计追溯）
+    ///
+    /// 用于拒绝/取消等软终态场景：订单主表仍存在，预留行必须保留，否则后续查询与追溯丢失。
     pub(crate) async fn release_reservations(
         &self,
         order_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        let reservations = inventory_reservation::Entity::find()
-            .filter(inventory_reservation::Column::OrderId.eq(order_id))
-            .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
-            .all(txn)
-            .await?;
-
-        // P2 5-14 修复：按 (product_id, warehouse_id) 聚合后批量更新库存，
-        // 原为循环内逐条 update_many 导致 N 个=N 次 UPDATE；聚合后仅 G 次 UPDATE（G=唯一 product+warehouse 组合数）
-        use std::collections::HashMap;
-        let mut grouped: HashMap<(i32, i32), Decimal> = HashMap::new();
-        for res in reservations {
-            *grouped
-                .entry((res.product_id, res.warehouse_id))
-                .or_insert(Decimal::ZERO) += res.quantity;
-        }
-
-        let now = chrono::Utc::now();
-        for ((product_id, warehouse_id), total_qty) in grouped {
-            inventory_stock::Entity::update_many()
-                .filter(inventory_stock::Column::ProductId.eq(product_id))
-                .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
-                .col_expr(
-                    inventory_stock::Column::QuantityAvailable,
-                    sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                        .add(total_qty),
-                )
-                .col_expr(
-                    inventory_stock::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(now),
-                )
-                .exec(txn)
-                .await?;
-        }
+        self.restore_reserved_stock(order_id, txn).await?;
 
         inventory_reservation::Entity::update_many()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
-            .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .col_expr(
                 inventory_reservation::Column::Status,
                 sea_orm::sea_query::Expr::val(reservation_status::CANCELLED.to_string()),
@@ -413,6 +382,133 @@ impl SalesService {
             )
             .exec(txn)
             .await?;
+
+        Ok(())
+    }
+
+    /// 硬删除订单预留记录并回滚库存（订单主表将被物理删除）
+    ///
+    /// 批次 260920 修复（订单硬删除 500 根因）：fk_inventory_reservations_order 无 ON DELETE 动作，
+    /// 遗留任何预留行都会阻断 sales_orders 主表删除，报"数据关联错误"并返回 500。
+    /// 原实现只把预留行 status 改为 cancelled（行仍在），因此硬删除必然触发外键冲突。
+    pub(crate) async fn delete_reservations(
+        &self,
+        order_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        self.restore_reserved_stock(order_id, txn).await?;
+
+        inventory_reservation::Entity::delete_many()
+            .filter(inventory_reservation::Column::OrderId.eq(order_id))
+            .exec(txn)
+            .await?;
+
+        Ok(())
+    }
+
+    /// 回滚订单预留占用的库存（按 (product_id, warehouse_id) 聚合，不修改预留行）
+    ///
+    /// 与 lock_inventory / reduce_inventory 严格对称：
+    /// - pending/locked：create_order 时只执行 quantity_available -= qty（仅锁定），回滚时回加 available；
+    /// - consumed：发货时 reduce_inventory 执行 available -= qty 且 quantity_shipped += qty，
+    ///   回滚时只能回减 shipped（available 已在发货时扣减，重复回加会导致库存超发）。
+    ///
+    /// 部分发货注意：reduce_inventory 会把整行预留标记为 consumed，但只扣减实际发货数量，
+    /// 所以 consumed 行的回滚量必须取 min(res.quantity, 订单明细 shipped_quantity)，
+    /// 直接扣 res.quantity 会把 quantity_shipped 扣成负数。
+    async fn restore_reserved_stock(
+        &self,
+        order_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        let reservations = inventory_reservation::Entity::find()
+            .filter(inventory_reservation::Column::OrderId.eq(order_id))
+            .all(txn)
+            .await?;
+
+        if reservations.is_empty() {
+            return Ok(());
+        }
+
+        // 订单明细实际已发货数量（权威值，用于修正部分发货场景的 consumed 预留行）
+        // 同一产品可能有多行明细，先按 product_id 汇总为可回滚的 shipped 池
+        let shipped_pool: std::collections::HashMap<i32, Decimal> = sales_order_item::Entity::find()
+            .filter(sales_order_item::Column::OrderId.eq(order_id))
+            .all(txn)
+            .await?
+            .into_iter()
+            .filter(|it| it.shipped_quantity > Decimal::ZERO)
+            .fold(
+                std::collections::HashMap::new(),
+                |mut map, it| {
+                    *map.entry(it.product_id).or_insert(Decimal::ZERO) += it.shipped_quantity;
+                    map
+                },
+            );
+
+        use std::collections::HashMap;
+        let mut restore: HashMap<(i32, i32), (Decimal, Decimal)> = HashMap::new();
+        for res in &reservations {
+            let entry = restore
+                .entry((res.product_id, res.warehouse_id))
+                .or_insert((Decimal::ZERO, Decimal::ZERO));
+            if res.status == reservation_status::CONSUMED {
+                let remaining = shipped_pool.entry(res.product_id).or_insert(res.quantity);
+                if *remaining <= Decimal::ZERO {
+                    // shipped 已耗尽：实际发货量已被其他预留行回滚，跳过避免扣成负数
+                    continue;
+                }
+                // 部分发货：reduce_inventory 把整行标记 consumed 但只扣实际发货量，
+                // 回滚量取 min(预留量, 剩余 shipped 池)，防止 quantity_shipped 被扣成负数
+                let return_shipped = res.quantity.min(*remaining);
+                *remaining -= return_shipped;
+                entry.1 += return_shipped;
+            } else {
+                entry.0 += res.quantity;
+            }
+        }
+
+        let now = chrono::Utc::now();
+        for ((product_id, warehouse_id), (return_available, return_shipped)) in restore {
+            let stock = inventory_stock::Entity::find()
+                .filter(inventory_stock::Column::ProductId.eq(product_id))
+                .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
+                .lock_exclusive()
+                .one(txn)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("产品 {} 库存记录", product_id)))?;
+
+            let mut update = inventory_stock::Entity::update_many()
+                .filter(inventory_stock::Column::Id.eq(stock.id));
+            if !return_available.is_zero() {
+                update = update.col_expr(
+                    inventory_stock::Column::QuantityAvailable,
+                    sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
+                        .add(return_available),
+                );
+            }
+            if !return_shipped.is_zero() {
+                update = update
+                    .col_expr(
+                        inventory_stock::Column::QuantityShipped,
+                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityShipped)
+                            .sub(return_shipped),
+                    )
+                    .filter(inventory_stock::Column::QuantityShipped.gte(return_shipped));
+            }
+            update = update.col_expr(
+                inventory_stock::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::val(now),
+            );
+
+            let result = update.exec(txn).await?;
+            if result.rows_affected == 0 {
+                return Err(AppError::business(format!(
+                    "产品 {} 库存回滚失败（并发冲突或已发货数量不足）",
+                    product_id
+                )));
+            }
+        }
 
         Ok(())
     }

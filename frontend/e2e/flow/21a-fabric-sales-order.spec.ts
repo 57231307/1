@@ -28,7 +28,8 @@ test.describe('面料单据专用字段全链路验证', () => {
     const soData = {
       customer_id: ctx.customerId,
       order_date: new Date().toISOString(),
-      required_date: new Date().toISOString(),
+      // required_date 后端校验"不能早于当前时间"，用 now 会因请求传输耗时落入过去 → 400
+      required_date: new Date(Date.now() + 30 * 86400000).toISOString(),
       shipping_address: '面料收货地址',
       notes: '面料字段全链路测试',
       // 主表面料字段

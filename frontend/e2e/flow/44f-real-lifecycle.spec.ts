@@ -157,7 +157,16 @@ test.describe.serial('44f 真实实体全流转链', () => {
       from_warehouse_id: ctx.warehouseIds[0],
       to_warehouse_id: ctx.warehouseIds[1],
       transfer_date: new Date().toISOString(),
-      items: [{ product_id: ctx.productIds[0], quantity: 5 }],
+      // inv/inventory_move.rs:239-255（缺陷 6.2）：batch_no 必填；提供 color_no 时 dye_lot_no 必填
+      items: [
+        {
+          product_id: ctx.productIds[0],
+          quantity: 5,
+          batch_no: `E2E-TF${Date.now().toString().slice(-6)}`,
+          color_no: ctx.colorNos[0] || '白坯布',
+          dye_lot_no: ctx.dyeLotNo || 'E2E-DL-001',
+        },
+      ],
     });
     const id = tf?.data?.id;
     expect(id, '调拨单创建失败').toBeTruthy();

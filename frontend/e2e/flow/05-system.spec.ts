@@ -18,14 +18,16 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-1 审计日志查询（按操作类型/资源筛选）', async ({ page }) => {
+    // 后端 audit_enhanced_handler 返回 { list, total, page, page_size }，无 items 键
     const logs = await apiCallRaw<{
-      items: Array<{ id: number; action: string; resource_type: string; username: string }>;
+      list: Array<Record<string, unknown>>;
+      total?: number;
     }>(page, 'GET', '/audit-logs?page=1&page_size=20');
-    expect(logs.items);
-    if (logs?.items?.length ?? 0 > 0) {
-      expect(logs.items?.[0].action).toBeTruthy();
-      expect(logs.items?.[0].username).toBeTruthy();
-    }
+    const rows = logs?.list ?? [];
+    expect(Array.isArray(rows), '审计日志列表应返回 list 数组').toBe(true);
+    expect(logs?.total ?? rows.length, '审计日志总数应大于 0').toBeGreaterThan(0);
+    expect(String(rows[0].operation_type ?? ''), '审计记录应含 operation_type').toBeTruthy();
+    expect(rows[0].action, '审计记录应含 action').toBeTruthy();
   });
 
   test('5-2 用户列表 + 角色列表 + 部门列表', async ({ page }) => {

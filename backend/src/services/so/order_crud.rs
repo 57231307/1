@@ -706,8 +706,8 @@ impl SalesService {
             )));
         }
 
-        // 释放预留库存
-        self.release_reservations(order_id, &txn).await?;
+        // 释放并删除预留记录（硬删除订单必须清掉预留行，否则 fk_inventory_reservations_order 阻断主表删除）
+        self.delete_reservations(order_id, &txn).await?;
 
         // 删除订单明细项
         SalesOrderItemEntity::delete_many()

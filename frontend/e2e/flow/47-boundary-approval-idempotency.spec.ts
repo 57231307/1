@@ -146,21 +146,28 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     expect(id, '部门创建失败').toBeTruthy();
     CLEANUP.push({ path: `/departments/${id}`, label: '[47-AU1] 部门' });
 
-    // 回查审计日志（admin 可查 system.rs:264）
-    const logs = await apiCallRaw(
-      page,
-      'GET',
-      `/audit-logs?page=1&page_size=20&table_name=departments`
+    // 回查审计日志：后端 list_audit_logs 把 table_name 映射到 resource_type 列，
+    // 部门服务写的是 "department"（单数，department_service.rs:180）；
+    // 响应结构是 { list, total, page, page_size }，无 items 键。
+    // 部门创建走 record_async（mpsc channel 异步落库），需轮询等待写入完成。
+    let items: Array<Record<string, unknown>> = [];
+    for (let i = 0; i < 20; i++) {
+      const logs = await apiCallRaw<{ list: Array<Record<string, unknown>> }>(
+        page,
+        'GET',
+        `/audit-logs?page=1&page_size=100&table_name=department`
+      );
+      items = logs?.list ?? [];
+      if (items.some(l => String(l.resource_name ?? '') === name)) break;
+      await new Promise(r => setTimeout(r, 500));
+    }
+    expect(items.length, '按 table_name=department 应查到审计记录').toBeGreaterThan(0);
+    const hit = items.some(
+      l => String(l.resource_name ?? '') === name || String(l.description ?? '').includes(name)
     );
-    const items =
-      (logs as { items?: Array<Record<string, unknown>> })?.items ??
-      (logs as { data?: { items?: Array<Record<string, unknown>> } })?.data?.items ??
-      (logs as unknown as Array<Record<string, unknown>>) ??
-      [];
-    const hit = JSON.stringify(items).includes(name);
     expect(
       hit,
-      `审计日志必须包含刚创建的部门操作（记录不全缺陷防线）。响应样本: ${JSON.stringify(items).slice(0, 300)}`
+      `审计日志必须包含刚创建的部门（resource_name 断言）。响应样本: ${JSON.stringify(items).slice(0, 400)}`
     ).toBe(true);
   });
 });

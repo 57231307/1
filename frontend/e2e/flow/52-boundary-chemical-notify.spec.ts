@@ -22,10 +22,13 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     await loginViaUI(page);
   });
 
+  // master.rs:53-54：chemical_type=dye 时必须提供 dye_category，否则在价格/库存负值校验
+  // 之前就返回"染料类型必须提供 dye_category"，B3/B4 的 message 断言会拿到错行。
   const chemBase = (code: string) => ({
     chemical_code: code,
     chemical_name: `52边界化料${code}`,
     chemical_type: 'dye',
+    dye_category: 'reactive',
     unit: 'kg',
   });
 
@@ -61,7 +64,11 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
       safety_stock: '-5',
     });
     expect(r.status, '安全库存负数必须拒绝').toBeGreaterThanOrEqual(400);
-    expect(String(r.message ?? ''), '消息应提示安全库存').toContain('安全库存');
+    // 后端 HTTP 响应统一脱敏（utils/error.rs:95-96），business 文案只有"业务处理失败"，
+    // 断言 code 而非 message（与 B1/B2 一致）；dye_category 由 chemBase 提供，确保命中的是库存校验分支
+    expect(String(r.code ?? ''), 'code 应含 VALIDATION 或 BUSINESS').toMatch(
+      /VALIDATION|BUSINESS|BAD_REQUEST/
+    );
   });
 
   test('52-B4 化料再订货点为负拒绝（master.rs:73）', async ({ page }) => {
@@ -71,7 +78,9 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
       reorder_point: '-2',
     });
     expect(r.status, '再订货点负数必须拒绝').toBeGreaterThanOrEqual(400);
-    expect(String(r.message ?? ''), '消息应提示再订货点').toContain('再订货点');
+    expect(String(r.code ?? ''), 'code 应含 VALIDATION 或 BUSINESS').toMatch(
+      /VALIDATION|BUSINESS|BAD_REQUEST/
+    );
   });
 
   test('52-B5 化料正常创建正例（对照负例防规则过紧）', async ({ page }) => {

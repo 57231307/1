@@ -1164,13 +1164,38 @@ async fn handle_purchase_receipt_completed(
         order_id,
         receipt_id
     );
-    let po_service = crate::services::po::order::PurchaseOrderService::new(db);
+    let po_service = crate::services::po::order::PurchaseOrderService::new(db.clone());
     // P0 3-6 修复：传入 receipt_id 做幂等校验，防止事件重投导致重复入库
     match po_service.receive_order(order_id, Some(receipt_id)).await {
-        Ok(_) => tracing::info!(
-            "Successfully updated purchase order {} status to RECEIVED",
-            order_id
-        ),
+        Ok(_) => {
+            tracing::info!(
+                "Successfully updated purchase order {} status to RECEIVED",
+                order_id
+            );
+            // 入库单已由事件路径进入 COMPLETED，但应付单只在 confirm_receipt 内生成，
+            // 事件驱动的收货确认后 confirm 会因状态非 DRAFT 被拒 → 库存已入库、应付未生成的账实脱节。
+            // 补偿生成应付；auto_generate_from_receipt 内置 source_type+source_id 唯一性校验，
+            // 与 confirm_receipt 路径不会重复生成。操作人取入库单创建人（真实 user_id）。
+            let ap_service =
+                crate::services::ap_invoice_service::ApInvoiceService::new(db.clone());
+            if let Ok(receipt) =
+                crate::models::purchase_receipt::Entity::find_by_id(receipt_id).one(&*db).await
+            {
+                let operator_id = receipt.created_by;
+                match ap_service.auto_generate_from_receipt(receipt_id, operator_id).await {
+                    Ok(inv) => tracing::info!(
+                        "补偿生成应付单 {} (入库单 {})",
+                        inv.id,
+                        receipt_id
+                    ),
+                    Err(e) => tracing::warn!(
+                        "⚠ 入库单 {} 已入库成功，但补偿生成应付账单失败，需人工补生成应付单：{}",
+                        receipt_id,
+                        e
+                    ),
+                }
+            }
+        }
         Err(e) => tracing::error!("Failed to update purchase order {}: {}", order_id, e),
     }
 }

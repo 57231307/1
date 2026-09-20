@@ -2,6 +2,7 @@ import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
+  apiCallRaw,
   apiCallExpectFail,
   tryCleanup,
   ensureTestEntities,
@@ -76,16 +77,34 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     const receiptId = receipt?.data?.id;
     expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[48-1] 收货单' });
-    const confirm = await apiCall(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
-    expect(confirm, '收货确认应成功').toBeTruthy();
-    // 3. 补偿产物断言：AP 列表存在该 supplier 关联的未付记录
-    const ap = await apiCall<{ items?: Array<{ supplier_id?: number; po_id?: number }> }>(
+
+    // 收货单创建即发布 PurchaseReceiptCompleted，异步触发 receive_order 把入库单推进到 COMPLETED
+    // 并完成入库。此时再 confirm 会因状态非 DRAFT 被拒（400），这是正确的状态机行为，
+    // 所以用 apiCallExpectFail 接住：无论走 confirm 路径还是事件路径，AP 都必须被生成。
+    const confirm = await apiCallExpectFail(
       page,
-      'GET',
-      `/ap-invoices?page=1&page_size=50`
+      'POST',
+      `/purchase/receipts/${receiptId}/confirm`
     );
-    const apList = ap?.items ?? [];
-    const hit = apList.some(x => x.supplier_id === ctx.supplierId || x.po_id === poId);
+    expect(
+      confirm.status < 400 || confirm.code === 'BUSINESS_ERROR',
+      `确认失败原因应为状态机保护而非系统故障：status=${confirm.status} code=${confirm.code}`
+    ).toBe(true);
+
+    // 3. 补偿产物断言：AP 列表存在该 supplier 关联的应付记录（事件路径异步生成，轮询等待）
+    // 真实路由是 /ap/invoices（finance.rs:637），不是 /ap-invoices
+    let apList: Array<{ supplier_id?: number; source_id?: number }> = [];
+    for (let i = 0; i < 20; i++) {
+      const ap = await apiCallRaw<{ items?: Array<{ supplier_id?: number; source_id?: number }> }>(
+        page,
+        'GET',
+        `/ap/invoices?page=1&page_size=100`
+      );
+      apList = ap?.items ?? [];
+      if (apList.some(x => x.supplier_id === ctx.supplierId)) break;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    const hit = apList.some(x => x.supplier_id === ctx.supplierId);
     expect(hit, '收货确认后必须生成 AP 应付单（补偿失败后端仅 warn——账实脱节缺陷防线）').toBe(true);
   });
 

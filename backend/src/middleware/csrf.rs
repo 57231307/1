@@ -175,6 +175,14 @@ pub async fn csrf_middleware(
         return Ok(next.run(request).await);
     }
 
+    // 2b. 认证豁免路径（record-print / ws/ticket）：仅需 JWT 认证，不消耗一次性 token。
+    // 必须在 token 提取/消费之前短路——csrf_middleware 在 permission_middleware 之外层执行，
+    // 若不在此豁免，is_auth_only_path 永远轮不到，ws/ticket 的重连风暴会与页面其它 POST
+    // 争抢一次性 token，把并发请求全部打成 CSRF_TOKEN_INVALID（见 permission.rs 的声明）。
+    if is_auth_only_path(&path) {
+        return Ok(next.run(request).await);
+    }
+
     // 3. 提取并校验 CSRF Token 头
     let token = match extract_csrf_token(&request) {
         Some(t) => t,
@@ -220,6 +228,20 @@ pub async fn csrf_middleware(
     }
 
     Ok(next.run(request).await)
+}
+
+/// 认证豁免 CSRF+RBAC 的路径清单（仅需 JWT 认证，不消耗一次性 CSRF token）。
+/// 端点：/audit-logs/record-print（前端打印审计埋点，读类、无业务写副作用）
+/// ws/ticket：WS 一次性票据签发（读类、无业务写副作用，鉴权强依赖 JWT）
+const AUTH_ONLY_PATHS: &[&str] = &[
+    "/api/v1/erp/audit-logs/record-print",
+    "/api/v1/erp/ws/ticket",
+];
+
+/// 路径是否仅需认证（豁免 CSRF 一次性消费与 RBAC 权限码校验）
+pub fn is_auth_only_path(path: &str) -> bool {
+    let clean_path = path.split(['?', '#']).next().unwrap_or(path);
+    AUTH_ONLY_PATHS.contains(&clean_path)
 }
 
 /// 构造 403 CSRF 错误响应（统一 JSON 格式）

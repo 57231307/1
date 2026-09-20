@@ -111,7 +111,17 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       return;
     }
 
-    // 对已审批的报价单再次提交 → 应拒绝
+    // 前置：先驱动到 approved。2-1 创建的报价单是 draft，直接 submit 属合法转换，
+    // 后端小额自批（金额 < 10 万）会直接返回 200，负例就失去了前提。
+    await apiCall(page, 'POST', `/quotations/${id}/submit`);
+    const st = (
+      (await apiCallRaw<{ status?: string }>(page, 'GET', `/quotations/${id}`))?.status || ''
+    ).toLowerCase();
+    if (st !== 'approved' && st !== 'submitted') {
+      await apiCall(page, 'POST', `/quotations/${id}/approve`);
+    }
+
+    // 对已审批的报价单再次提交 → 应拒绝（状态机非法转换）
     await verifyIllegalTransition(page, '/quotations', id, 'submit');
   });
 

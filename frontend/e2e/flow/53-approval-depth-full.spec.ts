@@ -160,10 +160,19 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     CLEANUP.push({ path: `/role-change-approvals/${apId}`, label: '[53-1] 申请' });
 
     // A 自己审批 L1 → 必须被拒（:2 防自审批）
-    const self = await apiCallExpectFail(page, 'POST', `/role-change-approvals/${apId}/approve-l1`);
+    // 必须传 body：后端签名是 Json<ApproveRoleChangeRequest>，空请求体在 Json 提取阶段
+    // 就被 axum 以 422 拦截，永远到不了"审批人不能是申请人"的业务校验。
+    const self = await apiCallExpectFail(
+      page,
+      'POST',
+      `/role-change-approvals/${apId}/approve-l1`,
+      { comments: '53-1 自审批负例：申请人审批自己的申请必须被拒' }
+    );
     expect(self.status, '申请人自己审批必须被拒').toBeGreaterThanOrEqual(400);
-    expect(String(self.message ?? ''), '拒绝消息应提示申请人/本人/自己').toMatch(
-      /申请人|本人|自己|self|applicant/i
+    // 后端 HTTP 响应统一脱敏（utils/error.rs:96 走 public_message），真实文案"审批人不能是申请人"
+    // 只进 tracing 日志，断言 code 而非 message 才能稳定命中业务拒绝分支。
+    expect(String(self.code ?? ''), 'code 应为业务拒绝而非系统故障').toMatch(
+      /BUSINESS|VALIDATION|BAD_REQUEST/i
     );
 
     // B（独立 context）审批 L1 → 通过
