@@ -178,7 +178,9 @@ test.describe.serial('44f 真实实体全流转链', () => {
       400
     );
 
-    await apiCall(page, 'POST', `/inventory/transfers/${id}/approve`);
+    // ApproveTransferRequest { approved: bool（必填）, notes: Option }——
+    // 原实现不发请求体，axum 报 "EOF while parsing a value at line 1 column 0"（status 400）
+    await apiCall(page, 'POST', `/inventory/transfers/${id}/approve`, { approved: true });
     const st1 = await apiCall<{ status?: string }>(page, 'GET', `/inventory/transfers/${id}`);
     expect(JSON.stringify(st1).toLowerCase()).toContain('approved');
 
@@ -246,7 +248,9 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId,
       order_date: new Date().toISOString(),
-      items: [{ material_id: ctx.productIds[0], quantity: 5, unit_price: '8.00' }],
+      // SO 明细字段名是 product_id（后端 422 明示 items[0]: missing field `product_id`），
+      // 原实现写 material_id 属字段名错用
+      items: [{ product_id: ctx.productIds[0], quantity: 5, unit_price: '8.00' }],
     });
     const soId = so?.data?.id;
     expect(soId, 'SO 创建失败').toBeTruthy();

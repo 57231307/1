@@ -187,7 +187,11 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     {
       label: '角色',
       createApi: '/roles',
-      payload: { name: `P0角色${TS}`, code: `P0ROLE${TS}`, description: 'P0角色描述' },
+      // role_permission_service.rs:153-159 要求 code 仅含小写字母/数字/下划线且长度 3-50。
+      // 原 payload 用 `P0ROLE${TS}` 含大写字母，被该约束拒绝；错误以 AppError::business 抛出，
+      // 经 public_message 脱敏后前端只看到"业务处理失败"，故失败原因在此注明。
+      // TS 为 Date.now() 后 8 位纯数字，p0role 前缀满足全部约束（总长 14）。
+      payload: { name: `P0角色${TS}`, code: `p0role${TS}`, description: 'P0角色描述' },
     },
     {
       label: '预算',

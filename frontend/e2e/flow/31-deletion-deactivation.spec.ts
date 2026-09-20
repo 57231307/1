@@ -515,7 +515,16 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       page,
       '产品色号',
       `/products/${productId}/colors`,
-      { color_no: `P0-COLOR-${EXT_TS}`, color_name: `P0色号${EXT_TS}` },
+      // CreateProductColorRequest 的 color_type: String 与 extra_cost: f64 均为必填
+      // （非 Option、无 serde default），原实现只发 color_no/color_name 必 422
+      // missing field `color_type`。STANDARD 取自列定义
+      // m0008_add_supplier_and_product_extensions.rs: color_type VARCHAR(20) NOT NULL DEFAULT 'STANDARD'
+      {
+        color_no: `P0-COLOR-${EXT_TS}`,
+        color_name: `P0色号${EXT_TS}`,
+        color_type: 'STANDARD',
+        extra_cost: 0,
+      },
       '/product',
       `P0-COLOR-${EXT_TS}`
     );

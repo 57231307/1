@@ -56,8 +56,13 @@ test.describe.serial('新域业务流转链', () => {
     });
     const coId = co?.data?.id;
     expect(coId, '定制订单创建失败').toBeTruthy();
+    // ReportQualityIssueDto 必填 custom_order_id / issue_type / severity / description
+    // （models/quality_issue_dto.rs:13-27）。原实现漏 custom_order_id 与 severity：
+    // 前者被后端 422 拒绝，后者即使补上前也仍是必填项，一并补齐。
     const issue = await apiCall<{ id?: number }>(page, 'POST', `/custom-orders/${coId}/issues`, {
+      custom_order_id: coId,
       issue_type: 'after_sales_reported',
+      severity: 'medium',
       description: 'E2E 8D 前置质量问题',
     });
     const issueId = issue?.data?.id;
