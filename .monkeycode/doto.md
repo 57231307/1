@@ -52,6 +52,55 @@
 
 ## 未完成任务清单
 
+### Round 7-iter21（2026-09-20，拉 run 35510302989 全量失败日志判责）
+
+> **本轮关键结论**：`c3b83cf6`（iter20）自身把 `bingxi-backend` lib 编坏，导致
+> Clippy / Rust 测试预编译 / Rust 后端构建 三个 job 同一根因 exit 101，
+> **E2E（25 分片）、Setup 向导 E2E、角色权限矩阵、E2E 真实性门禁、Rust 覆盖率、
+> 死代码审计、打包发布、Release 全部 skipped**。
+> 即 **Round 7-iter5 ~ iter20 共 16 轮 E2E 判责修复从未被 CI 真正执行过**，
+> 其"已修复"结论全部待 CI 首次实跑验证。收尾清理 job 是纯级联（聚合各 job 结论后 exit 1），无独立缺陷。
+
+- [x] 🔴 **E0596 `shipped_pool` 缺 mut**（`so/delivery_ops/inventory.rs:435`）：iter20 引入，CI 唯一编译阻塞点之一 → `764cd257`
+- [x] 🔴 **iter20 预留回滚重构丢失状态作用域**（同文件）：`restore_reserved_stock` 查询与
+  `release_reservations` 状态更新都不再限定 `pending`，造成
+  (a) released/cancelled 行被二次回加 → 虚增 `quantity_available`；
+  (b) consumed 行被改写 cancelled 并回减 `quantity_shipped` → 抹除真实出库与消耗审计，
+      且与该函数"预留行必须保留用于追溯"的自身注释矛盾（规则 2）
+      → 按业务语义拆为 `RELEASE_SCOPED_STATUSES`（软终态，pending/locked）与
+      `DELETE_SCOPED_STATUSES`（硬删除，额外含 consumed）两份显式作用域，
+      查询与更新经 `reservation_status_filter` 共用同一来源 → `764cd257`
+- [x] 🔴 **consumed 回滚量 `or_insert(res.quantity)` 兜底**（同文件）：shipped 池无该产品即明细
+  `shipped_quantity` 为 0，臆造池量会使回减落入不存在区间并抛误导性"库存回滚失败"
+  → 改为按 0 跳过 + 输出含 order_id/product_id/预留量的显式 warn → `764cd257`
+- [x] 🔴 **E0609 `receipt.created_by`**（`event_bus_ops/listener.rs:1184`）：`find_by_id().one()`
+  返回 `Result<Option<Model>>`，`if let Ok` 只剥一层。不采纳编译器 `unwrap()` 建议
+  （事件监听器 panic 会击穿后台消费者 task），改显式 match 三分支 → `b45ca262`
+- [x] 🔴 **同一处 `if let Ok(..)` 静默吞掉 DbErr**：库存已入账而应付未生成属账实脱节的必须暴露场景，
+  原实现零日志穿过 → Ok(None)/Err(e) 两支各自输出 error 级日志 → `b45ca262`
+- [x] 🔴 **`AUTH_ONLY_PATHS` 安全豁免白名单双份真相源**：iter20 在 `csrf.rs` 复制了一份
+  `permission.rs` 已有的 `AUTH_ONLY_PATHS` + `is_auth_only_path`，两份须手工同步，
+  任一侧漂移即出现"RBAC 豁免但 CSRF 未豁免"或反向的认证语义不一致
+  → 收敛到 `middleware/public_routes.rs`（`PUBLIC_PATHS` 既有归属地），两中间件同源导入
+  → `77daf24e`；当前两份清单内容一致，收敛后行为不变
+- [x] **`event_kafka.rs` 死导入 + 失实注释**：`#[cfg(test)] use ShippedItem`，但文件内既无
+  `mod tests` 也无子模块，该导入在两种配置下都是死代码，注释"仅在测试模块使用"为假
+  → 删除 → `dba9eb8d`。附带发现：该 `unused_imports` 告警在 clippy-log 可见，
+  却因 baseline 按 message 文本匹配被判 NEW_COUNT=0，**既有告警治理机制存在漏网项**
+- [x] **文档同步**（规则 10）：`bug.md` §三（import_csv 早在 2026-06-26 已删，结论全部过时）、
+  `MEMORY.md` `## 二、常规规则` 重复两次导致章节编号断裂 → 去重并恢复连续编号
+- [ ] **Round 7-iter5~iter20 的 E2E 修复首次真实 CI 验证**：本轮编译阻塞清除后 E2E 将首次实跑，
+  预期暴露新的失败面，需按判责纪律逐测试归因（源代码/测试文件/测试配置/环境 flaky/测试基建）
+- [ ] **`network-resilience.spec.ts` 整文件 `test.skip(true)`**（`frontend/e2e/enhanced/`，规则 0）：
+  仍依赖 `applyAuthMocks` + `mockApiError`/`mockNetworkFailure`/`simulateSlowNetwork` 响应伪造。
+  文件头部已自述恢复方案：改用真实异常源（越权账号 403 / 越界 ID 404 / 超限载荷 422）+
+  浏览器级真实离线（`context.setOffline`）重写，重写后方可移除 EXEMPT 标记与 skip
+- [ ] **`import_export_ops/task.rs:4,20` 与 `models/import_task.rs:5` 注释失实**：以现在时描述
+  已删除的 `import_csv`，`task.rs:20` 另含变更日志式表述与重复标点 `，；`（IR 注释规范 09-17）
+- [ ] **clippy baseline 按 message 匹配的机制缺陷**：同一 message 的新发生会被判"非新增"而放行
+  （本次 `unused_imports` 即实证），需评估改为 `file:line + message` 复合键
+
+
 ### E2E 权限与打印覆盖缺口（2026-09-09 审计，待推送授权后立项）
 
 > 审计结论：真实链路在 admin 单角色登录 + 业务闭环 + 响应式维度扎实；多角色权限差异化验证与打印全链路是系统性空白。

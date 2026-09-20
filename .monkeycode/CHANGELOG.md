@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-09-20
+
+| PR | 一句话总结 |
+|----|-----------|
+| PR #941 | Round 7-iter21：拉 run 35510302989 全量失败日志判责，确认 iter20 自身把 bingxi-backend lib 编坏（E0596 shipped_pool 缺 mut + E0609 receipt Option 误取字段），致 Clippy/测试预编译/后端构建三 job 同根因 exit 101、E2E 与覆盖率/发布全链 skipped，即 iter5~iter20 共 16 轮 E2E 修复从未被 CI 实跑；同时修掉该重构丢失预留状态作用域导致的 released/cancelled 二次回加虚增可用库存、consumed 行被改写 cancelled 并回减 shipped 抹除真实出库与消耗审计，removed consumed 回滚量 or_insert 兜底改显式跳过+告警；listener 补偿应付不采纳编译器 unwrap 建议改 match 三分支并消除 if let Ok 对 DbErr 的零日志静默；AUTH_ONLY_PATHS 安全豁免白名单由 csrf/permission 两份手工同步副本收敛到 public_routes 单一真相源；删除 event_kafka 无 mod tests 支撑的死导入（并暴露 clippy baseline 按 message 匹配致新发生漏网）；文档同步 bug.md §三 import_csv 结论全部过时、MEMORY.md 常规规则章节重复致编号断裂 |
+
 ## 2026-09-05
 
 | PR | 一句话总结 |

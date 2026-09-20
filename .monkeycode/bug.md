@@ -202,14 +202,28 @@ fn process(data: &str) -> &str
 
 ## 三、导入导出格式不一致审计
 
-### 3.1 问题描述
+### 3.0 状态更正（2026-09-20 复核，规则 10 文档同步）
+
+**本节原始结论已全部过时，原列"修复方案"三项均已无需实施。** 复核证据：
+
+| 原结论 | 复核结果 |
+|--------|----------|
+| `import_export_handler.rs:53` 存在 `import_csv` 函数 | **已不存在**。2026-06-26 死代码清理时连同 CSV 专用入口一并删除，`utils/import_export.rs:16` 保留了删除记录注释 |
+| `routes/analytics.rs:189` 注册 `/csv` 路由 | **已不存在**。`analytics.rs` 内无任何 `/csv` 路由，全仓 `import_csv` 符号零命中（仅剩两处描述性注释） |
+| 前后端格式不统一需改造 | 导出侧已按规则 16 统一为 xlsx/docx（`rust_xlsxwriter` / `docx-rs` / `printpdf`） |
+
+残留问题降级为**注释失实**，已按 IR 注释规范处理，不再属于功能缺陷：
+`models/import_task.rs:5` 与 `services/import_export_ops/task.rs:4,20` 的模块/方法注释
+仍以现在时描述已删除的 `import_csv`，且 `task.rs:20` 含变更日志式表述与重复标点 `，；`。
+
+### 3.1 原始问题描述（存档，结论见 3.0）
 
 - 后端存在 `import_csv` 函数（`import_export_handler.rs:53`），但前端没有调用
 - 前端使用 FormData 上传文件（`multipart/form-data`）
 - 后端 `import_products` 函数期望接收 JSON 格式的 `ImportProductsRequest`（包含 `csv_data` 字段）
 - 用户要求：导入和导出都应该使用 .xlsx 格式，只有合同使用 .docx 格式
 
-### 3.2 代码证据
+### 3.2 代码证据（2026-08-27 快照，多数条目已失效）
 
 | 文件 | 行号 | 问题 |
 |------|------|------|
@@ -221,11 +235,12 @@ fn process(data: &str) -> &str
 | `frontend/src/api/product.ts` | 139 | `importProducts` 使用 FormData 上传文件 |
 | `frontend/src/views/product/tabs/ImportDialogTab.vue` | 33 | 接受 .xlsx/.xls/.csv 格式 |
 
-### 3.3 修复方案
+### 3.3 原修复方案（已无需实施，保留备查）
 
 1. 删除后端 `import_csv` 函数和 `/csv` 路由
 2. 修改 `import_products` 函数，支持 multipart/form-data 格式
 3. 确保前端和后端使用统一的 xlsx 格式
+
 
 ---
 

@@ -117,7 +117,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 - **权限矩阵**：14 类业务角色差异化权限 + 职责分离 SoD 校验 + is_system 滥用治理
 - **PostgreSQL RLS 行级安全**：数据库原生 Row Level Security + 会话级 GUC 上下文（tokio task-local + 连接池钩子自动注入）+ dept 数据范围语义（主部门+兼职部门+子部门动态展开）+ fail-closed 策略 + 应用层双语义条件对齐（成员集合/部门归属）
 - **打印导出审计**：端点合理性 + 角色权限矩阵 + 二级审批 + 文件水印 + 并发控制 + 合规定期审查
-- **安全防护**：JWT + refresh_token（2 天对齐）+ PUBLIC_PATHS 精确匹配 + Webhook payload 脱敏 + magic bytes 校验 + zip bomb 防护 + SSRF 防护 + 路径穿越防护
+- **安全防护**：JWT + refresh_token（2 天对齐）+ PUBLIC_PATHS / AUTH_ONLY_PATHS 双清单精确匹配（集中 `middleware/public_routes.rs` 单一真相源，CSRF 与 RBAC 中间件共用，新增条目须逐条论证无业务写副作用）+ Webhook payload 脱敏 + magic bytes 校验 + zip bomb 防护 + SSRF 防护 + 路径穿越防护
 - **法律合规**：中国法律法规 + 数据脱敏（手机/邮箱/身份证/银行卡）+ 成品文档格式（xlsx/docx）+ 纺织行业法律财税环保劳动
 
 ### 6. 可观测性与运维
