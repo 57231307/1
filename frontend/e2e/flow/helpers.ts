@@ -771,12 +771,12 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // ---- 23. 用户 ID（报价单创建需要 sales_user_id；ctx.userIds 必须填充）----
   // 查询已有用户列表填充 userIds，保证 sales_user_id 等字段有真实值
   try {
-    const users = await apiCallRaw<{ items: Array<{ id: number }> }>(
+    const users = await apiCallRaw<{ users: Array<{ id: number }> }>(
       page,
       'GET',
       '/users?page=1&page_size=10'
     );
-    ctx.userIds = users.items?.map(u => u.id) || [];
+    ctx.userIds = users.users?.map(u => u.id) || [];
     if (ctx.userIds.length === 0) {
       throw new Error('用户列表为空（系统初始化应至少有 e2e_admin）');
     }
