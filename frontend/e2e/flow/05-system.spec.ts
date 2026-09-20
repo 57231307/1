@@ -18,16 +18,22 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-1 审计日志查询（按操作类型/资源筛选）', async ({ page }) => {
-    // 后端 audit_enhanced_handler 返回 { list, total, page, page_size }，无 items 键
+    // GET /audit-logs 由 audit_log_handler::list_audit_logs 处理，响应键为
+    // { items, total, page, page_size }，条目本身即含 operation_type/resource_name/description。
+    // （另一套 audit_enhanced_handler::list_audit_logs 挂在 analytics 域的 /logs 上，
+    //  响应键是 list——两者路径与结构都不同，不可混用。）
     const logs = await apiCallRaw<{
-      list: Array<Record<string, unknown>>;
+      items: Array<Record<string, unknown>>;
       total?: number;
     }>(page, 'GET', '/audit-logs?page=1&page_size=20');
-    const rows = logs?.list ?? [];
-    expect(Array.isArray(rows), '审计日志列表应返回 list 数组').toBe(true);
-    expect(logs?.total ?? rows.length, '审计日志总数应大于 0').toBeGreaterThan(0);
+    expect(Array.isArray(logs?.items), '审计日志列表应返回 items 数组').toBe(true);
+    const rows = logs.items;
+    expect(logs?.total ?? 0, '审计日志总数应大于 0').toBeGreaterThan(0);
+    // 先断言行非空再取 rows[0]：原实现断言 total>0 后直接索引，
+    // 一旦分页结果为空就是 TypeError 而不是可读的断言失败
+    expect(rows.length, '首页审计日志不应为空').toBeGreaterThan(0);
     expect(String(rows[0].operation_type ?? ''), '审计记录应含 operation_type').toBeTruthy();
-    expect(rows[0].action, '审计记录应含 action').toBeTruthy();
+    expect(rows[0].action ?? rows[0].request_method, '审计记录应含操作标识').toBeTruthy();
   });
 
   test('5-2 用户列表 + 角色列表 + 部门列表', async ({ page }) => {

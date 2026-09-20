@@ -173,17 +173,20 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
   test('色卡借出记录 UI 页面', async ({ page }) => {
     await page.goto(`${BASE_URL}/color-cards/issues`);
     await page.waitForTimeout(3000);
+    // 色卡页多 Tab 共存，隐藏 Tab 的表格节点仍留在 DOM 中；原实现 .first() 取到的是
+    // aria-label="发放中列表" 的隐藏表格（34 × resolved to hidden），必须用 :visible 过滤。
+    // 选择器列表原有重复项（el-table-v2 / [role=table] / v2-table-wrapper 各写两遍），一并去重。
     const table = page
       .locator(
-        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
+        '.el-table:visible, .el-table-v2:visible, [role="table"]:visible, .v2-table-wrapper:visible'
       )
       .first();
     await table.waitFor({ state: 'visible', timeout: 15_000 });
-    const tableVisible = await table.isVisible();
-    if (tableVisible) {
-      const headers = table.locator('th, .el-table-v2__header-cell');
-      const headerCount = await headers.count();
-      expect(headerCount).toBeGreaterThan(0);
-    }
+    // 去掉 `if (tableVisible)` 包裹：表格已 waitFor 可见，条件恒真时其后断言等同空转，
+    // 而一旦断言被跳过用例仍记为通过
+    const headers = table.locator('th, .el-table-v2__header-cell');
+    const headerCount = await headers.count();
+    console.log(`[E2E][23] 色卡借出记录可见表格表头数=${headerCount}`);
+    expect(headerCount, '可见表格应渲染出表头').toBeGreaterThan(0);
   });
 });
