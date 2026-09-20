@@ -153,38 +153,18 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       return;
     }
 
-    // 先检查订单状态：convert 可能已自动 approved
+    // convert 后订单可能已自动 approved（小额自批场景）
+    // 先 GET 确认当前状态，按状态决定是否需要 submit+approve
     const before = await apiCallRaw<{ status?: string }>(page, 'GET', `/sales/orders/${id}`);
     const st = (before.status || '').toLowerCase();
     if (st !== 'approved' && st !== 'confirmed') {
-      // submit 后可能自动 approved（小额自批），再检查一次
+      // 状态非 approved：需要 submit → approve 流程
       await apiCall(page, 'POST', `/sales/orders/${id}/submit`, {});
-      const after = await apiCallRaw<{ status?: string }>(page, 'GET', `/sales/orders/${id}`);
-      const st2 = (after.status || '').toLowerCase();
+      const afterSubmit = await apiCallRaw<{ status?: string }>(page, 'GET', `/sales/orders/${id}`);
+      const st2 = (afterSubmit.status || '').toLowerCase();
+      // submit 后如果仍非 approved，执行 approve
       if (st2 !== 'approved' && st2 !== 'confirmed') {
-        // approve 可能因 SoD（创建者不能审批）或订单已被他人审批而失败
-        // 仅在"已 approved"的业务场景下容错，其他错误必须暴露
-        try {
-          await apiCall(page, 'POST', `/sales/orders/${id}/approve`, {});
-        } catch (e) {
-          const msg = (e as Error).message || '';
-          if (msg.includes('approved') || msg.includes('BUSINESS_ERROR')) {
-            // 二次确认状态：approve 失败后检查订单是否已达到终态
-            const afterApprove = await apiCallRaw<{ status?: string }>(
-              page,
-              'GET',
-              `/sales/orders/${id}`
-            );
-            const finalSt = (afterApprove.status || '').toLowerCase();
-            if (['approved', 'confirmed', 'pending_shipment'].includes(finalSt)) {
-              console.warn(`[2-5] approve 容错（状态=${finalSt}，已达终态）: ${msg}`);
-            } else {
-              throw e;
-            }
-          } else {
-            throw e;
-          }
-        }
+        await apiCall(page, 'POST', `/sales/orders/${id}/approve`, {});
       }
     }
 

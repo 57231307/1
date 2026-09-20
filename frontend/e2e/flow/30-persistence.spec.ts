@@ -1,5 +1,12 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw, getCtx, ensureTestEntities } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  getCtx,
+  ensureTestEntities,
+  ensureStockInWarehouse,
+} from './helpers';
 
 /**
  * P0 级数据持久性验证（2026-09-10 用户指令）
@@ -428,31 +435,17 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     const prodId = prod?.data?.id;
     expect(custId, '[P0-销售订单] 客户创建失败').toBeTruthy();
     expect(prodId, '[P0-销售订单] 产品创建失败').toBeTruthy();
-    // 销售订单创建会锁库存，需先确保产品有库存记录
-    // 库存创建失败应暴露，仅在"库存已存在"场景下容错
+    // 销售订单创建会锁库存，需先确保产品有库存记录（用 helper 先查再创建）
     const ctx = getCtx();
     const whId = ctx.warehouseIds[0];
     if (!whId) {
-      throw new Error('[P0-销售订单] 前置仓库 ID 缺失，无法创建库存记录');
+      throw new Error('[P0-销售订单] 前置仓库 ID 缺失，无法确保库存记录');
     }
-    try {
-      await apiCall(page, 'POST', '/inventory/stock/fabric', {
-        product_id: prodId,
-        warehouse_id: whId,
-        quantity: 100,
-        batch_no: `P0-STK-${TS}-${Math.random().toString(36).slice(2, 6)}`,
-        color_no: 'P0-COLOR',
-      });
-      console.log('[P0-销售订单] 库存记录已创建 prodId=', prodId, 'whId=', whId);
-    } catch (e) {
-      const msg = (e as Error).message || '';
-      // "已存在"类错误可接受（库存幂等），其他错误必须暴露
-      if (msg.includes('duplicate') || msg.includes('已存在') || msg.includes('unique')) {
-        console.warn('[P0-销售订单] 库存已存在（幂等跳过）:', msg);
-      } else {
-        throw new Error(`[P0-销售订单] 库存创建失败: ${msg}`);
-      }
+    const stock = await ensureStockInWarehouse(page, prodId, whId, 'P0-COLOR');
+    if (!stock || !stock.id) {
+      throw new Error('[P0-销售订单] 库存记录确保失败（查询和创建均未返回有效记录）');
     }
+    console.log('[P0-销售订单] 库存已确保 prodId=', prodId, 'stockId=', stock.id);
     const orderDate = new Date().toISOString().slice(0, 10);
     const payload = {
       customer_id: custId,

@@ -277,8 +277,11 @@ impl InventoryTransferService {
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 // P1 batch-18 缺陷 6.2：面料行业追溯字段强制写入（白坯布除外）
+                // 白坯布 dye_lot_no 为空时用 NotSet 让 DB DEFAULT '' 生效
                 color_no: sea_orm::ActiveValue::Set(color_no),
-                dye_lot_no: sea_orm::ActiveValue::Set(Some(dye_lot_no.unwrap_or_default())),
+                dye_lot_no: dye_lot_no
+                    .map(|v| sea_orm::ActiveValue::Set(Some(v)))
+                    .unwrap_or(sea_orm::ActiveValue::NotSet),
                 batch_no: sea_orm::ActiveValue::Set(batch_no),
             };
             item.insert(txn).await?;
@@ -452,9 +455,11 @@ impl InventoryTransferService {
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 // P1 batch-18 缺陷 6.2：面料行业追溯字段强制写入（白坯布除外）
-                // 白坯布 dye_lot_no 为空时用空字符串满足 DB NOT NULL 约束
+                // 白坯布 dye_lot_no 为空时用 NotSet 让 DB DEFAULT '' 生效
                 color_no: sea_orm::ActiveValue::Set(color_no),
-                dye_lot_no: sea_orm::ActiveValue::Set(Some(dye_lot_no.unwrap_or_default())),
+                dye_lot_no: dye_lot_no
+                    .map(|v| sea_orm::ActiveValue::Set(Some(v)))
+                    .unwrap_or(sea_orm::ActiveValue::NotSet),
                 batch_no: sea_orm::ActiveValue::Set(batch_no),
             };
             item.insert(txn).await?;

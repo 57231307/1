@@ -144,12 +144,13 @@ impl QuotationConvertService {
                 quotation.quotation_no,
                 quotation.notes.clone().unwrap_or_default()
             ))),
-            batch_no: Set(Some(String::new())),
-            color_no: Set(Some(String::new())),
-            dye_lot_no: Set(Some(String::new())),
-            grade: Set(Some(String::new())),
-            packaging_requirement: Set(Some(String::new())),
-            quality_standard: Set(Some(String::new())),
+            // 面料行业追溯字段：报价单不含这些信息，用 NotSet 让 DB DEFAULT '' 生效
+            batch_no: sea_orm::ActiveValue::NotSet,
+            color_no: sea_orm::ActiveValue::NotSet,
+            dye_lot_no: sea_orm::ActiveValue::NotSet,
+            grade: sea_orm::ActiveValue::NotSet,
+            packaging_requirement: sea_orm::ActiveValue::NotSet,
+            quality_standard: sea_orm::ActiveValue::NotSet,
             created_by: Set(Some(user_id)),
             // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
             department_id: sea_orm::ActiveValue::NotSet,
