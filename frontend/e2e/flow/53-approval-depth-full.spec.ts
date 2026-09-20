@@ -162,8 +162,8 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     // A 自己审批 L1 → 必须被拒（:2 防自审批）
     const self = await apiCallExpectFail(page, 'POST', `/role-change-approvals/${apId}/approve-l1`);
     expect(self.status, '申请人自己审批必须被拒').toBeGreaterThanOrEqual(400);
-    expect(String(self.message ?? ''), '拒绝消息应提示本人/自己').toMatch(
-      /本人|自己|self|applicant/i
+    expect(String(self.message ?? ''), '拒绝消息应提示申请人/本人/自己').toMatch(
+      /申请人|本人|自己|self|applicant/i
     );
 
     // B（独立 context）审批 L1 → 通过

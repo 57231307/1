@@ -139,7 +139,9 @@ test.describe.serial('44f 真实实体全流转链', () => {
 
     await apiCall(page, 'POST', `/production/flow-cards/${id}/start-preparing`, {});
     expect(await rd()).toContain('preparing');
-    await apiCall(page, 'POST', `/production/flow-cards/${id}/complete-preparing`, {});
+    await apiCall(page, 'POST', `/production/flow-cards/${id}/complete-preparing`, {
+      actual_fabric_weight: 100,
+    });
     await apiCall(page, 'POST', `/production/flow-cards/${id}/start-dyeing`, {});
     expect(await rd()).toContain('dyeing');
     await apiCall(page, 'POST', `/production/flow-cards/${id}/complete-dyeing`, {});

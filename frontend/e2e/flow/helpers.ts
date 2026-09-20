@@ -937,28 +937,71 @@ export async function apiCallExpectFail(
   path: string,
   body?: Record<string, unknown>
 ): Promise<{ status: number; code?: number; message?: string }> {
-  const csrfToken = await getCsrfToken(page);
   const url = `${API_BASE}${API_PREFIX}${path}`;
-  const response = await page.request.fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-      'X-CSRF-Token': csrfToken,
-    },
-    data: body ? JSON.stringify(body) : undefined,
-  });
+  let csrfToken =
+    (await getCsrfToken(page).catch(e => {
+      console.warn(`[apiCallExpectFail] ${method} ${path} CSRF 提取失败: ${(e as Error).message}`);
+      return null;
+    })) ?? '';
 
-  const text = await response.text();
+  const doFetch = async (token: string) =>
+    page.request.fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': token,
+      },
+      data: body ? JSON.stringify(body) : undefined,
+    });
+
+  let response = await doFetch(csrfToken);
+  let text = await response.text();
   let json: { code?: number; message?: string } = {};
   try {
     json = JSON.parse(text);
   } catch {
-    // IR 详细日志：非 JSON 响应必须可见（404 空响应/HTML 错误页等）
     console.warn(
       `[apiCall] 非 JSON 响应 status=${response.status()} body 前 120 字符: ${text.slice(0, 120)}`
     );
   }
+
+  // CSRF 竞败恢复（与 apiCall 一致的两级策略），避免把 CSRF 失败误判为业务错误
+  if (json.code === 'CSRF_TOKEN_INVALID' || json.code === 'CSRF_TOKEN_MISSING') {
+    const recoveryToken = response.headers()['x-new-csrf-token'];
+    try {
+      if (recoveryToken) {
+        const urlObj = new URL(url);
+        await page.context().addCookies([
+          {
+            name: 'csrf_token',
+            value: recoveryToken,
+            domain: urlObj.hostname,
+            path: '/',
+            httpOnly: false,
+            secure: false,
+            sameSite: 'Strict',
+            expires: Math.floor(Date.now() / 1000) + 1800,
+          },
+        ]);
+        csrfToken = recoveryToken;
+      } else {
+        csrfToken = await refreshCsrfToken(page);
+      }
+      response = await doFetch(csrfToken);
+      text = await response.text();
+      try {
+        json = JSON.parse(text);
+      } catch {
+        console.warn(
+          `[apiCallExpectFail] 重试后非 JSON status=${response.status()} body: ${text.slice(0, 120)}`
+        );
+      }
+    } catch (e) {
+      console.warn(`[apiCallExpectFail] ${method} ${path} CSRF 重试失败: ${(e as Error).message}`);
+    }
+  }
+
   return { status: response.status(), code: json.code, message: json.message };
 }
 
