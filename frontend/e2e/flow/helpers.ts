@@ -769,20 +769,17 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   }
 
   // ---- 23. 用户 ID（报价单创建需要 sales_user_id；ctx.userIds 必须填充）----
-  // 查询已有用户列表填充 userIds，保证 sales_user_id 等字段有真实值
+  // 用当前登录用户 ID 填充 userIds[0]：sales_user_id 语义即报价单创建者，
+  // /auth/me 不限角色；/users 列表仅 admin 可访问，非 admin shard 会 403
   try {
-    const users = await apiCallRaw<{ users: Array<{ id: number }> }>(
-      page,
-      'GET',
-      '/users?page=1&page_size=10'
-    );
-    ctx.userIds = users.users?.map(u => u.id) || [];
-    if (ctx.userIds.length === 0) {
-      throw new Error('用户列表为空（系统初始化应至少有 e2e_admin）');
+    const me = await apiCallRaw<{ id: number; username?: string }>(page, 'GET', '/auth/me');
+    if (!me?.id) {
+      throw new Error('当前用户 ID 缺失（/auth/me 未返回 id）');
     }
-    console.log('[ensureTestEntities] 用户列表加载成功 count=', ctx.userIds.length);
+    ctx.userIds = [me.id];
+    console.log('[ensureTestEntities] 当前用户 id=', me.id, 'username=', me.username);
   } catch (e) {
-    throw new Error(`[ensureTestEntities] 用户列表查询失败: ${(e as Error).message}`);
+    throw new Error(`[ensureTestEntities] 当前用户查询失败: ${(e as Error).message}`);
   }
 }
 
