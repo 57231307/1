@@ -420,28 +420,21 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
   // ===== 6. 销售订单（全字段：customer_id/opportunity_id/required_date/status/shipping_address/billing_address/notes/items/payment_terms/remarks/batch_no + items 全字段） =====
   test('销售订单：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
     test.setTimeout(180_000);
-    // 前置：动态创建客户与产品（CI 库种子不保证 id=1 存在，写死 id 会"客户 1 不存在"BUSINESS_ERROR）
+    // 前置：动态创建客户（CI 库种子不保证存在），产品用 ctx.productIds[0]（已有库存）
     const cust = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
       customer_name: `P0订单客户${TS}`,
       customer_type: 'retail',
     });
     const custId = cust?.data?.id;
-    const prod = await apiCall<{ id?: number }>(page, 'POST', '/products', {
-      name: `P0订单产品${TS}`,
-      code: uniqueKey('P0-PRD-'),
-      standard_price: 5,
-      status: 'active',
-    });
-    const prodId = prod?.data?.id;
-    expect(custId, '[P0-销售订单] 客户创建失败').toBeTruthy();
-    expect(prodId, '[P0-销售订单] 产品创建失败').toBeTruthy();
-    // 销售订单创建会锁库存，需先确保产品有库存记录（用 helper 先查再创建）
     const ctx = getCtx();
+    // 使用 ensureTestEntities 已确保库存的产品（ctx.productIds[0]），避免库存锁定失败
+    const prodId = ctx.productIds[0];
     const whId = ctx.warehouseIds[0];
-    if (!whId) {
-      throw new Error('[P0-销售订单] 前置仓库 ID 缺失，无法确保库存记录');
-    }
-    const stock = await ensureStockInWarehouse(page, prodId, whId, 'P0-COLOR');
+    expect(custId, '[P0-销售订单] 客户创建失败').toBeTruthy();
+    expect(prodId, '[P0-销售订单] 前置产品 ID 缺失').toBeTruthy();
+    expect(whId, '[P0-销售订单] 前置仓库 ID 缺失').toBeTruthy();
+    // ensureTestEntities 已为 ctx.productIds[0] 创建库存，二次确认库存存在
+    const stock = await ensureStockInWarehouse(page, prodId, whId, ctx.colorNos[0]);
     if (!stock || !stock.id) {
       throw new Error('[P0-销售订单] 库存记录确保失败（查询和创建均未返回有效记录）');
     }
