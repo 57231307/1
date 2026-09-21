@@ -40,16 +40,25 @@ async function visitModule(
       .locator('button:has-text("新建"), button:has-text("新增"), button:has-text("添加")')
       .first();
     if (await newBtn.isVisible()) {
+      const btnText = (await newBtn.textContent())?.trim() ?? '(空文案)';
       await newBtn.click();
-      await page.waitForTimeout(800);
-      // 弹窗或跳转出现即算通过（部分模块跳转新页面）
-      const dialogVisible = await page
+      // 弹窗或跳转出现即算通过（部分模块跳转新页面）。
+      // 原实现点完固定等 800ms 再 isVisible()，慢渲染的模块被误判为"无新建能力"，
+      // 且失败信息不含任何可判责线索。
+      const appeared = await page
         .locator('.el-dialog:visible, .el-drawer:visible')
         .first()
-        .isVisible();
+        .waitFor({ state: 'visible', timeout: 8000 })
+        .then(() => true)
+        .catch(() => false);
       const navigated =
         page.url() !== `${process.env.BASE_URL || 'http://localhost:3000'}${mod.route}`;
-      expect(dialogVisible || navigated).toBeTruthy();
+      expect(
+        appeared || navigated,
+        `[${mod.id}] 点击「${btnText}」后 8s 内既未出现弹窗/抽屉，URL 仍停在 ${page.url()}；` +
+          `页面异常=${collector.pageErrors.join(' | ') || '(无)'}，` +
+          `console 错误=${collector.consoleErrors.slice(0, 2).join(' | ') || '(无)'}`
+      ).toBeTruthy();
     }
   }
 }

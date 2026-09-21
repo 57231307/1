@@ -13,6 +13,7 @@ import {
   genDyeLotNo,
   genPieceNo,
   ensureTestEntities,
+  BASE_URL,
 } from './helpers';
 
 test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', () => {
@@ -372,11 +373,32 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     expect(typeof hasLog).toBe('boolean');
   });
 
-  test('2-12 验证销售订单状态显示映射', async ({ page }) => {
-    // 验证前端页面能正确显示状态
-    await page.goto('http://localhost:3000/sales/orders');
+  test('2-12 验证销售订单详情页渲染（状态显示映射）', async ({ page }) => {
+    const ctx = getCtx();
+    const id = ctx.salesOrderId;
+    expect(id, '2-4 未产出销售订单，详情页无从验证').toBeTruthy();
+
+    // router/index.ts:202 销售列表路由是 /sales，:213 详情是 /sales/orders/:id，
+    // 并不存在 /sales/orders 列表路由；原实现 goto('http://localhost:3000/sales/orders')
+    // 既硬编码前端地址又用了不存在的路径，页面被重定向到 /404，
+    // 而 expect(page.url()).toContain('/sales') 在 /404 之前拼的仍是 /sales 前缀，
+    // 等于无论渲染成什么都通过。
+    const order = await apiCallRaw<{ order_no: string; status: string }>(
+      page,
+      'GET',
+      `/sales/orders/${id}`
+    );
+    console.log(`[2-12] 订单 ${id} order_no=${order.order_no} status=${order.status}`);
+    expect(order.status, '2-5 审批后订单应为 approved').toBe('approved');
+
+    await page.goto(`${BASE_URL}/sales/orders/${id}`);
     await page.waitForTimeout(3000);
-    // 验证页面加载成功（不崩溃）
-    expect(page.url()).toContain('/sales');
+    console.log(`[2-12] 详情页 URL=${page.url()}`);
+    expect(page.url(), '详情页不应被重定向到 404').not.toContain('/404');
+    const body = (await page.textContent('body')) ?? '';
+    expect(
+      body.includes(order.order_no),
+      `详情页应渲染订单号 ${order.order_no}（正文长度 ${body.length}）`
+    ).toBeTruthy();
   });
 });

@@ -672,17 +672,19 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       voucher_type?: string;
       voucher_date?: string;
       status?: string;
-      items?: Array<Record<string, unknown>>;
+      // VoucherDetailResponse（handlers/voucher_handler.rs:172）把分录列表放在 entries，
+      // 凭证本体字段 flatten 到顶层；此前按 items 读取恒为 undefined → 明细数永远 0
+      entries?: Array<Record<string, unknown>>;
     }>(page, 'GET', `/vouchers/${id}`);
     console.log(
-      `[P0-凭证] 详情二次访问 → type=${detail?.voucher_type} date=${detail?.voucher_date} status=${detail?.status} items=${detail?.items?.length ?? 0} 条`
+      `[P0-凭证] 详情二次访问 → type=${detail?.voucher_type} date=${detail?.voucher_date} status=${detail?.status} entries=${detail?.entries?.length ?? 0} 条`
     );
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.voucher_type, '详情 voucher_type 应为 general').toBe('general');
-    expect(detail?.items?.length ?? 0, '凭证应有 3 条明细').toBe(3);
-    // 明细逐条字段比对
+    expect(detail?.entries?.length ?? 0, '凭证应有 3 条分录').toBe(3);
+    // 分录逐条字段比对
     for (let i = 0; i < 3; i++) {
-      const item = detail?.items?.[i] as Record<string, unknown>;
+      const item = detail?.entries?.[i] as Record<string, unknown>;
       expect(item?.summary, `明细${i + 1} summary 应存在`).toBeTruthy();
     }
     console.log('[P0-凭证] ✅ 全字段创建→详情二次访问+明细行数+摘要字段全通过');
