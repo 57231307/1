@@ -162,7 +162,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const receiptId = receipt.data?.id;
     expect(receiptId, '入库单创建失败（响应缺 id）').toBeTruthy();
 
-    // 确认入库：库存收货由确认事件异步驱动，轮询等待终态而非固定 sleep
+    // 确认入库事务内按入库明细完成库存收货并推进订单已收数量，入库单直接进 COMPLETED；
+    // 仍用轮询而非固定 sleep：断言的是终态可达，不依赖具体时序
     await apiCall(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
     await expect
       .poll(
@@ -174,7 +175,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
           );
           return (r.receipt_status || r.status || '').toUpperCase();
         },
-        { message: `确认入库后入库单 ${receiptId} 应经收货事件进入 COMPLETED 终态` }
+        { message: `确认入库后入库单 ${receiptId} 应进入 COMPLETED 终态` }
       )
       .toBe('COMPLETED');
 
@@ -195,17 +196,21 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
 
-    // 产品 + 色号必须命中收货后的库存行
-    const stock = await verifyStockFourDim(page, productId, 'RED-001');
+    // 入库明细的色号/缸号/批次必须原样落到库存行：1-4 两行同维度共 1000 米
+    const stock = await verifyStockFourDim(page, productId, 'RED-001', dyeLotNo, {
+      batchNo: 'B001',
+    });
     expect(
       stock,
-      `确认入库后应按产品 ${productId} + 色号 RED-001 命中库存行（未命中即收货链路有缺陷）`
+      `确认入库后应按产品 ${productId} + 色号 RED-001 + 缸号 ${dyeLotNo} + 批次 B001 命中库存行（未命中即收货链路有缺陷）`
     ).toBeTruthy();
-    expect(String(stock!.color_no), '命中库存行的色号应与查询色号一致').toBe('RED-001');
+    expect(String(stock!.color_no), '命中库存行的色号应与入库明细一致').toBe('RED-001');
+    expect(String(stock!.dye_lot_no), '命中库存行的缸号应与入库明细一致').toBe(dyeLotNo);
+    expect(String(stock!.batch_no), '命中库存行的批次应与入库明细一致').toBe('B001');
     expect(
       Number(stock!.quantity_on_hand),
-      `收货后在库量应大于 0（实际 ${stock!.quantity_on_hand}）`
-    ).toBeGreaterThan(0);
+      `同维度两行入库应累加到同一库存行，在库量应不少于 1000（实际 ${stock!.quantity_on_hand}）`
+    ).toBeGreaterThanOrEqual(1000);
 
     // 缸号过滤必须真实下推：不存在的缸号不得命中任何行
     const noMatch = await verifyStockFourDim(page, productId, 'RED-001', `${dyeLotNo}-NO-SUCH`);

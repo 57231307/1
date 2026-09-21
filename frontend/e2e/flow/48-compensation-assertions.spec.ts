@@ -79,9 +79,9 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[48-1] 收货单' });
 
-    // 确认入库才构成收货事实：confirm 成功后由 PurchaseReceiptCompleted 事件异步
-    // 触发 receive_order 完成入库并生成 AP（原实现把"确认必被拒"当成正确状态机行为，
-    // 掩盖了草稿创建即自动收货的生命周期错位缺陷）
+    // 确认入库构成收货事实：库存收货与订单已收数量在确认事务内完成，
+    // AP 由确认后的 PurchaseReceiptCompleted 下游补偿生成
+    // （原实现把"确认必被拒"当成正确状态机行为，掩盖了草稿创建即自动收货的生命周期错位缺陷）
     const confirm = await apiCallExpectFail(
       page,
       'POST',

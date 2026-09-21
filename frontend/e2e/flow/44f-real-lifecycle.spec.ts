@@ -242,7 +242,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
 
     const c1 = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
     expect(c1.status, '首次确认应成功').toBeLessThan(300);
-    // 确认只置 CONFIRMED，库存收货事件异步处理完才置 COMPLETED，轮询等待终态
+    // 确认事务内按入库明细完成库存收货并置 COMPLETED；轮询等待终态而非依赖同步返回体
     await expect
       .poll(
         async () => {
