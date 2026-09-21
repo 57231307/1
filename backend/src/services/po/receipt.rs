@@ -51,7 +51,10 @@ impl PurchaseOrderService {
         }
 
         // 批量加载明细+产品+库存（避免循环内 N+1 查询）
-        let (order_items, product_map, stock_map) =
+        // stock_map 可变：同一产品的多条明细共用一条库存行，逐条入库时必须把
+        // 更新后的数量与版本号回写，否则第二条起会用陈旧版本触发乐观锁冲突，
+        // 且数量按陈旧基数覆盖会丢掉前一条的入库量
+        let (order_items, product_map, mut stock_map) =
             Self::load_items_products_stocks(&txn, order_id, order.warehouse_id).await?;
 
         // 遍历明细执行入库（更新/创建库存 + 记录流水 + 更新明细已入库数量）
@@ -59,7 +62,7 @@ impl PurchaseOrderService {
             &txn,
             &order_items,
             &product_map,
-            &stock_map,
+            &mut stock_map,
             &order,
             &mut pending_events,
         )
@@ -84,7 +87,7 @@ impl PurchaseOrderService {
         txn: &sea_orm::DatabaseTransaction,
         order_items: &[purchase_order_item::Model],
         product_map: &std::collections::HashMap<i32, product::Model>,
-        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        stock_map: &mut std::collections::HashMap<i32, inventory_stock::Model>,
         order: &purchase_order::Model,
         pending_events: &mut Vec<BusinessEvent>,
     ) -> Result<(), AppError> {
@@ -194,7 +197,7 @@ impl PurchaseOrderService {
         txn: &sea_orm::DatabaseTransaction,
         item: &purchase_order_item::Model,
         product: &product::Model,
-        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        stock_map: &mut std::collections::HashMap<i32, inventory_stock::Model>,
         order: &purchase_order::Model,
         pending_events: &mut Vec<BusinessEvent>,
     ) -> Result<(), AppError> {
@@ -205,7 +208,7 @@ impl PurchaseOrderService {
         }
 
         let existing_stock = stock_map.get(&item.product_id).cloned();
-        let (before_meters, before_kg) = Self::update_or_create_stock(
+        let (before_meters, before_kg, stock_after) = Self::update_or_create_stock(
             txn,
             item,
             product,
@@ -215,6 +218,8 @@ impl PurchaseOrderService {
             receive_alt,
         )
         .await?;
+        // 回写本次入库后的库存行（数量与版本号），供同一产品的后续明细行使用最新值
+        stock_map.insert(item.product_id, stock_after);
 
         let txn_event = Self::record_stock_transaction(
             txn,
@@ -241,7 +246,7 @@ impl PurchaseOrderService {
         Ok(())
     }
 
-    /// 更新现有库存或创建新库存记录，返回 (入库前 meters, 入库前 kg)
+    /// 更新现有库存或创建新库存记录，返回 (入库前 meters, 入库前 kg, 入库后的库存行)
     async fn update_or_create_stock(
         txn: &sea_orm::DatabaseTransaction,
         item: &purchase_order_item::Model,
@@ -250,7 +255,7 @@ impl PurchaseOrderService {
         order: &purchase_order::Model,
         receive_meters: Decimal,
         receive_alt: Decimal,
-    ) -> Result<(Decimal, Decimal), AppError> {
+    ) -> Result<(Decimal, Decimal, inventory_stock::Model), AppError> {
         match existing_stock {
             Some(stock) => {
                 let new_meters = stock.quantity_meters + receive_meters;
@@ -263,7 +268,12 @@ impl PurchaseOrderService {
                     tracing::error!("更新库存失败: 库存ID={}, 错误: {}", stock.id, e);
                     AppError::internal(format!("更新库存失败: {}", e))
                 })?;
-                Ok((stock.quantity_meters, stock.quantity_kg))
+                let mut stock_after = stock.clone();
+                stock_after.quantity_meters = new_meters;
+                stock_after.quantity_kg = new_kg;
+                // 乐观锁更新成功后数据库侧版本 +1，同产品的后续明细必须用新版本
+                stock_after.version += 1;
+                Ok((stock.quantity_meters, stock.quantity_kg, stock_after))
             }
             None => {
                 // v14 批次 418 修复 D-P0-4：从采购订单明细获取真实缸号/色号/批号
@@ -274,13 +284,13 @@ impl PurchaseOrderService {
                     receive_meters,
                     receive_alt,
                 );
-                crate::services::inventory_stock_service::InventoryStockService::create_stock_fabric_txn(txn, args)
+                let created = crate::services::inventory_stock_service::InventoryStockService::create_stock_fabric_txn(txn, args)
                     .await
                     .map_err(|e| {
                         tracing::error!("创建库存记录失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
                         AppError::internal(format!("创建库存记录失败: {}", e))
                     })?;
-                Ok((Decimal::ZERO, Decimal::ZERO))
+                Ok((Decimal::ZERO, Decimal::ZERO, created))
             }
         }
     }
