@@ -103,6 +103,15 @@
       `StockStatus.eq("正常")` 与 `QualityStatus.eq("合格")`、批量入仓 `inv/batch.rs:812` 的
       `"正常"` 尚未改用新常量（改了不影响行为，属一致性收敛，低库存/预警页是否应展示报废库存也待产品确认）。
 
+- [ ] **状态筛选取值/大小写待逐资源核对（同类缺陷的系统性排查）**：本轮已实证两例——台账状态筛选用英文值而后端存中文（已修）、
+      8D 前端阶段用 `d0~d8` 而后端是 `d0_plan~d8_recognize`（已修）。后端状态值大小写并不统一：
+      `purchase_order`/`purchase_receipt` 为 UPPERCASE（`DRAFT/CONFIRMED/COMPLETED`），
+      `inventory_reservation`/`inventory_transfer`/`sales_order` 为小写，`stock_status` 为中文，
+      因此前端任何一处筛选值大小写写错都是静默零命中的假控件（SQL `eq` 区分大小写）。
+      排查方法：对每个带状态筛选的列表端点，取后端状态常量集合与前端 `el-option`/`STATUS_OPTIONS`
+      取值做集合比对，列出「前端可选但库里不存在」的值；命中即修（同台账做法：值收进单一真相源常量，
+      未知值告警）。可脚本化（复用 `.ci-evidence/e2e_endpoint_check.py` 的路由解析）。
+
 - [ ] **`system-update` 资源未注册且被当模块前缀，系统更新页对所有角色 fail-closed**：
       `path_utils.rs:24` 把 `system-update` 列为模块前缀，`/system-update/version` 因此推导出
       资源名 `version`；而 `PERMISSION_RESOURCES` 里根本没有 `system-update`（grep 无命中），
