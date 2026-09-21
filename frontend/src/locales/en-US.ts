@@ -312,6 +312,9 @@ export default {
     dateRange: {
       to: 'to',
     },
+    copy: 'Copy',
+    copied: 'Copied',
+    action: 'Action',
   },
   login: {
     title: 'Bingxi Management Platform',
@@ -2185,6 +2188,7 @@ export default {
       dispose: 'Dispose',
       delete: 'Delete',
       paginationAriaLabel: 'Fixed assets list pagination',
+      detail: 'Detail',
     },
     dialog: {
       editTitle: 'Edit Asset',
@@ -3334,6 +3338,27 @@ export default {
       messageReasonRequired: 'Please enter cancellation reason',
       messageCancelSuccess: 'Cancelled successfully',
       messageCancelFailed: 'Cancel failed',
+      addNode: 'Add Node',
+      selectNode: 'Select Node',
+      updateNodeStatus: 'Update Node Status',
+      addNodeLog: 'Add Node Log',
+      notFound: 'Order not found or has been deleted',
+      nodeType: 'Node Type',
+      nodeName: 'Node Name',
+      nodeSequence: 'Sequence',
+      plannedStart: 'Planned Start',
+      plannedEnd: 'Planned End',
+      nodeStatus: 'Node Status',
+      nodeNotes: 'Notes',
+      logAction: 'Action',
+      logContent: 'Log Content',
+      nodeRequired: 'Please fill in the node type and name',
+      nodeCreated: 'Node created',
+      nodeFailed: 'Operation failed',
+      nodeUpdated: 'Node status updated',
+      logActionRequired: 'Please enter the action',
+      operatorMissing: 'Current user info is missing, cannot record the operator',
+      logCreated: 'Log added',
     },
     tracking: {
       title: 'Order Tracking',
@@ -3834,6 +3859,7 @@ export default {
       convert: 'Convert',
       lost: 'Lost',
       paginationAriaLabel: 'Leads pagination',
+      score: 'Score',
     },
     dialog: {
       createTitle: 'New Lead',
@@ -3877,6 +3903,8 @@ export default {
       exportSuccess: 'Exported successfully',
       exportFailed: 'Export failed',
       selectionChanged: 'Selection changed',
+      scoreEmpty: 'Scoring finished, no score details',
+      scoreFailed: 'Scoring failed',
     },
     exportFile: {
       filename: 'Leads List',
@@ -5518,6 +5546,11 @@ export default {
       disputePrompt: 'Please enter the dispute reason',
       disputeTitle: 'Dispute Handling',
       disputeSubmitted: 'Dispute submitted',
+      autoReconcile: 'Auto Reconcile',
+      autoReconcileConfirm:
+        'Matchable invoices and payments will be reconciled automatically to generate a statement. Continue?',
+      autoReconcileSuccess: 'Auto reconciliation completed',
+      summary: 'Reconciliation Summary',
     },
     paymentRequest: {
       create: 'New Payment Request',
@@ -8054,6 +8087,89 @@ export default {
       status: {
         enabled: 'Enabled',
         disabled: 'Disabled',
+        system: 'Built-in',
+        custom: 'Custom',
+      },
+      dialog: {
+        editTitle: 'Edit Role',
+        createTitle: 'New Role',
+        aria: 'Role edit dialog',
+      },
+      form: {
+        aria: 'Role info form',
+        label: {
+          name: 'Role Name',
+          code: 'Role Code',
+          description: 'Description',
+          status: 'Status',
+        },
+        button: {
+          cancel: 'Cancel',
+          confirm: 'Confirm',
+        },
+      },
+      permissionDialog: {
+        title: 'Permission Config - {name}',
+        aria: 'Role permission config dialog',
+        button: {
+          cancel: 'Cancel',
+          save: 'Save',
+        },
+      },
+      message: {
+        fetchFailed: 'Failed to load role list',
+        requiredName: 'Please enter the role name',
+        requiredCode: 'Please enter the role code',
+        updateSuccess: 'Updated successfully',
+        createSuccess: 'Created successfully',
+        operationFailed: 'Operation failed',
+        deleteConfirm: 'Delete role "{name}"?',
+        deleteTitle: 'Delete Confirmation',
+        deleteSuccess: 'Deleted successfully',
+        deleteFailed: 'Delete failed',
+        permissionSuccess: 'Permissions saved',
+        permissionFailed: 'Configuration failed',
+        permissionPartialFailed: ' items failed',
+        fetchPermissionFailed: 'Failed to load permissions',
+      },
+    },
+    systemUpdate: {
+      title: 'System Update',
+      label: {
+        currentVersion: 'Current Version',
+        lastUpdate: 'Last Update',
+      },
+      button: {
+        check: 'Check for Updates',
+        apply: 'Apply Update',
+      },
+      message: {
+        upToDate: 'Already up to date',
+        checkFailed: 'Failed to check for updates',
+        updateSubmitted: 'Update submitted, the service will restart',
+        updateFailed: 'Update failed',
+      },
+    },
+    webhook: {
+      title: 'Webhook Configuration',
+      button: {
+        create: 'New',
+        edit: 'Edit',
+        test: 'Test',
+        delete: 'Delete',
+      },
+      aria: {
+        list: 'Webhook list',
+      },
+      column: {
+        name: 'Name',
+        event: 'Event',
+        status: 'Status',
+        action: 'Action',
+      },
+      status: {
+        enabled: 'Enabled',
+        disabled: 'Disabled',
       },
       dialog: {
         editTitle: 'Edit Webhook',
@@ -8820,6 +8936,7 @@ export default {
         returnDate: 'Return Date',
         reason: 'Reason',
         remarks: 'Remarks',
+        reasonType: 'Reason Type',
       },
       placeholder: {
         purchaseOrder: 'Select purchase order',
@@ -10673,6 +10790,28 @@ export default {
       pageAriaLabel: 'Voucher Management',
     },
   },
+  exportApprovals: {
+    title: 'Export Approvals',
+    placeholderStatus: 'Select a status',
+    placeholderResource: 'Select a resource type',
+    colResource: 'Resource Type',
+    colApplicant: 'Applicant',
+    colStatus: 'Status',
+    colRows: 'Data Rows',
+    colCreatedAt: 'Requested At',
+    colToken: 'Export Token',
+    approve: 'Approve',
+    reject: 'Reject',
+    cancel: 'Revoke',
+    loadFailed: 'Failed to load export approval list',
+    confirmApprove: 'Approve this export request? A one-time export token will be generated',
+    approved: 'Approved',
+    inputRejectReason: 'Please enter the rejection reason',
+    rejected: 'Rejected',
+    confirmCancel: 'Revoke this export request?',
+    cancelled: 'Revoked',
+    copyFailed: 'Copy failed',
+  },
   financeReport: {
     index: {
       pageAriaLabel: 'Financial Report Management Page',
@@ -10723,6 +10862,7 @@ export default {
       messageNoData: 'No report data for this period',
       messageGenerateFailed: 'Failed to generate report',
       messageGenerateFirst: 'Please generate report first',
+      unsupportedExportType: 'Unsupported export type',
     },
   },
   omniAudit: {
@@ -10833,6 +10973,8 @@ export default {
       messageDeleteSuccess: 'Deleted successfully',
       messageDeleteFailed: 'Failed to delete',
       messageConfirmDelete: 'Are you sure to delete this data permission?',
+      messageJsonInvalid:
+        'Invalid JSON format, please check the custom condition / allowed fields / hidden fields input',
     },
   },
   notification: {
