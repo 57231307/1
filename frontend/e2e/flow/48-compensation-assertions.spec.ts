@@ -144,17 +144,30 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
       warehouse_code: warehouseCode,
       items: [{ product_id: ctx.productIds[0], quantity: 5 }],
     });
-    // 补偿产物：凭证列表应含收入凭证（source_module=so 或摘要含订单号）
+    // 补偿产物：收入凭证按发货单挂账（source_bill_id/source_bill_no = 发货单），
+    // 凭证里没有订单 ID，此前用 soId 在凭证 JSON 里找订单号，链路再好也不会命中。
+    // 先取本订单的发货单，再按发货单号在凭证列表里定位那一笔转字凭证。
+    const deliveries = await apiCall<{ list?: Array<Record<string, unknown>> }>(
+      page,
+      'GET',
+      `/sales/orders/${soId}/deliveries`
+    );
+    const deliveryList = deliveries?.list;
+    expect(Array.isArray(deliveryList), `发货记录响应缺少 data.list 数组`).toBe(true);
+    const deliveryNo = String(deliveryList?.[0]?.delivery_no ?? '');
+    expect(deliveryNo, `订单 ${soId} 应有发货单号可追`).toBeTruthy();
+
     const vouchers = await apiCall<{ items?: Array<Record<string, unknown>> }>(
       page,
       'GET',
-      `/vouchers?page=1&page_size=50`
+      `/vouchers?page=1&page_size=100`
     );
-    const list = vouchers?.items ?? [];
-    const hit = list.some(v => JSON.stringify(v).includes(String(soId)));
-    expect(hit, '发货后必须生成收入凭证（补偿失败仅 warn——发货成功无凭证的账实脱节防线）').toBe(
-      true
-    );
+    expect(Array.isArray(vouchers?.items), `凭证列表响应缺少 items 数组`).toBe(true);
+    const hit = (vouchers?.items ?? []).some(v => String(v.source_bill_no ?? '') === deliveryNo);
+    expect(
+      hit,
+      `发货后必须按发货单 ${deliveryNo} 生成收入凭证（补偿失败仅 warn——发货成功无凭证的账实脱节防线）`
+    ).toBe(true);
   });
 
   test('48-3 AR 幂等：同订单仅一张应收（ar/inv.rs:174-181）', async ({ page }) => {
