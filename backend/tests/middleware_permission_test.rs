@@ -102,6 +102,31 @@ fn test_extract_resource_info_scymkqz() {
 }
 
 #[test]
+fn test_extract_resource_info_ybxqzljyzy_mc() {
+    // 仪表板子路径（overview/sales-stats/layout…）是注册资源 dashboard 下的动作，
+    // 不是独立权限资源：资源名必须取 segment3，否则角色种子里的 dashboard:read 永不命中
+    let (rt, rid) = extract_resource_info("/api/v1/erp/dashboard/sales-stats");
+    assert_eq!(rt, "dashboard");
+    assert_eq!(rid, None);
+}
+
+#[test]
+fn test_extract_resource_info_tzxljyzy_mc() {
+    // 站内信未读数/列表是认证用户自有数据视图，资源名为注册表里的 notifications
+    let (rt, rid) = extract_resource_info("/api/v1/erp/notifications/unread-count");
+    assert_eq!(rt, "notifications");
+    assert_eq!(rid, None);
+}
+
+#[test]
+fn test_extract_resource_info_tzxljd_id_ts() {
+    // 通知记录详情：资源名取 notifications，记录 ID 正常提取供垂直越权校验
+    let (rt, rid) = extract_resource_info("/api/v1/erp/notifications/42");
+    assert_eq!(rt, "notifications");
+    assert_eq!(rid, Some(42));
+}
+
+#[test]
 fn test_extract_resource_info_cgyxzpx() {
     // V15 P0-S21 修正：purchase（单数）应正确识别为模块前缀
     // V15 P1-14.4-C：purchase/orders 消歧为 purchase-orders（与权限定义对齐）

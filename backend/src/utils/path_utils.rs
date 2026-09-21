@@ -13,7 +13,7 @@ pub fn is_module_prefix(part: &str) -> bool {
     is_system_module_prefix(part) || is_business_module_prefix(part)
 }
 
-/// 系统/基础设施类模块前缀（认证、IAM、通知、集成、流程、AI、管理域）
+/// 系统/基础设施类模块前缀（认证、IAM、集成、流程、AI、管理域）
 fn is_system_module_prefix(part: &str) -> bool {
     matches!(
         part,
@@ -22,7 +22,6 @@ fn is_system_module_prefix(part: &str) -> bool {
             | "ws"
             | "init"
             | "system-update"
-            | "dashboard"
             | "audit-logs"
             | "slow-queries"
             | "user"
@@ -30,8 +29,6 @@ fn is_system_module_prefix(part: &str) -> bool {
             // ===== IAM 与组织域 =====
             | "data-permissions"
             | "user-notification-settings"
-            // ===== 通知域 =====
-            | "notifications"
             // ===== 集成与网关域 =====
             | "webhooks"
             | "api-gateway"
@@ -214,6 +211,14 @@ fn is_misc_direct_resource(part: &str) -> bool {
             | "sales-forecast"
             | "inventory-optimization"
             | "anomaly-detection"
+        // ===== 仪表板与站内信：整体是一个注册资源 =====
+        // /dashboard/{overview,sales-stats,layout,...} 与 /notifications/{unread-count,read-all,:id,...}
+        // 的第四段是同一资源下的动作或记录 ID，不是独立权限资源；
+        // 权限注册表与角色种子里登记的资源名就是 dashboard / notifications。
+        // 若误判为模块前缀，推导出的资源名会变成 sales-stats/unread-count/<记录ID>，
+        // 任何角色种子都不含这些名字，非 admin 用户必然 403（fail-closed 静默失效）。
+        | "dashboard"
+        | "notifications"
         // ===== 审计与日志直接资源 =====
         | "logs"
         | "health"
