@@ -187,3 +187,35 @@ pub mod inventory_stock_status {
     /// 已删除：软删除标记，不再是在库库存，列表与导出默认不展示
     pub const DELETED: &str = "已删除";
 }
+
+/// 缺料预警状态常量（material_shortage_alerts.status，小写值）
+///
+/// 状态机：identified → purchase_request → purchase_order → received → resolved。
+/// 检测侧新建预警恒为 identified（persist_alerts），只有 update_status 会推进到后续值；
+/// 前端可选值必须以本常量为源，此前提交的 pending / notified 不在状态机内，
+/// 会被入参校验判为非法（写不进去），列表的状态筛选因此恒零命中。
+pub mod shortage_alert_status {
+    /// 已识别：检测到缺料并已落库，尚未发起采购
+    pub const IDENTIFIED: &str = "identified";
+
+    /// 已发起采购申请
+    pub const PURCHASE_REQUEST: &str = "purchase_request";
+
+    /// 已转为采购订单
+    pub const PURCHASE_ORDER: &str = "purchase_order";
+
+    /// 采购到货已入库，缺口待解除
+    pub const RECEIVED: &str = "received";
+
+    /// 已解除：缺料闭环，后续检测不再复用该行（同物料再次缺料会新建预警）
+    pub const RESOLVED: &str = "resolved";
+
+    /// 全部合法缺料预警状态，入参校验的唯一取值来源
+    pub const ALL: &[&str] = &[
+        IDENTIFIED,
+        PURCHASE_REQUEST,
+        PURCHASE_ORDER,
+        RECEIVED,
+        RESOLVED,
+    ];
+}
