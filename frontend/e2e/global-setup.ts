@@ -255,9 +255,13 @@ const SEED_ROLES = [
   'budget_analyst',
 ];
 
+// 应用外壳权限码：与后端 init_service_ops/permission.rs 的 SHELL_PERMISSIONS 一致——
+// 登录后落地页 /dashboard，主框架铃铛拉取自身未读数。缺码的角色登录后停在 /403。
+const SHELL_PERMISSIONS = ['dashboard:read', 'notifications:read'];
+
 // 边界测试角色
 const BOUNDARY_ROLES = [
-  { code: 'e2e_readonly', name: 'E2E只读角色', permissions: ['dashboard:read'] },
+  { code: 'e2e_readonly', name: 'E2E只读角色', permissions: SHELL_PERMISSIONS },
   { code: 'e2e_noperm', name: 'E2E空权限角色', permissions: [] },
 ];
 
@@ -270,12 +274,12 @@ const BLACKLIST_TEST_ROLES = [
   {
     code: 'customer',
     name: '客户外部用户（E2E黑名单验证）',
-    permissions: ['dashboard:read', 'boms:view', 'boms:print', 'stock:export'],
+    permissions: [...SHELL_PERMISSIONS, 'boms:view', 'boms:print', 'stock:export'],
   },
   {
     code: 'temporary',
     name: '临时账号（E2E黑名单验证）',
-    permissions: ['dashboard:read', 'boms:view', 'boms:print', 'stock:export'],
+    permissions: [...SHELL_PERMISSIONS, 'boms:view', 'boms:print', 'stock:export'],
   },
 ];
 
@@ -415,11 +419,13 @@ export async function ensureRoleUsers(): Promise<void> {
   console.log(`[globalSetup] 后端现有角色 ${existingRoles.length} 个`);
 
   // 3. 自动补建缺失种子角色 + 边界角色 + 黑名单验证角色
+  // 补建角色只给应用外壳权限码（落地页 + 自己的收件箱）：
+  // 32-roles 断言"登录 + Dashboard 可达"，业务域权限按各专项 spec 自行分配
   const allRolesToEnsure = [
     ...SEED_ROLES.filter(code => !existingCodes.has(code)).map(code => ({
       code,
       name: code,
-      permissions: [],
+      permissions: SHELL_PERMISSIONS,
     })),
     ...BOUNDARY_ROLES.filter(r => !existingCodes.has(r.code)),
     ...BLACKLIST_TEST_ROLES.filter(r => !existingCodes.has(r.code)),

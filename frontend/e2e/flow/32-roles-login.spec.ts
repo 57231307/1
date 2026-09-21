@@ -71,6 +71,11 @@ test.describe('P5.2 全量角色登录', () => {
             .length ?? 0) >= 10,
         { timeout: 20000 }
       );
+      // 落地页真实校验：仅"页面有字"会让被守卫送到 /403 的角色假通过
+      // （/ → /dashboard 重定向由路由守卫按 dashboard:read 判定）
+      await expect(page, `${role} 登录后应停在 Dashboard 落地页，实际 ${page.url()}`).toHaveURL(
+        /\/dashboard$/
+      );
       await assertPageHealthy(page, collector, {
         consoleNoisePatterns: BROWSER_NETWORK_NOISE,
       });
