@@ -10,6 +10,7 @@ use sea_orm::{
 };
 
 use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;
+use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::{inventory_stock, inventory_transaction};
 use crate::services::stock_alert::{
     ALERT_TYPE_NORMAL, AlertType, EXPIRING_THRESHOLD_DAYS, SLOW_MOVING_THRESHOLD_DAYS,
@@ -21,7 +22,7 @@ use crate::utils::pagination::paginate_with_total;
 /// 批次 126 v8 复审 P2 修复：替换原硬编码 "normal"。；v11 批次 144 P1-4 修复：扩展 OverStock（高于上限）和 SlowMoving（滞销）告警判定。；OverStock: max_stock_point > 0 && quantity_available > max_stock_point；SlowMoving: last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天；判定优先级（高优先级先返回）：1. stock_status != "正常" → discrepancy（盘点差异/状态异常）；2. quantity_available == 0 && reorder_point > 0 → out_of_stock（缺货）；3. reorder_point > 0 && quantity_available < reorder_point → low_stock（低于下限）；4. max_stock_point > 0 && quantity_available > max_stock_point → over_stock（高于上限）；5. expiry_date 存在且距今 ≤ EXPIRING_THRESHOLD_DAYS 天 → expiring（即将过期）；6. last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天 → slow_moving（滞销）；7. 否则 → normal
 pub fn compute_alert_type(s: &inventory_stock::Model) -> &'static str {
     // 1. 状态异常优先（冻结/待检等）
-    if s.stock_status != "正常" {
+    if s.stock_status != inventory_stock_status::NORMAL {
         return AlertType::Discrepancy.code();
     }
     // 2. 缺货（可用量为 0 且设置了补货点）
@@ -240,7 +241,7 @@ impl InventoryStockService {
 
         query = Self::apply_inventory_filters(query, &params);
         query = query
-            .filter(inventory_stock::Column::StockStatus.eq("正常"))
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
             .filter(inventory_stock::Column::QualityStatus.eq("合格"));
 
         // 批次 266：接入 paginate_with_total，消除手写 count + fetch_page 重复

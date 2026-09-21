@@ -1,4 +1,5 @@
 use crate::models::inventory_stock;
+use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
@@ -279,7 +280,6 @@ impl InventoryStockService {
         &self,
         filter: &StockListFilter,
     ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
-        use crate::models::status::purchase_inventory::inventory_stock_status;
         let mut query = inventory_stock::Entity::find();
 
         if let Some(wid) = filter.warehouse_id {
@@ -345,10 +345,7 @@ impl InventoryStockService {
         // 实现基于仓库和批次的精确低库存检查
         let mut query = inventory_stock::Entity::find()
             // 只检查正常状态的库存
-            .filter(
-                inventory_stock::Column::StockStatus
-                    .eq(crate::models::status::purchase_inventory::inventory_stock_status::NORMAL),
-            )
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
             .filter(inventory_stock::Column::QualityStatus.eq("合格"))
             // 检查可用库存低于重新订购点
             .filter(
@@ -411,9 +408,7 @@ impl InventoryStockService {
         // 原实现直接 active_model.update(&*self.db) 绕过审计中间件
         let stock = self.find_by_id(id).await?;
         let mut active_model: inventory_stock::ActiveModel = stock.into();
-        active_model.stock_status = Set(
-            crate::models::status::purchase_inventory::inventory_stock_status::DELETED.to_string(),
-        );
+        active_model.stock_status = Set(inventory_stock_status::DELETED.to_string());
         active_model.updated_at = Set(Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit::<
             inventory_stock::Entity,
@@ -584,7 +579,7 @@ impl InventoryStockService {
             shelf_no: Set(shelf_no),
             layer_no: Set(layer_no),
             bin_location: Set(None),
-            stock_status: Set("正常".to_string()),
+            stock_status: Set(inventory_stock_status::NORMAL.to_string()),
             quality_status: Set("合格".to_string()),
             version: Set(0),
             replenishment_strategy: Set("reorder_point".to_string()),
@@ -635,7 +630,7 @@ impl InventoryStockService {
         let stock = self.find_by_id(stock_id).await?;
         let prev_loc = stock.bin_location.clone();
         let mut active: inventory_stock::ActiveModel = stock.into();
-        active.stock_status = Set("报废".to_string());
+        active.stock_status = Set(inventory_stock_status::SCRAPPED.to_string());
         active.quality_status = Set("不合格".to_string());
         // 在 bin_location 追加报废原因（保留原有库位信息便于追溯）
         let new_loc = match &prev_loc {
@@ -729,7 +724,7 @@ impl InventoryStockService {
             width: Set(width.and_then(Decimal::from_f64_retain)),
             production_date: Set(production_date),
             expiry_date: Set(expiry_date),
-            stock_status: Set("正常".to_string()),
+            stock_status: Set(inventory_stock_status::NORMAL.to_string()),
             quality_status: Set("合格".to_string()),
             location_id: Set(None),
             shelf_no: Set(None),
@@ -898,7 +893,7 @@ impl InventoryStockService {
                     width: Set(source.width),
                     production_date: Set(source.production_date),
                     expiry_date: Set(source.expiry_date),
-                    stock_status: Set("正常".to_string()),
+                    stock_status: Set(inventory_stock_status::NORMAL.to_string()),
                     quality_status: Set("合格".to_string()),
                     location_id: Set(None),
                     shelf_no: Set(None),

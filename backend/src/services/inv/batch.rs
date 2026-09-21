@@ -17,6 +17,7 @@ use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::inventory_transaction;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
+use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::status::purchase_inventory::inventory_transfer as transfer_status;
 use crate::utils::error::AppError;
 
@@ -809,7 +810,7 @@ impl InventoryTransferService {
             shelf_no: sea_orm::ActiveValue::NotSet,
             layer_no: sea_orm::ActiveValue::NotSet,
             bin_location: sea_orm::ActiveValue::NotSet,
-            stock_status: sea_orm::ActiveValue::Set("正常".to_string()),
+            stock_status: sea_orm::ActiveValue::Set(inventory_stock_status::NORMAL.to_string()),
             quality_status: sea_orm::ActiveValue::Set("合格".to_string()),
             version: sea_orm::ActiveValue::Set(0),
             quantity_shipped: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
