@@ -52,36 +52,56 @@ impl PurchaseReceiptService {
         Ok((items, order_item_map))
     }
 
-    /// 逐条更新订单明细的已入库数量（含审计日志）
+    /// 按订单明细行汇总后更新已入库数量（含审计日志）
+    ///
+    /// 必须先聚合再写：一个订单明细行通常对应多条入库明细（面料按缸号/批次/匹号分行入库），
+    /// 原实现逐条 `map.remove(order_item_id)`，同一订单行的第二条入库明细就查不到映射，
+    /// 确认入库直接报「订单明细不存在」（CI 1-4 的 NOT_FOUND 之因），
+    /// 而且同一条订单行被写两次也会互相覆盖。
     async fn update_order_items_received_quantity(
         txn: &sea_orm::DatabaseTransaction,
         items: Vec<purchase_receipt_item::Model>,
         order_item_map: std::collections::HashMap<i32, crate::models::purchase_order_item::Model>,
         user_id: i32,
     ) -> Result<(), AppError> {
-        let mut order_item_map = order_item_map;
-        for item in items {
-            if let Some(order_item_id) = item.order_item_id {
-                let order_item = order_item_map
-                    .remove(&order_item_id)
-                    .ok_or_else(|| AppError::not_found(format!("订单明细 {}", order_item_id)))?;
-                let new_received = order_item.received_quantity + item.quantity;
-                let new_received_alt =
-                    order_item.received_quantity_alt + item.quantity_alt.unwrap_or_default();
-                let mut active_order_item: crate::models::purchase_order_item::ActiveModel =
-                    order_item.into();
-                active_order_item.received_quantity = sea_orm::ActiveValue::Set(new_received);
-                active_order_item.received_quantity_alt =
-                    sea_orm::ActiveValue::Set(new_received_alt);
-                active_order_item.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                crate::services::audit_log_service::AuditLogService::update_with_audit(
-                    txn,
-                    "auto_audit",
-                    active_order_item,
-                    Some(user_id),
-                )
-                .await?;
+        // BTreeMap 按订单明细 ID 升序，写入顺序稳定便于审计比对
+        let mut sums: std::collections::BTreeMap<i32, (Decimal, Decimal)> =
+            std::collections::BTreeMap::new();
+        for item in &items {
+            let Some(order_item_id) = item.order_item_id else {
+                continue;
+            };
+            if !order_item_map.contains_key(&order_item_id) {
+                return Err(AppError::not_found(format!(
+                    "入库单第 {} 行关联的采购订单明细 {} 不存在（订单明细可能已被删除）",
+                    item.line_no, order_item_id
+                )));
             }
+            let entry = sums
+                .entry(order_item_id)
+                .or_insert((Decimal::ZERO, Decimal::ZERO));
+            entry.0 += item.quantity;
+            entry.1 += item.quantity_alt.unwrap_or(Decimal::ZERO);
+        }
+        let mut order_item_map = order_item_map;
+        for (order_item_id, (quantity, quantity_alt)) in sums {
+            let order_item = order_item_map
+                .remove(&order_item_id)
+                .ok_or_else(|| AppError::not_found(format!("订单明细 {}", order_item_id)))?;
+            let new_received = order_item.received_quantity + quantity;
+            let new_received_alt = order_item.received_quantity_alt + quantity_alt;
+            let mut active_order_item: crate::models::purchase_order_item::ActiveModel =
+                order_item.into();
+            active_order_item.received_quantity = sea_orm::ActiveValue::Set(new_received);
+            active_order_item.received_quantity_alt = sea_orm::ActiveValue::Set(new_received_alt);
+            active_order_item.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                txn,
+                "auto_audit",
+                active_order_item,
+                Some(user_id),
+            )
+            .await?;
         }
         Ok(())
     }
