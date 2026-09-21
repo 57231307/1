@@ -758,7 +758,9 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       `[P0-报价单] 详情二次访问 → customer_id=${detail?.customer_id} date=${detail?.quotation_date} valid=${detail?.valid_until} currency=${detail?.currency} price_terms=${detail?.price_terms} items=${detail?.items?.length ?? 0} 条`
     );
     expect(detail?.id, '详情 id 应一致').toBe(id);
-    expect(detail?.customer_id, '详情 customer_id 应为 1').toBe(1);
+    // 原实现写 toBe(1) 把 customer_id 硬编码成字面量 1，而创建用的是动态 shared.custId，
+    // 分片内实体 id 随并发增长，断言必然随环境漂移
+    expect(detail?.customer_id, `详情 customer_id 应为 ${shared.custId}`).toBe(shared.custId);
     expect(detail?.quotation_date, `详情 quotation_date 应为 ${qDate}`).toBe(qDate);
     expect(detail?.currency, '详情 currency 应为 CNY').toBe('CNY');
     expect(detail?.price_terms, '详情 price_terms 应为 FOB').toBe('FOB');

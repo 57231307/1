@@ -244,7 +244,10 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       createApi: '/crm/pool/rules',
       payload: {
         name: `P0池规则${TS}`,
-        rule_type: 'no_follow_up',
+        // 后端 crm_pool_handler.rs::create_pool_rule 仅接受
+        // protection_period / claim_limit / max_holdings；
+        // 原值 no_follow_up 是 crm_customer_sea.reason_type 的枚举，用错了字段域
+        rule_type: 'protection_period',
         rule_value: 30,
         customer_type: 'all',
         notes: 'P0池规则备注',
