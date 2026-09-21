@@ -108,13 +108,48 @@
       写入，选中即零命中，同时三个真实状态筛不出来；表单类型联合与「可编辑判定」还用了不存在的
       received。已按后端取值统一（含中英文案补齐与未知值告警）（`a5c3a2d7`）。
 
-- [ ] **物流运单状态筛选取值与后端不符（下一个待修实例）**：`logistics_waybill` 为大写值
-      IN_TRANSIT/DELIVERED/SIGNED（models/status/bpm_crm_contract.rs:46-55），
-      而 `views/logistics/components/LogisticsFilter.vue:54-58` 提交的是小写
-      pending/shipped/in_transit/delivered/arrived/pickup——其中 arrived、pickup 后端根本没有，
-      其余值大小写也不匹配。修前需先确认运单创建默认值与列表端点的 status 过滤实现
-      （`grep` 未直接命中物流 service 文件名，需先定位 handler→service 链路），
-      避免照常量改名反而与库中实际写入值不符。
+- [x] **物流运单整页假功能与状态机旁路（本轮定位到根因并修）**：核对后端 `logistics_waybill`
+      状态机（大写 IN_TRANSIT/DELIVERED/SIGNED，`models/status/bpm_crm_contract.rs`）后确认，
+      物流页此前有六处与后端不符，且相互放大成「整页不可用」：
+      1. `GET /inventory/logistics` 完全不读查询参数、不分页、返回裸数组，而前端按
+         `{items,total}` 消费——筛选栏与分页控件都是假的；
+      2. `PUT /inventory/logistics/:id` 只接受 `{status}`，前端「编辑运单」提交的却是运单字段
+         （无 status），反序列化即失败；「发货」按钮写入的 `shipped` 后端从不认；
+      3. `update_waybill_status` 对状态值不做任何校验，任何字符串都能落库——脏值一旦写入，
+         电子签收（要求 DELIVERED）与「在途/已送达不可删」判定同时失效；
+      4. 前端状态词表（pending/shipped/in_transit/delivered/cancelled）与 i18n 键（camelCase）
+         双重的不匹配，使状态标签恒显示原始值、统计卡恒 0、操作按钮按不存在状态渲染而全部隐藏；
+      5. 表内 `waybill_no`/`order_no` 两列后端从不返回，恒为空白；
+      6. 建单表单「预计到达」以 `YYYY-MM-DD` 提交给 `DateTime<Utc>` 字段，选了就 400；
+      「关联订单」下拉是硬编码的两条假数据。
+      修法：后端补真实筛选（状态/物流公司/关键字/创建时间区间）+ 分页 + order_no 回查，状态入参
+      按状态机校验且 SIGNED 只能经签收接口写入（否则绕过应收确认），字段编辑限定在运输中阶段，
+      删除规则改为「已送达/已签收不可删」（原规则禁止删除唯一可撤销的在途误建单，却放行删除
+      已签收的财务凭证，方向反了）；前端状态值收进 `constants/waybill-status.ts` 单一真相源，
+      补电子签收接线（后端 P0-B13 端点此前前端零调用）、日期改日期粒度、订单下拉改真实查询。
+      验证用例：`e2e/smoke/logistics-contract.smoke.spec.ts`。
+
+- [ ] **运单号 `waybill_no` 需 schema 迁移才能真实化**：`logistics_waybills` 表根本没有该列
+      （m0011 建表 SQL 可证），前端却长期显示空白的「运单号」列/详情项。本轮先撤掉假显示
+      （列表列与详情项改列真实字段），要补真实单据号需新增迁移 + 建单时按编号规则生成 +
+      历史行回填，属独立立项。
+
+- [ ] **物流公司取值跟随界面语言**：`LogisticsFilter.vue`/`LogisticsForm.vue` 的下拉把
+      `t('logistics.common.company.sf')` 的**译文**当 value 落库，切到英文界面后建的单
+      存的是 "SF Express"，中文界面按「顺丰速运」筛选即不命中。要修需引入稳定的公司码
+      （value 用 sf/zto/…，label 才走 i18n）并做历史值映射，涉及后端是否要建物流公司字典，
+      属数据模型决策，未随本轮改动。
+
+- [ ] **`playwright.config.ts` 的 testMatch 未覆盖的业务目录 = 死用例集**：testMatch 白名单里
+      没有 `logistics/inventory/mrp/production/ai/dashboard/fabric/quotations/sales-ext/system`
+      等目录，落在其中的 spec 永不执行（且 CI 分片命令是按目录显式传参，改 testMatch 也不生效）。
+      本轮已把 `e2e/logistics/` 下两个「整文件 if(isVisible) 空转 + 假词表」的 spec 删掉并按真实
+      契约重写为 smoke 用例；其余目录需逐个甄别「仍有价值→迁 flow/smoke / 已过时→删」，
+      逐个判责需要一轮专门排查，禁止一次性删目录。
+      测量陷阱（本轮实证）：Windows 上 `playwright test --list` 不带路径参数时会把这些目录
+      也收进来（`^[^/]*\.spec\.ts$` 分支因反斜杠路径误匹配，本地多计 80 个用例），
+      所以「本地 --list 数字」与「CI 实跑数字」不等价，README 已改为按 CI 口径分目录实测。
+
 
 - [ ] **生产工单 / 物料缺料 / 质量预测的状态取值未核**：这几处后端状态值是散写在服务里的字面量
       （不在 models/status 下，故集合比对脚本取不到），需先按资源把写入点收敛进状态常量模块

@@ -490,18 +490,21 @@ sudo journalctl -u bingxi-backend -f
 | 层级                  | 数量                  | 工具                  | 覆盖范围                                                                             |
 | --------------------- | --------------------- | --------------------- | ------------------------------------------------------------------------------------ |
 | 后端集成测试          | 253 文件 / 2,072 函数 | cargo test + nextest  | 服务层 + API 层                                                                      |
-| 前端 E2E 冒烟测试     | 116                   | Playwright            | 全部前端路由（1:1 映射，5 分片并行）                                                 |
+| 前端 E2E 冒烟测试     | 120                   | Playwright            | 全部前端路由（1:1 映射，5 分片并行）                                                 |
 | 前端 E2E 工作流测试   | 665                   | Playwright            | 75 个 flow spec 文件，业务闭环 + 纺织领域 + 权限矩阵 + 健康巡检                      |
 | 前端 E2E 端点遍历     | 266                   | Playwright            | 10 个 traversal spec：打印/导出/审批端点矩阵 + 42a-d 全模块遍历 + 角色矩阵（5 分片） |
 | 前端 E2E 真实链路测试 | 9                     | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录                           |
 | 前端 E2E 增强链路     | 14                    | Playwright（零 mock） | 3 个 enhanced spec：多角色协同 / RPA 取数 / 真实网络韧性（离线 + CDP 链路延迟）      |
-| 前端 E2E 其余业务域   | 195                   | Playwright            | 18 个目录：采购/销售/库存/生产/财务/CRM/BPM/质量/AI/报价/物流/色卡/定制订单等        |
-| **前端 E2E 合计**     | **1,265**             | —                     | 259 个 spec 文件（chromium project 计数）                                            |
+| 前端 E2E 其余业务域   | 117                   | Playwright            | testMatch 白名单内 7 个业务目录（采购/采购扩展/销售/质量/财务/CRM/BPM）+ 根级 3 spec |
+| **前端 E2E 合计**     | **1,182**             | —                     | 235 个 spec 文件（chromium project，CI 实际执行口径）                                |
 | 性能基准              | 4                     | criterion             | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算                                    |
 
-> E2E 数量口径：`npx playwright test --list` 在 chromium project 下的实测用例数（2026-09-20），
-> 非估算。`firefox` project 另跑 116 个冒烟用例，`webkit` project 与 chromium 同集（1,265），
-> 故 `--list` 全 project 总计为 2,646。
+> E2E 数量口径（2026-09-21 实测）：按 CI 的收集范围统计——`playwright.config.ts` 的 testMatch
+> 白名单目录 + 分片命令显式传入的目录，chromium project 计数；`firefox` project 另跑 120 个冒烟用例，
+> `webkit` 与 chromium 同集，故三 project 全量为 1,182 × 2 + 120 = 2,484。
+> 注意：在 Windows 上执行 `playwright test --list` 不带路径参数会多收 80 个用例
+> （白名单外目录被 testMatch 的根级分支 `^[^/]*\.spec\.ts$` 因反斜杠路径误匹配），
+> 该差异仅为本地测量假象，不代表这些目录在 CI 中被执行；白名单外的 spec 目录待逐个甄别处置。
 
 ### E2E 测试覆盖
 
