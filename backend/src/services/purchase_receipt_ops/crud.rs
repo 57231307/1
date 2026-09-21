@@ -48,6 +48,12 @@ impl PurchaseReceiptService {
                 .await?;
         }
 
+        // 3b. 关联采购订单的入库单必须把入库明细挂到被入的订单明细行，
+        // 否则确认入库时无处累加 received_quantity，订单永远停在已审批态
+        if let Some(order_id) = req.order_id {
+            Self::link_receipt_items_to_order_items(&txn, receipt.id, order_id).await?;
+        }
+
         // 4. 更新入库单总金额和数量
         let receipt = Self::update_receipt_totals(
             &txn,
@@ -75,6 +81,72 @@ impl PurchaseReceiptService {
             .await;
 
         Ok(receipt)
+    }
+
+    /// 把入库明细挂到被入的采购订单明细行（事务内调用）
+    ///
+    /// 确认入库按入库明细的 `order_item_id` 累加订单明细 received_quantity 并据此推进
+    /// 订单状态（全部收货 COMPLETED / 部分收货 PARTIAL_RECEIVED）。请求未指定
+    /// `order_item_id` 时按产品与剩余可收量在订单明细行间顺序分配（同产品多行落同一
+    /// 明细行）；显式指定的明细必须属于本订单，否则拒绝建单，不允许挂错单。
+    /// 找不到可收明细行（产品不在订单中或已收满）时按行记录错误：货物照入，
+    /// 但该行的收货量不计入订单进度，便于从日志定位建单数据错误。
+    async fn link_receipt_items_to_order_items(
+        txn: &sea_orm::DatabaseTransaction,
+        receipt_id: i32,
+        order_id: i32,
+    ) -> Result<(), AppError> {
+        use crate::models::purchase_order_item;
+
+        let order_items = purchase_order_item::Entity::find()
+            .filter(purchase_order_item::Column::OrderId.eq(order_id))
+            .all(txn)
+            .await?;
+        if order_items.is_empty() {
+            return Err(AppError::bad_request(format!(
+                "采购订单 {} 没有明细行，无法按单建入库单",
+                order_id
+            )));
+        }
+
+        let receipt_items = purchase_receipt_item::Entity::find()
+            .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt_id))
+            .all(txn)
+            .await?;
+        for item in receipt_items {
+            if let Some(declared) = item.order_item_id {
+                if !order_items.iter().any(|oi| oi.id == declared) {
+                    return Err(AppError::bad_request(format!(
+                        "入库单第 {} 行指定的订单明细 {} 不属于采购订单 {}",
+                        item.line_no, declared, order_id
+                    )));
+                }
+                continue;
+            }
+            let target = order_items
+                .iter()
+                .find(|oi| oi.product_id == item.product_id && oi.received_quantity < oi.quantity);
+            match target {
+                Some(oi) => {
+                    let active = purchase_receipt_item::ActiveModel {
+                        id: Set(item.id),
+                        order_item_id: Set(Some(oi.id)),
+                        ..Default::default()
+                    };
+                    purchase_receipt_item::Entity::update(active)
+                        .exec(txn)
+                        .await?;
+                }
+                None => tracing::error!(
+                    receipt_id,
+                    line_no = item.line_no,
+                    product_id = item.product_id,
+                    order_id,
+                    "入库明细在产品上与采购订单明细不匹配（产品不在订单中或已收满），该行收货量不会累加到订单进度"
+                ),
+            }
+        }
+        Ok(())
     }
 
     /// 更新入库单总金额和数量（含审计日志），返回更新后的入库单（仅 `create_receipt` 调用，保持私有。）
