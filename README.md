@@ -60,8 +60,8 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | 前端 TS 文件      | 253 个                                                                                                                        |
 | 前端 Views 子模块 | 110 个                                                                                                                        |
 | 前端 API 模块     | 121 个                                                                                                                        |
-| 前端 i18n 翻译键  | 10,079 个（zh/en 键对齐校验 0 缺失）                                                                                          |
-| 前端 E2E 测试     | 1,265 个 / 259 个 spec 文件（665 flow 工作流 + 266 traversal 端点遍历 + 116 冒烟 + 14 enhanced + 9 Setup 向导 + 195 其余 18 个业务目录）                              |
+| 前端 i18n 翻译键  | zh-CN 10,154 / en-US 10,177（引用键 9,676，缺失校验 0）                                                                       |
+| 前端 E2E 测试     | 1,203 个 / 240 个 spec 文件（665 flow 工作流 + 266 traversal 端点遍历 + 125 冒烟 + 14 enhanced + 9 Setup 向导 + 124 其余业务目录）                              |
 | Clippy Baseline   | 4,274 行（185 条唯一警告）                                                                                                    |
 | 最新版本          | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001）                                                                |
 | 安全漏洞存量      | 0（密钥泄露扫描工作区+git 历史：0 发现）                                                                                      |
@@ -490,25 +490,27 @@ sudo journalctl -u bingxi-backend -f
 | 层级                  | 数量                  | 工具                  | 覆盖范围                                                                             |
 | --------------------- | --------------------- | --------------------- | ------------------------------------------------------------------------------------ |
 | 后端集成测试          | 253 文件 / 2,072 函数 | cargo test + nextest  | 服务层 + API 层                                                                      |
-| 前端 E2E 冒烟测试     | 120                   | Playwright            | 全部前端路由（1:1 映射，5 分片并行）                                                 |
+| 前端 E2E 冒烟测试     | 125                   | Playwright            | 全部前端路由 + 物流/缺料取值契约（5 分片并行）                                       |
 | 前端 E2E 工作流测试   | 665                   | Playwright            | 75 个 flow spec 文件，业务闭环 + 纺织领域 + 权限矩阵 + 健康巡检                      |
 | 前端 E2E 端点遍历     | 266                   | Playwright            | 10 个 traversal spec：打印/导出/审批端点矩阵 + 42a-d 全模块遍历 + 角色矩阵（5 分片） |
 | 前端 E2E 真实链路测试 | 9                     | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录                           |
 | 前端 E2E 增强链路     | 14                    | Playwright（零 mock） | 3 个 enhanced spec：多角色协同 / RPA 取数 / 真实网络韧性（离线 + CDP 链路延迟）      |
-| 前端 E2E 其余业务域   | 117                   | Playwright            | testMatch 白名单内 7 个业务目录（采购/采购扩展/销售/质量/财务/CRM/BPM）+ 根级 3 spec |
-| **前端 E2E 合计**     | **1,182**             | —                     | 235 个 spec 文件（chromium project，CI 实际执行口径）                                |
+| 前端 E2E 其余业务域   | 124                   | Playwright            | testMatch 白名单内 8 个业务目录（采购/采购扩展/销售/销售扩展/质量/财务/CRM/BPM）+ 根级 3 spec |
+| **前端 E2E 合计**     | **1,203**             | —                     | 240 个 spec 文件（chromium project，CI 实际执行口径）                                |
 | 性能基准              | 4                     | criterion             | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算                                    |
 
 > E2E 数量口径（2026-09-21 实测）：按 CI 的收集范围统计——`playwright.config.ts` 的 testMatch
-> 白名单目录 + 分片命令显式传入的目录，chromium project 计数；`firefox` project 另跑 120 个冒烟用例，
-> `webkit` 与 chromium 同集，故三 project 全量为 1,182 × 2 + 120 = 2,484。
-> 注意：在 Windows 上执行 `playwright test --list` 不带路径参数会多收 80 个用例
+> 白名单目录 + 分片命令显式传入的目录，chromium project 计数；`firefox` project 另跑 125 个冒烟用例，
+> `webkit` 与 chromium 同集，故三 project 全量为 1,203 × 2 + 125 = 2,531。
+> 注意：在 Windows 上执行 `playwright test --list` 不带路径参数会多收 64 个用例
 > （白名单外目录被 testMatch 的根级分支 `^[^/]*\.spec\.ts$` 因反斜杠路径误匹配），
+> 实测全量 --list 为 1,267 个 / 259 个文件，与上表 CI 口径差 64 个 / 19 个文件
+> （ai / dashboard / fabric / inventory / mrp / production / quotations / system 八个目录），
 > 该差异仅为本地测量假象，不代表这些目录在 CI 中被执行；白名单外的 spec 目录待逐个甄别处置。
 
 ### E2E 测试覆盖
 
-259 个 spec 文件（CI 25 分片：flow 15 片 + smoke 5 片 + traversal 5 片，每分片按实际测试内容命名），核心覆盖：
+CI 执行口径的 240 个 spec 文件（25 分片：flow 15 片 + smoke 5 片 + traversal 5 片，每分片按实际测试内容命名），核心覆盖：
 
 | 类别           | spec 文件                                                                    | 覆盖内容                                                                                   |
 | -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |

@@ -176,9 +176,42 @@
       已按后端取值重建字典并派生筛选列表、文本与配色统一出口且未知值告警、
       按钮按状态机重排（目标值取后端白名单）、去掉自造的 status 提交与旧文案键（`0e67faf8`）。
 
-- [ ] **物料缺料 / 质量预测的状态取值未核**：这两处后端状态值是散写在服务里的字面量
-      （不在 models/status 下，集合比对脚本取不到），需先按资源把写入点收敛进状态常量模块
-      （规则 0），再套用调拨/物流/生产订单同款对比方法核对前端取值。排查脚本与判据：对每个带状态筛选的列表端点，
+- [x] **物料缺料页整套取值是编造的**：后端缺料状态只写在 `material_shortage_alerts`
+      （identified→purchase_request→purchase_order→received→resolved，`update_status` 已按这五个值校验），
+      级别是 `ShortageLevel` 的 Critical/Severe/Warning/Normal；前端却自造 severity
+      critical/high/medium/low + status pending/notified/resolved，列表接口返回的是实时检测项
+      （无 status、无单号），于是状态列恒空、`row.status === 'pending'` 的行内按钮永不出现、
+      「标记解决」把不存在的 `row.id` 拼成 `/material-shortage/undefined/status`，
+      统计卡读的 total_shortage_count/high_count/last_check_time 三个字段后端从不返回。
+      已把值收进 `constants/shortage.ts` 单一真相源（未知值告警）、列表改为
+      `ShortageAlertView`（实时缺料 + 未解决预警的 alert_no/status/identified_at）、
+      level 与 status 入参先校验取值域再过滤、触发检查补请求体、月报与汇总计数改读真实字段，
+      并新增 `e2e/smoke/material-shortage-contract.smoke.spec.ts` 钉住取值（`2b5a27c6`+`95674ecb`）。
+      同轮修掉两处：列表分页页码二阶换算（翻第二页回到第一页）、
+      `from_deficit_rate` 写死 100/50 导致 `/threshold` 保存的阈值永不参与定级（`1399de43`）。
+
+- [ ] **缺料预警不自动解除**：`persist_alerts` 只在检测到缺料时插入/刷新未解决预警，
+      库存补足后该行的 status 仍是 identified，只有人工置 resolved 才关闭。列表按实时集合
+      过滤所以看不到陈旧行，但 `update_status`（按 material_id 找未解决预警）会命中它们，
+      月报 `get_monthly_report` 也是按落库行统计，长期偏高。修法要定口径：
+      是 detect 之后对不再缺料的物料自动置 resolved（推荐，与「缺料」语义一致），
+      还是保留人工解除并把月报改成按实时快照统计——属业务决策，不顺手改。
+
+- [ ] **缺料预警的采购关联两列恒空**：`material_shortage_alerts.purchase_request_id /
+      purchase_order_id` 只在建单时写 None，状态推进到 purchase_request/purchase_order
+      不回填真实单据 ID，所谓「识别→采购申请→采购订单→入库→解除」闭环目前只是状态字符串。
+      需要先定方向：由采购申请/订单侧在创建时反查未解决预警回写，还是状态推进接口要求传单据 ID
+      并校验归属；两者都涉及跨域调用与权限，不能挑简单的一半凑数。
+
+- [ ] **`safety_factor` 阈值项无数据源**：`ShortageThresholdConfig.safety_factor` 的语义是
+      「低于安全库存 × 倍率即预警」，但 `products` 表没有 safety_stock 列（只有
+      chemical_master / greige_fabric 有），缺料检测只用「需求 > 可用」判定。
+      要真正接入需先加列并定义维护入口（物料主数据页），属 schema 变更 + 产品口径，单独立项。
+      另外 `/material-shortage/threshold` 目前无前端页面，配置只能经接口保存。
+
+- [ ] **质量预测的状态取值未核**：后端状态值是散写在服务里的字面量（不在 models/status 下，
+      集合比对脚本取不到），需先按资源把写入点收敛进状态常量模块（规则 0），
+      再套用调拨/物流/生产订单/缺料同款对比方法核对前端取值。排查脚本与判据：对每个带状态筛选的列表端点，
       取后端状态常量集合与前端 `el-option`/`STATUS_OPTIONS` 值做集合比对，列出「前端可选但库里
       不存在」的值即修（值收进单一真相源常量 + 未知值告警，同台账做法）。
 
