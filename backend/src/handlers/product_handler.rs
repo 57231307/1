@@ -8,6 +8,7 @@ use validator::Validate;
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product;
+use crate::models::product_category;
 use crate::models::product_color;
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
@@ -193,6 +194,52 @@ fn append_frontend_aliases(obj: &mut serde_json::Value) {
     }
 }
 
+/// 分类名称：products 表只存 category_id，而产品列表与详情的「分类名称」列需要主数据名称
+async fn attach_category_names(db: &sea_orm::DatabaseConnection, rows: &mut [serde_json::Value]) {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    let cat_ids: Vec<i32> = rows
+        .iter()
+        .filter_map(|r| r.get("category_id").and_then(|v| v.as_i64()))
+        .map(|id| id as i32)
+        .collect();
+    if cat_ids.is_empty() {
+        return;
+    }
+    let categories = match product_category::Entity::find()
+        .filter(product_category::Column::Id.is_in(cat_ids))
+        .all(db)
+        .await
+    {
+        Ok(list) => list,
+        Err(e) => {
+            tracing::error!(error = %e, "查询产品分类主数据失败，产品分类名称将为空");
+            return;
+        }
+    };
+    let name_map: std::collections::HashMap<i32, String> =
+        categories.into_iter().map(|c| (c.id, c.name)).collect();
+    for row in rows.iter_mut() {
+        let Some(map) = row.as_object_mut() else {
+            continue;
+        };
+        let Some(cid) = map.get("category_id").and_then(|v| v.as_i64()) else {
+            continue;
+        };
+        match name_map.get(&(cid as i32)) {
+            Some(name) => {
+                map.insert(
+                    "category_name".to_string(),
+                    serde_json::Value::String(name.clone()),
+                );
+            }
+            None => tracing::error!(
+                category_id = cid,
+                "产品行指向的产品分类主数据不存在，分类名称将为空"
+            ),
+        }
+    }
+}
+
 pub async fn list_products(
     Extension(auth): Extension<AuthContext>,
     State(state): State<AppState>,
@@ -245,6 +292,7 @@ pub async fn list_products(
     for item in masked_products.iter_mut() {
         append_frontend_aliases(item);
     }
+    attach_category_names(&state.db, &mut masked_products).await;
 
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         masked_products,
@@ -279,6 +327,7 @@ pub async fn get_product(
     }
 
     append_frontend_aliases(&mut product_json);
+    attach_category_names(&state.db, std::slice::from_mut(&mut product_json)).await;
 
     Ok(Json(ApiResponse::success(product_json)))
 }
