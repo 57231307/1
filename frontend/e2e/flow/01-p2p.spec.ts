@@ -244,6 +244,34 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
         dyeLotNo
       );
     }
+
+    // 台账状态同为后端主数据值（中文）：正常筛选必须能查回本用例收入的那一行
+    const byStatus = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
+      page,
+      'GET',
+      `/inventory/stock?product_id=${productId}&stock_status=${encodeURIComponent('正常')}&page=1&page_size=10`
+    );
+    expect(Array.isArray(byStatus.items), `byStatus.items 应为后端返回的 items 数组`);
+    expect(
+      byStatus.items.some(row => String(row.dye_lot_no) === dyeLotNo),
+      '正常状态筛选应能查到本用例刚收入的那条库存行'
+    ).toBe(true);
+    for (const row of byStatus.items) {
+      expect(String(row.stock_status), `状态筛选下推失效：返回行状态 ${row.stock_status}`).toBe(
+        '正常'
+      );
+    }
+
+    // 反向对照：normal 不是后端取值，此前前端正是提交这类值导致筛选恒零命中
+    const bogusStatus = await apiCallRaw<{ items: unknown[] }>(
+      page,
+      'GET',
+      `/inventory/stock?product_id=${productId}&stock_status=normal&page=1&page_size=10`
+    );
+    expect(
+      bogusStatus.items.length,
+      '英文 normal 不是后端台账状态取值，不应命中任何行（命中即筛选未下推）'
+    ).toBe(0);
   });
 
   test('1-7 验证 AP 应付单', async ({ page }) => {
