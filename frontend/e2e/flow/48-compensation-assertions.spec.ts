@@ -79,18 +79,18 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[48-1] 收货单' });
 
-    // 收货单创建即发布 PurchaseReceiptCompleted，异步触发 receive_order 把入库单推进到 COMPLETED
-    // 并完成入库。此时再 confirm 会因状态非 DRAFT 被拒（400），这是正确的状态机行为，
-    // 所以用 apiCallExpectFail 接住：无论走 confirm 路径还是事件路径，AP 都必须被生成。
+    // 确认入库才构成收货事实：confirm 成功后由 PurchaseReceiptCompleted 事件异步
+    // 触发 receive_order 完成入库并生成 AP（原实现把"确认必被拒"当成正确状态机行为，
+    // 掩盖了草稿创建即自动收货的生命周期错位缺陷）
     const confirm = await apiCallExpectFail(
       page,
       'POST',
       `/purchase/receipts/${receiptId}/confirm`
     );
     expect(
-      confirm.status < 400 || confirm.code === 'BUSINESS_ERROR',
-      `确认失败原因应为状态机保护而非系统故障：status=${confirm.status} code=${confirm.code}`
-    ).toBe(true);
+      confirm.status,
+      `确认入库应成功（status=${confirm.status} code=${confirm.code}）`
+    ).toBeLessThan(300);
 
     // 3. 补偿产物断言：AP 列表存在该 supplier 关联的应付记录（事件路径异步生成，轮询等待）
     // 真实路由是 /ap/invoices（finance.rs:637），不是 /ap-invoices

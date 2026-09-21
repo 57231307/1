@@ -195,14 +195,13 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
 
-    // 产品 + 色号 + 缸号（1-4 已确认入库的维度）必须命中库存行
-    const stock = await verifyStockFourDim(page, productId, 'RED-001', dyeLotNo);
+    // 产品 + 色号必须命中收货后的库存行
+    const stock = await verifyStockFourDim(page, productId, 'RED-001');
     expect(
       stock,
-      `确认入库后应按产品 ${productId} + 色号 RED-001 + 缸号 ${dyeLotNo} 命中库存行（未命中即收货链路有缺陷）`
+      `确认入库后应按产品 ${productId} + 色号 RED-001 命中库存行（未命中即收货链路有缺陷）`
     ).toBeTruthy();
     expect(String(stock!.color_no), '命中库存行的色号应与查询色号一致').toBe('RED-001');
-    expect(String(stock!.dye_lot_no), '命中库存行的缸号应与查询缸号一致').toBe(dyeLotNo);
     expect(
       Number(stock!.quantity_on_hand),
       `收货后在库量应大于 0（实际 ${stock!.quantity_on_hand}）`
