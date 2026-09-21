@@ -52,6 +52,48 @@
 
 ## 未完成任务清单
 
+### Round 7-iter25（2026-09-21，RBAC 资源名推导与收货事件生命周期）
+
+> run 35598454276（head `2c3a5bbc`）63 job：57 success / 6 failure（flow 分片 1、2、11、13、14
+> + 收尾清理级联），traversal 与 smoke 全绿。逐分片 error-context + backend.log 判责后
+> 已修：`106f46ba`（dashboard/notifications 资源名推导）/`1d3bc84f`（角色种子外壳权限码）
+> /`125c4cf2`（角色账号补码 + 32-roles 实断言落地页）/`33a51752`（入库明细契约去伪值）
+> /`678bb0ff`（库存四维查询下推 + 响应补维度）/`8f9641d8`（收货事件改由确认触发）
+> /`19bc6b70`（6 处死端点 + 2 处请求体契约）。
+
+- [ ] **M-6 resource_id 语义使非 admin 无法访问任何 `/{id}` 端点（需产品与安全决策，禁止擅改）**
+      `matches_permission`（middleware/permission.rs:603）在权限行 `resource_id=None` 且请求
+      `resource_id=Some(id)` 时判不匹配，且 `backend/tests/middleware_permission_test.rs:661`
+      把该行为固化为单元测试（"权限 resource_id=None 不能匹配请求 resource_id=Some"）。
+      后果：角色种子里所有资源级授权（resource_id 全为 None）只对**无 ID 的列表/创建端点**生效，
+      详情/修改/删除一律 403——非 admin 用户打不开任何单据详情页。
+      这是安全测试锁定行为，改它等于放宽垂直越权防护，须先与用户确认语义
+      （NULL=资源级授权覆盖全部行，还是仅限无 ID 请求）。
+- [ ] **RBAC 资源名推导与注册表仍有大面积不一致（同类缺陷续）**：本轮修掉 dashboard/notifications
+      两支，静态审计（.ci-evidence/perm_audit.py）仍报 190+ 推导资源名不在
+      PERMISSION_RESOURCES/角色种子内：`crm/leads→leads`（注册表是 crm-leads）、
+      `bi/sales→sales`（bi-analysis）、`ai/forecast-sales→forecast-sales`（ai-forecast）、
+      `ap/invoices→invoices`（ap）、`bpm/{id}→<记录ID>` 等，非 admin 全部 fail-closed 403。
+      修法二选一：扩 `resolve_module_prefixed_resource` 映射表按注册表对齐，或
+      "段四不是已注册资源名则回落段三"。需逐域判定是否放宽既有 403 断言（33/44 系）
+- [ ] **库存前端契约仍是虚构字段（死列）**：`api/inventory.ts` 的 `InventoryStock`
+      声明 `quantity/color_code/lot_no/unit/status/product_name/warehouse_name`，
+      后端 StockResponse 实际是 `quantity_on_hand/quantity_available/color_no/dye_lot_no/
+      batch_no/grade/bin_location`，且不含产品/仓库名 → 库存列表 8 列里 6 列空白或恒 0；
+      修法：后端列表按 ID 批量带出 product_code/product_name/warehouse_name
+      （load_low_stock_product_map 已有同类实现），前端类型与列名对齐
+- [ ] `/security/change-password` 渲染期 `SyntaxError {message:10}` 仍未定因
+      （离线编译 20070 条 locale 消息 0 失败，排除静态 i18n 语法）；
+      42x 遍历已改为失败时打印 pageErrors/consoleErrors 原文，待新 run 证据定位
+- [ ] 产品列表死列 `barcode`（无 DB 字段）/`category_name`（无 join）
+- [ ] 收敛项：`AppState.event_notification_service` 由 `Option<…>` 改非 Option；
+      `bpm_task.process_instance_id/name` 旧列删除；18 个 `json!({"list":…})` handler
+      统一到 PaginatedResponse
+- [ ] 待授权：ci-cd.yml 接入 check-i18n.mjs、把 20 个从未执行的 E2E 目录（218 测试）纳入 testMatch；
+      eslint 开 `no-unused-expressions` 并解除对 e2e/ 的忽略
+- [ ] `views/purchase-receipt/composables/usePrcProc.ts` 对话框标题 '新增入库'/'编辑入库' 内联中文
+      （该页其余文案已走 i18n）
+
 ### Round 7-iter23（2026-09-21，三个结构性根因突破）
 
 > run 35524492654（head `de92d458`）进行中：65 job，46 success / 3 failure（05-system~10d、
