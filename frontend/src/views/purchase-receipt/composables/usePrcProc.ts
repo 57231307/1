@@ -74,7 +74,7 @@ export function usePrcProc(cb: PrcCallbacks) {
 
   /** 打开新增对话框（预生成单号供参考，后端保存时以最终生成为准） */
   const openAddDialog = () => {
-    cb.dialogTitle = '新增入库';
+    cb.dialogTitle = msg.translate('addReceiptTitle');
     cb.form = {
       receipt_no: '',
       receipt_date: new Date().toISOString().split('T')[0],
@@ -100,7 +100,7 @@ export function usePrcProc(cb: PrcCallbacks) {
 
   /** 打开编辑对话框 */
   const openEditDialog = async (row: PurchaseReceiptEntity) => {
-    cb.dialogTitle = '编辑入库';
+    cb.dialogTitle = msg.translate('editReceiptTitle');
     const res = await getPurchaseReceipt(row.id!);
     const itemsRes = await getReceiptItems(row.id!);
     cb.form = { ...(res.data as unknown as PrcForm), items: itemsRes.data?.items || [] };

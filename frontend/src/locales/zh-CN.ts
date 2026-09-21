@@ -1481,6 +1481,8 @@ export default {
     pleaseAddReceiptDetail: '请至少添加一条有效的入库明细',
     receiptItemMasterMissing:
       '第 {line} 行缺少物料编码/名称/主单位：主单位来自产品档案，请先在产品档案维护计量单位后重新选择该产品',
+    addReceiptTitle: '新增入库单',
+    editReceiptTitle: '编辑入库单',
     auditedReceiptCannotDelete: '已审核的入库单不能删除',
     deleteCancelled: '取消删除',
     operationCancelled: '取消操作',

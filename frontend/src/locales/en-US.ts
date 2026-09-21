@@ -1483,6 +1483,8 @@ export default {
     pleaseAddReceiptDetail: 'Please add at least one valid receipt detail',
     receiptItemMasterMissing:
       'Line {line} is missing material code/name/master unit: the master unit comes from the product master, maintain it on the product and reselect it',
+    addReceiptTitle: 'Add Receipt',
+    editReceiptTitle: 'Edit Receipt',
     auditedReceiptCannotDelete: 'Audited receipt cannot be deleted',
     deleteCancelled: 'Delete cancelled',
     operationCancelled: 'Operation cancelled',
