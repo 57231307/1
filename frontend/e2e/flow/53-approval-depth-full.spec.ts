@@ -44,8 +44,14 @@ async function loginSecondUser(
 }> {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  await page.goto(`${process.env.BASE_URL || 'http://localhost:3000'}/login`);
-  await page.fill('input[name="username"]', username);
+  await page.goto(`${process.env.BASE_URL || 'http://localhost:3000'}/login`, {
+    waitUntil: 'domcontentloaded',
+  });
+  // 独立 context 首次访问 /login 时懒加载路由需现场编译，直接 fill 会在 30s 内等不到
+  // 输入框（CI: page.fill Timeout waiting for locator('input[name="username"]')）。
+  const userInput = page.locator('input[name="username"]');
+  await userInput.waitFor({ state: 'visible', timeout: 60_000 });
+  await userInput.fill(username);
   await page.fill('input[name="password"]', password);
   await page.click('button[type="submit"]');
   await page.waitForURL(/dashboard|\/$/, { timeout: 30_000 });
