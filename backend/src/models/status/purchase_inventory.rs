@@ -154,3 +154,20 @@ pub mod purchase_receipt_inspection {
     /// 待检验
     pub const PENDING: &str = "PENDING";
 }
+
+/// 库存台账状态（inventory_stocks.stock_status，中文值——面料行业库存主数据）
+///
+/// 系统当前真实写入的三个值：新建/收货入帐为 NORMAL，批色报废流程为 SCRAPPED，
+/// 删除走软删除置 DELETED（行保留用于追溯）。此前这些值以字面量散落在库存服务、
+/// 报废流程与批量入仓等 6 处，筛选条件与写入值靠字符串巧合对齐，
+/// 前端筛选因此提交 normal/warning/frozen 这类库里根本不存在的值而恒零命中。
+pub mod inventory_stock_status {
+    /// 正常：可出库的在库库存
+    pub const NORMAL: &str = "正常";
+
+    /// 报废：批色报废流程置位，保留行与报废原因用于追溯
+    pub const SCRAPPED: &str = "报废";
+
+    /// 已删除：软删除标记，不再是在库库存，列表与导出默认不展示
+    pub const DELETED: &str = "已删除";
+}

@@ -48,6 +48,22 @@ pub struct InventorySummaryQueryResult {
 /// 库存服务（面料行业版）
 ///
 /// P1 batch-18 缺陷 7.2：检测到告警时同步推送站内信+邮件给计划员/仓管员
+/// 库存台账查询条件（列表与导出共用同一口径）
+///
+/// `stock_status` 为空时只排除软删除行：删除是 `stock_status = 已删除` 的软删除，
+/// 行保留用于追溯，但它已不是在库库存，混进台账会被当成可出库的量。
+#[derive(Debug, Default, Clone)]
+pub struct StockListFilter {
+    pub page: u64,
+    pub page_size: u64,
+    pub warehouse_id: Option<i32>,
+    pub product_id: Option<i32>,
+    pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
+    pub batch_no: Option<String>,
+    pub stock_status: Option<String>,
+}
+
 pub struct InventoryStockService {
     pub db: Arc<DatabaseConnection>,
     /// 事件通知服务（用于库存告警主动通知）
@@ -261,33 +277,41 @@ impl InventoryStockService {
 
     pub async fn list_stock(
         &self,
-        page: u64,
-        page_size: u64,
-        warehouse_id: Option<i32>,
-        product_id: Option<i32>,
-        color_no: Option<&str>,
-        dye_lot_no: Option<&str>,
-        batch_no: Option<&str>,
+        filter: &StockListFilter,
     ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
+        use crate::models::status::purchase_inventory::inventory_stock_status;
         let mut query = inventory_stock::Entity::find();
 
-        if let Some(wid) = warehouse_id {
+        if let Some(wid) = filter.warehouse_id {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
         }
 
-        if let Some(pid) = product_id {
+        if let Some(pid) = filter.product_id {
             query = query.filter(inventory_stock::Column::ProductId.eq(pid));
         }
 
         // 面料四维查询：色号/缸号/批次（匹号）作为筛选条件下推到 SQL
-        if let Some(color) = color_no.filter(|s| !s.is_empty()) {
+        if let Some(color) = filter.color_no.as_deref().filter(|s| !s.is_empty()) {
             query = query.filter(inventory_stock::Column::ColorNo.eq(color));
         }
-        if let Some(lot) = dye_lot_no.filter(|s| !s.is_empty()) {
+        if let Some(lot) = filter.dye_lot_no.as_deref().filter(|s| !s.is_empty()) {
             query = query.filter(inventory_stock::Column::DyeLotNo.eq(lot));
         }
-        if let Some(batch) = batch_no.filter(|s| !s.is_empty()) {
+        if let Some(batch) = filter.batch_no.as_deref().filter(|s| !s.is_empty()) {
             query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
+        }
+
+        // 状态筛选：显式指定时精确匹配（报废/已删除行也可按需查回），
+        // 未指定时排除软删除行，避免已删除库存混入台账被当成在库量
+        match filter.stock_status.as_deref().filter(|s| !s.is_empty()) {
+            Some(status) => {
+                query = query.filter(inventory_stock::Column::StockStatus.eq(status));
+            }
+            None => {
+                query = query.filter(
+                    inventory_stock::Column::StockStatus.ne(inventory_stock_status::DELETED),
+                );
+            }
         }
 
         // 批次 97 P1-15 修复（v5 复审）：接入 SlowQueryRecorder 真实使用，
@@ -300,8 +324,9 @@ impl InventoryStockService {
             None,
             None,
         );
-        let paginator = query.paginate(&*self.db, page_size);
-        let (stock_list, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let paginator = query.paginate(&*self.db, filter.page_size);
+        let (stock_list, total) =
+            paginate_with_total(paginator, filter.page.clamp(1, 1000)).await?;
         rec.finish();
 
         Ok((stock_list, total))
@@ -320,7 +345,10 @@ impl InventoryStockService {
         // 实现基于仓库和批次的精确低库存检查
         let mut query = inventory_stock::Entity::find()
             // 只检查正常状态的库存
-            .filter(inventory_stock::Column::StockStatus.eq("正常"))
+            .filter(
+                inventory_stock::Column::StockStatus
+                    .eq(crate::models::status::purchase_inventory::inventory_stock_status::NORMAL),
+            )
             .filter(inventory_stock::Column::QualityStatus.eq("合格"))
             // 检查可用库存低于重新订购点
             .filter(
@@ -383,7 +411,9 @@ impl InventoryStockService {
         // 原实现直接 active_model.update(&*self.db) 绕过审计中间件
         let stock = self.find_by_id(id).await?;
         let mut active_model: inventory_stock::ActiveModel = stock.into();
-        active_model.stock_status = Set("已删除".to_string());
+        active_model.stock_status = Set(
+            crate::models::status::purchase_inventory::inventory_stock_status::DELETED.to_string(),
+        );
         active_model.updated_at = Set(Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit::<
             inventory_stock::Entity,

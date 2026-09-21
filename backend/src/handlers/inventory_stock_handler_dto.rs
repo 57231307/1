@@ -120,6 +120,9 @@ pub struct ListStockParams {
     pub dye_lot_no: Option<String>,
     /// 批次/匹号筛选（面料四维查询维度之一）
     pub batch_no: Option<String>,
+    /// 库存状态筛选（取 inventory_stocks.stock_status 的真实主数据值：正常/报废/已删除）；
+    /// 不传时按在库口径排除软删除行
+    pub stock_status: Option<String>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]

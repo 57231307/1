@@ -235,9 +235,12 @@ async fn test_list_stock_wschemafhcw() {
         .await
         .expect("DB 连接失败");
     let service = InventoryStockService::new(std::sync::Arc::new(db));
-    let result = service
-        .list_stock(1, 10, None, None, None, None, None)
-        .await;
+    let filter = StockListFilter {
+        page: 1,
+        page_size: 10,
+        ..Default::default()
+    };
+    let result = service.list_stock(&filter).await;
     assert!(result.is_err(), "无 schema 时应返回数据库错误");
 }
 

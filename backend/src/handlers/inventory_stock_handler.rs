@@ -29,6 +29,25 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use std::sync::Arc;
 
+/// 列表与导出共用的查询条件构造：分页由调用方决定（导出取全量页），
+/// 四维与状态筛选原样下推到 service 层的同一实现，避免两条出口口径不一致
+fn stock_list_filter(
+    params: &ListStockParams,
+    page: u64,
+    page_size: u64,
+) -> crate::services::inventory_stock_service::StockListFilter {
+    crate::services::inventory_stock_service::StockListFilter {
+        page,
+        page_size,
+        warehouse_id: params.warehouse_id,
+        product_id: params.product_id,
+        color_no: params.color_no.clone(),
+        dye_lot_no: params.dye_lot_no.clone(),
+        batch_no: params.batch_no.clone(),
+        stock_status: params.stock_status.clone(),
+    }
+}
+
 pub async fn get_stock(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -200,15 +219,7 @@ pub async fn list_stock(
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (stock_list, total) = service
-        .list_stock(
-            page,
-            page_size,
-            params.warehouse_id,
-            params.product_id,
-            params.color_no.as_deref(),
-            params.dye_lot_no.as_deref(),
-            params.batch_no.as_deref(),
-        )
+        .list_stock(&stock_list_filter(&params, page, page_size))
         .await?;
 
     let mut stock_responses: Vec<_> = stock_list.into_iter().map(to_stock_response).collect();
@@ -577,15 +588,7 @@ pub async fn export_stock(
 
     let service = InventoryStockService::new(state.db.clone());
     let (stock_list, _total) = service
-        .list_stock(
-            1,
-            10000,
-            params.warehouse_id,
-            params.product_id,
-            params.color_no.as_deref(),
-            params.dye_lot_no.as_deref(),
-            params.batch_no.as_deref(),
-        )
+        .list_stock(&stock_list_filter(&params, 1, 10000))
         .await?;
     let row_count = stock_list.len();
 
