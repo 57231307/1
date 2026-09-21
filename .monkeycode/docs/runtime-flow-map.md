@@ -145,13 +145,13 @@ data_permission_service: Arc<DataPermissionService>
 ## 5. 事件总线与业务副作用（services/event_bus*）
 
 - `BusinessEvent` 枚举（event_bus.rs:54 起）覆盖 20+ 业务事件
-- 发布点约 50 处（`EVENT_BUS.publish`），例：`purchase_receipt_handler.rs:136` 收货完成后发布 `PurchaseReceiptCompleted`
+- 发布点约 50 处（`EVENT_BUS.publish`），例：`purchase_receipt_handler.rs` 确认入库后发布 `PurchaseReceiptCompleted`（库存入库与订单已收数量已在确认事务内落账，事件只承担账务下游）
 - 双通道：Kafka 优先，不可达时自动降级 Broadcast（`tracing::error!` 中文日志）；batch-120 P2-10 已删除未接线的 EventBackend/BroadcastBackend 死代码，KafkaBackend 直接持有于 `EventBusState.kafka`
 - 订阅分发（event_bus_ops/listener.rs）副作用映射（节选）：
 
 | 事件 | 副作用方向 |
 |---|---|
-| PurchaseReceiptCompleted | 库存/财务联动 |
+| PurchaseReceiptCompleted | 核对收货终态 + 应付单补偿生成 |
 | SalesOrderShipped | 发货后联动 |
 | BpmProcessFinished | BPM 收尾 |
 | LowStockAlert / MaterialShortageAlert | 告警通知 |
@@ -220,7 +220,7 @@ Pinia stores（src/store/）：user / system / dashboard / inventory / fabric / 
 → auth(Cookie/验签/AuthContext) → omni_audit → csrf → permission(权限码)
 → request_logging → cors → [rls(SET LOCAL)] → body_limit/audit_context/trace_context
 → purchase_receipt_handler（事务提交 + EVENT_BUS.publish(PurchaseReceiptCompleted)）
-→ event_bus（Kafka/Broadcast 降级）→ listener 副作用（库存/财务联动）
+→ event_bus（Kafka/Broadcast 降级）→ listener 副作用（应付补偿、库存流水凭证、告警通知）
 → 响应沿中间件栈逆序返回（omni_audit 落审计、request_logging 落日志）
 ```
 
