@@ -290,8 +290,17 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
 
+    // 2-6 按 RED-001 + 本缸号发货 500+300，发货量必须计入该四维库存行
     const stock = await verifyStockFourDim(page, productId, 'RED-001', dyeLotNo);
-    expect(typeof stock, 'verifyStockFourDim 必须返回布尔结论').toBe('boolean');
+    expect(
+      stock,
+      `发货后应命中四维库存行（产品 ${productId} / 色号 RED-001 / 缸号 ${dyeLotNo}）`
+    ).toBeTruthy();
+    expect(String(stock!.dye_lot_no), '命中库存行的缸号应与发货缸号一致').toBe(dyeLotNo);
+    expect(
+      Number(stock!.quantity_shipped),
+      `已发货量应累计 2-6 的 500+300（实际 ${stock!.quantity_shipped}）`
+    ).toBeGreaterThanOrEqual(800);
   });
 
   test('2-8 验证 AR 应收单（含色号加价+等级差价）', async ({ page }) => {

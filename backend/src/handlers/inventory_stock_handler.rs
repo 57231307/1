@@ -39,19 +39,7 @@ pub async fn get_stock(
     // 导致 DB 错误也返回 404。service 返回 AppError，直接用 ? 透传保留原始错误分类
     let stock = service.find_by_id(id).await?;
 
-    let response = StockResponse {
-        id: stock.id,
-        warehouse_id: stock.warehouse_id,
-        product_id: stock.product_id,
-        quantity_on_hand: stock.quantity_on_hand,
-        quantity_available: stock.quantity_available,
-        quantity_reserved: stock.quantity_reserved,
-        reorder_point: stock.reorder_point,
-        max_stock_point: stock.max_stock_point,
-        bin_location: stock.bin_location,
-        created_at: stock.created_at,
-        updated_at: stock.updated_at,
-    };
+    let response = to_stock_response(stock);
 
     let mut response_json = serde_json::to_value(response)?;
 
@@ -121,19 +109,7 @@ pub async fn create_stock(
         })
         .await?;
 
-    Ok(Json(ApiResponse::success(StockResponse {
-        id: stock.id,
-        warehouse_id: stock.warehouse_id,
-        product_id: stock.product_id,
-        quantity_on_hand: stock.quantity_on_hand,
-        quantity_available: stock.quantity_available,
-        quantity_reserved: stock.quantity_reserved,
-        reorder_point: stock.reorder_point,
-        max_stock_point: stock.max_stock_point,
-        bin_location: stock.bin_location,
-        created_at: stock.created_at,
-        updated_at: stock.updated_at,
-    })))
+    Ok(Json(ApiResponse::success(to_stock_response(stock))))
 }
 
 pub async fn update_stock(
@@ -185,19 +161,7 @@ pub async fn update_stock(
     // 改为 ? 透传，由 From<DbErr> for AppError 自动分类（RecordNotFound→404, 其他→500）
     let updated = active_model.update(&*state.db).await?;
 
-    Ok(Json(ApiResponse::success(StockResponse {
-        id: updated.id,
-        warehouse_id: updated.warehouse_id,
-        product_id: updated.product_id,
-        quantity_on_hand: updated.quantity_on_hand,
-        quantity_available: updated.quantity_available,
-        quantity_reserved: updated.quantity_reserved,
-        reorder_point: updated.reorder_point,
-        max_stock_point: updated.max_stock_point,
-        bin_location: updated.bin_location,
-        created_at: updated.created_at,
-        updated_at: updated.updated_at,
-    })))
+    Ok(Json(ApiResponse::success(to_stock_response(updated))))
 }
 
 pub async fn delete_stock(
@@ -230,7 +194,15 @@ pub async fn list_stock(
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (stock_list, total) = service
-        .list_stock(page, page_size, params.warehouse_id, params.product_id)
+        .list_stock(
+            page,
+            page_size,
+            params.warehouse_id,
+            params.product_id,
+            params.color_no.as_deref(),
+            params.dye_lot_no.as_deref(),
+            params.batch_no.as_deref(),
+        )
         .await?;
 
     let stock_responses: Vec<_> = stock_list.into_iter().map(to_stock_response).collect();
@@ -254,9 +226,17 @@ fn to_stock_response(stock: InventoryStock) -> StockResponse {
         quantity_on_hand: stock.quantity_on_hand,
         quantity_available: stock.quantity_available,
         quantity_reserved: stock.quantity_reserved,
+        quantity_shipped: stock.quantity_shipped,
+        quantity_incoming: stock.quantity_incoming,
         reorder_point: stock.reorder_point,
         max_stock_point: stock.max_stock_point,
         bin_location: stock.bin_location,
+        batch_no: stock.batch_no,
+        color_no: stock.color_no,
+        dye_lot_no: stock.dye_lot_no,
+        grade: stock.grade,
+        quantity_meters: stock.quantity_meters,
+        quantity_kg: stock.quantity_kg,
         created_at: stock.created_at,
         updated_at: stock.updated_at,
     }
@@ -420,22 +400,7 @@ pub async fn check_low_stock(
 fn convert_to_stock_responses(
     stock_list: Vec<crate::models::inventory_stock::Model>,
 ) -> Vec<StockResponse> {
-    stock_list
-        .into_iter()
-        .map(|stock| StockResponse {
-            id: stock.id,
-            warehouse_id: stock.warehouse_id,
-            product_id: stock.product_id,
-            quantity_on_hand: stock.quantity_on_hand,
-            quantity_available: stock.quantity_available,
-            quantity_reserved: stock.quantity_reserved,
-            reorder_point: stock.reorder_point,
-            max_stock_point: stock.max_stock_point,
-            bin_location: stock.bin_location,
-            created_at: stock.created_at,
-            updated_at: stock.updated_at,
-        })
-        .collect()
+    stock_list.into_iter().map(to_stock_response).collect()
 }
 
 /// 批量查询产品信息，返回以 id 为键的 map（P2-1 修复：DB 错误降级为空集合）
@@ -538,7 +503,15 @@ pub async fn export_stock(
 
     let service = InventoryStockService::new(state.db.clone());
     let (stock_list, _total) = service
-        .list_stock(1, 10000, params.warehouse_id, params.product_id)
+        .list_stock(
+            1,
+            10000,
+            params.warehouse_id,
+            params.product_id,
+            params.color_no.as_deref(),
+            params.dye_lot_no.as_deref(),
+            params.batch_no.as_deref(),
+        )
         .await?;
     let row_count = stock_list.len();
 
@@ -567,6 +540,14 @@ fn build_stock_xlsx_table(stock_json: &[serde_json::Value]) -> Result<XlsxTable,
         "在库量".to_string(),
         "可用量".to_string(),
         "预留量".to_string(),
+        "已发货量".to_string(),
+        "在途量".to_string(),
+        "批次/匹号".to_string(),
+        "色号".to_string(),
+        "缸号".to_string(),
+        "等级".to_string(),
+        "数量(米)".to_string(),
+        "数量(公斤)".to_string(),
         "库位".to_string(),
         "创建时间".to_string(),
         "更新时间".to_string(),
@@ -585,6 +566,14 @@ fn build_stock_xlsx_table(stock_json: &[serde_json::Value]) -> Result<XlsxTable,
                 get_json_str(obj, "quantity_on_hand"),
                 get_json_str(obj, "quantity_available"),
                 get_json_str(obj, "quantity_reserved"),
+                get_json_str(obj, "quantity_shipped"),
+                get_json_str(obj, "quantity_incoming"),
+                get_json_str(obj, "batch_no"),
+                get_json_str(obj, "color_no"),
+                get_json_str(obj, "dye_lot_no"),
+                get_json_str(obj, "grade"),
+                get_json_str(obj, "quantity_meters"),
+                get_json_str(obj, "quantity_kg"),
                 get_json_str(obj, "bin_location"),
                 get_json_str(obj, "created_at"),
                 get_json_str(obj, "updated_at"),

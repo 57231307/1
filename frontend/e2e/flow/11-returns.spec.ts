@@ -169,10 +169,20 @@ test.describe('采购退货完整流程', () => {
     );
     expect(executed.status.toLowerCase()).toBe('executed');
 
-    // 验证库存增加
+    // 验证库存增加：退货执行会入库，必须命中该四维库存行且在库量大于 0
+    // （原实现读不存在的 quantity/available_qty 字段，恒为 0 后断言 >= 0 空转）
     const stockAfter = await verifyStockFourDim(page, ctx.productIds[0], ctx.colorNos[0]);
-    const stockQty = Number(stockAfter.quantity || stockAfter.available_qty || 0);
-    expect(stockQty).toBeGreaterThanOrEqual(0);
+    expect(
+      stockAfter,
+      `退货执行后应命中库存行（产品 ${ctx.productIds[0]} / 色号 ${ctx.colorNos[0]}）`
+    ).toBeTruthy();
+    expect(String(stockAfter!.color_no), '命中库存行的色号应与退货明细色号一致').toBe(
+      ctx.colorNos[0]
+    );
+    expect(
+      Number(stockAfter!.quantity_on_hand),
+      `退货入库后在库量应大于 0（实际 ${stockAfter!.quantity_on_hand}）`
+    ).toBeGreaterThan(0);
 
     // 验证非法操作：已执行的退货不能再次审批
     const illegalApprove = await apiCallExpectFail(

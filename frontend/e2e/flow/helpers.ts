@@ -1462,17 +1462,40 @@ export async function verifyPermissionDenied(
   }
 }
 
+/**
+ * 库存四维查询（产品 → 色号 → 缸号 → 批次/匹号，可选仓库维度）。
+ *
+ * 命中返回库存行原样 JSON，未命中返回 null——返回 `{}` 会把"无库存"
+ * 伪装成"有库存行"，调用方的字段断言随之空转。
+ * 后端 `/inventory/stock` 的 color_no/dye_lot_no/batch_no 为 SQL 下推过滤条件。
+ */
 export async function verifyStockFourDim(
   page: Page,
   productId: number,
   colorNo?: string,
-  dyeLotNo?: string
-): Promise<Record<string, unknown>> {
+  dyeLotNo?: string,
+  opts?: { batchNo?: string; warehouseId?: number }
+): Promise<Record<string, unknown> | null> {
   let path = `/inventory/stock?product_id=${productId}&page=1&page_size=50`;
   if (colorNo) path += `&color_no=${encodeURIComponent(colorNo)}`;
   if (dyeLotNo) path += `&dye_lot_no=${encodeURIComponent(dyeLotNo)}`;
-  const stock = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(page, 'GET', path);
-  return stock.items?.[0] || {};
+  if (opts?.batchNo) path += `&batch_no=${encodeURIComponent(opts.batchNo)}`;
+  if (opts?.warehouseId) path += `&warehouse_id=${opts.warehouseId}`;
+  const stock = await apiCallRaw<{ items?: unknown }>(page, 'GET', path);
+  if (!Array.isArray(stock.items)) {
+    throw new Error(
+      `verifyStockFourDim: ${path} 响应 data.items 不是数组，实际片段=${JSON.stringify(stock).slice(0, 200)}`
+    );
+  }
+  const row = stock.items[0] as Record<string, unknown> | undefined;
+  console.log(
+    `[verifyStockFourDim] ${path} → ${
+      row
+        ? `命中库存行 id=${row.id} on_hand=${row.quantity_on_hand} available=${row.quantity_available} shipped=${row.quantity_shipped} color_no=${row.color_no} dye_lot_no=${row.dye_lot_no}`
+        : '无库存行'
+    }`
+  );
+  return row ?? null;
 }
 
 /**

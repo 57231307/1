@@ -265,6 +265,9 @@ impl InventoryStockService {
         page_size: u64,
         warehouse_id: Option<i32>,
         product_id: Option<i32>,
+        color_no: Option<&str>,
+        dye_lot_no: Option<&str>,
+        batch_no: Option<&str>,
     ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
         let mut query = inventory_stock::Entity::find();
 
@@ -274,6 +277,17 @@ impl InventoryStockService {
 
         if let Some(pid) = product_id {
             query = query.filter(inventory_stock::Column::ProductId.eq(pid));
+        }
+
+        // 面料四维查询：色号/缸号/批次（匹号）作为筛选条件下推到 SQL
+        if let Some(color) = color_no.filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::ColorNo.eq(color));
+        }
+        if let Some(lot) = dye_lot_no.filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::DyeLotNo.eq(lot));
+        }
+        if let Some(batch) = batch_no.filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
         }
 
         // 批次 97 P1-15 修复（v5 复审）：接入 SlowQueryRecorder 真实使用，

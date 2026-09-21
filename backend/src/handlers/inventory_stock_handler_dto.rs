@@ -56,6 +56,24 @@ pub struct StockResponse {
     /// 库存上限（v11 批次 144 P1-4：新增，支持 OverStock 告警阈值展示）
     pub max_stock_point: Decimal,
     pub bin_location: Option<String>,
+    // ===== 面料行业四维库存维度（产品→批次/匹号→色号→缸号）=====
+    // 库存行按这组维度唯一区分，响应缺它们时前端四维列表与四维查询都无法成立
+    /// 批次号（面料匹号/批次）
+    pub batch_no: String,
+    /// 色号
+    pub color_no: String,
+    /// 缸号
+    pub dye_lot_no: Option<String>,
+    /// 等级（一等品/二等品/等外品）
+    pub grade: String,
+    /// 已发货数量（销售发货累计）
+    pub quantity_shipped: Decimal,
+    /// 在途数量（采购收货累计）
+    pub quantity_incoming: Decimal,
+    /// 数量（米，主计量）
+    pub quantity_meters: Decimal,
+    /// 数量（公斤，辅计量）
+    pub quantity_kg: Decimal,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -85,6 +103,12 @@ pub struct ListStockParams {
     pub warehouse_id: Option<i32>,
     #[validate(range(min = 1, message = "产品ID必须大于0"))]
     pub product_id: Option<i32>,
+    /// 色号筛选（面料四维查询维度之一）
+    pub color_no: Option<String>,
+    /// 缸号筛选（面料四维查询维度之一）
+    pub dye_lot_no: Option<String>,
+    /// 批次/匹号筛选（面料四维查询维度之一）
+    pub batch_no: Option<String>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]

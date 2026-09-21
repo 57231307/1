@@ -36,9 +36,19 @@ test.describe('库存调拨完整流程', () => {
     const toWarehouseId =
       ctx.warehouseIds.find(id => id !== fromWarehouseId) || ctx.warehouseIds[1];
 
-    // 记录调拨前库存
-    const stockBefore = await verifyStockFourDim(page, productId, ctx.colorNos[0]);
-    const qtyBefore = Number(stockBefore.quantity || stockBefore.available_qty || 0);
+    // 调拨前：来源仓必须已有该产品+色号的库存行
+    // （原实现读不存在的 quantity/available_qty 字段算出 qtyBefore，且该值后续从未参与断言）
+    const stockBefore = await verifyStockFourDim(page, productId, ctx.colorNos[0], undefined, {
+      warehouseId: fromWarehouseId,
+    });
+    expect(
+      stockBefore,
+      `调拨前来源仓 ${fromWarehouseId} 应存在产品 ${productId} / 色号 ${ctx.colorNos[0]} 的库存行`
+    ).toBeTruthy();
+
+    const transferDyeLot = ctx.dyeLotNo || `E2E-DL-${Date.now().toString().slice(-6)}`;
+    const transferBatchNo = 'E2E-BATCH-12';
+    const transferQty = 5;
 
     // 后端 CreateInventoryTransferRequest 真实字段
     const transferData = {
@@ -49,10 +59,10 @@ test.describe('库存调拨完整流程', () => {
       items: [
         {
           product_id: productId,
-          quantity: '5',
+          quantity: String(transferQty),
           color_no: ctx.colorNos[0],
-          dye_lot_no: ctx.dyeLotNo || `E2E-DL-${Date.now().toString().slice(-6)}`,
-          batch_no: 'E2E-BATCH-12',
+          dye_lot_no: transferDyeLot,
+          batch_no: transferBatchNo,
         },
       ],
     };
@@ -109,6 +119,20 @@ test.describe('库存调拨完整流程', () => {
       `/inventory/transfers/${transferId}`
     );
     expect(received.status.toLowerCase()).toBe('completed');
+
+    // 调拨入库必须落到目标仓的四维库存行（产品+色号+缸号+批次+目标仓）
+    const stockTo = await verifyStockFourDim(page, productId, ctx.colorNos[0], transferDyeLot, {
+      batchNo: transferBatchNo,
+      warehouseId: toWarehouseId,
+    });
+    expect(
+      stockTo,
+      `调拨完成后目标仓 ${toWarehouseId} 应存在缸号 ${transferDyeLot} / 批次 ${transferBatchNo} 的库存行`
+    ).toBeTruthy();
+    expect(
+      Number(stockTo!.quantity_on_hand),
+      `目标仓在库量应不少于调拨数量 ${transferQty}（实际 ${stockTo!.quantity_on_hand}）`
+    ).toBeGreaterThanOrEqual(transferQty);
 
     // 验证审计日志
     const auditLogged = await verifyAuditLog(page, 'UPDATE', 'inventory');

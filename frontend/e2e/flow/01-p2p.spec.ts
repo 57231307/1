@@ -179,28 +179,45 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
 
-    const stock = await verifyStockFourDim(page, productId, 'RED-001', dyeLotNo);
-    // 库存可能有也可能无（取决于入库是否成功），关键是四维查询 API 正常返回布尔结论
-    expect(typeof stock, 'verifyStockFourDim 必须返回布尔结论').toBe('boolean');
+    // 产品 + 色号必须命中收货后的库存行
+    const stock = await verifyStockFourDim(page, productId, 'RED-001');
+    expect(
+      stock,
+      `现货链路收货后应按产品 ${productId} + 色号 RED-001 命中库存行（未命中即链路或查询有缺陷）`
+    ).toBeTruthy();
+    expect(String(stock!.color_no), '命中库存行的色号应与查询色号一致').toBe('RED-001');
+    expect(Number(stock!.quantity_on_hand), '收货后在库量应大于 0').toBeGreaterThan(0);
+
+    // 缸号过滤必须真实下推：不存在的缸号不得命中任何行
+    const noMatch = await verifyStockFourDim(page, productId, 'RED-001', `${dyeLotNo}-NO-SUCH`);
+    expect(noMatch, `缸号过滤未生效：不存在的 ${dyeLotNo}-NO-SUCH 仍命中了库存行`).toBeNull();
   });
 
   test('1-6 验证库存查询支持色号/缸号筛选', async ({ page }) => {
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
 
-    const byColor = await apiCallRaw<{ items: unknown[] }>(
+    const byColor = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
       page,
       'GET',
       `/inventory/stock?product_id=${productId}&color_no=RED-001&page=1&page_size=10`
     );
     expect(Array.isArray(byColor.items), `byColor.items 应为后端返回的 items 数组`);
+    for (const row of byColor.items) {
+      expect(String(row.color_no), `色号筛选下推失效：返回行色号 ${row.color_no}`).toBe('RED-001');
+    }
 
-    const byDyeLot = await apiCallRaw<{ items: unknown[] }>(
+    const byDyeLot = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
       page,
       'GET',
       `/inventory/stock?product_id=${productId}&dye_lot_no=${encodeURIComponent(dyeLotNo)}&page=1&page_size=10`
     );
     expect(Array.isArray(byDyeLot.items), `byDyeLot.items 应为后端返回的 items 数组`);
+    for (const row of byDyeLot.items) {
+      expect(String(row.dye_lot_no), `缸号筛选下推失效：返回行缸号 ${row.dye_lot_no}`).toBe(
+        dyeLotNo
+      );
+    }
   });
 
   test('1-7 验证 AP 应付单', async ({ page }) => {
