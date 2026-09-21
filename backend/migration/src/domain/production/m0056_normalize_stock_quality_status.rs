@@ -25,11 +25,9 @@ UPDATE "inventory_stocks"
         Ok(())
     }
 
-    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
         // 归一后无法区分哪些行原本是 passed，回滚不可逆；
-        // 保留 UPDATE 的幂等语义，反向不做任何写操作，避免把正确数据改回错误取值。
-        let sql = "SELECT 1;";
-        manager.get_connection().execute_unprepared(sql).await?;
+        // 反向迁移显式不做任何写操作，避免把正确值改回错误值。
         Ok(())
     }
 }

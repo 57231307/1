@@ -138,7 +138,10 @@ fn parse_date_param(raw: &str, field: &str) -> Result<DateTime<Utc>, AppError> {
 }
 
 /// 校验状态入参：仅接受状态机定义的三个值
-fn validate_status_param(raw: &str, field: &str) -> Result<&str, AppError> {
+///
+/// 返回值的生命周期绑定到 `raw`（入参本体），`field` 只出现在错误文案里；
+/// 两个 `&str` 入参不写显式生命周期会让编译器无法判定返回引用来自谁。
+fn validate_status_param<'a>(raw: &'a str, field: &str) -> Result<&'a str, AppError> {
     if waybill_status::ALL.contains(&raw) {
         Ok(raw)
     } else {
