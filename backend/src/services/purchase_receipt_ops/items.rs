@@ -57,22 +57,12 @@ impl PurchaseReceiptService {
             ));
         }
 
-        // 4. 创建明细
+        // 4. 创建明细：与建单入口共用同一字段映射，
+        // 否则追加的明细会缺行号/物料/单位与色号缸号批次等库存维度
         let amount = req.quantity * req.unit_price.unwrap_or_else(|| Decimal::new(0, 0));
-        let item = purchase_receipt_item::ActiveModel {
-            receipt_id: Set(receipt_id),
-            order_item_id: Set(req.order_item_id),
-            product_id: Set(req.material_id),
-            quantity: Set(req.quantity),
-            quantity_alt: Set(Some(req.quantity_alt)),
-            unit_price: Set(Some(req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)))),
-            amount: Set(Some(amount)),
-            piece_no: Set(req.piece_no),
-            notes: Set(req.notes),
-            ..Default::default()
-        }
-        .insert(&txn)
-        .await?;
+        let item = PurchaseReceiptService::build_receipt_item_active_model(req, receipt_id, amount)
+            .insert(&txn)
+            .await?;
 
         // 5. 更新入库单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
         self.calculate_receipt_total_txn(receipt_id, &txn, user_id)

@@ -102,25 +102,9 @@ impl PurchaseReceiptService {
             total_quantity_alt += item_req.quantity_alt;
             total_amount += amount;
 
-            item_active_models.push(purchase_receipt_item::ActiveModel {
-                receipt_id: Set(receipt_id),
-                order_item_id: Set(item_req.order_item_id),
-                product_id: Set(item_req.material_id),
-                line_no: Set(item_req.line_no),
-                material_code: Set(item_req.material_code.clone()),
-                material_name: Set(item_req.material_name.clone()),
-                quantity: Set(item_req.quantity),
-                quantity_alt: Set(Some(item_req.quantity_alt)),
-                unit_master: Set(item_req.unit_master.clone()),
-                unit_alt: Set(item_req.unit_alt.clone()),
-                unit_price: Set(Some(
-                    item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)),
-                )),
-                amount: Set(Some(amount)),
-                piece_no: Set(item_req.piece_no),
-                notes: Set(item_req.notes),
-                ..Default::default()
-            });
+            item_active_models.push(Self::build_receipt_item_active_model(
+                item_req, receipt_id, amount,
+            ));
         }
         (
             item_active_models,
@@ -128,6 +112,47 @@ impl PurchaseReceiptService {
             total_quantity_alt,
             total_amount,
         )
+    }
+
+    /// 单条入库明细请求 → ActiveModel；建单与追加明细共用，保证两条入口落库字段一致
+    ///
+    /// 库存四维维度字段（色号/缸号/批次/等级/克重/幅宽/库位）必须带全：
+    /// 确认入库按「产品 + 色号 + 缸号 + 批次 + 等级」定位或新建库存行，
+    /// 缺任一维度都会把收到的货落到一条维度不完整的库存行上，四维查询再也检索不到。
+    pub(crate) fn build_receipt_item_active_model(
+        item_req: CreateReceiptItemRequest,
+        receipt_id: i32,
+        amount: Decimal,
+    ) -> purchase_receipt_item::ActiveModel {
+        purchase_receipt_item::ActiveModel {
+            receipt_id: Set(receipt_id),
+            order_item_id: Set(item_req.order_item_id),
+            product_id: Set(item_req.material_id),
+            line_no: Set(item_req.line_no),
+            material_code: Set(item_req.material_code.clone()),
+            material_name: Set(item_req.material_name.clone()),
+            quantity: Set(item_req.quantity),
+            quantity_alt: Set(Some(item_req.quantity_alt)),
+            unit_master: Set(item_req.unit_master.clone()),
+            unit_alt: Set(item_req.unit_alt.clone()),
+            unit_price: Set(Some(
+                item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)),
+            )),
+            amount: Set(Some(amount)),
+            batch_no: Set(item_req.batch_no),
+            color_code: Set(item_req.color_code),
+            lot_no: Set(item_req.lot_no),
+            grade: Set(item_req.grade),
+            gram_weight: Set(item_req.gram_weight),
+            width: Set(item_req.width),
+            location_code: Set(item_req.location_code),
+            piece_no: Set(item_req.piece_no),
+            package_no: Set(item_req.package_no),
+            production_date: Set(item_req.production_date),
+            shelf_life: Set(item_req.shelf_life),
+            notes: Set(item_req.notes),
+            ..Default::default()
+        }
     }
 
     /// 构造 COMPLETED 状态 ActiveModel，写入确认时间与审计字段（`pub(crate)`：state 子模块的 `confirm_receipt` 调用。）
