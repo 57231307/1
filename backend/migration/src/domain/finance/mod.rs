@@ -712,6 +712,8 @@ CREATE INDEX IF NOT EXISTS idx_voucher_items_subject ON voucher_items (subject_i
 -- 按编码取科目，科目不存在时 VoucherService 预校验直接拒绝，
 -- 自动凭证因此全部生成失败（发货/收货链路账实脱节）。
 -- 幂等：code 唯一，冲突不覆盖（允许部署方自行调整科目名称与方向）。
+-- 一级科目与二级科目分两条语句：数据修改语句的快照不含本语句刚插入的行，
+-- 同一条语句里查父级会查不到，二级科目的 parent_id 会静默为 NULL。
 INSERT INTO "account_subjects"
     ("code", "name", "level", "parent_id", "full_code", "balance_direction",
      "assist_customer", "assist_supplier", "is_cash_account", "is_bank_account", "status")
@@ -733,11 +735,8 @@ FROM (VALUES
     ('2203', '预收账款', 1, NULL::text, 'credit', true, false, false, false),
     ('2211', '应付职工薪酬', 1, NULL::text, 'credit', false, false, false, false),
     ('2221', '应交税费', 1, NULL::text, 'credit', false, false, false, false),
-    ('222101', '应交税费-应交增值税-销项税额', 2, '2221', 'credit', false, false, false, false),
     ('4104', '利润分配', 1, NULL::text, 'credit', false, false, false, false),
     ('5001', '生产成本', 1, NULL::text, 'debit', false, false, false, false),
-    ('500101', '生产成本-直接人工', 2, '5001', 'debit', false, false, false, false),
-    ('500103', '生产成本-制造费用', 2, '5001', 'debit', false, false, false, false),
     ('6001', '主营业务收入', 1, NULL::text, 'credit', false, false, false, false),
     ('6051', '其他业务收入', 1, NULL::text, 'credit', false, false, false, false),
     ('6301', '营业外收入', 1, NULL::text, 'credit', false, false, false, false),
@@ -748,6 +747,19 @@ FROM (VALUES
     ('6603', '财务费用', 1, NULL::text, 'debit', false, false, false, false),
     ('6711', '营业外支出', 1, NULL::text, 'debit', false, false, false, false),
     ('6801', '所得税费用', 1, NULL::text, 'debit', false, false, false, false)
+) AS v(code, name, level, parent_code, direction, assist_customer, assist_supplier, is_cash, is_bank)
+ON CONFLICT ("code") DO NOTHING;
+
+INSERT INTO "account_subjects"
+    ("code", "name", "level", "parent_id", "full_code", "balance_direction",
+     "assist_customer", "assist_supplier", "is_cash_account", "is_bank_account", "status")
+SELECT v.code, v.name, v.level,
+       (SELECT p."id" FROM "account_subjects" p WHERE p."code" = v.parent_code),
+       v.code, v.direction, v.assist_customer, v.assist_supplier, v.is_cash, v.is_bank, 'active'
+FROM (VALUES
+    ('222101', '应交税费-应交增值税-销项税额', 2, '2221', 'credit', false, false, false, false),
+    ('500101', '生产成本-直接人工', 2, '5001', 'debit', false, false, false, false),
+    ('500103', '生产成本-制造费用', 2, '5001', 'debit', false, false, false, false)
 ) AS v(code, name, level, parent_code, direction, assist_customer, assist_supplier, is_cash, is_bank)
 ON CONFLICT ("code") DO NOTHING;
 "#;
