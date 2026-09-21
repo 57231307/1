@@ -20,17 +20,20 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
   });
 
   test('L1-1 验证库存预留机制（pending → locked → consumed）', async ({ page }) => {
-    const reservations = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+    const reservations = await apiCallRaw<{ list: Array<{ id: number; status: string }> }>(
       page,
       'GET',
       '/inventory/reservations?page=1&page_size=10'
     );
-    expect(reservations.items);
-    if (reservations?.items?.length ?? 0 > 0) {
-      const status = (reservations.items?.[0].status || '').toLowerCase();
-      expect(['pending', 'locked', 'consumed', 'released', 'cancelled']).toContain(
-        status ?? '(missing-status)'
-      );
+    // inventory_reservation_handler.rs list_reservations 用 json!({"list": ...})，
+    // key 是 list；原实现读 items 且 expect() 无匹配器，整条用例空转
+    expect(Array.isArray(reservations?.list), '库存预留应返回 list 数组').toBe(true);
+    console.log(`[L1-1] 库存预留 list 长度=${reservations.list.length}`);
+    if (reservations.list.length > 0) {
+      const status = reservations.list[0].status;
+      expect(typeof status, '预留记录必须带 status 字段').toBe('string');
+      // models/status/inventory.rs reservation_status 常量集
+      expect(['pending', 'locked', 'consumed', 'released', 'cancelled']).toContain(status);
     }
   });
 
