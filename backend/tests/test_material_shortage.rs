@@ -5,32 +5,70 @@ use rust_decimal::Decimal;
 
 #[test]
 fn test_shortage_level_from_deficit_rate() {
-    // 测试预警级别判断
-    use bingxi_backend::services::material_shortage_service::ShortageLevel;
+    // 测试预警级别判断（默认阈值：缺口 >=100 紧急，>50 严重）
+    use bingxi_backend::services::material_shortage_service::{
+        ShortageLevel, ShortageThresholdConfig,
+    };
+    let default_cfg = ShortageThresholdConfig::default();
 
     // 缺口100%应该是Critical
     assert_eq!(
-        ShortageLevel::from_deficit_rate(Decimal::from(100)),
+        ShortageLevel::from_deficit_rate(Decimal::from(100), &default_cfg),
         ShortageLevel::Critical
     );
 
     // 缺口80%应该是Severe
     assert_eq!(
-        ShortageLevel::from_deficit_rate(Decimal::from(80)),
+        ShortageLevel::from_deficit_rate(Decimal::from(80), &default_cfg),
         ShortageLevel::Severe
     );
 
     // 缺口30%应该是Warning
     assert_eq!(
-        ShortageLevel::from_deficit_rate(Decimal::from(30)),
+        ShortageLevel::from_deficit_rate(Decimal::from(30), &default_cfg),
         ShortageLevel::Warning
     );
 
     // 缺口0%应该是Normal
     assert_eq!(
-        ShortageLevel::from_deficit_rate(Decimal::from(0)),
+        ShortageLevel::from_deficit_rate(Decimal::from(0), &default_cfg),
         ShortageLevel::Normal
     );
+}
+
+#[test]
+fn test_shortage_level_follows_saved_thresholds() {
+    // 阈值配置必须真正参与定级：收紧阈值后同一缺口率要升级
+    use bingxi_backend::services::material_shortage_service::{
+        ShortageLevel, ShortageThresholdConfig,
+    };
+    let strict = ShortageThresholdConfig {
+        safety_factor: Decimal::from(1),
+        critical_threshold: Decimal::from(60),
+        severe_threshold: Decimal::from(20),
+    };
+
+    assert_eq!(
+        ShortageLevel::from_deficit_rate(Decimal::from(80), &strict),
+        ShortageLevel::Critical
+    );
+    assert_eq!(
+        ShortageLevel::from_deficit_rate(Decimal::from(30), &strict),
+        ShortageLevel::Severe
+    );
+    assert_eq!(
+        ShortageLevel::from_deficit_rate(Decimal::from(10), &strict),
+        ShortageLevel::Warning
+    );
+}
+
+#[test]
+fn test_shortage_level_names_are_stored_values() {
+    // level 落库值就是这些名字（前端筛选与月报统计都按它比对）
+    use bingxi_backend::services::material_shortage_service::ShortageLevel;
+
+    let names: Vec<&str> = ShortageLevel::ALL.iter().map(|l| l.as_str()).collect();
+    assert_eq!(names, vec!["Critical", "Severe", "Warning", "Normal"]);
 }
 
 #[test]

@@ -64,10 +64,12 @@ impl ShortageLevel {
         }
     }
 
-    pub fn from_deficit_rate(rate: Decimal) -> Self {
-        if rate >= Decimal::from(100) {
+    /// 按缺口率定级：阈值取自预警阈值配置（critical_threshold / severe_threshold），
+    /// 不写死数值，否则 /threshold 页面保存的配置永不生效。
+    pub fn from_deficit_rate(rate: Decimal, thresholds: &ShortageThresholdConfig) -> Self {
+        if rate >= thresholds.critical_threshold {
             ShortageLevel::Critical
-        } else if rate > Decimal::from(50) {
+        } else if rate > thresholds.severe_threshold {
             ShortageLevel::Severe
         } else if rate > Decimal::ZERO {
             ShortageLevel::Warning
@@ -378,7 +380,11 @@ impl MaterialShortageService {
         &self,
         request: ShortageCheckRequest,
     ) -> Result<ShortageSummary, AppError> {
-        let _threshold = request.threshold.unwrap_or_default();
+        // 定级阈值：请求显式指定 > 已保存的阈值配置（material_shortage_threshold_configs）
+        let thresholds = match request.threshold {
+            Some(config) => config,
+            None => self.load_threshold_config().await?,
+        };
         let orders = self
             .fetch_active_orders(
                 request.product_ids.as_ref(),
@@ -406,6 +412,7 @@ impl MaterialShortageService {
                 &stock_map,
                 &material_names,
                 &material_affected_orders,
+                &thresholds,
             )
             .await;
         sort_items_by_level(&mut items);
@@ -576,6 +583,7 @@ impl MaterialShortageService {
         stock_map: &HashMap<i32, Decimal>,
         material_names: &HashMap<i32, (String, String)>,
         material_affected_orders: &HashMap<i32, Vec<AffectedOrder>>,
+        thresholds: &ShortageThresholdConfig,
     ) -> Vec<MaterialShortageItem> {
         let mut items = Vec::new();
         for (material_id, (required, unit, _)) in material_requirements {
@@ -586,7 +594,7 @@ impl MaterialShortageService {
                 Decimal::ZERO
             };
             let deficit_rate = compute_deficit_rate(*required, shortage);
-            let level = ShortageLevel::from_deficit_rate(deficit_rate);
+            let level = ShortageLevel::from_deficit_rate(deficit_rate, thresholds);
             if level == ShortageLevel::Normal {
                 continue;
             }
