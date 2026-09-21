@@ -202,8 +202,8 @@ pub async fn confirm_receipt(
 
     let receipt = service.confirm_receipt(id, user_id).await?;
 
-    // 确认入库才构成收货事实：发布事件驱动订单收货（库存增加、订单转收货态、
-    // 入库单最终置为 COMPLETED）
+    // 收货事实（库存增加、订单转收货态、入库单置 COMPLETED）已在 confirm_receipt 事务内完成，
+    // 这里发布事件驱动账务下游：核对收货终态并在确认路径应付生成失败时补偿
     if let Some(order_id) = receipt.order_id {
         EVENT_BUS.publish(BusinessEvent::PurchaseReceiptCompleted {
             receipt_id: receipt.id,

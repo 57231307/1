@@ -3,7 +3,7 @@
 //! 本文件为 facade：保留 `PurchaseReceiptService` struct 定义、`new` 构造器、
 //! 单号生成宏 `impl_generate_no!`（`generate_receipt_no`）、3 个纯函数
 //! （`build_receipt_active_model` / `build_receipt_items_and_totals` /
-//! `build_confirmed_receipt_active_model`）以及单元测试模块。
+//! `build_completed_receipt_active_model`）以及单元测试模块。
 //!
 //! 业务 impl 块已按职责拆分到 [`crate::services::purchase_receipt_ops`] 子模块：
 //! - `auth`：管理员身份校验 `is_admin_user`（`pub(crate)`，供 crud/items 跨模块调用）
@@ -130,14 +130,15 @@ impl PurchaseReceiptService {
         )
     }
 
-    /// 构造 CONFIRMED 状态 ActiveModel，写入确认时间与审计字段（`pub(crate)`：state 子模块的 `confirm_receipt` 调用。）
-    pub(crate) fn build_confirmed_receipt_active_model(
+    /// 构造 COMPLETED 状态 ActiveModel，写入确认时间与审计字段（`pub(crate)`：state 子模块的 `confirm_receipt` 调用。）
+    /// 确认事务内即完成库存入库与订单已收数量推进，落账成功即为收货终态，不再依赖异步事件补状态。
+    pub(crate) fn build_completed_receipt_active_model(
         receipt: purchase_receipt::Model,
         user_id: i32,
     ) -> purchase_receipt::ActiveModel {
         let now = chrono::Utc::now();
         let mut active: purchase_receipt::ActiveModel = receipt.into();
-        active.receipt_status = Set(status::purchase_receipt::CONFIRMED.to_string());
+        active.receipt_status = Set(status::purchase_receipt::COMPLETED.to_string());
         active.confirmed_at = Set(Some(now));
         active.confirmed_by = Set(Some(user_id));
         active.updated_by = Set(Some(user_id));
