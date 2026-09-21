@@ -1,19 +1,19 @@
 <!--
-  MaterialShortageSeverityCard.vue - 物料短缺 4 个严重程度进度卡片
+  MaterialShortageSeverityCard.vue - 缺料级别进度卡片（Critical / Severe / Warning）
   拆分自 material-shortage/index.vue（P14 批 2 I-3 第 5 批）
-  行为完全保持一致（仅结构重构）
+  计数与占比都取自后端 ShortageSummary，级别取值见 @/constants/shortage
 -->
 <template>
   <el-row :gutter="20" class="severity-row">
-    <el-col v-for="level in SEVERITY_LEVELS" :key="level.value" :xs="24" :sm="12" :lg="6">
-      <el-card shadow="hover" :class="['severity-card', level.class]">
+    <el-col v-for="level in SHORTAGE_COUNTED_LEVELS" :key="level" :xs="24" :sm="12" :lg="8">
+      <el-card shadow="hover" :class="['severity-card', levelMeta(level).className]">
         <div class="severity-content">
-          <div class="severity-label">{{ getSeverityLabel(level.value) }}</div>
-          <div class="severity-value">{{ getCount(level.value) }}</div>
+          <div class="severity-label">{{ getLevelText(level) }}</div>
+          <div class="severity-value">{{ levelCount(level) }}</div>
         </div>
         <el-progress
-          :percentage="getPercentage(level.value)"
-          :color="level.color"
+          :percentage="levelPercentage(level)"
+          :color="levelMeta(level).color"
           :stroke-width="8"
           :show-text="false"
         />
@@ -23,54 +23,55 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n';
-import { SEVERITY_LEVELS } from '../composables/msFmts';
+import {
+  SHORTAGE_COUNTED_LEVELS,
+  SHORTAGE_LEVEL,
+  type ShortageLevelValue,
+} from '@/constants/shortage';
+import { getLevelText } from '../composables/msFmts';
 import type { MaterialShortageSummary } from '@/api/material-shortage';
 
-const { t } = useI18n({ useScope: 'global' });
-
 /**
- * 严重程度进度卡片
+ * 缺料级别分布卡片
  */
 const props = defineProps<{
   // 汇总数据
   summary: MaterialShortageSummary;
 }>();
 
-/**
- * 严重程度标签映射（基于 i18n）
- */
-const getSeverityLabel = (severity: string) => {
-  const map: Record<string, string> = {
-    critical: t('materialShortage.severity.critical'),
-    high: t('materialShortage.severity.high'),
-    medium: t('materialShortage.severity.medium'),
-    low: t('materialShortage.severity.low'),
-  };
-  return map[severity] || severity;
+/** 级别 → 展示样式（配色与类名，与业务取值无关） */
+const levelMeta = (level: ShortageLevelValue): { color: string; className: string } => {
+  switch (level) {
+    case SHORTAGE_LEVEL.critical:
+      return { color: '#f56c6c', className: 'critical' };
+    case SHORTAGE_LEVEL.severe:
+      return { color: '#e6a23c', className: 'high' };
+    case SHORTAGE_LEVEL.warning:
+      return { color: '#409eff', className: 'medium' };
+    case SHORTAGE_LEVEL.normal:
+      return { color: '#909399', className: 'low' };
+  }
 };
 
-/**
- * 获取某严重程度的数量
- */
-const getCount = (severity: string) => {
-  const map: Record<string, number> = {
-    critical: props.summary.critical_count || 0,
-    high: props.summary.high_count || 0,
-    medium: props.summary.medium_count || 0,
-    low: props.summary.low_count || 0,
-  };
-  return map[severity] || 0;
+/** 后端汇总只按 Critical / Severe / Warning 三档计数，Normal 表示无缺口 */
+const levelCount = (level: ShortageLevelValue): number => {
+  switch (level) {
+    case SHORTAGE_LEVEL.critical:
+      return props.summary.critical_count;
+    case SHORTAGE_LEVEL.severe:
+      return props.summary.severe_count;
+    case SHORTAGE_LEVEL.warning:
+      return props.summary.warning_count;
+    case SHORTAGE_LEVEL.normal:
+      return 0;
+  }
 };
 
-/**
- * 获取某严重程度的占比
- */
-const getPercentage = (severity: string) => {
-  const count = getCount(severity);
-  const total = props.summary.total_shortage_count || 0;
-  if (total === 0) return 0;
-  return Math.round((count / total) * 100);
+/** 占比分母为缺料物料数；无缺料时进度为 0（除零会算出 NaN 进度条） */
+const levelPercentage = (level: ShortageLevelValue): number => {
+  const total = props.summary.shortage_count;
+  if (!total) return 0;
+  return Math.round((levelCount(level) / total) * 100);
 };
 </script>
 
@@ -78,39 +79,28 @@ const getPercentage = (severity: string) => {
 .severity-row {
   margin-bottom: 20px;
 }
-.severity-card {
-  border-radius: 12px;
-  transition: all 0.3s ease;
-}
-.severity-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
 .severity-content {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 .severity-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
   color: #606266;
 }
 .severity-value {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
 }
-.severity-card.critical {
-  border-left: 4px solid #f56c6c;
+.severity-card.critical .severity-value {
+  color: #f56c6c;
 }
-.severity-card.high {
-  border-left: 4px solid #e6a23c;
+.severity-card.high .severity-value {
+  color: #e6a23c;
 }
-.severity-card.medium {
-  border-left: 4px solid #409eff;
-}
-.severity-card.low {
-  border-left: 4px solid #909399;
+.severity-card.medium .severity-value {
+  color: #409eff;
 }
 </style>

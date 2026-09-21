@@ -21,15 +21,14 @@
       :checking="ms.checking"
       :current-page="ms.currentPage"
       :page-size="ms.pageSize"
-      :filter-severity="ms.filterSeverity"
+      :filter-level="ms.filterLevel"
       :filter-status="ms.filterStatus"
       @filter-change="msProc.handleFilterChange"
       @check="msProc.handleCheck"
-      @notify="msProc.handleNotify"
-      @resolve="msProc.handleResolve"
+      @status-change="msProc.handleStatusChange"
       @update:page="(v: number) => (ms.currentPage = v)"
       @update:size="(v: number) => (ms.pageSize = v)"
-      @update:filter-severity="(v: string) => (ms.filterSeverity = v)"
+      @update:filter-level="(v: string) => (ms.filterLevel = v)"
       @update:filter-status="(v: string) => (ms.filterStatus = v)"
     />
   </div>
@@ -52,7 +51,7 @@ const msProc = useMsProc({
   currentPage: ms.currentPage,
   pageSize: ms.pageSize,
   total: ms.total,
-  filterSeverity: ms.filterSeverity,
+  filterLevel: ms.filterLevel,
   filterStatus: ms.filterStatus,
   tableLoading: ms.tableLoading,
   checking: ms.checking,
