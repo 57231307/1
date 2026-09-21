@@ -282,7 +282,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import {
@@ -402,7 +402,7 @@ const fetchWarehouseOptions = async () => {
     const res = await getWarehouseList({ page: 1, page_size: 1000 });
     warehouseOptions.value = res.data?.items || [];
   } catch (error) {
-    logger.error(t('inventoryBatch.batchListTab.messageLoadWarehousesFailed'), error);
+    logAuxLoadFailure(t('inventoryBatch.batchListTab.messageLoadWarehousesFailed'), error);
     warehouseOptions.value = [];
   }
 };

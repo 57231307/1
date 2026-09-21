@@ -306,7 +306,7 @@ import {
 } from '@/api/crm';
 import { getUserList, type User } from '@/api/user';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import LeadFormTab from './tabs/LeadFormTab.vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -359,7 +359,7 @@ const fetchUsers = async () => {
     const res = await getUserList();
     users.value = res.data?.users || [];
   } catch (error) {
-    logger.error(t('crmLeads.message.loadUsersFailed'), error);
+    logAuxLoadFailure(t('crmLeads.message.loadUsersFailed'), error);
     users.value = [];
   }
 };

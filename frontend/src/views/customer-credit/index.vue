@@ -242,7 +242,7 @@ import {
 } from '@/api/customer-credit';
 import { getCustomerList, type Customer } from '@/api/customer';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 import RatingDialogTab from './tabs/RatingDialogTab.vue';
 import AdjustDialogTab from './tabs/AdjustDialogTab.vue';
@@ -288,7 +288,7 @@ const fetchCustomers = async () => {
     const res = await getCustomerList({ page: 1, page_size: 100 });
     customerOptions.value = res.data?.items || [];
   } catch (error) {
-    logger.error(t('customerCredit.index.log.fetchCustomersFailed'), error);
+    logAuxLoadFailure(t('customerCredit.index.log.fetchCustomersFailed'), error);
     customerOptions.value = [];
   }
 };

@@ -100,7 +100,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { request } from '@/api/request';
@@ -176,7 +176,7 @@ const fetchUserOptions = async () => {
     const d = res.data as { items?: User[]; list?: User[]; data?: User[] } | undefined;
     userOptions.value = (d?.items || d?.list || d?.data || (Array.isArray(d) ? d : [])) as User[];
   } catch (error) {
-    logger.error(t('system.notification.message.loadUsersFailed'), error);
+    logAuxLoadFailure(t('system.notification.message.loadUsersFailed'), error);
   }
 };
 

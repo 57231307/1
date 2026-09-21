@@ -256,7 +256,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -475,7 +475,7 @@ const fetchOptions = async () => {
       ud?.data ||
       (Array.isArray(ud) ? ud : [])) as User[];
   } catch (error) {
-    logger.error(t('system.oaAnnouncement.message.loadUsersFailed'), error);
+    logAuxLoadFailure(t('system.oaAnnouncement.message.loadUsersFailed'), error);
   }
   try {
     const rres = await getRoleList();
@@ -484,7 +484,7 @@ const fetchOptions = async () => {
       Array.isArray(rd) ? rd : rd?.roles || rd?.items || rd?.data || []
     ) as Role[];
   } catch (error) {
-    logger.error(t('system.oaAnnouncement.message.loadRolesFailed'), error);
+    logAuxLoadFailure(t('system.oaAnnouncement.message.loadRolesFailed'), error);
   }
   try {
     const dres = await request.get<{ items?: { id: number; name: string }[] }>('/departments', {
@@ -495,7 +495,7 @@ const fetchOptions = async () => {
     };
     deptOptions.value = raw.data?.items || raw.data?.list || [];
   } catch (error) {
-    logger.error(t('system.oaAnnouncement.message.loadDeptsFailed'), error);
+    logAuxLoadFailure(t('system.oaAnnouncement.message.loadDeptsFailed'), error);
   }
 };
 

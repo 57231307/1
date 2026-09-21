@@ -224,7 +224,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Back, Search, Refresh } from '@element-plus/icons-vue';
 import { getUserList, type User } from '@/api/user';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { type PoolCustomer } from '@/api/crm-enhanced';
 import { batchClaimCustomersFromPool } from '@/api/crm-enhanced';
 import { useTableApi } from '@/composables/useTableApi';
@@ -270,7 +270,7 @@ const fetchUsers = async () => {
     const res = await getUserList();
     users.value = res.data?.users || [];
   } catch (error) {
-    logger.error(t('crmPool.message.loadUsersFailed'), error);
+    logAuxLoadFailure(t('crmPool.message.loadUsersFailed'), error);
     users.value = [];
   }
 };

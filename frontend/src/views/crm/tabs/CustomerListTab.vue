@@ -373,7 +373,7 @@ import { useTableApi } from '@/composables/useTableApi';
 // 后端 GET /crm/customers/export 已就绪（Batch 474 注入水印 + 行级数据权限 + 异步审计日志）
 import { exportFromBackend } from '@/utils/export';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { escapeHtml } from '@/utils/print';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -485,7 +485,7 @@ const fetchTags = async () => {
     const res = await getCrmTagList();
     tags.value = res.data || [];
   } catch (error) {
-    logger.error(t('crmCustomer.message.loadTagsFailed'), error);
+    logAuxLoadFailure(t('crmCustomer.message.loadTagsFailed'), error);
     tags.value = [];
   }
 };

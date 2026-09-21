@@ -251,7 +251,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { User } from '@/api/user';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import {
   getRecycleRuleList,
@@ -323,7 +323,7 @@ const fetchUsers = async () => {
     const res = await getSalesUserList();
     users.value = (res.data || []) as unknown as User[];
   } catch (error) {
-    logger.error(t('crmAssignment.message.loadSalesUsersFailed'), error);
+    logAuxLoadFailure(t('crmAssignment.message.loadSalesUsersFailed'), error);
     users.value = [];
   }
 };

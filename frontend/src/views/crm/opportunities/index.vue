@@ -348,7 +348,7 @@ import {
 import { getUserList, type User } from '@/api/user';
 import { getCustomerList, type Customer } from '@/api/customer';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 import OpportunityFormTab from './tabs/OpportunityFormTab.vue';
 import OpportunityFollowTab from './tabs/OpportunityFollowTab.vue';
@@ -407,7 +407,7 @@ const fetchUsers = async () => {
     const res = await getUserList();
     users.value = res.data?.users || [];
   } catch (error) {
-    logger.error(t('crmOpportunities.message.loadUsersFailed'), error);
+    logAuxLoadFailure(t('crmOpportunities.message.loadUsersFailed'), error);
     users.value = [];
   }
 };
@@ -417,7 +417,7 @@ const fetchCustomers = async () => {
     const res = await getCustomerList();
     customers.value = res.data?.items || [];
   } catch (error) {
-    logger.error(t('crmOpportunities.message.loadCustomersFailed'), error);
+    logAuxLoadFailure(t('crmOpportunities.message.loadCustomersFailed'), error);
     customers.value = [];
   }
 };
