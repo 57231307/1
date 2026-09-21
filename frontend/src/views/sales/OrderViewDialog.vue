@@ -82,8 +82,9 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import type { SalesOrder } from '@/api/sales';
+import { salesStatusLabelKey, salesStatusTagType } from '@/utils/sales-status';
 
-const { t } = useI18n({ useScope: 'global' });
+const { t, te } = useI18n({ useScope: 'global' });
 
 defineProps<{
   visible: boolean;
@@ -94,25 +95,12 @@ const emit = defineEmits<{
   'update:visible': [value: boolean];
 }>();
 
-const getStatusType = (status: string | undefined) => {
-  const typeMap: Record<string, string> = {
-    pending: 'warning',
-    approved: 'primary',
-    shipped: 'success',
-    completed: 'info',
-    cancelled: 'danger',
-  };
-  return typeMap[status || ''] || 'info';
-};
+const getStatusType = (status: string | undefined) => salesStatusTagType(status);
 
+/** 未知状态原样显示（utils 内已告警），不再用 `|| status` 掩盖映射缺失 */
 const getStatusText = (status: string | undefined) => {
-  const textMap: Record<string, string> = {
-    pending: t('sales.statusLabels.pending'),
-    approved: t('sales.statusLabels.approved'),
-    shipped: t('sales.statusLabels.shipped'),
-    completed: t('sales.statusLabels.completed'),
-    cancelled: t('sales.statusLabels.cancelled'),
-  };
-  return textMap[status || ''] || status || '';
+  const key = salesStatusLabelKey(status);
+  if (!key || !te(key)) return status ?? '';
+  return t(key);
 };
 </script>

@@ -609,10 +609,13 @@ export default {
       list: 'Return List',
     },
     statusLabels: {
+      draft: 'Draft',
       pending: 'Pending Approval',
       approved: 'Approved',
       shipped: 'Shipped',
       completed: 'Completed',
+      partial_shipped: 'Partially Shipped',
+      rejected: 'Rejected',
       cancelled: 'Cancelled',
     },
     indexPage: {

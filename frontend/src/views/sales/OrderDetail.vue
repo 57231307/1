@@ -19,7 +19,7 @@
           {{ order?.customer_name }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('sales.orderDetail.status')">
-          <el-tag size="small">{{ order?.status }}</el-tag>
+          <el-tag size="small" :type="salesStatusTagType(order?.status)">{{ statusLabel }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item :label="t('sales.orderDetail.orderDate')">
           {{ order?.order_date?.slice(0, 10) }}
@@ -77,17 +77,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { getSalesOrderById, type SalesOrder } from '@/api/sales';
+import { salesStatusLabelKey, salesStatusTagType } from '@/utils/sales-status';
 
 const route = useRoute();
 const router = useRouter();
-const { t } = useI18n({ useScope: 'global' });
+const { t, te } = useI18n({ useScope: 'global' });
 
 const order = ref<SalesOrder | null>(null);
 const loading = ref(false);
+
+/** 状态文案：未知状态原样显示（并已在 utils/sales-status 内告警），不伪装成合法状态 */
+const statusLabel = computed(() => {
+  const key = salesStatusLabelKey(order.value?.status);
+  if (!key || !te(key)) return order.value?.status ?? '';
+  return t(key);
+});
 
 onMounted(async () => {
   loading.value = true;

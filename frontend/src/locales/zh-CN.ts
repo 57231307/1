@@ -608,10 +608,13 @@ export default {
       list: '退货列表',
     },
     statusLabels: {
+      draft: '草稿',
       pending: '待审批',
       approved: '已审批',
       shipped: '已发货',
       completed: '已完成',
+      partial_shipped: '部分发货',
+      rejected: '已驳回',
       cancelled: '已取消',
     },
     indexPage: {
