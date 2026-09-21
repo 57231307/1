@@ -26,7 +26,8 @@ import { useI18n } from 'vue-i18n';
 import { ElTag, ElButton } from 'element-plus';
 import V2Table from '@/components/V2Table/index.vue';
 import type { ColumnDef } from '@/components/V2Table/types';
-import { PRODUCTION_ORDER_STATUS, type ProductionOrder } from '@/api/production';
+import type { ProductionOrder } from '@/api/production';
+import { getStatusLabel, getStatusType } from '../composables/prdFmts';
 // P2-17 修复（批次 86 v2 复审）：h() 渲染函数无法使用 v-permission 指令，
 // 改为复用 router 守卫的 hasRoutePermission + useUserStore 做权限判断，
 // 行为与 v-permission 指令保持一致（无权限则不渲染该按钮）
@@ -36,7 +37,6 @@ import { useUserStore } from '@/store/user';
 const { t } = useI18n({ useScope: 'global' });
 
 // 状态 el-tag 类型别名（与 element-plus 类型保持一致）
-type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger';
 
 /** 权限检查辅助函数（与 v-permission 指令行为等价） */
 const can = (required: string): boolean => {
@@ -45,14 +45,7 @@ const can = (required: string): boolean => {
   return hasRoutePermission(required, permissions);
 };
 
-/** 状态标签：优先 i18n，回退到原始 status 字符串 */
-const statusLabel = (status: string): string => {
-  const key = `production.table.status${status.charAt(0).toUpperCase() + status.slice(1)}`;
-  const translated = t(key);
-  return translated === key
-    ? PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label || status
-    : translated;
-};
+const statusLabel = getStatusLabel;
 
 defineProps<{
   data: ProductionOrder[];
@@ -133,7 +126,9 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
       )
     );
   }
-  if (row.status === 'draft') {
+  // 草稿可改可删；排产/开工/完工按状态机的下一步给出，
+  // 目标状态取后端 PUT /status 白名单里的值（SCHEDULED/IN_PROGRESS/COMPLETED）
+  if (upper === 'DRAFT') {
     if (can('production_order:update')) {
       buttons.push(
         h(
@@ -143,18 +138,6 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
         )
       );
     }
-    buttons.push(
-      h(
-        ElButton,
-        {
-          type: 'warning',
-          link: true,
-          size: 'small',
-          onClick: () => emit('status-change', row, 'planned'),
-        },
-        { default: () => t('production.table.buttonPlan') }
-      )
-    );
     if (can('production_order:delete')) {
       buttons.push(
         h(
@@ -165,7 +148,21 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
       );
     }
   }
-  if (row.status === 'planned') {
+  if (upper === 'APPROVED') {
+    buttons.push(
+      h(
+        ElButton,
+        {
+          type: 'warning',
+          link: true,
+          size: 'small',
+          onClick: () => emit('status-change', row, 'SCHEDULED'),
+        },
+        { default: () => t('production.table.buttonPlan') }
+      )
+    );
+  }
+  if (upper === 'SCHEDULED') {
     buttons.push(
       h(
         ElButton,
@@ -173,13 +170,13 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
           type: 'primary',
           link: true,
           size: 'small',
-          onClick: () => emit('status-change', row, 'in_production'),
+          onClick: () => emit('status-change', row, 'IN_PROGRESS'),
         },
         { default: () => t('production.table.buttonStartProduction') }
       )
     );
   }
-  if (row.status === 'in_production') {
+  if (upper === 'IN_PROGRESS') {
     buttons.push(
       h(
         ElButton,
@@ -187,7 +184,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
           type: 'success',
           link: true,
           size: 'small',
-          onClick: () => emit('status-change', row, 'completed'),
+          onClick: () => emit('status-change', row, 'COMPLETED'),
         },
         { default: () => t('production.table.buttonComplete') }
       )
@@ -231,12 +228,8 @@ const columns = computed<ColumnDef<ProductionOrder>[]>(() => [
     title: t('production.table.colStatus'),
     width: 120,
     align: 'center',
-    renderCell: (row: ProductionOrder) => {
-      const statusConfig =
-        PRODUCTION_ORDER_STATUS[row.status as keyof typeof PRODUCTION_ORDER_STATUS];
-      const tagType: ElTagType = (statusConfig?.type as ElTagType) || 'info';
-      return h(ElTag, { type: tagType }, { default: () => statusLabel(row.status) });
-    },
+    renderCell: (row: ProductionOrder) =>
+      h(ElTag, { type: getStatusType(row.status) }, { default: () => statusLabel(row.status) }),
   },
   { key: 'priority', title: t('production.table.colPriority'), width: 100, align: 'center' },
   {

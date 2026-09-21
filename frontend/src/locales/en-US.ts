@@ -11690,6 +11690,16 @@ export default {
     },
   },
   production: {
+    status: {
+      draft: 'Draft',
+      pendingApproval: 'Pending Approval',
+      approved: 'Approved',
+      rejected: 'Rejected',
+      scheduled: 'Scheduled',
+      inProgress: 'In Progress',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+    },
     index: {
       headerTitle: 'Production Planning Management',
       headerSubtitle: 'Manage the full lifecycle of production orders',
@@ -11737,11 +11747,6 @@ export default {
       buttonDelete: 'Delete',
       buttonStartProduction: 'Start Production',
       buttonComplete: 'Complete',
-      statusDraft: 'Draft',
-      statusPlanned: 'Planned',
-      statusInProgress: 'In Production',
-      statusCompleted: 'Completed',
-      statusCancelled: 'Cancelled',
     },
     detail: {
       title: 'Production Order Detail',

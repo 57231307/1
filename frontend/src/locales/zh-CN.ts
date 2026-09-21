@@ -11651,6 +11651,16 @@ export default {
     },
   },
   production: {
+    status: {
+      draft: '草稿',
+      pendingApproval: '待审批',
+      approved: '已审批',
+      rejected: '已驳回',
+      scheduled: '已排产',
+      inProgress: '生产中',
+      completed: '已完成',
+      cancelled: '已取消',
+    },
     index: {
       headerTitle: '生产计划管理',
       headerSubtitle: '管理生产订单的全生命周期',
@@ -11698,11 +11708,6 @@ export default {
       buttonDelete: '删除',
       buttonStartProduction: '开始生产',
       buttonComplete: '完成',
-      statusDraft: '草稿',
-      statusPlanned: '已计划',
-      statusInProgress: '生产中',
-      statusCompleted: '已完成',
-      statusCancelled: '已取消',
     },
     detail: {
       title: '生产订单详情',

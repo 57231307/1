@@ -18,7 +18,6 @@ import {
   reportProductionProgress,
   getProductionOrderLogs,
   type ProductionOrder,
-  PRODUCTION_ORDER_STATUS,
 } from '@/api/production';
 import { getStatusLabel } from './prdFmts';
 import { escapeHtml } from '@/utils/print';
@@ -49,9 +48,7 @@ export function usePrdProc(cb: PrdCallbacks) {
   const handleStatusChange = async (row: ProductionOrder, status: string) => {
     try {
       await ElMessageBox.confirm(
-        `确认将订单 ${row.order_no} 状态更改为 ${
-          PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label
-        } 吗？`,
+        `确认将订单 ${row.order_no} 状态更改为 ${getStatusLabel(status)} 吗？`,
         '确认',
         { type: 'warning' }
       );

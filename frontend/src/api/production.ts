@@ -23,13 +23,29 @@ export interface ProductionOrder {
 }
 
 // 生产订单状态字典
+/**
+ * 生产订单状态字典。取值必须与后端一致：`models/status::general` 与
+ * `models/status::production` 写入的是大写下划线值，
+ * 此前这里用 draft/planned/in_production 一套小写名，
+ * 导致筛选项、状态标签与操作按钮对任何真实订单都不生效。
+ */
 export const PRODUCTION_ORDER_STATUS = {
-  draft: { label: '草稿', type: 'info' },
-  planned: { label: '已计划', type: 'warning' },
-  in_production: { label: '生产中', type: 'primary' },
-  completed: { label: '已完成', type: 'success' },
-  cancelled: { label: '已取消', type: 'danger' },
-};
+  DRAFT: { labelKey: 'production.status.draft', type: 'info' },
+  PENDING_APPROVAL: { labelKey: 'production.status.pendingApproval', type: 'warning' },
+  APPROVED: { labelKey: 'production.status.approved', type: 'primary' },
+  REJECTED: { labelKey: 'production.status.rejected', type: 'danger' },
+  SCHEDULED: { labelKey: 'production.status.scheduled', type: 'warning' },
+  IN_PROGRESS: { labelKey: 'production.status.inProgress', type: 'primary' },
+  COMPLETED: { labelKey: 'production.status.completed', type: 'success' },
+  CANCELLED: { labelKey: 'production.status.cancelled', type: 'info' },
+} as const satisfies Record<string, { labelKey: string; type: string }>;
+
+export type ProductionOrderStatusValue = keyof typeof PRODUCTION_ORDER_STATUS;
+
+/** 全部状态（按状态机顺序），筛选下拉直接取此列表 */
+export const PRODUCTION_ORDER_STATUS_VALUES = Object.keys(
+  PRODUCTION_ORDER_STATUS
+) as ProductionOrderStatusValue[];
 
 // 获取生产订单列表
 export function getProductionOrderList(

@@ -70,11 +70,8 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import {
-  getProductionOrder,
-  PRODUCTION_ORDER_STATUS,
-  type ProductionOrder,
-} from '@/api/production';
+import { getProductionOrder, type ProductionOrder } from '@/api/production';
+import { getStatusLabel, getStatusType } from '../composables/prdFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -109,36 +106,8 @@ watch(
 // 模板优先展示回源后的最新数据，回源失败回退行数据
 const order = computed(() => freshOrder.value ?? props.order);
 
-/** 状态标签：优先 i18n，回退到 PRODUCTION_ORDER_STATUS 字典 */
-const statusLabel = (status: string): string => {
-  const key = `production.detail.status${status.charAt(0).toUpperCase() + status.slice(1)}`;
-  const translated = t(key);
-  return translated === key
-    ? PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label || status
-    : translated;
-};
+const statusLabel = getStatusLabel;
 
-// el-tag 组件支持的 type 联合类型
-type TagType = '' | 'success' | 'warning' | 'info' | 'danger';
-
-// 合法 TagType 集合
-const VALID_TAG_TYPES: ReadonlySet<TagType> = new Set(['', 'success', 'warning', 'info', 'danger']);
-
-/** 将任意字符串安全转换为 el-tag 合法 TagType */
-const toTagType = (s: string): TagType => (VALID_TAG_TYPES.has(s as TagType) ? (s as TagType) : '');
-
-// 状态字符串到 el-tag type 的原始映射
-const statusTagTypeMap: Record<string, string> = {
-  draft: 'info',
-  planned: 'primary',
-  in_progress: 'warning',
-  completed: 'success',
-  cancelled: 'danger',
-};
-
-// 状态对应的 el-tag type
-const statusTagType = computed<TagType>(() => {
-  const status = props.order?.status || '';
-  return toTagType(statusTagTypeMap[status] || 'info');
-});
+// 状态配色与列表同源（prdFmts 取后端真实状态机取值）
+const statusTagType = computed(() => getStatusType(props.order?.status || ''));
 </script>
