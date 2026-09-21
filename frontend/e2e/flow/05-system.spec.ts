@@ -82,7 +82,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     const defs = await apiCallRaw<{ list: Array<{ id: number }> }>(
       page,
       'GET',
-      '/system/bpm/definitions?page=1&page_size=5'
+      '/bpm/definitions?page=1&page_size=5'
     );
     console.log(`[5-5] BPM 流程定义 list 长度=${defs?.list?.length ?? '(缺 key)'}`);
     expect(Array.isArray(defs?.list), 'BPM 流程定义应返回 list 数组').toBe(true);
@@ -92,7 +92,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     const tasks = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
       page,
       'GET',
-      '/system/bpm/tasks?page=1&page_size=5'
+      '/bpm/tasks?page=1&page_size=5'
     );
     expect(Array.isArray(tasks?.items), 'BPM 任务应返回 items 数组').toBe(true);
     // 原写 `tasks?.items?.length ?? 0 > 0`，因优先级实际是 `length ?? false`，
@@ -226,7 +226,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-15 系统健康状态', async ({ page }) => {
-    const status = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/system/health');
+    const status = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/health');
     expect(Object.keys(status ?? {}).length, '系统健康状态应返回非空对象').toBeGreaterThan(0);
   });
 });

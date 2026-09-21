@@ -24,10 +24,10 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
     const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
       page,
       'GET',
-      '/iam/role-change-approvals?page=1&page_size=5'
+      '/role-change-approvals?page=1&page_size=5'
     );
     expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
-    if (list?.items?.length ?? 0 > 0) {
+    if ((list?.items?.length ?? 0) > 0) {
       const status = (list.items?.[0].status || '').toLowerCase();
       expect(['pending_l1', 'pending_l2', 'approved', 'rejected', 'cancelled']).toContain(
         status ?? '(missing-status)'
@@ -36,26 +36,20 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
   });
 
   test('A1-2 验证 BPM 审批链', async ({ page }) => {
-    try {
-      const instances = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/system/bpm/instances?page=1&page_size=5'
+    // 流程实例列表端点是 /bpm/monitor/instances（无 /bpm/instances 列表路由），
+    // 返回 PageResponse{data,total}；原实现调用不存在的 /system/bpm/instances
+    // 并用 try/catch 把失败再调一遍吞掉
+    const instances = await apiCallRaw<{ data: Array<{ id: number; status: string }> }>(
+      page,
+      'GET',
+      '/bpm/monitor/instances?page=1&page_size=5'
+    );
+    expect(Array.isArray(instances.data), `instances.data 应为后端返回的数组`).toBe(true);
+    if ((instances?.data?.length ?? 0) > 0) {
+      const status = (instances.data[0].status || '').toLowerCase();
+      expect(['processing', 'completed', 'terminated', 'cancelled']).toContain(
+        status ?? '(missing-status)'
       );
-      expect(Array.isArray(instances.items), `instances.items 应为后端返回的 items 数组`);
-      if (instances?.items?.length ?? 0 > 0) {
-        const status = (instances.items?.[0].status || '').toLowerCase();
-        expect(['processing', 'completed', 'terminated', 'cancelled']).toContain(
-          status ?? '(missing-status)'
-        );
-      }
-    } catch {
-      const instances = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-        page,
-        'GET',
-        '/bpm/instances?page=1&page_size=5'
-      );
-      expect(Array.isArray(instances.items), `instances.items 应为后端返回的 items 数组`);
     }
   });
 
@@ -63,10 +57,10 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
     const tasks = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
       page,
       'GET',
-      '/system/bpm/tasks?page=1&page_size=5'
+      '/bpm/tasks?page=1&page_size=5'
     );
     expect(Array.isArray(tasks.items), `tasks.items 应为后端返回的 items 数组`);
-    if (tasks?.items?.length ?? 0 > 0) {
+    if ((tasks?.items?.length ?? 0) > 0) {
       const status = (tasks.items?.[0].status || '').toLowerCase();
       expect(['pending', 'completed', 'rejected', 'cancelled']).toContain(
         status ?? '(missing-status)'
@@ -97,7 +91,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
     const logs = await apiCallRaw<{ items: Array<{ id: number; action: string }> }>(
       page,
       'GET',
-      '/system/bpm/tasks?page=1&page_size=10'
+      '/bpm/tasks?page=1&page_size=10'
     );
     expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
   });

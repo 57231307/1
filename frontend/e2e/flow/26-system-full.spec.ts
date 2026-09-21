@@ -60,7 +60,7 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await verifyEndpointHealthy(page, '/users?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/roles?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/departments?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/system/audit-logs?page=1&page_size=5');
+    await verifyEndpointHealthy(page, '/audit-logs?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/system/slow-queries?page=1&page_size=5');
     // 产品分类+仓库
     await verifyEndpointHealthy(page, '/product-categories?page=1&page_size=50');

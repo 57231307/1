@@ -131,7 +131,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     const logs = await apiCallRaw<{ items: Array<{ resource_type: string }> }>(
       page,
       'GET',
-      '/system/audit-logs?page=1&page_size=50'
+      '/audit-logs?page=1&page_size=50'
     );
     expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
     // 验证有 permission_denied 记录

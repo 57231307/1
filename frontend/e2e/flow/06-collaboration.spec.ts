@@ -127,9 +127,12 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       await page.waitForTimeout(3000);
       console.log(`[6-8] ${route} → ${page.url()}`);
       expect(page.url(), `${route} 不应被重定向到 404`).not.toContain('/404');
-      await expect(page.locator('.el-table').first(), `${route} 应渲染数据表格`).toBeVisible({
-        timeout: 10_000,
-      });
+      // 销售列表用虚拟表格（el-table-v2 / v2-table-wrapper），采购列表用 el-table，
+      // 只匹配 .el-table 会漏掉 V2Table 页面
+      await expect(
+        page.locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper').first(),
+        `${route} 应渲染数据表格`
+      ).toBeVisible({ timeout: 10_000 });
     }
   });
 

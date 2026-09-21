@@ -70,7 +70,13 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
       order_no: genCode('OUT'),
       order_type: 'dyeing',
       supplier_id: ctx.supplierId || 1,
-      expected_delivery_date: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      // CreateOutsourcingOrderRequest 必填 issue_date/issue_quantity/material_cost；
+      // 交期字段名是 expected_return_date（原发的 expected_delivery_date 不在契约内，
+      // 会被 serde 忽略，而缺失必填字段直接 422）
+      issue_date: new Date().toISOString().split('T')[0],
+      expected_return_date: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      issue_quantity: '100',
+      material_cost: '0',
       remarks: 'E2E 委外加工订单',
     });
     expect(result.data?.id).toBeDefined();
