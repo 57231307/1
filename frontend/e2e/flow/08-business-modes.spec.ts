@@ -25,7 +25,7 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
     const modes = await apiCallRaw<{
       items: Array<{ mode_code: string; mode_name: string; mode_category: string }>;
     }>(page, 'GET', '/production/business-modes?page=1&page_size=20');
-    expect(modes.items);
+    expect(Array.isArray(modes.items), `modes.items 应为后端返回的 items 数组`);
     // 验证至少有一种模式
     if (modes?.items?.length ?? 0 > 0) {
       const codes = modes.items.map(m => m.mode_code);
@@ -102,13 +102,13 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
       'GET',
       '/production/business-modes/rules?page=1&page_size=20'
     );
-    expect(rules.items);
+    expect(Array.isArray(rules.items), `rules.items 应为后端返回的 items 数组`);
   });
 
   test('M1-7 验证业务模式快照（mode_snapshot）', async ({ page }) => {
     const links = await apiCallRaw<{
       items: Array<{ document_type: string; mode_snapshot: string }>;
     }>(page, 'GET', '/business-mode-links?page=1&page_size=10');
-    expect(links.items);
+    expect(Array.isArray(links.items), `links.items 应为后端返回的 items 数组`);
   });
 });

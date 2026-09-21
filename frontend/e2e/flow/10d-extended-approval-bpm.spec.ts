@@ -26,7 +26,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       'GET',
       '/iam/role-change-approvals?page=1&page_size=5'
     );
-    expect(list.items);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
     if (list?.items?.length ?? 0 > 0) {
       const status = (list.items?.[0].status || '').toLowerCase();
       expect(['pending_l1', 'pending_l2', 'approved', 'rejected', 'cancelled']).toContain(
@@ -42,7 +42,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
         'GET',
         '/system/bpm/instances?page=1&page_size=5'
       );
-      expect(instances.items);
+      expect(Array.isArray(instances.items), `instances.items 应为后端返回的 items 数组`);
       if (instances?.items?.length ?? 0 > 0) {
         const status = (instances.items?.[0].status || '').toLowerCase();
         expect(['processing', 'completed', 'terminated', 'cancelled']).toContain(
@@ -55,7 +55,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
         'GET',
         '/bpm/instances?page=1&page_size=5'
       );
-      expect(instances.items);
+      expect(Array.isArray(instances.items), `instances.items 应为后端返回的 items 数组`);
     }
   });
 
@@ -65,7 +65,7 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       'GET',
       '/system/bpm/tasks?page=1&page_size=5'
     );
-    expect(tasks.items);
+    expect(Array.isArray(tasks.items), `tasks.items 应为后端返回的 items 数组`);
     if (tasks?.items?.length ?? 0 > 0) {
       const status = (tasks.items?.[0].status || '').toLowerCase();
       expect(['pending', 'completed', 'rejected', 'cancelled']).toContain(
@@ -99,6 +99,6 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       'GET',
       '/system/bpm/tasks?page=1&page_size=10'
     );
-    expect(logs.items);
+    expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
   });
 });

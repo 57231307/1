@@ -178,7 +178,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       'GET',
       '/finance/accounting-periods?page=1&page_size=5'
     );
-    expect(periods.items);
+    expect(Array.isArray(periods.items), `periods.items 应为后端返回的 items 数组`);
     if (periods?.items?.length ?? 0 > 0) {
       const status = (periods.items?.[0].status || '').toLowerCase();
       expect(['open', 'closing', 'closed', 'pending', 'active']).toContain(
@@ -193,7 +193,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       'GET',
       '/vouchers?page=1&page_size=5'
     );
-    expect(vouchers.items);
+    expect(Array.isArray(vouchers.items), `vouchers.items 应为后端返回的 items 数组`);
   });
 
   test('4-12 验证财务审计日志', async ({ page }) => {
@@ -202,6 +202,6 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       'GET',
       '/audit-logs?page=1&page_size=10'
     );
-    expect(logs.items);
+    expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
   });
 });

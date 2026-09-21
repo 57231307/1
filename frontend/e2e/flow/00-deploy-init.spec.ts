@@ -29,7 +29,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       '/auth/me'
     );
     expect(me.username).toBeTruthy();
-    expect(me.permissions);
+    expect(Array.isArray(me.permissions), '/auth/me 应返回权限数组').toBe(true);
     expect(me.permissions.length).toBeGreaterThanOrEqual(0);
   });
 

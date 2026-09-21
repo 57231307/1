@@ -67,7 +67,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       'GET',
       `/purchase/receipts?purchase_order_id=${ctx.purchaseOrderId}&page=1&page_size=5`
     );
-    expect(receipts.items);
+    expect(Array.isArray(receipts.items), `receipts.items 应为后端返回的 items 数组`);
 
     // 验证入库单关联应付单
     const apInvoices = await apiCallRaw<{ items: Array<{ id: number }> }>(
@@ -75,7 +75,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       'GET',
       '/ap/invoices?page=1&page_size=5'
     );
-    expect(apInvoices.items);
+    expect(Array.isArray(apInvoices.items), `apInvoices.items 应为后端返回的 items 数组`);
   });
 
   test('L1-4 验证双计量换算（米→公斤）', async () => {
@@ -95,7 +95,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       'GET',
       '/inventory/counts?page=1&page_size=5'
     );
-    expect(counts.items);
+    expect(Array.isArray(counts.items), `counts.items 应为后端返回的 items 数组`);
     if (counts?.items?.length ?? 0 > 0) {
       const status = (counts.items?.[0].status || '').toLowerCase();
       expect(['pending', 'completed', 'draft', 'approved', 'rejected']).toContain(
@@ -110,7 +110,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       'GET',
       '/inventory/transfers?page=1&page_size=5'
     );
-    expect(transfers.items);
+    expect(Array.isArray(transfers.items), `transfers.items 应为后端返回的 items 数组`);
     if (transfers?.items?.length ?? 0 > 0) {
       const status = (transfers.items?.[0].status || '').toLowerCase();
       expect(['pending', 'approved', 'rejected', 'shipped', 'completed']).toContain(
@@ -125,7 +125,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       'GET',
       '/inventory/adjustments?page=1&page_size=5'
     );
-    expect(adjustments.items);
+    expect(Array.isArray(adjustments.items), `adjustments.items 应为后端返回的 items 数组`);
     if (adjustments?.items?.length ?? 0 > 0) {
       const status = (adjustments.items?.[0].status || '').toLowerCase();
       expect(['pending', 'approved', 'rejected']).toContain(status ?? '(missing-status)');
@@ -151,14 +151,14 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
         'GET',
         '/inventory/stock/alerts?page=1&page_size=5'
       );
-      expect(alerts.items);
+      expect(Array.isArray(alerts.items), `alerts.items 应为后端返回的 items 数组`);
     } catch {
       const alerts = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
         '/material-shortage?page=1&page_size=5'
       );
-      expect(alerts.items);
+      expect(Array.isArray(alerts.items), `alerts.items 应为后端返回的 items 数组`);
     }
   });
 });

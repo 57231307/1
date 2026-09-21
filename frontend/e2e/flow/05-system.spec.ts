@@ -50,14 +50,14 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       'GET',
       '/roles?page=1&page_size=10'
     );
-    expect(roles.items);
+    expect(Array.isArray(roles.items), `roles.items 应为后端返回的 items 数组`);
 
     const depts = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(
       page,
       'GET',
       '/departments?page=1&page_size=10'
     );
-    expect(depts.items);
+    expect(Array.isArray(depts.items), `depts.items 应为后端返回的 items 数组`);
   });
 
   test('5-3 数据权限验证（行级隔离）', async ({ page }) => {
@@ -66,7 +66,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       'GET',
       '/data-permissions?page=1&page_size=5'
     );
-    expect(perms.items);
+    expect(Array.isArray(perms.items), `perms.items 应为后端返回的 items 数组`);
   });
 
   test('5-4 字段级权限验证（染色配方导出仅 dye_recipe_master 可）', async ({ page }) => {
@@ -167,7 +167,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       'GET',
       '/bulk-color-approvals?page=1&page_size=5'
     );
-    expect(list.items);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
     if (list?.items?.length ?? 0 > 0) {
       const status = (list.items?.[0].status || '').toLowerCase();
       expect([
@@ -188,7 +188,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     const trace = await apiCallRaw<{
       items: Array<{ product_id: number; color_no: string; dye_lot_no: string }>;
     }>(page, 'GET', '/business-trace?page=1&page_size=5');
-    expect(trace.items);
+    expect(Array.isArray(trace.items), `trace.items 应为后端返回的 items 数组`);
   });
 
   test('5-11 AI 工艺优化', async ({ page }) => {
@@ -197,7 +197,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       'GET',
       '/ai-models/process-optimizations?page=1&page_size=5'
     );
-    expect(list.items);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
   });
 
   test('5-12 AI 质量预测', async ({ page }) => {
@@ -206,7 +206,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       'GET',
       '/ai-models/quality-predictions?page=1&page_size=5'
     );
-    expect(list.items);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
   });
 
   test('5-13 通知列表', async ({ page }) => {
@@ -222,11 +222,11 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
 
   test('5-14 仪表盘', async ({ page }) => {
     const dash = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/dashboard');
-    expect(dash);
+    expect(Object.keys(dash ?? {}).length, '仪表盘应返回非空统计对象').toBeGreaterThan(0);
   });
 
   test('5-15 系统健康状态', async ({ page }) => {
     const status = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/system/health');
-    expect(status);
+    expect(Object.keys(status ?? {}).length, '系统健康状态应返回非空对象').toBeGreaterThan(0);
   });
 });

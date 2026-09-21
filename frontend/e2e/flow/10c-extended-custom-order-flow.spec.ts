@@ -120,7 +120,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       'GET',
       '/production/lab-dip/requests?page=1&page_size=5'
     );
-    expect(list.items);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
     if (list?.items?.length ?? 0 > 0) {
       const status = (list.items?.[0].status || '').toLowerCase();
       expect(['pending', 'sampling', 'submitted', 'approved', 'rejected', 'completed']).toContain(
@@ -135,7 +135,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       'GET',
       '/production/lab-dip/samples?page=1&page_size=5'
     );
-    expect(list.items);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
     if (list?.items?.length ?? 0 > 0) {
       const status = (list.items?.[0].status || '').toLowerCase();
       expect(['pending', 'matched', 'not_matched', 'selected']).toContain(
@@ -150,7 +150,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       'GET',
       '/bulk-color-approvals?page=1&page_size=5'
     );
-    expect(list.items);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
     if (list?.items?.length ?? 0 > 0) {
       const status = (list.items?.[0].status || '').toLowerCase();
       expect([
@@ -172,7 +172,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       'GET',
       '/bulk-color-approvals?status=rework&page=1&page_size=5'
     );
-    expect(list.items);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
   });
 
   test('C1-9 验证坯布五维追溯链', async ({ page }) => {
@@ -182,14 +182,14 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
         'GET',
         '/analytics/business-trace?page=1&page_size=5'
       );
-      expect(trace.items);
+      expect(Array.isArray(trace.items), `trace.items 应为后端返回的 items 数组`);
     } catch {
       const trace = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
         '/business-trace?page=1&page_size=5'
       );
-      expect(trace.items);
+      expect(Array.isArray(trace.items), `trace.items 应为后端返回的 items 数组`);
     }
   });
 
@@ -199,12 +199,12 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       'GET',
       '/production/process-nodes?page=1&page_size=5'
     );
-    expect(nodes.items);
+    expect(Array.isArray(nodes.items), `nodes.items 应为后端返回的 items 数组`);
     const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
       '/production/process-logs?page=1&page_size=5'
     );
-    expect(logs.items);
+    expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
   });
 });

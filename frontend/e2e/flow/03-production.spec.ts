@@ -336,7 +336,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       const logs = await apiCallRaw<{
         items: Array<{ from_status: string; to_status: string; transition_code: string }>;
       }>(page, 'GET', `/production/dye-batch-lifecycle-logs/by-batch/${id}?page=1&page_size=20`);
-      expect(logs.items);
+      expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
       // 如果有日志，验证状态转换记录
       if (logs?.items?.length ?? 0 > 0) {
         expect(logs.items?.[0].transition_code).toBeTruthy();

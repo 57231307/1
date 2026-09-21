@@ -133,7 +133,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
       'GET',
       '/system/audit-logs?page=1&page_size=50'
     );
-    expect(logs.items);
+    expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
     // 验证有 permission_denied 记录
     const denied = logs.items.filter(l => l.resource_type === 'permission_denied');
     expect(denied.length >= 0).toBeTruthy();

@@ -180,8 +180,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const productId = ctx.productIds[0] || 1;
 
     const stock = await verifyStockFourDim(page, productId, 'RED-001', dyeLotNo);
-    // 库存可能有也可能无（取决于入库是否成功），关键是 API 返回正常
-    expect(stock);
+    // 库存可能有也可能无（取决于入库是否成功），关键是四维查询 API 正常返回布尔结论
+    expect(typeof stock, 'verifyStockFourDim 必须返回布尔结论').toBe('boolean');
   });
 
   test('1-6 验证库存查询支持色号/缸号筛选', async ({ page }) => {
@@ -193,14 +193,14 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       'GET',
       `/inventory/stock?product_id=${productId}&color_no=RED-001&page=1&page_size=10`
     );
-    expect(byColor.items);
+    expect(Array.isArray(byColor.items), `byColor.items 应为后端返回的 items 数组`);
 
     const byDyeLot = await apiCallRaw<{ items: unknown[] }>(
       page,
       'GET',
       `/inventory/stock?product_id=${productId}&dye_lot_no=${encodeURIComponent(dyeLotNo)}&page=1&page_size=10`
     );
-    expect(byDyeLot.items);
+    expect(Array.isArray(byDyeLot.items), `byDyeLot.items 应为后端返回的 items 数组`);
   });
 
   test('1-7 验证 AP 应付单', async ({ page }) => {
@@ -331,7 +331,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       'GET',
       `/purchase/orders/${id}`
     );
-    expect(order);
+    expect(order?.id ?? order, '采购订单详情应返回订单对象').toBeTruthy();
     const status = (order.status || order.order_status || '').toLowerCase();
     expect([
       'approved',
@@ -359,6 +359,6 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       'GET',
       '/purchase/orders?page=1&page_size=5'
     );
-    expect(orders.items);
+    expect(Array.isArray(orders.items), `orders.items 应为后端返回的 items 数组`);
   });
 });

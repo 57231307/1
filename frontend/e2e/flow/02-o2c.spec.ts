@@ -279,7 +279,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const productId = ctx.productIds[0] || 1;
 
     const stock = await verifyStockFourDim(page, productId, 'RED-001', dyeLotNo);
-    expect(stock);
+    expect(typeof stock, 'verifyStockFourDim 必须返回布尔结论').toBe('boolean');
   });
 
   test('2-8 验证 AR 应收单（含色号加价+等级差价）', async ({ page }) => {
@@ -365,7 +365,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       'GET',
       '/sales/orders?page=1&page_size=5'
     );
-    expect(orders.items);
+    expect(Array.isArray(orders.items), `orders.items 应为后端返回的 items 数组`);
   });
 
   test('2-11 验证审计日志包含销售操作', async ({ page }) => {

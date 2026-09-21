@@ -36,20 +36,20 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
         'GET',
         '/production/cost-collections?page=1&page_size=5'
       );
-      expect(costs.items);
+      expect(Array.isArray(costs.items), `costs.items 应为后端返回的 items 数组`);
     } catch {
       const costs = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
         'GET',
         '/cost?page=1&page_size=5'
       );
-      expect(costs.items);
+      expect(Array.isArray(costs.items), `costs.items 应为后端返回的 items 数组`);
     }
   });
 
   test('F2-3 验证试算平衡', async ({ page }) => {
     const result = await verifyTrialBalance(page);
-    expect(result);
+    expect(typeof result?.balanced, '试算平衡应返回 balanced 布尔值').toBe('boolean');
     expect(typeof result.balanced).toBe('boolean');
     expect(typeof result.debit_total).toBe('number');
     expect(typeof result.credit_total).toBe('number');
@@ -61,7 +61,7 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
       'GET',
       '/financial-analysis/reports?page=1&page_size=5'
     );
-    expect(analyses.items);
+    expect(Array.isArray(analyses.items), `analyses.items 应为后端返回的 items 数组`);
   });
 
   test('F2-5 验证财务报表', async ({ page }) => {
@@ -70,12 +70,12 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
       'GET',
       '/finance/reports/balance-sheet'
     );
-    expect(balanceSheet);
+    expect(balanceSheet, '资产负债表接口应返回数据对象').toBeTruthy();
     const incomeStatement = await apiCallRaw<Record<string, unknown>>(
       page,
       'GET',
       '/finance/reports/income-statement'
     );
-    expect(incomeStatement);
+    expect(incomeStatement, '利润表接口应返回数据对象').toBeTruthy();
   });
 });
