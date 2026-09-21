@@ -42,7 +42,7 @@ pub mod contract {
     pub const CANCELLED: &str = "cancelled";
 }
 
-/// 运单状态常量（大写值，批次 232 v13 P1-1，状态机 IN_TRANSIT→DELIVERED→SIGNED，SIGNED 触发 AR 应收确认）
+/// 运单状态常量（大写值，状态机 IN_TRANSIT→DELIVERED→SIGNED，SIGNED 触发 AR 应收确认）
 pub mod logistics_waybill {
     /// 运输中：运单已创建，货物在途
     pub const IN_TRANSIT: &str = "IN_TRANSIT";
@@ -52,6 +52,9 @@ pub mod logistics_waybill {
 
     /// V15 P0-B13：已签收：客户已签收，触发 AR 应收确认
     pub const SIGNED: &str = "SIGNED";
+
+    /// 全部合法运单状态，入参校验的唯一取值来源
+    pub const ALL: &[&str] = &[IN_TRANSIT, DELIVERED, SIGNED];
 }
 
 /// BPM 流程实例状态（bpm_process_instance.status，大写值）

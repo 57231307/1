@@ -290,12 +290,12 @@ pub fn logistics() -> Router<AppState> {
         .route("/logistics", get(logistics_handler::list_waybills))
         .route("/logistics", post(logistics_handler::create_waybill))
         .route("/logistics/{id}", get(logistics_handler::get_waybill))
+        .route("/logistics/{id}", put(logistics_handler::update_waybill))
+        // 电子签收（DELIVERED → SIGNED，并触发应收确认）
         .route(
-            "/logistics/{id}",
-            put(logistics_handler::update_waybill_status),
+            "/logistics/{id}/sign",
+            post(logistics_handler::sign_waybill),
         )
-        // V15 P0-B13：电子签收路由（DELIVERED → SIGNED）
-        .route("/logistics/{id}/sign", post(logistics_handler::sign_waybill))
         .route("/logistics/{id}", delete(logistics_handler::delete_waybill))
 }
 
