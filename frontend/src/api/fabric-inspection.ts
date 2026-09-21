@@ -7,56 +7,56 @@ export interface FabricInspection {
 }
 
 export function getFabricInspectionList(params?: Record<string, unknown>) {
-  return request.get('/fabric-inspections', { params });
+  return request.get('/production/fabric-inspections', { params });
 }
 
 export function createFabricInspection(data: Record<string, unknown>) {
-  return request.post('/fabric-inspections', data);
+  return request.post('/production/fabric-inspections', data);
 }
 
 export function getFabricInspectionByNo(no: string) {
-  return request.get(`/fabric-inspections/by-no/${no}`);
+  return request.get(`/production/fabric-inspections/by-no/${no}`);
 }
 
 export function getFabricInspectionDetail(id: number) {
-  return request.get(`/fabric-inspections/${id}`);
+  return request.get(`/production/fabric-inspections/${id}`);
 }
 
 export function updateFabricInspection(id: number, data: Record<string, unknown>) {
-  return request.put(`/fabric-inspections/${id}`, data);
+  return request.put(`/production/fabric-inspections/${id}`, data);
 }
 
 export function deleteFabricInspection(id: number) {
-  return request.delete(`/fabric-inspections/${id}`);
+  return request.delete(`/production/fabric-inspections/${id}`);
 }
 
 export function gradeFabricInspection(id: number, data: Record<string, unknown>) {
-  return request.post(`/fabric-inspections/${id}/grade`, data);
+  return request.post(`/production/fabric-inspections/${id}/grade`, data);
 }
 
 export function closeFabricInspection(id: number) {
-  return request.post(`/fabric-inspections/${id}/close`);
+  return request.post(`/production/fabric-inspections/${id}/close`);
 }
 
 export function addFabricRoll(id: number, data: Record<string, unknown>) {
-  return request.post(`/fabric-inspections/${id}/roll`, data);
+  return request.post(`/production/fabric-inspections/${id}/roll`, data);
 }
 
 export function createFabricDefect(data: Record<string, unknown>) {
-  return request.post('/fabric-defects', data);
+  return request.post('/production/fabric-defects', data);
 }
 
 /** 按验布单查询疵点列表（GET /fabric-inspections/{inspectionId}/defects） */
 export function listFabricDefectsByInspection(inspectionId: number) {
-  return request.get(`/fabric-inspections/${inspectionId}/defects`);
+  return request.get(`/production/fabric-inspections/${inspectionId}/defects`);
 }
 
 export function getFabricDefect(id: number) {
-  return request.get(`/fabric-defects/${id}`);
+  return request.get(`/production/fabric-defects/${id}`);
 }
 
 export function deleteFabricDefect(id: number) {
-  return request.delete(`/fabric-defects/${id}`);
+  return request.delete(`/production/fabric-defects/${id}`);
 }
 
 export const INSPECTION_STATUS_LABEL: Record<string, string> = {

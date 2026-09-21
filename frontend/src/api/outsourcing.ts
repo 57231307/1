@@ -23,55 +23,58 @@ export interface CreateOutsourcingOrderPayload {
 }
 
 export function getOutsourcingOrderList(params?: Record<string, unknown>) {
-  return request.get('/outsourcing-orders', { params });
+  return request.get('/production/outsourcing-orders', { params });
 }
 
 export function createOutsourcingOrder(data: CreateOutsourcingOrderPayload) {
-  return request.post('/outsourcing-orders', data);
+  return request.post('/production/outsourcing-orders', data);
 }
 
 export function getOutsourcingOrderByNo(no: string) {
-  return request.get(`/outsourcing-orders/by-no/${no}`);
+  return request.get(`/production/outsourcing-orders/by-no/${no}`);
 }
 
 export function getOutsourcingOrderDetail(id: number) {
-  return request.get(`/outsourcing-orders/${id}`);
+  return request.get(`/production/outsourcing-orders/${id}`);
 }
 
 export function updateOutsourcingOrder(id: number, data: Partial<CreateOutsourcingOrderPayload>) {
-  return request.put(`/outsourcing-orders/${id}`, data);
+  return request.put(`/production/outsourcing-orders/${id}`, data);
 }
 
 export function deleteOutsourcingOrder(id: number) {
-  return request.delete(`/outsourcing-orders/${id}`);
+  return request.delete(`/production/outsourcing-orders/${id}`);
 }
 
 export function issueOutsourcingOrder(id: number, data?: Record<string, unknown>) {
-  return request.post(`/outsourcing-orders/${id}/issue`, data ?? {});
+  return request.post(`/production/outsourcing-orders/${id}/issue`, data ?? {});
 }
 
 export function processOutsourcingOrder(id: number, data?: Record<string, unknown>) {
-  return request.post(`/outsourcing-orders/${id}/processing`, data ?? {});
+  return request.post(`/production/outsourcing-orders/${id}/processing`, data ?? {});
 }
 
 export function settleOutsourcingOrder(id: number, data?: Record<string, unknown>) {
-  return request.post(`/outsourcing-orders/${id}/settle`, data ?? {});
+  return request.post(`/production/outsourcing-orders/${id}/settle`, data ?? {});
 }
 
 export function closeOutsourcingOrder(id: number) {
-  return request.post(`/outsourcing-orders/${id}/close`);
+  return request.post(`/production/outsourcing-orders/${id}/close`);
 }
 
 export function cancelOutsourcingOrder(id: number) {
-  return request.post(`/outsourcing-orders/${id}/cancel`);
+  return request.post(`/production/outsourcing-orders/${id}/cancel`);
 }
 
 export function getOutsourcingItems(orderId: number) {
-  return request.get(`/outsourcing-orders/items/by-order/${orderId}`);
+  return request.get(`/production/outsourcing-orders/items/by-order/${orderId}`);
 }
 
 export function createOutsourcingItem(orderId: number, data: Record<string, unknown>) {
-  return request.post('/outsourcing-orders/items', { outsourcing_order_id: orderId, ...data });
+  return request.post('/production/outsourcing-orders/items', {
+    outsourcing_order_id: orderId,
+    ...data,
+  });
 }
 
 export interface OutsourcingReceipt {
@@ -81,15 +84,15 @@ export interface OutsourcingReceipt {
 }
 
 export function getOutsourcingReceiptList(params?: Record<string, unknown>) {
-  return request.get('/outsourcing-receipts', { params });
+  return request.get('/production/outsourcing-receipts', { params });
 }
 
 export function createOutsourcingReceipt(data: Record<string, unknown>) {
-  return request.post('/outsourcing-receipts', data);
+  return request.post('/production/outsourcing-receipts', data);
 }
 
 export function confirmOutsourcingReceipt(id: number) {
-  return request.post(`/outsourcing-receipts/${id}/confirm`);
+  return request.post(`/production/outsourcing-receipts/${id}/confirm`);
 }
 
 export const OUTSOURCING_STATUS_LABEL: Record<string, string> = {

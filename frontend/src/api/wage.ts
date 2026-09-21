@@ -25,31 +25,31 @@ export interface CreateWageRatePayload {
 }
 
 export function getWageRateList(params?: Record<string, unknown>) {
-  return request.get('/wage-rates', { params });
+  return request.get('/production/wage-rates', { params });
 }
 
 export function createWageRate(data: CreateWageRatePayload) {
-  return request.post('/wage-rates', data);
+  return request.post('/production/wage-rates', data);
 }
 
 export function updateWageRate(id: number, data: Partial<CreateWageRatePayload>) {
-  return request.put(`/wage-rates/${id}`, data);
+  return request.put(`/production/wage-rates/${id}`, data);
 }
 
 export function deleteWageRate(id: number) {
-  return request.delete(`/wage-rates/${id}`);
+  return request.delete(`/production/wage-rates/${id}`);
 }
 
 export function activateWageRate(id: number) {
-  return request.post(`/wage-rates/${id}/activate`);
+  return request.post(`/production/wage-rates/${id}/activate`);
 }
 
 export function disableWageRate(id: number) {
-  return request.post(`/wage-rates/${id}/disable`);
+  return request.post(`/production/wage-rates/${id}/disable`);
 }
 
 export function getEffectiveWageRate(routeId: number, date: string) {
-  return request.get(`/wage-rates/effective/${routeId}`, { params: { date } });
+  return request.get(`/production/wage-rates/effective/${routeId}`, { params: { date } });
 }
 
 export interface CreateWageRecordPayload {
@@ -60,47 +60,47 @@ export interface CreateWageRecordPayload {
 }
 
 export function getWageRecordList(params?: Record<string, unknown>) {
-  return request.get('/wage-records', { params });
+  return request.get('/production/wage-records', { params });
 }
 
 export function createWageRecord(data: CreateWageRecordPayload) {
-  return request.post('/wage-records', data);
+  return request.post('/production/wage-records', data);
 }
 
 export function updateWageRecord(id: number, data: { workshop?: string; remarks?: string }) {
-  return request.put(`/wage-records/${id}`, data);
+  return request.put(`/production/wage-records/${id}`, data);
 }
 
 export function deleteWageRecord(id: number) {
-  return request.delete(`/wage-records/${id}`);
+  return request.delete(`/production/wage-records/${id}`);
 }
 
 export function calculateWageRecord(id: number, data?: Record<string, unknown>) {
-  return request.post(`/wage-records/${id}/calculate`, data ?? {});
+  return request.post(`/production/wage-records/${id}/calculate`, data ?? {});
 }
 
 export function confirmWageRecord(id: number) {
-  return request.post(`/wage-records/${id}/confirm`);
+  return request.post(`/production/wage-records/${id}/confirm`);
 }
 
 export function payWageRecord(id: number) {
-  return request.post(`/wage-records/${id}/pay`);
+  return request.post(`/production/wage-records/${id}/pay`);
 }
 
 export function cancelWageRecord(id: number) {
-  return request.post(`/wage-records/${id}/cancel`);
+  return request.post(`/production/wage-records/${id}/cancel`);
 }
 
 export function getWageRecordDetails(id: number) {
-  return request.get(`/wage-records/${id}/details`);
+  return request.get(`/production/wage-records/${id}/details`);
 }
 
 export function exportWageRecordDetails(id: number) {
-  return request.get(`/wage-records/${id}/details/export`, { responseType: 'blob' });
+  return request.get(`/production/wage-records/${id}/details/export`, { responseType: 'blob' });
 }
 
 export function getWageDetailsByWorker(workerId: number) {
-  return request.get(`/wage-details/by-worker/${workerId}`);
+  return request.get(`/production/wage-details/by-worker/${workerId}`);
 }
 
 export const WAGE_RECORD_STATUS_LABEL: Record<string, string> = {
