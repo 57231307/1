@@ -116,6 +116,22 @@ export interface BiResponseData<T> {
   data: T;
 }
 
+/**
+ * BI 端点是双层信封：外层 ApiResponse（request 拦截器原样返回）
+ * 内层 services/bi_analysis_ops/types.rs 的 BiResponse。
+ * 各页面直接把 ApiResponse.data 当业务数据用会拿到内层对象，
+ * 表现为 `x.map is not a function` 或表格恒为空，故统一用 unwrapBi 剥层。
+ */
+export interface BiEnvelope<T> {
+  code: number;
+  message: string;
+  data: BiResponseData<T>;
+}
+
+export function unwrapBi<T>(res: BiEnvelope<T>): T {
+  return res.data.data;
+}
+
 // =====================================================
 // 8 个维度聚合端点
 // =====================================================
@@ -126,50 +142,50 @@ export function getSalesByTime(
   endDate: string,
   granularity: 'day' | 'week' | 'month' | 'quarter' | 'year'
 ) {
-  return request.get<BiResponseData<TimeSeriesPoint[]>>('/bi/sales/by-time', {
+  return request.get<BiEnvelope<TimeSeriesPoint[]>>('/bi/sales/by-time', {
     params: { start_date: startDate, end_date: endDate, granularity },
   });
 }
 
 /** 按客户聚合 */
 export function getSalesByCustomer(limit = 10) {
-  return request.get<BiResponseData<CustomerRank[]>>('/bi/sales/by-customer', {
+  return request.get<BiEnvelope<CustomerRank[]>>('/bi/sales/by-customer', {
     params: { limit },
   });
 }
 
 /** 按产品聚合 */
 export function getSalesByProduct(limit = 10) {
-  return request.get<BiResponseData<ProductRank[]>>('/bi/sales/by-product', {
+  return request.get<BiEnvelope<ProductRank[]>>('/bi/sales/by-product', {
     params: { limit },
   });
 }
 
 /** 按区域聚合 */
 export function getSalesByRegion() {
-  return request.get<BiResponseData<RegionStat[]>>('/bi/sales/by-region');
+  return request.get<BiEnvelope<RegionStat[]>>('/bi/sales/by-region');
 }
 
 /** 按品类聚合 */
 export function getSalesByCategory() {
-  return request.get<BiResponseData<CategoryStat[]>>('/bi/sales/by-category');
+  return request.get<BiEnvelope<CategoryStat[]>>('/bi/sales/by-category');
 }
 
 /** 销售趋势 */
 export function getSalesTrend(days = 30) {
-  return request.get<BiResponseData<TimeSeriesPoint[]>>('/bi/sales/trend', {
+  return request.get<BiEnvelope<TimeSeriesPoint[]>>('/bi/sales/trend', {
     params: { days },
   });
 }
 
 /** 利润分析 */
 export function getProfitAnalysis() {
-  return request.get<BiResponseData<ProfitAnalysis>>('/bi/sales/profit');
+  return request.get<BiEnvelope<ProfitAnalysis>>('/bi/sales/profit');
 }
 
 /** 核心 KPI */
 export function getKpiSummary() {
-  return request.get<BiResponseData<KpiSummary>>('/bi/sales/kpi');
+  return request.get<BiEnvelope<KpiSummary>>('/bi/sales/kpi');
 }
 
 // =====================================================
@@ -178,28 +194,28 @@ export function getKpiSummary() {
 
 /** 钻取：年 → 月 */
 export function getDrilldownYearToMonth(year: number) {
-  return request.get<BiResponseData<TimeSeriesPoint[]>>('/bi/sales/drilldown/year-to-month', {
+  return request.get<BiEnvelope<TimeSeriesPoint[]>>('/bi/sales/drilldown/year-to-month', {
     params: { year },
   });
 }
 
 /** 钻取：月 → 日 */
 export function getDrilldownMonthToDay(year: number, month: number) {
-  return request.get<BiResponseData<TimeSeriesPoint[]>>('/bi/sales/drilldown/month-to-day', {
+  return request.get<BiEnvelope<TimeSeriesPoint[]>>('/bi/sales/drilldown/month-to-day', {
     params: { year, month },
   });
 }
 
 /** 钻取：客户 → 订单 */
 export function getDrilldownCustomerToOrder(customerId: number) {
-  return request.get<BiResponseData<DrilldownOrderItem[]>>(
+  return request.get<BiEnvelope<DrilldownOrderItem[]>>(
     `/bi/sales/drilldown/customer-to-order/${customerId}`
   );
 }
 
 /** 钻取：产品 → 订单 */
 export function getDrilldownProductToOrder(productId: number) {
-  return request.get<BiResponseData<DrilldownOrderItem[]>>(
+  return request.get<BiEnvelope<DrilldownOrderItem[]>>(
     `/bi/sales/drilldown/product-to-order/${productId}`
   );
 }
@@ -210,20 +226,20 @@ export function getDrilldownProductToOrder(productId: number) {
 
 /** 切片 */
 export function postSlice(dimension: string, filters: Record<string, unknown>) {
-  return request.post<BiResponseData<SliceDiceResult>>('/bi/sales/slice', { dimension, filters });
+  return request.post<BiEnvelope<SliceDiceResult>>('/bi/sales/slice', { dimension, filters });
 }
 
 /** 切块 */
 export function postDice(filters: Record<string, unknown>) {
-  return request.post<BiResponseData<SliceDiceResult>>('/bi/sales/dice', { filters });
+  return request.post<BiEnvelope<SliceDiceResult>>('/bi/sales/dice', { filters });
 }
 
 /** 上卷 */
 export function postRollup(from: string, to: string) {
-  return request.post<BiResponseData<RollupResult>>('/bi/sales/rollup', { from, to });
+  return request.post<BiEnvelope<RollupResult>>('/bi/sales/rollup', { from, to });
 }
 
 /** 透视 */
 export function postPivot(row: string, col: string, measure: string) {
-  return request.post<BiResponseData<PivotResult>>('/bi/sales/pivot', { row, col, measure });
+  return request.post<BiEnvelope<PivotResult>>('/bi/sales/pivot', { row, col, measure });
 }

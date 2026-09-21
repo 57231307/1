@@ -33,6 +33,7 @@ import {
   postRollup,
   postPivot,
 } from '@/api/bi';
+import { unwrapBi } from '@/api/bi';
 import type {
   KpiSummary,
   TimeSeriesPoint,
@@ -75,20 +76,16 @@ async function loadAll() {
       getSalesByRegion(),
       getProfitAnalysis(),
     ]);
-    kpi.value = k.data;
-    trend.value = tr.data;
-    customers.value = c.data;
-    products.value = p.data;
-    regions.value = r.data;
-    profit.value = prof.data;
+    kpi.value = unwrapBi(k);
+    trend.value = unwrapBi(tr);
+    customers.value = unwrapBi(c);
+    products.value = unwrapBi(p);
+    regions.value = unwrapBi(r);
+    profit.value = unwrapBi(prof);
 
     // 钻取 2026 年 → 月
     const monthly = await getDrilldownYearToMonth(2026);
-    // 响应形态兜底：数组或 { items } 分页包装（防 el-table r is not iterable 白屏）
-    const _p = monthly.data as unknown;
-    monthlyData.value = Array.isArray(_p)
-      ? _p
-      : ((_p as { items?: TimeSeriesPoint[] })?.items ?? []);
+    monthlyData.value = unwrapBi(monthly);
 
     renderCharts();
   } catch (e) {
@@ -192,8 +189,7 @@ async function loadCategory() {
   categoryLoading.value = true;
   try {
     const res = await getSalesByCategory();
-    const d = res.data as unknown;
-    categories.value = Array.isArray(d) ? d : ((d as { items?: CategoryStat[] })?.items ?? []);
+    categories.value = unwrapBi(res);
   } catch (e) {
     ElMessage.error('获取品类统计失败');
     logger.error('获取品类统计失败', e);
@@ -219,10 +215,7 @@ async function loadMonthToDay() {
   orderDrillData.value = [];
   try {
     const res = await getDrilldownMonthToDay(year, month);
-    const d = res.data as unknown;
-    monthToDayData.value = Array.isArray(d)
-      ? d
-      : ((d as { items?: TimeSeriesPoint[] })?.items ?? []);
+    monthToDayData.value = unwrapBi(res);
   } catch (e) {
     ElMessage.error('获取月→日钻取数据失败');
     logger.error('获取月→日钻取数据失败', e);
@@ -238,10 +231,7 @@ async function loadCustomerToOrder() {
   monthToDayData.value = [];
   try {
     const res = await getDrilldownCustomerToOrder(id);
-    const d = res.data as unknown;
-    orderDrillData.value = Array.isArray(d)
-      ? d
-      : ((d as { items?: DrilldownOrderItem[] })?.items ?? []);
+    orderDrillData.value = unwrapBi(res);
   } catch (e) {
     ElMessage.error('获取客户→订单钻取数据失败');
     logger.error('获取客户→订单钻取数据失败', e);
@@ -257,10 +247,7 @@ async function loadProductToOrder() {
   monthToDayData.value = [];
   try {
     const res = await getDrilldownProductToOrder(id);
-    const d = res.data as unknown;
-    orderDrillData.value = Array.isArray(d)
-      ? d
-      : ((d as { items?: DrilldownOrderItem[] })?.items ?? []);
+    orderDrillData.value = unwrapBi(res);
   } catch (e) {
     ElMessage.error('获取产品→订单钻取数据失败');
     logger.error('获取产品→订单钻取数据失败', e);
