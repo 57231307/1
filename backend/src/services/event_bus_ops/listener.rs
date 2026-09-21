@@ -1184,16 +1184,30 @@ async fn handle_purchase_receipt_completed(
                 );
                 return;
             }
-            // 操作人取入库单创建人（真实 user_id）；内置 source 唯一性校验，不重复生成
-            match ap_service
-                .auto_generate_from_receipt(receipt_id, receipt.created_by)
-                .await
-            {
-                Ok(inv) => {
-                    tracing::info!("入库单 {} 收货落账，应付单 {} 就绪", receipt_id, inv.id)
+            // 确认入库事务内已生成应付单，事件侧只对缺失的单据补偿；
+            // 不先判存在就直接调生成，会命中"该入库单已生成应付单"的业务错误，
+            // 使每张正常入库单都刷一条"补偿失败"告警，真正的缺失反而被噪音淹没。
+            match ap_service.exists_for_receipt(receipt_id).await {
+                Ok(true) => {
+                    tracing::debug!("入库单 {} 的应付单已在确认事务内生成，无需补偿", receipt_id)
                 }
-                Err(e) => tracing::warn!(
-                    "⚠ 入库单 {} 已入库成功，但补偿生成应付账单失败，需人工补生成应付单：{}",
+                Ok(false) => match ap_service
+                    .auto_generate_from_receipt(receipt_id, receipt.created_by)
+                    .await
+                {
+                    Ok(inv) => tracing::info!(
+                        "入库单 {} 收货落账，事件侧补偿生成应付单 {}",
+                        receipt_id,
+                        inv.id
+                    ),
+                    Err(e) => tracing::warn!(
+                        "⚠ 入库单 {} 已入库成功，但补偿生成应付账单失败，需人工补生成应付单：{}",
+                        receipt_id,
+                        e
+                    ),
+                },
+                Err(e) => tracing::error!(
+                    "⚠ 查询入库单 {} 的应付单是否已生成失败，无法判定是否补偿：{}",
                     receipt_id,
                     e
                 ),

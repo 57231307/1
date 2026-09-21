@@ -39,6 +39,9 @@ struct ReceiptVoucherContext {
     invoice_date: NaiveDate,
 }
 
+/// 应付单的来源单据类型：采购入库（ap_invoice.source_type 取值）
+const AP_SOURCE_TYPE_PURCHASE_RECEIPT: &str = "PURCHASE_RECEIPT";
+
 impl ReceiptVoucherContext {
     fn from_invoice(invoice: &ap_invoice::Model) -> Self {
         Self {
@@ -53,6 +56,17 @@ impl ReceiptVoucherContext {
 }
 
 impl ApInvoiceService {
+    /// 入库单是否已生成应付单（source_type=采购入库 且 source_id=入库单 ID）
+    /// 供收货完成事件在补偿生成前判定，避免对正常已生成的单据反复报"补偿失败"
+    pub async fn exists_for_receipt(&self, receipt_id: i32) -> Result<bool, AppError> {
+        let existing = ap_invoice::Entity::find()
+            .filter(ap_invoice::Column::SourceType.eq(AP_SOURCE_TYPE_PURCHASE_RECEIPT))
+            .filter(ap_invoice::Column::SourceId.eq(receipt_id))
+            .one(&*self.db)
+            .await?;
+        Ok(existing.is_some())
+    }
+
     /// 从采购入库单自动生成应付单
     pub async fn auto_generate_from_receipt(
         &self,
@@ -94,7 +108,7 @@ impl ApInvoiceService {
 
         // 2. 检查是否已生成应付
         let exists = ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::SourceType.eq("PURCHASE_RECEIPT"))
+            .filter(ap_invoice::Column::SourceType.eq(AP_SOURCE_TYPE_PURCHASE_RECEIPT))
             .filter(ap_invoice::Column::SourceId.eq(receipt_id))
             .one(txn)
             .await?;
@@ -150,7 +164,7 @@ impl ApInvoiceService {
             invoice_no: Set(invoice_no),
             supplier_id: Set(receipt.supplier_id),
             invoice_type: Set("PURCHASE".to_string()),
-            source_type: Set(Some("PURCHASE_RECEIPT".to_string())),
+            source_type: Set(Some(AP_SOURCE_TYPE_PURCHASE_RECEIPT.to_string())),
             source_id: Set(Some(receipt.id)),
             invoice_date: Set(invoice_date),
             due_date: Set(due_date),
@@ -303,7 +317,7 @@ impl ApInvoiceService {
         let voucher_req = CreateVoucherRequest {
             voucher_type: "转".to_string(),
             voucher_date: ctx.invoice_date,
-            source_type: Some("PURCHASE_RECEIPT".to_string()),
+            source_type: Some(AP_SOURCE_TYPE_PURCHASE_RECEIPT.to_string()),
             source_module: Some("purchase".to_string()),
             source_bill_id: Some(ctx.invoice_id),
             source_bill_no: Some(ctx.invoice_no.clone()),
