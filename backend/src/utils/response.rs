@@ -32,7 +32,6 @@ impl<T> Default for ApiResponse<T> {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PaginatedResponse<T> {
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub items: Vec<T>,
     pub total: u64,
     pub page: u64,
