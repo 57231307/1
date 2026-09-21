@@ -83,7 +83,8 @@ impl PurchaseReceiptService {
         Ok(receipt)
     }
 
-    /// 把入库明细挂到被入的采购订单明细行（事务内调用）
+    /// 把入库明细挂到被入的采购订单明细行（事务内调用；`pub(crate)`：`add_receipt_item`
+    /// 与 `update_receipt_item` 也需在明细写入后挂接，否则经明细端点增改的行永不累加订单进度）
     ///
     /// 确认入库按入库明细的 `order_item_id` 累加订单明细 received_quantity 并据此推进
     /// 订单状态（全部收货 COMPLETED / 部分收货 PARTIAL_RECEIVED）。请求未指定
@@ -91,7 +92,7 @@ impl PurchaseReceiptService {
     /// 明细行）；显式指定的明细必须属于本订单，否则拒绝建单，不允许挂错单。
     /// 找不到可收明细行（产品不在订单中或已收满）时按行记录错误：货物照入，
     /// 但该行的收货量不计入订单进度，便于从日志定位建单数据错误。
-    async fn link_receipt_items_to_order_items(
+    pub(crate) async fn link_receipt_items_to_order_items(
         txn: &sea_orm::DatabaseTransaction,
         receipt_id: i32,
         order_id: i32,
