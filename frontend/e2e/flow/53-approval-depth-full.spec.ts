@@ -81,6 +81,9 @@ async function loginSecondUser(
 test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）', () => {
   let browser: import('@playwright/test').Browser;
   let secondCtx: import('@playwright/test').BrowserContext | null = null;
+  // 审批人是整个 describe 的共享前置账号，必须活到最后一个用例；
+  // 放进逐用例 CLEANUP 会被 afterEach 删掉，后续用例登录 401（CI 53-1 之因）
+  let approverUserId: number | undefined;
   const APPROVER = { username: `approver53`, password: 'Appr53!Sec#2026x' };
 
   test.beforeAll(async ({ browser: b }) => {
@@ -89,6 +92,13 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
 
   test.afterAll(async () => {
     await secondCtx?.close();
+    if (approverUserId) {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      await loginViaUI(page);
+      await apiCall(page, 'DELETE', `/users/${approverUserId}`);
+      await ctx.close();
+    }
   });
 
   test('53-0 装置：创建二级审批人用户（admin 角色）', async ({ page }) => {
@@ -101,6 +111,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     );
     const exists = list?.items?.find(u => u.username === APPROVER.username);
     if (exists) {
+      approverUserId = exists.id;
       console.log('[53-0] 审批人已存在 id=', exists.id);
       return;
     }
@@ -120,7 +131,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       role_id: adminRole.id,
     });
     const uid = r?.data?.id;
-    if (uid) CLEANUP.push({ path: `/users/${uid}`, label: '[53-0] 审批人' });
+    approverUserId = uid;
     expect(uid, '审批人创建应成功').toBeTruthy();
   });
 
