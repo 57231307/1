@@ -189,7 +189,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/crm/sales-analysis/customer-ranking');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/trend');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/targets');
-    await verifyEndpointHealthy(page, '/crm/crm/tags');
+    await verifyEndpointHealthy(page, '/crm/tags');
   });
 
   // ===== 真实 UI 交互验证 =====

@@ -196,19 +196,16 @@ export const getCustomerDetail = (id: number) =>
 export const getCustomer360 = (id: number) =>
   request.get<ApiResponse<Customer360>>(`/crm/customers/${id}/360`);
 
-// 标签管理
-// 注意：后端 crm.rs 的 crm_tags() 相对路径自带 /crm 前缀，nest 到 /api/v1/erp/crm 后
-// 实际装配为 /api/v1/erp/crm/crm/tags（后端双前缀装配缺陷，待后端批次修复后回改为 /crm/tags）
+// 标签管理（后端 routes/crm.rs crm_tags()，nest 前缀 /api/v1/erp/crm + /tags）
 // D14 Batch 5b：原 crmEnhancedApi.getTags 转为风格 B 函数
-export const getCrmTagList = () => request.get<ApiResponse<CustomerTag[]>>('/crm/crm/tags');
+export const getCrmTagList = () => request.get<ApiResponse<CustomerTag[]>>('/crm/tags');
 
 // D14 Batch 5b：原 crmEnhancedApi.createTag 转为风格 B 函数
 export const createCrmTag = (data: { name: string; color: string; category: string }) =>
-  request.post<ApiResponse<CustomerTag>>('/crm/crm/tags', data);
+  request.post<ApiResponse<CustomerTag>>('/crm/tags', data);
 
 // D14 Batch 5b：原 crmEnhancedApi.deleteTag 转为风格 B 函数
-export const deleteCrmTag = (id: number) =>
-  request.delete<ApiResponse<void>>(`/crm/crm/tags/${id}`);
+export const deleteCrmTag = (id: number) => request.delete<ApiResponse<void>>(`/crm/tags/${id}`);
 
 // D14 Batch 5b：原 crmEnhancedApi.createTagForCustomer 转为风格 B 函数
 export const createTagForCustomer = (customerId: number, tagId: number) =>
