@@ -7,10 +7,10 @@
 <template>
   <el-card class="filter-card">
     <el-form :inline="true" :model="localQuery" :aria-label="t('logistics.filter.aria.form')">
-      <el-form-item :label="t('logistics.filter.label.waybillNo')">
+      <el-form-item :label="t('logistics.filter.label.keyword')">
         <el-input
           v-model="localQuery.keyword"
-          :placeholder="t('logistics.filter.placeholder.waybillNo')"
+          :placeholder="t('logistics.filter.placeholder.keyword')"
           clearable
           @keyup.enter="handleSearch"
         />
@@ -51,11 +51,12 @@
           clearable
           @change="handleSearch"
         >
-          <el-option :label="t('logistics.common.status.pending')" value="pending" />
-          <el-option :label="t('logistics.common.status.shipped')" value="shipped" />
-          <el-option :label="t('logistics.common.status.inTransit')" value="in_transit" />
-          <el-option :label="t('logistics.common.status.delivered')" value="delivered" />
-          <el-option :label="t('logistics.common.status.cancelled')" value="cancelled" />
+          <el-option
+            v-for="value in WAYBILL_STATUS_VALUES"
+            :key="value"
+            :label="t(WAYBILL_STATUS_LABEL_KEY[value])"
+            :value="value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('logistics.filter.label.dateRange')">
@@ -81,6 +82,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { WAYBILL_STATUS_LABEL_KEY, WAYBILL_STATUS_VALUES } from '@/constants/waybill-status';
 
 const { t } = useI18n({ useScope: 'global' });
 

@@ -1440,6 +1440,7 @@ export default {
     editTargetFailed: 'Edit target failed',
     rejected: 'Rejected',
     statusUpdateSuccess: 'Status updated successfully',
+    signSuccess: 'Signed, receivable confirmed',
     disableSuccess: 'Disabled successfully',
     loadWorkCenterFailed: 'Failed to load work center list',
     noReceiptDetails: 'No details for this receipt',
@@ -9172,13 +9173,13 @@ export default {
         form: 'Logistics Waybill Filter Form',
       },
       label: {
-        waybillNo: 'Waybill No.',
+        keyword: 'Waybill Keyword',
         logisticsCompany: 'Logistics Company',
         status: 'Status',
         dateRange: 'Date Range',
       },
       placeholder: {
-        waybillNo: 'Please enter waybill no.',
+        keyword: 'Tracking no. / driver / company',
         logisticsCompany: 'Select logistics company',
         status: 'Select status',
         dateStart: 'Start date',
@@ -9228,7 +9229,6 @@ export default {
     },
     table: {
       column: {
-        waybillNo: 'Waybill No.',
         relatedOrder: 'Related Order',
         logisticsCompany: 'Logistics Company',
         trackingNumber: 'Tracking Number',
@@ -9242,17 +9242,17 @@ export default {
       action: {
         view: 'View',
         edit: 'Edit',
-        ship: 'Ship',
-        updateStatus: 'Update Status',
+        deliver: 'Mark Delivered',
+        sign: 'Sign',
         delete: 'Delete',
       },
     },
     stat: {
       label: {
         total: 'Total Waybills',
-        pending: 'Pending',
         inTransit: 'In Transit',
         delivered: 'Delivered',
+        signed: 'Signed',
       },
     },
     detail: {
@@ -9261,7 +9261,7 @@ export default {
         dialog: 'Waybill Detail Dialog',
       },
       label: {
-        waybillNo: 'Waybill No.',
+        signedAt: 'Signed At',
         relatedOrder: 'Related Order',
         logisticsCompany: 'Logistics Company',
         trackingNumber: 'Tracking Number',
@@ -9292,6 +9292,12 @@ export default {
         confirm: 'Confirm',
       },
     },
+    confirm: {
+      title: 'Notice',
+      deliver: 'Confirm the goods have arrived? Freight details become read-only after delivery.',
+      sign: 'Confirm sign-off? Signing also moves the order receivable invoice to confirmed.',
+      delete: 'Delete this waybill?',
+    },
     common: {
       company: {
         sf: 'SF Express',
@@ -9301,11 +9307,9 @@ export default {
         jd: 'JD Logistics',
       },
       status: {
-        pending: 'Pending',
-        shipped: 'Shipped',
         inTransit: 'In Transit',
         delivered: 'Delivered',
-        cancelled: 'Cancelled',
+        signed: 'Signed',
       },
     },
   },

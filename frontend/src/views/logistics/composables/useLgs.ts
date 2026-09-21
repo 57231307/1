@@ -11,7 +11,9 @@
  * （日期范围由 LogisticsFilter 发出事件，父组件更新自身 dateRange）
  */
 import { ref, reactive, watch } from 'vue';
+import { getSalesOrderList } from '@/api/sales';
 import { type LogisticsWaybill } from '@/api/logistics';
+import { WAYBILL_STATUS } from '@/constants/waybill-status';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
 import type { LgsStatusForm } from './useLgsProc';
@@ -37,12 +39,12 @@ export interface LgsFormData {
  * 对话框可见性由父组件本地 ref 管理
  */
 export function useLgs() {
-  // 统计数据（依据列表数据动态计算）
+  // 统计数据（依据列表数据动态计算，取值口径与后端运单状态机一致）
   const stats = reactive({
     total: 0,
-    pending: 0,
     inTransit: 0,
     delivered: 0,
+    signed: 0,
   });
 
   // 日期范围（独立 ref，便于 LogisticsFilter 双向绑定；fetch 前注入 queryParams.start_date/end_date）
@@ -78,9 +80,9 @@ export function useLgs() {
     [tableData, total],
     () => {
       stats.total = total.value;
-      stats.pending = tableData.value.filter(i => i.status === 'pending').length;
-      stats.inTransit = tableData.value.filter(i => i.status === 'in_transit').length;
-      stats.delivered = tableData.value.filter(i => i.status === 'delivered').length;
+      stats.inTransit = tableData.value.filter(i => i.status === WAYBILL_STATUS.inTransit).length;
+      stats.delivered = tableData.value.filter(i => i.status === WAYBILL_STATUS.delivered).length;
+      stats.signed = tableData.value.filter(i => i.status === WAYBILL_STATUS.signed).length;
     },
     { deep: false }
   );
@@ -138,13 +140,16 @@ export function useLgs() {
   };
 
   /**
-   * 加载关联订单列表（模拟）
+   * 加载可建单的关联订单：已审核待发货（approved）的销售订单。
+   * 建单后后端会把订单推进为 shipped，故已完成/已取消/已在途订单不在候选内。
    */
   const fetchOrders = async () => {
-    orders.value = [
-      { id: 1, order_no: 'SO20260101001' },
-      { id: 2, order_no: 'SO20260101002' },
-    ];
+    try {
+      const res = await getSalesOrderList({ status: 'approved', page: 1, page_size: 100 });
+      orders.value = res.data.items.map(o => ({ id: o.id, order_no: o.order_no }));
+    } catch (err: unknown) {
+      logger.error('加载关联订单失败:', err);
+    }
   };
 
   /** 查询：先同步日期范围，重置页码，触发加载 */

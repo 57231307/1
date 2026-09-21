@@ -32,8 +32,8 @@
       :total="lgs.total"
       @view="lgsProc.handleView"
       @edit="lgsProc.handleEdit"
-      @ship="lgsProc.handleShip"
       @update-status="lgsProc.handleUpdateStatus"
+      @sign="lgsProc.handleSign"
       @delete="lgsProc.handleDelete"
     />
 

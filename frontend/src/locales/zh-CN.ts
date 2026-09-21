@@ -1439,6 +1439,7 @@ export default {
     editTargetFailed: '编辑目标失败',
     rejected: '已拒绝',
     statusUpdateSuccess: '状态更新成功',
+    signSuccess: '签收成功，应收已确认',
     disableSuccess: '停用成功',
     loadWorkCenterFailed: '获取工作中心列表失败',
     noReceiptDetails: '该入库单暂无明细',
@@ -9136,13 +9137,13 @@ export default {
         form: '物流运单筛选表单',
       },
       label: {
-        waybillNo: '运单号',
+        keyword: '运单关键字',
         logisticsCompany: '物流公司',
         status: '状态',
         dateRange: '日期范围',
       },
       placeholder: {
-        waybillNo: '请输入运单号',
+        keyword: '快递单号 / 司机 / 物流公司',
         logisticsCompany: '选择物流公司',
         status: '选择状态',
         dateStart: '开始日期',
@@ -9192,7 +9193,6 @@ export default {
     },
     table: {
       column: {
-        waybillNo: '运单号',
         relatedOrder: '关联订单',
         logisticsCompany: '物流公司',
         trackingNumber: '快递单号',
@@ -9206,17 +9206,17 @@ export default {
       action: {
         view: '查看',
         edit: '编辑',
-        ship: '发货',
-        updateStatus: '更新状态',
+        deliver: '登记送达',
+        sign: '签收',
         delete: '删除',
       },
     },
     stat: {
       label: {
         total: '总运单数',
-        pending: '待发货',
         inTransit: '运输中',
-        delivered: '已签收',
+        delivered: '已送达',
+        signed: '已签收',
       },
     },
     detail: {
@@ -9225,7 +9225,7 @@ export default {
         dialog: '运单详情对话框',
       },
       label: {
-        waybillNo: '运单号',
+        signedAt: '签收时间',
         relatedOrder: '关联订单',
         logisticsCompany: '物流公司',
         trackingNumber: '快递单号',
@@ -9256,6 +9256,12 @@ export default {
         confirm: '确定',
       },
     },
+    confirm: {
+      title: '提示',
+      deliver: '确认货物已送达？送达后运输信息不可再修改。',
+      sign: '确认签收？签收会同时把该订单的应收发票推进为已确认。',
+      delete: '确定要删除该运单吗？',
+    },
     common: {
       company: {
         sf: '顺丰速运',
@@ -9265,11 +9271,9 @@ export default {
         jd: '京东物流',
       },
       status: {
-        pending: '待发货',
-        shipped: '已发货',
         inTransit: '运输中',
-        delivered: '已签收',
-        cancelled: '已取消',
+        delivered: '已送达',
+        signed: '已签收',
       },
     },
   },

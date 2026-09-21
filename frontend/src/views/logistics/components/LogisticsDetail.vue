@@ -12,8 +12,8 @@
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-descriptions :column="2" border>
-      <el-descriptions-item :label="t('logistics.detail.label.waybillNo')">{{
-        detail.waybill_no
+      <el-descriptions-item :label="t('logistics.detail.label.signedAt')">{{
+        detail.signed_at || '-'
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('logistics.detail.label.relatedOrder')">{{
         detail.order_no
@@ -115,7 +115,7 @@ import {
   linkPurchaseOrder,
   type LogisticsWaybill,
 } from '@/api/logistics';
-import { getStatusType } from '../composables/lgsFmts';
+import { getStatusText, getStatusType } from '../composables/lgsFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -224,13 +224,7 @@ const handleLinkPo = async () => {
   }
 };
 
-// 透传格式化函数
+// 状态标签与文本统一走 lgsFmts，保证列表 / 详情 / 对话框口径一致
 const getStatusTypeFmt = getStatusType;
-
-/** 状态文本：优先 i18n，未知状态回退到原始 status 字符串 */
-const statusTextFmt = (status: string): string => {
-  const key = `logistics.common.status.${status}`;
-  const translated = t(key);
-  return translated === key ? status : translated;
-};
+const statusTextFmt = getStatusText;
 </script>
