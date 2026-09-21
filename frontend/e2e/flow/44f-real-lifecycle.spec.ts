@@ -349,20 +349,62 @@ test.describe.serial('44f 真实实体全流转链', () => {
 
   test('44f-7 大货处方 draft→approved→closed 终态拦截', async ({ page }) => {
     await ensureTestEntities(page);
-    const ctx = getCtx();
+    // 创建入参对齐 CreateProductionRecipeRequest（production_recipe_service.rs:39-63）：
+    // 必填只有 fabric_weight（备布重量，用量计算依据）与 liquor_ratio（浴比），
+    // 处方号由后端按单据号规则生成，不由调用方提交；product_id 不是该 DTO 字段。
     const r = await apiCall<{ id?: number }>(page, 'POST', '/production/production-recipes', {
-      recipe_no: `44F${Date.now().toString().slice(-6)}`,
-      product_id: ctx.productIds[0],
+      color_no: `44F-${Date.now().toString().slice(-6)}`,
+      fabric_name: '44f 大货处方用坯布',
+      fabric_weight: 120,
+      liquor_ratio: '1:8',
     });
     const id = r?.data?.id;
-    expect(id, '处方创建失败（字段契约差异，需对照 production_recipe_handler）').toBeTruthy();
-    CLEANUP.push({ path: `/production/production-recipes/${id}`, label: '[44f-7] 处方' });
-    await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`);
-    expect(
-      JSON.stringify(
-        await apiCall(page, 'GET', `/production/production-recipes/${id}`)
-      ).toLowerCase()
-    ).toContain('approved');
+    expect(id, '处方创建失败').toBeTruthy();
+    // 审核要传 approved_by（后端从请求体取审批人身份，非登录态），故先取当前用户 ID
+    const me = await apiCallRaw<{ id?: number; user_id?: number }>(page, 'GET', '/users/me');
+    const myId = me?.id ?? me?.user_id;
+    expect(myId, '当前登录用户 ID 取不到').toBeTruthy();
+
+    // 详情接口的状态列就是 production_recipe.status（models/production_recipe.rs:93）
+    const rd = async () => {
+      const detail = await apiCallRaw<{ status?: string }>(
+        page,
+        'GET',
+        `/production/production-recipes/${id}`
+      );
+      return String(detail?.status ?? '');
+    };
+
+    expect(await rd(), '新建处方应为 draft').toContain('draft');
+
+    await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`, {
+      approved_by: myId,
+    });
+    expect(await rd(), '审核后应为 approved').toContain('approved');
+
+    // 非 draft 不可更新（validate_can_update）：这是"审核后处方冻结"的真实约束
+    const upd = await apiCallExpectFail(page, 'PUT', `/production/production-recipes/${id}`, {
+      fabric_weight: 200,
+      liquor_ratio: '1:8',
+    });
+    expect(upd.status, '已审核处方不应可改').toBeGreaterThanOrEqual(400);
+
+    await apiCall(page, 'POST', `/production/production-recipes/${id}/close`);
+    expect(await rd(), '关闭后应为 closed 终态').toContain('closed');
+
+    // closed 为终态：再次审核必须被状态机拒绝
+    const reApprove = await apiCallExpectFail(
+      page,
+      'POST',
+      `/production/production-recipes/${id}/approve`,
+      { approved_by: myId }
+    );
+    expect(reApprove.status, '终态处方不应再被审核').toBeGreaterThanOrEqual(400);
+
+    // 已离开 draft 的处方后端禁止删除（validate_can_delete），清理走 cancel 也不可达：
+    // 记录归档即设计约束，故本用例不注册删除型清理。
+    const del = await apiCallExpectFail(page, 'DELETE', `/production/production-recipes/${id}`);
+    expect(del.status, '非 draft 处方应拒删').toBeGreaterThanOrEqual(400);
   });
 
   test('44f-8 打样通知单 pending→sampling→submitted→approved 全链', async ({ page }) => {
