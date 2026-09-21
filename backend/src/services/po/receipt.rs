@@ -11,7 +11,9 @@ use crate::services::po::UpdateOrderItemRequest;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
+};
 
 use super::order::PurchaseOrderService;
 
