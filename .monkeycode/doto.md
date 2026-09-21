@@ -67,6 +67,11 @@
 > `receive_order 按订单明细收货丢失入库维度/部分收货重复入账`（随 `47ed95ff` 单一路径化整体删除）、
 > `同产品多行乐观锁冲突`（`5da89e43`，并定位到 1-4 的真实冲突点在确认路径而非事件路径）。
 
+- [x] **自查纠偏（run `35631938195` 判责）**：`47ed95ff` 删除按订单明细收货的实现时，按「trait 名是否还出现在文件里」裁剪 sea_orm 导入，
+      误删 `QuerySelect`——而它提供的是 `lock_exclusive()` 方法而非字面名字，保留下来的四处 `find_by_id(..).lock_exclusive()`
+      全部失效。CI 报 8 个 E0599/E0282，lib 编译失败连带 Clippy、Rust 测试预编译与整条 E2E 链 skipped
+      （机制教训见流程备忘新增条）。已恢复导入（`c293c842`）并在同批补齐明细端点的订单挂接与字段落地（`9c4b21bb`）。
+
 - [ ] **`system-update` 资源未注册且被当模块前缀，系统更新页对所有角色 fail-closed**：
       `path_utils.rs:24` 把 `system-update` 列为模块前缀，`/system-update/version` 因此推导出
       资源名 `version`；而 `PERMISSION_RESOURCES` 里根本没有 `system-update`（grep 无命中），
@@ -416,6 +421,12 @@
 - [ ] 推送授权后验证上述修复（33/33b 401 应转 403、超时潮应消失）
 
 ### 流程备忘
+
+- [ ] 机制约束（iter26 实证）：本地无编译权，删除/裁剪 `use` 语句时不得按「名字是否出现」判断，
+      trait 导入要按它提供的方法名逐个检索（lock_exclusive/first/limit/all/filter/count/select/save/insert），
+      否则 rustfmt 通过而 CI 编译失败，一次推送被整条链 skipped 消耗
+- [ ] 推送前必做：`git log --oneline <remote-head>..HEAD` 与「本轮改动清单」逐条对照，
+      确认每个改动文件都被静态自审覆盖（items.rs 这类未进 CI 的后续提交要显式列出）
 
 - [ ] CI 失败若再出现新 job：按 doto 流程拉日志→记录→下批修复
 - [ ] 推送授权后：本地 commit 批量推送 + 观察 main CI（含 coverage 等 main 专属 job）
