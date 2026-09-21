@@ -109,6 +109,14 @@
   需下一轮从"未压缩 source map / 逐步注释定位"入手。
 - [ ] **产品列表两列仍无数据源**：`barcode`（products 表无该列）、`category_name`（list 未 join
   product_category）。需决定：后端出 VO，还是前端用已持有的 categories 列表本地解析。
+- [ ] **分页响应 key 全量审计工具需 nest 感知**：`/tmp` 版 key_audit2.py 已能解析 817 条
+  GET 路由与 handler 返回结构，但对 `.nest("/x", handler())` 形式（route 声明为 "/"）
+  无法还原完整路径，导致 159 处误报"无路由匹配"。补法：解析 routes/*.rs 的
+  nest 组合链重建全路径，再与 e2e 调用点比对；跑通后可作为 CI 静态门禁。
+  已借此确证并修复：/inventory/reservations（list vs items，commit 见下）。
+- [ ] **vac 空断言残余**：04-finance 4-8+、05-system 其余项、00-deploy-init 的
+  `expect(me.permissions)` 与成片 `expect(x.length).toBeGreaterThanOrEqual(0)` 恒真断言
+  仍未清理（受限于逐端点核对成本），随 key 审计工具完成后一次性处理。
 - [ ] **真空断言成片**（flow/smoke/traversal 内 `expect(expr);` 无匹配器 ≥48 处，另有
   `expect(x.length).toBeGreaterThanOrEqual(0)` 恒真断言）：这类"永远绿"的断言是本轮三个
   根因能长期潜伏的放大器。建议 eslint 加 `@typescript-eslint/no-unused-expressions`
