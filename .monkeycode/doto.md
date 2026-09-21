@@ -86,8 +86,51 @@
 
 #### iter23 新增待办
 
+- [x] **后端 P0｜人工审批链在 DB 层不可用**（commit `f7cc5d86`，run 35527832129 shard-1
+  backend.log 实证 `null value in column "process_instance_id" of relation "bpm_task"`）：
+  `bpm_task` 初始建表遗留 `process_instance_id`/`name` 两列 NOT NULL，模型与业务代码用的是
+  后加的 `instance_id`/`node_name`，两列全仓零引用 → 任何含 user_task 节点的定义插入首任务
+  必失败并回滚单据。同根因连带 02-o2c 2-5 / 44e-2 / 31d-A / 48-2。
+  本轮只解除重复列 NOT NULL；**待办**：收敛为单列（DROP 遗留列或补 DEFAULT），需评估既有数据。
+- [x] **后端 P1｜调拨流水 id=0 硬编码致主键冲突 500**（commit `586a0850`，
+  `POST /inventory/transfers/1/receive` → `duplicate key inventory_transactions_pkey`）：
+  `services/inv/batch.rs` 两处 `id: Set(0)` 改 `Default::default()`。
+  同类写法已在 `fixed_asset_service.rs:529` 修过一次，属重复缺陷类；本轮全仓 grep 已确认清零。
+- [x] **CRM 标签路由双前缀**（commit `1615dd67`）：`crm_tags()` 相对路径写 `/crm/tags`
+  而 router 已 `.nest("/api/v1/erp/crm")` → 真实路径 `/api/v1/erp/crm/crm/tags`；
+  前端 `crm-enhanced.ts` 早年按双前缀绕行调用，把缺陷固化成契约，已一并回正。
+- [x] **凭证详情分录 key**（commit `c397e76f`）：响应是 `entries`（voucher_handler.rs:172），
+  用例读 `items` 恒 0。**同族**：`traversal/42a-core` 的"点新建后固定等 800ms"改为
+  真等待 + 归因信息；`02-o2c 2-12` 用的 `/sales/orders` 路由不存在（列表是 `/sales`），
+  落到 `/404` 后旧断言仍成立。
+- [ ] **`/security/change-password` 渲染期抛 SyntaxError（未决产品缺陷）**：ErrorBoundary 捕获
+  `{name: SyntaxError, message: 10}`，压缩栈止于 `vue-vendor:3:527`，vue 错误号 runtime-1。
+  已排除：PasswordStrengthMeter 的字面正则、该页 i18n 文案特殊字符。禁止本地起服务，
+  需下一轮从"未压缩 source map / 逐步注释定位"入手。
 - [ ] **产品列表两列仍无数据源**：`barcode`（products 表无该列）、`category_name`（list 未 join
   product_category）。需决定：后端出 VO，还是前端用已持有的 categories 列表本地解析。
+- [ ] **真空断言成片**（flow/smoke/traversal 内 `expect(expr);` 无匹配器 ≥48 处，另有
+  `expect(x.length).toBeGreaterThanOrEqual(0)` 恒真断言）：这类"永远绿"的断言是本轮三个
+  根因能长期潜伏的放大器。建议 eslint 加 `@typescript-eslint/no-unused-expressions`
+  并把 `e2e/` 从 ignores 移出 + 接入 CI lint（**动 eslint 配置/CI 需用户授权**）。
+- [ ] **31d-D 库存预警**仍为条件分支：要硬断言需先把某商品 `safety_stock`（或等价字段）
+  抬到现有库存之上构造确定前提。
+- [ ] **31d-F 付款申请通知**：`payment-requests/:id/submit` 侧未检索到 `notify_*` 调用，
+  需确认该链路是否真实接入；未接入则按「功能真实接入」补实现而不是删测试。
+- [ ] **SO create 处理器语义错位**：`sales_order_handler.rs:245` 在**创建**时就发
+  `notify_order_submitted`（标题「订单已提交」），而订单此时是 draft；
+  且与随后 submit 发的同名通知在 5 分钟 dedup 窗口内互相折叠。
+  `notify_order_created` 对 SO 不存在（PO 有 `notify_purchase_order_created`）。
+- [ ] `views/quotations/components/QuotationItemEditor.vue:249` 等多处
+  `catch { products.value = [] }` 静默吞错（不静默日志违规，属前端视图批量项）。
+- [ ] **迁移设计缺陷（系统性）**：`Migrator::migrations()` 只有 7 个域级迁移，
+  后续所有补列 SQL 都追加在域 `up()` 的幂等 blob 里；已应用过该域的库不会重跑，
+  即迁移事实上只对全新库生效。需引入独立的增量迁移位（否则本仓库的 schema 修复
+  在生产库上不落地）。
+- [ ] run 35547989952（head `586a0850`）为新验证轮：需复核 02-o2c/44e/48/31d 是否随
+  BPM 修复转绿，以及 53-1（登录超时）、54-new-domains（质量 8D）两条未判责项。
+- [ ] 沿 iter22：CI 只跑 `e2e/flow|smoke|traversal`，另有 20 个目录 218 个用例从不执行；
+  `check-i18n.mjs` 未接入 CI（两项均需用户授权改 `ci-cd.yml`）。
 - [ ] **真空断言成片**（flow/smoke/traversal 内 `expect(expr);` 无匹配器 ≥48 处，另有
   `expect(x.length).toBeGreaterThanOrEqual(0)` 恒真断言）：这类"永远绿"的断言是本轮三个
   根因能长期潜伏的放大器。建议 eslint 加 `@typescript-eslint/no-unused-expressions`
