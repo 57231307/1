@@ -241,6 +241,9 @@ pub async fn create_order(
     let order = sales_service.create_order(request, auth.user_id).await?;
 
     // 订单创建成功后发送通知
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
             // 创建后订单为草稿态，通知语义为「已创建」；提交审批由 submit_order 发「订单已提交」
@@ -320,6 +323,9 @@ pub async fn submit_order(
     let order = sales_service.submit_order(id, user_id).await?;
 
     // 订单提交成功后发送通知给申请人
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
@@ -351,6 +357,9 @@ pub async fn approve_order(
     let order = sales_service.approve_order(id, auth.user_id).await?;
 
     // 订单审批成功后发送通知给申请人
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
@@ -392,6 +401,9 @@ pub async fn ship_order(
     let order = sales_service.get_order_detail(id, None).await?;
 
     // 订单发货成功后发送通知给申请人
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
@@ -424,6 +436,9 @@ pub async fn complete_order(
     let order = sales_service.complete_order(id, auth.user_id).await?;
 
     // 订单完成后发送通知给申请人
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录

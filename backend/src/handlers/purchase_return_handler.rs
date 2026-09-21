@@ -150,6 +150,9 @@ pub async fn reject_purchase_return(
         .await?;
 
     // 发送审批拒绝通知
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(ref event_service) = state.event_notification_service {
         if let Some(created_by) = return_order.created_by {
             // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）

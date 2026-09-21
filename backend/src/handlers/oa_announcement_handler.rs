@@ -63,7 +63,7 @@ pub async fn list(
 ///
 /// 发布时联动站内通知：根据 visibility_scope 解析目标用户，
 /// 调用 EventNotificationService::send_system_announcement 批量推送。
-/// event_notification_service 未配置时仅更新状态，不阻断发布流程。
+/// 事件通知服务未装配时发布直接失败（站内通知是发布的核心副作用，不允许静默跳过）。
 pub async fn publish(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -126,8 +126,12 @@ pub async fn publish(
             }
         }
         None => {
-            tracing::warn!("event_notification_service 未配置，OA 公告 {} 跳过通知推送", announcement.id);
-            0
+            // 站内公告通知是发布动作的核心副作用，服务缺失属装配错误，
+            // 不能 warn 后跳过（原行为会让 notified_count=0 看起来像"正常无接收人"）
+            return Err(AppError::internal(format!(
+                "事件通知服务未装配，OA 公告 {} 无法推送站内通知",
+                announcement.id
+            )));
         }
     };
 

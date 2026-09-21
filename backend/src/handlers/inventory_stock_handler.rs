@@ -403,6 +403,9 @@ pub async fn check_low_stock(
     let stock_responses = convert_to_stock_responses(stock_list);
 
     // 发送库存预警通知
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(ref event_service) = state.event_notification_service {
         let product_map = load_low_stock_product_map(&state.db, &stock_responses).await;
         send_low_stock_notifications(event_service, &stock_responses, &product_map).await;
