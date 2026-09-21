@@ -603,9 +603,13 @@
 
 - [ ] 本地无编译权的第二道约束（run 4611 实证）：新写函数签名若返回裸 `&str`/`&T`，
       且入参有两个以上引用，必须显式写生命周期（否则 E0106，rustfmt 与 --check 都发现不了，
-      一次推送又被整条 skipped 消耗）。同类需在推送前逐条自查的还有：
-      trait 提供的方法（lock_exclusive/first/limit/all/filter/count/paginate）与
-      新常量的引用路径。（流程备忘，非待修项）
+      同类自查清单（sea-orm 2.0 实测，run 4613 二次实证）：
+      `paginate()` 由 **`PaginatorTrait`** 提供，1.x 时代的 `QuerySelect` 已不再提供它
+      （只导 QuerySelect 会同时得到 E0599 与 unused import 两条反馈）；
+      `lock_exclusive/lock_shared/limit/offset/into_model` 才属于 `QuerySelect`；
+      `order_by_desc`、`all`、`one` 是 `Select` 固有方法，`filter` 来自 `QueryFilter`。
+      写新查询必须按「用到的方法 → 对应 trait」逐个对照，不按印象、也不按名字是否出现裁剪。
+      （流程备忘，非待修项）
 - [ ] CI 失败若再出现新 job：按 doto 流程拉日志→记录→下批修复
 - [ ] 推送授权后：本地 commit 批量推送 + 观察 main CI（含 coverage 等 main 专属 job）
 
