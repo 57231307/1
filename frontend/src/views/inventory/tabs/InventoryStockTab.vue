@@ -37,14 +37,17 @@
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.status')">
           <el-select
-            v-model="localQuery.status"
+            v-model="localQuery.stock_status"
             :placeholder="t('inventory.stockTab.statusPlaceholder')"
             clearable
             @change="emit('query')"
           >
-            <el-option :label="t('inventory.stockTab.statusNormal')" value="normal" />
-            <el-option :label="t('inventory.stockTab.statusWarning')" value="warning" />
-            <el-option :label="t('inventory.stockTab.statusFrozen')" value="frozen" />
+            <el-option
+              v-for="opt in INVENTORY_STOCK_STATUS_OPTIONS"
+              :key="opt"
+              :label="t(INVENTORY_STOCK_STATUS_LABEL_KEY[opt])"
+              :value="opt"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -93,6 +96,11 @@ import { ElButton } from 'element-plus';
 import { Search, Refresh } from '@element-plus/icons-vue';
 import V2Table from '@/components/V2Table/index.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
+import { logger } from '@/utils/logger';
+import {
+  INVENTORY_STOCK_STATUS_LABEL_KEY,
+  INVENTORY_STOCK_STATUS_OPTIONS,
+} from '@/constants/inventory-stock-status';
 // v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
 import type { InventoryStock } from '@/api/inventory';
 import type { Warehouse } from '@/api/warehouse';
@@ -105,7 +113,7 @@ export interface StockQuery {
   page_size: number;
   keyword: string;
   warehouse_id: number | undefined;
-  status: string;
+  stock_status: string;
 }
 
 const props = defineProps<{
@@ -139,12 +147,12 @@ watch(
 
 // 状态标签映射函数化响应式求值
 const getStatusText = (status: string) => {
-  const textMap: Record<string, string> = {
-    normal: t('inventory.stockTab.statusNormal'),
-    warning: t('inventory.stockTab.statusWarning'),
-    frozen: t('inventory.stockTab.statusFrozen'),
-  };
-  return textMap[status] || status;
+  const key = INVENTORY_STOCK_STATUS_LABEL_KEY[status];
+  if (!key) {
+    logger.warn(`未知库存台账状态，后端主数据值清单需同步：${status}`);
+    return status;
+  }
+  return t(key);
 };
 
 const { columns: stockColumns } = useTableColumns<InventoryStock>([

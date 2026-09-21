@@ -127,13 +127,6 @@
         <el-form-item :label="t('inventory.stockTab.colQuantity')">
           <el-input-number v-model="stockForm.quantity" :min="0" :precision="2" />
         </el-form-item>
-        <el-form-item :label="t('inventory.stockTab.colStatus')">
-          <el-select v-model="stockForm.status">
-            <el-option :label="t('inventory.stockTab.statusNormal')" value="normal" />
-            <el-option :label="t('inventory.stockTab.statusWarning')" value="warning" />
-            <el-option :label="t('inventory.stockTab.statusFrozen')" value="frozen" />
-          </el-select>
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="stockDialogVisible = false">{{ t('common.cancel') }}</el-button>
@@ -207,7 +200,7 @@ const queryParams = reactive<StockQuery>({
   page_size: 20,
   keyword: '',
   warehouse_id: undefined,
-  status: '',
+  stock_status: '',
 });
 
 const fetchData = async () => {
@@ -287,7 +280,7 @@ const fetchWarehouses = async () => {
 const handleReset = () => {
   queryParams.keyword = '';
   queryParams.warehouse_id = undefined;
-  queryParams.status = '';
+  queryParams.stock_status = '';
   queryParams.page = 1;
   fetchData();
 };
@@ -466,7 +459,6 @@ const stockForm = reactive({
   color_code: '',
   location: '',
   quantity: 0,
-  status: 'normal',
 });
 
 const openStockDialog = (row?: InventoryStock) => {
@@ -477,7 +469,6 @@ const openStockDialog = (row?: InventoryStock) => {
   stockForm.color_code = row?.color_no || '';
   stockForm.location = row?.bin_location || '';
   stockForm.quantity = Number(row?.quantity_meters ?? 0);
-  stockForm.status = row?.stock_status || 'normal';
   stockDialogVisible.value = true;
 };
 

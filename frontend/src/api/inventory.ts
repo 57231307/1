@@ -84,7 +84,8 @@ export interface InventoryQueryParams {
   keyword?: string;
   warehouse_id?: number;
   product_id?: number;
-  status?: string;
+  /** 台账状态筛选：取后端 stock_status 主数据值（见 constants/inventory-stock-status） */
+  stock_status?: string;
   low_stock?: boolean;
   /** 色号筛选（后端下推 SQL） */
   color_no?: string;
