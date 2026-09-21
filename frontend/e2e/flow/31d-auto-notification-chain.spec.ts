@@ -70,6 +70,21 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     expect(orderId, '[31d-A] 销售订单创建失败，提交通知链路无从验证').toBeTruthy();
     console.log(`[31d-A] 订单创建成功 id=${orderId}`);
 
+    // 创建即草稿态，应先收到「销售订单已创建」（notify_order_created），
+    // 且与后续提交通知用不同 dedup_key，不被 5 分钟窗口折叠
+    await page.waitForTimeout(NOTIF_SETTLE_MS);
+    const afterCreate = await listNotifications(page);
+    const createdNotif = afterCreate
+      .filter(n => !before.some(b => b.id === n.id))
+      .find(n => n.title === '销售订单已创建');
+    expect(
+      createdNotif,
+      `[31d-A] 未收到「销售订单已创建」通知（新增 ${afterCreate.length} 条：${afterCreate
+        .map(n => n.title)
+        .join('|')}）`
+    ).toBeTruthy();
+    console.log(`[31d-A] 已收到创建通知 id=${createdNotif!.id}`);
+
     // submit 端点触发通知
     await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
     console.log(`[31d-A] 订单提交成功`);
@@ -77,10 +92,10 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     await page.waitForTimeout(NOTIF_SETTLE_MS);
     const after = await listNotifications(page);
     console.log(`[31d-A] 提交后未读通知 ${after.length} 条`);
-    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
-    // event_notification_service.rs:151 notify_order_submitted 的固定标题
+    const newOnes = after.filter(n => !afterCreate.some(b => b.id === n.id));
+    // event_notification_service.rs 的 notify_order_submitted 固定标题
     const orderNotif = newOnes.find(n => n.title === '订单已提交');
-    console.log(`[31d-A] 新增通知 ${newOnes.length} 条，匹配提交通知: ${!!orderNotif}`);
+    console.log(`[31d-A] 提交后新增通知 ${newOnes.length} 条，匹配提交通知: ${!!orderNotif}`);
     expect(
       orderNotif,
       `[31d-A] 未收到「订单已提交」通知（新增 ${newOnes.length} 条：${newOnes
@@ -89,6 +104,8 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     ).toBeTruthy();
     await markRead(page, orderNotif!.id);
     await deleteNotification(page, orderNotif!.id);
+    await markRead(page, createdNotif!.id);
+    await deleteNotification(page, createdNotif!.id);
 
     // 清理订单
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-A]');

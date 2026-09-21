@@ -243,12 +243,12 @@ pub async fn create_order(
     // 订单创建成功后发送通知
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            // 创建后订单为草稿态，通知语义为「已创建」；提交审批由 submit_order 发「订单已提交」
             if let Err(e) = event_service
-                .notify_order_submitted(created_by, &order.order_no, order.id)
+                .notify_order_created(created_by, &order.order_no, order.id)
                 .await
             {
-                tracing::warn!("批次 94 P2-11：订单创建通知发送失败: {}", e);
+                tracing::warn!(error = %e, order_id = order.id, "销售订单创建通知发送失败");
             }
         }
     }
