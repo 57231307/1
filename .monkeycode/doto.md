@@ -84,6 +84,34 @@
   搜索框与状态筛选是死控件（QuotationItemEditor 的 `is_active:true` 同）。
   修复采用「读侧权限过滤后补别名 + 写侧边界映射」，避免逐个改 18+ 视图引入新风险。
 
+#### iter24（2026-09-21，拉上游 15 提交后继续判责：run 35585268854）
+
+- [x] **站内通知整体静默失效（P0）**：`container/mod.rs` 以
+  `email_service.as_ref().map(..)` 装配 EventNotificationService，未配 SMTP → 服务为
+  None → 订单/库存/公告联动等站内通知全部不发（日志：`event_notification_service 未配置，
+  OA 公告 2 跳过通知推送`）。这是 31d-A / 31e-2 反复失败的真实原因，不是用例问题。
+  修复=无条件构造（服务内部本就区分邮件通道）。commit `41253087`
+- [x] **BI 页双层信封未解包**：`bi_handler.rs` 16 端点返回 ApiResponse<BiResponse<T>>，
+  `api/bi.ts` 按单层标注，页面取 `.data` 得到内层信封 →
+  `x.map is not a function`（SalesAnalysis 崩溃）+ 月度/品类/日钻取三表恒空
+  （被 `Array.isArray(d)?d:d.items??[]` 形态兜底掩盖）。commit `190461cf`
+- [x] **销售订单状态映射不完整**：so_status 8 值，前端 4 处各自维护且都只覆盖 5 个；
+  详情页 `<el-tag>{{ order?.status }}</el-tag>` 完全未映射。收敛到
+  `utils/sales-status.ts`（Record 穷举）+ 补 6 条中英文案 + 筛选下拉补 3 项。commit `edf44bfc`
+- [x] **2-12 断言归属错**（我自己上一批引入）：发货链之后仍断言 approved。已改为
+  校验取值属于 so_status 枚举 + 详情页不得露出枚举原文；44f-4 补必填 unit_master。commit `0d7bce7c`
+- [x] **6-8/6-9 访问不存在路由**：`/purchase/orders`、`/sales/orders` 均非注册路由
+  （列表是 /purchase、/sales），页面落 /404 而断言无匹配器 → 双条假通过。已修
+- [ ] **32-roles `e2e_readonly 登录 + Dashboard 可达` 失败**：Dashboard 对只读角色发
+  `/notifications/unread-count` 与图表数据请求得 **403**，被健康门计为 error。
+  待判：是权限码映射缺 `notification:read`（后端应放行用户自身通知计数），
+  还是前端不该为无权限角色发起该请求。二者修法不同，需先看 readonly 角色权限集与
+  notification 路由的权限声明。
+- [ ] **traversal 仍有 2 个分片未取证据**（shard 14 / 21 各 33MB/38MB）：
+  37b 打印内容匹配、39b~54 分片的具体断言原文待下一轮按新 run 精准拉取。
+- [ ] `views/purchase-receipt/composables/usePrcProc.ts:163` `unit_master: it.unit || 'm'`
+  属硬编码兜底：产品主单位缺失时应暴露而非伪造 'm'。
+
 #### iter23 新增待办
 
 - [x] **后端 P0｜人工审批链在 DB 层不可用**（commit `f7cc5d86`，run 35527832129 shard-1

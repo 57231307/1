@@ -11,6 +11,10 @@
 |----|-----------|
 | PR #941 | Round 7-iter23：定位并修掉潜伏 16 轮的三个结构性根因——① E2E 的 sales_order_approval 流程定义节点 schema（node_id/node_type、无 edges）与后端 resolve_first_task_node 需要的 id/type+edges 不符，后端走「无任务节点自动完成」异步回写 approved 抢跑用例的显式 approve（02-o2c 2-5），连带清掉 02-o2c/18/44f/48/31d 为绕开它写的条件兜底；② 通知列表读 data.items 而后端 key 是 data.list，叠加硬编码 localhost:8082 绕过 CSRF 头注入，31d/31e 全部 P0 通知链路 0 断言空转（31e-5 显式失败），改为 helpers.listNotifications + 固定标题硬断言 + 全量走 apiCall；③ 产品前后端字段契约不一致（name/code/status/standard_price vs product_name/product_code/is_active/price）致名称编码状态三列恒空、UI 建产品丢名字、keyword/is_active 两个筛选为死控件，修法为读侧权限过滤后补别名 + 写侧 toProductPayload 边界映射。判责证据源修正为 artifact 的 reports/playwright-output.txt + backend.log；登记 barcode/category_name 无数据源、真空断言成片、31d-D/F 前提缺失等 8 项 |
 
+| PR #941 | Round 7-iter24：先拉取远端 15 个新提交并线性 rebase，再以 run 35585268854 的 error-context 原文逐条判责，修掉四个真实缺陷——① container 用 email_service 是否存在来决定 EventNotificationService 是否装配，未配 SMTP 时站内通知（订单/库存/公告联动）整体静默失效（31d-A/31e-2 之因），改为无条件构造、邮件通道内部自行降级；② bi_handler 16 端点是 ApiResponse<BiResponse<T>> 双层信封而前端按单层解包，致 SalesAnalysis 抛 map is not a function 且月度/品类/日钻取三表恒空（被 Array.isArray?:items??[] 形态兜底掩盖），新增 BiEnvelope/unwrapBi 统一解包；③ 销售订单 8 个状态在前端四处各自维护且都只覆盖 5 个、详情页干脆输出英文枚举，收敛为 utils/sales-status.ts 单一真相源并补 6 条中英文案与 3 个筛选项；④ 6-8/6-9 访问未注册的 /purchase/orders 与 /sales/orders 落 /404 而断言无匹配器。另纠正自己上一轮把 2-12 断言成 approved 的归属错误、为 44f-4 补齐必填 unit_master，并清零 12 个 flow spec 中 62 条永不失败空断言里的 49 条 |
+
+---
+
 ---
 
 ## 2026-09-20
