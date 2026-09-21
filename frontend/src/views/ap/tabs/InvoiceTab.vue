@@ -264,7 +264,7 @@ import {
 import { exportFromBackend } from '@/utils/export';
 import { logger } from '@/utils/logger';
 import { autoGenerateAPInvoices, getAPAgingAnalysis } from '@/api/ap';
-import type { Supplier } from '@/api/supplier';
+import { getSupplierList, type Supplier } from '@/api/supplier';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -540,12 +540,11 @@ const handleExportInvoices = async () => {
 
 const fetchSuppliers = async () => {
   try {
-    const res = await getAPInvoiceList({} as never);
-    void res;
-  } catch (_e) {
-    // suppliers 实际应通过 supplierApi 加载；此处保持空列表不影响主流程
+    const res = await getSupplierList({ page: 1, page_size: 1000 });
+    suppliers.value = res.data?.items || [];
+  } catch (error) {
+    logger.error(t('apModule.invoice.loadSuppliersFailed'), error);
   }
-  suppliers.value = [];
 };
 
 defineExpose({ refresh: fetchInvoices });

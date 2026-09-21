@@ -4606,6 +4606,9 @@ export default {
       installSuccess: 'System installation successful',
       installFailed: 'Installation failed',
       envCheckFailed: 'Environment check failed',
+      healthUnreachable: 'Health endpoint unreachable, disk/memory checks skipped',
+      healthProbeFailed: 'Health probe failed, waiting for service restart',
+      healthNotReady: 'Health probe not ready after 30 attempts, redirecting to login anyway',
     },
   },
   accountSubject: {
@@ -5509,6 +5512,7 @@ export default {
       colSeq: 'No.',
       printHeader: 'AP Invoice List',
       exportedLog: 'AP invoices exported',
+      loadSuppliersFailed: 'Failed to load supplier list',
     },
     payment: {
       title: 'Payment Management',

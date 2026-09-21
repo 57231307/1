@@ -4577,6 +4577,9 @@ export default {
       installSuccess: '系统安装成功',
       installFailed: '安装失败',
       envCheckFailed: '环境检查失败',
+      healthUnreachable: '健康检查接口不可达，磁盘/内存检查已跳过',
+      healthProbeFailed: '探活健康检查失败，等待服务重启后重试',
+      healthNotReady: '健康检查探活 30 次未就绪，仍跳转登录页',
     },
   },
   accountSubject: {
@@ -5503,6 +5506,7 @@ export default {
       colSeq: '序号',
       printHeader: '应付发票列表',
       exportedLog: '应付发票已导出',
+      loadSuppliersFailed: '获取供应商列表失败',
     },
     payment: {
       title: '付款管理',
