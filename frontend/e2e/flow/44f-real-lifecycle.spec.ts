@@ -242,8 +242,20 @@ test.describe.serial('44f 真实实体全流转链', () => {
 
     const c1 = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
     expect(c1.status, '首次确认应成功').toBeLessThan(300);
-    const rd = await apiCall<{ status?: string }>(page, 'GET', `/purchase/receipts/${receiptId}`);
-    expect(JSON.stringify(rd).toUpperCase()).toContain('COMPLETED');
+    // 确认只置 CONFIRMED，库存收货事件异步处理完才置 COMPLETED，轮询等待终态
+    await expect
+      .poll(
+        async () => {
+          const rd = await apiCall<{ status?: string; receipt_status?: string }>(
+            page,
+            'GET',
+            `/purchase/receipts/${receiptId}`
+          );
+          return JSON.stringify(rd).toUpperCase().includes('COMPLETED');
+        },
+        { message: `入库单 ${receiptId} 确认后经收货事件应进入 COMPLETED`, timeout: 20000 }
+      )
+      .toBe(true);
     // 重复确认幂等拦截（po/receipt.rs:33-40）
     const c2 = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
     expect(c2.status, 'COMPLETED 后重复确认应被拒').toBeGreaterThanOrEqual(400);

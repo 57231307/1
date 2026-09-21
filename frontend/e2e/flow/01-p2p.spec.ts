@@ -122,8 +122,10 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const pieceNo1 = genPieceNo(dyeLotNo, 1);
     const pieceNo2 = genPieceNo(dyeLotNo, 2);
 
-    await apiCall(page, 'POST', '/purchase/receipts', {
-      purchase_order_id: id,
+    // 后端 CreatePurchaseReceiptRequest 的订单字段是 order_id
+    // （原发 purchase_order_id 会被 serde 忽略，入库单与订单脱钩，收货事件不发、库存不增）
+    const receipt = await apiCall<{ id?: number }>(page, 'POST', '/purchase/receipts', {
+      order_id: id,
       supplier_id: ctx.supplierId || 1,
       warehouse_id: ctx.warehouseIds[0] || 1,
       receipt_date: new Date().toISOString().slice(0, 10),
@@ -157,36 +159,54 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       ],
     });
 
-    // 验证订单状态更新
+    const receiptId = receipt.data?.id;
+    expect(receiptId, '入库单创建失败（响应缺 id）').toBeTruthy();
+
+    // 确认入库：库存收货由确认事件异步驱动，轮询等待终态而非固定 sleep
+    await apiCall(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
+    await expect
+      .poll(
+        async () => {
+          const r = await apiCallRaw<{ receipt_status?: string; status?: string }>(
+            page,
+            'GET',
+            `/purchase/receipts/${receiptId}`
+          );
+          return (r.receipt_status || r.status || '').toUpperCase();
+        },
+        { message: `确认入库后入库单 ${receiptId} 应经收货事件进入 COMPLETED 终态` }
+      )
+      .toBe('COMPLETED');
+
+    // 验证订单状态更新：已收满订单应为 completed（未收货会停在 approved/pending_receipt）
     const order = await apiCallRaw<{ status: string; order_status?: string }>(
       page,
       'GET',
       `/purchase/orders/${id}`
     );
     const status = (order.status || order.order_status || '').toLowerCase();
-    expect([
-      'approved',
-      'confirmed',
-      'pending_receipt',
-      'partially_received',
-      'received',
-      'completed',
-      'closed',
-    ]).toContain(status ?? '(missing-status)');
+    expect(
+      ['completed', 'partial_received', 'received'],
+      `收货确认后采购订单 ${id} 应进入收货态，实际 ${status}`
+    ).toContain(status);
   });
 
   test('1-5 验证库存四维聚合（产品→色号→缸号→匹号）', async ({ page }) => {
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
 
-    // 产品 + 色号必须命中收货后的库存行
-    const stock = await verifyStockFourDim(page, productId, 'RED-001');
+    // 产品 + 色号 + 缸号（1-4 已确认入库的维度）必须命中库存行
+    const stock = await verifyStockFourDim(page, productId, 'RED-001', dyeLotNo);
     expect(
       stock,
-      `现货链路收货后应按产品 ${productId} + 色号 RED-001 命中库存行（未命中即链路或查询有缺陷）`
+      `确认入库后应按产品 ${productId} + 色号 RED-001 + 缸号 ${dyeLotNo} 命中库存行（未命中即收货链路有缺陷）`
     ).toBeTruthy();
     expect(String(stock!.color_no), '命中库存行的色号应与查询色号一致').toBe('RED-001');
-    expect(Number(stock!.quantity_on_hand), '收货后在库量应大于 0').toBeGreaterThan(0);
+    expect(String(stock!.dye_lot_no), '命中库存行的缸号应与查询缸号一致').toBe(dyeLotNo);
+    expect(
+      Number(stock!.quantity_on_hand),
+      `收货后在库量应大于 0（实际 ${stock!.quantity_on_hand}）`
+    ).toBeGreaterThan(0);
 
     // 缸号过滤必须真实下推：不存在的缸号不得命中任何行
     const noMatch = await verifyStockFourDim(page, productId, 'RED-001', `${dyeLotNo}-NO-SUCH`);

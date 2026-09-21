@@ -131,14 +131,9 @@ pub async fn create_receipt(
 
     let receipt = service.create_receipt(req, user_id).await?;
 
-    // 发布采购收货完成事件
-    if let Some(order_id) = receipt.order_id {
-        EVENT_BUS.publish(BusinessEvent::PurchaseReceiptCompleted {
-            receipt_id: receipt.id,
-            order_id,
-            supplier_id: receipt.supplier_id,
-        });
-    }
+    // 入库事件不在创建时发布：草稿入库单尚未确认，此刻收货会让库存无凭据增加，
+    // 且把单据直接推到 COMPLETED，使"确认入库"端点必然报状态不允许。
+    // 发布点在 confirm_receipt（确认后才产生收货事实）。
 
     // 发送采购到货通知
     if let Some(order_id) = receipt.order_id {
@@ -206,6 +201,16 @@ pub async fn confirm_receipt(
     let user_id = auth.user_id;
 
     let receipt = service.confirm_receipt(id, user_id).await?;
+
+    // 确认入库才构成收货事实：发布事件驱动订单收货（库存增加、订单转收货态、
+    // 入库单最终置为 COMPLETED）
+    if let Some(order_id) = receipt.order_id {
+        EVENT_BUS.publish(BusinessEvent::PurchaseReceiptCompleted {
+            receipt_id: receipt.id,
+            order_id,
+            supplier_id: receipt.supplier_id,
+        });
+    }
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(receipt)?,
