@@ -151,6 +151,19 @@
       所以「本地 --list 数字」与「CI 实跑数字」不等价，README 已改为按 CI 口径分目录实测。
 
 
+- [x] **库存台账状态字面量全仓收敛**：`models/status::inventory_stock_status` 落地后仍有 8 处
+      代码各自写 `"正常"/"报废"`（`inv/batch.rs`、`inventory_stock_query.rs` 判定与过滤、
+      `inventory_stock_service.rs` 四处建/改、`inventory_stock_txn.rs` 流水建行、
+      `material_shortage_service.rs` 缺料可用量过滤），已全部改引常量，
+      `inventory_stock_service.rs` 里原先的函数内 `use` 与三处全限定路径也一并收敛为模块级导入。
+
+- [ ] **`inventory_stocks.quality_status` 取值口径未定（疑似存在永不相等的筛选）**：
+      同一列的写入与过滤混用了 合格 / 不合格 / 待检 / 一等品 / 二等品 / 等外品 / 报废 / passed
+      八种字面量（`grep` 计数见本轮），其中 `passed` 与 `合格` 并存意味着
+      "按合格筛选"与"按 passed 写入"的行互相看不见；等级类取值（一等品等）
+      疑似被误写进质量状态列。需先确定该列的合法值集合与谁来裁决
+      （质量域还是库存域），再建常量并逐点核对，不能照现有写法直接建表固化错误口径。
+
 - [ ] **生产工单 / 物料缺料 / 质量预测的状态取值未核**：这几处后端状态值是散写在服务里的字面量
       （不在 models/status 下，故集合比对脚本取不到），需先按资源把写入点收敛进状态常量模块
       （规则 0），再套用上面对比方法核对前端取值。排查脚本与判据：对每个带状态筛选的列表端点，
@@ -567,6 +580,13 @@
 - [ ] 推送前必做：`git log --oneline <remote-head>..HEAD` 与「本轮改动清单」逐条对照，
       确认每个改动文件都被静态自审覆盖（items.rs 这类未进 CI 的后续提交要显式列出）
 
+- [ ] 推送机制（本轮实证）：仅设 `GIT_ASKPASS` 不足以完成推送——本机 git 配置了
+      `credential.helper=manager` + `store`，GCM 会先于 askpass 接管认证并弹交互框，
+      在无交互的 shell 里表现为 git push 静默挂起十余分钟无输出。
+      可用组合是 `git -c credential.helper= push`（清空 helper 列表）+
+      `GIT_ASKPASS=<脚本>` + `GIT_TERMINAL_PROMPT=0`，凭据仍不进 .git/config 与命令行；
+      推送完立即删除 askpass 脚本。挂起时先 TaskStop 再重试，不要并发第二个 push。
+      （流程备忘，非待修项）
 - [ ] CI 失败若再出现新 job：按 doto 流程拉日志→记录→下批修复
 - [ ] 推送授权后：本地 commit 批量推送 + 观察 main CI（含 coverage 等 main 专属 job）
 
