@@ -407,6 +407,32 @@ jobs:
         run: node frontend/scripts/check-contract.mjs
 
 # ==============================================================================
+# Job 3c: i18n key 完整性检查（L7 防线）
+# ==============================================================================
+# 背景：语言包缺 key 时运行时零信号——zh-CN 缺 key 直接把界面渲染成
+# `apModule.paymentRequest.requestNo`，en-US 缺 key 由 fallbackLocale 静默回退中文。
+# 旧版检查脚本抓 key 的正则漏掉 `:label="t('a.b')"` 这类引号后调用（旧版抓到 6018 个
+# key，收紧后 9636 个），且不校验 msg.translate 走的 message 命名空间，且只比对 zh-CN，
+# 因此在 CI 全绿的情况下漏出 15 个中文原始 key + 117 个英文回退。
+# 现改为 TypeScript AST 解析 + 双语比对 + 重复 key 检测，缺失即阻塞。
+# 依赖 frontend devDependencies 中的 typescript，故需安装前端依赖。
+  ci-i18n-check:
+    name: 🌐 i18n key 完整性检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: ci-info
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: 运行 i18n key 完整性检查（严格阻塞）
+        working-directory: frontend
+        run: node scripts/check-i18n.mjs
+
+# ==============================================================================
 # Job 4: Rust Clippy 检查（V15 Batch 485 baseline 机制 - clippy 专用）
 # ==============================================================================
 # V15 Batch 485 修订（第 6 轮 CI 后）：

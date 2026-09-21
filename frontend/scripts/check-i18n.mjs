@@ -1,75 +1,198 @@
 #!/usr/bin/env node
 /**
- * i18n 缺失 key 检测（用户报障："还有好多地方显示英文"）
+ * i18n key 完整性检查（CI 静态门）
  *
- * 扫描 .vue/.ts 中 t('a.b.c') / $t('a.b.c') 调用的 key，
- * 对照 zh-CN.ts 嵌套结构，缺失即列出。
- * 首轮产出缺失清单（ALLOWLIST 挂账），新增缺失即 CI fail。
+ * 校验两件事，任一不通过即 exit 1：
+ * 1. 代码引用的 key 在 zh-CN / en-US 中是否都存在且指向文案字符串
+ *    —— zh-CN 缺失会把界面渲染成 `apModule.paymentRequest.requestNo` 这类原始 key；
+ *       en-US 缺失由 fallbackLocale 静默回退中文。两者都不抛异常，运行时零信号。
+ * 2. 语言包内是否存在重复 key（后者覆盖前者，前一份文案变成永不生效的死文案）
+ *
+ * 用 TypeScript AST 而非 `new Function` 求值：eval 会直接丢掉了重复 key 的旧值，
+ * 无法报告覆盖；AST 保留全部属性节点，两种问题都能查出。
+ *
+ * 自检：若出现本检查无法表达的结构（计算键、展开、方法简写、非字符串值），
+ * 属性计数会对不上并直接报错退出，避免"解析不到"被误当成"不存在问题"。
+ *
+ * 历史缺陷：旧版用 `[$\s.(]t\(` 抓 key，漏掉 `:label="t('a.b')"` 这类引号后调用
+ * （旧版抓到 6018 个 key，收紧后 9636 个，多出 3618 个从未校验过），且只比对 zh-CN。
+ * 收紧后暴露 15 个中文界面原始 key 与 117 个英文界面回退中文，已在同批次清零。
  */
 import { readFileSync, readdirSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
+import ts from 'typescript';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FRONTEND = resolve(__dirname, '..');
+const LOCALES = join(FRONTEND, 'src', 'locales');
+const NAMES = ['zh-CN', 'en-US'];
 
-// 读取 zh-CN.ts（TS 源码，用 ts-node 代价高——转成可 eval 的 JSON 不可行，改用 babel 简化：
-// 直接正则抓 key 层级不可靠。此处借 vite 环境缺失，采用运行时 import 转换：
-// zh-CN.ts 是 `export default { ... }` 形式，用正则剥掉 export 头尾后 eval）
-function loadZhCN() {
-  const src = readFileSync(join(FRONTEND, 'src', 'locales', 'zh-CN.ts'), 'utf-8');
-  // 仅剥离真正的 import 语句（含 from），避免误吞对象键 import: '...'
-  const stripped = src
-    .replace(/^\s*import\s+[^;\n]*\bfrom\s+['"][^'"]*['"];?\s*$/gm, '')
-    .replace(/\bexport\s+default\s*/, 'module.exports = ')
-    .replace(/\s*as const\s*(?=[;}])/g, '')
-    .replace(/\s*satisfies\s+\w+/g, '');
-  const fn = new Function('module', 'exports', stripped);
-  const mod = { exports: {} };
-  fn(mod, mod.exports);
-  return mod.exports;
+/* ---------- 语言包解析 ---------- */
+
+function parseLocale(name) {
+  const file = join(LOCALES, name + '.ts');
+  const sf = ts.createSourceFile(
+    file,
+    readFileSync(file, 'utf-8'),
+    ts.ScriptTarget.ESNext,
+    true,
+    ts.ScriptKind.TS
+  );
+  const values = new Map(); // 点分路径 -> 文案
+  const groups = new Set(); // 指向对象的点分路径
+  const dups = [];
+  let props = 0; // 已识别属性数
+
+  const visit = (node, prefix) => {
+    const seen = new Map();
+    for (const prop of node.properties) {
+      if (ts.isSpreadAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) {
+        throw new Error(
+          `${name}.ts 第 ${lineOf(sf, prop)} 行为展开/简写，静态检查无法覆盖，需人工核对`
+        );
+      }
+      if (!ts.isPropertyAssignment(prop)) continue;
+      const key = literalKey(prop);
+      if (key === null) {
+        throw new Error(
+          `${name}.ts 第 ${lineOf(sf, prop)} 行为计算键或非字面量键，静态检查无法覆盖`
+        );
+      }
+      props++;
+      const path = prefix ? prefix + '.' + key : key;
+      if (seen.has(key)) dups.push({ path, first: seen.get(key), line: lineOf(sf, prop) });
+      else seen.set(key, lineOf(sf, prop));
+
+      const init = prop.initializer;
+      if (ts.isObjectLiteralExpression(init)) {
+        groups.add(path);
+        visit(init, path);
+      } else if (ts.isStringLiteral(init) || ts.isNoSubstitutionTemplateLiteral(init)) {
+        values.set(path, init.text);
+      } else if (ts.isTemplateExpression(init) || ts.isBinaryExpression(init)) {
+        // 拼接文案：存在性可判定，字面值不比对
+        values.set(path, null);
+      } else {
+        throw new Error(
+          `${name}.ts 第 ${lineOf(sf, prop)} 行 ${path} 的值不是字符串字面量（${ts.SyntaxKind[init.kind]}），` +
+            '静态检查无法确认文案存在性'
+        );
+      }
+    }
+  };
+  visit(findRootObject(sf), '');
+
+  return { values, groups, dups, props };
 }
 
-function hasKey(obj, keyPath) {
-  let cur = obj;
-  for (const part of keyPath.split('.')) {
-    if (cur === undefined || cur === null || typeof cur !== 'object') return false;
-    cur = cur[part];
-  }
-  return cur !== undefined;
+function literalKey(prop) {
+  const n = prop.name;
+  if (!n) return null;
+  if (ts.isIdentifier(n) || ts.isStringLiteral(n) || ts.isNumericLiteral(n)) return n.text;
+  return null;
+}
+function findRootObject(sf) {
+  let root = null;
+  (function walk(n) {
+    if (root) return;
+    if (ts.isExportAssignment(n) && ts.isObjectLiteralExpression(n.expression)) root = n.expression;
+    else ts.forEachChild(n, walk);
+  })(sf);
+  if (!root) throw new Error('未找到 `export default { ... }`');
+  return root;
+}
+function lineOf(sf, node) {
+  return sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
 }
 
-// 扫描 src 下所有 vue/ts 的 t() 调用
-function collectKeys(dir, set) {
+/* ---------- 代码侧 key 抓取 ---------- */
+
+/**
+ * t('a.b') / $t('a.b') / msg.translate('a.b')
+ * 前置断言用「非标识符字符」，覆盖 `:label="t('a.b')"`、`{{ t('a.b') }}`、`|| t('a.b')` 等
+ * 旧版的 `[$\s.(]` 要求前置换行/空格/点/括号，导致模板属性里的调用整体漏检。
+ */
+const REF_PATTERNS = [
+  { re: /(?:^|[^\w$])\$?t\(\s*(['"])([^'"]+)\1/g, prefix: '' },
+  { re: /(?:^|[^\w$])msg\.translate\(\s*(['"])([^'"]+)\1/g, prefix: 'message.' },
+  // 模板串调用：含 ${} 的为动态 key，只能统计不能判定；无 ${} 的按字面 key 校验
+  { re: /(?:^|[^\w$])\$?t\(\s*`([^`]*)`/g, prefix: '' },
+];
+const isDynamic = k => k.includes('$') || k.endsWith('.');
+
+function collectRefs(dir, out, dynamic) {
   for (const f of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, f.name);
     if (f.isDirectory()) {
       if (f.name === 'node_modules' || f.name === 'dist') continue;
-      collectKeys(p, set);
-    } else if (/\.(vue|ts)$/.test(f.name) && !/locales/.test(p)) {
-      const src = readFileSync(p, 'utf-8');
-      for (const m of src.matchAll(/[$\s.(]t\(\s*'([^']+)'/g)) set.add(m[1]);
-      for (const m of src.matchAll(/[$\s.(]t\(\s*"([^"]+)"/g)) set.add(m[1]);
+      collectRefs(p, out, dynamic);
+      continue;
+    }
+    if (!/\.(vue|ts)$/.test(f.name) || /[/\\]locales[/\\]/.test(p)) continue;
+    const src = readFileSync(p, 'utf-8');
+    const rel = p.slice(FRONTEND.length + 1);
+    for (const { re, prefix } of REF_PATTERNS) {
+      for (const m of src.matchAll(re)) {
+        const key = prefix + m[m.length - 1];
+        if (isDynamic(key)) dynamic.add(rel + '  ' + key);
+        else out.push({ key, where: rel });
+      }
     }
   }
 }
 
-const zh = loadZhCN();
-const used = new Set();
-collectKeys(join(FRONTEND, 'src'), used);
+/* ---------- 主流程 ---------- */
 
-// 存量挂账清单：修复一条删一条
+const locales = new Map();
+for (const name of NAMES) locales.set(name, parseLocale(name));
+
+const refs = [];
+const dynamicRefs = new Set();
+collectRefs(join(FRONTEND, 'src'), refs, dynamicRefs);
+const firstRef = new Map();
+for (const r of refs) if (!firstRef.has(r.key)) firstRef.set(r.key, r.where);
+
+const violations = [];
+for (const [key, where] of firstRef) {
+  for (const name of NAMES) {
+    const { values, groups } = locales.get(name);
+    if (values.has(key)) continue;
+    violations.push(
+      groups.has(key)
+        ? `${name}: ${key} 指向分组而非文案，界面会显示原始 key  首次引用 ${where}`
+        : `${name}: 缺失 key ${key}  首次引用 ${where}`
+    );
+  }
+}
+for (const name of NAMES) {
+  for (const d of locales.get(name).dups) {
+    violations.push(`${name}.ts: 重复 key ${d.path}，第 ${d.first} 行被第 ${d.line} 行覆盖`);
+  }
+}
+
+/* 兜底自检：文案与重复项之和不应超过已识别属性数，否则解析器统计有缺陷 */
+for (const name of NAMES) {
+  const l = locales.get(name);
+  const counted = l.values.size + l.dups.length;
+  if (counted > l.props) {
+    throw new Error(`${name}.ts 统计异常：计入 ${counted} > 属性 ${l.props}，解析器存在缺陷`);
+  }
+}
+
+/* 存量挂账：修复一条删一条，禁止新增 */
 const ALLOWLIST = new Set();
-const missing = [...used].filter(k => !hasKey(zh, k) && !k.includes('${') && !k.includes('$'));
-const realMissing = missing.filter(k => !ALLOWLIST.has(k));
 
+const blocked = violations.filter(v => !ALLOWLIST.has(v));
 console.log(
-  `[i18n] 使用 key 总数: ${used.size}, 缺失: ${realMissing.length}, 挂账: ${missing.length - realMissing.length}`
+  `[i18n] 引用字面 key ${firstRef.size} 个（动态拼接 ${dynamicRefs.size} 处不判定），` +
+    `zh-CN 文案 ${locales.get('zh-CN').values.size}，en-US 文案 ${locales.get('en-US').values.size}，` +
+    `问题 ${violations.length}，挂账 ${violations.length - blocked.length}`
 );
-if (realMissing.length > 0) {
+if (blocked.length) {
   console.error(
-    `[i18n] ❌ 新增缺失 key（将显示英文原始 key）:\n${realMissing.map(k => '  - ' + k).join('\n')}`
+    `[i18n] ❌ 未通过（${blocked.length} 项）:\n${blocked.map(v => '  - ' + v).join('\n')}`
   );
   process.exit(1);
 }
+console.log('[i18n] ✅ 通过');
