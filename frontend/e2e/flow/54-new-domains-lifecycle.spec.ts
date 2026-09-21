@@ -75,13 +75,16 @@ test.describe.serial('新域业务流转链', () => {
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
 
     // 推进：AdvanceStepPayload = { step: 'd1_team', team_members }
-    const row = findTableRow(page, String(issueId));
-    await row.getByRole('button', { name: '推进下一阶段' }).click();
+    // findTableRow 是 async，此前漏 await 使 row 成为 Promise，
+    // row.getByRole 直接 TypeError（CI: "row.getByRole is not a function"）
+    const row = await findTableRow(page, String(issueId));
+    expect(row, `质量问题列表中应存在 id=${issueId} 的行，否则 8D 推进入口无从点击`).toBeTruthy();
+    await row!.getByRole('button', { name: '推进下一阶段' }).click();
     await page.locator('.el-message-box__input input').fill('张三、李四（D1 团队）');
     await page.locator('.el-message-box__btns .el-button--primary').click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
     // 状态应从 not_started/d0 推进至 d1
-    await expect(row).toContainText('D1', { timeout: 5000 });
+    await expect(row!).toContainText('D1', { timeout: 5000 });
   });
 
   test('坏账：计提（period_year/period_month）→ 确认 → 冲销状态呈现', async ({ page }) => {
@@ -149,11 +152,12 @@ test.describe.serial('新域业务流转链', () => {
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
 
     // 状态链：draft → issued（发出）
-    const row = findTableRow(page, orderNo);
-    await row.getByRole('button', { name: '发出' }).click();
+    const row = await findTableRow(page, orderNo);
+    expect(row, `列表中应存在单号 ${orderNo} 的行，否则无法执行发出`).toBeTruthy();
+    await row!.getByRole('button', { name: '发出' }).click();
     await page.locator('.el-message-box__btns .el-button--primary').click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
-    await expect(row).toContainText('已发出', { timeout: 5000 });
+    await expect(row!).toContainText('已发出', { timeout: 5000 });
   });
 
   test('客户协作：合同签署（contract_id+signed_by_user_id）→ 列表呈现', async ({ page }) => {
