@@ -231,6 +231,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -372,8 +373,8 @@ const handleEdit = async (row: Bom) => {
   try {
     const res = await getBomById(row.id);
     if (res.data) source = res.data;
-  } catch {
-    /* 回源失败保留行数据 */
+  } catch (error) {
+    logger.error(t('bomModule.message.fetchDetailFailed'), error);
   }
   Object.assign(formData, {
     id: source.id,

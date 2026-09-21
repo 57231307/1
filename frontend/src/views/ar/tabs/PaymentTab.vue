@@ -118,6 +118,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -261,7 +262,8 @@ const showDetail = async (row: ARPayment) => {
   try {
     const res = await getARPayment(row.id);
     detailRow.value = (res.data as ARPayment) || row;
-  } catch {
+  } catch (error) {
+    logger.error(t('arModule.payment.detailFailed'), error);
     detailRow.value = row;
   }
   detailVisible.value = true;

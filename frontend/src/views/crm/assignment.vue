@@ -323,6 +323,7 @@ const fetchUsers = async () => {
     const res = await getSalesUserList();
     users.value = (res.data || []) as unknown as User[];
   } catch (error) {
+    logger.error(t('crmAssignment.message.loadSalesUsersFailed'), error);
     users.value = [];
   }
 };

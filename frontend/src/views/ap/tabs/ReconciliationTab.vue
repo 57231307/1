@@ -181,6 +181,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -382,7 +383,8 @@ const showReconciliationDetail = async (row: APReconciliation) => {
   try {
     const res = await getAPReconciliation(row.id);
     detailRow.value = (res.data as APReconciliation) || row;
-  } catch {
+  } catch (error) {
+    logger.error(t('apModule.reconciliation.detailFailed'), error);
     detailRow.value = row;
   }
   detailVisible.value = true;

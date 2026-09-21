@@ -126,6 +126,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -267,7 +268,8 @@ const showDetail = async (row: ARVerification) => {
   try {
     const res = await getARVerification(row.id);
     detailRow.value = (res.data as ARVerification) || row;
-  } catch {
+  } catch (error) {
+    logger.error(t('arModule.verification.detailFailed'), error);
     detailRow.value = row;
   }
   detailVisible.value = true;

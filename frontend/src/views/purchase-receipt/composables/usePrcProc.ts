@@ -8,6 +8,7 @@
  * 由于 usePrc 返回 reactive({...})，父组件传入 prc.searchForm 等会自动解包为值
  */
 import { reactive, ref } from 'vue';
+import { logger } from '@/utils/logger';
 import { ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import {
@@ -92,8 +93,8 @@ export function usePrcProc(cb: PrcCallbacks) {
           cb.dialogTitle = `新增入库（预生成单号 ${no}）`;
         }
       })
-      .catch(() => {
-        /* 预生成失败不阻断新建 */
+      .catch(error => {
+        logger.error(msg.translate('pregenReceiptNoFailed'), error);
       });
   };
 

@@ -93,6 +93,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -180,7 +181,8 @@ const fetchWarehouses = async () => {
   try {
     const res = await getWarehouseList({ page: 1, page_size: 1000 });
     warehouses.value = res.data?.items || [];
-  } catch {
+  } catch (error) {
+    logger.error(t('inventory.fabricStock.loadWarehousesFailed'), error);
     warehouses.value = [];
   }
 };

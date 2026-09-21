@@ -6,11 +6,13 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive, watch, h } from 'vue';
+import { logger } from '@/utils/logger';
 import { ElTag } from 'element-plus';
 import { useTableApi } from '@/composables/useTableApi';
 import type { ColumnDef } from '@/components/V2Table/types';
 import { type SalesOrder, type SalesOrderItem } from '@/api/sales';
 import { request } from '@/api/request';
+import { msg } from '@/utils/message';
 import type { Customer } from '@/api/customer';
 import type { Product } from '@/api/product';
 import { getStatusType, getStatusText, formatAmount } from './olvFmts';
@@ -239,8 +241,8 @@ export function useOlv() {
         customers.value = [];
       }
     } catch (error) {
+      logger.error(msg.translate('loadCustomerListFailed'), error);
       customers.value = [];
-      void error;
     }
   };
 
@@ -257,8 +259,8 @@ export function useOlv() {
         products.value = [];
       }
     } catch (error) {
+      logger.error(msg.translate('loadProductListFailed'), error);
       products.value = [];
-      void error;
     }
   };
 
@@ -278,8 +280,8 @@ export function useOlv() {
         warehouses.value = [];
       }
     } catch (error) {
+      logger.error(msg.translate('loadWarehouseListFailed'), error);
       warehouses.value = [];
-      void error;
     }
   };
 

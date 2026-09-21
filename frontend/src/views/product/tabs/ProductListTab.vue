@@ -335,6 +335,7 @@
 
 <script setup lang="ts">
 import { formatCurrency } from '@/utils';
+import { logger } from '@/utils/logger';
 // 批次 277：迁移到 useTableApi composable，移除手写分页逻辑
 import { ref, reactive, watch, onMounted, defineEmits, defineExpose } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -434,7 +435,7 @@ const fetchCategories = async () => {
     categoryTree.value = (treeRes.data as ProductCategory[] | undefined) || [];
     stats.totalCategories = countNodes(categoryTree.value);
   } catch (error) {
-    // 主入口已记录日志
+    logger.error(t('product.productListTab.messageFetchCategoriesFailed'), error);
   }
 };
 
@@ -527,7 +528,8 @@ const openColorDialog = async (row: Product) => {
     const { getProductColorList } = await import('@/api/product');
     const res = await getProductColorList(row.id);
     colorRows.value = (res.data as unknown as ProductColor[]) || [];
-  } catch {
+  } catch (error) {
+    logger.error(t('product.productListTab.messageFetchColorsFailed'), error);
     colorRows.value = [];
   }
 };

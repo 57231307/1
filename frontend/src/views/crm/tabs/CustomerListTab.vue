@@ -485,6 +485,7 @@ const fetchTags = async () => {
     const res = await getCrmTagList();
     tags.value = res.data || [];
   } catch (error) {
+    logger.error(t('crmCustomer.message.loadTagsFailed'), error);
     tags.value = [];
   }
 };

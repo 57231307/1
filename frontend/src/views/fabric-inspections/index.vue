@@ -276,7 +276,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { logger } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import {
   closeFabricInspection,
   createFabricInspection,
@@ -294,6 +296,7 @@ import {
   type FabricInspection,
 } from '@/api/fabric-inspection';
 
+const { t } = useI18n({ useScope: 'global' });
 const inspections = ref<FabricInspection[]>([]);
 const loading = ref(false);
 const saving = ref(false);
@@ -407,8 +410,8 @@ async function openDetail(row: FabricInspection) {
       detailRow.value = res.data;
       detailVisible.value = true;
     }
-  } catch {
-    /* 回源失败保留行数据 */
+  } catch (error) {
+    logger.error(t('message.loadFabricInspectionDetailFailed'), error);
   }
   defectListLoading.value = true;
   try {
@@ -417,7 +420,8 @@ async function openDetail(row: FabricInspection) {
     defectList.value = Array.isArray(d)
       ? d
       : ((d as { items?: Array<Record<string, unknown>> })?.items ?? []);
-  } catch {
+  } catch (error) {
+    logger.error(t('message.loadFabricDefectsFailed'), error);
     defectList.value = [];
   } finally {
     defectListLoading.value = false;

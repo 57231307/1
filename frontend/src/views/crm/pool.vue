@@ -270,6 +270,7 @@ const fetchUsers = async () => {
     const res = await getUserList();
     users.value = res.data?.users || [];
   } catch (error) {
+    logger.error(t('crmPool.message.loadUsersFailed'), error);
     users.value = [];
   }
 };

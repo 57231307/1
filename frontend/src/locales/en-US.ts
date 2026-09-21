@@ -562,6 +562,7 @@ export default {
       darkMode: 'Switch to dark mode',
       lightMode: 'Switch to light mode',
       themeMenuAriaLabel: 'Theme switcher menu',
+      unreadCountFailed: 'Failed to fetch unread notification count',
     },
   },
   sales: {
@@ -950,6 +951,7 @@ export default {
       releaseSuccess: 'Reservation released',
       cancelConfirm: 'The reservation will become invalid. Continue?',
       cancelSuccess: 'Reservation cancelled',
+      loadWarehousesFailed: 'Failed to load warehouses',
     },
     fabricStock: {
       create: 'Fabric Stock In',
@@ -958,6 +960,7 @@ export default {
       meters: 'Qty (m)',
       kg: 'Qty (kg)',
       batchRequired: 'Batch no. is required',
+      loadWarehousesFailed: 'Failed to load warehouses',
     },
     transferDetail: {
       title: 'Transfer Order Detail',
@@ -1543,6 +1546,19 @@ export default {
     sendNotificationFailed: 'Failed to send notification',
     markFailed: 'Mark failed',
     exportBlockedResource: 'Resource {resource} export is blocked',
+    loadBulkColorDetailFailed: 'Failed to fetch bulk color approval detail',
+    loadBulkColorHistoryFailed: 'Failed to fetch bulk color approval history',
+    loadFabricInspectionDetailFailed: 'Failed to fetch fabric inspection detail',
+    loadFabricDefectsFailed: 'Failed to fetch defect list',
+    loadProductionRecipeDetailFailed: 'Failed to fetch production recipe detail',
+    loadPurchaseOrderDetailFailed: 'Failed to fetch purchase order detail',
+    loadCustomerListFailed: 'Failed to load customer list',
+    loadProductListFailed: 'Failed to load product list',
+    loadWarehouseListFailed: 'Failed to load warehouse list',
+    pregenReceiptNoFailed: 'Failed to pregenerate receipt number',
+    loadVersionDetailFailed: 'Failed to fetch system version detail',
+    loadBackupDetailFailed: 'Failed to fetch backup detail',
+    loadTaskDetailFailed: 'Failed to fetch update task detail',
   },
   aiExtend: {
     qualityPrediction: {
@@ -1601,6 +1617,7 @@ export default {
       createDialogAriaLabel: 'Trigger AI Quality Prediction Dialog',
       formAriaLabel: 'AI Quality Prediction Form',
       issuesTableAriaLabel: 'Top Issues Attribution List',
+      detailFailed: 'Failed to fetch quality prediction detail',
     },
     process: {
       invalidId: 'Invalid process optimization ID',
@@ -1799,6 +1816,7 @@ export default {
       deleteConfirm: 'Delete budget "{name}"?',
       deleteFailed: 'Delete failed',
       listExported: 'Budget list exported',
+      detailFailed: 'Failed to fetch budget detail',
     },
   },
   businessTrace: {
@@ -3450,6 +3468,8 @@ export default {
       messageDeleteTitle: 'Delete Confirmation',
       messageDeleteSuccess: 'Deleted successfully',
       messageDeleteFailed: 'Delete failed',
+      messageFetchCategoriesFailed: 'Failed to fetch product categories',
+      messageFetchColorsFailed: 'Failed to fetch product color list',
     },
     productFormDialogTab: {
       formAriaLabel: 'Product form',
@@ -3615,6 +3635,7 @@ export default {
       createSuccess: 'Created successfully',
       operationFailed: 'Operation failed',
       printWindowFailed: 'Unable to open print window',
+      loadTagsFailed: 'Failed to load tags',
     },
     validation: {
       customerCodeRequired: 'Please enter customer code',
@@ -3905,6 +3926,7 @@ export default {
       selectionChanged: 'Selection changed',
       scoreEmpty: 'Scoring finished, no score details',
       scoreFailed: 'Scoring failed',
+      loadUsersFailed: 'Failed to load users',
     },
     exportFile: {
       filename: 'Leads List',
@@ -5414,6 +5436,7 @@ export default {
       createSuccess: 'Created successfully',
       updateSuccess: 'Updated successfully',
       operateFailed: 'Operation failed',
+      fetchDetailFailed: 'Failed to fetch BOM detail',
     },
   },
   apModule: {
@@ -5551,6 +5574,7 @@ export default {
         'Matchable invoices and payments will be reconciled automatically to generate a statement. Continue?',
       autoReconcileSuccess: 'Auto reconciliation completed',
       summary: 'Reconciliation Summary',
+      detailFailed: 'Failed to fetch AP reconciliation detail',
     },
     paymentRequest: {
       create: 'New Payment Request',
@@ -5569,6 +5593,7 @@ export default {
       rejectReason: 'Enter rejection reason',
       rejectReasonRequired: 'Rejection reason is required',
       deleteConfirm: 'Delete this payment request?',
+      detailFailed: 'Failed to fetch payment request detail',
     },
     report: {
       statistics: 'Statistics',
@@ -5606,6 +5631,8 @@ export default {
       invoiceAmount: 'Invoice Amount',
       paymentAmount: 'Payment Amount',
       verifiedAmount: 'Verified Amount',
+      detailFailed: 'Failed to fetch AP verification detail',
+      unverifiedLoadFailed: 'Failed to fetch pending AP invoices and payments',
     },
   },
   arModule: {
@@ -5765,6 +5792,7 @@ export default {
       notes: 'Notes',
       confirm: 'Confirm Receipt',
       confirmMessage: 'Confirm that this payment has been received?',
+      detailFailed: 'Failed to fetch AR payment detail',
     },
     verification: {
       manual: 'Manual Verification',
@@ -5782,6 +5810,7 @@ export default {
       paymentRequired: 'Please select a receipt',
       cancel: 'Cancel Verification',
       cancelConfirm: 'Related documents will return to unverified state. Continue?',
+      detailFailed: 'Failed to fetch AR verification detail',
     },
     report: {
       statistics: 'Statistics',
@@ -5938,6 +5967,7 @@ export default {
       loadFailed: 'Failed to load pool list',
       selectToClaim: 'Please select customers to claim',
       claimSuccess: 'Claimed successfully',
+      loadUsersFailed: 'Failed to load users',
     },
   },
   crmAssignment: {
@@ -6013,6 +6043,7 @@ export default {
       deleteTitle: 'Delete Confirmation',
       deleteSuccess: 'Deleted successfully',
       deleteFailed: 'Failed to delete',
+      loadSalesUsersFailed: 'Failed to load sales users',
     },
   },
   crmTagsPanel: {
@@ -6098,6 +6129,8 @@ export default {
       detail: 'Detail',
     },
     countUnit: 'customers',
+    loadFailed: 'Failed to load RFM customer list',
+    distributionLoadFailed: 'Failed to load RFM distribution',
   },
   crmFollowUp: {
     title: 'Follow-up Records',
@@ -6285,6 +6318,8 @@ export default {
       convertSuccess: 'Converted to sales order',
       convertFailed: 'Conversion failed',
       analyticsLoading: 'Loading analytics…',
+      loadUsersFailed: 'Failed to load users',
+      loadCustomersFailed: 'Failed to load customers',
     },
   },
   crmOpportunityFollow: {
@@ -6710,6 +6745,7 @@ export default {
       log: {
         fetchListFailed: 'Failed to fetch credit list',
         fetchDetailFailed: 'Failed to fetch credit detail',
+        fetchCustomersFailed: 'Failed to fetch customer options',
       },
       dialog: {
         deactivateConfirmMessage: 'Are you sure you want to deactivate this customer credit?',
@@ -7038,6 +7074,8 @@ export default {
       colAmount: 'Amount',
       colAction: 'Action',
       delete: 'Delete',
+      colorLoadFailed: 'Failed to fetch product color list',
+      productLoadFailed: 'Failed to load product list',
     },
     termEditor: {
       termLabel: 'Term {n}',
@@ -7121,6 +7159,7 @@ export default {
       saveFailed: 'Save failed',
       submitSuccess: 'Submitted for approval',
       submitFailed: 'Submit failed',
+      customerLoadFailed: 'Failed to load customers',
     },
     detail: {
       title: 'Quotation Detail',
@@ -7227,6 +7266,7 @@ export default {
       convertConfirmText:
         'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
       convertSuccess: 'Converted successfully, Sales Order ID: {id}',
+      customerLoadFailed: 'Failed to load customers',
     },
     edit: {
       pageAriaLabel: 'Edit Quotation Page',
@@ -7799,6 +7839,7 @@ export default {
         deleteFailed: 'Failed to delete',
         deleteConfirm: 'Delete user "{name}"?',
         deleteConfirmTitle: 'Delete Confirmation',
+        loadRolesFailed: 'Failed to load roles',
       },
     },
     slowQuery: {
@@ -7849,6 +7890,7 @@ export default {
       message: {
         loadFailed: 'Failed to load slow queries',
         refreshFailed: 'Refresh failed',
+        statsFailed: 'Failed to fetch slow query statistics',
       },
     },
     audit: {
@@ -7927,6 +7969,7 @@ export default {
         scopeValue: 'Scope Value',
         createdAt: 'Created At',
       },
+      loadListFailed: 'Failed to load data permission list',
     },
     department: {
       title: 'Department Management',
@@ -7998,6 +8041,7 @@ export default {
         yes: 'Yes',
         no: 'No',
       },
+      loadListFailed: 'Failed to load field permission list',
     },
     notification: {
       title: 'Notification Settings',
@@ -8026,6 +8070,8 @@ export default {
       message: {
         saveSuccess: 'Saved successfully',
         saveFailed: 'Save failed',
+        loadFailed: 'Failed to load notification settings',
+        loadUsersFailed: 'Failed to load users',
       },
       announce: {
         title: 'System Announcement',
@@ -8064,6 +8110,7 @@ export default {
         allowed: 'Allowed',
         denied: 'Denied',
       },
+      loadListFailed: 'Failed to load permission list',
     },
     role: {
       title: 'Role Management',
@@ -8148,6 +8195,7 @@ export default {
         checkFailed: 'Failed to check for updates',
         updateSubmitted: 'Update submitted, the service will restart',
         updateFailed: 'Update failed',
+        loadVersionFailed: 'Failed to load system version info',
       },
     },
     webhook: {
@@ -8208,6 +8256,7 @@ export default {
         deleteFailed: 'Delete failed',
         testSent: 'Test request sent',
         testFailed: 'Test failed',
+        loadFailed: 'Failed to load webhook integrations',
       },
     },
     oaAnnouncement: {
@@ -8256,6 +8305,9 @@ export default {
         createSuccess: 'Created successfully',
         updateSuccess: 'Updated successfully',
         operationFailed: 'Operation failed',
+        loadUsersFailed: 'Failed to load users',
+        loadRolesFailed: 'Failed to load roles',
+        loadDeptsFailed: 'Failed to load departments',
       },
     },
   },
@@ -8984,6 +9036,7 @@ export default {
         delete: 'Delete',
       },
     },
+    messageDetailLoadFailed: 'Failed to fetch purchase return detail',
   },
   purchaseReceipt: {
     filter: {
@@ -10063,6 +10116,7 @@ export default {
       messageUpdateSuccess: 'Return updated successfully',
       messageCreateSuccess: 'Return created successfully',
       messageOperationFailed: 'Operation failed',
+      messageDetailFailed: 'Failed to fetch sales return detail',
     },
   },
   salesPrice: {
@@ -10251,6 +10305,7 @@ export default {
       statusApproved: 'Approved',
       statusRejected: 'Rejected',
       statusCompleted: 'Completed',
+      itemLoadFailed: 'Failed to fetch sales return items',
     },
     editDialog: {
       titleCreate: 'New Return',
@@ -10811,6 +10866,7 @@ export default {
     confirmCancel: 'Revoke this export request?',
     cancelled: 'Revoked',
     copyFailed: 'Copy failed',
+    detailFailed: 'Failed to fetch export approval detail',
   },
   financeReport: {
     index: {
@@ -10975,6 +11031,7 @@ export default {
       messageConfirmDelete: 'Are you sure to delete this data permission?',
       messageJsonInvalid:
         'Invalid JSON format, please check the custom condition / allowed fields / hidden fields input',
+      messageDetailFailed: 'Failed to fetch data permission detail',
     },
   },
   notification: {
@@ -11009,6 +11066,7 @@ export default {
       messageConfirmDelete: 'Are you sure to delete this notification?',
       ariaPagination: 'Notification List Pagination',
       ariaDetailDialog: 'Notification Detail Dialog',
+      messageLoadUnreadCountFailed: 'Failed to fetch unread notification count',
     },
   },
   departments: {
@@ -11122,6 +11180,7 @@ export default {
       messageFetchFailed: 'Failed to load batch list',
       statusNormal: 'Normal',
       statusQualified: 'Qualified',
+      messageLoadWarehousesFailed: 'Failed to load warehouses',
     },
     batchFormDialog: {
       titleEdit: 'Edit Batch',
@@ -11232,6 +11291,7 @@ export default {
       labelCode: 'Warehouse Code',
       labelName: 'Warehouse Name',
       labelDefault: 'Default',
+      messageFetchLocationFailed: 'Failed to fetch warehouse location detail',
     },
   },
   dyeRecipe: {
@@ -11457,6 +11517,7 @@ export default {
       placeholderDyeLotNo: 'Enter dye lot no.',
       placeholderGrade: 'Select grade',
       placeholderProductId: 'Enter product ID',
+      messageAssistRecordsFailed: 'Failed to fetch assist accounting records',
     },
   },
   email: {

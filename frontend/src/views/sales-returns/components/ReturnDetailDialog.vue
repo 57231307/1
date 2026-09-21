@@ -121,6 +121,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getStatusType, formatAmount } from '../composables/srFmts';
@@ -174,7 +175,8 @@ watch(
         serverItems.value = Array.isArray(data)
           ? data
           : ((data as { items?: SalesReturnItem[] })?.items ?? []);
-      } catch {
+      } catch (error) {
+        logger.error(t('salesReturns.detailDialog.itemLoadFailed'), error);
         serverItems.value = [];
       } finally {
         itemsLoading.value = false;

@@ -181,6 +181,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -256,7 +257,7 @@ const openVerificationDialog = async () => {
     unverifiedInvoices.value = invs.filter(i => i.unverified_amount > 0);
     unverifiedPayments.value = pays;
   } catch (e) {
-    void e;
+    logger.error(t('apModule.verification.unverifiedLoadFailed'), e);
   }
   verificationForm.invoice_id = undefined;
   verificationForm.payment_id = undefined;
@@ -338,7 +339,8 @@ const showVerificationDetail = async (row: APVerification) => {
   try {
     const res = await getAPVerification(row.id);
     detailRow.value = (res.data as APVerification) || row;
-  } catch {
+  } catch (error) {
+    logger.error(t('apModule.verification.detailFailed'), error);
     detailRow.value = row;
   }
   detailVisible.value = true;

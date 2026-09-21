@@ -801,6 +801,7 @@ import {
   stopNotificationWs,
 } from '@/composables/useNotificationWs';
 import { getUnreadCount } from '@/api/notification';
+import { logger } from '@/utils/logger';
 import { ref as vueRef, onBeforeUnmount } from 'vue';
 import { Bell } from '@element-plus/icons-vue';
 
@@ -956,8 +957,8 @@ async function refreshUnread() {
     const res = await getUnreadCount();
     const data = res as unknown as { data?: number };
     unreadCount.value = Number(data?.data ?? 0);
-  } catch {
-    // 静默失败：未读数非关键路径
+  } catch (error) {
+    logger.error(t('layout.main.unreadCountFailed'), error);
   }
 }
 

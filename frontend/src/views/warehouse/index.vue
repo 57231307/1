@@ -721,8 +721,8 @@ const openLocationForm = async (row?: WarehouseLocation) => {
     try {
       const res = await getWarehouseLocation(row.id);
       row = res.data ?? row;
-    } catch {
-      /* 回源失败保留行数据 */
+    } catch (error) {
+      logger.error(t('warehouse.index.messageFetchLocationFailed'), error);
     }
     Object.assign(locForm, {
       location_code: row.location_code,

@@ -143,6 +143,7 @@
 // - 加载产品/色号
 // - 含税单价 = 单价 × 1.13
 import { ref, onMounted, watch } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { Plus } from '@element-plus/icons-vue';
 import { getProductColorList, getProductList } from '@/api/product';
@@ -207,8 +208,8 @@ async function handleProductChange(row: QuotationItemRow, productId: number | un
     row._colors = data;
     // 强制响应式：发出新数组
     emit('update:modelValue', [...props.modelValue]);
-  } catch {
-    // 静默失败：色号可选
+  } catch (error) {
+    logger.error(t('quotations.itemEditor.colorLoadFailed'), error);
   }
 }
 
@@ -247,7 +248,8 @@ onMounted(async () => {
     // 已停用产品也会出现在报价明细的产品下拉里
     const res = await getProductList({ page: 1, page_size: 1000, status: 'active' });
     products.value = res.data?.items || [];
-  } catch {
+  } catch (error) {
+    logger.error(t('quotations.itemEditor.productLoadFailed'), error);
     products.value = [];
   }
 });

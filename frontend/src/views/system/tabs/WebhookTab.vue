@@ -124,6 +124,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -167,6 +168,7 @@ const fetchWebhooks = async () => {
     // 拦截器返回 ApiResponse 信封，业务数组在 data 字段（信封对象直赋表格会触发 rows not iterable 崩溃）
     webhookList.value = (res.data as WebhookRow[]) ?? [];
   } catch (_e) {
+    logger.error(t('system.webhook.message.loadFailed'), _e);
     webhookList.value = [];
   } finally {
     webhookLoading.value = false;

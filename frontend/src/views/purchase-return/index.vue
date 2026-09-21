@@ -101,6 +101,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { Plus } from '@element-plus/icons-vue';
 import type { PurchaseReturn } from '@/api/purchase-return';
@@ -142,7 +143,8 @@ const onEdit = async (row: PurchaseReturn) => {
     } else {
       prRtn.prepareEdit(row);
     }
-  } catch {
+  } catch (error) {
+    logger.error(t('purchaseReturn.messageDetailLoadFailed'), error);
     prRtn.prepareEdit(row);
   }
   dialogVisible.value = true;

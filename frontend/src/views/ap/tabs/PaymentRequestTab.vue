@@ -188,6 +188,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -399,7 +400,8 @@ const showDetail = async (row: APPaymentRequest) => {
   try {
     const res = await getAPPaymentRequest(row.id);
     detailRow.value = (res.data as APPaymentRequest) || row;
-  } catch {
+  } catch (error) {
+    logger.error(t('apModule.paymentRequest.detailFailed'), error);
     detailRow.value = row;
   }
   detailVisible.value = true;

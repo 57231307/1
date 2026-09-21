@@ -221,8 +221,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useUserStore } from '@/store/user';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import {
   getProductionRecipeList,
   getProductionRecipe,
@@ -241,6 +243,7 @@ import {
   type ProductionRecipeStatus,
 } from '@/api/production-recipe';
 
+const { t } = useI18n({ useScope: 'global' });
 const loading = ref(false);
 const submitting = ref(false);
 const dialogVisible = ref(false);
@@ -391,8 +394,8 @@ const openDetail = async (row: ProductionRecipe) => {
   try {
     const res = await getProductionRecipe(row.id);
     if (res.data) detailRow.value = res.data;
-  } catch {
-    /* 回源失败保留行数据 */
+  } catch (error) {
+    logger.error(t('message.loadProductionRecipeDetailFailed'), error);
   }
   await loadAdditions();
 };

@@ -102,6 +102,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { formatCurrency } from '@/utils';
@@ -140,6 +141,7 @@ const fetchRfmCustomers = async () => {
     rfmCustomers.value = res.data?.items || [];
     fetchRfmDistribution();
   } catch (error) {
+    logger.error(t('crmRfm.loadFailed'), error);
     rfmCustomers.value = [];
   } finally {
     rfmLoading.value = false;
@@ -151,6 +153,7 @@ const fetchRfmDistribution = async () => {
     const res = await getCustomerRfmDistribution();
     rfmDistribution.value = res.data || {};
   } catch (error) {
+    logger.error(t('crmRfm.distributionLoadFailed'), error);
     rfmDistribution.value = {};
   }
 };

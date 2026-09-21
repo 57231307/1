@@ -132,7 +132,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import {
   getBulkColorApprovalList,
   getBulkColorApproval,
@@ -150,6 +152,7 @@ import {
   type BulkColorApprovalStatus,
 } from '@/api/bulk-color-approval';
 
+const { t } = useI18n({ useScope: 'global' });
 const loading = ref(false);
 const submitting = ref(false);
 const dialogVisible = ref(false);
@@ -296,8 +299,8 @@ const openDetail = async (row: BulkColorApproval) => {
   try {
     const res = await getBulkColorApproval(row.id);
     if (res.data) detailRow.value = res.data as unknown as Record<string, unknown>;
-  } catch {
-    /* 回源失败保留行数据 */
+  } catch (error) {
+    logger.error(t('message.loadBulkColorDetailFailed'), error);
   }
   try {
     const res = await getBulkColorApprovalHistory(row.id);
@@ -305,7 +308,8 @@ const openDetail = async (row: BulkColorApproval) => {
     historyRows.value = Array.isArray(d)
       ? d
       : ((d as { items?: Array<Record<string, unknown>> })?.items ?? []);
-  } catch {
+  } catch (error) {
+    logger.error(t('message.loadBulkColorHistoryFailed'), error);
     historyRows.value = [];
   } finally {
     historyLoading.value = false;

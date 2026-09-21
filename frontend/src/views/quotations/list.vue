@@ -217,6 +217,7 @@
 // - 列表加载
 // - 行操作：查看/编辑/转订单/取消
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -290,7 +291,8 @@ async function loadCustomers() {
       list?: Array<{ id: number; customer_name?: string; name?: string }>;
     } | null;
     customers.value = payload?.items || payload?.list || [];
-  } catch {
+  } catch (error) {
+    logger.error(t('quotations.list.customerLoadFailed'), error);
     customers.value = [];
   }
 }

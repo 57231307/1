@@ -288,6 +288,7 @@ const fetchCustomers = async () => {
     const res = await getCustomerList({ page: 1, page_size: 100 });
     customerOptions.value = res.data?.items || [];
   } catch (error) {
+    logger.error(t('customerCredit.index.log.fetchCustomersFailed'), error);
     customerOptions.value = [];
   }
 };

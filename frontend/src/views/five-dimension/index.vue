@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import {
   ElTable,
@@ -69,7 +70,8 @@ const loadAssistRecords = async (fiveDimensionId: number) => {
     };
     const d = res.data;
     assistRecords.value = Array.isArray(d) ? d : (d?.records ?? []);
-  } catch {
+  } catch (error) {
+    logger.error(t('fiveDimension.index.messageAssistRecordsFailed'), error);
     assistRecords.value = [];
   } finally {
     assistRecordsLoading.value = false;

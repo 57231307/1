@@ -201,6 +201,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -256,7 +257,7 @@ const fetchUnreadCount = async () => {
       unreadCount.value = res.data;
     }
   } catch (e) {
-    // 忽略错误
+    logger.error(t('notification.index.messageLoadUnreadCountFailed'), e);
   }
 };
 

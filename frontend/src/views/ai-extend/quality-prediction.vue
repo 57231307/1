@@ -3,6 +3,7 @@
  * P2-4 质量预测列表 + 创建
  */
 import { reactive, ref, computed } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
@@ -154,8 +155,8 @@ async function refreshDetail(id: number) {
   try {
     const res = await getQualityPrediction(id);
     if (res) detailModel.value = res;
-  } catch {
-    /* 回源失败保留行数据 */
+  } catch (error) {
+    logger.error(t('aiExtend.qualityPrediction.detailFailed'), error);
   }
 }
 

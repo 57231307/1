@@ -561,6 +561,7 @@ export default {
       darkMode: '切换到暗黑模式',
       lightMode: '切换到亮色模式',
       themeMenuAriaLabel: '主题切换菜单',
+      unreadCountFailed: '获取未读通知数失败',
     },
   },
   sales: {
@@ -949,6 +950,7 @@ export default {
       releaseSuccess: '预留已释放',
       cancelConfirm: '取消后预留失效，确认？',
       cancelSuccess: '预留已取消',
+      loadWarehousesFailed: '获取仓库列表失败',
     },
     fabricStock: {
       create: '面料入库',
@@ -957,6 +959,7 @@ export default {
       meters: '数量（米）',
       kg: '数量（kg）',
       batchRequired: '请输入批号',
+      loadWarehousesFailed: '获取仓库列表失败',
     },
     transferDetail: {
       title: '调拨单详情',
@@ -1540,6 +1543,19 @@ export default {
     sendNotificationFailed: '发送通知失败',
     markFailed: '标记失败',
     exportBlockedResource: '资源 {resource} 已被禁止导出',
+    loadBulkColorDetailFailed: '获取批色审批详情失败',
+    loadBulkColorHistoryFailed: '获取批色审批历史失败',
+    loadFabricInspectionDetailFailed: '获取验布单详情失败',
+    loadFabricDefectsFailed: '获取疵点列表失败',
+    loadProductionRecipeDetailFailed: '获取生产配方详情失败',
+    loadPurchaseOrderDetailFailed: '获取采购单详情失败',
+    loadCustomerListFailed: '加载客户列表失败',
+    loadProductListFailed: '加载产品列表失败',
+    loadWarehouseListFailed: '加载仓库列表失败',
+    pregenReceiptNoFailed: '预生成入库单号失败',
+    loadVersionDetailFailed: '获取系统版本详情失败',
+    loadBackupDetailFailed: '获取备份详情失败',
+    loadTaskDetailFailed: '获取更新任务详情失败',
   },
   aiExtend: {
     qualityPrediction: {
@@ -1598,6 +1614,7 @@ export default {
       createDialogAriaLabel: '触发 AI 质量预测对话框',
       formAriaLabel: 'AI 质量预测表单',
       issuesTableAriaLabel: '主要问题归因列表',
+      detailFailed: '获取质量预测详情失败',
     },
     process: {
       invalidId: '无效的工艺优化 ID',
@@ -1796,6 +1813,7 @@ export default {
       deleteConfirm: '确定删除预算 "{name}" 吗？',
       deleteFailed: '删除失败',
       listExported: '预算列表已导出',
+      detailFailed: '获取预算详情失败',
     },
   },
   businessTrace: {
@@ -3423,6 +3441,8 @@ export default {
       messageDeleteTitle: '删除确认',
       messageDeleteSuccess: '删除成功',
       messageDeleteFailed: '删除失败',
+      messageFetchCategoriesFailed: '获取产品分类失败',
+      messageFetchColorsFailed: '获取产品色号列表失败',
     },
     productFormDialogTab: {
       formAriaLabel: '产品表单',
@@ -3587,6 +3607,7 @@ export default {
       createSuccess: '创建成功',
       operationFailed: '操作失败',
       printWindowFailed: '无法打开打印窗口',
+      loadTagsFailed: '获取标签列表失败',
     },
     validation: {
       customerCodeRequired: '请输入客户编码',
@@ -3876,6 +3897,7 @@ export default {
       selectionChanged: '选择变化',
       scoreEmpty: '评分完成，暂无评分明细',
       scoreFailed: '评分失败',
+      loadUsersFailed: '获取用户列表失败',
     },
     exportFile: {
       filename: '线索列表',
@@ -5383,6 +5405,7 @@ export default {
       createSuccess: '创建成功',
       updateSuccess: '更新成功',
       operateFailed: '操作失败',
+      fetchDetailFailed: '获取 BOM 详情失败',
     },
   },
   apModule: {
@@ -5411,6 +5434,7 @@ export default {
       requestAmount: '申请金额',
       bankName: '收款银行',
       notes: '备注',
+      detailFailed: '获取付款申请详情失败',
     },
     report: {
       statistics: '统计汇总',
@@ -5543,6 +5567,7 @@ export default {
       autoReconcileConfirm: '将自动匹配可核销的发票与付款生成对账单，确认执行？',
       autoReconcileSuccess: '自动对账完成',
       summary: '对账汇总',
+      detailFailed: '获取应付对账详情失败',
     },
     verification: {
       title: '核销管理',
@@ -5573,6 +5598,8 @@ export default {
       invoiceAmount: '发票金额',
       paymentAmount: '付款金额',
       verifiedAmount: '已核销金额',
+      detailFailed: '获取应付核销详情失败',
+      unverifiedLoadFailed: '获取待核销发票与付款列表失败',
     },
   },
   arModule: {
@@ -5732,6 +5759,7 @@ export default {
       notes: '备注',
       confirm: '确认收款',
       confirmMessage: '确认该笔收款已到账？',
+      detailFailed: '获取收款详情失败',
     },
     verification: {
       manual: '手动核销',
@@ -5749,6 +5777,7 @@ export default {
       paymentRequired: '请选择收款单',
       cancel: '取消核销',
       cancelConfirm: '取消核销后相关单据恢复未核销状态，确认？',
+      detailFailed: '获取应收核销详情失败',
     },
     report: {
       statistics: '统计汇总',
@@ -5905,6 +5934,7 @@ export default {
       loadFailed: '加载公海池列表失败',
       selectToClaim: '请勾选需要领取的客户',
       claimSuccess: '领取成功',
+      loadUsersFailed: '获取用户列表失败',
     },
   },
   crmAssignment: {
@@ -5980,6 +6010,7 @@ export default {
       deleteTitle: '删除确认',
       deleteSuccess: '删除成功',
       deleteFailed: '删除失败',
+      loadSalesUsersFailed: '获取销售员列表失败',
     },
   },
   crmTagsPanel: {
@@ -6065,6 +6096,8 @@ export default {
       detail: '详情',
     },
     countUnit: '人',
+    loadFailed: '获取 RFM 客户列表失败',
+    distributionLoadFailed: '获取 RFM 分布失败',
   },
   crmFollowUp: {
     title: '跟进记录',
@@ -6252,6 +6285,8 @@ export default {
       convertSuccess: '转单成功',
       convertFailed: '转单失败',
       analyticsLoading: '分析加载中…',
+      loadUsersFailed: '获取用户列表失败',
+      loadCustomersFailed: '获取客户列表失败',
     },
   },
   crmOpportunityFollow: {
@@ -6677,6 +6712,7 @@ export default {
       log: {
         fetchListFailed: '获取信用列表失败',
         fetchDetailFailed: '获取信用详情失败',
+        fetchCustomersFailed: '获取客户下拉列表失败',
       },
       dialog: {
         deactivateConfirmMessage: '确认停用该客户信用？',
@@ -7004,6 +7040,8 @@ export default {
       colAmount: '金额',
       colAction: '操作',
       delete: '删除',
+      colorLoadFailed: '获取产品色号列表失败',
+      productLoadFailed: '获取产品列表失败',
     },
     termEditor: {
       termLabel: '条款 {n}',
@@ -7087,6 +7125,7 @@ export default {
       saveFailed: '保存失败',
       submitSuccess: '已提交审批',
       submitFailed: '提交失败',
+      customerLoadFailed: '获取客户列表失败',
     },
     detail: {
       title: '报价单详情',
@@ -7191,6 +7230,7 @@ export default {
       convertConfirmTitle: '转订单确认',
       convertConfirmText: '确认将报价单 {no} 转为销售订单？转订单后报价单状态将变为"已转订单"。',
       convertSuccess: '转订单成功，销售订单 ID：{id}',
+      customerLoadFailed: '获取客户列表失败',
     },
     edit: {
       pageAriaLabel: '编辑报价单页面',
@@ -7763,6 +7803,7 @@ export default {
         deleteFailed: '删除失败',
         deleteConfirm: '确定删除用户 "{name}" 吗？',
         deleteConfirmTitle: '删除确认',
+        loadRolesFailed: '获取角色列表失败',
       },
     },
     slowQuery: {
@@ -7813,6 +7854,7 @@ export default {
       message: {
         loadFailed: '加载慢查询失败',
         refreshFailed: '手动刷新失败',
+        statsFailed: '获取慢查询统计失败',
       },
     },
     audit: {
@@ -7891,6 +7933,7 @@ export default {
         scopeValue: '范围值',
         createdAt: '创建时间',
       },
+      loadListFailed: '获取数据权限列表失败',
     },
     department: {
       title: '部门管理',
@@ -7962,6 +8005,7 @@ export default {
         yes: '是',
         no: '否',
       },
+      loadListFailed: '获取字段权限列表失败',
     },
     notification: {
       title: '通知设置',
@@ -7990,6 +8034,8 @@ export default {
       message: {
         saveSuccess: '保存成功',
         saveFailed: '保存失败',
+        loadFailed: '获取通知设置失败',
+        loadUsersFailed: '获取用户列表失败',
       },
       announce: {
         title: '系统公告',
@@ -8028,6 +8074,7 @@ export default {
         allowed: '允许',
         denied: '禁止',
       },
+      loadListFailed: '获取权限列表失败',
     },
     role: {
       title: '角色管理',
@@ -8112,6 +8159,7 @@ export default {
         checkFailed: '检查更新失败',
         updateSubmitted: '更新已提交，服务将重启',
         updateFailed: '更新失败',
+        loadVersionFailed: '获取系统版本信息失败',
       },
     },
     webhook: {
@@ -8172,6 +8220,7 @@ export default {
         deleteFailed: '删除失败',
         testSent: '测试请求已发送',
         testFailed: '测试失败',
+        loadFailed: '获取 Webhook 集成列表失败',
       },
     },
     oaAnnouncement: {
@@ -8220,6 +8269,9 @@ export default {
         createSuccess: '创建成功',
         updateSuccess: '更新成功',
         operationFailed: '操作失败',
+        loadUsersFailed: '获取用户列表失败',
+        loadRolesFailed: '获取角色列表失败',
+        loadDeptsFailed: '获取部门列表失败',
       },
     },
   },
@@ -8948,6 +9000,7 @@ export default {
         delete: '删除',
       },
     },
+    messageDetailLoadFailed: '获取采购退货单详情失败',
   },
   purchaseReceipt: {
     filter: {
@@ -10027,6 +10080,7 @@ export default {
       messageUpdateSuccess: '退货更新成功',
       messageCreateSuccess: '退货创建成功',
       messageOperationFailed: '操作失败',
+      messageDetailFailed: '获取销售退货单详情失败',
     },
   },
   salesPrice: {
@@ -10215,6 +10269,7 @@ export default {
       statusApproved: '已通过',
       statusRejected: '已拒绝',
       statusCompleted: '已完成',
+      itemLoadFailed: '获取销售退货明细失败',
     },
     editDialog: {
       titleCreate: '新建退货单',
@@ -10775,6 +10830,7 @@ export default {
     confirmCancel: '确认撤销该导出申请？',
     cancelled: '已撤销',
     copyFailed: '复制失败',
+    detailFailed: '获取导出审批详情失败',
   },
 
   financeReport: {
@@ -10938,6 +10994,7 @@ export default {
       messageDeleteSuccess: '删除成功',
       messageDeleteFailed: '删除失败',
       messageConfirmDelete: '确定要删除该数据权限吗？',
+      messageDetailFailed: '获取数据权限详情失败',
     },
   },
   notification: {
@@ -10972,6 +11029,7 @@ export default {
       messageConfirmDelete: '确定要删除该通知吗？',
       ariaPagination: '通知列表分页',
       ariaDetailDialog: '通知详情对话框',
+      messageLoadUnreadCountFailed: '获取未读通知数失败',
     },
   },
   departments: {
@@ -11083,6 +11141,7 @@ export default {
       messageFetchFailed: '加载批次列表失败',
       statusNormal: '正常',
       statusQualified: '合格',
+      messageLoadWarehousesFailed: '获取仓库列表失败',
     },
     batchFormDialog: {
       titleEdit: '编辑批次',
@@ -11193,6 +11252,7 @@ export default {
       labelCode: '仓库编码',
       labelName: '仓库名称',
       labelDefault: '默认',
+      messageFetchLocationFailed: '获取库位详情失败',
     },
   },
   dyeRecipe: {
@@ -11418,6 +11478,7 @@ export default {
       placeholderDyeLotNo: '请输入染缸号',
       placeholderGrade: '请选择等级',
       placeholderProductId: '请输入产品ID',
+      messageAssistRecordsFailed: '获取辅助核算记录失败',
     },
   },
   email: {

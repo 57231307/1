@@ -194,6 +194,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   listApprovals,
@@ -275,8 +276,8 @@ const openDetail = async (row: ExportApprovalRequest) => {
       detailRow.value = res.data as unknown as Record<string, unknown>;
       detailVisible.value = true;
     }
-  } catch {
-    /* 回源失败保留行数据 */
+  } catch (error) {
+    logger.error(t('exportApprovals.detailFailed'), error);
   }
 };
 

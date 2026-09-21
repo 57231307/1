@@ -4,6 +4,7 @@
  * 包含：审批、查看、打印、导出
  */
 import { ref } from 'vue';
+import { logger } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import printJS from 'print-js';
@@ -46,7 +47,8 @@ export function usePurchAct(
     try {
       const res = await getPurchaseOrderById(row.id);
       viewData.value = res.data || row;
-    } catch {
+    } catch (error) {
+      logger.error(msg.translate('loadPurchaseOrderDetailFailed'), error);
       viewData.value = row;
     }
     viewDialogVisible.value = true;

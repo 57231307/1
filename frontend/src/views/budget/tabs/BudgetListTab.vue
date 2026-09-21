@@ -405,7 +405,8 @@ const openAdjustDialog = async (row: Budget) => {
     // 回源取预算明细（getBudgetDetail：GET /finance/budgets/{id} 返回单个明细项）
     const res = await getBudgetDetail(row.id);
     detailBudget.value = res.data ?? null;
-  } catch {
+  } catch (error) {
+    logger.error(t('budget.message.detailFailed'), error);
     detailBudget.value = null;
   }
 };

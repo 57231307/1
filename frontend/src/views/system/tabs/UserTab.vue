@@ -171,6 +171,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -268,7 +269,8 @@ const fetchRoles = async () => {
     roles.value = Array.isArray(data)
       ? (data as Role[])
       : ((data as { items?: Role[] })?.items ?? []);
-  } catch {
+  } catch (error) {
+    logger.error(t('system.user.message.loadRolesFailed'), error);
     roles.value = [];
   }
 };

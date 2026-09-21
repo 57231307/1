@@ -407,6 +407,7 @@ const fetchUsers = async () => {
     const res = await getUserList();
     users.value = res.data?.users || [];
   } catch (error) {
+    logger.error(t('crmOpportunities.message.loadUsersFailed'), error);
     users.value = [];
   }
 };
@@ -416,6 +417,7 @@ const fetchCustomers = async () => {
     const res = await getCustomerList();
     customers.value = res.data?.items || [];
   } catch (error) {
+    logger.error(t('crmOpportunities.message.loadCustomersFailed'), error);
     customers.value = [];
   }
 };

@@ -364,6 +364,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -552,6 +553,7 @@ const viewReturn = async (row: SalesReturn) => {
     currentReturn.value = res.data || row;
     returnViewVisible.value = true;
   } catch (_e) {
+    logger.error(t('salesExt.returnTab.messageDetailFailed'), _e);
     currentReturn.value = row;
     returnViewVisible.value = true;
   }

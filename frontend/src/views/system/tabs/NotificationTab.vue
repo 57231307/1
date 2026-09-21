@@ -100,6 +100,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { request } from '@/api/request';
@@ -141,7 +142,7 @@ const fetchNotificationSetting = async () => {
       Object.assign(notificationForm, res);
     }
   } catch (_e) {
-    // 静默：通知设置接口失败时不影响界面默认显示
+    logger.error(t('system.notification.message.loadFailed'), _e);
   }
 };
 
@@ -174,8 +175,8 @@ const fetchUserOptions = async () => {
     const res = await getUserList({ page: 1, page_size: 200 });
     const d = res.data as { items?: User[]; list?: User[]; data?: User[] } | undefined;
     userOptions.value = (d?.items || d?.list || d?.data || (Array.isArray(d) ? d : [])) as User[];
-  } catch {
-    // 非管理员无权限拉用户列表时静默
+  } catch (error) {
+    logger.error(t('system.notification.message.loadUsersFailed'), error);
   }
 };
 

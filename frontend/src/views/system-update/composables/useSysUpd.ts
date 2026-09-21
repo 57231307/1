@@ -153,8 +153,8 @@ export function useSysUpd() {
       .then(res => {
         if (res.data) currentVersionDetail.value = res.data;
       })
-      .catch(() => {
-        /* 回源失败保留行数据 */
+      .catch(error => {
+        logger.error(msg.translate('loadVersionDetailFailed'), error);
       });
   };
 
@@ -165,8 +165,8 @@ export function useSysUpd() {
       .then(res => {
         if (res.data) currentBackupDetail.value = res.data;
       })
-      .catch(() => {
-        /* 回源失败保留行数据 */
+      .catch(error => {
+        logger.error(msg.translate('loadBackupDetailFailed'), error);
       });
   };
 
@@ -177,8 +177,8 @@ export function useSysUpd() {
       .then(res => {
         if (res.data) currentTaskDetail.value = res.data;
       })
-      .catch(() => {
-        /* 回源失败保留行数据 */
+      .catch(error => {
+        logger.error(msg.translate('loadTaskDetailFailed'), error);
       });
   };
 

@@ -185,6 +185,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
@@ -320,8 +321,8 @@ const handleEditPermission = async (row: DataPermissionRow) => {
       row.resource_type ?? ''
     );
     if (res.data) source = res.data as DataPermissionRole;
-  } catch {
-    /* 回源失败保留行数据 */
+  } catch (error) {
+    logger.error(t('dataPermission.index.messageDetailFailed'), error);
   }
   Object.assign(permissionForm, {
     id: source.id,
