@@ -2,6 +2,7 @@ import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   ensureTestEntities,
+  ensureStockInWarehouse,
   getCtx,
   apiCall,
   apiCallRaw,
@@ -277,12 +278,26 @@ test.describe.serial('44f 真实实体全流转链', () => {
     await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
 
+    // 发货仓库必须传真实仓库编码：ship.rs 按 warehouse_code 查仓，
+    // 原实现硬编码 'WH-MAIN' 在 CI 空库里不存在 → 404（该用例此前被前面的串行失败挡住未跑）
+    const warehouseId = ctx.warehouseIds[0];
+    await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
+    const wh = await apiCallRaw<{ warehouse_code?: string }>(
+      page,
+      'GET',
+      `/warehouses/${warehouseId}`
+    );
+    const warehouseCode = wh?.warehouse_code;
+    expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+
     const ship = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
-      warehouse_code: 'WH-MAIN',
+      warehouse_code: warehouseCode,
       items: [{ product_id: ctx.productIds[0], quantity: 5 }],
     });
-    expect(ship.status, '发货应成功').toBeLessThan(300);
+    expect(ship.status, `发货应成功（status=${ship.status} code=${ship.code ?? ''}）`).toBeLessThan(
+      300
+    );
 
     const st = await apiCall<{ status?: string }>(page, 'GET', `/sales/orders/${soId}`);
     const statusStr = JSON.stringify(st).toLowerCase();
