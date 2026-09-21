@@ -22,6 +22,17 @@ type RoleResourceSlice = &'static [RoleResourceGroup];
 /// 全部域的角色权限定义分组列表
 type RoleResourceGroups = Vec<RoleResourceSlice>;
 
+/// 应用外壳权限码：每个角色都必须具备的两项。
+///
+/// - `dashboard:read`：登录后落地页就是 `/dashboard`（路由 `/` 重定向到它），
+///   卡片数据由 handler 按角色数据范围（new_with_data_scope）过滤，
+///   财务卡片仅财务角色可见，因此读权限不会放大可见数据。
+/// - `notifications:read`：主框架铃铛对全部认证用户拉取自身未读数，
+///   handler 只按 `auth.user_id` 取该用户自己的通知行。
+///
+/// 缺码的角色登录后会被路由守卫送到 /403，或每次进主页都在控制台抛 403。
+const SHELL_PERMISSIONS: &[PermPair] = &[("dashboard", "read"), ("notifications", "read")];
+
 impl InitService {
     /// 创建全部角色的 role_permission 权限矩阵（V15 P0-S03/S04/S20，覆盖 60+ 资源 × 11 操作码）。
     pub(crate) async fn create_default_role_permissions(&self) -> Result<(), InitError> {
@@ -69,6 +80,12 @@ impl InitService {
         perms: &mut Vec<role_permission::ActiveModel>,
     ) -> Result<(), InitError> {
         for (role_code, resources) in definitions {
+            let mut effective: Vec<PermPair> = resources.to_vec();
+            for shell in SHELL_PERMISSIONS {
+                if !effective.contains(shell) {
+                    effective.push(*shell);
+                }
+            }
             let role_model = role::Entity::find()
                 .filter(role::Column::Code.eq(*role_code))
                 .one(db)
@@ -77,7 +94,7 @@ impl InitService {
                     InitError::DatabaseError(format!("查询 {} 角色失败: {}", role_code, e))
                 })?;
             if let Some(r) = role_model {
-                perms.extend(Self::make_permission_models(r.id, resources, now));
+                perms.extend(Self::make_permission_models(r.id, &effective, now));
             }
         }
         Ok(())
