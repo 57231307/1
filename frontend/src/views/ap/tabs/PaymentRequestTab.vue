@@ -30,7 +30,11 @@
         :label="t('apModule.paymentRequest.paymentType')"
         width="100"
       />
-      <el-table-column prop="payment_method" :label="t('apModule.payment.method')" width="110" />
+      <el-table-column
+        prop="payment_method"
+        :label="t('apModule.payment.paymentMethod')"
+        width="110"
+      />
       <el-table-column
         prop="request_amount"
         :label="t('apModule.paymentRequest.requestAmount')"
@@ -119,7 +123,7 @@
             <el-option label="预付款" value="prepayment" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('apModule.payment.method')" prop="payment_method">
+        <el-form-item :label="t('apModule.payment.paymentMethod')" prop="payment_method">
           <el-select v-model="form.payment_method">
             <el-option label="银行转账" value="bank_transfer" />
             <el-option label="现金" value="cash" />
