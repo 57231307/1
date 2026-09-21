@@ -53,16 +53,22 @@ export function printQuality8d(id: number) {
   return request.get(`/quality-8d-reports/${id}/print`);
 }
 
+/**
+ * 8D 阶段状态值。必须与后端 `EightDStatus::as_str()` 完全一致
+ * （services/quality_8d_service.rs:85-99）：此前这里写的是 d0~d8，
+ * 后端返回的却是 d0_plan/d1_team/...，列表按状态取推进边时全部落空，
+ * 「推进下一阶段」对任何真实报告都提示无可推进的边，8D 流程在界面上走不动。
+ */
 export const QUALITY_8D_STAGES = [
   'not_started',
-  'd0',
-  'd1',
-  'd2',
-  'd3',
-  'd4',
-  'd5',
-  'd6',
-  'd7',
-  'd8',
+  'd0_plan',
+  'd1_team',
+  'd2_problem',
+  'd3_interim',
+  'd4_root_cause',
+  'd5_permanent',
+  'd6_verify',
+  'd7_prevent',
+  'd8_recognize',
   'closed',
 ] as const;

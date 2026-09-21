@@ -26,7 +26,11 @@
               @click="onAdvance(row)"
               >推进下一阶段</el-button
             >
-            <el-button v-if="row.status === 'd8'" size="small" type="success" @click="onClose(row)"
+            <el-button
+              v-if="row.status === 'd8_recognize'"
+              size="small"
+              type="success"
+              @click="onClose(row)"
               >关闭</el-button
             >
             <el-button size="small" @click="onPrint(row)">打印</el-button>
@@ -60,13 +64,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { logger } from '@/utils/logger';
 import {
   advanceQuality8d,
   closeQuality8d,
   getQuality8dList,
   printQuality8d,
   startQuality8d,
-  QUALITY_8D_STAGES,
   type Quality8dReport,
 } from '@/api/quality-8d';
 
@@ -91,7 +95,28 @@ const unwrapList = (res: unknown): Quality8dReport[] => {
   return items as Quality8dReport[];
 };
 
-const stageLabel = (s: string) => (s === 'closed' ? '已关闭' : s.toUpperCase());
+const STAGE_LABELS: Record<string, string> = {
+  not_started: '未启动',
+  d0_plan: 'D0 成立团队前计划',
+  d1_team: 'D1 团队',
+  d2_problem: 'D2 问题描述',
+  d3_interim: 'D3 临时遏制',
+  d4_root_cause: 'D4 根因分析',
+  d5_permanent: 'D5 永久纠正措施',
+  d6_verify: 'D6 效果验证',
+  d7_prevent: 'D7 预防再发',
+  d8_recognize: 'D8 总结表彰',
+  closed: '已关闭',
+};
+
+const stageLabel = (s: string) => {
+  const label = STAGE_LABELS[s];
+  if (!label) {
+    logger.warn(`未知 8D 阶段状态，后端状态值清单需同步：${s}`);
+    return s;
+  }
+  return label;
+};
 const stageTag = (s: string) =>
   s === 'closed' ? 'info' : s === 'not_started' ? 'warning' : 'primary';
 
@@ -125,57 +150,74 @@ async function onStart() {
   }
 }
 
-// 每条推进边对应的必填字段采集（对齐 AdvanceStepPayload tagged enum）
-const STAGE_PROMPTS: Record<string, Array<{ key: string; label: string; placeholder?: string }>> = {
-  d0: [{ key: 'team_members', label: '团队成员（D1）' }],
-  d1: [{ key: 'problem_description', label: '问题描述（D2）' }],
-  d2: [{ key: 'interim_action', label: '临时遏制措施（D3）' }],
-  d3: [
-    { key: 'method', label: '根因分析方法（5why / fishbone）', placeholder: '5why' },
-    { key: 'detail', label: '根因分析详细过程（D4）' },
-    { key: 'summary', label: '根因总结' },
-  ],
-  d4: [
-    { key: 'permanent_action', label: '永久纠正措施（D5）' },
-    { key: 'action_owner', label: '措施责任人' },
-    { key: 'due_date', label: '计划完成日期（YYYY-MM-DD）' },
-  ],
-  d5: [{ key: 'verification_result', label: '效果验证结果（D6）' }],
-  d6: [{ key: 'prevention_action', label: '预防措施（D7）' }],
-  d7: [{ key: 'closure_summary', label: 'closure 总结表彰（D8）' }],
+// 推进边按「当前状态」索引，字段名与 step 取值对齐 AdvanceStepPayload
+// （models/quality_8d_dto.rs:67-96 的 tagged enum，step 为 snake_case 变体名，
+//  且每个 step 的适用前态由后端 quality_8d_service.rs:440-450 规定）
+const STAGE_EDGES: Record<
+  string,
+  {
+    step: string;
+    fields: Array<{ key: string; label: string; placeholder?: string }>;
+  }
+> = {
+  d0_plan: {
+    step: 'd1_team',
+    fields: [{ key: 'team_members', label: '团队成员（D1）' }],
+  },
+  d1_team: {
+    step: 'd2_problem',
+    fields: [{ key: 'problem_description', label: '问题描述（D2）' }],
+  },
+  d2_problem: {
+    step: 'd3_interim',
+    fields: [{ key: 'interim_action', label: '临时遏制措施（D3）' }],
+  },
+  d3_interim: {
+    step: 'd4_root_cause',
+    fields: [
+      { key: 'method', label: '根因分析方法（5why / fishbone / other）', placeholder: '5why' },
+      { key: 'detail', label: '根因分析详细过程（D4）' },
+      { key: 'summary', label: '根因总结' },
+    ],
+  },
+  d4_root_cause: {
+    step: 'd5_permanent',
+    fields: [
+      { key: 'permanent_action', label: '永久纠正措施（D5）' },
+      { key: 'action_owner', label: '措施责任人' },
+      { key: 'due_date', label: '计划完成日期（YYYY-MM-DD）' },
+    ],
+  },
+  d5_permanent: {
+    step: 'd6_verify',
+    fields: [{ key: 'verification_result', label: '效果验证结果（D6）' }],
+  },
+  d6_verify: {
+    step: 'd7_prevent',
+    fields: [{ key: 'prevention_action', label: '预防措施（D7）' }],
+  },
+  d7_prevent: {
+    step: 'd8_recognize',
+    fields: [{ key: 'closure_summary', label: 'closure 总结表彰（D8）' }],
+  },
 };
 
 async function onAdvance(row: Quality8dReport) {
-  const idx = QUALITY_8D_STAGES.indexOf(row.status as (typeof QUALITY_8D_STAGES)[number]);
-  const next = QUALITY_8D_STAGES[Math.min(idx + 1, QUALITY_8D_STAGES.length - 2)];
-  const prompts = STAGE_PROMPTS[row.status] ?? [];
-  if (!prompts.length) {
-    ElMessage.warning(`阶段 ${row.status} 无可推进的边`);
+  const edge = STAGE_EDGES[row.status];
+  if (!edge) {
+    // 终态（d8_recognize 只能关闭、closed）或后端新增了阶段值：明确提示，不静默
+    ElMessage.warning(`阶段 ${stageLabel(row.status)}（${row.status}）没有可推进的边`);
     return;
   }
   const values: Record<string, string> = {};
-  for (const f of prompts) {
+  for (const f of edge.fields) {
     const { value } = await ElMessageBox.prompt(
       f.placeholder ? `${f.label}（如 ${f.placeholder}）` : f.label,
-      `推进到 ${next.toUpperCase()}`
+      `推进到 ${stageLabel(edge.step)}`
     );
     values[f.key] = value;
   }
-  // 组装 tagged payload：step 名与字段名对齐后端枚举变体
-  // 阶段名 → 后端枚举 step 名映射（d1_team / d2_problem / ...）
-  const STEP_NAMES: Record<string, string> = {
-    d0: 'd1_team',
-    d1: 'd2_problem',
-    d2: 'd3_interim',
-    d3: 'd4_root_cause',
-    d4: 'd5_permanent',
-    d5: 'd6_verify',
-    d6: 'd7_prevent',
-    d7: 'd8_recognize',
-  };
-  const payload = { step: STEP_NAMES[row.status] ?? next, ...values } as Parameters<
-    typeof advanceQuality8d
-  >[1];
+  const payload = { step: edge.step, ...values } as Parameters<typeof advanceQuality8d>[1];
   await advanceQuality8d(row.id, payload);
   ElMessage.success('已推进');
   await load();
