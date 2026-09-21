@@ -30,8 +30,6 @@ import {
  * 现统一改用 helpers.listNotifications，并把 A/B/C 的软分支改成真实断言。
  */
 
-const TS = Date.now().toString().slice(-8);
-
 /** 通知落库由 commit 后事件驱动，触发后需给监听器留出写入窗口 */
 const NOTIF_SETTLE_MS = 3000;
 
@@ -260,42 +258,88 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     await ensureTestEntities(page);
     const ctx = getCtx();
     // 原实现 supplier_id 硬编码为 1，CI 空库中依赖种子恰好存在该供应商
-    const r = await apiCall<{ id?: number }>(page, 'POST', '/finance/ap/payment-requests', {
-      request_no: `P0-NOTIF-${TS}`,
-      request_date: new Date().toISOString().slice(0, 10),
-      supplier_id: ctx.supplierId,
-      payment_type: 'bank_transfer',
-      payment_method: 'bank',
-      request_amount: 5000,
-      currency: 'CNY',
-      exchange_rate: 1,
-    });
+    // 付款申请必须挂在真实应付单上：后端 CreateApPaymentRequest.items 为必填，
+    // 且校验应付单非 DRAFT/CANCELLED、apply_amount 不超过未付金额。
+    // 路由为 /api/v1/erp/ap/payment-requests（routes/finance.rs:712，AP 域经
+    // sub_routes() 挂在 /api/v1/erp 下，无 /finance 前缀）。
+    const invoice = await apiCallRaw<{ id?: number; unpaid_amount?: number }>(
+      page,
+      'POST',
+      '/ap/invoices',
+      {
+        supplier_id: ctx.supplierId,
+        amount: 8000,
+        invoice_date: new Date().toISOString().slice(0, 10),
+      }
+    );
+    expect(invoice?.id, '[31d-F] 应付单创建失败，付款申请前置不成立').toBeTruthy();
+    await apiCall(page, 'POST', `/ap/invoices/${invoice.id}/approve`);
+    const approved = await apiCallRaw<{ invoice_status?: string; unpaid_amount?: number }>(
+      page,
+      'GET',
+      `/ap/invoices/${invoice.id}`
+    );
+    console.log(
+      `[31d-F] 应付单 id=${invoice.id} 状态=${approved.invoice_status} 未付=${approved.unpaid_amount}`
+    );
+    expect(
+      (approved.invoice_status || '').toUpperCase(),
+      `[31d-F] 应付单审批后状态非可付款态（实际 ${approved.invoice_status}）`
+    ).not.toBe('DRAFT');
+    const unpaid = Number(approved.unpaid_amount);
+    expect(unpaid, `[31d-F] 应付单未付金额无效（实际 ${approved.unpaid_amount}）`).toBeGreaterThan(
+      0
+    );
+
+    const r = await apiCall<{ id?: number; request_no?: string }>(
+      page,
+      'POST',
+      '/ap/payment-requests',
+      {
+        supplier_id: ctx.supplierId,
+        request_date: new Date().toISOString().slice(0, 10),
+        payment_type: 'bank_transfer',
+        payment_method: 'bank',
+        request_amount: 5000,
+        currency: 'CNY',
+        exchange_rate: 1,
+        items: [{ invoice_id: invoice.id, apply_amount: 5000 }],
+      }
+    );
     const requestId = r?.data?.id;
     expect(requestId, `[31d-F] 付款申请创建失败（supplier_id=${ctx.supplierId}）`).toBeTruthy();
-    console.log(`[31d-F] 付款申请创建成功 id=${requestId} supplier_id=${ctx.supplierId}`);
+    // request_no 由后端生成（服务内 generate_request_no），通知标题按回写值匹配
+    const requestNo = r?.data?.request_no;
+    expect(requestNo, '[31d-F] 创建响应未返回 request_no，无法匹配通知标题').toBeTruthy();
+    console.log(
+      `[31d-F] 付款申请创建成功 id=${requestId} request_no=${requestNo} 应付单=${invoice.id}`
+    );
 
     const before = await listNotifications(page);
 
-    await apiCall(page, 'POST', `/finance/ap/payment-requests/${requestId}/submit`);
+    await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/submit`);
     console.log(`[31d-F] 付款申请提交成功`);
 
     await page.waitForTimeout(NOTIF_SETTLE_MS);
     const after = await listNotifications(page);
     const newOnes = after.filter(n => !before.some(b => b.id === n.id));
-    const payNotif = newOnes.find(n => n.title?.includes('付款') || n.title?.includes('payment'));
+    // ap_payment_request_handler.rs submit_request 的固定标题：付款申请待审批：{request_no}
+    const expectedTitle = `付款申请待审批：${requestNo}`;
+    const payNotif = newOnes.find(n => n.title === expectedTitle);
     console.log(
       `[31d-F] 新增通知 ${newOnes.length} 条（${newOnes.map(n => n.title).join('|')}），` +
-        `匹配付款申请通知: ${!!payNotif}`
+        `匹配「${expectedTitle}」: ${!!payNotif}`
     );
+    expect(
+      payNotif,
+      `[31d-F] 未收到付款申请审批人通知「${expectedTitle}」（新增 ${newOnes.length} 条：${newOnes
+        .map(n => n.title)
+        .join('|')}）`
+    ).toBeTruthy();
 
-    if (payNotif) {
-      await markRead(page, payNotif.id);
-      await deleteNotification(page, payNotif.id);
-    } else {
-      // TODO(doto iter23)：付款申请 submit 侧未见 notify_* 调用，需先确认链路是否真实接入
-      console.warn('[31d-F] 未收到付款申请通知');
-    }
+    await markRead(page, payNotif!.id);
+    await deleteNotification(page, payNotif!.id);
 
-    await tryCleanup(page, 'DELETE', `/finance/ap/payment-requests/${requestId}`, '[31d-F]');
+    await tryCleanup(page, 'DELETE', `/ap/payment-requests/${requestId}`, '[31d-F]');
   });
 });
