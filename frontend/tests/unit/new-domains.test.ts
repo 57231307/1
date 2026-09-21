@@ -59,9 +59,22 @@ describe('新增域状态映射', () => {
     expect(OUTSOURCING_STATUS_LABEL.settled).toBe('已结算');
   });
 
-  it('8D 阶段序列完整且有序', () => {
-    expect(QUALITY_8D_STAGES[0]).toBe('not_started');
-    expect(QUALITY_8D_STAGES).toContain('d8');
-    expect(QUALITY_8D_STAGES[QUALITY_8D_STAGES.length - 1]).toBe('closed');
+  it('8D 阶段序列与后端状态机逐一相等', () => {
+    // 取值来源：backend/src/services/quality_8d_service.rs EightDStatus::as_str()（11 态）。
+    // 这里锁定完整序列而非单点 contains：前端一旦漂移回 d0~d8 之类的简写，
+    // 列表按状态取推进边会全部落空，「推进下一阶段」对真实报告恒不可用。
+    expect(QUALITY_8D_STAGES).toEqual([
+      'not_started',
+      'd0_plan',
+      'd1_team',
+      'd2_problem',
+      'd3_interim',
+      'd4_root_cause',
+      'd5_permanent',
+      'd6_verify',
+      'd7_prevent',
+      'd8_recognize',
+      'closed',
+    ]);
   });
 });
