@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '../diagnose-fixture';
 import {
   loginViaUI,
+  loginOnPage,
   apiCall,
   apiCallExpectFail,
   apiCallRaw,
@@ -47,13 +48,10 @@ async function loginSecondUser(
   await page.goto(`${process.env.BASE_URL || 'http://localhost:3000'}/login`, {
     waitUntil: 'domcontentloaded',
   });
-  // 独立 context 首次访问 /login 时懒加载路由需现场编译，直接 fill 会在 30s 内等不到
-  // 输入框（CI: page.fill Timeout waiting for locator('input[name="username"]')）。
-  const userInput = page.locator('input[name="username"]');
-  await userInput.waitFor({ state: 'visible', timeout: 60_000 });
-  await userInput.fill(username);
-  await page.fill('input[name="password"]', password);
-  await page.click('button[type="submit"]');
+  // 登录表单没有 name 属性（Element Plus el-input 只有 placeholder），且必须勾选用户协议
+  // 才能提交——原实现用 input[name="username"] 等待，永远等不到（CI: 60s 超时）。
+  // 复用 loginViaUI 的同一套表单操作流程，避免两处选择器各自漂移。
+  await loginOnPage(page, username, password);
   await page.waitForURL(/dashboard|\/$/, { timeout: 30_000 });
   const call = async (method: string, path: string, body?: Record<string, unknown>) => {
     const cookies = await ctx.cookies();

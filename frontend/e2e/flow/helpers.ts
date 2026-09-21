@@ -1146,7 +1146,12 @@ export async function loginViaUI(
   throw new Error(`UI 登录失败（3 次重试后）: ${lastError?.message ?? 'unknown error'}`);
 }
 
-async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string[]): Promise<void> {
+export async function loginOnPage(
+  page: Page,
+  u: string,
+  p: string,
+  consoleLogs: string[] = []
+): Promise<void> {
   // Element Plus el-input：同时匹配中英文 placeholder
   const usernameInput = page.locator('input[placeholder="用户名"], input[placeholder="Username"]');
   await usernameInput.first().waitFor({ state: 'visible', timeout: 30_000 });
