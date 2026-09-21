@@ -160,13 +160,17 @@ impl PurchaseReceiptService {
             .all(txn)
             .await?;
 
-        let stock_map = Self::fetch_stock_map(txn, &items, receipt.warehouse_id).await?;
+        let mut stock_map = Self::fetch_stock_map(txn, &items, receipt.warehouse_id).await?;
 
         for item in items {
-            let existing = stock_map.get(&item.product_id);
-            let stock_model = Self::upsert_stock_for_item(txn, &item, existing, receipt).await?;
+            let key = Self::receipt_item_stock_key(&item);
+            let existing = stock_map.get(&key).cloned();
+            // 流水的期初/期末分别取本行入库前后，同产品不同缸号的行不共用库存行
+            let (stock_before, stock_after) =
+                Self::upsert_stock_for_item(txn, &item, existing.as_ref(), receipt).await?;
+            stock_map.insert(key, stock_after);
             if let Some(ev) =
-                Self::record_receipt_transaction(txn, &item, &stock_model, receipt).await?
+                Self::record_receipt_transaction(txn, &item, &stock_before, receipt).await?
             {
                 pending_events.push(ev);
             }
@@ -174,13 +178,48 @@ impl PurchaseReceiptService {
         Ok(pending_events)
     }
 
-    /// 批量查询入库明细关联的库存记录（避免 N+1 查询）
+    /// 入库明细行的库存维度键：与创建库存行时写入的字段口径一致
+    /// （batch_no/color_no 空值落库为空串，grade 缺省为一等品，dye_lot_no 保持 Option）
+    fn receipt_item_stock_key(
+        item: &purchase_receipt_item::Model,
+    ) -> (i32, String, String, String, String) {
+        (
+            item.product_id,
+            item.batch_no.clone().unwrap_or_default(),
+            item.color_code.clone().unwrap_or_default(),
+            item.lot_no.clone().unwrap_or_default(),
+            item.grade.clone().unwrap_or_else(|| "一等品".to_string()),
+        )
+    }
+
+    /// 库存行的库存维度键，需与 `receipt_item_stock_key` 同口径
+    fn stock_row_key(
+        stock: &crate::models::inventory_stock::Model,
+    ) -> (i32, String, String, String, String) {
+        (
+            stock.product_id,
+            stock.batch_no.clone(),
+            stock.color_no.clone(),
+            stock.dye_lot_no.clone().unwrap_or_default(),
+            stock.grade.clone(),
+        )
+    }
+
+    /// 批量查询入库明细涉及的库存行，按库存维度（产品+批次+色号+缸号+等级）建索引
+    ///
+    /// 只按产品索引会把不同缸号的行错误合并到同一条库存上（同批货重复累加、
+    /// 另一缸号的行被覆盖），这里按落库维度建键，保证「四维库存」逐行对得上。
     async fn fetch_stock_map(
         txn: &sea_orm::DatabaseTransaction,
         items: &[purchase_receipt_item::Model],
         warehouse_id: i32,
-    ) -> Result<std::collections::HashMap<i32, crate::models::inventory_stock::Model>, AppError>
-    {
+    ) -> Result<
+        std::collections::HashMap<
+            (i32, String, String, String, String),
+            crate::models::inventory_stock::Model,
+        >,
+        AppError,
+    > {
         let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
         if product_ids.is_empty() {
             return Ok(std::collections::HashMap::new());
@@ -191,25 +230,37 @@ impl PurchaseReceiptService {
             .all(txn)
             .await?
             .into_iter()
-            .map(|s| (s.product_id, s))
+            .map(|s| {
+                let key = Self::stock_row_key(&s);
+                (key, s)
+            })
             .collect();
         Ok(map)
     }
 
-    /// 更新或创建库存记录（存在则加库存，不存在则新建）
+    /// 更新或创建库存记录，返回 (本行入库前快照, 入库后库存行)
+    ///
+    /// 入库后行带数据库回写的最新数量与版本号，供同一维度的后续明细行继续累加，
+    /// 否则第二行起会拿陈旧版本做乐观锁校验触发「并发冲突」并按陈旧基数覆盖数量。
     async fn upsert_stock_for_item(
         txn: &sea_orm::DatabaseTransaction,
         item: &purchase_receipt_item::Model,
         existing_stock: Option<&crate::models::inventory_stock::Model>,
         receipt: &purchase_receipt::Model,
-    ) -> Result<crate::models::inventory_stock::Model, AppError> {
+    ) -> Result<
+        (
+            crate::models::inventory_stock::Model,
+            crate::models::inventory_stock::Model,
+        ),
+        AppError,
+    > {
         use crate::services::inventory_stock_service::{
             CreateStockFabricArgs, InventoryStockService,
         };
         if let Some(stock) = existing_stock {
             let new_meters = stock.quantity_meters + item.quantity;
             let new_kg = stock.quantity_kg + item.quantity_alt.unwrap_or(Decimal::ZERO);
-            InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+            let after = InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
                 txn,
                 stock.id,
                 new_meters,
@@ -217,7 +268,7 @@ impl PurchaseReceiptService {
                 stock.version,
             )
             .await?;
-            Ok(stock.clone())
+            Ok((stock.clone(), after))
         } else {
             let batch_no = item.batch_no.clone().unwrap_or_default();
             let color_no = item.color_code.clone().unwrap_or_default();
@@ -241,7 +292,10 @@ impl PurchaseReceiptService {
                 },
             )
             .await?;
-            Ok(stock)
+            let mut before = stock.clone();
+            before.quantity_meters = Decimal::ZERO;
+            before.quantity_kg = Decimal::ZERO;
+            Ok((before, stock))
         }
     }
 
