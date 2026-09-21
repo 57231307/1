@@ -465,13 +465,9 @@ ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "notes" VARCHAR(255);
 ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "phone" VARCHAR(255);
 ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "postal_code" VARCHAR(255);
 ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "province" VARCHAR(255);
-// bpm_task 的 process_instance_id / name 是初始建表遗留列，与代码实际读写的
-// instance_id / node_name 语义重复（全仓库仅本迁移提到过它们，无任何 Model 字段、
-// 查询或 seed 使用）。两者 NOT NULL 且无默认值，导致只要流程定义里存在 user_task
-// 节点，bpm_ops/instance.rs 插入首任务必然违反约束失败，
-// 表现为「BPM 审批流程启动失败，订单已回滚为草稿状态」——即人工审批链完全不可用，
-// 此前没有任何环境暴露，是因为所有流程定义都恰好没有解析到任务节点而走了自动完成分支。
-// 保留列与历史数据，仅解除这两个重复列的非空约束。
+-- bpm_task.process_instance_id / bpm_task.name 是遗留的重复列，业务代码读写的是
+-- instance_id / node_name。这两个遗留列不承载数据，只保留历史值与外键，
+-- 因此允许为空，以便含 user_task 节点的流程定义能正常插入首任务记录。
 ALTER TABLE "bpm_task" ALTER COLUMN "process_instance_id" DROP NOT NULL;
 ALTER TABLE "bpm_task" ALTER COLUMN "name" DROP NOT NULL;
 ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "warehouse_code" VARCHAR(255);
