@@ -2,6 +2,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_stock::Model as InventoryStock;
 use crate::models::product;
+use crate::models::warehouse;
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::services::inventory_stock_service::{CreateStockArgs, InventoryStockService};
@@ -39,7 +40,8 @@ pub async fn get_stock(
     // 导致 DB 错误也返回 404。service 返回 AppError，直接用 ? 透传保留原始错误分类
     let stock = service.find_by_id(id).await?;
 
-    let response = to_stock_response(stock);
+    let mut response = to_stock_response(stock);
+    attach_master_names(&state.db, std::slice::from_mut(&mut response)).await;
 
     let mut response_json = serde_json::to_value(response)?;
 
@@ -109,7 +111,9 @@ pub async fn create_stock(
         })
         .await?;
 
-    Ok(Json(ApiResponse::success(to_stock_response(stock))))
+    let mut created_response = to_stock_response(stock);
+    attach_master_names(&state.db, std::slice::from_mut(&mut created_response)).await;
+    Ok(Json(ApiResponse::success(created_response)))
 }
 
 pub async fn update_stock(
@@ -161,7 +165,9 @@ pub async fn update_stock(
     // 改为 ? 透传，由 From<DbErr> for AppError 自动分类（RecordNotFound→404, 其他→500）
     let updated = active_model.update(&*state.db).await?;
 
-    Ok(Json(ApiResponse::success(to_stock_response(updated))))
+    let mut updated_response = to_stock_response(updated);
+    attach_master_names(&state.db, std::slice::from_mut(&mut updated_response)).await;
+    Ok(Json(ApiResponse::success(updated_response)))
 }
 
 pub async fn delete_stock(
@@ -205,7 +211,8 @@ pub async fn list_stock(
         )
         .await?;
 
-    let stock_responses: Vec<_> = stock_list.into_iter().map(to_stock_response).collect();
+    let mut stock_responses: Vec<_> = stock_list.into_iter().map(to_stock_response).collect();
+    attach_master_names(&state.db, &mut stock_responses).await;
 
     send_inventory_alerts(&state, &stock_responses).await;
 
@@ -235,10 +242,77 @@ fn to_stock_response(stock: InventoryStock) -> StockResponse {
         color_no: stock.color_no,
         dye_lot_no: stock.dye_lot_no,
         grade: stock.grade,
+        stock_status: stock.stock_status,
+        quality_status: stock.quality_status,
         quantity_meters: stock.quantity_meters,
         quantity_kg: stock.quantity_kg,
+        product_code: None,
+        product_name: None,
+        warehouse_name: None,
         created_at: stock.created_at,
         updated_at: stock.updated_at,
+    }
+}
+
+/// 为库存响应批量附上产品编码/名称与仓库名称。
+///
+/// 库存表只存 `product_id` / `warehouse_id`，而库存列表、详情与导出要按名称展示；
+/// 主数据行缺失（外键被破坏）时记录 error 并保持名称为空，不用 ID 拼假名称。
+async fn attach_master_names(db: &sea_orm::DatabaseConnection, responses: &mut [StockResponse]) {
+    if responses.is_empty() {
+        return;
+    }
+    let product_ids: Vec<i32> = responses.iter().map(|r| r.product_id).collect();
+    let warehouse_ids: Vec<i32> = responses.iter().map(|r| r.warehouse_id).collect();
+
+    let products = match product::Entity::find()
+        .filter(product::Column::Id.is_in(product_ids))
+        .all(db)
+        .await
+    {
+        Ok(list) => list,
+        Err(e) => {
+            tracing::error!(error = %e, "查询库存行的产品主数据失败，产品编码/名称将为空");
+            vec![]
+        }
+    };
+    let warehouses = match warehouse::Entity::find()
+        .filter(warehouse::Column::Id.is_in(warehouse_ids))
+        .all(db)
+        .await
+    {
+        Ok(list) => list,
+        Err(e) => {
+            tracing::error!(error = %e, "查询库存行的仓库主数据失败，仓库名称将为空");
+            vec![]
+        }
+    };
+
+    let product_map: std::collections::HashMap<i32, &product::Model> =
+        products.iter().map(|p| (p.id, p)).collect();
+    let warehouse_map: std::collections::HashMap<i32, &warehouse::Model> =
+        warehouses.iter().map(|w| (w.id, w)).collect();
+
+    for r in responses.iter_mut() {
+        match product_map.get(&r.product_id) {
+            Some(p) => {
+                r.product_code = Some(p.code.clone());
+                r.product_name = Some(p.name.clone());
+            }
+            None => tracing::error!(
+                product_id = r.product_id,
+                stock_id = r.id,
+                "库存行指向的产品主数据不存在（外键异常）"
+            ),
+        }
+        match warehouse_map.get(&r.warehouse_id) {
+            Some(w) => r.warehouse_name = Some(w.name.clone()),
+            None => tracing::error!(
+                warehouse_id = r.warehouse_id,
+                stock_id = r.id,
+                "库存行指向的仓库主数据不存在（外键异常）"
+            ),
+        }
     }
 }
 
@@ -515,8 +589,9 @@ pub async fn export_stock(
         .await?;
     let row_count = stock_list.len();
 
-    let stock_responses: Vec<StockResponse> =
+    let mut stock_responses: Vec<StockResponse> =
         stock_list.into_iter().map(to_stock_response).collect();
+    attach_master_names(&state.db, &mut stock_responses).await;
     let mut stock_json = serialize_stock_responses(stock_responses)?;
     apply_data_permission_filter(&state, &auth, &mut stock_json).await;
 

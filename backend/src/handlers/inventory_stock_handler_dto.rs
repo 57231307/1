@@ -66,6 +66,10 @@ pub struct StockResponse {
     pub dye_lot_no: Option<String>,
     /// 等级（一等品/二等品/等外品）
     pub grade: String,
+    /// 库存状态（正常/冻结/待检）
+    pub stock_status: String,
+    /// 质量状态（合格/不合格/待检）
+    pub quality_status: String,
     /// 已发货数量（销售发货累计）
     pub quantity_shipped: Decimal,
     /// 在途数量（采购收货累计）
@@ -74,6 +78,13 @@ pub struct StockResponse {
     pub quantity_meters: Decimal,
     /// 数量（公斤，辅计量）
     pub quantity_kg: Decimal,
+    // ===== 主数据名称（库存表只存 ID，列表/详情/导出按名称展示）=====
+    /// 产品编码
+    pub product_code: Option<String>,
+    /// 产品名称
+    pub product_name: Option<String>,
+    /// 仓库名称
+    pub warehouse_name: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }

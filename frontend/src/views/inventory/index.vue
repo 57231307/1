@@ -474,10 +474,10 @@ const openStockDialog = (row?: InventoryStock) => {
   stockForm.product_id = row?.product_id;
   stockForm.warehouse_id = row?.warehouse_id;
   stockForm.batch_no = row?.batch_no || '';
-  stockForm.color_code = row?.color_code || '';
-  stockForm.location = row?.location || '';
-  stockForm.quantity = Number(row?.quantity ?? 0);
-  stockForm.status = row?.status || 'normal';
+  stockForm.color_code = row?.color_no || '';
+  stockForm.location = row?.bin_location || '';
+  stockForm.quantity = Number(row?.quantity_meters ?? 0);
+  stockForm.status = row?.stock_status || 'normal';
   stockDialogVisible.value = true;
 };
 
@@ -564,10 +564,12 @@ const handleView = async (row: InventoryStock) => {
       t('inventory.stockDetail.productName', { value: d.product_name }),
       t('inventory.stockDetail.warehouse', { value: d.warehouse_name }),
       t('inventory.stockDetail.batchNo', { value: d.batch_no || '-' }),
-      t('inventory.stockDetail.color', { value: d.color_name || '-' }),
-      t('inventory.stockDetail.currentQty', { value: d.quantity, unit: d.unit || '' }),
-      t('inventory.stockDetail.status', { value: d.status }),
-      t('inventory.stockDetail.location', { value: d.location || '-' }),
+      t('inventory.stockDetail.color', { value: d.color_no || '-' }),
+      t('inventory.stockDetail.dyeLot', { value: d.dye_lot_no || '-' }),
+      t('inventory.stockDetail.qtyMeters', { value: d.quantity_meters }),
+      t('inventory.stockDetail.qtyKg', { value: d.quantity_kg }),
+      t('inventory.stockDetail.status', { value: d.stock_status }),
+      t('inventory.stockDetail.location', { value: d.bin_location || '-' }),
     ];
     await ElMessageBox.alert(lines.join('\n'), t('inventory.stockDetail.title'), {
       confirmButtonText: t('inventory.stockDetail.close'),

@@ -1,25 +1,41 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
+/**
+ * 库存行：字段名与后端 StockResponse 对齐
+ * （数量按主/辅计量与四个业务量维度分开，面料维度为批次/色号/缸号/等级）
+ */
 export interface InventoryStock {
   id: number;
-  product_id: number;
-  product_name: string;
-  product_code: string;
   warehouse_id: number;
-  warehouse_name: string;
-  batch_no?: string;
-  color_code?: string;
-  color_name?: string;
-  lot_no?: string;
-  quantity: number;
-  quantity_alt?: number;
-  unit?: string;
-  unit_alt?: string;
-  gram_weight?: number;
-  width?: number;
-  location?: string;
-  status: string;
+  product_id: number;
+  /** 在库量 */
+  quantity_on_hand: number;
+  /** 可用量（在库 - 预留） */
+  quantity_available: number;
+  quantity_reserved: number;
+  /** 已发货量（销售发货累计） */
+  quantity_shipped: number;
+  /** 在途量（采购收货累计） */
+  quantity_incoming: number;
+  reorder_point: number;
+  max_stock_point: number;
+  bin_location?: string | null;
+  // ===== 面料四维 =====
+  batch_no: string;
+  color_no: string;
+  dye_lot_no?: string | null;
+  grade: string;
+  /** 库存状态：正常/冻结/待检（后端 inventory_stocks.stock_status 主数据值） */
+  stock_status: string;
+  /** 质量状态：合格/不合格/待检 */
+  quality_status: string;
+  quantity_meters: number;
+  quantity_kg: number;
+  // ===== 主数据名称（后端按 ID 批量带出）=====
+  product_code?: string | null;
+  product_name?: string | null;
+  warehouse_name?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -70,6 +86,12 @@ export interface InventoryQueryParams {
   product_id?: number;
   status?: string;
   low_stock?: boolean;
+  /** 色号筛选（后端下推 SQL） */
+  color_no?: string;
+  /** 缸号筛选（后端下推 SQL） */
+  dye_lot_no?: string;
+  /** 批次/匹号筛选（后端下推 SQL） */
+  batch_no?: string;
 }
 
 export interface StockAdjustmentData {
