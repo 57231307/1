@@ -12,6 +12,15 @@ use crate::utils::error::AppError;
 
 use super::purchase_receipt_service::PurchaseReceiptService;
 
+/// 库存维度键：产品 + 批次 + 色号 + 缸号 + 等级，与库存行落库字段同口径
+type StockDimKey = (i32, String, String, String, String);
+
+/// 单行入库前后的库存快照 (入库前, 入库后)
+type StockSnapshots = (
+    crate::models::inventory_stock::Model,
+    crate::models::inventory_stock::Model,
+);
+
 impl PurchaseReceiptService {
     /// 获取入库单明细并批量构建订单明细映射（避免 N+1 查询）
     async fn fetch_receipt_items_with_order_map(
@@ -180,9 +189,7 @@ impl PurchaseReceiptService {
 
     /// 入库明细行的库存维度键：与创建库存行时写入的字段口径一致
     /// （batch_no/color_no 空值落库为空串，grade 缺省为一等品，dye_lot_no 保持 Option）
-    fn receipt_item_stock_key(
-        item: &purchase_receipt_item::Model,
-    ) -> (i32, String, String, String, String) {
+    fn receipt_item_stock_key(item: &purchase_receipt_item::Model) -> StockDimKey {
         (
             item.product_id,
             item.batch_no.clone().unwrap_or_default(),
@@ -193,9 +200,7 @@ impl PurchaseReceiptService {
     }
 
     /// 库存行的库存维度键，需与 `receipt_item_stock_key` 同口径
-    fn stock_row_key(
-        stock: &crate::models::inventory_stock::Model,
-    ) -> (i32, String, String, String, String) {
+    fn stock_row_key(stock: &crate::models::inventory_stock::Model) -> StockDimKey {
         (
             stock.product_id,
             stock.batch_no.clone(),
@@ -214,10 +219,7 @@ impl PurchaseReceiptService {
         items: &[purchase_receipt_item::Model],
         warehouse_id: i32,
     ) -> Result<
-        std::collections::HashMap<
-            (i32, String, String, String, String),
-            crate::models::inventory_stock::Model,
-        >,
+        std::collections::HashMap<StockDimKey, crate::models::inventory_stock::Model>,
         AppError,
     > {
         let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
@@ -247,13 +249,7 @@ impl PurchaseReceiptService {
         item: &purchase_receipt_item::Model,
         existing_stock: Option<&crate::models::inventory_stock::Model>,
         receipt: &purchase_receipt::Model,
-    ) -> Result<
-        (
-            crate::models::inventory_stock::Model,
-            crate::models::inventory_stock::Model,
-        ),
-        AppError,
-    > {
+    ) -> Result<StockSnapshots, AppError> {
         use crate::services::inventory_stock_service::{
             CreateStockFabricArgs, InventoryStockService,
         };
