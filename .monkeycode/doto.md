@@ -241,8 +241,25 @@
   `{name: SyntaxError, message: 10}`，压缩栈止于 `vue-vendor:3:527`，vue 错误号 runtime-1。
   已排除：PasswordStrengthMeter 的字面正则、该页 i18n 文案特殊字符。禁止本地起服务，
   需下一轮从"未压缩 source map / 逐步注释定位"入手。
-- [ ] **产品列表两列仍无数据源**：`barcode`（products 表无该列）、`category_name`（list 未 join
-  product_category）。需决定：后端出 VO，还是前端用已持有的 categories 列表本地解析。
+- [x] **产品列表 `category_name` 无数据源**：已按当页 `category_id` 批量查主数据回填
+      `category_name`，主数据缺失按行记错误日志（`12657627`）。
+
+- [ ] **产品条码 `barcode` 全链路缺列（假保存，需一整轮完成）**：前端表单有「条码」输入、
+      列表有 `barcode` 列（ProductFormDialogTab.vue:87、ProductListTab.vue:190），
+      `api/product.ts` 的 `toProductPayload` 用 `...rest` 原样透传，因此用户填的条码
+      被后端 serde 静默丢弃——列恒空、表单改了不生效。products 表根本没有该列。
+      实施点位（已核对：`product::Model` 字面量 0 处、`product::ActiveModel` 5 处全部带
+      `..Default::default()`，新增 Option 字段无编译连锁）：
+      1) `migration/src/domain/system/mod.rs`（products ALTER 段，299-300 行附近）加
+         `ADD COLUMN IF NOT EXISTS "barcode" VARCHAR(100)` 与 `idx_products_barcode`；
+      2) `models/product.rs` 加 `pub barcode: Option<String>`；
+      3) `handlers/product_handler.rs` 的 Create/UpdateProductRequest 各加 `barcode`，
+         两处 request→args 映射（379、426 行附近）带上；
+      4) `services/product_service.rs` 的 CreateProductArgs/UpdateProductArgs 加字段，
+         `product_ops/crud.rs` 的 create 解构与 ActiveModel 赋值、update 应用各落一处；
+      5) 关键词检索加入条码（`product_ops/crud.rs:72-79` 的 Name/Code 两支），
+         面料行业扫码查找是条码的真实用途，只存不查等于半个功能；
+      6) E2E 锁层：建产品带条码 → 详情返回该值 → 用条码作 keyword 能搜到（缺任何一层即红）。
 - [ ] **分页响应 key 全量审计工具需 nest 感知**：`/tmp` 版 key_audit2.py 已能解析 817 条
   GET 路由与 handler 返回结构，但对 `.nest("/x", handler())` 形式（route 声明为 "/"）
   无法还原完整路径，导致 159 处误报"无路由匹配"。补法：解析 routes/*.rs 的
