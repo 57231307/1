@@ -8,6 +8,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, QueryFilter
 
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;
+use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::services::event_bus::BusinessEvent;
 use crate::utils::error::AppError;
@@ -121,7 +122,7 @@ impl InventoryStockService {
             layer_no: Set(layer_no),
             bin_location: Set(None),
             stock_status: Set(inventory_stock_status::NORMAL.to_string()),
-            quality_status: Set("合格".to_string()),
+            quality_status: Set(quality_status::PASS.to_string()),
             version: Set(0),
             replenishment_strategy: Set("reorder_point".to_string()),
         };

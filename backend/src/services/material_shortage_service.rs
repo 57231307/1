@@ -26,6 +26,7 @@ use crate::models::product::{Column as ProductColumn, Entity as ProductEntity};
 use crate::models::production_order::{
     Column as ProductionOrderColumn, Entity as ProductionOrderEntity,
 };
+use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
@@ -760,7 +761,7 @@ impl MaterialShortageService {
         let stocks = InventoryStockEntity::find()
             .filter(StockColumn::ProductId.is_in(material_ids.to_vec()))
             .filter(StockColumn::StockStatus.eq(inventory_stock_status::NORMAL))
-            .filter(StockColumn::QualityStatus.eq("合格"))
+            .filter(StockColumn::QualityStatus.eq(quality_status::PASS))
             .all(&*self.db)
             .await?;
 

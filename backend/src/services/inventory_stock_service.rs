@@ -1,4 +1,5 @@
 use crate::models::inventory_stock;
+use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::dual_unit_converter::DualUnitConverter;
@@ -346,7 +347,7 @@ impl InventoryStockService {
         let mut query = inventory_stock::Entity::find()
             // 只检查正常状态的库存
             .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
-            .filter(inventory_stock::Column::QualityStatus.eq("合格"))
+            .filter(inventory_stock::Column::QualityStatus.eq(quality_status::PASS))
             // 检查可用库存低于重新订购点
             .filter(
                 sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).lt(
@@ -580,7 +581,7 @@ impl InventoryStockService {
             layer_no: Set(layer_no),
             bin_location: Set(None),
             stock_status: Set(inventory_stock_status::NORMAL.to_string()),
-            quality_status: Set("合格".to_string()),
+            quality_status: Set(quality_status::PASS.to_string()),
             version: Set(0),
             replenishment_strategy: Set("reorder_point".to_string()),
         }
@@ -608,7 +609,7 @@ impl InventoryStockService {
         let mut active: inventory_stock::ActiveModel = stock.into();
         active.grade = Set(new_grade);
         // 降级后质量状态自动降为"待检"（需重新质检判定合格/不合格）
-        active.quality_status = Set("待检".to_string());
+        active.quality_status = Set(quality_status::PENDING.to_string());
         active.updated_at = Set(Utc::now());
 
         crate::services::audit_log_service::AuditLogService::update_with_audit::<
@@ -631,7 +632,7 @@ impl InventoryStockService {
         let prev_loc = stock.bin_location.clone();
         let mut active: inventory_stock::ActiveModel = stock.into();
         active.stock_status = Set(inventory_stock_status::SCRAPPED.to_string());
-        active.quality_status = Set("不合格".to_string());
+        active.quality_status = Set(quality_status::FAIL.to_string());
         // 在 bin_location 追加报废原因（保留原有库位信息便于追溯）
         let new_loc = match &prev_loc {
             Some(prev) if !prev.is_empty() => format!("{} [SCRAP:{}]", prev, reason),
@@ -725,7 +726,7 @@ impl InventoryStockService {
             production_date: Set(production_date),
             expiry_date: Set(expiry_date),
             stock_status: Set(inventory_stock_status::NORMAL.to_string()),
-            quality_status: Set("合格".to_string()),
+            quality_status: Set(quality_status::PASS.to_string()),
             location_id: Set(None),
             shelf_no: Set(None),
             layer_no: Set(None),
@@ -894,7 +895,7 @@ impl InventoryStockService {
                     production_date: Set(source.production_date),
                     expiry_date: Set(source.expiry_date),
                     stock_status: Set(inventory_stock_status::NORMAL.to_string()),
-                    quality_status: Set("合格".to_string()),
+                    quality_status: Set(quality_status::PASS.to_string()),
                     location_id: Set(None),
                     shelf_no: Set(None),
                     layer_no: Set(None),

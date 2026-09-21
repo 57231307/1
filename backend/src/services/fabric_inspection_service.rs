@@ -38,6 +38,7 @@ use crate::models::status::fabric_grade;
 use crate::models::status::fabric_inspection as inspection_status;
 use crate::models::status::fabric_scoring;
 use crate::models::status::inventory_piece as piece_status;
+use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::utils::error::AppError;
 
 // ============================================================================
@@ -654,7 +655,7 @@ impl FabricInspectionService {
             package_no: Default::default(),
             production_date: Default::default(),
             shelf_life: Default::default(),
-            quality_status: Set(Some("passed".to_string())),
+            quality_status: Set(Some(quality_status::PASS.to_string())),
             inventory_status: Set(Some("available".to_string())),
             created_by: Default::default(),
             updated_by: Default::default(),

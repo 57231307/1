@@ -161,6 +161,22 @@ pub mod purchase_receipt_inspection {
 /// 删除走软删除置 DELETED（行保留用于追溯）。此前这些值以字面量散落在库存服务、
 /// 报废流程与批量入仓等 6 处，筛选条件与写入值靠字符串巧合对齐，
 /// 前端筛选因此提交 normal/warning/frozen 这类库里根本不存在的值而恒零命中。
+/// 库存质量状态（inventory_stocks.quality_status）取值。
+///
+/// 与库存台账状态 `inventory_stock_status` 是两列不同语义：本列描述质检结论，
+/// 可用量、缺料预警与可出库筛选都按 PASS 取值过滤，写入侧不得使用其他域的
+/// 检验状态字面量（如 passed），否则该行对所有可用性查询永久不可见。
+pub mod inventory_stock_quality_status {
+    /// 合格：质检通过，可参与可用量计算与出库
+    pub const PASS: &str = "合格";
+
+    /// 待检：降级或复验中，需重新质检后才可判合格
+    pub const PENDING: &str = "待检";
+
+    /// 不合格：报废或不合格判定，不得出库
+    pub const FAIL: &str = "不合格";
+}
+
 pub mod inventory_stock_status {
     /// 正常：可出库的在库库存
     pub const NORMAL: &str = "正常";

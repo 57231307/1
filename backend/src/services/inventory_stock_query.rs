@@ -10,6 +10,7 @@ use sea_orm::{
 };
 
 use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;
+use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::{inventory_stock, inventory_transaction};
 use crate::services::stock_alert::{
@@ -242,7 +243,7 @@ impl InventoryStockService {
         query = Self::apply_inventory_filters(query, &params);
         query = query
             .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
-            .filter(inventory_stock::Column::QualityStatus.eq("合格"));
+            .filter(inventory_stock::Column::QualityStatus.eq(quality_status::PASS));
 
         // 批次 266：接入 paginate_with_total，消除手写 count + fetch_page 重复
         // 聚合查询使用 into_model::<InventorySummaryQueryResult>，泛型 M = InventorySummaryQueryResult
