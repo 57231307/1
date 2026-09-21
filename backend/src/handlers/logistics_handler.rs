@@ -141,7 +141,7 @@ fn parse_date_param(raw: &str, field: &str) -> Result<DateTime<Utc>, AppError> {
 ///
 /// 返回值的生命周期绑定到 `raw`（入参本体），`field` 只出现在错误文案里；
 /// 两个 `&str` 入参不写显式生命周期会让编译器无法判定返回引用来自谁。
-fn validate_status_param<'a>(raw: &'a str, field: &str) -> Result<&'a str, AppError> {
+pub fn validate_status_param<'a>(raw: &'a str, field: &str) -> Result<&'a str, AppError> {
     if waybill_status::ALL.contains(&raw) {
         Ok(raw)
     } else {
@@ -150,6 +150,14 @@ fn validate_status_param<'a>(raw: &'a str, field: &str) -> Result<&'a str, AppEr
             waybill_status::ALL.join("/")
         )))
     }
+}
+
+/// 运单状态机在本接口侧唯一放行的推进边：IN_TRANSIT → DELIVERED。
+///
+/// SIGNED 不在此放行——它由签收端点写入，同一事务内记录签收人/签收时间并触发
+/// 应收确认，绕过签收端点即绕过应收确认；DELIVERED 之后无回退路径。
+pub fn is_legal_waybill_transition(from: &str, to: &str) -> bool {
+    from == waybill_status::IN_TRANSIT && to == waybill_status::DELIVERED
 }
 
 /// 按本页运单关联的 order_id 批量回查销售订单号（运单表只存 order_id）
@@ -307,7 +315,7 @@ pub async fn update_waybill(
     let target_status = match req.status.as_deref() {
         Some(raw) => {
             let target = validate_status_param(raw, "status")?;
-            if current != waybill_status::IN_TRANSIT || target != waybill_status::DELIVERED {
+            if !is_legal_waybill_transition(&current, target) {
                 return Err(AppError::bad_request(format!(
                     "非法状态流转：{} → {}；本接口仅支持 {} → {}，签收请使用签收接口",
                     current,
