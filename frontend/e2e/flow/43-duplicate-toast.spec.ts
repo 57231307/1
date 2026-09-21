@@ -1,5 +1,11 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, trackPageHealth, assertPageHealthy } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  trackPageHealth,
+  assertPageHealthy,
+  BROWSER_NETWORK_NOISE,
+} from './helpers';
 
 /**
  * P5.13 重复提示测试
@@ -37,6 +43,6 @@ test.describe('P5.13 重复提示', () => {
     const toastCount = await page.locator('.el-message').count();
     expect(toastCount).toBeLessThanOrEqual(1);
 
-    await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+    await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
   });
 });

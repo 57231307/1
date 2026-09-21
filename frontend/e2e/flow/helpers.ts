@@ -1895,21 +1895,60 @@ export function trackPageHealth(page: Page): PageHealthCollector {
 }
 
 /**
- * 断言页面健康：零 pageerror + 零未捕获 console.error + 零 5xx + 主容器非白屏
+ * 浏览器网络栈自身产生的 console 噪声（资源 4xx/5xx、连接被拒/中断等）。
+ * 这类消息由 Chromium 发出，不由应用代码控制，页面存在可选接口 403/404 时必然出现，
+ * 因此允许按站点显式豁免；应用层 logger.error 输出不在此列，必须拦截。
+ */
+export const BROWSER_NETWORK_NOISE: RegExp[] = [/Failed to load resource/i, /net::ERR_/i];
+
+/** 应用层 logger.error 的输出前缀（见 src/utils/logger.ts） */
+export const APP_ERROR_LOG = /^\[ERROR\]/;
+
+/**
+ * 取出采集器已累积的异常并清零，返回一份只含本次增量的采集器。
+ * 遍历类用例在同一 page 上连续访问多个模块，若共用累积结果，
+ * 第 N 个模块的断言会带上前 N-1 个模块的错误，失败信息无法定位实际出错模块。
+ */
+export function takePageHealth(collector: PageHealthCollector): PageHealthCollector {
+  return {
+    pageErrors: collector.pageErrors.splice(0),
+    consoleErrors: collector.consoleErrors.splice(0),
+    serverErrors: collector.serverErrors.splice(0),
+  };
+}
+
+/**
+ * 断言页面健康：零 pageerror + 零未豁免 console.error + 零 5xx + 主容器非白屏
+ *
+ * consoleNoisePatterns 是「按模式豁免」而非「整体跳过」：只有匹配到的 console.error
+ * 允许存在，未匹配的一条都不放过。收集器不采集 warn，因此应用层对预期权限拒绝
+ * （403 辅助下拉）降级为 logger.warn 后不会误伤本断言，而真实缺陷仍会以 [ERROR] 暴露。
  */
 export async function assertPageHealthy(
   page: Page,
   collector: PageHealthCollector,
-  options?: { allowConsoleWarn?: boolean; whiteListPaths?: string[] }
+  options?: {
+    consoleNoisePatterns?: RegExp[];
+    whiteListPaths?: string[];
+    /** 失败信息前缀，用于循环遍历场景标明是哪个模块/站点出错 */
+    label?: string;
+  }
 ): Promise<void> {
+  const tag = options?.label ? `${options.label}: ` : '';
   // 1. 零 pageerror
   if (collector.pageErrors.length > 0) {
-    throw new Error(`页面存在未捕获错误: ${collector.pageErrors.slice(0, 5).join('; ')}`);
+    throw new Error(`${tag}页面存在未捕获错误: ${collector.pageErrors.slice(0, 5).join('; ')}`);
   }
 
-  // 2. 零未捕获 console.error（warn 白名单可配）
-  if (!options?.allowConsoleWarn && collector.consoleErrors.length > 0) {
-    throw new Error(`控制台存在 error 输出: ${collector.consoleErrors.slice(0, 5).join('; ')}`);
+  // 2. 零未豁免的 console.error
+  const noise = options?.consoleNoisePatterns ?? [];
+  const realConsoleErrors = collector.consoleErrors.filter(
+    text => !noise.some(re => re.test(text))
+  );
+  if (realConsoleErrors.length > 0) {
+    throw new Error(
+      `${tag}控制台存在 error 输出: ${realConsoleErrors.slice(0, 5).join('; ')}（豁免模式 ${noise.length} 个）`
+    );
   }
 
   // 3. 零 5xx 响应（白名单路径可配）
@@ -1919,7 +1958,7 @@ export async function assertPageHealthy(
   );
   if (realServerErrors.length > 0) {
     throw new Error(
-      `存在 5xx 服务器错误: ${realServerErrors
+      `${tag}存在 5xx 服务器错误: ${realServerErrors
         .slice(0, 5)
         .map(e => `${e.status} ${e.url}`)
         .join('; ')}`
@@ -1932,7 +1971,7 @@ export async function assertPageHealthy(
     return main ? (main.textContent?.trim().length ?? 0) : 0;
   });
   if (mainContent < 10) {
-    throw new Error(`页面主容器内容过少（${mainContent} 字符），疑似白屏`);
+    throw new Error(`${tag}页面主容器内容过少（${mainContent} 字符），疑似白屏`);
   }
 }
 

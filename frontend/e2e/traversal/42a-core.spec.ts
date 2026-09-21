@@ -1,5 +1,10 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, trackPageHealth, assertPageHealthy } from '../flow/helpers';
+import {
+  loginViaUI,
+  trackPageHealth,
+  assertPageHealthy,
+  BROWSER_NETWORK_NOISE,
+} from '../flow/helpers';
 import { TRAVERSAL_MODULES, type TraversalModule } from './modules.config';
 
 /**
@@ -24,7 +29,7 @@ async function visitModule(
   await page.waitForLoadState('networkidle', { timeout: 15000 });
 
   // 统一健康断言
-  await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+  await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
 
   // Tier A 且有 listApi：列表 API 回读断言（数据层连通性）
   if (mod.tier === 'A' && mod.listApi) {

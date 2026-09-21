@@ -1,5 +1,10 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, trackPageHealth, assertPageHealthy } from '../flow/helpers';
+import {
+  loginViaUI,
+  trackPageHealth,
+  assertPageHealthy,
+  BROWSER_NETWORK_NOISE,
+} from '../flow/helpers';
 import { TRAVERSAL_MODULES, type TraversalModule } from './modules.config';
 
 /**
@@ -15,7 +20,7 @@ async function visitModule(
   await page.goto(mod.route);
   await page.waitForLoadState('networkidle', { timeout: 15000 });
 
-  await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+  await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
 
   if (mod.tier === 'A' && mod.listApi) {
     const resp = await page.request.get(

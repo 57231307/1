@@ -2,7 +2,9 @@ import { test, expect } from '../diagnose-fixture';
 import {
   loginAsRole,
   trackPageHealth,
+  takePageHealth,
   assertPageHealthy,
+  BROWSER_NETWORK_NOISE,
   getRoleCredential,
 } from '../flow/helpers';
 import { TRAVERSAL_MODULES } from './modules.config';
@@ -70,7 +72,12 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
         await page.waitForLoadState('networkidle', { timeout: 10000 });
 
         let actual: 'reachable' | 'denied' = 'reachable';
-        await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+        // 同一 page 内连续遍历多个模块：取增量并带模块标识，
+        // 否则第 N 个模块的失败信息里混着前 N-1 个模块的错误，无法判责
+        await assertPageHealthy(page, takePageHealth(collector), {
+          consoleNoisePatterns: BROWSER_NETWORK_NOISE,
+          label: `[${mod.id} ${mod.route}]`,
+        });
 
         const currentPath = page.url().replace(process.env.BASE_URL || 'http://localhost:3000', '');
         if (currentPath.includes('/login') || currentPath.includes('/403')) {

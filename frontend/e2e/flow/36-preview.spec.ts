@@ -1,5 +1,11 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, trackPageHealth, assertPageHealthy } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  trackPageHealth,
+  assertPageHealthy,
+  BROWSER_NETWORK_NOISE,
+} from './helpers';
 
 /**
  * P5.6 预览测试
@@ -34,7 +40,7 @@ test.describe('P5.6 预览', () => {
 
     // 预览应返回内容（HTML 或文档数据）
     expect(previewResp !== null).toBeTruthy();
-    await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+    await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
   });
 
   test('report-templates 预览 API', async ({ page }) => {
@@ -52,7 +58,7 @@ test.describe('P5.6 预览', () => {
     const previewResp = await apiCall(page, 'GET', `/report-templates/${templateId}/preview`);
 
     expect(previewResp !== null).toBeTruthy();
-    await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+    await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
   });
 
   test('BPM 模板预览 API', async ({ page }) => {
@@ -70,6 +76,6 @@ test.describe('P5.6 预览', () => {
     const previewResp = await apiCall(page, `GET`, `/bpm/templates/${templateId}/preview`);
 
     expect(previewResp !== null).toBeTruthy();
-    await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+    await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
   });
 });

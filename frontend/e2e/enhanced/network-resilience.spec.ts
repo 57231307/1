@@ -22,7 +22,10 @@ import { test, expect, type Page } from '../diagnose-fixture';
 import {
   loginAsRole,
   trackPageHealth,
+  takePageHealth,
   assertPageHealthy,
+  BROWSER_NETWORK_NOISE,
+  APP_ERROR_LOG,
   expectSingleToast,
 } from '../flow/helpers';
 
@@ -97,11 +100,22 @@ test.describe('网络韧性：真实网络中断', () => {
       '失败原因应为真实网络中断'
     ).toBe(true);
 
-    // 断言 3：中断不产生未捕获异常与 5xx；离线场景浏览器自身的 console error
-    // 属预期噪声，故允许 console 噪声但禁止 pageerror 与白屏
-    await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+    // 断言 3：中断期间不允许 pageerror / 5xx / 白屏。console.error 只豁免两类：
+    // 浏览器网络栈自身噪声，以及应用对真实失败请求的 logger.error 留痕——
+    // 离线时接口确实失败，应用记录属预期行为。豁免按模式而非整体跳过。
+    const offlineHealth = takePageHealth(collector);
+    await assertPageHealthy(page, offlineHealth, {
+      consoleNoisePatterns: [...BROWSER_NETWORK_NOISE, APP_ERROR_LOG],
+    });
+    const offlineAppLogs = offlineHealth.consoleErrors.filter(text => APP_ERROR_LOG.test(text));
+    console.log(
+      `[network-resilience] 离线期间应用层 [ERROR] 留痕 ${offlineAppLogs.length} 条：` +
+        (offlineAppLogs.slice(0, 2).join(' | ') || '(无)')
+    );
 
-    // 断言 4：恢复网络后应用自愈，真实重新拉到数据
+    // 断言 4：恢复网络后应用自愈，真实重新拉到数据。
+    // 离线阶段的错误已由断言 3 消费，此处采集器只含恢复后的增量，
+    // 因此不再豁免应用层错误日志——在线状态下任何 [ERROR] 都是真实缺陷。
     await context.setOffline(false);
     const okResponses = trackOkApiResponses(page);
     console.log('[network-resilience] 已恢复在线，重新加载页面验证自愈');
@@ -109,7 +123,7 @@ test.describe('网络韧性：真实网络中断', () => {
     console.log(`[network-resilience] 恢复后捕获 200 数据响应 ${okResponses.length} 条`);
     expect(okResponses.length, '恢复在线后应用应真实拉到数据').toBeGreaterThan(0);
     await expect(page.locator('[role="menuitem"]').first()).toBeVisible({ timeout: 30_000 });
-    await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+    await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
   });
 });
 

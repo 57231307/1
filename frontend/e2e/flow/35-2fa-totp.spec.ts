@@ -1,5 +1,12 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, generateTotp, trackPageHealth, assertPageHealthy } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  generateTotp,
+  trackPageHealth,
+  assertPageHealthy,
+  BROWSER_NETWORK_NOISE,
+} from './helpers';
 
 /**
  * P5.5 2FA TOTP 全流程测试
@@ -36,7 +43,7 @@ test.describe('P5.5 2FA TOTP', () => {
       `[35-totp] enable 应成功（secret=${secret?.slice(0, 8)}… code=${totpCode}）`
     ).toBeTruthy();
 
-    await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+    await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
   });
 
   test('错 TOTP code 拒绝', async ({ page }) => {

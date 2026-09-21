@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginAsRole, trackPageHealth, assertPageHealthy } from './helpers';
+import { loginAsRole, trackPageHealth, assertPageHealthy, BROWSER_NETWORK_NOISE } from './helpers';
 
 /**
  * P5.2 全量角色登录测试
@@ -71,7 +71,9 @@ test.describe('P5.2 全量角色登录', () => {
             .length ?? 0) >= 10,
         { timeout: 20000 }
       );
-      await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+      await assertPageHealthy(page, collector, {
+        consoleNoisePatterns: BROWSER_NETWORK_NOISE,
+      });
     });
   }
 });
