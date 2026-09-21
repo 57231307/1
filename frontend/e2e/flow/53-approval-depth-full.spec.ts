@@ -18,7 +18,10 @@ import {
  * - :2 申请人==审批人拒绝（防自审批）
  * - :43 二级审批人不能与一级审批人相同（双人约束）
  * - 端点 routes/system.rs / handlers/role_change_approval_handler.rs:20-117
- *   POST /role-change-approvals、/{id}/approve-l1、/{id}/approve-l2、/{id}/reject
+ *   POST /role-change-approvals、/{id}/approve-l1、/{id}/approve-l2、/{id}/reject、/{id}/cancel
+ * - approve-l1/l2 的请求体是 Json<ApproveRoleChangeRequest>（{comments}），
+ *   空请求体在 Json 提取阶段即 400，永远到不了业务校验；
+ * - 审批记录没有 DELETE 路由（405），清理只能走 /cancel
  *
  * 跨用户装置：context A = admin（创建人）；context B = 新建 approver 用户
  * （admin 角色）API 登录后执行审批——真实双身份。
@@ -26,7 +29,7 @@ import {
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
-  for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
+  for (const c of CLEANUP.reverse()) await tryCleanup(page, 'POST', c.path, c.label);
   CLEANUP.length = 0;
 });
 
@@ -172,7 +175,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     const apId =
       (created as { id?: number })?.id ?? (created as { data?: { id?: number } })?.data?.id;
     expect(apId, '角色变更申请创建失败').toBeTruthy();
-    CLEANUP.push({ path: `/role-change-approvals/${apId}`, label: '[53-1] 申请' });
+    CLEANUP.push({ path: `/role-change-approvals/${apId}/cancel`, label: '[53-1] 申请' });
 
     // A 自己审批 L1 → 必须被拒（:2 防自审批）
     // 必须传 body：后端签名是 Json<ApproveRoleChangeRequest>，空请求体在 Json 提取阶段
@@ -197,7 +200,9 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       APPROVER.password
     );
     secondCtx = ctxB;
-    const bApprove = await callB('POST', `/role-change-approvals/${apId}/approve-l1`);
+    const bApprove = await callB('POST', `/role-change-approvals/${apId}/approve-l1`, {
+      comments: '53-1 B 审批一级',
+    });
     expect(bApprove.status, 'B 审批 L1 应通过').toBeLessThan(300);
   });
 
@@ -231,7 +236,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     const apId =
       (created as { id?: number })?.id ?? (created as { data?: { id?: number } })?.data?.id;
     expect(apId, '申请创建失败').toBeTruthy();
-    CLEANUP.push({ path: `/role-change-approvals/${apId}`, label: '[53-2] 申请' });
+    CLEANUP.push({ path: `/role-change-approvals/${apId}/cancel`, label: '[53-2] 申请' });
 
     // B 完成 L1
     const { ctx: ctxB, call: callB } = await loginSecondUser(
@@ -240,11 +245,15 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       APPROVER.password
     );
     secondCtx = ctxB;
-    const l1 = await callB('POST', `/role-change-approvals/${apId}/approve-l1`);
+    const l1 = await callB('POST', `/role-change-approvals/${apId}/approve-l1`, {
+      comments: '53-2 B 审批一级',
+    });
     expect(l1.status, 'B 一级审批应通过').toBeLessThan(300);
 
     // L1 审批人 B 尝试继续做 L2 → 双人约束拒绝
-    const l2 = await callB('POST', `/role-change-approvals/${apId}/approve-l2`);
+    const l2 = await callB('POST', `/role-change-approvals/${apId}/approve-l2`, {
+      comments: '53-2 B 审批二级',
+    });
     expect(l2.status, '二级审批人不能与一级相同').toBeGreaterThanOrEqual(400);
     expect(String(l2.body?.message ?? '')).toContain('一级审批人相同');
   });

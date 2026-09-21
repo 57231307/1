@@ -26,16 +26,17 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   test('1-1 创建采购订单（含色号+缸号+双计量）', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    const productId = ctx.productIds[0] || 1;
+    const productId = ctx.productIds[0];
+    expect(productId, '前置产品未创建（EntityContext.productIds 为空）').toBeTruthy();
     const result = await apiCall<{ id?: number; order_no?: string }>(
       page,
       'POST',
       '/purchase/orders',
       {
         supplier_id: ctx.supplierId,
-        warehouse_id: ctx.warehouseIds[0] || 1,
+        warehouse_id: ctx.warehouseIds[0],
         // 后端 validate_order_request 要求 department_id 必填（"部门 ID 不能为空"）
-        department_id: ctx.departmentIds[0] || 1,
+        department_id: ctx.departmentIds[0],
         order_date: new Date().toISOString().slice(0, 10),
         expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
         items: [
@@ -118,7 +119,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       return;
     }
 
-    const productId = ctx.productIds[0] || 1;
+    const productId = ctx.productIds[0];
+    expect(productId, '前置产品未创建（EntityContext.productIds 为空）').toBeTruthy();
     const pieceNo1 = genPieceNo(dyeLotNo, 1);
     const pieceNo2 = genPieceNo(dyeLotNo, 2);
 
@@ -126,8 +128,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     // （原发 purchase_order_id 会被 serde 忽略，入库单与订单脱钩，收货事件不发、库存不增）
     const receipt = await apiCall<{ id?: number }>(page, 'POST', '/purchase/receipts', {
       order_id: id,
-      supplier_id: ctx.supplierId || 1,
-      warehouse_id: ctx.warehouseIds[0] || 1,
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
       receipt_date: new Date().toISOString().slice(0, 10),
       items: [
         {
@@ -194,7 +196,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
 
   test('1-5 验证库存四维聚合（产品→色号→缸号→匹号）', async ({ page }) => {
     const ctx = getCtx();
-    const productId = ctx.productIds[0] || 1;
+    const productId = ctx.productIds[0];
+    expect(productId, '前置产品未创建（EntityContext.productIds 为空）').toBeTruthy();
 
     // 入库明细的色号/缸号/批次必须原样落到库存行：1-4 两行同维度共 1000 米
     // 仓库过滤一并带上：不按时会命中其他仓库同维度行，命中行的在库量与本用例无关
@@ -221,7 +224,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
 
   test('1-6 验证库存查询支持色号/缸号筛选', async ({ page }) => {
     const ctx = getCtx();
-    const productId = ctx.productIds[0] || 1;
+    const productId = ctx.productIds[0];
+    expect(productId, '前置产品未创建（EntityContext.productIds 为空）').toBeTruthy();
 
     const byColor = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
       page,

@@ -147,23 +147,27 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     // 补偿产物：收入凭证按发货单挂账（source_bill_id/source_bill_no = 发货单），
     // 凭证里没有订单 ID，此前用 soId 在凭证 JSON 里找订单号，链路再好也不会命中。
     // 先取本订单的发货单，再按发货单号在凭证列表里定位那一笔转字凭证。
-    const deliveries = await apiCall<{ list?: Array<Record<string, unknown>> }>(
+    // apiCall 返回 {code,data,message} 信封，apiCallRaw 才给 data 本体；
+    // 该端点 data 结构是 {list: [...]}（sales_order_handler.rs:654）
+    const deliveries = await apiCallRaw<{ list?: Array<Record<string, unknown>> }>(
       page,
       'GET',
       `/sales/orders/${soId}/deliveries`
     );
-    const deliveryList = deliveries?.list;
-    expect(Array.isArray(deliveryList), `发货记录响应缺少 data.list 数组`).toBe(true);
+    expect(Array.isArray(deliveries?.list), `发货记录 data 缺少 list 数组`).toBe(true);
+    const deliveryList = deliveries.list as Array<Record<string, unknown>>;
     const deliveryNo = String(deliveryList?.[0]?.delivery_no ?? '');
     expect(deliveryNo, `订单 ${soId} 应有发货单号可追`).toBeTruthy();
 
-    const vouchers = await apiCall<{ items?: Array<Record<string, unknown>> }>(
+    // GET /vouchers 的 data 是裸数组（voucher_handler.rs:182 ApiResponse<Vec<Model>>），
+    // 不存在 items 包装层
+    const vouchers = await apiCallRaw<Array<Record<string, unknown>>>(
       page,
       'GET',
       `/vouchers?page=1&page_size=100`
     );
-    expect(Array.isArray(vouchers?.items), `凭证列表响应缺少 items 数组`).toBe(true);
-    const hit = (vouchers?.items ?? []).some(v => String(v.source_bill_no ?? '') === deliveryNo);
+    expect(Array.isArray(vouchers), `凭证列表 data 应为数组`).toBe(true);
+    const hit = vouchers.some(v => String(v.source_bill_no ?? '') === deliveryNo);
     expect(
       hit,
       `发货后必须按发货单 ${deliveryNo} 生成收入凭证（补偿失败仅 warn——发货成功无凭证的账实脱节防线）`
