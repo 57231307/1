@@ -77,12 +77,15 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-5 BPM 流程定义', async ({ page }) => {
-    const defs = await apiCallRaw<{ items: Array<{ id: number }> }>(
+    // bpm_definition_handler.rs:57 的列表 key 是 list；原实现读 items（恒 undefined）
+    // 且 expect() 不带匹配器，是一条永不失败的断言
+    const defs = await apiCallRaw<{ list: Array<{ id: number }> }>(
       page,
       'GET',
       '/system/bpm/definitions?page=1&page_size=5'
     );
-    expect(defs.items);
+    console.log(`[5-5] BPM 流程定义 list 长度=${defs?.list?.length ?? '(缺 key)'}`);
+    expect(Array.isArray(defs?.list), 'BPM 流程定义应返回 list 数组').toBe(true);
   });
 
   test('5-6 BPM 审批任务', async ({ page }) => {
@@ -91,8 +94,10 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       'GET',
       '/system/bpm/tasks?page=1&page_size=5'
     );
-    expect(tasks.items);
-    if (tasks?.items?.length ?? 0 > 0) {
+    expect(Array.isArray(tasks?.items), 'BPM 任务应返回 items 数组').toBe(true);
+    // 原写 `tasks?.items?.length ?? 0 > 0`，因优先级实际是 `length ?? false`，
+    // 靠真值判断侥幸可用；改为显式比较
+    if ((tasks?.items?.length ?? 0) > 0) {
       const status = (tasks.items?.[0].status || '').toLowerCase();
       expect(['pending', 'completed', 'rejected', 'cancelled', 'processing']).toContain(
         status ?? '(missing-status)'

@@ -108,14 +108,23 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     const apInvoices = await apiCallRaw<{
       items: Array<{ id: number; amount: number; status: string }>;
     }>(page, 'GET', '/ap/invoices?page=1&page_size=5');
-    expect(apInvoices.items);
+    // ap_invoice_handler.rs:67 用 PaginatedResponse（key=items）
+    console.log(`[4-5] AP 应付单 items 长度=${apInvoices?.items?.length ?? '(缺 key)'}`);
+    expect(Array.isArray(apInvoices?.items), 'AP 应付单应返回 items 数组').toBe(true);
   });
 
   test('4-6 验证 AR 应收单', async ({ page }) => {
-    const arInvoices = await apiCallRaw<{
-      items: Array<{ id: number; amount: number; status: string }>;
-    }>(page, 'GET', '/ar/invoices?page=1&page_size=5');
-    expect(arInvoices.items);
+    // list_ar_invoices 返回 ApiResponse<Vec<Model>>：data 直接是数组，无 items 包装
+    // （与 02-o2c 2-8 同源），原实现读 arInvoices.items 恒 undefined 且无匹配器
+    const arInvoices = await apiCallRaw<Array<{ id: number; amount: number; status: string }>>(
+      page,
+      'GET',
+      '/ar/invoices?page=1&page_size=5'
+    );
+    console.log(
+      `[4-6] AR 应收单数组长度=${Array.isArray(arInvoices) ? arInvoices.length : '非数组'}`
+    );
+    expect(Array.isArray(arInvoices), 'AR 应收单列表应返回数组').toBe(true);
   });
 
   test('4-7 验证付款/收款记录', async ({ page }) => {
@@ -124,13 +133,15 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       'GET',
       '/ap/payments?page=1&page_size=5'
     );
-    expect(apPayments.items);
-    const arPayments = await apiCallRaw<{ items: Array<{ id: number }> }>(
+    expect(Array.isArray(apPayments?.items), 'AP 付款应返回 items 数组').toBe(true);
+    const arPayments = await apiCallRaw<{ list: Array<{ id: number }> }>(
       page,
       'GET',
       '/ar/payments?page=1&page_size=5'
     );
-    expect(arPayments.items);
+    // ar_payment_handler.rs:26 用 json!({"list": ...})，key 是 list 而非 items
+    console.log(`[4-7] AR 收款 list 长度=${arPayments?.list?.length ?? '(缺 key)'}`);
+    expect(Array.isArray(arPayments?.list), 'AR 收款应返回 list 数组').toBe(true);
   });
 
   test('4-8 创建固定资产（染缸设备）', async ({ page }) => {

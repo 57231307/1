@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, tryCleanup, getCtx, ensureTestEntities } from './helpers';
+import { apiCall, apiCallRaw, ensureTestEntities, getCtx, loginViaUI, tryCleanup } from './helpers';
 
 /**
  * P0 删除系统覆盖矩阵（2026-09-11 用户指令："需要系统覆盖所有需要删除/停用测试的功能"）
@@ -774,27 +774,38 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     await tryCleanup(page, 'DELETE', `/roles/${roleId}`, '[31b-数据权限]');
   });
 
-  // ===== 通知（无 HTTP create 端点：用现有通知删除验证，无则 skip）=====
-  test('通知：现有记录→删除→回读404', async ({ page }) => {
+  // ===== 通知：自带创建端点（POST /notifications/announcement），据此构造可删对象 =====
+  // 原实现从 data.items 取列表，而 list_notifications 的 key 是 data.list（handler:75），
+  // 于是 items 恒为 undefined → 走 skip 分支，删除→回读404 从未真正验证过。
+  test('通知：公告直发创建→删除→回读404', async ({ page }) => {
     test.setTimeout(180_000);
-    let targetId: number | undefined;
-    const listResp = await page.request.get(
-      `${API_BASE}${API_PREFIX}/notifications?page=1&page_size=5`
+    await ensureTestEntities(page);
+    const me = getCtx().userIds[0];
+    expect(me, '[31b-通知] 当前用户 id 未就绪，无法自造可删通知').toBeTruthy();
+
+    // 自带创建端点（notification_handler.rs create_announcement，仅管理员），
+    // 用它造一条确定存在的通知，删除链才有真实可验证对象
+    const uniq = `P0DEL-${TS}`;
+    const sent = await apiCallRaw<{ delivered_count?: number }>(
+      page,
+      'POST',
+      '/notifications/announcement',
+      { user_ids: [me], title: `删除矩阵通知${uniq}`, content: `删除矩阵通知内容 ${uniq}` }
     );
-    if (listResp.ok()) {
-      const body = await listResp.json();
-      const items = body?.data?.items ?? (Array.isArray(body?.data) ? body.data : []);
-      const first = items[0] as { id?: number } | undefined;
-      targetId = first?.id;
-      console.log(`[31b-通知] 现有通知 ${items.length} 条，取首条 id=${targetId}`);
-    } else {
-      console.warn(`[31b-通知] 列表 HTTP ${listResp.status()}`);
-    }
-    if (!targetId) {
-      console.log('[31b-通知] 无现有通知可删（事件驱动产生），跳过');
-      test.skip();
-      return;
-    }
+    expect(sent?.delivered_count, '[31b-通知] 公告直发应投递 1 条').toBe(1);
+    await page.waitForTimeout(3000);
+
+    const listResp = await apiCallRaw<{ list: Array<{ id: number; title: string }> }>(
+      page,
+      'GET',
+      '/notifications?page=1&page_size=20'
+    );
+    expect(Array.isArray(listResp?.list), '[31b-通知] 列表应返回 list 数组').toBe(true);
+    const created = listResp.list.filter(n => n.title === `删除矩阵通知${uniq}`);
+    expect(created.length, `[31b-通知] 应能查到刚创建的「删除矩阵通知${uniq}」`).toBe(1);
+    const targetId = created[0].id;
+    console.log(`[31b-通知] 自造通知 id=${targetId} 待删除`);
+
     await apiCall(page, 'DELETE', `/notifications/${targetId}`);
     console.log(`[31b-通知] DELETE 通知 ${targetId} ✅`);
     const chk = await page.request.get(`${API_BASE}${API_PREFIX}/notifications/${targetId}`);
