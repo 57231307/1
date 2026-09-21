@@ -576,7 +576,7 @@ impl ArService {
                 ),
                 Self::build_voucher_item(
                     2,
-                    "1131",
+                    "1122",
                     "应收账款",
                     collection_amount,
                     false,

@@ -706,6 +706,50 @@ ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "website" VARCHAR(255);
 ALTER TABLE voucher_items ADD COLUMN IF NOT EXISTS subject_id INTEGER;
 COMMENT ON COLUMN "voucher_items"."subject_id" IS '科目 ID（契约对齐前端 VoucherEntry.subject_id/account_subject_id；NULL=历史分录仅存编码）';
 CREATE INDEX IF NOT EXISTS idx_voucher_items_subject ON voucher_items (subject_id);
+
+-- 默认会计科目表（企业会计准则应用指南科目编码）。
+-- 业务自动凭证（发货收入凭证、收货应付、收款/付款、折旧、工资、成本结转）
+-- 按编码取科目，科目不存在时 VoucherService 预校验直接拒绝，
+-- 自动凭证因此全部生成失败（发货/收货链路账实脱节）。
+-- 幂等：code 唯一，冲突不覆盖（允许部署方自行调整科目名称与方向）。
+INSERT INTO "account_subjects"
+    ("code", "name", "level", "parent_id", "full_code", "balance_direction",
+     "assist_customer", "assist_supplier", "is_cash_account", "is_bank_account", "status")
+SELECT v.code, v.name, v.level,
+       (SELECT p."id" FROM "account_subjects" p WHERE p."code" = v.parent_code),
+       v.code, v.direction, v.assist_customer, v.assist_supplier, v.is_cash, v.is_bank, 'active'
+FROM (VALUES
+    ('1001', '库存现金', 1, NULL::text, 'debit', false, false, true, false),
+    ('1002', '银行存款', 1, NULL::text, 'debit', false, false, false, true),
+    ('1122', '应收账款', 1, NULL::text, 'debit', true, false, false, false),
+    ('1131', '应收股利', 1, NULL::text, 'debit', false, false, false, false),
+    ('1403', '原材料', 1, NULL::text, 'debit', false, false, false, false),
+    ('1405', '库存商品', 1, NULL::text, 'debit', false, false, false, false),
+    ('1601', '固定资产', 1, NULL::text, 'debit', false, false, false, false),
+    ('1602', '累计折旧', 1, NULL::text, 'credit', false, false, false, false),
+    ('1606', '固定资产清理', 1, NULL::text, 'debit', false, false, false, false),
+    ('1901', '待处理财产损溢', 1, NULL::text, 'debit', false, false, false, false),
+    ('2202', '应付账款', 1, NULL::text, 'credit', false, true, false, false),
+    ('2203', '预收账款', 1, NULL::text, 'credit', true, false, false, false),
+    ('2211', '应付职工薪酬', 1, NULL::text, 'credit', false, false, false, false),
+    ('2221', '应交税费', 1, NULL::text, 'credit', false, false, false, false),
+    ('222101', '应交税费-应交增值税-销项税额', 2, '2221', 'credit', false, false, false, false),
+    ('4104', '利润分配', 1, NULL::text, 'credit', false, false, false, false),
+    ('5001', '生产成本', 1, NULL::text, 'debit', false, false, false, false),
+    ('500101', '生产成本-直接人工', 2, '5001', 'debit', false, false, false, false),
+    ('500103', '生产成本-制造费用', 2, '5001', 'debit', false, false, false, false),
+    ('6001', '主营业务收入', 1, NULL::text, 'credit', false, false, false, false),
+    ('6051', '其他业务收入', 1, NULL::text, 'credit', false, false, false, false),
+    ('6301', '营业外收入', 1, NULL::text, 'credit', false, false, false, false),
+    ('6401', '主营业务成本', 1, NULL::text, 'debit', false, false, false, false),
+    ('6402', '其他业务成本', 1, NULL::text, 'debit', false, false, false, false),
+    ('6601', '销售费用', 1, NULL::text, 'debit', false, false, false, false),
+    ('6602', '管理费用', 1, NULL::text, 'debit', false, false, false, false),
+    ('6603', '财务费用', 1, NULL::text, 'debit', false, false, false, false),
+    ('6711', '营业外支出', 1, NULL::text, 'debit', false, false, false, false),
+    ('6801', '所得税费用', 1, NULL::text, 'debit', false, false, false, false)
+) AS v(code, name, level, parent_code, direction, assist_customer, assist_supplier, is_cash, is_bank)
+ON CONFLICT ("code") DO NOTHING;
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

@@ -149,7 +149,7 @@ impl ArReconciliationService {
         crate::services::voucher_service::VoucherItemRequest {
             line_no: Some(line_no),
             subject_id: None,
-            subject_code: Some("1131".to_string()),
+            subject_code: Some("1122".to_string()),
             subject_name: Some("应收账款".to_string()),
             debit,
             credit,

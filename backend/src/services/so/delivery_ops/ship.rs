@@ -553,7 +553,7 @@ impl SalesService {
             items: vec![
                 Self::build_revenue_voucher_item(
                     1,
-                    "1131",
+                    "1122",
                     "应收账款",
                     delivery_total_incl_tax,
                     Decimal::ZERO,
