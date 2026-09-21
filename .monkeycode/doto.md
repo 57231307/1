@@ -157,6 +157,24 @@
       取后端状态常量集合与前端 `el-option`/`STATUS_OPTIONS` 值做集合比对，列出「前端可选但库里
       不存在」的值即修（值收进单一真相源常量 + 未知值告警，同台账做法）。
 
+- [x] **验布/委外/工资三域接口路径缺 `/production` 前缀（47 个请求恒 404）**：这三组资源注册在
+      `routes/production.rs`，而该 router 挂在 `nest("/api/v1/erp/production")` 下，前端
+      `api/fabric-inspection.ts`/`outsourcing.ts`/`wage.ts` 全部按裸路径调用，页面自始拿不到数据
+      （run 4610 验布用例的 404 与 Vue 渲染中断为实证）。已按仓内既有惯例补前缀
+      （`c2a6de1e`），并核对四组资源名均已在 PERMISSION_RESOURCES/path_utils 已知资源表内，
+      补前缀不改变权限推导结果。
+
+- [ ] **前端调用路径与后端 nest 前缀的一致性缺静态门禁**：本轮靠 CI 失败才暴露 47 个 404，
+      同类问题（尤其 inventory/sales 两域的子 router 前缀）仍可能潜伏。doto 既有的
+      「路由-返回结构审计脚本」需扩展为同时校验 nest 组合后的完整路径，
+      把「FE 调用路径 ∈ 后端注册路径全集」做成 CI 静态门禁；
+      脚本需处理 `.nest("/", …)` 与多级 nest 组合，不能按文件内首段路径近似判断
+      （本轮试写的近似版本对 `/ap/*` 一类"前缀即资源名"路径大量误报，未采信）。
+
+- [ ] **入库单/审批等「补偿型」日志必须区分已存在与真失败**：本轮修掉收货完成事件的恒真告警，
+      同类模式（补偿前先判存在）需作为惯例检查其余事件分支，
+      避免"告警恒真 → 真故障被噪音淹没"再次出现。
+
 - [ ] **`system-update` 资源未注册且被当模块前缀，系统更新页对所有角色 fail-closed**：
       `path_utils.rs:24` 把 `system-update` 列为模块前缀，`/system-update/version` 因此推导出
       资源名 `version`；而 `PERMISSION_RESOURCES` 里根本没有 `system-update`（grep 无命中），
