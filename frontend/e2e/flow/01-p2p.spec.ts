@@ -197,8 +197,10 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const productId = ctx.productIds[0] || 1;
 
     // 入库明细的色号/缸号/批次必须原样落到库存行：1-4 两行同维度共 1000 米
+    // 仓库过滤一并带上：不按时会命中其他仓库同维度行，命中行的在库量与本用例无关
     const stock = await verifyStockFourDim(page, productId, 'RED-001', dyeLotNo, {
       batchNo: 'B001',
+      warehouseId: ctx.warehouseIds[0],
     });
     expect(
       stock,
