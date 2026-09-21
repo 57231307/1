@@ -75,7 +75,7 @@ impl InitService {
     /// 遍历角色权限定义分组，查询角色 ID 并扩展权限 ActiveModel 列表。
     async fn extend_perms_from_definitions(
         db: &DatabaseConnection,
-        definitions: &[(&str, &[(&str, &str)])],
+        definitions: RoleResourceSlice,
         now: chrono::DateTime<chrono::Utc>,
         perms: &mut Vec<role_permission::ActiveModel>,
     ) -> Result<(), InitError> {
