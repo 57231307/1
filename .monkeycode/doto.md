@@ -72,6 +72,23 @@
       全部失效。CI 报 8 个 E0599/E0282，lib 编译失败连带 Clippy、Rust 测试预编译与整条 E2E 链 skipped
       （机制教训见流程备忘新增条）。已恢复导入（`c293c842`）并在同批补齐明细端点的订单挂接与字段落地（`9c4b21bb`）。
 
+- [x] **台账状态筛选死控件（iter26 续，`22d4b9ba`+`081b95a6`+`16140087`）**：`GET /inventory/stock` 的
+      `ListStockParams` 根本没有状态参数，前端提交的 `status=normal/warning/frozen` 既参数名不对、
+      取值也不是后端主数据值（真实值是中文「正常/报废/已删除」），筛选从不生效；表格状态列文案映射
+      也按英文键查表，对真实值永远走不到。修法：service 侧查询条件收敛为 `StockListFilter`（列表与
+      导出共用，避免再加位置参数触发 `too_many_arguments` 新告警），新增 `stock_status` 精确匹配，
+      未指定时排除软删除行（删除是 `stock_status=已删除` 的软删除，已删库存此前混在台账里被当成在库量）；
+      状态值收进 `models/status/purchase_inventory::inventory_stock_status` 常量；前端以
+      `constants/inventory-stock-status.ts` 为单一真相源，1-6 增加正反向断言。
+
+- [ ] **台账「冻结/待检」状态无任何写入口（功能缺失，非缺陷）**：库存处理器的响应文档写着
+      `stock_status（正常/冻结/待检）`，但全仓只有 正常/报废/已删除 三处写入，既没有冻结/解冻端点，
+      也没有待检流转，因此前端不再提供这两个筛选项。是否补冻结/解冻能力（以及冻结后是否应排除在
+      可用量之外）属功能范围决策，需用户确认后再做。
+- [ ] **库存汇总与低库存仍各自写字面量/硬编码状态**：`inventory_stock_query.rs` 汇总查询里的
+      `StockStatus.eq("正常")` 与 `QualityStatus.eq("合格")`、批量入仓 `inv/batch.rs:812` 的
+      `"正常"` 尚未改用新常量（改了不影响行为，属一致性收敛，低库存/预警页是否应展示报废库存也待产品确认）。
+
 - [ ] **`system-update` 资源未注册且被当模块前缀，系统更新页对所有角色 fail-closed**：
       `path_utils.rs:24` 把 `system-update` 列为模块前缀，`/system-update/version` 因此推导出
       资源名 `version`；而 `PERMISSION_RESOURCES` 里根本没有 `system-update`（grep 无命中），
