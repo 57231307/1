@@ -16,6 +16,18 @@ import {
   BASE_URL,
 } from './helpers';
 
+/** 与 backend/src/models/status/sales.rs 的 so_status 常量一致 */
+const SO_STATUSES = [
+  'draft',
+  'pending',
+  'approved',
+  'partial_shipped',
+  'shipped',
+  'completed',
+  'cancelled',
+  'rejected',
+];
+
 test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', () => {
   const dyeLotNo = genDyeLotNo();
   /** 2-8 新建的分次收款专用应收单金额；2-9 按此金额做 50% + 50% 两笔收款并断言状态流转 */
@@ -389,7 +401,10 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       `/sales/orders/${id}`
     );
     console.log(`[2-12] 订单 ${id} order_no=${order.order_no} status=${order.status}`);
-    expect(order.status, '2-5 审批后订单应为 approved').toBe('approved');
+    // 状态由链路前段决定（2-5 审批 → approved，2-6 发货 → shipped/partial_shipped），
+    // 本用例的职责是"状态显示映射"，因此只校验状态取值属于后端 so_status 真实枚举，
+    // 原先在此断言 approved 是错的：2-6 已把订单推进到发货态。
+    expect(SO_STATUSES, `订单状态 ${order.status} 不在 so_status 枚举内`).toContain(order.status);
 
     await page.goto(`${BASE_URL}/sales/orders/${id}`);
     await page.waitForTimeout(3000);
@@ -400,5 +415,12 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       body.includes(order.order_no),
       `详情页应渲染订单号 ${order.order_no}（正文长度 ${body.length}）`
     ).toBeTruthy();
+    // OrderDetail.vue 原样输出 {{ order?.status }}，中文界面会直接露出英文枚举；
+    // 现走 utils/sales-status 单一映射源，故页面文本中不应再出现后端枚举原文
+    console.log(`[2-12] 详情页含枚举原文 ${order.status}=${body.includes(order.status)}`);
+    expect(
+      body.includes(order.status),
+      `详情页不应把状态枚举原文 ${order.status} 直接展示给用户`
+    ).toBe(false);
   });
 });

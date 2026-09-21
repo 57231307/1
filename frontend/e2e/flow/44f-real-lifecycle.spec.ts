@@ -4,6 +4,7 @@ import {
   ensureTestEntities,
   getCtx,
   apiCall,
+  apiCallRaw,
   apiCallExpectFail,
   tryCleanup,
   BASE_URL,
@@ -212,6 +213,11 @@ test.describe.serial('44f 真实实体全流转链', () => {
     await apiCall(page, 'POST', `/purchase/orders/${poId}/submit`);
     await apiCall(page, 'POST', `/purchase/orders/${poId}/approve`);
 
+    // CreateReceiptItemRequest 的 unit_master 是必填 String
+    // （backend/services/purchase_receipt_dto.rs:98），缺失会被 422 拒绝：
+    // "items[0]: missing field `unit_master`"。取产品真实计量单位而非写死字面量。
+    const prod = await apiCallRaw<{ unit: string }>(page, 'GET', `/products/${ctx.productIds[0]}`);
+    console.log(`[44f-4] 收货物料主单位 unit=${prod?.unit}`);
     const receipt = await apiCall<{ id?: number }>(page, 'POST', '/purchase/receipts', {
       order_id: poId,
       supplier_id: ctx.supplierId,
@@ -226,6 +232,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
           material_name: '44f 收货物料',
           quantity: 10,
           quantity_alt: 0,
+          unit_master: prod.unit,
         },
       ],
     });
