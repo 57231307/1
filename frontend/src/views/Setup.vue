@@ -340,8 +340,9 @@ async function checkEnvironment() {
             envChecks.value[2].status = healthData.checks.memory.status === 'healthy';
           }
         }
-      } catch {
-        // /health 不可达（Setup 模式）：磁盘/内存维持跳过状态，不阻塞引导
+      } catch (error) {
+        // Setup 模式下后端不提供 /health，属预期分支；warn 级仅开发环境输出
+        logger.warn(t('setupPage.message.healthUnreachable'), error);
       }
     }
   } finally {
@@ -441,6 +442,16 @@ const goToLoginLoading = ref(false);
 async function goToLogin() {
   goToLoginLoading.value = true;
   try {
+    let probeLogged = false;
+    let lastProbeFailure: unknown = null;
+    // 初始化后后端自退重启，探活失败是预期过程；仅首次告警，避免 30 次刷屏
+    const noteProbeFailure = (detail: unknown) => {
+      lastProbeFailure = detail;
+      if (!probeLogged) {
+        probeLogged = true;
+        logger.warn(t('setupPage.message.healthProbeFailed'), detail);
+      }
+    };
     for (let i = 0; i < 30; i++) {
       try {
         const res = await fetch('/api/v1/erp/health', { signal: AbortSignal.timeout(2000) });
@@ -448,12 +459,14 @@ async function goToLogin() {
           router.push('/login');
           return;
         }
-      } catch {
-        // 服务重启中，等待后重试
+        noteProbeFailure({ httpStatus: res.status });
+      } catch (error) {
+        noteProbeFailure(error);
       }
       await new Promise(r => setTimeout(r, 1000));
     }
-    // 30s 未就绪仍跳转（由登录页给出网络错误反馈）
+    // 30 次探活未就绪仍跳转（由登录页给出网络错误反馈），属异常终止，必须留痕
+    logger.error(t('setupPage.message.healthNotReady'), lastProbeFailure);
     router.push('/login');
   } finally {
     goToLoginLoading.value = false;
