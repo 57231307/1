@@ -76,8 +76,20 @@ const saving = ref(false);
 const dialogVisible = ref(false);
 const form = reactive({ quality_issue_id: undefined as number | undefined, plan: '' });
 
-const unwrapList = (p: unknown): Quality8dReport[] =>
-  Array.isArray(p) ? p : ((p as { items?: Quality8dReport[] })?.items ?? []);
+/**
+ * 解包 8D 列表响应：request 返回完整信封 {code,message,data}，
+ * 分页体在 data.items（EightDPagedResponse）。原实现直接读顶层 items，
+ * 恒为 undefined 后 `?? []` 静默变成空列表——列表有数据也显示"暂无数据"。
+ */
+const unwrapList = (res: unknown): Quality8dReport[] => {
+  const data = (res as { data?: unknown })?.data;
+  if (Array.isArray(data)) return data as Quality8dReport[];
+  const items = (data as { items?: unknown })?.items;
+  if (!Array.isArray(items)) {
+    throw new Error(`8D 列表响应缺少 data.items 数组：${JSON.stringify(res).slice(0, 200)}`);
+  }
+  return items as Quality8dReport[];
+};
 
 const stageLabel = (s: string) => (s === 'closed' ? '已关闭' : s.toUpperCase());
 const stageTag = (s: string) =>
