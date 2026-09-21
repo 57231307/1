@@ -2351,7 +2351,8 @@ export default {
       cssStyles: 'CSS Styles',
       cssStylesPlaceholder: 'Please enter CSS styles',
       variables: 'Variable Config',
-      variablesPlaceholder: 'JSON variables, e.g.: {\'{\'}"company_name": "Company", "date": "Date"{\'}\'}',
+      variablesPlaceholder:
+        'JSON variables, e.g.: {\'{\'}"company_name": "Company", "date": "Date"{\'}\'}',
       cancel: 'Cancel',
       confirm: 'OK',
     },
@@ -2903,7 +2904,8 @@ export default {
       content: 'Template Content',
       contentPlaceholder: 'Please enter template content (HTML supported)',
       parameters: 'Parameters',
-      parametersPlaceholder: 'JSON parameters, e.g.: {\'{\'}"date_range": true, "department": true{\'}\'}',
+      parametersPlaceholder:
+        'JSON parameters, e.g.: {\'{\'}"date_range": true, "department": true{\'}\'}',
       cancel: 'Cancel',
       confirm: 'OK',
     },
@@ -7554,7 +7556,7 @@ export default {
         uppercase: 'Must contain uppercase letters',
         lowercase: 'Must contain lowercase letters',
         digit: 'Must contain digits',
-        special: 'Must contain special characters (e.g. !{\'@\'}#$%)',
+        special: "Must contain special characters (e.g. !{'@'}#$%)",
         notSame: 'Cannot be the same as current password',
       },
       message: {

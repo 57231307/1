@@ -2344,7 +2344,8 @@ export default {
       cssStyles: 'CSS样式',
       cssStylesPlaceholder: '请输入CSS样式',
       variables: '变量配置',
-      variablesPlaceholder: 'JSON格式变量，例如：{\'{\'}"company_name": "公司名称", "date": "日期"{\'}\'}',
+      variablesPlaceholder:
+        'JSON格式变量，例如：{\'{\'}"company_name": "公司名称", "date": "日期"{\'}\'}',
       cancel: '取消',
       confirm: '确定',
     },
@@ -2895,7 +2896,8 @@ export default {
       content: '模板内容',
       contentPlaceholder: '请输入模板内容（支持HTML）',
       parameters: '参数配置',
-      parametersPlaceholder: 'JSON格式参数，例如：{\'{\'}"date_range": true, "department": true{\'}\'}',
+      parametersPlaceholder:
+        'JSON格式参数，例如：{\'{\'}"date_range": true, "department": true{\'}\'}',
       cancel: '取消',
       confirm: '确定',
     },
@@ -7563,7 +7565,7 @@ export default {
         uppercase: '必须包含大写字母',
         lowercase: '必须包含小写字母',
         digit: '必须包含数字',
-        special: '必须包含特殊字符(如 !{\'@\'}#$%)',
+        special: "必须包含特殊字符(如 !{'@'}#$%)",
         notSame: '不能与当前密码相同',
       },
       message: {
