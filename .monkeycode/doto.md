@@ -582,13 +582,20 @@
 - [ ] 推送前必做：`git log --oneline <remote-head>..HEAD` 与「本轮改动清单」逐条对照，
       确认每个改动文件都被静态自审覆盖（items.rs 这类未进 CI 的后续提交要显式列出）
 
-- [ ] 推送机制（本轮实证）：仅设 `GIT_ASKPASS` 不足以完成推送——本机 git 配置了
-      `credential.helper=manager` + `store`，GCM 会先于 askpass 接管认证并弹交互框，
-      在无交互的 shell 里表现为 git push 静默挂起十余分钟无输出。
-      可用组合是 `git -c credential.helper= push`（清空 helper 列表）+
-      `GIT_ASKPASS=<脚本>` + `GIT_TERMINAL_PROMPT=0`，凭据仍不进 .git/config 与命令行；
-      推送完立即删除 askpass 脚本。挂起时先 TaskStop 再重试，不要并发第二个 push。
-      （流程备忘，非待修项）
+- [ ] 推送机制（两次实证后的正确做法）：本机 git 配了 `credential.helper=manager` + `store`，
+      GCM 会先接管认证并弹交互框，在无交互 shell 里表现为 `git push` 静默挂起十余分钟无输出；
+      而把脚本路径给 `GIT_ASKPASS` 也不行——Git for Windows 无法直接 spawn `.sh`，
+      报 `cannot spawn ...: Exec format error`。可行做法是用 shell 型凭据助手：
+      `GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c credential.helper='!/绝对路径.sh' push ...`
+      （前者清空 helper 列表，后者由 sh 调用，输出 protocol/host/username/password 四行），
+      令牌仍只存仓库外文件、不进命令行与 .git/config；推送完立即删除该脚本。
+      挂起时先 TaskStop 再重试，不要并发第二个 push。（流程备忘，非待修项）
+
+- [ ] 本地无编译权的第二道约束（run 4611 实证）：新写函数签名若返回裸 `&str`/`&T`，
+      且入参有两个以上引用，必须显式写生命周期（否则 E0106，rustfmt 与 --check 都发现不了，
+      一次推送又被整条 skipped 消耗）。同类需在推送前逐条自查的还有：
+      trait 提供的方法（lock_exclusive/first/limit/all/filter/count/paginate）与
+      新常量的引用路径。（流程备忘，非待修项）
 - [ ] CI 失败若再出现新 job：按 doto 流程拉日志→记录→下批修复
 - [ ] 推送授权后：本地 commit 批量推送 + 观察 main CI（含 coverage 等 main 专属 job）
 
