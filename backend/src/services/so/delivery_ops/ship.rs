@@ -516,6 +516,13 @@ impl SalesService {
     ) {
         let delivery_total_incl_tax = delivery_total_amount + delivery_total_tax;
         if delivery_total_incl_tax <= Decimal::ZERO {
+            // 货物已出库却不确认收入，属账实脱节：金额为零必然订单明细缺单价，
+            // 静默返回会让发货单长期没有收入凭证且无人知晓
+            tracing::warn!(
+                "发货单 {}（订单 {}）含税金额为 0，跳过收入确认凭证：请核对订单明细单价是否维护",
+                delivery.delivery_no,
+                delivery.order_id
+            );
             return;
         }
         let voucher_req = Self::build_revenue_voucher_request(
