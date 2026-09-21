@@ -324,7 +324,7 @@ impl InventoryTransferService {
         transfer_id: i32,
     ) -> Result<inventory_transaction::Model, AppError> {
         let transaction = inventory_transaction::ActiveModel {
-            id: sea_orm::ActiveValue::Set(0),
+            id: Default::default(),
             transaction_type: sea_orm::ActiveValue::Set("TRANSFER_OUT".to_string()),
             product_id: sea_orm::ActiveValue::Set(item.product_id),
             warehouse_id: sea_orm::ActiveValue::Set(transfer.from_warehouse_id),
@@ -822,7 +822,7 @@ impl InventoryTransferService {
         f: TransferInTxnFields<'_>,
     ) -> inventory_transaction::ActiveModel {
         inventory_transaction::ActiveModel {
-            id: sea_orm::ActiveValue::Set(0),
+            id: Default::default(),
             transaction_type: sea_orm::ActiveValue::Set("TRANSFER_IN".to_string()),
             product_id: sea_orm::ActiveValue::Set(f.product_id),
             warehouse_id: sea_orm::ActiveValue::Set(f.warehouse_id),
