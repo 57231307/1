@@ -585,7 +585,6 @@ export default {
         confirmed: '已确认',
         shipped: '已发货',
         completed: '已完成',
-        cancelled: '已取消',
       },
     },
     customer: {
@@ -2037,8 +2036,9 @@ export default {
       status: {
         pending: '待审批',
         approved: '已审批',
-        executed: '已执行',
-        cancelled: '已取消',
+        rejected: '已拒绝',
+        shipped: '已发出',
+        completed: '已完成',
       },
       button: {
         query: '查询',

@@ -83,20 +83,10 @@
             clearable
           >
             <el-option
-              :label="t('inventoryTransfer.transferList.status.pending')"
-              value="pending"
-            />
-            <el-option
-              :label="t('inventoryTransfer.transferList.status.approved')"
-              value="approved"
-            />
-            <el-option
-              :label="t('inventoryTransfer.transferList.status.executed')"
-              value="executed"
-            />
-            <el-option
-              :label="t('inventoryTransfer.transferList.status.cancelled')"
-              value="cancelled"
+              v-for="s in TRANSFER_STATUS_VALUES"
+              :key="s"
+              :label="t(`inventoryTransfer.transferList.status.${s}`)"
+              :value="s"
             />
           </el-select>
         </el-form-item>
@@ -307,13 +297,25 @@ watch(
   { immediate: true }
 );
 
-const getStatusLabel = (status: string) => t(`inventoryTransfer.transferList.status.${status}`);
+// 取值与后端 models/status/purchase_inventory.rs::inventory_transfer 一致
+// （pending/approved/rejected/shipped/completed）。原筛选项里的 executed、
+// cancelled 后端从不写入，选中即零命中——是假控件。
+const TRANSFER_STATUS_VALUES = ['pending', 'approved', 'rejected', 'shipped', 'completed'] as const;
+
+const getStatusLabel = (status: string) => {
+  if (!(TRANSFER_STATUS_VALUES as readonly string[]).includes(status)) {
+    logger.warn(`调拨单出现后端未定义的状态值，状态文案需同步：${status}`);
+    return status;
+  }
+  return t(`inventoryTransfer.transferList.status.${status}`);
+};
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     pending: 'warning',
-    approved: 'success',
-    executed: 'primary',
-    cancelled: 'info',
+    approved: 'primary',
+    rejected: 'danger',
+    shipped: 'warning',
+    completed: 'success',
   };
   return map[status] || 'info';
 };

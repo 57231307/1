@@ -586,7 +586,6 @@ export default {
         confirmed: 'Confirmed',
         shipped: 'Shipped',
         completed: 'Completed',
-        cancelled: 'Cancelled',
       },
     },
     customer: {
@@ -2040,8 +2039,9 @@ export default {
       status: {
         pending: 'Pending Approval',
         approved: 'Approved',
-        executed: 'Executed',
-        cancelled: 'Cancelled',
+        rejected: 'Rejected',
+        shipped: 'Shipped',
+        completed: 'Completed',
       },
       button: {
         query: 'Search',

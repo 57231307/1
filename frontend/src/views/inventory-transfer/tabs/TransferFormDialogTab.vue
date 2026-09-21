@@ -249,7 +249,7 @@ const formData = reactive({
   from_warehouse_id: undefined as number | undefined,
   to_warehouse_id: undefined as number | undefined,
   total_amount: 0,
-  status: 'pending' as 'pending' | 'approved' | 'executed' | 'cancelled',
+  status: 'pending' as 'pending' | 'approved' | 'rejected' | 'shipped' | 'completed',
   items: [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }] as {
     product_id: number;
     quantity: number;
@@ -318,7 +318,8 @@ const newItem = reactive({ product_id: 1, quantity: 1 });
 
 const editable = computed(() => {
   const s = (formData.status || '').toLowerCase();
-  return s !== 'shipped' && s !== 'received' && s !== 'completed';
+  // 已发出/已完成不可再编辑（后端状态集合里没有 received 这一值）
+  return s !== 'shipped' && s !== 'completed';
 });
 
 const fetchServerItems = async () => {
