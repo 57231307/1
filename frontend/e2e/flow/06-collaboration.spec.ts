@@ -1,15 +1,16 @@
 import { test, expect } from '../diagnose-fixture';
 import {
-  loginViaUI,
+  BASE_URL,
   apiCall,
-  apiCallRaw,
   apiCallExpectFail,
-  verifyPermissionDenied,
-  verifyAuditLog,
-  getCtx,
+  apiCallRaw,
+  ensureTestEntities,
   genCode,
   genName,
-  ensureTestEntities,
+  getCtx,
+  loginViaUI,
+  verifyAuditLog,
+  verifyPermissionDenied,
 } from './helpers';
 
 test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', () => {
@@ -27,11 +28,14 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       'GET',
       '/auth/me'
     );
-    expect(me.username);
-    expect(me.permissions);
-    // admin 应有 *:* 或类似通配权限
+    expect(typeof me.username, '/auth/me 必须返回用户名').toBe('string');
+    expect(Array.isArray(me.permissions), '/auth/me 应返回权限数组').toBe(true);
+    // admin 应有 *:* 或类似通配权限（本用例账号即为管理员，缺失即为真实缺陷）
     const hasWildcard = me.permissions.some(p => p.includes('*'));
-    expect(hasWildcard);
+    expect(
+      hasWildcard,
+      `admin 权限集应包含通配项，实际：${me.permissions.slice(0, 5).join(',')}`
+    ).toBe(true);
   });
 
   test('6-2 创建测试角色（采购员）', async ({ page }) => {
@@ -90,7 +94,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       'GET',
       '/roles?page=1&page_size=10'
     );
-    expect(roles.items);
+    expect(Array.isArray(roles.items), `roles.items 应为后端返回的 items 数组`);
 
     for (const role of roles?.items?.slice(0, 2) ?? []) {
       const perms = await apiCallRaw<{ items: Array<{ resource_type: string; action: string }> }>(
@@ -98,7 +102,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
         'GET',
         `/roles/${role.id}/permissions`
       );
-      expect(perms.items);
+      expect(Array.isArray(perms.items), `perms.items 应为后端返回的 items 数组`);
     }
   });
 
@@ -113,28 +117,38 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
     expect(typeof hasLog).toBe('boolean');
   });
 
-  test('6-8 验证前端状态显示映射', async ({ page }) => {
-    // 访问采购订单列表页，验证状态中文显示
-    await page.goto('http://localhost:3000/purchase/orders');
-    await page.waitForTimeout(3000);
-    // 验证页面不崩溃
-    const url = page.url();
-    expect(url);
-
-    // 访问销售订单列表页
-    await page.goto('http://localhost:3000/sales/orders');
-    await page.waitForTimeout(3000);
-    expect(page.url());
+  test('6-8 验证列表页路由可达（状态显示映射入口）', async ({ page }) => {
+    // 原实现访问 http://localhost:3000/purchase/orders 与 /sales/orders，
+    // 两个路径都不是已注册路由（router/index.ts:202 销售列表=/sales、:223 采购列表=/purchase，
+    // /sales/orders/:id 才是详情），页面实际被重定向到 /404，
+    // 而 `expect(url)` / `expect(page.url())` 没有匹配器，永远不会失败。
+    for (const route of ['/purchase', '/sales']) {
+      await page.goto(`${BASE_URL}${route}`);
+      await page.waitForTimeout(3000);
+      console.log(`[6-8] ${route} → ${page.url()}`);
+      expect(page.url(), `${route} 不应被重定向到 404`).not.toContain('/404');
+      await expect(page.locator('.el-table').first(), `${route} 应渲染数据表格`).toBeVisible({
+        timeout: 10_000,
+      });
+    }
   });
 
   test('6-9 验证 el-tag 状态颜色映射', async ({ page }) => {
-    await page.goto('http://localhost:3000/purchase/orders');
+    await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
-    // 检查页面是否有 el-tag 组件渲染
-    const tags = page.locator('.el-tag');
+    const tags = page.locator('.el-table .el-tag:visible');
     const tagCount = await tags.count();
-    // 页面可能有或没有 el-tag（取决于是否有数据）
-    expect(tagCount >= 0);
+    console.log(`[6-9] 采购列表可见 el-tag ${tagCount} 个`);
+    expect(tagCount, '采购订单列表应渲染状态标签').toBeGreaterThan(0);
+    // Element Plus 的 el-tag 必须带类型类（success/info/warning/danger/primary），
+    // 类名缺失说明状态→颜色映射没有真正生效
+    for (let i = 0; i < tagCount; i++) {
+      const cls = (await tags.nth(i).getAttribute('class')) ?? '';
+      expect(
+        /el-tag--(success|info|warning|danger|primary)/.test(cls),
+        `第 ${i + 1} 个状态标签缺少类型类：${cls}`
+      ).toBe(true);
+    }
   });
 
   test('6-10 验证 CSRF 保护', async ({ page }) => {
@@ -150,7 +164,12 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       data: JSON.stringify({ name: 'CSRF Test', code: 'CSRF-TEST' }),
     });
     // 无效 CSRF Token 应返回 403
-    expect(response.status() === 403 || response.status() >= 400);
+    // 不带合法 CSRF Token 的写请求必须被拒（403 或任意 4xx）；
+    // 原写法 expect(a === 403 || a >= 400) 没有匹配器，永远不会失败
+    expect(
+      response.status(),
+      `缺少 CSRF Token 的 POST 应被拒绝，实际 HTTP ${response.status()}`
+    ).toBeGreaterThanOrEqual(400);
   });
 
   test('6-11 验证数据权限行级隔离', async ({ page }) => {
@@ -160,9 +179,9 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       'GET',
       '/purchase/orders?page=1&page_size=50'
     );
-    expect(orders.items);
+    expect(Array.isArray(orders.items), `orders.items 应为后端返回的 items 数组`);
     // admin 查看的数据不应被过滤
-    expect(orders?.items?.length ?? 0 >= 0);
+    expect(Array.isArray(orders?.items), '订单列表应返回 items 数组').toBe(true);
   });
 
   test('6-12 验证权限缓存', async ({ page }) => {
