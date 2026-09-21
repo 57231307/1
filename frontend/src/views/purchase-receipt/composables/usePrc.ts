@@ -128,6 +128,7 @@ export function usePrc() {
         value: p.id,
         code: p.product_code,
         name: p.product_name,
+        unit: p.unit,
       }));
     } catch (error) {
       logger.warn('加载产品失败:', error);

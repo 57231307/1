@@ -1477,6 +1477,8 @@ export default {
     regenerateSuccess: 'Regenerated successfully',
     loadDetailFailed: 'Failed to load detail',
     pleaseAddReceiptDetail: 'Please add at least one valid receipt detail',
+    receiptItemMasterMissing:
+      'Line {line} is missing material code/name/master unit: the master unit comes from the product master, maintain it on the product and reselect it',
     auditedReceiptCannotDelete: 'Audited receipt cannot be deleted',
     deleteCancelled: 'Delete cancelled',
     operationCancelled: 'Operation cancelled',
@@ -9081,6 +9083,8 @@ export default {
       itemsHeader: {
         product: 'Product',
         quantity: 'Quantity',
+        quantityAlt: 'Alt Qty',
+        unit: 'Unit',
         price: 'Price',
         amount: 'Amount',
         action: 'Action',
@@ -9115,6 +9119,8 @@ export default {
         colorNo: 'Color No.',
         grade: 'Grade',
         quantity: 'Quantity',
+        unit: 'Unit',
+        quantityAlt: 'Alt Qty',
         price: 'Price',
         amount: 'Amount',
         remark: 'Remark',

@@ -47,17 +47,17 @@
           :aria-label="t('purchaseReceipt.detail.aria.itemsList')"
         >
           <el-table-column
-            prop="product_code"
+            prop="material_code"
             :label="t('purchaseReceipt.detail.column.productCode')"
             width="120"
           />
           <el-table-column
-            prop="product_name"
+            prop="material_name"
             :label="t('purchaseReceipt.detail.column.productName')"
             width="150"
           />
           <el-table-column
-            prop="color_no"
+            prop="color_code"
             :label="t('purchaseReceipt.detail.column.colorNo')"
             width="100"
           />
@@ -72,14 +72,21 @@
             width="100"
             align="right"
           />
+          <el-table-column prop="unit_master" :label="t('purchaseReceipt.detail.column.unit')" />
           <el-table-column
-            prop="price"
+            prop="quantity_alt"
+            :label="t('purchaseReceipt.detail.column.quantityAlt')"
+            width="100"
+            align="right"
+          />
+          <el-table-column
+            prop="unit_price"
             :label="t('purchaseReceipt.detail.column.price')"
             width="100"
             align="right"
           >
             <template #default="scope">
-              {{ Number(scope.row.price ?? 0).toFixed(2) }}
+              {{ Number(scope.row.unit_price ?? 0).toFixed(2) }}
             </template>
           </el-table-column>
           <el-table-column
@@ -92,7 +99,7 @@
               {{ Number(scope.row.amount ?? 0).toFixed(2) }}
             </template>
           </el-table-column>
-          <el-table-column prop="remark" :label="t('purchaseReceipt.detail.column.remark')" />
+          <el-table-column prop="notes" :label="t('purchaseReceipt.detail.column.remark')" />
         </el-table>
       </div>
     </div>

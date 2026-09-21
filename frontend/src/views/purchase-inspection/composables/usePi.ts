@@ -163,8 +163,9 @@ export function usePi() {
       // 将入库单明细映射为检验单明细，初始化各数量字段
       formData.items = items.map(item => ({
         product_id: item.product_id,
-        product_name: item.product_name,
-        product_code: item.product_code,
+        // 入库明细行按后端契约是 material_code/material_name
+        product_name: item.material_name,
+        product_code: item.material_code,
         expected_quantity: item.quantity,
         inspected_quantity: 0,
         passed_quantity: 0,

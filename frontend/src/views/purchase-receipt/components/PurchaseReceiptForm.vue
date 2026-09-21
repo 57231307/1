@@ -60,6 +60,10 @@
           <div class="items-header">
             <span class="col-product">{{ t('purchaseReceipt.form.itemsHeader.product') }}</span>
             <span class="col-qty">{{ t('purchaseReceipt.form.itemsHeader.quantity') }}</span>
+            <span class="col-qty">
+              {{ t('purchaseReceipt.form.itemsHeader.quantityAlt') }}
+            </span>
+            <span class="col-unit">{{ t('purchaseReceipt.form.itemsHeader.unit') }}</span>
             <span class="col-price">{{ t('purchaseReceipt.form.itemsHeader.price') }}</span>
             <span class="col-amount">{{ t('purchaseReceipt.form.itemsHeader.amount') }}</span>
             <span class="col-action">{{ t('purchaseReceipt.form.itemsHeader.action') }}</span>
@@ -69,7 +73,7 @@
               :model-value="item.product_id"
               :placeholder="t('purchaseReceipt.form.placeholder.product')"
               class="col-product"
-              @update:model-value="(v: number) => (item.product_id = v)"
+              @update:model-value="(v: number) => onProductChange(item, v)"
             >
               <el-option v-for="p in products" :key="p.value" :label="p.label" :value="p.value" />
             </el-select>
@@ -84,12 +88,23 @@
               "
             />
             <el-input-number
-              :model-value="item.price"
+              :model-value="item.quantity_alt"
+              class="col-qty"
+              @update:model-value="
+                (v: number | undefined) => {
+                  item.quantity_alt = v ?? 0;
+                }
+              "
+            />
+            <!-- 主单位取自产品档案，不可手工录入（后端 unit_master 为必填契约字段） -->
+            <span class="col-unit">{{ item.unit_master || '-' }}</span>
+            <el-input-number
+              :model-value="item.unit_price"
               :precision="2"
               class="col-price"
               @update:model-value="
                 (v: number | undefined) => {
-                  item.price = v ?? 0;
+                  item.unit_price = v ?? 0;
                   emit('calc-amount', item);
                 }
               "
@@ -134,10 +149,13 @@ import type { ReceiptItem } from '@/api/purchase-receipt';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 选项类型
+// 选项类型（产品选项额外带产品档案主数据：编码/名称/主单位）
 interface OptItem {
   label: string;
   value: number;
+  code?: string;
+  name?: string;
+  unit?: string;
 }
 
 // 表单类型
@@ -217,6 +235,20 @@ watch(
   { deep: true }
 );
 
+/**
+ * 选择产品：把产品档案的编码/名称/主单位带入明细行
+ * （后端 CreateReceiptItemRequest 的 material_code/material_name/unit_master 为必填，
+ * 只能来源于产品主数据，不允许提交时再拼假值）
+ */
+const onProductChange = (item: ReceiptItem, productId: number) => {
+  item.product_id = productId;
+  const opt = props.products.find(p => p.value === productId);
+  if (!opt) return;
+  item.material_code = opt.code;
+  item.material_name = opt.name;
+  item.unit_master = opt.unit;
+};
+
 /** 点击确定：先校验再发 submit */
 const onSubmit = async () => {
   if (!formRef.value) return;
@@ -252,6 +284,11 @@ const onSubmit = async () => {
 .col-amount {
   width: 100px;
   margin-right: 10px;
+}
+.col-unit {
+  width: 56px;
+  margin-right: 10px;
+  line-height: 32px;
 }
 .col-action {
   width: 60px;

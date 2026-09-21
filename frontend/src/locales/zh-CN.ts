@@ -1475,6 +1475,8 @@ export default {
     regenerateSuccess: '重新生成成功',
     loadDetailFailed: '获取详情失败',
     pleaseAddReceiptDetail: '请至少添加一条有效的入库明细',
+    receiptItemMasterMissing:
+      '第 {line} 行缺少物料编码/名称/主单位：主单位来自产品档案，请先在产品档案维护计量单位后重新选择该产品',
     auditedReceiptCannotDelete: '已审核的入库单不能删除',
     deleteCancelled: '取消删除',
     operationCancelled: '取消操作',
@@ -9045,6 +9047,8 @@ export default {
       itemsHeader: {
         product: '产品',
         quantity: '数量',
+        quantityAlt: '辅助数量',
+        unit: '主单位',
         price: '单价',
         amount: '金额',
         action: '操作',
@@ -9079,6 +9083,8 @@ export default {
         colorNo: '色号',
         grade: '等级',
         quantity: '数量',
+        unit: '主单位',
+        quantityAlt: '辅助数量',
         price: '单价',
         amount: '金额',
         remark: '备注',

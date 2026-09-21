@@ -81,7 +81,7 @@ export function usePrcProc(cb: PrcCallbacks) {
       supplier_id: undefined,
       warehouse_id: undefined,
       status: 'draft',
-      items: [{ product_id: 0, quantity: 0, price: 0, amount: 0 }],
+      items: [{ product_id: 0, quantity: 0, quantity_alt: 0, unit_price: 0, amount: 0 }],
     };
     cb.dialogVisible = true;
     // 预生成单号展示（generatePurchaseReceiptNo，后端保存时最终生成）
@@ -123,7 +123,13 @@ export function usePrcProc(cb: PrcCallbacks) {
   /** 添加明细 */
   const addItem = () => {
     if (!cb.form.items) cb.form.items = [];
-    cb.form.items.push({ product_id: 0, quantity: 0, price: 0, amount: 0 });
+    cb.form.items.push({
+      product_id: 0,
+      quantity: 0,
+      quantity_alt: 0,
+      unit_price: 0,
+      amount: 0,
+    });
   };
 
   /** 删除明细（编辑态记录已删除的明细 ID，提交时走 deleteReceiptItem） */
@@ -138,7 +144,7 @@ export function usePrcProc(cb: PrcCallbacks) {
 
   /** 计算明细金额 */
   const calculateItemAmount = (item: ReceiptItem) => {
-    item.amount = (item.quantity || 0) * (item.price || 0);
+    item.amount = (item.quantity || 0) * (item.unit_price || 0);
   };
 
   /**
@@ -150,18 +156,30 @@ export function usePrcProc(cb: PrcCallbacks) {
       msg.warning('pleaseAddReceiptDetail');
       return;
     }
+    // 物料编码/名称/主单位来自产品档案（表单选产品时带入），缺失说明产品档案未维护
+    // 计量单位或选择未生效——直接拦下暴露问题，禁止用 P{id}/物料{id}/'m' 伪值提交
+    const broken = validItems.findIndex(
+      it => !it.material_code || !it.material_name || !it.unit_master
+    );
+    if (broken >= 0) {
+      msg.error('receiptItemMasterMissing', { line: broken + 1 });
+      logger.error(
+        `[入库明细] 第 ${broken + 1} 行物料主数据缺失：material_code=${validItems[broken].material_code} material_name=${validItems[broken].material_name} unit_master=${validItems[broken].unit_master} product_id=${validItems[broken].product_id}`
+      );
+      return;
+    }
 
     // 明细字段映射到后端 CreateReceiptItemRequest 契约（material_id/material_code/material_name/
     // line_no/quantity/quantity_alt/unit_master；原直接发 product_id/price 会被后端拒绝）
     const mapItem = (it: ReceiptItem, idx: number) => ({
       line_no: idx + 1,
       material_id: it.product_id,
-      material_code: it.product_code || `P${it.product_id}`,
-      material_name: it.product_name || `物料${it.product_id}`,
+      material_code: it.material_code,
+      material_name: it.material_name,
       quantity: it.quantity,
-      quantity_alt: it.quantity,
-      unit_master: it.unit || 'm',
-      unit_price: it.price || undefined,
+      quantity_alt: it.quantity_alt ?? 0,
+      unit_master: it.unit_master,
+      unit_price: it.unit_price || undefined,
     });
 
     try {
