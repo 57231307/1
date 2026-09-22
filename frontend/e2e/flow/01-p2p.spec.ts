@@ -232,7 +232,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       'GET',
       `/inventory/stock?product_id=${productId}&color_no=RED-001&page=1&page_size=10`
     );
-    expect(Array.isArray(byColor.items), `byColor.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(byColor.items), `byColor.items 应为后端返回的 items 数组`).toBe(true);
     for (const row of byColor.items) {
       expect(String(row.color_no), `色号筛选下推失效：返回行色号 ${row.color_no}`).toBe('RED-001');
     }
@@ -242,7 +242,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       'GET',
       `/inventory/stock?product_id=${productId}&dye_lot_no=${encodeURIComponent(dyeLotNo)}&page=1&page_size=10`
     );
-    expect(Array.isArray(byDyeLot.items), `byDyeLot.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(byDyeLot.items), `byDyeLot.items 应为后端返回的 items 数组`).toBe(true);
     for (const row of byDyeLot.items) {
       expect(String(row.dye_lot_no), `缸号筛选下推失效：返回行缸号 ${row.dye_lot_no}`).toBe(
         dyeLotNo
@@ -255,7 +255,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       'GET',
       `/inventory/stock?product_id=${productId}&stock_status=${encodeURIComponent('正常')}&page=1&page_size=10`
     );
-    expect(Array.isArray(byStatus.items), `byStatus.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(byStatus.items), `byStatus.items 应为后端返回的 items 数组`).toBe(true);
     expect(
       byStatus.items.some(row => String(row.dye_lot_no) === dyeLotNo),
       '正常状态筛选应能查到本用例刚收入的那条库存行'
@@ -275,7 +275,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       'GET',
       `/inventory/stock?keyword=${encodeURIComponent(ourProductCode)}&page=1&page_size=50`
     );
-    expect(Array.isArray(byKeyword.items), `byKeyword.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(byKeyword.items), `byKeyword.items 应为后端返回的 items 数组`).toBe(true);
     expect(
       byKeyword.items.length,
       `按本行产品编码搜索应至少命中本行（关键词筛选未下推）`

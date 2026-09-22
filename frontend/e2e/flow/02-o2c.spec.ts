@@ -299,7 +299,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       'GET',
       `/inventory/stock?product_id=${productId}&page=1&page_size=50`
     );
-    expect(Array.isArray(rows.items), `库存行列表应为后端返回的 items 数组`);
+    expect(Array.isArray(rows.items), `库存行列表应为后端返回的 items 数组`).toBe(true);
     console.log(
       `[2-7] 产品 ${productId} 库存行：${rows.items
         .map(

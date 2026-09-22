@@ -173,27 +173,48 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
   });
 
   test('4-10 验证会计期间状态', async ({ page }) => {
-    const periods = await apiCallRaw<{ items: Array<{ status: string }> }>(
+    // GET /finance/accounting-periods 由 missing_handlers::get_accounting_periods 处理，
+    // 出参是裸数组 Vec<AccountingPeriodDto>（该端点没有 Query 结构体，page/page_size 无效）。
+    // 原实现读 periods.items 恒为 undefined + expect() 无匹配器，整条用例空转。
+    const periods = await apiCallRaw<Array<Record<string, unknown>>>(
       page,
       'GET',
-      '/finance/accounting-periods?page=1&page_size=5'
+      '/finance/accounting-periods'
     );
-    expect(Array.isArray(periods.items), `periods.items 应为后端返回的 items 数组`);
-    if (periods?.items?.length ?? 0 > 0) {
-      const status = (periods.items?.[0].status || '').toLowerCase();
-      expect(['open', 'closing', 'closed', 'pending', 'active']).toContain(
-        status ?? '(missing-status)'
-      );
+    expect(
+      Array.isArray(periods),
+      `会计期间应返回数组，实际：${JSON.stringify(periods).slice(0, 200)}`
+    ).toBe(true);
+    for (const p of periods) {
+      expect(Number(p.id), `会计期间行缺少 id：${JSON.stringify(p)}`).toBeGreaterThan(0);
+      expect(String(p.status ?? ''), `会计期间行缺少 status：${JSON.stringify(p)}`).not.toBe('');
+      expect(Number(p.year), `会计期间行缺少 year：${JSON.stringify(p)}`).toBeGreaterThan(0);
+      expect(
+        Number(p.period),
+        `会计期间行缺少 period：${JSON.stringify(p)}`
+      ).toBeGreaterThanOrEqual(1);
     }
   });
 
   test('4-11 验证凭证列表', async ({ page }) => {
-    const vouchers = await apiCallRaw<{ items: Array<{ id: number; voucher_no: string }> }>(
+    // GET /vouchers 由 voucher_handler::list_vouchers 处理，出参是裸数组
+    // Vec<voucher::Model>：它接收 VoucherQuery 的筛选字段，但 total/items 分页信封并不存在，
+    // 原实现的 vouchers.items 恒为 undefined。
+    const vouchers = await apiCallRaw<Array<Record<string, unknown>>>(
       page,
       'GET',
       '/vouchers?page=1&page_size=5'
     );
-    expect(Array.isArray(vouchers.items), `vouchers.items 应为后端返回的 items 数组`);
+    expect(
+      Array.isArray(vouchers),
+      `凭证列表应返回数组，实际：${JSON.stringify(vouchers).slice(0, 200)}`
+    ).toBe(true);
+    for (const v of vouchers.slice(0, 5)) {
+      expect(String(v.voucher_no ?? ''), `凭证行缺少 voucher_no：${JSON.stringify(v)}`).not.toBe(
+        ''
+      );
+      expect(String(v.status ?? ''), `凭证行缺少 status：${JSON.stringify(v)}`).not.toBe('');
+    }
   });
 
   test('4-12 验证财务审计日志', async ({ page }) => {
@@ -202,6 +223,6 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       'GET',
       '/audit-logs?page=1&page_size=10'
     );
-    expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`).toBe(true);
   });
 });

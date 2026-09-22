@@ -45,12 +45,18 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     // 容错：users 可能为 undefined
     expect(users?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
 
-    const roles = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(
-      page,
-      'GET',
-      '/roles?page=1&page_size=10'
-    );
-    expect(Array.isArray(roles.items), `roles.items 应为后端返回的 items 数组`);
+    // GET /roles 由 role_handler::list_roles 处理，出参是 RoleListResponse{roles,total}
+    // （不分页：page/page_size 参数会被 serde 直接忽略）。原实现读 roles.items 恒为 undefined，
+    // 且 expect() 不带匹配器，是永不失败的空断言。
+    const roles = await apiCallRaw<{
+      roles: Array<{ id: number; code: string; name: string }>;
+      total: number;
+    }>(page, 'GET', '/roles');
+    expect(
+      Array.isArray(roles?.roles),
+      `角色列表应返回 roles 数组，实际：${JSON.stringify(roles).slice(0, 200)}`
+    ).toBe(true);
+    expect(roles.total, '种子角色总数应大于 0').toBeGreaterThan(0);
 
     const depts = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(
       page,

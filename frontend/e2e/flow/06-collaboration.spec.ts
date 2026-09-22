@@ -67,17 +67,21 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
 
   test('6-4 验证 SoD 职责分离规则', async ({ page }) => {
     // 真实端点：POST /role-relations/check-mutual-exclusive/{role_code}
-    // （role_relation.rs，校验角色与已有角色集合的互斥冲突），先取一个角色再校验其 SoD 检查可用
-    const roles = await apiCallRaw<{ items: Array<{ id: number; code?: string; name?: string }> }>(
-      page,
-      'GET',
-      '/roles?page=1&page_size=5'
-    );
-    const roleCode = roles.items?.[0]?.code || roles.items?.[0]?.name;
-    if (!roleCode) {
-      // 环境无角色数据时跳过（不虚构断言）
-      return;
-    }
+    // （role_relation.rs，校验角色与已有角色集合的互斥冲突），先取一个角色再校验其 SoD 检查可用。
+    // GET /roles 出参是 RoleListResponse{roles,total}（不分页，page/page_size 会被 serde 忽略）；
+    // 原实现读 roles.items 恒为 undefined，于是整条用例在 !roleCode 分支静默 return，
+    // 从未真正调用过互斥校验端点。
+    const roles = await apiCallRaw<{
+      roles: Array<{ id: number; code: string; name: string }>;
+      total: number;
+    }>(page, 'GET', '/roles');
+    expect(
+      Array.isArray(roles?.roles),
+      `角色列表应返回 roles 数组，实际：${JSON.stringify(roles).slice(0, 200)}`
+    ).toBe(true);
+    expect(roles.total, '种子角色总数应大于 0').toBeGreaterThan(0);
+    const roleCode = roles.roles[0]?.code;
+    expect(roleCode, '角色列表为空，无法校验 SoD 互斥端点').toBeTruthy();
     // apiCall 失败（非 200）会抛错使用例失败，成功返回信封 data
     const check = await apiCall<{ is_exclusive?: boolean; role_code?: string }>(
       page,
@@ -85,25 +89,47 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       `/role-relations/check-mutual-exclusive/${encodeURIComponent(roleCode)}`,
       { existing_role_codes: [] }
     );
-    expect(check.data).toBeDefined();
+    expect(check.data, 'SoD 互斥校验应返回结果体').toBeDefined();
+    expect(
+      typeof check.data?.is_exclusive,
+      `is_exclusive 应为布尔值，实际：${JSON.stringify(check.data)}`
+    ).toBe('boolean');
+    expect(check.data?.role_code, `响应应回显被校验的角色代码`).toBe(roleCode);
   });
 
   test('6-5 验证角色权限矩阵', async ({ page }) => {
-    const roles = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(
-      page,
-      'GET',
-      '/roles?page=1&page_size=10'
-    );
-    expect(Array.isArray(roles.items), `roles.items 应为后端返回的 items 数组`);
+    const roles = await apiCallRaw<{
+      roles: Array<{ id: number; code: string; name: string }>;
+      total: number;
+    }>(page, 'GET', '/roles');
+    expect(
+      Array.isArray(roles?.roles),
+      `角色列表应返回 roles 数组，实际：${JSON.stringify(roles).slice(0, 200)}`
+    ).toBe(true);
+    expect(roles.roles.length, '至少应有一个种子角色可查权限').toBeGreaterThan(0);
 
-    for (const role of roles?.items?.slice(0, 2) ?? []) {
-      const perms = await apiCallRaw<{ items: Array<{ resource_type: string; action: string }> }>(
+    let checked = 0;
+    for (const role of roles.roles.slice(0, 2)) {
+      // GET /roles/{id}/permissions 出参是裸数组 Vec<PermissionResponse>（无分页信封）
+      const perms = await apiCallRaw<Array<Record<string, unknown>>>(
         page,
         'GET',
         `/roles/${role.id}/permissions`
       );
-      expect(Array.isArray(perms.items), `perms.items 应为后端返回的 items 数组`);
+      expect(
+        Array.isArray(perms),
+        `角色 ${role.code} 的权限应返回数组，实际：${JSON.stringify(perms).slice(0, 200)}`
+      ).toBe(true);
+      for (const p of perms) {
+        expect(
+          String(p.resource_type ?? ''),
+          `权限行缺少 resource_type：${JSON.stringify(p)}`
+        ).not.toBe('');
+        expect(String(p.action ?? ''), `权限行缺少 action：${JSON.stringify(p)}`).not.toBe('');
+      }
+      checked += 1;
     }
+    expect(checked, '角色权限矩阵应至少校验一个角色').toBeGreaterThan(0);
   });
 
   test('6-6 验证非法 API 调用被拒绝', async ({ page }) => {
