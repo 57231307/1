@@ -115,6 +115,12 @@ const MAPPING = [
   // 收进 api 层并纳入本对照表——同类漂移从此在提交前即被静态拦截，而不是等 E2E 撞。
   { ts: 'CreateFabricInspectionPayload', rust: ['CreateInspectionRequest'] },
   { ts: 'UpdateFabricInspectionPayload', rust: ['UpdateInspectionRequest'] },
+  // 本轮/上轮逐字段核对过的三组契约一并纳管：库存台账出参（含 attach_master_names
+  // 带出的主数据名称）与质检记录（前端类型曾按 record_no/result/inspector 等
+  // 后端不存在的字段写死，导致列表四列恒空、建单必然 400）
+  { ts: 'InventoryStock', rust: ['inventory_stock:Model', 'StockResponse'] },
+  { ts: 'QualityRecord', rust: ['quality_inspection_record:Model'] },
+  { ts: 'CreateQualityRecordPayload', rust: ['CreateInspectionRecordRequest'] },
 ];
 
 // ---------- 存量幽灵字段挂账清单（允许通过，新增字段不在清单内立即拦截） ----------
