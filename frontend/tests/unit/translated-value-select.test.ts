@@ -3,15 +3,16 @@
  *
  * 背景：el-option 的 :value 若绑定 t('…')，提交给后端的就是当前界面语言的文案，
  * 切换语言即改写业务数据（筛选失配、白名单 422、配伍判断失效）。
- * 已收敛的取值一律来自 src/constants/*，本用例只做两件事：
- *   1. 残留点位必须与挂账清单逐一对应（多一处即失败，修完不减清单也失败）；
+ * 已收敛的取值一律来自 src/constants/*，本用例做三件事：
+ *   1. 全量扫描 :value="t('…')" 形态，残留点位必须与挂账清单逐一对应——
+ *      多一处即失败，修完却不把清单清空也失败（清单已空即表示该类缺陷全仓收敛完）；
  *   2. 常量表里的 i18n 键在两门语言中真实存在——check-i18n.mjs 只识别
- *      t('字面量') 调用，键名以常量字段形式存放时逃过它，故在此补齐。
+ *      t('字面量') 调用，键名以常量字段形式存放时逃过它，故在此补齐；
+ *   3. 各常量表的取值与后端/写入端的真实词表逐项相等，防止把界面码改成库里没有的值。
  */
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { relative, sep, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import zhCN from '@/locales/zh-CN';
 import enUS from '@/locales/en-US';
 import {
@@ -28,20 +29,33 @@ import {
   QUALITY_RECORD_RESULT_LABEL_KEY,
   QUALITY_RECORD_RESULT_VALUES,
 } from '@/constants/quality-inspection-record';
-import { LOGISTICS_EVENT_TYPE_LABEL_KEY } from '@/constants/logistics-event-type';
+import {
+  LOGISTICS_EVENT_TYPE_LABEL_KEY,
+  LOGISTICS_EVENT_TYPE_VALUES,
+} from '@/constants/logistics-event-type';
+import {
+  LOGISTICS_COMPANY_LABEL_KEY,
+  LOGISTICS_COMPANY_VALUES,
+} from '@/constants/logistics-company';
+import { QUOTATION_UNIT_LABEL_KEY, QUOTATION_UNIT_VALUES } from '@/constants/quotation-unit';
 
-// 以本文件位置定位 frontend 根，避免依赖 vitest 启动时的 cwd
-const FRONTEND = fileURLToPath(new URL('../..', import.meta.url));
-const SRC = fileURLToPath(new URL('../../src', import.meta.url));
+// 以启动目录定位 frontend 根：CI 与 `npm test` 都在 frontend/ 下运行。
+// 不能用 import.meta.url + fileURLToPath —— vitest 的 jsdom 环境下 import.meta.url 不是
+// file: 协议，会抛 ERR_INVALID_URL_SCHEME 把整个用例文件带崩。
+const FRONTEND = process.cwd();
+const SRC = join(FRONTEND, 'src');
+if (!existsSync(join(SRC, 'views'))) {
+  throw new Error(
+    `该门禁需在 frontend 目录下运行以扫描 src/**/*.vue，当前目录 ${FRONTEND} 内没有 src/views`
+  );
+}
 
-/** 已挂账待收敛：键为相对 frontend 的路径，值为该文件的残留点位数 */
-const KNOWN_PENDING: Record<string, number> = {
-  // 物流公司词典未建（后端 logistics_company 为自由文本，存量以中文名落库）
-  'src/views/logistics/components/LogisticsFilter.vue': 5,
-  'src/views/logistics/components/LogisticsForm.vue': 5,
-  // 报价单计量单位同样以中文名单元格落库，需与单位词典一并处理
-  'src/views/quotations/components/QuotationItemEditor.vue': 3,
-};
+/**
+ * 挂账清单：键为相对 frontend 的路径，值为该文件的残留点位数。
+ * 27 处已全部核完并改完（物流公司、报价单位两组按「库里存的中文名即稳定值」收敛，
+ * 质检/处方/工艺三组按后端词表收敛），故清单为空——此后任何新增点位都会让本用例失败。
+ */
+const KNOWN_PENDING: Record<string, number> = {};
 
 const TRANSLATED_VALUE_RE = /:value="\$?t\(\s*'[^']+'\s*\)"/g;
 
@@ -90,6 +104,8 @@ describe('「译文当业务值」门禁', () => {
       QUALITY_RECORD_RESULT_LABEL_KEY,
       QUALITY_INSPECTION_SOURCE_LABEL_KEY,
       LOGISTICS_EVENT_TYPE_LABEL_KEY,
+      LOGISTICS_COMPANY_LABEL_KEY,
+      QUOTATION_UNIT_LABEL_KEY,
     ];
     for (const map of maps) {
       for (const key of Object.values(map)) {
@@ -120,6 +136,22 @@ describe('「译文当业务值」门禁', () => {
     );
     // 布类名必须是后端配伍表认得的中文写法（services/ai/recipe_opt.rs）
     expect([...RECIPE_FABRIC_TYPE_VALUES]).toEqual(['棉', '涤纶', '丝绸', '羊毛']);
+    // 物流公司与报价单位：两列都是无字典自由文本，库里存的就是这套中文名
+    expect([...LOGISTICS_COMPANY_VALUES]).toEqual([
+      '顺丰速运',
+      '中通快递',
+      '圆通速递',
+      '韵达快递',
+      '京东物流',
+    ]);
+    expect([...QUOTATION_UNIT_VALUES]).toEqual(['米', '卷', '公斤', '件']);
+    // 轨迹事件为小写码，与运单主状态的大写码分属两域（后端用例同口径钉住）
+    expect([...LOGISTICS_EVENT_TYPE_VALUES]).toEqual([
+      'pickup',
+      'in_transit',
+      'arrived',
+      'delivered',
+    ]);
     // 检验结论与库里唯一的自动写入方同源（outsourcing_ops/receipt.rs 写「合格/不合格」）
     expect([...QUALITY_RECORD_RESULT_VALUES]).toEqual(['待检', '合格', '不合格']);
   });
