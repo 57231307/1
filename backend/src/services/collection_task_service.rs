@@ -27,6 +27,7 @@ use crate::models::collection_task_dto::{
     ReassignTaskRequest, RecordContactRequest,
 };
 use crate::models::collection_template;
+use crate::models::status::common;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -155,7 +156,7 @@ impl CollectionTaskService {
         Ok(ar_invoice::Entity::find()
             .filter(ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .filter(ar_invoice::Column::DueDate.lt(as_of_date))
-            .filter(ar_invoice::Column::ApprovalStatus.eq("approved"))
+            .filter(ar_invoice::Column::ApprovalStatus.eq(common::STATUS_APPROVED))
             .all(txn)
             .await?)
     }

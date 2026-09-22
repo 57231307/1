@@ -219,7 +219,7 @@ pub async fn update_contract(
     let mut contract = service.get_by_id(id).await?;
 
     // 检查状态
-    if contract.status != "draft" {
+    if contract.status != crate::models::status::contract::DRAFT {
         return Err(AppError::validation(
             "只有草稿状态的合同才能修改".to_string(),
         ));
@@ -260,7 +260,7 @@ pub async fn delete_contract(
     let contract = service.get_by_id(id).await?;
 
     // 检查状态
-    if contract.status != "draft" {
+    if contract.status != crate::models::status::contract::DRAFT {
         return Err(AppError::validation(
             "只有草稿状态的合同才能删除".to_string(),
         ));

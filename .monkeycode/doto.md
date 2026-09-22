@@ -162,6 +162,30 @@ extras 八目录 20 处条件交互（本轮刚接进矩阵，不修就是新增
 做不到就改成显式失败；多形态分支必须每条分支都有断言且都不命中时 throw。
 禁止 test.skip/try-catch/占位断言这三种"看起来诚实"的退路。
 
+**flow 侧 12 条件交互 + 7 条件 skip 已修（本轮，本地未验证，推送冻结）**：
+`31-deletion-deactivation.spec.ts` 客户/产品列表页行内**根本不渲染**状态开关/停用按钮
+（`customer/index.vue:157` status 列是 el-tag、`:173-191` 操作列仅 编辑/详情/删除；
+`product/tabs/ProductListTab.vue:194-200` 同为 el-tag），原 `if(开关可见)/else if(按钮可见)`
+两支皆不可达 → 退化成 `expect(typeof toggled)` 恒真。改走真实停用入口（编辑弹窗）并断言
+列表状态标签文本变更；入口缺失即硬失败。`31c-deactivation-matrix.spec.ts` 175/195/260/320/
+324/366 的 `if(openEditDialog)/if(sw.isVisible)` 吞因守卫全部改成带原因显式断言。
+`43-duplicate-toast.spec.ts:31` 由"列表页找不到提交按钮即零点击通过"改为打开新增用户弹窗、
+对真实提交按钮连点。7 处 `test.skip()` 全部改造：`36` BPM 模板预览钉为 404 契约断言
+（`/bpm/templates/{id}/preview` routes/system.rs 未注册）；`40` viewer 未就绪改显式失败；
+`32` BOM 导出 skip→显式失败；`41b` 四套审批流改为测试内真实造前置。
+
+**造前置过程中抓到两处后端状态词表/字段名不一致真缺陷（本 token 不改 backend，登记待产品/后端修）**：
+1. 坏账核销**结构性不可达**：`bad_debt_service.rs:449` 建核销的审核门比较
+   `invoice.approval_status != "approved"`（小写字面量），而应收单审核后 `ar_invoice_service.rs:418-419`
+   写入的是 `STATUS_APPROVED = "APPROVED"`（大写，`models/status/general.rs:22`）→ 两值永不相等 →
+   对任何已审核应收单发起核销恒被拒，拿不到 pending 核销单。`41b` 核销用例改为真实串
+   建客户→建应收单→审核→建核销并断言 id，当前必然硬红，正是暴露此缺陷（后端修大小写后转绿）。
+2. 列表读取字段名/大小写错配致 skip 永真（修 skip 时定位）：writeoff 模型状态字段是
+   `approval_status`（`bad_debt_writeoff.rs:29`）非 `status`；`/fund-management/transfers` 列表
+   `list_transfer_records` 返回 `ApiResponse<Vec>`（data 裸数组，无 `items` 包装），且
+   `fund_management_service.rs` 写入状态为大写 `"PENDING"`——旧 41b 三处均按 `data.items` +
+   `status.includes('pending')` 读，恒不命中，这是"skip 掩盖"叠加"读错形状"的双重假绿根因。
+
 **自查抓到自己本轮引入的功能回归（正在修，勿当已完成）**：`inventory_deduction.rs:183`
 `require_outbound_dimensions` 对 色号/缸号/批次 一律要求非空，被调拨出库（`inv/batch.rs:133`）
 与销售发货（`so/delivery_ops/inventory.rs`）共用 —— 于是白坯布既不能调拨也不能发货，
@@ -1354,3 +1378,116 @@ README 里"Windows 裸 --list 多收 71 个"的那 71 个正是这批 —— 之
 4. 其余含"详情/编辑回源 `/{id}`"的列表页（报价、销售/采购合同、销售/采购退货、BOM、客户、
    供应商、CRM 线索/商机、外发、质检、工资、固定资产等）按同一 `v-permission-detail`
    逐个接入，待后续批次完成；判定函数与指令已就绪，接入为机械改动。
+
+---
+
+## 20 处假绿改造中发现的前后端渲染条件不一致真缺陷（extras 分片接入前置）
+
+本轮把 purchase-ext/quality/finance/crm/bpm 的 20 处「控件不可见即整条零断言通过」改为真实断言时，
+逐处比对了前端行内按钮渲染条件与后端状态词表，发现以下**真缺陷（非用例问题，未为变绿而改断言方向）**：
+
+1. **采购合同「执行」按钮永不渲染** — 前端 `ContractTab.vue:103` 渲染条件 `row.status === 'pending'`，
+   但后端合同词表只有 draft/active/cancelled（`backend/src/models/status/bpm_crm_contract.rs:34`），
+   且建单置 draft（`purchase_contract_service.rs:70`）、审批直接置 **active**（同文件:271）、执行要求 **active**
+   （同文件:185）。库中永远不会出现 status='pending' 的合同 → 执行按钮对任何真实数据都不出现。
+   → 01-04 采用方法二（显式断言前置存在），缺陷修复前应稳定红。
+2. **质量标准「已发布」标签不显示** — 前端发布按钮条件 `status==='approved'`（`StandardTab.vue:117`）正确，
+   但后端 `publish_standard` 把状态置为 `master_data::ACTIVE`="active"（`quality_standard_service.rs:366`），
+   而前端状态标签词表（`StandardTab.vue:158-166`）只有 draft/approved/published/rejected，无 'active' →
+   已发布标准在列表显示原始字符串 'active' 而非「已发布」。
+3. **CRM 线索状态大小写不一致** — 前端按钮/标签用大写 NEW/CONTACTED/QUALIFIED/CONVERTED/LOST
+   （`crm/leads/index.vue:234/242/250` 等），后端 crm_lead 词表为小写 new/converted/pool/lost
+   （`bpm_crm_contract.rs:116`），且后端根本没有 contacted/qualified。真实新建线索（前端 LeadFormTab 走大写？
+   后端存原样）与状态更新（联系动作 `updateLeadStatus {status:'contacted'}` 存小写）互相错配 →
+   按后端自然数据这些按钮不会出现。E2E 为驱动渲染改存大写字符串（掩盖缺陷，仅测试内）。
+4. **CRM 商机阶段词表不一致** — 前端阶段映射/按钮用 INITIAL/REQUIREMENT/PROPOSAL/NEGOTIATION/WON/LOST，
+   赢单动作却写入 CLOSED_WON/CLOSED_LOST（`crm/opportunities/index.vue:481/564`），后端 crm_opportunity
+   词表只有 CLOSED_WON/CLOSED_LOST（`bpm_crm_contract.rs:132`）→ 赢单/输单后阶段标签无法命中前端映射，
+   且「赢单」按钮文案实际为「成交」。
+5. **BPM 审批中心待办/已办列表恒空（最严重）** — 任务状态小写存储 pending/completed
+   （`bpm_crm_contract.rs:100`；写入 `bpm_ops/instance.rs:77`、`bpm_ops/task.rs:116`），
+   但列表 handler 硬编码大写过滤 `Status.eq("PENDING"/"COMPLETED")`
+   （`handlers/bpm_handler.rs:262/276`）→ 大小写不命中，待办/已办永远 0 条 →
+   「同意/拒绝/审批链」按钮对任何真实数据都不渲染。即便 API 造 pending 任务也取不到。
+   → bpm/02-02/02-03/02-04 采用方法二，缺陷修复前稳定红。
+6. **BPM 审批执行接口契约不一致** — 前端 `executeBpmApproval` 只发 `{task_id(字符串), action, comment, variables}`
+   （`api/bpm-enhanced.ts`），后端 `ExecuteApprovalRequest` 要求 `{task_id:i32, handler_id:i32, handler_name:String,
+   action, approval_opinion}`（`bpm_handler.rs:286`）→ 缺 handler_id/handler_name + task_id 类型/字段名(comment vs
+   approval_opinion)不匹配，点击审批必 400。成功 toast 真实文案是「审批通过/审批拒绝」非「审批成功」。
+7. **凭证建单前端字段名与后端不一致** — 前端 `finance.ts createVoucher` 发 `entries:[{subject_id,...}]`，
+   后端 `CreateVoucherRequestDto` 收 `items`（`voucher_handler.rs:52`）→ UI 新建凭证的分录会被静默丢弃。
+   （E2E 直接按后端 `items` 契约建单规避；本用例仅测既有凭证的提交/审核/过账。）
+8. **缺陷(Defect)处理点击链路损坏** — 缺陷列表数据源是 unqualified_product（无前端列名 processed → 处理按钮恒渲染）；
+   且 `DefectTab.processDefect` 只提交 `{remark}`，后端 `ProcessUnqualifiedRequest` 要求
+   unqualified_qty/unqualified_reason/handling_method 三个必填（`quality_inspection_handler.rs`）→ 点击处理必 400，
+   永不出「处理成功」。→ quality/02-04 改为方法二（造缺陷后仅断言处理按钮存在，不断言坏掉的点击结果）。
+9. **科目建单前端字段名与后端不一致** — 前端 `createSubject` 发 `{code,name,category,direction}`，
+   后端 `CreateSubjectRequestDto` 要 `{code,name,level,balance_direction}`（缺 level→反序列化失败，category/direction
+   被忽略）（`account_subject_handler.rs`）。E2E 按后端契约建单规避；03-02 走 UI 建单为既有 spec 未在本次改造范围。
+
+---
+
+### Round 7-iter32（2026-09-23，traversal/smoke「永远不会红」清零；仅动 e2e/traversal/**、e2e/smoke/**，未提交）
+
+把 traversal/smoke 里 skip/条件交互/形状断言等"假绿形态"改成真实判定。`--list` 前后均 1277 tests / 260 files（用例数不减）。
+本地 prettier + eslint(0 error) 全绿；未本地跑 E2E（IR），判定生效待 CI 观察。
+
+- **37-print-endpoints / 39-export / 41-approve 三矩阵的 10 处 `test.skip()`**：新增 `traversal/matrix-probe.ts`
+  按后端响应形态判定（依据 error.rs:429-436 标准错误体 + routes/mod.rs:534 无全局 fallback）：
+  5xx/裸 404·405（无 {code,message,trace_id}）→ 判红（崩溃 / 路由未注册，含路径写错如复数化导出）；
+  200 → 强制真实 zip 容器（PK magic+体积+OOXML，非"200 即过"）；
+  标准错误体 4xx → 已注册仅 id=1 无种子/状态机拒绝，记 annotation，且 admin 权限码(FORBIDDEN)判红。
+  39c 两处 skip 改为 ensureTestEntities 造数据后必 200（warehouses/stock export 已注册 catalog.rs:91 / inventory.rs:59）。
+- **42a-d 4 处 `if (await newBtn.isVisible())`**：Tier A 且未标 noCreate ⇒ 新建按钮必须可见且能点开/跳转，
+  不可见判红（带模块 id + 路由 + 页面异常）；不再运行时 isVisible 静默放过。未扩到 Tier B（保持原判定范围，避免误红）。
+- **37b 4 处 skip**：销售订单/凭证缺数据改为 ensureTestEntities 造数据后 assert 存在；已持真实 id 时打印仍 4xx → 判红（不再 skip）。
+- **44-role-matrix `if(!cred) test.skip()`** → 判红（凭证缺失=global-setup 未建账号，属环境缺陷，不能伪装成通过）。
+- **5 处 `?? []` 逐处判**：37b:151（审计 items）/39c 列表 items → 先断言字段存在再取用（缺失≠空集）；
+  39c:38 与 44:116 是 `String.match` 返回 null 的行计数/健康态归零，非字段伪装，保留并加注释；
+  permission-model.ts:93/:120（当前无调用方的双轨推导码）改为缺字段/缺角色键直接抛错，不再退化成空集。
+- **smoke 4 处 `Array.isArray` 形状断言**（logistics:43 / material-shortage:73,160 / quality-records:74）：
+  加"缺 items/suggestions 键 vs 空数组"区分 + `items.length ≤ total` + `total>0 ⇒ 首页非空` 的真实一致性内容断言。
+- **待 CI 反馈跟进**：若某 Tier A 遍历模块或某端点确属"应新建/应注册但实际坏掉"，CI 会红——
+  按红定位真缺陷；若确属产品未提供该能力，则在 modules.config 补 `noCreate` 或给该端点加显式 `noPrint/noExport`
+  标记并写明 backend 路由依据（经 routes/mod.rs nest 拼真实路径核对存在性）。
+
+### Round 状态词表同源核对（2026-09-23，坏账/应收/委外/合同/AI 模型）
+
+已完成（见本轮改动，未 commit、推送冻结）：
+- bad_debt_service.rs：ar_invoice.approval_status 两处比较点（B01 扫描 :223 / 核销 :456）由小写 "approved" 改引 common::STATUS_APPROVED（写入点为大写 APPROVED）——修复坏账核销结构性不可达；bad_debt 自有表 provisions/writeoffs 全部读写收口到新词表常量。
+- 新建 finance.rs 词表模块 bad_debt_provision_status / bad_debt_writeoff_status（小写，逐项等于迁移 chk_bdp_status / chk_bdw_status）。
+- ai_model_management_service.rs：读写/取值域校验全改引 master_data 常量（小写；未加大小写兜底）；入参校验已存在且对大小写敏感。
+- outsourcing_handler.rs 报表统计、purchase/sales_contract_handler.rs 状态门：去裸字面量、改引 outsourcing_order_status / contract::DRAFT 常量（大小写本已一致，属规则 0 收口）。
+- 测试：tests/bad_debt_status_vocabulary_test.rs（确定性文本+常量+CHECK 比对，CI 可跑）、tests/bad_debt_writeoff_main_link_test.rs（#[ignore] 活库主链路）。
+
+仍待办（同族缺陷）：
+- [x] collection_task_service.rs:158 与 finance_alert_service.rs:313：同样 `ar_invoice::Column::ApprovalStatus.eq("approved")` 小写比较大写列——同一结构性 bug（催收/财务预警永远扫不到已审批应收单）。**本轮已修**：改引 common::STATUS_APPROVED（与 bad_debt 同修法）。
+- [x] purchase_contract_service.rs:70：建单 `status: Set("draft".to_string())` 写字面量（值与 contract::DRAFT 一致，仅违规则 0）。**本轮已修**：改引 contract::DRAFT。
+- [ ] 全仓仍有大量 `Set("...")` / `.eq("...")` 状态字面量散落（health/login/voucher/quotation/custom_order/fixed_asset/capacity 等）。已核对出 4 处待判同源性的比较点：quotation_handler.rs:380（sales_quotation.status="approved"）、dashboard_service.rs:233（sales_order.status="pending"）、price_calculator.rs:241（product_color_price.approval_status="APPROVED" 大写，反向失配需查写入点）、cost_collection_service.rs:187。子智能体按表核对写入点↔比较点↔CHECK 同源中。
+- [ ] 全仓仍有大量 `Set("...")` / `.eq("...")` 状态字面量散落（health/login/voucher/quotation/custom_order/fixed_asset/capacity 等，非本轮边界）。建议单列一轮按表建词表并逐点核对写入点↔比较点↔CHECK 同源。
+
+### Round 收集面修复 + 词表同源落地（2026-09-23，主智能体）
+
+- **playwright.config.ts 的 testMatch 从「目录白名单」改为「testIgnore 排除式」**。
+  上轮把 extras 分片扩到 ai/dashboard/fabric/inventory/mrp/production/quotations/sales-ext/
+  system 九个目录时，白名单没同步。实测（脚本按 Linux 语义把相对路径分隔符归一为 /）：
+  旧白名单在 Linux 上只收 237/260 文件，缺的 23 个正是那九个目录 + setup-wizard；
+  同一份配置在 Windows 上收 260/260 —— 因为 testMatch 匹配的是**相对 config 文件**的路径，
+  Windows 反斜杠让第二分支 `^[^/]*\.spec\.ts$` 里的 `[^/]*` 能吃掉整条路径。
+  **上轮判断订正**：当时写的是"extras 分片会静默无覆盖"，不成立 —— Playwright 1.63 在过滤后
+  集合为空时打印 `Error: No tests found.` 并以退出码 1 结束（本地用 --list 对 setup-wizard
+  目录实测确认）。真实后果是那 6 个 extras 分片直接红，不是假绿。结论不变但机制订正：
+  白名单必须换掉，否则"新增目录 = 忘记登记 = 分片红/漏跑"这条漂移面一直在。
+- 新配置实测收集 1269 用例 / 259 文件 / 21 目录，setup-wizard 由独立 config 运行且不再被主套件
+  收进来（收 9 个用例被正确排除）。第一次尝试用带锚点的 `^(?!setup-wizard[/\\])` 无效
+  （路径以 e2e/ 开头，锚点永不命中），改用 testIgnore（优先级高于 testMatch、不需锚点）。
+- **三个"文本断言型"守卫测试的迁移路径写错，会让整个 cargo test 编译产物 panic**：
+  bad_debt_status_vocabulary_test / color_card_status_vocabulary_test /
+  po_status_column_drift_test 都用 `read_rel("../migration/src/domain/v15/mod.rs")`。
+  CARGO_MANIFEST_DIR 是 `backend`，迁移 crate 在 `backend/migration`（workspace members =
+  [".", "migration"]），`../migration` 指向仓库根 —— 该目录 git 跟踪文件数 0，压根不存在。
+  对照：同一批测试里 `read_rel("../frontend/src/api/color-card.ts")` 是**对的**，
+  因为 frontend 确实是 backend 的兄弟目录。这类"路径基准记混"在只跑静态门禁的分支上
+  不会暴露，是三个测试从未被 CI 验证过的原因之一。已改为 `migration/...` 并就地注释基准。
+- **子智能体 nine-dirs-honesty 触顶 150 turn 未完成**（只读不写，工作树里没有它的改动）。
+  按用户"任务拆细"的要求改为按目录分组重投，单组文件数控制在 3 个 spec 以内。

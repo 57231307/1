@@ -67,7 +67,7 @@ impl PurchaseContractService {
             contract_name: Set(req.contract_name),
             supplier_id: Set(req.supplier_id),
             total_amount: Set(Some(req.total_amount)),
-            status: Set("draft".to_string()),
+            status: Set(contract::DRAFT.to_string()),
             payment_terms: Set(req.payment_terms),
             delivery_date: Set(Some(req.delivery_date)),
             created_by: Set(user_id),

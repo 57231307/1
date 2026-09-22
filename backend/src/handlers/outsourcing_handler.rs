@@ -16,6 +16,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::container::AppState;
+use crate::models::status::outsourcing_order_status;
 use crate::models::{
     outsourcing_order, outsourcing_order_item, outsourcing_receipt, outsourcing_voucher,
 };
@@ -412,12 +413,30 @@ pub async fn get_outsourcing_report(
     let orders = outsourcing_order::Entity::find().all(&*state.db).await?;
 
     let total_orders = orders.len() as i64;
-    let draft_orders = orders.iter().filter(|o| o.status == "draft").count() as i64;
-    let issued_orders = orders.iter().filter(|o| o.status == "issued").count() as i64;
-    let processing_orders = orders.iter().filter(|o| o.status == "processing").count() as i64;
-    let received_orders = orders.iter().filter(|o| o.status == "received").count() as i64;
-    let settled_orders = orders.iter().filter(|o| o.status == "settled").count() as i64;
-    let closed_orders = orders.iter().filter(|o| o.status == "closed").count() as i64;
+    let draft_orders = orders
+        .iter()
+        .filter(|o| o.status == outsourcing_order_status::DRAFT)
+        .count() as i64;
+    let issued_orders = orders
+        .iter()
+        .filter(|o| o.status == outsourcing_order_status::ISSUED)
+        .count() as i64;
+    let processing_orders = orders
+        .iter()
+        .filter(|o| o.status == outsourcing_order_status::PROCESSING)
+        .count() as i64;
+    let received_orders = orders
+        .iter()
+        .filter(|o| o.status == outsourcing_order_status::RECEIVED)
+        .count() as i64;
+    let settled_orders = orders
+        .iter()
+        .filter(|o| o.status == outsourcing_order_status::SETTLED)
+        .count() as i64;
+    let closed_orders = orders
+        .iter()
+        .filter(|o| o.status == outsourcing_order_status::CLOSED)
+        .count() as i64;
 
     // 统计总金额
     let total_amount: rust_decimal::Decimal = orders.iter().map(|o| o.total_cost).sum();
