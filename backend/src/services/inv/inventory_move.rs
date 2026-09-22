@@ -24,6 +24,7 @@ use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resourc
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
+use super::fabric_class;
 use super::{
     CreateInventoryTransferRequest, InventoryTransferDetail, InventoryTransferItemDetail,
     InventoryTransferItemRequest, InventoryTransferService, UpdateInventoryTransferRequest,
@@ -148,6 +149,9 @@ impl InventoryTransferService {
                 notes: item.notes,
                 created_at: item.created_at,
                 updated_at: item.updated_at,
+                color_no: item.color_no,
+                dye_lot_no: item.dye_lot_no,
+                batch_no: item.batch_no,
             })
             .collect();
 
@@ -234,25 +238,12 @@ impl InventoryTransferService {
         let mut total_quantity = rust_decimal::Decimal::ZERO;
         let mut total_amount = rust_decimal::Decimal::ZERO;
         for item_req in items {
-            // P1 batch-18 缺陷 6.2：校验色号/缸号 - 染色布必须提供 dye_lot_no
-            // 白坯布（color_no 含"白"或为"WHITE"）允许 dye_lot_no 为空
-            let color_no = item_req.color_no.clone().unwrap_or_default();
-            let dye_lot_no = item_req.dye_lot_no.clone();
-            let is_white_fabric = color_no.is_empty()
-                || color_no.contains('白')
-                || color_no.eq_ignore_ascii_case("white");
-            if !is_white_fabric && dye_lot_no.as_deref().is_none_or(str::is_empty) {
-                return Err(AppError::validation(format!(
-                    "缺陷 6.2：染色布调拨明细必须提供缸号（color_no={} 但 dye_lot_no 为空）",
-                    color_no
-                )));
-            }
-            let batch_no = item_req.batch_no.clone().unwrap_or_default();
-            if batch_no.is_empty() {
-                return Err(AppError::validation(
-                    "缺陷 6.2：调拨明细缺少批号（batch_no 必填）",
-                ));
-            }
+            // 白坯/染色判定与缸号/批次必填：统一走 fabric_class 单一实现（仅以色号是否为空判定，不看名称）
+            let trace = fabric_class::validate_fabric_trace(
+                item_req.color_no.clone(),
+                item_req.dye_lot_no.clone(),
+                item_req.batch_no.clone(),
+            )?;
 
             let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
             total_quantity += quantity;
@@ -276,13 +267,14 @@ impl InventoryTransferService {
                 notes: sea_orm::ActiveValue::Set(item_req.notes),
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                // P1 batch-18 缺陷 6.2：面料行业追溯字段强制写入（白坯布除外）
-                // 白坯布 dye_lot_no 为空时用 NotSet 让 DB DEFAULT '' 生效
-                color_no: sea_orm::ActiveValue::Set(color_no),
-                dye_lot_no: dye_lot_no
+                // 面料追溯字段：白坯/染色校验归一后如实写入
+                color_no: sea_orm::ActiveValue::Set(trace.color_no),
+                // 白坯布（色号为空）缸号合法缺省，用 NotSet 让 DB DEFAULT '' 生效
+                dye_lot_no: trace
+                    .dye_lot_no
                     .map(|v| sea_orm::ActiveValue::Set(Some(v)))
                     .unwrap_or(sea_orm::ActiveValue::NotSet),
-                batch_no: sea_orm::ActiveValue::Set(batch_no),
+                batch_no: sea_orm::ActiveValue::Set(trace.batch_no),
             };
             item.insert(txn).await?;
         }
@@ -412,25 +404,12 @@ impl InventoryTransferService {
         let mut total_quantity = rust_decimal::Decimal::ZERO;
         let mut total_amount = rust_decimal::Decimal::ZERO;
         for item_req in items {
-            // P1 batch-18 缺陷 6.2：校验色号/缸号 - 染色布必须提供 dye_lot_no
-            // 白坯布（color_no 含"白"或为"WHITE"或为空）允许 dye_lot_no 为空
-            let color_no = item_req.color_no.clone().unwrap_or_default();
-            let dye_lot_no = item_req.dye_lot_no.clone();
-            let is_white_fabric = color_no.is_empty()
-                || color_no.contains('白')
-                || color_no.eq_ignore_ascii_case("white");
-            if !is_white_fabric && dye_lot_no.as_deref().is_none_or(str::is_empty) {
-                return Err(AppError::validation(format!(
-                    "缺陷 6.2：染色布调拨明细必须提供缸号（color_no={} 但 dye_lot_no 为空）",
-                    color_no
-                )));
-            }
-            let batch_no = item_req.batch_no.clone().unwrap_or_default();
-            if batch_no.is_empty() {
-                return Err(AppError::validation(
-                    "缺陷 6.2：调拨明细缺少批号（batch_no 必填）",
-                ));
-            }
+            // 白坯/染色判定与缸号/批次必填：统一走 fabric_class 单一实现（仅以色号是否为空判定，不看名称）
+            let trace = fabric_class::validate_fabric_trace(
+                item_req.color_no.clone(),
+                item_req.dye_lot_no.clone(),
+                item_req.batch_no.clone(),
+            )?;
 
             let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
             total_quantity += quantity;
@@ -454,13 +433,14 @@ impl InventoryTransferService {
                 notes: sea_orm::ActiveValue::Set(item_req.notes),
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                // P1 batch-18 缺陷 6.2：面料行业追溯字段强制写入（白坯布除外）
-                // 白坯布 dye_lot_no 为空时用 NotSet 让 DB DEFAULT '' 生效
-                color_no: sea_orm::ActiveValue::Set(color_no),
-                dye_lot_no: dye_lot_no
+                // 面料追溯字段：白坯/染色校验归一后如实写入
+                color_no: sea_orm::ActiveValue::Set(trace.color_no),
+                // 白坯布（色号为空）缸号合法缺省，用 NotSet 让 DB DEFAULT '' 生效
+                dye_lot_no: trace
+                    .dye_lot_no
                     .map(|v| sea_orm::ActiveValue::Set(Some(v)))
                     .unwrap_or(sea_orm::ActiveValue::NotSet),
-                batch_no: sea_orm::ActiveValue::Set(batch_no),
+                batch_no: sea_orm::ActiveValue::Set(trace.batch_no),
             };
             item.insert(txn).await?;
         }

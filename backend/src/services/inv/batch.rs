@@ -21,12 +21,23 @@ use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::status::purchase_inventory::inventory_transfer as transfer_status;
+use crate::services::inventory_deduction::{
+    AllocationSource, DeductionCandidate, DeductionError, plan_deduction,
+    require_outbound_dimensions,
+};
 use crate::utils::error::AppError;
 
+use super::fabric_class::{self, FabricTrace};
 use super::{
     InventoryTransferDetail, InventoryTransferItemDetail, InventoryTransferItemRequest,
     InventoryTransferService,
 };
+
+/// 调拨明细面料行业追溯字段的校验与归一化委托给全仓唯一实现
+/// [`fabric_class::validate_fabric_trace`]（款号由 product_id 承载，此处含色号/缸号/批次）。
+///
+/// 三字段与 `inventory_transfer_item::ActiveModel` 对应列一一对应，供 `add_item` 落库与单元测试断言共用。
+type TransferTraceFields = FabricTrace;
 
 /// 新建库存的面料行业追溯字段（从源仓库复制，封装避免参数过多）。
 struct NewStockFabricFields<'a> {
@@ -72,12 +83,10 @@ impl InventoryTransferService {
         let mut pending_events: Vec<crate::services::event_bus::BusinessEvent> = Vec::new();
         let transfer = Self::lock_and_validate_transfer_for_ship(&txn, transfer_id).await?;
         let items = Self::load_transfer_items(&txn, transfer_id).await?;
-        let stock_map = Self::load_ship_stock_map(&txn, &transfer, &items).await?;
         for item in items {
             Self::apply_ship_item_deduction(
                 &txn,
                 &transfer,
-                &stock_map,
                 item,
                 &mut pending_events,
                 transfer_id,
@@ -108,87 +117,144 @@ impl InventoryTransferService {
         Ok(transfer)
     }
 
-    /// 批量加载源仓库库存记录（避免循环内 N+1 查询）。
-    async fn load_ship_stock_map(
-        txn: &sea_orm::DatabaseTransaction,
-        transfer: &inventory_transfer::Model,
-        items: &[inventory_transfer_item::Model],
-    ) -> Result<std::collections::HashMap<i32, inventory_stock::Model>, AppError> {
-        let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
-        let stocks = if product_ids.is_empty() {
-            Vec::new()
-        } else {
-            InventoryStockEntity::find()
-                .filter(inventory_stock::Column::WarehouseId.eq(transfer.from_warehouse_id))
-                .filter(inventory_stock::Column::ProductId.is_in(product_ids))
-                .all(txn)
-                .await?
-        };
-        Ok(stocks.into_iter().map(|s| (s.product_id, s)).collect())
-    }
-
-    /// 处理单个调拨明细项的库存扣减：校验→扣减→流水→事件→更新明细。
+    /// 处理单个调拨明细项的库存扣减：四维校验→四维候选查询（源仓+款号+色号+批次）→
+    /// 指定缸精确扣、不足时显式跨缸回退（确定性次序）→逐行扣减→逐行 TRANSFER_OUT 流水→事件→更新明细。
+    ///
+    /// 用户拍板规则（不做兜底）：调拨明细必须显式携带色号/缸号/批次；缺维度或四维组合
+    /// （含可回退其他缸）无库存时报业务错误；每笔实际扣到的缸号/批次如实写入流水（跨缸回退留痕）。
     /// batch-18 P2-6：扣减源仓库后，同步增加目标仓库的 quantity_incoming（在途库存）
     async fn apply_ship_item_deduction(
         txn: &sea_orm::DatabaseTransaction,
         transfer: &inventory_transfer::Model,
-        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
         item: inventory_transfer_item::Model,
         pending_events: &mut Vec<crate::services::event_bus::BusinessEvent>,
         transfer_id: i32,
     ) -> Result<(), AppError> {
-        let stock_model = stock_map.get(&item.product_id).ok_or_else(|| {
-            tracing::error!(
-                "Transaction will rollback on drop: 产品 {} 在源仓库无库存记录",
-                item.product_id
-            );
-            AppError::business(format!("产品 {} 在源仓库无库存记录", item.product_id))
-        })?;
-        if stock_model.quantity_on_hand < item.quantity {
-            tracing::error!(
-                "Transaction will rollback on drop: 产品 {} 库存不足",
-                item.product_id
-            );
-            return Err(AppError::business(format!(
-                "产品 {} 库存不足",
-                item.product_id
-            )));
+        let dims = require_outbound_dimensions(
+            "调拨出库明细",
+            item.product_id,
+            Some(item.color_no.as_str()),
+            item.dye_lot_no.as_deref(),
+            Some(item.batch_no.as_str()),
+        )?;
+        // 四维候选：源仓 + 款号 + 色号 + 批次（缸号不过滤——跨缸回退允许扣其他缸，
+        // 缸号维度取舍由 plan_deduction 统一负责）；FOR UPDATE 行锁防并发超扣
+        let candidates = InventoryStockEntity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(transfer.from_warehouse_id))
+            .filter(inventory_stock::Column::ProductId.eq(item.product_id))
+            .filter(inventory_stock::Column::ColorNo.eq(&dims.color_no))
+            .filter(inventory_stock::Column::BatchNo.eq(&dims.batch_no))
+            .lock_exclusive()
+            .all(txn)
+            .await?;
+        if candidates.is_empty() {
+            return Err(Self::no_stock_error(
+                &transfer.transfer_no,
+                item.product_id,
+                &dims,
+            ));
         }
-        let (new_quantity_meters, new_quantity_kg) =
-            Self::compute_ship_new_quantities(stock_model, item.quantity);
-        Self::update_stock_with_optimistic_lock_for_ship(
-            txn,
-            stock_model.id,
-            stock_model.version,
-            item.quantity,
-            new_quantity_meters,
-            new_quantity_kg,
-            item.product_id,
-        )
-        .await?;
+        let plan_candidates: Vec<DeductionCandidate> = candidates
+            .iter()
+            .map(|s| DeductionCandidate {
+                stock_id: s.id,
+                dye_lot_no: s.dye_lot_no.clone(),
+                quantity_available: s.quantity_available,
+                created_at: s.created_at,
+            })
+            .collect();
+        let allocations = plan_deduction(&plan_candidates, &dims.dye_lot_no, item.quantity)
+            .map_err(|e| match e {
+                DeductionError::NoStockAtAll => {
+                    Self::no_stock_error(&transfer.transfer_no, item.product_id, &dims)
+                }
+                DeductionError::Insufficient {
+                    available_total,
+                    required,
+                } => Self::insufficient_error(
+                    &transfer.transfer_no,
+                    item.product_id,
+                    &dims,
+                    available_total,
+                    required,
+                ),
+            })?;
 
-        // batch-18 P2-6：增加目标仓库的 quantity_incoming（在途库存）
-        Self::update_target_warehouse_incoming(
-            txn,
-            transfer.to_warehouse_id,
-            item.product_id,
-            item.quantity,
-        )
-        .await?;
+        for alloc in allocations {
+            let stock_model = candidates
+                .iter()
+                .find(|s| s.id == alloc.stock_id)
+                .ok_or_else(|| AppError::internal("扣减规划返回了候选之外的库存行"))?;
+            let (new_quantity_meters, new_quantity_kg) =
+                Self::compute_ship_new_quantities(stock_model, alloc.quantity);
+            Self::update_stock_with_optimistic_lock_for_ship(
+                txn,
+                stock_model.id,
+                stock_model.version,
+                alloc.quantity,
+                new_quantity_meters,
+                new_quantity_kg,
+                item.product_id,
+            )
+            .await?;
 
-        let inserted = Self::build_and_insert_transfer_out_transaction(
-            txn,
-            transfer,
-            &item,
-            stock_model,
-            new_quantity_meters,
-            new_quantity_kg,
-            transfer_id,
-        )
-        .await?;
-        pending_events.push(Self::build_inventory_transaction_created_event(&inserted));
-        Self::update_item_shipped_quantity(txn, item).await?;
-        Ok(())
+            // batch-18 P2-6：增加目标仓库的 quantity_incoming（在途库存）
+            Self::update_target_warehouse_incoming(
+                txn,
+                transfer.to_warehouse_id,
+                item.product_id,
+                alloc.quantity,
+            )
+            .await?;
+
+            let inserted = Self::build_and_insert_transfer_out_transaction(
+                txn,
+                transfer,
+                &item,
+                stock_model,
+                alloc.quantity,
+                new_quantity_meters,
+                new_quantity_kg,
+                &dims.dye_lot_no,
+                alloc.source == AllocationSource::CrossDyeLot,
+                transfer_id,
+            )
+            .await?;
+            pending_events.push(Self::build_inventory_transaction_created_event(&inserted));
+        }
+        Self::update_item_shipped_quantity(txn, item).await
+    }
+
+    /// 四维组合在源仓完全无库存的业务错误（不做兜底）
+    fn no_stock_error(
+        transfer_no: &str,
+        product_id: i32,
+        dims: &crate::services::inventory_deduction::OutboundDimensions,
+    ) -> AppError {
+        AppError::business(format!(
+            "调拨单 {}：款号（产品 {}）+ 色号 {} + 缸号 {} + 批次 {} 在源仓库无任何库存记录，出库被拒绝（不回退到产品+色号扣减）",
+            transfer_no, product_id, dims.color_no, dims.dye_lot_no, dims.batch_no
+        ))
+    }
+
+    /// 四维口径（含跨缸回退范围）库存不足的业务错误
+    fn insufficient_error(
+        transfer_no: &str,
+        product_id: i32,
+        dims: &crate::services::inventory_deduction::OutboundDimensions,
+        available_total: rust_decimal::Decimal,
+        required: rust_decimal::Decimal,
+    ) -> AppError {
+        AppError::business(format!(
+            "调拨单 {}：款号（产品 {}）+ 色号 {} + 批次 {} 源仓可用库存合计 {}（含跨缸回退的其他缸）小于出库数量 {}，指定缸号 {} 数量不足且其他缸亦不足以补足",
+            transfer_no,
+            product_id,
+            dims.color_no,
+            dims.batch_no,
+            available_total,
+            required,
+            dims.dye_lot_no
+        ))
     }
 
     /// batch-18 P2-6：更新目标仓库的 quantity_incoming（在途库存）
@@ -317,15 +383,31 @@ impl InventoryTransferService {
     }
 
     /// 构造并插入 TRANSFER_OUT 库存流水（记录扣减前后的米/kg 与源单据信息）。
+    ///
+    /// 流水如实记录**实际被扣库存行**的缸号/批次（来自 stock_model 行本身）；
+    /// 跨缸回退时备注写明"指定缸号 X 不足，实扣缸号 Y"，不允许静默换缸。
+    #[allow(clippy::too_many_arguments)]
     async fn build_and_insert_transfer_out_transaction(
         txn: &sea_orm::DatabaseTransaction,
         transfer: &inventory_transfer::Model,
         item: &inventory_transfer_item::Model,
         stock_model: &inventory_stock::Model,
+        deduct_quantity: rust_decimal::Decimal,
         new_quantity_meters: rust_decimal::Decimal,
         new_quantity_kg: rust_decimal::Decimal,
+        requested_dye_lot: &str,
+        is_cross_dye_lot: bool,
         transfer_id: i32,
     ) -> Result<inventory_transaction::Model, AppError> {
+        let cross_note = if is_cross_dye_lot {
+            format!(
+                "（跨缸回退：指定缸号 {} 数量不足，本笔实扣缸号 {}）",
+                requested_dye_lot,
+                stock_model.dye_lot_no.clone().unwrap_or_default()
+            )
+        } else {
+            String::new()
+        };
         let transaction = inventory_transaction::ActiveModel {
             id: Default::default(),
             transaction_type: sea_orm::ActiveValue::Set("TRANSFER_OUT".to_string()),
@@ -335,7 +417,7 @@ impl InventoryTransferService {
             color_no: sea_orm::ActiveValue::Set(stock_model.color_no.clone()),
             dye_lot_no: sea_orm::ActiveValue::Set(stock_model.dye_lot_no.clone()),
             grade: sea_orm::ActiveValue::Set(stock_model.grade.clone()),
-            quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
+            quantity_meters: sea_orm::ActiveValue::Set(deduct_quantity),
             quantity_kg: sea_orm::ActiveValue::Set(stock_model.quantity_kg - new_quantity_kg),
             source_bill_type: sea_orm::ActiveValue::Set(Some("TRANSFER".to_string())),
             source_bill_no: sea_orm::ActiveValue::Set(Some(transfer.transfer_no.clone())),
@@ -345,8 +427,8 @@ impl InventoryTransferService {
             quantity_after_meters: sea_orm::ActiveValue::Set(Some(new_quantity_meters)),
             quantity_after_kg: sea_orm::ActiveValue::Set(Some(new_quantity_kg)),
             notes: sea_orm::ActiveValue::Set(Some(format!(
-                "调拨出库 - 调拨单号: {}",
-                transfer.transfer_no
+                "调拨出库 - 调拨单号: {}{}",
+                transfer.transfer_no, cross_note
             ))),
             created_by: sea_orm::ActiveValue::Set(transfer.created_by),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
@@ -949,8 +1031,26 @@ impl InventoryTransferService {
                 notes: item.notes,
                 created_at: item.created_at,
                 updated_at: item.updated_at,
+                color_no: item.color_no,
+                dye_lot_no: item.dye_lot_no,
+                batch_no: item.batch_no,
             })
             .collect())
+    }
+
+    /// 校验并归一化调拨明细的面料行业追溯字段（款号由 product_id 承载，此处含色号/缸号/批次）。
+    ///
+    /// 白坯/染色判定与缸号/批次必填口径的唯一实现是
+    /// [`fabric_class::validate_fabric_trace`]，本方法仅委托之，避免多处判定漂移：
+    /// - 色号为空 → 白坯布：免缸号（归一为 None），批次仍必填；
+    /// - 色号非空 → 染色布：缸号、批次都必填，缺一返回明确业务错误；
+    /// - 不以色号文本内容判定布种（带"白"字的色号是染色白色布）。
+    fn validate_trace_fields(
+        color_no: Option<String>,
+        dye_lot_no: Option<String>,
+        batch_no: Option<String>,
+    ) -> Result<TransferTraceFields, AppError> {
+        fabric_class::validate_fabric_trace(color_no, dye_lot_no, batch_no)
     }
 
     /// 向调拨单添加明细
@@ -981,6 +1081,14 @@ impl InventoryTransferService {
             .ok_or_else(|| AppError::validation("批次缺少物料ID"))?;
         let quantity = req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
 
+        // 四维追溯字段（款号由 product_id 承载 + 色号 + 缸号 + 批次）如实校验并落库，
+        // 禁止用 NotSet 丢弃入参（历史缺陷：本方法曾把三列写 NotSet → 落空值，调拨链路断链）。
+        let trace = Self::validate_trace_fields(
+            req.color_no.clone(),
+            req.dye_lot_no.clone(),
+            req.batch_no.clone(),
+        )?;
+
         let item = inventory_transfer_item::ActiveModel {
             id: Default::default(),
             transfer_id: sea_orm::ActiveValue::Set(transfer_id),
@@ -988,14 +1096,16 @@ impl InventoryTransferService {
             quantity: sea_orm::ActiveValue::Set(quantity),
             shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-            unit_cost: sea_orm::ActiveValue::NotSet,
+            // unit_cost 是入参字段（mod.rs:93），建单批路径亦如实写入（inventory_move.rs:278），
+            // 此处不得用 NotSet 丢弃（同"入参有值被丢"缺陷，列可空 → Set(Option) 直存）
+            unit_cost: sea_orm::ActiveValue::Set(req.unit_cost),
             notes: sea_orm::ActiveValue::Set(req.notes),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-            // v14 批次 417：面料行业追溯字段（T-P0-1），使用 NotSet 让 DB 默认值处理
-            color_no: sea_orm::ActiveValue::NotSet,
-            dye_lot_no: sea_orm::ActiveValue::NotSet,
-            batch_no: sea_orm::ActiveValue::NotSet,
+            // v14 批次 417：面料行业追溯字段（T-P0-1），真实写入入参值（白坯布缸号为合法 NULL）
+            color_no: sea_orm::ActiveValue::Set(trace.color_no),
+            dye_lot_no: sea_orm::ActiveValue::Set(trace.dye_lot_no),
+            batch_no: sea_orm::ActiveValue::Set(trace.batch_no),
         };
         let item_model = item.insert(&txn).await?;
 
@@ -1024,6 +1134,9 @@ impl InventoryTransferService {
             notes: item_model.notes,
             created_at: item_model.created_at,
             updated_at: item_model.updated_at,
+            color_no: item_model.color_no,
+            dye_lot_no: item_model.dye_lot_no,
+            batch_no: item_model.batch_no,
         })
     }
 
@@ -1088,6 +1201,9 @@ impl InventoryTransferService {
             notes: updated.notes,
             created_at: updated.created_at,
             updated_at: updated.updated_at,
+            color_no: updated.color_no,
+            dye_lot_no: updated.dye_lot_no,
+            batch_no: updated.batch_no,
         })
     }
 
@@ -1129,5 +1245,96 @@ impl InventoryTransferService {
         transfer_update.update(&txn).await?;
         txn.commit().await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InventoryTransferService, TransferTraceFields};
+    use crate::models::inventory_transfer_item;
+    use crate::utils::error::AppError;
+    use sea_orm::ActiveValue;
+
+    fn validate(
+        color: Option<&str>,
+        dye: Option<&str>,
+        batch: Option<&str>,
+    ) -> Result<TransferTraceFields, AppError> {
+        InventoryTransferService::validate_trace_fields(
+            color.map(str::to_string),
+            dye.map(str::to_string),
+            batch.map(str::to_string),
+        )
+    }
+
+    #[test]
+    fn four_dims_persisted_verbatim() {
+        let f = validate(Some("C001"), Some("D9"), Some("B2026")).expect("四维应通过");
+        assert_eq!(f.color_no, "C001");
+        assert_eq!(f.batch_no, "B2026");
+        assert_eq!(f.dye_lot_no.as_deref(), Some("D9"));
+    }
+
+    #[test]
+    fn validated_fields_map_into_active_model_as_set() {
+        // 复现 add_item 落库映射：三列必须是 Set(入参)，不得是 NotSet（历史丢列缺陷）
+        let f = validate(Some("C001"), Some("D9"), Some("B2026")).unwrap();
+        let am = inventory_transfer_item::ActiveModel {
+            color_no: ActiveValue::Set(f.color_no.clone()),
+            dye_lot_no: ActiveValue::Set(f.dye_lot_no.clone()),
+            batch_no: ActiveValue::Set(f.batch_no.clone()),
+            ..Default::default()
+        };
+        assert_eq!(am.color_no.unwrap(), "C001");
+        assert_eq!(am.batch_no.unwrap(), "B2026");
+        assert_eq!(am.dye_lot_no.unwrap(), Some("D9".to_string()));
+    }
+
+    #[test]
+    fn values_are_trimmed() {
+        let f = validate(Some(" C001 "), Some(" D9 "), Some(" B1 ")).unwrap();
+        assert_eq!(f.color_no, "C001");
+        assert_eq!(f.dye_lot_no.as_deref(), Some("D9"));
+        assert_eq!(f.batch_no, "B1");
+    }
+
+    #[test]
+    fn empty_color_no_is_greige_allows_null_dye_lot() {
+        // 新口径：色号为空 = 白坯布，免缸号但批次必填（委托 fabric_class 单一实现）
+        let f = validate(Some("   "), None, Some("B1")).expect("空色号应视为白坯布并允许免缸号");
+        assert_eq!(f.color_no, "");
+        assert_eq!(f.dye_lot_no, None);
+        assert_eq!(f.batch_no, "B1");
+    }
+
+    #[test]
+    fn missing_batch_no_rejected() {
+        let err = validate(Some("C001"), Some("D9"), None).expect_err("缺批号必须报错");
+        assert!(err.to_string().contains("批"), "实际: {}", err);
+    }
+
+    #[test]
+    fn greige_missing_batch_no_rejected() {
+        // 批次是入库批次，白坯布（空色号）亦必填
+        let err = validate(None, None, Some("   ")).expect_err("白坯布缺批次必须报错");
+        assert!(err.to_string().contains("批"), "实际: {}", err);
+    }
+
+    #[test]
+    fn dyed_fabric_missing_dye_lot_rejected() {
+        // 非空色号（染色布）缺缸号必须报明确业务错误，不得静默落空
+        let err = validate(Some("C001"), None, Some("B1")).expect_err("染色布缺缸号必须报错");
+        assert!(err.to_string().contains("缸号"), "实际: {}", err);
+    }
+
+    #[test]
+    fn white_named_color_requires_dye_lot() {
+        // 不再按名称判定：名字带"白"/WHITE 的色号是染色白色布，缺缸号必须报错
+        let err =
+            validate(Some("本白"), None, Some("B1")).expect_err("白色号是染色布，缺缸号必须报错");
+        assert!(err.to_string().contains("缸号"), "实际: {}", err);
+        let err2 = validate(Some("WHITE"), None, Some("B1"))
+            .expect_err("WHITE 色号是染色布，缺缸号必须报错");
+        assert!(err2.to_string().contains("缸号"), "实际: {}", err2);
     }
 }

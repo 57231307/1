@@ -2,9 +2,10 @@
 //!
 //! 批次 488 D10-3 拆分：从原 `so/delivery.rs` L747-1082 迁移。
 //! 包含 6 个库存辅助方法：
-//! - check_inventory（库存充足性校验，批量查询消除 N+1）
+//! - check_inventory（库存充足性校验，出库四维口径）
 //! - lock_inventory（锁定库存，创建预留记录）
-//! - reduce_inventory（扣减库存，返回变更前后数量 + 色号/缸号）
+//! - reduce_inventory_four_dim（按款号+色号+缸号+批次四维扣减库存，
+//!   指定缸不足时走显式跨缸回退，返回每笔实际扣减行的数量前后与真实缸号/批次）
 //! - release_reservations（释放订单未出库的预留，保留预留行用于审计追溯）
 //! - delete_reservations（订单硬删除前还原全部库存效果并物理删除预留行）
 //! - restore_reserved_stock（按状态作用域回滚预留占用的库存，供上两者复用）
@@ -16,6 +17,10 @@ use sea_orm::{ColumnTrait, Condition, EntityTrait, ExprTrait, QueryFilter, Query
 
 use crate::models::status::inventory_reservation as reservation_status;
 use crate::models::{inventory_reservation, inventory_stock, sales_order_item};
+use crate::services::inventory_deduction::{
+    AllocationSource, DeductionCandidate, DeductionError, plan_deduction,
+    require_outbound_dimensions,
+};
 use crate::utils::error::AppError;
 
 use super::super::delivery::ShipOrderItemRequest;
@@ -47,13 +52,108 @@ fn reservation_status_filter(statuses: &[&str]) -> Condition {
     any
 }
 
+/// 单个发货明细的库存充足性判定结果（预留 + 四维同源，纯逻辑无 DB）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StockDecision {
+    /// 通过
+    Ok,
+    /// 存在产品级预留但数量不足
+    ReservationShort { reserved: Decimal },
+    /// 四维候选行数为 0（含可回退其他缸亦无库存）
+    NoStockRows,
+    /// 四维候选合计不足
+    Insufficient { available: Decimal },
+}
+
+/// 判定单个发货明细是否可出库（预留 + 四维同源口径，纯逻辑便于单测）。
+///
+/// 依据用户拍板规则：`check_inventory` 的预留分支不得短路 `continue` 而跳过四维校验，
+/// 必须与 `reduce_inventory_four_dim` 一致——即便存在数量充足的产品级预留，仍要求
+/// 四维候选（发货仓 + 款号 + 色号 + 批次；缸号允许显式跨缸回退）在库且合计覆盖发货量。
+/// 缺维度由调用方先经 `require_outbound_dimensions` 拒绝；本函数只处理数量充足性。
+///
+/// 优先级：预留不足 > 四维无行 > 四维合计不足（与错误信息语义对齐）。
+pub(crate) fn decide_item_stock(
+    reserved: Option<Decimal>,
+    four_dim_rows: usize,
+    four_dim_available: Decimal,
+    required: Decimal,
+) -> StockDecision {
+    if let Some(reserved) = reserved {
+        if reserved < required {
+            return StockDecision::ReservationShort { reserved };
+        }
+    }
+    if four_dim_rows == 0 {
+        return StockDecision::NoStockRows;
+    }
+    if four_dim_available < required {
+        return StockDecision::Insufficient {
+            available: four_dim_available,
+        };
+    }
+    StockDecision::Ok
+}
+
+/// 四维扣减的一笔实际出库结果（调用方必须按此逐笔写出库明细 + 库存流水）。
+#[derive(Debug, Clone)]
+pub struct StockReduction {
+    /// 实际被扣的库存行 ID
+    pub stock_id: i32,
+    /// 本笔实际扣减数量（米）
+    pub quantity: Decimal,
+    /// 扣减前该库存行可用数量
+    pub quantity_before: Decimal,
+    /// 扣减后该库存行可用数量
+    pub quantity_after: Decimal,
+    /// 实际被扣库存行的色号
+    pub color_no: String,
+    /// 实际被扣库存行的缸号（跨缸回退时与出库单指定缸号不同，必须如实记录）
+    pub dye_lot_no: Option<String>,
+    /// 实际被扣库存行的批次
+    pub batch_no: String,
+    /// 出库单指定的缸号
+    pub requested_dye_lot_no: String,
+    /// 精确命中还是显式跨缸回退
+    pub source: AllocationSource,
+}
+
+impl StockReduction {
+    /// 是否发生了跨缸回退（实际扣的缸 ≠ 出库单指定缸）
+    pub fn is_cross_dye_lot(&self) -> bool {
+        self.source == AllocationSource::CrossDyeLot
+    }
+
+    /// 写入出库明细/库存流水备注的缸号说明（跨缸回退必须留痕）
+    pub fn dye_lot_trace_note(&self) -> String {
+        if self.is_cross_dye_lot() {
+            format!(
+                "（跨缸回退：指定缸号 {} 数量不足，本笔实扣缸号 {}）",
+                self.requested_dye_lot_no,
+                self.dye_lot_no.clone().unwrap_or_default()
+            )
+        } else {
+            String::new()
+        }
+    }
+}
+
 impl SalesService {
     // ========== 库存辅助方法（私有） ==========
 
-    /// 检查库存是否充足
+    /// 检查库存是否充足（出库四维口径：款号+色号+缸号+批次）
+    ///
+    /// 用户拍板规则：出库必须按入库四维匹配扣减，缺维度直接报业务错误（不做兜底）；
+    /// 指定缸号数量不足时允许跨缸回退，因此充足性按"发货仓 + 同款号+色号+批次"的
+    /// 全部候选行合计判断，与 `reduce_inventory_four_dim` 的可扣口径严格一致。
+    ///
+    /// 预留分支与扣减同源（废除原 `continue` 短路）：即便存在数量充足的产品级预留，
+    /// 仍逐项按四维候选核实在库，四维不全/无库存/不足在建单校验期即报错，
+    /// 判定逻辑由纯函数 [`decide_item_stock`] 承载并单测锁定。
     pub(crate) async fn check_inventory(
         &self,
         order_id: i32,
+        warehouse_id: i32,
         items: &[ShipOrderItemRequest],
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
@@ -61,13 +161,13 @@ impl SalesService {
             return Ok(());
         }
 
-        // v11 批次 38 修复：批量查询所有预留记录和库存记录，避免循环内逐个查询（N+1，最坏 2N 次查询）
+        // v11 批次 38 修复：批量查询预留记录，避免循环内逐个查询（N+1）
         let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
 
         // 批量查询该订单所有 pending 预留记录，按 product_id 索引（取每组第一条，与原 .one() 语义一致）
         let reservations = inventory_reservation::Entity::find()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
-            .filter(inventory_reservation::Column::ProductId.is_in(product_ids.clone()))
+            .filter(inventory_reservation::Column::ProductId.is_in(product_ids))
             .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .all(txn)
             .await?;
@@ -80,41 +180,43 @@ impl SalesService {
                     acc
                 });
 
-        // 批量查询所有相关库存记录，按 product_id 索引
-        let stocks = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
-            .all(txn)
-            .await?;
-        let stock_map: std::collections::HashMap<i32, &inventory_stock::Model> =
-            stocks.iter().map(|s| (s.product_id, s)).collect();
-
         for item in items {
-            // 优先从预留记录查询
-            if let Some(res) = reservation_map.get(&item.product_id) {
-                if res.quantity < item.quantity {
+            // 缺维度先报错：即使存在产品级预留也不能掩盖出库单维度缺失（不做兜底）
+            let dims = require_outbound_dimensions(
+                "销售发货明细",
+                item.product_id,
+                item.color_no.as_deref(),
+                item.dye_lot_no.as_deref(),
+                item.batch_no.as_deref(),
+            )?;
+
+            // 预留分支不再短路 continue：产品级预留只保证锁定数量，四维口径校验必须与
+            // reduce_inventory_four_dim 同源——存在预留时先校验其数量是否覆盖发货量，随后仍
+            // 按四维候选（发货仓 + 同款号+色号+批次；缸号允许显式跨缸回退）核实在库充足。
+            // 四维不全或无库存/不足即在建单校验期返回业务错误，而非留到运行期扣减才暴露口径冲突。
+            let candidates =
+                Self::load_four_dim_candidates(item.product_id, warehouse_id, &dims, false, txn)
+                    .await?;
+            let available_total: Decimal = candidates.iter().map(|s| s.quantity_available).sum();
+            let reserved = reservation_map.get(&item.product_id).map(|r| r.quantity);
+            match decide_item_stock(reserved, candidates.len(), available_total, item.quantity) {
+                StockDecision::Ok => {}
+                StockDecision::ReservationShort { reserved } => {
                     return Err(AppError::business(format!(
                         "产品 {} 预留数量 {} 小于发货数量 {}",
-                        item.product_id, res.quantity, item.quantity
+                        item.product_id, reserved, item.quantity
                     )));
                 }
-                continue;
-            }
-
-            // 没有预留记录时直接查询库存
-            match stock_map.get(&item.product_id) {
-                Some(s) => {
-                    if s.quantity_available < item.quantity {
-                        return Err(AppError::business(format!(
-                            "产品 {} 库存 {} 小于发货数量 {}",
-                            item.product_id, s.quantity_available, item.quantity
-                        )));
-                    }
+                StockDecision::NoStockRows => {
+                    return Err(Self::no_stock_error(item.product_id, &dims));
                 }
-                None => {
-                    return Err(AppError::business(format!(
-                        "产品 {} 库存不存在",
-                        item.product_id
-                    )));
+                StockDecision::Insufficient { available } => {
+                    return Err(Self::insufficient_error(
+                        item.product_id,
+                        &dims,
+                        available,
+                        item.quantity,
+                    ));
                 }
             }
         }
@@ -298,65 +400,107 @@ impl SalesService {
         Ok(())
     }
 
-    /// 扣减库存
-    /// 返回 (变更前可用数量, 变更后可用数量)，用于记录库存流水
-    pub(crate) async fn reduce_inventory(
+    /// 扣减库存（出库四维匹配：款号+色号+缸号+批次）
+    ///
+    /// 规则（用户拍板，禁止兜底）：
+    /// - 出库明细必须显式携带色号/缸号/批次（款号由 product_id 承载），缺失直接业务错误；
+    /// - 优先扣"款号+色号+缸号+批次"精确命中的库存行；
+    /// - 仅当指定缸号在该款号+色号+批次下数量不足时，才走**显式跨缸回退**，
+    ///   次序确定可解释：缸号字典序升序（无缸号行最后）→ 入库时间升序 → 库存行 ID 升序；
+    /// - 返回每一笔实际扣减的库存行（真实缸号/批次 + 前后数量 + 是否跨缸），
+    ///   调用方必须按此逐笔写出库明细与库存流水，不得合并掩盖实际扣的哪个缸。
+    pub(crate) async fn reduce_inventory_four_dim(
         &self,
-        product_id: i32,
+        item: &ShipOrderItemRequest,
         warehouse_id: i32,
-        quantity: Decimal,
         order_id: i32,
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(Decimal, Decimal, String, Option<String>), AppError> {
+    ) -> Result<Vec<StockReduction>, AppError> {
+        let dims = require_outbound_dimensions(
+            "销售发货明细",
+            item.product_id,
+            item.color_no.as_deref(),
+            item.dye_lot_no.as_deref(),
+            item.batch_no.as_deref(),
+        )?;
+
         // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发发货导致超扣
-        let stock = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::ProductId.eq(product_id))
-            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
-            .lock_exclusive()
-            .one(txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("产品 {} 库存记录", product_id)))?;
-
-        if stock.quantity_available < quantity {
-            return Err(AppError::business(format!(
-                "产品 {} 库存 {} 小于发货数量 {}",
-                product_id, stock.quantity_available, quantity
-            )));
+        let candidates =
+            Self::load_four_dim_candidates(item.product_id, warehouse_id, &dims, true, txn).await?;
+        if candidates.is_empty() {
+            // 该四维组合（含可回退的其他缸）完全无库存记录：明确报错，不回退到"产品+色号"
+            return Err(Self::no_stock_error(item.product_id, &dims));
         }
 
-        // 批次 9（2026-06-28）：UPDATE 加防御性 WHERE 条件 quantity_available >= quantity，
-        // 即使并发绕过 SELECT FOR UPDATE（理论上不会发生），也能阻止超扣
-        let reduce_result = inventory_stock::Entity::update_many()
-            .filter(inventory_stock::Column::Id.eq(stock.id))
-            .filter(inventory_stock::Column::QuantityAvailable.gte(quantity))
-            .col_expr(
-                inventory_stock::Column::QuantityAvailable,
-                sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                    .sub(quantity),
-            )
-            .col_expr(
-                inventory_stock::Column::QuantityShipped,
-                sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityShipped)
-                    .add(quantity),
-            )
-            .col_expr(
-                inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
-            )
-            .exec(txn)
-            .await?;
+        let plan_candidates: Vec<DeductionCandidate> = candidates
+            .iter()
+            .map(|s| DeductionCandidate {
+                stock_id: s.id,
+                dye_lot_no: s.dye_lot_no.clone(),
+                quantity_available: s.quantity_available,
+                created_at: s.created_at,
+            })
+            .collect();
+        let allocations = plan_deduction(&plan_candidates, &dims.dye_lot_no, item.quantity)
+            .map_err(|e| match e {
+                DeductionError::NoStockAtAll => Self::no_stock_error(item.product_id, &dims),
+                DeductionError::Insufficient {
+                    available_total,
+                    required,
+                } => Self::insufficient_error(item.product_id, &dims, available_total, required),
+            })?;
 
-        if reduce_result.rows_affected == 0 {
-            return Err(AppError::business(format!(
-                "产品 {} 库存不足（并发冲突或库存已被其他事务扣减）",
-                product_id
-            )));
+        let mut reductions: Vec<StockReduction> = Vec::with_capacity(allocations.len());
+        for alloc in allocations {
+            let stock = candidates
+                .iter()
+                .find(|s| s.id == alloc.stock_id)
+                .ok_or_else(|| AppError::internal("扣减规划返回了候选之外的库存行"))?;
+            // 批次 9（2026-06-28）：UPDATE 加防御性 WHERE 条件 quantity_available >= 扣减量，
+            // 即使并发绕过 SELECT FOR UPDATE（理论上不会发生），也能阻止超扣
+            let reduce_result = inventory_stock::Entity::update_many()
+                .filter(inventory_stock::Column::Id.eq(stock.id))
+                .filter(inventory_stock::Column::QuantityAvailable.gte(alloc.quantity))
+                .col_expr(
+                    inventory_stock::Column::QuantityAvailable,
+                    sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
+                        .sub(alloc.quantity),
+                )
+                .col_expr(
+                    inventory_stock::Column::QuantityShipped,
+                    sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityShipped)
+                        .add(alloc.quantity),
+                )
+                .col_expr(
+                    inventory_stock::Column::UpdatedAt,
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                )
+                .exec(txn)
+                .await?;
+            if reduce_result.rows_affected == 0 {
+                return Err(AppError::business(format!(
+                    "款号（产品 {}）色号 {} 缸号 {} 批次 {} 库存不足（并发冲突或库存已被其他事务扣减）",
+                    item.product_id, dims.color_no, dims.dye_lot_no, dims.batch_no
+                )));
+            }
+            reductions.push(StockReduction {
+                stock_id: stock.id,
+                quantity: alloc.quantity,
+                quantity_before: alloc.quantity_before,
+                quantity_after: alloc.quantity_after,
+                // 如实记录：实际被扣库存行自己的色号/缸号/批次
+                color_no: stock.color_no.clone(),
+                dye_lot_no: stock.dye_lot_no.clone(),
+                batch_no: stock.batch_no.clone(),
+                requested_dye_lot_no: dims.dye_lot_no.clone(),
+                source: alloc.source,
+            });
         }
 
-        // 标记预留为已完成
+        // 标记预留为已完成（产品级预留，四维消耗完成后同样置 consumed）
         inventory_reservation::Entity::update_many()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
-            .filter(inventory_reservation::Column::ProductId.eq(product_id))
+            .filter(inventory_reservation::Column::ProductId.eq(item.product_id))
             .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .col_expr(
                 inventory_reservation::Column::Status,
@@ -373,16 +517,52 @@ impl SalesService {
             .exec(txn)
             .await?;
 
-        // 批次 356 v13 复审 B-P0-2 修复：返回变更前后的可用数量，供调用方记录库存流水
-        // v14 批次 418 修复 D-P0-5：同时返回库存的 color_no/dye_lot_no，
-        // 供调用方在库存流水中记录真实缸号/色号，替代原 None/空字符串硬编码
-        let qty_before = stock.quantity_available;
-        let qty_after = qty_before - quantity;
-        Ok((
-            qty_before,
-            qty_after,
-            stock.color_no.clone(),
-            stock.dye_lot_no.clone(),
+        Ok(reductions)
+    }
+
+    /// 四维候选库存行查询：发货仓 + 款号 + 色号 + 批次（缸号不过滤——跨缸回退允许扣其他缸，
+    /// 缸号维度的取舍与排序由 `plan_deduction` 统一负责）。
+    async fn load_four_dim_candidates(
+        product_id: i32,
+        warehouse_id: i32,
+        dims: &crate::services::inventory_deduction::OutboundDimensions,
+        for_update: bool,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<Vec<inventory_stock::Model>, AppError> {
+        let query = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::ProductId.eq(product_id))
+            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
+            .filter(inventory_stock::Column::ColorNo.eq(&dims.color_no))
+            .filter(inventory_stock::Column::BatchNo.eq(&dims.batch_no));
+        let rows = if for_update {
+            query.lock_exclusive().all(txn).await?
+        } else {
+            query.all(txn).await?
+        };
+        Ok(rows)
+    }
+
+    /// 四维组合完全无库存的业务错误（不做兜底）
+    fn no_stock_error(
+        product_id: i32,
+        dims: &crate::services::inventory_deduction::OutboundDimensions,
+    ) -> AppError {
+        AppError::business(format!(
+            "款号（产品 {}）+ 色号 {} + 缸号 {} + 批次 {} 无任何库存记录，出库被拒绝（不回退到产品+色号扣减）",
+            product_id, dims.color_no, dims.dye_lot_no, dims.batch_no
+        ))
+    }
+
+    /// 四维口径（含跨缸回退范围）库存不足的业务错误
+    fn insufficient_error(
+        product_id: i32,
+        dims: &crate::services::inventory_deduction::OutboundDimensions,
+        available_total: Decimal,
+        required: Decimal,
+    ) -> AppError {
+        AppError::business(format!(
+            "款号（产品 {}）+ 色号 {} + 批次 {} 可用库存合计 {}（含跨缸回退的其他缸）小于出库数量 {}，指定缸号 {} 数量不足且其他缸亦不足以补足",
+            product_id, dims.color_no, dims.batch_no, available_total, required, dims.dye_lot_no
         ))
     }
 
@@ -560,5 +740,57 @@ impl SalesService {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{StockDecision, decide_item_stock};
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    fn d(v: &str) -> Decimal {
+        Decimal::from_str(v).unwrap()
+    }
+
+    #[test]
+    fn covered_reservation_still_rejected_when_four_dim_has_no_rows() {
+        // 预留四维校验核心不变量：产品级预留数量充足（100 >= 50），但四维候选为 0 行
+        // （如锁定后被其他出库消耗）——旧实现 `continue` 会误判通过，新口径必须报无库存。
+        let decision = decide_item_stock(Some(d("100")), 0, Decimal::ZERO, d("50"));
+        assert_eq!(decision, StockDecision::NoStockRows);
+    }
+
+    #[test]
+    fn covered_reservation_with_sufficient_four_dim_stock_passes() {
+        assert_eq!(
+            decide_item_stock(Some(d("100")), 2, d("100"), d("50")),
+            StockDecision::Ok
+        );
+    }
+
+    #[test]
+    fn reservation_short_takes_priority_over_four_dim() {
+        // 预留数量不足时先报预留短，与既有错误信息语义保持一致
+        assert_eq!(
+            decide_item_stock(Some(d("10")), 0, Decimal::ZERO, d("50")),
+            StockDecision::ReservationShort { reserved: d("10") }
+        );
+    }
+
+    #[test]
+    fn four_dim_total_short_reports_insufficient_with_available() {
+        assert_eq!(
+            decide_item_stock(None, 3, d("20"), d("50")),
+            StockDecision::Insufficient { available: d("20") }
+        );
+    }
+
+    #[test]
+    fn no_reservation_and_no_four_dim_rows_rejected() {
+        assert_eq!(
+            decide_item_stock(None, 0, Decimal::ZERO, d("1")),
+            StockDecision::NoStockRows
+        );
     }
 }

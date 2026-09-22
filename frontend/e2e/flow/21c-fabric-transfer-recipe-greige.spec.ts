@@ -108,6 +108,66 @@ test.describe('面料单据专用字段全链路验证', () => {
   });
 
   // ============================================================
+  // 白坯/染色判定新口径：白坯布 = 没有颜色（color_no 为空），而不是"色号名字里带白"。
+  // 名字带"白"的色号（如"本白"）是已染色的白色布，属有颜色产品，必须带缸号追溯——
+  // 旧实现按色号名称嗅探会把"本白"误判为白坯而豁免缸号。以下断言锁定新口径：
+  //   1) 白色号 + 缺缸号 → 建单被拒（4xx 客户端校验错误，非 5xx）；
+  //   2) 白色号 + 带缸号 → 建单成功（对照组，证明被拒确因缺缸号而非其他原因）。
+  // ============================================================
+  test('调拨建单：白色号染色布必须带缸号（废除按名称判定白坯）', async ({ page }) => {
+    const ctx = getCtx();
+    const productId = ctx.productIds[0];
+    const fromWarehouseId = ctx.warehouseIds[0];
+    const toWarehouseId = ctx.warehouseIds[1] || ctx.warehouseIds[0];
+    const transferDate = new Date().toISOString();
+    const whiteDyedColorNo = '本白'; // 非空色号 = 染色白色布，新口径必须带缸号
+
+    // 1) 白色号 + 缺缸号：应被拒绝（4xx，非服务端 5xx）
+    const rejected = await apiCallExpectFail(page, 'POST', '/inventory/transfers', {
+      from_warehouse_id: fromWarehouseId,
+      to_warehouse_id: toWarehouseId,
+      transfer_date: transferDate,
+      items: [
+        {
+          product_id: productId,
+          quantity: '1',
+          color_no: whiteDyedColorNo,
+          batch_no: genCode('BN-WHITE-NEG'),
+          // 故意不提供 dye_lot_no
+        },
+      ],
+    });
+    expect(
+      rejected.status,
+      `白色号染色布缺缸号必须被拒（实际 status=${rejected.status}, message=${rejected.message}）`
+    ).toBeGreaterThanOrEqual(400);
+    expect(
+      rejected.status,
+      `缺缸号是客户端校验错误，不得为 5xx 服务端错误（实际 status=${rejected.status}）`
+    ).toBeLessThan(500);
+
+    // 2) 对照组：白色号 + 带缸号 → 建单成功，证明上一条被拒确因缺缸号
+    const accepted = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
+      from_warehouse_id: fromWarehouseId,
+      to_warehouse_id: toWarehouseId,
+      transfer_date: transferDate,
+      items: [
+        {
+          product_id: productId,
+          quantity: '1',
+          color_no: whiteDyedColorNo,
+          dye_lot_no: genCode('DL-WHITE'),
+          batch_no: genCode('BN-WHITE-POS'),
+        },
+      ],
+    });
+    expect(
+      accepted.data?.id,
+      `白色号染色布带缸号应建单成功（对照组），实际响应：${JSON.stringify(accepted).slice(0, 200)}`
+    ).toBeTruthy();
+  });
+
+  // ============================================================
   // 染色配方 — 面料特有字段最多
   // 后端字段: color_code, color_name, fabric_type, dye_type,
   //   temperature, time_minutes, ph_value, liquor_ratio, auxiliaries
