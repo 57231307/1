@@ -625,6 +625,14 @@ impl SalesService {
             order_update.required_date = sea_orm::ActiveValue::Set(required_date);
         }
         if let Some(status) = &request.status {
+            // 状态列只允许写状态机内的取值：越界写入会让工作流判断与列表筛选双双失真
+            if !so_status::ALL.contains(&status.as_str()) {
+                return Err(AppError::validation(format!(
+                    "订单状态 {} 不是合法取值，允许值：{}",
+                    status,
+                    so_status::ALL.join("/")
+                )));
+            }
             order_update.status = sea_orm::ActiveValue::Set(status.clone());
         }
         if let Some(shipping_address) = &request.shipping_address {
