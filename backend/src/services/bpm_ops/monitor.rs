@@ -5,6 +5,7 @@
 //! - `get_pending_tasks_for_monitor`：获取待处理任务列表（分页）
 //! - `list_instances_for_monitor`：获取流程实例列表（分页，可按状态过滤）
 
+use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::models::dto::PageResponse;
@@ -58,6 +59,14 @@ impl BpmService {
             .count(&*self.db)
             .await?;
 
+        // 逾期未办：仍处 pending 且已过截止时间。due_date 为 NULL 的行不参与比较
+        // （SQL 三值逻辑下 NULL < now 不为真），无需额外 is_not_null 过滤或默认值兜底。
+        let overdue_tasks = bpm_task::Entity::find()
+            .filter(bpm_task::Column::Status.eq(task_status::PENDING))
+            .filter(bpm_task::Column::DueDate.lt(Utc::now()))
+            .count(&*self.db)
+            .await?;
+
         // 计算平均流程处理时长（分钟）
         let avg_duration = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq(instance_status::COMPLETED))
@@ -83,6 +92,7 @@ impl BpmService {
             pending_tasks: pending_tasks as i64,
             completed_tasks: completed_tasks as i64,
             rejected_tasks: rejected_tasks as i64,
+            overdue_tasks: overdue_tasks as i64,
             avg_process_duration_minutes: avg_duration,
         })
     }

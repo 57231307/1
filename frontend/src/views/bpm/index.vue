@@ -65,7 +65,7 @@
             </div>
             <div class="stat-info">
               <div class="stat-label">{{ $t('bpm.stats.avgProcessingTime') }}</div>
-              <div class="stat-value">{{ stats.avgProcessingTime }}h</div>
+              <div class="stat-value">{{ avgProcessingTimeText }}</div>
             </div>
           </div>
         </el-card>
@@ -366,7 +366,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { computed, ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue';
@@ -407,8 +407,15 @@ const stats = ref({
   pendingTasks: 0,
   completedTasks: 0,
   urgentTasks: 0,
-  avgProcessingTime: 0,
+  /** 后端给分钟数，无已完成样本时为 null（不用 0 冒充"处理很快"） */
+  avgProcessingTime: null as number | null,
 });
+
+const avgProcessingTimeText = computed(() =>
+  stats.value.avgProcessingTime === null
+    ? t('bpm.stats.noSample')
+    : `${Math.round(stats.value.avgProcessingTime)}${t('bpm.stats.minuteUnit')}`
+);
 
 // v11 批次 162 P2-1 修复：any[] 改为具体类型 BPMTask[]/BPMInstance[]
 const pendingTasks = ref<BPMTask[]>([]);
@@ -565,10 +572,10 @@ const fetchMonitorStats = async () => {
     const res = await getBpmMonitorStats();
     const d = res.data;
     if (d) {
-      stats.value.pendingTasks = d.pending_tasks ?? 0;
-      stats.value.completedTasks = d.completed_instances ?? 0;
-      stats.value.urgentTasks = d.overdue_tasks ?? 0;
-      stats.value.avgProcessingTime = 0;
+      stats.value.pendingTasks = d.pending_tasks;
+      stats.value.completedTasks = d.completed_tasks;
+      stats.value.urgentTasks = d.overdue_tasks;
+      stats.value.avgProcessingTime = d.avg_process_duration_minutes;
     }
   } catch (error: unknown) {
     ElMessage.error(

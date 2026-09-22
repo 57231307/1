@@ -48,10 +48,17 @@ export interface ApproveTaskRequest {
  */
 export interface MonitorStatsResponse {
   total_instances: number;
-  running_instances: number;
+  processing_instances: number;
   completed_instances: number;
+  terminated_instances: number;
+  total_tasks: number;
   pending_tasks: number;
+  completed_tasks: number;
+  rejected_tasks: number;
+  /** status=pending 且 due_date 已过的任务数 */
   overdue_tasks: number;
+  /** 已完成实例平均处理时长（分钟）；无样本时后端返回 null */
+  avg_process_duration_minutes: number | null;
 }
 
 /**
