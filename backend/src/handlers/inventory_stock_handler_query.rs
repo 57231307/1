@@ -15,7 +15,8 @@ use axum::{
 use rust_decimal::Decimal;
 
 use super::inventory_stock_handler_dto::{
-    InventorySummaryItem, ListStockFabricParams, ListTransactionParams, TransactionResponse,
+    InventorySummaryItem, ListStockFabricParams, ListTransactionParams, StockAlertQuery,
+    StockAlertRow, TransactionResponse,
 };
 
 pub async fn list_transactions(
@@ -163,14 +164,12 @@ pub async fn get_stock_by_product(
 pub async fn get_stock_alerts(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Query(query): Query<serde_json::Value>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    Query(query): Query<StockAlertQuery>,
+) -> Result<Json<ApiResponse<PaginatedResponse<StockAlertRow>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let alerts = service
-        .get_stock_alerts(query)
-        .await
-        .map_err(|e| AppError::internal(format!("获取库存告警失败: {}", e)))?;
+    // 错误原样透传（保留 NotFound/Business 等分类），不再一律压成 internal
+    let alerts = service.get_stock_alerts(query).await?;
 
     Ok(Json(ApiResponse::success(alerts)))
 }

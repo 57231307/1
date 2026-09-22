@@ -128,6 +128,46 @@ pub struct ListStockParams {
     pub stock_status: Option<String>,
 }
 
+/// 库存预警行（GET /inventory/stock/alerts 的出参单元）
+///
+/// 数量类字段是 Decimal 的字符串序列化（与 `StockResponse` 同口径）；产品编码/名称/单位/仓库名称
+/// 按 ID 批量带出——预警要能被处置（去补货、找仓管），只给 ID 就成不了决策依据。
+/// `alert_type` 取值见 `services::stock_alert::compute_alert_type`，前端词表在
+/// `constants/stock-alert-type.ts`，两侧必须同步。
+#[derive(Debug, Serialize)]
+pub struct StockAlertRow {
+    pub id: i32,
+    pub product_id: i32,
+    pub product_code: Option<String>,
+    pub product_name: Option<String>,
+    /// 产品计量单位（products.unit）
+    pub unit: Option<String>,
+    pub warehouse_id: i32,
+    pub warehouse_name: Option<String>,
+    pub quantity_on_hand: String,
+    pub quantity_available: String,
+    pub quantity_reserved: String,
+    /// 补货点（低于它即 low_stock 告警）
+    pub reorder_point: String,
+    pub max_stock_point: String,
+    pub expiry_date: Option<String>,
+    pub last_movement_date: Option<String>,
+    /// 台账状态（正常/报废/已删除）
+    pub stock_status: String,
+    pub alert_type: String,
+}
+
+/// 预警列表查询入参：分页真实生效（此前 page/page_size 被完全忽略并返回全量）
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct StockAlertQuery {
+    pub page: Option<u64>,
+    #[serde(rename = "page_size")]
+    pub page_size: Option<u64>,
+    pub warehouse_id: Option<i32>,
+    pub product_id: Option<i32>,
+}
+
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct LowStockParams {

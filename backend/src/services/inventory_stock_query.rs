@@ -9,7 +9,10 @@ use sea_orm::{
     ColumnTrait, EntityTrait, ExprTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
 };
 
-use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;
+use crate::handlers::inventory_stock_handler_dto::{
+    InventorySummaryItem, StockAlertQuery, StockAlertRow,
+};
+use crate::utils::response::PaginatedResponse;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::{inventory_stock, inventory_transaction};
@@ -319,66 +322,112 @@ impl InventoryStockService {
     /// P1 batch-18 缺陷 7.2：检测到非 normal 告警时同步推送站内信+邮件给计划员/仓管员
     pub async fn get_stock_alerts(
         &self,
-        query: serde_json::Value,
-    ) -> Result<serde_json::Value, AppError> {
-        let warehouse_id = query
-            .get("warehouse_id")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32);
-        let product_id = query
-            .get("product_id")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32);
+        query: StockAlertQuery,
+    ) -> Result<PaginatedResponse<StockAlertRow>, AppError> {
+        // 分页真实生效：此前 page/page_size 被完全忽略，任何调用方拿到的都是全量
+        let page = query.page.unwrap_or(1).clamp(1, 1000);
+        let page_size = query.page_size.unwrap_or(100).clamp(1, 500);
 
         let mut stock_query = inventory_stock::Entity::find()
             .inner_join(crate::models::product::Entity)
             .inner_join(crate::models::warehouse::Entity);
 
-        if let Some(wid) = warehouse_id {
+        if let Some(wid) = query.warehouse_id {
             stock_query = stock_query.filter(inventory_stock::Column::WarehouseId.eq(wid));
         }
-        if let Some(pid) = product_id {
+        if let Some(pid) = query.product_id {
             stock_query = stock_query.filter(inventory_stock::Column::ProductId.eq(pid));
         }
 
-        let stocks = stock_query.all(&*self.db).await?;
+        let (stocks, total) = paginate_with_total(stock_query.paginate(&*self.db, page_size), page)
+            .await?;
 
-        let alert_list: Vec<serde_json::Value> = stocks
+        // 主数据名称批量带出（预警页要给人看，只给 ID 成不了决策依据）；
+        // 主数据行缺失属外键异常，记 error 并留空，不用 ID 拼假名称
+        let product_ids: Vec<i32> = stocks.iter().map(|s| s.product_id).collect();
+        let warehouse_ids: Vec<i32> = stocks.iter().map(|s| s.warehouse_id).collect();
+        let product_map: std::collections::HashMap<i32, crate::models::product::Model> =
+            if product_ids.is_empty() {
+                Default::default()
+            } else {
+                crate::models::product::Entity::find()
+                    .filter(crate::models::product::Column::Id.is_in(product_ids))
+                    .all(&*self.db)
+                    .await?
+                    .into_iter()
+                    .map(|p| (p.id, p))
+                    .collect()
+            };
+        let warehouse_map: std::collections::HashMap<i32, crate::models::warehouse::Model> =
+            if warehouse_ids.is_empty() {
+                Default::default()
+            } else {
+                crate::models::warehouse::Entity::find()
+                    .filter(crate::models::warehouse::Column::Id.is_in(warehouse_ids))
+                    .all(&*self.db)
+                    .await?
+                    .into_iter()
+                    .map(|w| (w.id, w))
+                    .collect()
+            };
+
+        let alert_list: Vec<StockAlertRow> = stocks
             .into_iter()
             .map(|s| {
                 // 批次 126 v8 复审 P2 修复：派生计算 alert_type（替换硬编码 "normal"）
                 // v11 批次 144 P1-4：扩展 OverStock / SlowMoving 告警判定
                 let alert_type = compute_alert_type(&s);
-                serde_json::json!({
-                    "id": s.id,
-                    "product_id": s.product_id,
-                    "warehouse_id": s.warehouse_id,
-                    "quantity_on_hand": s.quantity_on_hand.to_string(),
-                    "quantity_available": s.quantity_available.to_string(),
-                    "quantity_reserved": s.quantity_reserved.to_string(),
-                    "reorder_point": s.reorder_point.to_string(),
-                    "max_stock_point": s.max_stock_point.to_string(),
-                    "expiry_date": s.expiry_date.map(|d| d.to_rfc3339()),
-                    "last_movement_date": s.last_movement_date.map(|d| d.to_rfc3339()),
-                    "stock_status": s.stock_status,
-                    "alert_type": alert_type,
-                })
+                let product = product_map.get(&s.product_id);
+                if product.is_none() {
+                    tracing::error!(
+                        product_id = s.product_id,
+                        stock_id = s.id,
+                        "库存预警行指向的产品主数据不存在（外键异常）"
+                    );
+                }
+                let warehouse = warehouse_map.get(&s.warehouse_id);
+                if warehouse.is_none() {
+                    tracing::error!(
+                        warehouse_id = s.warehouse_id,
+                        stock_id = s.id,
+                        "库存预警行指向的仓库主数据不存在（外键异常）"
+                    );
+                }
+                StockAlertRow {
+                    id: s.id,
+                    product_id: s.product_id,
+                    product_code: product.map(|p| p.code.clone()),
+                    product_name: product.map(|p| p.name.clone()),
+                    unit: product.map(|p| p.unit.clone()),
+                    warehouse_id: s.warehouse_id,
+                    warehouse_name: warehouse.map(|w| w.name.clone()),
+                    quantity_on_hand: s.quantity_on_hand.to_string(),
+                    quantity_available: s.quantity_available.to_string(),
+                    quantity_reserved: s.quantity_reserved.to_string(),
+                    reorder_point: s.reorder_point.to_string(),
+                    max_stock_point: s.max_stock_point.to_string(),
+                    expiry_date: s.expiry_date.map(|d| d.to_rfc3339()),
+                    last_movement_date: s.last_movement_date.map(|d| d.to_rfc3339()),
+                    stock_status: s.stock_status,
+                    alert_type,
+                }
             })
             .collect();
 
         // P1 batch-18 缺陷 7.2：非 normal 告警主动推送站内信+邮件
         // 失败不阻断查询主流程（降级为 warn）
-        if let Err(e) = self.notify_stock_alerts(&alert_list).await {
+        let alerts_for_notify = serde_json::to_value(&alert_list)?;
+        let alerts_for_notify = alerts_for_notify
+            .as_array()
+            .ok_or_else(|| AppError::internal("库存告警序列化失败：期望 JSON 数组"))?;
+        if let Err(e) = self.notify_stock_alerts(alerts_for_notify).await {
             tracing::warn!(
                 error = %e,
                 "缺陷 7.2：库存告警通知推送失败（不阻断查询，降级为 warn）"
             );
         }
 
-        Ok(serde_json::json!({
-            "list": alert_list,
-            "total": alert_list.len(),
-        }))
+        Ok(PaginatedResponse::new(alert_list, total, page, page_size))
     }
 
     /// P1 batch-18 缺陷 7.2：库存告警主动通知
