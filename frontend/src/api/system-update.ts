@@ -74,23 +74,10 @@ export function installUpdate(versionId: number): Promise<ApiResponse<UpdateTask
   return request.post(`/system-update/versions/${versionId}/install`);
 }
 
-/**
- * 后端 system_update_handler::get_update_status 返回的真实载荷（单对象，非任务列表）。
- * 路由 GET /system-update/tasks 实际被注册到 get_update_status（见 routes/mod.rs:259），
- * 该 handler 返回单个更新状态对象，仓库中不存在"更新任务列表"端点。
- */
-export interface UpdateStatusResponse {
-  current_version: string;
-  is_updating: boolean;
-  last_update_time: string | null;
-  backup_versions: string[];
-}
-
-export function getUpdateTaskList(
-  params?: QueryParams
-): Promise<ApiResponse<UpdateStatusResponse>> {
-  return request.get('/system-update/tasks', { params });
-}
+// 说明：GET /system-update/tasks 在 routes/mod.rs:259 被注册到 get_update_status
+// （返回单个「更新状态」对象，不是任务列表），仓库里没有任务列表端点，也没有任何界面消费它，
+// 故原先那个名为 getUpdateTaskList 的声明已删除——名字与载荷都不符，留着就是下一个契约陷阱。
+// 任务详情/取消走 /system-update/tasks/{id}，后端确有对应 handler。
 
 export function getUpdateTask(id: number): Promise<ApiResponse<UpdateTask>> {
   return request.get(`/system-update/tasks/${id}`);
