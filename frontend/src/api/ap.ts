@@ -286,27 +286,37 @@ export function autoReconcileAllAP(data: {
   return request.post('/ap/reconciliations/auto', data);
 }
 
-// 供应商汇总
+// 供应商应付汇总（后端返回按供应商分组的数组，元素对齐 SupplierApSummary）
 export interface APSupplierSummary {
   supplier_id: number;
+  supplier_code: string;
   supplier_name: string;
+  total_invoice_count: number;
   total_invoice_amount: number;
-  total_payment_amount: number;
-  balance: number;
-  unverified_amount: number;
+  total_paid_amount: number;
+  total_unpaid_amount: number;
+  paid_invoice_count: number;
+  partial_paid_invoice_count: number;
+  overdue_invoice_count: number;
+  overdue_amount: number;
 }
 
-export function getAPSupplierSummary(supplierId: number): Promise<ApiResponse<APSupplierSummary>> {
+export function getAPSupplierSummary(
+  supplierId: number
+): Promise<ApiResponse<APSupplierSummary[]>> {
   return request.get(`/ap/reconciliations/summary`, { params: { supplier_id: supplierId } });
 }
 
-// 发票关联数据
-export interface APInvoiceRelations {
+// 发票关联数据（后端返回关联记录数组，元素对齐 InvoiceRelationInfo）
+export interface APInvoiceRelation {
   invoice_id: number;
   invoice_no: string;
-  payments: APPayment[];
-  verifications: APVerification[];
-  reconciliations: APReconciliation[];
+  source_type: string;
+  source_id: number;
+  source_no: string | null;
+  supplier_id: number;
+  amount: number;
+  status: string;
 }
 
 // 统计报表数据
@@ -352,7 +362,7 @@ export interface APAgingReportData {
   total: number;
 }
 
-export function getAPInvoiceRelations(id: number): Promise<ApiResponse<APInvoiceRelations>> {
+export function getAPInvoiceRelations(id: number): Promise<ApiResponse<APInvoiceRelation[]>> {
   return request.get(`/ap/invoices/${id}/relations`);
 }
 
