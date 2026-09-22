@@ -3,59 +3,59 @@
 use crate::container::AppState;
 use crate::handlers::ai_model_management_handler;
 use axum::{
-    Router,
     routing::{get, post},
+    Router,
 };
 
-/// AI 模型管理路由（path 前缀 /ai-models）
+/// AI 模型管理路由（挂载于 nest 前缀 /api/v1/erp/ai-models 之下，路由为相对路径）
 pub fn ai_models() -> Router<AppState> {
     Router::new()
         .route(
-            "/ai-models/versions",
+            "/versions",
             post(ai_model_management_handler::create_model_version),
         )
         .route(
-            "/ai-models/versions",
+            "/versions",
             get(ai_model_management_handler::list_model_versions),
         )
         .route(
-            "/ai-models/versions/active/{model_name}",
+            "/versions/active/{model_name}",
             get(ai_model_management_handler::get_active_model_version),
         )
         .route(
-            "/ai-models/versions/{version_id}/approve",
+            "/versions/{version_id}/approve",
             post(ai_model_management_handler::approve_model_version),
         )
         .route(
-            "/ai-models/versions/{version_id}/status",
+            "/versions/{version_id}/status",
             post(ai_model_management_handler::change_model_status),
         )
         .route(
-            "/ai-models/evaluations",
+            "/evaluations",
             post(ai_model_management_handler::create_model_evaluation),
         )
         .route(
-            "/ai-models/evaluations/{model_version_id}",
+            "/evaluations/{model_version_id}",
             get(ai_model_management_handler::list_model_evaluations),
         )
         .route(
-            "/ai-models/evaluations/{model_version_id}/drift",
+            "/evaluations/{model_version_id}/drift",
             get(ai_model_management_handler::detect_model_drift),
         )
         .route(
-            "/ai-models/decisions",
+            "/decisions",
             post(ai_model_management_handler::log_decision),
         )
         .route(
-            "/ai-models/decisions",
+            "/decisions",
             get(ai_model_management_handler::list_decision_logs),
         )
         .route(
-            "/ai-models/reconcile",
-            get(ai_model_management_handler::reconcile_monthly),
+            "/reconcile",
+            post(ai_model_management_handler::reconcile_monthly),
         )
         .route(
-            "/ai-models/accuracy-reports",
+            "/accuracy-reports",
             get(ai_model_management_handler::list_accuracy_reports),
         )
 }

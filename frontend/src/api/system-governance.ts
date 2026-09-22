@@ -76,7 +76,7 @@ export function getModelEvaluations(versionId: number) {
 }
 
 export function detectModelDrift(versionId: number) {
-  return request.post(`/ai-models/evaluations/${versionId}/drift`);
+  return request.get(`/ai-models/evaluations/${versionId}/drift`);
 }
 
 export function logDecision(data: Record<string, unknown>) {

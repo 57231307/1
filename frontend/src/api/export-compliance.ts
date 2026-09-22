@@ -26,10 +26,6 @@ export function getPriceComposition(quotationId: number) {
   return request.get(`/incoterms/quotations/${quotationId}/price-composition`);
 }
 
-export function calculatePriceComposition(quotationId: number, data: Record<string, unknown>) {
-  return request.post(`/incoterms/quotations/${quotationId}/price-composition`, data);
-}
-
 export function calculateIncotermCost(data: Record<string, unknown>) {
   return request.post('/incoterms/cost-calculation', data);
 }

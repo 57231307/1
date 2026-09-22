@@ -144,7 +144,7 @@ export const APPROVE_ENDPOINTS: Array<{
 }> = [
   { path: '/inventory/adjustments/{id}/approve', entity: 'adjustment' },
   { path: '/inventory/adjustments/{id}/reject', entity: 'adjustment' },
-  { path: '/ai-models/ai-models/versions/{version_id}/approve', entity: 'ai_model_version' },
+  { path: '/ai-models/versions/{version_id}/approve', entity: 'ai_model_version' },
   { path: '/ap/invoices/{id}/approve', entity: 'ap_invoice', createApi: '/ap/invoices' },
   { path: '/ap/payment-requests/{id}/approve', entity: 'ap_payment_request', createApi: '/ap/payment-requests' },
   { path: '/ap/payment-requests/{id}/reject', entity: 'ap_payment_request', createApi: '/ap/payment-requests' },

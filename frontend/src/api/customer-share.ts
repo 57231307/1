@@ -11,8 +11,8 @@ export function signContract(data: Record<string, unknown>) {
   return request.post('/contract-signatures/sign', data);
 }
 
-export function verifySignature(id: number, data?: Record<string, unknown>) {
-  return request.post(`/contract-signatures/${id}/verify`, data ?? {});
+export function verifySignature(id: number) {
+  return request.get(`/contract-signatures/${id}/verify`);
 }
 
 export function revokeSignature(id: number, data?: Record<string, unknown>) {
@@ -36,11 +36,11 @@ export function listCustomerShares(params?: Record<string, unknown>) {
 }
 
 export function getSharesByCustomer(customerId: number) {
-  return request.get(`/customer-shares/by-customer/${customerId}`);
+  return request.get('/customer-shares/by-customer', { params: { customer_id: customerId } });
 }
 
 export function getSharesByUser(userId: number) {
-  return request.get(`/customer-shares/by-user/${userId}`);
+  return request.get('/customer-shares/by-user', { params: { user_id: userId } });
 }
 
 export function checkSharePermission(params: Record<string, unknown>) {
@@ -68,9 +68,9 @@ export function listTeamMembers(customerId: number) {
 }
 
 export function listUserTeams(userId: number) {
-  return request.get<ApiResponse<Record<string, unknown>[]>>(
-    `/customer-team-members/by-user/${userId}`
-  );
+  return request.get<ApiResponse<Record<string, unknown>[]>>('/customer-team-members/by-user', {
+    params: { user_id: userId },
+  });
 }
 
 export function isTeamMember(params: Record<string, unknown>) {

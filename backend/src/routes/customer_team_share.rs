@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::customer_team_share_handler;
 use axum::{
+    routing::{delete, get, post},
     Router,
-    routing::{get, post},
 };
 
 /// 团队成员路由（path 前缀 /customer-team-members）
@@ -16,7 +16,7 @@ pub fn team_members() -> Router<AppState> {
         )
         .route(
             "/customer-team-members/{member_id}",
-            post(customer_team_share_handler::remove_team_member),
+            delete(customer_team_share_handler::remove_team_member),
         )
         .route(
             "/customer-team-members/by-customer/{customer_id}",

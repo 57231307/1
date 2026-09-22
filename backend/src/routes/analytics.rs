@@ -440,10 +440,7 @@ pub fn notifications() -> Router<AppState> {
             get(notification_handler::get_notification)
                 .delete(notification_handler::delete_notification),
         )
-        .route(
-            "/{id}/read",
-            post(notification_handler::mark_as_read),
-        )
+        .route("/{id}/read", post(notification_handler::mark_as_read))
         .route("/unread-count", get(notification_handler::get_unread_count))
         .route("/read-all", post(notification_handler::mark_all_as_read))
         .route(

@@ -31,6 +31,8 @@ export interface SalesOrderItem {
   product_id: number;
   product_name: string;
   product_code: string;
+  /** 色号：后端 sales_order_items.color_no（String）。空串=白坯布，非空=染色布 */
+  color_no?: string;
   dye_lot_no?: string;
   quantity: number;
   unit?: string;

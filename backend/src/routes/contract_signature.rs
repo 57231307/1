@@ -3,29 +3,23 @@
 use crate::container::AppState;
 use crate::handlers::contract_signature_handler;
 use axum::{
-    Router,
     routing::{get, post},
+    Router,
 };
 
-/// 合同签名路由（path 前缀 /contract-signatures）
+/// 合同签名路由（挂载于 nest 前缀 /api/v1/erp/contract-signatures 之下，路由为相对路径）
 pub fn contract_signatures() -> Router<AppState> {
     Router::new()
+        .route("/sign", post(contract_signature_handler::sign_contract))
         .route(
-            "/contract-signatures/sign",
-            post(contract_signature_handler::sign_contract),
-        )
-        .route(
-            "/contract-signatures/{contract_id}/verify",
+            "/{contract_id}/verify",
             get(contract_signature_handler::verify_signature),
         )
         .route(
-            "/contract-signatures/{contract_id}/revoke",
+            "/{contract_id}/revoke",
             post(contract_signature_handler::revoke_signature),
         )
-        .route(
-            "/contract-signatures",
-            get(contract_signature_handler::list_signed_contracts),
-        )
+        .route("/", get(contract_signature_handler::list_signed_contracts))
 }
 
 /// 合同签名域统一入口
