@@ -3,7 +3,10 @@
 //! 销售退货服务层，负责销售退货的核心业务逻辑
 
 use crate::models::status::sales_return as sr_status;
-use crate::models::{inventory_stock, product, sales_return, sales_return_item};
+use crate::models::{
+    inventory_stock, product, sales_delivery, sales_delivery_item, sales_order_item, sales_return,
+    sales_return_item,
+};
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
@@ -54,7 +57,31 @@ pub struct CreateSalesReturnItemRequest {
     pub product_id: i32,
     pub quantity: Decimal,
     pub unit_price: Decimal,
+    /// 税率（百分比，如 13 表示 13%）。缺省时后端按关联销售订单同商品明细的权威税率回填；
+    /// 无权威来源时拒绝写入（不静默默认为 0）。
+    pub tax_percent: Option<Decimal>,
+    /// 折扣率（百分比）。缺省按 0（无折扣为合法业务默认，非缺失字段掩盖）。
+    pub discount_percent: Option<Decimal>,
     pub reason: Option<String>,
+}
+
+/// 销售退货明细金额计算结果：四个 NOT NULL 金额列（对应 sales_return_item.subtotal /
+/// discount_amount / tax_amount / total_amount）。
+struct ReturnItemAmounts {
+    subtotal: Decimal,
+    discount_amount: Decimal,
+    tax_amount: Decimal,
+    total_amount: Decimal,
+}
+
+/// 销售退货明细追溯三元组（色号 / 缸号 / 批次）。
+///
+/// 面料四维口径下，退货再入库必须命中真实的色号/缸号/批次行，故这三列必须由系统
+/// 从权威来源回写，禁止落 DB 默认空串（空串会命中空色号行，造成库存错配）。
+struct ReturnItemTrace {
+    color_no: String,
+    dye_lot_no: String,
+    batch_no: String,
 }
 
 /// 销售退货服务
@@ -66,6 +93,168 @@ impl SalesReturnService {
     /// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
+    }
+
+    /// 解析税率（不做静默默认 0）。优先级：请求显式提供 > 关联销售订单同商品明细税率。
+    /// 两者皆无（退货单未关联销售订单，或订单内无同商品明细）时报业务错误，
+    /// 由调用方在请求中补 tax_percent 或数据层修正来源。
+    fn resolve_tax_percent(
+        req_tax: Option<Decimal>,
+        order_item_tax: Option<Decimal>,
+        sales_order_id: Option<i32>,
+        product_id: i32,
+    ) -> Result<Decimal, AppError> {
+        if let Some(t) = req_tax {
+            return Ok(t);
+        }
+        if let Some(t) = order_item_tax {
+            return Ok(t);
+        }
+        Err(AppError::business(format!(
+            "退货明细缺税率 tax_percent：退货单关联销售订单 {:?}，商品 {} 无法从销售订单明细取得权威税率，请在请求中显式提供 tax_percent",
+            sales_order_id, product_id
+        )))
+    }
+
+    /// 从出库明细（实际发货的那一行）构造追溯三元组。
+    ///
+    /// 出库明细的色号/缸号/批次由发货四维扣减如实记录（`so/delivery_ops/ship.rs` 的
+    /// `build_delivery_item`，写入实际被扣库存行的维度，跨缸回退时为其他缸），
+    /// 因此是"实扣了哪一行/哪个缸"的真相来源，回写优先级最高。
+    fn trace_from_delivery_item(item: &sales_delivery_item::Model) -> ReturnItemTrace {
+        ReturnItemTrace {
+            color_no: item.color_no.clone(),
+            dye_lot_no: item.dye_lot_no.clone(),
+            batch_no: item.batch_no.clone(),
+        }
+    }
+
+    /// 从销售订单明细构造追溯三元组（次级来源）。
+    ///
+    /// 色号取订单行 `color_no`；缸号/批次取订单行的染色要求 / 批次要求。要求为空即
+    /// 白坯布（本仓库统一口径"色号为空即白坯布"），此处如实回写来源的空值、不臆造，
+    /// 白坯布判定不在此实现。
+    fn trace_from_order_item(item: &sales_order_item::Model) -> ReturnItemTrace {
+        ReturnItemTrace {
+            color_no: item.color_no.clone(),
+            dye_lot_no: match item.dye_lot_requirement.as_deref() {
+                Some(s) => s.to_string(),
+                None => String::new(),
+            },
+            batch_no: match item.batch_requirement.as_deref() {
+                Some(s) => s.to_string(),
+                None => String::new(),
+            },
+        }
+    }
+
+    /// 回写优先级：出库明细（实际发货行）→ 销售订单明细。
+    ///
+    /// 两处都取不到该商品的追溯来源时返回业务错误，绝不落空串 / 默认值。
+    /// 纯函数，只依据调用方查到的来源候选值决策，便于单测三种路径。
+    fn resolve_return_item_trace(
+        delivery: Option<ReturnItemTrace>,
+        order_item: Option<ReturnItemTrace>,
+        sales_order_id: Option<i32>,
+        product_id: i32,
+    ) -> Result<ReturnItemTrace, AppError> {
+        if let Some(trace) = delivery {
+            return Ok(trace);
+        }
+        if let Some(trace) = order_item {
+            return Ok(trace);
+        }
+        Err(match sales_order_id {
+            None => AppError::business(format!(
+                "退货明细缺追溯字段（色号/缸号/批次）：退货单未关联销售订单，无法从出库明细或销售订单明细定位商品 {} 的权威来源。请通过销售订单/出库单发起退货并在建单时填写关联订单号",
+                product_id
+            )),
+            Some(order_id) => AppError::business(format!(
+                "退货明细缺追溯字段（色号/缸号/批次）：销售订单 {} 下商品 {} 既无出库明细也无订单明细，无法回写。请确认退货商品与原出库单/销售订单一致，或先关联对应单据",
+                order_id, product_id
+            )),
+        })
+    }
+
+    /// 按优先级从权威来源解析退货明细追溯三元组（出库明细 → 销售订单明细）。
+    ///
+    /// 出库明细优先：它是发货四维扣减的真实落点；无出库明细时回落到销售订单明细。
+    /// 同一商品在来源表中命中多行（多次发货 / 多缸拆分 / 同商品多色号订单行）时，
+    /// 因退货明细不携带原出库行 / 订单行引用而无法唯一定位，直接返回业务错误暴露
+    /// 缺失的引用维度，禁止臆测任一行（不做兜底）。
+    async fn fetch_return_item_trace(
+        txn: &sea_orm::DatabaseTransaction,
+        sales_order_id: Option<i32>,
+        product_id: i32,
+    ) -> Result<ReturnItemTrace, AppError> {
+        let Some(order_id) = sales_order_id else {
+            return Self::resolve_return_item_trace(None, None, sales_order_id, product_id);
+        };
+
+        // 优先级 1：该订单下所有发货单里该商品的出库行
+        let delivery_ids: Vec<i32> = sales_delivery::Entity::find()
+            .filter(sales_delivery::Column::OrderId.eq(order_id))
+            .all(txn)
+            .await?
+            .into_iter()
+            .map(|d| d.id)
+            .collect();
+        if !delivery_ids.is_empty() {
+            let delivery_items = sales_delivery_item::Entity::find()
+                .filter(sales_delivery_item::Column::DeliveryId.is_in(delivery_ids))
+                .filter(sales_delivery_item::Column::ProductId.eq(product_id))
+                .all(txn)
+                .await?;
+            match delivery_items.len() {
+                0 => {}
+                1 => return Ok(Self::trace_from_delivery_item(&delivery_items[0])),
+                n => {
+                    return Err(AppError::business(format!(
+                        "退货明细追溯无法唯一定位：销售订单 {} 下商品 {} 存在 {} 条出库明细（多次发货或跨缸拆分），退货明细未携带原出库行引用无法判定回写哪一行。请补充出库行引用后重试",
+                        order_id, product_id, n
+                    )));
+                }
+            }
+        }
+
+        // 优先级 2：该订单该商品的订单明细
+        let order_items = sales_order_item::Entity::find()
+            .filter(sales_order_item::Column::OrderId.eq(order_id))
+            .filter(sales_order_item::Column::ProductId.eq(product_id))
+            .all(txn)
+            .await?;
+        match order_items.len() {
+            0 => Self::resolve_return_item_trace(None, None, sales_order_id, product_id),
+            1 => Ok(Self::trace_from_order_item(&order_items[0])),
+            n => Err(AppError::business(format!(
+                "退货明细追溯无法唯一定位：销售订单 {} 下商品 {} 存在 {} 条订单明细（同商品多色号），退货明细未携带订单行引用无法判定回写哪一行。请补充订单行引用后重试",
+                order_id, product_id, n
+            ))),
+        }
+    }
+
+    /// 计算销售退货明细四个 NOT NULL 金额列。
+    /// 算法与同族保持一致：采购退货 purchase_return_service::compute_item_amounts、
+    /// 销售订单 so/order_crud.rs::calculate_sales_item_amounts——
+    /// subtotal=qty*price；discount=subtotal*折扣率；taxable=subtotal-discount；
+    /// tax=taxable*税率；total=taxable+tax，均 round_dp(2) 防精度漂移。
+    fn compute_return_item_amounts(
+        quantity: Decimal,
+        unit_price: Decimal,
+        discount_percent: Decimal,
+        tax_percent: Decimal,
+    ) -> ReturnItemAmounts {
+        let subtotal = (quantity * unit_price).round_dp(2);
+        let discount_amount = (subtotal * (discount_percent / Decimal::new(100, 0))).round_dp(2);
+        let taxable_amount = (subtotal - discount_amount).round_dp(2);
+        let tax_amount = (taxable_amount * (tax_percent / Decimal::new(100, 0))).round_dp(2);
+        let total_amount = (taxable_amount + tax_amount).round_dp(2);
+        ReturnItemAmounts {
+            subtotal,
+            discount_amount,
+            tax_amount,
+            total_amount,
+        }
     }
 
     pub async fn update_return_totals(
@@ -194,6 +383,36 @@ impl SalesReturnService {
                 (existing.len() as i32) + 1
             }
         };
+        // 税率权威来源解析（不做静默默认 0）：请求显式提供优先，否则取关联销售订单
+        // 同商品明细的税率；两处都取不到则报错，暴露缺失字段由调用方/数据层修正。
+        let order_item_tax = match return_order.sales_order_id {
+            Some(order_id) => sales_order_item::Entity::find()
+                .filter(sales_order_item::Column::OrderId.eq(order_id))
+                .filter(sales_order_item::Column::ProductId.eq(req.product_id))
+                .one(&txn)
+                .await?
+                .map(|oi| oi.tax_percent),
+            None => None,
+        };
+        let tax_percent = Self::resolve_tax_percent(
+            req.tax_percent,
+            order_item_tax,
+            return_order.sales_order_id,
+            req.product_id,
+        )?;
+        // 折扣率缺省为 0（无折扣为合法业务默认），含税明细金额四元组按同族算法计算
+        let discount_percent = req.discount_percent.unwrap_or(Decimal::ZERO);
+        let amounts = Self::compute_return_item_amounts(
+            req.quantity,
+            req.unit_price,
+            discount_percent,
+            tax_percent,
+        );
+        // 追溯三列（色号/缸号/批次）从权威来源回写：取不到即业务错误，绝不落空串。
+        let trace =
+            Self::fetch_return_item_trace(&txn, return_order.sales_order_id, req.product_id)
+                .await?;
+
         let item = sales_return_item::ActiveModel {
             return_id: Set(return_id),
             line_no: Set(line_no),
@@ -201,7 +420,15 @@ impl SalesReturnService {
             quantity: Set(req.quantity),
             unit_price: Set(req.unit_price),
             unit_price_foreign: Set(Decimal::ZERO),
-            discount_percent: Set(Decimal::ZERO),
+            discount_percent: Set(discount_percent),
+            tax_percent: Set(tax_percent),
+            subtotal: Set(amounts.subtotal),
+            tax_amount: Set(amounts.tax_amount),
+            discount_amount: Set(amounts.discount_amount),
+            total_amount: Set(amounts.total_amount),
+            color_no: Set(trace.color_no),
+            dye_lot_no: Set(trace.dye_lot_no),
+            batch_no: Set(trace.batch_no),
             notes: Set(req.reason),
             quantity_alt: Set(Decimal::ZERO),
             ..Default::default()
@@ -970,5 +1197,254 @@ impl SalesReturnService {
         let (items, total) = paginate_with_total(paginator, page).await?;
 
         Ok((items, total))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ===== compute_return_item_amounts：四个 NOT NULL 金额列的算法 =====
+    // 依据同族口径：采购退货 compute_item_amounts、销售订单 calculate_sales_item_amounts。
+
+    fn dec(s: &str) -> Decimal {
+        s.parse::<Decimal>().expect("测试夹具：合法十进制字面量")
+    }
+
+    #[test]
+    fn test_return_amounts_basic_tax_inclusive() {
+        // 100m × 25.50 = 2550.00；税率 13%、无折扣 → tax=331.50、total=2881.50
+        let a = SalesReturnService::compute_return_item_amounts(
+            dec("100"),
+            dec("25.50"),
+            dec("0"),
+            dec("13"),
+        );
+        assert_eq!(a.subtotal, dec("2550.00"));
+        assert_eq!(a.discount_amount, dec("0.00"));
+        assert_eq!(a.tax_amount, dec("331.50"));
+        assert_eq!(a.total_amount, dec("2881.50"));
+    }
+
+    #[test]
+    fn test_return_amounts_with_discount() {
+        // 200 × 10 = 2000；折扣 5% → discount=100，taxable=1900；税 9% → tax=171；total=2071
+        let a = SalesReturnService::compute_return_item_amounts(
+            dec("200"),
+            dec("10"),
+            dec("5"),
+            dec("9"),
+        );
+        assert_eq!(a.subtotal, dec("2000.00"));
+        assert_eq!(a.discount_amount, dec("100.00"));
+        assert_eq!(a.tax_amount, dec("171.00"));
+        assert_eq!(a.total_amount, dec("2071.00"));
+        // 守恒不变量：total = subtotal - discount + tax
+        assert_eq!(
+            a.total_amount,
+            a.subtotal - a.discount_amount + a.tax_amount
+        );
+    }
+
+    #[test]
+    fn test_return_amounts_zero_tax_and_rounding() {
+        // 税率 0（免税行合法）：total == subtotal；并验证 round_dp(2) 收敛
+        // 7 × 3.333 = 23.331 → 23.33
+        let a = SalesReturnService::compute_return_item_amounts(
+            dec("7"),
+            dec("3.333"),
+            dec("0"),
+            dec("0"),
+        );
+        assert_eq!(a.subtotal, dec("23.33"));
+        assert_eq!(a.tax_amount, dec("0.00"));
+        assert_eq!(a.total_amount, dec("23.33"));
+    }
+
+    // ===== resolve_tax_percent：权威来源解析（不静默默认 0）=====
+
+    #[test]
+    fn test_resolve_tax_percent_prefers_request() {
+        let t =
+            SalesReturnService::resolve_tax_percent(Some(dec("6")), Some(dec("13")), Some(1), 10)
+                .unwrap();
+        assert_eq!(t, dec("6"));
+    }
+
+    #[test]
+    fn test_resolve_tax_percent_falls_back_to_order_item() {
+        let t =
+            SalesReturnService::resolve_tax_percent(None, Some(dec("13")), Some(1), 10).unwrap();
+        assert_eq!(t, dec("13"));
+    }
+
+    #[test]
+    fn test_resolve_tax_percent_errors_without_source() {
+        // 无请求值 + 无订单税率（未关联或订单内无同商品明细）→ 业务错误，绝不默认 0
+        let err = SalesReturnService::resolve_tax_percent(None, None, Some(7), 42).unwrap_err();
+        assert!(matches!(err, AppError::BusinessError(_)));
+        let msg = err.to_string();
+        assert!(msg.contains("tax_percent"));
+        assert!(msg.contains("42"));
+    }
+
+    // ===== 追溯三列回写：resolve_return_item_trace 三种路径 =====
+
+    fn trace(color: &str, dye: &str, batch: &str) -> ReturnItemTrace {
+        ReturnItemTrace {
+            color_no: color.to_string(),
+            dye_lot_no: dye.to_string(),
+            batch_no: batch.to_string(),
+        }
+    }
+
+    #[test]
+    fn test_resolve_trace_prefers_delivery_item() {
+        // 出库明细与订单明细同时存在时，出库明细（实际发货行）优先，字段值取出库行
+        let delivery = trace("C-DEL", "DYE-DEL", "BATCH-DEL");
+        let order = trace("C-ORD", "DYE-ORD", "BATCH-ORD");
+        let t =
+            SalesReturnService::resolve_return_item_trace(Some(delivery), Some(order), Some(9), 5)
+                .unwrap();
+        assert_eq!(t.color_no, "C-DEL");
+        assert_eq!(t.dye_lot_no, "DYE-DEL");
+        assert_eq!(t.batch_no, "BATCH-DEL");
+    }
+
+    #[test]
+    fn test_resolve_trace_falls_back_to_order_item() {
+        // 无出库明细时回落销售订单明细
+        let order = trace("C-ORD", "DYE-ORD", "BATCH-ORD");
+        let t =
+            SalesReturnService::resolve_return_item_trace(None, Some(order), Some(9), 5).unwrap();
+        assert_eq!(t.color_no, "C-ORD");
+        assert_eq!(t.dye_lot_no, "DYE-ORD");
+        assert_eq!(t.batch_no, "BATCH-ORD");
+    }
+
+    #[test]
+    fn test_resolve_trace_errors_without_any_source() {
+        // 两者皆无 + 已关联订单 → 业务错误，指向订单来源，不默认空串
+        let err =
+            SalesReturnService::resolve_return_item_trace(None, None, Some(11), 42).unwrap_err();
+        assert!(matches!(err, AppError::BusinessError(_)));
+        let msg = err.to_string();
+        assert!(msg.contains("色号/缸号/批次"));
+        assert!(msg.contains("11"));
+        assert!(msg.contains("42"));
+    }
+
+    #[test]
+    fn test_resolve_trace_errors_without_order_link() {
+        // 两者皆无 + 未关联订单 → 业务错误，引导补关联单据
+        let err = SalesReturnService::resolve_return_item_trace(None, None, None, 42).unwrap_err();
+        assert!(matches!(err, AppError::BusinessError(_)));
+        let msg = err.to_string();
+        assert!(msg.contains("未关联销售订单"));
+        assert!(msg.contains("42"));
+    }
+
+    #[test]
+    fn test_trace_from_order_item_writes_blank_for_greige() {
+        // 白坯布来源：订单行色号为空、要求字段为 NULL → 如实回写空串，不臆造
+        let oi = sales_order_item::Model {
+            color_no: String::new(),
+            dye_lot_requirement: None,
+            batch_requirement: None,
+            ..test_order_item_base()
+        };
+        let t = SalesReturnService::trace_from_order_item(&oi);
+        assert_eq!(t.color_no, "");
+        assert_eq!(t.dye_lot_no, "");
+        assert_eq!(t.batch_no, "");
+    }
+
+    #[test]
+    fn test_trace_from_order_item_maps_real_values() {
+        let oi = sales_order_item::Model {
+            color_no: "RED-01".to_string(),
+            dye_lot_requirement: Some("DYE-88".to_string()),
+            batch_requirement: Some("B-77".to_string()),
+            ..test_order_item_base()
+        };
+        let t = SalesReturnService::trace_from_order_item(&oi);
+        assert_eq!(t.color_no, "RED-01");
+        assert_eq!(t.dye_lot_no, "DYE-88");
+        assert_eq!(t.batch_no, "B-77");
+    }
+
+    #[test]
+    fn test_trace_from_delivery_item_maps_actual_shipped_dims() {
+        let di = sales_delivery_item::Model {
+            color_no: "BLU-02".to_string(),
+            dye_lot_no: "DYE-100".to_string(),
+            batch_no: "BATCH-200".to_string(),
+            ..test_delivery_item_base()
+        };
+        let t = SalesReturnService::trace_from_delivery_item(&di);
+        assert_eq!(t.color_no, "BLU-02");
+        assert_eq!(t.dye_lot_no, "DYE-100");
+        assert_eq!(t.batch_no, "BATCH-200");
+    }
+
+    // 追溯字段以 `..base` 方式覆盖，其余字段仅为满足结构体完整性
+    fn test_order_item_base() -> sales_order_item::Model {
+        let now = chrono::Utc::now();
+        sales_order_item::Model {
+            id: 1,
+            order_id: 1,
+            product_id: 5,
+            quantity: Decimal::ZERO,
+            unit_price: Decimal::ZERO,
+            discount_percent: Decimal::ZERO,
+            tax_percent: Decimal::ZERO,
+            subtotal: Decimal::ZERO,
+            tax_amount: Decimal::ZERO,
+            discount_amount: Decimal::ZERO,
+            total_amount: Decimal::ZERO,
+            shipped_quantity: Decimal::ZERO,
+            notes: None,
+            created_at: now,
+            updated_at: now,
+            color_no: String::new(),
+            color_name: None,
+            pantone_code: None,
+            grade_required: None,
+            quantity_meters: Decimal::ZERO,
+            quantity_kg: Decimal::ZERO,
+            gram_weight: None,
+            width: None,
+            batch_requirement: None,
+            dye_lot_requirement: None,
+            piece_no: None,
+            base_price: None,
+            color_extra_cost: Decimal::ZERO,
+            grade_price_diff: Decimal::ZERO,
+            final_price: None,
+            shipped_quantity_meters: Decimal::ZERO,
+            shipped_quantity_kg: Decimal::ZERO,
+            paper_tube_weight: None,
+            is_net_weight: None,
+        }
+    }
+
+    fn test_delivery_item_base() -> sales_delivery_item::Model {
+        sales_delivery_item::Model {
+            id: 1,
+            delivery_id: 1,
+            product_id: 5,
+            batch_no: String::new(),
+            color_no: String::new(),
+            dye_lot_id: None,
+            dye_lot_no: String::new(),
+            piece_no: None,
+            stock_id: None,
+            is_cross_dye_lot: false,
+            quantity: Decimal::ZERO,
+            unit_price: Decimal::ZERO,
+            amount: Decimal::ZERO,
+            remarks: None,
+            created_at: chrono::Utc::now(),
+        }
     }
 }
