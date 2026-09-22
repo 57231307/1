@@ -177,6 +177,7 @@ import TransferDialog from './components/TransferDialog.vue';
 import { PERMISSIONS } from '@/constants/permissions';
 // 打印与列表共用同一份格式化/取值映射，避免同一状态在纸上和表里两种写法
 import { formatNumber, getStockStatusLabel } from './composables/invFmts';
+import { logger } from '@/utils/logger';
 
 const hasLoaded = createLazyLoader();
 const router = useRouter();
@@ -236,9 +237,20 @@ const fetchData = async () => {
 
 const fetchAlerts = async () => {
   try {
-    const { getStockAlertList } = await import('@/api/inventory');
-    const res = await getStockAlertList();
-    alerts.value = res.data || [];
+    const { getStockAlertList, STOCK_ALERT_PAGE_SIZE } = await import('@/api/inventory');
+    // 预警 tab 无分页控件：按一屏上限取数，仍有剩余时显式提示截断，而不是静默少显示
+    const res = await getStockAlertList({ page: 1, page_size: STOCK_ALERT_PAGE_SIZE });
+    const payload = res.data;
+    if (!payload || !Array.isArray(payload.items)) {
+      // 出参形状不符（此前正是这里把 {list,total} 当数组赋值，表格恒空且无人出声）
+      throw new Error('库存预警出参缺少 items 数组');
+    }
+    alerts.value = payload.items;
+    if (payload.items.length < payload.total) {
+      logger.warn(
+        `库存预警仅显示前 ${payload.items.length} 条（共 ${payload.total} 条），请按仓库/产品缩小范围查看剩余告警`
+      );
+    }
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(

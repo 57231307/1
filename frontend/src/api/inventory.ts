@@ -137,17 +137,39 @@ export interface InventoryReportParams {
   report_type?: 'summary' | 'detail' | 'movement';
 }
 
+/**
+ * 库存预警行：与后端 `StockAlertRow` 一一对应。
+ *
+ * 数量类字段是 Decimal 的字符串序列化（与库存台账同口径），展示前按需 Number() 转换；
+ * 告警类型取值见 constants/stock-alert-type（后端 AlertType 的小写码）。
+ */
 export interface StockAlert {
   id: number;
   product_id: number;
-  product_name: string;
-  product_code: string;
+  product_code?: string | null;
+  product_name?: string | null;
+  unit?: string | null;
   warehouse_id: number;
-  warehouse_name: string;
-  current_quantity: number;
-  min_quantity: number;
-  unit?: string;
-  alert_level: 'warning' | 'danger';
+  warehouse_name?: string | null;
+  quantity_on_hand: string;
+  quantity_available: string;
+  quantity_reserved: string;
+  /** 补货点：可用量低于它即 low_stock 告警 */
+  reorder_point: string;
+  max_stock_point: string;
+  expiry_date?: string | null;
+  last_movement_date?: string | null;
+  /** 台账状态：正常/报废/已删除 */
+  stock_status: string;
+  alert_type: string;
+}
+
+/// 说明：与后端 PaginatedResponse 同构的分页包装，供预警等列表端点复用
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
 }
 
 // P2-9b 修复（批次 82 v1 复审）：库存报表返回类型强类型化，替代 { summary: any; details: any[] }
@@ -235,8 +257,15 @@ export const executeInventoryTransfer = (id: number) =>
   request.post<ApiResponse<null>>(`/inventory/transfers/${id}/ship`);
 
 // D14 Batch 5b：原 inventoryApi.getStockAlerts 转为风格 B 函数
-export const getStockAlertList = () =>
-  request.get<ApiResponse<StockAlert[]>>('/inventory/stock/alerts');
+/** 预警列表一次取多少条：预警面板无分页控件，取一屏上限（后端 clamp 到 500） */
+export const STOCK_ALERT_PAGE_SIZE = 100;
+
+export const getStockAlertList = (params?: {
+  page?: number;
+  page_size?: number;
+  warehouse_id?: number;
+  product_id?: number;
+}) => request.get<ApiResponse<Paginated<StockAlert>>>('/inventory/stock/alerts', { params });
 
 // D14 Batch 5b：原 inventoryApi.getInventoryReport 转为风格 B 函数
 export const getInventoryReport = (params: InventoryReportParams) =>
