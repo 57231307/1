@@ -30,7 +30,8 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     );
     expect(me.username).toBeTruthy();
     expect(Array.isArray(me.permissions), '/auth/me 应返回权限数组').toBe(true);
-    expect(me.permissions.length).toBeGreaterThanOrEqual(0);
+    // admin 必须带权限码：空数组意味着权限注入失效（此前 >=0 恒真）
+    expect(me.permissions.length, '/auth/me 应返回非空权限集').toBeGreaterThan(0);
   });
 
   test('0-3 创建部门', async ({ page }) => {
@@ -56,7 +57,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         if (list.items?.[0]?.id) ctx.departmentIds.push(list.items[0].id);
       }
     }
-    expect(ctx.departmentIds.length).toBeGreaterThanOrEqual(0);
+    expect(ctx.departmentIds.length, '部署初始化应创建出至少一个部门').toBeGreaterThan(0);
   });
 
   test('0-4 创建仓库', async ({ page }) => {
@@ -81,7 +82,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         if (list.items?.[0]?.id) ctx.warehouseIds.push(list.items[0].id);
       }
     }
-    expect(ctx.warehouseIds.length).toBeGreaterThanOrEqual(0);
+    expect(ctx.warehouseIds.length, '部署初始化应创建出至少一个仓库').toBeGreaterThan(0);
   });
 
   test('0-5 创建产品分类', async ({ page }) => {
@@ -105,7 +106,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         if (list.items?.[0]?.id) ctx.productCategoryIds.push(list.items[0].id);
       }
     }
-    expect(ctx.productCategoryIds.length).toBeGreaterThanOrEqual(0);
+    expect(ctx.productCategoryIds.length, '部署初始化应创建出至少一个产品分类').toBeGreaterThan(0);
   });
 
   test('0-6 创建产品 A（坯布，四级批次管理，完整面料规格）', async ({ page }) => {
@@ -139,7 +140,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       );
       if (list.items?.[0]?.id) ctx.productIds.push(list.items[0].id);
     }
-    expect(ctx.productIds.length).toBeGreaterThanOrEqual(0);
+    expect(ctx.productIds.length, '部署初始化应创建/复用到至少一个产品').toBeGreaterThan(0);
   });
 
   test('0-7 创建产品 B（成品布）', async ({ page }) => {
@@ -168,7 +169,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       console.warn(`[E2E] //: ${(e as Error).message}`);
       // 产品可能已存在
     }
-    expect(ctx.productIds.length).toBeGreaterThanOrEqual(0);
+    expect(ctx.productIds.length, '部署初始化应创建/复用到至少一个产品').toBeGreaterThan(0);
   });
 
   test('0-8 创建色号 RED-001（产品 A 的红色色号）', async ({ page }) => {
@@ -278,7 +279,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         // 已存在则跳过
       }
     }
-    expect(ctx.accountSubjectIds.length).toBeGreaterThanOrEqual(0);
+    expect(ctx.accountSubjectIds.length, '部署初始化应创建出至少一个会计科目').toBeGreaterThan(0);
   });
 
   test('0-13 创建色卡（RGB/CMYK/LAB 数值）', async ({ page }) => {
@@ -350,28 +351,48 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       'GET',
       '/products?page=1&page_size=5'
     );
-    expect(products?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
+    expect(
+      Array.isArray(products?.items),
+      `产品列表应返回 items 数组，实际：${JSON.stringify(products).slice(0, 120)}`
+    ).toBe(true);
+    // 本文件前序用例刚造过产品，基础数据校验若查不到即为真缺陷（原写法 >=0 恒真）
+    expect(products.items.length, `产品基础数据不应为空`).toBeGreaterThan(0);
 
     const suppliers = await apiCallRaw<{ items: unknown[] }>(
       page,
       'GET',
       '/purchase/suppliers?page=1&page_size=5'
     );
-    expect(suppliers?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
+    expect(
+      Array.isArray(suppliers?.items),
+      `供应商列表应返回 items 数组，实际：${JSON.stringify(suppliers).slice(0, 120)}`
+    ).toBe(true);
+    // 本文件前序用例刚造过供应商，基础数据校验若查不到即为真缺陷（原写法 >=0 恒真）
+    expect(suppliers.items.length, `供应商基础数据不应为空`).toBeGreaterThan(0);
 
     const customers = await apiCallRaw<{ items: unknown[] }>(
       page,
       'GET',
       '/crm/customers?page=1&page_size=5'
     );
-    expect(customers?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
+    expect(
+      Array.isArray(customers?.items),
+      `客户列表应返回 items 数组，实际：${JSON.stringify(customers).slice(0, 120)}`
+    ).toBe(true);
+    // 本文件前序用例刚造过客户，基础数据校验若查不到即为真缺陷（原写法 >=0 恒真）
+    expect(customers.items.length, `客户基础数据不应为空`).toBeGreaterThan(0);
 
     const warehouses = await apiCallRaw<{ items: unknown[] }>(
       page,
       'GET',
       '/warehouses?page=1&page_size=5'
     );
-    expect(warehouses?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
+    expect(
+      Array.isArray(warehouses?.items),
+      `仓库列表应返回 items 数组，实际：${JSON.stringify(warehouses).slice(0, 120)}`
+    ).toBe(true);
+    // 本文件前序用例刚造过仓库，基础数据校验若查不到即为真缺陷（原写法 >=0 恒真）
+    expect(warehouses.items.length, `仓库基础数据不应为空`).toBeGreaterThan(0);
 
     // 验证非法 API 调用被拒绝
     const failResult = await apiCallExpectFail(page, 'GET', '/nonexistent-endpoint');

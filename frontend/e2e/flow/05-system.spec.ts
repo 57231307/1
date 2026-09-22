@@ -70,17 +70,17 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     ).toBe(true);
     expect(roles.total, '种子角色总数应大于 0').toBeGreaterThan(0);
 
-    // GET /departments 由 department_service::list 处理，出参键是 list（不是 items）；
-    // 原实现读 depts.items 恒 undefined 且 expect 无匹配器，整条用例空转。
+    // GET /departments → department_service::list 返回 PaginatedResponse{items,total,page,page_size}。
+    // 原实现 expect(Array.isArray(depts.items)) 不带匹配器，是永不失败的空断言。
     const depts = await apiCallRaw<{
-      list: Array<{ id: number; name: string; code?: string; parent_id?: number | null }>;
+      items: Array<{ id: number; name: string; code?: string; parent_id?: number | null }>;
       total: number;
     }>(page, 'GET', '/departments?page=1&page_size=10');
     expect(
-      Array.isArray(depts?.list),
-      `部门列表应返回 list 数组，实际：${JSON.stringify(depts).slice(0, 200)}`
+      Array.isArray(depts?.items),
+      `部门列表应返回 items 数组，实际：${JSON.stringify(depts).slice(0, 200)}`
     ).toBe(true);
-    for (const d of depts.list) {
+    for (const d of depts.items) {
       expect(Number(d.id), `部门行缺少 id：${JSON.stringify(d)}`).toBeGreaterThan(0);
       expect(String(d.name ?? ''), `部门行缺少 name：${JSON.stringify(d)}`).not.toBe('');
     }

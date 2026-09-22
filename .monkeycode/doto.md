@@ -801,6 +801,12 @@
   `/ai/quality-predictions`、`/ai/process-optimizations`（routes/system.rs:366/399）、
   `/custom-orders/{id}/nodes`（ProcessTimeline 含节点与节点日志）、
   `/production/lab-dip/samples/by-request/{request_id}`。
+  **判定键名的唯一可靠依据是 service 的返回类型**：handler 签名常是
+  `ApiResponse<serde_json::Value>`，在其函数体附近抓 `json!` 键会把同文件其他函数的键
+  误当成该端点的键——本批据此把 `/departments`、`/warehouses` 误判为 `{list,total}`
+  （实为 `department_service::list` / `warehouse_service::list` 返回
+  `PaginatedResponse{items,…}`），已在下一 commit 纠正回 items 并补真实断言。
+  自写解析器只能用于定位 handler，出参键必须读到 service 层为止。
   仍待处理的两类假绿：`expect(x.length).toBeGreaterThanOrEqual(0)` 之类恒真比较
   （09-permissions:139 的 `denied.length >= 0` 还在断言一个从未作为 audit `resource_type` 写入的值
   `permission_denied`，需先确认拒绝审计的落库口径）、以及全库 79 处条件 `test.skip()`。
