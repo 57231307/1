@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 export interface Warehouse {
   id: number;
@@ -34,7 +34,8 @@ export interface WarehouseLocation {
 export interface WarehouseQueryParams {
   page?: number;
   page_size?: number;
-  keyword?: string;
+  /** 后端按 name / warehouse_code 模糊匹配，参数名为 search */
+  search?: string;
   warehouse_type?: string;
   status?: string;
 }
@@ -60,9 +61,11 @@ export const deleteWarehouse = (id: number) =>
   request.delete<ApiResponse<null>>(`/warehouses/${id}`);
 
 // D14 Batch 5b：原 warehouseApi.getLocations 转为风格 B 函数
+// 后端 /warehouses/locations 出参是分页对象（{ items, total, page, page_size }），
+// page_size 上限 100，故按上限取首页
 export const getWarehouseLocationList = (warehouseId: number) =>
-  request.get<ApiResponse<WarehouseLocation[]>>('/warehouses/locations', {
-    params: { warehouse_id: warehouseId },
+  request.get<ApiResponse<PaginatedResponse<WarehouseLocation>>>('/warehouses/locations', {
+    params: { warehouse_id: warehouseId, page_size: 100 },
   });
 
 // D14 Batch 5b：原 warehouseApi.createLocation 转为风格 B 函数

@@ -30,6 +30,8 @@ pub struct WarehouseListQuery {
     pub page_size: Option<u64>,
     pub status: Option<String>,
     pub search: Option<String>,
+    /// 仓库类型（greige/raw/finished/semi/return），列表页的类型下拉按此值精确筛选
+    pub warehouse_type: Option<String>,
 }
 
 /// 创建仓库请求
@@ -98,7 +100,6 @@ pub struct LocationListQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub warehouse_id: Option<i32>,
-    pub search: Option<String>,
 }
 
 /// 创建库位请求
@@ -385,6 +386,7 @@ fn record_warehouses_export_audit(
             "total": row_count,
             "status_filter": query.status,
             "search_filter": query.search,
+            "warehouse_type_filter": query.warehouse_type,
         })),
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));

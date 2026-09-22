@@ -11229,6 +11229,7 @@ export default {
       colStatus: '状态',
       colOperation: '操作',
       defaultYes: '是',
+      locTruncated: '库位共 {total} 条，当前仅显示前 {shown} 条',
       optionGreige: '胚布仓',
       optionRaw: '原料仓',
       optionFinished: '成品仓',

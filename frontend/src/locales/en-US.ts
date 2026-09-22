@@ -11268,6 +11268,7 @@ export default {
       colStatus: 'Status',
       colOperation: 'Operation',
       defaultYes: 'Yes',
+      locTruncated: 'Showing the first {shown} of {total} locations',
       optionGreige: 'Greige Warehouse',
       optionRaw: 'Raw Material',
       optionFinished: 'Finished Goods',

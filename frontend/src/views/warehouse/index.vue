@@ -461,7 +461,7 @@ const {
 
 // 批次 275：同步筛选条件到 useTableApi.queryParams 并刷新
 const syncQueryParams = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined);
+  setQueryParam('search', queryParams.keyword || undefined);
   setQueryParam('warehouse_type', queryParams.warehouse_type || undefined);
   setQueryParam('status', queryParams.status || undefined);
 };
@@ -629,6 +629,7 @@ const handleExport = async () => {
   const params: Record<string, unknown> = {
     status: queryParams.status || undefined,
     search: queryParams.keyword || undefined,
+    warehouse_type: queryParams.warehouse_type || undefined,
   };
   await exportFromBackend('/warehouses/export', params, 'warehouses_export');
 };
@@ -708,7 +709,12 @@ const fetchLocations = async () => {
   locLoading.value = true;
   try {
     const res = await getWarehouseLocationList(currentWarehouse.value.id);
-    locations.value = res.data ?? [];
+    const { items, total } = res.data;
+    locations.value = items;
+    // 对话框内没有分页控件：取满一页时被截断的条数必须显式告知，不能让用户以为库位丢失
+    if (total > items.length) {
+      ElMessage.warning(t('warehouse.index.locTruncated', { shown: items.length, total }));
+    }
   } finally {
     locLoading.value = false;
   }

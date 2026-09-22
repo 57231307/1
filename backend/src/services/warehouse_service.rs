@@ -35,6 +35,11 @@ impl WarehouseService {
             );
         }
 
+        // 列表页「类型」下拉的取值来自该列的真实码，空串按未筛选处理
+        if let Some(warehouse_type) = query.warehouse_type.filter(|s| !s.is_empty()) {
+            q = q.filter(warehouse::Column::WarehouseType.eq(warehouse_type));
+        }
+
         // 获取总数
         let total = q.clone().count(&*self.db).await?;
 
