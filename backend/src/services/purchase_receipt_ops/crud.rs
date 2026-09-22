@@ -11,13 +11,14 @@
 //! - 调用 `auth::is_admin_user`（`pub(crate)`）做管理员绕过校验
 //! - 调用 facade 的纯函数 `build_receipt_active_model` / `build_receipt_items_and_totals`（`pub(crate)`）
 
+use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 
-use crate::models::{purchase_receipt, purchase_receipt_item, status};
+use crate::models::{purchase_order_item, purchase_receipt, purchase_receipt_item, status};
 use crate::services::purchase_receipt_dto::{
-    CreatePurchaseReceiptRequest, UpdatePurchaseReceiptRequest,
+    CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
 };
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
 use crate::utils::error::AppError;
@@ -29,6 +30,13 @@ impl PurchaseReceiptService {
         req: CreatePurchaseReceiptRequest,
         user_id: i32,
     ) -> Result<purchase_receipt::Model, AppError> {
+        // 四维必入准入：产品/批次缺失的明细在建单期即拒绝，整单不落库。
+        // 色号/缸号的「染色布必填」口径依赖白坯布共享判定（尚未落地），见
+        // validate_receipt_item_dimensions 内 TODO。
+        for item in &req.items {
+            Self::validate_receipt_item_dimensions(item)?;
+        }
+
         let txn = (*self.db).begin().await?;
 
         // 1. 生成入库单号
@@ -83,22 +91,132 @@ impl PurchaseReceiptService {
         Ok(receipt)
     }
 
+    /// 入库明细四维准入校验（建单/追加明细期即拒绝）。
+    ///
+    /// 当前可无条件强制的两维：产品与批次——缺任一即返回定位到行的业务错误，
+    /// 不允许靠库存行的 `DEFAULT ''` 把缺失维度落空串。
+    ///
+    /// 色号/缸号「染色布必填」需先判定白坯布 vs 染色布（色号为空 ⇒ 白坯布 ⇒ 免缸号；
+    /// 色号非空 ⇒ 缸号与批次必填）。该判定口径由采购/库存共用，应调用共享函数
+    /// `crate::services::inv` 侧统一落地的「白坯布判定」（doto iter31 第 3/5 条，本域同事负责，
+    /// 尚未落地）。TODO：共享判定落地后，在此按色号是否为空追加
+    /// 「染色布缺缸号 ⇒ 拒绝」分支，切勿在本文件按色号名称嗅探白色。
+    pub(crate) fn validate_receipt_item_dimensions(
+        item: &CreateReceiptItemRequest,
+    ) -> Result<(), AppError> {
+        if item.material_id <= 0 {
+            return Err(AppError::business(format!(
+                "入库单第 {} 行缺少有效的产品（material_id 非法），拒绝建单",
+                item.line_no
+            )));
+        }
+        let batch_missing = item
+            .batch_no
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .is_empty();
+        if batch_missing {
+            return Err(AppError::business(format!(
+                "入库单第 {} 行（产品 {}）缺少批次号，四维不全，拒绝建单",
+                item.line_no, item.material_id
+            )));
+        }
+        Ok(())
+    }
+
+    /// 按订单未收容量把入库明细匹配到订单明细行（纯决策，无 DB）。
+    ///
+    /// 返回 `(入库明细 id, 订单明细 id)` 分配表；任一明细触发以下情形即返回业务错误，
+    /// 调用方据此整单拒绝（不落库、不改进度、不留部分成功）：
+    /// - 显式指定的订单明细不属于本采购订单；
+    /// - 明细产品完全不在订单中（产品对不上 ⇒ 硬拒绝）；
+    /// - 同产品订单行未收数量不足以容纳本行入库量（超收 ⇒ 当前无容差配置即拒绝）。
+    pub(crate) fn plan_order_item_links(
+        order_id: i32,
+        order_items: &[purchase_order_item::Model],
+        receipt_items: &[purchase_receipt_item::Model],
+    ) -> Result<Vec<(i32, i32)>, AppError> {
+        use std::collections::HashMap;
+        // 每个订单明细行的未收容量 = 采购数量 - 已收数量
+        let capacity: HashMap<i32, Decimal> = order_items
+            .iter()
+            .map(|oi| (oi.id, oi.quantity - oi.received_quantity))
+            .collect();
+        let mut used: HashMap<i32, Decimal> = HashMap::new();
+        let mut assignments: Vec<(i32, i32)> = Vec::new();
+
+        for item in receipt_items {
+            let target_id: i32 = match item.order_item_id {
+                Some(declared) => {
+                    if !capacity.contains_key(&declared) {
+                        return Err(AppError::business(format!(
+                            "入库单第 {} 行指定的采购订单明细 {} 不属于采购订单 {}，拒绝建单",
+                            item.line_no, declared, order_id
+                        )));
+                    }
+                    declared
+                }
+                None => {
+                    // 未显式指定：贪心匹配同产品、且剩余可收容量足以容纳本行整量的订单行。
+                    // 一张入库明细只对应一个订单明细行（累加口径即如此），故不允许跨行拆分。
+                    let matched = order_items.iter().find(|oi| {
+                        oi.product_id == item.product_id
+                            && (capacity[&oi.id]
+                                - used.get(&oi.id).copied().unwrap_or(Decimal::ZERO))
+                                >= item.quantity
+                    });
+                    match matched {
+                        Some(oi) => oi.id,
+                        None => {
+                            // 区分「产品对不上」与「超收」：产品是否出现在订单明细中
+                            if order_items
+                                .iter()
+                                .any(|oi| oi.product_id == item.product_id)
+                            {
+                                return Err(AppError::business(format!(
+                                    "入库单第 {} 行产品 {} 的入库量 {} 超过采购订单 {} 该产品的未收数量（暂无超收容差配置），拒绝建单",
+                                    item.line_no, item.product_id, item.quantity, order_id
+                                )));
+                            } else {
+                                return Err(AppError::business(format!(
+                                    "入库单第 {} 行产品 {} 不在采购订单 {} 的明细中，入库与订单产品不符，拒绝建单",
+                                    item.line_no, item.product_id, order_id
+                                )));
+                            }
+                        }
+                    }
+                }
+            };
+
+            let cap = capacity.get(&target_id).copied().unwrap_or(Decimal::ZERO);
+            let entry = used.entry(target_id).or_insert(Decimal::ZERO);
+            *entry += item.quantity;
+            if *entry > cap {
+                return Err(AppError::business(format!(
+                    "入库单第 {} 行产品 {} 累计入库量超过采购订单明细 {} 的未收数量（暂无超收容差配置），拒绝建单",
+                    item.line_no, item.product_id, target_id
+                )));
+            }
+            assignments.push((item.id, target_id));
+        }
+        Ok(assignments)
+    }
+
     /// 把入库明细挂到被入的采购订单明细行（事务内调用；`pub(crate)`：`add_receipt_item`
     /// 与 `update_receipt_item` 也需在明细写入后挂接，否则经明细端点增改的行永不累加订单进度）
     ///
     /// 确认入库按入库明细的 `order_item_id` 累加订单明细 received_quantity 并据此推进
-    /// 订单状态（全部收货 COMPLETED / 部分收货 PARTIAL_RECEIVED）。请求未指定
-    /// `order_item_id` 时按产品与剩余可收量在订单明细行间顺序分配（同产品多行落同一
-    /// 明细行）；显式指定的明细必须属于本订单，否则拒绝建单，不允许挂错单。
-    /// 找不到可收明细行（产品不在订单中或已收满）时按行记录错误：货物照入，
-    /// 但该行的收货量不计入订单进度，便于从日志定位建单数据错误。
+    /// 订单状态（全部收货 COMPLETED / 部分收货 PARTIAL_RECEIVED）。
+    ///
+    /// 挂接决策为 fail-closed：产品对不上订单、超收、或指定明细不属于本订单时返回业务错误
+    /// 并整单拒绝（由 create/add/update 所在事务回滚，货物不入、进度不动），
+    /// 不再「货物照入 + 订单进度不累加 + 只记错误日志」静默放行。
     pub(crate) async fn link_receipt_items_to_order_items(
         txn: &sea_orm::DatabaseTransaction,
         receipt_id: i32,
         order_id: i32,
     ) -> Result<(), AppError> {
-        use crate::models::purchase_order_item;
-
         let order_items = purchase_order_item::Entity::find()
             .filter(purchase_order_item::Column::OrderId.eq(order_id))
             .all(txn)
@@ -114,37 +232,23 @@ impl PurchaseReceiptService {
             .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt_id))
             .all(txn)
             .await?;
+
+        // 决策失败即整单拒绝（此处尚未写入，调用方事务回滚保证无部分成功中间态）
+        let assignments = Self::plan_order_item_links(order_id, &order_items, &receipt_items)?;
+
+        let mut assign_map: std::collections::HashMap<i32, i32> = assignments.into_iter().collect();
         for item in receipt_items {
-            if let Some(declared) = item.order_item_id {
-                if !order_items.iter().any(|oi| oi.id == declared) {
-                    return Err(AppError::bad_request(format!(
-                        "入库单第 {} 行指定的订单明细 {} 不属于采购订单 {}",
-                        item.line_no, declared, order_id
-                    )));
-                }
-                continue;
-            }
-            let target = order_items
-                .iter()
-                .find(|oi| oi.product_id == item.product_id && oi.received_quantity < oi.quantity);
-            match target {
-                Some(oi) => {
+            if let Some(target) = assign_map.remove(&item.id) {
+                if item.order_item_id != Some(target) {
                     let active = purchase_receipt_item::ActiveModel {
                         id: Set(item.id),
-                        order_item_id: Set(Some(oi.id)),
+                        order_item_id: Set(Some(target)),
                         ..Default::default()
                     };
                     purchase_receipt_item::Entity::update(active)
                         .exec(txn)
                         .await?;
                 }
-                None => tracing::error!(
-                    receipt_id,
-                    line_no = item.line_no,
-                    product_id = item.product_id,
-                    order_id,
-                    "入库明细在产品上与采购订单明细不匹配（产品不在订单中或已收满），该行收货量不会累加到订单进度"
-                ),
             }
         }
         Ok(())
@@ -286,5 +390,267 @@ impl PurchaseReceiptService {
 
         txn.commit().await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod fail_closed_tests {
+    //! 采购收货入库「拒绝建单 + 四维准入」决策层单元测试（真实接入生产代码路径）。
+    //!
+    //! 覆盖三条拍板规则的纯决策：
+    //! ①产品与订单不符 / 超收 → plan_order_item_links 返回业务错误（整单拒绝依据）；
+    //! ②缺产品 / 缺批次 → validate_receipt_item_dimensions 返回业务错误；
+    //! ③齐套 → plan 正确分配到订单行，且 build_receipt_item_active_model 把四维如实写入。
+    //! 端到端「库存无新增行 / 库存四列等于入参 / 进度累加」的真实落库行为由
+    //! frontend/e2e/flow/01-p2p.spec.ts 对真实 PostgreSQL 链路钉住。
+
+    use super::*;
+    use chrono::Utc;
+    use sea_orm::ActiveValue;
+    use std::str::FromStr;
+
+    fn dec(s: &str) -> Decimal {
+        Decimal::from_str(s).unwrap()
+    }
+
+    fn order_item(
+        id: i32,
+        order_id: i32,
+        product_id: i32,
+        qty: &str,
+        received: &str,
+    ) -> purchase_order_item::Model {
+        purchase_order_item::Model {
+            id,
+            order_id,
+            line_no: 1,
+            product_id,
+            quantity: dec(qty),
+            quantity_alt: Decimal::ZERO,
+            unit_price: dec("10"),
+            unit_price_foreign: dec("10"),
+            discount_percent: Decimal::ZERO,
+            tax_percent: dec("13"),
+            subtotal: dec("0"),
+            tax_amount: dec("0"),
+            discount_amount: dec("0"),
+            total_amount: dec("0"),
+            received_quantity: dec(received),
+            received_quantity_alt: Decimal::ZERO,
+            notes: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            color_code: None,
+            lot_no: None,
+            batch_no: None,
+        }
+    }
+
+    fn receipt_item(
+        id: i32,
+        line_no: i32,
+        product_id: i32,
+        qty: &str,
+        declared: Option<i32>,
+    ) -> purchase_receipt_item::Model {
+        purchase_receipt_item::Model {
+            id,
+            receipt_id: 1,
+            order_item_id: declared,
+            line_no,
+            product_id,
+            material_code: "M".to_string(),
+            material_name: "n".to_string(),
+            batch_no: Some("B001".to_string()),
+            color_code: Some("RED".to_string()),
+            lot_no: Some("L01".to_string()),
+            grade: Some("A".to_string()),
+            gram_weight: None,
+            width: None,
+            quantity: dec(qty),
+            quantity_alt: Some(Decimal::ZERO),
+            unit_master: "M".to_string(),
+            unit_alt: None,
+            unit_price: Some(dec("10")),
+            amount: Some(dec("0")),
+            location_code: None,
+            piece_no: None,
+            package_no: None,
+            production_date: None,
+            shelf_life: None,
+            notes: None,
+            created_at: None,
+            internal_dye_lot_id: None,
+            internal_dye_lot_no: None,
+            internal_piece_ids: None,
+            internal_piece_nos: None,
+            supplier_dye_lot_no: None,
+            supplier_piece_nos: None,
+            batch_conversion_log_id: None,
+        }
+    }
+
+    fn item_req(
+        line_no: i32,
+        material_id: i32,
+        batch_no: Option<&str>,
+    ) -> CreateReceiptItemRequest {
+        CreateReceiptItemRequest {
+            order_item_id: None,
+            line_no,
+            material_id,
+            material_code: "M".to_string(),
+            material_name: "n".to_string(),
+            batch_no: batch_no.map(str::to_string),
+            color_code: Some("RED".to_string()),
+            lot_no: Some("L01".to_string()),
+            piece_no: None,
+            grade: Some("A".to_string()),
+            gram_weight: None,
+            width: None,
+            quantity: dec("100"),
+            quantity_alt: Decimal::ZERO,
+            unit_master: "M".to_string(),
+            unit_alt: None,
+            unit_price: Some(dec("10")),
+            location_code: None,
+            package_no: None,
+            production_date: None,
+            shelf_life: None,
+            notes: None,
+        }
+    }
+
+    // ===== 规则②：四维准入（缺产品/缺批次）建单期即拒绝 =====
+
+    #[test]
+    fn missing_batch_is_rejected() {
+        // 缺批次 → 业务错误
+        let err = PurchaseReceiptService::validate_receipt_item_dimensions(&item_req(1, 500, None))
+            .expect_err("缺批次应拒绝");
+        assert!(
+            matches!(err, AppError::BusinessError(_)),
+            "应为业务错误：{:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn blank_batch_is_rejected() {
+        // 批次为空白串（将触发库存行 DEFAULT '' 落空串）→ 拒绝
+        let err = PurchaseReceiptService::validate_receipt_item_dimensions(&item_req(
+            2,
+            500,
+            Some("   "),
+        ))
+        .expect_err("空白批次应拒绝");
+        assert!(matches!(err, AppError::BusinessError(_)));
+    }
+
+    #[test]
+    fn missing_product_is_rejected() {
+        let err =
+            PurchaseReceiptService::validate_receipt_item_dimensions(&item_req(1, 0, Some("B001")))
+                .expect_err("缺产品应拒绝");
+        assert!(matches!(err, AppError::BusinessError(_)));
+    }
+
+    #[test]
+    fn complete_dimensions_pass() {
+        PurchaseReceiptService::validate_receipt_item_dimensions(&item_req(1, 500, Some("B001")))
+            .expect("产品+批次齐全应通过准入");
+    }
+
+    // ===== 规则①：产品对不上 / 超收 → 整单拒绝决策 =====
+
+    #[test]
+    fn product_not_in_order_is_rejected() {
+        // 订单只有产品 500；入库明细产品 999 不在订单中 → 硬拒绝
+        let order_items = vec![order_item(11, 1, 500, "1000", "0")];
+        let receipt_items = vec![receipt_item(21, 1, 999, "100", None)];
+        let err = PurchaseReceiptService::plan_order_item_links(1, &order_items, &receipt_items)
+            .expect_err("产品与订单不符应拒绝");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("第 1 行") && msg.contains("999"),
+            "错误需定位到行/产品：{}",
+            msg
+        );
+        assert!(
+            msg.contains("产品") && msg.contains("不在"),
+            "应判定为产品不符：{}",
+            msg
+        );
+    }
+
+    #[test]
+    fn over_receipt_without_tolerance_is_rejected() {
+        // 产品匹配但未收数量不足（超收）→ 当前无容差配置即拒绝，且文案说明超收
+        let order_items = vec![order_item(11, 1, 500, "100", "50")]; // 剩余 50
+        let receipt_items = vec![receipt_item(21, 3, 500, "80", None)]; // 入 80 > 50
+        let err = PurchaseReceiptService::plan_order_item_links(1, &order_items, &receipt_items)
+            .expect_err("超收应拒绝");
+        let msg = err.to_string();
+        assert!(msg.contains("第 3 行"), "应定位到行：{}", msg);
+        assert!(msg.contains("超过"), "应说明超收：{}", msg);
+        assert!(
+            !msg.contains("不在"),
+            "产品在场时不得误判为产品不符：{}",
+            msg
+        );
+    }
+
+    #[test]
+    fn declared_order_item_not_in_order_is_rejected() {
+        let order_items = vec![order_item(11, 1, 500, "1000", "0")];
+        // 显式指定了不属于本订单的明细 777
+        let receipt_items = vec![receipt_item(21, 1, 500, "10", Some(777))];
+        let err = PurchaseReceiptService::plan_order_item_links(1, &order_items, &receipt_items)
+            .expect_err("指定明细不属于订单应拒绝");
+        assert!(err.to_string().contains("777"));
+    }
+
+    // ===== 规则③：齐套 → 正确分配 + 四维如实写入 ActiveModel =====
+
+    #[test]
+    fn complete_link_assigns_matching_order_item() {
+        let order_items = vec![
+            order_item(11, 1, 500, "1000", "0"),
+            order_item(12, 1, 600, "1000", "0"),
+        ];
+        let receipt_items = vec![receipt_item(21, 1, 600, "500", None)];
+        let assign = PurchaseReceiptService::plan_order_item_links(1, &order_items, &receipt_items)
+            .expect("齐套应通过");
+        // 入库行应挂到同产品(600)的订单明细 12，而非首行
+        assert_eq!(assign, vec![(21, 12)], "应按产品匹配到正确订单行");
+    }
+
+    #[test]
+    fn build_receipt_item_persists_four_dimensions() {
+        let active = PurchaseReceiptService::build_receipt_item_active_model(
+            item_req(1, 500, Some("B001")),
+            7,
+            dec("1000"),
+        );
+        let product = match active.product_id {
+            ActiveValue::Set(v) => v,
+            _ => panic!("product_id 应被如实写入"),
+        };
+        let batch = match active.batch_no {
+            ActiveValue::Set(v) => v,
+            _ => panic!("batch_no 应被如实写入"),
+        };
+        let color = match active.color_code {
+            ActiveValue::Set(v) => v,
+            _ => panic!("color_code 应被如实写入"),
+        };
+        let lot = match active.lot_no {
+            ActiveValue::Set(v) => v,
+            _ => panic!("lot_no 应被如实写入"),
+        };
+        assert_eq!(product, 500);
+        assert_eq!(batch.as_deref(), Some("B001"));
+        assert_eq!(color.as_deref(), Some("RED"));
+        assert_eq!(lot.as_deref(), Some("L01"));
     }
 }

@@ -177,6 +177,23 @@ impl PurchaseReceiptService {
         Ok(())
     }
 
+    /// 入库明细行的批次维度必须真实存在：确认入库前逐行校验，缺批次即整单拒绝
+    /// （不落库存、不改进度），不允许把缺失批次落成库存行的 `DEFAULT ''` 空串。
+    /// 返回去除首尾空白的批次号。
+    fn require_receipt_batch(
+        item: &purchase_receipt_item::Model,
+        receipt: &purchase_receipt::Model,
+    ) -> Result<String, AppError> {
+        let batch = item.batch_no.as_deref().map(str::trim).unwrap_or("");
+        if batch.is_empty() {
+            return Err(AppError::business(format!(
+                "入库单 {} 第 {} 行（产品 {}）缺少批次号，四维不全，拒绝确认入库",
+                receipt.receipt_no, item.line_no, item.product_id
+            )));
+        }
+        Ok(batch.to_string())
+    }
+
     pub async fn update_inventory_txn(
         &self,
         receipt: &purchase_receipt::Model,
@@ -189,6 +206,13 @@ impl PurchaseReceiptService {
             .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt.id))
             .all(txn)
             .await?;
+
+        // 整单 fail-closed：任一行批次缺失即在建库前拒绝，事务不落任何库存行。
+        // 色号/缸号的「染色布必填」口径待白坯布共享判定落地后在此追加（见
+        // `upsert_stock_for_item` 内 TODO），本域不自行按色号名称判定白色。
+        for item in &items {
+            Self::require_receipt_batch(item, receipt)?;
+        }
 
         let mut stock_map = Self::fetch_stock_map(txn, &items, receipt.warehouse_id).await?;
 
@@ -213,7 +237,12 @@ impl PurchaseReceiptService {
     fn receipt_item_stock_key(item: &purchase_receipt_item::Model) -> StockDimKey {
         (
             item.product_id,
-            item.batch_no.clone().unwrap_or_default(),
+            // 与 upsert_stock_for_item 落库口径一致：批次以去除首尾空白后的值定位库存行
+            item.batch_no
+                .as_deref()
+                .map(str::trim)
+                .map(str::to_string)
+                .unwrap_or_default(),
             item.color_code.clone().unwrap_or_default(),
             item.lot_no.clone().unwrap_or_default(),
             item.grade
@@ -289,7 +318,12 @@ impl PurchaseReceiptService {
             .await?;
             Ok((stock.clone(), after))
         } else {
-            let batch_no = item.batch_no.clone().unwrap_or_default();
+            // 批次在建库前已逐行校验非空（update_inventory_txn），如实落库不再 unwrap 兜底成空串；
+            // 色号：白坯布合法为空（落 ''），染色布是否必填待白坯布共享判定落地后强制（见下 TODO）。
+            let batch_no = Self::require_receipt_batch(item, receipt)?;
+            // TODO(共享白坯布判定)：色号非空⇒染色布⇒缸号(lot_no)/批次必填的口径应改调
+            //   采购/库存统一的白坯布判定函数（doto iter31 第 3/5 条，本域外同事落地，尚未存在）。
+            //   落地前保持色号/缸号原样落库，不在此按色号名称嗅探白色。
             let color_no = item.color_code.clone().unwrap_or_default();
             let grade = item
                 .grade
@@ -330,7 +364,8 @@ impl PurchaseReceiptService {
     ) -> Result<Option<BusinessEvent>, AppError> {
         use crate::services::inventory_stock_query::RecordTransactionArgs;
         use crate::services::inventory_stock_service::InventoryStockService;
-        let batch_no = item.batch_no.clone().unwrap_or_default();
+        // 流水维度与库存行同口径：批次如实写入（建库前已校验非空），不再 unwrap 成空串
+        let batch_no = Self::require_receipt_batch(item, receipt)?;
         let color_no = item.color_code.clone().unwrap_or_default();
         let grade = item
             .grade

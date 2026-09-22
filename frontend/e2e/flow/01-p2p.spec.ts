@@ -305,6 +305,90 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     );
   });
 
+  test('1-6b 入库明细与订单不符/缺批次应整单拒绝且库存无新增行', async ({ page }) => {
+    const ctx = getCtx();
+    // 选一个不在本采购订单明细中的产品（订单 1-1 只用 productIds[0]），验证「产品对不上」硬拒绝
+    const wrongProductId = ctx.productIds[1];
+    expect(
+      wrongProductId,
+      '前置未创建第二个产品，无法构造「产品对不上」负例（EntityContext.productIds 不足）'
+    ).toBeTruthy();
+    // 每次运行使用唯一色号/缸号，确保「库存无新增行」断言的是本用例真实拒绝的结果
+    const phantomColor = `MISMATCH-${Date.now()}`;
+    const phantomDyeLot = genDyeLotNo();
+    const orderNo = ctx.purchaseOrderId;
+    expect(orderNo, '前置采购订单缺失').toBeTruthy();
+
+    const baseItem = (over: Record<string, unknown>) => ({
+      order_id: orderNo,
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
+      receipt_date: new Date().toISOString().slice(0, 10),
+      items: [
+        {
+          line_no: 1,
+          material_id: wrongProductId,
+          material_code: 'P2P-WRONG',
+          material_name: '非订单产品',
+          unit_master: 'm',
+          quantity: 10,
+          quantity_alt: 1,
+          color_code: phantomColor,
+          lot_no: phantomDyeLot,
+          batch_no: 'B-MISMATCH',
+          ...over,
+        },
+      ],
+    });
+
+    // ① 产品对不上订单 → 建单被整单拒绝（BUSINESS_ERROR）
+    const productMismatch = await apiCallExpectFail(
+      page,
+      'POST',
+      '/purchase/receipts',
+      baseItem({})
+    );
+    console.log('[1-6b 产品不符] 响应:', JSON.stringify(productMismatch));
+    expect(
+      productMismatch.status,
+      `产品与订单不符应被拒绝（400），实际 ${productMismatch.status}`
+    ).toBe(400);
+    expect(
+      productMismatch.code,
+      `应返回 BUSINESS_ERROR，实际 ${JSON.stringify(productMismatch)}`
+    ).toBe('BUSINESS_ERROR');
+
+    // ② 缺批次（维度不全）→ 建单被整单拒绝（BUSINESS_ERROR）
+    const missingBatch = await apiCallExpectFail(
+      page,
+      'POST',
+      '/purchase/receipts',
+      baseItem({ batch_no: undefined })
+    );
+    console.log('[1-6b 缺批次] 响应:', JSON.stringify(missingBatch));
+    expect(
+      missingBatch.status,
+      `缺批次应被拒绝（400），实际 ${missingBatch.status}`
+    ).toBe(400);
+    expect(
+      missingBatch.code,
+      `应返回 BUSINESS_ERROR，实际 ${JSON.stringify(missingBatch)}`
+    ).toBe('BUSINESS_ERROR');
+
+    // ③ 负例拒绝后库存不得新增行：按唯一色号/缸号检索该产品必须为空
+    const phantomStock = await verifyStockFourDim(
+      page,
+      wrongProductId,
+      phantomColor,
+      phantomDyeLot,
+      { warehouseId: ctx.warehouseIds[0] }
+    );
+    expect(
+      phantomStock,
+      `产品不符/缺批次已拒绝建单，库存不应出现产品 ${wrongProductId} / 色号 ${phantomColor} 的新增行`
+    ).toBeNull();
+  });
+
   test('1-7 验证 AP 应付单', async ({ page }) => {
     const ctx = getCtx();
 

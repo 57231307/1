@@ -30,6 +30,9 @@ impl PurchaseReceiptService {
         req: CreateReceiptItemRequest,
         user_id: i32,
     ) -> Result<purchase_receipt_item::Model, AppError> {
+        // 四维必入：追加的明细同样先过产品/批次准入，缺失即拒绝（建单入口同口径）
+        PurchaseReceiptService::validate_receipt_item_dimensions(&req)?;
+
         // 批次 19（2026-06-28）：补全事务边界，明细写与总金额重算原子化。
         // 原实现明细 insert 与 calculate_receipt_total 非原子，且均用 &*self.db 无锁，
         // 并发 add_receipt_item 会导致总金额丢失更新。
