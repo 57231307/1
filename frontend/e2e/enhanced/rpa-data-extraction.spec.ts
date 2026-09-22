@@ -11,7 +11,9 @@
  * - RPA 流程录制：记录操作时间戳供性能分析
  *
  * 设计说明：
- * - 使用 mock 模式（不依赖真实后端数据）
+ * - 真实后端：`applyAuthMocks` 是 2026-09-09 去 mock 时保留的旧函数名，函数体已是
+ *   真实 API 登录并注入 cookie（不拦截任何路由），故本文件的断言打的是真库真接口；
+ *   原先这里写着"使用 mock 模式（不依赖真实后端数据）"，属误导性的过时注释。
  * - 通过 fixtures/rpa.ts 与 fixtures/network.ts 的工具函数
  */
 import { test, expect } from '@playwright/test';
@@ -36,9 +38,15 @@ test.describe('RPA：表格数据提取（爬虫类）', () => {
     // 提取表格数据（爬虫类批量收集）
     const rows = await extractTableData(page);
 
-    // mock 模式下返回空分页，表格应存在（可能无数据行）
-    // 验证提取函数返回数组结构
-    expect(Array.isArray(rows)).toBe(true);
+    // 原断言只有 `expect(Array.isArray(rows)).toBe(true)`：extractTableData 的返回类型
+    // 就是 string[][]，恒为数组 ⇒ 零断言价值（空表也算通过）。改为断真实内容。
+    expect(rows.length, '销售列表未提取到任何数据行（表格空态或被筛选清空）').toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(
+        row.some(cell => cell.length > 0),
+        `存在整行空白的数据行，提取选择器与表格实现不匹配：${JSON.stringify(row)}`
+      ).toBe(true);
+    }
   });
 
   test('翻页后重新提取表格数据', async ({ page }) => {
@@ -54,12 +62,17 @@ test.describe('RPA：表格数据提取（爬虫类）', () => {
       await waitForTableLoaded(page);
 
       const secondPageRows = await extractTableData(page);
-      // 验证翻页后仍可提取数据
-      expect(Array.isArray(secondPageRows)).toBe(true);
+      // 翻页真实生效：第二页必须有数据且内容与第一页不同
+      //（原来只断"是数组"，翻页按钮点了但页面没变也算通过）
+      expect(secondPageRows.length, '点击下一页后未提取到任何数据行').toBeGreaterThan(0);
+      expect(JSON.stringify(secondPageRows), '翻页后内容与第一页完全相同，说明分页未生效').not.toBe(
+        JSON.stringify(firstPageRows)
+      );
     }
 
-    // 验证第一页数据可提取
-    expect(Array.isArray(firstPageRows)).toBe(true);
+    expect(firstPageRows.length, '首页未提取到任何数据行（表格空态或加载未完成）').toBeGreaterThan(
+      0
+    );
   });
 });
 
@@ -103,14 +116,20 @@ test.describe('RPA：请求观察（爬虫类请求采集）', () => {
       // 收集观察到的请求
       const requests = await observer.collect();
 
-      // 应观察到至少一个 API 请求（页面加载触发的请求）
-      expect(Array.isArray(requests)).toBe(true);
-      // mock 模式下应有请求被记录
-      if (requests.length > 0) {
-        const first = requests[0];
-        expect(first.url).toContain('/api/v1/erp/');
-        expect(typeof first.method).toBe('string');
-        expect(typeof first.status).toBe('number');
+      // 原写法是 `if (requests.length > 0) { ...断言... }`：一条请求都没抓到时
+      // 整个用例零断言通过，正是"条件成立才断言"的假绿形态。
+      // 页面加载必然请求 ERP 接口（列表数据来自后端），抓不到就是真失败。
+      expect(
+        requests.length,
+        '访问 /sales 未捕获到任何 /api/v1/erp 请求，说明列表未真实取数或观察器未生效'
+      ).toBeGreaterThan(0);
+      for (const req of requests) {
+        expect(req.url, `捕获到非 ERP 请求：${req.url}`).toContain('/api/v1/erp/');
+        expect(typeof req.method, `请求缺少 method：${JSON.stringify(req)}`).toBe('string');
+        expect(
+          req.status,
+          `请求未拿到响应状态码（可能被中止）：${req.url} ${JSON.stringify(req)}`
+        ).toBeGreaterThan(0);
       }
     } finally {
       await observer.stop();
