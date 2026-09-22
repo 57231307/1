@@ -83,6 +83,12 @@ pub mod inventory_count {
     /// 待处理：盘点单初始状态，可执行盘点
     pub const PENDING: &str = "pending";
 
+    /// 复核中：盘点数已录入、等待复核确认（submit_review 写入，
+    /// approve_review / revert 分别向后/向前流转）。此前它只是
+    /// inventory_count_service.rs 里的三处裸字面量，词表里没有这一行，
+    /// 模块注释却声称"状态字面量统一引用此模块（规则 0）"。
+    pub const IN_REVIEW: &str = "in_review";
+
     /// 已完成：盘点流程完结
     pub const COMPLETED: &str = "completed";
 }

@@ -414,7 +414,7 @@ impl InventoryCountService {
             ));
         }
         let mut active: inventory_count::ActiveModel = count_model.into();
-        active.status = Set("in_review".to_string());
+        active.status = Set(count_status::IN_REVIEW.to_string());
         active.updated_at = Set(Utc::now());
         let updated = active.update(&txn).await?;
         txn.commit().await?;
@@ -432,7 +432,7 @@ impl InventoryCountService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
-        if count_model.status != "in_review" {
+        if count_model.status != count_status::IN_REVIEW {
             return Err(AppError::business(
                 "只有待审批状态的盘点单可以审批通过".to_string(),
             ));
@@ -639,7 +639,9 @@ impl InventoryCountService {
             ));
         }
 
-        inventory_count_item::Entity::delete_by_id(item_id).exec(&txn).await?;
+        inventory_count_item::Entity::delete_by_id(item_id)
+            .exec(&txn)
+            .await?;
         Self::recalc_count_stats(&txn, item.count_id).await?;
         txn.commit().await?;
         Ok(())
@@ -652,7 +654,7 @@ impl InventoryCountService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
-        if count_model.status != "in_review" {
+        if count_model.status != count_status::IN_REVIEW {
             return Err(AppError::business(
                 "只有待审批状态的盘点单可以驳回".to_string(),
             ));
