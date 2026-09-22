@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PageResult, PaginatedResponse } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 /* ============================================================================
  * MRP 真实契约（backend/src/handlers/mrp_handler.rs + models/product.rs）
@@ -35,6 +35,11 @@ export interface MrpCalculateInput {
 }
 
 /** 后端 mrp_handler.rs:51 MrpResultResponse（可转单的结果行，含主键 id） */
+// mrp_results.status 的闭合词表，与后端 `crate::models::status::mrp` 常量同源
+// （models/status/production.rs 的 `pub mod mrp`；原 `MrpResultStatus` ActiveEnum 与之
+// 各缺一个成员且无人引用，已删除，避免同一列存在两套词表）。
+export type MrpStatus = 'PLANNED' | 'CONFIRMED' | 'RELEASED' | 'CANCELLED';
+
 export interface MrpResultResponse {
   id: number;
   calculation_no: string;
@@ -45,7 +50,7 @@ export interface MrpResultResponse {
   source_id: number | null;
   planned_order_quantity: number | null;
   planned_order_date: string | null;
-  status: string;
+  status: MrpStatus;
   remarks: string | null;
   created_at: string;
   updated_at: string;
@@ -97,7 +102,7 @@ export interface ConvertOrderPayload {
 export interface MrpResultQuery {
   calculation_no?: string;
   product_id?: number;
-  status?: string;
+  status?: MrpStatus;
   page?: number;
   page_size?: number;
 }
@@ -143,96 +148,49 @@ export function getProductsForMrp(params?: {
 }
 
 /* ============================================================================
- * 以下为 MRP 历史页（views/mrp/history.vue）遗留类型/函数。
- * 后端 /mrp-history 与 /mrp-history/{id} 仍指向 missing_handlers 占位桩，
- * 不返回真实数据；本节形状系历史页依赖，当前无法据后端契约修正。
+ * MRP 历史页动作端点（backend routes/production.rs mrp_history()）。
+ * 列表改由上方 GET /mrp/results 提供；以下均为已接真实 handler 的操作：
+ * 取消 / 导出 / 行内库存分解。calculation_id 一律传 mrp_result 行主键 id。
  * ==========================================================================*/
 
-export interface MrpProduct {
-  id: number;
-  product_code: string;
-  product_name: string;
-  specification?: string;
-  unit?: string;
-}
-
-export interface MrpMaterialRequirement {
-  id: number;
-  material_code: string;
-  material_name: string;
-  specification?: string;
-  unit: string;
-  required_quantity: number;
-  available_stock: number;
-  in_transit_quantity: number;
-  safety_stock: number;
-  net_requirement: number;
-  suggested_order_quantity: number;
-  suggested_date: string;
-  warehouse_name?: string;
-}
-
-export interface MrpSupplyDetail {
-  source_type: 'stock' | 'in_transit' | 'planned_order';
-  source_id?: number;
-  source_no?: string;
-  available_quantity: number;
-  suggested_quantity: number;
-  expected_date?: string;
-}
-
-export interface MrpCalculationResult {
+/**
+ * 后端 mrp_handler::get_material_detail 的 JSON（mrp_engine_ops/query.rs）。
+ * 返回单条结果行对应产品的实时库存分解；无 supply_details（后端恒为空，故不建模）。
+ */
+export interface MrpMaterialDetail {
   calculation_id: number;
   calculation_no: string;
-  status: 'pending' | 'calculating' | 'completed' | 'failed';
-  products: MrpProduct[];
-  demand_quantity: number;
-  demand_date: string;
-  materials: MrpMaterialRequirement[];
-  created_at: string;
-  completed_at?: string;
+  material_id: number;
+  required_quantity: number;
+  required_date: string | null;
+  on_hand_quantity: number;
+  in_transit_quantity: number;
+  safety_stock: number;
+  available_quantity: number;
+  shortage_quantity: number | null;
+  planned_order_date: string | null;
+  source_type: string;
+  source_id: number | null;
+  status: MrpStatus;
+  remarks: string | null;
 }
 
-export interface MrpHistoryRecord {
-  id: number;
-  calculation_no: string;
-  products: MrpProduct[];
-  demand_quantity: number;
-  demand_date: string;
-  status: 'pending' | 'calculating' | 'completed' | 'failed';
-  created_at: string;
-  completed_at?: string;
-}
-
-/** 指向桩 handler GET /mrp-history（missing_handlers），不返回真实数据 */
-export function getMrpHistory(params?: {
-  page?: number;
-  page_size?: number;
-}): Promise<ApiResponse<PageResult<MrpHistoryRecord>>> {
-  return request.get('/production/mrp-history', { params });
-}
-
-/** 指向桩 handler GET /mrp-history/{id}（missing_handlers），不返回真实数据 */
-export function getMrpResult(id: number): Promise<ApiResponse<MrpCalculationResult>> {
-  return request.get(`/production/mrp-history/${id}`);
-}
-
-/** 取消 MRP 计算；id 为 mrp_result.id（routes/production.rs:661 真实 handler） */
-export function cancelMrpCalculation(id: number): Promise<ApiResponse<void>> {
+/** 取消 MRP 计算：后端仅把状态置为 CANCELLED；id 为 mrp_result 行主键 */
+export function cancelMrpCalculation(id: number): Promise<ApiResponse<MrpResultResponse>> {
   return request.put(`/production/mrp-history/${id}/cancel`);
 }
 
-/** 导出 MRP 结果为 xlsx；id 为 mrp_result.id（routes/production.rs:665 真实 handler） */
-export function exportMrpResult(id: number): Promise<void> {
-  return request.get(`/production/mrp-history/${id}/export`, {
+/** 导出单条 mrp_result 行为 xlsx；id 为 mrp_result 行主键 */
+export function exportMrpResult(id: number): Promise<Blob> {
+  return request.get<Blob>(`/production/mrp-history/${id}/export`, {
     responseType: 'blob',
-  }) as Promise<void>;
+  });
 }
 
-/** 获取物料需求明细（routes/production.rs:669 真实 handler） */
+/** 结果行的实时库存分解明细；calculationId 为行主键，materialId 为该行 product_id */
 export function getMaterialRequirementDetail(
   calculationId: number,
   materialId: number
-): Promise<ApiResponse<MrpMaterialRequirement & { supply_details: MrpSupplyDetail[] }>> {
+): Promise<ApiResponse<MrpMaterialDetail>> {
   return request.get(`/production/mrp-history/${calculationId}/materials/${materialId}`);
 }

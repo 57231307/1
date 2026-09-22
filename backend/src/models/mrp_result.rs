@@ -22,24 +22,6 @@ pub enum MrpSourceType {
     SafetyStock,
 }
 
-/// MRP计算结果状态
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
-pub enum MrpResultStatus {
-    /// 计划中
-    #[sea_orm(string_value = "PLANNED")]
-    Planned,
-    /// 已确认
-    #[sea_orm(string_value = "CONFIRMED")]
-    Confirmed,
-    /// 已下达
-    #[sea_orm(string_value = "RELEASED")]
-    Released,
-    /// 已完成
-    #[sea_orm(string_value = "COMPLETED")]
-    Completed,
-}
-
 /// MRP计算结果 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "mrp_results")]
