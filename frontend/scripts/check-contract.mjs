@@ -110,6 +110,11 @@ const MAPPING = [
     ts: 'VoucherEntry',
     rust: ['voucher_item:Model', 'VoucherItemDto', 'VoucherItemResponseDto'],
   },
+  // 验布单建单/编辑入参：run 4623 的 54 用例暴露该页表单提交 fabric_batch_no/total_length_m
+  // （后端两侧都无此列）又缺必填 inspection_date 被 422 拒掉。表单重建后把入参类型
+  // 收进 api 层并纳入本对照表——同类漂移从此在提交前即被静态拦截，而不是等 E2E 撞。
+  { ts: 'CreateFabricInspectionPayload', rust: ['CreateInspectionRequest'] },
+  { ts: 'UpdateFabricInspectionPayload', rust: ['UpdateInspectionRequest'] },
 ];
 
 // ---------- 存量幽灵字段挂账清单（允许通过，新增字段不在清单内立即拦截） ----------

@@ -226,6 +226,14 @@
       现按真实契约断言并去掉误导性的 page/page_size 参数；③ 48-3 断"AR 列表应可达"拿到 403，
       根因是路径写错——真实路由是 `/ar/invoices`（`finance.rs:847`），不存在的端点被权限层
       先拒成 403；同文件 48-2 早已为 AP 踩过并写下注释，AR 这条却仍在用 `/ar-invoices`。
+- [x] **验布建单/编辑入参纳入契约门禁**：`scripts/check-contract.mjs` 的 TS→Rust 对照表补
+      `CreateFabricInspectionPayload → CreateInspectionRequest` 与
+      `UpdateFabricInspectionPayload → UpdateInspectionRequest` 两组（现 7 组映射 / 63 字段 / 0 挂账），
+      同类漂移从此在提交前静态拦截，不必再等 E2E 撞出 422。
+      登记一条限制：`api/inventory.ts` 的 `InventoryQueryParams` 被多个端点共用
+      （/inventory/stock、/inventory/batches、低库存与预警各自的 DTO 字段集都不同），
+      直接映射到 `ListStockParams` 会把 `low_stock` 这类"别的端点才有的字段"误判成幽灵字段；
+      要纳入门禁需先按端点拆分入参类型，属另一轮工作。
 - [ ] **库存详情弹窗字段不全（本轮只统一了状态取值口径）**：详情行只列 编码/名称/仓库/批次/色号/
       缸号/米数/公斤/状态/库位，后端出参里已有的 等级、质量状态、可用量、预留量、补货点、库存上限
       一项都不显示——降级后的等级与质检结论在界面上看不到，只剩列表与导出可见。本轮把详情里的
