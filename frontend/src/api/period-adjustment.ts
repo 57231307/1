@@ -7,7 +7,11 @@ import type { ApiResponse, PaginatedResponse } from '@/types/api';
  * 状态机：draft → confirmed → reversed；draft → cancelled
  * 后端路由：routes/period_adjustment.rs（nest 到 /api/v1/erp/period-adjustments）
  */
-export type PeriodAdjustmentType = 'estimate' | 'amortization' | 'provision' | 'transfer';
+/**
+ * 调整类型。后端 create 校验仅接受 estimate / amortization / provision
+ * （services/period_adjustment_service.rs validate_adjustment_type），故不含 transfer。
+ */
+export type PeriodAdjustmentType = 'estimate' | 'amortization' | 'provision';
 
 export type PeriodAdjustmentStatus = 'draft' | 'confirmed' | 'reversed' | 'cancelled';
 
@@ -39,22 +43,20 @@ export interface PeriodAdjustment {
   updated_at: string;
 }
 
+/**
+ * 创建期末调整载荷，字段严格对齐后端 CreatePeriodAdjustmentRequest
+ * （services/period_adjustment_service.rs）。8 个字段为后端必填，均须由表单真实收集。
+ * 注：字段之间不得插入行内注释——check-api-request 的 TS 解析按 `;`/`,` 切段，
+ * 段首的注释会使紧随其后的字段被漏读。
+ */
 export interface CreatePeriodAdjustmentPayload {
-  /** 调整类型（必填） */
   adjustment_type: PeriodAdjustmentType;
-  /** 调整期间，如 2026-01（必填） */
   period: string;
-  /** 调整说明（必填） */
   description: string;
-  /** 借方科目编码（必填） */
   debit_subject_code: string;
-  /** 借方科目名称（必填） */
   debit_subject_name: string;
-  /** 贷方科目编码（必填） */
   credit_subject_code: string;
-  /** 贷方科目名称（必填） */
   credit_subject_name: string;
-  /** 调整金额（必填） */
   amount: number;
   source_type?: string;
   source_bill_id?: number;

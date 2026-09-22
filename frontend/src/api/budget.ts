@@ -69,14 +69,15 @@ export interface BudgetItem {
   updated_at: string;
 }
 
-/** 对齐后端 budget_management_handler::CreateBudgetDto */
+/**
+ * 对齐后端 budget_management_handler::CreateBudgetDto（预算明细行/科目）。
+ * item_name（预算名称）与 planned_amount（计划金额）为后端必填字段。
+ */
 export interface CreateBudgetItemPayload {
-  /** 预算名称：必填 */
   item_name: string;
   item_code?: string;
   item_type?: string;
   budget_year?: number;
-  /** 计划金额：必填 */
   planned_amount: number;
   remark?: string;
 }

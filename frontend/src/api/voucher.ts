@@ -4,8 +4,9 @@ import {
   getVoucher as getVoucherApi,
   deleteVoucher as deleteVoucherApi,
   postVoucher as postVoucherApi,
+  type VoucherListQuery,
 } from './finance';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface VoucherEntry {
   id?: number;
@@ -69,7 +70,9 @@ export function generateVoucherNo(): Promise<ApiResponse<{ voucher_no: string }>
 
 // ===== 凭证基础操作：实现收敛至 finance.ts（原 voucher.ts 重复定义已删除）=====
 // 以下为类型适配包装：保留本域 VoucherEntity 类型契约，调用方零破坏
-export async function getVoucherList(params?: QueryParams): Promise<ApiResponse<VoucherEntity[]>> {
+export async function getVoucherList(
+  params?: VoucherListQuery
+): Promise<ApiResponse<VoucherEntity[]>> {
   const res = await getVoucherListApi(params);
   return res as unknown as ApiResponse<VoucherEntity[]>;
 }

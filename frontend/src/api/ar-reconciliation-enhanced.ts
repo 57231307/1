@@ -115,20 +115,30 @@ export interface AutoReconResultQueryParams {
   end_date?: string;
 }
 
-// P2-9c 修复（批次 82 v1 复审）：客户确认列表查询参数强类型化
+// 客户确认列表查询参数：字段集严格对齐后端 ListResultsQuery
+// （handlers/ar_reconciliation_handler.rs::list_confirmations 的 Query<ListResultsQuery>）。
+// 后端不读 reconciliation_id / confirm_status，不要传。
 export interface ConfirmationQueryParams {
   page?: number;
   page_size?: number;
-  reconciliation_id?: number;
-  confirm_status?: string;
+  customer_id?: number;
+  /** YYYY-MM-DD（后端 NaiveDate） */
+  start_date?: string;
+  /** YYYY-MM-DD（后端 NaiveDate） */
+  end_date?: string;
 }
 
-// P2-9c 修复（批次 82 v1 复审）：争议记录列表查询参数强类型化
+// 争议记录列表查询参数：字段集严格对齐后端 ListResultsQuery
+// （handlers/ar_reconciliation_handler.rs::list_disputes 的 Query<ListResultsQuery>）。
+// 后端不读 status / dispute_type（争议状态由 handler 固定为 disputed），不要传。
 export interface DisputeQueryParams {
   page?: number;
   page_size?: number;
-  status?: string;
-  dispute_type?: string;
+  customer_id?: number;
+  /** YYYY-MM-DD（后端 NaiveDate） */
+  start_date?: string;
+  /** YYYY-MM-DD（后端 NaiveDate） */
+  end_date?: string;
 }
 
 export function autoReconcile(params: {

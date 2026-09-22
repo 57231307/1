@@ -131,7 +131,7 @@
         <el-form-item label="调整金额" prop="amount">
           <el-input-number
             v-model="formData.amount"
-            :min="0"
+            :min="0.01"
             :precision="2"
             style="width: 100%"
             placeholder="必填"
@@ -215,7 +215,6 @@ const typeTextMap: Record<PeriodAdjustmentType, string> = {
   estimate: '暂估',
   amortization: '摊销',
   provision: '预提',
-  transfer: '转账',
 };
 
 const statusTextMap: Record<PeriodAdjustmentStatus, string> = {
@@ -302,7 +301,19 @@ const formRules: FormRules = {
   debit_subject_name: [{ required: true, message: '请输入借方科目名称', trigger: 'blur' }],
   credit_subject_code: [{ required: true, message: '请输入贷方科目编码', trigger: 'blur' }],
   credit_subject_name: [{ required: true, message: '请输入贷方科目名称', trigger: 'blur' }],
-  amount: [{ required: true, message: '请输入调整金额', trigger: 'blur' }],
+  amount: [
+    { required: true, message: '请输入调整金额', trigger: 'blur' },
+    {
+      validator: (_rule: unknown, value: unknown, callback: (e?: Error) => void) => {
+        if (typeof value !== 'number' || value <= 0) {
+          callback(new Error('调整金额必须大于 0'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'blur',
+    },
+  ],
 };
 
 /** 响应解包防御：兼容数组 / { items } 分页包装，避免 el-table "r is not iterable" */
