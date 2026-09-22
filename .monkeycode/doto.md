@@ -226,6 +226,26 @@
       现按真实契约断言并去掉误导性的 page/page_size 参数；③ 48-3 断"AR 列表应可达"拿到 403，
       根因是路径写错——真实路由是 `/ar/invoices`（`finance.rs:847`），不存在的端点被权限层
       先拒成 403；同文件 48-2 早已为 AP 踩过并写下注释，AR 这条却仍在用 `/ar-invoices`。
+- [ ] **库存预警页整页不可用：`/inventory/stock/alerts` 出参是 `{list,total}` 且行内没有产品/仓库名称，
+      前端却按 `StockAlert[]` 直接赋给数组并按不存在的字段渲染**（本轮定位，未在本批动，
+      需与列表口径一起单独成轮，避免与已提交的库存改动混在一次推送里无法判责）：
+      后端 `inventory_stock_query.rs:320-381` 返回 `json!({"list":..., "total":...})`，
+      行内字段是 `id/product_id/warehouse_id/quantity_on_hand/quantity_available/quantity_reserved/
+      reorder_point/max_stock_point/expiry_date/last_movement_date/stock_status/alert_type`；
+      而 `api/inventory.ts` 声明的是 `StockAlert{id,product_name,product_code,warehouse_name,
+      current_quantity,min_quantity,unit,alert_level:'warning'|'danger'}`——
+      产品名/产品编码/仓库名/当前量/最低量/单位/告警级别七项在后端行内都不存在，
+      `current_quantity` 实为 `quantity_on_hand`、`min_quantity` 实为 `reorder_point`、
+      `alert_level` 实为 `alert_type`（取值是 normal/low_stock/out_of_stock/over_stock/
+      slow_moving/expiring/discrepancy 七种，不是 warning|danger）。
+      更直接的是 `views/inventory/index.vue` 的 `alerts.value = res.data || []`：`data` 是对象不是数组，
+      于是预警 tab 表格恒空（与此前修掉的库位对话框同一型错误）。
+      修法应是：后端把该端点从裸 `serde_json::Value` 改为typed 结构并回传主数据名称
+      （`attach_master_names` 已有同类实现，且该查询已 inner_join products/warehouses），
+      前端 `fetchAlerts` 按分页包装取数、`StockAlert` 与 `alert_type` 词表收进 constants、
+      预警 tab 列名改真实字段；同时该端点的 page/page_size 目前被完全忽略
+      （`10a-extended-inventory-approval.spec.ts:152` 传了 `page=1&page_size=5` 却拿全量），
+      属同一处的分页缺失。
 - [x] **验布建单/编辑入参纳入契约门禁**：`scripts/check-contract.mjs` 的 TS→Rust 对照表补
       `CreateFabricInspectionPayload → CreateInspectionRequest` 与
       `UpdateFabricInspectionPayload → UpdateInspectionRequest` 两组（现 7 组映射 / 63 字段 / 0 挂账），
