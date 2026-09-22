@@ -261,10 +261,10 @@
       >
         <el-form-item
           :label="t('supplierEvaluation.index.dialog.label.supplier')"
-          prop="supplierId"
+          prop="supplier_id"
         >
           <el-select
-            v-model="recordForm.supplierId"
+            v-model="recordForm.supplier_id"
             :placeholder="t('supplierEvaluation.index.dialog.placeholder.supplier')"
             style="width: 100%"
             filterable
@@ -277,11 +277,27 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('supplierEvaluation.index.dialog.label.period')" prop="period">
+        <el-form-item :label="t('supplierEvaluation.index.tab.indicators')">
+          <el-select v-model="recordForm.indicator_id" style="width: 100%" filterable>
+            <el-option
+              v-for="ind in indicatorList"
+              :key="ind.id"
+              :label="ind.indicatorName"
+              :value="ind.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item
+          :label="t('supplierEvaluation.index.dialog.label.period')"
+          prop="evaluation_period"
+        >
           <el-input
-            v-model="recordForm.period"
+            v-model="recordForm.evaluation_period"
             :placeholder="t('supplierEvaluation.index.dialog.placeholder.period')"
           />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.column.totalScore')">
+          <el-input-number v-model="recordForm.score" :min="0" :max="100" />
         </el-form-item>
         <el-form-item :label="t('supplierEvaluation.index.dialog.label.remark')" prop="remark">
           <el-input v-model="recordForm.remark" type="textarea" :rows="3" />
@@ -350,10 +366,10 @@
     >
       <el-form :model="indicatorForm" label-width="110px">
         <el-form-item :label="t('supplierEvaluation.index.indicators.label.code')" required>
-          <el-input v-model="indicatorForm.indicatorCode" />
+          <el-input v-model="indicatorForm.indicator_code" />
         </el-form-item>
         <el-form-item :label="t('supplierEvaluation.index.indicators.label.name')" required>
-          <el-input v-model="indicatorForm.indicatorName" />
+          <el-input v-model="indicatorForm.indicator_name" />
         </el-form-item>
         <el-form-item :label="t('supplierEvaluation.index.indicators.label.category')" required>
           <el-input v-model="indicatorForm.category" />
@@ -362,10 +378,7 @@
           <el-input-number v-model="indicatorForm.weight" :min="0" :max="100" />
         </el-form-item>
         <el-form-item :label="t('supplierEvaluation.index.indicators.label.maxScore')">
-          <el-input-number v-model="indicatorForm.maxScore" :min="0" :max="100" />
-        </el-form-item>
-        <el-form-item :label="t('supplierEvaluation.index.indicators.label.description')">
-          <el-input v-model="indicatorForm.description" type="textarea" :rows="2" />
+          <el-input-number v-model="indicatorForm.max_score" :min="0" :max="100" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -435,20 +448,22 @@ const recordFormRef = ref();
 const currentRecord = ref<EvaluationRecord | null>(null);
 
 const recordForm = reactive({
-  supplierId: undefined as number | undefined,
-  period: '',
+  supplier_id: undefined as number | undefined,
+  evaluation_period: '',
+  indicator_id: undefined as number | undefined,
+  score: 0,
   remark: '',
 });
 
 const recordRules = computed(() => ({
-  supplierId: [
+  supplier_id: [
     {
       required: true,
       message: t('supplierEvaluation.index.validation.supplierRequired'),
       trigger: 'change',
     },
   ],
-  period: [
+  evaluation_period: [
     {
       required: true,
       message: t('supplierEvaluation.index.validation.periodRequired'),
@@ -483,7 +498,13 @@ const fetchRankings = async () => {
 
 const handleCreateRecord = () => {
   isEdit.value = false;
-  Object.assign(recordForm, { supplierId: undefined, period: '', remark: '' });
+  Object.assign(recordForm, {
+    supplier_id: undefined,
+    evaluation_period: '',
+    indicator_id: undefined,
+    score: 0,
+    remark: '',
+  });
   recordDialogVisible.value = true;
 };
 
@@ -512,18 +533,17 @@ const indicatorList = ref<EvaluationIndicator[]>([]);
 const indicatorLoading = ref(false);
 const indicatorDialogVisible = ref(false);
 const indicatorForm = reactive({
-  indicatorCode: '',
-  indicatorName: '',
+  indicator_code: '',
+  indicator_name: '',
   category: '',
   weight: 10,
-  maxScore: 100,
-  description: '',
+  max_score: 100,
 });
 
 const fetchIndicators = async () => {
   indicatorLoading.value = true;
   try {
-    const res = await getEvaluationIndicatorList({ page: 1, pageSize: 100 });
+    const res = await getEvaluationIndicatorList({ page: 1, page_size: 100 });
     // 后端 list_indicators 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
     indicatorList.value = res.data;
   } catch {
@@ -534,7 +554,7 @@ const fetchIndicators = async () => {
 };
 
 const handleSaveIndicator = async () => {
-  if (!indicatorForm.indicatorCode || !indicatorForm.indicatorName || !indicatorForm.category) {
+  if (!indicatorForm.indicator_code || !indicatorForm.indicator_name || !indicatorForm.category) {
     ElMessage.warning(
       `${t('supplierEvaluation.index.indicators.label.code')}/${t('supplierEvaluation.index.indicators.label.name')}/${t('supplierEvaluation.index.indicators.label.category')}`
     );
@@ -559,7 +579,7 @@ const editingEvaluationId = ref<number | null>(null);
 const fetchEvaluations = async () => {
   evaluationLoading.value = true;
   try {
-    const res = await getEvaluationList({ page: 1, pageSize: 50 });
+    const res = await getEvaluationList({ page: 1, page_size: 50 });
     // 后端 list_evaluations 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
     evaluationList.value = res.data;
   } catch {
@@ -572,7 +592,13 @@ const fetchEvaluations = async () => {
 const handleCreateEvaluation = () => {
   isEdit.value = false;
   editingEvaluationId.value = null;
-  Object.assign(recordForm, { supplierId: undefined, period: '', remark: '' });
+  Object.assign(recordForm, {
+    supplier_id: undefined,
+    evaluation_period: '',
+    indicator_id: undefined,
+    score: 0,
+    remark: '',
+  });
   recordDialogVisible.value = true;
 };
 
@@ -580,8 +606,10 @@ const handleEditEvaluation = (row: EvaluationRecord) => {
   isEdit.value = true;
   editingEvaluationId.value = row.id ?? null;
   Object.assign(recordForm, {
-    supplierId: row.supplierId,
-    period: row.period || '',
+    supplier_id: row.supplierId,
+    evaluation_period: row.period || '',
+    indicator_id: undefined,
+    score: 0,
     remark: row.remark || '',
   });
   recordDialogVisible.value = true;
@@ -653,10 +681,15 @@ const handleSaveRecord = async () => {
     try {
       if (isEdit.value && editingEvaluationId.value) {
         await updateEvaluation(editingEvaluationId.value, {
-          period: recordForm.period,
+          period: recordForm.evaluation_period,
           remark: recordForm.remark,
         });
       } else {
+        // indicator_id / score 为后端 SupplierEvaluationRequest 必填：缺失时不发请求
+        if (recordForm.indicator_id == null) {
+          ElMessage.warning(t('supplierEvaluation.index.tab.indicators'));
+          return;
+        }
         await createEvaluationRecord(recordForm as CreateEvaluationRequest);
       }
       ElMessage.success(t('supplierEvaluation.index.message.saveSuccess'));

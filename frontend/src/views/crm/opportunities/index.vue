@@ -37,15 +37,8 @@
         class="filter-form"
         :aria-label="t('crmOpportunities.filter.ariaLabel')"
       >
-        <el-form-item :label="t('crmOpportunities.filter.keyword')">
-          <el-input
-            v-model="queryParams.keyword"
-            :placeholder="t('crmOpportunities.filter.keywordPlaceholder')"
-            clearable
-            @clear="handleQuery"
-            @keyup.enter="handleQuery"
-          />
-        </el-form-item>
+        <!-- 后端 OpportunityQuery（crm_dto.rs:108）仅有 opportunity_stage/page/page_size：
+             原 keyword/owner_id/priority 筛选控件系假筛选（参数被 Axum 静默丢弃），已移除 -->
         <el-form-item :label="t('crmOpportunities.filter.stage')">
           <el-select
             v-model="queryParams.opportunity_stage"
@@ -53,36 +46,13 @@
             clearable
             @change="handleQuery"
           >
-            <el-option :label="t('crmOpportunities.stage.initial')" value="INITIAL" />
-            <el-option :label="t('crmOpportunities.stage.requirement')" value="REQUIREMENT" />
+            <!-- 选项值对齐后端真实阶段常量（QUALIFICATION/NEEDS_ANALYSIS/.../CLOSED_WON/CLOSED_LOST） -->
+            <el-option :label="t('crmOpportunities.stage.initial')" value="QUALIFICATION" />
+            <el-option :label="t('crmOpportunities.stage.requirement')" value="NEEDS_ANALYSIS" />
             <el-option :label="t('crmOpportunities.stage.proposal')" value="PROPOSAL" />
             <el-option :label="t('crmOpportunities.stage.negotiation')" value="NEGOTIATION" />
-            <el-option :label="t('crmOpportunities.stage.won')" value="WON" />
-            <el-option :label="t('crmOpportunities.stage.lost')" value="LOST" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="t('crmOpportunities.filter.owner')">
-          <el-select
-            v-model="queryParams.owner_id"
-            :placeholder="t('crmOpportunities.filter.ownerPlaceholder')"
-            clearable
-            filterable
-            @change="handleQuery"
-          >
-            <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="t('crmOpportunities.filter.priority')">
-          <el-select
-            v-model="queryParams.priority"
-            :placeholder="t('crmOpportunities.filter.priorityPlaceholder')"
-            clearable
-            @change="handleQuery"
-          >
-            <el-option :label="t('crmOpportunities.priority.low')" value="LOW" />
-            <el-option :label="t('crmOpportunities.priority.medium')" value="MEDIUM" />
-            <el-option :label="t('crmOpportunities.priority.high')" value="HIGH" />
-            <el-option :label="t('crmOpportunities.priority.urgent')" value="URGENT" />
+            <el-option :label="t('crmOpportunities.stage.won')" value="CLOSED_WON" />
+            <el-option :label="t('crmOpportunities.stage.lost')" value="CLOSED_LOST" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -368,11 +338,9 @@ interface OpportunityRow extends Opportunity {
   win_probability?: number;
 }
 
+// 键名与后端 OpportunityQuery（crm_dto.rs:108）对齐：后端不读 keyword/owner_id/priority
 const queryParams = reactive({
-  keyword: '',
   opportunity_stage: '',
-  owner_id: '',
-  priority: '',
 });
 
 // 批次 269：接入 useTableApi，消除手写分页重复
@@ -425,19 +393,14 @@ const fetchCustomers = async () => {
 };
 
 const handleQuery = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined);
+  // 同步筛选条件到 useTableApi（后端 OpportunityQuery 仅读 opportunity_stage）
   setQueryParam('opportunity_stage', queryParams.opportunity_stage || undefined);
-  setQueryParam('owner_id', queryParams.owner_id || undefined);
-  setQueryParam('priority', queryParams.priority || undefined);
   page.value = 1;
   getList();
 };
 
 const handleReset = () => {
-  queryParams.keyword = '';
   queryParams.opportunity_stage = '';
-  queryParams.owner_id = '';
-  queryParams.priority = '';
   handleQuery();
 };
 
@@ -577,7 +540,11 @@ const handleLost = async (row: OpportunityRow) => {
 // v11 批次 141 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载
 const handleExport = async () => {
   try {
-    const blob = await exportOpportunities(queryParams);
+    // 后端 export_opportunities 带 Query<OpportunityQuery>，仅应用 opportunity_stage；
+    // 空串归一为 undefined，避免 Some("") 精确匹配把结果滤空。
+    const blob = await exportOpportunities({
+      opportunity_stage: queryParams.opportunity_stage || undefined,
+    });
     const url = window.URL.createObjectURL(new Blob([blob]));
     const link = document.createElement('a');
     link.href = url;

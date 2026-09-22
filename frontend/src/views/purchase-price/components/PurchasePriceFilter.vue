@@ -11,14 +11,7 @@
       class="filter-form"
       :aria-label="t('purchasePrice.filter.ariaLabel')"
     >
-      <el-form-item :label="t('purchasePrice.filter.label.keyword')">
-        <el-input
-          v-model="localQuery.keyword"
-          :placeholder="t('purchasePrice.filter.placeholder.keyword')"
-          clearable
-          @clear="handleSearch"
-        />
-      </el-form-item>
+      <!-- 后端 PurchasePriceQuery 不读 keyword：原关键词输入框为假筛选，已移除 -->
       <el-form-item :label="t('purchasePrice.filter.label.supplier')">
         <el-select
           v-model="localQuery.supplier_id"
@@ -93,14 +86,12 @@ const emit = defineEmits<{
   'update:queryParams': [value: Record<string, unknown>];
 }>();
 
-// 本地查询条件（筛选字段，不含分页参数）
+// 本地查询条件（筛选字段，不含分页参数；与后端 PurchasePriceQuery 真实字段对齐）
 const localQuery = reactive<{
-  keyword: string;
   supplier_id: number | undefined;
   product_id: number | undefined;
   status: string;
 }>({
-  keyword: (props.queryParams.keyword as string) ?? '',
   supplier_id: props.queryParams.supplier_id as number | undefined,
   product_id: props.queryParams.product_id as number | undefined,
   status: (props.queryParams.status as string) ?? '',
@@ -114,7 +105,6 @@ const handleSearch = () => {
 
 /** 重置：清空筛选条件 + 同步 + 触发加载 */
 const handleReset = () => {
-  localQuery.keyword = '';
   localQuery.supplier_id = undefined;
   localQuery.product_id = undefined;
   localQuery.status = '';

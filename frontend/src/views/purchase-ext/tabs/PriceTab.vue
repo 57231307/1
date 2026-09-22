@@ -17,20 +17,8 @@
         :model="priceQuery"
         :aria-label="t('purchaseExt.priceTab.filterAria')"
       >
-        <el-form-item :label="t('purchaseExt.priceTab.product')">
-          <el-input
-            v-model="priceQuery.product_name"
-            :placeholder="t('purchaseExt.priceTab.productNamePlaceholder')"
-            clearable
-          />
-        </el-form-item>
-        <el-form-item :label="t('purchaseExt.priceTab.supplier')">
-          <el-input
-            v-model="priceQuery.supplier_name"
-            :placeholder="t('purchaseExt.priceTab.supplierNamePlaceholder')"
-            clearable
-          />
-        </el-form-item>
+        <!-- 后端 PurchasePriceQuery 不读 product_name/supplier_name（原输入框为假筛选，已移除；
+             真实维度是 product_id/supplier_id，页面未暴露，见交付报告） -->
         <el-form-item :label="t('purchaseExt.priceTab.status')">
           <el-select
             v-model="priceQuery.status"
@@ -268,9 +256,8 @@ const { t } = useI18n({ useScope: 'global' });
 const purchasePrices = ref<PurchasePrice[]>([]);
 const priceLoading = ref(false);
 
+// 仅保留后端 PurchasePriceQuery 真实读取的筛选（product_name/supplier_name 系假筛选已移除）
 const priceQuery = reactive({
-  product_name: '',
-  supplier_name: '',
   status: '',
 });
 
@@ -281,7 +268,8 @@ const formatMoney = (amount: number | undefined) => {
 const fetchPurchasePrices = async () => {
   priceLoading.value = true;
   try {
-    const res = await getPurchasePriceList(priceQuery);
+    // 空串归一为 undefined：后端 status=Some("") 会精确匹配滤空结果
+    const res = await getPurchasePriceList({ status: priceQuery.status || undefined });
     // 后端 purchase_price_handler::list_prices 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
     purchasePrices.value = res.data;
   } catch (error) {
@@ -293,8 +281,6 @@ const fetchPurchasePrices = async () => {
 };
 
 const resetPriceQuery = () => {
-  priceQuery.product_name = '';
-  priceQuery.supplier_name = '';
   priceQuery.status = '';
   fetchPurchasePrices();
 };

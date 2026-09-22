@@ -34,8 +34,8 @@ export function usePp() {
   } = useTableApi<PurchasePrice>({
     url: '/purchase/purchase-prices',
     defaultPageSize: 20,
+    // 后端 PurchasePriceQuery 无 keyword 字段，原 keyword 输入框为假筛选（已移除）
     defaultParams: {
-      keyword: '',
       supplier_id: undefined as number | undefined,
       product_id: undefined as number | undefined,
       status: '',
@@ -112,7 +112,6 @@ export function usePp() {
   /** 重置 */
   const handleReset = () => {
     queryParams.value = {
-      keyword: '',
       supplier_id: undefined,
       product_id: undefined,
       status: '',

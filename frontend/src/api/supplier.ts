@@ -45,17 +45,25 @@ export function getSupplierList(
   return request.get('/purchase/suppliers', { params });
 }
 
+// 对应后端 supplier_service::SupplierQueryParams（services/supplier_service.rs:991），
+// 无 rename_all → snake_case，全 Option → 可选；category 键后端不存在（原为假筛选，已移除）。
+// download_token 为敏感导出审批令牌（V15 P0-S15 fail-closed），导出时按需传入。
 export interface SupplierQueryParams {
   page?: number;
   page_size?: number;
   keyword?: string;
-  category?: string;
+  supplier_type?: string;
   grade?: string;
   status?: string;
+  sort_by?: string;
+  sort_order?: string;
+  is_enabled?: boolean;
+  category_id?: number;
   /** batch-13 P3: 加工商筛选 */
   is_processor?: boolean;
   /** batch-13 P3: 加工商类型筛选 */
   processor_type?: string;
+  download_token?: string;
 }
 
 export interface SupplierEvaluationData {

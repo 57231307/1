@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface Lead {
   id: number;
@@ -85,10 +85,28 @@ export interface Opportunity {
   updated_at: string;
 }
 
-// 后端 crm_service::list_leads 构造 json!({ "data": [...], "total", "page", "page_size" })，
+/**
+ * GET /crm/leads 与 GET /crm/leads/export 的查询参数。
+ * 对应后端 crm_dto::LeadQuery（backend/src/models/dto/crm_dto.rs:72），无 rename_all → snake_case，
+ * 全部 Option<serde(default 缺省即 None)> → 可选。
+ */
+export interface LeadQueryParams {
+  /** 线索状态（精确匹配 lead_status 列） */
+  lead_status?: string;
+  /** 线索来源（精确匹配 lead_source 列） */
+  source?: string;
+  /** 关键词模糊搜索（company_name / contact_name / mobile_phone / email） */
+  keyword?: string;
+  /** 行业（精确匹配 industry 列；仅 list 生效，export_leads 服务未应用该过滤） */
+  industry?: string;
+  page?: number;
+  page_size?: number;
+}
+
+// 后端 crm_handler::list_leads 构造 json!({ "data": [...], "total", "page", "page_size" })，
 // 经 crm_handler::list_leads 原样返回，真实列表键为 data（非裸数组）。
 export function getLeadList(
-  params?: QueryParams
+  params?: LeadQueryParams
 ): Promise<ApiResponse<{ data: Lead[]; total: number; page: number; page_size: number }>> {
   return request.get('/crm/leads', { params });
 }
@@ -122,10 +140,21 @@ export function convertLead(
   return request.post(`/crm/leads/${id}/convert`);
 }
 
+/**
+ * GET /crm/opportunities 与 GET /crm/opportunities/export 的查询参数。
+ * 对应后端 crm_dto::OpportunityQuery（backend/src/models/dto/crm_dto.rs:108），无 rename_all → snake_case。
+ * 注意：后端不读 keyword/owner_id/priority（原 QueryParams 里这些键被 Axum 静默丢弃）。
+ */
+export interface OpportunityQueryParams {
+  opportunity_stage?: string;
+  page?: number;
+  page_size?: number;
+}
+
 // 后端 crm_service::list_opportunities 构造 json!({ "data": [...], "total", "page", "page_size" })，
 // 真实列表键为 data（非裸数组）。
 export function getOpportunityList(
-  params?: QueryParams
+  params?: OpportunityQueryParams
 ): Promise<ApiResponse<{ data: Opportunity[]; total: number; page: number; page_size: number }>> {
   return request.get('/crm/opportunities', { params });
 }
@@ -165,7 +194,9 @@ export function getCustomerSummary(customerId: number): Promise<ApiResponse<Cust
 
 // 批次 94 P2-12 修复：补全 CRM 线索导出接口（原缺失，导致 leads/index.vue 导出占位假成功）
 // 返回 blob，前端用 URL.createObjectURL 触发下载
-export function exportLeads(params?: QueryParams): Promise<Blob> {
+// 后端 crm_handler::export_leads 带 Query<LeadQuery> 提取器并应用 lead_status/source/keyword
+// （industry 虽可反序列化但 export 服务未过滤，传了不生效）。
+export function exportLeads(params?: LeadQueryParams): Promise<Blob> {
   return request.get('/crm/leads/export', {
     params,
     responseType: 'blob',
@@ -181,7 +212,8 @@ export function importLeads(file: File): Promise<ApiResponse<ImportLeadsResult>>
 
 // v11 批次 141 修复：补全 CRM 商机导出接口（原缺失，导致 opportunities/index.vue 导出假成功）
 // 返回 blob，前端用 URL.createObjectURL 触发下载
-export function exportOpportunities(params?: QueryParams): Promise<Blob> {
+// 后端 crm_handler::export_opportunities 带 Query<OpportunityQuery> 提取器，仅应用 opportunity_stage。
+export function exportOpportunities(params?: OpportunityQueryParams): Promise<Blob> {
   return request.get('/crm/opportunities/export', {
     params,
     responseType: 'blob',

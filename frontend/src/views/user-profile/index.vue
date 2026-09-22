@@ -314,8 +314,6 @@ const handleSaveProfile = async () => {
         real_name: profileForm.real_name,
         email: profileForm.email,
         phone: profileForm.phone,
-        department_id: profileForm.department_id,
-        role_ids: profileForm.role_ids,
       };
       await updateUserProfile(updateData);
       ElMessage.success(t('userProfile.message.profileSaveSuccess'));

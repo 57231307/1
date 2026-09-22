@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface OaAnnouncement {
   id?: number;
@@ -49,10 +49,16 @@ export interface UpdateOaAnnouncementRequest {
   visible_scope_config?: unknown;
 }
 
-export interface OaAnnouncementQuery extends QueryParams {
+// 公告列表查询参数：字段集严格对齐后端 OaAnnouncementQuery（services/oa_announcement_service.rs）。
+// 后端不读 keyword/order_by/order_dir/date_range 等通用键。
+export interface OaAnnouncementQuery {
+  /** DRAFT/PUBLISHED/ARCHIVED */
   status?: string;
+  /** NOTICE/ANNOUNCEMENT/NEWS */
   announcement_type?: string;
   is_top?: boolean;
+  page?: number;
+  page_size?: number;
 }
 
 export function listOaAnnouncements(

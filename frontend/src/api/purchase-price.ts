@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface PurchasePrice {
   id: number;
@@ -22,8 +22,21 @@ export interface PurchasePrice {
   updated_at: string;
 }
 
+/**
+ * GET /purchase/purchase-prices 查询参数。对应后端 purchase_price_handler::PurchasePriceQuery
+ * （backend/src/handlers/purchase_price_handler.rs:16），无 rename_all → snake_case，全 Option → 可选。
+ * 注意：后端不读 keyword/product_name/supplier_name（原 QueryParams/视图里的这些键被 Axum 静默丢弃）。
+ */
+export interface PurchasePriceQueryParams {
+  product_id?: number;
+  supplier_id?: number;
+  status?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getPurchasePriceList(
-  params?: QueryParams
+  params?: PurchasePriceQueryParams
   // 后端 purchase_price_handler::list_prices 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
 ): Promise<ApiResponse<PurchasePrice[]>> {
   return request.get('/purchase/purchase-prices', { params });

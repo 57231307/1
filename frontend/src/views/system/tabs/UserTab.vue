@@ -135,9 +135,6 @@
         <el-form-item v-if="!userForm.id" :label="t('system.user.dialog.password')" prop="password">
           <el-input v-model="userForm.password" type="password" show-password />
         </el-form-item>
-        <el-form-item :label="t('system.user.dialog.realName')" prop="real_name">
-          <el-input v-model="userForm.real_name" />
-        </el-form-item>
         <el-form-item :label="t('system.user.dialog.phone')" prop="phone">
           <el-input v-model="userForm.phone" />
         </el-form-item>
@@ -251,7 +248,6 @@ const userForm = reactive({
   id: 0,
   username: '',
   password: '',
-  real_name: '',
   phone: '',
   email: '',
   role_id: undefined as number | undefined,
@@ -264,7 +260,7 @@ const userForm = reactive({
 const roles = ref<Role[]>([]);
 const fetchRoles = async () => {
   try {
-    const res = await getRoleList({ page: 1, page_size: 100 });
+    const res = await getRoleList();
     // 后端 list_roles 返回 RoleListResponse { roles, total }
     roles.value = res.data.roles;
   } catch (error) {
@@ -301,14 +297,6 @@ const userRules: FormRules = {
     { min: 3, max: 20, message: t('system.user.validation.usernameLength'), trigger: 'blur' },
   ],
   password: [{ required: true, validator: validatePassword, trigger: 'blur' }],
-  // real_name 为幽灵字段：user 表无此列，后端不持久化也不返回——必填校验会导致编辑保存必败
-  real_name: [
-    {
-      required: false,
-      message: t('system.user.validation.realNameRequired'),
-      trigger: 'blur',
-    },
-  ],
   email: [{ validator: validateEmail, trigger: 'blur' }],
   phone: [{ validator: validatePhone, trigger: 'blur' }],
   role_id: [
@@ -326,7 +314,6 @@ const openUserDialog = (row?: User) => {
     Object.assign(userForm, {
       id: row.id,
       username: row.username,
-      real_name: row.real_name ?? '',
       phone: row.phone || '',
       email: row.email || '',
       department_id: row.department_id,
@@ -340,7 +327,6 @@ const openUserDialog = (row?: User) => {
       id: 0,
       username: '',
       password: '',
-      real_name: '',
       phone: '',
       email: '',
       role_id: undefined,
@@ -358,9 +344,9 @@ const submitUser = async () => {
   try {
     if (userForm.id) {
       await updateUser(userForm.id, {
-        real_name: userForm.real_name,
         phone: userForm.phone,
         email: userForm.email,
+        role_id: userForm.role_id,
         department_id: userForm.department_id,
         // 后端 UpdateUserRequest.status 为 "active"/"inactive" 字符串（非数字）
         status: userForm.status === 1 ? 'active' : 'inactive',
@@ -370,7 +356,6 @@ const submitUser = async () => {
       await createUser({
         username: userForm.username,
         password: userForm.password,
-        real_name: userForm.real_name,
         phone: userForm.phone,
         email: userForm.email,
         role_id: userForm.role_id,

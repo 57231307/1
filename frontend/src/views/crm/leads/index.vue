@@ -55,7 +55,7 @@
         </el-form-item>
         <el-form-item :label="$t('crmLeads.filter.leadSource')">
           <el-select
-            v-model="queryParams.lead_source"
+            v-model="queryParams.source"
             :placeholder="$t('crmLeads.filter.leadSourcePlaceholder')"
             clearable
             @change="handleQuery"
@@ -81,30 +81,7 @@
             <el-option :label="$t('crmLeads.leadStatus.lost')" value="LOST" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('crmLeads.filter.owner')">
-          <el-select
-            v-model="queryParams.owner_id"
-            :placeholder="$t('crmLeads.filter.ownerPlaceholder')"
-            clearable
-            filterable
-            @change="handleQuery"
-          >
-            <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('crmLeads.filter.priority')">
-          <el-select
-            v-model="queryParams.priority"
-            :placeholder="$t('crmLeads.filter.priorityPlaceholder')"
-            clearable
-            @change="handleQuery"
-          >
-            <el-option :label="$t('crmLeads.priority.low')" value="LOW" />
-            <el-option :label="$t('crmLeads.priority.medium')" value="MEDIUM" />
-            <el-option :label="$t('crmLeads.priority.high')" value="HIGH" />
-            <el-option :label="$t('crmLeads.priority.urgent')" value="URGENT" />
-          </el-select>
-        </el-form-item>
+        <!-- 后端 LeadQuery（crm_dto.rs:72）不读 owner_id / priority：原"负责人/优先级"筛选控件为假筛选，已移除 -->
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
@@ -326,12 +303,11 @@ interface LeadRow extends Lead {
   remarks?: string;
 }
 
+// 键名与后端 LeadQuery（crm_dto.rs:72）对齐：source 即原 UI 的"线索来源"
 const queryParams = reactive({
   keyword: '',
-  lead_source: '',
+  source: '',
   lead_status: '',
-  owner_id: '',
-  priority: '',
 });
 
 // 批次 269：接入 useTableApi，消除手写分页重复
@@ -367,22 +343,18 @@ const fetchUsers = async () => {
 };
 
 const handleQuery = () => {
-  // 同步筛选条件到 useTableApi
+  // 同步筛选条件到 useTableApi（键名与后端 LeadQuery 对齐；owner_id/priority 后端不读，控件已移除）
   setQueryParam('keyword', queryParams.keyword || undefined);
-  setQueryParam('lead_source', queryParams.lead_source || undefined);
+  setQueryParam('source', queryParams.source || undefined);
   setQueryParam('lead_status', queryParams.lead_status || undefined);
-  setQueryParam('owner_id', queryParams.owner_id || undefined);
-  setQueryParam('priority', queryParams.priority || undefined);
   page.value = 1;
   getList();
 };
 
 const handleReset = () => {
   queryParams.keyword = '';
-  queryParams.lead_source = '';
+  queryParams.source = '';
   queryParams.lead_status = '';
-  queryParams.owner_id = '';
-  queryParams.priority = '';
   handleQuery();
 };
 
@@ -554,7 +526,13 @@ const handleImport = () => {
 // 批次 94 P2-12 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载
 const handleExport = async () => {
   try {
-    const blob = await exportLeads(queryParams);
+    // 后端 export_leads 带 Query<LeadQuery> 并应用 lead_status/source/keyword；
+    // 空串归一为 undefined，避免 Some("") 精确匹配把结果滤空。
+    const blob = await exportLeads({
+      keyword: queryParams.keyword || undefined,
+      source: queryParams.source || undefined,
+      lead_status: queryParams.lead_status || undefined,
+    });
     const url = window.URL.createObjectURL(new Blob([blob]));
     const link = document.createElement('a');
     link.href = url;

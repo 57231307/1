@@ -1,9 +1,13 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
-export interface NotificationQueryParams extends QueryParams {
+// 通知列表查询参数：字段集严格对齐后端 NotificationListQuery（handlers/notification_handler.rs）。
+// 类型过滤键是 snake_case 的 notification_type；status 后端仅识别 UNREAD/READ/PROCESSED。
+export interface NotificationQueryParams {
+  page?: number;
+  page_size?: number;
   status?: string;
-  notificationType?: string;
+  notification_type?: string;
 }
 
 export interface Notification {

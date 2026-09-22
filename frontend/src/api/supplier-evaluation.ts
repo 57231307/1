@@ -1,12 +1,19 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
-export interface SupplierEvaluationQueryParams {
+// list_indicators -> EvaluationIndicatorQuery（snake_case wire，无 rename_all）
+export interface EvaluationIndicatorQueryParams {
   page?: number;
-  pageSize?: number;
+  page_size?: number;
   category?: string;
   status?: string;
-  supplierId?: number;
+}
+
+// list_evaluation_records / list_evaluations -> EvaluationRecordQuery（snake_case wire）
+export interface EvaluationRecordQueryParams {
+  page?: number;
+  page_size?: number;
+  supplier_id?: number;
   period?: string;
 }
 
@@ -47,23 +54,29 @@ export interface SupplierScore {
   rank?: number;
 }
 
+// 后端 CreateEvaluationIndicatorRequest 无 rename_all，wire 为 snake_case。
+// 后端无 description 字段（评估方法为 evaluation_method），故不声明 description。
 export interface CreateEvaluationIndicatorRequest {
-  indicatorCode: string;
-  indicatorName: string;
+  indicator_code: string;
+  indicator_name: string;
   category: string;
   weight: number;
-  maxScore: number;
-  description?: string;
+  max_score: number;
+  evaluation_method?: string;
 }
 
+// 后端 SupplierEvaluationRequest 为「单指标打分」：supplier_id / evaluation_period /
+// indicator_id / score 均必填，wire 为 snake_case。
 export interface CreateEvaluationRequest {
-  supplierId: number;
-  period: string;
+  supplier_id: number;
+  evaluation_period: string;
+  indicator_id: number;
+  score: number;
   remark?: string;
 }
 
 export function getEvaluationIndicatorList(
-  params?: SupplierEvaluationQueryParams
+  params?: EvaluationIndicatorQueryParams
   // 后端 supplier_evaluation_handler::list_indicators 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
 ): Promise<ApiResponse<EvaluationIndicator[]>> {
   return request.get('/purchase/supplier-evaluations/indicators', { params });
@@ -76,7 +89,7 @@ export function createIndicator(
 }
 
 export function getEvaluationRecordList(
-  params?: SupplierEvaluationQueryParams
+  params?: EvaluationRecordQueryParams
   // 后端 list_evaluation_records / list_evaluations 均返回 ApiResponse<Vec<Model>> ⇒ 裸数组
 ): Promise<ApiResponse<EvaluationRecord[]>> {
   return request.get('/purchase/supplier-evaluations/records', { params });
@@ -103,7 +116,7 @@ export function getSupplierRankings(params?: {
 }
 
 export function getEvaluationList(
-  params?: SupplierEvaluationQueryParams
+  params?: EvaluationRecordQueryParams
   // 后端 list_evaluation_records / list_evaluations 均返回 ApiResponse<Vec<Model>> ⇒ 裸数组
 ): Promise<ApiResponse<EvaluationRecord[]>> {
   return request.get('/purchase/supplier-evaluations', { params });
