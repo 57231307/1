@@ -423,11 +423,17 @@ test.describe.serial('44f 真实实体全流转链', () => {
   test('44f-8 打样通知单 pending→sampling→submitted→approved 全链', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
+    // CreateLabDipRequestRequest 的必填是 light_source 与 required_date：
+    // 原用例发的是 main_light_source（DTO 里没这个字段，serde 直接忽略），
+    // 缺必填字段在反序列化阶段就被 axum 以 422 拒掉，用例连创建都没过。
     const r = await apiCall<{ id?: number }>(page, 'POST', '/production/lab-dip/requests', {
       customer_id: ctx.customerId,
       customer_color_no: `44F${Date.now().toString().slice(-5)}`,
       customer_color_name: '44f 打样色号',
-      main_light_source: 'D65',
+      sample_type: '小样',
+      fabric_spec: '44f 打样规格',
+      light_source: 'D65',
+      required_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
     });
     const id = r?.data?.id;
     expect(id, '打样单创建失败').toBeTruthy();

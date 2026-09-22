@@ -109,16 +109,43 @@ test.describe.serial('新域业务流转链', () => {
     // run 4623 这里失败的真实原因是建单表单提交的是 fabric_batch_no/total_length_m
     // 两个后端根本没有的字段、又缺 inspection_date，被 422 拒掉后页面停在
     // ErrorBoundary，看起来像"等不到成功提示"（表单已按 CreateInspectionRequest 重建）。
-    await page.getByRole('button', { name: '新建验布单' }).click();
-    await page.getByRole('button', { name: '保存' }).click();
+    // 接住创建响应拿验布单号：列表按 created_at 倒序，但并发分片会插入更新的行，
+    // 取 .el-table__row.first() 会点到别人的单子上（run 4625 的超时即为此，
+    // 那一行状态是 closed 时连"定级"按钮都不渲染）。
+    const [createResp] = await Promise.all([
+      page.waitForResponse(
+        r => r.url().includes('/production/fabric-inspections') && r.request().method() === 'POST',
+        { timeout: 15_000 }
+      ),
+      (async () => {
+        await page.getByRole('button', { name: '新建验布单' }).click();
+        await page.getByRole('button', { name: '保存' }).click();
+      })(),
+    ]);
+    const created = await createResp.json();
+    const inspectionNo = String(created?.data?.inspection_no ?? '');
+    expect(
+      inspectionNo,
+      `新建验布单应回验布单号，实际响应：${JSON.stringify(created).slice(0, 200)}`
+    ).not.toBe('');
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
 
     // 定级：GradeInspectionRequest { inspected_yards, qualification_rate? }
-    const firstRow = page.locator('.el-table__body-wrapper .el-table__row').first();
-    await firstRow.getByRole('button', { name: '定级' }).click();
+    const row = page.locator('.el-table__row').filter({ hasText: inspectionNo }).first();
+    await expect(row, `列表首页找不到刚建的验布单 ${inspectionNo}`).toBeVisible({
+      timeout: 10_000,
+    });
+    await row.getByRole('button', { name: '定级' }).click();
     await page.locator('.el-dialog .el-input-number input').first().fill('120');
     await page.getByRole('button', { name: '提交' }).click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
+    // 定级结果落库校验：状态应转为 graded（关闭按钮只在 graded 态出现）
+    await expect(row.getByRole('button', { name: '关闭' })).toBeVisible({ timeout: 10_000 });
+    await row.getByRole('button', { name: '关闭' }).click();
+    await page.getByRole('button', { name: '确定' }).click();
+    await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
+    // 关闭是终态：定级按钮（status !== 'closed' 才渲染）应从该行消失
+    await expect(row.getByRole('button', { name: '定级' })).toHaveCount(0);
   });
 
   test('社保：标记已缴（payment_date 必填）', async ({ page }) => {

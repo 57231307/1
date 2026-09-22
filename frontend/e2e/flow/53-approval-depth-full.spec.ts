@@ -33,6 +33,16 @@ test.afterEach(async ({ page }) => {
   CLEANUP.length = 0;
 });
 
+/**
+ * 与 backend role_change_approval_service.rs SENSITIVE_ROLES 同序的敏感角色码。
+ * create_approval 第一步就是 is_sensitive_role 判定，越界码直接 400「只有敏感角色变更需要审批」，
+ * 所以用例不能再 `?? roles[0]` 回退到任意角色——那会把「找不到敏感角色」伪装成业务失败。
+ */
+const SENSITIVE_ROLE_CODES = ['admin', 'super_admin', 'finance', 'finance_admin'];
+function pickSensitiveRole(roles: Array<{ id: number; code: string }>) {
+  return roles.find(r => SENSITIVE_ROLE_CODES.includes(r.code));
+}
+
 /** 在独立 context 中以用户名密码 API 登录，返回可用于 apiCall 风格请求的函数 */
 async function loginSecondUser(
   browser: import('@playwright/test').Browser,
@@ -143,17 +153,20 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     browser: b,
   }) => {
     await loginViaUI(page);
-    // 查一个敏感角色 id（admin/finance）
+    // 查一个敏感角色 id（backend 只对 SENSITIVE_ROLES 内的码开审批流）
     const roleResp = await apiCallRaw<{ roles?: Array<{ id: number; code: string }> }>(
       page,
       'GET',
       '/roles?page=1&page_size=50'
     );
     const roleList = roleResp?.roles ?? [];
-    const sensitive =
-      roleList.find(r => ['admin', 'finance', 'finance_admin', 'super_admin'].includes(r.code)) ??
-      roleList[0];
-    expect(sensitive, '无敏感角色').toBeTruthy();
+    const sensitive = pickSensitiveRole(roleList);
+    expect(
+      sensitive,
+      `角色表里没有敏感角色（${SENSITIVE_ROLE_CODES.join('/')}），现有：${roleList
+        .map(r => r.code)
+        .join(',')}`
+    ).toBeTruthy();
 
     const me = await apiCall<{ id?: number }>(page, 'GET', '/users/me');
     const myId =
@@ -220,9 +233,13 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       Array.isArray(roles?.roles),
       `角色列表应在 data.roles，实际响应：${JSON.stringify(roles).slice(0, 200)}`
     ).toBe(true);
-    const sensitive =
-      roles.roles.find(r => ['finance', 'finance_admin'].includes(r.code)) ?? roles.roles[0];
-    expect(sensitive, `角色表为空（total=${roles.total}），无法做双人约束前置`).toBeTruthy();
+    const sensitive = pickSensitiveRole(roles.roles);
+    expect(
+      sensitive,
+      `角色表里没有敏感角色（${SENSITIVE_ROLE_CODES.join('/')}），现有：${roles.roles
+        .map(r => r.code)
+        .join(',')}（total=${roles.total}）`
+    ).toBeTruthy();
 
     const me = await apiCall<{ id?: number }>(page, 'GET', '/users/me');
     const myId =

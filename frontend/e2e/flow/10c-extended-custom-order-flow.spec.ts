@@ -101,15 +101,22 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
 
   test('C1-4 创建打样通知单（lab_dip_request）', async ({ page }) => {
     const ctx = getCtx();
+    // CreateLabDipRequestRequest 的字段是 customer_color_no / fabric_spec / fabric_component，
+    // 必填 light_source（主对色光源）与 required_date（客户交期）；
+    // 原用例发的 product_id/color_no/color_name/fabric_type/status 五个字段 DTO 里都不存在
+    // （serde 忽略），两个必填又缺失，创建必被 422 拒掉。status 由后端状态机决定，不接受入参。
     const result = await apiCall<{ id?: number }>(page, 'POST', '/production/lab-dip/requests', {
       customer_id: ctx.customerId,
-      product_id: ctx.productIds[0] || 1,
-      color_no: 'RED-001',
-      color_name: '大红',
-      fabric_type: '棉涤',
-      status: 'pending',
+      customer_color_no: `C14-${Date.now().toString().slice(-6)}`,
+      customer_color_name: '大红',
+      sample_type: '小样',
+      fabric_spec: 'E2E 打样规格',
+      fabric_component: '棉涤',
+      light_source: 'D65',
+      required_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+      remarks: 'E2E 打样通知单',
     });
-    expect(result.data?.id).toBeDefined();
+    expect(result.data?.id, '打样通知单创建应返回 id').toBeTruthy();
   });
 
   test('C1-5 验证打样状态机（pending → sampling → submitted → approved/rejected）', async ({
