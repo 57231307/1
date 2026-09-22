@@ -11,14 +11,14 @@
 #              ci-test-fe, security-vulnerability-scan（依赖漏洞+秘密+依赖图，合并原
 #              ci-audit/ci-deps）, ci-perf-bench, ci-build-rust, ci-build-fe]
 #            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust(10分片)],
-#                         [ci-e2e（34 分片并行端到端）],
+#                         [ci-e2e（36 分片并行端到端）],
 #                         [ci-dead-code-audit（Clippy 通过后跑，步骤见 actions/dead-code-audit）]
 #            → [package-release] → [github-release]
 #            → [ci-cleanup-retry]（收尾：needs 列出全部 job，动态扫描 toJSON(needs) 汇总判定）
 #
 # 发布门禁：E2E + Rust 测试 + 死代码审计在 PR 时验证，合并即视为通过。
 #   主线 push 不重复跑测试（已在 PR 阶段验证），只做构建/格式/审计/发布。
-#   所有 job timeout 统一 360 分钟（6 小时），E2E 34 分片并行加速。
+#   所有 job timeout 统一 360 分钟（6 小时），E2E 36 分片并行加速。
 #   注：任何新增 job 必须同时加入 ci-cleanup-retry.needs，否则不参与门禁。
 # ==============================================================================
 
@@ -2263,8 +2263,8 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        # 34 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
-        #            / 30-33 extras（4 片，见下方 extras 分支的原因说明）
+        # 36 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
+        #            / 30-35 extras（6 片，见下方 extras 分支的原因说明）
         # label 只标"跑的是哪个目录的第几片"：Playwright --shard 按用例 hash 分配，
         # 分片与 spec 文件之间没有对应关系。原先按 spec 号段命名（如
         # "flow: 11~22-returns/inventory/crm"）是错的——run 35722450943 该分片实际
@@ -2334,13 +2334,17 @@ jobs:
           - shard: 29
             label: "traversal: e2e/traversal(5/5)"
           - shard: 30
-            label: "extras: e2e/未分域+业务子目录(1/4)"
+            label: "extras: e2e/testMatch 内未执行目录(1/6)"
           - shard: 31
-            label: "extras: e2e/未分域+业务子目录(2/4)"
+            label: "extras: e2e/testMatch 内未执行目录(2/6)"
           - shard: 32
-            label: "extras: e2e/未分域+业务子目录(3/4)"
+            label: "extras: e2e/testMatch 内未执行目录(3/6)"
           - shard: 33
-            label: "extras: e2e/未分域+业务子目录(4/4)"
+            label: "extras: e2e/testMatch 内未执行目录(4/6)"
+          - shard: 34
+            label: "extras: e2e/testMatch 内未执行目录(5/6)"
+          - shard: 35
+            label: "extras: e2e/testMatch 内未执行目录(6/6)"
     services:
       postgres:
         image: postgres:16-alpine
@@ -2514,19 +2518,21 @@ jobs:
             SHARD_NO=$((SHARD - 24))
             SHARD_LIMIT=1800
           else
-            # 分片 30-33: 其余真实链路用例（enhanced/purchase/sales/purchase-ext/
-            # quality/finance/crm/bpm 八个子目录 + e2e/ 根级 spec）。
+            # 分片 30-35: testMatch 内、但分片命令从不传的全部目录 ——
+            # enhanced/purchase/sales/purchase-ext/quality/finance/crm/bpm（119 用例）
+            # + e2e/ 根级 3 spec（12）+ ai/dashboard/fabric/inventory/mrp/production/
+            # quotations/sales-ext/system（71）= 实测 202 用例 / 55 文件。
             # 这批此前在 CI 里从未执行过：playwright.config.ts 的 chromium testMatch
             # 早早就把它们纳入（注释写着"去 mock 后全部进主 CI testMatch"），
             # 但分片矩阵只跑 e2e/flow、e2e/smoke、e2e/traversal 三个目录，
-            # 于是 131 个用例（本地 `playwright test --list --project=chromium`
-            # 逐目录实测：enhanced 14 + purchase 28 + sales 30 + purchase-ext 8 +
-            # quality 8 + finance 10 + crm 13 + bpm 8 + 根级 12，共 41 个文件）
-            # 永远不进矩阵——testMatch 里的"纳入"从来没变成"执行"。
-            # 这八个目录全部无 page.route()/vi.mock()（grep 零命中），是真实后端链路，
-            # 因此直接进矩阵，不先做"甄别处置"再说的拖延。
-            SPEC_TARGETS="e2e/enhanced/ e2e/purchase/ e2e/sales/ e2e/purchase-ext/ e2e/quality/ e2e/finance/ e2e/crm/ e2e/bpm/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"
-            SHARD_TOTAL=4
+            # 于是"纳入 testMatch"从来没变成"执行"。
+            # 这些目录全部无 page.route()/route.fulfill()/vi.mock()（e2e 真实性门禁
+            # 本地复跑 260 个 spec 命中 0、豁免 0）；`applyAuthMocks` 是 2026-09-09
+            # 去 mock 时保留的旧函数名，函数体已是真实 API 登录，不构成 mock 依赖。
+            # 切 6 片的依据：按 4 片每片约 50 用例，会逼近 flow 分片曾暴露的时长上限
+            # （run 35722450943 有 7 个分片撞满 1500s），6 片约 34 用例/片。
+            SPEC_TARGETS="e2e/enhanced/ e2e/purchase/ e2e/sales/ e2e/purchase-ext/ e2e/quality/ e2e/finance/ e2e/crm/ e2e/bpm/ e2e/ai/ e2e/dashboard/ e2e/fabric/ e2e/inventory/ e2e/mrp/ e2e/production/ e2e/quotations/ e2e/sales-ext/ e2e/system/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"
+            SHARD_TOTAL=6
             SHARD_NO=$((SHARD - 29))
             SHARD_LIMIT=1800
           fi
@@ -3458,7 +3464,7 @@ jobs:
               exit 1
             fi
           done
-          echo "✅ 全部 E2E job（ci-e2e 34 分片 / setup-wizard / role-permission-matrix）真实执行成功"
+          echo "✅ 全部 E2E job（ci-e2e 36 分片 / setup-wizard / role-permission-matrix）真实执行成功"
 
       - name: 静态校验——E2E 源码禁止 mock 拦截
         run: |
