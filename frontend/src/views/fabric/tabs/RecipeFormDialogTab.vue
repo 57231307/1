@@ -104,7 +104,7 @@ const formData = reactive({
   fabric_type: '',
   version: '1.0',
   content: '',
-  status: 'draft' as 'draft' | 'approved' | 'obsolete',
+  status: 'draft' as 'draft' | 'pending_approval' | 'approved' | 'disabled',
 });
 
 const resetForm = () => {

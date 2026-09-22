@@ -1,19 +1,21 @@
 // 面料管理 E2E 套件 — 03 染色配方
 // 创建时间: 2026-08-19
-// 覆盖范围：染色配方创建 → 审批（draft → approved）
+// 覆盖范围：染色配方创建 → 审批（draft → approved，端到端点击 + 断真实 toast）
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
 
 /**
- * 03-03 造数据前置：创建一条 status='draft' 的染色配方，令 RecipeTab.vue:63
- * 审批按钮（v-if="row.status === 'draft'"）渲染。配方号 recipe_no 用于定位自身行。
- * 注意（真缺陷，见 .monkeycode/doto.md，本轮不修）：后端 dye_recipe.status 用中文词表
- * （草稿/待审核/已审核/已停用，quality_dyeing.rs:36），前端按钮/标签用英文 draft/approved，
- * 真实数据行永远不出审批按钮；E2E 为驱动渲染改存英文 'draft'（仅测试内）。
- * 且 approveDyeRecipe 前端不发 body，后端 approve_recipe 要求 {approved_by:i32}
- * （dye_recipe_handler.rs:129）→ 点击必 400，审批结果无法断言。故本用例采用方法二：
- * 仅硬断言审批按钮渲染（控件存在性），不点击、不断言「审批成功」。
+ * 03-03 造数据前置：创建一条 status='draft' 的染色配方，令 RecipeTab.vue 审批按钮
+ * （canApprove：draft / pending_approval）渲染。配方号 recipe_no 用于定位自身行。
+ *
+ * 缺陷已修复（v15 词表收口）：
+ * - 后端 dye_recipe.status 曾为中文词表（quality_dyeing.rs::dye_recipe），前端按钮/标签用
+ *   英文 → 真实数据行永不渲染审批按钮。现统一为小写英文闭合词表，历史中文值由迁移回填，
+ *   中文仅在 i18n 展示层（status='draft' 经 i18n 显示为「草稿」）。
+ * - approveDyeRecipe 曾不发 body，后端 approve_recipe 要求 {approved_by:i32} → 点击必 400。
+ *   现前端从登录用户 userStore.userInfo.id 取真实 ID 传入（applyAuthMocks 下 /auth/me 返回 id=1）。
+ * 故本用例恢复端到端：硬断言状态标签 + 点击审批 + 断真实「审批成功」toast。
  */
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -66,11 +68,10 @@ test.describe('03 染色配方', () => {
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
   });
 
-  test('03-03 草稿配方可审批', async ({ page }) => {
+  test('03-03 草稿配方可审批（端到端点击 + 断真实 toast）', async ({ page }) => {
     // 假绿清零：原 `if (await approveBtn.isVisible())` 无草稿数据时零断言通过。
-    // 方法二：造 draft 配方 → 硬断言该行渲染且状态标签为「草稿」、审批按钮出现（不可见即红）。
-    // 不点击审批——前端 approveDyeRecipe 无 body 而后端要求 approved_by，点击必 400，
-    // 属后端契约缺陷（本轮不修，见文件头与 doto.md），故不断言审批结果、不为其放宽。
+    // 词表收口 + approve body 补齐后：造 draft 配方 → 硬断言状态标签为「草稿」、审批按钮渲染
+    // → 真实点击审批 + 确认 → 断成功 toast（点击必成，不再因缺 approved_by 而 400）。
     const { recipeNo } = await seedDraftRecipe(page);
     await page.goto('/fabric');
     await page.getByRole('tab', { name: /配方/ }).click();
@@ -79,9 +80,12 @@ test.describe('03 染色配方', () => {
     await expect(row.getByText('草稿'), `配方 ${recipeNo} 应渲染为「草稿」状态`).toBeVisible({
       timeout: 30000,
     });
-    await expect(
-      row.getByRole('button', { name: '审批', exact: true }),
-      `草稿配方 ${recipeNo} 的「审批」按钮应渲染`
-    ).toBeVisible({ timeout: 30000 });
+    const approveBtn = row.getByRole('button', { name: '审批', exact: true });
+    await expect(approveBtn, `草稿配方 ${recipeNo} 的「审批」按钮应渲染`).toBeVisible({
+      timeout: 30000,
+    });
+    await approveBtn.click();
+    await page.getByRole('button', { name: /确定|确认|OK/ }).click();
+    await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 });
   });
 });

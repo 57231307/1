@@ -40,12 +40,7 @@
           align="center"
         >
           <template #default="{ row }">
-            <el-tag
-              :type="
-                row.status === 'approved' ? 'success' : row.status === 'draft' ? 'info' : 'danger'
-              "
-              size="small"
-            >
+            <el-tag :type="statusTagType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
@@ -61,7 +56,7 @@
               t('fabric.recipeTab.buttonView')
             }}</el-button>
             <el-button
-              v-if="row.status === 'draft'"
+              v-if="canApprove(row.status)"
               type="success"
               link
               size="small"
@@ -69,7 +64,7 @@
               >{{ t('fabric.recipeTab.buttonApprove') }}</el-button
             >
             <el-button
-              v-if="row.status === 'approved'"
+              v-if="row.status === DYE_RECIPE_STATUS.APPROVED"
               type="warning"
               link
               size="small"
@@ -92,34 +87,55 @@ import {
   getDyeRecipe,
   approveDyeRecipe,
   createNewVersion as createNewVersionApi,
+  DYE_RECIPE_STATUS,
   type DyeRecipe,
+  type DyeRecipeStatus,
 } from '@/api/dye-recipe';
+import { useUserStore } from '@/store/user';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
+const userStore = useUserStore();
 
 const emit = defineEmits<{ openDialog: [row: DyeRecipe | null] }>();
 
 const recipes = ref<DyeRecipe[]>([]);
 const loading = ref(false);
 
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    draft: t('fabric.recipeTab.statusDraft'),
-    approved: t('fabric.recipeTab.statusApproved'),
-    obsolete: t('fabric.recipeTab.statusObsolete'),
+// 状态取值域与后端 models/status/quality_dyeing.rs::dye_recipe 词表同源（小写英文），
+// 中文仅在此经 i18n 展示层映射。
+const getStatusLabel = (status: DyeRecipeStatus): string => {
+  const map: Record<DyeRecipeStatus, string> = {
+    [DYE_RECIPE_STATUS.DRAFT]: t('fabric.recipeTab.statusDraft'),
+    [DYE_RECIPE_STATUS.PENDING_APPROVAL]: t('fabric.recipeTab.statusPendingApproval'),
+    [DYE_RECIPE_STATUS.APPROVED]: t('fabric.recipeTab.statusApproved'),
+    [DYE_RECIPE_STATUS.DISABLED]: t('fabric.recipeTab.statusDisabled'),
   };
-  return map[status] || status;
+  return map[status];
 };
+
+const statusTagType = (status: DyeRecipeStatus): 'info' | 'warning' | 'success' | 'danger' => {
+  const map: Record<DyeRecipeStatus, 'info' | 'warning' | 'success' | 'danger'> = {
+    [DYE_RECIPE_STATUS.DRAFT]: 'info',
+    [DYE_RECIPE_STATUS.PENDING_APPROVAL]: 'warning',
+    [DYE_RECIPE_STATUS.APPROVED]: 'success',
+    [DYE_RECIPE_STATUS.DISABLED]: 'danger',
+  };
+  return map[status];
+};
+
+// 审批按钮渲染条件与后端 validate_can_approve 同源：草稿或待审核均可审批。
+const canApprove = (status: DyeRecipeStatus) =>
+  status === DYE_RECIPE_STATUS.DRAFT || status === DYE_RECIPE_STATUS.PENDING_APPROVAL;
 
 const fetchRecipes = async () => {
   loading.value = true;
   try {
     const { getDyeRecipeList } = await import('@/api/dye-recipe');
     const res = await getDyeRecipeList();
-    // 响应形态兜底：数组或 { items } 分页包装（防 el-table r is not iterable 白屏）
-    const _p = res.data as unknown;
-    recipes.value = Array.isArray(_p) ? _p : ((_p as { items?: DyeRecipe[] })?.items ?? []);
+    // 后端 dye_recipe_handler.rs:66 返回 PaginatedResponse ⇒ data.items 是唯一形状；
+    // 不做「数组或 {items}」双形状宽容，那会让契约漂移永远暴露不出来。
+    recipes.value = res.data.items;
   } catch (error) {
     const err = error as Error;
     logger.error(t('fabric.recipeTab.fetchFailed'), err.message);
@@ -147,13 +163,20 @@ const handleApprove = async (row: DyeRecipe) => {
       t('fabric.common.confirmTitle'),
       { type: 'info' }
     );
-    await approveDyeRecipe(row.id);
+    // approved_by 取自登录用户真实 ID（参考本仓库其它审批入口，如 custom-orders/bpm）；
+    // 取不到身份必须显式报错，不得用查询串/硬编码/默认值伪造。
+    const approverId = userStore.userInfo?.id;
+    if (!approverId) {
+      ElMessage.error(t('fabric.recipeTab.messageNoUserInfo'));
+      return;
+    }
+    await approveDyeRecipe(row.id, { approved_by: approverId });
     ElMessage.success(t('fabric.recipeTab.messageApproveSuccess'));
     fetchRecipes();
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error;
-      ElMessage.error(err.message || t('fabric.common.failed'));
+      ElMessage.error(err.message || t('fabric.recipeTab.messageApproveFailed'));
     }
   }
 };

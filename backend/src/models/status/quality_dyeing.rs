@@ -32,19 +32,24 @@ pub mod quality_handling {
     pub const REJECTED: &str = "rejected";
 }
 
-/// 染色配方状态（dye_recipe.status 中文值，v14 批次 423A 常量化，依据 §11.1 化验室打样流程）
+/// 染色配方状态（dye_recipe.status 小写英文闭合词表，v14 批次 423A 常量化，
+/// v15 词表收口：DB/service 存小写英文，中文仅出现在前端 i18n 展示层，依据 §11.1 化验室打样流程。
+/// 取值与 migration v15 域尾 CHECK `chk_dye_recipe_status` 逐项一致。）
 pub mod dye_recipe {
     /// 草稿：配方初始状态
-    pub const DRAFT: &str = "草稿";
+    pub const DRAFT: &str = "draft";
 
     /// 待审核：配方已提交，等待化验室主管审核（批次 423B 状态机贯通）
-    pub const PENDING_APPROVAL: &str = "待审核";
+    pub const PENDING_APPROVAL: &str = "pending_approval";
 
     /// 已审核：配方已审核通过
-    pub const APPROVED: &str = "已审核";
+    pub const APPROVED: &str = "approved";
 
     /// 已停用：配方已停用
-    pub const DISABLED: &str = "已停用";
+    pub const DISABLED: &str = "disabled";
+
+    /// 全部合法取值：迁移 CHECK 与守卫测试比对的唯一来源
+    pub const ALL: &[&str] = &[DRAFT, PENDING_APPROVAL, APPROVED, DISABLED];
 }
 
 /// 化验室打样通知单状态（lab_dip_request.status 小写，v14 批次 423B，状态机 pending→sampling→submitted→approved/rejected→completed）

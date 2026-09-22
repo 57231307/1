@@ -4483,6 +4483,30 @@ COMMENT ON COLUMN "color_cards"."status" IS
     '状态（全小写，取值见 models/status/wage_energy_chemical_business.rs::color_card，'
     '与 CHECK chk_color_card_status 逐项一致）：draft(草稿/在用,legacy active 已回填为此值) / '
     'issued(已发放) / received(已收回) / used(已使用) / expired(已过期) / archived(已归档) / lost(已丢失)';
+
+-- ========== dye_recipe.status：中英分裂词表收口（中文值→小写英文，DB/service 英文、中文仅 i18n） ==========
+-- 缺陷：service/handler 通过 status::dye_recipe 常量读写，但该常量值原为中文
+-- （草稿/待审核/已审核/已停用，见 models/status/quality_dyeing.rs::dye_recipe 收口前），
+-- 真实数据行落库为中文，而前端 RecipeTab.vue 按钮/标签用英文 draft/approved → 审批按钮永不渲染。
+-- 本项目口径：DB/service 用小写英文闭合词表，中文只出现在展示层。常量已改英文，本迁移把历史
+-- 中文值回填为对应英文，再收敛 DEFAULT、建 CHECK（该列此前为无默认无约束的 VARCHAR(255)）。
+-- 域顺序依据：dye_recipe 表由 system 域创建（domain/system/m0003_add_dye_tables.rs:27 CREATE TABLE，
+-- status 列在 domain/system/mod.rs:128 补列），system 执行早于 v15，故本 v15 尾 ALTER/UPDATE 引用安全。
+-- 顺序须为 DROP → 回填 → DEFAULT → ADD CHECK：旧库无此 CHECK，DROP 为空操作；回填写英文后再建
+-- CHECK，新库无历史行则 UPDATE 空操作、CHECK 直接成立（全新库 CI 与存量库升级均不 23514）。
+ALTER TABLE "dye_recipe" DROP CONSTRAINT IF EXISTS "chk_dye_recipe_status";
+UPDATE "dye_recipe" SET "status" = 'draft'            WHERE "status" = '草稿';
+UPDATE "dye_recipe" SET "status" = 'pending_approval' WHERE "status" = '待审核';
+UPDATE "dye_recipe" SET "status" = 'approved'         WHERE "status" = '已审核';
+UPDATE "dye_recipe" SET "status" = 'disabled'         WHERE "status" = '已停用';
+ALTER TABLE "dye_recipe" ALTER COLUMN "status" SET DEFAULT 'draft';
+ALTER TABLE "dye_recipe"
+    ADD CONSTRAINT "chk_dye_recipe_status"
+    CHECK ("status" IN ('draft', 'pending_approval', 'approved', 'disabled'));
+COMMENT ON COLUMN "dye_recipe"."status" IS
+    '状态（全小写，取值见 models/status/quality_dyeing.rs::dye_recipe，与 CHECK '
+    'chk_dye_recipe_status 逐项一致）：draft(草稿) / pending_approval(待审核) / '
+    'approved(已审核) / disabled(已停用)；中文仅前端 i18n 展示层';
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

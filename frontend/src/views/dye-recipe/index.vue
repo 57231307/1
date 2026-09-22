@@ -53,10 +53,19 @@
             clearable
             @change="handleQuery"
           >
-            <el-option :label="t('dyeRecipe.index.optionDraft')" value="草稿" />
-            <el-option :label="t('dyeRecipe.index.optionPending')" value="待审核" />
-            <el-option :label="t('dyeRecipe.index.optionApproved')" value="已审核" />
-            <el-option :label="t('dyeRecipe.index.optionInactive')" value="已停用" />
+            <el-option :label="t('dyeRecipe.index.optionDraft')" :value="DYE_RECIPE_STATUS.DRAFT" />
+            <el-option
+              :label="t('dyeRecipe.index.optionPending')"
+              :value="DYE_RECIPE_STATUS.PENDING_APPROVAL"
+            />
+            <el-option
+              :label="t('dyeRecipe.index.optionApproved')"
+              :value="DYE_RECIPE_STATUS.APPROVED"
+            />
+            <el-option
+              :label="t('dyeRecipe.index.optionInactive')"
+              :value="DYE_RECIPE_STATUS.DISABLED"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -144,7 +153,7 @@
               t('dyeRecipe.index.buttonView')
             }}</el-button>
             <el-button
-              v-if="row.status === '草稿' || row.status === 'DRAFT'"
+              v-if="row.status === DYE_RECIPE_STATUS.DRAFT"
               type="primary"
               link
               size="small"
@@ -152,7 +161,7 @@
               >{{ t('dyeRecipe.index.buttonEdit') }}</el-button
             >
             <el-button
-              v-if="row.status === '草稿' || row.status === 'DRAFT'"
+              v-if="row.status === DYE_RECIPE_STATUS.DRAFT"
               type="success"
               link
               size="small"
@@ -160,7 +169,7 @@
               >{{ t('dyeRecipe.index.buttonSubmit') }}</el-button
             >
             <el-button
-              v-if="row.status === '待审核' || row.status === 'PENDING'"
+              v-if="canApprove((row as DyeRecipe).status)"
               type="success"
               link
               size="small"
@@ -337,11 +346,14 @@ import {
   getRecipeVersions,
   exportDyeRecipes,
 } from '@/api/dye-recipe';
-import type { DyeRecipe } from '@/api/dye-recipe';
+import { DYE_RECIPE_STATUS } from '@/api/dye-recipe';
+import type { DyeRecipe, DyeRecipeStatus } from '@/api/dye-recipe';
 import { logger } from '@/utils/logger';
+import { useUserStore } from '@/store/user';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
+const userStore = useUserStore();
 
 // 查询参数（筛选条件，分页由 useTableApi 管理）
 const queryParams = reactive({
@@ -484,7 +496,13 @@ const handleApprove = async (row: DyeRecipe) => {
       t('dyeRecipe.index.titlePrompt'),
       { type: 'warning' }
     );
-    await approveDyeRecipe(row.id);
+    // approved_by 取自登录用户真实 ID，取不到身份必须显式报错、不得伪造
+    const approverId = userStore.userInfo?.id;
+    if (!approverId) {
+      ElMessage.error(t('dyeRecipe.index.messageApproveFailed'));
+      return;
+    }
+    await approveDyeRecipe(row.id, { approved_by: approverId });
     ElMessage.success(t('dyeRecipe.index.messageApproveSuccess'));
     refresh();
   } catch (error) {
@@ -563,35 +581,32 @@ const handleCurrentChange = (val: number) => {
   page.value = val;
 };
 
-// 获取状态类型
-const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
-    草稿: 'info',
-    待审核: 'warning',
-    已审核: 'success',
-    已停用: 'danger',
-    DRAFT: 'info',
-    PENDING: 'warning',
-    APPROVED: 'success',
-    INACTIVE: 'danger',
+// 状态颜色以闭合词表为键：Record<DyeRecipeStatus, …> 由 TS 强制穷举，
+// 因此不再需要 `|| 'info'` 兜底，也不允许再塞中文或大写历史死键
+// （迁移前该列同时存在 中文 / 大写 两套取值，词表收口后都已不可达）。
+const getStatusType = (status: DyeRecipeStatus): 'info' | 'warning' | 'success' | 'danger' => {
+  const map: Record<DyeRecipeStatus, 'info' | 'warning' | 'success' | 'danger'> = {
+    [DYE_RECIPE_STATUS.DRAFT]: 'info',
+    [DYE_RECIPE_STATUS.PENDING_APPROVAL]: 'warning',
+    [DYE_RECIPE_STATUS.APPROVED]: 'success',
+    [DYE_RECIPE_STATUS.DISABLED]: 'danger',
   };
-  return map[status] || 'info';
+  return map[status];
 };
 
-// 获取状态标签（响应式求值）
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    草稿: t('dyeRecipe.index.optionDraft'),
-    待审核: t('dyeRecipe.index.optionPending'),
-    已审核: t('dyeRecipe.index.optionApproved'),
-    已停用: t('dyeRecipe.index.optionInactive'),
-    DRAFT: t('dyeRecipe.index.optionDraft'),
-    PENDING: t('dyeRecipe.index.optionPending'),
-    APPROVED: t('dyeRecipe.index.optionApproved'),
-    INACTIVE: t('dyeRecipe.index.optionInactive'),
+const getStatusLabel = (status: DyeRecipeStatus): string => {
+  const map: Record<DyeRecipeStatus, string> = {
+    [DYE_RECIPE_STATUS.DRAFT]: t('dyeRecipe.index.optionDraft'),
+    [DYE_RECIPE_STATUS.PENDING_APPROVAL]: t('dyeRecipe.index.optionPending'),
+    [DYE_RECIPE_STATUS.APPROVED]: t('dyeRecipe.index.optionApproved'),
+    [DYE_RECIPE_STATUS.DISABLED]: t('dyeRecipe.index.optionInactive'),
   };
-  return map[status] || status;
+  return map[status];
 };
+
+// 审批门槛与后端 validate_can_approve 同源：草稿或待审核均可审批
+const canApprove = (status: DyeRecipeStatus) =>
+  status === DYE_RECIPE_STATUS.DRAFT || status === DYE_RECIPE_STATUS.PENDING_APPROVAL;
 
 // 批次 271：useTableApi 构造时自动初始加载，无需 onMounted 调用 getList
 </script>
