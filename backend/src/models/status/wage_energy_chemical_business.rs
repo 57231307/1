@@ -313,6 +313,22 @@ pub mod outsourcing_receipt_quality_status {
 
     /// 全部合法取值，入参校验的唯一取值来源
     pub const ALL: &[&str] = &[PENDING, QUALIFIED, CONCESSION, UNQUALIFIED];
+
+    /// 词表内取值的中文文案，供服务端渲染的打印件/导出使用（界面文案仍走前端 i18n）。
+    /// 词表外返回 None，由调用方决定原样展示还是报错，不猜测越界值的含义。
+    pub fn label(code: &str) -> Option<&'static str> {
+        if code == PENDING {
+            Some("待检")
+        } else if code == QUALIFIED {
+            Some("合格")
+        } else if code == CONCESSION {
+            Some("让步接收")
+        } else if code == UNQUALIFIED {
+            Some("不合格")
+        } else {
+            None
+        }
+    }
 }
 
 /// 委外加工凭证类型（outsourcing_voucher.voucher_type，v14 批次 430，发料/加工费/入库/损耗处理）
