@@ -266,16 +266,46 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       );
     }
 
-    // 反向对照：normal 不是后端取值，此前前端正是提交这类值导致筛选恒零命中
-    const bogusStatus = await apiCallRaw<{ items: unknown[] }>(
+    // 关键词筛选（产品编码/名称）此前后端入参里根本没有 keyword：界面这个筛选框提交后
+    // 被整个忽略，用户看到的是"筛了没反应"。现已按主数据取候选产品再下推 ID 集合。
+    const ourProductCode = String(byStatus.items[0].product_code ?? '');
+    expect(ourProductCode, '库存行应带出产品编码（attach_master_names 回查主数据）').toBeTruthy();
+    const byKeyword = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
+      page,
+      'GET',
+      `/inventory/stock?keyword=${encodeURIComponent(ourProductCode)}&page=1&page_size=50`
+    );
+    expect(Array.isArray(byKeyword.items), `byKeyword.items 应为后端返回的 items 数组`);
+    expect(
+      byKeyword.items.length,
+      `按本行产品编码搜索应至少命中本行（关键词筛选未下推）`
+    ).toBeGreaterThan(0);
+    for (const row of byKeyword.items) {
+      expect(
+        String(row.product_code),
+        `关键词筛选下推失效：返回行产品编码 ${row.product_code} 不含关键词 ${ourProductCode}`
+      ).toContain(ourProductCode);
+    }
+    const noHit = await apiCallRaw<{ items: unknown[] }>(
+      page,
+      'GET',
+      `/inventory/stock?keyword=${encodeURIComponent(genCode('NOSUCH'))}&page=1&page_size=10`
+    );
+    expect(noHit.items.length, '无产品命中时应返回空集，而不是把筛选条件丢掉返回全量').toBe(0);
+
+    // 反向对照：normal 不是后端台账状态取值（本列取值域是中文主数据）。此前越界值原样
+    // 下推成 SQL 等值条件，返回 200 + 零行，前端假筛选因此永不显红；现按取值域拒绝并回显允许值。
+    const bogusStatus = await apiCallExpectFail(
       page,
       'GET',
       `/inventory/stock?product_id=${productId}&stock_status=normal&page=1&page_size=10`
     );
-    expect(
-      bogusStatus.items.length,
-      '英文 normal 不是后端台账状态取值，不应命中任何行（命中即筛选未下推）'
-    ).toBe(0);
+    expect(bogusStatus.status, `越界台账状态应被拒绝，实际 ${bogusStatus.status}`).toBe(400);
+    // 断言稳定错误码而非文案：对外 message 统一脱敏（允许值清单只进服务端 detail 日志），
+    // "拒绝信息必须列出合法值"由 backend/tests/handlers_inventory_stock_status_test.rs 钉住
+    expect(bogusStatus.code, `应返回 VALIDATION_ERROR，实际 ${JSON.stringify(bogusStatus)}`).toBe(
+      'VALIDATION_ERROR'
+    );
   });
 
   test('1-7 验证 AP 应付单', async ({ page }) => {

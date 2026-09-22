@@ -55,6 +55,16 @@ async function listRecords(
   return { status: res.status(), data, body: text };
 }
 
+/** 错误响应的稳定错误码。对外 message 已统一脱敏，能判定的只有 code；解析失败时把原文
+ *  作为返回值带进断言消息，不在这里静默吞掉 */
+function errorCode(body: string): string {
+  try {
+    return String((JSON.parse(body) as { code?: unknown }).code ?? '');
+  } catch {
+    return `<非 JSON 响应: ${body.slice(0, 120)}>`;
+  }
+}
+
 test.describe('质检记录列表筛选契约', () => {
   test('出参字段与后端模型一致，且行内取值都在词表内', async ({ request }) => {
     const { status, data } = await listRecords(request, 'page=1&page_size=5');
@@ -134,16 +144,20 @@ test.describe('质检记录列表筛选契约', () => {
     }
   });
 
-  test('越界筛选值被拒绝并列出允许值，而不是静默返回空集', async ({ request }) => {
+  test('越界筛选值被拒绝（稳定错误码），而不是静默返回空集', async ({ request }) => {
+    // 断言的是错误码而不是文案：AppError 的对外 message 统一脱敏（漏洞 #4/#8/#12 修复），
+    // 允许值清单只进服务端 detail 日志。"拒绝信息必须列出合法值"这条由
+    // backend/tests/handlers_quality_inspection_result_test.rs 钉住。
     const badResult = await listRecords(request, 'page=1&page_size=10&inspection_result=pass');
-    expect(badResult.status, '旧前端词表 pass 应被取值域校验拒绝').toBeGreaterThanOrEqual(400);
-    expect(badResult.body).toContain('合格');
+    expect(badResult.status, '旧前端词表 pass 应被取值域校验拒绝').toBe(400);
+    expect(
+      errorCode(badResult.body),
+      `越界结论应返回 VALIDATION_ERROR，实际 body：${badResult.body}`
+    ).toBe('VALIDATION_ERROR');
 
     const badType = await listRecords(request, 'page=1&page_size=10&inspection_type=inprocess');
-    expect(badType.status, 'ai_quality_predictions 那套词表不得用于本列').toBeGreaterThanOrEqual(
-      400
-    );
-    expect(badType.body).toContain('incoming');
+    expect(badType.status, 'ai_quality_predictions 那套词表不得用于本列').toBe(400);
+    expect(errorCode(badType.body)).toBe('VALIDATION_ERROR');
 
     // 不受影响的正常查询仍能跑通（证明拒绝来自校验而非查询整体失败）
     const ok = await listRecords(request, 'page=1&page_size=10');
