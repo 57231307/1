@@ -1978,3 +1978,78 @@ service，并让 `getBudgetList`/`getBudgetItemList` 合并成一个函数——
   `Json<serde_json::Value>` 并手搓 `{"code":200,"data":..}`，绕过 `ApiResponse::success`。
   线上形状与 `ApiResponse` 等价（本轮已让门禁识别这种「手写信封」并按载荷比对，不算失配），
   但缺 `message`/`total`，属一致性债务，与「信封键名统一」同批处理。
+
+## 门禁展开具名类型后的第二批真实断裂（2026-09-23 续）
+
+`check-api-envelope` 把前端具名 TS 类型展开后，可比对集从 101 涨到 334（盲区 386 → 154）。
+展开过程先暴露了门禁自己的口径缺陷：**「含数组字段」不等于「列表信封」**。
+`UserInfo{roles: string[]}`、合同详情自带的 `items: 明细行[]` 都被判成信封，一次产出 24 条假失配。
+统一后的判据（前后端共用同一函数）：数组键是规范列表名或对象带 total/count 分页标记，**且不含主键 id**
+—— 有 id 就是实体本身。另加「接收者类型已知但该 impl 无此方法 → 判不出」，
+否则 `FixedAssetService::get_by_id` 会退回按名字全局匹配，把别的服务的返回形状安上来。
+
+判据统一后剩下的 4 条失配全是真的，且都是「功能不可用」级别：
+
+1. `getAPSupplierSummary` / `getAPInvoiceRelations`：后端返回 Vec，前端声明单对象，
+   且 `balance`/`unverified_amount`、`payments`/`verifications` 等字段是臆造的。已按
+   `ap_reconciliation_ops/types.rs:34/:90` 逐字段定型（两函数零调用，无视图改动）。
+2. 报表预览 `ReportPreviewResult`：前端 `fields`/`rows(对象数组)`，后端
+   `{template_id, columns: string[], data: string[][], total, preview_rows}`
+   （`execute_custom_report` 签名 `(Vec<String>, Vec<Vec<String>>, u64)`，
+   report_template_service.rs:559）→ 表格按列索引渲染；`[key: string]: unknown` 索引签名删除；
+   `previewReport` 不再传后端没有 Query 提取器、会被静默丢弃的 page/page_size。
+3. MRP 计算页三处连锁错位：请求体（前端 `{product_ids,...}` vs 后端 `items[]{product_id,
+   required_quantity,required_date}` 且 min=1）、响应体（`calculation_id/materials/products`
+   全不存在，真实是 `{calculation_no,total_items,items_with_shortage,results[],requirements[]}`）、
+   转单（后端要 `result_ids` + 大写 `PURCHASE|PRODUCTION`，前端传 `calculation_id: undefined` +
+   小写）→ 计算 422、结果表恒空、转单必失败。已按行级 `MrpResultResponse` 重写并 join
+   `/mrp/products`（后端字段是 `code`/`name`，旧类型里的 `product_code/product_name` 是臆造的）。
+4. e2e flow 10 处 `?? []` / `|| []` 缺键吞没改成显式形状契约（逐处标注已核实的载荷键与 handler 行号），
+   并删掉 47-I1 的一行纯死代码。
+
+### 本轮新增的待决/登记项（不改，等证据说话）
+
+- `/mrp-history`、`/mrp-history/{id}`（routes/production.rs:655/:658）曾被按文件名 `missing_handlers.rs`
+  判成「占位桩」——**该判断是错的**：读函数体后确认两者都走真实查询
+  （missing_handlers.rs:274 经 `MrpEngineService::get_results` 分页、:332 查 `mrp_result` 主键），
+  该文件 12 个 handler 全部为真实实现，文件头也明写"不再返回占位数据"。
+  教训：断言"某端点是假的"必须贴函数体行号，文件名不是证据；写进 a2067efd 提交说明的「占位桩」
+  一说以本条为准作废。
+  history.vue 的真实问题是前端 `MrpHistoryRecord` 与后端 DTO 不符（后端是
+  `MrpHistoryDto{calculation_no,product_id,required_quantity,required_date,status,created_at}`、
+  详情 `MrpHistoryDetailDto`；前端却写了 products/materials/demand_quantity/calculation_id
+  这些从不返回的字段），于是页面拿不到数据。改造正在进行。
+  仍待产品确认的是「批次级」视图：一个 `calculation_no` 对应多行结果，后端只有行级分页。
+- `report_enhanced_handler::preview_template` 在 P0-B 安全修复后**不可达**：
+  `execute_custom_report` 两条分支都返回 Err（带 SQL → permission_denied；不带 → business）。
+  即预览按钮永远失败。要么由「预定义报表类型注册表」给一条安全取数路径，要么下线该入口 —— 安全边界决策。
+- `AuditLogService::{update,delete}_with_audit` 的 `resource_type` 实参 135 处为占位串
+  `"auto_audit"`（本轮已把生产订单的 4 个写入点 + 读取过滤统一到常量 `production_order`）。
+  系统性修法是在 helper 内用 `E::table_name()` 派生，但那会一次改变约 142 条写入路径的存储词表，
+  冻结期无法编译验证，故留待解冻后分两步做。
+
+### MRP 两条后端真实缺陷（已修）
+
+- **批次号不落库**：`batch_calculate` 返回 `MRPB{ts}`，但落库行号由内层
+  `run_mrp_calculation` 另生成 `MRP{ts}`（calculation.rs:29）⇒ 响应里的批次号在库里不存在，
+  按其检索恒 0 行；同毫秒两个产品还会撞 `calculation_no` 的 UNIQUE 约束（m0007:105）报 500。
+  现由批次统一派生行号（主行 `{批次}-{行序}`、子行再追 `-子序`），
+  并把 `/mrp/results?calculation_no=` 改为**前缀**匹配（等值只能命中主行），
+  转义复用 `utils::sql_escape::escape_like_pattern`；同时拒绝"超长就不过滤"的放宽（会返回全表）。
+- **同一列两套状态词表**：实际写入用 `models::status::mrp`（PLANNED/RELEASED/CONFIRMED/CANCELLED），
+  同文件另有一个零引用的 `MrpResultStatus` ActiveEnum（缺 CANCELLED、多 COMPLETED），
+  而 `mrp_results.status` 是无 CHECK 的 String 列。已删除死枚举，前端 `MrpStatus` 与
+  `Record<MrpStatus, TagType>` 收口到常量同源，并新增
+  `backend/tests/mrp_status_word_list_test.rs` 三条不变量守卫（含"前端联合类型 == 后端常量集"双向比对）。
+
+### 占位实现普查（结论：无此类缺陷）
+
+以 `未实现 / 占位 / NotImplemented` 扫 handlers+services，命中的全是注释里的历史措辞；
+12 个 `missing_handlers::*` 均落实为真实查询。本轮不存在「端点返回假数据」这一类缺陷，
+之前基于文件名的怀疑已撤回。
+
+### 状态
+
+本地未推提交累计 **86** 个；推送仍冻结（用户 2026-09-22 指令），因此以上全部只经静态门禁
+（cargo fmt / vue-tsc / eslint / prettier / i18n / contract / api-paths / envelope / playwright --list），
+**没有任何一条经过执行验证**。
