@@ -1,21 +1,24 @@
-//! 出库四维匹配扣减规划（款号 + 色号 + 缸号 + 批次）
+//! 出库扣减规划与追溯维度校验（产品 + 色号 + 缸号 + 批次）
+//!
+//! 白坯/染色判定不在本文件重复实现，唯一来源是 [`crate::services::inv::fabric_class`]
+//! （空色号⇒白坯免缸号、批次必填；非空⇒染色布、缸号+批次必填）；本文件仅委托它做维度校验。
 //!
 //! 业务规则（用户拍板）：
-//! - 出库扣减库存必须按入库时的四个维度匹配：款号（product_id，对应 products.code）
-//!   + 色号（inventory_stocks.color_no）+ 缸号（inventory_stocks.dye_lot_no）
-//!   + 批次（inventory_stocks.batch_no）。
-//! - 只有当"同款号 + 色号 + 批次"在**指定缸号**下数量不足时，才允许走**显式跨缸回退**：
-//!   扣其他缸号的库存，且回退次序必须确定、可解释——
+//! - **染色布**出库按"色号非空 ⇒ 色号 + 缸号 + 批次"匹配扣减：
 //!   1. 先扣指定缸号（精确命中）的库存行，按入库时间（created_at）升序、库存行 ID 升序；
 //!   2. 不足部分按【缸号字典序升序（无缸号的行排最后）→ 入库时间升序 → 库存行 ID 升序】
 //!      依次回退到其他缸；
 //!   3. 每一笔实际扣到的缸号/批次都必须如实写出（由调用方落进出库明细与库存流水）。
-//! - 不做兜底：出库单未指定缸号/色号/批次、或四维组合（含回退范围内）完全没有可用库存时，
+//! - **白坯布**（色号为空）出库按"色号空 + 批次"匹配、**免缸号**：只接受库里无缸号
+//!   （`dye_lot_no IS NULL`）的库存行，**不存在跨缸概念、绝不回退到带缸号行**（白坯没颜色、
+//!   自然没有染缸，跨缸回退到染缸行会把染缸料当白坯扣走，破坏追溯）。
+//! - 不做兜底：染色布缺色号/缸号/批次、白坯布缺批次，或组合口径无可用库存时，
 //!   返回明确业务错误，禁止回退到"产品+色号"式随意扣减。
 //!
 //! 本文件只承载**纯规划逻辑**（可单测、无 DB 依赖）；SELECT/UPDATE 与流水记录
 //! 由各出库路径（销售发货 `so::delivery_ops`、调拨出库 `inv::batch`）执行。
 
+use crate::services::inv::fabric_class::{self, FabricTrace};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
@@ -35,7 +38,8 @@ pub enum AllocationSource {
 pub struct DeductionCandidate {
     /// 库存行 ID（inventory_stocks.id）
     pub stock_id: i32,
-    /// 该库存行的缸号（可为空 = 无缸号行，只在跨缸回退且排在最后时才会被扣）
+    /// 该库存行的缸号：白坯库存行为 None（`inventory_stocks.dye_lot_no IS NULL`，
+    /// 入库白坯由 purchase_receipt 落 Set(None)）；染色行为非空缸号
     pub dye_lot_no: Option<String>,
     /// 该库存行当前可用数量
     pub quantity_available: Decimal,
@@ -76,18 +80,26 @@ pub enum DeductionError {
 
 /// 对候选库存行做四维扣减规划。
 ///
-/// `candidates` 为"款号+色号+批次"口径下的全部候选行（缸号过滤在这里完成），
-/// `requested_dye_lot` 为出库单指定的缸号（非空，已由 [`require_outbound_dimensions`] 校验）。
+/// `candidates` 为"款号+仓库+批次"口径下、按色号过滤后的全部候选行（缸号维度在规划内取舍），
+/// `requested_dye_lot` 为出库单的缸号需求：
+/// - `Some(lot)`（染色布）：出库单指定缸号；
+/// - `None`（白坯布）：无缸号维度。
+///
 /// 数量单位与调用方口径一致（销售出库为米，调拨出库为米）。
 ///
-/// 与"产品→色号→缸号→批次"次序的核对结论（用户拍板口径，**不改行为**）：本函数的
+/// **染色布分支（Some(lot)，行为不变，已由本文件单测锁定）**：
 /// `candidates` 已由调用方按"款号(product_id)+色号+批次"过滤，缸号维度在规划内取舍——
-/// 先消费与指定缸号精确命中的行（即同产品+同色号+同批次+同缸号四维全等），不足时才走**显式
-/// 跨缸回退**（其他缸按缸号字典序→入库时间→行 ID 的确定性次序）。这与"先满足同产品同色号同
-/// 缸号同批次、不足才显式跨缸回退"的口径完全一致，故排序实现无需改动（已被本文件 8 个单测锁定）。
+/// 先消费与指定缸号精确命中的行（同产品+同色号+同批次+同缸号四维全等），按入库时间升序→行 ID
+/// 升序；不足时才走**显式跨缸回退**（其他缸按缸号字典序→入库时间→行 ID 的确定性次序），
+/// 每笔如实标 `AllocationSource::CrossDyeLot`。
+///
+/// **白坯布分支（None，新增）**：只接受库里无缸号（`dye_lot_no IS NULL`，即入库白坯的真实存储）
+/// 的候选行，行内按入库时间升序→行 ID 升序消耗；**不做任何跨缸回退**——白坯没有颜色也就没有
+/// 染缸概念，若允许回退会把染缸料当白坯扣走，破坏缸号追溯与账实一致。合计不足即报
+/// [`DeductionError`]，绝不用带缸号的行凑数。
 pub fn plan_deduction(
     candidates: &[DeductionCandidate],
-    requested_dye_lot: &str,
+    requested_dye_lot: Option<&str>,
     quantity: Decimal,
 ) -> Result<Vec<DeductionAllocation>, DeductionError> {
     if quantity <= Decimal::ZERO {
@@ -98,29 +110,49 @@ pub fn plan_deduction(
         });
     }
 
-    // 确定性次序：精确缸号行在前（入库时间升序 → 行 ID 升序），
-    // 跨缸回退行按缸号字典序升序（None 排最后）→ 入库时间升序 → 行 ID 升序。
-    let mut ordered: Vec<&DeductionCandidate> = candidates
-        .iter()
-        .filter(|c| c.quantity_available > Decimal::ZERO)
-        .collect();
-    ordered.sort_by(|a, b| {
-        let a_exact = a.dye_lot_no.as_deref() == Some(requested_dye_lot);
-        let b_exact = b.dye_lot_no.as_deref() == Some(requested_dye_lot);
-        // bool 的 Ord 是 false < true，所以必须用 b.cmp(a) 才把"精确命中指定缸号"的行排前面；
-        // 写成 a_exact.cmp(&b_exact) 会把指定缸的行压到最后，出库先扣别的缸。
-        b_exact
-            .cmp(&a_exact)
-            .then_with(|| match (a_exact, b_exact) {
-                // 同为跨缸回退行时先比缸号字典序；同为精确行时缸号相同，直接比时间
-                (false, false) => {
-                    dye_lot_order_key(&a.dye_lot_no).cmp(&dye_lot_order_key(&b.dye_lot_no))
-                }
-                _ => std::cmp::Ordering::Equal,
-            })
-            .then_with(|| a.created_at.cmp(&b.created_at))
-            .then_with(|| a.stock_id.cmp(&b.stock_id))
-    });
+    // 按布种分支构造确定性消费次序（见函数文档）。
+    let ordered: Vec<&DeductionCandidate> = match requested_dye_lot {
+        Some(lot) => {
+            // 染色布：精确命中指定缸的行在前（入库时间升序 → 行 ID 升序），
+            // 跨缸回退行按缸号字典序升序（None 排最后）→ 入库时间升序 → 行 ID 升序。
+            let mut v: Vec<&DeductionCandidate> = candidates
+                .iter()
+                .filter(|c| c.quantity_available > Decimal::ZERO)
+                .collect();
+            v.sort_by(|a, b| {
+                let a_exact = a.dye_lot_no.as_deref() == Some(lot);
+                let b_exact = b.dye_lot_no.as_deref() == Some(lot);
+                // bool 的 Ord 是 false < true，所以必须用 b.cmp(a) 才把"精确命中指定缸号"的行排前面；
+                // 写成 a_exact.cmp(&b_exact) 会把指定缸的行压到最后，出库先扣别的缸。
+                b_exact
+                    .cmp(&a_exact)
+                    .then_with(|| match (a_exact, b_exact) {
+                        // 同为跨缸回退行时先比缸号字典序；同为精确行时缸号相同，直接比时间
+                        (false, false) => {
+                            dye_lot_order_key(&a.dye_lot_no).cmp(&dye_lot_order_key(&b.dye_lot_no))
+                        }
+                        _ => std::cmp::Ordering::Equal,
+                    })
+                    .then_with(|| a.created_at.cmp(&b.created_at))
+                    .then_with(|| a.stock_id.cmp(&b.stock_id))
+            });
+            v
+        }
+        None => {
+            // 白坯布：只接受库里无缸号（dye_lot_no IS NULL）的候选行，行内按入库时间→行 ID 消耗，
+            // 不回退到带缸号的行（白坯无缸号概念）。
+            let mut v: Vec<&DeductionCandidate> = candidates
+                .iter()
+                .filter(|c| c.quantity_available > Decimal::ZERO && c.dye_lot_no.is_none())
+                .collect();
+            v.sort_by(|a, b| {
+                a.created_at
+                    .cmp(&b.created_at)
+                    .then_with(|| a.stock_id.cmp(&b.stock_id))
+            });
+            v
+        }
+    };
 
     let available_total: Decimal = ordered.iter().map(|c| c.quantity_available).sum();
     if ordered.is_empty() || available_total <= Decimal::ZERO {
@@ -134,13 +166,19 @@ pub fn plan_deduction(
             break;
         }
         let take = remaining.min(c.quantity_available);
+        // 白坯分支候选已限定为无缸号行，每行即需求行本身，恒精确命中（不标跨缸）；
+        // 染色分支按是否等于指定缸号判定。
+        let is_exact = match requested_dye_lot {
+            None => true,
+            Some(lot) => c.dye_lot_no.as_deref() == Some(lot),
+        };
         allocations.push(DeductionAllocation {
             stock_id: c.stock_id,
             dye_lot_no: c.dye_lot_no.clone(),
             quantity: take,
             quantity_before: c.quantity_available,
             quantity_after: c.quantity_available - take,
-            source: if c.dye_lot_no.as_deref() == Some(requested_dye_lot) {
+            source: if is_exact {
                 AllocationSource::ExactDyeLot
             } else {
                 AllocationSource::CrossDyeLot
@@ -166,20 +204,21 @@ fn dye_lot_order_key(dye_lot_no: &Option<String>) -> (u8, &str) {
     }
 }
 
-/// 出库单四维入参（已通过非空校验，trim 后的 owned 值）。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OutboundDimensions {
-    /// 色号
-    pub color_no: String,
-    /// 缸号
-    pub dye_lot_no: String,
-    /// 批次号
-    pub batch_no: String,
-}
-
-/// 校验出库明细必须显式携带色号/缸号/批次（款号由 product_id 承载）。
+/// 出库单三维入参（色号 + 缸号 + 批次，trim 后 owned 值）。
 ///
-/// 缺失即业务错误（不做兜底）：`bill_label` 用于指明是销售发货明细还是调拨出库明细。
+/// 与入库侧 [`fabric_class`] 的判定结果 [`FabricTrace`] 同源同型：白坯布 `color_no` 为空串、
+/// `dye_lot_no` 为 None；染色布二者皆非空。用类型别名而非另立结构，杜绝出库/入库两份口径漂移。
+pub type OutboundDimensions = FabricTrace;
+
+/// 校验并归一化出库明细的追溯维度（款号由 product_id 承载，此处含色号 / 缸号 / 批次）。
+///
+/// 判定委托全仓唯一实现 [`fabric_class::validate_fabric_trace`]，出库 / 入库同源，
+/// 不在出库侧再写第二份规则（业务铁律：白坯布 = 没有颜色的布）：
+/// - 白坯布（色号为空 / 空白）：免缸号，`dye_lot_no` 归一为 None，批次仍必填；
+/// - 染色布（色号非空）：缸号、批次都必填，缺一返回明确业务错误（不做兜底）；
+/// - 不以色号名称嗅探白坯（"本白""WHITE" 是已染色的白色布，必须带缸号追溯）。
+///
+/// `bill_label` 用于指明是销售发货明细还是调拨出库明细，`product_id` 用于定位款号。
 pub fn require_outbound_dimensions(
     bill_label: &str,
     product_id: i32,
@@ -187,31 +226,21 @@ pub fn require_outbound_dimensions(
     dye_lot_no: Option<&str>,
     batch_no: Option<&str>,
 ) -> Result<OutboundDimensions, AppError> {
-    let dim = |value: Option<&str>, name: &str| -> Result<String, AppError> {
-        value
-            .map(str::trim)
-            .filter(|v| !v.is_empty())
-            .map(str::to_string)
-            .ok_or_else(|| {
-                AppError::business(format!(
-                    "{}明细（款号产品 {}）缺少{}：出库必须按款号+色号+缸号+批次四维匹配扣减，不允许缺维度扣减",
-                    bill_label, product_id, name
-                ))
-            })
-    };
-    Ok(OutboundDimensions {
-        color_no: dim(color_no, "色号")?,
-        dye_lot_no: dim(dye_lot_no, "缸号")?,
-        batch_no: dim(batch_no, "批次号")?,
-    })
+    fabric_class::validate_fabric_trace(
+        color_no.map(str::to_string),
+        dye_lot_no.map(str::to_string),
+        batch_no.map(str::to_string),
+    )
+    .map_err(|e| AppError::business(format!("{}（款号产品 {}）：{}", bill_label, product_id, e)))
 }
 
 // =====================================================
-// 单元测试（四维扣减规划：精确命中 / 部分命中+跨缸回退 / 无库存报错）
+// 单元测试（染色：精确命中 / 部分命中+跨缸回退 / 无库存；白坯：仅无缸号行、不跨缸）
 // =====================================================
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::inv::fabric_class::validate_fabric_trace;
     use chrono::{TimeZone, Utc};
     use rust_decimal::Decimal;
     use std::str::FromStr;
@@ -233,16 +262,10 @@ mod tests {
         }
     }
 
-    fn exact_allocations(allocs: &[DeductionAllocation]) -> Vec<(i32, &str, Decimal)> {
+    fn exact_allocations(allocs: &[DeductionAllocation]) -> Vec<(i32, Option<&str>, Decimal)> {
         allocs
             .iter()
-            .map(|a| {
-                (
-                    a.stock_id,
-                    a.dye_lot_no.as_deref().unwrap_or(""),
-                    a.quantity,
-                )
-            })
+            .map(|a| (a.stock_id, a.dye_lot_no.as_deref(), a.quantity))
             .collect()
     }
 
@@ -253,8 +276,8 @@ mod tests {
             row(1, Some("DL-A"), "100", 3),
             row(2, Some("DL-B"), "100", 1),
         ];
-        let allocs = plan_deduction(&candidates, "DL-A", d("40")).unwrap();
-        assert_eq!(exact_allocations(&allocs), vec![(1, "DL-A", d("40"))]);
+        let allocs = plan_deduction(&candidates, Some("DL-A"), d("40")).unwrap();
+        assert_eq!(exact_allocations(&allocs), vec![(1, Some("DL-A"), d("40"))]);
         assert_eq!(allocs[0].quantity_before, d("100"));
         assert_eq!(allocs[0].quantity_after, d("60"));
         assert_eq!(allocs[0].source, AllocationSource::ExactDyeLot);
@@ -268,13 +291,13 @@ mod tests {
             row(7, Some("DL-A"), "10", 2),
             row(8, Some("DL-A"), "10", 2),
         ];
-        let allocs = plan_deduction(&candidates, "DL-A", d("25")).unwrap();
+        let allocs = plan_deduction(&candidates, Some("DL-A"), d("25")).unwrap();
         assert_eq!(
             exact_allocations(&allocs),
             vec![
-                (7, "DL-A", d("10")),
-                (8, "DL-A", d("10")),
-                (9, "DL-A", d("5"))
+                (7, Some("DL-A"), d("10")),
+                (8, Some("DL-A"), d("10")),
+                (9, Some("DL-A"), d("5"))
             ]
         );
     }
@@ -289,10 +312,10 @@ mod tests {
             row(3, Some("DL-C"), "50", 1),
             row(4, Some("DL-B"), "50", 4),
         ];
-        let allocs = plan_deduction(&candidates, "DL-A", d("15")).unwrap();
+        let allocs = plan_deduction(&candidates, Some("DL-A"), d("15")).unwrap();
         assert_eq!(
             exact_allocations(&allocs),
-            vec![(2, "DL-A", d("10")), (4, "DL-B", d("5"))]
+            vec![(2, Some("DL-A"), d("10")), (4, Some("DL-B"), d("5"))]
         );
         assert_eq!(allocs[0].source, AllocationSource::ExactDyeLot);
         assert_eq!(allocs[1].source, AllocationSource::CrossDyeLot);
@@ -309,10 +332,10 @@ mod tests {
             row(2, Some("DL-A"), "5", 1),
             row(3, Some("DL-Z"), "50", 9),
         ];
-        let allocs = plan_deduction(&candidates, "DL-A", d("12")).unwrap();
+        let allocs = plan_deduction(&candidates, Some("DL-A"), d("12")).unwrap();
         assert_eq!(
             exact_allocations(&allocs),
-            vec![(2, "DL-A", d("5")), (3, "DL-Z", d("7"))]
+            vec![(2, Some("DL-A"), d("5")), (3, Some("DL-Z"), d("7"))]
         );
         assert_eq!(allocs[1].source, AllocationSource::CrossDyeLot);
     }
@@ -321,13 +344,13 @@ mod tests {
     fn test_no_candidates_at_all_returns_no_stock_error() {
         // 四维组合完全无库存：报 NoStockAtAll，不回退到"产品+色号"
         let candidates: Vec<DeductionCandidate> = vec![];
-        let err = plan_deduction(&candidates, "DL-A", d("1")).unwrap_err();
+        let err = plan_deduction(&candidates, Some("DL-A"), d("1")).unwrap_err();
         assert_eq!(err, DeductionError::NoStockAtAll);
 
         // 有行但全部可用量为 0 同样视为无库存
         let zero_rows = vec![row(1, Some("DL-A"), "0", 1), row(2, Some("DL-B"), "0", 2)];
         assert_eq!(
-            plan_deduction(&zero_rows, "DL-A", d("1")).unwrap_err(),
+            plan_deduction(&zero_rows, Some("DL-A"), d("1")).unwrap_err(),
             DeductionError::NoStockAtAll
         );
     }
@@ -336,7 +359,7 @@ mod tests {
     fn test_insufficient_after_fallback_reports_real_totals() {
         // 指定缸 + 可回退缸全部加起来仍不足
         let candidates = vec![row(1, Some("DL-A"), "10", 1), row(2, Some("DL-B"), "20", 1)];
-        let err = plan_deduction(&candidates, "DL-A", d("35")).unwrap_err();
+        let err = plan_deduction(&candidates, Some("DL-A"), d("35")).unwrap_err();
         assert_eq!(
             err,
             DeductionError::Insufficient {
@@ -349,36 +372,153 @@ mod tests {
     #[test]
     fn test_non_positive_quantity_is_rejected() {
         let candidates = vec![row(1, Some("DL-A"), "10", 1)];
-        assert!(plan_deduction(&candidates, "DL-A", Decimal::ZERO).is_err());
-        assert!(plan_deduction(&candidates, "DL-A", d("-1")).is_err());
+        assert!(plan_deduction(&candidates, Some("DL-A"), Decimal::ZERO).is_err());
+        assert!(plan_deduction(&candidates, Some("DL-A"), d("-1")).is_err());
+    }
+
+    // ---------- 白坯布（无缸号）分支 ----------
+
+    #[test]
+    fn white_greige_deducts_only_null_dye_lot_rows() {
+        // 白坯分支：库里无缸号（dye_lot_no IS NULL）的候选可正常扣减，且标精确命中
+        let candidates = vec![
+            row(11, None, "60", 3),
+            row(10, None, "60", 1),
+            row(20, Some("DL-X"), "100", 2), // 带缸号行不得被白坯出库看到
+        ];
+        let allocs = plan_deduction(&candidates, None, d("100")).unwrap();
+        // 仅扣两行无缸号行，按入库时间升序（先 id=10 后 id=11），绝不触碰 DL-X
+        assert_eq!(
+            exact_allocations(&allocs),
+            vec![(10, None, d("60")), (11, None, d("40"))]
+        );
+        assert!(
+            allocs
+                .iter()
+                .all(|a| a.source == AllocationSource::ExactDyeLot),
+            "白坯出库不应产生跨缸回退标记"
+        );
+        assert!(
+            !allocs.iter().any(|a| a.dye_lot_no.is_some()),
+            "白坯出库绝不得扣到带缸号的行"
+        );
     }
 
     #[test]
-    fn test_require_outbound_dimensions_rejects_each_missing_dim() {
-        // 缺任一维度都必须报业务错误（不兜底），且错误信息指明缺哪个维度
-        let missing_dye =
-            require_outbound_dimensions("销售发货", 7, Some("RED"), Some("  "), Some("B1"));
-        assert!(matches!(missing_dye, Err(AppError::BusinessError(_))));
-        assert!(missing_dye.unwrap_err().to_string().contains("缸号"));
+    fn white_greige_no_null_dye_lot_row_is_no_stock() {
+        // 只有带缸号的候选时，白坯出库必须报无库存（而非回退去扣染缸料）
+        let candidates = vec![
+            row(1, Some("DL-A"), "100", 1),
+            row(2, Some("DL-B"), "100", 2),
+        ];
+        let err = plan_deduction(&candidates, None, d("10")).unwrap_err();
+        assert_eq!(err, DeductionError::NoStockAtAll);
+    }
 
-        let missing_color =
-            require_outbound_dimensions("销售发货", 7, None, Some("DL-A"), Some("B1"));
-        assert!(missing_color.unwrap_err().to_string().contains("色号"));
+    #[test]
+    fn white_greige_insufficient_without_cross_dye_fallback() {
+        // 无缸号行合计不足：报明确不足错误，不回退到带缸号行凑数
+        let candidates = vec![row(1, None, "5", 1), row(2, Some("DL-A"), "100", 2)];
+        let err = plan_deduction(&candidates, None, d("20")).unwrap_err();
+        assert_eq!(
+            err,
+            DeductionError::Insufficient {
+                available_total: d("5"),
+                required: d("20")
+            }
+        );
+    }
+
+    // ---------- 维度校验与同源判定 ----------
+
+    #[test]
+    fn require_outbound_dimensions_dyed_requires_dye_lot_and_batch() {
+        // 染色布（色号非空）缺缸号/缺批次都报业务错误，且指明缺哪个维度
+        let missing_dye =
+            require_outbound_dimensions("销售发货", 7, Some("RED"), Some("  "), Some("B1"))
+                .unwrap_err();
+        assert!(
+            missing_dye.to_string().contains("缸号"),
+            "实际: {}",
+            missing_dye
+        );
 
         let missing_batch =
-            require_outbound_dimensions("调拨出库", 7, Some("RED"), Some("DL-A"), None);
-        assert!(missing_batch.unwrap_err().to_string().contains("批次号"));
+            require_outbound_dimensions("调拨出库", 7, Some("RED"), Some("DL-A"), None)
+                .unwrap_err();
+        assert!(
+            missing_batch.to_string().contains("批"),
+            "实际: {}",
+            missing_batch
+        );
 
+        // 染色布四维齐（色号+缸号+批次）通过并 trim
         let ok =
             require_outbound_dimensions("销售发货", 7, Some(" RED "), Some("DL-A"), Some("B1"))
                 .unwrap();
-        assert_eq!(
-            ok,
-            OutboundDimensions {
-                color_no: "RED".to_string(),
-                dye_lot_no: "DL-A".to_string(),
-                batch_no: "B1".to_string(),
-            }
-        );
+        assert_eq!(ok.color_no, "RED");
+        assert_eq!(ok.dye_lot_no.as_deref(), Some("DL-A"));
+        assert_eq!(ok.batch_no, "B1");
+    }
+
+    #[test]
+    fn require_outbound_dimensions_white_greige_allows_empty_color_no_dye_lot() {
+        // 白坯布（色号为空 / 空白 / None）免缸号，批次仍必填；缸号归一为 None
+        let none_color =
+            require_outbound_dimensions("销售发货", 7, None, None, Some("B1")).unwrap();
+        assert_eq!(none_color.color_no, "");
+        assert_eq!(none_color.dye_lot_no, None);
+        assert_eq!(none_color.batch_no, "B1");
+
+        let blank_color =
+            require_outbound_dimensions("调拨出库", 7, Some("   "), Some("  "), Some("B2"))
+                .unwrap();
+        assert_eq!(blank_color.color_no, "");
+        assert_eq!(blank_color.dye_lot_no, None);
+
+        // 白坯缺批次仍拒（批次与是否染色无关，必填）
+        let err = require_outbound_dimensions("销售发货", 7, Some(""), None, None).unwrap_err();
+        assert!(err.to_string().contains("批"), "实际: {}", err);
+    }
+
+    #[test]
+    fn white_named_color_is_dyed_and_requires_dye_lot_on_outbound() {
+        // 名字带"白"/WHITE 的色号是染色白色布，出库缺缸号必须被拒（不按名称豁免）
+        let err =
+            require_outbound_dimensions("销售发货", 7, Some("本白"), None, Some("B1")).unwrap_err();
+        assert!(err.to_string().contains("缸号"), "实际: {}", err);
+    }
+
+    #[test]
+    fn outbound_and_inbound_determination_share_single_source() {
+        // 出库 require_outbound_dimensions 与入库 validate_fabric_trace 判定同源：
+        // 同一组（色号/缸号/批次）在两个方向必须得到完全一致的归一化结果。
+        let cases: [(&str, &str, &str); 4] = [
+            ("", "", "B1"),         // 白坯：免缸号
+            ("  ", "  ", "B2"),     // 白坯（空白）
+            ("RED", "DL-A", "B3"),  // 染色：四维齐
+            ("本白", "DL-W", "B4"), // 白色号是染色布
+        ];
+        for (color, dye, batch) in cases {
+            let outbound =
+                require_outbound_dimensions("销售发货", 1, Some(color), Some(dye), Some(batch))
+                    .expect("有效维度应通过");
+            let inbound = validate_fabric_trace(
+                Some(color.to_string()),
+                Some(dye.to_string()),
+                Some(batch.to_string()),
+            )
+            .expect("有效维度应通过");
+            assert_eq!(
+                outbound, inbound,
+                "同一入参出库/入库判定必须一致: {color:?}/{dye:?}"
+            );
+        }
+
+        // 染色布缺缸号：两方向都必须拒绝
+        let ob = require_outbound_dimensions("销售发货", 1, Some("RED"), None, Some("B5"));
+        let ib = validate_fabric_trace(Some("RED".to_string()), None, Some("B5".to_string()));
+        assert!(ob.is_err());
+        assert!(ib.is_err());
     }
 }

@@ -441,14 +441,18 @@ impl SalesService {
                 created_at: s.created_at,
             })
             .collect();
-        let allocations = plan_deduction(&plan_candidates, &dims.dye_lot_no, item.quantity)
-            .map_err(|e| match e {
-                DeductionError::NoStockAtAll => Self::no_stock_error(item.product_id, &dims),
-                DeductionError::Insufficient {
-                    available_total,
-                    required,
-                } => Self::insufficient_error(item.product_id, &dims, available_total, required),
-            })?;
+        let allocations = plan_deduction(
+            &plan_candidates,
+            dims.dye_lot_no.as_deref(),
+            item.quantity,
+        )
+        .map_err(|e| match e {
+            DeductionError::NoStockAtAll => Self::no_stock_error(item.product_id, &dims),
+            DeductionError::Insufficient {
+                available_total,
+                required,
+            } => Self::insufficient_error(item.product_id, &dims, available_total, required),
+        })?;
 
         let mut reductions: Vec<StockReduction> = Vec::with_capacity(allocations.len());
         for alloc in allocations {
@@ -479,8 +483,8 @@ impl SalesService {
                 .await?;
             if reduce_result.rows_affected == 0 {
                 return Err(AppError::business(format!(
-                    "款号（产品 {}）色号 {} 缸号 {} 批次 {} 库存不足（并发冲突或库存已被其他事务扣减）",
-                    item.product_id, dims.color_no, dims.dye_lot_no, dims.batch_no
+                    "款号（产品 {}）色号 {} 批次 {} 库存不足（并发冲突或库存已被其他事务扣减）",
+                    item.product_id, dims.color_no, dims.batch_no
                 )));
             }
             reductions.push(StockReduction {
@@ -492,7 +496,8 @@ impl SalesService {
                 color_no: stock.color_no.clone(),
                 dye_lot_no: stock.dye_lot_no.clone(),
                 batch_no: stock.batch_no.clone(),
-                requested_dye_lot_no: dims.dye_lot_no.clone(),
+                // 白坯出库单无缸号维度，归一为空串（不会写入跨缸留痕，is_cross_dye_lot 恒 false）
+                requested_dye_lot_no: dims.dye_lot_no.clone().unwrap_or_default(),
                 source: alloc.source,
             });
         }
@@ -547,9 +552,21 @@ impl SalesService {
         product_id: i32,
         dims: &crate::services::inventory_deduction::OutboundDimensions,
     ) -> AppError {
+        let color_disp = if dims.color_no.is_empty() {
+            "白坯（无颜色）"
+        } else {
+            dims.color_no.as_str()
+        };
+        let dims_disp = match dims.dye_lot_no.as_deref() {
+            Some(lot) => format!(
+                "色号 {} + 缸号 {} + 批次 {}",
+                color_disp, lot, dims.batch_no
+            ),
+            None => format!("色号 {} + 批次 {}（白坯免缸号）", color_disp, dims.batch_no),
+        };
         AppError::business(format!(
-            "款号（产品 {}）+ 色号 {} + 缸号 {} + 批次 {} 无任何库存记录，出库被拒绝（不回退到产品+色号扣减）",
-            product_id, dims.color_no, dims.dye_lot_no, dims.batch_no
+            "款号（产品 {}）+ {} 无任何库存记录，出库被拒绝（不回退到产品+色号扣减）",
+            product_id, dims_disp
         ))
     }
 
@@ -560,10 +577,22 @@ impl SalesService {
         available_total: Decimal,
         required: Decimal,
     ) -> AppError {
-        AppError::business(format!(
-            "款号（产品 {}）+ 色号 {} + 批次 {} 可用库存合计 {}（含跨缸回退的其他缸）小于出库数量 {}，指定缸号 {} 数量不足且其他缸亦不足以补足",
-            product_id, dims.color_no, dims.batch_no, available_total, required, dims.dye_lot_no
-        ))
+        let color_disp = if dims.color_no.is_empty() {
+            "白坯（无颜色）"
+        } else {
+            dims.color_no.as_str()
+        };
+        let reason = match dims.dye_lot_no.as_deref() {
+            Some(lot) => format!(
+                "款号（产品 {}）+ 色号 {} + 批次 {} 可用库存合计 {}（含跨缸回退的其他缸）小于出库数量 {}，指定缸号 {} 数量不足且其他缸亦不足以补足",
+                product_id, color_disp, dims.batch_no, available_total, required, lot
+            ),
+            None => format!(
+                "款号（产品 {}）+ 色号 {} + 批次 {} 无缸号库存合计 {} 小于出库数量 {}（白坯不做跨缸回退）",
+                product_id, color_disp, dims.batch_no, available_total, required
+            ),
+        };
+        AppError::business(reason)
     }
 
     /// 释放订单的库存预留记录（回滚未出库预留占用的库存；保留预留行用于审计追溯）

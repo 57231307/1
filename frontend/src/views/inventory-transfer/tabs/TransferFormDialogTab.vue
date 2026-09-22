@@ -494,9 +494,10 @@ const handleDeleteItem = async (row: ServerItem) => {
 };
 
 const handleSubmit = async () => {
-  // 出库四维规则（后端不做兜底）：有数量/产品的明细行必须选定 色号+批次+缸号
+  // 出库维度口径与后端同源（fabric_class 唯一判定，禁止第二份规则）：
+  // 批次必填；色号非空的染色布必须齐缸号，色号为空的白坯布免缸号。
   const missingDim = formData.items.find(
-    i => i.product_id && i.quantity > 0 && (!i.color_no || !i.batch_no || !i.dye_lot_no)
+    i => i.product_id && i.quantity > 0 && (!i.batch_no || (i.color_no && !i.dye_lot_no))
   );
   if (missingDim) {
     ElMessage.warning(t('inventoryTransfer.transferForm.stockRowRequired'));

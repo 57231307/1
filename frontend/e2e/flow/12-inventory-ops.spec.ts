@@ -204,4 +204,188 @@ test.describe('库存调拨完整流程', () => {
     );
     expect(illegalShip.status).toBeGreaterThanOrEqual(400);
   });
+
+  // ============================================================
+  // 白坯布正常出库链路（真实入库→调拨出库）：
+  // 业务口径：白坯布 = 没有颜色的布（color_no 为空），免缸号、批次必填。
+  // 入库：走真实采购收货，明细不带 color_code / lot_no（→ inventory_stocks.color_no=''、
+  //       dye_lot_no IS NULL），带批次；出库：调拨按 产品+仓库+批次+无色号 精确扣该白坯行。
+  // 断言：出库后白坯库存行按批次精确减少（扣减量=出库量），出库明细色号为空、缸号为空。
+  // ============================================================
+  test('白坯布：真实入库后调拨出库按批次精确扣减（免缸号）', async ({ page }) => {
+    const ctx = getCtx();
+    expect(ctx.warehouseIds.length, '需要至少两个仓库（调出/调入）').toBeGreaterThanOrEqual(2);
+    const productId = ctx.productIds[0];
+    const supplierId = ctx.supplierId;
+    const departmentId = ctx.departmentIds[0];
+    const warehouseId = ctx.warehouseIds[0];
+    expect(productId, '前置产品缺失').toBeTruthy();
+    expect(supplierId, '前置供应商缺失').toBeTruthy();
+
+    const whiteBatch = genCode('BN-WHITE');
+    const inboundQty = 30;
+    const outboundQty = 12;
+
+    // ---- 1. 建采购单（白坯产品）并审批 ----
+    const po = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
+      supplier_id: supplierId,
+      warehouse_id: warehouseId,
+      department_id: departmentId,
+      order_date: new Date().toISOString().slice(0, 10),
+      items: [{ material_id: productId, quantity_ordered: String(inboundQty), unit_price: '1' }],
+    });
+    const poId = po.data?.id;
+    expect(poId, `采购单创建应返回 id，实际：${JSON.stringify(po).slice(0, 200)}`).toBeTruthy();
+    await apiCall(page, 'POST', `/purchase/orders/${poId}/submit`);
+    await apiCall(page, 'POST', `/purchase/orders/${poId}/approve`);
+    console.warn(`[白坯出库] 采购单已审批 poId=${poId}`);
+
+    // ---- 2. 建白坯入库单（不带 color_code / lot_no）并确认入库 ----
+    const receipt = await apiCall<{ id?: number }>(page, 'POST', '/purchase/receipts', {
+      order_id: poId,
+      supplier_id: supplierId,
+      warehouse_id: warehouseId,
+      receipt_date: new Date().toISOString().slice(0, 10),
+      items: [
+        {
+          line_no: 1,
+          material_id: productId,
+          material_name: 'E2E 白坯布',
+          unit_master: 'm',
+          quantity: String(inboundQty),
+          quantity_alt: '0',
+          batch_no: whiteBatch,
+          // 白坯：故意不提供 color_code / lot_no
+        },
+      ],
+    });
+    const receiptId = receipt.data?.id;
+    expect(receiptId, `白坯入库单创建失败：${JSON.stringify(receipt).slice(0, 200)}`).toBeTruthy();
+    await apiCall(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
+    await expect
+      .poll(
+        async () => {
+          const r = await apiCallRaw<{ receipt_status?: string; status?: string }>(
+            page,
+            'GET',
+            `/purchase/receipts/${receiptId}`
+          );
+          return (r.receipt_status || r.status || '').toUpperCase();
+        },
+        { message: `白坯入库单 ${receiptId} 应进入 COMPLETED 终态` }
+      )
+      .toBe('COMPLETED');
+
+    // ---- 3. 定位入库后的白坯库存行（color_no 空 + dye_lot_no 空 + 指定批次）----
+    const readWhiteStock = async () => {
+      const res = await apiCallRaw<{ items?: Array<Record<string, unknown>> }>(
+        page,
+        'GET',
+        `/inventory/stock?product_id=${productId}&warehouse_id=${warehouseId}&batch_no=${whiteBatch}&page=1&page_size=50`
+      );
+      const rows = res.items ?? [];
+      console.warn(
+        `[白坯出库] 批次 ${whiteBatch} 命中库存行 ${rows.length} 条: ${rows
+          .map(
+            r =>
+              `id=${r.id} color=${JSON.stringify(r.color_no)} dye=${JSON.stringify(r.dye_lot_no)} avail=${r.quantity_available}`
+          )
+          .join(' | ')}`
+      );
+      return rows.find(r => !r.color_no && !r.dye_lot_no) ?? null;
+    };
+    const whiteBefore = await readWhiteStock();
+    expect(
+      whiteBefore,
+      `白坯入库后应在仓库 ${warehouseId} 生成 color_no 空 + dye_lot_no 空 + 批次 ${whiteBatch} 的库存行`
+    ).toBeTruthy();
+    expect(
+      Number(whiteBefore!.quantity_available),
+      `白坯入库后可用量应为 ${inboundQty}`
+    ).toBeCloseTo(inboundQty, 2);
+
+    // ---- 4. 建白坯调拨单（色号空、无缸号、带批次）→ 审批 → 出库 ----
+    const toWarehouseId = ctx.warehouseIds.find(id => id !== warehouseId) || ctx.warehouseIds[1];
+    const transfer = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
+      from_warehouse_id: warehouseId,
+      to_warehouse_id: toWarehouseId,
+      transfer_date: new Date().toISOString(),
+      notes: 'E2E 白坯出库',
+      items: [
+        {
+          product_id: productId,
+          quantity: String(outboundQty),
+          color_no: '',
+          // 白坯免缸号：不提供 dye_lot_no
+          batch_no: whiteBatch,
+        },
+      ],
+    });
+    const transferId = transfer.data?.id;
+    expect(
+      transferId,
+      `白坯调拨建单应成功，实际：${JSON.stringify(transfer).slice(0, 200)}`
+    ).toBeTruthy();
+    console.warn(`[白坯出库] 白坯调拨建单成功 transferId=${transferId}`);
+
+    // 出库明细色号为空、缸号为空（如实回显白坯维度）
+    const detail = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
+      page,
+      'GET',
+      `/inventory/transfers/${transferId}`
+    );
+    expect(detail.items.length, '白坯调拨明细应可读回').toBeGreaterThan(0);
+    expect(String(detail.items[0].color_no ?? ''), '白坯出库明细色号应为空').toBe('');
+    expect(
+      detail.items[0].dye_lot_no === null ||
+        detail.items[0].dye_lot_no === undefined ||
+        detail.items[0].dye_lot_no === '',
+      `白坯出库明细缸号应为空（实际 ${JSON.stringify(detail.items[0].dye_lot_no)}）`
+    ).toBe(true);
+
+    await apiCall(page, 'POST', `/inventory/transfers/${transferId}/approve`, { approved: true });
+    await apiCall(page, 'POST', `/inventory/transfers/${transferId}/ship`);
+    const shipped = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/inventory/transfers/${transferId}`
+    );
+    expect(shipped.status.toLowerCase(), '白坯调拨出库后状态应为 shipped').toBe('shipped');
+
+    // ---- 5. 断言白坯库存行按批次精确减少（扣减量 = 出库量），未被跨缸回退动到其他行 ----
+    const whiteAfter = await readWhiteStock();
+    expect(whiteAfter, '出库后白坯库存行应仍存在（按批次定位）').toBeTruthy();
+    expect(
+      Number(whiteAfter!.quantity_available),
+      `白坯库存行可用量应精确减少 ${outboundQty}（${inboundQty} → ${inboundQty - outboundQty}），实际 ${whiteAfter!.quantity_available}`
+    ).toBeCloseTo(inboundQty - outboundQty, 2);
+  });
+
+  // ============================================================
+  // 对照：染色布（色号非空）缺缸号建单必须被拒（4xx），证明白坯免缸号是"布种差异"而非
+  // 放宽所有校验——与白坯出库测试同一判定源（fabric_class）双向锁死。
+  // ============================================================
+  test('染色布缺缸号：调拨建单仍被拒（白坯免缸号的对照）', async ({ page }) => {
+    const ctx = getCtx();
+    const productId = ctx.productIds[0];
+    const rejected = await apiCallExpectFail(page, 'POST', '/inventory/transfers', {
+      from_warehouse_id: ctx.warehouseIds[0],
+      to_warehouse_id: ctx.warehouseIds[1] || ctx.warehouseIds[0],
+      transfer_date: new Date().toISOString(),
+      items: [
+        {
+          product_id: productId,
+          quantity: '1',
+          color_no: ctx.colorNos[0], // 非空色号 = 染色布
+          // 故意不提供 dye_lot_no
+          batch_no: genCode('BN-DYED-NEG'),
+        },
+      ],
+    });
+    console.warn(
+      `[染色对照] 染色布缺缸号建单 status=${rejected.status} message=${rejected.message}`
+    );
+    expect(rejected.status, '染色布缺缸号建单应被拒（>=400）').toBeGreaterThanOrEqual(400);
+    expect(rejected.status, '应为客户端校验错误而非 5xx').toBeLessThan(500);
+  });
 });

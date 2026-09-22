@@ -3,7 +3,8 @@
   来源：原 sales/index.vue 中 发货 dialog
   拆分日期：2026-06-15 B3-1
   P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，通过 emit 整体覆盖 + 局部 update
-  出库四维规则：每条发货明细必须选择真实入库库存行（色号+批次+缸号），
+  出库维度规则：每条发货明细必须选择真实入库库存行（批次必填；色号非空的染色布还须带缸号，
+  色号为空的白坯布免缸号），
   选项来自后端 GET /inventory/stock 按产品+仓库下推查询（父组件加载后传入），不手写死数据。
 -->
 <template>
@@ -230,9 +231,10 @@ const handleSubmit = (form: DeliveryForm) => {
     ElMessage.warning(t('sales.delivery.atLeastOneDelivery'));
     return;
   }
-  // 出库四维规则（后端不做兜底）：每条发货明细必须选定 色号+批次+缸号
+  // 出库维度口径与后端同源（fabric_class 唯一判定，禁止第二份规则）：
+  // 必须选定真实库存行 + 批次；染色布（色号非空）必须齐缸号，白坯布（色号为空）免缸号。
   const missingDim = deliveringItems.find(
-    i => !i.color_no || !i.batch_no || !i.dye_lot_no || !i.stock_row_key
+    i => !i.stock_row_key || !i.batch_no || (i.color_no && !i.dye_lot_no)
   );
   if (missingDim) {
     ElMessage.warning(t('sales.delivery.stockRowRequired'));

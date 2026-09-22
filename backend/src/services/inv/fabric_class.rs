@@ -1,7 +1,9 @@
 //! 纺织白坯/染色判定（全仓唯一实现）
 //!
-//! 供 `inv::inventory_move`（建单批 / 重建批两处）与 `inv::batch`（add_item 批）共同调用，
-//! 统一按用户拍板的纺织四维口径校验色号 / 缸号 / 批次三个追溯字段。
+//! 供入库侧 `inv::inventory_move`（建单批 / 重建批两处）、`inv::batch`（add_item 批），
+//! 以及出库侧 `services::inventory_deduction::require_outbound_dimensions`（销售发货 / 调拨出库）
+//! 共同调用，统一按用户拍板的纺织四维口径校验色号 / 缸号 / 批次三个追溯字段。
+//! 出库侧不再另写判定规则，判定唯一来源即本文件。
 
 use crate::utils::error::AppError;
 
@@ -44,14 +46,12 @@ pub fn validate_fabric_trace(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .ok_or_else(|| {
-            AppError::validation(
-                "调拨明细缺少批号：出入库按款号+色号+缸号+批次四维追溯，批次不得为空",
-            )
+            AppError::validation("明细缺少批号：出入库按款号+色号+缸号+批次四维追溯，批次不得为空")
         })?;
     // 色号为空 = 白坯布免缸号；色号非空 = 染色布缸号必填（仅以是否为空判定，不看名称）。
     if !color_no.is_empty() && dye_lot_no.is_none() {
         return Err(AppError::validation(format!(
-            "染色布调拨明细必须提供缸号（color_no={} 但 dye_lot_no 为空）",
+            "染色布必须提供缸号（color_no={} 但 dye_lot_no 为空）",
             color_no
         )));
     }

@@ -163,22 +163,24 @@ impl InventoryTransferService {
                 created_at: s.created_at,
             })
             .collect();
-        let allocations = plan_deduction(&plan_candidates, &dims.dye_lot_no, item.quantity)
-            .map_err(|e| match e {
-                DeductionError::NoStockAtAll => {
-                    Self::no_stock_error(&transfer.transfer_no, item.product_id, &dims)
-                }
-                DeductionError::Insufficient {
-                    available_total,
-                    required,
-                } => Self::insufficient_error(
-                    &transfer.transfer_no,
-                    item.product_id,
-                    &dims,
-                    available_total,
-                    required,
-                ),
-            })?;
+        let allocations =
+            plan_deduction(&plan_candidates, dims.dye_lot_no.as_deref(), item.quantity).map_err(
+                |e| match e {
+                    DeductionError::NoStockAtAll => {
+                        Self::no_stock_error(&transfer.transfer_no, item.product_id, &dims)
+                    }
+                    DeductionError::Insufficient {
+                        available_total,
+                        required,
+                    } => Self::insufficient_error(
+                        &transfer.transfer_no,
+                        item.product_id,
+                        &dims,
+                        available_total,
+                        required,
+                    ),
+                },
+            )?;
 
         for alloc in allocations {
             let stock_model = candidates
@@ -215,7 +217,7 @@ impl InventoryTransferService {
                 alloc.quantity,
                 new_quantity_meters,
                 new_quantity_kg,
-                &dims.dye_lot_no,
+                dims.dye_lot_no.as_deref(),
                 alloc.source == AllocationSource::CrossDyeLot,
                 transfer_id,
             )
@@ -231,9 +233,22 @@ impl InventoryTransferService {
         product_id: i32,
         dims: &crate::services::inventory_deduction::OutboundDimensions,
     ) -> AppError {
+        // 白坯/染色如实呈现：白坯色号为空、无缸号；染色带色号+缸号
+        let color_disp = if dims.color_no.is_empty() {
+            "白坯（无颜色）"
+        } else {
+            dims.color_no.as_str()
+        };
+        let dims_disp = match dims.dye_lot_no.as_deref() {
+            Some(lot) => format!(
+                "色号 {} + 缸号 {} + 批次 {}",
+                color_disp, lot, dims.batch_no
+            ),
+            None => format!("色号 {} + 批次 {}（白坯免缸号）", color_disp, dims.batch_no),
+        };
         AppError::business(format!(
-            "调拨单 {}：款号（产品 {}）+ 色号 {} + 缸号 {} + 批次 {} 在源仓库无任何库存记录，出库被拒绝（不回退到产品+色号扣减）",
-            transfer_no, product_id, dims.color_no, dims.dye_lot_no, dims.batch_no
+            "调拨单 {}：款号（产品 {}）+ {} 在源仓库无任何库存记录，出库被拒绝（不回退到产品+色号扣减）",
+            transfer_no, product_id, dims_disp
         ))
     }
 
@@ -245,16 +260,24 @@ impl InventoryTransferService {
         available_total: rust_decimal::Decimal,
         required: rust_decimal::Decimal,
     ) -> AppError {
-        AppError::business(format!(
-            "调拨单 {}：款号（产品 {}）+ 色号 {} + 批次 {} 源仓可用库存合计 {}（含跨缸回退的其他缸）小于出库数量 {}，指定缸号 {} 数量不足且其他缸亦不足以补足",
-            transfer_no,
-            product_id,
-            dims.color_no,
-            dims.batch_no,
-            available_total,
-            required,
-            dims.dye_lot_no
-        ))
+        let color_disp = if dims.color_no.is_empty() {
+            "白坯（无颜色）"
+        } else {
+            dims.color_no.as_str()
+        };
+        let reason = match dims.dye_lot_no.as_deref() {
+            // 染色：指定缸不足 + 可回退其他缸仍不足
+            Some(lot) => format!(
+                "款号（产品 {}）+ 色号 {} + 批次 {} 源仓可用库存合计 {}（含跨缸回退的其他缸）小于出库数量 {}，指定缸号 {} 数量不足且其他缸亦不足以补足",
+                product_id, color_disp, dims.batch_no, available_total, required, lot
+            ),
+            // 白坯：无缸号维度，仅无缸号行可扣且仍不足
+            None => format!(
+                "款号（产品 {}）+ 色号 {} + 批次 {} 源仓无缸号库存合计 {} 小于出库数量 {}（白坯不做跨缸回退）",
+                product_id, color_disp, dims.batch_no, available_total, required
+            ),
+        };
+        AppError::business(format!("调拨单 {}：{}", transfer_no, reason))
     }
 
     /// batch-18 P2-6：更新目标仓库的 quantity_incoming（在途库存）
@@ -385,7 +408,8 @@ impl InventoryTransferService {
     /// 构造并插入 TRANSFER_OUT 库存流水（记录扣减前后的米/kg 与源单据信息）。
     ///
     /// 流水如实记录**实际被扣库存行**的缸号/批次（来自 stock_model 行本身）；
-    /// 跨缸回退时备注写明"指定缸号 X 不足，实扣缸号 Y"，不允许静默换缸。
+    /// 染色布跨缸回退时备注写明"指定缸号 X 不足，实扣缸号 Y"，不允许静默换缸；
+    /// 白坯布（`requested_dye_lot` 为 None）不做跨缸回退，`is_cross_dye_lot` 恒 false。
     #[allow(clippy::too_many_arguments)]
     async fn build_and_insert_transfer_out_transaction(
         txn: &sea_orm::DatabaseTransaction,
@@ -395,14 +419,14 @@ impl InventoryTransferService {
         deduct_quantity: rust_decimal::Decimal,
         new_quantity_meters: rust_decimal::Decimal,
         new_quantity_kg: rust_decimal::Decimal,
-        requested_dye_lot: &str,
+        requested_dye_lot: Option<&str>,
         is_cross_dye_lot: bool,
         transfer_id: i32,
     ) -> Result<inventory_transaction::Model, AppError> {
         let cross_note = if is_cross_dye_lot {
             format!(
                 "（跨缸回退：指定缸号 {} 数量不足，本笔实扣缸号 {}）",
-                requested_dye_lot,
+                requested_dye_lot.unwrap_or_default(),
                 stock_model.dye_lot_no.clone().unwrap_or_default()
             )
         } else {
