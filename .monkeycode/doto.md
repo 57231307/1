@@ -144,11 +144,18 @@ GitHub 检查名（如 `🎭 E2E: flow: 05-system~10d-extended` → `🎭 E2E: f
 以及 3 处需产品决策才能定回填值（purchase_orders 双状态列大小写矛盾、
 color_cards 的 active 是 legacy 还是域内值、production_orders 词表缺项）。
 
-**新发现的假绿类别：条件交互 / 条件 skip（进行中，两路智能体分别处理 extras 与 flow）**
+**新发现的假绿类别：条件交互 / 条件 skip（三路并行：extras 八目录、flow、traversal+smoke）**
 形态是 `if (await btn.isVisible()) { ...若干断言... }` 与 `if (!id) { test.skip(); return; }` ——
 控件没渲染或前置数据没建出来时，**一条断言都不执行仍判通过**。实测命中：
 `e2e/flow/` 12 处条件交互 + 7 处条件 skip（这批在真正执行的分片里）、
 extras 八目录 20 处条件交互（本轮刚接进矩阵，不修就是新增假覆盖）。
+`traversal/` 另查出 10 处 `test.skip()` + 4 处条件交互 + 5 处 `?? []`，`smoke/` 4 处形状断言。
+最恶劣的一处在 `traversal/37-print-endpoints.spec.ts:35-45`：端点返回 404/400 时
+"记一条 missing-data 注解 + test.skip()" —— 打印端点整族坏掉也永远不会红。
+本轮刚抓到的采购导出 `/purchases/orders/export` 恒 404（复数前缀错、按钮点了毫无反应）
+正是这类矩阵本该捕获却会静默吞掉的缺陷形态，不是巧合。
+`42a-core.spec.ts:43` 的 `if (await newBtn.isVisible())` 则与模块配置里已有的 `noCreate`
+标记重复且更弱：应"有新建能力但按钮渲染坏了"的模块被静默放过。
 `enhanced/rpa-data-extraction.spec.ts` 的 4 处已修（fff52403）：其中请求观察原本是
 `if (requests.length > 0) { 断言 }`，一条请求都没抓到时整条用例零断言通过。
 修法规则统一为：优先自己造前置数据并按自己创建对象的单号定位（禁 `.first()` 抓不确定行）；
