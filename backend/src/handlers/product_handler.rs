@@ -35,6 +35,8 @@ pub struct CreateProductRequest {
     pub name: Option<String>,
     #[validate(length(max = 50, message = "产品编码长度不能超过50个字符"))]
     pub code: Option<String>,
+    #[validate(length(max = 100, message = "产品条码长度不能超过100个字符"))]
+    pub barcode: Option<String>,
     pub category_id: Option<i32>,
     #[validate(length(max = 500, message = "规格型号长度不能超过500个字符"))]
     pub specification: Option<String>,
@@ -80,6 +82,8 @@ pub struct CreateProductRequest {
 pub struct UpdateProductRequest {
     #[validate(length(max = 200, message = "产品名称长度不能超过200个字符"))]
     pub name: Option<String>,
+    #[validate(length(max = 100, message = "产品条码长度不能超过100个字符"))]
+    pub barcode: Option<String>,
     #[validate(length(max = 500, message = "规格型号长度不能超过500个字符"))]
     pub specification: Option<String>,
     #[validate(length(max = 20, message = "计量单位长度不能超过20个字符"))]
@@ -357,6 +361,7 @@ pub async fn create_product(
                 .name
                 .unwrap_or_else(|| format!("产品_{}", chrono::Utc::now().timestamp())),
             code,
+            barcode: req.barcode,
             category_id: req.category_id,
             specification: req.specification,
             unit: req.unit.unwrap_or_else(|| "个".to_string()),
@@ -407,6 +412,7 @@ pub async fn update_product(
         .update_product(UpdateProductArgs {
             id,
             name: req.name,
+            barcode: req.barcode,
             specification: req.specification,
             unit: req.unit,
             standard_price: req.standard_price,

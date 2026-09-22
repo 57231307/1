@@ -55,7 +55,13 @@ pub async fn import_excel(
 
     // 批次 127 v8 复审 P2 修复：导入前创建任务记录（status=running）
     let task_id = service
-        .create_import_task(&req.import_type, req.data.len() as u64, auth.user_id, None, None)
+        .create_import_task(
+            &req.import_type,
+            req.data.len() as u64,
+            auth.user_id,
+            None,
+            None,
+        )
         .await?;
 
     let errors = ImportExportService::validate_import_data(&req.data, &template);
@@ -418,7 +424,11 @@ fn map_import_data_type(data_type: &str) -> String {
 }
 
 fn builtin_import_template_records() -> Vec<ImportTemplateRecord> {
-    let specs: [(&str, &str); 3] = [("products", "product"), ("customers", "customer"), ("inventory", "inventory")];
+    let specs: [(&str, &str); 3] = [
+        ("products", "product"),
+        ("customers", "customer"),
+        ("inventory", "inventory"),
+    ];
     let created_at = "2026-01-01T00:00:00Z".to_string();
 
     specs
@@ -722,7 +732,13 @@ pub async fn create_import_task_from_upload(
 
     let service = ImportExportService::new(state.db.clone());
     let task_id = service
-        .create_import_task(&import_type, 0, auth.user_id, Some(file_name.clone()), Some(template_id))
+        .create_import_task(
+            &import_type,
+            0,
+            auth.user_id,
+            Some(file_name.clone()),
+            Some(template_id),
+        )
         .await?;
 
     let task = import_task::Entity::find_by_id(task_id)

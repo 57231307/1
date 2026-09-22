@@ -77,6 +77,8 @@ pub struct CreateProductArgs {
     pub name: String,
     /// 产品编码
     pub code: String,
+    /// 产品条码（EAN/UPC 等，未编码为空）
+    pub barcode: Option<String>,
     /// 分类 ID
     pub category_id: Option<i32>,
     /// 规格
@@ -129,6 +131,8 @@ pub struct UpdateProductArgs {
     pub id: i32,
     /// 产品名称
     pub name: Option<String>,
+    /// 产品条码（未编码为空）
+    pub barcode: Option<String>,
     /// 规格
     pub specification: Option<String>,
     /// 单位

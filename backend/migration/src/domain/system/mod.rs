@@ -296,6 +296,7 @@ ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "approved_by_role" VA
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "received_at" TIMESTAMPTZ;
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "shipped_at" TIMESTAMPTZ;
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(18,4);
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "barcode" VARCHAR(100);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "batch_level" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "code" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "cost_price" DECIMAL(18,4);
@@ -318,6 +319,8 @@ ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "status" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "structure" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "supplier_product_code" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "yarn_count" VARCHAR(255);
+-- 产品条码：列表关键词检索与扫码按条码取数走该列
+CREATE INDEX IF NOT EXISTS "idx_products_barcode" ON "products" ("barcode");
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "actual_delivery_date" DATE;
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "attachment_urls" TEXT[];

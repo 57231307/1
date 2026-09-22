@@ -1,8 +1,9 @@
 //! 产品 Service CRUD 子模块（product_ops/crud）
 //!
 //! 批次 D10 拆分：从原 `product_service.rs` 迁移。
-//! 包含 `ProductService` 的 6 个产品 CRUD 方法：
+//! 包含 `ProductService` 的产品 CRUD 方法：
 //! - `generate_product_code`：生成产品编码（DocumentNumberGenerator）
+//! - `build_product_keyword_condition`：关键词检索条件（名称/编码/条码，列清单见 `PRODUCT_KEYWORD_COLUMNS`）
 //! - `list_products`：分页 + 过滤查询
 //! - `get_product`：详情查询（Redis 读穿透 + 写失效）
 //! - `create_product`：创建（含面料行业字段，事务提交后同步 ES）
@@ -16,8 +17,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 
 use crate::models::product::{self, Entity as ProductEntity};
@@ -42,6 +43,24 @@ impl ProductService {
             product::Column::Code,
         )
         .await
+    }
+
+    /// 产品关键词检索覆盖的列：名称/编码/条码
+    /// 面料行业按条码扫码取数是常规入口，故条码与名称、编码同层参与模糊匹配
+    pub const PRODUCT_KEYWORD_COLUMNS: [product::Column; 3] = [
+        product::Column::Name,
+        product::Column::Code,
+        product::Column::Barcode,
+    ];
+
+    /// 构建产品关键词检索条件：`PRODUCT_KEYWORD_COLUMNS` 任一列 LIKE 命中即匹配
+    /// `pattern` 必须是已按 LIKE 规则转义的模式串（`safe_like_pattern`）
+    pub fn build_product_keyword_condition(pattern: &str) -> sea_orm::Condition {
+        let mut cond = sea_orm::Condition::any();
+        for column in Self::PRODUCT_KEYWORD_COLUMNS {
+            cond = cond.add(column.like(pattern));
+        }
+        cond
     }
 
     /// 获取产品列表（支持分页和过滤）
@@ -71,11 +90,7 @@ impl ProductService {
 
         if let Some(keyword) = search {
             let pattern = safe_like_pattern(&keyword);
-            query = query.filter(
-                product::Column::Name
-                    .like(&pattern)
-                    .or(product::Column::Code.like(&pattern)),
-            );
+            query = query.filter(Self::build_product_keyword_condition(&pattern));
         }
 
         // 获取总数
@@ -148,6 +163,7 @@ impl ProductService {
         let CreateProductArgs {
             name,
             code,
+            barcode,
             category_id,
             specification,
             unit,
@@ -185,6 +201,7 @@ impl ProductService {
             id: NotSet,
             name: Set(name),
             code: Set(code),
+            barcode: Set(barcode),
             category_id: Set(category_id),
             specification: Set(specification),
             unit: Set(unit),
@@ -289,13 +306,16 @@ impl ProductService {
             .into())
     }
 
-    /// 应用产品基础字段更新（名称/规格/单位/价格/描述/状态）
+    /// 应用产品基础字段更新（名称/条码/规格/单位/价格/描述/状态）
     fn apply_product_basic_fields(
         product: &mut product::ActiveModel,
         args: &mut UpdateProductArgs,
     ) {
         if let Some(n) = args.name.take() {
             product.name = Set(n);
+        }
+        if let Some(b) = args.barcode.take() {
+            product.barcode = Set(Some(b));
         }
         if let Some(spec) = args.specification.take() {
             product.specification = Set(Some(spec));

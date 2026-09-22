@@ -16,6 +16,8 @@ pub struct Model {
     pub name: String,
     /// 产品编码（唯一）
     pub code: String,
+    /// 产品条码（EAN/UPC 等，扫码录入与关键词检索用；未编码为空）
+    pub barcode: Option<String>,
     /// 类别 ID（外键）
     pub category_id: Option<i32>,
     /// 规格型号
