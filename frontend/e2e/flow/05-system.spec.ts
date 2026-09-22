@@ -37,13 +37,25 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-2 用户列表 + 角色列表 + 部门列表', async ({ page }) => {
-    const users = await apiCallRaw<{ items: Array<{ id: number; username: string }> }>(
-      page,
-      'GET',
-      '/users?page=1&page_size=10'
-    );
-    // 容错：users 可能为 undefined
-    expect(users?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
+    const users = await apiCallRaw<{
+      users: Array<{ id: number; username: string }>;
+      total: number;
+    }>(page, 'GET', '/users?page=1&page_size=10');
+    // GET /users 出参是 UserListResponse{users,total,page,page_size}（不是 items），
+    // 原写法 `expect(users?.items?.length ?? 0).toBeGreaterThanOrEqual(0)` 是恒真断言，
+    // 键名写错也永远绿。
+    expect(
+      Array.isArray(users?.users),
+      `用户列表应返回 users 数组，实际：${JSON.stringify(users).slice(0, 200)}`
+    ).toBe(true);
+    expect(
+      Number(users.total) >= users.users.length,
+      `total(${users.total}) 不应小于本页行数(${users.users.length})`
+    ).toBe(true);
+    for (const u of users.users.slice(0, 5)) {
+      expect(Number(u.id), `用户行缺少 id：${JSON.stringify(u)}`).toBeGreaterThan(0);
+      expect(String(u.username ?? ''), `用户行缺少 username：${JSON.stringify(u)}`).not.toBe('');
+    }
 
     // GET /roles 由 role_handler::list_roles 处理，出参是 RoleListResponse{roles,total}
     // （不分页：page/page_size 参数会被 serde 直接忽略）。原实现读 roles.items 恒为 undefined，

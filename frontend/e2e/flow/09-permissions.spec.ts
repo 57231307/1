@@ -10,6 +10,7 @@ import {
   genCode,
   genName,
   expectDenied,
+  loginAsRole,
 } from './helpers';
 
 test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓存）', () => {
@@ -65,14 +66,25 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
   });
 
   test('P1-4 验证权限缓存（多次调用不拒绝）', async ({ page }) => {
+    // 原实现循环 5 次取数却不作任何断言（注释写"容错"），无论后端返回什么都算通过。
+    // 权限缓存的正确性判据是：同一身份连续请求都成功，且结果集稳定（命中缓存前后一致）。
+    const totals: number[] = [];
     for (let i = 0; i < 5; i++) {
-      const result = await apiCallRaw<{ items: unknown[] }>(
+      const result = await apiCallRaw<{ users: Array<{ id: number }>; total: number }>(
         page,
         'GET',
         '/users?page=1&page_size=5'
       );
-      // 容错：result 可能为 undefined
+      expect(
+        Array.isArray(result?.users),
+        `第 ${i + 1} 次请求未返回 users 数组：${JSON.stringify(result).slice(0, 200)}`
+      ).toBe(true);
+      totals.push(Number(result.total));
     }
+    expect(
+      new Set(totals).size,
+      `同一身份的 5 次查询 total 应一致（缓存导致结果漂移）：${totals.join(',')}`
+    ).toBe(1);
   });
 
   test('P1-5 验证未知路由 fail-closed', async ({ page }) => {
@@ -119,23 +131,57 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     expect(Array.isArray(items)).toBe(true);
   });
 
-  test('P1-9 验证 CSRF Token IP 绑定', async ({ page }) => {
-    // 正常 CSRF Token 应该工作
-    const result = await apiCallRaw<{ items: unknown[] }>(page, 'GET', '/users?page=1&page_size=1');
-    // 容错：result 可能为 undefined
+  test('P1-9 验证 CSRF 防护：缺失令牌的写请求必须被拒', async ({ page }) => {
+    // 原用例只 GET 了一次 /users 且不留任何断言（注释写"容错"），根本没验证 CSRF。
+    // 这里绕过 apiCall 的令牌注入，直接发一个不带 X-CSRF-Token 的写请求：
+    // 会话 Cookie 仍在（已登录），因此被拒只能是因为 CSRF 令牌缺失。
+    const res = await page.request.fetch('/departments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: { name: `E2E-CSRF-${Date.now()}`, description: 'CSRF 负例' },
+    });
+    expect(res.status(), '缺 CSRF 令牌的写请求应被拒（4xx）').toBeGreaterThanOrEqual(400);
+    const body = await res.json();
+    expect(String(body?.code ?? ''), `应返回 CSRF 错误码，实际：${JSON.stringify(body)}`).toMatch(
+      /CSRF/i
+    );
   });
 
-  test('P1-10 验证权限审计日志（拒绝记录）', async ({ page }) => {
-    // 制造一次权限拒绝
-    await apiCallExpectFail(page, 'GET', '/unknown-module/test');
-    const logs = await apiCallRaw<{ items: Array<{ resource_type: string }> }>(
-      page,
-      'GET',
-      '/audit-logs?page=1&page_size=50'
-    );
-    expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`).toBe(true);
-    // 验证有 permission_denied 记录
-    const denied = logs.items.filter(l => l.resource_type === 'permission_denied');
-    expect(denied.length >= 0).toBeTruthy();
+  test('P1-10 验证权限审计日志（拒绝记录真实落库）', async ({ page }) => {
+    // 原实现请求 /unknown-module/test —— 那是未注册路径，路由层直接 404，
+    // 权限中间件根本没执行，permission.rs 的 record_permission_denied 不会被触发；
+    // 末尾再写 expect(denied.length >= 0) 这种恒真断言，等于"一条都没查到"也算通过。
+    // 现改为真实越权：非 admin 角色访问 admin 专属端点 → 403 → 落审计。
+    await loginAsRole(page, 'report_viewer');
+    const deniedResp = await apiCallExpectFail(page, 'GET', '/users?page=1&page_size=1');
+    expect(deniedResp.status, 'report_viewer 访问用户列表应被拒（403）').toBe(403);
+
+    // 审计经 channel 异步落库，回到 admin 身份轮询最多 10 秒
+    await loginViaUI(page);
+    let rows: Array<Record<string, unknown>> = [];
+    for (let i = 0; i < 10; i++) {
+      const logs = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
+        page,
+        'GET',
+        '/audit-logs?page=1&page_size=50'
+      );
+      expect(
+        Array.isArray(logs?.items),
+        `审计日志应返回 items 数组，实际：${JSON.stringify(logs).slice(0, 200)}`
+      ).toBe(true);
+      rows = logs.items.filter(l => l.resource_type === 'permission_denied');
+      if (rows.length > 0) break;
+      await page.waitForTimeout(1000);
+    }
+    expect(rows.length, '未查到 permission_denied 审计记录：权限拒绝没有落库').toBeGreaterThan(0);
+    const hit = rows[0];
+    expect(
+      String(hit.request_path ?? ''),
+      `拒绝审计应记录被拒的请求路径，实际：${JSON.stringify(hit)}`
+    ).toContain('/users');
+    expect(
+      String(hit.resource_name ?? ''),
+      `拒绝审计应写明缺失的权限码，实际：${JSON.stringify(hit)}`
+    ).toContain('权限拒绝');
   });
 });
