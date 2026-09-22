@@ -30,20 +30,25 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
   });
 
   test('F2-2 验证成本归集', async ({ page }) => {
-    try {
-      const costs = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/production/cost-collections?page=1&page_size=5'
-      );
-      expect(Array.isArray(costs.items), `costs.items 应为后端返回的 items 数组`);
-    } catch {
-      const costs = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/cost?page=1&page_size=5'
-      );
-      expect(Array.isArray(costs.items), `costs.items 应为后端返回的 items 数组`);
+    // GET /production/cost-collections 由 cost_collection_handler::list_collections 处理，
+    // 出参是裸数组 Vec<cost_collection::Model>（没有分页信封，page/page_size 不参与）。
+    // 原实现读 costs.items 恒为 undefined、expect 又不带匹配器，失败时还改查另一个端点顶包，
+    // 等于无论后端返回什么都通过。
+    const costs = await apiCallRaw<Array<Record<string, unknown>>>(
+      page,
+      'GET',
+      '/production/cost-collections'
+    );
+    expect(
+      Array.isArray(costs),
+      `成本归集列表应为数组，实际：${JSON.stringify(costs).slice(0, 200)}`
+    ).toBe(true);
+    for (const row of costs) {
+      expect(Number(row.id), `成本归集行缺少 id：${JSON.stringify(row)}`).toBeGreaterThan(0);
+      expect(
+        String(row.collection_no ?? ''),
+        `成本归集行缺少归集单号：${JSON.stringify(row)}`
+      ).not.toBe('');
     }
   });
 

@@ -782,20 +782,24 @@
   （`GET /roles` 不分页，page/page_size 会被 serde 忽略），并删掉 6-4「取不到角色就 return」的静默跳过；
   6-5 的 `GET /roles/{id}/permissions` 按裸数组 Vec<PermissionResponse> 断言；
   4-10 `/finance/accounting-periods`、4-11 `/vouchers` 出参同为裸数组，已去掉 `.items` 并逐行校验字段。
-  **剩余 24 处需逐端点确证响应键后再补匹配器**（不得凭印象加 `.toBe(true)`，键错位会把绿变成真红）：
+  **剩余 22 处需逐端点确证响应键后再补匹配器**（不得凭印象加 `.toBe(true)`，键错位会把绿变成真红）：
   01-p2p:488 `/purchase/orders`；02-o2c:401 `/sales/orders`；05-system:60 `/departments`、
   69 `/data-permissions`、180 `/bulk-color-approvals`、201 `/business-trace`、
   210 `/ai-models/process-optimizations`、219 `/ai-models/quality-predictions`；
   06-collaboration:212 `/purchase/orders`；10a:70 purchase-receipts、78 `/ap/invoices`、
-  98 `/inventory/counts`、113 `/inventory/transfers`、128 `/inventory/adjustments`；
-  10b:39 `/production/cost-collections`、46 `/cost`、64 `/financial-analysis/reports`；
+  98 `/inventory/counts`（`CountListResponse`，键名待核）、113 `/inventory/transfers`、
+  128 `/inventory/adjustments`（`AdjustmentListResponse`，键名待核）；
+  10b:64 `/financial-analysis/reports`；
   10c:123/138 lab-dip requests/samples、153/175 `/bulk-color-approvals`、
   185 `/analytics/business-trace`、192 `/business-trace`、202 `/production/process-nodes`、
   208 `/production/process-logs`；10d:29 `/role-change-approvals`。
-  其中 **03-production:339 已是确证错位**：`list_lifecycle_logs_by_batch` 返回
-  `Vec<dye_batch_lifecycle_log::Model>`（裸数组），`logs.items` 恒 undefined，应改数组遍历。
-  **另两类同族问题**：一是 try/catch 顶包 2 处（10b:39-46 cost-collections 失败后改查 `/cost`、
-  10c:185-192 analytics/business-trace 失败后改查 `/business-trace`）需按真实端点重写；
+  **本轮另修两处已确证的错位**：03-production:339 的
+  `list_lifecycle_logs_by_batch` 返回 `Vec<dye_batch_lifecycle_log::Model>`（裸数组），
+  `logs.items` 恒 undefined，已改数组遍历并校验 `to_status/transition_code/batch_id`；
+  10b F2-2 的 `list_collections` 同样返回裸 `Vec<cost_collection::Model>`，且带一个
+  「失败就改查 /cost」的 catch 顶包，已去掉顶包并按 id/collection_no 断言。
+  **另两类同族问题**：一是 try/catch 顶包剩 1 处（10c:185-192 analytics/business-trace 失败后改查
+  `/business-trace`）需按真实端点重写；
   二是恒真比较（09-permissions:139 `expect(denied.length >= 0)`——且 `permission_denied` 是否
   真作为 audit `resource_type` 落库尚未确认，需先看拒绝审计写入点；10e:33/41；
   全库 79 处条件 `test.skip()`）。根治手段是给 `e2e/` 开

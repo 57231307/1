@@ -333,13 +333,31 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     }
 
     try {
-      const logs = await apiCallRaw<{
-        items: Array<{ from_status: string; to_status: string; transition_code: string }>;
-      }>(page, 'GET', `/production/dye-batch-lifecycle-logs/by-batch/${id}?page=1&page_size=20`);
-      expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
-      // 如果有日志，验证状态转换记录
-      if (logs?.items?.length ?? 0 > 0) {
-        expect(logs.items?.[0].transition_code).toBeTruthy();
+      // GET /production/dye-batch-lifecycle-logs/by-batch/{id} 出参是裸数组
+      // Vec<dye_batch_lifecycle_log::Model>（handler 无分页信封，page/page_size 无效）；
+      // 原实现读 logs.items 恒为 undefined，expect 又不带匹配器，整条用例空转。
+      const logs = await apiCallRaw<Array<Record<string, unknown>>>(
+        page,
+        'GET',
+        `/production/dye-batch-lifecycle-logs/by-batch/${id}`
+      );
+      expect(
+        Array.isArray(logs),
+        `缸号生命周期日志应为数组，实际：${JSON.stringify(logs).slice(0, 200)}`
+      ).toBe(true);
+      for (const row of logs) {
+        expect(
+          String(row.to_status ?? ''),
+          `生命周期日志缺少 to_status：${JSON.stringify(row)}`
+        ).not.toBe('');
+        expect(
+          String(row.transition_code ?? ''),
+          `生命周期日志缺少 transition_code：${JSON.stringify(row)}`
+        ).not.toBe('');
+        expect(
+          Number(row.batch_id ?? id),
+          `按缸号查询混入了其他缸号的日志：${JSON.stringify(row)}`
+        ).toBe(id);
       }
     } catch (e) {
       console.error('[3-12] 缸号生命周期日志查询失败:', (e as Error).message);
