@@ -3,6 +3,33 @@
 // 覆盖范围：科目创建 → 编辑 → 删除
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { apiCall, genCode, tryCleanup } from '../flow/helpers';
+
+/**
+ * 03-03 启用/停用切换（方法一）：
+ * 原用例 `page.locator('.el-switch').first()` 在科目列表里恒不可见——SubjectTab.vue
+ * 的表格状态列是 el-tag（:86），唯一的 el-switch 在「编辑」对话框内（SubjectTab.vue:181，
+ * active-value=1/inactive-value=0）。故原用例永远走不进 if，零断言假绿。
+ * 现改为：建一条科目 → 定位该行点编辑 → 对话框内切换状态开关 → 断言开关状态真实翻转。
+ */
+const CLEANUP: Array<{ path: string; label: string }> = [];
+test.afterEach(async ({ page }) => {
+  for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
+  CLEANUP.length = 0;
+});
+
+async function seedSubject(page: import('@playwright/test').Page): Promise<string> {
+  const code = genCode('E2E-SUBJ');
+  const created = await apiCall<{ id?: number }>(page, 'POST', '/subjects', {
+    code,
+    name: `E2E 启用停用测试科目 ${code}`,
+    level: 1,
+    balance_direction: 'debit',
+  });
+  if (!created.data?.id) throw new Error(`建科目失败：${JSON.stringify(created)}`);
+  CLEANUP.push({ path: `/subjects/${created.data.id}`, label: 'account_subject' });
+  return code;
+}
 
 test.describe('03 会计科目管理', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -33,11 +60,20 @@ test.describe('03 会计科目管理', () => {
   });
 
   test('03-03 科目支持启用/停用切换', async ({ page }) => {
+    // 方法一：先建一条科目，定位其行打开编辑对话框，操作对话框内的状态开关并断言翻转
+    const code = await seedSubject(page);
     await page.goto('/finance');
     await page.getByRole('tab', { name: /科目|会计科目/ }).click();
-    const switchEl = page.locator('.el-switch').first();
-    if (await switchEl.isVisible({ timeout: 3000 })) {
-      await switchEl.click();
-    }
+    const row = page.getByRole('row').filter({ hasText: code });
+    await expect(row, `未定位到新建科目 ${code}`).toHaveCount(1);
+    await row.getByText('编辑', { exact: false }).first().click();
+    const dialog = page.locator('.el-dialog:visible').last();
+    await expect(dialog).toBeVisible({ timeout: 10000 });
+    const switchEl = dialog.locator('.el-switch');
+    await expect(switchEl, '编辑对话框内未渲染状态开关').toBeVisible();
+    const before = await switchEl.getAttribute('aria-checked');
+    await switchEl.click();
+    const after = await switchEl.getAttribute('aria-checked');
+    expect(after, '点击状态开关后未发生启用/停用翻转').not.toBe(before);
   });
 });

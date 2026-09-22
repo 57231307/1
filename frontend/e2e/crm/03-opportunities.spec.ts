@@ -3,6 +3,65 @@
 // 覆盖范围：商机创建 → 跟进 → 推进阶段 → 赢单/输单
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
+
+/**
+ * 前置数据构造（方法一）：
+ * 原 `if (await btn.isVisible())` 在无对应阶段商机时零断言假绿。
+ * 按前端 opportunities/index.vue 按钮渲染条件建商机（阶段值存原样字符串）：
+ *   跟进 stage!=='WON'&&!=='LOST'（:202）、赢单按钮 stage==='NEGOTIATION'（:210，按钮文案实为「成交」）、
+ *   丢失 stage!=='WON'&&!=='LOST'（:218，按钮文案「流失」）。
+ * 后端 crm_opportunity 词表（bpm_crm_contract.rs:132）只有大写 CLOSED_WON/CLOSED_LOST，
+ * 无 INITIAL/REQUIREMENT/WON/LOST——与前端阶段词表（INITIAL/REQUIREMENT/PROPOSAL/NEGOTIATION/WON/LOST）
+ * 不一致，属真缺陷（见 .monkeycode/doto.md）。
+ * 真实 toast 文案（原用例误写「更新成功」）：赢单=「已标记为成交」（含「成交」）、
+ *   输单=「已标记为流失」（含「流失」）、跟进保存=「保存成功」（locales/zh-CN.ts crmOpportunities.message.*）。
+ */
+const CLEANUP: Array<{ path: string; label: string }> = [];
+test.afterEach(async ({ page }) => {
+  for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
+  CLEANUP.length = 0;
+});
+
+async function ensureCustomerId(page: import('@playwright/test').Page): Promise<number> {
+  const list = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+    page,
+    'GET',
+    '/crm/customers?page=1&page_size=1'
+  );
+  if (list.items?.[0]?.id) return list.items[0].id;
+  const created = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+    customer_name: `E2E 客户 ${Date.now()}`,
+  });
+  if (!created.data?.id) throw new Error('无法准备客户用于建商机');
+  return created.data.id;
+}
+
+/** 建一条指定阶段的商机，返回 { id, oppNo } */
+async function seedOpportunity(
+  page: import('@playwright/test').Page,
+  stage: string
+): Promise<{ id: number; oppNo: string }> {
+  const customerId = await ensureCustomerId(page);
+  const oppNo = genCode('E2E-OPP');
+  const created = await apiCall<{ id?: number }>(page, 'POST', '/crm/opportunities', {
+    opportunity_no: oppNo,
+    opportunity_name: oppNo,
+    customer_id: customerId,
+    opportunity_stage: stage,
+    estimated_amount: 100000,
+    win_probability: 60,
+    expected_close_date: '2026-12-31',
+  });
+  if (!created.data?.id) throw new Error(`建商机失败：${JSON.stringify(created)}`);
+  CLEANUP.push({ path: `/crm/opportunities/${created.data.id}`, label: 'crm_opportunity' });
+  return { id: created.data.id, oppNo };
+}
+
+async function gotoOpportunities(page: import('@playwright/test').Page): Promise<void> {
+  await page.goto('/crm/opportunities');
+  await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+}
 
 test.describe('03 商机管理', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -41,43 +100,43 @@ test.describe('03 商机管理', () => {
   });
 
   test('03-03 商机可添加跟进记录', async ({ page }) => {
-    await page.goto('/crm/opportunities');
-    const followBtn = page.getByRole('link', { name: /跟进/ }).first();
-    if (await followBtn.isVisible({ timeout: 3000 })) {
-      await followBtn.click();
-      await expect(page.locator('.el-dialog')).toBeVisible();
-      await page.getByLabel(/内容/).fill('E2E 测试跟进：客户确认需求');
-      await page
-        .getByRole('button', { name: /保存|确认|提交/ })
-        .last()
-        .click();
-      await expect(page.getByText(/保存成功/)).toBeVisible({
-        timeout: 30000,
-      });
-    }
+    // 方法一：建 NEGOTIATION 商机 → 跟进按钮渲染 → 定位自身行点击跟进并保存
+    const { oppNo } = await seedOpportunity(page, 'NEGOTIATION');
+    await gotoOpportunities(page);
+    const row = page.getByRole('row').filter({ hasText: oppNo });
+    const followBtn = row.getByText('跟进', { exact: false }).first();
+    await expect(followBtn, `定位商机 ${oppNo} 的跟进按钮失败`).toBeVisible({ timeout: 10000 });
+    await followBtn.click();
+    await expect(page.locator('.el-dialog')).toBeVisible();
+    await page.getByLabel(/内容/).fill('E2E 测试跟进：客户确认需求');
+    await page
+      .getByRole('button', { name: /保存|确认|提交/ })
+      .last()
+      .click();
+    await expect(page.getByText(/保存成功/)).toBeVisible({ timeout: 30000 });
   });
 
   test('03-04 谈判阶段商机可赢单', async ({ page }) => {
-    await page.goto('/crm/opportunities');
-    const winBtn = page.getByRole('link', { name: /赢单/ }).first();
-    if (await winBtn.isVisible({ timeout: 3000 })) {
-      await winBtn.click();
-      await page.getByRole('button', { name: /确定|确认/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({
-        timeout: 30000,
-      });
-    }
+    // 方法一：建 NEGOTIATION 商机 → 「成交」按钮（赢单）渲染 → 点击 → 断言真实 toast「已标记为成交」
+    const { oppNo } = await seedOpportunity(page, 'NEGOTIATION');
+    await gotoOpportunities(page);
+    const row = page.getByRole('row').filter({ hasText: oppNo });
+    const winBtn = row.getByText('成交', { exact: false }).first();
+    await expect(winBtn, `定位商机 ${oppNo} 的成交(赢单)按钮失败`).toBeVisible({ timeout: 10000 });
+    await winBtn.click();
+    await page.getByRole('button', { name: /确定|确认/ }).click();
+    await expect(page.getByText(/成交/)).toBeVisible({ timeout: 30000 });
   });
 
   test('03-05 商机可标记为输单', async ({ page }) => {
-    await page.goto('/crm/opportunities');
-    const loseBtn = page.getByRole('link', { name: /丢失/ }).first();
-    if (await loseBtn.isVisible({ timeout: 3000 })) {
-      await loseBtn.click();
-      await page.getByRole('button', { name: /确定|确认/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({
-        timeout: 30000,
-      });
-    }
+    // 方法一：建 NEGOTIATION 商机 → 「流失」按钮（输单）渲染 → 点击 → 断言真实 toast「已标记为流失」
+    const { oppNo } = await seedOpportunity(page, 'NEGOTIATION');
+    await gotoOpportunities(page);
+    const row = page.getByRole('row').filter({ hasText: oppNo });
+    const loseBtn = row.getByText('流失', { exact: false }).first();
+    await expect(loseBtn, `定位商机 ${oppNo} 的流失(输单)按钮失败`).toBeVisible({ timeout: 10000 });
+    await loseBtn.click();
+    await page.getByRole('button', { name: /确定|确认/ }).click();
+    await expect(page.getByText(/流失/)).toBeVisible({ timeout: 30000 });
   });
 });

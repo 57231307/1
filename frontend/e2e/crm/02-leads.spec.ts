@@ -3,6 +3,52 @@
 // 覆盖范围：线索创建 → 联系 → 转化 → 丢失（完整线索生命周期）
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { apiCall, genCode, tryCleanup } from '../flow/helpers';
+
+/**
+ * 前置数据构造（方法一）：
+ * 原 `if (await btn.isVisible())` 在无对应状态线索时零断言假绿。
+ * 现按前端 leads/index.vue 的按钮渲染条件构造目标态线索，再按 lead_no 定位自身行操作。
+ *   联系按钮 lead_status==='NEW'（:234）、转化 lead_status==='QUALIFIED'（:242）、
+ *   丢失 lead_status!=='CONVERTED'（:250）。
+ * 后端 crm_lead 词表（backend/src/models/status/bpm_crm_contract.rs:116）为小写
+ *   new/converted/pool/lost，且无 contacted/qualified——与前端大写词表（NEW/CONTACTED/
+ *   QUALIFIED/CONVERTED/LOST）不一致，属真缺陷（见 .monkeycode/doto.md）。后端 create 原样
+ *   存 lead_status 字符串（services/crm/lead.rs），故此处按前端期望的大写值建单以驱动按钮渲染。
+ * 成功提示文案（前端实际 toast）：联系=「标记已联系成功」、转化=「转化成功」、
+ *   丢失=「标记已流失成功」（locales/zh-CN.ts crmLeads.message.*）。原用例误写「更新成功」，已修正为真实文案。
+ */
+const CLEANUP: Array<{ path: string; label: string }> = [];
+test.afterEach(async ({ page }) => {
+  for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
+  CLEANUP.length = 0;
+});
+
+/** 建一条指定 lead_status 的线索，返回 { id, leadNo }；登记清理 */
+async function seedLead(
+  page: import('@playwright/test').Page,
+  leadStatus: string
+): Promise<{ id: number; leadNo: string }> {
+  const leadNo = genCode('E2E-LD');
+  const created = await apiCall<{ id?: number }>(page, 'POST', '/crm/leads', {
+    lead_no: leadNo,
+    lead_status: leadStatus,
+    lead_source: 'WEBSITE',
+    company_name: `E2E 测试公司 ${leadNo}`,
+    contact_name: '张三',
+    mobile_phone: '13900139000',
+    email: 'e2e-lead@test.com',
+    priority: 'MEDIUM',
+  });
+  if (!created.data?.id) throw new Error(`建线索失败：${JSON.stringify(created)}`);
+  CLEANUP.push({ path: `/crm/leads/${created.data.id}`, label: 'crm_lead' });
+  return { id: created.data.id, leadNo };
+}
+
+async function gotoLeads(page: import('@playwright/test').Page): Promise<void> {
+  await page.goto('/crm/leads');
+  await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+}
 
 test.describe('02 线索管理', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -37,38 +83,42 @@ test.describe('02 线索管理', () => {
   });
 
   test('02-03 线索可标记为已联系（NEW → CONTACTED）', async ({ page }) => {
-    await page.goto('/crm/leads');
-    const contactBtn = page.getByRole('link', { name: /联系/ }).first();
-    if (await contactBtn.isVisible({ timeout: 3000 })) {
-      await contactBtn.click();
-      await page.getByRole('button', { name: /确定/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({
-        timeout: 30000,
-      });
-    }
+    // 方法一：建 NEW 线索 → 联系按钮渲染 → 定位自身行点击联系
+    const { leadNo } = await seedLead(page, 'NEW');
+    await gotoLeads(page);
+    const row = page.getByRole('row').filter({ hasText: leadNo });
+    const contactBtn = row.getByText('联系', { exact: false }).first();
+    await expect(contactBtn, `定位 NEW 线索 ${leadNo} 的联系按钮失败`).toBeVisible({
+      timeout: 10000,
+    });
+    await contactBtn.click();
+    await page.getByRole('button', { name: /确定/ }).click();
+    await expect(page.getByText(/联系成功/)).toBeVisible({ timeout: 30000 });
   });
 
   test('02-04 合格线索可转化为客户', async ({ page }) => {
-    await page.goto('/crm/leads');
-    const convertBtn = page.getByRole('link', { name: /转化/ }).first();
-    if (await convertBtn.isVisible({ timeout: 3000 })) {
-      await convertBtn.click();
-      await page.getByRole('button', { name: /确定|确认/ }).click();
-      await expect(page.getByText(/转化成功/)).toBeVisible({
-        timeout: 30000,
-      });
-    }
+    // 方法一：建 QUALIFIED 线索 → 转化按钮渲染 → 定位自身行点击转化
+    const { leadNo } = await seedLead(page, 'QUALIFIED');
+    await gotoLeads(page);
+    const row = page.getByRole('row').filter({ hasText: leadNo });
+    const convertBtn = row.getByText('转化', { exact: false }).first();
+    await expect(convertBtn, `定位 QUALIFIED 线索 ${leadNo} 的转化按钮失败`).toBeVisible({
+      timeout: 10000,
+    });
+    await convertBtn.click();
+    await page.getByRole('button', { name: /确定|确认/ }).click();
+    await expect(page.getByText(/转化成功/)).toBeVisible({ timeout: 30000 });
   });
 
   test('02-05 线索可标记为丢失', async ({ page }) => {
-    await page.goto('/crm/leads');
-    const loseBtn = page.getByRole('link', { name: /丢失/ }).first();
-    if (await loseBtn.isVisible({ timeout: 3000 })) {
-      await loseBtn.click();
-      await page.getByRole('button', { name: /确定|确认/ }).click();
-      await expect(page.getByText(/更新成功/)).toBeVisible({
-        timeout: 30000,
-      });
-    }
+    // 方法一：建 NEW 线索（lead_status!=='CONVERTED'）→ 丢失按钮渲染 → 定位自身行点击丢失
+    const { leadNo } = await seedLead(page, 'NEW');
+    await gotoLeads(page);
+    const row = page.getByRole('row').filter({ hasText: leadNo });
+    const loseBtn = row.getByText('丢失', { exact: false }).first();
+    await expect(loseBtn, `定位线索 ${leadNo} 的丢失按钮失败`).toBeVisible({ timeout: 10000 });
+    await loseBtn.click();
+    await page.getByRole('button', { name: /确定|确认/ }).click();
+    await expect(page.getByText(/流失成功/)).toBeVisible({ timeout: 30000 });
   });
 });
