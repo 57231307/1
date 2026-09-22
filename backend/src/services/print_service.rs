@@ -2340,11 +2340,13 @@ impl PrintService {
         data.insert(
             "quality_status".to_string(),
             // 打印件是给人签收的，不能只给英文码；词表外的存量值原样带出以便发现脏数据
-            serde_json::json!(record
-                .quality_status
-                .as_deref()
-                .map(|code| outsourcing_receipt_quality_status::label(code).unwrap_or(code))
-                .unwrap_or_default()),
+            serde_json::json!(
+                record
+                    .quality_status
+                    .as_deref()
+                    .map(|code| outsourcing_receipt_quality_status::label(code).unwrap_or(code))
+                    .unwrap_or_default()
+            ),
         );
         data.insert(
             "grade".to_string(),

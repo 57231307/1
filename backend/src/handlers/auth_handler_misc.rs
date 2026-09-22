@@ -67,8 +67,8 @@ pub async fn refresh_token(
         jar,
         Json(ApiResponse::success(RefreshTokenResponse {
             csrf_token: csrf_token.clone(),
-        // 与 access_token Cookie max_age(hours(8)) = 28800 秒对齐
-        expires_in: 28800,
+            // 与 access_token Cookie max_age(hours(8)) = 28800 秒对齐
+            expires_in: 28800,
         })),
     )
         .into_response();

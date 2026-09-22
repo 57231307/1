@@ -173,7 +173,9 @@ pub fn is_valid_status_transition(from_status: &str, to_status: &str) -> bool {
         return false;
     }
     let rules = builtin_transition_rules();
-    rules.iter().any(|(from, to, _)| *from == from_status && *to == to_status)
+    rules
+        .iter()
+        .any(|(from, to, _)| *from == from_status && *to == to_status)
 }
 
 /// 校验状态值是否为合法的 14 态之一

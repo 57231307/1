@@ -135,8 +135,7 @@ impl DyeRecipeService {
 
     /// 校验配方是否允许审核（草稿或待审核状态均可审核）
     pub fn validate_can_approve(status: Option<&str>) -> Result<(), AppError> {
-        if status != Some(recipe_status::DRAFT) && status != Some(recipe_status::PENDING_APPROVAL)
-        {
+        if status != Some(recipe_status::DRAFT) && status != Some(recipe_status::PENDING_APPROVAL) {
             return Err(AppError::business(format!(
                 "只有草稿或待审核状态的配方可以审核，当前状态：{}",
                 status.unwrap_or("未知")

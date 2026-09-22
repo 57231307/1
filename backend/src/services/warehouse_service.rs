@@ -135,7 +135,10 @@ impl WarehouseService {
     }
 
     /// 保证默认仓库全局唯一：将除 `keep_id` 外的仓库 is_default 置为 false
-    async fn clear_other_default(db: &sea_orm::DatabaseConnection, keep_id: i32) -> Result<(), AppError> {
+    async fn clear_other_default(
+        db: &sea_orm::DatabaseConnection,
+        keep_id: i32,
+    ) -> Result<(), AppError> {
         use sea_orm::TransactionTrait;
         let txn = db.begin().await?;
         warehouse::Entity::update_many()

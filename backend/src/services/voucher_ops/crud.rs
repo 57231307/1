@@ -174,7 +174,8 @@ impl VoucherService {
             return Ok(());
         }
 
-        let mut existing_codes: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut existing_codes: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
         let mut existing_ids: std::collections::HashSet<i32> = std::collections::HashSet::new();
 
         if !subject_codes.is_empty() {
@@ -196,7 +197,10 @@ impl VoucherService {
 
         if !subject_ids.is_empty() {
             let existing = account_subject::Entity::find()
-                .filter(account_subject::Column::Id.is_in(subject_ids.iter().copied().collect::<Vec<_>>()))
+                .filter(
+                    account_subject::Column::Id
+                        .is_in(subject_ids.iter().copied().collect::<Vec<_>>()),
+                )
                 .filter(account_subject::Column::Status.eq(master_data::ACTIVE))
                 .all(txn)
                 .await

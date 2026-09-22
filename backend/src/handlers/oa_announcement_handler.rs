@@ -81,50 +81,44 @@ pub async fn publish(
 
     // 联动站内通知：解析目标用户并推送
     let notified_count = match &state.event_notification_service {
-        Some(event_svc) => {
-            match resolve_audience(state.db.as_ref(), &announcement).await {
-                Ok(user_ids) if !user_ids.is_empty() => {
-                    let target_count = user_ids.len();
-                    match event_svc
-                        .send_system_announcement(
-                            user_ids,
-                            &announcement.title,
-                            &announcement.content,
-                        )
-                        .await
-                    {
-                        Ok(()) => {
-                            tracing::info!(
-                                "OA 公告 {} 已推送通知给 {} 位用户",
-                                announcement.id,
-                                target_count
-                            );
+        Some(event_svc) => match resolve_audience(state.db.as_ref(), &announcement).await {
+            Ok(user_ids) if !user_ids.is_empty() => {
+                let target_count = user_ids.len();
+                match event_svc
+                    .send_system_announcement(user_ids, &announcement.title, &announcement.content)
+                    .await
+                {
+                    Ok(()) => {
+                        tracing::info!(
+                            "OA 公告 {} 已推送通知给 {} 位用户",
+                            announcement.id,
                             target_count
-                        }
-                        Err(e) => {
-                            tracing::warn!(
-                                "OA 公告 {} 通知推送失败（不阻断发布）: {}",
-                                announcement.id,
-                                e
-                            );
-                            0
-                        }
+                        );
+                        target_count
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "OA 公告 {} 通知推送失败（不阻断发布）: {}",
+                            announcement.id,
+                            e
+                        );
+                        0
                     }
                 }
-                Ok(_) => {
-                    tracing::warn!("OA 公告 {} 目标用户为空，跳过通知推送", announcement.id);
-                    0
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "OA 公告 {} 目标用户解析失败（不阻断发布）: {}",
-                        announcement.id,
-                        e
-                    );
-                    0
-                }
             }
-        }
+            Ok(_) => {
+                tracing::warn!("OA 公告 {} 目标用户为空，跳过通知推送", announcement.id);
+                0
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "OA 公告 {} 目标用户解析失败（不阻断发布）: {}",
+                    announcement.id,
+                    e
+                );
+                0
+            }
+        },
         None => {
             // 站内公告通知是发布动作的核心副作用，服务缺失属装配错误，
             // 不能 warn 后跳过（原行为会让 notified_count=0 看起来像"正常无接收人"）
@@ -137,7 +131,10 @@ pub async fn publish(
 
     let mut result = serde_json::to_value(&announcement)?;
     if let Some(obj) = result.as_object_mut() {
-        obj.insert("notified_count".to_string(), serde_json::json!(notified_count));
+        obj.insert(
+            "notified_count".to_string(),
+            serde_json::json!(notified_count),
+        );
     }
 
     Ok(Json(ApiResponse::success_with_message(

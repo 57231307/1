@@ -172,13 +172,23 @@ impl DyeBatchStateRuleService {
         // seed 不全时补齐内建规则表缺失的合法转换（与 check_transition 回退语义一致）
         let mut seen: std::collections::HashSet<(String, String, String)> = items
             .iter()
-            .map(|m| (m.from_status.clone(), m.to_status.clone(), m.transition_code.clone()))
+            .map(|m| {
+                (
+                    m.from_status.clone(),
+                    m.to_status.clone(),
+                    m.transition_code.clone(),
+                )
+            })
             .collect();
         let mut all = items;
         let builtin = state_rule_validation::get_allowed_transitions(from_status.unwrap_or(""));
         for (to, code) in builtin {
             // get_allowed_transitions 已按 from 过滤；from_status=None 时 fallback 表也按 from 取
-            if seen.insert((from_status.unwrap_or("").to_string(), to.to_string(), code.to_string())) {
+            if seen.insert((
+                from_status.unwrap_or("").to_string(),
+                to.to_string(),
+                code.to_string(),
+            )) {
                 all.push(StateRuleModel {
                     id: 0,
                     from_status: from_status.unwrap_or("").to_string(),

@@ -79,11 +79,13 @@ impl VoucherService {
 
         let subject_by_id: std::collections::HashMap<i32, &account_subject::Model> =
             subjects.iter().map(|s| (s.id, s)).collect();
-        let mut balance_record_map: std::collections::HashMap<i32, crate::models::account_balance::Model> =
-            existing_balances
-                .into_iter()
-                .map(|b| (b.subject_id, b))
-                .collect();
+        let mut balance_record_map: std::collections::HashMap<
+            i32,
+            crate::models::account_balance::Model,
+        > = existing_balances
+            .into_iter()
+            .map(|b| (b.subject_id, b))
+            .collect();
 
         for (subject_id, (debit_amount, credit_amount)) in balance_map {
             let subject = subject_by_id

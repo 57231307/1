@@ -508,9 +508,19 @@ pub async fn calculate_delivery_date(
 pub struct OrderQueryParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+    // 未填写时前端会发 `status=`（空串）。空串必须在反序列化边界收敛为 None，
+    // 否则 service 层 `if let Some(status)` 生成 `WHERE order_status = ''` 恒 0 行。
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
     /// 关键字：匹配采购单号或供应商名称
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
     pub keyword: Option<String>,
 }
 

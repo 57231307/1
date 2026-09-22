@@ -16,7 +16,7 @@ use crate::models::status::purchase_inventory::inventory_stock_quality_status as
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::{inventory_stock, inventory_transaction};
 use crate::services::stock_alert::{
-    AlertType, ALERT_TYPE_NORMAL, EXPIRING_THRESHOLD_DAYS, SLOW_MOVING_THRESHOLD_DAYS,
+    ALERT_TYPE_NORMAL, AlertType, EXPIRING_THRESHOLD_DAYS, SLOW_MOVING_THRESHOLD_DAYS,
 };
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;

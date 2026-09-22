@@ -207,7 +207,8 @@ pub async fn update_dye_batch(
             return Err(AppError::bad_request(format!("无效的状态：{}", status)));
         }
         // 验证状态流转合法性
-        if !dye_batch_state_machine_validation::is_valid_status_transition(&current_status, &status) {
+        if !dye_batch_state_machine_validation::is_valid_status_transition(&current_status, &status)
+        {
             return Err(AppError::business(format!(
                 "状态流转不合法：{} -> {}",
                 current_status, status
@@ -228,10 +229,7 @@ pub async fn update_dye_batch(
             }
         }
         // 入库及之后状态记录完成时间
-        let is_finished = matches!(
-            status.as_str(),
-            "stored" | "shipped"
-        );
+        let is_finished = matches!(status.as_str(), "stored" | "shipped");
         if is_finished {
             batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
         }
@@ -257,7 +255,16 @@ pub async fn delete_dye_batch(
         .await?
         .ok_or_else(|| AppError::not_found("缸号不存在"))?;
 
-    if matches!(batch.status.as_deref(), Some("preparing") | Some("dyeing") | Some("washing") | Some("fixing") | Some("dehydrating") | Some("drying") | Some("inspecting")) {
+    if matches!(
+        batch.status.as_deref(),
+        Some("preparing")
+            | Some("dyeing")
+            | Some("washing")
+            | Some("fixing")
+            | Some("dehydrating")
+            | Some("drying")
+            | Some("inspecting")
+    ) {
         return Err(AppError::business("生产中的缸号不允许删除，请先取消或完成"));
     }
 

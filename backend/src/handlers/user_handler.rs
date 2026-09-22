@@ -240,7 +240,9 @@ pub async fn upload_avatar(
             .unwrap_or_else(|| "png".to_string());
         // 仅接受常见图片格式
         if !matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp") {
-            return Err(AppError::validation("头像仅支持 png/jpg/jpeg/gif/webp 格式"));
+            return Err(AppError::validation(
+                "头像仅支持 png/jpg/jpeg/gif/webp 格式",
+            ));
         }
         let data = field
             .bytes()
@@ -268,8 +270,7 @@ pub async fn upload_avatar(
         break;
     }
 
-    let url = avatar_url
-        .ok_or_else(|| AppError::validation("请求中未找到 avatar 文件字段"))?;
+    let url = avatar_url.ok_or_else(|| AppError::validation("请求中未找到 avatar 文件字段"))?;
 
     let user_service = UserService::new(state.db.clone());
     user_service.update_avatar(auth.user_id, &url).await?;

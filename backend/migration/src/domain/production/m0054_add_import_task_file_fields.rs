@@ -21,10 +21,7 @@ ALTER TABLE import_tasks ADD COLUMN IF NOT EXISTS template_id INTEGER;
 COMMENT ON COLUMN "import_tasks"."file_name" IS '导入源文件名（上传时记录）';
 COMMENT ON COLUMN "import_tasks"."template_id" IS '关联导入模板 ID（可空，历史任务无归属）';
 "#;
-        manager
-            .get_connection()
-            .execute_unprepared(sql)
-            .await?;
+        manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }
 
@@ -33,10 +30,7 @@ COMMENT ON COLUMN "import_tasks"."template_id" IS '关联导入模板 ID（可�
 ALTER TABLE import_tasks DROP COLUMN IF EXISTS template_id;
 ALTER TABLE import_tasks DROP COLUMN IF EXISTS file_name;
 "#;
-        manager
-            .get_connection()
-            .execute_unprepared(sql)
-            .await?;
+        manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }
 }

@@ -13,9 +13,9 @@ use axum::{
     Json,
     extract::{Multipart, Path, State},
 };
+use serde::Deserialize;
 use std::path::PathBuf;
 use tokio::fs;
-use serde::Deserialize;
 use validator::Validate;
 
 /// P0 7-2 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志。
@@ -453,7 +453,7 @@ async fn push_update_task(
     auth: &AuthContext,
 ) -> Result<serde_json::Value, AppError> {
     use sea_orm::{ActiveModelTrait, Set};
-    
+
     use std::sync::atomic::{AtomicI32, Ordering};
     static TASK_SEQ: AtomicI32 = AtomicI32::new(0);
     let seq = TASK_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
@@ -511,7 +511,6 @@ fn backup_to_frontend_json(b: &system_update_backup::Model) -> serde_json::Value
         "created_at": b.created_at.to_rfc3339(),
     })
 }
-
 
 /// 从 system_version 表按 ID 加载版本记录（供版本详情/下载/安装复用）
 async fn load_system_version(
@@ -631,9 +630,9 @@ pub async fn get_system_version_by_id(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let version = load_system_version(&state, id).await?;
-    Ok(Json(ApiResponse::success(
-        system_version_to_frontend_json(&version),
-    )))
+    Ok(Json(ApiResponse::success(system_version_to_frontend_json(
+        &version,
+    ))))
 }
 
 /// POST /api/v1/erp/system-update/versions/{version_id}/download - 下载指定版本更新包（对应前端 api/system-update.ts downloadUpdate）

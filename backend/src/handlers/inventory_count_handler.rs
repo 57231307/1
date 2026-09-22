@@ -433,5 +433,7 @@ pub async fn delete_count_item(
     InventoryCountService::new(state.db.clone())
         .delete_count_item(item_id)
         .await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({ "deleted": true }))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "deleted": true }),
+    )))
 }

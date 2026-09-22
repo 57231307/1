@@ -38,8 +38,7 @@ impl DepartmentService {
         }
         let users = crate::models::user::Entity::find()
             .filter(
-                crate::models::user::Column::Id
-                    .is_in(manager_ids.into_iter().collect::<Vec<_>>()),
+                crate::models::user::Column::Id.is_in(manager_ids.into_iter().collect::<Vec<_>>()),
             )
             .all(db)
             .await;

@@ -63,12 +63,7 @@ fn test_validate_accepts_canonical_values_and_treats_blank_as_no_filter() {
 #[test]
 fn test_validate_rejects_cross_domain_values_and_lists_allowed() {
     for bad in [
-        "active",
-        "ACTIVE",
-        "normal",
-        "warning",
-        "frozen",
-        "pending",
+        "active", "ACTIVE", "normal", "warning", "frozen", "pending",
         // 质量状态列的合法值，属另一列，不得当作台账状态提交
         "合格",
     ] {

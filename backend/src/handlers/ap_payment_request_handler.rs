@@ -271,8 +271,8 @@ pub async fn submit_request(
         let approver_ids = fetch_approver_user_ids(&state.db).await;
 
         if !approver_ids.is_empty() {
-            use crate::services::event_notification_service::NotificationPayload;
             use crate::models::notification::NotificationPriority;
+            use crate::services::event_notification_service::NotificationPayload;
             let payload = NotificationPayload {
                 user_ids: approver_ids.clone(),
                 title: format!("付款申请待审批：{}", request.request_no),
@@ -400,8 +400,8 @@ pub async fn reject_request(
 
 /// 查询付款审批人：admin 和 manager 角色的活跃用户 id 列表
 async fn fetch_approver_user_ids(db: &sea_orm::DatabaseConnection) -> Vec<i32> {
-    use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
     use crate::models::{role, user};
+    use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, sea_query::Cond};
 
     // 先查 admin/manager 角色 id

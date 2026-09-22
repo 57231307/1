@@ -471,10 +471,7 @@ pub async fn delete_report(
         .exec(state.db.as_ref())
         .await?;
     if result.rows_affected == 0 {
-        return Err(AppError::not_found(format!(
-            "财务分析报告 {} 不存在",
-            id
-        )));
+        return Err(AppError::not_found(format!("财务分析报告 {} 不存在", id)));
     }
 
     info!("用户 {} 删除财务分析报告: ID={}", auth.username, id);

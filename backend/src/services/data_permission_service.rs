@@ -302,8 +302,7 @@ impl DataPermissionService {
         let customer = CustomerEntity::find()
             .filter(CustomerColumn::ContactEmail.eq(email))
             .filter(
-                customer::Column::Status
-                    .eq(crate::models::status::general::master_data::ACTIVE),
+                customer::Column::Status.eq(crate::models::status::general::master_data::ACTIVE),
             )
             .one(&*self.db)
             .await

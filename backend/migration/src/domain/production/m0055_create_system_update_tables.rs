@@ -49,10 +49,7 @@ CREATE TABLE IF NOT EXISTS system_update_backups (
 COMMENT ON TABLE "system_update_backups" IS '系统备份记录（原内存存储落库）';
 CREATE INDEX IF NOT EXISTS idx_system_update_backups_status ON system_update_backups (status);
 "#;
-        manager
-            .get_connection()
-            .execute_unprepared(sql)
-            .await?;
+        manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }
 
@@ -61,10 +58,7 @@ CREATE INDEX IF NOT EXISTS idx_system_update_backups_status ON system_update_bac
 DROP TABLE IF EXISTS system_update_backups;
 DROP TABLE IF EXISTS system_update_tasks;
 "#;
-        manager
-            .get_connection()
-            .execute_unprepared(sql)
-            .await?;
+        manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
     }
 }

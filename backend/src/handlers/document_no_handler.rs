@@ -3,8 +3,8 @@
 //! 前端自动生成单据号后调用本接口确认唯一性，仅当不存在时才使用；
 //! 存在时前端重新生成。数据层由各表单据号列的 UNIQUE 约束兜底。
 
-use axum::extract::{Query, State};
 use axum::Json;
+use axum::extract::{Query, State};
 use sea_orm::ColumnTrait;
 use sea_orm::EntityTrait;
 use sea_orm::QueryFilter;

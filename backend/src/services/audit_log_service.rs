@@ -36,7 +36,9 @@ pub struct AuditLogService {
 
 /// 全局单例：channel + 消费者只创建一次，避免每次 AuditLogService::new() 创建新 channel
 /// 导致旧消费者退出（sender drop → receiver None → 消费者退出 → 审计日志丢失）
-static AUDIT_SENDER: std::sync::OnceLock<mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>> = std::sync::OnceLock::new();
+static AUDIT_SENDER: std::sync::OnceLock<
+    mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
+> = std::sync::OnceLock::new();
 
 impl AuditLogService {
     /// 创建审计日志服务（全局单例 channel，消费者只启动一次）

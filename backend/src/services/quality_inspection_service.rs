@@ -275,18 +275,15 @@ impl QualityInspectionService {
         let mut query = quality_inspection_record::Entity::find();
 
         if let Some(inspection_type) = &params.inspection_type {
-            query = query.filter(
-                quality_inspection_record::Column::InspectionType.eq(inspection_type),
-            );
+            query =
+                query.filter(quality_inspection_record::Column::InspectionType.eq(inspection_type));
         }
         if let Some(inspection_result) = &params.inspection_result {
-            query = query.filter(
-                quality_inspection_record::Column::InspectionResult.eq(inspection_result),
-            );
+            query = query
+                .filter(quality_inspection_record::Column::InspectionResult.eq(inspection_result));
         }
         if let Some(product_id) = params.product_id {
-            query =
-                query.filter(quality_inspection_record::Column::ProductId.eq(product_id));
+            query = query.filter(quality_inspection_record::Column::ProductId.eq(product_id));
         }
         // 批号按片段模糊匹配（用户输入的是缸号/批次号的一部分），并转义 LIKE 通配符
         if let Some(batch_no) = &params.batch_no {

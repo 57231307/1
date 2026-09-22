@@ -10,7 +10,6 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::print_service::PrintService;
-use tracing::info;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -18,6 +17,7 @@ use axum::{
     extract::{Path, State},
     response::Response,
 };
+use tracing::info;
 
 async fn render_print_docx(
     state: &AppState,
@@ -1229,10 +1229,7 @@ fn print_template_record_from_builtin(dto: PrintTemplateDto) -> PrintTemplateRec
 }
 
 fn infer_print_module(doc_type: &str) -> String {
-    if doc_type.starts_with("sales")
-        || doc_type == "after_sales"
-        || doc_type == "customer_credit"
-    {
+    if doc_type.starts_with("sales") || doc_type == "after_sales" || doc_type == "customer_credit" {
         "sales".to_string()
     } else if doc_type.starts_with("purchase") {
         "purchase".to_string()
@@ -1534,10 +1531,12 @@ pub async fn preview_print_template(
         html = html.replace(&placeholder, &value.to_string());
     }
 
-    Ok(axum::Json(ApiResponse::success(PrintTemplatePreviewResponse {
-        html,
-        variables: serde_json::Value::Object(variables),
-    })))
+    Ok(axum::Json(ApiResponse::success(
+        PrintTemplatePreviewResponse {
+            html,
+            variables: serde_json::Value::Object(variables),
+        },
+    )))
 }
 
 pub async fn print_print_template(
