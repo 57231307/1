@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface ReportTemplate {
   id: number;
@@ -18,10 +18,9 @@ export interface ReportTemplate {
   updated_at: string;
 }
 
-export function getReportTemplateList(
-  params?: QueryParams
-): Promise<ApiResponse<ReportTemplate[]>> {
-  return request.get('/report-templates', { params });
+// 后端 report_engine_handler::list_templates 无 Query<T> 提取器
+export function getReportTemplateList(): Promise<ApiResponse<ReportTemplate[]>> {
+  return request.get('/report-templates');
 }
 
 export function getReportTemplate(id: number): Promise<ApiResponse<ReportTemplate>> {

@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface SystemVersion {
   id: number;
@@ -58,8 +58,9 @@ export function checkForUpdates(): Promise<ApiResponse<SystemVersion>> {
   return request.get('/system-update/check');
 }
 
-export function getSystemVersionList(params?: QueryParams): Promise<ApiResponse<SystemVersion[]>> {
-  return request.get('/system-update/versions', { params });
+// 后端 system_update_handler::get_backup_versions() 无参数提取器
+export function getSystemVersionList(): Promise<ApiResponse<SystemVersion[]>> {
+  return request.get('/system-update/versions');
 }
 
 export function getSystemVersion(id: number): Promise<ApiResponse<SystemVersion>> {
@@ -96,8 +97,8 @@ export function rollbackUpdate(version: string): Promise<ApiResponse<void>> {
   return request.post('/system-update/rollback', { version });
 }
 
-export function getSystemBackupList(params?: QueryParams): Promise<ApiResponse<SystemBackup[]>> {
-  return request.get('/system-update/backups', { params });
+export function getSystemBackupList(): Promise<ApiResponse<SystemBackup[]>> {
+  return request.get('/system-update/backups');
 }
 
 export function getSystemBackup(id: number): Promise<ApiResponse<SystemBackup>> {
