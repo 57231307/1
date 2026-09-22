@@ -65,6 +65,26 @@ const SRCDIR = join(FRONTEND, 'src', 'api');
 // 承载数组的“列表信封”键名（前端内联对象类型里出现这些键、且值为数组，即视为列表声明）
 const LIST_KEYS = ['items', 'list', 'data', 'roles', 'users', 'counts', 'results'];
 
+// 「带数组字段」不等于「列表信封」：UserInfo{roles: string[]}、ImportResult{errors: string[]}
+// 都是单对象，采购合同详情更是自带 items: 明细行[]。故前后端共用一条判据：
+// 数组键是规范列表名或对象带分页标记(total/count)，且对象没有主键 id（有 id 即实体本身）。
+const TOTAL_KEYS = ['total', 'count', 'total_count', 'totalCount'];
+
+function shapeOfArrayKeys({ vecKey, hasTotal, hasId, label }) {
+  if (!vecKey.length) return { kind: 'single', raw: label };
+  if (hasId) return { kind: 'single', raw: `${label} (含 id，按实体处理)` };
+  const canon = vecKey.find(k => LIST_KEYS.includes(k));
+  if (!canon && !hasTotal)
+    return { kind: 'single', raw: `${label} (数组键 ${vecKey.join('/')} 非规范列表名且无分页标记)` };
+  const carrier = canon || vecKey[0];
+  return {
+    kind: 'wrapper',
+    carrier,
+    raw: label,
+    note: vecKey.length > 1 ? `多数组键 ${vecKey.join('/')}` : '',
+  };
+}
+
 // ---------- 后端：handler 函数返回类型索引 ----------
 // 从 handler 源码里按 `fn NAME(...)` 提取其返回类型文本（`->` 与函数体 `{` 之间）。
 function extractReturnTypes(src) {
@@ -465,11 +485,10 @@ function callReturnType(expr, body, ctx, depth) {
     name = staticCall[2];
     recvType = staticCall[1];
   } else return null;
-  const cands =
-    (recvType && ctx.fnIndex.byStruct.get(recvType + '#' + name)) ||
-    (methodLike && !recvType
-      ? null /* 接收者类型未知：绝不按名字全局回退（`params.get(..)` 会被误认成 service::get） */
-      : ctx.fnIndex.byName.get(name));
+  if (methodLike && !recvType) return null; // 接收者类型未知 -> 不猜
+  const scoped = recvType ? ctx.fnIndex.byStruct.get(recvType + '#' + name) : null;
+  if (recvType && !(scoped && scoped.length)) return null; // 类型已知但方法不属它 -> 不猜
+  const cands = scoped || ctx.fnIndex.byName.get(name);
   if (!cands || !cands.length) return null;
   const rets = new Set(cands.map(c => stripWrappers(c.ret || '')).filter(Boolean));
   if (rets.size !== 1) return null;
@@ -521,10 +540,24 @@ function buildStructIndex() {
       const vecFields = fields
         .filter(fld => /^\s*(?:Vec|std::vec::Vec)\s*</.test(fld.type))
         .map(fld => ({ name: fld.name, elem: genericArg(fld.type) }));
-      index[name] = { vecFields, allFields: fields };
+      // SeaORM 实体每个文件都有一个 `pub struct Model`：只按裸名查会把别的实体字段安上来
+      const base = f.split(/[\/]/).pop().replace('.rs', '');
+      addStructEntry(index, `${base}::${name}`, { vecFields, allFields: fields });
+      addStructEntry(index, name, { vecFields, allFields: fields });
     }
   }
   return index;
+}
+
+function addStructEntry(index, key, entry) {
+  const prev = index[key];
+  if (!prev) {
+    index[key] = entry;
+    return;
+  }
+  if (prev.ambiguous) return;
+  const sig = e => JSON.stringify(e.allFields.map(x => [x.name, x.type]));
+  if (sig(prev) !== sig(entry)) index[key] = { vecFields: [], allFields: [], ambiguous: true };
 }
 
 // 解析 struct body 里的 `pub name: Type,` 字段（忽略嵌套泛型里的逗号）
@@ -696,14 +729,18 @@ function classifyPayload(payload, structIndex) {
   // 具名 struct：仅当存在「规范列表键」(items/data/list/roles/users/counts/results)
   // 的数组字段时，才视为列表信封；否则（如 UserInfo{permissions}、ImportResult{errors}、
   // ProcessTimeline{nodes} 这类「附带数组字段的单对象」）判为单对象，避免误报为信封失配。
-  const structName = head.replace(/^crate::.*::/, '');
-  const info = structIndex[structName];
+  const qualified = head.replace(/^crate::/, '');
+  const tail = qualified.split('::').slice(-2).join('::');
+  const info = structIndex[tail] || structIndex[qualified] || structIndex[qualified.split('::').pop()];
+  if (info && info.ambiguous)
+    return { kind: 'unknown', raw: `${p} (同名 struct 多处定义，判不出)` };
   if (info) {
-    const canon = info.vecFields.find(v => LIST_KEYS.includes(v.name));
-    if (canon) return { kind: 'wrapper', carrier: canon.name, raw: p };
-    if (info.vecFields.length > 1 && !canon)
-      return { kind: 'single', raw: p + ' (含非列表数组字段,按单对象处理)' };
-    return { kind: 'single', raw: p };
+    return shapeOfArrayKeys({
+      vecKey: info.vecFields.map(v => v.name),
+      hasTotal: info.allFields.some(f => TOTAL_KEYS.includes(f.name)),
+      hasId: info.allFields.some(f => f.name === 'id'),
+      label: p,
+    });
   }
 
   // 其余：无法归类（泛型 T / 未定位到定义的类型）
@@ -906,13 +943,12 @@ function shapeFromJsonMacroObject(objText, body, ctx, depth) {
       if (inner) return { ...inner, note: '手写顶层信封 {code,data}（未经 ApiResponse::success）' };
     }
   }
-  const canon = confirmed.find(k => LIST_KEYS.includes(k));
-  return {
-    kind: 'wrapper',
-    carrier: canon || confirmed[0],
-    raw: 'json!{' + keys.map(k => k.key).join(',') + '}',
-    note: confirmed.length > 1 ? `多数组键 ${confirmed.join('/')}` : '',
-  };
+  return shapeOfArrayKeys({
+    vecKey: confirmed,
+    hasTotal: keys.some(k => TOTAL_KEYS.includes(k.key)),
+    hasId: keys.some(k => k.key === 'id' && k.arr === false),
+    label: 'json!{' + keys.map(k => k.key).join(',') + '}',
+  });
 }
 
 // 解析一个 Rust 表达式文本，得到其序列化后的载荷形态
@@ -1046,7 +1082,10 @@ function resolveFnShape(callee, ctx, depth) {
   // 从而给端点安上别人的返回形状（本门禁一度因此把 `"page": page` 判成数组键）。
   if (callee.methodLike && !recvType) return null;
   const scoped = recvType ? ctx.fnIndex.byStruct.get(recvType + '#' + name) : null;
-  const cands = scoped && scoped.length ? scoped : ctx.fnIndex.byName.get(name);
+  // 接收者类型已知但该 impl 里查不到此方法 -> 判不出。退回「按名字全局找」会把别的服务的
+  // 返回类型安上来（曾把 fixed_asset::Model 判成别的实体的 {items,total} 信封）。
+  if (recvType && (!scoped || !scoped.length)) return null;
+  const cands = scoped || ctx.fnIndex.byName.get(name);
   if (!cands || !cands.length) return null;
   const shapes = [];
   for (const c of cands) {
@@ -1170,9 +1209,112 @@ function splitTopLevelRust(s) {
   return out;
 }
 
+// ---------- 前端具名类型索引（把 `ApiResponse<Foo>` 里的 Foo 展开成可比对的形状）----------
+// 此前 269 条以「具名 TS 类型」记为盲区，等价于把最大的一类信封漂移留在看不见的位置。
+// 展开规则保守：定义唯一且能确定承载数组的键才参与比对；同名多定义、泛型实参、
+// 继承链上有解析不到的父类型 —— 一律退回盲区（判不出就比，只会产出假失配）。
+function buildTsTypeIndex() {
+  const index = new Map();
+  const files = [];
+  (function walk(dir) {
+    for (const e of readdirSyncTs(dir)) files.push(e);
+  })(join(FRONTEND, 'src'));
+  for (const f of files) {
+    const src = readFileSync(f, 'utf-8');
+    const rel = f.replace(FRONTEND, '').replace(/\\/g, '/');
+    for (const m of src.matchAll(
+      /\b(?:export\s+)?interface\s+([A-Z]\w*)\s*(<[^{>]*>)?\s*(?:extends\s+([A-Za-z_][\w<>,.\s]*?))?\s*\{/g
+    )) {
+      if (m[2]) continue; // 泛型 interface：元素类型是形参，判不出承载键 -> 不展开
+      const open = src.indexOf('{', m.index + m[0].length - 1);
+      const cap = captureBalanced(src, open, '{', '}');
+      if (!cap) continue;
+      addTsEntry(index, m[1], {
+        kind: 'object',
+        body: cap[1],
+        extends: m[3] ? splitObjFields(m[3]).map(s => s.trim()) : [],
+        file: rel,
+      });
+    }
+    for (const m of src.matchAll(
+      /\b(?:export\s+)?type\s+([A-Z]\w*)\s*(<[^=]*>)?\s*=\s*/g
+    )) {
+      if (m[2]) continue;
+      const text = readUntilStatementEnd(src, m.index + m[0].length) || '';
+      const t = text.trim().replace(/;\s*$/, '');
+      if (!t) continue;
+      if (t.startsWith('{')) addTsEntry(index, m[1], { kind: 'object', body: t.slice(1, -1), extends: [], file: rel });
+      else addTsEntry(index, m[1], { kind: 'alias', text: t, file: rel });
+    }
+  }
+  return index;
+}
+
+function addTsEntry(index, name, entry) {
+  const prev = index.get(name);
+  if (!prev) {
+    index.set(name, entry);
+    return;
+  }
+  if (prev.kind === 'ambiguous') return;
+  const same =
+    prev.kind === entry.kind &&
+    (prev.body || '') === (entry.body || '') &&
+    (prev.text || '') === (entry.text || '');
+  if (!same) index.set(name, { kind: 'ambiguous', file: prev.file });
+}
+
+function readdirSyncTs(dir) {
+  const out = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...readdirSyncTs(p));
+    else if (e.name.endsWith('.ts')) out.push(p);
+  }
+  return out;
+}
+
+// 展开具名类型 -> 形状（object 含 ≥1 个数组键才判 wrapper；判不出退回 named 盲区）
+function expandTsType(name, index, depth = 0, seen = new Set()) {
+  if (depth > 3 || seen.has(name)) return { kind: 'named', raw: name };
+  const ent = index.get(name);
+  if (!ent || ent.kind === 'ambiguous') return { kind: 'named', raw: name };
+  seen.add(name);
+  if (ent.kind === 'alias') return classifyFrontendPayload(ent.text, index, depth + 1, seen);
+  let body = ent.body;
+  for (const par of ent.extends || []) {
+    const pname = par.replace(/<.*>/, '').trim();
+    const pe = index.get(pname);
+    if (!pe || pe.kind !== 'object') return { kind: 'named', raw: `${name} extends ${pname}(未解析)` };
+    body = `${pe.body}\n;${body}`;
+  }
+  return classifyObjectBody(body, index, depth + 1, seen, name);
+}
+
+// 对象体 -> 形状（inline 与具名共用一套判定，避免两条口径漂移）
+function classifyObjectBody(body, index, depth, seen, label) {
+  const top = splitObjFields(body);
+  const vecKey = [];
+  for (const entry of top) {
+    const kv = entry.match(/^\s*([A-Za-z_]\w*)\s*\??\s*:\s*([\s\S]*)$/);
+    if (!kv) continue;
+    const vt = kv[2].trim();
+    if (/\[\]$/.test(vt) || /^Array</.test(vt) || /^\[\s*\]/.test(vt)) vecKey.push(kv[1]);
+  }
+  const keys = top
+    .map(e => (e.match(/^\s*([A-Za-z_]\w*)\s*\??:/) || [])[1])
+    .filter(Boolean);
+  return shapeOfArrayKeys({
+    vecKey,
+    hasTotal: keys.some(k => TOTAL_KEYS.includes(k)),
+    hasId: keys.includes('id'),
+    label: label || '内联对象',
+  });
+}
+
 // ---------- 前端：解析 api 函数的「声明信封形状」+ 调用的 (method,path) ----------
 // 复用 check-api-paths 的 resolveFrontendUrl / normalizePath / constStringMap。
-function parseFrontendApiFunctions() {
+function parseFrontendApiFunctions(tsIndex) {
   const list = [];
   // 目录里所有 .ts（含非 api 子目录? 仅 src/api）
   const files = [];
@@ -1214,7 +1356,7 @@ function parseFrontendApiFunctions() {
       const line = src.slice(0, m.index).split('\n').length;
       // (method, url)：取函数体内第一个 request.<method>(...)
       const call = extractFirstCall(body, consts);
-      const feShape = classifyFrontendReturn(retType);
+      const feShape = classifyFrontendReturn(retType, tsIndex);
       list.push({ name, file: rel, line, feShape, retType, call });
     }
   }
@@ -1271,7 +1413,7 @@ function extractFirstCall(body, consts) {
 }
 
 // 前端返回类型 -> 载荷分类（复用后端同款分类语义，方便比对）
-function classifyFrontendReturn(retType) {
+function classifyFrontendReturn(retType, tsIndex) {
   // 取 Promise<ApiResponse< INNER >> 的 INNER
   const mm = retType.match(/ApiResponse<([\s\S]*)>\s*$/);
   let inner;
@@ -1280,10 +1422,10 @@ function classifyFrontendReturn(retType) {
     const pm = retType.match(/^Promise<([\s\S]*)>\s*$/);
     inner = pm ? pm[1].trim() : retType;
   }
-  return classifyFrontendPayload(inner);
+  return classifyFrontendPayload(inner, tsIndex);
 }
 
-function classifyFrontendPayload(inner) {
+function classifyFrontendPayload(inner, tsIndex, depth = 0, seen = new Set()) {
   let p = inner.replace(/\s+/g, ' ').trim();
   if (/^(void|null|undefined|never)$/.test(p)) return { kind: 'empty', raw: p };
   if (/^(any|unknown)$/.test(p)) return { kind: 'opaque', raw: p };
@@ -1294,30 +1436,17 @@ function classifyFrontendPayload(inner) {
   if (/^PaginatedResponse\b/.test(p)) return { kind: 'wrapper', carrier: 'items', raw: p };
   if (/^PageResponse\b/.test(p)) return { kind: 'wrapper', carrier: 'data', raw: p };
   // 内联对象类型 { items: X[]; total: number } —— 找承载数组的顶层键
-  if (/^\{/.test(p)) {
-    const top = splitObjFields(p.replace(/^\{/, '').replace(/\}\s*$/, ''));
-    const vecKey = [];
-    for (const entry of top) {
-      const kv = entry.match(/^\s*([A-Za-z_]\w*)\s*\??\s*:\s*([\s\S]*)$/);
-      if (!kv) continue;
-      const [, key, val] = kv;
-      const vt = val.trim();
-      const isArrayVal = /\[\]$/.test(vt) || /^Array</.test(vt) || /^\[\s*\]/.test(vt);
-      if (isArrayVal) vecKey.push(key);
-    }
-    if (vecKey.length === 1) return { kind: 'wrapper', carrier: vecKey[0], raw: p };
-    if (vecKey.length > 1) {
-      const canon = vecKey.find(k => LIST_KEYS.includes(k));
-      if (canon) return { kind: 'wrapper', carrier: canon, raw: p };
-      return { kind: 'wrapper', carrier: vecKey[0], raw: p + ' (多数组键,取首个)' };
-    }
-    return { kind: 'single', raw: p };
-  }
-  // 具名 interface（单对象）或 Record<...> 等：
-  //   - Record<...> / 动态映射 -> opaque
-  //   - 其余「前端引用了具名 TS 类型」(如 SalesContract / AuditLogListResponse) -> 'named'：
-  //     本门禁不展开 TS interface 定义，无法静态判定其是否列表信封，记为盲区（不判负、单独统计）。
+  if (/^\{/.test(p))
+    return classifyObjectBody(p.replace(/^\{/, '').replace(/\}\s*$/, ''), tsIndex, depth, seen, p);
+  // Record<...> / 动态映射 -> opaque
   if (/^Record\s*</.test(p)) return { kind: 'opaque', raw: p };
+  // 具名类型：展开其定义后参与比对；展开不了（泛型/多定义/父类型未解析）才退回盲区
+  const bare = p.match(/^([A-Z]\w*)$/);
+  if (bare && tsIndex && depth <= 3) {
+    const s = expandTsType(bare[1], tsIndex, depth, seen);
+    if (s.kind !== 'named') return { ...s, raw: `${bare[1]} => ${s.raw}` };
+    return { kind: 'named', raw: s.raw };
+  }
   return { kind: 'named', raw: p };
 }
 
@@ -1420,7 +1549,8 @@ function main() {
     }
   }
   const { handlers } = walkBackendRoutes();
-  const feFunctions = parseFrontendApiFunctions();
+  const tsTypeIndex = buildTsTypeIndex();
+  const feFunctions = parseFrontendApiFunctions(tsTypeIndex);
 
   // noEnvelope：handler 返回类型未出现 ApiResponse< —— 供 json! 分支识别「手写顶层信封」
   const mkCtx = noEnvelope => ({ structIndex, fnIndex, visited: new Set(), noEnvelope });
