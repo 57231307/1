@@ -392,9 +392,11 @@ export async function ensureRoleUsers(): Promise<void> {
   };
 
   // 2. 拉取角色全量清单
-  // 后端 RoleListResponse 形态为 { roles: [...], total }（非 items 包装），
-  // 兼容两种形态防止字段错位导致解析为空
-  const rolesResp = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=200`, { headers });
+  // 后端 list_roles 返回 ApiResponse<RoleListResponse>，载荷只有 {roles,total} 一种形状
+  // （backend/src/handlers/role_handler.rs:113-116 签名、:78-81 结构体定义），
+  // 且该 handler 不接收分页参数，故不再拼 page/page_size；也不再用 `roles ?? items ?? []`
+  // 探测多形态——形状漂移必须在这里就抛错，而不是让 36 个分片各自读到空清单后乱失败。
+  const rolesResp = await loginCtx.get(`${API_PREFIX}/roles`, { headers });
   if (!rolesResp.ok()) {
     const body = await rolesResp.text().catch(() => '');
     await loginCtx.dispose();
@@ -409,12 +411,16 @@ export async function ensureRoleUsers(): Promise<void> {
     );
     return null;
   })) as {
-    data?: {
-      roles?: Array<{ id: number; code?: string; name?: string }>;
-      items?: Array<{ id: number; code?: string; name?: string }>;
-    };
+    data?: { roles?: Array<{ id: number; code?: string; name?: string }> };
   } | null;
-  const existingRoles = rolesBody?.data?.roles ?? rolesBody?.data?.items ?? [];
+  if (!rolesBody || !Array.isArray(rolesBody.data?.roles)) {
+    await loginCtx.dispose();
+    throw new Error(
+      `ensureRoleUsers: 角色清单响应缺 data.roles（后端契约 role_handler.rs:78-81），` +
+        `实际片段=${JSON.stringify(rolesBody).slice(0, 200)}`
+    );
+  }
+  const existingRoles = rolesBody.data.roles;
   const existingCodes = new Set(existingRoles.map(r => r.code).filter(Boolean));
   console.log(`[globalSetup] 后端现有角色 ${existingRoles.length} 个`);
 
@@ -475,7 +481,7 @@ export async function ensureRoleUsers(): Promise<void> {
   // 无条件重拉：角色已存在（409 分支）时 roleCodeToId 也可能缺 id（步骤 2 解析不全），
   // 只有重拉才能保证步骤 4 为全部角色创建测试账号
   {
-    const reFetch = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=200`, { headers });
+    const reFetch = await loginCtx.get(`${API_PREFIX}/roles`, { headers });
     if (!reFetch.ok()) {
       const body = await reFetch.text().catch(() => '');
       await loginCtx.dispose();
@@ -487,12 +493,16 @@ export async function ensureRoleUsers(): Promise<void> {
       console.error(`[globalSetup] 角色清单重拉 JSON 解析失败:`, (e as Error).message);
       return null;
     })) as {
-      data?: {
-        roles?: Array<{ id: number; code?: string }>;
-        items?: Array<{ id: number; code?: string }>;
-      };
+      data?: { roles?: Array<{ id: number; code?: string }> };
     } | null;
-    const refetched = reBody?.data?.roles ?? reBody?.data?.items ?? [];
+    if (!reBody || !Array.isArray(reBody.data?.roles)) {
+      await loginCtx.dispose();
+      throw new Error(
+        `ensureRoleUsers: 角色清单重拉响应缺 data.roles（契约 role_handler.rs:78-81），` +
+          `实际片段=${JSON.stringify(reBody).slice(0, 200)}`
+      );
+    }
+    const refetched = reBody.data.roles;
     if (refetched.length === 0) {
       await loginCtx.dispose();
       throw new Error(
