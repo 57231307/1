@@ -247,8 +247,19 @@
       原始英文码（未接中文标签），且 `grade` 缺省仍写死 "B"、
       让步接收是否强制 B 级未定，见下一条与库存项。
 
-- [ ] **列表端点收参数却不 filtering（假控件）三处实证 + 一组待确认**：本轮全量扫 159 个 handler，
-      确认三处「筛选栏存在但完全无效」——① `GET /inventory/batches`
+- [x] **`GET /inventory/batches` 七个筛选字段一个都不用**：`inventory_batch_handler.rs:25` 的
+      BatchListQuery 声明 product_id/batch_no/color_no/grade/warehouse_id/start_date/end_date，
+      `:94` 却只把 page/page_size 传给 service，筛选栏整体是假的；前端
+      `BatchListTab.vue` 还按 camelCase 发 `batchNo/colorNo`，名称也与后端不符。
+      已加 `BatchListFilter` 下推 SQL（批次号/色号模糊、等级/产品/仓库精确、创建时间区间），
+      分页改用 `paginate_with_total` 并像台账一样排除软删除行；顺带修掉等级取值把译文当业务值的问题
+      （el-option 的 label 与 value 同为译文，英文界面会把 "First Grade" 发去筛选甚至写进库，
+      且界面把库里不存在的「三等品」当选项、没有「等外品」，列表标签也靠比对译文上色），
+      等级收进 `constants/stock-grade.ts`（`dbba88ec`）。
+      遗留：`bulk_color_approval_service` 的降级规则仍以中文等级字面量写死（一等品→二等品→等外品），
+      未随本轮改引后端常量；`inventory_batch` 页其余 tab 的等级下拉同样未收敛。
+
+- [ ] **列表端点收参数却不 filtering（假控件）余下实例**：
       （`inventory_batch_handler.rs:25` 声明了 product_id/batch_no/color_no/grade/warehouse_id/
       start_date/end_date 七个筛选字段，`:94` 却只把 page/page_size 传给 service，七个字段一个不用；
       前端 `views/inventory-batch/tabs/BatchListTab.vue:328-330` 还按 camelCase 发 `batchNo/colorNo`，
