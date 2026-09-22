@@ -8,6 +8,7 @@ import {
   getCtx,
   BASE_URL,
   ensureTestEntities,
+  tryCleanup,
 } from './helpers';
 
 test.describe('面料单据专用字段全链路验证', () => {
@@ -170,45 +171,123 @@ test.describe('面料单据专用字段全链路验证', () => {
     }
   });
 
-  test('销售订单 UI：创建表单填写面料字段', async ({ page }) => {
+  test('销售订单 UI：创建表单选择产品→色号→填量→提交，色号真实落库并回读一致', async ({ page }) => {
+    const ctx = getCtx();
+    // ensureTestEntities 已保证 ctx.productIds[0] 拥有 ctx.colorNos[0] 这条色号
+    expect(ctx.productIds.length, '[21a] 缺少测试产品').toBeGreaterThan(0);
+    expect(ctx.colorNos.length, '[21a] 缺少测试色号').toBeGreaterThan(0);
+    const productId = ctx.productIds[0];
+    const colorNo = ctx.colorNos[0];
+    const productName = (await apiCallRaw<{ name: string }>(page, 'GET', `/products/${productId}`))
+      .name;
+    console.log(
+      `[21a] 目标明细行：product_id=${productId} name=${productName} color_no=${colorNo}`
+    );
+
     await page.goto(`${BASE_URL}/sales`);
-    await page.waitForTimeout(3000);
-    await page
-      .locator(
-        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
-      )
-      .first()
-      .waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('.el-table').first().waitFor({ state: 'visible', timeout: 30_000 });
 
-    // 点击新建订单
-    const newBtn = page.locator('button:has-text("新建订单")').first();
-    await newBtn.click();
-    await page.waitForTimeout(1000);
-
-    const dialog = page.locator('.el-dialog').first();
+    // 打开新建订单对话框
+    await page.locator('button:has-text("新建订单")').first().click();
+    const dialog = page.locator('.el-dialog:visible').first();
     await dialog.waitFor({ state: 'visible', timeout: 10_000 });
 
-    // 验证表单字段存在
-    const customerSelect = page.locator('.el-dialog .el-select').first();
-    await customerSelect.waitFor({ state: 'visible', timeout: 5000 });
-    const customerVisible = await customerSelect.isVisible();
-    expect(customerVisible).toBe(true);
+    // 表头/明细行确实渲染了「色号」录入列（新增列存在性）
+    const colorHeader = dialog
+      .locator('.el-table__header th, .el-table__header-wrapper th')
+      .filter({ hasText: '色号' });
+    await colorHeader.first().waitFor({ state: 'visible', timeout: 5_000 });
+    expect(await colorHeader.first().isVisible()).toBe(true);
 
-    // 验证明细行有产品选择列
-    const productSelect = page
-      .locator('.el-dialog .el-table .el-select, .el-dialog select:has(option)')
+    // 客户（基本信息区第一个下拉）
+    await dialog.locator('.el-select:has(input[placeholder="选择客户"])').first().click();
+    await page.locator('.el-select-dropdown__item:visible').first().click();
+    console.log('[21a] 已选客户');
+
+    // 要求交货日期（第二个日期选择器）：填未来日期（后端拒收过去日期）
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const future = new Date(Date.now() + 30 * 86400000);
+    const futureStr = `${future.getFullYear()}-${pad(future.getMonth() + 1)}-${pad(future.getDate())}`;
+    const reqDateInput = dialog.locator('input[placeholder="选择日期"]').nth(1);
+    await reqDateInput.fill(futureStr);
+    await reqDateInput.press('Enter');
+    console.log(`[21a] 要求交货日期=${futureStr}`);
+
+    // 联系人 / 联系电话 / 收货地址
+    await dialog.locator('input[placeholder="联系人姓名"]').fill('E2E联系人');
+    await dialog.locator('input[placeholder="联系电话"]').fill('13800138000');
+    await dialog.locator('textarea[placeholder="详细收货地址"]').fill('E2E 面料收货地址');
+    console.log('[21a] 已填联系人与收货地址');
+
+    // 明细行：选产品（表格内第一个 el-select）
+    await dialog.locator('.el-table .el-select').nth(0).click();
+    await page
+      .locator('.el-select-dropdown__item:visible')
+      .filter({ hasText: productName })
+      .first()
+      .click();
+    console.log(`[21a] 已选产品 ${productName}`);
+
+    // 明细行：选色号（表格内第二个 el-select，选项来自该产品色号列表）
+    await dialog.locator('.el-table .el-select').nth(1).click();
+    const colorOption = page
+      .locator('.el-select-dropdown__item:visible')
+      .filter({ hasText: colorNo })
       .first();
-    await productSelect.waitFor({ state: 'visible', timeout: 5000 });
-    const productVisible = await productSelect.isVisible();
-    // 检查表单是否有面料字段输入（色号/缸号/克重/幅宽）
-    // 当前前端可能未显示这些字段
-    const colorLabel = page.locator('.el-dialog:has-text("色号")').first();
-    await colorLabel.waitFor({ state: 'visible', timeout: 3000 });
-    const colorLabelVisible = await colorLabel.isVisible();
-    // 记录色号字段是否在表单中（当前可能缺失）
+    await colorOption.waitFor({ state: 'visible', timeout: 5_000 });
+    await colorOption.click();
+    console.log(`[21a] 已选色号 ${colorNo}`);
 
-    // 关闭弹窗
-    await page.locator('.el-dialog__headerbtn').first().click();
+    // 明细行：填数量（第 1 个 input-number）与单价（第 2 个，必须 >0 才计入提交）
+    const numberInputs = dialog.locator('.el-table .el-input-number input');
+    await numberInputs.nth(0).fill('100');
+    await numberInputs.nth(1).fill('25.5');
+    await numberInputs.nth(1).press('Tab');
+    console.log('[21a] 已填数量=100 单价=25.5');
+
+    // 提交：捕获真实 POST /sales/orders 的请求体与响应（不 mock）
+    const responsePromise = page.waitForResponse(
+      r => r.request().method() === 'POST' && r.url().endsWith('/sales/orders')
+    );
+    await dialog.locator('.el-dialog__footer button').filter({ hasText: '确定' }).first().click();
+    const resp = await responsePromise;
+
+    // 业务结果断言 1：提交 payload 明细行带上了所选色号
+    const payload = JSON.parse(resp.request().postData() || '{}') as {
+      items?: Array<{ product_id: number; color_no?: string }>;
+    };
+    expect(Array.isArray(payload.items), '[21a] payload.items 应为数组').toBe(true);
+    expect(payload.items?.[0]?.color_no, '[21a] 提交 payload 明细行应含色号').toBe(colorNo);
+    expect(payload.items?.[0]?.product_id, '[21a] 提交明细行产品应为所选产品').toBe(productId);
+    console.log(`[21a] 提交 payload 校验通过：${JSON.stringify(payload.items)}`);
+
+    // 创建必须成功（失败即暴露，不吞）
+    expect(resp.ok(), `[21a] 创建订单应 2xx，实际 ${resp.status()}`).toBe(true);
+    const created = (await resp.json()) as { data?: { id?: number } };
+    const orderId = created.data?.id;
+    expect(orderId, '[21a] 创建未返回订单 id').toBeTruthy();
+
+    // 业务结果断言 2：后端回读该明细行色号与所选一致
+    const detail = await apiCallRaw<{ items: Array<{ color_no: string }> }>(
+      page,
+      'GET',
+      `/sales/orders/${orderId}`
+    );
+    expect(detail.items?.[0]?.color_no, '[21a] 后端回读明细色号应一致').toBe(colorNo);
+
+    // 业务结果断言 3：所选色号确实来自该产品的色号列表（真实按产品过滤的数据源）
+    const productColors = await apiCallRaw<Array<{ color_no: string }>>(
+      page,
+      'GET',
+      `/products/${productId}/colors`
+    );
+    expect(
+      productColors.map(c => c.color_no),
+      '[21a] 色号应属于该产品'
+    ).toContain(colorNo);
+    console.log(`[21a] 后端回读一致：order=${orderId} color_no=${colorNo}`);
+
+    await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '21a 销售订单');
   });
 
   // ============================================================

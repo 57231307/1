@@ -47,6 +47,8 @@ export interface OrderItemForm {
   product_id: number | undefined;
   product_name: string;
   product_code: string;
+  /** 色号：空串=白坯布（合法），非空=染色布；来源为该产品的色号列表 */
+  color_no: string;
   quantity: number;
   unit: string;
   unit_price: number;
@@ -129,6 +131,7 @@ export function useOlv() {
         product_id: undefined,
         product_name: '',
         product_code: '',
+        color_no: '',
         quantity: 1,
         unit: '米',
         unit_price: 0,
@@ -330,6 +333,7 @@ export function useOlv() {
           product_id: undefined,
           product_name: '',
           product_code: '',
+          color_no: '',
           quantity: 1,
           unit: '米',
           unit_price: 0,
@@ -358,6 +362,7 @@ export function useOlv() {
         product_id: it.product_id,
         product_name: it.product_name,
         product_code: it.product_code || '',
+        color_no: it.color_no || '',
         quantity: it.quantity,
         unit: it.unit || '',
         unit_price: it.unit_price,
@@ -368,6 +373,7 @@ export function useOlv() {
           product_id: undefined,
           product_name: '',
           product_code: '',
+          color_no: '',
           quantity: 1,
           unit: '米',
           unit_price: 0,

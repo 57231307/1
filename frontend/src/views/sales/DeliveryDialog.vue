@@ -134,7 +134,7 @@
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { InventoryStock } from '@/api/inventory';
-import { stockRowKey, type DeliveryItemForm } from '../composables/useOlv';
+import { stockRowKey, type DeliveryItemForm } from './composables/useOlv';
 
 const { t } = useI18n({ useScope: 'global' });
 

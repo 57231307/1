@@ -109,6 +109,25 @@
               </el-select>
             </template>
           </el-table-column>
+          <el-table-column :label="t('sales.orderForm.colorNo')" width="160">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.color_no"
+                clearable
+                filterable
+                :disabled="!row.product_id"
+                :placeholder="t('sales.orderForm.colorNoPlaceholder')"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="c in colorOptionsByProduct[row.product_id] || []"
+                  :key="c.id"
+                  :label="c.color_name ? `${c.color_no} · ${c.color_name}` : c.color_no"
+                  :value="c.color_no"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
           <el-table-column prop="quantity" :label="t('sales.orderForm.quantity')" width="120">
             <template #default="{ row }">
               <el-input-number
@@ -197,7 +216,9 @@ import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { Customer } from '@/api/customer';
-import type { Product } from '@/api/product';
+import { getProductColorList, type Product } from '@/api/product';
+import type { ProductColor } from '@/api/product';
+import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -206,6 +227,8 @@ interface OrderItemForm {
   product_id: number | undefined;
   product_name: string;
   product_code: string;
+  /** 色号：空串=白坯布（合法），非空=染色布；下拉选项来自该行产品的色号列表 */
+  color_no: string;
   quantity: number;
   unit: string;
   unit_price: number;
@@ -266,6 +289,15 @@ watch(
   { deep: true, immediate: true }
 );
 
+// 编辑回显：对话框打开时按各行已选产品预加载色号选项，使已存 color_no 命中下拉项正常显示
+watch(
+  () => props.visible,
+  visible => {
+    if (!visible) return;
+    props.formData.items.forEach(item => ensureColorOptions(item.product_id));
+  }
+);
+
 const formRules = computed<FormRules>(() => ({
   customer_id: [
     { required: true, message: t('sales.orderForm.customerRequired'), trigger: 'change' },
@@ -299,14 +331,32 @@ const handleCustomerChange = (customerId: number) => {
   }
 };
 
-const handleProductSelect = (index: number, _v: number) => {
-  const product = props.products.find(p => p.id === localData.items[index].product_id);
-  if (product) {
-    localData.items[index].product_name = product.product_name;
-    localData.items[index].product_code = product.product_code;
-    localData.items[index].unit_price = product.price || 0;
-    calculateSubtotal(localData.items[index]);
+/** 色号下拉选项缓存：key=product_id，来源为后端该产品色号列表 GET /products/{id}/colors */
+const colorOptionsByProduct = reactive<Record<number, ProductColor[]>>({});
+
+/** 按产品加载色号选项，已加载则复用；失败经 logger 暴露后不再重复请求 */
+const ensureColorOptions = async (productId: number | undefined) => {
+  if (!productId || colorOptionsByProduct[productId]) return;
+  try {
+    const res = await getProductColorList(productId);
+    colorOptionsByProduct[productId] = res.data ?? [];
+  } catch (error) {
+    logger.error(t('sales.orderForm.colorLoadFailed'), error);
   }
+};
+
+const handleProductSelect = async (index: number, productId: number) => {
+  const row = localData.items[index];
+  // 换产品清空按旧产品选定的色号，避免残留不属于新产品的色号
+  row.color_no = '';
+  const product = props.products.find(p => p.id === productId);
+  if (product) {
+    row.product_name = product.product_name;
+    row.product_code = product.product_code;
+    row.unit_price = product.price || 0;
+    calculateSubtotal(row);
+  }
+  await ensureColorOptions(row.product_id);
 };
 
 const calculateSubtotal = (item: OrderItemForm) => {
@@ -323,6 +373,7 @@ const addItem = () => {
     product_id: undefined,
     product_name: '',
     product_code: '',
+    color_no: '',
     quantity: 1,
     unit: t('sales.orderForm.defaultUnit'),
     unit_price: 0,

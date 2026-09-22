@@ -50,6 +50,9 @@
     <el-table :data="order?.items" border :aria-label="t('sales.orderView.itemsTableAriaLabel')">
       <el-table-column prop="product_name" :label="t('sales.orderView.productName')" />
       <el-table-column prop="product_code" :label="t('sales.orderView.productCode')" width="120" />
+      <el-table-column :label="t('sales.orderView.colorNo')" width="120">
+        <template #default="{ row }">{{ row.color_no || t('sales.orderView.greige') }}</template>
+      </el-table-column>
       <el-table-column
         prop="quantity"
         :label="t('sales.orderView.quantity')"
