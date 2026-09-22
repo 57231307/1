@@ -4,14 +4,14 @@
 //! （订单号生成、发货记录查询、手动创建发货单）+ 单元测试。
 //! 业务实现已按职责拆分到 `delivery_ops/` 子模块（与 `delivery` 同为 `crate::services::so` 下兄弟模块）：
 //! - `delivery_ops::ship`：发货管理（ship_order 及 15 个辅助方法，原 L126-694）
-//! - `delivery_ops::inventory`：库存辅助（check_inventory/lock_inventory/reduce_inventory/release_reservations，原 L747-1082）
+//! - `delivery_ops::inventory`：库存辅助（check_inventory/lock_inventory/reduce_inventory_four_dim/release_reservations，原 L747-1082）
 //! - `delivery_ops::cancel`：取消发货（cancel_delivery 及 3 个辅助方法，原 L1084-1320）
 //! - `delivery_ops::export`：CSV 导出（export_orders_to_csv 及 2 个辅助方法，原 L1322-1443）
 //! - `delivery_ops::types`：内部聚合辅助 struct（ShipOrderContext/ShipmentItemsResult/ShipPostCommitContext）
 //!
 //! 设计要点（与拆分前一致）：
 //! - 包含销售订单的发货、库存扣减/释放、订单号生成等
-//! - `check_inventory`、`lock_inventory`、`reduce_inventory`、`release_reservations`
+//! - `check_inventory`、`lock_inventory`、`reduce_inventory_four_dim`、`release_reservations`
 //!   这四个方法与发货/库存操作紧密相关，统一在 delivery_ops::inventory 中实现
 //!
 //! 拆分兼容性：
@@ -46,14 +46,18 @@ pub struct ShipOrderRequest {
 
 #[derive(Debug, Validate, Deserialize)]
 pub struct ShipOrderItemRequest {
+    /// 产品 ID（款号维度：products.id，款号编码为 products.code）
     pub product_id: i32,
     pub quantity: Decimal,
+    /// 批次号 —— 出库四维扣减必填（缺失报业务错误，不做兜底）
     #[validate(length(max = 50, message = "批次号长度不能超过50个字符"))]
     pub batch_no: Option<String>,
     // v14 批次 421 T-P1-5：缸号同订单校验支持字段
     // 依据：fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
+    /// 色号 —— 出库四维扣减必填（缺失报业务错误，不做兜底）
     #[validate(length(max = 50, message = "色号长度不能超过50个字符"))]
     pub color_no: Option<String>,
+    /// 缸号 —— 出库四维扣减必填；仅当该缸数量不足时才允许显式跨缸回退
     #[validate(length(max = 50, message = "缸号长度不能超过50个字符"))]
     pub dye_lot_no: Option<String>,
     /// 染色匹号（匹号领域：出库使用染色匹号）

@@ -15,8 +15,8 @@ use crate::services::so::{SalesOrderDetail, SalesOrderItemDetail};
 use crate::utils::PaginatedResponse;
 use crate::utils::data_scope::{DataScopeContext, apply_department_scope};
 use crate::utils::error::AppError;
-use crate::utils::sql_escape::safe_like_pattern;
 use crate::utils::pagination::paginate_with_total;
+use crate::utils::sql_escape::safe_like_pattern;
 use sea_orm::{
     ColumnTrait, EntityTrait, LoaderTrait, ModelTrait, Order, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, RelationTrait,

@@ -527,7 +527,10 @@ fn test_ghtddjy_cwxxbhghlb() {
         build_ship_item(2002, decs!("5"), Some("缸号C".to_string())),
     ];
     let result = validate_dye_lot_consistency(&items);
-    assert!(result.is_ok(), "多缸号应允许通过（记警告不阻断，IR 2026-09-17）");
+    assert!(
+        result.is_ok(),
+        "多缸号应允许通过（记警告不阻断，IR 2026-09-17）"
+    );
 }
 
 /// 测试夹具：构造 ShipOrderItemRequest

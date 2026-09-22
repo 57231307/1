@@ -21,9 +21,7 @@ impl SalesService {
             page: 1,
             page_size: 10000,
         };
-        let orders = self
-            .list_orders(page_req, filter, None)
-            .await?;
+        let orders = self.list_orders(page_req, filter, None).await?;
 
         let headers = Self::build_order_csv_headers();
         let rows: Vec<std::collections::HashMap<String, String>> = orders

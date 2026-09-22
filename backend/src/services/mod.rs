@@ -34,6 +34,8 @@ pub mod inv;
 pub mod inventory_adjustment_service;
 // v11 批次 143 P1-1：inventory_count_service 真实实现（盘点单 CRUD + 差异计算 + 审批流）
 pub mod inventory_count_service;
+// 出库四维匹配扣减规划（款号+色号+缸号+批次，含显式跨缸回退确定性次序）
+pub mod inventory_deduction;
 pub mod inventory_finance_bridge_service;
 // 拆分：inventory_finance_bridge_service.rs facade 的业务实现子模块（listener/voucher）
 pub mod inventory_finance_bridge_ops;

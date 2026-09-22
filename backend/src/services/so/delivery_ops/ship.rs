@@ -4,7 +4,7 @@
 //! 包含 ship_order 及其 15 个辅助方法：
 //! - ship_order（公开 API）
 //! - validate_ship_preconditions / load_ship_order_context / create_shipment_delivery
-//! - process_shipment_items / compute_line_amounts / build_delivery_item
+//! - process_shipment_items / lookup_line_price / build_delivery_item
 //! - compute_quantity_kg / build_record_transaction_args / update_order_item_shipped_qty
 //! - update_order_after_shipment / post_commit_shipment_effects / check_order_fully_shipped
 //! - create_revenue_voucher_for_delivery / build_revenue_voucher_request / build_revenue_voucher_item
@@ -142,7 +142,7 @@ impl SalesService {
             .iter()
             .map(|i| (i.product_id, i.quantity))
             .collect();
-        self.check_inventory(request.order_id, &request.items, txn)
+        self.check_inventory(request.order_id, warehouse.id, &request.items, txn)
             .await?;
         Ok(ShipOrderContext {
             order,
@@ -190,7 +190,11 @@ impl SalesService {
         Ok(delivery.insert(txn).await?)
     }
 
-    /// 循环处理发货明细：扣减库存 + 生成库存流水 + 累加金额 + 批量 INSERT
+    /// 循环处理发货明细：四维扣减库存 + 生成库存流水 + 累加金额 + 批量 INSERT
+    ///
+    /// 出库四维规则（款号+色号+缸号+批次）：一笔发货明细可能拆成多笔实际扣减
+    /// （指定缸不足时显式跨缸回退），每一笔实际扣减单独生成一行出库明细与一条库存流水，
+    /// 如实记录实际扣到的缸号/批次与该行前后数量。
     async fn process_shipment_items(
         &self,
         request: &ShipOrderRequest,
@@ -210,45 +214,43 @@ impl SalesService {
         let mut delivery_total_amount = Decimal::ZERO;
         let mut delivery_total_tax = Decimal::ZERO;
         for item in &request.items {
-            let (unit_price, line_amount, line_tax) =
-                Self::compute_line_amounts(&order_item_map, item);
-            delivery_items_to_insert.push(Self::build_delivery_item(
-                item,
-                delivery.id,
-                unit_price,
-                line_amount,
-            ));
-            delivery_total_amount += line_amount;
-            delivery_total_tax += line_tax;
-            let (qty_before, qty_after, stock_color_no, stock_dye_lot_no) = self
-                .reduce_inventory(
+            let (unit_price, tax_percent) = Self::lookup_line_price(&order_item_map, item);
+            let reductions = self
+                .reduce_inventory_four_dim(item, ctx.warehouse.id, request.order_id, txn)
+                .await?;
+            for reduction in reductions {
+                let line_amount = (reduction.quantity * unit_price).round_dp(2);
+                let line_tax = (line_amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
+                delivery_total_amount += line_amount;
+                delivery_total_tax += line_tax;
+                delivery_items_to_insert.push(Self::build_delivery_item(
+                    item,
+                    &reduction,
+                    delivery.id,
+                    unit_price,
+                    line_amount,
+                ));
+                let quantity_kg = Self::compute_quantity_kg(
+                    &ctx.product_map,
                     item.product_id,
-                    ctx.warehouse.id,
-                    item.quantity,
-                    request.order_id,
-                    txn,
-                )
-                .await?;
-            let quantity_kg =
-                Self::compute_quantity_kg(&ctx.product_map, item.product_id, item.quantity);
-            let args = Self::build_record_transaction_args(
-                item,
-                request,
-                ctx,
-                qty_before,
-                qty_after,
-                stock_color_no,
-                stock_dye_lot_no,
-                quantity_kg,
-                user_id,
-            );
-            let (_, txn_event) =
-                crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
-                    txn, args,
-                )
-                .await?;
-            if let Some(ev) = txn_event {
-                pending_inventory_events.push(ev);
+                    reduction.quantity,
+                );
+                let args = Self::build_record_transaction_args(
+                    item,
+                    request,
+                    ctx,
+                    &reduction,
+                    quantity_kg,
+                    user_id,
+                );
+                let (_, txn_event) =
+                    crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
+                        txn, args,
+                    )
+                    .await?;
+                if let Some(ev) = txn_event {
+                    pending_inventory_events.push(ev);
+                }
             }
             Self::update_order_item_shipped_qty(
                 txn,
@@ -270,21 +272,21 @@ impl SalesService {
         })
     }
 
-    fn compute_line_amounts(
+    /// 取订单行的单价与税率（行缺失按 0 处理，与原逻辑一致）
+    fn lookup_line_price(
         order_item_map: &std::collections::HashMap<i32, &sales_order_item::Model>,
         item: &ShipOrderItemRequest,
-    ) -> (Decimal, Decimal, Decimal) {
-        let (unit_price, tax_percent) = order_item_map
+    ) -> (Decimal, Decimal) {
+        order_item_map
             .get(&item.product_id)
             .map(|oi| (oi.unit_price, oi.tax_percent))
-            .unwrap_or((Decimal::ZERO, Decimal::ZERO));
-        let line_amount = (item.quantity * unit_price).round_dp(2);
-        let line_tax = (line_amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
-        (unit_price, line_amount, line_tax)
+            .unwrap_or((Decimal::ZERO, Decimal::ZERO))
     }
 
+    /// 构建出库明细行：色号/缸号/批次记录**实际被扣库存行**的维度（跨缸回退时为其他缸）
     fn build_delivery_item(
         item: &ShipOrderItemRequest,
+        reduction: &super::inventory::StockReduction,
         delivery_id: i32,
         unit_price: Decimal,
         line_amount: Decimal,
@@ -293,13 +295,20 @@ impl SalesService {
             id: Default::default(),
             delivery_id: Set(delivery_id),
             product_id: Set(item.product_id),
-            quantity: Set(item.quantity),
-            batch_no: Set(item.batch_no.clone().unwrap_or_default()),
-            color_no: Set(item.color_no.clone().unwrap_or_default()),
+            quantity: Set(reduction.quantity),
+            batch_no: Set(reduction.batch_no.clone()),
+            color_no: Set(reduction.color_no.clone()),
             dye_lot_id: Set(None),
-            dye_lot_no: Set(item.dye_lot_no.clone().unwrap_or_default()),
+            dye_lot_no: Set(reduction.dye_lot_no.clone().unwrap_or_default()),
             piece_no: Set(item.piece_no.clone()),
-            remarks: Set(None),
+            // 四维扣减落点：实际被扣库存行 ID 与是否跨缸回退，如实写入出库明细
+            stock_id: Set(Some(reduction.stock_id)),
+            is_cross_dye_lot: Set(reduction.is_cross_dye_lot()),
+            remarks: Set(if reduction.is_cross_dye_lot() {
+                Some(reduction.dye_lot_trace_note())
+            } else {
+                None
+            }),
             unit_price: Set(unit_price),
             amount: Set(line_amount),
             created_at: Set(chrono::Utc::now()),
@@ -330,10 +339,7 @@ impl SalesService {
         item: &ShipOrderItemRequest,
         request: &ShipOrderRequest,
         ctx: &ShipOrderContext,
-        qty_before: Decimal,
-        qty_after: Decimal,
-        stock_color_no: String,
-        stock_dye_lot_no: Option<String>,
+        reduction: &super::inventory::StockReduction,
         quantity_kg: Decimal,
         user_id: i32,
     ) -> crate::services::inventory_stock_query::RecordTransactionArgs {
@@ -341,20 +347,25 @@ impl SalesService {
             transaction_type: "SALES_DELIVERY".to_string(),
             product_id: item.product_id,
             warehouse_id: ctx.warehouse.id,
-            batch_no: item.batch_no.clone().unwrap_or_default(),
-            color_no: stock_color_no,
-            dye_lot_no: stock_dye_lot_no,
+            // 流水如实记录实际被扣库存行的批次/色号/缸号（跨缸回退时为其他缸）
+            batch_no: reduction.batch_no.clone(),
+            color_no: reduction.color_no.clone(),
+            dye_lot_no: reduction.dye_lot_no.clone(),
             grade: String::new(),
-            quantity_meters: item.quantity,
+            quantity_meters: reduction.quantity,
             quantity_kg,
             source_bill_type: Some("sales_order".to_string()),
             source_bill_no: Some(ctx.order.order_no.clone()),
             source_bill_id: Some(request.order_id),
-            quantity_before_meters: Some(qty_before),
+            quantity_before_meters: Some(reduction.quantity_before),
             quantity_before_kg: None,
-            quantity_after_meters: Some(qty_after),
+            quantity_after_meters: Some(reduction.quantity_after),
             quantity_after_kg: None,
-            notes: Some(format!("销售出库 - 订单 {}", ctx.order.order_no)),
+            notes: Some(format!(
+                "销售出库 - 订单 {}{}",
+                ctx.order.order_no,
+                reduction.dye_lot_trace_note()
+            )),
             created_by: Some(user_id),
         }
     }
