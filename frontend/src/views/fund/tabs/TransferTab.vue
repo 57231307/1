@@ -280,9 +280,8 @@ const formatToAccountLabel = (account: FundAccount): string => {
 const fetchAccounts = async () => {
   try {
     const res = await getFundAccountList();
-    const d = res.data as
-      { list?: FundAccount[]; items?: FundAccount[]; data?: FundAccount[] } | FundAccount[];
-    accountList.value = Array.isArray(d) ? d : d?.list || d?.items || [];
+    // 后端 list_accounts 返回 ApiResponse<Vec<Model>> ⇒ data 就是裸数组
+    accountList.value = res.data;
   } catch (e) {
     const err = e as Error;
     ElMessage.error(err.message || t('fund.transferTab.messageFetchAccountsFailed'));

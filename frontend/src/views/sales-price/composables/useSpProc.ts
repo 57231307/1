@@ -89,7 +89,8 @@ export function useSpProc(refresh: RefreshCallbacks) {
     strategyLoading.value = true;
     try {
       const res = await getPricingStrategyList();
-      strategyList.value = res.data || [];
+      // 后端 list_strategies 返回 PaginatedResponse ⇒ data.items
+      strategyList.value = res.data.items;
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);

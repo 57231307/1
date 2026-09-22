@@ -309,9 +309,9 @@ const handleConvert = async (orderType: 'purchase' | 'production') => {
       order_type: orderType,
     });
 
-    ElMessage.success(
-      t('mrp.calc.convertSuccess', { count: res.data.order_ids.length, type: typeLabel })
-    );
+    // 后端 convert_to_orders 返回被转化的 MRP 结果行数组（非 {order_ids}），
+    // 原写法取不到 order_ids 会在成功响应后抛 TypeError 并被 catch 报成「转换失败」
+    ElMessage.success(t('mrp.calc.convertSuccess', { count: res.data.length, type: typeLabel }));
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') {

@@ -42,7 +42,8 @@ export interface FundTransferRecord {
 
 export function getFundAccountList(
   params?: QueryParams
-): Promise<ApiResponse<{ items: FundAccount[]; total: number }>> {
+  // 后端 fund_management_handler::list_accounts 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+): Promise<ApiResponse<FundAccount[]>> {
   return request.get('/fund-management/accounts', { params });
 }
 

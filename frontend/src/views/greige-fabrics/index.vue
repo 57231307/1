@@ -279,12 +279,9 @@ const loadGreigeFabrics = async () => {
   loading.value = true;
   try {
     const res = await getGreigeFabricList();
-    // 响应形态兜底：后端可能返回数组或 { items } 分页包装，非数组直塞 el-table
-    // 会触发 element-plus "r is not iterable"（updateAllSelected）白屏
-    const payload = res.data as unknown;
-    greigeList.value = Array.isArray(payload)
-      ? payload
-      : ((payload as { items?: GreigeFabric[] })?.items ?? []);
+    // 后端 list_greige_fabrics 返回 PaginatedResponse ⇒ data.items 为唯一形状；
+    // 原「数组或 {items}」双形状宽容正是 el-table 白屏的成因（信封被当数组塞进 :data）
+    greigeList.value = res.data.items;
   } catch (error) {
     ElMessage.error(t('greigeFabrics.index.messageLoadListFailed'));
   } finally {

@@ -196,7 +196,8 @@ const fetchGreigeFabrics = async () => {
   try {
     const { getGreigeFabricList } = await import('@/api/greige-fabric');
     const res = await getGreigeFabricList();
-    greigeFabrics.value = (res.data as GreigeFabric[] | undefined) || [];
+    // 后端返回 PaginatedResponse：原写法把整个信封当数组取 ⇒ 恒空
+    greigeFabrics.value = res.data.items;
   } catch (error) {
     const err = error as Error;
     logger.error(t('fabric.index.fetchGreigeFabricsFailed'), err.message);

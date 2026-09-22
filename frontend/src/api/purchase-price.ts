@@ -24,7 +24,8 @@ export interface PurchasePrice {
 
 export function getPurchasePriceList(
   params?: QueryParams
-): Promise<ApiResponse<{ items: PurchasePrice[]; total: number }>> {
+  // 后端 purchase_price_handler::list_prices 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+): Promise<ApiResponse<PurchasePrice[]>> {
   return request.get('/purchase/purchase-prices', { params });
 }
 

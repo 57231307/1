@@ -92,9 +92,25 @@ export function getMrpResult(id: number): Promise<ApiResponse<MrpCalculationResu
   return request.get(`/production/mrp-history/${id}`);
 }
 
+/** 后端 handlers/mrp_handler.rs:51-63 MrpResultResponse（转单返回被转化的 MRP 结果行） */
+export interface MrpResultResponse {
+  id: number;
+  calculation_no: string;
+  product_id: number;
+  required_quantity: number;
+  required_date: string | null;
+  source_type: string;
+  source_id: number | null;
+  planned_order_quantity: number | null;
+  planned_order_date: string | null;
+  status: string;
+  remarks: string | null;
+  created_at: string;
+}
+
 export function convertToOrder(
   data: ConvertToOrderParams
-): Promise<ApiResponse<{ order_ids: number[] }>> {
+): Promise<ApiResponse<MrpResultResponse[]>> {
   return request.post('/production/mrp/convert-orders', data);
 }
 

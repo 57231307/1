@@ -292,7 +292,8 @@ const fetchSalesPrices = async () => {
   priceLoading.value = true;
   try {
     const res = await getSalesPriceList(priceQuery);
-    salesPrices.value = res.data?.items || [];
+    // 后端 sales_price_handler::list_prices 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+    salesPrices.value = res.data;
   } catch (error) {
     const err = error as { message?: string };
     ElMessage.error(err.message || t('salesExt.priceTab.messageFetchFailed'));

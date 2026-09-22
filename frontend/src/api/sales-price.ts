@@ -44,7 +44,8 @@ export interface PricingStrategyRule {
 
 export function getSalesPriceList(
   params?: QueryParams
-): Promise<ApiResponse<{ items: SalesPrice[]; total: number }>> {
+  // 后端 sales_price_handler::list_prices 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+): Promise<ApiResponse<SalesPrice[]>> {
   return request.get('/sales/sales-prices', { params });
 }
 
@@ -75,6 +76,9 @@ export function getPriceHistory(productId: number): Promise<ApiResponse<SalesPri
   return request.get(`/sales/sales-prices/history/${productId}`);
 }
 
-export function getPricingStrategyList(): Promise<ApiResponse<PricingStrategy[]>> {
+// 后端 sales_price_handler::list_strategies 返回 PaginatedResponse ⇒ {items,total,page,page_size}
+export function getPricingStrategyList(): Promise<
+  ApiResponse<{ items: PricingStrategy[]; total: number; page: number; page_size: number }>
+> {
   return request.get('/sales/sales-prices/strategies');
 }

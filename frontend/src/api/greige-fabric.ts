@@ -99,7 +99,9 @@ export interface GreigeStockOutPayload {
   remarks?: string;
 }
 
-export function getGreigeFabricList(params?: QueryParams): Promise<ApiResponse<GreigeFabric[]>> {
+export function getGreigeFabricList(
+  params?: QueryParams
+): Promise<ApiResponse<{ items: GreigeFabric[]; total: number; page: number; page_size: number }>> {
   return request.get('/production/greige-fabrics', { params });
 }
 

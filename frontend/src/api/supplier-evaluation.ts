@@ -64,7 +64,8 @@ export interface CreateEvaluationRequest {
 
 export function getEvaluationIndicatorList(
   params?: SupplierEvaluationQueryParams
-): Promise<ApiResponse<{ items: EvaluationIndicator[]; total: number }>> {
+  // 后端 supplier_evaluation_handler::list_indicators 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+): Promise<ApiResponse<EvaluationIndicator[]>> {
   return request.get('/purchase/supplier-evaluations/indicators', { params });
 }
 
@@ -76,7 +77,8 @@ export function createIndicator(
 
 export function getEvaluationRecordList(
   params?: SupplierEvaluationQueryParams
-): Promise<ApiResponse<{ items: EvaluationRecord[]; total: number }>> {
+  // 后端 list_evaluation_records / list_evaluations 均返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+): Promise<ApiResponse<EvaluationRecord[]>> {
   return request.get('/purchase/supplier-evaluations/records', { params });
 }
 
@@ -102,7 +104,8 @@ export function getSupplierRankings(params?: {
 
 export function getEvaluationList(
   params?: SupplierEvaluationQueryParams
-): Promise<ApiResponse<{ items: EvaluationRecord[]; total: number }>> {
+  // 后端 list_evaluation_records / list_evaluations 均返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+): Promise<ApiResponse<EvaluationRecord[]>> {
   return request.get('/purchase/supplier-evaluations', { params });
 }
 

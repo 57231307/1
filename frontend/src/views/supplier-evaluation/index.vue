@@ -524,7 +524,8 @@ const fetchIndicators = async () => {
   indicatorLoading.value = true;
   try {
     const res = await getEvaluationIndicatorList({ page: 1, pageSize: 100 });
-    indicatorList.value = res.data?.items || [];
+    // 后端 list_indicators 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+    indicatorList.value = res.data;
   } catch {
     ElMessage.error(t('supplierEvaluation.index.message.fetchIndicatorsFailed'));
   } finally {
@@ -559,7 +560,8 @@ const fetchEvaluations = async () => {
   evaluationLoading.value = true;
   try {
     const res = await getEvaluationList({ page: 1, pageSize: 50 });
-    evaluationList.value = res.data?.items || [];
+    // 后端 list_evaluations 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+    evaluationList.value = res.data;
   } catch {
     ElMessage.error(t('supplierEvaluation.index.message.fetchEvaluationsFailed'));
   } finally {
