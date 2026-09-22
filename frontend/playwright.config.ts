@@ -74,15 +74,28 @@ export default defineConfig({
     },
   ],
   // 项目级覆盖：smoke 可并行，flow 串行。
-  // testMatch 扩全业务目录（P3.3）：purchase/sales/purchase-ext/quality/
-  // finance/crm/bpm/enhanced/traversal 去 mock 后全部进主 CI testMatch
-  // e2e/setup-wizard/ 仍由 playwright.setup-wizard.config.ts 单独运行
+  // 收集策略：排除式（testIgnore），不再用目录白名单。
+  //
+  // 白名单踩过的坑：这里曾经是
+  // /(flow|smoke|enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm|traversal)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/
+  // CI 矩阵给 extras 分片新增了 ai/dashboard/fabric/inventory/mrp/production/
+  // quotations/sales-ext/system 九个目录，白名单没同步，而这九个目录在 Linux 上
+  // 一条分支都匹配不到 → 分片以 `Error: No tests found.` 退出码 1 直接红。
+  // 本地 Windows 看不出这个差异：testMatch 匹配的是**相对 config 文件**的路径，
+  // Windows 分隔符是反斜杠，第二分支 `^[^/]*\.spec\.ts$` 里的 `[^/]*` 能吃掉整条
+  // `e2e\ai\01-process.spec.ts`，于是同一份配置实测收 260 文件（Windows）
+  // vs 237 文件（Linux）。结论：这类"只在一种路径分隔符下成立"的锚定正则不可用。
+  //
+  // 现在的写法：testMatch 只认扩展名，目录级排除交给 testIgnore（优先级高于
+  // testMatch，且不需要锚点，天然对两种分隔符一致）。新增测试目录无需登记，
+  // 忘记登记也不会再出现"目录写了 spec 但主套件不收"的漂移。
+  testIgnore: /[/\\]setup-wizard[/\\]/,
+  testIgnore: /[/\\]setup-wizard[/\\]/,
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testMatch:
-        /(flow|smoke|enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm|traversal)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/,
+      testMatch: /\.spec\.ts$/,
     },
     {
       name: 'firefox',
@@ -92,8 +105,7 @@ export default defineConfig({
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
-      testMatch:
-        /(flow|smoke|enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm|traversal)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/,
+      testMatch: /\.spec\.ts$/,
     },
   ],
 })
