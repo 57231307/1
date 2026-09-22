@@ -259,19 +259,39 @@
       遗留：`bulk_color_approval_service` 的降级规则仍以中文等级字面量写死（一等品→二等品→等外品），
       未随本轮改引后端常量；`inventory_batch` 页其余 tab 的等级下拉同样未收敛。
 
-- [ ] **27 处 `:value="t('...')"` 把界面译文当业务值提交**（同一类缺陷的批量清单，
-      本轮已修掉库存等级那组，其余登记待逐个核对取值域后收敛）：
-      `advanced/components/AdvancedQualityPanel.vue:101-113`（检验类型提交「进货检验/过程检验/
-      成品检验/出货检验」，而质量预测与检验记录用的是 incoming/inprocess/final/outgoing 一套码）、
-      `AdvancedRecipePanel.vue:99-115`（布类提交中文译名）、
-      `ai-extend/process-optimization.vue:387-403`（染料类型提交译名，而 `dye_type` 落库与
-      处方/染色配方用的是另一套值）、
-      `logistics/components/LogisticsFilter.vue:27-43` 与 `LogisticsForm.vue:45`（物流公司
-      译名当值，已单独登记需引入稳定公司码）。
-      判据：任何 select 的 value 都应是稳定业务码，label 才用 `t()`；
-      修法沿用本轮 `constants/stock-grade.ts` 的形态——先确认后端该列的真实落库值
-      （不要凭前端猜，否则改了反而与库中值不符），再建常量 + 文案键 + 配色映射，
-      必要时补一次存量归一迁移（同 m0056/m0057 的做法）。
+- [x] **27 处 `:value="t('...')"` 把界面译文当业务值提交**（同一类缺陷的批量清单）：
+      本轮先按台账给的判据逐处回查后端真实落库值，再收敛，剩 13 处见下一条。已收敛的三组：
+      ① `AdvancedQualityPanel.vue`（检验类型）——质量预测按 `quality_inspection_records.inspection_type`
+      做等值筛选（`services/ai/quality_pred.rs:450`），而该列的写入端 `views/quality/index.vue:214-229`
+      用的是 incoming/process/finished/outgoing 四个码；界面此前提交「进货检验」等译名，
+      任何选择都筛不到数据。收进 `constants/quality-inspection-type.ts`。
+      注意另一套码：`ai_quality_predictions.inspection_type` 的 CHECK 允许
+      all/incoming/inprocess/final/outgoing（`production/m0044`），两张表的词表不可互抄。
+      ② `AdvancedRecipePanel.vue`（布类）——`dye_recipe.fabric_type` 是自由文本、库里存中文布类名，
+      后端配伍表按 `cotton/棉/棉布`、`涤纶`、`丝绸/真丝`、`羊毛` 比对（`services/ai/recipe_opt.rs:141-150`），
+      故 value 取中文稳定名本身（`constants/recipe-fabric-type.ts`），label 才走 i18n；
+      「化纤」不在任何配伍列表内（选中即 422 或不参与配伍判定），已从选项中去掉并登记见下条。
+      ③ `ai-extend/process-optimization.vue`（染料类型）——入口白名单同时收英文码与中文别名
+      （`handlers/ai_extend_handler.rs:87-108`，reactive/活性 … cationic/阳离子、sulfur/硫化），
+      界面提交 "Reactive Dye"/"活性染料" 一律 422。收进 `constants/dye-type.ts`（英文码），
+      并补上白名单里有、界面上没有的阳离子/硫化两个选项（新增 `aiExtend.process.dyeCationic|dyeSulfur` 文案）。
+      同时补 `tests/unit/translated-value-select.test.ts` 作门禁：
+      一是扫描 `src/**/*.vue` 的 `:value="t('…')"` 残留并与挂账清单逐文件逐数比对（修完不减清单也失败），
+      二是校验常量表里的文案键在 zh-CN/en-US 中真实存在——`scripts/check-i18n.mjs` 只识别
+      `t('字面量')` 调用，键名以常量字段存放时它看不见，这条缺口由该用例补上。
+
+- [ ] **译文当业务值剩余 13 处（需先定数据模型，不能只改前端）**：
+      `logistics/components/LogisticsFilter.vue`（5）与 `LogisticsForm.vue`（5）——
+      见上文「物流公司取值跟随界面语言」，要建稳定公司码 + 存量映射；
+      `quotations/components/QuotationItemEditor.vue`（3，计量单位 米/卷/件）——
+      报价行的 unit 是自由文本列，默认值也直接取译文（`QuotationItemEditor.vue` 的
+      `unit: t('quotations.itemEditor.unitMeter')`），英文界面新建的报价单存 "Meter"。
+      两处都需要「字典 + 存量归一」才能收敛，只把 value 换成码会让历史数据继续错，
+      故与物流公司字典并列为一次数据模型决策，未随本轮改动。
+      另：`AdvancedRecipePanel.vue` 的染料类型仍是自由输入框（不在本清单内，因为它不提交译文），
+      但值域与 `dye-type.ts` 相同，等 `dye_recipe.dye_type` 的存量口径确认后一并改成下拉。
+      「化纤」若要支持，须先扩 `recipe_opt.rs` 的配伍表（化纤是泛称，
+      分散染料对应涤纶、阳离子对应腈纶，不能整体并成一条），属工艺知识补录，另立条目。
 
 - [ ] **列表端点收参数却不 filtering（假控件）余下实例**：
       （`inventory_batch_handler.rs:25` 声明了 product_id/batch_no/color_no/grade/warehouse_id/
