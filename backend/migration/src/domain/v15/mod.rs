@@ -4285,6 +4285,17 @@ UPDATE "outsourcing_receipt"
 UPDATE "outsourcing_receipt"
    SET "quality_status" = 'pending'
  WHERE "quality_status" IS NULL;
+
+-- 质量检验记录结论归一（写入侧已统一为 quality_inspection_result 常量并在入口校验）：
+-- 界面自造的 pass/fail/pending 与自动写入方的中文结论混在同一列，按结论筛选会各漏一半。
+UPDATE "quality_inspection_records"
+   SET "inspection_result" = CASE "inspection_result"
+        WHEN 'pass'    THEN '合格'
+        WHEN 'fail'    THEN '不合格'
+        WHEN 'pending' THEN '待检'
+        ELSE "inspection_result"
+   END
+ WHERE "inspection_result" IN ('pass', 'fail', 'pending');
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

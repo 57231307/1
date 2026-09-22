@@ -294,3 +294,20 @@ pub mod dye_batch_operation_type {
     /// 终止：终止缸号生产
     pub const TERMINATE: &str = "terminate";
 }
+
+/// 质量检验记录的检验结论（quality_inspection_records.inspection_result）
+///
+/// 该列在迁移里是无 CHECK 的 VARCHAR，历史上同时收过中文结论与界面自造的 pass/fail 码；
+/// 库里唯一的自动写入方（委外收回单确认回仓）写的是中文结论，故以中文稳定值为词表。
+/// 与 `outsourcing_receipt_quality_status`（委外收回单自己的四态质检结论）是两回事，不可互抄。
+pub mod quality_inspection_result {
+    /// 待检：已建记录但尚未给出结论
+    pub const PENDING: &str = "待检";
+    /// 合格
+    pub const QUALIFIED: &str = "合格";
+    /// 不合格：触发不合格品处理流程
+    pub const UNQUALIFIED: &str = "不合格";
+
+    /// 全部合法取值，入参校验的唯一来源
+    pub const ALL: &[&str] = &[PENDING, QUALIFIED, UNQUALIFIED];
+}

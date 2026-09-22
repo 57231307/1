@@ -19,20 +19,66 @@ export interface QualityStandard {
   updated_at: string;
 }
 
+/**
+ * 质检记录出参：与后端 models/quality_inspection_record.rs 的 Model 字段一一对应。
+ * 后端 Decimal 一律序列化为字符串，数量/比率按 string 取用（渲染前转数字）。
+ */
 export interface QualityRecord {
   id: number;
-  record_no: string;
+  inspection_no: string;
+  inspection_type: string;
+  related_type: string | null;
+  related_id: number | null;
+  product_id: number;
+  batch_no: string | null;
+  supplier_id: number | null;
+  customer_id: number | null;
+  inspection_date: string;
+  inspector_id: number | null;
+  total_qty: string;
+  inspected_qty: string;
+  qualified_qty: string | null;
+  unqualified_qty: string | null;
+  qualification_rate: string | null;
+  inspection_result: string;
+  remark: string | null;
+  defect_type: string | null;
+  grade: string | null;
+  color_no: string | null;
+  dye_lot_no: string | null;
+  dye_type: string | null;
+  auxiliary_type: string | null;
+  temperature: string | null;
+  fabric_source: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * 新建质检记录请求体：后端 CreateInspectionRecordRequest 里非 Option 的字段都必须提交
+ * （inspection_no / inspection_type / product_id / inspection_date / total_qty /
+ * inspected_qty / inspection_result），少一个即被反序列化拒绝。
+ */
+export interface CreateQualityRecordPayload {
+  inspection_no: string;
   inspection_type: string;
   product_id: number;
-  product_name: string;
-  batch_no: string;
   inspection_date: string;
-  inspector: string;
-  result: 'pass' | 'fail' | 'pending';
-  defects: Defect[];
-  remark: string;
-  created_at: string;
+  total_qty: string | number;
+  inspected_qty: string | number;
+  inspection_result: string;
+  batch_no?: string;
+  inspector_id?: number;
+  supplier_id?: number;
+  customer_id?: number;
+  remark?: string;
+  defect_type?: string;
+  color_no?: string;
+  dye_lot_no?: string;
 }
+
+/** 更新质检记录：后端按 Option 逐字段判空更新，只提交改动过的项 */
+export type UpdateQualityRecordPayload = Partial<CreateQualityRecordPayload>;
 
 export interface Defect {
   id: number;
@@ -107,7 +153,7 @@ export function getQualityRecord(id: number): Promise<ApiResponse<QualityRecord>
 }
 
 export function createQualityRecord(
-  data: Partial<QualityRecord>
+  data: CreateQualityRecordPayload
 ): Promise<ApiResponse<QualityRecord>> {
   return request.post('/production/quality-inspection/records', data);
 }
@@ -115,7 +161,7 @@ export function createQualityRecord(
 // 批次 94 P2-12 修复：补全质检记录更新接口（原先前端 API 模块缺失，导致 index.vue 更新占位）
 export function updateQualityRecord(
   id: number,
-  data: Partial<QualityRecord>
+  data: UpdateQualityRecordPayload
 ): Promise<ApiResponse<QualityRecord>> {
   return request.put(`/production/quality-inspection/records/${id}`, data);
 }

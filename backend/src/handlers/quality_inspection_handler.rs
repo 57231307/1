@@ -23,6 +23,23 @@ use std::sync::Arc;
 use tracing::info;
 use validator::Validate;
 
+/// 校验检验结论取值，越界值直接拒绝并报出允许值清单。
+///
+/// 该列此前是自由文本：界面自造过 pass/fail/pending，而唯一的自动写入方落的是中文结论，
+/// 两套写法混在同一列会让按结论筛选与合格率统计静默失真，因此在入口处一次拦清。
+pub fn validate_inspection_result(raw: &str) -> Result<(), AppError> {
+    use crate::models::status::quality_inspection_result;
+
+    if quality_inspection_result::ALL.contains(&raw) {
+        Ok(())
+    } else {
+        Err(AppError::validation(format!(
+            "检验结果 {raw} 不是合法取值，允许值：{}",
+            quality_inspection_result::ALL.join("/")
+        )))
+    }
+}
+
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct QualityInspectionQuery {
@@ -123,6 +140,7 @@ pub async fn create_record(
     Json(req): Json<CreateInspectionRecordRequest>,
 ) -> Result<Json<ApiResponse<quality_inspection_record::Model>>, AppError> {
     info!("用户 {} 正在创建质量检验记录", auth.user_id);
+    validate_inspection_result(&req.inspection_result)?;
 
     let service = QualityInspectionService::new(state.db.clone());
     let record = service.create_record(req, auth.user_id).await?;
@@ -186,6 +204,9 @@ pub async fn update_record(
     info!("用户 {} 正在更新质量检验记录，ID: {}", auth.user_id, id);
     req.validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
+    if let Some(v) = &req.inspection_result {
+        validate_inspection_result(v)?;
+    }
 
     let existing = quality_inspection_record::Entity::find_by_id(id)
         .one(state.db.as_ref())

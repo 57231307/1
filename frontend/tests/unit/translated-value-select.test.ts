@@ -23,6 +23,11 @@ import {
   RECIPE_FABRIC_TYPE_VALUES,
 } from '@/constants/recipe-fabric-type';
 import { DYE_TYPE_LABEL_KEY, DYE_TYPE_VALUES } from '@/constants/dye-type';
+import {
+  QUALITY_INSPECTION_SOURCE_LABEL_KEY,
+  QUALITY_RECORD_RESULT_LABEL_KEY,
+  QUALITY_RECORD_RESULT_VALUES,
+} from '@/constants/quality-inspection-record';
 
 // 以本文件位置定位 frontend 根，避免依赖 vitest 启动时的 cwd
 const FRONTEND = fileURLToPath(new URL('../..', import.meta.url));
@@ -81,6 +86,8 @@ describe('「译文当业务值」门禁', () => {
       QUALITY_INSPECTION_TYPE_LABEL_KEY,
       RECIPE_FABRIC_TYPE_LABEL_KEY,
       DYE_TYPE_LABEL_KEY,
+      QUALITY_RECORD_RESULT_LABEL_KEY,
+      QUALITY_INSPECTION_SOURCE_LABEL_KEY,
     ];
     for (const map of maps) {
       for (const key of Object.values(map)) {
@@ -111,5 +118,7 @@ describe('「译文当业务值」门禁', () => {
     );
     // 布类名必须是后端配伍表认得的中文写法（services/ai/recipe_opt.rs）
     expect([...RECIPE_FABRIC_TYPE_VALUES]).toEqual(['棉', '涤纶', '丝绸', '羊毛']);
+    // 检验结论与库里唯一的自动写入方同源（outsourcing_ops/receipt.rs 写「合格/不合格」）
+    expect([...QUALITY_RECORD_RESULT_VALUES]).toEqual(['待检', '合格', '不合格']);
   });
 });

@@ -27,7 +27,7 @@ use crate::models::outsourcing_receipt::{
 use crate::models::outsourcing_voucher::ActiveModel as VoucherActiveModel;
 use crate::models::status::{
     outsourcing_order_status, outsourcing_receipt_quality_status, outsourcing_receipt_status,
-    outsourcing_voucher_type,
+    outsourcing_voucher_type, quality_inspection_result,
 };
 use crate::utils::error::AppError;
 
@@ -495,9 +495,9 @@ impl OutsourcingReceiptService {
         let is_accepted = quality_status == outsourcing_receipt_quality_status::QUALIFIED
             || quality_status == outsourcing_receipt_quality_status::CONCESSION;
         let inspection_result = if is_accepted {
-            "合格".to_string()
+            quality_inspection_result::QUALIFIED.to_string()
         } else {
-            "不合格".to_string()
+            quality_inspection_result::UNQUALIFIED.to_string()
         };
         let qualified_qty = if is_accepted {
             receipt.return_quantity

@@ -65,6 +65,18 @@ import { useTableApi } from '@/composables/useTableApi';
 import V2Table from '@/components/V2Table/index.vue';
 import type { ColumnDef } from '@/components/V2Table/types';
 import { type QualityRecord } from '@/api/quality';
+import { useQualityLookups } from '../composables/useQualityLookups';
+import {
+  QUALITY_INSPECTION_TYPE_LABEL_KEY,
+  QUALITY_INSPECTION_TYPE_VALUES,
+} from '@/constants/quality-inspection-type';
+import {
+  QUALITY_INSPECTION_SOURCE_LABEL_KEY,
+  QUALITY_RECORD_RESULT_LABEL_KEY,
+  QUALITY_RECORD_RESULT_TAG_TYPE,
+  isQualityRecordResult,
+  type QualityRecordResultValue,
+} from '@/constants/quality-inspection-record';
 import { logger } from '@/utils/logger';
 import { escapeHtml } from '@/utils/print';
 // V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
@@ -83,43 +95,65 @@ const { data, loading, page, pageSize, total, refresh } = useTableApi<QualityRec
   '/production/quality-inspection/records'
 );
 
-// 结果标签映射函数（用于表格 el-tag 与导出/打印）
-const getResultLabel = (result: string): string => {
-  const map: Record<string, string> = {
-    pass: t('quality.recordTab.resultPass'),
-    fail: t('quality.recordTab.resultFail'),
-    pending: t('quality.recordTab.resultPending'),
-  };
-  return map[result] || result;
+// 记录表只存 id，名称按主数据翻（与父页面共用同一份缓存）
+const { load: loadLookups, productName, inspectorName } = useQualityLookups();
+
+// 检验类型：四个稳定码 + 委外回仓自动记录的来源标识，词表外原样展示
+const inspectionTypeLabel = (value: string): string => {
+  const typeKey = (QUALITY_INSPECTION_TYPE_VALUES as string[]).includes(value)
+    ? QUALITY_INSPECTION_TYPE_LABEL_KEY[value as keyof typeof QUALITY_INSPECTION_TYPE_LABEL_KEY]
+    : QUALITY_INSPECTION_SOURCE_LABEL_KEY[value];
+  return typeKey ? t(typeKey) : value;
 };
 
-// 结果颜色映射
-const getResultType = (result: string): 'success' | 'danger' | 'warning' => {
-  if (result === 'pass') return 'success';
-  if (result === 'fail') return 'danger';
-  return 'warning';
+// 检验结论：取值词表见 constants/quality-inspection-record（库里落的是中文稳定值）
+const resultLabel = (value: string): string => {
+  if (isQualityRecordResult(value)) return t(QUALITY_RECORD_RESULT_LABEL_KEY[value]);
+  logger.warn('质检记录存在词表外的检验结论值', { inspection_result: value });
+  return value;
 };
+
+const resultTagType = (value: string): 'success' | 'danger' | 'warning' =>
+  isQualityRecordResult(value)
+    ? QUALITY_RECORD_RESULT_TAG_TYPE[value as QualityRecordResultValue]
+    : 'warning';
 
 /**
  * 列定义
- * - 结果列：使用 el-tag 三色映射（pass→success, fail→danger, 其他→warning）
+ * - 列名与后端出参字段一致：单号是 inspection_no，产品与检验人按主数据翻名称
+ * - 结果列：el-tag 三色映射（合格→success, 不合格→danger, 待检/越界→warning）
  * - 操作列：查看按钮（fixed right）
  */
 const columns: ColumnDef<QualityRecord>[] = [
-  { key: 'record_no', title: t('quality.recordTab.colRecordNo'), width: 140, fixed: 'left' },
-  { key: 'inspection_type', title: t('quality.recordTab.colInspectionType'), width: 120 },
-  { key: 'product_name', title: t('quality.recordTab.colProduct'), width: 150 },
+  { key: 'inspection_no', title: t('quality.recordTab.colRecordNo'), width: 140, fixed: 'left' },
+  {
+    key: 'inspection_type',
+    title: t('quality.recordTab.colInspectionType'),
+    width: 120,
+    formatter: (row: QualityRecord) => inspectionTypeLabel(row.inspection_type),
+  },
+  {
+    key: 'product_id',
+    title: t('quality.recordTab.colProduct'),
+    width: 150,
+    formatter: (row: QualityRecord) => productName(row.product_id),
+  },
   { key: 'batch_no', title: t('quality.recordTab.colBatchNo'), width: 140 },
   { key: 'inspection_date', title: t('quality.recordTab.colInspectionDate'), width: 120 },
-  { key: 'inspector', title: t('quality.recordTab.colInspector'), width: 100 },
   {
-    key: 'result',
+    key: 'inspector_id',
+    title: t('quality.recordTab.colInspector'),
+    width: 100,
+    formatter: (row: QualityRecord) => inspectorName(row.inspector_id),
+  },
+  {
+    key: 'inspection_result',
     title: t('quality.recordTab.colResult'),
     width: 100,
     align: 'center',
     renderCell: (row: QualityRecord) => {
-      const type = getResultType(row.result);
-      const text = getResultLabel(row.result);
+      const type = resultTagType(row.inspection_result);
+      const text = resultLabel(row.inspection_result);
       return h(ElTag, { type, size: 'small' }, () => text);
     },
   },
@@ -169,16 +203,16 @@ const handleExport = async () => {
   logger.info(t('quality.recordTab.messageExported'));
 };
 
-// 构造打印表格行 HTML
+// 构造打印表格行 HTML（与列表同口径：单号/类型文案/产品名称/检验人名称/结论文案）
 const buildPrintRows = (): string => {
   return data.value
     .map(
       item => `
     <tr>
-      <td>${escapeHtml(item.record_no)}</td><td>${escapeHtml(item.inspection_type)}</td>
-      <td>${escapeHtml(item.product_name)}</td><td>${escapeHtml(item.batch_no)}</td>
-      <td>${escapeHtml(item.inspection_date)}</td><td>${escapeHtml(item.inspector)}</td>
-      <td>${escapeHtml(getResultLabel(item.result) || item.result)}</td>
+      <td>${escapeHtml(item.inspection_no)}</td><td>${escapeHtml(inspectionTypeLabel(item.inspection_type))}</td>
+      <td>${escapeHtml(productName(item.product_id))}</td><td>${escapeHtml(item.batch_no ?? '')}</td>
+      <td>${escapeHtml(item.inspection_date)}</td><td>${escapeHtml(inspectorName(item.inspector_id))}</td>
+      <td>${escapeHtml(resultLabel(item.inspection_result))}</td>
     </tr>
   `
     )
@@ -205,8 +239,9 @@ const handlePrint = () => {
   logger.info(t('quality.recordTab.messagePrintGenerated'));
 };
 
-// 组件挂载时获取数据
+// 组件挂载时获取数据（主数据名称先取齐，否则产品/检验人两列只能显示 ID）
 onMounted(() => {
+  void loadLookups();
   refresh();
 });
 
