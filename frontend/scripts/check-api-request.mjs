@@ -34,7 +34,7 @@ import {
   buildTsTypeIndex,
   loadHandlerMacroTemplates,
   parseFrontendApiFunctions,
-  resolveHandlerSymbol,
+  resolveHandlerSymbolPath,
   splitObjFields,
   splitTopLevelRust,
 } from './check-api-envelope.mjs';
@@ -175,7 +175,9 @@ function feKeysOf(fn, payloadExpr, tsIndex) {
   }
   if (/^[A-Za-z_]\w*$/.test(e)) {
     const sig = (fn.sig || '').replace(/\s+/g, ' ');
-    const pm = new RegExp('\\b' + e + '\\s*:\\s*([A-Za-z_][\\w.<>\\[\\]| ]*)').exec(sig);
+    // 可选形参写作 `params?: RoleQuery`——问号在名字与冒号之间；漏掉它会让上百个函数
+    // 落进"签名里找不到类型"的盲区（本仓库盲区中 94 条即由此而来）。
+    const pm = new RegExp('\\b' + e + '\\s*\\??\\s*:\\s*([A-Za-z_][\\w.<>\\[\\]| ]*)').exec(sig);
     if (!pm) return { kind: 'blind', why: `形参 ${e} 在签名里找不到类型` };
     let t = pm[1]
       .trim()
@@ -243,20 +245,90 @@ function main() {
       .split('::')
       .filter(Boolean);
     if (parts.length < 2) continue;
-    const sym = resolveHandlerSymbol(handlerMods, parts[parts.length - 2], parts[parts.length - 1]);
-    if (!sym || !sym.sig) {
+    const sym = resolveHandlerSymbolPath(handlerMods, parts);
+    if (!sym) {
       buckets.noHandler.push({ fn, key, handler: h.handler });
       continue;
     }
-    const isBody = BODY_METHODS.has(fn.call.method);
-    const isQuery = QUERY_METHODS.has(fn.call.method);
+    // 比对哪个提取器由「前端实际发了什么」决定，而不是由 HTTP 方法决定：
+    // axios 的 DELETE 也会把 { data } 作为请求体发出（取消定制订单带原因就是这么走的），
+    // 而 GET 的 { params } 对应 Query<T>。方法名推法会把这两类判反。
+    const cfg = (fn.call.args[1] || '').trim();
+    const sendsBody =
+      BODY_METHODS.has(fn.call.method) ||
+      (!!extractAxiosConfigValue(cfg, 'data') && QUERY_METHODS.has(fn.call.method));
+    const sendsQuery =
+      !BODY_METHODS.has(fn.call.method) && !!extractAxiosConfigValue(cfg, 'params');
+    // config 里既无 params 也无 data（只有 responseType/timeout 等）= 没有可比对的载荷
+    if (!sendsBody && !sendsQuery && !BODY_METHODS.has(fn.call.method)) continue;
+    const isBody = sendsBody;
+    const isQuery = !sendsBody && sendsQuery;
+    // Option<Json<Value>> / Option<Query<Value>>：后端明说"可空且不限形"，比对不适用
+    if (
+      new RegExp(
+        'Option\s*<\\s*' + (isBody ? 'Json' : 'Query') + '\s*<\s*(?:serde_json::)?Value'
+      ).test(sym.sig || '')
+    ) {
+      buckets.blind.push({
+        fn,
+        key,
+        handler: h.handler,
+        beType: '(Option<Json/Query<Value>>)',
+        why: '后端接受任意或空载荷且不限形，键集比对不适用',
+      });
+      continue;
+    }
     const wrapper = isBody ? 'Json' : 'Query';
-    const typeText = extractorType(sym.sig, wrapper);
-    const payloadExpr = isBody ? fn.call.args[1] : fn.call.args[1];
+    const typeText = extractorType(sym.sig || '', wrapper);
+    if (!typeText) {
+      // 后端这个 handler 没有 Json<T>/Query<T> 提取器。此时前端发什么都会被忽略——
+      // 但只有"确实发了业务载荷"才算缺陷，否则是噪声：
+      //  - GET/DELETE：只有 config 里真有 params（或 DELETE 带 data）才算；
+      //  - POST/PUT：null / 空对象 / FormData 走的是别的提取器（MultipartForm 等），归盲区。
+      const sent = (fn.call.args[1] || '').trim();
+      const isEmptyish = !sent || sent === 'null' || /^\{\s*\}$/.test(sent);
+      if (isQuery) {
+        const pv = extractAxiosConfigValue(sent, 'params');
+        const dv = extractAxiosConfigValue(sent, 'data');
+        if (pv === null && dv === null) continue;
+        buckets.mismatch.push({
+          fn,
+          key,
+          handler: h.handler,
+          kind: 'query',
+          reason: `后端签名里没有 Query<T> 提取器，前端查询参数被整体忽略：${(pv || dv || '').slice(0, 60)}`,
+        });
+        continue;
+      }
+      if (isEmptyish) continue;
+      if (/MultipartForm|multipart|Bytes|Extension</.test(sym.sig || '')) {
+        buckets.blind.push({
+          fn,
+          key,
+          handler: h.handler,
+          beType: '(非 Json/Query 提取器)',
+          why: '后端走 MultipartForm/Bytes 等提取器，键集比对不适用',
+        });
+        continue;
+      }
+      buckets.mismatch.push({
+        fn,
+        key,
+        handler: h.handler,
+        kind: 'body',
+        reason: `后端签名里没有 Json<T> 提取器，前端请求体被整体忽略：${sent.slice(0, 60)}`,
+      });
+      continue;
+    }
+    let payloadExpr = fn.call.args[1];
+    if (isBody && cfg) {
+      const dv = extractAxiosConfigValue(cfg, 'data');
+      if (dv) payloadExpr = dv; // DELETE-with-data：真正载荷在 config.data 里
+    }
     let feExpr = payloadExpr;
     if (isQuery) {
       const p = (payloadExpr || '').trim();
-      if (!p) continue; // 不带 params 的 GET：无可比对
+      if (!p) continue; // 不带 config 的 GET：无可比对
       // GET/DELETE 的第二实参是 axios config：只有 `params` 键才是查询串，
       // responseType/timeout/signal 等属请求选项，参与比对会产生假阳性。
       const paramsVal = extractAxiosConfigValue(p, 'params');
@@ -279,6 +351,7 @@ function main() {
             .join(',')}`,
           beFields,
           beRequired: beFields.filter(f => !f.optional).map(f => f.name),
+          feKeys: beFields.map(() => null).filter(() => false),
         });
       continue;
     }
@@ -296,6 +369,7 @@ function main() {
       continue;
     }
     const cmp = compareKeys(fe.keys, beFields);
+    fn.feKeysUsed = fe.keys.map(k => k.name + (k.optional ? '?' : ''));
     const rec = {
       fn,
       key,
@@ -310,6 +384,37 @@ function main() {
     void buckets.noExtractor;
   }
 
+  if (process.argv.includes('--json')) {
+    // 机器可读输出：给并行修复任务当工单用，避免把清单抄进提示词时抄错或漏项。
+    console.log(
+      JSON.stringify(
+        {
+          total: feFunctions.length,
+          ok: buckets.ok.length,
+          blind: buckets.blind.length,
+          mismatches: buckets.mismatch.map(r => ({
+            file: r.fn.file,
+            line: r.fn.line,
+            fn: r.fn.name,
+            endpoint: r.key,
+            kind: r.kind || 'no-payload',
+            handler: r.handler,
+            beType: r.beType || null,
+            beFields: r.beFields ? r.beFields.map(f => f.name + (f.optional ? '?' : '')) : null,
+            extra: (r.cmp && r.cmp.extra) || [],
+            missingRequired:
+              (r.cmp && r.cmp.missingRequired) || (r.beRequired ? r.beRequired.slice() : []),
+            missingOptional: (r.cmp && r.cmp.missingOptional) || [],
+            feKeys: (r.fn && r.fn.feKeysUsed) || null,
+            reason: r.reason || null,
+          })),
+        },
+        null,
+        2
+      )
+    );
+    process.exit(buckets.mismatch.length ? 1 : 0);
+  }
   console.log('=== check-api-request: 前端请求载荷 ↔ 后端 Json<T>/Query<T> 字段集 ===');
   console.log(`前端 api 函数总数: ${feFunctions.length}`);
   console.log(`  一致(ok)        : ${buckets.ok.length}`);

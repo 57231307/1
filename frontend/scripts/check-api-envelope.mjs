@@ -669,8 +669,47 @@ function splitTopLevel(s) {
   return out;
 }
 
+// 去掉 // 行注释与 /* */ 块注释（字符串/模板字面量内的不算）。
+// 不做这一步的话，带 JSDoc 的字段整块被当成"非字段"丢掉，前端键集会少，
+// 门禁因此报出假的"后端必填前端没给"（本仓库第一次踩到是由并行修复任务报回的）。
+function stripTsComments(src) {
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === '"' || c === "'" || c === '`') {
+      const q = c;
+      out += c;
+      i++;
+      while (i < src.length) {
+        out += src[i];
+        if (src[i] === '\\') out += src[++i];
+        else if (src[i] === q) {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (c === '/' && src[i + 1] === '/') {
+      while (i < src.length && src[i] !== String.fromCharCode(10)) i++;
+      continue;
+    }
+    if (c === '/' && src[i + 1] === '*') {
+      const end = src.indexOf('*/', i + 2);
+      i = end < 0 ? src.length : end + 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
 // TS 对象类型字段分隔符可为 `,` 或 `;`；按顶层（<> {} [] () 深度为 0）切分。
-function splitObjFields(s) {
+function splitObjFields(raw) {
+  const s = stripTsComments(raw);
   const out = [];
   let depth = 0;
   let cur = '';
@@ -855,7 +894,16 @@ function extractFnSignatures(src) {
 
 function buildHandlerModules(templates) {
   const mods = new Map();
-  for (const f of collectRsFiles(join(BACKEND, 'src', 'handlers'))) {
+  // 路由里的 handler 也可能指向 handlers/ 之外的 Axum 模块（如 `websocket::notifications::*`）：
+  // 不一起索引就会把它们当成"未定位"，从而在门禁的覆盖统计里留下说不清的空洞。
+  const dirs = [join(BACKEND, 'src', 'handlers'), join(BACKEND, 'src', 'websocket')].filter(d => {
+    try {
+      return readdirSync(d).length >= 0;
+    } catch {
+      return false;
+    }
+  });
+  for (const f of dirs.flatMap(d => collectRsFiles(d))) {
     const src = readFileSync(f, 'utf-8');
     const base = f.split(/[\\/]/).pop().replace('.rs', '');
     const entry = {
@@ -865,6 +913,7 @@ function buildHandlerModules(templates) {
       bodies: extractFnBodies(src),
       macroFns: {}, // 顶层宏展开生成的 fn
       modMacroFns: {}, // 文件内 mod 里宏展开生成的 fn
+      nested: {}, // 文件内 `pub mod xxx { ... }` 里手写的 fn（如 report_enhanced_handler::subscriptions::list）
       reexports: [],
     };
     for (const m of src.matchAll(
@@ -888,6 +937,14 @@ function buildHandlerModules(templates) {
       entry.reexports.push({ path, names });
     }
     const modRanges = findModRanges(src);
+    for (const r of modRanges) {
+      const text = src.slice(r.start + 1, r.end);
+      entry.nested[r.name] = {
+        rets: extractReturnTypes(text),
+        bodies: extractFnBodies(text),
+        sigs: extractFnSignatures(text),
+      };
+    }
     const invRe = /\bdefine_([a-z_]*?)handlers!\s*\(/g;
     let im;
     while ((im = invRe.exec(src))) {
@@ -935,10 +992,7 @@ function resolveHandlerSymbol(mods, mod, fn, depth = 0) {
   for (const modName of Object.keys(M.modMacroFns)) {
     const tbl = M.modMacroFns[modName];
     if (tbl[fn]) {
-      const reX = M.reexports.find(
-        r => r.path.split('::').pop() === modName && (r.names.includes(fn) || r.names.includes('*'))
-      );
-      if (reX) return { ...tbl[fn], via: `${mod}::${modName}::${fn}<${tbl[fn].via}>` };
+      return { ...tbl[fn], via: `${mod}::${modName}::${fn}<${tbl[fn].via}>` };
     }
   }
   for (const r of M.reexports) {
@@ -948,6 +1002,53 @@ function resolveHandlerSymbol(mods, mod, fn, depth = 0) {
     if (hit) return { ...hit, via: `${mod}==${r.path}==>${hit.via}` };
   }
   return null;
+}
+
+// 按「路由里写下的完整 handler 路径」解析符号：路由可能写成 `mod_a::fn`、`mod_a::sub_mod::fn`
+// 或 `websocket::notifications::fn`。规则仍是"必须有唯一确定的落点"，
+// 绝不为凑答案按裸函数名全局回退（那条假判定路径本文件已写明教训）。
+function resolveHandlerSymbolPath(mods, parts) {
+  for (let i = 0; i < parts.length - 1; i++) {
+    const base = parts[i];
+    const M = mods.get(base);
+    if (!M) continue;
+    const rest = parts.slice(i + 1);
+    if (rest.length === 1) return resolveHandlerSymbol(mods, base, rest[0]);
+    if (rest.length === 2) {
+      const nested = M.nested[rest[0]];
+      const fn = rest[1];
+      if (nested && nested.bodies[fn])
+        return {
+          ret: nested.rets[fn] || '',
+          sig: nested.sigs[fn] || '',
+          body: nested.bodies[fn],
+          via: `${base}::${rest[0]}::${fn}`,
+        };
+      const macroInMod = M.modMacroFns[rest[0]] && M.modMacroFns[rest[0]][fn];
+      if (macroInMod)
+        return { ...macroInMod, via: `${base}::${rest[0]}::${fn}<${macroInMod.via}>` };
+    }
+    return null; // 该模块存在但路径形态不认识 -> 判不出，不去猜
+  }
+  // 全仓唯一匹配的 `mod名#fn名`（跨文件的 mod 同名会视为歧义）
+  const fn = parts[parts.length - 1];
+  const modName = parts.length >= 3 ? parts[parts.length - 2] : null;
+  if (!modName) return null;
+  const hits = [];
+  for (const [base, M] of mods) {
+    const nested = M.nested[modName];
+    if (nested && nested.bodies[fn])
+      hits.push({
+        ret: nested.rets[fn] || '',
+        sig: nested.sigs[fn] || '',
+        body: nested.bodies[fn],
+        via: `${base}::${modName}::${fn}`,
+      });
+    const macroInMod = M.modMacroFns[modName] && M.modMacroFns[modName][fn];
+    if (macroInMod)
+      hits.push({ ...macroInMod, via: `${base}::${modName}::${fn}<${macroInMod.via}>` });
+  }
+  return hits.length === 1 ? hits[0] : null;
 }
 
 // ---------- 动态载荷回溯解析（Value / JsonValue -> 真实构造形态）----------
@@ -1582,10 +1683,7 @@ function main() {
     const parts = String(h.handler || '')
       .split('::')
       .filter(Boolean);
-    const sym =
-      parts.length >= 2
-        ? resolveHandlerSymbol(handlerMods, parts[parts.length - 2], parts[parts.length - 1])
-        : null;
+    const sym = parts.length >= 2 ? resolveHandlerSymbolPath(handlerMods, parts) : null;
     if (!sym) {
       // 模块内既无同名 fn、也非宏生成/转出 -> 编译期即失败级别的缺陷，必须显式暴露
       const listLike = isListLikeKind(fn.feShape.kind);
@@ -1779,6 +1877,7 @@ export {
   readFileSync,
   readUntilStatementEnd,
   resolveHandlerSymbol,
+  resolveHandlerSymbolPath,
   splitObjFields,
   splitTopLevelRust,
 };
