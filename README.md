@@ -498,7 +498,7 @@ sudo journalctl -u bingxi-backend -f
 | 前端 E2E 其余业务域   | 117                   | Playwright（零 mock） | 7 个业务目录（采购/采购扩展/销售/质量/财务/CRM/BPM）+ 根级 3 spec，共 30 个文件      |
 | 前端 E2E testMatch 九目录 | 71                | Playwright（零 mock） | ai/dashboard/fabric/inventory/mrp/production/quotations/sales-ext/system，22 个文件 |
 | ↳ 以上两行为 extras 覆盖 | 188                    | —                     | **自 iter31 起以 extras 6 分片进 CI**（此前只在 testMatch 白名单内、从未被任何分片执行） |
-| **前端 E2E 合计**     | **1,277**             | —                     | 260 个 spec 文件（chromium project，CI 实际执行口径）                                |
+| **前端 E2E 合计**     | **1,277**             | —                     | 260 个 spec 文件；其中 chromium project 收 1,269/259，Setup 向导 9/1 由独立 config 跑 |
 | 性能基准              | 4                     | criterion             | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算                                    |
 
 > E2E 数量口径（2026-09-22 按 `playwright test --list --project=chromium <目录>` 逐组实测）：
@@ -512,6 +512,11 @@ sudo journalctl -u bingxi-backend -f
 > 这 71 个用例（testMatch 的根级分支 `^[^/]*\.spec\.ts$` 在反斜杠路径下误匹配），
 > 那是本地测量假象；但"多收"不等于"已执行"——CI 的分片命令从不传这九个目录，它们确实从未进过矩阵。
 > 两个事实此前各被说反过一次，现均以分片配置为准。
+> **iter33 补充**：分片矩阵补上这九个目录后，旧 testMatch 白名单反过来成了新的漏口——按 Linux 语义
+> （路径相对 config 文件、以 `e2e/` 开头）它只收 237/260 个文件，那九个目录一条分支都不匹配，
+> 分片会以 `Error: No tests found.` 退出码 1 红掉；同一配置在 Windows 上收 260/260，所以本地看不出来。
+> 现已把收集策略改为 `testMatch: /\.spec\.ts$/` + `testIgnore: /[/\\]setup-wizard[/\\]/`
+> （目录级排除不依赖锚点、两种分隔符语义一致），新增测试目录无需再登记白名单。
 
 ### E2E 测试覆盖
 
