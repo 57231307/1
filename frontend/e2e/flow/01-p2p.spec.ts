@@ -485,6 +485,6 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       'GET',
       '/purchase/orders?page=1&page_size=5'
     );
-    expect(Array.isArray(orders.items), `orders.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(orders.items), `orders.items 应为后端返回的 items 数组`).toBe(true);
   });
 });

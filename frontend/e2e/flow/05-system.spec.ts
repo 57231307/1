@@ -58,21 +58,39 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     ).toBe(true);
     expect(roles.total, '种子角色总数应大于 0').toBeGreaterThan(0);
 
-    const depts = await apiCallRaw<{ items: Array<{ id: number; name: string }> }>(
-      page,
-      'GET',
-      '/departments?page=1&page_size=10'
-    );
-    expect(Array.isArray(depts.items), `depts.items 应为后端返回的 items 数组`);
+    // GET /departments 由 department_service::list 处理，出参键是 list（不是 items）；
+    // 原实现读 depts.items 恒 undefined 且 expect 无匹配器，整条用例空转。
+    const depts = await apiCallRaw<{
+      list: Array<{ id: number; name: string; code?: string; parent_id?: number | null }>;
+      total: number;
+    }>(page, 'GET', '/departments?page=1&page_size=10');
+    expect(
+      Array.isArray(depts?.list),
+      `部门列表应返回 list 数组，实际：${JSON.stringify(depts).slice(0, 200)}`
+    ).toBe(true);
+    for (const d of depts.list) {
+      expect(Number(d.id), `部门行缺少 id：${JSON.stringify(d)}`).toBeGreaterThan(0);
+      expect(String(d.name ?? ''), `部门行缺少 name：${JSON.stringify(d)}`).not.toBe('');
+    }
   });
 
   test('5-3 数据权限验证（行级隔离）', async ({ page }) => {
-    const perms = await apiCallRaw<{ items: Array<{ id: number }> }>(
+    // GET /data-permissions 出参是裸数组 Vec<DataPermissionResponse>（无分页信封）
+    const perms = await apiCallRaw<Array<Record<string, unknown>>>(
       page,
       'GET',
       '/data-permissions?page=1&page_size=5'
     );
-    expect(Array.isArray(perms.items), `perms.items 应为后端返回的 items 数组`);
+    expect(
+      Array.isArray(perms),
+      `数据权限列表应返回数组，实际：${JSON.stringify(perms).slice(0, 200)}`
+    ).toBe(true);
+    for (const row of perms) {
+      expect(
+        String(row.resource_type ?? ''),
+        `数据权限行缺少 resource_type：${JSON.stringify(row)}`
+      ).not.toBe('');
+    }
   });
 
   test('5-4 字段级权限验证（染色配方导出仅 dye_recipe_master 可）', async ({ page }) => {
@@ -183,7 +201,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       'GET',
       '/bulk-color-approvals?page=1&page_size=5'
     );
-    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`).toBe(true);
     if (list?.items?.length ?? 0 > 0) {
       const status = (list.items?.[0].status || '').toLowerCase();
       expect([
@@ -199,30 +217,52 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     }
   });
 
-  test('5-10 坯布五维追溯（产品→色号→缸号→匹号）', async ({ page }) => {
+  test('5-10 坯布五维追溯（按供应商+批号正向追链）', async ({ page }) => {
     const ctx = getCtx();
-    const trace = await apiCallRaw<{
-      items: Array<{ product_id: number; color_no: string; dye_lot_no: string }>;
-    }>(page, 'GET', '/business-trace?page=1&page_size=5');
-    expect(Array.isArray(trace.items), `trace.items 应为后端返回的 items 数组`);
+    // 追溯域没有"列表"端点：routes/analytics.rs business_trace() 只注册了
+    // /five-dimension/{id}、/forward、/backward、/snapshot/{id}，
+    // 原用例发的 GET /business-trace?page=… 是不存在的路径（出参键 items 也是猜的）。
+    // 正向追链出参是 TraceListResponse{traces,total}。
+    const batchNo = `E2E-TRC-${Date.now().toString().slice(-8)}`;
+    const trace = await apiCallRaw<{ traces: Array<Record<string, unknown>>; total: number }>(
+      page,
+      'GET',
+      `/business-trace/forward?supplier_id=${ctx.supplierId ?? 0}&batch_no=${encodeURIComponent(batchNo)}`
+    );
+    expect(
+      Array.isArray(trace?.traces),
+      `正向追溯应返回 traces 数组，实际：${JSON.stringify(trace).slice(0, 200)}`
+    ).toBe(true);
+    expect(
+      Number(trace.total) >= trace.traces.length,
+      `total(${trace.total}) 不应小于返回链数(${trace.traces.length})`
+    ).toBe(true);
+    for (const chain of trace.traces) {
+      expect(String(chain.batch_no ?? ''), `追溯链缺少 batch_no：${JSON.stringify(chain)}`).toBe(
+        batchNo
+      );
+    }
   });
 
   test('5-11 AI 工艺优化', async ({ page }) => {
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
-      '/ai-models/process-optimizations?page=1&page_size=5'
+      '/ai/process-optimizations?page=1&page_size=5'
     );
-    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
+    // 真实路径是 /api/v1/erp/ai/process-optimizations（routes/system.rs:366），
+    // 原用例写的 /ai-models/... 属另一组路由前缀，不存在该端点。
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`).toBe(true);
   });
 
   test('5-12 AI 质量预测', async ({ page }) => {
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
-      '/ai-models/quality-predictions?page=1&page_size=5'
+      '/ai/quality-predictions?page=1&page_size=5'
     );
-    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
+    // 同上：/api/v1/erp/ai/quality-predictions（routes/system.rs:399）
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`).toBe(true);
   });
 
   test('5-13 通知列表', async ({ page }) => {

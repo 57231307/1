@@ -67,7 +67,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       'GET',
       `/purchase/receipts?purchase_order_id=${ctx.purchaseOrderId}&page=1&page_size=5`
     );
-    expect(Array.isArray(receipts.items), `receipts.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(receipts.items), `receipts.items 应为后端返回的 items 数组`).toBe(true);
 
     // 验证入库单关联应付单
     const apInvoices = await apiCallRaw<{ items: Array<{ id: number }> }>(
@@ -75,7 +75,9 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       'GET',
       '/ap/invoices?page=1&page_size=5'
     );
-    expect(Array.isArray(apInvoices.items), `apInvoices.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(apInvoices.items), `apInvoices.items 应为后端返回的 items 数组`).toBe(
+      true
+    );
   });
 
   test('L1-4 验证双计量换算（米→公斤）', async () => {
@@ -90,45 +92,65 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
   });
 
   test('L1-6 验证库存盘点', async ({ page }) => {
-    const counts = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-      page,
-      'GET',
-      '/inventory/counts?page=1&page_size=5'
-    );
-    expect(Array.isArray(counts.items), `counts.items 应为后端返回的 items 数组`);
-    if (counts?.items?.length ?? 0 > 0) {
-      const status = (counts.items?.[0].status || '').toLowerCase();
-      expect(['pending', 'completed', 'draft', 'approved', 'rejected']).toContain(
-        status ?? '(missing-status)'
-      );
+    // GET /inventory/counts 出参是 CountListResponse{counts,total,page,page_size}，
+    // 键名不是 items；且 `?? 0 > 0` 是优先级笔误（等价 `a ?? false`），守卫恒真。
+    const counts = await apiCallRaw<{
+      counts: Array<{ id: number; status: string }>;
+      total: number;
+    }>(page, 'GET', '/inventory/counts?page=1&page_size=5');
+    expect(
+      Array.isArray(counts?.counts),
+      `盘点列表应返回 counts 数组，实际：${JSON.stringify(counts).slice(0, 200)}`
+    ).toBe(true);
+    expect(
+      Number(counts.total) >= counts.counts.length,
+      `total(${counts.total}) 不应小于本页行数(${counts.counts.length})`
+    ).toBe(true);
+    for (const row of counts.counts) {
+      expect(Number(row.id), `盘点行缺少 id：${JSON.stringify(row)}`).toBeGreaterThan(0);
+      expect(String(row.status ?? ''), `盘点行缺少 status：${JSON.stringify(row)}`).not.toBe('');
     }
   });
 
   test('L1-7 验证库存调拨状态机', async ({ page }) => {
-    const transfers = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+    // GET /inventory/transfers 出参是裸数组 Vec<Value>：服务端分页但没有 items/total 信封，
+    // 只能按数组与行数断言。
+    const transfers = await apiCallRaw<Array<Record<string, unknown>>>(
       page,
       'GET',
       '/inventory/transfers?page=1&page_size=5'
     );
-    expect(Array.isArray(transfers.items), `transfers.items 应为后端返回的 items 数组`);
-    if (transfers?.items?.length ?? 0 > 0) {
-      const status = (transfers.items?.[0].status || '').toLowerCase();
-      expect(['pending', 'approved', 'rejected', 'shipped', 'completed']).toContain(
-        status ?? '(missing-status)'
-      );
+    expect(
+      Array.isArray(transfers),
+      `调拨列表应返回数组，实际：${JSON.stringify(transfers).slice(0, 200)}`
+    ).toBe(true);
+    expect(
+      transfers.length,
+      `page_size=5 却返回 ${transfers.length} 行（分页未生效）`
+    ).toBeLessThanOrEqual(5);
+    for (const row of transfers) {
+      expect(Number(row.id), `调拨行缺少 id：${JSON.stringify(row)}`).toBeGreaterThan(0);
+      expect(String(row.status ?? ''), `调拨行缺少 status：${JSON.stringify(row)}`).not.toBe('');
     }
   });
 
   test('L1-8 验证库存调整状态机', async ({ page }) => {
-    const adjustments = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-      page,
-      'GET',
-      '/inventory/adjustments?page=1&page_size=5'
-    );
-    expect(Array.isArray(adjustments.items), `adjustments.items 应为后端返回的 items 数组`);
-    if (adjustments?.items?.length ?? 0 > 0) {
-      const status = (adjustments.items?.[0].status || '').toLowerCase();
-      expect(['pending', 'approved', 'rejected']).toContain(status ?? '(missing-status)');
+    // GET /inventory/adjustments 出参是 AdjustmentListResponse{adjustments,total,page,page_size}
+    const adjustments = await apiCallRaw<{
+      adjustments: Array<{ id: number; status: string }>;
+      total: number;
+    }>(page, 'GET', '/inventory/adjustments?page=1&page_size=5');
+    expect(
+      Array.isArray(adjustments?.adjustments),
+      `调整列表应返回 adjustments 数组，实际：${JSON.stringify(adjustments).slice(0, 200)}`
+    ).toBe(true);
+    expect(
+      Number(adjustments.total) >= adjustments.adjustments.length,
+      `total(${adjustments.total}) 不应小于本页行数(${adjustments.adjustments.length})`
+    ).toBe(true);
+    for (const row of adjustments.adjustments) {
+      expect(Number(row.id), `调整行缺少 id：${JSON.stringify(row)}`).toBeGreaterThan(0);
+      expect(String(row.status ?? ''), `调整行缺少 status：${JSON.stringify(row)}`).not.toBe('');
     }
   });
 

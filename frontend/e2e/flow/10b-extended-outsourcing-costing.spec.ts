@@ -66,7 +66,7 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
       'GET',
       '/financial-analysis/reports?page=1&page_size=5'
     );
-    expect(Array.isArray(analyses.items), `analyses.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(analyses.items), `analyses.items 应为后端返回的 items 数组`).toBe(true);
   });
 
   test('F2-5 验证财务报表', async ({ page }) => {

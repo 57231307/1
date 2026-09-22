@@ -782,6 +782,30 @@
   （`GET /roles` 不分页，page/page_size 会被 serde 忽略），并删掉 6-4「取不到角色就 return」的静默跳过；
   6-5 的 `GET /roles/{id}/permissions` 按裸数组 Vec<PermissionResponse> 断言；
   4-10 `/finance/accounting-periods`、4-11 `/vouchers` 出参同为裸数组，已去掉 `.items` 并逐行校验字段。
+  **本轮（续）把该类清零**：自写 nest 感知解析器（`routes/*.rs` 的 `.route()` 字面量 +
+  `mod.rs` 的 `.nest("/api/v1/erp/<域>", <域>::routes())` + 域内二级 nest 与根路径 `route("/")`）
+  逐端点确证出参键后，`expect(Array.isArray(x.items))` 无匹配器一类**已全部清零（0 处）**。
+  确证结论（含被证实为"端点根本不存在"的三处，已改挂真实端点）：
+  `/purchase/orders`、`/sales/orders`、`/ap/invoices`、`/purchase/receipts`、
+  `/production/lab-dip/requests`、`/bulk-color-approvals`、`/financial-analysis/reports`、
+  `/role-change-approvals`、`/inventory/stock`、`/audit-logs` = `items/total`；
+  `/inventory/counts` = `{counts,total,page,page_size}`；`/inventory/adjustments` = `{adjustments,total,…}`；
+  `/departments` = `{list,total}`；`/inventory/transfers`、`/data-permissions`、
+  `/production/lab-dip/samples/by-request/{id}`、`/production/cost-collections`、
+  `/production/dye-batch-lifecycle-logs/by-batch/{id}`、`/vouchers`、`/finance/accounting-periods`、
+  `/roles/{id}/permissions` = 裸数组；`/roles` = `{roles,total}` 不分页。
+  **三处用例原本在调不存在的路径**（此前因 expect 无匹配器而"绿"）：
+  `GET /business-trace`、`GET /ai-models/quality-predictions`、`GET /ai-models/process-optimizations`
+  以及 `GET /production/process-nodes`、`/production/process-logs`、`/production/lab-dip/samples`
+  均无路由；已分别改挂 `/business-trace/forward?supplier_id&batch_no`（TraceListResponse{traces,total}）、
+  `/ai/quality-predictions`、`/ai/process-optimizations`（routes/system.rs:366/399）、
+  `/custom-orders/{id}/nodes`（ProcessTimeline 含节点与节点日志）、
+  `/production/lab-dip/samples/by-request/{request_id}`。
+  仍待处理的两类假绿：`expect(x.length).toBeGreaterThanOrEqual(0)` 之类恒真比较
+  （09-permissions:139 的 `denied.length >= 0` 还在断言一个从未作为 audit `resource_type` 写入的值
+  `permission_denied`，需先确认拒绝审计的落库口径）、以及全库 79 处条件 `test.skip()`。
+  工艺节点日志只有 POST 写入端点（`/{id}/nodes/{nid}/logs`）没有 GET 列表端点，
+  若要独立校验日志需在时间线出参之外补端点（属产品决策，未擅自新建）。
   **剩余 22 处需逐端点确证响应键后再补匹配器**（不得凭印象加 `.toBe(true)`，键错位会把绿变成真红）：
   01-p2p:488 `/purchase/orders`；02-o2c:401 `/sales/orders`；05-system:60 `/departments`、
   69 `/data-permissions`、180 `/bulk-color-approvals`、201 `/business-trace`、

@@ -21,6 +21,9 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
     await ensureTestEntities(page);
   });
 
+  // 打样通知单 id：C1-4 真实创建后写入，C1-6 按 by-request 端点回读其小样
+  let labDipRequestId = 0;
+
   test('C1-1 创建定制订单', async ({ page }) => {
     const ctx = getCtx();
     try {
@@ -117,6 +120,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       remarks: 'E2E 打样通知单',
     });
     expect(result.data?.id, '打样通知单创建应返回 id').toBeTruthy();
+    labDipRequestId = result.data!.id!;
   });
 
   test('C1-5 验证打样状态机（pending → sampling → submitted → approved/rejected）', async ({
@@ -127,7 +131,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       'GET',
       '/production/lab-dip/requests?page=1&page_size=5'
     );
-    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`).toBe(true);
     if (list?.items?.length ?? 0 > 0) {
       const status = (list.items?.[0].status || '').toLowerCase();
       expect(['pending', 'sampling', 'submitted', 'approved', 'rejected', 'completed']).toContain(
@@ -137,17 +141,24 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
   });
 
   test('C1-6 验证打样小样状态机（pending → matched/not_matched/selected）', async ({ page }) => {
-    const list = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+    // 小样没有全局列表端点：routes/production.rs:157-162 只注册了 POST /lab-dip/samples、
+    // /lab-dip/samples/{id} 与 /lab-dip/samples/by-request/{request_id}（出参是裸数组）。
+    // 原用例 GET /production/lab-dip/samples?page=… 是不存在的路径，且 expect 无匹配器。
+    expect(labDipRequestId, 'C1-4 未创建打样通知单，无法按单回读小样').toBeGreaterThan(0);
+    const list = await apiCallRaw<Array<Record<string, unknown>>>(
       page,
       'GET',
-      '/production/lab-dip/samples?page=1&page_size=5'
+      `/production/lab-dip/samples/by-request/${labDipRequestId}`
     );
-    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
-    if (list?.items?.length ?? 0 > 0) {
-      const status = (list.items?.[0].status || '').toLowerCase();
-      expect(['pending', 'matched', 'not_matched', 'selected']).toContain(
-        status ?? '(missing-status)'
+    expect(
+      Array.isArray(list),
+      `按打样单回读小样应为数组，实际：${JSON.stringify(list).slice(0, 200)}`
+    ).toBe(true);
+    for (const row of list) {
+      expect(Number(row.request_id), `小样行未挂在本打样单下：${JSON.stringify(row)}`).toBe(
+        labDipRequestId
       );
+      expect(String(row.status ?? ''), `小样行缺少 status：${JSON.stringify(row)}`).not.toBe('');
     }
   });
 
@@ -157,7 +168,7 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       'GET',
       '/bulk-color-approvals?page=1&page_size=5'
     );
-    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`).toBe(true);
     if (list?.items?.length ?? 0 > 0) {
       const status = (list.items?.[0].status || '').toLowerCase();
       expect([
@@ -179,39 +190,57 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       'GET',
       '/bulk-color-approvals?status=rework&page=1&page_size=5'
     );
-    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`).toBe(true);
   });
 
   test('C1-9 验证坯布五维追溯链', async ({ page }) => {
-    try {
-      const trace = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/analytics/business-trace?page=1&page_size=5'
-      );
-      expect(Array.isArray(trace.items), `trace.items 应为后端返回的 items 数组`);
-    } catch {
-      const trace = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/business-trace?page=1&page_size=5'
-      );
-      expect(Array.isArray(trace.items), `trace.items 应为后端返回的 items 数组`);
-    }
+    const ctx = getCtx();
+    // 追溯域没有列表端点（business_trace() 只有 five-dimension/forward/backward/snapshot），
+    // 原用例先查 /analytics/business-trace、失败后再查 /business-trace 顶包，
+    // 两条路径都不存在，且 expect() 不带匹配器，无论返回什么都算通过。
+    const batchNo = `10C-TRC-${Date.now().toString().slice(-8)}`;
+    const trace = await apiCallRaw<{ traces: Array<Record<string, unknown>>; total: number }>(
+      page,
+      'GET',
+      `/business-trace/forward?supplier_id=${ctx.supplierId ?? 0}&batch_no=${encodeURIComponent(batchNo)}`
+    );
+    expect(
+      Array.isArray(trace?.traces),
+      `正向追溯应返回 traces 数组，实际：${JSON.stringify(trace).slice(0, 200)}`
+    ).toBe(true);
+    expect(
+      Number(trace.total) >= trace.traces.length,
+      `total(${trace.total}) 不应小于返回链数(${trace.traces.length})`
+    ).toBe(true);
   });
 
   test('C1-10 验证工艺跟踪大屏数据', async ({ page }) => {
-    const nodes = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
+    const ctx = getCtx();
+    expect(ctx.customOrderId, 'C1-1 未创建定制订单，无法验证工艺时间线').toBeTruthy();
+    // /production/process-nodes 与 /production/process-logs 两个路径在路由里根本不存在，
+    // 节点与节点日志的真实入口是定制订单工艺时间线：
+    // GET /custom-orders/{id}/nodes → ProcessTimeline{order_id,order_no,current_status,nodes[]}
+    // （节点自带 logs；日志只有 POST /{id}/nodes/{nid}/logs 写入端点，无独立 GET 列表）
+    const timeline = await apiCallRaw<Record<string, unknown>>(
       page,
       'GET',
-      '/production/process-nodes?page=1&page_size=5'
+      `/custom-orders/${ctx.customOrderId}/nodes`
     );
-    expect(Array.isArray(nodes.items), `nodes.items 应为后端返回的 items 数组`);
-    const logs = await apiCallRaw<{ items: Array<{ id: number }> }>(
-      page,
-      'GET',
-      '/production/process-logs?page=1&page_size=5'
-    );
-    expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
+    expect(
+      Number(timeline?.order_id),
+      `工艺时间线应回显订单 id，实际：${JSON.stringify(timeline).slice(0, 200)}`
+    ).toBe(Number(ctx.customOrderId));
+    expect(
+      Array.isArray(timeline.nodes),
+      `工艺时间线应返回 nodes 数组，实际：${JSON.stringify(timeline).slice(0, 200)}`
+    ).toBe(true);
+    expect(String(timeline.current_status ?? ''), '工艺时间线缺少 current_status').not.toBe('');
+    for (const node of timeline.nodes as Array<Record<string, unknown>>) {
+      expect(Number(node.id), `工艺节点缺少 id：${JSON.stringify(node)}`).toBeGreaterThan(0);
+      expect(
+        Array.isArray(node.logs ?? []),
+        `工艺节点的日志数组形态异常：${JSON.stringify(node)}`
+      ).toBe(true);
+    }
   });
 });

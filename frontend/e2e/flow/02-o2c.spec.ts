@@ -398,7 +398,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       'GET',
       '/sales/orders?page=1&page_size=5'
     );
-    expect(Array.isArray(orders.items), `orders.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(orders.items), `orders.items 应为后端返回的 items 数组`).toBe(true);
   });
 
   test('2-11 验证审计日志包含销售操作', async ({ page }) => {

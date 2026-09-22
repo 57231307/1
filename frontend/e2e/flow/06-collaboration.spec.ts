@@ -235,7 +235,7 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       'GET',
       '/purchase/orders?page=1&page_size=50'
     );
-    expect(Array.isArray(orders.items), `orders.items 应为后端返回的 items 数组`);
+    expect(Array.isArray(orders.items), `orders.items 应为后端返回的 items 数组`).toBe(true);
     // admin 查看的数据不应被过滤
     expect(Array.isArray(orders?.items), '订单列表应返回 items 数组').toBe(true);
   });
