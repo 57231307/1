@@ -24,15 +24,15 @@
  */
 import { readFileSync, readdirSync } from 'fs';
 import { join, resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const FRONTEND = resolve(__dirname, '..');
-const BACKEND = resolve(FRONTEND, '..', 'backend');
-const BASE_URL = '/api/v1/erp';
+export const FRONTEND = resolve(__dirname, '..');
+export const BACKEND = resolve(FRONTEND, '..', 'backend');
+export const BASE_URL = '/api/v1/erp';
 
 // ---------- 路径归一：{param} / :param / ${expr} -> * ----------
-function normalizePath(p) {
+export function normalizePath(p) {
   let s = String(p);
   const q = s.indexOf('?');
   if (q >= 0) s = s.slice(0, q); // 去 query string
@@ -46,7 +46,7 @@ function normalizePath(p) {
 }
 
 // ---------- 前端解析 ----------
-function collectTsFiles(dir) {
+export function collectTsFiles(dir) {
   const out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
@@ -57,7 +57,7 @@ function collectTsFiles(dir) {
 }
 
 // 解析同文件里的字符串常量 `const NAME = '...'` / `const NAME = \`...\``
-function constStringMap(src) {
+export function constStringMap(src) {
   const map = {};
   for (const m of src.matchAll(/const\s+([A-Za-z_]\w*)\s*=\s*(['"`])([^'"`]*)\2/g)) {
     map[m[1]] = m[3];
@@ -66,7 +66,7 @@ function constStringMap(src) {
 }
 
 // 取出 request.<method>(<firstArg> 里的 url 表达式（平衡括号，忽略逗号后的 config/data）
-function scanFrontendCalls(src, consts) {
+export function scanFrontendCalls(src, consts) {
   const calls = [];
   const re = /request\.(get|post|put|delete)(?:<[^<>]*(?:<[^<>]*>[^<>]*)*>)?\s*\(\s*/g;
   let m;
@@ -117,7 +117,7 @@ function scanFrontendCalls(src, consts) {
   return calls;
 }
 
-function resolveFrontendUrl(arg, consts) {
+export function resolveFrontendUrl(arg, consts) {
   if (!arg) return null;
   // 纯字符串/模板字面量
   const strLit = arg.match(/^(['"`])([\s\S]*)\1$/);
@@ -131,7 +131,7 @@ function resolveFrontendUrl(arg, consts) {
   return raw;
 }
 
-function loadFrontendEndpoints() {
+export function loadFrontendEndpoints() {
   const set = new Map(); // key path|method -> [{file,line}]
   const files = collectTsFiles(join(FRONTEND, 'src', 'api'));
   for (const f of files) {
@@ -152,7 +152,7 @@ function loadFrontendEndpoints() {
 }
 
 // ---------- 后端解析 ----------
-function collectRsFiles(dir) {
+export function collectRsFiles(dir) {
   const out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
@@ -163,7 +163,7 @@ function collectRsFiles(dir) {
 }
 
 // 从一段源码里按 `fn NAME(...)` 提取所有函数体（大括号配平）
-function extractFunctions(src) {
+export function extractFunctions(src) {
   const fns = {};
   const re = /\bfn\s+([A-Za-z_]\w*)\s*\(/g;
   let m;
@@ -198,7 +198,7 @@ function extractFunctions(src) {
 
 // 在函数体内查找 `.route("PATH", <METHODCHAIN>)` / `.nest("P", TARGET)` / `.merge(TARGET)`
 // 逐 token 扫描，遇到 .route/.nest/.merge 提取参数（支持跨行、字符串内含斜杠）
-function parseBuilder(body) {
+export function parseBuilder(body) {
   const routes = [];
   const nests = [];
   const merges = [];
@@ -250,8 +250,10 @@ function parseBuilder(body) {
     }
     if (kind === 'route') {
       const path = firstStringLiteral(argsRaw[0] || '');
-      const methods = extractMethods(argsRaw.slice(1).join(',') || '');
-      if (path) routes.push({ path, methods });
+      const methodArg = argsRaw.slice(1).join(',') || '';
+      const methods = extractMethods(methodArg);
+      const handlers = extractMethodHandlers(methodArg);
+      if (path) routes.push({ path, methods, handlers });
     } else if (kind === 'nest') {
       const prefix = firstStringLiteral(argsRaw[0] || '');
       const target = parseTarget(argsRaw.slice(1).join(',') || '');
@@ -271,10 +273,22 @@ function firstStringLiteral(s) {
   return m ? m[1] : null;
 }
 
+// 从 route 第二实参文本里提取 (方法 -> handler 引用) 对，支持链式
+// `get(mod::h1).post(mod::h2)`；handler token 允许 `mod::fn` / `self::fn` / 裸 `fn`，
+// 并容忍其后的泛型 turbofish（如 `get(service::list::<T>)`，罕见）。
+export function extractMethodHandlers(s) {
+  const out = [];
+  const re =
+    /(^|[^A-Za-z0-9_])(get|post|put|delete|patch|head|options)\s*\(\s*([A-Za-z_]\w*(?:::\w+)*)/g;
+  let m;
+  while ((m = re.exec(s))) out.push({ method: m[2].toUpperCase(), handler: m[3] });
+  return out;
+}
+
 // 从 route 第二实参文本里提取顶层方法助词：get/post/put/delete/patch/head/options
 // 允许方法词前为链式点号/括号/逗号/空白（如 `get(h).post(h2)`），
 // 但不能是标识符的一部分（`_delete`/`to_post` 之类）。
-function extractMethods(s) {
+export function extractMethods(s) {
   const out = new Set();
   const re = /(^|[^A-Za-z0-9_])(get|post|put|delete|patch|head|options)\s*\(/g;
   let m;
@@ -284,7 +298,7 @@ function extractMethods(s) {
 
 // 解析调用目标：`mod::routes()` / `routes()` / `mod::sub(state.clone())`
 // 锚定实参起始处的「第一个函数调用」，允许携带任意实参（如 state.clone()）。
-function parseTarget(s) {
+export function parseTarget(s) {
   const t = (s || '').trim();
   const mQ = t.match(/^([A-Za-z_]\w*)::([A-Za-z_]\w*)\s*\(/);
   if (mQ) return { file: mQ[1], fn: mQ[2] };
@@ -293,7 +307,13 @@ function parseTarget(s) {
   return null;
 }
 
-function loadBackendEndpoints() {
+// 后端路由展开：从 routes/mod.rs::create_router 递归 nest()/merge()/route()，
+// 累积出完整 `/api/v1/erp/...` 路径。返回两个结构（供其它门禁复用）：
+//   endpoints: Set<"path METHOD">   —— 与历史 loadBackendEndpoints 完全一致的键集合
+//   handlers : Map<"path METHOD", {handler, routesFile}>  —— 每条路由绑定的 handler 引用
+//     handler 形如 `sales_contract_handler::list_contracts` 或裸 `health_check`；
+//     routesFile 是该 .route() 语句所在的路由模块基名（用于同名 fn 消歧）。
+export function walkBackendRoutes() {
   const dirs = [join(BACKEND, 'src', 'routes'), join(BACKEND, 'src', 'handlers')];
   const fileFns = {};
   for (const dir of dirs) {
@@ -303,7 +323,8 @@ function loadBackendEndpoints() {
       fileFns[base] = extractFunctions(readFileSync(f, 'utf-8'));
     }
   }
-  const set = new Set(); // path|METHOD
+  const endpoints = new Set(); // path|METHOD
+  const handlers = new Map(); // path|METHOD -> {handler, routesFile}
   const getBuilder = file => fileFns[file] || {};
   const resolveTarget = (currentFile, target) => (target.file ? target.file : currentFile);
 
@@ -326,7 +347,14 @@ function loadBackendEndpoints() {
     }
     for (const r of parsed.routes) {
       const full = normalizePath(prefix + r.path);
-      for (const meth of r.methods) set.add(`${full} ${meth}`);
+      const handlerByMethod = {};
+      for (const h of r.handlers || []) handlerByMethod[h.method] = h.handler;
+      for (const meth of r.methods) {
+        const key = `${full} ${meth}`;
+        endpoints.add(key);
+        if (!handlers.has(key) && handlerByMethod[meth])
+          handlers.set(key, { handler: handlerByMethod[meth], routesFile: file });
+      }
     }
     for (const n of parsed.nests) {
       const childPrefix = joinPrefix(prefix, n.prefix);
@@ -345,7 +373,11 @@ function loadBackendEndpoints() {
 
   // 入口：mod.rs::create_router
   walk('mod', 'create_router', '');
-  return set;
+  return { endpoints, handlers };
+}
+
+function loadBackendEndpoints() {
+  return walkBackendRoutes().endpoints;
 }
 
 // ---------- 已知例外（逐条显式登记，禁止通配/静默） ----------
@@ -495,4 +527,7 @@ function main() {
   console.log('\nOK: A 类为 0（功能缺口已逐条显式登记，非静默豁免）。');
 }
 
-main();
+// 仅在作为脚本直接执行时跑主流程；被其它门禁 import 复用解析能力时不触发（不改退出码）。
+const invokedDirectly =
+  process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+if (invokedDirectly) main();
