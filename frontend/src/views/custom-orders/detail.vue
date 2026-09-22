@@ -318,8 +318,15 @@ async function handleAdvance() {
       t('customOrders.detail.messageAdvanceTitle'),
       { type: 'warning' }
     );
+    // 与 list.vue 同源：操作人必须取当前登录用户，不得硬编码
+    const userStore = useUserStore();
+    const operatorId = userStore.userInfo?.id;
+    if (!operatorId) {
+      ElMessage.warning(t('customOrders.detail.operatorMissing'));
+      return;
+    }
     await advanceCustomOrder(order.value.id, {
-      operator_id: 1,
+      operator_id: operatorId,
       notes: t('customOrders.detail.messageAdvanceNotes'),
     });
     ElMessage.success(t('customOrders.detail.messageAdvanceSuccess'));

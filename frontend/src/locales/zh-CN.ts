@@ -161,6 +161,7 @@ export default {
       reportFailed: '异常上报失败',
       pleaseInputResolution: '请输入解决方案',
       resolveSuccess: '异常解决成功',
+      operatorMissing: '当前登录用户信息缺失，无法登记操作人',
       resolveFailed: '异常解决失败',
     },
     afterSales: {
@@ -272,6 +273,7 @@ export default {
       blockReasonPrompt: '请输入阻塞原因',
       blockNodeTitle: '阻塞节点',
       blockReasonRequired: '请输入阻塞原因',
+      operatorMissing: '当前登录用户信息缺失，无法登记操作人',
       operationSuccess: '操作成功',
       operationFailed: '操作失败',
     },

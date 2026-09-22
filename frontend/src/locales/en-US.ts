@@ -158,6 +158,7 @@ export default {
       reportFailed: 'Issue report failed',
       pleaseInputResolution: 'Please enter resolution',
       resolveSuccess: 'Issue resolved successfully',
+      operatorMissing: 'Current user info is missing, cannot record the operator',
       resolveFailed: 'Issue resolve failed',
     },
     afterSales: {
@@ -269,6 +270,7 @@ export default {
       blockReasonPrompt: 'Please enter block reason',
       blockNodeTitle: 'Block Node',
       blockReasonRequired: 'Please enter block reason',
+      operatorMissing: 'Current user info is missing, cannot record the operator',
       operationSuccess: 'Operation successful',
       operationFailed: 'Operation failed',
     },
