@@ -4356,6 +4356,84 @@ SELECT v.mode_code, v.mode_name, v.description, true, false, '[]'::jsonb,
     SELECT 1 FROM "business_mode_config" e
      WHERE e."mode_code" = v.mode_code AND e."is_deleted" = false
  );
+
+-- ========== 出库四维匹配扣减（款号+色号+缸号+批次，用户拍板规则） ==========
+-- 出库扣减必须按入库四维匹配，指定缸不足时走显式跨缸回退；跨缸回退实际扣了哪个缸/哪一行，
+-- 必须如实落到出库明细：stock_id 记录被扣库存行 ID（同四维存在多行时取消发货才能精确回位），
+-- is_cross_dye_lot 显式标记这笔是跨缸回退而非精确命中。
+-- 放在 v15 域尾：sales_delivery_item 在 business 域创建（m0011），execution order 上 v15 在其后。
+ALTER TABLE "sales_delivery_item" ADD COLUMN IF NOT EXISTS "stock_id" INTEGER;
+ALTER TABLE "sales_delivery_item" ADD COLUMN IF NOT EXISTS "is_cross_dye_lot" BOOLEAN NOT NULL DEFAULT FALSE;
+COMMENT ON COLUMN "sales_delivery_item"."stock_id" IS '实际扣减的库存行 ID（inventory_stocks.id；出库四维扣减的落点，跨缸回退时为其他缸的行）';
+COMMENT ON COLUMN "sales_delivery_item"."is_cross_dye_lot" IS '是否为显式跨缸回退扣减（true=实际扣的缸号与出库单指定缸号不同）';
+-- 四维扣减候选行查询热点（product+warehouse+color+batch 等值匹配）
+CREATE INDEX IF NOT EXISTS "idx_inventory_stocks_four_dim"
+    ON "inventory_stocks" ("product_id", "warehouse_id", "color_no", "batch_no");
+
+-- ========== 调拨/盘点状态列默认值收敛进词表（规则 0：库层取值不得越界） ==========
+-- m0001 给 inventory_transfers / inventory_counts 建的 status 列 DEFAULT 'draft'，
+-- 但两个词表（models/status/purchase_inventory.rs 的 inventory_transfer / inventory_count）
+-- 里根本没有 draft：调拨是 pending/approved/rejected/[in_review]/shipped/completed，
+-- 盘点是 pending/in_review/completed。service 层建单都显式写 pending，所以这条默认值
+-- 平时看不见；一旦有绕过 service 的写入路径（导入/直连 SQL/以后新增的建单口），
+-- 就会落进一个界面筛不出、状态机不认的死状态行——与"常量取自别表词表"同一类缺陷，
+-- 且默认值越界比常量越界更隐蔽（它不报错，只是行从此消失）。
+ALTER TABLE "inventory_transfers" ALTER COLUMN "status" SET DEFAULT 'pending';
+ALTER TABLE "inventory_counts"    ALTER COLUMN "status" SET DEFAULT 'pending';
+-- 已存在的越界行回填为 pending（新建单本来就该是 pending，回填后这些行重新可被
+-- 列表筛出并进入审批流，而不是永远停在无人处理的状态）。
+UPDATE "inventory_transfers" SET "status" = 'pending' WHERE "status" = 'draft';
+UPDATE "inventory_counts"    SET "status" = 'pending' WHERE "status" = 'draft';
+
+-- ========== 全仓推广同一核对：状态类列 DEFAULT 收敛进各自取值域 ==========
+-- 逐列核对"建表 DEFAULT 值 ∈ 该列真实取值域（词表/CHECK/service 建单写值）"，
+-- 发现 5 处越界默认值，与 inventory_transfers/inventory_counts 同一类缺陷：
+-- 建表默认值不在词表内，service 建单显式写合法值把它遮住，一旦有绕过 service 的
+-- 写入（导入/直连 SQL/未来的建单口），行就落进状态机不认、界面筛不出的死状态。
+-- 目标表均在 system/business 域创建（早于 v15 域），本尾 ALTER/UPDATE 引用安全。
+
+-- 1) sales_delivery.status：词表 models/status/sales.rs 的 sales_delivery =
+--    {pending, shipped, cancelled}（无 DRAFT）；so/delivery.rs:160 建单写 pending。
+--    m0011:51 建表写 DEFAULT 'DRAFT'（大小写与词表双向不符）。回填 pending。
+ALTER TABLE "sales_delivery" ALTER COLUMN "status" SET DEFAULT 'pending';
+UPDATE "sales_delivery" SET "status" = 'pending' WHERE "status" = 'DRAFT';
+
+-- 2) sales_contracts.status：词表 models/status/bpm_crm_contract.rs 的 contract /
+--    contract_status = {draft, ...} 小写；sales_contract_service.rs:105 建单写 contract::DRAFT。
+--    m0011:31 建表写 DEFAULT 'DRAFT'（大写越界）。回填 draft。
+ALTER TABLE "sales_contracts" ALTER COLUMN "status" SET DEFAULT 'draft';
+UPDATE "sales_contracts" SET "status" = 'draft' WHERE "status" = 'DRAFT';
+
+-- 3) purchase_contracts.status：同上小写词表；purchase_contract_service.rs:70 建单写 "draft"。
+--    m0009:31 建表写 DEFAULT 'DRAFT'（大写越界）。回填 draft。
+ALTER TABLE "purchase_contracts" ALTER COLUMN "status" SET DEFAULT 'draft';
+UPDATE "purchase_contracts" SET "status" = 'draft' WHERE "status" = 'DRAFT';
+
+-- 4) bpm_task.status：词表 models/status/bpm_crm_contract.rs 的 bpm_task =
+--    {pending, completed, rejected, cancelled} 小写；bpm_ops/instance.rs:77 建单写
+--    task_status::PENDING，且 instance.rs:200 按 'pending' 过滤。m0001:704 建表写
+--    DEFAULT 'PENDING'（大写越界，绕过 service 建的任务永不被待办查询命中）。回填 pending。
+ALTER TABLE "bpm_task" ALTER COLUMN "status" SET DEFAULT 'pending';
+UPDATE "bpm_task" SET "status" = 'pending' WHERE "status" = 'PENDING';
+
+-- 5) dye_batch.status：真实取值域是缸号生命周期 16 态（handlers/dye_batch_handler.rs:116
+--    经 dye_batch_state_machine_validation::is_valid_status 校验，词表
+--    models/status/quality_dyeing.rs 的 dye_batch_lifecycle_status = {pending_schedule, ...}）。
+--    该列无 'pending'。建单默认 pending_schedule（dye_batch_handler.rs:121）。
+--    m0003:17 建表写 DEFAULT 'pending'（is_valid_status 直接判非法的死状态）。回填 pending_schedule。
+ALTER TABLE "dye_batch" ALTER COLUMN "status" SET DEFAULT 'pending_schedule';
+UPDATE "dye_batch" SET "status" = 'pending_schedule' WHERE "status" = 'pending';
+
+-- 6) sales_prices.status / purchase_prices.status：词表 models/status/general.rs 的
+--    master_data = {active, inactive, pending, approved, ...} 小写；建单写
+--    master_data::PENDING（sales_price_service.rs:113 / purchase_price_service.rs:101），
+--    审批写 approved、列表按 active 过滤，全为小写。m0009:249 / m0011:188 建表写
+--    DEFAULT 'ACTIVE'（大写越界，绕过 service 的价目行既不落入 pending 审批流也不被 active 过滤命中）。
+--    回填 pending（建单显式写值）。
+ALTER TABLE "sales_prices"    ALTER COLUMN "status" SET DEFAULT 'pending';
+ALTER TABLE "purchase_prices" ALTER COLUMN "status" SET DEFAULT 'pending';
+UPDATE "sales_prices"    SET "status" = 'pending' WHERE "status" = 'ACTIVE';
+UPDATE "purchase_prices" SET "status" = 'pending' WHERE "status" = 'ACTIVE';
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
