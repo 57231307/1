@@ -48,7 +48,8 @@
  * 因此「0 失配」只覆盖内联声明可比对的 101 条，不代表全部消费点已核对。
  */
 import { readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import {
   FRONTEND,
   BACKEND,
@@ -75,7 +76,10 @@ function shapeOfArrayKeys({ vecKey, hasTotal, hasId, label }) {
   if (hasId) return { kind: 'single', raw: `${label} (含 id，按实体处理)` };
   const canon = vecKey.find(k => LIST_KEYS.includes(k));
   if (!canon && !hasTotal)
-    return { kind: 'single', raw: `${label} (数组键 ${vecKey.join('/')} 非规范列表名且无分页标记)` };
+    return {
+      kind: 'single',
+      raw: `${label} (数组键 ${vecKey.join('/')} 非规范列表名且无分页标记)`,
+    };
   const carrier = canon || vecKey[0];
   return {
     kind: 'wrapper',
@@ -536,14 +540,19 @@ function buildStructIndex() {
         }
         body += c;
       }
+      // struct 声明前的属性（`#[serde(rename_all = "camelCase")]` 等）决定线上键名：
+      // 请求体侧门禁要靠它把 Rust 字段名换算成 JSON 键名。取声明前 600 字符内的属性行即可。
+      const pre = src.slice(Math.max(0, m.index - 600), m.index);
+      const attrs = (pre.match(/#\[[^\]]*\]/g) || []).join(' ');
       const fields = parseStructFields(body.slice(1, -1));
       const vecFields = fields
         .filter(fld => /^\s*(?:Vec|std::vec::Vec)\s*</.test(fld.type))
         .map(fld => ({ name: fld.name, elem: genericArg(fld.type) }));
       // SeaORM 实体每个文件都有一个 `pub struct Model`：只按裸名查会把别的实体字段安上来
       const base = f.split(/[\/]/).pop().replace('.rs', '');
-      addStructEntry(index, `${base}::${name}`, { vecFields, allFields: fields });
-      addStructEntry(index, name, { vecFields, allFields: fields });
+      const structEntry = { vecFields, allFields: fields, attrs };
+      addStructEntry(index, `${base}::${name}`, structEntry);
+      addStructEntry(index, name, structEntry);
     }
   }
   return index;
@@ -731,7 +740,8 @@ function classifyPayload(payload, structIndex) {
   // ProcessTimeline{nodes} 这类「附带数组字段的单对象」）判为单对象，避免误报为信封失配。
   const qualified = head.replace(/^crate::/, '');
   const tail = qualified.split('::').slice(-2).join('::');
-  const info = structIndex[tail] || structIndex[qualified] || structIndex[qualified.split('::').pop()];
+  const info =
+    structIndex[tail] || structIndex[qualified] || structIndex[qualified.split('::').pop()];
   if (info && info.ambiguous)
     return { kind: 'unknown', raw: `${p} (同名 struct 多处定义，判不出)` };
   if (info) {
@@ -827,6 +837,22 @@ function findModRanges(src) {
   return out;
 }
 
+// `fn name(a: A, b: B)` 的参数列表文本：请求体侧门禁从中解析 `Json<T>` / `Query<T>` 的 T，
+// 从而把「前端提交的键集合」与「后端反序列化结构体字段」对齐（响应侧只看返回类型）。
+function extractFnSignatures(src) {
+  const out = {};
+  const re = /\bfn\s+([A-Za-z_]\w*)\s*[(<]/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const open = m.index + m[0].length - 1;
+    if (src[open] !== '(') continue;
+    const cap = captureBalanced(src, open, '(', ')');
+    if (cap) out[m[1]] = cap[1];
+    re.lastIndex = open;
+  }
+  return out;
+}
+
 function buildHandlerModules(templates) {
   const mods = new Map();
   for (const f of collectRsFiles(join(BACKEND, 'src', 'handlers'))) {
@@ -835,6 +861,7 @@ function buildHandlerModules(templates) {
     const entry = {
       file: base + '.rs',
       rets: extractReturnTypes(src),
+      sigs: extractFnSignatures(src),
       bodies: extractFnBodies(src),
       macroFns: {}, // 顶层宏展开生成的 fn
       modMacroFns: {}, // 文件内 mod 里宏展开生成的 fn
@@ -875,10 +902,16 @@ function buildHandlerModules(templates) {
       if (!expanded) continue;
       const genBodies = extractFnBodies(expanded);
       const genRets = extractReturnTypes(expanded);
+      const genSigs = extractFnSignatures(expanded);
       const host = modRanges.find(r => cap[0] > r.start && cap[0] < r.end);
       const target = host ? (entry.modMacroFns[host.name] ||= {}) : entry.macroFns;
       for (const fn of Object.keys(genBodies))
-        target[fn] = { ret: genRets[fn] || '', body: genBodies[fn], via: macroName };
+        target[fn] = {
+          ret: genRets[fn] || '',
+          sig: genSigs[fn] || '',
+          body: genBodies[fn],
+          via: macroName,
+        };
       invRe.lastIndex = cap[0];
     }
     mods.set(base, entry);
@@ -891,7 +924,13 @@ function resolveHandlerSymbol(mods, mod, fn, depth = 0) {
   if (depth > 3) return null;
   const M = mods.get(mod);
   if (!M) return null;
-  if (M.bodies[fn]) return { ret: M.rets[fn] || '', body: M.bodies[fn], via: `${mod}::${fn}` };
+  if (M.bodies[fn])
+    return {
+      ret: M.rets[fn] || '',
+      sig: M.sigs[fn] || '',
+      body: M.bodies[fn],
+      via: `${mod}::${fn}`,
+    };
   if (M.macroFns[fn]) return { ...M.macroFns[fn], via: `${mod}::${fn}<${M.macroFns[fn].via}>` };
   for (const modName of Object.keys(M.modMacroFns)) {
     const tbl = M.modMacroFns[modName];
@@ -1236,14 +1275,13 @@ function buildTsTypeIndex() {
         file: rel,
       });
     }
-    for (const m of src.matchAll(
-      /\b(?:export\s+)?type\s+([A-Z]\w*)\s*(<[^=]*>)?\s*=\s*/g
-    )) {
+    for (const m of src.matchAll(/\b(?:export\s+)?type\s+([A-Z]\w*)\s*(<[^=]*>)?\s*=\s*/g)) {
       if (m[2]) continue;
       const text = readUntilStatementEnd(src, m.index + m[0].length) || '';
       const t = text.trim().replace(/;\s*$/, '');
       if (!t) continue;
-      if (t.startsWith('{')) addTsEntry(index, m[1], { kind: 'object', body: t.slice(1, -1), extends: [], file: rel });
+      if (t.startsWith('{'))
+        addTsEntry(index, m[1], { kind: 'object', body: t.slice(1, -1), extends: [], file: rel });
       else addTsEntry(index, m[1], { kind: 'alias', text: t, file: rel });
     }
   }
@@ -1285,7 +1323,8 @@ function expandTsType(name, index, depth = 0, seen = new Set()) {
   for (const par of ent.extends || []) {
     const pname = par.replace(/<.*>/, '').trim();
     const pe = index.get(pname);
-    if (!pe || pe.kind !== 'object') return { kind: 'named', raw: `${name} extends ${pname}(未解析)` };
+    if (!pe || pe.kind !== 'object')
+      return { kind: 'named', raw: `${name} extends ${pname}(未解析)` };
     body = `${pe.body}\n;${body}`;
   }
   return classifyObjectBody(body, index, depth + 1, seen, name);
@@ -1301,9 +1340,7 @@ function classifyObjectBody(body, index, depth, seen, label) {
     const vt = kv[2].trim();
     if (/\[\]$/.test(vt) || /^Array</.test(vt) || /^\[\s*\]/.test(vt)) vecKey.push(kv[1]);
   }
-  const keys = top
-    .map(e => (e.match(/^\s*([A-Za-z_]\w*)\s*\??:/) || [])[1])
-    .filter(Boolean);
+  const keys = top.map(e => (e.match(/^\s*([A-Za-z_]\w*)\s*\??:/) || [])[1]).filter(Boolean);
   return shapeOfArrayKeys({
     vecKey,
     hasTotal: keys.some(k => TOTAL_KEYS.includes(k)),
@@ -1357,7 +1394,7 @@ function parseFrontendApiFunctions(tsIndex) {
       // (method, url)：取函数体内第一个 request.<method>(...)
       const call = extractFirstCall(body, consts);
       const feShape = classifyFrontendReturn(retType, tsIndex);
-      list.push({ name, file: rel, line, feShape, retType, call });
+      list.push({ name, file: rel, line, feShape, retType, call, sig: m[2] || '' });
     }
   }
   return list;
@@ -1368,48 +1405,18 @@ function extractFirstCall(body, consts) {
   const m = re.exec(body);
   if (!m) return null;
   const method = m[1].toLowerCase();
-  const start = m.index + m[0].length;
-  let i = start;
-  let arg = '';
-  let quote = null;
-  let braceDepth = 0;
-  while (i < body.length) {
-    const c = body[i];
-    if (quote) {
-      arg += c;
-      if (c === quote) quote = null;
-      else if (c === '$' && body[i + 1] === '{' && (quote === '`' || quote === '"')) {
-        arg += '{';
-        i += 2;
-        let d = 1;
-        while (i < body.length && d > 0) {
-          if (body[i] === '{') d++;
-          else if (body[i] === '}') d--;
-          arg += body[i];
-          i++;
-        }
-        continue;
-      }
-      i++;
-      continue;
-    }
-    if (c === "'" || c === '"' || c === '`') {
-      quote = c;
-      arg += c;
-      i++;
-      continue;
-    }
-    if (c === '{') braceDepth++;
-    if (c === '}') braceDepth--;
-    if ((c === ',' || c === ')') && braceDepth === 0) break;
-    arg += c;
-    i++;
-  }
+  // 用配平括号取「全部实参」而非只取第一个：请求体侧门禁要看第二个实参（payload / { params }）。
+  // 原手写扫描在第一个顶层逗号处即停，拿不到 payload，也无法处理实参里带逗号的嵌套调用。
+  const open = body.indexOf('(', m.index);
+  const cap = open >= 0 ? captureBalanced(body, open, '(', ')') : null;
+  if (!cap) return null;
+  const argTexts = splitTopLevelRust(cap[1]).map(a => a.trim());
+  const arg = argTexts[0] || '';
   const url = resolveFrontendUrl(arg.trim(), consts);
   if (!url) return null;
   let path = url;
   if (!path.startsWith(BASE_URL)) path = BASE_URL + (path.startsWith('/') ? path : '/' + path);
-  return { method: method.toUpperCase(), path: normalizePath(path) };
+  return { method: method.toUpperCase(), path: normalizePath(path), args: argTexts };
 }
 
 // 前端返回类型 -> 载荷分类（复用后端同款分类语义，方便比对）
@@ -1753,4 +1760,25 @@ function main() {
   );
 }
 
-main();
+// 只有被直接执行时才跑：请求体侧门禁 check-api-request.mjs 会 import 本文件的解析器，
+// 两套各自实现必然漂移（本仓库反复栽过的根因之一）。
+const invokedDirectly =
+  !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) main();
+
+export {
+  BACKEND,
+  buildGlobalFnIndex,
+  buildHandlerModules,
+  buildStructIndex,
+  buildTsTypeIndex,
+  captureBalanced,
+  extractReturnTypes,
+  loadHandlerMacroTemplates,
+  parseFrontendApiFunctions,
+  readFileSync,
+  readUntilStatementEnd,
+  resolveHandlerSymbol,
+  splitObjFields,
+  splitTopLevelRust,
+};
