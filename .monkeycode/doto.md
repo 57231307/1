@@ -259,6 +259,20 @@
       遗留：`bulk_color_approval_service` 的降级规则仍以中文等级字面量写死（一等品→二等品→等外品），
       未随本轮改引后端常量；`inventory_batch` 页其余 tab 的等级下拉同样未收敛。
 
+- [ ] **27 处 `:value="t('...')"` 把界面译文当业务值提交**（同一类缺陷的批量清单，
+      本轮已修掉库存等级那组，其余登记待逐个核对取值域后收敛）：
+      `advanced/components/AdvancedQualityPanel.vue:101-113`（检验类型提交「进货检验/过程检验/
+      成品检验/出货检验」，而质量预测与检验记录用的是 incoming/inprocess/final/outgoing 一套码）、
+      `AdvancedRecipePanel.vue:99-115`（布类提交中文译名）、
+      `ai-extend/process-optimization.vue:387-403`（染料类型提交译名，而 `dye_type` 落库与
+      处方/染色配方用的是另一套值）、
+      `logistics/components/LogisticsFilter.vue:27-43` 与 `LogisticsForm.vue:45`（物流公司
+      译名当值，已单独登记需引入稳定公司码）。
+      判据：任何 select 的 value 都应是稳定业务码，label 才用 `t()`；
+      修法沿用本轮 `constants/stock-grade.ts` 的形态——先确认后端该列的真实落库值
+      （不要凭前端猜，否则改了反而与库中值不符），再建常量 + 文案键 + 配色映射，
+      必要时补一次存量归一迁移（同 m0056/m0057 的做法）。
+
 - [ ] **列表端点收参数却不 filtering（假控件）余下实例**：
       （`inventory_batch_handler.rs:25` 声明了 product_id/batch_no/color_no/grade/warehouse_id/
       start_date/end_date 七个筛选字段，`:94` 却只把 page/page_size 传给 service，七个字段一个不用；
