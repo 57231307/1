@@ -3094,6 +3094,7 @@ export default {
       resultUnqualified: '不合格',
       resultPending: '待检',
       typeOutsourcing: '委外回仓',
+      filterAria: '检验记录筛选表单',
       messageExported: '检验记录已导出',
       messageCannotOpenPrintWindow: '无法打开打印窗口，请检查浏览器弹窗设置',
       messagePrintGenerated: '打印内容已生成',

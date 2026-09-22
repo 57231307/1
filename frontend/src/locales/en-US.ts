@@ -3100,6 +3100,7 @@ export default {
       resultUnqualified: 'Unqualified',
       resultPending: 'Pending',
       typeOutsourcing: 'Outsourcing Receipt',
+      filterAria: 'Inspection record filter form',
       messageExported: 'Inspection records exported',
       messageCannotOpenPrintWindow: 'Cannot open print window, please check browser popup settings',
       messagePrintGenerated: 'Print content generated',

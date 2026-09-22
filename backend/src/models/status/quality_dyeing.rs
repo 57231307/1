@@ -295,6 +295,33 @@ pub mod dye_batch_operation_type {
     pub const TERMINATE: &str = "terminate";
 }
 
+/// 质量检验记录的检验类型（quality_inspection_records.inspection_type）
+///
+/// 前四个码由质检记录弹窗写入；`outsourcing_receipt` 是委外收回单确认回仓时自动建记录的来源标识。
+/// 与 `ai_quality_predictions.inspection_type`（CHECK 为 all/incoming/inprocess/final/outgoing）
+/// 分属两套词表，任何时候都不可互抄。
+pub mod quality_inspection_type {
+    /// 进货检验
+    pub const INCOMING: &str = "incoming";
+    /// 过程检验
+    pub const PROCESS: &str = "process";
+    /// 成品检验
+    pub const FINISHED: &str = "finished";
+    /// 出货检验
+    pub const OUTGOING: &str = "outgoing";
+    /// 委外回仓自动生成（系统写入，界面不提供该选项）
+    pub const OUTSOURCING_RECEIPT: &str = "outsourcing_receipt";
+
+    /// 全部合法取值，入参校验的唯一来源
+    pub const ALL: &[&str] = &[
+        INCOMING,
+        PROCESS,
+        FINISHED,
+        OUTGOING,
+        OUTSOURCING_RECEIPT,
+    ];
+}
+
 /// 质量检验记录的检验结论（quality_inspection_records.inspection_result）
 ///
 /// 该列在迁移里是无 CHECK 的 VARCHAR，历史上同时收过中文结论与界面自造的 pass/fail 码；

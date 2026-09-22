@@ -6,6 +6,7 @@ use crate::models::unqualified_product;
 use crate::models::status::master_data;
 use crate::models::status::quality_dyeing::quality_handling;
 use crate::utils::error::AppError;
+use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -110,6 +111,21 @@ pub fn validate_handling_method_by_grade(
 pub struct QualityInspectionQueryParams {
     pub inspection_type: Option<String>,
     pub status: Option<String>,
+    pub page: i64,
+    pub page_size: i64,
+}
+
+/// 检验记录列表的查询条件
+///
+/// 此前记录列表复用 [`QualityInspectionQueryParams`]，把 `inspection_result` 塞进名为
+/// `inspection_type` 的字段里再去过滤 InspectionResult 列（同一结构还被标准/不合格品两个
+/// 列表使用），命名与语义错位；并且 `product_id`、`batch_number` 收进 handler 后从未参与查询。
+#[derive(Debug, Clone, Default)]
+pub struct RecordListParams {
+    pub inspection_type: Option<String>,
+    pub inspection_result: Option<String>,
+    pub product_id: Option<i32>,
+    pub batch_no: Option<String>,
     pub page: i64,
     pub page_size: i64,
 }
@@ -251,13 +267,28 @@ impl QualityInspectionService {
 
     pub async fn get_records_list(
         &self,
-        params: QualityInspectionQueryParams,
+        params: RecordListParams,
     ) -> Result<(Vec<quality_inspection_record::Model>, u64), AppError> {
         let mut query = quality_inspection_record::Entity::find();
 
-        if let Some(inspection_result) = &params.inspection_type {
-            query = query
-                .filter(quality_inspection_record::Column::InspectionResult.eq(inspection_result));
+        if let Some(inspection_type) = &params.inspection_type {
+            query = query.filter(
+                quality_inspection_record::Column::InspectionType.eq(inspection_type),
+            );
+        }
+        if let Some(inspection_result) = &params.inspection_result {
+            query = query.filter(
+                quality_inspection_record::Column::InspectionResult.eq(inspection_result),
+            );
+        }
+        if let Some(product_id) = params.product_id {
+            query =
+                query.filter(quality_inspection_record::Column::ProductId.eq(product_id));
+        }
+        // 批号按片段模糊匹配（用户输入的是缸号/批次号的一部分），并转义 LIKE 通配符
+        if let Some(batch_no) = &params.batch_no {
+            let pattern = safe_like_pattern(batch_no);
+            query = query.filter(quality_inspection_record::Column::BatchNo.like(&pattern));
         }
 
         let total = query.clone().count(&*self.db).await?;

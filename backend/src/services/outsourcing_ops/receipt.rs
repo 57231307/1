@@ -27,7 +27,7 @@ use crate::models::outsourcing_receipt::{
 use crate::models::outsourcing_voucher::ActiveModel as VoucherActiveModel;
 use crate::models::status::{
     outsourcing_order_status, outsourcing_receipt_quality_status, outsourcing_receipt_status,
-    outsourcing_voucher_type, quality_inspection_result,
+    outsourcing_voucher_type, quality_inspection_result, quality_inspection_type,
 };
 use crate::utils::error::AppError;
 
@@ -517,7 +517,7 @@ impl OutsourcingReceiptService {
 
         let req = CreateInspectionRecordRequest {
             inspection_no,
-            inspection_type: "outsourcing_receipt".to_string(),
+            inspection_type: quality_inspection_type::OUTSOURCING_RECEIPT.to_string(),
             related_type: Some("outsourcing_receipt".to_string()),
             related_id: Some(receipt.id),
             product_id: receipt.product_id,

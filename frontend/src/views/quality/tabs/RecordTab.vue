@@ -32,6 +32,46 @@
     </div>
 
     <el-card shadow="hover">
+      <el-form class="filter-form" :inline="true" :aria-label="t('quality.recordTab.filterAria')">
+        <el-form-item :label="t('quality.recordTab.colInspectionType')">
+          <el-select v-model="filters.inspection_type" clearable style="width: 150px">
+            <el-option
+              v-for="item in inspectionTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('quality.recordTab.colResult')">
+          <el-select v-model="filters.inspection_result" clearable style="width: 120px">
+            <el-option
+              v-for="item in resultFilterOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('quality.recordTab.colProduct')">
+          <el-select v-model="filters.product_id" filterable clearable style="width: 180px">
+            <el-option
+              v-for="item in productOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('quality.recordTab.colBatchNo')">
+          <el-input v-model="filters.batch_no" clearable style="width: 160px" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="applyFilters">{{ t('common.search') }}</el-button>
+          <el-button @click="resetFilters">{{ t('common.reset') }}</el-button>
+        </el-form-item>
+      </el-form>
+
       <V2Table
         :columns="columns"
         :data="data"
@@ -57,7 +97,7 @@
  *           handleExport (Batch 475d：改用后端 xlsx 导出) / handlePrint (新窗口) /
  *           defineExpose({ fetchRecords }) / logger
  */
-import { h, onMounted, inject } from 'vue';
+import { computed, h, inject, onMounted, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElTag, ElButton } from 'element-plus';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';
@@ -74,6 +114,7 @@ import {
   QUALITY_INSPECTION_SOURCE_LABEL_KEY,
   QUALITY_RECORD_RESULT_LABEL_KEY,
   QUALITY_RECORD_RESULT_TAG_TYPE,
+  QUALITY_RECORD_RESULT_VALUES,
   isQualityRecordResult,
   type QualityRecordResultValue,
 } from '@/constants/quality-inspection-record';
@@ -91,12 +132,58 @@ const actions = inject<{
 }>('qualityActions');
 
 // 检验记录列表（由 useTableApi 接管分页/loading/重试）
-const { data, loading, page, pageSize, total, refresh } = useTableApi<QualityRecord>(
+const { data, loading, page, pageSize, total, refresh, setQueryParam } = useTableApi<QualityRecord>(
   '/production/quality-inspection/records'
 );
 
 // 记录表只存 id，名称按主数据翻（与父页面共用同一份缓存）
-const { load: loadLookups, productName, inspectorName } = useQualityLookups();
+const { load: loadLookups, productName, inspectorName, productOptions } = useQualityLookups();
+
+// 筛选条件与后端 RecordQuery 一一对应；下拉取值全部来自 constants 词表
+const filters = reactive({
+  inspection_type: '',
+  inspection_result: '',
+  product_id: undefined as number | undefined,
+  batch_no: '',
+});
+
+// 可选的检验类型 = 四个稳定码 + 委外回仓自动写入的来源标识（库里确有这类记录，必须能筛出来）
+const inspectionTypeOptions = computed(() => [
+  ...QUALITY_INSPECTION_TYPE_VALUES.map(value => ({
+    value,
+    label: t(QUALITY_INSPECTION_TYPE_LABEL_KEY[value]),
+  })),
+  ...Object.entries(QUALITY_INSPECTION_SOURCE_LABEL_KEY).map(([value, key]) => ({
+    value,
+    label: t(key),
+  })),
+]);
+
+const resultFilterOptions = computed(() =>
+  QUALITY_RECORD_RESULT_VALUES.map(value => ({
+    value,
+    label: t(QUALITY_RECORD_RESULT_LABEL_KEY[value]),
+  }))
+);
+
+function syncFilters() {
+  setQueryParam('inspection_type', filters.inspection_type || undefined);
+  setQueryParam('inspection_result', filters.inspection_result || undefined);
+  setQueryParam('product_id', filters.product_id ?? undefined);
+  setQueryParam('batch_no', filters.batch_no.trim() || undefined);
+  page.value = 1;
+  refresh();
+}
+
+const applyFilters = () => syncFilters();
+
+const resetFilters = () => {
+  filters.inspection_type = '';
+  filters.inspection_result = '';
+  filters.product_id = undefined;
+  filters.batch_no = '';
+  syncFilters();
+};
 
 // 检验类型：四个稳定码 + 委外回仓自动记录的来源标识，词表外原样展示
 const inspectionTypeLabel = (value: string): string => {

@@ -40,6 +40,57 @@ pub fn validate_inspection_result(raw: &str) -> Result<(), AppError> {
     }
 }
 
+/// 校验检验类型取值，越界值拒绝并报出允许值清单。
+///
+/// 四个码由质检记录弹窗写入，`outsourcing_receipt` 是委外回仓自动建记录的来源标识；
+/// 与 `ai_quality_predictions.inspection_type`（另一套 CHECK 词表）不可互抄。
+pub fn validate_inspection_type(raw: &str) -> Result<(), AppError> {
+    use crate::models::status::quality_inspection_type;
+
+    for allowed in quality_inspection_type::ALL {
+        if *allowed == raw {
+            return Ok(());
+        }
+    }
+    Err(AppError::validation(format!(
+        "检验类型 {raw} 不是合法取值，允许值：{}",
+        quality_inspection_type::ALL.join("/")
+    )))
+}
+
+/// 列表与导出共用的记录筛选条件构造：空串按「未选择」处理，两个枚举入参越界一律拒绝。
+fn build_record_list_params(
+    query: &RecordQuery,
+    page: i64,
+    page_size: i64,
+) -> Result<crate::services::quality_inspection_service::RecordListParams, AppError> {
+    use crate::services::quality_inspection_service::RecordListParams;
+
+    let normalized = |raw: &Option<String>| {
+        raw.as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+    };
+    let inspection_type = normalized(&query.inspection_type);
+    if let Some(value) = &inspection_type {
+        validate_inspection_type(value)?;
+    }
+    let inspection_result = normalized(&query.inspection_result);
+    if let Some(value) = &inspection_result {
+        validate_inspection_result(value)?;
+    }
+
+    Ok(RecordListParams {
+        inspection_type,
+        inspection_result,
+        product_id: query.product_id,
+        batch_no: normalized(&query.batch_no),
+        page,
+        page_size,
+    })
+}
+
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct QualityInspectionQuery {
@@ -49,12 +100,13 @@ pub struct QualityInspectionQuery {
     pub page_size: Option<i64>,
 }
 
-// V15 P0-S12 修复（Batch 475d）：派生 Clone，export_records 需要 clone 后覆盖分页参数用于全量导出
-#[allow(dead_code, reason = "反序列化输入字段")]
+// 记录列表与导出共用该查询参数；字段名与 sales 侧契约一致（batch_no 而非 batch_number），
+// 每个字段都真正参与筛选，因此不再需要 dead_code 豁免
 #[derive(Debug, Clone, Deserialize)]
 pub struct RecordQuery {
     pub product_id: Option<i32>,
-    pub batch_number: Option<String>,
+    pub batch_no: Option<String>,
+    pub inspection_type: Option<String>,
     pub inspection_result: Option<String>,
     pub page: Option<i64>,
     pub page_size: Option<i64>,
@@ -117,12 +169,7 @@ pub async fn list_records(
     let page = params.page.unwrap_or(1).clamp(1, 1000) as u64;
     let page_size = params.page_size.unwrap_or(10).clamp(1, 100) as u64;
     let service = QualityInspectionService::new(state.db.clone());
-    let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
-        inspection_type: params.inspection_result,
-        status: None,
-        page: page as i64,
-        page_size: page_size as i64,
-    };
+    let query_params = build_record_list_params(&params, page as i64, page_size as i64)?;
 
     let (records, total) = service.get_records_list(query_params).await?;
     info!("质量检验记录列表查询成功，共 {} 条记录", records.len());
@@ -406,7 +453,8 @@ fn record_records_export_audit(
 }
 
 /// GET /api/v1/erp/quality-inspection/records/export - 导出质量检验记录列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475d）：导出接入后端 - 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调
-/// service.get_records_list 取全量数据（page=1/page_size=10000） - 与 list_records handler 行为对齐：inspection_result 映射到 service 的 inspection_type 字段 （service 内部把 inspection_type 过滤到 InspectionResult 列，语义保持一致）
+/// service.get_records_list 取全量数据（page=1/page_size=10000） - 筛选条件与 list_records 走同一个
+/// `build_record_list_params`（同一套取值域校验），保证导出与列表口径一致
 pub async fn export_records(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -414,14 +462,9 @@ pub async fn export_records(
 ) -> Result<axum::response::Response, AppError> {
     let service = QualityInspectionService::new(state.db.clone());
 
-    // V15 P0-S12 修复（Batch 475d）：导出全量数据
-    // 与 list_records handler 保持一致：inspection_result 映射到 service 的 inspection_type 字段
-    let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
-        inspection_type: query.inspection_result,
-        status: None,
-        page: 1,
-        page_size: 10000,
-    };
+    // V15 P0-S12 修复（Batch 475d）：导出全量数据；筛选条件与 list_records 共用同一构造函数，
+    // 保证导出数据与列表口径一致（含取值域校验，越界同样拒绝）
+    let query_params = build_record_list_params(&query, 1, 10000)?;
 
     let (records, _total) = service.get_records_list(query_params).await?;
     let row_count = records.len();

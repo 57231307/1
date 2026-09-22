@@ -45,3 +45,35 @@ fn test_validate_rejects_other_spellings_and_lists_allowed_values() {
         );
     }
 }
+#[test]
+fn test_inspection_type_domain_excludes_the_prediction_table_vocabulary() {
+    use bingxi_backend::handlers::quality_inspection_handler::validate_inspection_type;
+    use bingxi_backend::models::status::quality_inspection_type;
+
+    assert_eq!(
+        quality_inspection_type::ALL,
+        &[
+            "incoming",
+            "process",
+            "finished",
+            "outgoing",
+            "outsourcing_receipt"
+        ]
+    );
+    for value in quality_inspection_type::ALL {
+        assert!(
+            validate_inspection_type(value).is_ok(),
+            "规范取值被拒绝：{value}"
+        );
+    }
+    // inprocess / final 属 ai_quality_predictions 那张表的 CHECK 词表，不得用于本列
+    for bad in ["inprocess", "final", "all", "进货检验", ""] {
+        let err = validate_inspection_type(bad);
+        assert!(err.is_err(), "别域写法被放行：{bad}");
+        let msg = err.unwrap_err().to_string();
+        assert!(
+            msg.contains("incoming") && msg.contains("outsourcing_receipt"),
+            "错误信息未列出合法值：{msg}"
+        );
+    }
+}
