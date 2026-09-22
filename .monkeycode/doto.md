@@ -362,12 +362,16 @@
       文案，配色返回类型收窄为 `SalesTagType` 以免退化成 string；`api/sales.ts` 的
       `SalesDelivery.status` 声明了该表根本不存在的 draft/delivered，已改为 pending/shipped/cancelled。
 
-- [ ] **物流轨迹事件的两处欠账**：登记轨迹时 `event_type` 是自由字符串，后端不判取值域
-      （`logistics_service.rs:101` 直接 Set），界面上四个选项（pickup/in_transit/arrived/delivered）
-      本轮已核实是稳定码，但绕过界面即可写入任意词，轨迹展示与按事件推进的判断都会失真，
-      要按本轮方法建常量 + 入口校验。另 `views/logistics/components/LogisticsDetail.vue` 有 12 处
-      模板内硬编码中文（表格列名、对话框标题、选项文案），英文界面下整块轨迹仍是中文——
-      i18n 门禁只校验键的引用与缺失，抓不到这种不走 i18n 的字面量，因此不显红。
+- [x] **物流轨迹事件的两处欠账**：`event_type` 此前是自由字符串、后端不判取值域
+      （`logistics_service.rs` 直接 Set），界面四个选项（pickup/in_transit/arrived/delivered）
+      虽核实为稳定码，但绕过界面即可写任意词，轨迹展示与按事件推进的判断都会失真——现已建
+      `logistics_event_type` 常量并在写入入口拒绝越界值（报出允许值），前端建
+      `constants/logistics-event-type.ts` 供下拉与列表共用，并以用例钉住「事件类型（小写码）与
+      运单主状态（大写码）两域不重叠」，防止把 IN_TRANSIT/DELIVERED 当成事件写进轨迹。
+      `LogisticsDetail.vue` 的轨迹表格与两个对话框里 12 处模板硬编码中文已改为
+      `logistics.detail.events.*` 文案键（i18n 门禁只校验键的引用与缺失，抓不到不走 i18n 的
+      字面量，所以英文界面下整块轨迹是中文这件事一直不显红）。
+      仍待处理：该页其余组件（filter/form/table/stat）是否还有同类字面量，未逐文件核完。
 
 - [x] **验布/委外/工资三域接口路径缺 `/production` 前缀（47 个请求恒 404）**：这三组资源注册在
       `routes/production.rs`，而该 router 挂在 `nest("/api/v1/erp/production")` 下，前端
