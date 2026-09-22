@@ -495,22 +495,22 @@ sudo journalctl -u bingxi-backend -f
 | 前端 E2E 端点遍历     | 266                   | Playwright            | 10 个 traversal spec：打印/导出/审批端点矩阵 + 42a-d 全模块遍历 + 角色矩阵（5 分片） |
 | 前端 E2E 真实链路测试 | 9                     | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录                           |
 | 前端 E2E 增强链路     | 14                    | Playwright（零 mock） | 3 个 enhanced spec：多角色协同 / RPA 取数 / 真实网络韧性（离线 + CDP 链路延迟）      |
-| 前端 E2E 其余业务域   | 124                   | Playwright            | testMatch 白名单内 8 个业务目录（采购/采购扩展/销售/销售扩展/质量/财务/CRM/BPM）+ 根级 3 spec |
-| **前端 E2E 合计**     | **1,208**             | —                     | 241 个 spec 文件（chromium project，CI 实际执行口径）                                |
+| 前端 E2E 其余业务域   | 117                   | Playwright（零 mock） | 7 个业务目录（采购/采购扩展/销售/质量/财务/CRM/BPM）+ 根级 3 spec，共 30 个文件；**自 iter30 起以 extras 4 分片进 CI**（此前只在 testMatch 白名单内、从未被任何分片执行） |
+| **前端 E2E 合计**     | **1,201**             | —                     | 238 个 spec 文件（chromium project，CI 实际执行口径）                                |
 | 性能基准              | 4                     | criterion             | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算                                    |
 
-> E2E 数量口径（2026-09-21 实测）：按 CI 的收集范围统计——`playwright.config.ts` 的 testMatch
-> 白名单目录 + 分片命令显式传入的目录，chromium project 计数；`firefox` project 另跑 126 个冒烟用例，
-> `webkit` 与 chromium 同集，故三 project 全量为 1,208 × 2 + 130 = 2,546。
-> 注意：在 Windows 上执行 `playwright test --list` 不带路径参数会多收 64 个用例
-> （白名单外目录被 testMatch 的根级分支 `^[^/]*\.spec\.ts$` 因反斜杠路径误匹配），
-> 实测全量 --list 为 1,268 个 / 259 个文件，与上表 CI 口径差 64 个 / 19 个文件
-> （ai / dashboard / fabric / inventory / mrp / production / quotations / system 八个目录），
-> 该差异仅为本地测量假象，不代表这些目录在 CI 中被执行；白名单外的 spec 目录待逐个甄别处置。
+> E2E 数量口径（2026-09-22 按 `playwright test --list --project=chromium <目录>` 逐组实测）：
+> flow 665/75 + smoke 130/119 + traversal 266/10 + enhanced 14/3 + 其余业务域 117/30 + Setup 向导 9/1
+> = **1,201 个用例 / 238 个文件**，六组全部进 CI（Setup 向导由独立 job 跑）。
+> `firefox` project 另跑 130 个冒烟用例；`webkit` 与 chromium 同集。
+> 注意：在 Windows 上不带路径参数执行 `playwright test --list` 会多收 71 个用例（全量 1,272）——
+> testMatch 的根级分支 `^[^/]*\.spec\.ts$` 在反斜杠路径下误匹配了 ai / dashboard / fabric /
+> inventory / mrp / production / quotations / system 八个目录。这些目录**不在 CI 执行口径内**，
+> 该差异是本地测量假象，不代表它们已被执行，也不代表它们已接入真实后端（未甄别前不并入矩阵）。
 
 ### E2E 测试覆盖
 
-CI 执行口径的 241 个 spec 文件（25 分片：flow 15 片 + smoke 5 片 + traversal 5 片，每分片按实际测试内容命名），核心覆盖：
+CI 执行口径的 238 个 spec 文件（34 分片：flow 20 片 + smoke 5 片 + traversal 5 片 + extras 4 片；Playwright `--shard` 按用例 hash 分配，分片与 spec 文件无对应关系，故 label 只标目录与片号），核心覆盖：
 
 | 类别           | spec 文件                                                                    | 覆盖内容                                                                                   |
 | -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -536,7 +536,7 @@ CI 执行口径的 241 个 spec 文件（25 分片：flow 15 片 + smoke 5 片 +
 cd backend
 cargo test --all
 
-# 前端 E2E 测试（CI 25 分片：flow --shard=x/15 + smoke /5 + traversal /5）
+# 前端 E2E 测试（CI 30 分片：flow --shard=x/20 + smoke --shard=x/5 + traversal --shard=x/5）
 cd frontend
 npm run test:e2e
 

@@ -52,6 +52,86 @@
 
 ## 未完成任务清单
 
+### Round 7-iter31（2026-09-22/23，CI 假绿清零：分片矩阵扩容 + 后端契约缺陷批量落地；**全部未经 CI 验证，推送冻结中**）
+
+**本轮最重要的判责结论（推翻上一轮的"CI 回归"假设）**：run `35722450943`(4629) 的 7 个 flow 分片 `exit: 124`
+**不是** 88f59a7c 那次 CI 复用改造引入的回归。逐 job 时长对照 4625 与 4629 两个 run：
+同样这 7 个分片在 4625 里也是 26~27 分钟（= 撞上 `timeout 1500`），只是当时
+`EXIT_CODE=$(tail -1 /tmp/shard-exit.txt)` 在包装进程被 timeout 杀掉后取到空串，
+`exit $EXIT_CODE` 退化成 `exit`（=0），于是**七次超时被记成七次通过**。
+我补的 `EXIT_CODE=${EXIT_CODE:-124}` 只是把假绿变成真红。
+证据链：分片 2 的 `reports/playwright-output.txt` 有 49,950 行、进度标到 `[41/42]`、
+`12:04:38` globalSetup 登录 200 OK、直到被杀输出持续增长 —— watchdog 的"停滞 180s"从未触发，
+即**没有任何挂起证据**，纯是 1500s 上限小于 flow 分片真实耗时。
+教训并入 MEMORY：判责"是不是我这次改动引入的"必须先看**上一轮同一 job 的时长与退出码链路**，
+不能只看红/绿；红绿本身可能是被一个 `exit` 语义 bug 造出来的。
+
+**CI 改动（`.github/workflows/ci-cd.yml`，均本地未验证）**：
+- flow 分片 15 → 20（`--shard=k/20`），单轮上限 1500s → 2400s；20 分片下单片用例数下降，
+  2400s 相对最慢分片仍有一倍以上余量。
+- 分片 label 纠错：原 label 按 spec 号段命名（如 `flow: 11~22-returns/inventory/crm`），
+  而 Playwright `--shard` 是按用例 hash 分配，**label 与实际跑的 spec 无关**——
+  该分片实测跑的是 05-system/06-collaboration/07-fabric-four-dim/08-business-modes。
+  按错 label 排查会把人引向完全无关的 spec。现 label 只标 `目录(片号/总片数)`。
+- flow 与 traversal 两份逐字相同的 30 行 watchdog 合并为一个（参数集中派生）；
+  traversal 的停滞告警原文写"kill 进程树后重跑"而代码根本不重跑，文案与行为对齐。
+- 新增 extras 4 分片：`e2e/enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm`
+  八个目录 + 根级 3 个 spec，共 **131 个用例 / 33 个文件**（`--list` 实测）此前
+  **从未被任何分片执行**：testMatch 早就把它们纳入（注释还写着"去 mock 后全部进主 CI testMatch"），
+  但分片命令只传 flow/smoke/traversal 三个目录，"纳入"从未变成"执行"。
+  这八个目录 grep 零 `page.route()`/`vi.mock()`，是真实后端链路，故直接进矩阵不再拖延甄别。
+- `package-release` 增加 `security-vulnerability-scan` 前置（用户批准的门禁加强）。
+  核查 `88f59a7c^` 的 needs 清单证实：扫描类 job **从来不在**发布前置里，
+  即高危依赖只会让 🛡️ job 自己红，拦不住 v* tag 产出 release 二进制。
+- eslint：`e2e/` 与 `tests/` 从全局 ignores 移除（此前测试代码完全不受 lint 约束，
+  `expect(x).toBe` 漏括号这类"看着在断言实则空转"一条都拦不住）；
+  spec 文件里 `@typescript-eslint/no-unused-expressions` 关掉 `allowShortCircuit`/`allowTernary`
+  （`ok && expect(x)` 在 ok 为假时一条断言都不执行却通过）。
+  实测当前命中 0，故该规则是回归门禁而非清账。**遗留待清**：解 ignore 后暴露 28 个既有 error
+  （`no-non-null-asserted-optional-chain` 18 / `prefer-const` 8 / `no-useless-catch` 2），
+  不同步清掉 `ci-lint-fe` 会直接红 —— 已登记，属本轮必须收口的未完项。
+
+**后端落地（子智能体 + 自审，均未编译验证）**：出库四维扣减与显式跨缸回退
+（`services/inventory_deduction.rs` 纯函数 + 8 个单测；`so/delivery_ops/{inventory,ship,cancel}.rs`、
+`inv/batch.rs` 接线；跨缸实扣缸号/批次如实写流水）、销售退货明细补齐 5 个 NOT NULL 列
+（`sales_return_service.rs`，算法照抄采购退货/销售出库同族口径）、调拨明细出参补回
+`color_no/dye_lot_no/batch_no` 三列、查询参数空串在 HTTP 边界归一为 None
+（`utils/query_params.rs` 中间件 + 字段级 serde 原语，根治 `WHERE col = ''` 恒 0 行这一类）、
+`products.barcode` 列与三列 OR 检索。
+**自审抓到的一处致命点**：`plan_deduction` 的排序器写成 `a_exact.cmp(&b_exact)`，
+Rust 里 `false < true`，于是"精确命中指定缸号"的行被排到**最后**——出库会先扣别的缸，
+与函数头声明和用户拍板的口径完全相反；同文件两个单测（`test_exact_hit_deducts_only_requested_dye_lot`、
+`test_partial_hit_triggers_deterministic_cross_dye_lot_fallback`）本来就会红，
+已改为 `b_exact.cmp(&a_exact)`。**这正是"注释与代码各说各话"的样本**：
+原作者在旁边写了 `// false < true：精确行排前`，推理本身是错的。
+
+**需要用户动手的一项（本 token 无权限核查）**：分片 label 纠错 + `ci-audit`/`ci-deps` 合并会改变
+GitHub 检查名（如 `🎭 E2E: flow: 05-system~10d-extended` → `🎭 E2E: flow: e2e/flow(2/20)`，
+`🛡️ 依赖审计`/`📦 依赖图记录` 已随合并消失）。若分支保护把逐个检查名列为 Required，
+真绿也仍会被挡在合并外：需要改成只把聚合 job `🧹 收尾清理` 设为必需，或按新名重新勾选。
+
+**新闭上一个缺陷类别：库层 DEFAULT 取值越出该列状态词表**。全量枚举 108 个带 DEFAULT 的
+状态/类型/级别 VARCHAR 列（不抽样），逐列按「词表常量 → 列上 CHECK → service 建单写值 → 前端筛选」
+定取值域，查出 **9 列默认值根本不在自己的域内**并在 v15 尾部统一 `ALTER ... SET DEFAULT` + 回填：
+`inventory_transfers/inventory_counts`(draft→pending)、`sales_delivery`(DRAFT→pending)、
+`sales_contracts/purchase_contracts`(DRAFT→小写 draft)、`bpm_task`(PENDING→pending)、
+`dye_batch`(pending→pending_schedule)、`sales_prices/purchase_prices`(ACTIVE→pending)。
+危害机制：service 层建单都显式写值，所以默认值平时看不见；一旦有绕过 service 的写入
+（导入/直连 SQL/以后新增的建单口），行就落进"界面筛不出、状态机不认"的死状态——
+比常量写错更隐蔽，因为它不报错，只是行从此消失。`bpm_task` 那条还实证了另一半后果：
+待办列表按小写 `pending` 过滤，大写默认值的任务**永远不会出现在任何人的待办里**。
+登记同类未完项：另有 ~15 列"DEFAULT 合理但词表无对应常量"（裸字面量散布在 service 里），
+以及 3 处需产品决策才能定回填值（purchase_orders 双状态列大小写矛盾、
+color_cards 的 active 是 legacy 还是域内值、production_orders 词表缺项）。
+
+**E2E 侧按取证清单修的根因（R1~R12，详见当轮判责记录）**：nest 前缀造成的假 404 被当成
+"权限未拒"、裸 `Vec` 出参被按 `items` 断言、状态词表用错（`draft` 根本不存在于
+transfer/count 词表）、报价 POST 缺 6 个必填字段（同一必填集还打死了 globalSetup 的前置数据）、
+Decimal `DECIMAL(18,4)` 出参被按 `"200"` 字面量比较、CSRF 一次性消费恢复链的第一跳 403
+被当成创建结果、断言方向反了（点"取消"后还在等 popconfirm 可见）等。
+**已登记的真产品缺陷（不是测试问题）**：`BusinessError` 出参 message 恒为脱敏文案、
+真文案只进 tracing（前端用户永远看不到具体原因）。
+
 ### Round 7-iter26（2026-09-21/22，收货单一路径、默认科目表与断言收紧）
 
 > run 35613422400（head `2bd256ac`）68 job：63 success / 5 failure——Rust 测试分区 7 单测、
@@ -1107,3 +1187,25 @@
       12 个 flow 分片 + 5 个角色矩阵 job 一起红（run `35676525961` 实证，`da227298` 已改到 v15 末尾）。
       自审清单加一条：新增涉及某表的 SQL 迁移前，先 `grep` 该表的 CREATE TABLE 落在哪个域，
       迁移必须排在该域之后；无法确定时优先复用该域的脚本尾部而不是新开编号。
+- [ ] **iter31 新增待用户决策（已在会话内提问，未决前不擅自选边）**：
+  1. 销售订单**明细编辑器**没有"色号"选择能力：后端 `sales_order_item` 已有
+     `color_no/gram_weight/...`（`models/sales_order_item.rs:33-45` + 表列齐），
+     但 `src/views/sales/` 下只有 `DeliveryDialog.vue`/`useOlv.ts` 出现 color_no，
+     建单明细表格没有该列 → E2E `21a-fabric-sales-order.spec.ts:194` 等
+     `.el-dialog:has-text("色号")` 3s 超时。是"补建单明细的色号选择"还是"该用例本就不该要求 UI 有这一列"？
+  2. 退货明细的 `color_no/dye_lot_no/batch_no` 仍落 `''`（DB 有 DEFAULT ''，不违反 NOT NULL），
+     于是**退货入库在四维口径下会命中空色号行**。是否要求从关联销售订单/出库明细回写这三列？
+  3. `BusinessError` 出参 message 恒为脱敏文案（`utils/error.rs:94-99,423-435`），
+     真文案只进 tracing → 前端用户与所有断言都看不到拒绝原因。保持脱敏（用例改断 code，本轮已这么做）
+     还是给"可安全外显的业务文案"开一个字段？
+  5. 调拨明细的「白坯布」判定口径在两条路径上不一致（本轮新发现，未擅自统一）：
+     `inv/inventory_move.rs:244-247`（建单/重建明细，3 处）把 **color_no 为空** 也当作白坯布放行，
+     而 `inv/batch.rs:1079`（向已有调拨单追加明细，iter31 新写）要求色号必填、
+     仅"色号含白/等于 white"才算白坯布。同一张调拨单因此可能"建单时允许空色号、
+     追加明细时被拒"。候选口径：(a) 白坯布应以物料/库存类型判定（grey vs dyed），
+     空色号一律拒绝——最贴用户拍板的四维口径，但需要 products/inventory 上有可靠的类型来源；
+     (b) 沿用"空色号即白坯布"的现状并把 batch 放宽对齐——兼容坯布经销流程，
+     但"空字符串 ≡ 白色"本身是把缺数据当成业务取值。未选定前两边都保持现状，仅登记。
+  4. 出库 `check_inventory` 的预留分支（`so/delivery_ops/inventory.rs:146-155`）不校验四维即
+     `continue`，而 `reduce_inventory_four_dim` 要求四维候选非空——预留行与四维行不一致时
+     运行期才报错。是否要求预留在建单期即按四维登记？

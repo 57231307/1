@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-09-23
+
+| PR | 一句话总结 |
+|----|-----------|
+| PR #941 | Round 7-iter31：判责 run `35722450943` 的 7 个 E2E 分片 `exit:124`——不是 CI 复用改造引入的回归，而是同一批分片在上一轮 run `35708473423` 里也撞满 `timeout 1500`（分片 2 被杀时已跑到 41/42 用例、49,950 行输出持续增长、无停滞证据），只因 `EXIT_CODE=$(tail -1 …)` 取到空串使 `exit $EXIT_CODE` 退化成 `exit`（=0）而被记成七次通过，`:-124` 补丁把假绿变真红；据此把 flow 分片 15 扩到 20、单轮上限提到 2400s，并纠正按 spec 号段命名却与 hash 分配完全无关的分片 label（曾把人引向无关 spec），flow 与 traversal 两份逐字相同的 watchdog 合并为一个、traversal 告警文案与"不重跑"的实际行为对齐 |
+| PR #941 | Round 7-iter31 续：把 131 个从未被执行的真实链路用例纳入矩阵——`e2e/{enhanced,purchase,sales,purchase-ext,quality,finance,crm,bpm}` 八目录加根级 3 spec（逐目录 `--list` 实测 131 用例/33 文件）早在 testMatch 里写着"去 mock 后全部进主 CI"，但分片命令只传 flow/smoke/traversal 三个目录，"纳入"从未变成"执行"；现以 extras 4 分片进矩阵（grep 零 `page.route()`/`vi.mock()` 证实其为真实后端链路，故不再以"待甄别"拖延），并把 `security-vulnerability-scan` 补成 `package-release` 的前置（核查改造前 needs 证实扫描 job 从不在发布链路上，高危依赖只红自己的 job 却拦不住 tag 出二进制） |
+| PR #941 | Round 7-iter31 续二：后端契约缺陷批量落地——出库改为 款号+色号+缸号+批次 四维扣减并保留显式跨缸回退（`inventory_deduction::plan_deduction` 纯函数 + 8 单测，实扣缸号/批次如实写流水；自审抓到排序器写 `a_exact.cmp(&b_exact)`，Rust 里 `false<true` 会把指定缸压到最后、出库先扣别的缸，与旁边注释"精确行排前"的推理一起错，已改为 `b_exact.cmp(&a_exact)`）、销售退货明细补齐 5 个 NOT NULL 列（算法照抄采购退货/销售出库同族口径，不静默取 0）、调拨明细出参补回入参已收且表里已存的 `color_no/dye_lot_no/batch_no` 三列、查询参数空串在 HTTP 边界归一为 None 以根治 `WHERE col=''` 恒 0 行（新增 `utils/query_params.rs` 中间件 + 字段级 serde 原语 + 三路径单测，替代 71 处可漂移的手写 `!is_empty()`）、`products.barcode` 列与三列 OR 检索 |
+| PR #941 | Round 7-iter31 续三：E2E 按 R1~R12 根因逐条改回真实契约——nest 前缀造成的假 404 被误判"权限未拒"（`/production/dye-recipes/export`）、裸 `Vec` 出参被按 `items` 断言（by-batch 成本分析与 budgets/execution-warnings）、状态词表用错（transfer/count 词表根本没有 `draft`）、报价 POST 缺 6 个必填字段（同一必填集还把 globalSetup 的前置数据打死，`|| 1` 魔法兜底一并删除）、`DECIMAL(18,4)` 出参被按 `"200"` 字面量比较、CSRF 一次性消费恢复链的第一跳 403 被当成创建结果、点"取消"后仍在等 popconfirm 可见等；登记 `BusinessError` 出参恒为脱敏文案（真文案只进 tracing）为用户永远看不到拒绝原因的真产品缺陷。测试代码同步入门禁：`e2e/` 与 `tests/` 移出 eslint ignores，spec 内 `no-unused-expressions` 关掉 `allowShortCircuit`/`allowTernary`（`ok && expect(x)` 在 ok 为假时零断言通过），解 ignore 暴露的 28 个既有 error 登记为本轮必收口未完项 |
+
+| PR #941 | Round 7-iter31 续四：闭上「库层 DEFAULT 越出状态词表」这一类隐蔽缺陷——全量枚举 108 个带 DEFAULT 的状态/类型列逐列定域（词表常量→列上 CHECK→service 建单写值→前端筛选），查出 9 列默认值不在自己的取值域内（inventory_transfers/inventory_counts 的 draft、sales_delivery 的 DRAFT、bpm_task 的 PENDING、dye_batch 的 pending、sales_prices/purchase_prices 的 ACTIVE 等），统一在 v15 尾部 ALTER SET DEFAULT 并回填越界行；这类缺陷平时看不见是因为 service 都显式写值，一旦有绕过 service 的写入就把行落进「界面筛不出、状态机不认」的死状态，bpm_task 更实证了另一半：待办按小写 pending 过滤，大写默认值的任务永不出现在任何待办里。同批把调拨「追加明细」路径丢追溯列（NotSet）与 unit_cost 一并改为如实写入并按四维校验（白坯布合法落 NULL），销售订单导出路径 `/purchases/` 单复数错致恒 404 修正，盘点第三态 in_review 从三处裸字面量收进词表常量 |
+
 ## 2026-09-22
 
 | PR | 一句话总结 |
