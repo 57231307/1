@@ -1265,7 +1265,7 @@ README 里"Windows 裸 --list 多收 71 个"的那 71 个正是这批 —— 之
 - **`business_mode_config` 是否允许自定义模式代码**：ERP 的产品/业务类型多为企业可配置主数据，
   封闭词表只在"代码要驱动流程分支"时才合理。当前 mode_code 被 `validate_mode_code` 封闭，
   导致该域 DELETE 端点无法做删除矩阵覆盖。倾向：允许自定义代码 + 内置 6 条标记为不可删的系统预置。
-- **522 个后端有实现前端零调用的端点**：多为整块未接线的新域（环保/职业健康/劳动合同/社保/
+- **617 条「后端有实现、前端该路径零调用」的端点**（2026-09-23 以 check-api-paths 重测，旧记 522 为早期口径）：多为整块未接线的新域（环保/职业健康/劳动合同/社保/
   期间调整/出口退税等）与 `*/print`、`*/export`。这类"能力闲置"在通用 ERP 里通常按
   版本/许可证模块开关管理；本项目没有模块开关概念。倾向：按域三选一并在台账留痕，
   既不做"以后会用到"的保留借口，也不批量删除未核实的外部依赖。
@@ -1643,3 +1643,225 @@ e2e/inventory/03-transfer、e2e/mrp/01-calculation、e2e/production/01-create|02
 2. **生产工单详情按钮文案**：列表内查看/编辑按钮受 `canAccessDetailPermission`（资源段须为 `*`）门控，
    e2e_admin 持 `*:*` 恒可见；若后续以非超管角色跑本套件，「查看/编辑/删除」会按后端同源判定隐藏 →
    届时用例角色与权限口径需同步确认（现按 admin 断言）。
+
+---
+
+## Round 260907-piece-domain-phase2（2026-09-23）：列表「前端发参数 / 后端 DTO 丢弃」类缺陷全量比对
+
+方法：还原 nest 前缀（routes/*.rs 内 path 不含 mod.rs 前缀）后，对前端列表页 setQueryParam
+实际下发的 query 参数名 → 对应 handler `Query<XxxQuery>` DTO 字段（含 rename/alias）逐一比对。
+
+### 已落地修复（后端 DTO 补字段 + service 真实过滤 + 守卫测试）
+- **production-orders 列表 `order_no`**（上表历史登记项，本轮已修，不再是需决策）：
+  后端 `ListProductionOrdersQuery` / `ProductionOrderQuery` 补 order_no，
+  `crud.rs::list` 对 `production_order.order_no` 列做 `safe_like_pattern` 转义的 like 过滤（含 trim + 64 长度上限）；
+  列表与导出两处透传。e2e production/01-create「草稿工单可编辑」恢复按订单编号真实筛选并断言结果不含干扰单号。
+- **cost-collections 列表 `collection_no` + `status`**：后端 `CostCollectionQuery` 补两字段，
+  `cost_collection_service.rs::get_list` 对 `CollectionNo` 列 like（转义）、对 `Status` 列 eq；list + export 两处透传。
+- 守卫：backend/tests/list_query_filter_drift_test.rs（源码文本扫描，锁死「DTO 有字段 + service 对该列真加 filter」，防补字段忘 filter 的二次漂移）。
+
+### 需用户/产品决策（后端无对应单列、或需 join/派生、或语义待定，未自行发明实现）
+1. **dye-batches 列表（/production/dye-batches）**：前端下发 `product_id` / `keyword` / `date_range`，
+   但 dye_batch 表无 product_id 列（须经 greige_fabric join 派生）、DyeBatchListQuery 无 keyword（模糊匹配哪些列待定）、
+   无 date_range（对应 started_at/completed_at/created_at 哪一列待定）。→ 需决策筛选口径与 join 方案后再实现。
+2. **ar-reconciliation 列表**：前端下发 `customer_name`，后端 ListReconciliationsQuery 只有 customer_id；
+   customer_name 须 join customers 表（可参照 sales 订单左连接 + safe_like_pattern 写法）。→ 需确认是否提供按客户名筛选，
+   决定后再补 join。
+3. **crm leads 列表**：前端 setQueryParam 下发 `lead_source` / `owner_id` / `priority`，
+   后端 LeadQuery 字段名为 `source`（→ lead_source 命名不一致被丢弃）且无 owner_id/priority。
+   本轮未深入 crm service 全量追踪。→ 需决策：统一命名（后端加 alias=lead_source）+ 是否补 owner/priority 过滤。
+
+---
+
+## 2026-09-23 染色配方（dye_recipe）状态词表中英分裂 + approve 缺 body 收口（已修）
+
+### 状态值映射表（中文旧值 → 英文新值 → i18n key）
+- 草稿 → draft → fabric.recipeTab.statusDraft
+- 待审核 → pending_approval → fabric.recipeTab.statusPendingApproval（新增）
+- 已审核 → approved → fabric.recipeTab.statusApproved
+- 已停用 → disabled → fabric.recipeTab.statusDisabled（新增；移除无对应真实值的 statusObsolete）
+
+### dye_recipe.status 写入/比较点清单（backend/src/services/dye_recipe_service.rs）
+- 写入点：create 默认 DRAFT(:208/:283)、submit 写 PENDING_APPROVAL(:158)、approve 写 APPROVED(:351)、create_new_version 写 DRAFT(:388)。
+- 比较点：validate_status_transition(:106-118)、validate_can_delete(:130)、validate_can_approve(:138)、submit 前置校验(:150)、validate_can_create_version(:170)、get_recipes_by_color 过滤 APPROVED(:414)。
+- handler（dye_recipe_handler.rs）列表/导出按 req.status 透传过滤，无裸字面量。
+- 全部读写/比较均引 models::status::dye_recipe（recipe_status::）常量；缺陷根因是常量「值」为中文，改值即全线贯通。
+- 前端取值点：RecipeTab.vue 按钮条件(:63 draft/:72 approved)+标签(:45)、getStatusLabel map；api DyeRecipe.status 联合类型；RecipeFormDialogTab.vue(:107 obsolete 类型)；兄弟视图 dye-recipe/index.vue（详见订正）。
+
+### DB 现状与迁移
+- CREATE TABLE dye_recipe：backend/migration/src/domain/system/m0003_add_dye_tables.rs:27（不含 status 列）。
+- status 列补列：backend/migration/src/domain/system/mod.rs:128（VARCHAR(255)，修复前无 DEFAULT、无 CHECK）。
+- 迁移放在 **v15 域尾**：依据 lib.rs 执行序 system→business→sales_crm→production→finance→**v15**→rls_dept；dye_recipe 表由 system 域创建，早于 v15，故 v15 尾 ALTER/UPDATE 引用安全。SQL 顺序 DROP CONSTRAINT → 回填(中文→英文) → SET DEFAULT 'draft' → ADD CHECK chk_dye_recipe_status → COMMENT；旧库无该 CHECK、新库无历史行，两头均不触发 23514。
+
+### approve 身份来源
+- 前端从 useUserStore().userInfo?.id（@/store/user，登录时 /auth/me 注入）取真实 ID 作 approved_by；取不到显式 ElMessage.error 并 return，不用查询串/硬编码/默认值伪造。后端 approve_recipe(:129) 仍要求 {approved_by:i32}（结构体定义在 :46-48）。E2E applyAuthMocks 下 /auth/me 返回 id=1，点击审批可 200。
+
+### 守卫测试 backend/tests/dye_recipe_status_word_list_test.rs（不依赖活库）
+1. 词表常量值逐项 == 解析 v15 迁移 `ADD CONSTRAINT "chk_dye_recipe_status"` IN(...) 取值集（锚定 ADD 定义处，避开注释里对约束名的二次提及），并锁 4 值语义。
+2. 词表常量全小写纯 ASCII。
+3. quality_dyeing.rs 无中文状态字面量；service/handler/model 无中文且无英文裸状态字面量（一律引常量），正向断言 service 引用 recipe_status::{DRAFT,PENDING_APPROVAL,APPROVED,DISABLED}。
+- 防自败：英文裸字面量检查只作用于 dye_recipe 专属文件——quality_dyeing.rs 同时定义其它表的 "draft"/"approved"，故该文件只查中文；中文按「双引号+词+双引号」精确匹配，避开 "已审核的配方不允许删除" 等提示语子串。
+
+### 门禁退出码（全部 0）
+cargo fmt --all --check=0；eslint=0；prettier --check=0；playwright --list --project=chromium e2e/fabric/=0；check-i18n=0；check-contract=0。（未本地 cargo build/test，遵守 IR。）
+
+### 对给定行号/事实的订正与遗留
+- 常量定义精确在 quality_dyeing.rs:36-48（非仅 :36）；ApproveRecipeRequest 定义在 handler :46-48，approve_recipe 在 :129。RecipeTab 审批按钮 :63 准确。
+- dye_recipe.status 修复前**既无 DEFAULT 也无 CHECK**（任务假设“若该列有 CHECK”不成立）。
+- 新发现同类缺陷：兄弟视图 frontend/src/views/dye-recipe/index.vue 也调用 approveDyeRecipe(:487) 且模板按 中文/'DRAFT'/'PENDING' 比较状态(:147/:155/:163)。为保构建已修其 approve 调用签名（传 approved_by），但该视图内其余中文/大写状态比较仍不匹配新词表（渲染分支同样失效），超出本次范围未改，建议后续跟进该独立配方页。
+
+---
+
+## 2026-09-23 坯布（greige）前端/后端契约修复 — 列表列 + 入库/出库对话框
+
+### 后端真实字段清单（唯一真相源）
+- 列表端点 GET /production/greige-fabrics → 直接序列化 `greige_fabric::Model`（SeaORM 原样 snake_case），
+  见 backend/src/handlers/greige_fabric_handler.rs:131（返回 `PaginatedResponse<greige_fabric::Model>`）
+  与 backend/src/models/greige_fabric.rs:9-70。真实字段含：id, fabric_no, fabric_name, product_id,
+  supplier_id, composition, yarn_count, density, width, gram_weight, structure, production_date,
+  batch_no, quantity_meters, quantity_kg, warehouse_id, status, is_deleted, created_at, updated_at,
+  fabric_type, color_code, width_cm, weight_kg, length_m, location, quality_grade, purchase_date,
+  remarks, created_by, purchase_order_id, purchase_receipt_id, safety_stock, reorder_point,
+  max_stock_point, reorder_quantity, dye_lot_no, color_no。
+  → 无 fabric_code、无 supplier_name、无 unit、无 min_order_quantity、无 description、无单列 quantity。
+  供应商只有 supplier_id（无名称），供应商名称属「需后端补字段」。
+- 入库 POST /production/greige-fabrics/{id}/stock-in → `StockInRequest`
+  （greige_fabric_handler.rs:108-119）：warehouse_id:i32(必填)、weight_kg:f64(必填)、length_m:f64(必填)、
+  location?/quality_grade?/remarks?/purchase_receipt_id?（可选）。
+- 出库 POST /production/greige-fabrics/{id}/stock-out → `StockOutRequest`
+  （greige_fabric_handler.rs:121-127）：weight_kg?、length_m?、remarks?（均可选，业务上至少填一项）。
+
+### 前端改动
+- api/greige-fabric.ts：新增 GreigeStockInPayload / GreigeStockOutPayload（逐字段对齐后端）；
+  stockIn/stockOut 入参类型由 {quantity,remark?} 改为上述 payload。GreigeFabric 补齐后端真实字段
+  （fabric_no/weight_kg/length_m/gram_weight/width_cm/quantity_kg/quantity_meters/... 为可选），
+  并保留旧遗留字段（fabric_code/supplier_name/weight/unit/quantity/min_order_quantity/description）
+  仅作 out-of-scope 旧页 /greige-fabrics 的 vue-tsc 过渡，/fabric 页面一律不引用（见下）。
+- GreigeTab.vue 列表列 prop 全改为后端真实字段：fabric_code→fabric_no；weight→gram_weight（克重）；
+  quantity→拆为 weight_kg（库存重量）+ length_m（库存长度）两列；移除 supplier_name 列（后端不返回）；
+  status 直显后端原值（在库/已出库…），不再套 active/inactive 假枚举、不做 ?? '-' 兜底。
+- index.vue 入库/出库：由 ElMessageBox.prompt 单值改为真实 el-dialog 表单，入库采集
+  仓库(el-select，无默认值)+重量kg+长度m 全部必填；出库重量/长度至少填一项；提交体
+  {warehouse_id,weight_kg,length_m} / {weight_kg?,length_m?} 与后端逐字段对应；成功后 toast
+  「入库成功」/「出库成功」（fabric.index.messageStockInSuccess/OutSuccess），并刷新列表。
+
+### quantity 最终结论
+- 数据库无单列 `quantity`。greige_fabric 有 quantity_kg 与 quantity_meters 两列
+  （migration system/mod.rs:144-145，均为 DECIMAL(12,2)）。service stock_in(:393-394) 里
+  quantity_kg 随入库 weight_kg 累加、quantity_meters 随 length_m 累加；stock_out(:462,477) 对应扣减。
+  即 quantity_kg=累计入库重量(kg)、quantity_meters=累计入库米数(m)，与「当前库存」weight_kg/length_m 语义不同。
+  前端未做任何 quantity→weight 换算猜测，直接绑真实字段。
+
+### 需后端补字段清单
+- 列表响应补 supplier_name（或前端改为按 supplier_id 反查，但列表端点当前不带名称）→ 恢复供应商列。
+- （建议）白胚判定以 color_no 为空为准，后端可加派生标记；当前无 fabric_code 别名列，前端已改 fabric_no。
+
+### 门禁退出码（全部 0）
+eslint=0；prettier --write/--check=0；npx playwright test --list --project=chromium e2e/fabric/=0；
+check-contract=0；check-i18n=0。后端未改动，故未跑 cargo fmt。
+
+### 对给定事实的订正
+- 「后端返回 fabric_no（等）」正确；但 supplier_name/quantity 均非“字段名不准”，而是后端**根本没有**
+  （供应商仅有 supplier_id；库存无单列 quantity，实为 weight_kg/length_m 与 quantity_kg/quantity_meters）。
+- stock_in 必填 warehouse_id/weight_kg/length_m（三个都必填）；stock_out 三字段后端皆 Optional（非“需要
+  weight_kg/length_m 必填”）。
+- E2E 出库成功前须先造库存：seedGreige 现支持传 weight_kg/length_m，否则出库会因“大于现有重量”被业务拒。
+- 越界说明：GreigeFabric 遗留字段未清除，因独立路由页 views/greige-fabrics/index.vue（本次禁改）仍引用，
+  清除会令其 vue-tsc 失败；该页存在完全相同的两处缺陷，建议后续单独修复并同步清理遗留字段。
+
+---
+
+## 2026-09-23 flow 假绿收口（条件 skip + 双形状归一化）
+
+### 类一：条件 skip（已全部删除，改判红/判绿链）
+- 45-deletion-guards.spec.ts:106 → 端点实为 DELETE /subjects/{id}（旧写 /finance/subjects 未在 finance() 路由树注册恒 404，旧断言永远绿）→ 改为 POST /subjects 造父+子、DELETE 父必 400+（service delete "不能删除有子科目的科目"）、对照组 DELETE 子应 200；无 skip。
+- 52-boundary-chemical-notify.spec.ts:110 → 端点 POST /notifications/announcement（analytics.rs）。后端真相：create_announcement→send_system_announcement 传 dedup_key:None，notification_service.rs:107-114 的 5 分钟去重仅作用于带 dedup_key 的通知，公告从不走该路径。旧"重复去重为 1 条"前提错误且首发送失败即 skip。→ 改为 GET /auth/me 取本人 id、首次发送 apiCall 判 200 且 delivered_count==1（失败即抛真实响应），二次发送同样 200（公告不走去重为既定契约）；无 skip。
+- 复查 flow 目录其余 test.skip( 命中全部为注释（32/36/40/41b，描述既往已修批），无残留条件 skip。
+
+### 类二：双形状归一化（改单一形状直读+内容断言，去 ?? [] 与 as 宽容）
+- 01-p2p.spec.ts:403 /ap/invoices → ap_invoice_handler.rs:40-69 返回 ApiResponse<PaginatedResponse>（utils/response.rs:34 {items,total,page,page_size}）→ 直读 invoices.items+Array.isArray 判红。非契约缺陷。
+- 04-finance.spec.ts:25/43 /subjects → account_subject_handler.rs:71-93 返回 ApiResponse<Vec<Model>>（裸数组）→ 直读 subjects 数组+形状判红。非契约缺陷。
+- 06-collaboration.spec.ts:186 /purchase/orders → purchase_order_handler.rs:26-30 返回 ApiResponse<PaginatedResponse> → 直读 payload.items。非契约缺陷。
+- 09-permissions.spec.ts:128 /data-permissions → data_permission_handler.rs:271-283 返回 ApiResponse<Vec> → 裸数组直读+逐行 id/resource_type。
+- 09-permissions.spec.ts:139 /field-permissions → field_permission_handler.rs:76-80 返回 ApiResponse<Vec> → 裸数组直读+逐行 id/field_name。
+- 09-permissions.spec.ts:149 /customer-field-permissions → 该路径未在路由树注册（404，契约缺陷：用例用错端点）→ 真实端点 GET /crm/customers/field-permissions/{role_id}（crm.rs:522→crm_handler.rs:900-910，service 返回 Vec，按 role_id 过滤裸数组），先取 /roles 得 role_id 再直读并断言每行 role_id 一致。
+
+### 顺带核查（smoke/traversal）
+- smoke/logistics、material-shortage、quality-records 与 traversal/37b、39c、permission-model 的 Array.isArray( 均为单键严格判红（hasOwnProperty+Array.isArray+逐行内容 / !Array.isArray 即 throw），非双形状、不属本轮，保持不动。
+
+### 门禁退出码（全部 0）
+eslint e2e/{flow,smoke,traversal}=0（仅既往 unused-import/console baseline 警告，非 error）；prettier --write/--check（本次 7 文件）=0；playwright --list --project=chromium e2e/flow/=0（670 tests/75 files，与磁盘 75 spec 一致，无 SyntaxError）；全量 --list=1269 tests/259 files（未增减）。
+
+### 需后端修复
+- 无（本轮全部为取值侧/用例侧修正）。/customer-field-permissions 属用例用错路径，已按后端真相改到 /crm/customers/field-permissions/{role_id}，后端无需改。
+
+### 同类残留（未在本轮"已知位点"，建议下批处理，均属 flow 内）
+双形状 Array.isArray(x)?x:x.items??[] 尚见 02-o2c:341、30-persistence:126/386/637、31-deletion:351/383、31b:50/88/777、33b-role-blacklist:47 及共享 helpers.ts:148-155（/product-categories）、ui-helpers.ts:954；改后者会波及其余用例，本轮按范围未动。
+### 未决项的行业参照（联网核对，2026-09-23，供拍板用；未据此擅自改代码）
+
+**1) 超额收货容差是否可配置**
+
+- SAP MM：过量交货容差（overdelivery tolerance）在**采购订单行**与**物料主数据**两级维护，
+  另有"无限过量交货"标志；超出容差是**报错阻断**，容差内则放行并记差异。
+- Dynamics 365 SCM 到岸成本模块给出更完整的形状：容差策略按
+  **供应商（单条 / 组 / 所有）× 物料（单条 / 组 / 所有）** 建矩阵，每条含
+  **金额容差（整单）+ 百分比容差（单行）** 两级；判定时先看整单金额是否在容差内，
+  再看单行百分比；**超差不直接拒绝也不静默放行，而是生成"溢短交易记录"**，
+  并要求先处理（移动日记 或 补一张采购订单）才能关闭该行。
+- 纺织/外贸惯例：**溢短装条款（More or Less Clause）** 是面料/坯布购销合同的常规条款，
+  常见 ±3%~5% 按行约定；坯布同时按 **重量(kg) 与 米数(m)** 双计量交接。
+  本仓后端 `greige_fabric` 正是 `weight_kg` + `length_m`（另有累计量 `quantity_kg` /
+  `quantity_meters`），与行业口径一致。
+
+倾向建议（需拍板）：保持"产品与订单不符 → 整单拒绝"不变（用户已定）；
+把**数量**差异改为「按供应商组 + 物料组建容差矩阵，默认 0%（等同现行为，向后兼容），
+超差生成溢短记录并要求处理后才关单」，而不是简单的"允许/不允许"开关。
+代价：新增 2 张配置表 + 1 张溢短记录表 + 收货单关断校验，属功能开发而非缺陷修复。
+
+**2) 617 条「后端存在、前端该路径零调用」的端点如何处置**
+
+- 通行做法不是"直接删"：Google Ads API 等公开契约采用**弃用 → 公告停用日期 → 到期下线**
+  的带时限流程；REST 指南普遍要求先用 `Deprecation`/`Sunset` 响应头与文档标注，
+  观测一段时间无流量再物理移除。
+- 本仓的现实约束：这 617 条是"前端无调用"（check-api-paths 口径：按 path+method 计数，非"接口一定没人用"），**不等于外部集成/历史脚本无调用**
+  （ERP 常有对账、报表、小程序、他系统直连），而当前无运行时流量数据可用。
+
+倾向建议（需拍板）：分两步。第一步只给这些路由挂 `Deprecation`/`Sunset` 头 +
+路由级访问计数（现有 metrics 已有 `/metrics` 基础设施），并保留 260 条以内白名单说明；
+第二步在拿到真实零流量证据后再删。直接批量删除的风险在于我们无法证明"零调用"。
+
+**3) 是否给 ci-test-rust 加 migrate 以解锁 83 个 `#[ignore]` 测试**
+
+- 这类测试长期挂 `#[ignore]` 等价于"从未被执行"，与本轮清 E2E 假绿是同一问题在
+  Rust 侧的翻版；业界的集成测试基线做法是让 CI 起一个**已迁移的空库**（本仓
+  `ci-test-rust` 已有 postgres service + `DATABASE_URL`，只差执行 migrate）。
+当前 `#[ignore]` 计 84 处。但预计会一次性暴露大批从未跑过的失败，且这些测试之间若有共享数据/顺序依赖
+  （`setup_test_db` 的实现需复核）可能不稳定。
+
+倾向建议（需拍板）：加 migrate，但**先把结果作为非阻断 job 观察一轮**（只上报
+新增失败清单），再决定并入阻断门禁；避免与本次 CI 全绿目标互相污染。
+
+参考来源：
+- SAP MM 采购/收货/发票容差配置：https://www.yesdotnet.com/archive/sap/829526599622725.html
+- Dynamics 365 SCM 超过/低于交易（容差矩阵、金额+百分比两级、溢短记录与关单约束）：
+  https://learn.microsoft.com/zh-cn/dynamics365/supply-chain/landed-cost/over-under-transactions
+- 溢短装条款（MBA智库）：https://wiki.mbalib.com/wiki/More_or_Less_Clause
+- Google Ads API 弃用与停用日期机制：https://developers.google.cn/google-ads/api/docs/sunset-dates
+- REST API 弃用实践（Deprecation/Sunset 头 + 观察期）：https://zuplo.com/learning-center/deprecating-rest-apis
+
+### 本轮新增未决项（2026-09-23，E2E/契约收口过程中挖出）
+
+- [ ] 坯布列表要显示**供应商名称**：后端 `greige_fabric::Model` 只有 `supplier_id`。
+      要么列表响应 join 出 `supplier_name`，要么该列长期缺席（本轮已按"不编造"移除）。
+- [ ] 三组筛选需后端 join 或加列才能真实生效，未擅自实现：
+      dye-batch 的 `product_id/keyword/date_range`、ar-reconciliation 的 `customer_name`、
+      CRM 线索的 `lead_source/owner_id/priority`（详见 check-api-paths 报告与生产工单
+      order_no 的已修样例：DTO 补字段 + service 真实 filter + 守卫测试）。
+- [ ] 旧坯布页 `/greige-fabrics` 与新页 `views/fabric` 并存且映射同样的错字段：
+      合并成一套，还是两套并行各自修？
+- [ ] 列表信封键名不统一：AR 收款/核销用手搓 `{list}`，AP 同类与绝大多数用
+      `PaginatedResponse{items}`；`get_budget_versions` 直接返回裸 `Json<Value>{code,data}`
+      缺 `message`，非标准 `ApiResponse`。是否统一为 PaginatedResponse？
+- [ ] `useTableApi` 会依次探测 `list / items / data / results`（composables/useTableApi.ts:88-96），
+      这层"通用探测"把形状漂移吸收了：走它的页面即使 api 类型写错也不报错。
+      是否收紧为"必须显式传 listKey"（本轮已在主数据/CRM 批次为负责范围内端点显式钉 listKey）。
