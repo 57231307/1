@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw } from './helpers';
-import { uiDeleteRow, uiToggleStatus, findTableRow } from './ui-helpers';
+import { loginViaUI, apiCall, apiCallRaw, tryCleanup } from './helpers';
+import { uiDeleteRow, findTableRow } from './ui-helpers';
 
 /**
  * P0 级删除与停用验证（2026-09-10 用户指令）
@@ -19,6 +19,14 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
+
+// 用例自建对象的清理闭环（参考 08-business-modes.spec.ts 的 CLEANUP 模式）：
+// 停用类用例创建客户/产品后不再污染库，用例结束按 id 删除。
+const CLEANUP: Array<{ path: string; label: string }> = [];
+test.afterEach(async ({ page }) => {
+  for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
+  CLEANUP.length = 0;
+});
 
 test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
   test.beforeEach(async ({ page }) => {
@@ -183,39 +191,56 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     expect(rowCount, '[P0-停用-客户] 客户列表为空，停用链路无法验证').toBeGreaterThan(0);
     const targetRow = await findTableRow(page, customerName);
     expect(targetRow, `[P0-停用-客户] 列表未找到自建客户 ${customerName}`).toBeTruthy();
+    CLEANUP.push({
+      path: `/crm/customers/${created.data?.id}`,
+      label: `[P0-停用-客户] ${customerName}`,
+    });
 
-    // 只在本用例自建客户行上找状态开关（原实现扫前 5 行的任意对象）
-    let toggled = false;
-    const switchEl = targetRow!.locator('.el-switch').first();
-    const statusBtn = targetRow!
-      .locator('button:has-text("停用"), button:has-text("启用"), button:has-text("禁用")')
+    // 客户列表页行内不渲染状态开关，也无行级停用按钮：status 列是 el-tag
+    // （customer/index.vue:157），操作列仅 编辑/详情/删除（:173-191）。停用真实入口在
+    // 【编辑弹窗】的「停用」radio（与 31c 同源）。原实现按行内开关/按钮可见性 if/if-else 判定，
+    // 控件不存在时 toggled=false 且仅 expect(typeof toggled)→ 零断言通过（假绿）。
+    // 现走真实入口并断言列表状态标签文本变更；入口缺失即硬失败。
+    const beforeTag = await targetRow!.locator('.el-tag').first().textContent();
+    const editBtn = targetRow!.locator('button:has-text("编辑")').first();
+    expect(
+      await editBtn.isVisible({ timeout: 3000 }),
+      `[P0-停用-客户] 自建客户 ${customerName} 行内既无状态开关/停用按钮，也无「编辑」入口，停用链路无法发起`
+    ).toBe(true);
+    await editBtn.click();
+    const dialog = page.locator('.el-dialog:visible').first();
+    const dialogOpened = await dialog
+      .waitFor({ state: 'visible', timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+    expect(dialogOpened, '[P0-停用-客户] 点击编辑未打开编辑弹窗').toBe(true);
+    const inactiveRadio = dialog
+      .locator('.el-radio:has-text("停用"), .el-radio-button:has-text("停用")')
       .first();
-    if (await switchEl.isVisible({ timeout: 2000 })) {
-      const beforeState = await switchEl.getAttribute('class');
-      await switchEl.click();
-      await page.waitForTimeout(2000);
-      const afterState = await switchEl.getAttribute('class');
-      console.log(
-        `[P0-停用-客户] ${customerName} 状态切换：${beforeState?.includes('is-checked') ? '启用→停用' : '停用→启用'}（class: ${beforeState?.slice(0, 30)} → ${afterState?.slice(0, 30)}）`
-      );
-      toggled = true;
-    } else if (await statusBtn.isVisible({ timeout: 2000 })) {
-      const beforeText = await statusBtn.textContent();
-      await statusBtn.click();
-      await page.waitForTimeout(2000);
-      console.log(`[P0-停用-客户] ${customerName} 状态按钮：${beforeText} → 已点击`);
-      toggled = true;
-    }
-    if (!toggled) {
-      test.info().annotations.push({
-        type: 'skipped-step',
-        description: `[P0-停用-客户] 自建客户 ${customerName} 行内无状态开关——客户列表页不提供行级停用入口（编辑弹窗停用由 31c 停用矩阵覆盖）`,
-      });
-      console.error(
-        `[P0-停用-客户] ❌ 自建客户 ${customerName} 行内未找到状态开关，行级停用不可用`
-      );
-    }
-    expect(typeof toggled).toBe('boolean');
+    const radioPresent = await inactiveRadio
+      .waitFor({ state: 'visible', timeout: 4000 })
+      .then(() => true)
+      .catch(() => false);
+    expect(
+      radioPresent,
+      '[P0-停用-客户] 编辑弹窗内未渲染「停用」状态控件（前端渲染条件若与后端状态词表不一致会命中此处）'
+    ).toBe(true);
+    await inactiveRadio.click();
+    await dialog
+      .getByRole('button', { name: /确定|确认|保存/ })
+      .last()
+      .click();
+    await page.waitForTimeout(2000);
+    await page.reload();
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    const rowAfter = await findTableRow(page, customerName);
+    expect(rowAfter, `[P0-停用-客户] 停用后列表未找到自建客户 ${customerName}`).toBeTruthy();
+    const afterTag = await rowAfter!.locator('.el-tag').first().textContent();
+    console.log(`[P0-停用-客户] ${customerName} 状态标签：${beforeTag} → ${afterTag}`);
+    expect(
+      afterTag !== beforeTag,
+      `[P0-停用-客户] UI 停用后列表状态标签应变更，停用前="${beforeTag}" 停用后="${afterTag}"`
+    ).toBe(true);
   });
 
   // ===== 6. 产品停用/启用 =====
@@ -244,35 +269,51 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     expect(rowCount, '[P0-停用-产品] 产品列表为空，停用链路无法验证').toBeGreaterThan(0);
     const targetRow = await findTableRow(page, productName);
     expect(targetRow, `[P0-停用-产品] 列表未找到自建产品 ${productName}`).toBeTruthy();
+    CLEANUP.push({ path: `/products/${created.data?.id}`, label: `[P0-停用-产品] ${productName}` });
 
-    let toggled = false;
-    const switchEl = targetRow!.locator('.el-switch').first();
-    const statusBtn = targetRow!
-      .locator('button:has-text("停用"), button:has-text("启用")')
-      .first();
-    if (await switchEl.isVisible({ timeout: 2000 })) {
-      const beforeState = await switchEl.getAttribute('class');
-      await switchEl.click();
-      await page.waitForTimeout(2000);
-      const afterState = await switchEl.getAttribute('class');
-      console.log(
-        `[P0-停用-产品] ${productName} 开关切换：${beforeState?.slice(0, 30)} → ${afterState?.slice(0, 30)}`
-      );
-      toggled = true;
-    } else if (await statusBtn.isVisible({ timeout: 2000 })) {
-      await statusBtn.click();
-      await page.waitForTimeout(2000);
-      console.log(`[P0-停用-产品] ${productName} 状态按钮已点击`);
-      toggled = true;
-    }
-    if (!toggled) {
-      test.info().annotations.push({
-        type: 'skipped-step',
-        description: `[P0-停用-产品] 自建产品 ${productName} 行内无状态开关——产品列表页不提供行级停用入口（编辑弹窗停用由 31c 停用矩阵覆盖）`,
-      });
-      console.error(`[P0-停用-产品] ❌ 自建产品 ${productName} 行内未找到状态开关，行级停用不可用`);
-    }
-    expect(typeof toggled).toBe('boolean');
+    // 产品列表页行内同样不渲染状态开关/停用按钮：is_active 列是 el-tag
+    // （ProductListTab.vue:194-200），操作列仅 编辑等。停用真实入口在【编辑弹窗】的
+    // is_active switch（与 31c 同源）。原实现按行内开关/按钮可见性 if/if-else 判定，控件不
+    // 存在时 toggled=false 且仅 expect(typeof toggled)→ 零断言通过（假绿）。现走真实入口并断言
+    // 列表状态标签变更；入口缺失即硬失败。
+    const beforeTag = await targetRow!.locator('.el-tag').first().textContent();
+    const editBtn = targetRow!.locator('button:has-text("编辑")').first();
+    expect(
+      await editBtn.isVisible({ timeout: 3000 }),
+      `[P0-停用-产品] 自建产品 ${productName} 行内既无状态开关/停用按钮，也无「编辑」入口，停用链路无法发起`
+    ).toBe(true);
+    await editBtn.click();
+    const dialog = page.locator('.el-dialog:visible').first();
+    const dialogOpened = await dialog
+      .waitFor({ state: 'visible', timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+    expect(dialogOpened, '[P0-停用-产品] 点击编辑未打开编辑弹窗').toBe(true);
+    const activeSwitch = dialog.locator('.el-switch').first();
+    const switchPresent = await activeSwitch
+      .waitFor({ state: 'visible', timeout: 4000 })
+      .then(() => true)
+      .catch(() => false);
+    expect(
+      switchPresent,
+      '[P0-停用-产品] 编辑弹窗内未渲染 is_active 开关（前端渲染条件若与后端状态词表不一致会命中此处）'
+    ).toBe(true);
+    await activeSwitch.click();
+    await dialog
+      .getByRole('button', { name: /确定|确认|保存/ })
+      .last()
+      .click();
+    await page.waitForTimeout(2000);
+    await page.reload();
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    const rowAfter = await findTableRow(page, productName);
+    expect(rowAfter, `[P0-停用-产品] 停用后列表未找到自建产品 ${productName}`).toBeTruthy();
+    const afterTag = await rowAfter!.locator('.el-tag').first().textContent();
+    console.log(`[P0-停用-产品] ${productName} 状态标签：${beforeTag} → ${afterTag}`);
+    expect(
+      afterTag !== beforeTag,
+      `[P0-停用-产品] UI 停用后列表状态标签应变更，停用前="${beforeTag}" 停用后="${afterTag}"`
+    ).toBe(true);
   });
 });
 

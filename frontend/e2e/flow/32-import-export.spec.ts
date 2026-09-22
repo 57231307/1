@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCallRaw } from './helpers';
-import { uiExportDownload, uiImportUpload } from './ui-helpers';
+import { loginViaUI } from './helpers';
+import { uiExportDownload } from './ui-helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -228,28 +228,21 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
   });
 
   // ===== 6. BOM 导出 =====
-  test('BOM：UI 导出→下载文件验证', async ({ page }, testInfo) => {
+  test('BOM：UI 导出→下载文件验证', async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE_URL}/bom`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
 
+    // 原实现在找不到导出按钮时 test.skip()（记为“功能未实现”）→ 该用例每轮静默跳过、
+    // 从不真正验证。按“前置缺失即显式失败”改造：导出入口/下载事件/文件内容全部硬断言。
+    // 若 BOM 导出确未实现（前端 views/bom 无按钮 + 后端无 /boms/export 路由），本用例
+    // 将以真实红灯暴露该功能缺口，而不是把缺失伪装成通过（见汇报/doto 待办登记）。
     const exportBtn = page.getByRole('button', { name: /导出|export|下载/i }).first();
-    const hasExport = await exportBtn.isVisible({ timeout: 5000 });
-    if (!hasExport) {
-      // 功能真实缺失：views/bom/index.vue 无导出入口，后端亦未注册 /boms/export
-      // （routes/catalog.rs bom 路由组仅有 CRUD/submit/approve/tree/requirements/print）
-      testInfo.annotations.push({
-        type: 'skipped',
-        description:
-          'BOM 导出功能未实现：前端 views/bom 无导出按钮，后端无 /boms/export 路由（非数据缺失）',
-      });
-      console.error(
-        '[P0-导出-BOM] ❌ 跳过：BOM 导出功能未实现（前端无按钮 + 后端无 /boms/export 路由）'
-      );
-      test.skip();
-      return;
-    }
+    expect(
+      await exportBtn.isVisible({ timeout: 5000 }),
+      '[P0-导出-BOM] BOM 列表页未渲染导出按钮（入口缺失，见 views/bom + routes/catalog.rs 无 /boms/export）'
+    ).toBe(true);
 
     const downloadPromise = page.waitForEvent('download', { timeout: 30000 });
     await exportBtn.click();

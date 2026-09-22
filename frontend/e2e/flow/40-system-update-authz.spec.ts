@@ -32,9 +32,11 @@ test.describe('P5.10 系统更新授权', () => {
     expect(typeof isUpdating).toBe('boolean');
   });
 
-  test('viewer 无权限查询系统更新（403）', async ({ page }, testInfo) => {
-    // 只读角色账号由 global-setup ensureRoleUsers 幂等补建；
-    // 两个候选角色都登录不上属测试基建缺失（凭证文件/角色未建），显式记录后跳过
+  test('viewer 无权限查询系统更新（403）', async ({ page }) => {
+    // 只读角色账号由 global-setup ensureRoleUsers 幂等补建；两个候选角色都登录不上属
+    // 测试基建缺失（凭证文件/角色未建）。原实现 test.skip() 会让 viewer 403 授权断言
+    // 静默消失、基建退化无人发现；该能力对当前部署完全适用，故改为显式失败——
+    // 基建必须就绪，viewer 403 必须真验证。
     let viewerOk = false;
     const errors: string[] = [];
     for (const role of ['report_viewer', 'e2e_readonly']) {
@@ -47,17 +49,10 @@ test.describe('P5.10 系统更新授权', () => {
         errors.push(`${role}: ${(e as Error).message}`);
       }
     }
-    if (!viewerOk) {
-      testInfo.annotations.push({
-        type: 'skipped',
-        description: `只读角色凭证缺失（测试基建），无法验证 403 —— ${errors.join(' | ')}`,
-      });
-      console.error(
-        `[P5.10] ❌ 跳过 viewer 403 断言：report_viewer 与 e2e_readonly 均登录失败\n  ${errors.join('\n  ')}`
-      );
-      test.skip();
-      return;
-    }
+    expect(
+      viewerOk,
+      `[P5.10] 只读角色未就绪，无法验证 viewer 403（基建缺失：见 global-setup ensureRoleUsers / role-credentials.json）—— ${errors.join(' | ')}`
+    ).toBe(true);
 
     const resp = await apiCall(page, 'GET', '/system-update/version').catch(e => {
       console.warn(`[E2E] 操作失败: ${(e as Error).message}`);

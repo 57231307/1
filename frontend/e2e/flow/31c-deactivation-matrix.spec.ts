@@ -171,41 +171,33 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     expect(id, '[31c-客户] 自建客户未返回 id，POST /crm/customers 前置失败').toBeTruthy();
     console.log(`[31c-客户] 创建成功 id=${id}`);
 
-    let toggled = false;
-    if (await openEditDialog(page, '/customer', name)) {
-      toggled = await toggleStatusInDialog(page, '停用', /确定|确认|保存/);
-    }
-    // API 回读验证状态真变更
-    let statusAfter = '';
+    const opened = await openEditDialog(page, '/customer', name);
+    expect(opened, `[31c-客户] 无法打开自建客户 ${name} 编辑弹窗：${editFailReason}`).toBe(true);
+    const toggled = await toggleStatusInDialog(page, '停用', /确定|确认|保存/);
+    expect(toggled, '[31c-客户] 编辑弹窗内未找到/未能切换「停用」状态控件').toBe(true);
+
+    // API 回读验证状态真变更（断言必然执行：GET 非 2xx 亦判失败，不再 console.warn 后放过）
     const chk = await page.request.get(`${API_BASE}${API_PREFIX}/crm/customers/${id}`);
-    if (chk.ok()) {
-      const body = await chk.json();
-      statusAfter = String(body?.data?.status ?? '');
-      console.log(`[31c-客户] API 回读 status=${statusAfter}`);
-    } else {
-      console.warn(`[31c-客户] 回读 HTTP ${chk.status()}`);
-    }
-    if (toggled) {
-      expect(
-        statusAfter,
-        `[31c-客户] UI 停用后 API 回读 status 应为 inactive，实际 ${statusAfter}`
-      ).toBe('inactive');
-      // 二次访问：UI 重新打开编辑弹窗验证回显
-      let reopened = false;
-      if (await openEditDialog(page, '/customer', name)) {
-        const checked = await page
-          .locator('.el-dialog:visible .el-radio:has-text("停用")')
-          .first()
-          .getAttribute('class');
-        reopened = checked?.includes('is-checked') ?? false;
-        console.log(`[31c-客户] 二次打开回显「停用」radio ${reopened ? '✅选中' : '❌未选中'}`);
-        await page.keyboard.press('Escape');
-      }
-      expect(reopened, '[31c-客户] 二次访问编辑弹窗应回显停用状态').toBe(true);
-    } else {
-      console.warn('[31c-客户] UI 停用未完成（控件结构差异），已记录诊断日志');
-      expect(toggled, '[31c-客户] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);
-    }
+    expect(chk.ok(), `[31c-客户] API 回读客户详情应 2xx，实际 HTTP ${chk.status()}`).toBe(true);
+    const statusAfter = String((await chk.json())?.data?.status ?? '');
+    console.log(`[31c-客户] API 回读 status=${statusAfter}`);
+    expect(
+      statusAfter,
+      `[31c-客户] UI 停用后 API 回读 status 应为 inactive，实际 ${statusAfter}`
+    ).toBe('inactive');
+
+    // 二次访问：UI 重新打开编辑弹窗验证回显
+    const reopened = await openEditDialog(page, '/customer', name);
+    expect(reopened, `[31c-客户] 二次打开编辑弹窗失败：${editFailReason}`).toBe(true);
+    const checked = await page
+      .locator('.el-dialog:visible .el-radio:has-text("停用")')
+      .first()
+      .getAttribute('class');
+    await page.keyboard.press('Escape');
+    console.log(
+      `[31c-客户] 二次打开回显「停用」radio ${checked?.includes('is-checked') ? '✅选中' : '❌未选中'}`
+    );
+    expect(checked?.includes('is-checked'), '[31c-客户] 二次访问编辑弹窗应回显停用状态').toBe(true);
     // 清理
     await tryCleanup(page, 'DELETE', `/crm/customers/${id}`, '[31c-客户]');
   });
@@ -231,70 +223,46 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     expect(id, '[31c-用户] 自建用户未返回 id，POST /users 前置失败').toBeTruthy();
     console.log(`[31c-用户] 创建成功 id=${id}`);
 
-    let toggled = false;
-    let diag = '开始';
     // /system 页用户 Tab；已切 Tab 后跳过重新导航（safeGoto 会重置回默认 Tab）
     await page.goto(`${BASE_URL}/system`);
     await page.waitForTimeout(2500);
     const userTab = page.locator('.el-tabs__item:has-text("用户")').first();
-    const tabVisible = await userTab.isVisible({ timeout: 5000 });
-    if (tabVisible) {
-      await userTab.click();
-      await page.waitForTimeout(2000);
-      console.log('[31c-用户] 已切到用户 Tab');
-      // keyword 搜索过滤（用户列表可能分页，直接搜索新建账号确保第一页可见）
-      // 只匹配当前激活 Tab 内可见的搜索框（隐藏 Tab 的 filter-card input 会先被 first() 命中）
-      const keywordInput = page.locator('.filter-card input:visible').first();
-      const kwVisible = await keywordInput.isVisible({ timeout: 4000 });
-      if (kwVisible) {
-        await keywordInput.fill(username);
-        await keywordInput.press('Enter');
-        // 等待搜索结果行渲染（keyword 请求+表格重渲染需要时间；waitForFunction 内 querySelectorAll 不支持 :visible 伪类，改用 locator 原生等待）
-        await page.locator('.el-table__row').first().waitFor({ state: 'visible', timeout: 10_000 });
-        await page.waitForTimeout(500);
-        console.log('[31c-用户] 已按用户名过滤列表');
-        diag += '；搜索OK';
-      } else {
-        diag += '；搜索框不可见';
-      }
-      const opened = await openEditDialog(page, '/system', username, true);
-      if (!opened) {
-        // API 侧诊断：keyword 搜索在 API 层是否能查到（区分"数据缺失"与"UI 渲染问题"）
-        const apiSearch = await page.request
-          .get(`${API_BASE}${API_PREFIX}/users?page=1&page_size=20&keyword=${username}`)
-          .then(r => r.json());
-        const apiUsers = (apiSearch as { data?: { users?: Array<{ username?: string }> } } | null)
-          ?.data?.users;
-        const apiHit = apiUsers?.some(u => u.username === username);
-        diag += `；openEditDialog=${opened}(${editFailReason})；API回读命中=${apiHit}（${apiUsers?.length ?? 'err'}条）`;
-      } else {
-        diag += `；openEditDialog=${opened}`;
-      }
-      if (opened) {
-        toggled = await toggleStatusInDialog(page, '禁用', /确定|确认|保存/);
-        diag += `；toggled=${toggled}`;
-      }
-    } else {
-      diag += '；用户Tab不可见';
-      console.error('[31c-用户] 用户 Tab 不可见');
-    }
-    let activeAfter: unknown = null;
+    expect(
+      await userTab.isVisible({ timeout: 5000 }),
+      '[31c-用户] /system 页未渲染「用户」Tab（Tab 入口结构变更？不可见时应硬失败，不再走 else 静默）'
+    ).toBe(true);
+    await userTab.click();
+    await page.waitForTimeout(2000);
+    console.log('[31c-用户] 已切到用户 Tab');
+    // keyword 搜索过滤：用户列表可能分页，按新建账号搜索确保第一页可见
+    // 只匹配当前激活 Tab 内可见的搜索框（隐藏 Tab 的 filter-card input 会先被 first() 命中）
+    const keywordInput = page.locator('.filter-card input:visible').first();
+    expect(
+      await keywordInput.isVisible({ timeout: 4000 }),
+      '[31c-用户] 用户 Tab 内未渲染可见搜索框'
+    ).toBe(true);
+    await keywordInput.fill(username);
+    await keywordInput.press('Enter');
+    // 等待搜索结果行渲染（keyword 请求+表格重渲染需要时间；waitForFunction 内 querySelectorAll
+    // 不支持 :visible 伪类，改用 locator 原生等待）
+    await page.locator('.el-table__row').first().waitFor({ state: 'visible', timeout: 10_000 });
+    await page.waitForTimeout(500);
+    console.log('[31c-用户] 已按用户名过滤列表');
+
+    const opened = await openEditDialog(page, '/system', username, true);
+    expect(opened, `[31c-用户] 无法打开自建用户 ${username} 编辑弹窗：${editFailReason}`).toBe(
+      true
+    );
+    const toggled = await toggleStatusInDialog(page, '禁用', /确定|确认|保存/);
+    expect(toggled, '[31c-用户] 编辑弹窗内未找到/未能切换「禁用」状态控件').toBe(true);
+
     const chk = await page.request.get(`${API_BASE}${API_PREFIX}/users/${id}`);
-    if (chk.ok()) {
-      const body = await chk.json();
-      activeAfter = body?.data?.is_active;
-      console.log(`[31c-用户] API 回读 is_active=${activeAfter}`);
-    } else {
-      console.warn(`[31c-用户] 回读 HTTP ${chk.status()}`);
-    }
-    if (toggled) {
-      expect(activeAfter, `[31c-用户] UI 停用后 is_active 应为 false，实际 ${activeAfter}`).toBe(
-        false
-      );
-    } else {
-      console.warn('[31c-用户] UI 停用未完成（控件结构差异），已记录诊断日志');
-      expect(toggled, `[31c-用户] UI 编辑弹窗停用操作应可完成，诊断链: ${diag}`).toBe(true);
-    }
+    expect(chk.ok(), `[31c-用户] API 回读用户详情应 2xx，实际 HTTP ${chk.status()}`).toBe(true);
+    const activeAfter = (await chk.json())?.data?.is_active;
+    console.log(`[31c-用户] API 回读 is_active=${activeAfter}`);
+    expect(activeAfter, `[31c-用户] UI 停用后 is_active 应为 false，实际 ${activeAfter}`).toBe(
+      false
+    );
     await tryCleanup(page, 'DELETE', `/users/${id}`, '[31c-用户]');
   });
 
@@ -316,38 +284,30 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     expect(id, '[31c-产品] 自建产品未返回 id，POST /products 前置失败').toBeTruthy();
     console.log(`[31c-产品] 创建成功 id=${id}`);
 
-    let toggled = false;
-    if (await openEditDialog(page, '/product', name)) {
-      // 产品编辑弹窗 is_active switch
-      const dialog = page.locator('.el-dialog:visible').first();
-      const sw = dialog.locator('.el-switch').first();
-      if (await sw.isVisible({ timeout: 3000 })) {
-        await sw.click();
-        console.log('[31c-产品] 已点击 is_active switch');
-        const confirmBtn = dialog.getByRole('button', { name: /确定|确认|保存/ }).last();
-        await confirmBtn.click();
-        console.log('[31c-产品] 已点击确定保存');
-        await page.waitForTimeout(2500);
-        toggled = true;
-      } else {
-        console.error('[31c-产品] 弹窗内未找到 is_active switch');
-      }
-    }
-    let statusAfter = '';
+    const opened = await openEditDialog(page, '/product', name);
+    expect(opened, `[31c-产品] 无法打开自建产品 ${name} 编辑弹窗：${editFailReason}`).toBe(true);
+    // 产品编辑弹窗 is_active switch
+    const dialog = page.locator('.el-dialog:visible').first();
+    const sw = dialog.locator('.el-switch').first();
+    expect(
+      await sw.isVisible({ timeout: 3000 }),
+      '[31c-产品] 编辑弹窗内未渲染 is_active 开关（前端渲染条件若与后端状态词表不一致会命中此处）'
+    ).toBe(true);
+    await sw.click();
+    console.log('[31c-产品] 已点击 is_active switch');
+    await dialog
+      .getByRole('button', { name: /确定|确认|保存/ })
+      .last()
+      .click();
+    console.log('[31c-产品] 已点击确定保存');
+    await page.waitForTimeout(2500);
     const chk = await page.request.get(`${API_BASE}${API_PREFIX}/products/${id}`);
-    if (chk.ok()) {
-      const body = await chk.json();
-      statusAfter = String(body?.data?.status ?? '');
-      console.log(`[31c-产品] API 回读 status=${statusAfter}`);
-    }
-    if (toggled) {
-      expect(statusAfter, `[31c-产品] UI 停用后 status 应为 inactive，实际 ${statusAfter}`).toBe(
-        'inactive'
-      );
-    } else {
-      console.warn('[31c-产品] UI 停用未完成（控件结构差异），已记录诊断日志');
-      expect(toggled, '[31c-产品] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);
-    }
+    expect(chk.ok(), `[31c-产品] API 回读产品详情应 2xx，实际 HTTP ${chk.status()}`).toBe(true);
+    const statusAfter = String((await chk.json())?.data?.status ?? '');
+    console.log(`[31c-产品] API 回读 status=${statusAfter}`);
+    expect(statusAfter, `[31c-产品] UI 停用后 status 应为 inactive，实际 ${statusAfter}`).toBe(
+      'inactive'
+    );
     await tryCleanup(page, 'DELETE', `/products/${id}`, '[31c-产品]');
   });
 
@@ -362,25 +322,17 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     expect(id, '[31c-部门] 自建部门未返回 id，POST /departments 前置失败').toBeTruthy();
     console.log(`[31c-部门] 创建成功 id=${id}`);
 
-    let toggled = false;
-    if (await openEditDialog(page, '/departments', name)) {
-      toggled = await toggleStatusInDialog(page, '停用', /确定|确认|保存/);
-    }
-    let statusAfter: unknown = null;
+    const opened = await openEditDialog(page, '/departments', name);
+    expect(opened, `[31c-部门] 无法打开自建部门 ${name} 编辑弹窗：${editFailReason}`).toBe(true);
+    const toggled = await toggleStatusInDialog(page, '停用', /确定|确认|保存/);
+    expect(toggled, '[31c-部门] 编辑弹窗内未找到/未能切换「停用」状态控件').toBe(true);
     const chk = await page.request.get(`${API_BASE}${API_PREFIX}/departments/${id}`);
-    if (chk.ok()) {
-      const body = await chk.json();
-      statusAfter = body?.data?.is_active;
-      console.log(`[31c-部门] API 回读 is_active=${statusAfter}`);
-    }
-    if (toggled) {
-      expect(statusAfter, `[31c-部门] UI 停用后 is_active 应为 false，实际 ${statusAfter}`).toBe(
-        false
-      );
-    } else {
-      console.warn('[31c-部门] UI 停用未完成（控件结构差异），已记录诊断日志');
-      expect(toggled, '[31c-部门] UI 编辑弹窗停用操作应可完成（失败见诊断日志）').toBe(true);
-    }
+    expect(chk.ok(), `[31c-部门] API 回读部门详情应 2xx，实际 HTTP ${chk.status()}`).toBe(true);
+    const statusAfter = (await chk.json())?.data?.is_active;
+    console.log(`[31c-部门] API 回读 is_active=${statusAfter}`);
+    expect(statusAfter, `[31c-部门] UI 停用后 is_active 应为 false，实际 ${statusAfter}`).toBe(
+      false
+    );
     await tryCleanup(page, 'DELETE', `/departments/${id}`, '[31c-部门]');
   });
 });

@@ -109,29 +109,20 @@ test.describe('P5.6 预览', () => {
   test('BPM 模板预览 API', async ({ page }, testInfo) => {
     const collector = trackPageHealth(page);
 
-    const listResp = await apiCall(page, 'GET', '/bpm/templates?page=1&page_size=10');
-    const items = listResp?.items ?? listResp?.data?.items;
-    if (!items || items.length === 0) {
-      testInfo.annotations.push({
-        type: 'skipped',
-        description:
-          'BPM 模板列表为空（bpm_definition_handler::list_templates 无种子模板，CI 库未建流程模板）',
-      });
-      console.error(
-        '[P5.6-预览][BPM 模板] ❌ 跳过：/bpm/templates 列表无数据（响应前 200 字符：' +
-          JSON.stringify(listResp).slice(0, 200) +
-          '）'
-      );
-      test.skip();
-      return;
-    }
-
-    const templateId = items[0].id;
-    // routes/system.rs 只注册了 /bpm/templates、/bpm/templates/{id}、
-    // /bpm/templates/{id}/create，无 preview 端点：端点缺失时 404 硬失败暴露。
-    const previewResp = await apiCall(page, `GET`, `/bpm/templates/${templateId}/preview`);
-
-    expect(previewResp !== null).toBeTruthy();
+    // 原实现按 /bpm/templates 列表首行取 id、列表为空即 test.skip()：
+    // (1) /bpm/templates 无 POST 创建路由（routes/system.rs 仅 GET list_templates +
+    //     GET/DELETE /templates/{id} + POST /definitions/{id}/template save_as_template），
+    //     CI 空库下列表恒空 → 每轮静默跳过（假绿）；
+    // (2) /bpm/templates/{id}/preview 端点根本未注册（routes/system.rs 无该路由），
+    //     即使命中模板，preview 也恒 404 → 原 `expect(previewResp !== null)` 永远走不到。
+    // 与同文件 report-templates 用例一致，把“端点未实现”钉成显式契约断言：
+    // 后端补上 preview 端点后本行会失败，届时再升级为内容断言。
+    const preview = await apiCallExpectFail(page, 'GET', '/bpm/templates/1/preview');
+    testInfo.annotations.push({
+      type: 'known-gap',
+      description: 'GET /bpm/templates/{id}/preview 后端未注册（BPM 模板预览缺口），钉为 404 契约',
+    });
+    expect(preview.status, `BPM 模板预览端点未实现时应 404，实际 ${preview.status}`).toBe(404);
     await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
   });
 });

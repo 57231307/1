@@ -1,11 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import {
-  loginViaUI,
-  apiCall,
-  trackPageHealth,
-  assertPageHealthy,
-  BROWSER_NETWORK_NOISE,
-} from './helpers';
+import { loginViaUI, trackPageHealth, assertPageHealthy, BROWSER_NETWORK_NOISE } from './helpers';
 
 /**
  * P5.13 重复提示测试
@@ -24,15 +18,26 @@ test.describe('P5.13 重复提示', () => {
     await page.goto('/system/users');
     await page.waitForLoadState('networkidle');
 
-    // 找一个提交按钮，快速连续点击
-    const submitBtn = page
-      .locator('button[type="submit"], button:has-text("保存"), button:has-text("确认")')
-      .first();
-    if (await submitBtn.isVisible()) {
-      // 快速连续点击 5 次
-      for (let i = 0; i < 5; i++) {
-        await submitBtn.click({ timeout: 1000 });
-      }
+    // 原实现 `if (await submitBtn.isVisible()) { ...5 次点击... }`：列表页找不到提交按钮时
+    // 一次点击都不执行，toastCount=0 仍 ≤1 → 假绿。改为进入真实含提交按钮的表单弹窗
+    // （新增用户），对弹窗提交按钮连续点击；提交入口缺失即硬失败。
+    const createBtn = page.getByRole('button', { name: /新增|新建|添加/ }).first();
+    expect(
+      await createBtn.isVisible({ timeout: 5000 }),
+      '[P5.13] /system/users 未渲染「新增」按钮，无法进入含提交按钮的表单弹窗'
+    ).toBe(true);
+    await createBtn.click();
+    const dialog = page.locator('.el-dialog:visible').first();
+    await dialog.waitFor({ state: 'visible', timeout: 10000 });
+    const submitBtn = dialog.getByRole('button', { name: /保存|确[认定]|提交/ }).last();
+    expect(
+      await submitBtn.isVisible({ timeout: 5000 }),
+      '[P5.13] 新增用户弹窗未渲染提交/保存按钮'
+    ).toBe(true);
+
+    // 快速连续点击 5 次（提交禁用/瞬时不可点时容错跳过该次点击）
+    for (let i = 0; i < 5; i++) {
+      await submitBtn.click({ timeout: 1000 }).catch(() => {});
     }
 
     // 等待 toast 出现
