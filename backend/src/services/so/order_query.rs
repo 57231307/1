@@ -15,6 +15,7 @@ use crate::services::so::{SalesOrderDetail, SalesOrderItemDetail};
 use crate::utils::PaginatedResponse;
 use crate::utils::data_scope::{DataScopeContext, apply_department_scope};
 use crate::utils::error::AppError;
+use crate::utils::sql_escape::safe_like_pattern;
 use crate::utils::pagination::paginate_with_total;
 use sea_orm::{
     ColumnTrait, EntityTrait, LoaderTrait, ModelTrait, Order, PaginatorTrait, QueryFilter,
@@ -76,6 +77,19 @@ impl OrderQuery {
     }
 }
 
+/// 销售订单列表/导出的筛选条件
+///
+/// 列表与导出必须共用同一套条件（否则导出数据与界面不一致而无人报错）；
+/// 用结构而非位置参数，也避免再加一个字段就把函数推到 clippy 的 too_many_arguments。
+#[derive(Debug, Clone, Default)]
+pub struct SalesOrderFilter {
+    pub status: Option<String>,
+    pub customer_id: Option<i32>,
+    pub order_no: Option<String>,
+    /// 客户名称模糊匹配（走已左连接的 customers 表）
+    pub customer_name: Option<String>,
+}
+
 impl SalesService {
     // list_orders / get_order_detail / get_order_statistics
     // 内容来自原 order.rs L37-276 + L841-897
@@ -85,12 +99,10 @@ impl SalesService {
     pub async fn list_orders(
         &self,
         page_req: PageRequest,
-        status: Option<String>,
-        customer_id: Option<i32>,
-        order_no: Option<String>,
+        filter: SalesOrderFilter,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<PaginatedResponse<SalesOrderDetail>, AppError> {
-        let query = Self::build_orders_query(status, customer_id, order_no, data_scope);
+        let query = Self::build_orders_query(filter, data_scope);
         let (orders, total) = self.fetch_orders_page(query, &page_req).await?;
         let order_details = self.assemble_order_details(orders).await?;
         Ok(PaginatedResponse::new(
@@ -102,11 +114,15 @@ impl SalesService {
     }
 
     fn build_orders_query(
-        status: Option<String>,
-        customer_id: Option<i32>,
-        order_no: Option<String>,
+        filter: SalesOrderFilter,
         data_scope: Option<&DataScopeContext>,
     ) -> sea_orm::Select<sales_order::Entity> {
+        let SalesOrderFilter {
+            status,
+            customer_id,
+            order_no,
+            customer_name,
+        } = filter;
         let mut query = SalesOrderEntity::find()
             .column_as(
                 crate::models::customer::Column::CustomerName,
@@ -135,6 +151,11 @@ impl SalesService {
         }
         if let Some(no) = order_no {
             query = query.filter(sales_order::Column::OrderNo.contains(&no));
+        }
+        // 客户名称走已左连接的 customers 表；转义 LIKE 通配符，避免用户输入的 % 变成通配
+        if let Some(name) = customer_name.filter(|s| !s.trim().is_empty()) {
+            let pattern = safe_like_pattern(name.trim());
+            query = query.filter(crate::models::customer::Column::CustomerName.like(&pattern));
         }
 
         query.order_by(sales_order::Column::CreatedAt, Order::Desc)

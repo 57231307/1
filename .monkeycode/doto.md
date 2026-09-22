@@ -138,6 +138,14 @@
       「译文当业务值剩余 13 处」一条（含 v15 存量归一与筛选等值匹配的后果）。
       当时判断「要修需先决定是否建物流公司字典」——字典仍未建，但不建字典也能先把
       提交值固定下来，界面语言不再改写业务数据。
+- [ ] **模板/列定义里直接写中文字面量（i18n 门禁的盲区，规模已量化）**：
+      `src/views` 下 55 个视图文件在 `label=` / `title=` / `placeholder=` / `content=` 属性上
+      直接写中文，另有 `views/sales/composables/useOlv.ts` 的表格列 `title` 也是中文字面量
+      （销售订单列表的表头因此不随语言切换）。`check-i18n.mjs` 只校验「键是否被引用、引用是否缺失」，
+      不看有没有人绕过 i18n 写字面量，所以这些永不显红。本轮物流运单详情的 12 处已改走文案键；
+      余下部分要一次成体系做（否则改一个文件没意义），并且**不能直接把门禁加上**——
+      门禁上线当日即 55 文件全红，需要按 Clippy baseline 那套「存量挂账 + 增量阻塞」的机制先行。
+
 - [ ] **`playwright.config.ts` 的 testMatch 未覆盖的业务目录 = 死用例集**：testMatch 白名单里
       没有 `logistics/inventory/mrp/production/ai/dashboard/fabric/quotations/sales-ext/system`
       等目录，落在其中的 spec 永不执行（且 CI 分片命令是按目录显式传参，改 testMatch 也不生效）。
@@ -306,6 +314,12 @@
       同时失真；现按 `sales_order::ALL` 白名单拒绝并报出允许值。
       注：本轮只收紧取值域，不代表允许任意跳转——状态流转仍应走工作流端点，状态机收敛另计。
 
+- [x] **`/sales/orders` 的 `customer_name` 是死筛选**：列表页 `useOlv.ts:188` 一直在发这个参数，
+      而后端 `SalesOrderQuery` 根本没有该字段（serde 静默丢弃），客户名搜索恒返回全量。
+      现补进查询结构并下推——查询条件收敛为 `SalesOrderFilter`（列表与导出共用，避免再加一个
+      位置参数就把函数推到 clippy 的 too_many_arguments，这条教训来自库存台账那一处），
+      名称走已左连接的 customers 表做转义后的 LIKE 模糊匹配，导出端点同口径。
+
 - [ ] **假控件余下实例（各自都需要配套改造，不是删一行字段就能收）**：
       `GET /budgets`（`budget_management_handler.rs:478` 收裸 JSON 且只读 item_type/status，前端
       `BudgetListTab.vue:273-275` 发 budget_no/name；更根本的是该页展示 plans 而后端查 items，
@@ -456,7 +470,11 @@
       （load_low_stock_product_map 已有同类实现），前端类型与列名对齐
 - [ ] `/security/change-password` 渲染期 `SyntaxError {message:10}` 仍未定因
       （离线编译 20070 条 locale 消息 0 失败，排除静态 i18n 语法）；
-      42x 遍历已改为失败时打印 pageErrors/consoleErrors 原文，待新 run 证据定位
+      42x 遍历已改为失败时打印 pageErrors/consoleErrors 原文，待新 run 证据定位。
+      本轮再排除一条：该页 `security.changePassword.*` 两门语言文案里不含
+      `@ | % [ ] { }` 等 vue-i18n 消息语法字符，故不是链接消息/复数分支导致的编译期
+      SyntaxError（与此前「离线编译 20070 条消息 0 失败」互相印证）；
+      下一步只能从 CI 产物的 consoleErrors 原文或未压缩 source map 入手，不猜测
 - [ ] 产品列表死列 `barcode`（无 DB 字段）/`category_name`（无 join）
 - [ ] 收敛项：`AppState.event_notification_service` 由 `Option<…>` 改非 Option；
       `bpm_task.process_instance_id/name` 旧列删除；18 个 `json!({"list":…})` handler

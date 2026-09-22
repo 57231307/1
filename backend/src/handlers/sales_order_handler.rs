@@ -24,6 +24,8 @@ pub struct SalesOrderQuery {
     pub status: Option<String>,
     pub customer_id: Option<i32>,
     pub order_no: Option<String>,
+    /// 客户名称模糊查询：列表页一直有这个输入框，此前后端无此字段被直接丢弃
+    pub customer_name: Option<String>,
 }
 
 /// P1-2d 修复（批次 81 v1 复审）：创建发货请求 DTO
@@ -55,9 +57,12 @@ pub async fn list_orders(
     let orders = sales_service
         .list_orders(
             page_req,
-            query.status,
-            query.customer_id,
-            query.order_no,
+            crate::services::so::order_query::SalesOrderFilter {
+                status: query.status,
+                customer_id: query.customer_id,
+                order_no: query.order_no,
+                customer_name: query.customer_name,
+            },
             Some(&data_scope_ctx),
         )
         .await?;
@@ -521,7 +526,12 @@ pub async fn export_orders(
 
     // T3: 直接获取结构化数据，去除 CSV 中转
     let (headers, rows) = sales_service
-        .export_orders_to_xlsx(query.status, query.customer_id, query.order_no)
+        .export_orders_to_xlsx(crate::services::so::order_query::SalesOrderFilter {
+            status: query.status,
+            customer_id: query.customer_id,
+            order_no: query.order_no,
+            customer_name: query.customer_name,
+        })
         .await
         .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;
 

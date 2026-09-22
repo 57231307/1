@@ -15,16 +15,14 @@ impl SalesService {
     /// T3: 导出销售订单为结构化格式（去除 CSV 中转）
     pub async fn export_orders_to_xlsx(
         &self,
-        status: Option<String>,
-        customer_id: Option<i32>,
-        order_no: Option<String>,
+        filter: super::super::order_query::SalesOrderFilter,
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         let page_req = crate::models::dto::PageRequest {
             page: 1,
             page_size: 10000,
         };
         let orders = self
-            .list_orders(page_req, status, customer_id, order_no, None)
+            .list_orders(page_req, filter, None)
             .await?;
 
         let headers = Self::build_order_csv_headers();
