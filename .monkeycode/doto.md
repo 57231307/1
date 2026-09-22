@@ -2053,3 +2053,48 @@ service，并让 `getBudgetList`/`getBudgetItemList` 合并成一个函数——
 本地未推提交累计 **86** 个；推送仍冻结（用户 2026-09-22 指令），因此以上全部只经静态门禁
 （cargo fmt / vue-tsc / eslint / prettier / i18n / contract / api-paths / envelope / playwright --list），
 **没有任何一条经过执行验证**。
+
+## 请求体侧门禁上线，查出 QueryParams 万能类型这一根因（2026-09-23）
+
+响应侧早有 `check-api-envelope`，请求侧此前**零覆盖**。新增 `check-api-request.mjs`：
+把「前端提交的键集」与「后端 `Json<T>` / `Query<T>` 反序列化结构体字段集」对齐，
+判据与响应侧同取向（判不出记盲区并逐条计数，不"读不懂即通过"）。首跑即命中一批
+"功能根本不可用"级缺陷：AP/AR 取消不传后端必填的 `reason`、合同执行/审批不传
+`execution_type/amount/date` 与 `approved`、凭证创建用 `entries` 而后端要 `items`、
+供应商评估整族 camelCase、期间调整 8 个必填基本没给、大货样确认在前端伪造 `=1` 的 ID 等。
+
+**根因**：`src/types/api.ts:81 QueryParams` 是一个万能查询类型
+（page/keyword/order_by/order_dir/status/supplier_name/customer_name/invoice_no/voucher_no/
+date_range/supplier_id…），被几乎所有列表接口当 `params` 类型用。于是两头都错：
+前端可以"传"后端 `Query<T>` 里没有的键（Axum 直接丢弃 → 用户以为筛了其实没筛），
+而后端真实支持的筛选（状态、日期区间、批次号）前端一个都没传过。
+实测规模：**47 条 query 类失配，其中 39 条是"后端有筛选能力而页面从未使用"**。
+处理方式：按端点写专属参数接口（可选性照抄 `Option<>`/`#[serde(default)]`、
+命名照抄 snake_case），删掉"填了会被丢弃"的假控件；
+"哪些页面该暴露哪些筛选"是产品决策，只登记不自作主张加 UI。
+
+### 门禁自身被并行任务证伪的三处（都在提示词之外，说明"工具也要被验")
+
+- `splitObjFields` 不剥注释 → 带 JSDoc 的字段被整块当成非字段丢掉，凭空报"后端必填前端没给"。
+  由两个子任务同时报回；解析器已修（新增 `stripTsComments`）。子任务为绕过它把字段注释
+  移到 interface 级块，属临时形态，后续按新解析器回迁。
+- 按 HTTP 方法推提取器 → axios 的 DELETE 也会把 `{data}` 作为请求体发出（定制订单取消带原因），
+  被判反；现按「前端实际发了什么」选 Json/Query。
+- `{ responseType: 'blob' }` 这类纯 axios 选项被当成载荷 → 报假"参数被忽略"；现已按"有无 params/data"判定。
+
+### 本轮子任务报出的待决/能力缺口（登记，未擅自实现）
+
+- 预算：`POST /budgets`（create_budget）实际创建的是**明细行**，而 `BudgetListTab.vue` 的
+  「新建预算」按"预算单+items"形状提交 → 必 422；需要 `POST /budgets/plans`（create_plan，
+  finance.rs:443）或"单+行"复合端点，属端点语义决策。
+- 固定资产：create/update DTO 无 `salvage_value`（残值）与 `custodian`（保管人）入参，
+  但模型/列表会读残值 → 若业务要录入需后端加字段（假控件已删）。
+- 用户：`CreateUserRequest/UpdateUserRequest` 无 `real_name`，而 `UserResponse` 与 DB 都有该列
+  → 真实姓名当前无法录入（前端输入框已删，避免"填了丢了"）。
+- 科目：`/subjects/tree` 只回 id/code/name/level，编辑时辅助核算位与余额方向无法回填
+  （现改走 GET /subjects/{id} 或在代码注明会重置）；需要后端补齐返回字段。
+- 对色光源 `light_source`、审批 `sample_id`、`production_recipe_id` 等：
+  仓库没有光源词表（只有 types.rs:26 注释里的 D65/TL84/U3000/CWF/A），
+  当前按注释硬编码候选值并以数字 ID 输入 → 需要「光源字典表」与选择器组件。
+- MRP 批次：`calculation_no` 在表上 UNIQUE ⇒ 一行即一批；若日后一个批次承载多产品行，
+  需要批次级端点与按 `calculation_no` 过滤需求行的能力。
