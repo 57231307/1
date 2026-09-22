@@ -491,31 +491,31 @@ sudo journalctl -u bingxi-backend -f
 | --------------------- | --------------------- | --------------------- | ------------------------------------------------------------------------------------ |
 | 后端集成测试          | 257 文件 / 2,095 函数 | cargo test + nextest  | 服务层 + API 层                                                                      |
 | 前端 E2E 冒烟测试     | 130                   | Playwright            | 全部前端路由 + 物流/缺料取值契约（5 分片并行）                                       |
-| 前端 E2E 工作流测试   | 665                   | Playwright            | 75 个 flow spec 文件，业务闭环 + 纺织领域 + 权限矩阵 + 健康巡检                      |
+| 前端 E2E 工作流测试   | 670                   | Playwright            | 75 个 flow spec 文件，业务闭环 + 纺织领域 + 权限矩阵 + 健康巡检                      |
 | 前端 E2E 端点遍历     | 266                   | Playwright            | 10 个 traversal spec：打印/导出/审批端点矩阵 + 42a-d 全模块遍历 + 角色矩阵（5 分片） |
 | 前端 E2E 真实链路测试 | 9                     | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录                           |
 | 前端 E2E 增强链路     | 14                    | Playwright（零 mock） | 3 个 enhanced spec：多角色协同 / RPA 取数 / 真实网络韧性（离线 + CDP 链路延迟）      |
-| 前端 E2E 其余业务域   | 117                   | Playwright（零 mock） | 7 个业务目录（采购/采购扩展/销售/质量/财务/CRM/BPM）+ 根级 3 spec，共 30 个文件；**自 iter30 起以 extras 4 分片进 CI**（此前只在 testMatch 白名单内、从未被任何分片执行） |
-| **前端 E2E 合计**     | **1,201**             | —                     | 238 个 spec 文件（chromium project，CI 实际执行口径）                                |
+| 前端 E2E 其余业务域   | 117                   | Playwright（零 mock） | 7 个业务目录（采购/采购扩展/销售/质量/财务/CRM/BPM）+ 根级 3 spec，共 30 个文件      |
+| 前端 E2E testMatch 九目录 | 71                | Playwright（零 mock） | ai/dashboard/fabric/inventory/mrp/production/quotations/sales-ext/system，22 个文件 |
+| ↳ 以上两行为 extras 覆盖 | 188                    | —                     | **自 iter31 起以 extras 6 分片进 CI**（此前只在 testMatch 白名单内、从未被任何分片执行） |
+| **前端 E2E 合计**     | **1,277**             | —                     | 260 个 spec 文件（chromium project，CI 实际执行口径）                                |
 | 性能基准              | 4                     | criterion             | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算                                    |
 
 > E2E 数量口径（2026-09-22 按 `playwright test --list --project=chromium <目录>` 逐组实测）：
-> flow 665/75 + smoke 130/119 + traversal 266/10 + enhanced 14/3 + 其余业务域 117/30 + Setup 向导 9/1
-> = **1,201 个用例 / 238 个文件**，六组全部进 CI（Setup 向导由独立 job 跑）。
+> flow 670/75 + smoke 130/119 + traversal 266/10 + enhanced 14/3 + 其余业务域 117/30
+> + testMatch 九目录 71/22 + Setup 向导 9/1
+> = **1,277 个用例 / 260 个文件**，七组全部进 CI（Setup 向导由独立 job 跑）。
 > `firefox` project 另跑 130 个冒烟用例；`webkit` 与 chromium 同集。
 > 关于 `ai / dashboard / fabric / inventory / mrp / production / quotations / sales-ext / system`
-> 九个目录（**71 个用例 / 22 个文件**，`playwright test --list --project=chromium <目录>` 实测）：
-> 它们**不在 CI 执行口径内**。两个此前混在一起的事实要分开说——
-> ①在 Windows 上不带路径参数执行 `playwright test --list` 会**多收**这 71 个用例
-> （testMatch 的根级分支 `^[^/]*\.spec\.ts$` 在反斜杠路径下误匹配），这部分是本地测量假象；
-> ②但"多收"不等于"已执行"：CI 的分片命令从不传这九个目录，所以它们确实从未进过矩阵，
-> 此前把它们缺席一概归因为"测量假象"是不准确的，两种说法各说对了一半。
-> 接入前需按与 extras 目录相同的口径做真实性核查（条件 skip、形状断言、`?? []` 等），
-> 目前它们的假绿形态远少于已接入目录（0 处条件 skip、22 处条件交互，`applyAuthMocks` 已是真实登录）。
+> 九个目录（**71 个用例 / 22 个文件**）：iter31 起已并入 extras 分片、与其余业务域一起真实执行。
+> 顺带纠正一处此前的混为一谈：在 Windows 上不带路径参数执行 `playwright test --list` 会**多收**
+> 这 71 个用例（testMatch 的根级分支 `^[^/]*\.spec\.ts$` 在反斜杠路径下误匹配），
+> 那是本地测量假象；但"多收"不等于"已执行"——CI 的分片命令从不传这九个目录，它们确实从未进过矩阵。
+> 两个事实此前各被说反过一次，现均以分片配置为准。
 
 ### E2E 测试覆盖
 
-CI 执行口径的 238 个 spec 文件（34 分片：flow 20 片 + smoke 5 片 + traversal 5 片 + extras 4 片；Playwright `--shard` 按用例 hash 分配，分片与 spec 文件无对应关系，故 label 只标目录与片号），核心覆盖：
+CI 执行口径的 260 个 spec 文件（36 分片：flow 20 片 + smoke 5 片 + traversal 5 片 + extras 6 片；Playwright `--shard` 按用例 hash 分配，分片与 spec 文件无对应关系，故 label 只标目录与片号），核心覆盖：
 
 | 类别           | spec 文件                                                                    | 覆盖内容                                                                                   |
 | -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -541,7 +541,7 @@ CI 执行口径的 238 个 spec 文件（34 分片：flow 20 片 + smoke 5 片 +
 cd backend
 cargo test --all
 
-# 前端 E2E 测试（CI 30 分片：flow --shard=x/20 + smoke --shard=x/5 + traversal --shard=x/5）
+# 前端 E2E 测试（CI 36 分片：flow --shard=x/20 + smoke --shard=x/5 + traversal --shard=x/5 + extras --shard=x/6）
 cd frontend
 npm run test:e2e
 
