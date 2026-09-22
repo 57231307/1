@@ -14,11 +14,24 @@ import {
   type AiProcessOptimization,
   type ProcessOptRequest,
 } from '@/api/ai-extend';
+import { DYE_TYPE_LABEL_KEY, DYE_TYPE_VALUES, isDyeType } from '@/constants/dye-type';
 // 批次 280：接入 useTableApi，消除手写 items/loading/total/page/pageSize/load 重复
 import { useTableApi } from '@/composables/useTableApi';
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' });
+
+// 染料类型下拉：提交后端白名单里的稳定码（此前 value 取译文，任何选择都会被 422 拒绝）
+const dyeTypeOptions = computed(() =>
+  DYE_TYPE_VALUES.map(value => ({
+    value,
+    label: t(DYE_TYPE_LABEL_KEY[value]),
+  }))
+);
+
+// 列表展示：词表内转文案，词表外的存量值原样展示（不猜测其含义）
+const dyeTypeText = (value: string | null): string | null =>
+  value !== null && isDyeType(value) ? t(DYE_TYPE_LABEL_KEY[value]) : value;
 
 const router = useRouter();
 
@@ -261,7 +274,9 @@ const appliedOptions = computed(() => [
           :label="$t('aiExtend.process.colFabricType')"
           width="80"
         />
-        <el-table-column prop="dye_type" :label="$t('aiExtend.process.colDyeType')" width="100" />
+        <el-table-column prop="dye_type" :label="$t('aiExtend.process.colDyeType')" width="120">
+          <template #default="{ row }">{{ dyeTypeText(row.dye_type) }}</template>
+        </el-table-column>
         <el-table-column prop="source" :label="$t('aiExtend.process.colSource')" width="100">
           <template #default="{ row }">{{ SOURCE_LABELS[row.source] || row.source }}</template>
         </el-table-column>
@@ -383,24 +398,10 @@ const appliedOptions = computed(() => [
             style="width: 100%"
           >
             <el-option
-              :label="$t('aiExtend.process.dyeReactive')"
-              :value="t('aiExtend.process.dyeReactive')"
-            />
-            <el-option
-              :label="$t('aiExtend.process.dyeDisperse')"
-              :value="t('aiExtend.process.dyeDisperse')"
-            />
-            <el-option
-              :label="$t('aiExtend.process.dyeAcid')"
-              :value="t('aiExtend.process.dyeAcid')"
-            />
-            <el-option
-              :label="$t('aiExtend.process.dyeVat')"
-              :value="t('aiExtend.process.dyeVat')"
-            />
-            <el-option
-              :label="$t('aiExtend.process.dyeDirect')"
-              :value="t('aiExtend.process.dyeDirect')"
+              v-for="item in dyeTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
             />
           </el-select>
         </el-form-item>

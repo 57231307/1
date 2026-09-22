@@ -1704,6 +1704,8 @@ export default {
       dyeAcid: 'Acid Dye',
       dyeVat: 'Vat Dye',
       dyeDirect: 'Direct Dye',
+      dyeCationic: 'Cationic Dye',
+      dyeSulfur: 'Sulfur Dye',
       knnKValue: 'K Value',
       knnHint: 'Recommended 3-10',
       knnAlert: 'Larger K means more stable but conservative; smaller K means more aggressive.',

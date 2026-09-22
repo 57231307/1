@@ -1701,6 +1701,8 @@ export default {
       dyeAcid: '酸性染料',
       dyeVat: '还原染料',
       dyeDirect: '直接染料',
+      dyeCationic: '阳离子染料',
+      dyeSulfur: '硫化染料',
       knnKValue: 'K 值',
       knnHint: '推荐 3-10',
       knnAlert: 'K 值越大，推荐越稳定但可能越保守；K 值越小，推荐越激进。',
