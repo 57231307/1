@@ -317,9 +317,11 @@
       库位对话框此前恒为空；现按分页结构取数，并在弹窗（无分页控件）取满一页上限 100 条而
       仍有剩余时显式提示被截断，不静默少显示；
       `wage-records/{id}/details` 的 flow_card_id 前端零调用（`api/wage.ts:95` 不带参数）；
-      `production/quality-inspection/records` 一处三病：handler 写死 `status: None`（该表本就无
-      status 列）、把 `inspection_result` 塞进名为 `inspection_type` 的 service 字段再过滤
-      InspectionResult（命名误导）、`product_id/batch_number` 收了不用；
+      ~~`production/quality-inspection/records` 一处三病~~（已修：记录列表改用独立的
+      `RecordListParams`，`inspection_type`/`inspection_result`/`product_id`/`batch_no` 四项都真正
+      下推，两个枚举入参越界一律拒绝并列出允许值；参数名由 `batch_number` 回到 `batch_no`，
+      `status: None` 的误用随独立结构消失；导出端点共用同一构造函数，前端补出对应的筛选栏与
+      `e2e/smoke/quality-records-contract.smoke.spec.ts` 契约用例）；
       `supplier-evaluations/ratings` 是端点级错位——复用 `EvaluationRecordQuery`（承诺
       supplier_id/period）却返回 `supplier_evaluation_indicator`（指标定义表，无这两列），
       前端与 E2E 均不调用，属孤儿端点，改为返回真实评级或撤掉，是 API 设计决策；
@@ -344,7 +346,7 @@
       v15 迁移末尾把历史 pass/fail/pending 归一为中文结论（同前一轮教训：归一 SQL 必须落在
       建表域之内或之后），并补 `handlers_quality_inspection_result_test.rs` 钉住词表与越界拒绝。
       仍待处理：`inspection_no` 目前由客户端提交（应由后端用单据号生成器产生，界面上把单号
-      做成必填输入并不合理）；表格里没有送检数/合格数/合格率与等级列，supplier_id/customer_id
+      做成必填输入并不合理）；列表未展示送检数/合格数/合格率与等级列，supplier_id/customer_id
       与缸号色号等字段界面仍不收集（后端为 Option，不影响主流程）；
       `sync_receipt_inspection_status` 会把该结论复制到 `purchase_receipt.inspection_status`，
       入库单侧的取值口径需与库存质量状态域一并核对（属另一条已登记项）。

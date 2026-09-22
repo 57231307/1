@@ -53,15 +53,15 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | 后端 Middleware   | 21 个（含 RLS 会话上下文中间件）                                                                                              |
 | 后端业务事件      | 34 种（事件总线 + Kafka + ES 刷新 + 幂等去重）                                                                                |
 | 后端状态机        | 30+ 个（四种范式：DB规则表/枚举payload/utils纯函数/JSON图遍历）                                                               |
-| 后端集成测试      | 256 个文件 / 2,088 个测试函数                                                                                                 |
+| 后端集成测试      | 256 个文件 / 2,089 个测试函数                                                                                                 |
 | 后端迁移          | 7 个业务域聚合迁移（system/business/sales_crm/production/finance/v15/rls_dept），Rust 代码内联 SQL，`bingxi migrate run` 执行 |
 | 后端基准测试      | 4 个 criterion 基准（染整成本/库存/凭证/工资）                                                                                |
 | 前端 Vue 文件     | 420 个                                                                                                                        |
 | 前端 TS 文件      | 261 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                    |
 | 前端 Views 子模块 | 110 个                                                                                                                        |
 | 前端 API 模块     | 121 个                                                                                                                        |
-| 前端 i18n 翻译键  | zh-CN 10,191 / en-US 10,214（引用键 9,674，缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验）                                                                       |
-| 前端 E2E 测试     | 1,204 个 / 240 个 spec 文件（665 flow 工作流 + 266 traversal 端点遍历 + 126 冒烟 + 14 enhanced + 9 Setup 向导 + 124 其余业务目录）                              |
+| 前端 i18n 翻译键  | zh-CN 10,192 / en-US 10,215（引用键 9,675，缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验）                                                                       |
+| 前端 E2E 测试     | 1,208 个 / 241 个 spec 文件（665 flow 工作流 + 266 traversal 端点遍历 + 130 冒烟 + 14 enhanced + 9 Setup 向导 + 124 其余业务目录）                              |
 | Clippy Baseline   | 4,274 行（185 条唯一警告）                                                                                                    |
 | 最新版本          | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001）                                                                |
 | 安全漏洞存量      | 0（密钥泄露扫描工作区+git 历史：0 发现）                                                                                      |
@@ -489,19 +489,19 @@ sudo journalctl -u bingxi-backend -f
 
 | 层级                  | 数量                  | 工具                  | 覆盖范围                                                                             |
 | --------------------- | --------------------- | --------------------- | ------------------------------------------------------------------------------------ |
-| 后端集成测试          | 256 文件 / 2,088 函数 | cargo test + nextest  | 服务层 + API 层                                                                      |
-| 前端 E2E 冒烟测试     | 126                   | Playwright            | 全部前端路由 + 物流/缺料取值契约（5 分片并行）                                       |
+| 后端集成测试          | 256 文件 / 2,089 函数 | cargo test + nextest  | 服务层 + API 层                                                                      |
+| 前端 E2E 冒烟测试     | 130                   | Playwright            | 全部前端路由 + 物流/缺料取值契约（5 分片并行）                                       |
 | 前端 E2E 工作流测试   | 665                   | Playwright            | 75 个 flow spec 文件，业务闭环 + 纺织领域 + 权限矩阵 + 健康巡检                      |
 | 前端 E2E 端点遍历     | 266                   | Playwright            | 10 个 traversal spec：打印/导出/审批端点矩阵 + 42a-d 全模块遍历 + 角色矩阵（5 分片） |
 | 前端 E2E 真实链路测试 | 9                     | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录                           |
 | 前端 E2E 增强链路     | 14                    | Playwright（零 mock） | 3 个 enhanced spec：多角色协同 / RPA 取数 / 真实网络韧性（离线 + CDP 链路延迟）      |
 | 前端 E2E 其余业务域   | 124                   | Playwright            | testMatch 白名单内 8 个业务目录（采购/采购扩展/销售/销售扩展/质量/财务/CRM/BPM）+ 根级 3 spec |
-| **前端 E2E 合计**     | **1,204**             | —                     | 240 个 spec 文件（chromium project，CI 实际执行口径）                                |
+| **前端 E2E 合计**     | **1,208**             | —                     | 241 个 spec 文件（chromium project，CI 实际执行口径）                                |
 | 性能基准              | 4                     | criterion             | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算                                    |
 
 > E2E 数量口径（2026-09-21 实测）：按 CI 的收集范围统计——`playwright.config.ts` 的 testMatch
 > 白名单目录 + 分片命令显式传入的目录，chromium project 计数；`firefox` project 另跑 126 个冒烟用例，
-> `webkit` 与 chromium 同集，故三 project 全量为 1,204 × 2 + 126 = 2,534。
+> `webkit` 与 chromium 同集，故三 project 全量为 1,208 × 2 + 130 = 2,546。
 > 注意：在 Windows 上执行 `playwright test --list` 不带路径参数会多收 64 个用例
 > （白名单外目录被 testMatch 的根级分支 `^[^/]*\.spec\.ts$` 因反斜杠路径误匹配），
 > 实测全量 --list 为 1,268 个 / 259 个文件，与上表 CI 口径差 64 个 / 19 个文件
@@ -510,7 +510,7 @@ sudo journalctl -u bingxi-backend -f
 
 ### E2E 测试覆盖
 
-CI 执行口径的 240 个 spec 文件（25 分片：flow 15 片 + smoke 5 片 + traversal 5 片，每分片按实际测试内容命名），核心覆盖：
+CI 执行口径的 241 个 spec 文件（25 分片：flow 15 片 + smoke 5 片 + traversal 5 片，每分片按实际测试内容命名），核心覆盖：
 
 | 类别           | spec 文件                                                                    | 覆盖内容                                                                                   |
 | -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
