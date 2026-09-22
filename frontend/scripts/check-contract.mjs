@@ -121,6 +121,8 @@ const MAPPING = [
   { ts: 'InventoryStock', rust: ['inventory_stock:Model', 'StockResponse'] },
   { ts: 'QualityRecord', rust: ['quality_inspection_record:Model'] },
   { ts: 'CreateQualityRecordPayload', rust: ['CreateInspectionRecordRequest'] },
+  // 库存预警行：后端原先返回裸 json!（无类型，门禁看不见），本轮改为 StockAlertRow 后纳入对照
+  { ts: 'StockAlert', rust: ['StockAlertRow'] },
 ];
 
 // ---------- 存量幽灵字段挂账清单（允许通过，新增字段不在清单内立即拦截） ----------
