@@ -293,24 +293,58 @@
       「化纤」若要支持，须先扩 `recipe_opt.rs` 的配伍表（化纤是泛称，
       分散染料对应涤纶、阳离子对应腈纶，不能整体并成一条），属工艺知识补录，另立条目。
 
-- [ ] **列表端点收参数却不 filtering（假控件）余下实例**：
-      （`inventory_batch_handler.rs:25` 声明了 product_id/batch_no/color_no/grade/warehouse_id/
-      start_date/end_date 七个筛选字段，`:94` 却只把 page/page_size 传给 service，七个字段一个不用；
-      前端 `views/inventory-batch/tabs/BatchListTab.vue:328-330` 还按 camelCase 发 `batchNo/colorNo`，
-      名称也不匹配，批次页所有筛选恒返回全量）；② `GET /purchase/orders`
-      （`purchase_order_handler.rs:500` 的 OrderQueryParams 根本没有 keyword 字段，
-      而 `views/purchase/components/PurchaseFilter.vue:16` 有关键字输入框，经
-      `usePurchList.ts:75` → `api/purchase.ts:92` 发出，搜索无效）；
-      ③ `GET /budgets`（`budget_management_handler.rs:478` 收裸 JSON 且只读 item_type/status，
-      前端 `views/budget/tabs/BudgetListTab.vue:273-275` 发 budget_no/name，
-      同时该页展示的是 plans 而后端查的是 items，口径本身要产品决策）。
-      待确认（后端字段闲置但界面当前没渲染对应控件，改法要么是删死字段要么是补 UI）：
-      `warehouses/locations` 的 search、`wage-records/{id}/details` 的 flow_card_id、
-      `production/quality-inspection/records`（handler 写死 status: None 且把 inspection_result
-      当 inspection_type 用）、`supplier-evaluations/ratings` 丢弃 supplier_id/period、
-      api-gateway keys 的 method 与未知 status 静默忽略；
-      色卡分析/AR 报表/资金/BPM 等报表端点同样不收日期与人员筛选。
-      另 `/sales/orders` 的状态词表（前端含 `submitted`）尚未按本轮方法核对。
+- [x] **列表端点收参数却不 filtering（假控件）批量核对**：已核实并修尽的四处——
+      ① `GET /inventory/batches` 七个筛选字段全不下推、前端还按 camelCase 发 `batchNo/colorNo`
+      （补 `BatchListFilter` 真实下推并排除软删除行，等级同时收进 `constants/stock-grade.ts`）；
+      ② `GET /purchase/orders` 没有 keyword 字段而界面有关键字框（补 keyword 下推为订单号/供应商名
+      LIKE，出参改 `PaginatedResponse` 回传真实 total，`c4c732dc`）；
+      ③ `GET /warehouses`：后端的 `search` 本身是生效的（名称+编码模糊），但列表页发的是 `keyword`，
+      而类型下拉发的 `warehouse_type` 后端 DTO 根本没有 —— 关键字与类型两个筛选端到端都不生效；
+      导出路径虽映射了 search 却漏了类型，导出与列表不同口径。现后端补 `warehouse_type` 精确筛选
+      （该列存 greige/raw/finished/semi/return 码，与前端下拉同源），前端按后端契约发 search，
+      导出补同一类型条件，导出审计快照一并记录类型筛选（否则事后无法解释导出行数）；
+      ④ `PUT /sales/orders/{id}` 把客户端传入的任意 status 字符串直接写库（`so/order_crud.rs:626`
+      原先只判「已发货/已完成不许改」而不判取值域），一条脏值即可让状态机、列表筛选与按状态统计
+      同时失真；现按 `sales_order::ALL` 白名单拒绝并报出允许值。
+      注：本轮只收紧取值域，不代表允许任意跳转——状态流转仍应走工作流端点，状态机收敛另计。
+
+- [ ] **假控件余下实例（各自都需要配套改造，不是删一行字段就能收）**：
+      `GET /budgets`（`budget_management_handler.rs:478` 收裸 JSON 且只读 item_type/status，前端
+      `BudgetListTab.vue:273-275` 发 budget_no/name；更根本的是该页展示 plans 而后端查 items，
+      口径要先定）；
+      `GET /warehouses/locations` 的 `search` 已按「不假装功能」删除（库位列表只在仓库详情弹窗内
+      按 warehouse_id 展示，没有任何调用方发 search；要支持库位搜索得连弹窗的搜索框与分页控件
+      一起加，该端点出参本就是分页对象）。顺带修掉同一弹窗的一处取数错位：后端返回
+      `{items,total,page,page_size}`，前端却按 `WarehouseLocation[]` 直接赋给表格，
+      库位对话框此前恒为空；现按分页结构取数，并在弹窗（无分页控件）取满一页上限 100 条而
+      仍有剩余时显式提示被截断，不静默少显示；
+      `wage-records/{id}/details` 的 flow_card_id 前端零调用（`api/wage.ts:95` 不带参数）；
+      `production/quality-inspection/records` 一处三病：handler 写死 `status: None`（该表本就无
+      status 列）、把 `inspection_result` 塞进名为 `inspection_type` 的 service 字段再过滤
+      InspectionResult（命名误导）、`product_id/batch_number` 收了不用；
+      `supplier-evaluations/ratings` 是端点级错位——复用 `EvaluationRecordQuery`（承诺
+      supplier_id/period）却返回 `supplier_evaluation_indicator`（指标定义表，无这两列），
+      前端与 E2E 均不调用，属孤儿端点，改为返回真实评级或撤掉，是 API 设计决策；
+      api-gateway keys 的 method 与未知 status 静默忽略；色卡分析/AR 报表/资金/BPM 等报表端点
+      同样不收日期与人员筛选。
+
+- [ ] **质检记录页与后端请求契约整体错位（页面级改造，勿零碎改）**：
+      `POST/PUT /production/quality-inspection/records` 的 `CreateInspectionRecordRequest` 要求
+      `inspection_no / inspection_type / product_id / inspection_date / total_qty / inspected_qty /
+      inspection_result` 全部必填（非 Option），而 `views/quality/index.vue:550-561` 的表单字段是
+      `record_no / result / inspector`（人名文本，而非 inspector_id），完全没有 total_qty 与
+      inspected_qty —— 界面新建一条质检记录必然 400，更新同理；列表侧又读 `row.result`
+      （`RecordTab.vue:116-122`）而后端出参字段名是 `inspection_result`，结果列因此恒为空标签，
+      且其 pass/fail/pending 词表系自造：库里唯一的自动写入方（`outsourcing_ops/receipt.rs:497`）
+      写的是「合格/不合格」。修法要一次做全：表单补数量项并按后端字段名提交、结果取值建常量
+      （与委外回仓写入方同源）、列表读真实字段、必要时补存量归一。
+      同一类的还有 `api/sales.ts:66` 的 `SalesDelivery.status` 词表（与后端 sales_delivery 常量不符）
+      与 `utils/sales-status.ts`、`views/sales/composables/olvFmts.ts` 两套订单状态映射并存。
+
+- [ ] **委外打印数据仍输出英文码**：`print_service.rs:2340` 把 `quality_status` 原值
+      （pending/qualified/concession/unqualified）直接打进打印件，用户看到的是码不是文案；
+      打印由服务端渲染成中文文档，转文案应落在 print_service（与同文件既有中文文档类型名一致），
+      不能只依赖前端常量。
 
 - [x] **验布/委外/工资三域接口路径缺 `/production` 前缀（47 个请求恒 404）**：这三组资源注册在
       `routes/production.rs`，而该 router 挂在 `nest("/api/v1/erp/production")` 下，前端
