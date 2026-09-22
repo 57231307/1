@@ -17,12 +17,6 @@ export interface BpmVariables {
 }
 
 /**
- * BPM 流程实例状态
- * FE-P2-1 修复（批次 388 v13 复审）：原 status: string 过于宽泛，收窄为字面量联合类型
- */
-export type BpmProcessStatus = 'running' | 'completed' | 'terminated' | 'cancelled' | 'suspended';
-
-/**
  * 启动流程请求参数
  */
 export interface StartProcessRequest {
@@ -47,42 +41,6 @@ export interface ApproveTaskRequest {
   task_id: string;
   comment?: string;
   variables?: BpmVariables;
-}
-
-/**
- * 业务关系响应数据
- */
-export interface BusinessRelationResponse {
-  business_type: string;
-  business_id: number;
-  instance_id: string;
-  process_name: string;
-  status: BpmProcessStatus;
-}
-
-/**
- * 流程可视化响应数据
- */
-export interface ProcessVisualizationResponse {
-  instance_id: string;
-  process_name: string;
-  current_activity: string;
-  activity_history: string[];
-  diagram_url?: string;
-}
-
-/**
- * 流程实例详情响应数据
- */
-export interface InstanceDetailResponse {
-  instance_id: string;
-  process_name: string;
-  start_user: string;
-  start_time: string;
-  end_time?: string;
-  status: BpmProcessStatus;
-  current_activities: string[];
-  variables: BpmVariables;
 }
 
 /**

@@ -1,9 +1,6 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api-response';
 import type {
-  BusinessRelationResponse,
-  ProcessVisualizationResponse,
-  InstanceDetailResponse,
   MonitorStatsResponse,
   MonitorPendingTasksParams,
   MonitorInstancesParams,
@@ -119,6 +116,80 @@ export interface ApprovalChainItem {
   due_time?: string | null;
 }
 
+/**
+ * 任务状态词表（唯一真相：models/status/bpm_crm_contract.rs bpm_task，小写）。
+ * 写入点见 services/bpm_ops/task.rs。
+ */
+export type BPMTaskStatus = 'pending' | 'completed' | 'rejected' | 'cancelled';
+
+/**
+ * 流程实例状态词表（唯一真相：models/status/bpm_crm_contract.rs bpm_instance，大写）。
+ */
+export type BPMInstanceStatus = 'PROCESSING' | 'COMPLETED' | 'TERMINATED' | 'CANCELLED';
+
+/**
+ * 业务关联查询响应（唯一真相：services/bpm_service_dto.rs:10-20 BpmBusinessRelation，
+ * 由 handlers/bpm_handler.rs get_business_relation 原样序列化，扁平结构）。
+ */
+export interface BpmBusinessRelation {
+  has_process: boolean;
+  instance_id: number;
+  instance_no: string;
+  process_status: string;
+  started_at: string;
+  completed_at: string | null;
+  task_count: number;
+  completed_tasks: number;
+  pending_tasks: number;
+}
+
+/**
+ * 流程实例详情响应（唯一真相：services/bpm_service_dto.rs:52-57 ProcessInstanceDetail）。
+ * 后端返回的是**嵌套**结构：instance 为完整 bpm_process_instance::Model，
+ * tasks 为 bpm_task::Model 数组，approval_chain 为 ApprovalChainNode 数组。
+ */
+export interface BpmInstanceDetail {
+  instance: BPMInstance;
+  definition_name: string;
+  tasks: BPMTask[];
+  approval_chain: ApprovalChainItem[];
+}
+
+/** 可视化响应内嵌的实例节点（handlers/bpm_handler.rs:121-129，字段为后端 json! 手挑的子集） */
+export interface BpmVizInstanceNode {
+  id: number;
+  instance_no: string;
+  business_type: string;
+  business_id: number;
+  status: string | null;
+  start_time: string | null;
+  end_time: string | null;
+}
+
+/** 可视化响应内嵌的任务节点（handlers/bpm_handler.rs:106-116） */
+export interface BpmVizTaskNode {
+  id: number;
+  task_no: string;
+  node_id: string;
+  node_name: string;
+  status: string | null;
+  assignee_id: number | null;
+  created_at: string | null;
+  completed_at: string | null;
+  comment: string | null;
+}
+
+/**
+ * 流程可视化响应（唯一真相：handlers/bpm_handler.rs:120-138 get_process_visualization，
+ * 返回 { instance, definition, tasks, timeline } 的**嵌套**结构）。
+ */
+export interface BpmProcessVisualization {
+  instance: BpmVizInstanceNode;
+  definition: { id: number; code: string; name: string; config: unknown } | null;
+  tasks: BpmVizTaskNode[];
+  timeline: BpmVizTaskNode[];
+}
+
 // D14 Batch 5b：原 bpmApi.startProcess 转为风格 B 函数
 export const startBpmProcess = (data: BpmStartProcessRequest) =>
   request.post<ApiResponse<BpmStartProcessResponse>>('/bpm/process/start', data);
@@ -149,13 +220,13 @@ export const urgeBpmTask = (taskId: number, urgeMessage: string) =>
 
 // D14 Batch 5b：原 bpmApi.getBusinessRelation 转为风格 B 函数
 export const getBpmBusinessRelation = (businessType: string, businessId: number) =>
-  request.get<ApiResponse<BusinessRelationResponse>>('/bpm/business-relation', {
+  request.get<ApiResponse<BpmBusinessRelation>>('/bpm/business-relation', {
     params: { business_type: businessType, business_id: businessId },
   });
 
 // D14 Batch 5b：原 bpmApi.getProcessVisualization 转为风格 B 函数
 export const getBpmProcessVisualization = (instanceId: string) =>
-  request.get<ApiResponse<ProcessVisualizationResponse>>(`/bpm/visualization/${instanceId}`);
+  request.get<ApiResponse<BpmProcessVisualization>>(`/bpm/visualization/${instanceId}`);
 
 // D14 Batch 5b：原 bpmApi.getApprovalChain 转为风格 B 函数
 export const getBpmApprovalChain = (instanceId: string) =>
@@ -163,7 +234,7 @@ export const getBpmApprovalChain = (instanceId: string) =>
 
 // D14 Batch 5b：原 bpmApi.getInstanceDetail 转为风格 B 函数
 export const getBpmInstanceById = (instanceId: string) =>
-  request.get<ApiResponse<InstanceDetailResponse>>(`/bpm/instances/${instanceId}/detail`);
+  request.get<ApiResponse<BpmInstanceDetail>>(`/bpm/instances/${instanceId}/detail`);
 
 // D14 Batch 5b：原 bpmApi.getMonitorStats 转为风格 B 函数
 export const getBpmMonitorStats = () =>
