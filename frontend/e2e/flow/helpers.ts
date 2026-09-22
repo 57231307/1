@@ -1894,25 +1894,26 @@ export async function getProcessSteps(
   return steps;
 }
 
+/**
+ * 按委外订单 + 凭证类型查凭证列表。
+ *
+ * 旧实现 catch 后返回 null，调用方又写 `expect(v === null || typeof v === 'object')`
+ * 这种恒真断言——端点 404/500/权限失败全都算通过。现改为**不吞错**：
+ * 请求失败直接抛出；成功则返回原始分页载荷，由用例自己做形状与过滤是否生效的断言。
+ * 后端真相：outsourcing_handler.rs:350 收 OutsourcingVoucherListQuery（含 voucher_type），
+ * :364 返回 ApiResponse<PaginatedResponse<...>> ⇒ data.items 是唯一形状。
+ */
 export async function verifyOutsourcingVoucher(
   page: Page,
   orderId: number,
   voucherType: string
-): Promise<Record<string, unknown> | null> {
-  try {
-    const vouchers = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
-      page,
-      'GET',
-      `/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
-    );
-    return vouchers.items?.[0] || null;
-  } catch (e) {
-    console.warn(
-      `[verifyOutsourcingVoucher] order=${orderId} type=${voucherType} 凭证查询失败:`,
-      (e as Error).message
-    );
-    return null;
-  }
+): Promise<Array<Record<string, unknown>>> {
+  const data = await apiCallRaw<unknown>(
+    page,
+    'GET',
+    `/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
+  );
+  return pickListArray<Record<string, unknown>>(data, 'items', '委外凭证列表');
 }
 
 export async function verifyTrialBalance(

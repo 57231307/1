@@ -20,12 +20,20 @@ test.describe.serial('扩展: 委外凭证/成本归集/试算平衡', () => {
     await ensureTestEntities(page);
   });
 
-  test('F2-1 验证委外凭证（4 类：issue/fee/receipt/loss）', async ({ page }) => {
-    // 尝试验证 4 种凭证类型
+  test('F2-1 委外凭证四类端点可用且类型过滤生效', async ({ page }) => {
+    // 原断言 `voucher === null || typeof voucher === 'object'` 是恒真式：
+    // 404、500、权限失败、后端忽略 voucher_type 过滤，全都判通过。
+    // 现在逐类断言：请求成功（失败由 helper 直接抛出）、响应为 {items} 形状、
+    // 且返回的每一行类型都等于所请求类型（后端 outsourcing_handler.rs:350-364 确实按类型过滤）。
     for (const vtype of ['issue', 'fee', 'receipt', 'loss']) {
-      const voucher = await verifyOutsourcingVoucher(page, 1, vtype);
-      // 凭证可能不存在（未走委外流程），关键是 API 不崩溃
-      expect(voucher === null || typeof voucher === 'object').toBeTruthy();
+      const items = await verifyOutsourcingVoucher(page, 1, vtype);
+      expect(Array.isArray(items), `${vtype}：凭证列表形状不符`).toBe(true);
+      for (const row of items) {
+        expect(
+          row.voucher_type,
+          `${vtype}：返回了非本类型凭证（过滤未生效），实际行=${JSON.stringify(row)}`
+        ).toBe(vtype);
+      }
     }
   });
 

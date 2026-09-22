@@ -1,11 +1,12 @@
 import { test, expect } from '../diagnose-fixture';
 import {
-  loginViaUI,
-  apiCall,
-  generateTotp,
-  trackPageHealth,
-  assertPageHealthy,
   BROWSER_NETWORK_NOISE,
+  apiCall,
+  apiCallExpectFail,
+  assertPageHealthy,
+  generateTotp,
+  loginViaUI,
+  trackPageHealth,
 } from './helpers';
 
 /**
@@ -64,13 +65,14 @@ test.describe('P5.5 2FA TOTP', () => {
     ).toBeTruthy();
 
     // 故意用错 code（后端 TotpVerifyRequest { token }，字段名为 token）
-    // 负向测试：错 code 触发 apiCall 抛错（code!=200），catch 转 null 供断言
-    const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', {
-      token: '000000',
-    }).catch(() => null);
-
-    // 应失败或返回错误
-    expect(enableResp === null || enableResp?.error).toBeTruthy();
+    // 负向断言必须看真实状态码：原写法 `enableResp === null || enableResp?.error`
+    // 里 apiCall 对任何非 200（含 404 路径不存在、5xx 服务异常）都抛错转 null，
+    // 于是"TOTP 校验根本没生效"也能被判成通过——2FA 属安全边界，不能这么绿。
+    const fail = await apiCallExpectFail(page, 'POST', '/auth/totp/enable', { token: '000000' });
+    expect(
+      fail.status >= 400 && fail.status < 500 && fail.status !== 404,
+      `错误 TOTP 码应被业务校验拒绝（4xx 且非 404），实际 status=${fail.status} code=${fail.code} message=${fail.message}`
+    ).toBe(true);
   });
 
   test('生成恢复码并消费', async ({ page }) => {
