@@ -20,7 +20,7 @@ use crate::models::color_card_create_dto::{
 };
 // V15 P2 B05-P2-4：色卡状态机闭环常量（draft/issued/received/used/expired/lost/archived）
 // status/mod.rs 通过 pub use wage_energy_chemical_business::* 重导出，直接用 color_card 子模块。
-// 色卡状态取值以本词表为唯一来源，legacy "active" 等价 DRAFT 且不再写入。
+// 色卡状态取值以本词表为唯一来源；历史遗留的 active 等价 DRAFT，且不再写入该值。
 use crate::models::status::color_card as card_status;
 use crate::utils::sql_escape::safe_like_pattern;
 

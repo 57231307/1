@@ -4468,10 +4468,14 @@ COMMENT ON COLUMN "purchase_orders"."status" IS
 -- 双向越界：CHECK 认 active 但词表不认（legacy）；词表认 draft/issued/received/used/expired
 -- 但 CHECK 不认——service 的 issue/receive/use/expire 流转写这些值会被旧 CHECK 直接拒绝。
 -- 收口：回填 active→draft，默认值与 CHECK 全部对齐词表全集（依据=列注释/词表模块说明
--- "active 等价 draft"）。回填必须先于 CHECK 重建，否则残留 active 行使 ADD CONSTRAINT 失败。
+-- "active 等价 draft"）。
+-- 顺序必须是 DROP → 回填 → DEFAULT → ADD CHECK：旧 CHECK 只允许 (active,archived,lost)，
+-- 而回填要写的 'draft' 恰恰不在其中 —— 先 UPDATE 会让每一行回填自己触发 23514 使 up() 失败
+-- （全新库没有该行数据所以 CI 逃得过，存量库升级必红）；反过来 ADD 之前必须先把残留
+-- active 行清掉，否则新 CHECK 建立失败。两头都卡死，只有这个顺序能同时成立。
+ALTER TABLE "color_cards" DROP CONSTRAINT IF EXISTS "chk_color_card_status";
 UPDATE "color_cards" SET "status" = 'draft' WHERE "status" = 'active';
 ALTER TABLE "color_cards" ALTER COLUMN "status" SET DEFAULT 'draft';
-ALTER TABLE "color_cards" DROP CONSTRAINT IF EXISTS "chk_color_card_status";
 ALTER TABLE "color_cards"
     ADD CONSTRAINT "chk_color_card_status"
     CHECK ("status" IN ('draft', 'issued', 'received', 'used', 'expired', 'archived', 'lost'));
