@@ -1899,3 +1899,24 @@ eslint e2e/{flow,smoke,traversal}=0（仅既往 unused-import/console baseline �
       本轮只删了前端那个按名字写、无人消费的假声明。要不要（a）补真正的任务列表 handler
       （`system_update_tasks` 表与逐行序列化函数都已存在，成本很低）、（b）把路由改名
       `/system-update/status`、还是（c）维持现状，需拍板；(a)(b) 都会动外部可见端点。
+
+### 关于「预算列表两个前端函数指向同一端点」的核查结论（2026-09-23，差点误修）
+
+`check-api-envelope` 把 `api/budget.ts:25 getBudgetList` 与 `:114 getBudgetItemList` 都映射到
+`budget_management_handler::list_budgets`，看起来像"其中一个 URL 写错了"。逐层核实后结论相反：
+
+- `GET /budgets` → `list_budgets`（handler:479）签名收的是 **`Query<serde_json::Value>`**，
+  内部自己把 page/page_size 抠出来再构造 `BudgetItemQueryParams`，返回手搓
+  `ApiResponse<serde_json::Value>`（`{items,total,…}`）。
+- `GET /budgets/items` → `list_budget_items`（handler:157-161）收 **`Query<BudgetItemQuery>`**
+  （`item_type/status/page/page_size`），返回 `ApiResponse<Vec<budget_management::Model>>`。
+- 两者服务的是**同一实体**（预算科目/明细，前端 `BudgetItem` 的 item_code/parent_id/level/
+  account_subject_id 与之吻合），`api/asset.ts:164` 那份走 `/budgets/items` 且类型正确。
+- 前端 `views/budgets/index.vue:345` 读 `/budgets` 并配 `{items,total}` 声明，**当前可用**，
+  不是缺陷；它靠 `unwrapList(res.data)` 与"非数组才取 total"的宽容写法同时兼容两种形状，
+  所以即使后端改形也不会报错。
+
+真正的待决问题（并入"信封键名统一"那条）：同一列表存在**两条路由、两套载荷、一个未定型
+Query**。建议保留 typed 的 `/budgets/items`（`Vec`），把 `/budgets` 标废弃或直接转发到同一
+service，并让 `getBudgetList`/`getBudgetItemList` 合并成一个函数——但那会同时改外部端点与
+前端调用面，需拍板，本轮只登记事实、未改代码。
