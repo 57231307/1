@@ -1741,26 +1741,76 @@ export async function verifyNetWeight(grossWeight: number, paperTubeWeight: numb
   return Number((grossWeight - paperTubeWeight).toFixed(2));
 }
 
+/** 业务模式配置行（GET /production/business-modes/by-code/{code} 的 data） */
+export interface BusinessModeConfigRow {
+  id: number;
+  mode_code: string;
+  mode_name: string;
+  material_source: string;
+  settlement_method: string;
+  inventory_type: string;
+  cost_method: string;
+  mode_category: string;
+  require_purchase: boolean;
+  require_production: boolean;
+  require_outsourcing: boolean;
+  require_sales: boolean;
+}
+
+/** 业务模式流程节点行（business_mode_flow_step 表） */
+export interface BusinessModeFlowStepRow {
+  id: number;
+  mode_id: number;
+  step_no: number;
+  step_code: string;
+  step_name: string;
+  module_name: string;
+  is_required: boolean;
+}
+
+/**
+ * 按代码取业务模式：backend routes/production.rs business_mode() 全部挂在
+ * /api/v1/erp/production 前缀下，且 mode_code 是封闭词表的种子数据，取不到即为环境缺陷。
+ */
+export async function getBusinessModeByCode(
+  page: Page,
+  modeCode: string
+): Promise<BusinessModeConfigRow> {
+  const mode = await apiCallRaw<BusinessModeConfigRow>(
+    page,
+    'GET',
+    `/production/business-modes/by-code/${modeCode}`
+  );
+  if (!mode?.id) {
+    throw new Error(
+      `[getBusinessModeByCode] ${modeCode} 详情缺少 id，响应：${JSON.stringify(mode).slice(0, 200)}`
+    );
+  }
+  return mode;
+}
+
+/**
+ * 取业务模式的流程链。
+ * 真实端点：GET /production/business-modes/flow-steps/by-mode/{mode_id}
+ * （backend 只注册了 by-mode 查询，没有 GET /business-modes/{id}/flow-steps，
+ * 也没有全局流程节点列表；响应 data 是裸数组，不是分页对象）。
+ */
 export async function getProcessSteps(
   page: Page,
   modeCode: string
-): Promise<Array<{ step_code: string; step_name: string; is_required: boolean }>> {
-  try {
-    const modes = await apiCallRaw<{ items: Array<{ id: number; mode_code: string }> }>(
-      page,
-      'GET',
-      '/business-modes?page=1&page_size=50'
+): Promise<BusinessModeFlowStepRow[]> {
+  const mode = await getBusinessModeByCode(page, modeCode);
+  const steps = await apiCallRaw<BusinessModeFlowStepRow[]>(
+    page,
+    'GET',
+    `/production/business-modes/flow-steps/by-mode/${mode.id}`
+  );
+  if (!Array.isArray(steps)) {
+    throw new Error(
+      `[getProcessSteps] ${modeCode} 流程节点应返回数组，实际：${JSON.stringify(steps).slice(0, 200)}`
     );
-    const mode = modes.items.find(m => m.mode_code === modeCode);
-    if (!mode) return [];
-    const steps = await apiCallRaw<{
-      items: Array<{ step_code: string; step_name: string; is_required: boolean }>;
-    }>(page, 'GET', `/business-modes/${mode.id}/flow-steps?page=1&page_size=20`);
-    return steps.items || [];
-  } catch (e) {
-    console.warn(`[getProcessSteps] 业务模式 ${modeCode} 流程步骤查询失败:`, (e as Error).message);
-    return [];
   }
+  return steps;
 }
 
 export async function verifyOutsourcingVoucher(

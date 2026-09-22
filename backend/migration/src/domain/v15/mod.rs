@@ -4325,6 +4325,37 @@ UPDATE "logistics_waybills"
  WHERE "logistics_company" IN (
         'SF Express', 'ZTO Express', 'YTO Express', 'Yunda Express', 'JD Logistics'
    );
+
+-- 业务模式基础数据种子：mode_code 是封闭词表（backend validate_mode_code 只接受这 6 个代码，
+-- 且同代码在 is_deleted=false 范围内唯一），而库里此前一行都没有 —— 新部署环境的「多业务模式」
+-- 整条链路（模式详情 / 流程节点 / 业务规则 / 单据关联）没有可挂载的对象，配置页也只能靠手填
+-- 6 组互相约束的布尔位才建得出第一行。这里按 §6 业务模式定义补齐，NOT EXISTS 守卫保证与
+-- 运维已手工建过的代码不冲突、重复执行安全。
+INSERT INTO "business_mode_config" (
+    "mode_code", "mode_name", "description", "is_active", "is_default", "process_chain",
+    "material_source", "settlement_method", "inventory_type", "cost_method",
+    "require_purchase", "require_production", "require_outsourcing", "require_sales",
+    "mode_category", "is_deleted", "created_at", "updated_at"
+)
+SELECT v.mode_code, v.mode_name, v.description, true, false, '[]'::jsonb,
+       v.material_source, v.settlement_method, v.inventory_type, v.cost_method,
+       v.require_purchase, v.require_production, v.require_outsourcing, v.require_sales,
+       v.mode_category, false, now(), now()
+  FROM (VALUES
+    ('grey_trading',     '坯布经销', '采购坯布后对外经销，不进生产车间',   'purchase',         'sale_settlement',          'grey',    'standard',       true,  false, false, true,  'trading'),
+    ('finished_trading', '成品经销', '采购坯布加工成成品后经销',           'purchase',         'sale_settlement',          'finished', 'standard',      true,  true,  false, true,  'trading'),
+    ('dyeing_processing', '染整加工', '客供坯布染整加工，收加工费',         'customer_provided', 'processing_fee_settlement', 'both',  'processing_fee', false, true,  false, false, 'processing'),
+    ('self_weave_dye',   '自织自染', '自采纱线织造染整后自销',             'purchase',         'sale_settlement',          'both',    'actual',         true,  true,  false, true,  'integrated'),
+    ('outsourcing',      '委托加工', '自制坯布委托外厂加工后销售',         'self_made',        'sale_settlement',          'finished', 'actual',         false, true,  true,  true,  'processing'),
+    ('toll_processing',  '来料加工', '客户来料代为加工，收加工费',         'toll',             'processing_fee_settlement', 'both',   'processing_fee', false, true,  false, false, 'processing')
+  ) AS v(
+    mode_code, mode_name, description, material_source, settlement_method, inventory_type,
+    cost_method, require_purchase, require_production, require_outsourcing, require_sales, mode_category
+  )
+ WHERE NOT EXISTS (
+    SELECT 1 FROM "business_mode_config" e
+     WHERE e."mode_code" = v.mode_code AND e."is_deleted" = false
+ );
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

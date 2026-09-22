@@ -344,20 +344,6 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       },
     },
     {
-      label: '业务模式',
-      createApi: '/production/business-modes',
-      payload: {
-        mode_code: `P0BM${TS}`,
-        mode_name: `P0模式${TS}`,
-        material_source: 'customer',
-        settlement_method: 'piece',
-        inventory_type: 'customer',
-        cost_method: 'standard',
-        mode_category: 'weaving',
-        description: 'P0模式描述',
-      },
-    },
-    {
       label: '缸号状态规则',
       createApi: '/production/dye-batch-state-rules',
       payload: {
@@ -537,6 +523,66 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       await createThenApiDelete(page, c);
     });
   }
+
+  // ===== 业务模式流程节点（子表） =====
+  // 业务模式配置本身不走通用矩阵：mode_code 是 backend validate_mode_code 的封闭词表，
+  // 6 行由 v15 迁移种子写入且被 08 spec 只读依赖，「每轮新建一个再删除」既建不出来
+  // （同代码唯一）也会删掉别人的前置数据。这里改为删除矩阵真正能覆盖的子资源：
+  // 流程节点有 POST/DELETE 端点，step_code 自由填写（同模式内唯一），回读入口是 by-mode 列表。
+  test('业务模式流程节点：创建→删除→按模式回读消失', async ({ page }) => {
+    test.setTimeout(180_000);
+    const modes = await apiCallRaw<{ items: Array<{ id: number; mode_code: string }> }>(
+      page,
+      'GET',
+      '/production/business-modes?page=1&page_size=50&mode_code=grey_trading'
+    );
+    const mode = (modes.items ?? []).find(m => m.mode_code === 'grey_trading');
+    expect(
+      mode,
+      `[31b-业务模式流程节点] 种子缺少 grey_trading，现有：${(modes.items ?? [])
+        .map(m => m.mode_code)
+        .join(',')}`
+    ).toBeTruthy();
+
+    const stepsApi = `/production/business-modes/flow-steps/by-mode/${mode!.id}`;
+    const before = await apiCallRaw<Array<{ id: number; step_no: number }>>(page, 'GET', stepsApi);
+    expect(Array.isArray(before), '[31b-业务模式流程节点] by-mode 回读应为数组').toBe(true);
+    const stepCode = `P0-FS-${TS}`;
+    const stepNo = before.reduce((max, s) => Math.max(max, s.step_no), 0) + 1;
+
+    const created = await apiCallRaw<{ id?: number }>(
+      page,
+      'POST',
+      '/production/business-modes/flow-steps',
+      {
+        mode_id: mode!.id,
+        step_no: stepNo,
+        step_code: stepCode,
+        step_name: `P0流程节点${TS}`,
+        module_name: 'production',
+        is_required: false,
+        description: 'P0删除矩阵流程节点',
+      }
+    );
+    const id = created?.id;
+    expect(id, `[31b-业务模式流程节点] 创建响应无 id（创建 API 异常）`).toBeTruthy();
+    console.log(`[31b-业务模式流程节点] 创建成功 id=${id} step_no=${stepNo}`);
+
+    const afterCreate = await apiCallRaw<Array<{ id: number }>>(page, 'GET', stepsApi);
+    expect(
+      afterCreate.some(s => s.id === id),
+      `[31b-业务模式流程节点] 新建节点 ${id} 未出现在 by-mode 列表里`
+    ).toBe(true);
+
+    await apiCall(page, 'DELETE', `/production/business-modes/flow-steps/${id}`);
+    console.log(`[31b-业务模式流程节点] DELETE flow-steps/${id} ✅成功`);
+
+    const afterDelete = await apiCallRaw<Array<{ id: number }>>(page, 'GET', stepsApi);
+    expect(
+      afterDelete.some(s => s.id === id),
+      `[31b-业务模式流程节点] 删除后节点 ${id} 仍能从 by-mode 列表读到（删除未生效）`
+    ).toBe(false);
+  });
 
   // ===== 凭证（items 必填 debit/credit）=====
   test('凭证：创建→删除→详情404', async ({ page }) => {
