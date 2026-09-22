@@ -6,8 +6,8 @@ import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
 
 /**
  * 按状态筛选生产订单列表。
- * 后端列表接口仅支持 status/product_id 过滤（不支持 order_no），
- * 故用状态下拉把目标状态行集中呈现，确保"造出的工单"对应的操作按钮一定在屏内。
+ * 用于把目标状态行集中呈现，确保"造出的工单"对应的状态操作按钮一定在屏内。
+ * （order_no 缺陷已修复，本 helper 仅服务状态维度；按单号定位用 filterByOrderNo。）
  */
 async function filterByStatus(page: Page, statusLabel: string): Promise<void> {
   await expect(page.locator('.v2-table, .el-table')).toBeVisible({ timeout: 30000 });
@@ -16,23 +16,43 @@ async function filterByStatus(page: Page, statusLabel: string): Promise<void> {
   await page.getByRole('button', { name: /查询/ }).click();
 }
 
-/** 用真实产品 API 建一张生产工单（默认态 DRAFT），返回 id（缺失即抛，不兜底）。 */
-async function createProductionOrder(page: Page, productId: number): Promise<number> {
-  const created = await apiCall<{ id?: number }>(
+/**
+ * 按「订单编号」筛选生产订单列表。
+ * 后端 production-orders 列表接口现已真实接收 order_no 并对 production_order.order_no 列做
+ * like 过滤（此前该参数被 serde 静默丢弃、筛选恒不生效）。用于把列表精确收敛到目标单号。
+ */
+async function filterByOrderNo(page: Page, orderNo: string): Promise<void> {
+  await expect(page.locator('.v2-table, .el-table')).toBeVisible({ timeout: 30000 });
+  await page.getByLabel(/订单编号/).fill(orderNo);
+  await page.getByRole('button', { name: /查询/ }).click();
+}
+
+/**
+ * 用真实产品 API 建一张生产工单（默认态 DRAFT）。
+ * 显式传入唯一 order_no 以便列表按单号精确定位；返回 {id, order_no}（缺失即抛，不兜底）。
+ */
+async function createProductionOrder(
+  page: Page,
+  productId: number,
+  orderNo?: string
+): Promise<{ id: number; order_no: string }> {
+  const created = await apiCall<{ id?: number; order_no?: string }>(
     page,
     'POST',
     '/production/production-orders/orders',
     {
+      order_no: orderNo,
       product_id: productId,
       planned_quantity: 100,
       priority: 5,
     }
   );
   const id = created.data?.id;
-  if (!id) {
+  const order_no = created.data?.order_no;
+  if (!id || !order_no) {
     throw new Error(`生产工单造数失败：${JSON.stringify(created).slice(0, 200)}`);
   }
-  return id;
+  return { id, order_no };
 }
 
 test.describe('生产计划 - 01 工单创建与排产', () => {
@@ -66,16 +86,29 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
   });
 
   test('草稿工单可编辑', async ({ page }) => {
-    // 真实造数：建一张 DRAFT 工单，保证列表必有"编辑"入口。
+    // 真实造数：建两张 DRAFT 工单，一张为编辑目标、一张为干扰项，
+    // 保证列表必有"编辑"入口。
     // 原实现 `if (await editBtn.isVisible())`：V2Table 操作列按钮是 el-button(link)
     // → ARIA 角色是 button 而非 link，`getByRole('link')` 恒不命中 → 零断言假绿。
+    // order_no 缺陷已修复：此处恢复按「订单编号」精确定位目标工单（此前因后端丢弃
+    // order_no 只能用状态筛选规避，无法把结果收敛到单个单号）。
     await ensureTestEntities(page);
     const ctx = getCtx();
     expect(ctx.productIds.length, '前置：需要至少一个产品').toBeGreaterThanOrEqual(1);
-    await createProductionOrder(page, ctx.productIds[0]);
+    const stamp = Date.now();
+    const target = await createProductionOrder(page, ctx.productIds[0], `E2E-EDIT-${stamp}`);
+    const distractor = await createProductionOrder(
+      page,
+      ctx.productIds[0],
+      `E2E-DISTRACTOR-${stamp}`
+    );
 
     await page.goto('/production');
-    await filterByStatus(page, '草稿');
+    await filterByOrderNo(page, target.order_no);
+
+    // 真实生效证据：结果含目标单号，且不含干扰单号（证明 order_no 过滤真的下推到 SQL）
+    await expect(page.getByText(target.order_no)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText(distractor.order_no)).toHaveCount(0);
 
     const editBtn = page.getByRole('button', { name: '编辑', exact: true }).first();
     await expect(editBtn, '草稿工单应渲染"编辑"按钮').toBeVisible({ timeout: 30000 });
@@ -95,7 +128,7 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     expect(ctx.productIds.length, '前置：需要至少一个产品').toBeGreaterThanOrEqual(1);
-    const id = await createProductionOrder(page, ctx.productIds[0]);
+    const { id } = await createProductionOrder(page, ctx.productIds[0]);
     await apiCall(page, 'POST', `/production/production-orders/orders/${id}/submit-approval`);
     await apiCall(page, 'POST', `/production/production-orders/orders/${id}/approve`, {
       approved: true,

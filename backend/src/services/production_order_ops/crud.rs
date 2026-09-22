@@ -446,6 +446,18 @@ impl ProductionOrderService {
             );
         }
 
+        if let Some(order_no) = query.order_no.as_deref() {
+            // 订单编号模糊筛选：下推到 production_order.order_no 真实列。
+            // 空串/纯空白不触发过滤；长度上限 64 防御异常超长输入进入 LIKE；
+            // 经 safe_like_pattern 转义 % _ \ 通配符，避免用户输入变成通配（SeaORM 绑定参数，无 SQL 注入）。
+            let trimmed = order_no.trim();
+            if !trimmed.is_empty() && trimmed.chars().count() <= 64 {
+                let pattern = crate::utils::sql_escape::safe_like_pattern(trimmed);
+                select =
+                    select.filter(crate::models::production_order::Column::OrderNo.like(&pattern));
+            }
+        }
+
         if let Some(status) = query.status {
             select = select.filter(crate::models::production_order::Column::Status.eq(status));
         }

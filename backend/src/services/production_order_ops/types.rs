@@ -51,6 +51,8 @@ pub struct UpdateProductionOrderRequest {
 /// 生产订单查询参数
 #[derive(Debug, Clone)]
 pub struct ProductionOrderQuery {
+    /// 订单编号模糊过滤
+    pub order_no: Option<String>,
     /// 状态过滤
     pub status: Option<String>,
     /// 产品 ID 过滤

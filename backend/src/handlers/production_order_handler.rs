@@ -111,6 +111,8 @@ pub struct ProductionOrderResponse {
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ListProductionOrdersQuery {
+    /// 订单编号模糊筛选：前端列表页有此筛选框，此前后端 DTO 无该字段导致参数被 serde 静默丢弃
+    pub order_no: Option<String>,
     pub status: Option<String>,
     pub product_id: Option<i32>,
     pub page: Option<u64>,
@@ -210,6 +212,7 @@ pub async fn list_production_orders(
     let data_scope_ctx = auth.to_data_scope_context();
 
     let query_params = ProductionOrderQuery {
+        order_no: query.order_no,
         status: query.status,
         product_id: query.product_id,
         page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
@@ -623,6 +626,7 @@ pub async fn export_production_orders(
 
     // V15 P0-S12 修复（Batch 475c）：导出全量数据（page=1/page_size=10000）
     let query_params = ProductionOrderQuery {
+        order_no: query.order_no.clone(),
         status: query.status.clone(),
         product_id: query.product_id,
         page: 1,
