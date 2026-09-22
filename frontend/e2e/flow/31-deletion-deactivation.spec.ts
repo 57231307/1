@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, apiCallRaw, tryCleanup } from './helpers';
-import { uiDeleteRow, findTableRow } from './ui-helpers';
+import { findTableRow, pickListArray, uiDeleteRow, type ListShapeKey } from './ui-helpers';
 
 /**
  * P0 级删除与停用验证（2026-09-10 用户指令）
@@ -330,7 +330,11 @@ async function createThenUiDelete(
   createApi: string,
   createPayload: Record<string, unknown>,
   listRoute: string,
-  rowName: string | number
+  rowName: string | number,
+  // 该资源列表端点（GET createApi）的显式形状：调用方按后端 handler 逐一声明。
+  // 取代原 `body.data.items ?? body.data.roles ?? body.data ?? []` 三重形状宽容探测——
+  // 它同时吞分页 items / 具名 roles / 裸数组并 `?? []`，端点改形时静默读成空集。
+  listKey: ListShapeKey
 ): Promise<void> {
   const createResp = await apiCall<{ id?: number }>(page, 'POST', createApi, createPayload);
   console.log(`[P0-删除-${label}] 创建响应:`, JSON.stringify(createResp?.data)?.slice(0, 300));
@@ -347,9 +351,13 @@ async function createThenUiDelete(
   );
   if (listCheck?.ok()) {
     const body = await listCheck.json();
-    const items = body?.data?.items ?? body?.data?.roles ?? body?.data ?? [];
-    const arr = Array.isArray(items) ? items : [];
-    const exists = arr.some((i: Record<string, unknown>) => i.id === id);
+    // 单一形状直读：listKey 不匹配 → pickListArray 抛错（明确失败），不再被吸收成空列表。
+    const arr = pickListArray<Record<string, unknown>>(
+      body?.data,
+      listKey,
+      `P0-删除-${label} 列表回读`
+    );
+    const exists = arr.some(i => i.id === id);
     console.log(
       `[P0-删除-${label}] 创建后列表回读: ${exists ? '✅存在' : '❌不存在'}（列表 ${arr.length} 条）`
     );
@@ -373,14 +381,13 @@ async function firstRefOrSeed(
   label: string,
   listApi: string,
   seedApi: string,
-  seedPayload: Record<string, unknown>
+  seedPayload: Record<string, unknown>,
+  // 列表端点（GET listApi）的显式形状，取代原 `Array.isArray(resp)?resp:(resp?.items??[])` 双形状探测。
+  listKey: ListShapeKey
 ): Promise<number> {
-  const resp = await apiCallRaw<Array<{ id: number }> | { items?: Array<{ id: number }> }>(
-    page,
-    'GET',
-    `${listApi}?page=1&page_size=1`
-  );
-  const arr = Array.isArray(resp) ? resp : (resp?.items ?? []);
+  const resp = await apiCallRaw<unknown>(page, 'GET', `${listApi}?page=1&page_size=1`);
+  // 单一形状直读；形状不符即抛错（不再把 items 键漂移当成"列表为空"→误走 seed 分支）
+  const arr = pickListArray<{ id: number }>(resp, listKey, `P0-删除-${label} 引用列表`);
   const existing = arr[0]?.id;
   if (existing) return existing;
   const created = await apiCall<{ id?: number }>(page, 'POST', seedApi, seedPayload);
@@ -407,7 +414,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       '/departments',
       { name: `P0部门${EXT_TS}`, code: `P0-DEPT-${EXT_TS}` },
       '/departments',
-      `P0部门${EXT_TS}`
+      `P0部门${EXT_TS}`,
+      // department_handler define_crud → PaginatedResponse → {items}
+      'items'
     );
   });
 
@@ -419,7 +428,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       '/product-categories',
       { name: `P0分类${EXT_TS}`, code: `P0-CAT-${EXT_TS}` },
       '/product',
-      `P0分类${EXT_TS}`
+      `P0分类${EXT_TS}`,
+      // product_category_handler define_crud → PaginatedResponse → {items}
+      'items'
     );
   });
 
@@ -436,7 +447,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         balance_direction: 'debit',
       },
       '/assist-accounting',
-      `P0待删科目${EXT_TS}`
+      `P0待删科目${EXT_TS}`,
+      // account_subject_handler::list_subjects → ApiResponse<Vec> → 裸数组
+      'bare'
     );
   });
 
@@ -453,7 +466,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         content: '<p>P0</p>',
       },
       '/print-templates',
-      `P0待删模板${EXT_TS}`
+      `P0待删模板${EXT_TS}`,
+      // print_handler::list_print_templates → ApiResponse<Vec<PrintTemplateRecord>> → 裸数组
+      'bare'
     );
   });
 
@@ -475,7 +490,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         supported_formats: ['xlsx'],
       },
       '/report-templates',
-      `P0待删报表${EXT_TS}`
+      `P0待删报表${EXT_TS}`,
+      // report_enhanced_handler::list_report_templates → json!{items,...} → {items}
+      'items'
     );
   });
 
@@ -487,7 +504,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       '/quality-standards',
       { standard_name: `P0待删标准${EXT_TS}`, standard_type: 'product' },
       '/quality-standards',
-      `P0待删标准${EXT_TS}`
+      `P0待删标准${EXT_TS}`,
+      // quality_standard_handler::list_standards → ApiResponse<Vec> → 裸数组
+      'bare'
     );
   });
 
@@ -505,7 +524,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         delivery_date: new Date().toISOString().slice(0, 10),
       },
       '/sales-contract',
-      `P0-SC-${EXT_TS}`
+      `P0-SC-${EXT_TS}`,
+      // sales_contract_handler::list_contracts → ApiResponse<Vec> → 裸数组
+      'bare'
     );
   });
 
@@ -523,7 +544,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         delivery_date: new Date().toISOString().slice(0, 10),
       },
       '/purchase-contract',
-      `P0-PC-${EXT_TS}`
+      `P0-PC-${EXT_TS}`,
+      // purchase_contract_handler::list_contracts → ApiResponse<Vec> → 裸数组
+      'bare'
     );
   });
 
@@ -535,23 +558,41 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       '/production/dye-recipes',
       { recipe_name: `P0待删配方${EXT_TS}`, customer_id: 1 },
       '/dye-recipe',
-      `P0待删配方${EXT_TS}`
+      `P0待删配方${EXT_TS}`,
+      // dye_recipe_handler::list_dye_recipes → success_paginated → {items}
+      'items'
     );
   });
 
   test('坯布：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
     // 引用字段取真实存在的前置数据（列表为空则按契约补建），禁止硬编码 ID
-    const productId = await firstRefOrSeed(page, '产品', '/products', '/products', {
-      name: `P0坯布产品${EXT_TS}`,
-      code: `P0-GFP-${EXT_TS}`,
-      unit: '米',
-      status: 'active',
-    });
-    const warehouseId = await firstRefOrSeed(page, '仓库', '/warehouses', '/warehouses', {
-      name: `P0坯布仓库${EXT_TS}`,
-      code: `P0-GFW-${EXT_TS}`,
-    });
+    const productId = await firstRefOrSeed(
+      page,
+      '产品',
+      '/products',
+      '/products',
+      {
+        name: `P0坯布产品${EXT_TS}`,
+        code: `P0-GFP-${EXT_TS}`,
+        unit: '米',
+        status: 'active',
+        // /products → PaginatedResponse → {items}
+      },
+      'items'
+    );
+    const warehouseId = await firstRefOrSeed(
+      page,
+      '仓库',
+      '/warehouses',
+      '/warehouses',
+      {
+        name: `P0坯布仓库${EXT_TS}`,
+        code: `P0-GFW-${EXT_TS}`,
+        // /warehouses → PaginatedResponse → {items}
+      },
+      'items'
+    );
     const supplierId = await firstRefOrSeed(
       page,
       '供应商',
@@ -561,7 +602,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         supplier_name: `P0坯布供应商${EXT_TS}`,
         supplier_short_name: 'P0坯供',
         contact_phone: '13800000010',
-      }
+        // /purchase/suppliers → PaginatedResponse → {items}
+      },
+      'items'
     );
     await createThenUiDelete(
       page,
@@ -579,7 +622,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         dye_lot_no: `P0-DL-${EXT_TS}`,
       },
       '/greige-fabrics',
-      `P0待删坯布${EXT_TS}`
+      `P0待删坯布${EXT_TS}`,
+      // greige_fabric_handler::list_greige_fabrics → success_paginated → {items}
+      'items'
     );
   });
 
@@ -591,19 +636,29 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       '/production/dye-batches',
       { batch_no: `P0-DB-${EXT_TS}`, recipe_id: 1, quantity: 100 },
       '/dye-batch',
-      `P0-DB-${EXT_TS}`
+      `P0-DB-${EXT_TS}`,
+      // dye_batch_handler::list_dye_batches → ApiResponse<PaginatedResponse> → {items}
+      'items'
     );
   });
 
   test('产品色号：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
     // 先取一个真实产品 id（无产品时按契约补建，不再静默跳过）
-    const productId = await firstRefOrSeed(page, '产品', '/products', '/products', {
-      name: `P0色号产品${EXT_TS}`,
-      code: `P0-COLP-${EXT_TS}`,
-      unit: '米',
-      status: 'active',
-    });
+    const productId = await firstRefOrSeed(
+      page,
+      '产品',
+      '/products',
+      '/products',
+      {
+        name: `P0色号产品${EXT_TS}`,
+        code: `P0-COLP-${EXT_TS}`,
+        unit: '米',
+        status: 'active',
+        // /products → PaginatedResponse → {items}
+      },
+      'items'
+    );
     await createThenUiDelete(
       page,
       '产品色号',
@@ -619,7 +674,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         extra_cost: 0,
       },
       '/product',
-      `P0-COLOR-${EXT_TS}`
+      `P0-COLOR-${EXT_TS}`,
+      // product_handler::list_product_colors → ApiResponse<Vec> → 裸数组
+      'bare'
     );
   });
 });

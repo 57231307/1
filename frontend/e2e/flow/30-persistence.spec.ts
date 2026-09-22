@@ -7,6 +7,7 @@ import {
   ensureTestEntities,
   ensureStockInWarehouse,
 } from './helpers';
+import { pickListArray } from './ui-helpers';
 
 /**
  * P0 级数据持久性验证（2026-09-10 用户指令）
@@ -119,11 +120,15 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     expect(id, '产品创建必须返回 id').toBeTruthy();
 
     // 列表回读
-    const list = await apiCallRaw<
-      | Array<{ id: number; code: string; name: string }>
-      | { items?: Array<{ id: number; code: string; name: string }> }
-    >(page, 'GET', `/products?page=1&page_size=200`);
-    const items = Array.isArray(list) ? list : (list?.items ?? []);
+    // /products：product_handler.rs:247 list_products → ApiResponse<PaginatedResponse> → data={items}。
+    // 单一形状直读；原 `Array.isArray(list)?list:(list?.items??[])` 双形状探测 + `?? []` 会把
+    // items 键缺失/改形当成"空列表"→ found=undefined，读成"数据没落库"而非"契约漂移"。
+    const list = await apiCallRaw<unknown>(page, 'GET', `/products?page=1&page_size=200`);
+    const items = pickListArray<{ id: number; code: string; name: string }>(
+      list,
+      'items',
+      '30 P0-产品列表回读'
+    );
     const found = items.find(i => i.id === id);
     console.log(
       `[P0-产品] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
@@ -192,12 +197,14 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-客户] 创建成功 id=${id} name=${name}`);
     expect(id, '客户创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<{ items?: Array<{ id: number; customer_name?: string }> }>(
-      page,
-      'GET',
-      `/crm/customers?page=1&page_size=200`
+    // /crm/customers：customer_handler.rs list_customers → ApiResponse<PaginatedResponse> → data={items}。
+    // 单一形状直读，items 缺失即抛错（不再 `list?.items ?? []` 把"键漂移"当成空集）
+    const list = await apiCallRaw<unknown>(page, 'GET', `/crm/customers?page=1&page_size=200`);
+    const items = pickListArray<{ id: number; customer_name?: string }>(
+      list,
+      'items',
+      '30 P0-客户列表回读'
     );
-    const items = list?.items ?? [];
     const found = items.find(i => i.id === id);
     console.log(
       `[P0-客户] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
@@ -272,12 +279,14 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-供应商] 创建成功 id=${id} name=${name}`);
     expect(id, '供应商创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<{ items?: Array<{ id: number; supplier_name?: string }> }>(
-      page,
-      'GET',
-      `/purchase/suppliers?page=1&page_size=200`
+    // /purchase/suppliers：supplier_handler.rs:20 list_suppliers → ApiResponse<PaginatedResponse> → data={items}。
+    // 单一形状直读，items 缺失即抛错
+    const list = await apiCallRaw<unknown>(page, 'GET', `/purchase/suppliers?page=1&page_size=200`);
+    const items = pickListArray<{ id: number; supplier_name?: string }>(
+      list,
+      'items',
+      '30 P0-供应商列表回读'
     );
-    const items = list?.items ?? [];
     const found = items.find(i => i.id === id);
     console.log(
       `[P0-供应商] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
@@ -330,20 +339,20 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-仓库] 创建成功 id=${id} code=${code}`);
     expect(id, '仓库创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<{
-      items?: Array<{
-        id: number;
-        code?: string;
-        name?: string;
-        address?: string;
-        // 列表响应序列化字段为 warehouse_code（warehouse model 列名），非 code
-        warehouse_code?: string;
-        phone?: string;
-        capacity?: number;
-        warehouse_type?: string;
-      }>;
-    }>(page, 'GET', `/warehouses?page=1&page_size=200`);
-    const items = list?.items ?? [];
+    // /warehouses：warehouse_handler.rs:88 define_crud_handlers! → warehouse_service::list PaginatedResponse → data={items}
+    // 单一形状直读，items 缺失即抛错（不再 `?? []`）
+    const list = await apiCallRaw<unknown>(page, 'GET', `/warehouses?page=1&page_size=200`);
+    const items = pickListArray<{
+      id: number;
+      code?: string;
+      name?: string;
+      address?: string;
+      // 列表响应序列化字段为 warehouse_code（warehouse model 列名），非 code
+      warehouse_code?: string;
+      phone?: string;
+      capacity?: number;
+      warehouse_type?: string;
+    }>(list, 'items', '30 P0-仓库列表回读');
     const found = items.find(i => i.id === id);
     console.log(
       `[P0-仓库] 列表回读（即二次访问）：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
@@ -379,11 +388,15 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-科目] 创建成功 id=${id} code=${code}`);
     expect(id, '科目创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<
-      | Array<{ id: number; code: string; name: string }>
-      | { items?: Array<{ id: number; code: string; name: string }> }
-    >(page, 'GET', `/subjects?page=1&page_size=200`);
-    const items = Array.isArray(list) ? list : (list?.items ?? []);
+    // /subjects：account_subject_handler.rs list_subjects → ApiResponse<Vec<Model>>，data 直接是裸数组。
+    // 单一形状直读（'bare'）；原 `Array.isArray(list)?list:(list?.items??[])` 双形状探测会把
+    // 后端若改为分页 items 的漂移读成 items=[]→"数据没落库"。声明为裸数组后，一旦改形即抛错。
+    const list = await apiCallRaw<unknown>(page, 'GET', `/subjects?page=1&page_size=200`);
+    const items = pickListArray<{ id: number; code: string; name: string }>(
+      list,
+      'bare',
+      '30 P0-科目列表回读'
+    );
     const found = items.find(i => i.id === id);
     console.log(
       `[P0-科目] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
@@ -631,10 +644,9 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     const voucherDate = new Date().toISOString().split('T')[0];
 
     const listSubjects = async () => {
-      const resp = await apiCallRaw<
-        Array<{ id: number; code: string }> | { items?: Array<{ id: number; code: string }> }
-      >(page, 'GET', '/subjects?page=1&page_size=50');
-      return Array.isArray(resp) ? resp : (resp?.items ?? []);
+      // /subjects：account_subject_handler.rs list_subjects → ApiResponse<Vec> → 裸数组（'bare'）
+      const resp = await apiCallRaw<unknown>(page, 'GET', '/subjects?page=1&page_size=50');
+      return pickListArray<{ id: number; code: string }>(resp, 'bare', '30 凭证分录-科目列表');
     };
     let subjectList = await listSubjects();
     // 分录需要 3 个科目：种子不足时真实创建 E2E 专用科目后重查

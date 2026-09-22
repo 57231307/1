@@ -11,6 +11,7 @@ import {
   createDyeRecipeUI,
   createBomUI,
   createCustomOrderUI,
+  pickListArray,
   readFirstEntityId,
   readEntityIds,
 } from './ui-helpers';
@@ -122,7 +123,13 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
 
   // ---- 1. 仓库（UI 创建）----
   try {
-    ctx.warehouseIds = await readEntityIds(page, '/warehouse', `${API_PREFIX}/warehouses`);
+    ctx.warehouseIds = await readEntityIds(
+      page,
+      '/warehouse',
+      `${API_PREFIX}/warehouses`,
+      // warehouse_handler.rs:88 define_crud_handlers! → warehouse_service::list PaginatedResponse
+      'items'
+    );
   } catch (e) {
     console.warn('[ensureTestEntities] 仓库列表查询失败（可能空库）:', (e as Error).message);
     ctx.warehouseIds = [];
@@ -145,17 +152,19 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // ---- 2. 产品（UI 创建）----
   // 前置：确保"面料"产品分类存在（表单 category_id 必填，系统初始化不创建分类种子数据）
   try {
-    const cats = await apiCallRaw<{ id?: number; name?: string }[] | { items?: { id: number }[] }>(
-      page,
-      'GET',
-      '/product-categories'
+    // /product-categories：product_category_handler.rs:44 define_crud_handlers! →
+    // product_category_service::list 返回 PaginatedResponse，data 形状为 {items,total,page,page_size}。
+    // 单一形状直读（'items'）；原写法 `Array.isArray(cats)?cats:(cats.items||[])` 同时吞裸数组/items，
+    // 且 `|| []` 把 items 键缺失当成"无分类"——分类端点若改形会静默走创建分支重复建"面料"。
+    const cats = await apiCallRaw<unknown>(page, 'GET', '/product-categories');
+    const catItems = pickListArray<{ id: number; name?: string }>(
+      cats,
+      'items',
+      'ensureTestEntities /product-categories'
     );
-    const catItems = Array.isArray(cats)
-      ? cats
-      : (cats as { items?: { id: number }[] }).items || [];
-    const fabricCat = catItems.find(c => (c as { name?: string }).name?.includes('面料'));
+    const fabricCat = catItems.find(c => c.name?.includes('面料'));
     if (fabricCat) {
-      ctx.productCategoryIds.push((fabricCat as { id: number }).id);
+      ctx.productCategoryIds.push(fabricCat.id);
     } else {
       const created = await apiCall<{ data?: { id?: number } }>(
         page,
@@ -173,7 +182,13 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     throw new Error(`[ensureTestEntities] 产品分类检查/创建失败: ${(e as Error).message}`);
   }
   try {
-    ctx.productIds = await readEntityIds(page, '/product', `${API_PREFIX}/products`);
+    ctx.productIds = await readEntityIds(
+      page,
+      '/product',
+      `${API_PREFIX}/products`,
+      // product_handler.rs:247 list_products → ApiResponse::success(PaginatedResponse) → {items}
+      'items'
+    );
   } catch (e) {
     console.warn('[ensureTestEntities] 产品列表查询失败（可能空库）:', (e as Error).message);
     ctx.productIds = [];
@@ -252,7 +267,13 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
 
   // ---- 4. 供应商（UI 创建）----
   try {
-    ctx.supplierId = await readFirstEntityId(page, '/supplier', `${API_PREFIX}/purchase/suppliers`);
+    ctx.supplierId = await readFirstEntityId(
+      page,
+      '/supplier',
+      `${API_PREFIX}/purchase/suppliers`,
+      // supplier_handler.rs:20 list_suppliers → supplier_service PaginatedResponse → {items}
+      'items'
+    );
   } catch (e) {
     console.error('[ensureTestEntities] supplierId 查找失败:', (e as Error).message);
     ctx.supplierId = undefined;
@@ -309,7 +330,13 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // ---- 7. 部门（UI 创建）----
   if (ctx.departmentIds.length === 0) {
     try {
-      ctx.departmentIds = await readEntityIds(page, '/departments', `${API_PREFIX}/departments`);
+      ctx.departmentIds = await readEntityIds(
+        page,
+        '/departments',
+        `${API_PREFIX}/departments`,
+        // department_handler.rs:53 define_crud_handlers! → department_service::list PaginatedResponse → {items}
+        'items'
+      );
     } catch (e) {
       console.warn(`[E2E] catch: ${(e as Error).message}`);
       ctx.departmentIds = [];
@@ -469,7 +496,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.dyeBatchId = await readFirstEntityId(
       page,
       '/production',
-      `${API_PREFIX}/production/dye-batches`
+      `${API_PREFIX}/production/dye-batches`,
+      // dye_batch_handler.rs:59 list_dye_batches → ApiResponse<PaginatedResponse> → {items}
+      'items'
     );
   } catch (e) {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
@@ -685,7 +714,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.customOrderId = await readFirstEntityId(
       page,
       '/custom-orders',
-      `${API_PREFIX}/custom-orders`
+      `${API_PREFIX}/custom-orders`,
+      // custom_order_handler.rs:136 list_custom_orders → PagedResponse{items,...} → {items}
+      'items'
     );
   } catch (e) {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
@@ -704,7 +735,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.colorCardId = await readFirstEntityId(
       page,
       '/color-cards/list',
-      `${API_PREFIX}/color-cards`
+      `${API_PREFIX}/color-cards`,
+      // color_card/crud.rs:29 list_color_cards → PagedResponse{items,...} → {items}
+      'items'
     );
   } catch (e) {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);

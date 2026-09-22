@@ -1,5 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import { apiCall, apiCallRaw, ensureTestEntities, getCtx, loginViaUI, tryCleanup } from './helpers';
+import { pickListArray, type ListShapeKey } from './ui-helpers';
 
 /**
  * P0 删除系统覆盖矩阵（2026-09-11 用户指令："需要系统覆盖所有需要删除/停用测试的功能"）
@@ -26,6 +27,13 @@ interface DelCase {
   getApi?: (id: number) => string;
   /** 删除路径（默认 `${createApi}/${id}`） */
   deleteApi?: (id: number) => string;
+  /**
+   * 列表端点（GET createApi）的显式形状，供"创建后列表回读"诊断按声明形状单一读取。
+   * 缺省 'items'（多数 CRUD handler 返回 PaginatedResponse）。裸数组端点须显式声明 'bare'。
+   * 取代原 `body.data.items ?? body.data.roles ?? (Array.isArray(body.data)?body.data:[])`
+   * 三重形状宽容探测——它会把端点改形静默吸收成空集。
+   */
+  listKey?: ListShapeKey;
   /** 删除前预处理（如固定资产需先 PUT status=inactive 才允许删除） */
   preDelete?: (page: import('@playwright/test').Page, id: number) => Promise<void>;
 }
@@ -40,18 +48,26 @@ async function createThenApiDelete(
   expect(id, `[31b-${c.label}] 创建响应无 id（创建 API 异常）`).toBeTruthy();
   console.log(`[31b-${c.label}] 创建成功 id=${id}`);
 
-  // 1) 列表回读确认存在
+  // 1) 列表回读确认存在（诊断，按 DelCase.listKey 声明的单一形状读取；不匹配则记明确契约告警）
   const listResp = await page.request.get(
     `${API_BASE}${API_PREFIX}${c.createApi}?page=1&page_size=200`
   );
   if (listResp.ok()) {
     const body = await listResp.json();
-    const items =
-      body?.data?.items ?? body?.data?.roles ?? (Array.isArray(body?.data) ? body.data : []);
-    const exists = Array.isArray(items) && items.some((i: { id?: number }) => i.id === id);
-    console.log(
-      `[31b-${c.label}] 列表回读（${Array.isArray(items) ? items.length : '?'} 条）: ${exists ? '✅存在' : '⚠️未在列表找到（可能分页/过滤）'}`
-    );
+    try {
+      const items = pickListArray<{ id?: number }>(
+        body?.data,
+        c.listKey ?? 'items',
+        `31b-${c.label} 列表回读`
+      );
+      const exists = items.some(i => i.id === id);
+      console.log(
+        `[31b-${c.label}] 列表回读（data.${(c.listKey ?? 'items') === 'bare' ? '(裸数组)' : c.listKey} ${items.length} 条）: ${exists ? '✅存在' : '⚠️未在列表找到（可能分页/过滤）'}`
+      );
+    } catch (e) {
+      // 声明形状与实际不符 → 契约漂移，明确记录（不再静默当空集）。删除结果仍由下方详情 404/软删校验。
+      console.error(`[31b-${c.label}] ❌ 列表契约不匹配：${(e as Error).message}`);
+    }
   } else {
     console.warn(`[31b-${c.label}] 列表回读 HTTP ${listResp.status()}（记录不断言）`);
   }
@@ -182,11 +198,15 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     {
       label: '会计科目',
       createApi: '/subjects',
+      // account_subject_handler::list_subjects → ApiResponse<Vec> → 裸数组
+      listKey: 'bare',
       payload: { code: `P0SUB${TS}`, name: `P0科目${TS}`, level: 1, balance_direction: '借' },
     },
     {
       label: '角色',
       createApi: '/roles',
+      // role_handler::list_roles → ApiResponse<RoleListResponse{roles}> → data={roles}
+      listKey: 'roles',
       // role_permission_service.rs:153-159 要求 code 仅含小写字母/数字/下划线且长度 3-50。
       // 原 payload 用 `P0ROLE${TS}` 含大写字母，被该约束拒绝；错误以 AppError::business 抛出，
       // 经 public_message 脱敏后前端只看到"业务处理失败"，故失败原因在此注明。
@@ -409,6 +429,8 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     {
       label: '销售合同',
       createApi: '/sales/sales-contracts',
+      // sales_contract_handler::list_contracts → ApiResponse<Vec> → 裸数组
+      listKey: 'bare',
       payload: {
         contract_no: `P0-SC-${TS}`,
         contract_name: `P0销售合同${TS}`,
@@ -422,6 +444,8 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     {
       label: '采购合同',
       createApi: '/purchase/purchase-contracts',
+      // purchase_contract_handler::list_contracts → ApiResponse<Vec> → 裸数组
+      listKey: 'bare',
       payload: {
         contract_no: `P0-PC-${TS}`,
         contract_name: `P0采购合同${TS}`,
@@ -531,17 +555,22 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
   // 流程节点有 POST/DELETE 端点，step_code 自由填写（同模式内唯一），回读入口是 by-mode 列表。
   test('业务模式流程节点：创建→删除→按模式回读消失', async ({ page }) => {
     test.setTimeout(180_000);
-    const modes = await apiCallRaw<{ items: Array<{ id: number; mode_code: string }> }>(
+    // /production/business-modes：business_mode_handler::list_business_modes → PaginatedResponse → {items}。
+    // 单一形状直读（原 `(modes.items ?? [])` 把 items 键漂移当成"无种子"→误抛）。
+    const modes = await apiCallRaw<unknown>(
       page,
       'GET',
       '/production/business-modes?page=1&page_size=50&mode_code=grey_trading'
     );
-    const mode = (modes.items ?? []).find(m => m.mode_code === 'grey_trading');
+    const modeItems = pickListArray<{ id: number; mode_code: string }>(
+      modes,
+      'items',
+      '31b 业务模式列表'
+    );
+    const mode = modeItems.find(m => m.mode_code === 'grey_trading');
     expect(
       mode,
-      `[31b-业务模式流程节点] 种子缺少 grey_trading，现有：${(modes.items ?? [])
-        .map(m => m.mode_code)
-        .join(',')}`
+      `[31b-业务模式流程节点] 种子缺少 grey_trading，现有：${modeItems.map(m => m.mode_code).join(',')}`
     ).toBeTruthy();
 
     const stepsApi = `/production/business-modes/flow-steps/by-mode/${mode!.id}`;
@@ -609,6 +638,8 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
     await createThenApiDelete(page, {
       label: '用户',
       createApi: '/users',
+      // user_handler::list_users → ApiResponse<UserListResponse{users}> → data={users}
+      listKey: 'users',
       payload: {
         username: `p0user${TS}`,
         password: 'P0Test!2026xY',
@@ -768,26 +799,33 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       description: 'P0互斥关系',
     });
     console.log('[31b-角色互斥] 互斥关系创建成功');
-    // 找 relation_id：查 between 端点或列表
+    // 取 relation_id 只能用返回关系行的端点：
+    //   GET /role-relations/between/{a}/{b} → ApiResponse<Vec<role_relation::Model>>
+    //   （routes/role_relation.rs:27-30 → handler:75-85 → service:171 返回 Vec<Model>，
+    //    行字段 id/parent_role_code/child_role_code/relation_type，models/role_relation.rs:15-27）
+    // 原先查的 /role-relations/inherited/{code} 返回的是**子角色编码字符串数组**
+    // （handler get_inherited_role_codes），根本没有 id/child_role_code 字段，
+    // 于是 find() 恒为 undefined、两条分支都只 console.warn，最终 expect(relDeleted) 必失败。
     const chk = await page.request.get(
-      `${API_BASE}${API_PREFIX}/role-relations/inherited/${codeA}`
+      `${API_BASE}${API_PREFIX}/role-relations/between/${codeA}/${codeB}`
     );
-    if (chk.ok()) {
-      const body = await chk.json();
-      const arr = Array.isArray(body?.data) ? body.data : [];
-      const rel = arr.find(
-        (r: { child_role_code?: string; id?: number }) => r.child_role_code === codeB && r.id
-      );
-      if (rel?.id) {
-        await apiCall(page, 'DELETE', `/role-relations/${rel.id}`);
-        relDeleted = true;
-        console.log(`[31b-角色互斥] 关系 ${rel.id} 删除 ✅`);
-      } else {
-        console.warn('[31b-角色互斥] inherited 列表未定位到关系行');
-      }
-    } else {
-      console.warn(`[31b-角色互斥] inherited 查询 HTTP ${chk.status()}`);
-    }
+    expect(chk.ok(), `[31b-角色互斥] between 查询应 200，实际 HTTP ${chk.status()}`).toBe(true);
+    const chkBody = await chk.json();
+    const rels = pickListArray<{ id?: number; child_role_code?: string; relation_type?: string }>(
+      chkBody?.data,
+      'bare',
+      '31b-角色互斥 between 查询'
+    );
+    const rel = rels.find(
+      r => r.relation_type === 'mutual_exclusive' && r.child_role_code === codeB && r.id
+    );
+    expect(
+      rel?.id,
+      `[31b-角色互斥] between 未定位到 A(${codeA})→B(${codeB}) 的互斥关系行，实到 ${rels.length} 行`
+    ).toBeTruthy();
+    await apiCall(page, 'DELETE', `/role-relations/${rel?.id}`);
+    relDeleted = true;
+    console.log(`[31b-角色互斥] 关系 ${rel?.id} 删除 ✅`);
     expect(relDeleted, '[31b-角色互斥] 互斥关系应创建并删除成功').toBe(true);
     // 清理双角色
     for (const [rid, code] of [

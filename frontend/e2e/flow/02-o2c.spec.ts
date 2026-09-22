@@ -14,6 +14,7 @@ import {
   ensureTestEntities,
   BASE_URL,
 } from './helpers';
+import { pickListArray } from './ui-helpers';
 
 /** 与 backend/src/models/status/sales.rs 的 so_status 常量一致 */
 const SO_STATUSES = [
@@ -333,21 +334,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
   test('2-8 验证 AR 应收单（含色号加价+等级差价）', async ({ page }) => {
     const ctx = getCtx();
 
-    // 后端 list_ar_invoices 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
-    const invoices = await apiCallRaw<
-      | Array<{ id: number; amount: number; status: string }>
-      | { items?: Array<{ id: number; amount: number; status: string }> }
-    >(page, 'GET', '/ar/invoices?page=1&page_size=5');
-    const invoiceList = Array.isArray(invoices)
-      ? invoices
-      : ((invoices as { items?: Array<{ id: number; amount: number; status: string }> }).items ??
-        []);
-
-    // 后端 list_ar_invoices 返回 ApiResponse<Vec<Model>>，data 为数组；
-    // 若结构退化为对象或缺失 data，这里应直接暴露而非静默当作空列表
-    expect(Array.isArray(invoiceList), 'AR 应收单列表 data 应为数组').toBe(true);
-
-    // 分次收款用例要求应收单金额已知。复用列表中的任意一张会让"50%"前提失效
+    // 分次收款用例（2-9）要求应收单金额已知。复用列表中的任意一张会让"50%"前提失效
     // （其金额与已收金额均不确定，首付 50% 可能直接结清），故始终新建专用单。
     const result = await apiCall<{ id?: number }>(page, 'POST', '/ar/invoices', {
       // CreateArInvoiceRequest：金额字段为 invoice_amount（无 invoice_no/tax_amount）
@@ -357,6 +344,27 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     });
     ctx.arInvoiceId = result.data?.id;
     expect(ctx.arInvoiceId, '创建应收单应返回 id').toBeDefined();
+
+    // 回读校验：后端 ar_invoice_handler.rs list_ar_invoices 返回 ApiResponse<Vec<Model>>
+    // （ar_invoice_handler.rs:20 Ok(Json(ApiResponse::success(invoices)))），
+    // data 直接是裸数组、无 items 包装 → 声明为 'bare'。
+    // 原写法 `Array.isArray(invoices)?invoices:(invoices?.items??[])` 是双形状探测，
+    // 且其后只 `expect(Array.isArray(invoiceList))` 验形状、未断言任何内容——应收单列表
+    // 恒空也会全绿。现改为单一形状直读 + 断言"刚创建的应收单确实在列表里且金额正确"。
+    const invoices = await apiCallRaw<unknown>(page, 'GET', '/ar/invoices?page=1&page_size=200');
+    // ar_invoice::Model 金额字段真实名为 invoice_amount（models/ar_invoice.rs:37），
+    // 旧声明误写成 amount——原用例从不读该字段所以没暴露。
+    const invoiceList = pickListArray<{ id: number; invoice_amount: number; status: string }>(
+      invoices,
+      'bare',
+      '2-8 AR 应收单列表'
+    );
+    const mine = invoiceList.find(i => i.id === ctx.arInvoiceId);
+    expect(mine, `[2-8] 新建应收单 id=${ctx.arInvoiceId} 应出现在 AR 列表中`).toBeTruthy();
+    expect(
+      Number(mine!.invoice_amount),
+      `[2-8] 新建应收单金额应为 ${AR_INVOICE_AMOUNT}（实际 ${mine!.invoice_amount}）`
+    ).toBe(AR_INVOICE_AMOUNT);
   });
 
   test('2-9 分次收款（50% + 50%）', async ({ page }) => {
@@ -407,12 +415,16 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
   });
 
   test('2-10 验证销售报表（按色号/缸号维度）', async ({ page }) => {
-    const orders = await apiCallRaw<{ items: unknown[] }>(
-      page,
-      'GET',
-      '/sales/orders?page=1&page_size=5'
-    );
-    expect(Array.isArray(orders.items), `orders.items 应为后端返回的 items 数组`).toBe(true);
+    const ctx = getCtx();
+    // /sales/orders：sales_order_handler.rs:42 list_orders → 服务返回 PaginatedResponse，data={items}。
+    // 单一形状直读；原写法只 `expect(Array.isArray(orders.items))` 验形状、未断言内容，
+    // 销售订单列表恒空也会全绿。现断言"本流程 2-4 创建的销售订单确实出现在列表里"。
+    const orders = await apiCallRaw<unknown>(page, 'GET', '/sales/orders?page=1&page_size=200');
+    const list = pickListArray<{ id: number }>(orders, 'items', '2-10 销售订单列表');
+    expect(
+      list.some(o => o.id === ctx.salesOrderId),
+      `[2-10] 2-4 创建的销售订单 id=${ctx.salesOrderId} 应出现在销售订单列表中（共 ${list.length} 条）`
+    ).toBe(true);
   });
 
   test('2-11 验证审计日志包含销售操作', async ({ page }) => {

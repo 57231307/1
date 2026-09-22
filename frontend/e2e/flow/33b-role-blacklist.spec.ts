@@ -1,5 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginAsRole, apiCall, apiCallRaw } from './helpers';
+import { pickListArray } from './ui-helpers';
 
 /**
  * 33b 角色黑名单端到端验证（doto 2026-09-09 print/export 角色黑名单缺口）
@@ -39,12 +40,11 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
     const page = await browser.newPage();
     try {
       await loginAsRole(page, 'admin');
-      const products = await apiCallRaw<Array<{ id: number }> | { items?: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/products?page=1&page_size=1'
-      );
-      const productList = Array.isArray(products) ? products : (products?.items ?? []);
+      // /products：product_handler.rs:247 list_products → ApiResponse<PaginatedResponse> → data={items}。
+      // 单一形状直读；原 `Array.isArray(products)?products:(products?.items??[])` 双形状探测会把
+      // 端点形状漂移（裸数组/items/list 任一）静默吸收成"0 条"，掩盖契约变更。
+      const products = await apiCallRaw<unknown>(page, 'GET', '/products?page=1&page_size=1');
+      const productList = pickListArray<{ id: number }>(products, 'items', '33b 前置产品列表');
       let productId = productList[0]?.id;
       if (!productId) {
         const created = await apiCall<{ id?: number }>(page, 'POST', '/products', {

@@ -323,7 +323,81 @@ async function waitCreateResponse(
   }
 }
 
-async function waitListResponse(page: Page, apiPath: string, timeout = 20000): Promise<unknown[]> {
+/**
+ * 列表载荷「显式形状契约」工具（清零双形状探测"假绿"）。
+ *
+ * 背景：此前多处列表读取写成 `Array.isArray(x) ? x : (x?.items ?? [])` 之类的双形状
+ * 宽容表达式，同时接受「裸数组 / 分页 items / list / data / roles」。一旦后端把某个
+ * 端点的 data 形状改掉（items→list、分页→裸数组、键名变更），helper 会静默退化并
+ * 返回 [] 或走错分支，使前后端契约漂移永远不会暴露——本仓正是按此法修出过合同列表、
+ * AP/AR 各列表、染色配方列表等多起「列表恒空却全绿」的真实缺陷。
+ *
+ * 现规则：调用方必须声明自己端点的真实形状（listKey），实际不符即抛错（明确失败），
+ * 禁止再收敛成「两种都接受」。
+ *
+ * listKey 取值与各端点的后端 handler 对应（均已逐一核对）：
+ * - 'bare'  → handler 返回 ApiResponse<Vec<T>>，data 直接是数组。
+ *   例：ar_invoice_handler::list_ar_invoices、account_subject_handler::list_subjects、
+ *       quality_standard_handler::list_standards、print_handler::list_print_templates、
+ *       product_handler::list_product_colors、sales_contract_handler::list_contracts、
+ *       purchase_contract_handler::list_contracts、role_relation_handler::get_relation_between
+ * - 'items' → handler 返回 ApiResponse<PaginatedResponse<T>>（data={items,total,page,page_size}）。
+ *   例：warehouse/product/department/supplier/dye_batch/inventory_stock/customer/
+ *       dye_recipe/greige_fabric/custom_order/color_card/business_mode/product_category 各列表
+ * - 'list'  → notification_handler::list_notifications 手搓 {list,total,page,page_size}
+ * - 'roles' / 'users' → 角色/用户列表以专属键返回（05-system spec 已核实）
+ * - 'data'  → 个别端点在 data 下再嵌一层 data 数组
+ */
+export type ListShapeKey =
+  | 'bare'
+  | 'items'
+  | 'list'
+  | 'roles'
+  | 'users'
+  | 'data'
+  | 'counts'
+  | 'transitions'
+  | 'nodes'
+  | 'traces'
+  | 'codes';
+
+export function pickListArray<T = Record<string, unknown>>(
+  data: unknown,
+  listKey: ListShapeKey,
+  context: string
+): T[] {
+  const arr =
+    listKey === 'bare'
+      ? Array.isArray(data)
+        ? (data as T[])
+        : null
+      : data != null &&
+          typeof data === 'object' &&
+          Array.isArray((data as Record<string, unknown>)[listKey])
+        ? ((data as Record<string, unknown>)[listKey] as T[])
+        : null;
+  if (arr === null) {
+    const shape =
+      data == null
+        ? String(data)
+        : Array.isArray(data)
+          ? 'array'
+          : `object{${Object.keys(data as object).join(',')}}`;
+    throw new Error(
+      `[${context}] 列表契约失配：声明 data${
+        listKey === 'bare' ? ' 为数组' : `.${listKey} 为数组`
+      }，实际 data=${shape}`
+    );
+  }
+  return arr;
+}
+
+async function waitListResponse(
+  page: Page,
+  apiPath: string,
+  listKey: ListShapeKey,
+  timeout = 20000
+): Promise<unknown[]> {
   try {
     const resp = await page.waitForResponse(
       r => r.url().includes(apiPath) && r.request().method() === 'GET',
@@ -333,9 +407,12 @@ async function waitListResponse(page: Page, apiPath: string, timeout = 20000): P
       console.warn(`[waitListResponse] GET ${apiPath} 响应非 JSON:`, (e as Error).message);
       return {};
     });
-    return (json?.data?.items ?? json?.data?.list ?? []) as unknown[];
+    // 单一形状直读（listKey 由调用方声明）；形状漂移即抛错，由本函数外层 catch 记为告警。
+    // 注意：这里捕获抛错仅用于「UI 页未命中响应」的降级路径——真正判定形状的权威路径
+    // 是 readFirstEntityId 随后的 API 直查（那里不吞异常，形状不符会让用例失败）。
+    return pickListArray(json?.data, listKey, `waitListResponse ${apiPath}`);
   } catch (e) {
-    console.warn(`[waitListResponse] 等待 GET ${apiPath} 超时: ${(e as Error).message}`);
+    console.warn(`[waitListResponse] 等待 GET ${apiPath} 失败: ${(e as Error).message}`);
     return [];
   }
 }
@@ -898,11 +975,12 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
 export async function readFirstEntityId(
   page: Page,
   route: string,
-  listApiPath: string
+  listApiPath: string,
+  listKey: ListShapeKey = 'items'
 ): Promise<number | undefined> {
   try {
     await safeGoto(page, route);
-    const items = await waitListResponse(page, listApiPath, 20000);
+    const items = await waitListResponse(page, listApiPath, listKey, 20000);
     const id = firstId(items);
     if (id !== undefined) return id;
   } catch (e) {
@@ -911,22 +989,18 @@ export async function readFirstEntityId(
   // 页面路径未命中列表响应（页面懒加载/tab 未激活/页面不发该请求）时，
   // 直接用 API 查询：避免误判"实体不存在"而反复走 120s UI 创建超时
   // （run 34019751699 shard-13：dye-batch 查找失败导致每个测试都消耗 120s+20s）
-  try {
-    const resp = await page.request.get(listApiPath, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    });
-    const json = (await resp.json().catch(e => {
-      console.warn(`[readFirstEntityId] ${listApiPath} 响应非 JSON:`, (e as Error).message);
-      return {};
-    })) as {
-      data?: { items?: Array<{ id?: number }>; list?: Array<{ id?: number }> };
-    };
-    const items = json?.data?.items ?? json?.data?.list ?? [];
-    return firstId(items);
-  } catch (e) {
-    console.warn(`[readFirstEntityId] ${listApiPath} API 直查失败:`, (e as Error).message);
-    return undefined;
-  }
+  const resp = await page.request.get(listApiPath, {
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  });
+  const json = (await resp.json().catch(e => {
+    console.warn(`[readFirstEntityId] ${listApiPath} 响应非 JSON:`, (e as Error).message);
+    return {};
+  })) as { data?: unknown };
+  // 单一形状直读：listKey 由调用方按端点声明（本仓所有调用方均为 'items'）。
+  // 不再 `data.items ?? data.list ?? []`——那会把端点形状漂移静默吸收成"实体不存在"。
+  // 此处不吞形状异常：契约失配应作为明确失败抛出，交由 ensureTestEntities 记录/暴露。
+  const items = pickListArray(json?.data, listKey, `readFirstEntityId ${listApiPath}`);
+  return firstId(items);
 }
 
 /** 通用 UI 列表查找：返回多条 id */
@@ -934,34 +1008,28 @@ export async function readEntityIds(
   page: Page,
   route: string,
   listApiPath: string,
+  listKey: ListShapeKey = 'items',
   limit = 10
 ): Promise<number[]> {
   // API 直查（唯一路径）：实体查询语义不变（查真实存在的实体列表），
   // 但跳过 safeGoto 页面渲染等待——16 分片并发下 UI 渲染是 ensureTestEntities
   // 超 420s 测试上限的根因，页面级覆盖由 46 崩溃巡检承担
-  try {
-    const resp = await page.request.get(listApiPath, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    });
-    const json = (await resp.json().catch(e => {
-      console.warn(`[readEntityIds] ${listApiPath} 响应非 JSON:`, (e as Error).message);
-      return {};
-    })) as {
-      data?:
-        { items?: Array<{ id?: number }>; list?: Array<{ id?: number }> } | Array<{ id?: number }>;
-    };
-    const raw = json?.data;
-    const items = (Array.isArray(raw) ? raw : (raw?.items ?? raw?.list ?? [])) as Array<{
-      id?: number;
-    }>;
-    return items
-      .slice(0, limit)
-      .map(it => it?.id as number)
-      .filter((id): id is number => typeof id === 'number');
-  } catch (e) {
-    console.warn(`[readEntityIds] ${listApiPath} API 直查失败:`, (e as Error).message);
-    return [];
-  }
+  const resp = await page.request.get(listApiPath, {
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  });
+  const json = (await resp.json().catch(e => {
+    console.warn(`[readEntityIds] ${listApiPath} 响应非 JSON:`, (e as Error).message);
+    return {};
+  })) as { data?: unknown };
+  // 单一形状直读：listKey 由调用方按端点声明（本仓调用方为 warehouses/products/departments，
+  // 三者均 PaginatedResponse → 'items'）。原写法 `Array.isArray(raw)?raw:(raw?.items??raw?.list??[])`
+  // 同时吞裸数组/items/list，端点形状漂移时恒返回 []（读成"空库"）→ 掩盖契约变更。
+  // 现形状不符即抛错，令漂移暴露；网络/解析失败由调用方 try/catch 承接（ensure 允许降级）。
+  const items = pickListArray<{ id?: number }>(json?.data, listKey, `readEntityIds ${listApiPath}`);
+  return items
+    .slice(0, limit)
+    .map(it => it?.id as number)
+    .filter((id): id is number => typeof id === 'number');
 }
 
 /** 等待会计期间初始化 */
@@ -993,7 +1061,7 @@ export async function uiDeleteRow(
   page: Page,
   route: string,
   rowIdentifier: { column: string; value: string | number },
-  options?: { confirmText?: RegExp; listApiPath?: string }
+  options?: { confirmText?: RegExp; listApiPath?: string; listKey?: ListShapeKey }
 ): Promise<boolean> {
   const entityLabel = route.replace(/^\//, '');
   const confirmText = options?.confirmText ?? /确定|确认|是|删除/;
@@ -1034,9 +1102,11 @@ export async function uiDeleteRow(
     // 等待列表刷新
     await page.waitForTimeout(2000);
     if (options?.listApiPath) {
-      await waitListResponse(page, options.listApiPath, 15000).catch(e => {
-        console.warn(`[uiDeleteRow] 列表刷新响应等待失败:`, (e as Error).message);
-      });
+      await waitListResponse(page, options.listApiPath, options.listKey ?? 'items', 15000).catch(
+        e => {
+          console.warn(`[uiDeleteRow] 列表刷新响应等待失败:`, (e as Error).message);
+        }
+      );
     }
 
     // 验证行消失
