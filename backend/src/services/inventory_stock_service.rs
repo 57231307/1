@@ -5,6 +5,7 @@ use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+use crate::utils::sql_escape::safe_like_pattern;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
@@ -690,10 +691,10 @@ impl InventoryStockService {
             query = query.filter(inventory_stock::Column::Grade.eq(grade));
         }
         if let Some(batch) = filter.batch_no.as_deref().filter(|s| !s.is_empty()) {
-            query = query.filter(inventory_stock::Column::BatchNo.like(format!("%{batch}%")));
+            query = query.filter(inventory_stock::Column::BatchNo.like(safe_like_pattern(batch)));
         }
         if let Some(color) = filter.color_no.as_deref().filter(|s| !s.is_empty()) {
-            query = query.filter(inventory_stock::Column::ColorNo.like(format!("%{color}%")));
+            query = query.filter(inventory_stock::Column::ColorNo.like(safe_like_pattern(color)));
         }
         if let Some(start) = filter.start_date {
             query = query.filter(inventory_stock::Column::CreatedAt.gte(start));

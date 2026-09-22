@@ -13,7 +13,7 @@ use crate::services::po::{
 };
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -27,16 +27,19 @@ pub async fn list_orders(
     Query(params): Query<OrderQueryParams>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
-    let (orders, _total) = service
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+    let (orders, total) = service
         .list_orders(
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-            params.page_size.unwrap_or(20).clamp(1, 100),
+            page,
+            page_size,
             params.status,
             params.supplier_id,
+            params.keyword,
             Some(&data_scope_ctx),
         )
         .await?;
@@ -88,7 +91,12 @@ pub async fn list_orders(
         }
     }
 
-    Ok(Json(ApiResponse::success(orders_json)))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        orders_json,
+        total,
+        page,
+        page_size,
+    ))))
 }
 
 /// 获取采购订单详情
@@ -502,6 +510,8 @@ pub struct OrderQueryParams {
     pub page_size: Option<u64>,
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
+    /// 关键字：匹配采购单号或供应商名称
+    pub keyword: Option<String>,
 }
 
 /// 拒绝订单请求

@@ -51,7 +51,7 @@ impl PurchaseOrderService {
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         // V15 P0-S01：内部调用传 None（导出由调用方决定权限范围，service 不再二次过滤）
         let (orders, _total) = self
-            .list_orders(1, 10000, status, supplier_id, None)
+            .list_orders(1, 10000, status, supplier_id, None, None)
             .await?;
 
         let headers = Self::csv_headers();

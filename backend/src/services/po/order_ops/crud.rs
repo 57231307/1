@@ -18,8 +18,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, JoinType, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, JoinType, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 use crate::models::{
@@ -33,6 +33,7 @@ use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// 单行明细金额计算结果（create_order_items 内部 helper 数据载体）
 struct ItemAmounts {
@@ -465,6 +466,7 @@ impl PurchaseOrderService {
         page_size: u64,
         status: Option<String>,
         supplier_id: Option<i32>,
+        keyword: Option<String>,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<PurchaseOrderDto>, u64), AppError> {
         let mut query = purchase_order::Entity::find()
@@ -497,6 +499,15 @@ impl PurchaseOrderService {
         }
         if let Some(supplier_id) = supplier_id {
             query = query.filter(purchase_order::Column::SupplierId.eq(supplier_id));
+        }
+        // 关键字：列表页搜索框承诺匹配「订单号/供应商名」，两侧都要真正参与过滤
+        if let Some(kw) = keyword.as_deref().filter(|s| !s.is_empty()) {
+            let pattern = safe_like_pattern(kw);
+            query = query.filter(
+                purchase_order::Column::OrderNo
+                    .like(&pattern)
+                    .or(supplier::Column::SupplierName.like(&pattern)),
+            );
         }
 
         // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
