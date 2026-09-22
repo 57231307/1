@@ -4434,6 +4434,51 @@ ALTER TABLE "sales_prices"    ALTER COLUMN "status" SET DEFAULT 'pending';
 ALTER TABLE "purchase_prices" ALTER COLUMN "status" SET DEFAULT 'pending';
 UPDATE "sales_prices"    SET "status" = 'pending' WHERE "status" = 'ACTIVE';
 UPDATE "purchase_prices" SET "status" = 'pending' WHERE "status" = 'ACTIVE';
+
+-- ========== purchase_orders：双状态列收口（order_status 为唯一真相，status 废弃） ==========
+-- 同表两列两套词表：m0001:457 建 `status VARCHAR(20) NOT NULL DEFAULT 'draft'`
+-- （小写 draft/confirmed/…），system 域 :331 又补 `order_status VARCHAR(20)`（可空、无默认）。
+-- 真实词表是 models/status/purchase_inventory.rs 的 purchase_order（全大写
+-- DRAFT/PENDING_APPROVAL/…），SeaORM 实体 models/purchase_order.rs 仅映射 order_status，
+-- 故全部读写/过滤（po/order_ops/crud.rs::OrderStatus.eq、contract.rs 状态机、handler 响应
+-- 键重命名为 status）都落在 order_status 上；遗留 status 列因不在实体内，insert 恒落
+-- DB 默认值 'draft'，对所有非草稿单永久失真。收口以 order_status 为准。
+-- 1) 夯实真相列：回填历史 NULL 建单默认为 DRAFT，并收敛 NOT NULL + DEFAULT 'DRAFT'，
+--    使绕过 service 的直连写入也落到词表内（order_status 可空无默认是本列的第二个隐患）。
+UPDATE "purchase_orders" SET "order_status" = 'DRAFT' WHERE "order_status" IS NULL;
+ALTER TABLE "purchase_orders" ALTER COLUMN "order_status" SET DEFAULT 'DRAFT';
+ALTER TABLE "purchase_orders" ALTER COLUMN "order_status" SET NOT NULL;
+-- 2) 确定性回填派生：以 order_status 覆盖遗留 status（两列同为 VARCHAR(20)，全大写信封值
+--    最长 PARTIAL_RECEIVED/PENDING_APPROVAL=16 字符可容纳）。回填依据=用户拍板"以
+--    order_status 为准"，遗留列降级为兼容列。
+UPDATE "purchase_orders" SET "status" = "order_status" WHERE "status" IS DISTINCT FROM "order_status";
+-- 遗留列默认值同步收敛到 'DRAFT'（与真相列一致），使旁路写入不再落小写 'draft' 死状态。
+ALTER TABLE "purchase_orders" ALTER COLUMN "status" SET DEFAULT 'DRAFT';
+-- 3) 标记废弃：实体不映射本列（ORM 无法读写/过滤），此处仅以列注释标明 deprecated，
+--    并声明它是由 order_status 派生的兼容列、不得再作为过滤条件。
+COMMENT ON COLUMN "purchase_orders"."status" IS
+    '[DEPRECATED 遗留列，勿读勿写勿过滤] 采购单状态唯一真相是 order_status（全大写词表，'
+    '见 models/status/purchase_inventory.rs::purchase_order）。本列为其派生兼容列，'
+    '值恒等于 order_status，SeaORM 实体不映射，保留仅为兼容外部只读报表/直连 SQL。';
+
+-- ========== color_cards.status：CHECK 与词表双向越界收口（active 视为 legacy=draft） ==========
+-- 词表 models/status/wage_energy_chemical_business.rs::color_card = {draft,issued,received,
+-- used,expired,archived,lost}（小写，模块注释明确 active 为 draft 的 legacy 等价）。
+-- m0044:280/:287 建表 DEFAULT 'active' 且 CHECK 仅允许 (active,archived,lost)。
+-- 双向越界：CHECK 认 active 但词表不认（legacy）；词表认 draft/issued/received/used/expired
+-- 但 CHECK 不认——service 的 issue/receive/use/expire 流转写这些值会被旧 CHECK 直接拒绝。
+-- 收口：回填 active→draft，默认值与 CHECK 全部对齐词表全集（依据=列注释/词表模块说明
+-- "active 等价 draft"）。回填必须先于 CHECK 重建，否则残留 active 行使 ADD CONSTRAINT 失败。
+UPDATE "color_cards" SET "status" = 'draft' WHERE "status" = 'active';
+ALTER TABLE "color_cards" ALTER COLUMN "status" SET DEFAULT 'draft';
+ALTER TABLE "color_cards" DROP CONSTRAINT IF EXISTS "chk_color_card_status";
+ALTER TABLE "color_cards"
+    ADD CONSTRAINT "chk_color_card_status"
+    CHECK ("status" IN ('draft', 'issued', 'received', 'used', 'expired', 'archived', 'lost'));
+COMMENT ON COLUMN "color_cards"."status" IS
+    '状态（全小写，取值见 models/status/wage_energy_chemical_business.rs::color_card，'
+    '与 CHECK chk_color_card_status 逐项一致）：draft(草稿/在用,legacy active 已回填为此值) / '
+    'issued(已发放) / received(已收回) / used(已使用) / expired(已过期) / archived(已归档) / lost(已丢失)';
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

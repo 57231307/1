@@ -313,13 +313,7 @@ pub mod quality_inspection_type {
     pub const OUTSOURCING_RECEIPT: &str = "outsourcing_receipt";
 
     /// 全部合法取值，入参校验的唯一来源
-    pub const ALL: &[&str] = &[
-        INCOMING,
-        PROCESS,
-        FINISHED,
-        OUTGOING,
-        OUTSOURCING_RECEIPT,
-    ];
+    pub const ALL: &[&str] = &[INCOMING, PROCESS, FINISHED, OUTGOING, OUTSOURCING_RECEIPT];
 }
 
 /// 质量检验记录的检验结论（quality_inspection_records.inspection_result）

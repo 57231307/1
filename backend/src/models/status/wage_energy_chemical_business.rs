@@ -150,6 +150,11 @@ pub mod color_card {
 
     /// 已丢失：色卡已丢失，终态
     pub const LOST: &str = "lost";
+
+    /// 本列全部合法取值：DB CHECK 约束 `chk_color_card_status` 与前端筛选词表的唯一取值来源。
+    /// 历史 legacy 值 `active` 不在本集合内（等价于 DRAFT，已由迁移回填为 draft），
+    /// 不得再写入本列。约束集合必须与本数组逐项一致。
+    pub const ALL: &[&str] = &[DRAFT, ISSUED, RECEIVED, USED, EXPIRED, ARCHIVED, LOST];
 }
 
 /// 染化料类型（chemical_master.chemical_type 等，v14 批次 429，染料/助剂/化工原料）
