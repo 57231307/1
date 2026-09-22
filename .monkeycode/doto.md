@@ -203,6 +203,29 @@
          （多半是已付清或红字单），再写死 56500 申请付款。现改为按本用例供应商查询、优先挑
          `unpaid_amount > 0` 的那张、并断其 supplier_id 归属；1-8 的申请金额取该单真实未付金额
          （去掉 56500 硬编码），两处 `test.skip()` 前置兜底改为显式断言。
+- [x] **验布管理页建单/编辑提交的是后端不存在的字段（run 4623 的 54 验布用例暴露）**：
+      `views/fabric-inspections/index.vue` 的建单与编辑表单提交 `fabric_batch_no` 与
+      `total_length_m`——`CreateInspectionRequest` 与 `fabric_inspection_record` 都没有这两列，
+      而该 DTO 唯一的必填项 `inspection_date`（NaiveDate）表单里根本没有，于是每次新建都被
+      `422 missing field inspection_date` 拒掉（首轮还叠加一次 CSRF 403，重试后才是真正的拒因）。
+      表象是 E2E「等不到 .el-message--success」，实质是页面进了 ErrorBoundary
+      （快照显示"页面加载出错"且顶栏仍是"未登录"）。
+      修法：表单字段重建为后端真实契约（验布日期必填、按当天预填；缸号/色号/验布员/机台号/
+      评分制式/门幅英寸/备注），编辑态把 `UpdateInspectionRequest` 不接受的三项
+      （日期/缸号/色号）置灰——不能让用户填一个改了也不会生效的输入框；详情面板去掉两个死字段，
+      改列出色号/验布日期/机台/评分制式/门幅/总扣分/每百平方码分数；api 层的
+      `Record<string, unknown>` 换成 `CreateFabricInspectionPayload` / `UpdateFabricInspectionPayload`
+      两个与后端字段一一对应的类型，字段写错从此由类型检查拦住；评分制式取值收进
+      `constants/fabric-scoring.ts`（four_point/ten_point，与后端 `fabric_scoring` 同源），
+      提交码值而不是文案。
+- [x] **run 4623 其余三条 E2E 失败的判责与修复**：
+      ① 44f-7 大货处方审核报「业务处理失败」，backend.log detail 是「审核前处方明细不能为空」——
+      后端约束正确（`CreateProductionRecipeRequest.recipe_detail` 就是业务必填的处方明细），
+      用例建了张空处方去审核，现补一条染料明细；② 53-2 断"无敏感角色"，实际是 `GET /roles`
+      出参为 `RoleListResponse{roles,total}`（全量返回、无分页），用例按 `items` 取值恒 undefined，
+      现按真实契约断言并去掉误导性的 page/page_size 参数；③ 48-3 断"AR 列表应可达"拿到 403，
+      根因是路径写错——真实路由是 `/ar/invoices`（`finance.rs:847`），不存在的端点被权限层
+      先拒成 403；同文件 48-2 早已为 AP 踩过并写下注释，AR 这条却仍在用 `/ar-invoices`。
 - [ ] **库存详情弹窗字段不全（本轮只统一了状态取值口径）**：详情行只列 编码/名称/仓库/批次/色号/
       缸号/米数/公斤/状态/库位，后端出参里已有的 等级、质量状态、可用量、预留量、补货点、库存上限
       一项都不显示——降级后的等级与质检结论在界面上看不到，只剩列表与导出可见。本轮把详情里的

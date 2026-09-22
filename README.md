@@ -57,7 +57,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | 后端迁移          | 7 个业务域聚合迁移（system/business/sales_crm/production/finance/v15/rls_dept），Rust 代码内联 SQL，`bingxi migrate run` 执行 |
 | 后端基准测试      | 4 个 criterion 基准（染整成本/库存/凭证/工资）                                                                                |
 | 前端 Vue 文件     | 420 个                                                                                                                        |
-| 前端 TS 文件      | 261 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                    |
+| 前端 TS 文件      | 267 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                    |
 | 前端 Views 子模块 | 110 个                                                                                                                        |
 | 前端 API 模块     | 121 个                                                                                                                        |
 | 前端 i18n 翻译键  | zh-CN 10,196 / en-US 10,219（引用键 9,679，缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验）                                                                       |
