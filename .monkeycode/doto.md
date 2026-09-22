@@ -1214,6 +1214,14 @@ Decimal `DECIMAL(18,4)` 出参被按 `"200"` 字面量比较、CSRF 一次性消
 - [ ] CI 失败若再出现新 job：按 doto 流程拉日志→记录→下批修复
 - [ ] 推送授权后：本地 commit 批量推送 + 观察 main CI（含 coverage 等 main 专属 job）
 
+**覆盖率缺口的量化（为待决策项提供数据，未擅自动手）**：
+CI 当前执行的目录 = flow / smoke / traversal / setup-wizard + 本轮新增 extras 八目录 = 1201+131 用例。
+**仍在 testMatch 之外、从未执行的还有 9 个目录**：`ai dashboard fabric inventory mrp production quotations sales-ext system`
+= **71 个用例 / 22 个文件**（`--list` 实测）。它们的假绿形态远少于其它目录（0 处条件 skip、条件交互共 22 处、
+`applyAuthMocks` 已是真实登录），因此接入成本低：补 testMatch + 分片即可，属"下一批覆盖"的自然候选。
+README 里"Windows 裸 --list 多收 71 个"的那 71 个正是这批 —— 之前把它们的缺席归因为"测量假象"，
+其实它们确实是**未被执行**的目录，两种说法之前都只说对了一半，现已在 README 与本台账同时纠正。
+
 ### 未决项的纺织/ERP 行业参照（用户要求：不能决策的先查同类案例，再给倾向）
 
 - **`inspection_no` 由客户端提交**：ERP 通行做法是单号由**服务端按配置规则生成**，
