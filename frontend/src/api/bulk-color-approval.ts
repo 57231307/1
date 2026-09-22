@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 /**
  * 大货批色审批（bulk_color_approval）状态
@@ -41,12 +41,13 @@ export interface BulkColorApproval {
   updated_at: string;
 }
 
+/**
+ * 创建大货批色申请（对齐后端 CreateBulkColorApprovalDto，bulk_color_approval_handler.rs:44）。
+ * 大货样确认必须绑定销售订单+染缸批次：sales_order_id、dye_batch_id、customer_id 均必填；其余可选。
+ */
 export interface CreateBulkColorApprovalPayload {
-  /** 销售订单 ID（必填） */
   sales_order_id: number;
-  /** 染色批次 ID（必填） */
   dye_batch_id: number;
-  /** 客户 ID（必填） */
   customer_id: number;
   production_order_id?: number;
   product_id?: number;
@@ -64,8 +65,21 @@ export interface CutSamplePayload {
   delta_e_value?: number;
 }
 
-export interface BulkColorApprovalListQuery extends QueryParams {
+/**
+ * 大货批色审批列表查询参数——严格对齐后端
+ * bulk_color_approval_service.rs::ListBulkColorApprovalQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ * 状态字段为 approval_status（不是 status），日期为 from_date/to_date（ISO 串）。
+ */
+export interface BulkColorApprovalListQuery {
+  page?: number;
+  page_size?: number;
+  sales_order_id?: number;
+  dye_batch_id?: number;
+  customer_id?: number;
   approval_status?: string;
+  from_date?: string;
+  to_date?: string;
 }
 
 export function getBulkColorApprovalList(

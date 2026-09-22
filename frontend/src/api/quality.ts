@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PageResult, QueryParams } from '@/types/api';
+import type { ApiResponse, PageResult } from '@/types/api';
 
 export interface QualityStandard {
   id: number;
@@ -93,8 +93,19 @@ export interface Defect {
   remark: string;
 }
 
+/**
+ * 质量标准列表查询参数——严格对齐后端 quality_standard_handler.rs::QualityStandardQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ */
+export interface QualityStandardListParams {
+  standard_type?: string;
+  status?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getQualityStandardList(
-  params?: QueryParams
+  params?: QualityStandardListParams
 ): Promise<ApiResponse<QualityStandard[]>> {
   // 批次 157d-2 修复：后端 quality-standards 已从 /production 域提升到根级
   return request.get('/quality-standards', { params });
@@ -142,8 +153,22 @@ export function getQualityStandardVersions(id: number): Promise<ApiResponse<Qual
 }
 
 // v11 批次 161 P2-5 修复：后端已返回 PaginatedResponse（含 items + total），改为 PageResult 类型
+/**
+ * 质检记录列表查询参数——严格对齐后端 quality_inspection_handler.rs::RecordQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ * batch_no 为批次号（与 sales 侧契约同名）。
+ */
+export interface QualityRecordListParams {
+  product_id?: number;
+  batch_no?: string;
+  inspection_type?: string;
+  inspection_result?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getQualityRecordList(
-  params?: QueryParams
+  params?: QualityRecordListParams
 ): Promise<ApiResponse<PageResult<QualityRecord>>> {
   return request.get('/production/quality-inspection/records', { params });
 }
@@ -166,7 +191,18 @@ export function updateQualityRecord(
   return request.put(`/production/quality-inspection/records/${id}`, data);
 }
 
-export function getDefectList(params?: QueryParams): Promise<ApiResponse<Defect[]>> {
+/**
+ * 缺陷列表查询参数——严格对齐后端 quality_inspection_handler.rs::DefectQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ */
+export interface DefectListParams {
+  record_id?: number;
+  status?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export function getDefectList(params?: DefectListParams): Promise<ApiResponse<Defect[]>> {
   return request.get('/production/quality-inspection/defects', { params });
 }
 

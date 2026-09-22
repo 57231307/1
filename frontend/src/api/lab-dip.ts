@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 /**
  * 打样通知单（lab_dip_request）状态
@@ -31,6 +31,10 @@ export interface LabDipRequest {
   created_at: string;
 }
 
+/**
+ * 创建打样通知单（对齐后端 CreateLabDipRequestRequest，lab_dip_ops/types.rs:18）。
+ * light_source 主对色光源（必填）、required_date 客户要求交期（必填 YYYY-MM-DD）；其余可选。
+ */
 export interface CreateLabDipRequestPayload {
   customer_id?: number;
   customer_color_no?: string;
@@ -39,20 +43,36 @@ export interface CreateLabDipRequestPayload {
   fabric_spec?: string;
   fabric_component?: string;
   sample_size?: string;
-  /** 主对色光源（必填）：D65/TL84/U3000/CWF/A 等 */
   light_source: string;
   secondary_light_source?: string;
   color_fastness_req?: string;
   eco_requirement?: string;
   sample_versions?: number;
   dye_category?: string;
-  /** 客户要求交期（必填），格式 YYYY-MM-DD */
   required_date: string;
   expected_days?: number;
   remarks?: string;
+  created_by?: number;
 }
 
-export interface LabDipRequestListQuery extends QueryParams {
+/** 客户确认 OK 样（对齐后端 ApproveOkSampleRequest，lab_dip_handler.rs:162）：sample_id 必填，comment 可选 */
+export interface ApproveLabDipPayload {
+  sample_id: number;
+  comment?: string;
+}
+
+/** 完成建库（对齐后端 CompleteRequest，lab_dip_handler.rs:222）：production_recipe_id 必填 */
+export interface CompleteLabDipPayload {
+  production_recipe_id: number;
+}
+
+/**
+ * 打样通知单列表查询参数——严格对齐后端 lab_dip_handler.rs::LabDipRequestListQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ */
+export interface LabDipRequestListQuery {
+  page?: number;
+  page_size?: number;
   request_no?: string;
   customer_id?: number;
   status?: string;
@@ -93,8 +113,11 @@ export function submitLabDipRequest(id: number): Promise<ApiResponse<LabDipReque
   return request.post(`/production/lab-dip/requests/${id}/submit`);
 }
 
-export function approveLabDipRequest(id: number): Promise<ApiResponse<LabDipRequest>> {
-  return request.post(`/production/lab-dip/requests/${id}/approve`);
+export function approveLabDipRequest(
+  id: number,
+  data: ApproveLabDipPayload
+): Promise<ApiResponse<LabDipRequest>> {
+  return request.post(`/production/lab-dip/requests/${id}/approve`, data);
 }
 
 export function rejectLabDipRequest(id: number): Promise<ApiResponse<LabDipRequest>> {
@@ -105,6 +128,9 @@ export function restartLabDipSampling(id: number): Promise<ApiResponse<LabDipReq
   return request.post(`/production/lab-dip/requests/${id}/restart`);
 }
 
-export function completeLabDipRequest(id: number): Promise<ApiResponse<LabDipRequest>> {
-  return request.post(`/production/lab-dip/requests/${id}/complete`);
+export function completeLabDipRequest(
+  id: number,
+  data: CompleteLabDipPayload
+): Promise<ApiResponse<LabDipRequest>> {
+  return request.post(`/production/lab-dip/requests/${id}/complete`, data);
 }

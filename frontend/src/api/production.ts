@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 // 生产订单接口
 export interface ProductionOrder {
@@ -47,9 +47,22 @@ export const PRODUCTION_ORDER_STATUS_VALUES = Object.keys(
   PRODUCTION_ORDER_STATUS
 ) as ProductionOrderStatusValue[];
 
+/**
+ * 生产订单列表查询参数——严格对齐后端 production_order_handler.rs::ListProductionOrdersQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ * status 词表见 models/status/production（PRODUCTION_ORDER_STATUS）。
+ */
+export interface ProductionOrderListParams {
+  order_no?: string;
+  status?: string;
+  product_id?: number;
+  page?: number;
+  page_size?: number;
+}
+
 // 获取生产订单列表
 export function getProductionOrderList(
-  params?: QueryParams
+  params?: ProductionOrderListParams
 ): Promise<ApiResponse<{ items: ProductionOrder[]; total: number }>> {
   return request.get('/production/production-orders/orders', { params });
 }

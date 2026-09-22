@@ -235,6 +235,7 @@ const nextActionMap: Partial<Record<FlowCardStatus, StatusAction[]>> = {
     { key: 'terminate', label: '终止', danger: true },
   ],
   preparing: [
+    { key: 'complete-preparing', label: '备布完成' },
     { key: 'start-dyeing', label: '开始染色' },
     { key: 'terminate', label: '终止', danger: true },
   ],
@@ -251,7 +252,6 @@ const nextActionMap: Partial<Record<FlowCardStatus, StatusAction[]>> = {
 const actionRunners: Record<string, (id: number) => Promise<unknown>> = {
   schedule: (id: number) => scheduleFlowCard(id),
   'start-preparing': (id: number) => startPreparing(id),
-  'complete-preparing': (id: number) => completePreparing(id),
   'start-dyeing': (id: number) => startDyeing(id),
   'complete-dyeing': (id: number) => completeDyeing(id),
   'start-inspecting': (id: number) => startInspecting(id),
@@ -338,6 +338,19 @@ const runAction = async (action: StatusAction, row: FlowCard) => {
         }
       );
       await terminateFlowCard(row.id, { reason: value || undefined });
+    } else if (action.key === 'complete-preparing') {
+      const { value } = await ElMessageBox.prompt(
+        `请输入流转卡 ${row.card_no} 备布完成的实际称重量（kg）`,
+        '备布完成',
+        {
+          confirmButtonText: '确认',
+          cancelButtonText: '取消',
+          inputPlaceholder: '实际称重量 kg（必填）',
+          inputPattern: /^\d+(\.\d{1,2})?$/,
+          inputErrorMessage: '请输入有效的正数重量（最多两位小数）',
+        }
+      );
+      await completePreparing(row.id, { actual_fabric_weight: Number(value) });
     } else {
       await ElMessageBox.confirm(
         `确认对流转卡 ${row.card_no} 执行「${action.label}」吗？`,

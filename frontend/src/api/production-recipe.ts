@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 /**
  * 大货处方（production_recipe）状态
@@ -44,6 +44,10 @@ export interface ProductionRecipe {
   updated_at: string;
 }
 
+/**
+ * 创建大货处方（对齐后端 CreateProductionRecipeRequest，production_recipe_service.rs:39）。
+ * fabric_weight 备布重量 kg（必填，用量计算依据）、liquor_ratio 浴比如 1:8（必填）；其余可选。
+ */
 export interface CreateProductionRecipePayload {
   work_order_id?: number;
   dye_batch_id?: number;
@@ -55,10 +59,8 @@ export interface CreateProductionRecipePayload {
   fabric_spec?: string;
   fabric_width?: number;
   gram_weight?: number;
-  /** 备布重量 kg（必填，用量计算依据） */
   fabric_weight: number;
   equipment_no?: string;
-  /** 浴比如 1:8（必填） */
   liquor_ratio: string;
   bath_volume?: number;
   adjustment_factor?: number;
@@ -66,19 +68,29 @@ export interface CreateProductionRecipePayload {
   total_dye_cost?: number;
   total_auxiliary_cost?: number;
   remarks?: string;
+  issued_by?: number;
+  created_by?: number;
 }
 
+/**
+ * 配方试算（对齐后端 CalculateAmountsRequest，production_recipe_service.rs:109）。
+ * fabric_weight、liquor_ratio、items（物料明细，需含 concentration）均必填；adjustment_factor 可选。
+ */
 export interface CalculateAmountsPayload {
-  /** 备布重量 kg */
   fabric_weight: number;
-  /** 浴比如 1:8 */
   liquor_ratio: string;
   adjustment_factor?: number;
-  /** 物料明细（需包含 concentration） */
   items: RecipeMaterialItem[];
 }
 
-export interface ProductionRecipeListQuery extends QueryParams {
+/**
+ * 大货处方列表查询参数——严格对齐后端 production_recipe_handler.rs::ProductionRecipeListQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ * color_no 为色号（空即白坯）。
+ */
+export interface ProductionRecipeListQuery {
+  page?: number;
+  page_size?: number;
   work_order_id?: number;
   dye_batch_id?: number;
   customer_id?: number;

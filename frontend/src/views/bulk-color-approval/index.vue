@@ -59,17 +59,44 @@
 
     <el-dialog v-model="dialogVisible" title="新建批色申请" width="520px">
       <el-form :model="form" label-width="90px">
-        <el-form-item label="订单号" required>
-          <el-input v-model="form.order_no" />
+        <el-form-item label="销售订单" required>
+          <el-input-number
+            v-model="form.sales_order_id"
+            :min="1"
+            :precision="0"
+            style="width: 100%"
+            placeholder="销售订单 ID（必填）"
+          />
         </el-form-item>
-        <el-form-item label="色号" required>
-          <el-input v-model="form.color_no" />
+        <el-form-item label="染缸批次" required>
+          <el-input-number
+            v-model="form.dye_batch_id"
+            :min="1"
+            :precision="0"
+            style="width: 100%"
+            placeholder="染缸批次 ID（必填）"
+          />
         </el-form-item>
-        <el-form-item label="缸号" required>
-          <el-input v-model="form.dye_lot_no" />
+        <el-form-item label="客户" required>
+          <el-input-number
+            v-model="form.customer_id"
+            :min="1"
+            :precision="0"
+            style="width: 100%"
+            placeholder="客户 ID（必填）"
+          />
+        </el-form-item>
+        <el-form-item label="色号">
+          <el-input v-model="form.color_no" placeholder="选填" />
+        </el-form-item>
+        <el-form-item label="缸号">
+          <el-input v-model="form.dye_lot_no" placeholder="选填" />
+        </el-form-item>
+        <el-form-item label="批次号">
+          <el-input v-model="form.batch_no" placeholder="选填" />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="form.notes" type="textarea" :rows="2" />
+          <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -158,14 +185,22 @@ const submitting = ref(false);
 const dialogVisible = ref(false);
 const list = ref<BulkColorApproval[]>([]);
 
-const form = reactive({
-  sales_order_id: 1,
-  dye_batch_id: 1,
-  customer_id: 1,
-  order_no: '',
+const form = reactive<{
+  sales_order_id: number | undefined;
+  dye_batch_id: number | undefined;
+  customer_id: number | undefined;
+  color_no: string;
+  dye_lot_no: string;
+  batch_no: string;
+  remark: string;
+}>({
+  sales_order_id: undefined,
+  dye_batch_id: undefined,
+  customer_id: undefined,
   color_no: '',
   dye_lot_no: '',
-  notes: '',
+  batch_no: '',
+  remark: '',
 });
 
 const statusText = (s: string) =>
@@ -215,25 +250,33 @@ const loadList = async () => {
 
 const handleCreate = () => {
   Object.assign(form, {
-    sales_order_id: 1,
-    dye_batch_id: 1,
-    customer_id: 1,
-    order_no: '',
+    sales_order_id: undefined,
+    dye_batch_id: undefined,
+    customer_id: undefined,
     color_no: '',
     dye_lot_no: '',
-    notes: '',
+    batch_no: '',
+    remark: '',
   });
   dialogVisible.value = true;
 };
 
 const submitCreate = async () => {
-  if (!form.order_no || !form.color_no || !form.dye_lot_no) {
-    ElMessage.warning('订单号/色号/缸号必填');
+  if (!form.sales_order_id || !form.dye_batch_id || !form.customer_id) {
+    ElMessage.warning('销售订单、染缸批次、客户 ID 均为必填');
     return;
   }
   submitting.value = true;
   try {
-    await createBulkColorApproval(form);
+    await createBulkColorApproval({
+      sales_order_id: form.sales_order_id,
+      dye_batch_id: form.dye_batch_id,
+      customer_id: form.customer_id,
+      color_no: form.color_no || undefined,
+      dye_lot_no: form.dye_lot_no || undefined,
+      batch_no: form.batch_no || undefined,
+      remark: form.remark || undefined,
+    });
     ElMessage.success('批色申请已创建');
     dialogVisible.value = false;
     await loadList();

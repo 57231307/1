@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 /**
  * 坯布实体类型。
@@ -99,8 +99,25 @@ export interface GreigeStockOutPayload {
   remarks?: string;
 }
 
+/**
+ * 坯布列表查询参数——严格对齐后端 greige_fabric_handler.rs::GreigeFabricListQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ * 支持真实筛选：坯布编号/名称/类型、供应商、仓库、状态、等级。
+ */
+export interface GreigeFabricListParams {
+  page?: number;
+  page_size?: number;
+  fabric_no?: string;
+  fabric_name?: string;
+  fabric_type?: string;
+  supplier_id?: number;
+  warehouse_id?: number;
+  status?: string;
+  quality_grade?: string;
+}
+
 export function getGreigeFabricList(
-  params?: QueryParams
+  params?: GreigeFabricListParams
 ): Promise<ApiResponse<{ items: GreigeFabric[]; total: number; page: number; page_size: number }>> {
   return request.get('/production/greige-fabrics', { params });
 }

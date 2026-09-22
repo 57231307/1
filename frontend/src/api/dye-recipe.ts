@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 /**
  * 染色配方状态词表（唯一真相源：backend/src/models/status/quality_dyeing.rs::dye_recipe，
@@ -45,8 +45,25 @@ export interface RecipeItem {
   remark: string;
 }
 
+/**
+ * 染色配方列表查询参数——严格对齐后端 dye_recipe_handler.rs::DyeRecipeListQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ * 色号字段后端为 color_code（不是 color_no），status 取 DYE_RECIPE_STATUS 词表。
+ * download_token 为敏感导出审批令牌（页面暂未暴露，故不主动传）。
+ */
+export interface DyeRecipeListParams {
+  page?: number;
+  page_size?: number;
+  recipe_no?: string;
+  color_code?: string;
+  color_name?: string;
+  dye_type?: string;
+  status?: string;
+  download_token?: string;
+}
+
 export function getDyeRecipeList(
-  params?: QueryParams
+  params?: DyeRecipeListParams
 ): Promise<ApiResponse<{ items: DyeRecipe[]; total: number; page: number; page_size: number }>> {
   return request.get('/production/dye-recipes', { params });
 }
@@ -98,6 +115,6 @@ export function getRecipeVersions(id: number): Promise<ApiResponse<DyeRecipe[]>>
   return request.get(`/production/dye-recipes/${id}/versions`);
 }
 
-export function exportDyeRecipes(params?: QueryParams): Promise<Blob> {
+export function exportDyeRecipes(params?: DyeRecipeListParams): Promise<Blob> {
   return request.get('/production/dye-recipes/export', { params, responseType: 'blob' });
 }

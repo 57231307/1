@@ -249,10 +249,8 @@ const nextActionMap: Partial<Record<LabDipRequestStatus, StatusAction[]>> = {
 const actionRunners: Record<string, (id: number) => Promise<unknown>> = {
   'start-sampling': (id: number) => startLabDipSampling(id),
   submit: (id: number) => submitLabDipRequest(id),
-  approve: (id: number) => approveLabDipRequest(id),
   reject: (id: number) => rejectLabDipRequest(id),
   restart: (id: number) => restartLabDipSampling(id),
-  complete: (id: number) => completeLabDipRequest(id),
 };
 
 const loading = ref(false);
@@ -329,12 +327,40 @@ const getNextActions = (row: LabDipRequest): StatusAction[] =>
 
 const runAction = async (action: StatusAction, row: LabDipRequest) => {
   try {
-    await ElMessageBox.confirm(
-      `确认对打样通知 ${row.request_no} 执行「${action.label}」吗？`,
-      '操作确认',
-      { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }
-    );
-    await actionRunners[action.key](row.id);
+    if (action.key === 'approve') {
+      const { value } = await ElMessageBox.prompt(
+        `请输入客户确认 OK 的小样 ID（打样通知 ${row.request_no}）`,
+        '客户确认通过',
+        {
+          confirmButtonText: '确认',
+          cancelButtonText: '取消',
+          inputPlaceholder: '小样 sample_id（必填，正整数）',
+          inputPattern: /^[1-9]\d*$/,
+          inputErrorMessage: '请输入有效的正整数小样 ID',
+        }
+      );
+      await approveLabDipRequest(row.id, { sample_id: Number(value) });
+    } else if (action.key === 'complete') {
+      const { value } = await ElMessageBox.prompt(
+        `请输入用于建库的大货处方 ID（打样通知 ${row.request_no}）`,
+        '完成建库',
+        {
+          confirmButtonText: '确认',
+          cancelButtonText: '取消',
+          inputPlaceholder: 'production_recipe_id（必填，正整数）',
+          inputPattern: /^[1-9]\d*$/,
+          inputErrorMessage: '请输入有效的正整数处方 ID',
+        }
+      );
+      await completeLabDipRequest(row.id, { production_recipe_id: Number(value) });
+    } else {
+      await ElMessageBox.confirm(
+        `确认对打样通知 ${row.request_no} 执行「${action.label}」吗？`,
+        '操作确认',
+        { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }
+      );
+      await actionRunners[action.key](row.id);
+    }
     ElMessage.success(`操作成功：${action.label}`);
     await loadList();
   } catch (error) {

@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface DyeBatch {
   id: number;
@@ -41,8 +41,22 @@ export interface DyeBatch {
   updated_at: string;
 }
 
+/**
+ * 缸号（染色批次）列表查询参数——严格对齐后端 dye_batch_handler.rs::DyeBatchListQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ * 支持真实筛选：色号 color_no（空即白坯）、缸号 dye_lot_no、批次 batch_no、状态 status。
+ */
+export interface DyeBatchListParams {
+  page?: number;
+  page_size?: number;
+  color_no?: string;
+  dye_lot_no?: string;
+  batch_no?: string;
+  status?: string;
+}
+
 export function getDyeBatchList(
-  params?: QueryParams
+  params?: DyeBatchListParams
 ): Promise<ApiResponse<{ items: DyeBatch[]; total: number; page: number; page_size: number }>> {
   return request.get('/production/dye-batches', { params });
 }
@@ -74,6 +88,6 @@ export function getDyeBatchesByColor(colorCode: string): Promise<ApiResponse<Dye
   return request.get(`/production/dye-batches/by-color/${colorCode}`);
 }
 
-export function exportDyeBatches(params?: QueryParams): Promise<Blob> {
+export function exportDyeBatches(params?: DyeBatchListParams): Promise<Blob> {
   return request.get('/production/dye-batches/export', { params, responseType: 'blob' });
 }

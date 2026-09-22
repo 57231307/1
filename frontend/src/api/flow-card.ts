@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 /**
  * 流转卡（production_flow_card）状态
@@ -41,8 +41,11 @@ export interface FlowCard {
   updated_at: string;
 }
 
+/**
+ * 创建流转卡请求（对齐后端 CreateFlowCardRequest，flow_card_dto.rs:44）。
+ * production_order_id 必填：工艺卡必须挂在具体生产订单上；其余为可选。
+ */
 export interface CreateFlowCardPayload {
-  /** 关联生产订单 ID（必填） */
   production_order_id: number;
   dye_batch_id?: number;
   dye_lot_no?: string;
@@ -56,15 +59,30 @@ export interface CreateFlowCardPayload {
   remarks?: string;
 }
 
-export interface FlowCardListQuery extends QueryParams {
+/**
+ * 流转卡列表查询参数——严格对齐后端 flow_card_handler.rs::FlowCardListQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ * 支持真实筛选：卡号 card_no、条码 barcode、缸号 dye_lot_no、生产订单、状态、客户。
+ */
+export interface FlowCardListQuery {
+  page?: number;
+  page_size?: number;
   card_no?: string;
-  status?: string;
+  barcode?: string;
+  dye_lot_no?: string;
   production_order_id?: number;
+  status?: string;
+  customer_id?: number;
 }
 
 export interface ScheduleFlowCardPayload {
   dye_batch_id?: number;
   dye_lot_no?: string;
+}
+
+/** 备布完成请求（对齐后端 CompletePreparingRequest，flow_card_handler.rs:239）：实际称重量 kg 必填 */
+export interface CompletePreparingPayload {
+  actual_fabric_weight: number;
 }
 
 export function getFlowCardList(
@@ -103,8 +121,11 @@ export function startPreparing(id: number): Promise<ApiResponse<FlowCard>> {
   return request.post(`/production/flow-cards/${id}/start-preparing`);
 }
 
-export function completePreparing(id: number): Promise<ApiResponse<FlowCard>> {
-  return request.post(`/production/flow-cards/${id}/complete-preparing`);
+export function completePreparing(
+  id: number,
+  data: CompletePreparingPayload
+): Promise<ApiResponse<FlowCard>> {
+  return request.post(`/production/flow-cards/${id}/complete-preparing`, data);
 }
 
 export function startDyeing(id: number): Promise<ApiResponse<FlowCard>> {

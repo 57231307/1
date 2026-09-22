@@ -30,14 +30,6 @@
         class="filter-form"
         :aria-label="t('dyeBatch.index.ariaFilterForm')"
       >
-        <el-form-item :label="t('dyeBatch.index.filterKeyword')">
-          <el-input
-            v-model="queryParams.keyword"
-            :placeholder="t('dyeBatch.index.placeholderKeyword')"
-            clearable
-            @clear="handleQuery"
-          />
-        </el-form-item>
         <el-form-item :label="t('dyeBatch.index.filterColorNo')">
           <el-input
             v-model="queryParams.color_no"
@@ -46,16 +38,21 @@
             @clear="handleQuery"
           />
         </el-form-item>
-        <el-form-item :label="t('dyeBatch.index.filterProduct')">
-          <el-select
-            v-model="queryParams.product_id"
-            :placeholder="t('dyeBatch.index.placeholderProduct')"
+        <el-form-item :label="t('dyeBatch.index.filterBatchNo')">
+          <el-input
+            v-model="queryParams.batch_no"
+            :placeholder="t('dyeBatch.index.placeholderBatchNo')"
             clearable
-            filterable
-            @change="handleQuery"
-          >
-            <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
-          </el-select>
+            @clear="handleQuery"
+          />
+        </el-form-item>
+        <el-form-item :label="t('dyeBatch.index.filterDyeLotNo')">
+          <el-input
+            v-model="queryParams.dye_lot_no"
+            :placeholder="t('dyeBatch.index.placeholderDyeLotNo')"
+            clearable
+            @clear="handleQuery"
+          />
         </el-form-item>
         <el-form-item :label="t('dyeBatch.index.filterStatus')">
           <el-select
@@ -67,16 +64,6 @@
             <el-option :label="t('dyeBatch.index.optionActive')" value="ACTIVE" />
             <el-option :label="t('dyeBatch.index.optionCompleted')" value="COMPLETED" />
           </el-select>
-        </el-form-item>
-        <el-form-item :label="t('dyeBatch.index.filterDyeDate')">
-          <el-date-picker
-            v-model="queryParams.date_range"
-            type="daterange"
-            :range-separator="t('common.dateRange.to')"
-            :start-placeholder="t('dyeBatch.index.placeholderStartDate')"
-            :end-placeholder="t('dyeBatch.index.placeholderEndDate')"
-            @change="handleQuery"
-          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
@@ -333,13 +320,12 @@ import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 查询参数（筛选条件，分页由 useTableApi 管理）
+// 查询参数（仅保留后端 DyeBatchListQuery 真实读取的筛选：色号、批次号、缸号、状态；分页由 useTableApi 管理）
 const queryParams = reactive({
-  keyword: '',
   color_no: '',
-  product_id: '',
+  batch_no: '',
+  dye_lot_no: '',
   status: '',
-  date_range: [] as string[],
 });
 
 // 批次 271：接入 useTableApi，消除手写 page/pageSize/total/loading + getList 重复
@@ -396,11 +382,10 @@ const formRules = {
 // 批次 271：同步筛选条件到 useTableApi.queryParams 并刷新
 // useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 getList
 const syncQueryParams = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined);
   setQueryParam('color_no', queryParams.color_no || undefined);
-  setQueryParam('product_id', queryParams.product_id || undefined);
+  setQueryParam('batch_no', queryParams.batch_no || undefined);
+  setQueryParam('dye_lot_no', queryParams.dye_lot_no || undefined);
   setQueryParam('status', queryParams.status || undefined);
-  setQueryParam('date_range', queryParams.date_range?.length ? queryParams.date_range : undefined);
 };
 
 // 获取产品列表
@@ -425,11 +410,10 @@ const handleQuery = () => {
 
 // 重置
 const handleReset = () => {
-  queryParams.keyword = '';
   queryParams.color_no = '';
-  queryParams.product_id = '';
+  queryParams.batch_no = '';
+  queryParams.dye_lot_no = '';
   queryParams.status = '';
-  queryParams.date_range = [];
   syncQueryParams();
   page.value = 1;
   refresh();

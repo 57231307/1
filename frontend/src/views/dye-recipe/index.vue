@@ -30,17 +30,17 @@
         class="filter-form"
         :aria-label="t('dyeRecipe.index.ariaFilterForm')"
       >
-        <el-form-item :label="t('dyeRecipe.index.filterKeyword')">
+        <el-form-item :label="t('dyeRecipe.index.filterRecipeNo')">
           <el-input
-            v-model="queryParams.keyword"
-            :placeholder="t('dyeRecipe.index.placeholderKeyword')"
+            v-model="queryParams.recipe_no"
+            :placeholder="t('dyeRecipe.index.placeholderRecipeNo')"
             clearable
             @clear="handleQuery"
           />
         </el-form-item>
         <el-form-item :label="t('dyeRecipe.index.filterColorNo')">
           <el-input
-            v-model="queryParams.color_no"
+            v-model="queryParams.color_code"
             :placeholder="t('dyeRecipe.index.placeholderColorNo')"
             clearable
             @clear="handleQuery"
@@ -355,10 +355,10 @@ import { useTableApi } from '@/composables/useTableApi';
 const { t } = useI18n({ useScope: 'global' });
 const userStore = useUserStore();
 
-// 查询参数（筛选条件，分页由 useTableApi 管理）
+// 查询参数（仅保留后端 DyeRecipeListQuery 真实读取的筛选：配方编号、色号 color_code、状态；分页由 useTableApi 管理）
 const queryParams = reactive({
-  keyword: '',
-  color_no: '',
+  recipe_no: '',
+  color_code: '',
   status: '',
 });
 
@@ -418,8 +418,8 @@ const formRules = {
 // 批次 271：同步筛选条件到 useTableApi.queryParams 并刷新
 // useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 getList
 const syncQueryParams = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined);
-  setQueryParam('color_no', queryParams.color_no || undefined);
+  setQueryParam('recipe_no', queryParams.recipe_no || undefined);
+  setQueryParam('color_code', queryParams.color_code || undefined);
   setQueryParam('status', queryParams.status || undefined);
 };
 
@@ -432,8 +432,8 @@ const handleQuery = () => {
 
 // 重置
 const handleReset = () => {
-  queryParams.keyword = '';
-  queryParams.color_no = '';
+  queryParams.recipe_no = '';
+  queryParams.color_code = '';
   queryParams.status = '';
   syncQueryParams();
   page.value = 1;
