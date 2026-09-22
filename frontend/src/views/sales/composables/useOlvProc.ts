@@ -97,7 +97,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 提交订单（draft → submitted 状态机） */
+  /** 提交订单（后端 submit 写入 pending，approve/reject 都以 pending 为前置状态） */
   const handleSubmitOrder = async (row: SalesOrder) => {
     try {
       await ElMessageBox.confirm('确定提交此订单进入审批流程吗？', '确认', { type: 'info' });

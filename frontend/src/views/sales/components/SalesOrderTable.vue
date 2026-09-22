@@ -111,7 +111,8 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
           )
         );
       }
-      if (row.status === 'submitted') {
+      // 待审核（提交后由后端写入 pending）：审核与驳回都只在这个状态下可用
+      if (row.status === 'pending') {
         buttons.push(
           h(
             ElButton,
@@ -132,20 +133,6 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               onClick: () => emit('reject', row),
             },
             { default: () => t('sales.table.reject') || '驳回' }
-          )
-        );
-      }
-      if (row.status === 'pending') {
-        buttons.push(
-          h(
-            ElButton,
-            {
-              size: 'small',
-              link: true,
-              type: 'primary',
-              onClick: () => emit('approve', row),
-            },
-            { default: () => t('sales.table.approve') }
           )
         );
       }
