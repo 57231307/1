@@ -165,13 +165,8 @@ const fetchVerifications = async () => {
   loading.value = true;
   try {
     const res = await getARVerificationList();
-    const d = res.data as unknown as
-      { list?: ARVerification[]; items?: ARVerification[] } | ARVerification[] | undefined;
-    if (d && typeof d === 'object' && !Array.isArray(d)) {
-      verifications.value = d.list || d.items || [];
-    } else {
-      verifications.value = (d as ARVerification[]) || [];
-    }
+    // 后端 ar_verification_handler::list_verifications 载荷承载数组的键为 `list`
+    verifications.value = res.data.list;
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));
@@ -231,12 +226,9 @@ const openManualDialog = async () => {
       getUnverifiedARInvoices(),
       getUnverifiedARPayments(),
     ]);
-    const inv = invRes.data as
-      { list?: ARInvoice[]; items?: ARInvoice[] } | ARInvoice[] | undefined;
-    unverifiedInvoices.value = Array.isArray(inv) ? inv : inv?.list || inv?.items || [];
-    const pay = payRes.data as
-      { list?: ARPayment[]; items?: ARPayment[] } | ARPayment[] | undefined;
-    unverifiedPayments.value = Array.isArray(pay) ? pay : pay?.list || pay?.items || [];
+    // 后端 get_unverified_invoices/payments 直接返回裸数组
+    unverifiedInvoices.value = invRes.data;
+    unverifiedPayments.value = payRes.data;
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));

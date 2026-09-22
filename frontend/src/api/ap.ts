@@ -122,18 +122,16 @@ export function autoGenerateAPInvoices(data: {
   return request.post('/ap/invoices/auto-generate', data);
 }
 
-// 账龄分析项
+// 账龄分析项（对齐后端 ap_invoice_ops::types::AgingAnalysisItem；金额为 Decimal.to_string）
 export interface APAgingItem {
-  supplier_id: number;
-  supplier_name: string;
-  total_amount: number;
-  current: number;
-  days_30: number;
-  days_60: number;
-  days_90: number;
-  over_90: number;
+  aging_bucket: string;
+  invoice_count: number;
+  total_amount: string;
 }
 
+/**
+ * 账龄分析：后端 `ap_invoice_handler::get_aging_analysis` 返回 `Vec<AgingAnalysisItem>`（裸数组）。
+ */
 export function getAPAgingAnalysis(params?: {
   supplier_id?: number;
   date?: string;
@@ -141,7 +139,13 @@ export function getAPAgingAnalysis(params?: {
   return request.get('/ap/invoices/aging', { params });
 }
 
-export function getAPPaymentList(params?: QueryParams): Promise<ApiResponse<APPayment[]>> {
+/**
+ * 付款列表：后端 `ap_payment_handler::list_payments` 返回
+ * `PaginatedResponse<...>`（data = {items,total,page,page_size}）。
+ */
+export function getAPPaymentList(
+  params?: QueryParams
+): Promise<ApiResponse<PaginatedResponse<APPayment>>> {
   return request.get('/ap/payments', { params });
 }
 
@@ -164,9 +168,13 @@ export function confirmAPPayment(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ap/payments/${id}/confirm`);
 }
 
+/**
+ * 付款申请列表：后端 `ap_payment_request_handler::list_requests` 返回
+ * `PaginatedResponse`（data = {items,total,page,page_size}）。
+ */
 export function getAPPaymentRequestList(
   params?: QueryParams
-): Promise<ApiResponse<APPaymentRequest[]>> {
+): Promise<ApiResponse<PaginatedResponse<APPaymentRequest>>> {
   return request.get('/ap/payment-requests', { params });
 }
 
@@ -203,9 +211,13 @@ export function rejectAPPaymentRequest(id: number, reason: string): Promise<ApiR
   return request.post(`/ap/payment-requests/${id}/reject`, { reason });
 }
 
+/**
+ * 核销列表：后端 `ap_verification_handler::list_verifications` 返回
+ * `PaginatedResponse`（data = {items,total,page,page_size}）。
+ */
 export function getAPVerificationList(
   params?: QueryParams
-): Promise<ApiResponse<APVerification[]>> {
+): Promise<ApiResponse<PaginatedResponse<APVerification>>> {
   return request.get('/ap/verifications', { params });
 }
 
@@ -237,9 +249,13 @@ export function getUnverifiedAPPayments(): Promise<ApiResponse<APPayment[]>> {
   return request.get('/ap/verifications/unverified/payments');
 }
 
+/**
+ * 对账单列表：后端 `ap_reconciliation_handler::list_reconciliations` 返回
+ * `PaginatedResponse`（data = {items,total,page,page_size}）。
+ */
 export function getAPReconciliationList(
   params?: QueryParams
-): Promise<ApiResponse<APReconciliation[]>> {
+): Promise<ApiResponse<PaginatedResponse<APReconciliation>>> {
   return request.get('/ap/reconciliations', { params });
 }
 

@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api';
 
 export interface ARInvoice {
   id: number;
@@ -45,19 +45,37 @@ export interface ARVerification {
   created_at: string;
 }
 
+/**
+ * 应收对账单（列表/详情载荷）。
+ * 字段对齐后端 `ar_reconciliation_handler::ReconciliationResponse`
+ * （backend/src/handlers/ar_reconciliation_handler.rs:39）。
+ * 后端金额字段为 Decimal.to_string()，故类型为 string。
+ */
 export interface ARReconciliation {
   id: number;
   reconciliation_no: string;
   customer_id: number;
-  customer_name: string;
-  reconciliation_date: string;
-  total_invoice_amount: number;
-  total_payment_amount: number;
-  difference_amount: number;
-  status: string;
-  confirmed_by?: string;
-  confirmed_at?: string;
+  customer_name: string | null;
+  period_start: string;
+  period_end: string;
+  opening_balance: string;
+  total_invoices: string;
+  total_collections: string;
+  closing_balance: string;
+  reconciliation_status: string | null;
   created_at: string;
+}
+
+/** 创建对账单请求体，对齐后端 `CreateReconciliationApiRequest`（period/金额必填）。 */
+export interface CreateARReconciliationRequest {
+  reconciliation_no: string;
+  customer_id: number;
+  customer_name?: string | null;
+  period_start: string;
+  period_end: string;
+  opening_balance: number;
+  total_invoices: number;
+  total_collections: number;
 }
 
 export function getARInvoiceList(params?: QueryParams): Promise<ApiResponse<ARInvoice[]>> {
@@ -91,9 +109,13 @@ export function cancelARInvoice(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ar/invoices/${id}/cancel`);
 }
 
+/**
+ * 对账单列表：后端 `ar_reconciliation_handler::list_reconciliations` 返回
+ * `PaginatedResponse<ReconciliationResponse>`（data = {items,total,page,page_size}）。
+ */
 export function getARReconciliationList(
   params?: QueryParams
-): Promise<ApiResponse<ARReconciliation[]>> {
+): Promise<ApiResponse<PaginatedResponse<ARReconciliation>>> {
   return request.get('/ar-reconciliations', { params });
 }
 
@@ -102,7 +124,7 @@ export function getARReconciliation(id: number): Promise<ApiResponse<ARReconcili
 }
 
 export function createARReconciliation(
-  data: Partial<ARReconciliation>
+  data: CreateARReconciliationRequest
 ): Promise<ApiResponse<ARReconciliation>> {
   return request.post('/ar-reconciliations', data);
 }
@@ -114,7 +136,14 @@ export function updateARReconciliationStatus(
   return request.put(`/ar-reconciliations/${id}/status`, { status });
 }
 
-export function getARPaymentList(params?: QueryParams): Promise<ApiResponse<ARPayment[]>> {
+/**
+ * 收款列表：后端 `ar_payment_handler::list_payments` 以 json! 手搓载荷，
+ * 承载数组的键为 `list`（data = {list,total,page,page_size}）。
+ * 注意：与 AP 侧同类列表用 `items` 键不一致 —— 见汇报「需后端统一」。
+ */
+export function getARPaymentList(
+  params?: QueryParams
+): Promise<ApiResponse<{ list: ARPayment[]; total: number; page: number; page_size: number }>> {
   return request.get('/ar/payments', { params });
 }
 
@@ -137,9 +166,15 @@ export function confirmARPayment(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ar/payments/${id}/confirm`);
 }
 
+/**
+ * 核销列表：后端 `ar_verification_handler::list_verifications` 以 json! 手搓载荷，
+ * 承载数组的键为 `list`（data = {list,total,page,page_size}）。
+ */
 export function getARVerificationList(
   params?: QueryParams
-): Promise<ApiResponse<ARVerification[]>> {
+): Promise<
+  ApiResponse<{ list: ARVerification[]; total: number; page: number; page_size: number }>
+> {
   return request.get('/ar/verifications', { params });
 }
 

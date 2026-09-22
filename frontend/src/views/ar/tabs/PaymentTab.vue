@@ -163,13 +163,8 @@ const fetchPayments = async () => {
   loading.value = true;
   try {
     const res = await getARPaymentList();
-    const d = res.data as unknown as
-      { list?: ARPayment[]; items?: ARPayment[] } | ARPayment[] | undefined;
-    if (d && typeof d === 'object' && !Array.isArray(d)) {
-      payments.value = d.list || d.items || [];
-    } else {
-      payments.value = (d as ARPayment[]) || [];
-    }
+    // 后端 ar_payment_handler::list_payments 载荷承载数组的键为 `list`
+    payments.value = res.data.list;
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));

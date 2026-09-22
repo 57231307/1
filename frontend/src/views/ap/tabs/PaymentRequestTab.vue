@@ -237,13 +237,8 @@ const fetchRequests = async () => {
   loading.value = true;
   try {
     const res = await getAPPaymentRequestList();
-    const d = res.data as unknown as
-      { list?: APPaymentRequest[]; items?: APPaymentRequest[] } | APPaymentRequest[] | undefined;
-    if (d && typeof d === 'object' && !Array.isArray(d)) {
-      requests.value = d.list || d.items || [];
-    } else {
-      requests.value = (d as APPaymentRequest[]) || [];
-    }
+    // 后端 ap_payment_request_handler::list_requests 返回 PaginatedResponse（data.items）
+    requests.value = res.data.items;
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));

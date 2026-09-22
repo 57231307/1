@@ -103,7 +103,8 @@ export function useArRec() {
   const handleViewDetail = async (row: AutoReconciliationResult) => {
     try {
       const res = await getReconciliationDetailItems(row.id);
-      detailData.value = res.data || [];
+      // 后端返回 { reconciliation, details }，明细在 details 键下
+      detailData.value = res.data.details;
       currentReconciliation.value = row;
       detailDialogVisible.value = true;
     } catch {

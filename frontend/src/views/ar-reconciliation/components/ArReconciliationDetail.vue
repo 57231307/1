@@ -41,46 +41,39 @@
       style="width: 100%; margin-top: 16px"
       :aria-label="$t('arReconciliationModule.detailTableAria')"
     >
-      <el-table-column prop="type" :label="$t('arReconciliationModule.type')" width="100">
+      <el-table-column prop="item_type" :label="$t('arReconciliationModule.type')" width="120">
         <template #default="scope">
           <el-tag
             size="small"
             :type="
-              scope.row.type === 'invoice'
+              String(scope.row.item_type).toUpperCase() === 'INVOICE'
                 ? ''
-                : scope.row.type === 'payment'
+                : String(scope.row.item_type).toUpperCase() === 'RECEIPT'
                   ? 'success'
                   : 'warning'
             "
           >
-            {{
-              scope.row.type === 'invoice'
-                ? $t('arReconciliationModule.typeInvoice')
-                : scope.row.type === 'payment'
-                  ? $t('arReconciliationModule.typePayment')
-                  : $t('arReconciliationModule.typeAdjustment')
-            }}
+            {{ scope.row.item_type }}
           </el-tag>
         </template>
       </el-table-column>
       <el-table-column
-        prop="source_no"
+        prop="document_no"
         :label="$t('arReconciliationModule.sourceNo')"
         width="150"
       />
       <el-table-column
-        prop="dye_lot_no"
-        :label="$t('arReconciliationModule.dyeLotNo')"
+        prop="document_date"
+        :label="$t('arReconciliationModule.date')"
         width="120"
       />
-      <el-table-column prop="source_date" :label="$t('arReconciliationModule.date')" width="120" />
       <el-table-column
         prop="amount"
         :label="$t('arReconciliationModule.amount')"
         width="120"
         align="right"
       >
-        <template #default="scope">{{ Number(scope.row.amount ?? 0).toFixed(2) }}</template>
+        <template #default="scope">{{ fmtNum(scope.row.amount) }}</template>
       </el-table-column>
       <el-table-column
         prop="matched_amount"
@@ -88,24 +81,16 @@
         width="120"
         align="right"
       >
-        <template #default="scope">{{ Number(scope.row.matched_amount ?? 0).toFixed(2) }}</template>
+        <template #default="scope">{{ fmtNum(scope.row.matched_amount) }}</template>
       </el-table-column>
-      <el-table-column
-        prop="unmatched_amount"
-        :label="$t('arReconciliationModule.unmatchedAmount')"
-        width="120"
-        align="right"
-      >
-        <template #default="scope">{{ fmtNum(scope.row.unmatched_amount) }}</template>
-      </el-table-column>
-      <el-table-column :label="$t('common.status')" width="100">
+      <el-table-column :label="$t('common.status')" width="120">
         <template #default="scope">
-          <el-tag size="small" :type="getMatchType(scope.row.status)">
-            {{ $t(getMatchLabel(scope.row.status)) }}
+          <el-tag size="small" :type="getMatchType(scope.row.match_status)">
+            {{ $t(getMatchLabel(scope.row.match_status)) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="remark" :label="$t('arReconciliationModule.remark')" />
+      <el-table-column prop="remarks" :label="$t('arReconciliationModule.remark')" />
     </el-table>
   </el-dialog>
 </template>

@@ -233,11 +233,11 @@
     <!-- 账龄分析弹窗 -->
     <el-dialog v-model="agingVisible" :title="$t('apModule.invoice.agingAnalysis')" width="520px">
       <el-table :data="agingRows" border size="small">
-        <el-table-column prop="bucket" label="账龄区间" min-width="140" />
-        <el-table-column prop="count" label="发票数" width="100" align="right" />
-        <el-table-column prop="amount" label="金额" width="140" align="right">
+        <el-table-column prop="aging_bucket" label="账龄区间" min-width="140" />
+        <el-table-column prop="invoice_count" label="发票数" width="100" align="right" />
+        <el-table-column prop="total_amount" label="金额" width="140" align="right">
           <template #default="{ row }">{{
-            Number(row.amount ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })
+            Number(row.total_amount ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })
           }}</template>
         </el-table-column>
       </el-table>
@@ -263,7 +263,7 @@ import {
 } from '@/api/ap-invoice';
 import { exportFromBackend } from '@/utils/export';
 import { logger } from '@/utils/logger';
-import { autoGenerateAPInvoices, getAPAgingAnalysis } from '@/api/ap';
+import { autoGenerateAPInvoices, getAPAgingAnalysis, type APAgingItem } from '@/api/ap';
 import { getSupplierList, type Supplier } from '@/api/supplier';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -299,15 +299,12 @@ const handleAutoGenerate = async () => {
 
 // 账龄分析：调后端账龄接口，弹窗展示汇总
 const agingVisible = ref(false);
-const agingRows = ref<Array<{ bucket: string; amount: number; count: number }>>([]);
+const agingRows = ref<APAgingItem[]>([]);
 const showAgingAnalysis = async () => {
   try {
     const res = await getAPAgingAnalysis();
-    const d = res.data as unknown as
-      | { buckets?: Array<{ bucket: string; amount: number; count: number }> }
-      | Array<{ bucket: string; amount: number; count: number }>
-      | undefined;
-    agingRows.value = Array.isArray(d) ? d : d?.buckets || [];
+    // 后端 get_aging_analysis 直接返回裸数组 Vec<AgingAnalysisItem>
+    agingRows.value = res.data;
     agingVisible.value = true;
   } catch (e) {
     const err = e as { message?: string };

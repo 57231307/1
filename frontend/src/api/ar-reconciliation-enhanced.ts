@@ -1,21 +1,36 @@
 import { request } from './request';
 import type { ApiResponse, PageResult } from '@/types/api';
 
+/**
+ * 账龄分桶（对齐后端 services::ar::AgingBucket）。
+ * 金额为 Decimal，serde 序列化为字符串。
+ */
 export interface AgingBucket {
   label: string;
-  range: string;
-  amount: number;
-  percentage: number;
+  min_days: number;
+  max_days: number | null;
+  amount: string;
   count: number;
 }
 
-export interface AgingAnalysisResult {
+/** 单客户账龄汇总（对齐后端 services::ar::CustomerAgingSummary） */
+export interface CustomerAgingSummary {
   customer_id: number;
   customer_name: string;
-  customer_code: string;
-  total_amount: number;
+  total_amount: string;
   buckets: AgingBucket[];
-  analyzed_at: string;
+}
+
+/**
+ * 账龄报告（对齐后端 services::ar::AgingReport）。
+ * 后端 `ar_reconciliation_handler::aging_report` 以 `to_value(report)` 返回单个对象，
+ * 图表应读取 `overall_buckets`，而非把 data 当数组。
+ */
+export interface AgingReport {
+  analysis_date: string;
+  total_receivable: string;
+  customer_summaries: CustomerAgingSummary[];
+  overall_buckets: AgingBucket[];
 }
 
 export interface AutoReconciliationResult {
@@ -32,17 +47,33 @@ export interface AutoReconciliationResult {
   created_at: string;
 }
 
+/**
+ * 对账明细行（对齐后端 services::ar::ReconciliationDetail）。
+ * 金额 Decimal 序列化为字符串。
+ */
 export interface ReconciliationDetailItem {
   id: number;
   reconciliation_id: number;
-  type: 'invoice' | 'payment' | 'adjustment';
-  source_no: string;
-  source_date: string;
-  amount: number;
-  matched_amount: number;
-  unmatched_amount: number;
-  status: 'matched' | 'partial' | 'unmatched';
-  remark?: string;
+  item_type: string;
+  document_type: string | null;
+  document_id: number | null;
+  document_no: string | null;
+  document_date: string | null;
+  amount: string;
+  matched_amount: string | null;
+  match_status: string;
+  matched_item_id: number | null;
+  remarks: string | null;
+}
+
+/**
+ * 对账单详情（含明细）。后端 `ar_reconciliation_handler::get_reconciliation_details`
+ * 以 `to_value(details)` 返回单对象 `{ reconciliation, details }`，
+ * 明细数组承载在 `details` 键下（不是裸数组）。
+ */
+export interface ReconciliationWithDetails {
+  reconciliation: Record<string, unknown>;
+  details: ReconciliationDetailItem[];
 }
 
 export interface CustomerConfirmation {
@@ -114,16 +145,22 @@ export function getAutoReconciliationResults(
   return request.get('/ar-reconciliations-enhanced/auto-match', { params });
 }
 
+/**
+ * 账龄分析：后端返回单个 AgingReport 对象（非数组），图表读 overall_buckets。
+ */
 export function getAgingAnalysis(params?: {
   customer_id?: number;
   as_of_date?: string;
-}): Promise<ApiResponse<AgingAnalysisResult[]>> {
+}): Promise<ApiResponse<AgingReport>> {
   return request.get('/ar-reconciliations-enhanced/aging-report', { params });
 }
 
+/**
+ * 对账明细：后端返回单对象 `{ reconciliation, details }`，明细在 data.details。
+ */
 export function getReconciliationDetailItems(
   id: number
-): Promise<ApiResponse<ReconciliationDetailItem[]>> {
+): Promise<ApiResponse<ReconciliationWithDetails>> {
   return request.get(`/ar-reconciliations-enhanced/${id}/details`);
 }
 

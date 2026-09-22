@@ -30,18 +30,16 @@
           :label="$t('arModule.reconciliation.customer')"
           width="150"
         />
-        <el-table-column
-          prop="reconciliation_date"
-          :label="$t('arModule.reconciliation.reconciliationDate')"
-          width="120"
-        />
+        <el-table-column :label="$t('arModule.reconciliation.reconciliationDate')" width="200">
+          <template #default="{ row }"> {{ row.period_start }} ~ {{ row.period_end }} </template>
+        </el-table-column>
         <el-table-column
           :label="$t('arModule.reconciliation.invoiceAmount')"
           width="120"
           align="right"
         >
           <template #default="{ row }">
-            {{ formatMoney(row.total_invoice_amount) }}
+            {{ formatMoney(row.total_invoices) }}
           </template>
         </el-table-column>
         <el-table-column
@@ -50,7 +48,7 @@
           align="right"
         >
           <template #default="{ row }">
-            {{ formatMoney(row.total_payment_amount) }}
+            {{ formatMoney(row.total_collections) }}
           </template>
         </el-table-column>
         <el-table-column
@@ -59,32 +57,27 @@
           align="right"
         >
           <template #default="{ row }">
-            <span :class="{ 'text-red': row.difference_amount !== 0 }">
-              {{ formatMoney(row.difference_amount) }}
+            <span :class="{ 'text-red': Number(row.closing_balance) !== 0 }">
+              {{ formatMoney(row.closing_balance) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column prop="status" :label="$t('common.status')" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="getReconciliationStatusType(row.status)" size="small">
-              {{ getReconciliationStatusLabel(row.status) }}
+            <el-tag :type="getReconciliationStatusType(row.reconciliation_status)" size="small">
+              {{ getReconciliationStatusLabel(row.reconciliation_status) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column
-          prop="confirmed_by"
-          :label="$t('arModule.reconciliation.confirmedBy')"
-          width="100"
-        />
-        <el-table-column
-          prop="confirmed_at"
+          prop="created_at"
           :label="$t('arModule.reconciliation.confirmedAt')"
           width="160"
         />
         <el-table-column :label="$t('common.operation')" width="120" fixed="right">
           <template #default="{ row }">
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.reconciliation_status === 'pending'"
               type="success"
               link
               size="small"
@@ -108,6 +101,12 @@
         label-width="80px"
         :aria-label="$t('arModule.reconciliation.formAria')"
       >
+        <el-form-item :label="$t('arModule.reconciliation.reconciliationNo')">
+          <el-input
+            v-model="reconciliationForm.reconciliation_no"
+            :placeholder="$t('arModule.reconciliation.reconciliationNo')"
+          />
+        </el-form-item>
         <el-form-item :label="$t('arModule.reconciliation.customer')">
           <el-select
             v-model="reconciliationForm.customer_id"
@@ -119,10 +118,25 @@
         </el-form-item>
         <el-form-item :label="$t('arModule.reconciliation.reconciliationDate')">
           <el-date-picker
-            v-model="reconciliationForm.reconciliation_date"
-            type="date"
-            :placeholder="$t('arModule.reconciliation.datePlaceholder')"
+            v-model="periodRange"
+            type="daterange"
             value-format="YYYY-MM-DD"
+            :start-placeholder="$t('arModule.reconciliation.datePlaceholder')"
+            :end-placeholder="$t('arModule.reconciliation.datePlaceholder')"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('arModule.reconciliation.invoiceAmount')">
+          <el-input-number
+            v-model="reconciliationForm.total_invoices"
+            :min="0"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('arModule.reconciliation.paymentAmount')">
+          <el-input-number
+            v-model="reconciliationForm.total_collections"
+            :min="0"
             style="width: 100%"
           />
         </el-form-item>
@@ -164,43 +178,46 @@ const reconciliationLoading = ref(false);
 const reconciliationSubmitLoading = ref(false);
 const reconciliationDialogVisible = ref(false);
 const reconciliationFormRef = ref<FormInstance>();
+const periodRange = ref<[string, string] | null>(null);
 
 const reconciliationForm = reactive({
+  reconciliation_no: '',
   customer_id: undefined as number | undefined,
-  reconciliation_date: '',
+  opening_balance: 0,
+  total_invoices: 0,
+  total_collections: 0,
 });
 
-const formatMoney = (amount: number) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+// 后端 ReconciliationResponse 金额字段为 Decimal.to_string()，前端按字符串接收后转数值格式化
+const formatMoney = (amount: number | string | null | undefined) => {
+  const n = Number(amount ?? 0);
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 };
 
-const getReconciliationStatusLabel = (status: string) => {
+const getReconciliationStatusLabel = (status: string | null) => {
   const keyMap: Record<string, string> = {
     pending: 'arModule.reconciliation.statusPending',
     confirmed: 'arModule.reconciliation.statusConfirmed',
     disputed: 'arModule.reconciliation.statusDisputed',
   };
-  const key = keyMap[status];
-  return key ? t(key) : status;
+  const key = status ? keyMap[status] : undefined;
+  return key ? t(key) : status || '';
 };
 
-const getReconciliationStatusType = (status: string) => {
+const getReconciliationStatusType = (status: string | null) => {
   const map: Record<string, string> = {
     pending: 'warning',
     confirmed: 'success',
     disputed: 'danger',
   };
-  return map[status] || 'info';
+  return (status && map[status]) || 'info';
 };
 
 const fetchReconciliations = async () => {
   reconciliationLoading.value = true;
   try {
     const res = await getARReconciliationList();
-    const d = res.data as
-      | { list?: ARReconciliation[]; items?: ARReconciliation[]; data?: ARReconciliation[] }
-      | ARReconciliation[];
-    reconciliations.value = Array.isArray(d) ? d : d?.items || d?.data || [];
+    reconciliations.value = res.data.items;
   } catch (error) {
     const err = error as Error;
     ElMessage.error(err.message || t('arModule.reconciliation.fetchListFailed'));
@@ -210,20 +227,33 @@ const fetchReconciliations = async () => {
 };
 
 const openReconciliationDialog = () => {
+  reconciliationForm.reconciliation_no = '';
   reconciliationForm.customer_id = undefined;
-  reconciliationForm.reconciliation_date = new Date().toISOString().split('T')[0];
+  reconciliationForm.opening_balance = 0;
+  reconciliationForm.total_invoices = 0;
+  reconciliationForm.total_collections = 0;
+  const today = new Date().toISOString().split('T')[0];
+  periodRange.value = [today, today];
   reconciliationDialogVisible.value = true;
 };
 
 const submitReconciliation = async () => {
-  if (!reconciliationForm.customer_id) {
+  if (!reconciliationForm.customer_id || !periodRange.value) {
     ElMessage.warning(t('arModule.reconciliation.selectCustomer'));
     return;
   }
 
   reconciliationSubmitLoading.value = true;
   try {
-    await createARReconciliation(reconciliationForm);
+    await createARReconciliation({
+      reconciliation_no: reconciliationForm.reconciliation_no,
+      customer_id: reconciliationForm.customer_id,
+      period_start: periodRange.value[0],
+      period_end: periodRange.value[1],
+      opening_balance: reconciliationForm.opening_balance,
+      total_invoices: reconciliationForm.total_invoices,
+      total_collections: reconciliationForm.total_collections,
+    });
     ElMessage.success(t('common.message.createSuccess'));
     reconciliationDialogVisible.value = false;
     fetchReconciliations();
