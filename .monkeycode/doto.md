@@ -1884,3 +1884,14 @@ eslint e2e/{flow,smoke,traversal}=0（仅既往 unused-import/console baseline �
   在染整单据上本就打印中文）。
 - 若后续要统一成英文枚举，前置条件是：先给出存量归一迁移 + 外部报表/打印模板影响面清单，
   不能只改常量值。
+
+### 信封类收口的两条根因（2026-09-23，check-api-envelope 失配已清零后仍存的结构问题）
+
+- [ ] `frontend/src/types/api.ts:68-76` 的 `PageResult<T>` 把 `data?`/`list?`/`items?`/`users?`
+      **全部列为可选**。任何端点都能套这个"万能信封"，类型系统对形状漂移完全隐形——
+      本轮 18 条失配里有 6 条就是它养出来的。修法：按域拆成 `Paginated<T>{items,total,page,page_size}` /
+      `LegacyList<T>{list,total}` / `CrmPage<T>{data,total}` 等**各自闭合**的类型，
+      并把 `PageResult` 标为禁用。属跨域重构（要动的端点多），待拍板。
+- [ ] `useTableApi` 的隐式探测（`composables/useTableApi.ts:88-96` 依次试 list/items/data/results）
+      是同一吸收机制的运行时版本。本轮已为负责范围内的页面显式传 `listKey` 钉死；
+      是否把默认值去掉、强制每个页面声明 `listKey`，仍待拍板（会让未声明的页面立刻报错）。
