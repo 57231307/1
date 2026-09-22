@@ -112,13 +112,19 @@ export function reportProductionProgress(
   return request.post(`/production/production-orders/orders/${id}/progress`, data);
 }
 
-// 获取生产订单日志
+// 获取生产订单操作日志：后端返回 {order_id, logs, total}，logs 为 audit_logs 记录
+// （字段与 backend/src/models/audit_log.rs::Model 对齐；旧的 operator/remark 是前端臆造字段）
+export interface ProductionOrderAuditLog {
+  id: number;
+  username: string | null;
+  action: string;
+  operation_type: string | null;
+  description: string | null;
+  created_at: string | null;
+}
+
 export function getProductionOrderLogs(
   id: number
-): Promise<
-  ApiResponse<
-    { id: number; action: string; operator: string; created_at: string; remark?: string }[]
-  >
-> {
+): Promise<ApiResponse<{ order_id: number; logs: ProductionOrderAuditLog[]; total: number }>> {
   return request.get(`/production/production-orders/orders/${id}/logs`);
 }

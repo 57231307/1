@@ -6,6 +6,10 @@
 
 use rust_decimal::Decimal;
 
+/// 审计日志中「生产订单」这类资源的 resource_type（写入侧与读取侧必须同源）。
+/// 曾用值 `auto_audit` 不带实体信息，读取侧只能按 resource_id 匹配，会把其他模块同号记录的快照一并带出。
+pub const AUDIT_RESOURCE_TYPE: &str = "production_order";
+
 /// 创建生产订单请求
 #[derive(Debug, Clone)]
 pub struct CreateProductionOrderRequest {

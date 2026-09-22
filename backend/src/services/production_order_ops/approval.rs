@@ -239,7 +239,7 @@ impl ProductionOrderService {
 
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
-            "auto_audit",
+            super::types::AUDIT_RESOURCE_TYPE,
             active_model,
             Some(approver_id),
         )
@@ -274,7 +274,7 @@ impl ProductionOrderService {
 
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
-            "auto_audit",
+            super::types::AUDIT_RESOURCE_TYPE,
             active_model,
             Some(approver_id),
         )

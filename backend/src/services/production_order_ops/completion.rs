@@ -102,7 +102,7 @@ impl ProductionOrderService {
         // 走 update_with_audit 保留审计追溯
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
-            "auto_audit",
+            super::types::AUDIT_RESOURCE_TYPE,
             active_model,
             Some(audit_user_id),
         )

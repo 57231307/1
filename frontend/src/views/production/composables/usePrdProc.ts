@@ -216,20 +216,15 @@ export function usePrdProc(cb: PrdCallbacks) {
   const handleViewLogs = async (row: ProductionOrder) => {
     try {
       const res = await getProductionOrderLogs(row.id);
-      const logs = (res.data ?? []) as Array<{
-        id: number;
-        action: string;
-        operator: string;
-        created_at: string;
-        remark?: string;
-      }>;
+      const logs = res.data.logs;
       const text =
         logs.length === 0
           ? '暂无操作日志'
           : logs
               .map(
                 l =>
-                  `[${l.created_at}] ${l.action} - ${l.operator}${l.remark ? `：${l.remark}` : ''}`
+                  `[${l.created_at ?? '-'}] ${l.operation_type ?? l.action} - ` +
+                  `${l.username ?? '未知操作人'}${l.description ? `：${l.description}` : ''}`
               )
               .join('\n');
       ElMessageBox.alert(text, `生产订单 ${row.order_no} 操作日志`, {

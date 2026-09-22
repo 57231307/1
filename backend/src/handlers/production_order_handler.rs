@@ -592,7 +592,9 @@ fn record_production_orders_export_audit(
         username: Some(auth.username.clone()),
         operation_type: OperationType::Export,
         severity: Severity::Info,
-        resource_type: Some("production_order".to_string()),
+        resource_type: Some(
+            crate::services::production_order_ops::types::AUDIT_RESOURCE_TYPE.to_string(),
+        ),
         resource_id: None,
         resource_name: Some(format!("{}.xlsx", filename)),
         description: Some(format!(

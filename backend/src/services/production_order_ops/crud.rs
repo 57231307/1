@@ -422,6 +422,7 @@ impl ProductionOrderService {
 
         let logs = AuditEntity::find()
             .filter(AuditColumn::ResourceId.eq(order_id.to_string()))
+            .filter(AuditColumn::ResourceType.eq(super::types::AUDIT_RESOURCE_TYPE))
             .order_by_desc(AuditColumn::CreatedAt)
             .all(&*self.db)
             .await?;
@@ -553,7 +554,7 @@ impl ProductionOrderService {
         // 走 update_with_audit 保留审计追溯（软删除即状态变更）
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
-            "auto_audit",
+            super::types::AUDIT_RESOURCE_TYPE,
             active_model,
             Some(user_id),
         )
