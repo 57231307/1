@@ -12346,6 +12346,7 @@ export default {
       specification: 'Specification',
       unit: 'Unit',
       availableStock: 'Available Stock',
+      onHandQuantity: 'On-hand Qty',
       inTransitQuantity: 'In Transit Qty',
       safetyStock: 'Safety Stock',
       netRequirement: 'Net Requirement',

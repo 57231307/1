@@ -12303,6 +12303,7 @@ export default {
       specification: '规格',
       unit: '单位',
       availableStock: '可用库存',
+      onHandQuantity: '现有库存',
       inTransitQuantity: '在途数量',
       safetyStock: '安全库存',
       netRequirement: '净需求',
