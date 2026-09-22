@@ -26,7 +26,7 @@ export interface InventoryStock {
   color_no: string;
   dye_lot_no?: string | null;
   grade: string;
-  /** 库存状态：正常/冻结/待检（后端 inventory_stocks.stock_status 主数据值） */
+  /** 台账状态：正常/报废/已删除（后端 inventory_stocks.stock_status 主数据值，见 constants/inventory-stock-status） */
   stock_status: string;
   /** 质量状态：合格/不合格/待检 */
   quality_status: string;

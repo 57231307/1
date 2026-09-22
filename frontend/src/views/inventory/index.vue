@@ -175,6 +175,8 @@ import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDi
 import TransferDialog from './components/TransferDialog.vue';
 // Batch 468 P0-S28：引入权限码常量，与后端 inventory 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
+// 打印与列表共用同一份格式化/取值映射，避免同一状态在纸上和表里两种写法
+import { formatNumber, getStockStatusLabel } from './composables/invFmts';
 
 const hasLoaded = createLazyLoader();
 const router = useRouter();
@@ -559,7 +561,7 @@ const handleView = async (row: InventoryStock) => {
       t('inventory.stockDetail.dyeLot', { value: d.dye_lot_no || '-' }),
       t('inventory.stockDetail.qtyMeters', { value: d.quantity_meters }),
       t('inventory.stockDetail.qtyKg', { value: d.quantity_kg }),
-      t('inventory.stockDetail.status', { value: d.stock_status }),
+      t('inventory.stockDetail.status', { value: getStockStatusLabel(d.stock_status, t) }),
       t('inventory.stockDetail.location', { value: d.bin_location || '-' }),
     ];
     await ElMessageBox.alert(lines.join('\n'), t('inventory.stockDetail.title'), {
@@ -577,10 +579,41 @@ const handleView = async (row: InventoryStock) => {
 const handlePurchase = (row: StockAlert) => {
   router.push({ name: 'Purchase', query: { product_name: row.product_name || '' } });
 };
+// 打印列与列表/后端导出同一口径。
+// 原实现用 `properties: [..., 'quantity']`：quantity 不是后端字段（实际为 quantity_on_hand），
+// 该列在纸上恒为空白，四维（批次/色号/缸号/等级）与状态列也没打出来；
+// 表头也只会回显英文字段名。现显式给出列与本地化表头，状态按主数据取值映射文案。
 const handlePrint = () => {
   printJS({
-    printable: stocks.value,
-    properties: ['product_code', 'product_name', 'warehouse_name', 'quantity'],
+    printable: stocks.value.map(row => ({
+      product_code: row.product_code ?? '-',
+      product_name: row.product_name ?? '-',
+      warehouse_name: row.warehouse_name ?? '-',
+      batch_no: row.batch_no,
+      color_no: row.color_no,
+      dye_lot_no: row.dye_lot_no ?? '-',
+      grade: row.grade,
+      quantity_on_hand: formatNumber(Number(row.quantity_on_hand)),
+      quantity_available: formatNumber(Number(row.quantity_available)),
+      stock_status: getStockStatusLabel(row.stock_status, t),
+      quality_status: row.quality_status,
+      bin_location: row.bin_location ?? '-',
+    })),
+    // print-js 的列定义项叫 properties（json 模式），不存在的键会被静默忽略
+    properties: [
+      { field: 'product_code', displayName: t('inventory.stockTab.colProductCode') },
+      { field: 'product_name', displayName: t('inventory.stockTab.colProductName') },
+      { field: 'warehouse_name', displayName: t('inventory.stockTab.colWarehouse') },
+      { field: 'batch_no', displayName: t('inventory.stockTab.colBatchNo') },
+      { field: 'color_no', displayName: t('inventory.stockTab.colColorCode') },
+      { field: 'dye_lot_no', displayName: t('inventory.stockTab.colDyeLot') },
+      { field: 'grade', displayName: t('inventory.stockTab.colGrade') },
+      { field: 'quantity_on_hand', displayName: t('inventory.stockTab.colQuantity') },
+      { field: 'quantity_available', displayName: t('inventory.stockTab.colAvailable') },
+      { field: 'stock_status', displayName: t('inventory.stockTab.colStatus') },
+      { field: 'quality_status', displayName: t('inventory.stockTab.colQualityStatus') },
+      { field: 'bin_location', displayName: t('inventory.stockTab.colLocation') },
+    ],
     type: 'json',
     header: t('inventory.printHeader'),
   });
@@ -594,9 +627,11 @@ const handleExport = async () => {
     ElMessage.warning(t('inventory.message.noExportData'));
     return;
   }
+  // 导出与列表同一筛选口径：只带 warehouse_id 时，关键词与台账状态筛选在导出文件里失效
   const params: Record<string, unknown> = {
     warehouse_id: queryParams.warehouse_id,
-    product_id: undefined,
+    keyword: queryParams.keyword,
+    stock_status: queryParams.stock_status,
   };
   await exportFromBackend('/inventory/stock/export', params, 'inventory_stock_export');
   ElMessage.success(t('inventory.message.exportSuccess'));

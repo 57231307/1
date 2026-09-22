@@ -96,7 +96,7 @@ import { ElButton } from 'element-plus';
 import { Search, Refresh } from '@element-plus/icons-vue';
 import V2Table from '@/components/V2Table/index.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
-import { logger } from '@/utils/logger';
+import { getStockStatusLabel } from '../composables/invFmts';
 import {
   INVENTORY_STOCK_STATUS_LABEL_KEY,
   INVENTORY_STOCK_STATUS_OPTIONS,
@@ -145,15 +145,8 @@ watch(
   { deep: true }
 );
 
-// 状态标签映射函数化响应式求值
-const getStatusText = (status: string) => {
-  const key = INVENTORY_STOCK_STATUS_LABEL_KEY[status];
-  if (!key) {
-    logger.warn(`未知库存台账状态，后端主数据值清单需同步：${status}`);
-    return status;
-  }
-  return t(key);
-};
+// 状态标签映射：与详情页、打印共用同一份取值→文案映射（见 composables/invFmts）
+const getStatusText = (status: string) => getStockStatusLabel(status, t);
 
 const { columns: stockColumns } = useTableColumns<InventoryStock>([
   {

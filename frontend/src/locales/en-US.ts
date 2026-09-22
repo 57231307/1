@@ -889,6 +889,9 @@ export default {
       colBatchNo: 'Batch No.',
       colColorCode: 'Color Code',
       colDyeLot: 'Dye Lot',
+      colGrade: 'Grade',
+      colAvailable: 'Available Qty',
+      colQualityStatus: 'Quality Status',
       colQuantity: 'Stock Qty',
       colStatus: 'Status',
       colLocation: 'Location',
@@ -1484,6 +1487,7 @@ export default {
     receiptItemMasterMissing:
       'Line {line} is missing material code/name/master unit: the master unit comes from the product master, maintain it on the product and reselect it',
     addReceiptTitle: 'Add Receipt',
+    addReceiptTitleWithNo: 'Add Receipt (pre-generated no. {no})',
     editReceiptTitle: 'Edit Receipt',
     auditedReceiptCannotDelete: 'Audited receipt cannot be deleted',
     deleteCancelled: 'Delete cancelled',
