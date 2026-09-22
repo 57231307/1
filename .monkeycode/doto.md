@@ -1865,3 +1865,22 @@ eslint e2e/{flow,smoke,traversal}=0（仅既往 unused-import/console baseline �
 - [ ] `useTableApi` 会依次探测 `list / items / data / results`（composables/useTableApi.ts:88-96），
       这层"通用探测"把形状漂移吸收了：走它的页面即使 api 类型写错也不报错。
       是否收紧为"必须显式传 listKey"（本轮已在主数据/CRM 批次为负责范围内端点显式钉 listKey）。
+
+### 中文状态值：哪些是缺陷、哪些是既有约定（2026-09-23 复核，防下一轮误改）
+
+判据不是"值是不是中文"，而是**写入点 ↔ 库约束 ↔ 前端比较点三方是否同源**。
+
+- **已确认缺陷并已修**：`dye_recipe.status` 库里落中文（草稿/待审核/已审核/已停用），
+  而 RecipeTab 与旧配方页按 `draft/approved` 判权限与渲染 → 审批按钮永不出现。
+  已统一为小写英文 + 迁移回填（提交 b2d08242）。
+- **复核后确认不是缺陷、本轮不得改动**的中文稳定值（12 个常量）：
+  - `models/status/quality_dyeing.rs::quality_inspection_result`（待检/合格/不合格）
+  - `models/status/purchase_inventory.rs` 的 `inventory_stock_quality_status`（合格/待检/不合格）、
+    `inventory_stock_grade`（一等品/二等品/等外品）、`inventory_stock_status`（正常/报废/已删除）
+  理由：这三组都有**唯一的中文写入方**、迁移里对应列无 CHECK（不会 23514），
+  且前端有镜像常量 `constants/quality-inspection-record.ts::QUALITY_RECORD_RESULT`
+  以同一批中文值为键（`Record<…>` 由 TS 强制穷举，界面比较点全部引它，不写裸字面量）。
+  也就是说三方一致，改成英文反而要动存量数据与纺织行业凭证口径（检验结论/布匹等级
+  在染整单据上本就打印中文）。
+- 若后续要统一成英文枚举，前置条件是：先给出存量归一迁移 + 外部报表/打印模板影响面清单，
+  不能只改常量值。
