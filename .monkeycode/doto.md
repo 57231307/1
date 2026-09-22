@@ -341,10 +341,23 @@
       同一类的还有 `api/sales.ts:66` 的 `SalesDelivery.status` 词表（与后端 sales_delivery 常量不符）
       与 `utils/sales-status.ts`、`views/sales/composables/olvFmts.ts` 两套订单状态映射并存。
 
-- [ ] **委外打印数据仍输出英文码**：`print_service.rs:2340` 把 `quality_status` 原值
+- [x] **委外打印数据仍输出英文码**：`print_service.rs:2340` 把 `quality_status` 原值
       （pending/qualified/concession/unqualified）直接打进打印件，用户看到的是码不是文案；
       打印由服务端渲染成中文文档，转文案应落在 print_service（与同文件既有中文文档类型名一致），
-      不能只依赖前端常量。
+      不能只依赖前端常量。已实现：文案映射放进 `outsourcing_receipt_quality_status::label`
+      （与入参校验同一模块，避免两处字典），词表外存量值原样带出以便发现脏数据。
+      同批改掉销售侧两处重复字典：`views/sales/composables/olvFmts.ts` 另存了一份只覆盖 5 个状态
+      的中文硬编码映射（draft/partial_shipped/rejected 在列表里露出英文枚举，且英文界面下文案仍
+      是中文），现统一走 `utils/sales-status`（与后端 `sales_order` 常量一一对应）并按当前语言取
+      文案，配色返回类型收窄为 `SalesTagType` 以免退化成 string；`api/sales.ts` 的
+      `SalesDelivery.status` 声明了该表根本不存在的 draft/delivered，已改为 pending/shipped/cancelled。
+
+- [ ] **物流轨迹事件的两处欠账**：登记轨迹时 `event_type` 是自由字符串，后端不判取值域
+      （`logistics_service.rs:101` 直接 Set），界面上四个选项（pickup/in_transit/arrived/delivered）
+      本轮已核实是稳定码，但绕过界面即可写入任意词，轨迹展示与按事件推进的判断都会失真，
+      要按本轮方法建常量 + 入口校验。另 `views/logistics/components/LogisticsDetail.vue` 有 12 处
+      模板内硬编码中文（表格列名、对话框标题、选项文案），英文界面下整块轨迹仍是中文——
+      i18n 门禁只校验键的引用与缺失，抓不到这种不走 i18n 的字面量，因此不显红。
 
 - [x] **验布/委外/工资三域接口路径缺 `/production` 前缀（47 个请求恒 404）**：这三组资源注册在
       `routes/production.rs`，而该 router 挂在 `nest("/api/v1/erp/production")` 下，前端
