@@ -54,16 +54,37 @@ test.describe('面料单据专用字段全链路验证', () => {
     };
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/receipts', receiptData);
-    const receiptId = result.data?.id!;
+    const receiptId = result.data?.id;
+    expect(
+      receiptId,
+      `采购收货创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (receiptId) {
-      const detail = await apiCallRaw<{
-        status: string;
-        items: Array<Record<string, unknown>>;
-      }>(page, 'GET', `/purchase/receipts/${receiptId}`);
+      // GET /purchase/receipts/{id} 返回裸 purchase_receipt::Model（handler 直接
+      // ApiResponse::success(model)，purchase_receipt_handler.rs:84-117 → query.rs:54-61），
+      // 出参没有 items——明细必须另取已注册端点
+      // GET /purchase/receipts/{id}/items（routes/purchase.rs:115-119 → query.rs:64-75，
+      // 返回裸数组 Vec<purchase_receipt_item::Model>）
+      const detail = await apiCallRaw<Record<string, unknown>>(
+        page,
+        'GET',
+        `/purchase/receipts/${receiptId}`
+      );
+      expect(detail?.id, '入库单详情应返回 id').toBeTruthy();
+      expect(
+        Array.isArray((detail as { items?: unknown }).items),
+        '详情端点不应返回 items 数组（明细在独立端点）'
+      ).toBe(false);
 
-      expect(detail.items?.length).toBeGreaterThan(0);
-      const item = detail.items?.[0];
+      const items = await apiCallRaw<Array<Record<string, unknown>>>(
+        page,
+        'GET',
+        `/purchase/receipts/${receiptId}/items`
+      );
+      expect(Array.isArray(items), '明细端点 data 应为数组').toBe(true);
+      expect(items.length, '入库明细至少一条').toBeGreaterThan(0);
+      const item = items[0];
 
       // 面料追溯字段精确验证
       expect(item.material_code).toBe(materialCode);

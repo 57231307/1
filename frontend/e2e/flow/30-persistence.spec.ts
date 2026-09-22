@@ -520,14 +520,10 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       status: 'active',
     });
     const matId = mat?.data?.id;
-    if (!supId || !whId || !deptId || !matId) {
-      console.warn(
-        `[P0-采购订单] 前置数据缺失（sup=${supId} wh=${whId} dept=${deptId} mat=${matId}），跳过`
-      );
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(supId, `[P0-采购订单] 前置供应商创建未返回 id（POST /purchase/suppliers）`).toBeTruthy();
+    expect(whId, `[P0-采购订单] 前置仓库创建未返回 id（POST /warehouses）`).toBeTruthy();
+    expect(deptId, `[P0-采购订单] 前置部门创建未返回 id（POST /departments）`).toBeTruthy();
+    expect(matId, `[P0-采购订单] 前置物料创建未返回 id（POST /products）`).toBeTruthy();
     const orderDate = new Date().toISOString().slice(0, 10);
     const payload = {
       supplier_id: supId,
@@ -573,11 +569,11 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
   // ===== 8. BOM（全字段：product_id/version/is_default/remarks + items 全字段） =====
   test('BOM：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
     test.setTimeout(180_000);
-    if (!(await ensureSharedEntities(page))) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    await ensureSharedEntities(page);
+    expect(
+      [shared.custId, shared.prodId, shared.supId, shared.whId, shared.deptId].every(Boolean),
+      `[P0-共享前置] 共享实体创建失败（cust=${shared.custId} prod=${shared.prodId} sup=${shared.supId} wh=${shared.whId} dept=${shared.deptId}），本用例前置失败`
+    ).toBe(true);
     const payload = {
       product_id: shared.prodId,
       version: 1,
@@ -634,15 +630,29 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     test.setTimeout(180_000);
     const voucherDate = new Date().toISOString().split('T')[0];
 
-    const subjectsResp = await apiCallRaw<
-      Array<{ id: number; code: string }> | { items?: Array<{ id: number; code: string }> }
-    >(page, 'GET', '/subjects?page=1&page_size=50');
-    const subjectList = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.items ?? []);
-    if (subjectList.length < 3) {
-      console.log('[P0-凭证] 科目不足 3 个，跳过');
-      test.skip();
-      return;
+    const listSubjects = async () => {
+      const resp = await apiCallRaw<
+        Array<{ id: number; code: string }> | { items?: Array<{ id: number; code: string }> }
+      >(page, 'GET', '/subjects?page=1&page_size=50');
+      return Array.isArray(resp) ? resp : (resp?.items ?? []);
+    };
+    let subjectList = await listSubjects();
+    // 分录需要 3 个科目：种子不足时真实创建 E2E 专用科目后重查
+    // （CreateSubjectRequest：code/name/level/balance_direction，与 4-2 用例同一契约）
+    for (let i = subjectList.length; i < 3; i++) {
+      const code = `P0VS${TS}${i}`;
+      await apiCall(page, 'POST', '/subjects', {
+        code,
+        name: `P0凭证科目${code}`,
+        level: 1,
+        balance_direction: 'debit',
+      });
+      subjectList = await listSubjects();
     }
+    expect(
+      subjectList.length,
+      `补齐后会计科目仍不足 3 条（实际 ${subjectList.length}），凭证分录前置失败`
+    ).toBeGreaterThanOrEqual(3);
     const s1 = subjectList[0].code,
       s2 = subjectList[1 % subjectList.length].code,
       s3 = subjectList[2 % subjectList.length].code;
@@ -693,11 +703,11 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
   // ===== 10. 报价单（全字段：customer_id/sales_user_id/quotation_date/valid_until/currency/exchange_rate/base_currency/price_terms/incoterms_version/incoterm_location/tax_inclusive/tax_rate/moq/lead_time_days/customer_level + items 全字段） =====
   test('报价单：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
     test.setTimeout(180_000);
-    if (!(await ensureSharedEntities(page))) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    await ensureSharedEntities(page);
+    expect(
+      [shared.custId, shared.prodId, shared.supId, shared.whId, shared.deptId].every(Boolean),
+      `[P0-共享前置] 共享实体创建失败（cust=${shared.custId} prod=${shared.prodId} sup=${shared.supId} wh=${shared.whId} dept=${shared.deptId}），本用例前置失败`
+    ).toBe(true);
     const qDate = new Date().toISOString().slice(0, 10);
     const validUntil = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
     const payload = {
@@ -735,12 +745,11 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       '/quotations',
       payload
     );
-    if (!createResp?.data?.id) {
-      console.log('[P0-报价单] 创建失败，跳过');
-      test.skip();
-      return;
-    }
-    const id = createResp.data.id;
+    const id = createResp?.data?.id;
+    expect(
+      id,
+      `[P0-报价单] 创建未返回 id（响应 ${JSON.stringify(createResp?.data ?? null).slice(0, 200)}），前置失败`
+    ).toBeTruthy();
     console.log(`[P0-报价单] 创建成功 id=${id} status=${createResp.data.status}`);
 
     const detail = await apiCallRaw<{

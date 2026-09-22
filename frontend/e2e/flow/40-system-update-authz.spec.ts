@@ -32,21 +32,29 @@ test.describe('P5.10 系统更新授权', () => {
     expect(typeof isUpdating).toBe('boolean');
   });
 
-  test('viewer 无权限查询系统更新（403）', async ({ page }) => {
-    // report_viewer 不存在则尝试 e2e_readonly；两者都不可用则 skip
+  test('viewer 无权限查询系统更新（403）', async ({ page }, testInfo) => {
+    // 只读角色账号由 global-setup ensureRoleUsers 幂等补建；
+    // 两个候选角色都登录不上属测试基建缺失（凭证文件/角色未建），显式记录后跳过
     let viewerOk = false;
-    try {
-      await loginAsRole(page, 'report_viewer');
-      viewerOk = true;
-    } catch {
+    const errors: string[] = [];
+    for (const role of ['report_viewer', 'e2e_readonly']) {
       try {
-        await loginAsRole(page, 'e2e_readonly');
+        await loginAsRole(page, role);
         viewerOk = true;
-      } catch {
-        console.warn('[E2E] test.skip: report_viewer 与 e2e_readonly 凭证均不可用');
+        console.log(`[P5.10] 以只读角色 ${role} 登录成功`);
+        break;
+      } catch (e) {
+        errors.push(`${role}: ${(e as Error).message}`);
       }
     }
     if (!viewerOk) {
+      testInfo.annotations.push({
+        type: 'skipped',
+        description: `只读角色凭证缺失（测试基建），无法验证 403 —— ${errors.join(' | ')}`,
+      });
+      console.error(
+        `[P5.10] ❌ 跳过 viewer 403 断言：report_viewer 与 e2e_readonly 均登录失败\n  ${errors.join('\n  ')}`
+      );
       test.skip();
       return;
     }

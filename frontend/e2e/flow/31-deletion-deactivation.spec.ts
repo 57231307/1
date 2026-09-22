@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, apiCallRaw } from './helpers';
-import { uiDeleteRow, uiToggleStatus } from './ui-helpers';
+import { uiDeleteRow, uiToggleStatus, findTableRow } from './ui-helpers';
 
 /**
  * P0 级删除与停用验证（2026-09-10 用户指令）
@@ -28,7 +28,20 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
   // ===== 1. 产品删除 =====
   test('产品：UI 删除行→验证列表行消失', async ({ page }) => {
     test.setTimeout(120_000);
-    // 先通过 UI 创建一个产品（确保有可删数据）
+    // 前置：自建一条无引用产品（不依赖库中残留数据），列表为空即属前置失败
+    const productName = `P0待删产品${TS}`;
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+      name: productName,
+      code: `P0-DELP-${TS}`,
+      unit: '米',
+      status: 'active',
+    });
+    expect(
+      created?.data?.id,
+      `[P0-删除-产品] 自建产品未返回 id：${JSON.stringify(created)}`
+    ).toBeTruthy();
+    console.log(`[P0-删除-产品] 自建产品 id=${created.data?.id} name=${productName}`);
+
     await page.goto(`${BASE_URL}/product`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
@@ -37,125 +50,129 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     // 记录删除前行数
     const rowsBefore = await page.locator('.el-table__row').count();
     console.log(`[P0-删除-产品] 列表当前 ${rowsBefore} 行`);
-    if (rowsBefore === 0) {
-      console.log('[P0-删除-产品] 列表为空，跳过删除测试');
-      test.skip();
-      return;
-    }
+    expect(rowsBefore, '[P0-删除-产品] 产品列表为空，删除链路无法验证').toBeGreaterThan(0);
 
-    // 取首个有产品名的行（列表行可能因 status=禁用而 name 空或未渲染完，逐一找）
-    let productName = '';
-    const rowCount = await page.locator('.el-table__row').count();
-    for (let i = 0; i < rowCount; i += 1) {
-      const cell = await page.locator('.el-table__row').nth(i).locator('td').nth(1).textContent();
-      const name = (cell || '').trim();
-      if (name) {
-        productName = name;
-        break;
-      }
-    }
-    console.log(`[P0-删除-产品] 目标行产品名: ${productName}`);
-    if (!productName) {
-      console.warn('[P0-删除-产品] 无可读产品名行（前置数据/渲染问题），跳过删除测试');
-      test.skip();
-      return;
-    }
+    // 目标行必须是本用例自建的产品（原实现取任意首行，删除对象不确定）
+    const targetRow = await findTableRow(page, productName);
+    expect(targetRow, `[P0-删除-产品] 列表未找到自建产品 ${productName}`).toBeTruthy();
 
     // UI 删除
     const deleted = await uiDeleteRow(page, '/product', { column: 'name', value: productName });
     console.log(`[P0-删除-产品] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
-    // 删除可能因业务约束被拒（非缺陷），记录结果不断言硬失败
     expect(typeof deleted).toBe('boolean');
+    expect(deleted, `[P0-删除-产品] 自建且无引用的产品 ${productName} UI 删除应成功`).toBe(true);
   });
 
   // ===== 2. 客户删除 =====
   test('客户：UI 删除行→验证列表行消失', async ({ page }) => {
     test.setTimeout(120_000);
+    const customerName = `P0待删客户${TS}`;
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+      customer_name: customerName,
+      customer_type: 'retail',
+    });
+    expect(
+      created?.data?.id,
+      `[P0-删除-客户] 自建客户未返回 id：${JSON.stringify(created)}`
+    ).toBeTruthy();
+    console.log(`[P0-删除-客户] 自建客户 id=${created.data?.id} name=${customerName}`);
+
     await page.goto(`${BASE_URL}/customer`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
 
     const rowsBefore = await page.locator('.el-table__row').count();
     console.log(`[P0-删除-客户] 列表当前 ${rowsBefore} 行`);
-    if (rowsBefore === 0) {
-      console.log('[P0-删除-客户] 列表为空，跳过');
-      test.skip();
-      return;
-    }
+    expect(rowsBefore, '[P0-删除-客户] 客户列表为空，删除链路无法验证').toBeGreaterThan(0);
 
-    const firstRow = page.locator('.el-table__row').first();
-    const nameCell = await firstRow.locator('td').nth(1).textContent();
-    const customerName = nameCell?.trim() || '';
-    console.log(`[P0-删除-客户] 目标行客户名: ${customerName}`);
-    if (!customerName) {
-      test.skip();
-      return;
-    }
+    const targetRow = await findTableRow(page, customerName);
+    expect(targetRow, `[P0-删除-客户] 列表未找到自建客户 ${customerName}`).toBeTruthy();
 
     const deleted = await uiDeleteRow(page, '/customer', { column: 'name', value: customerName });
-    console.log(`[P0-删除-客户] 删除结果: ${deleted ? '✅成功' : '❌失败（可能被业务约束拒绝）'}`);
+    console.log(`[P0-删除-客户] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
     expect(typeof deleted).toBe('boolean');
+    expect(deleted, `[P0-删除-客户] 自建且无引用的客户 ${customerName} UI 删除应成功`).toBe(true);
   });
 
   // ===== 3. 供应商删除 =====
   test('供应商：UI 删除行→验证列表行消失', async ({ page }) => {
     test.setTimeout(120_000);
+    const supplierName = `P0待删供应商${TS}`;
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
+      supplier_name: supplierName,
+      supplier_short_name: 'P0供',
+      contact_phone: '13800000009',
+    });
+    expect(
+      created?.data?.id,
+      `[P0-删除-供应商] 自建供应商未返回 id：${JSON.stringify(created)}`
+    ).toBeTruthy();
+    console.log(`[P0-删除-供应商] 自建供应商 id=${created.data?.id} name=${supplierName}`);
+
     await page.goto(`${BASE_URL}/supplier`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
 
     const rowsBefore = await page.locator('.el-table__row').count();
     console.log(`[P0-删除-供应商] 列表当前 ${rowsBefore} 行`);
-    if (rowsBefore === 0) {
-      test.skip();
-      return;
-    }
+    expect(rowsBefore, '[P0-删除-供应商] 供应商列表为空，删除链路无法验证').toBeGreaterThan(0);
 
-    const firstRow = page.locator('.el-table__row').first();
-    const nameCell = await firstRow.locator('td').nth(1).textContent();
-    const supplierName = nameCell?.trim() || '';
-    console.log(`[P0-删除-供应商] 目标行: ${supplierName}`);
-    if (!supplierName) {
-      test.skip();
-      return;
-    }
+    const targetRow = await findTableRow(page, supplierName);
+    expect(targetRow, `[P0-删除-供应商] 列表未找到自建供应商 ${supplierName}`).toBeTruthy();
 
     const deleted = await uiDeleteRow(page, '/supplier', { column: 'name', value: supplierName });
     console.log(`[P0-删除-供应商] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
     expect(typeof deleted).toBe('boolean');
+    expect(deleted, `[P0-删除-供应商] 自建且无引用的供应商 ${supplierName} UI 删除应成功`).toBe(
+      true
+    );
   });
 
   // ===== 4. 仓库删除 =====
   test('仓库：UI 删除行→验证列表行消失', async ({ page }) => {
     test.setTimeout(120_000);
+    const warehouseName = `P0待删仓库${TS}`;
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
+      name: warehouseName,
+      code: `P0DELW-${TS}`,
+    });
+    expect(
+      created?.data?.id,
+      `[P0-删除-仓库] 自建仓库未返回 id：${JSON.stringify(created)}`
+    ).toBeTruthy();
+    console.log(`[P0-删除-仓库] 自建仓库 id=${created.data?.id} name=${warehouseName}`);
+
     await page.goto(`${BASE_URL}/warehouse`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
 
     const rowsBefore = await page.locator('.el-table__row').count();
     console.log(`[P0-删除-仓库] 列表当前 ${rowsBefore} 行`);
-    if (rowsBefore === 0) {
-      test.skip();
-      return;
-    }
+    expect(rowsBefore, '[P0-删除-仓库] 仓库列表为空，删除链路无法验证').toBeGreaterThan(0);
 
-    const firstRow = page.locator('.el-table__row').first();
-    const nameCell = await firstRow.locator('td').nth(1).textContent();
-    const warehouseName = nameCell?.trim() || '';
-    console.log(`[P0-删除-仓库] 目标行: ${warehouseName}`);
-    if (!warehouseName) {
-      test.skip();
-      return;
-    }
+    const targetRow = await findTableRow(page, warehouseName);
+    expect(targetRow, `[P0-删除-仓库] 列表未找到自建仓库 ${warehouseName}`).toBeTruthy();
 
     const deleted = await uiDeleteRow(page, '/warehouse', { column: 'name', value: warehouseName });
     console.log(`[P0-删除-仓库] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
     expect(typeof deleted).toBe('boolean');
+    expect(deleted, `[P0-删除-仓库] 自建且无引用的仓库 ${warehouseName} UI 删除应成功`).toBe(true);
   });
 
   // ===== 5. 客户停用/启用 =====
   test('客户：UI 切换状态→验证状态文本变更', async ({ page }) => {
     test.setTimeout(120_000);
+    // 前置：自建客户，保证列表存在确定目标的行（列表为空属前置失败）
+    const customerName = `P0待停用客户${TS}`;
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+      customer_name: customerName,
+      customer_type: 'retail',
+    });
+    expect(
+      created?.data?.id,
+      `[P0-停用-客户] 自建客户未返回 id：${JSON.stringify(created)}`
+    ).toBeTruthy();
+
     await page.goto(`${BASE_URL}/customer`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
@@ -163,40 +180,40 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     const rows = page.locator('.el-table__row');
     const rowCount = await rows.count();
     console.log(`[P0-停用-客户] 列表 ${rowCount} 行`);
-    if (rowCount === 0) {
-      test.skip();
-      return;
-    }
+    expect(rowCount, '[P0-停用-客户] 客户列表为空，停用链路无法验证').toBeGreaterThan(0);
+    const targetRow = await findTableRow(page, customerName);
+    expect(targetRow, `[P0-停用-客户] 列表未找到自建客户 ${customerName}`).toBeTruthy();
 
-    // 找有状态开关的行
+    // 只在本用例自建客户行上找状态开关（原实现扫前 5 行的任意对象）
     let toggled = false;
-    for (let i = 0; i < Math.min(rowCount, 5); i++) {
-      const row = rows.nth(i);
-      const switchEl = row.locator('.el-switch').first();
-      const statusBtn = row
-        .locator('button:has-text("停用"), button:has-text("启用"), button:has-text("禁用")')
-        .first();
-      if (await switchEl.isVisible({ timeout: 2000 })) {
-        const beforeState = await switchEl.getAttribute('class');
-        await switchEl.click();
-        await page.waitForTimeout(2000);
-        const afterState = await switchEl.getAttribute('class');
-        console.log(
-          `[P0-停用-客户] 第 ${i + 1} 行状态切换：${beforeState?.includes('is-checked') ? '启用→停用' : '停用→启用'}（class: ${beforeState?.slice(0, 30)} → ${afterState?.slice(0, 30)}）`
-        );
-        toggled = true;
-        break;
-      } else if (await statusBtn.isVisible({ timeout: 2000 })) {
-        const beforeText = await statusBtn.textContent();
-        await statusBtn.click();
-        await page.waitForTimeout(2000);
-        console.log(`[P0-停用-客户] 第 ${i + 1} 行状态按钮：${beforeText} → 已点击`);
-        toggled = true;
-        break;
-      }
+    const switchEl = targetRow!.locator('.el-switch').first();
+    const statusBtn = targetRow!
+      .locator('button:has-text("停用"), button:has-text("启用"), button:has-text("禁用")')
+      .first();
+    if (await switchEl.isVisible({ timeout: 2000 })) {
+      const beforeState = await switchEl.getAttribute('class');
+      await switchEl.click();
+      await page.waitForTimeout(2000);
+      const afterState = await switchEl.getAttribute('class');
+      console.log(
+        `[P0-停用-客户] ${customerName} 状态切换：${beforeState?.includes('is-checked') ? '启用→停用' : '停用→启用'}（class: ${beforeState?.slice(0, 30)} → ${afterState?.slice(0, 30)}）`
+      );
+      toggled = true;
+    } else if (await statusBtn.isVisible({ timeout: 2000 })) {
+      const beforeText = await statusBtn.textContent();
+      await statusBtn.click();
+      await page.waitForTimeout(2000);
+      console.log(`[P0-停用-客户] ${customerName} 状态按钮：${beforeText} → 已点击`);
+      toggled = true;
     }
     if (!toggled) {
-      console.warn('[P0-停用-客户] 未找到可切换状态控件（前 5 行均无），记录结果');
+      test.info().annotations.push({
+        type: 'skipped-step',
+        description: `[P0-停用-客户] 自建客户 ${customerName} 行内无状态开关——客户列表页不提供行级停用入口（编辑弹窗停用由 31c 停用矩阵覆盖）`,
+      });
+      console.error(
+        `[P0-停用-客户] ❌ 自建客户 ${customerName} 行内未找到状态开关，行级停用不可用`
+      );
     }
     expect(typeof toggled).toBe('boolean');
   });
@@ -204,6 +221,19 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
   // ===== 6. 产品停用/启用 =====
   test('产品：UI 切换状态→验证状态文本变更', async ({ page }) => {
     test.setTimeout(120_000);
+    // 前置：自建产品，保证列表存在确定目标的行（列表为空属前置失败）
+    const productName = `P0待停用产品${TS}`;
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+      name: productName,
+      code: `P0-DISABLEP-${TS}`,
+      unit: '米',
+      status: 'active',
+    });
+    expect(
+      created?.data?.id,
+      `[P0-停用-产品] 自建产品未返回 id：${JSON.stringify(created)}`
+    ).toBeTruthy();
+
     await page.goto(`${BASE_URL}/product`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
@@ -211,36 +241,36 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     const rows = page.locator('.el-table__row');
     const rowCount = await rows.count();
     console.log(`[P0-停用-产品] 列表 ${rowCount} 行`);
-    if (rowCount === 0) {
-      test.skip();
-      return;
-    }
+    expect(rowCount, '[P0-停用-产品] 产品列表为空，停用链路无法验证').toBeGreaterThan(0);
+    const targetRow = await findTableRow(page, productName);
+    expect(targetRow, `[P0-停用-产品] 列表未找到自建产品 ${productName}`).toBeTruthy();
 
     let toggled = false;
-    for (let i = 0; i < Math.min(rowCount, 5); i++) {
-      const row = rows.nth(i);
-      const switchEl = row.locator('.el-switch').first();
-      const statusBtn = row.locator('button:has-text("停用"), button:has-text("启用")').first();
-      if (await switchEl.isVisible({ timeout: 2000 })) {
-        const beforeState = await switchEl.getAttribute('class');
-        await switchEl.click();
-        await page.waitForTimeout(2000);
-        const afterState = await switchEl.getAttribute('class');
-        console.log(
-          `[P0-停用-产品] 第 ${i + 1} 行开关切换：${beforeState?.slice(0, 30)} → ${afterState?.slice(0, 30)}`
-        );
-        toggled = true;
-        break;
-      } else if (await statusBtn.isVisible({ timeout: 2000 })) {
-        await statusBtn.click();
-        await page.waitForTimeout(2000);
-        console.log(`[P0-停用-产品] 第 ${i + 1} 行状态按钮已点击`);
-        toggled = true;
-        break;
-      }
+    const switchEl = targetRow!.locator('.el-switch').first();
+    const statusBtn = targetRow!
+      .locator('button:has-text("停用"), button:has-text("启用")')
+      .first();
+    if (await switchEl.isVisible({ timeout: 2000 })) {
+      const beforeState = await switchEl.getAttribute('class');
+      await switchEl.click();
+      await page.waitForTimeout(2000);
+      const afterState = await switchEl.getAttribute('class');
+      console.log(
+        `[P0-停用-产品] ${productName} 开关切换：${beforeState?.slice(0, 30)} → ${afterState?.slice(0, 30)}`
+      );
+      toggled = true;
+    } else if (await statusBtn.isVisible({ timeout: 2000 })) {
+      await statusBtn.click();
+      await page.waitForTimeout(2000);
+      console.log(`[P0-停用-产品] ${productName} 状态按钮已点击`);
+      toggled = true;
     }
     if (!toggled) {
-      console.warn('[P0-停用-产品] 未找到可切换状态控件');
+      test.info().annotations.push({
+        type: 'skipped-step',
+        description: `[P0-停用-产品] 自建产品 ${productName} 行内无状态开关——产品列表页不提供行级停用入口（编辑弹窗停用由 31c 停用矩阵覆盖）`,
+      });
+      console.error(`[P0-停用-产品] ❌ 自建产品 ${productName} 行内未找到状态开关，行级停用不可用`);
     }
     expect(typeof toggled).toBe('boolean');
   });
@@ -291,6 +321,36 @@ async function createThenUiDelete(
   );
   // 记录结果：删除可能被引用约束拒绝（如产品被 BOM 引用），不断言硬失败
   expect(typeof deleted).toBe('boolean');
+}
+
+/**
+ * 引用类前置取列表首条 id；列表为空时按该资源的真实创建契约补建一条。
+ * 用于替代"引用数据缺失即 test.skip"的假绿写法：前置要么成立，要么硬失败。
+ */
+async function firstRefOrSeed(
+  page: import('@playwright/test').Page,
+  label: string,
+  listApi: string,
+  seedApi: string,
+  seedPayload: Record<string, unknown>
+): Promise<number> {
+  const resp = await apiCallRaw<Array<{ id: number }> | { items?: Array<{ id: number }> }>(
+    page,
+    'GET',
+    `${listApi}?page=1&page_size=1`
+  );
+  const arr = Array.isArray(resp) ? resp : (resp?.items ?? []);
+  const existing = arr[0]?.id;
+  if (existing) return existing;
+  const created = await apiCall<{ id?: number }>(page, 'POST', seedApi, seedPayload);
+  const id = created?.data?.id;
+  if (!id) {
+    throw new Error(
+      `[P0-删除-${label}] ${listApi} 列表为空且 ${seedApi} 创建未返回 id：${JSON.stringify(created)}`
+    );
+  }
+  console.log(`[P0-删除-${label}] ${listApi} 无数据，已真实创建引用 ${label} id=${id}`);
+  return id;
 }
 
 test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
@@ -440,30 +500,28 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
 
   test('坯布：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
-    // 引用字段取真实前置数据 ID（与产品色号用例约定一致），禁止硬编码 ID
-    const products = await apiCallRaw<{ items?: Array<{ id: number }> } | Array<{ id: number }>>(
+    // 引用字段取真实存在的前置数据（列表为空则按契约补建），禁止硬编码 ID
+    const productId = await firstRefOrSeed(page, '产品', '/products', '/products', {
+      name: `P0坯布产品${EXT_TS}`,
+      code: `P0-GFP-${EXT_TS}`,
+      unit: '米',
+      status: 'active',
+    });
+    const warehouseId = await firstRefOrSeed(page, '仓库', '/warehouses', '/warehouses', {
+      name: `P0坯布仓库${EXT_TS}`,
+      code: `P0-GFW-${EXT_TS}`,
+    });
+    const supplierId = await firstRefOrSeed(
       page,
-      'GET',
-      '/products?page=1&page_size=1'
+      '供应商',
+      '/purchase/suppliers',
+      '/purchase/suppliers',
+      {
+        supplier_name: `P0坯布供应商${EXT_TS}`,
+        supplier_short_name: 'P0坯供',
+        contact_phone: '13800000010',
+      }
     );
-    const prodArr = Array.isArray(products) ? products : (products?.items ?? []);
-    const warehouses = await apiCallRaw<{ items?: Array<{ id: number }> } | Array<{ id: number }>>(
-      page,
-      'GET',
-      '/warehouses?page=1&page_size=1'
-    );
-    const whArr = Array.isArray(warehouses) ? warehouses : (warehouses?.items ?? []);
-    const suppliers = await apiCallRaw<{ items?: Array<{ id: number }> } | Array<{ id: number }>>(
-      page,
-      'GET',
-      '/purchase/suppliers?page=1&page_size=1'
-    );
-    const supArr = Array.isArray(suppliers) ? suppliers : (suppliers?.items ?? []);
-    if (prodArr.length === 0 || whArr.length === 0 || supArr.length === 0) {
-      console.log('[P0-删除-坯布] 缺少产品/仓库/供应商前置数据，跳过');
-      test.skip();
-      return;
-    }
     await createThenUiDelete(
       page,
       '坯布',
@@ -471,9 +529,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       {
         fabric_no: `P0-GF-${EXT_TS}`,
         fabric_name: `P0待删坯布${EXT_TS}`,
-        product_id: prodArr[0].id,
-        supplier_id: supArr[0].id,
-        warehouse_id: whArr[0].id,
+        product_id: productId,
+        supplier_id: supplierId,
+        warehouse_id: warehouseId,
         fabric_type: 'fabric',
         quantity_meters: 100,
         quantity_kg: 50,
@@ -498,19 +556,13 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
 
   test('产品色号：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
-    // 先取一个产品 id
-    const products = await apiCallRaw<{ items?: Array<{ id: number }> } | Array<{ id: number }>>(
-      page,
-      'GET',
-      '/products?page=1&page_size=1'
-    );
-    const prodArr = Array.isArray(products) ? products : (products?.items ?? []);
-    if (prodArr.length === 0) {
-      console.log('[P0-删除-色号] 无产品种子，跳过');
-      test.skip();
-      return;
-    }
-    const productId = prodArr[0].id;
+    // 先取一个真实产品 id（无产品时按契约补建，不再静默跳过）
+    const productId = await firstRefOrSeed(page, '产品', '/products', '/products', {
+      name: `P0色号产品${EXT_TS}`,
+      code: `P0-COLP-${EXT_TS}`,
+      unit: '米',
+      status: 'active',
+    });
     await createThenUiDelete(
       page,
       '产品色号',

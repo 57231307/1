@@ -281,7 +281,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
     // 发货仓库必须传真实仓库编码：ship.rs 按 warehouse_code 查仓，
     // 原实现硬编码 'WH-MAIN' 在 CI 空库里不存在 → 404（该用例此前被前面的串行失败挡住未跑）
     const warehouseId = ctx.warehouseIds[0];
-    await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
+    const stockRow = await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
     const wh = await apiCallRaw<{ warehouse_code?: string }>(
       page,
       'GET',
@@ -289,11 +289,22 @@ test.describe.serial('44f 真实实体全流转链', () => {
     );
     const warehouseCode = wh?.warehouse_code;
     expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    expect(stockRow.batch_no, '发货前库存行应带批次号（四维出库入参来源）').toBeTruthy();
+    expect(stockRow.dye_lot_no, '发货前库存行应带缸号（四维出库入参来源）').toBeTruthy();
 
+    // 出库四维扣减（款号+色号+缸号+批次）：维度取自真实入库库存行
     const ship = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
       warehouse_code: warehouseCode,
-      items: [{ product_id: ctx.productIds[0], quantity: 5 }],
+      items: [
+        {
+          product_id: ctx.productIds[0],
+          quantity: 5,
+          color_no: stockRow.color_no,
+          batch_no: stockRow.batch_no,
+          dye_lot_no: stockRow.dye_lot_no,
+        },
+      ],
     });
     expect(ship.status, `发货应成功（status=${ship.status} code=${ship.code ?? ''}）`).toBeLessThan(
       300
@@ -449,8 +460,24 @@ test.describe.serial('44f 真实实体全流转链', () => {
     // 非 pending 删除被拒（lab_dip_service.rs:91-99）
     const del = await apiCallExpectFail(page, 'DELETE', `/production/lab-dip/requests/${id}`);
     expect(del.status, 'sampling 态删除应被拒（仅 pending 可删）').toBeGreaterThanOrEqual(400);
+
+    // submit 前置：submit_to_customer 校验"送客户确认前必须至少有 1 个小样"
+    //（services/lab_dip_ops/request.rs:242-250），原用例从不建样、直接 submit 必被业务错误拒。
+    // 小样创建要求通知单处于 sampling 态（services/lab_dip_ops/sample.rs:59-67），
+    // 故建样必须放在 start-sampling 之后。
+    const sample = await apiCall<{ id?: number }>(page, 'POST', '/production/lab-dip/samples', {
+      request_id: id,
+      version_label: 'A',
+    });
+    const sampleId = sample?.data?.id;
+    expect(sampleId, '小样创建应返回 id').toBeTruthy();
+
     await apiCall(page, 'POST', `/production/lab-dip/requests/${id}/submit`);
-    await apiCall(page, 'POST', `/production/lab-dip/requests/${id}/approve`);
+    // approve 走 approve_ok_sample（submitted→approved），handler 要求 body {sample_id}
+    //（handlers/lab_dip_handler.rs:162-181），原用例无 body 会 422。
+    await apiCall(page, 'POST', `/production/lab-dip/requests/${id}/approve`, {
+      sample_id: sampleId,
+    });
     expect(await rd()).toContain('approved');
   });
 

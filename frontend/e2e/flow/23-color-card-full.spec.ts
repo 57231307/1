@@ -172,21 +172,16 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
 
   test('色卡借出记录 UI 页面', async ({ page }) => {
     await page.goto(`${BASE_URL}/color-cards/issues`);
-    await page.waitForTimeout(3000);
-    // 色卡页多 Tab 共存，隐藏 Tab 的表格节点仍留在 DOM 中；原实现 .first() 取到的是
-    // aria-label="发放中列表" 的隐藏表格（34 × resolved to hidden），必须用 :visible 过滤。
-    // 选择器列表原有重复项（el-table-v2 / [role=table] / v2-table-wrapper 各写两遍），一并去重。
-    const table = page
-      .locator(
-        '.el-table:visible, .el-table-v2:visible, [role="table"]:visible, .v2-table-wrapper:visible'
-      )
-      .first();
-    await table.waitFor({ state: 'visible', timeout: 15_000 });
-    // 去掉 `if (tableVisible)` 包裹：表格已 waitFor 可见，条件恒真时其后断言等同空转，
-    // 而一旦断言被跳过用例仍记为通过
-    const headers = table.locator('th, .el-table-v2__header-cell');
-    const headerCount = await headers.count();
-    console.log(`[E2E][23] 色卡借出记录可见表格表头数=${headerCount}`);
-    expect(headerCount, '可见表格应渲染出表头').toBeGreaterThan(0);
+    // 页面 el-tabs 默认 activeTab='issue'（发放表单，views/color-cards/issues.vue:385），
+    // "发放中"（:94-177）与"历史"（:180+）两张 el-table 在未激活的 pane 里（display:none），
+    // 不切 tab 直接等表格必然拿到 hidden/超时。先真实点击"发放中"tab，再断该 pane 内真实列。
+    await page.getByRole('tab', { name: /发放中/ }).click();
+    const table = page.locator('.el-table:visible').first();
+    await expect(table, '切到"发放中"tab 后应见其表格').toBeVisible({ timeout: 15_000 });
+    // 真实表头列（对照 colorCards.issue.activeTable.*）
+    const headers = await table.locator('th').allTextContents();
+    console.log(`[E2E][23] 色卡借出记录(发放中)表头=${JSON.stringify(headers)}`);
+    expect(headers.length, '发放中表格应渲染出表头').toBeGreaterThan(0);
+    expect(headers.join('|'), '发放中表格应含"发放数量"列').toContain('发放数量');
   });
 });

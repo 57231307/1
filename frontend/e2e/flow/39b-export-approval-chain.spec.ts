@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI } from './helpers';
+import { loginViaUI, loginAsRole } from './helpers';
 
 /**
  * P5.9b 敏感导出完整审批链
@@ -7,10 +7,10 @@ import { loginViaUI } from './helpers';
  * 流程：创建审批申请 → 一级审批（approve）→ 生成下载令牌 →
  *       持令牌导出 200 → 令牌二次消费拒绝 → 跨资源令牌拒绝
  *
- * 前置：申请人为当前登录账号（e2e_admin 分片账号），一级审批需要
- *       非申请人角色——admin 对自己申请可否自审？看 approve service 逻辑：
- *       applicant != approver 通常强制。此处用 admin 创建 + admin 审批，
- *       若 service 拒绝自审批则捕获断言其拒绝语义（本身也是权限正确性验证）。
+ * 前置：export_approval_service.rs:224 明确禁止申请人自审
+ *       （"审批人不能是申请人本人（防自审批）"），因此完整链必须双人：
+ *       由 manager 角色账号创建申请，再切回分片 admin 账号审批。
+ *       estimated_rows=10 → 风险等级 low → approval_level=1，一次 approve 即出令牌。
  */
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
@@ -23,115 +23,97 @@ interface ApprovalModel {
   resource_type: string;
 }
 
+const JSON_HEADERS = {
+  'X-Requested-With': 'XMLHttpRequest',
+  'Content-Type': 'application/json',
+} as const;
+
+/** manager 身份创建 customer 导出审批申请，返回审批单 id */
+async function createApprovalAsManager(page: import('@playwright/test').Page): Promise<number> {
+  await loginAsRole(page, 'manager');
+  const resp = await page.request.post(`${API_BASE}${API_PREFIX}/export-approvals`, {
+    data: {
+      resource_type: 'customer',
+      export_params: { page: 1, page_size: 10 },
+      estimated_rows: 10,
+      file_format: 'xlsx',
+    },
+    headers: JSON_HEADERS,
+  });
+  const body = (await resp.json().catch(() => null)) as { data?: ApprovalModel } | null;
+  const id = body?.data?.id;
+  expect(
+    resp.ok() && id,
+    `manager 创建导出审批申请失败 status=${resp.status()} body=${JSON.stringify(body).slice(0, 200)}`
+  ).toBe(true);
+  console.log(`[39b] manager 已创建 customer 导出审批申请 id=${id}`);
+  return id as number;
+}
+
+/** 切回分片 admin 账号审批该申请，返回审批后的模型（含 download_token） */
+async function approveAsAdmin(
+  page: import('@playwright/test').Page,
+  approvalId: number,
+  comments: string
+): Promise<ApprovalModel> {
+  await loginViaUI(page, undefined, undefined, true);
+  const resp = await page.request.post(
+    `${API_BASE}${API_PREFIX}/export-approvals/${approvalId}/approve`,
+    { data: { comments }, headers: JSON_HEADERS }
+  );
+  const body = (await resp.json().catch(() => null)) as { data?: ApprovalModel } | null;
+  expect(
+    resp.ok(),
+    `admin 审批申请 ${approvalId} 失败 status=${resp.status()} body=${JSON.stringify(body).slice(0, 200)}`
+  ).toBe(true);
+  const approved = body?.data;
+  expect(
+    approved?.status ?? '',
+    `审批后状态应含 approved，实际：${JSON.stringify(approved).slice(0, 200)}`
+  ).toContain('approved');
+  console.log(`[39b] admin 已审批申请 ${approvalId}，status=${approved?.status}`);
+  return approved as ApprovalModel;
+}
+
 test.describe('P5.9b 敏感导出完整审批链', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
   });
 
   test('客户导出审批链：创建→审批→令牌导出→二次消费拒', async ({ page }) => {
-    // 1. 创建审批申请
-    const createResp = await page.request.post(`${API_BASE}${API_PREFIX}/export-approvals`, {
-      data: {
-        resource_type: 'customer',
-        export_params: { page: 1, page_size: 10 },
-        estimated_rows: 10,
-        file_format: 'xlsx',
-      },
-      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
-    });
+    // 1-2. manager 创建申请 + admin 审批（自审被后端禁止，必须双人）
+    const approvalId = await createApprovalAsManager(page);
+    const approved = await approveAsAdmin(page, approvalId, 'E2E 审批链测试');
 
-    const createBody = (await createResp.json()) as {
-      data?: ApprovalModel | { id: number };
-    } | null;
-    const approval = (createBody?.data as ApprovalModel) ?? null;
-    if (!createResp.ok() || !approval?.id) {
-      // 创建失败（权限/校验）：非 5xx 即可达性验证通过，记录状态
-      expect(createResp.status()).toBeLessThan(500);
-      test.info().annotations.push({
-        type: 'approval-create',
-        description: `创建审批申请返回 ${createResp.status()}，完整链需审批角色配置`,
-      });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    // 3. 一级审批通过必须签发下载令牌（无令牌 = 链断在这里，不能再降级为可选分支）
+    const token = approved.download_token;
+    expect(
+      token,
+      `审批通过后应签发 download_token，实际：${JSON.stringify(approved).slice(0, 200)}`
+    ).toBeTruthy();
 
-    const approvalId = approval.id;
-
-    // 2. 一级审批（admin 自审若被 service 拒绝，断言其拒绝语义）
-    const approveResp = await page.request.post(
-      `${API_BASE}${API_PREFIX}/export-approvals/${approvalId}/approve`,
-      {
-        data: { comments: 'E2E 审批链测试' },
-        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
-      }
+    // 4. 持令牌导出
+    const exportResp = await page.request.get(
+      `${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${token}`
     );
+    expect(exportResp.status(), '持有效令牌导出应 200').toBe(200);
 
-    const approveBody = (await approveResp.json()) as { data?: ApprovalModel } | null;
-
-    if (!approveResp.ok()) {
-      // 自审批被拒：权限语义正确（applicant != approver），记录后跳过令牌链
-      test.info().annotations.push({
-        type: 'self-approve',
-        description: `自审批返回 ${approveResp.status()}——若为申请人自审限制则语义正确`,
-      });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
-
-    const approved = approveBody?.data;
-    expect(approved?.status ?? '').toContain('approved');
-
-    // 3. 持令牌导出
-    const token = approved?.download_token;
-    if (token) {
-      const exportResp = await page.request.get(
-        `${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${token}`
-      );
-      expect(exportResp.status(), '持有效令牌导出应 200').toBe(200);
-
-      // 4. 令牌二次消费拒绝（download_count 上限/一次性）
-      const secondResp = await page.request.get(
-        `${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${token}`
-      );
-      expect(secondResp.status(), '令牌二次消费应被拒（403）').toBe(403);
-    }
+    // 5. 令牌二次消费拒绝（download_count 上限/一次性）
+    const secondResp = await page.request.get(
+      `${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${token}`
+    );
+    expect(secondResp.status(), '令牌二次消费应被拒（403）').toBe(403);
   });
 
   test('跨资源令牌拒绝：customer 令牌用于 product 导出', async ({ page }) => {
-    // 创建 customer 审批并拿到令牌
-    const createResp = await page.request.post(`${API_BASE}${API_PREFIX}/export-approvals`, {
-      data: {
-        resource_type: 'customer',
-        export_params: {},
-        estimated_rows: 1,
-        file_format: 'xlsx',
-      },
-      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
-    });
-    const createBody = (await createResp.json()) as { data?: ApprovalModel } | null;
-    const approvalId = createBody?.data?.id;
-    if (!approvalId) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
-
-    const approveResp = await page.request.post(
-      `${API_BASE}${API_PREFIX}/export-approvals/${approvalId}/approve`,
-      {
-        data: { comments: 'E2E 跨资源测试' },
-        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
-      }
-    );
-    const approveBody = (await approveResp.json()) as { data?: ApprovalModel } | null;
-    const token = approveBody?.data?.download_token;
-    if (!token) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    // 创建 customer 审批并拿到令牌（manager 申请 + admin 审批）
+    const approvalId = await createApprovalAsManager(page);
+    const approved = await approveAsAdmin(page, approvalId, 'E2E 跨资源测试');
+    const token = approved.download_token;
+    expect(
+      token,
+      `审批通过后应签发 download_token，实际：${JSON.stringify(approved).slice(0, 200)}`
+    ).toBeTruthy();
 
     // customer 令牌用于 product 导出 → resource_type 不匹配 403
     const crossResp = await page.request.get(

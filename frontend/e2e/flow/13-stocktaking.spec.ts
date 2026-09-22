@@ -42,16 +42,20 @@ test.describe('库存盘点完整流程', () => {
     };
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
-    const countId = result.data?.id!;
-    expect(countId).toBeDefined();
+    const countId = result.data?.id;
+    expect(
+      countId,
+      `盘点建单应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
-    // 验证初始状态
+    // 验证初始状态：建单写 PENDING（inventory_count_service.rs:155；
+    //  盘点词表只有 pending/completed，purchase_inventory.rs:82-88，无 draft）
     const created = await apiCallRaw<{ status: string }>(
       page,
       'GET',
       `/inventory/counts/${countId}`
     );
-    expect(created.status.toLowerCase()).toBe('draft');
+    expect(created.status.toLowerCase()).toBe('pending');
 
     // 录入实盘数据（后端 RecordItemInput 真实字段：stock_id + quantity_actual 字符串）
     // stock_id 直接取盘点前命中的库存行（原实现查不到行时兜底成 1，会把盘点
@@ -66,23 +70,24 @@ test.describe('库存盘点完整流程', () => {
       ],
     });
 
-    // 提交审批
+    // 提交审批：submit_count 写 "in_review"（inventory_count_service.rs:417），非 pending；
+    // 该值未收录进 inventory_count 词表（pending/completed），登记为状态机一致性问题
     await apiCall(page, 'POST', `/inventory/counts/${countId}/submit`);
     const submitted = await apiCallRaw<{ status: string }>(
       page,
       'GET',
       `/inventory/counts/${countId}`
     );
-    expect(submitted.status.toLowerCase()).toBe('pending');
+    expect(submitted.status.toLowerCase()).toBe('in_review');
 
-    // 审批通过
+    // 审批通过：approve_count 写 COMPLETED（inventory_count_service.rs:524），词表无 approved
     await apiCall(page, 'POST', `/inventory/counts/${countId}/approve`);
     const approved = await apiCallRaw<{ status: string }>(
       page,
       'GET',
       `/inventory/counts/${countId}`
     );
-    expect(approved.status.toLowerCase()).toBe('approved');
+    expect(approved.status.toLowerCase()).toBe('completed');
 
     // 验证审计日志
     const auditLogged = await verifyAuditLog(page, 'UPDATE', 'inventory');
@@ -124,7 +129,11 @@ test.describe('库存盘点完整流程', () => {
     };
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
-    const countId = result.data?.id!;
+    const countId = result.data?.id;
+    expect(
+      countId,
+      `负例前置：盘点建单应返回 data.id，否则 record 请求打到 /undefined 会让拒绝断言假绿；实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     // 录入负数实盘数量（后端应拒绝）
     const illegalRecord = await apiCallExpectFail(
@@ -163,16 +172,24 @@ test.describe('库存盘点完整流程', () => {
     };
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/inventory/counts', countData);
-    const countId = result.data?.id!;
+    const countId = result.data?.id;
+    expect(
+      countId,
+      `负例前置：盘点建单应返回 data.id，否则 submit/approve 打到 /undefined 会让状态机断言假绿；实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     await apiCall(page, 'POST', `/inventory/counts/${countId}/submit`);
     await apiCall(page, 'POST', `/inventory/counts/${countId}/approve`);
 
+    // 负例必须用 apiCallExpectFail（apiCall/apiCallRaw 对非 2xx 直接抛，是成功语义）
     const illegalSubmit = await apiCallExpectFail(
       page,
       'POST',
       `/inventory/counts/${countId}/submit`
     );
     expect(illegalSubmit.status).toBeGreaterThanOrEqual(400);
+    // 已审批(completed)不能重复提交：submit_count 抛 AppError::business（service:406-409），
+    // 出参 code 稳定为 BUSINESS_ERROR（utils/error.rs:413；真实文案经 public_message 脱敏不进响应）
+    expect(String(illegalSubmit.code ?? ''), '应命中业务拒绝码').toBe('BUSINESS_ERROR');
   });
 });

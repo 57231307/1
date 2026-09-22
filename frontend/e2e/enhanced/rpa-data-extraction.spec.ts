@@ -158,10 +158,16 @@ test.describe('RPA：流程录制（性能基准）', () => {
     expect(report).toHaveLength(2);
     expect(report[0].label).toBe('页面加载完成');
     expect(report[1].label).toBe('表格加载完成');
-    // 每个标记的耗时应为非负数
-    expect(report[0].elapsed).toBeGreaterThanOrEqual(0);
-    expect(report[1].elapsed).toBeGreaterThanOrEqual(0);
-    // 总耗时应为正数
-    expect(total).toBeGreaterThan(0);
+    // report() 的 elapsed 语义（见 fixtures/rpa.ts）：首项为绝对偏移，其余为相邻标记差值。
+    // 断言每个耗时是有限非负数，而非仅 >=0（NaN/Infinity 也能骗过 toBeGreaterThanOrEqual）。
+    for (const row of report) {
+      expect(Number.isFinite(row.elapsed), `elapsed 应为有限数：${row.elapsed}`).toBe(true);
+      expect(row.elapsed).toBeGreaterThanOrEqual(0);
+    }
+    // 分段耗时累加 = 末个标记的墙钟偏移，必然 ≤ 在其之后测得的 total()，
+    // 该一致性可暴露 elapsed 计算错位/重复计数；total 为正数说明确有耗时。
+    const sumOfSegments = report.reduce((acc, row) => acc + row.elapsed, 0);
+    expect(sumOfSegments).toBeGreaterThan(0);
+    expect(sumOfSegments).toBeLessThanOrEqual(total);
   });
 });

@@ -40,11 +40,10 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
   test('L1-2 验证大货批色发货门禁（未审批阻断发货）', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    if (!ctx.salesOrderId) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      ctx.salesOrderId,
+      'ensureTestEntities 未建出销售订单（ctx.salesOrderId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     // 尝试发货（如果大货批色未审批，应被阻断）
     const blocked = await verifyBulkColorDeliveryBlock(page, ctx.salesOrderId);
@@ -53,11 +52,10 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
 
   test('L1-3 验证三单匹配（采购订单→入库单→应付单）', async ({ page }) => {
     const ctx = getCtx();
-    if (!ctx.purchaseOrderId) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      ctx.purchaseOrderId,
+      'ensureTestEntities 未建出采购订单（ctx.purchaseOrderId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     // 验证采购订单关联入库单
     const receipts = await apiCallRaw<{

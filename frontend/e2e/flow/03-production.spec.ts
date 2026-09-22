@@ -51,11 +51,10 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   test('3-2 审批染色配方（草稿 → 已审核）', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.dyeRecipeId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      '3-1/ensureTestEntities 未建出染色配方（ctx.dyeRecipeId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     await apiCall(page, 'POST', `/production/dye-recipes/${id}/submit`);
     // ApproveRecipeRequest { approved_by: i32 } 必填（自审修复：原调用缺 body 恒 400
@@ -103,11 +102,10 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   }) => {
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      '3-3/ensureTestEntities 未建出缸号（ctx.dyeBatchId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     // 后端缸号 14 态 lifecycle_status，完整工序链（规则表驱动校验）
     const legalFlow: Array<{ status: string }> = [
@@ -155,11 +153,10 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   test('3-5 验证缸号非法转换被拒绝', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      '3-3/ensureTestEntities 未建出缸号（ctx.dyeBatchId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     // shipped/cancelled/terminated/failed 是终态，任何进一步流转都应被拒
     const batch = await apiCallRaw<{ status?: string }>(
@@ -230,11 +227,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   test('3-7 审批大货处方（draft → approved）', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.productionRecipeId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(id, '3-6 未建出大货处方（ctx.productionRecipeId 缺失），本用例前置失败').toBeTruthy();
     await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`, {
       approved_by: 1,
     });
@@ -285,11 +278,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   test('3-10 生产工单状态流转', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.productionOrderId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(id, '3-9 未建出生产工单（ctx.productionOrderId 缺失），本用例前置失败').toBeTruthy();
 
     const transitions = [
       { action: 'submit-approval', body: {}, to: ['pending_approval', 'approved'] },
@@ -326,11 +315,10 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   test('3-12 验证缸号生命周期日志', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.dyeBatchId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      '3-3/ensureTestEntities 未建出缸号（ctx.dyeBatchId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     try {
       // GET /production/dye-batch-lifecycle-logs/by-batch/{id} 出参是裸数组

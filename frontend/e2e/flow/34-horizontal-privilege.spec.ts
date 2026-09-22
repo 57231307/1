@@ -30,11 +30,10 @@ test.describe('P5.4 水平越权', () => {
       contact_phone: '13800000000',
     });
     const customerId = createResp?.id ?? createResp?.data?.id;
-    if (!customerId) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      customerId,
+      `客户创建未返回 id（POST /crm/customers 响应 ${JSON.stringify(createResp).slice(0, 200)}），前置失败`
+    ).toBeTruthy();
 
     // 尝试修改（用分片账号自身权限范围内——这里是验证 RLS 隔离，
     // 实际跨用户测试需要第二个 context，这里做基础断言）
@@ -51,9 +50,10 @@ test.describe('P5.4 水平越权', () => {
       contact_phone: '13800000000',
     });
     const supplierId = createResp?.id ?? createResp?.data?.id;
-    if (supplierId) {
-      expect(supplierId).toBeTruthy();
-    }
+    expect(
+      supplierId,
+      `供应商创建未返回 id（POST /purchase/suppliers 响应 ${JSON.stringify(createResp).slice(0, 200)}），前置失败`
+    ).toBeTruthy();
   });
 
   test('用户无法删除他人创建的采购订单', async ({ page }) => {
@@ -75,6 +75,10 @@ test.describe('P5.4 水平越权', () => {
         },
       ],
     });
-    expect(createResp !== undefined).toBeTruthy();
+    const poId = createResp?.id ?? createResp?.data?.id;
+    expect(
+      poId,
+      `采购订单创建未返回 id（响应 ${JSON.stringify(createResp).slice(0, 200)}），前置失败`
+    ).toBeTruthy();
   });
 });

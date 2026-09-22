@@ -57,11 +57,10 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
 
   test('C1-2 验证定制订单 7 阶段状态机', async ({ page }) => {
     const ctx = getCtx();
-    if (!ctx.customOrderId) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      ctx.customOrderId,
+      'C1-1/ensureTestEntities 未建出定制订单（ctx.customOrderId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     const order = await apiCallRaw<{ status: string }>(
       page,
@@ -86,11 +85,10 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
 
   test('C1-3 验证状态门校验（draft → dyeing 非法跳跃）', async ({ page }) => {
     const ctx = getCtx();
-    if (!ctx.customOrderId) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      ctx.customOrderId,
+      'C1-1/ensureTestEntities 未建出定制订单（ctx.customOrderId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     // 直接从 draft 跳到 dyeing → 应拒绝
     const result = await apiCallExpectFail(
@@ -144,7 +142,31 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
     // 小样没有全局列表端点：routes/production.rs:157-162 只注册了 POST /lab-dip/samples、
     // /lab-dip/samples/{id} 与 /lab-dip/samples/by-request/{request_id}（出参是裸数组）。
     // 原用例 GET /production/lab-dip/samples?page=… 是不存在的路径，且 expect 无匹配器。
+    // 出参行即 lab_dip_sample::Model：对色结果是 matching_result（非空列），
+    // 复样进度是 resample_status（可空列），表里没有 status 列。
     expect(labDipRequestId, 'C1-4 未创建打样通知单，无法按单回读小样').toBeGreaterThan(0);
+
+    // 小样只能挂在 sampling 状态的通知单下（services/lab_dip_ops/sample.rs::validate_and_get_request），
+    // 而 C1-4 新建的通知单是 pending——不先流转就建不出小样，by-request 列表恒空、下面的断言全部空转。
+    await apiCall(page, 'POST', `/production/lab-dip/requests/${labDipRequestId}/start-sampling`);
+    const created = await apiCall<{
+      id?: number;
+      matching_result?: string;
+      version_label?: string;
+    }>(page, 'POST', '/production/lab-dip/samples', {
+      request_id: labDipRequestId,
+      formula: 'E2E 小样 ABCD 处方',
+    });
+    expect(
+      created.data?.id,
+      `小样创建应返回 id，实际：${JSON.stringify(created).slice(0, 200)}`
+    ).toBeTruthy();
+    expect(
+      created.data?.matching_result,
+      `新建小样的对色结果应为 pending，实际：${JSON.stringify(created.data).slice(0, 200)}`
+    ).toBe('pending');
+    expect(created.data?.version_label, '新建小样缺少版本标识（ABCD 多版样的版本号）').toBeTruthy();
+
     const list = await apiCallRaw<Array<Record<string, unknown>>>(
       page,
       'GET',
@@ -154,12 +176,33 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
       Array.isArray(list),
       `按打样单回读小样应为数组，实际：${JSON.stringify(list).slice(0, 200)}`
     ).toBe(true);
+    expect(
+      list.length,
+      `按单 ${labDipRequestId} 回读不到小样，本用例一条断言都不会跑到`
+    ).toBeGreaterThan(0);
     for (const row of list) {
       expect(Number(row.request_id), `小样行未挂在本打样单下：${JSON.stringify(row)}`).toBe(
         labDipRequestId
       );
-      expect(String(row.status ?? ''), `小样行缺少 status：${JSON.stringify(row)}`).not.toBe('');
+      // models/status/quality_dyeing.rs::lab_dip_sample 的四个取值
+      expect(
+        ['pending', 'matched', 'not_matched', 'selected'],
+        `小样行的 matching_result 越界或缺失：${JSON.stringify(row)}`
+      ).toContain(String(row.matching_result ?? '(missing-matching_result)'));
     }
+
+    // 状态机：登记色差 4 级 → matched（services/lab_dip_ops/sample.rs::record_matching_result，
+    // COLOR_DIFF_OK_GRADE = 4，>=4 判 matched，<4 判 not_matched）
+    const matched = await apiCall<{ matching_result?: string }>(
+      page,
+      'POST',
+      `/production/lab-dip/samples/${created.data!.id}/matching`,
+      { color_difference_grade: 4 }
+    );
+    expect(
+      matched.data?.matching_result,
+      `色差 4 级应判为 matched，实际：${JSON.stringify(matched.data).slice(0, 200)}`
+    ).toBe('matched');
   });
 
   test('C1-7 验证大货批色 8 态状态机', async ({ page }) => {

@@ -43,8 +43,11 @@ test.describe('采购退货完整流程', () => {
     };
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', returnData);
-    const returnId = result.data?.id!;
-    expect(returnId).toBeDefined();
+    const returnId = result.data?.id;
+    expect(
+      returnId,
+      `采购退货创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     // 添加退货明细（后端需要独立端点添加 items）
     // 明细缺失会导致 approve 撞"退货单至少需要一行明细"，失败必须暴露
@@ -131,15 +134,21 @@ test.describe('采购退货完整流程', () => {
     };
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/sales-returns', returnData);
-    const returnId = result.data?.id!;
-    expect(returnId).toBeDefined();
+    const returnId = result.data?.id;
+    expect(
+      returnId,
+      `销售退货创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     // 添加退货明细
     // 明细缺失会导致 submit 撞"至少一行明细"校验，失败必须暴露
+    // tax_percent 显式提供：NOT NULL 税率列由请求值落地（无请求值时后端回落到关联
+    // 销售订单同商品明细税率；本用例复用的历史订单未必含该产品，故显式传）
     await apiCall(page, 'POST', `/sales/sales-returns/${returnId}/items`, {
       product_id: Number(stockRow.product_id) || ctx.productIds[0] || 1,
       quantity: '5',
       unit_price: '20.00',
+      tax_percent: '13',
     });
 
     // 提交

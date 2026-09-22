@@ -279,7 +279,10 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       comments: '53-2 B 审批二级',
     });
     expect(l2.status, '二级审批人不能与一级相同').toBeGreaterThanOrEqual(400);
-    expect(String(l2.body?.message ?? '')).toContain('一级审批人相同');
+    // 业务错误文案经 utils/error.rs:96 public_message 脱敏，响应 message 恒为固定文案，
+    // 真实文案只进 tracing；approve_l2 该分支为 AppError::business
+    // （role_change_approval_service.rs:186-188）→ 稳定 code = BUSINESS_ERROR（error.rs:413）
+    expect(String(l2.body?.code ?? ''), 'code 应为业务拒绝').toBe('BUSINESS_ERROR');
   });
 
   test('53-3 敏感角色白名单：非敏感角色变更无需审批（:20 对照）', async ({ page }) => {
@@ -299,6 +302,8 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       target_role_code: normal.code,
     });
     expect(r.status, '非敏感角色变更应直接拒绝（无需走审批）').toBeGreaterThanOrEqual(400);
-    expect(String(r.message ?? ''), '消息应提示仅敏感角色').toContain('敏感');
+    // 非敏感拒绝是 handler 的 AppError::business（role_change_approval_handler.rs:29-31），
+    // message 被脱敏（utils/error.rs:94-99），只能断稳定 code=BUSINESS_ERROR
+    expect(String(r.code ?? ''), 'code 应为业务拒绝（仅敏感角色需审批）').toBe('BUSINESS_ERROR');
   });
 });

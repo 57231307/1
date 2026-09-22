@@ -43,7 +43,9 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     const subjectList = Array.isArray(subjects)
       ? subjects
       : ((subjects as { items?: Array<{ code: string; status?: string }> }).items ?? []);
-    let activeCodes = subjectList.filter(s => !s.status || s.status === 'active').map(s => s.code);
+    const activeCodes = subjectList
+      .filter(s => !s.status || s.status === 'active')
+      .map(s => s.code);
     // 科目不足 3 个时先创建 E2E 专用科目（CreateSubjectRequestDto: code/name/level）
     const suffix = Date.now().toString().slice(-6);
     while (activeCodes.length < 3) {
@@ -78,11 +80,10 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     const id = ctx.voucherId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      'ensureTestEntities 未建出记账凭证（ctx.voucherId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     await apiCall(page, 'POST', `/vouchers/${id}/submit`);
     await apiCall(page, 'POST', `/vouchers/${id}/review`);
@@ -98,11 +99,10 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
   test('4-4 验证凭证非法转换（posted → draft 应拒绝）', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.voucherId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      'ensureTestEntities 未建出记账凭证（ctx.voucherId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     // 对已 posted 的凭证提交 → 应拒绝
     const result = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);

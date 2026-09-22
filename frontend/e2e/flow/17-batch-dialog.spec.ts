@@ -81,8 +81,17 @@ test.describe('批量操作与弹窗确认', () => {
     await deleteBtn.waitFor({ state: 'visible', timeout: 5000 });
     const deleteVisible = await deleteBtn.isVisible();
     if (deleteVisible) {
+      // 监听真实网络（非 mock/拦截）：取消后若发起了删除类请求必须让用例失败
+      const mutatingRequests: string[] = [];
+      const onRequest = (req: { method: () => string; url: () => string }) => {
+        const m = req.method();
+        if ((m === 'DELETE' || m === 'POST' || m === 'PUT') && req.url().includes('/api/v1/')) {
+          mutatingRequests.push(`${m} ${req.url()}`);
+        }
+      };
+      page.on('request', onRequest);
+
       await deleteBtn.click();
-      await page.waitForTimeout(500);
 
       // 验证确认弹窗
       const popconfirm = page.locator('.el-popconfirm, .el-message-box').first();
@@ -99,14 +108,16 @@ test.describe('批量操作与弹窗确认', () => {
         const cancelVisible = await cancelBtn.isVisible();
         if (cancelVisible) {
           await cancelBtn.click();
-          await page.waitForTimeout(500);
 
-          await popconfirm.waitFor({ state: 'visible', timeout: 2000 });
-
-          const popStillVisible = await popconfirm.isVisible();
-          expect(popStillVisible).toBe(false);
+          // 原实现在点取消后又 waitFor(popconfirm,'visible')——弹窗已关闭，必然超时。
+          // 正确语义：断言弹窗从可见变为不可见（关闭）。
+          await popconfirm.waitFor({ state: 'hidden', timeout: 5000 });
+          expect(await popconfirm.isVisible()).toBe(false);
         }
       }
+      page.off('request', onRequest);
+      // 取消即中止：整个过程不得发出任何删除/变更类 API 请求
+      expect(mutatingRequests, '点击取消后不应发起批量/删除请求').toEqual([]);
     }
   });
 

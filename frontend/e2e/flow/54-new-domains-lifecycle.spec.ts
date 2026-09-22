@@ -109,12 +109,17 @@ test.describe.serial('新域业务流转链', () => {
     // run 4623 这里失败的真实原因是建单表单提交的是 fabric_batch_no/total_length_m
     // 两个后端根本没有的字段、又缺 inspection_date，被 422 拒掉后页面停在
     // ErrorBoundary，看起来像"等不到成功提示"（表单已按 CreateInspectionRequest 重建）。
-    // 接住创建响应拿验布单号：列表按 created_at 倒序，但并发分片会插入更新的行，
-    // 取 .el-table__row.first() 会点到别人的单子上（run 4625 的超时即为此，
-    // 那一行状态是 closed 时连"定级"按钮都不渲染）。
+    // 接住"最终创建成功"的响应：CSRF token 为一次性消费（middleware/csrf.rs 的
+    // consume_csrf_token NotFound 分支 → 403 + X-New-CSRF-Token 恢复头），前端
+    // api/request.ts 拦截器读到恢复头后自动重放同一 POST 并成功返回 200。
+    // 因此第一跳是 CSRF 恢复链的 403（非用例缺陷），必须用 status()===200 让
+    // waitForResponse 命中重放后的成功响应，否则会抓到 403、data 为空导致误判。
     const [createResp] = await Promise.all([
       page.waitForResponse(
-        r => r.url().includes('/production/fabric-inspections') && r.request().method() === 'POST',
+        r =>
+          r.url().includes('/production/fabric-inspections') &&
+          r.request().method() === 'POST' &&
+          r.status() === 200,
         { timeout: 15_000 }
       ),
       (async () => {
@@ -126,7 +131,7 @@ test.describe.serial('新域业务流转链', () => {
     const inspectionNo = String(created?.data?.inspection_no ?? '');
     expect(
       inspectionNo,
-      `新建验布单应回验布单号，实际响应：${JSON.stringify(created).slice(0, 200)}`
+      `新建验布单应回验布单号（重放后 200 响应），实际响应：${JSON.stringify(created).slice(0, 200)}`
     ).not.toBe('');
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
 

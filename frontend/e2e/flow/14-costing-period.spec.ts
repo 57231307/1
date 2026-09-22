@@ -45,8 +45,11 @@ test.describe('成本核算完整流程', () => {
       '/production/cost-collections',
       costData
     );
-    const costId = result.data?.id!;
-    expect(costId).toBeDefined();
+    const costId = result.data?.id;
+    expect(
+      costId,
+      `成本归集创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     // 验证初始状态
     const created = await apiCallRaw<{
@@ -81,20 +84,49 @@ test.describe('成本核算完整流程', () => {
     expect(audited.status.toLowerCase()).toMatch(/audited|approved/);
 
     // 验证成本分析报表
-    const summary = await apiCallRaw<{ total_direct_material: number }>(
+    // 后端 get_cost_analysis_summary 无日期参数时聚合全部成本归集记录，
+    // service 用 total_direct_material 键返回本用例刚创建记录的直接材料合计。
+    const summary = await apiCallRaw<{ total_direct_material: string | number }>(
       page,
       'GET',
       '/production/cost-collections/analysis/summary'
     );
-    expect(Number(summary.total_direct_material)).toBeGreaterThanOrEqual(0);
+    // 全局汇总必然包含本用例创建的 1500.50 直接材料，断言下界而非 >=0 空转
+    expect(Number(summary.total_direct_material)).toBeGreaterThanOrEqual(1500.5);
 
     // 按缸号查询成本
-    const byBatch = await apiCallRaw<{ items: Array<{ total_cost: number }> }>(
+    // 后端 get_cost_by_batch 的 handler 返回裸 Vec<BatchCostAnalysis>（非 {items} 分页对象），
+    // CostByBatchQuery.batch_no 为 Option，不传即全表；此处按本用例创建的缸号过滤，
+    // 断言返回的正是这条数据（字段名对照 BatchCostAnalysis 结构体）。
+    const batchNo = ctx.dyeLotNo!;
+    const byBatch = await apiCallRaw<
+      Array<{
+        batch_no: string | null;
+        direct_material: string | number;
+        direct_labor: string | number;
+        manufacturing_overhead: string | number;
+        total_cost: string | number;
+        status: string;
+      }>
+    >(
       page,
       'GET',
-      '/production/cost-collections/analysis/by-batch'
+      `/production/cost-collections/analysis/by-batch?batch_no=${encodeURIComponent(batchNo)}`
     );
-    expect(byBatch.items?.length).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(byBatch), 'by-batch 应返回裸数组').toBe(true);
+    expect(byBatch.length).toBeGreaterThanOrEqual(1);
+    // 服务端按 batch_no 下推过滤，每一行都必须是本用例创建的缸号
+    for (const row of byBatch) {
+      expect(row.batch_no).toBe(batchNo);
+    }
+    const mine = byBatch.find(r => Number(r.direct_material) === 1500.5);
+    expect(mine, '按缸号成本分析应包含本用例创建的归集记录').toBeTruthy();
+    expect(Number(mine!.direct_labor)).toBe(800);
+    expect(Number(mine!.manufacturing_overhead)).toBe(300);
+    // 总成本 = 直接材料+直接人工+制造费用+加工费+染色费 = 1500.5+800+300+100+200
+    expect(Number(mine!.total_cost)).toBeCloseTo(2900.5, 2);
+    // audit 端点将 draft 置为 approved
+    expect(mine!.status.toLowerCase()).toMatch(/approved|audited/);
 
     // 验证审计日志
     const auditLogged = await verifyAuditLog(
@@ -148,7 +180,11 @@ test.describe('成本核算完整流程', () => {
     };
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
-    const voucherId = result.data?.id!;
+    const voucherId = result.data?.id;
+    expect(
+      voucherId,
+      `凭证创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     // 验证凭证借贷平衡
     const voucher = await apiCallRaw<{
@@ -174,80 +210,74 @@ test.describe('成本核算完整流程', () => {
   });
 
   test('固定资产折旧：计提→折旧记录验证', async ({ page }) => {
-    // 查询已有固定资产
-    const assets = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-      page,
-      'GET',
-      '/fixed-assets?page=1&page_size=5'
-    );
+    // 后端 create() 将资产 status 置为 ACTIVE，depreciate 的 validate_asset_for_depreciation
+    // 状态门只放行 ACTIVE；列表端点 GET /fixed-assets 的 handler 用 ApiResponse::success(Vec)
+    // 返回裸数组（非 {items} 分页对象），无法从"已有资产"里保证可折旧状态。
+    // 因此本用例显式创建一条全新的 ACTIVE 资产，把折旧驱动到允许状态再断言。
+    const assetData = {
+      asset_no: genCode('FA'),
+      asset_name: 'E2E 测试设备',
+      asset_category: '生产设备',
+      purchase_date: new Date().toISOString().slice(0, 10),
+      original_value: '100000',
+      useful_life: 60,
+      depreciation_method: 'straight_line',
+      location: '一车间',
+    };
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/fixed-assets', assetData);
+    const assetId = created.data?.id;
+    expect(assetId, '固定资产创建应返回 id').toBeTruthy();
 
-    if (assets.items && assets.items.length > 0) {
-      const asset = assets.items?.[0];
+    // 确认资产处于可折旧状态（create 默认写入 ACTIVE）
+    const detail = await apiCallRaw<{ status: string }>(page, 'GET', `/fixed-assets/${assetId}`);
+    expect(detail.status.toLowerCase()).toBe('active');
 
-      // 尝试计提折旧
-      try {
-        await apiCall(page, 'POST', `/fixed-assets/${asset.id}/depreciate`);
+    // 计提折旧：DepreciateRequest 需要 body { period }（缺 body 会 4xx，非状态机拒绝）；
+    // straight_line 月折旧 = (原值-残值)/(使用年限*12) = 100000/(60*12) = 138.89 > 0
+    const now = new Date();
+    const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    await apiCall(page, 'POST', `/fixed-assets/${assetId}/depreciate`, { period });
 
-        // 验证折旧记录已生成
-        const records = await apiCallRaw<{ items: Array<{ amount: number }> }>(
-          page,
-          'GET',
-          `/fixed-assets/${asset.id}/depreciation-records?page=1&page_size=5`
-        );
-        expect(records.items?.length).toBeGreaterThanOrEqual(0);
+    // 折旧记录：list_depreciation_records 的 handler 返回裸 Vec（非 {items}），字段名对照
+    // fixed_asset_depreciation_record 模型（depreciation_amount / period）。
+    const records = await apiCallRaw<
+      Array<{ period: string; depreciation_amount: string | number }>
+    >(page, 'GET', `/fixed-assets/${assetId}/depreciation-records`);
+    expect(Array.isArray(records), '折旧记录端点应返回裸数组').toBe(true);
+    expect(records).toHaveLength(1);
+    expect(records[0].period).toBe(period);
+    expect(Number(records[0].depreciation_amount)).toBeGreaterThan(0);
+    expect(Number(records[0].depreciation_amount)).toBeCloseTo(138.89, 2);
 
-        const auditLogged = await verifyAuditLog(page, 'CREATE', 'fixed-assets', '/depreciate');
-        expect(auditLogged).toBe(true);
-      } catch (e) {
-        console.warn(`[E2E] 兜底捕获: ${(e as Error).message}`); // 折旧可能因资产状态不允许
-        const records = await apiCallRaw<{ items: Array<{ amount: number }> }>(
-          page,
-          'GET',
-          `/fixed-assets/${asset.id}/depreciation-records?page=1&page_size=5`
-        );
-        expect(records.items?.length).toBeGreaterThanOrEqual(0);
-      }
-    } else {
-      // 创建固定资产（后端 CreateAssetRequestDto 真实字段）
-      const assetData = {
-        asset_no: genCode('FA'),
-        asset_name: 'E2E 测试设备',
-        asset_category: '生产设备',
-        purchase_date: new Date().toISOString().slice(0, 10),
-        original_value: '100000',
-        useful_life: 60,
-        depreciation_method: 'straight_line',
-        location: '一车间',
-      };
-
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/finance/fixed-assets',
-        assetData
-      );
-      const newAssetId = result.data?.id;
-      if (newAssetId) {
-        const depResult = await apiCall<{ depreciation_amount: string }>(
-          page,
-          'POST',
-          `/fixed-assets/${newAssetId}/depreciate`
-        );
-
-        if (depResult) {
-          expect(parseFloat(String(depResult.data?.depreciation_amount || '0'))).toBeGreaterThan(0);
-        }
-      }
-    }
+    // 拒绝路径：同一资产同一期间重复计提命中唯一约束 uk_fa_depreciation_records_asset_period，
+    // service 转 AppError::validation → HTTP 400（apiCallExpectFail 不抛错，直接读 status）。
+    const dup = await apiCallExpectFail(page, 'POST', `/fixed-assets/${assetId}/depreciate`, {
+      period,
+    });
+    expect(dup.status, '重复期间计提应被拒绝').toBeGreaterThanOrEqual(400);
+    expect(dup.status).toBeLessThan(500);
   });
 
   test('预算控制：超预算预警查询', async ({ page }) => {
-    // 查询预算执行预警
-    const warnings = await apiCallRaw<{
-      items: Array<{ budget_id: number; warning_type: string }>;
-    }>(page, 'GET', '/budgets/execution-warnings?page=1&page_size=50');
+    // budget_execution_warnings 的 handler 返回 ApiResponse{data: Vec<BudgetWarning>}，
+    // apiCallRaw 已解到 data 层，故这里是裸数组（非 {items} 分页对象）。
+    // 字段对照 models/dto/budget_management_dto.rs 的 BudgetWarning：主键是 plan_id、
+    // 预警级别字段是 warning_level（原用例误写 budget_id/warning_type 属字段臆测）。
+    const warnings = await apiCallRaw<
+      Array<{
+        plan_id: number;
+        plan_no: string;
+        warning_level: string;
+        execution_rate: string | number;
+      }>
+    >(page, 'GET', '/budgets/execution-warnings?page=1&page_size=50');
 
-    expect(warnings.items).toBeDefined();
+    expect(Array.isArray(warnings), 'execution-warnings 应返回裸数组').toBe(true);
+    // 逐条校验预警记录的真实契约：plan_id 为数字、级别只可能是 yellow/red
+    for (const w of warnings) {
+      expect(typeof w.plan_id).toBe('number');
+      expect(['yellow', 'red']).toContain(w.warning_level);
+    }
 
     // 查询预算列表
     const budgets = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(

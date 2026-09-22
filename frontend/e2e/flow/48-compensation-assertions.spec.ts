@@ -128,7 +128,7 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     // 发货仓库必须取真实仓库编码：ship.rs:135 按 warehouse::Column::WarehouseCode 查仓，
     // 原实现硬编码 `WH-MAIN` 在 CI 空库中不存在，会直接导致发货失败、后续凭证断言失去前提。
     const warehouseId = ctx.warehouseIds[0];
-    await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
+    const stockRow = await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
     const wh = await apiCallRaw<{ warehouse_code?: string }>(
       page,
       'GET',
@@ -136,13 +136,24 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     );
     const warehouseCode = wh?.warehouse_code;
     expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    expect(stockRow.batch_no, '发货前库存行应带批次号（四维出库入参来源）').toBeTruthy();
+    expect(stockRow.dye_lot_no, '发货前库存行应带缸号（四维出库入参来源）').toBeTruthy();
 
-    // 发货（ShipOrderRequest{order_id,warehouse_code,items[{product_id,quantity}]}——
-    // services/so/delivery.rs:37-61）
+    // 发货（ShipOrderRequest{order_id,warehouse_code,items[{product_id,quantity,
+    // color_no,batch_no,dye_lot_no}]}——services/so/delivery.rs:37-61；
+    // 出库按款号+色号+缸号+批次四维匹配扣减，维度取自真实入库库存行）
     await apiCall(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
       warehouse_code: warehouseCode,
-      items: [{ product_id: ctx.productIds[0], quantity: 5 }],
+      items: [
+        {
+          product_id: ctx.productIds[0],
+          quantity: 5,
+          color_no: stockRow.color_no,
+          batch_no: stockRow.batch_no,
+          dye_lot_no: stockRow.dye_lot_no,
+        },
+      ],
     });
     // 补偿产物：收入凭证按发货单挂账（source_bill_id/source_bill_no = 发货单），
     // 凭证里没有订单 ID，此前用 soId 在凭证 JSON 里找订单号，链路再好也不会命中。

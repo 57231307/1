@@ -58,11 +58,10 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   test('1-2 采购订单状态机：DRAFT → SUBMITTED → APPROVED', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      '前置步骤未创建采购订单（ctx.purchaseOrderId 缺失），本用例前置失败而非跳过'
+    ).toBeTruthy();
 
     // 验证初始状态
     const initial = await apiCallRaw<{ status: string; order_status?: string }>(
@@ -100,11 +99,10 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   test('1-3 验证非法状态转换被拒绝', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      '前置步骤未创建采购订单（ctx.purchaseOrderId 缺失），本用例前置失败而非跳过'
+    ).toBeTruthy();
 
     // 对已审批的订单再次提交 → 应拒绝
     await verifyIllegalTransition(page, '/purchase/orders', id, 'submit');
@@ -113,11 +111,10 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   test('1-4 创建入库单（创建匹号，双计量）', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      '前置步骤未创建采购订单（ctx.purchaseOrderId 缺失），本用例前置失败而非跳过'
+    ).toBeTruthy();
 
     const productId = ctx.productIds[0];
     expect(productId, '前置产品未创建（EntityContext.productIds 为空）').toBeTruthy();
@@ -446,11 +443,10 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   test('1-9 验证采购订单完整状态流转记录', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.purchaseOrderId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      '前置步骤未创建采购订单（ctx.purchaseOrderId 缺失），本用例前置失败而非跳过'
+    ).toBeTruthy();
 
     const order = await apiCallRaw<{ status: string; order_status?: string }>(
       page,

@@ -73,16 +73,21 @@ test.describe('库存调拨完整流程', () => {
       '/inventory/transfers',
       transferData
     );
-    const transferId = result.data?.id!;
-    expect(transferId).toBeDefined();
+    const transferId = result.data?.id;
+    expect(
+      transferId,
+      `调拨建单应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
-    // 验证初始状态
+    // 验证初始状态：build_transfer_active_model 默认写 PENDING
+    // （inventory_move.rs:210-212；调拨词表只有 pending/approved/rejected/shipped/completed，
+    //  无 draft——见 purchase_inventory.rs:63-78）
     const created = await apiCallRaw<{ status: string }>(
       page,
       'GET',
       `/inventory/transfers/${transferId}`
     );
-    expect(created.status.toLowerCase()).toBe('draft');
+    expect(created.status.toLowerCase()).toBe('pending');
 
     // 审批调拨
     // ApproveTransferRequest { approved: bool, notes? } 必填
@@ -94,14 +99,14 @@ test.describe('库存调拨完整流程', () => {
     );
     expect(approved.status.toLowerCase()).toBe('approved');
 
-    // 出库
+    // 出库：update_transfer_to_shipped 写 "shipped"（batch.rs:457，词表无 in_transit）
     await apiCall(page, 'POST', `/inventory/transfers/${transferId}/ship`);
     const shipped = await apiCallRaw<{ status: string }>(
       page,
       'GET',
       `/inventory/transfers/${transferId}`
     );
-    expect(shipped.status.toLowerCase()).toBe('in_transit');
+    expect(shipped.status.toLowerCase()).toBe('shipped');
 
     // 验证非法操作：在途状态不能再次出库
     const illegalShip = await apiCallExpectFail(
@@ -162,6 +167,11 @@ test.describe('库存调拨完整流程', () => {
           product_id: ctx.productIds[0],
           quantity: '1',
           color_no: ctx.colorNos[0],
+          // 染色布建单为 fail-closed 校验：color_no 非白坯时必须同时提供缸号与批号，
+          // 否则 create_transfer_items_and_compute_total 直接 400
+          // （inventory_move.rs:247-258）。缸号取前置数据真实值，批号为必填的非空追溯串。
+          dye_lot_no: ctx.dyeLotNo,
+          batch_no: 'E2E-BATCH-12NEG',
         },
       ],
     };
@@ -172,9 +182,13 @@ test.describe('库存调拨完整流程', () => {
       '/inventory/transfers',
       transferData
     );
-    const transferId = result.data?.id!;
+    const transferId = result.data?.id;
+    expect(
+      transferId,
+      `负例前置：调拨建单应返回 data.id，否则 URL 退化为 /undefined 会让非法转换断言假绿；实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
-    // draft 状态直接入库应被拒
+    // pending 状态直接入库应被拒
     const illegalReceive = await apiCallExpectFail(
       page,
       'POST',
@@ -182,7 +196,7 @@ test.describe('库存调拨完整流程', () => {
     );
     expect(illegalReceive.status).toBeGreaterThanOrEqual(400);
 
-    // draft 状态直接出库应被拒
+    // pending 状态直接出库应被拒
     const illegalShip = await apiCallExpectFail(
       page,
       'POST',

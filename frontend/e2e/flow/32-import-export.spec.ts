@@ -51,15 +51,24 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
   });
 
   // ===== 2. 客户导出 =====
-  test('客户：UI 导出→下载文件验证', async ({ page }) => {
+  test('客户：UI 导出→下载文件验证（无审批令牌时 fail-closed 403）', async ({ page }) => {
     test.setTimeout(120_000);
     const result = await uiExportDownload(page, '/customer', /导出|export|下载/i);
     console.log(
       `[P0-导出-客户] 结果: ${result ? `✅ 文件=${result.filename} 大小=${result.size}B` : '❌ 下载未触发'}`
     );
     if (!result) {
-      console.warn('[P0-导出-客户] 客户导出可能需要审批令牌（敏感资源 fail-closed），记录结果');
-      test.skip();
+      // customer 属敏感导出（customer_handler.rs:612 enforce_export_download("customer")）：
+      // 无 download_token 时后端 fail-closed 403，浏览器不会产生 download 事件。
+      // 这里把"未触发下载"转成对真实契约的可判责断言，而不是静默 skip。
+      const apiResp = await page.request.get(`${API_BASE}${API_PREFIX}/crm/customers/export`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      console.log(`[P0-导出-客户] 无令牌 API 导出 HTTP ${apiResp.status()}`);
+      expect(
+        apiResp.status(),
+        '客户导出未触发下载时，必须是后端 fail-closed 403（其他状态=导出链路缺陷）'
+      ).toBe(403);
       return;
     }
     expect(result.size, '导出文件应 >1KB').toBeGreaterThan(1024);
@@ -69,15 +78,22 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
   });
 
   // ===== 3. 供应商导出 =====
-  test('供应商：UI 导出→下载文件验证', async ({ page }) => {
+  test('供应商：UI 导出→下载文件验证（无审批令牌时 fail-closed 403）', async ({ page }) => {
     test.setTimeout(120_000);
     const result = await uiExportDownload(page, '/supplier', /导出|export|下载/i);
     console.log(
       `[P0-导出-供应商] 结果: ${result ? `✅ 文件=${result.filename} 大小=${result.size}B` : '❌ 下载未触发'}`
     );
     if (!result) {
-      console.warn('[P0-导出-供应商] 供应商导出可能需要审批令牌（敏感资源），记录结果');
-      test.skip();
+      // supplier 同为敏感导出（supplier_handler.rs:356 enforce_export_download("supplier")）
+      const apiResp = await page.request.get(`${API_BASE}${API_PREFIX}/purchase/suppliers/export`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      console.log(`[P0-导出-供应商] 无令牌 API 导出 HTTP ${apiResp.status()}`);
+      expect(
+        apiResp.status(),
+        '供应商导出未触发下载时，必须是后端 fail-closed 403（其他状态=导出链路缺陷）'
+      ).toBe(403);
       return;
     }
     expect(result.size, '导出文件应 >1KB').toBeGreaterThan(1024);
@@ -91,14 +107,10 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     await page.waitForTimeout(1000);
 
-    // 找导入按钮
+    // 找导入按钮（views/product/tabs/ProductListTab.vue:115 工具栏"导入"按钮）
     const importBtn = page.getByRole('button', { name: /导入|import|上传/i }).first();
     const hasImportBtn = await importBtn.isVisible({ timeout: 5000 });
-    if (!hasImportBtn) {
-      console.log('[P0-导入-产品] 产品列表页无导入按钮，跳过');
-      test.skip();
-      return;
-    }
+    expect(hasImportBtn, '[P0-导入-产品] 产品列表页未渲染"导入"按钮（入口缺失=真缺陷）').toBe(true);
     console.log('[P0-导入-产品] 找到导入按钮');
 
     await importBtn.click();
@@ -109,28 +121,26 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     await dialog.waitFor({ state: 'visible', timeout: 10000 });
     console.log('[P0-导入-产品] 导入弹窗已打开');
 
-    // 下载模板
+    // 下载模板（ImportDialogTab.vue:24 有"下载模板"按钮）
     const templateBtn = dialog.getByRole('button', { name: /模板|template|下载/i }).first();
     const hasTemplate = await templateBtn.isVisible({ timeout: 3000 });
-    if (hasTemplate) {
-      // 前端 handleDownloadTemplate 走 axios blob + ElMessage.success，不触发浏览器 download 事件
-      const successToast = page.locator('.el-message--success, .el-message--info').first();
-      await templateBtn.click();
-      // 模板下载走 blob 返回（无 download 事件），等成功/提示可见即视为可达
-      await successToast.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
-      console.log('[P0-导入-产品] 模板下载入口可达');
-    } else {
-      console.warn('[P0-导入-产品] 导入弹窗无模板下载按钮');
-    }
+    expect(hasTemplate, '[P0-导入-产品] 导入弹窗未渲染"下载模板"按钮').toBe(true);
+    // 前端 handleDownloadTemplate 走 axios blob + ElMessage.success，不触发浏览器 download 事件
+    const successToast = page.locator('.el-message--success, .el-message--info').first();
+    await templateBtn.click();
+    // 模板下载走 blob 返回（无 download 事件），等成功/提示可见即视为可达
+    await successToast.waitFor({ state: 'visible', timeout: 10000 });
+    console.log('[P0-导入-产品] 模板下载入口可达');
 
     // 上传文件（用下载的模板或新建临时 CSV）
+    // el-upload 的原生 input 被 Element Plus 隐藏（isVisible 恒 false），
+    // 判据应为"控件存在"，setInputFiles 对隐藏 input 同样生效
     const fileInput = dialog.locator('input[type="file"]').first();
-    const hasFileInput = await fileInput.isVisible({ timeout: 3000 });
-    if (!hasFileInput) {
-      console.log('[P0-导入-产品] 导入弹窗无文件输入控件，跳过上传');
-      test.skip();
-      return;
-    }
+    const fileInputCount = await dialog.locator('input[type="file"]').count();
+    expect(
+      fileInputCount,
+      '[P0-导入-产品] 导入弹窗（ImportDialogTab el-upload）未渲染文件输入控件'
+    ).toBeGreaterThan(0);
 
     // 创建临时测试文件
     const tmpFile = `/tmp/p0-import-product-${TS}.csv`;
@@ -141,20 +151,52 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     await page.waitForTimeout(1000);
     console.log('[P0-导入-产品] 文件已上传');
 
-    // 点击确认导入
-    const submitBtn = dialog.getByRole('button', { name: /确定|确认|导入|上传/i }).first();
-    if (await submitBtn.isVisible({ timeout: 5000 })) {
-      await submitBtn.click();
-      console.log('[P0-导入-产品] 已点击确认导入');
-    }
+    // 点击确认导入（ImportDialogTab 的 handleSubmit → POST /products/import）
+    const submitBtn = dialog.getByRole('button', { name: /确定|确认|导入|上传/i }).last();
+    expect(
+      await submitBtn.isVisible({ timeout: 5000 }),
+      '[P0-导入-产品] 导入弹窗未渲染"确认导入"按钮'
+    ).toBe(true);
+    const importRespPromise = page
+      .waitForResponse(
+        r => r.url().includes('/products/import') && r.request().method() === 'POST',
+        { timeout: 30000 }
+      )
+      .catch(() => null);
+    await submitBtn.click();
+    console.log('[P0-导入-产品] 已点击确认导入');
 
-    // 等待结果
-    await page.waitForTimeout(5000);
-    const message = page.locator('.el-message__content').last();
-    const messageText = await message.textContent();
-    console.log(`[P0-导入-产品] 导入结果消息: ${messageText || '无消息'}`);
+    // 导入结果必须真实落库：后端 ImportResult{total_count,success_count,error_count,errors}
+    const importResp = await importRespPromise;
+    expect(
+      importResp,
+      '[P0-导入-产品] 点击确认导入后未发出 POST /products/import 请求'
+    ).toBeTruthy();
+    expect(importResp!.status(), `POST /products/import 应 200，实际 ${importResp!.status()}`).toBe(
+      200
+    );
+    const importBody = (await importResp!.json()) as {
+      data?: {
+        total_count?: number;
+        success_count?: number;
+        error_count?: number;
+        errors?: unknown;
+      };
+    } | null;
+    const importResult = importBody?.data ?? {};
+    console.log(
+      `[P0-导入-产品] 导入结果: total=${importResult.total_count} success=${importResult.success_count} error=${importResult.error_count} errors=${JSON.stringify(importResult.errors ?? [])}`
+    );
+    expect(
+      importResult.total_count,
+      `导入结果应解析到 1 行数据，实际：${JSON.stringify(importBody).slice(0, 200)}`
+    ).toBe(1);
+    expect(
+      importResult.success_count,
+      `导入应成功 1 条，失败详情：${JSON.stringify(importResult.errors ?? [])}`
+    ).toBe(1);
 
-    // 验证导入的数据出现在列表中
+    // 等待列表刷新后回读导入的产品
     await page.reload();
     await page.waitForTimeout(2000);
     const importedProductCode = `P0-IMP-${TS}`;
@@ -164,7 +206,7 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
       .first()
       .isVisible({ timeout: 10000 });
     console.log(
-      `[P0-导入-产品] 导入数据列表回读: ${found ? '✅ 列表中找到导入的产品' : '❌ 列表中未找到（可能导入失败或列表分页）'}`
+      `[P0-导入-产品] 导入数据列表回读: ${found ? '✅ 列表中找到导入的产品' : '❌ 首页未找到（列表分页/排序所致，落库已由导入结果断言）'}`
     );
     console.log('[P0-导入-产品] ✅ 导入全流程验证完成');
   });
@@ -176,10 +218,9 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     console.log(
       `[P0-导出-仓库] 结果: ${result ? `✅ 文件=${result.filename} 大小=${result.size}B` : '❌ 下载未触发'}`
     );
-    if (!result) {
-      test.skip();
-      return;
-    }
+    // /warehouses/export（routes/catalog.rs:91）未接 enforce_export_download，
+    // 不属敏感导出：点击导出必须产生下载文件，否则是导出链路缺陷
+    expect(result, '[P0-导出-仓库] 仓库导出未被审批门控，UI 点击必须触发下载').toBeTruthy();
     expect(result.size, '导出文件应 >512B').toBeGreaterThan(512);
     const ext = path.extname(result.filename).toLowerCase();
     expect(['.xlsx', '.csv', '.json', '.xls']).toContain(ext);
@@ -187,7 +228,7 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
   });
 
   // ===== 6. BOM 导出 =====
-  test('BOM：UI 导出→下载文件验证', async ({ page }) => {
+  test('BOM：UI 导出→下载文件验证', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE_URL}/bom`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
@@ -196,7 +237,16 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     const exportBtn = page.getByRole('button', { name: /导出|export|下载/i }).first();
     const hasExport = await exportBtn.isVisible({ timeout: 5000 });
     if (!hasExport) {
-      console.log('[P0-导出-BOM] BOM 列表页无导出按钮，跳过');
+      // 功能真实缺失：views/bom/index.vue 无导出入口，后端亦未注册 /boms/export
+      // （routes/catalog.rs bom 路由组仅有 CRUD/submit/approve/tree/requirements/print）
+      testInfo.annotations.push({
+        type: 'skipped',
+        description:
+          'BOM 导出功能未实现：前端 views/bom 无导出按钮，后端无 /boms/export 路由（非数据缺失）',
+      });
+      console.error(
+        '[P0-导出-BOM] ❌ 跳过：BOM 导出功能未实现（前端无按钮 + 后端无 /boms/export 路由）'
+      );
       test.skip();
       return;
     }
@@ -204,10 +254,6 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     const downloadPromise = page.waitForEvent('download', { timeout: 30000 });
     await exportBtn.click();
     const download = await downloadPromise;
-    if (!download) {
-      test.skip();
-      return;
-    }
 
     const filename = download.suggestedFilename();
     const dlPath = await download.path();

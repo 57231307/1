@@ -45,21 +45,66 @@ test.describe('面料单据专用字段全链路验证', () => {
       '/inventory/transfers',
       transferData
     );
-    const transferId = result.data?.id!;
+    const transferId = result.data?.id;
+    expect(transferId, '调拨建单应返回 id').toBeTruthy();
 
-    if (transferId) {
-      const detail = await apiCallRaw<{
-        status: string;
-        items: Array<Record<string, unknown>>;
-      }>(page, 'GET', `/inventory/transfers/${transferId}`);
+    // GET /inventory/transfers/{id} 返回 InventoryTransferDetail（含 items，
+    // get_transfer_detail 在 inventory_move.rs:131-174 联查明细；
+    // 明细出参含 color_no/dye_lot_no/batch_no——mod.rs:67-70）
+    const detail = await apiCallRaw<{
+      status: string;
+      items: Array<Record<string, unknown>>;
+    }>(page, 'GET', `/inventory/transfers/${transferId}`);
 
-      expect(detail.items?.length).toBeGreaterThan(0);
-      const item = detail.items?.[0];
+    expect(detail.items.length, '建单明细必须可在详情中读回').toBeGreaterThan(0);
+    const item = detail.items[0];
 
-      expect(item.color_no).toBe(colorNo);
-      expect(item.dye_lot_no).toBe(dyeLotNo);
-      expect(item.batch_no).toBe(batchNo);
-    }
+    // 面料追溯三件套：三列都必须等于建单时传入的真实值（fail-closed 写入
+    // inventory_move.rs:282-288，出参如实回传）
+    expect(item.color_no, '调拨明细 color_no 应等于建单传入值').toBe(colorNo);
+    expect(item.dye_lot_no, '调拨明细 dye_lot_no 应等于建单传入缸号').toBe(dyeLotNo);
+    expect(item.batch_no, '调拨明细 batch_no 应等于建单传入批号').toBe(batchNo);
+  });
+
+  // ============================================================
+  // add_item 端点（POST /inventory/transfers/{id}/items）的追溯字段写入验证。
+  // batch.rs:1073-1076 的 add_item 把 color_no/dye_lot_no/batch_no 置 NotSet
+  // （"让 DB 默认值处理"），入参被整体丢弃——下列断言按契约（DTO 收这三字段、
+  // 出参 DTO 回传这三字段）写，会在 CI 暴露该缺陷，不做绕行。
+  // ============================================================
+  test('库存调拨 add_item：追溯三字段必须随请求落库并回显', async ({ page }) => {
+    const ctx = getCtx();
+
+    // 先建一张无明细的调拨单（items 为空 → 不触发明细级校验）
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
+      from_warehouse_id: ctx.warehouseIds[0],
+      to_warehouse_id: ctx.warehouseIds[1] || ctx.warehouseIds[0],
+      transfer_date: new Date().toISOString(),
+      notes: 'E2E add_item 追溯字段验证',
+      items: [],
+    });
+    const transferId = created.data?.id;
+    expect(transferId, '调拨单创建应返回 id').toBeTruthy();
+
+    const colorNo = ctx.colorNos[0];
+    const dyeLotNo = ctx.dyeLotNo;
+    const batchNo = genCode('BN-ADD');
+
+    const added = await apiCallRaw<{
+      color_no: string | null;
+      dye_lot_no: string | null;
+      batch_no: string | null;
+    }>(page, 'POST', `/inventory/transfers/${transferId}/items`, {
+      product_id: ctx.productIds[0],
+      quantity: '1',
+      color_no: colorNo,
+      dye_lot_no: dyeLotNo,
+      batch_no: batchNo,
+    });
+
+    expect(added.color_no, 'add_item 必须回写入参 color_no').toBe(colorNo);
+    expect(added.dye_lot_no, 'add_item 必须回写入参 dye_lot_no').toBe(dyeLotNo);
+    expect(added.batch_no, 'add_item 必须回写入参 batch_no').toBe(batchNo);
   });
 
   // ============================================================
@@ -97,20 +142,18 @@ test.describe('面料单据专用字段全链路验证', () => {
       remarks: 'E2E 测试配方',
     };
 
-    let recipeId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/production/dye-recipes',
-        recipeData
-      );
-      recipeId = result.data?.id!;
-    } catch (e) {
-      // 创建失败直接暴露（兜底旧配方无自建字段，精确断言会失真）
-      throw e;
-    }
-    expect(recipeId).toBeDefined();
+    // 创建失败由 apiCall 非 2xx 抛错直接暴露（兜底旧配方无自建字段，精确断言会失真）
+    const recipeResult = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/dye-recipes',
+      recipeData
+    );
+    const recipeId = recipeResult.data?.id;
+    expect(
+      recipeId,
+      `染色配方创建应返回 data.id，实际响应：${JSON.stringify(recipeResult).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (recipeId) {
       const detail = await apiCallRaw<Record<string, unknown>>(
@@ -210,7 +253,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       '/production/greige-fabrics',
       fabricData
     );
-    const fabricId = result.data?.id!;
+    const fabricId = result.data?.id;
+    expect(
+      fabricId,
+      `坯布创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (fabricId) {
       const detail = await apiCallRaw<Record<string, unknown>>(

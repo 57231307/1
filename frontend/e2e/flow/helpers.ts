@@ -1518,12 +1518,16 @@ export async function ensureStockInWarehouse(
   preferredWarehouseId: number | undefined,
   colorNo?: string
 ): Promise<Record<string, unknown>> {
+  // 出库四维扣减（款号+色号+缸号+批次）要求库存行必须带全三个文本维度，
+  // 只返回"完整四维行"；缺缸号/批次的历史行不可用于出库，不作为命中结果。
+  const hasFullDims = (r: Record<string, unknown>) =>
+    Boolean(r.color_no) && Boolean(r.batch_no) && Boolean(r.dye_lot_no);
   const listStock = async (warehouseId?: number) => {
     let path = `/inventory/stock?product_id=${productId}&page=1&page_size=50`;
     if (warehouseId) path += `&warehouse_id=${warehouseId}`;
     if (colorNo) path += `&color_no=${encodeURIComponent(colorNo)}`;
     const res = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(page, 'GET', path);
-    return res.items?.[0];
+    return res.items?.find(hasFullDims);
   };
 
   // 1. 优先查指定仓库（用传入的仓库 ID，而非漂移的 ctx）
@@ -1536,30 +1540,74 @@ export async function ensureStockInWarehouse(
   });
   if (inWarehouse) return inWarehouse;
 
-  // 2. 任意仓库有该产品库存 → 直接用（以真实数据为准）
+  // 2. 任意仓库有该产品完整四维库存行 → 直接用（以真实数据为准）
   const anywhere = await listStock().catch(e => {
     console.warn('[ensureStockInWarehouse] 全仓库库存查询失败:', (e as Error).message);
     return undefined;
   });
   if (anywhere) return anywhere;
 
-  // 3. 都没有 → 在指定仓库创建（调用方须保证仓库已存在，缺失时错误真实暴露）
+  // 3. 都没有 → 在指定仓库创建带全四维的库存行
+  // （调用方须保证仓库已存在，缺失时错误真实暴露）
   await apiCall(page, 'POST', '/inventory/stock/fabric', {
     warehouse_id: preferredWarehouseId,
     product_id: productId,
     batch_no: `E2E-STK${Date.now().toString().slice(-6)}`,
     color_no: colorNo || 'TEST-COLOR',
+    dye_lot_no: genDyeLotNo(),
     grade: '一等品',
     quantity_meters: '10000',
     quantity_kg: '5000',
   });
-  const created = await listStock(preferredWarehouseId).catch(e => {
-    console.warn('[ensureStockInWarehouse] 创建后库存查询失败:', (e as Error).message);
-    return undefined;
-  });
+  const created = await listStock(preferredWarehouseId);
   if (created) return created;
-  // 创建后仍查不到（理论异常）：返回空对象由调用方处理
-  return {};
+  // 入库成功却查不到该行不是"理论异常"，而是四维追溯链在本环境断了
+  // （创建返回 200 但按 product+warehouse+color 筛不到）。原先返回 {} 让调用方
+  // 拿到 undefined 的 stock id，故障现场变成一个 404 或"读取属性失败"，
+  // 看起来像产品缺陷。此处直接把筛选用条件打出来，失败原因一眼可判。
+  throw new Error(
+    `[ensureStockInWarehouse] POST /inventory/stock/fabric 成功但按 product_id=${productId}` +
+      ` warehouse_id=${preferredWarehouseId ?? '任意'} color_no=${colorNo ?? '未指定'}` +
+      ` 筛不到带全四维（color_no/batch_no/dye_lot_no 齐全）的库存行——` +
+      `要么创建未落库，要么落库行缺维度，见 reports/backend.log`
+  );
+}
+
+/**
+ * 按出库四维（款号+色号+缸号+批次）入库一行专属库存，返回真实库存行。
+ * 维度组合由调用方指定（每轮唯一），断言可对该行做精确前后比较。
+ */
+export async function seedFourDimStockIn(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    colorNo: string;
+    dyeLotNo: string;
+    batchNo: string;
+    quantityMeters: string;
+  }
+): Promise<Record<string, unknown>> {
+  await apiCall(page, 'POST', '/inventory/stock/fabric', {
+    warehouse_id: opts.warehouseId,
+    product_id: opts.productId,
+    batch_no: opts.batchNo,
+    color_no: opts.colorNo,
+    dye_lot_no: opts.dyeLotNo,
+    grade: '一等品',
+    quantity_meters: opts.quantityMeters,
+    quantity_kg: opts.quantityMeters,
+  });
+  const row = await verifyStockFourDim(page, opts.productId, opts.colorNo, opts.dyeLotNo, {
+    batchNo: opts.batchNo,
+    warehouseId: opts.warehouseId,
+  });
+  if (!row) {
+    throw new Error(
+      `[seedFourDimStockIn] 入库后查不到四维库存行：product=${opts.productId} color=${opts.colorNo} dye=${opts.dyeLotNo} batch=${opts.batchNo} warehouse=${opts.warehouseId}`
+    );
+  }
+  return row;
 }
 
 export async function verifyAuditLog(

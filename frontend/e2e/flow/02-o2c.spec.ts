@@ -120,11 +120,10 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
   test('2-3 验证报价单非法转换被拒绝', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.quotationId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      'ensureTestEntities/2-1 未建出报价单（ctx.quotationId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     // 前置：先驱动到 approved。2-1 创建的报价单是 draft，直接 submit 属合法转换，
     // 后端小额自批（金额 < 10 万）会直接返回 200，负例就失去了前提。
@@ -143,11 +142,10 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
   test('2-4 转为销售订单', async ({ page }) => {
     const ctx = getCtx();
     const qid = ctx.quotationId;
-    if (!qid) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      qid,
+      'ensureTestEntities/2-1 未建出报价单（ctx.quotationId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     // 后端规则：仅 approved 状态可转订单；2-1 仅创建为 draft，这里先 submit+approve（小额自批兼容）
     const before = await apiCallRaw<{ status?: string }>(page, 'GET', `/quotations/${qid}`);
@@ -223,11 +221,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
   test('2-6 发货（扫码匹号出库，双计量扣减）', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.salesOrderId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(id, '2-4 未产出销售订单，发货链路无从验证').toBeTruthy();
 
     const pieceNo1 = genPieceNo(dyeLotNo, 1);
     const pieceNo2 = genPieceNo(dyeLotNo, 2);
@@ -235,6 +229,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     // warehouse_code：从仓库列表取第一个真实编码（ShipOrderRequest 传 code 而非 id）
     // 注意 warehouse 列表字段名为 warehouse_code（非 code）
     let warehouseCode = 'WH001';
+    let warehouseId = ctx.warehouseIds[0] || 1;
     const whs = await apiCallRaw<{
       items?: Array<{ id: number; warehouse_code?: string; code?: string }>;
     }>(page, 'GET', '/warehouses?page=1&page_size=10');
@@ -242,6 +237,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const code = whMatch?.warehouse_code || whMatch?.code;
     if (code) {
       warehouseCode = code;
+      warehouseId = whMatch!.id;
       console.log(`[2-6] 发货仓库: id=${whMatch?.id} code=${warehouseCode}`);
     } else {
       console.error(
@@ -249,9 +245,28 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       );
     }
 
+    // 出库四维扣减（款号+色号+缸号+批次）：先按本次出库要用的四个维度真实入库两行，
+    // 再用同四维出库；不依赖种子库存行（种子行维度与本轮生成的匹号/缸号无关）。
+    await seedFourDimStockIn(page, {
+      productId: ctx.productIds[0] || 1,
+      warehouseId,
+      colorNo: 'RED-001',
+      dyeLotNo,
+      batchNo: pieceNo1,
+      quantityMeters: '600',
+    });
+    await seedFourDimStockIn(page, {
+      productId: ctx.productIds[0] || 1,
+      warehouseId,
+      colorNo: 'RED-001',
+      dyeLotNo,
+      batchNo: pieceNo2,
+      quantityMeters: '400',
+    });
+
     await apiCall(page, 'POST', `/sales/orders/${id}/ship`, {
       // 后端 ShipOrderRequest 必填 order_id + warehouse_code（非 warehouse_id），
-      // items 仅接受 product_id/quantity/batch_no/color_no/dye_lot_no（匹号映射到 batch_no）
+      // items 接受 product_id/quantity/batch_no/color_no/dye_lot_no，出库按四维匹配扣减
       order_id: id,
       warehouse_code: warehouseCode,
       items: [
@@ -346,11 +361,10 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
   test('2-9 分次收款（50% + 50%）', async ({ page }) => {
     const ctx = getCtx();
-    if (!ctx.arInvoiceId) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      ctx.arInvoiceId,
+      '2-8 未创建分次收款专用应收单（ctx.arInvoiceId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     // 第一次收款 50%（invoice_ids 复数字段对应后端 CreateArPaymentRequest）
     await apiCall(page, 'POST', '/ar/payments', {

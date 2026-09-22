@@ -44,29 +44,43 @@ test.describe('列表交互与状态显示', () => {
     }
   });
 
-  test('库存列表：空数据展示验证', async ({ page }) => {
+  test('库存列表：构造空筛选结果集并验证空态展示', async ({ page }) => {
     await page.goto(`${BASE_URL}/inventory`);
-    await page.waitForTimeout(3000);
 
-    const table = page
-      .locator(
-        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
-      )
-      .first();
-    const empty = page.locator('.el-empty, .el-table__empty-block, .el-table__empty-text').first();
-
+    // 库存台账 tab 默认加载（V2Table/el-table-v2，非 .el-table）
+    const table = page.locator('.v2-table-wrapper, [role="table"]').first();
     await table.waitFor({ state: 'visible', timeout: 15_000 });
 
-    const tableVisible = await table.isVisible();
-    await empty.waitFor({ state: 'visible', timeout: 5_000 });
-    const emptyVisible = await empty.isVisible();
-    expect(tableVisible || emptyVisible).toBe(true);
+    // 原实现在此处直接 waitFor .el-table__empty-block 可见——表格有数据时
+    // 空态块恒 hidden（call log: resolved to hidden ×14），前提不成立。
+    // 改为用可构造的筛选条件构造空集：关键词在后端按产品编码/名称 LIKE 下推，
+    // 无任何产品命中时显式返回空集（inventory_stock_service.rs:327-330）。
+    const keywordInput = page.locator('.filter-card input:visible').first();
+    await keywordInput.waitFor({ state: 'visible', timeout: 5_000 });
+    const noMatchKeyword = `NOMATCH-${Date.now()}`;
+    await keywordInput.fill(noMatchKeyword);
 
-    if (tableVisible) {
-      const headers = page.locator('.el-table__header th, .el-table__header-wrapper th');
-      const headerCount = await headers.count();
-      expect(headerCount).toBeGreaterThan(0);
-    }
+    const responsePromise = page.waitForResponse(
+      res => res.url().includes('/inventory/stock') && res.url().includes('page='),
+      { timeout: 30_000 }
+    );
+    await page.locator('.filter-card button:has-text("查询")').first().click();
+    const res = await responsePromise;
+    const body = await res.json();
+
+    // 后端真实形态：分页对象 {items,total}，非匹配关键词必须返回 total=0 空集
+    expect(body?.data?.total, `关键词 ${noMatchKeyword} 应命中 0 条`).toBe(0);
+    expect(
+      Array.isArray(body?.data?.items) && body.data.items.length,
+      '空筛选结果的 items 应为空数组'
+    ).toBe(0);
+
+    // 空态呈现：el-table-v2 空占位必须可见
+    const emptyBlock = page
+      .locator('.el-table-v2__empty, .el-empty, .el-table__empty-block')
+      .first();
+    await emptyBlock.waitFor({ state: 'visible', timeout: 10_000 });
+    expect(await emptyBlock.isVisible()).toBe(true);
   });
 
   test('仪表盘加载状态和图表渲染', async ({ page }) => {

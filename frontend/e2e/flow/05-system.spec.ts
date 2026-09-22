@@ -167,38 +167,36 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       notes: 'E2E 定制订单',
     });
     ctx.customOrderId = result.data?.id;
+    expect(ctx.customOrderId, '5-7 定制订单创建未返回 id，7 阶段状态机断言无法执行').toBeTruthy();
 
-    if (ctx.customOrderId) {
-      const order = await apiCallRaw<{ status: string }>(
-        page,
-        'GET',
-        `/custom-orders/${ctx.customOrderId}`
-      );
-      const status = (order.status || '').toLowerCase();
-      expect([
-        'draft',
-        'lab_dip',
-        'quotation',
-        'yarn_purchasing',
-        'dyeing',
-        'finishing',
-        'delivery',
-        'after_sales',
-        'completed',
-        'cancelled',
-        'pending',
-      ]).toContain(status ?? '(missing-status)');
-    }
+    const order = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/custom-orders/${ctx.customOrderId}`
+    );
+    const status = (order.status || '').toLowerCase();
+    expect([
+      'draft',
+      'lab_dip',
+      'quotation',
+      'yarn_purchasing',
+      'dyeing',
+      'finishing',
+      'delivery',
+      'after_sales',
+      'completed',
+      'cancelled',
+      'pending',
+    ]).toContain(status ?? '(missing-status)');
   });
 
   test('5-8 定制订单状态门校验（非法跳跃应拒绝）', async ({ page }) => {
     const ctx = getCtx();
     const id = ctx.customOrderId;
-    if (!id) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(
+      id,
+      '5-7/ensureTestEntities 未建出定制订单（ctx.customOrderId 缺失），本用例前置失败'
+    ).toBeTruthy();
 
     // 直接从 draft 跳到 dyeing → 应拒绝（需要先完成 lab_dip + quotation）
     const result = await apiCallExpectFail(page, 'POST', `/custom-orders/${id}/advance`, {

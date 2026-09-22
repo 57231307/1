@@ -121,7 +121,11 @@ test.describe('面料单据专用字段全链路验证', () => {
     };
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', cardData);
-    const cardId = result.data?.id!;
+    const cardId = result.data?.id;
+    expect(
+      cardId,
+      `色卡创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (cardId) {
       const detail = await apiCallRaw<{

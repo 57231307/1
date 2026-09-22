@@ -23,13 +23,16 @@ test.describe('P5.5 2FA TOTP', () => {
     const collector = trackPageHealth(page);
 
     // 1. setup 拿 secret（后端 GET /auth/totp/setup，非 POST）
-    const setupResp = await apiCall(page, 'GET', '/auth/totp/setup');
-    const secret = setupResp?.secret ?? setupResp?.data?.secret;
-    if (!secret) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    const setupResp = await apiCall<{ secret?: string; qr_code?: string }>(
+      page,
+      'GET',
+      '/auth/totp/setup'
+    );
+    const secret = setupResp?.data?.secret;
+    expect(
+      secret,
+      `GET /auth/totp/setup 未返回 secret（响应：${JSON.stringify(setupResp).slice(0, 200)}），TOTP 前置失败`
+    ).toBeTruthy();
 
     // 2. 生成 TOTP
     const totpCode = generateTotp(secret);
@@ -49,13 +52,16 @@ test.describe('P5.5 2FA TOTP', () => {
   test('错 TOTP code 拒绝', async ({ page }) => {
     await loginViaUI(page);
 
-    const setupResp = await apiCall(page, 'GET', '/auth/totp/setup');
-    const secret = setupResp?.secret ?? setupResp?.data?.secret;
-    if (!secret) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    const setupResp = await apiCall<{ secret?: string; qr_code?: string }>(
+      page,
+      'GET',
+      '/auth/totp/setup'
+    );
+    const secret = setupResp?.data?.secret;
+    expect(
+      secret,
+      `GET /auth/totp/setup 未返回 secret（响应：${JSON.stringify(setupResp).slice(0, 200)}），TOTP 前置失败`
+    ).toBeTruthy();
 
     // 故意用错 code（后端 TotpVerifyRequest { token }，字段名为 token）
     // 负向测试：错 code 触发 apiCall 抛错（code!=200），catch 转 null 供断言
@@ -71,13 +77,19 @@ test.describe('P5.5 2FA TOTP', () => {
     await loginViaUI(page);
 
     // 后端真实路径为 /auth/totp/recovery-codes（nest 在 /auth 下的 totp 子组）
-    const recoveryResp = await apiCall(page, 'POST', '/auth/totp/recovery-codes');
-    const codes = recoveryResp?.codes ?? recoveryResp?.data?.codes;
-    if (!codes || !Array.isArray(codes) || codes.length === 0) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    // generate_recovery_codes 返回 ApiResponse<Vec<String>>：data 就是恢复码数组本身，
+    // 此前按 resp.codes / resp.data.codes 取值恒为 undefined → 用例每轮静默跳过（假绿）
+    const recoveryResp = await apiCall<string[]>(page, 'POST', '/auth/totp/recovery-codes');
+    const codes = recoveryResp.data;
+    expect(
+      Array.isArray(codes),
+      `恢复码 data 应为字符串数组，实际：${JSON.stringify(recoveryResp).slice(0, 200)}`
+    ).toBe(true);
+    expect(codes.length, '恢复码应至少生成 1 条').toBeGreaterThan(0);
+    expect(
+      codes.every(c => typeof c === 'string' && c.length > 0),
+      `恢复码每条应为非空字符串，实际：${JSON.stringify(codes).slice(0, 200)}`
+    ).toBe(true);
 
     // 恢复码应是一次性的
     expect(codes.length).toBeGreaterThan(0);

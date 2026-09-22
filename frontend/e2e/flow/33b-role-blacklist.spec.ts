@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginAsRole } from './helpers';
+import { loginAsRole, apiCall, apiCallRaw } from './helpers';
 
 /**
  * 33b 角色黑名单端到端验证（doto 2026-09-09 print/export 角色黑名单缺口）
@@ -27,27 +27,74 @@ const API_PREFIX = '/api/v1/erp';
 const BLACKLIST_ROLES = ['customer', 'temporary'];
 
 test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
+  /**
+   * 打印黑名单断言的目标 BOM：由 admin 在本组用例前真实创建。
+   * 此前打死 boms/1，种子库无该 BOM 时返回 404 → test.skip 静默跳过，
+   * 黑名单是否生效从未被验证（假绿）。
+   */
+  let printBomId = 0;
+  let printBomDiag = '';
+
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    try {
+      await loginAsRole(page, 'admin');
+      const products = await apiCallRaw<Array<{ id: number }> | { items?: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/products?page=1&page_size=1'
+      );
+      const productList = Array.isArray(products) ? products : (products?.items ?? []);
+      let productId = productList[0]?.id;
+      if (!productId) {
+        const created = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+          name: `33b黑名单产品${Date.now().toString().slice(-6)}`,
+          code: `33B-P${Date.now().toString().slice(-6)}`,
+          unit: '米',
+          status: 'active',
+        });
+        productId = created?.data?.id;
+      }
+      if (!productId) {
+        throw new Error(`BOM 前置产品不可用（列表 0 条且创建未返回 id）`);
+      }
+      const bom = await apiCall<{ bom?: { id?: number }; id?: number }>(page, 'POST', '/boms', {
+        product_id: productId,
+        version: 1,
+        is_default: false,
+        status: 'ACTIVE',
+        items: [{ material_id: productId, quantity: 1, unit: '米' }],
+      });
+      printBomId = bom?.data?.bom?.id ?? bom?.data?.id ?? 0;
+      if (!printBomId) {
+        throw new Error(`POST /boms 未返回 id：${JSON.stringify(bom).slice(0, 200)}`);
+      }
+      console.log(`[33b] 打印黑名单目标 BOM 已创建 id=${printBomId}`);
+    } catch (e) {
+      printBomDiag = (e as Error).message;
+      console.error(`[33b] ❌ 打印黑名单目标 BOM 创建失败: ${printBomDiag}`);
+    } finally {
+      await page.close().catch(e => {
+        console.warn(`[33b] beforeAll 临时 page 关闭失败: ${(e as Error).message}`);
+      });
+    }
+  });
+
   for (const role of BLACKLIST_ROLES) {
-    test(`${role} 持 boms:print 权限码调用 /boms/1/print → 403`, async ({ page }) => {
+    test(`${role} 持 boms:print 权限码调用 /boms/{id}/print → 403`, async ({ page }) => {
       await loginAsRole(page, role);
       console.log(`[33b] ${role} 登录成功（凭证据 ensureRoleUsers 补建）`);
+      expect(
+        printBomId,
+        `beforeAll 未建出打印目标 BOM（${printBomDiag || '无诊断信息'}），黑名单断言无法执行`
+      ).toBeTruthy();
 
-      const resp = await page.request.get(`${API_BASE}${API_PREFIX}/boms/1/print`);
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}/boms/${printBomId}/print`);
 
       const status = resp.status();
-      if (status === 404) {
-        // 无 BOM 种子数据：404 在黑名单判断之前/资源侧，单独记录
-        test.info().annotations.push({
-          type: 'missing-data',
-          description: 'boms/1 不存在（种子缺失），打印黑名单断言需种子数据',
-        });
-        console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-        test.skip();
-        return;
-      }
       expect(
         status,
-        `${role} 在 PRINT_DENIED 黑名单，持权限码也应 403，实际 ${status}` +
+        `${role} 在 PRINT_DENIED 黑名单，对真实存在的 BOM ${printBomId} 持权限码也应 403，实际 ${status}` +
           (status === 200 ? '（黑名单失效——真缺陷）' : '')
       ).toBe(403);
       console.log(`[33b] ✅ ${role} 打印黑名单生效 → 403`);
@@ -77,17 +124,9 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
 
     const resp = await page.request.get(`${API_BASE}${API_PREFIX}/production/dye-recipes/export`);
 
+    // GET /dye-recipes/export 由 routes/production.rs:135 注册（挂在 /api/v1/erp/production
+    // 域下），是列表级导出端点，与种子数据无关——404 只会是路由/前缀缺陷，必须硬失败暴露。
     const status = resp.status();
-    if (status === 404) {
-      // 无染料配方种子数据：404 在黑名单判断之前/资源侧，记录并跳过
-      test.info().annotations.push({
-        type: 'missing-data',
-        description: 'dye-recipes/1 不存在（种子缺失），黑名单断言需种子数据',
-      });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
     expect(status, `manager 在 DYE_RECIPE_EXPORT_DENIED 清单，导出应 403，实际 ${status}`).toBe(
       403
     );
@@ -96,24 +135,23 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
 
   test('admin 对照：同打印端点可达（区分端点缺失与黑名单拒绝）', async ({ page }) => {
     await loginAsRole(page, 'admin');
+    expect(
+      printBomId,
+      `beforeAll 未建出打印目标 BOM（${printBomDiag || '无诊断信息'}），admin 对照无法执行`
+    ).toBeTruthy();
 
-    const resp = await page.request.get(`${API_BASE}${API_PREFIX}/boms/1/print`);
+    const resp = await page.request.get(`${API_BASE}${API_PREFIX}/boms/${printBomId}/print`);
 
     const status = resp.status();
-    if (status === 404) {
-      // 无 BOM 种子数据：端点存在但数据缺失——admin 不在黑名单（200 短路）已由代码保证
-      test.info().annotations.push({
-        type: 'missing-data',
-        description: 'admin 对照 boms/1 404（种子缺失），端点存在性由 37 矩阵判定',
-      });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
-    // admin 可达（200=正常打印；403=admin 被黑名单误伤=真缺陷）
-    expect(status, `admin 对照应 200，实际 ${status}（403=admin 也被黑名单误伤）`).toBeLessThan(
-      403
+    // admin 不在黑名单：不应 403；BOM 由 beforeAll 真实创建：不应 404；不应 5xx。
+    expect(
+      status,
+      `admin 对真实 BOM ${printBomId} 打印不应被黑名单拒绝（403=admin 也被误伤）`
+    ).not.toBe(403);
+    expect(status, `admin 打印真实 BOM ${printBomId} 返回 404——BOM 前置失效或路由缺失`).not.toBe(
+      404
     );
+    expect(status, `admin 打印不应 5xx，实际 ${status}`).toBeLessThan(500);
     console.log(`[33b] ✅ admin 对照 ${status}（黑名单仅命中指定角色）`);
   });
 });

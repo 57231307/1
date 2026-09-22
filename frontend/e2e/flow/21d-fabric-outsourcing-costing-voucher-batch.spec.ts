@@ -42,7 +42,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       '/production/outsourcing-orders',
       orderData
     );
-    const orderId = result.data?.id!;
+    const orderId = result.data?.id;
+    expect(
+      orderId,
+      `委外加工订单创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (orderId) {
       // 添加发料明细（含面料追溯字段）
@@ -99,20 +103,18 @@ test.describe('面料单据专用字段全链路验证', () => {
       output_quantity_kg: outputKg,
     };
 
-    let costId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/production/cost-collections',
-        costData
-      );
-      costId = result.data?.id!;
-    } catch (e) {
-      // 创建失败直接暴露（兜底旧成本单无自建字段，精确断言会失真）
-      throw e;
-    }
-    expect(costId).toBeDefined();
+    // 创建失败直接暴露：apiCall 非 2xx 抛错即向上冒泡（原 try/catch 仅 throw e 属空转，已删除）
+    const result = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/cost-collections',
+      costData
+    );
+    const costId = result.data?.id;
+    expect(
+      costId,
+      `成本归集创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (costId) {
       const detail = await apiCallRaw<Record<string, unknown>>(
@@ -180,7 +182,11 @@ test.describe('面料单据专用字段全链路验证', () => {
     };
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
-    const voucherId = result.data?.id!;
+    const voucherId = result.data?.id;
+    expect(
+      voucherId,
+      `凭证创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (voucherId) {
       const detail = await apiCallRaw<{
@@ -242,7 +248,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       '/production/dye-batches',
       batchData
     );
-    const batchId = result.data?.id!;
+    const batchId = result.data?.id;
+    expect(
+      batchId,
+      `染色批次创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (batchId) {
       const detail = await apiCallRaw<{

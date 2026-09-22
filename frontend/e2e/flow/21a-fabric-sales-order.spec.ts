@@ -97,12 +97,22 @@ test.describe('面料单据专用字段全链路验证', () => {
     expect(item.color_name).toBe('宝蓝色');
     expect(item.pantone_code).toBe(pantoneCode);
     expect(item.grade_required).toBe('A');
-    expect(String(item.gram_weight)).toBe(gramWeight);
-    expect(String(item.width)).toBe(width);
-    expect(String(item.paper_tube_weight)).toBe('1.5');
+    // gram_weight / width / paper_tube_weight / base_price / final_price 在库中均为 DECIMAL(18,4)
+    //（见 migration/src/domain/system/mod.rs:341/349/352/356/370），rust_decimal 以带 scale 的
+    // 字符串出参：200→"200.0000"、1.5→"1.5000"、20.00→"20.0000"、25.50→"25.5000"。
+    // 故不能按输入的短字面量做 String 全等（原写法把 200 断成 "200"，实际 "200.0000" 必红），
+    // 改为按数值判等（真实精度语义）并校验 scale 被完整保留。
+    expect(Number(item.gram_weight)).toBe(200);
+    expect(String(item.gram_weight)).toBe('200.0000');
+    expect(Number(item.width)).toBe(150);
+    expect(String(item.width)).toBe('150.0000');
+    expect(Number(item.paper_tube_weight)).toBe(1.5);
+    expect(String(item.paper_tube_weight)).toBe('1.5000');
     expect(item.is_net_weight).toBe(true);
-    expect(String(item.base_price)).toBe('20.00');
-    expect(String(item.final_price)).toBe('25.50');
+    expect(Number(item.base_price)).toBe(20);
+    expect(String(item.base_price)).toBe('20.0000');
+    expect(Number(item.final_price)).toBe(25.5);
+    expect(String(item.final_price)).toBe('25.5000');
   });
 
   test('销售订单 UI：列表显示+详情查看面料信息', async ({ page }) => {

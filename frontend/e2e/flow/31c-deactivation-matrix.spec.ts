@@ -156,7 +156,6 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
   test('客户：UI 编辑弹窗停用→API 回读 inactive→UI 回显→删除清理', async ({ page }) => {
     test.setTimeout(180_000);
     const name = `P0停用客户${TS}`;
-    let id: number | undefined;
     const r = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
       customer_name: name,
       customer_code: `P0-DIS-${TS}`,
@@ -168,11 +167,8 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       customer_type: 'retail',
       notes: 'P0停用客户',
     });
-    id = r?.data?.id;
-    if (!id) {
-      test.skip();
-      return;
-    }
+    const id = r?.data?.id;
+    expect(id, '[31c-客户] 自建客户未返回 id，POST /crm/customers 前置失败').toBeTruthy();
     console.log(`[31c-客户] 创建成功 id=${id}`);
 
     let toggled = false;
@@ -217,7 +213,6 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
   test('用户：UI 编辑弹窗停用→API 回读 is_active=false→删除清理', async ({ page }) => {
     test.setTimeout(180_000);
     const username = `p0dis${TS}`;
-    let id: number | undefined;
     // 前置角色 id：编辑弹窗 role_id 必填，创建时不带则编辑回显 undefined → 校验拦截 → PUT 不发出
     const rolesResp = await apiCallRaw<{ roles?: Array<{ id: number }> }>(
       page,
@@ -232,11 +227,8 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       phone: '13600000002',
       role_id: roleId,
     });
-    id = r?.data?.id;
-    if (!id) {
-      test.skip();
-      return;
-    }
+    const id = r?.data?.id;
+    expect(id, '[31c-用户] 自建用户未返回 id，POST /users 前置失败').toBeTruthy();
     console.log(`[31c-用户] 创建成功 id=${id}`);
 
     let toggled = false;
@@ -309,7 +301,6 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
   test('产品：UI 编辑弹窗停用→API 回读 status≠active→删除清理', async ({ page }) => {
     test.setTimeout(180_000);
     const name = `P0停用产品${TS}`;
-    let id: number | undefined;
     const r = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name,
       code: `P0-DISP-${TS}`,
@@ -321,11 +312,8 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       cost_price: 5,
       description: 'P0停用产品',
     });
-    id = r?.data?.id;
-    if (!id) {
-      test.skip();
-      return;
-    }
+    const id = r?.data?.id;
+    expect(id, '[31c-产品] 自建产品未返回 id，POST /products 前置失败').toBeTruthy();
     console.log(`[31c-产品] 创建成功 id=${id}`);
 
     let toggled = false;
@@ -366,16 +354,12 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
   test('部门：UI 编辑弹窗停用→API 回读 status=0→删除清理', async ({ page }) => {
     test.setTimeout(180_000);
     const name = `P0停用部门${TS}`;
-    let id: number | undefined;
     const r = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
       name,
       description: 'P0停用部门',
     });
-    id = r?.data?.id;
-    if (!id) {
-      test.skip();
-      return;
-    }
+    const id = r?.data?.id;
+    expect(id, '[31c-部门] 自建部门未返回 id，POST /departments 前置失败').toBeTruthy();
     console.log(`[31c-部门] 创建成功 id=${id}`);
 
     let toggled = false;

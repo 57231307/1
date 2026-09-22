@@ -80,13 +80,31 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
     // 创建小额报价单 → 应自动审批通过
     // 创建大额报价单 → 应走 BPM 审批
     const ctx = getCtx();
-    // 小额报价单
+    // 字段对照 backend/src/models/quotation_create_dto.rs 的 CreateQuotationDto：
+    // sales_user_id / currency / exchange_rate / base_currency / price_terms / tax_inclusive
+    // 为必填，明细的 unit / unit_price_with_tax 为必填，缺任一即 422。
+    // sales_user_id 取 ensureTestEntities 已确保的当前登录用户（报价单创建者语义），非魔法数字。
     const result = await apiCall<{ id?: number; status?: string }>(page, 'POST', '/quotations', {
       customer_id: ctx.customerId,
+      sales_user_id: ctx.userIds[0],
       quotation_date: new Date().toISOString().split('T')[0],
       valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-      items: [{ product_id: ctx.productIds[0] || 1, quantity: 1, unit_price: 1, tax_rate: 13 }],
-      remarks: 'E2E 小额报价单（金额自适应审批）',
+      currency: 'CNY',
+      exchange_rate: '1',
+      base_currency: 'CNY',
+      price_terms: 'FOB',
+      tax_inclusive: false,
+      tax_rate: '13',
+      items: [
+        {
+          product_id: ctx.productIds[0],
+          unit: '米',
+          quantity: '1',
+          unit_price: '1',
+          unit_price_with_tax: '1.13',
+        },
+      ],
+      notes: 'E2E 小额报价单（金额自适应审批）',
     });
     // 小额应自动审批
     if (result.data?.status) {

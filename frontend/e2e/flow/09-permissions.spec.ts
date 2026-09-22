@@ -11,6 +11,8 @@ import {
   genName,
   expectDenied,
   loginAsRole,
+  API_BASE,
+  API_PREFIX,
 } from './helpers';
 
 test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓存）', () => {
@@ -56,18 +58,23 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
   });
 
   test('P1-3 验证敏感导出 fail-closed（伪造令牌 403）', async ({ page }) => {
-    // 伪造 download_token 同样 403（令牌查无或资源类型不匹配）
+    // 伪造 download_token 同样 403（令牌查无或资源类型不匹配）。
+    // 该路由在 routes/production.rs 的 dye_recipes() 内注册字面量 /dye-recipes/export，
+    // 经 routes/mod.rs 的 nest("/api/v1/erp/production", production::routes()) 挂载，
+    // 真实路径必须带 production 前缀，否则打错 URL 直接 404（假象成"未鉴权"）。
     const result = await apiCallExpectFail(
       page,
       'GET',
-      '/dye-recipes/export?download_token=fake-token-p13'
+      '/production/dye-recipes/export?download_token=fake-token-p13'
     );
     expectDenied(result);
   });
 
   test('P1-4 验证权限缓存（多次调用不拒绝）', async ({ page }) => {
     // 原实现循环 5 次取数却不作任何断言（注释写"容错"），无论后端返回什么都算通过。
-    // 权限缓存的正确性判据是：同一身份连续请求都成功，且结果集稳定（命中缓存前后一致）。
+    // 权限缓存的判据是：同一身份连续请求都被放行，且权限范围内列表的总量在并发下只增不减
+    // （其它分片会往同一库里建用户，故 total 单调不降而非恒定；一旦缓存返回更早的
+    //  快照导致 total 回退，或某次请求被权限层拒绝，本用例即红）。
     const totals: number[] = [];
     for (let i = 0; i < 5; i++) {
       const result = await apiCallRaw<{ users: Array<{ id: number }>; total: number }>(
@@ -79,12 +86,26 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
         Array.isArray(result?.users),
         `第 ${i + 1} 次请求未返回 users 数组：${JSON.stringify(result).slice(0, 200)}`
       ).toBe(true);
-      totals.push(Number(result.total));
+      expect(
+        result.users.length,
+        `第 ${i + 1} 次请求 users 为空（admin 至少能看到自身与分片账号）：${JSON.stringify(
+          result
+        ).slice(0, 200)}`
+      ).toBeGreaterThan(0);
+      const total = Number(result.total);
+      expect(Number.isInteger(total), `第 ${i + 1} 次 total 非整数：${result.total}`).toBe(true);
+      expect(
+        total,
+        `第 ${i + 1} 次 total(${total}) 小于本页行数(${result.users.length})，分页出参自相矛盾`
+      ).toBeGreaterThanOrEqual(result.users.length);
+      totals.push(total);
     }
-    expect(
-      new Set(totals).size,
-      `同一身份的 5 次查询 total 应一致（缓存导致结果漂移）：${totals.join(',')}`
-    ).toBe(1);
+    for (let i = 1; i < totals.length; i++) {
+      expect(
+        totals[i],
+        `第 ${i + 1} 次 total(${totals[i]}) 比第 ${i} 次(${totals[i - 1]}) 小：缓存回退了更早快照`
+      ).toBeGreaterThanOrEqual(totals[i - 1]);
+    }
   });
 
   test('P1-5 验证未知路由 fail-closed', async ({ page }) => {
@@ -135,16 +156,28 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     // 原用例只 GET 了一次 /users 且不留任何断言（注释写"容错"），根本没验证 CSRF。
     // 这里绕过 apiCall 的令牌注入，直接发一个不带 X-CSRF-Token 的写请求：
     // 会话 Cookie 仍在（已登录），因此被拒只能是因为 CSRF 令牌缺失。
-    const res = await page.request.fetch('/departments', {
+    // 必须打后端绝对地址（与 helpers.apiCall 同一拼法）：vite 只代理 /api/**，
+    // 相对路径 '/departments' 会落到 SPA history fallback（200 + HTML），测的是前端不是中间件。
+    const url = `${API_BASE}${API_PREFIX}/departments`;
+    const res = await page.request.fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: { name: `E2E-CSRF-${Date.now()}`, description: 'CSRF 负例' },
+      headers: {
+        'Content-Type': 'application/json',
+        // 与 helpers.apiCall 同构，仅去掉 X-CSRF-Token，构成"只差 CSRF 令牌"的负例
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      data: { name: `E2E-CSRF-${Date.now()}`, code: `E2E-CSRF-${Date.now()}` },
     });
-    expect(res.status(), '缺 CSRF 令牌的写请求应被拒（4xx）').toBeGreaterThanOrEqual(400);
+    expect(
+      res.status(),
+      `带会话 Cookie 但缺 X-CSRF-Token 的写请求应被 csrf_middleware 拒为 403，实际 HTTP ${res.status()}`
+    ).toBe(403);
     const body = await res.json();
-    expect(String(body?.code ?? ''), `应返回 CSRF 错误码，实际：${JSON.stringify(body)}`).toMatch(
-      /CSRF/i
-    );
+    // 错误码出自 backend/src/middleware/csrf.rs 的 CODE_MISS（缺失请求头分支）
+    expect(
+      body?.code,
+      `应返回 CSRF 缺失错误码 CSRF_TOKEN_MISSING，实际：${JSON.stringify(body).slice(0, 200)}`
+    ).toBe('CSRF_TOKEN_MISSING');
   });
 
   test('P1-10 验证权限审计日志（拒绝记录真实落库）', async ({ page }) => {
