@@ -4296,6 +4296,35 @@ UPDATE "quality_inspection_records"
         ELSE "inspection_result"
    END
  WHERE "inspection_result" IN ('pass', 'fail', 'pending');
+
+-- 报价行计量单位与物流公司归一：两列都是无字典的自由文本，此前界面把 el-option 的译文当业务值
+-- 提交，英文界面写入的 "Meter"/"SF Express" 与中文界面写入的「米」「顺丰速运」在库里裂成两套；
+-- 运单筛选按 logistics_company 精确等值匹配，跨语言就查不到历史单。
+-- 写入侧已改为提交稳定中文名（constants/quotation-unit.ts、constants/logistics-company.ts）。
+UPDATE "sales_quotation_items"
+   SET "unit" = CASE "unit"
+        WHEN 'Meter' THEN '米'
+        WHEN 'Roll'  THEN '卷'
+        WHEN 'Piece' THEN '件'
+        WHEN 'kg'    THEN '公斤'
+        WHEN 'Kg'    THEN '公斤'
+        WHEN 'KG'    THEN '公斤'
+        ELSE "unit"
+   END
+ WHERE "unit" IN ('Meter', 'Roll', 'Piece', 'kg', 'Kg', 'KG');
+
+UPDATE "logistics_waybills"
+   SET "logistics_company" = CASE "logistics_company"
+        WHEN 'SF Express'    THEN '顺丰速运'
+        WHEN 'ZTO Express'   THEN '中通快递'
+        WHEN 'YTO Express'   THEN '圆通速递'
+        WHEN 'Yunda Express' THEN '韵达快递'
+        WHEN 'JD Logistics'  THEN '京东物流'
+        ELSE "logistics_company"
+   END
+ WHERE "logistics_company" IN (
+        'SF Express', 'ZTO Express', 'YTO Express', 'Yunda Express', 'JD Logistics'
+   );
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

@@ -41,24 +41,10 @@
           :placeholder="t('logistics.form.placeholder.logisticsCompany')"
         >
           <el-option
-            :label="t('logistics.common.company.sf')"
-            :value="t('logistics.common.company.sf')"
-          />
-          <el-option
-            :label="t('logistics.common.company.zto')"
-            :value="t('logistics.common.company.zto')"
-          />
-          <el-option
-            :label="t('logistics.common.company.yto')"
-            :value="t('logistics.common.company.yto')"
-          />
-          <el-option
-            :label="t('logistics.common.company.yunda')"
-            :value="t('logistics.common.company.yunda')"
-          />
-          <el-option
-            :label="t('logistics.common.company.jd')"
-            :value="t('logistics.common.company.jd')"
+            v-for="item in logisticsCompanyOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
           />
         </el-select>
       </el-form-item>
@@ -124,11 +110,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
+import {
+  LOGISTICS_COMPANY_LABEL_KEY,
+  LOGISTICS_COMPANY_VALUES,
+} from '@/constants/logistics-company';
 
 const { t } = useI18n({ useScope: 'global' });
+// 物流公司下拉：提交库里存的稳定中文名，文案才走 i18n（后端按该列精确等值筛选）
+const logisticsCompanyOptions = computed(() =>
+  LOGISTICS_COMPANY_VALUES.map(value => ({
+    value,
+    label: t(LOGISTICS_COMPANY_LABEL_KEY[value]),
+  }))
+);
 
 // 订单选项类型
 interface OrderOption {

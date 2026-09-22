@@ -72,17 +72,10 @@
         <template #default="{ row }">
           <el-select v-model="row.unit" style="width: 100%">
             <el-option
-              :label="t('quotations.itemEditor.unitMeter')"
-              :value="t('quotations.itemEditor.unitMeter')"
-            />
-            <el-option
-              :label="t('quotations.itemEditor.unitRoll')"
-              :value="t('quotations.itemEditor.unitRoll')"
-            />
-            <el-option :label="t('quotations.itemEditor.unitKg')" value="kg" />
-            <el-option
-              :label="t('quotations.itemEditor.unitPiece')"
-              :value="t('quotations.itemEditor.unitPiece')"
+              v-for="item in quotationUnitOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
             />
           </el-select>
         </template>
@@ -142,7 +135,12 @@
 // - v-model 双向绑定
 // - 加载产品/色号
 // - 含税单价 = 单价 × 1.13
-import { ref, onMounted, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import {
+  QUOTATION_UNIT,
+  QUOTATION_UNIT_LABEL_KEY,
+  QUOTATION_UNIT_VALUES,
+} from '@/constants/quotation-unit';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { Plus } from '@element-plus/icons-vue';
@@ -158,6 +156,13 @@ interface QuotationItemRow extends Omit<CreateQuotationItemDto, 'product_id'> {
 }
 
 const { t } = useI18n({ useScope: 'global' });
+// 单位下拉：库里存的是中文单位名（该列无字典），value 必须是稳定值而不是译文
+const quotationUnitOptions = computed(() =>
+  QUOTATION_UNIT_VALUES.map(value => ({
+    value,
+    label: t(QUOTATION_UNIT_LABEL_KEY[value]),
+  }))
+);
 
 const props = defineProps<{
   modelValue: QuotationItemRow[];
@@ -174,7 +179,7 @@ function createBlankItem(): QuotationItemRow {
   return {
     product_id: undefined,
     color_id: undefined,
-    unit: t('quotations.itemEditor.unitMeter'),
+    unit: QUOTATION_UNIT.meter,
     quantity: 0,
     unit_price: 0,
     unit_price_with_tax: 0,
