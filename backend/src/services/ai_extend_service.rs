@@ -439,12 +439,30 @@ impl AiExtendService {
             "上升" => "up",
             "平稳" => "flat",
             "下降" => "down",
-            _ => "nodata",
+            "无数据" => "nodata",
+            other => {
+                return Err(AppError::internal(format!(
+                    "质量预测返回未知趋势标签「{other}」，与 classify_trend 的取值域不符，拒绝按错值落库"
+                )));
+            }
         };
         let risk_label = match resp.risk_level.as_str() {
             "高" => "high",
             "中" => "medium",
-            _ => "low",
+            "低" => "low",
+            other => {
+                // 未知值不得回退成 low：那会把有风险的历史记录静默标成无风险
+                return Err(AppError::internal(format!(
+                    "质量预测返回未知风险标签「{other}」，与 classify_risk_level 的取值域不符"
+                )));
+            }
+        };
+        // 出参与落库行同一词表：AI 侧产出的是中文标签，列表/详情返回的是库中的英文小写值，
+        // 直接把中文标签回传会让同一字段在两个接口上取值不同
+        let resp = QualityPredResponse {
+            trend: trend_label.to_string(),
+            risk_level: risk_label.to_string(),
+            ..resp
         };
 
         let active = QualityActiveModel {
