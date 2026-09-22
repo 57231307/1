@@ -175,9 +175,14 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
   });
 
   test('48-3 AR 幂等：同订单仅一张应收（ar/inv.rs:174-181）', async ({ page }) => {
-    // 验证端点与查询形态（构造完整发货链依赖 48-2，此处验证列表接口幂等查询可达）
-    const ar = await apiCallExpectFail(page, 'GET', `/ar-invoices?page=1&page_size=5`);
-    expect(ar.status, 'AR 列表应可达').toBeLessThan(300);
+    // 真实路由是 /ar/invoices（finance.rs:847），不是 /ar-invoices——
+    // 同文件 48-2 已为 AP 踩过这个坑并写下注释，AR 这条却仍在用错路径，
+    // 于是不存在的端点被权限层先拒成 403，看起来像"AR 列表不可达"。
+    const ar = await apiCallExpectFail(page, 'GET', `/ar/invoices?page=1&page_size=5`);
+    expect(
+      ar.status,
+      `AR 列表应可达（<300），实际 ${ar.status} code=${ar.code} message=${ar.message}`
+    ).toBeLessThan(300);
   });
 
   test('48-4 收货幂等：确认接口对 COMPLETED 入库单防重（po/receipt.rs:33-40）', async ({

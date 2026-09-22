@@ -208,14 +208,21 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
 
   test('53-2 角色变更：二级审批人≠一级审批人（:43 双人约束）', async ({ page, browser: b }) => {
     await loginViaUI(page);
-    const roles = await apiCall<{ items?: Array<{ id: number; code: string }> }>(
+    // GET /roles 出参是 RoleListResponse{roles,total}（既不是 items 也不是分页结构，
+    // role_handler.rs 注明全量返回无分页，故不传 page/page_size）；
+    // 原用例按 roles.items 取值恒为 undefined，被断成"无敏感角色"。
+    const roles = await apiCallRaw<{ roles: Array<{ id: number; code: string }>; total: number }>(
       page,
       'GET',
-      '/roles?page=1&page_size=50'
+      '/roles'
     );
+    expect(
+      Array.isArray(roles?.roles),
+      `角色列表应在 data.roles，实际响应：${JSON.stringify(roles).slice(0, 200)}`
+    ).toBe(true);
     const sensitive =
-      roles?.items?.find(r => ['finance', 'finance_admin'].includes(r.code)) ?? roles?.items?.[0];
-    expect(sensitive, '无敏感角色').toBeTruthy();
+      roles.roles.find(r => ['finance', 'finance_admin'].includes(r.code)) ?? roles.roles[0];
+    expect(sensitive, `角色表为空（total=${roles.total}），无法做双人约束前置`).toBeTruthy();
 
     const me = await apiCall<{ id?: number }>(page, 'GET', '/users/me');
     const myId =

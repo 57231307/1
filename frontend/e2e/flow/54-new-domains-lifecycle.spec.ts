@@ -105,7 +105,10 @@ test.describe.serial('新域业务流转链', () => {
     await page.goto(`${BASE_URL}/fabric-inspections`);
     await expect(page.locator('.page')).toBeVisible();
 
-    // 新建（最小必填）
+    // 新建：表单只预填验布日期（后端唯一必填项），其余留空即可建单。
+    // run 4623 这里失败的真实原因是建单表单提交的是 fabric_batch_no/total_length_m
+    // 两个后端根本没有的字段、又缺 inspection_date，被 422 拒掉后页面停在
+    // ErrorBoundary，看起来像"等不到成功提示"（表单已按 CreateInspectionRequest 重建）。
     await page.getByRole('button', { name: '新建验布单' }).click();
     await page.getByRole('button', { name: '保存' }).click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });

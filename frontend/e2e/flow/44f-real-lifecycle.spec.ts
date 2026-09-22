@@ -350,13 +350,26 @@ test.describe.serial('44f 真实实体全流转链', () => {
   test('44f-7 大货处方 draft→approved→closed 终态拦截', async ({ page }) => {
     await ensureTestEntities(page);
     // 创建入参对齐 CreateProductionRecipeRequest（production_recipe_service.rs:39-63）：
-    // 必填只有 fabric_weight（备布重量，用量计算依据）与 liquor_ratio（浴比），
+    // fabric_weight（备布重量）与 liquor_ratio（浴比）是创建必填，
+    // 而 approve 另有一条真实约束——审核前处方明细（recipe_detail）不能为空
+    // （run 4623 的 44f-7 就是被它拦下：对外文案脱敏成「业务处理失败」，真因在 backend.log detail），
+    // 所以这里必须带一条染料明细，而不是建一张空处方再去审核。
     // 处方号由后端按单据号规则生成，不由调用方提交；product_id 不是该 DTO 字段。
     const r = await apiCall<{ id?: number }>(page, 'POST', '/production/production-recipes', {
       color_no: `44F-${Date.now().toString().slice(-6)}`,
       fabric_name: '44f 大货处方用坯布',
       fabric_weight: 120,
       liquor_ratio: '1:8',
+      recipe_detail: [
+        {
+          material_code: '44F-DYE-REPRO',
+          material_name: '44f 分散染料（用例自带明细）',
+          concentration: 2.5,
+          unit: 'kg',
+          amount: 3,
+          category: 'dye',
+        },
+      ],
     });
     const id = r?.data?.id;
     expect(id, '处方创建失败').toBeTruthy();
