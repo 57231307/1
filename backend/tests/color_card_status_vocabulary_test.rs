@@ -49,9 +49,13 @@ fn word_list_is_closed_lowercase_set() {
     assert_eq!(card_status::DRAFT, "draft");
 }
 
+/// 迁移 crate 在 `backend/migration`（workspace members = [".", "migration"]），
+/// CARGO_MANIFEST_DIR 即 `backend`，故相对路径不带 `../`。
+const V15_MIGRATION: &str = "migration/src/domain/v15/mod.rs";
+
 /// 从 v15 迁移文本抽出重建后的 chk_color_card_status CHECK 取值集合。
 fn check_values_from_migration() -> Vec<String> {
-    let v15 = read_rel("../migration/src/domain/v15/mod.rs");
+    let v15 = read_rel(V15_MIGRATION);
     assert!(
         v15.contains(r#"DROP CONSTRAINT IF EXISTS "chk_color_card_status""#),
         "v15 必须 DROP 旧 chk_color_card_status 后再 ADD，重建为词表全集"
@@ -92,7 +96,7 @@ fn check_constraint_equals_word_list() {
 /// 迁移必须把 legacy active 回填为 draft（回填依据：列注释/词表模块说明 active 等价 draft）。
 #[test]
 fn migration_backfills_active_to_draft() {
-    let v15 = read_rel("../migration/src/domain/v15/mod.rs");
+    let v15 = read_rel(V15_MIGRATION);
     assert!(
         v15.contains(r#"UPDATE "color_cards" SET "status" = 'draft' WHERE "status" = 'active'"#),
         "v15 必须回填 active → draft（先于 CHECK 重建，避免残留行使 ADD CONSTRAINT 失败）"

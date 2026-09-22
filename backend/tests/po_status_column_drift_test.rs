@@ -112,8 +112,9 @@ fn po_list_filter_uses_order_status() {
 /// 迁移层收口必须存在：以 order_status 回填遗留 status、并标注 DEPRECATED。
 #[test]
 fn migration_backfills_and_deprecates_legacy_status() {
+    // 迁移 crate 在 `backend/migration`，CARGO_MANIFEST_DIR 即 `backend`，故不带 `../`
     let v15 =
-        read(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../migration/src/domain/v15/mod.rs"));
+        read(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("migration/src/domain/v15/mod.rs"));
     assert!(
         v15.contains(r#"SET "status" = "order_status""#),
         "v15 迁移必须含确定性回填：status := order_status"
