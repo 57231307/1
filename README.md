@@ -503,10 +503,15 @@ sudo journalctl -u bingxi-backend -f
 > flow 665/75 + smoke 130/119 + traversal 266/10 + enhanced 14/3 + 其余业务域 117/30 + Setup 向导 9/1
 > = **1,201 个用例 / 238 个文件**，六组全部进 CI（Setup 向导由独立 job 跑）。
 > `firefox` project 另跑 130 个冒烟用例；`webkit` 与 chromium 同集。
-> 注意：在 Windows 上不带路径参数执行 `playwright test --list` 会多收 71 个用例（全量 1,272）——
-> testMatch 的根级分支 `^[^/]*\.spec\.ts$` 在反斜杠路径下误匹配了 ai / dashboard / fabric /
-> inventory / mrp / production / quotations / system 八个目录。这些目录**不在 CI 执行口径内**，
-> 该差异是本地测量假象，不代表它们已被执行，也不代表它们已接入真实后端（未甄别前不并入矩阵）。
+> 关于 `ai / dashboard / fabric / inventory / mrp / production / quotations / sales-ext / system`
+> 九个目录（**71 个用例 / 22 个文件**，`playwright test --list --project=chromium <目录>` 实测）：
+> 它们**不在 CI 执行口径内**。两个此前混在一起的事实要分开说——
+> ①在 Windows 上不带路径参数执行 `playwright test --list` 会**多收**这 71 个用例
+> （testMatch 的根级分支 `^[^/]*\.spec\.ts$` 在反斜杠路径下误匹配），这部分是本地测量假象；
+> ②但"多收"不等于"已执行"：CI 的分片命令从不传这九个目录，所以它们确实从未进过矩阵，
+> 此前把它们缺席一概归因为"测量假象"是不准确的，两种说法各说对了一半。
+> 接入前需按与 extras 目录相同的口径做真实性核查（条件 skip、形状断言、`?? []` 等），
+> 目前它们的假绿形态远少于已接入目录（0 处条件 skip、22 处条件交互，`applyAuthMocks` 已是真实登录）。
 
 ### E2E 测试覆盖
 
