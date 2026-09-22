@@ -350,7 +350,7 @@ import {
 } from '@/api/outsourcing';
 
 /**
- * 收回质检结论展示：结论为空只可能出现在未归一的历史行上（迁移 m0057 已把
+ * 收回质检结论展示：结论为空只可能出现在未归一的历史行上（v15 域内的归一语句 已把
  * NULL 归一为 pending），统一按「待检」显示；取值域外的值告警后原样显示。
  */
 function qualityLabel(value: string | null | undefined): string {

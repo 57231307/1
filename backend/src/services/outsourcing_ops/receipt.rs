@@ -54,7 +54,7 @@ pub(crate) struct ReceiptCalculation {
 ///
 /// 命中后一律回传常量本身的写法（大小写不敏感仅用于容错读取，落库值永远是规范值）；
 /// 别域同义写法（`passed`、中文「合格」）虽然含义相近，落进本列后会被 confirm 侧
-/// 当成另一种含义，因此不放行；归一由迁移 m0057 对存量数据统一处理。
+/// 当成另一种含义，因此不放行；归一由v15 域内的归一语句 对存量数据统一处理。
 pub fn validate_receipt_quality_status(raw: &str) -> Result<&'static str, AppError> {
     outsourcing_receipt_quality_status::ALL
         .iter()

@@ -240,7 +240,7 @@
       已建 `outsourcing_receipt_quality_status`（pending/qualified/concession/unqualified）常量、
       建单与改单入口按取值域校验（别域同义写法一律 400 并报合法值，不做大小写或跨域宽容）、
       确认改为按四值显式判定（让步接收计入接收、待检与取值域外拒绝确认、NULL 要求补录），
-      并以迁移 m0057 归一存量（passed→qualified、failed→unqualified、中文→对应小写、NULL→pending）；
+      并以v15 域内归一语句处理存量（passed→qualified、failed→unqualified、中文→对应小写、NULL→pending）；
       前端取值收进 `constants/outsourcing-quality.ts`（列表原来直接把英文码展示给用户），
       另补 `tests/handlers_outsourcing_receipt_test.rs` 钉住取值域。
       遗留：本列仍无质检结论筛选（前后端都没有），`print_service.rs:2340` 的收回单打印数据仍输出
@@ -739,3 +739,10 @@
       只看了「取值不变」，没看目标字段类型，`&'static str` 赋给 `String` 直接编译失败，
       整条流水线 28 个 job 又被 skipped。改法是赋值点补 `.to_string()`；
       自查要点：凡改「字符串生成方式」，要同时看接收方是 `String`、`&str` 还是列类型。
+
+- [ ] **迁移域顺序是新迁移最常见的自审漏项（本轮实证）**：`migration/src/lib.rs` 的模块顺序是
+      production → v15（v15 在其后），而很多业务表恰恰由 v15 脚本创建。把归一/回填语句放进
+      production 域时，全新库上会报 `relation "xxx" does not exist`，迁移中断 → 后端起不来 →
+      12 个 flow 分片 + 5 个角色矩阵 job 一起红（run `35676525961` 实证，`da227298` 已改到 v15 末尾）。
+      自审清单加一条：新增涉及某表的 SQL 迁移前，先 `grep` 该表的 CREATE TABLE 落在哪个域，
+      迁移必须排在该域之后；无法确定时优先复用该域的脚本尾部而不是新开编号。

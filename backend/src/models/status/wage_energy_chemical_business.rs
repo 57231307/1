@@ -297,7 +297,7 @@ pub mod outsourcing_receipt_status {
 /// 历史上三种写法都往本列落过值（前端提交 qualified/concession/unqualified、
 /// 用例提交 passed、模型注释写的是 passed/failed），而 confirm 只认字符串 "qualified"，
 /// 于是 `passed` 的收回单在确认时被整体判成不合格并生成「不合格」质检记录。
-/// 迁移 m0057 已把存量写法归一到本模块取值。
+/// v15 域内的归一语句 已把存量写法归一到本模块取值。
 pub mod outsourcing_receipt_quality_status {
     /// 待检：建单时未给出质检结论，须先判定才能确认回仓
     pub const PENDING: &str = "pending";
