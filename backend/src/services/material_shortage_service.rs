@@ -306,7 +306,7 @@ fn publish_shortage_event(
         required_quantity: required,
         available_quantity: available,
         shortage_quantity: shortage,
-        shortage_level: level.as_str(),
+        shortage_level: level.as_str().to_string(),
         affected_orders_count: affected.len() as i32,
     });
 }
