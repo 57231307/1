@@ -144,6 +144,17 @@ GitHub 检查名（如 `🎭 E2E: flow: 05-system~10d-extended` → `🎭 E2E: f
 以及 3 处需产品决策才能定回填值（purchase_orders 双状态列大小写矛盾、
 color_cards 的 active 是 legacy 还是域内值、production_orders 词表缺项）。
 
+**新发现的假绿类别：条件交互 / 条件 skip（进行中，两路智能体分别处理 extras 与 flow）**
+形态是 `if (await btn.isVisible()) { ...若干断言... }` 与 `if (!id) { test.skip(); return; }` ——
+控件没渲染或前置数据没建出来时，**一条断言都不执行仍判通过**。实测命中：
+`e2e/flow/` 12 处条件交互 + 7 处条件 skip（这批在真正执行的分片里）、
+extras 八目录 20 处条件交互（本轮刚接进矩阵，不修就是新增假覆盖）。
+`enhanced/rpa-data-extraction.spec.ts` 的 4 处已修（fff52403）：其中请求观察原本是
+`if (requests.length > 0) { 断言 }`，一条请求都没抓到时整条用例零断言通过。
+修法规则统一为：优先自己造前置数据并按自己创建对象的单号定位（禁 `.first()` 抓不确定行）；
+做不到就改成显式失败；多形态分支必须每条分支都有断言且都不命中时 throw。
+禁止 test.skip/try-catch/占位断言这三种"看起来诚实"的退路。
+
 **自查抓到自己本轮引入的功能回归（正在修，勿当已完成）**：`inventory_deduction.rs:183`
 `require_outbound_dimensions` 对 色号/缸号/批次 一律要求非空，被调拨出库（`inv/batch.rs:133`）
 与销售发货（`so/delivery_ops/inventory.rs`）共用 —— 于是白坯布既不能调拨也不能发货，
@@ -1298,3 +1309,33 @@ Decimal `DECIMAL(18,4)` 出参被按 `"200"` 字面量比较、CSRF 一次性消
   4. 出库 `check_inventory` 的预留分支（`so/delivery_ops/inventory.rs:146-155`）不校验四维即
      `continue`，而 `reduce_inventory_four_dim` 要求四维候选非空——预留行与四维行不一致时
      运行期才报错。是否要求预留在建单期即按四维登记？
+
+---
+
+## 待决策：非 admin 对 `/{id}` 详情/编辑端点的入口隐藏（260907 二阶段）
+
+> 背景：后端 `matches_permission`（permission.rs:612）对 `resource_id=NULL` 权限行故意拒绝
+> `resource_id=Some(id)` 的 `/{id}` 详情/编辑请求（仅 `resource_type=="*"` 超级通配放行）。
+> `/auth/me` 与 login 只把权限行编码为 `"{resource}:{action}"`（auth_handler.rs:176，丢弃 resource_id），
+> 故前端可同源精确判定"某角色的 `/{id}` 详情是否放行"= 是否持有一条资源段为 `*` 且动作覆盖的权限码。
+
+已实现（本轮，本地未推送）：
+- 判定函数 `canAccessDetailPermission` + 指令 `v-permission-detail`（frontend/src/router/index.ts、
+  frontend/src/directives/permission.ts、main.ts 注册），并加单测 frontend/tests/unit/permission-detail.test.ts。
+- 已在 5 模块"确认走 `/{id}`"的详情/编辑入口应用：销售订单列表(SalesOrderTable "详情")、
+  采购(PurchaseTable "详情"/"编辑")、生产(ProductionTable "查看"/"编辑")、
+  库存(InventoryStockTab 行点击查看/编辑)、凭证(views/voucher VoucherListTable 查看/编辑)。
+
+仍待决策 / 后续：
+1. **`/{id}` 动作类入口是否一并隐藏**：审核/驳回/提交/取消/删除/收货/发货/汇报进度/日志等均走
+   `POST|PUT|DELETE /{id}[/action]`，对非 admin 同样 403。当前按用户口径只处理"详情/编辑"，
+   这些动作入口仍可见且点了必 403——是否纳入同一隐藏策略，需产品确认。
+2. **采购列表 order_no 内嵌链接**：点击触发与"详情"按钮同一 `handleView`（回源 `/{id}` 但有
+   `res.data || row` 前端兜底，不抛错却也不精确）。隐藏该链接会破坏列显示，未动；
+   且该 `handleView`/`handleReceive` 的行数据兜底属"判断不了就当成功"的兜底，待产品定口径。
+3. **列表页"查看"多为前端行数据弹窗（不调 `/{id}`）**：如销售 "查看"(OrderViewDialog 用当前行)、
+   凭证列表页(views/finance VoucherTab viewVoucher 用当前行) 未隐藏（本就能用）。若产品要求
+   详情必须由 `/{id}` 权威回源，则需另改这些"查看"为回源并配套隐藏——属功能口径变更，未擅自改。
+4. 其余含"详情/编辑回源 `/{id}`"的列表页（报价、销售/采购合同、销售/采购退货、BOM、客户、
+   供应商、CRM 线索/商机、外发、质检、工资、固定资产等）按同一 `v-permission-detail`
+   逐个接入，待后续批次完成；判定函数与指令已就绪，接入为机械改动。
