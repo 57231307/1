@@ -80,11 +80,46 @@
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑验布单' : '新建验布单'" width="480">
       <el-form :model="form" label-width="100px">
-        <el-form-item label="坯布批次">
-          <el-input v-model="form.fabric_batch_no" />
+        <!-- 字段与后端 CreateInspectionRequest 对齐：验布日期必填（缺它后端直接 422）；
+             缸号/色号/日期在编辑态不可改（UpdateInspectionRequest 不含这三项） -->
+        <el-form-item label="验布日期" required>
+          <el-date-picker
+            v-model="form.inspection_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            :disabled="!!editingId"
+            class="w-full"
+          />
         </el-form-item>
-        <el-form-item label="米数">
-          <el-input-number v-model="form.total_length_m" :min="0" :precision="1" class="w-full" />
+        <el-form-item label="缸号">
+          <el-input v-model="form.dye_lot_no" :disabled="!!editingId" />
+        </el-form-item>
+        <el-form-item label="色号">
+          <el-input v-model="form.color_no" :disabled="!!editingId" />
+        </el-form-item>
+        <el-form-item label="验布员">
+          <el-input v-model="form.inspector_name" />
+        </el-form-item>
+        <el-form-item label="机台号">
+          <el-input v-model="form.machine_no" />
+        </el-form-item>
+        <el-form-item label="评分制式">
+          <el-select v-model="form.scoring_system" class="w-full">
+            <el-option
+              v-for="opt in FABRIC_SCORING_OPTIONS"
+              :key="opt"
+              :label="FABRIC_SCORING_LABEL[opt]"
+              :value="opt"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="门幅(英寸)">
+          <el-input-number
+            v-model="form.fabric_width_inches"
+            :min="0"
+            :precision="2"
+            class="w-full"
+          />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remarks" type="textarea" :rows="2" />
@@ -102,12 +137,25 @@
       <el-descriptions v-if="detailRow" :column="2" border>
         <el-descriptions-item label="验布单号">{{ detailRow.inspection_no }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ detailRow.status }}</el-descriptions-item>
-        <el-descriptions-item label="坯布批次">{{
-          detailRow.fabric_batch_no || '-'
-        }}</el-descriptions-item>
         <el-descriptions-item label="缸号">{{ detailRow.dye_lot_no || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="总米数">{{
-          detailRow.total_length_m ?? '-'
+        <el-descriptions-item label="色号">{{ detailRow.color_no || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="验布日期">{{
+          detailRow.inspection_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="机台">{{ detailRow.machine_no || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="评分制式">{{
+          FABRIC_SCORING_LABEL[detailRow.scoring_system as FabricScoringValue] ??
+          detailRow.scoring_system ??
+          '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="门幅(英寸)">{{
+          detailRow.fabric_width_inches ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="总扣分">{{
+          detailRow.total_defect_points ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="每百平方码分数">{{
+          detailRow.points_per_100_sq_yards ?? '-'
         }}</el-descriptions-item>
         <el-descriptions-item label="检验码数">{{
           detailRow.inspected_yards ?? '-'
@@ -276,6 +324,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import {
+  FABRIC_SCORING,
+  FABRIC_SCORING_LABEL,
+  FABRIC_SCORING_OPTIONS,
+  type FabricScoringValue,
+} from '@/constants/fabric-scoring';
 import { logger } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
@@ -305,10 +359,18 @@ const gradeVisible = ref(false);
 const gradingId = ref<number | null>(null);
 
 const form = reactive({
-  fabric_batch_no: '',
-  total_length_m: undefined as number | undefined,
+  inspection_date: '',
+  dye_lot_no: '',
+  color_no: '',
+  inspector_name: '',
+  machine_no: '',
+  scoring_system: FABRIC_SCORING.fourPoint as string,
+  fabric_width_inches: undefined as number | undefined,
   remarks: '',
 });
+
+/** 后端 inspection_date 是 NaiveDate（必填，缺即 422），界面按当天预填、用户可改 */
+const todayIso = () => new Date().toISOString().split('T')[0];
 const gradeForm = reactive({
   inspected_yards: undefined as number | undefined,
   qualification_rate: undefined as number | undefined,
@@ -340,7 +402,16 @@ async function load() {
 
 function openCreate() {
   editingId.value = null;
-  Object.assign(form, { fabric_batch_no: '', total_length_m: undefined, remarks: '' });
+  Object.assign(form, {
+    inspection_date: todayIso(),
+    dye_lot_no: '',
+    color_no: '',
+    inspector_name: '',
+    machine_no: '',
+    scoring_system: FABRIC_SCORING.fourPoint as string,
+    fabric_width_inches: undefined,
+    remarks: '',
+  });
   dialogVisible.value = true;
 }
 
@@ -348,8 +419,13 @@ async function onCreate() {
   saving.value = true;
   try {
     await createFabricInspection({
-      fabric_batch_no: form.fabric_batch_no || undefined,
-      total_length_m: form.total_length_m ?? undefined,
+      inspection_date: form.inspection_date,
+      dye_lot_no: form.dye_lot_no || undefined,
+      color_no: form.color_no || undefined,
+      inspector_name: form.inspector_name || undefined,
+      machine_no: form.machine_no || undefined,
+      scoring_system: form.scoring_system || undefined,
+      fabric_width_inches: form.fabric_width_inches ?? undefined,
       remarks: form.remarks || undefined,
     });
     ElMessage.success('验布单已创建');
@@ -366,8 +442,13 @@ const editingId = ref<number | null>(null);
 function openEdit(row: FabricInspection) {
   editingId.value = row.id;
   Object.assign(form, {
-    fabric_batch_no: row.fabric_batch_no || '',
-    total_length_m: row.total_length_m ?? undefined,
+    inspection_date: (row.inspection_date as string) || todayIso(),
+    dye_lot_no: (row.dye_lot_no as string) || '',
+    color_no: (row.color_no as string) || '',
+    inspector_name: (row.inspector_name as string) || '',
+    machine_no: (row.machine_no as string) || '',
+    scoring_system: (row.scoring_system as string) || FABRIC_SCORING.fourPoint,
+    fabric_width_inches: (row.fabric_width_inches as number | undefined) ?? undefined,
     remarks: row.remarks || '',
   });
   dialogVisible.value = true;
@@ -378,8 +459,10 @@ async function onSave() {
     saving.value = true;
     try {
       await updateFabricInspection(editingId.value, {
-        fabric_batch_no: form.fabric_batch_no || undefined,
-        total_length_m: form.total_length_m ?? undefined,
+        inspector_name: form.inspector_name || undefined,
+        machine_no: form.machine_no || undefined,
+        scoring_system: form.scoring_system || undefined,
+        fabric_width_inches: form.fabric_width_inches ?? undefined,
         remarks: form.remarks || undefined,
       });
       ElMessage.success('验布单已更新');

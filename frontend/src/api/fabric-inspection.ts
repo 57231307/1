@@ -10,7 +10,34 @@ export function getFabricInspectionList(params?: Record<string, unknown>) {
   return request.get('/production/fabric-inspections', { params });
 }
 
-export function createFabricInspection(data: Record<string, unknown>) {
+/** 建单入参：与后端 CreateInspectionRequest 一一对应（inspection_date 为必填，缺它即 422） */
+export interface CreateFabricInspectionPayload {
+  /** 验布日期 YYYY-MM-DD（后端 NaiveDate，必填） */
+  inspection_date: string;
+  dye_lot_no?: string;
+  product_id?: number;
+  product_name?: string;
+  color_no?: string;
+  inspector_id?: number;
+  inspector_name?: string;
+  machine_no?: string;
+  /** 评分制式：four_point / ten_point，见 constants/fabric-scoring */
+  scoring_system?: string;
+  fabric_width_inches?: number;
+  remarks?: string;
+}
+
+/** 更新入参：后端 UpdateInspectionRequest 只接受这五个字段（缸号/色号/日期建单后不可改） */
+export interface UpdateFabricInspectionPayload {
+  inspector_id?: number;
+  inspector_name?: string;
+  machine_no?: string;
+  scoring_system?: string;
+  fabric_width_inches?: number;
+  remarks?: string;
+}
+
+export function createFabricInspection(data: CreateFabricInspectionPayload) {
   return request.post('/production/fabric-inspections', data);
 }
 
@@ -22,7 +49,7 @@ export function getFabricInspectionDetail(id: number) {
   return request.get(`/production/fabric-inspections/${id}`);
 }
 
-export function updateFabricInspection(id: number, data: Record<string, unknown>) {
+export function updateFabricInspection(id: number, data: UpdateFabricInspectionPayload) {
   return request.put(`/production/fabric-inspections/${id}`, data);
 }
 
