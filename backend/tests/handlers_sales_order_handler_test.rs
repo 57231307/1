@@ -52,12 +52,14 @@ fn test_sales_order_query_default() {
         status: None,
         customer_id: None,
         order_no: None,
+        customer_name: None,
     };
     assert!(query.page.is_none());
     assert!(query.page_size.is_none());
     assert!(query.status.is_none());
     assert!(query.customer_id.is_none());
     assert!(query.order_no.is_none());
+    assert!(query.customer_name.is_none());
 }
 
 #[test]
@@ -68,12 +70,14 @@ fn test_sales_order_query_with_values() {
         status: Some("draft".to_string()),
         customer_id: Some(1),
         order_no: Some("SO-2026-0001".to_string()),
+        customer_name: Some("绍兴".to_string()),
     };
     assert_eq!(query.page, Some(1));
     assert_eq!(query.page_size, Some(10));
     assert_eq!(query.status, Some("draft".to_string()));
     assert_eq!(query.customer_id, Some(1));
     assert_eq!(query.order_no, Some("SO-2026-0001".to_string()));
+    assert_eq!(query.customer_name, Some("绍兴".to_string()));
 }
 
 // ===== 模型序列化测试 =====
@@ -198,13 +202,16 @@ fn test_sales_order_query_deserialization() {
         "page_size": 10,
         "status": "draft",
         "customer_id": 1,
-        "order_no": "SO-2026-0001"
+        "order_no": "SO-2026-0001",
+        "customer_name": "绍兴柯桥"
     });
 
     let query: SalesOrderQuery = serde_json::from_value(json).expect("反序列化失败");
     assert_eq!(query.page, Some(1));
     assert_eq!(query.page_size, Some(10));
     assert_eq!(query.status, Some("draft".to_string()));
+    // 前端按 customer_name 发参，线上键名变了筛选就会静默失效
+    assert_eq!(query.customer_name, Some("绍兴柯桥".to_string()));
 }
 
 #[test]
@@ -217,4 +224,5 @@ fn test_sales_order_query_partial_deserialization() {
     assert_eq!(query.page, Some(1));
     assert!(query.page_size.is_none());
     assert!(query.status.is_none());
+    assert!(query.customer_name.is_none());
 }
