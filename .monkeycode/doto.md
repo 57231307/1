@@ -209,11 +209,25 @@
       要真正接入需先加列并定义维护入口（物料主数据页），属 schema 变更 + 产品口径，单独立项。
       另外 `/material-shortage/threshold` 目前无前端页面，配置只能经接口保存。
 
-- [ ] **质量预测的状态取值未核**：后端状态值是散写在服务里的字面量（不在 models/status 下，
-      集合比对脚本取不到），需先按资源把写入点收敛进状态常量模块（规则 0），
-      再套用调拨/物流/生产订单/缺料同款对比方法核对前端取值。排查脚本与判据：对每个带状态筛选的列表端点，
-      取后端状态常量集合与前端 `el-option`/`STATUS_OPTIONS` 值做集合比对，列出「前端可选但库里
-      不存在」的值即修（值收进单一真相源常量 + 未知值告警，同台账做法）。
+- [x] **AI 质量预测的字段词表核对**：该资源的可筛选状态本来就对齐（risk_level 落库
+      low/medium/high、is_acknowledged 布尔，四个筛选参数都真实下推 SQL，migration m0044 还有
+      CHECK 约束钉住取值），但查出并修掉三处别的断层（`f03fbd23`、`4d90bd9e`）：
+      POST/批量创建把 AI 侧的中文标签（高/中/低、上升/平稳/下降/无数据）原样回传，而列表与详情
+      返回库中的英文小写值，同一字段两套词表，前端按同一字典取名导致创建成功提示里风险等级恒为
+      undefined；风险映射还写着 `_ => "low"`，未知标签会被静默标成无风险；source 字段落库有
+      history/fallback/degraded 三种值、响应里另有 degraded 布尔，但前端既不展示来源也没有
+      degraded 标签，服务降级与正常预测在界面上无从分辨。现已统一为库内词表、越界标签直接报错、
+      列表补数据来源列（降级标红）。状态取值核对方法到此已在调拨/物流/生产订单/缺料/质量预测五处用完。
+
+- [ ] **AI 质量预测的三处功能缺口**：其一 `ai_quality_predictions.model_version_id` 全仓无任何
+      写入点（建单以 `..Default::default()` 收尾），预测记录无法追溯到具体模型版本，而
+      `ai_model_versions` 表已存在——需先确定推理时该取哪个版本（当前生效版本还是请求指定版本）。
+      其二 `/ai/quality-predictions/{id}/actual-result` 与 `/actual-grade` 两个端点前端零调用，
+      `actual_risk_level / actual_grade` 直接把用户提交的字符串落库且不做取值校验，
+      「预测 vs 实际」的准确率闭环在界面上走不通；其三该页两个操作按钮用的是
+      `ai_quality_prediction:approve` / `ai_quality_prediction:delete`，而注册表里的资源名是
+      `ai-quality-pred`，动作也没有 approve 一档——权限码不匹配时前端 fail-closed 隐藏按钮，
+      与已登记的 M-6 resource_id / 角色权限矩阵项属同一决策面，需一并定口径后再改，不单点放行。
 
 - [x] **验布/委外/工资三域接口路径缺 `/production` 前缀（47 个请求恒 404）**：这三组资源注册在
       `routes/production.rs`，而该 router 挂在 `nest("/api/v1/erp/production")` 下，前端
