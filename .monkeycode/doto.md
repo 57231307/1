@@ -2098,3 +2098,27 @@ date_range/supplier_id…），被几乎所有列表接口当 `params` 类型用
   当前按注释硬编码候选值并以数字 ID 输入 → 需要「光源字典表」与选择器组件。
 - MRP 批次：`calculation_no` 在表上 UNIQUE ⇒ 一行即一批；若日后一个批次承载多产品行，
   需要批次级端点与按 `calculation_no` 过滤需求行的能力。
+
+---
+
+## 2026-09-23 本轮（请求侧契约收口 + 审计身份来源缺陷）
+
+### 已提交
+- `8986fef9` 生产域列表参数定型 + 三个必填请求体动作（备布完成/OK样确认/完成建库此前必 422）
+- `5d9b50e5` custom-order 四处 operator_id 硬编码为 1 → 取当前登录用户
+- `a6c736cd` 财务/资产域按后端 DTO/Query 对齐；SubjectTab 标签外化 i18n
+- `8f7381d4` 主数据/CRM/系统域查询与载荷定型
+
+### 新发现（P0，安全/审计完整性，未修）
+58 处 `Set(req.created_by|operator_id|issued_by|...)` 直接把 HTTP 请求体里的身份字段写进
+审计/归属列（`grep "Set(req\.<身份字段>)"` 计数），覆盖 20+ 业务域。前端大多根本不传，
+因此这些列实际恒 NULL，但任何直连 API 的调用方可把自己伪造成任意用户。
+参照实现已存在：`handlers/system_update_handler.rs:469`、`crm_customer_handler.rs:303`、
+`audit_log_handler.rs:455`、`bpm_handler.rs:317`（BPM 已另传 `Some(auth.user_id)` 做真实追溯）。
+**未盲改原因**：需给 58 个 service 函数加 actor 形参并同步 handler 调用点（约 120 处签名改动），
+项目规则禁止本地 cargo 校验，CI 是唯一真相；一旦有编译错误会让整个后端构建失败、
+连锁 30+ job 红。工单：解冻后单独一批做，模式统一为
+「handler 取 `auth.user_id` → service 增 `actor_user_id: Option<i32>` → `Set(actor_user_id)`，
+DTO 删除身份字段」。高危优先：印染处方发料人、库存经手人、外包凭证、批色审批人、染色批状态机操作人。
+**待决（产品）**：是否支持"代审/委托审批"。支持则 `handler_id` 需显式建模为委托关系，
+不能继续当作自由填写的身份列。
