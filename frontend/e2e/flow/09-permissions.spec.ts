@@ -30,7 +30,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     );
     expect(Array.isArray(conflicts)).toBe(true);
 
-    const pairs = (conflicts || []).map(c => `${c.role_a_code}↔${c.role_b_code}`);
+    const pairs = conflicts.map(c => `${c.role_a_code}↔${c.role_b_code}`);
     if (pairs.length > 0) {
       // 对齐 migration/src/domain/finance/mod.rs 预置的财务三权分立互斥种子
       const expectedPairs = [

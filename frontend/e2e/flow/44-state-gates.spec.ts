@@ -1,4 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
+import { pickListArray } from './ui-helpers';
 import {
   loginViaUI,
   apiCall,
@@ -36,7 +37,10 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
   /** 确保会计科目 1001/1002 存在（subjects 表无 seed，凭证校验科目必须存在） */
   async function ensureSubjects(page: import('@playwright/test').Page): Promise<void> {
     const list = await apiCallRaw<Array<{ code?: string }>>(page, 'GET', '/subjects');
-    const codes = new Set((list ?? []).map(s => s.code));
+    // /subjects -> ApiResponse::success(Vec)：data 本身就是裸数组
+    const codes = new Set(
+      pickListArray<{ code?: string }>(list, 'bare', '44d 会计科目 /subjects').map(s => s.code)
+    );
     for (const [code, name] of [
       ['1001', '库存现金'],
       ['1002', '银行存款'],

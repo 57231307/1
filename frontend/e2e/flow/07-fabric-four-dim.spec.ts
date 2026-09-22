@@ -9,7 +9,7 @@ import {
   genDyeLotNo,
   ensureTestEntities,
 } from './helpers';
-import { uiCreateDialog } from './ui-helpers';
+import { uiCreateDialog, pickListArray } from './ui-helpers';
 
 // 匹号/缸号领域真实链路测试（docs/piece-number-domain-design.md）
 // 编号语义（用户 2026-09-05 二次确认）：
@@ -40,7 +40,8 @@ async function fetchPieces(
     .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
     .join('&');
   const res = await apiCallRaw<{ items: PieceItem[] }>(page, 'GET', `/inventory/pieces?${qs}`);
-  return res.items || [];
+  // /pieces -> PaginatedResponse<PieceResponse>（inventory_piece_handler::list_pieces），items 键缺失即契约破坏
+  return pickListArray<PieceItem>(res, 'items', '7 匹号四维列表 /inventory/pieces');
 }
 
 test.describe

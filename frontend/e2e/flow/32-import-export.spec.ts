@@ -176,16 +176,23 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
       200
     );
     const importBody = (await importResp!.json()) as {
-      data?: {
-        total_count?: number;
-        success_count?: number;
-        error_count?: number;
-        errors?: unknown;
-      };
+      code: number;
+      data: {
+        total_count: number;
+        success_count: number;
+        error_count: number;
+        errors: Array<{ row: number; column: string; message: string; value: string }>;
+      } | null;
     } | null;
-    const importResult = importBody?.data ?? {};
+    // 后端 utils/import_export.rs:37 ImportResult 四字段恒在（Vec 序列化为 []），
+    // 缺 data 就是契约破坏，必须硬失败而不是 `?? {}` 读成 undefined 再靠后续断言碰运气。
+    expect(
+      importBody?.data,
+      `导入响应缺少 data，实际：${JSON.stringify(importBody).slice(0, 200)}`
+    ).toBeTruthy();
+    const importResult = importBody!.data!;
     console.log(
-      `[P0-导入-产品] 导入结果: total=${importResult.total_count} success=${importResult.success_count} error=${importResult.error_count} errors=${JSON.stringify(importResult.errors ?? [])}`
+      `[P0-导入-产品] 导入结果: total=${importResult.total_count} success=${importResult.success_count} error=${importResult.error_count} errors=${JSON.stringify(importResult.errors)}`
     );
     expect(
       importResult.total_count,
@@ -193,7 +200,7 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     ).toBe(1);
     expect(
       importResult.success_count,
-      `导入应成功 1 条，失败详情：${JSON.stringify(importResult.errors ?? [])}`
+      `导入应成功 1 条，失败详情：${JSON.stringify(importResult.errors)}`
     ).toBe(1);
 
     // 等待列表刷新后回读导入的产品

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '../diagnose-fixture';
+import { pickListArray } from './ui-helpers';
 import {
   loginViaUI,
   loginOnPage,
@@ -129,12 +130,17 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       return;
     }
     // apiCall 返回完整 body {code,data,message}；RoleListResponse 在 data.roles 下
-    const rolesResp = await apiCallRaw<{ roles?: Array<{ id: number; code: string }> }>(
+    const rolesResp = await apiCallRaw<{ roles: Array<{ id: number; code: string }> }>(
       page,
       'GET',
       '/roles?page=1&page_size=50'
     );
-    const roleList = rolesResp?.roles ?? [];
+    // /roles -> RoleListResponse.roles（不是 items，也不是裸数组）
+    const roleList = pickListArray<{ id: number; code: string }>(
+      rolesResp,
+      'roles',
+      '53 角色列表 /roles'
+    );
     const adminRole = roleList.find(r => r.code === 'admin') ?? roleList[0];
     expect(adminRole, '无可用角色').toBeTruthy();
     const r = await apiCall<{ id?: number }>(page, 'POST', '/users', {
@@ -154,12 +160,16 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
   }) => {
     await loginViaUI(page);
     // 查一个敏感角色 id（backend 只对 SENSITIVE_ROLES 内的码开审批流）
-    const roleResp = await apiCallRaw<{ roles?: Array<{ id: number; code: string }> }>(
+    const roleResp = await apiCallRaw<{ roles: Array<{ id: number; code: string }> }>(
       page,
       'GET',
       '/roles?page=1&page_size=50'
     );
-    const roleList = roleResp?.roles ?? [];
+    const roleList = pickListArray<{ id: number; code: string }>(
+      roleResp,
+      'roles',
+      '53 敏感角色列表 /roles'
+    );
     const sensitive = pickSensitiveRole(roleList);
     expect(
       sensitive,

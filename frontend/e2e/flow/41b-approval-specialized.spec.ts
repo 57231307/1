@@ -1,4 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
+import { pickListArray } from './ui-helpers';
 import {
   loginViaUI,
   apiCall,
@@ -130,12 +131,17 @@ test.describe('P5.11b 专用审批流', () => {
     // 原实现：GET /role-change-approvals 读 data.items find status 'pending' → test.skip()，空库永跳。
     // 改造：真实建一条敏感角色变更申请（装置同 53-approval-depth-full）→ 断言 id 落地 →
     // 触发 approve-l1（申请人自审 → 防自审批 4xx，链可达）→ cancel 收尾。
-    const roles = await apiCallRaw<{ roles?: Array<{ id: number; code: string }> }>(
+    const roles = await apiCallRaw<{ roles: Array<{ id: number; code: string }> }>(
       page,
       'GET',
       '/roles'
     );
-    const roleList = roles?.roles ?? [];
+    // /roles -> RoleListResponse.roles（既不是 items 也不是裸数组），缺 roles 键即契约破坏
+    const roleList = pickListArray<{ id: number; code: string }>(
+      roles,
+      'roles',
+      '41b 角色列表 /roles'
+    );
     const sensitive = roleList.find(r =>
       ['admin', 'super_admin', 'finance', 'finance_admin'].includes(r.code)
     );

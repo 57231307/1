@@ -1,4 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
+import { pickListArray } from './ui-helpers';
 import {
   loginViaUI,
   apiCall,
@@ -278,12 +279,17 @@ test.describe('库存调拨完整流程', () => {
 
     // ---- 3. 定位入库后的白坯库存行（color_no 空 + dye_lot_no 空 + 指定批次）----
     const readWhiteStock = async () => {
-      const res = await apiCallRaw<{ items?: Array<Record<string, unknown>> }>(
+      const res = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
         page,
         'GET',
         `/inventory/stock?product_id=${productId}&warehouse_id=${warehouseId}&batch_no=${whiteBatch}&page=1&page_size=50`
       );
-      const rows = res.items ?? [];
+      // /stock -> PaginatedResponse（inventory_stock_handler::list_stock:250）
+      const rows = pickListArray<Record<string, unknown>>(
+        res,
+        'items',
+        '12 白坯库存 /inventory/stock'
+      );
       console.warn(
         `[白坯出库] 批次 ${whiteBatch} 命中库存行 ${rows.length} 条: ${rows
           .map(

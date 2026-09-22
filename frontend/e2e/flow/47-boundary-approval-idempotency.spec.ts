@@ -1,4 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
+import { pickListArray } from './ui-helpers';
 import {
   loginViaUI,
   ensureTestEntities,
@@ -90,10 +91,16 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
   test('47-I1 用户名重复创建被拒（user_service.rs:90-103 先查后插）', async ({ page }) => {
     await ensureTestEntities(page);
     const username = `47dup${genCode('U').slice(-6)}`;
-    const { rolesResp } = await (async () => ({ rolesResp: null }))();
     // 前置角色
-    const role = await apiCallRaw(page, 'GET', '/roles?page=1&page_size=1');
-    const roleId = (role as { roles?: Array<{ id: number }> })?.roles?.[0]?.id;
+    const role = await apiCallRaw<{ roles: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/roles?page=1&page_size=1'
+    );
+    // /roles -> RoleListResponse.roles（audit_log_handler 同款具名键，既不是 items 也不是裸数组）
+    const roleList = pickListArray<{ id: number }>(role, 'roles', '47-I1 角色列表 /roles');
+    expect(roleList.length, '角色表为空，无法构造用户').toBeGreaterThan(0);
+    const roleId = roleList[0].id;
     expect(roleId, '无可用角色').toBeTruthy();
 
     const r1 = await apiCall<{ id?: number }>(page, 'POST', '/users', {
@@ -158,7 +165,8 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
         'GET',
         `/audit-logs?page=1&page_size=100&table_name=department`
       );
-      items = logs?.items ?? [];
+      // /audit-logs -> AuditLogListResponse.items（audit_log_handler.rs:132）
+      items = pickListArray<Record<string, unknown>>(logs, 'items', '47 审计日志 /audit-logs');
       if (items.some(l => String(l.resource_name ?? '') === name)) break;
       await new Promise(r => setTimeout(r, 500));
     }

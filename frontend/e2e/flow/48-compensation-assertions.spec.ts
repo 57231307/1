@@ -1,4 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
+import { pickListArray } from './ui-helpers';
 import {
   loginViaUI,
   apiCall,
@@ -96,12 +97,17 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     // 真实路由是 /ap/invoices（finance.rs:637），不是 /ap-invoices
     let apList: Array<{ supplier_id?: number; source_id?: number }> = [];
     for (let i = 0; i < 20; i++) {
-      const ap = await apiCallRaw<{ items?: Array<{ supplier_id?: number; source_id?: number }> }>(
+      const ap = await apiCallRaw<{ items: Array<{ supplier_id?: number; source_id?: number }> }>(
         page,
         'GET',
         `/ap/invoices?page=1&page_size=100`
       );
-      apList = ap?.items ?? [];
+      // /ap/invoices -> PaginatedResponse（ap_invoice_handler.rs:67）
+      apList = pickListArray<{ supplier_id?: number; source_id?: number }>(
+        ap,
+        'items',
+        '48 应付单列表 /ap/invoices'
+      );
       if (apList.some(x => x.supplier_id === ctx.supplierId)) break;
       await new Promise(r => setTimeout(r, 1000));
     }

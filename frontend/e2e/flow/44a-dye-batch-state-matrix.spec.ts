@@ -208,7 +208,12 @@ test.describe.serial('44a 缸号状态机规则矩阵（dye_batch_state_machine_
     );
     expect(r.ok(), 'allowed-transitions 端点应可达').toBe(true);
     const body = await r.json();
-    const transitions = JSON.stringify(body?.data ?? body ?? []);
+    // list_allowed_transitions 返回 ApiResponse<Vec<Model>>：载荷恒在 data，不做双形状探测
+    expect(
+      Array.isArray(body?.data),
+      `allowed-transitions 载荷应为 data 数组，实际顶层键：${Object.keys(body ?? {}).join(',')}`
+    ).toBe(true);
+    const transitions = JSON.stringify(body.data);
     for (const target of ['washing', 'cancelled', 'terminated', 'on_hold', 'failed']) {
       expect(
         transitions.includes(target),
