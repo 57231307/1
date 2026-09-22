@@ -88,9 +88,21 @@ export async function fetchRolePermissions(
   const resp = await fetch(`${API_BASE}${API_PREFIX}/roles/${roleId}`, {
     headers: authHeaders,
   });
-  if (!resp.ok) return [];
-  const body = (await resp.json()) as { data?: { permissions?: string[] } } | null;
-  return body?.data?.permissions ?? [];
+  // 非 2xx 不再退化成"空权限"（空权限会把该角色所有受限路由误判为不可达）：直接抛错
+  if (!resp.ok) {
+    throw new Error(`GET /roles/${roleId} 权限查询失败，HTTP ${resp.status()}`);
+  }
+  const body = (await resp.json()) as { data?: { permissions?: unknown } } | null;
+  const perms = body?.data?.permissions;
+  // 字段缺失 ≠ 空集合：后端未返回 permissions 数组时抛错，不伪装成"该角色无任何权限"
+  if (!Array.isArray(perms)) {
+    throw new Error(
+      `GET /roles/${roleId} 响应缺少 data.permissions 数组：keys=${JSON.stringify(
+        Object.keys(body?.data ?? {})
+      )}`
+    );
+  }
+  return perms as string[];
 }
 
 /**
@@ -117,7 +129,16 @@ export async function compareWithBaseline(
   if (!fs.existsSync(baselinePath)) return null;
 
   const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf-8')) as Record<string, string[]>;
-  const baselineRoutes = new Set(baseline[accessMap.role] ?? []);
+  // 基线里没有该角色条目 ≠ "该角色无可达路由"：按空集对比会把整角色误判为全漂移/全通过。
+  // 缺键必须显式抛错，交由人工补录基线，而非静默当成空集合。
+  if (!Object.prototype.hasOwnProperty.call(baseline, accessMap.role)) {
+    throw new Error(
+      `基线文件缺少角色 ${accessMap.role} 的条目（不得按空集对比）：现有角色=${Object.keys(
+        baseline
+      ).join(',')}`
+    );
+  }
+  const baselineRoutes = new Set(baseline[accessMap.role]);
 
   return accessMap.entries.filter(e => baselineRoutes.has(e.route) !== (e.actual === 'reachable'));
 }

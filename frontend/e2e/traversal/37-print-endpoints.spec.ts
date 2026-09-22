@@ -1,17 +1,22 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCallRaw } from '../flow/helpers';
+import { loginViaUI } from '../flow/helpers';
 import { PRINT_ENDPOINTS } from './modules.config';
+import {
+  classifyStatus,
+  assertEndpointRegistered,
+  assertZipDocxResponse,
+  assertNotPermissionDenied,
+  parseAppError,
+} from './matrix-probe';
 
 /**
- * P5.7 打印端点全量矩阵（58 端点，配置驱动）
+ * P5.7 打印端点全量矩阵（58 端点，配置驱动）——可达性 + 容器判定
  *
- * 每端点断言：
- * - 200（或业务码成功）
- * - Content-Type 为 docx（application/vnd.openxmlformats-officedocument.*）
- * - 响应体 >1KB 且 zip magic（PK\x03\x04）
- * - 404/400 判定为"测试数据缺失"单独记录（CI 种子数据无该实体 id），5xx 才是真失败
- *
- * JSZip 深度解包断言（document.xml 非空）在 jszip devDep 加入后启用
+ * 端点以 id=1 探测，按"响应形态"做真实判定（不再是 404/400 → test.skip 的假绿）：
+ * - 5xx / 裸 404·405（无标准错误体）        → 判红：处理器崩溃 / 路由未注册（路径写错）
+ * - 200                                     → 必须是真实 docx zip 容器（PK magic + >1KB + OOXML）
+ * - 4xx 且为标准错误体（已注册，仅 id=1 无种子数据） → 记录为"已注册-无数据"，并断言其
+ *   不是 admin 权限拒绝；真实存在实体上的 200+内容匹配在 37b-print-content 覆盖。
  */
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
@@ -32,33 +37,26 @@ test.describe('P5.7 打印端点全量矩阵', () => {
 
       const status = resp.status();
       const body = await resp.body();
+      const bodyText = status >= 400 ? body.toString('utf8') : '';
 
-      if (status === 404 || status === 400) {
-        // CI 种子数据无 id=1 实体：记录为数据缺失，非系统缺陷
+      const outcome = classifyStatus(status, bodyText);
+      // 崩溃 / 未注册 → 判红（这里去掉原来的 test.skip()）
+      assertEndpointRegistered(`PRINT ${resolvedPath}`, outcome, { status, bodyText });
+
+      if (outcome === 'registered-error') {
+        // 处理器已注册，仅因 id=1 无种子数据被业务层拒绝：admin 被权限拒绝是真实缺陷
+        const err = parseAppError(bodyText);
+        assertNotPermissionDenied(`PRINT ${resolvedPath}`, err?.code ?? '');
         test.info().annotations.push({
-          type: 'missing-data',
-          description: `端点 ${resolvedPath} 返回 ${status}，需补种子数据后重跑`,
+          type: 'registered-no-seed',
+          description: `端点 ${resolvedPath} 已注册，id=1 无数据（${err?.code}）；真实数据打印见 37b`,
         });
-        console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-        test.skip();
         return;
       }
 
+      // outcome === 'ok'：200 必须是真实 docx zip 容器
       expect(status, `${resolvedPath} 应返回 200`).toBe(200);
-
-      // xlsx/docx 均为 zip 容器：PK magic + >1KB
-      const isZip = body.length > 4 && body[0] === 0x50 && body[1] === 0x4b;
-      if (isZip) {
-        expect(body.length, `${resolvedPath} 响应体应 >1KB`).toBeGreaterThan(1024);
-        const contentType = resp.headers()['content-type'] ?? '';
-        expect(
-          contentType.includes('openxmlformats') ||
-            contentType.includes('octet-stream') ||
-            contentType.includes('spreadsheetml') ||
-            contentType.includes('wordprocessingml'),
-          `${resolvedPath} Content-Type 应为 OOXML 格式，实际 ${contentType}`
-        ).toBeTruthy();
-      }
+      assertZipDocxResponse(`PRINT ${resolvedPath}`, body, resp.headers()['content-type'] ?? '');
     });
   }
 });

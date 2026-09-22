@@ -71,10 +71,26 @@ test.describe('质检记录列表筛选契约', () => {
     expect(status).toBe(200);
     expect(data, '列表响应缺少 data 对象').toBeTruthy();
     const payload = data as RecordListData;
+    // 缺 items 键与 items=[] 分开判（缺键=后端契约破坏，非空集合）
+    expect(
+      Object.prototype.hasOwnProperty.call(payload, 'items'),
+      '响应缺少 items 字段（后端未返回该键）'
+    ).toBe(true);
     expect(Array.isArray(payload.items), 'items 必须是数组').toBe(true);
     expect(typeof payload.total).toBe('number');
     expect(payload.page).toBe(1);
     expect(payload.page_size).toBe(5);
+    // 真实内容一致性：本页行数 ≤ total；total 非空时首页必须带行
+    expect(
+      payload.items.length,
+      `首页行数 ${payload.items.length} 不应超过 total ${payload.total}`
+    ).toBeLessThanOrEqual(payload.total);
+    if (payload.total > 0) {
+      expect(
+        payload.items.length,
+        `total=${payload.total} 但首页 items 为空，列表分页与数据不一致`
+      ).toBeGreaterThan(0);
+    }
     for (const row of payload.items) {
       expect(typeof row.inspection_no).toBe('string');
       expect(row.inspection_no.length, '检验单号不能为空串').toBeGreaterThan(0);

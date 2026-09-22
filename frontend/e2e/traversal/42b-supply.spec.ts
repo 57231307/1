@@ -29,21 +29,35 @@ async function visitModule(
     expect(resp.status()).toBeLessThan(500);
   }
 
+  // 有新建入口的模块（读配置判定，不再用运行时 isVisible() 猜测）：
+  // Tier A 且未标 noCreate ⇒ 新建按钮必须可见且能点开/跳转（原来 if(isVisible) 静默放过）。
   if (mod.tier === 'A' && !mod.noCreate) {
     const newBtn = page
       .locator('button:has-text("新建"), button:has-text("新增"), button:has-text("添加")')
       .first();
-    if (await newBtn.isVisible()) {
-      await newBtn.click();
-      await page.waitForTimeout(800);
-      const dialogVisible = await page
-        .locator('.el-dialog:visible, .el-drawer:visible')
-        .first()
-        .isVisible();
-      const navigated =
-        page.url() !== `${process.env.BASE_URL || 'http://localhost:3000'}${mod.route}`;
-      expect(dialogVisible || navigated).toBeTruthy();
-    }
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const visible = await newBtn.isVisible();
+    expect(
+      visible,
+      `[${mod.id}] 路由 ${mod.route} 配置为可新建（Tier A 且未标 noCreate），` +
+        `但页面未渲染「新建/新增/添加」按钮；页面异常=${collector.pageErrors.join(' | ') || '(无)'}`
+    ).toBe(true);
+    const btnText = (await newBtn.textContent())?.trim() ?? '(空文案)';
+    await newBtn.click();
+    const appeared = await page
+      .locator('.el-dialog:visible, .el-drawer:visible')
+      .first()
+      .waitFor({ state: 'visible', timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+    const navigated =
+      page.url() !== `${process.env.BASE_URL || 'http://localhost:3000'}${mod.route}`;
+    expect(
+      appeared || navigated,
+      `[${mod.id}] 点击「${btnText}」后 8s 内既未出现弹窗/抽屉，URL 仍停在 ${page.url()}；` +
+        `页面异常=${collector.pageErrors.join(' | ') || '(无)'}，` +
+        `console 错误=${collector.consoleErrors.slice(0, 2).join(' | ') || '(无)'}`
+    ).toBeTruthy();
   }
 }
 

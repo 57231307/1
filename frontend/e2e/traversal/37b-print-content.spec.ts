@@ -76,16 +76,12 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
         orderNo = result.data?.order_no;
       }
     }
-    // 空库极端场景：连兜底创建都失败 → 记录数据缺失跳过（非系统缺陷）
-    if (!salesOrderId) {
-      test.info().annotations.push({
-        type: 'missing-data',
-        description: '无销售订单且兜底创建失败，需补种子数据后重跑',
-      });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    // 空库极端场景也要判红：ensureTestEntities 会创建销售订单（其前置缺失时自身抛错），
+    // 拿不到 id 说明创建链真的断了，属环境/产品缺陷，不能再 test.skip 掩盖。
+    expect(
+      salesOrderId,
+      '销售订单既无法从列表取得、也无法经 ensureTestEntities/兜底创建——打印内容断言缺前置数据，判红'
+    ).toBeTruthy();
     console.log(
       `[37b] 源单据：salesOrderId=${salesOrderId} orderNo=${orderNo ?? '(列表未返回单号)'}`
     );
@@ -97,16 +93,8 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     const printStatus = printResp.status();
     console.log(`[37b] 打印请求 /sales/orders/${salesOrderId}/print → ${printStatus}`);
 
-    if (printStatus === 404 || printStatus === 400) {
-      test.info().annotations.push({
-        type: 'missing-data',
-        description: `打印端点返回 ${printStatus}（打印模板或数据缺失）`,
-      });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
-    expect(printStatus, `打印应返回 200，实际 ${printStatus}`).toBe(200);
+    // 已持有真实订单 id：打印仍 4xx 说明处理器对有效单据坏掉，判红（不再 skip）。
+    expect(printStatus, `真实订单 ${salesOrderId} 打印应返回 200，实际 ${printStatus}`).toBe(200);
 
     const body = await printResp.body();
     expect(body.length, `docx 响应体应 >1KB，实际 ${body.length}B`).toBeGreaterThan(1024);
@@ -148,7 +136,13 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
       total: number;
     }>;
     expect(auditJson.code, `审计查询业务码应 200，实际 ${auditJson.code}`).toBe(200);
-    const printLogs = auditJson.data?.items ?? [];
+    // 先断言出参形态，再取用：把"后端没返回 items"与"返回了空集合"区分开（原 ?? [] 会把前者伪装成后者）
+    const auditItems = auditJson.data?.items;
+    expect(
+      Array.isArray(auditItems),
+      `审计响应缺少 data.items 数组（字段缺失≠空集合）：${JSON.stringify(auditJson).slice(0, 200)}`
+    ).toBe(true);
+    const printLogs = auditItems as NonNullable<typeof auditItems>;
     expect(
       printLogs.length,
       `审计应存在 PRINT 记录（打印后闭环），实际 total=${auditJson.data?.total}`
@@ -162,21 +156,30 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
   test('凭证打印内容解包（voucher 种子存在时）', async ({ page }) => {
     test.setTimeout(120_000);
 
-    // 凭证列表回读（/vouchers 记账凭证；空库则 skip）
+    // 凭证列表回读；无则由 ensureTestEntities 建凭证（其内部会先建科目+会计期间再建凭证），
+    // 建不出来即环境/创建链缺陷，判红而非 skip（造数据优先于跳过）。
     const vs = await apiCallRaw<{
       items: Array<{ id: number; voucher_no?: string; no?: string }>;
     }>(page, 'GET', '/vouchers?page=1&page_size=1');
-    const voucherId = vs.items?.[0]?.id;
-    const voucherNo = vs.items?.[0]?.voucher_no ?? vs.items?.[0]?.no;
+    let voucherId = vs.items?.[0]?.id;
+    let voucherNo = vs.items?.[0]?.voucher_no ?? vs.items?.[0]?.no;
     if (!voucherId) {
-      test.info().annotations.push({
-        type: 'missing-data',
-        description: '无凭证种子数据，跳过凭证打印内容断言',
-      });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
+      console.log('[37b] 无凭证种子数据，ensureTestEntities 兜底创建');
+      await ensureTestEntities(page);
+      voucherId = getCtx().voucherId;
+      if (voucherId) {
+        const detail = await apiCallRaw<{ voucher_no?: string; no?: string }>(
+          page,
+          'GET',
+          `/vouchers/${voucherId}`
+        );
+        voucherNo = detail?.voucher_no ?? detail?.no;
+      }
     }
+    expect(
+      voucherId,
+      '凭证既无种子、ensureTestEntities 也未能创建——凭证打印断言缺前置数据，判红'
+    ).toBeTruthy();
     console.log(`[37b] 凭证 voucherId=${voucherId} no=${voucherNo ?? '?'}`);
 
     const printResp = await page.request.get(
@@ -184,13 +187,8 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     );
     const status = printResp.status();
     console.log(`[37b] 凭证打印 → ${status}`);
-    if (status === 404 || status === 400) {
-      test.info().annotations.push({ type: 'missing-data', description: `凭证打印返回 ${status}` });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
-    expect(status, `凭证打印应 200，实际 ${status}`).toBe(200);
+    // 已持有真实凭证 id：打印仍 4xx 说明处理器对有效凭证坏掉，判红（不再 skip）。
+    expect(status, `真实凭证 ${voucherId} 打印应 200，实际 ${status}`).toBe(200);
 
     const body = await printResp.body();
     expect(body.length, `凭证 docx 应 >1KB，实际 ${body.length}B`).toBeGreaterThan(1024);

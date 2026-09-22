@@ -39,11 +39,26 @@ test.describe('物流运单状态与列表契约', () => {
     expect(status).toBe(200);
     expect(body.data, '列表响应缺少 data 对象').toBeTruthy();
     const data = body.data as WaybillListData;
-    // 空列表也必须返回 items 数组与分页元数据，不能整体缺键
+    // 空列表也必须返回 items 数组与分页元数据，不能整体缺键（缺键与空数组分开判）
+    expect(
+      Object.prototype.hasOwnProperty.call(data, 'items'),
+      '响应缺少 items 字段（后端未返回该键）'
+    ).toBe(true);
     expect(Array.isArray(data.items), 'items 必须是数组').toBe(true);
     expect(typeof data.total).toBe('number');
     expect(data.page).toBe(1);
     expect(data.page_size).toBe(5);
+    // 真实内容一致性：本页行数不得超过总数；总数非空时首页必须带行（报 total 却不返数据即判红）
+    expect(
+      data.items.length,
+      `首页行数 ${data.items.length} 不应超过 total ${data.total}`
+    ).toBeLessThanOrEqual(data.total);
+    if (data.total > 0) {
+      expect(
+        data.items.length,
+        `total=${data.total} 但首页 items 为空，列表分页与数据不一致`
+      ).toBeGreaterThan(0);
+    }
     for (const item of data.items) {
       expect(WAYBILL_STATUSES, `运单出现状态机外的取值：${item.status}`).toContain(item.status);
       // 关联订单号由后端回查 sales_orders 补齐，前端不再自造运单号字段

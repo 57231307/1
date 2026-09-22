@@ -38,10 +38,12 @@ const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
   test('登录 + 全模块三分支断言 + access-map 生成', async ({ page }) => {
     const cred = getRoleCredential(role);
+    // 角色无凭证 = global-setup ensureRoleUsers 未建该账号，属环境缺陷：
+    // 矩阵必须判红，不能再 test.skip 把"根本没测"伪装成"通过"。
     if (!cred) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
+      throw new Error(
+        `角色 ${role} 无 E2E 凭证（getRoleCredential 返回空）——global-setup 未补建该角色账号，矩阵无法执行，判红。`
+      );
     }
 
     const collector = trackPageHealth(page);
@@ -113,6 +115,7 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
 
     // 界面显示健康：未翻译 key / NaN / undefined 渲染抽样
     const pageText = await page.evaluate(() => document.body.innerText);
+    // 无匹配时 match 返回 null，?? [] 表示"未检出未翻译 key"（健康态），非字段缺失伪装，保留。
     const untranslatedKeys = pageText.match(/\b[a-z]+\.[a-z]+(\.[a-z]+)+\b/g) ?? [];
     const renderedNaN = /\bNaN\b|\bundefined\b/.test(pageText);
 
