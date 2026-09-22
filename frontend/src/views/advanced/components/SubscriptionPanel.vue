@@ -79,14 +79,16 @@
           </div>
           <template v-if="previewResult">
             <el-table :data="previewRows" border size="small" max-height="360">
+              <!-- data 每行是按列序的字符串数组，非以列名为键的对象，故按位置索引渲染 -->
               <el-table-column
-                v-for="col in previewColumns"
+                v-for="(col, idx) in previewColumns"
                 :key="col"
-                :prop="col"
                 :label="col"
                 min-width="120"
                 show-overflow-tooltip
-              />
+              >
+                <template #default="{ row }">{{ row[idx] }}</template>
+              </el-table-column>
             </el-table>
             <p class="preview-total">共 {{ previewResult.total }} 行</p>
           </template>
@@ -313,8 +315,15 @@ const previewTemplateId = ref('');
 const previewLoading = ref(false);
 const previewResult = ref<ReportPreviewResult | null>(null);
 
-const previewColumns = computed(() => previewResult.value?.fields ?? []);
-const previewRows = computed(() => previewResult.value?.rows ?? []);
+// 直接绑后端真实键：columns=string[]，data=string[][]（每行是按列序的字符串数组）。
+// 未加载时 previewResult 为 null 才回退空数组；已加载载荷的列/行不做 `?? []` 兜底，
+// 以免形状异常被静默吞成空集。
+const previewColumns = computed<string[]>(() =>
+  previewResult.value ? previewResult.value.columns : []
+);
+const previewRows = computed<string[][]>(() =>
+  previewResult.value ? previewResult.value.data : []
+);
 
 async function loadPreview() {
   const id = Number(previewTemplateId.value);
@@ -324,8 +333,9 @@ async function loadPreview() {
   }
   previewLoading.value = true;
   try {
-    const res = await previewReport(id, { page: 1, page_size: 50 });
-    previewResult.value = res.data ?? null;
+    const res = await previewReport(id);
+    // 后端成功响应恒含 data，直接赋值；不用 `?? null` 掩盖契约形状问题。
+    previewResult.value = res.data;
   } catch (e) {
     ElMessage.error((e as Error).message || '预览失败');
   } finally {

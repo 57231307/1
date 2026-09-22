@@ -113,21 +113,23 @@ export function exportReport(
 }
 
 // P2-16 修复（批次 86 v2 复审）：previewReport ApiResponse<any> → 显式接口
+// 增强预览契约修复：键名/形状逐字对齐后端 json! 构造（report_enhanced_handler.rs:512-518）
+// 与其数据源 execute_custom_report 的返回类型 (Vec<String>, Vec<Vec<String>>, u64)
+// （report_template_service.rs:559）——columns 为字符串表头数组，data 为「行=字符串数组」的二维数组，
+// 而非此前臆造的 fields/rows 对象形状。
 
 /** 报表预览结果 */
 export interface ReportPreviewResult {
   template_id: number;
-  fields: string[];
-  rows: Array<Record<string, unknown>>;
+  columns: string[];
+  data: string[][];
   total: number;
-  [key: string]: unknown;
+  preview_rows: number;
 }
 
-export function previewReport(
-  templateId: number,
-  params?: Record<string, unknown>
-): Promise<ApiResponse<ReportPreviewResult>> {
-  return request.get(`/reports/enhanced/templates/${templateId}/preview`, { params });
+// 后端 preview_template 无 Query 提取器，page/page_size 会被静默丢弃，故不接收 params。
+export function previewReport(templateId: number): Promise<ApiResponse<ReportPreviewResult>> {
+  return request.get(`/reports/enhanced/templates/${templateId}/preview`);
 }
 
 export function getSubscriptionList(
