@@ -25,6 +25,9 @@ export const SALES_ORDER_STATUSES = [
 
 export type SalesOrderStatus = (typeof SALES_ORDER_STATUSES)[number];
 
+/** el-tag 配色类型（与 element-plus Tag 的 type 属性对齐） */
+export type SalesTagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
+
 /** i18n 文案键（locales 的 sales.statusLabels.*） */
 export const SALES_STATUS_LABEL_KEYS: Record<SalesOrderStatus, string> = {
   draft: 'sales.statusLabels.draft',
@@ -38,7 +41,7 @@ export const SALES_STATUS_LABEL_KEYS: Record<SalesOrderStatus, string> = {
 };
 
 /** Element Plus el-tag 类型 */
-export const SALES_STATUS_TAG_TYPES: Record<SalesOrderStatus, string> = {
+export const SALES_STATUS_TAG_TYPES: Record<SalesOrderStatus, SalesTagType> = {
   draft: 'info',
   pending: 'warning',
   approved: 'primary',
@@ -71,7 +74,7 @@ export function salesStatusLabelKey(status: string | undefined): string | undefi
   return normalized ? SALES_STATUS_LABEL_KEYS[normalized] : undefined;
 }
 
-export function salesStatusTagType(status: string | undefined): string {
+export function salesStatusTagType(status: string | undefined): SalesTagType {
   const normalized = normalizeSalesOrderStatus(status);
   return normalized ? SALES_STATUS_TAG_TYPES[normalized] : 'info';
 }

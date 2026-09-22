@@ -63,7 +63,8 @@ export interface SalesDelivery {
   customer_name: string;
   delivery_date: string;
   warehouse_id?: number;
-  status: 'draft' | 'pending' | 'shipped' | 'delivered';
+  /** 与后端 models/status/sales.rs 的 sales_delivery 常量同源（该表无 draft/delivered） */
+  status: 'pending' | 'shipped' | 'cancelled';
   items: SalesDeliveryItem[];
   remark?: string;
   created_at?: string;
