@@ -164,7 +164,7 @@ export interface StockAlert {
   alert_type: string;
 }
 
-/// 说明：与后端 PaginatedResponse 同构的分页包装，供预警等列表端点复用
+// 与后端 PaginatedResponse 同构的分页包装，供预警等列表端点复用
 export interface Paginated<T> {
   items: T[];
   total: number;

@@ -12,15 +12,15 @@ use sea_orm::{
 use crate::handlers::inventory_stock_handler_dto::{
     InventorySummaryItem, StockAlertQuery, StockAlertRow,
 };
-use crate::utils::response::PaginatedResponse;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::{inventory_stock, inventory_transaction};
 use crate::services::stock_alert::{
-    ALERT_TYPE_NORMAL, AlertType, EXPIRING_THRESHOLD_DAYS, SLOW_MOVING_THRESHOLD_DAYS,
+    AlertType, ALERT_TYPE_NORMAL, EXPIRING_THRESHOLD_DAYS, SLOW_MOVING_THRESHOLD_DAYS,
 };
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+use crate::utils::response::PaginatedResponse;
 
 /// 根据库存 Model 派生计算 alert_type 字符串
 /// 批次 126 v8 复审 P2 修复：替换原硬编码 "normal"。；v11 批次 144 P1-4 修复：扩展 OverStock（高于上限）和 SlowMoving（滞销）告警判定。；OverStock: max_stock_point > 0 && quantity_available > max_stock_point；SlowMoving: last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天；判定优先级（高优先级先返回）：1. stock_status != "正常" → discrepancy（盘点差异/状态异常）；2. quantity_available == 0 && reorder_point > 0 → out_of_stock（缺货）；3. reorder_point > 0 && quantity_available < reorder_point → low_stock（低于下限）；4. max_stock_point > 0 && quantity_available > max_stock_point → over_stock（高于上限）；5. expiry_date 存在且距今 ≤ EXPIRING_THRESHOLD_DAYS 天 → expiring（即将过期）；6. last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天 → slow_moving（滞销）；7. 否则 → normal
@@ -339,8 +339,8 @@ impl InventoryStockService {
             stock_query = stock_query.filter(inventory_stock::Column::ProductId.eq(pid));
         }
 
-        let (stocks, total) = paginate_with_total(stock_query.paginate(&*self.db, page_size), page)
-            .await?;
+        let (stocks, total) =
+            paginate_with_total(stock_query.paginate(&*self.db, page_size), page).await?;
 
         // 主数据名称批量带出（预警页要给人看，只给 ID 成不了决策依据）；
         // 主数据行缺失属外键异常，记 error 并留空，不用 ID 拼假名称
@@ -409,7 +409,7 @@ impl InventoryStockService {
                     expiry_date: s.expiry_date.map(|d| d.to_rfc3339()),
                     last_movement_date: s.last_movement_date.map(|d| d.to_rfc3339()),
                     stock_status: s.stock_status,
-                    alert_type,
+                    alert_type: alert_type.to_string(),
                 }
             })
             .collect();

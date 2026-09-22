@@ -134,7 +134,7 @@ pub struct ListStockParams {
 /// 按 ID 批量带出——预警要能被处置（去补货、找仓管），只给 ID 就成不了决策依据。
 /// `alert_type` 取值见 `services::stock_alert::compute_alert_type`，前端词表在
 /// `constants/stock-alert-type.ts`，两侧必须同步。
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StockAlertRow {
     pub id: i32,
     pub product_id: i32,
