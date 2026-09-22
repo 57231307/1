@@ -95,13 +95,87 @@
       但这会连带要求全部 E2E fixture 建库存时使用与订单一致的色号/缸号（02-o2c/11/12/13/44f 等），
       属一次跨端改造，需单独一轮完成，不与本轮混批。
 
-- [ ] **台账「冻结/待检」状态无任何写入口（功能缺失，非缺陷）**：库存处理器的响应文档写着
-      `stock_status（正常/冻结/待检）`，但全仓只有 正常/报废/已删除 三处写入，既没有冻结/解冻端点，
-      也没有待检流转，因此前端不再提供这两个筛选项。是否补冻结/解冻能力（以及冻结后是否应排除在
-      可用量之外）属功能范围决策，需用户确认后再做。
-- [ ] **库存汇总与低库存仍各自写字面量/硬编码状态**：`inventory_stock_query.rs` 汇总查询里的
-      `StockStatus.eq("正常")` 与 `QualityStatus.eq("合格")`、批量入仓 `inv/batch.rs:812` 的
-      `"正常"` 尚未改用新常量（改了不影响行为，属一致性收敛，低库存/预警页是否应展示报废库存也待产品确认）。
+- [ ] **台账「冻结/待检」状态无任何写入口（功能缺失，非缺陷）**：全仓只有 正常/报废/已删除 三处写入，
+      既没有冻结/解冻端点，也没有待检流转，因此前端不提供这两个筛选项。
+      本轮先把"诱饵"拔掉：`models/inventory_stock.rs` 与 `inventory_stock_handler_dto.rs` 两处字段文档
+      原文写的是 `库存状态（正常/冻结/待检）`——接口文档自己承诺了库里从不存在的取值，
+      前端筛选栏当初就是照这份文档做出 冻结/待检 两项假选项的；现改为真实取值域并显式标注
+      "本列从未有冻结/待检写入方，文档若写即为假文档"。是否补冻结/解冻能力（以及冻结后是否应
+      排除在可用量之外）仍属功能范围决策，需用户确认后再做，不在本轮擅自实现。
+- [x] **库存状态"字面量未收敛"的真实根因不是字面量，而是常量选错了域（本轮定位并修）**：
+      挂账时以为剩下的只是 `inventory_stock_query.rs` / `inv/batch.rs` 的字面量一致性，核对代码发现
+      那两处早已改用常量；真正的缺陷在另外三处，且都是"用另一个域的常量替换字面量"这类
+      表面合规、实际更坏的写法：
+      1. `POST /inventory/stock` 建单写 `stock_status = master_data::ACTIVE`（值为 `active`）、
+         `quality_status = "qualified"`——两列的取值域分别是 正常/报废/已删除 与 合格/待检/不合格，
+         这批行对所有按「正常 + 合格」过滤的可用量、可出库、缺料预警查询永久不可见（账上有货、界面与出库无货）；
+      2. `dashboard_service.rs` 6 处按 `StockStatus.eq(master_data::ACTIVE)` 过滤库存：仪表盘的
+         总库存量/低库存数/零库存数/仓库分布/低库存清单恒为 0，而它唯一能看见的恰好是缺陷 1 写坏的那些行
+         （两个错误互相抵消，所以 16 轮 CI 无人发现）；
+      3. `five_dimension_service.rs:80` 写字面量 `"ACTIVE"`（大写，连缺陷 1 的拼写都不匹配），
+         五维统计对任何数据都恒返回空集。
+      修法：三处一律改用本列常量（`inventory_stock_status::NORMAL` 等），`inventory_stock_status`
+      与 `inventory_stock_quality_status` 各补 `ALL` 作为取值域单一来源；建单初始值抽成
+      `initial_stock_statuses()` 以便被测试钉住；新增迁移 `m0057_normalize_stock_status_domain`
+      把存量 `active/normal`、`qualified/pass` 归一（放在 production 域 m0056 之后，与既有
+      `passed → 合格` 归一同域同位置，执行顺序已按建表域核对）。
+      回归用例：`backend/tests/handlers_inventory_stock_status_test.rs`（词表、跨域写法拒绝、
+      建单初始值在域内）+ `e2e/flow/01-p2p.spec.ts` 1-6（状态筛选真下推、越界值被 400 拒绝）。
+      仍待产品确认：低库存/预警页是否应展示报废库存。
+
+- [x] **库存列表关键词筛选是假控件（后端根本没有该入参）**：筛选栏有「关键词（产品编码/名称）」
+      输入框，`getStockList` 也照实提交 `keyword`，但 `ListStockParams` 里没这个字段，axum 直接
+      忽略未知查询参数 → 用户改了筛选、点了查询，列表一动不动，且 200 无任何告警。
+      现补 `keyword` 入参并在 service 侧先按产品编码/名称取候选产品（LIKE 走 `safe_like_pattern`
+      转义通配符）再把 product_id 集合下推；无产品命中时直接返回空集，不靠 `IN ()` 的边界行为。
+      列表与导出共用 `stock_list_filter`，因此导出同步生效。
+- [x] **库存导出的审计快照与列集与实际口径不符**：`build_stock_xlsx_table` 只输出 仓库ID/产品ID
+      两列裸 ID，而 `attach_master_names` 已经按 ID 批量带出的产品编码/名称/仓库名称被丢弃，
+      补货点/库存上限/库存状态/质量状态也没进文件（导出的 xlsx 人工不可读）；审计快照
+      `after_snapshot` 只记 warehouse_id/product_id 两项，按四维或台账状态导出的记录在审计里
+      看不出实际口径。现导出列与列表同口径（含编码/名称/状态/阈值），审计快照补全全部筛选条件。
+- [x] **库存打印列里有不存在的字段**：`printJS({properties: [..., 'quantity']})`，后端字段名是
+      `quantity_on_hand`，`quantity` 在纸上恒为空白列；表头还是英文字段名。现改为
+      `properties` + `displayName`（print-js 的列定义项就叫 `properties`，写成 `columns` 会被
+      类型检查与运行时双双忽略），列集与列表/导出一致，状态按主数据取值映射本地化文案。
+      台账状态的取值→文案映射收进 `views/inventory/composables/invFmts.ts`，列表/详情/打印共用。
+- [x] **质检结论被原样复制进入库单检验状态列（跨域写值，本轮修）**：
+      `sync_receipt_inspection_status` 把 `quality_inspection_records.inspection_result` 的中文值
+      （待检/合格/不合格）直接 `Set` 到 `purchase_receipt.inspection_status`，而后者取值域是大写码，
+      全仓唯一的合法写入方是建单时的 `PENDING`（还是个裸字面量）——于是凡是回写过质检结论的入库单，
+      该列都变成"没有任何读取方认识的取值"，按大写码判断的逻辑一律视为"从未检验"。
+      修法：`purchase_receipt_inspection` 补齐 `PASSED/REJECTED` 与 `ALL`，并新增
+      `from_inspection_result` 显式映射（词表外返回 None）；回写改走该映射，映射不到即报错，
+      不再默认成某个值；建单裸字面量改引常量；同一条路径上原先"关联 ID 缺失就静默跳过、
+      入库单查不到也什么都不做"两处静默分支改为显式报错（外键已破坏必须让调用方知道）；
+      迁移 m0057 追加第三条 UPDATE 归一存量（`purchase_receipt` 在 business 域建表，
+      production 域执行顺序晚于它，已核对）。核对过：全仓（含 e2e 与后端测试）没有任何地方
+      读取或断言该列，因此不存在"测试为旧行为背书"的问题；也没有任何后端路径自动写
+      `related_type=PURCHASE_RECEIPT`，这条同步只由调用方声明触发。
+      回归用例：`handlers_quality_inspection_result_test.rs::test_receipt_inspection_status_maps_within_its_own_domain`。
+
+- [ ] **入参取值域校验的"回显允许值"在对外响应里看不见（需安全/产品决策，禁止擅改）**：
+      本轮把越界台账状态从"静默零命中"改成 400 并在 `AppError::validation` 里列出允许值，
+      但 `utils/error.rs::public_message()` 对**所有**错误类型统一脱敏（漏洞 #4/#8/#12 修复），
+      400 的响应体只有 `{code: "VALIDATION_ERROR", message: "请求参数验证失败", trace_id}`，
+      允许值清单只进服务端 detail 日志。后果：前端/接口调用方拿到"参数验证失败"仍不知道该填什么，
+      只能查文档。是否给参数校验类错误开一条"回显合法值"的口子（它不含内部实现细节，
+      与 BusinessError 的脱敏目的不同）属安全策略决策，需用户确认。
+      本轮只把断言口径改对：E2E 断稳定错误码 `VALIDATION_ERROR`，"必须列出合法值"由
+      `backend/tests/handlers_*_test.rs` 的 `AppError::to_string()` 断言钉住；
+      同时把 `e2e/smoke/quality-records-contract.smoke.spec.ts` 里两条
+      `expect(body).toContain('合格'/'incoming')` 改掉了——那是上一轮按"错误信息回显允许值"
+      写的断言，与脱敏策略冲突，照原样跑必红（本轮离线核对 `public_message()` 才发现）。
+- [ ] **库存详情弹窗字段不全（本轮只统一了状态取值口径）**：详情行只列 编码/名称/仓库/批次/色号/
+      缸号/米数/公斤/状态/库位，后端出参里已有的 等级、质量状态、可用量、预留量、补货点、库存上限
+      一项都不显示——降级后的等级与质检结论在界面上看不到，只剩列表与导出可见。本轮把详情里的
+      `stock_status` 改走与列表/打印同一份取值→文案映射（英文界面不再直出中文码），补齐上述字段
+      需新增文案键并决定展示顺序，登记待做，不在本轮顺手加半套。
+- [ ] **库存页「采购」按钮跳转带的 `product_name` 无人消费（死参数）**：
+      `views/inventory/index.vue:580` `router.push({name:'Purchase', query:{product_name}})`，
+      而 `views/purchase/` 全目录没有一处读 `route.query`（grep 无命中），参数到即丢。
+      要真实生效需给采购订单列表补"按产品筛选"（采购主表按订单行组织，需 join `purchase_order_items`
+      或在明细侧过滤），属跨端改造，需单独一轮完成，不与本轮混批。
 
 - [x] **调拨单状态筛选假控件**：后端 `inventory_transfer` 只有 pending/approved/rejected/shipped/
       completed，前端筛选项却是 pending/approved/executed/cancelled——executed、cancelled 库里从不
@@ -462,12 +536,14 @@
       `ap/invoices→invoices`（ap）、`bpm/{id}→<记录ID>` 等，非 admin 全部 fail-closed 403。
       修法二选一：扩 `resolve_module_prefixed_resource` 映射表按注册表对齐，或
       "段四不是已注册资源名则回落段三"。需逐域判定是否放宽既有 403 断言（33/44 系）
-- [ ] **库存前端契约仍是虚构字段（死列）**：`api/inventory.ts` 的 `InventoryStock`
-      声明 `quantity/color_code/lot_no/unit/status/product_name/warehouse_name`，
-      后端 StockResponse 实际是 `quantity_on_hand/quantity_available/color_no/dye_lot_no/
-      batch_no/grade/bin_location`，且不含产品/仓库名 → 库存列表 8 列里 6 列空白或恒 0；
-      修法：后端列表按 ID 批量带出 product_code/product_name/warehouse_name
-      （load_low_stock_product_map 已有同类实现），前端类型与列名对齐
+- [x] **库存前端契约曾是虚构字段（死列）**：挂账描述的 `quantity/color_code/lot_no` 那套类型
+      已在前一轮改掉，本轮逐处核对确认已闭环：`api/inventory.ts` 的 `InventoryStock` 现与
+      `StockResponse` 字段一一对应（`quantity_on_hand/quantity_available/color_no/dye_lot_no/
+      batch_no/grade/bin_location` + `product_code/product_name/warehouse_name`），后端
+      `attach_master_names` 在详情/新建/更新/列表/批次/导出 6 个出口都调用，主数据缺失时
+      记 error 并留空，不用 ID 拼假名称；`InventoryStockTab` 的 9 列列名全部取真实字段。
+      本轮补的是这条挂账没覆盖的三处出口不一致（导出丢主数据名称、打印列里有不存在的
+      `quantity`、`api/inventory.ts` 仍把 stock_status 取值域注释成 正常/冻结/待检），见下。
 - [ ] `/security/change-password` 渲染期 `SyntaxError {message:10}` 仍未定因
       （离线编译 20070 条 locale 消息 0 失败，排除静态 i18n 语法）；
       42x 遍历已改为失败时打印 pageErrors/consoleErrors 原文，待新 run 证据定位。
@@ -481,8 +557,10 @@
       统一到 PaginatedResponse
 - [ ] 待授权：ci-cd.yml 接入 check-i18n.mjs、把 20 个从未执行的 E2E 目录（218 测试）纳入 testMatch；
       eslint 开 `no-unused-expressions` 并解除对 e2e/ 的忽略
-- [ ] `views/purchase-receipt/composables/usePrcProc.ts` 对话框标题 '新增入库'/'编辑入库' 内联中文
-      （该页其余文案已走 i18n）
+- [x] `views/purchase-receipt/composables/usePrcProc.ts` 对话框标题内联中文：预生成单号那条
+      标题是模板串 `新增入库（预生成单号 ${no}）`，改用文案键 `addReceiptTitleWithNo`（带 {no}
+      插值，中英双备）；`usePrc.ts` 里 `dialogTitle` 的初始值 `'新增入库'` 也改成
+      `msg.translate('addReceiptTitle')`，与打开对话框时的赋值同源，避免英文界面下初始标题仍是中文
 
 ### Round 7-iter23（2026-09-21，三个结构性根因突破）
 
@@ -541,7 +619,9 @@
   notification 路由的权限声明。
 - [ ] **traversal 仍有 2 个分片未取证据**（shard 14 / 21 各 33MB/38MB）：
   37b 打印内容匹配、39b~54 分片的具体断言原文待下一轮按新 run 精准拉取。
-- [ ] `views/purchase-receipt/composables/usePrcProc.ts:163` `unit_master: it.unit || 'm'`
+- [x] `views/purchase-receipt/composables/usePrcProc.ts` 曾用 `unit_master: it.unit || 'm'`
+      兜底伪值：现该文件已无此写法（明细主数据缺失会被拦下并 logger.error 指出行号与缺失字段，
+      不再用 P{id}/物料{id}/'m' 伪值提交），本轮复核确认
   属硬编码兜底：产品主单位缺失时应暴露而非伪造 'm'。
 
 #### iter23 新增待办
