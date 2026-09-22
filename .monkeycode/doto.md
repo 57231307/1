@@ -371,7 +371,8 @@
       `LogisticsDetail.vue` 的轨迹表格与两个对话框里 12 处模板硬编码中文已改为
       `logistics.detail.events.*` 文案键（i18n 门禁只校验键的引用与缺失，抓不到不走 i18n 的
       字面量，所以英文界面下整块轨迹是中文这件事一直不显红）。
-      仍待处理：该页其余组件（filter/form/table/stat）是否还有同类字面量，未逐文件核完。
+      已复核该页其余组件（index/filter/form/table/stat）的属性级中文直写字面量为 0，
+      即这一页的 i18n 缺口只在轨迹区（本轮已补）；全仓其余视图未做同类扫描。
 
 - [x] **验布/委外/工资三域接口路径缺 `/production` 前缀（47 个请求恒 404）**：这三组资源注册在
       `routes/production.rs`，而该 router 挂在 `nest("/api/v1/erp/production")` 下，前端
