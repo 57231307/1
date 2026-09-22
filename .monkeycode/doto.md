@@ -1920,3 +1920,61 @@ eslint e2e/{flow,smoke,traversal}=0（仅既往 unused-import/console baseline �
 Query**。建议保留 typed 的 `/budgets/items`（`Vec`），把 `/budgets` 标废弃或直接转发到同一
 service，并让 `getBudgetList`/`getBudgetItemList` 合并成一个函数——但那会同时改外部端点与
 前端调用面，需拍板，本轮只登记事实、未改代码。
+
+
+## 信封门禁把「动态 JSON」全部判完，并顺带修掉一个真实功能断裂（2026-09-23）
+
+`check-api-envelope` 之前把 28 条端点判为「未分类」，理由是后端返回类型标注为
+`serde_json::Value` / `JsonValue`。本轮证明**这个理由不成立**：载荷形态一定写在函数体里，
+只是需要还原。新增的还原链：
+
+1. `serde_json::to_value(具体类型)` → 查 struct 字段索引；
+2. `json!({ "items": .., "total": .. })` → 提取顶层键，键值是否为数组再判；
+3. 变量回溯：`let v = ..`、`let (items, total) = service.list(..).await?`（元组解构 + 类型标注 `Vec<T>`）、
+   按「接收者类型 + `impl` 归属」跳进 service 函数体继续还原；
+4. handler 符号解析覆盖三种真实写法：本文件 `fn`、`define_crud_handlers!` /
+   `define_tuple_crud_handlers!` 宏展开（含文件内 `mod generated` + `pub use`）、
+   `pub use crate::handlers::other::*` 转出。
+
+结果：**28 条未分类 → 0，失配 0，handler 符号未定义 0**（101 条可比对全绿，386 条盲区逐条计数）。
+
+### 还原过程中暴露的门禁自身缺陷（都会产出「假判定」，必须记住）
+
+- **跨文件按函数名回退**：`department_handler::list` 是宏生成的，回退逻辑在别的文件里找到一个
+  同名 `list`，把它的返回类型安到这条路由上，一次产出 4 条假失配。现规则：模块内解析不到就是
+  「handler 符号未定义」，绝不按名字猜。
+- **方法调用但接收者类型未知**：`params.get("page")` 被当成某个 `service::get`，于是
+  `"page": page` 被判成数组承载键，信封键报成 `{page}`。现规则：接收者类型未知 → 放弃该项。
+- **`splitTopLevel` 只跟踪尖括号**：`Result<(Vec<X>, u64), E>` 在元组内部被切开，元组返回全判不出。
+- **`to_value` 非锚定匹配**：`json!({ "items": to_value(list)? })` 被内层 `to_value` 抢先命中，
+  整个 `{items,total}` 信封误判成裸数组。
+- 教训同源于业务代码：**自己写的“修复”也会引入回归**，门禁的判定同样要能被追溯。故留了
+  `ENVELOPE_DEBUG=<前端函数名>` 与 `ENVELOPE_INDEX=Type#fn` 两个追溯开关。
+
+### 真实缺陷（本轮已修，不是登记）
+
+`GET /production/production-orders/orders/{id}/logs` 一处三重错位：
+
+1. **信封**：后端 `json!({order_id, logs, total})`，前端 `usePrdProc.ts` 按裸数组消费
+   （还带 `res.data ?? []` 的双形状探测）→ `logs.map` 直接 TypeError，弹窗只报「获取日志失败」。
+2. **字段臆造**：前端类型里的 `operator` / `remark` 在 `audit_log::Model` 中不存在
+   （真实为 `username` / `description` / `operation_type`）→ 即便修好信封也是 undefined。
+3. **读取侧跨模块串数据**：`get_order_logs` 只按 `resource_id = <订单号数字>` 过滤，
+   不带 `resource_type`，会把**其他模块同号记录**（含 before/after 快照）一并返回。
+
+修法：前端类型与消费点对齐 `{order_id, logs, total}` 和真实字段；写入侧与读取侧共用新增常量
+`production_order_ops::types::AUDIT_RESOURCE_TYPE = "production_order"`（4 个审计写入点 + 导出审计 +
+读取过滤同源，避免再次词表漂移）。
+
+### 待决（只登记事实，需拍板）
+
+- **`auto_audit` 占位词表**：`AuditLogService::{update,delete}_with_audit(..)` 的 `resource_type`
+  实参有 **135 处传的是占位串 `"auto_audit"`**（另有 7 处传真实实体名）。后果：审计日志的
+  「按资源类型筛选」对绝大多数模块失效，任何按 resource_id 的查询都无法区分实体。
+  技术上正确的修法是让 helper 用 `E::table_name()` 派生（helper 内即可拿到，调用点零改动），
+  但这会一次性改变约 142 条写入路径的存储词表，且既有审计数据是旧值——**在推送冻结、无法编译
+  验证的状态下不宜盲改**，待解冻后按「先只读侧兼容、再统一写入」两步做。
+- **手写顶层信封**：`budget_management_handler::get_budget_versions` 返回
+  `Json<serde_json::Value>` 并手搓 `{"code":200,"data":..}`，绕过 `ApiResponse::success`。
+  线上形状与 `ApiResponse` 等价（本轮已让门禁识别这种「手写信封」并按载荷比对，不算失配），
+  但缺 `message`/`total`，属一致性债务，与「信封键名统一」同批处理。
