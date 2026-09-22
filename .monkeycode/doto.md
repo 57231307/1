@@ -1895,3 +1895,7 @@ eslint e2e/{flow,smoke,traversal}=0（仅既往 unused-import/console baseline �
 - [ ] `useTableApi` 的隐式探测（`composables/useTableApi.ts:88-96` 依次试 list/items/data/results）
       是同一吸收机制的运行时版本。本轮已为负责范围内的页面显式传 `listKey` 钉死；
       是否把默认值去掉、强制每个页面声明 `listKey`，仍待拍板（会让未声明的页面立刻报错）。
+- [ ] `/system-update/tasks` 路由名实不符（挂的是 get_update_status 单对象状态，不是任务列表）。
+      本轮只删了前端那个按名字写、无人消费的假声明。要不要（a）补真正的任务列表 handler
+      （`system_update_tasks` 表与逐行序列化函数都已存在，成本很低）、（b）把路由改名
+      `/system-update/status`、还是（c）维持现状，需拍板；(a)(b) 都会动外部可见端点。
