@@ -39,6 +39,7 @@ interface MsCallbacks {
   // 方法
   fetchSummary: () => Promise<void>;
   fetchShortages: () => Promise<void>;
+  fetchSuggestions: () => Promise<void>;
   syncFilterToQuery: () => void;
 }
 
@@ -59,7 +60,7 @@ export function useMsProc(cb: MsCallbacks) {
           count: data.shortage_count ?? 0,
         })
       );
-      await Promise.all([cb.fetchSummary(), cb.fetchShortages()]);
+      await Promise.all([cb.fetchSummary(), cb.fetchShortages(), cb.fetchSuggestions()]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : msg.translate('checkFailed');
       logger.error(errMsg);

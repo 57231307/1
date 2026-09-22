@@ -1,6 +1,10 @@
 import { request } from './request';
 import type { ApiResponse, PageResult } from '@/types/api';
-import type { ShortageAlertStatusValue, ShortageLevelValue } from '@/constants/shortage';
+import type {
+  ReplenishmentPriorityValue,
+  ShortageAlertStatusValue,
+  ShortageLevelValue,
+} from '@/constants/shortage';
 
 /** 实时检测出的缺料项（后端 MaterialShortageItem） */
 export interface ShortageCheckItem {
@@ -112,3 +116,21 @@ export const updateMaterialShortageStatus = (
   request.put<ApiResponse<ShortageAlertRecord>>(`/material-shortage/${materialId}/status`, {
     status,
   });
+
+/** 补货建议（后端按缺口量加 20% 余量给出，优先级由缺料级别映射） */
+export interface ReplenishmentSuggestion {
+  material_id: number;
+  material_name: string;
+  material_code: string;
+  shortage_quantity: number;
+  suggested_quantity: number;
+  unit?: string | null;
+  priority: ReplenishmentPriorityValue;
+  affected_orders_count: number;
+}
+
+export const getReplenishmentSuggestions = (params?: ShortageCheckPayload) =>
+  request.get<ApiResponse<{ suggestions: ReplenishmentSuggestion[]; total: number }>>(
+    '/material-shortage/replenishment',
+    { params }
+  );

@@ -16,6 +16,7 @@ import {
   RISK_LEVEL_LABELS,
   RISK_LEVEL_COLORS,
   TREND_LABELS,
+  SOURCE_LABELS,
   INSPECTION_TYPE_LABELS,
   type AiQualityPrediction,
   type QualityPredRequest,
@@ -400,6 +401,17 @@ const detailRecommendations = computed(() => {
           width="100"
         >
           <template #default="{ row }">{{ Number(row.confidence).toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column
+          prop="source"
+          :label="$t('aiExtend.qualityPrediction.colSource')"
+          width="110"
+        >
+          <template #default="{ row }">
+            <el-tag :type="row.source === 'degraded' ? 'danger' : 'info'" size="small">
+              {{ SOURCE_LABELS[row.source as string] ?? row.source }}
+            </el-tag>
+          </template>
         </el-table-column>
         <el-table-column
           prop="is_acknowledged"

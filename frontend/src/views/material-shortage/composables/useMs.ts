@@ -10,8 +10,10 @@ import { msg } from '@/utils/message';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import {
   getMaterialShortageSummary,
+  getReplenishmentSuggestions,
   type MaterialShortageSummary,
   type MaterialShortageAlert,
+  type ReplenishmentSuggestion,
 } from '@/api/material-shortage';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
@@ -53,6 +55,25 @@ export function useMs() {
 
   // 数据
   const summary = ref<MaterialShortageSummary>({} as MaterialShortageSummary);
+
+  /** 补货建议（后端按实时缺料计算，缺料清单变化后需重新拉取） */
+  const suggestions = ref<ReplenishmentSuggestion[]>([]);
+  const suggestionsLoading = ref(false);
+
+  const fetchSuggestions = async () => {
+    suggestionsLoading.value = true;
+    try {
+      const res = await getReplenishmentSuggestions();
+      suggestions.value = res.data?.suggestions ?? [];
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : '获取补货建议失败';
+      logger.error(errMsg);
+      ElMessage.error(errMsg);
+      suggestions.value = [];
+    } finally {
+      suggestionsLoading.value = false;
+    }
+  };
 
   /**
    * 加载汇总
@@ -97,9 +118,12 @@ export function useMs() {
     // 数据
     summary,
     shortageList,
+    suggestions,
+    suggestionsLoading,
     // 加载方法
     fetchSummary,
     fetchShortages,
+    fetchSuggestions,
     syncFilterToQuery,
     // 懒加载标记
     hasLoaded,

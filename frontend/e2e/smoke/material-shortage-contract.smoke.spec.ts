@@ -27,6 +27,16 @@ const SHORTAGE_STATUSES = [
   'resolved',
 ];
 
+/** 后端 ReplenishmentSuggestion::priority 的取值（由缺料级别映射，大写值） */
+const REPLENISHMENT_PRIORITIES = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'];
+
+interface ReplenishmentSuggestion {
+  material_id: number;
+  shortage_quantity: string | number;
+  suggested_quantity: string | number;
+  priority: string;
+}
+
 interface ShortageRow {
   material_id: number;
   alert_no: string | null;
@@ -108,6 +118,27 @@ test.describe('缺料预警取值与列表契约', () => {
       const res = await request.get(`${API_PREFIX}/material-shortage/list?${query}&page_size=5`);
       expect(res.status(), `${query} 不应被后端接受`).toBeGreaterThanOrEqual(400);
       expect(res.status(), `${query} 属入参问题，不应是 5xx`).toBeLessThan(500);
+    }
+  });
+
+  test('补货建议端点返回可渲染结构（页面已接线，不再是从零调用）', async ({ request }) => {
+    const res = await request.get(`${API_PREFIX}/material-shortage/replenishment`);
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as {
+      data?: { suggestions: ReplenishmentSuggestion[]; total: number };
+    };
+    const payload = body.data;
+    expect(payload, '补货建议响应缺少 data 对象').toBeTruthy();
+    const suggestions = (payload as { suggestions: ReplenishmentSuggestion[] }).suggestions;
+    expect(Array.isArray(suggestions), 'suggestions 必须是数组').toBe(true);
+    expect((payload as { total: number }).total).toBe(suggestions.length);
+    for (const row of suggestions) {
+      expect(REPLENISHMENT_PRIORITIES, `出现取值域外的优先级：${row.priority}`).toContain(
+        row.priority
+      );
+      // 建议量 = 缺口量 × 1.2，二者必须同为正数
+      expect(Number(row.shortage_quantity)).toBeGreaterThan(0);
+      expect(Number(row.suggested_quantity)).toBeGreaterThan(0);
     }
   });
 

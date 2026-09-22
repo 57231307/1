@@ -6,6 +6,8 @@
 import { i18n } from '@/i18n';
 import { logger } from '@/utils/logger';
 import {
+  REPLENISHMENT_PRIORITY_LABEL_KEY,
+  REPLENISHMENT_PRIORITY_TAG_TYPE,
   SHORTAGE_ALERT_STATUS_LABEL_KEY,
   SHORTAGE_ALERT_STATUS_TAG_TYPE,
   SHORTAGE_LEVEL_LABEL_KEY,
@@ -55,6 +57,26 @@ export const getStatusText = (status: string | null | undefined): string => {
   if (!key) {
     logger.warn(`[msFmts] 未知缺料预警状态「${status}」，无对应文案键`);
     return status;
+  }
+  return i18n.global.t(key);
+};
+
+/** 补货建议优先级 el-tag 类型 */
+export const getPriorityTagType = (priority: string): ShortageTagType => {
+  const type = REPLENISHMENT_PRIORITY_TAG_TYPE[priority];
+  if (!type) {
+    logger.warn(`[msFmts] 未知补货优先级「${priority}」，不在后端取值 URGENT/HIGH/MEDIUM/LOW 内`);
+    return 'info';
+  }
+  return type;
+};
+
+/** 补货建议优先级文案 */
+export const getPriorityText = (priority: string): string => {
+  const key = REPLENISHMENT_PRIORITY_LABEL_KEY[priority];
+  if (!key) {
+    logger.warn(`[msFmts] 未知补货优先级「${priority}」，无对应文案键`);
+    return priority;
   }
   return i18n.global.t(key);
 };

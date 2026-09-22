@@ -326,6 +326,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   knn: 'k-NN 加权',
   fallback: '典型参数表',
   history: '历史趋势',
+  degraded: 'AI 服务降级',
 };
 
 export const INSPECTION_TYPE_LABELS: Record<string, string> = {

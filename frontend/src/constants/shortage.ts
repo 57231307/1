@@ -86,6 +86,34 @@ export const SHORTAGE_ALERT_STATUS_TAG_TYPE: Record<string, ShortageTagType> = {
 };
 
 /**
+ * 补货建议优先级（后端 ReplenishmentSuggestion::priority 由缺料级别映射而来：
+ * Critical→URGENT、Severe→HIGH、Warning→MEDIUM、Normal→LOW，大写值）
+ */
+export const REPLENISHMENT_PRIORITY = {
+  urgent: 'URGENT',
+  high: 'HIGH',
+  medium: 'MEDIUM',
+  low: 'LOW',
+} as const;
+
+export type ReplenishmentPriorityValue =
+  (typeof REPLENISHMENT_PRIORITY)[keyof typeof REPLENISHMENT_PRIORITY];
+
+export const REPLENISHMENT_PRIORITY_LABEL_KEY: Record<string, string> = {
+  [REPLENISHMENT_PRIORITY.urgent]: 'materialShortage.priority.urgent',
+  [REPLENISHMENT_PRIORITY.high]: 'materialShortage.priority.high',
+  [REPLENISHMENT_PRIORITY.medium]: 'materialShortage.priority.medium',
+  [REPLENISHMENT_PRIORITY.low]: 'materialShortage.priority.low',
+};
+
+export const REPLENISHMENT_PRIORITY_TAG_TYPE: Record<string, ShortageTagType> = {
+  [REPLENISHMENT_PRIORITY.urgent]: 'danger',
+  [REPLENISHMENT_PRIORITY.high]: 'warning',
+  [REPLENISHMENT_PRIORITY.medium]: 'primary',
+  [REPLENISHMENT_PRIORITY.low]: 'info',
+};
+
+/**
  * 状态机下一步：resolved 为终态返回 null。
  * 取值域外（脏数据）同样返回 null，由调用方告警，不猜测推进目标。
  */
