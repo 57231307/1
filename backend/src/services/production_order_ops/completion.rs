@@ -34,6 +34,7 @@ use crate::models::product::Entity as ProductEntity;
 use crate::models::production_order::{
     ActiveModel, Entity as ProductionOrderEntity, Model as ProductionOrderModel,
 };
+use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::warehouse::Entity as WarehouseEntity;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
@@ -625,7 +626,7 @@ impl ProductionOrderService {
                 batch_no: order.batch_no.clone(),
                 color_no: order.color_no.clone(),
                 dye_lot_no: Some(order.dye_lot_no.clone()),
-                grade: "一等品".to_string(),
+                grade: inventory_stock_grade::FIRST.to_string(),
                 quantity_meters: production_qty,
                 quantity_kg: kg,
                 gram_weight: product.gram_weight,

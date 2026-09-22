@@ -1,4 +1,5 @@
 use crate::models::inventory_stock;
+use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
@@ -614,7 +615,7 @@ impl InventoryStockService {
         user_id: Option<i32>,
     ) -> Result<inventory_stock::Model, AppError> {
         // 校验 new_grade 合法值（与 inventory_stock.rs Model.grade 注释一致）
-        if !matches!(new_grade.as_str(), "一等品" | "二等品" | "等外品") {
+        if !inventory_stock_grade::ALL.contains(&new_grade.as_str()) {
             return Err(AppError::validation(format!(
                 "非法等级值 {}，仅允许 一等品/二等品/等外品",
                 new_grade
@@ -739,7 +740,7 @@ impl InventoryStockService {
             color_no: Set(color_no),
             dye_lot_no: Set(dye_lot_no),
             grade: Set(if grade.is_empty() {
-                "一等品".to_string()
+                inventory_stock_grade::FIRST.to_string()
             } else {
                 grade
             }),

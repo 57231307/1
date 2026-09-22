@@ -40,6 +40,7 @@ use crate::models::inventory_piece;
 use crate::models::inventory_stock;
 use crate::models::production_order;
 use crate::models::status::inventory_piece as piece_status;
+use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 
 /// 业务错误
@@ -946,8 +947,8 @@ impl BulkColorApprovalService {
         let service = InventoryStockService::new(self.db.clone());
         for stock in stocks {
             let new_grade = match stock.grade.as_str() {
-                "一等品" => "二等品",
-                "二等品" => "等外品",
+                inventory_stock_grade::FIRST => inventory_stock_grade::SECOND,
+                inventory_stock_grade::SECOND => inventory_stock_grade::OFF_GRADE,
                 other => {
                     tracing::info!(
                         stock_id = stock.id,

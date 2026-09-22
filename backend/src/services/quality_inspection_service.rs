@@ -1,5 +1,6 @@
 use crate::models::quality_inspection;
 use crate::models::quality_inspection_record;
+use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::unqualified_product;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
@@ -44,8 +45,8 @@ pub const HANDLING_SCRAP: &str = "scrap"; // C 级报废
 // P1 batch-18 缺陷 5.1：B 级降级销售价格联动常量
 // 业务规则：B 级（让步接收）降级销售时，按 A 级标准价的 80% 自动生成二等品销售价
 // 依据：面料行业惯例，B 级让步接收品售价为 A 级的 70%-85%，取中位数 80%
-pub const DOWNGRADE_PRICE_LEVEL_B: &str = "二等品"; // 对应库存 grade 字段值
-pub const STANDARD_PRICE_LEVEL_A: &str = "一等品"; // 标准品价格 level 标记
+pub const DOWNGRADE_PRICE_LEVEL_B: &str = inventory_stock_grade::SECOND;
+pub const STANDARD_PRICE_LEVEL_A: &str = inventory_stock_grade::FIRST;
 /// B 级降级销售价折扣因子（标准价的 80%）
 pub fn downgrade_price_factor() -> Decimal {
     Decimal::new(8, 1) // 0.8

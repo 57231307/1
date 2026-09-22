@@ -6,6 +6,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 
+use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::{purchase_receipt, purchase_receipt_item};
 use crate::services::event_bus::BusinessEvent;
 use crate::utils::error::AppError;
@@ -215,7 +216,9 @@ impl PurchaseReceiptService {
             item.batch_no.clone().unwrap_or_default(),
             item.color_code.clone().unwrap_or_default(),
             item.lot_no.clone().unwrap_or_default(),
-            item.grade.clone().unwrap_or_else(|| "一等品".to_string()),
+            item.grade
+                .clone()
+                .unwrap_or_else(|| inventory_stock_grade::FIRST.to_string()),
         )
     }
 
@@ -288,7 +291,10 @@ impl PurchaseReceiptService {
         } else {
             let batch_no = item.batch_no.clone().unwrap_or_default();
             let color_no = item.color_code.clone().unwrap_or_default();
-            let grade = item.grade.clone().unwrap_or_else(|| "一等品".to_string());
+            let grade = item
+                .grade
+                .clone()
+                .unwrap_or_else(|| inventory_stock_grade::FIRST.to_string());
             let stock = InventoryStockService::create_stock_fabric_txn(
                 txn,
                 CreateStockFabricArgs {
@@ -326,7 +332,10 @@ impl PurchaseReceiptService {
         use crate::services::inventory_stock_service::InventoryStockService;
         let batch_no = item.batch_no.clone().unwrap_or_default();
         let color_no = item.color_code.clone().unwrap_or_default();
-        let grade = item.grade.clone().unwrap_or_else(|| "一等品".to_string());
+        let grade = item
+            .grade
+            .clone()
+            .unwrap_or_else(|| inventory_stock_grade::FIRST.to_string());
         let (_, txn_event) = InventoryStockService::record_transaction_txn(
             txn,
             RecordTransactionArgs {

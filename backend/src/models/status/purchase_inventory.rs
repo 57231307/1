@@ -177,6 +177,26 @@ pub mod inventory_stock_quality_status {
     pub const FAIL: &str = "不合格";
 }
 
+/// 库存等级常量（inventory_stocks.grade，中文稳定值即库内取值）
+///
+/// 等级只有这三档，降级规则为一等品 → 二等品 → 等外品（等外品已是最低档）；
+/// 匹号/验布另有一套 A/B/C 的 grade 取值域，与本列无关，不得互相赋值。
+/// 界面上曾用译文当提交值，切换语言即把 "First Grade" 之类写进本列（见
+/// frontend/src/constants/stock-grade.ts），因此写入与校验一律取本模块常量。
+pub mod inventory_stock_grade {
+    /// 一等品：标准品，按 A 级定价
+    pub const FIRST: &str = "一等品";
+
+    /// 二等品：让步接收/降级销售，按 A 级标准价的 80% 定价
+    pub const SECOND: &str = "二等品";
+
+    /// 等外品：不合格降级，只能返工或报废
+    pub const OFF_GRADE: &str = "等外品";
+
+    /// 全部合法等级，校验与降级映射的唯一取值来源
+    pub const ALL: &[&str] = &[FIRST, SECOND, OFF_GRADE];
+}
+
 pub mod inventory_stock_status {
     /// 正常：可出库的在库库存
     pub const NORMAL: &str = "正常";

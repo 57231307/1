@@ -17,6 +17,7 @@ use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::inventory_transaction;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
+use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::status::purchase_inventory::inventory_transfer as transfer_status;
@@ -725,7 +726,7 @@ impl InventoryTransferService {
         let dye_lot_no = s.and_then(|s| s.dye_lot_no.clone());
         let grade = s
             .map(|s| s.grade.clone())
-            .unwrap_or_else(|| "一等品".to_string());
+            .unwrap_or_else(|| inventory_stock_grade::FIRST.to_string());
         let gram_weight = s.and_then(|s| s.gram_weight);
         let width = s.and_then(|s| s.width);
         let production_date = s.and_then(|s| s.production_date);
