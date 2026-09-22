@@ -38,16 +38,10 @@
               style="width: 120px"
             >
               <el-option
-                :label="t('inventoryBatch.batchListTab.optionGradeFirst')"
-                :value="t('inventoryBatch.batchListTab.optionGradeFirst')"
-              />
-              <el-option
-                :label="t('inventoryBatch.batchListTab.optionGradeSecond')"
-                :value="t('inventoryBatch.batchListTab.optionGradeSecond')"
-              />
-              <el-option
-                :label="t('inventoryBatch.batchListTab.optionGradeThird')"
-                :value="t('inventoryBatch.batchListTab.optionGradeThird')"
+                v-for="grade in STOCK_GRADE_VALUES"
+                :key="grade"
+                :label="t(STOCK_GRADE_LABEL_KEY[grade])"
+                :value="grade"
               />
             </el-select>
           </el-form-item>
@@ -100,17 +94,7 @@
           width="100"
         >
           <template #default="{ row }">
-            <el-tag
-              v-if="row.grade === t('inventoryBatch.batchListTab.optionGradeFirst')"
-              type="success"
-              >{{ row.grade }}</el-tag
-            >
-            <el-tag
-              v-else-if="row.grade === t('inventoryBatch.batchListTab.optionGradeSecond')"
-              type="warning"
-              >{{ row.grade }}</el-tag
-            >
-            <el-tag v-else type="danger">{{ row.grade }}</el-tag>
+            <el-tag :type="gradeTagType(row.grade)">{{ gradeLabel(row.grade) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column
@@ -282,7 +266,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
-import { logAuxLoadFailure } from '@/utils/logger';
+import { logAuxLoadFailure, logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import {
@@ -293,6 +277,12 @@ import {
 } from '@/api/inventory-batch';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import { useTableApi } from '@/composables/useTableApi';
+import {
+  STOCK_GRADE_LABEL_KEY,
+  STOCK_GRADE_TAG_TYPE,
+  STOCK_GRADE_VALUES,
+  type StockGradeTagType,
+} from '@/constants/stock-grade';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -303,6 +293,24 @@ const queryParams = reactive({
   colorNo: '',
   grade: '',
 });
+
+/** 等级文案：库里存的是中文稳定值，界面按当前语言翻译；取值域外告警后原样显示 */
+function gradeLabel(grade: string | null | undefined): string {
+  if (!grade) return '';
+  const key = STOCK_GRADE_LABEL_KEY[grade];
+  if (!key) {
+    logger.warn(
+      `[BatchListTab] 未知库存等级「${grade}」，不在取值域 ${STOCK_GRADE_VALUES.join('/')} 内`
+    );
+    return grade;
+  }
+  return t(key);
+}
+
+function gradeTagType(grade: string | null | undefined): StockGradeTagType {
+  const type = grade ? STOCK_GRADE_TAG_TYPE[grade] : undefined;
+  return type ?? 'danger';
+}
 
 // 批次 276：接入 useTableApi，消除手写 batchList/loading/pagination/fetchBatches 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -325,8 +333,9 @@ const {
 
 // 批次 276：同步筛选条件到 useTableApi.queryParams 并刷新
 const syncQueryParams = () => {
-  setQueryParam('batchNo', queryParams.batchNo || undefined);
-  setQueryParam('colorNo', queryParams.colorNo || undefined);
+  // 参数名必须与后端 BatchListQuery 一致（snake_case），此前发 batchNo/colorNo 后端收不到
+  setQueryParam('batch_no', queryParams.batchNo || undefined);
+  setQueryParam('color_no', queryParams.colorNo || undefined);
   setQueryParam('grade', queryParams.grade || undefined);
 };
 

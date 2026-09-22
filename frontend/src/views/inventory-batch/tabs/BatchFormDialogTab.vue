@@ -45,15 +45,15 @@
         <el-select v-model="formData.grade" style="width: 100%">
           <el-option
             :label="t('inventoryBatch.batchFormDialog.optionGradeFirst')"
-            :value="t('inventoryBatch.batchFormDialog.optionGradeFirst')"
+            :value="STOCK_GRADE.first"
           />
           <el-option
             :label="t('inventoryBatch.batchFormDialog.optionGradeSecond')"
-            :value="t('inventoryBatch.batchFormDialog.optionGradeSecond')"
+            :value="STOCK_GRADE.second"
           />
           <el-option
             :label="t('inventoryBatch.batchFormDialog.optionGradeThird')"
-            :value="t('inventoryBatch.batchFormDialog.optionGradeThird')"
+            :value="STOCK_GRADE.offGrade"
           />
         </el-select>
       </el-form-item>
@@ -113,6 +113,7 @@ import {
   type InventoryBatch,
 } from '@/api/inventory-batch';
 import { logger } from '@/utils/logger';
+import { STOCK_GRADE } from '@/constants/stock-grade';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -138,7 +139,7 @@ const formData = reactive({
   productName: '',
   colorNo: '',
   dyeLotNo: '',
-  grade: t('inventoryBatch.batchFormDialog.optionGradeFirst'),
+  grade: STOCK_GRADE.first,
   quantityMeters: 0,
   quantityKg: 0,
   gramWeight: 0,
@@ -172,7 +173,7 @@ const resetForm = () => {
   formData.productName = '';
   formData.colorNo = '';
   formData.dyeLotNo = '';
-  formData.grade = t('inventoryBatch.batchFormDialog.optionGradeFirst');
+  formData.grade = STOCK_GRADE.first;
   formData.quantityMeters = 0;
   formData.quantityKg = 0;
   formData.gramWeight = 0;

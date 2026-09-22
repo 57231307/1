@@ -15,7 +15,7 @@ use serde::Deserialize;
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_stock;
-use crate::services::inventory_stock_service::InventoryStockService;
+use crate::services::inventory_stock_service::{BatchListFilter, InventoryStockService};
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -89,11 +89,19 @@ pub async fn list_batches(
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<PaginatedResponse<inventory_stock::Model>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
-    let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
-    let (batches, total) = service.list_batches(page, page_size).await?;
-    let paginated =
-        PaginatedResponse::new(batches, total, page.clamp(1, 1000), page_size.clamp(1, 100));
+    let page = query.page.unwrap_or(1).clamp(1, 1000);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+    let filter = BatchListFilter {
+        product_id: query.product_id,
+        batch_no: query.batch_no,
+        color_no: query.color_no,
+        grade: query.grade,
+        warehouse_id: query.warehouse_id,
+        start_date: query.start_date,
+        end_date: query.end_date,
+    };
+    let (batches, total) = service.list_batches(page, page_size, &filter).await?;
+    let paginated = PaginatedResponse::new(batches, total, page, page_size);
     Ok(Json(ApiResponse::success(paginated)))
 }
 

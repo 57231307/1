@@ -5,7 +5,7 @@ use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
@@ -64,6 +64,21 @@ pub struct StockListFilter {
     pub dye_lot_no: Option<String>,
     pub batch_no: Option<String>,
     pub stock_status: Option<String>,
+}
+
+/// 批次列表查询条件（GET /inventory/batches）
+///
+/// 批次与台账同表（inventory_stocks），因此同样排除软删除行；
+/// 批次号/色号按模糊匹配（界面是输入框），等级/产品/仓库按精确匹配（界面是下拉）。
+#[derive(Debug, Default, Clone)]
+pub struct BatchListFilter {
+    pub product_id: Option<i32>,
+    pub batch_no: Option<String>,
+    pub color_no: Option<String>,
+    pub grade: Option<String>,
+    pub warehouse_id: Option<i32>,
+    pub start_date: Option<DateTime<Utc>>,
+    pub end_date: Option<DateTime<Utc>>,
 }
 
 pub struct InventoryStockService {
@@ -656,20 +671,40 @@ impl InventoryStockService {
         &self,
         page: u64,
         page_size: u64,
+        filter: &BatchListFilter,
     ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
         let page = page.clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
         let page_size = page_size.clamp(1, 100);
-        let paginator = inventory_stock::Entity::find()
+
+        let mut query = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::BatchNo.ne(""))
-            .paginate(&*self.db, page_size);
-        let batches = paginator
-            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
-            .await
-            .map_err(|e| AppError::database(format!("获取批次列表失败：{}", e)))?;
-        let total = paginator
-            .num_items()
-            .await
-            .map_err(|e| AppError::database(format!("获取批次总数失败：{}", e)))?;
+            .filter(inventory_stock::Column::StockStatus.ne(inventory_stock_status::DELETED));
+
+        if let Some(pid) = filter.product_id {
+            query = query.filter(inventory_stock::Column::ProductId.eq(pid));
+        }
+        if let Some(wid) = filter.warehouse_id {
+            query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
+        }
+        if let Some(grade) = filter.grade.as_deref().filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::Grade.eq(grade));
+        }
+        if let Some(batch) = filter.batch_no.as_deref().filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::BatchNo.like(format!("%{batch}%")));
+        }
+        if let Some(color) = filter.color_no.as_deref().filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::ColorNo.like(format!("%{color}%")));
+        }
+        if let Some(start) = filter.start_date {
+            query = query.filter(inventory_stock::Column::CreatedAt.gte(start));
+        }
+        if let Some(end) = filter.end_date {
+            query = query.filter(inventory_stock::Column::CreatedAt.lte(end));
+        }
+
+        let paginator = query.paginate(&*self.db, page_size);
+        // paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1
+        let (batches, total) = paginate_with_total(paginator, page).await?;
         Ok((batches, total))
     }
 
