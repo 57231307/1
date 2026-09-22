@@ -67,6 +67,32 @@ function isCsrfPublicPath(url: string): boolean {
   return CSRF_PUBLIC_PREFIXES.some(prefix => url === prefix || url.startsWith(prefix + '/'));
 }
 
+/**
+ * 查询参数序列化：未填写的筛选项（空串/纯空白）不进入 query string。
+ *
+ * 与后端「空串查询参数在边界视为未提供」是同一契约的两端。列表页未选的筛选项会以
+ * `?keyword=`/`?status=` 形态提交，若进入 query 会被后端反序列化成 Some("") 并生成
+ * `WHERE col = ''` 恒 0 行。此处统一剔除空值键，从源头避免该缺陷复发。
+ * 注意：数字 0 与布尔 false 是有效取值，绝不因「假值」被丢弃；仅空串/纯空白被剔除。
+ */
+function serializeParams(params: Record<string, unknown>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item === undefined || item === null) continue;
+        if (typeof item === 'string' && item.trim() === '') continue;
+        search.append(key, String(item));
+      }
+      continue;
+    }
+    if (typeof value === 'string' && value.trim() === '') continue;
+    search.append(key, String(value));
+  }
+  return search.toString();
+}
+
 class Request {
   private instance: AxiosInstance;
 
@@ -77,6 +103,7 @@ class Request {
       // Wave B-3：开启凭据发送，使 httpOnly Cookie（access_token / refresh_token）能随请求到达后端
       // 这是 httpOnly Cookie 鉴权方案的**关键开关**：未开启则浏览器拒绝发送 Set-Cookie 之外的 Cookie
       withCredentials: true,
+      paramsSerializer: { serialize: serializeParams },
       headers: {
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
