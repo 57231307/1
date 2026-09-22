@@ -166,6 +166,43 @@
       同时把 `e2e/smoke/quality-records-contract.smoke.spec.ts` 里两条
       `expect(body).toContain('合格'/'incoming')` 改掉了——那是上一轮按"错误信息回显允许值"
       写的断言，与脱敏策略冲突，照原样跑必红（本轮离线核对 `public_message()` 才发现）。
+- [x] **run 4623（head bb028f30）真实失败的 5 个 job 逐条判责并修**（本轮把 4621/4622 那种"日志没读全就下结论"的毛病改掉：
+      每个失败 job 日志与 artifact 内 `reports/playwright-output.txt` + `reports/backend.log` 全部下载并读完）：
+      0. `📦 Rust 测试预编译` 与 `🔍 Rust Clippy` 双红是我上一批 `customer_name` 下推引入的
+         `E0063 missing field`：`tests/handlers_sales_order_handler_test.rs` 两处
+         `SalesOrderQuery { ... }` 初始化器没跟上新字段。这是「本地无编译权」同类问题第 5 次复发，
+         自审清单补一条：**给 handler 的 Query/Request 结构体加字段，必须同步 grep tests/ 下该结构体的
+         全部字面量初始化点**（本轮同时核了 `StockListFilter`（用 `..Default::default()` 安全）、
+         `RecordQuery`、`ListStockParams` 三处，只有 SalesOrderQuery 中招）。
+      1. `smoke/material-shortage-contract:116`：`level=critical` 期望被拒却拿到 200。判责为**测试判错**：
+         后端 `validate_enum_param` 用 `eq_ignore_ascii_case` 匹配并回传常量本身（仓库既有入参约定），
+         `critical` 与规范码 `Critical` 只差大小写，属归一接受；旧词表真正越界的是换了词根的
+         high/medium/low。现改为断 high/medium/low/not_a_level/pending/notified 一律 4xx，
+         并新增"归一必须与规范码返回同一结果集且行内 level 为 Critical"的断言（防止接受小写后出现第二套口径）。
+      2. `smoke/material-shortage-contract:145`：状态下拉读出 4 个级别文案。逐层核对
+         `MaterialShortageTable.vue` 两个 select 的选项源（`SHORTAGE_LEVEL_VALUES` 与
+         `SHORTAGE_ALERT_STATUS_VALUES`）确认**页面是对的**，错在测试：Escape 后未等 teleport 到 body 的
+         浮层真的收起就点第二个 select，点击落在未收起的浮层上，读到的还是级别面板。现加
+         `toHaveCount(0)` 收起确认与"第二个面板必须是 5 项"的前置断言，使同类误判不可能静默复现。
+      3. `flow/05-system:5-6`：断 `data.items` 为数组失败。核对 `query_user_tasks` 返回
+         `PageResponse{total,page,page_size,total_pages,data}`，且前端 `api/bpm.ts` 早就按
+         `{data,total}` 消费——**后端与前端一致，测试假设的字段名才是错的**。现按真实契约断言，
+         并把状态取值域收窄到 `bpm_task` 模块的四个值（原用例还放行了库里不存在的 processing）。
+         同因发现 `flow/10d` 的 A1-3 与 A1-5 是 `expect(expr)` 无匹配器的真空断言（所以"一直绿"），
+         一并补成真实断言——这正是 doto 里"真空断言成片"那条的又一例证。
+      4. `flow/08-business-modes:M1-6`：`GET /production/business-modes/rules` 返回 405。
+         核对 `routes/production.rs`：该路径只注册了 `post(create_rule)`，规则的全局列表端点
+         **不存在**（只有 `GET /rules/by-mode/{mode_id}`），`flow-steps` 同形。改用真实入口
+         （先列模式取 outsourcing 的 id，再按模式取规则并断 mode_id 归属、rule_code 非空、
+         rule_type 在 required/optional/forbidden 内）。登记待决：是否需要业务模式规则的
+         全局分页列表端点（该域前端零调用方，唯一消费者是 E2E），需产品确认后再补，不擅自建端点。
+      5. `flow/01-p2p:1-8 付款`：400「应付单 API…未付金额为 0，申请金额 56500 超过未付金额」
+         （对外文案脱敏，真因在 backend.log 的 detail 里）。核对 `ap_invoice_ops/receipt.rs`
+         确认后端两处生成逻辑都对（采购收货单 unpaid=amount，退货红字单 unpaid=0 且有意为之），
+         根因在测试：1-7 查 `/ap/invoices` **不带 supplier_id**，取 `invoiceList[0]` 即库里任意一张
+         （多半是已付清或红字单），再写死 56500 申请付款。现改为按本用例供应商查询、优先挑
+         `unpaid_amount > 0` 的那张、并断其 supplier_id 归属；1-8 的申请金额取该单真实未付金额
+         （去掉 56500 硬编码），两处 `test.skip()` 前置兜底改为显式断言。
 - [ ] **库存详情弹窗字段不全（本轮只统一了状态取值口径）**：详情行只列 编码/名称/仓库/批次/色号/
       缸号/米数/公斤/状态/库位，后端出参里已有的 等级、质量状态、可用量、预留量、补货点、库存上限
       一项都不显示——降级后的等级与质检结论在界面上看不到，只剩列表与导出可见。本轮把详情里的
