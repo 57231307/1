@@ -11,8 +11,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::models::{inventory_stock, product, sales_order, warehouse};
-// 批次 209 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
-use crate::models::status::master_data;
+// 库存台账状态取本列自己的中文主数据值（正常/报废/已删除）。批次 209 曾把
+// 硬编码 "active" 换成 `master_data::ACTIVE`——那是另一张表的状态域，按它过滤
+// `inventory_stocks.stock_status` 恒零命中，仪表盘的库存四张卡因此长期显示 0。
+use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::utils::cache::{AppCache, Cache};
 // 缺陷 4.3 修复：仪表板按角色控制可见卡片 + 数据范围过滤
 use crate::utils::data_scope::DataScopeContext;
@@ -260,7 +262,7 @@ impl DashboardService {
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
             )
-            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
             .count(db);
         let monthly_sales_fut = monthly_sales_q
             .select_only()
@@ -625,7 +627,7 @@ impl DashboardService {
         db: &DatabaseConnection,
     ) -> Result<(Decimal, Vec<(i32, Option<Decimal>)>), AppError> {
         let total_quantity_fut = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
             .select_only()
             .column_as(
                 Expr::col(inventory_stock::Column::QuantityMeters).sum(),
@@ -638,14 +640,14 @@ impl DashboardService {
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
             )
-            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
             .count(db);
         let zero_stock_count_fut = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::QuantityMeters.eq(Decimal::ZERO))
-            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
             .count(db);
         let warehouse_distribution_fut = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
             .select_only()
             .column(inventory_stock::Column::WarehouseId)
             .column_as(
@@ -896,7 +898,7 @@ impl DashboardService {
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
             )
-            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
             .all(&*self.db)
             .await?;
 

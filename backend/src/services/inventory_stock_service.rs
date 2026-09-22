@@ -1,4 +1,5 @@
 use crate::models::inventory_stock;
+use crate::models::product;
 use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
@@ -66,6 +67,8 @@ pub struct StockListFilter {
     pub dye_lot_no: Option<String>,
     pub batch_no: Option<String>,
     pub stock_status: Option<String>,
+    /// 产品编码/名称关键词（库存表只存 product_id，需先按关键词取候选产品再下推）
+    pub keyword: Option<String>,
 }
 
 /// 批次列表查询条件（GET /inventory/batches）
@@ -299,6 +302,34 @@ impl InventoryStockService {
         filter: &StockListFilter,
     ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
         let mut query = inventory_stock::Entity::find();
+
+        // 关键词筛选（产品编码/名称）：库存表只存 product_id，先按关键词取候选产品，
+        // 再把 ID 集合下推。此前后端入参里根本没有 keyword，界面这个筛选框提交后被整个
+        // 忽略，用户看到的是"筛了没反应"（列表与导出同走本函数，一并生效）。
+        if let Some(keyword) = filter
+            .keyword
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
+            let pattern = safe_like_pattern(keyword);
+            let matched_product_ids: Vec<i32> = product::Entity::find()
+                .filter(
+                    product::Column::Code
+                        .like(&pattern)
+                        .or(product::Column::Name.like(&pattern)),
+                )
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|p| p.id)
+                .collect();
+            if matched_product_ids.is_empty() {
+                // 无任何产品命中就是空集，不靠 `IN ()` 这类边界行为碰运气
+                return Ok((Vec::new(), 0));
+            }
+            query = query.filter(inventory_stock::Column::ProductId.is_in(matched_product_ids));
+        }
 
         if let Some(wid) = filter.warehouse_id {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));

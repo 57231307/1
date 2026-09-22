@@ -1,10 +1,13 @@
 use crate::models::quality_inspection;
 use crate::models::quality_inspection_record;
-use crate::models::status::purchase_inventory::inventory_stock_grade;
+use crate::models::status::purchase_inventory::{
+    inventory_stock_grade, purchase_receipt_inspection,
+};
 use crate::models::unqualified_product;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::models::status::quality_dyeing::quality_handling;
+use crate::models::status::quality_dyeing::quality_inspection_result;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
@@ -400,22 +403,48 @@ impl QualityInspectionService {
         }
         let receipt_id = match result.related_id {
             Some(id) => id,
-            None => return Ok(()),
+            None => {
+                return Err(AppError::validation(format!(
+                    "质检记录 {} 声明关联入库单（related_type=PURCHASE_RECEIPT）却没有 related_id，\
+                     无法回写检验状态",
+                    result.inspection_no
+                )));
+            }
         };
         let receipt = crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
             .one(txn)
             .await?;
-        if let Some(r) = receipt {
-            let mut receipt_active: crate::models::purchase_receipt::ActiveModel = r.into();
-            receipt_active.inspection_status = Set(result.inspection_result.clone());
-            // P1 1-1 修复：原 Some(0) 占位符改为真实操作人 user_id
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                txn,
-                "auto_audit",
-                receipt_active,
-                Some(user_id),
-            )
-            .await?;
+        // 两列词表不同源：入库单检验状态是大写码（PENDING/PASSED/REJECTED），质检结论是中文
+        // （待检/合格/不合格）。此前这里直接把中文结论复制过去，本列唯一的取值 PENDING 之外
+        // 的值全由这条路径写入，任何按大写码判断的读取方都会把它当成"未检验"。
+        let receipt_status =
+            purchase_receipt_inspection::from_inspection_result(&result.inspection_result)
+                .ok_or_else(|| {
+                    AppError::validation(format!(
+                        "质检结论「{}」不在取值域内（允许值：{}），无法映射为入库单检验状态",
+                        result.inspection_result,
+                        quality_inspection_result::ALL.join("/")
+                    ))
+                })?;
+        match receipt {
+            Some(r) => {
+                let mut receipt_active: crate::models::purchase_receipt::ActiveModel = r.into();
+                receipt_active.inspection_status = Set(receipt_status.to_string());
+                // P1 1-1 修复：原 Some(0) 占位符改为真实操作人 user_id
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    txn,
+                    "auto_audit",
+                    receipt_active,
+                    Some(user_id),
+                )
+                .await?;
+            }
+            None => {
+                return Err(AppError::not_found(format!(
+                    "质检记录 {} 关联的入库单 {} 不存在，检验状态无法回写（外键已破坏，需先修正数据）",
+                    result.inspection_no, receipt_id
+                )));
+            }
         }
         Ok(())
     }

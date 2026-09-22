@@ -77,3 +77,37 @@ fn test_inspection_type_domain_excludes_the_prediction_table_vocabulary() {
         );
     }
 }
+
+/// 质检结论 → 入库单检验状态的映射（services/quality_inspection_service.rs 回写路径）
+///
+/// `purchase_receipt.inspection_status` 的取值域是大写码，而质检结论是中文，两列不同源。
+/// 历史回写实现把中文结论原样复制进大写码列，令这些入库单在按大写码判断的读取方眼里
+/// 等于"从未检验"；本用例钉住映射必须落在本列取值域内，且越界结论一律不静默映射。
+#[test]
+fn test_receipt_inspection_status_maps_within_its_own_domain() {
+    use bingxi_backend::models::status::purchase_receipt_inspection;
+
+    assert_eq!(
+        purchase_receipt_inspection::ALL,
+        &["PENDING", "PASSED", "REJECTED"]
+    );
+    for result in quality_inspection_result::ALL {
+        let mapped = purchase_receipt_inspection::from_inspection_result(result);
+        assert!(
+            mapped.is_some(),
+            "质检结论 {result} 竟无对应的入库单检验状态，回写路径会被整体拒掉"
+        );
+        assert!(
+            purchase_receipt_inspection::ALL.contains(&mapped.unwrap()),
+            "映射结果 {:?} 越出入库单检验状态取值域",
+            mapped
+        );
+    }
+    // 英文同义写法与带空白的值都不做静默映射（入口已按取值域校验，走到这里说明数据有问题）
+    for bad in ["pass", " Pass", "qualified", "合 格", "合格 ", "", "冻结"] {
+        assert!(
+            purchase_receipt_inspection::from_inspection_result(bad).is_none(),
+            "越界质检结论被静默映射：{bad}"
+        );
+    }
+}

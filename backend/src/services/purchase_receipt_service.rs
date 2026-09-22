@@ -71,7 +71,7 @@ impl PurchaseReceiptService {
             department_id: Set(req.department_id),
             receiver_id: Set(Some(user_id)),
             inspector_id: Set(req.inspector_id),
-            inspection_status: Set("PENDING".to_string()),
+            inspection_status: Set(status::purchase_receipt_inspection::PENDING.to_string()),
             receipt_status: Set(status::purchase_receipt::DRAFT.to_string()),
             notes: Set(req.notes.clone()),
             attachment_urls: Set(req.attachment_urls.clone()),

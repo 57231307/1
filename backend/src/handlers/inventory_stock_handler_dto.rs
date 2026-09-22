@@ -66,7 +66,8 @@ pub struct StockResponse {
     pub dye_lot_no: Option<String>,
     /// 等级（一等品/二等品/等外品）
     pub grade: String,
-    /// 库存状态（正常/冻结/待检）
+    /// 库存状态（正常/报废/已删除，见 models::status::purchase_inventory::inventory_stock_status；
+    /// 冻结/待检从未有写入方，前端不得提供这两个筛选项）
     pub stock_status: String,
     /// 质量状态（合格/不合格/待检）
     pub quality_status: String,
@@ -114,6 +115,8 @@ pub struct ListStockParams {
     pub warehouse_id: Option<i32>,
     #[validate(range(min = 1, message = "产品ID必须大于0"))]
     pub product_id: Option<i32>,
+    /// 产品编码/名称关键词（列表筛选栏的输入框，与导出共用同一口径）
+    pub keyword: Option<String>,
     /// 色号筛选（面料四维查询维度之一）
     pub color_no: Option<String>,
     /// 缸号筛选（面料四维查询维度之一）
