@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-09-22
+
+| PR | 一句话总结 |
+|----|-----------|
+| PR #941 | Round 7-iter30：把「常量选错表」的核对方法用到库存预警链路，证实 GET /inventory/stock/alerts 是整套假功能——handler 收发 serde_json::Value 无类型、service 不分页且把全部库存行一次性返回，前端拿分页对象当数组用（AlertTab 恒空），告警类型只有 normal/low_stock 两种且慢动与超储判定缺失；现补 StockAlertQuery/StockAlertRow 类型化出入参与 1..1000/1..500 分页钳制、批量回查产品与仓库主数据（缺主数据出 error 日志而非静默丢行）、返回 PaginatedResponse，前端 api/store/tab 改读 items 并对形态不符直接抛错，预警类型常量收进 constants/stock-alert-type.ts（7 值），L1-10 去掉「失败时改查 /material-shortage」的顶包，check-contract.mjs 的映射组由 5 扩到 11（146 字段 0 错误 0 挂账） |
+
+| PR #941 | Round 7-iter30 续：补 6 种业务模式的种子数据并让该域用例走真实契约——mode_code 是 validate_mode_code 的封闭词表且同代码唯一，库里此前一行没有，新部署环境的模式详情/流程节点/规则/单据关联整条链路没有可挂载对象，helpers.getProcessSteps 因此调的是不存在的 GET /business-modes/{id}/flow-steps 并 catch→[] 静默返回空，08 spec 的 M1-2/M1-3 只能 expect(steps.length >= 0) 恒真；现 v15 迁移尾部按 §6 补 business_mode_config 六行（NOT EXISTS 守卫），getProcessSteps 改调 by-code + flow-steps/by-mode/{id}（裸数组、不吞错），08 重写为开关位比对后端一致性规则、流程链写入后按 step_no 回读、规则与单据快照创建-回读-清理，31b 删除矩阵的业务模式用例改为覆盖子资源流程节点（创建→按模式回读命中→DELETE→回读消失），并登记该配置 DELETE 因封闭词表暂无 E2E 覆盖需产品决策。同批消除角色/凭证/会计期间列表的响应键错位（GET /roles 是 RoleListResponse{roles,total} 不分页、/roles/{id}/permissions 与 /vouchers 与 /finance/accounting-periods 是裸数组），去掉 6-4「取不到角色就 return」的静默跳过，并按脚本口径重扫出 40 处无匹配器空断言（其中 03-production 的 lifecycle-logs/by-batch 已确证键错位），逐端点确证后本轮补真断言 15 处、其余 24 处连同 2 处 try/catch 顶包与 79 处条件 test.skip 登记待逐端点确证 |
+
+| PR #941 | Round 7-iter30 续二：判责 run `4625` 的三条 E2E 失败（61 success / 3 failure，收尾清理为级联）并全部改到真实契约——44f-8 建打样单发的是 main_light_source，DTO 必填 light_source 与 required_date 双缺，422 之后用例从未过创建；10c C1-4 同端点的五个字段全不在契约内且顺带用入参伪造 status，一并改为按 CreateLabDipRequestRequest 提交；53-1/53-2 找不到敏感角色时 `?? roles[0]` 回退到任意角色，被后端 is_sensitive_role 以「只有敏感角色变更需要审批」拒绝，把装置缺失伪装成业务失败，现按 backend SENSITIVE_ROLES 同序码表挑选并在报错里列出现有角色；54 验布定级取 .el-table__row.first() 在并发分片下会点到别的分片新建的行（closed 行连定级按钮都不渲染）导致 30s 超时，改为接住创建响应的验布单号定位本用例行，并补「定级后出现关闭按钮、关闭后定级按钮消失」的终态断言 |
+
 ## 2026-09-21
 
 | PR | 一句话总结 |

@@ -518,7 +518,7 @@ CI 执行口径的 241 个 spec 文件（25 分片：flow 15 片 + smoke 5 片 +
 | 响应式矩阵     | 00-responsive                                                                | 21 机型（国产手机/平板 + 苹果全尺寸）+ 断点边界 + 横屏 + 桌面热切换                        |
 | 核心业务流     | 01-p2p / 02-o2c / 03-production / 04-finance / 05-system / 06-collaboration  | 采购到付款 / 订单到收款 / 生产 / 财务 / 系统 / 协作全闭环                                  |
 | 匹号领域       | 07-fabric-four-dim                                                           | 报工逐匹 → 染色外发回仓 → 净布例外 → 仓库约束                                              |
-| 业务模式与权限 | 08-business-modes / 09-permissions                                           | 业务模式流程步骤 / 权限矩阵                                                                |
+| 业务模式与权限 | 08-business-modes / 09-permissions                                           | 6 种种子业务模式与模块开关 / 流程链写入回读 / 业务规则 / 单据-模式快照 / 权限矩阵          |
 | 扩展流程       | 10a-10e / 11-returns / 12-inventory-ops / 13-stocktaking / 14-costing-period | 库存审批 / 委外成本 / 定制订单 / BPM / 状态 i18n / 退货 / 库存操作 / 盘点 / 成本期间       |
 | 表单与交互     | 15-form-validation / 16-list-interaction / 17-batch-dialog                   | 表单校验 / 列表交互 / 批量对话框                                                           |
 | 韧性           | 18-resilience-boundary / 19-token-connection / 20-status-display             | 边界 / 令牌与连接 / 状态展示                                                               |

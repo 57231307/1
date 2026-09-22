@@ -773,14 +773,33 @@
 - [ ] **vac 空断言残余**：04-finance 4-8+、05-system 其余项、00-deploy-init 的
   `expect(me.permissions)` 与成片 `expect(x.length).toBeGreaterThanOrEqual(0)` 恒真断言
   仍未清理（受限于逐端点核对成本），随 key 审计工具完成后一次性处理。
-- [ ] **真空断言成片**（flow/smoke/traversal 内 `expect(expr);` 无匹配器 ≥48 处，另有
-  `expect(x.length).toBeGreaterThanOrEqual(0)` 恒真断言）：这类"永远绿"的断言是本轮三个
-  根因能长期潜伏的放大器。建议 eslint 加 `@typescript-eslint/no-unused-expressions`
-  并把 `e2e/` 从 ignores 移出 + 接入 CI lint（**动 eslint 配置/CI 需用户授权**）。
-- [ ] **31d-D 库存预警**仍为条件分支：要硬断言需先把某商品 `safety_stock`（或等价字段）
-  抬到现有库存之上构造确定前提。
-- [ ] **31d-F 付款申请通知**：`payment-requests/:id/submit` 侧未检索到 `notify_*` 调用，
-  需确认该链路是否真实接入；未接入则按「功能真实接入」补实现而不是删测试。
+- [ ] **E2E 空断言 / 响应键错位清单（2026-09-22 重新扫描，Round 7-iter30）**：
+  扫描口径是「`expect(` 的配对右括号后首个非空字符不是 `.`」，实测 flow/smoke/traversal/enhanced
+  共 40 处 `expect(Array.isArray(x.items), msg);` 无匹配器行（此前记的「≥48 处」含注释行误报）。
+  **本轮已修**：01-p2p 4 处、02-o2c 1 处、09-permissions 1 处补 `.toBe(true)`
+  （`/inventory/stock`、`/audit-logs` 已确证是 PaginatedResponse{items,total,page,page_size}）；
+  05-2 / 6-4 / 6-5 的 `roles.items` 改为 RoleListResponse{roles,total} 真实键
+  （`GET /roles` 不分页，page/page_size 会被 serde 忽略），并删掉 6-4「取不到角色就 return」的静默跳过；
+  6-5 的 `GET /roles/{id}/permissions` 按裸数组 Vec<PermissionResponse> 断言；
+  4-10 `/finance/accounting-periods`、4-11 `/vouchers` 出参同为裸数组，已去掉 `.items` 并逐行校验字段。
+  **剩余 24 处需逐端点确证响应键后再补匹配器**（不得凭印象加 `.toBe(true)`，键错位会把绿变成真红）：
+  01-p2p:488 `/purchase/orders`；02-o2c:401 `/sales/orders`；05-system:60 `/departments`、
+  69 `/data-permissions`、180 `/bulk-color-approvals`、201 `/business-trace`、
+  210 `/ai-models/process-optimizations`、219 `/ai-models/quality-predictions`；
+  06-collaboration:212 `/purchase/orders`；10a:70 purchase-receipts、78 `/ap/invoices`、
+  98 `/inventory/counts`、113 `/inventory/transfers`、128 `/inventory/adjustments`；
+  10b:39 `/production/cost-collections`、46 `/cost`、64 `/financial-analysis/reports`；
+  10c:123/138 lab-dip requests/samples、153/175 `/bulk-color-approvals`、
+  185 `/analytics/business-trace`、192 `/business-trace`、202 `/production/process-nodes`、
+  208 `/production/process-logs`；10d:29 `/role-change-approvals`。
+  其中 **03-production:339 已是确证错位**：`list_lifecycle_logs_by_batch` 返回
+  `Vec<dye_batch_lifecycle_log::Model>`（裸数组），`logs.items` 恒 undefined，应改数组遍历。
+  **另两类同族问题**：一是 try/catch 顶包 2 处（10b:39-46 cost-collections 失败后改查 `/cost`、
+  10c:185-192 analytics/business-trace 失败后改查 `/business-trace`）需按真实端点重写；
+  二是恒真比较（09-permissions:139 `expect(denied.length >= 0)`——且 `permission_denied` 是否
+  真作为 audit `resource_type` 落库尚未确认，需先看拒绝审计写入点；10e:33/41；
+  全库 79 处条件 `test.skip()`）。根治手段是给 `e2e/` 开
+  `@typescript-eslint/no-unused-expressions` 并接入 CI lint（**动 eslint 配置/CI 需用户授权**）。
 - [ ] **SO create 处理器语义错位**：`sales_order_handler.rs:245` 在**创建**时就发
   `notify_order_submitted`（标题「订单已提交」），而订单此时是 draft；
   且与随后 submit 发的同名通知在 5 分钟 dedup 窗口内互相折叠。
@@ -795,10 +814,13 @@
   BPM 修复转绿，以及 53-1（登录超时）、54-new-domains（质量 8D）两条未判责项。
 - [ ] 沿 iter22：CI 只跑 `e2e/flow|smoke|traversal`，另有 20 个目录 218 个用例从不执行；
   `check-i18n.mjs` 未接入 CI（两项均需用户授权改 `ci-cd.yml`）。
-- [ ] **真空断言成片**（flow/smoke/traversal 内 `expect(expr);` 无匹配器 ≥48 处，另有
-  `expect(x.length).toBeGreaterThanOrEqual(0)` 恒真断言）：这类"永远绿"的断言是本轮三个
-  根因能长期潜伏的放大器。建议 eslint 加 `@typescript-eslint/no-unused-expressions`
-  并把 `e2e/` 从 ignores 移出 + 接入 CI lint（**动 eslint 配置/CI 需用户授权**）。
+- [ ] **业务模式配置无法做「每轮建实例再删」的删除矩阵**：`mode_code` 是
+  `validate_mode_code` 的封闭词表且同代码唯一，6 行由 v15 迁移种子写入并被 08 spec 只读依赖，
+  因此 31b 删除矩阵的该用例已改覆盖子资源（流程节点创建→删除→按模式回读消失），
+  `business_mode_config` 自身的 DELETE 端点目前无 E2E 覆盖。要恢复覆盖需产品决策：
+  放开词表（允许企业自定义模式代码）或提供「克隆模式」端点；在此之前不要往 31b 塞回原用例。
+  同类残留：`/business-modes/rules`、`/business-modes/flow-steps` 无全局列表端点（只能按模式查），
+  `GET /vouchers`、`GET /finance/accounting-periods` 收 page/page_size 却不分页。
 - [ ] **31d-D 库存预警**仍为条件分支：要硬断言需先把某商品 `safety_stock`（或等价字段）
   抬到现有库存之上构造确定前提。
 - [ ] **31d-F 付款申请通知**：`payment-requests/:id/submit` 侧未检索到 `notify_*` 调用，
