@@ -162,7 +162,6 @@ pub struct StockAlertRow {
 #[derive(Debug, Deserialize)]
 pub struct StockAlertQuery {
     pub page: Option<u64>,
-    #[serde(rename = "page_size")]
     pub page_size: Option<u64>,
     pub warehouse_id: Option<i32>,
     pub product_id: Option<i32>,
