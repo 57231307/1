@@ -818,6 +818,20 @@
   BPM 修复转绿，以及 53-1（登录超时）、54-new-domains（质量 8D）两条未判责项。
 - [ ] 沿 iter22：CI 只跑 `e2e/flow|smoke|traversal`，另有 20 个目录 218 个用例从不执行；
   `check-i18n.mjs` 未接入 CI（两项均需用户授权改 `ci-cd.yml`）。
+- [ ] **CI 工作流剩余可继续合并项（2026-09-22 本轮只做低风险部分）**：本轮已把
+  `ci-fmt-fe`+`ci-contract-align`+`ci-i18n-check` 合并为 `ci-static-checks`，并新增
+  `.github/actions/e2e-runtime` 让 32 个 E2E 族 job 实例改为下载 `frontend-dist` 而非各自重建前端。
+  下一轮可继续：① `ci-audit` + `security-vulnerability-scan` + `ci-deps` 三个 job 都在跑
+  cargo-audit / npm audit / 依赖图，可并为一个供应链 job（省一次 `cargo install cargo-audit` 全量编译）；
+  ② `ci-coverage-rust` 是第 5 次全量编译，应复用 `ci-build-test-artifacts` 的 nextest 插桩产物或并入
+  `ci-test-rust` 分区 1；③ `ci-dead-code-audit` 与 `dead-code-audit.yml` 的 `audit` job 几乎逐行重复，
+  且自身又跑一次 `cargo check --all-targets`（`ci-lint-rust` 已编译过），应删其一或改 `workflow_call`；
+  ④ `e2e-batch.yml` 是 `ci-e2e` 的近似克隆且使用未固定 SHA 的 `dtolnay/rust-toolchain@master`
+  （违反本仓库"工具链引用固定 SHA"的供应链策略）。
+  ⑤ `ci-fmt-rust`/`ci-build-rust` 会向 PR 分支 push 提交，在 `cancel-in-progress` 下自触发取消，
+  需加 `[skip ci]` 与 paths 过滤后再启用（本轮未动）。
+  ⑥ 分片→spec 的映射靠 `matrix.shard` 算术推导（2441-2491 与 2694/2732/2742），顺序敏感，
+  调整分片数必须同步改三处，建议改为显式 spec 列表。
 - [ ] **业务模式配置无法做「每轮建实例再删」的删除矩阵**：`mode_code` 是
   `validate_mode_code` 的封闭词表且同代码唯一，6 行由 v15 迁移种子写入并被 08 spec 只读依赖，
   因此 31b 删除矩阵的该用例已改覆盖子资源（流程节点创建→删除→按模式回读消失），
