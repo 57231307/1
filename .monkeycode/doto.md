@@ -229,6 +229,44 @@
       `ai-quality-pred`，动作也没有 approve 一档——权限码不匹配时前端 fail-closed 隐藏按钮，
       与已登记的 M-6 resource_id / 角色权限矩阵项属同一决策面，需一并定口径后再改，不单点放行。
 
+- [x] **委外收回单质检结论四套写法混用，`passed` 的收回单在确认时被判成不合格**：
+      `outsourcing_receipt.quality_status` 无 CHECK 也无 DEFAULT（v15/mod.rs:707），历史上同时收过
+      四种写法——收回单界面提交 `qualified/concession/unqualified`、E2E 用例提交 `passed`、
+      模型注释写的是 `pending/passed/failed`（染化料来料检验域），而 confirm 只把字面量
+      `qualified` 视为接收（`receipt.rs` 原 440-452 行），其余一律落到「不合格」分支：
+      于是 `passed` 的收回单确认时生成一条「不合格」质检记录、合格数量记 0，
+      与同一单声明的 A 级自相矛盾，且只有一条 warn；结论为空(NULL)的行更被
+      `unwrap_or_else(|| "qualified")` 直接默认成合格，等于伪造质检结论。
+      已建 `outsourcing_receipt_quality_status`（pending/qualified/concession/unqualified）常量、
+      建单与改单入口按取值域校验（别域同义写法一律 400 并报合法值，不做大小写或跨域宽容）、
+      确认改为按四值显式判定（让步接收计入接收、待检与取值域外拒绝确认、NULL 要求补录），
+      并以迁移 m0057 归一存量（passed→qualified、failed→unqualified、中文→对应小写、NULL→pending）；
+      前端取值收进 `constants/outsourcing-quality.ts`（列表原来直接把英文码展示给用户），
+      另补 `tests/handlers_outsourcing_receipt_test.rs` 钉住取值域。
+      遗留：本列仍无质检结论筛选（前后端都没有），`print_service.rs:2340` 的收回单打印数据仍输出
+      原始英文码（未接中文标签），且 `grade` 缺省仍写死 "B"、
+      让步接收是否强制 B 级未定，见下一条与库存项。
+
+- [ ] **列表端点收参数却不 filtering（假控件）三处实证 + 一组待确认**：本轮全量扫 159 个 handler，
+      确认三处「筛选栏存在但完全无效」——① `GET /inventory/batches`
+      （`inventory_batch_handler.rs:25` 声明了 product_id/batch_no/color_no/grade/warehouse_id/
+      start_date/end_date 七个筛选字段，`:94` 却只把 page/page_size 传给 service，七个字段一个不用；
+      前端 `views/inventory-batch/tabs/BatchListTab.vue:328-330` 还按 camelCase 发 `batchNo/colorNo`，
+      名称也不匹配，批次页所有筛选恒返回全量）；② `GET /purchase/orders`
+      （`purchase_order_handler.rs:500` 的 OrderQueryParams 根本没有 keyword 字段，
+      而 `views/purchase/components/PurchaseFilter.vue:16` 有关键字输入框，经
+      `usePurchList.ts:75` → `api/purchase.ts:92` 发出，搜索无效）；
+      ③ `GET /budgets`（`budget_management_handler.rs:478` 收裸 JSON 且只读 item_type/status，
+      前端 `views/budget/tabs/BudgetListTab.vue:273-275` 发 budget_no/name，
+      同时该页展示的是 plans 而后端查的是 items，口径本身要产品决策）。
+      待确认（后端字段闲置但界面当前没渲染对应控件，改法要么是删死字段要么是补 UI）：
+      `warehouses/locations` 的 search、`wage-records/{id}/details` 的 flow_card_id、
+      `production/quality-inspection/records`（handler 写死 status: None 且把 inspection_result
+      当 inspection_type 用）、`supplier-evaluations/ratings` 丢弃 supplier_id/period、
+      api-gateway keys 的 method 与未知 status 静默忽略；
+      色卡分析/AR 报表/资金/BPM 等报表端点同样不收日期与人员筛选。
+      另 `/sales/orders` 的状态词表（前端含 `submitted`）尚未按本轮方法核对。
+
 - [x] **验布/委外/工资三域接口路径缺 `/production` 前缀（47 个请求恒 404）**：这三组资源注册在
       `routes/production.rs`，而该 router 挂在 `nest("/api/v1/erp/production")` 下，前端
       `api/fabric-inspection.ts`/`outsourcing.ts`/`wage.ts` 全部按裸路径调用，页面自始拿不到数据
@@ -667,3 +705,12 @@
 - [x] ci-cd.yml 的 docs/** 触发路径失效——已获用户授权（2026-09-09，定向豁免）修改 yaml，冗余条目清理完成（65736c1），CI 行为无变化
 
 后续新增任务请在此文件追加。
+
+- [ ] **自审清单一处补充：把 `format!("{:?}", x)` 换成 `x.as_str()` 时，必须逐点看赋值目标类型**。
+      run `35666231768`（4616）在 Clippy/构建/测试预编译三个 job 上报
+      `material_shortage_service.rs:309 mismatched types [E0308]`：
+      `BusinessEvent::MaterialShortageAlert.shortage_level` 是 `String`
+      （`services/event_bus.rs:142`），我把 `format!("{:?}", level)` 换成 `level.as_str()` 时
+      只看了「取值不变」，没看目标字段类型，`&'static str` 赋给 `String` 直接编译失败，
+      整条流水线 28 个 job 又被 skipped。改法是赋值点补 `.to_string()`；
+      自查要点：凡改「字符串生成方式」，要同时看接收方是 `String`、`&str` 还是列类型。
