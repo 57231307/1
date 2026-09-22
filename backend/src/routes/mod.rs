@@ -242,7 +242,8 @@ fn user_profile_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/user/profile",
-            get(user_handler::get_current_user_profile).put(user_handler::update_current_user_profile),
+            get(user_handler::get_current_user_profile)
+                .put(user_handler::update_current_user_profile),
         )
         .route("/user/avatar", post(user_handler::upload_avatar))
 }
