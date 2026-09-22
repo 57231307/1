@@ -719,6 +719,15 @@ export default {
       datePlaceholder: 'Select date',
       deliveryItems: 'Delivery Items',
       product: 'Product',
+      stockRow: 'Stock Row (Color/Batch/Dye Lot)',
+      stockRowPlaceholder: 'Select an inbound stock row',
+      stockRowRequired:
+        'Each delivery item must select a stock row (color no. + batch no. + dye lot no.) for four-dimension outbound deduction',
+      availableQty: 'Available',
+      colorNo: 'Color No.',
+      batchNo: 'Batch No.',
+      warehouseCodeMissing:
+        'Selected warehouse has no warehouse code; cannot ship (backend resolves warehouse by code)',
       dyeLotNo: 'Dye Lot No.',
       orderQuantity: 'Order Quantity',
       delivered: 'Delivered',
@@ -1067,13 +1076,21 @@ export default {
       supplierPlaceholder: 'Select supplier',
       status: 'Order Status',
       statusPlaceholder: 'Select status',
-      statusPending: 'Pending',
-      statusApproved: 'Approved',
-      statusPartial: 'Partial Receipt',
-      statusCompleted: 'Completed',
-      statusCancelled: 'Cancelled',
       query: 'Query',
       reset: 'Reset',
+    },
+    // 采购订单状态文案：键名即后端 purchase_order.order_status 的原值（见
+    // utils/purchase-status.ts 与 backend/src/models/status/purchase_inventory.rs）
+    statusLabels: {
+      DRAFT: 'Draft',
+      PENDING_APPROVAL: 'Pending Approval',
+      SUBMITTED: 'Submitted',
+      APPROVED: 'Approved',
+      PARTIAL_RECEIVED: 'Partially Received',
+      COMPLETED: 'Completed',
+      CLOSED: 'Closed',
+      REJECTED: 'Rejected',
+      CANCELLED: 'Cancelled',
     },
     table: {
       listAria: 'Purchase order list',
@@ -2019,6 +2036,15 @@ export default {
       saveItem: 'Save',
       deleteItem: 'Delete',
       deleteItemConfirm: 'Delete this transfer item?',
+      stockRow: 'Stock Row (Color/Batch/Dye Lot)',
+      stockRowPlaceholder: 'Select product and source warehouse first',
+      stockRowRequired:
+        'Each transfer item must select color no. + batch no. + dye lot no.: outbound deducts by four-dimension match (product/color/dye lot/batch), no fallback',
+      stockRowLoadFailed: 'Failed to load source warehouse stock rows',
+      availableQty: 'Available',
+      colColorNo: 'Color No.',
+      colBatchNo: 'Batch No.',
+      colDyeLotNo: 'Dye Lot No.',
     },
     approveTransfer: {
       dialogTitle: 'Approve Transfer Order',

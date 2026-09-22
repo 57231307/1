@@ -68,7 +68,7 @@
             t('purchase.table.detail')
           }}</el-button>
           <el-button
-            v-if="row.status === 'draft'"
+            v-if="isEditableStatus(row.status)"
             type="warning"
             link
             size="small"
@@ -76,7 +76,7 @@
             >{{ t('purchase.table.submit') || '提交' }}</el-button
           >
           <el-button
-            v-if="row.status === 'draft'"
+            v-if="isEditableStatus(row.status)"
             type="primary"
             link
             size="small"
@@ -84,7 +84,7 @@
             >{{ t('common.edit') }}</el-button
           >
           <el-button
-            v-if="row.status === 'draft'"
+            v-if="row.status === PURCHASE_ORDER_STATUS.DRAFT"
             type="danger"
             link
             size="small"
@@ -92,7 +92,7 @@
             >{{ t('common.delete') }}</el-button
           >
           <el-button
-            v-if="row.status === 'approved'"
+            v-if="row.status === PURCHASE_ORDER_STATUS.APPROVED"
             v-permission="PERMISSIONS.PURCHASE_ORDER_RECEIVE"
             type="warning"
             link
@@ -101,7 +101,7 @@
             >{{ t('purchase.table.receive') }}</el-button
           >
           <el-button
-            v-if="row.status === 'pending'"
+            v-if="row.status === PURCHASE_ORDER_STATUS.PENDING_APPROVAL"
             v-permission="PERMISSIONS.PURCHASE_ORDER_APPROVE"
             type="success"
             link
@@ -110,7 +110,7 @@
             >{{ t('purchase.table.approve') }}</el-button
           >
           <el-button
-            v-if="row.status === 'pending'"
+            v-if="row.status === PURCHASE_ORDER_STATUS.PENDING_APPROVAL"
             type="danger"
             link
             size="small"
@@ -142,9 +142,22 @@ import { useI18n } from 'vue-i18n';
 import type { PurchaseOrder } from '@/api/purchase';
 // Batch 468 P0-S28：引入权限码常量，与后端 purchase-orders 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
+// 行内操作的状态门槛以后端真实词表值为比较对象：
+// 提交/修改在后端允许 DRAFT 与 REJECTED（po/contract.rs submit_order、
+// order_ops/crud.rs validate_order_modification），删除仅 DRAFT（delete_order），
+// 审批/驳回仅 PENDING_APPROVAL（po/contract.rs approve_order/reject_order）
+import { PURCHASE_ORDER_STATUS, type PurchaseOrderStatus } from '@/utils/purchase-status';
 
 // 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });
+
+/** 可提交/可修改状态（后端允许草稿与被驳回两种） */
+const EDITABLE_STATUSES: PurchaseOrderStatus[] = [
+  PURCHASE_ORDER_STATUS.DRAFT,
+  PURCHASE_ORDER_STATUS.REJECTED,
+];
+const isEditableStatus = (status: string) =>
+  EDITABLE_STATUSES.includes(status as PurchaseOrderStatus);
 
 interface QueryParams {
   page: number;

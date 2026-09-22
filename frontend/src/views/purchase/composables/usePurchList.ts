@@ -14,31 +14,19 @@ import { getProductList } from '@/api/product';
 import { getWarehouseList } from '@/api/warehouse';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
+import { i18n } from '@/i18n';
+import {
+  PURCHASE_ORDER_STATUS,
+  purchaseStatusLabelKey,
+  purchaseStatusTagType,
+  type PurchaseTagType,
+} from '@/utils/purchase-status';
 
 /**
- * 订单状态/付款状态对应的 el-tag 类型与文本
+ * 付款状态对应的 el-tag 类型与文本
+ * 订单状态的词表与配色出自 utils/purchase-status（与后端 purchase_order.order_status 原值一致）
  */
-// el-tag 组件支持的 type 联合类型（element-plus 规范）
-type TagType = '' | 'success' | 'warning' | 'info' | 'danger';
-
-const statusTypeMap: Record<string, TagType> = {
-  pending: 'warning',
-  // 原值为 'primary'，不在 TagType 联合范围内，改为 ''（默认主题色，等价于 primary）
-  approved: '',
-  partial: 'info',
-  completed: 'success',
-  cancelled: 'danger',
-};
-
-const statusTextMap: Record<string, string> = {
-  pending: '待审批',
-  approved: '已审批',
-  partial: '部分收货',
-  completed: '已完成',
-  cancelled: '已取消',
-};
-
-const paymentTypeMap: Record<string, TagType> = {
+const paymentTypeMap: Record<string, PurchaseTagType> = {
   unpaid: 'danger',
   partial: 'warning',
   paid: 'success',
@@ -90,19 +78,22 @@ export function usePurchList() {
 
   /**
    * 订单状态对应的 el-tag 类型
-   * 使用 ?? 而非 ||，避免空字符串（合法 TagType，等价于默认主题色）被错误 fallback 到 'info'
+   * 词表外的状态由 utils/purchase-status 抛错并记日志，不再回退配色掩盖数据异常
    */
-  const getStatusType = (status: string): TagType => statusTypeMap[status] ?? 'info';
+  const getStatusType = (status: string): PurchaseTagType => purchaseStatusTagType(status);
 
   /**
-   * 订单状态显示文本
+   * 订单状态显示文案（i18n，键名即后端枚举原值）
    */
-  const getStatusText = (status: string) => statusTextMap[status] || status;
+  const getStatusText = (status: string): string => i18n.global.t(purchaseStatusLabelKey(status));
 
   /**
    * 付款状态对应的 el-tag 类型
+   * 注：采购订单列表/详情 DTO（后端 PurchaseOrderDto）不含 payment_status 字段，
+   * 本列的取值来源尚未确定，词表暂维持现状
    */
-  const getPaymentStatusType = (status: string): TagType => paymentTypeMap[status] ?? 'info';
+  const getPaymentStatusType = (status: string): PurchaseTagType =>
+    paymentTypeMap[status] ?? 'info';
 
   /**
    * 付款状态显示文本
@@ -115,7 +106,12 @@ export function usePurchList() {
   const fetchData = async () => {
     loading.value = true;
     try {
-      const res = await getPurchaseOrderList(queryParams);
+      // 未选状态时必须省略该参数：后端 list_orders 用 OrderStatus.eq(status) 精确匹配
+      // 且不做取值校验，提交 status=（空串）会筛出恒零结果
+      const res = await getPurchaseOrderList({
+        ...queryParams,
+        status: queryParams.status || undefined,
+      });
       // 兼容两种后端响应：data 为数组（ApiResponse<Vec<T>>）或
       // PaginatedResponse { items/list, total }（历史格式）
       const payload = res.data as unknown;
@@ -132,7 +128,10 @@ export function usePurchList() {
       // 计算统计数据
       stats.value.monthOrders = total.value;
       stats.value.monthAmount = orders.value.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-      stats.value.pendingReceipt = orders.value.filter(o => o.status === 'approved').length;
+      // 待收货：后端语义为「已审批且尚未收货」的订单（收货后转 PARTIAL_RECEIVED/COMPLETED）
+      stats.value.pendingReceipt = orders.value.filter(
+        o => o.status === PURCHASE_ORDER_STATUS.APPROVED
+      ).length;
     } catch (error: unknown) {
       ElMessage.error(
         (error instanceof Error ? error.message : '') ||

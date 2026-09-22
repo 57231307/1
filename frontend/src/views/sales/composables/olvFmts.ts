@@ -9,15 +9,25 @@
  * rejected 三个真实状态在列表里直接露出英文枚举，且英文界面下文案仍是中文。
  */
 import { i18n } from '@/i18n';
+import { logger } from '@/utils/logger';
 import { salesStatusLabelKey, salesStatusTagType, type SalesTagType } from '@/utils/sales-status';
 
 /** 获取销售订单状态 el-tag 类型 */
 export const getStatusType = (status: string): SalesTagType => salesStatusTagType(status);
 
-/** 获取销售订单状态文案（词表外的值原样显示，由单一映射源负责告警） */
+/**
+ * 获取销售订单状态文案。
+ * 词表外的值由 utils/sales-status 抛错；这里也不再 `: status` 回显裸枚举——
+ * 取不到文案说明数据缺 status 字段，属真实缺陷，必须报错而不是伪装。
+ */
 export const getStatusText = (status: string): string => {
   const key = salesStatusLabelKey(status);
-  return key ? i18n.global.t(key) : status;
+  if (!key) {
+    const message = '销售订单行缺少 status 字段，无法映射状态文案';
+    logger.error(message, { status });
+    throw new Error(message);
+  }
+  return i18n.global.t(key);
 };
 
 /** 格式化金额（人民币 + 千分位） */

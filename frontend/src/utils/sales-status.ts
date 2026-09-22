@@ -54,19 +54,22 @@ export const SALES_STATUS_TAG_TYPES: Record<SalesOrderStatus, SalesTagType> = {
 
 /**
  * 把后端返回的状态归一到已知枚举。
- * 未知状态不再被静默当作合法状态（原 `typeMap[status] || 'info'` 会把拼错的状态
- * 伪装成正常展示），这里显式告警并返回 undefined，由调用方回退为"原样显示状态值"，
- * 让问题在界面与日志中同时可见。
+ * 状态缺失（订单尚未加载）返回 undefined，由调用方渲染空标签；
+ * 取值在词表外（拼错的大小写、已废弃的状态）不再被静默当作合法状态：
+ * 这里记错误日志并抛错，禁止调用方用 `|| status` 把裸枚举回显给用户。
  */
 export function normalizeSalesOrderStatus(
   status: string | undefined
 ): SalesOrderStatus | undefined {
-  if (!status) return undefined;
+  if (status === undefined) return undefined;
   if ((SALES_ORDER_STATUSES as readonly string[]).includes(status)) {
     return status as SalesOrderStatus;
   }
-  logger.warn('未识别的销售订单状态', { status });
-  return undefined;
+  const message =
+    `未识别的销售订单状态「${status}」，` +
+    '合法取值见后端 models/status/sales.rs 的 sales_order 模块';
+  logger.error(message, { status });
+  throw new Error(message);
 }
 
 export function salesStatusLabelKey(status: string | undefined): string | undefined {

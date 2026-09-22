@@ -84,7 +84,7 @@ import { useI18n } from 'vue-i18n';
 import type { SalesOrder } from '@/api/sales';
 import { salesStatusLabelKey, salesStatusTagType } from '@/utils/sales-status';
 
-const { t, te } = useI18n({ useScope: 'global' });
+const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
   visible: boolean;
@@ -97,10 +97,9 @@ const emit = defineEmits<{
 
 const getStatusType = (status: string | undefined) => salesStatusTagType(status);
 
-/** 未知状态原样显示（utils 内已告警），不再用 `|| status` 掩盖映射缺失 */
+/** 状态文案：词表外的值由 utils/sales-status 抛错暴露，不再回显裸枚举；订单未加载时无状态可显示 */
 const getStatusText = (status: string | undefined) => {
   const key = salesStatusLabelKey(status);
-  if (!key || !te(key)) return status ?? '';
-  return t(key);
+  return key ? t(key) : '';
 };
 </script>

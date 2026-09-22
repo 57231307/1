@@ -85,16 +85,15 @@ import { salesStatusLabelKey, salesStatusTagType } from '@/utils/sales-status';
 
 const route = useRoute();
 const router = useRouter();
-const { t, te } = useI18n({ useScope: 'global' });
+const { t } = useI18n({ useScope: 'global' });
 
 const order = ref<SalesOrder | null>(null);
 const loading = ref(false);
 
-/** 状态文案：未知状态原样显示（并已在 utils/sales-status 内告警），不伪装成合法状态 */
+/** 状态文案：词表外的值由 utils/sales-status 抛错暴露，不再回显裸枚举；详情未加载时无状态可显示 */
 const statusLabel = computed(() => {
   const key = salesStatusLabelKey(order.value?.status);
-  if (!key || !te(key)) return order.value?.status ?? '';
-  return t(key);
+  return key ? t(key) : '';
 });
 
 onMounted(async () => {

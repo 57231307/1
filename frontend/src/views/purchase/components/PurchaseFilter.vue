@@ -36,11 +36,12 @@
           clearable
           @change="onQuery"
         >
-          <el-option :label="t('purchase.filter.statusPending')" value="pending" />
-          <el-option :label="t('purchase.filter.statusApproved')" value="approved" />
-          <el-option :label="t('purchase.filter.statusPartial')" value="partial" />
-          <el-option :label="t('purchase.filter.statusCompleted')" value="completed" />
-          <el-option :label="t('purchase.filter.statusCancelled')" value="cancelled" />
+          <el-option
+            v-for="st in PURCHASE_ORDER_STATUSES"
+            :key="st"
+            :label="t(PURCHASE_STATUS_LABEL_KEYS[st])"
+            :value="st"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -62,6 +63,9 @@ import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Search, Refresh } from '@element-plus/icons-vue';
 import type { Supplier } from '@/api/supplier';
+// 状态选项的值必须是后端 purchase_order.order_status 的原值（全大写），
+// 词表与文案键统一出自 utils/purchase-status
+import { PURCHASE_ORDER_STATUSES, PURCHASE_STATUS_LABEL_KEYS } from '@/utils/purchase-status';
 
 // 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });
