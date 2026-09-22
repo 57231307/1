@@ -53,7 +53,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | 后端 Middleware   | 21 个（含 RLS 会话上下文中间件）                                                                                              |
 | 后端业务事件      | 34 种（事件总线 + Kafka + ES 刷新 + 幂等去重）                                                                                |
 | 后端状态机        | 30+ 个（四种范式：DB规则表/枚举payload/utils纯函数/JSON图遍历）                                                               |
-| 后端集成测试      | 253 个文件 / 2,072 个测试函数                                                                                                 |
+| 后端集成测试      | 255 个文件 / 2,086 个测试函数                                                                                                 |
 | 后端迁移          | 7 个业务域聚合迁移（system/business/sales_crm/production/finance/v15/rls_dept），Rust 代码内联 SQL，`bingxi migrate run` 执行 |
 | 后端基准测试      | 4 个 criterion 基准（染整成本/库存/凭证/工资）                                                                                |
 | 前端 Vue 文件     | 420 个                                                                                                                        |
@@ -489,7 +489,7 @@ sudo journalctl -u bingxi-backend -f
 
 | 层级                  | 数量                  | 工具                  | 覆盖范围                                                                             |
 | --------------------- | --------------------- | --------------------- | ------------------------------------------------------------------------------------ |
-| 后端集成测试          | 254 文件 / 2,083 函数 | cargo test + nextest  | 服务层 + API 层                                                                      |
+| 后端集成测试          | 255 文件 / 2,086 函数 | cargo test + nextest  | 服务层 + API 层                                                                      |
 | 前端 E2E 冒烟测试     | 126                   | Playwright            | 全部前端路由 + 物流/缺料取值契约（5 分片并行）                                       |
 | 前端 E2E 工作流测试   | 665                   | Playwright            | 75 个 flow spec 文件，业务闭环 + 纺织领域 + 权限矩阵 + 健康巡检                      |
 | 前端 E2E 端点遍历     | 266                   | Playwright            | 10 个 traversal spec：打印/导出/审批端点矩阵 + 42a-d 全模块遍历 + 角色矩阵（5 分片） |

@@ -328,18 +328,28 @@
       api-gateway keys 的 method 与未知 status 静默忽略；色卡分析/AR 报表/资金/BPM 等报表端点
       同样不收日期与人员筛选。
 
-- [ ] **质检记录页与后端请求契约整体错位（页面级改造，勿零碎改）**：
-      `POST/PUT /production/quality-inspection/records` 的 `CreateInspectionRecordRequest` 要求
-      `inspection_no / inspection_type / product_id / inspection_date / total_qty / inspected_qty /
-      inspection_result` 全部必填（非 Option），而 `views/quality/index.vue:550-561` 的表单字段是
-      `record_no / result / inspector`（人名文本，而非 inspector_id），完全没有 total_qty 与
-      inspected_qty —— 界面新建一条质检记录必然 400，更新同理；列表侧又读 `row.result`
-      （`RecordTab.vue:116-122`）而后端出参字段名是 `inspection_result`，结果列因此恒为空标签，
-      且其 pass/fail/pending 词表系自造：库里唯一的自动写入方（`outsourcing_ops/receipt.rs:497`）
-      写的是「合格/不合格」。修法要一次做全：表单补数量项并按后端字段名提交、结果取值建常量
-      （与委外回仓写入方同源）、列表读真实字段、必要时补存量归一。
-      同一类的还有 `api/sales.ts:66` 的 `SalesDelivery.status` 词表（与后端 sales_delivery 常量不符）
-      与 `utils/sales-status.ts`、`views/sales/composables/olvFmts.ts` 两套订单状态映射并存。
+- [x] **质检记录页与后端请求契约整体错位（页面级改造，勿零碎改）**：
+      核对结论：`POST/PUT /production/quality-inspection/records` 的
+      `CreateInspectionRecordRequest` 要求 `inspection_no / inspection_type / product_id /
+      inspection_date / total_qty / inspected_qty / inspection_result` 全部必填（非 Option），
+      而 `views/quality/index.vue` 的表单字段是 `record_no / result / inspector`（人名文本）加一个
+      后端根本没有的 `product_name`，也完全没有两个必填数量项 —— 界面新建一条质检记录必然 400，
+      更新同理；列表侧又读 `row.result`（后端出参字段是 `inspection_result`），
+      `product_name / inspector / record_no` 三列在模型里同样不存在，7 列里有 4 列恒空。
+      已修：表单模型与字段名改为与后端契约一致（产品/检验人改成按主数据选择的 product_id /
+      inspector_id，补 total_qty / inspected_qty 必填数字项，结论文案走
+      `constants/quality-inspection-record.ts`），提交前做表单校验、不再发必然被拒的请求；
+      列表列名改为真实字段，产品与检验人经 `useQualityLookups` 按主数据翻名称（查不到则告警并
+      显示 ID，不猜名称），打印行与列表同口径；`api/quality.ts` 的 `QualityRecord` 类型改为
+      与后端 Model 一一对应（含 Decimal 序列化为字符串）；后端新增
+      `quality_inspection_result`（待检/合格/不合格）常量与入口校验，委外回仓自动写入方改引常量，
+      v15 迁移末尾把历史 pass/fail/pending 归一为中文结论（同前一轮教训：归一 SQL 必须落在
+      建表域之内或之后），并补 `handlers_quality_inspection_result_test.rs` 钉住词表与越界拒绝。
+      仍待处理：`inspection_no` 目前由客户端提交（应由后端用单据号生成器产生，界面上把单号
+      做成必填输入并不合理）；表格里没有送检数/合格数/合格率与等级列，supplier_id/customer_id
+      与缸号色号等字段界面仍不收集（后端为 Option，不影响主流程）；
+      `sync_receipt_inspection_status` 会把该结论复制到 `purchase_receipt.inspection_status`，
+      入库单侧的取值口径需与库存质量状态域一并核对（属另一条已登记项）。
 
 - [x] **委外打印数据仍输出英文码**：`print_service.rs:2340` 把 `quality_status` 原值
       （pending/qualified/concession/unqualified）直接打进打印件，用户看到的是码不是文案；
