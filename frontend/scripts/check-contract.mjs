@@ -123,6 +123,16 @@ const MAPPING = [
   { ts: 'CreateQualityRecordPayload', rust: ['CreateInspectionRecordRequest'] },
   // 库存预警行：后端原先返回裸 json!（无类型，门禁看不见），本轮改为 StockAlertRow 后纳入对照
   { ts: 'StockAlert', rust: ['StockAlertRow'] },
+  // 坯布（greige）入库/出库入参契约：本轮修复两处缺陷之一——前端 handleStock 曾提交
+  // { quantity }，后端 stock_in 要求 StockInRequest{warehouse_id, weight_kg, length_m}、
+  // stock_out 要求 StockOutRequest{weight_kg, length_m}（greige_fabric_handler.rs:110/123）
+  // → 点击必 400、入库功能在 UI 上不可用。修复后前端对话框按契约提交，并把两组入参类型
+  // 纳入本对照：同类漂移从此提交即被静态拦截，而非等 E2E 撞。
+  // 注：响应型 GreigeFabric 暂不纳入——它是被 out-of-scope 的 /greige-fabrics 旧页共用的
+  // 遗留类型（仍引用后端不存在的 fabric_code/supplier_name/quantity 等）。views/fabric 的
+  // 列表列 prop 已直接绑到后端真实字段；待该旧页单独修复后再统一纳管 GreigeFabric。
+  { ts: 'GreigeStockInPayload', rust: ['StockInRequest'] },
+  { ts: 'GreigeStockOutPayload', rust: ['StockOutRequest'] },
 ];
 
 // ---------- 存量幽灵字段挂账清单（允许通过，新增字段不在清单内立即拦截） ----------

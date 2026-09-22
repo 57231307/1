@@ -20,43 +20,49 @@
         stripe
         :aria-label="t('fabric.greigeTab.tableAriaLabel')"
       >
-        <el-table-column prop="fabric_code" :label="t('fabric.greigeTab.columnCode')" width="120" />
+        <el-table-column prop="fabric_no" :label="t('fabric.greigeTab.columnCode')" width="140" />
         <el-table-column
           prop="fabric_name"
           :label="t('fabric.greigeTab.columnName')"
           min-width="150"
         />
-        <el-table-column
-          prop="supplier_name"
-          :label="t('fabric.greigeTab.columnSupplier')"
-          width="150"
-        />
+        <!--
+          供应商列暂移除：后端列表端点仅返回 supplier_id，不返回 supplier_name
+          （见 models/greige_fabric.rs / handlers/greige_fabric_handler.rs list），
+          不得在前端编造或 ?? '-' 兜底，待后端补字段后再加回。
+        -->
         <el-table-column prop="width" :label="t('fabric.greigeTab.columnWidth')" width="80" />
-        <el-table-column prop="weight" :label="t('fabric.greigeTab.columnWeight')" width="80" />
+        <el-table-column
+          prop="gram_weight"
+          :label="t('fabric.greigeTab.columnWeight')"
+          width="80"
+        />
         <el-table-column
           prop="composition"
           :label="t('fabric.greigeTab.columnComposition')"
           width="120"
         />
         <el-table-column
-          prop="quantity"
-          :label="t('fabric.greigeTab.columnQuantity')"
-          width="100"
+          prop="weight_kg"
+          :label="t('fabric.greigeTab.columnWeightKg')"
+          width="110"
+          align="right"
+        />
+        <el-table-column
+          prop="length_m"
+          :label="t('fabric.greigeTab.columnLengthM')"
+          width="110"
           align="right"
         />
         <el-table-column
           prop="status"
           :label="t('fabric.greigeTab.columnStatus')"
-          width="80"
+          width="90"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{
-                row.status === 'active'
-                  ? t('fabric.greigeTab.statusActive')
-                  : t('fabric.greigeTab.statusInactive')
-              }}
+            <el-tag :type="row.status === '在库' ? 'success' : 'info'" size="small">
+              {{ row.status }}
             </el-tag>
           </template>
         </el-table-column>
