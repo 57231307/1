@@ -36,7 +36,7 @@ export interface ContractItem {
 
 export function getPurchaseContractList(
   params?: QueryParams
-): Promise<ApiResponse<{ items: PurchaseContract[]; total: number }>> {
+): Promise<ApiResponse<PurchaseContract[]>> {
   return request.get('/purchase/purchase-contracts', { params });
 }
 

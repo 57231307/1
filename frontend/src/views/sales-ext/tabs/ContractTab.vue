@@ -442,7 +442,8 @@ const fetchSalesContracts = async () => {
   contractLoading.value = true;
   try {
     const res = await getSalesContractList();
-    salesContracts.value = res.data?.items || [];
+    // list_contracts 返回 ApiResponse<Vec<sales_contract::Model>>：data 就是裸数组
+    salesContracts.value = res.data;
   } catch (error) {
     const err = error as { message?: string };
     ElMessage.error(err.message || t('salesExt.contractTab.messageFetchFailed'));
