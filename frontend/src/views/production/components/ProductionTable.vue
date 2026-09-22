@@ -31,7 +31,7 @@ import { getStatusLabel, getStatusType } from '../composables/prdFmts';
 // P2-17 修复（批次 86 v2 复审）：h() 渲染函数无法使用 v-permission 指令，
 // 改为复用 router 守卫的 hasRoutePermission + useUserStore 做权限判断，
 // 行为与 v-permission 指令保持一致（无权限则不渲染该按钮）
-import { hasRoutePermission } from '@/router';
+import { hasRoutePermission, canAccessDetailPermission } from '@/router';
 import { useUserStore } from '@/store/user';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -44,6 +44,25 @@ const can = (required: string): boolean => {
   const permissions = userStore.userInfo?.permissions || [];
   return hasRoutePermission(required, permissions);
 };
+
+// 详情/编辑入口回源/提交 `/production/.../orders/{id}`，后端对 resource_id=NULL 行拒绝 `/{id}`，
+// 非管理员点了必然 403。与后端同源判定（canAccessDetailPermission）决定是否隐藏。
+const canViewDetail = computed(() => {
+  const userStore = useUserStore();
+  return canAccessDetailPermission(
+    'production-orders',
+    'read',
+    userStore.userInfo?.permissions || []
+  );
+});
+const canEditDetail = computed(() => {
+  const userStore = useUserStore();
+  return canAccessDetailPermission(
+    'production-orders',
+    'update',
+    userStore.userInfo?.permissions || []
+  );
+});
 
 const statusLabel = getStatusLabel;
 
@@ -71,18 +90,24 @@ const emit = defineEmits<{
 /** 创建操作按钮 vnode（≤50 行） */
 const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
   // 后端状态机为大写（DRAFT/PENDING_APPROVAL/SCHEDULED/IN_PROGRESS/COMPLETED/REJECTED）
-  const buttons: ReturnType<typeof h>[] = [
-    h(
-      ElButton,
-      { type: 'primary', link: true, size: 'small', onClick: () => emit('view-detail', row) },
-      { default: () => t('production.table.buttonView') }
-    ),
+  const buttons: ReturnType<typeof h>[] = [];
+  // 详情入口：与后端同源判定无 /{id} 权限时不渲染，避免出现点了必然 403 的死入口
+  if (canViewDetail.value) {
+    buttons.push(
+      h(
+        ElButton,
+        { type: 'primary', link: true, size: 'small', onClick: () => emit('view-detail', row) },
+        { default: () => t('production.table.buttonView') }
+      )
+    );
+  }
+  buttons.push(
     h(
       ElButton,
       { type: 'info', link: true, size: 'small', onClick: () => emit('view-logs', row) },
       { default: () => '日志' }
-    ),
-  ];
+    )
+  );
   const upper = String(row.status || '').toUpperCase();
   if (upper === 'DRAFT') {
     buttons.push(
@@ -129,7 +154,8 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
   // 草稿可改可删；排产/开工/完工按状态机的下一步给出，
   // 目标状态取后端 PUT /status 白名单里的值（SCHEDULED/IN_PROGRESS/COMPLETED）
   if (upper === 'DRAFT') {
-    if (can('production_order:update')) {
+    // 编辑入口提交 PUT /orders/{id}，后端对 resource_id=NULL 行拒绝；与后端同源判定后隐藏
+    if (can('production_order:update') && canEditDetail.value) {
       buttons.push(
         h(
           ElButton,

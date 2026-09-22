@@ -26,8 +26,17 @@ import { ElButton } from 'element-plus';
 import V2Table from '@/components/V2Table/index.vue';
 import type { ColumnDef } from '@/components/V2Table/types';
 import type { SalesOrder } from '@/api/sales';
+import { useUserStore } from '@/store/user';
+import { canAccessDetailPermission } from '@/router';
 
 const { t } = useI18n({ useScope: 'global' });
+const userStore = useUserStore();
+
+// 后端对 resource_id=NULL 权限行拒绝 /{id} 详情请求；"详情"会回源 /sales/orders/{id}，
+// 非管理员点了必然 403，故与后端同源判定后隐藏该入口（"查看"用列表已有行，不隐藏）。
+const canAccessOrderDetail = computed(() =>
+  canAccessDetailPermission('sales-orders', 'read', userStore.userInfo?.permissions || [])
+);
 
 /**
  * 销售订单列表 V2Table 包装组件
@@ -77,16 +86,22 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
           { size: 'small', link: true, onClick: () => emit('view', row) },
           { default: () => t('sales.table.view') }
         ),
-        h(
-          ElButton,
-          {
-            size: 'small',
-            link: true,
-            onClick: () => emit('detail', row),
-          },
-          { default: () => t('common.detail') || '详情' }
-        ),
       ];
+      // 详情入口回源 /sales/orders/{id}，后端对非管理员的 resource_id=NULL 权限行拒绝，
+      // 与后端同源判定无权限时不渲染（隐藏）该按钮，避免出现点了必然 403 的死入口
+      if (canAccessOrderDetail.value) {
+        buttons.push(
+          h(
+            ElButton,
+            {
+              size: 'small',
+              link: true,
+              onClick: () => emit('detail', row),
+            },
+            { default: () => t('common.detail') || '详情' }
+          )
+        );
+      }
       if (row.status === 'draft') {
         buttons.push(
           h(

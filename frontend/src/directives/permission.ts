@@ -1,7 +1,13 @@
 import type { Directive, DirectiveBinding } from 'vue';
 import { useUserStore } from '@/store/user';
 // 批次 22 v5 P0-3 阶段 A：复用 router 守卫的 hasRoutePermission，保持行为一致
-import { hasRoutePermission } from '@/router';
+import { hasRoutePermission, canAccessDetailPermission } from '@/router';
+
+/** v-permission-detail 指令值：目标资源类型 + 动作（详情用 read / 编辑用 update） */
+export interface PermissionDetailBinding {
+  resource: string;
+  action: string;
+}
 
 /**
  * 权限指令
@@ -37,6 +43,27 @@ export const permission: Directive = {
     }
 
     if (!hasPermission) {
+      el.parentNode?.removeChild(el);
+    }
+  },
+};
+
+/**
+ * 详情/编辑入口可访问性指令
+ * 后端对 resource_id=NULL 的权限行拒绝 `/{id}` 详情/编辑请求（故意严格策略），
+ * 非管理员角色点了必然 403。本指令按与后端 canAccessDetailPermission 同源的条件，
+ * 直接移除（隐藏）用户无权限访问的"详情/编辑"入口，而不是让按钮存在并抛错。
+ * 使用方式：
+ * <el-button v-permission-detail="{ resource: 'sales-orders', action: 'read' }">详情</el-button>
+ */
+export const permissionDetail: Directive = {
+  mounted(el: HTMLElement, binding: DirectiveBinding<PermissionDetailBinding>) {
+    const { value } = binding;
+    if (!value || !value.resource || !value.action) return;
+
+    const userStore = useUserStore();
+    const permissions = userStore.userInfo?.permissions || [];
+    if (!canAccessDetailPermission(value.resource, value.action, permissions)) {
       el.parentNode?.removeChild(el);
     }
   },

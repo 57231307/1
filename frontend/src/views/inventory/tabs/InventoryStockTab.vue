@@ -81,7 +81,7 @@
         :total="total"
         :page="localQuery.page"
         :page-size="localQuery.page_size"
-        @row-click="(row: InventoryStock) => emit('view', row)"
+        @row-click="handleRowView"
         @page-change="handlePageChange"
         @size-change="handleSizeChange"
       />
@@ -90,12 +90,14 @@
 </template>
 
 <script setup lang="ts">
-import { h, reactive, watch } from 'vue';
+import { computed, h, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElButton } from 'element-plus';
 import { Search, Refresh } from '@element-plus/icons-vue';
 import V2Table from '@/components/V2Table/index.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
+import { useUserStore } from '@/store/user';
+import { canAccessDetailPermission } from '@/router';
 import { getStockStatusLabel } from '../composables/invFmts';
 import {
   INVENTORY_STOCK_STATUS_LABEL_KEY,
@@ -148,6 +150,20 @@ watch(
 // 状态标签映射：与详情页、打印共用同一份取值→文案映射（见 composables/invFmts）
 const getStatusText = (status: string) => getStockStatusLabel(status, t);
 
+// 后端对 resource_id=NULL 权限行拒绝 `/inventory/stock/{id}` 的 GET(查看)/PUT(编辑)，
+// 非管理员点了必然 403。与后端同源判定（canAccessDetailPermission）决定是否隐藏入口。
+const userStore = useUserStore();
+const canViewStockDetail = computed(() =>
+  canAccessDetailPermission('inventory', 'read', userStore.userInfo?.permissions || [])
+);
+const canEditStockDetail = computed(() =>
+  canAccessDetailPermission('inventory', 'update', userStore.userInfo?.permissions || [])
+);
+// 行点击进入详情：无 /{id} 读权限时不触发（详情数据无法加载，避免必然 403）
+const handleRowView = (row: InventoryStock) => {
+  if (canViewStockDetail.value) emit('view', row);
+};
+
 const { columns: stockColumns } = useTableColumns<InventoryStock>([
   {
     key: 'product_code',
@@ -182,21 +198,26 @@ const { columns: stockColumns } = useTableColumns<InventoryStock>([
     width: 120,
     fixed: 'right',
     // V2Table 通过 renderCell 渲染操作列（无插槽机制）
-    renderCell: (row: InventoryStock) =>
-      h('div', { class: 'operation-cell' }, [
-        h(
-          ElButton,
-          {
-            size: 'small',
-            type: 'primary',
-            link: true,
-            onClick: (e: Event) => {
-              e.stopPropagation();
-              emit('edit', row);
-            },
-          },
-          () => t('common.edit')
-        ),
+    renderCell: (row: InventoryStock) => {
+      const actions = [
+        // 编辑入口保存走 PUT /inventory/stock/{id}，无 /{id} 更新权限时不渲染
+        ...(canEditStockDetail.value
+          ? [
+              h(
+                ElButton,
+                {
+                  size: 'small',
+                  type: 'primary',
+                  link: true,
+                  onClick: (e: Event) => {
+                    e.stopPropagation();
+                    emit('edit', row);
+                  },
+                },
+                () => t('common.edit')
+              ),
+            ]
+          : []),
         h(
           ElButton,
           {
@@ -210,7 +231,9 @@ const { columns: stockColumns } = useTableColumns<InventoryStock>([
           },
           () => t('common.delete')
         ),
-      ]),
+      ];
+      return h('div', { class: 'operation-cell' }, actions);
+    },
   },
 ]);
 

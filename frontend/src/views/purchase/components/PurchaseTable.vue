@@ -64,9 +64,14 @@
       <el-table-column prop="creator_name" :label="t('purchase.table.colCreator')" width="100" />
       <el-table-column :label="t('purchase.table.colOperation')" width="320" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="onView(row as PurchaseOrder)">{{
-            t('purchase.table.detail')
-          }}</el-button>
+          <el-button
+            v-permission-detail="{ resource: 'purchase-orders', action: 'read' }"
+            type="primary"
+            link
+            size="small"
+            @click="onView(row as PurchaseOrder)"
+            >{{ t('purchase.table.detail') }}</el-button
+          >
           <el-button
             v-if="isEditableStatus(row.status)"
             type="warning"
@@ -77,6 +82,7 @@
           >
           <el-button
             v-if="isEditableStatus(row.status)"
+            v-permission-detail="{ resource: 'purchase-orders', action: 'update' }"
             type="primary"
             link
             size="small"

@@ -1476,14 +1476,73 @@ export function resetInitStatus(initialized: boolean = true) {
   initStatus = initialized ? true : null;
 }
 
+/** 拆分权限码 `"{resource}:{action}"` 为资源段与动作段（无冒号时动作段为空串） */
+function splitPermissionCode(code: string): { resource: string; action: string } {
+  const sepIdx = code.indexOf(':');
+  return sepIdx > 0
+    ? { resource: code.slice(0, sepIdx), action: code.slice(sepIdx + 1) }
+    : { resource: code, action: '' };
+}
+
+/** 动作等价匹配（后端 action 命名不统一：read/view 等价，update/edit 等价） */
+function actionEquivalent(userAction: string, requiredAction: string): boolean {
+  if (userAction === '*' || userAction === requiredAction) return true;
+  if (
+    (userAction === 'read' && requiredAction === 'view') ||
+    (userAction === 'view' && requiredAction === 'read')
+  )
+    return true;
+  if (
+    (userAction === 'update' && requiredAction === 'edit') ||
+    (userAction === 'edit' && requiredAction === 'update')
+  )
+    return true;
+  return false;
+}
+
+/**
+ * 详情/编辑（`/{id}`）可访问性判定——与后端 `matches_permission` 同源（唯一真相）。
+ *
+ * 后端事实（backend/src/middleware/permission.rs）：
+ * - `extract_resource_info` 对形如 `/api/v1/erp/<resource>/<int:id>` 的详情/编辑请求
+ *   返回 `resource_id = Some(id)`；列表请求返回 `None`（permission.rs:259-315）。
+ * - `matches_permission` 对 `resource_id = Some(id)` 的请求：普通权限行 `resource_id = NULL`
+ *   走 `(None, Some) => false` 分支被拒；仅当权限行 `resource_type == "*"`（超级通配）时
+ *   `id_match` 短路为真（permission.rs:612）。
+ * - 登录/`/auth/me` 只把每行权限序列化为 `"{resource}:{action}"`，**不携带 resource_id**
+ *   （backend/src/handlers/auth_handler.rs:176）；非管理员角色的权限行 resource_id 均为 NULL
+ *   （产品既定严格策略），因此其权限码的资源段永远不是 `*`。
+ *
+ * 结论（同源判定，非角色白名单、非兜底）：
+ * 用户对某资源的详情/编辑（`/{id}`）可访问 ⟺ 用户持有一条资源段为 `*` 且动作可覆盖
+ * 目标动作的权限码（管理员的 `*:*` 即此形态）。否则该入口点了必然 403，应隐藏。
+ *
+ * @param _resourceType 目标资源类型（保留参数以贴合调用语义；`*` 通配对任意资源均放行）
+ * @param action 目标动作（详情用 read / 编辑用 update；view↔read、edit↔update 等价）
+ * @param userPermissions 用户持有的权限码列表
+ */
+export function canAccessDetailPermission(
+  _resourceType: string,
+  action: string,
+  userPermissions: readonly string[]
+): boolean {
+  return userPermissions.some(up => {
+    const { resource, action: userAction } = splitPermissionCode(up);
+    // 仅"资源段为 *"的超级通配行可放行 resource_id=Some 的详情/编辑请求（见函数注释）
+    return resource === '*' && actionEquivalent(userAction, action);
+  });
+}
+
 /**
  * 权限码匹配检查（批次 3：路由守卫权限校验）
  *
  * 宽松匹配规则（避免因后端权限码命名不统一而锁死用户）：
  * 1. admin 角色直接通过（由调用方判断，此处不查）
- * 2. 用户未配置任何权限码（permissions 为空）→ 调用方放行
- * 3. 通配符：用户持有 "resource:*" 可匹配该 resource 下的任意 action
- * 4. read/view 等价、update/edit 等价（后端两套 action 命名兼容）
+ * 2. 通配符：用户持有 "resource:*" 可匹配该 resource 下的任意 action
+ * 3. read/view 等价、update/edit 等价（后端两套 action 命名兼容）
+ *
+ * 注意：本函数是"列表级/路由级"宽松匹配，不能用于判定 `/{id}` 详情/编辑是否放行
+ * （后端对 resource_id=NULL 行拒绝 `/{id}` 请求），详情/编辑请使用 canAccessDetailPermission。
  *
  * @param required 路由 meta.permission（单个权限码或数组，任一匹配即通过）
  * @param userPermissions 用户实际持有的权限码列表
@@ -1496,30 +1555,14 @@ export function hasRoutePermission(
   if (!required) return true;
   const requiredList = Array.isArray(required) ? required : [required];
   return requiredList.some(req => {
-    const sepIdx = req.indexOf(':');
-    const reqResource = sepIdx > 0 ? req.slice(0, sepIdx) : req;
-    const reqAction = sepIdx > 0 ? req.slice(sepIdx + 1) : '';
+    const { resource: reqResource, action: reqAction } = splitPermissionCode(req);
     return userPermissions.some(up => {
-      const upSep = up.indexOf(':');
-      const upResource = upSep > 0 ? up.slice(0, upSep) : up;
-      const upAction = upSep > 0 ? up.slice(upSep + 1) : '';
+      const { resource: upResource, action: upAction } = splitPermissionCode(up);
       // P2 1-12 修复：支持 *:* 超级通配权限（系统管理员角色由后端注入）
       if (upResource === '*' && upAction === '*') return true;
       if (upResource !== reqResource) return false;
-      if (upAction === '*') return true;
-      if (upAction === reqAction) return true;
-      // 后端 action 命名不统一：read/view 等价，update/edit 等价
-      if (
-        (upAction === 'read' && reqAction === 'view') ||
-        (upAction === 'view' && reqAction === 'read')
-      )
-        return true;
-      if (
-        (upAction === 'update' && reqAction === 'edit') ||
-        (upAction === 'edit' && reqAction === 'update')
-      )
-        return true;
-      return false;
+      // 通配与 read/view、update/edit 等价规则统一到 actionEquivalent
+      return actionEquivalent(upAction, reqAction);
     });
   });
 }
