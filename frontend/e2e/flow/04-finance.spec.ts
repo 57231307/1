@@ -25,7 +25,12 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     const subjectList = Array.isArray(subjects)
       ? subjects
       : ((subjects as { items?: Array<{ code: string; name: string }> }).items ?? []);
-    expect(subjectList.length).toBeGreaterThanOrEqual(0);
+    // 默认会计科目表由迁移种子写入；原写法 >=0 恒真，列表为空也绿
+    expect(subjectList.length, '默认会计科目表应可被查询到（科目种子未落地？）').toBeGreaterThan(0);
+    for (const s of subjectList.slice(0, 10)) {
+      expect(String(s.code ?? ''), `科目行缺少 code：${JSON.stringify(s)}`).not.toBe('');
+      expect(String(s.name ?? ''), `科目行缺少 name：${JSON.stringify(s)}`).not.toBe('');
+    }
   });
 
   test('4-2 创建凭证（含色号维度成本）', async ({ page }) => {

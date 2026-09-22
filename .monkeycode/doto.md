@@ -807,9 +807,17 @@
   （实为 `department_service::list` / `warehouse_service::list` 返回
   `PaginatedResponse{items,…}`），已在下一 commit 纠正回 items 并补真实断言。
   自写解析器只能用于定位 handler，出参键必须读到 service 层为止。
-  仍待处理的两类假绿：`expect(x.length).toBeGreaterThanOrEqual(0)` 之类恒真比较
-  （09-permissions:139 的 `denied.length >= 0` 还在断言一个从未作为 audit `resource_type` 写入的值
-  `permission_denied`，需先确认拒绝审计的落库口径）、以及全库 79 处条件 `test.skip()`。
+  **恒真断言一类本轮继续收敛**（已修 20 处）：00-deploy-init 的 10 处
+  `expect(x.length ?? 0).toBeGreaterThanOrEqual(0)`、04-finance 科目表、06-collaboration 建用户、
+  09-permissions 的 CSRF/缓存/拒绝审计三处（已确认 `permission.rs:147-195` 确实以
+  `resource_type=permission_denied` 落审计，故按"真实越权 → 轮询审计命中"重写）、
+  10e 的 6 处 `expect(page.url()).toBeTruthy()`（改为断言未被重定向出目标路由）与
+  2 处状态显示占位断言（改为校验 `.el-tag` 存在且不是后端枚举原值）。
+  **仍待处理**：`14-costing-period` 的
+  `by-batch` 出参键未确证（1 处）与折旧用例的 try/catch 兜底把"折旧被状态机拒绝"当作正常路径
+  （2 处 `records.items?.length >= 0`）、`28a-core-ui` 的 `treeRowCount >= 0`、
+  `rpa-data-extraction` 的 `elapsed >= 0`（弱断言，可改为与阈值比较），
+  以及全库 79 处条件 `test.skip()`（多为"前置数据缺失即跳过"，需改为造前置数据后硬断言）。
   工艺节点日志只有 POST 写入端点（`/{id}/nodes/{nid}/logs`）没有 GET 列表端点，
   若要独立校验日志需在时间线出参之外补端点（属产品决策，未擅自新建）。
   **剩余 22 处需逐端点确证响应键后再补匹配器**（不得凭印象加 `.toBe(true)`，键错位会把绿变成真红）：

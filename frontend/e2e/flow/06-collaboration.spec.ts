@@ -61,8 +61,10 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       department_id: ctx.departmentIds[0] || 1,
       is_active: true,
     });
-    if (result.data?.id) ctx.userIds.push(result.data.id);
-    expect(ctx.userIds.length).toBeGreaterThanOrEqual(0);
+    // 建用户失败此前被 if 吞掉后仍写 `length >= 0` 恒真断言；现要求真实创建出用户
+    expect(result.data?.id, `协作测试用户创建未返回 id：${JSON.stringify(result)}`).toBeTruthy();
+    ctx.userIds.push(result.data.id);
+    expect(ctx.userIds.length, '本用例应至少创建一个协作用户').toBeGreaterThan(0);
   });
 
   test('6-4 验证 SoD 职责分离规则', async ({ page }) => {
