@@ -273,7 +273,7 @@ test.describe
         color_no: colorNo,
         warehouse_id: finishedWarehouseId,
         return_quantity: 45,
-        quality_status: 'passed',
+        quality_status: 'qualified',
         grade: 'A',
       }
     );
@@ -346,7 +346,7 @@ test.describe
         product_id: ctx.productIds[0],
         warehouse_id: finishedWarehouseId,
         return_quantity: 28,
-        quality_status: 'passed',
+        quality_status: 'qualified',
         grade: 'A',
       }
     );

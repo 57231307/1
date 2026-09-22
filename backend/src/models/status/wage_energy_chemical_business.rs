@@ -289,6 +289,32 @@ pub mod outsourcing_receipt_status {
     pub const CANCELLED: &str = "cancelled";
 }
 
+/// 委外收回质检结论（outsourcing_receipt.quality_status，建单时由收回人判定，confirm 据此生成质检记录）
+///
+/// 本列取值域独立于另外两个同名概念：
+/// - `chemical_lot.inspection_status` 用 pending/passed/failed/quarantine（染化料来料检验）；
+/// - `inventory_stocks.quality_status` 用中文 合格/待检/不合格（库存质量状态）。
+/// 历史上三种写法都往本列落过值（前端提交 qualified/concession/unqualified、
+/// 用例提交 passed、模型注释写的是 passed/failed），而 confirm 只认字符串 "qualified"，
+/// 于是 `passed` 的收回单在确认时被整体判成不合格并生成「不合格」质检记录。
+/// 迁移 m0057 已把存量写法归一到本模块取值。
+pub mod outsourcing_receipt_quality_status {
+    /// 待检：建单时未给出质检结论，须先判定才能确认回仓
+    pub const PENDING: &str = "pending";
+
+    /// 合格：按收回数量全额计合格
+    pub const QUALIFIED: &str = "qualified";
+
+    /// 让步接收：接收但降级处理（对应 B 级），不计为不合格
+    pub const CONCESSION: &str = "concession";
+
+    /// 不合格：全额计不合格并触发不合格品处理流程
+    pub const UNQUALIFIED: &str = "unqualified";
+
+    /// 全部合法取值，入参校验的唯一取值来源
+    pub const ALL: &[&str] = &[PENDING, QUALIFIED, CONCESSION, UNQUALIFIED];
+}
+
 /// 委外加工凭证类型（outsourcing_voucher.voucher_type，v14 批次 430，发料/加工费/入库/损耗处理）
 pub mod outsourcing_voucher_type {
     /// 发料凭证：借 委托加工物资 / 贷 自制半成品-胚布

@@ -88,7 +88,13 @@
             <el-table-column prop="product_id" label="产品ID" width="90" />
             <el-table-column prop="return_quantity" label="收回数量" width="110" />
             <el-table-column prop="loss_quantity" label="损耗数量" width="110" />
-            <el-table-column prop="quality_status" label="质量状态" width="100" />
+            <el-table-column label="质量状态" width="110">
+              <template #default="{ row }">
+                <el-tag :type="qualityTagType(row.quality_status)" size="small">
+                  {{ qualityLabel(row.quality_status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="grade" label="等级" width="80" />
             <el-table-column label="状态" width="100">
               <template #default="{ row }">
@@ -288,9 +294,12 @@
         </el-form-item>
         <el-form-item label="质量状态">
           <el-select v-model="receiptForm.quality_status" class="w-full">
-            <el-option label="合格" value="qualified" />
-            <el-option label="让步接收" value="concession" />
-            <el-option label="不合格" value="unqualified" />
+            <el-option
+              v-for="value in OUTSOURCING_QUALITY_FORM_VALUES"
+              :key="value"
+              :label="OUTSOURCING_QUALITY_STATUS_LABELS[value]"
+              :value="value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="等级">
@@ -312,6 +321,15 @@
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
+import { logger } from '@/utils/logger';
+import {
+  OUTSOURCING_QUALITY_FORM_VALUES,
+  OUTSOURCING_QUALITY_STATUS,
+  OUTSOURCING_QUALITY_STATUS_LABELS,
+  OUTSOURCING_QUALITY_STATUS_TAG_TYPE,
+  OUTSOURCING_QUALITY_STATUS_VALUES,
+  type OutsourcingQualityTagType,
+} from '@/constants/outsourcing-quality';
 import {
   cancelOutsourcingOrder,
   closeOutsourcingOrder,
@@ -330,6 +348,27 @@ import {
   OUTSOURCING_STATUS_LABEL,
   type OutsourcingOrder,
 } from '@/api/outsourcing';
+
+/**
+ * 收回质检结论展示：结论为空只可能出现在未归一的历史行上（迁移 m0057 已把
+ * NULL 归一为 pending），统一按「待检」显示；取值域外的值告警后原样显示。
+ */
+function qualityLabel(value: string | null | undefined): string {
+  const raw = value ?? OUTSOURCING_QUALITY_STATUS.pending;
+  const label = OUTSOURCING_QUALITY_STATUS_LABELS[raw];
+  if (!label) {
+    logger.warn(
+      `[outsourcing] 未知收回质检结论「${raw}」，不在取值域 ${OUTSOURCING_QUALITY_STATUS_VALUES.join('/')} 内`
+    );
+    return raw;
+  }
+  return label;
+}
+
+function qualityTagType(value: string | null | undefined): OutsourcingQualityTagType {
+  const raw = value ?? OUTSOURCING_QUALITY_STATUS.pending;
+  return OUTSOURCING_QUALITY_STATUS_TAG_TYPE[raw] ?? 'info';
+}
 
 const activeTab = ref('orders');
 const orders = ref<OutsourcingOrder[]>([]);
@@ -537,7 +576,7 @@ const receiptForm = reactive({
   dye_lot_no: '',
   return_quantity: undefined as number | undefined,
   loss_quantity: 0,
-  quality_status: 'qualified',
+  quality_status: OUTSOURCING_QUALITY_STATUS.qualified,
   grade: '',
   remarks: '',
 });
