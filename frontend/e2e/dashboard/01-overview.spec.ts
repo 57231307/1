@@ -35,11 +35,19 @@ test.describe('仪表盘', () => {
   });
 
   test('仪表盘日期筛选功能可用', async ({ page }) => {
+    // 假绿清零（Tier A）：原 `if (await dateRange.isVisible()) { click; Escape }` 用
+    // getByLabel(/日期/) 定位——Dashboard.vue 的 el-date-picker 没有 <label>「日期」，
+    // 只有 startPlaceholder/endPlaceholder（且随 locale 变化），恒定位不到 → 零断言通过。
+    // 日期筛选是仪表盘头部无条件渲染控件（Dashboard.vue:12 无 v-if），缺失即产品缺陷，必须红。
+    // 改为硬断言：控件存在且可交互（点击后日期区间面板真实弹出）。纯 UI 控件，无需造数据。
     await page.goto('/dashboard');
-    const dateRange = page.getByLabel(/日期/).first();
-    if (await dateRange.isVisible({ timeout: 3000 })) {
-      await dateRange.click();
-      await page.keyboard.press('Escape');
-    }
+    const dateFilter = page.locator('.dashboard-header .el-date-editor').first();
+    await expect(dateFilter, '仪表盘头部日期筛选控件应存在且可见').toBeVisible({ timeout: 30000 });
+    await dateFilter.click();
+    await expect(
+      page.locator('.el-date-range-picker, .el-picker-panel').first(),
+      '点击日期筛选后日期区间选择面板应弹出'
+    ).toBeVisible({ timeout: 30000 });
+    await page.keyboard.press('Escape');
   });
 });

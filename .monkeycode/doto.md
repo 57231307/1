@@ -1528,3 +1528,118 @@ models/purchase_order.rs 等三条以 src_root()（backend/src）为基准，
 utils_migration_jump_detector_test 的 3 个 .sql 是测试自己临时造的夹具名。
 要让守卫正确就得在守卫里复刻每个测试各自的基准目录，等于把同一份知识写两遍、
 且必然与新增测试漂移（本会话已因"自败断言"踩过一次）。故不加，改为在读取处注明基准。
+
+### Round 7-iter33（2026-09-23，quotations/sales-ext/system 假绿清零；仅动
+e2e/quotations/02-approval.spec.ts、e2e/quotations/03-detail.spec.ts、
+e2e/sales-ext/01-contract.spec.ts、e2e/system/02-audit.spec.ts 与 ContractTab.vue，未提交）
+
+把 8 处 `if (await x.isVisible())` 无 else 判红的条件交互改为硬断言 + 真实造数据
+（ensureTestEntities + apiCall）。逐处：
+
+- **quotations/02-approval 02-01/02-02/02-03/02-04（4 处 if）**：提交/批准/转订单按钮渲染在**详情页**
+  （detail.vue canSubmit/canApprove/canConvert/canCancel 按 status），列表页根本没有提交/批准 →
+  原用例在 `/quotations` 找这些按钮恒不可见 → 0 断言。改为 apiCall 建 draft 报价单（金额可控：
+  <10万自批→approved，≥10万走 BPM→pending_approval，阈值见 quotation_approval_service.rs:35/36），
+  goto `/quotations/:id` 硬断言按钮可见 → 点击 → 断言 toast（真实文案「已提交审批/已批准/转订单成功/已取消」，
+  原用例断的「提交成功/审批成功/取消成功」均不存在）+ 后端状态字面量（sales.rs quotation/quotation_ext）。
+- **quotations/03-detail 03-01/03-02（2 处 if）**：03-01 原断言详情页「基本信息」——detail.vue 无此标题
+  （descriptions 无 heading），真实数据下会红但被 if 吞掉。改断言真实存在的「报价单详情」标题/quotation_no/
+  状态标签「草稿」。03-02 原 getByLabel(/客户/) 非 exact（客户等级标签也含「客户」）会 strict-violation；
+  改为详情页点编辑 → 断言 URL 跳 /quotations/:id/edit → 编辑页标题「编辑报价单」+ getByLabel('客户',{exact:true})。
+- **sales-ext/01-contract 01-03（1 处 if）**：`getByRole('link',{name:/审批/})` —— 审批是 el-button（role=button）
+  非 link，且 ContractTab 列表 `res.data?.items` 读 items 而后端 list_contracts 返回 ApiResponse<Vec>（data=数组）
+  → 列表恒空 → 行/按钮永不渲染 → 0 断言。改用 role=button 定位、经后端合同（含 contract_name/delivery_date/
+  customer_id，见 CreateSalesContractRequestDto）建 draft → 硬断言列表出现合同号 → 审批 → 断言「合同审批成功」+
+  状态 draft→**active**（sales_contract_service.rs:299；非 pending）。**产品缺陷已修**：ContractTab.vue
+  fetchSalesContracts 归一化数组/对象两种形状。
+- **system/02-audit 02-03（1 处 if）+ 02-02/02-04**：详情按钮 `getByRole('link',{name:/详情/})` 同为 el-button
+  （role=button）→ 恒不命中。改 role=button 硬断言存在（真实 UI 登录即写 LOGIN 审计，见 auth_handler.rs:691，
+  列表必有行）→ 点详情断言 .el-drawer + 「审计日志详情/操作时间/操作类型」（原断 关键词 实为 关键字，已纠正）。
+  02-02/02-04 用 waitForRequest 断言 keyword= / operation_type=LOGIN 真实下发到后端，取代"表格恒可见"的空断言。
+
+门禁退出码：eslint=0、prettier --check=0、playwright --list=0（24 tests / 8 files，quotations3+sales-ext3+system2，与磁盘一致）。
+未本地跑 E2E（IR），判定生效待 CI 观察。
+
+**需用户决策**：
+- 销售合同**新建对话框**与后端契约不一致（产品缺陷，本轮未擅自重设计单表单）：ContractTab submitContract
+  提交 contractForm（缺 contract_name、delivery_date，customer_id 恒 0，且 contract_no 为只读），后端
+  CreateSalesContractRequestDto 三者必填 → UI 建单必 4xx；且 contractRules 对只读 contract_no 必过、
+  submitContract 不 catch validate 拒绝 → 缺客户名/合同日期时按钮静默无响应。因此把 01-02「新建销售合同」
+  改判为「合同列表渲染真实数据」（数据经后端合同创建），UI 建单链路缺陷留待产品决策：是补表单项
+  （名称/交货日期/客户选择器映射 customer_id）还是放宽后端必填。
+- 报价单/合同 02-02·01-03 的 02-03 转订单会真实创建销售订单、审批会改状态；跨分片/重跑共享数据下的幂等与
+  清理策略（是否 DELETE 测试报价单/合同）需确认。
+
+### Round 7-iter33（2026-09-23，ai/dashboard/fabric 7 处「控件不可见即零断言通过」清零；仅动 e2e/{ai,dashboard,fabric}，未提交）
+
+同 flow/smoke/traversal/extras 一族的假绿形态：`if (await x.isVisible())` 后无 else 判红 → 页面坏/接口契约不符/数据缺失全被记成通过。
+逐处按前端渲染条件 + 后端契约造真实前置数据后改硬断言；仅静态门禁（IR，未本地跑 E2E）。
+门禁：eslint(4 目录+5 文件)/prettier --check/playwright --list(chromium) 全 0 退出码，--list 收 22 用例/6 文件（与磁盘 spec 数一致）。i18n 未改动，check-i18n 免跑。
+
+- **dashboard/01-overview.spec.ts:37 日期筛选**：原 getByLabel(/日期/) 定位 el-date-picker（该控件无「日期」label，只有随 locale 变的 start/endPlaceholder）→ 恒定位不到 → 零断言。
+  Tier A（Dashboard.vue:12 无条件渲染）→ 改硬断言 `.dashboard-header .el-date-editor` 可见 + 点击后 `.el-date-range-picker/.el-picker-panel` 弹出。纯 UI，无需造数据，无产品缺陷。
+- **ai/02-prediction.spec.ts:02-04 确认处理**：原 getByRole('link',/确认/)（确认控件实为 el-button，role=button 永远匹配不到）+ 无数据时不渲染。
+  造未确认预测（POST /ai/quality-predictions，后端恒置 is_acknowledged=false）→ 按返回 id 定位自身行 → 硬断言「确认」按钮渲染 → handleAck 无二次弹窗，直接断言真实 toast「确认成功」。全链路通，可稳定绿。
+- **fabric/02-dye.spec.ts:02-03 完成**：造 status='inspecting' 批次（DyeTab.vue:64 完成按钮 v-if 工序态集合含 inspecting；后端 complete 状态机仅 inspecting→stored）→ 按 batch_no 定位 → 硬断言完成按钮 → 点确定 → 断言真实 toast。
+  **订正用例错误**：成功 toast 是 fabric.common.success=「操作成功」，原误写「完成成功」。complete 前后端契约一致（均 Path-only）。
+- **fabric/03-recipe.spec.ts:03-03 审批（方法二，牵出 2 处产品缺陷）**：造 draft 配方 → 按 recipe_no 定位 → 硬断言「草稿」标签 + 「审批」按钮渲染，不点击/不断言结果。
+  缺陷A（前端渲染条件与后端词表不一致）：后端 dye_recipe.status 用中文（quality_dyeing.rs:36 草稿/待审核/已审核/已停用），前端 RecipeTab.vue:63/44 用英文 draft/approved → 真实数据永远不出审批按钮；E2E 为驱动渲染改存英文 'draft'（仅测试内，同 extras#3/#4）。
+  缺陷B（点击契约不符）：前端 approveDyeRecipe(id) 无 body，后端 approve_recipe 要求 {approved_by:i32}（dye_recipe_handler.rs:129）→ 点击必 400。审批业务口径（谁审批/中英词表谁改）不在本次改动范围，待用户/后端定。
+- **fabric/01-greige.spec.ts:01-03 入库 / 01-04 出库（方法二，牵出 2 处产品缺陷）**：造坯布（status='pending' 便于 DELETE 清理，后端仅拦「在库」删除）→ 按 fabric_name 定位 → 硬断言入库/出库按钮渲染（GreigeTab 行内按钮无条件=Tier A），不点击。
+  缺陷A（返回形状与前端不一致）：前端表格列读 fabric_code/supplier_name/quantity/weight，后端模型返回 fabric_no 等（greige_fabric.rs:14），无 fabric_code → 编号列恒空；E2E 改用 fabric_name 定位。
+  缺陷B（点击契约不符）：前端 handleStock（fabric/index.vue:124）发 {quantity}，后端 stock_in 要求 {warehouse_id,weight_kg,length_m}、stock_out 要求 {weight_kg/length_m}（greige_fabric_handler.rs:110/123）→ 点击必 400。入库/出库数量→重量/长度/仓库的业务映射口径未定，待用户/后端定，不为其放宽断言。
+- 原 7 处 getByRole('link') 全部指向 el-button link（role=button），本身也是定位错因之一；统一改为按自建对象唯一标识定位自身行后 getByRole('button') 硬断言。CLEANUP afterEach tryCleanup 反序清理。
+
+待用户决策（宁缺毋滥，未自行拍板业务口径）：
+1. dye_recipe.status 中文↔英文词表谁改（后端改英文 or 前端改中文），及 approveDyeRecipe 是否补 approved_by。
+2. greige 入库/出库：quantity 单值 与 后端 {warehouse_id,weight_kg,length_m} 的映射语义（数量单位是米还是公斤？仓库从何取？），及 fabric_code/fabric_no 字段名归一方向。
+
+---
+
+### Round 7-iter34（2026-09-23，inventory/mrp/production extras 假绿清零；仅动
+e2e/inventory/03-transfer、e2e/mrp/01-calculation、e2e/production/01-create|02-execute|03-manage，未提交）
+
+把 8 处 `if (await x.isVisible())` 无 else 判红的条件交互改为硬断言 + 真实造数据（ensureTestEntities + apiCall）。
+逐处「原写法为何恒过 → 现在断言什么 → 造数据方式 → 是否牵出产品缺陷」：
+
+- **inventory/03-transfer「审批待审批调拨单」:37**：`getByRole('link',{name:/审批/})` 定位 el-button link
+  （真实 role=button）→ 恒不命中；且空库无 pending 单 → 行内审批按钮（`InventoryTransferTab.vue:59` 仅
+  `row.status==='pending'` 渲染）不出现 → 零断言假绿。改为 ensureTestEntities 造 ≥2 仓库/产品 →
+  apiCall POST `/inventory/transfers`（白坯口径 color_no 空+batch_no，落库初态 PENDING）→ 切 Tab 硬断言
+  `getByRole('button',{name:'审批',exact:true})` 可见 → 点确定 → 断「审批成功」。**未牵产品缺陷**（用例定位错）。
+- **mrp/01-calculation「MRP 计算可执行」:21**：`if(calcBtn.isVisible())`+断「计算完成|计算中」——按钮恒可见但
+  点空表单触发表单校验不发请求，文案永不匹配；不成立即零断言。改为 ensureTestEntities 造产品 →
+  `GET /production/mrp/products?keyword=E2E` 硬断非空数组（缺失抛错，不 `?? []`）→ 硬断「开始计算」可见 →
+  远程搜索选产品+需求日期 → 点计算 → 断「计算成功」+「物料需求列表」卡片。
+- **production/01-create「草稿工单可编辑」:40**：`getByRole('link',{name:/编辑/})` 定位 el-button link（role=button）
+  恒不命中 → 零断言。改：apiCall POST 建 DRAFT 工单 → 按状态筛选「草稿」→ 硬断「编辑」(role=button) 可见 →
+  打开对话框（`.getByRole('dialog').getByLabel('订单编号')` 作用域限定，避免与筛选栏同名 label 多匹配）。
+- **production/01-create「草稿工单可计划排产」:52**：用例前提错——后端状态机 DRAFT→PENDING_APPROVAL→APPROVED→SCHEDULED
+  （crud.rs:117-157），「计划」按钮（ProductionTable.vue:187 仅 `APPROVED` 渲染，文案 i18n buttonPlan='计划' 非
+  '排产'）在 DRAFT 态永不出现；原 `getByRole('link')`+if 双重失配 → 恒零断言。改标题为「已审批工单可计划排产
+  （APPROVED→已排产）」：apiCall create→submit-approval→approve({approved:true}) 推至 APPROVED
+  （approval.rs:87/118 对 BPM 缺失仅 warn，不阻断状态落库）→ 筛选「已审批」→ 硬断「计划」可见 → 点确定 → 断
+  「状态更新成功」。
+- **production/02-execute「已排产工单可开始生产」:16 / 「生产中工单可完成」:27**：同 getByRole('link') 恒不命中。
+  改：create→PUT /status{SCHEDULED}→(开始生产) 或再 PUT{IN_PROGRESS}→(完成)。用**无默认 BOM 的新产品**造工单，
+  确保「完成」走 complete_production_order 时只做成品入库、不触发原料扣减（completion.rs:309 lookup_default_bom
+  返 None 即跳过扣减），状态变更稳定成功。硬断按钮可见 → 点确定 → 断「状态更新成功」。
+- **production/03-manage「工单详情可查看」:16 / 「草稿工单可删除」:28**：同 getByRole('link') 恒不命中。
+  查看：造工单后硬断「查看」(role=button) 可见 → 开详情断「订单编号/产品名称/计划数量」。删除：filterByStatus
+  「草稿」→ 硬断「删除」→ 点确定 → 断「删除成功」（后端 delete 软删 DRAFT→CANCELLED，crud.rs:521 状态门通过）。
+  顺带修「按状态筛选工单」原断 `getByRole('button',{name:/搜索/})`——真实按钮文案是「查询」（i18n
+  production.filter.buttonSearch），原用例点不到（属真红非假绿）→ 改「查询」+ 选真实状态「草稿」+ 断「编辑」出现。
+
+门禁退出码：eslint=0、prettier --check=0（先 --write）、playwright --list --project=chromium=0
+（25 tests / 8 files，inventory4+mrp1+production3，与磁盘 spec 数一致）、check-i18n=0（未改 src 文案）。
+未本地跑 E2E（IR），判定生效待 CI 观察。
+
+**需用户决策 / 登记（backend 越界，未改）**：
+1. **生产订单列表 `order_no` 筛选静默失效（产品缺陷）**：前端 ProductionFilter 有「订单编号」输入框、
+   `usePrd.applyQuery` 下发 `order_no` 参数，但后端 `ProductionOrderQuery`（types.rs:53）与
+   `list_production_orders`（handler 仅取 status/product_id）不接收 order_no → 用户按编号搜索返回未过滤全量。
+   backend 属本组改动禁区（不得越 frontend/src 之外），本轮用例改走「按状态筛选」定位目标行规避，缺陷留待后端补
+   order_no 过滤（或前端移除该输入框）。
+2. **生产工单详情按钮文案**：列表内查看/编辑按钮受 `canAccessDetailPermission`（资源段须为 `*`）门控，
+   e2e_admin 持 `*:*` 恒可见；若后续以非超管角色跑本套件，「查看/编辑/删除」会按后端同源判定隐藏 →
+   届时用例角色与权限口径需同步确认（现按 admin 断言）。
