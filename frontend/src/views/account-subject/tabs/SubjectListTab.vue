@@ -386,7 +386,7 @@ const handleExport = () => {
       return acc;
     }, []);
   };
-  exportFromBackend('/gl/subjects/export', {}, t('accountSubject.exportFile.filename'));
+  exportFromBackend('/subjects/export', {}, t('accountSubject.exportFile.filename'));
   logger.info(t('accountSubject.exportedLog'));
 };
 

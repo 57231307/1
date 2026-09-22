@@ -86,7 +86,7 @@ export function usePrdProc(cb: PrdCallbacks) {
    * 导出 Excel（V15 P0-S12 修复 Batch 475c）
    *
    * 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
-   * 改为调用后端 GET /production-orders/orders/export，后端注入水印 + 行级数据权限 + 异步审计日志
+   * 改为调用后端 GET /production/production-orders/orders/export，后端注入水印 + 行级数据权限 + 异步审计日志
    * 传入当前列表筛选条件（status/product_id），保证导出与列表一致
    */
   const handleExport = async () => {
@@ -99,7 +99,11 @@ export function usePrdProc(cb: PrdCallbacks) {
       status: filters.status || undefined,
       product_id: filters.product_id,
     };
-    await exportFromBackend('/production-orders/orders/export', params, 'production_orders_export');
+    await exportFromBackend(
+      '/production/production-orders/orders/export',
+      params,
+      'production_orders_export'
+    );
   };
 
   /** 打印 */

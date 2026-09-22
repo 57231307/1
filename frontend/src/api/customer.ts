@@ -51,7 +51,7 @@ export function getCustomerList(
  * 背景：arReconciliation/enhanced.vue 和 index.vue 此前直接调用 `request.get('/customers/select')`，
  * 绕过 API 层且响应结构处理错误（期望 `{label, value}[]`，后端返回 PaginatedResponse<Customer>）。
  *
- * 修复：统一封装为 `getCustomerSelectList`，内部调用 `/customers/select` 并映射为 `{label, value}[]` 格式。
+ * 修复：统一封装为 `getCustomerSelectList`，内部调用 `/crm/customers/select` 并映射为 `{label, value}[]` 格式。
  *
  * @returns 客户下拉选项数组（label=客户名称, value=客户ID）
  */

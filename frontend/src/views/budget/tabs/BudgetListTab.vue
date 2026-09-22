@@ -402,7 +402,7 @@ const openAdjustDialog = async (row: Budget) => {
   adjustForm.reason = '';
   adjustVisible.value = true;
   try {
-    // 回源取预算明细（getBudgetDetail：GET /finance/budgets/{id} 返回单个明细项）
+    // 回源取预算明细（getBudgetDetail：GET /budgets/{id} 返回单个明细项）
     const res = await getBudgetDetail(row.id);
     detailBudget.value = res.data ?? null;
   } catch (error) {

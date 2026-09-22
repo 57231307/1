@@ -359,7 +359,7 @@ const handlePrintSubjects = () => {
 };
 
 const handleExportSubjects = () => {
-  exportFromBackend('/gl/subjects/export', {}, t('finance.subjectTab.exportFilename'));
+  exportFromBackend('/subjects/export', {}, t('finance.subjectTab.exportFilename'));
 };
 
 onMounted(() => {

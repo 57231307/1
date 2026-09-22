@@ -71,7 +71,7 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
 
   /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
   const handleExportVouchers = () => {
-    exportFromBackend('/gl/vouchers/export', {}, '凭证列表');
+    exportFromBackend('/vouchers/export', {}, '凭证列表');
   };
 
   /** 打印当前凭证列表 */

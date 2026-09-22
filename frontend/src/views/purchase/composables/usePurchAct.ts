@@ -21,7 +21,10 @@ import {
   type PurchaseOrderItem,
 } from '@/api/purchase';
 // V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
-// 后端 GET /purchases/orders/export 已就绪（含行级数据权限 + 异步审计日志 + 水印）
+// 后端 GET /purchase/orders/export 已就绪（含行级数据权限 + 异步审计日志 + 水印）
+// 前缀必须是单数 purchase：routes/mod.rs:507 nest("/api/v1/erp/purchase") +
+// routes/purchase.rs:62 route("/orders/export")。此前写成 /purchases/ 恒 404，
+// 导出按钮点了没有任何反应（exportFromBackend 抛错、无 blob 故无 download 事件）。
 import { exportFromBackend } from '@/utils/export';
 
 /**
@@ -102,7 +105,7 @@ export function usePurchAct(
    * 导出采购订单列表为 xlsx（V15 P0-S12 修复 Batch 475b）
    *
    * 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
-   * 改为调用后端 GET /purchases/orders/export，后端注入水印 + 行级数据权限 + 异步审计日志
+   * 改为调用后端 GET /purchase/orders/export，后端注入水印 + 行级数据权限 + 异步审计日志
    * 传入当前列表筛选条件（status/supplier_id），保证导出与列表一致
    */
   const handleExport = async () => {
@@ -111,7 +114,7 @@ export function usePurchAct(
       status: filters.status || undefined,
       supplier_id: filters.supplier_id,
     };
-    await exportFromBackend('/purchases/orders/export', params, 'purchase_orders_export');
+    await exportFromBackend('/purchase/orders/export', params, 'purchase_orders_export');
   };
 
   /**
