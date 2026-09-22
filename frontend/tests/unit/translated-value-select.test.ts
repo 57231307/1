@@ -28,6 +28,7 @@ import {
   QUALITY_RECORD_RESULT_LABEL_KEY,
   QUALITY_RECORD_RESULT_VALUES,
 } from '@/constants/quality-inspection-record';
+import { LOGISTICS_EVENT_TYPE_LABEL_KEY } from '@/constants/logistics-event-type';
 
 // 以本文件位置定位 frontend 根，避免依赖 vitest 启动时的 cwd
 const FRONTEND = fileURLToPath(new URL('../..', import.meta.url));
@@ -88,6 +89,7 @@ describe('「译文当业务值」门禁', () => {
       DYE_TYPE_LABEL_KEY,
       QUALITY_RECORD_RESULT_LABEL_KEY,
       QUALITY_INSPECTION_SOURCE_LABEL_KEY,
+      LOGISTICS_EVENT_TYPE_LABEL_KEY,
     ];
     for (const map of maps) {
       for (const key of Object.values(map)) {

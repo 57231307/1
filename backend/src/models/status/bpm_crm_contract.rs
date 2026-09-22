@@ -57,6 +57,28 @@ pub mod logistics_waybill {
     pub const ALL: &[&str] = &[IN_TRANSIT, DELIVERED, SIGNED];
 }
 
+/// 物流轨迹事件类型（logistics_tracking_events.event_type）
+///
+/// 与上面的 `logistics_waybill` 是两套词表：事件是轨迹上的一个点（小写码），
+/// 状态是运单当前所处阶段（大写码），二者不可互相赋值。
+/// 该列此前是自由文本且写入无校验，任意写法都能进轨迹，界面只能显示码原文。
+pub mod logistics_event_type {
+    /// 提货：承运方已取货
+    pub const PICKUP: &str = "pickup";
+
+    /// 运输中：货物在干线/支线运输途中
+    pub const IN_TRANSIT: &str = "in_transit";
+
+    /// 到达：货物已到达目的网点
+    pub const ARRIVED: &str = "arrived";
+
+    /// 签收：收货人已签收
+    pub const DELIVERED: &str = "delivered";
+
+    /// 全部合法事件类型，入参校验的唯一取值来源
+    pub const ALL: &[&str] = &[PICKUP, IN_TRANSIT, ARRIVED, DELIVERED];
+}
+
 /// BPM 流程实例状态（bpm_process_instance.status，大写值）
 /// 批次 235 v13 真实接入：bpm_service.rs 中流程实例状态字符串字面量统一引用此模块（规则 0）
 pub mod bpm_instance {

@@ -52,63 +52,118 @@
     <!-- 轨迹事件（getTrackingEvents / recordTrackingEvent） -->
     <div class="events-section">
       <div class="events-toolbar">
-        <h4>运输轨迹</h4>
-        <el-button type="primary" plain size="small" @click="openEventDialog"> 登记事件 </el-button>
-        <el-button plain size="small" @click="openLinkPo">关联采购订单</el-button>
+        <h4>{{ t('logistics.detail.events.sectionTitle') }}</h4>
+        <el-button type="primary" plain size="small" @click="openEventDialog">
+          {{ t('logistics.detail.events.recordEvent') }}
+        </el-button>
+        <el-button plain size="small" @click="openLinkPo">
+          {{ t('logistics.detail.events.linkPo') }}
+        </el-button>
       </div>
       <el-table v-loading="eventsLoading" :data="events" border size="small" max-height="240">
         <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="event_time" label="时间" width="160" />
-        <el-table-column prop="event_type" label="类型" width="100" />
-        <el-table-column prop="location" label="地点" width="120">
+        <el-table-column
+          prop="event_time"
+          :label="t('logistics.detail.events.colTime')"
+          width="160"
+        />
+        <el-table-column
+          prop="event_type"
+          :label="t('logistics.detail.events.colType')"
+          width="100"
+        >
+          <template #default="{ row }">{{ eventTypeText(row.event_type) }}</template>
+        </el-table-column>
+        <el-table-column
+          prop="location"
+          :label="t('logistics.detail.events.colLocation')"
+          width="120"
+        >
           <template #default="{ row }">{{ row.location || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="150">
+        <el-table-column
+          prop="description"
+          :label="t('logistics.detail.events.colDescription')"
+          min-width="150"
+        >
           <template #default="{ row }">{{ row.description || '-' }}</template>
         </el-table-column>
       </el-table>
     </div>
 
     <!-- 登记轨迹事件对话框 -->
-    <el-dialog v-model="eventDialogVisible" title="登记轨迹事件" width="460" append-to-body>
+    <el-dialog
+      v-model="eventDialogVisible"
+      :title="t('logistics.detail.events.dialogTitle')"
+      width="460"
+      append-to-body
+    >
       <el-form :model="eventForm" label-width="90px">
-        <el-form-item label="事件类型" required>
+        <el-form-item :label="t('logistics.detail.events.fieldType')" required>
           <el-select v-model="eventForm.event_type" style="width: 100%">
-            <el-option label="提货" value="pickup" />
-            <el-option label="运输中" value="in_transit" />
-            <el-option label="到达" value="arrived" />
-            <el-option label="签收" value="delivered" />
+            <el-option
+              v-for="item in eventTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item label="发生时间" required>
+        <el-form-item :label="t('logistics.detail.events.fieldTime')" required>
           <el-input v-model="eventForm.event_time" placeholder="2026-01-01T08:00:00Z" />
         </el-form-item>
-        <el-form-item label="地点"><el-input v-model="eventForm.location" /></el-form-item>
-        <el-form-item label="描述" required>
+        <el-form-item :label="t('logistics.detail.events.colLocation')">
+          <el-input v-model="eventForm.location" />
+        </el-form-item>
+        <el-form-item :label="t('logistics.detail.events.colDescription')" required>
           <el-input v-model="eventForm.description" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="eventDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="eventSaving" @click="handleSaveEvent">保存</el-button>
+        <el-button @click="eventDialogVisible = false">{{
+          t('logistics.detail.button.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="eventSaving" @click="handleSaveEvent">{{
+          t('logistics.detail.button.save')
+        }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 关联采购订单对话框 -->
-    <el-dialog v-model="linkPoVisible" title="关联采购订单" width="380" append-to-body>
-      <el-input-number v-model="linkPoId" :min="1" style="width: 100%" placeholder="采购订单 ID" />
+    <el-dialog
+      v-model="linkPoVisible"
+      :title="t('logistics.detail.events.linkPo')"
+      width="380"
+      append-to-body
+    >
+      <el-input-number
+        v-model="linkPoId"
+        :min="1"
+        style="width: 100%"
+        :placeholder="t('logistics.detail.events.linkPoPlaceholder')"
+      />
       <template #footer>
-        <el-button @click="linkPoVisible = false">取消</el-button>
-        <el-button type="primary" :loading="linkSaving" @click="handleLinkPo">确定</el-button>
+        <el-button @click="linkPoVisible = false">{{
+          t('logistics.detail.button.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="linkSaving" @click="handleLinkPo">{{
+          t('logistics.detail.button.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
+import {
+  isLogisticsEventType,
+  LOGISTICS_EVENT_TYPE_LABEL_KEY,
+  LOGISTICS_EVENT_TYPE_VALUES,
+} from '@/constants/logistics-event-type';
+import { logger } from '@/utils/logger';
 import {
   getTrackingEvents,
   recordTrackingEvent,
@@ -118,6 +173,20 @@ import {
 import { getStatusText, getStatusType } from '../composables/lgsFmts';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 事件类型下拉与列表展示共用同一词表（后端入口按此校验，越界 400）
+const eventTypeOptions = computed(() =>
+  LOGISTICS_EVENT_TYPE_VALUES.map(value => ({
+    value,
+    label: t(LOGISTICS_EVENT_TYPE_LABEL_KEY[value]),
+  }))
+);
+
+const eventTypeText = (value: string): string => {
+  if (isLogisticsEventType(value)) return t(LOGISTICS_EVENT_TYPE_LABEL_KEY[value]);
+  logger.warn('物流轨迹存在词表外的事件类型', { event_type: value });
+  return value;
+};
 
 /**
  * 物流运单详情组件
