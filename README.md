@@ -60,7 +60,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | 前端 TS 文件      | 261 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                    |
 | 前端 Views 子模块 | 110 个                                                                                                                        |
 | 前端 API 模块     | 121 个                                                                                                                        |
-| 前端 i18n 翻译键  | zh-CN 10,191 / en-US 10,214（引用键 9,668，缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验）                                                                       |
+| 前端 i18n 翻译键  | zh-CN 10,191 / en-US 10,214（引用键 9,674，缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验）                                                                       |
 | 前端 E2E 测试     | 1,204 个 / 240 个 spec 文件（665 flow 工作流 + 266 traversal 端点遍历 + 126 冒烟 + 14 enhanced + 9 Setup 向导 + 124 其余业务目录）                              |
 | Clippy Baseline   | 4,274 行（185 条唯一警告）                                                                                                    |
 | 最新版本          | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001）                                                                |

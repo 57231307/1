@@ -134,12 +134,10 @@
       （列表列与详情项改列真实字段），要补真实单据号需新增迁移 + 建单时按编号规则生成 +
       历史行回填，属独立立项。
 
-- [ ] **物流公司取值跟随界面语言**：`LogisticsFilter.vue`/`LogisticsForm.vue` 的下拉把
-      `t('logistics.common.company.sf')` 的**译文**当 value 落库，切到英文界面后建的单
-      存的是 "SF Express"，中文界面按「顺丰速运」筛选即不命中。要修需引入稳定的公司码
-      （value 用 sf/zto/…，label 才走 i18n）并做历史值映射，涉及后端是否要建物流公司字典，
-      属数据模型决策，未随本轮改动。
-
+- [x] **物流公司取值跟随界面语言**：已按「库里在用的中文公司名即稳定值」收敛，详见下文
+      「译文当业务值剩余 13 处」一条（含 v15 存量归一与筛选等值匹配的后果）。
+      当时判断「要修需先决定是否建物流公司字典」——字典仍未建，但不建字典也能先把
+      提交值固定下来，界面语言不再改写业务数据。
 - [ ] **`playwright.config.ts` 的 testMatch 未覆盖的业务目录 = 死用例集**：testMatch 白名单里
       没有 `logistics/inventory/mrp/production/ai/dashboard/fabric/quotations/sales-ext/system`
       等目录，落在其中的 spec 永不执行（且 CI 分片命令是按目录显式传参，改 testMatch 也不生效）。
@@ -280,19 +278,19 @@
       二是校验常量表里的文案键在 zh-CN/en-US 中真实存在——`scripts/check-i18n.mjs` 只识别
       `t('字面量')` 调用，键名以常量字段存放时它看不见，这条缺口由该用例补上。
 
-- [ ] **译文当业务值剩余 13 处（需先定数据模型，不能只改前端）**：
-      `logistics/components/LogisticsFilter.vue`（5）与 `LogisticsForm.vue`（5）——
-      见上文「物流公司取值跟随界面语言」，要建稳定公司码 + 存量映射；
-      `quotations/components/QuotationItemEditor.vue`（3，计量单位 米/卷/件）——
-      报价行的 unit 是自由文本列，默认值也直接取译文（`QuotationItemEditor.vue` 的
-      `unit: t('quotations.itemEditor.unitMeter')`），英文界面新建的报价单存 "Meter"。
-      两处都需要「字典 + 存量归一」才能收敛，只把 value 换成码会让历史数据继续错，
-      故与物流公司字典并列为一次数据模型决策，未随本轮改动。
-      另：`AdvancedRecipePanel.vue` 的染料类型仍是自由输入框（不在本清单内，因为它不提交译文），
-      但值域与 `dye-type.ts` 相同，等 `dye_recipe.dye_type` 的存量口径确认后一并改成下拉。
-      「化纤」若要支持，须先扩 `recipe_opt.rs` 的配伍表（化纤是泛称，
-      分散染料对应涤纶、阳离子对应腈纶，不能整体并成一条），属工艺知识补录，另立条目。
-
+- [x] **译文当业务值剩余 13 处**：已按「自由文本列以库里在用的中文名当稳定值」收敛，判据与
+      续四那三组一致，只多了一次存量归一。物流公司（`logistics_waybills.logistics_company` 是
+      VARCHAR 自由文本、无字典表，后端筛选按该列 `eq()` 精确匹配）与报价行单位
+      （`sales_quotation_items.unit` VARCHAR(20) 同样无字典）此前把译文当 value，英文界面写入
+      "SF Express"/"Meter" 后，中文界面按「顺丰速运」「米」就筛不到那些单，反之亦然，同一实体在
+      库里裂成两套值。现两处各建常量（value 为中文稳定名、label 走既有 i18n 键），报价单位另把
+      此前硬编码成 "kg" 的第四个选项并进来（同一列不再同时存在三种语言写法），v15 末尾对两列做
+      一次归一 UPDATE（两表分别由 business 与 sales_crm 域创建，都早于 v15，落点符合上轮教训）；
+      `tests/unit/translated-value-select.test.ts` 的挂账清单已清空，即全仓 `:value="t('…')"`
+      形态归零，此后新增任何一处都会让该用例失败。
+      仍未解决的是数据模型层面：物流公司要支持任意承运商需正式字典表与编码；报价行单位本应跟随
+      所选产品的单位，且实务还要用 码/条/吨 等，编辑器只给四项属功能限制。两者都是新增能力而非
+      把错值改对，已登记不随本轮改动。
 - [x] **列表端点收参数却不 filtering（假控件）批量核对**：已核实并修尽的四处——
       ① `GET /inventory/batches` 七个筛选字段全不下推、前端还按 camelCase 发 `batchNo/colorNo`
       （补 `BatchListFilter` 真实下推并排除软删除行，等级同时收进 `constants/stock-grade.ts`）；
