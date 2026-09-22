@@ -85,7 +85,11 @@ export interface Opportunity {
   updated_at: string;
 }
 
-export function getLeadList(params?: QueryParams): Promise<ApiResponse<Lead[]>> {
+// 后端 crm_service::list_leads 构造 json!({ "data": [...], "total", "page", "page_size" })，
+// 经 crm_handler::list_leads 原样返回，真实列表键为 data（非裸数组）。
+export function getLeadList(
+  params?: QueryParams
+): Promise<ApiResponse<{ data: Lead[]; total: number; page: number; page_size: number }>> {
   return request.get('/crm/leads', { params });
 }
 
@@ -118,7 +122,11 @@ export function convertLead(
   return request.post(`/crm/leads/${id}/convert`);
 }
 
-export function getOpportunityList(params?: QueryParams): Promise<ApiResponse<Opportunity[]>> {
+// 后端 crm_service::list_opportunities 构造 json!({ "data": [...], "total", "page", "page_size" })，
+// 真实列表键为 data（非裸数组）。
+export function getOpportunityList(
+  params?: QueryParams
+): Promise<ApiResponse<{ data: Opportunity[]; total: number; page: number; page_size: number }>> {
   return request.get('/crm/opportunities', { params });
 }
 

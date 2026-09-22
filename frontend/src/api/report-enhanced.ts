@@ -91,7 +91,11 @@ export interface UpdateSubscriptionRequest {
   active?: boolean;
 }
 
-export function getAvailableFields(templateType: string): Promise<ApiResponse<ReportField[]>> {
+// 后端 report_enhanced_handler::get_available_fields 返回 ApiResponse<serde_json::Value>，
+// data 由 json!({ "template_type": ..., "fields": fields }) 构造，真实列表键为 fields。
+export function getAvailableFields(
+  templateType: string
+): Promise<ApiResponse<{ template_type: string; fields: ReportField[] }>> {
   return request.get(`/reports/enhanced/fields/${templateType}`);
 }
 

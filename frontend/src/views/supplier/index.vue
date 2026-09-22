@@ -113,6 +113,8 @@ const {
   setQueryParam,
 } = useTableApi<Supplier>({
   url: '/purchase/suppliers',
+  // 钉到后端真实键（supplier_service::list_suppliers → PaginatedResponse{ items, total, page, page_size }）
+  listKey: 'items',
   onError: (err: unknown) =>
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) ||

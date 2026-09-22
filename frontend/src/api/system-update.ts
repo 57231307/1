@@ -74,7 +74,21 @@ export function installUpdate(versionId: number): Promise<ApiResponse<UpdateTask
   return request.post(`/system-update/versions/${versionId}/install`);
 }
 
-export function getUpdateTaskList(params?: QueryParams): Promise<ApiResponse<UpdateTask[]>> {
+/**
+ * 后端 system_update_handler::get_update_status 返回的真实载荷（单对象，非任务列表）。
+ * 路由 GET /system-update/tasks 实际被注册到 get_update_status（见 routes/mod.rs:259），
+ * 该 handler 返回单个更新状态对象，仓库中不存在"更新任务列表"端点。
+ */
+export interface UpdateStatusResponse {
+  current_version: string;
+  is_updating: boolean;
+  last_update_time: string | null;
+  backup_versions: string[];
+}
+
+export function getUpdateTaskList(
+  params?: QueryParams
+): Promise<ApiResponse<UpdateStatusResponse>> {
   return request.get('/system-update/tasks', { params });
 }
 

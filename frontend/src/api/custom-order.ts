@@ -305,13 +305,17 @@ export interface OrderTimeline {
 }
 
 // 列表查询
+// 后端 custom_order_handler::list_custom_orders 返回 ApiResponse<PagedResponse<CustomOrderListItem>>，
+// PagedResponse { items, total, page, page_size }，真实列表键为 items（非裸数组）。
 export function getCustomOrderList(params: {
   page?: number;
   page_size?: number;
   status?: string;
   customer_id?: number;
   keyword?: string;
-}): Promise<ApiResponse<CustomOrderListItem[]>> {
+}): Promise<
+  ApiResponse<{ items: CustomOrderListItem[]; total: number; page: number; page_size: number }>
+> {
   return request.get('/custom-orders', { params });
 }
 

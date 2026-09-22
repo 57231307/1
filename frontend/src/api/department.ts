@@ -30,7 +30,10 @@ export interface DepartmentUpdateRequest {
   is_active?: boolean;
 }
 
-export function getDepartmentList(params?: QueryParams): Promise<ApiResponse<Department[]>> {
+// 后端 department_handler::list（define_crud_handlers 宏）返回 PaginatedResponse { items, total, page, page_size }
+export function getDepartmentList(
+  params?: QueryParams
+): Promise<ApiResponse<{ items: Department[]; total: number; page: number; page_size: number }>> {
   return request.get('/departments', { params });
 }
 

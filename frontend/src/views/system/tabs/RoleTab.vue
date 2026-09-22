@@ -157,9 +157,8 @@ const fetchRoles = async () => {
   roleLoading.value = true;
   try {
     const res = await getRoleList();
-    // 后端 list_roles 真实结构为 data.roles[]（RoleListResponse），兼容 items/data/裸数组形态
-    const d = res.data as { roles?: Role[]; items?: Role[]; data?: Role[] } | Role[] | undefined;
-    roles.value = (Array.isArray(d) ? d : d?.roles || d?.items || d?.data || []) as Role[];
+    // 后端 list_roles 真实结构为 data.roles[]（RoleListResponse { roles, total }）
+    roles.value = res.data.roles;
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(

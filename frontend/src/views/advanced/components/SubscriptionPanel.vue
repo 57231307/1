@@ -299,7 +299,8 @@ async function loadFields() {
   fieldLoading.value = true;
   try {
     const res = await getAvailableFields(fieldType.value);
-    fields.value = res.data ?? [];
+    // 后端 data 为 { template_type, fields }，列表在 fields 键
+    fields.value = res.data.fields;
   } catch (e) {
     ElMessage.error((e as Error).message || '查询字段失败');
   } finally {

@@ -290,9 +290,8 @@ const fetchList = async () => {
       status: query.status || undefined,
       announcement_type: query.announcement_type || undefined,
     });
-    const d = res.data as { items?: OaAnnouncement[]; data?: OaAnnouncement[] } | undefined;
-    list.value = d?.items || d?.data || [];
-    total.value = (res.data as { total?: number })?.total ?? 0;
+    list.value = res.data.items;
+    total.value = res.data.total;
   } catch (e) {
     ElMessage.error((e as Error).message || t('system.oaAnnouncement.message.fetchFailed'));
   } finally {
@@ -479,10 +478,8 @@ const fetchOptions = async () => {
   }
   try {
     const rres = await getRoleList();
-    const rd = rres.data as { roles?: Role[]; items?: Role[]; data?: Role[] } | Role[] | undefined;
-    roleOptions.value = (
-      Array.isArray(rd) ? rd : rd?.roles || rd?.items || rd?.data || []
-    ) as Role[];
+    // 后端 list_roles 返回 RoleListResponse { roles, total }
+    roleOptions.value = rres.data.roles;
   } catch (error) {
     logAuxLoadFailure(t('system.oaAnnouncement.message.loadRolesFailed'), error);
   }

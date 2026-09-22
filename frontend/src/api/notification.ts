@@ -60,9 +60,11 @@ export interface AnnouncementResult {
   deliveredCount: number;
 }
 
+// 后端 notification_handler::list_notifications 返回 ApiResponse<serde_json::Value>，
+// 其 data 由 json!({ "list": notifications, "total": total }) 构造，真实列表键为 list（非 items）。
 export function getNotificationList(
   params?: NotificationQueryParams
-): Promise<ApiResponse<{ items: Notification[]; total: number }>> {
+): Promise<ApiResponse<{ list: Notification[]; total: number }>> {
   return request.get('/notifications', { params });
 }
 

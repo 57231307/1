@@ -269,6 +269,8 @@ const {
   setQueryParam,
 } = useTableApi<QuotationResponseDto>({
   url: '/quotations',
+  // 钉到后端真实键（quotation_handler::list_quotations → ListQuotationsResponse{ list, total }）
+  listKey: 'list',
   onError: (e: unknown) =>
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.list.loadFailed')

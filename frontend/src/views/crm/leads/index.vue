@@ -345,6 +345,8 @@ const {
   setQueryParam,
 } = useTableApi<LeadRow>({
   url: '/crm/leads',
+  // 钉到后端真实键（crm_service::list_leads → json!({ data, total, page, page_size })）
+  listKey: 'data',
   onError: (e: unknown) => logger.warn(t('crmLeads.message.loadListFailed'), String(e)),
 });
 

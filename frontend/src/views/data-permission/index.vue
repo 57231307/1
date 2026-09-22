@@ -216,11 +216,10 @@ const scopeTypeList = ref<ScopeType[]>([]);
 const fetchRoles = async () => {
   try {
     const res = await getRoleList();
-    if (res.data && Array.isArray(res.data)) {
-      roleList.value = res.data.map(r => ({ id: r.id, name: r.name }));
-      if (roleList.value.length > 0) {
-        selectedRoleId.value = String(roleList.value[0].id);
-      }
+    // 后端 list_roles 返回 RoleListResponse { roles, total }
+    roleList.value = res.data.roles.map(r => ({ id: r.id, name: r.name }));
+    if (roleList.value.length > 0) {
+      selectedRoleId.value = String(roleList.value[0].id);
     }
   } catch (e) {
     const err = e as Error;

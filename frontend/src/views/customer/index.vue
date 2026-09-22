@@ -293,6 +293,8 @@ const {
   setQueryParam,
 } = useTableApi<Customer>({
   url: '/crm/customers',
+  // 钉到后端真实键（customer_handler::list_customers → PaginatedResponse{ items, total, page, page_size }）
+  listKey: 'items',
   onError: (err: unknown) =>
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) ||

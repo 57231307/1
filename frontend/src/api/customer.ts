@@ -48,21 +48,24 @@ export function getCustomerList(
 /**
  * v11 批次 146 P1-4 修复：客户下拉选项统一封装
  *
- * 背景：arReconciliation/enhanced.vue 和 index.vue 此前直接调用 `request.get('/customers/select')`，
- * 绕过 API 层且响应结构处理错误（期望 `{label, value}[]`，后端返回 PaginatedResponse<Customer>）。
- *
- * 修复：统一封装为 `getCustomerSelectList`，内部调用 `/crm/customers/select` 并映射为 `{label, value}[]` 格式。
+ * 后端 customer_handler::list_customers（路由 /crm/customers/select）返回
+ * ApiResponse<PaginatedResponse<Value>>，data 信封为 { items, total, page, page_size }，
+ * 真实列表键为 items。原始分页载荷由 getCustomerSelectPage 暴露，
+ * getCustomerSelectList 在其上映射为 {label, value}[]（下拉消费点）。
  *
  * @returns 客户下拉选项数组（label=客户名称, value=客户ID）
  */
+export function getCustomerSelectPage(): Promise<
+  ApiResponse<{ items: Customer[]; total: number; page: number; page_size: number }>
+> {
+  return request.get<
+    ApiResponse<{ items: Customer[]; total: number; page: number; page_size: number }>
+  >('/crm/customers/select');
+}
+
 export async function getCustomerSelectList(): Promise<{ label: string; value: number }[]> {
-  const res =
-    await request.get<ApiResponse<{ list: Customer[]; total: number } | Customer[]>>(
-      '/crm/customers/select'
-    );
-  const data = res?.data;
-  const list: Customer[] = (Array.isArray(data) ? data : data?.list) ?? [];
-  return list.map(c => ({ label: c.customer_name, value: c.id }));
+  const res = await getCustomerSelectPage();
+  return res.data.items.map(c => ({ label: c.customer_name, value: c.id }));
 }
 
 // D14 Batch 5b：原 customerApi.getById 转为风格 B 函数

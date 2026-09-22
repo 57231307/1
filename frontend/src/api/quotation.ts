@@ -205,12 +205,18 @@ export interface ListResponse {
 /**
  * 列出报价单（分页）
  * @param params 查询参数
+ * 后端 quotation_handler::list_quotations 返回 ApiResponse<ListQuotationsResponse>，
+ * ListQuotationsResponse { list, total, page, page_size }，真实列表键为 list（非裸数组）。
  */
 export function getQuotationList(
   params: QuotationListQuery = {}
-): Promise<ApiResponse<QuotationResponseDto[]>> {
+): Promise<
+  ApiResponse<{ list: QuotationResponseDto[]; total: number; page: number; page_size: number }>
+> {
   // P2 1-11 修复：去掉 as any，使用显式泛型传递类型契约
-  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations', { params });
+  return request.get<
+    ApiResponse<{ list: QuotationResponseDto[]; total: number; page: number; page_size: number }>
+  >('/quotations', { params });
 }
 
 /**
@@ -329,12 +335,18 @@ export function calculatePrice(
 }
 
 /**
- * 获取色号价格
+ * 获取色号价格（分页）
  * @param productColorId 产品色号 ID
+ * 后端 quotation_handler::list_color_prices 返回 ApiResponse<PaginatedResponse<product_color_price::Model>>，
+ * data 为信封 { items, total, page, page_size }，真实列表键为 items（非裸数组）。
  */
 // P2 1-11 修复：去掉 as any 和 any 类型，使用 unknown 占位（后端返回结构待定义 DTO）
-export function getColorPrices(productColorId: number): Promise<ApiResponse<unknown[]>> {
-  return request.get<ApiResponse<unknown[]>>(`/quotations/color-prices/${productColorId}`);
+export function getColorPrices(
+  productColorId: number
+): Promise<ApiResponse<{ items: unknown[]; total: number; page: number; page_size: number }>> {
+  return request.get<
+    ApiResponse<{ items: unknown[]; total: number; page: number; page_size: number }>
+  >(`/quotations/color-prices/${productColorId}`);
 }
 
 /**

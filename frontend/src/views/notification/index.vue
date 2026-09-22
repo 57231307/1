@@ -235,6 +235,8 @@ const {
   setQueryParam,
 } = useTableApi<Notification>({
   url: '/notifications',
+  // 钉到后端真实键（notification_handler::list_notifications → json!({ list, total })）
+  listKey: 'list',
   pageSizeKey: 'page_size',
   onError: () => ElMessage.error(t('notification.index.messageLoadListFailed')),
 });

@@ -386,6 +386,8 @@ const {
   setQueryParam,
 } = useTableApi<OpportunityRow>({
   url: '/crm/opportunities',
+  // 钉到后端真实键（crm_service::list_opportunities → json!({ data, total, page, page_size })）
+  listKey: 'data',
   onError: (e: unknown) => logger.warn(t('crmOpportunities.message.loadFailed'), String(e)),
 });
 

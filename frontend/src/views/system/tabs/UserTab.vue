@@ -265,10 +265,8 @@ const roles = ref<Role[]>([]);
 const fetchRoles = async () => {
   try {
     const res = await getRoleList({ page: 1, page_size: 100 });
-    const data = res.data as unknown;
-    roles.value = Array.isArray(data)
-      ? (data as Role[])
-      : ((data as { items?: Role[] })?.items ?? []);
+    // 后端 list_roles 返回 RoleListResponse { roles, total }
+    roles.value = res.data.roles;
   } catch (error) {
     logAuxLoadFailure(t('system.user.message.loadRolesFailed'), error);
     roles.value = [];

@@ -51,7 +51,11 @@ export interface AssignPermissionRequest {
   allowed: boolean;
 }
 
-export function getRoleList(params?: QueryParams): Promise<ApiResponse<Role[]>> {
+// 后端 role_handler::list_roles 返回 ApiResponse<RoleListResponse>，
+// RoleListResponse { roles: Vec<RoleResponse>; total: u64 }（信封键为 roles，非 items）。
+export function getRoleList(
+  params?: QueryParams
+): Promise<ApiResponse<{ roles: Role[]; total: number }>> {
   return request.get('/roles', { params });
 }
 
