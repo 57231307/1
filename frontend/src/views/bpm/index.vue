@@ -77,18 +77,18 @@
         <el-card shadow="hover" class="table-card">
           <el-table :data="pendingTasks" stripe :aria-label="$t('bpm.pendingTable.ariaLabel')">
             <el-table-column
-              prop="task_name"
-              :label="$t('bpm.pendingTable.taskName')"
-              min-width="180"
+              prop="task_no"
+              :label="$t('bpm.pendingTable.taskNo')"
+              min-width="150"
               fixed
             />
             <el-table-column
-              prop="process_name"
-              :label="$t('bpm.pendingTable.processName')"
-              width="150"
+              prop="node_name"
+              :label="$t('bpm.pendingTable.taskName')"
+              min-width="150"
             />
             <el-table-column
-              prop="assignee_name"
+              prop="actual_handler_name"
               :label="$t('bpm.pendingTable.applicant')"
               width="120"
             />
@@ -374,10 +374,23 @@
             :placeholder="$t('bpm.startProcessDialog.processKeyPlaceholder')"
           />
         </el-form-item>
-        <el-form-item :label="$t('bpm.startProcessDialog.businessKey')">
+        <el-form-item :label="$t('bpm.startProcessDialog.businessType')">
           <el-input
-            v-model="startProcessDialog.businessKey"
-            :placeholder="$t('bpm.startProcessDialog.businessKeyPlaceholder')"
+            v-model="startProcessDialog.businessType"
+            :placeholder="$t('bpm.startProcessDialog.businessTypePlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('bpm.startProcessDialog.businessId')">
+          <el-input-number
+            v-model="startProcessDialog.businessId"
+            :placeholder="$t('bpm.startProcessDialog.businessIdPlaceholder')"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('bpm.startProcessDialog.processTitle')">
+          <el-input
+            v-model="startProcessDialog.processTitle"
+            :placeholder="$t('bpm.startProcessDialog.processTitlePlaceholder')"
           />
         </el-form-item>
       </el-form>
@@ -460,9 +473,11 @@ import {
   getBpmPendingTaskList,
 } from '@/api/bpm';
 import type { BPMTask, BPMInstance } from '@/api/bpm';
+import { useUserStore } from '@/store/user';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
+const userStore = useUserStore();
 
 // v11 批次 162 P2-1 修复：el-tag type 联合字面量类型，替代 Record<string, any>
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
@@ -496,12 +511,24 @@ const businessRelation = reactive<{
   result: null,
 });
 // 启动流程对话框
+// 字段以后端 StartProcessRequest 为准（models/dto/bpm_dto.rs:53-64）：
+// process_key / business_type / business_id / title 必填，
+// initiator_id / initiator_name 取登录用户，无 business_key 字段。
 const startProcessDialog = reactive<{
   visible: boolean;
   loading: boolean;
   processKey: string;
-  businessKey: string;
-}>({ visible: false, loading: false, processKey: '', businessKey: '' });
+  businessType: string;
+  businessId: number | null;
+  processTitle: string;
+}>({
+  visible: false,
+  loading: false,
+  processKey: '',
+  businessType: '',
+  businessId: null,
+  processTitle: '',
+});
 
 const getPriorityType = (priority: string): TagType => {
   const map: Record<string, TagType> = { high: 'danger', medium: 'warning', low: 'info' };
@@ -650,18 +677,44 @@ const handleStartProcess = async () => {
     ElMessage.warning(t('bpm.message.processKeyRequired'));
     return;
   }
+  if (!startProcessDialog.businessType) {
+    ElMessage.warning(t('bpm.message.businessTypeRequired'));
+    return;
+  }
+  if (startProcessDialog.businessId == null) {
+    ElMessage.warning(t('bpm.message.businessIdRequired'));
+    return;
+  }
+  if (!startProcessDialog.processTitle) {
+    ElMessage.warning(t('bpm.message.processTitleRequired'));
+    return;
+  }
+  // 发起人身份取登录态：后端 StartProcessRequest 必填 initiator_id / initiator_name
+  //（models/dto/bpm_dto.rs:58-59），不伪造、不硬编码
+  const user = userStore.userInfo;
+  if (!user) {
+    ElMessage.error(t('bpm.message.currentUserMissing'));
+    return;
+  }
   startProcessDialog.loading = true;
   try {
     const res = await startBpmProcess({
       process_key: startProcessDialog.processKey,
-      business_key: startProcessDialog.businessKey || undefined,
+      business_type: startProcessDialog.businessType,
+      business_id: startProcessDialog.businessId,
+      title: startProcessDialog.processTitle,
+      initiator_id: user.id,
+      initiator_name: user.real_name || user.username,
+      initiator_department_id: user.department_id,
     });
     ElMessage.success(
       t('bpm.message.startProcessSuccess', { instanceId: res.data?.instance_id || '' })
     );
     startProcessDialog.visible = false;
     startProcessDialog.processKey = '';
-    startProcessDialog.businessKey = '';
+    startProcessDialog.businessType = '';
+    startProcessDialog.businessId = null;
+    startProcessDialog.processTitle = '';
     fetchMonitorStats();
     fetchProcessInstances();
   } catch (error: unknown) {
@@ -713,13 +766,28 @@ const openBusinessRelationDialog = () => {
 };
 
 const handleApprove = async (row: BPMTask) => {
+  // 审批人身份取登录态：后端 ApproveTaskRequest 必填 handler_id / handler_name
+  //（models/dto/bpm_dto.rs:76-77）
+  const user = userStore.userInfo;
+  if (!user) {
+    ElMessage.error(t('bpm.message.currentUserMissing'));
+    return;
+  }
   try {
     await ElMessageBox.confirm(
       t('bpm.message.approveConfirm'),
       t('bpm.message.approveConfirmTitle'),
       { type: 'info' }
     );
-    await approveBpmTask({ task_id: row.task_id, comment: t('bpm.message.approveComment') });
+    // 任务主键为 id（models/bpm_task.rs:13）；审批意见字段为 approval_opinion；
+    // action 取值域 approve | reject（services/bpm_ops/task.rs:45-49）
+    await approveBpmTask({
+      task_id: row.id,
+      handler_id: user.id,
+      handler_name: user.real_name || user.username,
+      action: 'approve',
+      approval_opinion: t('bpm.message.approveComment'),
+    });
     ElMessage.success(t('bpm.message.approveSuccess'));
     fetchPendingTasks();
   } catch (e) {
@@ -730,7 +798,8 @@ const handleApprove = async (row: BPMTask) => {
 // 批次 157a P1-1 修复：接入 getInstanceDetail API 展示任务关联的流程实例详情
 const handleDetail = async (row: BPMTask) => {
   try {
-    const instanceId = row.process_instance_id;
+    // 任务指向的实例主键为外键 instance_id（models/bpm_task.rs:17）
+    const instanceId = row.instance_id;
     if (!instanceId) {
       ElMessage.warning(t('bpm.message.instanceIdNotFound'));
       return;
@@ -771,7 +840,9 @@ const handleTransfer = async (row: BPMTask) => {
         inputErrorMessage: t('bpm.message.transferUserIdInvalid'),
       }
     );
-    await transferBpmTask(row.task_id, parseInt(targetUserId), t('bpm.message.transferComment'));
+    // 任务主键为 id（models/bpm_task.rs:13）；transferBpmTask 三参对齐后端
+    // TransferTaskRequest { new_assignee_id, transfer_reason }（handlers/bpm_handler.rs:214-217）
+    await transferBpmTask(row.id, parseInt(targetUserId), t('bpm.message.transferComment'));
     ElMessage.success(t('bpm.message.transferSuccess'));
     fetchPendingTasks();
   } catch (e) {
@@ -784,7 +855,9 @@ const handleUrge = async (row: BPMTask) => {
     await ElMessageBox.confirm(t('bpm.message.urgeConfirm'), t('bpm.message.urgeConfirmTitle'), {
       type: 'warning',
     });
-    await urgeBpmTask(row.task_id);
+    // urgeBpmTask 第二参为必填催办消息（后端 UrgeTaskRequest.urge_message，
+    // handlers/bpm_handler.rs:238-240）；任务主键为 id（models/bpm_task.rs:13）
+    await urgeBpmTask(row.id, t('bpm.message.urgeMessage'));
     ElMessage.success(t('bpm.message.urgeSuccess'));
   } catch (e) {
     if (e !== 'cancel') logger.error(String(e));
@@ -795,7 +868,9 @@ const handleUrge = async (row: BPMTask) => {
 // v11 批次 162 P2-1 修复：row 联合类型 BPMTask | BPMInstance，替代 any
 const handleTrace = async (row: BPMTask | BPMInstance) => {
   try {
-    const instanceId = 'instance_id' in row ? row.instance_id : row.process_instance_id;
+    // BPMTask 的外键字段为 instance_id（models/bpm_task.rs:17），
+    // BPMInstance 的主键即 id（models/bpm_process_instance.rs:13）
+    const instanceId = 'instance_id' in row ? row.instance_id : row.id;
     if (!instanceId) {
       ElMessage.warning(t('bpm.message.instanceIdNotFound'));
       return;
@@ -810,9 +885,12 @@ const handleTrace = async (row: BPMTask | BPMInstance) => {
       );
       return;
     }
+    // 审批链条目字段以后端 ApprovalChainNode 为准
+    //（services/bpm_service_dto.rs:24-34）：无 order/approver_name/approved_at，
+    // 序号由前端按下标生成，处理人=assignee_name，完成时间=completed_at
     const lines = chain.map(
-      item =>
-        `${item.order}. ${item.approver_name} - ${item.status}${item.comment ? `（${item.comment}）` : ''}${item.approved_at ? ` @ ${item.approved_at}` : ''}`
+      (item, index) =>
+        `${index + 1}. ${item.node_name}${item.assignee_name ? `（${item.assignee_name}）` : ''} - ${item.status}${item.comment ? `（${item.comment}）` : ''}${item.completed_at ? ` @ ${item.completed_at}` : ''}`
     );
     await ElMessageBox.alert(lines.join('\n'), t('bpm.detail.traceTitle', { instanceId }), {
       confirmButtonText: t('bpm.message.close'),
@@ -827,7 +905,8 @@ const handleTrace = async (row: BPMTask | BPMInstance) => {
 const handleCancel = async (row: BPMInstance) => {
   try {
     const confirmRes = await ElMessageBox.confirm(
-      t('bpm.message.cancelConfirm', { instanceId: row.instance_id }),
+      // 面向用户展示实例单号 instance_no（models/bpm_process_instance.rs:15）
+      t('bpm.message.cancelConfirm', { instanceId: row.instance_no }),
       t('bpm.message.cancelConfirmTitle'),
       {
         type: 'warning',
@@ -855,7 +934,9 @@ const handleCancel = async (row: BPMInstance) => {
 // 批次 157a P1-1 修复：接入 getInstanceDetail API 展示流程实例详情
 const handleViewProcess = async (row: BPMInstance) => {
   try {
-    const res = await getBpmInstanceById(String(row.instance_id));
+    // 后端 detail 路径参数为实例主键 id（handlers/bpm_handler.rs:156-158，
+    // services/bpm_ops/instance.rs:386 find_by_id）
+    const res = await getBpmInstanceById(String(row.id));
     const d = res.data;
     if (!d) {
       ElMessage.warning(t('bpm.message.instanceDetailNotFound'));
@@ -882,7 +963,8 @@ const handleViewProcess = async (row: BPMInstance) => {
 // 批次 157a P1-1 修复：接入 getProcessVisualization API 展示流程图信息
 const handleProcessImage = async (row: BPMInstance) => {
   try {
-    const res = await getBpmProcessVisualization(String(row.instance_id));
+    // 后端 visualization 路径参数为实例主键 id（handlers/bpm_handler.rs:81-88 find_by_id）
+    const res = await getBpmProcessVisualization(String(row.id));
     const d = res.data;
     if (!d) {
       ElMessage.warning(t('bpm.message.processImageNotFound'));
@@ -896,7 +978,8 @@ const handleProcessImage = async (row: BPMInstance) => {
     ];
     await ElMessageBox.alert(
       lines.join('\n'),
-      t('bpm.detail.processImageTitle', { instanceId: row.instance_id }),
+      // 面向用户展示实例单号 instance_no（models/bpm_process_instance.rs:15）
+      t('bpm.detail.processImageTitle', { instanceId: row.instance_no }),
       {
         confirmButtonText: t('bpm.message.close'),
       }

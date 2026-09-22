@@ -49,42 +49,69 @@ export interface ProcessTemplate {
   created_at: string;
 }
 
+/**
+ * /bpm/approval/execute 请求体（唯一真相：backend/src/handlers/bpm_handler.rs
+ * ExecuteApprovalRequest：task_id / handler_id / handler_name / action / approval_opinion）
+ * action 取值域与后端状态机一致：approve | reject
+ */
 export interface ApprovalAction {
-  task_id: string;
-  action: 'approve' | 'reject' | 'transfer' | 'delegate';
-  comment?: string;
-  target_user_id?: number;
-  // 批次 98 P2-D 修复（v5 复审）：原 any 改为 Record<string, unknown>，与 types/bpm.ts 保持一致
-  variables?: Record<string, unknown>;
+  task_id: number;
+  handler_id: number;
+  handler_name: string;
+  action: 'approve' | 'reject';
+  approval_opinion?: string;
 }
 
+/** 转办请求体（backend TransferTaskRequest：new_assignee_id / transfer_reason） */
+export interface TransferTaskAction {
+  new_assignee_id: number;
+  transfer_reason: string;
+}
+
+/**
+ * 待办/已办任务行（唯一真相：backend models/bpm_task.rs Model，
+ * 由 /bpm/tasks/pending、/bpm/tasks/completed 原样序列化返回）
+ * 任务状态词表为小写：pending / completed / rejected / cancelled
+ */
 export interface ApprovalTask {
   id: number;
-  task_id: string;
-  process_instance_id: string;
-  process_name: string;
-  task_name: string;
-  assignee_name?: string;
-  start_user_name?: string;
-  created_at: string;
-  due_date?: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'pending' | 'completed' | 'cancelled';
-  business_key?: string;
-  result?: 'approved' | 'rejected';
-  comment?: string;
-  approved_at?: string;
-}
-
-export interface ApprovalChainNode {
-  order: number;
+  task_no: string;
+  instance_id: number;
+  process_definition_id: number;
+  node_id: string;
   node_name: string;
   node_type: string;
-  approver_name?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'skipped';
-  comment?: string;
-  approved_at?: string;
-  duration?: number;
+  task_type?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  actual_handler_id?: number | null;
+  actual_handler_name?: string | null;
+  action?: string | null;
+  approval_opinion?: string | null;
+  handled_at?: string | null;
+  duration_seconds?: number | null;
+  due_date?: string | null;
+  is_overdue?: boolean | null;
+  overdue_days?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  remarks?: string | null;
+}
+
+/**
+ * 审批链节点（唯一真相：backend services/bpm_service_dto.rs ApprovalChainNode）
+ * status 复用任务状态词表（pending/completed/rejected/cancelled）
+ */
+export interface ApprovalChainNode {
+  node_id: string;
+  node_name: string;
+  node_type: string;
+  assignee_id?: number | null;
+  assignee_name?: string | null;
+  status: string;
+  comment?: string | null;
+  completed_at?: string | null;
+  due_time?: string | null;
 }
 
 // D14 Batch 5b：原 bpmEnhancedApi.listDefinitions 转为风格 B 函数
@@ -157,9 +184,14 @@ export const getBpmCompletedTaskList = (params?: { page?: number; page_size?: nu
   request.get<ApiResponse<PageResult<ApprovalTask>>>('/bpm/tasks/completed', { params });
 
 // D14 Batch 5b：原 bpmEnhancedApi.executeApproval 转为风格 B 函数
+// 请求体字段与后端 ExecuteApprovalRequest 逐字一致（缺 handler_id/handler_name 会 422）
 export const executeBpmApproval = (data: ApprovalAction) =>
-  request.post<ApiResponse<null>>('/bpm/approval/execute', data);
+  request.post<ApiResponse<string>>('/bpm/approval/execute', data);
+
+// 转办任务（后端独立端点，不走 approval/execute：approval/execute 的 action 取值域仅 approve/reject）
+export const transferBpmEnhancedTask = (taskId: number, data: TransferTaskAction) =>
+  request.post<ApiResponse<string>>(`/bpm/tasks/${taskId}/transfer`, data);
 
 // D14 Batch 5b：原 bpmEnhancedApi.getApprovalChain 转为风格 B 函数
-export const getBpmEnhancedApprovalChain = (instanceId: string) =>
+export const getBpmEnhancedApprovalChain = (instanceId: number) =>
   request.get<ApiResponse<ApprovalChainNode[]>>(`/bpm/instances/${instanceId}/chain`);

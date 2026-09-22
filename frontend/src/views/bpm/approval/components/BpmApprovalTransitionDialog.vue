@@ -21,14 +21,14 @@
       :aria-label="t('bpm.approval.transferDialog.formAriaLabel')"
     >
       <el-form-item :label="t('bpm.approval.transferDialog.taskName')">
-        <span>{{ currentTask?.task_name }}</span>
+        <span>{{ currentTask?.node_name }}</span>
       </el-form-item>
-      <el-form-item :label="t('bpm.approval.transferDialog.targetUserId')" prop="target_user_id">
-        <el-input-number v-model="localForm.target_user_id" :min="1" style="width: 100%" />
+      <el-form-item :label="t('bpm.approval.transferDialog.targetUserId')" prop="new_assignee_id">
+        <el-input-number v-model="localForm.new_assignee_id" :min="1" style="width: 100%" />
       </el-form-item>
-      <el-form-item :label="t('bpm.approval.transferDialog.comment')">
+      <el-form-item :label="t('bpm.approval.transferDialog.comment')" prop="transfer_reason">
         <el-input
-          v-model="localForm.comment"
+          v-model="localForm.transfer_reason"
           type="textarea"
           :rows="3"
           :placeholder="t('bpm.approval.transferDialog.commentPlaceholder')"
@@ -54,10 +54,10 @@ import type { ApprovalTask } from '@/api/bpm-enhanced';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 表单字段类型
+// 表单字段类型（与后端 TransferTaskRequest 字段名逐字一致）
 interface TranForm {
-  target_user_id: number;
-  comment: string;
+  new_assignee_id: number;
+  transfer_reason: string;
 }
 
 /**
