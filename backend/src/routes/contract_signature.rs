@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::contract_signature_handler;
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 /// 合同签名路由（挂载于 nest 前缀 /api/v1/erp/contract-signatures 之下，路由为相对路径）

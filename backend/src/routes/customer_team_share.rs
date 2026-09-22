@@ -3,8 +3,8 @@
 use crate::container::AppState;
 use crate::handlers::customer_team_share_handler;
 use axum::{
-    routing::{delete, get, post},
     Router,
+    routing::{delete, get, post},
 };
 
 /// 团队成员路由（path 前缀 /customer-team-members）
