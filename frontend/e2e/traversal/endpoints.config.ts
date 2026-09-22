@@ -116,6 +116,7 @@ export const NON_SENSITIVE_EXPORT_ENDPOINTS: string[] = [
   '/crm/leads/export',
   '/login-logs/export',
   '/crm/opportunities/export',
+  '/purchase/orders/export',
   '/sales/orders/export',
   '/production/production-orders/orders/export',
   '/production/quality-inspection/records/export',
