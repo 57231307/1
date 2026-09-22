@@ -36,12 +36,38 @@ struct ApproveContext {
     definition: bpm_process_definition::Model,
 }
 
+/// 审批动作取值域（任务流转只有同意/拒绝两种动作）
+///
+/// 取值域必须显式校验：`approve_task` 以 `action == "reject"` 判拒绝、
+/// `update_task_status` 以 `action == "approve"` 判完成，两处独立比较会让任何
+/// 其它取值（如 transfer / delegate / 拼写错误）一边被当作同意推进流程、
+/// 一边被当作拒绝写任务状态，同一次调用内自相矛盾地把数据写坏。
+pub const APPROVE_ACTION: &str = "approve";
+pub const REJECT_ACTION: &str = "reject";
+
+/// 全部合法审批动作，入参校验的唯一取值来源
+pub const ALL_APPROVE_ACTIONS: &[&str] = &[APPROVE_ACTION, REJECT_ACTION];
+
+/// 校验审批动作取值（大小写敏感，词表外取值一律拒绝，禁止归一大小写来掩盖越界）
+pub fn validate_approve_action(action: &str) -> Result<(), AppError> {
+    if ALL_APPROVE_ACTIONS.contains(&action) {
+        Ok(())
+    } else {
+        Err(AppError::validation(format!(
+            "审批动作非法：{action}，允许取值为 {}",
+            ALL_APPROVE_ACTIONS.join(" / ")
+        )))
+    }
+}
+
 impl BpmService {
     pub async fn approve_task(
         &self,
         req: ApproveTaskRequest,
         user_id: Option<i32>,
     ) -> Result<(), AppError> {
+        validate_approve_action(&req.action)?;
+
         let txn = self.db.begin().await?;
         // P0 5-3 修复：事务内仅收集待发事件，commit 成功后再 publish，避免 commit 失败产生幻事件
         let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
@@ -50,7 +76,7 @@ impl BpmService {
         self.update_task_status(&req, &ctx.task, user_id, &txn)
             .await?;
 
-        if req.action == "reject" {
+        if req.action == REJECT_ACTION {
             self.handle_task_reject(&ctx.instance, user_id, &txn, &mut pending_event)
                 .await?;
         } else {
@@ -112,7 +138,7 @@ impl BpmService {
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
         let mut task_active: bpm_task::ActiveModel = task.clone().into();
-        task_active.status = Set(Some(if req.action == "approve" {
+        task_active.status = Set(Some(if req.action == APPROVE_ACTION {
             task_status::COMPLETED.to_string()
         } else {
             task_status::REJECTED.to_string()

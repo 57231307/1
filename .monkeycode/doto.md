@@ -1491,3 +1491,40 @@ README 里"Windows 裸 --list 多收 71 个"的那 71 个正是这批 —— 之
   不会暴露，是三个测试从未被 CI 验证过的原因之一。已改为 `migration/...` 并就地注释基准。
 - **子智能体 nine-dirs-honesty 触顶 150 turn 未完成**（只读不写，工作树里没有它的改动）。
   按用户"任务拆细"的要求改为按目录分组重投，单组文件数控制在 3 个 spec 以内。
+
+### BPM 审批中心：待办恒空的根因链与审批动作取值域（2026-09-23）
+
+三层同源问题（任一层都足以让「审批中心整块不可用」）：
+1. 过滤点与写入点不同源：bpm_task.status 写入点用小写词表（status::bpm_task =
+   pending/completed/rejected/cancelled），而 handlers/bpm_handler.rs 的
+   get_pending_tasks / get_completed_tasks 用大写 "PENDING"/"COMPLETED" 过滤；
+   query_user_tasks 是精确 Status.eq()（无大小写折叠）→ 待办/已办对任何用户恒空，
+   同意/拒绝/审批链按钮永不渲染。已改引 task_status 常量（本轮上一个提交）。
+2. 库层默认值越界：m0001_initial_schema.rs:704 建表 DEFAULT 'PENDING'（大写），
+   绕过 service 写入的行会落进词表外死状态，同样永不被待办查询命中。
+   v15 已收敛默认值到 'pending' 并回填历史大写行（提交 22e8894b 的「9 处状态列
+   默认值收敛」批次内），本轮补 tests/bpm_task_status_word_list_test.rs 把这三层钉住。
+3. 审批动作取值域：approve_task 以 `action == "reject"` 判拒绝、update_task_status 以
+   `action == "approve"` 判完成，两处独立比较使任何越界动作（transfer/delegate/拼写错误/
+   尾随空格）在一次调用内「既按同意推进流程、又按拒绝写任务状态」，属数据写坏而非报错。
+   现新增 APPROVE_ACTION/REJECT_ACTION/ALL_APPROVE_ACTIONS + validate_approve_action，
+   入口显式拒绝越界值（大小写敏感，不做 to_lowercase 归一——归一会把显性缺陷变隐性）。
+   已核对全部调用方取值在域内：quotation_approval_service.rs:299("approve")、
+   :433("reject")、production_order_ops/approval.rs:167(if approved → approve/reject 二值)、
+   bpm_handler.rs execute_approval 透传前端 action（前端 api/bpm-enhanced.ts 已按后端契约
+   收窄为 'approve' | 'reject'，转办走独立端点）。
+
+守卫：tests/bpm_task_status_word_list_test.rs（CI 常规可跑）——比对写入点/过滤点/监控点
+是否同一常量、四个文件禁止出现 to_uppercase/to_lowercase/eq_ignore_ascii_case（防止用大小写
+折叠掩盖不同源）、迁移默认值与回填语句存在、动作取值域越界必拒。
+
+### 关于「为什么没有加测试路径守卫」
+
+本轮发现 3 个守卫测试把迁移路径写成 ../migration/...（CARGO_MANIFEST_DIR 是 backend，
+迁移 crate 在 backend/migration），这类"从未被 CI 跑过、一跑就 panic"的路径错误考虑过加一个
+自动守卫：扫描 tests/**.rs 里的相对路径字面量并断言可解析。本地预跑等价逻辑的结果是
+20 条路径里 6 条报"缺失"，全部是误报——po_status_column_drift_test 的
+models/purchase_order.rs 等三条以 src_root()（backend/src）为基准，
+utils_migration_jump_detector_test 的 3 个 .sql 是测试自己临时造的夹具名。
+要让守卫正确就得在守卫里复刻每个测试各自的基准目录，等于把同一份知识写两遍、
+且必然与新增测试漂移（本会话已因"自败断言"踩过一次）。故不加，改为在读取处注明基准。

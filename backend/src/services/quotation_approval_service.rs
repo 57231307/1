@@ -28,6 +28,7 @@ use crate::models::dto::bpm_dto::StartProcessRequest;
 use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
+use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
 use crate::services::bpm_service::BpmService;
 use crate::utils::error::AppError;
 
@@ -296,7 +297,7 @@ impl QuotationApprovalService {
                                     task_id: task.id,
                                     handler_id: approver_id,
                                     handler_name: format!("user_{}", approver_id),
-                                    action: "approve".to_string(),
+                                    action: APPROVE_ACTION.to_string(),
                                     approval_opinion: None,
                                     attachment_urls: None,
                                 },
@@ -430,7 +431,7 @@ impl QuotationApprovalService {
                         task_id: task.id,
                         handler_id: approver_id,
                         handler_name: format!("user_{}", approver_id),
-                        action: "reject".to_string(),
+                        action: REJECT_ACTION.to_string(),
                         approval_opinion: Some(reason.to_string()),
                         attachment_urls: None,
                     },
