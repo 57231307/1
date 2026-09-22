@@ -815,8 +815,12 @@
   2 处状态显示占位断言（改为校验 `.el-tag` 存在且不是后端枚举原值）。
   **仍待处理**：`14-costing-period` 的
   `by-batch` 出参键未确证（1 处）与折旧用例的 try/catch 兜底把"折旧被状态机拒绝"当作正常路径
-  （2 处 `records.items?.length >= 0`）、`28a-core-ui` 的 `treeRowCount >= 0`、
+  （2 处 `records.items?.length >= 0`）、
   `rpa-data-extraction` 的 `elapsed >= 0`（弱断言，可改为与阈值比较），
+  （教训补一条：确证路由时 `grep | head -N` 会截断，`cost-collections` 与
+  `dye-batch-*` 的 analysis/by-batch 路由都在同一 route 块的 8 行之后；
+  判"端点不存在"前必须看完整 route 块，且要记住 apiCall 对 404 是直接抛错、
+  用例能绿就说明端点存在。）
   以及全库 79 处条件 `test.skip()`（多为"前置数据缺失即跳过"，需改为造前置数据后硬断言）。
   工艺节点日志只有 POST 写入端点（`/{id}/nodes/{nid}/logs`）没有 GET 列表端点，
   若要独立校验日志需在时间线出参之外补端点（属产品决策，未擅自新建）。

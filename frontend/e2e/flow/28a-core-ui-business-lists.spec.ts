@@ -268,8 +268,9 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
 
     // 树形表格验证
     const treeRows = table.locator('tr[row-key], tr.el-table__row');
+    // 科目表由迁移种子写入且表格已确认可见，行数 >=0 是恒真断言（空表也绿）
     const treeRowCount = await treeRows.count();
-    expect(treeRowCount).toBeGreaterThanOrEqual(0);
+    expect(treeRowCount, '会计科目树形表格应渲染出种子科目行').toBeGreaterThan(0);
 
     // 新建科目
     await clickNewAndVerifyDialog(page, '新建科目');
