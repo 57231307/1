@@ -395,6 +395,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
+import { promptCancelReason, promptContractExecute } from '@/composables/useActionPrompts';
 import {
   getSalesContractList,
   getSalesContract,
@@ -577,38 +578,41 @@ const approveContract = async (row: SalesContract) => {
 };
 
 const executeContract = async (row: SalesContract) => {
+  // 后端 ExecuteSalesContractRequestDto 必填 execution_type/execution_amount（无执行日期）：
+  // execution_type 词表由 sales_contract_service 强校验，仅接受 delivery（出库）/ payment（收款）。
+  const form = await promptContractExecute(
+    [
+      { value: 'delivery', label: t('actionForm.executeTypeDelivery') },
+      { value: 'payment', label: t('actionForm.executeTypePayment') },
+    ],
+    false
+  );
+  if (!form) return;
   try {
-    await ElMessageBox.confirm(
-      t('salesExt.contractTab.confirmExecute'),
-      t('salesExt.contractTab.confirmTitle'),
-      { type: 'info' }
-    );
-    await executeSalesContract(row.id);
+    await executeSalesContract(row.id, {
+      execution_type: form.execution_type,
+      execution_amount: form.execution_amount,
+      remark: form.remark,
+    });
     ElMessage.success(t('salesExt.contractTab.messageExecuteSuccess'));
     fetchSalesContracts();
   } catch (error) {
-    if (error !== 'cancel') {
-      const err = error as { message?: string };
-      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'));
-    }
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'));
   }
 };
 
 const cancelContract = async (row: SalesContract) => {
+  // 后端 CancelSalesContractRequest 必填 reason：真实采集取消原因。
+  const reason = await promptCancelReason();
+  if (!reason) return;
   try {
-    await ElMessageBox.confirm(
-      t('salesExt.contractTab.confirmCancel'),
-      t('salesExt.contractTab.confirmTitle'),
-      { type: 'warning' }
-    );
-    await cancelSalesContract(row.id);
+    await cancelSalesContract(row.id, reason);
     ElMessage.success(t('salesExt.contractTab.messageCancelSuccess'));
     fetchSalesContracts();
   } catch (error) {
-    if (error !== 'cancel') {
-      const err = error as { message?: string };
-      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'));
-    }
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'));
   }
 };
 

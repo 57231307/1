@@ -105,8 +105,9 @@ export function approveARInvoice(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ar/invoices/${id}/approve`);
 }
 
-export function cancelARInvoice(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/ar/invoices/${id}/cancel`);
+// 后端 ar_invoice_handler::CancelReason 必填 reason（取消原因，用于审计留痕）
+export function cancelARInvoice(id: number, reason: string): Promise<ApiResponse<void>> {
+  return request.post(`/ar/invoices/${id}/cancel`, { reason });
 }
 
 /**
@@ -259,15 +260,25 @@ export function getARStatisticsReport(
   return request.get('/ar/reports/statistics', { params });
 }
 
+// 后端 ar_report_handler::ArReportQuery 读取 start_date/end_date/customer_id/baseline_date/
+// salesperson_id，此前前端误传 date / year+month（均被 serde 静默丢弃）。
+// 日报：以所选日期为单日区间 [date, date] 传给 start_date/end_date。
 export function getARDailyReport(date: string): Promise<ApiResponse<ARDailyReport>> {
-  return request.get('/ar/reports/daily', { params: { date } });
+  return request.get('/ar/reports/daily', { params: { start_date: date, end_date: date } });
 }
 
+// 月报：将 (year, month) 换算为该月起止日期，按 start_date/end_date 传参（不再发明 year/month）。
 export function getARMonthlyReport(
   year: number,
   month: number
 ): Promise<ApiResponse<ARMonthlyReport>> {
-  return request.get('/ar/reports/monthly', { params: { year, month } });
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const startDate = `${year}-${pad(month)}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${pad(month)}-${pad(lastDay)}`;
+  return request.get('/ar/reports/monthly', {
+    params: { start_date: startDate, end_date: endDate },
+  });
 }
 
 export function getARAgingReport(): Promise<ApiResponse<ARAgingReport>> {

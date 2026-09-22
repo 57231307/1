@@ -65,12 +65,26 @@ export function approvePurchaseContract(id: number): Promise<ApiResponse<void>> 
   return request.post(`/purchase/purchase-contracts/${id}/approve`);
 }
 
-export function executePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/purchase/purchase-contracts/${id}/execute`);
+// 执行采购合同请求体：对齐后端 purchase_contract_handler::ExecuteContractRequestDto。
+// execution_type / execution_amount / execution_date 必填；related_bill_type/related_bill_id 为可选关联单据，
+// 本表单暂不采集（后端为 Option，不发送即 None），避免留死字段。
+export interface ExecutePurchaseContractRequest {
+  execution_type: string;
+  execution_amount: number;
+  execution_date: string;
+  remark?: string;
 }
 
-export function cancelPurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/purchase/purchase-contracts/${id}/cancel`);
+export function executePurchaseContract(
+  id: number,
+  data: ExecutePurchaseContractRequest
+): Promise<ApiResponse<void>> {
+  return request.put(`/purchase/purchase-contracts/${id}/execute`, data);
+}
+
+// 后端 purchase_contract_handler::CancelContractRequest 必填 reason（取消原因）
+export function cancelPurchaseContract(id: number, reason: string): Promise<ApiResponse<void>> {
+  return request.put(`/purchase/purchase-contracts/${id}/cancel`, { reason });
 }
 
 // 批次 94 P2-12 修复：补全采购合同导出接口（原缺失，导致 usePcProc 导出占位假成功）

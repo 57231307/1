@@ -240,6 +240,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Printer, Download } from '@element-plus/icons-vue';
+import { promptCancelReason } from '@/composables/useActionPrompts';
 import printJS from 'print-js';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
@@ -420,20 +421,16 @@ const approveInvoice = async (row: ARInvoice) => {
 };
 
 const cancelInvoice = async (row: ARInvoice) => {
+  // 后端 CancelReason 必填 reason：真实采集取消原因，取消即中断。
+  const reason = await promptCancelReason();
+  if (!reason) return;
   try {
-    await ElMessageBox.confirm(
-      t('arModule.invoice.cancelConfirm'),
-      t('arModule.invoice.cancelTitle'),
-      { type: 'warning' }
-    );
-    await cancelARInvoice(row.id);
+    await cancelARInvoice(row.id, reason);
     ElMessage.success(t('arModule.invoice.cancelSuccess'));
     fetchInvoices();
   } catch (error) {
-    if (error !== 'cancel') {
-      const err = error as Error;
-      ElMessage.error(err.message || t('common.failed'));
-    }
+    const err = error as Error;
+    ElMessage.error(err.message || t('common.failed'));
   }
 };
 

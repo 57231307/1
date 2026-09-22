@@ -185,6 +185,7 @@ import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
+import { promptCancelReason } from '@/composables/useActionPrompts';
 import {
   getAPVerificationList,
   getAPVerification,
@@ -347,9 +348,12 @@ const showVerificationDetail = async (row: APVerification) => {
 };
 
 const handleCancelVerification = async (row: APVerification) => {
+  // 后端 CancelVerificationRequest 必填 reason：真实采集取消原因，取消即中断。
+  const reason = await promptCancelReason();
+  if (!reason) return;
   cancelling.value = true;
   try {
-    await cancelAPVerification(row.id);
+    await cancelAPVerification(row.id, reason);
     ElMessage.success(t('common.success'));
     detailVisible.value = false;
     fetchVerifications();

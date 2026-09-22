@@ -155,8 +155,12 @@ export function deleteSubscription(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/reports/enhanced/subscriptions/${id}`);
 }
 
-export function toggleSubscription(id: number): Promise<ApiResponse<ReportSubscription>> {
-  return request.post(`/reports/enhanced/subscriptions/${id}/toggle`);
+// 后端 report_enhanced_handler::ToggleSubscriptionDto 必填 enabled（目标启停状态）。
+export function toggleSubscription(
+  id: number,
+  enabled: boolean
+): Promise<ApiResponse<ReportSubscription>> {
+  return request.post(`/reports/enhanced/subscriptions/${id}/toggle`, { enabled });
 }
 
 export function sendSubscriptionNow(id: number): Promise<ApiResponse<{ message: string }>> {

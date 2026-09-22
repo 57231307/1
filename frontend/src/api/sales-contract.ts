@@ -73,10 +73,23 @@ export function approveSalesContract(id: number): Promise<ApiResponse<void>> {
   return request.post(`/sales/sales-contracts/${id}/approve`);
 }
 
-export function executeSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/sales/sales-contracts/${id}/execute`);
+// 执行销售合同请求体：对齐后端 sales_contract_handler::ExecuteSalesContractRequestDto。
+// execution_type / execution_amount 必填（后端仅接受 delivery=出库 / payment=收款）。
+// related_bill_type/related_bill_id 为可选关联单据，本表单不采集，避免留死字段。
+export interface ExecuteSalesContractRequest {
+  execution_type: string;
+  execution_amount: number;
+  remark?: string;
 }
 
-export function cancelSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/sales/sales-contracts/${id}/cancel`);
+export function executeSalesContract(
+  id: number,
+  data: ExecuteSalesContractRequest
+): Promise<ApiResponse<void>> {
+  return request.put(`/sales/sales-contracts/${id}/execute`, data);
+}
+
+// 后端 sales_contract_handler::CancelSalesContractRequest 必填 reason（取消原因）
+export function cancelSalesContract(id: number, reason: string): Promise<ApiResponse<void>> {
+  return request.put(`/sales/sales-contracts/${id}/cancel`, { reason });
 }

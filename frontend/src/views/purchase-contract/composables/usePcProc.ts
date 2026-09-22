@@ -6,6 +6,8 @@
  */
 import { ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { i18n } from '@/i18n';
+import { promptContractExecute } from '@/composables/useActionPrompts';
 import {
   deletePurchaseContract,
   approvePurchaseContract,
@@ -51,9 +53,23 @@ export function usePcProc(refresh: RefreshCallbacks) {
 
   /** 执行 */
   const handleExecute = async (row: PurchaseContract) => {
+    // 后端 ExecuteContractRequestDto 必填 execution_type/execution_amount/execution_date：
+    // 逐项弹框真实采集，取消即中断，绝不塞默认值。词表取自 purchase_contract_execution 模型（PARTIAL/COMPLETE）。
+    const form = await promptContractExecute(
+      [
+        { value: 'PARTIAL', label: i18n.global.t('actionForm.executeTypePartial') },
+        { value: 'COMPLETE', label: i18n.global.t('actionForm.executeTypeComplete') },
+      ],
+      true
+    );
+    if (!form || !form.execution_date) return;
     try {
-      await ElMessageBox.confirm('确认执行该合同？', '提示', { type: 'warning' });
-      await executePurchaseContract(row.id);
+      await executePurchaseContract(row.id, {
+        execution_type: form.execution_type,
+        execution_amount: form.execution_amount,
+        execution_date: form.execution_date,
+        remark: form.remark,
+      });
       msg.success('executeSuccess');
       await refresh.getList();
     } catch (error) {

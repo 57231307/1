@@ -254,7 +254,8 @@ const handleSave = async () => {
 
 const handleToggle = async (row: ReportSubscription) => {
   try {
-    const res = await toggleSubscription(row.id);
+    // 后端 ToggleSubscriptionDto 必填 enabled（目标状态）：按钮文案即用户意图，取当前状态的相反值。
+    const res = await toggleSubscription(row.id, !row.active);
     ElMessage.success(res.data?.active ? '订阅已启用' : '订阅已停用');
     await loadSubscriptions();
   } catch (e) {

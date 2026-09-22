@@ -404,6 +404,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
+import { promptCancelReason, promptContractExecute } from '@/composables/useActionPrompts';
 import {
   getPurchaseContractList,
   getPurchaseContract,
@@ -587,38 +588,42 @@ const approveContract = async (row: PurchaseContract) => {
 };
 
 const executeContract = async (row: PurchaseContract) => {
+  // 后端 ExecuteContractRequestDto 必填 execution_type/execution_amount/execution_date：
+  // 采集器逐项弹框，取消即中断，绝不塞默认值。execution_type 词表取自 purchase_contract_execution 模型（PARTIAL/COMPLETE）。
+  const form = await promptContractExecute(
+    [
+      { value: 'PARTIAL', label: t('actionForm.executeTypePartial') },
+      { value: 'COMPLETE', label: t('actionForm.executeTypeComplete') },
+    ],
+    true
+  );
+  if (!form || !form.execution_date) return;
   try {
-    await ElMessageBox.confirm(
-      t('purchaseExt.contractTab.executeConfirm'),
-      t('purchaseExt.contractTab.confirmTitle'),
-      { type: 'info' }
-    );
-    await executePurchaseContract(row.id);
+    await executePurchaseContract(row.id, {
+      execution_type: form.execution_type,
+      execution_amount: form.execution_amount,
+      execution_date: form.execution_date,
+      remark: form.remark,
+    });
     ElMessage.success(t('purchaseExt.contractTab.executeSuccess'));
     fetchPurchaseContracts();
   } catch (error) {
-    if (error !== 'cancel') {
-      const err = error as { message?: string };
-      ElMessage.error(err.message || t('purchaseExt.contractTab.operationFailed'));
-    }
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('purchaseExt.contractTab.operationFailed'));
   }
 };
 
 const cancelContract = async (row: PurchaseContract) => {
+  // 后端 CancelContractRequest 必填 reason：真实采集取消原因。
+  const reason = await promptCancelReason();
+  if (!reason) return;
   try {
-    await ElMessageBox.confirm(
-      t('purchaseExt.contractTab.cancelConfirm'),
-      t('purchaseExt.contractTab.confirmTitle'),
-      { type: 'warning' }
-    );
-    await cancelPurchaseContract(row.id);
+    await cancelPurchaseContract(row.id, reason);
     ElMessage.success(t('purchaseExt.contractTab.cancelSuccess'));
     fetchPurchaseContracts();
   } catch (error) {
-    if (error !== 'cancel') {
-      const err = error as { message?: string };
-      ElMessage.error(err.message || t('purchaseExt.contractTab.operationFailed'));
-    }
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('purchaseExt.contractTab.operationFailed'));
   }
 };
 

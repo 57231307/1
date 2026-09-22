@@ -261,6 +261,7 @@ import { reactive, ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
+import { promptApproval } from '@/composables/useActionPrompts';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
   getSalesPriceList,
@@ -391,8 +392,11 @@ const submitPrice = async () => {
 };
 
 const approvePrice = async (row: SalesPrice) => {
+  // 后端 ApprovePriceRequest 必填 approved + 可选 remark：采集器显式选择通过/不通过。
+  const decision = await promptApproval();
+  if (!decision) return;
   try {
-    await approveSalesPrice(row.id);
+    await approveSalesPrice(row.id, { approved: decision.approved, remark: decision.remark });
     ElMessage.success(t('salesExt.priceTab.messageApproveSuccess'));
     fetchSalesPrices();
   } catch (error) {

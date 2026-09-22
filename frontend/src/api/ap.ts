@@ -112,8 +112,9 @@ export function approveAPInvoice(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ap/invoices/${id}/approve`);
 }
 
-export function cancelAPInvoice(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/ap/invoices/${id}/cancel`);
+// 后端 ap_invoice_handler::CancelInvoiceRequest 必填 reason（取消原因，用于审计留痕）
+export function cancelAPInvoice(id: number, reason: string): Promise<ApiResponse<void>> {
+  return request.post(`/ap/invoices/${id}/cancel`, { reason });
 }
 
 export function autoGenerateAPInvoices(data: {
@@ -237,8 +238,9 @@ export function manualVerifyAP(data: {
   return request.post('/ap/verifications/manual', data);
 }
 
-export function cancelAPVerification(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/ap/verifications/${id}/cancel`);
+// 后端 ap_verification_handler::CancelVerificationRequest 必填 reason（取消原因）
+export function cancelAPVerification(id: number, reason: string): Promise<ApiResponse<void>> {
+  return request.post(`/ap/verifications/${id}/cancel`, { reason });
 }
 
 export function getUnverifiedAPInvoices(): Promise<ApiResponse<APInvoice[]>> {
@@ -372,8 +374,10 @@ export function getAPStatisticsReport(
   return request.get('/ap/reports/statistics', { params });
 }
 
+// 后端 ap_report_handler::ApDailyQueryParams 读取 report_date（必填，NaiveDate）与可选 supplier_id，
+// 而非前端此前误传的 date（会被 serde 静默丢弃）。
 export function getAPDailyReport(date: string): Promise<ApiResponse<APDailyReportData>> {
-  return request.get('/ap/reports/daily', { params: { date } });
+  return request.get('/ap/reports/daily', { params: { report_date: date } });
 }
 
 export function getAPMonthlyReport(

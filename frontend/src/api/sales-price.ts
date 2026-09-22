@@ -68,8 +68,18 @@ export function deleteSalesPrice(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/sales/sales-prices/${id}`);
 }
 
-export function approveSalesPrice(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/sales/sales-prices/${id}/approve`);
+// 审批销售定价请求体：对齐后端 sales_price_handler::ApprovePriceRequest。
+// approved 必填布尔（通过/拒绝均需显式留痕）；remark 可选审批意见。
+export interface ApproveSalesPriceRequest {
+  approved: boolean;
+  remark?: string;
+}
+
+export function approveSalesPrice(
+  id: number,
+  data: ApproveSalesPriceRequest
+): Promise<ApiResponse<void>> {
+  return request.post(`/sales/sales-prices/${id}/approve`, data);
 }
 
 export function getPriceHistory(productId: number): Promise<ApiResponse<SalesPrice[]>> {
