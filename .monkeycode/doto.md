@@ -226,7 +226,7 @@
       现按真实契约断言并去掉误导性的 page/page_size 参数；③ 48-3 断"AR 列表应可达"拿到 403，
       根因是路径写错——真实路由是 `/ar/invoices`（`finance.rs:847`），不存在的端点被权限层
       先拒成 403；同文件 48-2 早已为 AP 踩过并写下注释，AR 这条却仍在用 `/ar-invoices`。
-- [ ] **库存预警页整页不可用：`/inventory/stock/alerts` 出参是 `{list,total}` 且行内没有产品/仓库名称，
+- [x] **库存预警页整页不可用：`/inventory/stock/alerts` 出参是 `{list,total}` 且行内没有产品/仓库名称，
       前端却按 `StockAlert[]` 直接赋给数组并按不存在的字段渲染**（本轮定位，未在本批动，
       需与列表口径一起单独成轮，避免与已提交的库存改动混在一次推送里无法判责）：
       后端 `inventory_stock_query.rs:320-381` 返回 `json!({"list":..., "total":...})`，
@@ -245,7 +245,18 @@
       前端 `fetchAlerts` 按分页包装取数、`StockAlert` 与 `alert_type` 词表收进 constants、
       预警 tab 列名改真实字段；同时该端点的 page/page_size 目前被完全忽略
       （`10a-extended-inventory-approval.spec.ts:152` 传了 `page=1&page_size=5` 却拿全量），
-      属同一处的分页缺失。
+      本轮修完：后端把该端点从裸 `serde_json::Value` 改为 `StockAlertRow` + `StockAlertQuery`，
+      分页真实生效（page/page_size 不再被忽略），产品编码/名称/单位/仓库名称按 ID 批量带出
+      （主数据缺失记 error 并留空，不用 ID 拼假名称）；出参统一为 `PaginatedResponse{items,total,
+      page,page_size}`，错误不再一律压成 internal。前端 `StockAlert` 改为与后端逐字段一致
+      （数量类是 Decimal 字符串序列化）、预警告警级别词表收进 `constants/stock-alert-type.ts`
+      （normal/low_stock/out_of_stock/over_stock/slow_moving/expiring/discrepancy，
+      取代界面自造的 `alert_level: warning|danger`），tab 列名改真实字段；
+      `views/inventory/index.vue` 与 `store/inventory.ts` 两处 `alerts.value = res.data || []`
+      的"把分页对象当数组"错误都改为按 `items` 取数，形状不符直接抛错而不是静默变空，
+      取满一屏仍有剩余时 logger.warn 说明截断条数。`StockAlert↔StockAlertRow` 已纳入
+      `check-contract.mjs`（现 11 组映射 / 146 字段 / 0 挂账），`10a` 的 L1-10 也从
+      "真空断言 + 失败时改查 /material-shortage 顶包"改成真实契约断言。
 - [x] **验布建单/编辑入参纳入契约门禁**：`scripts/check-contract.mjs` 的 TS→Rust 对照表补
       `CreateFabricInspectionPayload → CreateInspectionRequest` 与
       `UpdateFabricInspectionPayload → UpdateInspectionRequest` 两组（现 7 组映射 / 63 字段 / 0 挂账），

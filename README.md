@@ -57,10 +57,10 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | 后端迁移          | 7 个业务域聚合迁移（system/business/sales_crm/production/finance/v15/rls_dept），Rust 代码内联 SQL，`bingxi migrate run` 执行 |
 | 后端基准测试      | 4 个 criterion 基准（染整成本/库存/凭证/工资）                                                                                |
 | 前端 Vue 文件     | 420 个                                                                                                                        |
-| 前端 TS 文件      | 267 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                    |
+| 前端 TS 文件      | 268 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                    |
 | 前端 Views 子模块 | 110 个                                                                                                                        |
 | 前端 API 模块     | 121 个                                                                                                                        |
-| 前端 i18n 翻译键  | zh-CN 10,196 / en-US 10,219（引用键 9,679，缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验）                                                                       |
+| 前端 i18n 翻译键  | zh-CN 10,201 / en-US 10,224（引用键 9,677，缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验）                                                                       |
 | 前端 E2E 测试     | 1,208 个 / 241 个 spec 文件（665 flow 工作流 + 266 traversal 端点遍历 + 130 冒烟 + 14 enhanced + 9 Setup 向导 + 124 其余业务目录）                              |
 | Clippy Baseline   | 4,274 行（185 条唯一警告）                                                                                                    |
 | 最新版本          | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001）                                                                |
