@@ -1,0 +1,79 @@
+# Composite action：E2E 族 job 的运行期装配（后端二进制 + 前端产物 + Node/npm + Playwright 浏览器）
+# 由 ci-e2e（25 分片）、role-permission-matrix（6 分片）、ci-e2e-setup-wizard 共用。
+# 收敛前两处重复配置时发现的实际缺陷：
+#  1) 三个 job 各自 `npm run build` 重新构建前端（合计 32 次重复编译），
+#     而 ci-build-fe 已产出同一份 `vite build --mode production` 产物并上传为 frontend-dist；
+#     两侧构建命令还不同（npm run build 会再跑一遍 vue-tsc，与 ci-type-check job 重复）。
+#  2) ci-e2e 与 role-permission-matrix 用 `e2e-npm-` 缓存 key，setup-frontend 用 `fe-npm-`，
+#     同一份 lock 维护两套 node_modules 缓存，25 个分片全部冷装；wizard 干脆没有 npm 缓存。
+#     现统一走 setup-frontend 的 fe-npm- key（带 restore-keys）。
+#  3) Playwright 浏览器缓存 key 注释声称绑定 playwright 版本，实际只哈希 package-lock；
+#     现把 frontend/package.json 一并入 key（devDependencies 里声明 @playwright/test 版本）。
+name: E2E Runtime
+description: 下载预编译后端与前端产物、安装 Node 依赖与 Playwright 浏览器
+inputs:
+  pg-client:
+    description: '安装 postgresql-client（迁移命令与数据级断言依赖 psql）'
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: 下载预编译后端二进制（复用 ci-build-rust 产物，不重编）
+      uses: actions/download-artifact@v4
+      with:
+        name: backend-binary
+        path: backend/target/release
+
+    - name: 赋予后端二进制可执行权限
+      shell: bash
+      run: |
+        chmod +x backend/target/release/server
+        chmod +x backend/target/release/bingxi
+
+    - name: 下载前端构建产物（复用 ci-build-fe 的 vite build）
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend-dist
+        path: frontend/dist
+
+    - name: 校验前后端产物完整
+      shell: bash
+      run: |
+        # 产物缺失必须显式失败：回退到本地重建会把「上游 job 没产出」伪装成「E2E 慢」，
+        # 也会让 ci-build-fe 的构建校验失去意义。
+        set -e
+        if [ ! -f frontend/dist/index.html ]; then
+          echo "::error::frontend/dist/index.html 缺失——ci-build-fe 产物不可用"
+          exit 1
+        fi
+        for bin in server bingxi; do
+          if [ ! -x "backend/target/release/$bin" ]; then
+            echo "::error::backend/target/release/$bin 缺失或不可执行——ci-build-rust 产物不可用"
+            exit 1
+          fi
+        done
+        echo "产物就绪：前端 $(find frontend/dist -type f | wc -l) 个文件，后端二进制可执行"
+
+    - name: 安装 postgresql-client
+      if: inputs.pg-client == 'true'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+
+    - name: Setup Frontend（Node.js + npm 缓存 + npm ci）
+      uses: ./.github/actions/setup-frontend
+
+    - name: 缓存 Playwright 浏览器
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ hashFiles('frontend/package-lock.json', 'frontend/package.json') }}
+        restore-keys: |
+          playwright-
+
+    - name: 安装 Playwright 浏览器
+      shell: bash
+      working-directory: frontend
+      run: npx playwright install chromium

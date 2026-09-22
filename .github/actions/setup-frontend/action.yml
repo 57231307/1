@@ -20,6 +20,10 @@ runs:
           frontend/node_modules
           ~/.npm
         key: fe-npm-${{ hashFiles('frontend/package-lock.json') }}
+        # restore-keys：lockfile 变更后仍能复用上一份 node_modules 的大部分内容，
+        # 避免每次改依赖都要 30+ 个 job 全量重装
+        restore-keys: |
+          fe-npm-
 
     - name: 安装前端依赖
       if: inputs.skip-install == 'false'
