@@ -27,6 +27,10 @@ export interface TransferItem {
   product_code?: string;
   product_name?: string;
   color_no?: string;
+  /** 缸号（出库四维之一，后端 InventoryTransferItemRequest.dye_lot_no） */
+  dye_lot_no?: string;
+  /** 批次号（出库四维之一，后端 InventoryTransferItemRequest.batch_no） */
+  batch_no?: string;
   grade?: string;
   unit?: string;
   quantity: number;

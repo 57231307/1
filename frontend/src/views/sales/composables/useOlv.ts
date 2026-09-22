@@ -12,10 +12,34 @@ import { useTableApi } from '@/composables/useTableApi';
 import type { ColumnDef } from '@/components/V2Table/types';
 import { type SalesOrder, type SalesOrderItem } from '@/api/sales';
 import { request } from '@/api/request';
+import { getStockList, type InventoryStock } from '@/api/inventory';
 import { msg } from '@/utils/message';
 import type { Customer } from '@/api/customer';
 import type { Product } from '@/api/product';
 import { getStatusType, getStatusText, formatAmount } from './olvFmts';
+
+/** 销售发货明细行表单类型（出库四维扣减：色号/缸号/批次必须来自真实入库库存行） */
+export interface DeliveryItemForm {
+  product_id: number;
+  product_name: string;
+  /** 色号（出库四维之一，必填后随库存行选择写入） */
+  color_no: string;
+  /** 缸号（出库四维之一） */
+  dye_lot_no: string;
+  /** 批次号（出库四维之一） */
+  batch_no: string;
+  /** 选中的库存行组合键（`${color_no}__${batch_no}__${dye_lot_no}`，前端定位选项用） */
+  stock_row_key: string;
+  quantity: number;
+  delivered_quantity: number;
+  deliver_quantity: number;
+  unit_price: number;
+  remarks: string;
+}
+
+/** 库存行组合键（发货明细选择器用） */
+export const stockRowKey = (row: Pick<InventoryStock, 'color_no' | 'batch_no' | 'dye_lot_no'>) =>
+  `${row.color_no ?? ''}__${row.batch_no ?? ''}__${row.dye_lot_no ?? ''}`;
 
 /** 销售订单明细行表单类型 */
 export interface OrderItemForm {
@@ -74,7 +98,9 @@ export function useOlv() {
   // 辅助数据（不走 useTableApi，保留原 request.get 写法）
   const customers = ref<Customer[]>([]);
   const products = ref<Product[]>([]);
-  const warehouses = ref<{ id: number; warehouse_name?: string; name?: string }[]>([]);
+  const warehouses = ref<
+    { id: number; warehouse_name?: string; name?: string; warehouse_code?: string }[]
+  >([]);
 
   // 统计
   const stats = reactive({
@@ -124,17 +150,10 @@ export function useOlv() {
     customer_name: '',
     delivery_date: '',
     warehouse_id: undefined as number | undefined,
-    items: [] as {
-      product_id: number;
-      product_name: string;
-      dye_lot_no?: string;
-      quantity: number;
-      delivered_quantity: number;
-      deliver_quantity: number;
-      unit_price: number;
-      remarks: string;
-    }[],
+    items: [] as DeliveryItemForm[],
   });
+  // 出库四维（款号+色号+缸号+批次）扣减：按发货仓加载的库存行，供明细行选择真实入库维度
+  const deliveryStockRows = ref<Record<number, InventoryStock[]>>({});
 
   // 监听列表数据变化，重新计算统计
   watch(
@@ -268,8 +287,15 @@ export function useOlv() {
   const fetchWarehouses = async () => {
     try {
       const res = await request.get<
-        | { list?: { id: number; warehouse_name?: string; name?: string }[] }
-        | { id: number; warehouse_name?: string; name?: string }[]
+        | {
+            list?: {
+              id: number;
+              warehouse_name?: string;
+              name?: string;
+              warehouse_code?: string;
+            }[];
+          }
+        | { id: number; warehouse_name?: string; name?: string; warehouse_code?: string }[]
       >('/warehouses');
       const d = res;
       if (Array.isArray(d)) {
@@ -364,7 +390,10 @@ export function useOlv() {
         row.items?.map(item => ({
           product_id: item.product_id,
           product_name: item.product_name,
+          color_no: '',
           dye_lot_no: item.dye_lot_no || '',
+          batch_no: '',
+          stock_row_key: '',
           quantity: item.quantity,
           delivered_quantity: item.delivered_quantity || 0,
           deliver_quantity: 0,
@@ -372,6 +401,43 @@ export function useOlv() {
           remarks: '',
         })) || [],
     });
+    deliveryStockRows.value = {};
+  };
+
+  /**
+   * 加载发货仓的可出库库存行（出库四维扣减的候选维度组合）。
+   * 后端 GET /inventory/stock 支持 product_id + warehouse_id 下推过滤，
+   * 返回行即"款号+色号+缸号+批次"四维库存行，前端不手写任何维度数据。
+   */
+  const loadDeliveryStockRows = async (warehouseId?: number) => {
+    if (!warehouseId) {
+      deliveryStockRows.value = {};
+      return;
+    }
+    const productIds = [...new Set(deliveryForm.items.map(i => i.product_id))];
+    try {
+      const results = await Promise.all(
+        productIds.map(async pid => {
+          const res = await getStockList({
+            warehouse_id: warehouseId,
+            product_id: pid,
+            page: 1,
+            page_size: 100,
+          });
+          const payload = res.data as { items?: InventoryStock[]; total?: number } | null;
+          return [pid, payload?.items || []] as const;
+        })
+      );
+      const map: Record<number, InventoryStock[]> = {};
+      for (const [pid, rows] of results) {
+        map[pid] = rows;
+      }
+      deliveryStockRows.value = map;
+    } catch (error) {
+      logger.error('加载发货仓库存行失败', error);
+      deliveryStockRows.value = {};
+      throw error;
+    }
   };
 
   /** 初始化加载 */
@@ -408,6 +474,8 @@ export function useOlv() {
     // 发货对话框
     deliveryDialogVisible,
     deliveryForm,
+    deliveryStockRows,
+    loadDeliveryStockRows,
     // 列定义
     columns,
     // 操作

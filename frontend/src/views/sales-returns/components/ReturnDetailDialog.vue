@@ -95,6 +95,15 @@
             :precision="2"
             style="width: 130px"
           />
+          <el-input-number
+            v-model="newItem.taxPercent"
+            :min="0"
+            :max="100"
+            :precision="2"
+            :controls="false"
+            placeholder="税率%(空=取订单税率)"
+            style="width: 180px"
+          />
           <el-input v-model="newItem.reason" style="width: 160px" placeholder="退货原因" />
           <el-button
             v-if="editingItemId === null"
@@ -149,7 +158,15 @@ const emit = defineEmits<{
 const serverItems = ref<SalesReturnItem[]>([]);
 const itemsLoading = ref(false);
 const itemSaving = ref(false);
-const newItem = reactive({ productId: 1, quantity: 1, unitPrice: 0, reason: '' });
+const newItem = reactive({
+  productId: 1,
+  quantity: 1,
+  unitPrice: 0,
+  // 税率留空（undefined）：不传时由后端按关联销售订单同商品明细的权威税率回填，
+  // 绝不在前端默认成 0 掩盖缺失
+  taxPercent: undefined as number | undefined,
+  reason: '',
+});
 const editingItemId = ref<number | null>(null);
 
 const refreshServerItems = async () => {
@@ -192,9 +209,12 @@ const handleAddItem = async () => {
   itemSaving.value = true;
   try {
     await createSalesReturnItem(props.currentReturn.id, {
-      productId: newItem.productId,
+      // 按后端 CreateSalesReturnItemRequest 的 snake_case 契约发送；
+      // tax_percent 为空时不发送，由后端从关联销售订单取权威税率（不默认 0）
+      product_id: newItem.productId,
       quantity: newItem.quantity,
-      unitPrice: newItem.unitPrice,
+      unit_price: newItem.unitPrice,
+      tax_percent: newItem.taxPercent ?? undefined,
       reason: newItem.reason || undefined,
     });
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
@@ -209,9 +229,10 @@ const handleAddItem = async () => {
 /** 行编辑：回填添加栏并切换为更新模式 */
 const handleEditItem = (row: SalesReturnItem) => {
   editingItemId.value = row.id ?? null;
-  newItem.productId = row.productId ?? 1;
+  newItem.productId = row.product_id ?? row.productId ?? 1;
   newItem.quantity = row.quantity ?? 1;
-  newItem.unitPrice = row.unitPrice ?? 0;
+  newItem.unitPrice = row.unit_price ?? row.unitPrice ?? 0;
+  newItem.taxPercent = row.tax_percent;
   newItem.reason = row.reason || '';
 };
 
@@ -221,7 +242,7 @@ const handleUpdateItem = async () => {
   try {
     await updateSalesReturnItem(props.currentReturn.id, editingItemId.value, {
       quantity: newItem.quantity,
-      unitPrice: newItem.unitPrice,
+      unit_price: newItem.unitPrice,
       reason: newItem.reason || undefined,
     });
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
@@ -239,6 +260,7 @@ const cancelEditItem = () => {
   newItem.productId = 1;
   newItem.quantity = 1;
   newItem.unitPrice = 0;
+  newItem.taxPercent = undefined;
   newItem.reason = '';
 };
 

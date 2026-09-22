@@ -33,6 +33,20 @@ export interface SalesReturnItem {
   amount?: number;
   reason?: string;
   batchNo?: string;
+  /** 后端 sales_return_item snake_case 契约字段（CreateSalesReturnItemRequest / Model） */
+  line_no?: number;
+  product_id?: number;
+  unit_price?: number;
+  /** 税率（百分比）：缺省时后端按关联销售订单同商品明细权威税率回填 */
+  tax_percent?: number;
+  taxPercent?: number;
+  discount_percent?: number;
+  subtotal?: number;
+  tax_amount?: number;
+  discount_amount?: number;
+  total_amount?: number;
+  color_no?: string;
+  dye_lot_no?: string;
 }
 
 export interface SalesReturnQueryParams {

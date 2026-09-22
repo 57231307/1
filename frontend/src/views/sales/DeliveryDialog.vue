@@ -3,6 +3,8 @@
   来源：原 sales/index.vue 中 发货 dialog
   拆分日期：2026-06-15 B3-1
   P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，通过 emit 整体覆盖 + 局部 update
+  出库四维规则：每条发货明细必须选择真实入库库存行（色号+批次+缸号），
+  选项来自后端 GET /inventory/stock 按产品+仓库下推查询（父组件加载后传入），不手写死数据。
 -->
 <template>
   <el-dialog
@@ -43,7 +45,7 @@
               :model-value="form.warehouse_id"
               :placeholder="t('sales.delivery.warehousePlaceholder')"
               style="width: 100%"
-              @update:model-value="(v: number) => updateForm('warehouse_id', v)"
+              @update:model-value="(v: number) => onWarehouseChange(v)"
             >
               <el-option
                 v-for="w in warehouses"
@@ -63,7 +65,29 @@
           :aria-label="t('sales.delivery.itemsTableAriaLabel')"
         >
           <el-table-column prop="product_name" :label="t('sales.delivery.product')" width="150" />
+          <el-table-column :label="t('sales.delivery.stockRow')" min-width="220">
+            <template #default="{ row }">
+              <!-- 出库四维库存行选择：色号/批次/缸号一次选定，来源为真实库存行 -->
+              <el-select
+                :model-value="row.stock_row_key"
+                :disabled="!form.warehouse_id"
+                :placeholder="t('sales.delivery.stockRowPlaceholder')"
+                size="small"
+                style="width: 100%"
+                @update:model-value="(v: string) => onStockRowChange(row, v)"
+              >
+                <el-option
+                  v-for="s in props.stockRows[row.product_id] || []"
+                  :key="stockRowKey(s)"
+                  :label="stockRowLabel(s)"
+                  :value="stockRowKey(s)"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
           <el-table-column prop="dye_lot_no" :label="t('sales.delivery.dyeLotNo')" width="120" />
+          <el-table-column prop="color_no" :label="t('sales.delivery.colorNo')" width="100" />
+          <el-table-column prop="batch_no" :label="t('sales.delivery.batchNo')" width="110" />
           <el-table-column prop="quantity" :label="t('sales.delivery.orderQuantity')" width="100" />
           <el-table-column
             prop="delivered_quantity"
@@ -109,19 +133,10 @@
 // 子组件在用户交互时通过 emit('update:form', newForm) 整体覆盖，避免直接修改 prop。
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
+import type { InventoryStock } from '@/api/inventory';
+import { stockRowKey, type DeliveryItemForm } from '../composables/useOlv';
 
 const { t } = useI18n({ useScope: 'global' });
-
-interface DeliveryItem {
-  product_id: number;
-  product_name: string;
-  dye_lot_no?: string;
-  quantity: number;
-  delivered_quantity: number;
-  deliver_quantity: number;
-  unit_price: number;
-  remarks: string;
-}
 
 interface DeliveryForm {
   order_id: number;
@@ -129,19 +144,22 @@ interface DeliveryForm {
   customer_name: string;
   delivery_date: string;
   warehouse_id: number | undefined;
-  items: DeliveryItem[];
+  items: DeliveryItemForm[];
 }
 
 const props = defineProps<{
   visible: boolean;
   form: DeliveryForm;
-  warehouses: { id: number; warehouse_name?: string; name?: string }[];
+  warehouses: { id: number; warehouse_name?: string; name?: string; warehouse_code?: string }[];
+  /** 出库四维候选库存行：key=product_id，由父组件按所选发货仓查询后端库存接口获得 */
+  stockRows: Record<number, InventoryStock[]>;
   submitting?: boolean;
 }>();
 
 const emit = defineEmits<{
   'update:visible': [value: boolean];
   'update:form': [value: DeliveryForm];
+  'warehouse-change': [warehouseId: number];
   submit: [data: DeliveryForm];
 }>();
 
@@ -151,15 +169,51 @@ const updateForm = <K extends keyof DeliveryForm>(key: K, value: DeliveryForm[K]
 };
 
 // 通过 emit 通知父组件更新 items 数组中的指定行
-const updateItem = <K extends keyof DeliveryItem>(
-  row: DeliveryItem,
+const updateItem = <K extends keyof DeliveryItemForm>(
+  row: DeliveryItemForm,
   key: K,
-  value: DeliveryItem[K]
+  value: DeliveryItemForm[K]
 ) => {
   // 创建新的 items 数组（不可变更新），避免直接修改 prop.items
   const newItems = props.form.items.map(item => (item === row ? { ...item, [key]: value } : item));
   emit('update:form', { ...props.form, items: newItems });
 };
+
+// 仓库变更：写回表单并清空已选库存行（换仓后旧仓的四维行不再有效）+ 通知父组件重新加载
+const onWarehouseChange = (warehouseId: number) => {
+  const resetItems = props.form.items.map(item => ({
+    ...item,
+    stock_row_key: '',
+    color_no: '',
+    batch_no: '',
+    dye_lot_no: '',
+  }));
+  emit('update:form', { ...props.form, warehouse_id: warehouseId, items: resetItems });
+  emit('warehouse-change', warehouseId);
+};
+
+/** 库存行选择：一次选定色号+批次+缸号（出库四维扣减的三个文本维度） */
+const onStockRowChange = (row: DeliveryItemForm, key: string) => {
+  const stock = (props.stockRows[row.product_id] || []).find(s => stockRowKey(s) === key);
+  if (!stock) {
+    return;
+  }
+  const newItems = props.form.items.map(item =>
+    item === row
+      ? {
+          ...item,
+          stock_row_key: key,
+          color_no: stock.color_no ?? '',
+          batch_no: stock.batch_no ?? '',
+          dye_lot_no: stock.dye_lot_no ?? '',
+        }
+      : item
+  );
+  emit('update:form', { ...props.form, items: newItems });
+};
+
+const stockRowLabel = (s: InventoryStock) =>
+  `${t('sales.delivery.dyeLotNo')}: ${s.dye_lot_no || '-'} · ${t('sales.delivery.colorNo')}: ${s.color_no} · ${t('sales.delivery.batchNo')}: ${s.batch_no} · ${t('sales.delivery.availableQty')}: ${s.quantity_available}`;
 
 const handleSubmit = (form: DeliveryForm) => {
   // 校验：确保必填项已填
@@ -171,9 +225,17 @@ const handleSubmit = (form: DeliveryForm) => {
     ElMessage.warning(t('sales.delivery.deliveryDateRequired'));
     return;
   }
-  const hasDelivery = form.items.some(i => i.deliver_quantity > 0);
-  if (!hasDelivery) {
+  const deliveringItems = form.items.filter(i => i.deliver_quantity > 0);
+  if (deliveringItems.length === 0) {
     ElMessage.warning(t('sales.delivery.atLeastOneDelivery'));
+    return;
+  }
+  // 出库四维规则（后端不做兜底）：每条发货明细必须选定 色号+批次+缸号
+  const missingDim = deliveringItems.find(
+    i => !i.color_no || !i.batch_no || !i.dye_lot_no || !i.stock_row_key
+  );
+  if (missingDim) {
+    ElMessage.warning(t('sales.delivery.stockRowRequired'));
     return;
   }
   emit('submit', form);

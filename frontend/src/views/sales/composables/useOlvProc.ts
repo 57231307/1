@@ -10,13 +10,13 @@ import {
   cancelSalesOrder,
   updateSalesOrder,
   createSalesOrder,
-  createSalesDelivery,
   deleteSalesOrder,
   submitSalesOrder,
   rejectSalesOrder,
   getSalesDeliveryList,
   getSalesOrderStatistics,
   generateSalesOrderNo,
+  shipSalesOrder,
   type SalesOrder,
   type SalesDelivery,
 } from '@/api/sales';
@@ -27,6 +27,18 @@ import { msg } from '@/utils/message';
 /** 刷新回调 */
 interface RefreshCallbacks {
   refresh: () => Promise<void>;
+}
+
+/** 发货对话框表单中与出库四维扣减相关的字段（与 useOlv deliveryForm 结构兼容） */
+interface SalesShipForm {
+  order_id: number;
+  items: {
+    product_id: number;
+    deliver_quantity: number;
+    color_no: string;
+    dye_lot_no: string;
+    batch_no: string;
+  }[];
 }
 
 /**
@@ -82,10 +94,30 @@ export function useOlvProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 提交发货（DeliveryDialog 调用） */
-  const handleDeliverySubmit = async (form: Partial<SalesDelivery> & { order_id: number }) => {
+  /**
+   * 提交发货（DeliveryDialog 调用）：走真实出库端点 POST /sales/orders/{id}/ship，
+   * 后端按"款号+色号+缸号+批次"四维匹配扣减库存（指定缸不足才显式跨缸回退）。
+   * warehouse_code 由调用方从已选仓库带出（后端按编码查仓）。
+   */
+  const handleDeliverySubmit = async (
+    form: SalesShipForm,
+    warehouseCode: string
+  ): Promise<boolean> => {
     try {
-      await createSalesDelivery(form.order_id, form as Partial<SalesDelivery>);
+      await shipSalesOrder(form.order_id, {
+        order_id: form.order_id,
+        warehouse_code: warehouseCode,
+        remarks: undefined,
+        items: form.items
+          .filter(i => i.deliver_quantity > 0)
+          .map(i => ({
+            product_id: i.product_id,
+            quantity: i.deliver_quantity,
+            color_no: i.color_no,
+            dye_lot_no: i.dye_lot_no,
+            batch_no: i.batch_no,
+          })),
+      });
       msg.success('shipSuccess');
       await refresh.refresh();
       return true;

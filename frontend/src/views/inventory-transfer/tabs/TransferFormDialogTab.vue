@@ -81,12 +81,29 @@
           :placeholder="$t('inventoryTransfer.transferForm.productPlaceholder')"
           style="flex: 2"
           filterable
+          @change="() => void onItemProductChange(item)"
         >
           <el-option
             v-for="p in products"
             :key="p.id"
             :label="`${p.product_code} - ${p.product_name}`"
             :value="p.id"
+          />
+        </el-select>
+        <!-- 出库四维库存行选择（色号+批次+缸号一次选定），数据来自调出仓真实库存行 -->
+        <el-select
+          v-model="item.stock_row_key"
+          :placeholder="$t('inventoryTransfer.transferForm.stockRowPlaceholder')"
+          :disabled="!formData.from_warehouse_id || !item.product_id"
+          style="flex: 3"
+          @visible-change="(v: boolean) => v && void onStockRowDropdownOpen(item)"
+          @change="(v: string) => onStockRowChange(item, v)"
+        >
+          <el-option
+            v-for="s in stockRowsMap[item.product_id] || []"
+            :key="stockRowKey(s)"
+            :label="stockRowLabel(s)"
+            :value="stockRowKey(s)"
           />
         </el-select>
         <el-input-number
@@ -217,6 +234,7 @@ import {
   deleteTransferItem,
   type InventoryTransferEntity,
 } from '@/api/inventory-transfer';
+import { getStockList, type InventoryStock } from '@/api/inventory';
 import type { Warehouse } from '@/api/warehouse';
 import type { Product } from '@/api/product';
 import { logger } from '@/utils/logger';
@@ -243,6 +261,32 @@ const emit = defineEmits<Emits>();
 const formRef = ref<FormInstance>();
 const submitLoading = ref(false);
 
+interface TransferItemForm {
+  product_id: number;
+  quantity: number;
+  cost_price: number;
+  amount: number;
+  remark: string;
+  /** 出库四维（款号+色号+缸号+批次）：由调出仓真实库存行选定 */
+  color_no: string;
+  dye_lot_no: string;
+  batch_no: string;
+  /** 选中库存行的组合键（选项定位用） */
+  stock_row_key: string;
+}
+
+const newItemForm = (): TransferItemForm => ({
+  product_id: 0,
+  quantity: 1,
+  cost_price: 0,
+  amount: 0,
+  remark: '',
+  color_no: '',
+  dye_lot_no: '',
+  batch_no: '',
+  stock_row_key: '',
+});
+
 const formData = reactive({
   id: 0,
   transfer_date: new Date().toISOString().split('T')[0],
@@ -250,14 +294,71 @@ const formData = reactive({
   to_warehouse_id: undefined as number | undefined,
   total_amount: 0,
   status: 'pending' as 'pending' | 'approved' | 'rejected' | 'shipped' | 'completed',
-  items: [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }] as {
-    product_id: number;
-    quantity: number;
-    cost_price: number;
-    amount: number;
-    remark: string;
-  }[],
+  items: [newItemForm()] as TransferItemForm[],
 });
+
+// ===== 出库四维库存行（GET /inventory/stock 按调出仓+产品下推查询，不手写死数据） =====
+const stockRowsMap = ref<Record<number, InventoryStock[]>>({});
+
+const stockRowKey = (row: Pick<InventoryStock, 'color_no' | 'batch_no' | 'dye_lot_no'>) =>
+  `${row.color_no ?? ''}__${row.batch_no ?? ''}__${row.dye_lot_no ?? ''}`;
+
+const stockRowLabel = (s: InventoryStock) =>
+  `${t('inventoryTransfer.transferForm.colColorNo')}: ${s.color_no} · ${t('inventoryTransfer.transferForm.colBatchNo')}: ${s.batch_no} · ${t('inventoryTransfer.transferForm.colDyeLotNo')}: ${s.dye_lot_no || '-'} · ${t('inventoryTransfer.transferForm.availableQty')}: ${s.quantity_available}`;
+
+const loadStockRows = async (productId: number) => {
+  if (!formData.from_warehouse_id || !productId) return;
+  if (stockRowsMap.value[productId]) return;
+  try {
+    const res = await getStockList({
+      warehouse_id: formData.from_warehouse_id,
+      product_id: productId,
+      page: 1,
+      page_size: 100,
+    });
+    stockRowsMap.value = {
+      ...stockRowsMap.value,
+      [productId]: (res.data as { items?: InventoryStock[] } | null)?.items || [],
+    };
+  } catch (error) {
+    logger.error(t('inventoryTransfer.transferForm.stockRowLoadFailed'), error);
+    ElMessage.error(t('inventoryTransfer.transferForm.stockRowLoadFailed'));
+  }
+};
+
+const onStockRowDropdownOpen = async (item: TransferItemForm) => {
+  await loadStockRows(item.product_id);
+};
+
+const onItemProductChange = async (item: TransferItemForm) => {
+  item.color_no = '';
+  item.dye_lot_no = '';
+  item.batch_no = '';
+  item.stock_row_key = '';
+  await loadStockRows(item.product_id);
+};
+
+const onStockRowChange = (item: TransferItemForm, key: string) => {
+  const stock = (stockRowsMap.value[item.product_id] || []).find(s => stockRowKey(s) === key);
+  if (!stock) return;
+  item.color_no = stock.color_no ?? '';
+  item.batch_no = stock.batch_no ?? '';
+  item.dye_lot_no = stock.dye_lot_no ?? '';
+};
+
+// 调出仓变更：旧仓库存行失效，清空缓存与各行已选维度
+watch(
+  () => formData.from_warehouse_id,
+  () => {
+    stockRowsMap.value = {};
+    formData.items.forEach(item => {
+      item.color_no = '';
+      item.dye_lot_no = '';
+      item.batch_no = '';
+      item.stock_row_key = '';
+    });
+  }
+);
 
 const resetForm = () => {
   formData.id = 0;
@@ -266,11 +367,12 @@ const resetForm = () => {
   formData.to_warehouse_id = undefined;
   formData.total_amount = 0;
   formData.status = 'pending';
-  formData.items = [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }];
+  formData.items = [newItemForm()];
+  stockRowsMap.value = {};
 };
 
 const addItem = () => {
-  formData.items.push({ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' });
+  formData.items.push(newItemForm());
 };
 
 const removeItem = (index: number) => {
@@ -289,9 +391,12 @@ watch(
     if (val) {
       if (props.currentRow) {
         Object.assign(formData, props.currentRow);
+        // 归一化明细行：补齐出库四维字段默认值（服务端行可能缺 stock_row_key 等前端字段）
+        formData.items = (formData.items || []).map(i => ({ ...newItemForm(), ...i }));
         if (!formData.items || formData.items.length === 0) {
-          formData.items = [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }];
+          formData.items = [newItemForm()];
         }
+        stockRowsMap.value = {};
         if (props.mode === 'view' && formData.id) void fetchServerItems();
       } else {
         resetForm();
@@ -389,6 +494,14 @@ const handleDeleteItem = async (row: ServerItem) => {
 };
 
 const handleSubmit = async () => {
+  // 出库四维规则（后端不做兜底）：有数量/产品的明细行必须选定 色号+批次+缸号
+  const missingDim = formData.items.find(
+    i => i.product_id && i.quantity > 0 && (!i.color_no || !i.batch_no || !i.dye_lot_no)
+  );
+  if (missingDim) {
+    ElMessage.warning(t('inventoryTransfer.transferForm.stockRowRequired'));
+    return;
+  }
   submitLoading.value = true;
   try {
     formData.items.forEach(calcAmount);
