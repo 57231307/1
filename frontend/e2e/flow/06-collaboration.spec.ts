@@ -137,11 +137,38 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
   });
 
   test('6-9 验证 el-tag 状态颜色映射', async ({ page }) => {
+    // 上一轮这里只报「可见 el-tag 0 个」，无法区分三种完全不同的原因：
+    // 状态列没渲染标签 / 列表没有数据 / 列表请求被拒。现先把列表请求本身断成显式契约。
+    const listResponse = page
+      .waitForResponse(res => res.url().includes('/purchase/orders'), { timeout: 30_000 })
+      .catch(() => null);
     await page.goto(`${BASE_URL}/purchase`);
+    const res = await listResponse;
+    expect(res, '进入采购页未发出 /purchase/orders 请求，状态标签无从渲染').toBeTruthy();
+    const body = (await res!.json()) as {
+      code?: unknown;
+      message?: string;
+      data?: { items?: unknown[] } | unknown[];
+    };
+    expect(
+      res!.status(),
+      `采购列表应 200，实际 ${res!.status()} ${JSON.stringify(body).slice(0, 300)}`
+    ).toBe(200);
+    const payload = body.data;
+    const rows = Array.isArray(payload) ? payload : (payload?.items ?? []);
+    expect(
+      Array.isArray(payload) ? true : Boolean(payload && 'items' in payload),
+      `采购列表出参既不是数组也没有 items 包装：${JSON.stringify(body).slice(0, 300)}`
+    ).toBe(true);
+    expect(
+      rows.length,
+      `采购列表没有数据，标签断言失去前提（beforeEach 的 ensureTestEntities 应已建单）；响应：${JSON.stringify(body).slice(0, 300)}`
+    ).toBeGreaterThan(0);
+
     await page.waitForTimeout(3000);
     const tags = page.locator('.el-table .el-tag:visible');
     const tagCount = await tags.count();
-    console.log(`[6-9] 采购列表可见 el-tag ${tagCount} 个`);
+    console.log(`[6-9] 采购列表 ${rows.length} 行，可见 el-tag ${tagCount} 个`);
     expect(tagCount, '采购订单列表应渲染状态标签').toBeGreaterThan(0);
     // Element Plus 的 el-tag 必须带类型类（success/info/warning/danger/primary），
     // 类名缺失说明状态→颜色映射没有真正生效

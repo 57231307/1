@@ -311,18 +311,19 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
   test('1-7 验证 AP 应付单', async ({ page }) => {
     const ctx = getCtx();
 
-    // 后端 list_ap_invoices 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
+    // 必须限定本用例的供应商：不带 supplier_id 时列表返回的是库里任意一张应付单
+    // （上一轮 1-8 报「应付单未付金额为 0」就是这么来的——拿到的根本不是本流程的单据）。
     const invoices = await apiCallRaw<
-      | Array<{ id: number; amount: number; status: string }>
-      | { items?: Array<{ id: number; amount: number; status: string }> }
-    >(page, 'GET', '/ap/invoices?page=1&page_size=5');
+      | Array<{ id: number; amount: number | string; unpaid_amount: number | string }>
+      | { items?: Array<{ id: number; amount: number | string; unpaid_amount: number | string }> }
+    >(page, 'GET', `/ap/invoices?supplier_id=${ctx.supplierId}&page=1&page_size=20`);
     const invoiceList = Array.isArray(invoices)
       ? invoices
-      : ((invoices as { items?: Array<{ id: number; amount: number; status: string }> }).items ??
-        []);
+      : ((invoices as { items?: Array<{ id: number }> }).items ?? []);
 
-    // 尝试手动创建 AP 应付单（如果未自动生成）
-    if ((invoiceList.length ?? 0) === 0) {
+    // 优先用本流程已产生的应付单（收货完成会自动生成），且必须还有未付金额才谈得上付款
+    const payable = invoiceList.find(inv => Number(inv.unpaid_amount) > 0);
+    if (!payable) {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/ap/invoices', {
         // CreateApInvoiceRequest：invoice_no 非后端字段（应 inset_type），保留 amount/tax_amount/invoice_date
         supplier_id: ctx.supplierId,
@@ -332,29 +333,50 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       });
       ctx.apInvoiceId = result.data?.id;
     } else {
-      ctx.apInvoiceId = invoiceList[0]?.id;
+      ctx.apInvoiceId = payable.id;
     }
-    expect(ctx.apInvoiceId).toBeDefined();
+    expect(
+      ctx.apInvoiceId,
+      `未取得应付单 ID（本供应商列表 ${invoiceList.length} 条，均无未付金额且手动建单未返回 id）`
+    ).toBeTruthy();
+
+    const chosen = await apiCallRaw<{
+      unpaid_amount?: number | string;
+      invoice_status?: string;
+      supplier_id?: number;
+    }>(page, 'GET', `/ap/invoices/${ctx.apInvoiceId}`);
+    expect(
+      Number(chosen.unpaid_amount),
+      `选定的应付单 ${ctx.apInvoiceId} 未付金额应大于 0，实际 ${chosen.unpaid_amount}`
+    ).toBeGreaterThan(0);
+    expect(
+      chosen.supplier_id,
+      `应付单 ${ctx.apInvoiceId} 的供应商应为本用例供应商 ${ctx.supplierId}，实际 ${chosen.supplier_id}`
+    ).toBe(ctx.supplierId);
   });
 
   test('1-8 付款', async ({ page }) => {
     const ctx = getCtx();
-
-    if (!ctx.apInvoiceId || !ctx.supplierId) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    // 前置由 1-7 断言保证；这里不再用 test.skip 把"前置没建好"混进"用例跳过"
+    expect(ctx.apInvoiceId, '1-7 未产出应付单 ID').toBeTruthy();
+    expect(ctx.supplierId, '前置供应商未创建').toBeTruthy();
 
     // 后端规则：DRAFT/CANCELLED 应付单不可申请付款，先审核应付单（幂等：仅 draft 状态调用）
-    const inv = await apiCallRaw<{ invoice_status?: string }>(
-      page,
-      'GET',
-      `/ap/invoices/${ctx.apInvoiceId}`
-    );
+    const inv = await apiCallRaw<{
+      invoice_status?: string;
+      unpaid_amount?: number | string;
+    }>(page, 'GET', `/ap/invoices/${ctx.apInvoiceId}`);
     if ((inv.invoice_status || '').toLowerCase() === 'draft') {
       await apiCall(page, 'POST', `/ap/invoices/${ctx.apInvoiceId}/approve`);
     }
+
+    // 申请金额取该单真实未付金额：写死 56500 只在"正好是本流程那张 56500 的单"时成立，
+    // 上一轮的 400「申请金额超过未付金额」就是这么来的
+    const applyAmount = Number(inv.unpaid_amount);
+    expect(
+      applyAmount,
+      `应付单 ${ctx.apInvoiceId} 未付金额应大于 0，实际 ${inv.unpaid_amount}`
+    ).toBeGreaterThan(0);
 
     // 先创建付款申请（POST /ap/payment-requests），再用 request_id 创建付款
     const payReq = await apiCall<{ data?: { id?: number } }>(page, 'POST', '/ap/payment-requests', {
@@ -362,23 +384,22 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       request_date: new Date().toISOString().split('T')[0],
       payment_type: 'purchase',
       payment_method: 'bank_transfer',
-      request_amount: 56500,
+      request_amount: applyAmount,
       currency: 'CNY',
       exchange_rate: 1,
       items: [
         {
           invoice_id: ctx.apInvoiceId,
-          apply_amount: 56500,
+          apply_amount: applyAmount,
           notes: 'E2E 1-8 付款申请明细',
         },
       ],
     });
     const requestId = payReq?.data?.id;
-    if (!requestId) {
-      console.warn('[E2E] test.skip: 付款申请创建失败');
-      test.skip();
-      return;
-    }
+    expect(
+      requestId,
+      `付款申请创建失败，响应：${JSON.stringify(payReq).slice(0, 300)}`
+    ).toBeTruthy();
     CLEANUP.push({ path: `/ap/payment-requests/${requestId}`, label: '[1-8] 付款申请' });
 
     // 后端规则：付款申请 DRAFT 不可创建付款单；流程 DRAFT→submit→PENDING→approve→APPROVED

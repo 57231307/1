@@ -89,18 +89,28 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-6 BPM 审批任务', async ({ page }) => {
-    const tasks = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-      page,
-      'GET',
-      '/bpm/tasks?page=1&page_size=5'
-    );
-    expect(Array.isArray(tasks?.items), 'BPM 任务应返回 items 数组').toBe(true);
-    // 原写 `tasks?.items?.length ?? 0 > 0`，因优先级实际是 `length ?? false`，
-    // 靠真值判断侥幸可用；改为显式比较
-    if ((tasks?.items?.length ?? 0) > 0) {
-      const status = (tasks.items?.[0].status || '').toLowerCase();
-      expect(['pending', 'completed', 'rejected', 'cancelled', 'processing']).toContain(
-        status ?? '(missing-status)'
+    // GET /bpm/tasks 出参是 PageResponse{total,page,page_size,total_pages,data}，
+    // 与多数列表接口的 PaginatedResponse{items,…} 不同一（两套分页 DTO 已登记在 doto）。
+    // 原断言按 items 判定，等于把后端真实字段名当成缺陷反过来判红。
+    const tasks = await apiCallRaw<{
+      data: Array<{ id: number; status: string }>;
+      total: number;
+      page: number;
+      page_size: number;
+      total_pages: number;
+    }>(page, 'GET', '/bpm/tasks?page=1&page_size=5');
+    expect(
+      Array.isArray(tasks?.data),
+      `BPM 任务应返回 data 数组，实际响应：${JSON.stringify(tasks).slice(0, 200)}`
+    ).toBe(true);
+    expect(typeof tasks.total, 'PageResponse 应回显 total').toBe('number');
+    expect(tasks.page, '应回显请求页码').toBe(1);
+    expect(tasks.page_size, '应回显每页数量').toBe(5);
+    // bpm_task 取值域（backend/src/models/status/bpm_crm_contract.rs::bpm_task）
+    const BPM_TASK_STATUSES = ['pending', 'completed', 'rejected', 'cancelled'];
+    for (const task of tasks.data) {
+      expect(BPM_TASK_STATUSES, `任务 ${task.id} 的状态在取值域外：${task.status}`).toContain(
+        (task.status || '').toLowerCase()
       );
     }
   });

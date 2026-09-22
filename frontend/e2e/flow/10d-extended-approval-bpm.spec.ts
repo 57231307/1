@@ -54,16 +54,24 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
   });
 
   test('A1-3 验证 BPM 任务审批', async ({ page }) => {
-    const tasks = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-      page,
-      'GET',
-      '/bpm/tasks?page=1&page_size=5'
-    );
-    expect(Array.isArray(tasks.items), `tasks.items 应为后端返回的 items 数组`);
-    if ((tasks?.items?.length ?? 0) > 0) {
-      const status = (tasks.items?.[0].status || '').toLowerCase();
-      expect(['pending', 'completed', 'rejected', 'cancelled']).toContain(
-        status ?? '(missing-status)'
+    // 原为 `expect(Array.isArray(tasks.items))`——没有匹配器，等于什么都没断（真空断言），
+    // 且字段名也不对：/bpm/tasks 出参是 PageResponse{total,page,page_size,total_pages,data}。
+    const tasks = await apiCallRaw<{
+      data: Array<{ id: number; status: string }>;
+      total: number;
+      page: number;
+      page_size: number;
+    }>(page, 'GET', '/bpm/tasks?page=1&page_size=5');
+    expect(
+      Array.isArray(tasks?.data),
+      `tasks.data 应为后端返回的任务数组，实际响应：${JSON.stringify(tasks).slice(0, 200)}`
+    ).toBe(true);
+    expect(tasks.page, '应回显请求页码').toBe(1);
+    expect(tasks.page_size, '应回显每页数量').toBe(5);
+    const BPM_TASK_STATUSES = ['pending', 'completed', 'rejected', 'cancelled'];
+    for (const task of tasks.data) {
+      expect(BPM_TASK_STATUSES, `任务 ${task.id} 的状态在取值域外：${task.status}`).toContain(
+        (task.status || '').toLowerCase()
       );
     }
   });
@@ -88,11 +96,27 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
   });
 
   test('A1-5 验证审批日志追溯', async ({ page }) => {
-    const logs = await apiCallRaw<{ items: Array<{ id: number; action: string }> }>(
-      page,
-      'GET',
-      '/bpm/tasks?page=1&page_size=10'
-    );
-    expect(Array.isArray(logs.items), `logs.items 应为后端返回的 items 数组`);
+    // 同为真空断言 + 错字段名：/bpm/tasks 的列表字段是 data。
+    // 该端点是审批追溯的定位入口（按页取回任务并核对状态），断言出参契约与状态取值域。
+    const logs = await apiCallRaw<{
+      data: Array<{ id: number; status: string }>;
+      total: number;
+      page: number;
+      page_size: number;
+      total_pages: number;
+    }>(page, 'GET', '/bpm/tasks?page=1&page_size=10');
+    expect(
+      Array.isArray(logs?.data),
+      `审批任务应可从 data 数组定位，实际响应：${JSON.stringify(logs).slice(0, 200)}`
+    ).toBe(true);
+    expect(typeof logs.total, '应回显 total 供分页追溯').toBe('number');
+    expect(logs.total_pages, '应回显 total_pages').toBeTypeOf('number');
+    for (const row of logs.data) {
+      expect(row.id, `任务 ID 应为正整数，实际 ${row.id}`).toBeGreaterThan(0);
+      expect(
+        ['pending', 'completed', 'rejected', 'cancelled'],
+        `任务 ${row.id} 的状态在取值域外：${row.status}`
+      ).toContain((row.status || '').toLowerCase());
+    }
   });
 });

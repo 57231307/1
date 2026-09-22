@@ -103,12 +103,44 @@ test.describe.serial('扩展: 业务模式测试（染整加工/来料加工/委
   });
 
   test('M1-6 验证委外加工模式规则', async ({ page }) => {
-    const rules = await apiCallRaw<{ items: Array<{ rule_code: string; rule_type: string }> }>(
+    // GET /production/business-modes/rules 只有 POST 路由（无全局列表端点），
+    // 原用例按"分页列表 items"发 GET，拿到的是 405 Method Not Allowed。
+    // 规则的真实查询入口是按模式取回：/business-modes/rules/by-mode/{mode_id}。
+    const modes = await apiCallRaw<{
+      items: Array<{ id: number; mode_code: string; mode_name: string }>;
+    }>(page, 'GET', '/production/business-modes?page=1&page_size=20');
+    expect(
+      Array.isArray(modes?.items),
+      `业务模式列表应返回 items 数组，实际：${JSON.stringify(modes).slice(0, 200)}`
+    ).toBe(true);
+    const outsourcing = (modes.items ?? []).find(m => m.mode_code === 'outsourcing');
+    expect(
+      outsourcing,
+      `种子数据里没有 outsourcing（委托加工）模式，现有模式：${(modes.items ?? [])
+        .map(m => m.mode_code)
+        .join(',')}`
+    ).toBeTruthy();
+
+    const rules = await apiCallRaw<Array<Record<string, unknown>>>(
       page,
       'GET',
-      '/production/business-modes/rules?page=1&page_size=20'
+      `/production/business-modes/rules/by-mode/${outsourcing!.id}`
     );
-    expect(Array.isArray(rules.items), `rules.items 应为后端返回的 items 数组`);
+    expect(
+      Array.isArray(rules),
+      `按模式查询规则应返回数组，实际：${JSON.stringify(rules).slice(0, 200)}`
+    ).toBe(true);
+    for (const rule of rules) {
+      expect(rule.mode_id, `规则混入了其他模式的行：${JSON.stringify(rule)}`).toBe(outsourcing!.id);
+      expect(String(rule.rule_code ?? ''), `规则缺少 rule_code：${JSON.stringify(rule)}`).not.toBe(
+        ''
+      );
+      // rule_type 取值域见 backend BusinessModeRule 注释：required / optional / forbidden
+      expect(
+        ['required', 'optional', 'forbidden'],
+        `规则 ${rule.rule_code} 的类型在取值域外：${rule.rule_type}`
+      ).toContain(String(rule.rule_type));
+    }
   });
 
   test('M1-7 验证业务模式快照（mode_snapshot）', async ({ page }) => {

@@ -6,7 +6,9 @@
 //   1. 列表行的 level 只可能是 Critical/Severe/Warning/Normal，status 只可能是
 //      identified/purchase_request/purchase_order/received/resolved（或 null=预警未落库）
 //   2. 级别筛选真正生效（四个级别分片之和 = 不分片总数）
-//   3. 越界取值（旧前端词表）直接 4xx，而不是被静默当成「无数据」
+//   3. 越界取值（旧前端词表里换了词根的写法）直接 4xx，而不是被静默当成「无数据」；
+//      仅大小写与规范码不同的写法（critical vs Critical）按后端 eq_ignore_ascii_case 约定
+//      归一接受，但归一后必须与规范码返回同一结果集，避免出现第二套筛选口径
 // 另加一条 UI 断言：筛选下拉只列出后端真实取值。
 import { test, expect } from '../diagnose-fixture';
 import type { APIRequestContext } from '@playwright/test';
@@ -113,11 +115,36 @@ test.describe('缺料预警取值与列表契约', () => {
     }
   });
 
-  test('旧前端词表的越界取值被拒绝，而不是静默返回空列表', async ({ request }) => {
-    for (const query of ['level=critical', 'status=pending', 'status=notified']) {
+  test('越界取值被拒绝；仅大小写不同的写法按后端约定归一且结果集一致', async ({ request }) => {
+    // critical 与规范码 Critical 只差大小写：后端 validate_enum_param 用
+    // eq_ignore_ascii_case 匹配并回传常量本身，这是仓库既有的入参约定（不是漏判越界）。
+    // 真正越界的是换了词根的旧前端词表（severity 那套 critical/high/medium/low 里，
+    // high/medium/low 库里从不存在）与库里不存在的状态（pending/notified）。
+    for (const query of [
+      'level=high',
+      'level=medium',
+      'level=low',
+      'level=not_a_level',
+      'status=pending',
+      'status=notified',
+    ]) {
       const res = await request.get(`${API_PREFIX}/material-shortage/list?${query}&page_size=5`);
       expect(res.status(), `${query} 不应被后端接受`).toBeGreaterThanOrEqual(400);
       expect(res.status(), `${query} 属入参问题，不应是 5xx`).toBeLessThan(500);
+    }
+
+    // 归一必须落到同一个结果集，否则"接受小写"就成了第二套筛选口径
+    const canonical = await listShortages(request, 'page=1&page_size=200&level=Critical');
+    const lowercase = await listShortages(request, 'page=1&page_size=200&level=critical');
+    expect(canonical.status, '规范码 Critical 筛选应被接受').toBe(200);
+    expect(lowercase.status, '小写 critical 应归一为 Critical 后接受').toBe(200);
+    const keys = (part: { data?: ShortageListData }) =>
+      (part.data as ShortageListData).items.map(row => `${row.material_id}:${row.level}`).join('|');
+    expect(keys(lowercase), '两种大小写写法返回不同结果集，筛选出现了两套口径').toBe(
+      keys(canonical)
+    );
+    for (const row of (lowercase.data as ShortageListData).items) {
+      expect(row.level, `归一后仍返回了非规范码的级别：${row.level}`).toBe('Critical');
     }
   });
 
@@ -146,20 +173,25 @@ test.describe('缺料预警取值与列表契约', () => {
     await gotoWithRetry(page, '/material-shortage');
     const selects = page.locator('.filter-bar .el-select');
     await expect(selects.first()).toBeVisible({ timeout: 30_000 });
+    // 收起时必须等浮层真的消失：Element Plus 的下拉面板是 teleport 到 body 的浮层，
+    // 上一轮 run 里 Escape 后面板未收起就点第二个 select，点击落在浮层上，
+    // 读到的仍是级别面板的 4 项，被误判成"状态下拉列错了取值"。
+    const collapsed = page.locator('.el-select-dropdown:visible');
 
     await selects.first().click();
-    const levelDropdown = page.locator('.el-select-dropdown:visible');
+    const levelDropdown = collapsed;
     await expect(levelDropdown).toBeVisible({ timeout: 30_000 });
     const levelTexts = await levelDropdown
       .locator('.el-select-dropdown__item:visible')
       .allTextContents();
     expect(levelTexts.map(text => text.trim())).toEqual(['紧急', '严重', '一般', '正常']);
     await page.keyboard.press('Escape');
+    await expect(collapsed).toHaveCount(0);
 
     await selects.nth(1).click();
-    const statusDropdown = page.locator('.el-select-dropdown:visible');
-    await expect(statusDropdown).toBeVisible({ timeout: 30_000 });
-    const statusTexts = await statusDropdown
+    // 先确认打开的是状态面板（5 项），再逐项比对文案，避免读到未收起的上一个面板
+    await expect(collapsed.locator('.el-select-dropdown__item:visible')).toHaveCount(5);
+    const statusTexts = await collapsed
       .locator('.el-select-dropdown__item:visible')
       .allTextContents();
     expect(statusTexts.map(text => text.trim())).toEqual([
@@ -170,5 +202,6 @@ test.describe('缺料预警取值与列表契约', () => {
       '已解除',
     ]);
     await page.keyboard.press('Escape');
+    await expect(collapsed).toHaveCount(0);
   });
 });
