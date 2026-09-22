@@ -200,11 +200,13 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       { comments: '53-1 自审批负例：申请人审批自己的申请必须被拒' }
     );
     expect(self.status, '申请人自己审批必须被拒').toBeGreaterThanOrEqual(400);
-    // 后端 HTTP 响应统一脱敏（utils/error.rs:96 走 public_message），真实文案"审批人不能是申请人"
-    // 只进 tracing 日志，断言 code 而非 message 才能稳定命中业务拒绝分支。
+    // 该防自审批文案构造点显式声明可外显（AppError::business_displayable，
+    // role_change_approval_service.rs approve_l1），真实文案直接进 HTTP message；
+    // code 与默认 business 一致（error.rs BusinessErrorDisplayable → BUSINESS_ERROR），两者都断。
     expect(String(self.code ?? ''), 'code 应为业务拒绝而非系统故障').toMatch(
       /BUSINESS|VALIDATION|BAD_REQUEST/i
     );
+    expect(self.message, '应外显防自审批真实文案').toBe('审批人不能是申请人');
 
     // B（独立 context）审批 L1 → 通过
     const { ctx: ctxB, call: callB } = await loginSecondUser(
@@ -279,10 +281,13 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       comments: '53-2 B 审批二级',
     });
     expect(l2.status, '二级审批人不能与一级相同').toBeGreaterThanOrEqual(400);
-    // 业务错误文案经 utils/error.rs:96 public_message 脱敏，响应 message 恒为固定文案，
-    // 真实文案只进 tracing；approve_l2 该分支为 AppError::business
-    // （role_change_approval_service.rs:186-188）→ 稳定 code = BUSINESS_ERROR（error.rs:413）
+    // 双人约束文案构造点显式声明可外显（AppError::business_displayable，
+    // role_change_approval_service.rs approve_l2）：message 应为真实文案；
+    // 出参结构不变，code 仍为 BUSINESS_ERROR（error.rs 两个变体共用），两者都断。
     expect(String(l2.body?.code ?? ''), 'code 应为业务拒绝').toBe('BUSINESS_ERROR');
+    expect(String(l2.body?.message ?? ''), '应外显双人约束真实文案').toBe(
+      '二级审批人不能与一级审批人相同'
+    );
   });
 
   test('53-3 敏感角色白名单：非敏感角色变更无需审批（:20 对照）', async ({ page }) => {
@@ -302,8 +307,9 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
       target_role_code: normal.code,
     });
     expect(r.status, '非敏感角色变更应直接拒绝（无需走审批）').toBeGreaterThanOrEqual(400);
-    // 非敏感拒绝是 handler 的 AppError::business（role_change_approval_handler.rs:29-31），
-    // message 被脱敏（utils/error.rs:94-99），只能断稳定 code=BUSINESS_ERROR
+    // 非敏感拒绝为 handler 的 AppError::business_displayable（role_change_approval_handler.rs:29-31），
+    // 公开业务规则文案可外显；code 与默认 business 一致，两者都断
     expect(String(r.code ?? ''), 'code 应为业务拒绝（仅敏感角色需审批）').toBe('BUSINESS_ERROR');
+    expect(r.message, '应外显敏感角色审批规则真实文案').toBe('只有敏感角色变更需要审批');
   });
 });

@@ -43,6 +43,23 @@ function showErrorOnce(message: string): void {
 }
 
 /**
+ * 从后端错误响应体中提取 message。
+ *
+ * 后端 AppError 出参的 message 默认即为脱敏常量（如「业务处理失败」），
+ * 仅当构造点显式声明可外显（AppError::business_displayable）时才是真实业务文案
+ * （见 backend/src/utils/error.rs 模块文档的安全边界）。
+ * 因此这里优先展示后端 message，不再用前端固定文案覆盖它；
+ * message 缺失/非字符串/空白时才回退到按 HTTP 状态码映射的固定文案。
+ */
+function extractBackendMessage(data: unknown): string | undefined {
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const m = (data as { message?: unknown }).message;
+    if (typeof m === 'string' && m.trim() !== '') return m;
+  }
+  return undefined;
+}
+
+/**
  * 不需要携带 CSRF Token 的公开路径前缀（前缀匹配）
  * 这些端点在后端 CSRF 中间件中已加入白名单，前端无需注入头
  */
@@ -160,7 +177,8 @@ class Request {
         }
         const res = response.data;
         if (res.code !== 200 && res.code !== 0) {
-          const safeMessage = getSafeErrorMessage(res.code);
+          // 优先展示后端 message（后端已保证默认脱敏），不再用固定文案覆盖
+          const safeMessage = res.message?.trim() ? res.message : getSafeErrorMessage(res.code);
           showErrorOnce(safeMessage);
           if (res.code === 401) {
             // Wave B-3：凭据由后端 Cookie 管理，前端无需清理 localStorage；
@@ -264,7 +282,11 @@ class Request {
           }
         }
 
-        const safeMessage = getSafeErrorMessage(error.response?.status);
+        // 优先展示后端 message（AppError 出参默认即脱敏常量，显式外显时为真实业务文案），
+        // 缺失时回退按 HTTP 状态码映射的固定文案
+        const safeMessage =
+          extractBackendMessage(error.response?.data) ??
+          getSafeErrorMessage(error.response?.status);
         showErrorOnce(safeMessage);
 
         if (error.response?.status === 401) {

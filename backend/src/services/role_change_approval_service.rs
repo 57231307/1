@@ -142,9 +142,9 @@ impl RoleChangeApprovalService {
             return Err(AppError::business("当前状态不允许一级审批"));
         }
 
-        // 防自审批
+        // 防自审批（文案仅涉及操作者自己提交的审批动作，可外显）
         if model.applicant_id == approver_id {
-            return Err(AppError::business("审批人不能是申请人"));
+            return Err(AppError::business_displayable("审批人不能是申请人"));
         }
 
         let now = Utc::now();
@@ -177,14 +177,16 @@ impl RoleChangeApprovalService {
             return Err(AppError::business("当前状态不允许二级审批"));
         }
 
-        // 防自审批
+        // 防自审批（文案仅涉及操作者自己提交的审批动作，可外显）
         if model.applicant_id == approver_id {
-            return Err(AppError::business("审批人不能是申请人"));
+            return Err(AppError::business_displayable("审批人不能是申请人"));
         }
 
-        // 双人约束：二级审批人不能是一级审批人
+        // 双人约束：二级审批人不能是一级审批人（公开业务规则，可外显）
         if model.approver1_id == Some(approver_id) {
-            return Err(AppError::business("二级审批人不能与一级审批人相同"));
+            return Err(AppError::business_displayable(
+                "二级审批人不能与一级审批人相同",
+            ));
         }
 
         let now = Utc::now();

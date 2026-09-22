@@ -290,8 +290,11 @@ pub async fn convert_amount(
         Ok(result) => Ok(Json(ApiResponse::success(ConversionResultResponse::from(
             result,
         )))),
-        Err(crate::utils::error::AppError::BusinessError(msg)) => Ok(Json(
-            ApiResponse::error_with_status(StatusCode::BAD_REQUEST, msg),
+        // 这里曾直接把 service 返回的内部业务文案回给客户端，绕过 error.rs 的出参脱敏契约
+        // （同一文案在其它端点只会进日志）。改为走 public_message：默认仍是脱敏常量，
+        // 只有显式声明为可外显的变体才会带真文案，出参结构与状态码保持不变。
+        Err(e @ crate::utils::error::AppError::BusinessError(_)) => Ok(Json(
+            ApiResponse::error_with_status(StatusCode::BAD_REQUEST, e.public_message()),
         )),
         Err(e) => Err(e),
     }
