@@ -366,14 +366,10 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       baseItem({ batch_no: undefined })
     );
     console.log('[1-6b 缺批次] 响应:', JSON.stringify(missingBatch));
-    expect(
-      missingBatch.status,
-      `缺批次应被拒绝（400），实际 ${missingBatch.status}`
-    ).toBe(400);
-    expect(
-      missingBatch.code,
-      `应返回 BUSINESS_ERROR，实际 ${JSON.stringify(missingBatch)}`
-    ).toBe('BUSINESS_ERROR');
+    expect(missingBatch.status, `缺批次应被拒绝（400），实际 ${missingBatch.status}`).toBe(400);
+    expect(missingBatch.code, `应返回 BUSINESS_ERROR，实际 ${JSON.stringify(missingBatch)}`).toBe(
+      'BUSINESS_ERROR'
+    );
 
     // ③ 负例拒绝后库存不得新增行：按唯一色号/缸号检索该产品必须为空
     const phantomStock = await verifyStockFourDim(
@@ -394,13 +390,18 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
 
     // 必须限定本用例的供应商：不带 supplier_id 时列表返回的是库里任意一张应付单
     // （上一轮 1-8 报「应付单未付金额为 0」就是这么来的——拿到的根本不是本流程的单据）。
-    const invoices = await apiCallRaw<
-      | Array<{ id: number; amount: number | string; unpaid_amount: number | string }>
-      | { items?: Array<{ id: number; amount: number | string; unpaid_amount: number | string }> }
-    >(page, 'GET', `/ap/invoices?supplier_id=${ctx.supplierId}&page=1&page_size=20`);
-    const invoiceList = Array.isArray(invoices)
-      ? invoices
-      : ((invoices as { items?: Array<{ id: number }> }).items ?? []);
+    const invoices = await apiCallRaw<{
+      items: Array<{ id: number; amount: number | string; unpaid_amount: number | string }>;
+      total: number;
+    }>(page, 'GET', `/ap/invoices?supplier_id=${ctx.supplierId}&page=1&page_size=20`);
+    // 后端 list_ap_invoices → ApiResponse<PaginatedResponse>（ap_invoice_handler.rs:40-69；
+    // utils/response.rs:34）：data 唯一形状是 {items,total,page,page_size}，缺 items 即契约破坏，
+    // 不再用 ?? [] 把"没返回该键"伪装成"空集合"。
+    expect(
+      Array.isArray(invoices?.items),
+      `AP 应付单列表 data 缺 items 数组（后端 PaginatedResponse 契约）：${JSON.stringify(invoices).slice(0, 200)}`
+    ).toBe(true);
+    const invoiceList = invoices.items;
 
     // 优先用本流程已产生的应付单（收货完成会自动生成），且必须还有未付金额才谈得上付款
     const payable = invoiceList.find(inv => Number(inv.unpaid_amount) > 0);

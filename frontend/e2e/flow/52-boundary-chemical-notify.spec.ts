@@ -103,22 +103,44 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     expect(r.status, '负信用额度必须拒绝').toBeGreaterThanOrEqual(400);
   });
 
-  test('52-N1 公告重复发送去重行为（notification_service.rs:72-84 dedup）', async ({ page }) => {
-    const title = `52去重公告${Date.now().toString().slice(-6)}`;
-    const body = { user_ids: [1], title, content: '52-N1 通知去重验证内容' };
-    const r1 = await apiCallExpectFail(page, 'POST', '/notifications/announcement', body);
-    test.skip(r1.status >= 400, '首次公告发送失败（权限/结构差异），去重断言需登录上下文');
-    // 5 分钟窗口内相同内容重发：后端 check_dedup 应拦截（若允许重复，此断言暴露缺失）
-    const r2 = await apiCallExpectFail(page, 'POST', '/notifications/announcement', body);
-    const list = await apiCallExpectFail(page, 'GET', '/notifications?page=1&page_size=20');
-    void list;
-    // 判定：r2 被拒（dedup 生效）= 通过；r2 成功 = 列表中同 title 只允许 1 条
-    if (r2.status < 300) {
-      const json = JSON.stringify(list);
-      const count = (json.match(new RegExp(title, 'g')) || []).length;
-      expect(count, '同一公告 5 分钟窗口内重复发送应被去重为 1 条').toBeLessThanOrEqual(1);
-    } else {
-      expect(r2.status, '重复公告应被去重拦截').toBeGreaterThanOrEqual(400);
-    }
+  test('52-N1 公告发送契约与去重语义（create_announcement / notification_service dedup）', async ({
+    page,
+  }) => {
+    // 后端真相：POST /notifications/announcement → create_announcement（analytics.rs notifications
+    //   nest 在 /api/v1/erp/notifications 下）。仅管理员可发（is_admin_role），入参
+    //   CreateAnnouncementRequest{user_ids 非空, title, content}，返回 AnnouncementResult{delivered_count}。
+    // 去重真相：create_announcement → send_system_announcement 传 dedup_key: None
+    //   （event_notification_service.rs:786），而 notification_service.rs:107-114 的 5 分钟去重
+    //   仅在带 dedup_key 时生效——公告从不走该路径。旧用例"重复发送应被去重为 1 条"的前提是错的，
+    //   且首发送失败即 test.skip 属条件 skip 假绿。此处按后端真相判红/判绿、不再 skip：
+    //   (1) 首次发送成功且 delivered_count == 目标用户数（失败即 apiCall 抛真实 code/message）；
+    //   (2) 相同内容二次发送同样成功（公告不走去重是既定契约），若后端将来改为去重，此断言以真实响应暴露。
+    const me = await apiCall<{ id: number }>(page, 'GET', '/auth/me');
+    expect(Number(me?.data?.id), `未取得当前用户 id：${JSON.stringify(me)}`).toBeGreaterThan(0);
+    const uid = me.data.id;
+    const title = `52公告契约${Date.now().toString().slice(-6)}`;
+    const body = { user_ids: [uid], title, content: '52-N1 公告发送契约验证内容' };
+
+    const r1 = await apiCall<{ delivered_count: number }>(
+      page,
+      'POST',
+      '/notifications/announcement',
+      body
+    );
+    expect(
+      Number(r1.data?.delivered_count),
+      `首次公告应投递给 1 个目标用户（失败会由 apiCall 抛出真实响应），实际：${JSON.stringify(r1)}`
+    ).toBe(1);
+
+    const r2 = await apiCall<{ delivered_count: number }>(
+      page,
+      'POST',
+      '/notifications/announcement',
+      body
+    );
+    expect(
+      Number(r2.data?.delivered_count),
+      `公告按契约不走去重（send_system_announcement 传 dedup_key:None），二次发送应同样成功，实际：${JSON.stringify(r2)}`
+    ).toBe(1);
   });
 });

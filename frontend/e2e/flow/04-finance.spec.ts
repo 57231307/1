@@ -18,15 +18,19 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
   });
 
   test('4-1 验证会计科目列表', async ({ page }) => {
-    // 后端 list_subjects 返回 ApiResponse<Vec<Model>>：data 是数组（无 items 包装）
-    const subjects = await apiCallRaw<
-      Array<{ code: string; name: string }> | { items?: Array<{ code: string; name: string }> }
-    >(page, 'GET', '/subjects?page=1&page_size=20');
-    const subjectList = Array.isArray(subjects)
-      ? subjects
-      : ((subjects as { items?: Array<{ code: string; name: string }> }).items ?? []);
-    // 默认会计科目表由迁移种子写入；原写法 >=0 恒真，列表为空也绿
-    expect(subjectList.length, '默认会计科目表应可被查询到（科目种子未落地？）').toBeGreaterThan(0);
+    // 后端 list_subjects → Json<ApiResponse<Vec<Model>>>（account_subject_handler.rs:71-93）：
+    // data 就是科目裸数组，唯一真实形状、无 items/分页包装；按数组直读，形状漂移即判红不再宽容。
+    const subjects = await apiCallRaw<Array<{ code: string; name: string }>>(
+      page,
+      'GET',
+      '/subjects?page=1&page_size=20'
+    );
+    expect(
+      Array.isArray(subjects),
+      `科目列表 data 非裸数组（契约漂移，后端 list_subjects 返回 Vec）：${JSON.stringify(subjects).slice(0, 200)}`
+    ).toBe(true);
+    const subjectList = subjects;
+    // 默认会计科目表由迁移种子写入；原写法 >=0 恒真，列表为空也绿    expect(subjectList.length, '默认会计科目表应可被查询到（科目种子未落地？）').toBeGreaterThan(0);
     for (const s of subjectList.slice(0, 10)) {
       expect(String(s.code ?? ''), `科目行缺少 code：${JSON.stringify(s)}`).not.toBe('');
       expect(String(s.name ?? ''), `科目行缺少 name：${JSON.stringify(s)}`).not.toBe('');
@@ -35,17 +39,18 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
 
   test('4-2 创建凭证（含色号维度成本）', async ({ page }) => {
     // 先取真实存在的科目编码（CI 库可能没有 1122/6001/2202 种子）
-    const subjects = await apiCallRaw<
-      | Array<{ code: string; status?: string }>
-      | { items?: Array<{ code: string; status?: string }> }
-    >(page, 'GET', '/subjects?page=1&page_size=50');
-    // 后端 list_subjects 返回 ApiResponse<Vec<Model>>：data 是数组（非 items 包装）
-    const subjectList = Array.isArray(subjects)
-      ? subjects
-      : ((subjects as { items?: Array<{ code: string; status?: string }> }).items ?? []);
-    const activeCodes = subjectList
-      .filter(s => !s.status || s.status === 'active')
-      .map(s => s.code);
+    // 后端 list_subjects → Json<ApiResponse<Vec<Model>>>（account_subject_handler.rs:71-93）：
+    // data 为科目裸数组，唯一真实形状，不再按 items 宽容取值。
+    const subjects = await apiCallRaw<Array<{ code: string; status?: string }>>(
+      page,
+      'GET',
+      '/subjects?page=1&page_size=50'
+    );
+    expect(
+      Array.isArray(subjects),
+      `科目列表 data 非裸数组（契约漂移，后端 list_subjects 返回 Vec）：${JSON.stringify(subjects).slice(0, 200)}`
+    ).toBe(true);
+    const activeCodes = subjects.filter(s => !s.status || s.status === 'active').map(s => s.code);
     // 科目不足 3 个时先创建 E2E 专用科目（CreateSubjectRequestDto: code/name/level）
     const suffix = Date.now().toString().slice(-6);
     while (activeCodes.length < 3) {

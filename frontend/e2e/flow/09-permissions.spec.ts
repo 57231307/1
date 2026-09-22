@@ -120,36 +120,71 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
   });
 
   test('P1-7 验证数据权限行级隔离（Dept 级别）', async ({ page }) => {
-    // 真实断言：data-permissions 列表必须可达且返回结构化数据
-    const perms = await apiCallRaw<
-      | { items: Array<{ id: number; scope_type?: string }> }
-      | { data?: { items: Array<{ id: number }> } }
-    >(page, 'GET', '/data-permissions?page=1&page_size=10');
-    const items = Array.isArray(perms)
-      ? perms
-      : (perms?.items ?? (perms as { data?: { items: unknown[] } })?.data?.items ?? []);
-    expect(Array.isArray(items)).toBe(true);
+    // 后端 list_data_permissions → Json<ApiResponse<Vec<DataPermissionResponse>>>
+    // （data_permission_handler.rs:271-283）：data 是权限裸数组，无 items / data.items 包装。
+    // 原三级回退 + ?? [] 会让"缺键/契约漂移"永远读到空数组而恒绿，改为单一裸数组直读 + 逐行内容断言。
+    const perms = await apiCallRaw<Array<{ id: number; role_id: number; resource_type: string }>>(
+      page,
+      'GET',
+      '/data-permissions'
+    );
+    expect(
+      Array.isArray(perms),
+      `数据权限列表 data 非裸数组（后端 list_data_permissions 返回 Vec）：${JSON.stringify(perms).slice(0, 200)}`
+    ).toBe(true);
+    for (const row of perms.slice(0, 10)) {
+      expect(Number(row.id), `数据权限行缺 id：${JSON.stringify(row)}`).toBeGreaterThan(0);
+      expect(typeof row.resource_type, `数据权限行缺 resource_type：${JSON.stringify(row)}`).toBe(
+        'string'
+      );
+    }
   });
 
   test('P1-8 验证字段级权限', async ({ page }) => {
-    // 真实断言：field-permissions 端点可达且结构化（端点存在性由 404 区分）
+    // 后端 list_field_permissions → Json<ApiResponse<Vec<FieldPermissionResponse>>>
+    // （field_permission_handler.rs:76-80）：data 是字段权限裸数组。
     const perms = await apiCallRaw<
-      { items: Array<{ id: number }> } | { data?: { items: Array<{ id: number }> } }
-    >(page, 'GET', '/field-permissions?page=1&page_size=10');
-    const items = Array.isArray(perms)
-      ? perms
-      : (perms?.items ?? (perms as { data?: { items: unknown[] } })?.data?.items ?? []);
-    expect(Array.isArray(items)).toBe(true);
+      Array<{ id: number; role_id: number; resource_type: string; field_name: string }>
+    >(page, 'GET', '/field-permissions');
+    expect(
+      Array.isArray(perms),
+      `字段权限列表 data 非裸数组（后端 list_field_permissions 返回 Vec）：${JSON.stringify(perms).slice(0, 200)}`
+    ).toBe(true);
+    for (const row of perms.slice(0, 10)) {
+      expect(Number(row.id), `字段权限行缺 id：${JSON.stringify(row)}`).toBeGreaterThan(0);
+      expect(typeof row.field_name, `字段权限行缺 field_name：${JSON.stringify(row)}`).toBe(
+        'string'
+      );
+    }
   });
 
   test('P1-8b 验证客户字段级权限端点', async ({ page }) => {
-    const perms = await apiCallRaw<
-      { items: Array<{ id: number }> } | { data?: { items: Array<{ id: number }> } }
-    >(page, 'GET', '/customer-field-permissions?page=1&page_size=10');
-    const items = Array.isArray(perms)
-      ? perms
-      : (perms?.items ?? (perms as { data?: { items: unknown[] } })?.data?.items ?? []);
-    expect(Array.isArray(items)).toBe(true);
+    // 旧写法 GET /customer-field-permissions 未在路由树注册（恒 404）——错误路径。
+    // 真实端点：GET /crm/customers/field-permissions/{role_id}
+    // （routes/crm.rs:522 → crm_handler.rs:900-910，service 返回 Vec<customer_field_permission::Model>，
+    //  data 为按 role_id 过滤后的裸数组）。
+    const roleList = await apiCallRaw<{ roles: Array<{ id: number }> }>(page, 'GET', '/roles');
+    expect(
+      Array.isArray(roleList?.roles) ? roleList.roles.length : -1,
+      `未取得任何角色，无法验证客户字段权限端点：${JSON.stringify(roleList).slice(0, 200)}`
+    ).toBeGreaterThan(0);
+    const roleId = roleList.roles[0].id;
+    const perms = await apiCallRaw<Array<{ role_id: number; field_name: string }>>(
+      page,
+      'GET',
+      `/crm/customers/field-permissions/${roleId}`
+    );
+    // 缺键/漂移必须判红；无配置时的空集是合法结果
+    expect(
+      Array.isArray(perms),
+      `客户字段权限 data 非裸数组（后端返回 Vec）：${JSON.stringify(perms).slice(0, 200)}`
+    ).toBe(true);
+    for (const row of perms) {
+      expect(
+        Number(row.role_id),
+        `客户字段权限行 role_id 与查询角色不符：${JSON.stringify(row)}`
+      ).toBe(Number(roleId));
+    }
   });
 
   test('P1-9 验证 CSRF 防护：缺失令牌的写请求必须被拒', async ({ page }) => {

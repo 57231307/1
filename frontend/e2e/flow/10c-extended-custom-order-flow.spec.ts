@@ -280,9 +280,11 @@ test.describe.serial('扩展: 定制订单全流程（打样→报价→客户�
     expect(String(timeline.current_status ?? ''), '工艺时间线缺少 current_status').not.toBe('');
     for (const node of timeline.nodes as Array<Record<string, unknown>>) {
       expect(Number(node.id), `工艺节点缺少 id：${JSON.stringify(node)}`).toBeGreaterThan(0);
+      // ProcessNodeWithLogs.logs 是 serde 必出的 Vec（custom_order_response_dto.rs:124-134），
+      // 缺 logs 键即契约破坏；旧 `?? []` 会把缺键伪装成空日志，去掉宽容只做真实形状判定。
       expect(
-        Array.isArray(node.logs ?? []),
-        `工艺节点的日志数组形态异常：${JSON.stringify(node)}`
+        Array.isArray(node.logs),
+        `工艺节点缺少 logs 数组键（后端必出 Vec，缺即契约破坏）：${JSON.stringify(node)}`
       ).toBe(true);
     }
   });

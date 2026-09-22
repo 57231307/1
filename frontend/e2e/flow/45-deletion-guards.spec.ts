@@ -91,20 +91,49 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
     expect(del.status, '有子类别的父分类删除应被拒').toBeGreaterThanOrEqual(400);
   });
 
-  test('45-3 会计科目：父科目删除约束可达性（account_subject_service.rs:274-316 三重校验）', async ({
+  test('45-3 会计科目：父有子科目时禁止删除（account_subject_service.rs delete 三重校验之一）', async ({
     page,
   }) => {
-    const ts = Date.now().toString().slice(-6);
-    // 路由：/finance/subjects（finance.rs:192）；科目树受预置数据约束，创建失败则 skip
-    const parent = await apiCallExpectFail(page, 'POST', '/finance/subjects', {
-      code: `445${ts}`.slice(0, 8),
-      name: `45守卫科目${ts}`,
+    // 真实端点：POST /subjects + DELETE /subjects/{id}
+    // （finance.rs gl() 经 sub_routes() 直接 nest 在 /api/v1/erp → 相对路径 /subjects；
+    //  旧写法 /finance/subjects 未在 finance() 路由树注册，恒 404，旧断言
+    //  expect(status>=400) 因此"永远绿"，从未真正跑到删除守卫——典型条件 skip 假绿。）
+    // create_subject 仅校验 code 唯一 + 父存在，合法入参必 200 返回 id；
+    // 造不出前置数据即判红（apiCall 抛真实 code/message），不允许 skip。
+    const uniq = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
+    const parent = await apiCall<{ id?: number }>(page, 'POST', '/subjects', {
+      code: `45G${uniq}P`,
+      name: `45守卫父科目${uniq}`,
       level: 1,
     });
-    // 科目创建受严格校验（level/balance_direction 等），仅验证端点与规则可达：
-    // 创建失败（400+）说明校验在位；创建成功则继续删除断言
-    test.skip(parent.status < 300, '科目创建成功走完整断言路径（见下方逻辑）');
-    expect(parent.status, '科目创建校验在位（非法/缺字段请求被拒）').toBeGreaterThanOrEqual(400);
+    const parentId = parent?.data?.id;
+    expect(parentId, `父科目创建失败，未返回 id：${JSON.stringify(parent)}`).toBeTruthy();
+    CLEANUP.push({ path: `/subjects/${parentId}`, label: '[45-3] 父科目' });
+
+    const child = await apiCall<{ id?: number }>(page, 'POST', '/subjects', {
+      code: `45G${uniq}C`,
+      name: `45守卫子科目${uniq}`,
+      level: 2,
+      parent_id: parentId,
+    });
+    const childId = child?.data?.id;
+    expect(childId, `子科目创建失败，未返回 id：${JSON.stringify(child)}`).toBeTruthy();
+    CLEANUP.push({ path: `/subjects/${childId}`, label: '[45-3] 子科目' });
+
+    // 父有子 → 删除必被业务拒绝（service delete："不能删除有子科目的科目"）
+    const delParent = await apiCallExpectFail(page, 'DELETE', `/subjects/${parentId}`);
+    expect(
+      delParent.status,
+      `有子科目的父科目删除应被拒（实际 status=${delParent.status} code=${delParent.code} msg=${delParent.message ?? ''}）`
+    ).toBeGreaterThanOrEqual(400);
+
+    // 对照组：无子的子科目删除应成功（apiCall 失败即抛真实响应），
+    // 证明上一条 400+ 确由删除守卫产生，而非 CSRF/权限/路径错误
+    const delChild = await apiCall(page, 'DELETE', `/subjects/${childId}`);
+    expect(delChild.code, '无子科目的子科目删除应成功').toBe(200);
+    // 子科目已在测试内删除，撤销其 cleanup 登记避免重复删除噪声
+    const idx = CLEANUP.findIndex(c => c.path === `/subjects/${childId}`);
+    if (idx >= 0) CLEANUP.splice(idx, 1);
   });
 
   test('45-4 供应商：有活跃采购订单禁止删除（supplier_service.rs:493-512）', async ({ page }) => {

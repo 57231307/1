@@ -176,18 +176,21 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
     const body = (await res!.json()) as {
       code?: unknown;
       message?: string;
-      data?: { items?: unknown[] } | unknown[];
+      data?: { items?: unknown[]; total?: number };
     };
     expect(
       res!.status(),
       `采购列表应 200，实际 ${res!.status()} ${JSON.stringify(body).slice(0, 300)}`
     ).toBe(200);
+    // 后端 list_orders → ApiResponse<PaginatedResponse>（purchase_order_handler.rs:26-30；
+    // utils/response.rs:34）：data 唯一形状是 {items,total,page,page_size}。缺 items 数组即判红，
+    // 不再宽容"整个 data 是数组"这一后端从不产生的形状（旧 ?? [] 会把缺键伪装成空集合）。
     const payload = body.data;
-    const rows = Array.isArray(payload) ? payload : (payload?.items ?? []);
     expect(
-      Array.isArray(payload) ? true : Boolean(payload && 'items' in payload),
-      `采购列表出参既不是数组也没有 items 包装：${JSON.stringify(body).slice(0, 300)}`
+      Array.isArray(payload?.items),
+      `采购列表 data 缺 items 数组（后端 PaginatedResponse 契约）：${JSON.stringify(body).slice(0, 300)}`
     ).toBe(true);
+    const rows = payload!.items!;
     expect(
       rows.length,
       `采购列表没有数据，标签断言失去前提（beforeEach 的 ensureTestEntities 应已建单）；响应：${JSON.stringify(body).slice(0, 300)}`
