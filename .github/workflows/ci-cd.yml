@@ -7,18 +7,19 @@
 #   3. 失败时自动诊断（最近 commit、变更文件、错误上下文）
 #
 # 工作流拓扑：
-#   ci-info → [ci-fmt-rust, ci-fmt-fe, ci-lint-rust, ci-lint-fe, ci-type-check,
-#              ci-test-fe, ci-audit, ci-deps, ci-perf-bench,
-#              ci-build-rust, ci-build-fe]
-#            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust(30分片)],
-#                         [ci-e2e（8 分片并行端到端）],
-#                         [ci-dead-code-audit（Clippy 通过后跑）]
+#   ci-info → [ci-fmt-rust, ci-static-checks, ci-lint-rust, ci-lint-fe, ci-type-check,
+#              ci-test-fe, security-vulnerability-scan（依赖漏洞+秘密+依赖图，合并原
+#              ci-audit/ci-deps）, ci-perf-bench, ci-build-rust, ci-build-fe]
+#            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust(10分片)],
+#                         [ci-e2e（25 分片并行端到端）],
+#                         [ci-dead-code-audit（Clippy 通过后跑，步骤见 actions/dead-code-audit）]
 #            → [package-release] → [github-release]
-#            → [ci-cleanup-retry]（收尾：汇总全部 job 结果）
+#            → [ci-cleanup-retry]（收尾：needs 列出全部 job，动态扫描 toJSON(needs) 汇总判定）
 #
 # 发布门禁：E2E + Rust 测试 + 死代码审计在 PR 时验证，合并即视为通过。
 #   主线 push 不重复跑测试（已在 PR 阶段验证），只做构建/格式/审计/发布。
-#   所有 job timeout 统一 360 分钟（6 小时），E2E 8 分片并行加速。
+#   所有 job timeout 统一 360 分钟（6 小时），E2E 25 分片并行加速。
+#   注：任何新增 job 必须同时加入 ci-cleanup-retry.needs，否则不参与门禁。
 # ==============================================================================
 
 name: CI/CD Pipeline - 严格构建验证 + 全面日志
@@ -276,23 +277,52 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # 若自动修正成功且工作树有变更，提交到当前分支
+          # 若自动修正成功且工作树有变更，提交并回推
+          #
+          # 为什么回推的 commit 必须带 [skip ci]：本 workflow 对 PR 开了 cancel-in-progress，
+          #   回推新 commit 会立刻触发新 run，并把"正在回推的这个 run"取消掉——本 job 结果
+          #   丢失、其余 job 被连带重跑（自我取消循环）。带 [skip ci] 后回推不再触发新 run；
+          #   格式正确性由本次 run 在 FIXED=1 分支里对修正后工作树复跑的
+          #   `cargo fmt --all --check` 担保（推上去的内容 == 刚验证过的内容），检查本身未削弱。
+          # 为什么 HEAD 已含 [skip ci] 时不回推：说明该 run 处于"作者主动跳过 CI"语境，
+          #   继续往分支追加 commit 与作者意图冲突；此时不推送且直接判失败——HEAD 确实未
+          #   格式化，门禁依然成立（fail closed，不退化成静默通过）。
+          # 目标分支取 github.head_ref：PR 事件下 github.ref 是 refs/pull/N/merge、
+          #   github.ref_name 形如 "N/merge"，原写法 HEAD:${ref_name} 推不到 PR 分支上
+          #   （失败又被 || echo 吞掉 ⇒ 自动修正在 PR 上从未真正生效）。
+          PUSH_FAILED=0
           if [ "$FIXED" -eq "1" ]; then
             cd "$GITHUB_WORKSPACE"
+            if git log -1 --pretty=%B | grep -q '\[skip ci\]'; then
+              echo "::error::HEAD commit 含 [skip ci]，不自动回推格式修正；HEAD 未格式化，本 job 判失败"
+              exit 1
+            fi
+            TARGET='${{ github.head_ref }}'
+            if [ -z "$TARGET" ] && [ '${{ github.ref_type }}' = 'branch' ]; then
+              TARGET='${{ github.ref_name }}'
+            fi
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add -A backend/
             if git diff --cached --quiet; then
               echo "ℹ️ 无格式变更可提交"
+            elif [ -z "$TARGET" ]; then
+              echo "::warning::tag 事件无目标分支可回推，格式修正仅存在于本 run（请本地 cargo fmt 后重推）"
             else
-              git commit -m "style(rust): cargo fmt 自动修正格式" || echo "提交失败，跳过"
-              git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-              git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
+              git commit --author="github-actions[bot] <github-actions[bot]@users.noreply.github.com>" \
+                -m "style(rust): cargo fmt 自动修正格式 [skip ci]"
+              git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+              # 推送失败不再 || echo 静默：没落盘的修正等于没修正
+              git push origin "HEAD:$TARGET" || PUSH_FAILED=1
             fi
           fi
 
           # 首次检查失败且自动修正仍失败 → 阻塞 CI
           if [ "$EXIT_CODE" -ne "0" ] && [ "$FIXED" -eq "0" ]; then
+            exit 1
+          fi
+          if [ "$PUSH_FAILED" -ne "0" ]; then
+            echo "::error::格式修正已提交但推送失败（contents: write 权限或分支保护问题），修正未持久化，判失败"
             exit 1
           fi
           exit 0
@@ -960,9 +990,10 @@ jobs:
                 if git diff --cached --quiet "$BASELINE_PATH"; then
                   echo "ℹ️ baseline 无变化，跳过提交"
                 else
-                  git commit -m "chore(ci): 自动重建 clippy baseline（main CI 后真实状态同步：$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT，已修复 $CLIPPY_FIXED_COUNT 条）" || echo "提交失败，跳过"
+                  git commit -m "chore(ci): 自动重建 clippy baseline（main CI 后真实状态同步：$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT，已修复 $CLIPPY_FIXED_COUNT 条）[skip ci]" || echo "提交失败，跳过"
                   git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-                  git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
+                  # [skip ci]：baseline 是 CI 自产文件，回推不应再触发一个自我取消的新 run
+                  git push origin "HEAD:${{ github.head_ref || github.ref_name }}" || echo "推送失败，可能有冲突"
                 fi
               else
                 echo "ℹ️ 不满足自动重建条件（非 main 分支/非 strict 模式/clippy 异常退出），跳过"
@@ -972,9 +1003,10 @@ jobs:
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
               git add "$BASELINE_PATH"
-              git commit -m "chore(ci): 自动建立 clippy 基线" || echo "提交失败，跳过"
+              git commit -m "chore(ci): 自动建立 clippy 基线 [skip ci]" || echo "提交失败，跳过"
               git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-              git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
+              # PR 事件下 github.ref_name 是 "N/merge"，直接推会开 junk 分支且推不到 PR 分支
+              git push origin "HEAD:${{ github.head_ref || github.ref_name }}" || echo "推送失败，可能有冲突"
             fi
           fi
 
@@ -1400,8 +1432,26 @@ jobs:
           retention-days: 90
 
   # ==============================================================================
-  # Rust 覆盖率合并（信息性，不阻塞 CI）
-  # 在所有 10 个分片完成后运行，逐一跑所有测试收集覆盖率
+  # Rust 覆盖率（信息性，不阻塞 CI；10 个分片全部结束后跑）
+  #
+  # 2026-09-22 结论：本 job 的插桩编译【不能】复用 ci-build-test-artifacts 的产物，
+  # 已核对两侧产出与需求，不是"没优化"：
+  #   · ci-build-test-artifacts 上传的唯一产物是 `nextest-archive`
+  #     （backend/nextest-archive.tar.zst，见该 job 的"上传 archive"步），里面装的是
+  #     `cargo nextest archive` 打出的**普通（未插桩）**测试可执行文件 + 元数据。
+  #   · 覆盖率数据只在 `-C instrument-coverage` 编译出的二进制运行时才会产出 .profraw
+  #     （cargo llvm-cov 再把它 merge 成 .profdata/cobertura.xml）。未插桩的二进制跑一百遍
+  #     也不会写出任何 profraw ⇒ 没有"事后补插桩/从 archive 反推覆盖率"的路径。
+  #   · 因此插桩编译是第二次全量编译，无法靠下载产物省掉。真要省，只能反过来让
+  #     ci-build-test-artifacts 产出插桩 archive 并让 ci-test-rust 的 10 个分片直接跑插桩
+  #     二进制（测试变慢、内存峰值更高，且 ci-test-rust 从门禁 job 变成插桩 job），
+  #     收益不成立 —— 保留现状，只消除"工具链/缓存层"的重复（见下）。
+  # 已消除的重复：
+  #   · 工具链与缓存统一走 ./.github/actions/setup-rust（rustup-/cargo- 与主 CI 同 key，
+  #     registry 依赖与 ~/.rustup 不再各自维护一套缓存）；
+  #   · sccache: 'false' —— 插桩编译的 RUSTFLAGS 与普通编译不同，sccache 命中不了，
+  #     开着只会白装白占内存（插桩编译内存峰值更高，配 mem_per_unit_gb: '7'）；
+  #   · taiki-e/install-action 固定到与 setup-rust 同一版本 v2.56.0（原来是浮动 @v2）。
   # ==============================================================================
   ci-coverage-rust:
     name: 📊 Rust 覆盖率
@@ -1441,13 +1491,16 @@ jobs:
           mem_per_unit_gb: '7'
 
       - name: 安装 cargo-llvm-cov 与 cargo-nextest
-        uses: taiki-e/install-action@v2
+        # 固定到与 ./.github/actions/setup-rust 内 sccache 安装同一版本（原为浮动 @v2）
+        uses: taiki-e/install-action@v2.56.0
         with:
           tool: cargo-llvm-cov,nextest
 
       - name: 收集覆盖率（cargo llvm-cov nextest，信息性）
         working-directory: backend
-        # 先跑 --no-run 编译所有测试（复用缓存），再跑 llvm-cov 收集覆盖率
+        # cargo llvm-cov nextest 一条命令完成"插桩编译 + 跑全部测试 + 收集 profraw +
+        # 合并出 cobertura"；编译走 setup-rust 恢复的 registry/工具链缓存，但插桩产物
+        # 落在独立的插桩 target 目录，不会污染其它 job 复用的普通 target 缓存。
         # --no-fail-fast 确保全部跑完，信息性收集覆盖率，不阻塞 CI
         run: |
           mkdir -p reports coverage
@@ -1607,200 +1660,6 @@ jobs:
           retention-days: 90
 
 # ==============================================================================
-# Job 9: 依赖审计（严格化，发现命令错误时阻塞 CI）
-# ==============================================================================
-  ci-audit:
-    name: 🛡️ 依赖审计
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: ci-info
-    # 批次 21 修复：移除 continue-on-error，让审计命令本身失败时阻塞 CI。
-    # 4.7 依赖漏洞扫描加固：high/critical 级别漏洞也会阻塞 CI（exit 1），
-    # low/medium 仅记录在案，不阻塞。
-    # cargo audit 使用 --no-dev-deps，仅审计生产依赖。
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v5
-
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-
-      - name: 安装 cargo-audit
-        # 规则 5：移除 || true 降级，安装失败阻塞 CI（与 L1406 注释"移除 continue-on-error"一致）
-        run: cargo install cargo-audit --locked
-
-      - name: 审计 Rust 依赖
-        working-directory: backend
-        run: |
-          mkdir -p reports
-          set +e
-          # 4.7：--no-dev-deps 跳过 [dev-dependencies]，仅审计生产依赖
-          # || true 避免 cargo audit exit 5（有漏洞）直接中断 step，由后续 jq 判断 high/critical 决定是否阻塞
-          cargo audit --json --no-dev-deps 2>reports/cargo-audit.json | tee reports/cargo-audit.txt || true
-          EXIT_CODE=${PIPESTATUS[0]}
-          set -e
-
-          # 解析关键指标
-          VULN_COUNT=$(jq '.vulnerabilities.found' reports/cargo-audit.json 2>/dev/null || echo 0)
-
-          # 4.7 依赖漏洞扫描：high/critical 级别漏洞必须阻塞 CI
-          # cargo-audit JSON 中 vulnerabilities.list[].advisory.severity 为
-          # "low" | "medium" | "high" | "critical"（cargo-audit 0.18+ 字段）
-          # --no-dev-deps 跳过 [dev-dependencies]，仅审计生产依赖
-          CRITICAL_HIGH_COUNT=$(jq '[.vulnerabilities.list[]? | select(.advisory.severity == "high" or .advisory.severity == "critical")] | length' reports/cargo-audit.json 2>/dev/null || echo 0)
-
-          {
-            echo "# Rust 依赖审计报告"
-            echo ""
-            echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**发现漏洞**: $VULN_COUNT  "
-            echo "**high/critical 漏洞**: $CRITICAL_HIGH_COUNT  "
-            echo ""
-            if [ "$EXIT_CODE" -eq "0" ]; then
-              echo "## ✅ 无已知漏洞"
-            else
-              echo "## ⚠️  发现 $VULN_COUNT 个已知漏洞"
-              echo ""
-              echo "### 漏洞详情"
-              echo ""
-              echo '```'
-              jq -r '.vulnerabilities.list[]? | "[\(.advisory.severity)] \(.package.name) \(.package.version) - \(.advisory.title)"' reports/cargo-audit.json 2>/dev/null | head -30
-              echo '```'
-              echo ""
-              echo "修复：升级到 \`cargo audit fix\` 或手动调整 Cargo.toml"
-            fi
-          } > reports/cargo-audit-report.md
-
-          {
-            echo "## Rust 依赖审计"
-            echo ""
-            if [ "$EXIT_CODE" -eq "0" ]; then
-              echo "✅ 无漏洞"
-            elif [ "$CRITICAL_HIGH_COUNT" -gt "0" ]; then
-              echo "❌ $VULN_COUNT 个漏洞，其中 $CRITICAL_HIGH_COUNT 个 high/critical（阻塞 CI）"
-            else
-              echo "⚠️  $VULN_COUNT 个漏洞，无 high/critical（不阻塞，记录在案）"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # high/critical 漏洞存在则阻塞 CI
-          if [ "$CRITICAL_HIGH_COUNT" -gt "0" ]; then
-            echo "::error::检测到 $CRITICAL_HIGH_COUNT 个 high/critical 级别漏洞，阻塞 CI。详见 reports/cargo-audit-report.md"
-            exit 1
-          fi
-
-      - name: Setup Frontend
-        uses: ./.github/actions/setup-frontend
-
-      - name: 审计前端依赖
-        working-directory: frontend
-        run: |
-          mkdir -p reports
-          set +e
-          npm audit --json 2>reports/npm-audit.json | tee reports/npm-audit.txt
-          EXIT_CODE=$?
-          set -e
-
-          VULN_COUNT=$(jq '.metadata.vulnerabilities | to_entries | map(.value) | add' reports/npm-audit.json 2>/dev/null || echo 0)
-
-          # 4.7：high/critical 级别漏洞必须阻塞 CI
-          # npm audit JSON: .vulnerabilities.<pkg>.severity ∈ {critical, high, moderate, low}
-          NPM_CRITICAL_HIGH_COUNT=$(jq '[.vulnerabilities | to_entries[] | select(.value.severity == "critical" or .value.severity == "high")] | length' reports/npm-audit.json 2>/dev/null || echo 0)
-
-          {
-            echo "# 前端 npm audit 报告"
-            echo ""
-            echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**发现漏洞**: $VULN_COUNT  "
-            echo "**high/critical 漏洞**: $NPM_CRITICAL_HIGH_COUNT  "
-            echo ""
-            if [ "$EXIT_CODE" -eq "0" ]; then
-              echo "## ✅ 无已知漏洞"
-            else
-              echo "## ⚠️  发现 $VULN_COUNT 个已知漏洞"
-              echo ""
-              echo "### 漏洞详情"
-              echo ""
-              echo '```'
-              jq -r '.vulnerabilities | to_entries[] | "[\(.value.severity)] \(.key) - \(.value.via[0].title // "N/A")"' reports/npm-audit.json 2>/dev/null | head -30
-              echo '```'
-              echo ""
-              echo "修复：\`npm audit fix\` 或 \`npm audit fix --force\`"
-            fi
-          } > reports/npm-audit-report.md
-
-          {
-            echo "## 前端依赖审计"
-            echo ""
-            if [ "$EXIT_CODE" -eq "0" ]; then
-              echo "✅ 无漏洞"
-            elif [ "$NPM_CRITICAL_HIGH_COUNT" -gt "0" ]; then
-              echo "❌ $VULN_COUNT 个漏洞，其中 $NPM_CRITICAL_HIGH_COUNT 个 high/critical（阻塞 CI）"
-            else
-              echo "⚠️  $VULN_COUNT 个漏洞，无 high/critical（不阻塞，记录在案）"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # high/critical 漏洞存在则阻塞 CI
-          if [ "$NPM_CRITICAL_HIGH_COUNT" -gt "0" ]; then
-            echo "::error::检测到 $NPM_CRITICAL_HIGH_COUNT 个 high/critical 级别漏洞，阻塞 CI。详见 reports/npm-audit-report.md"
-            exit 1
-          fi
-
-      - name: 上传报告
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-audit-reports
-          path: reports/
-          retention-days: 90
-
-# ==============================================================================
-# Job 10: 依赖图记录
-# ==============================================================================
-  ci-deps:
-    name: 📦 依赖图记录
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: ci-info
-    # P3-8 修复：移除 job 级 continue-on-error，改为 step 级精细控制
-    # cargo tree --locked 失败时阻塞 CI（暴露 lockfile 漂移），npm ls 非关键允许失败
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v5
-
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-
-      - name: 生成 cargo tree（严格：lockfile 漂移时阻塞 CI）
-        working-directory: backend
-        run: |
-          mkdir -p reports
-          # --locked 要求 Cargo.lock 与 Cargo.toml 一致，漂移时 exit != 0 阻塞 CI
-          cargo tree --locked --charset ascii > reports/cargo-tree.txt 2>&1
-          cargo tree --locked --charset ascii --format json > reports/cargo-tree.json 2>&1
-          echo "cargo tree 行数: $(wc -l < reports/cargo-tree.txt)"
-
-      - name: Setup Frontend
-        uses: ./.github/actions/setup-frontend
-
-      - name: 生成 npm ls（非关键，允许失败）
-        working-directory: frontend
-        continue-on-error: true
-        run: |
-          mkdir -p reports
-          npm ls --all --json > reports/npm-ls.json 2>reports/npm-ls.txt
-          echo "npm ls 顶层依赖数: $(jq '.dependencies | length' reports/npm-ls.json 2>/dev/null || echo N/A)"
-
-      - name: 上传报告
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-trees
-          path: reports/
-          retention-days: 90
-
-# ==============================================================================
 # Job 10.5: 性能基准回归监控（V15 批次 06 P1-10 修复）
 # ==============================================================================
 # 设计原则：
@@ -1941,9 +1800,10 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add backend/Cargo.lock
-            if git commit -m "chore(deps): 生成 backend/Cargo.lock 锁定依赖版本"; then
+            if git commit -m "chore(deps): 生成 backend/Cargo.lock 锁定依赖版本 [skip ci]"; then
               git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-              git push origin HEAD:${{ github.ref_name }} || echo "⚠️  Cargo.lock push 失败，请人工干预"
+              # 生成的 lockfile 已被本次构建实际使用并验证，无需再触发一个新 run（PR 上还会自我取消）
+              git push origin "HEAD:${{ github.head_ref || github.ref_name }}" || echo "⚠️  Cargo.lock push 失败，请人工干预"
             else
               echo "⚠️  没有 diff 提交"
             fi
@@ -2156,7 +2016,11 @@ jobs:
       ci-type-check,
       ci-test-fe,
       ci-build-rust,
-      ci-build-fe
+      ci-build-fe,
+      # 发布必须被漏洞扫描拦住（用户批准的门禁加强）：核查 88f59a7c^ 的 package-release
+      # needs 清单证实，扫描类 job 从来就不在其中——即高危依赖/CVE 只会让 🛡️ job 自己红，
+      # 不会阻止 v* tag 产出 release 二进制。现补为前置。
+      security-vulnerability-scan
     ]
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -2399,59 +2263,84 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        # 25 分片：0-14 flow（15 片）/ 15-19 smoke（5 片）/ 20-24 traversal（5 片）
-        # label 按实际测试 spec 内容命名（Playwright --shard hash 分配，无空载）
+        # 34 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
+        #            / 30-33 extras（4 片，见下方 extras 分支的原因说明）
+        # label 只标"跑的是哪个目录的第几片"：Playwright --shard 按用例 hash 分配，
+        # 分片与 spec 文件之间没有对应关系。原先按 spec 号段命名（如
+        # "flow: 11~22-returns/inventory/crm"）是错的——run 35722450943 该分片实际
+        # 跑的是 05-system/06-collaboration/07-fabric-four-dim/08-business-modes，
+        # 按错误标签排查会把人引向完全无关的 spec。
+        # flow 由 15 片增至 20 片的原因：15 片时 7 个分片在 1500s 上限内跑不完
+        # （分片 2 被杀时已到 41/42 用例，全程无挂起），详见 iter30 台账。
         include:
           - shard: 0
-            label: "flow: 00-deploy+responsive+03-production+04-finance"
+            label: "flow: e2e/flow(1/20)"
           - shard: 1
-            label: "flow: 05-system~10d-extended"
+            label: "flow: e2e/flow(2/20)"
           - shard: 2
-            label: "flow: 11~22-returns/inventory/crm"
+            label: "flow: e2e/flow(3/20)"
           - shard: 3
-            label: "flow: 23~29a-color-card/production/route-coverage"
+            label: "flow: e2e/flow(4/20)"
           - shard: 4
-            label: "flow: 29b~31b-route-coverage/persistence/deletion"
+            label: "flow: e2e/flow(5/20)"
           - shard: 5
-            label: "flow: 31c~32-deactivation/notification/import/roles"
+            label: "flow: e2e/flow(6/20)"
           - shard: 6
-            label: "flow: 33~44e-privilege/state-gates/dye-batch"
+            label: "flow: e2e/flow(7/20)"
           - shard: 7
-            label: "flow: 44f~54-lifecycle/scan/chemical/approval/new-domains"
+            label: "flow: e2e/flow(8/20)"
           - shard: 8
-            label: "flow: 03~08-production/finance/system/collab"
+            label: "flow: e2e/flow(9/20)"
           - shard: 9
-            label: "flow: 09~19-permissions/extended/returns/stocktaking"
+            label: "flow: e2e/flow(10/20)"
           - shard: 10
-            label: "flow: 20~26-status/fabric/crm/production"
+            label: "flow: e2e/flow(11/20)"
           - shard: 11
-            label: "flow: 27~29d-other-modules/core-ui/route-coverage"
+            label: "flow: e2e/flow(12/20)"
           - shard: 12
-            label: "flow: 30~31c-persistence/deactivation"
+            label: "flow: e2e/flow(13/20)"
           - shard: 13
-            label: "flow: 31d~38-notification/import/privilege/print"
+            label: "flow: e2e/flow(14/20)"
           - shard: 14
-            label: "flow: 39b~54-export/approval/scan/chemical/new-domains"
+            label: "flow: e2e/flow(15/20)"
           - shard: 15
-            label: "smoke: 页面加载(1/5)"
+            label: "flow: e2e/flow(16/20)"
           - shard: 16
-            label: "smoke: 页面加载(2/5)"
+            label: "flow: e2e/flow(17/20)"
           - shard: 17
-            label: "smoke: 页面加载(3/5)"
+            label: "flow: e2e/flow(18/20)"
           - shard: 18
-            label: "smoke: 页面加载(4/5)"
+            label: "flow: e2e/flow(19/20)"
           - shard: 19
-            label: "smoke: 页面加载(5/5)"
+            label: "flow: e2e/flow(20/20)"
           - shard: 20
-            label: "traversal: 37-print+39-export-endpoints"
+            label: "smoke: e2e/smoke(1/5)"
           - shard: 21
-            label: "traversal: 39c-export+41-approve+42a-c/supply"
+            label: "smoke: e2e/smoke(2/5)"
           - shard: 22
-            label: "traversal: 37-print+42d-finance+44-role-matrix"
+            label: "smoke: e2e/smoke(3/5)"
           - shard: 23
-            label: "traversal: 37b-print+39-export+39c+41-approve"
+            label: "smoke: e2e/smoke(4/5)"
           - shard: 24
-            label: "traversal: 42a~42d+44-role-matrix"
+            label: "smoke: e2e/smoke(5/5)"
+          - shard: 25
+            label: "traversal: e2e/traversal(1/5)"
+          - shard: 26
+            label: "traversal: e2e/traversal(2/5)"
+          - shard: 27
+            label: "traversal: e2e/traversal(3/5)"
+          - shard: 28
+            label: "traversal: e2e/traversal(4/5)"
+          - shard: 29
+            label: "traversal: e2e/traversal(5/5)"
+          - shard: 30
+            label: "extras: e2e/未分域+业务子目录(1/4)"
+          - shard: 31
+            label: "extras: e2e/未分域+业务子目录(2/4)"
+          - shard: 32
+            label: "extras: e2e/未分域+业务子目录(3/4)"
+          - shard: 33
+            label: "extras: e2e/未分域+业务子目录(4/4)"
     services:
       postgres:
         image: postgres:16-alpine
@@ -2598,15 +2487,59 @@ jobs:
           set +e
           echo "本分片使用独立账号: ${TEST_USERNAME}"
           SHARD=${{ matrix.shard }}
-          if [ "$SHARD" -le 14 ]; then
-            # 分片 0-14: 运行 flow/ 全流程测试（15 片）
-            # 挂起治理：Playwright Node 事件循环假死时进程存活但输出停滞。
-            # watchdog 每 30s 检查输出文件尺寸，停滞超 180s 即 kill 进程树，
-            # 让分片直接失败（不重试，失败即修复）
+          # 三类分片此前各自维护一份逐字相同的 30 行 watchdog（flow 用 SHARD+1/15、
+          # traversal 用 SHARD-20+1/5），只有目录/分母/超时不同，且 traversal 的停滞
+          # 告警写着"kill 进程树后重跑"而代码根本不重跑。现统一为一个运行器，
+          # 分片参数集中在上方一处派生。
+          SPEC_TARGETS=""
+          if [ "$SHARD" -le 19 ]; then
+            # 分片 0-19: flow 全流程测试（20 片）
+            SPEC_TARGETS=e2e/flow/
+            SHARD_TOTAL=20
+            SHARD_NO=$((SHARD + 1))
+            # 单轮上限 2400s：15 片时代的 1500s 上限在 run 35722450943 里有 7 个分片
+            # 被 timeout 杀掉（分片 2 被杀时已跑到 41/42 个用例、输出持续增长、
+            # 无挂起迹象），属上限偏小而非测试假死；增至 20 片后单片用例数下降，
+            # 2400s 相对最慢分片仍有 1 倍以上余量（job 级 timeout 360min 不受影响）。
+            SHARD_LIMIT=2400
+          elif [ "$SHARD" -le 24 ]; then
+            # 分片 20-24: smoke 页面加载测试（5 片）。用例本身轻量，
+            # 保留 tee 直连输出（此前行为），不套 watchdog。
+            timeout 2400 npx playwright test --project=chromium --shard=$((SHARD - 19))/5 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
+            EXIT_CODE=$?
+          elif [ "$SHARD" -le 29 ]; then
+            # 分片 25-29: traversal 全量遍历 + 端点矩阵（5 片）
+            SPEC_TARGETS=e2e/traversal/
+            SHARD_TOTAL=5
+            SHARD_NO=$((SHARD - 24))
+            SHARD_LIMIT=1800
+          else
+            # 分片 30-33: 其余真实链路用例（enhanced/purchase/sales/purchase-ext/
+            # quality/finance/crm/bpm 八个子目录 + e2e/ 根级 spec）。
+            # 这批此前在 CI 里从未执行过：playwright.config.ts 的 chromium testMatch
+            # 早早就把它们纳入（注释写着"去 mock 后全部进主 CI testMatch"），
+            # 但分片矩阵只跑 e2e/flow、e2e/smoke、e2e/traversal 三个目录，
+            # 于是 131 个用例（本地 `playwright test --list --project=chromium`
+            # 逐目录实测：enhanced 14 + purchase 28 + sales 30 + purchase-ext 8 +
+            # quality 8 + finance 10 + crm 13 + bpm 8 + 根级 12，共 41 个文件）
+            # 永远不进矩阵——testMatch 里的"纳入"从来没变成"执行"。
+            # 这八个目录全部无 page.route()/vi.mock()（grep 零命中），是真实后端链路，
+            # 因此直接进矩阵，不先做"甄别处置"再说的拖延。
+            SPEC_TARGETS="e2e/enhanced/ e2e/purchase/ e2e/sales/ e2e/purchase-ext/ e2e/quality/ e2e/finance/ e2e/crm/ e2e/bpm/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"
+            SHARD_TOTAL=4
+            SHARD_NO=$((SHARD - 29))
+            SHARD_LIMIT=1800
+          fi
+          if [ -n "$SPEC_TARGETS" ]; then
+            # 挂起治理：Playwright 进程存活但输出停滞时，watchdog 每 30s 检查输出
+            # 文件尺寸，停滞超 180s 即 kill 进程树，让分片按失败处理（不重试：
+            # 失败即修复，重跑只会把同一个缺陷藏起来）。
+            # 注：globalSetup 阶段（登录 + 角色账号 + 前置实体）本身不产出 stdout，
+            # 靠步骤 env 的 DEBUG=pw:api 让 API 日志持续落盘来区分"在跑"与"假死"。
             run_shard() {
-              # 单轮：输出重定向到轮次文件，watchdog 每 30s 检查尺寸停滞
               local out=reports/playwright-output-r$1.txt
-              npx playwright test --project=chromium --shard=$((SHARD + 1))/15 e2e/flow/ > "$out" 2>&1 &
+              # SPEC_TARGETS 故意不加引号：extras 分支要把它当多个独立参数展开
+              npx playwright test --project=chromium --shard="${SHARD_NO}/${SHARD_TOTAL}" ${SPEC_TARGETS} > "$out" 2>&1 &
               local pw_pid=$!
               local last_size=0 stall=0
               while kill -0 "$pw_pid" 2>/dev/null; do
@@ -2620,7 +2553,7 @@ jobs:
                   last_size=$cur_size
                 fi
                 if [ "$stall" -ge 180 ]; then
-                  echo "::warning::Playwright 输出停滞 ${stall}s，判定挂起，kill 进程树后重跑"
+                  echo "::warning::${SPEC_TARGETS} 分片 ${SHARD_NO}/${SHARD_TOTAL} 输出停滞 ${stall}s，判定挂起，kill 进程树"
                   kill -9 "$pw_pid" 2>/dev/null
                   # 连带清理 playwright worker/chromium 子进程
                   pkill -9 -P "$pw_pid" 2>/dev/null
@@ -2634,58 +2567,14 @@ jobs:
               echo $?
               return $?
             }
-            timeout 1500 bash -c "$(declare -f run_shard); SHARD=$SHARD run_shard 1" > /tmp/shard-exit.txt
+            timeout "$SHARD_LIMIT" bash -c "$(declare -f run_shard); SPEC_TARGETS=\"$SPEC_TARGETS\" SHARD_NO=$SHARD_NO SHARD_TOTAL=$SHARD_TOTAL run_shard 1" > /tmp/shard-exit.txt
             EXIT_CODE=$(tail -1 /tmp/shard-exit.txt)
+            # timeout 杀掉包装进程时上面的 echo 根本没执行，取到空串；
+            # 若不兜成 124，后续 exit "$EXIT_CODE" 会退化成 exit（=0），超时被记成通过
+            # ——run 34041167918 起十余分片的"绿"就是这么来的。
             EXIT_CODE=${EXIT_CODE:-124}
             echo "exit: $EXIT_CODE"
             # 最终输出供后续报告步骤使用
-            LAST=$(ls reports/playwright-output-r*.txt 2>/dev/null | tail -1)
-            [ -n "$LAST" ] && cp "$LAST" reports/playwright-output.txt
-            set +e
-          elif [ "$SHARD" -le 19 ]; then
-            # 分片 15-19: 运行 smoke 页面加载测试（5 片）
-            SMOKE_SHARD=$((SHARD - 14))
-            timeout 2400 npx playwright test --project=chromium --shard=${SMOKE_SHARD}/5 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
-            EXIT_CODE=$?
-          else
-            # 分片 20-24: 运行 traversal 全量遍历 + 端点矩阵（5 片）
-            # TRV_SHARD = SHARD-20（0 基），shard=(TRV_SHARD+1)/5：
-            TRV_SHARD=$((SHARD - 20))
-            mkdir -p reports
-            set +e
-            run_trv_shard() {
-              local out=reports/playwright-output-r$1.txt
-              npx playwright test --project=chromium --shard=$((TRV_SHARD + 1))/5 e2e/traversal/ > "$out" 2>&1 &
-              local pw_pid=$!
-              local last_size=0 stall=0
-              while kill -0 "$pw_pid" 2>/dev/null; do
-                sleep 30
-                local cur_size
-                cur_size=$(stat -c%s "$out" 2>/dev/null || echo 0)
-                if [ "$cur_size" -eq "$last_size" ]; then
-                  stall=$((stall + 30))
-                else
-                  stall=0
-                  last_size=$cur_size
-                fi
-                if [ "$stall" -ge 180 ]; then
-                  echo "::warning::traversal Playwright 输出停滞 ${stall}s，判定挂起，kill 进程树后重跑"
-                  kill -9 "$pw_pid" 2>/dev/null
-                  pkill -9 -P "$pw_pid" 2>/dev/null
-                  pkill -9 -f "playwright test" 2>/dev/null
-                  pkill -9 -f "chromium.*--headless" 2>/dev/null
-                  echo 124
-                  return 124
-                fi
-              done
-              wait "$pw_pid"
-              echo $?
-              return $?
-            }
-            timeout 1800 bash -c "$(declare -f run_trv_shard); TRV_SHARD=$TRV_SHARD run_trv_shard 1" > /tmp/trv-exit.txt
-            EXIT_CODE=$(tail -1 /tmp/trv-exit.txt)
-            EXIT_CODE=${EXIT_CODE:-124}
-            echo "exit: $EXIT_CODE"
             LAST=$(ls reports/playwright-output-r*.txt 2>/dev/null | tail -1)
             [ -n "$LAST" ] && cp "$LAST" reports/playwright-output.txt
           fi
@@ -2969,24 +2858,48 @@ jobs:
           retention-days: 30
 
   # ==========================================================================
-  # Job 15c: 全面漏洞检测（用户任务 1，2026-09-10）
-  # 依赖扫描（cargo audit/npm audit）+ 秘密泄露（gitleaks）+ 静态安全扫描
-  # （semgrep 社区规则）。只做依赖与代码静态分析，非攻击性测试。
-  # 发现 High/Critical 依赖漏洞或泄露 → fail；Medium 记录报告。
+  # Job 15c: 供应链检查（依赖漏洞 + 秘密泄露 + 静态扫描 + 依赖图 + lockfile 漂移）
+  #
+  # 2026-09-22 合并原三个 job：ci-audit（🛡️ 依赖审计）+ ci-deps（📦 依赖图记录）+
+  # 本 job（🛡️ 全面漏洞检测）。三者都只 needs: ci-info，且各自重复执行
+  #   checkout ×3、setup-rust ×3、setup-frontend ×2、
+  #   cargo install cargo-audit ×2（每次都是完整源码编译）、cargo audit ×2、npm audit ×2。
+  # 合并后 runner 3 → 1，cargo-audit 安装与 cargo audit 各执行 1 次。
+  #
+  # job id 与显示名沿用 security-vulnerability-scan /「🛡️ 全面漏洞检测」，
+  # 外部 required check 引用不受影响；被合并掉的两个 check 名（🛡️ 依赖审计、
+  # 📦 依赖图记录）若曾在 Settings → Branches → Required checks 勾选，需改勾本 job。
+  #
+  # 保留的全部门禁（任一命中即 fail，PR 不可合并）：
+  #   1. cargo audit high/critical 漏洞（severity 字段判定 + 详情文本判定，取并集）
+  #   2. npm audit high/critical 漏洞（metadata 计数 + 逐包 severity，取并集）
+  #   3. 扫描器缺失 / 输出不可解析 / audit 命令异常退出（exit > 1）⇒ 按未执行处理，fail closed
+  #   4. gitleaks 秘密泄露
+  #   5. cargo tree --locked：Cargo.lock 与 Cargo.toml 漂移 ⇒ fail
+  # 事件范围取三者并集：原 ci-audit / ci-deps 无 if（全事件运行）⇒ 本 job 不设 if。
+  # 产物：三个 artifact 名各自独立、目录互不覆盖
+  #   reports/audit/ → dependency-audit-reports、reports/deps/ → dependency-trees、
+  #   reports/ 全量 → security-scan-${run_id}。
+  #   （原 ci-audit / ci-deps 的上传步在仓库根找 reports/，而文件写在 backend/reports、
+  #    frontend/reports ⇒ 两个 artifact 实际一直是空的；现统一写 $GITHUB_WORKSPACE/reports/**
+  #    并 if-no-files-found: error，空产物直接判失败，不再静默）
   # ==========================================================================
   security-vulnerability-scan:
     name: 🛡️ 全面漏洞检测
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 三个原 job 各 30 分钟；合并后工作量为三者之和，上调窗口（只放宽时间预算，不影响判定）
+    timeout-minutes: 60
     needs: ci-info
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
     steps:
       - name: 检出代码（含完整历史，gitleaks 需要）
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Setup Rust（cargo-audit 需 cargo 工具链）
+      - name: 创建报告目录
+        run: mkdir -p "$GITHUB_WORKSPACE/reports/audit" "$GITHUB_WORKSPACE/reports/deps"
+
+      - name: Setup Rust（cargo-audit / cargo tree 需 cargo 工具链；本 job 不编译 crate 故关 sccache）
         uses: ./.github/actions/setup-rust
         with:
           sccache: 'false'
@@ -2994,75 +2907,139 @@ jobs:
       # 原步骤没有 Rust/Node 工具链，且 `cargo install … || true` 把安装失败吞掉：
       # 之后 `cargo audit` 是 command not found，JSON 为空，VULN_COUNT=parse-error，
       # 而 parse-error 既不 fail 也不 warn —— 安全扫描器根本没跑却被记为通过。
-      - name: Setup Frontend（Node.js，npm audit 需要；无需安装依赖）
+      - name: Setup Frontend（Node.js，npm audit 需要；npm audit 读 package-lock.json，无需 node_modules）
         uses: ./.github/actions/setup-frontend
         with:
           skip-install: 'true'
 
-      - name: Rust 依赖漏洞审计（cargo-audit）
-        working-directory: backend
+      - name: 安装 cargo-audit（安装失败/命令缺失必须阻塞，禁止 || true 吞错）
         run: |
           cargo install cargo-audit --locked --quiet
           command -v cargo-audit >/dev/null || { echo "::error::cargo-audit 未安装成功"; exit 1; }
+          cargo audit --version
+
+      - name: Rust 依赖漏洞审计（cargo audit · high/critical 阻塞 CI）
+        run: |
+          R="$GITHUB_WORKSPACE/reports/audit"
           set +e
-          cargo audit --json > /tmp/cargo-audit.json 2> /tmp/cargo-audit.log
+          # 审计范围含 [dev-dependencies]：原 ci-audit 用 --no-dev-deps（子集），本 job 全量，
+          # 取超集 ⇒ 任何原本会被阻塞的高危漏洞仍然会被阻塞。
+          ( cd backend && cargo audit --json ) > "$R/cargo-audit.json" 2> "$R/cargo-audit.log"
           RC=$?
           set -e
-          echo "cargo audit exit=$RC"
-          # 解析 vulnerabilities 数量（json 字段 vulnerabilities.count）
-          VULN_COUNT=$(python3 -c "
-          import json
-          try:
-              d = json.load(open('/tmp/cargo-audit.json'))
-              v = d.get('vulnerabilities', {})
-              count = v.get('count', 0)
-              details = [f\"{x.get('package',{}).get('name')} {x.get('package',{}).get('version')}: {x.get('advisory',{}).get('id')} ({x.get('advisory',{}).get('severity','?')})\" for x in v.get('list', [])]
-              print(count)
-              for d2 in details[:20]: print('  -', d2, file=__import__('sys').stderr)
-          except Exception as e:
-              print('parse-error'); print(str(e), file=__import__('sys').stderr)
-          " 2>/tmp/cargo-audit-details.txt || echo "parse-error")
-          echo "漏洞数量: $VULN_COUNT"
-          cat /tmp/cargo-audit-details.txt >> "$GITHUB_STEP_SUMMARY" || true
-          # 解析失败 = 扫描器没有正常执行，必须失败，不能退化成"跳过判定"
-          if [ "$VULN_COUNT" = "parse-error" ]; then
-            echo "::error::cargo audit 输出无法解析（扫描器未正常执行）"
-            tail -30 /tmp/cargo-audit.log || true
+          echo "cargo audit exit=$RC（0=无漏洞 1=发现漏洞 其他=执行异常）"
+          # exit>1 = 网络/解析之外的异常，扫描器没跑成，不得退化成"跳过判定"
+          if [ "$RC" -gt 1 ]; then
+            echo "::error::cargo audit 异常退出（exit $RC，扫描器未正常完成）"
+            tail -30 "$R/cargo-audit.log" || true
             exit 1
           fi
-          # Critical/High 存在（count>0 且含 high/critical severity）才 fail，避免低危阻塞
-          if [ "$VULN_COUNT" != "0" ]; then
-            if grep -qiE "critical|high" /tmp/cargo-audit-details.txt 2>/dev/null; then
-              echo "::error::cargo audit 发现 High/Critical 依赖漏洞（详见 summary）"
-              exit 1
-            fi
-            echo "::warning::cargo audit 发现低危依赖漏洞（详见 summary）"
-          fi
+          python3 - "$R" <<'PY'
+          import json, sys, os
+          R = sys.argv[1]
+          def die(msg):
+              print('::error::' + msg)
+              sys.exit(1)
+          try:
+              d = json.load(open(os.path.join(R, 'cargo-audit.json')))
+          except Exception as e:
+              die('cargo audit 输出无法解析（扫描器未正常执行）: %s' % e)
+          v = d.get('vulnerabilities') or {}
+          items = v.get('list') or []
+          def sev(x):
+              return str(((x.get('advisory') or {}).get('severity')) or '?').lower()
+          lines = []
+          for x in items:
+              a = x.get('advisory') or {}
+              pk = x.get('package') or {}
+              lines.append('[%s] %s %s - %s %s' % (sev(x), pk.get('name'), pk.get('version'), a.get('id'), a.get('title') or ''))
+          open(os.path.join(R, 'cargo-audit-details.txt'), 'w').write('\n'.join(lines) + ('\n' if lines else ''))
+          high = [l for l in lines if l.startswith('[high]') or l.startswith('[critical]')]
+          print('cargo audit: 已知漏洞 %d 条，其中 high/critical %d 条' % (len(items), len(high)))
+          for l in lines[:50]:
+              print('  - ' + l)
+          count = v.get('count')
+          # 输出自相一致校验：任何不一致都按"扫描器未正常执行"处理（fail closed）
+          if v.get('found') is True and not items:
+              die('cargo audit 报告 found=true 但 list 为空（输出异常，无法判定）')
+          if isinstance(count, int) and count > len(items):
+              die('cargo audit 报告 count=%d 大于可解析条目数=%d（输出被截断，无法判定）' % (count, len(items)))
+          # 门禁 1（原 ci-audit）：severity 字段精确命中 high/critical
+          if high:
+              die('检测到 %d 个 high/critical 级别 Rust 依赖漏洞，阻塞 CI（详见 reports/audit/cargo-audit-details.txt）' % len(high))
+          # 门禁 2（原全面漏洞检测 job）：有漏洞且详情文本出现 critical/high ⇒ 同样阻塞
+          if items:
+              txt = open(os.path.join(R, 'cargo-audit-details.txt')).read().lower()
+              if 'critical' in txt or 'high' in txt:
+                  die('cargo audit 发现 High/Critical 依赖漏洞（severity 字段缺失，按详情文本判定）')
+              print('::warning::cargo audit 发现 %d 个低危/中危依赖漏洞（记录在案，不阻塞）' % len(items))
+          PY
 
-      - name: npm 依赖漏洞审计
-        working-directory: frontend
+      - name: npm 依赖漏洞审计（npm audit · high/critical 阻塞 CI）
         run: |
+          R="$GITHUB_WORKSPACE/reports/audit"
           set +e
-          npm audit --json > /tmp/npm-audit.json 2>/dev/null
+          ( cd frontend && npm audit --json ) > "$R/npm-audit.json" 2> "$R/npm-audit.log"
           RC=$?
           set -e
-          python3 -c "
-          import json, sys
-          try:
-              d = json.load(open('/tmp/npm-audit.json'))
-              meta = d.get('metadata', {}).get('vulnerabilities', {})
-              print('npm audit 漏洞统计:', meta)
-              high = meta.get('high', 0) + meta.get('critical', 0)
-              if high > 0:
-                  print(f'::error::npm audit 发现 {high} 个 High/Critical 漏洞')
-                  sys.exit(1)
-              if meta.get('moderate', 0) + meta.get('low', 0) > 0:
-                  print('::warning::npm audit 存在低危/中危漏洞（详见报告）')
-          except Exception as e:
-              # 同样是"扫描器没跑成"，不得静默放行
-              print(f'::error::npm audit 输出无法解析（扫描器未正常执行）: {e}')
+          echo "npm audit exit=$RC（0=无漏洞 1=发现漏洞 其他=执行异常）"
+          if [ "$RC" -gt 1 ]; then
+            echo "::error::npm audit 异常退出（exit $RC，扫描器未正常完成）"
+            tail -30 "$R/npm-audit.log" || true
+            exit 1
+          fi
+          python3 - "$R" <<'PY'
+          import json, sys, os
+          R = sys.argv[1]
+          def die(msg):
+              print('::error::' + msg)
               sys.exit(1)
-          " || exit 1
+          try:
+              d = json.load(open(os.path.join(R, 'npm-audit.json')))
+          except Exception as e:
+              die('npm audit 输出无法解析（扫描器未正常执行）: %s' % e)
+          meta = (d.get('metadata') or {}).get('vulnerabilities') or {}
+          pkgs = d.get('vulnerabilities') or {}
+          def sev(x):
+              return str(x.get('severity') or '?').lower()
+          def num(k):
+              try:
+                  return int(meta.get(k, 0) or 0)
+              except (TypeError, ValueError):
+                  die('npm audit metadata.%s 非数值（输出异常，无法判定）' % k)
+          bad = sorted('%s [%s]' % (k, sev(x)) for k, x in pkgs.items() if sev(x) in ('high', 'critical'))
+          print('npm audit 漏洞统计: %s' % meta)
+          for b in bad[:50]:
+              print('  - ' + b)
+          meta_high = num('high') + num('critical')
+          # 门禁 1（原全面漏洞检测 job）：metadata 计数
+          if meta_high > 0:
+              die('npm audit 发现 %d 个 High/Critical 漏洞，阻塞 CI' % meta_high)
+          # 门禁 2（原 ci-audit）：逐包 severity 字段命中 high/critical
+          if bad:
+              die('npm audit 发现 %d 个 high/critical 级别前端依赖漏洞，阻塞 CI（详见 reports/audit/npm-audit.json）' % len(bad))
+          # 计数与逐包判定不一致（有漏洞统计却解析不到任何包）= 输出不可信，按未执行处理
+          if num('total') > 0 and not pkgs:
+              die('npm audit metadata.total=%d 但无可解析漏洞条目（输出异常，无法判定）' % num('total'))
+          if num('total') > 0 or pkgs:
+              print('::warning::npm audit 存在低危/中危漏洞（详见 reports/audit/npm-audit.json）')
+          PY
+
+      - name: 生成 cargo tree（严格：lockfile 漂移时阻塞 CI）
+        run: |
+          D="$GITHUB_WORKSPACE/reports/deps"
+          cd backend
+          # --locked 要求 Cargo.lock 与 Cargo.toml 一致，漂移时 exit != 0 阻塞 CI
+          cargo tree --locked --charset ascii > "$D/cargo-tree.txt"
+          cargo tree --locked --charset ascii --format json > "$D/cargo-tree.json"
+          echo "cargo tree 行数: $(wc -l < "$D/cargo-tree.txt")"
+
+      - name: 生成 npm ls（依赖图记录，非关键，允许失败）
+        continue-on-error: true
+        run: |
+          D="$GITHUB_WORKSPACE/reports/deps"
+          ( cd frontend && npm ls --all --json ) > "$D/npm-ls.json" 2> "$D/npm-ls.txt"
+          echo "npm ls 顶层依赖数: $(jq '.dependencies | length' "$D/npm-ls.json" 2>/dev/null || echo N/A)"
 
       - name: 秘密泄露扫描（gitleaks）
         uses: gacts/gitleaks@v1
@@ -3081,111 +3058,64 @@ jobs:
             --config=p/rust
           generateSarif: "false"
 
+      - name: 上传依赖审计报告（cargo audit / npm audit 原始输出）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-reports
+          path: reports/audit/
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: 上传依赖图记录（cargo tree / npm ls）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-trees
+          path: reports/deps/
+          retention-days: 90
+          if-no-files-found: error
+
       - name: 上传漏洞扫描报告
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-scan-${{ github.run_id }}
-          path: |
-            /tmp/cargo-audit.json
-            /tmp/npm-audit.json
+          path: reports/
           retention-days: 30
-          if-no-files-found: ignore
+          if-no-files-found: error
 
 # ==============================================================================
-# Job 16: 死代码全量审计（从 dead-code-audit.yml 合并，main 发布前必经）
+# Job 16: 死代码全量审计（PR 门禁；审计步骤本体在 ./.github/actions/dead-code-audit）
 # ==============================================================================
   ci-dead-code-audit:
     name: 🧟 死代码审计
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    # Clippy 通过后跑（复用编译产物）；PR 时运行
+    # Clippy 通过后跑：与 ci-lint-rust 同 tools/同 cargo- 缓存 key（含 backend/target），
+    # 依赖 crate 不必重编，只有本 crate 因剥离 #![allow(dead_code)] 必须重编一次
     needs: ci-lint-rust
     if: github.event_name == 'pull_request'
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: Setup Rust（clippy + 系统依赖）
-        uses: ./.github/actions/setup-rust
+      # 审计流程（备份源码 → 剥离 file-level allow → cargo check 收集 dead_code →
+      # 恢复源码 → 报告 → 上传 → 门禁判定）与 dead-code-audit.yml 的周报 job 共用
+      # 同一份实现；本 job 传 fail-on-warnings: 'true' ⇒ 有任何 dead_code 警告即红，
+      # 与合并前的"阻塞判定"步骤语义完全一致（并对统计缺失 fail closed）。
+      - name: 死代码审计（含门禁判定）
+        id: audit
+        uses: ./.github/actions/dead-code-audit
         with:
-          components: clippy
-          system-deps: pkg-config libssl-dev protobuf-compiler
+          artifact-name: dead-code-audit-${{ github.run_id }}
+          retention-days: '30'
+          fail-on-warnings: 'true'
 
-      - name: 统计审计前 file-level allow 数
-        id: before
-        run: |
-          BEFORE=$(grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
-          echo "before_count=$BEFORE" >> $GITHUB_OUTPUT
-          echo "审计前 file-level allow 数: $BEFORE"
-
-      - name: 备份源代码
-        run: cp -r backend/src /tmp/src-backup
-
-      - name: 剥离 file-level #![allow(dead_code)] 与 TODO 注释
-        run: |
-          find backend/src -name '*.rs' -exec sed -i \
-            -e '/^#!\[allow(dead_code)\]$/d' \
-            -e '/^\/\/ TODO(tech-debt):.*$/d' \
-            {} \;
-          REMAINING=$(grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
-          echo "剥离后剩余 file-level allow: $REMAINING（应为 0）"
-
-      - name: 跑 cargo check 收集 dead_code 警告
-        id: check
-        working-directory: backend
-        run: |
-          set +e
-          cargo check --all-targets --message-format=short 2>&1 | \
-            tee /tmp/cargo-check-output.txt | \
-            grep -E 'warning.*dead_code|error.*dead_code' > /tmp/dead-code-warnings.txt || true
-          WARNING_COUNT=$(wc -l < /tmp/dead-code-warnings.txt 2>/dev/null || echo "0")
-          AFFECTED=$(grep -oE 'src/[^:]+\.rs' /tmp/dead-code-warnings.txt 2>/dev/null | sort -u | wc -l)
-          echo "warning_count=$WARNING_COUNT" >> $GITHUB_OUTPUT
-          echo "affected_files=$AFFECTED" >> $GITHUB_OUTPUT
-          echo "dead_code 警告数: $WARNING_COUNT，受影响文件: $AFFECTED"
-
-      - name: 恢复源代码
-        if: always()
-        run: rm -rf backend/src && cp -r /tmp/src-backup backend/src
-
-      - name: 生成审计报告
+      - name: 写报告到 Step Summary
         if: always()
         run: |
-          {
-            echo "# 死代码审计报告"; echo ""
-            echo "| 指标 | 数值 |"; echo "|------|------|"
-            echo "| 审计前 file-level allow | ${{ steps.before.outputs.before_count }} |"
-            echo "| 剥离后 dead_code 警告 | ${{ steps.check.outputs.warning_count }} |"
-            echo "| 受影响文件 | ${{ steps.check.outputs.affected_files }} |"; echo ""
-            echo "## 按文件统计（前 30）"; echo ""
-            if [ -f /tmp/dead-code-warnings.txt ] && [ -s /tmp/dead-code-warnings.txt ]; then
-              echo "| 文件 | 警告数 |"; echo "|------|--------|"
-              grep -oE 'src/[^:]+\.rs' /tmp/dead-code-warnings.txt | sort | uniq -c | sort -rn | head -30 | \
-                awk '{printf "| `backend/%s` | %s |\n", $2, $1}'
-            else echo "无警告"
-            fi
-          } > /tmp/audit-report.md
-          cat /tmp/audit-report.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 上传审计报告
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dead-code-audit-${{ github.run_id }}
-          path: /tmp/audit-report.md
-          retention-days: 30
-        continue-on-error: true
-
-      - name: 阻塞判定（有 dead_code 警告则失败）
-        run: |
-          WC=${{ steps.check.outputs.warning_count }}
-          if [ "$WC" != "0" ] && [ -n "$WC" ]; then
-            echo "❌ 发现 $WC 处 dead_code，阻塞发布"
-            exit 1
-          fi
-          echo "✅ 无死代码"
-
+          [ -s /tmp/audit-report.md ] && cat /tmp/audit-report.md >> "$GITHUB_STEP_SUMMARY" || echo "（无报告文件，审计步骤未产出）"
 # ==============================================================================
 # Job 16.5: Setup 向导真实链路 E2E（独立空库 + 真实后端 + 零 mock）
 # ==============================================================================
@@ -3728,8 +3658,6 @@ jobs:
       ci-test-rust,
       ci-coverage-rust,
       ci-test-fe,
-      ci-audit,
-      ci-deps,
       ci-perf-bench,
       ci-build-rust,
       ci-build-fe,

@@ -1,0 +1,232 @@
+# Composite action：死代码全量审计（strip #![allow(dead_code)] → cargo check → 报告 → 可选阻塞）
+#
+# 为什么存在：这套流程原先在 ci-cd.yml 的 ci-dead-code-audit 与 dead-code-audit.yml 的
+# audit job 里各写了一份（近 150 行逐行重复），两份的剥离规则、警告计数口径、报告格式
+# 已经开始漂移；任一处改动都可能让"门禁版"和"周报版"给出不同数字。
+# 现在审计过程只有本文件一份实现，两个调用方只保留各自的差异：
+#   · ci-cd.yml（PR 门禁）：fail-on-warnings: 'true' —— 有任何 dead_code 警告即 fail
+#   · dead-code-audit.yml（周报/手动）：fail-on-warnings: 'false' —— 只在 strict 手动触发
+#     或定时任务里出报告/开 issue，不红
+# 编译产物复用：调用方需先 checkout。cargo check --all-targets 复用 setup-rust 的
+# rustup-/cargo- 缓存（含 backend/target），依赖 crate 不必重编；本 crate 自身必须重编，
+# 因为审计会临时改写 backend/src —— 这一步是审计的定义本身，省不掉。
+name: Dead Code Audit
+inputs:
+  artifact-name:
+    description: '上传报告使用的 artifact 名（两个调用方历史上不同名，各自保留）'
+    required: true
+  retention-days:
+    description: '报告 artifact 保留天数'
+    required: false
+    default: '30'
+  fail-on-warnings:
+    description: 'true=发现 dead_code 警告即让本 job 失败（门禁语义）；false=仅出报告'
+    required: false
+    default: 'true'
+  components:
+    description: 'setup-rust 的 Rust 组件（与同 PR 的 clippy job 用同一组件集以复用工具链缓存）'
+    required: false
+    default: 'clippy'
+  system-deps:
+    description: 'setup-rust 的系统依赖包'
+    required: false
+    default: 'pkg-config libssl-dev protobuf-compiler'
+  sccache:
+    description: '是否启用 sccache（--all-targets 编译内存峰值高，关闭以免 OOM）'
+    required: false
+    default: 'false'
+  mem-per-unit-gb:
+    description: '每个并行编译单元的内存峰值估值(GB)'
+    required: false
+    default: '7'
+  report-path:
+    description: '报告写入路径（两个调用方历史上都是 /tmp/audit-report.md）'
+    required: false
+    default: '/tmp/audit-report.md'
+outputs:
+  before_count:
+    description: '审计前带 file-level #![allow(dead_code)] 的文件数'
+    value: ${{ steps.before.outputs.before_count }}
+  warning_count:
+    description: '剥离抑制后 cargo check 报出的 dead_code 警告数'
+    value: ${{ steps.check.outputs.warning_count }}
+  affected_files:
+    description: '受影响源文件数'
+    value: ${{ steps.check.outputs.affected_files }}
+runs:
+  using: composite
+  steps:
+    - name: Setup Rust（共享 rustup-/cargo- 缓存，智能并行度防 OOM）
+      uses: ./.github/actions/setup-rust
+      with:
+        components: ${{ inputs.components }}
+        system-deps: ${{ inputs.system-deps }}
+        sccache: ${{ inputs.sccache }}
+        mem_per_unit_gb: ${{ inputs.mem-per-unit-gb }}
+
+    - name: 统计审计前 #![allow(dead_code)] 文件数
+      id: before
+      shell: bash
+      run: |
+        BEFORE=$(grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
+        echo "before_count=$BEFORE" >> "$GITHUB_OUTPUT"
+        echo "审计前 file-level allow 数: $BEFORE"
+
+    - name: 备份源代码
+      shell: bash
+      run: |
+        rm -rf /tmp/src-backup
+        cp -r backend/src /tmp/src-backup
+        echo "源代码已备份到 /tmp/src-backup"
+
+    - name: 剥离 file-level #![allow(dead_code)] 与 TODO 注释（仅审计用，随后恢复）
+      shell: bash
+      run: |
+        find backend/src -name '*.rs' -exec sed -i \
+          -e '/^#!\[allow(dead_code)\]$/d' \
+          -e '/^\/\/ TODO(tech-debt):.*$/d' \
+          {} \;
+        REMAINING=$(grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
+        echo "剥离后剩余 file-level allow: $REMAINING（应为 0）"
+        if [ "$REMAINING" -ne "0" ]; then
+          echo "::warning::仍有 $REMAINING 个 file-level allow 未被剥离（写法不在剥离规则内），dead_code 统计可能偏低"
+          grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | head -5
+        fi
+        # 项级 #[allow(dead_code)] 是"逐项标注技术债"的合法写法，保留不动，仅计数
+        ITEM_ALLOW=$(grep -rn '#\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
+        echo "保留的项级 allow 数（不参与剥离）: $ITEM_ALLOW"
+
+    - name: 跑 cargo check --all-targets 收集 dead_code 警告
+      id: check
+      shell: bash
+      working-directory: backend
+      # dead_code 是警告不是错误，cargo check 退出码不作为判定条件（与两个历史版本一致）；
+      # 判定只看 dead_code 警告条数，避免把编译期的其他噪声算进死代码。
+      run: |
+        set +e
+        cargo check --all-targets --message-format=short 2>&1 | \
+          tee /tmp/cargo-check-output.txt | \
+          grep -E 'warning.*dead_code|error.*dead_code' > /tmp/dead-code-warnings.txt || true
+        set -e
+        WARNING_COUNT=$(wc -l < /tmp/dead-code-warnings.txt 2>/dev/null || echo "0")
+        AFFECTED=$(grep -oE 'src/[^:]+\.rs' /tmp/dead-code-warnings.txt 2>/dev/null | sort -u | wc -l)
+        echo "warning_count=$WARNING_COUNT" >> "$GITHUB_OUTPUT"
+        echo "affected_files=$AFFECTED" >> "$GITHUB_OUTPUT"
+        echo "dead_code 警告数: $WARNING_COUNT，受影响文件: $AFFECTED"
+
+    - name: 恢复源代码
+      shell: bash
+      if: always()
+      run: |
+        rm -rf backend/src
+        cp -r /tmp/src-backup backend/src
+        RESTORED=$(grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
+        echo "源代码已恢复，恢复后 file-level allow 数: $RESTORED（应与审计前 ${{ steps.before.outputs.before_count }} 一致）"
+
+    - name: 生成审计报告
+      shell: bash
+      if: always()
+      env:
+        BEFORE_COUNT: ${{ steps.before.outputs.before_count }}
+        WARNING_COUNT: ${{ steps.check.outputs.warning_count }}
+        AFFECTED_FILES: ${{ steps.check.outputs.affected_files }}
+        REPORT_PATH: ${{ inputs.report-path }}
+      run: |
+        {
+          echo "# 死代码全量审计报告"
+          echo ""
+          echo "**生成时间**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')  "
+          echo "**审计模式**: 临时剥离所有 file-level \`#![allow(dead_code)]\` 与对应 TODO 注释后跑 \`cargo check --all-targets\`"
+          echo ""
+          echo "## 概览"
+          echo ""
+          echo "| 指标 | 数值 |"
+          echo "|------|------|"
+          echo "| 审计前 file-level allow 文件数 | $BEFORE_COUNT |"
+          echo "| 剥离后真实 dead_code 警告数 | $WARNING_COUNT |"
+          echo "| 受影响源文件数 | $AFFECTED_FILES |"
+          echo ""
+
+          if [ "$WARNING_COUNT" -eq "0" ]; then
+            echo "## ✅ 结果：无死代码"
+            echo ""
+            echo "剥离所有 file-level \`#![allow(dead_code)]\` 后，编译器未报告任何 dead_code 警告。"
+            echo "这意味着 **所有 \`#![allow(dead_code)]\` 都是冗余的，可以全部移除**。"
+            echo ""
+            echo "### 建议下一步"
+            echo ""
+            echo "1. 手动删除所有 file-level \`#![allow(dead_code)]\` 抑制"
+            echo "2. 验证 cargo check 仍通过"
+            echo "3. 提 PR 一次性清理"
+            exit 0
+          fi
+
+          echo "## 按文件统计（前 30）"
+          echo ""
+          echo "| 文件 | 警告数 |"
+          echo "|------|--------|"
+          if [ -f /tmp/dead-code-warnings.txt ] && [ -s /tmp/dead-code-warnings.txt ]; then
+            grep -oE 'src/[^:]+\.rs' /tmp/dead-code-warnings.txt | \
+              sort | uniq -c | sort -rn | head -30 | \
+              awk '{printf "| `backend/%s` | %s |\n", $2, $1}'
+          else
+            echo "| (无数据) | 0 |"
+          fi
+          echo ""
+
+          echo "## 完整警告列表"
+          echo ""
+          echo '```'
+          if [ -f /tmp/dead-code-warnings.txt ] && [ -s /tmp/dead-code-warnings.txt ]; then
+            cat /tmp/dead-code-warnings.txt
+          else
+            echo "(无警告)"
+          fi
+          echo '```'
+          echo ""
+
+          echo "## 处理建议"
+          echo ""
+          echo "每条警告分两种情况处理："
+          echo ""
+          echo "### 情况 A：真死代码（推荐删除）"
+          echo ""
+          echo "1. 打开对应文件"
+          echo "2. 删除未使用的 pub 项（fn / struct / enum / const / static）"
+          echo "3. 如果项级 \`#[allow(dead_code)]\` 已无作用，一并删除"
+          echo "4. 重新跑本审计验证"
+          echo ""
+          echo "### 情况 B：误报（pub 但未被跨 crate 引用）"
+          echo ""
+          echo "1. 在该项上加 \`#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除\`"
+          echo "2. **禁止**再用 file-level \`#![allow(dead_code)]\` 抑制整文件"
+        } > "$REPORT_PATH"
+        echo "=== 报告预览 ==="
+        head -50 "$REPORT_PATH"
+        echo "... (报告共 $(wc -l < "$REPORT_PATH") 行)"
+
+    - name: 上传审计报告
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.report-path }}
+        retention-days: ${{ inputs.retention-days }}
+      # 兼容旧 GitHub 实例：artifact 上传失败不该淹没"死代码门禁"本身的结论
+      continue-on-error: true
+
+    - name: 门禁判定（fail-on-warnings=true 时有 dead_code 警告即失败）
+      shell: bash
+      if: inputs.fail-on-warnings == 'true'
+      run: |
+        WC='${{ steps.check.outputs.warning_count }}'
+        if [ -z "$WC" ]; then
+          echo "::error::dead_code 统计步骤未产出结果（审计未正常完成），按失败处理"
+          exit 1
+        fi
+        if [ "$WC" != "0" ]; then
+          echo "::error::发现 $WC 处 dead_code 警告，阻塞合并（详见审计报告 artifact）"
+          echo "❌ 发现 $WC 处 dead_code，阻塞发布"
+          exit 1
+        fi
+        echo "✅ 无死代码"

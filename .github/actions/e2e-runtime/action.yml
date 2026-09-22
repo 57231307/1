@@ -16,14 +16,36 @@ inputs:
     description: '安装 postgresql-client（迁移命令与数据级断言依赖 psql）'
     required: false
     default: 'true'
+  artifact-run-id:
+    description: >-
+      从哪个 workflow run 下载 backend-binary / frontend-dist。
+      留空 = 默认解析（同 run 内的产物，主 CI 的用法，行为不变）。
+      独立 workflow（如 e2e-batch.yml）无法看到别的 workflow run 的产物，
+      必须先查出目标 run id 再传进来。
+    required: false
+    default: ''
 runs:
   using: composite
   steps:
+    # 两条下载路径分开写（而不是给同一步恒传 run-id: ${{ inputs.artifact-run-id }}）：
+    # 主 CI 的 ci-e2e / role-permission-matrix / setup-wizard 传空（产物就在本 run 里），
+    # 保持与现在完全一致的调用参数；只有独立 workflow（e2e-batch.yml）需要显式 run-id
+    # 才能拿到别的 workflow run 的产物。空串直接喂给 run-id 的语义依赖 download-artifact
+    # 内部实现，不值得为省 2 行 YAML 让 25 个 E2E 分片去冒这个险。
     - name: 下载预编译后端二进制（复用 ci-build-rust 产物，不重编）
+      if: inputs.artifact-run-id == ''
       uses: actions/download-artifact@v4
       with:
         name: backend-binary
         path: backend/target/release
+
+    - name: 下载预编译后端二进制（跨 workflow run，指定 run-id）
+      if: inputs.artifact-run-id != ''
+      uses: actions/download-artifact@v4
+      with:
+        name: backend-binary
+        path: backend/target/release
+        run-id: ${{ inputs.artifact-run-id }}
 
     - name: 赋予后端二进制可执行权限
       shell: bash
@@ -32,10 +54,19 @@ runs:
         chmod +x backend/target/release/bingxi
 
     - name: 下载前端构建产物（复用 ci-build-fe 的 vite build）
+      if: inputs.artifact-run-id == ''
       uses: actions/download-artifact@v4
       with:
         name: frontend-dist
         path: frontend/dist
+
+    - name: 下载前端构建产物（跨 workflow run，指定 run-id）
+      if: inputs.artifact-run-id != ''
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend-dist
+        path: frontend/dist
+        run-id: ${{ inputs.artifact-run-id }}
 
     - name: 校验前后端产物完整
       shell: bash

@@ -18,9 +18,30 @@
 #   - 批次 N+28：再次查询（若 N+20 未完成）
 #   - 批次 N+29：最后一次查询，未完成则跳过 N+30 的 E2E 周期
 #
-# 技术说明：
-#   - 独立编译后端（不依赖 ci-cd.yml 的 artifact，确保工作流完全独立）
-#   - PostgreSQL service container + 后端 + 前端 dev server + Playwright
+# 技术说明（2026-09-22 去克隆）：
+#   - 原先本 workflow 是 ci-cd.yml ci-e2e job 的手抄副本：自带 rustup/cargo 缓存 +
+#     dtolnay/rust-toolchain@master（浮动 ref，违反本仓库"第三方 action 钉 SHA/tag"
+#     的供应链策略，见 ci-cd.yml env.RUST_VERSION 注释）、自己 cargo build --release、
+#     自己 setup-node + npm ci + playwright install。合计每台 runner 多一次
+#     后端 release 全量编译（数十分钟）与一套独立的缓存 key（e2e-rustup-/e2e-cargo-/
+#     e2e-npm-，与主 CI 的 rustup-/cargo-/fe-npm- 各算各的，等于同一份产物缓存两份）。
+#   - 现在改为复用 ./.github/actions/e2e-runtime（与 ci-e2e 同一套运行期装配：
+#     下载 backend-binary + frontend-dist → postgresql-client → setup-frontend →
+#     Playwright 浏览器缓存+安装），Rust 编译彻底不在本 workflow 发生，
+#     因此也不再需要 Rust 工具链与 dtolnay action 的任何 ref。
+#   - 跨 workflow 取产物：actions/download-artifact 默认只看本 run，所以先用
+#     locate-build-artifacts job 查出最近一次同时产出 backend-binary 与 frontend-dist
+#     的 ci-cd.yml run id，再显式传给 e2e-runtime。找不到就整个 workflow 失败
+#     （不做"退回本地编译"的兜底——那会把"上游没产物"伪装成"E2E 慢"）。
+#     如仍需完全自足的运行环境，正确做法是给 ci-build-rust/ci-build-fe 的 artifact
+#     延长 retention，或用 workflow_run 触发本 workflow（届时无需查 run id）。
+#   - 仍未消除的重复（有意保留，见下方 env 注释）：env 块与 ci-cd.yml 的 ci-e2e
+#     基本同源。GitHub Actions 不支持 YAML anchor，也无法跨文件共享 job 级 env；
+#     若把这些变量改成 composite 里 echo >> $GITHUB_ENV 导出，就要依赖
+#     "repo 级变量与 job 级 env 谁覆盖谁"这一没有稳定契约的行为，且会牵动
+#     25 个已经跑绿的 ci-e2e 分片与 role-permission-matrix（两者的 LOG__DIR /
+#     E2E_BASE_USERNAME 还各不相同）⇒ 风险大于收益，先只保留一份手工同步说明。
+#   - PostgreSQL service container + 后端 + 前端 dev server + Playwright（不变）
 #   - 仅运行 chromium 项目（控制 CI 时长）
 # ==============================================================================
 
@@ -45,10 +66,9 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  RUST_VERSION: 1.94.1
-  RUST_BACKTRACE: full
-  CARGO_TERM_COLOR: always
-  CARGO_TERM_PROGRESS_WHEN: never
+  # 本 workflow 不再出现任何 Rust 编译（后端产物从 ci-cd.yml 下载复用），
+  # 故原先的 RUST_VERSION / RUST_BACKTRACE / CARGO_* 一组变量已移除——
+  # 保留它们只会让人以为这里还在装工具链（它们唯一的使用者是 setup-rust）。
   NODE_VERSION: 22
   NPM_CONFIG_AUDIT: false
   NPM_CONFIG_FUND: false
@@ -59,12 +79,64 @@ defaults:
 
 jobs:
   # ==============================================================================
+  # Job 0: 定位可复用的主 CI 构建产物（backend-binary + frontend-dist）
+  # ==============================================================================
+  locate-build-artifacts:
+    name: 🔍 定位主 CI 构建产物
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ inputs.skip_reason == '' }}
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run-id: ${{ steps.find.outputs.run_id }}
+    steps:
+      - name: 查找最近一次同时产出后端二进制与前端产物的 ci-cd.yml run
+        id: find
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const branch = context.ref.replace('refs/heads/', '');
+            // 必须按 head_sha 精确匹配：本 workflow 的 checkout 用的就是 context.sha。
+            // 若只取"同分支最近一次成功 run"的产物，就可能拿 A 提交编译的
+            // backend-binary / frontend-dist 去跑 B 提交的 E2E 用例——前后端契约漂移
+            // 正是本分支的主要缺陷来源，跨提交混跑会让结果与被检出的代码无关
+            // （这类"两个版本互相抵消"的假绿在本仓库已造成 16 轮误判）。
+            // 同理取消原先"同分支查不到就跨分支再查一次"的回退：那等于允许
+            // 用别的分支的二进制给本分支的用例判绿。
+            const args = {owner, repo, workflow_id: 'ci-cd.yml', branch, status: 'success', per_page: 20};
+            const runs = (await github.rest.actions.listWorkflowRunsForWorkflow(args)).data.workflow_runs || [];
+            const sameCommit = runs.filter(r => r.head_sha === context.sha);
+            if (sameCommit.length === 0) {
+              const seen = runs.slice(0, 5).map(r => `${(r.head_sha || '').slice(0, 7)}(${r.conclusion})`).join(', ');
+              core.setFailed(
+                `本分支最近 20 次成功的 ci-cd.yml run 中没有 head_sha=${(context.sha || '').slice(0, 7)} 的构建` +
+                `（已见: ${seen || '无'}）。不跨提交复用产物：请先让该提交的 ci-cd.yml 跑成功` +
+                `（backend-binary / frontend-dist 由其 ci-build-rust / ci-build-fe 产出），再触发本批次。`
+              );
+              return;
+            }
+            for (const r of sameCommit) {
+              const arts = await github.rest.actions.listWorkflowRunArtifacts({owner, repo, run_id: r.id, per_page: 100});
+              const names = new Set((arts.data.artifacts || []).map(a => a.name));
+              if (names.has('backend-binary') && names.has('frontend-dist')) {
+                core.setOutput('run_id', String(r.id));
+                core.info(`复用 run ${r.id}（${r.head_branch} @ ${(r.head_sha || '').slice(0, 7)}，与本次检出同提交）的 backend-binary + frontend-dist`);
+                return;
+              }
+            }
+            core.setFailed(`head_sha=${(context.sha || '').slice(0, 7)} 有 ${sameCommit.length} 次成功 run，但均未同时产出 backend-binary 与 frontend-dist（artifact 保留 30 天，可能已过期）`);
+
+  # ==============================================================================
   # Job 1: E2E 测试（完整业务流程）
   # ==============================================================================
   e2e-test:
     name: 🎭 E2E 测试（批次 ${{ inputs.batch_number }}）
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    needs: locate-build-artifacts
     if: ${{ inputs.skip_reason == '' }}
     # 真实 E2E：PostgreSQL + 后端 + 前端 dev server + Playwright
     services:
@@ -81,10 +153,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+    permissions:
+      actions: read
+      contents: read
+    # 与 ci-cd.yml ci-e2e 的 env 保持同步（改动请两边同时改；原因见文件头"技术说明"）
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       # CI 测试用密钥（32 字节，仅 CI 用途，禁止用于生产）
-      # 批次 261 修复：移除 "test" 弱模式关键词，避免被 validate_secret 拒绝
       JWT_SECRET: ci-e2e-jwt-secret-32bytes-do-not-use-in-prod-abc
       COOKIE_SECRET: ci-e2e-cookie-secret-32bytes-do-not-use-in-prod-xyz
       WEBHOOK_SECRET: ci-e2e-webhook-secret-32bytes-do-not-use-in-prod-q
@@ -109,7 +184,7 @@ jobs:
       LOG__LEVEL: info
       LOG__DIR: /tmp/e2e-logs
       SLOW_QUERY__ENABLED: "false"
-      # 批次编号（写入报告供监控查询）
+      # 批次编号（写入报告供监控查询）——本 workflow 独有，ci-e2e 没有
       E2E_BATCH_NUMBER: ${{ inputs.batch_number }}
     steps:
       - name: 检出代码
@@ -121,70 +196,17 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**批次编号**: ${{ inputs.batch_number }}" >> "$GITHUB_STEP_SUMMARY"
           echo "**触发时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_STEP_SUMMARY"
-          echo "**模式**: 独立 E2E 工作流（每 30 批次运行）" >> "$GITHUB_STEP_SUMMARY"
+          echo "**后端/前端产物来源 run**: ${{ needs.locate-build-artifacts.outputs.run-id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**模式**: 独立 E2E 工作流（复用主 CI 构建产物，不重编）" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: 缓存 Rustup
-        uses: actions/cache@v5
+      # 取代原先 8 个手写步骤（rustup 缓存 / dtolnay@master / cargo 缓存 / apt 依赖 /
+      # cargo build --release / chmod / setup-node + npm 缓存 + npm ci / playwright install）：
+      # 与 ci-e2e 同一套装配，产物缺失会在这里显式失败，不会退化成"本地重编"。
+      - name: E2E 运行期装配（后端二进制 + 前端产物 + Node/npm + Playwright 浏览器）
+        uses: ./.github/actions/e2e-runtime
         with:
-          path: ~/.rustup
-          key: e2e-rustup-${{ env.RUST_VERSION }}
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - name: 缓存 Cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: e2e-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            e2e-cargo-${{ env.RUST_VERSION }}-
-
-      - name: 安装系统依赖
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
-
-      - name: 编译后端（release 模式）
-        working-directory: backend
-        run: |
-          cargo build --release --bin server --bin bingxi 2>&1 | tee /tmp/cargo-build.log
-          echo "后端编译完成"
-
-      - name: 赋予后端二进制可执行权限
-        run: |
-          chmod +x backend/target/release/server
-          chmod +x backend/target/release/bingxi
-
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 缓存 npm
-        uses: actions/cache@v5
-        with:
-          path: |
-            frontend/node_modules
-            ~/.npm
-          key: e2e-npm-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: |
-            e2e-npm-
-
-      - name: 安装前端依赖
-        working-directory: frontend
-        run: npm ci --prefer-offline --no-audit
-
-      - name: 安装 Playwright 浏览器
-        working-directory: frontend
-        run: npx playwright install chromium
+          artifact-run-id: ${{ needs.locate-build-artifacts.outputs.run-id }}
 
       - name: 运行数据库迁移
         working-directory: backend
@@ -259,10 +281,11 @@ jobs:
           set +e
           # Playwright 通过 playwright.config.ts 中的 webServer 配置自动启动 vite dev server
           # 后端已在上一步独立启动进程（localhost:8082）
-          # 批次 262：CI 仅安装 chromium，通过 --project=chromium 限定单浏览器运行
+          # CI 仅安装 chromium（e2e-runtime 内 npx playwright install chromium），
+          # 通过 --project=chromium 限定单浏览器运行
           # （firefox/webkit 项目仅供本地跨浏览器兼容性测试）
           npx playwright test --project=chromium 2>&1 | tee reports/playwright-output.txt
-          EXIT_CODE=$?
+          EXIT_CODE=${PIPESTATUS[0]:-124}
           set -e
 
           {
@@ -270,7 +293,7 @@ jobs:
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**退出码**: $EXIT_CODE  "
-            echo "**模式**: 独立 E2E 工作流（PostgreSQL + 后端 + 前端）"
+            echo "**模式**: 独立 E2E 工作流（PostgreSQL + 预编译后端 + 前端 dev server）"
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "## ✅ 所有 E2E 测试通过"
