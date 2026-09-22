@@ -59,7 +59,11 @@
       v-model:visible="olv.deliveryDialogVisible"
       :form="olv.deliveryForm"
       :warehouses="olv.warehouses"
+      :stock-rows="olv.deliveryStockRows"
+      :submitting="olvDeliverySubmitting"
       @update:form="v => Object.assign(olv.deliveryForm, v)"
+      @warehouse-change="id => olv.loadDeliveryStockRows(id)"
+      @submit="onDeliverySubmit"
     />
   </div>
 </template>
@@ -67,6 +71,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { SalesOrder } from '@/api/sales';
 import { useOlv } from '../composables/useOlv';
@@ -106,6 +111,23 @@ const onView = (row: SalesOrder) => {
 const onDelivery = (row: SalesOrder) => {
   olv.prepareDelivery(row);
   olv.deliveryDialogVisible = true;
+};
+
+/** 发货提交（出库四维扣减：warehouse_code 从已选仓库带出，后端按编码查仓） */
+const olvDeliverySubmitting = ref(false);
+const onDeliverySubmit = async (form: typeof olv.deliveryForm) => {
+  const warehouse = olv.warehouses.find(w => w.id === form.warehouse_id);
+  if (!warehouse?.warehouse_code) {
+    ElMessage.warning(t('sales.delivery.warehouseCodeMissing'));
+    return;
+  }
+  olvDeliverySubmitting.value = true;
+  try {
+    const ok = await olvProc.handleDeliverySubmit(form, warehouse.warehouse_code);
+    if (ok) olv.deliveryDialogVisible = false;
+  } finally {
+    olvDeliverySubmitting.value = false;
+  }
 };
 
 /** 提交订单表单 */
