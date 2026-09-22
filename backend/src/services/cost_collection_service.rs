@@ -11,6 +11,7 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::models::cost_collection;
+use crate::models::status::cost_collection as cc_status;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
@@ -184,7 +185,7 @@ impl CostCollectionService {
     ) -> Result<Option<cost_collection::Model>, AppError> {
         let collection = cost_collection::Entity::find()
             .filter(cost_collection::Column::DyeLotNo.eq(dye_lot_no))
-            .filter(cost_collection::Column::Status.eq("draft"))
+            .filter(cost_collection::Column::Status.eq(cc_status::DRAFT))
             .order_by(cost_collection::Column::CollectionDate, Order::Desc)
             .one(&*self.db)
             .await?;

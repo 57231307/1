@@ -28,6 +28,8 @@ use crate::models::dto::bpm_dto::StartProcessRequest;
 use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
+use crate::models::status::quotation as quotation_status;
+use crate::models::status::quotation_ext as quotation_ext_status;
 use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
 use crate::services::bpm_service::BpmService;
 use crate::utils::error::AppError;
@@ -106,7 +108,9 @@ impl QuotationApprovalService {
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
 
-        if !["draft", "rejected"].contains(&quotation.status.as_str()) {
+        if ![quotation_status::DRAFT, quotation_status::REJECTED]
+            .contains(&quotation.status.as_str())
+        {
             return Err(AppError::business(format!(
                 "报价单当前状态不允许提交：{}",
                 quotation.status
@@ -143,7 +147,9 @@ impl QuotationApprovalService {
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
 
         // 状态检查（与 submit_to_bpm 一致）：仅 draft/rejected 可提交审批
-        if !["draft", "rejected"].contains(&quotation.status.as_str()) {
+        if ![quotation_status::DRAFT, quotation_status::REJECTED]
+            .contains(&quotation.status.as_str())
+        {
             return Err(AppError::business(format!(
                 "报价单当前状态不允许审批：{}",
                 quotation.status
@@ -151,7 +157,7 @@ impl QuotationApprovalService {
         }
 
         let mut active: QuotationActive = quotation.into();
-        active.status = Set("approved".to_string());
+        active.status = Set(quotation_status::APPROVED.to_string());
         active.approved_by = Set(Some(user_id as i64));
         active.approved_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
@@ -212,7 +218,8 @@ impl QuotationApprovalService {
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
 
-        if !["draft", "rejected"].contains(&latest.status.as_str()) {
+        if ![quotation_status::DRAFT, quotation_status::REJECTED].contains(&latest.status.as_str())
+        {
             return Err(AppError::business(format!(
                 "报价单当前状态不允许提交：{}",
                 latest.status
@@ -220,7 +227,7 @@ impl QuotationApprovalService {
         }
 
         let mut active: QuotationActive = latest.into();
-        active.status = Set("pending_approval".to_string());
+        active.status = Set(quotation_ext_status::PENDING_APPROVAL.to_string());
         active.approval_instance_id = Set(bpm_instance_id.map(|i| i as i64));
         active.updated_at = Set(Utc::now());
 
@@ -247,7 +254,7 @@ impl QuotationApprovalService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
-        if quotation.status != "pending_approval" {
+        if quotation.status != quotation_ext_status::PENDING_APPROVAL {
             return Err(AppError::business(format!(
                 "报价单不在待审批状态：{}",
                 quotation.status
@@ -262,7 +269,7 @@ impl QuotationApprovalService {
         approver_id: i32,
     ) -> QuotationActive {
         let mut active: QuotationActive = quotation.into();
-        active.status = Set("approved".to_string());
+        active.status = Set(quotation_status::APPROVED.to_string());
         active.approved_by = Set(Some(approver_id as i64));
         active.approved_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
@@ -379,7 +386,7 @@ impl QuotationApprovalService {
             .lock_and_validate_quotation_for_approval_txn(quotation_id, txn)
             .await?;
         let mut active: QuotationActive = quotation.into();
-        active.status = Set("rejected".to_string());
+        active.status = Set(quotation_status::REJECTED.to_string());
         active.approved_by = Set(Some(approver_id as i64));
         active.rejection_reason = Set(Some(reason.to_string()));
         active.updated_at = Set(Utc::now());

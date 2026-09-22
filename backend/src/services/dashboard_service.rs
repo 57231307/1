@@ -15,6 +15,7 @@ use crate::models::{inventory_stock, product, sales_order, warehouse};
 // 硬编码 "active" 换成 `master_data::ACTIVE`——那是另一张表的状态域，按它过滤
 // `inventory_stocks.stock_status` 恒零命中，仪表盘的库存四张卡因此长期显示 0。
 use crate::models::status::purchase_inventory::inventory_stock_status;
+use crate::models::status::sales_order as so_status;
 use crate::utils::cache::{AppCache, Cache};
 // 缺陷 4.3 修复：仪表板按角色控制可见卡片 + 数据范围过滤
 use crate::utils::data_scope::DataScopeContext;
@@ -230,7 +231,7 @@ impl DashboardService {
         let total_warehouses_q = warehouse::Entity::find();
         let mut total_orders_q = sales_order::Entity::find();
         let mut pending_orders_q =
-            sales_order::Entity::find().filter(sales_order::Column::Status.eq("pending"));
+            sales_order::Entity::find().filter(sales_order::Column::Status.eq(so_status::PENDING));
         let mut monthly_sales_q =
             sales_order::Entity::find().filter(sales_order::Column::OrderDate.gte(start_of_month));
         let mut total_sales_q = sales_order::Entity::find();

@@ -20,6 +20,7 @@ use crate::models::quotation_response_dto::{
 };
 use crate::models::quotation_update_dto::UpdateQuotationDto;
 use crate::models::status::approval;
+use crate::models::status::quotation as quotation_status;
 use crate::services::quotation_approval_service::QuotationApprovalService;
 use crate::services::quotation_convert_service::QuotationConvertService;
 use crate::services::quotation_pricing_service::{PricingContext, QuotationPricingService};
@@ -377,7 +378,7 @@ pub async fn list_expiring(
 
     use crate::models::sales_quotation;
     let items: Vec<QuotationResponseDto> = sales_quotation::Entity::find()
-        .filter(sales_quotation::Column::Status.eq("approved"))
+        .filter(sales_quotation::Column::Status.eq(quotation_status::APPROVED))
         .filter(sales_quotation::Column::ValidUntil.between(today, until))
         .all(&*state.db)
         .await?
