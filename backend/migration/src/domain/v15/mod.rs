@@ -4266,6 +4266,25 @@ ALTER TABLE "webhooks" ALTER COLUMN "last_triggered_at" TYPE TIMESTAMPTZ USING "
 ALTER TABLE "webhooks" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
 ALTER TABLE "work_centers" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
 ALTER TABLE "work_centers" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+
+-- 委外收回单质检结论归一（写入侧已统一为 outsourcing_receipt_quality_status 常量并做入口校验）：
+-- 历史上界面提交 qualified/concession/unqualified、用例提交 passed、模型注释写 passed/failed、
+-- 库存域中文「合格」也曾流入同一列，而确认回仓只认 "qualified"，其余一律判不合格。
+-- 本段必须留在 v15 域内：outsourcing_receipt 就在本脚本前面创建。
+UPDATE "outsourcing_receipt"
+   SET "quality_status" = CASE "quality_status"
+        WHEN 'passed'  THEN 'qualified'
+        WHEN 'failed'  THEN 'unqualified'
+        WHEN '合格'    THEN 'qualified'
+        WHEN '不合格'  THEN 'unqualified'
+        WHEN '待检'    THEN 'pending'
+        ELSE "quality_status"
+   END
+ WHERE "quality_status" IN ('passed', 'failed', '合格', '不合格', '待检');
+
+UPDATE "outsourcing_receipt"
+   SET "quality_status" = 'pending'
+ WHERE "quality_status" IS NULL;
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
