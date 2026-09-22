@@ -11,14 +11,14 @@
 #              ci-test-fe, security-vulnerability-scan（依赖漏洞+秘密+依赖图，合并原
 #              ci-audit/ci-deps）, ci-perf-bench, ci-build-rust, ci-build-fe]
 #            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust(10分片)],
-#                         [ci-e2e（25 分片并行端到端）],
+#                         [ci-e2e（34 分片并行端到端）],
 #                         [ci-dead-code-audit（Clippy 通过后跑，步骤见 actions/dead-code-audit）]
 #            → [package-release] → [github-release]
 #            → [ci-cleanup-retry]（收尾：needs 列出全部 job，动态扫描 toJSON(needs) 汇总判定）
 #
 # 发布门禁：E2E + Rust 测试 + 死代码审计在 PR 时验证，合并即视为通过。
 #   主线 push 不重复跑测试（已在 PR 阶段验证），只做构建/格式/审计/发布。
-#   所有 job timeout 统一 360 分钟（6 小时），E2E 25 分片并行加速。
+#   所有 job timeout 统一 360 分钟（6 小时），E2E 34 分片并行加速。
 #   注：任何新增 job 必须同时加入 ci-cleanup-retry.needs，否则不参与门禁。
 # ==============================================================================
 
@@ -3458,7 +3458,7 @@ jobs:
               exit 1
             fi
           done
-          echo "✅ 全部 E2E job（ci-e2e 25 分片 / setup-wizard / role-permission-matrix）真实执行成功"
+          echo "✅ 全部 E2E job（ci-e2e 34 分片 / setup-wizard / role-permission-matrix）真实执行成功"
 
       - name: 静态校验——E2E 源码禁止 mock 拦截
         run: |

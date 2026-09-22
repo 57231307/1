@@ -1,5 +1,5 @@
 # Composite action：E2E 族 job 的运行期装配（后端二进制 + 前端产物 + Node/npm + Playwright 浏览器）
-# 由 ci-e2e（25 分片）、role-permission-matrix（6 分片）、ci-e2e-setup-wizard 共用。
+# 由 ci-e2e（34 分片）、role-permission-matrix（6 分片）、ci-e2e-setup-wizard 共用。
 # 收敛前两处重复配置时发现的实际缺陷：
 #  1) 三个 job 各自 `npm run build` 重新构建前端（合计 32 次重复编译），
 #     而 ci-build-fe 已产出同一份 `vite build --mode production` 产物并上传为 frontend-dist；
