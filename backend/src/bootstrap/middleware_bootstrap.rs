@@ -116,8 +116,14 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     ));
     let router = apply_rate_limiting(router, s_rate_limit);
     let router = apply_security_headers(router);
-    router.layer(axum::middleware::from_fn(
+    // 查询参数边界归一化（最外层，先于 timeout 执行）：在 handler 反序列化 Query 之前剔除
+    // 只含空值的筛选项 query 键，使缺失键与空串统一收敛为 None，一次性根治「空串被当成有效
+    // 过滤值 → WHERE col = '' 恒 0 行」这一类缺陷，覆盖全部查询 DTO 且对新增字段零漂移。
+    let router = router.layer(axum::middleware::from_fn(
         crate::middleware::timeout::timeout_middleware,
+    ));
+    router.layer(axum::middleware::from_fn(
+        crate::utils::query_params::normalize_empty_query_params,
     ))
 }
 
@@ -314,6 +320,10 @@ pub fn apply_init_mode_layers(router: Router, cors: CorsLayer) -> Router {
         .layer(SetResponseHeaderLayer::overriding(
             axum::http::header::HeaderName::from_static("permissions-policy"),
             HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
+        ))
+        // 查询参数边界归一化（最外层）：与完整模式一致，剔除只含空值的筛选项 query 键。
+        .layer(axum::middleware::from_fn(
+            crate::utils::query_params::normalize_empty_query_params,
         ))
 }
 
