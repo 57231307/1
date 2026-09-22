@@ -90,7 +90,7 @@ export function usePrcProc(cb: PrcCallbacks) {
         const no = res.data?.receipt_no;
         if (no && !cb.form.id) {
           cb.form.receipt_no = no;
-          cb.dialogTitle = `新增入库（预生成单号 ${no}）`;
+          cb.dialogTitle = msg.translate('addReceiptTitleWithNo', { no });
         }
       })
       .catch(error => {

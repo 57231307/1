@@ -61,9 +61,9 @@ export function usePrc() {
     },
   });
 
-  // 入库表单对话框
+  // 入库表单对话框（标题走文案键，与打开对话框时的赋值同一来源，避免中英文界面下初始标题仍是中文）
   const dialogVisible = ref(false);
-  const dialogTitle = ref('新增入库');
+  const dialogTitle = ref(msg.translate('addReceiptTitle'));
   const form = ref<PrcForm>({
     receipt_no: '',
     receipt_date: new Date().toISOString().split('T')[0],
