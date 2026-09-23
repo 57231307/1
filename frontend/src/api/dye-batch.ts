@@ -1,44 +1,31 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
+/**
+ * 缸号列表/详情出参。列表 handler 直接 `to_value(dye_batch::Model)`
+ * （handlers/dye_batch_handler.rs::list_dye_batches），故键 = `backend/src/models/dye_batch.rs`
+ * 的字段名，可空列（Option）在此标 `| null`，NOT NULL 列不得标可选（否则掩盖缺键）。
+ */
 export interface DyeBatch {
   id: number;
   batch_no: string;
+  greige_fabric_id: number | null;
   color_code: string;
   color_name: string;
-  greige_fabric_id: number;
-  greige_fabric_name: string;
-  planned_quantity: number;
-  actual_quantity: number;
-  unit: string;
-  recipe_id: number;
-  recipe_name: string;
-  status:
-    | 'pending_schedule'
-    | 'scheduled'
-    | 'preparing'
-    | 'dyeing'
-    | 'washing'
-    | 'fixing'
-    | 'dehydrating'
-    | 'drying'
-    | 'inspecting'
-    | 'stored'
-    | 'shipped'
-    | 'cancelled'
-    | 'terminated'
-    | 'rework'
-    | 'on_hold'
-    | 'failed';
-  start_date: string;
-  end_date: string;
-  machine_code: string;
-  operator: string;
-  remark: string;
-  created_by: number;
-  created_by_name: string;
+  color_no: string | null;
+  dye_lot_no: string;
+  planned_quantity: number | null;
+  status: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  is_deleted: boolean | null;
   created_at: string;
   updated_at: string;
+  // 名称列：models/dye_batch.rs 的 Model 只有 greige_fabric_id、无名称列，
+  // 需后端按 §5 范式 LEFT JOIN greige_fabric 取 fabric_name 输出为 greige_fabric_name。
+  greige_fabric_name: string | null;
+  // 备注列：models/dye_batch.rs 的 Model 无 remarks 列，需后端补 dye_batch.remarks。
+  remarks: string | null;
 }
 
 /**

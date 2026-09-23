@@ -61,8 +61,12 @@
             clearable
             @change="handleQuery"
           >
-            <el-option :label="t('dyeBatch.index.optionActive')" value="ACTIVE" />
-            <el-option :label="t('dyeBatch.index.optionCompleted')" value="COMPLETED" />
+            <el-option
+              v-for="s in DYE_BATCH_LIFECYCLE_STATUSES"
+              :key="s"
+              :label="statusLabelFor(s)"
+              :value="s"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -99,7 +103,7 @@
           show-overflow-tooltip
         />
         <el-table-column
-          prop="product_name"
+          prop="greige_fabric_name"
           :label="t('dyeBatch.index.colProduct')"
           width="150"
           show-overflow-tooltip
@@ -117,13 +121,15 @@
           show-overflow-tooltip
         />
         <el-table-column
-          prop="dye_date"
+          prop="started_at"
           :label="t('dyeBatch.index.colDyeDate')"
           width="120"
           align="center"
-        />
+        >
+          <template #default="{ row }">{{ formatDate(row.started_at) }}</template>
+        </el-table-column>
         <el-table-column
-          prop="quantity"
+          prop="planned_quantity"
           :label="t('dyeBatch.index.colQuantity')"
           width="100"
           align="right"
@@ -155,7 +161,7 @@
               t('dyeBatch.index.buttonView')
             }}</el-button>
             <el-button
-              v-if="row.status === 'ACTIVE'"
+              v-if="canEdit(row as DyeBatch)"
               type="primary"
               link
               size="small"
@@ -163,7 +169,7 @@
               >{{ t('dyeBatch.index.buttonEdit') }}</el-button
             >
             <el-button
-              v-if="row.status === 'ACTIVE'"
+              v-if="canComplete(row as DyeBatch)"
               type="success"
               link
               size="small"
@@ -171,7 +177,7 @@
               >{{ t('dyeBatch.index.buttonComplete') }}</el-button
             >
             <el-button
-              v-if="row.status === 'ACTIVE'"
+              v-if="canDelete(row as DyeBatch)"
               type="danger"
               link
               size="small"
@@ -222,17 +228,17 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="t('dyeBatch.index.colProduct')" prop="product_id">
+            <el-form-item :label="t('dyeBatch.index.colProduct')" prop="greige_fabric_id">
               <el-select
-                v-model="formData.product_id"
+                v-model="formData.greige_fabric_id"
                 :placeholder="t('dyeBatch.index.placeholderSelectProduct')"
                 filterable
               >
                 <el-option
-                  v-for="p in products"
-                  :key="p.id"
-                  :label="p.product_name"
-                  :value="p.id"
+                  v-for="gf in greigeFabrics"
+                  :key="gf.id"
+                  :label="gf.fabric_name || gf.fabric_no"
+                  :value="gf.id"
                 />
               </el-select>
             </el-form-item>
@@ -262,15 +268,16 @@
               <el-date-picker
                 v-model="formData.dye_date"
                 type="date"
+                value-format="YYYY-MM-DD"
                 :placeholder="t('dyeBatch.index.placeholderSelectDyeDate')"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="t('dyeBatch.index.colQuantity')" prop="quantity">
+            <el-form-item :label="t('dyeBatch.index.colQuantity')" prop="planned_quantity">
               <el-input-number
-                v-model="formData.quantity"
+                v-model="formData.planned_quantity"
                 :precision="2"
                 :min="0"
                 style="width: 100%"
@@ -313,8 +320,15 @@ import {
   exportDyeBatches,
 } from '@/api/dye-batch';
 import type { DyeBatch } from '@/api/dye-batch';
-import { getProductList } from '@/api/product';
-import type { Product } from '@/api/product';
+import {
+  DYE_BATCH_LIFECYCLE_STATUS,
+  DYE_BATCH_LIFECYCLE_STATUSES,
+  dyeBatchStatusLabelKey,
+  dyeBatchStatusTagType,
+  normalizeDyeBatchStatus,
+  type DyeBatchLifecycleStatus,
+} from '@/utils/dye-batch-status';
+import { getGreigeFabricList, type GreigeFabric } from '@/api/greige-fabric';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -343,8 +357,8 @@ const {
   onError: (e: unknown) => logger.error(t('dyeBatch.index.messageFetchFailed'), String(e)),
 });
 
-// 产品列表
-const products = ref<Product[]>([]);
+// 坯布列表（染色批次消耗坯布，以 greige_fabric_id 关联）
+const greigeFabrics = ref<GreigeFabric[]>([]);
 
 // 对话框
 const dialogVisible = ref(false);
@@ -356,25 +370,25 @@ const isView = ref(false);
 const formData = reactive({
   id: undefined as number | undefined,
   batch_no: '',
-  product_id: '',
+  greige_fabric_id: undefined as number | undefined,
   color_no: '',
   color_code: '',
   dye_date: '',
-  quantity: 0,
+  planned_quantity: 0,
   remarks: '',
 });
 
 // 表单验证规则
 const formRules = {
   batch_no: [{ required: true, message: t('dyeBatch.index.ruleBatchNoRequired'), trigger: 'blur' }],
-  product_id: [
+  greige_fabric_id: [
     { required: true, message: t('dyeBatch.index.ruleProductRequired'), trigger: 'change' },
   ],
   color_no: [{ required: true, message: t('dyeBatch.index.ruleColorNoRequired'), trigger: 'blur' }],
   dye_date: [
     { required: true, message: t('dyeBatch.index.ruleDyeDateRequired'), trigger: 'change' },
   ],
-  quantity: [
+  planned_quantity: [
     { required: true, message: t('dyeBatch.index.ruleQuantityRequired'), trigger: 'blur' },
   ],
 };
@@ -388,14 +402,11 @@ const syncQueryParams = () => {
   setQueryParam('status', queryParams.status || undefined);
 };
 
-// 获取产品列表
-const getProducts = async () => {
+// 获取坯布列表（列表页 selector 数据源）
+const getGreigeFabrics = async () => {
   try {
-    const res = await getProductList({ page: 1, page_size: 1000 });
-    // 后端返回 PaginatedResponse { items, total, page, page_size }，
-    // 兼容 list 字段的历史格式，避免 products 为空导致下拉无选项
-    const data = res.data as { items?: Product[]; list?: Product[] } | undefined;
-    products.value = data?.items || data?.list || [];
+    const res = await getGreigeFabricList({ page: 1, page_size: 1000 });
+    greigeFabrics.value = res.data?.items ?? [];
   } catch (error) {
     logger.error(t('dyeBatch.index.messageFetchProductsFailed'), error);
   }
@@ -426,11 +437,11 @@ const handleCreate = () => {
   Object.assign(formData, {
     id: undefined,
     batch_no: '',
-    product_id: '',
+    greige_fabric_id: undefined,
     color_no: '',
     color_code: '',
     dye_date: '',
-    quantity: 0,
+    planned_quantity: 0,
     remarks: '',
   });
   dialogVisible.value = true;
@@ -529,29 +540,39 @@ const handleCurrentChange = (val: number) => {
   page.value = val;
 };
 
-// 获取状态类型
-const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
-    ACTIVE: 'warning',
-    COMPLETED: 'success',
-  };
-  return map[status] || 'info';
-};
+// 状态标签/配色：词表取自后端 dye_batch_lifecycle_status（16 态小写）。
+// dye_batch.status 是可空列，null 为合法缺省（无标签、默认配色）；
+// 携带词表外取值属脏数据，由 normalizeDyeBatchStatus 记错误日志并抛错，不再回退掩盖。
+const getStatusType = (status: string | null): string =>
+  status === null ? 'info' : dyeBatchStatusTagType(normalizeDyeBatchStatus(status));
 
-// 获取状态标签（响应式求值）
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    ACTIVE: t('dyeBatch.index.optionActive'),
-    COMPLETED: t('dyeBatch.index.optionCompleted'),
-  };
-  return map[status] || status;
-};
+const getStatusLabel = (status: string | null): string =>
+  status === null ? '' : t(dyeBatchStatusLabelKey(normalizeDyeBatchStatus(status)));
+
+// 状态筛选下拉文案（入参恒为词表内的合法状态值）
+const statusLabelFor = (status: DyeBatchLifecycleStatus): string =>
+  t(dyeBatchStatusLabelKey(status));
+
+// 备布之前的可编辑/可删除态：pending_schedule / scheduled
+// （与后端 delete_dye_batch 的"生产中不可删"守卫集合互补）
+const PRE_PRODUCTION_STATUSES: readonly string[] = [
+  DYE_BATCH_LIFECYCLE_STATUS.PENDING_SCHEDULE,
+  DYE_BATCH_LIFECYCLE_STATUS.SCHEDULED,
+];
+const canEdit = (row: DyeBatch): boolean => PRE_PRODUCTION_STATUSES.includes(row.status ?? '');
+const canDelete = (row: DyeBatch): boolean => PRE_PRODUCTION_STATUSES.includes(row.status ?? '');
+// "完成"对应后端 complete_dye_batch（inspecting → stored），仅此态可点
+const canComplete = (row: DyeBatch): boolean =>
+  row.status === DYE_BATCH_LIFECYCLE_STATUS.INSPECTING;
+
+// started_at 为时间戳列，列表仅展示日期部分
+const formatDate = (value: string | null): string => (value ? value.slice(0, 10) : '');
 
 const hasLoaded = createLazyLoader();
 
 // 批次 271：useTableApi 构造时自动初始加载，无需 onMounted 调用 getList
 onMounted(() => {
-  loadIfNot('products', getProducts, hasLoaded);
+  loadIfNot('greigeFabrics', getGreigeFabrics, hasLoaded);
 });
 </script>
 

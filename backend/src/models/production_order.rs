@@ -128,6 +128,14 @@ pub enum Relation {
         on_delete = "SetNull"
     )]
     SalesOrder,
+    /// 生产订单 - 产品（多对一，用于列表/详情 LEFT JOIN 富化 product_name）
+    #[sea_orm(
+        belongs_to = "super::product::Entity",
+        from = "Column::ProductId",
+        to = "super::product::Column::Id",
+        on_delete = "NoAction"
+    )]
+    Product,
 }
 
 impl Related<super::sales_order::Entity> for Entity {

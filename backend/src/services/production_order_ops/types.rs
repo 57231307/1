@@ -5,6 +5,35 @@
 //! - `ProductionOutputRecord`：completion 子模块内部使用，`pub(super)` 可见性
 
 use rust_decimal::Decimal;
+use sea_orm::FromQueryResult;
+
+/// 生产订单列表/详情出参：实体 `production_order::Model` 的对外字段 + 经 LEFT JOIN
+/// 富化的 `product_name`（products.name 列别名）。
+/// 严格对齐前端 `api/production.ts::ProductionOrder`：可空列用 `Option`，NOT NULL 列不用。
+/// 唯一富化方式（§5 范式）：`column_as(product.name, "product_name")` + `LeftJoin` +
+/// `into_model`，单次查询、无 N+1；禁止 `format!` 造假名或逐行再查。
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct ProductionOrderDto {
+    pub id: i32,
+    pub order_no: String,
+    pub sales_order_id: Option<i32>,
+    pub product_id: i32,
+    pub planned_quantity: Decimal,
+    pub actual_quantity: Option<Decimal>,
+    pub planned_start_date: Option<chrono::NaiveDate>,
+    pub planned_end_date: Option<chrono::NaiveDate>,
+    pub actual_start_date: Option<chrono::NaiveDate>,
+    pub actual_end_date: Option<chrono::NaiveDate>,
+    pub status: String,
+    pub priority: i32,
+    pub work_center_id: Option<i32>,
+    pub remarks: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    /// 创建人（仅用于服务侧 IDOR 数据范围校验，不进对外响应体）
+    pub created_by: i32,
+    pub product_name: Option<String>,
+}
 
 /// 审计日志中「生产订单」这类资源的 resource_type（写入侧与读取侧必须同源）。
 /// 曾用值 `auto_audit` 不带实体信息，读取侧只能按 resource_id 匹配，会把其他模块同号记录的快照一并带出。

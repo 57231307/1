@@ -4524,6 +4524,15 @@ COMMENT ON COLUMN "dye_recipe"."status" IS
     '状态（全小写，取值见 models/status/quality_dyeing.rs::dye_recipe，与 CHECK '
     'chk_dye_recipe_status 逐项一致）：draft(草稿) / pending_approval(待审核) / '
     'approved(已审核) / disabled(已停用)；中文仅前端 i18n 展示层';
+
+-- ========== dye_batch.remarks：缸号备注列（建单/编辑表单入参落库） ==========
+-- 新建缸号对话框采集 remarks 并随请求体提交，但 models/dye_batch.rs 的实体与 dye_batch 表
+-- 此前无备注列，备注字段在反序列化后被静默丢弃。补齐可空 TEXT 列；历史行保持 NULL（无需回填）。
+-- 依据：dye_batch 表由 system 域创建（domain/system/m0003_add_dye_tables.rs），执行早于 v15，
+-- 故此处 ADD COLUMN IF NOT EXISTS 幂等，新库/存量库升级均成立。
+ALTER TABLE "dye_batch" ADD COLUMN IF NOT EXISTS "remarks" TEXT;
+COMMENT ON COLUMN "dye_batch"."remarks" IS '缸号备注（建单/编辑表单录入，可空）';
+
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

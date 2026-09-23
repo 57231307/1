@@ -6,16 +6,18 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, DateTimeWithTimeZone, EntityTrait,
+    FromQueryResult, JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
+    Set,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::dye_batch;
+use crate::models::greige_fabric;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -44,6 +46,10 @@ pub struct CreateDyeBatchRequest {
     pub dye_lot_no: Option<String>,
     pub planned_quantity: Option<f64>,
     pub status: Option<String>,
+    // 备注：与实体列同名，落库 dye_batch.remarks。
+    pub remarks: Option<String>,
+    // 染色日期：新建表单采集，落库映射到既有 started_at 时间戳列（无独立日期列）。
+    pub dye_date: Option<chrono::NaiveDate>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -54,18 +60,49 @@ pub struct UpdateDyeBatchRequest {
     pub dye_lot_no: Option<String>,
     pub planned_quantity: Option<f64>,
     pub status: Option<String>,
+    // 备注：与实体列同名，落库 dye_batch.remarks。
+    pub remarks: Option<String>,
+}
+
+/// 缸号列表出参 DTO：实体 `dye_batch::Model` 全字段 + 经 LEFT JOIN 富化的坯布名称。
+/// 严格对齐前端 `api/dye-batch.ts::DyeBatch` 键集；可空列以 `Option` 表达，NOT NULL 列不用 `Option`。
+/// 唯一富化方式：`column_as(greige_fabric.fabric_name, "greige_fabric_name")` + `LeftJoin`
+/// + `into_model`（单次查询、无 N+1，见 §5 范式），禁止 `format!` 造假名或逐行再查。
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct DyeBatchDto {
+    pub id: i32,
+    pub batch_no: String,
+    pub greige_fabric_id: Option<i32>,
+    pub color_code: String,
+    pub color_name: String,
+    pub color_no: Option<String>,
+    pub dye_lot_no: String,
+    pub planned_quantity: Option<Decimal>,
+    pub status: Option<String>,
+    pub started_at: Option<DateTimeWithTimeZone>,
+    pub completed_at: Option<DateTimeWithTimeZone>,
+    pub is_deleted: Option<bool>,
+    pub created_at: DateTimeWithTimeZone,
+    pub updated_at: DateTimeWithTimeZone,
+    pub remarks: Option<String>,
+    pub greige_fabric_name: Option<String>,
 }
 
 pub async fn list_dye_batches(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<DyeBatchListQuery>,
-) -> Result<Json<ApiResponse<PaginatedResponse<dye_batch::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<DyeBatchDto>>>, AppError> {
     let _data_scope = auth.to_data_scope_context();
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
-    let mut q = dye_batch::Entity::find().filter(dye_batch::Column::IsDeleted.eq(false));
+    // §5 范式：LEFT JOIN 坯布表，把 fabric_name 以列别名 greige_fabric_name 富化进同一查询，
+    // 单次查询、无 N+1；禁止逐行再查或 format! 造假名。
+    let mut q = dye_batch::Entity::find()
+        .column_as(greige_fabric::Column::FabricName, "greige_fabric_name")
+        .join(JoinType::LeftJoin, dye_batch::Relation::GreigeFabric.def())
+        .filter(dye_batch::Column::IsDeleted.eq(false));
 
     if let Some(batch_no) = &query.batch_no {
         q = q.filter(dye_batch::Column::BatchNo.contains(batch_no));
@@ -82,7 +119,9 @@ pub async fn list_dye_batches(
 
     q = q.order_by_desc(dye_batch::Column::CreatedAt);
 
-    let paginator = q.paginate(&*state.db, page_size);
+    let paginator = q
+        .into_model::<DyeBatchDto>()
+        .paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
     let batches = paginator
@@ -132,6 +171,16 @@ pub async fn create_dye_batch(
     // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
     let dye_lot_no = req.dye_lot_no.unwrap_or_else(|| "DEFAULT".to_string());
 
+    // 染色日期：新建表单采集的 dye_date 落库映射到既有 started_at 时间戳列（00:00:00 UTC）。
+    // 说明：dye_batch 无独立的"染色日期"DATE 列，此处按实体既有语义写入 started_at；
+    // 若需要精确到日且与起止时间语义分离，应新增真实 DATE 列（见交付报告）。
+    let started_at = req.dye_date.map(|d| {
+        d.and_hms_opt(0, 0, 0)
+            .unwrap_or_default()
+            .and_utc()
+            .with_timezone(&crate::utils::date_utils::utc_offset())
+    });
+
     let batch = dye_batch::ActiveModel {
         id: NotSet,
         batch_no: Set(batch_no),
@@ -145,8 +194,9 @@ pub async fn create_dye_batch(
         dye_lot_no: Set(dye_lot_no),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),
         status: Set(status),
-        started_at: Set(None),
+        started_at: Set(started_at),
         completed_at: Set(None),
+        remarks: Set(req.remarks),
         is_deleted: Set(Some(false)),
         created_at: Set(crate::utils::date_utils::utc_now_fixed()),
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
@@ -200,6 +250,9 @@ pub async fn update_dye_batch(
     }
     if let Some(planned_quantity) = req.planned_quantity {
         batch.planned_quantity = Set(Decimal::from_f64_retain(planned_quantity));
+    }
+    if let Some(remarks) = req.remarks {
+        batch.remarks = Set(Some(remarks));
     }
     if let Some(status) = req.status {
         // 验证状态值合法性（14 态 lifecycle_status）

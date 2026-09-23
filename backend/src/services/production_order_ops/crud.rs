@@ -20,8 +20,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, JoinType, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 use crate::models::production_order::{
@@ -33,12 +33,13 @@ use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
 use crate::models::bom::{Column as BomColumn, Entity as BomEntity};
-use crate::models::product::Entity as ProductEntity;
+use crate::models::product::{Column as ProductColumn, Entity as ProductEntity};
 use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::work_center::Entity as WorkCenterEntity;
 
 use super::types::{
-    CreateProductionOrderRequest, ProductionOrderQuery, UpdateProductionOrderRequest,
+    CreateProductionOrderRequest, ProductionOrderDto, ProductionOrderQuery,
+    UpdateProductionOrderRequest,
 };
 use crate::services::production_order_service::ProductionOrderService;
 
@@ -395,12 +396,21 @@ impl ProductionOrderService {
         &self,
         id: i32,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<Option<ProductionOrderModel>, AppError> {
-        let model = ProductionOrderEntity::find_by_id(id).one(&*self.db).await?;
+    ) -> Result<Option<ProductionOrderDto>, AppError> {
+        // §5 范式：LEFT JOIN products 取 name 富化为 product_name，单次查询、无 N+1。
+        let row = ProductionOrderEntity::find_by_id(id)
+            .column_as(ProductColumn::Name, "product_name")
+            .join(
+                JoinType::LeftJoin,
+                production_order::Relation::Product.def(),
+            )
+            .into_model::<ProductionOrderDto>()
+            .one(&*self.db)
+            .await?;
 
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // production_order 表无 department_id，Dept 退化为 Self（按 created_by 校验）
-        if let (Some(ctx), Some(m)) = (data_scope, &model) {
+        if let (Some(ctx), Some(m)) = (data_scope, &row) {
             if !check_resource_owner(ctx, Some(m.created_by), None) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问生产订单 {}（数据范围限制）",
@@ -409,7 +419,7 @@ impl ProductionOrderService {
             }
         }
 
-        Ok(model)
+        Ok(row)
     }
 
     /// 获取生产订单操作日志
@@ -434,8 +444,15 @@ impl ProductionOrderService {
         &self,
         query: ProductionOrderQuery,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<(Vec<ProductionOrderModel>, u64), AppError> {
-        let mut select = ProductionOrderEntity::find();
+    ) -> Result<(Vec<ProductionOrderDto>, u64), AppError> {
+        // §5 范式：LEFT JOIN products 取 name 富化为 product_name（column_as + LeftJoin +
+        // into_model 单次查询，无 N+1），禁止逐行再查或 format! 造假名。
+        let mut select = ProductionOrderEntity::find()
+            .column_as(ProductColumn::Name, "product_name")
+            .join(
+                JoinType::LeftJoin,
+                production_order::Relation::Product.def(),
+            );
 
         // V15 P0-S01：行级数据权限过滤（production_order 表无 department_id，Dept 退化为 Self）
         if let Some(ctx) = data_scope {
@@ -471,6 +488,7 @@ impl ProductionOrderService {
         // 批次 257 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = select
             .order_by_desc(crate::models::production_order::Column::CreatedAt)
+            .into_model::<ProductionOrderDto>()
             .paginate(&*self.db, query.page_size);
 
         let (models, total) = paginate_with_total(paginator, query.page.clamp(1, 1000)).await?;

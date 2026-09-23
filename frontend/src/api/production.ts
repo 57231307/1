@@ -120,12 +120,13 @@ export function approveProductionOrder(
 }
 
 // 汇报生产进度
+// 后端 UpdateProgressRequest（handlers/production_order_handler.rs:320）仅接受
+// actual_quantity / remarks 两字段，无次品数量列——故此处不再发送 defect_quantity（详见交付报告的能力缺口）。
 export function reportProductionProgress(
   id: number,
   data: {
-    completed_quantity: number;
-    defect_quantity?: number;
-    remark?: string;
+    actual_quantity: number;
+    remarks?: string;
   }
 ): Promise<ApiResponse<void>> {
   return request.post(`/production/production-orders/orders/${id}/progress`, data);

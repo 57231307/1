@@ -28,7 +28,8 @@ use std::sync::Arc;
 
 // 批次 488 D10-2 拆分：re-export 保持外部引用路径不变
 pub use crate::services::production_order_ops::{
-    CreateProductionOrderRequest, ProductionOrderQuery, UpdateProductionOrderRequest,
+    CreateProductionOrderRequest, ProductionOrderDto, ProductionOrderQuery,
+    UpdateProductionOrderRequest,
 };
 
 /// 生产订单 Service（struct 定义保留在 facade，impl 块按职责分散到 `production_order_ops/` 子模块。）
