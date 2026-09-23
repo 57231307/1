@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PageResult } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 export interface QualityStandard {
   id: number;
@@ -152,7 +152,7 @@ export function getQualityStandardVersions(id: number): Promise<ApiResponse<Qual
   return request.get(`/quality-standards/${id}/versions`);
 }
 
-// v11 批次 161 P2-5 修复：后端已返回 PaginatedResponse（含 items + total），改为 PageResult 类型
+// 后端 quality_inspection_handler::list_records 以 success_paginated 返回 PaginatedResponse（items + total + page + page_size）
 /**
  * 质检记录列表查询参数——严格对齐后端 quality_inspection_handler.rs::RecordQuery。
  * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
@@ -169,7 +169,7 @@ export interface QualityRecordListParams {
 
 export function getQualityRecordList(
   params?: QualityRecordListParams
-): Promise<ApiResponse<PageResult<QualityRecord>>> {
+): Promise<ApiResponse<PaginatedResponse<QualityRecord>>> {
   return request.get('/production/quality-inspection/records', { params });
 }
 

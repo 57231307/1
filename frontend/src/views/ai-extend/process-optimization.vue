@@ -44,7 +44,8 @@ const filter = reactive({
 });
 
 // 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
-// getProcessOptimizationList 返回 PageResult<T>（{ items, total }），useTableApi detectList 会取 obj.items
+// 后端 ai_extend_handler::list_process_optimizations 以 json!({items,total,page,page_size}) 返回，
+// 显式钉 listKey='items'，不依赖 detectList 的顺序探测（否则信封漂移会被静默吞掉）。
 const {
   data: items,
   loading,
@@ -55,6 +56,7 @@ const {
   setQueryParam,
 } = useTableApi<AiProcessOptimization>({
   url: '/ai/process-optimizations',
+  listKey: 'items',
   onError: () => ElMessage.error(t('message.loadFailed')),
 });
 

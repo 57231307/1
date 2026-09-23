@@ -36,7 +36,8 @@ const queryFilter = reactive({
 });
 
 // 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
-// getQualityPredictionList 返回 PageResult<T>（{ items, total }），useTableApi detectList 会取 obj.items
+// 后端 ai_extend_handler::list_quality_predictions 以 json!({items,total,page,page_size}) 返回，
+// 显式钉 listKey='items'，不依赖 detectList 的顺序探测。
 const {
   data: items,
   loading,
@@ -47,6 +48,7 @@ const {
   setQueryParam,
 } = useTableApi<AiQualityPrediction>({
   url: '/ai/quality-predictions',
+  listKey: 'items',
   onError: () => ElMessage.error(t('aiExtend.qualityPrediction.loadListFailed')),
 });
 

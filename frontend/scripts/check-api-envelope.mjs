@@ -1810,6 +1810,14 @@ const EXEMPTIONS = new Map([
     'export_approval_handler.rs:92-94 json!({"items","total"})；前端 {items} 与之相符',
   ],
   [
+    `${BASE_URL}/ai/process-optimizations GET`,
+    'ai_extend_handler.rs:146-151 手拼 json!({"items","total","page","page_size"})；items 来自 service 的 vo.items（Vec），门禁无法静态证明其元素类型，但顶层承载键已读码确认为 items，前端 PaginatedResponse<T> 与之后端真相一致',
+  ],
+  [
+    `${BASE_URL}/ai/quality-predictions GET`,
+    'ai_extend_handler.rs:237-242 同一形状的 json!({"items","total","page","page_size"})；同上，前端已钉 items',
+  ],
+  [
     `${BASE_URL}/products/import POST`,
     '返回 utils/import_export.rs:37 ImportResult{total_count,success_count,error_count,errors}：errors 是详情对象内嵌数组而非列表信封，前端按 {errors} 读正确；struct 未被索引故判未分类',
   ],

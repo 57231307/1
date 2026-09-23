@@ -24,7 +24,7 @@ export function useQualityLookups() {
             getUserList({ page: 1, page_size: 1000 }),
           ]);
           products.value = productRes.data.items ?? [];
-          inspectors.value = userRes.data.items ?? [];
+          inspectors.value = userRes.data.users;
         } catch (err: unknown) {
           // 失败后允许下一次挂载重试，不把失败的 Promise 永久缓存
           loading = null;

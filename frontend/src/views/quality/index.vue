@@ -374,10 +374,9 @@ const fetchStandards = async () => {
 const fetchRecords = async () => {
   recordLoading.value = true;
   try {
-    // v11 批次 161 P2-5 修复：后端返回 PaginatedResponse（items + total）
+    // 后端 list_records 以 PaginatedResponse 返回（data.items + total），按 items 显式读取
     const res = await getQualityRecordList({ page: 1, page_size: 10 });
-    const data = res.data;
-    records.value = data?.items || [];
+    records.value = res.data.items;
   } finally {
     recordLoading.value = false;
   }

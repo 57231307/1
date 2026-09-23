@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PageResult } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 import type {
   ReplenishmentPriorityValue,
   ShortageAlertStatusValue,
@@ -95,8 +95,9 @@ export const getMaterialShortageSummary = (params?: ShortageCheckPayload) =>
   request.get<ApiResponse<MaterialShortageSummary>>('/material-shortage/summary', { params });
 
 // D14 Batch 5b：原 materialShortageApi.listShortages 转为风格 B 函数
+// 后端 material_shortage_handler::list_shortage_alerts 返回 PaginatedResponse（items/total/page/page_size）
 export const getMaterialShortageList = (params?: MaterialShortageQueryParams) =>
-  request.get<ApiResponse<PageResult<MaterialShortageAlert>>>('/material-shortage/list', {
+  request.get<ApiResponse<PaginatedResponse<MaterialShortageAlert>>>('/material-shortage/list', {
     params,
   });
 

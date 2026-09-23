@@ -31,7 +31,8 @@ export function useMs() {
   const checking = ref(false);
 
   // 列表数据接入 useTableApi
-  // 后端返回 PaginatedResponse（data.items + total），detectList 回退匹配 items
+  // 后端 list_shortage_alerts 返回 PaginatedResponse（data.items + total），
+  // 显式钉 listKey='items'，不依赖 detectList 的 list→items 顺序探测。
   const {
     data: shortageList,
     total,
@@ -42,6 +43,7 @@ export function useMs() {
     refresh: fetchShortages,
   } = useTableApi<MaterialShortageAlert>({
     url: '/material-shortage/list',
+    listKey: 'items',
     defaultPageSize: 10,
     defaultParams: {
       level: '',

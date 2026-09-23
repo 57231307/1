@@ -1,5 +1,18 @@
 import { request } from './request';
-import type { ApiResponse, PageResult } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
+
+/**
+ * 应收对账增强域列表分页信封。
+ * 后端 ar_reconciliation_enhanced_handler 的 list_results / list_confirmations / list_disputes
+ * 均以 `json!({"list","total","page","page_size"})` 承载列表，承载键固定为 `list`
+ * （区别于全域 PaginatedResponse 的 items）。显式命名，避免万能 PageResult 掩盖信封漂移。
+ */
+export interface ArListPage<T> {
+  list: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
 
 /**
  * 账龄分桶（对齐后端 services::ar::AgingBucket）。
@@ -151,7 +164,7 @@ export function autoReconcile(params: {
 
 export function getAutoReconciliationResults(
   params?: AutoReconResultQueryParams
-): Promise<ApiResponse<PageResult<AutoReconciliationResult>>> {
+): Promise<ApiResponse<ArListPage<AutoReconciliationResult>>> {
   return request.get('/ar-reconciliations-enhanced/auto-match', { params });
 }
 
@@ -180,7 +193,7 @@ export function sendCustomerConfirmation(id: number): Promise<ApiResponse<{ mess
 
 export function getCustomerConfirmations(
   params?: ConfirmationQueryParams
-): Promise<ApiResponse<PageResult<CustomerConfirmation>>> {
+): Promise<ApiResponse<ArListPage<CustomerConfirmation>>> {
   return request.get('/ar-reconciliations-enhanced/confirmations', { params });
 }
 
@@ -197,7 +210,7 @@ export function createDispute(data: Partial<DisputeRecord>): Promise<ApiResponse
 
 export function getDisputes(
   params?: DisputeQueryParams
-): Promise<ApiResponse<PageResult<DisputeRecord>>> {
+): Promise<ApiResponse<ArListPage<DisputeRecord>>> {
   return request.get('/ar-reconciliations-enhanced/disputes', { params });
 }
 
