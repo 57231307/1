@@ -10,7 +10,7 @@ import {
   getDashboardSalesStats,
   getDashboardInventoryStats,
 } from '@/api/dashboard';
-import type { DashboardOverview, SalesTrend, ChartData } from '@/api/dashboard';
+import type { DashboardOverview, SalesDataPoint, InventoryByCategory } from '@/api/dashboard';
 import { logger } from '@/utils/logger';
 
 /** Dashboard 主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
@@ -19,26 +19,34 @@ export const useDb = () => {
   const dateRange = ref<[Date, Date] | null>(null);
   const trendDays = ref(7);
 
-  // 概览数据
-  const stats = ref<DashboardOverview>({});
+  // 概览数据（后端 ApiResponse.data 为 Option，取不到时回落到零值概览）
+  const overviewDefaults = (): DashboardOverview => ({
+    total_products: 0,
+    total_warehouses: 0,
+    total_orders: 0,
+    total_sales: '0',
+    low_stock_count: 0,
+    pending_orders: 0,
+    monthly_sales: '0',
+    recent_activities: [],
+  });
+  const stats = ref<DashboardOverview>(overviewDefaults());
 
   // 图表数据
-  const trendData = ref<SalesTrend[]>([]);
-  const categoryDistribution = ref<ChartData[]>([]);
+  const trendData = ref<SalesDataPoint[]>([]);
+  const categoryDistribution = ref<InventoryByCategory[]>([]);
 
   // 获取概览数据
   const fetchDashboardData = async () => {
     try {
       const res = await getDashboardOverview();
-      // 安全检查：防止后端返回 data 为 null 时崩溃
-      stats.value = res.data || {};
+      stats.value = res.data ?? overviewDefaults();
     } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           msg.translate('loadDashboardDataFailed')
       );
-      stats.value = {};
+      stats.value = overviewDefaults();
     }
   };
 
@@ -49,8 +57,8 @@ export const useDb = () => {
         getDashboardSalesStats(),
         getDashboardInventoryStats(),
       ]);
-      trendData.value = salesRes.data?.trends || [];
-      categoryDistribution.value = inventoryRes.data?.categoryDistribution || [];
+      trendData.value = salesRes.data?.daily_sales ?? [];
+      categoryDistribution.value = inventoryRes.data?.by_category ?? [];
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       logger.error('获取图表数据失败:', error);
@@ -74,7 +82,7 @@ export const useDb = () => {
   const handleTrendDaysChange = async () => {
     try {
       const res = await getDashboardSalesStats();
-      trendData.value = res.data?.trends || [];
+      trendData.value = res.data?.daily_sales ?? [];
     } catch (error) {
       logger.error('获取销售趋势失败:', error);
       trendData.value = [];

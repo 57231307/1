@@ -17,12 +17,12 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { echarts } from '@/utils/echarts';
 import type { ECharts } from '@/utils/echarts';
-import type { ChartData } from '@/api/dashboard';
+import type { InventoryByCategory } from '@/api/dashboard';
 
 const { t } = useI18n({ useScope: 'global' });
 
 // 饼图数据
-const props = defineProps<{ data: ChartData[] }>();
+const props = defineProps<{ data: InventoryByCategory[] }>();
 
 // ECharts 实例 + 容器 ref
 const chartRef = ref<HTMLElement>();
@@ -30,7 +30,7 @@ let pieChart: ECharts | null = null;
 let resizeHandler: (() => void) | null = null;
 
 // 渲染 ECharts 饼图
-const renderChart = (distribution: ChartData[]) => {
+const renderChart = (distribution: InventoryByCategory[]) => {
   if (!chartRef.value) return;
   if (!pieChart) {
     pieChart = echarts.init(chartRef.value);
@@ -39,7 +39,7 @@ const renderChart = (distribution: ChartData[]) => {
   }
   const data = distribution?.length
     ? distribution
-    : [{ label: t('dashboard.pie.empty'), value: 0 }];
+    : [{ category_name: t('dashboard.pie.empty'), quantity: '0', value: '0' }];
   pieChart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     legend: { orient: 'vertical', left: 'left' },
@@ -52,7 +52,7 @@ const renderChart = (distribution: ChartData[]) => {
         label: { show: false, position: 'center' },
         emphasis: { label: { show: true, fontSize: 16, fontWeight: 'bold' } },
         labelLine: { show: false },
-        data: data.map(d => ({ name: d.label, value: d.value })),
+        data: data.map(d => ({ name: d.category_name, value: Number(d.value) })),
       },
     ],
   });
