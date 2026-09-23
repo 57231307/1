@@ -10,14 +10,16 @@
 //! 注意：文件名 `inventory_move.rs`（非 `move.rs`），因为 `move` 是 Rust 关键字。
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, JoinType, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationDef, RelationTrait,
+    TransactionTrait,
 };
 
 use crate::models::dto::PageRequest;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
 use crate::models::status::inventory_transfer as transfer_status;
+use crate::models::{product, user, warehouse};
 // V15 P0-S01：行级数据权限工具
 use crate::utils::PaginatedResponse;
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
@@ -27,7 +29,8 @@ use crate::utils::pagination::paginate_with_total;
 use super::fabric_class;
 use super::{
     CreateInventoryTransferRequest, InventoryTransferDetail, InventoryTransferItemDetail,
-    InventoryTransferItemRequest, InventoryTransferService, UpdateInventoryTransferRequest,
+    InventoryTransferItemRequest, InventoryTransferService, InventoryTransferView,
+    UpdateInventoryTransferRequest,
 };
 
 impl InventoryTransferService {
@@ -42,8 +45,28 @@ impl InventoryTransferService {
         transfer_no: Option<String>,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<PaginatedResponse<InventoryTransferDetail>, AppError> {
+        // 单次 JOIN 富化查询：from/to 两个仓库须各自 LEFT JOIN warehouses，
+        // 同一实体两次 JOIN 在 Postgres 下必须别名去歧义，故用 join_as + ("别名", 列) 输出不同列名；
+        // created_by LEFT JOIN users 取真实展示名 real_name。JOIN 派生列在视图里均为 Option<String>。
+        let created_by_rel: RelationDef = InventoryTransferEntity::belongs_to(user::Entity)
+            .from(inventory_transfer::Column::CreatedBy)
+            .to(user::Column::Id)
+            .into();
         let mut query = InventoryTransferEntity::find()
-            .order_by(inventory_transfer::Column::CreatedAt, Order::Desc);
+            .column_as(("from_wh", warehouse::Column::Name), "from_warehouse_name")
+            .column_as(("to_wh", warehouse::Column::Name), "to_warehouse_name")
+            .column_as(user::Column::RealName, "created_by_name")
+            .join_as(
+                JoinType::LeftJoin,
+                inventory_transfer::Relation::FromWarehouse.def(),
+                "from_wh",
+            )
+            .join_as(
+                JoinType::LeftJoin,
+                inventory_transfer::Relation::ToWarehouse.def(),
+                "to_wh",
+            )
+            .join(JoinType::LeftJoin, created_by_rel);
 
         // 应用过滤条件
         if let Some(s) = status {
@@ -69,31 +92,38 @@ impl InventoryTransferService {
             );
         }
 
-        // 分页
-        let paginator = query.paginate(&*self.db, page_req.page_size);
+        // 分页：单次查询取当页 + 总数（无逐行回查）
+        let paginator = query
+            .order_by(inventory_transfer::Column::CreatedAt, Order::Desc)
+            .into_model::<InventoryTransferView>()
+            .paginate(&*self.db, page_req.page_size);
         // 使用统一分页辅助函数，并行执行分页查询与总数统计
-        let (transfers, total): (Vec<inventory_transfer::Model>, u64) =
+        let (views, total): (Vec<InventoryTransferView>, u64) =
             paginate_with_total(paginator, page_req.page).await?;
 
-        // 转换为响应格式
-        let transfer_details: Vec<InventoryTransferDetail> = transfers
+        // 转换为响应格式（列表接口不返回明细项，items 恒空）
+        let transfer_details: Vec<InventoryTransferDetail> = views
             .into_iter()
-            .map(|transfer| InventoryTransferDetail {
-                id: transfer.id,
-                transfer_no: transfer.transfer_no,
-                from_warehouse_id: transfer.from_warehouse_id,
-                to_warehouse_id: transfer.to_warehouse_id,
-                transfer_date: transfer.transfer_date,
-                status: transfer.status,
-                total_quantity: transfer.total_quantity,
-                notes: transfer.notes,
-                created_by: transfer.created_by,
-                approved_by: transfer.approved_by,
-                approved_at: transfer.approved_at,
-                shipped_at: transfer.shipped_at,
-                received_at: transfer.received_at,
-                created_at: transfer.created_at,
-                updated_at: transfer.updated_at,
+            .map(|v| InventoryTransferDetail {
+                id: v.id,
+                transfer_no: v.transfer_no,
+                from_warehouse_id: v.from_warehouse_id,
+                to_warehouse_id: v.to_warehouse_id,
+                transfer_date: v.transfer_date,
+                status: v.status,
+                total_quantity: v.total_quantity,
+                total_amount: v.total_amount,
+                notes: v.notes,
+                created_by: v.created_by,
+                approved_by: v.approved_by,
+                approved_at: v.approved_at,
+                shipped_at: v.shipped_at,
+                received_at: v.received_at,
+                created_at: v.created_at,
+                updated_at: v.updated_at,
+                from_warehouse_name: v.from_warehouse_name,
+                to_warehouse_name: v.to_warehouse_name,
+                created_by_name: v.created_by_name,
                 items: vec![], // 列表接口不返回明细项
             })
             .collect();
@@ -113,14 +143,35 @@ impl InventoryTransferService {
         transfer_id: i32,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<InventoryTransferDetail, AppError> {
-        // 获取调拨主表数据
-        let transfer = InventoryTransferEntity::find_by_id(transfer_id)
+        // 表头：与列表同构的单次 JOIN 富化查询（from/to 两仓库分别别名 JOIN + created_by 用户名）。
+        let created_by_rel: RelationDef = InventoryTransferEntity::belongs_to(user::Entity)
+            .from(inventory_transfer::Column::CreatedBy)
+            .to(user::Column::Id)
+            .into();
+        let header = InventoryTransferEntity::find()
+            .column_as(("from_wh", warehouse::Column::Name), "from_warehouse_name")
+            .column_as(("to_wh", warehouse::Column::Name), "to_warehouse_name")
+            .column_as(user::Column::RealName, "created_by_name")
+            .join_as(
+                JoinType::LeftJoin,
+                inventory_transfer::Relation::FromWarehouse.def(),
+                "from_wh",
+            )
+            .join_as(
+                JoinType::LeftJoin,
+                inventory_transfer::Relation::ToWarehouse.def(),
+                "to_wh",
+            )
+            .join(JoinType::LeftJoin, created_by_rel)
+            .filter(inventory_transfer::Column::Id.eq(transfer_id))
+            .into_model::<InventoryTransferView>()
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
-        // V15 P0-S01：行级数据权限 IDOR 校验
+
+        // V15 P0-S01：行级数据权限 IDOR 校验（created_by 由视图携带）
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, transfer.created_by, None) {
+            if !check_resource_owner(ctx, header.created_by, None) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问库存调拨单 {}（数据范围限制）",
                     transfer_id
@@ -128,49 +179,42 @@ impl InventoryTransferService {
             }
         }
 
-        // 获取调拨明细项
-        let items = InventoryTransferItemEntity::find()
+        // 明细项：单次 LEFT JOIN products 富化取 product_code/product_name/grade/unit（无逐行回查）
+        let item_details: Vec<InventoryTransferItemDetail> = InventoryTransferItemEntity::find()
+            .column_as(product::Column::Code, "product_code")
+            .column_as(product::Column::Name, "product_name")
+            .column_as(product::Column::ProductGrade, "grade")
+            .column_as(product::Column::Unit, "unit")
+            .join(
+                JoinType::LeftJoin,
+                inventory_transfer_item::Relation::Product.def(),
+            )
             .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
             .order_by(inventory_transfer_item::Column::Id, Order::Asc)
+            .into_model::<InventoryTransferItemDetail>()
             .all(&*self.db)
             .await?;
 
-        // 转换为响应格式
-        let item_details: Vec<InventoryTransferItemDetail> = items
-            .into_iter()
-            .map(|item| InventoryTransferItemDetail {
-                id: item.id,
-                transfer_id: item.transfer_id,
-                product_id: item.product_id,
-                quantity: item.quantity,
-                shipped_quantity: item.shipped_quantity,
-                received_quantity: item.received_quantity,
-                unit_cost: item.unit_cost,
-                notes: item.notes,
-                created_at: item.created_at,
-                updated_at: item.updated_at,
-                color_no: item.color_no,
-                dye_lot_no: item.dye_lot_no,
-                batch_no: item.batch_no,
-            })
-            .collect();
-
         Ok(InventoryTransferDetail {
-            id: transfer.id,
-            transfer_no: transfer.transfer_no,
-            from_warehouse_id: transfer.from_warehouse_id,
-            to_warehouse_id: transfer.to_warehouse_id,
-            transfer_date: transfer.transfer_date,
-            status: transfer.status,
-            total_quantity: transfer.total_quantity,
-            notes: transfer.notes,
-            created_by: transfer.created_by,
-            approved_by: transfer.approved_by,
-            approved_at: transfer.approved_at,
-            shipped_at: transfer.shipped_at,
-            received_at: transfer.received_at,
-            created_at: transfer.created_at,
-            updated_at: transfer.updated_at,
+            id: header.id,
+            transfer_no: header.transfer_no,
+            from_warehouse_id: header.from_warehouse_id,
+            to_warehouse_id: header.to_warehouse_id,
+            transfer_date: header.transfer_date,
+            status: header.status,
+            total_quantity: header.total_quantity,
+            total_amount: header.total_amount,
+            notes: header.notes,
+            created_by: header.created_by,
+            approved_by: header.approved_by,
+            approved_at: header.approved_at,
+            shipped_at: header.shipped_at,
+            received_at: header.received_at,
+            created_at: header.created_at,
+            updated_at: header.updated_at,
+            from_warehouse_name: header.from_warehouse_name,
+            to_warehouse_name: header.to_warehouse_name,
+            created_by_name: header.created_by_name,
             items: item_details,
         })
     }

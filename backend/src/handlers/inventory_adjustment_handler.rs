@@ -91,6 +91,10 @@ pub struct AdjustmentSummary {
     pub status: String,
     pub total_quantity: Decimal,
     pub created_at: DateTime<Utc>,
+    pub adjustment_date: DateTime<Utc>,
+    pub reason_description: Option<String>,
+    pub warehouse_name: Option<String>,
+    pub created_by_name: Option<String>,
 }
 
 /// 创建调整单
@@ -296,10 +300,15 @@ pub async fn list_adjustments(
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
 
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+
     let (adjustments, total) = service
         .list_adjustments(
-            params.page.unwrap_or(1).clamp(1, 1000),
-            params.page_size.unwrap_or(20).clamp(1, 100),
+            page,
+            page_size,
+            params.adjustment_no,
+            params.status,
             Some(&data_scope_ctx),
         )
         .await
@@ -317,11 +326,15 @@ pub async fn list_adjustments(
                 status: a.status,
                 total_quantity: a.total_quantity,
                 created_at: a.created_at,
+                adjustment_date: a.adjustment_date,
+                reason_description: a.reason_description,
+                warehouse_name: a.warehouse_name,
+                created_by_name: a.created_by_name,
             })
             .collect(),
         total,
-        page: params.page.unwrap_or(1).clamp(1, 1000),
-        page_size: params.page_size.unwrap_or(20).clamp(1, 100),
+        page,
+        page_size,
     })))
 }
 
@@ -330,6 +343,8 @@ pub async fn list_adjustments(
 pub struct ListAdjustmentsParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+    pub adjustment_no: Option<String>,
+    pub status: Option<String>,
 }
 
 /// 查询调整单详情

@@ -11,7 +11,7 @@
 //! 模型 inventory_count / inventory_count_item 已通过迁移对齐 schema。
 
 use crate::models::status::inventory_count as count_status;
-use crate::models::{inventory_count, inventory_count_item, inventory_stock};
+use crate::models::{inventory_count, inventory_count_item, inventory_stock, user, warehouse};
 use crate::services::audit_log_service::AuditLogService;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
@@ -26,10 +26,32 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, FromQueryResult,
+    JoinType, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationDef,
+    RelationTrait, Set, TransactionTrait,
 };
 use std::sync::Arc;
+
+/// 盘点单列表行读模型（单次 JOIN 富化的查询结果）。
+///
+/// 表头实体列按 `inventory_count` 的 NOT NULL 约束保持非空；
+/// `warehouse_name` / `created_by_name` 由 LEFT JOIN 派生，故为 `Option<String>`。
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct CountListRow {
+    pub id: i32,
+    pub count_no: String,
+    pub warehouse_id: i32,
+    pub count_date: DateTime<Utc>,
+    pub status: String,
+    pub total_items: i32,
+    pub counted_items: i32,
+    pub variance_items: i32,
+    pub created_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub warehouse_name: Option<String>,
+    pub created_by_name: Option<String>,
+}
 
 /// 创建盘点单请求
 #[derive(Debug, Clone)]
@@ -207,14 +229,31 @@ impl InventoryCountService {
         page_size: u64,
         warehouse_id: Option<i32>,
         status: Option<String>,
+        count_no: Option<String>,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<(Vec<inventory_count::Model>, u64), AppError> {
-        let mut query = inventory_count::Entity::find();
+    ) -> Result<(Vec<CountListRow>, u64), AppError> {
+        // 单次查询：warehouse 走实体声明的 Relation::Warehouse.def()；
+        // created_by 无声明关系，用 belongs_to 构造一次性 RelationDef LEFT JOIN users.real_name。
+        let created_by_rel: RelationDef = inventory_count::Entity::belongs_to(user::Entity)
+            .from(inventory_count::Column::CreatedBy)
+            .to(user::Column::Id)
+            .into();
+        let mut query = inventory_count::Entity::find()
+            .column_as(warehouse::Column::Name, "warehouse_name")
+            .column_as(user::Column::RealName, "created_by_name")
+            .join(
+                JoinType::LeftJoin,
+                inventory_count::Relation::Warehouse.def(),
+            )
+            .join(JoinType::LeftJoin, created_by_rel);
         if let Some(wid) = warehouse_id {
             query = query.filter(inventory_count::Column::WarehouseId.eq(wid));
         }
         if let Some(s) = status {
             query = query.filter(inventory_count::Column::Status.eq(s));
+        }
+        if let Some(no) = count_no {
+            query = query.filter(inventory_count::Column::CountNo.contains(&no));
         }
         // V15 P0-S01：行级数据权限过滤
         // inventory_count 表无 department_id，Dept 退化为 Self，使用 created_by（Option<i32>）。
@@ -229,6 +268,7 @@ impl InventoryCountService {
         // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(inventory_count::Column::CreatedAt, Order::Desc)
+            .into_model::<CountListRow>()
             .paginate(&*self.db, page_size);
         let (counts, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((counts, total))

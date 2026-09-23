@@ -149,6 +149,10 @@ pub struct CountSummary {
     pub counted_items: i32,
     pub variance_items: i32,
     pub created_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub warehouse_name: Option<String>,
+    pub created_by_name: Option<String>,
 }
 
 /// 列表查询参数
@@ -159,6 +163,7 @@ pub struct ListCountsParams {
     pub page_size: Option<u64>,
     pub warehouse_id: Option<i32>,
     pub status: Option<String>,
+    pub count_no: Option<String>,
 }
 
 /// 录入实盘数量请求体
@@ -234,6 +239,7 @@ pub async fn list_counts(
             page_size,
             params.warehouse_id,
             params.status,
+            params.count_no,
             Some(&data_scope_ctx),
         )
         .await?;
@@ -249,6 +255,10 @@ pub async fn list_counts(
             counted_items: c.counted_items,
             variance_items: c.variance_items,
             created_at: c.created_at,
+            completed_at: c.completed_at,
+            notes: c.notes,
+            warehouse_name: c.warehouse_name,
+            created_by_name: c.created_by_name,
         })
         .collect();
     Ok(Json(ApiResponse::success(CountListResponse {

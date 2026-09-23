@@ -1,5 +1,7 @@
 use crate::models::status::inventory_adjustment as adjustment_status;
-use crate::models::{inventory_adjustment, inventory_adjustment_item, inventory_stock};
+use crate::models::{
+    inventory_adjustment, inventory_adjustment_item, inventory_stock, user, warehouse,
+};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
@@ -10,8 +12,9 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, FromQueryResult, IntoActiveModel,
+    JoinType, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationDef,
+    RelationTrait, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -53,6 +56,26 @@ pub struct AdjustmentItemRequest {
 pub struct AdjustmentDetail {
     pub adjustment: inventory_adjustment::Model,
     pub items: Vec<inventory_adjustment_item::Model>,
+}
+
+/// 库存调整单列表行读模型（单次 JOIN 富化的查询结果）。
+///
+/// 表头实体列按 `inventory_adjustment` 的 NOT NULL 约束保持非空；
+/// `warehouse_name` / `created_by_name` 由 LEFT JOIN 派生，故为 `Option<String>`。
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct AdjustmentListRow {
+    pub id: i32,
+    pub adjustment_no: String,
+    pub warehouse_id: i32,
+    pub adjustment_type: String,
+    pub reason_type: String,
+    pub status: String,
+    pub total_quantity: Decimal,
+    pub created_at: DateTime<Utc>,
+    pub adjustment_date: DateTime<Utc>,
+    pub reason_description: Option<String>,
+    pub warehouse_name: Option<String>,
+    pub created_by_name: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -409,14 +432,29 @@ impl InventoryAdjustmentService {
         Ok(updated)
     }
 
-    /// 查询所有调整单（分页）
+    /// 查询所有调整单（分页，单次 JOIN 富化出仓库名与创建人名）
     pub async fn list_adjustments(
         &self,
         page: u64,
         page_size: u64,
+        adjustment_no: Option<String>,
+        status: Option<String>,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<(Vec<inventory_adjustment::Model>, u64), AppError> {
-        let mut query = inventory_adjustment::Entity::find();
+    ) -> Result<(Vec<AdjustmentListRow>, u64), AppError> {
+        // 单次查询：warehouse 走实体声明的 Relation::Warehouse.def()；
+        // created_by 无声明关系，用 belongs_to 构造一次性 RelationDef LEFT JOIN users.real_name。
+        let created_by_rel: RelationDef = inventory_adjustment::Entity::belongs_to(user::Entity)
+            .from(inventory_adjustment::Column::CreatedBy)
+            .to(user::Column::Id)
+            .into();
+        let mut query = inventory_adjustment::Entity::find()
+            .column_as(warehouse::Column::Name, "warehouse_name")
+            .column_as(user::Column::RealName, "created_by_name")
+            .join(
+                JoinType::LeftJoin,
+                inventory_adjustment::Relation::Warehouse.def(),
+            )
+            .join(JoinType::LeftJoin, created_by_rel);
 
         // V15 P0-S01：行级数据权限过滤
         // inventory_adjustment 表无 department_id，Dept 退化为 Self，使用 created_by（Option<i32>）。
@@ -428,10 +466,17 @@ impl InventoryAdjustmentService {
                 inventory_adjustment::Column::CreatedBy, // 无 department_id，Dept 退化为 Self，复用 created_by
             );
         }
+        if let Some(no) = adjustment_no {
+            query = query.filter(inventory_adjustment::Column::AdjustmentNo.contains(&no));
+        }
+        if let Some(s) = status {
+            query = query.filter(inventory_adjustment::Column::Status.eq(s));
+        }
 
         // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(inventory_adjustment::Column::CreatedAt, Order::Desc)
+            .into_model::<AdjustmentListRow>()
             .paginate(&*self.db, page_size);
 
         let (adjustments, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;

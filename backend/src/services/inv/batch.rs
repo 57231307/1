@@ -9,14 +9,15 @@
 
 use sea_orm::sea_query::{BinOper, Expr};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel, Order, QueryFilter,
-    QueryOrder, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel, JoinType, Order,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, TransactionTrait,
 };
 
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::inventory_transaction;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
+use crate::models::product;
 use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::models::status::purchase_inventory::inventory_stock_status;
@@ -1037,29 +1038,22 @@ impl InventoryTransferService {
     ) -> Result<Vec<InventoryTransferItemDetail>, AppError> {
         // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句校验存在性
         self.get_transfer_detail(transfer_id, None).await?;
+        // LEFT JOIN products 单次富化取 product_code/product_name/grade/unit（与详情明细口径一致，无逐行回查）
         let items = InventoryTransferItemEntity::find()
+            .column_as(product::Column::Code, "product_code")
+            .column_as(product::Column::Name, "product_name")
+            .column_as(product::Column::ProductGrade, "grade")
+            .column_as(product::Column::Unit, "unit")
+            .join(
+                JoinType::LeftJoin,
+                inventory_transfer_item::Relation::Product.def(),
+            )
             .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
             .order_by(inventory_transfer_item::Column::Id, Order::Asc)
+            .into_model::<InventoryTransferItemDetail>()
             .all(&*self.db)
             .await?;
-        Ok(items
-            .into_iter()
-            .map(|item| InventoryTransferItemDetail {
-                id: item.id,
-                transfer_id: item.transfer_id,
-                product_id: item.product_id,
-                quantity: item.quantity,
-                shipped_quantity: item.shipped_quantity,
-                received_quantity: item.received_quantity,
-                unit_cost: item.unit_cost,
-                notes: item.notes,
-                created_at: item.created_at,
-                updated_at: item.updated_at,
-                color_no: item.color_no,
-                dye_lot_no: item.dye_lot_no,
-                batch_no: item.batch_no,
-            })
-            .collect())
+        Ok(items)
     }
 
     /// 校验并归一化调拨明细的面料行业追溯字段（款号由 product_id 承载，此处含色号/缸号/批次）。
@@ -1161,6 +1155,11 @@ impl InventoryTransferService {
             color_no: item_model.color_no,
             dye_lot_no: item_model.dye_lot_no,
             batch_no: item_model.batch_no,
+            // 单品写入回显路径不做 products JOIN，产品名/编码/等级/单位如实回传为 None
+            product_code: None,
+            product_name: None,
+            grade: None,
+            unit: None,
         })
     }
 
@@ -1228,6 +1227,11 @@ impl InventoryTransferService {
             color_no: updated.color_no,
             dye_lot_no: updated.dye_lot_no,
             batch_no: updated.batch_no,
+            // 单品写入回显路径不做 products JOIN，产品名/编码/等级/单位如实回传为 None
+            product_code: None,
+            product_name: None,
+            grade: None,
+            unit: None,
         })
     }
 

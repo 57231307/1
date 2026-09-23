@@ -128,10 +128,6 @@ export interface InventoryTransferQueryParams {
   transfer_no?: string;
 }
 
-export function getInventoryTransferList(params?: InventoryTransferQueryParams) {
-  return request.get('/inventory/transfers', { params });
-}
-
 export function getInventoryTransfer(id: number) {
   return request.get(`/inventory/transfers/${id}`);
 }

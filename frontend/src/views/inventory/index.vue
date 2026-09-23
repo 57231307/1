@@ -255,7 +255,7 @@ const fetchTransfers = async () => {
   try {
     const { getInventoryTransferList } = await import('@/api/inventory');
     const res = await getInventoryTransferList(queryParams);
-    transfers.value = res.data;
+    transfers.value = res.data.items;
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
@@ -419,11 +419,11 @@ const handleNewTransfer = () => handleTransfer();
 const handleViewTransfer = (row: InventoryTransfer) => {
   const lines = [
     t('inventory.transferDetail.transferNo', { value: row.transfer_no }),
-    t('inventory.transferDetail.fromWarehouse', { value: row.from_warehouse_name || '-' }),
-    t('inventory.transferDetail.toWarehouse', { value: row.to_warehouse_name || '-' }),
+    t('inventory.transferDetail.fromWarehouse', { value: row.from_warehouse_name ?? '' }),
+    t('inventory.transferDetail.toWarehouse', { value: row.to_warehouse_name ?? '' }),
     t('inventory.transferDetail.totalQty', { value: row.total_quantity }),
     t('inventory.transferDetail.status', { value: row.status }),
-    t('inventory.transferDetail.creator', { value: row.creator_name || '-' }),
+    t('inventory.transferDetail.creator', { value: row.created_by_name ?? '' }),
     t('inventory.transferDetail.createdAt', { value: row.created_at }),
   ];
   ElMessageBox.alert(lines.join('\n'), t('inventory.transferDetail.title'), {

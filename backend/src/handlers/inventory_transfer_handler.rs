@@ -15,7 +15,7 @@ use crate::services::inv::{
 };
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -42,7 +42,7 @@ pub async fn list_transfers(
     auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<InventoryTransferQuery>,
-) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
 
     let page_req = PageRequest {
@@ -71,7 +71,13 @@ pub async fn list_transfers(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(Json(ApiResponse::success(transfers_json)))
+    // 透传 service 已算出的总数，分页条据此渲染（原实现丢弃 total 致前端分页失效）
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        transfers_json,
+        transfers.total,
+        page_req.page,
+        page_req.page_size,
+    ))))
 }
 
 /// 获取库存调拨详情

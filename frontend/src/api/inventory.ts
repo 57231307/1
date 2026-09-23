@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 /**
  * 库存行：字段名与后端 StockResponse 对齐
@@ -55,27 +55,44 @@ export interface InventoryReservation {
   expire_date?: string;
 }
 
+/**
+ * 调拨单列表行：键名对应 services/inv 的 InventoryTransferDetail，
+ * 仓库名与创建人名由 handlers/inventory_transfer_handler.rs 的 LEFT JOIN 产出，
+ * 外键悬挂时为 null（行仍保留），故三处名称列可空。
+ */
 export interface InventoryTransfer {
   id: number;
   transfer_no: string;
   from_warehouse_id: number;
-  from_warehouse_name: string;
+  from_warehouse_name: string | null;
   to_warehouse_id: number;
-  to_warehouse_name: string;
+  to_warehouse_name: string | null;
+  transfer_date: string;
   status: string;
   total_quantity: number;
-  creator_name: string;
+  total_amount: number;
+  notes: string | null;
+  created_by: number;
+  created_by_name: string | null;
   created_at: string;
+  updated_at: string;
   items: InventoryTransferItem[];
 }
 
+/** 调拨明细行：InventoryTransferItemDetail 列 + products LEFT JOIN 的品名/编号/等级/单位 */
 export interface InventoryTransferItem {
   id: number;
   product_id: number;
-  product_name: string;
+  color_no: string;
+  dye_lot_no: string;
+  batch_no: string;
   quantity: number;
-  from_location?: string;
-  to_location?: string;
+  unit_cost: number;
+  notes: string | null;
+  product_name: string | null;
+  product_code: string | null;
+  grade: string | null;
+  unit: string | null;
 }
 
 export interface InventoryQueryParams {
@@ -234,7 +251,7 @@ export const cancelReservation = (id: number) =>
 
 // D14 Batch 5b：原 inventoryApi.getTransfers 转为风格 B 函数
 export const getInventoryTransferList = (params?: InventoryQueryParams) =>
-  request.get<ApiResponse<InventoryTransfer[]>>('/inventory/transfers', {
+  request.get<ApiResponse<PaginatedResponse<InventoryTransfer>>>('/inventory/transfers', {
     params,
   });
 
