@@ -52,16 +52,19 @@ export * from './dye-recipe';
 export * from './dye-batch';
 export * from './greige-fabric';
 export * from './mrp';
-// 修复：finance-report 中的 ReportData 与 financial-analysis 中的 ReportData 同名冲突
+// 财务报表各端点返回单对象 DTO，逐字段对齐后端 finance_report_dto.rs；
 // 业务代码均通过 '@/api/finance-report' 直接导入，不依赖此处的重新导出
 export type {
-  BalanceSheetItem,
-  ProfitStatementItem,
-  CashFlowItem,
-  TrialBalanceItem,
-  GeneralLedgerItem,
-  SubsidiaryLedgerItem,
   ReportItem,
+  BalanceSheet,
+  IncomeStatement,
+  CashFlowStatement,
+  TrialBalance,
+  TrialBalanceEntry,
+  GeneralLedger,
+  GeneralLedgerEntry,
+  SubsidiaryLedger,
+  SubsidiaryLedgerEntry,
   FinanceReportQueryParams,
   GeneralLedgerQueryParams,
   SubsidiaryLedgerQueryParams,
