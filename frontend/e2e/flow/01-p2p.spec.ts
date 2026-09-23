@@ -63,27 +63,23 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     ).toBeTruthy();
 
     // 验证初始状态
-    // 实体只映射 order_status（models/purchase_order.rs:75）；遗留 status 列不在实体内，
-    // 读它只会拿到 DB 默认值 'draft'，故这里只认 order_status，且空值不再被容忍成"跳过提交"。
-    const initial = await apiCallRaw<{ order_status: string }>(
-      page,
-      'GET',
-      `/purchase/orders/${id}`
-    );
-    expect(initial.order_status, '采购订单详情缺少 order_status').toBeTruthy();
+    // PurchaseOrderDto (services/po/order.rs:38) 对 order_status 字段标注了
+    // #[serde(rename = "status")]，序列化后 JSON 键为 "status"（非 Rust 字段名 order_status）。
+    const initial = await apiCallRaw<{ status: string }>(page, 'GET', `/purchase/orders/${id}`);
+    expect(initial.status, '采购订单详情缺少 status').toBeTruthy();
 
     // 提交审批（词表 models/status/purchase_inventory.rs purchase_order，全大写）
-    if (['DRAFT', 'PENDING_APPROVAL'].includes(initial.order_status)) {
+    if (['DRAFT', 'PENDING_APPROVAL'].includes(initial.status)) {
       await apiCall(page, 'POST', `/purchase/orders/${id}/submit`);
     }
 
     // 审批通过
     await apiCall(page, 'POST', `/purchase/orders/${id}/approve`);
 
-    const final = await apiCallRaw<{ order_status: string }>(page, 'GET', `/purchase/orders/${id}`);
+    const final = await apiCallRaw<{ status: string }>(page, 'GET', `/purchase/orders/${id}`);
     // 此前列表里的 confirmed/pending_receipt/partially_received/received/completed
     // 都不是该列的词元（后端从不写），断言因此恒真；改为真实词表（大写）。
-    const finalStatus = final.order_status;
+    const finalStatus = final.status;
     expect([
       'APPROVED',
       'CLOSED',
@@ -181,8 +177,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       .toBe('COMPLETED');
 
     // 验证订单状态更新：已收满订单应为 completed（未收货会停在 approved/pending_receipt）
-    const order = await apiCallRaw<{ order_status: string }>(page, 'GET', `/purchase/orders/${id}`);
-    const status = order.order_status;
+    const order = await apiCallRaw<{ status: string }>(page, 'GET', `/purchase/orders/${id}`);
+    const status = order.status;
     expect(
       ['COMPLETED', 'PARTIAL_RECEIVED'],
       `收货确认后采购订单 ${id} 应进入收货态，实际 ${status}`
@@ -528,9 +524,9 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       '前置步骤未创建采购订单（ctx.purchaseOrderId 缺失），本用例前置失败而非跳过'
     ).toBeTruthy();
 
-    // 后端 purchase_order_handler.rs:103 get_order 返回 ApiResponse<to_value(PurchaseOrder Model)>，
-    // data 即订单对象、含 id（models/purchase_order.rs:22 pub id: i32）
-    const order = await apiCallRaw<{ id?: number; order_status: string }>(
+    // 后端 purchase_order_handler.rs:103 get_order 返回 ApiResponse<to_value(PurchaseOrderDto)>，
+    // PurchaseOrderDto.services/po/order.rs:38 标注 #[serde(rename = "status")]，JSON 键为 "status"。
+    const order = await apiCallRaw<{ id?: number; status: string }>(
       page,
       'GET',
       `/purchase/orders/${id}`
@@ -538,7 +534,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     expect(order?.id ?? order, '采购订单详情应返回订单对象').toBeTruthy();
     // confirmed / pending_receipt / partially_received / received 均非该列词表成员，
     // 旧断言因此对任何真实值都成立或依赖小写归一；改为 models/status 里的真实 token。
-    const status = order.order_status;
+    const status = order.status;
     expect([
       'DRAFT',
       'PENDING_APPROVAL',
