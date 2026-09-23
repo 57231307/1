@@ -69,7 +69,7 @@ fn test_barcode_length_limited_to_column_width() {
     .expect("创建产品请求反序列化失败");
     let err = req.validate().expect_err("101 字符条码应被长度校验拒绝");
     assert!(
-        err.field_errors.contains_key("barcode"),
+        err.field_errors().contains_key("barcode"),
         "校验失败应定位到 barcode 字段，实际: {err:?}"
     );
 }
