@@ -128,7 +128,7 @@ console.log(
   `[api-keys] 后端字段全集 ${universe.size}；前端未知接口键 ${orphans.length}（基线 ${baseline.total}），文件 ${Object.keys(current).length}`
 );
 for (const [f, base] of reduced) {
-  console.log(`  已收敛 ${f}: ${base} → ${current[f] ?? 0}（请连同基线一起下调）`);
+  console.log(`  已收敛 ${f}: ${base.count} → ${current[f] ?? 0}（请连同基线一起下调）`);
 }
 if (failures.length) {
   console.error(`\n[api-keys] ✗ ${failures.length} 个文件出现新的编造键：`);
