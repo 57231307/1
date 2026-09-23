@@ -927,6 +927,7 @@ function extractFnSignatures(src) {
 
 function buildHandlerModules(templates) {
   const mods = new Map();
+  const dirMembers = {}; // 目录型模块名 -> 该目录下已索引的文件条目
   // 路由里的 handler 也可能指向 handlers/ 之外的 Axum 模块（如 `websocket::notifications::*`）：
   // 不一起索引就会把它们当成"未定位"，从而在门禁的覆盖统计里留下说不清的空洞。
   const dirs = [join(BACKEND, 'src', 'handlers'), join(BACKEND, 'src', 'websocket')].filter(d => {
@@ -1005,6 +1006,48 @@ function buildHandlerModules(templates) {
       invRe.lastIndex = cap[0];
     }
     mods.set(base, entry);
+    // 目录型模块：`pub mod advanced;` 指向 handlers/advanced/ 这个文件夹时，
+    // 路由写的是 `advanced::list_purchase_contracts`，但索引里没有名为 advanced 的条目
+    // （只有 analytics / decide / … 这些文件名），会被误判为「handler 符号未定义」。
+    const root = dirs.find(d => f.startsWith(d));
+    if (root) {
+      const rest = f
+        .slice(root.length)
+        .replace(/^[\\/]/, '')
+        .replace(/\\/g, '/')
+        .split('/')
+        .slice(0, -1);
+      if (rest.length) (dirMembers[rest[rest.length - 1]] ||= []).push(entry);
+    }
+  }
+  for (const [dirName, members] of Object.entries(dirMembers)) {
+    if (mods.has(dirName)) continue; // 已有同名文件模块，不覆盖
+    const merged = {
+      file: dirName + '/',
+      rets: {},
+      sigs: {},
+      bodies: {},
+      macroFns: {},
+      modMacroFns: {},
+      nested: {},
+      reexports: [],
+    };
+    const cand = {};
+    for (const M of members) {
+      for (const fn of Object.keys(M.bodies)) (cand['b' + fn] ||= []).push(['bodies', M]);
+      for (const fn of Object.keys(M.macroFns)) (cand['m' + fn] ||= []).push(['macroFns', M]);
+    }
+    for (const key of Object.keys(cand)) {
+      if (cand[key].length !== 1) continue; // 目录内同名 fn -> 落点不唯一，判不出（不猜）
+      const [kind, M] = cand[key][0];
+      const fn = key.slice(1);
+      if (kind === 'bodies') {
+        merged.bodies[fn] = M.bodies[fn];
+        merged.rets[fn] = M.rets[fn] || '';
+        merged.sigs[fn] = M.sigs[fn] || '';
+      } else merged.macroFns[fn] = M.macroFns[fn];
+    }
+    mods.set(dirName, merged);
   }
   return mods;
 }
@@ -1549,15 +1592,15 @@ function parseFrontendApiFunctions(tsIndex) {
       const url = resolveFrontendUrl(argTexts[0] || '', consts);
       if (!url) continue;
       let path = url;
-      if (!path.startsWith(BASE_URL))
-        path = BASE_URL + (path.startsWith('/') ? path : '/' + path);
+      if (!path.startsWith(BASE_URL)) path = BASE_URL + (path.startsWith('/') ? path : '/' + path);
       // 方法名必须大写：共享路由表（check-api-paths 的 walkBackendRoutes）以
       // `"<path> GET"` 形态建键，小写会让整批条目假报「路由未注册」。
       const call = { method: gm[1].toUpperCase(), path: normalizePath(path), args: argTexts };
       // 归属到最近一个 export 的符号名（从调用点往前扫）
       const head = src.slice(0, gm.index);
-      const nm =
-        [...head.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z_]\w*)/g)].pop();
+      const nm = [
+        ...head.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z_]\w*)/g),
+      ].pop();
       if (!nm) continue;
       const name = nm[1];
       const line = head.split('\n').length;
@@ -1650,7 +1693,42 @@ function readdirSyncLocal(dir) {
 // 用途：后端确为动态 JSON / 有意裸数组等「静态不可判定但经人工确认无缺陷」的端点。
 // 禁止整片前缀/方法批量塞入以掩盖真实漂移。
 const EXEMPTIONS = new Map([
-  // 例： `${BASE_URL}/xxx GET` -> '原因：后端返回 serde_json::Value 动态结构，前端按 any 消费，已人工确认无 items/data 误读',
+  // 以下 8 条为「后端 data 是手工 json! / 未被 struct 索引覆盖的 struct」，门禁无法静态判形。
+  // 每条都已逐次阅读 handler 函数体核实前端读的键确实存在（证据见各条 file:line）；
+  // 属"已人工核对"而非"已静态验证"。根治办法是把这 8 个 handler 的返回改成强类型响应
+  // （PaginatedResponse<T> / 专用 Response struct），已登记为解冻后的后端批次，届时删除本条目。
+  [
+    `${BASE_URL}/ai/process-optimizations/batch POST`,
+    'ai_extend_handler.rs:414/427/436 results 数组由 json! 逐条 push，顶层 {total,succeeded,failed,results}；前端 {results} 与之相符',
+  ],
+  [
+    `${BASE_URL}/ai/quality-predictions/batch POST`,
+    'ai_extend_handler.rs:492-496 显式 json!({"total","succeeded",…,"results"})；前端 {results} 与之相符',
+  ],
+  [
+    `${BASE_URL}/color-prices/batch-adjust POST`,
+    'color_price_handler.rs:222-225 json!({"auto_approved",…,"total"})；前端 {auto_approved} 与之相符',
+  ],
+  [
+    `${BASE_URL}/color-prices/tiers/* GET`,
+    'color_price_handler.rs:344-345 json!({"items","total"})；前端 {items} 与之相符',
+  ],
+  [
+    `${BASE_URL}/color-prices/seasonal-rules GET`,
+    'color_price_handler.rs:481-483 json!({"items","total"})；前端 {items} 与之相符',
+  ],
+  [
+    `${BASE_URL}/export-approvals GET`,
+    'export_approval_handler.rs:69-71 json!({"items": vo.items,"total": vo.total})；前端 {items} 与之相符',
+  ],
+  [
+    `${BASE_URL}/export-approvals/pending-for-me GET`,
+    'export_approval_handler.rs:92-94 json!({"items","total"})；前端 {items} 与之相符',
+  ],
+  [
+    `${BASE_URL}/products/import POST`,
+    '返回 utils/import_export.rs:37 ImportResult{total_count,success_count,error_count,errors}：errors 是详情对象内嵌数组而非列表信封，前端按 {errors} 读正确；struct 未被索引故判未分类',
+  ],
 ]);
 
 // ---------- 比对逻辑 ----------
@@ -1714,8 +1792,7 @@ function compare(fe, be) {
     return { status: 'mismatch' };
   }
   // fe wrapper：
-  if (fe.ambiguous)
-    return { status: 'unclassified' }; // 万能类型：怎么返回都不算错，比对无意义 -> 逼出显式承载键
+  if (fe.ambiguous) return { status: 'unclassified' }; // 万能类型：怎么返回都不算错，比对无意义 -> 逼出显式承载键
   if (be.kind === 'array') return { status: 'mismatch' }; // 核心缺陷：后端裸数组 vs 前端 {items}
   if (be.kind === 'wrapper')
     return fe.carrier === be.carrier ? { status: 'ok' } : { status: 'mismatch' };
