@@ -232,12 +232,18 @@ import {
   createTransferItem,
   updateTransferItem,
   deleteTransferItem,
+  type CreateInventoryTransferPayload,
   type InventoryTransferEntity,
+  type InventoryTransferItemPayload,
 } from '@/api/inventory-transfer';
 import { getStockList, type InventoryStock } from '@/api/inventory';
 import type { Warehouse } from '@/api/warehouse';
 import type { Product } from '@/api/product';
 import { logger } from '@/utils/logger';
+import {
+  INVENTORY_TRANSFER_STATUS,
+  type InventoryTransferStatus,
+} from '@/utils/inventory-transfer-status';
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' });
@@ -289,11 +295,11 @@ const newItemForm = (): TransferItemForm => ({
 
 const formData = reactive({
   id: 0,
+  /** 日期控件按 YYYY-MM-DD 取值，提交前转 RFC3339（后端 transfer_date 是 DateTime<Utc>） */
   transfer_date: new Date().toISOString().split('T')[0],
   from_warehouse_id: undefined as number | undefined,
   to_warehouse_id: undefined as number | undefined,
-  total_amount: 0,
-  status: 'pending' as 'pending' | 'approved' | 'rejected' | 'shipped' | 'completed',
+  status: INVENTORY_TRANSFER_STATUS.PENDING as InventoryTransferStatus,
   items: [newItemForm()] as TransferItemForm[],
 });
 
@@ -365,8 +371,7 @@ const resetForm = () => {
   formData.transfer_date = new Date().toISOString().split('T')[0];
   formData.from_warehouse_id = undefined;
   formData.to_warehouse_id = undefined;
-  formData.total_amount = 0;
-  formData.status = 'pending';
+  formData.status = INVENTORY_TRANSFER_STATUS.PENDING;
   formData.items = [newItemForm()];
   stockRowsMap.value = {};
 };
@@ -422,9 +427,10 @@ const itemSaving = ref(false);
 const newItem = reactive({ product_id: 1, quantity: 1 });
 
 const editable = computed(() => {
-  const s = (formData.status || '').toLowerCase();
-  // 已发出/已完成不可再编辑（后端状态集合里没有 received 这一值）
-  return s !== 'shipped' && s !== 'completed';
+  const s = formData.status;
+  // 已发出/已完成不可再编辑（词表见 models/status/purchase_inventory.rs:63，
+  // 后端没有 received 这一值）
+  return s !== INVENTORY_TRANSFER_STATUS.SHIPPED && s !== INVENTORY_TRANSFER_STATUS.COMPLETED;
 });
 
 const fetchServerItems = async () => {
@@ -432,9 +438,8 @@ const fetchServerItems = async () => {
   try {
     const res = (await getInventoryTransfer(formData.id)) as {
       data?: { items?: ServerItem[] };
-      items?: ServerItem[];
     };
-    serverItems.value = res.data?.items ?? res.items ?? [];
+    serverItems.value = res.data?.items ?? [];
   } catch (e) {
     ElMessage.error((e as Error).message || t('inventoryTransfer.transferList.message.failure'));
   } finally {
@@ -448,7 +453,7 @@ const handleAddItem = async () => {
   try {
     await createTransferItem(formData.id, {
       product_id: newItem.product_id,
-      quantity: newItem.quantity,
+      quantity: String(newItem.quantity),
     });
     ElMessage.success(t('inventoryTransfer.transferList.message.success'));
     await fetchServerItems();
@@ -463,7 +468,7 @@ const handleSaveItem = async (row: ServerItem) => {
   try {
     await updateTransferItem(row.id, {
       product_id: row.product_id,
-      quantity: Number(row.quantity),
+      quantity: String(Number(row.quantity)),
     });
     ElMessage.success(t('inventoryTransfer.transferList.message.success'));
     await fetchServerItems();
@@ -493,6 +498,17 @@ const handleDeleteItem = async (row: ServerItem) => {
   }
 };
 
+/** 明细行 → 后端入参：字段名逐一对应 services/inv/mod.rs:87 InventoryTransferItemRequest */
+const toItemPayload = (item: TransferItemForm): InventoryTransferItemPayload => ({
+  product_id: item.product_id,
+  quantity: String(item.quantity),
+  unit_cost: String(item.cost_price),
+  notes: item.remark,
+  color_no: item.color_no,
+  dye_lot_no: item.dye_lot_no,
+  batch_no: item.batch_no,
+});
+
 const handleSubmit = async () => {
   // 出库维度口径与后端同源（fabric_class 唯一判定，禁止第二份规则）：
   // 批次必填；色号非空的染色布必须齐缸号，色号为空的白坯布免缸号。
@@ -506,14 +522,18 @@ const handleSubmit = async () => {
   submitLoading.value = true;
   try {
     formData.items.forEach(calcAmount);
-    formData.total_amount = formData.items.reduce(
-      (sum, item) => sum + item.cost_price * item.quantity,
-      0
-    );
+    const items = formData.items.filter(i => i.product_id && i.quantity > 0).map(toItemPayload);
     if (formData.id) {
-      await updateInventoryTransfer(formData.id, formData as Partial<InventoryTransferEntity>);
+      // UpdateInventoryTransferRequest 只有 status/notes/items 三字段
+      await updateInventoryTransfer(formData.id, { items });
     } else {
-      await createInventoryTransfer(formData as Partial<InventoryTransferEntity>);
+      const payload: CreateInventoryTransferPayload = {
+        from_warehouse_id: formData.from_warehouse_id,
+        to_warehouse_id: formData.to_warehouse_id,
+        transfer_date: new Date(formData.transfer_date).toISOString(),
+        items,
+      };
+      await createInventoryTransfer(payload);
     }
     ElMessage.success(t('message.operationSuccess'));
     emit('update:modelValue', false);

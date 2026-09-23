@@ -23,8 +23,8 @@
         currentRow.warehouse_name
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelStatus')">
-        <el-tag :type="currentRow.status === 'completed' ? 'success' : 'warning'" size="small">
-          {{ getStatusLabel(currentRow.status) }}
+        <el-tag :type="inventoryCountStatusTagType(currentRow.status)" size="small">
+          {{ t(inventoryCountStatusLabelKey(currentRow.status)) }}
         </el-tag>
       </el-descriptions-item>
       <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelCreatedBy')">{{
@@ -33,8 +33,9 @@
       <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelCreatedAt')">{{
         currentRow.created_at
       }}</el-descriptions-item>
+      <!-- 完成时间取详情接口（CountResponse.completed_at）：列表行 CountSummary 无该字段 -->
       <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelCompletedAt')" :span="2">
-        {{ currentRow.completed_at || '-' }}
+        {{ detail?.completed_at }}
       </el-descriptions-item>
     </el-descriptions>
 
@@ -127,8 +128,14 @@ import {
   recordCountItems,
   updateCountItem,
   deleteCountItem,
+  type InventoryCountDetail,
   type InventoryCountEntity,
 } from '@/api/inventory-count';
+import {
+  INVENTORY_COUNT_STATUS,
+  inventoryCountStatusLabelKey,
+  inventoryCountStatusTagType,
+} from '@/utils/inventory-count-status';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -144,6 +151,7 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
+/** 明细行键名与后端 CountItemResponse 一致；数量列是 Decimal 的字符串序列化，入表时转数值以便行内编辑 */
 interface CountDetailItem {
   id: number;
   stock_id: number;
@@ -157,15 +165,9 @@ interface CountDetailItem {
 const items = ref<CountDetailItem[]>([]);
 const itemsLoading = ref(false);
 const recording = ref(false);
+const detail = ref<InventoryCountDetail | null>(null);
 
-const isPending = computed(() => props.currentRow?.status === 'pending');
-
-/** 状态标签函数化：优先 i18n，未知状态回退到原始 status 字符串 */
-const getStatusLabel = (status: string) => {
-  const key = `inventoryCount.detailDialogTab.statusLabel.${status}`;
-  const translated = t(key);
-  return translated === key ? status : translated;
-};
+const isPending = computed(() => props.currentRow?.status === INVENTORY_COUNT_STATUS.PENDING);
 
 // 对话框打开时回源最新详情（含明细）
 const fetchDetail = async () => {
@@ -173,10 +175,18 @@ const fetchDetail = async () => {
   itemsLoading.value = true;
   try {
     const res = (await getInventoryCount(props.currentRow.id)) as {
-      data?: { items?: CountDetailItem[] };
-      items?: CountDetailItem[];
+      data?: InventoryCountDetail;
     };
-    items.value = res.data?.items || res.items || [];
+    detail.value = res.data ?? null;
+    items.value = (res.data?.items ?? []).map(i => ({
+      id: i.id,
+      stock_id: i.stock_id,
+      product_id: i.product_id,
+      quantity_before: Number(i.quantity_before),
+      quantity_actual: Number(i.quantity_actual),
+      quantity_difference: Number(i.quantity_difference),
+      notes: i.notes,
+    }));
   } catch (error) {
     ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
   } finally {
@@ -205,7 +215,8 @@ const handleRecordItems = async () => {
       props.currentRow.id,
       items.value.map(it => ({
         stock_id: it.stock_id,
-        quantity_actual: Number(it.quantity_actual),
+        // 后端 RecordItemInput.quantity_actual 是字符串（避免 JSON 浮点精度丢失）
+        quantity_actual: String(it.quantity_actual),
         notes: it.notes || undefined,
       }))
     );
@@ -221,7 +232,7 @@ const handleRecordItems = async () => {
 // 单行保存实盘数量
 const handleUpdateItem = async (row: CountDetailItem) => {
   try {
-    await updateCountItem(row.id, { quantity_actual: Number(row.quantity_actual) });
+    await updateCountItem(row.id, { quantity_actual: String(Number(row.quantity_actual)) });
     ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
     await fetchDetail();
   } catch (error) {

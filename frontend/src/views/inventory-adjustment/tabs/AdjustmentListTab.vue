@@ -48,14 +48,14 @@
       <el-col :xs="24" :sm="12" :lg="6">
         <el-card shadow="hover" class="stat-card highlight">
           <div class="stat-content">
-            <div class="stat-icon amount-icon">
-              <el-icon><Money /></el-icon>
+            <div class="stat-icon quantity-icon">
+              <el-icon><DataAnalysis /></el-icon>
             </div>
             <div class="stat-info">
               <div class="stat-label">
-                {{ t('inventoryAdjustment.listTab.statLabelTotalAmount') }}
+                {{ t('inventoryAdjustment.listTab.statLabelTotalQuantity') }}
               </div>
-              <div class="stat-value">{{ formatCurrency(stats.totalAmount) }}</div>
+              <div class="stat-value">{{ stats.totalQuantity }}</div>
             </div>
           </div>
         </el-card>
@@ -71,7 +71,7 @@
       >
         <el-form-item :label="t('inventoryAdjustment.listTab.labelAdjustNo')">
           <el-input
-            v-model="queryParams.adjust_no"
+            v-model="queryParams.adjustment_no"
             :placeholder="t('inventoryAdjustment.listTab.placeholderAdjustNo')"
             clearable
           />
@@ -82,9 +82,12 @@
             :placeholder="t('inventoryAdjustment.listTab.placeholderStatus')"
             clearable
           >
-            <el-option :label="t('inventoryAdjustment.listTab.statusPending')" value="pending" />
-            <el-option :label="t('inventoryAdjustment.listTab.statusApproved')" value="approved" />
-            <el-option :label="t('inventoryAdjustment.listTab.statusRejected')" value="rejected" />
+            <el-option
+              v-for="s in INVENTORY_ADJUSTMENT_STATUSES"
+              :key="s"
+              :label="t(inventoryAdjustmentStatusLabelKey(s))"
+              :value="s"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -113,13 +116,13 @@
         :aria-label="t('inventoryAdjustment.listTab.ariaLabelTable')"
       >
         <el-table-column
-          prop="adjust_no"
+          prop="adjustment_no"
           :label="t('inventoryAdjustment.listTab.colAdjustNo')"
           width="160"
           fixed
         />
         <el-table-column
-          prop="adjust_date"
+          prop="adjustment_date"
           :label="t('inventoryAdjustment.listTab.colAdjustDate')"
           width="120"
         />
@@ -129,19 +132,17 @@
           width="120"
         />
         <el-table-column
-          prop="reason"
+          prop="reason_type"
           :label="t('inventoryAdjustment.listTab.colReason')"
           min-width="200"
           show-overflow-tooltip
         />
         <el-table-column
-          prop="total_amount"
-          :label="t('inventoryAdjustment.listTab.colAmount')"
+          prop="total_quantity"
+          :label="t('inventoryAdjustment.listTab.colTotalQuantity')"
           width="120"
           align="right"
-        >
-          <template #default="{ row }">{{ formatCurrency(row.total_amount) }}</template>
-        </el-table-column>
+        />
         <el-table-column
           prop="status"
           :label="t('inventoryAdjustment.listTab.colStatus')"
@@ -149,8 +150,8 @@
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">
-              {{ getStatusLabel(row.status) }}
+            <el-tag :type="inventoryAdjustmentStatusTagType(row.status)" size="small">
+              {{ t(inventoryAdjustmentStatusLabelKey(row.status)) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -174,7 +175,7 @@
               t('inventoryAdjustment.listTab.buttonDetail')
             }}</el-button>
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === INVENTORY_ADJUSTMENT_STATUS.PENDING"
               type="primary"
               link
               size="small"
@@ -182,7 +183,7 @@
               >{{ t('inventoryAdjustment.listTab.buttonEdit') }}</el-button
             >
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === INVENTORY_ADJUSTMENT_STATUS.PENDING"
               type="success"
               link
               size="small"
@@ -190,7 +191,7 @@
               >{{ t('inventoryAdjustment.listTab.buttonApprove') }}</el-button
             >
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === INVENTORY_ADJUSTMENT_STATUS.PENDING"
               type="danger"
               link
               size="small"
@@ -219,11 +220,16 @@
 import { reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue';
+import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue';
 import { type InventoryAdjustmentEntity } from '@/api/inventory-adjustment';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
-import { formatCurrency } from '@/utils';
+import {
+  INVENTORY_ADJUSTMENT_STATUS,
+  INVENTORY_ADJUSTMENT_STATUSES,
+  inventoryAdjustmentStatusLabelKey,
+  inventoryAdjustmentStatusTagType,
+} from '@/utils/inventory-adjustment-status';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -233,6 +239,8 @@ const emit = defineEmits<{
   delete: [row: InventoryAdjustmentEntity];
 }>();
 
+// 后端 list_adjustments 的信封是 ApiResponse<AdjustmentListResponse>，
+// 列表键为 `adjustments`（handlers/inventory_adjustment_handler.rs:77），故钉住 listKey。
 const {
   data: adjustments,
   total,
@@ -243,9 +251,10 @@ const {
   refresh: fetchAdjustments,
 } = useTableApi<InventoryAdjustmentEntity>({
   url: '/inventory/adjustments',
+  listKey: 'adjustments',
   defaultPageSize: 20,
   defaultParams: {
-    adjust_no: '',
+    adjustment_no: '',
     status: '',
   },
   onError: (err: unknown) => {
@@ -258,39 +267,19 @@ const stats = reactive({
   total: 0,
   pending: 0,
   approved: 0,
-  totalAmount: 0,
+  totalQuantity: 0,
 });
 
 watch(
   adjustments,
   newData => {
     stats.total = total.value;
-    stats.pending = newData.filter(a => a.status === 'pending').length;
-    stats.approved = newData.filter(a => a.status === 'approved').length;
-    stats.totalAmount = newData.reduce((sum, a) => sum + (a.total_amount || 0), 0);
+    stats.pending = newData.filter(a => a.status === INVENTORY_ADJUSTMENT_STATUS.PENDING).length;
+    stats.approved = newData.filter(a => a.status === INVENTORY_ADJUSTMENT_STATUS.APPROVED).length;
+    stats.totalQuantity = newData.reduce((sum, a) => sum + Number(a.total_quantity), 0);
   },
   { immediate: true }
 );
-
-/** 状态标签 i18n 映射 */
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    pending: t('inventoryAdjustment.listTab.statusPending'),
-    approved: t('inventoryAdjustment.listTab.statusApproved'),
-    rejected: t('inventoryAdjustment.listTab.statusRejected'),
-  };
-  return map[status] || status;
-};
-
-/** 状态 el-tag 类型映射 */
-const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
-    pending: 'warning',
-    approved: 'success',
-    rejected: 'danger',
-  };
-  return map[status] || 'info';
-};
 
 const handleQuery = () => {
   page.value = 1;
@@ -298,7 +287,7 @@ const handleQuery = () => {
 };
 const handleReset = () => {
   queryParams.value = {
-    adjust_no: '',
+    adjustment_no: '',
     status: '',
   };
   handleQuery();
@@ -366,7 +355,7 @@ defineExpose({ fetchAdjustments });
 }
 :deep(.stat-icon.pending-icon),
 :deep(.stat-icon.approved-icon),
-:deep(.stat-icon.amount-icon) {
+:deep(.stat-icon.quantity-icon) {
   background: rgba(255, 255, 255, 0.2);
 }
 :deep(.stat-info) {

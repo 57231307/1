@@ -32,18 +32,19 @@
         <el-col :span="12">
           <el-form-item
             :label="t('inventoryAdjustment.formDialogTab.labelAdjustNo')"
-            prop="adjust_no"
+            prop="adjustment_no"
           >
-            <el-input v-model="formData.adjust_no" :disabled="!!formData.id" />
+            <!-- 单号由后端 generate_adjustment_no 生成，前端只做展示（建单入参无该字段） -->
+            <el-input v-model="formData.adjustment_no" disabled />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item
             :label="t('inventoryAdjustment.formDialogTab.labelAdjustDate')"
-            prop="adjust_date"
+            prop="adjustment_date"
           >
             <el-date-picker
-              v-model="formData.adjust_date"
+              v-model="formData.adjustment_date"
               type="date"
               value-format="YYYY-MM-DD"
               style="width: 100%"
@@ -64,9 +65,50 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item :label="t('inventoryAdjustment.formDialogTab.labelReason')" prop="reason">
+      <!-- 后端 CreateAdjustmentRequestPayload 必填 adjustment_type / reason_type，
+           取值域见 models/inventory_adjustment.rs:28,31 注释 -->
+      <el-form-item
+        :label="t('inventoryAdjustment.formDialogTab.labelAdjustmentType')"
+        prop="adjustment_type"
+      >
+        <el-radio-group v-model="formData.adjustment_type">
+          <el-radio value="increase">{{
+            t('inventoryAdjustment.formDialogTab.adjustmentTypeIncrease')
+          }}</el-radio>
+          <el-radio value="decrease">{{
+            t('inventoryAdjustment.formDialogTab.adjustmentTypeDecrease')
+          }}</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item
+        :label="t('inventoryAdjustment.formDialogTab.labelReasonType')"
+        prop="reason_type"
+      >
+        <el-select v-model="formData.reason_type" style="width: 100%">
+          <el-option
+            :label="t('inventoryAdjustment.formDialogTab.reasonTypeDamage')"
+            value="damage"
+          />
+          <el-option
+            :label="t('inventoryAdjustment.formDialogTab.reasonTypeSample')"
+            value="sample"
+          />
+          <el-option
+            :label="t('inventoryAdjustment.formDialogTab.reasonTypeCorrection')"
+            value="correction"
+          />
+          <el-option
+            :label="t('inventoryAdjustment.formDialogTab.reasonTypeOther')"
+            value="other"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item
+        :label="t('inventoryAdjustment.formDialogTab.labelReason')"
+        prop="reason_description"
+      >
         <el-input
-          v-model="formData.reason"
+          v-model="formData.reason_description"
           type="textarea"
           :rows="2"
           :placeholder="t('inventoryAdjustment.formDialogTab.placeholderReason')"
@@ -230,6 +272,10 @@ import {
 import type { Warehouse } from '@/api/warehouse';
 import type { Product } from '@/api/product';
 import { logger } from '@/utils/logger';
+import {
+  INVENTORY_ADJUSTMENT_STATUS,
+  type InventoryAdjustmentStatus,
+} from '@/utils/inventory-adjustment-status';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -254,12 +300,15 @@ const submitLoading = ref(false);
 
 const formData = reactive({
   id: 0,
-  adjust_no: '',
-  adjust_date: new Date().toISOString().split('T')[0],
+  /** 后端生成、入参不接收，仅展示 */
+  adjustment_no: '',
+  /** 日期控件按 YYYY-MM-DD 取值，提交前转 RFC3339（后端 adjustment_date 是 DateTime<Utc>） */
+  adjustment_date: new Date().toISOString().split('T')[0],
   warehouse_id: undefined as number | undefined,
-  reason: '',
-  status: 'pending' as 'pending' | 'approved' | 'rejected',
-  total_amount: 0,
+  adjustment_type: 'increase',
+  reason_type: 'damage',
+  reason_description: '',
+  status: INVENTORY_ADJUSTMENT_STATUS.PENDING as InventoryAdjustmentStatus,
   items: [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }] as {
     product_id: number;
     quantity: number;
@@ -271,12 +320,13 @@ const formData = reactive({
 
 const resetForm = () => {
   formData.id = 0;
-  formData.adjust_no = '';
-  formData.adjust_date = new Date().toISOString().split('T')[0];
+  formData.adjustment_no = '';
+  formData.adjustment_date = new Date().toISOString().split('T')[0];
   formData.warehouse_id = undefined;
-  formData.reason = '';
-  formData.status = 'pending';
-  formData.total_amount = 0;
+  formData.adjustment_type = 'increase';
+  formData.reason_type = 'damage';
+  formData.reason_description = '';
+  formData.status = INVENTORY_ADJUSTMENT_STATUS.PENDING;
   formData.items = [{ product_id: 0, quantity: 1, cost_price: 0, amount: 0, remark: '' }];
 };
 
@@ -290,7 +340,7 @@ const removeItem = (index: number) => {
 const generateNo = async () => {
   try {
     const res = await generateInventoryAdjustmentNo();
-    formData.adjust_no = res.data?.adjustment_no || '';
+    formData.adjustment_no = res.data?.adjustment_no || '';
   } catch (error) {
     logger.error(
       t('inventoryAdjustment.formDialogTab.messageGenerateNoFailed'),
@@ -340,16 +390,15 @@ const detailLoading = ref(false);
 const itemSaving = ref(false);
 const newItem = reactive({ stock_id: 1, quantity: 1 });
 
-const isPending = computed(() => (formData.status || '').toLowerCase() === 'pending');
+const isPending = computed(() => formData.status === INVENTORY_ADJUSTMENT_STATUS.PENDING);
 
 const fetchServerItems = async () => {
   detailLoading.value = true;
   try {
     const res = (await getInventoryAdjustment(formData.id)) as {
       data?: { items?: ServerItem[] };
-      items?: ServerItem[];
     };
-    serverItems.value = res.data?.items ?? res.items ?? [];
+    serverItems.value = res.data?.items ?? [];
   } catch (e) {
     ElMessage.error((e as Error).message || t('inventoryAdjustment.listTab.messageFailure'));
   } finally {
@@ -366,7 +415,7 @@ const handleAddItem = async () => {
   try {
     await createAdjustmentItem(formData.id, {
       stock_id: newItem.stock_id,
-      quantity: newItem.quantity,
+      quantity: String(newItem.quantity),
     });
     ElMessage.success(t('inventoryAdjustment.listTab.messageSuccess'));
     await fetchServerItems();
@@ -379,7 +428,10 @@ const handleAddItem = async () => {
 
 const handleSaveItem = async (row: ServerItem) => {
   try {
-    await updateAdjustmentItem(row.id, { stock_id: row.stock_id, quantity: Number(row.quantity) });
+    await updateAdjustmentItem(row.id, {
+      stock_id: row.stock_id,
+      quantity: String(Number(row.quantity)),
+    });
     ElMessage.success(t('inventoryAdjustment.listTab.messageSuccess'));
     await fetchServerItems();
   } catch (e) {
@@ -409,33 +461,40 @@ const handleDeleteItem = async (row: ServerItem) => {
 };
 
 const handleSubmit = async () => {
+  if (!formData.warehouse_id) {
+    ElMessage.warning(t('inventoryAdjustment.formDialogTab.warehouseRequired'));
+    return;
+  }
+  // 列表行的 adjustment_date 由后端补齐前为空（见 api 层注释），
+  // 空值直接提交会被后端解析成 1970 或报日期格式错，故先行拦截。
+  if (!formData.adjustment_date) {
+    ElMessage.warning(t('inventoryAdjustment.formDialogTab.adjustmentDateRequired'));
+    return;
+  }
   submitLoading.value = true;
   try {
-    formData.total_amount = formData.items.reduce(
-      (sum, item) => sum + item.cost_price * item.quantity,
-      0
-    );
-    // 表单条目字段与实体存在差异（product_id/cost_price/remark），按实体字段映射后提交
-    const payload: Partial<InventoryAdjustmentEntity> = {
-      id: formData.id || undefined,
-      adjust_no: formData.adjust_no,
-      adjust_date: formData.adjust_date,
+    // 后端入参键名逐一对应 CreateAdjustmentRequestPayload / UpdateAdjustmentRequestPayload
+    // （handlers/inventory_adjustment_handler.rs:23,382）：adjustment_date 需 RFC3339，
+    // 明细数量为字符串；单号与状态由后端生成/流转，前端不提交。
+    const fields = {
       warehouse_id: formData.warehouse_id,
-      reason: formData.reason,
-      status: formData.status,
-      total_amount: formData.total_amount,
-      items: formData.items.map(item => ({
-        stock_id: item.product_id,
-        quantity: item.quantity,
-        unit_cost: item.cost_price,
-        amount: item.amount,
-        notes: item.remark,
-      })),
+      adjustment_date: new Date(formData.adjustment_date).toISOString(),
+      adjustment_type: formData.adjustment_type,
+      reason_type: formData.reason_type,
+      reason_description: formData.reason_description,
     };
     if (formData.id) {
-      await updateInventoryAdjustment(formData.id, payload);
+      await updateInventoryAdjustment(formData.id, fields);
     } else {
-      await createInventoryAdjustment(payload);
+      await createInventoryAdjustment({
+        ...fields,
+        items: formData.items.map(item => ({
+          stock_id: item.product_id,
+          quantity: String(item.quantity),
+          unit_cost: String(item.cost_price),
+          notes: item.remark,
+        })),
+      });
     }
     ElMessage.success(t('inventoryAdjustment.formDialogTab.messageSuccess'));
     emit('update:modelValue', false);

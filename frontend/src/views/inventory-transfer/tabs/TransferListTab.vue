@@ -83,9 +83,9 @@
             clearable
           >
             <el-option
-              v-for="s in TRANSFER_STATUS_VALUES"
+              v-for="s in INVENTORY_TRANSFER_STATUSES"
               :key="s"
-              :label="t(`inventoryTransfer.transferList.status.${s}`)"
+              :label="t(inventoryTransferStatusLabelKey(s))"
               :value="s"
             />
           </el-select>
@@ -155,8 +155,8 @@
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">
-              {{ getStatusLabel(row.status) }}
+            <el-tag :type="inventoryTransferStatusTagType(row.status)" size="small">
+              {{ t(inventoryTransferStatusLabelKey(row.status)) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -180,7 +180,7 @@
               t('inventoryTransfer.transferList.button.detail')
             }}</el-button>
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === INVENTORY_TRANSFER_STATUS.PENDING"
               type="primary"
               link
               size="small"
@@ -188,7 +188,7 @@
               >{{ t('inventoryTransfer.transferList.button.edit') }}</el-button
             >
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === INVENTORY_TRANSFER_STATUS.PENDING"
               type="success"
               link
               size="small"
@@ -196,7 +196,7 @@
               >{{ t('inventoryTransfer.transferList.button.approve') }}</el-button
             >
             <el-button
-              v-if="row.status === 'approved'"
+              v-if="row.status === INVENTORY_TRANSFER_STATUS.APPROVED"
               type="warning"
               link
               size="small"
@@ -204,7 +204,7 @@
               >{{ t('inventoryTransfer.transferList.button.ship') }}</el-button
             >
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === INVENTORY_TRANSFER_STATUS.PENDING"
               type="danger"
               link
               size="small"
@@ -243,6 +243,12 @@ import {
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
 import { formatCurrency } from '@/utils';
+import {
+  INVENTORY_TRANSFER_STATUS,
+  INVENTORY_TRANSFER_STATUSES,
+  inventoryTransferStatusLabelKey,
+  inventoryTransferStatusTagType,
+} from '@/utils/inventory-transfer-status';
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' });
@@ -291,35 +297,16 @@ watch(
   transfers,
   newData => {
     stats.total = total.value;
-    stats.pending = newData.filter(item => item.status === 'pending').length;
-    stats.approved = newData.filter(item => item.status === 'approved').length;
-    stats.totalAmount = newData.reduce((sum, item) => sum + (item.total_amount || 0), 0);
+    stats.pending = newData.filter(
+      item => item.status === INVENTORY_TRANSFER_STATUS.PENDING
+    ).length;
+    stats.approved = newData.filter(
+      item => item.status === INVENTORY_TRANSFER_STATUS.APPROVED
+    ).length;
+    stats.totalAmount = newData.reduce((sum, item) => sum + Number(item.total_amount), 0);
   },
   { immediate: true }
 );
-
-// 取值与后端 models/status/purchase_inventory.rs::inventory_transfer 一致
-// （pending/approved/rejected/shipped/completed）。原筛选项里的 executed、
-// cancelled 后端从不写入，选中即零命中——是假控件。
-const TRANSFER_STATUS_VALUES = ['pending', 'approved', 'rejected', 'shipped', 'completed'] as const;
-
-const getStatusLabel = (status: string) => {
-  if (!(TRANSFER_STATUS_VALUES as readonly string[]).includes(status)) {
-    logger.warn(`调拨单出现后端未定义的状态值，状态文案需同步：${status}`);
-    return status;
-  }
-  return t(`inventoryTransfer.transferList.status.${status}`);
-};
-const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
-    pending: 'warning',
-    approved: 'primary',
-    rejected: 'danger',
-    shipped: 'warning',
-    completed: 'success',
-  };
-  return map[status] || 'info';
-};
 
 // handleQuery 同步搜索表单到 useTableApi queryParams 后重置到第 1 页并加载。
 // useTableApi watch 只监听 page/pageSize，不监听 queryParams，所以修改后需手动调 refresh。

@@ -2,56 +2,130 @@ import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 import type { ApproveTransferPayload } from './inventory';
 
+/**
+ * 库存调拨单出参形状：与后端 `backend/src/services/inv/mod.rs:37 InventoryTransferDetail`
+ * 逐字段对齐（列表与详情共用同一结构：`services/inv/inventory_move.rs:79`（列表，items 恒为
+ * 空数组）、`:111 get_transfer_detail`（详情带 items）；handler 直接
+ * `serde_json::to_value(detail)`，见 `handlers/inventory_transfer_handler.rs:66/89`）。
+ *
+ * 数量/金额是 rust_decimal `Decimal`，序列化为字符串（与 StockAlertRow 同口径），展示前按需
+ * `Number()` 转换。
+ *
+ * 末尾 4 个键后端当前不返回（该结构里没有名称列，也没有 total_amount），
+ * 需按 `services/po/order_ops/crud.rs:463 PurchaseOrderDto` 的
+ * `column_as + LeftJoin + into_model::<Dto>()` 范式补齐，补齐前对应列必然为空。
+ */
 export interface InventoryTransferEntity {
-  id?: number;
+  id: number;
   transfer_no: string;
-  transfer_date: string;
   from_warehouse_id: number;
-  from_warehouse_name?: string;
   to_warehouse_id: number;
-  to_warehouse_name?: string;
+  /** DateTime<Utc>（NOT NULL） */
+  transfer_date: string;
+  /** 取值见 utils/inventory-transfer-status（models/status/purchase_inventory.rs:63） */
   status: string;
-  total_amount: number;
-  created_at?: string;
-  created_by?: number;
-  created_by_name?: string;
-  approved_at?: string;
-  approved_by?: number;
-  approved_by_name?: string;
-  items?: TransferItem[];
+  total_quantity: string;
+  notes: string | null;
+  created_by: number | null;
+  approved_by: number | null;
+  approved_at: string | null;
+  shipped_at: string | null;
+  received_at: string | null;
+  created_at: string;
+  updated_at: string;
+  /** 列表接口固定返回空数组，只有详情接口填实 */
+  items: TransferItem[];
+  /** 需后端 JOIN：`models/inventory_transfer.rs:45 Relation::FromWarehouse` → warehouses.warehouse_name */
+  from_warehouse_name: string | null;
+  /** 需后端 JOIN：`models/inventory_transfer.rs:51 Relation::ToWarehouse` → warehouses.warehouse_name */
+  to_warehouse_name: string | null;
+  /** 需后端 JOIN：`inventory_transfers.created_by` → users.real_name */
+  created_by_name: string | null;
+  /**
+   * 需后端补出参：`models/inventory_transfer.rs:36` 有 total_amount 列（Decimal NOT NULL），
+   * 但 `services/inv/mod.rs:37 InventoryTransferDetail` 未把它带出。
+   */
+  total_amount: string | null;
 }
 
+/**
+ * 调拨明细行出参：与后端 `backend/src/services/inv/mod.rs:57 InventoryTransferItemDetail`
+ * 逐字段对齐。面料四维（色号/缸号/批次）后端全部回传，
+ * 产品主数据名称（code/name/等级/单位）不在该结构里。
+ */
 export interface TransferItem {
-  id?: number;
-  transfer_id?: number;
+  id: number;
+  transfer_id: number;
   product_id: number;
-  product_code?: string;
-  product_name?: string;
-  color_no?: string;
-  /** 缸号（出库四维之一，后端 InventoryTransferItemRequest.dye_lot_no） */
-  dye_lot_no?: string;
-  /** 批次号（出库四维之一，后端 InventoryTransferItemRequest.batch_no） */
-  batch_no?: string;
-  grade?: string;
-  unit?: string;
-  quantity: number;
-  shipped_quantity?: number;
-  received_quantity?: number;
-  unit_cost?: number;
-  notes?: string | null;
-  cost_price?: number;
-  amount?: number;
-  remark?: string;
+  quantity: string;
+  shipped_quantity: string;
+  received_quantity: string;
+  unit_cost: string | null;
+  notes: string | null;
+  color_no: string;
+  dye_lot_no: string | null;
+  batch_no: string;
+  created_at: string;
+  updated_at: string;
+  /** 需后端 JOIN：`inventory_transfer_items.product_id` → products.product_code */
+  product_code: string | null;
+  /** 需后端 JOIN：`inventory_transfer_items.product_id` → products.product_name */
+  product_name: string | null;
+  /** 需后端 JOIN：`inventory_transfer_items.product_id` → products.grade */
+  grade: string | null;
+  /** 需后端 JOIN：`inventory_transfer_items.product_id` → products.unit */
+  unit: string | null;
 }
 
-// P2-9c 修复（批次 82 v1 复审）：库存调拨列表查询参数强类型化
+/**
+ * 建单入参：与后端 `services/inv/mod.rs:77 CreateInventoryTransferRequest` 对齐——
+ * 该结构每个字段都是 `Option<…>`，故前端逐字段可选（缺字段由服务侧报参数缺失，
+ * 不在界面上用默认值兜底）。`transfer_date` 是 `Option<DateTime<Utc>>`，
+ * serde chrono 只接受 RFC3339（`YYYY-MM-DD` 反序列化失败 → 400），
+ * 日期控件取值需 `new Date(v).toISOString()`。
+ */
+export interface CreateInventoryTransferPayload {
+  from_warehouse_id?: number;
+  to_warehouse_id?: number;
+  transfer_date?: string;
+  status?: string;
+  notes?: string;
+  items?: InventoryTransferItemPayload[];
+}
+
+/**
+ * 明细行入参：与后端 `services/inv/mod.rs:87 InventoryTransferItemRequest` 对齐。
+ * quantity/unit_cost 是 `Option<Decimal>`，按 e2e 造数口径以字符串提交避免精度丢失。
+ */
+export interface InventoryTransferItemPayload {
+  product_id?: number;
+  quantity?: string;
+  notes?: string;
+  color_no?: string;
+  dye_lot_no?: string;
+  batch_no?: string;
+  unit_cost?: string;
+}
+
+/**
+ * 更新入参：与后端 `services/inv/mod.rs:100 UpdateInventoryTransferRequest` 对齐——
+ * 只有 status/notes/items 三字段，表单里改动的仓库与调拨日期不会被该端点接收。
+ */
+export interface UpdateInventoryTransferPayload {
+  status?: string;
+  notes?: string;
+  items?: InventoryTransferItemPayload[];
+}
+
+// 列表查询参数键与后端 `handlers/inventory_transfer_handler.rs:23 InventoryTransferQuery`
+// 同名（transfer_no 走 contains 模糊匹配）。
 export interface InventoryTransferQueryParams {
   page?: number;
   page_size?: number;
-  keyword?: string;
+  status?: string;
   from_warehouse_id?: number;
   to_warehouse_id?: number;
-  status?: string;
+  transfer_no?: string;
 }
 
 export function getInventoryTransferList(params?: InventoryTransferQueryParams) {
@@ -62,11 +136,11 @@ export function getInventoryTransfer(id: number) {
   return request.get(`/inventory/transfers/${id}`);
 }
 
-export function createInventoryTransfer(data: Partial<InventoryTransferEntity>) {
+export function createInventoryTransfer(data: CreateInventoryTransferPayload) {
   return request.post('/inventory/transfers', data);
 }
 
-export function updateInventoryTransfer(id: number, data: Partial<InventoryTransferEntity>) {
+export function updateInventoryTransfer(id: number, data: UpdateInventoryTransferPayload) {
   return request.put(`/inventory/transfers/${id}`, data);
 }
 
@@ -83,11 +157,11 @@ export function getTransferItems(id: number) {
   return request.get(`/inventory/transfers/${id}`);
 }
 
-export function createTransferItem(id: number, data: Partial<TransferItem>) {
+export function createTransferItem(id: number, data: InventoryTransferItemPayload) {
   return request.post(`/inventory/transfers/${id}/items`, data);
 }
 
-export function updateTransferItem(itemId: number, data: Partial<TransferItem>) {
+export function updateTransferItem(itemId: number, data: InventoryTransferItemPayload) {
   return request.put(`/inventory/transfers/items/${itemId}`, data);
 }
 
