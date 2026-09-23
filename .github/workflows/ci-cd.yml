@@ -343,7 +343,7 @@ jobs:
   # 合并 job：原先 3 个 job 各跑一次 checkout + setup-frontend（npm ci），
   # 而三者互不依赖、总耗时 < 2 分钟；合并后 5 个 runner 启动与 2 次 npm ci 被省掉。
   ci-static-checks:
-    name: 🧹 前端静态检查（格式 / 契约 / i18n）
+    name: 🧹 前端静态检查与契约门禁（格式 / 契约 / i18n / 路由 / 信封 / 请求 / 端点基线）
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
@@ -416,6 +416,29 @@ jobs:
       - name: 运行 i18n key 完整性检查（严格阻塞）
         working-directory: frontend
         run: node scripts/check-i18n.mjs
+
+      # 契约五门禁接入 CI（此前只有 check-contract / check-i18n 在跑，其余四个
+      # 只在本地手动执行，导致"0 失配"结论无法阻止回归）。判负口径统一为
+      # 「解析不出即失败」，豁免必须带 文件:行号 证据。
+      - name: 前后端路由路径对齐（前端调用 ↔ 后端真实路由）
+        working-directory: frontend
+        run: node scripts/check-api-paths.mjs
+
+      - name: 响应信封形状对齐（前端读取键 ↔ handler 出参）
+        working-directory: frontend
+        run: node scripts/check-api-envelope.mjs
+
+      - name: 请求体与查询参数对齐（前端实参 ↔ 后端 Json/Query 字段集）
+        working-directory: frontend
+        run: node scripts/check-api-request.mjs
+
+      - name: 路由挂载结构约定（相对路径 / 单一 nest 前缀 / handlers 下无 router）
+        working-directory: frontend
+        run: node scripts/check-route-mount.mjs
+
+      - name: 端点基线漂移（挂载重构必须让全量端点逐字节不变）
+        working-directory: frontend
+        run: node scripts/route-snapshot.mjs --check
 
       - name: 上传报告
         if: always()
@@ -1068,10 +1091,22 @@ jobs:
           # 在到达 exit 0（渐进式不阻塞）之前退出。
           set +o pipefail
 
-          # 统计错误数
+          # 统计错误数（判负口径：解析不出即失败，不静默算 0 通过）
           TOTAL_ERRORS=0
-          if [ -f reports/eslint-output.json ]; then
-            TOTAL_ERRORS=$(jq '[.[] | .errorCount] | add // 0' reports/eslint-output.json 2>/dev/null || echo 0)
+          if [ ! -f reports/eslint-output.json ]; then
+            echo "::error::ESLint JSON 报告缺失，无法判定错误数，判负"
+            exit 1
+          fi
+          if ! jq -e 'type == "array"' reports/eslint-output.json > /dev/null 2>&1; then
+            echo "::error::ESLint JSON 报告无法解析（ESLint 崩溃或输出被污染），判负"
+            exit 1
+          fi
+          TOTAL_ERRORS=$(jq '[.[] | .errorCount] | add // 0' reports/eslint-output.json)
+          # eslint 以非 0 退出但错误数为 0 ⇒ 只可能是异常退出（如 fatal parse error、
+          # 配置错误），原实现会在这里静默放行，此处显式判负。
+          if [ "$ESLINT_EXIT" != "0" ] && [ "$TOTAL_ERRORS" -eq "0" ]; then
+            echo "::error::ESLint 进程异常退出（exit=$ESLINT_EXIT）但未报出 error 计数，判负"
+            exit 1
           fi
           TOTAL_FILES=$(jq 'length' reports/eslint-output.json 2>/dev/null || echo 0)
 
@@ -1175,7 +1210,9 @@ jobs:
           mkdir -p reports
           set +e
           npx vue-tsc --noEmit 2>&1 | tee reports/vue-tsc-output.txt
-          EXIT_CODE=$?
+          # 取 vue-tsc 的退出码：`$?` 在管道后是 tee 的状态（恒 0），
+          # 会让本 job 末尾的 exit $EXIT_CODE 永远通过，类型错误静默放行。
+          EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
           {
@@ -1602,7 +1639,8 @@ jobs:
           # 配合 vitest.config.ts 的 thresholds（60% 门槛）与根目录 codecov.yml
           npx vitest run --coverage --reporter=default --reporter=junit --outputFile.reporter=junit=reports/vitest-junit.xml 2>&1 \
             | tee reports/vitest-output.txt
-          EXIT_CODE=$?
+          # 取 vitest 的退出码（`$?` 只会给出 tee 的 0）；覆盖率阈值未达标同样必须判负。
+          EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
           # 解析测试结果（vitest 输出格式）
@@ -2509,8 +2547,10 @@ jobs:
           elif [ "$SHARD" -le 24 ]; then
             # 分片 20-24: smoke 页面加载测试（5 片）。用例本身轻量，
             # 保留 tee 直连输出（此前行为），不套 watchdog。
+            # 退出码必须取 playwright 而非 tee：`$?` 在管道后拿到的是管道末端 tee 的
+            # 状态（恒 0），会把失败分片判成绿。
             timeout 2400 npx playwright test --project=chromium --shard=$((SHARD - 19))/5 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
-            EXIT_CODE=$?
+            EXIT_CODE=${PIPESTATUS[0]}
           elif [ "$SHARD" -le 29 ]; then
             # 分片 25-29: traversal 全量遍历 + 端点矩阵（5 片）
             SPEC_TARGETS=e2e/traversal/
