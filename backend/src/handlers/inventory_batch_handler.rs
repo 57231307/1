@@ -15,7 +15,9 @@ use serde::Deserialize;
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_stock;
-use crate::services::inventory_stock_service::{BatchListFilter, InventoryStockService};
+use crate::services::inventory_stock_service::{
+    BatchListFilter, InventoryBatchView, InventoryStockService,
+};
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -87,7 +89,7 @@ pub async fn list_batches(
     State(state): State<AppState>,
     Query(query): Query<BatchListQuery>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<PaginatedResponse<inventory_stock::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<InventoryBatchView>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);

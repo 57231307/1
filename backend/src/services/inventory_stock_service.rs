@@ -12,8 +12,8 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait,
-    QueryFilter, Set, TransactionTrait,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, JoinType, PaginatorTrait,
+    QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -84,6 +84,52 @@ pub struct BatchListFilter {
     pub warehouse_id: Option<i32>,
     pub start_date: Option<DateTime<Utc>>,
     pub end_date: Option<DateTime<Utc>>,
+}
+
+/// 批次列表视图（GET /inventory/batches 出参）
+///
+/// inventory_stocks 表只存 product_id/warehouse_id，列表要显示产品/仓库名称必须
+/// 按 `PurchaseOrderDto` 范式做单次 LEFT JOIN 富化（column_as + Relation::Product/
+/// Warehouse + into_model，无 N+1），两个派生名列以 Option<String> 承载。
+#[derive(Debug, Clone, sea_orm::FromQueryResult, serde::Serialize)]
+pub struct InventoryBatchView {
+    pub id: i32,
+    pub warehouse_id: i32,
+    pub product_id: i32,
+    pub quantity_on_hand: Decimal,
+    pub quantity_available: Decimal,
+    pub quantity_reserved: Decimal,
+    pub quantity_shipped: Decimal,
+    pub quantity_incoming: Decimal,
+    pub reorder_point: Decimal,
+    pub max_stock_point: Decimal,
+    pub reorder_quantity: Decimal,
+    pub bin_location: Option<String>,
+    pub last_count_date: Option<DateTime<Utc>>,
+    pub last_movement_date: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub batch_no: String,
+    pub color_no: String,
+    pub dye_lot_no: Option<String>,
+    pub grade: String,
+    pub production_date: Option<DateTime<Utc>>,
+    pub expiry_date: Option<DateTime<Utc>>,
+    pub quantity_meters: Decimal,
+    pub quantity_kg: Decimal,
+    pub gram_weight: Option<Decimal>,
+    pub width: Option<Decimal>,
+    pub location_id: Option<i32>,
+    pub shelf_no: Option<String>,
+    pub layer_no: Option<String>,
+    pub stock_status: String,
+    pub quality_status: String,
+    pub version: i32,
+    pub replenishment_strategy: String,
+    /// 产品名称：product_id -> products.name（LEFT JOIN 派生，可空）
+    pub product_name: Option<String>,
+    /// 仓库名称：warehouse_id -> warehouses.name（LEFT JOIN 派生，可空）
+    pub warehouse_name: Option<String>,
 }
 
 pub struct InventoryStockService {
@@ -700,16 +746,26 @@ impl InventoryStockService {
     // ========== 缺陷 3 修复：批次 CRUD/调拨业务逻辑（原 inventory_batch_handler 内联逻辑下沉） ==========
 
     /// 批次列表查询（batch_no 非空记录，分页）
+    ///
+    /// 产品名/仓库名通过单次 LEFT JOIN 富化（column_as + into_model），与
+    /// `PurchaseOrderDto` 范式一致：多对一 JOIN 不倍增行，paginate 的 items/total 语义不变。
     pub async fn list_batches(
         &self,
         page: u64,
         page_size: u64,
         filter: &BatchListFilter,
-    ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
+    ) -> Result<(Vec<InventoryBatchView>, u64), AppError> {
         let page = page.clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
         let page_size = page_size.clamp(1, 100);
 
         let mut query = inventory_stock::Entity::find()
+            .column_as(product::Column::Name, "product_name")
+            .column_as(crate::models::warehouse::Column::Name, "warehouse_name")
+            .join(JoinType::LeftJoin, inventory_stock::Relation::Product.def())
+            .join(
+                JoinType::LeftJoin,
+                inventory_stock::Relation::Warehouse.def(),
+            )
             .filter(inventory_stock::Column::BatchNo.ne(""))
             .filter(inventory_stock::Column::StockStatus.ne(inventory_stock_status::DELETED));
 
@@ -735,7 +791,9 @@ impl InventoryStockService {
             query = query.filter(inventory_stock::Column::CreatedAt.lte(end));
         }
 
-        let paginator = query.paginate(&*self.db, page_size);
+        let paginator = query
+            .into_model::<InventoryBatchView>()
+            .paginate(&*self.db, page_size);
         // paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1
         let (batches, total) = paginate_with_total(paginator, page).await?;
         Ok((batches, total))
