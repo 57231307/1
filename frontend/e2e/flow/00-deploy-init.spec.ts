@@ -272,7 +272,10 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
     ];
     for (const s of subjects) {
       try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/subjects', s);
+        // 会计科目挂载在 /api/v1/erp/subjects（routes/mod.rs:509 将 finance::sub_routes()
+        // 含 gl() 的 /subjects 直接 nest 到 /api/v1/erp），前端 api/account-subject.ts:40
+        // 亦 request.post('/subjects')。此前误写 /finance/subjects → 404，6 条全落空。
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/subjects', s);
         if (result.data?.id) ctx.accountSubjectIds.push(result.data.id);
       } catch (e) {
         console.warn(`[E2E] //: ${(e as Error).message}`);

@@ -117,6 +117,13 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
       const tableOk = await table.isVisible();
       expect(tableOk).toBe(true);
     }
+    // 「新建接口」按钮位于第一个 Tab「接口管理」(index 0，ApiEndpointTab.vue)；
+    // 上一步为验证 Tab 切换已切到 index 1「API 密钥」，此时接口管理 TabPane
+    // 仍在 DOM 但 display:none（error-context：14× locator resolved to hidden），
+    // 故须先切回 index 0 再定位该按钮，否则 waitFor 必然超时。
+    if (tabCount > 1) {
+      await tabs.nth(0).click();
+    }
     // 新建接口按钮
     const newBtn = page.locator('button:has-text("新建接口")').first();
     await newBtn.waitFor({ state: 'visible', timeout: 5000 });

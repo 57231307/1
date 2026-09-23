@@ -89,10 +89,11 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     const visible = await card.isVisible();
     expect(visible).toBe(true);
   });
-  test('交易管理 /trading', async ({ page }) => {
-    await visitPage(page, '/trading');
-    await verifyTable(page);
-  });
+  // 说明：本文件覆盖「财务域 + 系统域」路由。原「交易管理 /trading」不是这两个域的路由——
+  // 它是采购合同/价格、销售合同/价格、销售退货五个 tab 的重复页，已合并进各正规页
+  // （/purchase-contract、/purchase-price、/sales-contract、/sales-returns），其路由/视图/
+  // api/i18n/后端 /trading 垫片均已删除；这些存活正规页由 29a-route-coverage-purchase-sales
+  // 覆盖。此处不再有可访问的 /trading 路由，故无对应 UI 覆盖用例。
 
   // ===== 系统域剩余路由 =====
   test('系统总页 /system', async ({ page }) => {
