@@ -581,7 +581,7 @@ impl PurchaseReturnService {
         }
         // 关键字：匹配退货单号
         if let Some(kw) = keyword.as_deref().filter(|s| !s.is_empty()) {
-            query = query.filter(purchase_return::Column::ReturnNo.like(&safe_like_pattern(kw)));
+            query = query.filter(purchase_return::Column::ReturnNo.like(safe_like_pattern(kw)));
         }
         // 退货日期范围
         if let Some(d) = date_from.as_deref().and_then(parse_date_bound) {
