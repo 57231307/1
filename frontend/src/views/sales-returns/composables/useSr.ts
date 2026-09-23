@@ -235,6 +235,7 @@ export function useSr() {
 
   // 重置表单为新建态
   const resetFormForCreate = () => {
+    removedItemIds.value = [];
     Object.assign(formData, {
       id: null,
       salesOrderId: null,
