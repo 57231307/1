@@ -8799,6 +8799,9 @@ export default {
     },
   },
   purchaseInspection: {
+    message: {
+      supplierNotDerived: '入库单未带出供应商，无法创建质检单',
+    },
     validation: {
       inspectionDateRequired: '请选择检验日期',
       receiptRequired: '请选择入库单',

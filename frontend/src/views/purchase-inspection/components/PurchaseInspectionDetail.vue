@@ -1,7 +1,6 @@
 <!--
   PurchaseInspectionDetail.vue - 采购验货详情对话框
   拆分自 purchase-inspection/index.vue（P14 批 2 I-3 第 5 批）
-  行为完全保持一致（仅结构重构）
 -->
 <template>
   <el-dialog
@@ -45,8 +44,9 @@
     <el-divider content-position="left">{{
       t('purchaseInspection.detail.divider.items')
     }}</el-divider>
+    <!-- 明细由 handleView 异步加载到 detailItems（表头 get_inspection 不含 items） -->
     <el-table
-      :data="data.items || []"
+      :data="detailItems"
       border
       :aria-label="t('purchaseInspection.detail.ariaLabelItemsTable')"
     >
@@ -87,18 +87,22 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { getStatusType, getStatusText, getResultType, getResultText } from '../composables/piFmts';
-import type { PurchaseInspection } from '@/api/purchase-inspection';
+import type { PurchaseInspection, PurchaseInspectionItem } from '@/api/purchase-inspection';
 
 const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 详情对话框
+ * data: 表头数据（get_inspection 仅返回 Model，不含 items）
+ * detailItems: 由 handleView 异步加载的明细数组（/inspections/{id}/items）
  */
 defineProps<{
   // 可见性
   visible: boolean;
-  // 详情数据
+  // 表头详情数据
   data: PurchaseInspection;
+  // 明细列表（独立于 data.items，handleView 加载后传入）
+  detailItems: PurchaseInspectionItem[];
 }>();
 
 const emit = defineEmits<{

@@ -2,21 +2,23 @@
  * usePiProc.ts - 采购验货流程操作 composable
  * 任务编号: P14 批 2 I-3 第 5 批（拆分原 purchase-inspection/index.vue）
  * 封装查询 / 重置 / 创建 / 编辑 / 查看 / 提交 / 完成等流程性方法
- * 行为完全保持一致（仅结构重构）
  * 批次 286：适配 useTableApi（queryParams 放宽为 Record<string, unknown>，page 独立字段）
  *
  * 设计说明：通过 callbacks 接收 usePi 的状态引用（Reactive 包装层）
  */
-import { ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import { i18n } from '@/i18n';
 import {
   getPurchaseInspectionById,
+  getPurchaseInspectionItemList,
   updatePurchaseInspection,
   createPurchaseInspection,
   completePurchaseInspection,
   type PurchaseInspection,
   type PurchaseInspectionItem,
+  type CreatePurchaseInspectionPayload,
+  type UpdatePurchaseInspectionPayload,
 } from '@/api/purchase-inspection';
 import { logger } from '@/utils/logger';
 
@@ -47,6 +49,7 @@ interface PiCallbacks {
   formData: {
     id?: number;
     receipt_id?: number;
+    supplier_id?: number;
     inspection_date: string;
     remark: string;
     items: Partial<PurchaseInspectionItem>[];
@@ -54,6 +57,7 @@ interface PiCallbacks {
   // 详情
   detailDialogVisible: boolean;
   detailData: PurchaseInspection;
+  detailItems: PurchaseInspectionItem[];
   // 方法
   fetchData: () => Promise<void>;
   handleReceiptChange: (receiptId: number) => Promise<void>;
@@ -93,6 +97,7 @@ export function usePiProc(cb: PiCallbacks) {
     Object.assign(cb.formData, {
       id: undefined,
       receipt_id: undefined,
+      supplier_id: undefined,
       inspection_date: '',
       remark: '',
       items: [],
@@ -100,38 +105,86 @@ export function usePiProc(cb: PiCallbacks) {
     cb.dialogVisible = true;
   };
 
-  /** 编辑检验单 */
-  const handleEdit = (row: PurchaseInspection) => {
+  /**
+   * 编辑检验单
+   * 表头来自行数据（useTableApi 列表返回真实 Model），明细从 /inspections/{id}/items 异步回源
+   */
+  const handleEdit = async (row: PurchaseInspection) => {
     cb.isEdit = true;
     Object.assign(cb.formData, {
       id: row.id,
-      receipt_id: row.receipt_id,
+      receipt_id: row.receipt_id ?? undefined,
+      supplier_id: row.supplier_id,
       inspection_date: row.inspection_date,
       remark: row.notes ?? '',
-      items: row.items || [],
+      items: [],
     });
     cb.dialogVisible = true;
+    if (row.id) {
+      try {
+        const itemsRes = await getPurchaseInspectionItemList(row.id);
+        if (cb.formData.id === row.id) {
+          cb.formData.items = itemsRes.data.items;
+        }
+      } catch (error) {
+        logger.error('[purchase-inspection] 明细回填失败', error);
+      }
+    }
   };
 
-  /** 查看详情 */
+  /**
+   * 查看详情
+   * 表头由 get_inspection 获取；明细由 /inspections/{id}/items 异步回源（表头响应不含 items）
+   */
   const handleView = async (row: PurchaseInspection) => {
     try {
       const res = await getPurchaseInspectionById(row.id!);
       cb.detailData = res.data;
+      cb.detailItems = [];
       cb.detailDialogVisible = true;
+      try {
+        const itemsRes = await getPurchaseInspectionItemList(row.id!);
+        cb.detailItems = itemsRes.data.items;
+      } catch (error) {
+        logger.error('[purchase-inspection] 详情明细加载失败', error);
+      }
     } catch (error) {
       logger.error('获取详情失败:', error);
     }
   };
 
-  /** 提交表单（创建/更新） */
+  /**
+   * 提交表单（创建/更新）
+   * 新建：构造 CreatePurchaseInspectionPayload（对齐后端 CreatePurchaseInspectionRequest），
+   *       remark 键映射为后端的 notes；不含 items（明细走 item 级端点）
+   * 编辑：构造 UpdatePurchaseInspectionPayload（对齐后端 UpdatePurchaseInspectionRequest），
+   *       仅可更新 sample_size/defect_description/notes
+   */
   const handleSubmit = async () => {
     try {
       if (cb.isEdit && cb.formData.id) {
-        await updatePurchaseInspection(cb.formData.id, cb.formData as never);
+        const updatePayload: UpdatePurchaseInspectionPayload = {
+          notes: cb.formData.remark || undefined,
+        };
+        await updatePurchaseInspection(cb.formData.id, updatePayload);
         msg.success('updateSuccess');
       } else {
-        await createPurchaseInspection(cb.formData as never);
+        // supplier_id 由所选入库单派生，而后端 create_inspection 在其缺失时直接 validation 拒绝。
+        // 取不到就是入库单数据不完整，显式报错并中止提交，不能静默发出一个必然失败的请求。
+        if (cb.formData.supplier_id === undefined) {
+          ElMessage.error(t('purchaseInspection.message.supplierNotDerived'));
+          logger.error('质检单创建中止：所选入库单未带出 supplier_id', {
+            receipt_id: cb.formData.receipt_id,
+          });
+          return;
+        }
+        const createPayload: CreatePurchaseInspectionPayload = {
+          receipt_id: cb.formData.receipt_id,
+          supplier_id: cb.formData.supplier_id,
+          inspection_date: cb.formData.inspection_date || undefined,
+          notes: cb.formData.remark || undefined,
+        };
+        await createPurchaseInspection(createPayload);
         msg.success('createSuccess');
       }
       cb.dialogVisible = false;

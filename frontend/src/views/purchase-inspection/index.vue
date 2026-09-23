@@ -48,7 +48,11 @@
       @update:form-data="v => Object.assign(pi.formData, v)"
     />
 
-    <PurchaseInspectionDetail v-model:visible="pi.detailDialogVisible" :data="pi.detailData" />
+    <PurchaseInspectionDetail
+      v-model:visible="pi.detailDialogVisible"
+      :data="pi.detailData"
+      :detail-items="pi.detailItems"
+    />
   </div>
 </template>
 
@@ -85,6 +89,7 @@ const piProc = usePiProc({
   formData: pi.formData,
   detailDialogVisible: pi.detailDialogVisible,
   detailData: pi.detailData,
+  detailItems: pi.detailItems,
   fetchData: pi.fetchData,
   handleReceiptChange: pi.handleReceiptChange,
   syncDateRangeToQuery: pi.syncDateRangeToQuery,

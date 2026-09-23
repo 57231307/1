@@ -8833,6 +8833,9 @@ export default {
     },
   },
   purchaseInspection: {
+    message: {
+      supplierNotDerived: 'Receipt carries no supplier; cannot create inspection',
+    },
     validation: {
       inspectionDateRequired: 'Please select inspection date',
       receiptRequired: 'Please select receipt',
