@@ -5746,7 +5746,6 @@ export default {
       paymentNo: '付款编号',
       verificationDate: '核销日期',
       verificationAmount: '核销金额',
-      statusActive: '有效',
       statusCancelled: '已撤销',
       createTitle: '手动核销',
       createAria: '手动核销对话框',
@@ -5768,6 +5767,7 @@ export default {
       verifiedAmount: '已核销金额',
       detailFailed: '获取应付核销详情失败',
       unverifiedLoadFailed: '获取待核销发票与付款列表失败',
+      statusCompleted: '已完成',
     },
   },
   arModule: {

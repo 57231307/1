@@ -5777,7 +5777,6 @@ export default {
       paymentNo: 'Payment No.',
       verificationDate: 'Verification Date',
       verificationAmount: 'Verification Amount',
-      statusActive: 'Active',
       statusCancelled: 'Cancelled',
       createTitle: 'Manual Verification',
       createAria: 'Manual verification dialog',
@@ -5799,6 +5798,7 @@ export default {
       verifiedAmount: 'Verified Amount',
       detailFailed: 'Failed to fetch AP verification detail',
       unverifiedLoadFailed: 'Failed to fetch pending AP invoices and payments',
+      statusCompleted: 'Completed',
     },
   },
   arModule: {

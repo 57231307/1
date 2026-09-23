@@ -71,19 +71,19 @@ export interface APPaymentRequest {
   created_at: string;
 }
 
+// GET /ap/verifications 直接序列化实体 models/ap_verification.rs（主表无发票/付款单号，
+// 明细在 ap_verification_item）；状态列 verification_status 词表 COMPLETED/CANCELLED
+// （models/status/general.rs:25/28，服务写入见 ap_verification_service.rs:200/450/578）。
+export type APVerificationStatus = 'COMPLETED' | 'CANCELLED';
+
 export interface APVerification {
   id: number;
   verification_no: string;
-  supplier_id?: number;
+  supplier_id: number;
   verification_type?: string;
   verification_date: string;
   total_amount: number;
-  verification_status?: string;
-  invoice_id: number;
-  invoice_no: string;
-  payment_id?: number;
-  payment_no?: string;
-  status: string;
+  verification_status: APVerificationStatus;
   notes?: string;
   created_at: string;
 }

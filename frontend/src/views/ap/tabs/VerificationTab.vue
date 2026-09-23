@@ -30,16 +30,6 @@
           width="140"
         />
         <el-table-column
-          prop="invoice_no"
-          :label="$t('apModule.verification.invoiceNo')"
-          width="140"
-        />
-        <el-table-column
-          prop="payment_no"
-          :label="$t('apModule.verification.paymentNo')"
-          width="140"
-        />
-        <el-table-column
           prop="verification_date"
           :label="$t('apModule.verification.verificationDate')"
           width="120"
@@ -53,12 +43,20 @@
             {{ formatMoney(row.total_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="$t('common.status')" width="90" align="center">
+        <el-table-column
+          prop="verification_status"
+          :label="$t('common.status')"
+          width="90"
+          align="center"
+        >
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
+            <el-tag
+              :type="row.verification_status === 'COMPLETED' ? 'success' : 'info'"
+              size="small"
+            >
               {{
-                row.status === 'active'
-                  ? $t('apModule.verification.statusActive')
+                row.verification_status === 'COMPLETED'
+                  ? $t('apModule.verification.statusCompleted')
                   : $t('apModule.verification.statusCancelled')
               }}
             </el-tag>
@@ -149,7 +147,9 @@
       <el-descriptions v-if="detailRow" :column="2" border>
         <el-descriptions-item label="ID">{{ detailRow.id }}</el-descriptions-item>
         <el-descriptions-item :label="$t('common.status')">{{
-          detailRow.status
+          detailRow.verification_status === 'COMPLETED'
+            ? $t('apModule.verification.statusCompleted')
+            : $t('apModule.verification.statusCancelled')
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('apModule.verification.verificationNo')">
           {{ detailRow.verification_no }}
@@ -167,7 +167,7 @@
       </el-descriptions>
       <template #footer>
         <el-button
-          v-if="detailRow && detailRow.status !== 'cancelled'"
+          v-if="detailRow && detailRow.verification_status !== 'CANCELLED'"
           type="danger"
           :loading="cancelling"
           @click="handleCancelVerification(detailRow)"
