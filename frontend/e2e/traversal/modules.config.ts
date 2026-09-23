@@ -80,7 +80,6 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'sales-returns', route: '/sales-returns', domain: 'sales', tier: 'B', listApi: '/sales-returns' },
   { id: 'sales-contract', route: '/sales-contract', domain: 'sales', tier: 'B', listApi: '/sales-contracts' },
   { id: 'sales-price', route: '/sales-price', domain: 'sales', tier: 'A', listApi: '/sales-prices' },
-  { id: 'sales-ext', route: '/sales-ext', domain: 'sales', tier: 'C', noCreate: true },
   { id: 'sales-analysis-bi', route: '/bi/sales-analysis', domain: 'sales', tier: 'C', noCreate: true },
   { id: 'quotations', route: '/quotations', domain: 'sales', tier: 'B', listApi: '/quotations' },
   { id: 'quotations-new', route: '/quotations/new', domain: 'sales', tier: 'B', noCreate: true },

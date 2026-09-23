@@ -144,9 +144,6 @@
             index="/sales-returns"
             >{{ t('layout.menu.salesReturns') }}</el-menu-item
           >
-          <el-menu-item v-if="canAccessMenu('/sales-ext')" role="menuitem" index="/sales-ext">{{
-            t('layout.menu.salesExt')
-          }}</el-menu-item>
           <el-menu-item v-if="canAccessMenu('/customer')" role="menuitem" index="/customer">{{
             t('layout.menu.customer')
           }}</el-menu-item>

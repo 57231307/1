@@ -390,17 +390,6 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        path: 'sales-ext',
-        name: 'SalesExt',
-        component: () => import('@/views/sales-ext/index.vue'),
-        meta: {
-          title: '销售扩展',
-          icon: 'ShoppingCart',
-          permission: 'sales:read',
-          requiresAuth: true,
-        },
-      },
-      {
         path: 'crm',
         name: 'CRM',
         component: () => import('@/views/crm/index.vue'),
