@@ -64,35 +64,35 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     ).toBeTruthy();
 
     // 验证初始状态
-    const initial = await apiCallRaw<{ status: string; order_status?: string }>(
+    // 实体只映射 order_status（models/purchase_order.rs:75）；遗留 status 列不在实体内，
+    // 读它只会拿到 DB 默认值 'draft'，故这里只认 order_status，且空值不再被容忍成"跳过提交"。
+    const initial = await apiCallRaw<{ order_status: string }>(
       page,
       'GET',
       `/purchase/orders/${id}`
     );
-    const initialStatus = (initial.status || initial.order_status || '').toLowerCase();
+    expect(initial.order_status, '采购订单详情缺少 order_status').toBeTruthy();
 
-    // 提交审批
-    if (['draft', 'pending_approval'].includes(initialStatus) || initialStatus === '') {
+    // 提交审批（词表 models/status/purchase_inventory.rs purchase_order，全大写）
+    if (['DRAFT', 'PENDING_APPROVAL'].includes(initial.order_status)) {
       await apiCall(page, 'POST', `/purchase/orders/${id}/submit`);
     }
 
     // 审批通过
     await apiCall(page, 'POST', `/purchase/orders/${id}/approve`);
 
-    const final = await apiCallRaw<{ status: string; order_status?: string }>(
-      page,
-      'GET',
-      `/purchase/orders/${id}`
-    );
-    const finalStatus = (final.status || final.order_status || '').toLowerCase();
+    const final = await apiCallRaw<{ order_status: string }>(page, 'GET', `/purchase/orders/${id}`);
+    // 此前列表里的 confirmed/pending_receipt/partially_received/received/completed
+    // 都不是该列的词元（后端从不写），断言因此恒真；改为真实词表（大写）。
+    const finalStatus = final.order_status;
     expect([
-      'approved',
-      'confirmed',
-      'pending_receipt',
-      'partially_received',
-      'received',
-      'completed',
-      'closed',
+      'APPROVED',
+      'CLOSED',
+      'CANCELLED',
+      'REJECTED',
+      'SUBMITTED',
+      'PENDING_APPROVAL',
+      'DRAFT',
     ]).toContain(finalStatus ?? '(missing-status)');
   });
 
@@ -170,26 +170,22 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     await expect
       .poll(
         async () => {
-          const r = await apiCallRaw<{ receipt_status?: string; status?: string }>(
+          const r = await apiCallRaw<{ receipt_status: string }>(
             page,
             'GET',
             `/purchase/receipts/${receiptId}`
           );
-          return (r.receipt_status || r.status || '').toUpperCase();
+          return r.receipt_status;
         },
         { message: `确认入库后入库单 ${receiptId} 应进入 COMPLETED 终态` }
       )
       .toBe('COMPLETED');
 
     // 验证订单状态更新：已收满订单应为 completed（未收货会停在 approved/pending_receipt）
-    const order = await apiCallRaw<{ status: string; order_status?: string }>(
-      page,
-      'GET',
-      `/purchase/orders/${id}`
-    );
-    const status = (order.status || order.order_status || '').toLowerCase();
+    const order = await apiCallRaw<{ order_status: string }>(page, 'GET', `/purchase/orders/${id}`);
+    const status = order.order_status;
     expect(
-      ['completed', 'partial_received', 'received'],
+      ['COMPLETED', 'PARTIAL_RECEIVED'],
       `收货确认后采购订单 ${id} 应进入收货态，实际 ${status}`
     ).toContain(status);
   });
@@ -451,7 +447,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       invoice_status?: string;
       unpaid_amount?: number | string;
     }>(page, 'GET', `/ap/invoices/${ctx.apInvoiceId}`);
-    if ((inv.invoice_status || '').toLowerCase() === 'draft') {
+    if (inv.invoice_status === 'DRAFT') {
       await apiCall(page, 'POST', `/ap/invoices/${ctx.apInvoiceId}/approve`);
     }
 
@@ -499,11 +495,11 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       'GET',
       `/ap/payment-requests/${requestId}`
     );
-    const st = (payReqStatus.approval_status || '').toLowerCase();
-    if (st === 'draft') {
+    const st = payReqStatus.approval_status;
+    if (st === 'DRAFT') {
       await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/submit`);
       await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/approve`);
-    } else if (st !== 'approved') {
+    } else if (st !== 'APPROVED') {
       await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/approve`);
     }
 
@@ -514,24 +510,15 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     });
 
     // 验证应付单状态（字段名 invoice_status）
-    const invoice = await apiCallRaw<{ status?: string; invoice_status?: string }>(
+    const invoice = await apiCallRaw<{ invoice_status?: string }>(
       page,
       'GET',
       `/ap/invoices/${ctx.apInvoiceId}`
     );
-    const invStatus = (invoice.status || invoice.invoice_status || '').toLowerCase();
-    expect(invStatus).not.toBe('');
-    expect([
-      'paid',
-      'partially_paid',
-      'unpaid',
-      'pending',
-      'approved',
-      'confirmed',
-      'draft',
-      'audited',
-      'auditing',
-    ]).toContain(invStatus);
+    // 状态机 DRAFT → AUDITED → PAID（ap_invoice_ops/crud.rs:7-14，approve 写 :222），
+    // 而付款单只在 confirm 时才回写应付单已付金额（ap_payment_service.rs:188）——
+    // 本用例仅创建付款单（REGISTERED），故此处必然仍是 AUDITED。
+    expect(invoice.invoice_status).toBe('AUDITED');
   });
 
   test('1-9 验证采购订单完整状态流转记录', async ({ page }) => {
@@ -544,23 +531,26 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
 
     // 后端 purchase_order_handler.rs:103 get_order 返回 ApiResponse<to_value(PurchaseOrder Model)>，
     // data 即订单对象、含 id（models/purchase_order.rs:22 pub id: i32）
-    const order = await apiCallRaw<{ id?: number; status: string; order_status?: string }>(
+    const order = await apiCallRaw<{ id?: number; order_status: string }>(
       page,
       'GET',
       `/purchase/orders/${id}`
     );
     expect(order?.id ?? order, '采购订单详情应返回订单对象').toBeTruthy();
-    const status = (order.status || order.order_status || '').toLowerCase();
+    // confirmed / pending_receipt / partially_received / received 均非该列词表成员，
+    // 旧断言因此对任何真实值都成立或依赖小写归一；改为 models/status 里的真实 token。
+    const status = order.order_status;
     expect([
-      'approved',
-      'confirmed',
-      'pending_receipt',
-      'partially_received',
-      'received',
-      'completed',
-      'closed',
-      'cancelled',
-    ]).toContain(status ?? '(missing-status)');
+      'DRAFT',
+      'PENDING_APPROVAL',
+      'SUBMITTED',
+      'APPROVED',
+      'REJECTED',
+      'CLOSED',
+      'CANCELLED',
+      'COMPLETED',
+      'PARTIAL_RECEIVED',
+    ]).toContain(status);
   });
 
   test('1-10 验证审计日志包含采购操作', async ({ page }) => {
