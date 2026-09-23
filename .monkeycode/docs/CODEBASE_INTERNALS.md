@@ -61,16 +61,16 @@ normalize_empty_query_params → timeout → security_headers → rate_limiting
   注入，缺失即 `AuthRejection::unauthorized`（`:170`）。只记录"可能未登录"的端点用 `OptionalAuthContext`（`:176`）。
   数据权限：`auth.to_data_scope_context() -> DataScopeContext`（`:90`），配合 `utils/data_scope.rs:177 apply_data_scope`。
 
-## 3. 响应信封（成功 2 套 + 失败 4 套，属待收敛项）
+## 3. 响应信封（成功 1 套 + 分页 1 套；失败 1 套，均已收敛）
 
 成功：
 - `utils/response.rs:11 ApiResponse<T>` = `code:Option<u16>` + `data:Option<T>` + `message:Option<String>`
   + `total:Option<u64>`，后三者 `skip_serializing_if`；`Default` 的 code 是 `500`（`:22-31`）。
-  构造：`success`(:82) / `success_paginated`(:91) / `success_with_message`(:111) / `error`(:120)
-  / `error_with_status`(:129)。`IntoResponse` 用 `code.unwrap_or(200)` 反推 HTTP 状态（`:145-150`）。
-- **分页有两套不同类型**：
-  `utils/response.rs:34 PaginatedResponse<T>{items,total,page,page_size}`（无 total_pages）
-  曾与之并存的第二套 `PageResponse{data,total,page,page_size,total_pages}` **已删除**：
+  构造：`success`(:82) / `success_paginated`(:91) / `success_with_message`(:111)。
+  失败构造器 `error`/`error_with_status` **已删除**（防回归），失败一律走 `AppError`。
+  `IntoResponse` 用 `code.unwrap_or(200)` 反推 HTTP 状态（`:145-150`）。
+- **分页只有一套**：
+  `utils/response.rs:34 PaginatedResponse<T>{items,total,page,page_size}`。
   `total_pages` 属可派生值（`ceil(total/page_size)`），不再作为契约字段；
   BPM 曾同时对外输出 `list` / `data` / `items` 三种列表键，现已统一为 `items`。
   读错键的表现是"列表恒空但不报错"，所以列表接口的载荷键必须逐端点核对。
@@ -91,7 +91,19 @@ init_token 的数字码 `40101`+`detail` 也并入同一构造器。
 - 失败信封上**没有 `errors` 数组**；`errors` 只存在于导入/批量类 DTO（`utils/import_export.rs:45` 等）。
 
 前端侧对应类型：`frontend/src/types/api-response.ts`（经 `types/api.ts` 再导出）。
-两份局部重复定义待清理：`api/audit.ts:63`、`api/slow-query.ts:60` 各自又声明了 `interface ApiResponse`。
+`api/audit.ts`、`api/slow-query.ts` 曾各自重复声明局部 `interface ApiResponse`，已改为引用共享信封类型——
+**不要再新增局部副本**（副本一旦漂移，门禁比对的是共享类型，页面却用另一套，等于自欺）。
+
+### 数值出参的真实类型：Decimal ⇒ JSON 字符串
+`backend/Cargo.toml:60` `rust_decimal = { features = ["serde"] }` 只开 `serde`，**没有**
+`serde-with-float` / `serde-arbitrary-precision`，所以任何 `Decimal` 列（含 `#[sea_orm(column_type = "Decimal(...)")]`）
+序列化成 JSON 是**字符串**（`"1250.00"`），不是数字。
+- 前端出参类型必须写 `string`（可空列 `string | null`），写 `number` 是骗编译器：
+  拿它做算术得 `NaN`/串接，把它原样回传给 `f64` 入参（如 `inventory_batch_handler.rs:48 quantity_meters: f64`）
+  会 Serde 反序列化失败 ⇒ 422。
+- 转换只允许出现在明确边界（展示格式化函数、提交前 `Number(...)`），并在那里留一句注释说明来源是 Decimal 串。
+- 入参方向反过来：`UpdatePriceRequest.price`（`handlers/purchase_price_handler.rs:33`）后端声明为 `String`，
+  以 number 提交同样失败。**逐字段看清是 Decimal / f64 / String，别按"金额=number"的直觉建模。**
 
 ## 4. 状态词表权威表（`backend/src/models/status/`，大小写/中文混用是**故意的**）
 
@@ -118,6 +130,14 @@ init_token 的数字码 `40101`+`detail` 也并入同一构造器。
 | `quality_dyeing.rs` 全组（含 `dye_batch_lifecycle_status` 16 态、`dye_recipe`、`lab_dip_*`、`fabric_grade`） | 小写 | `status/quality_dyeing.rs` |
 | `quality_inspection_result` | **中文** `待检/合格/不合格` | `quality_dyeing.rs:331` |
 | `wage_*` / `energy_*` / `color_card` / `chemical_*` / `outsourcing_*` / `business_*` | 小写 | `status/wage_energy_chemical_business.rs` |
+
+### 没有状态模块的自由文本枚举（取值本身就是业务数据）
+`reason_type`（`sales_return.reason_type` / `purchase_return.reason_type` / `inventory_adjustment.reason_type`）
+在 `models/status/` 里**没有**对应模块，列类型是 `String`/`Option<String>`，后端不校验取值 ⇒ 前端下拉的 `value`
+就是落库内容。这类字段最怕"两个页面各写一套"：销售退货落中文业务词（色差/缸差/克重不符/幅宽不符/品质瑕疵/
+数量不符/发错货/客户取消订单），采购退货若改写成 `quality/spec` 英文 slug，同一含义会在库里分裂成两种写法，
+按原因聚合的报表与打印直接失真。唯一事实源：`frontend/src/constants/return-reason.ts`
+（`value` 中文、`labelKey` 完整 i18n 路径）。新增此类候选表时先找有没有现成常量模块，别在页面里就地硬编码。
 
 ## 5. 列表要显示名称：唯一正确的做法（JOIN 富化）
 
@@ -172,11 +192,18 @@ init_token 的数字码 `40101`+`detail` 也并入同一构造器。
   状态标签 `{module}.statusLabels.<TOKEN>`。`.vue` 里用 `const { t } = useI18n({ useScope: 'global' })`；
   纯 `.ts`（utils/composables/formatters）里没有组件实例，用 `i18n.global.t`。
   `fallbackLocale: 'zh-CN'`（`i18n/index.ts:41-53`）。
+  **表单校验文案的键名约定**：`{module}.validation.{field}Required`（全仓 90 处主导写法，
+  如 `accountSubject.validation.codeRequired`）。不要在页面里各起一套 `form.rule.*`，
+  更不要把 `message: '请输入xxx'` 的裸中文留在 composable 里。
   门禁 `scripts/check-i18n.mjs`：TS AST 解析两份语言包，校验 ①所有字面量 `t()/$t/msg.translate` 键在中英双侧都存在
-  ②无重复键 ③每个值过 `@intlify/message-compiler` 编译；任一违规 `exit 1`（`:233`）。
+  ②无重复键 ③每个值过 `@intlify/message-compiler` 编译 ④`labelKey: 'a.b'` 形式的词表键同样按引用校验
+  （这类值不经过 `t()` 调用、只被 `t(opt.labelKey)` 动态消费，写错就是界面直接显示原始 key）；任一违规 `exit 1`（`:233`）。
+  反过来说：**动态拼接的 `t(\`ns.${x}\`)` 门禁判不了**，词表类常量请把完整键路径写进 `labelKey`，
+  让第 ④ 项覆盖它。
 - **状态标签的规范做法（唯一）**：`utils/sales-status.ts` / `utils/purchase-status.ts` 这种"词表模块"——
   常量数组 + `normalize*Status()`（未知 token **抛错**，不静默）+ `*LabelKey()` 出 i18n 键 + `*TagType()` 出 el-tag 类型。
-  反例（待清理）：`views/sales-returns/composables/srFmts.ts:9,18,26,29` 手搓 map + 硬编码中文 label + `|| status` 兜底。
+  非状态类的业务候选表（如退货原因）同理集中到 `constants/`（`constants/return-reason.ts`），
+  供多个域共用，避免同一字段两套取值。
 - **弹窗取消不是错误**：`ElMessageBox` 取消会 reject `'cancel'`/`'close'` 字符串。仓库既有写法是
   `catch (e) { if (e !== 'cancel') ... }`（108 个文件 197 处）；需要区分取消/关闭时用
   `distinguishCancelAndClose: true`（`useActionPrompts.ts:56,115`）；全局兜底在
