@@ -2981,7 +2981,15 @@ jobs:
 
       - name: 安装 cargo-audit（安装失败/命令缺失必须阻塞，禁止 || true 吞错）
         run: |
-          cargo install cargo-audit --locked --quiet
+          # runner 上（镜像预置或 Cargo 缓存恢复）可能已经有 cargo-audit，
+          # 而 `cargo install` 撞到同名二进制会以「binary `cargo-audit` already exists in destination」
+          # 退出 101 —— 于是这个漏洞检测 job 会与本次代码改动完全无关地判负。
+          # 已存在就不重装（下一步仍校验命令可用 + 版本可执行，不会把"没装"放过去）。
+          if command -v cargo-audit >/dev/null 2>&1; then
+            echo "cargo-audit 已就绪，跳过安装"
+          else
+            cargo install cargo-audit --locked --quiet
+          fi
           command -v cargo-audit >/dev/null || { echo "::error::cargo-audit 未安装成功"; exit 1; }
           cargo audit --version
 
