@@ -2154,3 +2154,26 @@ README/PR 里引用的门禁数字本轮一并更正。
   `json.code === 'CSRF_TOKEN_INVALID'`（helpers.ts:962/1051，apiCall 与 apiCallRaw 两条 CSRF 恢复路径）
   被判成"永假"。运行时其实是对的，**错的是类型模型**，故改类型不弱化断言。
   两套信封并存本身是契约气味（同一 API 面有两种失败体，前端只能靠 status 区分），登记为待决。
+
+### 后端失败响应实为三套信封（2026-09-23 读码确认，不是两套）
+1. `ApiResponse{code: Option<u16>, message, data, total}` —— utils/response.rs:11-20，code 是 **HTTP 语义数字**
+2. CSRF 中间件直出 `(403, {success:false, code:"CSRF_TOKEN_*", message, data:null})` —— middleware/csrf.rs:234-242，常量 :39/:42/:45
+3. `AppError::into_response` 直出 `{code:"VALIDATION_ERROR"|"BUSINESS_ERROR"|"BAD_REQUEST", message(脱敏), trace_id, timestamp}` —— utils/error.rs:143-148 + error_code() :461-476
+**后果**：同一个 API 面上调用方只能靠 HTTP status 区分是哪种体，前端/e2e 任何"`res.code === 'X'`"式判定都只在其中一套里成立。
+e2e 已按此建模（`failureCode()` 只在机器码为字符串时返回、`isCsrfRejection()` 额外要求 403），
+但**契约层面是否把三套统一成一套属待决**（统一要动 `AppError` 的 serde 形状，会影响所有 4xx/5xx 断言与前端错误展示）。
+
+### 顺带修掉的两个运行期真坏（此前只被当作类型错误）
+- `e2e/flow/35-2fa-totp.spec.ts`：文件内注释断言"令牌错误返回 200 + data=false"，实际
+  `handlers/auth_handler_misc.rs:343` 是 `Ok(false) => Err(AppError::bad_request("验证码不正确"))`，
+  即恒 400；而 `apiCall` 是成功语义、非 200 直接抛错 → 用例在到达断言前就异常失败。
+  已改 `apiCallExpectFail` 并校验 400 + BAD_REQUEST，删掉两个永不可达的析取支。
+- `e2e/traversal/permission-model.ts:96` 对全局 `fetch` 的 `Response` 调 `.status()`
+  （那是属性不是方法）→ 错误分支抛 TypeError 而非给出预期诊断；已改 `resp.status`。
+- `e2e/global-setup.ts` 内联响应契约把 Playwright 的 `ok(): boolean` 写成 `ok: boolean`，
+  导致真实 `APIRequestContext` 在每个调用边界被判不兼容（5 条 TS2345 同源）。
+
+### 测量口径教训
+`vue-tsc -b` / `tsc --incremental` 命中 `tsconfig.tsbuildinfo` 时会**跳过检查不报已有错误**：
+e2e 首跑报 172、`--incremental false` 真值 174，被缓存藏掉的正是 locales 的 2 条 TS1117 重复 key。
+交付口径一律 `--force` / `--incremental false`。
