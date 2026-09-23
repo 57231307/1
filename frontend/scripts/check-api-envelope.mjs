@@ -928,9 +928,14 @@ function extractFnSignatures(src) {
 function buildHandlerModules(templates) {
   const mods = new Map();
   const dirMembers = {}; // 目录型模块名 -> 该目录下已索引的文件条目
-  // 路由里的 handler 也可能指向 handlers/ 之外的 Axum 模块（如 `websocket::notifications::*`）：
-  // 不一起索引就会把它们当成"未定位"，从而在门禁的覆盖统计里留下说不清的空洞。
-  const dirs = [join(BACKEND, 'src', 'handlers'), join(BACKEND, 'src', 'websocket')].filter(d => {
+  // 路由里的 handler 也可能指向 handlers/ 之外的 Axum 模块（如 `websocket::notifications::*`、
+  // `search_api::search_sales_orders`）：不一起索引就会把它们当成"未定位"，
+  // 从而在门禁的覆盖统计里留下说不清的空洞 —— routes/ 下就有一批就地定义的 handler。
+  const dirs = [
+    join(BACKEND, 'src', 'handlers'),
+    join(BACKEND, 'src', 'websocket'),
+    join(BACKEND, 'src', 'routes'),
+  ].filter(d => {
     try {
       return readdirSync(d).length >= 0;
     } catch {
@@ -940,6 +945,9 @@ function buildHandlerModules(templates) {
   for (const f of dirs.flatMap(d => collectRsFiles(d))) {
     const src = readFileSync(f, 'utf-8');
     const base = f.split(/[\\/]/).pop().replace('.rs', '');
+    // 聚合文件不按裸名 'mod' 索引：handlers/mod.rs 与 routes/mod.rs 会互相覆盖，
+    // 而后路由径里永远不会出现 `mod::fn` 这种写法，索引它们只有副作用没有收益。
+    if (base === 'mod') continue;
     const entry = {
       file: base + '.rs',
       rets: extractReturnTypes(src),
@@ -1005,7 +1013,23 @@ function buildHandlerModules(templates) {
         };
       invRe.lastIndex = cap[0];
     }
-    mods.set(base, entry);
+    if (mods.has(base)) {
+      // 同名模块跨目录（handlers/x.rs 与 routes/x.rs 都存在）时静默覆盖，
+      // 会让解析结果指向另一个模块 —— 那是伪造证明。两边都不采信，判不出。
+      mods.set(base, {
+        file: `${base}.rs`,
+        rets: {},
+        sigs: {},
+        bodies: {},
+        macroFns: {},
+        modMacroFns: {},
+        nested: {},
+        reexports: [],
+        ambiguousModule: true,
+      });
+    } else {
+      mods.set(base, entry);
+    }
     // 目录型模块：`pub mod advanced;` 指向 handlers/advanced/ 这个文件夹时，
     // 路由写的是 `advanced::list_purchase_contracts`，但索引里没有名为 advanced 的条目
     // （只有 analytics / decide / … 这些文件名），会被误判为「handler 符号未定义」。
@@ -1021,8 +1045,10 @@ function buildHandlerModules(templates) {
     }
   }
   for (const [dirName, members] of Object.entries(dirMembers)) {
-    if (mods.has(dirName)) continue; // 已有同名文件模块，不覆盖
-    const merged = {
+    // 目录名也可能与某个同名文件模块撞车（routes/color_card.rs 注册路由、
+    // handlers/color_card/ 目录放 handler）。此时不能跳过合并，
+    // 否则 `color_card::list_issues` 只会在那个小写的路由文件里找，判成"符号未定义"。
+    const merged = mods.get(dirName) || {
       file: dirName + '/',
       rets: {},
       sigs: {},
@@ -1033,12 +1059,12 @@ function buildHandlerModules(templates) {
       reexports: [],
     };
     const cand = {};
-    for (const M of members) {
+    for (const M of [...members, merged]) {
       for (const fn of Object.keys(M.bodies)) (cand['b' + fn] ||= []).push(['bodies', M]);
       for (const fn of Object.keys(M.macroFns)) (cand['m' + fn] ||= []).push(['macroFns', M]);
     }
     for (const key of Object.keys(cand)) {
-      if (cand[key].length !== 1) continue; // 目录内同名 fn -> 落点不唯一，判不出（不猜）
+      if (cand[key].length !== 1) continue; // 同名落点不唯一 -> 判不出（不猜）
       const [kind, M] = cand[key][0];
       const fn = key.slice(1);
       if (kind === 'bodies') {
