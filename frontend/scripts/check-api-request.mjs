@@ -286,7 +286,9 @@ function main() {
       //  - GET/DELETE：只有 config 里真有 params（或 DELETE 带 data）才算；
       //  - POST/PUT：null / 空对象 / FormData 走的是别的提取器（MultipartForm 等），归盲区。
       const sent = (fn.call.args[1] || '').trim();
-      const isEmptyish = !sent || sent === 'null' || /^\{\s*\}$/.test(sent);
+      // `undefined` 也算空载荷：axios 的 post(url, data, config) 必须占位才能传 config
+      // （如以 query 传参的 POST），此时并不发请求体，判成"载荷被忽略"是误报。
+      const isEmptyish = !sent || sent === 'null' || sent === 'undefined' || /^\{\s*\}$/.test(sent);
       if (isQuery) {
         const pv = extractAxiosConfigValue(sent, 'params');
         const dv = extractAxiosConfigValue(sent, 'data');
