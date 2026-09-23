@@ -1209,17 +1209,47 @@ export async function loginViaUI(
     const hasToken = cookies.some(c => c.name === 'access_token');
     const hasCsrf = cookies.some(c => c.name === 'csrf_token');
     if (hasToken && hasCsrf) {
-      await page
-        .goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-        .catch(e => {
-          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      // 服务端有效性探测：cookie 存在不代表会话未被吊销（如 refresh 轮换/登出/管理员踢人
+      // 都会即时将 JTI 入黑名单，但 storageState 中的旧 cookie 不会自动消失）。
+      // 用 /auth/me 轻量 GET 验证会话仍然有效，401 则强制清 cookie 重新登录。
+      try {
+        const probe = await page.request.get(`${API_BASE}${API_PREFIX}/auth/me`, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
         });
-      return;
+        if (probe.status() === 401) {
+          console.warn(
+            `[loginViaUI] 服务端探测 /auth/me 返回 401（会话已被吊销），清除 cookie 并重新登录`
+          );
+          await page.context().clearCookies();
+          LOGGED_IN.done = false;
+        } else {
+          // 会话有效（200/429/5xx 等均视为"存在且未被吊销"，不触发重登；
+          // 429 限流不应触发重新登录——账号密码重试只会加剧限流）
+          await page
+            .goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+            .catch(e => {
+              console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+            });
+          return;
+        }
+      } catch (e) {
+        // 网络异常（后端短暂不可达等）不触发重登，保留当前会话继续
+        console.warn(
+          `[loginViaUI] 会话探测 /auth/me 网络异常（视为会话仍有效，不重新登录）: ${(e as Error).message}`
+        );
+        await page
+          .goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+          .catch(reloadErr => {
+            console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(reloadErr as Error).message}`);
+          });
+        return;
+      }
+    } else {
+      console.warn(
+        `[loginViaUI] 检测到会话不完整 (access_token=${hasToken}, csrf_token=${hasCsrf})，强制重新登录`
+      );
+      LOGGED_IN.done = false;
     }
-    console.warn(
-      `[loginViaUI] 检测到会话不完整 (access_token=${hasToken}, csrf_token=${hasCsrf})，强制重新登录`
-    );
-    LOGGED_IN.done = false;
   }
 
   const u = username || TEST_USERNAME;
