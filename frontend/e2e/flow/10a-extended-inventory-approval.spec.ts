@@ -113,22 +113,27 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
   });
 
   test('L1-7 验证库存调拨状态机', async ({ page }) => {
-    // GET /inventory/transfers 出参是裸数组 Vec<Value>：服务端分页但没有 items/total 信封，
-    // 只能按数组与行数断言。
-    const transfers = await apiCallRaw<Array<Record<string, unknown>>>(
-      page,
-      'GET',
-      '/inventory/transfers?page=1&page_size=5'
-    );
+    // GET /inventory/transfers 由 inventory_transfer_handler::list_transfers 处理，
+    // 出参是 PaginatedResponse<Value>（inventory_transfer_handler.rs:45）：data = {items,total,page,page_size}，
+    // 不是裸数组。run 35887709282 分片 flow(5/20) 的真实响应为 {"items":[],"total":0,"page":1,"page_size":5}，
+    // 旧写法 expect(Array.isArray(transfers)) 因把 data 当数组而恒红。
+    const resp = await apiCallRaw<{
+      items: Array<Record<string, unknown>>;
+      total: number;
+      page: number;
+      page_size: number;
+    }>(page, 'GET', '/inventory/transfers?page=1&page_size=5');
     expect(
-      Array.isArray(transfers),
-      `调拨列表应返回数组，实际：${JSON.stringify(transfers).slice(0, 200)}`
+      Array.isArray(resp?.items),
+      `调拨列表 data 应为分页信封的 items 数组，实际：${JSON.stringify(resp).slice(0, 200)}`
     ).toBe(true);
+    expect(resp.page, '应回显请求页码').toBe(1);
+    expect(resp.page_size, '应回显每页数量').toBe(5);
     expect(
-      transfers.length,
-      `page_size=5 却返回 ${transfers.length} 行（分页未生效）`
-    ).toBeLessThanOrEqual(5);
-    for (const row of transfers) {
+      Number(resp.total) >= resp.items.length,
+      `total(${resp.total}) 不应小于本页行数(${resp.items.length})`
+    ).toBe(true);
+    for (const row of resp.items) {
       expect(Number(row.id), `调拨行缺少 id：${JSON.stringify(row)}`).toBeGreaterThan(0);
       expect(String(row.status ?? ''), `调拨行缺少 status：${JSON.stringify(row)}`).not.toBe('');
     }

@@ -228,8 +228,12 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     const deniedResp = await apiCallExpectFail(page, 'GET', '/users?page=1&page_size=1');
     expect(deniedResp.status, 'report_viewer 访问用户列表应被拒（403）').toBe(403);
 
-    // 审计经 channel 异步落库，回到 admin 身份轮询最多 10 秒
-    await loginViaUI(page);
+    // 审计经 channel 异步落库，回到 admin 身份轮询最多 10 秒。
+    // 必须 force=true 清 cookie 后重登：loginAsRole 已把会话切到 report_viewer 且置位
+    // LOGGED_IN.done，若沿用不带 force 的 loginViaUI(page)，helpers 会检测到已有
+    // access_token/csrf_token 而短路返回（仍是 report_viewer），随后 GET /audit-logs
+    // 被权限中间件拒为 FORBIDDEN（run 35887709282 分片 flow(5/20) 的 P1-10 真实报错）。
+    await loginViaUI(page, undefined, undefined, true);
     let rows: Array<Record<string, unknown>> = [];
     for (let i = 0; i < 10; i++) {
       const logs = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
