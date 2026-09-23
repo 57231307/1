@@ -6,7 +6,7 @@
 //! 字段映射说明：
 //! 后端 Model 字段（`code`/`name`/`config`）与前端 API 契约
 //!（`process_key`/`process_name`/`nodes`）不一致，handler 层负责转换。
-//! 前端 `PageResult.list` 对应后端 `PageResponse.data`，也在此处映射。
+//! 列表承载键与全仓统一分页信封 `PaginatedResponse` 一致，为 `items`。
 
 use crate::container::AppState;
 use crate::models::bpm_process_definition;
@@ -17,7 +17,7 @@ use crate::models::dto::bpm_dto::{
 use crate::services::bpm_service::BpmService;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -44,21 +44,19 @@ fn model_to_frontend_json(model: bpm_process_definition::Model) -> Value {
     })
 }
 
-/// 将 PageResponse 转换为前端期望的分页格式（`data` → `list`）
-fn page_to_frontend_json(
-    page_resp: crate::models::dto::PageResponse<bpm_process_definition::Model>,
-) -> Value {
-    let list: Vec<Value> = page_resp
-        .data
+/// 将 PaginatedResponse 转换为前端期望的分页格式：逐条经 `model_to_frontend_json`
+/// 映射字段，列表承载键与统一分页信封一致为 `items`（total/page/page_size 原样透传）
+fn page_to_frontend_json(page_resp: PaginatedResponse<bpm_process_definition::Model>) -> Value {
+    let items: Vec<Value> = page_resp
+        .items
         .into_iter()
         .map(model_to_frontend_json)
         .collect();
     json!({
-        "list": list,
+        "items": items,
         "total": page_resp.total,
         "page": page_resp.page,
         "page_size": page_resp.page_size,
-        "total_pages": page_resp.total_pages,
     })
 }
 

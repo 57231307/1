@@ -187,7 +187,7 @@ impl ProductionOrderService {
         else {
             return;
         };
-        for task in task_list.data {
+        for task in task_list.items {
             if task.instance_id != instance.id {
                 continue;
             }

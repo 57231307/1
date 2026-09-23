@@ -116,43 +116,40 @@ export interface ApprovalChainNode {
 
 /**
  * GET /bpm/definitions 真实响应载荷（唯一真相：backend
- * handlers/bpm_definition_handler.rs::page_to_frontend_json 第 48-63 行）。
- * 后端把 PageResponse.data 映射为顶层键 `list`，并带 total/page/page_size/total_pages，
- * 承载列表的键**只有** list —— 不使用 PageResult 的万能四键。
+ * handlers/bpm_definition_handler.rs::page_to_frontend_json 第 47-61 行）。
+ * 逐条 model_to_frontend_json 后以统一分页信封承载列表，列表键为 `items`，
+ * 另含 total/page/page_size（与 utils/response.rs 的 PaginatedResponse 一致）。
  */
 export interface ProcessDefinitionPage {
-  list: ProcessDefinition[];
+  items: ProcessDefinition[];
   total: number;
   page: number;
   page_size: number;
-  total_pages: number;
 }
 
 /**
- * GET /bpm/templates 真实响应载荷：与 definitions 同一 page_to_frontend_json 构造，
- * 承载列表的键为 `list`。
+ * GET /bpm/templates 真实响应载荷：与 definitions 共用 page_to_frontend_json 构造，
+ * 承载列表的键同为 `items`。
  */
 export interface ProcessTemplatePage {
-  list: ProcessTemplate[];
+  items: ProcessTemplate[];
   total: number;
   page: number;
   page_size: number;
-  total_pages: number;
 }
 
 /**
  * GET /bpm/tasks/pending、/bpm/tasks/completed 真实响应载荷（唯一真相：
  * handlers/bpm_handler.rs::get_pending_tasks/get_completed_tasks 调
- * services/bpm_ops/task.rs::query_user_tasks 返回 PageResponse<bpm_task::Model>，
- * models/dto/mod.rs:49 序列化为 {total,page,page_size,total_pages,data}）。
- * 与 definitions/templates 不同：此处承载列表的键是 `data`（后端未做 list 映射）。
+ * services/bpm_ops/task.rs::query_user_tasks 返回 PaginatedResponse<bpm_task::Model>，
+ * utils/response.rs:34 序列化为 {items,total,page,page_size}）。
+ * 承载列表的键为 `items`。
  */
 export interface ApprovalTaskPage {
-  data: ApprovalTask[];
+  items: ApprovalTask[];
   total: number;
   page: number;
   page_size: number;
-  total_pages: number;
 }
 
 // D14 Batch 5b：原 bpmEnhancedApi.listDefinitions 转为风格 B 函数

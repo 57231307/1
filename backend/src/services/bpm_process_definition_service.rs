@@ -17,12 +17,12 @@
 //!   `list_process_definitions` 过滤模板，`list_templates` 只查模板
 
 use crate::models::bpm_process_definition;
-use crate::models::dto::PageResponse;
 use crate::models::dto::bpm_dto::{
     CreateProcessDefinitionRequest, ProcessDefinitionQuery, TemplateQuery,
     UpdateProcessDefinitionRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::response::PaginatedResponse;
 
 use super::bpm_service::BpmService;
 use sea_orm::*;
@@ -131,7 +131,7 @@ impl BpmService {
     pub async fn list_process_definitions(
         &self,
         query: ProcessDefinitionQuery,
-    ) -> Result<PageResponse<bpm_process_definition::Model>, AppError> {
+    ) -> Result<PaginatedResponse<bpm_process_definition::Model>, AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
 
@@ -156,18 +156,7 @@ impl BpmService {
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
-        let total_pages = if total == 0 {
-            0
-        } else {
-            total.div_ceil(page_size)
-        };
-        Ok(PageResponse {
-            data: items,
-            total,
-            page,
-            page_size,
-            total_pages,
-        })
+        Ok(PaginatedResponse::new(items, total, page, page_size))
     }
 
     /// 获取流程定义的所有版本
@@ -271,7 +260,7 @@ impl BpmService {
     pub async fn list_templates(
         &self,
         query: TemplateQuery,
-    ) -> Result<PageResponse<bpm_process_definition::Model>, AppError> {
+    ) -> Result<PaginatedResponse<bpm_process_definition::Model>, AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
 
@@ -283,18 +272,7 @@ impl BpmService {
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
-        let total_pages = if total == 0 {
-            0
-        } else {
-            total.div_ceil(page_size)
-        };
-        Ok(PageResponse {
-            data: items,
-            total,
-            page,
-            page_size,
-            total_pages,
-        })
+        Ok(PaginatedResponse::new(items, total, page, page_size))
     }
 
     /// 从模板创建流程定义

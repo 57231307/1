@@ -296,7 +296,7 @@ impl QuotationApprovalService {
                 })
                 .await
             {
-                for task in tasks.data {
+                for task in tasks.items {
                     if task.instance_id == instance.id {
                         if let Err(e) = bpm_service
                             .approve_task(
@@ -428,7 +428,7 @@ impl QuotationApprovalService {
         else {
             return;
         };
-        for task in tasks.data {
+        for task in tasks.items {
             if task.instance_id != instance.id {
                 continue;
             }

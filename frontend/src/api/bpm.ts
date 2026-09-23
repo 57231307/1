@@ -45,7 +45,7 @@ export interface BpmApproveTaskRequest {
 }
 
 /**
- * 后端 handlers/bpm_handler.rs 任务列表返回 PageResponse<bpm_task::Model>：
+ * 后端 handlers/bpm_handler.rs 任务列表返回 PaginatedResponse<bpm_task::Model>：
  * 行对象字段以 models/bpm_task.rs 为准（id / task_no / instance_id / node_name / status ...）。
  * 任务状态词表为小写 pending / completed / rejected / cancelled。
  */
@@ -198,13 +198,17 @@ export const startBpmProcess = (data: BpmStartProcessRequest) =>
 export const approveBpmTask = (data: BpmApproveTaskRequest) =>
   request.post<ApiResponse<null>>('/bpm/tasks/approve', data);
 
-// 任务列表：后端返回 PageResponse<bpm_task::Model>（data/total/page/page_size/total_pages）
+// 任务列表：后端返回 PaginatedResponse<bpm_task::Model>（items/total/page/page_size）
 export const getBpmTaskList = (params?: {
   user_id?: number;
   status?: string;
   page?: number;
   page_size?: number;
-}) => request.get<ApiResponse<{ data: BPMTask[]; total: number }>>('/bpm/tasks', { params });
+}) =>
+  request.get<ApiResponse<{ items: BPMTask[]; total: number; page: number; page_size: number }>>(
+    '/bpm/tasks',
+    { params }
+  );
 
 // D14 Batch 5b：原 bpmApi.transferTask 转为风格 B 函数
 // 请求体字段与后端 TransferTaskRequest 逐字一致：new_assignee_id / transfer_reason
@@ -242,13 +246,18 @@ export const getBpmMonitorStats = () =>
 
 // D14 Batch 5b：原 bpmApi.getPendingTasksForMonitor 转为风格 B 函数
 export const getBpmPendingTaskList = (params?: MonitorPendingTasksParams) =>
-  request.get<ApiResponse<{ data: BPMTask[]; total: number }>>('/bpm/monitor/pending-tasks', {
-    params,
-  });
+  request.get<ApiResponse<{ items: BPMTask[]; total: number; page: number; page_size: number }>>(
+    '/bpm/monitor/pending-tasks',
+    {
+      params,
+    }
+  );
 
 // D14 Batch 5b：原 bpmApi.listInstancesForMonitor 转为风格 B 函数
 export const getBpmInstanceListForMonitor = (params?: MonitorInstancesParams) =>
-  request.get<ApiResponse<{ data: BPMInstance[]; total: number }>>('/bpm/monitor/instances', {
+  request.get<
+    ApiResponse<{ items: BPMInstance[]; total: number; page: number; page_size: number }>
+  >('/bpm/monitor/instances', {
     params,
   });
 

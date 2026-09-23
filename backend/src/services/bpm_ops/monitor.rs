@@ -8,13 +8,13 @@
 use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 
-use crate::models::dto::PageResponse;
 use crate::models::status::bpm_instance as instance_status;
 use crate::models::status::bpm_task as task_status;
 use crate::models::{bpm_process_instance, bpm_task};
 use crate::services::bpm_service::BpmService;
 use crate::services::bpm_service_dto::ProcessMonitorStats;
 use crate::utils::error::AppError;
+use crate::utils::response::PaginatedResponse;
 
 impl BpmService {
     // ========== 流程监控功能 ==========
@@ -102,7 +102,7 @@ impl BpmService {
         &self,
         page: u64,
         page_size: u64,
-    ) -> Result<PageResponse<bpm_task::Model>, AppError> {
+    ) -> Result<PaginatedResponse<bpm_task::Model>, AppError> {
         // P0 3-4 修复：任务状态写入为小写，查询用小写匹配
         let stmt =
             bpm_task::Entity::find().filter(bpm_task::Column::Status.eq(task_status::PENDING));
@@ -111,18 +111,7 @@ impl BpmService {
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
-        let total_pages = if total == 0 {
-            0
-        } else {
-            total.div_ceil(page_size)
-        };
-        Ok(PageResponse {
-            data: items,
-            total,
-            page,
-            page_size,
-            total_pages,
-        })
+        Ok(PaginatedResponse::new(items, total, page, page_size))
     }
 
     /// 获取流程实例列表（用于监控）
@@ -131,7 +120,7 @@ impl BpmService {
         status: Option<String>,
         page: u64,
         page_size: u64,
-    ) -> Result<PageResponse<bpm_process_instance::Model>, AppError> {
+    ) -> Result<PaginatedResponse<bpm_process_instance::Model>, AppError> {
         let mut stmt = bpm_process_instance::Entity::find();
 
         if let Some(s) = status {
@@ -144,17 +133,6 @@ impl BpmService {
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
-        let total_pages = if total == 0 {
-            0
-        } else {
-            total.div_ceil(page_size)
-        };
-        Ok(PageResponse {
-            data: items,
-            total,
-            page,
-            page_size,
-            total_pages,
-        })
+        Ok(PaginatedResponse::new(items, total, page, page_size))
     }
 }

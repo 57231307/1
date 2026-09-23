@@ -568,7 +568,7 @@ const handleTabChange = (tabName: string) => {
 const fetchPendingTasks = async () => {
   try {
     const res = await getBpmTaskList({ status: 'pending' });
-    pendingTasks.value = res.data?.data || [];
+    pendingTasks.value = res.data?.items || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
@@ -582,7 +582,7 @@ const fetchPendingTasks = async () => {
 const fetchProcessedTasks = async () => {
   try {
     const res = await getBpmTaskList({ status: 'completed' });
-    processedTasks.value = res.data?.data || [];
+    processedTasks.value = res.data?.items || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
@@ -596,7 +596,7 @@ const fetchProcessedTasks = async () => {
 const fetchProcessInstances = async () => {
   try {
     const res = await getBpmInstanceListForMonitor();
-    processInstances.value = res.data?.data || [];
+    processInstances.value = res.data?.items || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(

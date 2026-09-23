@@ -30,9 +30,9 @@ export function useBpmAp() {
     refresh: fetchPendingTasks,
   } = useTableApi<ApprovalTask>({
     url: '/bpm/tasks/pending',
-    // 后端 handler 返回 PageResponse{data}（承载列表的键为 data，非 list/items），显式钉住，
+    // 后端 handler 返回 PaginatedResponse（承载列表的键为 items），显式钉住，
     // 禁止依赖 useTableApi 的 list→items→data→results 顺序探测兜底。
-    listKey: 'data',
+    listKey: 'items',
     defaultPageSize: 10,
     onError: (err: unknown) => logger.error(String(err)),
   });
@@ -47,8 +47,8 @@ export function useBpmAp() {
     refresh: fetchCompletedTasks,
   } = useTableApi<ApprovalTask>({
     url: '/bpm/tasks/completed',
-    // 同 pending：后端返回 PageResponse{data}，显式钉 listKey='data'。
-    listKey: 'data',
+    // 同 pending：后端返回 PaginatedResponse{items}，显式钉 listKey='items'。
+    listKey: 'items',
     defaultPageSize: 10,
     onError: (err: unknown) => logger.error(String(err)),
   });

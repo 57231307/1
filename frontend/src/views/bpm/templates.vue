@@ -321,8 +321,8 @@ const {
   setQueryParam,
 } = useTableApi<ProcessTemplate>({
   url: '/bpm/templates',
-  // 后端 page_to_frontend_json 顶层键为 `list`，显式钉住 listKey。
-  listKey: 'list',
+  // 后端 page_to_frontend_json 以统一分页信封承载列表，键为 `items`，显式钉住 listKey。
+  listKey: 'items',
   defaultPageSize: 12,
   onError: (err: unknown) => logger.error(String(err)),
 });

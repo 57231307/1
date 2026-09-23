@@ -21,13 +21,13 @@ use sea_orm::{
     TransactionTrait,
 };
 
-use crate::models::dto::PageResponse;
 use crate::models::dto::bpm_dto::{ApproveTaskRequest, TaskQuery};
 use crate::models::status::bpm_instance as instance_status;
 use crate::models::status::bpm_task as task_status;
 use crate::models::{bpm_process_definition, bpm_process_instance, bpm_task};
 use crate::services::bpm_service::{BpmService, evaluate_bpm_condition};
 use crate::utils::error::AppError;
+use crate::utils::response::PaginatedResponse;
 
 /// approve_task 上下文：封装 task/instance/definition
 struct ApproveContext {
@@ -358,7 +358,7 @@ impl BpmService {
     pub async fn query_user_tasks(
         &self,
         query: TaskQuery,
-    ) -> Result<PageResponse<bpm_task::Model>, AppError> {
+    ) -> Result<PaginatedResponse<bpm_task::Model>, AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(10).clamp(1, 100); // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
 
@@ -376,18 +376,7 @@ impl BpmService {
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
-        let total_pages = if total == 0 {
-            0
-        } else {
-            total.div_ceil(page_size)
-        };
-        Ok(PageResponse {
-            data: items,
-            total,
-            page,
-            page_size,
-            total_pages,
-        })
+        Ok(PaginatedResponse::new(items, total, page, page_size))
     }
 
     /// 转办任务
