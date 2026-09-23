@@ -3,7 +3,8 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::supplier_evaluation_indicator;
 use crate::models::supplier_evaluation_record;
 use crate::services::supplier_evaluation_service::{
-    CreateEvaluationIndicatorRequest, SupplierEvaluationService, SupplierScoreResponse,
+    CreateEvaluationIndicatorRequest, EvaluationRecordView, SupplierEvaluationService,
+    SupplierScoreResponse,
 };
 use crate::utils::error::AppError;
 use crate::utils::{ApiResponse, PaginatedResponse};
@@ -182,7 +183,7 @@ pub async fn list_evaluation_records(
     Query(params): Query<EvaluationRecordQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<supplier_evaluation_record::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<EvaluationRecordView>>>, AppError> {
     info!("用户 {} 正在查询评估记录列表", auth.user_id);
 
     let service = SupplierEvaluationService::new(state.db.clone());
@@ -203,11 +204,11 @@ pub async fn get_evaluation_record(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<supplier_evaluation_record::Model>>, AppError> {
+) -> Result<Json<ApiResponse<EvaluationRecordView>>, AppError> {
     info!("用户 {} 正在查询评估记录：{}", auth.user_id, id);
 
     let service = SupplierEvaluationService::new(state.db.clone());
-    let record = service.get_evaluation_record_by_id(id).await?;
+    let record = service.get_evaluation_record_view(id).await?;
     info!("评估记录查询成功：{}", id);
 
     Ok(Json(ApiResponse::success(record)))
@@ -218,7 +219,7 @@ pub async fn list_evaluations(
     Query(params): Query<EvaluationRecordQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<supplier_evaluation_record::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<EvaluationRecordView>>>, AppError> {
     info!("用户 {} 正在查询评估列表", auth.user_id);
 
     let service = SupplierEvaluationService::new(state.db.clone());
@@ -258,11 +259,11 @@ pub async fn get_evaluation(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<supplier_evaluation_record::Model>>, AppError> {
+) -> Result<Json<ApiResponse<EvaluationRecordView>>, AppError> {
     info!("用户 {} 正在查询评估详情：{}", auth.user_id, id);
 
     let service = SupplierEvaluationService::new(state.db.clone());
-    let record = service.get_evaluation_record_by_id(id).await?;
+    let record = service.get_evaluation_record_view(id).await?;
     info!("评估详情查询成功：{}", id);
 
     Ok(Json(ApiResponse::success(record)))

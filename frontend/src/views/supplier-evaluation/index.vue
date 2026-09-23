@@ -22,30 +22,34 @@
             :aria-label="t('supplierEvaluation.index.recordsTableAriaLabel')"
           >
             <el-table-column
-              prop="supplierName"
+              prop="supplier_name"
               :label="t('supplierEvaluation.index.column.supplierName')"
             />
-            <el-table-column prop="period" :label="t('supplierEvaluation.index.column.period')" />
             <el-table-column
-              prop="totalScore"
-              :label="t('supplierEvaluation.index.column.totalScore')"
+              prop="evaluation_period"
+              :label="t('supplierEvaluation.index.column.period')"
             />
-            <el-table-column prop="rating" :label="t('supplierEvaluation.index.column.rating')">
-              <template #default="{ row }">
-                <el-tag v-if="row.rating === 'A'" type="success">A</el-tag>
-                <el-tag v-else-if="row.rating === 'B'" type="warning">B</el-tag>
-                <el-tag v-else-if="row.rating === 'C'" type="danger">C</el-tag>
-                <el-tag v-else type="info">{{ row.rating }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="status" :label="t('supplierEvaluation.index.column.status')" />
             <el-table-column
-              prop="evaluatorName"
+              prop="indicator_name"
+              :label="t('supplierEvaluation.index.column.indicatorName')"
+            />
+            <el-table-column prop="score" :label="t('supplierEvaluation.index.column.score')" />
+            <el-table-column
+              prop="weighted_score"
+              :label="t('supplierEvaluation.index.column.weightedScore')"
+            />
+            <el-table-column
+              prop="evaluator_name"
               :label="t('supplierEvaluation.index.column.evaluator')"
             />
             <el-table-column
-              prop="createdAt"
-              :label="t('supplierEvaluation.index.column.createdAt')"
+              prop="evaluation_date"
+              :label="t('supplierEvaluation.index.column.evaluationDate')"
+            />
+            <el-table-column
+              prop="remark"
+              :label="t('supplierEvaluation.index.column.remark')"
+              show-overflow-tooltip
             />
             <el-table-column
               :label="t('supplierEvaluation.index.column.operation')"
@@ -94,11 +98,11 @@
               </template>
             </el-table-column>
             <el-table-column
-              prop="supplierName"
+              prop="supplier_name"
               :label="t('supplierEvaluation.index.column.supplierName')"
             />
             <el-table-column
-              prop="totalScore"
+              prop="average_score"
               :label="t('supplierEvaluation.index.column.totalScore')"
             />
             <el-table-column prop="rating" :label="t('supplierEvaluation.index.column.rating')">
@@ -126,12 +130,12 @@
             :aria-label="t('supplierEvaluation.index.indicators.tableAriaLabel')"
           >
             <el-table-column
-              prop="indicatorCode"
+              prop="indicator_code"
               :label="t('supplierEvaluation.index.indicators.label.code')"
               width="140"
             />
             <el-table-column
-              prop="indicatorName"
+              prop="indicator_name"
               :label="t('supplierEvaluation.index.indicators.label.name')"
             />
             <el-table-column
@@ -145,7 +149,7 @@
               width="90"
             />
             <el-table-column
-              prop="maxScore"
+              prop="max_score"
               :label="t('supplierEvaluation.index.indicators.label.maxScore')"
               width="90"
             />
@@ -155,7 +159,7 @@
               width="100"
             />
             <el-table-column
-              prop="description"
+              prop="evaluation_method"
               :label="t('supplierEvaluation.index.indicators.label.description')"
               min-width="160"
               show-overflow-tooltip
@@ -178,16 +182,35 @@
           >
             <el-table-column prop="id" label="ID" width="80" />
             <el-table-column
-              prop="supplierName"
+              prop="supplier_name"
               :label="t('supplierEvaluation.index.column.supplierName')"
             />
-            <el-table-column prop="period" :label="t('supplierEvaluation.index.column.period')" />
             <el-table-column
-              prop="totalScore"
-              :label="t('supplierEvaluation.index.column.totalScore')"
+              prop="evaluation_period"
+              :label="t('supplierEvaluation.index.column.period')"
             />
-            <el-table-column prop="rating" :label="t('supplierEvaluation.index.column.rating')" />
-            <el-table-column prop="status" :label="t('supplierEvaluation.index.column.status')" />
+            <el-table-column
+              prop="indicator_name"
+              :label="t('supplierEvaluation.index.column.indicatorName')"
+            />
+            <el-table-column prop="score" :label="t('supplierEvaluation.index.column.score')" />
+            <el-table-column
+              prop="weighted_score"
+              :label="t('supplierEvaluation.index.column.weightedScore')"
+            />
+            <el-table-column
+              prop="evaluator_name"
+              :label="t('supplierEvaluation.index.column.evaluator')"
+            />
+            <el-table-column
+              prop="evaluation_date"
+              :label="t('supplierEvaluation.index.column.evaluationDate')"
+            />
+            <el-table-column
+              prop="remark"
+              :label="t('supplierEvaluation.index.column.remark')"
+              show-overflow-tooltip
+            />
             <el-table-column
               :label="t('supplierEvaluation.index.column.operation')"
               fixed="right"
@@ -227,7 +250,7 @@
             }}</el-button>
             <el-descriptions v-if="scoreResult" :column="3" border class="score-result">
               <el-descriptions-item :label="t('supplierEvaluation.index.score.totalScore')">{{
-                scoreResult.totalScore
+                scoreResult.average_score
               }}</el-descriptions-item>
               <el-descriptions-item :label="t('supplierEvaluation.index.score.rating')">{{
                 scoreResult.rating
@@ -282,7 +305,7 @@
             <el-option
               v-for="ind in indicatorList"
               :key="ind.id"
-              :label="ind.indicatorName"
+              :label="ind.indicator_name"
               :value="ind.id"
             />
           </el-select>
@@ -296,7 +319,7 @@
             :placeholder="t('supplierEvaluation.index.dialog.placeholder.period')"
           />
         </el-form-item>
-        <el-form-item :label="t('supplierEvaluation.index.column.totalScore')">
+        <el-form-item :label="t('supplierEvaluation.index.column.score')">
           <el-input-number v-model="recordForm.score" :min="0" :max="100" />
         </el-form-item>
         <el-form-item :label="t('supplierEvaluation.index.dialog.label.remark')" prop="remark">
@@ -328,32 +351,35 @@
         :aria-label="t('supplierEvaluation.index.detail.ariaLabel')"
       >
         <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.supplier')">{{
-          currentRecord.supplierName
+          currentRecord.supplier_name
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.period')">{{
-          currentRecord.period
+          currentRecord.evaluation_period
         }}</el-descriptions-item>
-        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.totalScore')">{{
-          currentRecord.totalScore
+        <el-descriptions-item :label="t('supplierEvaluation.index.column.indicatorName')">{{
+          currentRecord.indicator_name
         }}</el-descriptions-item>
-        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.rating')">{{
-          currentRecord.rating
+        <el-descriptions-item :label="t('supplierEvaluation.index.column.score')">{{
+          currentRecord.score
         }}</el-descriptions-item>
-        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.status')">{{
-          currentRecord.status
+        <el-descriptions-item :label="t('supplierEvaluation.index.column.weightedScore')">{{
+          currentRecord.weighted_score
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('supplierEvaluation.index.column.evaluationDate')">{{
+          currentRecord.evaluation_date
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.evaluator')">{{
-          currentRecord.evaluatorName
+          currentRecord.evaluator_name
         }}</el-descriptions-item>
         <el-descriptions-item
           :label="t('supplierEvaluation.index.detail.label.createdAt')"
           :span="2"
-          >{{ currentRecord.createdAt }}</el-descriptions-item
+          >{{ currentRecord.created_at }}</el-descriptions-item
         >
         <el-descriptions-item
           :label="t('supplierEvaluation.index.detail.label.remark')"
           :span="2"
-          >{{ currentRecord.remark || '-' }}</el-descriptions-item
+          >{{ currentRecord.remark }}</el-descriptions-item
         >
       </el-descriptions>
     </el-dialog>
@@ -606,8 +632,8 @@ const handleEditEvaluation = (row: EvaluationRecord) => {
   isEdit.value = true;
   editingEvaluationId.value = row.id ?? null;
   Object.assign(recordForm, {
-    supplier_id: row.supplierId,
-    evaluation_period: row.period || '',
+    supplier_id: row.supplier_id,
+    evaluation_period: row.evaluation_period || '',
     indicator_id: undefined,
     score: 0,
     remark: row.remark || '',
@@ -681,7 +707,7 @@ const handleSaveRecord = async () => {
     try {
       if (isEdit.value && editingEvaluationId.value) {
         await updateEvaluation(editingEvaluationId.value, {
-          period: recordForm.evaluation_period,
+          score: recordForm.score,
           remark: recordForm.remark,
         });
       } else {
