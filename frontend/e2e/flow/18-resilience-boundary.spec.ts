@@ -177,7 +177,11 @@ test.describe('异常处理与边界条件', () => {
       order_no: genCode('SO'),
       customer_id: ctx.customerId,
       warehouse_id: ctx.warehouseIds[0],
-      order_date: new Date().toISOString().slice(0, 10),
+      // 销售单 CreateSalesOrderRequest.order_date 为 chrono::DateTime<Utc>
+      // （backend/src/services/so/mod.rs:49），须传完整 RFC3339；
+      // 裸日期串会被 chrono 判 "premature end of input" → POST /sales/orders 422，
+      // 建单失败使整条发货阻断流程无从执行。与 helpers 建销售单口径一致。
+      order_date: new Date().toISOString(),
       items: [
         {
           product_id: ctx.productIds[0],

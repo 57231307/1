@@ -193,22 +193,22 @@ test.describe('前端状态显示与业务逻辑验证', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
 
-    // 点击查询按钮触发操作
-    const searchBtn = page.locator('button:has-text("查询")').first();
-    await searchBtn.waitFor({ state: 'visible', timeout: 3000 });
-    const searchVisible = await searchBtn.isVisible();
-    if (searchVisible) {
-      await searchBtn.click();
-      await page.waitForTimeout(500);
+    // 触发点用"导出"而非"查询"：usePurchList.handleQuery 仅调 fetchData，
+    // 而 fetchData 只在 catch 分支弹 ElMessage.error（成功路径不弹），后端健康时
+    // 点查询永不出消息 → .el-message waitFor 超时（本用例原失败根因）。
+    // 导出 exportFromBackend 成功走 msg.exportOk、失败走 msg.error（utils/export.ts），
+    // 两条路径都经 ElMessage 弹出且不改业务数据，是验证提示行为的稳定触发点。
+    const exportBtn = page.locator('button:has-text("导出")').first();
+    await exportBtn.waitFor({ state: 'visible', timeout: 5000 });
+    await exportBtn.click();
 
-      const message = page.locator('.el-message').first();
-      await message.waitFor({ state: 'visible', timeout: 2000 });
-      const messageVisible = await message.isVisible();
-      if (messageVisible) {
-        await page.waitForTimeout(4000);
-        const messageStillVisible = await message.isVisible();
-        expect(messageStillVisible).toBe(false);
-      }
-    }
+    // ElMessage 出现在页面顶部
+    const message = page.locator('.el-message').first();
+    await message.waitFor({ state: 'visible', timeout: 5000 });
+    expect(await message.isVisible(), '导出应弹出 ElMessage 提示').toBe(true);
+
+    // ElMessage 未显式设 duration（默认 3000ms），到期自动移除——断言其自动消失
+    await message.waitFor({ state: 'hidden', timeout: 10_000 });
+    expect(await message.isVisible(), '消息提示应在默认时长后自动消失').toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, BASE_URL } from './helpers';
+import { loginViaUI, BASE_URL, ensureTestEntities } from './helpers';
 
 test.describe('批量操作与弹窗确认', () => {
   test.beforeEach(async ({ page }) => {
@@ -153,6 +153,12 @@ test.describe('批量操作与弹窗确认', () => {
   });
 
   test('下拉级联选择交互', async ({ page }) => {
+    // 供应商下拉选项来自 GET /purchase/suppliers，依赖前置供应商数据。
+    // 本文件 beforeEach 只 loginViaUI（其余用例为条件交互无需实体），而级联用例
+    // 需真实供应商才能填充下拉——补 ensureTestEntities 建/查供应商（其内部会创建
+    // ctx.supplierId），否则空库时下拉恒 0 项触发本用例既有的"前置数据缺失"断言。
+    await ensureTestEntities(page);
+
     await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 
