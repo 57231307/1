@@ -58,9 +58,9 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item :label="t('mrp.calc.demandDate')" prop="demand_date">
+            <el-form-item :label="t('mrp.calc.demandDate')" prop="required_date">
               <el-date-picker
-                v-model="calcForm.demand_date"
+                v-model="calcForm.required_date"
                 type="date"
                 :placeholder="t('mrp.calc.demandDatePlaceholder')"
                 style="width: 100%"
@@ -243,7 +243,7 @@ const selectedResults = ref<ResultRow[]>([]);
 const calcForm = reactive({
   product_ids: [] as number[],
   demand_quantity: 1,
-  demand_date: '',
+  required_date: '',
   consider_safety_stock: true,
   consider_in_transit: true,
 });
@@ -255,7 +255,7 @@ const calcRules: FormRules = {
   demand_quantity: [
     { required: true, message: t('mrp.calc.demandQuantityRequired'), trigger: 'blur' },
   ],
-  demand_date: [{ required: true, message: t('mrp.calc.demandDateRequired'), trigger: 'change' }],
+  required_date: [{ required: true, message: t('mrp.calc.demandDateRequired'), trigger: 'change' }],
 };
 
 /** 累积合并搜索结果：选中产品后再次搜索不会丢失已有选项，保证结果页可按 id 回查主数据 */
@@ -335,7 +335,7 @@ const handleCalculate = async () => {
 const resetCalcForm = () => {
   calcForm.product_ids = [];
   calcForm.demand_quantity = 1;
-  calcForm.demand_date = '';
+  calcForm.required_date = '';
   calcForm.consider_safety_stock = true;
   calcForm.consider_in_transit = true;
   resultVisible.value = false;

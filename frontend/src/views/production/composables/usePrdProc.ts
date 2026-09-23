@@ -187,22 +187,14 @@ export function usePrdProc(cb: PrdCallbacks) {
         inputErrorMessage: '请输入有效数量',
       });
       completed = r1.value;
-      const r2 = await ElMessageBox.prompt(
-        '请输入次品数量（可留空为 0）',
-        `汇报进度 ${row.order_no}`,
-        {
-          inputPattern: /^\d*$/,
-          inputErrorMessage: '请输入有效数量',
-        }
-      );
-      const defect = r2.value || '0';
-      const r3 = await ElMessageBox.prompt('备注（可留空）', `汇报进度 ${row.order_no}`, {
+      const r2 = await ElMessageBox.prompt('备注（可留空）', `汇报进度 ${row.order_no}`, {
         inputValidator: () => true,
       });
+      // 键名对齐后端 UpdateProgressRequest（actual_quantity / remarks）。
+      // 次品数量后端无列可存，故此处不再采集——详见交付报告的能力缺口说明。
       await reportProductionProgress(row.id, {
-        completed_quantity: Number(completed),
-        defect_quantity: Number(defect),
-        remark: r3.value || undefined,
+        actual_quantity: Number(completed),
+        remarks: r2.value || undefined,
       });
       ElMessage.success('进度已汇报');
       await cb.refresh();

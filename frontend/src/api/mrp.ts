@@ -24,12 +24,12 @@ export interface MrpCalculatePayload {
 
 /**
  * 计算页输入：页面以「多产品 + 同一需求数量/日期」录入，
- * 在 API 层映射为后端要求的 items[]。
+ * 在 API 层映射为后端要求的 items[]（字段名与后端 items 同族：required_date）。
  */
 export interface MrpCalculateInput {
   product_ids: number[];
   demand_quantity: number;
-  demand_date: string;
+  required_date: string;
   consider_safety_stock?: boolean;
   consider_in_transit?: boolean;
 }
@@ -115,7 +115,7 @@ export function calculateMrp(
     items: input.product_ids.map(productId => ({
       product_id: productId,
       required_quantity: input.demand_quantity,
-      required_date: input.demand_date,
+      required_date: input.required_date,
     })),
     consider_safety_stock: input.consider_safety_stock,
     consider_in_transit: input.consider_in_transit,

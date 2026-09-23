@@ -42,7 +42,9 @@ export const INVENTORY_QUALITY_STATUSES: InventoryQualityStatusValue[] = [
 export type InventoryStatusTagType = 'success' | 'warning' | 'danger' | 'info';
 
 /** 归一到已知库存状态；词表外的值记错误并抛错（映射缺口必须报错，不伪装成状态） */
-export function normalizeInventoryStockStatus(status: string | undefined): InventoryStockStatusValue {
+export function normalizeInventoryStockStatus(
+  status: string | undefined
+): InventoryStockStatusValue {
   if ((INVENTORY_STOCK_STATUSES as readonly string[]).includes(status ?? '')) {
     return status as InventoryStockStatusValue;
   }
