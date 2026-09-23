@@ -12968,4 +12968,12 @@ export default {
     amountRequired: 'Please enter the adjustment amount',
     amountPositive: 'The adjustment amount must be greater than 0',
   },
+  badDebts: {
+    reassign: {
+      title: 'Reassign collection task',
+      prompt: "Enter the new owner's user ID",
+      userIdInvalid: 'Enter a valid user ID',
+      success: 'Reassigned',
+    },
+  },
 };

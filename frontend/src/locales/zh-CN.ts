@@ -12926,4 +12926,12 @@ export default {
     amountRequired: '请输入调整金额',
     amountPositive: '调整金额必须大于 0',
   },
+  badDebts: {
+    reassign: {
+      title: '转派任务',
+      prompt: '请输入新负责人用户 ID',
+      userIdInvalid: '请输入有效的用户 ID',
+      success: '已转派',
+    },
+  },
 };

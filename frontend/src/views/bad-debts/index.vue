@@ -125,6 +125,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   cancelCollectionTask,
@@ -211,10 +212,21 @@ async function onReverse(row: BadDebt) {
   await load();
 }
 
+const { t } = useI18n({ useScope: 'global' });
+
 async function onReassign(row: CollectionTask) {
-  const { value } = await ElMessageBox.prompt('请输入新负责人用户 ID', '转派任务');
+  // 不加 inputPattern 时留空会以 Number('') === 0 提交，把催收任务派给不存在的用户 ID=0，
+  // 后端按 i32 正常收下 ⇒ 派单"看起来成功了"，任务却落进无人处理的账户。
+  const { value } = await ElMessageBox.prompt(
+    t('badDebts.reassign.prompt'),
+    t('badDebts.reassign.title'),
+    {
+      inputPattern: /^\d+$/,
+      inputErrorMessage: t('badDebts.reassign.userIdInvalid'),
+    }
+  );
   await reassignCollectionTask(row.id, { assigned_to: Number(value) });
-  ElMessage.success('已转派');
+  ElMessage.success(t('badDebts.reassign.success'));
   await load();
 }
 
