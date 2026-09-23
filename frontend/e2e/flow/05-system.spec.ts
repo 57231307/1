@@ -10,6 +10,8 @@ import {
   genCode,
   ensureTestEntities,
   expectBadRequest,
+  API_BASE,
+  API_PREFIX,
 } from './helpers';
 
 test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
@@ -295,7 +297,12 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-15 系统健康状态', async ({ page }) => {
-    const status = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/health');
-    expect(Object.keys(status ?? {}).length, '系统健康状态应返回非空对象').toBeGreaterThan(0);
+    // /health handler 刻意返回裸 Json(HealthStatus)，无 ApiResponse 信封（无 code 字段），
+    // 故用 page.request 直调绕过信封校验。
+    const resp = await page.request.get(`${API_BASE}${API_PREFIX}/health`);
+    expect(resp.ok()).toBe(true);
+    const body = await resp.json();
+    expect(typeof body.status).toBe('string');
+    expect(body.status).toBe('healthy');
   });
 });
