@@ -1015,7 +1015,6 @@ const visibleSubMenu = computed<Record<string, boolean>>(() => {
     sales: [
       '/sales',
       '/sales-returns',
-      '/sales-ext',
       '/customer',
       '/customer-credit',
       '/sales-contract',
