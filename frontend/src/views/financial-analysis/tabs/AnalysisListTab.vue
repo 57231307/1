@@ -90,17 +90,17 @@
         :aria-label="t('financialAnalysis.analysisListTab.ariaLabelList')"
       >
         <el-table-column
-          prop="reportName"
+          prop="name"
           :label="t('financialAnalysis.analysisListTab.columnReportName')"
           min-width="180"
         />
         <el-table-column
-          prop="reportType"
+          prop="indicator_type"
           :label="t('financialAnalysis.analysisListTab.columnType')"
           width="120"
         >
           <template #default="{ row }">
-            <el-tag size="small">{{ getReportTypeLabel(row.reportType) }}</el-tag>
+            <el-tag size="small">{{ getReportTypeLabel(row.indicator_type) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column
@@ -114,11 +114,13 @@
           width="100"
         >
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
+            <el-tag :type="financialStatusTagType(row.status)">
+              {{ t(financialStatusLabelKey(row.status)) }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column
-          prop="executedAt"
+          prop="executed_at"
           :label="t('financialAnalysis.analysisListTab.columnExecutedAt')"
           width="180"
         />
@@ -179,21 +181,18 @@
         label-width="100px"
         :aria-label="t('financialAnalysis.analysisListTab.ariaLabelForm')"
       >
-        <el-form-item
-          :label="t('financialAnalysis.analysisListTab.labelReportName')"
-          prop="reportName"
-        >
+        <el-form-item :label="t('financialAnalysis.analysisListTab.labelReportName')" prop="name">
           <el-input
-            v-model="form.reportName"
+            v-model="form.name"
             :placeholder="t('financialAnalysis.analysisListTab.placeholderReportName')"
           />
         </el-form-item>
         <el-form-item
           :label="t('financialAnalysis.analysisListTab.labelFormReportType')"
-          prop="reportType"
+          prop="report_type"
         >
           <el-select
-            v-model="form.reportType"
+            v-model="form.report_type"
             :placeholder="t('financialAnalysis.analysisListTab.placeholderSelectType')"
             style="width: 100%"
           >
@@ -239,7 +238,7 @@
     <el-dialog v-model="paramExecVisible" title="带参数执行报表" width="480">
       <el-form label-width="90px">
         <el-form-item label="报表">
-          <el-input :model-value="paramExecRow?.reportName || ''" disabled />
+          <el-input :model-value="paramExecRow?.name || ''" disabled />
         </el-form-item>
         <el-form-item :label="t('financialAnalysis.analysisListTab.labelPeriod')">
           <!-- 后端仅读 query.period（YYYY-MM）；此前的自由 JSON 参数框发过去会被整体丢弃 -->
@@ -264,19 +263,16 @@
     <el-dialog v-model="indicatorVisible" title="新增财务指标" width="520">
       <el-form :model="indicatorForm" label-width="100px">
         <el-form-item label="指标名称" required>
-          <el-input v-model="indicatorForm.indicatorName" />
+          <el-input v-model="indicatorForm.name" />
         </el-form-item>
         <el-form-item label="计算公式" required>
           <el-input v-model="indicatorForm.formula" type="textarea" :rows="2" />
         </el-form-item>
         <el-form-item label="分类">
-          <el-input v-model="indicatorForm.category" placeholder="如：盈利能力" />
+          <el-input v-model="indicatorForm.indicator_type" placeholder="如：ratio" />
         </el-form-item>
         <el-form-item label="单位">
           <el-input v-model="indicatorForm.unit" placeholder="如：% / 元" />
-        </el-form-item>
-        <el-form-item label="目标值">
-          <el-input-number v-model="indicatorForm.targetValue" :precision="2" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -290,9 +286,9 @@
     <!-- 财务趋势查询（getFinancialTrends） -->
     <el-dialog v-model="trendVisible" title="财务趋势查询" width="640">
       <div class="toolbar" style="margin-bottom: 8px">
-        <el-input v-model="trendForm.indicator" placeholder="指标名" style="width: 150px" />
-        <el-input v-model="trendForm.startDate" placeholder="开始日期" style="width: 140px" />
-        <el-input v-model="trendForm.endDate" placeholder="结束日期" style="width: 140px" />
+        <el-input v-model="trendForm.indicator_id" placeholder="指标ID" style="width: 150px" />
+        <el-input v-model="trendForm.start_date" placeholder="开始日期" style="width: 140px" />
+        <el-input v-model="trendForm.end_date" placeholder="结束日期" style="width: 140px" />
         <el-button type="primary" :loading="trendLoading" @click="handleTrendQuery">
           查询
         </el-button>
@@ -327,7 +323,9 @@ import {
   createFinancialIndicator,
   getFinancialTrends,
   type FinancialReport,
+  type CreateReportRequest,
 } from '@/api/financial-analysis';
+import { financialStatusLabelKey, financialStatusTagType } from '@/utils/financial-status';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -343,22 +341,22 @@ const queryForm = reactive({
   period: new Date().toISOString().slice(0, 7),
 });
 
-const form = reactive<Partial<FinancialReport>>({
-  id: undefined,
-  reportName: '',
-  reportType: 'profitability',
+const form = reactive({
+  id: undefined as number | undefined,
+  name: '',
+  report_type: 'profitability',
   period: new Date().toISOString().slice(0, 7),
 });
 
 const rules: FormRules = {
-  reportName: [
+  name: [
     {
       required: true,
       message: t('financialAnalysis.analysisListTab.validateReportNameRequired'),
       trigger: 'blur',
     },
   ],
-  reportType: [
+  report_type: [
     {
       required: true,
       message: t('financialAnalysis.analysisListTab.validateReportTypeRequired'),
@@ -383,46 +381,11 @@ const getReportTypeLabel = (type?: string) => {
   }
 };
 
-/** 报表状态 → i18n 标签（语言切换响应） */
-const getStatusLabel = (status?: string) => {
-  switch (status) {
-    case 'draft':
-      return t('financialAnalysis.analysisListTab.statusDraft');
-    case 'executed':
-      return t('financialAnalysis.analysisListTab.statusExecuted');
-    case 'failed':
-      return t('financialAnalysis.analysisListTab.statusFailed');
-    default:
-      return status || '-';
-  }
-};
-
-const getStatusType = (status?: string) => {
-  const map: Record<string, string> = {
-    draft: 'info',
-    executed: 'success',
-    failed: 'danger',
-  };
-  return map[status || ''] || 'info';
-};
-
 const fetchReports = async () => {
   loading.value = true;
   try {
-    const res = await getReportList(queryForm);
-    const d = (res as { data?: unknown }).data as
-      | {
-          list?: FinancialReport[];
-          items?: FinancialReport[];
-          data?: FinancialReport[];
-          total?: number;
-        }
-      | FinancialReport[];
-    if (Array.isArray(d)) {
-      reports.value = d;
-    } else {
-      reports.value = d?.list || d?.items || [];
-    }
+    const res = await getReportList({ page: 1, page_size: 100 });
+    reports.value = res.data.items;
   } catch (e) {
     const err = e as Error;
     logger.error(t('financialAnalysis.analysisListTab.logFetchFailed'), err);
@@ -438,14 +401,17 @@ const handleAnalyze = () => {
 
 const openCreateDialog = () => {
   form.id = undefined;
-  form.reportName = '';
-  form.reportType = 'profitability';
+  form.name = '';
+  form.report_type = 'profitability';
   form.period = new Date().toISOString().slice(0, 7);
   dialogVisible.value = true;
 };
 
 const editReport = (row: FinancialReport) => {
-  Object.assign(form, row);
+  form.id = row.id;
+  form.name = row.name;
+  form.report_type = row.indicator_type;
+  form.period = row.period || new Date().toISOString().slice(0, 7);
   dialogVisible.value = true;
 };
 
@@ -456,10 +422,16 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     try {
       if (form.id) {
-        await updateReport(form.id, form);
+        await updateReport(form.id, { name: form.name, report_type: form.report_type });
         ElMessage.success(t('financialAnalysis.analysisListTab.messageUpdateSuccess'));
       } else {
-        await createReport(form);
+        const payload: CreateReportRequest = {
+          name: form.name,
+          report_type: form.report_type,
+          period_start: `${form.period}-01`,
+          period_end: `${form.period}-01`,
+        };
+        await createReport(payload);
         ElMessage.success(t('financialAnalysis.analysisListTab.messageCreateSuccess'));
       }
       dialogVisible.value = false;
@@ -518,26 +490,24 @@ const handleParamExec = async () => {
 const indicatorVisible = ref(false);
 const indicatorSaving = ref(false);
 const indicatorForm = reactive({
-  indicatorName: '',
+  name: '',
   formula: '',
-  category: '',
+  indicator_type: '',
   unit: '',
-  targetValue: undefined as number | undefined,
 });
 
 const handleSaveIndicator = async () => {
-  if (!indicatorForm.indicatorName || !indicatorForm.formula) {
+  if (!indicatorForm.name || !indicatorForm.formula) {
     ElMessage.warning('请填写指标名称与计算公式');
     return;
   }
   indicatorSaving.value = true;
   try {
     await createFinancialIndicator({
-      indicatorName: indicatorForm.indicatorName,
+      name: indicatorForm.name,
       formula: indicatorForm.formula,
-      category: indicatorForm.category || undefined,
+      indicator_type: indicatorForm.indicator_type || undefined,
       unit: indicatorForm.unit || undefined,
-      targetValue: indicatorForm.targetValue ?? undefined,
     });
     ElMessage.success(t('common.success'));
     indicatorVisible.value = false;
@@ -553,15 +523,21 @@ const trendVisible = ref(false);
 const trendLoading = ref(false);
 const trendRows = ref<Array<Record<string, unknown>>>([]);
 const trendCols = ref<string[]>([]);
-const trendForm = reactive({ indicator: '', startDate: '', endDate: '' });
+const trendForm = reactive({ indicator_id: '', start_date: '', end_date: '' });
 
 const handleTrendQuery = async () => {
+  const indicatorId = Number(trendForm.indicator_id);
+  if (!indicatorId) {
+    trendRows.value = [];
+    trendCols.value = [];
+    return;
+  }
   trendLoading.value = true;
   try {
     const res = await getFinancialTrends({
-      indicator: trendForm.indicator || undefined,
-      startDate: trendForm.startDate || undefined,
-      endDate: trendForm.endDate || undefined,
+      indicator_id: indicatorId,
+      start_date: trendForm.start_date || undefined,
+      end_date: trendForm.end_date || undefined,
     });
     const trends = res.data.items;
     trendRows.value = trends as unknown as Array<Record<string, unknown>>;
@@ -582,20 +558,20 @@ const viewReport = async (row: FinancialReport) => {
       const detail = res.data;
       const lines = [
         t('financialAnalysis.analysisListTab.detailReportName', {
-          value: detail.reportName || '-',
+          value: detail.name || '-',
         }),
         t('financialAnalysis.analysisListTab.detailReportType', {
-          value: getReportTypeLabel(detail.reportType),
+          value: getReportTypeLabel(detail.indicator_type),
         }),
         t('financialAnalysis.analysisListTab.detailPeriod', { value: detail.period || '-' }),
         t('financialAnalysis.analysisListTab.detailStatus', {
-          value: getStatusLabel(detail.status),
+          value: t(financialStatusLabelKey(detail.status)),
         }),
         t('financialAnalysis.analysisListTab.detailExecutedAt', {
-          value: detail.executedAt || '-',
+          value: detail.executed_at || '-',
         }),
-        t('financialAnalysis.analysisListTab.detailCreatedAt', { value: detail.createdAt || '-' }),
-        t('financialAnalysis.analysisListTab.detailUpdatedAt', { value: detail.updatedAt || '-' }),
+        t('financialAnalysis.analysisListTab.detailCreatedAt', { value: detail.created_at || '-' }),
+        t('financialAnalysis.analysisListTab.detailUpdatedAt', { value: detail.updated_at || '-' }),
       ];
       await ElMessageBox.alert(
         lines.join('\n'),
@@ -616,7 +592,7 @@ const deleteReport = async (row: FinancialReport) => {
   if (row.id === undefined) return;
   try {
     await ElMessageBox.confirm(
-      t('financialAnalysis.analysisListTab.confirmDeleteMessage', { name: row.reportName }),
+      t('financialAnalysis.analysisListTab.confirmDeleteMessage', { name: row.name }),
       t('financialAnalysis.analysisListTab.dialogTitleDeleteConfirm'),
       { type: 'warning' }
     );
