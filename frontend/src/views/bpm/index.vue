@@ -362,6 +362,46 @@
         </el-descriptions>
       </div>
     </el-dialog>
+
+    <el-dialog
+      v-model="transfer.visible"
+      :title="$t('bpm.message.transferTitle')"
+      width="500px"
+      destroy-on-close
+      :aria-label="$t('bpm.message.transferTitle')"
+    >
+      <el-form label-width="100px" :aria-label="$t('bpm.message.transferTitle')">
+        <el-form-item :label="$t('bpm.approval.transferDialog.targetAssignee')">
+          <el-select
+            v-model="transfer.assigneeId"
+            filterable
+            :placeholder="$t('bpm.approval.transferDialog.assigneePlaceholder')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="u in transfer.candidates"
+              :key="u.id"
+              :label="`${u.real_name}（${u.username}）`"
+              :value="u.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('bpm.message.transferComment')">
+          <el-input
+            v-model="transfer.reason"
+            type="textarea"
+            :rows="3"
+            :placeholder="$t('bpm.approval.transferDialog.commentPlaceholder')"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="transfer.visible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="transfer.loading" @click="confirmTransfer">
+          {{ $t('common.confirm') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -393,6 +433,7 @@ import type {
   BPMTaskStatus,
 } from '@/api/bpm';
 import { useUserStore } from '@/store/user';
+import { getUserList, type User } from '@/api/user';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -743,24 +784,56 @@ const handleDetail = async (row: BPMTask) => {
   }
 };
 
+const transfer = reactive<{
+  visible: boolean;
+  taskId: number;
+  assigneeId?: number;
+  reason: string;
+  candidates: User[];
+  loading: boolean;
+}>({
+  visible: false,
+  taskId: 0,
+  assigneeId: undefined,
+  reason: '',
+  candidates: [],
+  loading: false,
+});
+
 const handleTransfer = async (row: BPMTask) => {
+  transfer.taskId = row.id;
+  transfer.assigneeId = undefined;
+  transfer.reason = '';
+  transfer.visible = true;
   try {
-    const { value: targetUserId } = await ElMessageBox.prompt(
-      t('bpm.message.transferPrompt'),
-      t('bpm.message.transferTitle'),
-      {
-        type: 'info',
-        inputPattern: /^\d+$/,
-        inputErrorMessage: t('bpm.message.transferUserIdInvalid'),
-      }
-    );
-    // 任务主键为 id（models/bpm_task.rs:13）；transferBpmTask 三参对齐后端
+    const res = await getUserList({ page: 1, page_size: 200 });
+    transfer.candidates = res.data.users;
+  } catch (e) {
+    // 候选人取不到时不猜接收人：清空列表并显式报错，避免退化成手填内部 ID。
+    transfer.candidates = [];
+    logger.error(String(e));
+    ElMessage.error(t('message.loadFailed'));
+  }
+};
+
+/** 提交转办：接收人必选（后端 new_assignee_id: i32），转交意见按操作者所填原样提交 */
+const confirmTransfer = async () => {
+  if (transfer.assigneeId === undefined) {
+    ElMessage.warning(t('bpm.approval.transferDialog.assigneeRequired'));
+    return;
+  }
+  transfer.loading = true;
+  try {
+    // 任务主键为 id（models/bpm_task.rs:13）；三参对齐后端
     // TransferTaskRequest { new_assignee_id, transfer_reason }（handlers/bpm_handler.rs:214-217）
-    await transferBpmTask(row.id, parseInt(targetUserId), t('bpm.message.transferComment'));
+    await transferBpmTask(transfer.taskId, transfer.assigneeId, transfer.reason);
     ElMessage.success(t('bpm.message.transferSuccess'));
+    transfer.visible = false;
     fetchPendingTasks();
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e));
+    logger.error(String(e));
+  } finally {
+    transfer.loading = false;
   }
 };
 
