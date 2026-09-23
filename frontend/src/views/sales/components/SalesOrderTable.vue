@@ -98,7 +98,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               link: true,
               onClick: () => emit('detail', row),
             },
-            { default: () => t('common.detail') || '详情' }
+            { default: () => t('common.detail') }
           )
         );
       }
