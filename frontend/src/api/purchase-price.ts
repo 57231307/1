@@ -1,25 +1,32 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
+// 列表/详情出参 = 后端 purchase_price::Model（services/purchase_price_service.rs get_prices_list/get_price）。
+// status 由写入方决定：建单写 master_data::PENDING、批准写 APPROVED（purchase_price_service.rs:101/137），
+// 词表模块 models/status/general.rs 的 master_data（小写）。表内无产品/供应商名称列，需后端 JOIN。
 export interface PurchasePrice {
   id: number;
   product_id: number;
-  product_name: string;
-  product_code: string;
   supplier_id: number;
-  supplier_name: string;
   price: number;
   currency: string;
   unit: string;
-  min_order_qty?: number;
-  price_type?: string;
+  min_order_qty: number;
+  price_type: string;
   effective_date: string;
-  expiry_date: string;
-  status: 'active' | 'inactive';
-  remark: string;
-  remarks?: string;
+  expiry_date: string | null;
+  status: string;
+  approved_by: number | null;
+  approved_at: string | null;
+  created_by: number | null;
   created_at: string;
   updated_at: string;
+  /** 需要后端 JOIN：purchase_prices.product_id -> products.product_name（表内无名列） */
+  product_name?: string | null;
+  /** 需要后端 JOIN：purchase_prices.product_id -> products.product_code（表内无编码列） */
+  product_code?: string | null;
+  /** 需要后端 JOIN：purchase_prices.supplier_id -> suppliers.supplier_name（表内无名列） */
+  supplier_name?: string | null;
 }
 
 /**

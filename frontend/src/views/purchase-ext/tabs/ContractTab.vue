@@ -29,17 +29,17 @@
           min-width="150"
         />
         <el-table-column
-          prop="contract_date"
+          prop="signed_date"
           :label="t('purchaseExt.contractTab.colContractDate')"
           width="120"
         />
         <el-table-column
-          prop="start_date"
+          prop="effective_date"
           :label="t('purchaseExt.contractTab.colStartDate')"
           width="120"
         />
         <el-table-column
-          prop="end_date"
+          prop="expiry_date"
           :label="t('purchaseExt.contractTab.colEndDate')"
           width="120"
         />
@@ -84,7 +84,7 @@
             >
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
-              v-if="row.status === 'draft'"
+              v-if="row.status === PURCHASE_CONTRACT_STATUS.DRAFT"
               v-permission="'purchase_contract:update'"
               size="small"
               link
@@ -92,7 +92,7 @@
               >{{ t('purchaseExt.contractTab.edit') }}</el-button
             >
             <el-button
-              v-if="row.status === 'draft'"
+              v-if="row.status === PURCHASE_CONTRACT_STATUS.DRAFT"
               size="small"
               link
               type="success"
@@ -100,7 +100,7 @@
               >{{ t('purchaseExt.contractTab.approve') }}</el-button
             >
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === PURCHASE_CONTRACT_STATUS.ACTIVE"
               size="small"
               link
               type="warning"
@@ -108,7 +108,10 @@
               >{{ t('purchaseExt.contractTab.execute') }}</el-button
             >
             <el-button
-              v-if="['draft', 'pending'].includes(row.status)"
+              v-if="
+                row.status === PURCHASE_CONTRACT_STATUS.DRAFT ||
+                row.status === PURCHASE_CONTRACT_STATUS.ACTIVE
+              "
               size="small"
               link
               type="danger"
@@ -315,10 +318,11 @@
           currentContract?.supplier_name
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseExt.contractTab.colContractDate')">{{
-          currentContract?.contract_date
+          currentContract?.signed_date
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseExt.contractTab.viewEffectiveDate')"
-          >{{ currentContract?.start_date }} ~ {{ currentContract?.end_date }}</el-descriptions-item
+          >{{ currentContract?.effective_date }} ~
+          {{ currentContract?.expiry_date }}</el-descriptions-item
         >
         <el-descriptions-item :label="t('purchaseExt.contractTab.currency')">{{
           currentContract?.currency
@@ -416,6 +420,13 @@ import {
   type PurchaseContract,
   type ContractItem as PurchaseContractItem,
 } from '@/api/purchase-contract';
+// 合同状态词表统一取自 purchase-contract 域（后端仅 draft/active/cancelled）
+import {
+  getStatusType,
+  getStatusLabel,
+  PURCHASE_CONTRACT_STATUS,
+  type PurchaseContractTagType,
+} from '@/views/purchase-contract/composables/pcFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -426,27 +437,10 @@ const formatMoney = (amount: number | undefined) => {
   return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
 };
 
-const getContractStatusLabel = (status?: string) => {
-  const map: Record<string, string> = {
-    draft: t('purchaseExt.contractTab.statusDraft'),
-    pending: t('purchaseExt.contractTab.statusPending'),
-    active: t('purchaseExt.contractTab.statusActive'),
-    completed: t('purchaseExt.contractTab.statusCompleted'),
-    cancelled: t('purchaseExt.contractTab.statusCancelled'),
-  };
-  return map[status || ''] || status || '';
-};
+const getContractStatusLabel = (status?: string) => (status ? getStatusLabel(status) : '');
 
-const getContractStatusType = (status?: string) => {
-  const map: Record<string, string> = {
-    draft: 'info',
-    pending: 'warning',
-    active: 'primary',
-    completed: 'success',
-    cancelled: 'danger',
-  };
-  return map[status || ''] || 'info';
-};
+const getContractStatusType = (status?: string): PurchaseContractTagType =>
+  status ? getStatusType(status) : 'info';
 
 const fetchPurchaseContracts = async () => {
   contractLoading.value = true;

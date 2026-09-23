@@ -1,22 +1,41 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
+// 列表/详情出参 = 后端 purchase_inspection::Model（services/purchase_inspection_service.rs:202/229）。
+// 键为实体 snake_case；inspection_status 词表仅 pending/completed（models/status/purchase_inventory.rs:114）。
+// receipt_no/supplier_name/inspector_name 实体不提供，需后端 JOIN，列已保留（见注释）。
 export interface PurchaseInspection {
   id?: number;
   inspection_no: string;
-  receipt_id?: number;
-  receipt_no?: string;
-  supplier_id?: number;
-  supplier_name?: string;
+  receipt_id: number | null;
+  order_id: number | null;
+  supplier_id: number;
   inspection_date: string;
-  status: 'draft' | 'pending' | 'completed' | 'rejected';
-  inspector_id?: number;
-  inspector_name?: string;
-  result?: 'pass' | 'fail' | 'partial';
-  remark?: string;
+  inspector_id: number | null;
+  inspection_type: string | null;
+  sample_size: number | null;
+  defect_count: number | null;
+  pass_quantity: number | null;
+  reject_quantity: number | null;
+  inspection_status: string | null;
+  inspection_result: string | null;
+  quality_score: number | null;
+  defect_description: string | null;
+  attachment_urls: string | null;
+  /** 后端 purchase_inspection.notes（备注） */
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  completed_by: number | null;
+  /** 需要后端 JOIN：purchase_inspection.receipt_id -> purchase_receipt.receipt_no（Model 无该列） */
+  receipt_no?: string | null;
+  /** 需要后端 JOIN：purchase_inspection.supplier_id -> suppliers.supplier_name（Model 无该列） */
+  supplier_name?: string | null;
+  /** 需要后端 JOIN：purchase_inspection.inspector_id -> users 姓名（Model 无该列） */
+  inspector_name?: string | null;
+  /** get_inspection 仅返回单条 Model、不含明细；明细需另调 /inspections/:id/items，列已保留 */
   items?: PurchaseInspectionItem[];
-  created_at?: string;
-  updated_at?: string;
 }
 
 export interface PurchaseInspectionItem {

@@ -66,22 +66,22 @@ import { formatCurrency, getStatusType } from '../composables/pcFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 详情数据类型
+// 详情数据类型（对齐后端 purchase_contract::Model 可空列）
 interface PcViewData {
   contract_no?: string;
   contract_name?: string;
-  supplier_name?: string;
-  contract_type?: string;
-  total_amount?: number;
-  signed_date?: string;
-  effective_date?: string;
-  expiry_date?: string;
-  payment_terms?: string;
-  payment_method?: string;
-  delivery_date?: string;
-  delivery_location?: string;
+  supplier_name?: string | null;
+  contract_type?: string | null;
+  total_amount?: number | null;
+  signed_date?: string | null;
+  effective_date?: string | null;
+  expiry_date?: string | null;
+  payment_terms?: string | null;
+  payment_method?: string | null;
+  delivery_date?: string | null;
+  delivery_location?: string | null;
   status?: string;
-  remarks?: string;
+  remarks?: string | null;
 }
 
 /**

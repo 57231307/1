@@ -1,37 +1,51 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
+// 列表/详情出参 = 后端 purchase_contract::Model（services/purchase_contract_service.rs get_list/get_by_id）。
+// 键为实体 snake_case；status 词表 draft/active/cancelled（models/status/bpm_crm_contract.rs:34 contract）。
+// supplier_name/contract_name/total_amount/signed_date/effective_date/expiry_date/payment_terms 均为真实列。
+// 注：contract 表无 created_by 姓名列、无 currency/delivery_terms/明细，历史前端按这些自创键读取 ⇒ 恒空。
 export interface PurchaseContract {
   id: number;
   contract_no: string;
+  contract_name: string;
+  contract_type: string | null;
   supplier_id: number;
-  supplier_name: string;
-  contract_date: string;
-  start_date: string;
-  end_date: string;
-  total_amount: number;
-  currency: string;
-  status: 'draft' | 'pending' | 'active' | 'completed' | 'cancelled';
-  items: ContractItem[];
-  payment_terms: string;
-  delivery_terms: string;
+  supplier_name: string | null;
+  total_amount: number | null;
+  signed_date: string | null;
+  effective_date: string | null;
+  expiry_date: string | null;
+  payment_terms: string | null;
+  payment_method: string | null;
+  delivery_date: string | null;
+  delivery_location: string | null;
+  status: string;
   created_by: number;
-  created_by_name: string;
   created_at: string;
   updated_at: string;
+  /** 需要后端 JOIN：purchase_contracts.created_by -> users 姓名（Model 无该列） */
+  created_by_name?: string | null;
+  /** 需要后端字段：purchase_contracts 无 currency 列（模型确认，见 backend/src/models/purchase_contract.rs） */
+  currency?: string | null;
+  /** 需要后端字段：purchase_contracts 无 delivery_terms 列（仅有 delivery_location） */
+  delivery_terms?: string | null;
+  /** get_contract 仅返回单条 Model、不含明细；后端无合同明细表，列已保留 */
+  items?: ContractItem[];
 }
 
+// 合同明细：后端无对应表/端点，保留供建单表单结构；字段命名对齐建单入参，非响应契约。
 export interface ContractItem {
   id: number;
   contract_id: number;
   product_id: number;
-  product_name: string;
-  product_code: string;
+  product_name?: string | null;
+  product_code?: string | null;
   quantity: number;
   unit: string;
   price: number;
   amount: number;
-  remark: string;
+  remark?: string | null;
 }
 
 // 后端 purchase_contract_handler::ContractQuery（list_contracts 的 Query<T>，全字段 Option、snake_case）

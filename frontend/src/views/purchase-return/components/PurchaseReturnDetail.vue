@@ -12,30 +12,30 @@
   >
     <el-descriptions :column="2" border>
       <el-descriptions-item :label="t('purchaseReturn.detail.label.returnNo')">{{
-        detailData.returnNo
+        detailData.return_no
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchaseReturn.detail.label.purchaseOrderNo')">{{
-        detailData.purchaseOrderNo
+        detailData.purchase_order_no
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchaseReturn.detail.label.supplier')">{{
-        detailData.supplierName
+        detailData.supplier_name
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchaseReturn.detail.label.returnDate')">{{
-        detailData.returnDate
+        detailData.return_date
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchaseReturn.detail.label.returnAmount')">
-        <span class="amount">¥{{ detailData.totalAmount || 0 }}</span>
+        <span class="amount">¥{{ detailData.total_amount }}</span>
       </el-descriptions-item>
       <el-descriptions-item :label="t('purchaseReturn.detail.label.status')">
-        <el-tag :type="getStatusType(detailData.status || '')">
-          {{ getStatusText(detailData.status || '') }}
+        <el-tag :type="getStatusType(detailData.return_status)">
+          {{ getStatusText(detailData.return_status) }}
         </el-tag>
       </el-descriptions-item>
       <el-descriptions-item :label="t('purchaseReturn.detail.label.reason')" :span="2">
-        {{ detailData.reason || '-' }}
+        {{ detailData.reason_detail }}
       </el-descriptions-item>
       <el-descriptions-item :label="t('purchaseReturn.detail.label.remarks')" :span="2">
-        {{ detailData.remarks || '-' }}
+        {{ detailData.notes }}
       </el-descriptions-item>
     </el-descriptions>
 
@@ -46,27 +46,27 @@
       :aria-label="t('purchaseReturn.detail.aria.itemsTable')"
     >
       <el-table-column
-        prop="productName"
+        prop="material_name"
         :label="t('purchaseReturn.detail.column.productName')"
         min-width="150"
       />
       <el-table-column
-        prop="quantity"
+        prop="quantity_returned"
         :label="t('purchaseReturn.detail.column.quantity')"
         width="100"
       />
       <el-table-column
-        prop="unitPrice"
+        prop="unit_price"
         :label="t('purchaseReturn.detail.column.unitPrice')"
         width="100"
       />
       <el-table-column
-        prop="amount"
+        prop="total_amount"
         :label="t('purchaseReturn.detail.column.amount')"
         width="120"
       />
       <el-table-column
-        prop="reason"
+        prop="notes"
         :label="t('purchaseReturn.detail.column.reason')"
         min-width="150"
       />

@@ -1,42 +1,74 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
+// 列表/详情出参 = 后端 PurchaseOrderDto（services/po/order.rs:19，handler purchase_order_handler.rs:26）。
+// DTO 键以 snake_case 原样序列化，order_status 经 #[serde(rename="status")] 改名；
+// supplier_name/warehouse_name/department_name 为 LEFT-JOIN 列，DTO 里是 Option ⇒ string | null。
 export interface PurchaseOrder {
   id: number;
   order_no: string;
   supplier_id: number;
-  supplier_name: string;
+  supplier_name: string | null;
   order_date: string;
-  required_date?: string;
-  status: string;
+  expected_delivery_date: string | null;
+  actual_delivery_date: string | null;
+  warehouse_id: number;
+  warehouse_name: string | null;
+  department_id: number;
+  department_name: string | null;
+  purchaser_id: number;
+  currency: string;
+  exchange_rate: number;
   total_amount: number;
-  received_amount?: number;
-  tax_amount?: number;
-  payment_status?: string;
-  contact_person?: string;
-  contact_phone?: string;
-  delivery_address?: string;
-  /** 后端 purchase_orders.notes（备注） */
-  notes?: string;
-  remark?: string;
-  remarks?: string;
-  creator_name?: string;
-  created_at?: string;
+  total_amount_foreign: number;
+  total_quantity: number;
+  total_quantity_alt: number;
+  status: string;
+  payment_terms: string | null;
+  shipping_terms: string | null;
+  /** 后端 PurchaseOrderDto.notes（备注） */
+  notes: string | null;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  /**
+   * 需要后端 JOIN：PurchaseOrderDto 仅有 created_by 数值，无创建人姓名
+   * （backend/src/services/po/order.rs:19）。列已保留，待后端补 created_by -> users 名称。
+   */
+  creator_name?: string | null;
+  /**
+   * 需要后端聚合：PurchaseOrderDto 无 received_amount 字段
+   * （backend/src/services/po/order.rs:19）。列已保留，待后端补该汇总。
+   */
+  received_amount?: number | null;
+  /**
+   * 需要后端字段：PurchaseOrderDto 无 payment_status（backend/src/services/po/order.rs:19）。
+   * 列已保留，待后端确定付款状态来源与词表。
+   */
+  payment_status?: string | null;
   items: PurchaseOrderItem[];
 }
 
+// 详情明细 = 后端 get_order 直接序列化的 purchase_order_item::Model
+// （handlers/purchase_order_handler.rs:116），键为实体 snake_case；
+// 实体只有 product_id，无产品名/编码，需后端 JOIN products 补全（列已保留）。
 export interface PurchaseOrderItem {
   id: number;
+  order_id: number;
+  line_no: number;
   product_id: number;
-  product_name: string;
-  product_code: string;
+  /** 需要后端 JOIN：purchase_order_item.product_id -> products.product_name（Model 无名列） */
+  product_name?: string | null;
+  /** 需要后端 JOIN：purchase_order_item.product_id -> products.product_code（Model 无编码列） */
+  product_code?: string | null;
   quantity: number;
-  unit?: string;
   unit_price: number;
-  tax_rate?: number;
-  tax_amount?: number;
   subtotal: number;
-  received_quantity?: number;
+  tax_amount: number;
+  total_amount: number;
+  received_quantity: number;
+  /** 后端 purchase_order_item.notes（备注） */
+  notes?: string | null;
 }
 
 export interface PurchaseOrderQueryParams {

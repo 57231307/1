@@ -60,49 +60,49 @@
         :aria-label="t('purchaseExt.returnTab.listAria')"
       >
         <el-table-column
-          prop="returnNo"
+          prop="return_no"
           :label="t('purchaseExt.returnTab.colReturnNo')"
           width="140"
         />
         <el-table-column
-          prop="supplierName"
+          prop="supplier_name"
           :label="t('purchaseExt.returnTab.colSupplier')"
           min-width="150"
         />
         <el-table-column
-          prop="purchaseOrderNo"
+          prop="purchase_order_no"
           :label="t('purchaseExt.returnTab.colOrderNo')"
           width="140"
         />
         <el-table-column
-          prop="returnDate"
+          prop="return_date"
           :label="t('purchaseExt.returnTab.colReturnDate')"
           width="120"
         />
         <el-table-column
-          prop="totalAmount"
+          prop="total_amount"
           :label="t('purchaseExt.returnTab.colTotalAmount')"
           width="120"
           align="right"
         >
           <template #default="{ row }">
-            {{ formatMoney(row.totalAmount) }}
+            {{ formatMoney(row.total_amount) }}
           </template>
         </el-table-column>
         <el-table-column
-          prop="status"
+          prop="return_status"
           :label="t('purchaseExt.returnTab.colStatus')"
           width="100"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="getReturnStatusType(row.status)" size="small">
-              {{ getReturnStatusLabel(row.status) }}
+            <el-tag :type="getReturnStatusType(row.return_status)" size="small">
+              {{ getReturnStatusLabel(row.return_status) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column
-          prop="createdBy"
+          prop="created_by_name"
           :label="t('purchaseExt.returnTab.colCreator')"
           width="100"
         />
@@ -113,7 +113,7 @@
             }}</el-button>
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
-              v-if="row.status === 'draft'"
+              v-if="row.return_status === PURCHASE_RETURN_STATUS.DRAFT"
               v-permission="'purchase_return:update'"
               size="small"
               link
@@ -282,34 +282,34 @@
     >
       <el-descriptions :column="2" border :aria-label="t('purchaseExt.returnTab.viewDetailAria')">
         <el-descriptions-item :label="t('purchaseExt.returnTab.returnNo')">{{
-          currentReturn?.returnNo
+          currentReturn?.return_no
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseExt.returnTab.colSupplier')">{{
-          currentReturn?.supplierName
+          currentReturn?.supplier_name
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseExt.returnTab.relatedOrder')">{{
-          currentReturn?.purchaseOrderNo
+          currentReturn?.purchase_order_no
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseExt.returnTab.returnDate')">{{
-          currentReturn?.returnDate
+          currentReturn?.return_date
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseExt.returnTab.colTotalAmount')">{{
-          formatMoney(currentReturn?.totalAmount || 0)
+          formatMoney(currentReturn?.total_amount ?? 0)
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseExt.returnTab.colStatus')">
-          <el-tag :type="getReturnStatusType(currentReturn?.status)">
-            {{ getReturnStatusLabel(currentReturn?.status) }}
+          <el-tag :type="getReturnStatusType(currentReturn?.return_status)">
+            {{ getReturnStatusLabel(currentReturn?.return_status) }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item :label="t('purchaseExt.returnTab.colCreator')">{{
-          currentReturn?.createdBy
+          currentReturn?.created_by_name
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseExt.returnTab.approver')">{{
           currentReturn?.approved_by
         }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>{{ t('purchaseExt.returnTab.reasonDivider') }}</el-divider>
-      <p>{{ currentReturn?.reason }}</p>
+      <p>{{ currentReturn?.reason_detail }}</p>
       <el-divider>{{ t('purchaseExt.returnTab.detailDivider') }}</el-divider>
       <el-table
         :data="currentReturn?.items || []"
@@ -317,44 +317,44 @@
         :aria-label="t('purchaseExt.returnTab.detailListAria')"
       >
         <el-table-column
-          prop="productName"
+          prop="material_name"
           :label="t('purchaseExt.returnTab.colProductName')"
           min-width="150"
         />
         <el-table-column
-          prop="productCode"
+          prop="material_code"
           :label="t('purchaseExt.returnTab.colProductCode')"
           width="120"
         />
         <el-table-column
-          prop="quantity"
+          prop="quantity_returned"
           :label="t('purchaseExt.returnTab.colQuantity')"
           width="100"
           align="right"
         />
         <el-table-column prop="unit" :label="t('purchaseExt.returnTab.colUnit')" width="80" />
         <el-table-column
-          prop="price"
+          prop="unit_price"
           :label="t('purchaseExt.returnTab.colPrice')"
           width="100"
           align="right"
         >
           <template #default="{ row }">
-            {{ formatMoney(row.price) }}
+            {{ formatMoney(row.unit_price) }}
           </template>
         </el-table-column>
         <el-table-column
-          prop="amount"
+          prop="total_amount"
           :label="t('purchaseExt.returnTab.colAmount')"
           width="100"
           align="right"
         >
           <template #default="{ row }">
-            {{ formatMoney(row.amount) }}
+            {{ formatMoney(row.total_amount) }}
           </template>
         </el-table-column>
         <el-table-column
-          prop="reason"
+          prop="notes"
           :label="t('purchaseExt.returnTab.colReason')"
           min-width="120"
         />
@@ -377,6 +377,13 @@ import {
   type PurchaseReturn,
   type PurchaseReturnItem,
 } from '@/api/purchase-return';
+import {
+  PURCHASE_RETURN_STATUS,
+  normalizePurchaseReturnStatus,
+  purchaseReturnStatusLabelKey,
+  purchaseReturnStatusTagType,
+  type PurchaseReturnTagType,
+} from '@/utils/purchase-return-status';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -393,27 +400,11 @@ const formatMoney = (amount: number | undefined) => {
   return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
 };
 
-const getReturnStatusLabel = (status?: string) => {
-  const map: Record<string, string> = {
-    draft: t('purchaseExt.returnTab.statusDraft'),
-    pending: t('purchaseExt.returnTab.statusPending'),
-    approved: t('purchaseExt.returnTab.statusApproved'),
-    rejected: t('purchaseExt.returnTab.statusRejected'),
-    completed: t('purchaseExt.returnTab.statusCompleted'),
-  };
-  return map[status || ''] || status || '';
-};
+const getReturnStatusLabel = (status: string | null | undefined) =>
+  status ? t(purchaseReturnStatusLabelKey(normalizePurchaseReturnStatus(status))) : '';
 
-const getReturnStatusType = (status?: string) => {
-  const map: Record<string, string> = {
-    draft: 'info',
-    pending: 'warning',
-    approved: 'success',
-    rejected: 'danger',
-    completed: 'success',
-  };
-  return map[status || ''] || 'info';
-};
+const getReturnStatusType = (status: string | null | undefined): PurchaseReturnTagType =>
+  status ? purchaseReturnStatusTagType(status) : 'info';
 
 const fetchPurchaseReturns = async () => {
   returnLoading.value = true;
@@ -492,7 +483,7 @@ const openReturnDialog = async (row?: PurchaseReturn) => {
           price: 0,
           amount: 0,
           reason: '',
-        },
+        } as unknown as PurchaseReturnItem,
       ],
     });
   }
@@ -542,7 +533,7 @@ const addReturnItem = () => {
     quantity: 0,
     unitPrice: 0,
     reason: '',
-  } as PurchaseReturnItem);
+  } as unknown as PurchaseReturnItem);
 };
 
 const removeReturnItem = (index: number) => {

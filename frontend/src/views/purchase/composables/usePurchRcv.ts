@@ -21,7 +21,7 @@ export type ReceiveItem = PurchaseOrderItem & {
 export interface ReceiveFormData {
   order_id: number;
   order_no: string;
-  supplier_name: string;
+  supplier_name: string | null;
   receive_date: string;
   warehouse_id: number | undefined;
   items: ReceiveItem[];

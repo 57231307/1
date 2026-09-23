@@ -23,18 +23,20 @@ import {
 } from '@/utils/purchase-status';
 
 /**
- * 付款状态对应的 el-tag 类型与文本
- * 订单状态的词表与配色出自 utils/purchase-status（与后端 purchase_order.order_status 原值一致）
+ * 付款状态对应的 el-tag 类型与文案键
+ * 订单状态的词表与配色出自 utils/purchase-status（与后端 purchase_order.order_status 原值一致）。
+ * payment_status 后端 PurchaseOrderDto 不提供（见下方说明），本列取值来源待定，暂按前端既有
+ * unpaid/partial/paid 三态映射；文案一律走 i18n（键 purchase.paymentStatus.*），禁止裸中文。
  */
 const paymentTypeMap: Record<string, PurchaseTagType> = {
   unpaid: 'danger',
   partial: 'warning',
   paid: 'success',
 };
-const paymentTextMap: Record<string, string> = {
-  unpaid: '未付款',
-  partial: '部分付款',
-  paid: '已付款',
+const paymentLabelKeyMap: Record<string, string> = {
+  unpaid: 'purchase.paymentStatus.unpaid',
+  partial: 'purchase.paymentStatus.partial',
+  paid: 'purchase.paymentStatus.paid',
 };
 
 /**
@@ -96,9 +98,12 @@ export function usePurchList() {
     paymentTypeMap[status] ?? 'info';
 
   /**
-   * 付款状态显示文本
+   * 付款状态显示文本（走 i18n 键 purchase.paymentStatus.*，未知/缺值返回空串而非裸枚举）
    */
-  const getPaymentStatusText = (status: string) => paymentTextMap[status] || status;
+  const getPaymentStatusText = (status: string) => {
+    const key = paymentLabelKeyMap[status];
+    return key ? i18n.global.t(key) : '';
+  };
 
   /**
    * 获取采购单列表

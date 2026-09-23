@@ -19,7 +19,7 @@
       />
       <el-table-column prop="order_date" :label="t('purchase.table.colOrderDate')" width="120" />
       <el-table-column
-        prop="required_date"
+        prop="expected_delivery_date"
         :label="t('purchase.table.colRequiredDate')"
         width="120"
       />
@@ -40,7 +40,7 @@
         align="right"
       >
         <template #default="{ row }">
-          <span>¥{{ (row.received_amount || 0).toLocaleString() }}</span>
+          <span>¥{{ row.received_amount }}</span>
         </template>
       </el-table-column>
       <el-table-column

@@ -121,14 +121,19 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
     try {
       await createPurchaseOrder({
         ...createForm.value,
-        items: validItems.map(item => ({
+        items: validItems.map((item, idx) => ({
           id: 0,
+          order_id: 0,
+          line_no: idx + 1,
           product_id: item.product_id!,
           product_name: '',
           product_code: '',
           quantity: item.quantity,
           unit_price: item.unit_price,
           subtotal: item.subtotal,
+          tax_amount: 0,
+          total_amount: item.subtotal,
+          received_quantity: 0,
         })),
         total_amount: calculateTotal(),
       });

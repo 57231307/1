@@ -62,10 +62,10 @@ import {
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 查看详情数据类型
+// 查看详情数据类型（对齐后端 purchase_price::Model 可空列；product_name/supplier_name 为待补 JOIN 列）
 interface PpViewData {
-  product_name?: string;
-  supplier_name?: string;
+  product_name?: string | null;
+  supplier_name?: string | null;
   price?: number;
   currency?: string;
   unit?: string;
@@ -73,8 +73,8 @@ interface PpViewData {
   price_type?: string;
   status?: string;
   effective_date?: string;
-  expiry_date?: string;
-  remarks?: string;
+  expiry_date?: string | null;
+  remarks?: string | null;
 }
 
 /**

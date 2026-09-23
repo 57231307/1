@@ -24,6 +24,20 @@ import {
 import { useTableApi } from '@/composables/useTableApi';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
+import { PURCHASE_RETURN_STATUS } from '@/utils/purchase-return-status';
+
+/**
+ * 退货明细表单行（编辑态本地结构）：提交时经 mapItemPayload 映射为后端 Create/UpdateReturnItemRequest，
+ * 读取时经 normalizeItem 从后端 PurchaseReturnItemDto 归一化而来，与响应契约解耦。
+ */
+export interface ReturnFormItem {
+  id?: number;
+  productId?: number;
+  productName?: string;
+  quantity: number;
+  unitPrice?: number;
+  reason?: string;
+}
 
 /**
  * 采购退货 composable
@@ -43,7 +57,7 @@ export function usePrRtn() {
   const dateRange = ref<[Date, Date] | null>(null);
 
   // 列表数据接入 useTableApi
-  // 采购退货 API 使用 camelCase 分页参数（pageSize），需显式配置 pageSizeKey
+  // 分页/筛选参数键与后端 ReturnQueryParams 同名：page/page_size/status/supplier_id
   const {
     data: tableData,
     total,
@@ -57,13 +71,12 @@ export function usePrRtn() {
     listKey: 'items',
     defaultPageSize: 20,
     pageKey: 'page',
-    pageSizeKey: 'pageSize',
     defaultParams: {
       keyword: '',
-      supplierId: undefined as number | undefined,
+      supplier_id: undefined as number | undefined,
       status: '',
-      startDate: '',
-      endDate: '',
+      start_date: '',
+      end_date: '',
     },
     onError: (err: unknown) => {
       logger.error('获取数据失败:', err);
@@ -75,9 +88,13 @@ export function usePrRtn() {
     [tableData, total],
     () => {
       stats.total = total.value;
-      stats.pending = tableData.value.filter(i => i.status === 'pending').length;
-      stats.approved = tableData.value.filter(i => i.status === 'approved').length;
-      stats.amount = tableData.value.reduce((sum, i) => sum + (i.totalAmount || 0), 0);
+      stats.pending = tableData.value.filter(
+        i => i.return_status === PURCHASE_RETURN_STATUS.SUBMITTED
+      ).length;
+      stats.approved = tableData.value.filter(
+        i => i.return_status === PURCHASE_RETURN_STATUS.APPROVED
+      ).length;
+      stats.amount = tableData.value.reduce((sum, i) => sum + (i.total_amount || 0), 0);
     },
     { deep: false }
   );
@@ -100,7 +117,7 @@ export function usePrRtn() {
     reasonType: 'quality',
     reason: '',
     remarks: '',
-    items: [] as Partial<PurchaseReturnItem>[],
+    items: [] as ReturnFormItem[],
   });
 
   // 表单校验规则
@@ -116,19 +133,19 @@ export function usePrRtn() {
   // 懒加载标记
   const hasLoaded = createLazyLoader();
 
-  /** 同步 dateRange 到 queryParams.startDate/endDate */
+  /** 同步 dateRange 到 queryParams.start_date/end_date */
   const syncDateRangeToQuery = () => {
     if (dateRange.value) {
       queryParams.value = {
         ...queryParams.value,
-        startDate: dateRange.value[0].toISOString(),
-        endDate: dateRange.value[1].toISOString(),
+        start_date: dateRange.value[0].toISOString(),
+        end_date: dateRange.value[1].toISOString(),
       };
     } else {
       queryParams.value = {
         ...queryParams.value,
-        startDate: '',
-        endDate: '',
+        start_date: '',
+        end_date: '',
       };
     }
   };
@@ -174,10 +191,10 @@ export function usePrRtn() {
     queryParams.value = {
       ...queryParams.value,
       keyword: '',
-      supplierId: undefined,
+      supplier_id: undefined,
       status: '',
-      startDate: '',
-      endDate: '',
+      start_date: '',
+      end_date: '',
     };
     dateRange.value = null;
     page.value = 1;
@@ -206,22 +223,23 @@ export function usePrRtn() {
   const prepareEdit = (row: PurchaseReturn) => {
     Object.assign(formData, {
       id: row.id,
-      purchaseOrderId: row.purchaseOrderId,
-      supplierId: (row as unknown as { supplier_id?: number }).supplier_id,
-      returnDate: row.returnDate,
-      reasonType: (row as unknown as { reason_type?: string }).reason_type || 'quality',
-      reason: row.reason,
-      items: (row.items || []).map(it => normalizeItem(it as unknown as Record<string, unknown>)),
+      purchaseOrderId: row.order_id ?? undefined,
+      supplierId: row.supplier_id,
+      returnDate: row.return_date,
+      reasonType: row.reason_type || 'quality',
+      reason: row.reason_detail ?? '',
+      items: (row.items || []).map(it => normalizeItem(it)),
     });
   };
 
-  /** 获取详情（后端 snake_case 明细归一化为前端 camelCase，供编辑/详情直接使用） */
-  const normalizeItem = (raw: Record<string, unknown>): Partial<PurchaseReturnItem> => ({
-    id: raw.id as number,
-    productId: (raw.product_id ?? raw.material_id) as number,
-    productName: (raw.product_name ?? raw.material_name) as string,
-    quantity: (raw.quantity ?? raw.quantity_returned) as number,
-    unitPrice: (raw.unit_price ?? 0) as number,
+  /** 获取详情（后端 PurchaseReturnItemDto snake_case 归一化为表单本地结构，供编辑直接使用） */
+  const normalizeItem = (raw: PurchaseReturnItem): ReturnFormItem => ({
+    id: raw.id,
+    productId: raw.material_id,
+    productName: raw.material_name ?? undefined,
+    quantity: raw.quantity_returned,
+    unitPrice: raw.unit_price,
+    reason: raw.notes ?? undefined,
   });
 
   const fetchDetail = async (id: number) => {
@@ -263,7 +281,7 @@ export function usePrRtn() {
   };
 
   /** 产品变化（联动单价/名称） */
-  const handleProductChange = (row: Partial<PurchaseReturnItem>, productId: number) => {
+  const handleProductChange = (row: ReturnFormItem, productId: number) => {
     const product = products.value.find(p => p.id === productId);
     if (product) {
       row.productName = product.name;
@@ -273,7 +291,7 @@ export function usePrRtn() {
 
   /** 提交表单（新建/编辑；对齐后端契约：Create 含 order_id/supplier_id/reason_type，
    *  items 走 item 级端点；Update 仅 reason_type/reason_detail/notes，PUT 不含 items） */
-  const mapItemPayload = (it: Partial<PurchaseReturnItem>, idx: number) => ({
+  const mapItemPayload = (it: ReturnFormItem, idx: number) => ({
     line_no: idx + 1,
     material_id: it.productId as number,
     quantity_returned: it.quantity ?? 0,

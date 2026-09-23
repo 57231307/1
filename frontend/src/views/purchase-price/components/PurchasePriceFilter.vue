@@ -40,8 +40,9 @@
           clearable
           @change="handleSearch"
         >
-          <el-option :label="t('purchasePrice.filter.status.active')" value="active" />
-          <el-option :label="t('purchasePrice.filter.status.inactive')" value="inactive" />
+          <el-option :label="t('purchasePrice.statusLabels.pending')" value="pending" />
+          <el-option :label="t('purchasePrice.statusLabels.approved')" value="approved" />
+          <el-option :label="t('purchasePrice.statusLabels.inactive')" value="inactive" />
         </el-select>
       </el-form-item>
       <el-form-item>

@@ -65,7 +65,7 @@
             width="150"
           />
           <el-table-column
-            prop="ordered_quantity"
+            prop="quantity"
             :label="t('purchase.receiveDlg.colOrderedQty')"
             width="100"
           />
@@ -79,7 +79,7 @@
               <el-input-number
                 v-model="row.receive_quantity"
                 :min="0"
-                :max="row.ordered_quantity - row.received_quantity"
+                :max="row.quantity - row.received_quantity"
                 size="small"
               />
             </template>

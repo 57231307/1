@@ -109,7 +109,7 @@
             >{{ t('purchaseContract.table.submit') }}</el-button
           >
           <el-button
-            v-if="row.status === 'pending'"
+            v-if="row.status === 'draft'"
             type="success"
             link
             size="small"

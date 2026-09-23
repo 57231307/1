@@ -65,9 +65,9 @@ export function usePi() {
     [tableData, total],
     () => {
       stats.total = total.value;
-      stats.pending = tableData.value.filter(i => i.status === 'pending').length;
-      stats.passed = tableData.value.filter(i => i.result === 'pass').length;
-      stats.failed = tableData.value.filter(i => i.result === 'fail').length;
+      stats.pending = tableData.value.filter(i => i.inspection_status === 'pending').length;
+      stats.passed = tableData.value.filter(i => i.inspection_result === 'pass').length;
+      stats.failed = tableData.value.filter(i => i.inspection_result === 'fail').length;
     },
     { deep: false }
   );

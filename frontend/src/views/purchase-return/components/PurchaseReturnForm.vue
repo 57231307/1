@@ -161,7 +161,7 @@ import { deepClone } from '@/utils';
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance } from 'element-plus';
-import type { PurchaseReturnItem } from '@/api/purchase-return';
+import type { ReturnFormItem } from '../composables/usePrRtn';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -187,7 +187,7 @@ interface FormDataType {
   reasonType?: string;
   reason?: string;
   remarks?: string;
-  items?: Partial<PurchaseReturnItem>[];
+  items?: ReturnFormItem[];
 }
 
 // 表单校验规则类型
@@ -223,7 +223,7 @@ const emit = defineEmits<{
   // 采购订单变化
   (e: 'order-change', orderId: number): void;
   // 产品变化
-  (e: 'product-change', row: Partial<PurchaseReturnItem>, productId: number): void;
+  (e: 'product-change', row: ReturnFormItem, productId: number): void;
   // 添加明细
   (e: 'add-item'): void;
   // 删除明细
@@ -292,7 +292,7 @@ const onOrderChange = (orderId: number) => {
 };
 
 /** 产品变化 */
-const onProductChange = (row: Partial<PurchaseReturnItem>, productId: number) => {
+const onProductChange = (row: ReturnFormItem, productId: number) => {
   emit('product-change', row, productId);
 };
 

@@ -28,17 +28,17 @@
         data.inspector_name
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchaseInspection.detail.label.status')">
-        <el-tag :type="getStatusType(data.status)">
-          {{ getStatusText(data.status) }}
+        <el-tag :type="getStatusType(data.inspection_status)">
+          {{ getStatusText(data.inspection_status) }}
         </el-tag>
       </el-descriptions-item>
       <el-descriptions-item :label="t('purchaseInspection.detail.label.result')">
-        <el-tag v-if="data.result" :type="getResultType(data.result)">
-          {{ getResultText(data.result) }}
+        <el-tag v-if="data.inspection_result" :type="getResultType(data.inspection_result)">
+          {{ getResultText(data.inspection_result) }}
         </el-tag>
       </el-descriptions-item>
       <el-descriptions-item :label="t('purchaseInspection.detail.label.remark')">{{
-        data.remark || '-'
+        data.notes
       }}</el-descriptions-item>
     </el-descriptions>
 

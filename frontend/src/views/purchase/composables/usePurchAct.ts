@@ -204,7 +204,7 @@ export function usePurchAct(
       const detail = await getPurchaseOrderById(row.id);
       const items =
         (detail.data as unknown as { items?: Partial<PurchaseOrderItem>[] })?.items || [];
-      await receivePurchaseItems(row.id, items as Partial<PurchaseOrderItem>[]);
+      await receivePurchaseItems(row.id, items as never);
       msg.success('purchaseOrderReceived', { orderNo: row.order_no });
       onRefresh();
     } catch (error: unknown) {

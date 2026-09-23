@@ -36,10 +36,9 @@
           clearable
           @change="handleSearch"
         >
+          <!-- 状态取值与写入侧词表逐字一致：contract 仅 draft/active/cancelled -->
           <el-option :label="t('purchaseContract.filter.statusDraft')" value="draft" />
-          <el-option :label="t('purchaseContract.filter.statusPending')" value="pending" />
           <el-option :label="t('purchaseContract.filter.statusActive')" value="active" />
-          <el-option :label="t('purchaseContract.filter.statusCompleted')" value="completed" />
           <el-option :label="t('purchaseContract.filter.statusCancelled')" value="cancelled" />
         </el-select>
       </el-form-item>

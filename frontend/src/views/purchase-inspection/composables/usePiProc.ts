@@ -107,7 +107,7 @@ export function usePiProc(cb: PiCallbacks) {
       id: row.id,
       receipt_id: row.receipt_id,
       inspection_date: row.inspection_date,
-      remark: row.remark || '',
+      remark: row.notes ?? '',
       items: row.items || [],
     });
     cb.dialogVisible = true;

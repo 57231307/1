@@ -25,8 +25,8 @@
             :placeholder="t('purchaseExt.priceTab.statusPlaceholder')"
             clearable
           >
-            <el-option :label="t('purchaseExt.priceTab.statusActive')" value="active" />
-            <el-option :label="t('purchaseExt.priceTab.statusInactive')" value="inactive" />
+            <el-option :label="t('purchasePrice.statusLabels.pending')" value="pending" />
+            <el-option :label="t('purchasePrice.statusLabels.approved')" value="approved" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -92,12 +92,8 @@
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{
-                row.status === 'active'
-                  ? t('purchaseExt.priceTab.statusActive')
-                  : t('purchaseExt.priceTab.statusInactive')
-              }}
+            <el-tag :type="getStatusType(row.status)" size="small">
+              {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -217,8 +213,8 @@
             :placeholder="t('purchaseExt.priceTab.statusPlaceholder')"
             style="width: 100%"
           >
-            <el-option :label="t('purchaseExt.priceTab.statusActive')" value="active" />
-            <el-option :label="t('purchaseExt.priceTab.statusInactive')" value="inactive" />
+            <el-option :label="t('purchasePrice.statusLabels.pending')" value="pending" />
+            <el-option :label="t('purchasePrice.statusLabels.approved')" value="approved" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('purchaseExt.priceTab.remark')" prop="remark">
@@ -250,6 +246,12 @@ import {
   updatePurchasePrice,
   type PurchasePrice,
 } from '@/api/purchase-price';
+// 价格状态词表统一取自 purchase-price 域的状态模块（写入侧 pending/approved）
+import {
+  getStatusType,
+  getStatusLabel,
+  PURCHASE_PRICE_STATUS,
+} from '@/views/purchase-price/composables/ppFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -300,7 +302,7 @@ const priceForm = reactive({
   unit: '',
   effective_date: '',
   expiry_date: '',
-  status: 'active' as 'active' | 'inactive',
+  status: PURCHASE_PRICE_STATUS.PENDING,
   remark: '',
 });
 
@@ -335,7 +337,7 @@ const openPriceDialog = async (row?: PurchasePrice) => {
       unit: '',
       effective_date: '',
       expiry_date: '',
-      status: 'active',
+      status: PURCHASE_PRICE_STATUS.PENDING,
       remark: '',
     });
   }
