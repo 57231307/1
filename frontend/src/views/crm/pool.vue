@@ -254,6 +254,9 @@ const {
   setQueryParam,
 } = useTableApi<PoolCustomer>({
   url: '/crm/pool',
+  // 后端 crm_pool_handler::list_pool 返回 json!{items,total,page,page_size}，
+  // 承载列表的键为 items，显式钉住 listKey。
+  listKey: 'items',
   onError: (e: unknown) => logger.warn(t('crmPool.message.loadFailed'), String(e)),
 });
 
@@ -268,7 +271,7 @@ const currentCustomerName = ref('');
 const fetchUsers = async () => {
   try {
     const res = await getUserList();
-    users.value = res.data?.users || [];
+    users.value = res.data.users;
   } catch (error) {
     logAuxLoadFailure(t('crmPool.message.loadUsersFailed'), error);
     users.value = [];

@@ -32,6 +32,8 @@ export function useBpmDf() {
     refresh: fetchDefinitions,
   } = useTableApi<ProcessDefinition>({
     url: '/bpm/definitions',
+    // 后端 page_to_frontend_json 把列表放在顶层键 `list`，显式钉住 listKey。
+    listKey: 'list',
     defaultParams: { keyword: '', category: '' },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : '获取流程定义列表失败';

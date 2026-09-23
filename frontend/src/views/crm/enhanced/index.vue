@@ -884,7 +884,7 @@ const loadAssignmentHistory = async () => {
     // 后端 AssignmentHistoryQuery 的按客户过滤字段是 lead_id（此前误传 customer_id，被 Axum 静默丢弃，
     // 导致分配历史永不受该输入约束）。
     const res = await getCustomerAssignmentHistory({ lead_id: customerId });
-    assignmentHistory.value = res.data?.items ?? res.data?.list ?? res.data?.data ?? [];
+    assignmentHistory.value = res.data.items;
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || '加载分配历史失败');

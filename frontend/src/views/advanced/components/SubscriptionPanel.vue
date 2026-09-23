@@ -188,11 +188,7 @@ async function loadSubscriptions() {
   subLoading.value = true;
   try {
     const res = await getSubscriptionList({ page: 1, page_size: 50 });
-    const data = res.data as unknown as {
-      items?: ReportSubscription[];
-      list?: ReportSubscription[];
-    };
-    subscriptions.value = data?.items ?? data?.list ?? [];
+    subscriptions.value = res.data.items;
   } finally {
     subLoading.value = false;
   }

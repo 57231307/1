@@ -468,11 +468,7 @@ const handleDelete = async (row: OaAnnouncement) => {
 const fetchOptions = async () => {
   try {
     const ures = await getUserList({ page: 1, page_size: 200 });
-    const ud = ures.data as { items?: User[]; list?: User[]; data?: User[] } | undefined;
-    userOptions.value = (ud?.items ||
-      ud?.list ||
-      ud?.data ||
-      (Array.isArray(ud) ? ud : [])) as User[];
+    userOptions.value = ures.data.users;
   } catch (error) {
     logAuxLoadFailure(t('system.oaAnnouncement.message.loadUsersFailed'), error);
   }

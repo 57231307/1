@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PageResult } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 export interface CustomerTag {
   id: number;
@@ -206,6 +206,30 @@ export interface CustomerListQuery {
   keyword?: string;
 }
 
+/**
+ * GET /crm/assignments/history 真实响应载荷（唯一真相：backend
+ * handlers/crm_assignment_handler.rs::list_assignment_history 第 285-288 行，
+ * `json!({"items": items, "total": total})`）。注意后端**只返回 items + total**，
+ * 无 page/page_size，故不复用 PaginatedResponse；承载列表的键只有 items。
+ */
+export interface AssignmentHistoryResult {
+  items: AssignmentRecord[];
+  total: number;
+}
+
+/**
+ * GET /crm/customers/enhanced 真实响应载荷（唯一真相：handlers/crm_customer_handler.rs::list_customers
+ * → services/crm/lead.rs::list_leads 第 155-160 行 `json!({"data": items, "total", "page", "page_size"})`）。
+ * 承载列表的键是 `data`（不是 items/list）。元素形状由后端 crm_lead::Model 序列化决定，
+ * 与前端 CustomerWithTags 存在字段级差异（见交付报告，本轮仅纠正信封键）。
+ */
+export interface CustomerPage {
+  data: CustomerWithTags[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 // 客户列表（含标签、联系人）
 // D14 Batch 5b：原 crmEnhancedApi.getCustomerList 转为风格 B 函数
 
@@ -250,7 +274,7 @@ export const deleteTagFromCustomer = (customerId: number, tagId: number) =>
 // 公海池
 // D14 Batch 5b：原 crmEnhancedApi.getPoolList 转为风格 B 函数
 export const getCustomerPoolList = (params?: PoolQueryParams) =>
-  request.get<ApiResponse<PageResult<PoolCustomer>>>('/crm/pool', { params });
+  request.get<ApiResponse<PaginatedResponse<PoolCustomer>>>('/crm/pool', { params });
 
 // D14 Batch 5b：原 crmEnhancedApi.claimFromPool 转为风格 B 函数
 export const claimCustomerFromPool = (customerId: number) =>
@@ -292,7 +316,7 @@ export const batchAssignCustomers = (data: {
 
 // D14 Batch 5b：原 crmEnhancedApi.getAssignmentHistory 转为风格 B 函数
 export const getCustomerAssignmentHistory = (params?: AssignmentQueryParams) =>
-  request.get<ApiResponse<PageResult<AssignmentRecord>>>('/crm/assignments/history', { params });
+  request.get<ApiResponse<AssignmentHistoryResult>>('/crm/assignments/history', { params });
 
 // D14 Batch 5b：原 crmEnhancedApi.getSalesUsers 转为风格 B 函数
 export const getSalesUserList = () => request.get<ApiResponse<SalesUser[]>>('/crm/sales-users');
@@ -300,9 +324,12 @@ export const getSalesUserList = () => request.get<ApiResponse<SalesUser[]>>('/cr
 // 跟进记录
 // D14 Batch 5b：原 crmEnhancedApi.getFollowUps 转为风格 B 函数
 export const getFollowUpList = (customerId: number, params?: FollowUpListQuery) =>
-  request.get<ApiResponse<PageResult<FollowUpRecord>>>(`/crm/customers/${customerId}/follow-ups`, {
-    params,
-  });
+  request.get<ApiResponse<PaginatedResponse<FollowUpRecord>>>(
+    `/crm/customers/${customerId}/follow-ups`,
+    {
+      params,
+    }
+  );
 
 // D14 Batch 5b：原 crmEnhancedApi.createFollowUp 转为风格 B 函数
 export const createFollowUp = (
@@ -345,7 +372,7 @@ export const deleteCustomerContact = (customerId: number, contactId: number) =>
 
 // D14 Batch 5b：原 crmEnhancedApi.getCustomerList 转为风格 B 函数
 export const getCustomerList = (params?: CustomerListQuery) =>
-  request.get<ApiResponse<PageResult<CustomerWithTags>>>('/crm/customers/enhanced', { params });
+  request.get<ApiResponse<CustomerPage>>('/crm/customers/enhanced', { params });
 
 // D14 Batch 5b：原 crmEnhancedApi.createCustomer 转为风格 B 函数
 export const createCustomer = (data: Partial<CustomerWithTags>) =>

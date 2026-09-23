@@ -335,7 +335,7 @@ const currentRow = ref<LeadRow | null>(null);
 const fetchUsers = async () => {
   try {
     const res = await getUserList();
-    users.value = res.data?.users || [];
+    users.value = res.data.users;
   } catch (error) {
     logAuxLoadFailure(t('crmLeads.message.loadUsersFailed'), error);
     users.value = [];

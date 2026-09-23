@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PageResult } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface ProcessDefinition {
   id: number;
@@ -114,13 +114,54 @@ export interface ApprovalChainNode {
   due_time?: string | null;
 }
 
+/**
+ * GET /bpm/definitions 真实响应载荷（唯一真相：backend
+ * handlers/bpm_definition_handler.rs::page_to_frontend_json 第 48-63 行）。
+ * 后端把 PageResponse.data 映射为顶层键 `list`，并带 total/page/page_size/total_pages，
+ * 承载列表的键**只有** list —— 不使用 PageResult 的万能四键。
+ */
+export interface ProcessDefinitionPage {
+  list: ProcessDefinition[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+/**
+ * GET /bpm/templates 真实响应载荷：与 definitions 同一 page_to_frontend_json 构造，
+ * 承载列表的键为 `list`。
+ */
+export interface ProcessTemplatePage {
+  list: ProcessTemplate[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+/**
+ * GET /bpm/tasks/pending、/bpm/tasks/completed 真实响应载荷（唯一真相：
+ * handlers/bpm_handler.rs::get_pending_tasks/get_completed_tasks 调
+ * services/bpm_ops/task.rs::query_user_tasks 返回 PageResponse<bpm_task::Model>，
+ * models/dto/mod.rs:49 序列化为 {total,page,page_size,total_pages,data}）。
+ * 与 definitions/templates 不同：此处承载列表的键是 `data`（后端未做 list 映射）。
+ */
+export interface ApprovalTaskPage {
+  data: ApprovalTask[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 // D14 Batch 5b：原 bpmEnhancedApi.listDefinitions 转为风格 B 函数
 export const getBpmDefinitionList = (params?: {
   page?: number;
   page_size?: number;
   category?: string;
   keyword?: string;
-}) => request.get<ApiResponse<PageResult<ProcessDefinition>>>('/bpm/definitions', { params });
+}) => request.get<ApiResponse<ProcessDefinitionPage>>('/bpm/definitions', { params });
 
 // D14 Batch 5b：原 bpmEnhancedApi.getDefinition 转为风格 B 函数
 export const getBpmDefinitionById = (id: number) =>
@@ -161,7 +202,7 @@ export const getBpmTemplateList = (params?: {
   page?: number;
   page_size?: number;
   category?: string;
-}) => request.get<ApiResponse<PageResult<ProcessTemplate>>>('/bpm/templates', { params });
+}) => request.get<ApiResponse<ProcessTemplatePage>>('/bpm/templates', { params });
 
 // D14 Batch 5b：原 bpmEnhancedApi.getTemplate 转为风格 B 函数
 export const getBpmTemplateById = (id: number) =>
@@ -177,11 +218,11 @@ export const deleteBpmTemplate = (id: number) =>
 
 // D14 Batch 5b：原 bpmEnhancedApi.getPendingTasks 转为风格 B 函数
 export const getBpmPendingTaskList = (params?: { page?: number; page_size?: number }) =>
-  request.get<ApiResponse<PageResult<ApprovalTask>>>('/bpm/tasks/pending', { params });
+  request.get<ApiResponse<ApprovalTaskPage>>('/bpm/tasks/pending', { params });
 
 // D14 Batch 5b：原 bpmEnhancedApi.getCompletedTasks 转为风格 B 函数
 export const getBpmCompletedTaskList = (params?: { page?: number; page_size?: number }) =>
-  request.get<ApiResponse<PageResult<ApprovalTask>>>('/bpm/tasks/completed', { params });
+  request.get<ApiResponse<ApprovalTaskPage>>('/bpm/tasks/completed', { params });
 
 // D14 Batch 5b：原 bpmEnhancedApi.executeApproval 转为风格 B 函数
 // 请求体字段与后端 ExecuteApprovalRequest 逐字一致（缺 handler_id/handler_name 会 422）

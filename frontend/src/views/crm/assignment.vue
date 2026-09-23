@@ -274,7 +274,7 @@ const ruleLoading = ref(false);
 const ruleList = ref<RecycleRule[]>([]);
 
 const assignLoading = ref(false);
-const assignableCustomers = ref<unknown[]>([]);
+const assignableCustomers = ref<AssignableCustomer[]>([]);
 const assignQuery = reactive({ keyword: '' });
 
 const users = ref<User[]>([]);
@@ -313,7 +313,7 @@ const fetchAssignableCustomers = async () => {
       page_size: 50,
       keyword: assignQuery.keyword || undefined,
     });
-    assignableCustomers.value = (res.data?.data ?? res.data) as AssignableCustomer[];
+    assignableCustomers.value = res.data.items;
   } catch (error) {
     const err = error as Error;
     logger.warn(t('crmAssignment.message.loadAssignableFailed'), err.message);

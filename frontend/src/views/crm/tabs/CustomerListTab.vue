@@ -407,6 +407,8 @@ const {
   setQueryParam,
 } = useTableApi<CustomerWithTags>({
   url: '/crm/customers/enhanced',
+  // 后端 list_leads 返回 json!{data,total,page,page_size}，承载列表的键为 data，显式钉住 listKey。
+  listKey: 'data',
   onError: (err: unknown) =>
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) || t('crmCustomer.message.loadFailed')

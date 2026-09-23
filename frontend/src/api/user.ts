@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PageResult } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface User {
   id: number;
@@ -56,7 +56,20 @@ export interface UserListParams {
   status?: number;
 }
 
-export function getUserList(params?: UserListParams): Promise<ApiResponse<PageResult<User>>> {
+/**
+ * GET /users 真实响应载荷（唯一真相：handlers/user_handler.rs::list_users 返回
+ * ApiResponse::success(UserListResponse)，第 133-140 行 struct 无 rename_all，
+ * 序列化为 {users, total, page, page_size}）。承载列表的键是 **users**（非 items/list/data），
+ * 这正是历史上 PageResult.users 键名的唯一来源——现予以显式钉死。
+ */
+export interface UserPageResult {
+  users: User[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export function getUserList(params?: UserListParams): Promise<ApiResponse<UserPageResult>> {
   return request.get('/users', { params });
 }
 

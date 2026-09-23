@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PageResult } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface ReportField {
   key: string;
@@ -64,6 +64,17 @@ export interface ReportSubscription {
   created_by: number;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * GET /reports/enhanced/subscriptions 真实响应载荷（唯一真相：backend
+ * handlers/report_enhanced_handler.rs subscriptions::list，第 75-76 行
+ * `json!({"items": items, "total": total})`）。后端**只返回 items + total**，
+ * 无 page/page_size，承载列表的键只有 items。
+ */
+export interface SubscriptionPage {
+  items: ReportSubscription[];
+  total: number;
 }
 
 export interface CreateTemplateRequest {
@@ -154,7 +165,7 @@ export function previewReport(templateId: number): Promise<ApiResponse<ReportPre
 
 export function getSubscriptionList(
   params?: Record<string, unknown>
-): Promise<ApiResponse<PageResult<ReportSubscription>>> {
+): Promise<ApiResponse<SubscriptionPage>> {
   return request.get('/reports/enhanced/subscriptions', { params });
 }
 

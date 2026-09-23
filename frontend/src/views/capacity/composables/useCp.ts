@@ -31,6 +31,8 @@ export const useCp = () => {
     refresh: fetchWorkCenters,
   } = useTableApi<WorkCenter>({
     url: '/production/capacity/work-centers',
+    // 后端返回 data 为裸数组；useTableApi 会把裸数组归一为 {data: [...]}，故显式钉 listKey='data'。
+    listKey: 'data',
     defaultPageSize: 10,
     onError: (err: unknown) => {
       logger.error('获取工作中心列表失败:', err);

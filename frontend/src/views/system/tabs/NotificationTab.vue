@@ -173,8 +173,7 @@ const announcementForm = reactive({
 const fetchUserOptions = async () => {
   try {
     const res = await getUserList({ page: 1, page_size: 200 });
-    const d = res.data as { items?: User[]; list?: User[]; data?: User[] } | undefined;
-    userOptions.value = (d?.items || d?.list || d?.data || (Array.isArray(d) ? d : [])) as User[];
+    userOptions.value = res.data.users;
   } catch (error) {
     logAuxLoadFailure(t('system.notification.message.loadUsersFailed'), error);
   }
