@@ -60,7 +60,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | 前端 TS 文件      | 268 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                        |
 | 前端 Views 子模块 | 110 个                                                                                                                             |
 | 前端 API 模块     | 121 个                                                                                                                             |
-| 前端 i18n 翻译键  | zh-CN 10,570 / en-US 10,593（代码引用字面键 9,888，双语缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验） |
+| 前端 i18n 翻译键  | zh-CN 10,101 / en-US 10,124（代码引用字面键 9,328，双语缺失校验 0；`labelKey:` 词表键同受校验；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验） |
 | 前端 E2E 测试     | 2,668 个 / 259 个 spec 文件（flow 工作流 + traversal 端点遍历 + 冒烟 + enhanced + Setup 向导 + 其余业务目录）                              |
 | Clippy Baseline   | 4,274 行（185 条唯一警告）                                                                                                         |
 | 最新版本          | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001）                                                                     |
@@ -133,7 +133,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 ### 7. 国际化与前端体验
 
-- **vue-i18n** 中英双语 + 约 1.06 万个翻译键（zh-CN 10,570 / en-US 10,593）
+- **vue-i18n** 中英双语 + 约 1.01 万个翻译键（zh-CN 10,101 / en-US 10,124）
 - **PWA 支持**：manifest.json + Service Worker + 离线缓存
 - **移动端适配**：响应式 + 侧边栏抽屉化 + 汉堡按钮 ≥44px（WCAG 2.5.5）
 - **性能优化**：manualChunks 代码分割 + ECharts 按需引入 + optimizeDeps + V2Table 虚拟列表
@@ -333,7 +333,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | BI 数据仓库    | 已完成 | 16 个 HTTP 端点 + 仪表板 + 报表引擎 + 订阅推送           |
 | BPM 审批流     | 已完成 | 流程定义 / 实例 / 任务                                   |
 | WebSocket 实时 | 已完成 | 通知 / 订单 / 库存 / 审批 / 仪表板                       |
-| 国际化（i18n） | 已完成 | 中英双语 + 1.05 万+ 翻译键，界面文案已无 `t()` 死兜底                     |
+| 国际化（i18n） | 已完成 | 中英双语 + 1.01 万翻译键，界面文案已无 `t()` 死兜底                     |
 | systemd 部署   | 已完成 | CLI 工具 + SHA256 校验                                   |
 
 ---
@@ -495,20 +495,20 @@ sudo journalctl -u bingxi-backend -f
 | 前端 E2E 端点遍历         | 266                   | Playwright            | 10 个 traversal spec：打印/导出/审批端点矩阵 + 42a-d 全模块遍历 + 角色矩阵（5 分片）     |
 | 前端 E2E 真实链路测试     | 9                     | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录                               |
 | 前端 E2E 增强链路         | 14                    | Playwright（零 mock） | 3 个 enhanced spec：多角色协同 / RPA 取数 / 真实网络韧性（离线 + CDP 链路延迟）          |
-| 前端 E2E 其余业务域       | 117                   | Playwright（零 mock） | 7 个业务目录（采购/采购扩展/销售/质量/财务/CRM/BPM）+ 根级 3 spec，共 30 个文件          |
-| 前端 E2E testMatch 九目录 | 71                    | Playwright（零 mock） | ai/dashboard/fabric/inventory/mrp/production/quotations/sales-ext/system，22 个文件      |
-| ↳ 以上两行为 extras 覆盖  | 188                   | —                     | **自 iter31 起以 extras 6 分片进 CI**（此前只在 testMatch 白名单内、从未被任何分片执行） |
-| **前端 E2E 合计**         | **1,277**             | —                     | 260 个 spec 文件；其中 chromium project 收 1,269/259，Setup 向导 9/1 由独立 config 跑    |
+| 前端 E2E 其余业务域       | 117                   | Playwright（零 mock） | 6 个业务目录（采购/销售/质量/财务/CRM/BPM）+ 根级 3 spec，共 30 个文件          |
+| 前端 E2E testMatch 八目录 | 64                    | Playwright（零 mock） | ai/dashboard/fabric/inventory/mrp/production/quotations/system，19 个文件                |
+| ↳ 以上两行为 extras 覆盖  | 181                   | —                     | **自 iter31 起以 extras 6 分片进 CI**（此前只在 testMatch 白名单内、从未被任何分片执行） |
+| **前端 E2E 合计**         | **1,263**             | —                     | 254 个 spec 文件；其中 chromium project 收 1,254/253，Setup 向导 9/1 由独立 config 跑    |
 | 性能基准                  | 4                     | criterion             | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算                                        |
 
-> E2E 数量口径（2026-09-22 按 `playwright test --list --project=chromium <目录>` 逐组实测）：
-> flow 670/75 + smoke 130/119 + traversal 266/10 + enhanced 14/3 + 其余业务域 117/30
+> E2E 数量口径（2026-09-23 按 `playwright test --list --project=chromium <目录>` 逐组实测，purchase-ext 并入 purchase 后重算）：
+> flow 668/75 + smoke 127/116 + traversal 264/10 + enhanced 14/3 + 其余业务域 117/30
 >
-> - testMatch 九目录 71/22 + Setup 向导 9/1
->   = **1,277 个用例 / 260 个文件**，七组全部进 CI（Setup 向导由独立 job 跑）。
->   `firefox` project 另跑 130 个冒烟用例；`webkit` 与 chromium 同集。
->   关于 `ai / dashboard / fabric / inventory / mrp / production / quotations / sales-ext / system`
->   九个目录（**71 个用例 / 22 个文件**）：iter31 起已并入 extras 分片、与其余业务域一起真实执行。
+> - testMatch 八目录 64/19 + Setup 向导 9/1
+>   = **1,263 个用例 / 254 个文件**，七组全部进 CI（Setup 向导由独立 job 跑）。
+>   `firefox` project 另跑 127 个冒烟用例；`webkit` 与 chromium 同集。
+>   关于 `ai / dashboard / fabric / inventory / mrp / production / quotations / system`
+>   八个目录（**64 个用例 / 19 个文件**）：iter31 起已并入 extras 分片、与其余业务域一起真实执行。
 >   顺带纠正一处此前的混为一谈：在 Windows 上不带路径参数执行 `playwright test --list` 会**多收**
 >   这 71 个用例（testMatch 的根级分支 `^[^/]*\.spec\.ts$` 在反斜杠路径下误匹配），
 >   那是本地测量假象；但"多收"不等于"已执行"——CI 的分片命令从不传这九个目录，它们确实从未进过矩阵。
@@ -521,7 +521,7 @@ sudo journalctl -u bingxi-backend -f
 
 ### E2E 测试覆盖
 
-CI 执行口径的 260 个 spec 文件（36 分片：flow 20 片 + smoke 5 片 + traversal 5 片 + extras 6 片；Playwright `--shard` 按用例 hash 分配，分片与 spec 文件无对应关系，故 label 只标目录与片号），核心覆盖：
+CI 执行口径的 254 个 spec 文件（36 分片：flow 20 片 + smoke 5 片 + traversal 5 片 + extras 6 片；Playwright `--shard` 按用例 hash 分配，分片与 spec 文件无对应关系，故 label 只标目录与片号），核心覆盖：
 
 | 类别           | spec 文件                                                                    | 覆盖内容                                                                                   |
 | -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -592,10 +592,10 @@ cargo bench --features bench
 - **精确盘点**：修正扫描器缺陷后确认 83 个真实零调用缺口（14 个功能域批次接线 76+ 封装函数）
 - **接线模式**：新功能一律挂现有页面 tab/弹窗/行操作列（禁止新开页面）；明细行维护采用「查看态回源 + 行级编辑/删除/添加栏」模式；契约差异逐域对照后端真实 DTO 修正（驼峰/蛇形、分页对象、item 级同步）
 - **重复判定**：剩余 64 个零调用全部为已决策项——同 URL 重复封装、useTableApi 内联同 URL 消费、查询变体等价覆盖、批量保存等价覆盖、模块内部工具
-- **完整性校验**：check-i18n（zh/en 键对齐 0 缺失；并清除 `t('key') || '中文'` 死兜底 47 处——vue-i18n 取不到键时返回键名本身，兜底分支不可达，只会把缺键降级成界面上冒出的另一语言裸字面量）+ check-contract（前后端契约映射 13 组 / 156 字段 / 0 错误）纳入质量门禁
+- **完整性校验**：check-i18n（zh/en 键对齐 0 缺失；并清除 `t('key') || '中文'` 死兜底 47 处——vue-i18n 取不到键时返回键名本身，兜底分支不可达，只会把缺键降级成界面上冒出的另一语言裸字面量）+ check-contract（前后端契约映射 13 组 / 164 字段 / 0 错误）纳入质量门禁
 - **路由挂载约定（2026-09-23 收口）**：路径只写在 `backend/src/routes/` 下的域文件里且一律相对路径，URL 前缀只在 `routes/mod.rs` 用 `.nest()` 组合一次，handler 文件不得自带 `router()`；实测 1531 条 `.route()` 字面量中绝对路径已归零、161 个返回 `Router` 的 `pub fn` 无孤儿。两份配套工具：`scripts/route-snapshot.mjs` 把解析后的 1741 条端点（+ `routes/` 的 `.layer()` 总数）固化为 `route-snapshot.txt` 基线，任何挂载结构改动都必须与基线逐字一致（用"改掉一条真实路径"的探针验证过会判负）；`scripts/check-route-mount.mjs` 校验三条约定，现存偏离按"文件 + 条数 + 理由"显式豁免，**多于登记也判负**（防把豁免当配额）。
 - **响应键名与前端声明的一致性（当前靠人工逐页核对）**：多数 list handler 直接 `serde_json::to_value(实体)`（无 JOIN、无 DTO 改名），响应键名即实体字段名；已在 finance 域查出并修复 6 个页面按直觉声明的幻键（`status`/`invoice_amount`/`verified_amount`/`supplier_name`/`remark` 等）与借用他表的小写状态词元，其症状是列恒空、筛选恒无结果、`v-if` 门控按钮结构性不可达。`check-api-envelope` 目前只比"形状"不比"键名"，且这类 handler 返回 `Value` 正落在其"未分类"桶里 —— 字段级比对需沿 service 返回类型解析，登记为后续批次（曾试做该检查，因自检不通过而撤回，不留"看似在跑其实从不判负"的门禁）。
-- **契约一致性脚本（已全部接入 CI 阻断链，见 `ci-static-checks`）**：check-api-paths（前端调用 ↔ 后端路由，A 类失配 0、21 条功能缺口逐条显式登记原因，含"导出按钮指向后端不存在的路由、点击必 404"实例）、check-api-envelope（响应信封形状，**701 条可比对：失配 0 / 未分类 0 / handler 符号未定义 0；12 条后端手拼 `json!` 或经未定型 helper 返回 `serde_json::Value` 的端点写成带 `文件:行号` 证据的显式豁免**）、check-api-request（**请求体与查询参数侧**：前端实参键集 ↔ 后端 `Json<T>`/`Query<T>` 字段集，可比对项全部一致，`--json` 直接输出可派单工单）。判负口径统一为「解析不出即失败」，不静默放行；三类载荷形状（裸 `Vec`、手写 `json!({list})`、`PaginatedResponse{items}`）都按 handler 函数体实测归类，宏生成（`define_crud_handlers!`）、目录型模块（`pub mod advanced;`）、路由就地定义的 handler（`routes/search_api.rs`）与 `to_value(具体类型)` 递归回溯均已支持。**两个"万能类型"已清除**：`QueryParams` 的 API 层用法归零（47 条"前端传了后端不读、后端支持的筛选前端从没传过"全部按端点用真实 `Query<T>` 定型；仅剩 2 个采购视图组件把它当本地表单 shape），`PageResult<T>`（data/list/items/users 四键全可选，后端怎么返都"对得上"）已 19 处清零并删除类型本体——它掩盖的正是"列表恒空但不报错"这一族（实修 5 处：AR 自动对账结果、CRM 增强客户、RfmTab、BPM 待办、质检检验人下拉）。**覆盖数本身也是被测出来的**：门禁曾长期只解析 `export function f(): Promise<ApiResponse<T>>` 签名，而全仓另有 500 处 `request.get<ApiResponse<T>>(url)` 写法完全不进统计，"0 失配"一度只覆盖约一半接口。另已知盲区：`tsconfig.json` 只含 `src/**`，2668 个 e2e 用例此前从不做类型检查；新增 `tsconfig.e2e.json` 后实测真实类型错误已全部清零，仅剩 93 条因缺 `@types/node`（`process`/`fs`/`path`/`crypto`）无法解析。 同批新增并接入的还有：check-route-mount（路由挂载结构约定：注册只在 `routes/` 下、`.route()` 只写相对路径、绝对前缀在 `mod.rs` nest 一次、`handlers/` 下不再放 `router()`——路径形状同时决定权限中间件推导出的鉴权键，故属安全问题而非风格问题）、route-snapshot（1741→1736 条端点基线，挂载重构必须逐字节不变）、check-api-keys（**接口键名编造棘轮**：前端类型里的每个键都必须在后端字段全集里存在，存量按文件记 `{count, keys}` 基线，只准降不准升，当前 390→188）。
+- **契约一致性脚本（已全部接入 CI 阻断链，见 `ci-static-checks`）**：check-api-paths（前端调用 ↔ 后端路由，A 类失配 0、16 条功能缺口逐条显式登记原因，含"导出按钮指向后端不存在的路由、点击必 404"实例）、check-api-envelope（响应信封形状，**667 条可比对：失配 0 / 未分类 0 / handler 符号未定义 0；13 条后端手拼 `json!` 或经未定型 helper 返回 `serde_json::Value` 的端点写成带 `文件:行号` 证据的显式豁免**）、check-api-request（**请求体与查询参数侧**：前端实参键集 ↔ 后端 `Json<T>`/`Query<T>` 字段集，可比对项全部一致，`--json` 直接输出可派单工单）。判负口径统一为「解析不出即失败」，不静默放行；三类载荷形状（裸 `Vec`、手写 `json!({list})`、`PaginatedResponse{items}`）都按 handler 函数体实测归类，宏生成（`define_crud_handlers!`）、目录型模块（`pub mod advanced;`）、路由就地定义的 handler（`routes/search_api.rs`）与 `to_value(具体类型)` 递归回溯均已支持。**两个"万能类型"已清除**：`QueryParams` 的 API 层用法归零（47 条"前端传了后端不读、后端支持的筛选前端从没传过"全部按端点用真实 `Query<T>` 定型；仅剩 2 个采购视图组件把它当本地表单 shape），`PageResult<T>`（data/list/items/users 四键全可选，后端怎么返都"对得上"）已 19 处清零并删除类型本体——它掩盖的正是"列表恒空但不报错"这一族（实修 5 处：AR 自动对账结果、CRM 增强客户、RfmTab、BPM 待办、质检检验人下拉）。**覆盖数本身也是被测出来的**：门禁曾长期只解析 `export function f(): Promise<ApiResponse<T>>` 签名，而全仓另有 500 处 `request.get<ApiResponse<T>>(url)` 写法完全不进统计，"0 失配"一度只覆盖约一半接口。另已知盲区：`tsconfig.json` 只含 `src/**`，2668 个 e2e 用例此前从不做类型检查；新增 `tsconfig.e2e.json` 后实测真实类型错误已全部清零，仅剩 93 条因缺 `@types/node`（`process`/`fs`/`path`/`crypto`）无法解析。 同批新增并接入的还有：check-route-mount（路由挂载结构约定：注册只在 `routes/` 下、`.route()` 只写相对路径、绝对前缀在 `mod.rs` nest 一次、`handlers/` 下不再放 `router()`——路径形状同时决定权限中间件推导出的鉴权键，故属安全问题而非风格问题）、route-snapshot（1741→1736 条端点基线，挂载重构必须逐字节不变）、check-api-keys（**接口键名编造棘轮**：前端类型里的每个键都必须在后端字段全集里存在，存量按文件记 `{count, keys}` 基线，只准降不准升，当前 390→184）。
 
 ### CI/CD
 
