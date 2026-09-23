@@ -41,22 +41,26 @@ export interface APPayment {
   created_at: string;
 }
 
+// 行由 GET /ap/payment-requests 直接序列化 SeaORM 实体 models/ap_payment_request.rs 返回
+// （无 JOIN、无 DTO 改名）：审批状态列名是 approval_status，词表见 models/status/finance.rs:53-58
+// （DRAFT/APPROVING/APPROVED/REJECTED）。此前声明的 supplier_name / approved_amount / status /
+// remark 在响应中不存在 —— 状态列恒空、五处 v-if 恒假，编辑/提交/审批/驳回/删除按钮结构性不可达。
+export type APPaymentRequestStatus = 'DRAFT' | 'APPROVING' | 'APPROVED' | 'REJECTED';
+
 export interface APPaymentRequest {
   id: number;
   request_no: string;
   supplier_id: number;
-  supplier_name: string;
   request_amount: number;
-  approved_amount?: number;
   request_date: string;
-  status: string;
+  approval_status: APPaymentRequestStatus;
   payment_method?: string;
   payment_type?: string;
   currency?: string;
+  expected_payment_date?: string;
   bank_name?: string;
   bank_account?: string;
   notes?: string;
-  remark?: string;
   created_at: string;
 }
 

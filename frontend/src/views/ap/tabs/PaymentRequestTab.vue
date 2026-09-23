@@ -44,15 +44,17 @@
         <template #default="{ row }">{{ formatMoney(row.request_amount) }}</template>
       </el-table-column>
       <el-table-column prop="currency" label="币种" width="70" />
-      <el-table-column prop="status" :label="t('common.status')" width="100">
+      <el-table-column prop="approval_status" :label="t('common.status')" width="100">
         <template #default="{ row }">
-          <el-tag :type="statusTagType(row.status)" size="small">{{ row.status }}</el-tag>
+          <el-tag :type="statusTagType(row.approval_status)" size="small">{{
+            approvalStatusLabel(row.approval_status)
+          }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column :label="t('common.action')" width="280" fixed="right">
         <template #default="{ row }">
           <el-button
-            v-if="row.status === 'draft' || row.status === 'rejected'"
+            v-if="row.approval_status === 'DRAFT' || row.approval_status === 'REJECTED'"
             size="small"
             type="primary"
             link
@@ -61,7 +63,7 @@
             {{ t('common.edit') }}
           </el-button>
           <el-button
-            v-if="row.status === 'draft' || row.status === 'rejected'"
+            v-if="row.approval_status === 'DRAFT' || row.approval_status === 'REJECTED'"
             size="small"
             type="warning"
             link
@@ -70,7 +72,7 @@
             {{ t('apModule.paymentRequest.submit') }}
           </el-button>
           <el-button
-            v-if="row.status === 'pending_approval'"
+            v-if="row.approval_status === 'APPROVING'"
             size="small"
             type="success"
             link
@@ -79,7 +81,7 @@
             {{ t('apModule.paymentRequest.approve') }}
           </el-button>
           <el-button
-            v-if="row.status === 'pending_approval'"
+            v-if="row.approval_status === 'APPROVING'"
             size="small"
             type="danger"
             link
@@ -88,7 +90,7 @@
             {{ t('apModule.paymentRequest.reject') }}
           </el-button>
           <el-button
-            v-if="row.status === 'draft' || row.status === 'rejected'"
+            v-if="row.approval_status === 'DRAFT' || row.approval_status === 'REJECTED'"
             size="small"
             type="danger"
             link
@@ -171,7 +173,7 @@
           {{ detailRow.supplier_id }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('common.status')">{{
-          detailRow.status
+          approvalStatusLabel(detailRow.approval_status)
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('apModule.paymentRequest.requestAmount')">
           {{ formatMoney(detailRow.request_amount) }} {{ detailRow.currency }}
@@ -225,16 +227,27 @@ const formatMoney = (amount: number | string | undefined) => {
   return n.toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 };
 
+// 词表来源 models/status/finance.rs:53-58 与 common（大写），此前按小写 draft/pending_approval 建映射
+// 加上后端根本不会写入的 paid/cancelled 两个幻 token，导致标签恒落 info、文案恒显原文。
 const statusTagType = (status: string) => {
   const map: Record<string, string> = {
-    draft: 'info',
-    pending_approval: 'warning',
-    approved: 'success',
-    rejected: 'danger',
-    paid: 'success',
-    cancelled: 'info',
+    DRAFT: 'info',
+    APPROVING: 'warning',
+    APPROVED: 'success',
+    REJECTED: 'danger',
   };
   return map[status] || 'info';
+};
+
+const approvalStatusLabel = (status: string) => {
+  const keys: Record<string, string> = {
+    DRAFT: 'apModule.paymentRequest.statusDraft',
+    APPROVING: 'apModule.paymentRequest.statusApproving',
+    APPROVED: 'apModule.paymentRequest.statusApproved',
+    REJECTED: 'apModule.paymentRequest.statusRejected',
+  };
+  const key = keys[status];
+  return key ? t(key) : status;
 };
 
 const fetchRequests = async () => {

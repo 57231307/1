@@ -5594,6 +5594,10 @@ export default {
       notes: '备注',
       detailFailed: '获取付款申请详情失败',
       detailTitle: '付款申请详情',
+      statusDraft: '草稿',
+      statusApproving: '审批中',
+      statusApproved: '已批准',
+      statusRejected: '已驳回',
     },
     report: {
       statistics: '统计汇总',

@@ -5756,6 +5756,10 @@ export default {
       deleteConfirm: 'Delete this payment request?',
       detailFailed: 'Failed to fetch payment request detail',
       detailTitle: 'Payment request details',
+      statusDraft: 'Draft',
+      statusApproving: 'Approving',
+      statusApproved: 'Approved',
+      statusRejected: 'Rejected',
     },
     report: {
       statistics: 'Statistics',
