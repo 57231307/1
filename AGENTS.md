@@ -37,10 +37,10 @@
    （`services/po/order.rs:19` + `services/po/order_ops/crud.rs:463`：`column_as(...) + LeftJoin +
    into_model::<Dto>()`，单次查询无 N+1）。禁止 `format!("客户 #{}", id)` 造假名，禁止逐行再查。
 
-分页信封有两套：`PaginatedResponse{items,total,page,page_size}`（`utils/response.rs:34`）与
-`PageResponse{data,total,page,page_size,total_pages}`（`models/dto/mod.rs:49`）。失败信封有 4 种形状
-（`utils/error.rs:143`、`utils/response.rs:120/152`、`middleware/auth_context.rs:35`）。均属待收敛项，
-写新代码只能用 `ApiResponse` + `PaginatedResponse`。
+分页只有 `PaginatedResponse{items,total,page,page_size}`（`utils/response.rs:34`）；
+失败只有 `AppError` 一种形状（字符串 code + message + trace_id + timestamp），
+`ApiResponse::error` 等旁路构造器已删除，不要再用数字 code 自造错误体。
+唯一例外是未连接数据库的 Setup 模式（`bootstrap/routes_bootstrap.rs`）。
 
 ## 路由与鉴权（形状影响安全，不是风格问题）
 

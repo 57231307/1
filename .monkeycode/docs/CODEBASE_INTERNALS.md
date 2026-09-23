@@ -70,21 +70,24 @@ normalize_empty_query_params → timeout → security_headers → rate_limiting
   / `error_with_status`(:129)。`IntoResponse` 用 `code.unwrap_or(200)` 反推 HTTP 状态（`:145-150`）。
 - **分页有两套不同类型**：
   `utils/response.rs:34 PaginatedResponse<T>{items,total,page,page_size}`（无 total_pages）
-  vs `models/dto/mod.rs:49 PageResponse<T>{total,page,page_size,total_pages,data}`（键是 **`data`** 不是 `items`）。
-  前端读错键就是"列表恒空但不报错"。`PageResponse` 在 `backend/src` 有 18 处引用。
+  曾与之并存的第二套 `PageResponse{data,total,page,page_size,total_pages}` **已删除**：
+  `total_pages` 属可派生值（`ceil(total/page_size)`），不再作为契约字段；
+  BPM 曾同时对外输出 `list` / `data` / `items` 三种列表键，现已统一为 `items`。
+  读错键的表现是"列表恒空但不报错"，所以列表接口的载荷键必须逐端点核对。
   `From<PaginatedResponse> for ApiResponse<Vec<T>>`（`response.rs:65-74`）会把 total 抬到顶层，
   这是"顶层也可能有 total"的来源（`frontend/src/types/api-response.ts:14` 的 `total?` 就来自这里）。
 
-失败（同一语义 4 种形状）：
-1. `utils/error.rs:143 AppError::into_response` → `{"code":"BUSINESS_ERROR"(字符串), "message":脱敏文案, "trace_id":uuid, "timestamp":i64}`。
-2. handler 手写 `ApiResponse::error/error_with_status` → `{"code":数字, "data":null, "message":文案}`，无 trace_id。
-3. `response.rs:152-168 unauthorized_response/forbidden_response` → `{"code":401|403,"message","data":null}`。
-4. `auth_context.rs:35-42 AuthRejection::into_response` → `{"error":"Unauthorized","message":...}`。
-- `AppError` 变体→HTTP（`error.rs:168-182`）：DatabaseError/InternalError→500，ValidationError/BusinessError/
-  BusinessErrorDisplayable/BadRequest→400，NotFound→404，Unauthorized→401，PermissionDenied→403，
-  NotImplemented→501，TooManyRequests→429（带 `Retry-After`，`:151-160`）。
-- **安全边界**：`public_message()`（`error.rs:483-497`）默认返回脱敏常量，只有 `BusinessErrorDisplayable`
-  才外显真实业务文案。前端 `request.ts:54 extractBackendMessage` 因此"优先展示后端 message"是对的设计。
+失败信封已统一为一种形状（本轮收敛，`utils/error.rs:143` `AppError::into_response`）：
+`{"code": "<字符串码>", "message": <脱敏或可外显文案>, "trace_id": <uuid>, "timestamp": <i64>}`。
+原来的四种旁路都已退出：`ApiResponse::error`/`error_with_status` 构造器已删除（调用点改抛 `AppError` 变体）、
+`unauthorized_response`/`forbidden_response` 与 `AuthRejection` 改走 `utils/response.rs` 的
+`unified_error_response`（函数名与签名保留，中间件调用点不变），CSRF 的 `{success,data}` 与
+init_token 的数字码 `40101`+`detail` 也并入同一构造器。
+
+唯一保留的偏差：Setup 模式（数据库尚未连接时只暴露 `/init/*`）的 `InitErrorResponse{error,message}`
+（`bootstrap/routes_bootstrap.rs:27`）——它出现在两个 handler 的返回类型元组里，改签名风险大于收益。
+字符串码 `CSRF_TOKEN_MISSING`/`CSRF_TOKEN_INVALID` 由 `frontend/src/api/request.ts` 与
+`e2e/flow/helpers.ts` 依赖，属契约，不得改。
 - 失败信封上**没有 `errors` 数组**；`errors` 只存在于导入/批量类 DTO（`utils/import_export.rs:45` 等）。
 
 前端侧对应类型：`frontend/src/types/api-response.ts`（经 `types/api.ts` 再导出）。
