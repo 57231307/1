@@ -152,8 +152,13 @@ normalize_empty_query_params → timeout → security_headers → rate_limiting
   实体接口就写在本模块里（`api/supplier.ts:4`），`types/` 只放跨模块形状。
   命名：`getXxxList / getXxxById / createXxx / updateXxx / deleteXxx / exportXxx` + 域动词。
 - **查询参数键**：规范是 `page` + **`page_size`**（`api/supplier.ts:52`，`composables/useTableApi.ts:64`）。
-  已知偏离（属待收敛）：`pageSize`（`api/sales-return.ts:91`、`api/purchase-return.ts:49`）、
-  `limit`（`api/ai-extend.ts:198,256`、`api/supplier.ts:222`）、`from/size`（`api/search.ts:37`）。
+  真偏离只有 camelCase 的 `pageSize`（`api/sales-return.ts`、`api/purchase-return.ts`）。
+  ⚠️ 不要把 `limit` 和 `from`/`size` 当漂移去"统一"：已逐个核对后端，
+  `api/ai-extend.ts:198,256` 对应 `handlers/advanced/forecast.rs` 的 top-N 参数，
+  `api/supplier.ts:222` 对应 `handlers/supplier_handler.rs:554 pub limit`，
+  `api/supplier-evaluation.ts:113` 对应 `handlers/supplier_evaluation_handler.rs:150 pub limit`，
+  `api/search.ts:37,46,55` 的 `from`/`size` 是搜索端点自己的字段。
+  它们是"取前 N 条"语义，与分页不是同一件事——改名词典化之前必须先读该端点的 `Query<T>`。
 - **页面三层结构**：`index.vue` → `composables/useX.ts`(列表/表单/提交) + `useXProc.ts`(审批等业务动作)
   + `x Fmts.ts`(纯格式化) → `components/XTable.vue` / `XFilter.vue` / `XDialog.vue`。
   简单页可只有 `index.vue + components/`（`views/supplier/`）。

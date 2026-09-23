@@ -51,7 +51,7 @@
           :aria-label="t('salesReturns.detailDialog.detailsTableAriaLabel')"
         >
           <el-table-column
-            prop="productName"
+            prop="product_name"
             :label="t('salesReturns.detailDialog.columnProductName')"
           />
           <el-table-column
