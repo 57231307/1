@@ -136,11 +136,11 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
 }
 
 pub fn unauthorized_response(message: &str) -> Response {
-    auth_error_response(StatusCode::UNAUTHORIZED, CODE_UNAUTHORIZED, message)
+    unified_error_response(StatusCode::UNAUTHORIZED, CODE_UNAUTHORIZED, message)
 }
 
 pub fn forbidden_response(message: &str) -> Response {
-    auth_error_response(StatusCode::FORBIDDEN, CODE_FORBIDDEN, message)
+    unified_error_response(StatusCode::FORBIDDEN, CODE_FORBIDDEN, message)
 }
 
 /// 认证/鉴权中间件失败出参：与 `AppError::into_response` 完全同构（复用
@@ -151,7 +151,7 @@ pub fn forbidden_response(message: &str) -> Response {
 /// 对 `Unauthorized`/`PermissionDenied` 一律返回脱敏常量（「未授权」/「无权限」），
 /// 会抹掉中间件刻意告知用户下一步动作的文案（如「令牌已被吊销，请重新登录」）。
 /// 这些文案是中间件自身的固定字面量、不含他人数据/内部 ID/SQL，外显不越出脱敏契约的安全边界。
-fn auth_error_response(status: StatusCode, code: &str, message: &str) -> Response {
+pub fn unified_error_response(status: StatusCode, code: &str, message: &str) -> Response {
     let body = ErrorResponse {
         code: code.to_string(),
         message: message.to_string(),

@@ -23,14 +23,12 @@ use crate::middleware::auth_context::AuthContext;
 use crate::middleware::public_routes::{is_auth_only_path, is_public_path};
 use crate::utils::cache::CsrfConsumeResult;
 use axum::{
-    Json,
     body::Body,
     extract::State,
     http::{Method, Request, StatusCode},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
 };
-use serde_json::json;
 
 /// CSRF 请求头名称（小写形式，对应 HTTP/2 规范）
 pub const CSRF_HDR_NAME: &str = "x-csrf-token";
@@ -232,11 +230,5 @@ pub async fn csrf_middleware(
 
 /// 构造 403 CSRF 错误响应（统一 JSON 格式）
 pub fn csrf_error_response(code: &str, message: &str) -> Response {
-    let body = json!({
-        "success": false,
-        "code": code,
-        "message": message,
-        "data": null,
-    });
-    (StatusCode::FORBIDDEN, Json(body)).into_response()
+    crate::utils::response::unified_error_response(StatusCode::FORBIDDEN, code, message)
 }
