@@ -395,7 +395,7 @@ const form = reactive({
 });
 
 const unwrapList = (p: unknown): OutsourcingOrder[] =>
-  Array.isArray(p) ? p : ((p as { items?: OutsourcingOrder[] })?.items ?? []);
+  (p as { data: { items: OutsourcingOrder[] } }).data.items;
 
 const statusTag = (s: string) =>
   ({

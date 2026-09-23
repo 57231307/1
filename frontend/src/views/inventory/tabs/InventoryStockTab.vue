@@ -17,7 +17,7 @@
             v-model="localQuery.keyword"
             :placeholder="t('inventory.stockTab.keywordPlaceholder')"
             clearable
-            @clear="emit('query')"
+            @clear="handleQuery"
           />
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.warehouse')">
@@ -25,7 +25,7 @@
             v-model="localQuery.warehouse_id"
             :placeholder="t('inventory.stockTab.warehousePlaceholder')"
             clearable
-            @change="emit('query')"
+            @change="handleQuery"
           >
             <el-option
               v-for="wh in warehouses"
@@ -40,7 +40,7 @@
             v-model="localQuery.stock_status"
             :placeholder="t('inventory.stockTab.statusPlaceholder')"
             clearable
-            @change="emit('query')"
+            @change="handleQuery"
           >
             <el-option
               v-for="opt in INVENTORY_STOCK_STATUS_OPTIONS"
@@ -51,7 +51,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="emit('query')">
+          <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
             {{ t('inventory.stockTab.query') }}
           </el-button>
@@ -236,6 +236,12 @@ const { columns: stockColumns } = useTableColumns<InventoryStock>([
     },
   },
 ]);
+
+// 查询前先回传本地筛选值，确保父组件 fetchData 读到最新 keyword/warehouse_id/stock_status
+const handleQuery = () => {
+  emit('update:queryParams', { ...localQuery });
+  emit('query');
+};
 
 const handlePageChange = (newPage: number) => {
   emit('update:queryParams', { ...localQuery, page: newPage });

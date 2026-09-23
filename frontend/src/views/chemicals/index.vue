@@ -193,8 +193,7 @@ const form = reactive({
   cas_number: '',
 });
 
-const unwrapList = (p: unknown): Chemical[] =>
-  Array.isArray(p) ? p : ((p as { items?: Chemical[] })?.items ?? []);
+const unwrapList = (p: unknown): Chemical[] => (p as { data: { items: Chemical[] } }).data.items;
 
 const skipCols = new Set([
   'id',

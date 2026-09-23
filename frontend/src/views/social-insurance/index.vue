@@ -121,8 +121,7 @@ const form = reactive({
   remarks: '',
 });
 
-const unwrapList = <T,>(p: unknown): T[] =>
-  Array.isArray(p) ? p : ((p as { items?: T[] })?.items ?? []);
+const unwrapList = <T,>(p: unknown): T[] => (p as { data: { items: T[] } }).data.items;
 
 async function load() {
   loading.value = true;

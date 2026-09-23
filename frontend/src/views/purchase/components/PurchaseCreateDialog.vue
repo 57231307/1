@@ -20,7 +20,7 @@
     >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="t('purchase.createDlg.supplier')" required>
+          <el-form-item :label="t('purchase.createDlg.supplier')" prop="supplier_id">
             <el-select
               v-model="localForm.supplier_id"
               :placeholder="t('purchase.createDlg.supplierPlaceholder')"
@@ -36,7 +36,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('purchase.createDlg.orderDate')" required>
+          <el-form-item :label="t('purchase.createDlg.orderDate')" prop="order_date">
             <el-date-picker
               v-model="localForm.order_date"
               type="date"

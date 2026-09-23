@@ -272,8 +272,7 @@ const detailCols = ref<string[]>([]);
 
 const form = reactive({ period_start: '', period_end: '', workshop: '', remarks: '' });
 
-const unwrapList = <T,>(p: unknown): T[] =>
-  Array.isArray(p) ? p : ((p as { items?: T[] })?.items ?? []);
+const unwrapList = <T,>(p: unknown): T[] => (p as { data: { items: T[] } }).data.items;
 
 const statusTag = (s: string) =>
   ({

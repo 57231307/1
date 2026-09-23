@@ -303,7 +303,8 @@ const dischargeForm = reactive({
 async function loadDischarge() {
   loadingDischarge.value = true;
   try {
-    dischargeRecords.value = unwrapList(await getDischargeRecords());
+    const res = (await getDischargeRecords()) as { data: unknown };
+    dischargeRecords.value = unwrapList(res.data);
     dischargeCols.value = objKeys(dischargeRecords.value, ['id'], 6);
   } finally {
     loadingDischarge.value = false;

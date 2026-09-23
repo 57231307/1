@@ -141,8 +141,7 @@ const form = reactive({
   position: '',
 });
 
-const unwrapList = <T,>(p: unknown): T[] =>
-  Array.isArray(p) ? p : ((p as { items?: T[] })?.items ?? []);
+const unwrapList = <T,>(p: unknown): T[] => (p as { data: { list: T[] } }).data.list;
 
 const statusLabel = (s: string) =>
   ({ active: '生效中', expired: '已到期', terminated: '已解除', pending: '待生效' })[s] ?? s;

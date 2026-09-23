@@ -323,6 +323,11 @@ import {
 const { t } = useI18n({ useScope: 'global' });
 
 const activeTab = ref('delegation');
+// 权限委托 / 角色关系 / AI 模型版本 / 生效中委托：后端 ApiResponse::success(Vec) → data 为裸数组
+const unwrapDataArray = <T,>(p: unknown): T[] => (p as { data: T[] }).data;
+// 设备连接：后端 ApiResponse::success(PaginatedResponse) → data.items
+const unwrapPagedItems = <T,>(p: unknown): T[] => (p as { data: { items: T[] } }).data.items;
+// 决策日志 / 角色变更审批：调用方已传入 res.data（数组或 {items}），沿用既有解包
 const unwrapList = <T,>(p: unknown): T[] =>
   Array.isArray(p) ? p : ((p as { items?: T[] })?.items ?? []);
 
@@ -341,7 +346,7 @@ const loading = ref(false);
 async function loadDelegations() {
   loading.value = true;
   try {
-    delegations.value = unwrapList(await getDelegationList());
+    delegations.value = unwrapDataArray(await getDelegationList());
     delegationCols.value = cols(delegations.value, ['id'], 6);
   } finally {
     loading.value = false;
@@ -395,7 +400,7 @@ async function onLoadActiveDelegations() {
   loading.value = true;
   try {
     const res = (await getActiveDelegatedPermissions(delegateeId)) as ApiResponse<unknown>;
-    delegations.value = unwrapList(res.data ?? res);
+    delegations.value = unwrapDataArray(res);
     ElMessage.success(`受托人 ${delegateeId} 的生效中委托已加载`);
   } catch (e) {
     const err = e as { message?: string };
@@ -450,7 +455,7 @@ const relationForm = reactive({ role_a: '', role_b: '', relation_type: 'mutual_e
 async function loadRelations() {
   loadingRelations.value = true;
   try {
-    relations.value = unwrapList(await getRoleRelations());
+    relations.value = unwrapDataArray(await getRoleRelations());
     relationCols.value = cols(relations.value, ['id'], 6);
   } finally {
     loadingRelations.value = false;
@@ -486,7 +491,7 @@ const versionForm = reactive({ model_name: '', version: '', description: '' });
 async function loadModels() {
   loadingModels.value = true;
   try {
-    modelVersions.value = unwrapList(await getModelVersionList());
+    modelVersions.value = unwrapDataArray(await getModelVersionList());
     modelCols.value = cols(modelVersions.value, ['id'], 7);
   } finally {
     loadingModels.value = false;
@@ -539,7 +544,7 @@ async function loadDevices() {
   loadingDevices.value = true;
   try {
     const [list, count] = await Promise.all([getDeviceList(), getOnlineDeviceCount()]);
-    devices.value = unwrapList(list);
+    devices.value = unwrapPagedItems(list);
     deviceCols.value = cols(devices.value, ['id'], 7);
     const c = count as { count?: number; data?: { count?: number } };
     onlineCount.value = c?.count ?? c?.data?.count ?? 0;

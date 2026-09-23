@@ -152,8 +152,7 @@ const provisionForm = reactive({
   period_month: new Date().getMonth() + 1,
 });
 
-const unwrapList = <T,>(p: unknown): T[] =>
-  Array.isArray(p) ? p : ((p as { items?: T[] })?.items ?? []);
+const unwrapList = <T,>(p: unknown): T[] => (p as { data: { items: T[] } }).data.items;
 
 const debtExtraCols = computed(() => extraCols(debts.value));
 const taskExtraCols = computed(() => extraCols(tasks.value));

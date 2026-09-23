@@ -378,7 +378,7 @@ const gradeForm = reactive({
 });
 
 const unwrapList = (p: unknown): FabricInspection[] =>
-  Array.isArray(p) ? p : ((p as { items?: FabricInspection[] })?.items ?? []);
+  (p as { data: { items: FabricInspection[] } }).data.items;
 
 const statusTag = (s: string) =>
   ({ draft: 'info', inspecting: 'warning', graded: 'success', closed: 'info' })[s] ?? 'info';

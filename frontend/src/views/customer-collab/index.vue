@@ -186,8 +186,7 @@ import {
 } from '@/api/customer-share';
 
 const activeTab = ref('signature');
-const unwrapList = <T,>(p: unknown): T[] =>
-  Array.isArray(p) ? p : ((p as { items?: T[] })?.items ?? []);
+const unwrapList = <T,>(p: unknown): T[] => (p as { data: T[] }).data;
 const cols = (rows: Array<Record<string, unknown>>, skip: string[], n: number) =>
   rows.length
     ? Object.keys(rows[0])
@@ -386,7 +385,7 @@ async function onListUserTeams() {
   }
   try {
     const res = await listUserTeams(teamUserId.value);
-    teamMembers.value = unwrapList(res.data ?? res);
+    teamMembers.value = unwrapList(res);
     teamCols.value = cols(teamMembers.value, ['id'], 6);
     ElMessage.success(`用户 ${teamUserId.value} 的团队已加载`);
   } catch (e) {

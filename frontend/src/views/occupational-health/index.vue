@@ -168,8 +168,7 @@ import {
 } from '@/api/occupational-health';
 
 const activeTab = ref('exam');
-const unwrapList = <T,>(p: unknown): T[] =>
-  Array.isArray(p) ? p : ((p as { items?: T[] })?.items ?? []);
+const unwrapList = <T,>(p: unknown): T[] => (p as { data: { list: T[] } }).data.list;
 const cols = (rows: Array<Record<string, unknown>>, skip: string[], n: number) =>
   rows.length
     ? Object.keys(rows[0])

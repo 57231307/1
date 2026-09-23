@@ -700,7 +700,7 @@ const loadEvaluationHistory = async () => {
   evalHistoryLoading.value = true;
   try {
     const res = await getSupplierEvaluationHistory(id);
-    evaluationHistory.value = unwrapList(res);
+    evaluationHistory.value = unwrapList(res.data);
   } catch {
     ElMessage.error('查询评估历史失败');
   } finally {
