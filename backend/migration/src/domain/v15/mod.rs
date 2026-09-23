@@ -4444,6 +4444,14 @@ UPDATE "purchase_prices" SET "status" = 'pending' WHERE "status" = 'ACTIVE';
 --    写入侧已改为引用 inventory_piece::AVAILABLE 常量；此处归一历史行。
 UPDATE "inventory_piece" SET "status" = 'AVAILABLE' WHERE "status" = 'available';
 UPDATE "inventory_piece" SET "inventory_status" = 'AVAILABLE' WHERE "inventory_status" = 'available';
+-- 8) financial_indicators.status：建表默认值落在写入方词表之外。
+--    m0012:350 写 DEFAULT 'ACTIVE'（大写），但该列唯一写入/过滤方是
+--    financial_analysis_service.rs（:200 过滤、:229/:687/:793/:1099 写入），用的是
+--    models/status/general.rs:52 的 master_data::ACTIVE = "active"（小写主数据词表，
+--    该模块注释明确与 common::STATUS_ACTIVE 大写区分）。绕过 service 的 INSERT 因此
+--    落到 'ACTIVE'，对所有按 'active' 的指标查询永久不可见。
+ALTER TABLE "financial_indicators" ALTER COLUMN "status" SET DEFAULT 'active';
+UPDATE "financial_indicators" SET "status" = 'active' WHERE "status" = 'ACTIVE';
 -- ========== purchase_orders：双状态列收口（order_status 为唯一真相，status 废弃） ==========
 -- 同表两列两套词表：m0001:457 建 `status VARCHAR(20) NOT NULL DEFAULT 'draft'`
 -- （小写 draft/confirmed/…），system 域 :331 又补 `order_status VARCHAR(20)`（可空、无默认）。
