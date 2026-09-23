@@ -12,8 +12,8 @@ use serde::Deserialize;
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::sales_return_service::{
-    CreateSalesReturnItemRequest, CreateSalesReturnRequest, SalesReturnService,
-    UpdateSalesReturnRequest,
+    CreateSalesReturnItemRequest, CreateSalesReturnRequest, SalesReturnItemView,
+    SalesReturnService, SalesReturnView, UpdateSalesReturnRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -72,7 +72,7 @@ pub async fn list_sales_returns(
     State(state): State<AppState>,
     Query(params): Query<SalesReturnQueryParams>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<PaginatedResponse<crate::models::sales_return::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<SalesReturnView>>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
@@ -100,11 +100,11 @@ pub async fn get_sales_return(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<crate::models::sales_return::Model>>, AppError> {
+) -> Result<Json<ApiResponse<SalesReturnView>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
-    let return_order = service.get_return(id, Some(&data_scope_ctx)).await?;
+    let return_order = service.get_return_detail(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(return_order)))
 }
 
@@ -205,7 +205,7 @@ pub async fn list_return_items(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<crate::models::sales_return_item::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<SalesReturnItemView>>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
     let items = service.list_return_items(id).await?;
     Ok(Json(ApiResponse::success(items)))

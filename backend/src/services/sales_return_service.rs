@@ -4,8 +4,8 @@
 
 use crate::models::status::sales_return as sr_status;
 use crate::models::{
-    inventory_stock, product, sales_delivery, sales_delivery_item, sales_order_item, sales_return,
-    sales_return_item,
+    customer, inventory_stock, product, sales_delivery, sales_delivery_item, sales_order,
+    sales_order_item, sales_return, sales_return_item,
 };
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
@@ -14,10 +14,10 @@ use crate::utils::pagination::paginate_with_total;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, JoinType,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::ar_invoice_service::{ArInvoiceService, CreateArInvoiceRequest};
@@ -65,6 +65,63 @@ pub struct CreateSalesReturnItemRequest {
     pub reason: Option<String>,
 }
 
+// =====================================================
+// 读模型（列表/详情/明细的出参视图）
+// =====================================================
+
+/// 退货单表头读模型：实体列 + 关联出的客户名与来源订单号。
+///
+/// 客户与销售订单均按 LEFT JOIN 取名：`sales_order_id` 可为空（无来源订单的直接退货），
+/// 故两个关联名都可空；表头自身列按 `sales_return` 实体的 NOT NULL 约束保持非空。
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct SalesReturnView {
+    pub id: i32,
+    pub return_no: String,
+    pub sales_order_id: Option<i32>,
+    pub customer_id: i32,
+    pub return_date: chrono::NaiveDate,
+    pub warehouse_id: i32,
+    /// 由 reason_type 与 reason_detail 组合落库（"{type}: {detail}"）
+    pub reason: String,
+    pub status: String,
+    pub total_amount: Decimal,
+    pub remarks: Option<String>,
+    pub approved_by: Option<i32>,
+    pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub rejected_reason: Option<String>,
+    pub created_by: i32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub customer_name: Option<String>,
+    pub sales_order_no: Option<String>,
+}
+
+/// 退货明细读模型：实体列 + 关联出的产品名与产品编号（实体只有 `product_id`）。
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct SalesReturnItemView {
+    pub id: i32,
+    pub return_id: i32,
+    pub line_no: i32,
+    pub product_id: i32,
+    pub quantity: Decimal,
+    pub quantity_alt: Decimal,
+    pub unit_price: Decimal,
+    pub unit_price_foreign: Decimal,
+    pub discount_percent: Decimal,
+    pub tax_percent: Decimal,
+    pub subtotal: Decimal,
+    pub tax_amount: Decimal,
+    pub discount_amount: Decimal,
+    pub total_amount: Decimal,
+    pub notes: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub color_no: String,
+    pub dye_lot_no: String,
+    pub batch_no: String,
+    pub product_name: Option<String>,
+    pub product_code: Option<String>,
+}
 /// 销售退货明细金额计算结果：四个 NOT NULL 金额列（对应 sales_return_item.subtotal /
 /// discount_amount / tax_amount / total_amount）。
 struct ReturnItemAmounts {
@@ -949,6 +1006,36 @@ impl SalesReturnService {
         Ok(return_order)
     }
 
+    /// 退货单详情（带客户名与来源订单号的读模型）
+    pub async fn get_return_detail(
+        &self,
+        return_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<SalesReturnView, AppError> {
+        let row = sales_return::Entity::find()
+            .column_as(customer::Column::CustomerName, "customer_name")
+            .column_as(sales_order::Column::OrderNo, "sales_order_no")
+            .join(JoinType::LeftJoin, sales_return::Relation::Customer.def())
+            .join(JoinType::LeftJoin, sales_return::Relation::SalesOrder.def())
+            .filter(sales_return::Column::Id.eq(return_id))
+            .into_model::<SalesReturnView>()
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
+
+        // 行级数据权限校验（IDOR 防护），与 get_return 同一判据
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, Some(row.created_by), None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问销售退货单 {}（数据范围限制）",
+                    return_id
+                )));
+            }
+        }
+
+        Ok(row)
+    }
+
     /// 删除退货单
     // 批次 93 P1-7 修复：补 user_id 参数 + lock_exclusive + 状态门移入 txn + 审计 user_id
     pub async fn delete_return(&self, return_id: i32, user_id: i32) -> Result<(), AppError> {
@@ -1076,10 +1163,17 @@ impl SalesReturnService {
     pub async fn list_return_items(
         &self,
         return_id: i32,
-    ) -> Result<Vec<sales_return_item::Model>, AppError> {
+    ) -> Result<Vec<SalesReturnItemView>, AppError> {
         let items = sales_return_item::Entity::find()
+            .column_as(product::Column::Name, "product_name")
+            .column_as(product::Column::Code, "product_code")
+            .join(
+                JoinType::LeftJoin,
+                sales_return_item::Relation::Product.def(),
+            )
             .filter(sales_return_item::Column::ReturnId.eq(return_id))
             .order_by_asc(sales_return_item::Column::LineNo)
+            .into_model::<SalesReturnItemView>()
             .all(&*self.db)
             .await?;
         Ok(items)
@@ -1164,8 +1258,12 @@ impl SalesReturnService {
         page: u64,
         page_size: u64,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<(Vec<sales_return::Model>, u64), AppError> {
-        let mut query = sales_return::Entity::find();
+    ) -> Result<(Vec<SalesReturnView>, u64), AppError> {
+        let mut query = sales_return::Entity::find()
+            .column_as(customer::Column::CustomerName, "customer_name")
+            .column_as(sales_order::Column::OrderNo, "sales_order_no")
+            .join(JoinType::LeftJoin, sales_return::Relation::Customer.def())
+            .join(JoinType::LeftJoin, sales_return::Relation::SalesOrder.def());
 
         // V15 P0-S01：行级数据权限过滤（sales_return 表 created_by 为 i32，Dept 退化为 Self）
         if let Some(ctx) = data_scope {
@@ -1191,6 +1289,7 @@ impl SalesReturnService {
 
         let paginator = query
             .order_by_desc(sales_return::Column::CreatedAt)
+            .into_model::<SalesReturnView>()
             .paginate(&*self.db, page_size);
 
         // 使用统一分页辅助函数，并行执行分页查询与总数统计
