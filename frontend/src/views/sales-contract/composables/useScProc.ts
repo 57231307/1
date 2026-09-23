@@ -117,7 +117,7 @@ export function useScProc(refresh: RefreshCallbacks) {
       `<div>
         <p><strong>合同编号：</strong>${row.contract_no}</p>
         <p><strong>合同名称：</strong>${row.contract_name}</p>
-        <p><strong>客户：</strong>${row.customer_name}</p>
+        <p><strong>客户：</strong>${row.customer_name || '-'}</p>
         <p><strong>合同金额：</strong>${formatCurrency(row.total_amount)}</p>
         <p><strong>签订日期：</strong>${row.signed_date || '-'}</p>
         <p><strong>生效日期：</strong>${row.effective_date || '-'}</p>

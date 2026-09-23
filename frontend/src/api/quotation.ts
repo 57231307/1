@@ -85,9 +85,11 @@ export interface QuotationResponseDto {
   id: number;
   quotation_no: string;
   customer_id: number;
-  customer_name?: string;
+  /** 后端 QuotationResponseDto 无 customer_name（models/quotation_response_dto.rs:17 仅 customer_id），需后端 JOIN customers 补 customer_name */
+  customer_name: string | null;
   sales_user_id: number;
-  sales_user_name?: string;
+  /** 后端 QuotationResponseDto 无 sales_user_name（models/quotation_response_dto.rs:17 仅 sales_user_id），需后端 JOIN users 补 sales_user_name */
+  sales_user_name: string | null;
   quotation_date: string;
   valid_until: string;
   currency: string;
@@ -106,7 +108,8 @@ export interface QuotationResponseDto {
   tax_amount: number;
   total_amount: number;
   approved_by?: number;
-  approved_by_name?: string;
+  /** 后端 QuotationResponseDto 无 approved_by_name（models/quotation_response_dto.rs:17 仅 approved_by id），需后端 JOIN users 补 approved_by_name */
+  approved_by_name: string | null;
   approved_at?: string;
   rejection_reason?: string;
   converted_sales_order_id?: number;
@@ -122,8 +125,10 @@ export interface QuotationResponseDto {
 export interface QuotationItemResponseDto {
   id: number;
   product_id: number;
-  product_name?: string;
-  product_code?: string;
+  /** 后端 QuotationItemResponseDto 无 product_name（models/quotation_response_dto.rs:104 仅 product_id），需后端 JOIN products 补 product_name */
+  product_name: string | null;
+  /** 后端 QuotationItemResponseDto 无 product_code（models/quotation_response_dto.rs:104 仅 product_id），需后端 JOIN products 补 product_code */
+  product_code: string | null;
   color_id?: number;
   color_code?: string;
   pantone_code?: string;

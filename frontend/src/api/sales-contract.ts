@@ -6,7 +6,8 @@ export interface SalesContract {
   contract_no: string;
   contract_name: string;
   customer_id: number;
-  customer_name: string;
+  /** 后端 sales_contract::Model.customer_name（Option，左连接可空，models/sales_contract.rs:16） */
+  customer_name: string | null;
   contract_type?: string;
   contract_date: string;
   signed_date?: string;
@@ -14,19 +15,23 @@ export interface SalesContract {
   end_date: string;
   effective_date?: string;
   expiry_date?: string;
-  total_amount: number;
+  /** 后端 sales_contract::Model.total_amount 为 Option<Decimal>（models/sales_contract.rs:17） */
+  total_amount: number | null;
   currency: string;
   payment_terms?: string;
   payment_method?: string;
   delivery_date?: string;
   delivery_location?: string;
-  status: 'draft' | 'pending' | 'active' | 'completed' | 'cancelled';
+  /** 词表出自后端 status/bpm_crm_contract.rs 的 contract 模块：仅 draft/active/cancelled，无 pending/completed */
+  status: 'draft' | 'active' | 'cancelled';
   items: ContractItem[];
   return_items?: ContractItem[];
   delivery_terms: string;
+  /** 后端 sales_contract::Model 无 remarks 列（models/sales_contract.rs 全字段核对），需后端补 remarks */
   remarks?: string;
   created_by: number;
-  created_by_name: string;
+  /** 后端 sales_contract::Model 无创建人名称列（models/sales_contract.rs:26 仅 created_by id），需后端 JOIN users 补 created_by_name */
+  created_by_name: string | null;
   created_at: string;
   updated_at: string;
 }

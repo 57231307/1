@@ -36,11 +36,12 @@
           clearable
           @change="handleSearch"
         >
-          <el-option :label="t('salesContract.filter.optionDraft')" value="draft" />
-          <el-option :label="t('salesContract.filter.optionPending')" value="pending" />
-          <el-option :label="t('salesContract.filter.optionActive')" value="active" />
-          <el-option :label="t('salesContract.filter.optionCompleted')" value="completed" />
-          <el-option :label="t('salesContract.filter.optionCancelled')" value="cancelled" />
+          <el-option
+            v-for="st in SALES_CONTRACT_STATUSES"
+            :key="st"
+            :label="t(SALES_CONTRACT_STATUS_LABEL_KEYS[st])"
+            :value="st"
+          />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('salesContract.filter.labelSignedDate')">
@@ -72,6 +73,10 @@ import { reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Search, Refresh } from '@element-plus/icons-vue';
 import type { Customer } from '@/api/customer';
+import {
+  SALES_CONTRACT_STATUSES,
+  SALES_CONTRACT_STATUS_LABEL_KEYS,
+} from '@/utils/sales-contract-status';
 
 const { t } = useI18n({ useScope: 'global' });
 

@@ -12,15 +12,17 @@ export interface SalesOrder {
   total_amount: number;
   tax_amount?: number;
   discount_amount?: number;
-  contact_person?: string;
-  contact_phone?: string;
+  /** 后端 SalesOrderDetail 未返回此键（services/so/mod.rs:43 仅 created_by），需后端补进详情 DTO */
+  contact_person: string | null;
+  /** 后端 SalesOrderDetail 未返回此键（services/so/mod.rs:43 仅 created_by），需后端补进详情 DTO */
+  contact_phone: string | null;
   delivery_address?: string;
   /** 后端 sales_orders.shipping_address（收货地址快照） */
   shipping_address?: string;
   /** 后端 sales_orders.notes（备注） */
   notes?: string;
-  remark?: string;
-  creator_name?: string;
+  /** 后端 SalesOrderDetail 未返回创建人名称（services/so/mod.rs:43 仅 created_by id），需后端 JOIN users 补 creator_name */
+  creator_name: string | null;
   created_at?: string;
   updated_at?: string;
   items: SalesOrderItem[];
@@ -33,17 +35,19 @@ export interface SalesOrderItem {
   product_code: string;
   /** 色号：后端 sales_order_items.color_no（String）。空串=白坯布，非空=染色布 */
   color_no?: string;
-  dye_lot_no?: string;
+  /** 后端 SalesOrderItemDetail.dye_lot_requirement（services/so/mod.rs:109） */
+  dye_lot_requirement: string | null;
   quantity: number;
-  unit?: string;
+  /** 后端 SalesOrderItemDetail 无 unit 键（services/so/mod.rs:80 至 :116 全字段核对），需后端补 unit */
+  unit: string | null;
   unit_price: number;
   tax_rate?: number;
   tax_amount?: number;
   discount_rate?: number;
   discount_amount?: number;
   subtotal: number;
-  delivered_quantity?: number;
-  delivered_amount?: number;
+  /** 后端 SalesOrderItemDetail.shipped_quantity（services/so/mod.rs:94），非 delivered_quantity */
+  shipped_quantity: number;
 }
 
 export interface SalesOrderQueryParams {

@@ -57,7 +57,11 @@
             row.color_no || t('sales.orderDetail.greige')
           }}</template>
         </el-table-column>
-        <el-table-column prop="dye_lot_no" :label="t('sales.orderDetail.dyeLotNo')" width="110" />
+        <el-table-column
+          prop="dye_lot_requirement"
+          :label="t('sales.orderDetail.dyeLotNo')"
+          width="110"
+        />
         <el-table-column
           prop="quantity"
           :label="t('sales.orderDetail.quantity')"

@@ -88,7 +88,7 @@
         />
         <el-table-column :label="t('quotations.list.colCustomer')" min-width="160">
           <template #default="{ row }">
-            {{ row.customer_name || row.customer_id }}
+            {{ row.customer_name }}
           </template>
         </el-table-column>
         <el-table-column
