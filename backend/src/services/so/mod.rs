@@ -67,6 +67,12 @@ pub struct SalesOrderDetail {
     pub packaging_requirement: Option<String>,
     pub quality_standard: Option<String>,
     pub created_by: Option<i32>,
+    /// 创建人姓名（由 LEFT JOIN 到 `users` 表的 `real_name` 列富化；非实体列）
+    pub creator_name: Option<String>,
+    /// 收货联系人快照（`sales_order.contact_person`）：编辑表单预填用
+    pub contact_person: Option<String>,
+    /// 收货联系电话快照（`sales_order.contact_phone`）：编辑表单预填用
+    pub contact_phone: Option<String>,
     pub approved_by: Option<i32>,
     pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
     pub created_at: chrono::DateTime<chrono::Utc>,

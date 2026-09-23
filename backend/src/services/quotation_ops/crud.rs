@@ -10,17 +10,21 @@ use sea_orm::{
     TransactionTrait,
 };
 
+use crate::models::customer;
 use crate::models::quotation_create_dto::{
     CreateQuotationDto, CreateQuotationItemDto, CreateQuotationTermDto,
 };
+use crate::models::quotation_response_dto::QuotationResponseDto;
 use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
 use crate::models::sales_quotation_item::{ActiveModel as ItemActive, Entity as ItemEntity};
 use crate::models::sales_quotation_term::{ActiveModel as TermActive, Entity as TermEntity};
 use crate::models::status::quotation as quotation_status;
+use crate::models::user;
 use crate::services::quotation_service::{QuotationService, ServiceError};
 use crate::utils::pagination::paginate_with_total;
+use std::collections::HashMap;
 
 impl QuotationService {
     /// 创建报价单草稿
@@ -184,7 +188,7 @@ impl QuotationService {
         customer_id: Option<i64>,
         sales_user_id: Option<i64>,
         keyword: Option<String>,
-    ) -> Result<(Vec<sales_quotation::Model>, u64), ServiceError> {
+    ) -> Result<(Vec<QuotationResponseDto>, u64), ServiceError> {
         let mut query = QuotationEntity::find();
 
         if let Some(s) = status {
@@ -205,8 +209,61 @@ impl QuotationService {
             .order_by_desc(sales_quotation::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
-        Ok((items, total))
+        let (items, total): (Vec<sales_quotation::Model>, u64) =
+            paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+
+        let mut dtos: Vec<QuotationResponseDto> =
+            items.into_iter().map(QuotationResponseDto::from).collect();
+        self.attach_names(&mut dtos).await?;
+        Ok((dtos, total))
+    }
+
+    /// 批量富化报价单的客户名称 / 业务员姓名 / 审批人姓名。
+    ///
+    /// 单次查询取回本页涉及的全部 customers 与 users（业务员 + 审批人合并一次），
+    /// 再在内存里回填，杜绝逐行查询（N+1）。所有富化列均为 `Option<String>`，
+    /// 悬挂外键只让对应名称为空，不会丢弃报价单行。
+    pub async fn attach_names(
+        &self,
+        dtos: &mut [QuotationResponseDto],
+    ) -> Result<(), ServiceError> {
+        if dtos.is_empty() {
+            return Ok(());
+        }
+
+        let customer_ids: Vec<i32> = dtos.iter().map(|d| d.customer_id as i32).collect();
+        let name_map: HashMap<i64, String> = customer::Entity::find()
+            .filter(customer::Column::Id.is_in(customer_ids))
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .map(|c| (c.id as i64, c.customer_name))
+            .collect();
+
+        // 业务员与审批人同属 users 表，合并去重后一次查询
+        let mut user_ids: Vec<i32> = dtos.iter().map(|d| d.sales_user_id as i32).collect();
+        user_ids.extend(
+            dtos.iter()
+                .filter_map(|d| d.approved_by.map(|id| id as i32)),
+        );
+        user_ids.sort_unstable();
+        user_ids.dedup();
+        let user_map: HashMap<i64, Option<String>> = user::Entity::find()
+            .filter(user::Column::Id.is_in(user_ids))
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .map(|u| (u.id as i64, u.real_name))
+            .collect();
+
+        for dto in dtos.iter_mut() {
+            dto.customer_name = name_map.get(&dto.customer_id).cloned();
+            dto.sales_user_name = user_map.get(&dto.sales_user_id).and_then(|n| n.clone());
+            dto.approved_by_name = dto
+                .approved_by
+                .and_then(|id| user_map.get(&(id as i64)).and_then(|n| n.clone()));
+        }
+        Ok(())
     }
 
     /// 按 ID 查询

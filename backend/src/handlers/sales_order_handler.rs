@@ -26,6 +26,10 @@ pub struct SalesOrderQuery {
     pub order_no: Option<String>,
     /// 客户名称模糊查询：列表页一直有这个输入框，此前后端无此字段被直接丢弃
     pub customer_name: Option<String>,
+    /// 订单日期范围（含）：页面的日期区间控件发送 start_date/end_date，
+    /// 此前后端无此二字段 ⇒ 筛选静默失效（空筛选恒 0 行同类缺陷）
+    pub start_date: Option<chrono::NaiveDate>,
+    pub end_date: Option<chrono::NaiveDate>,
 }
 
 /// P1-2d 修复（批次 81 v1 复审）：创建发货请求 DTO
@@ -62,6 +66,8 @@ pub async fn list_orders(
                 customer_id: query.customer_id,
                 order_no: query.order_no,
                 customer_name: query.customer_name,
+                start_date: query.start_date,
+                end_date: query.end_date,
             },
             Some(&data_scope_ctx),
         )
@@ -531,6 +537,8 @@ pub async fn export_orders(
             customer_id: query.customer_id,
             order_no: query.order_no,
             customer_name: query.customer_name,
+            start_date: query.start_date,
+            end_date: query.end_date,
         })
         .await
         .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;

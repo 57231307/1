@@ -6,6 +6,7 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
+use sea_orm::FromQueryResult;
 use serde::{Deserialize, Serialize};
 
 use crate::models::sales_quotation;
@@ -55,6 +56,13 @@ pub struct QuotationResponseDto {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 
+    /// 客户名称（富化列，来源 `customers.customer_name`；非实体列）
+    pub customer_name: Option<String>,
+    /// 业务员姓名（富化列，来源 `users.real_name`，按 `sales_user_id`；非实体列）
+    pub sales_user_name: Option<String>,
+    /// 审批人姓名（富化列，来源 `users.real_name`，按 `approved_by`；非实体列）
+    pub approved_by_name: Option<String>,
+
     pub items: Vec<QuotationItemResponseDto>,
     pub terms: Vec<QuotationTermResponseDto>,
 }
@@ -93,6 +101,10 @@ impl From<sales_quotation::Model> for QuotationResponseDto {
             created_by: m.created_by,
             created_at: m.created_at,
             updated_at: m.updated_at,
+            // 富化名称由批量关联查询单独填充（见 QuotationService::attach_names）
+            customer_name: None,
+            sales_user_name: None,
+            approved_by_name: None,
             items: Vec::new(),
             terms: Vec::new(),
         }
@@ -100,7 +112,7 @@ impl From<sales_quotation::Model> for QuotationResponseDto {
 }
 
 /// 报价单明细响应 DTO
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, FromQueryResult)]
 pub struct QuotationItemResponseDto {
     pub id: i64,
     pub quotation_id: i64,
@@ -121,6 +133,10 @@ pub struct QuotationItemResponseDto {
     pub discount_amount: Option<Decimal>,
     pub notes: Option<String>,
     pub sequence: i32,
+    /// 产品名称（富化列，来源 `products.name`；非实体列）
+    pub product_name: Option<String>,
+    /// 产品编号（富化列，来源 `products.code`；非实体列）
+    pub product_code: Option<String>,
 }
 
 impl From<sales_quotation_item::Model> for QuotationItemResponseDto {
@@ -145,6 +161,8 @@ impl From<sales_quotation_item::Model> for QuotationItemResponseDto {
             discount_amount: m.discount_amount,
             notes: m.notes,
             sequence: m.sequence,
+            product_name: None,
+            product_code: None,
         }
     }
 }

@@ -53,6 +53,8 @@ fn test_sales_order_query_default() {
         customer_id: None,
         order_no: None,
         customer_name: None,
+        start_date: None,
+        end_date: None,
     };
     assert!(query.page.is_none());
     assert!(query.page_size.is_none());
@@ -60,6 +62,8 @@ fn test_sales_order_query_default() {
     assert!(query.customer_id.is_none());
     assert!(query.order_no.is_none());
     assert!(query.customer_name.is_none());
+    assert!(query.start_date.is_none());
+    assert!(query.end_date.is_none());
 }
 
 #[test]
@@ -71,6 +75,8 @@ fn test_sales_order_query_with_values() {
         customer_id: Some(1),
         order_no: Some("SO-2026-0001".to_string()),
         customer_name: Some("绍兴".to_string()),
+        start_date: Some(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()),
+        end_date: Some(chrono::NaiveDate::from_ymd_opt(2026, 12, 31).unwrap()),
     };
     assert_eq!(query.page, Some(1));
     assert_eq!(query.page_size, Some(10));
@@ -78,6 +84,15 @@ fn test_sales_order_query_with_values() {
     assert_eq!(query.customer_id, Some(1));
     assert_eq!(query.order_no, Some("SO-2026-0001".to_string()));
     assert_eq!(query.customer_name, Some("绍兴".to_string()));
+    // 日期区间控件发送 start_date/end_date，后端必须能反序列化到字段（否则筛选静默失效）
+    assert_eq!(
+        query.start_date,
+        Some(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap())
+    );
+    assert_eq!(
+        query.end_date,
+        Some(chrono::NaiveDate::from_ymd_opt(2026, 12, 31).unwrap())
+    );
 }
 
 // ===== 模型序列化测试 =====

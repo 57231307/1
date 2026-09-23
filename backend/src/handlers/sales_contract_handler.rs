@@ -98,7 +98,8 @@ pub async fn list_contracts(
     Query(params): Query<SalesContractQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<sales_contract::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
     info!("用户 {} 正在查询销售合同列表", auth.user_id);
 
     let service = SalesContractService::new(state.db.clone());
@@ -113,7 +114,36 @@ pub async fn list_contracts(
     let (contracts, _total) = service.get_list(query_params).await?;
     info!("销售合同列表查询成功，共 {} 条记录", contracts.len());
 
-    Ok(Json(ApiResponse::success(contracts)))
+    // created_by_name 富化：单次批量查询 users.real_name（杜绝逐行查询），
+    // 悬挂外键仅让该列名为空、不丢行。出参键 = sales_contract 实体列 + created_by_name。
+    let created_by_ids: Vec<i32> = contracts.iter().map(|c| c.created_by).collect();
+    let name_map: std::collections::HashMap<i32, Option<String>> =
+        crate::models::user::Entity::find()
+            .filter(crate::models::user::Column::Id.is_in(created_by_ids))
+            .all(&*state.db)
+            .await?
+            .into_iter()
+            .map(|u| (u.id, u.real_name))
+            .collect();
+
+    let rows: Vec<serde_json::Value> = contracts
+        .into_iter()
+        .map(|c| {
+            let created_by_name = name_map.get(&c.created_by).and_then(|n| n.clone());
+            let mut value = serde_json::to_value(c).map_err(AppError::from)?;
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert(
+                    "created_by_name".to_string(),
+                    created_by_name
+                        .map(serde_json::Value::String)
+                        .unwrap_or(serde_json::Value::Null),
+                );
+            }
+            Ok(value)
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(ApiResponse::success(rows)))
 }
 
 /// 获取销售合同详情
