@@ -115,12 +115,13 @@ import {
   cancelReservation,
   lockReservation,
   releaseReservation,
+  type InventoryReservation,
 } from '@/api/inventory';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 
 const { t } = useI18n({ useScope: 'global' });
 
-const reservations = ref<Record<string, unknown>[]>([]);
+const reservations = ref<InventoryReservation[]>([]);
 const warehouses = ref<Warehouse[]>([]);
 const loading = ref(false);
 const dialogVisible = ref(false);
@@ -142,12 +143,7 @@ const fetchReservations = async () => {
   loading.value = true;
   try {
     const res = await getReservationList({ page: 1, page_size: 100 });
-    const d = res.data as unknown as
-      { items?: Record<string, unknown>[] } | Record<string, unknown>[] | undefined;
-    reservations.value =
-      (d && typeof d === 'object' && !Array.isArray(d)
-        ? d.items
-        : (d as Record<string, unknown>[])) || [];
+    reservations.value = res.data.list;
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));

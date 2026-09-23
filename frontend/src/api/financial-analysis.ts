@@ -84,6 +84,9 @@ export const createFinancialIndicator = (data: Partial<FinancialIndicator>) =>
   request.post<ApiResponse<FinancialIndicator>>('/financial-analysis/indicators', data);
 
 export const getFinancialTrends = (params?: TrendQueryParams) =>
-  request.get<ApiResponse<{ trends: FinancialTrend[] }>>('/financial-analysis/trends', {
-    params,
-  });
+  request.get<ApiResponse<{ items: FinancialTrend[]; total: number }>>(
+    '/financial-analysis/trends',
+    {
+      params,
+    }
+  );

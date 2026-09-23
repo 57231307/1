@@ -192,10 +192,7 @@ const warehouses = ref<Warehouse[]>([]);
 const total = ref(0);
 
 const stats = ref({
-  totalQuantity: 0,
   alertCount: 0,
-  warehouseCount: 0,
-  lowStockCount: 0,
 });
 
 const queryParams = reactive<StockQuery>({
@@ -209,19 +206,10 @@ const queryParams = reactive<StockQuery>({
 const fetchData = async () => {
   loading.value = true;
   try {
-    const { getStockList, getInventoryReport } = await import('@/api/inventory');
+    const { getStockList } = await import('@/api/inventory');
     const res = await getStockList(queryParams);
     stocks.value = res.data?.items || [];
     total.value = res.data?.total || 0;
-
-    const summaryRes = await getInventoryReport({});
-    const summary = summaryRes.data?.summary || {};
-    stats.value = {
-      totalQuantity: summary.total_quantity || 0,
-      alertCount: summary.alert_count || 0,
-      warehouseCount: summary.warehouse_count || 0,
-      lowStockCount: summary.low_stock_count || 0,
-    };
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
@@ -246,6 +234,8 @@ const fetchAlerts = async () => {
       throw new Error('库存预警出参缺少 items 数组');
     }
     alerts.value = payload.items;
+    // KPI 取后端分层 total（全局值），不是本页行数；与下方"仅显示前 N 条"的截断提示不冲突
+    stats.value.alertCount = payload.total;
     if (payload.items.length < payload.total) {
       logger.warn(
         `库存预警仅显示前 ${payload.items.length} 条（共 ${payload.total} 条），请按仓库/产品缩小范围查看剩余告警`
@@ -265,7 +255,7 @@ const fetchTransfers = async () => {
   try {
     const { getInventoryTransferList } = await import('@/api/inventory');
     const res = await getInventoryTransferList(queryParams);
-    transfers.value = res.data?.items || [];
+    transfers.value = res.data;
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(

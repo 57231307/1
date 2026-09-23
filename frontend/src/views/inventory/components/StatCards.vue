@@ -6,19 +6,6 @@
 <template>
   <el-row :gutter="20" class="stats-row">
     <el-col :xs="24" :sm="12" :lg="6">
-      <el-card shadow="hover" class="stat-card">
-        <div class="stat-content">
-          <div class="stat-icon total-icon">
-            <el-icon><Box /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">{{ t('inventory.statCards.totalQuantity') }}</div>
-            <div class="stat-value">{{ formatNumber(stats.totalQuantity) }}</div>
-          </div>
-        </div>
-      </el-card>
-    </el-col>
-    <el-col :xs="24" :sm="12" :lg="6">
       <el-card shadow="hover" class="stat-card warning">
         <div class="stat-content">
           <div class="stat-icon alert-icon">
@@ -31,49 +18,22 @@
         </div>
       </el-card>
     </el-col>
-    <el-col :xs="24" :sm="12" :lg="6">
-      <el-card shadow="hover" class="stat-card">
-        <div class="stat-content">
-          <div class="stat-icon warehouse-icon">
-            <el-icon><OfficeBuilding /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">{{ t('inventory.statCards.warehouseCount') }}</div>
-            <div class="stat-value">{{ stats.warehouseCount }}</div>
-          </div>
-        </div>
-      </el-card>
-    </el-col>
-    <el-col :xs="24" :sm="12" :lg="6">
-      <el-card shadow="hover" class="stat-card danger">
-        <div class="stat-content">
-          <div class="stat-icon low-icon">
-            <el-icon><WarningFilled /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">{{ t('inventory.statCards.lowStock') }}</div>
-            <div class="stat-value">{{ stats.lowStockCount }}</div>
-          </div>
-        </div>
-      </el-card>
-    </el-col>
   </el-row>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { Box, Warning, OfficeBuilding, WarningFilled } from '@element-plus/icons-vue';
-import { formatNumber } from '../composables/invFmts';
+import { Warning } from '@element-plus/icons-vue';
 
 // 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });
 
+// 仅「库存告警数」有全局数据源（/inventory/stock/alerts 的分层 total）。
+// 原「总数量/仓库数/低库存数」三卡的取数端点只返回分页明细行（page_size 默认 20、后端 clamp 100），
+// 首页求和被当作全局 KPI 展示属假数，故先撤卡；需后端补聚合端点后再接回（见 .monkeycode/doto.md）。
 defineProps<{
   stats: {
-    totalQuantity: number;
     alertCount: number;
-    warehouseCount: number;
-    lowStockCount: number;
   };
 }>();
 </script>

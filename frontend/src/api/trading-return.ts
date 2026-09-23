@@ -5,7 +5,7 @@
 //   销售退货 /sales/sales-returns（sales.rs，由 sales_return_handler::router() 提供）
 //   旧 /trading/* 域仅保留 5 个 GET 列表端点（analytics.rs trading()）
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 export interface TradingReturn {
   id: number;
@@ -22,13 +22,19 @@ export interface ListTradingReturnParams {
   type: 'purchase' | 'sales';
 }
 
-export const getTradingReturnList = (params: ListTradingReturnParams) => {
-  if (params.type === 'sales') {
-    return request.get<ApiResponse<TradingReturn[]>>('/trading/sales-returns');
-  }
-  // 后端采购退货列表真实路由：GET /purchase/returns（purchase.rs purchase_return_routes()）
-  return request.get<ApiResponse<TradingReturn[]>>('/purchase/returns');
-};
+// 采购退货：后端 purchase_return_handler::list_purchase_returns 返回 PaginatedResponse
+// （data = {items, total, page, page_size}）。
+export const getTradingPurchaseReturnList = (params?: Record<string, unknown>) =>
+  request.get<ApiResponse<PaginatedResponse<TradingReturn>>>('/purchase/returns', { params });
+
+// 销售退货：后端 advanced::list_sales_returns 返回 Vec<SalesReturn>（data 为裸数组）。
+export const getTradingSalesReturnList = () =>
+  request.get<ApiResponse<TradingReturn[]>>('/trading/sales-returns');
+
+// 兼容原调用点的分发函数：委托到上述两个类型明确的导出，避免同一函数体里出现两个不同
+// 信封声明导致门禁按函数名匹配失败。
+export const getTradingReturnList = (params: ListTradingReturnParams) =>
+  params.type === 'sales' ? getTradingSalesReturnList() : getTradingPurchaseReturnList();
 
 export const getTradingReturn = (id: number, type: 'purchase' | 'sales') =>
   type === 'purchase'

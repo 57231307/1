@@ -18,7 +18,6 @@ import {
   generateSalesOrderNo,
   shipSalesOrder,
   type SalesOrder,
-  type SalesDelivery,
 } from '@/api/sales';
 import type { OrderForm } from './useOlv';
 import { logger } from '@/utils/logger';
@@ -188,9 +187,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   const handleDetail = async (row: SalesOrder) => {
     try {
       const res = await getSalesDeliveryList(row.id);
-      const deliveries =
-        (res.data as unknown as SalesDelivery[] | { list?: SalesDelivery[] }) || [];
-      const list = Array.isArray(deliveries) ? deliveries : deliveries.list || [];
+      const list = res.data.list;
       const lines = [
         `发货记录 ${list.length} 条`,
         ...list.slice(0, 5).map(d => `${d.delivery_no || d.id}（${d.status}）`),

@@ -173,26 +173,18 @@ export interface Paginated<T> {
 }
 
 // P2-9b 修复（批次 82 v1 复审）：库存报表返回类型强类型化，替代 { summary: any; details: any[] }
-export interface InventoryReportSummary {
-  total_quantity: number;
-  total_amount: number;
-  warehouse_count: number;
-  product_count: number;
-  low_stock_count: number;
-  alert_count: number;
-}
-
-export interface InventoryReportDetail {
+// 后端 GET /inventory/stock/summary 实际返回 PaginatedResponse<InventorySummaryItem>
+// （backend/src/handlers/inventory_stock_handler_dto.rs::InventorySummaryItem），
+// 即按「产品+批次+色号+等级+仓库」分组的分页明细行，顶层无聚合汇总对象。
+export interface InventorySummaryRow {
   product_id: number;
   product_name: string;
-  product_code: string;
-  warehouse_id: number;
+  batch_no: string;
+  color_no: string;
+  grade: string;
+  total_quantity_meters: number;
+  total_quantity_kg: number;
   warehouse_name: string;
-  quantity: number;
-  amount: number;
-  unit?: string;
-  status?: string;
-  batch_no?: string;
 }
 
 // D14 Batch 5b：原 inventoryApi.getStockList 转为风格 B 函数
@@ -217,7 +209,9 @@ export const deleteStock = (id: number) =>
 
 // D14 Batch 5b：原 inventoryApi.getStockByProduct 转为风格 B 函数
 export const getStockByProduct = (productId: number) =>
-  request.get<ApiResponse<InventoryStock[]>>(`/inventory/stock/product/${productId}`);
+  request.get<ApiResponse<{ list: InventoryStock[]; total: number }>>(
+    `/inventory/stock/product/${productId}`
+  );
 
 // D14 Batch 5b：原 inventoryApi.createStockAdjustment 转为风格 B 函数
 export const createStockAdjustment = (data: StockAdjustmentData) =>
@@ -225,7 +219,7 @@ export const createStockAdjustment = (data: StockAdjustmentData) =>
 
 // D14 Batch 5b：原 inventoryApi.getReservations 转为风格 B 函数
 export const getReservationList = (params?: InventoryQueryParams) =>
-  request.get<ApiResponse<{ items: InventoryReservation[]; total: number }>>(
+  request.get<ApiResponse<{ list: InventoryReservation[]; total: number }>>(
     '/inventory/reservations',
     { params }
   );
@@ -240,7 +234,7 @@ export const cancelReservation = (id: number) =>
 
 // D14 Batch 5b：原 inventoryApi.getTransfers 转为风格 B 函数
 export const getInventoryTransferList = (params?: InventoryQueryParams) =>
-  request.get<ApiResponse<{ items: InventoryTransfer[]; total: number }>>('/inventory/transfers', {
+  request.get<ApiResponse<InventoryTransfer[]>>('/inventory/transfers', {
     params,
   });
 
@@ -269,12 +263,9 @@ export const getStockAlertList = (params?: {
 
 // D14 Batch 5b：原 inventoryApi.getInventoryReport 转为风格 B 函数
 export const getInventoryReport = (params: InventoryReportParams) =>
-  request.get<ApiResponse<{ summary: InventoryReportSummary; details: InventoryReportDetail[] }>>(
-    '/inventory/stock/summary',
-    {
-      params,
-    }
-  );
+  request.get<ApiResponse<Paginated<InventorySummaryRow>>>('/inventory/stock/summary', {
+    params,
+  });
 
 // ============== 库存创建/导出/面料/流水/预留锁定（Batch 补齐 API 封装）==============
 

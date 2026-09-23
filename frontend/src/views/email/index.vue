@@ -406,6 +406,7 @@ const {
   setQueryParam: setRecordQueryParam,
 } = useTableApi<EmailLog>({
   url: '/email-records',
+  listKey: 'list',
   onError: (err: unknown) => logger.error(t('email.index.messageFetchRecordsFailed'), err),
 });
 

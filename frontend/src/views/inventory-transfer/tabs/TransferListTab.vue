@@ -254,8 +254,8 @@ const emit = defineEmits<{
 }>();
 
 // 批次 391：接入 useTableApi，统一分页规范（1-based），由 setup 自动加载 + watch page/pageSize 触发。
-// 后端返回 { data: { list: [], total: 0 } }，listKey 默认 'list' 命中自动探测。
-// 原手写 queryParams/transfers/loading/total/fetchTransfers 模板代码消除。
+// 后端 list_transfers 返回裸数组 ApiResponse<Vec<Value>>：useTableApi 把 res.data 数组挂到 payload.data，
+// 故显式钉住 listKey='data'，不依赖内部 list/items/data 探测（total 后端未返回，恒为 0）。
 const {
   data: transfers,
   total,
@@ -266,6 +266,7 @@ const {
   refresh: fetchTransfers,
 } = useTableApi<InventoryTransferEntity>({
   url: '/inventory/transfers',
+  listKey: 'data',
   defaultPageSize: 20,
   defaultParams: {
     transfer_no: '',

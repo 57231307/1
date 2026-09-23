@@ -151,7 +151,9 @@ export const createSalesDelivery = (orderId: number, data: Partial<SalesDelivery
 
 // D14 Batch 5b：原 salesApi.getDeliveries 转为风格 B 函数
 export const getSalesDeliveryList = (orderId: number) =>
-  request.get<ApiResponse<SalesDelivery[]>>(`/sales/orders/${orderId}/deliveries`);
+  request.get<ApiResponse<{ list: SalesDelivery[]; total: number }>>(
+    `/sales/orders/${orderId}/deliveries`
+  );
 
 /**
  * 销售发货出库（真实扣减库存）——与后端 ShipOrderRequest/ShipOrderItemRequest 同构

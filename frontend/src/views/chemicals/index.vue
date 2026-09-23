@@ -196,12 +196,6 @@ const form = reactive({
 const unwrapList = (p: unknown): Chemical[] =>
   Array.isArray(p) ? p : ((p as { items?: Chemical[] })?.items ?? []);
 
-// 通用列表解包（批次/分类等 Record 行）
-const unwrap = (p: unknown): Array<Record<string, unknown>> =>
-  Array.isArray(p)
-    ? (p as Array<Record<string, unknown>>)
-    : ((p as { items?: Array<Record<string, unknown>> })?.items ?? []);
-
 const skipCols = new Set([
   'id',
   'chemical_code',
@@ -294,7 +288,7 @@ const loadLots = async () => {
   lotLoading.value = true;
   try {
     const res = await getChemicalLotList();
-    chemicalLots.value = unwrap(res.data);
+    chemicalLots.value = res.data.items;
   } catch (e) {
     ElMessage.error((e as Error).message || '加载批次失败');
   } finally {
@@ -361,7 +355,7 @@ const loadCategories = async () => {
   categoryLoading.value = true;
   try {
     const res = await getChemicalCategoryList();
-    chemicalCategories.value = unwrap(res.data);
+    chemicalCategories.value = res.data.items;
   } catch (e) {
     ElMessage.error((e as Error).message || '加载分类失败');
   } finally {

@@ -103,7 +103,7 @@ export function usePrcProc(cb: PrcCallbacks) {
     cb.dialogTitle = msg.translate('editReceiptTitle');
     const res = await getPurchaseReceipt(row.id!);
     const itemsRes = await getReceiptItems(row.id!);
-    cb.form = { ...(res.data as unknown as PrcForm), items: itemsRes.data?.items || [] };
+    cb.form = { ...(res.data as unknown as PrcForm), items: itemsRes.data };
     cb.dialogVisible = true;
   };
 
@@ -113,7 +113,7 @@ export function usePrcProc(cb: PrcCallbacks) {
       const res = await getPurchaseReceipt(row.id!);
       cb.viewData = res.data || null;
       const itemsRes = await getReceiptItems(row.id!);
-      cb.detailData = itemsRes.data?.items || [];
+      cb.detailData = itemsRes.data;
       cb.viewDialogVisible = true;
     } catch (error) {
       msg.error('loadDetailFailed');

@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 export interface Chemical {
   id: number;
@@ -41,7 +41,9 @@ export function deleteChemical(id: number) {
 }
 
 export function getChemicalLotList(params?: Record<string, unknown>) {
-  return request.get<ApiResponse<Record<string, unknown>[]>>('/chemical-lots', { params });
+  return request.get<ApiResponse<PaginatedResponse<Record<string, unknown>>>>('/chemical-lots', {
+    params,
+  });
 }
 
 export function createChemicalLot(data: Record<string, unknown>) {
@@ -65,7 +67,9 @@ export function getChemicalCategoryTree() {
 }
 
 export function getChemicalCategoryList() {
-  return request.get<ApiResponse<Record<string, unknown>[]>>('/chemical-categories');
+  return request.get<ApiResponse<PaginatedResponse<Record<string, unknown>>>>(
+    '/chemical-categories'
+  );
 }
 
 export function createChemicalCategory(data: Record<string, unknown>) {

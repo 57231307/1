@@ -94,7 +94,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import {
-  getTradingReturnList,
+  getTradingSalesReturnList,
   getTradingReturn,
   createTradingReturn,
   approveTradingReturn,
@@ -143,14 +143,8 @@ const getReturnStatusLabel = (status: string): string => {
 const fetchSalesReturns = async () => {
   salesReturnLoading.value = true;
   try {
-    const res = await getTradingReturnList({ type: 'sales' });
-    const d = res.data as
-      { list?: TradingReturn[]; items?: TradingReturn[] } | TradingReturn[] | undefined;
-    if (d && typeof d === 'object' && !Array.isArray(d)) {
-      salesReturns.value = d.list || d.items || [];
-    } else {
-      salesReturns.value = (d as TradingReturn[]) || [];
-    }
+    const res = await getTradingSalesReturnList();
+    salesReturns.value = res.data;
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('trading.salesReturnTab.messageFetchFailed'));

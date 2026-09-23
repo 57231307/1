@@ -571,7 +571,7 @@ const handleTrendQuery = async () => {
       startDate: trendForm.startDate || undefined,
       endDate: trendForm.endDate || undefined,
     });
-    const trends = res.data?.trends ?? [];
+    const trends = res.data.items;
     trendRows.value = trends as unknown as Array<Record<string, unknown>>;
     trendCols.value = trendRows.value.length ? Object.keys(trendRows.value[0]).slice(0, 8) : [];
   } catch (e) {

@@ -90,7 +90,7 @@ export const rejectPurchaseReturn = (id: number, reason?: string) =>
 
 // D14 Batch 5b：原 purchaseReturnApi.listItems 转为风格 B 函数
 export const getPurchaseReturnItemList = (id: number) =>
-  request.get<ApiResponse<{ items: PurchaseReturnItem[] }>>(`/purchase/returns/${id}/items`);
+  request.get<ApiResponse<PurchaseReturnItem[]>>(`/purchase/returns/${id}/items`);
 
 // D14 Batch 5b：原 purchaseReturnApi.createItem 转为风格 B 函数
 export const createPurchaseReturnItem = (id: number, data: Partial<PurchaseReturnItem>) =>

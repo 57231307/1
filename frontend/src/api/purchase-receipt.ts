@@ -87,19 +87,13 @@ export function approvePurchaseReceipt(id: number) {
   return request.post<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}/confirm`);
 }
 
-// 入库单明细响应载荷
-export interface ReceiptItemsResponse {
-  items: ReceiptItem[];
-  total?: number;
-}
-
 /**
  * 获取入库单明细
- * 修复前返回 Promise<any>，导致调用方需要做大量类型断言；
- * 修复后返回明确的 ApiResponse<ReceiptItemsResponse>，调用方可直接 res.data?.items 解构。
+ * 后端 purchase_receipt_handler::list_receipt_items 直接返回 ApiResponse<Vec<Value>>，
+ * data 即明细数组本身（裸数组，非 {items} 信封）。
  */
 export function getReceiptItems(id: number) {
-  return request.get<ApiResponse<ReceiptItemsResponse>>(`/purchase/receipts/${id}/items`);
+  return request.get<ApiResponse<ReceiptItem[]>>(`/purchase/receipts/${id}/items`);
 }
 
 export function createReceiptItem(id: number, data: Partial<ReceiptItem>) {

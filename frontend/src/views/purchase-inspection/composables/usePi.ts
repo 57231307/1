@@ -154,7 +154,7 @@ export function usePi() {
     receiptItemsLoading.value = true;
     try {
       const res = await getReceiptItems(receiptId);
-      const items: ReceiptItem[] = res.data?.items || [];
+      const items: ReceiptItem[] = res.data;
       if (items.length === 0) {
         msg.info('noReceiptDetails');
         formData.items = [];

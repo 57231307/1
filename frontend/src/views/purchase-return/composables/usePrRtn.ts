@@ -54,6 +54,7 @@ export function usePrRtn() {
     refresh: fetchData,
   } = useTableApi<PurchaseReturn>({
     url: '/purchase/returns',
+    listKey: 'items',
     defaultPageSize: 20,
     pageKey: 'page',
     pageSizeKey: 'pageSize',
