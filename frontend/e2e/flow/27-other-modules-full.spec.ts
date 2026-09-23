@@ -39,7 +39,9 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
       'GET',
       '/purchase/suppliers?page=1&page_size=1'
     );
-    let supId = supList.items?.[0]?.id;
+    // items?.[0]?.id 在空列表时运行期为 undefined（noUncheckedIndexedAccess 关闭使
+    // 索引结果被误判为 number），显式标注可选以匹配真实形状，兜底创建后仍由下方 throw 判空
+    let supId: number | undefined = supList.items?.[0]?.id;
     if (!supId) {
       // 分片独立 DB：本分片可能没有任何供应商，前置创建（API 兜底用于测试数据准备）
       console.warn('[27-other] 供应商列表为空，前置创建供应商');

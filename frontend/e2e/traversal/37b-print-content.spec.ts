@@ -6,6 +6,8 @@ import {
   apiCallRaw,
   ensureTestEntities,
   getCtx,
+  API_BASE,
+  API_PREFIX,
   type ApiResponse,
 } from '../flow/helpers';
 
@@ -24,9 +26,6 @@ import {
  *
  * 全部基于真实后端 + 真实 PostgreSQL（IR 2026-09-07），每步显式日志（IR 2026-09-03）
  */
-
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
-const API_PREFIX = '/api/v1/erp';
 
 test.describe('37b 打印内容匹配与审计闭环', () => {
   test.beforeEach(async ({ page }) => {
@@ -161,7 +160,9 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     const vs = await apiCallRaw<{
       items: Array<{ id: number; voucher_no?: string; no?: string }>;
     }>(page, 'GET', '/vouchers?page=1&page_size=1');
-    let voucherId = vs.items?.[0]?.id;
+    // items?.[0]?.id 在空列表时运行期为 undefined（noUncheckedIndexedAccess 关闭使
+    // 索引结果被误判为 number），显式标注可选以匹配真实形状，供 ensureTestEntities 兜底赋值
+    let voucherId: number | undefined = vs.items?.[0]?.id;
     let voucherNo = vs.items?.[0]?.voucher_no ?? vs.items?.[0]?.no;
     if (!voucherId) {
       console.log('[37b] 无凭证种子数据，ensureTestEntities 兜底创建');

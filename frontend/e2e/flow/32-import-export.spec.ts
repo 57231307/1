@@ -228,6 +228,13 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     // /warehouses/export（routes/catalog.rs:91）未接 enforce_export_download，
     // 不属敏感导出：点击导出必须产生下载文件，否则是导出链路缺陷
     expect(result, '[P0-导出-仓库] 仓库导出未被审批门控，UI 点击必须触发下载').toBeTruthy();
+    // 显式判空收窄（expect 不参与类型收窄）：result 为 null 时上方断言已判红，
+    // 此处抛出等价失败以保持"必须触发下载"契约，再安全访问 size/filename。
+    if (!result) {
+      throw new Error(
+        '[P0-导出-仓库] 仓库导出未触发下载（与上方断言一致：未门控导出必须产生文件）'
+      );
+    }
     expect(result.size, '导出文件应 >512B').toBeGreaterThan(512);
     const ext = path.extname(result.filename).toLowerCase();
     expect(['.xlsx', '.csv', '.json', '.xls']).toContain(ext);

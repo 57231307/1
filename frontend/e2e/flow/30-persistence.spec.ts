@@ -30,8 +30,6 @@ import { pickListArray } from './ui-helpers';
  * 全部真实后端 + 真实 PostgreSQL，每步显式日志
  */
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
-const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
 const uniqueKey = (prefix: string) => `${prefix}${TS}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -109,13 +107,11 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       fabric_composition: '100%涤纶',
     };
 
-    const createResp = await apiCall<{ data?: { id?: number } }>(
-      page,
-      'POST',
-      '/products',
-      payload
-    );
-    const id = createResp?.data?.id;
+    // apiCall 返回 ApiResponse<T>（data 已是载荷本身），泛型须为载荷 { id? } 而非
+    // 再包一层 { data?: { id? } }——否则 createResp.data.id 多套一层读不到。
+    // 后端 create_product → ApiResponse<product::Model>，data 含 id（product_handler.rs:340-391）
+    const createResp = await apiCall<{ id?: number }>(page, 'POST', '/products', payload);
+    const id = createResp.data?.id;
     console.log(`[P0-产品] 创建成功 id=${id} code=${code}`);
     expect(id, '产品创建必须返回 id').toBeTruthy();
 

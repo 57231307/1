@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginAsRole, apiCall, apiCallRaw } from './helpers';
+import { loginAsRole, apiCall, apiCallRaw, API_BASE, API_PREFIX } from './helpers';
 import { pickListArray } from './ui-helpers';
 
 /**
@@ -20,9 +20,6 @@ import { pickListArray } from './ui-helpers';
  * 凭证来源：ensureRoleUsers 幂等补建（global-setup.ts BLACKLIST_TEST_ROLES）
  * 每步显式日志
  */
-
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
-const API_PREFIX = '/api/v1/erp';
 
 /** 黑名单角色：持 print/export 权限码仍必须被拒 */
 const BLACKLIST_ROLES = ['customer', 'temporary'];
@@ -45,7 +42,9 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
       // 端点形状漂移（裸数组/items/list 任一）静默吸收成"0 条"，掩盖契约变更。
       const products = await apiCallRaw<unknown>(page, 'GET', '/products?page=1&page_size=1');
       const productList = pickListArray<{ id: number }>(products, 'items', '33b 前置产品列表');
-      let productId = productList[0]?.id;
+      // productList[0]?.id 在空列表时运行期为 undefined（noUncheckedIndexedAccess
+      // 关闭使索引结果被误判为 number），显式标注可选，兜底创建后由下方 throw 判空
+      let productId: number | undefined = productList[0]?.id;
       if (!productId) {
         const created = await apiCall<{ id?: number }>(page, 'POST', '/products', {
           name: `33b黑名单产品${Date.now().toString().slice(-6)}`,

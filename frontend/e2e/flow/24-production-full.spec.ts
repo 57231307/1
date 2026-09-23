@@ -71,7 +71,9 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     }
     await verifyEndpointHealthy(page, '/production/fabric-defects?page=1&page_size=5');
     // 确保有验布记录（CI 库可能为空）：无则先创建一条，物理测试挂在其上
-    let phyInspId = inspId;
+    // inspId 由 items?.[0]?.id 取值，空列表时为 undefined（noUncheckedIndexedAccess
+    // 关闭使编译器把索引结果误判为 number），显式标注可选以匹配真实运行形状
+    let phyInspId: number | undefined = inspId;
     if (!phyInspId) {
       const created = await apiCall<{ id?: number }>(
         page,

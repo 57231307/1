@@ -139,6 +139,7 @@ test.describe('成本核算完整流程', () => {
   });
 
   test('会计期间控制：关闭期间禁止录入凭证', async ({ page }) => {
+    const ctx = getCtx();
     // 查询当前会计期间
     const currentPeriod = await apiCallRaw<{
       id: number;
