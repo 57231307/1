@@ -45,9 +45,8 @@ pub fn strip_empty_query_values(raw: &str) -> (String, bool) {
         return (raw.to_string(), false);
     }
     let mut serializer = form_urlencoded::Serializer::new(String::new());
-    for (key, value) in pairs {
-        serializer.push_pair(key, value);
-    }
+    // form_urlencoded 1.2.2 的 Serializer 只有 append_pair / extend_pairs（没有 pair/push_pair）。
+    serializer.extend_pairs(pairs);
     (serializer.finish(), true)
 }
 
