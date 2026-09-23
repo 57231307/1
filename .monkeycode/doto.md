@@ -2194,3 +2194,18 @@ devDependencies 里根本没有 `@types/node`（e2e 从不查类型所以长期�
 矩阵对它们的返回会从"业务/状态机拒绝"变成"参数校验失败"，两者都在容忍集合内 →
 **CI 不会因此变红**，但该矩阵对这三条只证明"路由已注册"，不证明能审批成功。
 真实链路覆盖在 41b-c 与四套专用流 spec。若要矩阵也覆盖成功路径，需按端点配真实 body（待决）。
+
+### PageResult 收口过程中读码读出的后端问题（登记，未擅自改）
+1. `api/ar-reconciliation-enhanced.ts::getAutoReconciliationResults` 请求
+   `GET /ar-reconciliations-enhanced/auto-match`，但该路径只注册了 POST；
+   真正的"结果列表" handler（`ar_reconciliation_handler.rs:655` 返 `{list}`）挂在
+   `finance.rs:1027` 的 `/ar-reconciliation-alias/auto-reconcile/results`。
+   ⇒ 该 GET 运行期 404，属功能缺口（不是信封问题），需决定改 URL 还是补 GET 路由。
+2. AR 三个列表 handler（`:655/:706/:786`）内部都调 `service.list()` 返回
+   **ArReconciliation 模型**，仅靠固定 status 过滤区分"自动对账结果/客户对账函/争议"，
+   而前端把它们声明成 `AutoReconciliationResult`/`CustomerConfirmation`/`DisputeRecord`。
+   信封键（list）本轮已修对，但**元素类型契约不符**：响应里的字段名以对账单为准。
+   ⇒ 需后端为三类各出专用视图结构，或前端按真实元素类型声明（后者会让三个页面的列定义失去依据）。
+3. `AutoReconResultQueryParams` 里的 `task_id/match_status/customer_name/status`
+   不在后端 `ListResultsQuery`（只读 page/page_size/customer_id/start_date/end_date），
+   这些键发出即被丢弃 —— 待请求侧下一轮按端点定型时一并收。
