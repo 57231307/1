@@ -33,7 +33,10 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
     // 一旦分页结果为空就是 TypeError 而不是可读的断言失败
     expect(rows.length, '首页审计日志不应为空').toBeGreaterThan(0);
     expect(String(rows[0].operation_type ?? ''), '审计记录应含 operation_type').toBeTruthy();
-    expect(rows[0].action ?? rows[0].request_method, '审计记录应含操作标识').toBeTruthy();
+    // /audit-logs 的条目 DTO(AuditLogListItem) 无 action 字段、request_method 可空
+    // （系统/后台审计事件无 HTTP 方法），"操作标识"由 operation_type 承担（上一行已断言）。
+    // 这里改断言主键 id：它是 DTO 唯一保证非空的标识，能真实证明列表回读到了持久化记录。
+    expect(Number(rows[0].id), '审计记录应含正整数主键 id').toBeGreaterThan(0);
   });
 
   test('5-2 用户列表 + 角色列表 + 部门列表', async ({ page }) => {
