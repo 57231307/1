@@ -5,11 +5,11 @@
 -->
 <template>
   <el-table v-loading="loading" :data="list" border :aria-label="t('salesReturns.table.ariaLabel')">
-    <el-table-column prop="returnNo" :label="t('salesReturns.table.columnReturnNo')" />
-    <el-table-column prop="salesOrderNo" :label="t('salesReturns.table.columnSalesOrderNo')" />
-    <el-table-column prop="customerName" :label="t('salesReturns.table.columnCustomerName')" />
-    <el-table-column prop="returnDate" :label="t('salesReturns.table.columnReturnDate')" />
-    <el-table-column prop="totalAmount" :label="t('salesReturns.table.columnReturnAmount')" />
+    <el-table-column prop="return_no" :label="t('salesReturns.table.columnReturnNo')" />
+    <el-table-column prop="sales_order_no" :label="t('salesReturns.table.columnSalesOrderNo')" />
+    <el-table-column prop="customer_name" :label="t('salesReturns.table.columnCustomerName')" />
+    <el-table-column prop="return_date" :label="t('salesReturns.table.columnReturnDate')" />
+    <el-table-column prop="total_amount" :label="t('salesReturns.table.columnReturnAmount')" />
     <el-table-column prop="status" :label="t('salesReturns.table.columnStatus')">
       <template #default="{ row }">
         <el-tag :type="getStatusType(row.status)">
@@ -53,7 +53,7 @@
           >{{ t('salesReturns.table.buttonExecute') }}</el-button
         >
         <el-button
-          v-if="row.status === 'PENDING'"
+          v-if="row.status === 'SUBMITTED'"
           size="small"
           type="primary"
           @click="emit('approve', row)"
@@ -90,7 +90,8 @@ const emit = defineEmits<{
 /** 获取退货状态标签（i18n 响应式） */
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    PENDING: t('salesReturns.table.statusPending'),
+    DRAFT: t('salesReturns.table.statusDraft'),
+    SUBMITTED: t('salesReturns.table.statusSubmitted'),
     APPROVED: t('salesReturns.table.statusApproved'),
     REJECTED: t('salesReturns.table.statusRejected'),
     COMPLETED: t('salesReturns.table.statusCompleted'),

@@ -7,15 +7,16 @@
 
 /** 状态 → el-tag 类型 */
 const STATUS_TYPE_MAP: Record<string, string> = {
-  PENDING: 'warning',
+  DRAFT: 'info',
+  SUBMITTED: 'warning',
   APPROVED: 'success',
   REJECTED: 'danger',
-  COMPLETED: 'info',
+  COMPLETED: 'primary',
 };
 
 /** 状态 → 中文标签 */
 const STATUS_LABEL_MAP: Record<string, string> = {
-  PENDING: '待审核',
+  SUBMITTED: '待审核',
   APPROVED: '已通过',
   REJECTED: '已拒绝',
   COMPLETED: '已完成',

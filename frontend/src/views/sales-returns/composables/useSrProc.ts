@@ -60,7 +60,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
     if (!row.id) return;
 
     try {
-      await ElMessageBox.confirm(`确定审核通过退货单 ${row.returnNo} 吗？`, '审核确认', {
+      await ElMessageBox.confirm(`确定审核通过退货单 ${row.return_no} 吗？`, '审核确认', {
         type: 'warning',
       });
       await approveSalesReturn(row.id);
@@ -80,7 +80,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
   const handleSubmitForApproval = async (row: SalesReturn) => {
     if (!row.id) return;
     try {
-      await ElMessageBox.confirm(`确定提交退货单 ${row.returnNo} 吗？`, '提交确认', {
+      await ElMessageBox.confirm(`确定提交退货单 ${row.return_no} 吗？`, '提交确认', {
         type: 'warning',
       });
       await submitSalesReturn(row.id);
@@ -100,7 +100,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
   const handleReject = async (row: SalesReturn) => {
     if (!row.id) return;
     try {
-      const { value } = await ElMessageBox.prompt('请输入驳回原因', `驳回 ${row.returnNo}`, {
+      const { value } = await ElMessageBox.prompt('请输入驳回原因', `驳回 ${row.return_no}`, {
         type: 'warning',
         inputPattern: /\S+/,
         inputErrorMessage: '驳回原因不能为空',
@@ -122,7 +122,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
   const handleExecute = async (row: SalesReturn) => {
     if (!row.id) return;
     try {
-      await ElMessageBox.confirm(`确定执行退货单 ${row.returnNo} 吗？`, '执行确认', {
+      await ElMessageBox.confirm(`确定执行退货单 ${row.return_no} 吗？`, '执行确认', {
         type: 'warning',
       });
       await executeSalesReturn(row.id);

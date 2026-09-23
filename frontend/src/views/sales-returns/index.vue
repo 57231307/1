@@ -13,6 +13,14 @@
       }}</el-button>
     </div>
 
+    <ReturnsFilter
+      :query-params="sr.queryParams"
+      :customers="sr.customerList.value"
+      @update:query-params="v => Object.assign(sr.queryParams, v)"
+      @search="sr.handleSearch"
+      @reset="sr.handleReset"
+    />
+
     <ReturnsTable
       :list="sr.returnList.value"
       :loading="sr.loading.value"
@@ -23,6 +31,19 @@
       @reject="srProc.handleReject"
       @execute="srProc.handleExecute"
     />
+
+    <div class="pagination-wrapper">
+      <el-pagination
+        v-model:current-page="sr.queryParams.page"
+        v-model:page-size="sr.queryParams.page_size"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="sr.total.value"
+        layout="total, sizes, prev, pager, next, jumper"
+        :aria-label="t('salesReturns.index.paginationAriaLabel')"
+        @current-change="sr.handlePageChange"
+        @size-change="sr.handleSizeChange"
+      />
+    </div>
 
     <ReturnDetailDialog
       v-model:visible="srProc.viewDialogVisible.value"
@@ -53,8 +74,9 @@ import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormRules } from 'element-plus';
 import type { SalesReturn } from '@/api/sales-return';
-import { useSr } from './composables/useSr';
+import { useSr, type ReturnForm } from './composables/useSr';
 import { useSrProc } from './composables/useSrProc';
+import ReturnsFilter from './components/ReturnsFilter.vue';
 import ReturnsTable from './components/ReturnsTable.vue';
 import ReturnDetailDialog from './components/ReturnDetailDialog.vue';
 import ReturnEditDialog from './components/ReturnEditDialog.vue';
@@ -95,7 +117,8 @@ const onEdit = (row: SalesReturn) => {
   editDialogVisible.value = true;
 };
 
-const onSubmit = async () => {
+const onSubmit = async (form: ReturnForm) => {
+  Object.assign(sr.formData, form);
   submitLoading.value = true;
   try {
     const ok = await srProc.handleSubmit(dialogMode.value);
@@ -123,5 +146,11 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+.pagination-wrapper {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

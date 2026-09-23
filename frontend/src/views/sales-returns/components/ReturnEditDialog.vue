@@ -25,7 +25,7 @@
     <el-form
       ref="formRef"
       :model="localFormData"
-      :rules="formRules"
+      :rules="mergedRules"
       label-width="120px"
       :aria-label="t('salesReturns.editDialog.formAriaLabel')"
     >
@@ -81,21 +81,47 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('salesReturns.editDialog.labelReason')" prop="reason">
+          <el-form-item :label="t('salesReturns.editDialog.labelWarehouse')" prop="warehouseId">
             <el-select
-              v-model="localFormData.reason"
-              :placeholder="t('salesReturns.editDialog.placeholderReason')"
+              v-model="localFormData.warehouseId"
+              :placeholder="t('salesReturns.editDialog.placeholderWarehouse')"
+              style="width: 100%"
+              filterable
+            >
+              <el-option
+                v-for="warehouse in warehouseList"
+                :key="warehouse.id"
+                :label="warehouse.warehouse_name"
+                :value="warehouse.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item :label="t('salesReturns.editDialog.labelReasonType')" prop="reasonType">
+            <el-select
+              v-model="localFormData.reasonType"
+              :placeholder="t('salesReturns.editDialog.placeholderReasonType')"
               style="width: 100%"
             >
-              <el-option :label="t('salesReturns.editDialog.optionQuality')" value="quality" />
-              <el-option :label="t('salesReturns.editDialog.optionQuantity')" value="quantity" />
               <el-option
-                :label="t('salesReturns.editDialog.optionSpecification')"
-                value="specification"
+                v-for="opt in reasonOptions"
+                :key="opt.value"
+                :label="t(`salesReturns.editDialog.${opt.labelKey}`)"
+                :value="opt.value"
               />
-              <el-option :label="t('salesReturns.editDialog.optionPackaging')" value="packaging" />
-              <el-option :label="t('salesReturns.editDialog.optionOther')" value="other" />
             </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item :label="t('salesReturns.editDialog.labelReasonDetail')" prop="reasonDetail">
+            <el-input
+              v-model="localFormData.reasonDetail"
+              :placeholder="t('salesReturns.editDialog.placeholderReasonDetail')"
+            />
           </el-form-item>
         </el-col>
       </el-row>
@@ -164,6 +190,32 @@
               />
             </template>
           </el-table-column>
+          <el-table-column :label="t('salesReturns.editDialog.columnTaxPercent')" width="120">
+            <template #default="{ row }">
+              <el-input-number
+                v-model="row.taxPercent"
+                :min="0"
+                :max="100"
+                :precision="2"
+                :placeholder="t('salesReturns.editDialog.placeholderTaxPercent')"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('salesReturns.editDialog.columnDiscountPercent')" width="120">
+            <template #default="{ row }">
+              <el-input-number
+                v-model="row.discountPercent"
+                :min="0"
+                :max="100"
+                :precision="2"
+                controls-position="right"
+                style="width: 100%"
+                @change="onCalculate"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="t('salesReturns.editDialog.columnAmount')" width="120">
             <template #default="{ row }">
               {{ (row.quantity * row.unitPrice).toFixed(2) }}
@@ -213,15 +265,18 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
-import { ref, watch, reactive } from 'vue';
+import { ref, watch, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
+import { getWarehouseList, type Warehouse } from '@/api/warehouse';
+import logger from '@/utils/logger';
 // v11 批次 174 P2-1 修复：从 useSr 导入具体类型替代 any
-import type {
-  ReturnForm,
-  SalesOrderOption,
-  CustomerOption,
-  ProductOption,
+import {
+  RETURN_REASON_OPTIONS,
+  type ReturnForm,
+  type SalesOrderOption,
+  type CustomerOption,
+  type ProductOption,
 } from '../composables/useSr';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -264,13 +319,52 @@ watch(
   { immediate: true, deep: true }
 );
 
+// 仓库主数据（表头 warehouse_id 下拉），对话框自持，父级 index.vue 未注入该列表
+const warehouseList = ref<Warehouse[]>([]);
+const loadWarehouses = async () => {
+  try {
+    const res = await getWarehouseList({ page_size: 100 });
+    warehouseList.value = res.data?.items || [];
+  } catch (error: unknown) {
+    logger.error('loadWarehouseListFailed', error instanceof Error ? error.message : String(error));
+  }
+};
+onMounted(loadWarehouses);
+
+// 退货原因分类候选：value 为落库业务数据，label 走 i18n
+const reasonOptions = RETURN_REASON_OPTIONS;
+
+// 校验规则 = 父级规则 + 表头新增必填（仓库、原因类型）
+const mergedRules = computed<FormRules>(() => ({
+  ...props.formRules,
+  warehouseId: [
+    {
+      required: true,
+      message: t('salesReturns.editDialog.ruleWarehouseRequired'),
+      trigger: 'change',
+    },
+  ],
+  reasonType: [
+    {
+      required: true,
+      message: t('salesReturns.editDialog.ruleReasonTypeRequired'),
+      trigger: 'change',
+    },
+  ],
+}));
+
 const onClose = (val: boolean) => {
   emit('update:visible', val);
 };
 
-const onSubmit = () => {
-  // v11 批次 174 P2-1 修复：localFormData 是 Partial<ReturnForm>，emit 期望 ReturnForm
-  emit('submit', localFormData as ReturnForm);
+const onSubmit = async () => {
+  let valid = false;
+  await formRef.value?.validate(ok => {
+    valid = ok;
+  });
+  if (!valid) return;
+  // 编辑结果只经 emit 交回父组件，由父组件写入共享表单（单向数据流）
+  emit('submit', deepClone(localFormData) as ReturnForm);
 };
 
 const onSalesOrderChange = (orderId: number) => {

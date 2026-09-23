@@ -14,19 +14,19 @@
     <template v-if="currentReturn">
       <el-descriptions :column="2" border>
         <el-descriptions-item :label="t('salesReturns.detailDialog.labelReturnNo')">{{
-          currentReturn.returnNo
+          currentReturn.return_no
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('salesReturns.detailDialog.labelSalesOrderNo')">{{
-          currentReturn.salesOrderNo
+          currentReturn.sales_order_no
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('salesReturns.detailDialog.labelCustomerName')">{{
-          currentReturn.customerName
+          currentReturn.customer_name
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('salesReturns.detailDialog.labelReturnDate')">{{
-          currentReturn.returnDate
+          currentReturn.return_date
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('salesReturns.detailDialog.labelReturnAmount')">{{
-          formatAmount(currentReturn.totalAmount ?? 0)
+          formatAmount(currentReturn.total_amount ?? 0)
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('salesReturns.detailDialog.labelStatus')">
           <el-tag :type="getStatusType(currentReturn.status ?? '')">
@@ -44,8 +44,8 @@
       <div style="margin-top: 20px">
         <h4>{{ t('salesReturns.detailDialog.titleReturnDetails') }}</h4>
         <el-table
-          :data="serverItems.length ? serverItems : currentReturn.items || []"
           v-loading="itemsLoading"
+          :data="serverItems"
           border
           size="small"
           :aria-label="t('salesReturns.detailDialog.detailsTableAriaLabel')"
@@ -60,11 +60,14 @@
           />
           <el-table-column prop="quantity" :label="t('salesReturns.detailDialog.columnQuantity')" />
           <el-table-column
-            prop="unitPrice"
+            prop="unit_price"
             :label="t('salesReturns.detailDialog.columnUnitPrice')"
           />
-          <el-table-column prop="amount" :label="t('salesReturns.detailDialog.columnAmount')" />
-          <el-table-column prop="reason" :label="t('salesReturns.detailDialog.columnReason')" />
+          <el-table-column
+            prop="total_amount"
+            :label="t('salesReturns.detailDialog.columnAmount')"
+          />
+          <el-table-column prop="notes" :label="t('salesReturns.detailDialog.columnReason')" />
           <el-table-column
             v-if="editable"
             :label="t('salesReturns.detailDialog.columnOperation')"
@@ -229,11 +232,11 @@ const handleAddItem = async () => {
 /** 行编辑：回填添加栏并切换为更新模式 */
 const handleEditItem = (row: SalesReturnItem) => {
   editingItemId.value = row.id ?? null;
-  newItem.productId = row.product_id ?? row.productId ?? 1;
+  newItem.productId = row.product_id ?? 1;
   newItem.quantity = row.quantity ?? 1;
-  newItem.unitPrice = row.unit_price ?? row.unitPrice ?? 0;
+  newItem.unitPrice = row.unit_price ?? 0;
   newItem.taxPercent = row.tax_percent;
-  newItem.reason = row.reason || '';
+  newItem.reason = row.notes ?? '';
 };
 
 const handleUpdateItem = async () => {
@@ -289,7 +292,8 @@ const handleDeleteItem = async (row: SalesReturnItem) => {
 /** 获取退货状态标签（i18n 响应式） */
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    PENDING: t('salesReturns.detailDialog.statusPending'),
+    DRAFT: t('salesReturns.detailDialog.statusDraft'),
+    SUBMITTED: t('salesReturns.detailDialog.statusSubmitted'),
     APPROVED: t('salesReturns.detailDialog.statusApproved'),
     REJECTED: t('salesReturns.detailDialog.statusRejected'),
     COMPLETED: t('salesReturns.detailDialog.statusCompleted'),
