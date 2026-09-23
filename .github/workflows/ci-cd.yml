@@ -297,6 +297,16 @@ jobs:
               echo "::error::HEAD commit 含 [skip ci]，不自动回推格式修正；HEAD 未格式化，本 job 判失败"
               exit 1
             fi
+            # PR 事件下 checkout 的是 refs/pull/N/merge（一个"分支 × main"的合并提交），
+            # 把它推回目标分支必然非快进（上次 run 就是在这里 fetch first 被拒后 fail-closed 判负，
+            # 于是"自动修正"在 PR 上永远不生效、又永远报成推送失败）。
+            # 正解是失败信息直接给出应应用的格式差异，让人在本地 cargo fmt 后重推。
+            if [ '${{ github.event_name }}' = 'pull_request' ]; then
+              echo "::error::PR 事件不做自动回推（merge ref 推不回目标分支）。请本地执行：cd backend && cargo fmt --all"
+              echo "本次 run 已验证可修正的差异如下："
+              head -60 reports/cargo-fmt-diff.txt || true
+              exit 1
+            fi
             TARGET='${{ github.head_ref }}'
             if [ -z "$TARGET" ] && [ '${{ github.ref_type }}' = 'branch' ]; then
               TARGET='${{ github.ref_name }}'
