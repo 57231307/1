@@ -60,8 +60,8 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | 前端 TS 文件      | 268 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                        |
 | 前端 Views 子模块 | 110 个                                                                                                                             |
 | 前端 API 模块     | 121 个                                                                                                                             |
-| 前端 i18n 翻译键  | zh-CN 10,201 / en-US 10,224（引用键 9,677，缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验）        |
-| 前端 E2E 测试     | 1,208 个 / 241 个 spec 文件（665 flow 工作流 + 266 traversal 端点遍历 + 130 冒烟 + 14 enhanced + 9 Setup 向导 + 124 其余业务目录） |
+| 前端 i18n 翻译键  | zh-CN 10,570 / en-US 10,593（代码引用字面键 9,888，双语缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验） |
+| 前端 E2E 测试     | 2,668 个 / 259 个 spec 文件（flow 工作流 + traversal 端点遍历 + 冒烟 + enhanced + Setup 向导 + 其余业务目录）                              |
 | Clippy Baseline   | 4,274 行（185 条唯一警告）                                                                                                         |
 | 最新版本          | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001）                                                                     |
 | 安全漏洞存量      | 0（密钥泄露扫描工作区+git 历史：0 发现）                                                                                           |
@@ -133,7 +133,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 ### 7. 国际化与前端体验
 
-- **vue-i18n** 中英双语 + 9,424 个翻译键
+- **vue-i18n** 中英双语 + 约 1.06 万个翻译键（zh-CN 10,570 / en-US 10,593）
 - **PWA 支持**：manifest.json + Service Worker + 离线缓存
 - **移动端适配**：响应式 + 侧边栏抽屉化 + 汉堡按钮 ≥44px（WCAG 2.5.5）
 - **性能优化**：manualChunks 代码分割 + ECharts 按需引入 + optimizeDeps + V2Table 虚拟列表
@@ -333,7 +333,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | BI 数据仓库    | 已完成 | 16 个 HTTP 端点 + 仪表板 + 报表引擎 + 订阅推送           |
 | BPM 审批流     | 已完成 | 流程定义 / 实例 / 任务                                   |
 | WebSocket 实时 | 已完成 | 通知 / 订单 / 库存 / 审批 / 仪表板                       |
-| 国际化（i18n） | 已完成 | 中英双语 + 10,500+ 翻译键                                |
+| 国际化（i18n） | 已完成 | 中英双语 + 1.05 万+ 翻译键，界面文案已无 `t()` 死兜底                     |
 | systemd 部署   | 已完成 | CLI 工具 + SHA256 校验                                   |
 
 ---
@@ -592,7 +592,7 @@ cargo bench --features bench
 - **精确盘点**：修正扫描器缺陷后确认 83 个真实零调用缺口（14 个功能域批次接线 76+ 封装函数）
 - **接线模式**：新功能一律挂现有页面 tab/弹窗/行操作列（禁止新开页面）；明细行维护采用「查看态回源 + 行级编辑/删除/添加栏」模式；契约差异逐域对照后端真实 DTO 修正（驼峰/蛇形、分页对象、item 级同步）
 - **重复判定**：剩余 64 个零调用全部为已决策项——同 URL 重复封装、useTableApi 内联同 URL 消费、查询变体等价覆盖、批量保存等价覆盖、模块内部工具
-- **完整性校验**：check-i18n（zh/en 键对齐 0 缺失）+ check-contract（前后端契约映射 13 组 / 156 字段 / 0 错误）纳入质量门禁
+- **完整性校验**：check-i18n（zh/en 键对齐 0 缺失；并清除 `t('key') || '中文'` 死兜底 47 处——vue-i18n 取不到键时返回键名本身，兜底分支不可达，只会把缺键降级成界面上冒出的另一语言裸字面量）+ check-contract（前后端契约映射 13 组 / 156 字段 / 0 错误）纳入质量门禁
 - **契约一致性脚本**（尚未接入 CI，是否升级为阻断项待评审）：check-api-paths（前端调用 ↔ 后端路由，A 类失配 0、21 条功能缺口逐条显式登记原因，含"导出按钮指向后端不存在的路由、点击必 404"实例）、check-api-envelope（响应信封形状，**701 条可比对：失配 0 / 未分类 0 / handler 符号未定义 0；12 条后端手拼 `json!` 或经未定型 helper 返回 `serde_json::Value` 的端点写成带 `文件:行号` 证据的显式豁免**）、check-api-request（**请求体与查询参数侧**：前端实参键集 ↔ 后端 `Json<T>`/`Query<T>` 字段集，可比对项全部一致，`--json` 直接输出可派单工单）。判负口径统一为「解析不出即失败」，不静默放行；三类载荷形状（裸 `Vec`、手写 `json!({list})`、`PaginatedResponse{items}`）都按 handler 函数体实测归类，宏生成（`define_crud_handlers!`）、目录型模块（`pub mod advanced;`）、路由就地定义的 handler（`routes/search_api.rs`）与 `to_value(具体类型)` 递归回溯均已支持。**两个"万能类型"已清除**：`QueryParams` 的 API 层用法归零（47 条"前端传了后端不读、后端支持的筛选前端从没传过"全部按端点用真实 `Query<T>` 定型；仅剩 2 个采购视图组件把它当本地表单 shape），`PageResult<T>`（data/list/items/users 四键全可选，后端怎么返都"对得上"）已 19 处清零并删除类型本体——它掩盖的正是"列表恒空但不报错"这一族（实修 5 处：AR 自动对账结果、CRM 增强客户、RfmTab、BPM 待办、质检检验人下拉）。**覆盖数本身也是被测出来的**：门禁曾长期只解析 `export function f(): Promise<ApiResponse<T>>` 签名，而全仓另有 500 处 `request.get<ApiResponse<T>>(url)` 写法完全不进统计，"0 失配"一度只覆盖约一半接口。另已知盲区：`tsconfig.json` 只含 `src/**`，2668 个 e2e 用例此前从不做类型检查；新增 `tsconfig.e2e.json` 后实测真实类型错误已全部清零，仅剩 93 条因缺 `@types/node`（`process`/`fs`/`path`/`crypto`）无法解析。
 
 ### CI/CD
