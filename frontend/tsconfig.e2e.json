@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // e2e 专用：只查类型契约，未用变量/形参归 eslint 管，否则噪音会盖住真实类型错误
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["e2e/**/*.ts", "src/**/*.ts", "env.d.ts"]
+}

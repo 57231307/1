@@ -2138,3 +2138,19 @@ DTO 删除身份字段」。高危优先：印染处方发料人、库存经手�
 未分类 **8** 条（逐条读 handler 函数体核实后写成带 file:line 证据的显式豁免，见 `9a87b0d8`）。
 **结论订正**：此前"响应信封已收口"的判断只覆盖了一半接口，属乐观偏差；
 README/PR 里引用的门禁数字本轮一并更正。
+
+### e2e 类型盲区与后端双错误信封（2026-09-23）
+`frontend/tsconfig.json` 的 include 只有 `src/**`，CI 的 `ci-type-check` 跑 `vue-tsc --noEmit` 用的就是它
+（且工作流注释明确"不以 vue-tsc 阻塞 CI"）——**259 个 e2e 文件 / 2668 个用例从不做类型检查**。
+新增 `frontend/tsconfig.e2e.json`（仅关 `noUnusedLocals/noUnusedParameters`，未降 strict）实测得 172 条：
+- 96 条为 `TS2580`/`TS2307`：`@types/node` 缺失（`process`、`fs`/`path`/`crypto`/`child_process`），
+  frontend/package.json 里没有任何 @types 直接依赖。**待决**：是否加 devDependency
+  （加依赖需同步 lockfile，本地禁止装包，只能等允许安装时一次做）。
+- 11 条 `TS2367`（比较的类型无交集）根因是**后端存在两套失败信封**：
+  `ApiResponse{code: Option<u16>, message, data, total}`（utils/response.rs:11-20，code 是数字）
+  与中间件直出 `(403, {success:false, code:"CSRF_TOKEN_INVALID", message, data:null})`
+  （middleware/csrf.rs:234-242，code 是字符串机器码，常量见 :39-45，竞败时另带 `x-new-csrf-token` 头 :146-152）。
+  e2e 只把响应标成 `ApiResponse`，于是共享 helper 里
+  `json.code === 'CSRF_TOKEN_INVALID'`（helpers.ts:962/1051，apiCall 与 apiCallRaw 两条 CSRF 恢复路径）
+  被判成"永假"。运行时其实是对的，**错的是类型模型**，故改类型不弱化断言。
+  两套信封并存本身是契约气味（同一 API 面有两种失败体，前端只能靠 status 区分），登记为待决。
