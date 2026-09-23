@@ -50,10 +50,7 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item
-        :label="t('purchaseReturn.form.label.reasonType') || '原因类型'"
-        prop="reasonType"
-      >
+      <el-form-item :label="t('purchaseReturn.form.label.reasonType')" prop="reasonType">
         <el-select v-model="localFormData.reasonType" style="width: 100%">
           <el-option label="质量问题" value="quality" />
           <el-option label="数量错误" value="quantity" />

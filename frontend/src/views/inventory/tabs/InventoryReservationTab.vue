@@ -10,7 +10,7 @@
         {{ t('inventory.reservation.create') }}
       </el-button>
       <el-button :loading="loading" @click="fetchReservations">
-        {{ t('common.refresh') || '刷新' }}
+        {{ t('common.refresh') }}
       </el-button>
     </div>
 

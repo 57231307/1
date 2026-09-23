@@ -9,7 +9,7 @@
       <el-button type="primary" :icon="Plus" @click="openCreateDialog">
         {{ t('apModule.paymentRequest.create') }}
       </el-button>
-      <el-button @click="fetchRequests">{{ t('common.refresh') || '刷新' }}</el-button>
+      <el-button @click="fetchRequests">{{ t('common.refresh') }}</el-button>
     </div>
 
     <el-table v-loading="loading" :data="requests" border stripe>
@@ -97,7 +97,7 @@
             {{ t('common.delete') }}
           </el-button>
           <el-button size="small" link @click="showDetail(row)">
-            {{ t('common.detail') || '详情' }}
+            {{ t('common.detail') }}
           </el-button>
         </template>
       </el-table-column>

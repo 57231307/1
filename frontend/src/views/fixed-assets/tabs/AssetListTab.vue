@@ -110,7 +110,7 @@
         <el-table-column :label="$t('fixedAssets.table.operation')" width="290" fixed="right">
           <template #default="{ row }">
             <el-button type="info" link size="small" @click="openDetail(row as FixedAsset)">{{
-              $t('fixedAssets.table.detail') || '详情'
+              $t('fixedAssets.table.detail')
             }}</el-button>
             <el-button type="primary" link size="small" @click="openDialog(row)">{{
               $t('fixedAssets.table.edit')

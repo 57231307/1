@@ -237,7 +237,7 @@
               link
               size="small"
               @click="handleScore(row)"
-              >{{ $t('crmLeads.table.score') || '评分' }}</el-button
+              >{{ $t('crmLeads.table.score') }}</el-button
             >
           </template>
         </el-table-column>
@@ -473,14 +473,14 @@ const handleScore = async (row: LeadRow) => {
     const d = (res.data ?? {}) as unknown as Record<string, unknown>;
     const lines = Object.entries(d).map(([k, v]) => `${k}: ${v}`);
     ElMessageBox.alert(
-      lines.join('\n') || t('crmLeads.message.scoreEmpty') || '评分完成，暂无评分明细',
-      `${t('crmLeads.table.score') || '评分'} - ${row.contact_name}`,
+      lines.join('\n') || t('crmLeads.message.scoreEmpty'),
+      `${t('crmLeads.table.score')} - ${row.contact_name}`,
       { type: 'info' }
     );
     getList();
   } catch (error) {
     logger.warn('lead score failed', (error as Error).message);
-    ElMessage.error(t('crmLeads.message.scoreFailed') || '评分失败');
+    ElMessage.error(t('crmLeads.message.scoreFailed'));
   }
 };
 

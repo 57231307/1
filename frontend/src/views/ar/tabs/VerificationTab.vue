@@ -12,7 +12,7 @@
       <el-button :loading="autoVerifying" @click="handleAutoVerify">
         {{ t('arModule.verification.auto') }}
       </el-button>
-      <el-button @click="fetchVerifications">{{ t('common.refresh') || '刷新' }}</el-button>
+      <el-button @click="fetchVerifications">{{ t('common.refresh') }}</el-button>
     </div>
 
     <el-table v-loading="loading" :data="verifications" border stripe>
@@ -50,7 +50,7 @@
       <el-table-column :label="t('common.action')" width="160" fixed="right">
         <template #default="{ row }">
           <el-button size="small" link @click="showDetail(row)">
-            {{ t('common.detail') || '详情' }}
+            {{ t('common.detail') }}
           </el-button>
           <el-button
             v-if="row.status === 'active'"

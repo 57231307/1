@@ -128,7 +128,7 @@ const handleAdd = async () => {
 const handleRename = async (row: ProductCategory) => {
   try {
     const { value } = await ElMessageBox.prompt(
-      t('product.categoryDialogTab.messageRenamePrompt') || '请输入新的分类名称',
+      t('product.categoryDialogTab.messageRenamePrompt'),
       `${t('common.edit')} - ${row.name}`,
       {
         type: 'info',

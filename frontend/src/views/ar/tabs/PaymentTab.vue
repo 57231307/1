@@ -9,7 +9,7 @@
       <el-button type="primary" :icon="Plus" @click="openCreateDialog">
         {{ t('arModule.payment.create') }}
       </el-button>
-      <el-button @click="fetchPayments">{{ t('common.refresh') || '刷新' }}</el-button>
+      <el-button @click="fetchPayments">{{ t('common.refresh') }}</el-button>
     </div>
 
     <el-table v-loading="loading" :data="payments" border stripe>
@@ -52,7 +52,7 @@
             {{ t('arModule.payment.confirm') }}
           </el-button>
           <el-button size="small" link @click="showDetail(row)">
-            {{ t('common.detail') || '详情' }}
+            {{ t('common.detail') }}
           </el-button>
         </template>
       </el-table-column>

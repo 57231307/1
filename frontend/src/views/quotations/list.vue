@@ -12,10 +12,10 @@
           <span class="title">{{ t('quotations.list.title') }}</span>
           <div style="display: flex; gap: 8px">
             <el-button @click="showExpiring(false)">
-              {{ t('quotations.list.expiringSoon') || '即将到期' }}
+              {{ t('quotations.list.expiringSoon') }}
             </el-button>
             <el-button @click="showExpiring(true)">
-              {{ t('quotations.list.expired') || '已过期' }}
+              {{ t('quotations.list.expired') }}
             </el-button>
             <el-button type="primary" @click="$router.push('/quotations/new')">
               <el-icon><Plus /></el-icon>
@@ -148,7 +148,7 @@
               {{ t('quotations.list.cancel') }}
             </el-button>
             <el-button link type="warning" @click="showTerms(row)">
-              {{ t('quotations.list.terms') || '条款' }}
+              {{ t('quotations.list.terms') }}
             </el-button>
           </template>
         </el-table-column>
@@ -167,20 +167,12 @@
     </el-card>
 
     <!-- 到期/过期报价弹窗（getExpiringQuotationList / getExpiredQuotationList） -->
-    <el-dialog
-      v-model="expiringVisible"
-      :title="t('quotations.list.expiringSoon') || '即将到期'"
-      width="720px"
-    >
+    <el-dialog v-model="expiringVisible" :title="t('quotations.list.expiringSoon')" width="720px">
       <el-table :data="expiringRows" border size="small" max-height="420">
-        <el-table-column
-          prop="quotation_no"
-          :label="t('quotations.list.colNo') || '报价单号'"
-          min-width="150"
-        />
+        <el-table-column prop="quotation_no" :label="t('quotations.list.colNo')" min-width="150" />
         <el-table-column
           prop="customer_name"
-          :label="t('quotations.list.colCustomer') || '客户'"
+          :label="t('quotations.list.colCustomer')"
           min-width="140"
         />
         <el-table-column prop="valid_until" label="有效期至" width="120" />
@@ -189,7 +181,7 @@
     </el-dialog>
 
     <!-- 贸易条款查看/维护弹窗（getQuotationTerms / setQuotationTerms） -->
-    <el-dialog v-model="termsVisible" :title="t('quotations.list.terms') || '条款'" width="600px">
+    <el-dialog v-model="termsVisible" :title="t('quotations.list.terms')" width="600px">
       <el-table v-loading="termsLoading" :data="termsRows" border size="small">
         <el-table-column prop="term_type" label="条款类型" width="120" />
         <el-table-column prop="term_value" label="条款内容" min-width="220" />
@@ -415,7 +407,7 @@ const mapTermDto = (row: Record<string, unknown>, idx: number): CreateQuotationT
 const addTerm = async () => {
   if (!currentQuotationId.value) return;
   if (!newTermType.value.trim() || !newTermContent.value.trim()) {
-    ElMessage.warning(t('quotations.list.termRequired') || '请填写条款类型与内容');
+    ElMessage.warning(t('quotations.list.termRequired'));
     return;
   }
   termsSaving.value = true;

@@ -10,7 +10,7 @@
         {{ t('inventory.fabricStock.create') }}
       </el-button>
       <el-button :loading="loading" @click="fetchFabricStock">
-        {{ t('common.refresh') || '刷新' }}
+        {{ t('common.refresh') }}
       </el-button>
     </div>
 

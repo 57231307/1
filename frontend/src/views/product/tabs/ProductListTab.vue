@@ -211,7 +211,7 @@
               t('product.productListTab.buttonEdit')
             }}</el-button>
             <el-button type="warning" link size="small" @click="openColorDialog(row)">
-              {{ t('product.productListTab.buttonColors') || '色号' }}
+              {{ t('product.productListTab.buttonColors') }}
             </el-button>
             <el-button type="danger" link size="small" @click="handleDelete(row)">{{
               t('product.productListTab.buttonDelete')
@@ -222,9 +222,7 @@
 
       <div class="pagination-wrapper">
         <el-button v-if="selectedIds.length" type="danger" size="small" @click="handleBatchDelete">
-          {{ t('product.productListTab.buttonBatchDelete') || '批量删除' }}（{{
-            selectedIds.length
-          }}）
+          {{ t('product.productListTab.buttonBatchDelete') }}（{{ selectedIds.length }}）
         </el-button>
         <el-pagination
           v-model:current-page="page"
@@ -538,7 +536,7 @@ const openColorDialog = async (row: Product) => {
 const submitColor = async () => {
   if (!colorProduct.value) return;
   if (!colorForm.color_no.trim()) {
-    ElMessage.warning(t('product.productListTab.messageColorNoRequired') || '请输入色号');
+    ElMessage.warning(t('product.productListTab.messageColorNoRequired'));
     return;
   }
   colorSubmitting.value = true;
@@ -669,7 +667,7 @@ const handleBatchProduct = async () => {
 
 const handleBatchDelete = async () => {
   if (!selectedIds.value.length) {
-    ElMessage.warning(t('product.productListTab.messageSelectFirst') || '请先勾选要删除的产品');
+    ElMessage.warning(t('product.productListTab.messageSelectFirst'));
     return;
   }
   try {

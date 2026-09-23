@@ -6,7 +6,7 @@
   <div class="transaction-tab">
     <div class="tab-toolbar">
       <el-button :loading="loading" @click="fetchTransactions">
-        {{ t('common.refresh') || '刷新' }}
+        {{ t('common.refresh') }}
       </el-button>
     </div>
 

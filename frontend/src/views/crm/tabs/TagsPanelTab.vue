@@ -9,7 +9,7 @@
         <span>{{ t('crmTagsPanel.title') }}</span>
         <div style="display: flex; gap: 8px">
           <el-button size="small" @click="openGlobalTagDialog">
-            {{ t('crmTagsPanel.newGlobalTag') || '新建全局标签' }}
+            {{ t('crmTagsPanel.newGlobalTag') }}
           </el-button>
           <el-button type="primary" size="small" @click="openDialog">
             <el-icon><Plus /></el-icon>

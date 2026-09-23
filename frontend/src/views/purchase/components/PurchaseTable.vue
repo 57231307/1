@@ -78,7 +78,7 @@
             link
             size="small"
             @click="onSubmitOrder(row as PurchaseOrder)"
-            >{{ t('purchase.table.submit') || '提交' }}</el-button
+            >{{ t('purchase.table.submit') }}</el-button
           >
           <el-button
             v-if="isEditableStatus(row.status)"
@@ -121,7 +121,7 @@
             link
             size="small"
             @click="onReject(row as PurchaseOrder)"
-            >{{ t('purchase.table.reject') || '驳回' }}</el-button
+            >{{ t('purchase.table.reject') }}</el-button
           >
         </template>
       </el-table-column>

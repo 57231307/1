@@ -112,7 +112,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               type: 'warning',
               onClick: () => emit('submitOrder', row),
             },
-            { default: () => t('sales.table.submit') || '提交' }
+            { default: () => t('sales.table.submit') }
           ),
           h(
             ElButton,
@@ -122,7 +122,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               type: 'danger',
               onClick: () => emit('deleteOrder', row),
             },
-            { default: () => t('sales.table.delete') || '删除' }
+            { default: () => t('sales.table.delete') }
           )
         );
       }
@@ -147,7 +147,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               type: 'danger',
               onClick: () => emit('reject', row),
             },
-            { default: () => t('sales.table.reject') || '驳回' }
+            { default: () => t('sales.table.reject') }
           )
         );
       }

@@ -132,7 +132,7 @@
               t('financialAnalysis.analysisListTab.buttonExecute')
             }}</el-button>
             <el-button type="warning" link size="small" @click="openParamExec(row)">{{
-              t('financialAnalysis.analysisListTab.buttonParamExec') || '带参执行'
+              t('financialAnalysis.analysisListTab.buttonParamExec')
             }}</el-button>
             <el-button type="success" link size="small" @click="viewReport(row)">{{
               t('financialAnalysis.analysisListTab.buttonView')

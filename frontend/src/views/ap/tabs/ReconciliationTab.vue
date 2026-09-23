@@ -95,7 +95,7 @@
               >{{ $t('apModule.reconciliation.dispute') }}</el-button
             >
             <el-button size="small" link @click="showReconciliationDetail(row as APReconciliation)">
-              {{ $t('common.detail') || '详情' }}
+              {{ $t('common.detail') }}
             </el-button>
           </template>
         </el-table-column>

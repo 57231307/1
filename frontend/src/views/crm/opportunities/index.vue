@@ -198,10 +198,10 @@
               link
               size="small"
               @click="handleConvertToOrder(row)"
-              >{{ t('crmOpportunities.table.toOrder') || '转订单' }}</el-button
+              >{{ t('crmOpportunities.table.toOrder') }}</el-button
             >
             <el-button type="info" link size="small" @click="handleCrmAnalytics(row)">
-              {{ t('crmOpportunities.table.analytics') || '分析' }}
+              {{ t('crmOpportunities.table.analytics') }}
             </el-button>
           </template>
         </el-table-column>
@@ -458,8 +458,8 @@ const handleWin = async (row: OpportunityRow) => {
 const handleConvertToOrder = async (row: OpportunityRow) => {
   try {
     await ElMessageBox.confirm(
-      `${t('crmOpportunities.message.convertConfirm') || '确认将该商机转为销售订单？'}（${row.opportunity_name}）`,
-      t('crmOpportunities.table.toOrder') || '转订单',
+      `${t('crmOpportunities.message.convertConfirm')}（${row.opportunity_name}）`,
+      t('crmOpportunities.table.toOrder'),
       { type: 'info' }
     );
   } catch {
@@ -470,13 +470,13 @@ const handleConvertToOrder = async (row: OpportunityRow) => {
     const orderId = (res.data as unknown as { order_id?: number })?.order_id;
     ElMessage.success(
       orderId
-        ? `${t('crmOpportunities.message.convertSuccess') || '转单成功'}：SO #${orderId}`
-        : t('crmOpportunities.message.convertSuccess') || '转单成功'
+        ? `${t('crmOpportunities.message.convertSuccess')}：SO #${orderId}`
+        : t('crmOpportunities.message.convertSuccess')
     );
     getList();
   } catch (error) {
     const err = error as { message?: string };
-    ElMessage.error(err.message || t('crmOpportunities.message.convertFailed') || '转单失败');
+    ElMessage.error(err.message || t('crmOpportunities.message.convertFailed'));
   }
 };
 
@@ -485,7 +485,7 @@ const analyticsVisible = ref(false);
 const analyticsLines = ref<string[]>([]);
 const handleCrmAnalytics = async (row: OpportunityRow) => {
   analyticsVisible.value = true;
-  analyticsLines.value = [t('crmOpportunities.message.analyticsLoading') || '分析加载中…'];
+  analyticsLines.value = [t('crmOpportunities.message.analyticsLoading')];
   const lines: string[] = [];
   try {
     const res = await getForecastAccuracy({ year: new Date().getFullYear() });

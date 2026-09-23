@@ -68,7 +68,7 @@
         <el-table-column :label="$t('common.action')" width="100" fixed="right">
           <template #default="{ row }">
             <el-button size="small" link @click="showVerificationDetail(row as APVerification)">
-              {{ $t('common.detail') || '详情' }}
+              {{ $t('common.detail') }}
             </el-button>
           </template>
         </el-table-column>
@@ -154,7 +154,7 @@
         <el-descriptions-item :label="$t('apModule.verification.verificationNo')">
           {{ detailRow.verification_no }}
         </el-descriptions-item>
-        <el-descriptions-item :label="$t('apModule.verification.verificationDate') || '核销日期'">
+        <el-descriptions-item :label="$t('apModule.verification.verificationDate')">
           {{ detailRow.verification_date }}
         </el-descriptions-item>
         <el-descriptions-item :label="$t('apModule.verification.verificationAmount')" :span="2">
