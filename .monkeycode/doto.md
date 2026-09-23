@@ -2209,3 +2209,28 @@ devDependencies 里根本没有 `@types/node`（e2e 从不查类型所以长期�
 3. `AutoReconResultQueryParams` 里的 `task_id/match_status/customer_name/status`
    不在后端 `ListResultsQuery`（只读 page/page_size/customer_id/start_date/end_date），
    这些键发出即被丢弃 —— 待请求侧下一轮按端点定型时一并收。
+
+### 后端静态审计结论（两批，覆盖未推范围全部 119 个后端文件）
+**未发现编译阻断项**；`rustfmt --check` 对 36 个 handlers/routes/migration 文件 0 输出。
+CI 的 clippy 口径实测为：不加 `-D warnings`，但**新增 warning 文案**（与
+`backend/.clippy-baseline.txt` 按消息文本 comm -23 比对）>0 即阻塞（ci-cd.yml:475/822-853/657-660），
+基线里 `unreachable` 0 条、`unused variable` 仅 4 条 ⇒ 本轮若新增未用变量必打红，已逐处确认未新增。
+
+三条"运行期可能红"的疑点已逐条读码排除：
+1. `sales_delivery_item` 的 `stock_id`/`is_cross_dye_lot` 两列**有迁移**：
+   `migration/src/domain/v15/mod.rs:4365-4368`（ADD COLUMN IF NOT EXISTS + COMMENT）。
+2. 染色配方词表改小写英文后，service 里只剩**注释**含中文（`dye_recipe_service.rs:103`），
+   代码走常量（`models/status/quality_dyeing.rs:36-48`，注释明示与 v15 CHECK 逐项一致），
+   且 CI 阻塞的 check-contract 已覆盖该映射（0 错误）。
+3. `AppError::business_displayable` 新变体的 `error_code()` 仍返回 `BUSINESS_ERROR`
+   （`utils/error.rs:469`），故 e2e 里"只断言 code=BUSINESS_ERROR"的用例不受文案变更影响；
+   这些 spec 命中的"业务处理失败"字样全部在注释里，不是断言。
+
+遗留 1 条（登记未改）：`currency_handler.rs:296` 的兜底 pattern 只匹配
+`AppError::BusinessError(_)`，新变体 `BusinessErrorDisplayable(_)` 会落到通用分支被脱敏；
+当前 currency service 不产生该变体，属潜在不一致，后端批次里应与其它 `match` 一起收口。
+
+### 两个万能类型均已物理删除
+`QueryParams` 与 `PageResult<T>` 在 src 与 e2e 中零引用后已从 `types/api.ts` 删除本体
+（`QueryParams` 的最后一个使用点是采购筛选/表格两个组件里各自重复定义的本地同名接口，
+一并改为 `PurchaseOrderQueryParams`）。此后新代码无法再挂到"怎么传/怎么返都对"的类型上。
