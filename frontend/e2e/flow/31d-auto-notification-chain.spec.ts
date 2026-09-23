@@ -45,6 +45,31 @@ async function deleteNotification(
   await tryCleanup(page, 'DELETE', `/notifications/${id}`, '[31d] 删除通知');
 }
 
+/**
+ * 自建一条独立「启用」客户供订单提交链路（A/B/C）使用。
+ * 不用 ensureTestEntities 的 ctx.customerId：它取客户列表首条（helpers.ts:389 items[0].id），
+ * 而 list_customers 默认不过滤软删除（query.rs:77 仅在显式传入 status 时过滤），
+ * 首条可能是被其它用例软删除的 inactive 客户 → 触发 sales 提交守卫
+ * 「客户状态为 inactive，不允许提交订单」→ 提交通知链路无法验证。
+ * create_customer 默认 status=active（customer_ops/update.rs:104-107），此处再显式传一次确保为 active。
+ */
+async function createActiveCustomer(
+  page: import('@playwright/test').Page,
+  tag: string
+): Promise<number> {
+  const res = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+    customer_name: `31d${tag}活跃客户${Date.now()}`,
+    customer_type: 'retail',
+    status: 'active',
+  });
+  const id = res?.data?.id;
+  expect(
+    id,
+    `[31d-${tag}] 自建 active 客户失败，订单提交链路前置不成立：${JSON.stringify(res)}`
+  ).toBeTruthy();
+  return id!;
+}
+
 test.describe.serial('P0 自动通知全链路：业务动作→通知产生验证', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
@@ -58,8 +83,10 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     const before = await listNotifications(page);
     console.warn(`[31d-A] 提交前未读通知 ${before.length} 条`);
 
+    // 自建独立 active 客户（不用可能被软删除污染的 ctx.customerId，见 createActiveCustomer 注释）
+    const customerId = await createActiveCustomer(page, 'A');
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: ctx.customerId,
+      customer_id: customerId,
       order_date: new Date().toISOString(),
       items: [{ product_id: ctx.productIds[0], quantity: 10, unit_price: 25.5 }],
     });
@@ -106,6 +133,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     // 清理订单
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-A]');
+    await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, '[31d-A] 客户');
   });
 
   test('B. 订单审批→创建人收到审批通知', async ({ page }) => {
@@ -113,8 +141,9 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     await ensureTestEntities(page);
     const ctx = getCtx();
     // 创建+提交订单，再审批
+    const customerId = await createActiveCustomer(page, 'B');
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: ctx.customerId,
+      customer_id: customerId,
       order_date: new Date().toISOString(),
       items: [{ product_id: ctx.productIds[0], quantity: 5, unit_price: 30 }],
     });
@@ -154,16 +183,18 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     await deleteNotification(page, approvalNotif!.id);
 
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-B]');
+    await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, '[31d-B] 客户');
   });
 
   test('C. 订单发货→创建人收到发货通知', async ({ page }) => {
     test.setTimeout(180_000);
     await ensureTestEntities(page);
     const ctx = getCtx();
-    // 客户/产品取 ensureTestEntities 真实保障的实体。原实现硬编码 customer_id:1 /
-    // product_id:1，在 CI 空库中依赖种子恰好存在，一旦漂移订单创建就拿不到 id
+    // 产品取 ensureTestEntities 真实保障的实体；客户自建独立 active（原实现复用
+    // ctx.customerId/硬编码 id，易被软删除污染或不随空库漂移，致提交守卫拦截）
+    const customerId = await createActiveCustomer(page, 'C');
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: ctx.customerId,
+      customer_id: customerId,
       order_date: new Date().toISOString(),
       items: [{ product_id: ctx.productIds[0], quantity: 8, unit_price: 20 }],
     });
@@ -229,6 +260,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     await deleteNotification(page, shipNotif!.id);
 
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-C]');
+    await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, '[31d-C] 客户');
   });
 
   test('D. 库存预警→admin/manager收到预警通知', async ({ page }) => {

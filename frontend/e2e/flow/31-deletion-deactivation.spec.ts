@@ -96,10 +96,22 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     const targetRow = await findTableRow(page, customerName);
     expect(targetRow, `[P0-删除-客户] 列表未找到自建客户 ${customerName}`).toBeTruthy();
 
-    const deleted = await uiDeleteRow(page, '/customer', { column: 'name', value: customerName });
-    console.log(`[P0-删除-客户] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
-    expect(typeof deleted).toBe('boolean');
-    expect(deleted, `[P0-删除-客户] 自建且无引用的客户 ${customerName} UI 删除应成功`).toBe(true);
+    // 客户删除为「软删除」：delete_customer 仅把 status 置为 inactive（customer_ops/crud.rs:178），
+    // 且 list_customers 默认不过滤 inactive（query.rs:77，仅当显式传入 status 才过滤）——
+    // 故删除后该行仍留在列表（状态变「禁用」），"行消失"模型对本实体不适用。
+    // 仍用 uiDeleteRow 走真实 UI 点击（行内「删除」→确认弹窗）触发删除；其对软删除
+    // 返回 false 属预期，删除效果改由后端权威契约断言（见下）。
+    await uiDeleteRow(page, '/customer', { column: 'name', value: customerName });
+    const detail = await apiCallRaw<{ status?: string }>(
+      page,
+      'GET',
+      `/crm/customers/${created.data?.id}`
+    );
+    console.log(`[P0-删除-客户] UI 删除后 status=${detail?.status}`);
+    expect(
+      detail?.status,
+      `[P0-删除-客户] 自建且无引用的客户 ${customerName} UI 删除（软删除）后 status 应为 inactive，实际 ${detail?.status}`
+    ).toBe('inactive');
   });
 
   // ===== 3. 供应商删除 =====
@@ -482,6 +494,8 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       '/reports/enhanced/templates',
       {
         name: `P0待删报表${EXT_TS}`,
+        // CreateReportTemplateRequest.code 必填（length 1-50，report_template_service.rs:42-43）
+        code: `P0-RPT-${EXT_TS}`,
         description: 'P0报表模板',
         category: 'custom',
         data_source: 'sales',

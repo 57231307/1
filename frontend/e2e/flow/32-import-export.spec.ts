@@ -142,9 +142,17 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
       '[P0-导入-产品] 导入弹窗（ImportDialogTab el-upload）未渲染文件输入控件'
     ).toBeGreaterThan(0);
 
-    // 创建临时测试文件
+    // 创建临时测试文件：表头必须与后端产品模型的中文字段名一致——
+    // 后端 product_ops/import_export.rs:64-85 模板表头 + :335-352 必填校验（产品编码、产品名称、产品类型、计量单位）；
+    // 产品类型为枚举 {坯布, 成品布, 辅料}（:305-319）；状态缺省为 active（:260-265）。
+    // 原实现使用英文 code/name/unit 表头：CsvImporter::parse 按表头名做键值映射（utils/import_export.rs:102-119），
+    // 后端找不到"产品编码/产品名称/产品类型/计量单位"列 → 全部走"缺少 X 列"错误 → success_count=0，
+    // 测试期望 success_count=1 必然判红（数据契约错配，非源码缺陷）。
     const tmpFile = `/tmp/p0-import-product-${TS}.csv`;
-    fs.writeFileSync(tmpFile, 'code,name,unit\nP0-IMP-' + TS + ',P0导入测试产品,个\n');
+    fs.writeFileSync(
+      tmpFile,
+      '产品编码,产品名称,产品类型,计量单位\n' + `P0-IMP-${TS},P0导入测试产品,坯布,米\n`
+    );
     console.log(`[P0-导入-产品] 创建临时导入文件: ${tmpFile}`);
 
     await fileInput.setInputFiles(tmpFile);
@@ -157,10 +165,18 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
       await submitBtn.isVisible({ timeout: 5000 }),
       '[P0-导入-产品] 导入弹窗未渲染"确认导入"按钮'
     ).toBe(true);
+    // 前端 importProducts 走 axios，CSRF Token 为一次性消费：并发/多请求共享同一 csrf_token 时，
+    // 首发 POST /products/import 可能被后端判 CSRF_TOKEN_INVALID 拒为 403（见日志 origin=none 那次），
+    // request.ts 响应拦截器随即带恢复 token 重试并拿到最终 200（日志 origin=localhost:3000 那次）。
+    // 因此这里必须只捕获"终态"响应（非 CSRF 403 的那条），否则会把瞬时 CSRF 竞败当成导入结果误判为失败。
+    // 真正的权限 403/其它错误码仍会命中谓词或被超时暴露为 null，不会被掩盖。
     const importRespPromise = page
       .waitForResponse(
-        r => r.url().includes('/products/import') && r.request().method() === 'POST',
-        { timeout: 30000 }
+        r =>
+          r.url().includes('/products/import') &&
+          r.request().method() === 'POST' &&
+          r.status() !== 403,
+        { timeout: 30_000 }
       )
       .catch(() => null);
     await submitBtn.click();
@@ -170,7 +186,7 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     const importResp = await importRespPromise;
     expect(
       importResp,
-      '[P0-导入-产品] 点击确认导入后未发出 POST /products/import 请求'
+      '[P0-导入-产品] 点击确认导入后未得到成功的 POST /products/import 响应（未发出或仅 CSRF 403）'
     ).toBeTruthy();
     expect(importResp!.status(), `POST /products/import 应 200，实际 ${importResp!.status()}`).toBe(
       200

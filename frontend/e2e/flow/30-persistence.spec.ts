@@ -340,11 +340,11 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     const list = await apiCallRaw<unknown>(page, 'GET', `/warehouses?page=1&page_size=200`);
     const items = pickListArray<{
       id: number;
-      code?: string;
-      name?: string;
-      address?: string;
       // 列表响应序列化字段为 warehouse_code（warehouse model 列名），非 code
       warehouse_code?: string;
+      // 列表响应序列化字段为 warehouse_name：models/warehouse.rs:14 `#[serde(rename = "warehouse_name")]`
+      warehouse_name?: string;
+      address?: string;
       phone?: string;
       capacity?: number;
       warehouse_type?: string;
@@ -355,7 +355,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     );
     expect(found, '创建的仓库必须出现在列表中').toBeTruthy();
     expect(found!.warehouse_code, `warehouse_code 应为 ${code}`).toBe(code);
-    expect(found!.name, `name 应为 ${name}`).toBe(name);
+    expect(found!.warehouse_name, `warehouse_name 应为 ${name}`).toBe(name);
     expect(found!.address, 'address 应为 P0仓库地址A区').toBe('P0仓库地址A区');
     expect(found!.phone, 'phone 应为 13700000000').toBe('13700000000');
     expect(found!.capacity, 'capacity 应为 10000').toBe(10000);
