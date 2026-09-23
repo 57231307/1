@@ -19,8 +19,6 @@ export const useCp = () => {
   const selectedWorkCenter = ref<number | undefined>(undefined);
 
   // 列表数据接入 useTableApi
-  // 工作中心 API 返回 ApiResponse<PageResult<WorkCenter>>，
-  // PageResult 包含 list + total 字段，useTableApi detectList 检测 list（默认 listKey='list'）
   const {
     data: workCenters,
     total,

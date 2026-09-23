@@ -1810,6 +1810,14 @@ const EXEMPTIONS = new Map([
     'export_approval_handler.rs:92-94 json!({"items","total"})；前端 {items} 与之相符',
   ],
   [
+    `${BASE_URL}/bpm/definitions GET`,
+    'bpm_definition_handler.rs:48-63 page_to_frontend_json 手拼 json!({"list",...})，返回类型是未定型的 serde_json::Value 故静态判不出；已读码确认承载键为 list，前端 ProcessDefinitionPage{list} 与之一致。根治：helper 改返回强类型分页结构',
+  ],
+  [
+    `${BASE_URL}/bpm/templates GET`,
+    'bpm_definition_handler.rs:190-197 复用同一 page_to_frontend_json（{list,...}）；同上，前端已钉 list',
+  ],
+  [
     `${BASE_URL}/ai/process-optimizations GET`,
     'ai_extend_handler.rs:146-151 手拼 json!({"items","total","page","page_size"})；items 来自 service 的 vo.items（Vec），门禁无法静态证明其元素类型，但顶层承载键已读码确认为 items，前端 PaginatedResponse<T> 与之后端真相一致',
   ],
