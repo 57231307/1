@@ -2234,3 +2234,42 @@ CI 的 clippy 口径实测为：不加 `-D warnings`，但**新增 warning 文�
 `QueryParams` 与 `PageResult<T>` 在 src 与 e2e 中零引用后已从 `types/api.ts` 删除本体
 （`QueryParams` 的最后一个使用点是采购筛选/表格两个组件里各自重复定义的本地同名接口，
 一并改为 `PurchaseOrderQueryParams`）。此后新代码无法再挂到"怎么传/怎么返都对"的类型上。
+
+## iter35：`t()` 死兜底类清零 + BPM 转交两处真实缺陷 + G 类 21 缺口的可修性判定
+
+### 已修（7 个提交，全部只跑静态门禁）
+- **BPM 转交默认接收人硬编码**：`useBpmApProc.ts` 把 `new_assignee_id` 预置为 `1`
+  （打开对话框还会重置为 1），使 `required` 永不触发 ⇒ 不改预填值就把任务静默转给用户 ID=1。
+  改为回源 `GET /users` 填候选人（真实载荷 `{users,total,page,page_size}`）。
+- **BPM 监控页转办把译文当业务值提交**：`views/bpm/index.vue` 原 `handleTransfer` 第三参传
+  `t('bpm.message.transferComment')`（标签"转交意见"）当作 `transfer_reason` 写库，
+  审计值随界面语言变成 "转交意见"/"Transfer comment"。同文件还要求手输内部用户 ID。
+  改为对话框：接收人取真实用户、原因取操作者输入原文；顺带删除失去引用的
+  `transferPrompt` / `transferUserIdInvalid` 两键。**"译文当业务值提交"是已收口类别，
+  本次在同一模块内复活 2 处**——同类回归应在审查时优先复查 BPM。
+- **`t('key') || '中文'` 死兜底 47 处**：vue-i18n 取不到键时返回键名（真值），`||` 右值永不参与求值，
+  只把"缺键"降级成"界面突然冒出另一种语言的裸字面量"。逐处比对兜底字面量与键实际取值：
+  46 处完全相同（删除零文案变化）已删；6 处兜底比键值更具体 ⇒ 属**选错键**
+  （`common.detail` 用在"付款申请详情/收款详情/核销详情/资产详情"、`table.analytics` 用在"商机分析"对话框标题），
+  已补各域自身 `detailTitle` 键并改用；1 处（`crmPool` 认领/领取）同义，仅去兜底。
+  删除前先跑类型与门禁，删除后 `same/differ/missingKey` 三类计数均为 0。
+- 本轮新增界面文案 229 键外化（含三个工序视图存量），刻意保留：与后端比较或写回后端的
+  中文业务值、后端枚举码（作为键/value 的部分）、请求体字段名、注释。
+
+### G 类 21 条"前端调用而后端无路由"的可修性判定（不改，先定性质）
+- **report-templates 页是双域混合，不能机械改路径**：`api/report-templates.ts` 的
+  列/创建命中 `report_engine_handler`（`routes/analytics.rs:339` 只有 `GET/POST /report-templates`），
+  而按 id 的 GET/PUT/DELETE/preview/generate 只在 `reports/enhanced/templates/{id}`
+  （`routes/analytics.rs:129-156`，`report_enhanced_handler`）。两者同表 `report_template`
+  但 DTO 词汇不同（前端 `template_code/template_name/category/format/content`
+  vs 后端 `UpdateReportTemplateRequest` 的 `name/code/...`，见 handler:143-155），
+  改路径只会把 404 变成"字段被 serde 丢弃的静默无操作"。且 `list_templates` 返回
+  `get_predefined_templates()` 的**内存预置项**（`report_engine_handler.rs:55-66`），
+  这些行没有可用于按 id 操作的库主键；preview/generate 依赖的 `execute_custom_report`
+  又被 P0-B 的 SQL 执行开关恒拒（已登记）⇒ 该页 4 个按钮当前无一条可成功路径。
+  需产品决策：报表模板页归 report_engine 还是 reports/enhanced，预置模板是否入库。
+- **零调用的死封装**：`addCustomerTag` / `removeCustomerTag`
+  （`api/crm-enhanced.ts:268/272`）全仓无调用点，其"缺路由"不会造成运行期故障；
+  删除或接线均需先定标签语义（后端只有"整表覆盖 tags"的 `add_tags`，无解绑端点）。
+- 其余为后端端点确实缺失（币种新增、导入模板新建、客户共享全量列表、数据权限两段路径、
+  采购合同导出、系统备份详情/删除/恢复/下载、AR 明细行新增、AR 增强自动对账只读列表）。
