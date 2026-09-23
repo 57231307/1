@@ -98,8 +98,9 @@ export const executeSalesReturn = (id: number) =>
   request.post<ApiResponse<SalesReturn>>(`/sales/sales-returns/${id}/execute`);
 
 // D14 Batch 5b：原 salesReturnApi.listItems 转为风格 B 函数
+/** 后端 sales_return_handler::list_return_items 返回 ApiResponse<Vec<Model>>（裸数组，无信封） */
 export const getSalesReturnItemList = (id: number) =>
-  request.get<ApiResponse<{ items: SalesReturnItem[] }>>(`/sales/sales-returns/${id}/items`);
+  request.get<ApiResponse<SalesReturnItem[]>>(`/sales/sales-returns/${id}/items`);
 
 // D14 Batch 5b：原 salesReturnApi.createItem 转为风格 B 函数
 export const createSalesReturnItem = (id: number, data: Partial<SalesReturnItem>) =>

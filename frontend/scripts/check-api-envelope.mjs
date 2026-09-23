@@ -1693,6 +1693,16 @@ function classifyFrontendReturn(retType, tsIndex) {
     const pm = retType.match(/^Promise<([\s\S]*)>\s*$/);
     inner = pm ? pm[1].trim() : retType;
   }
+  // request.get<T>() 的 T 是「整个响应体」。写成 T = { data: X } 时（本仓 ApiResponse 的简写形式），
+  // 真正的载荷是 X；不先剥这一层就会把 ApiResponse{data:PagedResponse} 误判成"单对象 vs 信封"。
+  if (!mm && /^\{/.test(inner)) {
+    // splitObjFields 返回字段文本（非 {key,val}），这里只认顶层 `data:` 一个字段的情形
+    const fields = splitObjFields(inner.replace(/^\{/, '').replace(/\}\s*$/, ''));
+    const dataField = fields
+      .map(f => /^data\s*\??\s*:\s*([\s\S]+)$/.exec(String(f).trim()))
+      .find(Boolean);
+    if (dataField) return classifyFrontendPayload(dataField[1].trim(), tsIndex);
+  }
   return classifyFrontendPayload(inner, tsIndex);
 }
 

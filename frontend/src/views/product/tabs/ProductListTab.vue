@@ -431,7 +431,8 @@ const fetchCategories = async () => {
       getProductCategoryList(),
       getProductCategoryTree(),
     ]);
-    categories.value = (flatRes.data as ProductCategory[] | undefined) || [];
+    // 后端 list 是 {items,total} 信封；此前把该对象当数组用，本 tab 的分类下拉恒空
+    categories.value = flatRes.data.items;
     categoryTree.value = (treeRes.data as ProductCategory[] | undefined) || [];
     stats.totalCategories = countNodes(categoryTree.value);
   } catch (error) {

@@ -130,8 +130,9 @@ export const batchDeleteProducts = (ids: number[]) =>
   });
 
 // D14 Batch 5b：原 productApi.getCategories 转为风格 B 函数
+/** 宏 define_crud_handlers! 生成的 list 返回 json!({"items","total"})（crud_macro.rs:202-207） */
 export const getProductCategoryList = () =>
-  request.get<ApiResponse<ProductCategory[]>>('/product-categories');
+  request.get<ApiResponse<{ items: ProductCategory[]; total: number }>>('/product-categories');
 
 // D14 Batch 5b：原 productApi.createCategory 转为风格 B 函数
 export const createProductCategory = (data: Partial<ProductCategory>) =>

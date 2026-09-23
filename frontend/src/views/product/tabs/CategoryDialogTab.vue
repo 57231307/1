@@ -98,7 +98,7 @@ const fetchCategories = async () => {
   loading.value = true;
   try {
     const res = await getProductCategoryList();
-    categories.value = (res.data as ProductCategory[] | undefined) || [];
+    categories.value = res.data.items;
   } catch (error) {
     const err = error as Error;
     logger.error(t('product.categoryDialogTab.messageFetchFailed'), err.message);
