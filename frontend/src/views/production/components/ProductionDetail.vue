@@ -33,10 +33,10 @@
           order.actual_quantity || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('production.detail.labelScheduledStart')">{{
-          order.scheduled_start_date?.substring(0, 10) || '-'
+          order.planned_start_date?.substring(0, 10) || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('production.detail.labelScheduledEnd')">{{
-          order.scheduled_end_date?.substring(0, 10) || '-'
+          order.planned_end_date?.substring(0, 10) || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('production.detail.labelActualStart')">{{
           order.actual_start_date?.substring(0, 10) || '-'
@@ -51,10 +51,10 @@
           order.priority
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('production.detail.labelCreateTime')" :span="2">
-          {{ order.created_at || '-' }}
+          {{ order.created_at }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('production.detail.labelRemark')" :span="2">{{
-          order.remark || '-'
+          order.remarks || '-'
         }}</el-descriptions-item>
       </el-descriptions>
     </div>

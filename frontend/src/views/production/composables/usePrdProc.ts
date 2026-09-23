@@ -121,8 +121,8 @@ export function usePrdProc(cb: PrdCallbacks) {
       <td>${escapeHtml(item.order_no)}</td><td>${escapeHtml(item.product_name || '-')}</td>
       <td style="text-align:right">${escapeHtml(item.planned_quantity)}</td>
       <td style="text-align:right">${escapeHtml(item.actual_quantity || '-')}</td>
-      <td>${escapeHtml(item.scheduled_start_date?.substring(0, 10) || '-')}</td>
-      <td>${escapeHtml(item.scheduled_end_date?.substring(0, 10) || '-')}</td>
+      <td>${escapeHtml(item.planned_start_date?.substring(0, 10) || '-')}</td>
+      <td>${escapeHtml(item.planned_end_date?.substring(0, 10) || '-')}</td>
       <td>${escapeHtml(getStatusLabel(item.status))}</td><td>${escapeHtml(item.priority)}</td>
     </tr>
   `

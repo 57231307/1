@@ -41,7 +41,7 @@
     <el-row :gutter="20" class="table-row">
       <el-col :xs="24" :lg="16">
         <CapacityTable
-          :data="cp.workCenters"
+          :data="cp.capacityRows"
           :table-loading="cp.tableLoading"
           :total="cp.total"
           :page="cp.currentPage"

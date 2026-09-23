@@ -108,8 +108,8 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
       { default: () => '日志' }
     )
   );
-  const upper = String(row.status || '').toUpperCase();
-  if (upper === 'DRAFT') {
+  const status = row.status;
+  if (status === 'DRAFT') {
     buttons.push(
       h(
         ElButton,
@@ -118,7 +118,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
       )
     );
   }
-  if (upper === 'PENDING_APPROVAL') {
+  if (status === 'PENDING_APPROVAL') {
     buttons.push(
       h(
         ElButton,
@@ -142,7 +142,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
       )
     );
   }
-  if (upper === 'IN_PROGRESS') {
+  if (status === 'IN_PROGRESS') {
     buttons.push(
       h(
         ElButton,
@@ -153,7 +153,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
   }
   // 草稿可改可删；排产/开工/完工按状态机的下一步给出，
   // 目标状态取后端 PUT /status 白名单里的值（SCHEDULED/IN_PROGRESS/COMPLETED）
-  if (upper === 'DRAFT') {
+  if (status === 'DRAFT') {
     // 编辑入口提交 PUT /orders/{id}，后端对 resource_id=NULL 行拒绝；与后端同源判定后隐藏
     if (can('production_order:update') && canEditDetail.value) {
       buttons.push(
@@ -174,7 +174,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
       );
     }
   }
-  if (upper === 'APPROVED') {
+  if (status === 'APPROVED') {
     buttons.push(
       h(
         ElButton,
@@ -188,7 +188,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
       )
     );
   }
-  if (upper === 'SCHEDULED') {
+  if (status === 'SCHEDULED') {
     buttons.push(
       h(
         ElButton,
@@ -202,7 +202,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
       )
     );
   }
-  if (upper === 'IN_PROGRESS') {
+  if (status === 'IN_PROGRESS') {
     buttons.push(
       h(
         ElButton,
@@ -236,18 +236,18 @@ const columns = computed<ColumnDef<ProductionOrder>[]>(() => [
     align: 'right',
   },
   {
-    key: 'scheduled_start_date',
+    key: 'planned_start_date',
     title: t('production.table.colScheduledStart'),
     width: 140,
     formatter: (row: ProductionOrder) =>
-      row.scheduled_start_date ? row.scheduled_start_date.substring(0, 10) : '-',
+      row.planned_start_date ? row.planned_start_date.substring(0, 10) : '-',
   },
   {
-    key: 'scheduled_end_date',
+    key: 'planned_end_date',
     title: t('production.table.colScheduledEnd'),
     width: 140,
     formatter: (row: ProductionOrder) =>
-      row.scheduled_end_date ? row.scheduled_end_date.substring(0, 10) : '-',
+      row.planned_end_date ? row.planned_end_date.substring(0, 10) : '-',
   },
   {
     key: 'status',

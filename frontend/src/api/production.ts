@@ -1,25 +1,31 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
-// 生产订单接口
+// 生产订单出参：键 = handlers/production_order_handler.rs 的 ProductionOrderResponse 字段名
+// （snake_case，Option ⇒ | null，NOT NULL ⇒ 必选）。名称类列后端未透出，见下注释。
 export interface ProductionOrder {
   id: number;
   order_no: string;
   sales_order_id?: number;
   product_id: number;
-  product_name?: string;
+  // 名称列：ProductionOrderResponse（handlers/production_order_handler.rs:93）只有 product_id、
+  // 无 product_name，需后端按 §5 范式 LEFT JOIN product.product_name 输出为 product_name。
+  product_name: string | null;
   planned_quantity: number;
   actual_quantity?: number;
-  scheduled_start_date?: string;
-  scheduled_end_date?: string;
-  actual_start_date?: string;
-  actual_end_date?: string;
-  status: 'draft' | 'planned' | 'in_production' | 'completed' | 'cancelled';
+  planned_start_date: string | null;
+  planned_end_date: string | null;
+  // 实际起止日期：production_order 表有列（models/production_order.rs），但 ProductionOrderResponse
+  // 未透出，需后端在 DTO 补 actual_start_date/actual_end_date 后此列方有值。
+  actual_start_date?: string | null;
+  actual_end_date?: string | null;
+  // 状态为 NOT NULL，词表为全大写（models/status/production.rs + general.rs 的 common）。
+  status: string;
   priority: number;
   work_center_id?: number;
-  remark?: string;
-  created_at?: string;
-  updated_at?: string;
+  remarks: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // 生产订单状态字典
