@@ -12,11 +12,14 @@ import {
   createPurchaseContract,
   updatePurchaseContract,
   type PurchaseContract,
+  type CreatePurchaseContractPayload,
+  type UpdatePurchaseContractPayload,
 } from '@/api/purchase-contract';
 import { getSupplierList, type Supplier } from '@/api/supplier';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
+import { i18n } from '@/i18n';
 
 /**
  * 采购合同 composable
@@ -73,10 +76,36 @@ export function usePc() {
   });
 
   // 表单验证规则
+  // delivery_date: 后端 CreateContractRequestDto 中为 chrono::NaiveDate（非 Option），必填
   const formRules = {
-    contract_no: [{ required: true, message: '请输入合同编号', trigger: 'blur' }],
-    contract_name: [{ required: true, message: '请输入合同名称', trigger: 'blur' }],
-    supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
+    contract_no: [
+      {
+        required: true,
+        message: i18n.global.t('purchaseContract.validation.contractNoRequired'),
+        trigger: 'blur',
+      },
+    ],
+    contract_name: [
+      {
+        required: true,
+        message: i18n.global.t('purchaseContract.validation.contractNameRequired'),
+        trigger: 'blur',
+      },
+    ],
+    supplier_id: [
+      {
+        required: true,
+        message: i18n.global.t('purchaseContract.validation.supplierRequired'),
+        trigger: 'change',
+      },
+    ],
+    delivery_date: [
+      {
+        required: true,
+        message: i18n.global.t('purchaseContract.validation.deliveryDateRequired'),
+        trigger: 'change',
+      },
+    ],
   };
 
   // 懒加载标记
@@ -137,14 +166,35 @@ export function usePc() {
     Object.assign(formData, row);
   };
 
-  /** 提交表单 */
+  /**
+   * 提交表单
+   * 新建：构造 CreatePurchaseContractPayload（对齐后端 CreateContractRequestDto），
+   *       delivery_date 为后端必填字段（NaiveDate），表单已校验；remark 键名为单数（非 remarks）
+   *       contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location
+   *       是真实列但不在 CreateContractRequestDto 内（schema gap，发送后被 Axum 丢弃）
+   * 编辑：构造 UpdatePurchaseContractPayload（对齐后端 UpdateContractDto），
+   *       仅可更新 contract_name/payment_terms；其余为 schema gap
+   */
   const handleSubmitForm = async (): Promise<boolean> => {
     try {
       await formRef.value?.validate();
       if (formData.id) {
-        await updatePurchaseContract(formData.id, formData);
+        const updatePayload: UpdatePurchaseContractPayload = {
+          contract_name: formData.contract_name,
+          payment_terms: formData.payment_terms || undefined,
+        };
+        await updatePurchaseContract(formData.id, updatePayload);
       } else {
-        await createPurchaseContract(formData);
+        const createPayload: CreatePurchaseContractPayload = {
+          contract_no: formData.contract_no,
+          contract_name: formData.contract_name,
+          supplier_id: formData.supplier_id as number,
+          total_amount: formData.total_amount,
+          payment_terms: formData.payment_terms || undefined,
+          delivery_date: formData.delivery_date,
+          remark: formData.remarks || undefined,
+        };
+        await createPurchaseContract(createPayload);
       }
       msg.success('saveSuccess');
       await getList();

@@ -57,6 +57,35 @@ export interface PurchaseContractQuery {
   page_size?: number;
 }
 
+/**
+ * 创建采购合同请求（严格对齐 backend CreateContractRequestDto，
+ * handlers/purchase_contract_handler.rs:31）。
+ * 注意：后端字段是 remark（单数），前端历史用 remarks（复数）⇒ 键名不对齐导致 remark 恒为 None。
+ * contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location
+ * 为真实 DB 列但不在 CreateContractRequestDto 内（schema gap）。
+ */
+export interface CreatePurchaseContractPayload {
+  contract_no: string;
+  contract_name: string;
+  supplier_id: number;
+  total_amount: number;
+  payment_terms?: string;
+  /** 后端为 chrono::NaiveDate（必填），格式 YYYY-MM-DD */
+  delivery_date: string;
+  /** 后端字段名为 remark（单数），非 remarks */
+  remark?: string;
+}
+
+/**
+ * 更新采购合同请求（严格对齐 backend UpdateContractDto，
+ * handlers/purchase_contract_handler.rs:45）。
+ * 仅 contract_name/payment_terms 可更新；其余字段为 schema gap。
+ */
+export interface UpdatePurchaseContractPayload {
+  contract_name?: string;
+  payment_terms?: string;
+}
+
 export function getPurchaseContractList(
   params?: PurchaseContractQuery
 ): Promise<ApiResponse<PurchaseContract[]>> {
@@ -68,14 +97,14 @@ export function getPurchaseContract(id: number): Promise<ApiResponse<PurchaseCon
 }
 
 export function createPurchaseContract(
-  data: Partial<PurchaseContract>
+  data: CreatePurchaseContractPayload
 ): Promise<ApiResponse<PurchaseContract>> {
   return request.post('/purchase/purchase-contracts', data);
 }
 
 export function updatePurchaseContract(
   id: number,
-  data: Partial<PurchaseContract>
+  data: UpdatePurchaseContractPayload
 ): Promise<ApiResponse<PurchaseContract>> {
   return request.put(`/purchase/purchase-contracts/${id}`, data);
 }
