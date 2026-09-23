@@ -5,7 +5,7 @@
 //! 覆盖三条路径（空串 / 非空串 / 缺省），并锁定边界中间件对 query 空值键的剔除。
 
 use bingxi_backend::utils::query_params::{
-    empty_str_as_none, empty_str_vec_as_none, is_empty_query_value, strip_empty_query_values,
+    empty_str_as_none, is_empty_query_value, strip_empty_query_values,
 };
 use serde::Deserialize;
 
@@ -19,12 +19,6 @@ struct FilterQuery {
     status: Option<String>,
     #[serde(default, deserialize_with = "empty_str_as_none")]
     keyword: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct MultiQuery {
-    #[serde(default, deserialize_with = "empty_str_vec_as_none")]
-    tags: Option<Vec<String>>,
 }
 
 /// 路径一：空串参数不产生过滤（反序列化为 None）。
@@ -60,20 +54,6 @@ fn whitespace_only_is_empty_but_internal_space_preserved() {
     assert_eq!(q.keyword.as_deref(), Some("a b"));
     assert!(is_empty_query_value("  \t "));
     assert!(!is_empty_query_value("x"));
-}
-
-/// 多选：逐项剔除空值；全空集归一为 None，不退化为 Some([])。
-#[test]
-fn multi_value_drops_empties_and_collapses_to_none() {
-    let mixed: MultiQuery = serde_json::from_str(r#"{"tags":["a","","b"," "]}"#).unwrap();
-    assert_eq!(
-        mixed.tags.as_deref(),
-        Some(&["a".to_string(), "b".to_string()][..])
-    );
-    let all_empty: MultiQuery = serde_json::from_str(r#"{"tags":["",""]}"#).unwrap();
-    assert_eq!(all_empty.tags, None, "全空多选必须归一为 None");
-    let absent: MultiQuery = serde_json::from_str("{}").unwrap();
-    assert_eq!(absent.tags, None);
 }
 
 /// 边界中间件：真实前端采购页 URL `page=1&page_size=20&keyword=&status=` 被归一化为

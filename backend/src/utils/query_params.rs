@@ -6,9 +6,8 @@
 //! 对状态/编号这类取值恒 0 行 → 页面「有数据但列表空」。
 //!
 //! 治本点：缺失键与空串应在「反序列化边界」收敛为同一语义（None）。本模块提供
-//! 两个入口，语义一致：
-//! - [`empty_str_as_none`] / [`empty_str_vec_as_none`]：字段级 serde 反序列化器，
-//!   供查询 DTO 显式标注（首选写法）；
+//! 两类入口，语义一致：
+//! - [`empty_str_as_none`]：字段级 serde 反序列化器，供查询 DTO 显式标注；
 //! - [`normalize_empty_query_params`]：全量边界中间件，在 handler 之前剔除空值 query
 //!   键，一次性覆盖全部查询 DTO（含未来新增），避免逐 service 手写 `!s.is_empty()`
 //!   这种可漂移的重复实现。
@@ -91,24 +90,4 @@ where
         Some(v) => Some(v.into_owned()),
         None => None,
     })
-}
-
-/// 字段级 serde 反序列化器：`Option<Vec<String>>`（如逗号分隔多值）逐项剔除空值，
-/// 过滤后为空集时归一为 `None`，使「未填多选筛选项」与缺省同义。
-pub fn empty_str_vec_as_none<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let raw = Option::<Vec<Cow<'de, str>>>::deserialize(deserializer)?;
-    let Some(items) = raw else {
-        return Ok(None);
-    };
-    let kept: Vec<String> = items
-        .into_iter()
-        .filter(|v| !is_empty_query_value(v))
-        .map(Cow::into_owned)
-        .collect();
-    // 过滤后为空集与「未提供多选筛选项」同义 → None，绝不退化成 Some([])（Some([]) 会被
-    // service 层的 `is_some()` 判成有效过滤）。
-    Ok(Some(kept).filter(|v| !v.is_empty()))
 }
