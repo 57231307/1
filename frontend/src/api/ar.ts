@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 export interface ARInvoice {
   id: number;
@@ -78,7 +78,19 @@ export interface CreateARReconciliationRequest {
   total_collections: number;
 }
 
-export function getARInvoiceList(params?: QueryParams): Promise<ApiResponse<ARInvoice[]>> {
+/**
+ * 应收发票列表查询参数：对齐后端 `ar_invoice_handler::ArInvoiceQuery`
+ * （backend/src/handlers/ar_invoice_handler.rs:35，list_ar_invoices 的 Query 提取器 :62）。
+ * 后端无 rename_all，字段保持 snake_case。
+ */
+export interface ArInvoiceQuery {
+  customer_id?: number;
+  status?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export function getARInvoiceList(params?: ArInvoiceQuery): Promise<ApiResponse<ARInvoice[]>> {
   return request.get('/ar/invoices', { params });
 }
 
@@ -114,8 +126,21 @@ export function cancelARInvoice(id: number, reason: string): Promise<ApiResponse
  * 对账单列表：后端 `ar_reconciliation_handler::list_reconciliations` 返回
  * `PaginatedResponse<ReconciliationResponse>`（data = {items,total,page,page_size}）。
  */
+/**
+ * 应收对账单列表查询参数：对齐后端 `ar_reconciliation_handler::ListReconciliationsQuery`
+ * （backend/src/handlers/ar_reconciliation_handler.rs:103，list_reconciliations 的 Query 提取器 :116）。
+ */
+export interface ArReconciliationQuery {
+  status?: string;
+  customer_id?: number;
+  page?: number;
+  page_size?: number;
+  start_date?: string;
+  end_date?: string;
+}
+
 export function getARReconciliationList(
-  params?: QueryParams
+  params?: ArReconciliationQuery
 ): Promise<ApiResponse<PaginatedResponse<ARReconciliation>>> {
   return request.get('/ar-reconciliations', { params });
 }
@@ -142,8 +167,20 @@ export function updateARReconciliationStatus(
  * 承载数组的键为 `list`（data = {list,total,page,page_size}）。
  * 注意：与 AP 侧同类列表用 `items` 键不一致 —— 见汇报「需后端统一」。
  */
+/**
+ * 收款列表查询参数：对齐后端 `ar_payment_handler::ArPaymentQuery`
+ * （backend/src/handlers/ar_payment_handler.rs:19，list_payments 的 Query 提取器 :61）。
+ */
+export interface ArPaymentQuery {
+  page?: number;
+  page_size?: number;
+  status?: string;
+  customer_id?: number;
+  payment_no?: string;
+}
+
 export function getARPaymentList(
-  params?: QueryParams
+  params?: ArPaymentQuery
 ): Promise<ApiResponse<{ list: ARPayment[]; total: number; page: number; page_size: number }>> {
   return request.get('/ar/payments', { params });
 }
@@ -171,8 +208,20 @@ export function confirmARPayment(id: number): Promise<ApiResponse<void>> {
  * 核销列表：后端 `ar_verification_handler::list_verifications` 以 json! 手搓载荷，
  * 承载数组的键为 `list`（data = {list,total,page,page_size}）。
  */
+/**
+ * 核销列表查询参数：对齐后端 `ar_verification_handler::ArVerificationQuery`
+ * （backend/src/handlers/ar_verification_handler.rs:15，list_verifications 的 Query 提取器 :38）。
+ */
+export interface ArVerificationQuery {
+  page?: number;
+  page_size?: number;
+  invoice_id?: number;
+  payment_id?: number;
+  status?: string;
+}
+
 export function getARVerificationList(
-  params?: QueryParams
+  params?: ArVerificationQuery
 ): Promise<
   ApiResponse<{ list: ARVerification[]; total: number; page: number; page_size: number }>
 > {
@@ -254,8 +303,21 @@ export interface ARAgingReport {
   [key: string]: unknown;
 }
 
+/**
+ * 统计报表查询参数：对齐后端 `ar_report_handler::ArReportQuery`
+ * （backend/src/handlers/ar_report_handler.rs:19，get_statistics_report 的 Query 提取器 :34）。
+ * 后端无 rename_all、无分页字段，全部为 Option。
+ */
+export interface ArReportQuery {
+  start_date?: string;
+  end_date?: string;
+  customer_id?: number;
+  baseline_date?: string;
+  salesperson_id?: number;
+}
+
 export function getARStatisticsReport(
-  params?: QueryParams
+  params?: ArReportQuery
 ): Promise<ApiResponse<ARStatisticsReport>> {
   return request.get('/ar/reports/statistics', { params });
 }

@@ -26,23 +26,9 @@
 
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="invoiceQuery" :aria-label="$t('apModule.invoice.filterAria')">
-        <el-form-item :label="$t('apModule.invoice.supplier')">
-          <el-input
-            v-model="invoiceQuery.supplier_name"
-            :placeholder="$t('apModule.invoice.supplierNamePlaceholder')"
-            clearable
-          />
-        </el-form-item>
-        <el-form-item :label="$t('apModule.invoice.invoiceNo')">
-          <el-input
-            v-model="invoiceQuery.invoice_no"
-            :placeholder="$t('apModule.invoice.invoiceNoPlaceholder')"
-            clearable
-          />
-        </el-form-item>
         <el-form-item :label="$t('common.status')">
           <el-select
-            v-model="invoiceQuery.status"
+            v-model="invoiceQuery.invoice_status"
             :placeholder="$t('apModule.invoice.statusPlaceholder')"
             clearable
           >
@@ -318,9 +304,7 @@ const invoiceLoading = ref(false);
 const suppliers = ref<Supplier[]>([]);
 
 const invoiceQuery = reactive({
-  supplier_name: '',
-  invoice_no: '',
-  status: '',
+  invoice_status: '',
 });
 
 const formatMoney = (amount: number | undefined) => {
@@ -369,9 +353,7 @@ const fetchInvoices = async () => {
 };
 
 const resetInvoiceQuery = () => {
-  invoiceQuery.supplier_name = '';
-  invoiceQuery.invoice_no = '';
-  invoiceQuery.status = '';
+  invoiceQuery.invoice_status = '';
   fetchInvoices();
 };
 
@@ -526,7 +508,7 @@ const handlePrintInvoices = () => {
 // V15 P0-S12 修复（Batch 475e）：迁移到后端导出，注入水印 + 审计日志
 const handleExportInvoices = async () => {
   const params: Record<string, unknown> = {
-    invoice_status: invoiceQuery.status || undefined,
+    invoice_status: invoiceQuery.invoice_status || undefined,
   };
   await exportFromBackend('/ap/invoices/export', params, 'ap_invoices_export');
   logger.info(t('apModule.invoice.exportedLog'));

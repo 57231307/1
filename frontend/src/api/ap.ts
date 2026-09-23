@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 export interface APInvoice {
   id: number;
@@ -83,8 +83,23 @@ export interface APReconciliation {
   created_at: string;
 }
 
+/**
+ * 应付发票列表查询参数：对齐后端 `ap_invoice_handler::ApInvoiceQueryParams`
+ * （backend/src/handlers/ap_invoice_handler.rs:29，list_ap_invoices 的 Query 提取器 :41）。
+ * 后端无 `#[serde(rename_all)]`，字段保持 snake_case；start_date/end_date 为 NaiveDate（"YYYY-MM-DD"）。
+ */
+export interface ApInvoiceQueryParams {
+  supplier_id?: number;
+  invoice_status?: string;
+  invoice_type?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getAPInvoiceList(
-  params?: QueryParams
+  params?: ApInvoiceQueryParams
 ): Promise<ApiResponse<PaginatedResponse<APInvoice>>> {
   return request.get('/ap/invoices', { params });
 }
@@ -144,8 +159,22 @@ export function getAPAgingAnalysis(params?: {
  * 付款列表：后端 `ap_payment_handler::list_payments` 返回
  * `PaginatedResponse<...>`（data = {items,total,page,page_size}）。
  */
+/**
+ * 付款列表查询参数：对齐后端 `ap_payment_handler::ApPaymentQueryParams`
+ * （backend/src/handlers/ap_payment_handler.rs:25，list_payments 的 Query 提取器 :37）。
+ */
+export interface ApPaymentQueryParams {
+  supplier_id?: number;
+  payment_status?: string;
+  payment_method?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getAPPaymentList(
-  params?: QueryParams
+  params?: ApPaymentQueryParams
 ): Promise<ApiResponse<PaginatedResponse<APPayment>>> {
   return request.get('/ap/payments', { params });
 }
@@ -173,8 +202,22 @@ export function confirmAPPayment(id: number): Promise<ApiResponse<void>> {
  * 付款申请列表：后端 `ap_payment_request_handler::list_requests` 返回
  * `PaginatedResponse`（data = {items,total,page,page_size}）。
  */
+/**
+ * 付款申请列表查询参数：对齐后端 `ap_payment_request_handler::ApPaymentRequestQueryParams`
+ * （backend/src/handlers/ap_payment_request_handler.rs:28，list_requests 的 Query 提取器 :40）。
+ */
+export interface ApPaymentRequestQueryParams {
+  supplier_id?: number;
+  approval_status?: string;
+  payment_type?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getAPPaymentRequestList(
-  params?: QueryParams
+  params?: ApPaymentRequestQueryParams
 ): Promise<ApiResponse<PaginatedResponse<APPaymentRequest>>> {
   return request.get('/ap/payment-requests', { params });
 }
@@ -216,8 +259,21 @@ export function rejectAPPaymentRequest(id: number, reason: string): Promise<ApiR
  * 核销列表：后端 `ap_verification_handler::list_verifications` 返回
  * `PaginatedResponse`（data = {items,total,page,page_size}）。
  */
+/**
+ * 核销列表查询参数：对齐后端 `ap_verification_handler::ApVerificationQueryParams`
+ * （backend/src/handlers/ap_verification_handler.rs:23，list_verifications 的 Query 提取器 :34）。
+ */
+export interface ApVerificationQueryParams {
+  supplier_id?: number;
+  verification_type?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getAPVerificationList(
-  params?: QueryParams
+  params?: ApVerificationQueryParams
 ): Promise<ApiResponse<PaginatedResponse<APVerification>>> {
   return request.get('/ap/verifications', { params });
 }
@@ -255,8 +311,21 @@ export function getUnverifiedAPPayments(): Promise<ApiResponse<APPayment[]>> {
  * 对账单列表：后端 `ap_reconciliation_handler::list_reconciliations` 返回
  * `PaginatedResponse`（data = {items,total,page,page_size}）。
  */
+/**
+ * 对账单列表查询参数：对齐后端 `ap_reconciliation_handler::ApReconciliationQueryParams`
+ * （backend/src/handlers/ap_reconciliation_handler.rs:25，list_reconciliations 的 Query 提取器 :36）。
+ */
+export interface ApReconciliationQueryParams {
+  supplier_id?: number;
+  reconciliation_status?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getAPReconciliationList(
-  params?: QueryParams
+  params?: ApReconciliationQueryParams
 ): Promise<ApiResponse<PaginatedResponse<APReconciliation>>> {
   return request.get('/ap/reconciliations', { params });
 }
@@ -368,8 +437,19 @@ export function getAPInvoiceRelations(id: number): Promise<ApiResponse<APInvoice
   return request.get(`/ap/invoices/${id}/relations`);
 }
 
+/**
+ * 统计报表查询参数：对齐后端 `ap_report_handler::ApStatisticsQueryParams`
+ * （backend/src/handlers/ap_report_handler.rs:25，get_statistics_report 的 Query 提取器 :34）。
+ * start_date/end_date 后端为非 Option 的 NaiveDate（必填），TS 侧同样必填；无分页字段。
+ */
+export interface ApStatisticsQueryParams {
+  supplier_id?: number;
+  start_date: string;
+  end_date: string;
+}
+
 export function getAPStatisticsReport(
-  params?: QueryParams
+  params?: ApStatisticsQueryParams
 ): Promise<ApiResponse<APStatisticsData>> {
   return request.get('/ap/reports/statistics', { params });
 }

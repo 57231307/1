@@ -25,20 +25,6 @@
 
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="invoiceQuery" :aria-label="$t('arModule.invoice.filterAria')">
-        <el-form-item :label="$t('arModule.invoice.customer')">
-          <el-input
-            v-model="invoiceQuery.customer_name"
-            :placeholder="$t('arModule.invoice.customerNamePlaceholder')"
-            clearable
-          />
-        </el-form-item>
-        <el-form-item :label="$t('arModule.invoice.invoiceNo')">
-          <el-input
-            v-model="invoiceQuery.invoice_no"
-            :placeholder="$t('arModule.invoice.invoiceNoPlaceholder')"
-            clearable
-          />
-        </el-form-item>
         <el-form-item :label="$t('common.status')">
           <el-select
             v-model="invoiceQuery.status"
@@ -265,8 +251,6 @@ const invoiceDialogVisible = ref(false);
 const invoiceFormRef = ref<FormInstance>();
 
 const invoiceQuery = reactive({
-  customer_name: '',
-  invoice_no: '',
   status: '',
 });
 
@@ -336,8 +320,6 @@ const fetchInvoices = async () => {
 };
 
 const resetInvoiceQuery = () => {
-  invoiceQuery.customer_name = '';
-  invoiceQuery.invoice_no = '';
   invoiceQuery.status = '';
   fetchInvoices();
 };
