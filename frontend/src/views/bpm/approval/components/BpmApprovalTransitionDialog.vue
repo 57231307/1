@@ -23,8 +23,20 @@
       <el-form-item :label="t('bpm.approval.transferDialog.taskName')">
         <span>{{ currentTask?.node_name }}</span>
       </el-form-item>
-      <el-form-item :label="t('bpm.approval.transferDialog.targetUserId')" prop="new_assignee_id">
-        <el-input-number v-model="localForm.new_assignee_id" :min="1" style="width: 100%" />
+      <el-form-item :label="t('bpm.approval.transferDialog.targetAssignee')" prop="new_assignee_id">
+        <el-select
+          v-model="localForm.new_assignee_id"
+          filterable
+          :placeholder="t('bpm.approval.transferDialog.assigneePlaceholder')"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="u in props.candidates"
+            :key="u.id"
+            :label="`${u.real_name}（${u.username}）`"
+            :value="u.id"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item :label="t('bpm.approval.transferDialog.comment')" prop="transfer_reason">
         <el-input
@@ -51,12 +63,14 @@ import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ApprovalTask } from '@/api/bpm-enhanced';
+import type { User } from '@/api/user';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 表单字段类型（与后端 TransferTaskRequest 字段名逐字一致）
+// 表单字段类型（与后端 TransferTaskRequest 字段名逐字一致；
+// new_assignee_id 未选定前为空，由 required 规则拦截）
 interface TranForm {
-  new_assignee_id: number;
+  new_assignee_id?: number;
   transfer_reason: string;
 }
 
@@ -70,6 +84,8 @@ const props = defineProps<{
   currentTask: ApprovalTask | null;
   // 提交 loading
   submitLoading: boolean;
+  // 可选接收人（后端用户主数据，打开对话框时回源）
+  candidates: User[];
   // 表单数据（由父组件管理，子组件通过 emit 回写）
   form: TranForm;
   // 校验规则

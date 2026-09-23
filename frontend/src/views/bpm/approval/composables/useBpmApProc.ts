@@ -16,6 +16,8 @@ import { ref, reactive } from 'vue';
 import { type FormInstance, type FormRules } from 'element-plus';
 import { msg } from '@/utils/message';
 import { useUserStore } from '@/store/user';
+import { i18n } from '@/i18n';
+import { getUserList, type User } from '@/api/user';
 import {
   executeBpmApproval,
   getBpmEnhancedApprovalChain,
@@ -51,9 +53,21 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
   // 转交对话框
   const transferDialogVisible = ref(false);
   const transferFormRef = ref<FormInstance>();
-  const transferForm = reactive({ new_assignee_id: 1, transfer_reason: '' });
+  // 接收人必须显式选定：初值留空，由 required 规则拦截（此前默认 1 会让 required 永不生效，
+  // 未留意预填值的用户会把任务静默转给用户 ID=1）。
+  const transferForm = reactive<{ new_assignee_id?: number; transfer_reason: string }>({
+    new_assignee_id: undefined,
+    transfer_reason: '',
+  });
+  const transferCandidates = ref<User[]>([]);
   const transferRules: FormRules = {
-    new_assignee_id: [{ required: true, message: '请输入接收人 ID', trigger: 'blur' }],
+    new_assignee_id: [
+      {
+        required: true,
+        message: i18n.global.t('bpm.approval.transferDialog.assigneeRequired'),
+        trigger: 'change',
+      },
+    ],
   };
 
   // 审批链对话框
@@ -101,11 +115,20 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
   };
 
   /** 打开转交对话框 */
-  const handleTransfer = (row: ApprovalTask) => {
+  const handleTransfer = async (row: ApprovalTask) => {
     currentTask.value = row;
-    transferForm.new_assignee_id = 1;
+    transferForm.new_assignee_id = undefined;
     transferForm.transfer_reason = '';
     transferDialogVisible.value = true;
+    try {
+      const res = await getUserList({ page: 1, page_size: 200 });
+      transferCandidates.value = res.data.users;
+    } catch (e) {
+      // 候选人取不到时不猜测接收人：清空列表并显式报错，避免用户盲填 ID。
+      transferCandidates.value = [];
+      logger.error(String(e));
+      msg.error('loadFailed');
+    }
   };
 
   /** 确认转交 */
@@ -113,6 +136,8 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
     if (!currentTask.value || !transferFormRef.value) return;
     await transferFormRef.value.validate(async valid => {
       if (!valid) return;
+      // required 规则已保证选定；此处仅为类型收窄，不给缺省值编造接收人。
+      if (transferForm.new_assignee_id === undefined) return;
       submitLoading.value = true;
       try {
         await transferBpmEnhancedTask(currentTask.value!.id, {
@@ -158,6 +183,7 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
     transferDialogVisible,
     transferFormRef,
     transferForm,
+    transferCandidates,
     transferRules,
     handleTransfer,
     confirmTransfer,

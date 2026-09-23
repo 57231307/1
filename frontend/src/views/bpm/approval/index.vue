@@ -62,6 +62,7 @@
       v-model:visible="bpmApProc.transferDialogVisible"
       :current-task="bpmApProc.currentTask"
       :submit-loading="bpmApProc.submitLoading"
+      :candidates="bpmApProc.transferCandidates"
       :form="bpmApProc.transferForm"
       :rules="bpmApProc.transferRules"
       @confirm="bpmApProc.confirmTransfer"
