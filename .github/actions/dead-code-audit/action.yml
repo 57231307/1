@@ -109,7 +109,12 @@ runs:
           grep -E 'warning.*dead_code|error.*dead_code' > /tmp/dead-code-warnings.txt || true
         set -e
         WARNING_COUNT=$(wc -l < /tmp/dead-code-warnings.txt 2>/dev/null || echo "0")
-        AFFECTED=$(grep -oE 'src/[^:]+\.rs' /tmp/dead-code-warnings.txt 2>/dev/null | sort -u | wc -l)
+        # grep 无匹配退出码 1，在 set -e + pipefail（GitHub runner 默认 -o pipefail，本步骤
+        # 自始至终未关闭）下会让整条命令替换非零而中断 job——即"没有死代码"这一健康情况反被
+        # 判失败。用 { grep ... || true; } 只在管道首段吞掉 grep 的"空结果"退出码，保留
+        # sort -u | wc -l 计数语义：无死码 -> AFFECTED=0（放行），有死码 -> AFFECTED>0。
+        # 真正让 job 失败的是下游门禁步骤按 warning_count 判定，本行只负责统计受影响文件数。
+        AFFECTED=$({ grep -oE 'src/[^:]+\.rs' /tmp/dead-code-warnings.txt 2>/dev/null || true; } | sort -u | wc -l)
         echo "warning_count=$WARNING_COUNT" >> "$GITHUB_OUTPUT"
         echo "affected_files=$AFFECTED" >> "$GITHUB_OUTPUT"
         echo "dead_code 警告数: $WARNING_COUNT，受影响文件: $AFFECTED"
