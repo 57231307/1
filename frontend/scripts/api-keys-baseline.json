@@ -1,5 +1,5 @@
 {
-  "total": 255,
+  "total": 184,
   "files": {
     "frontend/src/api/account-subject.ts": {
       "count": 2,
@@ -159,20 +159,6 @@
         "Opportunity.probability"
       ]
     },
-    "frontend/src/api/currency.ts": {
-      "count": 9,
-      "keys": [
-        "CreateCurrencyRequest.isBase",
-        "CreateExchangeRateRequest.effectiveDate",
-        "CreateExchangeRateRequest.fromCurrency",
-        "CreateExchangeRateRequest.toCurrency",
-        "Currency.isActive",
-        "Currency.isBase",
-        "ExchangeRate.effectiveDate",
-        "ExchangeRate.fromCurrency",
-        "ExchangeRate.toCurrency"
-      ]
-    },
     "frontend/src/api/customer-credit.ts": {
       "count": 1,
       "keys": [
@@ -180,35 +166,12 @@
       ]
     },
     "frontend/src/api/dashboard.ts": {
-      "count": 27,
+      "count": 4,
       "keys": [
         "Activity.time",
-        "DashboardOverview.customerCount",
-        "DashboardOverview.fabricCount",
-        "DashboardOverview.inventoryTotal",
-        "DashboardOverview.lowStockProducts",
-        "DashboardOverview.monthOrders",
-        "DashboardOverview.monthSales",
-        "DashboardOverview.pendingOrders",
-        "DashboardOverview.recentActivities",
-        "DashboardOverview.todayOrders",
-        "InventoryStatistics.categoryDistribution",
-        "InventoryStatistics.totalItems",
-        "InventoryStatistics.totalValue",
-        "InventoryStatistics.warehouseCount",
-        "LowStockAlert.alertLevel",
-        "LowStockAlert.currentQuantity",
-        "LowStockAlert.minQuantity",
-        "LowStockAlert.productCode",
-        "LowStockAlert.productId",
-        "LowStockAlert.productName",
-        "LowStockAlert.warehouseId",
-        "LowStockAlert.warehouseName",
-        "SalesStatistics.avgOrderAmount",
-        "SalesStatistics.customerCount",
-        "SalesStatistics.orderCount",
-        "SalesStatistics.totalAmount",
-        "SalesStatistics.trends"
+        "DashboardOverview.inventory_total",
+        "DashboardOverview.recent_activities",
+        "DashboardOverview.today_orders"
       ]
     },
     "frontend/src/api/dye-recipe.ts": {
@@ -243,56 +206,15 @@
       ]
     },
     "frontend/src/api/finance-report.ts": {
-      "count": 5,
+      "count": 1,
       "keys": [
-        "BalanceSheetItem.parent_code",
-        "CashFlowItem.parent_code",
-        "FinanceReportQueryParams.company_id",
-        "ProfitStatementItem.parent_code",
-        "SubsidiaryLedgerItem.counterpart"
+        "FinanceReportQueryParams.company_id"
       ]
     },
     "frontend/src/api/finance.ts": {
       "count": 1,
       "keys": [
         "AccountSubject.is_leaf"
-      ]
-    },
-    "frontend/src/api/financial-analysis.ts": {
-      "count": 15,
-      "keys": [
-        "FinancialIndicator.actualValue",
-        "FinancialIndicator.createdAt",
-        "FinancialIndicator.indicatorName",
-        "FinancialIndicator.targetValue",
-        "FinancialReport.createdAt",
-        "FinancialReport.createdBy",
-        "FinancialReport.executedAt",
-        "FinancialReport.reportName",
-        "FinancialReport.reportType",
-        "FinancialReport.updatedAt",
-        "FinancialTrend.indicator",
-        "ReportQueryParams.reportType",
-        "TrendQueryParams.endDate",
-        "TrendQueryParams.indicator",
-        "TrendQueryParams.startDate"
-      ]
-    },
-    "frontend/src/api/five-dimension.ts": {
-      "count": 12,
-      "keys": [
-        "FiveDimensionQuery.dimensionId",
-        "FiveDimensionQuery.endDate",
-        "FiveDimensionQuery.startDate",
-        "FiveDimensionStats.dimensionId",
-        "FiveDimensionStats.dimensionName",
-        "FiveDimensionStats.stats",
-        "SearchQueryParams.dimensionId",
-        "StatsQueryParams.dimensionId",
-        "StatsQueryParams.endDate",
-        "StatsQueryParams.startDate",
-        "WarehouseDistributionItem.kg",
-        "WarehouseDistributionItem.meters"
       ]
     },
     "frontend/src/api/fund.ts": {
@@ -314,23 +236,15 @@
       ]
     },
     "frontend/src/api/inventory.ts": {
-      "count": 9,
+      "count": 7,
       "keys": [
         "InventoryQueryParams.low_stock",
         "InventoryReservation.expire_date",
         "InventoryReservation.reserved_quantity",
-        "InventoryTransferItem.from_location",
-        "InventoryTransferItem.to_location",
         "ReservationData.expire_date",
         "StockAdjustmentData.adjustment_quantity",
         "TransferData.from_location",
         "TransferData.to_location"
-      ]
-    },
-    "frontend/src/api/mrp.ts": {
-      "count": 1,
-      "keys": [
-        "MrpCalculateInput.demand_date"
       ]
     },
     "frontend/src/api/notification.ts": {
@@ -375,15 +289,13 @@
       ]
     },
     "frontend/src/api/purchase-inspection.ts": {
-      "count": 7,
+      "count": 5,
       "keys": [
         "PurchaseInspectionItem.defect_reason",
         "PurchaseInspectionItem.expected_quantity",
         "PurchaseInspectionItem.failed_quantity",
         "PurchaseInspectionItem.inspected_quantity",
-        "PurchaseInspectionItem.passed_quantity",
-        "PurchaseInspectionQueryParams.inspection_date_from",
-        "PurchaseInspectionQueryParams.inspection_date_to"
+        "PurchaseInspectionItem.passed_quantity"
       ]
     },
     "frontend/src/api/purchase.ts": {
@@ -477,17 +389,9 @@
       ]
     },
     "frontend/src/api/supplier-evaluation.ts": {
-      "count": 3,
-      "keys": [
-        "EvaluationRecord.evaluator_name",
-        "EvaluationRecord.total_score",
-        "SupplierScore.rank"
-      ]
-    },
-    "frontend/src/api/supplier.ts": {
       "count": 1,
       "keys": [
-        "SupplierEvaluationResult.evaluator_name"
+        "SupplierScore.rank"
       ]
     },
     "frontend/src/api/system-governance.ts": {

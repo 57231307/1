@@ -7178,6 +7178,11 @@ export default {
         createdAt: 'Created At',
         operation: 'Action',
         rank: 'Rank',
+        remark: 'Remark',
+        evaluationDate: 'Evaluation Date',
+        weightedScore: 'Weighted Score',
+        score: 'Score',
+        indicatorName: 'Indicator Name',
       },
       dialog: {
         createTitle: 'Create Evaluation',
@@ -10912,6 +10917,10 @@ export default {
       messageSuccess: 'Operation successful',
       messageFailed: 'Operation failed',
       messageSaveFailed: 'Failed to save batch',
+      messageLoadProductsFailed: 'Failed to load product list',
+      ruleWarehouseRequired: 'Please select warehouse',
+      ruleProductIdRequired: 'Please select product',
+      labelWarehouse: 'Warehouse',
     },
   },
   warehouse: {

@@ -7146,6 +7146,11 @@ export default {
         createdAt: '创建时间',
         operation: '操作',
         rank: '排名',
+        remark: '备注',
+        evaluationDate: '评估日期',
+        weightedScore: '加权得分',
+        score: '得分',
+        indicatorName: '指标名称',
       },
       dialog: {
         createTitle: '新建评估',
@@ -10875,6 +10880,10 @@ export default {
       messageSuccess: '操作成功',
       messageFailed: '操作失败',
       messageSaveFailed: '保存批次失败',
+      messageLoadProductsFailed: '加载产品列表失败',
+      ruleWarehouseRequired: '请选择仓库',
+      ruleProductIdRequired: '请选择产品',
+      labelWarehouse: '仓库',
     },
   },
   warehouse: {
