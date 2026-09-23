@@ -288,7 +288,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-14 仪表盘', async ({ page }) => {
-    const dash = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/dashboard');
+    // routes/system.rs:39 dashboard() 仅注册子路径，无裸 /dashboard；
+    // /dashboard/overview 对应聚合统计（dashboard_handler::get_dashboard_overview）。
+    const dash = await apiCallRaw<Record<string, unknown>>(page, 'GET', '/dashboard/overview');
     expect(Object.keys(dash ?? {}).length, '仪表盘应返回非空统计对象').toBeGreaterThan(0);
   });
 
