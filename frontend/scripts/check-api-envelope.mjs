@@ -1083,6 +1083,51 @@ function resolveHandlerSymbol(mods, mod, fn, depth = 0) {
 // 按「路由里写下的完整 handler 路径」解析符号：路由可能写成 `mod_a::fn`、`mod_a::sub_mod::fn`
 // 或 `websocket::notifications::fn`。规则仍是"必须有唯一确定的落点"，
 // 绝不为凑答案按裸函数名全局回退（那条假判定路径本文件已写明教训）。
+// 路由文件常以 `use crate::handlers::xxx_handler::{a, b};` 引入裸名 handler，
+// 于是路由里写的是 `.route("/x", get(list_sales_returns))` 这种单段符号。
+// 不跟随普通 use（非 pub use）就会把它误报成「handler 符号未定义」。
+// 候选不唯一时判不出（返回 null），绝不按裸函数名全局回退找同名 fn。
+const useImportCache = new Map();
+function resolveHandlerByUseImport(mods, routesFile, fnName) {
+  if (!routesFile || !fnName) return null;
+  // 先按「路由注册所在文件自己就是 handler 模块」解：本仓有 `sales_return_handler::router()`
+  // 这种 router 定义在 handler 文件内部、路由与 fn 同源的写法，此时裸名就在本文件。
+  const selfBase = String(routesFile).split(/[\\/]/).pop().replace(/\.rs$/, '');
+  const direct = resolveHandlerSymbol(mods, selfBase, fnName);
+  if (direct) return direct;
+  let byName = useImportCache.get(routesFile);
+  if (!byName) {
+    byName = new Map();
+    let src = '';
+    try {
+      src = readFileSync(routesFile, 'utf-8');
+    } catch {
+      src = '';
+    }
+    const add = (name, modBase) => {
+      if (!name || !modBase) return;
+      byName.set(name, [...(byName.get(name) || []), modBase]);
+    };
+    for (const m of src.matchAll(/use\s+([\w:]+)::\{([^}]*)\}\s*;/g)) {
+      const modBase = m[1].split('::').pop();
+      for (const part of m[2].split(',')) {
+        const name = part
+          .trim()
+          .split(/\s+as\s+/)
+          .pop()
+          .trim();
+        add(name, modBase);
+      }
+    }
+    for (const m of src.matchAll(/use\s+([\w:]+)::([A-Za-z_]\w*)\s*;/g))
+      add(m[2], m[1].split('::').pop());
+    useImportCache.set(routesFile, byName);
+  }
+  const cands = byName.get(fnName) || [];
+  if (cands.length !== 1) return null;
+  return resolveHandlerSymbol(mods, cands[0], fnName);
+}
+
 function resolveHandlerSymbolPath(mods, parts) {
   for (let i = 0; i < parts.length - 1; i++) {
     const base = parts[i];
@@ -1841,7 +1886,10 @@ function main() {
     const parts = String(h.handler || '')
       .split('::')
       .filter(Boolean);
-    const sym = parts.length >= 2 ? resolveHandlerSymbolPath(handlerMods, parts) : null;
+    const sym =
+      parts.length >= 2
+        ? resolveHandlerSymbolPath(handlerMods, parts)
+        : resolveHandlerByUseImport(handlerMods, h.routesFile, parts[0]);
     if (!sym) {
       // 模块内既无同名 fn、也非宏生成/转出 -> 编译期即失败级别的缺陷，必须显式暴露
       const listLike = isListLikeKind(fn.feShape.kind);
@@ -1852,7 +1900,7 @@ function main() {
         key,
         feShape: fn.feShape,
         reason: listLike
-          ? `路由 handler 符号 ${h.handler} 在其模块内未定义（非本文件 fn / 非 define_*_handlers! 宏生成 / 非 pub use 转出）`
+          ? `路由 handler 符号 ${h.handler} 在其模块内未定义（非本文件 fn / 非宏生成 / 非 pub use 转出 / 非路由文件 use 引入）`
           : `未定位到返回类型(前端非列表,盲区): ${h.handler}`,
       });
       continue;
