@@ -316,7 +316,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       payload: {
         batch_no: `P0-DB-${TS}`,
         planned_quantity: 100,
-        status: '待生产',
+        status: 'pending_schedule',
         dye_lot_no: `P0-DL-${TS}`,
       },
     },
@@ -372,9 +372,9 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       label: '缸号状态规则',
       createApi: '/production/dye-batch-state-rules',
       payload: {
-        from_status: '待生产',
-        to_status: '生产中',
-        transition_code: `P0-TR-${TS}`,
+        from_status: 'pending_schedule',
+        to_status: 'scheduled',
+        transition_code: 'schedule',
         transition_name: `P0流转${TS}`,
         is_allowed: true,
         require_remarks: false,

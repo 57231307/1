@@ -239,7 +239,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       color_no: colorNo,
       dye_lot_no: dyeLotNo,
       planned_quantity: 100,
-      status: 'draft',
+      status: 'pending_schedule',
     };
 
     const result = await apiCall<{ id?: number }>(
