@@ -1487,7 +1487,10 @@ function buildTsTypeIndex() {
     for (const m of src.matchAll(
       /\b(?:export\s+)?interface\s+([A-Z]\w*)\s*(<[^{>]*>)?\s*(?:extends\s+([A-Za-z_][\w<>,.\s]*?))?\s*\{/g
     )) {
-      if (m[2]) continue; // 泛型 interface：元素类型是形参，判不出承载键 -> 不展开
+      // 泛型 interface 同样索引：判「载荷是哪个键」只需要字段名与「值是不是数组」，
+      // 不需要知道元素类型（`items: T[]` 依然是数组键）。
+      // 此前此处 `if (m[2]) continue` 把所有带类型参数的 interface 直接跳过，
+      // 使 ApiResponse 之外的具名泛型包装（PagedResponse<T> 等）整批落在盲区里没人核对。
       const open = src.indexOf('{', m.index + m[0].length - 1);
       const cap = captureBalanced(src, open, '{', '}');
       if (!cap) continue;
