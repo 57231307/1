@@ -11,12 +11,12 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-use sea_orm::{ActiveModelTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::production_order_service::{
-    CreateProductionOrderRequest, ProductionOrderQuery, ProductionOrderService,
+    CreateProductionOrderRequest, ProductionOrderDto, ProductionOrderQuery, ProductionOrderService,
     UpdateProductionOrderRequest,
 };
 use crate::utils::error::AppError;
@@ -95,16 +95,66 @@ pub struct ProductionOrderResponse {
     pub order_no: String,
     pub sales_order_id: Option<i32>,
     pub product_id: i32,
+    // 产品名称：仅列表/详情经 LEFT JOIN products 富化后填充；其余写操作响应无 JOIN，为 None。
+    pub product_name: Option<String>,
     pub planned_quantity: Decimal,
     pub actual_quantity: Option<Decimal>,
     pub planned_start_date: Option<chrono::NaiveDate>,
     pub planned_end_date: Option<chrono::NaiveDate>,
+    pub actual_start_date: Option<chrono::NaiveDate>,
+    pub actual_end_date: Option<chrono::NaiveDate>,
     pub status: String,
     pub priority: i32,
     pub work_center_id: Option<i32>,
     pub remarks: Option<String>,
     pub created_at: chrono::DateTime<Utc>,
     pub updated_at: chrono::DateTime<Utc>,
+}
+
+/// 由实体 Model 构造响应（无 JOIN 的写操作路径：product_name 无来源，置 None）。
+fn response_from_model(m: crate::models::production_order::Model) -> ProductionOrderResponse {
+    ProductionOrderResponse {
+        id: m.id,
+        order_no: m.order_no,
+        sales_order_id: m.sales_order_id,
+        product_id: m.product_id,
+        product_name: None,
+        planned_quantity: m.planned_quantity,
+        actual_quantity: m.actual_quantity,
+        planned_start_date: m.planned_start_date,
+        planned_end_date: m.planned_end_date,
+        actual_start_date: m.actual_start_date,
+        actual_end_date: m.actual_end_date,
+        status: m.status,
+        priority: m.priority,
+        work_center_id: m.work_center_id,
+        remarks: m.remarks,
+        created_at: m.created_at,
+        updated_at: m.updated_at,
+    }
+}
+
+/// 由富化 DTO 构造响应（列表/详情路径：product_name 来自 §5 范式 LEFT JOIN products）。
+fn response_from_dto(d: ProductionOrderDto) -> ProductionOrderResponse {
+    ProductionOrderResponse {
+        id: d.id,
+        order_no: d.order_no,
+        sales_order_id: d.sales_order_id,
+        product_id: d.product_id,
+        product_name: d.product_name,
+        planned_quantity: d.planned_quantity,
+        actual_quantity: d.actual_quantity,
+        planned_start_date: d.planned_start_date,
+        planned_end_date: d.planned_end_date,
+        actual_start_date: d.actual_start_date,
+        actual_end_date: d.actual_end_date,
+        status: d.status,
+        priority: d.priority,
+        work_center_id: d.work_center_id,
+        remarks: d.remarks,
+        created_at: d.created_at,
+        updated_at: d.updated_at,
+    }
 }
 
 /// 生产订单列表查询参数
@@ -146,22 +196,7 @@ pub async fn create_production_order(
 
     let model = service.create(req).await?;
 
-    let response = ProductionOrderResponse {
-        id: model.id,
-        order_no: model.order_no,
-        sales_order_id: model.sales_order_id,
-        product_id: model.product_id,
-        planned_quantity: model.planned_quantity,
-        actual_quantity: model.actual_quantity,
-        planned_start_date: model.planned_start_date,
-        planned_end_date: model.planned_end_date,
-        status: model.status,
-        priority: model.priority,
-        work_center_id: model.work_center_id,
-        remarks: model.remarks,
-        created_at: model.created_at,
-        updated_at: model.updated_at,
-    };
+    let response = response_from_model(model);
 
     Ok(Json(ApiResponse::success(response)))
 }
@@ -181,22 +216,7 @@ pub async fn get_production_order(
         .await?
         .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
-    let response = ProductionOrderResponse {
-        id: model.id,
-        order_no: model.order_no,
-        sales_order_id: model.sales_order_id,
-        product_id: model.product_id,
-        planned_quantity: model.planned_quantity,
-        actual_quantity: model.actual_quantity,
-        planned_start_date: model.planned_start_date,
-        planned_end_date: model.planned_end_date,
-        status: model.status,
-        priority: model.priority,
-        work_center_id: model.work_center_id,
-        remarks: model.remarks,
-        created_at: model.created_at,
-        updated_at: model.updated_at,
-    };
+    let response = response_from_dto(model);
 
     Ok(Json(ApiResponse::success(response)))
 }
@@ -221,25 +241,8 @@ pub async fn list_production_orders(
 
     let (models, total) = service.list(query_params, Some(&data_scope_ctx)).await?;
 
-    let responses: Vec<ProductionOrderResponse> = models
-        .into_iter()
-        .map(|model| ProductionOrderResponse {
-            id: model.id,
-            order_no: model.order_no,
-            sales_order_id: model.sales_order_id,
-            product_id: model.product_id,
-            planned_quantity: model.planned_quantity,
-            actual_quantity: model.actual_quantity,
-            planned_start_date: model.planned_start_date,
-            planned_end_date: model.planned_end_date,
-            status: model.status,
-            priority: model.priority,
-            work_center_id: model.work_center_id,
-            remarks: model.remarks,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
-        })
-        .collect();
+    let responses: Vec<ProductionOrderResponse> =
+        models.into_iter().map(response_from_dto).collect();
 
     Ok(Json(ApiResponse::success_paginated(
         responses,
@@ -272,22 +275,7 @@ pub async fn update_production_order(
 
     let model = service.update(id, req).await?;
 
-    let response = ProductionOrderResponse {
-        id: model.id,
-        order_no: model.order_no,
-        sales_order_id: model.sales_order_id,
-        product_id: model.product_id,
-        planned_quantity: model.planned_quantity,
-        actual_quantity: model.actual_quantity,
-        planned_start_date: model.planned_start_date,
-        planned_end_date: model.planned_end_date,
-        status: model.status,
-        priority: model.priority,
-        work_center_id: model.work_center_id,
-        remarks: model.remarks,
-        created_at: model.created_at,
-        updated_at: model.updated_at,
-    };
+    let response = response_from_model(model);
 
     Ok(Json(ApiResponse::success(response)))
 }
@@ -311,22 +299,7 @@ pub async fn submit_for_approval(
         .submit_for_approval(id, auth.user_id, &auth.username)
         .await?;
 
-    let response = ProductionOrderResponse {
-        id: model.id,
-        order_no: model.order_no,
-        sales_order_id: model.sales_order_id,
-        product_id: model.product_id,
-        planned_quantity: model.planned_quantity,
-        actual_quantity: model.actual_quantity,
-        planned_start_date: model.planned_start_date,
-        planned_end_date: model.planned_end_date,
-        status: model.status,
-        priority: model.priority,
-        work_center_id: model.work_center_id,
-        remarks: model.remarks,
-        created_at: model.created_at,
-        updated_at: model.updated_at,
-    };
+    let response = response_from_model(model);
 
     Ok(Json(ApiResponse::success_with_message(
         response,
@@ -346,22 +319,7 @@ pub async fn approve_production_order(
         .approve_order(id, auth.user_id, &auth.username, req.approved, req.opinion)
         .await?;
 
-    let response = ProductionOrderResponse {
-        id: model.id,
-        order_no: model.order_no,
-        sales_order_id: model.sales_order_id,
-        product_id: model.product_id,
-        planned_quantity: model.planned_quantity,
-        actual_quantity: model.actual_quantity,
-        planned_start_date: model.planned_start_date,
-        planned_end_date: model.planned_end_date,
-        status: model.status,
-        priority: model.priority,
-        work_center_id: model.work_center_id,
-        remarks: model.remarks,
-        created_at: model.created_at,
-        updated_at: model.updated_at,
-    };
+    let response = response_from_model(model);
 
     let message = if req.approved {
         biz_msg::APPROVE_OK
@@ -400,9 +358,10 @@ pub async fn update_production_progress(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateProgressRequest>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
-    let service = ProductionOrderService::new(state.db.clone());
-    let model = service
-        .get_by_id(id, None)
+    // 该路径为写操作、直接返回更新后的实体（无需 product_name JOIN），
+    // 故用 find_by_id 读取生产订单 Model（get_by_id 现返回富化 DTO，不含回写所需的实体）。
+    let model = crate::models::production_order::Entity::find_by_id(id)
+        .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
@@ -417,22 +376,7 @@ pub async fn update_production_progress(
 
     let updated = active_model.update(&*state.db).await?;
 
-    let response = ProductionOrderResponse {
-        id: updated.id,
-        order_no: updated.order_no,
-        sales_order_id: updated.sales_order_id,
-        product_id: updated.product_id,
-        planned_quantity: updated.planned_quantity,
-        actual_quantity: updated.actual_quantity,
-        planned_start_date: updated.planned_start_date,
-        planned_end_date: updated.planned_end_date,
-        status: updated.status,
-        priority: updated.priority,
-        work_center_id: updated.work_center_id,
-        remarks: updated.remarks,
-        created_at: updated.created_at,
-        updated_at: updated.updated_at,
-    };
+    let response = response_from_model(updated);
 
     Ok(Json(ApiResponse::success(response)))
 }
@@ -477,22 +421,7 @@ pub async fn update_production_order_status(
         .update_status(id, payload.status, actual_quantity)
         .await?;
 
-    let response = ProductionOrderResponse {
-        id: model.id,
-        order_no: model.order_no,
-        sales_order_id: model.sales_order_id,
-        product_id: model.product_id,
-        planned_quantity: model.planned_quantity,
-        actual_quantity: model.actual_quantity,
-        planned_start_date: model.planned_start_date,
-        planned_end_date: model.planned_end_date,
-        status: model.status,
-        priority: model.priority,
-        work_center_id: model.work_center_id,
-        remarks: model.remarks,
-        created_at: model.created_at,
-        updated_at: model.updated_at,
-    };
+    let response = response_from_model(model);
 
     Ok(Json(ApiResponse::success(response)))
 }
@@ -520,28 +449,8 @@ fn production_order_export_headers() -> Vec<String> {
 }
 
 /// 将生产订单 model 转换为响应结构（与 list_production_orders handler 字段一致）
-fn convert_orders_to_responses(
-    models: Vec<crate::models::production_order::Model>,
-) -> Vec<ProductionOrderResponse> {
-    models
-        .into_iter()
-        .map(|model| ProductionOrderResponse {
-            id: model.id,
-            order_no: model.order_no,
-            sales_order_id: model.sales_order_id,
-            product_id: model.product_id,
-            planned_quantity: model.planned_quantity,
-            actual_quantity: model.actual_quantity,
-            planned_start_date: model.planned_start_date,
-            planned_end_date: model.planned_end_date,
-            status: model.status,
-            priority: model.priority,
-            work_center_id: model.work_center_id,
-            remarks: model.remarks,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
-        })
-        .collect()
+fn convert_orders_to_responses(models: Vec<ProductionOrderDto>) -> Vec<ProductionOrderResponse> {
+    models.into_iter().map(response_from_dto).collect()
 }
 
 /// 从单条生产订单响应构建 xlsx 行
