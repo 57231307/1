@@ -326,7 +326,7 @@ fn build_warehouse_row(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<
     vec![
         get_str("id"),
         get_str("warehouse_code"),
-        get_str("name"),
+        get_str("warehouse_name"),
         get_str("address"),
         get_str("city"),
         get_str("province"),

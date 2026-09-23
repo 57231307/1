@@ -51,7 +51,7 @@
               <el-option
                 v-for="w in warehouses"
                 :key="w.id"
-                :label="w.warehouse_name || w.name"
+                :label="w.warehouse_name"
                 :value="w.id"
               />
             </el-select>
@@ -151,7 +151,7 @@ interface DeliveryForm {
 const props = defineProps<{
   visible: boolean;
   form: DeliveryForm;
-  warehouses: { id: number; warehouse_name?: string; name?: string; warehouse_code?: string }[];
+  warehouses: { id: number; warehouse_name?: string; warehouse_code?: string }[];
   /** 出库四维候选库存行：key=product_id，由父组件按所选发货仓查询后端库存接口获得 */
   stockRows: Record<number, InventoryStock[]>;
   submitting?: boolean;

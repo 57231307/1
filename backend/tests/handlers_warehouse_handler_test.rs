@@ -24,7 +24,7 @@ fn test_warehouse_model_serialization() {
 
     assert_eq!(json["id"], 1);
     assert_eq!(json["warehouse_code"], "WH-0001");
-    assert_eq!(json["name"], "主仓库");
+    assert_eq!(json["warehouse_name"], "主仓库");
     assert_eq!(json["is_active"], false);
 }
 
@@ -108,6 +108,6 @@ fn test_warehouse_json_roundtrip() {
     // 验证关键字段存在
     assert!(json.get("id").is_some());
     assert!(json.get("warehouse_code").is_some());
-    assert!(json.get("name").is_some());
+    assert!(json.get("warehouse_name").is_some());
     assert!(json.get("is_active").is_some());
 }

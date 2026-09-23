@@ -9,6 +9,9 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub warehouse_code: String,
+    /// 仓库名称。列名 `name`，但出参键 rename 为 `warehouse_name`：全应用读键统一
+    /// （其它 DTO 均以 warehouse_name 承载仓库标签，见 inventory_stock_handler 等）。
+    #[serde(rename = "warehouse_name")]
     pub name: String,
     pub address: Option<String>,
     pub city: Option<String>,
