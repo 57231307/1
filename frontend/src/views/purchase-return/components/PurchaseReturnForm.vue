@@ -50,12 +50,48 @@
           </el-form-item>
         </el-col>
       </el-row>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item :label="t('purchaseReturn.form.label.supplier')" prop="supplierId">
+            <el-select
+              v-model="localFormData.supplierId"
+              :placeholder="t('purchaseReturn.form.placeholder.supplier')"
+              filterable
+            >
+              <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item :label="t('purchaseReturn.form.label.warehouse')">
+            <el-select
+              v-model="localFormData.warehouseId"
+              :placeholder="t('purchaseReturn.form.placeholder.warehouse')"
+              filterable
+              clearable
+            >
+              <el-option
+                v-for="w in warehouses"
+                :key="w.id"
+                :label="w.warehouse_name"
+                :value="w.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
       <el-form-item :label="t('purchaseReturn.form.label.reasonType')" prop="reasonType">
-        <el-select v-model="localFormData.reasonType" style="width: 100%">
-          <el-option label="质量问题" value="quality" />
-          <el-option label="数量错误" value="quantity" />
-          <el-option label="规格不符" value="spec" />
-          <el-option label="其他" value="other" />
+        <el-select
+          v-model="localFormData.reasonType"
+          :placeholder="t('purchaseReturn.form.placeholder.reasonType')"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="opt in reasonOptions"
+            :key="opt.value"
+            :label="t(opt.labelKey)"
+            :value="opt.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('purchaseReturn.form.label.reason')" prop="reason">
@@ -162,13 +198,24 @@ import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance } from 'element-plus';
 import type { ReturnFormItem } from '../composables/usePrRtn';
+import type { Warehouse } from '@/api/warehouse';
+import { RETURN_REASON_OPTIONS } from '@/constants/return-reason';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 退货原因候选与销售退货共用同一份落库取值（见 constants/return-reason）
+const reasonOptions = RETURN_REASON_OPTIONS;
 
 // 采购订单数据结构
 interface PurchaseOrder {
   id: number;
   order_no: string;
+}
+
+// 供应商数据结构
+interface SupplierOption {
+  id: number;
+  name: string;
 }
 
 // 产品数据结构
@@ -178,12 +225,13 @@ interface Product {
   price: number;
 }
 
-// 表单数据类型（所有字段可选，兼容 Partial<PurchaseReturn>）
+// 表单数据类型
 interface FormDataType {
   id?: number | undefined;
   purchaseOrderId?: number | undefined;
   supplierId?: number | undefined;
   returnDate?: string;
+  warehouseId?: number | undefined;
   reasonType?: string;
   reason?: string;
   remarks?: string;
@@ -194,6 +242,8 @@ interface FormDataType {
 interface FormRules {
   purchaseOrderId: Array<{ required: boolean; message: string; trigger: string }>;
   returnDate: Array<{ required: boolean; message: string; trigger: string }>;
+  supplierId: Array<{ required: boolean; message: string; trigger: string }>;
+  reasonType: Array<{ required: boolean; message: string; trigger: string }>;
   reason: Array<{ required: boolean; message: string; trigger: string }>;
 }
 
@@ -208,6 +258,10 @@ const props = defineProps<{
   formRules: FormRules;
   // 采购订单列表
   purchaseOrders: PurchaseOrder[];
+  // 供应商列表（后端 CreatePurchaseReturnRequest 必填 supplier_id）
+  suppliers: SupplierOption[];
+  // 仓库列表（可选；审批时扣减库存需要该字段）
+  warehouses: Warehouse[];
   // 产品列表
   products: Product[];
   // 提交中

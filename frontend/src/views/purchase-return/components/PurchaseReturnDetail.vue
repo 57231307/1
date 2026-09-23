@@ -41,7 +41,8 @@
 
     <el-divider content-position="left">{{ t('purchaseReturn.detail.itemsTitle') }}</el-divider>
     <el-table
-      :data="detailData.items || []"
+      v-loading="itemsLoading"
+      :data="serverItems"
       border
       :aria-label="t('purchaseReturn.detail.aria.itemsTable')"
     >
@@ -75,17 +76,22 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { PurchaseReturn } from '@/api/purchase-return';
+import { logger } from '@/utils/logger';
+import {
+  getPurchaseReturnItemList,
+  type PurchaseReturn,
+  type PurchaseReturnItem,
+} from '@/api/purchase-return';
 import { getStatusType, getStatusText } from '../composables/prRtnFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 采购退货详情对话框属性
-defineProps<{
+const props = defineProps<{
   // 对话框可见性
   visible: boolean;
-  // 详情数据
+  // 表头详情数据（get_purchase_return 仅返回表头，不含 items）
   detailData: PurchaseReturn;
 }>();
 
@@ -94,6 +100,30 @@ const emit = defineEmits<{
   // 关闭
   (e: 'update:visible', value: boolean): void;
 }>();
+
+// 明细：表头响应不含 items，对话框打开时从 /purchase/returns/{id}/items 异步回源
+const serverItems = ref<PurchaseReturnItem[]>([]);
+const itemsLoading = ref(false);
+
+watch(
+  () => props.visible,
+  async val => {
+    if (val && props.detailData?.id) {
+      itemsLoading.value = true;
+      try {
+        const res = await getPurchaseReturnItemList(props.detailData.id);
+        serverItems.value = res.data;
+      } catch (error) {
+        logger.error('[purchase-return] 详情明细加载失败', error);
+        serverItems.value = [];
+      } finally {
+        itemsLoading.value = false;
+      }
+    } else if (!val) {
+      serverItems.value = [];
+    }
+  }
+);
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {

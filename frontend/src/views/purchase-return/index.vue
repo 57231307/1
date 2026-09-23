@@ -78,6 +78,8 @@
       :form-data="prRtn.formData"
       :form-rules="prRtn.formRules"
       :purchase-orders="prRtn.purchaseOrders"
+      :suppliers="prRtn.suppliers"
+      :warehouses="prRtn.warehouses"
       :products="prRtn.products"
       @submit="onSubmitForm"
       @order-change="prRtn.handleOrderChange"
