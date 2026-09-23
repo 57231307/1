@@ -20,7 +20,7 @@ use axum::{
     extract::Request,
     http::{HeaderMap, StatusCode},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::{Response,
 };
 use subtle::ConstantTimeEq;
 

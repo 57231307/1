@@ -49,6 +49,9 @@ pub async fn list_transfers(
         page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         page_size: query.page_size.unwrap_or(10).clamp(1, 100),
     };
+    // PageRequest 不是 Copy，list_transfers 会拿走它 ⇒ 之后再读 page_req 是 use-after-move，
+    // 故先把分页两值取出，用于回传给前端分页条。
+    let (page, page_size) = (page_req.page, page_req.page_size);
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
 
@@ -75,8 +78,8 @@ pub async fn list_transfers(
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         transfers_json,
         transfers.total,
-        page_req.page,
-        page_req.page_size,
+        page,
+        page_size,
     ))))
 }
 

@@ -361,9 +361,9 @@ impl InventoryStockService {
             let pattern = safe_like_pattern(keyword);
             let matched_product_ids: Vec<i32> = product::Entity::find()
                 .filter(
-                    product::Column::Code
-                        .like(&pattern)
-                        .or(product::Column::Name.like(&pattern)),
+                    sea_orm::Condition::any()
+                        .add(product::Column::Code.like(&pattern))
+                        .add(product::Column::Name.like(&pattern)),
                 )
                 .all(&*self.db)
                 .await?
@@ -443,11 +443,7 @@ impl InventoryStockService {
             .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
             .filter(inventory_stock::Column::QualityStatus.eq(quality_status::PASS))
             // 检查可用库存低于重新订购点
-            .filter(
-                sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).lt(
-                    sea_orm::sea_query::Expr::col(inventory_stock::Column::ReorderPoint),
-                ),
-            )
+            .filter(inventory_stock::Column::QuantityAvailable.lt(inventory_stock::Column::ReorderPoint))
             // 只检查重新订购点大于0的记录
             .filter(inventory_stock::Column::ReorderPoint.gt(rust_decimal::Decimal::ZERO));
 

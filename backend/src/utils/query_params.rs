@@ -38,7 +38,7 @@ pub fn strip_empty_query_values(raw: &str) -> (String, bool) {
         if is_empty_query_value(&value) {
             had_empty = true;
         } else {
-            pairs.push((key, value));
+            pairs.push((key.into_owned(), value.into_owned()));
         }
     }
     if !had_empty {
@@ -46,7 +46,7 @@ pub fn strip_empty_query_values(raw: &str) -> (String, bool) {
     }
     let mut serializer = form_urlencoded::Serializer::new(String::new());
     for (key, value) in pairs {
-        serializer.pair(&*key, &*value);
+        serializer.push_pair(key, value);
     }
     (serializer.finish(), true)
 }

@@ -99,7 +99,7 @@ pub async fn list_contracts(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     info!("用户 {} 正在查询销售合同列表", auth.user_id);
 
     let service = SalesContractService::new(state.db.clone());

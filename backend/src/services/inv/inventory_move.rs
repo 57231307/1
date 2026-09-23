@@ -9,6 +9,7 @@
 //!
 //! 注意：文件名 `inventory_move.rs`（非 `move.rs`），因为 `move` 是 Rust 关键字。
 
+use sea_orm::sea_query::{Alias, Expr};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, JoinType, Order,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationDef, RelationTrait,
@@ -53,8 +54,14 @@ impl InventoryTransferService {
             .to(user::Column::Id)
             .into();
         let mut query = InventoryTransferEntity::find()
-            .column_as(("from_wh", warehouse::Column::Name), "from_warehouse_name")
-            .column_as(("to_wh", warehouse::Column::Name), "to_warehouse_name")
+            .expr_as(
+                Expr::col((Alias::new("from_wh"), warehouse::Column::Name)),
+                "from_warehouse_name",
+            )
+            .expr_as(
+                Expr::col((Alias::new("to_wh"), warehouse::Column::Name)),
+                "to_warehouse_name",
+            )
             .column_as(user::Column::RealName, "created_by_name")
             .join_as(
                 JoinType::LeftJoin,
@@ -149,8 +156,14 @@ impl InventoryTransferService {
             .to(user::Column::Id)
             .into();
         let header = InventoryTransferEntity::find()
-            .column_as(("from_wh", warehouse::Column::Name), "from_warehouse_name")
-            .column_as(("to_wh", warehouse::Column::Name), "to_warehouse_name")
+            .expr_as(
+                Expr::col((Alias::new("from_wh"), warehouse::Column::Name)),
+                "from_warehouse_name",
+            )
+            .expr_as(
+                Expr::col((Alias::new("to_wh"), warehouse::Column::Name)),
+                "to_warehouse_name",
+            )
             .column_as(user::Column::RealName, "created_by_name")
             .join_as(
                 JoinType::LeftJoin,
