@@ -10,8 +10,8 @@
 //! - `POST /failback`      → `/api/v1/erp/admin/failover/failback`
 
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 
 use crate::container::AppState;
