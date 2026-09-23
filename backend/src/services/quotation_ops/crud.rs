@@ -261,7 +261,7 @@ impl QuotationService {
             dto.sales_user_name = user_map.get(&dto.sales_user_id).and_then(|n| n.clone());
             dto.approved_by_name = dto
                 .approved_by
-                .and_then(|id| user_map.get(&(id as i64)).and_then(|n| n.clone()));
+                .and_then(|id| user_map.get(&id).and_then(|n| n.clone()));
         }
         Ok(())
     }
