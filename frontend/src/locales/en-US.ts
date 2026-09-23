@@ -1989,6 +1989,7 @@ export default {
       status: 'Status',
       bottleneck: 'Bottleneck',
       paginationAriaLabel: 'Work center list pagination',
+      capacityUnit: 'Capacity unit',
     },
     bottleneck: {
       title: 'Bottleneck Identification',
@@ -2002,6 +2003,10 @@ export default {
       normal: 'Normal',
       busy: 'Busy',
       overload: 'Overload',
+      OVERLOADED: 'Overloaded',
+      HIGH: 'High load',
+      NORMAL: 'Normal',
+      IDLE: 'Idle',
     },
     common: {
       yes: 'Yes',
@@ -5041,6 +5046,8 @@ export default {
       grossMargin: 'Gross Margin',
       yoyGrowth: 'YoY +{value}%',
       momGrowth: 'MoM +{value}%',
+      noMomData: 'No MoM comparison data',
+      noYoyData: 'No YoY comparison data',
     },
     chart: {
       salesTrendTitle: 'Sales Trend (Last 30 Days)',
@@ -5797,6 +5804,13 @@ export default {
       detailFailed: 'Failed to fetch AP verification detail',
       unverifiedLoadFailed: 'Failed to fetch pending AP invoices and payments',
       statusCompleted: 'Completed',
+      loadSuppliersFailed: 'Failed to load suppliers',
+      amountRequired: 'Enter a verification amount greater than 0',
+      paymentRequired: 'Please select a payment',
+      invoiceRequired: 'Please select an invoice',
+      supplierRequired: 'Please select a supplier',
+      supplierPlaceholder: 'Select a supplier',
+      supplier: 'Supplier',
     },
   },
   arModule: {
@@ -8940,6 +8954,11 @@ export default {
     },
   },
   purchasePrice: {
+    statusLabels: {
+      inactive: 'Inactive',
+      approved: 'Approved',
+      pending: 'Pending',
+    },
     index: {
       title: 'Purchase Price Management',
       breadcrumb: {
@@ -9153,6 +9172,7 @@ export default {
         approved: 'Approved',
         rejected: 'Rejected',
         completed: 'Completed',
+        submitted: 'Submitted',
       },
       rangeSeparator: 'to',
       button: {
@@ -11169,6 +11189,24 @@ export default {
     },
   },
   dyeBatch: {
+    statusLabels: {
+      failed: 'Failed',
+      on_hold: 'On hold',
+      rework: 'Rework',
+      terminated: 'Terminated',
+      cancelled: 'Cancelled',
+      shipped: 'Shipped',
+      stored: 'Stored',
+      inspecting: 'Inspecting',
+      drying: 'Drying',
+      dehydrating: 'Dehydrating',
+      fixing: 'Fixing',
+      washing: 'Washing',
+      dyeing: 'Dyeing',
+      preparing: 'Preparing',
+      scheduled: 'Scheduled',
+      pending_schedule: 'Pending schedule',
+    },
     index: {
       pageTitle: 'Dye Batch Management',
       breadcrumbHome: 'Home',
@@ -11808,6 +11846,8 @@ export default {
       messageFailure: 'Operation failed',
       messageDeleteConfirm: 'Delete this adjustment order?',
       titleDeleteConfirm: 'Confirm Deletion',
+      statLabelTotalQuantity: 'Total adjusted quantity',
+      colTotalQuantity: 'Adjusted qty',
     },
     formDialogTab: {
       titleEdit: 'Edit Adjustment Order',
@@ -11842,6 +11882,16 @@ export default {
       messageFailed: 'Operation failed',
       messageGenerateNoFailed: 'Failed to generate adjustment no',
       messageSaveFailed: 'Failed to save adjustment order',
+      adjustmentDateRequired: 'Please select an adjustment date',
+      warehouseRequired: 'Please select a warehouse',
+      reasonTypeOther: 'Other',
+      reasonTypeCorrection: 'Correction',
+      reasonTypeSample: 'Sample',
+      reasonTypeDamage: 'Damage',
+      labelReasonType: 'Reason type',
+      adjustmentTypeDecrease: 'Decrease',
+      adjustmentTypeIncrease: 'Increase',
+      labelAdjustmentType: 'Adjustment type',
     },
     approveDialogTab: {
       title: 'Approve Adjustment Order',
@@ -11941,6 +11991,7 @@ export default {
       messageSuccess: 'Operation successful',
       messageFailure: 'Operation failed',
       messageSaveFailure: 'Failed to save count order',
+      warehouseRequired: 'Please select a warehouse',
     },
     detailDialogTab: {
       titleDetail: 'Stock Count Order Detail',

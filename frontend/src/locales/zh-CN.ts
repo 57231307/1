@@ -1985,6 +1985,7 @@ export default {
       status: '状态',
       bottleneck: '瓶颈',
       paginationAriaLabel: '工作中心列表分页',
+      capacityUnit: '容量单位',
     },
     bottleneck: {
       title: '瓶颈识别',
@@ -1998,6 +1999,10 @@ export default {
       normal: '正常',
       busy: '繁忙',
       overload: '超负荷',
+      OVERLOADED: '超载',
+      HIGH: '高负荷',
+      NORMAL: '正常',
+      IDLE: '空闲',
     },
     common: {
       yes: '是',
@@ -5010,6 +5015,8 @@ export default {
       grossMargin: '毛利率',
       yoyGrowth: '同比 +{value}%',
       momGrowth: '环比 +{value}%',
+      noMomData: '无环比数据',
+      noYoyData: '无同比数据',
     },
     chart: {
       salesTrendTitle: '销售趋势（最近 30 天）',
@@ -5766,6 +5773,13 @@ export default {
       detailFailed: '获取应付核销详情失败',
       unverifiedLoadFailed: '获取待核销发票与付款列表失败',
       statusCompleted: '已完成',
+      loadSuppliersFailed: '获取供应商列表失败',
+      amountRequired: '请输入大于 0 的核销金额',
+      paymentRequired: '请选择付款',
+      invoiceRequired: '请选择发票',
+      supplierRequired: '请选择供应商',
+      supplierPlaceholder: '请选择供应商',
+      supplier: '供应商',
     },
   },
   arModule: {
@@ -8906,6 +8920,11 @@ export default {
     },
   },
   purchasePrice: {
+    statusLabels: {
+      inactive: '已停用',
+      approved: '已批准',
+      pending: '待审批',
+    },
     index: {
       title: '采购价格管理',
       breadcrumb: {
@@ -9119,6 +9138,7 @@ export default {
         approved: '已审批',
         rejected: '已拒绝',
         completed: '已完成',
+        submitted: '已提交',
       },
       rangeSeparator: '至',
       button: {
@@ -11132,6 +11152,24 @@ export default {
     },
   },
   dyeBatch: {
+    statusLabels: {
+      failed: '失败',
+      on_hold: '暂停',
+      rework: '返修中',
+      terminated: '已终止',
+      cancelled: '已取消',
+      shipped: '已发货',
+      stored: '已入库',
+      inspecting: '检验中',
+      drying: '烘干中',
+      dehydrating: '脱水中',
+      fixing: '固色中',
+      washing: '水洗中',
+      dyeing: '染色中',
+      preparing: '准备中',
+      scheduled: '已排产',
+      pending_schedule: '待排产',
+    },
     index: {
       pageTitle: '染色批次管理',
       breadcrumbHome: '首页',
@@ -11770,6 +11808,8 @@ export default {
       messageFailure: '操作失败',
       messageDeleteConfirm: '确定删除此调整单吗？',
       titleDeleteConfirm: '确认删除',
+      statLabelTotalQuantity: '调整总数量',
+      colTotalQuantity: '调整数量',
     },
     formDialogTab: {
       titleEdit: '编辑调整单',
@@ -11804,6 +11844,16 @@ export default {
       messageFailed: '操作失败',
       messageGenerateNoFailed: '生成调整单号失败',
       messageSaveFailed: '保存调整单失败',
+      adjustmentDateRequired: '请选择调整日期',
+      warehouseRequired: '请选择仓库',
+      reasonTypeOther: '其他',
+      reasonTypeCorrection: '修正',
+      reasonTypeSample: '样品',
+      reasonTypeDamage: '损坏',
+      labelReasonType: '原因类型',
+      adjustmentTypeDecrease: '减少',
+      adjustmentTypeIncrease: '增加',
+      labelAdjustmentType: '调整类型',
     },
     approveDialogTab: {
       title: '审批调整单',
@@ -11901,6 +11951,7 @@ export default {
       messageSuccess: '操作成功',
       messageFailure: '操作失败',
       messageSaveFailure: '盘点单保存失败',
+      warehouseRequired: '请选择仓库',
     },
     detailDialogTab: {
       titleDetail: '盘点单详情',
