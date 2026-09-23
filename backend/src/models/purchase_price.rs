@@ -28,6 +28,22 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    /// 关联产品（product_id -> products.id）
+    #[sea_orm(
+        belongs_to = "super::product::Entity",
+        from = "Column::ProductId",
+        to = "super::product::Column::Id"
+    )]
+    Product,
+
+    /// 关联供应商（supplier_id -> suppliers.id）
+    #[sea_orm(
+        belongs_to = "super::supplier::Entity",
+        from = "Column::SupplierId",
+        to = "super::supplier::Column::Id"
+    )]
+    Supplier,
+}
 
 impl ActiveModelBehavior for ActiveModel {}

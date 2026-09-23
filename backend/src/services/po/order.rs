@@ -41,6 +41,10 @@ pub struct PurchaseOrderDto {
     pub shipping_terms: Option<String>,
     pub notes: Option<String>,
     pub created_by: i32,
+    /// 创建人姓名：created_by -> users.real_name（LEFT JOIN，可空）
+    pub creator_name: Option<String>,
+    /// 已入库金额：该订单下所有 purchase_receipt.total_amount 之和（关联标量子查询聚合，无入库单时为 NULL）
+    pub received_amount: Option<rust_decimal::Decimal>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }

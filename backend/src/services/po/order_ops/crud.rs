@@ -17,13 +17,15 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
+use sea_orm::sea_query::{Expr, Func, Query, SelectStatement, SubQueryStatement};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, JoinType, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 use crate::models::{
-    department, product, purchase_order, purchase_order_item, status, supplier, warehouse,
+    department, product, purchase_order, purchase_order_item, purchase_receipt, status, supplier,
+    user, warehouse,
 };
 use crate::services::po::order::{PurchaseOrderDto, PurchaseOrderService};
 use crate::services::po::{CreatePurchaseOrderRequest, UpdatePurchaseOrderRequest};
@@ -459,6 +461,24 @@ impl PurchaseOrderService {
         .await
     }
 
+    /// 已入库金额关联标量子查询：`SUM(purchase_receipt.total_amount) WHERE order_id = 当前订单.id`。
+    ///
+    /// 采用标量子查询而非 LEFT JOIN + GROUP BY，避免一对多 JOIN 造成的行倍增，
+    /// 从而保持列表 `paginate` 的行数与 `total` 不变，仍是单次查询。
+    fn received_amount_subquery() -> SelectStatement {
+        Query::select()
+            .expr(Func::sum(Expr::col((
+                purchase_receipt::Entity,
+                purchase_receipt::Column::TotalAmount,
+            ))))
+            .from(purchase_receipt::Entity)
+            .and_where(
+                Expr::col((purchase_receipt::Entity, purchase_receipt::Column::OrderId))
+                    .equals((purchase_order::Entity, purchase_order::Column::Id)),
+            )
+            .to_owned()
+    }
+
     /// 获取订单列表（分页）
     pub async fn list_orders(
         &self,
@@ -473,6 +493,11 @@ impl PurchaseOrderService {
             .column_as(supplier::Column::SupplierName, "supplier_name")
             .column_as(warehouse::Column::Name, "warehouse_name")
             .column_as(department::Column::Name, "department_name")
+            .column_as(user::Column::RealName, "creator_name")
+            .column_as(
+                Expr::from(SubQueryStatement::from(Self::received_amount_subquery())),
+                "received_amount",
+            )
             .join(JoinType::LeftJoin, purchase_order::Relation::Supplier.def())
             .join(
                 JoinType::LeftJoin,
@@ -481,7 +506,8 @@ impl PurchaseOrderService {
             .join(
                 JoinType::LeftJoin,
                 purchase_order::Relation::Department.def(),
-            );
+            )
+            .join(JoinType::LeftJoin, purchase_order::Relation::Creator.def());
 
         // V15 P0-S01：行级数据权限过滤（purchase_order 表有 created_by + department_id，支持完整 Dept）
         if let Some(ctx) = data_scope {
@@ -530,6 +556,11 @@ impl PurchaseOrderService {
             .column_as(supplier::Column::SupplierName, "supplier_name")
             .column_as(warehouse::Column::Name, "warehouse_name")
             .column_as(department::Column::Name, "department_name")
+            .column_as(user::Column::RealName, "creator_name")
+            .column_as(
+                Expr::from(SubQueryStatement::from(Self::received_amount_subquery())),
+                "received_amount",
+            )
             .join(JoinType::LeftJoin, purchase_order::Relation::Supplier.def())
             .join(
                 JoinType::LeftJoin,
@@ -539,6 +570,7 @@ impl PurchaseOrderService {
                 JoinType::LeftJoin,
                 purchase_order::Relation::Department.def(),
             )
+            .join(JoinType::LeftJoin, purchase_order::Relation::Creator.def())
             .into_model::<PurchaseOrderDto>()
             .one(&*self.db)
             .await?

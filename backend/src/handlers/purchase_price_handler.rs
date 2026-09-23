@@ -1,7 +1,9 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::purchase_price;
-use crate::services::purchase_price_service::{CreatePurchasePriceInput, PurchasePriceService};
+use crate::services::purchase_price_service::{
+    CreatePurchasePriceInput, PurchasePriceService, PurchasePriceView,
+};
 use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
 use axum::{
@@ -40,7 +42,7 @@ pub async fn list_prices(
     Query(params): Query<PurchasePriceQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<purchase_price::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<PurchasePriceView>>>, AppError> {
     info!("用户 {} 正在查询采购价格列表", auth.user_id);
 
     let service = PurchasePriceService::new(state.db.clone());

@@ -18,7 +18,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, RelationTrait};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -112,12 +112,20 @@ pub async fn get_order(
     let mut order_json = serde_json::to_value(order)?;
 
     // 装配明细行：PurchaseOrderDto 不含 items，但详情页/E2E 与下方数据权限
-    // 字段过滤逻辑都依赖响应携带 items 数组
+    // 字段过滤逻辑都依赖响应携带 items 数组。
+    // 明细实体只有 product_id，需 LEFT JOIN products 补 product_name / product_code
+    // （products 实体真实列 name / code，别名为前端读取键）。单次查询、无 N+1。
     let items = crate::models::purchase_order_item::Entity::find()
+        .column_as(crate::models::product::Column::Name, "product_name")
+        .column_as(crate::models::product::Column::Code, "product_code")
+        .join(
+            sea_orm::JoinType::LeftJoin,
+            crate::models::purchase_order_item::Relation::Product.def(),
+        )
         .filter(crate::models::purchase_order_item::Column::OrderId.eq(id))
+        .into_json()
         .all(state.db.as_ref())
-        .await
-        .unwrap_or_default();
+        .await?;
     order_json["items"] = serde_json::to_value(items)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤

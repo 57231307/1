@@ -7,7 +7,9 @@
 // 同步添加 user_id 参数透传（P2-3 / P2-4 / P2-5）。
 
 use crate::models::status::purchase_return as pr_status;
-use crate::models::{inventory_stock, product, purchase_return, purchase_return_item};
+use crate::models::{
+    inventory_stock, product, purchase_order, purchase_return, purchase_return_item, supplier, user,
+};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::inventory_stock_query::RecordTransactionArgs;
 // V15 P0-S01：行级数据权限工具
@@ -15,15 +17,55 @@ use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resourc
 use crate::utils::error::AppError;
 // 批次 258 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
+use crate::utils::sql_escape::safe_like_pattern;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, JoinType,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set,
+    TransactionTrait,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
+
+/// 采购退货单读模型：实体列 + LEFT JOIN 关联出的来源采购订单号、供应商名、创建人名。
+///
+/// 三个 JOIN 名列均 `Option<String>`（order_id 可空 / 关联缺失时为 NULL）；实体自身列
+/// 按 `purchase_return` 约束保持原类型。
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct PurchaseReturnView {
+    pub id: i32,
+    pub return_no: String,
+    pub receipt_id: Option<i32>,
+    pub order_id: Option<i32>,
+    pub supplier_id: i32,
+    pub return_date: chrono::NaiveDate,
+    pub warehouse_id: Option<i32>,
+    pub department_id: Option<i32>,
+    pub reason_type: Option<String>,
+    pub reason_detail: Option<String>,
+    pub return_status: Option<String>,
+    pub total_quantity: Option<Decimal>,
+    pub total_quantity_alt: Option<Decimal>,
+    pub total_amount: Option<Decimal>,
+    pub notes: Option<String>,
+    pub created_by: Option<i32>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_by: Option<i32>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub approved_by: Option<i32>,
+    pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub rejected_reason: Option<String>,
+    pub purchase_order_no: Option<String>,
+    pub supplier_name: Option<String>,
+    pub created_by_name: Option<String>,
+}
+
+/// 解析日期筛选边界：前端下发 ISO / `YYYY-MM-DD`，取日期部分转 `NaiveDate`；解析失败视为未提供。
+fn parse_date_bound(raw: &str) -> Option<chrono::NaiveDate> {
+    chrono::NaiveDate::parse_from_str(&raw[..raw.len().min(10)], "%Y-%m-%d").ok()
+}
 
 /// 采购退货服务
 pub struct PurchaseReturnService {
@@ -502,11 +544,24 @@ impl PurchaseReturnService {
         page_size: u64,
         status: Option<String>,
         supplier_id: Option<i32>,
+        keyword: Option<String>,
+        date_from: Option<String>,
+        date_to: Option<String>,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<(Vec<purchase_return::Model>, u64), AppError> {
+    ) -> Result<(Vec<PurchaseReturnView>, u64), AppError> {
         use sea_orm::PaginatorTrait;
 
-        let mut query = purchase_return::Entity::find();
+        // 单次查询：实体 + 来源订单号 / 供应商名 / 创建人名（均为多对一 LEFT JOIN，不倍增行）。
+        let mut query = purchase_return::Entity::find()
+            .column_as(purchase_order::Column::OrderNo, "purchase_order_no")
+            .column_as(supplier::Column::SupplierName, "supplier_name")
+            .column_as(user::Column::RealName, "created_by_name")
+            .join(JoinType::LeftJoin, purchase_return::Relation::Order.def())
+            .join(
+                JoinType::LeftJoin,
+                purchase_return::Relation::Supplier.def(),
+            )
+            .join(JoinType::LeftJoin, purchase_return::Relation::Creator.def());
 
         // V15 P0-S01：行级数据权限过滤（purchase_return 表有 created_by + department_id，支持完整 Dept）
         if let Some(ctx) = data_scope {
@@ -524,10 +579,22 @@ impl PurchaseReturnService {
         if let Some(supplier_id) = supplier_id {
             query = query.filter(purchase_return::Column::SupplierId.eq(supplier_id));
         }
+        // 关键字：匹配退货单号
+        if let Some(kw) = keyword.as_deref().filter(|s| !s.is_empty()) {
+            query = query.filter(purchase_return::Column::ReturnNo.like(&safe_like_pattern(kw)));
+        }
+        // 退货日期范围
+        if let Some(d) = date_from.as_deref().and_then(parse_date_bound) {
+            query = query.filter(purchase_return::Column::ReturnDate.gte(d));
+        }
+        if let Some(d) = date_to.as_deref().and_then(parse_date_bound) {
+            query = query.filter(purchase_return::Column::ReturnDate.lte(d));
+        }
 
         // 批次 258 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(purchase_return::Column::CreatedAt, Order::Desc)
+            .into_model::<PurchaseReturnView>()
             .paginate(&*self.db, page_size);
 
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;

@@ -5,18 +5,58 @@
 use crate::models::purchase_inspection;
 use crate::models::purchase_inspection_item;
 use crate::models::status::purchase_inspection as pis_status;
+use crate::models::{purchase_receipt, supplier, user};
 use crate::utils::error::AppError;
 // 批次 258 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
+use crate::utils::sql_escape::safe_like_pattern;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, FromQueryResult,
+    JoinType, Order, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
+
+/// 采购质检单读模型：实体列 + LEFT JOIN 关联出的入库单号、供应商名、质检员名。
+///
+/// 三个 JOIN 名列均 `Option<String>`（关联可空 / 缺失时为 NULL）；实体自身列按
+/// `purchase_inspection` 的约束保持原类型（NOT NULL 列非可选）。
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct PurchaseInspectionView {
+    pub id: i32,
+    pub inspection_no: String,
+    pub receipt_id: Option<i32>,
+    pub order_id: Option<i32>,
+    pub supplier_id: i32,
+    pub inspection_date: chrono::NaiveDate,
+    pub inspector_id: Option<i32>,
+    pub inspection_type: Option<String>,
+    pub sample_size: Option<Decimal>,
+    pub defect_count: Option<i32>,
+    pub pass_quantity: Option<Decimal>,
+    pub reject_quantity: Option<Decimal>,
+    pub inspection_status: Option<String>,
+    pub inspection_result: Option<String>,
+    pub quality_score: Option<Decimal>,
+    pub defect_description: Option<String>,
+    pub attachment_urls: Option<String>,
+    pub notes: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub completed_by: Option<i32>,
+    pub receipt_no: Option<String>,
+    pub supplier_name: Option<String>,
+    pub inspector_name: Option<String>,
+}
+
+/// 解析日期筛选边界：前端下发 ISO/`YYYY-MM-DD` 字符串，取日期部分转 `NaiveDate`；解析失败视为未提供。
+fn parse_date_bound(raw: &str) -> Option<chrono::NaiveDate> {
+    chrono::NaiveDate::parse_from_str(&raw[..raw.len().min(10)], "%Y-%m-%d").ok()
+}
 
 /// 采购质检服务
 pub struct PurchaseInspectionService {
@@ -199,10 +239,30 @@ impl PurchaseInspectionService {
         page_size: u64,
         status: Option<String>,
         supplier_id: Option<i32>,
-    ) -> Result<(Vec<purchase_inspection::Model>, u64), AppError> {
+        keyword: Option<String>,
+        result: Option<String>,
+        date_from: Option<String>,
+        date_to: Option<String>,
+    ) -> Result<(Vec<PurchaseInspectionView>, u64), AppError> {
         use sea_orm::PaginatorTrait;
 
-        let mut query = purchase_inspection::Entity::find();
+        // 单次查询：实体 + 入库单号 / 供应商名 / 质检员名（均为 LEFT JOIN 名列，无 N+1）。
+        let mut query = purchase_inspection::Entity::find()
+            .column_as(purchase_receipt::Column::ReceiptNo, "receipt_no")
+            .column_as(supplier::Column::SupplierName, "supplier_name")
+            .column_as(user::Column::RealName, "inspector_name")
+            .join(
+                JoinType::LeftJoin,
+                purchase_inspection::Relation::Receipt.def(),
+            )
+            .join(
+                JoinType::LeftJoin,
+                purchase_inspection::Relation::Supplier.def(),
+            )
+            .join(
+                JoinType::LeftJoin,
+                purchase_inspection::Relation::Inspector.def(),
+            );
 
         if let Some(status) = status {
             query = query.filter(purchase_inspection::Column::InspectionStatus.eq(&status));
@@ -210,10 +270,31 @@ impl PurchaseInspectionService {
         if let Some(supplier_id) = supplier_id {
             query = query.filter(purchase_inspection::Column::SupplierId.eq(supplier_id));
         }
+        // 结果按写入方 token 等值筛选（不校验词表、不做英中转换）
+        if let Some(result) = result {
+            query = query.filter(purchase_inspection::Column::InspectionResult.eq(result));
+        }
+        // 关键字：匹配质检单号或入库单号（两列均真正参与过滤）
+        if let Some(kw) = keyword.as_deref().filter(|s| !s.is_empty()) {
+            let pattern = safe_like_pattern(kw);
+            query = query.filter(
+                purchase_inspection::Column::InspectionNo
+                    .like(&pattern)
+                    .or(purchase_receipt::Column::ReceiptNo.like(&pattern)),
+            );
+        }
+        // 质检日期范围
+        if let Some(d) = date_from.as_deref().and_then(parse_date_bound) {
+            query = query.filter(purchase_inspection::Column::InspectionDate.gte(d));
+        }
+        if let Some(d) = date_to.as_deref().and_then(parse_date_bound) {
+            query = query.filter(purchase_inspection::Column::InspectionDate.lte(d));
+        }
 
         // 批次 258 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(purchase_inspection::Column::CreatedAt, Order::Desc)
+            .into_model::<PurchaseInspectionView>()
             .paginate(&*self.db, page_size);
 
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
