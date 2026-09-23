@@ -165,7 +165,7 @@
             <el-radio value="credit">{{ t('finance.subjectTab.directionCredit') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="辅助核算">
+        <el-form-item :label="t('finance.subjectTab.assistAccounting')">
           <el-checkbox v-model="subjectForm.assist_customer">{{
             t('finance.subjectTab.assistCustomer')
           }}</el-checkbox>

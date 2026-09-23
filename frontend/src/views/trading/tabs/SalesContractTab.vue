@@ -276,25 +276,25 @@ const approveSalesContract = async (row: TradingContract) => {
 const executeSalesContract = async (row: TradingContract) => {
   try {
     const { value: executionType } = await ElMessageBox.prompt(
-      '请输入执行类型（delivery=出库 / payment=收款）',
+      t('trading.salesContractTab.executeTypeTip'),
       t('trading.salesContractTab.confirmTitle'),
       {
         confirmButtonText: t('common.confirm'),
         cancelButtonText: t('common.cancel'),
-        inputPlaceholder: '执行类型（delivery / payment，必填）',
+        inputPlaceholder: t('trading.salesContractTab.executeTypePlaceholder'),
         inputPattern: /^(delivery|payment)$/,
-        inputErrorMessage: '执行类型只能是 delivery 或 payment',
+        inputErrorMessage: t('trading.salesContractTab.executeTypeInvalid'),
       }
     );
     const { value: amountInput } = await ElMessageBox.prompt(
-      `请输入合同 ${row.contract_no} 的执行金额`,
+      t('trading.salesContractTab.executeAmountTip', { no: row.contract_no }),
       t('trading.salesContractTab.confirmTitle'),
       {
         confirmButtonText: t('common.confirm'),
         cancelButtonText: t('common.cancel'),
-        inputPlaceholder: '执行金额（必填，大于 0）',
+        inputPlaceholder: t('trading.salesContractTab.executeAmountPlaceholder'),
         inputPattern: /^\d+(\.\d{1,2})?$/,
-        inputErrorMessage: '请输入有效金额（最多两位小数）',
+        inputErrorMessage: t('trading.salesContractTab.executeAmountInvalid'),
       }
     );
     await executeTradingContract(row.id, 'sales', {

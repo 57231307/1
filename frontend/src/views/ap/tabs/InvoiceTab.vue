@@ -219,9 +219,23 @@
     <!-- 账龄分析弹窗 -->
     <el-dialog v-model="agingVisible" :title="$t('apModule.invoice.agingAnalysis')" width="520px">
       <el-table :data="agingRows" border size="small">
-        <el-table-column prop="aging_bucket" label="账龄区间" min-width="140" />
-        <el-table-column prop="invoice_count" label="发票数" width="100" align="right" />
-        <el-table-column prop="total_amount" label="金额" width="140" align="right">
+        <el-table-column
+          prop="aging_bucket"
+          :label="$t('apModule.invoice.agingBucket')"
+          min-width="140"
+        />
+        <el-table-column
+          prop="invoice_count"
+          :label="$t('apModule.invoice.agingInvoiceCount')"
+          width="100"
+          align="right"
+        />
+        <el-table-column
+          prop="total_amount"
+          :label="$t('apModule.invoice.agingAmount')"
+          width="140"
+          align="right"
+        >
           <template #default="{ row }">{{
             Number(row.total_amount ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })
           }}</template>

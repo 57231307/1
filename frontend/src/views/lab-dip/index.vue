@@ -2,11 +2,11 @@
   <div class="lab-dip-page">
     <el-card shadow="never">
       <div class="page-header">
-        <h2>打样通知管理</h2>
+        <h2>{{ t('labDip.index.pageTitle') }}</h2>
         <div class="header-actions">
           <el-select
             v-model="queryStatus"
-            placeholder="全部状态"
+            :placeholder="t('labDip.index.placeholderAllStatus')"
             clearable
             style="width: 160px"
             @change="handleFilter"
@@ -18,34 +18,58 @@
               :value="key"
             />
           </el-select>
-          <el-button type="primary" @click="handleCreate">新建打样通知</el-button>
+          <el-button type="primary" @click="handleCreate">{{
+            t('labDip.index.buttonCreate')
+          }}</el-button>
         </div>
       </div>
 
       <el-table v-loading="loading" :data="requestList" border>
-        <el-table-column prop="request_no" label="通知单号" min-width="180" />
-        <el-table-column prop="customer_color_no" label="客户色号" width="130">
+        <el-table-column
+          prop="request_no"
+          :label="t('labDip.index.colRequestNo')"
+          min-width="180"
+        />
+        <el-table-column
+          :label="t('labDip.index.colCustomerColorNo')"
+          prop="customer_color_no"
+          width="130"
+        >
           <template #default="{ row }">{{ row.customer_color_no || '-' }}</template>
         </el-table-column>
         <el-table-column
           prop="customer_color_name"
-          label="客户色名"
+          :label="t('labDip.index.colCustomerColorName')"
           min-width="130"
           show-overflow-tooltip
         >
           <template #default="{ row }">{{ row.customer_color_name || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="light_source" label="主光源" width="100" align="center" />
-        <el-table-column prop="sample_versions" label="版数" width="70" align="center" />
-        <el-table-column prop="required_date" label="要求交期" width="120" />
-        <el-table-column prop="status" label="状态" width="110" align="center">
+        <el-table-column
+          prop="light_source"
+          :label="t('labDip.index.colLightSource')"
+          width="100"
+          align="center"
+        />
+        <el-table-column
+          prop="sample_versions"
+          :label="t('labDip.index.colSampleVersions')"
+          width="70"
+          align="center"
+        />
+        <el-table-column
+          prop="required_date"
+          :label="t('labDip.index.colRequiredDate')"
+          width="120"
+        />
+        <el-table-column prop="status" :label="t('common.status')" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTagMap[row.status as LabDipRequestStatus] ?? 'info'">
               {{ statusTextMap[row.status as LabDipRequestStatus] ?? row.status }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column :label="t('common.operation')" width="280" fixed="right">
           <template #default="{ row }">
             <el-button
               v-for="action in getNextActions(row)"
@@ -64,7 +88,7 @@
               type="danger"
               @click="handleDelete(row)"
             >
-              删除
+              {{ t('common.delete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -82,9 +106,14 @@
       />
     </el-card>
 
-    <el-dialog v-model="createVisible" title="新建打样通知" width="580px" @close="resetForm">
+    <el-dialog
+      v-model="createVisible"
+      :title="t('labDip.index.titleCreate')"
+      width="580px"
+      @close="resetForm"
+    >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
-        <el-form-item label="客户 ID" prop="customer_id">
+        <el-form-item :label="t('labDip.index.labelCustomerId')" prop="customer_id">
           <el-input-number
             v-model="formData.customer_id"
             :min="1"
@@ -92,31 +121,47 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="客户色号" prop="customer_color_no">
-          <el-input v-model="formData.customer_color_no" placeholder="选填" />
+        <el-form-item :label="t('labDip.index.colCustomerColorNo')" prop="customer_color_no">
+          <el-input
+            v-model="formData.customer_color_no"
+            :placeholder="t('labDip.index.placeholderOptional')"
+          />
         </el-form-item>
-        <el-form-item label="客户色名" prop="customer_color_name">
-          <el-input v-model="formData.customer_color_name" placeholder="选填" />
+        <el-form-item :label="t('labDip.index.colCustomerColorName')" prop="customer_color_name">
+          <el-input
+            v-model="formData.customer_color_name"
+            :placeholder="t('labDip.index.placeholderOptional')"
+          />
         </el-form-item>
-        <el-form-item label="主对色光源" prop="light_source">
-          <el-select v-model="formData.light_source" placeholder="必填">
+        <el-form-item :label="t('labDip.index.labelLightSource')" prop="light_source">
+          <el-select
+            v-model="formData.light_source"
+            :placeholder="t('labDip.index.placeholderRequired')"
+          >
             <el-option v-for="ls in LIGHT_SOURCES" :key="ls" :label="ls" :value="ls" />
           </el-select>
         </el-form-item>
-        <el-form-item label="坯布规格" prop="fabric_spec">
-          <el-input v-model="formData.fabric_spec" placeholder="纱支/成分/组织，选填" />
+        <el-form-item :label="t('labDip.index.labelFabricSpec')" prop="fabric_spec">
+          <el-input
+            v-model="formData.fabric_spec"
+            :placeholder="t('labDip.index.placeholderFabricSpec')"
+          />
         </el-form-item>
-        <el-form-item label="染料类别" prop="dye_category">
-          <el-select v-model="formData.dye_category" placeholder="选填" clearable>
-            <el-option label="活性" value="reactive" />
-            <el-option label="分散" value="disperse" />
-            <el-option label="酸性" value="acid" />
-            <el-option label="还原" value="vat" />
-            <el-option label="硫化" value="sulfur" />
-            <el-option label="直接" value="direct" />
+        <el-form-item :label="t('labDip.index.labelDyeCategory')" prop="dye_category">
+          <el-select
+            v-model="formData.dye_category"
+            :placeholder="t('labDip.index.placeholderOptional')"
+            clearable
+          >
+            <el-option :label="t('labDip.index.optionReactive')" value="reactive" />
+            <el-option :label="t('labDip.index.optionDisperse')" value="disperse" />
+            <el-option :label="t('labDip.index.optionAcid')" value="acid" />
+            <el-option :label="t('labDip.index.optionVat')" value="vat" />
+            <el-option :label="t('labDip.index.optionSulfur')" value="sulfur" />
+            <el-option :label="t('labDip.index.optionDirect')" value="direct" />
           </el-select>
         </el-form-item>
-        <el-form-item label="打样版数" prop="sample_versions">
+        <el-form-item :label="t('labDip.index.labelSampleVersions')" prop="sample_versions">
           <el-input-number
             v-model="formData.sample_versions"
             :min="1"
@@ -125,63 +170,73 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="要求交期" prop="required_date">
+        <el-form-item :label="t('labDip.index.colRequiredDate')" prop="required_date">
           <el-date-picker
             v-model="formData.required_date"
             type="date"
             value-format="YYYY-MM-DD"
-            placeholder="必填"
+            :placeholder="t('labDip.index.placeholderRequired')"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="备注" prop="remarks">
+        <el-form-item :label="t('labDip.index.labelRemarks')" prop="remarks">
           <el-input v-model="formData.remarks" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="submitCreate">确定</el-button>
+        <el-button @click="createVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="submitCreate">{{
+          t('labDip.index.buttonConfirm')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" title="打样通知详情" width="640px">
+    <el-dialog v-model="detailVisible" :title="t('labDip.index.titleDetail')" width="640px">
       <el-descriptions v-if="detailRow" :column="2" border>
-        <el-descriptions-item label="通知单号">{{ detailRow.request_no }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('labDip.index.colRequestNo')">{{
+          detailRow.request_no
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('common.status')">
           <el-tag :type="statusTagMap[detailRow.status] ?? 'info'">
             {{ statusTextMap[detailRow.status] ?? detailRow.status }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="客户色号">{{
+        <el-descriptions-item :label="t('labDip.index.colCustomerColorNo')">{{
           detailRow.customer_color_no || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="客户色名">{{
+        <el-descriptions-item :label="t('labDip.index.colCustomerColorName')">{{
           detailRow.customer_color_name || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="来样类型">{{
+        <el-descriptions-item :label="t('labDip.index.labelSampleType')">{{
           detailRow.sample_type || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="主光源">{{ detailRow.light_source }}</el-descriptions-item>
-        <el-descriptions-item label="副光源">{{
+        <el-descriptions-item :label="t('labDip.index.colLightSource')">{{
+          detailRow.light_source
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('labDip.index.labelSecondaryLightSource')">{{
           detailRow.secondary_light_source || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="版数">{{ detailRow.sample_versions }}</el-descriptions-item>
-        <el-descriptions-item label="坯布规格">{{
+        <el-descriptions-item :label="t('labDip.index.colSampleVersions')">{{
+          detailRow.sample_versions
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('labDip.index.labelFabricSpec')">{{
           detailRow.fabric_spec || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="纤维成分">{{
+        <el-descriptions-item :label="t('labDip.index.labelFabricComponent')">{{
           detailRow.fabric_component || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="染料类别">{{
+        <el-descriptions-item :label="t('labDip.index.labelDyeCategory')">{{
           detailRow.dye_category || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="要求交期">{{ detailRow.required_date }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间" :span="2">{{
+        <el-descriptions-item :label="t('labDip.index.colRequiredDate')">{{
+          detailRow.required_date
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('common.createTime')" :span="2">{{
           detailRow.created_at
         }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button @click="detailVisible = false">{{ t('common.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -191,6 +246,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import {
   getLabDipRequestList,
   createLabDipRequest,
@@ -205,15 +261,16 @@ import {
   type LabDipRequestStatus,
 } from '@/api/lab-dip';
 
+const { t } = useI18n({ useScope: 'global' });
 const LIGHT_SOURCES = ['D65', 'TL84', 'U3000', 'CWF', 'A'];
 
 const statusTextMap: Record<LabDipRequestStatus, string> = {
-  pending: '待打样',
-  sampling: '打样中',
-  submitted: '已送客户',
-  approved: '客户确认',
-  rejected: '客户拒绝',
-  completed: '已完成',
+  pending: t('labDip.index.statusPending'),
+  sampling: t('labDip.index.statusSampling'),
+  submitted: t('labDip.index.statusSubmitted'),
+  approved: t('labDip.index.statusApproved'),
+  rejected: t('labDip.index.statusRejected'),
+  completed: t('labDip.index.statusCompleted'),
 };
 
 const statusTagMap: Record<
@@ -236,14 +293,14 @@ interface StatusAction {
 
 /** 按后端状态机（lab_dip_request 状态机）生成下一步操作 */
 const nextActionMap: Partial<Record<LabDipRequestStatus, StatusAction[]>> = {
-  pending: [{ key: 'start-sampling', label: '开始打样' }],
-  sampling: [{ key: 'submit', label: '送客户确认' }],
+  pending: [{ key: 'start-sampling', label: t('labDip.index.buttonStartSampling') }],
+  sampling: [{ key: 'submit', label: t('labDip.index.buttonSubmitToCustomer') }],
   submitted: [
-    { key: 'approve', label: '客户确认通过' },
-    { key: 'reject', label: '拒绝重打', danger: true },
+    { key: 'approve', label: t('labDip.index.buttonApprove') },
+    { key: 'reject', label: t('labDip.index.buttonReject'), danger: true },
   ],
-  rejected: [{ key: 'restart', label: '重新打样' }],
-  approved: [{ key: 'complete', label: '完成打样' }],
+  rejected: [{ key: 'restart', label: t('labDip.index.buttonRestart') }],
+  approved: [{ key: 'complete', label: t('labDip.index.buttonComplete') }],
 };
 
 const actionRunners: Record<string, (id: number) => Promise<unknown>> = {
@@ -288,8 +345,12 @@ const formData = reactive<{
 });
 
 const formRules: FormRules = {
-  light_source: [{ required: true, message: '请选择主对色光源', trigger: 'change' }],
-  required_date: [{ required: true, message: '请选择要求交期', trigger: 'change' }],
+  light_source: [
+    { required: true, message: t('labDip.index.ruleLightSourceRequired'), trigger: 'change' },
+  ],
+  required_date: [
+    { required: true, message: t('labDip.index.ruleRequiredDateRequired'), trigger: 'change' },
+  ],
 };
 
 /** 响应解包防御：兼容数组 / { items } 分页包装，避免 el-table "r is not iterable" */
@@ -311,7 +372,7 @@ const loadList = async () => {
     total.value =
       res.data && !Array.isArray(res.data) ? (res.data.total ?? 0) : requestList.value.length;
   } catch {
-    ElMessage.error('加载打样通知列表失败');
+    ElMessage.error(t('labDip.index.messageFetchListFailed'));
   } finally {
     loading.value = false;
   }
@@ -329,43 +390,47 @@ const runAction = async (action: StatusAction, row: LabDipRequest) => {
   try {
     if (action.key === 'approve') {
       const { value } = await ElMessageBox.prompt(
-        `请输入客户确认 OK 的小样 ID（打样通知 ${row.request_no}）`,
-        '客户确认通过',
+        t('labDip.index.messageApprovePrompt', { no: row.request_no }),
+        t('labDip.index.buttonApprove'),
         {
-          confirmButtonText: '确认',
-          cancelButtonText: '取消',
-          inputPlaceholder: '小样 sample_id（必填，正整数）',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          inputPlaceholder: t('labDip.index.placeholderSampleId'),
           inputPattern: /^[1-9]\d*$/,
-          inputErrorMessage: '请输入有效的正整数小样 ID',
+          inputErrorMessage: t('labDip.index.messageInvalidSampleId'),
         }
       );
       await approveLabDipRequest(row.id, { sample_id: Number(value) });
     } else if (action.key === 'complete') {
       const { value } = await ElMessageBox.prompt(
-        `请输入用于建库的大货处方 ID（打样通知 ${row.request_no}）`,
-        '完成建库',
+        t('labDip.index.messageCompletePrompt', { no: row.request_no }),
+        t('labDip.index.titleCompleteToRecipe'),
         {
-          confirmButtonText: '确认',
-          cancelButtonText: '取消',
-          inputPlaceholder: 'production_recipe_id（必填，正整数）',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          inputPlaceholder: t('labDip.index.placeholderProductionRecipeId'),
           inputPattern: /^[1-9]\d*$/,
-          inputErrorMessage: '请输入有效的正整数处方 ID',
+          inputErrorMessage: t('labDip.index.messageInvalidRecipeId'),
         }
       );
       await completeLabDipRequest(row.id, { production_recipe_id: Number(value) });
     } else {
       await ElMessageBox.confirm(
-        `确认对打样通知 ${row.request_no} 执行「${action.label}」吗？`,
-        '操作确认',
-        { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }
+        t('labDip.index.messageConfirmAction', { no: row.request_no, action: action.label }),
+        t('labDip.index.titleActionConfirm'),
+        {
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning',
+        }
       );
       await actionRunners[action.key](row.id);
     }
-    ElMessage.success(`操作成功：${action.label}`);
+    ElMessage.success(t('labDip.index.messageOperationSuccess', { action: action.label }));
     await loadList();
   } catch (error) {
     if (error === 'cancel' || (error as { message?: string })?.message === 'cancel') return;
-    ElMessage.error(`操作失败：${action.label}`);
+    ElMessage.error(t('labDip.index.messageOperationFailed', { action: action.label }));
   }
 };
 
@@ -403,11 +468,11 @@ const submitCreate = async () => {
         required_date: formData.required_date,
         remarks: formData.remarks || undefined,
       });
-      ElMessage.success('打样通知创建成功');
+      ElMessage.success(t('labDip.index.messageCreateSuccess'));
       createVisible.value = false;
       await loadList();
     } catch {
-      ElMessage.error('打样通知创建失败');
+      ElMessage.error(t('labDip.index.messageCreateFailed'));
     } finally {
       submitLoading.value = false;
     }
@@ -416,17 +481,21 @@ const submitCreate = async () => {
 
 const handleDelete = async (row: LabDipRequest) => {
   try {
-    await ElMessageBox.confirm(`确认删除打样通知 ${row.request_no} 吗？`, '删除确认', {
-      confirmButtonText: '确认删除',
-      cancelButtonText: '取消',
-      type: 'warning',
-    });
+    await ElMessageBox.confirm(
+      t('labDip.index.messageDeleteConfirm', { no: row.request_no }),
+      t('labDip.index.titleDeleteConfirm'),
+      {
+        confirmButtonText: t('labDip.index.buttonConfirmDelete'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+      }
+    );
     await deleteLabDipRequest(row.id);
-    ElMessage.success('删除成功');
+    ElMessage.success(t('common.message.deleteSuccess'));
     await loadList();
   } catch (error) {
     if (error === 'cancel' || (error as { message?: string })?.message === 'cancel') return;
-    ElMessage.error('删除失败（仅待打样状态可删除）');
+    ElMessage.error(t('labDip.index.messageDeleteFailed'));
   }
 };
 

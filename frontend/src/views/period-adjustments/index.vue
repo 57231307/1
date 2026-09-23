@@ -198,6 +198,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
@@ -210,6 +211,8 @@ import {
   type PeriodAdjustmentStatus,
   type PeriodAdjustmentType,
 } from '@/api/period-adjustment';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const typeTextMap: Record<PeriodAdjustmentType, string> = {
   estimate: '暂估',
@@ -302,11 +305,11 @@ const formRules: FormRules = {
   credit_subject_code: [{ required: true, message: '请输入贷方科目编码', trigger: 'blur' }],
   credit_subject_name: [{ required: true, message: '请输入贷方科目名称', trigger: 'blur' }],
   amount: [
-    { required: true, message: '请输入调整金额', trigger: 'blur' },
+    { required: true, message: t('periodAdjustment.amountRequired'), trigger: 'blur' },
     {
       validator: (_rule: unknown, value: unknown, callback: (e?: Error) => void) => {
         if (typeof value !== 'number' || value <= 0) {
-          callback(new Error('调整金额必须大于 0'));
+          callback(new Error(t('periodAdjustment.amountPositive')));
           return;
         }
         callback();

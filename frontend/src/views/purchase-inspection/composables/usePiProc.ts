@@ -9,6 +9,7 @@
  */
 import { ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { i18n } from '@/i18n';
 import {
   getPurchaseInspectionById,
   updatePurchaseInspection,
@@ -18,6 +19,9 @@ import {
   type PurchaseInspectionItem,
 } from '@/api/purchase-inspection';
 import { logger } from '@/utils/logger';
+
+/** 取已翻译文案（i18n 全局实例，composable 无组件实例，同域 usePcProc 一致做法）。 */
+const t = i18n.global.t.bind(i18n.global);
 
 /**
  * 流程回调（接收 usePi 返回的状态，自动解包后的值类型）
@@ -147,29 +151,37 @@ export function usePiProc(cb: PiCallbacks) {
   /** 完成检验 */
   const handleComplete = async (row: PurchaseInspection) => {
     try {
-      const { value: passInput } = await ElMessageBox.prompt('请输入合格数量', '完成检验', {
-        confirmButtonText: '确认',
-        cancelButtonText: '取消',
-        inputPlaceholder: '合格数量（必填，≥0）',
-        inputPattern: /^\d+(\.\d+)?$/,
-        inputErrorMessage: '请输入有效的非负数字',
-      });
-      const { value: rejectInput } = await ElMessageBox.prompt('请输入不合格数量', '完成检验', {
-        confirmButtonText: '确认',
-        cancelButtonText: '取消',
-        inputPlaceholder: '不合格数量（必填，≥0）',
-        inputPattern: /^\d+(\.\d+)?$/,
-        inputErrorMessage: '请输入有效的非负数字',
-      });
-      const { value: resultInput } = await ElMessageBox.prompt(
-        '请输入质检结论（pass / fail / partial）',
-        '完成检验',
+      const { value: passInput } = await ElMessageBox.prompt(
+        t('purchaseInspection.complete.passQuantityTip'),
+        t('purchaseInspection.complete.title'),
         {
-          confirmButtonText: '确认',
-          cancelButtonText: '取消',
-          inputPlaceholder: '质检结论（必填）',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          inputPlaceholder: t('purchaseInspection.complete.passQuantityPlaceholder'),
+          inputPattern: /^\d+(\.\d+)?$/,
+          inputErrorMessage: t('purchaseInspection.complete.numberError'),
+        }
+      );
+      const { value: rejectInput } = await ElMessageBox.prompt(
+        t('purchaseInspection.complete.rejectQuantityTip'),
+        t('purchaseInspection.complete.title'),
+        {
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          inputPlaceholder: t('purchaseInspection.complete.rejectQuantityPlaceholder'),
+          inputPattern: /^\d+(\.\d+)?$/,
+          inputErrorMessage: t('purchaseInspection.complete.numberError'),
+        }
+      );
+      const { value: resultInput } = await ElMessageBox.prompt(
+        t('purchaseInspection.complete.resultTip'),
+        t('purchaseInspection.complete.title'),
+        {
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          inputPlaceholder: t('purchaseInspection.complete.resultPlaceholder'),
           inputPattern: /^(pass|fail|partial)$/,
-          inputErrorMessage: '只能填 pass / fail / partial',
+          inputErrorMessage: t('purchaseInspection.complete.resultError'),
         }
       );
       await completePurchaseInspection(row.id!, {

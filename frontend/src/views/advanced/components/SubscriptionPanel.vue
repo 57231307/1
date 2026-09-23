@@ -8,9 +8,22 @@
         </div>
         <el-table v-loading="subLoading" :data="subscriptions" border>
           <el-table-column prop="id" label="ID" width="70" />
-          <el-table-column prop="name" label="订阅名称" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="template_id" label="报表模板 ID" width="110" />
-          <el-table-column prop="frequency" label="周期" width="90">
+          <el-table-column
+            prop="name"
+            :label="t('advancedModule.subscription.name')"
+            min-width="140"
+            show-overflow-tooltip
+          />
+          <el-table-column
+            prop="template_id"
+            :label="t('advancedModule.subscription.templateId')"
+            width="110"
+          />
+          <el-table-column
+            prop="frequency"
+            :label="t('advancedModule.subscription.frequency')"
+            width="90"
+          >
             <template #default="{ row }">
               <el-tag>{{ scheduleLabel(row.frequency) }}</el-tag>
             </template>
@@ -18,22 +31,32 @@
           <el-table-column label="收件人" min-width="180" show-overflow-tooltip>
             <template #default="{ row }">{{ row.recipients.join('；') || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="export_format" label="格式" width="90" />
+          <el-table-column
+            prop="export_format"
+            :label="t('advancedModule.subscription.exportFormat')"
+            width="90"
+          />
           <el-table-column label="状态" width="90">
             <template #default="{ row }">
               <el-tag :type="row.is_enabled ? 'success' : 'info'">
-                {{ row.is_enabled ? '启用' : '停用' }}
+                {{
+                  row.is_enabled ? t('common.enable') : t('advancedModule.subscription.inactive')
+                }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="last_run_at" label="最近执行" width="160">
+          <el-table-column
+            prop="last_run_at"
+            :label="t('advancedModule.subscription.lastRunAt')"
+            width="160"
+          >
             <template #default="{ row }">{{ row.last_run_at || '-' }}</template>
           </el-table-column>
           <el-table-column label="操作" width="250" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
               <el-button link size="small" @click="handleToggle(row)">{{
-                row.is_enabled ? '停用' : '启用'
+                row.is_enabled ? t('advancedModule.subscription.inactive') : t('common.enable')
               }}</el-button>
               <el-button link type="success" size="small" @click="handleSendNow(row)"
                 >立即发送</el-button
@@ -98,8 +121,12 @@
 
     <el-dialog v-model="subDialogVisible" :title="editingId ? '编辑订阅' : '新建订阅'" width="520">
       <el-form :model="subForm" label-width="100px">
-        <el-form-item label="订阅名称" required>
-          <el-input v-model="subForm.name" placeholder="订阅名称" maxlength="100" />
+        <el-form-item :label="t('advancedModule.subscription.name')" required>
+          <el-input
+            v-model="subForm.name"
+            :placeholder="t('advancedModule.subscription.name')"
+            maxlength="100"
+          />
         </el-form-item>
         <el-form-item label="模板 ID" required>
           <!-- 后端 UpdateSubscriptionRequest 无 template_id：编辑态模板不可改 -->
@@ -112,9 +139,9 @@
         </el-form-item>
         <el-form-item label="发送周期" required>
           <el-select v-model="subForm.frequency" style="width: 100%">
-            <el-option label="每日" value="DAILY" />
-            <el-option label="每周" value="WEEKLY" />
-            <el-option label="每月" value="MONTHLY" />
+            <el-option :label="t('advancedModule.subscription.daily')" value="DAILY" />
+            <el-option :label="t('advancedModule.subscription.weekly')" value="WEEKLY" />
+            <el-option :label="t('advancedModule.subscription.monthly')" value="MONTHLY" />
           </el-select>
         </el-form-item>
         <el-form-item label="收件人" required>
@@ -147,6 +174,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import {
   getSubscriptionList,
   createSubscription,
@@ -161,6 +189,7 @@ import {
   type ReportPreviewResult,
 } from '@/api/report-enhanced';
 
+const { t } = useI18n({ useScope: 'global' });
 const innerTab = ref('subscriptions');
 
 // ===== 订阅管理 =====
@@ -182,7 +211,12 @@ const subForm = reactive({
   is_enabled: true,
 });
 
-const scheduleLabel = (s: string) => ({ DAILY: '每日', WEEKLY: '每周', MONTHLY: '每月' })[s] ?? s;
+const scheduleLabel = (s: string) =>
+  ({
+    DAILY: t('advancedModule.subscription.daily'),
+    WEEKLY: t('advancedModule.subscription.weekly'),
+    MONTHLY: t('advancedModule.subscription.monthly'),
+  })[s] ?? s;
 
 async function loadSubscriptions() {
   subLoading.value = true;
@@ -226,7 +260,7 @@ const handleSave = async () => {
     .map(s => s.trim())
     .filter(Boolean);
   if (!subForm.name.trim() || !subForm.template_id || recipients.length === 0) {
-    ElMessage.warning('请填写订阅名称/模板 ID/收件人');
+    ElMessage.warning(t('advancedModule.subscription.fillRequired'));
     return;
   }
   subSaving.value = true;
@@ -263,7 +297,11 @@ const handleToggle = async (row: ReportSubscription) => {
   try {
     // 后端 ToggleSubscriptionDto 必填 enabled（目标状态）：按钮文案即用户意图，取当前状态的相反值。
     const res = await toggleSubscription(row.id, !row.is_enabled);
-    ElMessage.success(res.data?.is_enabled ? '订阅已启用' : '订阅已停用');
+    ElMessage.success(
+      res.data?.is_enabled
+        ? t('advancedModule.subscription.enabledMsg')
+        : t('advancedModule.subscription.disabledMsg')
+    );
     await loadSubscriptions();
   } catch (e) {
     ElMessage.error((e as Error).message || '操作失败');

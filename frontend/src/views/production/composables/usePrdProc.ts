@@ -10,6 +10,7 @@
 import { reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { i18n } from '@/i18n';
 import {
   deleteProductionOrder,
   updateProductionOrderStatus,
@@ -224,7 +225,7 @@ export function usePrdProc(cb: PrdCallbacks) {
               .map(
                 l =>
                   `[${l.created_at ?? '-'}] ${l.operation_type ?? l.action} - ` +
-                  `${l.username ?? '未知操作人'}${l.description ? `：${l.description}` : ''}`
+                  `${l.username ?? i18n.global.t('production.audit.unknownOperator')}${l.description ? `：${l.description}` : ''}`
               )
               .join('\n');
       ElMessageBox.alert(text, `生产订单 ${row.order_no} 操作日志`, {

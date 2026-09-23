@@ -276,35 +276,36 @@ const approvePurchaseContract = async (row: TradingContract) => {
 const executePurchaseContract = async (row: TradingContract) => {
   try {
     const { value: executionType } = await ElMessageBox.prompt(
-      '请输入执行类型（receipt=入库 / payment=付款）',
+      t('trading.purchaseContractTab.executeTypeTip'),
       t('trading.purchaseContractTab.confirmTitle'),
       {
         confirmButtonText: t('common.confirm'),
         cancelButtonText: t('common.cancel'),
-        inputPlaceholder: '执行类型（必填）',
-        inputValidator: (v: string) => (v && v.trim() ? true : '执行类型不能为空'),
+        inputPlaceholder: t('trading.purchaseContractTab.executeTypePlaceholder'),
+        inputValidator: (v: string) =>
+          v && v.trim() ? true : t('trading.purchaseContractTab.executeTypeRequired'),
       }
     );
     const { value: amountInput } = await ElMessageBox.prompt(
-      `请输入合同 ${row.contract_no} 的执行金额`,
+      t('trading.purchaseContractTab.executeAmountTip', { no: row.contract_no }),
       t('trading.purchaseContractTab.confirmTitle'),
       {
         confirmButtonText: t('common.confirm'),
         cancelButtonText: t('common.cancel'),
-        inputPlaceholder: '执行金额（必填，大于 0）',
+        inputPlaceholder: t('trading.purchaseContractTab.executeAmountPlaceholder'),
         inputPattern: /^\d+(\.\d{1,2})?$/,
-        inputErrorMessage: '请输入有效金额（最多两位小数）',
+        inputErrorMessage: t('trading.purchaseContractTab.executeAmountInvalid'),
       }
     );
     const { value: executionDate } = await ElMessageBox.prompt(
-      '请输入执行日期',
+      t('trading.purchaseContractTab.executeDateTip'),
       t('trading.purchaseContractTab.confirmTitle'),
       {
         confirmButtonText: t('common.confirm'),
         cancelButtonText: t('common.cancel'),
-        inputPlaceholder: '执行日期（YYYY-MM-DD，必填）',
+        inputPlaceholder: t('trading.purchaseContractTab.executeDatePlaceholder'),
         inputPattern: /^\d{4}-\d{2}-\d{2}$/,
-        inputErrorMessage: '日期格式应为 YYYY-MM-DD',
+        inputErrorMessage: t('actionForm.executeDateInvalid'),
       }
     );
     await executeTradingContract(row.id, 'purchase', {

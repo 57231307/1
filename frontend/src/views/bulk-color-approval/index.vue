@@ -2,156 +2,242 @@
   <div class="bulk-color-page">
     <el-card shadow="never">
       <div class="page-header">
-        <h2>大货批色审批</h2>
+        <h2>{{ t('bulkColorApproval.index.pageTitle') }}</h2>
         <div class="header-actions">
-          <el-button type="primary" @click="handleCreate">新建批色申请</el-button>
-          <el-button plain :loading="statsLoading" @click="openStatistics">统计</el-button>
+          <el-button type="primary" @click="handleCreate">{{
+            t('bulkColorApproval.index.buttonCreate')
+          }}</el-button>
+          <el-button plain :loading="statsLoading" @click="openStatistics">{{
+            t('bulkColorApproval.index.buttonStatistics')
+          }}</el-button>
         </div>
       </div>
 
       <el-table v-loading="loading" :data="list" border>
-        <el-table-column prop="approval_no" label="申请编号" min-width="160" />
-        <el-table-column prop="order_no" label="订单号" min-width="140">
+        <el-table-column
+          :label="t('bulkColorApproval.index.colApprovalNo')"
+          prop="approval_no"
+          min-width="160"
+        />
+        <el-table-column
+          :label="t('bulkColorApproval.index.colOrderNo')"
+          prop="order_no"
+          min-width="140"
+        >
           <template #default="{ row }">{{ row.order_no || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="color_no" label="色号" width="120">
+        <el-table-column
+          :label="t('bulkColorApproval.index.colColorNo')"
+          prop="color_no"
+          width="120"
+        >
           <template #default="{ row }">{{ row.color_no || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="dye_lot_no" label="缸号" width="130">
+        <el-table-column
+          :label="t('bulkColorApproval.index.colDyeLotNo')"
+          prop="dye_lot_no"
+          width="130"
+        >
           <template #default="{ row }">{{ row.dye_lot_no || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="120" align="center">
+        <el-table-column prop="status" :label="t('common.status')" width="120" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="applicant_name" label="申请人" width="100" />
-        <el-table-column label="操作" width="360" fixed="right">
+        <el-table-column
+          prop="applicant_name"
+          :label="t('bulkColorApproval.index.colApplicant')"
+          width="100"
+        />
+        <el-table-column :label="t('common.operation')" width="360" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link type="primary" @click="openDetail(row)">详情</el-button>
-            <el-button size="small" link type="primary" @click="handleCut(row)">剪样</el-button>
-            <el-button size="small" link type="primary" @click="handleSend(row)">送客户</el-button>
-            <el-button size="small" link type="success" @click="handleApprove(row)"
-              >批色通过</el-button
-            >
-            <el-button size="small" link type="warning" @click="handleRework(row)">回修</el-button>
-            <el-button size="small" link type="danger" @click="handleReject(row)">拒绝</el-button>
+            <el-button size="small" link type="primary" @click="openDetail(row)">
+              {{ t('common.detail') }}
+            </el-button>
+            <el-button size="small" link type="primary" @click="handleCut(row)">
+              {{ t('bulkColorApproval.index.buttonCut') }}
+            </el-button>
+            <el-button size="small" link type="primary" @click="handleSend(row)">
+              {{ t('bulkColorApproval.index.buttonSend') }}
+            </el-button>
+            <el-button size="small" link type="success" @click="handleApprove(row)">
+              {{ t('bulkColorApproval.index.buttonApprove') }}
+            </el-button>
+            <el-button size="small" link type="warning" @click="handleRework(row)">
+              {{ t('bulkColorApproval.index.buttonRework') }}
+            </el-button>
+            <el-button size="small" link type="danger" @click="handleReject(row)">
+              {{ t('bulkColorApproval.index.buttonReject') }}
+            </el-button>
             <el-button
               v-if="row.status === 'approved'"
               size="small"
               link
               type="warning"
               @click="handleDowngrade(row)"
-              >降级</el-button
             >
+              {{ t('bulkColorApproval.index.buttonDowngrade') }}
+            </el-button>
             <el-button
               v-if="['approved', 'pending', 'sampled'].includes(row.status)"
               size="small"
               link
               type="danger"
               @click="handleScrap(row)"
-              >报废</el-button
             >
+              {{ t('bulkColorApproval.index.buttonScrap') }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" title="新建批色申请" width="520px">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="t('bulkColorApproval.index.titleCreate')"
+      width="520px"
+    >
       <el-form :model="form" label-width="90px">
-        <el-form-item label="销售订单" required>
+        <el-form-item :label="t('bulkColorApproval.index.labelSalesOrder')" required>
           <el-input-number
             v-model="form.sales_order_id"
             :min="1"
             :precision="0"
             style="width: 100%"
-            placeholder="销售订单 ID（必填）"
+            :placeholder="t('bulkColorApproval.index.placeholderSalesOrderId')"
           />
         </el-form-item>
-        <el-form-item label="染缸批次" required>
+        <el-form-item :label="t('bulkColorApproval.index.labelDyeBatch')" required>
           <el-input-number
             v-model="form.dye_batch_id"
             :min="1"
             :precision="0"
             style="width: 100%"
-            placeholder="染缸批次 ID（必填）"
+            :placeholder="t('bulkColorApproval.index.placeholderDyeBatchId')"
           />
         </el-form-item>
-        <el-form-item label="客户" required>
+        <el-form-item :label="t('bulkColorApproval.index.labelCustomer')" required>
           <el-input-number
             v-model="form.customer_id"
             :min="1"
             :precision="0"
             style="width: 100%"
-            placeholder="客户 ID（必填）"
+            :placeholder="t('bulkColorApproval.index.placeholderCustomerId')"
           />
         </el-form-item>
-        <el-form-item label="色号">
-          <el-input v-model="form.color_no" placeholder="选填" />
+        <el-form-item :label="t('bulkColorApproval.index.colColorNo')">
+          <el-input
+            v-model="form.color_no"
+            :placeholder="t('bulkColorApproval.index.placeholderOptional')"
+          />
         </el-form-item>
-        <el-form-item label="缸号">
-          <el-input v-model="form.dye_lot_no" placeholder="选填" />
+        <el-form-item :label="t('bulkColorApproval.index.colDyeLotNo')">
+          <el-input
+            v-model="form.dye_lot_no"
+            :placeholder="t('bulkColorApproval.index.placeholderOptional')"
+          />
         </el-form-item>
-        <el-form-item label="批次号">
-          <el-input v-model="form.batch_no" placeholder="选填" />
+        <el-form-item :label="t('bulkColorApproval.index.labelBatchNo')">
+          <el-input
+            v-model="form.batch_no"
+            :placeholder="t('bulkColorApproval.index.placeholderOptional')"
+          />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="t('bulkColorApproval.index.labelRemarks')">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitCreate">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitCreate">{{
+          t('bulkColorApproval.index.buttonConfirm')
+        }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 批色详情（getBulkColorApproval 回源 + getBulkColorApprovalHistory 历史） -->
-    <el-dialog v-model="detailVisible" title="批色申请详情" width="720">
+    <el-dialog
+      v-model="detailVisible"
+      :title="t('bulkColorApproval.index.titleDetail')"
+      width="720"
+    >
       <el-descriptions v-if="detailRow" :column="2" border>
         <el-descriptions-item label="ID">{{ detailRow.id }}</el-descriptions-item>
-        <el-descriptions-item label="订单号">{{ detailRow.order_no }}</el-descriptions-item>
-        <el-descriptions-item label="色号">{{ detailRow.color_no }}</el-descriptions-item>
-        <el-descriptions-item label="缸号">{{ detailRow.dye_lot_no }}</el-descriptions-item>
-        <el-descriptions-item label="申请人">{{
+        <el-descriptions-item :label="t('bulkColorApproval.index.colOrderNo')">{{
+          detailRow.order_no
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('bulkColorApproval.index.colColorNo')">{{
+          detailRow.color_no
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('bulkColorApproval.index.colDyeLotNo')">{{
+          detailRow.dye_lot_no
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('bulkColorApproval.index.colApplicant')">{{
           detailRow.applicant_name || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{
+        <el-descriptions-item :label="t('common.status')">{{
           statusText(String(detailRow.status ?? ''))
         }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{
+        <el-descriptions-item :label="t('bulkColorApproval.index.labelRemarks')" :span="2">{{
           detailRow.notes || '-'
         }}</el-descriptions-item>
       </el-descriptions>
 
-      <h4 class="section-title">流转历史</h4>
+      <h4 class="section-title">{{ t('bulkColorApproval.index.sectionHistory') }}</h4>
       <el-table v-loading="historyLoading" :data="historyRows" border size="small" max-height="240">
         <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column prop="from_status" label="原状态" width="130">
+        <el-table-column
+          prop="from_status"
+          :label="t('bulkColorApproval.index.colFromStatus')"
+          width="130"
+        >
           <template #default="{ row }">{{ row.from_status || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="to_status" label="新状态" width="130">
+        <el-table-column
+          prop="to_status"
+          :label="t('bulkColorApproval.index.colToStatus')"
+          width="130"
+        >
           <template #default="{ row }">{{ row.to_status || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="operator_name" label="操作人" width="110">
+        <el-table-column
+          prop="operator_name"
+          :label="t('bulkColorApproval.index.colOperator')"
+          width="110"
+        >
           <template #default="{ row }">{{ row.operator_name || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="reason" label="原因" min-width="140" show-overflow-tooltip>
+        <el-table-column
+          prop="reason"
+          :label="t('bulkColorApproval.index.colReason')"
+          min-width="140"
+          show-overflow-tooltip
+        >
           <template #default="{ row }">{{ row.reason || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="created_at" label="时间" min-width="150">
+        <el-table-column
+          prop="created_at"
+          :label="t('bulkColorApproval.index.colCreatedAt')"
+          min-width="150"
+        >
           <template #default="{ row }">{{ row.created_at || '-' }}</template>
         </el-table-column>
       </el-table>
       <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button @click="detailVisible = false">{{ t('common.close') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 统计对话框（getBulkColorApprovalStatistics） -->
-    <el-dialog v-model="statsVisible" title="批色统计" width="520">
+    <el-dialog
+      v-model="statsVisible"
+      :title="t('bulkColorApproval.index.titleStatistics')"
+      width="520"
+    >
       <pre v-if="statsResult" class="stats-json">{{ statsResult }}</pre>
       <template #footer>
-        <el-button @click="statsVisible = false">关闭</el-button>
+        <el-button @click="statsVisible = false">{{ t('common.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -205,18 +291,18 @@ const form = reactive<{
 
 const statusText = (s: string) =>
   ({
-    draft: '草稿',
-    pending: '待审批',
-    cut: '已剪样',
-    sent_to_customer: '已送客户',
-    customer_approved: '客户批色通过',
-    customer_rejected: '客户批色拒绝',
-    approved: '已通过',
-    rejected: '已拒绝',
-    rework: '回修中',
-    downgraded: '已降级',
-    scrapped: '已报废',
-    cancelled: '已取消',
+    draft: t('bulkColorApproval.index.statusDraft'),
+    pending: t('bulkColorApproval.index.statusPending'),
+    cut: t('bulkColorApproval.index.statusCut'),
+    sent_to_customer: t('bulkColorApproval.index.statusSentToCustomer'),
+    customer_approved: t('bulkColorApproval.index.statusCustomerApproved'),
+    customer_rejected: t('bulkColorApproval.index.statusCustomerRejected'),
+    approved: t('bulkColorApproval.index.statusApproved'),
+    rejected: t('bulkColorApproval.index.statusRejected'),
+    rework: t('bulkColorApproval.index.statusRework'),
+    downgraded: t('bulkColorApproval.index.statusDowngraded'),
+    scrapped: t('bulkColorApproval.index.statusScrapped'),
+    cancelled: t('bulkColorApproval.index.statusCancelled'),
   })[s] ?? s;
 const statusTag = (s: BulkColorApprovalStatus | string) =>
   (
@@ -242,7 +328,9 @@ const loadList = async () => {
     const res = await getBulkColorApprovalList({ page: 1, page_size: 50 });
     list.value = unwrap(res.data);
   } catch (e) {
-    ElMessage.error(`加载批色列表失败: ${(e as Error).message}`);
+    ElMessage.error(
+      t('bulkColorApproval.index.messageFetchListFailed', { msg: (e as Error).message })
+    );
   } finally {
     loading.value = false;
   }
@@ -263,7 +351,7 @@ const handleCreate = () => {
 
 const submitCreate = async () => {
   if (!form.sales_order_id || !form.dye_batch_id || !form.customer_id) {
-    ElMessage.warning('销售订单、染缸批次、客户 ID 均为必填');
+    ElMessage.warning(t('bulkColorApproval.index.messageRequiredFields'));
     return;
   }
   submitting.value = true;
@@ -277,11 +365,13 @@ const submitCreate = async () => {
       batch_no: form.batch_no || undefined,
       remark: form.remark || undefined,
     });
-    ElMessage.success('批色申请已创建');
+    ElMessage.success(t('bulkColorApproval.index.messageCreateSuccess'));
     dialogVisible.value = false;
     await loadList();
   } catch (e) {
-    ElMessage.error(`创建失败: ${(e as Error).message}`);
+    ElMessage.error(
+      t('bulkColorApproval.index.messageCreateFailed', { msg: (e as Error).message })
+    );
   } finally {
     submitting.value = false;
   }
@@ -290,42 +380,64 @@ const submitCreate = async () => {
 const runAction = async (_row: BulkColorApproval, label: string, fn: () => Promise<unknown>) => {
   try {
     await fn();
-    ElMessage.success(`${label}成功`);
+    ElMessage.success(t('bulkColorApproval.index.messageActionSuccess', { action: label }));
     await loadList();
   } catch (e) {
-    ElMessage.error(`${label}失败: ${(e as Error).message}`);
+    ElMessage.error(
+      t('bulkColorApproval.index.messageActionFailed', {
+        action: label,
+        msg: (e as Error).message,
+      })
+    );
   }
 };
 
 const handleCut = (row: BulkColorApproval) =>
-  runAction(row, '剪样', () => cutBulkColorSample(row.id, { sample_length_m: 1 }));
+  runAction(row, t('bulkColorApproval.index.buttonCut'), () =>
+    cutBulkColorSample(row.id, { sample_length_m: 1 })
+  );
 const handleSend = (row: BulkColorApproval) =>
-  runAction(row, '送客户', () => sendBulkColorToCustomer(row.id));
+  runAction(row, t('bulkColorApproval.index.buttonSend'), () => sendBulkColorToCustomer(row.id));
 const handleApprove = (row: BulkColorApproval) =>
-  runAction(row, '批色通过', () => approveBulkColor(row.id, { feedback: '客户确认批色通过' }));
+  runAction(row, t('bulkColorApproval.index.buttonApprove'), () =>
+    approveBulkColor(row.id, { feedback: '客户确认批色通过' })
+  );
 const handleRework = (row: BulkColorApproval) =>
-  runAction(row, '回修', () => reworkBulkColor(row.id, { reject_reason: '批色回修' }));
+  runAction(row, t('bulkColorApproval.index.buttonRework'), () =>
+    reworkBulkColor(row.id, { reject_reason: '批色回修' })
+  );
 const handleReject = (row: BulkColorApproval) =>
-  runAction(row, '拒绝', async () => {
-    const { value } = await ElMessageBox.prompt('请输入拒绝原因', '批色拒绝', { inputValue: '' });
+  runAction(row, t('bulkColorApproval.index.buttonReject'), async () => {
+    const { value } = await ElMessageBox.prompt(
+      t('bulkColorApproval.index.messageRejectPrompt'),
+      t('bulkColorApproval.index.titleReject'),
+      { inputValue: '' }
+    );
     await rejectBulkColor(row.id, { reject_reason: value || '客户拒绝' });
   });
 
 // ===== 降级（downgradeBulkColor：仅 approved 态） =====
 const handleDowngrade = (row: BulkColorApproval) =>
-  runAction(row, '降级', async () => {
-    const { value } = await ElMessageBox.prompt('请输入降级原因', '批色降级', {
-      inputValidator: v => !!v.trim() || '降级原因必填',
-    });
+  runAction(row, t('bulkColorApproval.index.buttonDowngrade'), async () => {
+    const { value } = await ElMessageBox.prompt(
+      t('bulkColorApproval.index.messageDowngradePrompt'),
+      t('bulkColorApproval.index.titleDowngrade'),
+      {
+        inputValidator: v =>
+          !!v.trim() || t('bulkColorApproval.index.messageDowngradeReasonRequired'),
+      }
+    );
     await downgradeBulkColor(row.id, { reject_reason: value });
   });
 
 // ===== 报废（scrapBulkColor：approved/pending/sampled 态） =====
 const handleScrap = (row: BulkColorApproval) =>
-  runAction(row, '报废', async () => {
-    const { value } = await ElMessageBox.prompt('请输入报废原因', '批色报废', {
-      inputValidator: v => !!v.trim() || '报废原因必填',
-    });
+  runAction(row, t('bulkColorApproval.index.buttonScrap'), async () => {
+    const { value } = await ElMessageBox.prompt(
+      t('bulkColorApproval.index.messageScrapPrompt'),
+      t('bulkColorApproval.index.titleScrap'),
+      { inputValidator: v => !!v.trim() || t('bulkColorApproval.index.messageScrapReasonRequired') }
+    );
     await scrapBulkColor(row.id, { reject_reason: value });
   });
 
@@ -371,7 +483,7 @@ const openStatistics = async () => {
     const res = await getBulkColorApprovalStatistics();
     statsResult.value = JSON.stringify(res.data ?? res, null, 2);
   } catch (e) {
-    ElMessage.error((e as Error).message || '获取统计失败');
+    ElMessage.error((e as Error).message || t('bulkColorApproval.index.messageFetchStatsFailed'));
   } finally {
     statsLoading.value = false;
   }
