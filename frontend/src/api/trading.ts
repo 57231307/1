@@ -38,8 +38,19 @@ export const deleteTradingPurchaseContract = (id: number) =>
 export const approveTradingPurchaseContract = (id: number) =>
   request.post<ApiResponse<TradingPurchaseContract>>(`/purchase/purchase-contracts/${id}/approve`);
 
-export const executeTradingPurchaseContract = (id: number) =>
-  request.put<ApiResponse<TradingPurchaseContract>>(`/purchase/purchase-contracts/${id}/execute`);
+// 后端 purchase_contract_handler::execute_contract 的 Json<ExecuteContractRequestDto> 必填
+// execution_type / execution_amount / execution_date（related_bill_* / remark 为 Option，不采集即 None）。
+export interface ExecuteContractPayload {
+  execution_type: string;
+  execution_amount: number;
+  execution_date: string;
+}
+
+export const executeTradingPurchaseContract = (id: number, data: ExecuteContractPayload) =>
+  request.put<ApiResponse<TradingPurchaseContract>>(
+    `/purchase/purchase-contracts/${id}/execute`,
+    data
+  );
 
 // 采购价格
 export interface TradingPurchasePrice {
@@ -66,8 +77,11 @@ export const updateTradingPurchasePrice = (id: number, data: PurchasePriceUpdate
 export const deleteTradingPurchasePrice = (id: number) =>
   request.delete<ApiResponse<null>>(`/purchase/purchase-prices/${id}`);
 
+// 后端 approve_price 的 Json<ApprovePriceRequest> 必填 approved(bool)，批准动作固定 approved:true
 export const approveTradingPurchasePrice = (id: number) =>
-  request.post<ApiResponse<TradingPurchasePrice>>(`/purchase/purchase-prices/${id}/approve`);
+  request.post<ApiResponse<TradingPurchasePrice>>(`/purchase/purchase-prices/${id}/approve`, {
+    approved: true,
+  });
 
 // 销售合同
 export interface TradingSalesContract {
@@ -118,8 +132,11 @@ export const updateTradingSalesPrice = (id: number, data: SalesPriceUpdateReques
 export const deleteTradingSalesPrice = (id: number) =>
   request.delete<ApiResponse<null>>(`/sales/sales-prices/${id}`);
 
+// 后端 approve_price 的 Json<ApprovePriceRequest> 必填 approved(bool)，批准动作固定 approved:true
 export const approveTradingSalesPrice = (id: number) =>
-  request.post<ApiResponse<TradingSalesPrice>>(`/sales/sales-prices/${id}/approve`);
+  request.post<ApiResponse<TradingSalesPrice>>(`/sales/sales-prices/${id}/approve`, {
+    approved: true,
+  });
 
 // 销售退货
 export interface TradingSalesReturn {

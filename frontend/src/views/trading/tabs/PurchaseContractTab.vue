@@ -275,12 +275,43 @@ const approvePurchaseContract = async (row: TradingContract) => {
 
 const executePurchaseContract = async (row: TradingContract) => {
   try {
-    await ElMessageBox.confirm(
-      t('trading.purchaseContractTab.confirmExecuteMessage'),
+    const { value: executionType } = await ElMessageBox.prompt(
+      '请输入执行类型（receipt=入库 / payment=付款）',
       t('trading.purchaseContractTab.confirmTitle'),
-      { type: 'info' }
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        inputPlaceholder: '执行类型（必填）',
+        inputValidator: (v: string) => (v && v.trim() ? true : '执行类型不能为空'),
+      }
     );
-    await executeTradingContract(row.id, 'purchase');
+    const { value: amountInput } = await ElMessageBox.prompt(
+      `请输入合同 ${row.contract_no} 的执行金额`,
+      t('trading.purchaseContractTab.confirmTitle'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        inputPlaceholder: '执行金额（必填，大于 0）',
+        inputPattern: /^\d+(\.\d{1,2})?$/,
+        inputErrorMessage: '请输入有效金额（最多两位小数）',
+      }
+    );
+    const { value: executionDate } = await ElMessageBox.prompt(
+      '请输入执行日期',
+      t('trading.purchaseContractTab.confirmTitle'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        inputPlaceholder: '执行日期（YYYY-MM-DD，必填）',
+        inputPattern: /^\d{4}-\d{2}-\d{2}$/,
+        inputErrorMessage: '日期格式应为 YYYY-MM-DD',
+      }
+    );
+    await executeTradingContract(row.id, 'purchase', {
+      execution_type: executionType.trim(),
+      execution_amount: Number(amountInput),
+      execution_date: executionDate,
+    });
     ElMessage.success(t('trading.purchaseContractTab.messageExecuteSuccess'));
     fetchPurchaseContracts();
   } catch (e) {

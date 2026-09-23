@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface PurchaseContract {
   id: number;
@@ -97,8 +97,10 @@ export function cancelPurchaseContract(id: number, reason: string): Promise<ApiR
 }
 
 // 批次 94 P2-12 修复：补全采购合同导出接口（原缺失，导致 usePcProc 导出占位假成功）
-// 返回 blob，前端用 URL.createObjectURL 触发下载
-export function exportPurchaseContracts(params?: QueryParams): Promise<Blob> {
+// 返回 blob，前端用 URL.createObjectURL 触发下载。
+// 注：后端目前未注册 /purchase/purchase-contracts/export 路由，查询参数按同资源 list_contracts 的
+// ContractQuery（PurchaseContractQuery）定型，避免使用泛型 QueryParams 让任意键被静默丢弃。
+export function exportPurchaseContracts(params?: PurchaseContractQuery): Promise<Blob> {
   return request.get('/purchase/purchase-contracts/export', {
     params,
     responseType: 'blob',

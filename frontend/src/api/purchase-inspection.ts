@@ -68,9 +68,16 @@ export const updatePurchaseInspection = (id: number, data: Partial<PurchaseInspe
   request.put<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}`, data);
 
 // D14 Batch 5b：原 purchaseInspectionApi.complete 转为风格 B 函数
-// 完成检验
-export const completePurchaseInspection = (id: number) =>
-  request.post<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}/complete`);
+// 后端 purchase_inspection_handler::complete_inspection 的 Json<CompleteInspectionRequest>
+// 必填 pass_quantity / reject_quantity / inspection_result（snake_case，无 rename_all）。
+export interface CompleteInspectionPayload {
+  pass_quantity: number;
+  reject_quantity: number;
+  inspection_result: string;
+}
+
+export const completePurchaseInspection = (id: number, data: CompleteInspectionPayload) =>
+  request.post<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}/complete`, data);
 
 // D14 Batch 5b：原 purchaseInspectionApi.getItems 转为风格 B 函数
 // 获取检验明细

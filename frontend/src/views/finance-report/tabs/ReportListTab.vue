@@ -258,7 +258,7 @@ const handleGenerate = async () => {
     const params = { period: queryForm.period };
     switch (queryForm.report_type) {
       case 'balance_sheet':
-        res = await getBalanceSheet(params);
+        res = await getBalanceSheet();
         break;
       case 'income_statement':
         res = await getProfitStatement(params);

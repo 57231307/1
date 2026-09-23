@@ -36,13 +36,10 @@ export const getCapacitySummary = () =>
 export const getCapacityTrend = (params?: { days?: number; work_center_id?: number }) =>
   request.get<ApiResponse<CapacityTrend[]>>('/production/capacity/trend', { params });
 
-// D14 Batch 5b：原 capacityApi.listWorkCenters 转为风格 B 函数
-export const getWorkCenterList = (params?: {
-  page?: number;
-  page_size?: number;
-  status?: string;
-}) =>
-  request.get<ApiResponse<PageResult<WorkCenter>>>('/production/capacity/work-centers', { params });
+// 后端 capacity_handler::list_work_centers 无 Query<T> 提取器，任何 page/page_size/status 都会被
+// Axum 整体丢弃，故前端不再发送 params。
+export const getWorkCenterList = () =>
+  request.get<ApiResponse<PageResult<WorkCenter>>>('/production/capacity/work-centers');
 
 // D14 Batch 5b：原 capacityApi.getBottlenecks 转为风格 B 函数
 export const getCapacityBottlenecks = () =>

@@ -14,10 +14,10 @@ export interface AccountingPeriodEntity {
   updated_at?: string;
 }
 
-export function getAccountingPeriodList(params?: Record<string, unknown>) {
-  return request.get<ApiResponse<AccountingPeriodDetail[]>>('/finance/accounting-periods', {
-    params,
-  });
+// 后端 missing_handlers::get_accounting_periods 签名无 Query<T>，任何查询参数都会被 Axum 丢弃，
+// 故前端不再发送 params（原按年/状态筛选为假筛选，已删对应控件）。
+export function getAccountingPeriodList() {
+  return request.get<ApiResponse<AccountingPeriodDetail[]>>('/finance/accounting-periods');
 }
 
 export function getAccountingPeriod(id: number) {

@@ -95,8 +95,10 @@ export interface SubsidiaryLedgerQueryParams extends FinanceReportQueryParams {
   subject_code?: string;
 }
 
-export function getBalanceSheet(params?: FinanceReportQueryParams) {
-  return request.get<ApiResponse<ReportData>>('/finance/reports/balance-sheet', { params });
+// 后端 finance_report_handler::get_balance_sheet 无 Query<T> 提取器（资产负债表为全量快照，
+// 不接受期间/日期区间），前端 params 会被 Axum 丢弃，故不再发送。
+export function getBalanceSheet() {
+  return request.get<ApiResponse<ReportData>>('/finance/reports/balance-sheet');
 }
 
 export function getProfitStatement(params?: FinanceReportQueryParams) {

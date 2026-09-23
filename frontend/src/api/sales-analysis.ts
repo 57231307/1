@@ -62,9 +62,10 @@ export interface SalesTrendResult {
   [key: string]: unknown;
 }
 
-// D14 Batch 5b：原 salesAnalysisApi.getStats 转为风格 B 函数
-export const getSalesAnalysisStats = (params?: SalesStatsQueryParams) =>
-  request.get<ApiResponse<SalesStats>>('/crm/sales-analysis/stats', { params });
+// 后端 sales_analysis_handler::get_stats 无 Query<T> 提取器（概览统计固定全量），
+// 传入 period/日期等都会被 Axum 丢弃，故不再发送 params。
+export const getSalesAnalysisStats = () =>
+  request.get<ApiResponse<SalesStats>>('/crm/sales-analysis/stats');
 
 // D14 Batch 5b：原 salesAnalysisApi.getProductRanking 转为风格 B 函数
 export const getProductRanking = (params?: { type?: string }) =>

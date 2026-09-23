@@ -147,8 +147,36 @@ export function usePiProc(cb: PiCallbacks) {
   /** 完成检验 */
   const handleComplete = async (row: PurchaseInspection) => {
     try {
-      await ElMessageBox.confirm('确定要完成该检验单吗？', '提示', { type: 'warning' });
-      await completePurchaseInspection(row.id!);
+      const { value: passInput } = await ElMessageBox.prompt('请输入合格数量', '完成检验', {
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
+        inputPlaceholder: '合格数量（必填，≥0）',
+        inputPattern: /^\d+(\.\d+)?$/,
+        inputErrorMessage: '请输入有效的非负数字',
+      });
+      const { value: rejectInput } = await ElMessageBox.prompt('请输入不合格数量', '完成检验', {
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
+        inputPlaceholder: '不合格数量（必填，≥0）',
+        inputPattern: /^\d+(\.\d+)?$/,
+        inputErrorMessage: '请输入有效的非负数字',
+      });
+      const { value: resultInput } = await ElMessageBox.prompt(
+        '请输入质检结论（pass / fail / partial）',
+        '完成检验',
+        {
+          confirmButtonText: '确认',
+          cancelButtonText: '取消',
+          inputPlaceholder: '质检结论（必填）',
+          inputPattern: /^(pass|fail|partial)$/,
+          inputErrorMessage: '只能填 pass / fail / partial',
+        }
+      );
+      await completePurchaseInspection(row.id!, {
+        pass_quantity: Number(passInput),
+        reject_quantity: Number(rejectInput),
+        inspection_result: resultInput,
+      });
       msg.success('operationSuccess');
       await cb.fetchData();
     } catch (error) {

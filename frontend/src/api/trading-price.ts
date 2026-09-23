@@ -59,7 +59,13 @@ export const deleteTradingPrice = (id: number, type: 'purchase' | 'sales') =>
     ? request.delete<ApiResponse<null>>(`/purchase/purchase-prices/${id}`)
     : request.delete<ApiResponse<null>>(`/sales/sales-prices/${id}`);
 
+// 后端 approve_price 的 Json<ApprovePriceRequest> 必填 approved(bool)；本函数用于「批准」动作，
+// 故固定发送 approved:true（approved=false 会被后端拒绝并提示走专用拒绝接口）。
 export const approveTradingPrice = (id: number, type: 'purchase' | 'sales') =>
   type === 'purchase'
-    ? request.post<ApiResponse<TradingPrice>>(`/purchase/purchase-prices/${id}/approve`)
-    : request.post<ApiResponse<TradingPrice>>(`/sales/sales-prices/${id}/approve`);
+    ? request.post<ApiResponse<TradingPrice>>(`/purchase/purchase-prices/${id}/approve`, {
+        approved: true,
+      })
+    : request.post<ApiResponse<TradingPrice>>(`/sales/sales-prices/${id}/approve`, {
+        approved: true,
+      });

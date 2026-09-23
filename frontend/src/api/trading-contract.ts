@@ -61,8 +61,28 @@ export const approveTradingContract = (id: number, type: 'purchase' | 'sales') =
     ? request.post<ApiResponse<TradingContract>>(`/purchase/purchase-contracts/${id}/approve`)
     : request.post<ApiResponse<TradingContract>>(`/sales/sales-contracts/${id}/approve`);
 
-// 后端 execute 端点为 PUT（purchase.rs / sales.rs 的 execute_contract 均挂 put）
-export const executeTradingContract = (id: number, type: 'purchase' | 'sales') =>
+// 后端 execute 端点为 PUT，两侧 DTO 不同：
+//   采购 purchase_contract_handler::ExecuteContractRequestDto：execution_type/execution_amount/execution_date 必填
+//   销售 sales_contract_handler::ExecuteSalesContractRequestDto：execution_type/execution_amount 必填（无日期）
+// related_bill_type/related_bill_id/remark 为 Option，本表单不采集即 None；两分支各自只发后端真实读取的键。
+export interface ExecuteContractPayload {
+  execution_type: string;
+  execution_amount: number;
+  execution_date?: string;
+}
+
+export const executeTradingContract = (
+  id: number,
+  type: 'purchase' | 'sales',
+  data: ExecuteContractPayload
+) =>
   type === 'purchase'
-    ? request.put<ApiResponse<TradingContract>>(`/purchase/purchase-contracts/${id}/execute`)
-    : request.put<ApiResponse<TradingContract>>(`/sales/sales-contracts/${id}/execute`);
+    ? request.put<ApiResponse<TradingContract>>(`/purchase/purchase-contracts/${id}/execute`, {
+        execution_type: data.execution_type,
+        execution_amount: data.execution_amount,
+        execution_date: data.execution_date,
+      })
+    : request.put<ApiResponse<TradingContract>>(`/sales/sales-contracts/${id}/execute`, {
+        execution_type: data.execution_type,
+        execution_amount: data.execution_amount,
+      });
