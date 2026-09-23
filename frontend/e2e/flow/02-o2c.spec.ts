@@ -12,6 +12,7 @@ import {
   genDyeLotNo,
   genPieceNo,
   ensureTestEntities,
+  seedFourDimStockIn,
   BASE_URL,
 } from './helpers';
 import { pickListArray } from './ui-helpers';
@@ -125,6 +126,11 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       id,
       'ensureTestEntities/2-1 未建出报价单（ctx.quotationId 缺失），本用例前置失败'
     ).toBeTruthy();
+    if (id === undefined) {
+      throw new Error(
+        'ensureTestEntities/2-1 未建出报价单（ctx.quotationId 缺失），本用例前置失败'
+      );
+    }
 
     // 前置：先驱动到 approved。2-1 创建的报价单是 draft，直接 submit 属合法转换，
     // 后端小额自批（金额 < 10 万）会直接返回 200，负例就失去了前提。

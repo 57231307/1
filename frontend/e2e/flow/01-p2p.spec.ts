@@ -103,6 +103,9 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       id,
       '前置步骤未创建采购订单（ctx.purchaseOrderId 缺失），本用例前置失败而非跳过'
     ).toBeTruthy();
+    if (id === undefined) {
+      throw new Error('前置步骤未创建采购订单（ctx.purchaseOrderId 缺失），本用例前置失败而非跳过');
+    }
 
     // 对已审批的订单再次提交 → 应拒绝
     await verifyIllegalTransition(page, '/purchase/orders', id, 'submit');
@@ -460,23 +463,29 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       `应付单 ${ctx.apInvoiceId} 未付金额应大于 0，实际 ${inv.unpaid_amount}`
     ).toBeGreaterThan(0);
 
-    // 先创建付款申请（POST /ap/payment-requests），再用 request_id 创建付款
-    const payReq = await apiCall<{ data?: { id?: number } }>(page, 'POST', '/ap/payment-requests', {
-      supplier_id: ctx.supplierId,
-      request_date: new Date().toISOString().split('T')[0],
-      payment_type: 'purchase',
-      payment_method: 'bank_transfer',
-      request_amount: applyAmount,
-      currency: 'CNY',
-      exchange_rate: 1,
-      items: [
-        {
-          invoice_id: ctx.apInvoiceId,
-          apply_amount: applyAmount,
-          notes: 'E2E 1-8 付款申请明细',
-        },
-      ],
-    });
+    // 后端 create_request 返回 ApiResponse::success_with_message(to_value(Model))，
+    // data 即 ap_payment_request::Model（含 id）⇒ apiCall 已把 data 剥一层，泛型填载荷本身
+    const payReq = await apiCall<{ id?: number; request_no?: string }>(
+      page,
+      'POST',
+      '/ap/payment-requests',
+      {
+        supplier_id: ctx.supplierId,
+        request_date: new Date().toISOString().split('T')[0],
+        payment_type: 'purchase',
+        payment_method: 'bank_transfer',
+        request_amount: applyAmount,
+        currency: 'CNY',
+        exchange_rate: 1,
+        items: [
+          {
+            invoice_id: ctx.apInvoiceId,
+            apply_amount: applyAmount,
+            notes: 'E2E 1-8 付款申请明细',
+          },
+        ],
+      }
+    );
     const requestId = payReq?.data?.id;
     expect(
       requestId,
@@ -533,7 +542,9 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       '前置步骤未创建采购订单（ctx.purchaseOrderId 缺失），本用例前置失败而非跳过'
     ).toBeTruthy();
 
-    const order = await apiCallRaw<{ status: string; order_status?: string }>(
+    // 后端 purchase_order_handler.rs:103 get_order 返回 ApiResponse<to_value(PurchaseOrder Model)>，
+    // data 即订单对象、含 id（models/purchase_order.rs:22 pub id: i32）
+    const order = await apiCallRaw<{ id?: number; status: string; order_status?: string }>(
       page,
       'GET',
       `/purchase/orders/${id}`

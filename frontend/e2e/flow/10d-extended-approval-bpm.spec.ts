@@ -128,7 +128,8 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       `审批任务应可从 data 数组定位，实际响应：${JSON.stringify(logs).slice(0, 200)}`
     ).toBe(true);
     expect(typeof logs.total, '应回显 total 供分页追溯').toBe('number');
-    expect(logs.total_pages, '应回显 total_pages').toBeTypeOf('number');
+    // Playwright 的 number 接收者 matcher 集不含 toBeTypeOf，改用与上一行一致的 typeof 判据
+    expect(typeof logs.total_pages, '应回显 total_pages').toBe('number');
     for (const row of logs.data) {
       expect(row.id, `任务 ID 应为正整数，实际 ${row.id}`).toBeGreaterThan(0);
       expect(

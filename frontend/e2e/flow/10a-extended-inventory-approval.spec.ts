@@ -43,6 +43,9 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
       ctx.salesOrderId,
       'ensureTestEntities 未建出销售订单（ctx.salesOrderId 缺失），本用例前置失败'
     ).toBeTruthy();
+    if (ctx.salesOrderId === undefined) {
+      throw new Error('ensureTestEntities 未建出销售订单（ctx.salesOrderId 缺失），本用例前置失败');
+    }
 
     // 尝试发货（如果大货批色未审批，应被阻断）
     const blocked = await verifyBulkColorDeliveryBlock(page, ctx.salesOrderId);

@@ -119,7 +119,7 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
 
     // 2. 等待详情 API 响应完成（GET /color-cards/1）
     await page.waitForResponse(
-      resp => resp.url().match(/\/color-cards\/\d+/) && resp.request().method() === 'GET',
+      resp => /\/color-cards\/\d+/.test(resp.url()) && resp.request().method() === 'GET',
       { timeout: 30_000 }
     );
 

@@ -244,7 +244,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   test('3-8 创建 BOM', async ({ page }) => {
     const ctx = getCtx();
     const productIds = ctx.productIds.length > 0 ? ctx.productIds : [1, 2];
-    const result = await apiCall<{ id?: number }>(page, 'POST', '/boms', {
+    const result = await apiCall<{ bom?: { id?: number } }>(page, 'POST', '/boms', {
       product_id: productIds[0],
       version: 1,
       is_default: true,
@@ -255,7 +255,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         unit: '米',
       })),
     });
-    ctx.bomId = result.data?.bom?.id ?? result.data?.id;
+    // 后端 create_bom → ApiResponse<BomDetailResponse>，data 形状为 { bom:{id}, items:[…] }，
+    // 顶层无 id 字段（bom_handler.rs:87-90 结构体 / :138 返回），故只读 data.bom.id
+    ctx.bomId = result.data?.bom?.id;
     expect(ctx.bomId).toBeDefined();
   });
 
