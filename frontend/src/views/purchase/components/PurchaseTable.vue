@@ -145,7 +145,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { PurchaseOrder } from '@/api/purchase';
+import type { PurchaseOrder, PurchaseOrderQueryParams } from '@/api/purchase';
 // Batch 468 P0-S28：引入权限码常量，与后端 purchase-orders 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 // 行内操作的状态门槛以后端真实词表值为比较对象：
@@ -165,14 +165,6 @@ const EDITABLE_STATUSES: PurchaseOrderStatus[] = [
 const isEditableStatus = (status: string) =>
   EDITABLE_STATUSES.includes(status as PurchaseOrderStatus);
 
-interface QueryParams {
-  page: number;
-  page_size: number;
-  keyword: string;
-  supplier_id: number | undefined;
-  status: string;
-}
-
 const props = defineProps<{
   // 采购订单列表
   orders: PurchaseOrder[];
@@ -181,7 +173,7 @@ const props = defineProps<{
   // 总数
   total: number;
   // 查询参数（分页相关，由父组件管理，子组件通过 emit('update:queryParams') 回写）
-  queryParams: QueryParams;
+  queryParams: PurchaseOrderQueryParams;
   // 查看
   onView: (row: PurchaseOrder) => void;
   // 审批
@@ -210,11 +202,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   // 整体回写查询参数（父组件监听此事件并 Object.assign 到自己的 queryParams）
-  (e: 'update:queryParams', queryParams: QueryParams): void;
+  (e: 'update:queryParams', queryParams: PurchaseOrderQueryParams): void;
 }>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localQueryParams = ref<QueryParams>({ ...props.queryParams });
+const localQueryParams = ref<PurchaseOrderQueryParams>({ ...props.queryParams });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false;

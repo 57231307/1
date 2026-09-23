@@ -62,22 +62,6 @@ export interface UserInfo {
   readonly permissions?: readonly string[];
 }
 
-export interface QueryParams {
-  page?: number;
-  page_size?: number;
-  keyword?: string;
-  order_by?: string;
-  order_dir?: 'asc' | 'desc';
-  status?: string | number;
-  supplier_name?: string;
-  customer_name?: string;
-  invoice_no?: string;
-  voucher_no?: string;
-  date_range?: string[];
-  supplier_id?: number;
-  customer_id?: number;
-}
-
 export type StatusType = 'active' | 'inactive' | 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid';
