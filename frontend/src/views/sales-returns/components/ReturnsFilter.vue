@@ -21,11 +21,12 @@
           clearable
           @change="handleSearch"
         >
-          <el-option :label="t('salesReturns.filter.statusDraft')" value="DRAFT" />
-          <el-option :label="t('salesReturns.filter.statusSubmitted')" value="SUBMITTED" />
-          <el-option :label="t('salesReturns.filter.statusApproved')" value="APPROVED" />
-          <el-option :label="t('salesReturns.filter.statusRejected')" value="REJECTED" />
-          <el-option :label="t('salesReturns.filter.statusCompleted')" value="COMPLETED" />
+          <el-option
+            v-for="st in SALES_RETURN_STATUSES"
+            :key="st"
+            :label="t(salesReturnStatusLabelKey(st) ?? '')"
+            :value="st"
+          />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('salesReturns.filter.labelCustomer')">
@@ -58,6 +59,7 @@
 import { reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { CustomerOption } from '../composables/useSr';
+import { SALES_RETURN_STATUSES, salesReturnStatusLabelKey } from '@/utils/sales-return-status';
 
 const { t } = useI18n({ useScope: 'global' });
 

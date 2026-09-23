@@ -136,7 +136,11 @@ import { computed, reactive, ref, watch } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { getStatusType, formatAmount } from '../composables/srFmts';
+import { formatAmount } from '../composables/srFmts';
+import {
+  salesReturnStatusLabelKey,
+  salesReturnStatusTagType as getStatusType,
+} from '@/utils/sales-return-status';
 import {
   getSalesReturnItemList,
   createSalesReturnItem,
@@ -289,16 +293,10 @@ const handleDeleteItem = async (row: SalesReturnItem) => {
   }
 };
 
-/** 获取退货状态标签（i18n 响应式） */
+/** 退货状态标签：词表与标签键的单一来源在 utils/sales-return-status.ts */
 const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    DRAFT: t('salesReturns.detailDialog.statusDraft'),
-    SUBMITTED: t('salesReturns.detailDialog.statusSubmitted'),
-    APPROVED: t('salesReturns.detailDialog.statusApproved'),
-    REJECTED: t('salesReturns.detailDialog.statusRejected'),
-    COMPLETED: t('salesReturns.detailDialog.statusCompleted'),
-  };
-  return map[status] || status;
+  const key = salesReturnStatusLabelKey(status);
+  return key ? t(key) : '';
 };
 
 const onClose = (val: boolean) => {

@@ -67,7 +67,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import type { SalesReturn } from '@/api/sales-return';
-import { getStatusType } from '../composables/srFmts';
+import {
+  salesReturnStatusLabelKey,
+  salesReturnStatusTagType as getStatusType,
+} from '@/utils/sales-return-status';
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-returns 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 
@@ -87,15 +90,9 @@ const emit = defineEmits<{
   (e: 'execute', row: SalesReturn): void;
 }>();
 
-/** 获取退货状态标签（i18n 响应式） */
+/** 退货状态标签：词表与标签键的单一来源在 utils/sales-return-status.ts */
 const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    DRAFT: t('salesReturns.table.statusDraft'),
-    SUBMITTED: t('salesReturns.table.statusSubmitted'),
-    APPROVED: t('salesReturns.table.statusApproved'),
-    REJECTED: t('salesReturns.table.statusRejected'),
-    COMPLETED: t('salesReturns.table.statusCompleted'),
-  };
-  return map[status] || status;
+  const key = salesReturnStatusLabelKey(status);
+  return key ? t(key) : '';
 };
 </script>
