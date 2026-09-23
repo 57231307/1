@@ -125,7 +125,7 @@ export async function mockBusinessApi(context: BrowserContext): Promise<void> {
 }
 
 /**
- * 一站式应用 auth 初始化（smoke + bpm/crm/finance/quality/purchase-ext/enhanced 共用）
+ * 一站式应用 auth 初始化（smoke + bpm/crm/finance/quality/enhanced/purchase 共用）
  *
  * P2.4 去 mock 化（2026-09-09）：
  * 实现从 mock 换为真实 API 登录，根除 55 spec 的 mock 依赖。

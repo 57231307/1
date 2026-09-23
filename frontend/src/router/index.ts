@@ -379,17 +379,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '质量管理', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
-        path: 'purchase-ext',
-        name: 'PurchaseExt',
-        component: () => import('@/views/purchase-ext/index.vue'),
-        meta: {
-          title: '采购扩展',
-          icon: 'ShoppingCart',
-          permission: 'purchases:read',
-          requiresAuth: true,
-        },
-      },
-      {
         path: 'crm',
         name: 'CRM',
         component: () => import('@/views/crm/index.vue'),

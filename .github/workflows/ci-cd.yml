@@ -2563,7 +2563,7 @@ jobs:
             SHARD_LIMIT=1800
           else
             # 分片 30-35: testMatch 内、但分片命令从不传的全部目录 ——
-            # enhanced/purchase/sales/purchase-ext/quality/finance/crm/bpm（119 用例）
+            # enhanced/purchase/sales/quality/finance/crm/bpm（119 用例）
             # + e2e/ 根级 3 spec（12）+ ai/dashboard/fabric/inventory/mrp/production/
             # quotations/system（71）= 实测用例数见本分片实跑结果。
             # 这批此前在 CI 里从未执行过：playwright.config.ts 的 chromium testMatch
@@ -2575,7 +2575,7 @@ jobs:
             # 去 mock 时保留的旧函数名，函数体已是真实 API 登录，不构成 mock 依赖。
             # 切 6 片的依据：按 4 片每片约 50 用例，会逼近 flow 分片曾暴露的时长上限
             # （run 35722450943 有 7 个分片撞满 1500s），6 片约 34 用例/片。
-            SPEC_TARGETS="e2e/enhanced/ e2e/purchase/ e2e/sales/ e2e/purchase-ext/ e2e/quality/ e2e/finance/ e2e/crm/ e2e/bpm/ e2e/ai/ e2e/dashboard/ e2e/fabric/ e2e/inventory/ e2e/mrp/ e2e/production/ e2e/quotations/ e2e/system/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"
+            SPEC_TARGETS="e2e/enhanced/ e2e/purchase/ e2e/sales/ e2e/quality/ e2e/finance/ e2e/crm/ e2e/bpm/ e2e/ai/ e2e/dashboard/ e2e/fabric/ e2e/inventory/ e2e/mrp/ e2e/production/ e2e/quotations/ e2e/system/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"
             SHARD_TOTAL=6
             SHARD_NO=$((SHARD - 29))
             SHARD_LIMIT=1800

@@ -205,12 +205,6 @@
             index="/purchase-receipt"
             >{{ t('layout.menu.purchaseReceipt') }}</el-menu-item
           >
-          <el-menu-item
-            v-if="canAccessMenu('/purchase-ext')"
-            role="menuitem"
-            index="/purchase-ext"
-            >{{ t('layout.menu.purchaseExt') }}</el-menu-item
-          >
           <el-menu-item v-if="canAccessMenu('/supplier')" role="menuitem" index="/supplier">{{
             t('layout.menu.supplier')
           }}</el-menu-item>
@@ -1032,7 +1026,6 @@ const visibleSubMenu = computed<Record<string, boolean>>(() => {
     purchase: [
       '/purchase',
       '/purchase-receipt',
-      '/purchase-ext',
       '/supplier',
       '/supplier-evaluation',
       '/purchase-contract',

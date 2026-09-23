@@ -69,10 +69,6 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await visitPage(page, '/purchase-contract');
     await verifyTable(page);
   });
-  test('采购扩展 /purchase-ext', async ({ page }) => {
-    await visitPage(page, '/purchase-ext');
-    await verifyTable(page);
-  });
   test('采购检验 /purchase-inspection', async ({ page }) => {
     await visitPage(page, '/purchase-inspection');
     await verifyTable(page);

@@ -94,7 +94,6 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'purchase-price', route: '/purchase-price', domain: 'purchase', tier: 'A', listApi: '/purchase-prices' },
   { id: 'purchase-inspection', route: '/purchase-inspection', domain: 'purchase', tier: 'B', listApi: '/purchase/inspections' },
   { id: 'purchase-return', route: '/purchase-return', domain: 'purchase', tier: 'B', listApi: '/purchase/returns' },
-  { id: 'purchase-ext', route: '/purchase-ext', domain: 'purchase', tier: 'C', noCreate: true },
   { id: 'supplier-evaluation', route: '/supplier-evaluation', domain: 'purchase', tier: 'A', listApi: '/supplier-evaluations' },
 
   // ===== crm 域 =====
