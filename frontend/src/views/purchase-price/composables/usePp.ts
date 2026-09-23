@@ -9,12 +9,19 @@ import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { FormInstance } from 'element-plus';
 import { msg } from '@/utils/message';
-import { createPurchasePrice, updatePurchasePrice, type PurchasePrice } from '@/api/purchase-price';
+import {
+  createPurchasePrice,
+  updatePurchasePrice,
+  type PurchasePrice,
+  type CreatePurchasePricePayload,
+  type UpdatePurchasePricePayload,
+} from '@/api/purchase-price';
 import { getSupplierList, type Supplier } from '@/api/supplier';
 import { getProductList, type Product } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
+import { i18n } from '@/i18n';
 
 /**
  * 采购价格 composable
@@ -72,12 +79,48 @@ export function usePp() {
 
   // 表单验证规则
   const formRules = {
-    product_id: [{ required: true, message: '请选择产品', trigger: 'change' }],
-    supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
-    price: [{ required: true, message: '请输入采购价格', trigger: 'blur' }],
-    currency: [{ required: true, message: '请选择币种', trigger: 'change' }],
-    unit: [{ required: true, message: '请选择单位', trigger: 'change' }],
-    effective_date: [{ required: true, message: '请选择生效日期', trigger: 'change' }],
+    product_id: [
+      {
+        required: true,
+        message: i18n.global.t('purchasePrice.validation.productRequired'),
+        trigger: 'change',
+      },
+    ],
+    supplier_id: [
+      {
+        required: true,
+        message: i18n.global.t('purchasePrice.validation.supplierRequired'),
+        trigger: 'change',
+      },
+    ],
+    price: [
+      {
+        required: true,
+        message: i18n.global.t('purchasePrice.validation.priceRequired'),
+        trigger: 'blur',
+      },
+    ],
+    currency: [
+      {
+        required: true,
+        message: i18n.global.t('purchasePrice.validation.currencyRequired'),
+        trigger: 'change',
+      },
+    ],
+    unit: [
+      {
+        required: true,
+        message: i18n.global.t('purchasePrice.validation.unitRequired'),
+        trigger: 'change',
+      },
+    ],
+    effective_date: [
+      {
+        required: true,
+        message: i18n.global.t('purchasePrice.validation.effectiveDateRequired'),
+        trigger: 'change',
+      },
+    ],
   };
 
   // 懒加载标记
@@ -144,14 +187,33 @@ export function usePp() {
     Object.assign(formData, row);
   };
 
-  /** 提交表单 */
+  /**
+   * 提交表单
+   * 新建：构造 CreatePurchasePricePayload（对齐后端 CreatePurchasePriceInput），
+   *       不发送 unit/price_type/remarks（后端不接受，unit/price_type 为 schema gap）
+   * 编辑：构造 UpdatePurchasePricePayload（对齐后端 UpdatePriceRequest），
+   *       仅可更新 price（须为字符串）/expiry_date；其余字段为 schema gap
+   */
   const handleSubmitForm = async (): Promise<boolean> => {
     try {
       await formRef.value?.validate();
       if (formData.id) {
-        await updatePurchasePrice(formData.id, formData);
+        const updatePayload: UpdatePurchasePricePayload = {
+          price: String(formData.price),
+          expiry_date: formData.expiry_date || undefined,
+        };
+        await updatePurchasePrice(formData.id, updatePayload);
       } else {
-        await createPurchasePrice(formData);
+        const createPayload: CreatePurchasePricePayload = {
+          product_id: formData.product_id as number,
+          supplier_id: formData.supplier_id as number,
+          price: formData.price,
+          currency: formData.currency || undefined,
+          min_order_qty: formData.min_order_qty || undefined,
+          effective_date: formData.effective_date || undefined,
+          expiry_date: formData.expiry_date || undefined,
+        };
+        await createPurchasePrice(createPayload);
       }
       msg.success('saveSuccess');
       await getList();

@@ -42,6 +42,33 @@ export interface PurchasePriceQueryParams {
   page_size?: number;
 }
 
+/**
+ * 创建采购价格请求（严格对齐 backend CreatePurchasePriceInput，
+ * services/purchase_price_service.rs:25）。
+ * 不含 unit/price_type：后端 CreatePurchasePriceInput 不接受这些字段（使用数据库默认值），
+ * 前端 UI 的 unit/price_type 选择框属待补 schema gap。
+ */
+export interface CreatePurchasePricePayload {
+  product_id: number;
+  supplier_id: number;
+  price: number;
+  currency?: string;
+  min_order_qty?: number;
+  effective_date?: string;
+  expiry_date?: string;
+}
+
+/**
+ * 更新采购价格请求（严格对齐 backend UpdatePriceRequest，
+ * handlers/purchase_price_handler.rs:33）。
+ * 后端 price 是 String（非数值），必须以字符串形式提交（否则 Serde 反序列化失败）。
+ */
+export interface UpdatePurchasePricePayload {
+  price: string;
+  expiry_date?: string;
+  status?: string;
+}
+
 export function getPurchasePriceList(
   params?: PurchasePriceQueryParams
   // 后端 purchase_price_handler::list_prices 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
@@ -54,15 +81,15 @@ export function getPurchasePrice(id: number): Promise<ApiResponse<PurchasePrice>
 }
 
 export function createPurchasePrice(
-  data: Partial<PurchasePrice>
+  data: CreatePurchasePricePayload
 ): Promise<ApiResponse<PurchasePrice>> {
   return request.post('/purchase/purchase-prices', data);
 }
 
 export function updatePurchasePrice(
   id: number,
-  data: Partial<PurchasePrice>
-): Promise<ApiResponse<PurchasePrice>> {
+  data: UpdatePurchasePricePayload
+): Promise<ApiResponse<null>> {
   return request.put(`/purchase/purchase-prices/${id}`, data);
 }
 
