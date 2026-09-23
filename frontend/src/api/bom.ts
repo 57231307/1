@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface Bom {
   id: number;
@@ -24,9 +24,16 @@ export interface BomItem {
   loss_rate: number;
 }
 
-export interface BomQueryParams extends QueryParams {
-  product_name?: string;
+/**
+ * GET /boms 查询参数，对齐后端 handlers/bom_handler.rs::ListBomsQuery
+ * （无 rename_all，字段保持 snake_case；全部 Option）。
+ */
+export interface BomQueryParams {
+  product_id?: number;
   status?: string;
+  is_default?: boolean;
+  page?: number;
+  page_size?: number;
 }
 
 // D14 Batch 5b：原 bomApi.list 转为风格 B 函数

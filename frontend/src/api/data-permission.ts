@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 // 自定义条件类型
 export type CustomCondition = Record<string, string | number | boolean | null>;
@@ -47,15 +47,11 @@ export interface ScopeType {
   description: string;
 }
 
-// 数据权限查询参数
-export interface DataPermissionQueryParams extends QueryParams {
-  user_id?: number;
-  resource_type?: string;
-  department_id?: number;
-}
-
-export const getDataPermissionList = (params?: DataPermissionQueryParams) =>
-  request.get<ApiResponse<DataPermission[]>>('/data-permissions', { params });
+// GET /data-permissions：后端 handlers/data_permission_handler.rs::list_data_permissions
+// 仅带 State + AuthContext 提取器，无 Query<T>，不读取任何查询参数（此前
+// DataPermissionQueryParams 的 user_id/resource_type/department_id 全被 Axum 静默丢弃）。
+export const getDataPermissionList = () =>
+  request.get<ApiResponse<DataPermission[]>>('/data-permissions');
 
 export const getDataPermission = (id: number) =>
   request.get<ApiResponse<DataPermission>>(`/data-permissions/${id}`);

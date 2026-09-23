@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams, PageResult } from '@/types/api';
+import type { ApiResponse, PageResult } from '@/types/api';
 
 export interface CustomerTag {
   id: number;
@@ -159,19 +159,51 @@ export interface ShippingAddress {
   is_default: boolean;
 }
 
-export interface PoolQueryParams extends QueryParams {
-  keyword?: string;
-  customer_type?: string;
+/**
+ * GET /crm/pool 查询参数，对齐后端 handlers/crm_pool_handler.rs::PoolQueryParams
+ * （无 rename_all，snake_case；全部 Option）。
+ */
+export interface PoolQueryParams {
+  page?: number;
+  page_size?: number;
   source?: string;
-  days_min?: number;
-  days_max?: number;
+  industry?: string;
+  keyword?: string;
 }
 
-export interface AssignmentQueryParams extends QueryParams {
-  customer_id?: number;
-  assigned_to?: number;
-  assign_type?: string;
-  date_range?: string[];
+/**
+ * GET /crm/assignments/history 查询参数，对齐后端
+ * services/assignment_history_service.rs::AssignmentHistoryQuery
+ * （无 rename_all，snake_case；全部 Option）。
+ */
+export interface AssignmentQueryParams {
+  lead_id?: number;
+  user_id?: number;
+  action?: string;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  page_size?: number;
+}
+
+/**
+ * GET /crm/customers/{id}/follow-ups 查询参数，对齐后端 handlers/crm_handler.rs::FollowUpQuery
+ * （仅分页两字段）。
+ */
+export interface FollowUpListQuery {
+  page?: number;
+  page_size?: number;
+}
+
+/**
+ * GET /crm/customers/enhanced 查询参数，对齐后端
+ * handlers/crm_customer_handler.rs::CustomerQueryParams（snake_case；全部 Option）。
+ */
+export interface CustomerListQuery {
+  page?: number;
+  page_size?: number;
+  status?: string;
+  keyword?: string;
 }
 
 // 客户列表（含标签、联系人）
@@ -267,7 +299,7 @@ export const getSalesUserList = () => request.get<ApiResponse<SalesUser[]>>('/cr
 
 // 跟进记录
 // D14 Batch 5b：原 crmEnhancedApi.getFollowUps 转为风格 B 函数
-export const getFollowUpList = (customerId: number, params?: QueryParams) =>
+export const getFollowUpList = (customerId: number, params?: FollowUpListQuery) =>
   request.get<ApiResponse<PageResult<FollowUpRecord>>>(`/crm/customers/${customerId}/follow-ups`, {
     params,
   });
@@ -312,7 +344,7 @@ export const deleteCustomerContact = (customerId: number, contactId: number) =>
 // ===== 客户增强 CRUD（端点 /crm/customers/enhanced，与 customer.ts 的 /customers 是不同域）=====
 
 // D14 Batch 5b：原 crmEnhancedApi.getCustomerList 转为风格 B 函数
-export const getCustomerList = (params?: QueryParams) =>
+export const getCustomerList = (params?: CustomerListQuery) =>
   request.get<ApiResponse<PageResult<CustomerWithTags>>>('/crm/customers/enhanced', { params });
 
 // D14 Batch 5b：原 crmEnhancedApi.createCustomer 转为风格 B 函数

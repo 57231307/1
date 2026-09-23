@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface Budget {
   id: number;
@@ -22,8 +22,21 @@ export const BUDGET_STATUS = {
   rejected: { label: '已拒绝', type: 'danger' },
 };
 
+/**
+ * GET /budgets 查询参数：后端 handlers/budget_management_handler.rs::list_budgets
+ * 以 `Query<serde_json::Value>` 接收，并仅读取 params.get("page") /
+ * params.get("page_size") / params.get("item_type") / params.get("status")
+ * 四个键（其余键被静默丢弃）。故此处仅列这四个真实生效字段。
+ */
+export interface BudgetListQuery {
+  page?: number;
+  page_size?: number;
+  item_type?: string;
+  status?: string;
+}
+
 export function getBudgetList(
-  params?: QueryParams
+  params?: BudgetListQuery
 ): Promise<ApiResponse<{ items: Budget[]; total: number }>> {
   return request.get('/budgets', { params });
 }
@@ -107,13 +120,8 @@ export interface BudgetVersion {
   updated_at: string;
 }
 
-export interface BudgetItemListQuery extends QueryParams {
-  item_type?: string;
-  status?: string;
-}
-
 export function getBudgetItemList(
-  params?: BudgetItemListQuery
+  params?: BudgetListQuery
 ): Promise<ApiResponse<{ items: BudgetItem[]; total: number; page: number; page_size: number }>> {
   return request.get('/budgets', { params });
 }

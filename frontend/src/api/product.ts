@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface Product {
   id: number;
@@ -40,12 +40,29 @@ export interface ProductCategory {
   children?: ProductCategory[];
 }
 
-export interface ProductQueryParams extends QueryParams {
+/**
+ * GET /products 查询参数，对齐后端 handlers/product_handler.rs::ProductListQuery
+ * （无 rename_all，snake_case；全部 Option）。
+ */
+export interface ProductQueryParams {
+  page?: number;
+  page_size?: number;
   category_id?: number;
   /** 后端 handlers/product_handler.rs ProductListQuery.status（products.status 为小写枚举） */
   status?: 'active' | 'inactive';
   /** 后端 ProductListQuery.search：名称/编码模糊匹配 */
   search?: string;
+}
+
+/**
+ * GET /products/export 查询参数，对齐后端 product_handler.rs::ExportProductsQuery
+ * （无 page/page_size；含敏感导出审批令牌 download_token）。
+ */
+export interface ExportProductsQuery {
+  category_id?: number;
+  status?: string;
+  search?: string;
+  download_token?: string;
 }
 
 /** 产品导入结果 */
@@ -171,5 +188,5 @@ export const importProducts = (file: File) => {
 };
 
 // D14 Batch 5b：原 productApi.export 转为风格 B 函数
-export const exportProducts = (params?: ProductQueryParams) =>
+export const exportProducts = (params?: ExportProductsQuery) =>
   request.get<Blob>('/products/export', { params, responseType: 'blob' });

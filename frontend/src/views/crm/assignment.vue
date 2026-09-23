@@ -306,7 +306,13 @@ const fetchAssignableCustomers = async () => {
   assignLoading.value = true;
   try {
     // P1-5：调用真实 API 获取可分配客户（公海池）
-    const res = await getCustomerPoolList({ page: 1, page_size: 50 });
+    // 后端 crm_pool_handler.rs::PoolQueryParams 读取 keyword，此前该搜索框的值从未随请求发出
+    // （只发 page/page_size），导致筛选框存在却永无效果——现补齐绑定。
+    const res = await getCustomerPoolList({
+      page: 1,
+      page_size: 50,
+      keyword: assignQuery.keyword || undefined,
+    });
     assignableCustomers.value = (res.data?.data ?? res.data) as AssignableCustomer[];
   } catch (error) {
     const err = error as Error;
