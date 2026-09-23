@@ -46,6 +46,11 @@ async function createThenApiDelete(
   const resp = await apiCall<{ id?: number }>(page, 'POST', c.createApi, c.payload);
   const id = resp?.data?.id;
   expect(id, `[31b-${c.label}] 创建响应无 id（创建 API 异常）`).toBeTruthy();
+  // 前置 id 缺失即失败：显式判空收窄为 number，供下方 preDelete/deleteApi/getApi 传参
+  // （禁止用非空断言 ! 蒙过）。
+  if (id === undefined) {
+    throw new Error(`[31b-${c.label}] 前置失败：创建未返回 id，无法继续删除/回读`);
+  }
   console.log(`[31b-${c.label}] 创建成功 id=${id}`);
 
   // 1) 列表回读确认存在（诊断，按 DelCase.listKey 声明的单一形状读取；不匹配则记明确契约告警）

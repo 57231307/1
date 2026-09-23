@@ -148,12 +148,19 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
   test('53-0 装置：创建二级审批人用户（admin 角色）', async ({ page }) => {
     await loginViaUI(page);
     // 幂等：先查是否已存在
-    const list = await apiCall<{ items?: Array<{ id: number; username: string }> }>(
+    const usersData = await apiCallRaw<{ users?: Array<{ id: number; username: string }> }>(
       page,
       'GET',
       `/users?page=1&page_size=100&keyword=${APPROVER.username}`
     );
-    const exists = list?.items?.find(u => u.username === APPROVER.username);
+    // 后端 list_users（user_handler.rs:355-398）→ ApiResponse<UserListResponse>，
+    // data = { users, total }（不是 items），单一形状直读 data.users。
+    const userList = pickListArray<{ id: number; username: string }>(
+      usersData,
+      'users',
+      '53 用户列表 /users'
+    );
+    const exists = userList.find(u => u.username === APPROVER.username);
     if (exists) {
       approverUserId = exists.id;
       console.log('[53-0] 审批人已存在 id=', exists.id);
@@ -330,15 +337,23 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
 
   test('53-3 敏感角色白名单：非敏感角色变更无需审批（:20 对照）', async ({ page }) => {
     await loginViaUI(page);
-    const roles = await apiCall<{ items?: Array<{ id: number; code: string }> }>(
+    // 后端 list_roles（role_handler.rs:113-145）→ ApiResponse<RoleListResponse>，
+    // data = { roles, total }（不是 items），与同文件 :274 一致按 data.roles 单一读取。
+    const rolesData = await apiCallRaw<{ roles?: Array<{ id: number; code: string }> }>(
       page,
       'GET',
       '/roles?page=1&page_size=50'
     );
-    const normal = roles?.items?.find(
+    const roleList = pickListArray<{ id: number; code: string }>(
+      rolesData,
+      'roles',
+      '53 角色列表 /roles'
+    );
+    const normal = roleList.find(
       r => !['admin', 'super_admin', 'finance', 'finance_admin'].includes(r.code)
     );
     expect(normal, '无非敏感角色可对照').toBeTruthy();
+    if (!normal) throw new Error('无非敏感角色可对照');
     const r = await apiCallExpectFail(page, 'POST', '/role-change-approvals', {
       change_type: 'assign_role',
       target_role_id: normal.id,

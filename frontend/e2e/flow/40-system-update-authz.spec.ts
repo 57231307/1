@@ -17,8 +17,15 @@ test.describe('P5.10 系统更新授权', () => {
     // 后端真实注册路径是 /system-update/current-version（routes/mod.rs:254-257），
     // 原写法打的 /system-update/version 根本没注册 → 恒 404，本用例此前是靠 apiCall
     // 抛错前的宽容值勉强取版本号，等于没验证任何东西。
-    const versionResp = await apiCall(page, 'GET', '/system-update/current-version');
-    const version = versionResp?.version ?? versionResp?.data?.version;
+    // 后端 get_version（system_update_handler.rs:159-166）返回 ApiResponse<VersionResponse>，
+    // VersionResponse { version: String }，载荷在 data，故读 versionResp.data.version
+    // （原 `?.version ?? ?.data?.version` 是双重包装）。
+    const versionResp = await apiCall<{ version?: string }>(
+      page,
+      'GET',
+      '/system-update/current-version'
+    );
+    const version = versionResp.data?.version;
     expect(
       version,
       `admin 查询版本应拿到非空 version，实际响应=${JSON.stringify(versionResp)}`
@@ -28,11 +35,16 @@ test.describe('P5.10 系统更新授权', () => {
   test('admin 可查询更新状态', async ({ page }) => {
     await loginViaUI(page);
 
-    // 后端真实路径 /system-update/update-status（原 /status 与 init 路由冲突已重命名）
-    const statusResp = await apiCall(page, 'GET', '/system-update/update-status');
+    // 后端 get_update_status（system_update_handler.rs:170-179）返回 ApiResponse<UpdateStatusResponse>，
+    // UpdateStatusResponse { is_updating: bool, ... }，载荷在 data，读 statusResp.data.is_updating
+    // （原 `?.is_updating ?? ?.data?.is_updating` 是双重包装）。
+    const statusResp = await apiCall<{ is_updating: boolean }>(
+      page,
+      'GET',
+      '/system-update/update-status'
+    );
     expect(statusResp).toBeTruthy();
-    // 状态应包含 is_updating 字段
-    const isUpdating = statusResp?.is_updating ?? statusResp?.data?.is_updating;
+    const isUpdating = statusResp.data.is_updating;
     expect(typeof isUpdating).toBe('boolean');
   });
 

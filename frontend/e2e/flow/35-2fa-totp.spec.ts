@@ -36,6 +36,10 @@ test.describe('P5.5 2FA TOTP', () => {
       secret,
       `GET /auth/totp/setup 未返回 secret（响应：${JSON.stringify(setupResp).slice(0, 200)}），TOTP 前置失败`
     ).toBeTruthy();
+    // secret 缺失即前置失败：显式判空收窄为 string 再传给 generateTotp（禁止非空断言 !）。
+    if (!secret) {
+      throw new Error('TOTP 前置失败：/auth/totp/setup 未返回 secret');
+    }
 
     // 2. 生成 TOTP
     const totpCode = generateTotp(secret);

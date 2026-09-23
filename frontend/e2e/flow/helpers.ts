@@ -243,12 +243,13 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     if (fabricCat) {
       ctx.productCategoryIds.push(fabricCat.id);
     } else {
-      const created = await apiCall<{ data?: { id?: number } }>(
-        page,
-        'POST',
-        '/product-categories',
-        { name: '面料', code: 'FABRIC' }
-      );
+      // create（crud_macro.rs:89-134 define_crud_handlers!）返回 ApiResponse<to_value(item)>，
+      // 载荷即实体本身，故泛型参数写载荷 { id?: number }，读 created.data.id；
+      // 原写法把 { data?: { id?: number } } 当作载荷传入，于是再读 .data.id 造成双重包装。
+      const created = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
+        name: '面料',
+        code: 'FABRIC',
+      });
       if (!created.data?.id) {
         throw new Error(`[ensureTestEntities] 产品分类创建未返回 id: ${JSON.stringify(created)}`);
       }
@@ -1895,12 +1896,15 @@ export async function verifyWeightConversion(
   meters: number,
   gramWeight: number,
   width: number
-): number {
+): Promise<number> {
   // 公斤 = 米 * 克重 * 幅宽 / 1000 / 100 (克→公斤, cm→m)
   return Number(((meters * gramWeight * width) / 100000).toFixed(2));
 }
 
-export async function verifyNetWeight(grossWeight: number, paperTubeWeight: number): number {
+export async function verifyNetWeight(
+  grossWeight: number,
+  paperTubeWeight: number
+): Promise<number> {
   return Number((grossWeight - paperTubeWeight).toFixed(2));
 }
 

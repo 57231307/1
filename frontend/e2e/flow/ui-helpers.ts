@@ -1179,10 +1179,13 @@ export async function uiToggleStatus(
     await page.waitForTimeout(2000);
 
     // 验证状态文本
-    const rowText = await targetRow.textContent().catch(e => {
-      console.warn(`[uiToggleStatus] 行文本读取失败: ${(e as Error).message}`);
-      return '';
-    });
+    // textContent() 的解析结果本身可为 null（元素存在但无文本），与读取失败的
+    // catch 分支同样归一为空串哨兵，两者都使下面的 includes 判定为 false（切换未确认）。
+    const rowText =
+      (await targetRow.textContent().catch(e => {
+        console.warn(`[uiToggleStatus] 行文本读取失败: ${(e as Error).message}`);
+        return '';
+      })) ?? '';
     if (rowText.includes(expectedStatusAfter)) {
       console.log(`[uiToggleStatus] ✅ ${entityLabel} 状态切换成功，当前=${expectedStatusAfter}`);
       return true;

@@ -162,6 +162,11 @@ async function ensureShardUserViaUI(): Promise<void> {
   const rolesResp = await loginCtx.get(`${API_PREFIX}/roles?page=1&page_size=50`, {
     headers: { 'X-CSRF-Token': csrfCookie.value, 'X-Requested-With': 'XMLHttpRequest' },
   });
+  interface RoleRow {
+    id: number;
+    name?: string;
+    code?: string;
+  }
   const rolesBody = (await rolesResp.json().catch(e => {
     console.warn(
       `[assignPermissionList] 权限分配失败（不影响角色账号创建）:`,
@@ -169,16 +174,18 @@ async function ensureShardUserViaUI(): Promise<void> {
     );
     return null;
   })) as {
-    data?: { items?: Array<{ id: number; name?: string }> } | Array<{ id: number; name?: string }>;
+    // 后端 role_handler.rs:113-145 list_roles → ApiResponse<RoleListResponse>，
+    // data = { roles: RoleResponse[], total }（既非裸数组也非 items）。
+    data?: { roles?: RoleRow[] };
   } | null;
-  // 响应结构：data.roles[]（role.name 为中文如"管理员"，code 才是 'admin'）
-  const roleData = rolesBody?.data as
-    | { roles?: Array<{ id: number; name?: string; code?: string }> }
-    | Array<{ id: number; name?: string; code?: string }>
-    | undefined;
-  const roleList = Array.isArray(roleData)
-    ? roleData
-    : roleData?.roles || (rolesBody?.data as { items?: typeof roleData })?.items || [];
+  const roleList = rolesBody?.data?.roles;
+  if (!Array.isArray(roleList)) {
+    await loginCtx.dispose();
+    throw new Error(
+      `分片账号创建失败：/roles 响应缺 data.roles（后端契约 role_handler.rs:113-145），` +
+        `实际片段=${JSON.stringify(rolesBody).slice(0, 200)}`
+    );
+  }
   const adminRole = roleList.find(r => r.code === 'admin' || r.name === 'admin');
   if (!adminRole) {
     await loginCtx.dispose();
@@ -449,9 +456,13 @@ export async function ensureRoleUsers(): Promise<void> {
     ...BLACKLIST_TEST_ROLES.filter(r => !existingCodes.has(r.code)),
   ];
 
-  const roleCodeToId = new Map<string, number>(
-    existingRoles.map(r => [r.code, r.id]).filter(([code]) => code)
-  );
+  // 原写法 new Map<string, number>(existingRoles.map(r => [r.code, r.id]).filter(([code]) => code))
+  // 因 r.code: string | undefined 把元组放宽成 (string|number)[]，Map 构造报 TS2769；
+  // 收紧为：仅纳入 code 存在的行（与既有 existingCodes 口径一致）。
+  const roleCodeToId = new Map<string, number>();
+  for (const r of existingRoles) {
+    if (r.code) roleCodeToId.set(r.code, r.id);
+  }
 
   for (const role of allRolesToEnsure) {
     const createRoleResp = await requestWithCsrfRecovery(
