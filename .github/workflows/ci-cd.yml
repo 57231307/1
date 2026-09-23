@@ -440,6 +440,10 @@ jobs:
         working-directory: frontend
         run: node scripts/route-snapshot.mjs --check
 
+      - name: 接口键名编造棘轮（前端类型键必须存在于后端字段全集，只准降不准升）
+        working-directory: frontend
+        run: node scripts/check-api-keys.mjs
+
       - name: 上传报告
         if: always()
         uses: actions/upload-artifact@v4

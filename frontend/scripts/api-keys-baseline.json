@@ -1,0 +1,520 @@
+{
+  "total": 255,
+  "files": {
+    "frontend/src/api/account-subject.ts": {
+      "count": 2,
+      "keys": [
+        "AccountSubject.subject_type",
+        "AccountSubjectEntity.balance_type"
+      ]
+    },
+    "frontend/src/api/ai-extend.ts": {
+      "count": 2,
+      "keys": [
+        "ProcessOptCandidate.case_id",
+        "QualityTopIssue.issue"
+      ]
+    },
+    "frontend/src/api/ap.ts": {
+      "count": 11,
+      "keys": [
+        "APAgingReportData.current",
+        "APAgingReportData.days_30",
+        "APAgingReportData.days_60",
+        "APAgingReportData.days_90",
+        "APAgingReportData.over_90",
+        "APDailyReportData.verification_amount",
+        "APDailyReportData.verification_count",
+        "APMonthlyReportData.verification_amount",
+        "APMonthlyReportData.verification_count",
+        "APReconciliation.difference_amount",
+        "APReconciliation.total_payment_amount"
+      ]
+    },
+    "frontend/src/api/ar-reconciliation-enhanced.ts": {
+      "count": 6,
+      "keys": [
+        "CustomerConfirmation.confirm_amount",
+        "CustomerConfirmation.confirm_status",
+        "CustomerConfirmation.disputed_amount",
+        "DisputeRecord.confirmation_id",
+        "DisputeRecord.dispute_amount",
+        "DisputeRecord.dispute_type"
+      ]
+    },
+    "frontend/src/api/ar-reconciliation.ts": {
+      "count": 2,
+      "keys": [
+        "ArReconciliationEntity.total_adjustment",
+        "ReconciliationDetail.source_date"
+      ]
+    },
+    "frontend/src/api/ar.ts": {
+      "count": 10,
+      "keys": [
+        "ARAgingReport.age_0_30",
+        "ARAgingReport.age_180_plus",
+        "ARAgingReport.age_31_60",
+        "ARAgingReport.age_61_90",
+        "ARAgingReport.age_91_180",
+        "ARStatisticsReport.total_received_amount",
+        "ARStatisticsReport.total_unreceived_amount",
+        "ARStatisticsReport.total_unverified_amount",
+        "ARStatisticsReport.total_verified_amount",
+        "ARVerification.verification_amount"
+      ]
+    },
+    "frontend/src/api/asset.ts": {
+      "count": 4,
+      "keys": [
+        "FixedAsset.asset_code",
+        "FixedAsset.custodian",
+        "FixedAsset.purchase_amount",
+        "FixedAsset.useful_life_months"
+      ]
+    },
+    "frontend/src/api/audit.ts": {
+      "count": 3,
+      "keys": [
+        "RecordPrintEventParams.recordCount",
+        "RecordPrintEventParams.resourceId",
+        "RecordPrintEventParams.resourceType"
+      ]
+    },
+    "frontend/src/api/bi.ts": {
+      "count": 1,
+      "keys": [
+        "PivotResult.cells"
+      ]
+    },
+    "frontend/src/api/bpm-enhanced.ts": {
+      "count": 9,
+      "keys": [
+        "ProcessDefinition.form_schema",
+        "ProcessNode.assignee_type",
+        "ProcessNode.assignee_value",
+        "ProcessNode.next_nodes",
+        "ProcessTemplate.icon",
+        "ProcessTemplate.process_definition",
+        "ProcessTemplate.template_key",
+        "ProcessTemplate.usage_count",
+        "ProcessVersion.change_log"
+      ]
+    },
+    "frontend/src/api/budget.ts": {
+      "count": 1,
+      "keys": [
+        "Budget.budget_no"
+      ]
+    },
+    "frontend/src/api/business-trace.ts": {
+      "count": 1,
+      "keys": [
+        "TraceSnapshotCreateDto.snapshot_type"
+      ]
+    },
+    "frontend/src/api/capacity.ts": {
+      "count": 10,
+      "keys": [
+        "CapacityRow.bottleneck",
+        "CapacityRow.load_status",
+        "CapacitySummary.avg_load_rate",
+        "CapacitySummary.bottleneck_count",
+        "CapacitySummary.busy_count",
+        "CapacitySummary.normal_count",
+        "CapacitySummary.overload_count",
+        "CapacityTrend.actual_hours",
+        "CapacityTrend.capacity_hours",
+        "CapacityTrend.planned_hours"
+      ]
+    },
+    "frontend/src/api/color-price.ts": {
+      "count": 1,
+      "keys": [
+        "TagType.default"
+      ]
+    },
+    "frontend/src/api/crm-enhanced.ts": {
+      "count": 11,
+      "keys": [
+        "AssignmentRecord.assign_type",
+        "AssignmentRecord.assigned_from",
+        "AssignmentRecord.assigned_from_name",
+        "AssignmentRecord.assigned_to_name",
+        "Customer360.follow_ups",
+        "Customer360.rfm_score",
+        "Customer360.shipping_addresses",
+        "CustomerWithTags.last_follow_up",
+        "RfmScore.monetary",
+        "RfmScore.recency",
+        "SalesUser.active"
+      ]
+    },
+    "frontend/src/api/crm.ts": {
+      "count": 4,
+      "keys": [
+        "CustomerSummary.credit_used",
+        "Lead.assigned_to_name",
+        "Lead.company",
+        "Opportunity.probability"
+      ]
+    },
+    "frontend/src/api/currency.ts": {
+      "count": 9,
+      "keys": [
+        "CreateCurrencyRequest.isBase",
+        "CreateExchangeRateRequest.effectiveDate",
+        "CreateExchangeRateRequest.fromCurrency",
+        "CreateExchangeRateRequest.toCurrency",
+        "Currency.isActive",
+        "Currency.isBase",
+        "ExchangeRate.effectiveDate",
+        "ExchangeRate.fromCurrency",
+        "ExchangeRate.toCurrency"
+      ]
+    },
+    "frontend/src/api/customer-credit.ts": {
+      "count": 1,
+      "keys": [
+        "CustomerCredit.valid_to"
+      ]
+    },
+    "frontend/src/api/dashboard.ts": {
+      "count": 27,
+      "keys": [
+        "Activity.time",
+        "DashboardOverview.customerCount",
+        "DashboardOverview.fabricCount",
+        "DashboardOverview.inventoryTotal",
+        "DashboardOverview.lowStockProducts",
+        "DashboardOverview.monthOrders",
+        "DashboardOverview.monthSales",
+        "DashboardOverview.pendingOrders",
+        "DashboardOverview.recentActivities",
+        "DashboardOverview.todayOrders",
+        "InventoryStatistics.categoryDistribution",
+        "InventoryStatistics.totalItems",
+        "InventoryStatistics.totalValue",
+        "InventoryStatistics.warehouseCount",
+        "LowStockAlert.alertLevel",
+        "LowStockAlert.currentQuantity",
+        "LowStockAlert.minQuantity",
+        "LowStockAlert.productCode",
+        "LowStockAlert.productId",
+        "LowStockAlert.productName",
+        "LowStockAlert.warehouseId",
+        "LowStockAlert.warehouseName",
+        "SalesStatistics.avgOrderAmount",
+        "SalesStatistics.customerCount",
+        "SalesStatistics.orderCount",
+        "SalesStatistics.totalAmount",
+        "SalesStatistics.trends"
+      ]
+    },
+    "frontend/src/api/dye-recipe.ts": {
+      "count": 5,
+      "keys": [
+        "DyeRecipe.process_parameters",
+        "DyeRecipe.recipe_items",
+        "RecipeItem.dosage",
+        "RecipeItem.dosage_unit",
+        "RecipeItem.recipe_id"
+      ]
+    },
+    "frontend/src/api/email.ts": {
+      "count": 3,
+      "keys": [
+        "EmailStatistics.today_sent",
+        "EmailStatistics.total_failed",
+        "EmailStatistics.total_sent"
+      ]
+    },
+    "frontend/src/api/export-approvals.ts": {
+      "count": 1,
+      "keys": [
+        "ExportApprovalRequest.approval_context"
+      ]
+    },
+    "frontend/src/api/fabric.ts": {
+      "count": 2,
+      "keys": [
+        "Fabric.fabric_code",
+        "Fabric.image_url"
+      ]
+    },
+    "frontend/src/api/finance-report.ts": {
+      "count": 5,
+      "keys": [
+        "BalanceSheetItem.parent_code",
+        "CashFlowItem.parent_code",
+        "FinanceReportQueryParams.company_id",
+        "ProfitStatementItem.parent_code",
+        "SubsidiaryLedgerItem.counterpart"
+      ]
+    },
+    "frontend/src/api/finance.ts": {
+      "count": 1,
+      "keys": [
+        "AccountSubject.is_leaf"
+      ]
+    },
+    "frontend/src/api/financial-analysis.ts": {
+      "count": 15,
+      "keys": [
+        "FinancialIndicator.actualValue",
+        "FinancialIndicator.createdAt",
+        "FinancialIndicator.indicatorName",
+        "FinancialIndicator.targetValue",
+        "FinancialReport.createdAt",
+        "FinancialReport.createdBy",
+        "FinancialReport.executedAt",
+        "FinancialReport.reportName",
+        "FinancialReport.reportType",
+        "FinancialReport.updatedAt",
+        "FinancialTrend.indicator",
+        "ReportQueryParams.reportType",
+        "TrendQueryParams.endDate",
+        "TrendQueryParams.indicator",
+        "TrendQueryParams.startDate"
+      ]
+    },
+    "frontend/src/api/five-dimension.ts": {
+      "count": 12,
+      "keys": [
+        "FiveDimensionQuery.dimensionId",
+        "FiveDimensionQuery.endDate",
+        "FiveDimensionQuery.startDate",
+        "FiveDimensionStats.dimensionId",
+        "FiveDimensionStats.dimensionName",
+        "FiveDimensionStats.stats",
+        "SearchQueryParams.dimensionId",
+        "StatsQueryParams.dimensionId",
+        "StatsQueryParams.endDate",
+        "StatsQueryParams.startDate",
+        "WarehouseDistributionItem.kg",
+        "WarehouseDistributionItem.meters"
+      ]
+    },
+    "frontend/src/api/fund.ts": {
+      "count": 7,
+      "keys": [
+        "FundAccount.account_code",
+        "FundAccount.current_balance",
+        "FundAccountStatusType.active",
+        "FundAccountStatusType.frozen",
+        "FundAccountStatusType.inactive",
+        "FundTransferRecord.from_account_name",
+        "FundTransferRecord.to_account_name"
+      ]
+    },
+    "frontend/src/api/greige-fabric.ts": {
+      "count": 1,
+      "keys": [
+        "GreigeFabric.fabric_code"
+      ]
+    },
+    "frontend/src/api/inventory.ts": {
+      "count": 9,
+      "keys": [
+        "InventoryQueryParams.low_stock",
+        "InventoryReservation.expire_date",
+        "InventoryReservation.reserved_quantity",
+        "InventoryTransferItem.from_location",
+        "InventoryTransferItem.to_location",
+        "ReservationData.expire_date",
+        "StockAdjustmentData.adjustment_quantity",
+        "TransferData.from_location",
+        "TransferData.to_location"
+      ]
+    },
+    "frontend/src/api/mrp.ts": {
+      "count": 1,
+      "keys": [
+        "MrpCalculateInput.demand_date"
+      ]
+    },
+    "frontend/src/api/notification.ts": {
+      "count": 7,
+      "keys": [
+        "AnnouncementResult.deliveredCount",
+        "CreateAnnouncementRequest.userIds",
+        "Notification.businessId",
+        "Notification.businessType",
+        "Notification.createdAt",
+        "Notification.notificationType",
+        "Notification.readAt"
+      ]
+    },
+    "frontend/src/api/oa-announcement.ts": {
+      "count": 1,
+      "keys": [
+        "OaAnnouncement.notified_count"
+      ]
+    },
+    "frontend/src/api/omni-audit.ts": {
+      "count": 5,
+      "keys": [
+        "AuditStats.avg_duration_ms",
+        "AuditStats.today_events",
+        "AuditStats.top_resources",
+        "AuditStats.top_users",
+        "AuditStats.total_events"
+      ]
+    },
+    "frontend/src/api/product.ts": {
+      "count": 2,
+      "keys": [
+        "ProductColor.price_adjustment",
+        "ProductColor.rgb"
+      ]
+    },
+    "frontend/src/api/purchase-contract.ts": {
+      "count": 1,
+      "keys": [
+        "PurchaseContract.delivery_terms"
+      ]
+    },
+    "frontend/src/api/purchase-inspection.ts": {
+      "count": 7,
+      "keys": [
+        "PurchaseInspectionItem.defect_reason",
+        "PurchaseInspectionItem.expected_quantity",
+        "PurchaseInspectionItem.failed_quantity",
+        "PurchaseInspectionItem.inspected_quantity",
+        "PurchaseInspectionItem.passed_quantity",
+        "PurchaseInspectionQueryParams.inspection_date_from",
+        "PurchaseInspectionQueryParams.inspection_date_to"
+      ]
+    },
+    "frontend/src/api/purchase.ts": {
+      "count": 3,
+      "keys": [
+        "PurchaseOrderQueryParams.order_date_from",
+        "PurchaseOrderQueryParams.order_date_to",
+        "PurchaseReceiptItem.expected_quantity"
+      ]
+    },
+    "frontend/src/api/quality.ts": {
+      "count": 2,
+      "keys": [
+        "Defect.processed",
+        "Defect.processed_by"
+      ]
+    },
+    "frontend/src/api/report-enhanced.ts": {
+      "count": 6,
+      "keys": [
+        "CreateTemplateRequest.chart_type",
+        "ReportTemplate.chart_type",
+        "ReportTemplateField.display_label",
+        "ReportTemplateField.field_key",
+        "ReportTemplateField.visible",
+        "UpdateTemplateRequest.chart_type"
+      ]
+    },
+    "frontend/src/api/sales-analysis.ts": {
+      "count": 10,
+      "keys": [
+        "SalesStats.activeCustomers",
+        "SalesStats.amountTrend",
+        "SalesStats.customerTrend",
+        "SalesStats.grossProfitRate",
+        "SalesStats.monthAmount",
+        "SalesStats.monthOrders",
+        "SalesStats.orderTrend",
+        "SalesStats.profitTrend",
+        "SalesTrendResult.growth_rate",
+        "SalesTrendResult.profit"
+      ]
+    },
+    "frontend/src/api/sales-contract.ts": {
+      "count": 3,
+      "keys": [
+        "SalesContract.contract_date",
+        "SalesContract.delivery_terms",
+        "SalesContract.return_items"
+      ]
+    },
+    "frontend/src/api/sales-price.ts": {
+      "count": 1,
+      "keys": [
+        "PricingStrategyRule.strategy_id"
+      ]
+    },
+    "frontend/src/api/sales.ts": {
+      "count": 5,
+      "keys": [
+        "SalesDeliveryQueryParams.delivery_date_from",
+        "SalesDeliveryQueryParams.delivery_date_to",
+        "SalesOrderQueryParams.order_date_from",
+        "SalesOrderQueryParams.order_date_to",
+        "SalesStatisticsData.trends"
+      ]
+    },
+    "frontend/src/api/scheduling.ts": {
+      "count": 11,
+      "keys": [
+        "ConflictItem.order_no_1",
+        "ConflictItem.order_no_2",
+        "ConflictItem.overlap_end",
+        "ConflictItem.overlap_start",
+        "ConflictItem.task_id_1",
+        "ConflictItem.task_id_2",
+        "ScheduleTask.conflict_details",
+        "ScheduleTask.duration_hours",
+        "ScheduleTask.has_conflict",
+        "SchedulingParams.optimization_target",
+        "SchedulingParams.priority_mode"
+      ]
+    },
+    "frontend/src/api/security.ts": {
+      "count": 4,
+      "keys": [
+        "SecurityStats.lockedAccounts",
+        "SecurityStats.securityAlerts",
+        "SecurityStats.todayFailures",
+        "SecurityStats.todayLogins"
+      ]
+    },
+    "frontend/src/api/supplier-evaluation.ts": {
+      "count": 3,
+      "keys": [
+        "EvaluationRecord.evaluator_name",
+        "EvaluationRecord.total_score",
+        "SupplierScore.rank"
+      ]
+    },
+    "frontend/src/api/supplier.ts": {
+      "count": 1,
+      "keys": [
+        "SupplierEvaluationResult.evaluator_name"
+      ]
+    },
+    "frontend/src/api/system-governance.ts": {
+      "count": 2,
+      "keys": [
+        "CreatePermissionDelegationPayload.permission_codes",
+        "PermissionDelegation.permission_codes"
+      ]
+    },
+    "frontend/src/api/user-profile.ts": {
+      "count": 2,
+      "keys": [
+        "ChangePasswordRequest.confirm_password",
+        "UserProfile.role_names"
+      ]
+    },
+    "frontend/src/api/user.ts": {
+      "count": 1,
+      "keys": [
+        "User.role_names"
+      ]
+    },
+    "frontend/src/api/voucher.ts": {
+      "count": 1,
+      "keys": [
+        "VoucherEntity.posted_by_name"
+      ]
+    }
+  }
+}
