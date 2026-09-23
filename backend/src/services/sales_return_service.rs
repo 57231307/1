@@ -135,6 +135,7 @@ struct ReturnItemAmounts {
 ///
 /// 面料四维口径下，退货再入库必须命中真实的色号/缸号/批次行，故这三列必须由系统
 /// 从权威来源回写，禁止落 DB 默认空串（空串会命中空色号行，造成库存错配）。
+#[derive(Debug)]
 struct ReturnItemTrace {
     color_no: String,
     dye_lot_no: String,
