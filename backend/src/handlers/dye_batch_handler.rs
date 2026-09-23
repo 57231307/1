@@ -5,10 +5,10 @@ use axum::{
     extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
+use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, DateTimeWithTimeZone, EntityTrait,
-    FromQueryResult, JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
-    Set,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, FromQueryResult, JoinType,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set,
 };
 use serde::{Deserialize, Serialize};
 
