@@ -27,17 +27,24 @@ export interface APInvoice {
   created_at: string;
 }
 
+// 行由 GET /ap/payments 直接序列化 SeaORM 实体 models/ap_payment.rs（无 JOIN、无 DTO 改名）：
+// 状态列是 payment_status，词表 REGISTERED/CONFIRMED（models/status/general.rs:37/40）。
+// 原先声明的 supplier_name 与 status 在响应里不存在 ⇒ 供应商列恒空、确认按钮门控恒真。
+export type APPaymentStatus = 'REGISTERED' | 'CONFIRMED';
+
 export interface APPayment {
   id: number;
   payment_no: string;
   supplier_id: number;
-  supplier_name: string;
   payment_date: string;
   payment_amount: number;
   payment_method: string;
-  status: string;
+  payment_status: APPaymentStatus;
+  currency?: string;
+  bank_name?: string;
   bank_account?: string;
-  remark?: string;
+  transaction_no?: string;
+  notes?: string;
   created_at: string;
 }
 

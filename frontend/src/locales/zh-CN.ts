@@ -5682,7 +5682,6 @@ export default {
       paymentAmount: '付款金额',
       paymentMethod: '付款方式',
       statusConfirmed: '已确认',
-      statusPending: '待确认',
       bankAccount: '银行账号',
       confirm: '确认',
       createTitle: '新建付款',
@@ -5702,6 +5701,7 @@ export default {
       confirmConfirm: '确定确认此付款吗？',
       confirmTitle: '确认付款',
       confirmSuccess: '确认成功',
+      statusRegistered: '已登记',
     },
     reconciliation: {
       title: '对账管理',

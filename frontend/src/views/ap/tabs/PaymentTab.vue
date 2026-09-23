@@ -20,11 +20,9 @@
         :aria-label="$t('apModule.payment.listAria')"
       >
         <el-table-column prop="payment_no" :label="$t('apModule.payment.paymentNo')" width="140" />
-        <el-table-column
-          prop="supplier_name"
-          :label="$t('apModule.payment.supplier')"
-          width="150"
-        />
+        <el-table-column :label="$t('apModule.payment.supplier')" width="150">
+          <template #default="{ row }">{{ supplierLabel(row.supplier_id) }}</template>
+        </el-table-column>
         <el-table-column
           prop="payment_date"
           :label="$t('apModule.payment.paymentDate')"
@@ -44,13 +42,18 @@
             {{ getPaymentMethodLabel(row.payment_method) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="$t('common.status')" width="90" align="center">
+        <el-table-column
+          prop="payment_status"
+          :label="$t('common.status')"
+          width="90"
+          align="center"
+        >
           <template #default="{ row }">
-            <el-tag :type="row.status === 'confirmed' ? 'success' : 'warning'" size="small">
+            <el-tag :type="row.payment_status === 'CONFIRMED' ? 'success' : 'warning'" size="small">
               {{
-                row.status === 'confirmed'
+                row.payment_status === 'CONFIRMED'
                   ? $t('apModule.payment.statusConfirmed')
-                  : $t('apModule.payment.statusPending')
+                  : $t('apModule.payment.statusRegistered')
               }}
             </el-tag>
           </template>
@@ -64,7 +67,7 @@
         <el-table-column :label="$t('common.operation')" width="120" fixed="right">
           <template #default="{ row }">
             <el-button
-              v-if="row.status !== 'confirmed'"
+              v-if="row.payment_status !== 'CONFIRMED'"
               type="success"
               link
               size="small"
@@ -165,6 +168,9 @@ const { t } = useI18n({ useScope: 'global' });
 const payments = ref<APPayment[]>([]);
 const paymentLoading = ref(false);
 const suppliers = ref<Supplier[]>([]);
+// 列表响应只带 supplier_id（后端无 JOIN），名称用本页已加载的供应商主数据映射
+const supplierLabel = (id: number) =>
+  suppliers.value.find(s => s.id === id)?.supplier_name ?? String(id);
 
 const formatMoney = (amount: number | undefined) => {
   return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';

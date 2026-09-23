@@ -5681,7 +5681,6 @@ export default {
       paymentAmount: 'Payment Amount',
       paymentMethod: 'Payment Method',
       statusConfirmed: 'Confirmed',
-      statusPending: 'Pending',
       bankAccount: 'Bank Account',
       confirm: 'Confirm',
       createTitle: 'Create Payment',
@@ -5701,6 +5700,7 @@ export default {
       confirmConfirm: 'Are you sure to confirm this payment?',
       confirmTitle: 'Confirm Payment',
       confirmSuccess: 'Confirmed successfully',
+      statusRegistered: 'Registered',
     },
     reconciliation: {
       title: 'Reconciliation Management',
