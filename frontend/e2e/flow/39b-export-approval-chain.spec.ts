@@ -28,6 +28,20 @@ const JSON_HEADERS = {
   'Content-Type': 'application/json',
 } as const;
 
+/**
+ * 本用例走原始 page.request 而非 helpers.apiCall，因此必须自行携带 CSRF 双提交头。
+ * 后端 middleware/csrf.rs 对状态变更请求（POST）校验 X-CSRF-Token 与 csrf_token Cookie
+ * 一致，缺失即 403 CSRF_TOKEN_MISSING。登录（loginAsRole/loginViaUI）已把 csrf_token
+ * 写入 context Cookie，这里读取并回填到请求头。
+ */
+async function csrfJsonHeaders(
+  page: import('@playwright/test').Page
+): Promise<Record<string, string>> {
+  const cookies = await page.context().cookies();
+  const csrf = cookies.find(c => c.name === 'csrf_token')?.value ?? '';
+  return { ...JSON_HEADERS, 'X-CSRF-Token': csrf };
+}
+
 /** manager 身份创建 customer 导出审批申请，返回审批单 id */
 async function createApprovalAsManager(page: import('@playwright/test').Page): Promise<number> {
   await loginAsRole(page, 'manager');
@@ -38,7 +52,7 @@ async function createApprovalAsManager(page: import('@playwright/test').Page): P
       estimated_rows: 10,
       file_format: 'xlsx',
     },
-    headers: JSON_HEADERS,
+    headers: await csrfJsonHeaders(page),
   });
   const body = (await resp.json().catch(() => null)) as { data?: ApprovalModel } | null;
   const id = body?.data?.id;
@@ -59,7 +73,7 @@ async function approveAsAdmin(
   await loginViaUI(page, undefined, undefined, true);
   const resp = await page.request.post(
     `${API_BASE}${API_PREFIX}/export-approvals/${approvalId}/approve`,
-    { data: { comments }, headers: JSON_HEADERS }
+    { data: { comments }, headers: await csrfJsonHeaders(page) }
   );
   const body = (await resp.json().catch(() => null)) as { data?: ApprovalModel } | null;
   expect(

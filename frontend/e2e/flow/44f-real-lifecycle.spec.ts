@@ -155,6 +155,17 @@ test.describe.serial('44f 真实实体全流转链', () => {
   test('44f-3 库存调拨 pending→approved→ship→receive 全链', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
+    // 出库按四维（款号+色号+缸号+批次）在源仓库核实真实库存行（inv/batch.rs：
+    // 四维在源仓库无库存记录即拒绝出库，不回退到产品+色号扣减）。原实现把 batch_no
+    // 写成一次性随机串、且从未预置匹配的四维库存 → approve 之后 ship 恒 400
+    // （"在源仓库无任何库存记录，出库被拒绝"）。与 44f-5 同法：先确保源仓库存在
+    // 带全四维的库存行，再用该行的真实维度构造调拨明细，ship 才能命中库存。
+    const stockRow = await ensureStockInWarehouse(
+      page,
+      ctx.productIds[0],
+      ctx.warehouseIds[0],
+      ctx.colorNos[0]
+    );
     const tf = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
       from_warehouse_id: ctx.warehouseIds[0],
       to_warehouse_id: ctx.warehouseIds[1],
@@ -164,9 +175,9 @@ test.describe.serial('44f 真实实体全流转链', () => {
         {
           product_id: ctx.productIds[0],
           quantity: 5,
-          batch_no: `E2E-TF${Date.now().toString().slice(-6)}`,
-          color_no: ctx.colorNos[0] || '白坯布',
-          dye_lot_no: ctx.dyeLotNo || 'E2E-DL-001',
+          batch_no: stockRow.batch_no,
+          color_no: stockRow.color_no,
+          dye_lot_no: stockRow.dye_lot_no,
         },
       ],
     });
@@ -231,6 +242,10 @@ test.describe.serial('44f 真实实体全流转链', () => {
           material_id: ctx.productIds[0],
           material_code: `44F${Date.now().toString().slice(-6)}`,
           material_name: '44f 收货物料',
+          // purchase_receipt_ops/crud.rs:110-127 validate_receipt_item_dimensions：
+          // batch_no 为当前无条件强制维度，缺失即 400「缺少批次号，四维不全，拒绝建单」。
+          // 此前该用例被 44f-3 串行失败挡在门外从未执行，掩盖了同一建单入参缺陷。
+          batch_no: `44F-B${Date.now().toString().slice(-6)}`,
           quantity: 10,
           quantity_alt: 0,
           unit_master: prod.unit,

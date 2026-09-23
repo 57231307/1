@@ -69,6 +69,10 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
             material_id: ctx.productIds[0],
             material_code: `M48${Date.now().toString().slice(-6)}`,
             material_name: '48补偿断言物料',
+            // purchase_receipt_ops/crud.rs:110-127 validate_receipt_item_dimensions：
+            // 建单强制 batch_no 非空，缺失即 400「入库单第 1 行（产品 1）缺少批次号，
+            // 四维不全，拒绝建单」。收货明细须带批次号才能落库并进入后续确认→AP 补偿链。
+            batch_no: `M48-B${Date.now().toString().slice(-6)}`,
             quantity: 10,
             quantity_alt: 0,
             unit_master: '米',

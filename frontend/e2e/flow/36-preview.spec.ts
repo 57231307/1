@@ -21,6 +21,11 @@ import {
 test.describe('P5.6 预览', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
+    // loginViaUI 命中「已登录」快路径时仅 goto /dashboard(waitUntil:'domcontentloaded')，
+    // 此刻 Vue 应用可能尚未挂载（#app 内仍为空），末尾的 assertPageHealthy 白屏检测
+    // 会读到 0 字符 → 偶发误判「疑似白屏」（同文件前序用例因导航时序侥幸躲过）。
+    // 等 SPA 完成首屏网络与挂载后再进入用例，白屏断言仍严格（未放宽阈值）。
+    await page.waitForLoadState('networkidle');
   });
 
   test('print-templates 列表 + 预览 API', async ({ page }) => {
