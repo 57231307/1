@@ -161,7 +161,10 @@ test.describe('面料单据专用字段全链路验证', () => {
       color_no: colorNo,
       items: [
         {
-          subject_code: '1401',
+          // 原材料入库借方：预置科目里"原材料"是 1403（migration finance/mod.rs:728），
+          // 不存在 1401；用不存在的编码会在凭证 create 的 assist 明细 lookup_subject_id 处
+          // 抛"科目不存在"（voucher_ops/assist.rs:177-179）。
+          subject_code: '1403',
           debit: '100',
           credit: '0',
           summary: '入库-涤棉坯布',
@@ -181,7 +184,9 @@ test.describe('面料单据专用字段全链路验证', () => {
       ],
     };
 
-    const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
+    // 凭证创建端点是 POST /vouchers（routes/finance.rs:224 create_voucher），
+    // 与下方 GET /vouchers/{id} 同前缀；不存在 /finance/vouchers 路由（原写法 404）。
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', voucherData);
     const voucherId = result.data?.id;
     expect(
       voucherId,

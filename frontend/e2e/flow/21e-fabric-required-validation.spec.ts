@@ -26,7 +26,11 @@ test.describe('面料单据专用字段全链路验证', () => {
     // 创建不带色号的销售订单
     const soData = {
       customer_id: ctx.customerId,
-      order_date: new Date().toISOString().slice(0, 10),
+      // order_date 后端按完整 ISO datetime 反序列化，仅传日期串（YYYY-MM-DD）会
+      // 触发 422 "order_date: premature end of input"（见 reports/backend.log），
+      // 与本用例"缺色号"的判定无关、且非 VALIDATION/BUSINESS 码 → 断言假失败。
+      // 与 21a 同：用 new Date().toISOString() 完整时间戳。
+      order_date: new Date().toISOString(),
       items: [
         {
           product_id: ctx.productIds[0],

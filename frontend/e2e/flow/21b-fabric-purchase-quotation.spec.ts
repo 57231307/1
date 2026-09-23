@@ -26,9 +26,28 @@ test.describe('面料单据专用字段全链路验证', () => {
     const batchNo = genCode('BN');
     const gramWeight = '180';
     const width = '145';
+    const receiptQty = '50';
+
+    // 收货量必须 ≤ 采购订单该产品未收数量（后端无超收容差，见 backend.log
+    // "入库量 50 超过采购订单未收数量，拒绝建单"）。ctx.purchaseOrderId 常复用既有单、
+    // 未收量不可控——建一张本用例专属 PO（订购量=收货量），提交+审批到可收货状态再整单收货，
+    // 使收货建单稳定成功（与 12 白坯出库同一取数口径）。
+    const po = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
+      order_date: new Date().toISOString().slice(0, 10),
+      items: [
+        { material_id: ctx.productIds[0], quantity_ordered: receiptQty, unit_price: '20.00' },
+      ],
+    });
+    const poId = po.data?.id;
+    expect(poId, `前置采购单创建失败：${JSON.stringify(po).slice(0, 200)}`).toBeTruthy();
+    await apiCall(page, 'POST', `/purchase/orders/${poId}/submit`);
+    await apiCall(page, 'POST', `/purchase/orders/${poId}/approve`);
 
     const receiptData = {
-      order_id: ctx.purchaseOrderId,
+      order_id: poId,
       supplier_id: ctx.supplierId,
       receipt_date: new Date().toISOString().slice(0, 10),
       warehouse_id: ctx.warehouseIds[0],
@@ -44,7 +63,7 @@ test.describe('面料单据专用字段全链路验证', () => {
           grade: 'A',
           gram_weight: gramWeight,
           width: width,
-          quantity: '50',
+          quantity: receiptQty,
           quantity_alt: '15',
           unit_master: '米',
           unit_alt: '公斤',
@@ -186,28 +205,21 @@ test.describe('面料单据专用字段全链路验证', () => {
       )
       .first();
     await newBtn.waitFor({ state: 'visible', timeout: 5000 });
-    const newBtnVisible = await newBtn.isVisible();
-    if (newBtnVisible) {
-      await newBtn.click();
-      await page.waitForTimeout(1000);
+    await newBtn.click();
 
-      // 可能跳转到创建页面或弹窗
-      const dialog = page.locator('.el-dialog').first();
-      await dialog.waitFor({ state: 'visible', timeout: 5000 });
-      const dialogVisible = await dialog.isVisible();
-      if (dialogVisible) {
-        // 在弹窗中查找色号相关
-        const colorLabel = page
-          .locator('.el-dialog:has-text("色号"), .el-dialog:has-text("颜色")')
-          .first();
-        await colorLabel.waitFor({ state: 'visible', timeout: 5000 });
-        const colorVisible = await colorLabel.isVisible();
-        // 报价单明细应有色号选择列
-        expect(true).toBe(true); // 记录
+    // list.vue:20 的"新建"是 $router.push('/quotations/new')，跳转到整页新建表单
+    // （create.vue → QuotationItemEditor），并非弹窗。原实现等待 .el-dialog 前提错误（CI 超时）。
+    // 改为等待新建路由生效并渲染报价明细编辑表。
+    await page.waitForURL(/\/quotations\/new/, { timeout: 10_000 });
+    const editorTable = page.locator('[aria-label="报价明细编辑表"]').first();
+    await editorTable.waitFor({ state: 'visible', timeout: 10_000 });
 
-        await page.locator('.el-dialog__headerbtn').first().click();
-      }
-    }
+    // 明细编辑器必须渲染"色号"选择列（QuotationItemEditor.vue:43 colColor='色号'）。
+    // 表头在明细为空时也渲染，故断言列头存在即为"有色号选择列"的真实证据
+    // （替换原 expect(true).toBe(true) 恒真占位）。
+    const colorColHeader = editorTable.locator('th .cell').filter({ hasText: '色号' }).first();
+    await colorColHeader.waitFor({ state: 'visible', timeout: 5000 });
+    expect(await colorColHeader.isVisible(), '报价明细编辑器应含"色号"选择列').toBe(true);
   });
 
   // ============================================================

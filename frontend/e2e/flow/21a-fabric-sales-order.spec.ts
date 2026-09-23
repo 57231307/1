@@ -185,7 +185,12 @@ test.describe('面料单据专用字段全链路验证', () => {
     );
 
     await page.goto(`${BASE_URL}/sales`);
-    await page.locator('.el-table').first().waitFor({ state: 'visible', timeout: 30_000 });
+    // 销售订单列表用 V2Table（SalesOrderTable.vue:8 <V2Table>，渲染 el-table-v2/.v2-table-wrapper，
+    // 非 .el-table），窄选择器 .el-table 匹配不到列表 → 30s 超时。与本文件 line 123 的用例同一宽选择器。
+    await page
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper')
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
 
     // 打开新建订单对话框
     await page.locator('button:has-text("新建订单")').first().click();
