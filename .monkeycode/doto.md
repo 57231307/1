@@ -2273,3 +2273,22 @@ CI 的 clippy 口径实测为：不加 `-D warnings`，但**新增 warning 文�
   删除或接线均需先定标签语义（后端只有"整表覆盖 tags"的 `add_tags`，无解绑端点）。
 - 其余为后端端点确实缺失（币种新增、导入模板新建、客户共享全量列表、数据权限两段路径、
   采购合同导出、系统备份详情/删除/恢复/下载、AR 明细行新增、AR 增强自动对账只读列表）。
+
+## iter36：对话框取消被当前端错误上报（已修）与"手输内部 ID"核对
+
+- **已修**：`ElMessageBox.confirm/prompt` 取消时以字符串 `'cancel'|'close'` reject；全站 140 个文件
+  的这类调用大多不 catch（中止流程是对的），而 `utils/monitor.ts` 的 `unhandledrejection` 监听
+  把 `String(reason)` 原样上报 `/tracking/frontend-error`，`main.ts` 的全局监听同步 `console.error`
+  ⇒ 每次点"取消"都产生一条错误记录。按 Element Plus 两个哨兵精确排除（`isDialogDismissal` 单一来源，
+  两处共用），保留 debug 痕迹不静默吞没。
+- **顺带修**：`views/bad-debts/index.vue` 的转派 prompt **无任何校验**，留空会以 `Number('') === 0`
+  提交 `assigned_to: 0`（后端 `i32` 正常收下 ⇒ 任务派给不存在的用户且"看起来成功"）。已加
+  `inputPattern: /^\d+$/` + 错误提示，并把该函数 4 条文案纳入 `badDebts.reassign.*`。
+- **同类核对**：其余把 prompt 值转成 ID 的调用点（`ap/InvoiceTab`、`ap/VerificationTab` 用
+  `inputValidator`，`customer-collab` 两处与 `periods` 用 `inputPattern`）均已有入参校验，
+  不存在"空输入→0/NaN 入体"的路径；"要求操作者手输内部 ID"仍是共性可用性问题
+  （已按 BPM 的方式改造成真实候选人选择的只有 BPM 两处），是否全面改造待与"下拉数据源"决策一起定。
+- 本轮我自己制造的一次回归：locale 插入器把含撇号的英文值用单引号包裹，直接写坏了
+  `en-US.ts` 的解析（vue-tsc/eslint/prettier/check-i18n 同时报错才发现）。已在插入器里
+  改为"含撇号则用双引号"。**教训**：脚本批量改语言包必须先过 parse 级门禁再提交，
+  且 `npx vue-tsc | tail -3; echo $?` 取到的是 `tail` 的退出码——判定要落盘看真实 exit code。
