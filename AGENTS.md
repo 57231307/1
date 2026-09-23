@@ -64,8 +64,8 @@
 ## 前端复用件（别再手搓）
 
 - 状态标签：`utils/sales-status.ts` / `utils/purchase-status.ts` 范式 = 常量数组 + `normalize*Status()`
-  （未知 token 抛错）+ `*LabelKey()` + `*TagType()`。反例：`views/sales-returns/composables/srFmts.ts`
-  手搓 map + 硬编码中文 + `|| status` 兜底，待清理。
+  （未知 token 抛错）+ `*LabelKey()` + `*TagType()`，`labelKey` 一律写完整键路径（`check-i18n` 会校验它存在）。
+  非状态的共用候选词表放 `constants/`（如 `constants/return-reason.ts`），禁止在两个域里各写一套取值。
 - 提示/日志：`msg`（`utils/message.ts`，走 `message.` 命名空间）与 `logger`（`utils/logger.ts`）。
 - 权限：`v-permission`（`directives/permission.ts`）+ `constants/permissions.ts PERMISSIONS`。
 - i18n：只有 `locales/zh-CN.ts` / `en-US.ts`。`.vue` 里 `const { t } = useI18n({ useScope: 'global' })`；
