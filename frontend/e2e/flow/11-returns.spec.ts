@@ -39,7 +39,8 @@ test.describe('采购退货完整流程', () => {
       supplier_id: ctx.supplierId,
       return_date: new Date().toISOString().slice(0, 10),
       warehouse_id: warehouseId,
-      reason_type: 'quality',
+      // reason_type 是自由文本列，取值即落库业务数据：与销售/采购退货共用 constants/return-reason 的中文口径
+      reason_type: '品质瑕疵',
       reason_detail: '布面疵点超标，客户拒收',
     };
 
@@ -183,7 +184,7 @@ test.describe('采购退货完整流程', () => {
       customer_id: ctx.customerId,
       return_date: new Date().toISOString().slice(0, 10),
       warehouse_id: warehouseId,
-      reason_type: 'customer_cancel',
+      reason_type: '客户取消订单',
       reason_detail: '退回原出库缸',
     });
     const returnId = rtn.data?.id;
