@@ -133,6 +133,10 @@ const REF_PATTERNS = [
   { re: /(?:^|[^\w$])msg\.translate\(\s*(['"])([^'"]+)\1/g, prefix: 'message.' },
   // 模板串调用：含 ${} 的为动态 key，只能统计不能判定；无 ${} 的按字面 key 校验
   { re: /(?:^|[^\w$])\$?t\(\s*`([^`]*)`/g, prefix: '' },
+  // 词表模块里的 labelKey 字面量：形如 { value: '色差', labelKey: 'common.returnReason.colorDifference' }。
+  // 这类值不经过 t() 调用，只被 t(opt.labelKey) 动态消费，落在"不判定"里，
+  // 写错就是界面上直接露出 key 原文，故在此按引用校验（api/production.ts 状态表同形）。
+  { re: /(?:^|[^\w$])labelKey:\s*(['"])([^'"]+)\1/g, prefix: '' },
 ];
 const isDynamic = k => k.includes('$') || k.endsWith('.');
 
