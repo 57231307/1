@@ -14,7 +14,7 @@ import { permission, permissionDetail } from './directives/permission';
 // V15 P1-20-15 全局 CSS 变量主题（支持亮色/暗黑模式切换）
 import './styles/theme.css';
 // V15 P1-20-10 前端错误监控 SDK（自研轻量方案，监听 error + unhandledrejection + 5min 去重）
-import { initMonitor } from './utils/monitor';
+import { initMonitor, isDialogDismissal } from './utils/monitor';
 
 const app = createApp(App);
 
@@ -24,6 +24,8 @@ app.config.errorHandler = (err, _instance, info) => {
 };
 
 window.addEventListener('unhandledrejection', event => {
+  // ElMessageBox 取消会以 'cancel'/'close' reject；调用方不 catch 是有意中止流程，不是故障。
+  if (isDialogDismissal(event.reason)) return;
   console.error('[未捕获 Promise]', event.reason);
 });
 

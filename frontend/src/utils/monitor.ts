@@ -50,6 +50,16 @@ const errorFingerprints = new Map<string, number>();
 /** 上报端点 */
 const REPORT_ENDPOINT = '/api/v1/erp/tracking/frontend-error';
 
+/**
+ * ElMessageBox（confirm/prompt）在用户取消或以 X/遮罩关闭时以字符串 'cancel' | 'close' reject。
+ * 全站 140 个文件里这类调用多数不写 catch（流程中止本就是正确行为），因此每一次"点取消"都会
+ * 变成一条 unhandledrejection：既被打进控制台，又以 message="cancel" 上报后端，
+ * 把真实故障埋进噪声里。仅按 Element Plus 的两个哨兵字符串精确排除，不扩大到一般异常。
+ */
+export function isDialogDismissal(reason: unknown): boolean {
+  return reason === 'cancel' || reason === 'close';
+}
+
 /** 生成错误指纹（type + message + source 哈希） */
 function fingerprint(report: Pick<ErrorReport, 'type' | 'message' | 'source'>): string {
   return `${report.type}::${report.message}::${report.source || ''}`;
@@ -133,6 +143,11 @@ export function initMonitor(): void {
   // 监听未处理的 Promise rejection
   window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
     const reason = event.reason;
+    if (isDialogDismissal(reason)) {
+      // 对话框被用户取消：不是错误，只留可追溯的低级别痕迹，不生成上报载荷。
+      logger.debug('[Frontend Monitor] 对话框取消已忽略:', String(reason));
+      return;
+    }
     const message = reason instanceof Error ? reason.message : String(reason);
     const stack = reason instanceof Error ? reason.stack : undefined;
     reportError({
