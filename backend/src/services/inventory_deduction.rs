@@ -199,8 +199,8 @@ pub fn plan_deduction(
 /// 跨缸回退的缸号排序键：无缸号（NULL）行排最后，其余按字典序升序。
 fn dye_lot_order_key(dye_lot_no: &Option<String>) -> (u8, &str) {
     match dye_lot_no.as_deref().filter(|s| !s.is_empty()) {
-        Some(lot) => (1, lot),
-        None => (0, ""),
+        Some(lot) => (0, lot),
+        None => (1, ""),
     }
 }
 
