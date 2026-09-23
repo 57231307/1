@@ -2349,3 +2349,37 @@ CI 的 clippy 口径实测为：不加 `-D warnings`，但**新增 warning 文�
 输出转换，所以它给的是"检出后的 CRLF 版本"，不能用来判断 blob 实际存储。
 **教训：判断行尾只认 `git ls-files --eol`（或 `git cat-file` 原始字节），别用 `git show`。**
 因此 prettier/rustfmt 的整仓换行告警仍是"本地工作树"现象，与 CI 无关（CI 检出即 LF）。
+
+## iter38：DEFAULT 审计的余量定性（哪些是真缺陷、哪些只是设计问题、哪些是死列）
+
+31 个"有字符串默认值但建表段内无 CHECK"的状态列核对完毕（分 3 组交叉验证，结论均要求读到手写证据）：
+
+### 已修
+- `inventory_piece.status`：生产报工逐匹登记与委外回仓写小写 `"available"`，而准入判断
+  （piece_domain_service.rs:189）与扫码/台账读侧全按 `AVAILABLE` 大写比对 ⇒ 这些匹永久不可见、
+  且被判定"非可用，不可外发发料"。写入侧改引常量，v15 追加历史行归一。
+- `financial_indicators.status`：建表 DEFAULT 'ACTIVE'（大写）不在该列唯一写入/过滤方用的
+  `master_data::ACTIVE = "active"` 词表内（general.rs:52 的模块注释明确主数据用小写、
+  与 common::STATUS_ACTIVE 区分）。v15 追加 SET DEFAULT + 回填。
+
+### 定性为"设计问题"而非缺陷（默认值本身惰性，登记待产品确认）
+- `ap_verification.verification_status` DEFAULT 'COMPLETED'：两条创建路径都显式写
+  `common::STATUS_COMPLETED`（ap_verification_service.rs:200/450），默认值不参与；
+  真正待确认的是**核销单是否需要"待核销/暂存"态**——现词表只有 COMPLETED/CANCELLED，
+  没有中间态，故"待核销列表"这类功能在本模型下不可能存在。
+- `purchase_contract_executions.status` DEFAULT 'DRAFT' 同理：唯一写入点是 'COMPLETED'
+  （purchase_contract_service.rs:239），即"执行记录一旦生成就已完成"，是否需要登记中态待定。
+
+### 定性为"死列 / 未实现功能"（不是数据问题，缺的是实现）
+- `supplier_blacklists.release_status`：全仓只有实体字段（models/supplier_blacklist.rs:32），
+  没有任何写入方与前端消费点 ⇒ **黑名单"解除"能力未实现**（默认值无害，功能缺失待接）。
+- `piece_mapping.status`：表已被 v15/mod.rs:1156-1158 DROP（改用 inventory_piece），死值。
+- `batch_dye_lot.status`：默认值 'ACTIVE' 与唯一写入点同值，但该列没有常量词表、
+  前后端均无比较点 ⇒ 治理缺口（建议后续纳入 models/status 常量）。
+- `tenants.status` / `report_definition.status`：backend/src 内无实体建模、无写入方
+  ⇒ 表未启用（多租户已按规则移除；报表定义走的是 report_templates/report_template 两套），
+  是否删表属数据清理决策。
+
+### 同类残留（已登记未改）
+- `views/bi/SalesAnalysis.vue:360/367`：`kpi?.yoy_growth?.toFixed(1) ?? '0'` 把"指标缺失"显示成 0%，
+  属"用默认值掩盖数据缺失"；改成显式空态需要 BI 卡片设计决策（显示 '—' 还是不渲染该卡），未盲改。
