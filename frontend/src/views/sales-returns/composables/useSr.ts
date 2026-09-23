@@ -27,21 +27,6 @@ import { getCustomerList } from '@/api/customer';
 import { getProductList } from '@/api/product';
 import logger from '@/utils/logger';
 
-/**
- * 退货原因分类候选。value 为落库的业务数据（后端 reason_type 字段），故使用字面量；
- * labelKey 指向 i18n（salesReturns.editDialog.<labelKey>），展示文案走 i18n。
- */
-export const RETURN_REASON_OPTIONS: { value: string; labelKey: string }[] = [
-  { value: '色差', labelKey: 'reasonTypeColorDifference' },
-  { value: '缸差', labelKey: 'reasonTypeDyeLotDifference' },
-  { value: '克重不符', labelKey: 'reasonTypeGramWeightMismatch' },
-  { value: '幅宽不符', labelKey: 'reasonTypeWidthMismatch' },
-  { value: '品质瑕疵', labelKey: 'reasonTypeQualityDefect' },
-  { value: '数量不符', labelKey: 'reasonTypeQuantityMismatch' },
-  { value: '发错货', labelKey: 'reasonTypeWrongShipment' },
-  { value: '客户取消订单', labelKey: 'reasonTypeCustomerCancel' },
-];
-
 // v11 批次 163 P2-1 修复：定义具体类型替代 any
 // v11 批次 174 P2-1 修复：导出接口供 ReturnEditDialog 使用
 export interface SalesOrderOption {

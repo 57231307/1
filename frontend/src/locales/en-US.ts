@@ -2,6 +2,16 @@
 /* Namespace pattern: {module}.{section}.{key} */
 export default {
   common: {
+    returnReason: {
+      customerCancel: 'Customer cancelled order',
+      wrongShipment: 'Wrong goods shipped',
+      quantityMismatch: 'Quantity mismatch',
+      qualityDefect: 'Quality defect',
+      widthMismatch: 'Width mismatch',
+      gramWeightMismatch: 'Gram weight mismatch',
+      dyeLotDifference: 'Dye lot difference',
+      colorDifference: 'Color difference',
+    },
     confirm: 'Confirm',
     cancel: 'Cancel',
     save: 'Save',
@@ -8503,6 +8513,12 @@ export default {
     },
   },
   purchaseContract: {
+    validation: {
+      deliveryDateRequired: 'Please select delivery date',
+      supplierRequired: 'Please select supplier',
+      contractNameRequired: 'Please enter contract name',
+      contractNoRequired: 'Please enter contract No',
+    },
     index: {
       title: 'Purchase Contract Management',
       breadcrumbHome: 'Home',
@@ -8693,6 +8709,13 @@ export default {
       ruleSupplierName: 'Please enter supplier name',
       ruleContractDate: 'Please select contract date',
       ruleTotalAmount: 'Please enter total amount',
+      ruleDeliveryDate: 'Delivery date is required',
+      ruleContractName: 'Contract name is required',
+      remark: 'Remark',
+      deliveryDatePlaceholder: 'Select delivery date',
+      deliveryDate: 'Delivery Date',
+      contractNamePlaceholder: 'Enter contract name',
+      contractName: 'Contract Name',
     },
     priceTab: {
       title: 'Purchase Price Management',
@@ -8810,6 +8833,10 @@ export default {
     },
   },
   purchaseInspection: {
+    validation: {
+      inspectionDateRequired: 'Please select inspection date',
+      receiptRequired: 'Please select receipt',
+    },
     index: {
       title: 'Purchase Inspection',
       button: {
@@ -8954,6 +8981,14 @@ export default {
     },
   },
   purchasePrice: {
+    validation: {
+      effectiveDateRequired: 'Please select effective date',
+      unitRequired: 'Please select unit',
+      currencyRequired: 'Please select currency',
+      priceRequired: 'Please enter purchase price',
+      supplierRequired: 'Please select supplier',
+      productRequired: 'Please select product',
+    },
     statusLabels: {
       inactive: 'Inactive',
       approved: 'Approved',
@@ -9095,6 +9130,13 @@ export default {
     },
   },
   purchaseReturn: {
+    validation: {
+      reasonRequired: 'Please enter return reason',
+      reasonTypeRequired: 'Please select reason type',
+      supplierRequired: 'Please select supplier',
+      returnDateRequired: 'Please select return date',
+      purchaseOrderRequired: 'Please select purchase order',
+    },
     title: 'Purchase Return',
     button: {
       create: 'Create Return Order',
@@ -9197,6 +9239,8 @@ export default {
         reason: 'Reason',
         remarks: 'Remarks',
         reasonType: 'Reason Type',
+        warehouse: 'Return Warehouse',
+        supplier: 'Supplier',
       },
       placeholder: {
         purchaseOrder: 'Select purchase order',
@@ -9204,6 +9248,9 @@ export default {
         reason: 'Please enter reason',
         remarks: 'Please enter remarks',
         product: 'Select product',
+        reasonType: 'Select reason type',
+        warehouse: 'Select warehouse (required for stock deduction on approval)',
+        supplier: 'Select supplier',
       },
       itemsTitle: 'Return Items',
       button: {
@@ -10393,14 +10440,6 @@ export default {
       labelTotalAmount: 'Total Return Amount',
       buttonCancel: 'Cancel',
       buttonConfirm: 'Confirm',
-      reasonTypeCustomerCancel: 'Customer cancelled order',
-      reasonTypeWrongShipment: 'Wrong goods shipped',
-      reasonTypeQuantityMismatch: 'Quantity mismatch',
-      reasonTypeQualityDefect: 'Quality defect',
-      reasonTypeWidthMismatch: 'Width mismatch',
-      reasonTypeGramWeightMismatch: 'Gram weight mismatch',
-      reasonTypeDyeLotDifference: 'Dye lot difference',
-      reasonTypeColorDifference: 'Color difference',
       placeholderTaxPercent: 'Blank uses the order tax rate',
       columnDiscountPercent: 'Discount (%)',
       columnTaxPercent: 'Tax (%)',

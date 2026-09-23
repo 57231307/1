@@ -2,6 +2,16 @@
 /* 命名空间：{module}.{section}.{key} */
 export default {
   common: {
+    returnReason: {
+      customerCancel: '客户取消订单',
+      wrongShipment: '发错货',
+      quantityMismatch: '数量不符',
+      qualityDefect: '品质瑕疵',
+      widthMismatch: '幅宽不符',
+      gramWeightMismatch: '克重不符',
+      dyeLotDifference: '缸差',
+      colorDifference: '色差',
+    },
     copy: '复制',
     copied: '已复制',
     action: '操作',
@@ -8469,6 +8479,12 @@ export default {
     },
   },
   purchaseContract: {
+    validation: {
+      deliveryDateRequired: '请选择交货日期',
+      supplierRequired: '请选择供应商',
+      contractNameRequired: '请输入合同名称',
+      contractNoRequired: '请输入合同编号',
+    },
     index: {
       title: '采购合同管理',
       breadcrumbHome: '首页',
@@ -8659,6 +8675,13 @@ export default {
       ruleSupplierName: '请输入供应商名称',
       ruleContractDate: '请选择合同日期',
       ruleTotalAmount: '请输入总金额',
+      ruleDeliveryDate: '请选择交货日期',
+      ruleContractName: '请输入合同名称',
+      remark: '备注',
+      deliveryDatePlaceholder: '请选择交货日期',
+      deliveryDate: '交货日期',
+      contractNamePlaceholder: '请输入合同名称',
+      contractName: '合同名称',
     },
     priceTab: {
       title: '采购价格管理',
@@ -8776,6 +8799,10 @@ export default {
     },
   },
   purchaseInspection: {
+    validation: {
+      inspectionDateRequired: '请选择检验日期',
+      receiptRequired: '请选择入库单',
+    },
     index: {
       title: '采购检验',
       button: {
@@ -8920,6 +8947,14 @@ export default {
     },
   },
   purchasePrice: {
+    validation: {
+      effectiveDateRequired: '请选择生效日期',
+      unitRequired: '请选择单位',
+      currencyRequired: '请选择币种',
+      priceRequired: '请输入采购价格',
+      supplierRequired: '请选择供应商',
+      productRequired: '请选择产品',
+    },
     statusLabels: {
       inactive: '已停用',
       approved: '已批准',
@@ -9061,6 +9096,13 @@ export default {
     },
   },
   purchaseReturn: {
+    validation: {
+      reasonRequired: '请输入退货原因',
+      reasonTypeRequired: '请选择原因类型',
+      supplierRequired: '请选择供应商',
+      returnDateRequired: '请选择退货日期',
+      purchaseOrderRequired: '请选择采购订单',
+    },
     title: '采购退货',
     button: {
       create: '新建退货单',
@@ -9163,6 +9205,8 @@ export default {
         reason: '退货原因',
         remarks: '备注',
         reasonType: '原因类型',
+        warehouse: '退货仓库',
+        supplier: '供应商',
       },
       placeholder: {
         purchaseOrder: '选择采购订单',
@@ -9170,6 +9214,9 @@ export default {
         reason: '请输入退货原因',
         remarks: '请输入备注',
         product: '选择产品',
+        reasonType: '请选择原因类型',
+        warehouse: '请选择仓库（审批扣减库存时需要）',
+        supplier: '请选择供应商',
       },
       itemsTitle: '退货明细',
       button: {
@@ -10359,14 +10406,6 @@ export default {
       labelTotalAmount: '退货总金额',
       buttonCancel: '取消',
       buttonConfirm: '确定',
-      reasonTypeCustomerCancel: '客户取消订单',
-      reasonTypeWrongShipment: '发错货',
-      reasonTypeQuantityMismatch: '数量不符',
-      reasonTypeQualityDefect: '品质瑕疵',
-      reasonTypeWidthMismatch: '幅宽不符',
-      reasonTypeGramWeightMismatch: '克重不符',
-      reasonTypeDyeLotDifference: '缸差',
-      reasonTypeColorDifference: '色差',
       placeholderTaxPercent: '留空按订单税率',
       columnDiscountPercent: '折扣率(%)',
       columnTaxPercent: '税率(%)',

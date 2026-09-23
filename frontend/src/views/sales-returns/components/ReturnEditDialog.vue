@@ -110,7 +110,7 @@
               <el-option
                 v-for="opt in reasonOptions"
                 :key="opt.value"
-                :label="t(`salesReturns.editDialog.${opt.labelKey}`)"
+                :label="t(opt.labelKey)"
                 :value="opt.value"
               />
             </el-select>
@@ -272,12 +272,12 @@ import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import logger from '@/utils/logger';
 // v11 批次 174 P2-1 修复：从 useSr 导入具体类型替代 any
 import {
-  RETURN_REASON_OPTIONS,
   type ReturnForm,
   type SalesOrderOption,
   type CustomerOption,
   type ProductOption,
 } from '../composables/useSr';
+import { RETURN_REASON_OPTIONS } from '@/constants/return-reason';
 
 const { t } = useI18n({ useScope: 'global' });
 
