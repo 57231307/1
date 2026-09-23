@@ -5866,6 +5866,13 @@ export default {
       colSeq: 'No.',
       printHeader: 'AR Invoice List',
       exportedLog: 'AR invoices exported',
+      statusDraft: 'Draft',
+      statusPartialPaid: 'Partially Received',
+      statusPaid: 'Paid',
+      receivedAmount: 'Received Amount',
+      unpaidAmount: 'Unpaid Amount',
+      detailReceived: 'Received Amount: {value}',
+      detailUnpaid: 'Unpaid Amount: {value}',
     },
     reconciliation: {
       title: 'AR Reconciliation',
@@ -5890,6 +5897,9 @@ export default {
       confirmMessage: 'Are you sure to confirm this reconciliation?',
       confirmTitle: 'Confirm Reconciliation',
       confirmSuccess: 'Confirmed successfully',
+      statusDraft: 'Draft',
+      statusConfirmed: 'Confirmed',
+      statusDisputed: 'Disputed',
     },
     fund: {
       title: 'Fund Account',

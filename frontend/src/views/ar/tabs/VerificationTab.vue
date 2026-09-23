@@ -73,7 +73,7 @@
             <el-option
               v-for="inv in unverifiedInvoices"
               :key="inv.id"
-              :label="`${inv.invoice_no}（未核销 ${formatMoney(inv.unverified_amount ?? inv.invoice_amount)}）`"
+              :label="`${inv.invoice_no}（未核销 ${formatMoney(inv.unpaid_amount)}）`"
               :value="inv.id"
             />
           </el-select>
@@ -101,7 +101,11 @@
     </el-dialog>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailVisible" :title="t('arModule.verification.detailTitle')" width="600px">
+    <el-dialog
+      v-model="detailVisible"
+      :title="t('arModule.verification.detailTitle')"
+      width="600px"
+    >
       <el-descriptions v-if="detailRow" :column="2" border>
         <el-descriptions-item label="ID">{{ detailRow.id }}</el-descriptions-item>
         <el-descriptions-item :label="t('common.status')">{{

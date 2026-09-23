@@ -5835,6 +5835,13 @@ export default {
       colSeq: '序号',
       printHeader: '应收发票列表',
       exportedLog: '应收发票已导出',
+      statusDraft: '草稿',
+      statusPartialPaid: '部分收款',
+      statusPaid: '已收讫',
+      receivedAmount: '已收金额',
+      unpaidAmount: '未收金额',
+      detailReceived: '已收金额：{value}',
+      detailUnpaid: '未收金额：{value}',
     },
     reconciliation: {
       title: '应收对账',
@@ -5859,6 +5866,9 @@ export default {
       confirmMessage: '确定确认此对账单吗？',
       confirmTitle: '确认对账',
       confirmSuccess: '确认成功',
+      statusDraft: '草稿',
+      statusConfirmed: '已确认',
+      statusDisputed: '有争议',
     },
     fund: {
       title: '资金账户',

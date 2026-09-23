@@ -1,6 +1,14 @@
 import { request } from './request';
 import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
+/**
+ * 应收发票（列表/详情载荷）。
+ * 后端 `ar_invoice_handler::list_ar_invoices` 直接 `to_value` 返回 SeaORM 实体
+ * （无 JOIN、无 DTO 改名），字段与 `backend/src/models/ar_invoice.rs` 逐字一致：
+ * 金额键为 received_amount / unpaid_amount（非 verified_amount / unverified_amount），
+ * status 值集为大写 DRAFT/APPROVED/PAID/PARTIAL_PAID/CANCELLED（见 ar_invoice_service 写入点）。
+ * 实体无 payment_status / remark 列，故此处不再声明。
+ */
 export interface ARInvoice {
   id: number;
   invoice_no: string;
@@ -9,12 +17,10 @@ export interface ARInvoice {
   invoice_date: string;
   invoice_amount: number;
   tax_amount: number;
-  verified_amount: number;
-  unverified_amount: number;
+  received_amount: number;
+  unpaid_amount: number;
   status: string;
-  payment_status: string;
   due_date?: string;
-  remark?: string;
   created_at: string;
 }
 

@@ -31,10 +31,11 @@
             :placeholder="$t('arModule.invoice.statusPlaceholder')"
             clearable
           >
-            <el-option :label="$t('arModule.invoice.statusPending')" value="pending" />
-            <el-option :label="$t('arModule.invoice.statusApproved')" value="approved" />
-            <el-option :label="$t('arModule.invoice.statusVerified')" value="verified" />
-            <el-option :label="$t('arModule.invoice.statusCancelled')" value="cancelled" />
+            <el-option :label="$t('arModule.invoice.statusDraft')" value="DRAFT" />
+            <el-option :label="$t('arModule.invoice.statusApproved')" value="APPROVED" />
+            <el-option :label="$t('arModule.invoice.statusPartialPaid')" value="PARTIAL_PAID" />
+            <el-option :label="$t('arModule.invoice.statusPaid')" value="PAID" />
+            <el-option :label="$t('arModule.invoice.statusCancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -72,15 +73,15 @@
             {{ formatMoney(row.tax_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('arModule.invoice.verifiedAmount')" width="110" align="right">
+        <el-table-column :label="$t('arModule.invoice.receivedAmount')" width="110" align="right">
           <template #default="{ row }">
-            {{ formatMoney(row.verified_amount) }}
+            {{ formatMoney(row.received_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('arModule.invoice.unverifiedAmount')" width="110" align="right">
+        <el-table-column :label="$t('arModule.invoice.unpaidAmount')" width="110" align="right">
           <template #default="{ row }">
-            <span :class="{ 'text-red': row.unverified_amount > 0 }">
-              {{ formatMoney(row.unverified_amount) }}
+            <span :class="{ 'text-red': row.unpaid_amount > 0 }">
+              {{ formatMoney(row.unpaid_amount) }}
             </span>
           </template>
         </el-table-column>
@@ -98,7 +99,7 @@
               $t('common.detail')
             }}</el-button>
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === 'DRAFT'"
               type="success"
               link
               size="small"
@@ -106,7 +107,7 @@
               >{{ $t('arModule.invoice.approve') }}</el-button
             >
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === 'DRAFT'"
               type="danger"
               link
               size="small"
@@ -284,11 +285,15 @@ const formatMoney = (amount: number) => {
 };
 
 const getInvoiceStatusLabel = (status: string) => {
+  // 真实 ar_invoice.status 值集（大写）：见 backend/src/services/ar_invoice_service.rs
+  // create→STATUS_DRAFT、approve→STATUS_APPROVED、mark_as_paid→PAID/PARTIAL_PAID、cancel→STATUS_CANCELLED
+  // 常量定义 backend/src/models/status/general.rs（common / payment 子模块）
   const keyMap: Record<string, string> = {
-    pending: 'arModule.invoice.statusPending',
-    approved: 'arModule.invoice.statusApproved',
-    verified: 'arModule.invoice.statusVerified',
-    cancelled: 'arModule.invoice.statusCancelled',
+    DRAFT: 'arModule.invoice.statusDraft',
+    APPROVED: 'arModule.invoice.statusApproved',
+    PARTIAL_PAID: 'arModule.invoice.statusPartialPaid',
+    PAID: 'arModule.invoice.statusPaid',
+    CANCELLED: 'arModule.invoice.statusCancelled',
   };
   const key = keyMap[status];
   return key ? t(key) : status;
@@ -296,10 +301,11 @@ const getInvoiceStatusLabel = (status: string) => {
 
 const getInvoiceStatusType = (status: string) => {
   const map: Record<string, string> = {
-    pending: 'warning',
-    approved: 'success',
-    verified: 'primary',
-    cancelled: 'info',
+    DRAFT: 'warning',
+    APPROVED: 'primary',
+    PARTIAL_PAID: 'warning',
+    PAID: 'success',
+    CANCELLED: 'danger',
   };
   return map[status] || 'info';
 };
@@ -370,10 +376,9 @@ const viewInvoice = async (row: ARInvoice) => {
       t('arModule.invoice.detailDueDate', { value: d.due_date || '-' }),
       t('arModule.invoice.detailAmount', { value: formatMoney(d.invoice_amount) }),
       t('arModule.invoice.detailTax', { value: formatMoney(d.tax_amount) }),
-      t('arModule.invoice.detailVerified', { value: formatMoney(d.verified_amount) }),
-      t('arModule.invoice.detailUnverified', { value: formatMoney(d.unverified_amount) }),
+      t('arModule.invoice.detailReceived', { value: formatMoney(d.received_amount) }),
+      t('arModule.invoice.detailUnpaid', { value: formatMoney(d.unpaid_amount) }),
       t('arModule.invoice.detailStatus', { value: getInvoiceStatusLabel(d.status) }),
-      t('arModule.invoice.detailRemark', { value: d.remark || '-' }),
     ];
     await ElMessageBox.alert(lines.join('\n'), t('arModule.invoice.detailTitle'), {
       confirmButtonText: t('common.close'),

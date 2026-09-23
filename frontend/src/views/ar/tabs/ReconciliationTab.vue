@@ -62,7 +62,12 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="$t('common.status')" width="100" align="center">
+        <el-table-column
+          prop="reconciliation_status"
+          :label="$t('common.status')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getReconciliationStatusType(row.reconciliation_status)" size="small">
               {{ getReconciliationStatusLabel(row.reconciliation_status) }}
@@ -77,7 +82,7 @@
         <el-table-column :label="$t('common.operation')" width="120" fixed="right">
           <template #default="{ row }">
             <el-button
-              v-if="row.reconciliation_status === 'pending'"
+              v-if="row.reconciliation_status === 'draft'"
               type="success"
               link
               size="small"
@@ -195,8 +200,10 @@ const formatMoney = (amount: number | string | null | undefined) => {
 };
 
 const getReconciliationStatusLabel = (status: string | null) => {
+  // 真实 ar_reconciliation.reconciliation_status 值集（小写）：
+  // draft/sent/confirmed/disputed/closed/cancelled（backend/src/models/status/finance.rs:22 起）
   const keyMap: Record<string, string> = {
-    pending: 'arModule.reconciliation.statusPending',
+    draft: 'arModule.reconciliation.statusDraft',
     confirmed: 'arModule.reconciliation.statusConfirmed',
     disputed: 'arModule.reconciliation.statusDisputed',
   };
@@ -206,7 +213,7 @@ const getReconciliationStatusLabel = (status: string | null) => {
 
 const getReconciliationStatusType = (status: string | null) => {
   const map: Record<string, string> = {
-    pending: 'warning',
+    draft: 'warning',
     confirmed: 'success',
     disputed: 'danger',
   };
