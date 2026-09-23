@@ -343,7 +343,7 @@ jobs:
   # 合并 job：原先 3 个 job 各跑一次 checkout + setup-frontend（npm ci），
   # 而三者互不依赖、总耗时 < 2 分钟；合并后 5 个 runner 启动与 2 次 npm ci 被省掉。
   ci-static-checks:
-    name: 🧹 前端静态检查与契约门禁（格式 / 契约 / i18n / 路由 / 信封 / 请求 / 端点基线）
+    name: 🧹 前端静态检查与契约门禁（格式 / 契约 / i18n / 路由 / 信封 / 请求 / 端点基线 / 键名与 e2e 类型棘轮）
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
@@ -443,6 +443,13 @@ jobs:
       - name: 接口键名编造棘轮（前端类型键必须存在于后端字段全集，只准降不准升）
         working-directory: frontend
         run: node scripts/check-api-keys.mjs
+
+      # e2e 此前完全不做类型检查（tsconfig.json 只含 src/**），
+      # 本轮在其中发现 6 条真实类型错误（用例按后端根本不存在的键断言等），
+      # 故把 tsc -p tsconfig.e2e.json 纳入阻断链并按 文件|错误码 记棘轮基线。
+      - name: e2e 类型棘轮（tsconfig.e2e.json，存量 @types/node 族入基线，只准降不准升）
+        working-directory: frontend
+        run: node scripts/check-e2e-types.mjs
 
       - name: 上传报告
         if: always()
