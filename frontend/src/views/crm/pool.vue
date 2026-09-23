@@ -326,7 +326,7 @@ const handleClaimSelected = async () => {
   claiming.value = true;
   try {
     await batchClaimCustomersFromPool(ids);
-    ElMessage.success(t('crmPool.message.claimSuccess') || '认领成功');
+    ElMessage.success(t('crmPool.message.claimSuccess'));
     selectedRows.value = [];
     getList();
   } catch (e) {

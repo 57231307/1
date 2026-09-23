@@ -2272,6 +2272,7 @@ export default {
       delete: 'Delete',
       paginationAriaLabel: 'Fixed assets list pagination',
       detail: 'Detail',
+      detailTitle: 'Asset details',
     },
     dialog: {
       editTitle: 'Edit Asset',
@@ -5753,6 +5754,7 @@ export default {
       rejectReasonRequired: 'Rejection reason is required',
       deleteConfirm: 'Delete this payment request?',
       detailFailed: 'Failed to fetch payment request detail',
+      detailTitle: 'Payment request details',
     },
     report: {
       statistics: 'Statistics',
@@ -5952,6 +5954,7 @@ export default {
       confirm: 'Confirm Receipt',
       confirmMessage: 'Confirm that this payment has been received?',
       detailFailed: 'Failed to fetch AR payment detail',
+      detailTitle: 'Receipt details',
     },
     verification: {
       manual: 'Manual Verification',
@@ -5970,6 +5973,7 @@ export default {
       cancel: 'Cancel Verification',
       cancelConfirm: 'Related documents will return to unverified state. Continue?',
       detailFailed: 'Failed to fetch AR verification detail',
+      detailTitle: 'Verification details',
     },
     report: {
       statistics: 'Statistics',
@@ -6439,6 +6443,7 @@ export default {
       lost: 'Lost',
       toOrder: 'Convert to Order',
       analytics: 'Analytics',
+      analyticsDialogTitle: 'Opportunity analytics',
     },
     viewDialog: {
       title: 'Opportunity Detail',

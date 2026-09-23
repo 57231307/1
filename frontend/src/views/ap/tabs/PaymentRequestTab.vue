@@ -157,7 +157,11 @@
     </el-dialog>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailVisible" :title="t('common.detail') || '付款申请详情'" width="620px">
+    <el-dialog
+      v-model="detailVisible"
+      :title="t('apModule.paymentRequest.detailTitle')"
+      width="620px"
+    >
       <el-descriptions v-if="detailRow" :column="2" border>
         <el-descriptions-item label="ID">{{ detailRow.id }}</el-descriptions-item>
         <el-descriptions-item :label="t('apModule.paymentRequest.requestNo')">

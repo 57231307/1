@@ -93,7 +93,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" :title="t('common.detail') || '收款详情'" width="600px">
+    <el-dialog v-model="detailVisible" :title="t('arModule.payment.detailTitle')" width="600px">
       <el-descriptions v-if="detailRow" :column="2" border>
         <el-descriptions-item label="ID">{{ detailRow.id }}</el-descriptions-item>
         <el-descriptions-item :label="t('arModule.payment.paymentNo')">

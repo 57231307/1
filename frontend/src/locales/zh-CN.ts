@@ -2268,6 +2268,7 @@ export default {
       dispose: '处置',
       delete: '删除',
       paginationAriaLabel: '固定资产列表分页',
+      detailTitle: '资产详情',
     },
     dialog: {
       editTitle: '编辑资产',
@@ -5592,6 +5593,7 @@ export default {
       bankName: '收款银行',
       notes: '备注',
       detailFailed: '获取付款申请详情失败',
+      detailTitle: '付款申请详情',
     },
     report: {
       statistics: '统计汇总',
@@ -5921,6 +5923,7 @@ export default {
       confirm: '确认收款',
       confirmMessage: '确认该笔收款已到账？',
       detailFailed: '获取收款详情失败',
+      detailTitle: '收款详情',
     },
     verification: {
       manual: '手动核销',
@@ -5939,6 +5942,7 @@ export default {
       cancel: '取消核销',
       cancelConfirm: '取消核销后相关单据恢复未核销状态，确认？',
       detailFailed: '获取应收核销详情失败',
+      detailTitle: '核销详情',
     },
     report: {
       statistics: '统计汇总',
@@ -6408,6 +6412,7 @@ export default {
       lost: '流失',
       toOrder: '转订单',
       analytics: '分析',
+      analyticsDialogTitle: '商机分析',
     },
     viewDialog: {
       title: '商机详情',

@@ -291,7 +291,7 @@
     <!-- 商机分析弹窗 -->
     <el-dialog
       v-model="analyticsVisible"
-      :title="t('crmOpportunities.table.analytics') || '商机分析'"
+      :title="t('crmOpportunities.table.analyticsDialogTitle')"
       width="560px"
     >
       <div class="analytics-lines" style="white-space: pre-wrap; line-height: 1.8">

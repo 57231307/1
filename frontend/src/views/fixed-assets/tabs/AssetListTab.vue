@@ -336,7 +336,7 @@
     <!-- 资产详情（getAsset 回源） -->
     <el-dialog
       v-model="detailVisible"
-      :title="$t('fixedAssets.table.detail') || '资产详情'"
+      :title="$t('fixedAssets.table.detailTitle')"
       width="560"
     >
       <el-descriptions v-if="detailAsset" :column="2" border>
