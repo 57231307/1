@@ -33,7 +33,10 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
   });
 
   test('销售订单打印 docx 内容与源单据匹配 + 审计 PRINT 留痕', async ({ page }) => {
-    test.setTimeout(120_000);
+    // 与 playwright.config.ts 单测默认 420s 基线一致（该值专为 ensureTestEntities
+    // 需 UI 创建 10+ 实体、50 分片并发同库的耗时设定）。原 120s 覆盖低于基线，
+    // 导致内联 ensureTestEntities 走到末段（/auth/me 步骤）时踩 120s 上限误判超时。
+    test.setTimeout(420_000);
 
     // ---- 1. 取真实销售订单（列表回读；无则兜底创建，字段与 helpers.ts 建单链一致）----
     let salesOrderId: number | undefined;
@@ -153,7 +156,10 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
   });
 
   test('凭证打印内容解包（voucher 种子存在时）', async ({ page }) => {
-    test.setTimeout(120_000);
+    // 与 playwright.config.ts 单测默认 420s 基线一致（该值专为 ensureTestEntities
+    // 需 UI 创建 10+ 实体、50 分片并发同库的耗时设定）。原 120s 覆盖低于基线，
+    // 导致内联 ensureTestEntities 走到末段（/auth/me 步骤）时踩 120s 上限误判超时。
+    test.setTimeout(420_000);
 
     // 凭证列表回读；无则由 ensureTestEntities 建凭证（其内部会先建科目+会计期间再建凭证），
     // 建不出来即环境/创建链缺陷，判红而非 skip（造数据优先于跳过）。

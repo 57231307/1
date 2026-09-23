@@ -48,7 +48,10 @@ test.describe('39c 导出内容断言', () => {
   });
 
   test('仓库导出 xlsx 内容与列表数据一致（列头+行数）', async ({ page }) => {
-    test.setTimeout(120_000);
+    // 与 playwright.config.ts 单测默认 420s 基线一致（该值专为 ensureTestEntities
+    // 需 UI 创建 10+ 实体、50 分片并发同库的耗时设定）。原 120s 覆盖低于基线，
+    // 内联 ensureTestEntities 在末段（/auth/me）踩上限。
+    test.setTimeout(420_000);
     // 造数据：ensureTestEntities 保证至少 2 个仓库，导出内容匹配不再依赖种子数据缺失而 skip
     await ensureTestEntities(page);
 
@@ -112,7 +115,10 @@ test.describe('39c 导出内容断言', () => {
   });
 
   test('库存导出 xlsx 行数与列表一致', async ({ page }) => {
-    test.setTimeout(120_000);
+    // 与 playwright.config.ts 单测默认 420s 基线一致（该值专为 ensureTestEntities
+    // 需 UI 创建 10+ 实体、50 分片并发同库的耗时设定）。原 120s 覆盖低于基线，
+    // 内联 ensureTestEntities 在末段（/auth/me）踩上限。
+    test.setTimeout(420_000);
     // 造数据：ensureTestEntities 会建库存行；导出处理器已注册则必须 200，不再 skip
     await ensureTestEntities(page);
 

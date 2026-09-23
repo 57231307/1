@@ -140,7 +140,11 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'material-shortage', route: '/material-shortage', domain: 'production', tier: 'C', noCreate: true },
   { id: 'scheduling', route: '/scheduling', domain: 'production', tier: 'C', noCreate: true },
   { id: 'scheduling-gantt', route: '/scheduling/gantt', domain: 'production', tier: 'C', noCreate: true },
-  { id: 'process-routes', route: '/process-routes', domain: 'production', tier: 'A', listApi: '/process-routes' },
+  // 注：process-routes 已从 UI 遍历清单移除。前端 router/index.ts 无 /process-routes
+  // 路由、src/views 下亦无对应页面组件（grep 精确匹配数=0），page.goto('/process-routes')
+  // 落到 catch-all/空白路由，故 Tier A 的「新建」按钮断言必然 waitFor 超时。
+  // 后端 /production/process-routes 端点确实存在（production.rs:225-231），属"有后端、
+  // 无管理 UI"，不是可遍历的前端页面；若产品需补 UI，届时再登记本条并按实际按钮文案调整。
 
   // ===== quality 域 =====
   { id: 'quality', route: '/quality', domain: 'quality', tier: 'C', noCreate: true },
