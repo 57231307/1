@@ -1777,7 +1777,12 @@ function readdirSyncLocal(dir) {
 // 用途：后端确为动态 JSON / 有意裸数组等「静态不可判定但经人工确认无缺陷」的端点。
 // 禁止整片前缀/方法批量塞入以掩盖真实漂移。
 const EXEMPTIONS = new Map([
-  // 以下 8 条为「后端 data 是手工 json! / 未被 struct 索引覆盖的 struct」，门禁无法静态判形。
+
+  [
+    `${BASE_URL}/crm/five-dimension/stats GET`,
+    'five_dimension_handler.rs:78-79 Ok(ApiResponse::success(json!({"items": stats.0, …})))：顶层 items 由 json! 手拼，前端 {items} 与之相符',
+  ],
+  // 以下各条为「后端 data 是手工 json! / 未被 struct 索引覆盖的 struct」，门禁无法静态判形。
   // 每条都已逐次阅读 handler 函数体核实前端读的键确实存在（证据见各条 file:line）；
   // 属"已人工核对"而非"已静态验证"。根治办法是把这 8 个 handler 的返回改成强类型响应
   // （PaginatedResponse<T> / 专用 Response struct），已登记为解冻后的后端批次，届时删除本条目。
