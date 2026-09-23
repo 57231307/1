@@ -8,32 +8,32 @@
         </div>
         <el-table v-loading="subLoading" :data="subscriptions" border>
           <el-table-column prop="id" label="ID" width="70" />
-          <el-table-column prop="template_name" label="报表模板" min-width="140" />
-          <el-table-column prop="schedule" label="周期" width="90">
+          <el-table-column prop="name" label="订阅名称" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="template_id" label="报表模板 ID" width="110" />
+          <el-table-column prop="frequency" label="周期" width="90">
             <template #default="{ row }">
-              <el-tag>{{ scheduleLabel(row.schedule) }}</el-tag>
+              <el-tag>{{ scheduleLabel(row.frequency) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="schedule_time" label="发送时间" width="110" />
           <el-table-column label="收件人" min-width="180" show-overflow-tooltip>
-            <template #default="{ row }">{{ (row.recipients || []).join('；') || '-' }}</template>
+            <template #default="{ row }">{{ row.recipients.join('；') || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="format" label="格式" width="90" />
+          <el-table-column prop="export_format" label="格式" width="90" />
           <el-table-column label="状态" width="90">
             <template #default="{ row }">
-              <el-tag :type="row.active ? 'success' : 'info'">
-                {{ row.active ? '启用' : '停用' }}
+              <el-tag :type="row.is_enabled ? 'success' : 'info'">
+                {{ row.is_enabled ? '启用' : '停用' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="last_sent_at" label="最近发送" width="160">
-            <template #default="{ row }">{{ row.last_sent_at || '-' }}</template>
+          <el-table-column prop="last_run_at" label="最近执行" width="160">
+            <template #default="{ row }">{{ row.last_run_at || '-' }}</template>
           </el-table-column>
           <el-table-column label="操作" width="250" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
               <el-button link size="small" @click="handleToggle(row)">{{
-                row.active ? '停用' : '启用'
+                row.is_enabled ? '停用' : '启用'
               }}</el-button>
               <el-button link type="success" size="small" @click="handleSendNow(row)"
                 >立即发送</el-button
@@ -98,18 +98,24 @@
 
     <el-dialog v-model="subDialogVisible" :title="editingId ? '编辑订阅' : '新建订阅'" width="520">
       <el-form :model="subForm" label-width="100px">
+        <el-form-item label="订阅名称" required>
+          <el-input v-model="subForm.name" placeholder="订阅名称" maxlength="100" />
+        </el-form-item>
         <el-form-item label="模板 ID" required>
-          <el-input-number v-model="subForm.template_id" :min="1" class="w-full" />
+          <!-- 后端 UpdateSubscriptionRequest 无 template_id：编辑态模板不可改 -->
+          <el-input-number
+            v-model="subForm.template_id"
+            :min="1"
+            :disabled="!!editingId"
+            class="w-full"
+          />
         </el-form-item>
         <el-form-item label="发送周期" required>
-          <el-select v-model="subForm.schedule" style="width: 100%">
-            <el-option label="每日" value="daily" />
-            <el-option label="每周" value="weekly" />
-            <el-option label="每月" value="monthly" />
+          <el-select v-model="subForm.frequency" style="width: 100%">
+            <el-option label="每日" value="DAILY" />
+            <el-option label="每周" value="WEEKLY" />
+            <el-option label="每月" value="MONTHLY" />
           </el-select>
-        </el-form-item>
-        <el-form-item label="发送时间" required>
-          <el-input v-model="subForm.schedule_time" placeholder="HH:mm，如 08:30" />
         </el-form-item>
         <el-form-item label="收件人" required>
           <el-input
@@ -120,14 +126,14 @@
           />
         </el-form-item>
         <el-form-item label="导出格式" required>
-          <el-select v-model="subForm.format" style="width: 100%">
+          <el-select v-model="subForm.export_format" style="width: 100%">
             <el-option label="PDF" value="pdf" />
             <el-option label="Excel" value="excel" />
             <el-option label="PDF + Excel" value="both" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="editingId" label="启用">
-          <el-switch v-model="subForm.active" />
+          <el-switch v-model="subForm.is_enabled" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -164,16 +170,19 @@ const subDialogVisible = ref(false);
 const subSaving = ref(false);
 const editingId = ref<number | null>(null);
 
+// 字段键逐字对齐后端 CreateSubscriptionRequest/UpdateSubscriptionRequest：
+// frequency 取值 DAILY/WEEKLY/MONTHLY（service 严格校验）；无 schedule_time —— 后端不落库该概念，
+// 下次执行时间由频率推算（next_run_at）。
 const subForm = reactive({
+  name: '',
   template_id: 1,
-  schedule: 'daily' as 'daily' | 'weekly' | 'monthly',
-  schedule_time: '08:30',
+  frequency: 'DAILY',
   recipientsText: '',
-  format: 'pdf' as 'pdf' | 'excel' | 'both',
-  active: true,
+  export_format: 'pdf',
+  is_enabled: true,
 });
 
-const scheduleLabel = (s: string) => ({ daily: '每日', weekly: '每周', monthly: '每月' })[s] ?? s;
+const scheduleLabel = (s: string) => ({ DAILY: '每日', WEEKLY: '每周', MONTHLY: '每月' })[s] ?? s;
 
 async function loadSubscriptions() {
   subLoading.value = true;
@@ -192,12 +201,12 @@ async function loadSubscriptions() {
 const openCreate = () => {
   editingId.value = null;
   Object.assign(subForm, {
+    name: '',
     template_id: 1,
-    schedule: 'daily',
-    schedule_time: '08:30',
+    frequency: 'DAILY',
     recipientsText: '',
-    format: 'pdf',
-    active: true,
+    export_format: 'pdf',
+    is_enabled: true,
   });
   subDialogVisible.value = true;
 };
@@ -205,12 +214,12 @@ const openCreate = () => {
 const openEdit = (row: ReportSubscription) => {
   editingId.value = row.id;
   Object.assign(subForm, {
+    name: row.name,
     template_id: row.template_id,
-    schedule: row.schedule,
-    schedule_time: row.schedule_time,
-    recipientsText: (row.recipients || []).join(','),
-    format: row.format,
-    active: row.active,
+    frequency: row.frequency,
+    recipientsText: row.recipients.join(','),
+    export_format: row.export_format,
+    is_enabled: row.is_enabled,
   });
   subDialogVisible.value = true;
 };
@@ -220,28 +229,30 @@ const handleSave = async () => {
     .split(/[,;，；]/)
     .map(s => s.trim())
     .filter(Boolean);
-  if (!subForm.template_id || !subForm.schedule_time || recipients.length === 0) {
-    ElMessage.warning('请填写模板 ID/发送时间/收件人');
+  if (!subForm.name.trim() || !subForm.template_id || recipients.length === 0) {
+    ElMessage.warning('请填写订阅名称/模板 ID/收件人');
     return;
   }
   subSaving.value = true;
   try {
     if (editingId.value) {
+      // 后端 UpdateSubscriptionRequest 不含 template_id/parameters：仅提交可更新字段
       await updateSubscription(editingId.value, {
-        schedule: subForm.schedule,
-        schedule_time: subForm.schedule_time,
+        name: subForm.name.trim(),
+        frequency: subForm.frequency,
         recipients,
-        format: subForm.format,
-        active: subForm.active,
+        export_format: subForm.export_format,
+        is_enabled: subForm.is_enabled,
       });
       ElMessage.success('订阅已更新');
     } else {
+      // parameters/is_enabled 为后端可选字段，本表单不采集，不发送（避免死键）
       await createSubscription({
+        name: subForm.name.trim(),
         template_id: subForm.template_id,
-        schedule: subForm.schedule,
-        schedule_time: subForm.schedule_time,
+        frequency: subForm.frequency,
         recipients,
-        format: subForm.format,
+        export_format: subForm.export_format,
       });
       ElMessage.success('订阅已创建');
     }
@@ -255,8 +266,8 @@ const handleSave = async () => {
 const handleToggle = async (row: ReportSubscription) => {
   try {
     // 后端 ToggleSubscriptionDto 必填 enabled（目标状态）：按钮文案即用户意图，取当前状态的相反值。
-    const res = await toggleSubscription(row.id, !row.active);
-    ElMessage.success(res.data?.active ? '订阅已启用' : '订阅已停用');
+    const res = await toggleSubscription(row.id, !row.is_enabled);
+    ElMessage.success(res.data?.is_enabled ? '订阅已启用' : '订阅已停用');
     await loadSubscriptions();
   } catch (e) {
     ElMessage.error((e as Error).message || '操作失败');

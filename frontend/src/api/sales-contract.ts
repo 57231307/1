@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface SalesContract {
   id: number;
@@ -44,7 +44,18 @@ export interface ContractItem {
   remark: string;
 }
 
-export function getSalesContractList(params?: QueryParams): Promise<ApiResponse<SalesContract[]>> {
+// 后端 sales_contract_handler::SalesContractQuery（list_contracts 的 Query<T>，全字段 Option、snake_case）
+export interface SalesContractQuery {
+  keyword?: string;
+  status?: string;
+  customer_id?: number;
+  page?: number;
+  page_size?: number;
+}
+
+export function getSalesContractList(
+  params?: SalesContractQuery
+): Promise<ApiResponse<SalesContract[]>> {
   return request.get('/sales/sales-contracts', { params });
 }
 

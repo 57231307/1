@@ -40,17 +40,30 @@ export interface ReportTemplate {
   created_by?: string;
 }
 
+// 后端 report_subscription::Model 全行序列化（subscriptions::list/get/create/update/toggle 均原样返回）。
+// recipients 落库为 JSON 数组（service 以 Vec<String> 写入），反序列化为 string[]；
+// frequency 由 service 强校验为 'DAILY' | 'WEEKLY' | 'MONTHLY'，但列类型为 String，故此处保持 string。
 export interface ReportSubscription {
   id: number;
+  name: string;
   template_id: number;
-  template_name: string;
-  schedule: 'daily' | 'weekly' | 'monthly';
-  schedule_time: string;
+  frequency: string;
   recipients: string[];
-  format: 'pdf' | 'excel' | 'both';
-  active: boolean;
+  parameters: Record<string, unknown> | null;
+  export_format: string;
+  is_enabled: boolean;
+  status: string;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_run_status: string | null;
+  last_run_error: string | null;
+  run_count: number;
+  retry_count: number;
+  max_retries: number;
+  next_retry_at: string | null;
+  created_by: number;
   created_at: string;
-  last_sent_at?: string;
+  updated_at: string;
 }
 
 export interface CreateTemplateRequest {
@@ -75,20 +88,27 @@ export interface UpdateTemplateRequest {
   chart_type?: string;
 }
 
+// 后端 report_subscription_service::CreateSubscriptionRequest（subscriptions::create 的 Json<T>）。
+// name/template_id/frequency/recipients 为非 Option 必填；frequency 取值 'DAILY' | 'WEEKLY' | 'MONTHLY'
+// （service 严格校验，其余值 422）。parameters 对应 Option<serde_json::Value>。
 export interface CreateSubscriptionRequest {
+  name: string;
   template_id: number;
-  schedule: 'daily' | 'weekly' | 'monthly';
-  schedule_time: string;
+  frequency: string;
   recipients: string[];
-  format: 'pdf' | 'excel' | 'both';
+  parameters?: Record<string, unknown>;
+  export_format?: string;
+  is_enabled?: boolean;
 }
 
+// 后端 report_subscription_service::UpdateSubscriptionRequest（subscriptions::update 的 Json<T>）：
+// 全部 Option，无 template_id/parameters —— 订阅模板与参数创建后不可改。
 export interface UpdateSubscriptionRequest {
-  schedule?: 'daily' | 'weekly' | 'monthly';
-  schedule_time?: string;
+  name?: string;
+  frequency?: string;
   recipients?: string[];
-  format?: 'pdf' | 'excel' | 'both';
-  active?: boolean;
+  export_format?: string;
+  is_enabled?: boolean;
 }
 
 // 后端 report_enhanced_handler::get_available_fields 返回 ApiResponse<serde_json::Value>，

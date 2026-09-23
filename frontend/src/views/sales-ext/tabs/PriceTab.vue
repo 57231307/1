@@ -17,20 +17,8 @@
         :model="priceQuery"
         :aria-label="t('salesExt.priceTab.ariaLabelFilter')"
       >
-        <el-form-item :label="t('salesExt.priceTab.labelProduct')">
-          <el-input
-            v-model="priceQuery.productName"
-            :placeholder="t('salesExt.priceTab.placeholderProductName')"
-            clearable
-          />
-        </el-form-item>
-        <el-form-item :label="t('salesExt.priceTab.labelCustomer')">
-          <el-input
-            v-model="priceQuery.customerName"
-            :placeholder="t('salesExt.priceTab.placeholderCustomerName')"
-            clearable
-          />
-        </el-form-item>
+        <!-- 后端 SalesPriceQuery 仅读 product_id/customer_type/status/page/page_size/download_token，
+             不读产品名/客户名文本，原两个文本输入框为假筛选，已删除 -->
         <el-form-item :label="t('salesExt.priceTab.labelStatus')">
           <el-select
             v-model="priceQuery.status"
@@ -279,9 +267,9 @@ const { t } = useI18n({ useScope: 'global' });
 const salesPrices = ref<SalesPrice[]>([]);
 const priceLoading = ref(false);
 
+// 键集对齐后端 sales_price_handler::SalesPriceQuery；页面未暴露 product_id/customer_type
+// 筛选（需产品/客户选择器，属产品决策），此处只保留真实被后端读取的 status。
 const priceQuery = reactive({
-  productName: '',
-  customerName: '',
   status: '',
 });
 
@@ -304,8 +292,6 @@ const fetchSalesPrices = async () => {
 };
 
 const resetPriceQuery = () => {
-  priceQuery.productName = '';
-  priceQuery.customerName = '';
   priceQuery.status = '';
   fetchSalesPrices();
 };

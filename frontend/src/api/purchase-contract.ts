@@ -34,8 +34,17 @@ export interface ContractItem {
   remark: string;
 }
 
+// 后端 purchase_contract_handler::ContractQuery（list_contracts 的 Query<T>，全字段 Option、snake_case）
+export interface PurchaseContractQuery {
+  keyword?: string;
+  status?: string;
+  supplier_id?: number;
+  page?: number;
+  page_size?: number;
+}
+
 export function getPurchaseContractList(
-  params?: QueryParams
+  params?: PurchaseContractQuery
 ): Promise<ApiResponse<PurchaseContract[]>> {
   return request.get('/purchase/purchase-contracts', { params });
 }

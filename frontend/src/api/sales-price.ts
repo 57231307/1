@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface SalesPrice {
   id: number;
@@ -42,10 +42,19 @@ export interface PricingStrategyRule {
   price?: number;
 }
 
-export function getSalesPriceList(
-  params?: QueryParams
-  // 后端 sales_price_handler::list_prices 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
-): Promise<ApiResponse<SalesPrice[]>> {
+// 后端 sales_price_handler::SalesPriceQuery（list_prices 的 Query<T>，全字段 Option、snake_case）。
+// download_token 为敏感导出 fail-closed 审批令牌：页面未暴露不等于类型不该有，仍如实声明。
+export interface SalesPriceQuery {
+  product_id?: number;
+  customer_type?: string;
+  status?: string;
+  page?: number;
+  page_size?: number;
+  download_token?: string;
+}
+
+// 后端 sales_price_handler::list_prices 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+export function getSalesPriceList(params?: SalesPriceQuery): Promise<ApiResponse<SalesPrice[]>> {
   return request.get('/sales/sales-prices', { params });
 }
 
