@@ -4435,6 +4435,15 @@ ALTER TABLE "purchase_prices" ALTER COLUMN "status" SET DEFAULT 'pending';
 UPDATE "sales_prices"    SET "status" = 'pending' WHERE "status" = 'ACTIVE';
 UPDATE "purchase_prices" SET "status" = 'pending' WHERE "status" = 'ACTIVE';
 
+-- 7) inventory_piece.status / inventory_status：词表 models/status/purchase_inventory.rs 的
+--    inventory_piece = {AVAILABLE, UNAVAILABLE, RESERVED, SHIPPED, DEFECT, SAMPLE} 全大写。
+--    外发准入判断（piece_domain_service.rs:189）与扫码/台账读侧（barcode_scanner_handler.rs:207,
+--    210, 254）、piece_split_handler.rs:208、fabric_inspection_service.rs:645 一律按大写比对，
+--    而生产报工逐匹登记与委外回仓两处写入曾硬编码小写 'available'（piece_domain_service.rs:110,
+--    121, 338, 349）⇒ 这些匹对所有读侧永久不可见，且在准入处被判定'非可用，不可外发发料'。
+--    写入侧已改为引用 inventory_piece::AVAILABLE 常量；此处归一历史行。
+UPDATE "inventory_piece" SET "status" = 'AVAILABLE' WHERE "status" = 'available';
+UPDATE "inventory_piece" SET "inventory_status" = 'AVAILABLE' WHERE "inventory_status" = 'available';
 -- ========== purchase_orders：双状态列收口（order_status 为唯一真相，status 废弃） ==========
 -- 同表两列两套词表：m0001:457 建 `status VARCHAR(20) NOT NULL DEFAULT 'draft'`
 -- （小写 draft/confirmed/…），system 域 :331 又补 `order_status VARCHAR(20)`（可空、无默认）。

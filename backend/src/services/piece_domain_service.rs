@@ -10,6 +10,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, QueryFilter, Query
 use serde::Deserialize;
 
 use crate::models::inventory_piece;
+use crate::models::status::purchase_inventory::inventory_piece as piece_status;
 use crate::utils::error::AppError;
 
 /// 匹类型常量
@@ -107,7 +108,7 @@ pub async fn create_greige_pieces_from_report<C: ConnectionTrait>(
             gram_weight: Set(piece.gram_weight),
             production_date: Set(piece.production_date),
             quality_status: Set(None),
-            inventory_status: Set(Some("available".to_string())),
+            inventory_status: Set(Some(piece_status::AVAILABLE.to_string())),
             supplier_piece_no: Set(None),
             position_no: Set(None),
             package_no: Set(None),
@@ -118,7 +119,7 @@ pub async fn create_greige_pieces_from_report<C: ConnectionTrait>(
             piece_seq: Set(None),
             location_id: Set(None),
             scan_type: Set(None),
-            status: Set("available".to_string()),
+            status: Set(piece_status::AVAILABLE.to_string()),
             remarks: Set(Some(format!(
                 "生产报工逐匹登记（生产单 {}）",
                 production_order_no
@@ -335,7 +336,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         gram_weight: Set(None),
         production_date: Set(None),
         quality_status: Set(grade.map(|g| g.to_string())),
-        inventory_status: Set(Some("available".to_string())),
+        inventory_status: Set(Some(piece_status::AVAILABLE.to_string())),
         supplier_piece_no: Set(None),
         position_no: Set(None),
         package_no: Set(None),
@@ -346,7 +347,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         piece_seq: Set(piece_seq),
         location_id: Set(None),
         scan_type: Set(None),
-        status: Set("available".to_string()),
+        status: Set(piece_status::AVAILABLE.to_string()),
         remarks: Set(Some(remarks.to_string())),
         created_at: Set(now_utc),
         updated_at: Set(now_utc),
