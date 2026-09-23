@@ -306,10 +306,22 @@ export function autoVerifyAP(data: { supplier_id: number }): Promise<ApiResponse
   return request.post('/ap/verifications/auto', data);
 }
 
-export function manualVerifyAP(data: {
+/** 手工核销明细：对齐后端 ap_verification_service::ApVerificationItemDto */
+export interface ApVerificationItemInput {
   invoice_id: number;
   payment_id: number;
-  amount: number;
+  verify_amount: number;
+  notes?: string;
+}
+
+/**
+ * 手工核销：对齐后端 ManualVerifyRequest（ap_verification_service.rs:714）
+ * ——supplier_id 必填（非 Option，后端直接落库），核销关系走 items[]，金额键是 verify_amount。
+ */
+export function manualVerifyAP(data: {
+  supplier_id: number;
+  items: ApVerificationItemInput[];
+  notes?: string;
 }): Promise<ApiResponse<APVerification>> {
   return request.post('/ap/verifications/manual', data);
 }
@@ -319,12 +331,18 @@ export function cancelAPVerification(id: number, reason: string): Promise<ApiRes
   return request.post(`/ap/verifications/${id}/cancel`, { reason });
 }
 
-export function getUnverifiedAPInvoices(): Promise<ApiResponse<APInvoice[]>> {
-  return request.get('/ap/verifications/unverified/invoices');
+// 后端 get_unverified_invoices / get_unverified_payments 强制要求 supplier_id
+// （handlers/ap_verification_handler.rs:189/217：缺失即 400），故按供应商查询。
+export function getUnverifiedAPInvoices(supplierId: number): Promise<ApiResponse<APInvoice[]>> {
+  return request.get('/ap/verifications/unverified/invoices', {
+    params: { supplier_id: supplierId },
+  });
 }
 
-export function getUnverifiedAPPayments(): Promise<ApiResponse<APPayment[]>> {
-  return request.get('/ap/verifications/unverified/payments');
+export function getUnverifiedAPPayments(supplierId: number): Promise<ApiResponse<APPayment[]>> {
+  return request.get('/ap/verifications/unverified/payments', {
+    params: { supplier_id: supplierId },
+  });
 }
 
 /**

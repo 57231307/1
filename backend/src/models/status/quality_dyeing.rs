@@ -337,3 +337,18 @@ pub mod quality_inspection_result {
     /// 全部合法取值，入参校验的唯一来源
     pub const ALL: &[&str] = &[PENDING, QUALIFIED, UNQUALIFIED];
 }
+
+/// 批次染色明细状态（batch_dye_lot.status，大写 ACTIVE/COMPLETED）
+///
+/// 与 `dye_batch` 表的 `dye_batch_lifecycle_status`（小写十六态生命周期）是不同实体、
+/// 不同词表，不可互抄。词表以 batch_dye_lot 模型注释声明的两态为准，比较/门控须逐字符相同。
+pub mod batch_dye_lot_status {
+    /// 活跃：缸号档案已建立，仍处于染色/回仓流程中
+    pub const ACTIVE: &str = "ACTIVE";
+
+    /// 已完成：该批次染色全部处理完毕
+    pub const COMPLETED: &str = "COMPLETED";
+
+    /// 全部合法取值，入参校验的唯一来源
+    pub const ALL: &[&str] = &[ACTIVE, COMPLETED];
+}

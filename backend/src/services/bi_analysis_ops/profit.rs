@@ -156,7 +156,11 @@ impl BiAnalysisService {
     }
 
     /// 查询同比增长率（本月 vs 去年同月），注入数据范围过滤
-    async fn fetch_yoy_growth(&self, now: chrono::DateTime<chrono::Utc>) -> Result<f64, AppError> {
+    /// 去年同月无销售额（基期为 0）时无法计算增长率，返回 None 而非伪造 0%
+    async fn fetch_yoy_growth(
+        &self,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<f64>, AppError> {
         let this_year = now.format("%Y").to_string();
         let last_year = (this_year.parse::<i32>().unwrap_or(2026) - 1).to_string();
         let month = now.format("%m").to_string();
@@ -191,15 +195,19 @@ impl BiAnalysisService {
             (0.0, 0.0)
         };
         let growth = if last_year_sales > 0.0 {
-            (this_year_sales - last_year_sales) / last_year_sales * 100.0
+            Some((this_year_sales - last_year_sales) / last_year_sales * 100.0)
         } else {
-            0.0
+            None
         };
         Ok(growth)
     }
 
     /// 查询环比增长率（本月 vs 上月），注入数据范围过滤
-    async fn fetch_mom_growth(&self, now: chrono::DateTime<chrono::Utc>) -> Result<f64, AppError> {
+    /// 上月无销售额（基期为 0）时无法计算增长率，返回 None 而非伪造 0%
+    async fn fetch_mom_growth(
+        &self,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<f64>, AppError> {
         let this_year = now.format("%Y").to_string();
         let month = now.format("%m").to_string();
         let last_month = if now.month() == 1 {
@@ -248,9 +256,9 @@ impl BiAnalysisService {
             (0.0, 0.0)
         };
         let growth = if last_month_sales > 0.0 {
-            (this_month_sales - last_month_sales) / last_month_sales * 100.0
+            Some((this_month_sales - last_month_sales) / last_month_sales * 100.0)
         } else {
-            0.0
+            None
         };
         Ok(growth)
     }

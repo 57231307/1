@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 use crate::models::inventory_piece;
 use crate::models::status::purchase_inventory::inventory_piece as piece_status;
+use crate::models::status::quality_dyeing::batch_dye_lot_status;
 use crate::utils::error::AppError;
 
 /// 匹类型常量
@@ -277,7 +278,7 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
                     dye_date: Set(now),
                     quantity: Set(length_m),
                     color_code: Set(None),
-                    status: Set("ACTIVE".to_string()),
+                    status: Set(batch_dye_lot_status::ACTIVE.to_string()),
                     remarks: Set(Some("委外回仓自动建档（缸号产生时机）".to_string())),
                     ..Default::default()
                 };

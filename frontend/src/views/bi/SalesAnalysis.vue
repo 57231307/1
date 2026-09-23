@@ -11,7 +11,7 @@
  * 6. 利润分析
  * 7. 多维筛选 + 钻取
  */
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { echarts } from '@/utils/echarts';
@@ -49,6 +49,22 @@ import logger from '@/utils/logger';
 const { t } = useI18n({ useScope: 'global' });
 
 const kpi = ref<KpiSummary | null>(null);
+
+// 同比增长率文案：后端无法计算时返回 null，显示"无同比数据"而非伪造成 0%
+const yoyGrowthText = computed(() => {
+  const g = kpi.value?.yoy_growth;
+  return g === null || g === undefined
+    ? t('biSalesAnalysis.kpi.noYoyData')
+    : t('biSalesAnalysis.kpi.yoyGrowth', { value: g.toFixed(1) });
+});
+
+// 环比增长率文案：后端无法计算时返回 null，显示"无环比数据"而非伪造成 0%
+const momGrowthText = computed(() => {
+  const g = kpi.value?.mom_growth;
+  return g === null || g === undefined
+    ? t('biSalesAnalysis.kpi.noMomData')
+    : t('biSalesAnalysis.kpi.momGrowth', { value: g.toFixed(1) });
+});
 const trend = ref<TimeSeriesPoint[]>([]);
 const customers = ref<CustomerRank[]>([]);
 const products = ref<ProductRank[]>([]);
@@ -356,16 +372,12 @@ function resizeCharts() {
       <el-card class="kpi-card">
         <div class="kpi-label">{{ $t('biSalesAnalysis.kpi.totalSales') }}</div>
         <div class="kpi-value">{{ formatCurrency(kpi?.total_sales) }}</div>
-        <div class="kpi-trend up">
-          {{ $t('biSalesAnalysis.kpi.yoyGrowth', { value: kpi?.yoy_growth?.toFixed(1) ?? '0' }) }}
-        </div>
+        <div class="kpi-trend up">{{ yoyGrowthText }}</div>
       </el-card>
       <el-card class="kpi-card">
         <div class="kpi-label">{{ $t('biSalesAnalysis.kpi.orderCount') }}</div>
         <div class="kpi-value">{{ kpi?.order_count ?? '—' }}</div>
-        <div class="kpi-trend up">
-          {{ $t('biSalesAnalysis.kpi.momGrowth', { value: kpi?.mom_growth?.toFixed(1) ?? '0' }) }}
-        </div>
+        <div class="kpi-trend up">{{ momGrowthText }}</div>
       </el-card>
       <el-card class="kpi-card">
         <div class="kpi-label">{{ $t('biSalesAnalysis.kpi.customerCount') }}</div>

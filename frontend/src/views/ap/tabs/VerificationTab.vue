@@ -80,14 +80,27 @@
       :aria-label="$t('apModule.verification.createAria')"
     >
       <el-form
+        ref="verificationFormRef"
         :model="verificationForm"
+        :rules="verificationRules"
         label-width="100px"
         :aria-label="$t('apModule.verification.formAria')"
       >
-        <el-form-item :label="$t('apModule.verification.invoiceNo')">
+        <el-form-item :label="$t('apModule.verification.supplier')" prop="supplier_id">
+          <el-select
+            v-model="verificationForm.supplier_id"
+            :placeholder="$t('apModule.verification.supplierPlaceholder')"
+            style="width: 100%"
+            @change="onSupplierChange"
+          >
+            <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('apModule.verification.invoiceNo')" prop="invoice_id">
           <el-select
             v-model="verificationForm.invoice_id"
             :placeholder="$t('apModule.verification.invoicePlaceholder')"
+            :disabled="!verificationForm.supplier_id"
             style="width: 100%"
           >
             <el-option
@@ -103,10 +116,11 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('apModule.verification.paymentNo')">
+        <el-form-item :label="$t('apModule.verification.paymentNo')" prop="payment_id">
           <el-select
             v-model="verificationForm.payment_id"
             :placeholder="$t('apModule.verification.paymentPlaceholder')"
+            :disabled="!verificationForm.supplier_id"
             style="width: 100%"
           >
             <el-option
@@ -122,11 +136,12 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('apModule.verification.verificationAmount')">
+        <el-form-item :label="$t('apModule.verification.verificationAmount')" prop="amount">
           <el-input-number
             v-model="verificationForm.amount"
             :min="0"
             :precision="2"
+            :disabled="!verificationForm.supplier_id"
             style="width: 100%"
           />
         </el-form-item>
@@ -183,9 +198,10 @@
 import { ref, reactive, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { promptCancelReason } from '@/composables/useActionPrompts';
+import { getSupplierList, type Supplier } from '@/api/supplier';
 import {
   getAPVerificationList,
   getAPVerification,
@@ -205,6 +221,17 @@ const verifications = ref<APVerification[]>([]);
 const verificationLoading = ref(false);
 const unverifiedInvoices = ref<APInvoice[]>([]);
 const unverifiedPayments = ref<APPayment[]>([]);
+const suppliers = ref<Supplier[]>([]);
+
+// 供应商列表：与发票/付款 tab 同款 getSupplierList，仅加载一次供核销弹窗下拉复用
+const fetchSuppliers = async () => {
+  try {
+    const res = await getSupplierList({ page: 1, page_size: 1000 });
+    suppliers.value = res.data?.items || [];
+  } catch (e) {
+    logger.error(t('apModule.verification.loadSuppliersFailed'), e);
+  }
+};
 
 const formatMoney = (amount: number | undefined) => {
   return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
@@ -231,46 +258,92 @@ const fetchVerifications = async () => {
 
 const verificationDialogVisible = ref(false);
 const verificationSubmitLoading = ref(false);
+const verificationFormRef = ref<FormInstance>();
 const verificationForm = reactive({
+  supplier_id: undefined as number | undefined,
   invoice_id: undefined as number | undefined,
   payment_id: undefined as number | undefined,
   amount: 0,
 });
 
-const openVerificationDialog = async () => {
+// supplier_id 为后端 ManualVerifyRequest 必填项（非 Option，直接落库），核销金额须 > 0
+const verificationRules: FormRules = {
+  supplier_id: [
+    { required: true, message: t('apModule.verification.supplierRequired'), trigger: 'change' },
+  ],
+  invoice_id: [
+    { required: true, message: t('apModule.verification.invoiceRequired'), trigger: 'change' },
+  ],
+  payment_id: [
+    { required: true, message: t('apModule.verification.paymentRequired'), trigger: 'change' },
+  ],
+  amount: [
+    {
+      required: true,
+      validator: (_rule, value, callback) => {
+        if (typeof value === 'number' && value > 0) callback();
+        else callback(new Error(t('apModule.verification.amountRequired')));
+      },
+      trigger: 'blur',
+    },
+  ],
+};
+
+const loadUnverifiedForSupplier = async (supplierId: number) => {
   try {
     const [invRes, payRes] = await Promise.all([
-      getUnverifiedAPInvoices(),
-      getUnverifiedAPPayments(),
+      getUnverifiedAPInvoices(supplierId),
+      getUnverifiedAPPayments(supplierId),
     ]);
-    // 两端均返回裸数组（handlers/ap_verification_handler.rs:208 serde_json::to_value(Vec<...>)），
+    // 两端均返回裸数组（handlers/ap_verification_handler.rs:208/236 serde_json::to_value(Vec<...>)），
     // 无需多形状探测。
     unverifiedInvoices.value = invRes.data.filter(i => i.unpaid_amount > 0);
     unverifiedPayments.value = payRes.data;
   } catch (e) {
+    unverifiedInvoices.value = [];
+    unverifiedPayments.value = [];
     logger.error(t('apModule.verification.unverifiedLoadFailed'), e);
   }
+};
+
+// 切换供应商：重置依赖供应商的已选发票/付款/金额，并按新供应商重新拉取未核销列表
+const onSupplierChange = (supplierId: number | undefined) => {
   verificationForm.invoice_id = undefined;
   verificationForm.payment_id = undefined;
   verificationForm.amount = 0;
+  if (supplierId) {
+    void loadUnverifiedForSupplier(supplierId);
+  } else {
+    unverifiedInvoices.value = [];
+    unverifiedPayments.value = [];
+  }
+};
+
+const openVerificationDialog = () => {
+  verificationFormRef.value?.clearValidate();
+  verificationForm.supplier_id = undefined;
+  verificationForm.invoice_id = undefined;
+  verificationForm.payment_id = undefined;
+  verificationForm.amount = 0;
+  unverifiedInvoices.value = [];
+  unverifiedPayments.value = [];
   verificationDialogVisible.value = true;
 };
 
 const submitVerification = async () => {
-  if (
-    !verificationForm.invoice_id ||
-    !verificationForm.payment_id ||
-    verificationForm.amount <= 0
-  ) {
-    ElMessage.warning(t('apModule.verification.pleaseFillComplete'));
-    return;
-  }
+  const valid = await verificationFormRef.value?.validate();
+  if (!valid) return;
   verificationSubmitLoading.value = true;
   try {
     await manualVerifyAP({
-      invoice_id: verificationForm.invoice_id,
-      payment_id: verificationForm.payment_id,
-      amount: verificationForm.amount,
+      supplier_id: verificationForm.supplier_id as number,
+      items: [
+        {
+          invoice_id: verificationForm.invoice_id as number,
+          payment_id: verificationForm.payment_id as number,
+          verify_amount: verificationForm.amount,
+        },
+      ],
     });
     ElMessage.success(t('apModule.verification.verifySuccess'));
     verificationDialogVisible.value = false;
@@ -359,6 +432,7 @@ defineExpose({ refresh: fetchVerifications });
 
 onMounted(() => {
   fetchVerifications();
+  fetchSuppliers();
 });
 </script>
 

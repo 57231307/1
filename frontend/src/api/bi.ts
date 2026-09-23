@@ -105,8 +105,10 @@ export interface KpiSummary {
   order_count: number;
   customer_count: number;
   avg_order_value: number;
-  yoy_growth: number;
-  mom_growth: number;
+  /** 同比增长率百分比；后端无可比同期基期时为 null（非 0%） */
+  yoy_growth: number | null;
+  /** 环比增长率百分比；后端无可比上月基期时为 null（非 0%） */
+  mom_growth: number | null;
 }
 
 /** BI 响应 */
