@@ -439,7 +439,7 @@ const handleApproveTransfer = async (row: InventoryTransfer) => {
       { type: 'info' }
     );
     const { approveInventoryTransfer } = await import('@/api/inventory');
-    await approveInventoryTransfer(row.id);
+    await approveInventoryTransfer(row.id, { approved: true });
     ElMessage.success(t('inventory.message.approveSuccess'));
     fetchTransfers();
   } catch (error) {

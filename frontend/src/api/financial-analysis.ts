@@ -38,11 +38,6 @@ export interface FinancialTrend {
   indicator: string;
 }
 
-export interface ReportExecutionRequest {
-  reportId: number;
-  parameters?: ReportParameters;
-}
-
 // 报表查询参数
 export interface ReportQueryParams {
   page?: number;
@@ -74,10 +69,17 @@ export const executeFinancialReport = (id: number) =>
 export const getFinancialReport = (id: number) =>
   request.get<ApiResponse<FinancialReport>>(`/financial-analysis/reports/${id}`);
 
-export const executeReportWithParams = (data: ReportExecutionRequest) =>
+/**
+ * 执行财务分析报告。后端 financial_analysis_handler.rs:515 用
+ * `Query<ExecuteReportParams { period: Option<String> }>`（:96-99，period 为 YYYY-MM，
+ * 缺失时后端取当前年月），不接收请求体 —— 此前把 reportId/parameters 塞进 body，
+ * 用户在对话框里填的参数全部被丢弃。
+ */
+export const executeReportWithParams = (reportId: number, period?: string) =>
   request.post<ApiResponse<FinancialReport>>(
-    `/financial-analysis/reports/${data.reportId}/execute`,
-    data
+    `/financial-analysis/reports/${reportId}/execute`,
+    undefined,
+    { params: period ? { period } : {} }
   );
 
 export const createFinancialIndicator = (data: Partial<FinancialIndicator>) =>

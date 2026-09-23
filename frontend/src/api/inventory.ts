@@ -243,8 +243,14 @@ export const createInventoryTransfer = (data: TransferData) =>
   request.post<ApiResponse<InventoryTransfer>>('/inventory/transfers', data);
 
 // D14 Batch 5b：原 inventoryApi.approveTransfer 转为风格 B 函数
-export const approveInventoryTransfer = (id: number) =>
-  request.post<ApiResponse<null>>(`/inventory/transfers/${id}/approve`);
+/** 批准体（后端 inventory_transfer_handler.rs::ApproveTransferRequest：approved 必填） */
+export interface ApproveTransferPayload {
+  approved: boolean;
+  notes?: string;
+}
+
+export const approveInventoryTransfer = (id: number, data: ApproveTransferPayload) =>
+  request.post<ApiResponse<null>>(`/inventory/transfers/${id}/approve`, data);
 
 // D14 Batch 5b：原 inventoryApi.executeTransfer 转为风格 B 函数
 export const executeInventoryTransfer = (id: number) =>

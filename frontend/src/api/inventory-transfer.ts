@@ -1,5 +1,6 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+import type { ApproveTransferPayload } from './inventory';
 
 export interface InventoryTransferEntity {
   id?: number;
@@ -73,8 +74,9 @@ export function deleteInventoryTransfer(id: number) {
   return request.delete(`/inventory/transfers/${id}`);
 }
 
-export function approveInventoryTransfer(id: number) {
-  return request.post(`/inventory/transfers/${id}/approve`);
+// 体形状同 api/inventory.ts::ApproveTransferPayload（后端 ApproveTransferRequest）
+export function approveInventoryTransfer(id: number, data: ApproveTransferPayload) {
+  return request.post(`/inventory/transfers/${id}/approve`, data);
 }
 
 export function getTransferItems(id: number) {

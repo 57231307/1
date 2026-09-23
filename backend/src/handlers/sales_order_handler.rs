@@ -607,17 +607,28 @@ pub async fn generate_order_no(
 
 // ========== 订单状态操作接口 ==========
 
+/// 拒绝销售订单请求（字段与校验对齐 purchase_order_handler.rs::RejectOrderRequest，
+/// 此前本 handler 无 Json 提取器，前端传来的拒绝原因被 Axum 丢弃、
+/// 审计里恒为写死的「订单被拒绝」）
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct RejectSalesOrderRequest {
+    #[validate(length(min = 1, max = 500, message = "拒绝原因不能为空且最长500字符"))]
+    pub reason: String,
+}
+
 /// 拒绝订单
 /// POST /api/v1/erp/sales/orders/:id/reject
 pub async fn reject_order(
     _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    Json(req): Json<RejectSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     sales_service
-        .reject_order(id, "订单被拒绝".to_string(), _auth.user_id)
+        .reject_order(id, req.reason, _auth.user_id)
         .await
         .map_err(|e| AppError::internal(format!("拒绝订单失败: {}", e)))?;
 

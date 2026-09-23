@@ -241,12 +241,14 @@
         <el-form-item label="报表">
           <el-input :model-value="paramExecRow?.reportName || ''" disabled />
         </el-form-item>
-        <el-form-item label="执行参数">
-          <el-input
-            v-model="paramExecText"
-            type="textarea"
-            :rows="5"
-            placeholder='JSON 对象，如 {"start_date":"2026-01-01","end_date":"2026-12-31"}'
+        <el-form-item :label="t('financialAnalysis.analysisListTab.labelPeriod')">
+          <!-- 后端仅读 query.period（YYYY-MM）；此前的自由 JSON 参数框发过去会被整体丢弃 -->
+          <el-date-picker
+            v-model="paramExecPeriod"
+            type="month"
+            value-format="YYYY-MM"
+            :clearable="true"
+            style="width: 100%"
           />
         </el-form-item>
       </el-form>
@@ -487,29 +489,19 @@ const executeReport = async (row: FinancialReport) => {
 const paramExecVisible = ref(false);
 const paramExecSaving = ref(false);
 const paramExecRow = ref<FinancialReport | null>(null);
-const paramExecText = ref('{}');
+const paramExecPeriod = ref('');
 
 const openParamExec = (row: FinancialReport) => {
   paramExecRow.value = row;
-  paramExecText.value = '{}';
+  paramExecPeriod.value = '';
   paramExecVisible.value = true;
 };
 
 const handleParamExec = async () => {
   if (!paramExecRow.value?.id) return;
-  let parameters: unknown;
-  try {
-    parameters = JSON.parse(paramExecText.value || '{}');
-  } catch {
-    ElMessage.warning('执行参数 JSON 格式有误');
-    return;
-  }
   paramExecSaving.value = true;
   try {
-    await executeReportWithParams({
-      reportId: paramExecRow.value.id,
-      parameters: parameters as never,
-    });
+    await executeReportWithParams(paramExecRow.value.id, paramExecPeriod.value || undefined);
     ElMessage.success(t('financialAnalysis.analysisListTab.messageExecuteSuccess'));
     paramExecVisible.value = false;
     fetchReports();
