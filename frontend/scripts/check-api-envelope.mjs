@@ -71,20 +71,52 @@ const LIST_KEYS = ['items', 'list', 'data', 'roles', 'users', 'counts', 'results
 // 数组键是规范列表名或对象带分页标记(total/count)，且对象没有主键 id（有 id 即实体本身）。
 const TOTAL_KEYS = ['total', 'count', 'total_count', 'totalCount'];
 
-function shapeOfArrayKeys({ vecKey, hasTotal, hasId, label }) {
+// 分页/计数键：这些与数组键并列时是「列表信封」的特征，不算兄弟业务字段
+const PAGE_KEYS = [
+  'total',
+  'count',
+  'page',
+  'page_size',
+  'current',
+  'size',
+  'pages',
+  'limit',
+  'offset',
+  'has_more',
+];
+
+function shapeOfArrayKeys({ vecKey, hasTotal, hasId, label, allKeys }) {
   if (!vecKey.length) return { kind: 'single', raw: label };
   if (hasId) return { kind: 'single', raw: `${label} (含 id，按实体处理)` };
   const canon = vecKey.find(k => LIST_KEYS.includes(k));
+  // 详情聚合体：{bom, items} / {user, roles} 这类「单对象 + 内嵌行数组」不是列表信封。
+  // 判据是「有规范数组键、却无分页标记、还带着非分页的兄弟字段」，
+  // 否则会把 get_xxx_by_id 的详情响应误判成信封，制造假失配。
+  if (canon && !hasTotal && allKeys) {
+    const extra = allKeys.filter(
+      k => !vecKey.includes(k) && !PAGE_KEYS.includes(k) && k !== 'code' && k !== 'message'
+    );
+    if (extra.length)
+      return {
+        kind: 'single',
+        raw: `${label} (兄弟字段 ${extra.join('/')} + 无分页标记，按详情聚合体处理)`,
+      };
+  }
   if (!canon && !hasTotal)
     return {
       kind: 'single',
       raw: `${label} (数组键 ${vecKey.join('/')} 非规范列表名且无分页标记)`,
     };
   const carrier = canon || vecKey[0];
+  // 声明侧同时给出多个规范列表键（如 PageResult 的 data/list/items/users）时，
+  // 该类型"怎么返回都算对"，比对它没有意义 —— 记为 ambiguous 交由 compare() 判未分类，
+  // 不能在这里替它挑一个承载键（那就是本门禁要消灭的猜测）。
+  const canonKeys = vecKey.filter(k => LIST_KEYS.includes(k));
   return {
     kind: 'wrapper',
     carrier,
     raw: label,
+    ambiguous: canonKeys.length > 1 ? canonKeys : undefined,
     note: vecKey.length > 1 ? `多数组键 ${vecKey.join('/')}` : '',
   };
 }
@@ -788,6 +820,7 @@ function classifyPayload(payload, structIndex) {
       vecKey: info.vecFields.map(v => v.name),
       hasTotal: info.allFields.some(f => TOTAL_KEYS.includes(f.name)),
       hasId: info.allFields.some(f => f.name === 'id'),
+      allKeys: info.allFields.map(f => f.name),
       label: p,
     });
   }
@@ -1087,6 +1120,7 @@ function shapeFromJsonMacroObject(objText, body, ctx, depth) {
     vecKey: confirmed,
     hasTotal: keys.some(k => TOTAL_KEYS.includes(k.key)),
     hasId: keys.some(k => k.key === 'id' && k.arr === false),
+    allKeys: keys.map(k => k.key),
     label: 'json!{' + keys.map(k => k.key).join(',') + '}',
   });
 }
@@ -1446,6 +1480,7 @@ function classifyObjectBody(body, index, depth, seen, label) {
     vecKey,
     hasTotal: keys.some(k => TOTAL_KEYS.includes(k)),
     hasId: keys.includes('id'),
+    allKeys: keys,
     label: label || '内联对象',
   });
 }
@@ -1496,6 +1531,46 @@ function parseFrontendApiFunctions(tsIndex) {
       const call = extractFirstCall(body, consts);
       const feShape = classifyFrontendReturn(retType, tsIndex);
       list.push({ name, file: rel, line, feShape, retType, call, sig: m[2] || '' });
+    }
+    // 逐个 `export const NAME = (...) => request.get<ApiResponse<X>>(url, ...)`
+    // —— 返回类型挂在调用表达式上而非函数签名上，上一趟正则（要求 `: Promise<...>`）看不见它们。
+    // 全仓 49 个 api 文件共 500 处这种写法，规模与已比对量同级，不解析等于一半接口没有门禁。
+    const genRe = /request\.(get|post|put|delete|patch)\s*</g;
+    let gm;
+    while ((gm = genRe.exec(src))) {
+      const lt = src.indexOf('<', gm.index + 'request.'.length);
+      const typeCap = lt >= 0 ? captureBalanced(src, lt, '<', '>') : null;
+      if (!typeCap) continue;
+      const retType = typeCap[1].trim();
+      const paren = src.indexOf('(', typeCap[0]);
+      const argCap = paren >= 0 ? captureBalanced(src, paren, '(', ')') : null;
+      if (!argCap) continue;
+      const argTexts = splitTopLevelRust(argCap[1]).map(a => a.trim());
+      const url = resolveFrontendUrl(argTexts[0] || '', consts);
+      if (!url) continue;
+      let path = url;
+      if (!path.startsWith(BASE_URL))
+        path = BASE_URL + (path.startsWith('/') ? path : '/' + path);
+      // 方法名必须大写：共享路由表（check-api-paths 的 walkBackendRoutes）以
+      // `"<path> GET"` 形态建键，小写会让整批条目假报「路由未注册」。
+      const call = { method: gm[1].toUpperCase(), path: normalizePath(path), args: argTexts };
+      // 归属到最近一个 export 的符号名（从调用点往前扫）
+      const head = src.slice(0, gm.index);
+      const nm =
+        [...head.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z_]\w*)/g)].pop();
+      if (!nm) continue;
+      const name = nm[1];
+      const line = head.split('\n').length;
+      if (list.some(r => r.name === name && r.call && r.call.path === call.path)) continue;
+      list.push({
+        name,
+        file: rel,
+        line,
+        feShape: classifyFrontendReturn(retType, tsIndex),
+        retType,
+        call,
+        sig: '',
+      });
     }
   }
   return list;
@@ -1548,8 +1623,10 @@ function classifyFrontendPayload(inner, tsIndex, depth = 0, seen = new Set()) {
     return classifyObjectBody(p.replace(/^\{/, '').replace(/\}\s*$/, ''), tsIndex, depth, seen, p);
   // Record<...> / 动态映射 -> opaque
   if (/^Record\s*</.test(p)) return { kind: 'opaque', raw: p };
-  // 具名类型：展开其定义后参与比对；展开不了（泛型/多定义/父类型未解析）才退回盲区
-  const bare = p.match(/^([A-Z]\w*)$/);
+  // 具名类型：展开其定义后参与比对；展开不了（泛型/多定义/父类型未解析）才退回盲区。
+  // 带类型实参的具名类型（PageResult<T> 等）此前只匹配裸标识符，会整体掉进盲区 = 等于没检查，
+  // 故先去掉实参列表再查索引（列表元素类型不影响「载荷是哪个键」这一判定）。
+  const bare = p.match(/^([A-Z]\w*)(?:<[\s\S]*>)?$/);
   if (bare && tsIndex && depth <= 3) {
     const s = expandTsType(bare[1], tsIndex, depth, seen);
     if (s.kind !== 'named') return { ...s, raw: `${bare[1]} => ${s.raw}` };
@@ -1597,6 +1674,8 @@ function describeBe(be) {
 }
 // 建议修法：以「后端真实载荷」为准绳
 function suggestion(fe, be) {
+  if (fe.kind === 'wrapper' && fe.ambiguous)
+    return `前端声明同时给出多个规范列表键 ${fe.ambiguous.join('/')}，后端怎么返回都"对得上"；应按后端真实形状钉死为其中一个`;
   if (be.kind === 'array') {
     if (fe.kind === 'wrapper')
       return `前端应改为 ApiResponse<X[]>（后端 data 为裸数组），或视图改读 res.data`;
@@ -1635,6 +1714,8 @@ function compare(fe, be) {
     return { status: 'mismatch' };
   }
   // fe wrapper：
+  if (fe.ambiguous)
+    return { status: 'unclassified' }; // 万能类型：怎么返回都不算错，比对无意义 -> 逼出显式承载键
   if (be.kind === 'array') return { status: 'mismatch' }; // 核心缺陷：后端裸数组 vs 前端 {items}
   if (be.kind === 'wrapper')
     return fe.carrier === be.carrier ? { status: 'ok' } : { status: 'mismatch' };
