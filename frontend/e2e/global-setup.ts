@@ -16,6 +16,32 @@ const SHARD_PASSWORD = BASE_PASSWORD;
 const STORAGE_STATE_PATH = 'e2e/.auth/storage-state.json';
 
 /**
+ * requestWithCsrfRecovery / assignPermissionList 的响应契约（单一声明点）。
+ *
+ * 对齐 Playwright 真实类型 APIResponse：
+ * node_modules/playwright-core/types/types.d.ts:12137 `export interface APIResponse<T = any>`
+ *   :12178 `ok(): boolean;`     —— ok 是**方法**不是属性
+ *   :12143 `json(): Promise<T>;`
+ * 此前本文件内联声明写成 `ok: boolean`（同文件 loginWithRetry 用的却是正确的
+ * `ok: () => boolean`），导致把真实 APIRequestContext 传进来时类型不匹配（5 处 TS2345）、
+ * 3 处运行时完全正确的 `resp.ok()` 报 TS2349、`resp.json()` 报 TS2339。
+ * 修类型声明，不动调用点断言。只声明 setup 用到的成员，避免与 Playwright 版本演进脱钩。
+ */
+interface SetupApiResponse {
+  ok: () => boolean;
+  status: () => number;
+  headers: () => Record<string, string>;
+  /** 与 APIResponse.json() 对齐；调用点（:470）已有显式 `as` 收敛形状，不在此处再泛型化 */
+  json(): Promise<unknown>;
+}
+
+/** 仅声明 setup 用到的写方法（实参是 Playwright APIRequestContext，方法签名双变可赋值） */
+interface CsrfCapableRequestContext {
+  post(url: string, options: object): Promise<SetupApiResponse>;
+  put(url: string, options: object): Promise<SetupApiResponse>;
+}
+
+/**
  * 带退避重试的 API 登录：50 分片并发启动时同账号登录会触发
  * anti_brute_force 限流（429）。重试策略：指数退避，最多 6 次。
  * 入参 ctx 为已创建的 request context；返回登录响应。
@@ -292,21 +318,12 @@ const DEFAULT_ROLE_PASSWORD = 'E2eRole#2026';
  * 并发分片同库时旧 token 必被竞争消费，无恢复则后续全部写请求 403）
  */
 async function requestWithCsrfRecovery(
-  ctx: {
-    post: (
-      url: string,
-      options: object
-    ) => Promise<{ ok: boolean; status: () => number; headers: () => Record<string, string> }>;
-    put: (
-      url: string,
-      options: object
-    ) => Promise<{ ok: boolean; status: () => number; headers: () => Record<string, string> }>;
-  },
+  ctx: CsrfCapableRequestContext,
   method: 'post' | 'put',
   url: string,
   headers: Record<string, string>,
   data: Record<string, unknown>
-): Promise<{ ok: boolean; status: () => number; headers: () => Record<string, string> }> {
+): Promise<SetupApiResponse> {
   let resp = await ctx[method](url, { headers, data });
   if (resp.status() === 403) {
     const newToken = resp.headers()['x-new-csrf-token'];
@@ -324,12 +341,7 @@ async function requestWithCsrfRecovery(
  * 单条失败仅告警不中断（黑名单断言对无权限码场景仍成立，只是失去"持码仍拒"精度）
  */
 async function assignPermissionList(
-  ctx: {
-    post: (
-      url: string,
-      options: object
-    ) => Promise<{ ok: boolean; status: () => number; headers: () => Record<string, string> }>;
-  },
+  ctx: CsrfCapableRequestContext,
   roleId: number,
   permissionCodes: string[],
   headers: Record<string, string>

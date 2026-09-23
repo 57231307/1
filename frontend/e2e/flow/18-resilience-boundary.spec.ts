@@ -12,6 +12,10 @@ import {
   TEST_PASSWORD,
   ensureTestEntities,
   expectBadRequest,
+  failureCode,
+  type ApiFailureBody,
+  APP_ERROR_CODES,
+  CSRF_ERROR_CODES,
 } from './helpers';
 
 test.describe('异常处理与边界条件', () => {
@@ -94,8 +98,12 @@ test.describe('异常处理与边界条件', () => {
       ],
     });
 
+    // 拒绝判据：HTTP 状态码，或 utils/error.rs:143-148 直出的字符串机器码
+    const rejectCode = failureCode(result);
     expect(
-      result.status >= 400 || result.code === 'VALIDATION_ERROR' || result.code === 'BUSINESS_ERROR'
+      result.status >= 400 ||
+        rejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
+        rejectCode === APP_ERROR_CODES.BUSINESS_ERROR
     ).toBeTruthy();
   });
 
@@ -153,10 +161,13 @@ test.describe('异常处理与边界条件', () => {
       data: JSON.stringify({ order_no: genCode('PO') }),
     });
 
-    // 后端应返回 403 CSRF_TOKEN_MISSING
+    // 后端应返回 403 + CSRF 机器码（middleware/csrf.rs:234-242 直出体，
+    // code 为字符串机器码而非 ApiResponse 的数字码；常量出处 csrf.rs:39-45）
     expect(resp.status() === 403).toBe(true);
-    const body = await resp.text();
-    expect(body.includes('CSRF') || body.includes('csrf') || body.includes('token')).toBe(true);
+    const body: ApiFailureBody = await resp.json();
+    expect(failureCode(body), `CSRF 拒绝机器码，实际响应：${JSON.stringify(body)}`).toBe(
+      CSRF_ERROR_CODES.MISSING
+    );
   });
 
   test('库存为 0 时发货应被阻断', async ({ page }) => {

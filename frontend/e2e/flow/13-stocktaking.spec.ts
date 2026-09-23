@@ -9,6 +9,8 @@ import {
   verifyStockFourDim,
   verifyAuditLog,
   ensureTestEntities,
+  failureCode,
+  APP_ERROR_CODES,
 } from './helpers';
 
 test.describe('库存盘点完整流程', () => {
@@ -149,10 +151,13 @@ test.describe('库存盘点完整流程', () => {
         ],
       }
     );
+    // 拒绝判据：HTTP 状态码，或 utils/error.rs:143-148 直出的字符串机器码
+    // （error.rs:467 ValidationError / error.rs:468-469 BusinessError）
+    const recordRejectCode = failureCode(illegalRecord);
     expect(
       illegalRecord.status >= 400 ||
-        illegalRecord.code === 'VALIDATION_ERROR' ||
-        illegalRecord.code === 'BUSINESS_ERROR'
+        recordRejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
+        recordRejectCode === APP_ERROR_CODES.BUSINESS_ERROR
     ).toBeTruthy();
   });
 
@@ -190,6 +195,6 @@ test.describe('库存盘点完整流程', () => {
     expect(illegalSubmit.status).toBeGreaterThanOrEqual(400);
     // 已审批(completed)不能重复提交：submit_count 抛 AppError::business（service:406-409），
     // 出参 code 稳定为 BUSINESS_ERROR（utils/error.rs:413；真实文案经 public_message 脱敏不进响应）
-    expect(String(illegalSubmit.code ?? ''), '应命中业务拒绝码').toBe('BUSINESS_ERROR');
+    expect(failureCode(illegalSubmit), '应命中业务拒绝码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
   });
 });

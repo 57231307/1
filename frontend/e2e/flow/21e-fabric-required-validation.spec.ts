@@ -9,6 +9,8 @@ import {
   BASE_URL,
   ensureTestEntities,
   expectBadRequest,
+  failureCode,
+  APP_ERROR_CODES,
 } from './helpers';
 
 test.describe('面料单据专用字段全链路验证', () => {
@@ -44,8 +46,12 @@ test.describe('面料单据专用字段全链路验证', () => {
       // 如果被拒绝，应有明确错误信息
       const msg = result.message || '';
       const mentionsColor = msg.toLowerCase().includes('color') || msg.includes('色号');
+      // 机器码出自 utils/error.rs:143-148（AppError 直出体，code 为字符串）
+      const rejectCode = failureCode(result);
       expect(
-        mentionsColor || result.code === 'VALIDATION_ERROR' || result.code === 'BUSINESS_ERROR'
+        mentionsColor ||
+          rejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
+          rejectCode === APP_ERROR_CODES.BUSINESS_ERROR
       ).toBeTruthy();
     }
   });

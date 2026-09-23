@@ -89,8 +89,11 @@ export async function fetchRolePermissions(
     headers: authHeaders,
   });
   // 非 2xx 不再退化成"空权限"（空权限会把该角色所有受限路由误判为不可达）：直接抛错
+  // 注意：这里是全局 fetch 的 WHATWG Response（Node undici），status/ok 都是**属性**，
+  // 不是 Playwright APIResponse 的 ok()/status() 方法——写成 resp.status() 会在
+  // 这条错误路径上抛 TypeError，把"权限查询失败"伪装成崩溃。
   if (!resp.ok) {
-    throw new Error(`GET /roles/${roleId} 权限查询失败，HTTP ${resp.status()}`);
+    throw new Error(`GET /roles/${roleId} 权限查询失败，HTTP ${resp.status}`);
   }
   const body = (await resp.json()) as { data?: { permissions?: unknown } } | null;
   const perms = body?.data?.permissions;

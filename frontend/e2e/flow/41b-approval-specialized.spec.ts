@@ -26,6 +26,30 @@ const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
 
+/** 与 53-approval-depth-full.spec.ts 同源的敏感角色码（后端 role_change_approval_service.rs SENSITIVE_ROLES） */
+const SENSITIVE_ROLE_CODES = ['admin', 'super_admin', 'finance', 'finance_admin'];
+
+/**
+ * 取敏感角色，返回类型收窄为非可选。
+ * `expect(x).toBeTruthy()` 不产生类型收窄（Playwright expect 无断言签名），
+ * 调用点取 sensitive.id / sensitive.code 会报 TS18048；缺敏感角色本就是前置失败，
+ * 在取数点抛错比在调用点写 `!` 更严格。调用点原有 expect 断言保留不动。
+ */
+function pickSensitiveRole(roles: Array<{ id: number; code: string }>): {
+  id: number;
+  code: string;
+} {
+  const hit = roles.find(r => SENSITIVE_ROLE_CODES.includes(r.code));
+  if (!hit) {
+    throw new Error(
+      `角色表缺敏感角色（${SENSITIVE_ROLE_CODES.join('/')}），现有：${roles
+        .map(r => r.code)
+        .join(',')}`
+    );
+  }
+  return hit;
+}
+
 test.describe('P5.11b 专用审批流', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
@@ -142,12 +166,12 @@ test.describe('P5.11b 专用审批流', () => {
       'roles',
       '41b 角色列表 /roles'
     );
-    const sensitive = roleList.find(r =>
-      ['admin', 'super_admin', 'finance', 'finance_admin'].includes(r.code)
-    );
+    const sensitive = pickSensitiveRole(roleList);
     expect(
       sensitive,
-      `角色表缺敏感角色（admin/super_admin/finance/finance_admin），现有：${roleList.map(r => r.code).join(',')}`
+      `角色表缺敏感角色（${SENSITIVE_ROLE_CODES.join('/')}），现有：${roleList
+        .map(r => r.code)
+        .join(',')}`
     ).toBeTruthy();
     const me = await apiCallRaw<{ id?: number }>(page, 'GET', '/auth/me');
     const myId = me?.id;

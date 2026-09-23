@@ -9,6 +9,8 @@ import {
   tryCleanup,
   API_BASE,
   API_PREFIX,
+  failureCode,
+  APP_ERROR_CODES,
 } from './helpers';
 
 /**
@@ -40,8 +42,36 @@ test.afterEach(async ({ page }) => {
  * 所以用例不能再 `?? roles[0]` 回退到任意角色——那会把「找不到敏感角色」伪装成业务失败。
  */
 const SENSITIVE_ROLE_CODES = ['admin', 'super_admin', 'finance', 'finance_admin'];
-function pickSensitiveRole(roles: Array<{ id: number; code: string }>) {
-  return roles.find(r => SENSITIVE_ROLE_CODES.includes(r.code));
+
+/**
+ * 负例允许的 AppError 拒绝机器码（backend/src/utils/error.rs:461-476 error_code()）。
+ * 原先写 `String(code ?? '')` 配大小写不敏感正则：既绕过类型收窄，又把机器码散进用例。
+ * error_code() 只产出精确大写常量，故改为白名单精确成员判断（更严，不放宽）。
+ */
+const APP_REJECT_CODES: string[] = [
+  APP_ERROR_CODES.BUSINESS_ERROR,
+  APP_ERROR_CODES.VALIDATION_ERROR,
+  APP_ERROR_CODES.BAD_REQUEST,
+];
+/**
+ * 返回类型收窄为非可选：`expect(x).toBeTruthy()` 不产生类型收窄（Playwright expect 无
+ * 断言签名），调用点取 sensitive.id / sensitive.code 会报 TS18048。
+ * 找不到敏感角色本就是前置失败，在取数点抛错比在每个调用点写 `!` 更严格；
+ * 调用点原有的 expect 断言全部保留，本函数只负责把"确实存在"写进类型。
+ */
+function pickSensitiveRole(roles: Array<{ id: number; code: string }>): {
+  id: number;
+  code: string;
+} {
+  const hit = roles.find(r => SENSITIVE_ROLE_CODES.includes(r.code));
+  if (!hit) {
+    throw new Error(
+      `角色表里没有敏感角色（${SENSITIVE_ROLE_CODES.join('/')}），现有：${roles
+        .map(r => r.code)
+        .join(',')}`
+    );
+  }
+  return hit;
 }
 
 /** 在独立 context 中以用户名密码 API 登录，返回可用于 apiCall 风格请求的函数 */
@@ -213,9 +243,7 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     // 该防自审批文案构造点显式声明可外显（AppError::business_displayable，
     // role_change_approval_service.rs approve_l1），真实文案直接进 HTTP message；
     // code 与默认 business 一致（error.rs BusinessErrorDisplayable → BUSINESS_ERROR），两者都断。
-    expect(String(self.code ?? ''), 'code 应为业务拒绝而非系统故障').toMatch(
-      /BUSINESS|VALIDATION|BAD_REQUEST/i
-    );
+    expect(APP_REJECT_CODES, 'code 应为业务拒绝而非系统故障').toContain(failureCode(self));
     expect(self.message, '应外显防自审批真实文案').toBe('审批人不能是申请人');
 
     // B（独立 context）审批 L1 → 通过
@@ -319,7 +347,9 @@ test.describe.serial('53 审批纵深：防自审批+双人约束（跨用户）
     expect(r.status, '非敏感角色变更应直接拒绝（无需走审批）').toBeGreaterThanOrEqual(400);
     // 非敏感拒绝为 handler 的 AppError::business_displayable（role_change_approval_handler.rs:29-31），
     // 公开业务规则文案可外显；code 与默认 business 一致，两者都断
-    expect(String(r.code ?? ''), 'code 应为业务拒绝（仅敏感角色需审批）').toBe('BUSINESS_ERROR');
+    expect(failureCode(r), 'code 应为业务拒绝（仅敏感角色需审批）').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
     expect(r.message, '应外显敏感角色审批规则真实文案').toBe('只有敏感角色变更需要审批');
   });
 });

@@ -1,5 +1,13 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallExpectFail, tryCleanup, genCode } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  apiCallExpectFail,
+  tryCleanup,
+  genCode,
+  failureCode,
+  APP_ERROR_CODES,
+} from './helpers';
 
 /**
  * 52 L3 边界完整版 + L5 通知去重（rule provenance 逐条标注）
@@ -12,6 +20,17 @@ import { loginViaUI, apiCall, apiCallExpectFail, tryCleanup, genCode } from './h
  */
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
+
+/**
+ * 负例允许的 AppError 拒绝机器码（backend/src/utils/error.rs:461-476 error_code()）。
+ * 原先各处写 `String(r.code ?? '')` 配正则：既绕过类型收窄（数字码会被误当字符串），
+ * 又把机器码字面量散在 4 个用例里。改为对白名单做精确成员判断。
+ */
+const APP_REJECT_CODES: string[] = [
+  APP_ERROR_CODES.VALIDATION_ERROR,
+  APP_ERROR_CODES.BUSINESS_ERROR,
+  APP_ERROR_CODES.BAD_REQUEST,
+];
 test.afterEach(async ({ page }) => {
   for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
   CLEANUP.length = 0;
@@ -40,9 +59,7 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     });
     expect(r.status, '标准价负数必须拒绝').toBeGreaterThanOrEqual(400);
     // 后端 public_message 脱敏，改断言 code
-    expect(String(r.code ?? ''), 'code 应含 VALIDATION 或 BUSINESS').toMatch(
-      /VALIDATION|BUSINESS|BAD_REQUEST/
-    );
+    expect(APP_REJECT_CODES, 'code 应为校验/业务/请求类机器码').toContain(failureCode(r));
   });
 
   test('52-B2 化料成本价为负拒绝（master.rs:65）', async ({ page }) => {
@@ -52,9 +69,7 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
       cost_price: '-0.50',
     });
     expect(r.status, '成本价负数必须拒绝').toBeGreaterThanOrEqual(400);
-    expect(String(r.code ?? ''), 'code 应含 VALIDATION 或 BUSINESS').toMatch(
-      /VALIDATION|BUSINESS|BAD_REQUEST/
-    );
+    expect(APP_REJECT_CODES, 'code 应为校验/业务/请求类机器码').toContain(failureCode(r));
   });
 
   test('52-B3 化料安全库存为负拒绝（master.rs:69）', async ({ page }) => {
@@ -66,9 +81,7 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     expect(r.status, '安全库存负数必须拒绝').toBeGreaterThanOrEqual(400);
     // 后端 HTTP 响应统一脱敏（utils/error.rs:95-96），business 文案只有"业务处理失败"，
     // 断言 code 而非 message（与 B1/B2 一致）；dye_category 由 chemBase 提供，确保命中的是库存校验分支
-    expect(String(r.code ?? ''), 'code 应含 VALIDATION 或 BUSINESS').toMatch(
-      /VALIDATION|BUSINESS|BAD_REQUEST/
-    );
+    expect(APP_REJECT_CODES, 'code 应为校验/业务/请求类机器码').toContain(failureCode(r));
   });
 
   test('52-B4 化料再订货点为负拒绝（master.rs:73）', async ({ page }) => {
@@ -78,9 +91,7 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
       reorder_point: '-2',
     });
     expect(r.status, '再订货点负数必须拒绝').toBeGreaterThanOrEqual(400);
-    expect(String(r.code ?? ''), 'code 应含 VALIDATION 或 BUSINESS').toMatch(
-      /VALIDATION|BUSINESS|BAD_REQUEST/
-    );
+    expect(APP_REJECT_CODES, 'code 应为校验/业务/请求类机器码').toContain(failureCode(r));
   });
 
   test('52-B5 化料正常创建正例（对照负例防规则过紧）', async ({ page }) => {

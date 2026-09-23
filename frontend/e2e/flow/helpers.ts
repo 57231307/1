@@ -34,6 +34,83 @@ export interface ApiResponse<T = unknown> {
   timestamp?: string;
 }
 
+// ============================================================================
+// 失败响应信封（e2e 侧显式建模）
+//
+// 后端"失败"响应体的 code 有两种互不相同的语义，此前 e2e 只建模了前者，
+// 于是 `json.code === 'CSRF_TOKEN_INVALID'` 这类**运行时正确**的断言
+// 在类型层被判为无交集比较（TS2367）：
+//   ① utils/response.rs:11-20 `ApiResponse<T>`：code: Option<u16>，**数字**
+//      （HTTP 状态码语义），另有 data / message / total。
+//   ② middleware/csrf.rs:234-242 `csrf_error_response()`：中间件绕过
+//      ApiResponse 直出 `{ success: false, code: "<机器码>", message, data: null }`，
+//      配 HTTP 403，且消费竞败时响应头带 x-new-csrf-token（csrf.rs:146-152）。
+//   ③ utils/error.rs:143-148 `AppError::into_response()`：同样直出字符串机器码
+//      `{ code: "<机器码>", message, trace_id, timestamp }`，状态码由
+//      error_status_and_type()（error.rs:166-180）决定。
+// ②③ 的 code 是字符串机器码，① 是数字，因此在比较点用 failureCode() 做类型收窄，
+// 而不是把断言改弱、改字符串化绕过或强转。
+// ============================================================================
+
+/**
+ * CSRF 机器码：与后端 backend/src/middleware/csrf.rs:39-45 的三个常量同名同值
+ * （CODE_MISS / CODE_INVAL / CODE_IP_MM）。此处引用真实来源而非散写魔法值，
+ * 后端改名/改值时 e2e 侧只有一个维护点。
+ */
+export const CSRF_ERROR_CODES = {
+  /** csrf.rs:39 CODE_MISS */
+  MISSING: 'CSRF_TOKEN_MISSING',
+  /** csrf.rs:42 CODE_INVAL */
+  INVALID: 'CSRF_TOKEN_INVALID',
+  /** csrf.rs:45 CODE_IP_MM（后端对 IP 不匹配不下发恢复头，不参与自动重试） */
+  IP_MISMATCH: 'CSRF_IP_MISMATCH',
+} as const;
+
+/**
+ * AppError 机器码（backend/src/utils/error.rs:461-476 AppError::error_code()）。
+ * 仅登记 e2e 负例实际断言到的三类；新增判据时在此补一行，不在用例里散写字面量。
+ */
+export const APP_ERROR_CODES = {
+  /** error.rs:467 AppError::ValidationError */
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  /** error.rs:468-469 BusinessError / BusinessErrorDisplayable */
+  BUSINESS_ERROR: 'BUSINESS_ERROR',
+  /** error.rs:464 AppError::BadRequest */
+  BAD_REQUEST: 'BAD_REQUEST',
+} as const;
+
+/** 后端三类失败响应体的公共形状：code 既能是 ① 的数字也能是 ②③ 的字符串机器码 */
+export interface ApiFailureBody {
+  success?: false;
+  code?: string | number;
+  message?: string | null;
+  data?: unknown;
+  total?: number;
+  trace_id?: string;
+  timestamp?: string | number;
+}
+
+/** apiCallExpectFail 的返回：HTTP 状态码 + 未收窄的失败体字段 */
+export interface ApiFailureResult extends ApiFailureBody {
+  status: number;
+}
+
+/**
+ * 收窄为字符串机器码（信封 ②③）；① 的数字 code（HTTP 状态码语义）返回 undefined。
+ * 用于"这个失败是不是某个机器码"的判断，语义比 `String(code) === '...'` 严格：
+ * 数字码永远不会被误判成机器码。
+ */
+export function failureCode(json: ApiFailureBody | null | undefined): string | undefined {
+  const code = json?.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+/** 失败体是否 CSRF 中间件直出的 403 拒绝（信封 ②，缺 MISSING/INVALID 码即视为业务码撞名） */
+export function isCsrfRejection(status: number, json: ApiFailureBody | null | undefined): boolean {
+  const code = failureCode(json);
+  return status === 403 && (code === CSRF_ERROR_CODES.INVALID || code === CSRF_ERROR_CODES.MISSING);
+}
+
 export interface EntityContext {
   departmentIds: number[];
   warehouseIds: number[];
@@ -959,7 +1036,10 @@ export async function apiCall<T = unknown>(
   // CSRF 校验失败恢复（两级）：
   // 1. 优先读取后端 X-New-CSRF-Token 恢复头（并发竞败场景的权威来源，无需重新登录）
   // 2. 无恢复头时重新登录获取全新 token
-  if (json.code === 'CSRF_TOKEN_INVALID' || json.code === 'CSRF_TOKEN_MISSING') {
+  // CSRF 拒绝走 middleware/csrf.rs:234-242 直出体（code 为字符串机器码 + HTTP 403），
+  // 不是 utils/response.rs 的数字 code，故用 failureCode() 收窄并要求 status===403，
+  // 避免与业务数字码撞名。
+  if (isCsrfRejection(response.status(), json)) {
     const recoveryToken = response.headers()['x-new-csrf-token'];
     try {
       if (recoveryToken) {
@@ -1017,7 +1097,7 @@ export async function apiCallExpectFail(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: Record<string, unknown>
-): Promise<{ status: number; code?: number; message?: string }> {
+): Promise<ApiFailureResult> {
   const url = `${API_BASE}${API_PREFIX}${path}`;
   let csrfToken =
     (await getCsrfToken(page).catch(e => {
@@ -1038,7 +1118,8 @@ export async function apiCallExpectFail(
 
   let response = await doFetch(csrfToken);
   let text = await response.text();
-  let json: { code?: number; message?: string } = {};
+  // 失败体：code 可能是 ApiResponse 的数字码，也可能是 csrf.rs / error.rs 的字符串机器码
+  let json: ApiFailureBody = {};
   try {
     json = JSON.parse(text);
   } catch {
@@ -1047,8 +1128,9 @@ export async function apiCallExpectFail(
     );
   }
 
-  // CSRF 竞败恢复（与 apiCall 一致的两级策略），避免把 CSRF 失败误判为业务错误
-  if (json.code === 'CSRF_TOKEN_INVALID' || json.code === 'CSRF_TOKEN_MISSING') {
+  // CSRF 竞败恢复（与 apiCall 一致的两级策略），避免把 CSRF 失败误判为业务错误。
+  // 判据同 apiCall：csrf.rs:234-242 直出体（字符串机器码）+ HTTP 403。
+  if (isCsrfRejection(response.status(), json)) {
     const recoveryToken = response.headers()['x-new-csrf-token'];
     try {
       if (recoveryToken) {

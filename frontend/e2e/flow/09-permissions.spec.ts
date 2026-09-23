@@ -13,6 +13,9 @@ import {
   loginAsRole,
   API_BASE,
   API_PREFIX,
+  failureCode,
+  type ApiFailureBody,
+  CSRF_ERROR_CODES,
 } from './helpers';
 
 test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓存）', () => {
@@ -207,12 +210,13 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
       res.status(),
       `带会话 Cookie 但缺 X-CSRF-Token 的写请求应被 csrf_middleware 拒为 403，实际 HTTP ${res.status()}`
     ).toBe(403);
-    const body = await res.json();
-    // 错误码出自 backend/src/middleware/csrf.rs 的 CODE_MISS（缺失请求头分支）
+    const body: ApiFailureBody = await res.json();
+    // 错误码出自 backend/src/middleware/csrf.rs:39 CODE_MISS（提取不到 token 的分支，
+    // 响应体由 csrf.rs:234-242 直出，code 为字符串机器码而非 ApiResponse 的数字码）
     expect(
-      body?.code,
-      `应返回 CSRF 缺失错误码 CSRF_TOKEN_MISSING，实际：${JSON.stringify(body).slice(0, 200)}`
-    ).toBe('CSRF_TOKEN_MISSING');
+      failureCode(body),
+      `应返回 CSRF 缺失错误码 ${CSRF_ERROR_CODES.MISSING}，实际：${JSON.stringify(body).slice(0, 200)}`
+    ).toBe(CSRF_ERROR_CODES.MISSING);
   });
 
   test('P1-10 验证权限审计日志（拒绝记录真实落库）', async ({ page }) => {

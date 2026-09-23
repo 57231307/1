@@ -2,10 +2,13 @@ import { test, expect } from '../diagnose-fixture';
 import {
   BROWSER_NETWORK_NOISE,
   apiCall,
+  apiCallExpectFail,
   assertPageHealthy,
   generateTotp,
   loginViaUI,
   trackPageHealth,
+  failureCode,
+  APP_ERROR_CODES,
 } from './helpers';
 
 /**
@@ -64,16 +67,28 @@ test.describe('P5.5 2FA TOTP', () => {
     ).toBeTruthy();
 
     // 故意用错 code（后端 TotpVerifyRequest { token }，字段名为 token）
-    // 原写法 `enableResp === null || enableResp?.error` 是恒真式：apiCall 对任何非 200
-    // （含 404/5xx）都抛错转 null，"校验根本没生效"也算通过。
-    // 后端真实语义（totp_service.rs:47-81 verify_and_enable）：令牌错误走 `Ok(false)`
-    // 而非报错，handler 返回 ApiResponse<bool> ⇒ HTTP 200 + data=false。
-    // 所以正确判据是"请求成功且业务判定为未通过"，而不是看 4xx。
-    const enableResp = await apiCall(page, 'POST', '/auth/totp/enable', { token: '000000' });
+    // 后端真实语义（读码结论，非推断）：
+    //   services/totp_service.rs:69-79 —— 令牌不匹配返回 Ok(false)，不抛错；
+    //   handlers/auth_handler_misc.rs:343 —— enable_totp 的 `Ok(false)` 分支
+    //     `=> Err(AppError::bad_request("验证码不正确"))`，即该端点**不会**返回 200 + data=false，
+    //     而是 HTTP 400（utils/error.rs:178 BadRequest → BAD_REQUEST），
+    //     响应体由 utils/error.rs:143-148 直出 { code: "BAD_REQUEST", message(脱敏), trace_id, timestamp }。
+    // 因此旧断言 `enableResp?.data === false || enableResp === false` 写错在断言侧：
+    //   ① data === false 永不成立（该分支根本不产生 ApiResponse<bool>）；
+    //   ② apiCall/apiCallRaw 是"成功语义"，对 code !== 200 直接抛错（见 helpers.apiCall），
+    //      所以 400 会让用例在到达断言前就异常失败，而不是判为"被正确拒绝"。
+    // 负例改用 apiCallExpectFail，并同时校验状态码与机器码。
+    const enableResp = await apiCallExpectFail(page, 'POST', '/auth/totp/enable', {
+      token: '000000',
+    });
     expect(
-      enableResp?.data === false || enableResp === false,
-      `错误 TOTP 码不应开启成功，实际响应=${JSON.stringify(enableResp).slice(0, 200)}`
-    ).toBe(true);
+      enableResp.status,
+      `错误 TOTP 码应被拒为 HTTP 400，实际响应=${JSON.stringify(enableResp).slice(0, 200)}`
+    ).toBe(400);
+    expect(
+      failureCode(enableResp),
+      `错误 TOTP 码应命中 BadRequest 机器码，实际响应=${JSON.stringify(enableResp).slice(0, 200)}`
+    ).toBe(APP_ERROR_CODES.BAD_REQUEST);
   });
 
   test('生成恢复码并消费', async ({ page }) => {
