@@ -2341,3 +2341,11 @@ CI 的 clippy 口径实测为：不加 `-D warnings`，但**新增 warning 文�
   所以 rustfmt 报的"Incorrect newline style" 与 prettier 的整仓告警都属同一现象，不是本次改动引入；
   CI 的 `cargo fmt --all --check` 失败时会**自动 cargo fmt --all 并回提交**（ci-cd.yml:201-218），
   因此换行符不会卡门禁，但会额外产生 CI 提交。
+
+### 更正上一条里的一个错判（我自己测错的）
+上文写"本仓 blob 内就是 CRLF（无 .gitattributes，autocrlf=true 未做入库归一）"**是错的**。
+权威口径 `git ls-files --eol` 显示 `i/lf w/crlf`：索引侧仍是 LF，只有工作树被 checkout 转成 CRLF。
+我误判的原因：用 `git show HEAD:<path> | grep -c $'\r'` 数 CR —— `git show` 也会按 autocrlf 做
+输出转换，所以它给的是"检出后的 CRLF 版本"，不能用来判断 blob 实际存储。
+**教训：判断行尾只认 `git ls-files --eol`（或 `git cat-file` 原始字节），别用 `git show`。**
+因此 prettier/rustfmt 的整仓换行告警仍是"本地工作树"现象，与 CI 无关（CI 检出即 LF）。
