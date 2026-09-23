@@ -23,6 +23,16 @@ fn read(rel: &str) -> String {
     fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {} 失败: {}", path.display(), e))
 }
 
+/// 剔除以 `//`（含 `///` 文档注释）起始的注释行，只保留代码内容。
+/// 供负向裸字面量守卫使用：守卫本意是禁止「代码」里的裸状态字面量，注释里提及
+/// 状态词（如说明历史缺陷的文档注释）是正当用途，不应被纯文本 contains 误报。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// 从迁移 v15 域尾源码中解析 CHECK chk_dye_recipe_status 的 IN(...) 取值列表。
 fn parse_migration_check_values() -> Vec<String> {
     let sql = read("migration/src/domain/v15/mod.rs");
@@ -103,7 +113,7 @@ fn dye_recipe_rust_sites_have_no_bare_status_literals() {
     // 词表常量文件：dye_recipe 模块取值由第 1/2 条测试通过 import 常量精确锁定。
     // 此文件同时定义其它表常量（如 production_recipe::DRAFT = "draft"），故此处不
     // 断言文件级不含 "draft"/"approved" 裸字面量（会自败），只查中文状态字面量。
-    let status_file = read("src/models/status/quality_dyeing.rs");
+    let status_file = code_only(&read("src/models/status/quality_dyeing.rs"));
     for lit in &cjk_literals {
         assert!(
             !status_file.contains(*lit),
@@ -125,7 +135,7 @@ fn dye_recipe_rust_sites_have_no_bare_status_literals() {
         "src/handlers/dye_recipe_handler.rs",
         "src/models/dye_recipe.rs",
     ] {
-        let src = read(rel);
+        let src = code_only(&read(rel));
         for lit in cjk_literals.iter().chain(ascii_literals.iter()) {
             assert!(
                 !src.contains(*lit),

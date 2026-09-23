@@ -27,6 +27,16 @@ fn read_rel(manifest_rel: &str) -> String {
     fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {}", path, e))
 }
 
+/// 剔除以 `//`（含 `///` 文档注释）起始的注释行，只保留代码内容。
+/// 供负向裸字面量守卫使用：守卫本意是禁止「代码」里的裸动作/状态字面量，
+/// 文档注释里以反引号示例提及 `action == "reject"` 等是正当用途，不应被误报。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// 基准：bpm_task 词表为小写（本测试其余断言全部以它的常量值为源，词表变则一并暴露）
 #[test]
 fn bpm_task_word_list_is_lowercase() {
@@ -153,6 +163,7 @@ fn approve_action_domain_is_validated_and_case_sensitive() {
 #[test]
 fn approve_task_compares_action_with_single_source_constants() {
     let src = read_rel("src/services/bpm_ops/task.rs");
+    let code = code_only(&src);
     assert!(
         src.contains("validate_approve_action(&req.action)?"),
         "approve_task 入口必须校验动作取值域"
@@ -167,7 +178,7 @@ fn approve_task_compares_action_with_single_source_constants() {
     );
     for lit in [r#"action == "reject""#, r#"action == "approve""#] {
         assert!(
-            !src.contains(lit),
+            !code.contains(lit),
             "不得残留动作裸字面量比较 {lit}（两处独立比较即状态错写之源）"
         );
     }
