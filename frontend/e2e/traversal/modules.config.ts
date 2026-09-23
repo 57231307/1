@@ -44,7 +44,9 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'system-audit-log', route: '/system/audit-log', domain: 'system', tier: 'C', listApi: '/audit-logs', noCreate: true },
   { id: 'system-export-approvals', route: '/system/export-approvals', domain: 'system', tier: 'C', listApi: '/export-approvals', noCreate: true },
   { id: 'system-slow-query', route: '/system/slow-query', domain: 'system', tier: 'C', noCreate: true },
-  { id: 'report-templates', route: '/report-templates', domain: 'system', tier: 'A', listApi: '/report-templates' },
+  // listApi 必须是页面真正消费的那个端点：本页读 /reports/enhanced/templates（DB 表），
+  // 而 /report-templates 是 report_engine 的"预置模板"只读视图，指它会验到一条 UI 已不再走的链路。
+  { id: 'report-templates', route: '/report-templates', domain: 'system', tier: 'A', listApi: '/reports/enhanced/templates' },
   // print-templates 为内置模板只读展示（后端无创建端点），新建断言跳过
   { id: 'print-templates', route: '/print-templates', domain: 'system', tier: 'A', listApi: '/print-templates', noCreate: true },
   { id: 'api-gateway', route: '/api-gateway', domain: 'system', tier: 'C', noCreate: true },

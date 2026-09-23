@@ -29,14 +29,15 @@ async function pickHeaderFirstOption(page: Page, labelText: string): Promise<voi
     .first()
     .locator('.el-select')
     .click();
-  await page
-    .locator('.el-select-dropdown:visible .el-select-dropdown__item')
-    .first()
-    .click();
+  await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
 }
 
 /** 展开可见 el-select 并点选指定文案选项（用于固定词表，如退货原因） */
-async function pickHeaderOptionByText(page: Page, labelText: string, optionText: string): Promise<void> {
+async function pickHeaderOptionByText(
+  page: Page,
+  labelText: string,
+  optionText: string
+): Promise<void> {
   const dlg = page.locator('.el-dialog:visible');
   await dlg
     .locator('.el-form-item')
@@ -62,7 +63,7 @@ test.describe('10 采购退货', () => {
     await page.goto('/purchase-return');
     await expect(page.getByText('采购退货').first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: '新建退货单' })).toBeVisible();
-    await expect(page.locator('.el-table')).first().toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.el-table').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('10-02 新建采购退货单（UI 建单 → 详情回读 + 列表按单号检索确认落库）', async ({ page }) => {
@@ -100,10 +101,7 @@ test.describe('10 采购退货', () => {
     await dlg.getByRole('button', { name: '添加明细' }).click();
     const itemSelect = dlg.locator('.el-table .el-select').last();
     await itemSelect.click();
-    await page
-      .locator('.el-select-dropdown:visible .el-select-dropdown__item')
-      .first()
-      .click();
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
 
     const createdResp = page
       .waitForResponse(
@@ -147,11 +145,10 @@ test.describe('10 采购退货', () => {
     expect(detail.supplier_id, '供应商应为后端派生的真实 id（>0）').toBeGreaterThan(0);
 
     // 列表检索回读：后端 list 支持 keyword 匹配 return_no（PaginatedResponse ⇒ data.items）
-    const list = await apiCallRaw<{ items: Array<{ id: number; return_no: string }>; total: number }>(
-      page,
-      'GET',
-      `/purchase/returns?keyword=${created.return_no}&page=1&page_size=20`
-    );
+    const list = await apiCallRaw<{
+      items: Array<{ id: number; return_no: string }>;
+      total: number;
+    }>(page, 'GET', `/purchase/returns?keyword=${created.return_no}&page=1&page_size=20`);
     expect(
       list.items.some(r => r.id === created.id),
       `列表按单号 ${created.return_no} 检索未命中新建退货单`

@@ -113,9 +113,9 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
   });
 
   test('5-5 BPM 流程定义', async ({ page }) => {
-    // bpm_definition_handler.rs:57 的列表 key 是 list；原实现读 items（恒 undefined）
-    // 且 expect() 不带匹配器，是一条永不失败的断言
-    const defs = await apiCallRaw<{ list: Array<{ id: number }> }>(
+    // 列表 key 是 items：bpm_definition_handler.rs:55-57 用 json!({"items": items, ...}) 手拼。
+    // （此处类型曾误写成 { list }，与断言读的 items 相互矛盾，tsc 直接判错）
+    const defs = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
       '/bpm/definitions?page=1&page_size=5'

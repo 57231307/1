@@ -37,16 +37,16 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
 
   test('A1-2 验证 BPM 审批链', async ({ page }) => {
     // 流程实例列表端点是 /bpm/monitor/instances（无 /bpm/instances 列表路由），
-    // 返回 PageResponse{data,total}；原实现调用不存在的 /system/bpm/instances
-    // 并用 try/catch 把失败再调一遍吞掉
-    const instances = await apiCallRaw<{ data: Array<{ id: number; status: string }> }>(
+    // bpm_handler.rs:208 是 `to_value(instances)`，即 data 直接就是数组（无 items/data 包裹）；
+    // 原实现调用不存在的 /system/bpm/instances 并用 try/catch 把失败再调一遍吞掉。
+    const instances = await apiCallRaw<Array<{ id: number; status: string }>>(
       page,
       'GET',
       '/bpm/monitor/instances?page=1&page_size=5'
     );
-    expect(Array.isArray(instances.items), `instances.items 应为后端返回的数组`).toBe(true);
-    if ((instances?.items?.length ?? 0) > 0) {
-      const status = (instances.items[0].status || '').toLowerCase();
+    expect(Array.isArray(instances), 'instances 应为后端返回的裸数组').toBe(true);
+    if (instances.length > 0) {
+      const status = (instances[0].status || '').toLowerCase();
       expect(['processing', 'completed', 'terminated', 'cancelled']).toContain(
         status ?? '(missing-status)'
       );

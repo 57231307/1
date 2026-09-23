@@ -477,7 +477,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
     await createThenUiDelete(
       page,
       '报表模板',
-      '/report-templates',
+      // 页面列表读的是 DB 支撑的 report_enhanced 组；report_engine 的 GET /report-templates
+      // 只回代码内预置模板（list_templates → get_predefined_templates），从这里建的记录永远不会出现在页面里。
+      '/reports/enhanced/templates',
       {
         name: `P0待删报表${EXT_TS}`,
         description: 'P0报表模板',
