@@ -2031,6 +2031,8 @@ export async function getProcessSteps(
  * 请求失败直接抛出；成功则返回原始分页载荷，由用例自己做形状与过滤是否生效的断言。
  * 后端真相：outsourcing_handler.rs:350 收 OutsourcingVoucherListQuery（含 voucher_type），
  * :364 返回 ApiResponse<PaginatedResponse<...>> ⇒ data.items 是唯一形状。
+ * 路由挂载：routes/mod.rs:510 nest("/api/v1/erp/production", production::routes())，
+ * 因此端点真实路径必须带 /production 前缀（原缺少导致 404 假绿——无调用方，当前仅 10b/10d 死 import）。
  */
 export async function verifyOutsourcingVoucher(
   page: Page,
@@ -2040,29 +2042,66 @@ export async function verifyOutsourcingVoucher(
   const data = await apiCallRaw<unknown>(
     page,
     'GET',
-    `/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
+    `/production/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
   );
   return pickListArray<Record<string, unknown>>(data, 'items', '委外凭证列表');
 }
 
-export async function verifyTrialBalance(
-  page: Page
-): Promise<{ balanced: boolean; debit_total: number; credit_total: number }> {
-  try {
-    const result = await apiCallRaw<{ debit_total: number; credit_total: number }>(
-      page,
-      'GET',
-      '/finance/reports/trial-balance'
+/**
+ * 读取试算平衡表，校验会计不变量"期末借方合计 === 期末贷方合计"。
+ *
+ * 后端真相：handler finance_report_handler.rs:121 返回 ApiResponse<TrialBalance>；
+ * DTO models/dto/finance_report_dto.rs:78-87 字段为 total_ending_debit / total_ending_credit（Decimal）。
+ * rust_decimal 默认 serde 序列化为字符串（"123.45"），需 Number() 解析。
+ * apiCallRaw 剥离 ApiResponse 外层信封后返回 data 对象本身。
+ *
+ * 前置旧缺陷：读不存在的键 debit_total/credit_total + `|| 0` 兜底 → 恒 0 → 恒平衡 → 假绿。
+ * 本实现缺键/非数字/借贷皆零（未取到实际数据）均显式抛错，不回退为 0。
+ */
+export async function verifyTrialBalance(page: Page): Promise<{
+  balanced: boolean;
+  total_ending_debit: number;
+  total_ending_credit: number;
+}> {
+  const tb = await apiCallRaw<Record<string, unknown>>(
+    page,
+    'GET',
+    '/finance/reports/trial-balance'
+  );
+
+  if (tb == null || typeof tb !== 'object') {
+    throw new Error(
+      `[verifyTrialBalance] 响应非对象，无法读取试算平衡数据：${JSON.stringify(tb).slice(0, 200)}`
     );
-    return {
-      balanced: Math.abs((result.debit_total || 0) - (result.credit_total || 0)) < 0.01,
-      debit_total: result.debit_total || 0,
-      credit_total: result.credit_total || 0,
-    };
-  } catch (e) {
-    console.warn('[verifyTrialBalance] 试算平衡查询失败（按不平衡处理）:', (e as Error).message);
-    return { balanced: false, debit_total: 0, credit_total: 0 };
   }
+
+  for (const key of ['total_ending_debit', 'total_ending_credit'] as const) {
+    if (!Object.prototype.hasOwnProperty.call(tb, key)) {
+      throw new Error(
+        `[verifyTrialBalance] 响应缺少后端真实键 "${key}"，` +
+          `实际键：${Object.keys(tb).join(', ')}`
+      );
+    }
+  }
+
+  const total_ending_debit = Number(tb.total_ending_debit);
+  const total_ending_credit = Number(tb.total_ending_credit);
+
+  for (const [key, val] of [
+    ['total_ending_debit', total_ending_debit],
+    ['total_ending_credit', total_ending_credit],
+  ] as const) {
+    if (!Number.isFinite(val)) {
+      throw new Error(`[verifyTrialBalance] ${key} 不可解析为有限数字：raw="${tb[key]}"`);
+    }
+  }
+
+  if (total_ending_debit === 0 && total_ending_credit === 0) {
+    throw new Error('[verifyTrialBalance] 期末借贷合计均为 0——未取到实际账务数据，不视为平衡通过');
+  }
+
+  const balanced = Math.abs(total_ending_debit - total_ending_credit) < 0.001;
+  return { balanced, total_ending_debit, total_ending_credit };
 }
 
 /**

@@ -206,10 +206,15 @@ test.describe('成本核算完整流程', () => {
       ) || 0;
     expect(Math.abs(totalDebit - totalCredit)).toBeLessThan(0.01);
 
-    // 验证试算平衡
+    // 验证试算平衡：helper 已改为读真实键 total_ending_debit/total_ending_credit，
+    // 缺键/非数字/双零均抛错；此处断言会计核心不变量——期末借贷相等且数据非零。
     const trialBalance = await verifyTrialBalance(page);
-    expect(trialBalance.debit_total).toBeGreaterThanOrEqual(0);
-    expect(trialBalance.credit_total).toBeGreaterThanOrEqual(0);
+    expect(
+      trialBalance.balanced,
+      `试算不平衡：期末借方合计(${trialBalance.total_ending_debit}) != 期末贷方合计(${trialBalance.total_ending_credit})`
+    ).toBe(true);
+    expect(trialBalance.total_ending_debit).toBeGreaterThan(0);
+    expect(trialBalance.total_ending_credit).toBeGreaterThan(0);
   });
 
   test('固定资产折旧：计提→折旧记录验证', async ({ page }) => {
