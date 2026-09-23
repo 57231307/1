@@ -32,10 +32,11 @@
             :placeholder="$t('apModule.invoice.statusPlaceholder')"
             clearable
           >
-            <el-option :label="$t('apModule.invoice.statusPending')" value="pending" />
-            <el-option :label="$t('apModule.invoice.statusApproved')" value="approved" />
-            <el-option :label="$t('apModule.invoice.statusVerified')" value="verified" />
-            <el-option :label="$t('apModule.invoice.statusCancelled')" value="cancelled" />
+            <el-option :label="$t('apModule.invoice.statusDraft')" value="DRAFT" />
+            <el-option :label="$t('apModule.invoice.statusAudited')" value="AUDITED" />
+            <el-option :label="$t('apModule.invoice.statusPartialPaid')" value="PARTIAL_PAID" />
+            <el-option :label="$t('apModule.invoice.statusPaid')" value="PAID" />
+            <el-option :label="$t('apModule.invoice.statusCancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -53,11 +54,9 @@
         :aria-label="$t('apModule.invoice.listAria')"
       >
         <el-table-column prop="invoice_no" :label="$t('apModule.invoice.invoiceNo')" width="140" />
-        <el-table-column
-          prop="supplier_name"
-          :label="$t('apModule.invoice.supplier')"
-          width="150"
-        />
+        <el-table-column :label="$t('apModule.invoice.supplier')" width="150">
+          <template #default="{ row }">{{ supplierLabel(row.supplier_id) }}</template>
+        </el-table-column>
         <el-table-column
           prop="invoice_date"
           :label="$t('apModule.invoice.invoiceDate')"
@@ -65,7 +64,7 @@
         />
         <el-table-column :label="$t('apModule.invoice.invoiceAmount')" width="120" align="right">
           <template #default="{ row }">
-            {{ formatMoney(row.invoice_amount) }}
+            {{ formatMoney(row.amount) }}
           </template>
         </el-table-column>
         <el-table-column :label="$t('apModule.invoice.taxAmount')" width="100" align="right">
@@ -73,22 +72,27 @@
             {{ formatMoney(row.tax_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('apModule.invoice.verifiedAmount')" width="110" align="right">
+        <el-table-column :label="$t('apModule.invoice.paidAmount')" width="110" align="right">
           <template #default="{ row }">
-            {{ formatMoney(row.verified_amount) }}
+            {{ formatMoney(row.paid_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('apModule.invoice.unverifiedAmount')" width="110" align="right">
+        <el-table-column :label="$t('apModule.invoice.unpaidAmount')" width="110" align="right">
           <template #default="{ row }">
-            <span :class="{ 'text-red': row.unverified_amount > 0 }">
-              {{ formatMoney(row.unverified_amount) }}
+            <span :class="{ 'text-red': row.unpaid_amount > 0 }">
+              {{ formatMoney(row.unpaid_amount) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="$t('common.status')" width="90" align="center">
+        <el-table-column
+          prop="invoice_status"
+          :label="$t('common.status')"
+          width="90"
+          align="center"
+        >
           <template #default="{ row }">
-            <el-tag :type="getInvoiceStatusType(row.status)" size="small">
-              {{ getInvoiceStatusLabel(row.status) }}
+            <el-tag :type="getInvoiceStatusType(row.invoice_status)" size="small">
+              {{ getInvoiceStatusLabel(row.invoice_status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -99,7 +103,7 @@
               $t('common.detail')
             }}</el-button>
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.invoice_status === 'DRAFT'"
               type="success"
               link
               size="small"
@@ -107,7 +111,7 @@
               >{{ $t('apModule.invoice.approve') }}</el-button
             >
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.invoice_status === 'DRAFT'"
               type="danger"
               link
               size="small"
@@ -327,20 +331,26 @@ const formatMoney = (amount: number | undefined) => {
 
 const getInvoiceStatusType = (status: string) => {
   const map: Record<string, string> = {
-    pending: 'warning',
-    approved: 'primary',
-    verified: 'success',
-    cancelled: 'danger',
+    DRAFT: 'warning',
+    AUDITED: 'primary',
+    PARTIAL_PAID: 'warning',
+    PAID: 'success',
+    CANCELLED: 'danger',
   };
   return map[status] || 'info';
 };
 
+/** 列表响应只带 supplier_id（无 JOIN），用本页已加载的供应商主数据映射名称 */
+const supplierLabel = (id: number) =>
+  suppliers.value.find(s => s.id === id)?.supplier_name ?? String(id);
+
 const getInvoiceStatusLabel = (status: string) => {
   const keyMap: Record<string, string> = {
-    pending: 'apModule.invoice.statusPending',
-    approved: 'apModule.invoice.statusApproved',
-    verified: 'apModule.invoice.statusVerified',
-    cancelled: 'apModule.invoice.statusCancelled',
+    DRAFT: 'apModule.invoice.statusDraft',
+    AUDITED: 'apModule.invoice.statusAudited',
+    PARTIAL_PAID: 'apModule.invoice.statusPartialPaid',
+    PAID: 'apModule.invoice.statusPaid',
+    CANCELLED: 'apModule.invoice.statusCancelled',
   };
   const key = keyMap[status];
   if (key) return t(key);
@@ -440,15 +450,15 @@ const viewInvoice = async (row: APInvoice) => {
     }
     const lines = [
       t('apModule.invoice.detailNo', { value: d.invoice_no }),
-      t('apModule.invoice.detailSupplier', { value: d.supplier_name }),
+      t('apModule.invoice.detailSupplier', { value: supplierLabel(d.supplier_id) }),
       t('apModule.invoice.detailDate', { value: d.invoice_date }),
       t('apModule.invoice.detailDueDate', { value: d.due_date || '-' }),
-      t('apModule.invoice.detailAmount', { value: formatMoney(d.invoice_amount) }),
+      t('apModule.invoice.detailAmount', { value: formatMoney(d.amount) }),
       t('apModule.invoice.detailTax', { value: formatMoney(d.tax_amount) }),
-      t('apModule.invoice.detailVerified', { value: formatMoney(d.verified_amount) }),
-      t('apModule.invoice.detailUnverified', { value: formatMoney(d.unverified_amount) }),
-      t('apModule.invoice.detailStatus', { value: getInvoiceStatusLabel(d.status) }),
-      t('apModule.invoice.detailRemark', { value: d.remark || '-' }),
+      t('apModule.invoice.detailPaid', { value: formatMoney(d.paid_amount) }),
+      t('apModule.invoice.detailUnpaid', { value: formatMoney(d.unpaid_amount) }),
+      t('apModule.invoice.detailStatus', { value: getInvoiceStatusLabel(d.invoice_status) }),
+      t('apModule.invoice.detailRemark', { value: d.notes || '-' }),
     ];
     await ElMessageBox.alert(lines.join('\n'), t('apModule.invoice.detailTitle'), {
       confirmButtonText: t('common.close'),
@@ -500,10 +510,10 @@ const handlePrintInvoices = () => {
   const printData = invoices.value.map((item, index) => ({
     [t('apModule.invoice.colSeq')]: index + 1,
     [t('apModule.invoice.invoiceNo')]: item.invoice_no,
-    [t('apModule.invoice.supplier')]: item.supplier_name,
-    [t('apModule.invoice.invoiceAmount')]: `¥${item.invoice_amount}`,
+    [t('apModule.invoice.supplier')]: supplierLabel(item.supplier_id),
+    [t('apModule.invoice.invoiceAmount')]: `¥${item.amount}`,
     [t('apModule.invoice.taxAmount')]: `¥${item.tax_amount}`,
-    [t('common.status')]: getInvoiceStatusLabel(item.status),
+    [t('common.status')]: getInvoiceStatusLabel(item.invoice_status),
     [t('apModule.invoice.invoiceDate')]: item.invoice_date,
   }));
   printJS({

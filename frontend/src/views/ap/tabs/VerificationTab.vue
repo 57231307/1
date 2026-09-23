@@ -98,7 +98,7 @@
               :label="
                 $t('apModule.verification.invoiceOption', {
                   no: inv.invoice_no,
-                  amount: formatMoney(inv.unverified_amount),
+                  amount: formatMoney(inv.unpaid_amount),
                 })
               "
               :value="inv.id"
@@ -243,20 +243,10 @@ const openVerificationDialog = async () => {
       getUnverifiedAPInvoices(),
       getUnverifiedAPPayments(),
     ]);
-    const d1 = invRes.data as
-      { list?: APInvoice[]; items?: APInvoice[]; data?: APInvoice[] } | APInvoice[] | undefined;
-    const d2 = payRes.data as
-      { list?: APPayment[]; items?: APPayment[]; data?: APPayment[] } | APPayment[] | undefined;
-    const invs: APInvoice[] =
-      d1 && typeof d1 === 'object' && !Array.isArray(d1)
-        ? d1.list || d1.items || d1.data || []
-        : (d1 as APInvoice[]) || [];
-    const pays: APPayment[] =
-      d2 && typeof d2 === 'object' && !Array.isArray(d2)
-        ? d2.list || d2.items || d2.data || []
-        : (d2 as APPayment[]) || [];
-    unverifiedInvoices.value = invs.filter(i => i.unverified_amount > 0);
-    unverifiedPayments.value = pays;
+    // 两端均返回裸数组（handlers/ap_verification_handler.rs:208 serde_json::to_value(Vec<...>)），
+    // 无需多形状探测。
+    unverifiedInvoices.value = invRes.data.filter(i => i.unpaid_amount > 0);
+    unverifiedPayments.value = payRes.data;
   } catch (e) {
     logger.error(t('apModule.verification.unverifiedLoadFailed'), e);
   }

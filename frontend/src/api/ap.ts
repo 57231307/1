@@ -1,20 +1,29 @@
 import { request } from './request';
 import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
+// 后端 GET /ap/invoices 直接序列化 SeaORM 实体 models/ap_invoice.rs（无 JOIN、无 DTO 改名），
+// 因此行的键名与实体字段逐字一致；此前声明的 supplier_name/invoice_amount/verified_amount/
+// unverified_amount/status/payment_status 在响应里并不存在（列表这几列恒空）。
+export type APInvoiceStatus = 'DRAFT' | 'AUDITED' | 'PARTIAL_PAID' | 'PAID' | 'CANCELLED';
+
 export interface APInvoice {
   id: number;
   invoice_no: string;
   supplier_id: number;
-  supplier_name: string;
+  invoice_type: string;
   invoice_date: string;
-  invoice_amount: number;
+  due_date: string;
+  /** 发票金额（实体列 amount） */
+  amount: number;
+  /** 已付金额 */
+  paid_amount: number;
+  /** 未付金额 */
+  unpaid_amount: number;
   tax_amount: number;
-  verified_amount: number;
-  unverified_amount: number;
-  status: string;
-  payment_status: string;
-  due_date?: string;
-  remark?: string;
+  currency: string;
+  /** 词表来源 models/ap_invoice.rs:68 与 ap_invoice_ops/crud.rs 的 common::STATUS_* */
+  invoice_status: APInvoiceStatus;
+  notes?: string;
   created_at: string;
 }
 
