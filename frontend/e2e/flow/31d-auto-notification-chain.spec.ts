@@ -56,7 +56,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     const ctx = getCtx();
     // 先记录已有通知数（基线）
     const before = await listNotifications(page);
-    console.log(`[31d-A] 提交前未读通知 ${before.length} 条`);
+    console.warn(`[31d-A] 提交前未读通知 ${before.length} 条`);
 
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId,
@@ -65,7 +65,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     });
     const orderId = r?.data?.id;
     expect(orderId, '[31d-A] 销售订单创建失败，提交通知链路无从验证').toBeTruthy();
-    console.log(`[31d-A] 订单创建成功 id=${orderId}`);
+    console.warn(`[31d-A] 订单创建成功 id=${orderId}`);
 
     // 创建即草稿态，应先收到「销售订单已创建」（notify_order_created），
     // 且与后续提交通知用不同 dedup_key，不被 5 分钟窗口折叠
@@ -80,19 +80,19 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
         .map(n => n.title)
         .join('|')}）`
     ).toBeTruthy();
-    console.log(`[31d-A] 已收到创建通知 id=${createdNotif!.id}`);
+    console.warn(`[31d-A] 已收到创建通知 id=${createdNotif!.id}`);
 
     // submit 端点触发通知
     await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
-    console.log(`[31d-A] 订单提交成功`);
+    console.warn(`[31d-A] 订单提交成功`);
 
     await page.waitForTimeout(NOTIF_SETTLE_MS);
     const after = await listNotifications(page);
-    console.log(`[31d-A] 提交后未读通知 ${after.length} 条`);
+    console.warn(`[31d-A] 提交后未读通知 ${after.length} 条`);
     const newOnes = after.filter(n => !afterCreate.some(b => b.id === n.id));
     // event_notification_service.rs 的 notify_order_submitted 固定标题
     const orderNotif = newOnes.find(n => n.title === '订单已提交');
-    console.log(`[31d-A] 提交后新增通知 ${newOnes.length} 条，匹配提交通知: ${!!orderNotif}`);
+    console.warn(`[31d-A] 提交后新增通知 ${newOnes.length} 条，匹配提交通知: ${!!orderNotif}`);
     expect(
       orderNotif,
       `[31d-A] 未收到「订单已提交」通知（新增 ${newOnes.length} 条：${newOnes
@@ -120,7 +120,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     });
     const orderId = r?.data?.id;
     expect(orderId, '[31d-B] 销售订单创建失败，审批通知链路无从验证').toBeTruthy();
-    console.log(`[31d-B] 订单创建成功 id=${orderId}`);
+    console.warn(`[31d-B] 订单创建成功 id=${orderId}`);
 
     await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
 
@@ -136,14 +136,14 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     );
     expect(afterSubmit.status, '[31d-B] submit 后订单应为 pending').toBe('pending');
     await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
-    console.log(`[31d-B] 订单审批成功`);
+    console.warn(`[31d-B] 订单审批成功`);
 
     await page.waitForTimeout(NOTIF_SETTLE_MS);
     const after = await listNotifications(page);
     const newOnes = after.filter(n => !before.some(b => b.id === n.id));
     // event_notification_service.rs:192 notify_order_approved 的固定标题
     const approvalNotif = newOnes.find(n => n.title === '订单审批通过');
-    console.log(`[31d-B] 新增通知 ${newOnes.length} 条，匹配审批通知: ${!!approvalNotif}`);
+    console.warn(`[31d-B] 新增通知 ${newOnes.length} 条，匹配审批通知: ${!!approvalNotif}`);
     expect(
       approvalNotif,
       `[31d-B] 未收到「订单审批通过」通知（新增 ${newOnes.length} 条：${newOnes
@@ -169,7 +169,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     });
     const orderId = r?.data?.id;
     expect(orderId, '[31d-C] 销售订单创建失败，发货通知链路无从验证').toBeTruthy();
-    console.log(`[31d-C] 订单创建成功 id=${orderId}`);
+    console.warn(`[31d-C] 订单创建成功 id=${orderId}`);
 
     // 提交+审批后才能发货
     await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
@@ -211,14 +211,14 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
         },
       ],
     });
-    console.log(`[31d-C] 订单发货成功（仓库编码 ${wh.warehouse_code}）`);
+    console.warn(`[31d-C] 订单发货成功（仓库编码 ${wh.warehouse_code}）`);
 
     await page.waitForTimeout(NOTIF_SETTLE_MS);
     const after = await listNotifications(page);
     const newOnes = after.filter(n => !before.some(b => b.id === n.id));
     // event_notification_service.rs:228 notify_order_shipped 的固定标题
     const shipNotif = newOnes.find(n => n.title === '订单已发货');
-    console.log(`[31d-C] 新增通知 ${newOnes.length} 条，匹配发货通知: ${!!shipNotif}`);
+    console.warn(`[31d-C] 新增通知 ${newOnes.length} 条，匹配发货通知: ${!!shipNotif}`);
     expect(
       shipNotif,
       `[31d-C] 未收到「订单已发货」通知（新增 ${newOnes.length} 条：${newOnes
@@ -234,11 +234,11 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
   test('D. 库存预警→admin/manager收到预警通知', async ({ page }) => {
     test.setTimeout(120_000);
     const before = await listNotifications(page);
-    console.log(`[31d-D] 触发前未读通知 ${before.length} 条`);
+    console.warn(`[31d-D] 触发前未读通知 ${before.length} 条`);
 
     // GET /inventory/stock/low-stock 触发 check_low_stock → 发布事件 → 通知 admin/manager
     await apiCallRaw<unknown>(page, 'GET', '/inventory/stock/low-stock');
-    console.log('[31d-D] low-stock 检查完成');
+    console.warn('[31d-D] low-stock 检查完成');
 
     await page.waitForTimeout(5000);
     const after = await listNotifications(page);
@@ -246,7 +246,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     const stockNotif = newOnes.find(
       n => n.title?.includes('库存') || n.title?.includes('stock') || n.title?.includes('预警')
     );
-    console.log(
+    console.warn(
       `[31d-D] 新增通知 ${newOnes.length} 条（${newOnes.map(n => n.title).join('|')}），` +
         `匹配库存预警通知: ${!!stockNotif}`
     );
@@ -287,13 +287,15 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
       'GET',
       `/ap/invoices/${invoice.id}`
     );
-    console.log(
+    console.warn(
       `[31d-F] 应付单 id=${invoice.id} 状态=${approved.invoice_status} 未付=${approved.unpaid_amount}`
     );
+    // approve 必然写入 AUDITED（ap_invoice_ops/crud.rs:222，状态机 DRAFT → AUDITED → PAID），
+    // 因此断收到精确值；旧写法用 || '' + toUpperCase 容忍空值，审批没生效也可能通过。
     expect(
-      (approved.invoice_status || '').toUpperCase(),
+      approved.invoice_status,
       `[31d-F] 应付单审批后状态非可付款态（实际 ${approved.invoice_status}）`
-    ).not.toBe('DRAFT');
+    ).toBe('AUDITED');
     const unpaid = Number(approved.unpaid_amount);
     expect(unpaid, `[31d-F] 应付单未付金额无效（实际 ${approved.unpaid_amount}）`).toBeGreaterThan(
       0
@@ -319,14 +321,14 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     // request_no 由后端生成（服务内 generate_request_no），通知标题按回写值匹配
     const requestNo = r?.data?.request_no;
     expect(requestNo, '[31d-F] 创建响应未返回 request_no，无法匹配通知标题').toBeTruthy();
-    console.log(
+    console.warn(
       `[31d-F] 付款申请创建成功 id=${requestId} request_no=${requestNo} 应付单=${invoice.id}`
     );
 
     const before = await listNotifications(page);
 
     await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/submit`);
-    console.log(`[31d-F] 付款申请提交成功`);
+    console.warn(`[31d-F] 付款申请提交成功`);
 
     await page.waitForTimeout(NOTIF_SETTLE_MS);
     const after = await listNotifications(page);
@@ -334,7 +336,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     // ap_payment_request_handler.rs submit_request 的固定标题：付款申请待审批：{request_no}
     const expectedTitle = `付款申请待审批：${requestNo}`;
     const payNotif = newOnes.find(n => n.title === expectedTitle);
-    console.log(
+    console.warn(
       `[31d-F] 新增通知 ${newOnes.length} 条（${newOnes.map(n => n.title).join('|')}），` +
         `匹配「${expectedTitle}」: ${!!payNotif}`
     );

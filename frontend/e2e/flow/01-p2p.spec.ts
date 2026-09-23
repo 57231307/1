@@ -4,7 +4,6 @@ import {
   apiCall,
   apiCallRaw,
   apiCallExpectFail,
-  verifyStatusTransition,
   verifyIllegalTransition,
   verifyStockFourDim,
   verifyAuditLog,
@@ -347,7 +346,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       '/purchase/receipts',
       baseItem({})
     );
-    console.log('[1-6b 产品不符] 响应:', JSON.stringify(productMismatch));
+    console.warn('[1-6b 产品不符] 响应:', JSON.stringify(productMismatch));
     expect(
       productMismatch.status,
       `产品与订单不符应被拒绝（400），实际 ${productMismatch.status}`
@@ -364,7 +363,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       '/purchase/receipts',
       baseItem({ batch_no: undefined })
     );
-    console.log('[1-6b 缺批次] 响应:', JSON.stringify(missingBatch));
+    console.warn('[1-6b 缺批次] 响应:', JSON.stringify(missingBatch));
     expect(missingBatch.status, `缺批次应被拒绝（400），实际 ${missingBatch.status}`).toBe(400);
     expect(missingBatch.code, `应返回 BUSINESS_ERROR，实际 ${JSON.stringify(missingBatch)}`).toBe(
       'BUSINESS_ERROR'
