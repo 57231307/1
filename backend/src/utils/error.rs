@@ -435,6 +435,13 @@ pub struct ErrorResponse {
     pub timestamp: i64,
 }
 
+/// `Unauthorized` 变体的字符串错误码（与 [`AppError::error_code`] 同源）。
+/// 认证中间件不经 `AppError` 出参（需原样外显固定文案）时必须复用这两个常量，
+/// 保证失败信封的 `code` 取值全站唯一。
+pub const CODE_UNAUTHORIZED: &str = "UNAUTHORIZED";
+/// `PermissionDenied` 变体的字符串错误码（与 [`AppError::error_code`] 同源）
+pub const CODE_FORBIDDEN: &str = "FORBIDDEN";
+
 /// 为已有 `AppError` 追加响应序列化能力（不修改任何现有方法）
 impl AppError {
     /// 转换为对外统一的 [`ErrorResponse`]
@@ -462,8 +469,8 @@ impl AppError {
         match self {
             AppError::NotFound(_) => "NOT_FOUND",
             AppError::BadRequest(_) => "BAD_REQUEST",
-            AppError::Unauthorized(_) => "UNAUTHORIZED",
-            AppError::PermissionDenied(_) => "FORBIDDEN",
+            AppError::Unauthorized(_) => CODE_UNAUTHORIZED,
+            AppError::PermissionDenied(_) => CODE_FORBIDDEN,
             AppError::ValidationError(_) => "VALIDATION_ERROR",
             AppError::BusinessError(_) => "BUSINESS_ERROR",
             AppError::BusinessErrorDisplayable(_) => "BUSINESS_ERROR",

@@ -175,21 +175,11 @@ class Request {
         if (response.config.responseType === 'blob' || response.data instanceof Blob) {
           return response;
         }
-        const res = response.data;
-        if (res.code !== 200 && res.code !== 0) {
-          // 优先展示后端 message（后端已保证默认脱敏），不再用固定文案覆盖
-          const safeMessage = res.message?.trim() ? res.message : getSafeErrorMessage(res.code);
-          showErrorOnce(safeMessage);
-          if (res.code === 401) {
-            // Wave B-3：凭据由后端 Cookie 管理，前端无需清理 localStorage；
-            // 直接跳转登录页，后端会在登出时通过 Set-Cookie 清除 Cookie
-            router.push('/login');
-          }
-          return Promise.reject(new Error(safeMessage));
-        }
-        // P2 1-11 修复：原 `return res as any` 丢失类型信息
-        // 拦截器返回 ApiResponse 而非 AxiosResponse，用 unknown 断言满足 axios 类型系统
-        return res as unknown as AxiosResponse;
+        // 2xx 响应体即成功：后端成功信封的 code 恒为 200，失败一律以非 2xx 状态码返回并
+        // 出参统一失败信封 `{code: "<字符串机器码>", message, trace_id, timestamp}`
+        // （backend/src/utils/error.rs），因此这里不存在"200 里夹带业务错误码"的分支，
+        // 业务/认证/权限失败全部由下方 error 拦截器处理。
+        return response.data as unknown as AxiosResponse;
       },
       async error => {
         const originalRequest = error.config;

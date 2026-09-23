@@ -37,19 +37,21 @@ export interface ApiResponse<T = unknown> {
 // ============================================================================
 // 失败响应信封（e2e 侧显式建模）
 //
-// 后端"失败"响应体的 code 有两种互不相同的语义，此前 e2e 只建模了前者，
-// 于是 `json.code === 'CSRF_TOKEN_INVALID'` 这类**运行时正确**的断言
-// 在类型层被判为无交集比较（TS2367）：
-//   ① utils/response.rs:11-20 `ApiResponse<T>`：code: Option<u16>，**数字**
-//      （HTTP 状态码语义），另有 data / message / total。
-//   ② middleware/csrf.rs:234-242 `csrf_error_response()`：中间件绕过
-//      ApiResponse 直出 `{ success: false, code: "<机器码>", message, data: null }`，
-//      配 HTTP 403，且消费竞败时响应头带 x-new-csrf-token（csrf.rs:146-152）。
-//   ③ utils/error.rs:143-148 `AppError::into_response()`：同样直出字符串机器码
-//      `{ code: "<机器码>", message, trace_id, timestamp }`，状态码由
-//      error_status_and_type()（error.rs:166-180）决定。
-// ②③ 的 code 是字符串机器码，① 是数字，因此在比较点用 failureCode() 做类型收窄，
-// 而不是把断言改弱、改字符串化绕过或强转。
+// 全站 HTTP 失败体已收敛为一种形状（`utils/error.rs` 的 `ErrorResponse` 结构体）：
+//   { code: "<字符串机器码>", message: "<脱敏常量或可外显文案>", trace_id: "<uuid>", timestamp: <i64> }
+// 产出方：
+//   ① utils/error.rs:143-148 `AppError::into_response()`（状态码由
+//      error_status_and_type()（error.rs:168-182）决定）；
+//   ② utils/response.rs `unauthorized_response`/`forbidden_response`（auth/permission 中间件）
+//      与 middleware/auth_context.rs `AuthRejection::into_response`——三者都复用同一个
+//      `ErrorResponse` 结构体，因此键与类型完全相同，只是 message 原样外显固定文案。
+// 原先并存的两种数字 code 失败体（ApiResponse::error / error_with_status）与
+// `{ error: "Unauthorized", message }` 已从后端删除，失败体 code 恒为字符串。
+//
+// 唯一尚未收敛的例外：middleware/csrf.rs:234-242 `csrf_error_response()` 绕过 AppError
+// 直出 `{ success: false, code: "<机器码>", message, data: null }`，配 HTTP 403，
+// 且消费竞败时响应头带 x-new-csrf-token（csrf.rs:146-152）。它的 code 同为字符串机器码，
+// 因此在比较点用 failureCode() 取码，避免与其它 403 判据互相误判。
 // ============================================================================
 
 /**
@@ -79,7 +81,15 @@ export const APP_ERROR_CODES = {
   BAD_REQUEST: 'BAD_REQUEST',
 } as const;
 
-/** 后端三类失败响应体的公共形状：code 既能是 ① 的数字也能是 ②③ 的字符串机器码 */
+/**
+ * 失败响应体：统一形状 `{code,message,trace_id,timestamp}`，失败时 code 恒为字符串机器码
+ * （`utils/error.rs` 的 `ErrorResponse`）。`success`/`data` 仅由 csrf.rs:234-242 的直出体携带，
+ * 该体没有 trace_id/timestamp。
+ *
+ * `code` 仍保留 `number` 分支：`apiCall` 解析的是成功信封 `ApiResponse`（数字 200），
+ * 与失败体共用同一判据函数；`failureCode()` 只把字符串当机器码，数字码永不命中。
+ * `total` 同理来自成功信封顶层。
+ */
 export interface ApiFailureBody {
   success?: false;
   code?: string | number;
@@ -96,16 +106,16 @@ export interface ApiFailureResult extends ApiFailureBody {
 }
 
 /**
- * 收窄为字符串机器码（信封 ②③）；① 的数字 code（HTTP 状态码语义）返回 undefined。
- * 用于"这个失败是不是某个机器码"的判断，语义比 `String(code) === '...'` 严格：
- * 数字码永远不会被误判成机器码。
+ * 取失败体的字符串机器码（统一形状与 csrf.rs 直出体都是字符串）。
+ * 运行时 JSON 不受类型约束，故保留 typeof 判定：非字符串（缺失/异常）返回 undefined，
+ * 不做 String() 强转，避免把结构异常当成命中某个机器码。
  */
 export function failureCode(json: ApiFailureBody | null | undefined): string | undefined {
   const code = json?.code;
   return typeof code === 'string' ? code : undefined;
 }
 
-/** 失败体是否 CSRF 中间件直出的 403 拒绝（信封 ②，缺 MISSING/INVALID 码即视为业务码撞名） */
+/** 失败体是否 CSRF 中间件直出的 403 拒绝（缺 MISSING/INVALID 码即视为统一信封的业务机器码） */
 export function isCsrfRejection(status: number, json: ApiFailureBody | null | undefined): boolean {
   const code = failureCode(json);
   return status === 403 && (code === CSRF_ERROR_CODES.INVALID || code === CSRF_ERROR_CODES.MISSING);
@@ -1037,9 +1047,9 @@ export async function apiCall<T = unknown>(
   // CSRF 校验失败恢复（两级）：
   // 1. 优先读取后端 X-New-CSRF-Token 恢复头（并发竞败场景的权威来源，无需重新登录）
   // 2. 无恢复头时重新登录获取全新 token
-  // CSRF 拒绝走 middleware/csrf.rs:234-242 直出体（code 为字符串机器码 + HTTP 403），
-  // 不是 utils/response.rs 的数字 code，故用 failureCode() 收窄并要求 status===403，
-  // 避免与业务数字码撞名。
+  // CSRF 拒绝走 middleware/csrf.rs:234-242 直出体（字符串机器码 CSRF_* + HTTP 403），
+  // 统一失败信封的 FORBIDDEN/UNAUTHORIZED 也是字符串码，故用 failureCode() + status===403
+  // 双判据区分，避免把权限拒绝误当成 CSRF 竞败。
   if (isCsrfRejection(response.status(), json)) {
     const recoveryToken = response.headers()['x-new-csrf-token'];
     try {
@@ -1119,7 +1129,7 @@ export async function apiCallExpectFail(
 
   let response = await doFetch(csrfToken);
   let text = await response.text();
-  // 失败体：code 可能是 ApiResponse 的数字码，也可能是 csrf.rs / error.rs 的字符串机器码
+  // 失败体的 code 恒为字符串机器码（统一信封 utils/error.rs 或 csrf.rs 直出体）
   let json: ApiFailureBody = {};
   try {
     json = JSON.parse(text);
