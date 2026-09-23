@@ -29,13 +29,8 @@ const SRC_FWD = SRC.replace(/\\/g, '/');
 
 /** R1 豁免：文件 -> { 允许的绝对路径条数, 理由 } */
 const ABS_ALLOW = new Map([
-  [
-    'routes/failover.rs',
-    {
-      n: 5,
-      why: '整文件写绝对路径。改法是相对化 + mod.rs nest("/api/v1/erp/admin/failover")；' + '属独立后端批次（本地不可编译验证），先显式登记。',
-    },
-  ],
+  // 2026-09-23：routes/failover.rs 的 5 条绝对路径已相对化（前缀由 mod.rs 一次 nest），
+  // 豁免随之删除。若再出现绝对路径注册，本门禁会直接判负。
 ]);
 
 /** R2 豁免：handler 文件内的 Router 构造函数 */

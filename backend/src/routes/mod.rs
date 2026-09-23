@@ -464,8 +464,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         // 修复：原 mod.rs 中 `pub mod custom_order;` 已声明但 create_router 未挂载，
         // 导致 /api/v1/erp/custom-orders 全部 404。补齐 nest 调用。
         .nest("/api/v1/erp/custom-orders", custom_order::routes())
-        // 主备隔离路由（P0-2）
-        .merge(failover::failover_routes())
+        // 主备隔离路由（P0-2）；failover.rs 内为相对路径，前缀在此唯一处组合
+        .nest("/api/v1/erp/admin/failover", failover::failover_routes())
         // 色卡仓储管理路由（P0-4）
         .nest("/api/v1/erp/color-cards", color_card::routes())
         // 面料多色号定价扩展路由（P0-5）
