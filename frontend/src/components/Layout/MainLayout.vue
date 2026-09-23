@@ -466,9 +466,7 @@
           <el-menu-item v-if="canAccessMenu('/voucher')" role="menuitem" index="/voucher">{{
             t('layout.menu.voucher')
           }}</el-menu-item>
-          <el-menu-item v-if="canAccessMenu('/trading')" role="menuitem" index="/trading">{{
-            t('layout.menu.trading')
-          }}</el-menu-item>
+
           <el-menu-item
             v-if="canAccessMenu('/ar-reconciliation/enhanced')"
             role="menuitem"
@@ -1073,7 +1071,6 @@ const visibleSubMenu = computed<Record<string, boolean>>(() => {
       '/account-subject',
       '/accounting-period',
       '/voucher',
-      '/trading',
       '/ar-reconciliation/enhanced',
       '/bi/sales-analysis',
     ],

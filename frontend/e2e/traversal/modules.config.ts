@@ -86,7 +86,6 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'custom-orders', route: '/custom-orders', domain: 'sales', tier: 'B', listApi: '/custom-orders' },
   { id: 'after-sales', route: '/after-sales', domain: 'sales', tier: 'B',  },
   { id: 'logistics', route: '/logistics', domain: 'sales', tier: 'C', noCreate: true },
-  { id: 'trading', route: '/trading', domain: 'sales', tier: 'C', noCreate: true },
 
   // ===== purchase 域 =====
   { id: 'purchase', route: '/purchase', domain: 'purchase', tier: 'C', noCreate: true },

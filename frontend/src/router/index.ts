@@ -812,13 +812,7 @@ const routes: RouteRecordRaw[] = [
           requiresAuth: true,
         },
       },
-      // 新增路由 - 交易管理
-      {
-        path: 'trading',
-        name: 'Trading',
-        component: () => import('@/views/trading/index.vue'),
-        meta: { title: '交易管理', icon: 'Money', permission: 'finance:read', requiresAuth: true },
-      },
+
       // 新增路由 - 报表模板
       {
         path: 'report-templates',

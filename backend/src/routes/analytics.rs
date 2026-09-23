@@ -463,20 +463,6 @@ pub fn user_notification_settings() -> Router<AppState> {
     )
 }
 
-/// 交易管理路由（高级查询）；注：实际定义在 `advanced/` 子模块（拆分到 `advanced/reorder.rs` 和
-/// `advanced/decide.rs`）， 路由挂在 `/advanced` 域下更合适；此处保留独立 `/trading/...` 入口以兼容旧前端调用。
-pub fn trading() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/purchase-contracts",
-            get(advanced::list_purchase_contracts),
-        )
-        .route("/sales-contracts", get(advanced::list_sales_contracts))
-        .route("/sales-prices", get(advanced::list_sales_prices))
-        .route("/purchase-prices", get(advanced::list_purchase_prices))
-        .route("/sales-returns", get(advanced::list_sales_returns))
-}
-
 /// Advanced 分析路由（nest 到 /api/v1/erp/advanced）；内部 path 与前端 `/advanced/ai/...`、`/advanced/reports/...` 完全一致。；V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源） 权限映射：/ai/sales-forecast → ai-forecast:read
 /// /ai/inventory-optimization → ai-inventory-opt:read， /ai/anomaly-detection → ai-anomaly:read， /ai/recommendations → ai-recommendation:read， /ai/recipe-optimization → ai-recipe-opt:read， /ai/quality-prediction → ai-quality-pred:read
 pub fn advanced() -> Router<AppState> {
@@ -617,7 +603,6 @@ pub fn routes() -> Router<AppState> {
         .merge(emails())
         .merge(ai())
         .merge(reports())
-        .nest("/trading", trading())
         .merge(tracking())
         // V15 P1 batch-16 缺陷 7.3：隐私同意路由（nest 到 /api/v1/erp/privacy）
         .nest("/privacy", privacy())

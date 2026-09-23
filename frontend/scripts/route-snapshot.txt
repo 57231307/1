@@ -1,4 +1,4 @@
-# layers=8 endpoints=1741
+# layers=8 endpoints=1736
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -929,11 +929,6 @@ GET	/api/v1/erp/system-update/version	system_update_handler::get_version	system
 GET	/api/v1/erp/system-update/versions	system_update_handler::get_backup_versions	system
 GET	/api/v1/erp/system-update/versions/*	system_update_handler::get_system_version_by_id	mod
 GET	/api/v1/erp/templates/download/*	import_export_handler::download_template	analytics
-GET	/api/v1/erp/trading/purchase-contracts	advanced::list_purchase_contracts	analytics
-GET	/api/v1/erp/trading/purchase-prices	advanced::list_purchase_prices	analytics
-GET	/api/v1/erp/trading/sales-contracts	advanced::list_sales_contracts	analytics
-GET	/api/v1/erp/trading/sales-prices	advanced::list_sales_prices	analytics
-GET	/api/v1/erp/trading/sales-returns	advanced::list_sales_returns	analytics
 GET	/api/v1/erp/user-notification-settings	user_notification_setting_handler::get_setting	analytics
 GET	/api/v1/erp/user-path	tracking_handler::get_user_path	analytics
 GET	/api/v1/erp/user/profile	user_handler::get_current_user_profile	mod

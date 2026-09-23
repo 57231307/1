@@ -96,9 +96,7 @@ const ROUTES: string[] = [
   '/roles',
   '/roles/conflicts',
   '/roles/permissions',
-  '/trading/sales-contracts',
-  '/trading/sales-prices',
-  '/trading/sales-returns',
+
   '/crm/sales-users',
   '/scheduling/gantt',
   '/search/customers',
