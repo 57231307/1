@@ -95,6 +95,7 @@
 - **CI 失败修复汇报制（IR，2026-09-11）**：每轮 CI 修复完成后，必须向用户汇报：①本轮修了哪些问题（逐条列出）②每个问题的根因归属（后端代码 bug / 测试文件错误 / 测试配置错误 / 环境级 flaky / 测试基础设施错误）③为什么会出现 ④怎么修复的。禁止只报"已修复"不给归因。修复前必须拉取全部失败 job 的日志（annotations + report zip + md 数据逐测试解析），禁止只看第一个错误就修
 - **CI 失败日志分析方法（IR，2026-09-11）**：GitHub job log 只有 E2E-HEAD/TAIL 摘要（Playwright 输出被重定向到 reports/ 文件）；完整失败详情在 e2e-report-shard-N artifact 的 data/*.md 中（含每测试的 Name/Location/Expected/Received）；批量解析脚本需每分片刷新 git credential token（后台终端 token 会失效）
 - **CI 失败判责纪律（IR，2026-09-11，用户强调）**：测试失败后必须先判责——源代码错误修源代码，测试文件错误修测试文件，禁止混淆两者瞎改。判责依据：对照后端真实 DTO/路由/约束（grep 源码确认），而非猜测。修复前先回答"这是谁的问题"
+- **路由挂载唯一约定（IR，2026-09-23）**：后端路由只在 `backend/src/routes/` 下注册；域路由文件内 `.route()` 一律写**相对路径**，URL 前缀只在 `routes/mod.rs` 用 `.nest()` 组合一次；handler 文件禁止自带 `router()`。改挂载结构必须让 `node frontend/scripts/route-snapshot.mjs --check` 与基线逐字一致（证明"改的是结构不是 URL"），新增偏离须先在 `check-route-mount.mjs` 写文件+条数+理由才可豁免，禁止整片豁免
 - **推送前自审强制（IR，2026-09-11，用户强调）**：git push 前必须完成自审——逐文件检查修改正确性（字段名/类型/路径/枚举值对照后端真实 DTO）、vue-tsc 编译通过、prettier 格式通过。自审通过后才能推送。禁止"改完直接推"
 - **CI 日志 grep 精确模式（2026-09-12 排障经验）**：backend.log 里 grep "429" 会误匹配 trace_id/span_id 中的随机数字段（如 `span_id=6b5d4296...`），必须用 `grep -aE "状态: 429|status=429"` 精确模式；完整 backend.log 在 e2e-report-shard-N artifact 的 reports/ 目录下（此前误判"CI 未上传 backend.log"）
 - **后台终端 gh/git credential 限制（2026-09-12 环境知识）**：后台终端（sh）里 `git credential fill` 拿不到 token（TOKEN_LEN=0，credential helper 依赖交互 shell 环境），且 cargo 不在 PATH（需 `PATH=$PATH:/root/.cargo/bin`）。对策：前台取 token 写 `/tmp/gh_token.txt`（chmod 600），后台终端 `GH_TOKEN=$(cat /tmp/gh_token.txt)`

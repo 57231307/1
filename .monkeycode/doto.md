@@ -2292,3 +2292,52 @@ CI 的 clippy 口径实测为：不加 `-D warnings`，但**新增 warning 文�
   `en-US.ts` 的解析（vue-tsc/eslint/prettier/check-i18n 同时报错才发现）。已在插入器里
   改为"含撇号则用双引号"。**教训**：脚本批量改语言包必须先过 parse 级门禁再提交，
   且 `npx vue-tsc | tail -3; echo $?` 取到的是 `tail` 的退出码——判定要落盘看真实 exit code。
+
+## iter37：字段名臆造一类（前端读后端没有的键）+ 路由挂载约定落地
+
+### 已修（前端读不存在的键 ⇒ 列恒空、筛选恒空、按钮结构性不可达）
+- `ap/tabs/InvoiceTab.vue`：行由实体直接序列化（ap_invoice_ops/crud.rs:366 返回 Vec<ap_invoice::Model>，
+  无 JOIN/改名），前端却声明 supplier_name/invoice_amount/verified_amount/unverified_amount/status/
+  payment_status（全不存在），状态词元还用另一张表 finance_invoice 的小写 pending/approved/verified。
+  改为实体真名 amount/paid_amount/unpaid_amount/invoice_status + 大写字母词表，供应商名用本页已加载
+  的供应商主数据映射；详情弹窗与打印导出同步。
+- `ap/tabs/PaymentRequestTab.vue`：状态列是 approval_status（DRAFT/APPROVING/APPROVED/REJECTED），
+  前端读不存在的 status 并按小写门控 ⇒ 编辑/提交/审批/驳回/删除五个按钮全不可达；映射里还挂着
+  后端永不写入的 paid/cancelled 两个幻 token。
+- `ar/tabs/InvoiceTab.vue`：同一类（verified_amount/unverified_amount/remark 不存在；真实
+  received_amount/unpaid_amount），且 ar_invoice.status 词表为全大写
+  DRAFT/APPROVED/PAID/PARTIAL_PAID/CANCELLED，**发票本身没有"已核销"态**（核销是另一张表）。
+- `ar/tabs/ReconciliationTab.vue`：prop="status" 改 reconciliation_status；幻 token pending 改
+  真实初始态 draft。该页三个状态标签键在语言包里从未定义过（旧引用本就是坏的）。
+- `ap|ar/tabs/VerificationTab.vue`：去掉 `list || items || data || []` 三形状探测（后端返回裸数组），
+  unpaid_amount 取代幻字段。
+- 未改（登记）：`ap/tabs/VerificationTab.vue` 手工核销弹窗调
+  getUnverifiedAPInvoices/getUnverifiedAPPayments 不传 supplier_id，而后端
+  ap_verification_handler.rs:189/217 强制要求该参数 ⇒ 打开即 400、下拉恒空。修法需先在弹窗内
+  引入供应商选择（前端交互设计 + 后端是否改为按用户可见范围取值），属功能设计决策，未盲改。
+- 未改（登记）：`ap/VerificationTab` 主列表读 invoice_no/payment_no —— 两列在 ap_verification_item
+  上，主表没有；要显示需后端补 JOIN 或详情里呈现，属接口设计决策。
+
+### 为什么这些缺陷能长期存在（根因）
+`check-api-envelope` 只比"形状"（裸数组 / {items} / {data}），不比"键名"；而这些 handler 返回
+`serde_json::Value`（体内 to_value(实体)），在门禁里正是"后端为动态 JSON ⇒ 判未分类/豁免"的那一批。
+**曾尝试给门禁加字段级比对，但第一版自检不通过**：PaginatedResponse::new(..) 会把泛型实参剥掉，
+从 be.raw 拿不到实体名，改成"handler 体内唯一实体"回退后仍需在类型穿透上继续做工
+（真实做法是沿 service 方法返回类型解析，即 callReturnType 那条链）。因此当前**未把该检查入库**，
+避免留一条"看起来在跑其实从不判负"的假门禁；已用手工逐页核对补上，根治方案登记在此。
+
+### 路由挂载约定（用户提出"不要一会儿这样一会儿那样，不利于统计"）
+- 实测口径（纠正我先前口头说的"mod.rs 有 38 处绝对路径"——那是把 `.nest("/api/v1/erp", ...)`
+  的前缀参数误计为 route 字面量）：1531 条 .route 字面量里绝对路径只有 5 条，全在 routes/failover.rs；
+  另有 1 个 handler 文件内 router()（sales_return_handler.rs，被 routes/sales.rs:211 使用）；
+  161 个返回 Router 的 pub fn，孤儿 0 个（都挂载了）。
+- 落地：新增 route-snapshot.mjs（1741 条端点 + layers=8 基线，复用 check-api-paths 的 nest/merge 语义，
+  已用"改一条真实路径必须判负"的探针自证）+ check-route-mount.mjs（R1 相对路径 / R2 注册只能在
+  routes/ / R3 定义即须挂载；豁免按 文件+条数+理由，超出与不足都判负，两条规则均已注入探针验证会咬）。
+- failover.rs 已相对化并删除其豁免条目，快照逐字不变。
+- 剩 1 条偏离（handler 内 router()）保持登记：搬走它要动 use/参数限定，而 CI clippy 对**新增 warning**
+  零容忍、本地不能编译验证未删净的 import ⇒ 冻结期不做，解冻后单独一批。
+- 顺带查明两个环境事实：本仓 **blob 内就是 CRLF**（无 .gitattributes，autocrlf=true 未做入库归一），
+  所以 rustfmt 报的"Incorrect newline style" 与 prettier 的整仓告警都属同一现象，不是本次改动引入；
+  CI 的 `cargo fmt --all --check` 失败时会**自动 cargo fmt --all 并回提交**（ci-cd.yml:201-218），
+  因此换行符不会卡门禁，但会额外产生 CI 提交。
