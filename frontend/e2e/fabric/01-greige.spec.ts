@@ -43,6 +43,19 @@ async function seedGreige(
   return { id, name };
 }
 
+/** 按 fabric_name 从列表回查坯布 id（列表端点仅支持 fabric_no 模糊过滤，故取页后按名称命中）。 */
+async function findGreigeIdByName(
+  page: import('@playwright/test').Page,
+  name: string
+): Promise<number | undefined> {
+  const res = await apiCall<{ items?: Array<{ id?: number; fabric_name?: string }> }>(
+    page,
+    'GET',
+    '/production/greige-fabrics?page=1&page_size=100'
+  );
+  return res.data?.items?.find(it => it.fabric_name === name)?.id;
+}
+
 // 入库需真实仓库：新建一个坯布仓供对话框选择，用例后清理
 async function seedWarehouse(page: import('@playwright/test').Page): Promise<string> {
   const suffix = genCode('E2E-WH').slice(-6);
@@ -59,8 +72,11 @@ async function seedWarehouse(page: import('@playwright/test').Page): Promise<str
 
 async function openGreigeTabAndLocateRow(page: import('@playwright/test').Page, name: string) {
   await page.goto('/fabric');
-  await page.getByRole('tab', { name: /坯布/ }).click();
-  await expect(page.locator('.el-table')).toBeVisible({ timeout: 30000 });
+  await page.getByRole('tab', { name: '坯布管理', exact: true }).click();
+  // 坯布表格按 aria-label（fabric.greigeTab.tableAriaLabel=「坯布列表」）精确定位：
+  // 原 `.el-table` 会同时命中 /fabric 页三个 Tab 各自的表格容器（染色批次列表 / 坯布列表 /
+  // 染色配方列表）→ strict-mode 违例。
+  await expect(page.getByLabel('坯布列表')).toBeVisible({ timeout: 30000 });
   return page.getByRole('row').filter({ hasText: name }).first();
 }
 
@@ -72,23 +88,41 @@ test.describe('01 坯布管理', () => {
 
   test('01-01 进入面料管理页面', async ({ page }) => {
     await page.goto('/fabric');
-    await expect(page.getByText(/面料/)).toBeVisible({ timeout: 30000 });
-    await expect(page.getByRole('tab', { name: /坯布/ })).toBeVisible();
+    // 页面归属以面包屑「面料管理」（el-breadcrumb__inner role=link）为唯一锚点：
+    // 原 getByText(/面料/) 会同时命中侧边菜单「面料管理」「面料列表」、面包屑与列名
+    // 「面料类型」共 4 处 → strict-mode 违例。
+    await expect(page.getByRole('link', { name: '面料管理', exact: true })).toBeVisible({
+      timeout: 30000,
+    });
+    await expect(page.getByRole('tab', { name: '坯布管理', exact: true })).toBeVisible();
   });
 
   test('01-02 新建坯布', async ({ page }) => {
     await page.goto('/fabric');
-    await page.getByRole('tab', { name: /坯布/ }).click();
-    await page.getByRole('button', { name: /新建|创建/ }).click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/面料编码/).fill(`FB-${Date.now()}`);
-    await page.getByLabel(/面料名称/).fill('E2E 测试坯布');
-    await page.getByLabel(/数量/).fill('1000');
-    await page
-      .getByRole('button', { name: /确认|保存|提交/ })
-      .last()
-      .click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
+    await page.getByRole('tab', { name: '坯布管理', exact: true }).click();
+    // 新建按钮真实文案 fabric.greigeTab.buttonCreate=「新建坯布」
+    await page.getByRole('button', { name: '新建坯布' }).click();
+    const dialog = page.locator('.el-dialog:visible').last();
+    await expect(dialog).toBeVisible({ timeout: 30000 });
+    // 真实对话框字段（GreigeFormDialogTab.vue）为 编号/名称/供应商/幅宽/克重/成分，
+    // 无「面料编码/面料名称/数量」（原用例字段名全部对不上 → getByLabel(/面料编码/) 超时）。
+    // 「编号」绑定 formData.fabric_code，而后端 create 落库读 fabric_no（见交付报告应用侧缺陷），
+    // 故以「名称」(fabric_name，前后端一致) 作为可回查的真实锚点。
+    const name = `E2E坯布UI${Date.now()}`;
+    await dialog.getByLabel('编号').fill(`FB-${Date.now()}`);
+    await dialog.getByLabel('名称').fill(name);
+    await dialog.getByRole('button', { name: '确定' }).click();
+    // 保存成功提示 fabric.common.success=「操作成功」（原用例断 /创建成功|保存成功/ 与实际文案不符）
+    await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
+    // 真实持久化验证：列表按名称回查到新建的坯布行，并登记清理
+    await expect(
+      page.getByRole('row').filter({ hasText: name }).first(),
+      `新建坯布「${name}」应真实落库并出现在坯布列表`
+    ).toBeVisible({ timeout: 30000 });
+    const createdId = await findGreigeIdByName(page, name);
+    expect(createdId, `应能按名称 ${name} 回查到坯布 id`).toBeTruthy();
+    if (createdId)
+      CLEANUP.push({ path: `/production/greige-fabrics/${createdId}`, label: 'greige_fabric' });
   });
 
   test('01-03 坯布入库操作', async ({ page }) => {

@@ -25,13 +25,63 @@ import {
   autoClickButton,
   waitForTableLoaded,
 } from '../fixtures/rpa';
+import { apiCall, ensureTestEntities, getCtx, tryCleanup } from '../flow/helpers';
+
+/**
+ * 销售列表分页默认 page_size = 20（useTableApi defaultPageSize）。
+ * 原「表格数据提取」两例直接读取 /sales，依赖环境已有的销售数据；extras 分片独立运行、
+ * 不保证存在销售数据（实测该分片 /sales 为「暂无数据」空态 → 提取 0 行、分页下一页 disabled），
+ * 属被污染/缺失夹具依赖。改为用例自身经真实 API 造数据，再验证提取/分页工具。
+ */
+const SALES_PAGE_SIZE = 20;
+
+/**
+ * 真实创建若干销售订单（DRAFT），供提取/分页用例读取；返回创建的 id 列表由用例负责清理。
+ * 依赖 ensureTestEntities 提供的合法 customer_id / product_id（外键），与 flow 用例同源。
+ */
+async function seedSalesOrders(page: import('@playwright/test').Page, count: number) {
+  await ensureTestEntities(page);
+  const ctx = getCtx();
+  const customerId = ctx.customerId;
+  const productId = ctx.productIds[0];
+  if (!customerId || !productId) {
+    throw new Error(
+      `seedSalesOrders：ensureTestEntities 未提供 customerId/productId（ctx=${JSON.stringify({ customerId, productIds: ctx.productIds })}）`
+    );
+  }
+  const ids: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const res = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+      customer_id: customerId,
+      order_date: new Date().toISOString(),
+      items: [{ product_id: productId, quantity: 5, unit_price: '20.00' }],
+    });
+    const id = res.data?.id;
+    if (!id)
+      throw new Error(`创建销售订单失败（第 ${i + 1} 条）：${JSON.stringify(res).slice(0, 200)}`);
+    ids.push(id);
+  }
+  return ids;
+}
 
 test.describe('RPA：表格数据提取（爬虫类）', () => {
+  const createdOrderIds: number[] = [];
+
   test.beforeEach(async ({ context }) => {
     await applyAuthMocks(context);
   });
 
+  // 清理本 describe 内用例自造的销售订单，避免污染共享测试库
+  test.afterEach(async ({ page }) => {
+    for (const id of createdOrderIds.slice().reverse()) {
+      await tryCleanup(page, 'DELETE', `/sales/orders/${id}`, 'sales_order');
+    }
+    createdOrderIds.length = 0;
+  });
+
   test('提取表格行数据结构', async ({ page }) => {
+    createdOrderIds.push(...(await seedSalesOrders(page, 2)));
+
     await page.goto('/sales');
     await waitForTableLoaded(page);
 
@@ -40,7 +90,10 @@ test.describe('RPA：表格数据提取（爬虫类）', () => {
 
     // 原断言只有 `expect(Array.isArray(rows)).toBe(true)`：extractTableData 的返回类型
     // 就是 string[][]，恒为数组 ⇒ 零断言价值（空表也算通过）。改为断真实内容。
-    expect(rows.length, '销售列表未提取到任何数据行（表格空态或被筛选清空）').toBeGreaterThan(0);
+    expect(
+      rows.length,
+      '销售列表未提取到任何数据行（用例已真实造数据，空态即工具/契约问题）'
+    ).toBeGreaterThan(0);
     for (const row of rows) {
       expect(
         row.some(cell => cell.length > 0),
@@ -50,28 +103,28 @@ test.describe('RPA：表格数据提取（爬虫类）', () => {
   });
 
   test('翻页后重新提取表格数据', async ({ page }) => {
+    // 造超过一页的数据量 → 第 2 页必然存在，下一页按钮必然可用（可硬断，非条件跳过）
+    createdOrderIds.push(...(await seedSalesOrders(page, SALES_PAGE_SIZE + 1)));
+
     await page.goto('/sales');
     await waitForTableLoaded(page);
 
     const firstPageRows = await extractTableData(page);
+    expect(firstPageRows.length, '首页未提取到任何数据行（用例已真实造数据）').toBeGreaterThan(0);
 
-    // 尝试翻到下一页
+    // 原实现 `if (await nextBtn.isVisible())` 后直接 click —— 数据不足一页时下一页按钮
+    // 「可见但 disabled」，isVisible 为真却对 disabled 按钮点击 → 30s 超时（真实失败）。
+    // 本用例已控制数据量必然分页，下一页按钮应真实可用：用 toBeEnabled 硬断而非静默跳过。
     const nextBtn = page.locator('.el-pagination .btn-next').first();
-    if (await nextBtn.isVisible()) {
-      await nextBtn.click();
-      await waitForTableLoaded(page);
+    await expect(nextBtn, '造数据超过一页，下一页按钮应可用').toBeEnabled({ timeout: 30_000 });
+    await nextBtn.click();
+    await waitForTableLoaded(page);
 
-      const secondPageRows = await extractTableData(page);
-      // 翻页真实生效：第二页必须有数据且内容与第一页不同
-      //（原来只断"是数组"，翻页按钮点了但页面没变也算通过）
-      expect(secondPageRows.length, '点击下一页后未提取到任何数据行').toBeGreaterThan(0);
-      expect(JSON.stringify(secondPageRows), '翻页后内容与第一页完全相同，说明分页未生效').not.toBe(
-        JSON.stringify(firstPageRows)
-      );
-    }
-
-    expect(firstPageRows.length, '首页未提取到任何数据行（表格空态或加载未完成）').toBeGreaterThan(
-      0
+    const secondPageRows = await extractTableData(page);
+    // 翻页真实生效：第二页必须有数据且内容与第一页不同
+    expect(secondPageRows.length, '点击下一页后未提取到任何数据行').toBeGreaterThan(0);
+    expect(JSON.stringify(secondPageRows), '翻页后内容与第一页完全相同，说明分页未生效').not.toBe(
+      JSON.stringify(firstPageRows)
     );
   });
 });
@@ -94,8 +147,10 @@ test.describe('RPA：表单自动化', () => {
     await page.goto('/sales');
     await waitForTableLoaded(page);
 
-    // 验证 autoClickButton 函数可调用（按钮不存在时应有合理超时）
-    await autoClickButton(page, '搜索', { timeout: 15_000 });
+    // 销售列表筛选区的查询按钮真实文案为「查询」（list.buttonSearch），页面上另有
+    // 「全局搜索（订单/客户/产品）」输入框但无「搜索」文本按钮。原用例按「搜索」定位
+    // 恒超时。改为定位并点击真实存在的「查询」按钮，验证 autoClickButton 命中并点击成功。
+    await autoClickButton(page, '查询', { timeout: 15_000 });
   });
 });
 

@@ -77,8 +77,11 @@ test.describe('网络韧性：真实网络中断', () => {
 
     await navigateViaFirstMenuItem(page);
 
-    // 断言 1：错误提示文案精确匹配 getSafeErrorMessage 的无状态码分支
-    const toast = page.locator('.el-message--error');
+    // 断言 1：错误提示文案精确匹配 getSafeErrorMessage 的无状态码分支。
+    // 定位按文案而非裸类名 `.el-message--error`：离线时 SPA 可能并发触发多条不同文案的
+    // 错误 toast（request.ts showErrorOnce 仅按 message 去重，不同 message 各自成一条），
+    // 裸类名 locator 会 strict-mode 命中多个 → 违例。按本用例关心的网络失败兜底文案精确锁定。
+    const toast = page.locator('.el-message--error', { hasText: '请求失败，请稍后重试' });
     await expect(toast, '离线时应弹出错误提示').toBeVisible({ timeout: RETRY_SETTLE_TIMEOUT });
     const toastText = (await toast.first().innerText()).trim();
     console.log(`[network-resilience] 离线错误提示文案：「${toastText}」`);

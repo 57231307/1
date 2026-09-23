@@ -27,11 +27,15 @@ test.describe('仪表盘', () => {
 
   test('仪表盘最近活动表正常加载', async ({ page }) => {
     await page.goto('/dashboard');
-    await expect(page.getByText(/最近活动|活动记录/)).toBeVisible({
+    // 真实文案以 i18n 为准：dashboard.activityTable.title = 「最新活动」（DashboardActivityTable.vue
+    // 走 t('dashboard.activityTable.title')），原用例写 /最近活动|活动记录/ 与实际字面量不符 → 恒定位不到。
+    await expect(page.getByText('最新活动')).toBeVisible({
       timeout: 30000,
     });
-    const activityTable = page.locator('table, .el-table');
-    await expect(activityTable).toBeVisible({ timeout: 30000 });
+    // 活动表按 aria-label（dashboard.activityTable.ariaLabel = 「最新活动表格」）精确定位：
+    // 原 `page.locator('table, .el-table')` 在全页会命中多个表格容器 → strict mode 违例。
+    // 表格在无数据时仍渲染表头 + 「暂无数据」空态（属正常渲染），故断表格可见即验证加载。
+    await expect(page.getByLabel('最新活动表格')).toBeVisible({ timeout: 30000 });
   });
 
   test('仪表盘日期筛选功能可用', async ({ page }) => {
