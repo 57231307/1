@@ -11,9 +11,10 @@ use crate::utils::sql_escape::safe_like_pattern;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, JoinType, PaginatorTrait,
-    QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, ExprTrait, JoinType,
+    PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -442,8 +443,12 @@ impl InventoryStockService {
             // 只检查正常状态的库存
             .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
             .filter(inventory_stock::Column::QualityStatus.eq(quality_status::PASS))
-            // 检查可用库存低于重新订购点
-            .filter(inventory_stock::Column::QuantityAvailable.lt(inventory_stock::Column::ReorderPoint))
+            // 检查可用库存低于重新订购点：列 vs 列比较不能走 ColumnTrait::lt
+            // （其 right 约束是 Into<Value>，只支持列 vs 字面量），必须用 Expr::col 两侧都是列表达式。
+            .filter(
+                Expr::col(inventory_stock::Column::QuantityAvailable)
+                    .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
+            )
             // 只检查重新订购点大于0的记录
             .filter(inventory_stock::Column::ReorderPoint.gt(rust_decimal::Decimal::ZERO));
 
