@@ -2177,3 +2177,20 @@ e2e 已按此建模（`failureCode()` 只在机器码为字符串时返回、`is
 `vue-tsc -b` / `tsc --incremental` 命中 `tsconfig.tsbuildinfo` 时会**跳过检查不报已有错误**：
 e2e 首跑报 172、`--incremental false` 真值 174，被缓存藏掉的正是 locales 的 2 条 TS1117 重复 key。
 交付口径一律 `--force` / `--incremental false`。
+
+### e2e 类型面已收口到"只差一个依赖"（2026-09-23）
+`npx tsc -p tsconfig.e2e.json --noEmit --incremental false` 从 174 → **93**，
+且这 93 条 **100% 属于缺 `@types/node`**（80×TS2580 `process`/`Buffer`/`require` +
+13×TS2307 `fs`/`path`/`crypto`/`child_process`）。`frontend/package.json` 的
+devDependencies 里根本没有 `@types/node`（e2e 从不查类型所以长期无人发现）。
+装它即可让 e2e 类型面归零；需要跑一次 `npm i -D @types/node` 并同步 lockfile（本地禁止装包）。
+
+### 审批端点矩阵的覆盖面含义有变（不是回归，但要记清）
+`e2e/traversal/41-approve-endpoints.spec.ts` 对 APPROVE_ENDPOINTS 统一发
+`{comments: 'E2E 审批矩阵测试'}`，而 `comments` 不是任何后端 DTO 的字段；
+它只断言"非 NOT_FOUND/BAD_REQUEST/VALIDATION_ERROR/BUSINESS_ERROR 即判红"
+（:19 的 REGISTERED_REJECT_CODES）。本轮三个端点改为**要求真实必填体**
+（调拨批准 `approved`、OK 样确认 `sample_id`、销售拒单 `reason`），
+矩阵对它们的返回会从"业务/状态机拒绝"变成"参数校验失败"，两者都在容忍集合内 →
+**CI 不会因此变红**，但该矩阵对这三条只证明"路由已注册"，不证明能审批成功。
+真实链路覆盖在 41b-c 与四套专用流 spec。若要矩阵也覆盖成功路径，需按端点配真实 body（待决）。
