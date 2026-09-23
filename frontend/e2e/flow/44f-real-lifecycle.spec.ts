@@ -502,8 +502,10 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const del = await apiCallExpectFail(page, 'DELETE', `/production/dye-recipes/${id}`);
     expect(del.status, '已审核配方删除应被拒').toBeGreaterThanOrEqual(400);
     // approved→disabled→approved（:101-117 可逆对）
-    // 唯一停用路径：PUT /{id}（UpdateDyeRecipeRequest.status，后端常量"已停用"，
-    // validate_status_transition: APPROVED→DISABLED 合法边）
-    await apiCall(page, 'PUT', `/production/dye-recipes/${id}`, { status: '已停用' });
+    // 唯一停用路径：PUT /{id}（UpdateDyeRecipeRequest.status）。dye_recipe.status 是
+    // 闭合小写英文词表（draft/pending_approval/approved/disabled，见 models/status/quality_dyeing.rs:38），
+    // 中文"已停用"只是前端 i18n 展示标签，落库会被 chk_dye_recipe_status CHECK 拒绝。
+    // validate_status_transition: APPROVED→DISABLED 合法边
+    await apiCall(page, 'PUT', `/production/dye-recipes/${id}`, { status: 'disabled' });
   });
 });
