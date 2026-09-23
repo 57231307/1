@@ -334,11 +334,7 @@
       </template>
     </el-dialog>
     <!-- 资产详情（getAsset 回源） -->
-    <el-dialog
-      v-model="detailVisible"
-      :title="$t('fixedAssets.table.detailTitle')"
-      width="560"
-    >
+    <el-dialog v-model="detailVisible" :title="$t('fixedAssets.table.detailTitle')" width="560">
       <el-descriptions v-if="detailAsset" :column="2" border>
         <el-descriptions-item label="资产编码">{{ detailAsset.asset_code }}</el-descriptions-item>
         <el-descriptions-item label="资产名称">{{ detailAsset.asset_name }}</el-descriptions-item>
