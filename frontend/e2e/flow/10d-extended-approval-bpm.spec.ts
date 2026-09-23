@@ -36,17 +36,21 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
   });
 
   test('A1-2 验证 BPM 审批链', async ({ page }) => {
-    // 流程实例列表端点是 /bpm/monitor/instances（无 /bpm/instances 列表路由），
-    // bpm_handler.rs:208 是 `to_value(instances)`，即 data 直接就是数组（无 items/data 包裹）；
-    // 原实现调用不存在的 /system/bpm/instances 并用 try/catch 把失败再调一遍吞掉。
-    const instances = await apiCallRaw<Array<{ id: number; status: string }>>(
+    // 流程实例列表端点是 /bpm/monitor/instances（无 /bpm/instances 列表路由）。
+    // bpm_handler.rs:198 list_instances_for_monitor 内部调用
+    // bpm_ops/monitor.rs:118 service.list_instances_for_monitor，返回类型是
+    // PaginatedResponse<bpm_process_instance::Model>（非裸 Vec）——bpm_handler.rs:208 只是把它
+    // to_value 后塞进 ApiResponse.data，因此 data 是 {items,total,page,page_size} 对象，
+    // 列表在 items 里（与 A1-1/A1-3 出参契约一致）。apiCallRaw 取的是 res.data，
+    // 故断言应为 Array.isArray(instances.items)，而非把 data 当数组。
+    const instances = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
       page,
       'GET',
       '/bpm/monitor/instances?page=1&page_size=5'
     );
-    expect(Array.isArray(instances), 'instances 应为后端返回的裸数组').toBe(true);
-    if (instances.length > 0) {
-      const status = (instances[0].status || '').toLowerCase();
+    expect(Array.isArray(instances.items), 'instances.items 应为后端返回的 items 数组').toBe(true);
+    if (instances.items.length > 0) {
+      const status = (instances.items[0].status || '').toLowerCase();
       expect(['processing', 'completed', 'terminated', 'cancelled']).toContain(
         status ?? '(missing-status)'
       );

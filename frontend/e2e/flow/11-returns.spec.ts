@@ -95,8 +95,10 @@ test.describe('采购退货完整流程', () => {
     );
     expect(illegalSubmit.status).toBeGreaterThanOrEqual(400);
 
-    // 验证审计日志
-    const auditLogged = await verifyAuditLog(page, 'UPDATE', 'purchase');
+    // 验证审计日志：审批端点 POST /purchase/returns/{id}/approve 被 omni_audit
+    // classify_operation 归类为 event_type="APPROVE"（末段含 approve → APPROVE，omni_audit.rs:410-413），
+    // 本流程各 POST 均为 CREATE/APPROVE，不存在 UPDATE，故须查 APPROVE。
+    const auditLogged = await verifyAuditLog(page, 'APPROVE', 'purchase');
     expect(auditLogged).toBe(true);
 
     // UI 验证：访问采购退货列表页
@@ -203,7 +205,12 @@ test.describe('采购退货完整流程', () => {
       'GET',
       `/sales/sales-returns/${returnId}/items`
     );
-    expect(Array.isArray(items) && items.length, '退货明细应至少一行').toBe(true);
+    // 断言"至少一行"须返回布尔：Array.isArray(items) && items.length 在数组非空时
+    // 求值为长度数字（如 1），与 .toBe(true) 恒不等（CI Received: 1）。改为显式长度比较。
+    expect(
+      Array.isArray(items) && items.length > 0,
+      `退货明细应至少一行（实际 ${Array.isArray(items) ? items.length : '非数组'}）`
+    ).toBe(true);
     const it = items[0];
     expect(String(it.color_no), '退货明细色号应回写自原出库行').toBe(colorNo);
     expect(String(it.dye_lot_no), '退货明细缸号应回写自原出库行').toBe(dyeLotNo);

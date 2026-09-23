@@ -47,8 +47,14 @@ test.describe('库存调拨完整流程', () => {
       `调拨前来源仓 ${fromWarehouseId} 应存在产品 ${productId} / 色号 ${ctx.colorNos[0]} 的库存行`
     ).toBeTruthy();
 
-    const transferDyeLot = ctx.dyeLotNo || `E2E-DL-${Date.now().toString().slice(-6)}`;
-    const transferBatchNo = 'E2E-BATCH-12';
+    // 出库按 产品+色号+缸号+批次 四维精确扣减、不回退（backend.log 明确："…批次… 在源仓库
+    // 无任何库存记录，出库被拒绝（不回退到产品+色号扣减）"）。因此调拨明细的缸号/批次必须取自
+    // ensureStockInWarehouse 实际命中的库存行（其 batch_no/dye_lot_no 由 helper 生成，非固定值），
+    // 不能硬编码——否则建单虽成功，ship 时按不存在的四维组合扣减必然被拒。
+    const transferDyeLot = String(
+      stockRow.dye_lot_no ?? ctx.dyeLotNo ?? `E2E-DL-${Date.now().toString().slice(-6)}`
+    );
+    const transferBatchNo = String(stockRow.batch_no ?? 'E2E-BATCH-12');
     const transferQty = 5;
 
     // 后端 CreateInventoryTransferRequest 真实字段
@@ -242,6 +248,11 @@ test.describe('库存调拨完整流程', () => {
     console.warn(`[白坯出库] 采购单已审批 poId=${poId}`);
 
     // ---- 2. 建白坯入库单（不带 color_code / lot_no）并确认入库 ----
+    // 后端 CreateReceiptItemRequest（purchase_receipt_dto.rs:54）material_code 为必填 String，
+    // 缺失即 422（"items[0]: missing field `material_code`"）。取产品真实编码填入。
+    const product = await apiCallRaw<{ code?: string }>(page, 'GET', `/products/${productId}`);
+    const materialCode = String(product.code ?? '');
+    expect(materialCode, `产品 ${productId} 应能读回 code 作为收货 material_code`).toBeTruthy();
     const receipt = await apiCall<{ id?: number }>(page, 'POST', '/purchase/receipts', {
       order_id: poId,
       supplier_id: supplierId,
@@ -251,6 +262,7 @@ test.describe('库存调拨完整流程', () => {
         {
           line_no: 1,
           material_id: productId,
+          material_code: materialCode,
           material_name: 'E2E 白坯布',
           unit_master: 'm',
           quantity: String(inboundQty),

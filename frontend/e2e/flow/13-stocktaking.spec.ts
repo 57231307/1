@@ -91,8 +91,11 @@ test.describe('库存盘点完整流程', () => {
     );
     expect(approved.status.toLowerCase()).toBe('completed');
 
-    // 验证审计日志
-    const auditLogged = await verifyAuditLog(page, 'UPDATE', 'inventory');
+    // 验证审计日志：盘点审批端点 POST /inventory/counts/{id}/approve 被
+    // omni_audit classify_operation 归类为 event_type="APPROVE"（路径末段含 approve → APPROVE，
+    // omni_audit.rs:410-413；audit/search 以 module 列按 event_type 过滤，omni_audit_handler.rs:235-239），
+    // 而非 UPDATE——审批是动作类端点，库存调整在 handler 内部完成、不单独产生 UPDATE 审计请求。
+    const auditLogged = await verifyAuditLog(page, 'APPROVE', 'inventory');
     expect(auditLogged).toBe(true);
 
     // 验证库存已调整：审批后同一库存行的在库量/可用量都应等于录入的实盘数量
@@ -182,6 +185,19 @@ test.describe('库存盘点完整流程', () => {
       countId,
       `负例前置：盘点建单应返回 data.id，否则 submit/approve 打到 /undefined 会让状态机断言假绿；实际响应：${JSON.stringify(result).slice(0, 200)}`
     ).toBeTruthy();
+
+    // 提交前必须录入至少一条实盘明细：后端 submit_count 校验"盘点单尚未录入任何实盘数量，
+    // 无法提交审批"（见 reports/backend.log 该端点 400），否则首次 submit 即被拒、
+    // 无法推进到 approved，也就到不了"已审批不能再次提交"这一被测状态。
+    await apiCall(page, 'POST', `/inventory/counts/${countId}/record`, {
+      items: [
+        {
+          stock_id: Number(stockRow!.id),
+          quantity_actual: String(Number(stockRow!.quantity_available) + 2),
+          notes: 'E2E 状态机前置实盘',
+        },
+      ],
+    });
 
     await apiCall(page, 'POST', `/inventory/counts/${countId}/submit`);
     await apiCall(page, 'POST', `/inventory/counts/${countId}/approve`);

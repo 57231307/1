@@ -17,13 +17,23 @@ test.describe('列表交互与状态显示', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
 
-    // 验证状态标签（el-tag）存在
+    // 验证订单状态标签（el-tag）渲染出真实文案。
+    // 注意：PurchaseTable 里 payment_status 列（PurchaseTable.vue:46）先于 status 列
+    // （:57）渲染，而后端 PurchaseOrderDto 不含 payment_status 字段，usePurchList.ts
+    // getPaymentStatusText 对缺值恒返回空串——该列 el-tag 恒为空文本。
+    // 因此不能直接取 .first()（拿到的是空的付款标签），需校验订单状态列渲染出非空标签。
     const statusTags = page.locator('.el-table .el-tag');
     const tagCount = await statusTags.count();
-    if (tagCount > 0) {
-      const firstTagText = await statusTags.first().textContent();
-      expect(firstTagText?.trim().length).toBeGreaterThan(0);
+    expect(tagCount, '采购订单列表应渲染状态 el-tag').toBeGreaterThan(0);
+    let sawNonEmptyStatusTag = false;
+    for (let i = 0; i < tagCount; i++) {
+      const text = (await statusTags.nth(i).textContent())?.trim() ?? '';
+      if (text.length > 0) {
+        sawNonEmptyStatusTag = true;
+        break;
+      }
     }
+    expect(sawNonEmptyStatusTag, '应至少有一个订单状态 el-tag 渲染出非空文案').toBe(true);
 
     // 测试分页
     const pagination = page.locator('.el-pagination').first();

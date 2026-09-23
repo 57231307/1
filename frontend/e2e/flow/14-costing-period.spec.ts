@@ -180,7 +180,9 @@ test.describe('成本核算完整流程', () => {
       ],
     };
 
-    const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
+    // 凭证创建端点是 POST /vouchers（routes/finance.rs:224 create_voucher），
+    // 与下方 GET /vouchers/{id} 同前缀；不存在 /finance/vouchers 路由（原写法 404）。
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', voucherData);
     const voucherId = result.data?.id;
     expect(
       voucherId,
