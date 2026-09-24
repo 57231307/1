@@ -688,12 +688,13 @@ impl FabricInspectionService {
         Ok(updated)
     }
 
-    /// 关闭归档（rolled → closed）
+    /// 关闭归档（graded | rolled → closed）
+    /// 业务场景：整批拒收/退关时无需打卷即可直接归档
     pub async fn close_inspection(&self, id: i32) -> Result<InspectionModel, AppError> {
         let model = self.get_by_id(id).await?;
-        if model.status != inspection_status::ROLLED {
+        if model.status != inspection_status::GRADED && model.status != inspection_status::ROLLED {
             return Err(AppError::business(format!(
-                "仅已打卷(rolled)状态可关闭归档，当前状态: {}",
+                "仅已评级(graded)或已打卷(rolled)状态可关闭归档，当前状态: {}",
                 model.status
             )));
         }
