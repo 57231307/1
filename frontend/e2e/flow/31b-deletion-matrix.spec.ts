@@ -3,6 +3,7 @@ import {
   apiCall,
   apiCallExpectFail,
   apiCallRaw,
+  ensureBudgetPlan,
   ensureTestEntities,
   getCtx,
   loginViaUI,
@@ -44,6 +45,16 @@ interface DelCase {
   listKey?: ListShapeKey;
   /** 删除前预处理（如固定资产需先 PUT status=inactive 才允许删除） */
   preDelete?: (page: import('@playwright/test').Page, id: number) => Promise<void>;
+  /**
+   * 创建前预处理（运行时向 payload 注入依赖前置资源的字段）。
+   * payload 是 collection 期构造的静态对象，无法在定义处读取运行时才就绪的 ctx/外键；
+   * 预算明细的 plan_id 须为已存在的预算方案（Q3 重构后 NOT NULL 外键），故用本钩子在
+   * POST 前取/建一个有效方案 id 注入 payload。
+   */
+  preCreate?: (
+    page: import('@playwright/test').Page,
+    payload: Record<string, unknown>
+  ) => Promise<void>;
 }
 
 /** 创建 → 删除 → 详情 404 + 列表消失 双验证 */
@@ -51,6 +62,11 @@ async function createThenApiDelete(
   page: import('@playwright/test').Page,
   c: DelCase
 ): Promise<void> {
+  // 0) 创建前预处理：运行时注入依赖前置外键资源的字段（如预算明细的 plan_id）
+  if (c.preCreate) {
+    await c.preCreate(page, c.payload);
+    console.log(`[31b-${c.label}] 创建前预处理完成`);
+  }
   const resp = await apiCall<{ id?: number }>(page, 'POST', c.createApi, c.payload);
   const id = resp?.data?.id;
   expect(id, `[31b-${c.label}] 创建响应无 id（创建 API 异常）`).toBeTruthy();
@@ -241,6 +257,11 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
         budget_year: 2026,
         planned_amount: 50000,
         remark: 'P0预算备注',
+      },
+      // Q3 重构：预算明细 plan_id 为 NOT NULL 外键且后端校验方案存在，
+      // 静态 payload 在 collection 期无法取运行时方案 id，故创建前注入一个有效 plan_id
+      preCreate: async (page, payload) => {
+        payload.plan_id = await ensureBudgetPlan(page);
       },
     },
     {

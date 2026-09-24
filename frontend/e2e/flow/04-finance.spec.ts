@@ -9,6 +9,7 @@ import {
   genCode,
   genName,
   ensureTestEntities,
+  ensureBudgetPlan,
   expectBadRequest,
 } from './helpers';
 
@@ -170,9 +171,15 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
   });
 
   test('4-9 创建预算', async ({ page }) => {
+    // 预算重构为「方案头 + 明细行」两级：POST /budgets 落 budget_items，plan_id NOT NULL
+    // 且后端 create_item 校验所属方案存在（budget_management_service.rs:176-177），
+    // 缺 plan_id 即 4xx。先补前置实体再取/建一个有效方案 id，据实对齐真实契约。
+    await ensureTestEntities(page);
     const ctx = getCtx();
+    const planId = await ensureBudgetPlan(page);
     const result = await apiCall<{ id?: number }>(page, 'POST', '/budgets', {
-      // 后端 CreateBudgetDto 必填 item_name + planned_amount（budget_name/total_amount 不存在）
+      // 后端 CreateBudgetDto 必填 item_name + planned_amount + plan_id（NOT NULL 外键）
+      plan_id: planId,
       item_name: genName('E2E预算'),
       budget_year: new Date().getFullYear(),
       item_type: 'expense',
