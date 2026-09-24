@@ -43,17 +43,23 @@ async function seedGreige(
   return { id, name };
 }
 
-/** 按 fabric_name 从列表回查坯布 id（列表端点仅支持 fabric_no 模糊过滤，故取页后按名称命中）。 */
-async function findGreigeIdByName(
+/**
+ * 按手填 fabric_no 从列表回查后端真实落库记录（列表端点支持 fabric_no 模糊过滤）。
+ * 端点：GET /production/greige-fabrics（routes/production.rs:67 → list_greige_fabrics）；
+ * 出参键 = greige_fabric::Model.fabric_no（models/greige_fabric.rs:14，NOT NULL）。
+ */
+async function findGreigeByFabricNo(
   page: import('@playwright/test').Page,
-  name: string
-): Promise<number | undefined> {
-  const res = await apiCall<{ items?: Array<{ id?: number; fabric_name?: string }> }>(
+  fabricNo: string
+): Promise<{ id?: number; fabric_no?: string; fabric_name?: string } | undefined> {
+  const res = await apiCall<{
+    items?: Array<{ id?: number; fabric_no?: string; fabric_name?: string }>;
+  }>(
     page,
     'GET',
-    '/production/greige-fabrics?page=1&page_size=100'
+    `/production/greige-fabrics?fabric_no=${encodeURIComponent(fabricNo)}&page=1&page_size=50`
   );
-  return res.data?.items?.find(it => it.fabric_name === name)?.id;
+  return res.data?.items?.find(it => it.fabric_no === fabricNo);
 }
 
 // 入库需真实仓库：新建一个坯布仓供对话框选择，用例后清理
@@ -104,23 +110,33 @@ test.describe('01 坯布管理', () => {
     await page.getByRole('button', { name: '新建坯布' }).click();
     const dialog = page.locator('.el-dialog:visible').last();
     await expect(dialog).toBeVisible({ timeout: 30000 });
-    // 真实对话框字段（GreigeFormDialogTab.vue）为 编号/名称/供应商/幅宽/克重/成分，
-    // 无「面料编码/面料名称/数量」（原用例字段名全部对不上 → getByLabel(/面料编码/) 超时）。
-    // 「编号」绑定 formData.fabric_code，而后端 create 落库读 fabric_no（见交付报告应用侧缺陷），
-    // 故以「名称」(fabric_name，前后端一致) 作为可回查的真实锚点。
+    // 真实对话框字段（GreigeFormDialogTab.vue）为 编号/名称/供应商/幅宽/克重/成分。
+    // 源码缺陷修复（d60ecdd3）后「编号」绑定 formData.fabric_no（GreigeFormDialogTab.vue:31），
+    // 与后端 create DTO 字段一致（CreateGreigeFabricRequest.fabric_no，greige_fabric_handler.rs:37；
+    // 缺省时后端才自动生成 GF-<ts>-<rand>，见 handler:192）。原缺陷为 fabric_code 被 serde
+    // 忽略、用户编号恒落系统号——修复后应能真实验证「手填编号原样落库、不被默认号覆盖」。
     const name = `E2E坯布UI${Date.now()}`;
-    await dialog.getByLabel('编号').fill(`FB-${Date.now()}`);
+    const fabricNo = `GF-E2E-${Date.now()}`;
+    await dialog.getByLabel('编号').fill(fabricNo);
     await dialog.getByLabel('名称').fill(name);
     await dialog.getByRole('button', { name: '确定' }).click();
     // 保存成功提示 fabric.common.success=「操作成功」（原用例断 /创建成功|保存成功/ 与实际文案不符）
     await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
-    // 真实持久化验证：列表按名称回查到新建的坯布行，并登记清理
+    // UI 行回查：列表按名称命中新建行
     await expect(
       page.getByRole('row').filter({ hasText: name }).first(),
       `新建坯布「${name}」应真实落库并出现在坯布列表`
     ).toBeVisible({ timeout: 30000 });
-    const createdId = await findGreigeIdByName(page, name);
-    expect(createdId, `应能按名称 ${name} 回查到坯布 id`).toBeTruthy();
+    // 真实落库回查（核心，消除覆盖盲区）：按手填编号命中后端记录，断其落库 fabric_no
+    // 与用户输入逐字相等，证明确实写入、未被系统默认号覆盖；若修复失效则此项失败。
+    const created = await findGreigeByFabricNo(page, fabricNo);
+    expect(created, `应能按手填编号 ${fabricNo} 从后端回查到坯布`).toBeTruthy();
+    expect(
+      created?.fabric_no,
+      `落库 fabric_no 应等于用户手填值 ${fabricNo}（未被系统默认号覆盖）`
+    ).toBe(fabricNo);
+    const createdId = created?.id;
+    expect(createdId, `回查到的坯布应含 id 以便清理`).toBeTruthy();
     if (createdId)
       CLEANUP.push({ path: `/production/greige-fabrics/${createdId}`, label: 'greige_fabric' });
   });

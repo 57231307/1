@@ -41,17 +41,38 @@ async function seedDyeBatch(
   return { id, batchNo };
 }
 
-/** 按 batch_no 回查后端真实落库的染色批次 id（列表端点支持 batch_no 模糊过滤）。 */
-async function findDyeBatchIdByNo(
+/**
+ * 按 batch_no 回查后端真实落库的染色批次记录（列表端点支持 batch_no 模糊过滤）。
+ * 端点：GET /production/dye-batches（routes/production.rs:30 → list_dye_batches）；
+ * 出参键 = DyeBatchDto（dye_batch_handler.rs:71），含 color_code / color_name / color_no。
+ */
+async function findDyeBatchByNo(
   page: import('@playwright/test').Page,
   batchNo: string
-): Promise<number | undefined> {
-  const res = await apiCall<{ items?: Array<{ id?: number; batch_no?: string }> }>(
+): Promise<
+  | {
+      id?: number;
+      batch_no?: string;
+      color_code?: string;
+      color_name?: string;
+      color_no?: string;
+    }
+  | undefined
+> {
+  const res = await apiCall<{
+    items?: Array<{
+      id?: number;
+      batch_no?: string;
+      color_code?: string;
+      color_name?: string;
+      color_no?: string;
+    }>;
+  }>(
     page,
     'GET',
     `/production/dye-batches?batch_no=${encodeURIComponent(batchNo)}&page=1&page_size=50`
   );
-  return res.data?.items?.find(it => it.batch_no === batchNo)?.id;
+  return res.data?.items?.find(it => it.batch_no === batchNo);
 }
 
 test.describe('02 染色批次', () => {
@@ -78,18 +99,34 @@ test.describe('02 染色批次', () => {
     // 批次号在打开对话框时由 generateUniqueDocNo 预生成且输入框 readonly
     // （DyeFormDialogTab.vue:27 `<el-input readonly>`）——只读字段不可 fill（Playwright 判
     // not editable），原用例 getByLabel(/批次号/).fill(...) 属对只读自动单号的错误操作。
-    // 真实契约是「自动填充」，故断其非空而非写入；随后填写可编辑的计划字段。
+    // 真实契约是「自动填充」，故断其非空而非写入，并取作回查锚点。
     const batchNoInput = dialog.getByLabel('批次号');
     await expect(batchNoInput).not.toHaveValue('');
     const batchNo = await batchNoInput.inputValue();
-    await dialog.getByLabel('颜色').fill(`E2E 测试颜色 ${Date.now()}`);
+    // 源码缺陷修复（d60ecdd3）后「颜色」绑定 formData.color_no（DyeFormDialogTab.vue:32），
+    // 与后端 create DTO 字段一致（CreateDyeBatchRequest.color_no，dye_batch_handler.rs:45）；
+    // 后端用它同时写 color_code/color_name/color_no（dye_batch_handler.rs:188-193）。
+    // 原缺陷为 color_name 被 serde 忽略、用户输入丢失落默认色——修复后应真实验证手填色号落库。
+    const colorNo = `E2ECOLOR-${Date.now()}`;
+    await dialog.getByLabel('颜色').fill(colorNo);
     await dialog.getByLabel('计划数量').fill('500');
     await dialog.getByRole('button', { name: '确定' }).click();
     // 保存成功提示 fabric.common.success=「操作成功」
     await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
-    // 回查并登记清理：UI 建的批次不在 seedDyeBatch 的 CLEANUP 内，须按自动生成的批次号定位删除
-    const createdId = await findDyeBatchIdByNo(page, batchNo);
-    expect(createdId, `新建后应能按批次号 ${batchNo} 回查到染色批次 id`).toBeTruthy();
+    // 真实落库回查（核心，消除覆盖盲区）：按批次号命中后端记录，断其落库 color_no/color_code
+    // 与手填逐字相等，证明「颜色」真实写入而非落系统默认色；若修复失效则此项失败。
+    const created = await findDyeBatchByNo(page, batchNo);
+    expect(created, `新建后应能按批次号 ${batchNo} 从后端回查到染色批次`).toBeTruthy();
+    expect(created?.color_no, `落库 color_no 应等于用户手填值 ${colorNo}（未被默认色覆盖）`).toBe(
+      colorNo
+    );
+    expect(
+      created?.color_code,
+      `落库 color_code 应等于用户手填值 ${colorNo}（后端以 color_no 写入）`
+    ).toBe(colorNo);
+    // 回查并登记清理：UI 建的批次不在 seedDyeBatch 的 CLEANUP 内，须按批次号定位删除
+    const createdId = created?.id;
+    expect(createdId, `回查到的批次应含 id 以便清理`).toBeTruthy();
     if (createdId)
       CLEANUP.push({ path: `/production/dye-batches/${createdId}`, label: 'dye_batch' });
   });
