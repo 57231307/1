@@ -83,19 +83,18 @@ export const DYE_BATCH_STATUS_TAG_TYPES: Record<DyeBatchLifecycleStatus, DyeBatc
 
 /**
  * 把后端返回的缸号状态归一到已知枚举。
- * 词表外的值（含大小写写错）不回显裸枚举，而是记错误日志并抛错——映射缺口必须让页面和
- * 日志同时报错，而不是伪装成"看起来像个状态"。
- * dye_batch.status 为可空列（Option<String>）：null/空串是合法的数据缺省，交由调用方按缺省处理，
- * 不算词表违规；只有携带了词表外取值才算脏数据。
+ * dye_batch.status 为可空列（Option<String>）：null/空串是合法的数据缺省，返回 undefined；
+ * 词表外的非空取值（脏数据）记错误日志并抛错。
  */
 export function normalizeDyeBatchStatus(
   status: string | null | undefined
-): DyeBatchLifecycleStatus {
-  if ((DYE_BATCH_LIFECYCLE_STATUSES as readonly string[]).includes(status ?? '')) {
+): DyeBatchLifecycleStatus | undefined {
+  if (status == null || status === '') return undefined;
+  if ((DYE_BATCH_LIFECYCLE_STATUSES as readonly string[]).includes(status)) {
     return status as DyeBatchLifecycleStatus;
   }
   const message =
-    `未识别的缸号状态「${String(status)}」，` +
+    `未识别的缸号状态「${status}」，` +
     '合法取值见后端 models/status/quality_dyeing.rs 的 dye_batch_lifecycle_status 模块（16 态小写）';
   logger.error(message, { status });
   throw new Error(message);
@@ -105,13 +104,19 @@ export function normalizeDyeBatchStatus(
 export function isDyeBatchStatus(
   status: string | null | undefined
 ): status is DyeBatchLifecycleStatus {
-  return (DYE_BATCH_LIFECYCLE_STATUSES as readonly string[]).includes(status ?? '');
+  return (
+    status != null &&
+    status !== '' &&
+    (DYE_BATCH_LIFECYCLE_STATUSES as readonly string[]).includes(status)
+  );
 }
 
-export function dyeBatchStatusLabelKey(status: DyeBatchLifecycleStatus): string {
-  return DYE_BATCH_STATUS_LABEL_KEYS[status];
+export function dyeBatchStatusLabelKey(status: string | null | undefined): string {
+  const normalized = normalizeDyeBatchStatus(status);
+  return normalized ? DYE_BATCH_STATUS_LABEL_KEYS[normalized] : 'common.statusUnknown';
 }
 
-export function dyeBatchStatusTagType(status: DyeBatchLifecycleStatus): DyeBatchTagType {
-  return DYE_BATCH_STATUS_TAG_TYPES[status];
+export function dyeBatchStatusTagType(status: string | null | undefined): DyeBatchTagType {
+  const normalized = normalizeDyeBatchStatus(status);
+  return normalized ? DYE_BATCH_STATUS_TAG_TYPES[normalized] : 'info';
 }

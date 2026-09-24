@@ -43,23 +43,31 @@ export const INVENTORY_COUNT_STATUS_TAG_TYPES: Record<InventoryCountStatus, Inve
 
 /**
  * 把后端返回的状态归一到已知枚举。
- * 词表外的值不回显裸枚举，而是记错误日志并抛错——映射缺口必须让页面和日志同时报错。
+ * - null/undefined/空串（字段缺失或尚无状态）：返回 undefined，由调用方渲染中性占位；
+ * - 词表外的非空取值（脏数据）：记错误日志并抛错。
  */
-export function normalizeInventoryCountStatus(status: string | undefined): InventoryCountStatus {
-  if ((INVENTORY_COUNT_STATUSES as readonly string[]).includes(status ?? '')) {
+export function normalizeInventoryCountStatus(
+  status: string | undefined | null
+): InventoryCountStatus | undefined {
+  if (status == null || status === '') return undefined;
+  if ((INVENTORY_COUNT_STATUSES as readonly string[]).includes(status)) {
     return status as InventoryCountStatus;
   }
   const message =
-    `未识别的库存盘点单状态「${String(status)}」，` +
+    `未识别的库存盘点单状态「${status}」，` +
     '合法取值见后端 models/status/purchase_inventory.rs 的 inventory_count 模块';
   logger.error(message, { status });
   throw new Error(message);
 }
 
-export function inventoryCountStatusLabelKey(status: string | undefined): string {
-  return INVENTORY_COUNT_STATUS_LABEL_KEYS[normalizeInventoryCountStatus(status)];
+export function inventoryCountStatusLabelKey(status: string | undefined | null): string {
+  const normalized = normalizeInventoryCountStatus(status);
+  return normalized ? INVENTORY_COUNT_STATUS_LABEL_KEYS[normalized] : 'common.statusUnknown';
 }
 
-export function inventoryCountStatusTagType(status: string | undefined): InventoryCountTagType {
-  return INVENTORY_COUNT_STATUS_TAG_TYPES[normalizeInventoryCountStatus(status)];
+export function inventoryCountStatusTagType(
+  status: string | undefined | null
+): InventoryCountTagType {
+  const normalized = normalizeInventoryCountStatus(status);
+  return normalized ? INVENTORY_COUNT_STATUS_TAG_TYPES[normalized] : 'info';
 }

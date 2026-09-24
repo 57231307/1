@@ -53,28 +53,31 @@ export const INVENTORY_TRANSFER_STATUS_TAG_TYPES: Record<
 
 /**
  * 把后端返回的状态归一到已知枚举。
- * 词表外的值（含大小写写错、空值）不回显裸枚举，而是记错误日志并抛错——
- * 映射缺口必须让页面和日志同时报错，而不是伪装成「看起来像个状态」。
+ * - null/undefined/空串（字段缺失或尚无状态）：返回 undefined，由调用方渲染中性占位；
+ * - 词表外的非空取值（脏数据）：记错误日志并抛错。
  */
 export function normalizeInventoryTransferStatus(
-  status: string | undefined
-): InventoryTransferStatus {
-  if ((INVENTORY_TRANSFER_STATUSES as readonly string[]).includes(status ?? '')) {
+  status: string | undefined | null
+): InventoryTransferStatus | undefined {
+  if (status == null || status === '') return undefined;
+  if ((INVENTORY_TRANSFER_STATUSES as readonly string[]).includes(status)) {
     return status as InventoryTransferStatus;
   }
   const message =
-    `未识别的库存调拨单状态「${String(status)}」，` +
+    `未识别的库存调拨单状态「${status}」，` +
     '合法取值见后端 models/status/purchase_inventory.rs 的 inventory_transfer 模块';
   logger.error(message, { status });
   throw new Error(message);
 }
 
-export function inventoryTransferStatusLabelKey(status: string | undefined): string {
-  return INVENTORY_TRANSFER_STATUS_LABEL_KEYS[normalizeInventoryTransferStatus(status)];
+export function inventoryTransferStatusLabelKey(status: string | undefined | null): string {
+  const normalized = normalizeInventoryTransferStatus(status);
+  return normalized ? INVENTORY_TRANSFER_STATUS_LABEL_KEYS[normalized] : 'common.statusUnknown';
 }
 
 export function inventoryTransferStatusTagType(
-  status: string | undefined
+  status: string | undefined | null
 ): InventoryTransferTagType {
-  return INVENTORY_TRANSFER_STATUS_TAG_TYPES[normalizeInventoryTransferStatus(status)];
+  const normalized = normalizeInventoryTransferStatus(status);
+  return normalized ? INVENTORY_TRANSFER_STATUS_TAG_TYPES[normalized] : 'info';
 }

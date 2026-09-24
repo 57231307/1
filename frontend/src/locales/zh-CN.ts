@@ -44,6 +44,7 @@ export default {
     enable: '启用',
     disable: '禁用',
     status: '状态',
+    statusUnknown: '未知',
     create: '创建',
     update: '更新',
     name: '名称',

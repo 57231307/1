@@ -65,13 +65,22 @@ export interface ExportProductsQuery {
   download_token?: string;
 }
 
-/** 产品导入结果 */
+/**
+ * 产品导入结果。
+ * 对齐后端 utils/import_export.rs::ImportResult（serde 序列化，snake_case）。
+ */
+export interface ProductImportError {
+  row: number;
+  column: string;
+  message: string;
+  value: string;
+}
+
 export interface ProductImportResult {
-  total: number;
-  success: number;
-  failed: number;
-  errors: Array<{ row: number; message: string }>;
-  [key: string]: unknown;
+  total_count: number;
+  success_count: number;
+  error_count: number;
+  errors: ProductImportError[];
 }
 
 // D14 Batch 5b：原 productApi.list 转为风格 B 函数

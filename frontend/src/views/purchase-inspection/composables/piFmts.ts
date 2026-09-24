@@ -9,7 +9,6 @@
  */
 import { i18n } from '@/i18n';
 import {
-  normalizePurchaseInspectionStatus,
   purchaseInspectionStatusLabelKey,
   purchaseInspectionStatusTagType,
   type PurchaseInspectionTagType,
@@ -20,9 +19,9 @@ export function getStatusType(status: string | null | undefined): PurchaseInspec
   return purchaseInspectionStatusTagType(status);
 }
 
-/** 检验单状态 → 显示文案（i18n，键名即后端原值；词表外值抛错并记日志） */
+/** 检验单状态 → 显示文案（i18n，键名即后端原值；缺失渲染中性占位，非空非法值抛错并记日志） */
 export function getStatusText(status: string | null | undefined): string {
-  return i18n.global.t(purchaseInspectionStatusLabelKey(normalizePurchaseInspectionStatus(status)));
+  return i18n.global.t(purchaseInspectionStatusLabelKey(status));
 }
 
 /** 检验结果 → el-tag 配色 */

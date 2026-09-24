@@ -71,9 +71,7 @@
         align="center"
       >
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)">{{
-            t(`purchaseContract.status.${row.status}`)
-          }}</el-tag>
+          <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column
@@ -155,7 +153,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import type { PurchaseContract } from '@/api/purchase-contract';
-import { formatCurrency, getStatusType } from '../composables/pcFmts';
+import { formatCurrency, getStatusType, getStatusLabel } from '../composables/pcFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 

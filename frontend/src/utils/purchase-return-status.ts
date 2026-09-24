@@ -45,28 +45,33 @@ export const PURCHASE_RETURN_STATUS_TAG_TYPES: Record<PurchaseReturnStatus, Purc
   };
 
 /**
- * 把后端返回的状态归一到已知枚举。词表外的值记错误日志并抛错——映射缺口必须让页面和日志
- * 同时报错，而不是伪装成"看起来像个状态"。
+ * 把后端返回的状态归一到已知枚举。
+ * - null/undefined/空串（字段缺失或尚无状态，return_status 为 Option<String>）：
+ *   返回 undefined，由调用方渲染中性占位；
+ * - 词表外的非空取值（脏数据）：记错误日志并抛错——映射缺口必须让页面和日志同时报错。
  */
 export function normalizePurchaseReturnStatus(
   status: string | null | undefined
-): PurchaseReturnStatus {
-  if ((PURCHASE_RETURN_STATUSES as readonly string[]).includes(status ?? '')) {
+): PurchaseReturnStatus | undefined {
+  if (status == null || status === '') return undefined;
+  if ((PURCHASE_RETURN_STATUSES as readonly string[]).includes(status)) {
     return status as PurchaseReturnStatus;
   }
   const message =
-    `未识别的采购退货状态「${String(status)}」，` +
+    `未识别的采购退货状态「${status}」，` +
     '合法取值见后端 models/status/purchase_inventory.rs 的 purchase_return 模块';
   logger.error(message, { status });
   throw new Error(message);
 }
 
 export function purchaseReturnStatusLabelKey(status: string | null | undefined): string {
-  return PURCHASE_RETURN_STATUS_LABEL_KEYS[normalizePurchaseReturnStatus(status)];
+  const normalized = normalizePurchaseReturnStatus(status);
+  return normalized ? PURCHASE_RETURN_STATUS_LABEL_KEYS[normalized] : 'common.statusUnknown';
 }
 
 export function purchaseReturnStatusTagType(
   status: string | null | undefined
 ): PurchaseReturnTagType {
-  return PURCHASE_RETURN_STATUS_TAG_TYPES[normalizePurchaseReturnStatus(status)];
+  const normalized = normalizePurchaseReturnStatus(status);
+  return normalized ? PURCHASE_RETURN_STATUS_TAG_TYPES[normalized] : 'info';
 }

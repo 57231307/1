@@ -45,27 +45,31 @@ export const INVENTORY_ADJUSTMENT_STATUS_TAG_TYPES: Record<
 
 /**
  * 把后端返回的状态归一到已知枚举。
- * 词表外的值不回显裸枚举，而是记错误日志并抛错——映射缺口必须让页面和日志同时报错。
+ * - null/undefined/空串（字段缺失或尚无状态）：返回 undefined，由调用方渲染中性占位；
+ * - 词表外的非空取值（脏数据）：记错误日志并抛错。
  */
 export function normalizeInventoryAdjustmentStatus(
-  status: string | undefined
-): InventoryAdjustmentStatus {
-  if ((INVENTORY_ADJUSTMENT_STATUSES as readonly string[]).includes(status ?? '')) {
+  status: string | undefined | null
+): InventoryAdjustmentStatus | undefined {
+  if (status == null || status === '') return undefined;
+  if ((INVENTORY_ADJUSTMENT_STATUSES as readonly string[]).includes(status)) {
     return status as InventoryAdjustmentStatus;
   }
   const message =
-    `未识别的库存调整单状态「${String(status)}」，` +
+    `未识别的库存调整单状态「${status}」，` +
     '合法取值见后端 models/status/purchase_inventory.rs 的 inventory_adjustment 模块';
   logger.error(message, { status });
   throw new Error(message);
 }
 
-export function inventoryAdjustmentStatusLabelKey(status: string | undefined): string {
-  return INVENTORY_ADJUSTMENT_STATUS_LABEL_KEYS[normalizeInventoryAdjustmentStatus(status)];
+export function inventoryAdjustmentStatusLabelKey(status: string | undefined | null): string {
+  const normalized = normalizeInventoryAdjustmentStatus(status);
+  return normalized ? INVENTORY_ADJUSTMENT_STATUS_LABEL_KEYS[normalized] : 'common.statusUnknown';
 }
 
 export function inventoryAdjustmentStatusTagType(
-  status: string | undefined
+  status: string | undefined | null
 ): InventoryAdjustmentTagType {
-  return INVENTORY_ADJUSTMENT_STATUS_TAG_TYPES[normalizeInventoryAdjustmentStatus(status)];
+  const normalized = normalizeInventoryAdjustmentStatus(status);
+  return normalized ? INVENTORY_ADJUSTMENT_STATUS_TAG_TYPES[normalized] : 'info';
 }

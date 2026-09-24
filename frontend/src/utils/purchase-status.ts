@@ -66,24 +66,29 @@ export const PURCHASE_STATUS_TAG_TYPES: Record<PurchaseOrderStatus, PurchaseTagT
 
 /**
  * 把后端返回的状态归一到已知枚举。
- * 词表外的值（含大小写写错、空值）不回显裸枚举，而是记错误日志并抛错——
- * 映射缺口必须让页面和日志同时报错，而不是伪装成"看起来像个状态"。
+ * - null/undefined/空串（字段缺失或尚无状态）：返回 undefined，由调用方渲染中性占位；
+ * - 词表外的非空取值（脏数据）：记错误日志并抛错，映射缺口必须让页面和日志同时报错。
  */
-export function normalizePurchaseOrderStatus(status: string | undefined): PurchaseOrderStatus {
-  if ((PURCHASE_ORDER_STATUSES as readonly string[]).includes(status ?? '')) {
+export function normalizePurchaseOrderStatus(
+  status: string | undefined | null
+): PurchaseOrderStatus | undefined {
+  if (status == null || status === '') return undefined;
+  if ((PURCHASE_ORDER_STATUSES as readonly string[]).includes(status)) {
     return status as PurchaseOrderStatus;
   }
   const message =
-    `未识别的采购订单状态「${String(status)}」，` +
+    `未识别的采购订单状态「${status}」，` +
     '合法取值见后端 models/status/purchase_inventory.rs 的 purchase_order 模块';
   logger.error(message, { status });
   throw new Error(message);
 }
 
-export function purchaseStatusLabelKey(status: string | undefined): string {
-  return PURCHASE_STATUS_LABEL_KEYS[normalizePurchaseOrderStatus(status)];
+export function purchaseStatusLabelKey(status: string | undefined | null): string {
+  const normalized = normalizePurchaseOrderStatus(status);
+  return normalized ? PURCHASE_STATUS_LABEL_KEYS[normalized] : 'common.statusUnknown';
 }
 
-export function purchaseStatusTagType(status: string | undefined): PurchaseTagType {
-  return PURCHASE_STATUS_TAG_TYPES[normalizePurchaseOrderStatus(status)];
+export function purchaseStatusTagType(status: string | undefined | null): PurchaseTagType {
+  const normalized = normalizePurchaseOrderStatus(status);
+  return normalized ? PURCHASE_STATUS_TAG_TYPES[normalized] : 'info';
 }

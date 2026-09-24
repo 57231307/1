@@ -39,7 +39,10 @@ export const PURCHASE_CONTRACT_STATUS_TAG_TYPES: Record<
   cancelled: 'danger',
 };
 
-export function normalizePurchaseContractStatus(status: string): PurchaseContractStatus {
+export function normalizePurchaseContractStatus(
+  status: string | undefined | null
+): PurchaseContractStatus | undefined {
+  if (status == null || status === '') return undefined;
   if ((PURCHASE_CONTRACT_STATUSES as readonly string[]).includes(status)) {
     return status as PurchaseContractStatus;
   }
@@ -51,12 +54,17 @@ export function normalizePurchaseContractStatus(status: string): PurchaseContrac
 }
 
 /** 获取采购合同状态 el-tag 类型 */
-export const getStatusType = (status: string): PurchaseContractTagType =>
-  PURCHASE_CONTRACT_STATUS_TAG_TYPES[normalizePurchaseContractStatus(status)];
+export const getStatusType = (status: string | undefined | null): PurchaseContractTagType => {
+  const normalized = normalizePurchaseContractStatus(status);
+  return normalized ? PURCHASE_CONTRACT_STATUS_TAG_TYPES[normalized] : 'info';
+};
 
 /** 获取采购合同状态显示文案（i18n） */
-export const getStatusLabel = (status: string): string =>
-  i18n.global.t(PURCHASE_CONTRACT_STATUS_LABEL_KEYS[normalizePurchaseContractStatus(status)]);
+export const getStatusLabel = (status: string | undefined | null): string => {
+  const normalized = normalizePurchaseContractStatus(status);
+  const key = normalized ? PURCHASE_CONTRACT_STATUS_LABEL_KEYS[normalized] : 'common.statusUnknown';
+  return i18n.global.t(key);
+};
 
 /** 格式化货币（人民币 2 位精度） */
 export const formatCurrency = (value: number) => {

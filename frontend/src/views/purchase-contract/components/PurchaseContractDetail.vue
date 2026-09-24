@@ -49,8 +49,8 @@
         viewData.delivery_location || '-'
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchaseContract.detail.status')">
-        <el-tag :type="getStatusType(viewData.status || '')">{{
-          t(`purchaseContract.status.${viewData.status || ''}`)
+        <el-tag :type="getStatusType(viewData.status)">{{
+          getStatusLabel(viewData.status)
         }}</el-tag>
       </el-descriptions-item>
       <el-descriptions-item :label="t('purchaseContract.detail.remarks')" :span="2">{{
@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { formatCurrency, getStatusType } from '../composables/pcFmts';
+import { formatCurrency, getStatusType, getStatusLabel } from '../composables/pcFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 

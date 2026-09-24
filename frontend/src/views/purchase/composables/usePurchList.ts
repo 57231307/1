@@ -80,14 +80,16 @@ export function usePurchList() {
 
   /**
    * 订单状态对应的 el-tag 类型
-   * 词表外的状态由 utils/purchase-status 抛错并记日志，不再回退配色掩盖数据异常
+   * 缺失（null/undefined）渲染中性占位；词表外的非空取值由 utils/purchase-status 抛错并记日志。
    */
-  const getStatusType = (status: string): PurchaseTagType => purchaseStatusTagType(status);
+  const getStatusType = (status: string | undefined | null): PurchaseTagType =>
+    purchaseStatusTagType(status);
 
   /**
-   * 订单状态显示文案（i18n，键名即后端枚举原值）
+   * 订单状态显示文案（i18n，键名即后端枚举原值；缺失渲染中性占位）
    */
-  const getStatusText = (status: string): string => i18n.global.t(purchaseStatusLabelKey(status));
+  const getStatusText = (status: string | undefined | null): string =>
+    i18n.global.t(purchaseStatusLabelKey(status));
 
   /**
    * 付款状态对应的 el-tag 类型

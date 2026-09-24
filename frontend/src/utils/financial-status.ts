@@ -37,22 +37,32 @@ const TAG: Record<FinancialStatus, FinancialTagType> = {
   rejected: 'danger',
 };
 
-export function normalizeFinancialStatus(status: string | undefined): FinancialStatus {
-  if ((FINANCIAL_STATUSES as readonly string[]).includes(status ?? '')) {
+/**
+ * 把后端返回的状态归一到已知枚举。
+ * - null/undefined/空串（字段缺失或尚无状态）：返回 undefined，由调用方渲染中性占位；
+ * - 词表外的非空取值（脏数据）：记错误日志并抛错。
+ */
+export function normalizeFinancialStatus(
+  status: string | undefined | null
+): FinancialStatus | undefined {
+  if (status == null || status === '') return undefined;
+  if ((FINANCIAL_STATUSES as readonly string[]).includes(status)) {
     return status as FinancialStatus;
   }
   const message =
-    `未识别的财务分析状态「${String(status)}」，` +
+    `未识别的财务分析状态「${status}」，` +
     '合法取值见后端 models/status/general.rs 的 master_data 模块';
   logger.error(message, { status });
   throw new Error(message);
 }
 
 /** 状态 → i18n 文案键（动态键名，走 finance.statusLabels.<token>，避免源码出现裸中文） */
-export function financialStatusLabelKey(status: string | undefined): string {
-  return `finance.statusLabels.${normalizeFinancialStatus(status)}`;
+export function financialStatusLabelKey(status: string | undefined | null): string {
+  const normalized = normalizeFinancialStatus(status);
+  return normalized ? `finance.statusLabels.${normalized}` : 'common.statusUnknown';
 }
 
-export function financialStatusTagType(status: string | undefined): FinancialTagType {
-  return TAG[normalizeFinancialStatus(status)];
+export function financialStatusTagType(status: string | undefined | null): FinancialTagType {
+  const normalized = normalizeFinancialStatus(status);
+  return normalized ? TAG[normalized] : 'info';
 }

@@ -34,8 +34,8 @@
         getPriceTypeLabel(viewData.price_type || '')
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchasePrice.detail.label.status')">
-        <el-tag :type="getStatusType(viewData.status || '')">{{
-          getStatusLabel(viewData.status || '')
+        <el-tag :type="getStatusType(viewData.status)">{{
+          getStatusLabel(viewData.status)
         }}</el-tag>
       </el-descriptions-item>
       <el-descriptions-item :label="t('purchasePrice.detail.label.effectiveDate')">{{

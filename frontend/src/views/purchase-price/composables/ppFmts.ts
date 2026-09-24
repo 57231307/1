@@ -37,7 +37,10 @@ export const PURCHASE_PRICE_STATUS_TAG_TYPES: Record<PurchasePriceStatus, Purcha
   inactive: 'info',
 };
 
-export function normalizePurchasePriceStatus(status: string): PurchasePriceStatus {
+export function normalizePurchasePriceStatus(
+  status: string | undefined | null
+): PurchasePriceStatus | undefined {
+  if (status == null || status === '') return undefined;
   if ((PURCHASE_PRICE_STATUSES as readonly string[]).includes(status)) {
     return status as PurchasePriceStatus;
   }
@@ -49,12 +52,17 @@ export function normalizePurchasePriceStatus(status: string): PurchasePriceStatu
 }
 
 /** 获取价格状态 el-tag 类型 */
-export const getStatusType = (status: string): PurchasePriceTagType =>
-  PURCHASE_PRICE_STATUS_TAG_TYPES[normalizePurchasePriceStatus(status)];
+export const getStatusType = (status: string | undefined | null): PurchasePriceTagType => {
+  const normalized = normalizePurchasePriceStatus(status);
+  return normalized ? PURCHASE_PRICE_STATUS_TAG_TYPES[normalized] : 'info';
+};
 
 /** 获取采购价格状态显示文案（i18n） */
-export const getStatusLabel = (status: string): string =>
-  i18n.global.t(PURCHASE_PRICE_STATUS_LABEL_KEYS[normalizePurchasePriceStatus(status)]);
+export const getStatusLabel = (status: string | undefined | null): string => {
+  const normalized = normalizePurchasePriceStatus(status);
+  const key = normalized ? PURCHASE_PRICE_STATUS_LABEL_KEYS[normalized] : 'common.statusUnknown';
+  return i18n.global.t(key);
+};
 
 /** 获取价格类型标签（文案走 i18n，键 purchasePrice.form.priceType.*） */
 export const getPriceTypeLabel = (type: string): string =>

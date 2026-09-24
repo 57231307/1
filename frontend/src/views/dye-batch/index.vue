@@ -325,7 +325,6 @@ import {
   DYE_BATCH_LIFECYCLE_STATUSES,
   dyeBatchStatusLabelKey,
   dyeBatchStatusTagType,
-  normalizeDyeBatchStatus,
   type DyeBatchLifecycleStatus,
 } from '@/utils/dye-batch-status';
 import { getGreigeFabricList, type GreigeFabric } from '@/api/greige-fabric';
@@ -541,13 +540,11 @@ const handleCurrentChange = (val: number) => {
 };
 
 // 状态标签/配色：词表取自后端 dye_batch_lifecycle_status（16 态小写）。
-// dye_batch.status 是可空列，null 为合法缺省（无标签、默认配色）；
-// 携带词表外取值属脏数据，由 normalizeDyeBatchStatus 记错误日志并抛错，不再回退掩盖。
-const getStatusType = (status: string | null): string =>
-  status === null ? 'info' : dyeBatchStatusTagType(normalizeDyeBatchStatus(status));
+// dye_batch.status 是可空列，null/undefined 渲染中性占位；
+// 携带词表外非空取值属脏数据，记错误日志并抛错，不再回退掩盖。
+const getStatusType = (status: string | null): string => dyeBatchStatusTagType(status);
 
-const getStatusLabel = (status: string | null): string =>
-  status === null ? '' : t(dyeBatchStatusLabelKey(normalizeDyeBatchStatus(status)));
+const getStatusLabel = (status: string | null): string => t(dyeBatchStatusLabelKey(status));
 
 // 状态筛选下拉文案（入参恒为词表内的合法状态值）
 const statusLabelFor = (status: DyeBatchLifecycleStatus): string =>

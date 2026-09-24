@@ -41,6 +41,7 @@ export default {
     enable: 'Enable',
     disable: 'Disable',
     status: 'Status',
+    statusUnknown: 'Unknown',
     create: 'Create',
     update: 'Update',
     name: 'Name',

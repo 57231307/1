@@ -40,14 +40,14 @@
       />
       <el-table-column prop="load_rate" :label="$t('capacityModule.table.loadRate')" width="120">
         <template #default="{ row }">
-          <el-tag v-if="row.load_rate !== null" :type="getLoadRateType(row.load_rate)"
+          <el-tag v-if="row.load_rate != null" :type="getLoadRateType(row.load_rate)"
             >{{ row.load_rate.toFixed(1) }}%</el-tag
           >
         </template>
       </el-table-column>
       <el-table-column prop="status" :label="$t('capacityModule.table.status')" width="100">
         <template #default="{ row }">
-          <el-tag v-if="row.load_status !== null" :type="getStatusType(row.load_status)">
+          <el-tag v-if="row.load_status != null" :type="getStatusType(row.load_status)">
             {{ getStatusLabel(row.load_status) }}
           </el-tag>
         </template>

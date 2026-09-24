@@ -39,27 +39,33 @@ export const PURCHASE_INSPECTION_STATUS_TAG_TYPES: Record<
 };
 
 /**
- * 把后端返回的状态归一到已知枚举。词表外的值记错误日志并抛错。
+ * 把后端返回的状态归一到已知枚举。
+ * - null/undefined/空串（字段缺失或尚无状态，inspection_status 为 Option<String>）：
+ *   返回 undefined，由调用方渲染中性占位；
+ * - 词表外的非空取值（脏数据）：记错误日志并抛错。
  */
 export function normalizePurchaseInspectionStatus(
   status: string | null | undefined
-): PurchaseInspectionStatus {
-  if ((PURCHASE_INSPECTION_STATUSES as readonly string[]).includes(status ?? '')) {
+): PurchaseInspectionStatus | undefined {
+  if (status == null || status === '') return undefined;
+  if ((PURCHASE_INSPECTION_STATUSES as readonly string[]).includes(status)) {
     return status as PurchaseInspectionStatus;
   }
   const message =
-    `未识别的采购质检状态「${String(status)}」，` +
+    `未识别的采购质检状态「${status}」，` +
     '合法取值见后端 models/status/purchase_inventory.rs 的 purchase_inspection 模块';
   logger.error(message, { status });
   throw new Error(message);
 }
 
 export function purchaseInspectionStatusLabelKey(status: string | null | undefined): string {
-  return PURCHASE_INSPECTION_STATUS_LABEL_KEYS[normalizePurchaseInspectionStatus(status)];
+  const normalized = normalizePurchaseInspectionStatus(status);
+  return normalized ? PURCHASE_INSPECTION_STATUS_LABEL_KEYS[normalized] : 'common.statusUnknown';
 }
 
 export function purchaseInspectionStatusTagType(
   status: string | null | undefined
 ): PurchaseInspectionTagType {
-  return PURCHASE_INSPECTION_STATUS_TAG_TYPES[normalizePurchaseInspectionStatus(status)];
+  const normalized = normalizePurchaseInspectionStatus(status);
+  return normalized ? PURCHASE_INSPECTION_STATUS_TAG_TYPES[normalized] : 'info';
 }

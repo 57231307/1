@@ -9,7 +9,6 @@
  */
 import { i18n } from '@/i18n';
 import {
-  normalizePurchaseReturnStatus,
   purchaseReturnStatusLabelKey,
   purchaseReturnStatusTagType,
   type PurchaseReturnTagType,
@@ -19,6 +18,6 @@ import {
 export const getStatusType = (status: string | null | undefined): PurchaseReturnTagType =>
   purchaseReturnStatusTagType(status);
 
-/** 采购退货状态 → 显示文案（i18n，键名即后端原值；词表外值抛错并记日志） */
+/** 采购退货状态 → 显示文案（i18n，键名即后端原值；缺失渲染中性占位，非空非法值抛错并记日志） */
 export const getStatusText = (status: string | null | undefined): string =>
-  i18n.global.t(purchaseReturnStatusLabelKey(normalizePurchaseReturnStatus(status)));
+  i18n.global.t(purchaseReturnStatusLabelKey(status));
