@@ -163,6 +163,7 @@ impl InitService {
                     ("gl", "read"),
                     ("reports", "read"),
                     ("dashboard", "read"),
+                    ("export-approvals", "create"),
                 ],
             ),
             // operator：操作员，全业务域只读

@@ -156,6 +156,9 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "print-templates",
     "data-import",
     "permissions-audit",
+    // ===== 审批流域 =====
+    "export-approvals",
+    "role-change-approvals",
     // ===== AI 智能域（V15 P0-S26 新增）=====
     // 对应 routes/analytics.rs ai() + advanced() AI 端点 + routes/system.rs ai_extend 端点
     "ai-forecast",
