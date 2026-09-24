@@ -57,26 +57,30 @@ test.describe('02 线索管理', () => {
   });
 
   test('02-01 进入线索管理页面', async ({ page }) => {
+    // 真实新建按钮文案为「新建线索」（src/views/crm/leads/index.vue:27 → i18n crmLeads.create='新建线索'）
     await page.goto('/crm/leads');
     await expect(page.getByRole('heading', { name: '线索管理' })).toBeVisible({ timeout: 30000 });
-    await expect(page.getByRole('button', { name: /创建/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: '新建线索' })).toBeVisible();
   });
 
   test('02-02 创建新线索', async ({ page }) => {
     await page.goto('/crm/leads');
-    await page.getByRole('button', { name: /创建/ }).click();
+    await page.getByRole('button', { name: '新建线索' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/公司名/).fill('E2E 测试公司');
-    await page.getByLabel(/联系人/).fill('李四');
-    await page.getByLabel(/手机/).fill('13900139000');
-    await page.getByLabel(/邮箱/).fill('li@test.com');
-    await page.getByLabel(/线索来源/).click();
+    // 弹窗内「线索来源」与筛选栏同名 label，限定到 .el-dialog 作用域避免 strict-mode 命中多元素；
+    // 提交按钮真实文案为「确定」（crmLeads.leadForm.confirm）。
+    // 注意：LeadFormTab 表单规则要求「负责人 owner_id」必填，本用例未填写负责人，
+    // 且 /crm/leads 页面当前存在前端加载崩溃（另一前端专家修复中）——
+    // 此用例在页面修复前会因校验/崩溃而红，非选择器问题，不做凑数。
+    const dlg = page.locator('.el-dialog');
+    await dlg.getByLabel('公司名称').fill('E2E 测试公司');
+    await dlg.getByLabel('联系人').fill('李四');
+    await dlg.getByLabel('手机号').fill('13900139000');
+    await dlg.getByLabel('邮箱').fill('li@test.com');
+    await dlg.getByLabel('线索来源').click();
     await page.getByRole('option').first().click();
-    await page.getByLabel(/备注/).fill('E2E 测试线索');
-    await page
-      .getByRole('button', { name: /保存|确认|提交/ })
-      .last()
-      .click();
+    await dlg.getByLabel('备注').fill('E2E 测试线索');
+    await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({
       timeout: 30000,
     });
@@ -115,8 +119,9 @@ test.describe('02 线索管理', () => {
     const { leadNo } = await seedLead(page, 'NEW');
     await gotoLeads(page);
     const row = page.getByRole('row').filter({ hasText: leadNo });
-    const loseBtn = row.getByText('丢失', { exact: false }).first();
-    await expect(loseBtn, `定位线索 ${leadNo} 的丢失按钮失败`).toBeVisible({ timeout: 10000 });
+    // 行内按钮真实文案为「流失」（crmLeads.table.lost='流失'），非「丢失」
+    const loseBtn = row.getByText('流失', { exact: false }).first();
+    await expect(loseBtn, `定位线索 ${leadNo} 的流失按钮失败`).toBeVisible({ timeout: 10000 });
     await loseBtn.click();
     await page.getByRole('button', { name: /确定|确认/ }).click();
     await expect(page.getByText(/流失成功/)).toBeVisible({ timeout: 30000 });

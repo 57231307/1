@@ -70,30 +70,30 @@ test.describe('03 商机管理', () => {
   });
 
   test('03-01 进入商机管理页面', async ({ page }) => {
+    // 真实新建按钮文案为「新建商机」（src/views/crm/opportunities/index.vue:24 → crmOpportunities.create='新建商机'）
     await page.goto('/crm/opportunities');
     await expect(page.getByRole('heading', { name: '商机管理' })).toBeVisible({ timeout: 30000 });
-    await expect(page.getByRole('button', { name: /创建/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: '新建商机' })).toBeVisible();
   });
 
   test('03-02 创建新商机', async ({ page }) => {
     await page.goto('/crm/opportunities');
-    await page.getByRole('button', { name: /创建/ }).click();
+    await page.getByRole('button', { name: '新建商机' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/商机名称/).fill(`E2E 商机 ${Date.now()}`);
-    await page.getByLabel(/客户/).click();
+    // 弹窗字段真实 label（crmOpportunityForm.*）：商机名称/客户/商机类型/预估金额/成交概率/预计成交；
+    // 提交按钮真实文案为「确定」（crmOpportunityForm.confirm）。限定到 .el-dialog 作用域。
+    // 注意：OpportunityFormTab 表单规则还要求「商机阶段 opportunity_stage」「负责人 owner_id」必填，
+    // 本用例未填写二者，且 /crm/opportunities 页面当前存在前端加载崩溃（另一前端专家修复中）——
+    // 此用例在页面修复前会因校验/崩溃而红，非选择器问题，不做凑数。
+    const dlg = page.locator('.el-dialog');
+    await dlg.getByLabel('商机名称').fill(`E2E 商机 ${Date.now()}`);
+    await dlg.getByLabel('客户').click();
     await page.getByRole('option').first().click();
-    await page.getByLabel(/商机类型/).click();
+    await dlg.getByLabel('商机类型').click();
     await page.getByRole('option').first().click();
-    await page.getByLabel(/预计金额/).fill('100000');
-    await page
-      .getByLabel(/赢单概率/)
-      .first()
-      .click();
-    await page.getByLabel(/预计关闭日期/).fill('2026-12-31');
-    await page
-      .getByRole('button', { name: /保存|确认|提交/ })
-      .last()
-      .click();
+    await dlg.getByLabel('预估金额').fill('100000');
+    await dlg.getByLabel('预计成交').fill('2026-12-31');
+    await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({
       timeout: 30000,
     });
@@ -108,12 +108,11 @@ test.describe('03 商机管理', () => {
     await expect(followBtn, `定位商机 ${oppNo} 的跟进按钮失败`).toBeVisible({ timeout: 10000 });
     await followBtn.click();
     await expect(page.locator('.el-dialog')).toBeVisible();
-    await page.getByLabel(/内容/).fill('E2E 测试跟进：客户确认需求');
-    await page
-      .getByRole('button', { name: /保存|确认|提交/ })
-      .last()
-      .click();
-    await expect(page.getByText(/保存成功/)).toBeVisible({ timeout: 30000 });
+    // 跟进弹窗真实 label「跟进内容」（crmOpportunityFollow.content），confirm「确定」，成功 toast「跟进成功」
+    const dlg = page.locator('.el-dialog');
+    await dlg.getByLabel('跟进内容').fill('E2E 测试跟进：客户确认需求');
+    await dlg.getByRole('button', { name: '确定' }).click();
+    await expect(page.getByText('跟进成功')).toBeVisible({ timeout: 30000 });
   });
 
   test('03-04 谈判阶段商机可赢单', async ({ page }) => {
