@@ -11,9 +11,11 @@ test.describe('01 凭证管理', () => {
   });
 
   test('01-01 进入财务管理页面', async ({ page }) => {
+    // /finance 为 el-tabs 容器，文本「财务管理/凭证管理」在左侧导航菜单等多处出现，
+    // getByText(/财务管理|凭证管理/) 会 strict-mode 命中 5 个 → 改断言该页专属的两个 tab 可见。
     await page.goto('/finance');
-    await expect(page.getByText(/财务管理|凭证管理/)).toBeVisible({ timeout: 30000 });
-    await expect(page.getByRole('tab', { name: /凭证/ })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '科目管理' })).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('tab', { name: '凭证管理' })).toBeVisible();
   });
 
   test('01-02 新建凭证（含借贷分录）', async ({ page }) => {
@@ -32,9 +34,15 @@ test.describe('01 凭证管理', () => {
   });
 
   test('01-03 凭证筛选功能可用', async ({ page }) => {
+    // 「凭证号」筛选位于「凭证管理」Tab，而 /finance 默认停在「科目管理」Tab，须先切过去；
+    // 原 locator('table, .el-table') 会 strict-mode 命中多个（el-table 内含多个 <table>），
+    // 改精确到凭证列表容器（el-table 根上的 aria-label="凭证列表"）。
     await page.goto('/finance');
-    await page.getByLabel(/凭证号/).fill('E2E');
-    await page.getByRole('button', { name: /查询|搜索/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await page.getByRole('tab', { name: '凭证管理' }).click();
+    await page.getByLabel('凭证号').fill('E2E');
+    await page.getByRole('button', { name: '查询' }).click();
+    await expect(page.locator('.el-table[aria-label="凭证列表"]').first()).toBeVisible({
+      timeout: 30000,
+    });
   });
 });

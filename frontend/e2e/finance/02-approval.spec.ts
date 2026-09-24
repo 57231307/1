@@ -105,8 +105,12 @@ async function seedVoucher(
 
 async function gotoVoucherTab(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/finance');
-  await page.getByRole('tab', { name: /凭证/ }).click();
-  await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+  await page.getByRole('tab', { name: '凭证管理' }).click();
+  // 原 locator('table, .el-table') 会 strict-mode 命中 8 个（el-table 内部渲染多个 <table>），
+  // 改精确到凭证列表容器（el-table 根节点 aria-label="凭证列表"）。
+  await expect(page.locator('.el-table[aria-label="凭证列表"]').first()).toBeVisible({
+    timeout: 30000,
+  });
 }
 
 test.describe('02 凭证审批工作流', () => {

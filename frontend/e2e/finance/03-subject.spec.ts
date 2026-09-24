@@ -39,31 +39,33 @@ test.describe('03 会计科目管理', () => {
 
   test('03-01 会计科目 Tab 可正常加载', async ({ page }) => {
     await page.goto('/finance');
-    await page.getByRole('tab', { name: /科目|会计科目/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await page.getByRole('tab', { name: '科目管理' }).click();
+    // 原 locator('table, .el-table') strict-mode 命中多个 → 精确到会计科目列表容器。
+    await expect(page.locator('.el-table[aria-label="会计科目列表"]').first()).toBeVisible({
+      timeout: 30000,
+    });
   });
 
   test('03-02 新建会计科目', async ({ page }) => {
     await page.goto('/finance');
-    await page.getByRole('tab', { name: /科目|会计科目/ }).click();
-    await page.getByRole('button', { name: /新建|新增/ }).click();
+    await page.getByRole('tab', { name: '科目管理' }).click();
+    await page.getByRole('button', { name: '新建科目' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/科目编码/).fill(`E2E-${Date.now()}`);
-    await page.getByLabel(/科目名称/).fill('E2E 测试科目');
-    await page.getByLabel(/类别/).click();
-    await page.getByRole('option').first().click();
-    await page
-      .getByRole('button', { name: /确认|保存|提交/ })
-      .last()
-      .click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
+    // 科目新建对话框真实字段为「科目编码」「科目名称」（余额方向默认「借方」且必填已预置），
+    // 并无「类别」字段（原 getByLabel(/类别/) 臆测）；提交按钮真实文案「确定」；成功提示「创建成功」。
+    // 限定到 .el-dialog 作用域。
+    const dlg = page.locator('.el-dialog');
+    await dlg.getByLabel('科目编码').fill(`E2E-${Date.now()}`);
+    await dlg.getByLabel('科目名称').fill('E2E 测试科目');
+    await dlg.getByRole('button', { name: '确定' }).click();
+    await expect(page.getByText('创建成功')).toBeVisible({ timeout: 30000 });
   });
 
   test('03-03 科目支持启用/停用切换', async ({ page }) => {
     // 方法一：先建一条科目，定位其行打开编辑对话框，操作对话框内的状态开关并断言翻转
     const code = await seedSubject(page);
     await page.goto('/finance');
-    await page.getByRole('tab', { name: /科目|会计科目/ }).click();
+    await page.getByRole('tab', { name: '科目管理' }).click();
     const row = page.getByRole('row').filter({ hasText: code });
     await expect(row, `未定位到新建科目 ${code}`).toHaveCount(1);
     await row.getByText('编辑', { exact: false }).first().click();
