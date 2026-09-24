@@ -195,12 +195,10 @@ test.describe('异常处理与边界条件', () => {
     //
     // A5 决策：纺织 ERP 按可用量经营销售，建单【不锁物理库存、不引入 reservation 预占】，
     // 非负/可用量校验只在发货出库时门控。因此建单本身不因可用量不足被拒。
-    // ⚠️ 现状后端与此决策相悖：create_order（order_crud.rs:123）在建单事务内调用
-    //   lock_inventory（inventory.rs:227），其 build_and_lock_reservations 在无库存行时报
-    //   「没有库存记录，无法锁定」（inventory.rs:313）、有行但可用量不足时经
-    //   check_stock_sufficient 报 BUSINESS_ERROR「库存不足，无法锁定」（inventory.rs:329-336），
-    //   即【建单期硬锁库存】。已作为后端缺陷上报。该缺陷修复前，本用例在 build 步骤会如实变红
-    //   （apiCall 遇 code!=200 抛错）——这是暴露缺陷，不得为迁就后端把建单改成"被拒也算过"。
+    // A5 已落地：create_order（order_crud.rs 建单流程）不再调用建单锁、不产生 PENDING
+    //   reservation 行，历史 lock_inventory 死代码链已删除；唯一可用量门控是发货期
+    //   check_inventory → decide_item_stock（四维口径）。故建单应返回 id 成功，发货因可用量
+    //   不足被业务码拒绝——本用例两端断言均如实反映该语义，非为过而过的放宽。
     const created = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId,
       order_date: new Date().toISOString(),
