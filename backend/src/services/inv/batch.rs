@@ -40,6 +40,11 @@ use super::{
 /// 三字段与 `inventory_transfer_item::ActiveModel` 对应列一一对应，供 `add_item` 落库与单元测试断言共用。
 type TransferTraceFields = FabricTrace;
 
+/// 库存四维定位键：款号(product_id) + 色号(color_no) + 缸号(dye_lot_no) + 批次(batch_no)。
+/// 与出库侧 `require_outbound_dimensions` 的精确扣减口径对称——调拨入库定位/新建目标库存行
+/// 必须用同一组四维，不能退化为只按 product_id 匹配。
+type StockDimKey = (i32, String, Option<String>, String);
+
 /// 新建库存的面料行业追溯字段（从源仓库复制，封装避免参数过多）。
 struct NewStockFabricFields<'a> {
     batch_no: &'a str,
@@ -527,16 +532,26 @@ impl InventoryTransferService {
 
         let transfer = Self::lock_and_validate_transfer_for_receive(&txn, transfer_id).await?;
         let items = Self::load_transfer_items(&txn, transfer_id).await?;
+        // 与出库侧对称：目标仓库存按 (款号+色号+缸号+批次) 四维定位/落行，绝不按 product_id 单键匹配。
+        // 出库按四维精确扣减（apply_ship_item_deduction / require_outbound_dimensions），入库若不落回
+        // 同一四维组合，源仓被扣掉的缸/批在目标仓就查不到——即本用例暴露的"入库后按四维查询为空"缺陷。
         let (stock_map, source_stock_map) =
             Self::load_receive_stock_maps(&txn, &transfer, &items).await?;
 
         for item in items {
-            if stock_map.contains_key(&item.product_id) {
+            let key = Self::stock_dim_key(
+                item.product_id,
+                &item.color_no,
+                item.dye_lot_no.as_deref(),
+                &item.batch_no,
+            );
+            if stock_map.contains_key(&key) {
                 Self::apply_receive_existing_stock(
                     &txn,
                     &transfer,
                     &stock_map,
                     &source_stock_map,
+                    key,
                     item,
                     &mut pending_events,
                     transfer_id,
@@ -547,6 +562,7 @@ impl InventoryTransferService {
                     &txn,
                     &transfer,
                     &source_stock_map,
+                    key,
                     item,
                     &mut pending_events,
                     transfer_id,
@@ -590,15 +606,40 @@ impl InventoryTransferService {
             .await?)
     }
 
-    /// 批量加载目标仓库与源仓库的库存记录（避免循环内 N+1 查询）。
+    /// 构造库存四维定位键（款号+色号+缸号+批次），与 `inventory_stock::Model` 对应列口径一致。
+    fn stock_dim_key(
+        product_id: i32,
+        color_no: &str,
+        dye_lot_no: Option<&str>,
+        batch_no: &str,
+    ) -> StockDimKey {
+        (
+            product_id,
+            color_no.to_string(),
+            dye_lot_no.map(|s| s.to_string()),
+            batch_no.to_string(),
+        )
+    }
+
+    /// 从库存行提取四维定位键。
+    fn stock_dim_key_of(model: &inventory_stock::Model) -> StockDimKey {
+        Self::stock_dim_key(
+            model.product_id,
+            &model.color_no,
+            model.dye_lot_no.as_deref(),
+            &model.batch_no,
+        )
+    }
+
+    /// 批量加载目标仓库与源仓库的库存记录（避免循环内 N+1 查询），按四维键索引。
     async fn load_receive_stock_maps(
         txn: &sea_orm::DatabaseTransaction,
         transfer: &inventory_transfer::Model,
         items: &[inventory_transfer_item::Model],
     ) -> Result<
         (
-            std::collections::HashMap<i32, inventory_stock::Model>,
-            std::collections::HashMap<i32, inventory_stock::Model>,
+            std::collections::HashMap<StockDimKey, inventory_stock::Model>,
+            std::collections::HashMap<StockDimKey, inventory_stock::Model>,
         ),
         AppError,
     > {
@@ -612,8 +653,10 @@ impl InventoryTransferService {
                 .all(txn)
                 .await?
         };
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
-            stocks.into_iter().map(|s| (s.product_id, s)).collect();
+        let stock_map: std::collections::HashMap<StockDimKey, inventory_stock::Model> = stocks
+            .into_iter()
+            .map(|s| (Self::stock_dim_key_of(&s), s))
+            .collect();
 
         let source_stocks = if product_ids.is_empty() {
             Vec::new()
@@ -624,10 +667,10 @@ impl InventoryTransferService {
                 .all(txn)
                 .await?
         };
-        let source_stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+        let source_stock_map: std::collections::HashMap<StockDimKey, inventory_stock::Model> =
             source_stocks
                 .into_iter()
-                .map(|s| (s.product_id, s))
+                .map(|s| (Self::stock_dim_key_of(&s), s))
                 .collect();
         Ok((stock_map, source_stock_map))
     }
@@ -646,14 +689,15 @@ impl InventoryTransferService {
     async fn apply_receive_existing_stock(
         txn: &sea_orm::DatabaseTransaction,
         transfer: &inventory_transfer::Model,
-        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
-        source_stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        stock_map: &std::collections::HashMap<StockDimKey, inventory_stock::Model>,
+        source_stock_map: &std::collections::HashMap<StockDimKey, inventory_stock::Model>,
+        key: StockDimKey,
         item: inventory_transfer_item::Model,
         pending_events: &mut Vec<crate::services::event_bus::BusinessEvent>,
         transfer_id: i32,
     ) -> Result<(), AppError> {
         let stock_model = stock_map
-            .get(&item.product_id)
+            .get(&key)
             .ok_or_else(|| AppError::business(format!("产品 {} 库存记录缺失", item.product_id)))?;
         let (quantity_meters, quantity_kg, expected_version) = (
             stock_model.quantity_meters,
@@ -667,7 +711,7 @@ impl InventoryTransferService {
 
         let new_quantity_meters = quantity_meters + item.quantity;
         let source_kg_per_meter = source_stock_map
-            .get(&item.product_id)
+            .get(&key)
             .map(Self::compute_source_kg_per_meter)
             .unwrap_or(rust_decimal::Decimal::ZERO);
         // 批次 97 P1-12 修复（v5 复审）：kg 计算补 round_dp(4) 防止精度漂移
@@ -821,16 +865,20 @@ impl InventoryTransferService {
     async fn apply_receive_new_stock(
         txn: &sea_orm::DatabaseTransaction,
         transfer: &inventory_transfer::Model,
-        source_stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        source_stock_map: &std::collections::HashMap<StockDimKey, inventory_stock::Model>,
+        key: StockDimKey,
         item: inventory_transfer_item::Model,
         pending_events: &mut Vec<crate::services::event_bus::BusinessEvent>,
         transfer_id: i32,
     ) -> Result<(), AppError> {
-        // v15 批次 42 修复：复用循环外批量查询的 source_stock_map，避免循环内逐个查询（N+1）
-        let s = source_stock_map.get(&item.product_id);
-        let batch_no = s.map(|s| s.batch_no.clone()).unwrap_or_default();
-        let color_no = s.map(|s| s.color_no.clone()).unwrap_or_default();
-        let dye_lot_no = s.and_then(|s| s.dye_lot_no.clone());
+        // 四维追溯字段（色号/缸号/批次）以调拨明细项为唯一事实来源——出库即按这组四维扣的源仓行，
+        // 入库必须在目标仓按同一组四维建行，否则源仓扣减的四维在目标仓查不到。
+        let batch_no = item.batch_no.clone();
+        let color_no = item.color_no.clone();
+        let dye_lot_no = item.dye_lot_no.clone();
+        // 面料物理属性（等级/克重/幅宽/日期/kg-per-米比率）复用同四维的源仓行派生（循环外批量查询避免 N+1）；
+        // 源仓同四维行缺失时按纺织默认如实降级（等级=一等品、其余为空），不伪造四维。
+        let s = source_stock_map.get(&key);
         let grade = s
             .map(|s| s.grade.clone())
             .unwrap_or_else(|| inventory_stock_grade::FIRST.to_string());
