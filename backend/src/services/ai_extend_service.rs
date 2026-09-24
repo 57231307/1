@@ -40,8 +40,8 @@ use super::ai::recipe_opt::{RecipeOptRequest, RecipeOptResponse};
 pub struct CreateProcessOptDto {
     /// 工艺优化请求体（color_no / fabric_type / dye_type / k）
     pub request: RecipeOptRequest,
-    /// 操作员 ID（来自 auth context，可选）
-    pub operator_id: Option<i64>,
+    /// 操作员 ID（来自 auth context，可选；users.id 为 INTEGER，与全仓 created_by 口径一致）
+    pub operator_id: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -77,7 +77,7 @@ pub struct ProcessOptListVo {
 
 #[derive(Debug, Deserialize)]
 pub struct ApplyProcessOptDto {
-    pub operator_id: Option<i64>,
+    pub operator_id: Option<i32>,
     /// 反馈打分（1-5 星）
     pub feedback_score: Option<i16>,
     pub feedback_remark: Option<String>,
@@ -95,14 +95,15 @@ pub struct AiExtendService {
 #[derive(Debug, Deserialize)]
 pub struct CreateQualityPredDto {
     pub request: QualityPredRequest,
-    pub operator_id: Option<i64>,
+    pub operator_id: Option<i32>,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ListQualityPredQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
-    pub product_id: Option<i64>,
+    /// 关联 products.id（INTEGER/SERIAL 主键）
+    pub product_id: Option<i32>,
     pub inspection_type: Option<String>,
     pub risk_level: Option<String>,
     pub is_acknowledged: Option<bool>,
@@ -118,7 +119,7 @@ pub struct QualityPredListVo {
 
 #[derive(Debug, Deserialize)]
 pub struct AcknowledgeQualityPredDto {
-    pub operator_id: Option<i64>,
+    pub operator_id: Option<i32>,
 }
 
 impl AiExtendService {
@@ -251,7 +252,7 @@ impl AiExtendService {
     }
 
     /// 工艺优化列表查询
-    /// V15 P0-S27：注入行级数据权限过滤。；AI 推理记录语义为"我创建的工艺优化记录"，使用 created_by（i64 可空）作为 owner_column；AI 表无 department_id 字段，Dept 范围退化为 Self（与 CRM/销售域一致）。
+    /// V15 P0-S27：注入行级数据权限过滤。；AI 推理记录语义为"我创建的工艺优化记录"，使用 created_by（i32 可空）作为 owner_column；AI 表无 department_id 字段，Dept 范围退化为 Self（与 CRM/销售域一致）。
     pub async fn list_process_optimizations(
         &self,
         q: ListProcessOptQuery,
@@ -309,9 +310,9 @@ impl AiExtendService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
-        // V15 P0-S27：校验归属（created_by 为 i64，需转为 i32 比对 user_id）
+        // V15 P0-S27：校验归属（created_by 与 user_id 同为 i32，直接传入 check_resource_owner）
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+            if !check_resource_owner(ctx, model.created_by, None) {
                 return Err(AppError::permission_denied("无权访问该工艺优化记录"));
             }
         }
@@ -359,7 +360,7 @@ impl AiExtendService {
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
         // V15 P0-S27：校验归属
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+            if !check_resource_owner(ctx, model.created_by, None) {
                 return Err(AppError::permission_denied("无权操作该工艺优化记录"));
             }
         }
@@ -395,7 +396,7 @@ impl AiExtendService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+            if !check_resource_owner(ctx, model.created_by, None) {
                 return Err(AppError::permission_denied("无权删除该工艺优化记录"));
             }
         }
@@ -467,7 +468,7 @@ impl AiExtendService {
 
         let active = QualityActiveModel {
             request_id: Set(request_id),
-            product_id: Set(resp.product_id.map(|i| i as i64)),
+            product_id: Set(resp.product_id),
             inspection_type: Set(resp.inspection_type.clone()),
             window_days: Set(resp.window_days),
             total_inspections: Set(resp.total_inspections),
@@ -562,7 +563,7 @@ impl AiExtendService {
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
         // V15 P0-S27：校验归属
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+            if !check_resource_owner(ctx, model.created_by, None) {
                 return Err(AppError::permission_denied("无权访问该质量预测记录"));
             }
         }
@@ -576,7 +577,9 @@ impl AiExtendService {
         limit: u64,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<QualityModel>, AppError> {
-        let mut select = QualityEntity::find().filter(QualityColumn::ProductId.eq(product_id));
+        // 查询参数保留 i64 域（HTTP 边界），落库/比较侧对齐 products.id 的 INTEGER 主键类型
+        let mut select =
+            QualityEntity::find().filter(QualityColumn::ProductId.eq(product_id as i32));
         // V15 P0-S27：注入数据范围过滤
         if let Some(ctx) = data_scope {
             select = apply_data_scope(
@@ -607,7 +610,7 @@ impl AiExtendService {
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
         // V15 P0-S27：校验归属
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+            if !check_resource_owner(ctx, model.created_by, None) {
                 return Err(AppError::permission_denied("无权操作该质量预测记录"));
             }
         }
@@ -634,7 +637,7 @@ impl AiExtendService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+            if !check_resource_owner(ctx, model.created_by, None) {
                 return Err(AppError::permission_denied("无权删除该质量预测记录"));
             }
         }

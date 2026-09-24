@@ -110,7 +110,7 @@ pub async fn create_process_optimization(
     }
 
     let mut dto = body;
-    dto.operator_id = Some(auth.user_id as i64);
+    dto.operator_id = Some(auth.user_id);
 
     let svc = AiExtendService::new(state.db);
     let (resp, id) = svc.create_process_optimization(dto).await?;
@@ -175,7 +175,7 @@ pub async fn apply_process_optimization(
     Json(mut body): Json<ApplyProcessOptDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
-    body.operator_id = Some(auth.user_id as i64);
+    body.operator_id = Some(auth.user_id);
     let svc = AiExtendService::new(state.db);
     let model = svc
         .apply_process_optimization(id, body, Some(&data_scope_ctx))
@@ -212,7 +212,7 @@ pub async fn create_quality_prediction(
     Json(body): Json<CreateQualityPredDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let mut dto = body;
-    dto.operator_id = Some(auth.user_id as i64);
+    dto.operator_id = Some(auth.user_id);
 
     let svc = AiExtendService::new(state.db);
     let (resp, id) = svc.create_quality_prediction(dto).await?;
@@ -266,7 +266,7 @@ pub async fn acknowledge_quality_prediction(
     Json(mut body): Json<AcknowledgeQualityPredDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
-    body.operator_id = Some(auth.user_id as i64);
+    body.operator_id = Some(auth.user_id);
     let svc = AiExtendService::new(state.db);
     let model = svc
         .acknowledge_quality_prediction(id, body, Some(&data_scope_ctx))
@@ -406,7 +406,7 @@ pub async fn batch_create_process_optimizations(
     // 阶段一：逐条调用 AI 算法（不做 DB 写入）
     let mut ai_results: Vec<(RecipeOptResponse, CreateProcessOptDto)> = Vec::new();
     for mut req in body.requests {
-        req.operator_id = Some(auth.user_id as i64);
+        req.operator_id = Some(auth.user_id);
         match svc.optimize_recipe_only(&req).await {
             Ok(resp) => ai_results.push((resp, req)),
             Err(e) => {
@@ -470,7 +470,7 @@ pub async fn batch_create_quality_predictions(
     let mut failed = 0;
     let total = body.requests.len();
     for mut req in body.requests {
-        req.operator_id = Some(auth.user_id as i64);
+        req.operator_id = Some(auth.user_id);
         match svc.create_quality_prediction(req).await {
             Ok((resp, id)) => results.push(serde_json::json!({
                 "id": id,
