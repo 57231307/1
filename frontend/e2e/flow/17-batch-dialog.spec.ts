@@ -191,16 +191,24 @@ test.describe('批量操作与弹窗确认', () => {
       const itemCount = await dropdownItems.count();
       expect(itemCount, '[下拉级联] 供应商下拉无选项（前置供应商数据缺失）').toBeGreaterThan(0);
       {
-        // 选择第一项
+        // Element Plus 2.14 单选下拉：选中项文本渲染在 .el-select__wrapper 内
+        // （.el-select__selected-item / .el-select__placeholder 首个节点常是隐藏的
+        // 空占位，textContent 恒 ""）。正确契约：先记录被点击选项的文本，选中后断言
+        // wrapper 回显包含该文本——精确锚定"选中的正是这一项"，而非读到空也放过。
+        const chosenLabel = ((await dropdownItems.first().textContent()) ?? '').trim();
+        expect(chosenLabel, '[下拉级联] 首项选项文本为空').toBeTruthy();
         await dropdownItems.first().click();
-        await page.waitForTimeout(500);
 
-        // 验证已选择
-        const selectedValue = await supplierSelect
-          .locator('.el-select__selected-item, .el-select__placeholder')
-          .first()
-          .textContent();
-        expect(selectedValue).toBeTruthy();
+        // 等待选中态渲染（wrapper 文本回填所选供应商名）后再读，避免读到过渡空态。
+        const wrapper = supplierSelect.locator('.el-select__wrapper').first();
+        await expect
+          .poll(async () => ((await wrapper.textContent()) ?? '').trim().length, {
+            message: '[下拉级联] 选中后供应商下拉未回显所选项',
+            timeout: 5000,
+          })
+          .toBeGreaterThan(0);
+        const selectedValue = ((await wrapper.textContent()) ?? '').trim();
+        expect(selectedValue, `选中后应回显所选项 "${chosenLabel}"`).toContain(chosenLabel);
       }
     }
 

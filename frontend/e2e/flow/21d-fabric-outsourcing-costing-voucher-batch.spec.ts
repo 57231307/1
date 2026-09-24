@@ -208,9 +208,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       const firstEntry = detail.entries?.[0];
       if (firstEntry) {
         expect(firstEntry.assist_grade).toBe('A');
-        expect(String(firstEntry.quantity_meters)).toBe('100');
-        expect(String(firstEntry.quantity_kg)).toBe('30');
-        expect(String(firstEntry.unit_price)).toBe('25.50');
+        // 后端 quantity_meters/quantity_kg/unit_price 均为 Decimal，serde 序列化为两位
+        // 小数字符串（"100.00"/"30.00"/"25.50"），断言未对齐真实出参格式 → 数值归一比对。
+        expect(Number(firstEntry.quantity_meters)).toBe(100);
+        expect(Number(firstEntry.quantity_kg)).toBe(30);
+        expect(Number(firstEntry.unit_price)).toBe(25.5);
       }
 
       // 验证借贷平衡

@@ -18,20 +18,41 @@ test.describe('前端状态显示与业务逻辑验证', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
 
-    const statusTags = page.locator('.el-table .el-tag');
-    const tagCount = await statusTags.count();
-
-    if (tagCount > 0) {
-      for (let i = 0; i < Math.min(tagCount, 5); i++) {
-        const tag = statusTags.nth(i);
-        const classes = await tag.getAttribute('class');
-        const text = await tag.textContent();
-
-        expect(classes).toContain('el-tag');
-        expect(text?.trim().length).toBeGreaterThan(0);
-        expect(classes).toContain('el-tag--');
+    // 采购列表同时渲染两列 el-tag：付款状态列 + 订单状态列。
+    // PurchaseOrderDto 不含 payment_status 字段（usePurchList.ts:96-97 注释），
+    // getPaymentStatusText(undefined) 返回 ''（usePurchList.ts:105-108），
+    // 故付款状态列渲染出空文本 el-tag——被原选择器 `.el-table .el-tag` 命中致断言失败。
+    // 正确契约：只校验"订单状态"列（colStatus="订单状态", zh-CN.ts:1119）的状态标签。
+    // 用列头定位订单状态列下标，再逐行取该列的 el-tag。
+    const headerCells = page.locator('.el-table__header-wrapper th .cell');
+    const headerCount = await headerCells.count();
+    let statusColIdx = -1;
+    for (let i = 0; i < headerCount; i++) {
+      const text = ((await headerCells.nth(i).textContent()) ?? '').trim();
+      if (text === '订单状态') {
+        statusColIdx = i;
+        break;
       }
     }
+    expect(statusColIdx, '[状态映射] 未定位到"订单状态"列').toBeGreaterThanOrEqual(0);
+
+    const bodyRows = page.locator('.el-table__body-wrapper .el-table__row');
+    const rowCount = await bodyRows.count();
+    expect(rowCount, '[状态映射] 采购列表无数据行，无法验证状态标签').toBeGreaterThan(0);
+
+    let checked = 0;
+    for (let r = 0; r < Math.min(rowCount, 5); r++) {
+      const statusTag = bodyRows.nth(r).locator('td').nth(statusColIdx).locator('.el-tag').first();
+      await statusTag.waitFor({ state: 'visible', timeout: 5000 });
+      const classes = await statusTag.getAttribute('class');
+      const text = await statusTag.textContent();
+      expect(classes).toContain('el-tag');
+      // 订单状态列标签必须非空（未知 token 前端会抛错，各 label 均非空）
+      expect(text?.trim().length, `第 ${r} 行订单状态标签文本为空`).toBeGreaterThan(0);
+      expect(classes).toContain('el-tag--');
+      checked++;
+    }
+    expect(checked, '[状态映射] 至少应校验一行订单状态标签').toBeGreaterThan(0);
   });
 
   test('金额千分位格式化显示', async ({ page }) => {
@@ -134,6 +155,10 @@ test.describe('前端状态显示与业务逻辑验证', () => {
   });
 
   test('空数据时 el-empty 或空表格展示', async ({ page }) => {
+    // 该用例不能假设 /voucher 天然为空：ensureTestEntities/其它用例可能已建凭证，
+    // 空态块自然永不出现 → 原 waitFor 超时。正确做法：用一个必然无匹配的凭证号
+    // 触发查询，使列表进入"真实空态"（后端返回 0 行 → ElTable 渲染空块），再断言空块。
+    const noMatch = `ZZZ-NO-MATCH-${Date.now().toString().slice(-8)}`;
     await page.goto(`${BASE_URL}/voucher`);
     await page.waitForTimeout(3000);
 
@@ -143,17 +168,20 @@ test.describe('前端状态显示与业务逻辑验证', () => {
       )
       .first();
     await table.waitFor({ state: 'visible', timeout: 15_000 });
-    const tableVisible = await table.isVisible();
-    if (tableVisible) {
-      const emptyBlock = page.locator('.el-table__empty-block, .el-table__empty-text, .el-empty');
-      await emptyBlock.first().waitFor({ state: 'visible', timeout: 3000 });
-      const emptyVisible = await emptyBlock.first().isVisible();
-      if (emptyVisible) {
-        const emptyText = await emptyBlock.first().textContent();
-        expect(emptyText).toBeTruthy();
-        expect(emptyText?.length).toBeGreaterThan(0);
-      }
-    }
+
+    // 凭证号筛选框（VoucherListFilter.vue placeholder=凭证号）+ 查询按钮（文本"查询"）
+    const noInput = page.getByPlaceholder('凭证号').first();
+    await noInput.waitFor({ state: 'visible', timeout: 5000 });
+    await noInput.fill(noMatch);
+    await page.getByRole('button', { name: '查询' }).first().click();
+
+    // 后端返回空 → ElTable 空态块（.el-table__empty-block/.el-table__empty-text）出现
+    const emptyBlock = page
+      .locator('.el-table__empty-block, .el-table__empty-text, .el-empty')
+      .first();
+    await emptyBlock.waitFor({ state: 'visible', timeout: 10_000 });
+    const emptyText = await emptyBlock.textContent();
+    expect((emptyText ?? '').trim().length, '空态块应渲染占位文案').toBeGreaterThan(0);
   });
 
   test('加载完成后内容可见', async ({ page }) => {

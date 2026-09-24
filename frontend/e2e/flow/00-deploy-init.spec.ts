@@ -270,19 +270,43 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       { code: '6001', name: '主营业务收入', level: 1, balance_direction: 'credit' },
       { code: '5001', name: '生产成本', level: 1, balance_direction: 'debit' },
     ];
+    // 预置科目码（1001/1002/…）在部署初始化种子数据里已存在（backend migration finance）。
+    // 直投 POST /subjects 撞唯一约束 → 后端返回 400「科目编码已存在」（脱敏成"请求参数错误"），
+    // apiCall 对非 2xx 抛错。原实现 catch 里既不上报也不回查 → accountSubjectIds 恒 0 →
+    // 末尾断言恒失败。修法与同文件 0-10/0-11 一致：创建失败即回落到 GET /subjects
+    // （list_subjects 返回裸数组 account_subject::Model，含 id/code，见
+    // handlers/account_subject_handler.rs:71-94）按 code 取已存在科目的 id；若回查也取不到，
+    // 显式抛错暴露真实原因，不静默丢弃。
+    const list = await apiCallRaw<Array<{ id: number; code: string }>>(page, 'GET', '/subjects');
     for (const s of subjects) {
       try {
         // 会计科目挂载在 /api/v1/erp/subjects（routes/mod.rs:509 将 finance::sub_routes()
         // 含 gl() 的 /subjects 直接 nest 到 /api/v1/erp），前端 api/account-subject.ts:40
         // 亦 request.post('/subjects')。此前误写 /finance/subjects → 404，6 条全落空。
         const result = await apiCall<{ id?: number }>(page, 'POST', '/subjects', s);
-        if (result.data?.id) ctx.accountSubjectIds.push(result.data.id);
+        if (result.data?.id) {
+          ctx.accountSubjectIds.push(result.data.id);
+        } else {
+          throw new Error(`创建科目 ${s.code} 未返回 data.id：${JSON.stringify(result)}`);
+        }
       } catch (e) {
-        console.warn(`[E2E] //: ${(e as Error).message}`);
-        // 已存在则跳过
+        console.warn(
+          `[E2E] 创建科目 ${s.code} 失败，回落按 code 取已存在 id: ${(e as Error).message}`
+        );
+        const existing = Array.isArray(list) ? list.find(x => x.code === s.code) : undefined;
+        if (existing?.id) {
+          ctx.accountSubjectIds.push(existing.id);
+        } else {
+          throw new Error(
+            `[E2E] 科目 ${s.code} 既无法创建、GET /subjects 也查不到已存在项，前置数据契约不成立`
+          );
+        }
       }
     }
-    expect(ctx.accountSubjectIds.length, '部署初始化应创建出至少一个会计科目').toBeGreaterThan(0);
+    expect(
+      ctx.accountSubjectIds.length,
+      `部署初始化应解析出全部 ${subjects.length} 个会计科目 id（实际 ${ctx.accountSubjectIds.length}）`
+    ).toBe(subjects.length);
   });
 
   test('0-13 创建色卡（RGB/CMYK/LAB 数值）', async ({ page }) => {

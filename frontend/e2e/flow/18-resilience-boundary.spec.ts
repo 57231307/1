@@ -187,6 +187,10 @@ test.describe('异常处理与边界条件', () => {
           product_id: ctx.productIds[0],
           product_color_id: ctx.productColorIds[0],
           quantity: 999999,
+          // 后端 SalesOrderItemRequest.unit_price 为 rust_decimal::Decimal 非 Option
+          // （backend/src/services/so/mod.rs:170）——缺该必填字段 → POST /sales/orders 422，
+          // 建单失败使"发货阻断"流程无从执行。与 01/02/11/12 等用例建销售单口径一致补上。
+          unit_price: '100',
           unit: '米',
         },
       ],

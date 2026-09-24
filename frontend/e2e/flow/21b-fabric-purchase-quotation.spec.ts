@@ -112,8 +112,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       expect(item.lot_no).toBe(lotNo);
       expect(item.batch_no).toBe(batchNo);
       expect(item.grade).toBe('A');
-      expect(String(item.gram_weight)).toBe(gramWeight);
-      expect(String(item.width)).toBe(width);
+      // gram_weight / width 后端为 Decimal（purchase_receipt_dto.rs:86,89 /
+      // models/purchase_receipt_item.rs:24,26），serde 序列化为两位小数字符串
+      // （"180.00"/"145.00"）。断言未对齐真实出参格式：比对前做数值归一（非放宽）。
+      expect(Number(item.gram_weight)).toBe(Number(gramWeight));
+      expect(Number(item.width)).toBe(Number(width));
     }
   });
 

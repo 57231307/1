@@ -184,9 +184,18 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     test.setTimeout(120_000);
     // 前置：自建客户，保证列表存在确定目标的行（列表为空属前置失败）
     const customerName = `P0待停用客户${TS}`;
+    // 编辑弹窗表单对 customer_code / contact_person / contact_phone 有必填校验
+    // （CustomerFormTab.vue:301-335 formRules，电话还须匹配 ^1[3-9]\d{9}$）。
+    // 仅传 name+type 建的客户缺失这些字段 → 点编辑后 handleSubmit 的 validate() 失败 →
+    // 保存不发 PUT/PATCH（backend.log 无 /crm/customers 更新），停用链路根本发不起。
+    // 前置改为造一条满足表单校验的完整客户（与 0-11 建客户口径一致）。
     const created = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
       customer_name: customerName,
+      customer_code: `P0-DIS-CUST-${TS}`,
+      contact_person: '联系人',
+      contact_phone: '13800000000',
       customer_type: 'retail',
+      status: 'active',
     });
     expect(
       created?.data?.id,
@@ -208,12 +217,19 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
       label: `[P0-停用-客户] ${customerName}`,
     });
 
-    // 客户列表页行内不渲染状态开关，也无行级停用按钮：status 列是 el-tag
-    // （customer/index.vue:157），操作列仅 编辑/详情/删除（:173-191）。停用真实入口在
-    // 【编辑弹窗】的「停用」radio（与 31c 同源）。原实现按行内开关/按钮可见性 if/if-else 判定，
-    // 控件不存在时 toggled=false 且仅 expect(typeof toggled)→ 零断言通过（假绿）。
-    // 现走真实入口并断言列表状态标签文本变更；入口缺失即硬失败。
-    const beforeTag = await targetRow!.locator('.el-tag').first().textContent();
+    // 客户列表每行有两个 el-tag：类型列（retail→"零售"）+ 状态列（启用/禁用）。
+    // 原实现 `.el-tag.first()` 取到类型列（恒"零售"），状态变更读不到。收窄到状态列：
+    // 状态标签文本只可能是列表状态词表 {启用,禁用}（customer/index.vue:157-163 +
+    // zh-CN.ts customer.index.statusLabel），类型标签"零售"不会命中，据此精确定位。
+    const readStatusTag = async (row: Awaited<ReturnType<typeof findTableRow>>) => {
+      const tag = row!
+        .locator('.el-tag')
+        .filter({ hasText: /^(启用|禁用)$/ })
+        .first();
+      return ((await tag.textContent()) ?? '').trim();
+    };
+    const beforeTag = await readStatusTag(targetRow);
+    expect(beforeTag, `[P0-停用-客户] 停用前状态列应为"启用"，实际="${beforeTag}"`).toBe('启用');
     const editBtn = targetRow!.locator('button:has-text("编辑")').first();
     expect(
       await editBtn.isVisible({ timeout: 3000 }),
@@ -238,21 +254,29 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
       '[P0-停用-客户] 编辑弹窗内未渲染「停用」状态控件（前端渲染条件若与后端状态词表不一致会命中此处）'
     ).toBe(true);
     await inactiveRadio.click();
+    // 保存应真正发出 PUT /crm/customers/{id}（updateCustomer → api/customer.ts:85）。
+    // 显式等待该请求并断言成功：若前端保存链路未提交状态更新，此处即暴露（而非误绿）。
+    const putPromise = page.waitForResponse(
+      r =>
+        /\/crm\/customers\/\d+/.test(r.url()) && r.request().method() === 'PUT' && r.status() < 400,
+      { timeout: 10000 }
+    );
     await dialog
       .getByRole('button', { name: /确定|确认|保存/ })
       .last()
       .click();
+    const putResp = await putPromise;
+    expect(putResp.ok(), '[P0-停用-客户] 保存停用应发出成功的 PUT /crm/customers/{id}').toBe(true);
     await page.waitForTimeout(2000);
     await page.reload();
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     const rowAfter = await findTableRow(page, customerName);
     expect(rowAfter, `[P0-停用-客户] 停用后列表未找到自建客户 ${customerName}`).toBeTruthy();
-    const afterTag = await rowAfter!.locator('.el-tag').first().textContent();
+    const afterTag = await readStatusTag(rowAfter);
     console.log(`[P0-停用-客户] ${customerName} 状态标签：${beforeTag} → ${afterTag}`);
-    expect(
-      afterTag !== beforeTag,
-      `[P0-停用-客户] UI 停用后列表状态标签应变更，停用前="${beforeTag}" 停用后="${afterTag}"`
-    ).toBe(true);
+    expect(afterTag, `[P0-停用-客户] UI 停用后状态列应变更为"禁用"，实际="${afterTag}"`).toBe(
+      '禁用'
+    );
   });
 
   // ===== 6. 产品停用/启用 =====
@@ -260,10 +284,22 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     test.setTimeout(120_000);
     // 前置：自建产品，保证列表存在确定目标的行（列表为空属前置失败）
     const productName = `P0待停用产品${TS}`;
+    // 产品编辑弹窗表单 category_id 必填（ProductFormDialogTab.vue:205-211 formRules）。
+    // 缺 category_id 的产品在编辑保存时 validate() 失败 → 不发 PUT，停用发不起。
+    // 先造一条产品分类并让产品带上它（POST /products 用后端真实字段 name/code/category_id/unit/status）。
+    const cat = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
+      name: `P0停用分类${TS}`,
+      code: `P0-DIS-CAT-${TS}`,
+    });
+    const categoryId = cat.data?.id;
+    expect(categoryId, `[P0-停用-产品] 产品分类创建未返回 id：${JSON.stringify(cat)}`).toBeTruthy();
+    CLEANUP.push({ path: `/product-categories/${categoryId}`, label: '[P0-停用-产品] 分类' });
+
     const created = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name: productName,
       code: `P0-DISABLEP-${TS}`,
       unit: '米',
+      category_id: categoryId,
       status: 'active',
     });
     expect(
@@ -283,12 +319,19 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     expect(targetRow, `[P0-停用-产品] 列表未找到自建产品 ${productName}`).toBeTruthy();
     CLEANUP.push({ path: `/products/${created.data?.id}`, label: `[P0-停用-产品] ${productName}` });
 
-    // 产品列表页行内同样不渲染状态开关/停用按钮：is_active 列是 el-tag
-    // （ProductListTab.vue:194-200），操作列仅 编辑等。停用真实入口在【编辑弹窗】的
-    // is_active switch（与 31c 同源）。原实现按行内开关/按钮可见性 if/if-else 判定，控件不
-    // 存在时 toggled=false 且仅 expect(typeof toggled)→ 零断言通过（假绿）。现走真实入口并断言
-    // 列表状态标签变更；入口缺失即硬失败。
-    const beforeTag = await targetRow!.locator('.el-tag').first().textContent();
+    // 产品列表每行可能有两个 el-tag：分类列（category_name，仅当有分类时渲染）+ 状态列。
+    // 本用例产品带分类 → `.el-tag.first()` 会取到分类标签而非状态标签。收窄到状态列：
+    // 状态标签文本只可能是 {启用,禁用}（ProductListTab.vue:196-201 + productListTab.statusLabel），
+    // 分类名（"P0停用分类…"）不会命中，据此精确定位。
+    const readStatusTag = async (row: Awaited<ReturnType<typeof findTableRow>>) => {
+      const tag = row!
+        .locator('.el-tag')
+        .filter({ hasText: /^(启用|禁用)$/ })
+        .first();
+      return ((await tag.textContent()) ?? '').trim();
+    };
+    const beforeTag = await readStatusTag(targetRow);
+    expect(beforeTag, `[P0-停用-产品] 停用前状态列应为"启用"，实际="${beforeTag}"`).toBe('启用');
     const editBtn = targetRow!.locator('button:has-text("编辑")').first();
     expect(
       await editBtn.isVisible({ timeout: 3000 }),
@@ -311,21 +354,28 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
       '[P0-停用-产品] 编辑弹窗内未渲染 is_active 开关（前端渲染条件若与后端状态词表不一致会命中此处）'
     ).toBe(true);
     await activeSwitch.click();
+    // 保存应真正发出 PUT /products/{id}（updateProduct → api/product.ts:115）。
+    // 显式等待并断言成功：前端保存链路未提交即在此暴露（而非误绿）。
+    const putPromise = page.waitForResponse(
+      r => /\/products\/\d+/.test(r.url()) && r.request().method() === 'PUT' && r.status() < 400,
+      { timeout: 10000 }
+    );
     await dialog
       .getByRole('button', { name: /确定|确认|保存/ })
       .last()
       .click();
+    const putResp = await putPromise;
+    expect(putResp.ok(), '[P0-停用-产品] 保存停用应发出成功的 PUT /products/{id}').toBe(true);
     await page.waitForTimeout(2000);
     await page.reload();
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     const rowAfter = await findTableRow(page, productName);
     expect(rowAfter, `[P0-停用-产品] 停用后列表未找到自建产品 ${productName}`).toBeTruthy();
-    const afterTag = await rowAfter!.locator('.el-tag').first().textContent();
+    const afterTag = await readStatusTag(rowAfter);
     console.log(`[P0-停用-产品] ${productName} 状态标签：${beforeTag} → ${afterTag}`);
-    expect(
-      afterTag !== beforeTag,
-      `[P0-停用-产品] UI 停用后列表状态标签应变更，停用前="${beforeTag}" 停用后="${afterTag}"`
-    ).toBe(true);
+    expect(afterTag, `[P0-停用-产品] UI 停用后状态列应变更为"禁用"，实际="${afterTag}"`).toBe(
+      '禁用'
+    );
   });
 });
 

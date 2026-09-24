@@ -6,7 +6,6 @@ import {
   apiCallExpectFail,
   genCode,
   getCtx,
-  verifyTrialBalance,
   verifyAuditLog,
   ensureTestEntities,
 } from './helpers';
@@ -206,15 +205,36 @@ test.describe('成本核算完整流程', () => {
       ) || 0;
     expect(Math.abs(totalDebit - totalCredit)).toBeLessThan(0.01);
 
-    // 验证试算平衡：helper 已改为读真实键 total_ending_debit/total_ending_credit，
-    // 缺键/非数字/双零均抛错；此处断言会计核心不变量——期末借贷相等且数据非零。
-    const trialBalance = await verifyTrialBalance(page);
+    // —— 场景真实契约断言（不再误用要求非零平衡的 verifyTrialBalance）——
+    // 取证：create() 仅产出 draft 凭证（status=VOUCHER_DRAFT，models/status/finance.rs:64）；
+    // 试算平衡表读的是各科目"期末余额"，只在凭证过账(post)时累加
+    // （finance_report_service.rs:472-520 取 account_subject.ending_balance_*；
+    //  voucher_ops/workflow.rs:146 post 才 update_account_balances）。
+    // 且 CI（非生产）凭证创建跳过期间锁（voucher_ops/crud.rs:118），本用例并未真正过账，
+    // 故期末借贷恒为 0/0 是该场景的真实业务态——verifyTrialBalance 的 0/0 抛错守卫
+    // （helpers.ts:2099，为消除假绿刻意保留）正是为拦截"以空数据冒称平衡通过"。
+    // 因此本场景应断"凭证自身借贷平衡且金额真实落库"这一核心会计不变量，而非强行验非零试算平衡。
     expect(
-      trialBalance.balanced,
-      `试算不平衡：期末借方合计(${trialBalance.total_ending_debit}) != 期末贷方合计(${trialBalance.total_ending_credit})`
-    ).toBe(true);
-    expect(trialBalance.total_ending_debit).toBeGreaterThan(0);
-    expect(trialBalance.total_ending_credit).toBeGreaterThan(0);
+      voucher.entries?.length,
+      `凭证应持久化 2 条分录，实际：${JSON.stringify(voucher.entries)}`
+    ).toBe(2);
+    const debited = voucher.entries!.filter(e => parseFloat(e.debit || '0') > 0);
+    const credited = voucher.entries!.filter(e => parseFloat(e.credit || '0') > 0);
+    expect(debited.length, '应存在借方金额>0 的分录').toBeGreaterThanOrEqual(1);
+    expect(credited.length, '应存在贷方金额>0 的分录').toBeGreaterThanOrEqual(1);
+    expect(totalDebit, `借方合计应真实落库为 100（非空/非零），实际 ${totalDebit}`).toBeCloseTo(
+      100,
+      2
+    );
+    expect(totalCredit, `贷方合计应真实落库为 100（非空/非零），实际 ${totalCredit}`).toBeCloseTo(
+      100,
+      2
+    );
+    // 凭证状态为 draft（未过账），这才是"试算平衡期末为 0/0"的根因证据链一环
+    expect(
+      (voucher.status ?? '').toLowerCase(),
+      `新建凭证应为 draft（未过账），实际 ${voucher.status}`
+    ).toBe('draft');
   });
 
   test('固定资产折旧：计提→折旧记录验证', async ({ page }) => {
