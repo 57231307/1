@@ -1,4 +1,4 @@
-# layers=8 endpoints=1737
+# layers=8 endpoints=1743
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -29,6 +29,7 @@ DELETE	/api/v1/erp/crm/customer-credits/*	customer_credit_handler::delete_credit
 DELETE	/api/v1/erp/crm/customers/*	customer_handler::delete_customer	crm
 DELETE	/api/v1/erp/crm/customers/*/addresses/*	customer_address_handler::delete_customer_address	crm
 DELETE	/api/v1/erp/crm/customers/*/contacts/*	crm_customer_handler::delete_contact	crm
+DELETE	/api/v1/erp/crm/customers/*/tags/*	crm_customer_handler::detach_customer_tag	crm
 DELETE	/api/v1/erp/crm/customers/enhanced/*	crm_customer_handler::delete_customer	crm
 DELETE	/api/v1/erp/crm/leads/*	crate::handlers::crm_handler::delete_lead	crm
 DELETE	/api/v1/erp/crm/opportunities/*	crate::handlers::crm_handler::delete_opportunity	crm
@@ -365,6 +366,7 @@ GET	/api/v1/erp/crm/customers/*/credit	customer_credit_handler::get_credit	crm
 GET	/api/v1/erp/crm/customers/*/follow-ups	crate::handlers::crm_handler::list_follow_ups	crm
 GET	/api/v1/erp/crm/customers/*/rfm	crate::handlers::crm_handler::get_rfm_score	crm
 GET	/api/v1/erp/crm/customers/*/summary	crate::handlers::crm_handler::get_customer_relation_summary	crm
+GET	/api/v1/erp/crm/customers/*/tags	crm_customer_handler::list_customer_tags	crm
 GET	/api/v1/erp/crm/customers/enhanced	crm_customer_handler::list_customers	crm
 GET	/api/v1/erp/crm/customers/enhanced/*	crm_customer_handler::get_customer	crm
 GET	/api/v1/erp/crm/customers/export	customer_handler::export_customers	crm
@@ -808,6 +810,7 @@ GET	/api/v1/erp/purchase/receipts/generate-no	purchase_receipt_handler::generate
 GET	/api/v1/erp/purchase/returns	purchase_return_handler::list_purchase_returns	purchase
 GET	/api/v1/erp/purchase/returns/*	purchase_return_handler::get_purchase_return	purchase
 GET	/api/v1/erp/purchase/returns/*/items	purchase_return_handler::list_purchase_return_items	purchase
+GET	/api/v1/erp/purchase/supplier-blacklists	supplier_blacklist_handler::list_blacklists	purchase
 GET	/api/v1/erp/purchase/supplier-evaluations	supplier_evaluation_handler::list_evaluations	purchase
 GET	/api/v1/erp/purchase/supplier-evaluations/*	supplier_evaluation_handler::get_evaluation	purchase
 GET	/api/v1/erp/purchase/supplier-evaluations/*/print	print_handler::supplier_evaluation_record_print_docx	purchase
@@ -1151,6 +1154,7 @@ POST	/api/v1/erp/crm/customers/*/clv/calculate	crate::handlers::crm_handler::cal
 POST	/api/v1/erp/crm/customers/*/contacts	crm_customer_handler::create_contact	crm
 POST	/api/v1/erp/crm/customers/*/follow-ups	crate::handlers::crm_handler::create_follow_up	crm
 POST	/api/v1/erp/crm/customers/*/tags	crm_customer_handler::add_tags	crm
+POST	/api/v1/erp/crm/customers/*/tags/*	crm_customer_handler::attach_customer_tag	crm
 POST	/api/v1/erp/crm/customers/enhanced	crm_customer_handler::create_customer	crm
 POST	/api/v1/erp/crm/customers/field-permissions	crate::handlers::crm_handler::set_customer_field_permission	crm
 POST	/api/v1/erp/crm/customers/merge	customer_merge_handler::merge_customers	crm
@@ -1477,6 +1481,8 @@ POST	/api/v1/erp/purchase/returns/*/approve	purchase_return_handler::approve_pur
 POST	/api/v1/erp/purchase/returns/*/items	purchase_return_handler::create_purchase_return_item	purchase
 POST	/api/v1/erp/purchase/returns/*/reject	purchase_return_handler::reject_purchase_return	purchase
 POST	/api/v1/erp/purchase/returns/*/submit	purchase_return_handler::submit_purchase_return	purchase
+POST	/api/v1/erp/purchase/supplier-blacklists	supplier_blacklist_handler::add_to_blacklist	purchase
+POST	/api/v1/erp/purchase/supplier-blacklists/*/release	supplier_blacklist_handler::release_from_blacklist	purchase
 POST	/api/v1/erp/purchase/supplier-evaluations	supplier_evaluation_handler::create_evaluation	purchase
 POST	/api/v1/erp/purchase/supplier-evaluations/indicators	supplier_evaluation_handler::create_indicator	purchase
 POST	/api/v1/erp/purchase/supplier-evaluations/records	supplier_evaluation_handler::create_evaluation_record	purchase
