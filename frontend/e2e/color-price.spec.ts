@@ -16,9 +16,8 @@ import { test, expect } from './diagnose-fixture';
 test.describe('面料多色号定价扩展', () => {
   test('1. 登录并访问色号价格列表', async ({ page }) => {
     await page.goto('/color-prices/list');
-    await expect(page.getByRole('heading', { name: /色号价格/ })).toBeVisible({
-      timeout: 30000,
-    });
+    // 页面标题为 el-card header 内 <span>（colorPrices.list.title='色号价格列表'），非 heading 角色
+    await expect(page.getByText('色号价格列表')).toBeVisible({ timeout: 30000 });
   });
 
   test('2. 详情页查看历史图表', async ({ page }) => {
@@ -32,7 +31,8 @@ test.describe('面料多色号定价扩展', () => {
   });
 
   test('3. 批量调价页面加载', async ({ page }) => {
-    await page.goto('/color-prices/batch');
+    // 真实路由为 /color-prices/batch-adjust（router index.ts path:'color-prices/batch-adjust'）
+    await page.goto('/color-prices/batch-adjust');
     await page.waitForLoadState('networkidle');
   });
 });

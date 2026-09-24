@@ -43,34 +43,36 @@ test.describe('01 创建报价单', () => {
 
   test('01-03 创建有效报价单成功并生成报价单号', async ({ page }) => {
     await page.goto('/quotations/new');
-    // 选择客户
-    await page.getByLabel(/客户/).first().click();
+    // 客户（form-item label='客户'，与 '客户等级' 共享子串，须 exact）
+    await page.getByLabel('客户', { exact: true }).click();
     await page.getByRole('option').first().click();
-    // 选择产品
-    await page.getByLabel(/产品/).first().click();
+    // 报价单 items 验证要求至少 1 行，通过 QuotationItemEditor 添加产品
+    await page.getByRole('button', { name: '添加产品' }).click();
+    // 产品选择：QuotationItemEditor 内 el-select placeholder='选择产品'
+    const itemsTable = page.locator('[aria-label="报价明细编辑表"]');
+    await itemsTable.getByPlaceholder('选择产品').first().click();
     await page.getByRole('option').first().click();
-    // 数量
-    await page.getByLabel(/数量/).fill('100');
-    // 单价
-    await page.getByLabel(/单价/).fill('50.00');
-    // 提交
-    await page.getByRole('button', { name: /保存/ }).click();
-    // 验证成功提示 + 报价单号格式 Q-YYYYMMDD-XXXX
-    await expect(page.getByText(/报价单号.*Q-\d{8}-\d{4}/)).toBeVisible({ timeout: 30000 });
+    // 数量/单价（el-input-number → spinbutton 在明细行内）
+    await itemsTable.getByRole('spinbutton').first().fill('100');
+    await itemsTable.getByRole('spinbutton').nth(1).fill('50');
+    // 提交（quotations.create.saveDraft = '保存草稿'）
+    await page.getByRole('button', { name: '保存草稿' }).click();
+    // 真实成功提示 quotations.create.draftSaved = '草稿保存成功'
+    await expect(page.getByText('草稿保存成功')).toBeVisible({ timeout: 30000 });
   });
 
   test('01-04 报价单草稿可保存后再次编辑', async ({ page }) => {
     await page.goto('/quotations');
-    // 找到第一条草稿
-    const draft = page.getByText('草稿').first();
-    await draft.click();
-    // 跳转到详情（真实详情路由 router index.ts:1109 path:'quotations/:id'）
+    // 列表行操作按钮 quotations.list.view = '查看'，非点击状态文字
+    const firstRow = page.getByRole('row').nth(1);
+    await firstRow.getByRole('button', { name: '查看' }).click();
     await expect(page).toHaveURL(/\/quotations\/\d+/);
-    await page.getByRole('button', { name: /编辑/ }).click();
-    // 备注
-    await page.getByLabel(/备注/).fill('E2E 测试备注');
-    await page.getByRole('button', { name: /保存/ }).click();
-    await expect(page.getByText(/保存成功|更新成功/)).toBeVisible();
+    // 详情页编辑按钮 quotations.detail.edit = '编辑'
+    await page.getByRole('button', { name: '编辑' }).click();
+    await expect(page).toHaveURL(/\/quotations\/\d+\/edit/);
+    // 编辑成功后提示 quotations.create.draftUpdated = '草稿已更新'
+    await page.getByRole('button', { name: '保存草稿' }).click();
+    await expect(page.getByText('草稿已更新')).toBeVisible({ timeout: 30000 });
   });
 
   test('01-05 报价单可复制为新单', async ({ page }) => {

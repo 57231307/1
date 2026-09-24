@@ -85,9 +85,10 @@ test.describe('定制订单全流程跟踪 E2E', () => {
     await expect(page).toHaveURL(/\/custom-orders\/new$/);
 
     // 填写表单（真实字段：客户ID / 产品ID / 规格 / 数量；unit 默认 'm'）
+    // labelSpec='规格' 与 labelYarnSpec='纱线规格' 共享子串，须 exact 避免 strict 多命中
     await page.getByLabel('客户ID').fill(String(customerId));
     await page.getByLabel('产品ID').fill(String(productId));
-    await page.getByLabel('规格').fill('E2E 100% 棉 200g/m²');
+    await page.getByLabel('规格', { exact: true }).fill('E2E 100% 棉 200g/m²');
     await page.getByLabel('数量').fill('100');
 
     // 提交（create.buttonSaveDraft=「保存草稿」）→ 成功提示（create.messageCreateSuccess）

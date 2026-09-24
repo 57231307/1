@@ -34,9 +34,11 @@ test.describe('07 供应商评估（真实视图）', () => {
   test('07-02 供应商排名 Tab 可刷新并渲染排名表', async ({ page }) => {
     await page.goto('/supplier-evaluation');
     await page.getByRole('tab', { name: '供应商排名' }).click();
-    const table = page.getByRole('table', { name: '供应商排名列表' });
+    // aria-label='供应商排名列表' 落在 el-table 根 div 上（Vue 属性透传），内层 <table> 无此名称，
+    // 故 getByRole('table',{name}) 无法命中；改用属性选择器定位包装元素再查内部列头
+    const table = page.locator('[aria-label="供应商排名列表"]');
     await expect(table).toBeVisible();
-    // 列头真实存在
+    // 列头真实存在（supplierEvaluation.index.column.rank='排名'、column.rating='评级'）
     await expect(table.getByText('排名').first()).toBeVisible();
     await expect(table.getByText('评级').first()).toBeVisible();
     // 点击 '刷新排名' 触发后端排名查询，不报错且表格仍在
