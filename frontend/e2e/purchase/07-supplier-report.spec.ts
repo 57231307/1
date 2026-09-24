@@ -1,81 +1,59 @@
-// P9-4 采购 E2E 套件 — 07 供应商报表
-// 创建时间: 2026-06-17
-// 覆盖范围：供应商分析与统计（6 用例）
+// P9-4 采购 E2E 套件 — 07 供应商评估（真实视图）
+// 覆盖范围：/supplier-evaluation 供应商评估管理页 tab 切换 / 排名 / 指标渲染
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 
 /**
- * 测试套件：供应商报表
- *
- * 业务流程：
- * 1. 供应商采购汇总
- * 2. 供应商到货及时率
- * 3. 供应商质检合格率
- * 4. 供应商账期与应付余额
- * 5. 供应商评级
- * 6. 导出 Excel
+ * 真实 UI 事实（据 router 与 views/supplier-evaluation/index.vue、locales 核对）：
+ * - 原用例 goto '/purchase/report/supplier-summary'、'/purchase/report/on-time-rate'、
+ *   '/purchase/report/quality-rate'、'/purchase/report/ap-aging'、'/purchase/report/supplier-grade' ——
+ *   这些 /purchase/report/* 子路由在真实应用完全不存在（router 无任何该前缀路由）。
+ * - 真实“供应商评级/分析”视图为 /supplier-evaluation（router path:'supplier-evaluation' →
+ *   views/supplier-evaluation/index.vue），为多 Tab 页（locales supplierEvaluation.index.*）：
+ *   标题 '供应商评估管理'；tab '评估记录'(records,默认) / '供应商排名'(rankings) /
+ *   '评估指标'(indicators) / '评估管理'(evaluations)；排名表 aria-label '供应商排名列表'
+ *   含列 '排名'/'评级'(A/B/C tag)；'刷新排名'(button.refresh) 触发 getSupplierRankings；
+ *   记录 Tab 有 '新建评估'(button.create)。
+ *   —— 到货及时率 / 质检合格率 / 应付账龄 三项无供应商维度对应页面（应付账龄位于 /ap 应付发票
+ *   的 '账龄分析'，非供应商报表），故不在此文件虚构断言（详见交付报告“删除/降级清单”）。
  */
-test.describe('07 供应商报表', () => {
-  test.beforeEach(async ({ page, context }) => {
-    // V15 Batch 487 P0-T05：注入 auth mock，业务 API 走真实后端（applyAuthMocks 不再 mock 业务 API）
+test.describe('07 供应商评估（真实视图）', () => {
+  test.beforeEach(async ({ context }) => {
     await applyAuthMocks(context);
-    await page.goto('/');
   });
 
-  test('07-01 供应商采购汇总（按月份）', async ({ page }) => {
-    await page.goto('/purchase/report/supplier-summary');
-    await page.getByLabel(/统计维度/).click();
-    await page.getByRole('option', { name: /按月/ }).click();
-    await page.getByLabel(/起始月份/).fill('2026-01');
-    await page.getByLabel(/截止月份/).fill('2026-06');
-    await page.getByRole('button', { name: /查询/ }).click();
-    const rows = page.locator('tr, .el-table__row').filter({ hasText: '2026' });
-    await expect(rows.first()).toBeVisible({ timeout: 30000 });
+  test('07-01 供应商评估页可访问并渲染主 Tab', async ({ page }) => {
+    await page.goto('/supplier-evaluation');
+    await expect(page.getByText('供应商评估管理').first()).toBeVisible();
+    await expect(page.getByRole('tab', { name: '评估记录' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '供应商排名' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '评估指标' })).toBeVisible();
   });
 
-  test('07-02 供应商到货及时率统计', async ({ page }) => {
-    await page.goto('/purchase/report/on-time-rate');
-    await page.getByLabel(/起始日期/).fill('2026-01-01');
-    await page.getByLabel(/截止日期/).fill('2026-06-30');
-    await page.getByRole('button', { name: /查询/ }).click();
-    // 验证"及时率"列
-    await expect(page.getByText(/及时率.*%/)).toBeVisible({ timeout: 30000 });
+  test('07-02 供应商排名 Tab 可刷新并渲染排名表', async ({ page }) => {
+    await page.goto('/supplier-evaluation');
+    await page.getByRole('tab', { name: '供应商排名' }).click();
+    const table = page.getByRole('table', { name: '供应商排名列表' });
+    await expect(table).toBeVisible();
+    // 列头真实存在
+    await expect(table.getByText('排名').first()).toBeVisible();
+    await expect(table.getByText('评级').first()).toBeVisible();
+    // 点击 '刷新排名' 触发后端排名查询，不报错且表格仍在
+    await page.getByRole('button', { name: '刷新排名' }).click();
+    await expect(table).toBeVisible();
   });
 
-  test('07-03 供应商质检合格率统计', async ({ page }) => {
-    await page.goto('/purchase/report/quality-rate');
-    await page.getByLabel(/年度/).fill('2026');
-    await page.getByRole('button', { name: /查询/ }).click();
-    // 验证"合格率"列
-    await expect(page.getByText(/合格率.*%/)).toBeVisible({ timeout: 30000 });
+  test('07-03 评估指标 Tab 渲染指标编码列', async ({ page }) => {
+    await page.goto('/supplier-evaluation');
+    await page.getByRole('tab', { name: '评估指标' }).click();
+    await expect(page.getByText('指标编码').first()).toBeVisible();
+    await expect(page.getByText('指标名称').first()).toBeVisible();
   });
 
-  test('07-04 供应商账期与应付余额', async ({ page }) => {
-    await page.goto('/purchase/report/ap-aging');
-    await expect(page.getByText('应付账龄分析')).toBeVisible();
-    // 验证账龄分组列：30天内 / 30-60天 / 60-90天 / 90天以上
-    await expect(page.getByText(/30 天内/)).toBeVisible();
-    await expect(page.getByText(/30-60 天/)).toBeVisible();
-    await expect(page.getByText(/60-90 天/)).toBeVisible();
-    await expect(page.getByText(/90 天以上/)).toBeVisible();
-  });
-
-  test('07-05 供应商评级查看', async ({ page }) => {
-    await page.goto('/purchase/report/supplier-grade');
-    // 验证有评级 A/B/C/D 列
-    await expect(page.getByText(/A 级/)).toBeVisible();
-    await expect(page.getByText(/B 级/)).toBeVisible();
-    await expect(page.getByText(/C 级/)).toBeVisible();
-    await expect(page.getByText(/D 级/)).toBeVisible();
-  });
-
-  test('07-06 供应商报表可导出 Excel', async ({ page }) => {
-    await page.goto('/purchase/report/supplier-summary');
-    await page.getByRole('button', { name: /查询/ }).click();
-    const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: /导出/ }).click();
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toMatch(/\.xlsx?$/);
+  test('07-04 评估记录 Tab 提供新建评估入口', async ({ page }) => {
+    await page.goto('/supplier-evaluation');
+    // '新建评估' 按钮在“评估记录”“评估管理”两个工具栏各有一个；默认停“评估记录” Tab，取其首个可见者
+    await expect(page.getByRole('button', { name: '新建评估' }).first()).toBeVisible();
   });
 });

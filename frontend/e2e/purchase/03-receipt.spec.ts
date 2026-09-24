@@ -1,83 +1,74 @@
-// P9-4 采购 E2E 套件 — 03 采购入库
-// 创建时间: 2026-06-17
-// 覆盖范围：采购入库全流程（4 用例）
+// P9-4 采购 E2E 套件 — 03 采购收货（入库）
+// 覆盖范围：已审批采购订单行内「收货」→ PurchaseReceiveDialog 登记收货
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 
 /**
- * 测试套件：采购入库
- *
- * 业务流程：
- * 1. 创建入库单
- * 2. 部分入库
- * 3. 全部入库
- * 4. 库存自动增加验证
+ * 真实 UI 事实（据 PurchaseTable.vue / components/PurchaseReceiveDialog.vue / usePurchRcv.ts / locales 核对）：
+ * - 收货入口：/purchase 列表已审批行（状态 '已审批'，PURCHASE_ORDER_STATUS.APPROVED）行内
+ *   按钮 purchase.table.receive = '收货' → index.vue rcv.handleReceive → 打开 PurchaseReceiveDialog。
+ *   不存在“详情页创建入库单/库位/入库单号 GR-”等 UI。
+ * - PurchaseReceiveDialog（aria-label purchase.index.receiveDlgAriaLabel = '收货对话框'，标题 '采购收货'）：
+ *   只读采购单号/供应商；收货日期(默认今日 date)；仓库 el-select(label '仓库')；
+ *   明细 el-table 列 产品/订购数量/已收货/本次收货(el-input-number)/单价/备注；底部 '取消' / '确定收货'。
+ *   本次收货 el-input-number 的 :max = 订购数量 - 已收货（PurchaseReceiveDialog.vue 第 82 行），超限输入被钳制。
+ * - 校验（submitReceive）：未选仓库 → msg.warning('pleaseSelectWarehouse') = '请选择收货仓库'；
+ *   全部本次收货为 0 → '请填写至少一项收货数量'。
+ * - 成功：createPurchaseReceipt → msg.success('receiveSuccess') = '收货成功'。
  */
-test.describe('03 采购入库', () => {
+test.describe('03 采购收货', () => {
   test.beforeEach(async ({ page, context }) => {
-    // V15 Batch 487 P0-T05：注入 auth mock，业务 API 走真实后端（applyAuthMocks 不再 mock 业务 API）
     await applyAuthMocks(context);
-    await page.goto('/');
+    await page.goto('/purchase');
   });
 
-  test('03-01 已审核采购订单可创建入库单', async ({ page }) => {
-    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
-    await page.goto('/purchase');
-    const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
-    await approved.getByRole('button', { name: /详情/ }).click();
-    // 创建入库单
-    await page.getByRole('button', { name: /创建入库|入库/ }).click();
-    // 选择仓库
-    await page.getByLabel(/仓库/).click();
+  test('03-01 已审批采购订单行内「收货」打开收货对话框', async ({ page }) => {
+    const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
+    await expect(approved).toBeVisible();
+    await approved.getByRole('button', { name: '收货', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '收货对话框' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: '确定收货' })).toBeVisible();
+  });
+
+  test('03-02 未选仓库直接确定收货被拦截', async ({ page }) => {
+    const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
+    await expect(approved).toBeVisible();
+    await approved.getByRole('button', { name: '收货', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '收货对话框' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: '确定收货' }).click();
+    // 真实校验 message.pleaseSelectWarehouse = '请选择收货仓库'
+    await expect(page.getByText('请选择收货仓库')).toBeVisible();
+    await expect(page.locator('.el-message--success')).toHaveCount(0);
+  });
+
+  test('03-03 本次收货数量受订购可收数量钳制', async ({ page }) => {
+    const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
+    await expect(approved).toBeVisible();
+    await approved.getByRole('button', { name: '收货', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '收货对话框' });
+    // 选仓库
+    await dialog.getByRole('combobox').click();
     await page.getByRole('option').first().click();
-    // 库位
-    await page.getByLabel(/库位/).click();
+    const qty = dialog.getByRole('spinbutton').first();
+    await qty.fill('99999');
+    await page.keyboard.press('Tab');
+    // el-input-number :max 生效 → 失焦后被钳制（不等于 99999）
+    await expect(qty).not.toHaveValue('99999');
+  });
+
+  test('03-04 选仓库并填写本次收货后收货成功', async ({ page }) => {
+    const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
+    await expect(approved).toBeVisible();
+    await approved.getByRole('button', { name: '收货', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '收货对话框' });
+    await dialog.getByRole('combobox').click();
     await page.getByRole('option').first().click();
-    await page.getByRole('button', { name: /保存/ }).click();
-    await expect(page.getByText(/入库单号.*GR-\d{8}-\d{4}/)).toBeVisible({ timeout: 30000 });
-  });
-
-  test('03-02 入库数量必须 ≤ 采购订单数量', async ({ page }) => {
-    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
-    await page.goto('/purchase');
-    const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
-    await approved.getByRole('button', { name: /详情/ }).click();
-    await page.getByRole('button', { name: /创建入库/ }).click();
-    // 输入超过采购订单数量的入库数
-    const recQty = page.getByLabel(/本次入库数量/).first();
-    await recQty.fill('99999');
-    await page.getByRole('button', { name: /保存/ }).click();
-    // 应提示超过采购数量
-    await expect(page.getByText(/超过采购数量|超出可入数量/)).toBeVisible();
-  });
-
-  test('03-03 部分入库后采购订单状态为"部分入库"', async ({ page }) => {
-    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
-    await page.goto('/purchase');
-    const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
-    await approved.getByRole('button', { name: /详情/ }).click();
-    await page.getByRole('button', { name: /创建入库/ }).click();
-    // 输入部分入库数量
-    const recQty = page.getByLabel(/本次入库数量/).first();
-    await recQty.fill('50');
-    await page.getByRole('button', { name: /保存/ }).click();
-    // 回到采购订单详情
-    await page.goto(page.url().replace('/receipt', ''));
-    await expect(page.getByText('部分入库').first()).toBeVisible({ timeout: 30000 });
-  });
-
-  test('03-04 全部入库后采购订单状态为"已入库"', async ({ page }) => {
-    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
-    await page.goto('/purchase');
-    const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
-    await approved.getByRole('button', { name: /详情/ }).click();
-    await page.getByRole('button', { name: /创建入库/ }).click();
-    // 输入全部入库数量
-    const recQty = page.getByLabel(/本次入库数量/).first();
-    await recQty.fill('500');
-    await page.getByRole('button', { name: /保存/ }).click();
-    // 回到采购订单详情
-    await expect(page.getByText('已入库').first()).toBeVisible({ timeout: 30000 });
+    await dialog.getByRole('spinbutton').first().fill('1');
+    await dialog.getByRole('button', { name: '确定收货' }).click();
+    // createPurchaseReceipt 成功 → msg.success('receiveSuccess') = '收货成功'
+    await expect(page.getByText('收货成功')).toBeVisible({ timeout: 30000 });
   });
 });
