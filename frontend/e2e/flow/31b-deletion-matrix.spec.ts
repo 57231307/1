@@ -500,7 +500,9 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
         opportunity_name: `P0商机${TS}`,
         customer_id: 1,
         opportunity_type: '新品',
-        opportunity_stage: '初步接触',
+        // opportunity_stage 受后端 chk_crm_opportunity_stage CHECK 约束，取值须为权威大写码
+        // （models/status::crm_opportunity::ALL_STAGES）；「初步接洽」对应 QUALIFICATION
+        opportunity_stage: 'QUALIFICATION',
         win_probability: 50,
         estimated_amount: 20000,
         currency: 'CNY',
