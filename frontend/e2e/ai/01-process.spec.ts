@@ -28,15 +28,17 @@ test.describe('01 AI 工艺优化', () => {
 
   test('01-04 新建工艺优化推荐', async ({ page }) => {
     await page.goto('/ai-extend/process-optimization');
-    await page.getByRole('button', { name: /新建|推荐/ }).click();
+    await page.getByRole('button', { name: '新建推荐' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/色号/).fill('E2E-CN-001');
-    await page.getByLabel(/面料类型/).fill('E2E 测试面料');
-    await page
-      .getByRole('button', { name: /确认|提交/ })
-      .last()
-      .click();
-    await expect(page.getByText(/创建成功|保存成功|推荐完成/)).toBeVisible({
+    // 「色号」「面料类型」label 在筛选栏与创建对话框中同名（aiExtend.process.colColorNo/colFabricType），
+    // 不限定会 getByLabel strict-mode 命中 2 个 → 全部限定到 .el-dialog。
+    // 提交按钮真实文案「生成推荐」（aiExtend.process.generate）；成功 toast 为
+    // aiExtend.process.recommendSuccess「推荐成功（来源…）」，原用例误写「推荐完成」。
+    const dlg = page.locator('.el-dialog');
+    await dlg.getByLabel('色号').fill('E2E-CN-001');
+    await dlg.getByLabel('面料类型').fill('E2E 测试面料');
+    await dlg.getByRole('button', { name: '生成推荐' }).click();
+    await expect(page.getByText(/推荐成功/)).toBeVisible({
       timeout: 30000,
     });
   });

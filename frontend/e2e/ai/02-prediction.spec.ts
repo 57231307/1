@@ -43,16 +43,18 @@ test.describe('02 AI 质量预测', () => {
 
   test('02-02 新建质量预测', async ({ page }) => {
     await page.goto('/ai-extend/quality-prediction');
-    await page.getByRole('button', { name: /新建|预测/ }).click();
+    // 页面顶部有「新建预测」「批量预测」两个含「预测」的按钮，getByRole('button',{name:/新建|预测/})
+    // 会 strict-mode 命中 2 个 → 改精确「新建预测」（aiExtend.qualityPrediction.newPredict）。
+    await page.getByRole('button', { name: '新建预测' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/产品/).fill('1');
-    await page.getByLabel(/检验类型/).click();
+    // 「产品 ID」「检验类型」label 与筛选栏同名（colProductId/colInspectionType）→ 限定到 .el-dialog；
+    // 提交按钮真实文案「开始预测」（aiExtend.qualityPrediction.generate），原用例误写「确认/提交」。
+    const dlg = page.locator('.el-dialog');
+    await dlg.getByLabel('产品 ID').fill('1');
+    await dlg.getByLabel('检验类型').click();
     await page.getByRole('option').first().click();
-    await page
-      .getByRole('button', { name: /确认|提交/ })
-      .last()
-      .click();
-    await expect(page.getByText(/创建成功|保存成功|预测完成/)).toBeVisible({
+    await dlg.getByRole('button', { name: '开始预测' }).click();
+    await expect(page.getByText(/预测完成/)).toBeVisible({
       timeout: 30000,
     });
   });
