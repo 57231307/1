@@ -4,12 +4,13 @@ import { logger } from '@/utils/logger';
  * CRM 线索状态（crm_lead.lead_status）的单一映射源。
  *
  * 取值与后端权威值逐字一致（全小写）：
- * new / contacted / qualified / converted / lost / pool
+ * new / assigned / contacted / qualified / converted / lost / pool
  *
  * Record<LeadStatus, …> 让「后端词表新增状态必须补全映射」由编译器保证。
  */
 export const LEAD_STATUS = {
   NEW: 'new',
+  ASSIGNED: 'assigned',
   CONTACTED: 'contacted',
   QUALIFIED: 'qualified',
   CONVERTED: 'converted',
@@ -25,6 +26,7 @@ export const LEAD_STATUSES: LeadStatus[] = Object.values(LEAD_STATUS);
 /** 线索状态 → i18n 文案键 */
 export const LEAD_STATUS_LABEL_KEYS: Record<LeadStatus, string> = {
   new: 'crmLeads.leadStatus.new',
+  assigned: 'crmLeads.leadStatus.assigned',
   contacted: 'crmLeads.leadStatus.contacted',
   qualified: 'crmLeads.leadStatus.qualified',
   converted: 'crmLeads.leadStatus.converted',
@@ -37,6 +39,7 @@ export type CrmTagType = '' | 'success' | 'warning' | 'info' | 'danger' | 'prima
 
 export const LEAD_STATUS_TAG_TYPES: Record<LeadStatus, CrmTagType> = {
   new: 'info',
+  assigned: 'info',
   contacted: 'warning',
   qualified: 'primary',
   converted: 'success',

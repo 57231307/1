@@ -3937,6 +3937,7 @@ export default {
     },
     leadStatus: {
       new: '新建',
+      assigned: '已分配',
       contacted: '已联系',
       qualified: '已合格',
       converted: '已转化',

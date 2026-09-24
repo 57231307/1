@@ -3966,6 +3966,7 @@ export default {
     },
     leadStatus: {
       new: 'New',
+      assigned: 'Assigned',
       contacted: 'Contacted',
       qualified: 'Qualified',
       converted: 'Converted',

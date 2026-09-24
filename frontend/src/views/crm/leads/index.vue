@@ -75,6 +75,7 @@
             @change="handleQuery"
           >
             <el-option :label="$t('crmLeads.leadStatus.new')" :value="LEAD_STATUS.NEW" />
+            <el-option :label="$t('crmLeads.leadStatus.assigned')" :value="LEAD_STATUS.ASSIGNED" />
             <el-option
               :label="$t('crmLeads.leadStatus.contacted')"
               :value="LEAD_STATUS.CONTACTED"
