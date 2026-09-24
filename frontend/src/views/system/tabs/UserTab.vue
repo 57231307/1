@@ -338,7 +338,11 @@ const openUserDialog = (row?: User) => {
 };
 
 const submitUser = async () => {
-  const valid = await userFormRef.value?.validate();
+  // ElForm.validate() 契约：字段全部通过时 resolve(true)，任一不通过时 reject(校验字段集合)，
+  // 并非返回 false。这里以 .catch(() => false) 归一为布尔，交由下方 if (!valid) return 短路；
+  // 校验不通过的反馈由 el-form 自身渲染字段级错误提示，不应冒泡成未捕获 rejection（否则会经
+  // Vue 异步错误处理冒泡至 ErrorBoundary 使整页崩溃），也不进 try/catch 被误当成接口错误弹提示。
+  const valid = await userFormRef.value?.validate().catch(() => false);
   if (!valid) return;
   userSubmitLoading.value = true;
   try {
