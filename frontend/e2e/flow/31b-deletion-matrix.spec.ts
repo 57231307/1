@@ -290,7 +290,7 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
         dye_type: '分散',
         temperature: 130,
         time_minutes: 45,
-        liquor_ratio: '1:10',
+        liquor_ratio: '10.00',
         remarks: 'P0配方备注',
       },
     },

@@ -43,7 +43,7 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
       department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-      items: [{ material_id: ctx.productIds[0], quantity: 10, unit_price: '2.50' }],
+      items: [{ material_id: ctx.productIds[0], quantity_ordered: 10, unit_price: '2.50' }],
     });
     const poId = po?.data?.id;
     expect(poId, 'PO 创建失败').toBeTruthy();

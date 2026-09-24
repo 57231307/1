@@ -141,8 +141,9 @@ test.describe.serial('新域业务流转链', () => {
       timeout: 10_000,
     });
     await row.getByRole('button', { name: '定级' }).click();
-    await page.locator('.el-dialog .el-input-number input').first().fill('120');
-    await page.getByRole('button', { name: '提交' }).click();
+    const gradeDialog = page.locator('.el-dialog:visible').filter({ hasText: '验布定级' });
+    await gradeDialog.locator('.el-input-number input').first().fill('120');
+    await gradeDialog.getByRole('button', { name: '提交' }).click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
     // 定级结果落库校验：状态应转为 graded（关闭按钮只在 graded 态出现）
     await expect(row.getByRole('button', { name: '关闭' })).toBeVisible({ timeout: 10_000 });
