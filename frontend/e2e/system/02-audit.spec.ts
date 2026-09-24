@@ -22,7 +22,7 @@ test.describe('02 审计日志', () => {
     await page.goto(`${BASE_URL}/system/audit-log`);
     await expect(page.getByText('审计日志筛选表单')).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: '查询' })).toBeVisible();
-    await expect(page.locator('table, .v2-table, .el-table').first()).toBeVisible({
+    await expect(page.getByRole('table').first()).toBeVisible({
       timeout: 30000,
     });
   });
@@ -43,7 +43,7 @@ test.describe('02 审计日志', () => {
     );
     await page.getByRole('button', { name: '重置' }).click();
     await resetReq;
-    await expect(page.locator('table, .v2-table, .el-table').first()).toBeVisible();
+    await expect(page.getByRole('table').first()).toBeVisible();
   });
 
   test('02-03 审计日志详情可查看', async ({ page }) => {
@@ -76,6 +76,6 @@ test.describe('02 审计日志', () => {
     );
     await page.getByRole('button', { name: '查询' }).click();
     await typeReq;
-    await expect(page.locator('table, .v2-table, .el-table').first()).toBeVisible();
+    await expect(page.getByRole('table').first()).toBeVisible();
   });
 });

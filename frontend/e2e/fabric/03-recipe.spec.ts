@@ -51,7 +51,7 @@ test.describe('03 染色配方', () => {
   test('03-01 染色配方 Tab 可正常加载', async ({ page }) => {
     await page.goto('/fabric');
     await page.getByRole('tab', { name: /配方/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByLabel('染色配方列表')).toBeVisible({ timeout: 30000 });
   });
 
   test('03-02 新建染色配方', async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe('03 染色配方', () => {
     const { recipeNo } = await seedDraftRecipe(page);
     await page.goto('/fabric');
     await page.getByRole('tab', { name: /配方/ }).click();
-    await expect(page.locator('.el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByLabel('染色配方列表')).toBeVisible({ timeout: 30000 });
     const row = page.getByRole('row').filter({ hasText: recipeNo }).first();
     await expect(row.getByText('草稿'), `配方 ${recipeNo} 应渲染为「草稿」状态`).toBeVisible({
       timeout: 30000,

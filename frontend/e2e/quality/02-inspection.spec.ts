@@ -52,7 +52,7 @@ async function seedDefect(page: import('@playwright/test').Page): Promise<void> 
       inspected_qty: 100,
       qualified_qty: 90,
       unqualified_qty: 10,
-      inspection_result: 'unqualified',
+      inspection_result: '不合格',
       grade: 'C',
     }
   );
@@ -95,14 +95,14 @@ test.describe('02 检验记录与缺陷处理', () => {
 
   test('02-02 检验记录列表可正常加载', async ({ page }) => {
     await page.goto('/quality');
-    await page.getByRole('tab', { name: /记录|检验记录/ }).click();
-    await expect(page.locator('table, .v2-table, .el-table')).toBeVisible({ timeout: 30000 });
+    await page.getByRole('tab', { name: /记录/ }).click();
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('02-03 缺陷管理 Tab 可正常加载', async ({ page }) => {
     await page.goto('/quality');
     await page.getByRole('tab', { name: /缺陷/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('02-04 未处理缺陷可处理', async ({ page }) => {

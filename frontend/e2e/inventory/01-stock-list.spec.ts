@@ -11,14 +11,14 @@ test.describe('库存管理 - 01 库存台账', () => {
 
   test('库存管理页面可访问', async ({ page }) => {
     await page.goto('/inventory');
-    await expect(page.getByText(/库存管理/)).toBeVisible();
+    await expect(page.getByRole('heading', { name: '库存管理' })).toBeVisible({ timeout: 30000 });
   });
 
   test('库存台账 Tab 数据加载', async ({ page }) => {
     await page.goto('/inventory');
     await expect(page.getByRole('tab', { name: /库存台账/ })).toBeVisible();
     await page.getByRole('tab', { name: /库存台账/ }).click();
-    await expect(page.locator('.v2-table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('库存筛选功能', async ({ page }) => {
@@ -35,7 +35,12 @@ test.describe('库存管理 - 01 库存台账', () => {
   test('库存预警 Tab', async ({ page }) => {
     await page.goto('/inventory');
     await page.getByRole('tab', { name: /库存预警/ }).click();
-    await expect(page.locator('.el-table')).toBeVisible({ timeout: 30000 });
-    await expect(page.getByText(/预警等级|紧急|预警/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
+    // 预警表列头真实文案为「预警级别」（i18n inventory.alertTab.colAlertLevel）；
+    // 原正则 /预警等级|紧急|预警/ 字面量有误（列头实际为"预警级别"非"等级"）。
+    // el-table 列头 th 自带 columnheader 角色。
+    await expect(page.getByRole('columnheader', { name: '预警级别' })).toBeVisible({
+      timeout: 30000,
+    });
   });
 });

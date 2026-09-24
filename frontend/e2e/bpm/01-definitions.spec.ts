@@ -55,7 +55,7 @@ test.describe('01 流程定义', () => {
 
   test('01-01 进入流程定义页面', async ({ page }) => {
     await page.goto('/bpm/definitions');
-    await expect(page.getByText(/流程定义/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: '流程定义' })).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: /新增/ })).toBeVisible();
   });
 
@@ -81,16 +81,16 @@ test.describe('01 流程定义', () => {
     await page.goto('/bpm/definitions');
     await page.getByLabel(/关键词/).fill('E2E');
     await page.getByRole('button', { name: /查询/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
     await page.getByRole('button', { name: /重置/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('01-04 流程定义可编辑', async ({ page }) => {
     // 方法一：建一条定义 → 定位自身行点编辑 → 断言对话框回填流程标识
     const { processKey } = await seedDefinition(page);
     await page.goto('/bpm/definitions');
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
     const row = page.getByRole('row').filter({ hasText: processKey });
     const editBtn = row.getByRole('button', { name: /编辑/ }).first();
     await expect(editBtn, `定位流程定义 ${processKey} 的编辑按钮失败`).toBeVisible({

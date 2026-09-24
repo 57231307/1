@@ -60,7 +60,7 @@ async function seedOpportunity(
 
 async function gotoOpportunities(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/crm/opportunities');
-  await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
 }
 
 test.describe('03 商机管理', () => {
@@ -71,7 +71,7 @@ test.describe('03 商机管理', () => {
 
   test('03-01 进入商机管理页面', async ({ page }) => {
     await page.goto('/crm/opportunities');
-    await expect(page.getByText(/商机管理/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: '商机管理' })).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: /创建/ })).toBeVisible();
   });
 
@@ -125,7 +125,9 @@ test.describe('03 商机管理', () => {
     await expect(winBtn, `定位商机 ${oppNo} 的成交(赢单)按钮失败`).toBeVisible({ timeout: 10000 });
     await winBtn.click();
     await page.getByRole('button', { name: /确定|确认/ }).click();
-    await expect(page.getByText(/成交/)).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.el-message--success', { hasText: '成交' })).toBeVisible({
+      timeout: 30000,
+    });
   });
 
   test('03-05 商机可标记为输单', async ({ page }) => {
@@ -137,6 +139,8 @@ test.describe('03 商机管理', () => {
     await expect(loseBtn, `定位商机 ${oppNo} 的流失(输单)按钮失败`).toBeVisible({ timeout: 10000 });
     await loseBtn.click();
     await page.getByRole('button', { name: /确定|确认/ }).click();
-    await expect(page.getByText(/流失/)).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.el-message--success', { hasText: '流失' })).toBeVisible({
+      timeout: 30000,
+    });
   });
 });

@@ -12,18 +12,18 @@ test.describe('01 AI 工艺优化', () => {
 
   test('01-01 进入 AI 分析页面', async ({ page }) => {
     await page.goto('/ai-extend');
-    await expect(page.getByText(/AI/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: /AI/ })).toBeVisible({ timeout: 30000 });
   });
 
   test('01-02 进入工艺优化页面', async ({ page }) => {
     await page.goto('/ai-extend/process-optimization');
-    await expect(page.getByText(/工艺优化/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: /工艺优化/ })).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: /新建|推荐/ })).toBeVisible();
   });
 
   test('01-03 工艺优化列表可正常加载', async ({ page }) => {
     await page.goto('/ai-extend/process-optimization');
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('01-04 新建工艺优化推荐', async ({ page }) => {

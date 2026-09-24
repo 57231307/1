@@ -12,7 +12,9 @@ test.describe('01 客户管理', () => {
 
   test('01-01 进入 CRM 客户管理页面', async ({ page }) => {
     await page.goto('/crm');
-    await expect(page.getByText(/客户管理|客户列表/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: /客户管理|客户列表/ })).toBeVisible({
+      timeout: 30000,
+    });
     await expect(page.getByRole('button', { name: /创建|新建/ })).toBeVisible();
   });
 
@@ -36,9 +38,9 @@ test.describe('01 客户管理', () => {
 
   test('01-03 客户列表支持筛选', async ({ page }) => {
     await page.goto('/crm');
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
     await page.getByLabel(/客户名称/).fill('E2E');
     await page.getByRole('button', { name: /查询|搜索/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 });

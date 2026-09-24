@@ -31,7 +31,7 @@ test.describe('02 审批中心', () => {
 
   test('02-01 进入审批中心页面', async ({ page }) => {
     await page.goto('/bpm/approval');
-    await expect(page.getByText(/审批/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: '审批中心' })).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('tab', { name: /待办/ })).toBeVisible();
     await expect(page.getByRole('tab', { name: /已办/ })).toBeVisible();
   });

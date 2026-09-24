@@ -5,7 +5,7 @@ import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
 
 async function filterByStatus(page: Page, statusLabel: string): Promise<void> {
-  await expect(page.locator('.v2-table, .el-table')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   await page.getByLabel(/状态/).click();
   await page.getByRole('option', { name: statusLabel, exact: true }).click();
   await page.getByRole('button', { name: /查询/ }).click();

@@ -12,14 +12,14 @@ test.describe('01 用户与角色', () => {
 
   test('01-01 进入系统管理页面', async ({ page }) => {
     await page.goto('/system');
-    await expect(page.getByText(/系统管理/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: /系统管理/ })).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('tab', { name: /用户/ })).toBeVisible();
   });
 
   test('01-02 用户列表可正常加载', async ({ page }) => {
     await page.goto('/system');
     await page.getByRole('tab', { name: /用户/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('01-03 新建用户', async ({ page }) => {
@@ -39,6 +39,6 @@ test.describe('01 用户与角色', () => {
   test('01-04 角色列表可正常加载', async ({ page }) => {
     await page.goto('/system');
     await page.getByRole('tab', { name: /角色/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 });

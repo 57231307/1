@@ -10,7 +10,7 @@ import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
  * （order_no 缺陷已修复，本 helper 仅服务状态维度；按单号定位用 filterByOrderNo。）
  */
 async function filterByStatus(page: Page, statusLabel: string): Promise<void> {
-  await expect(page.locator('.v2-table, .el-table')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   await page.getByLabel(/状态/).click();
   await page.getByRole('option', { name: statusLabel, exact: true }).click();
   await page.getByRole('button', { name: /查询/ }).click();
@@ -22,7 +22,7 @@ async function filterByStatus(page: Page, statusLabel: string): Promise<void> {
  * like 过滤（此前该参数被 serde 静默丢弃、筛选恒不生效）。用于把列表精确收敛到目标单号。
  */
 async function filterByOrderNo(page: Page, orderNo: string): Promise<void> {
-  await expect(page.locator('.v2-table, .el-table')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   await page.getByLabel(/订单编号/).fill(orderNo);
   await page.getByRole('button', { name: /查询/ }).click();
 }
@@ -63,7 +63,9 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
 
   test('生产计划页面可访问', async ({ page }) => {
     await page.goto('/production');
-    await expect(page.getByText(/生产计划/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: /生产计划|生产工单/ })).toBeVisible({
+      timeout: 30000,
+    });
   });
 
   test('新建生产工单', async ({ page }) => {

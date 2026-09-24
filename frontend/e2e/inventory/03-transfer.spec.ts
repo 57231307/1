@@ -13,21 +13,22 @@ test.describe('库存管理 - 03 库存调拨', () => {
   test('库存调拨 Tab 数据加载', async ({ page }) => {
     await page.goto('/inventory');
     await page.getByRole('tab', { name: /库存调拨/ }).click();
-    await expect(page.locator('.el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('创建库存调拨单', async ({ page }) => {
     await page.goto('/inventory');
     await page.getByRole('button', { name: /调拨/ }).click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await expect(page.getByText(/调出仓库|调入仓库/)).toBeVisible();
-    await page.getByLabel(/调出仓库/).click();
+    const dialog = page.locator('.el-dialog:visible').last();
+    await expect(dialog).toBeVisible({ timeout: 30000 });
+    await expect(dialog.getByText('调出仓库')).toBeVisible({ timeout: 10000 });
+    await dialog.getByLabel(/调出仓库/).click();
     await page.getByRole('option').first().click();
-    await page.getByLabel(/调入仓库/).click();
+    await dialog.getByLabel(/调入仓库/).click();
     await page.getByRole('option').nth(1).click();
-    await page.getByRole('button', { name: /添加产品|添加|新增/ }).click();
-    await expect(page.getByText(/数量/)).toBeVisible();
-    await page.getByRole('button', { name: /确认/ }).click();
+    await dialog.getByRole('button', { name: /添加产品|添加|新增/ }).click();
+    await expect(dialog.getByText(/数量/)).toBeVisible();
+    await dialog.getByRole('button', { name: /确认/ }).click();
     await expect(page.getByText(/成功|已提交|已创建/)).toBeVisible({ timeout: 30000 });
   });
 

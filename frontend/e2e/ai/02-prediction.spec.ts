@@ -38,7 +38,7 @@ test.describe('02 AI 质量预测', () => {
 
   test('02-01 进入质量预测页面', async ({ page }) => {
     await page.goto('/ai-extend/quality-prediction');
-    await expect(page.getByText(/质量预测/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: /质量预测/ })).toBeVisible({ timeout: 30000 });
   });
 
   test('02-02 新建质量预测', async ({ page }) => {
@@ -59,7 +59,7 @@ test.describe('02 AI 质量预测', () => {
 
   test('02-03 质量预测列表可正常加载', async ({ page }) => {
     await page.goto('/ai-extend/quality-prediction');
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('02-04 未确认预测可确认处理', async ({ page }) => {
@@ -70,7 +70,7 @@ test.describe('02 AI 质量预测', () => {
     // 定位自身行 → 硬断言确认按钮渲染 → 点击 → 断言真实 toast「确认成功」。
     const id = await seedUnacknowledgedPrediction(page);
     await page.goto('/ai-extend/quality-prediction');
-    await expect(page.locator('.el-table')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByLabel('AI 质量预测列表')).toBeVisible({ timeout: 30000 });
     const row = page
       .getByRole('row')
       .filter({ hasText: String(id) })

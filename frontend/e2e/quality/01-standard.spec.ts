@@ -43,7 +43,7 @@ async function seedStandard(
 
 async function gotoStandardTab(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/quality');
-  await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
 }
 
 test.describe('01 质量标准', () => {
@@ -54,8 +54,7 @@ test.describe('01 质量标准', () => {
 
   test('01-01 进入质量管理页面', async ({ page }) => {
     await page.goto('/quality');
-    await expect(page.getByText(/质量/)).toBeVisible({ timeout: 30000 });
-    await expect(page.getByRole('tab', { name: /标准/ })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /标准/ })).toBeVisible({ timeout: 30000 });
   });
 
   test('01-02 新建质量标准', async ({ page }) => {

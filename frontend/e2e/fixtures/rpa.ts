@@ -170,11 +170,12 @@ export async function extractTableData(
   await table.waitFor({ state: 'attached', timeout: 30_000 });
 
   // 提取所有行的单元格文本
-  const rows = await table.locator('.el-table-v2__row').all();
+  const rows = await table.locator('.el-table-v2__row, .el-table__body tbody tr').all();
   const result: string[][] = [];
 
   for (const row of rows) {
-    const cells = await row.locator('.el-table-v2__cell, td').all();
+    // el-table-v2 使用 div.el-table-v2__row-cell；el-table 使用 td
+    const cells = await row.locator('.el-table-v2__row-cell, td').all();
     const rowData: string[] = [];
     for (const cell of cells) {
       const text = await cell.textContent();
@@ -229,7 +230,9 @@ export async function waitForTableLoaded(
   await table.waitFor({ state: 'attached', timeout });
   // 等待至少一行数据或空状态提示出现（30s 超时=页面未渲染任何数据，必须失败暴露）
   await page
-    .locator(`${tableSelector} .el-table-v2__row, .el-empty, .el-table__empty-text`)
+    .locator(
+      `${tableSelector} .el-table-v2__row, ${tableSelector} .el-table__body tbody tr, .el-empty, .el-table__empty-text`
+    )
     .first()
     .waitFor({ state: 'attached', timeout: 30_000 });
 }
