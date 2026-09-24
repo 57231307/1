@@ -100,6 +100,22 @@ pub struct BomRequirement {
     pub unit: Option<String>,
 }
 
+/// BOM导出视图对象（LEFT JOIN products 富化产品编码/名称）
+#[derive(Debug, Clone, sea_orm::FromQueryResult)]
+pub struct BomExportDto {
+    pub id: i32,
+    pub product_id: i32,
+    pub product_code: Option<String>,
+    pub product_name: Option<String>,
+    pub version: i32,
+    pub is_default: bool,
+    pub status: String,
+    pub remarks: Option<String>,
+    pub created_by: i32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
 /// BOM Service（字段声明为 `pub(crate)` 以便 `bom_ops` 子模块的 `impl BomService` 块直接访问；（业务方法已迁移至 `bom_ops::{crud,state,tree}`）。）
 pub struct BomService {
     pub(crate) db: Arc<DatabaseConnection>,

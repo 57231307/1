@@ -74,6 +74,14 @@ pub enum Relation {
     /// BOM - BOM明细（一对多）
     #[sea_orm(has_many = "super::bom_item::Entity")]
     BomItems,
+
+    /// BOM - 产品（多对一，LEFT JOIN 富化产品名称/编码）
+    #[sea_orm(
+        belongs_to = "super::product::Entity",
+        from = "Column::ProductId",
+        to = "super::product::Column::Id"
+    )]
+    Product,
 }
 
 impl Related<super::bom_item::Entity> for Entity {
