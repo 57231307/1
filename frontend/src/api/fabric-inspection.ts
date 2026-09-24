@@ -61,6 +61,10 @@ export function gradeFabricInspection(id: number, data: Record<string, unknown>)
   return request.post(`/production/fabric-inspections/${id}/grade`, data);
 }
 
+export function startFabricInspection(id: number) {
+  return request.post(`/production/fabric-inspections/${id}/start`);
+}
+
 export function closeFabricInspection(id: number) {
   return request.post(`/production/fabric-inspections/${id}/close`);
 }
@@ -87,8 +91,9 @@ export function deleteFabricDefect(id: number) {
 }
 
 export const INSPECTION_STATUS_LABEL: Record<string, string> = {
-  draft: '草稿',
+  pending: '待验布',
   inspecting: '检验中',
   graded: '已定级',
+  rolled: '已打卷',
   closed: '已关闭',
 };

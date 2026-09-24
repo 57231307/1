@@ -340,6 +340,7 @@ import {
   getFabricInspectionList,
   gradeFabricInspection,
   getFabricInspectionDetail,
+  startFabricInspection,
   updateFabricInspection,
   addFabricRoll,
   createFabricDefect,
@@ -357,6 +358,7 @@ const saving = ref(false);
 const dialogVisible = ref(false);
 const gradeVisible = ref(false);
 const gradingId = ref<number | null>(null);
+const gradingStatus = ref<string>('');
 
 const form = reactive({
   inspection_date: '',
@@ -381,7 +383,15 @@ const unwrapList = (p: unknown): FabricInspection[] =>
   (p as { data: { items: FabricInspection[] } }).data.items;
 
 const statusTag = (s: string) =>
-  ({ draft: 'info', inspecting: 'warning', graded: 'success', closed: 'info' })[s] ?? 'info';
+  (
+    ({
+      pending: 'info',
+      inspecting: 'warning',
+      graded: 'success',
+      rolled: 'success',
+      closed: '',
+    }) as Record<string, string>
+  )[s] ?? 'info';
 
 const skipCols = new Set(['id', 'inspection_no', 'status', 'created_at', 'updated_at']);
 const extraCols = computed(() => {
@@ -395,6 +405,8 @@ async function load() {
   loading.value = true;
   try {
     inspections.value = unwrapList(await getFabricInspectionList());
+  } catch (e) {
+    logger.error('加载验布列表失败', e);
   } finally {
     loading.value = false;
   }
@@ -431,6 +443,10 @@ async function onCreate() {
     ElMessage.success('验布单已创建');
     dialogVisible.value = false;
     await load();
+  } catch (e) {
+    ElMessage.error(
+      (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? '创建失败'
+    );
   } finally {
     saving.value = false;
   }
@@ -469,6 +485,10 @@ async function onSave() {
       dialogVisible.value = false;
       editingId.value = null;
       await load();
+    } catch (e) {
+      ElMessage.error(
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? '更新失败'
+      );
     } finally {
       saving.value = false;
     }
@@ -652,6 +672,7 @@ async function onDefectSubmit() {
 
 function onGrade(row: FabricInspection) {
   gradingId.value = row.id;
+  gradingStatus.value = row.status;
   gradeForm.inspected_yards = undefined;
   gradeForm.qualification_rate = undefined;
   gradeForm.remarks = '';
@@ -666,6 +687,9 @@ async function onGradeSubmit() {
   }
   saving.value = true;
   try {
+    if (gradingStatus.value === 'pending') {
+      await startFabricInspection(gradingId.value);
+    }
     await gradeFabricInspection(gradingId.value, {
       inspected_yards: gradeForm.inspected_yards,
       qualification_rate: gradeForm.qualification_rate ?? undefined,
@@ -673,23 +697,47 @@ async function onGradeSubmit() {
     ElMessage.success('定级完成');
     gradeVisible.value = false;
     await load();
+  } catch (e) {
+    ElMessage.error(
+      (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? '定级失败'
+    );
   } finally {
     saving.value = false;
   }
 }
 
 async function onClose(row: FabricInspection) {
-  await ElMessageBox.confirm('确认关闭该验布单？', '关闭确认');
-  await closeFabricInspection(row.id);
-  ElMessage.success('已关闭');
-  await load();
+  try {
+    await ElMessageBox.confirm('确认关闭该验布单？', '关闭确认');
+  } catch {
+    return;
+  }
+  try {
+    await closeFabricInspection(row.id);
+    ElMessage.success('已关闭');
+    await load();
+  } catch (e) {
+    ElMessage.error(
+      (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? '关闭失败'
+    );
+  }
 }
 
 async function onDelete(row: FabricInspection) {
-  await ElMessageBox.confirm('确认删除该验布单？', '删除确认');
-  await deleteFabricInspection(row.id);
-  ElMessage.success('已删除');
-  await load();
+  try {
+    await ElMessageBox.confirm('确认删除该验布单？', '删除确认');
+  } catch {
+    return;
+  }
+  try {
+    await deleteFabricInspection(row.id);
+    ElMessage.success('已删除');
+    await load();
+  } catch (e) {
+    ElMessage.error(
+      (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? '删除失败'
+    );
+  }
 }
 
 onMounted(load);
