@@ -13,6 +13,10 @@ export interface Product {
   barcode?: string;
   specification?: string;
   description?: string;
+  /** 每匹米数（匹↔米换算元数据，可空）；仅换算视图入参，不参与库存计量（models/product.rs:70） */
+  meters_per_piece?: number;
+  /** 每卷米数（卷↔米换算元数据，可空）；仅换算视图入参，不参与库存计量（models/product.rs:74） */
+  meters_per_roll?: number;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;

@@ -77,10 +77,19 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('product.productFormDialogTab.labelUnit')" prop="unit">
-            <el-input
+            <!-- 交易单位候选词表（中文稳定 token，禁英文化）；报价行单位即随此值带出 -->
+            <el-select
               v-model="formData.unit"
               :placeholder="t('product.productFormDialogTab.placeholderUnit')"
-            />
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in unitOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -88,6 +97,52 @@
             <el-input
               v-model="formData.barcode"
               :placeholder="t('product.productFormDialogTab.placeholderBarcode')"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item prop="meters_per_piece">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelMetersPerPiece') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipMetersPerPiece')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <el-input-number
+              v-model="formData.meters_per_piece"
+              :min="0"
+              :precision="4"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item prop="meters_per_roll">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelMetersPerRoll') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipMetersPerRoll')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <el-input-number
+              v-model="formData.meters_per_roll"
+              :min="0"
+              :precision="4"
+              :controls="false"
+              style="width: 100%"
             />
           </el-form-item>
         </el-col>
@@ -137,15 +192,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
+import { QuestionFilled } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { Product, ProductCategory } from '@/api/product';
 import { createProduct, updateProduct } from '@/api/product';
+import { QUOTATION_UNIT_LABEL_KEY, QUOTATION_UNIT_VALUES } from '@/constants/quotation-unit';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 交易单位下拉：value 用库里稳定的中文单位 token，label 走 i18n；报价行单位随此值带出
+const unitOptions = computed(() =>
+  QUOTATION_UNIT_VALUES.map(value => ({
+    value,
+    label: t(QUOTATION_UNIT_LABEL_KEY[value]),
+  }))
+);
 
 interface Props {
   modelValue: boolean;
@@ -177,6 +242,8 @@ const formData = reactive({
   barcode: '',
   price: 0,
   cost_price: 0,
+  meters_per_piece: undefined as number | undefined,
+  meters_per_roll: undefined as number | undefined,
   description: '',
   is_active: true,
 });
@@ -213,7 +280,7 @@ const formRules: FormRules = {
     {
       required: true,
       message: t('product.productFormDialogTab.validateUnitRequired'),
-      trigger: 'blur',
+      trigger: 'change',
     },
   ],
 };
@@ -228,6 +295,8 @@ const resetForm = () => {
   formData.barcode = '';
   formData.price = 0;
   formData.cost_price = 0;
+  formData.meters_per_piece = undefined;
+  formData.meters_per_roll = undefined;
   formData.description = '';
   formData.is_active = true;
   formRef.value?.clearValidate();
@@ -275,3 +344,15 @@ const handleSubmit = async () => {
   });
 };
 </script>
+
+<style scoped>
+.form-label-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.form-label-tip {
+  color: var(--el-text-color-secondary);
+  cursor: help;
+}
+</style>
