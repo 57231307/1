@@ -138,6 +138,21 @@
 
     <el-dialog v-model="createVisible" title="新建预算" width="560px" @close="resetForm">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+        <el-form-item :label="t('budgets.form.planId')" prop="plan_id">
+          <el-select
+            v-model="formData.plan_id"
+            :placeholder="t('budgets.form.planIdPlaceholder')"
+            filterable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="plan in planList"
+              :key="plan.id"
+              :label="`${plan.plan_no} - ${plan.plan_name}`"
+              :value="plan.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="预算名称" prop="item_name">
           <el-input v-model="formData.item_name" placeholder="必填" />
         </el-form-item>
@@ -210,6 +225,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import {
   getBudgetItemList,
   getBudgetDetail,
@@ -219,10 +235,15 @@ import {
   rejectBudget,
   deleteBudget,
   getBudgetVersions,
+  getBudgetPlanList,
   type BudgetItem,
   type BudgetItemStatus,
   type BudgetVersion,
+  type BudgetPlan,
 } from '@/api/budget';
+import { logger } from '@/utils/logger';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const statusTextMap: Record<BudgetItemStatus, string> = {
   draft: '草稿',
@@ -291,6 +312,9 @@ const detailVisible = ref(false);
 const detailRow = ref<BudgetItem | null>(null);
 const formRef = ref<FormInstance>();
 
+/** 预算方案列表（创建预算明细时必选所属方案） */
+const planList = ref<BudgetPlan[]>([]);
+
 /** 审批记录子表数据：按预算 id 缓存版本审批历史 */
 const versionMap = ref<Record<number, BudgetVersion[]>>({});
 const versionLoadingMap = ref<Record<number, boolean>>({});
@@ -299,6 +323,7 @@ const formData = reactive<{
   item_name: string;
   item_code: string;
   item_type: string;
+  plan_id: number | undefined;
   budget_year: number | undefined;
   planned_amount: number | undefined;
   remark: string;
@@ -306,6 +331,7 @@ const formData = reactive<{
   item_name: '',
   item_code: '',
   item_type: '',
+  plan_id: undefined,
   budget_year: undefined,
   planned_amount: undefined,
   remark: '',
@@ -314,6 +340,7 @@ const formData = reactive<{
 const formRules: FormRules = {
   item_name: [{ required: true, message: '请输入预算名称', trigger: 'blur' }],
   planned_amount: [{ required: true, message: '请输入计划金额', trigger: 'blur' }],
+  plan_id: [{ required: true, message: '请选择所属预算方案', trigger: 'change' }],
 };
 
 const loadVersions = async (row: BudgetItem) => {
@@ -420,6 +447,7 @@ const resetForm = () => {
   formData.item_name = '';
   formData.item_code = '';
   formData.item_type = '';
+  formData.plan_id = undefined;
   formData.budget_year = undefined;
   formData.planned_amount = undefined;
   formData.remark = '';
@@ -431,12 +459,14 @@ const submitCreate = async () => {
   await formRef.value.validate(async valid => {
     if (!valid) return;
     if (!formData.planned_amount) return;
+    if (!formData.plan_id) return;
     submitLoading.value = true;
     try {
       await createBudgetItem({
         item_name: formData.item_name,
         item_code: formData.item_code || undefined,
         item_type: formData.item_type || undefined,
+        plan_id: formData.plan_id,
         budget_year: formData.budget_year,
         planned_amount: formData.planned_amount,
         remark: formData.remark || undefined,
@@ -470,8 +500,19 @@ const handleDelete = async (row: BudgetItem) => {
 
 const canDelete = (row: BudgetItem): boolean => row.status === 'draft';
 
+/** 加载预算方案列表（创建明细时必选所属方案） */
+const fetchPlanList = async () => {
+  try {
+    const res = await getBudgetPlanList({ page: 1, page_size: 200 });
+    planList.value = Array.isArray(res.data) ? res.data : [];
+  } catch (error) {
+    logger.error('加载预算方案列表失败', error);
+  }
+};
+
 onMounted(() => {
   loadList();
+  fetchPlanList();
 });
 </script>
 

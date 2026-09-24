@@ -182,7 +182,7 @@ export interface CreateBudgetItemPayload {
   item_name: string;
   item_code?: string;
   item_type?: string;
-  plan_id?: number;
+  plan_id: number;
   budget_year?: number;
   planned_amount: number;
   periods?: BudgetItemPeriodInput[];
