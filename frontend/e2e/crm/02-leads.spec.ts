@@ -9,14 +9,16 @@ import { apiCall, genCode, tryCleanup } from '../flow/helpers';
  * 前置数据构造（方法一）：
  * 原 `if (await btn.isVisible())` 在无对应状态线索时零断言假绿。
  * 现按前端 leads/index.vue 的按钮渲染条件构造目标态线索，再按 lead_no 定位自身行操作。
- *   联系按钮 lead_status==='NEW'（:234）、转化 lead_status==='QUALIFIED'（:242）、
- *   丢失 lead_status!=='CONVERTED'（:250）。
- * 后端 crm_lead 词表（backend/src/models/status/bpm_crm_contract.rs:116）为小写
- *   new/converted/pool/lost，且无 contacted/qualified——与前端大写词表（NEW/CONTACTED/
- *   QUALIFIED/CONVERTED/LOST）不一致，属真缺陷（见 .monkeycode/doto.md）。后端 create 原样
- *   存 lead_status 字符串（services/crm/lead.rs），故此处按前端期望的大写值建单以驱动按钮渲染。
+ *   联系按钮 lead_status===LEAD_STATUS.NEW('new')（index.vue:221）、
+ *   转化按钮 lead_status===LEAD_STATUS.QUALIFIED('qualified')（index.vue:229）、
+ *   流失按钮 lead_status!==LEAD_STATUS.CONVERTED('converted')（index.vue:237）。
+ * 后端 crm_lead 词表（models/status/bpm_crm_contract.rs::crm_lead::ALL）为小写
+ *   new/contacted/qualified/assigned/converted/pool/lost；create_lead/update_lead_status 按此
+ *   校验取值（services/crm/lead.rs::ensure_valid_lead_status，非法值→400 VALIDATION_ERROR），
+ *   DB 侧另有 chk_crm_lead_lead_status CHECK。前端 LEAD_STATUS（utils/crm-status.ts）与之逐字一致。
+ *   故此处按后端权威小写码建单：既过入参校验与 DB CHECK，又能在前端小写门控下正确渲染目标按钮。
  * 成功提示文案（前端实际 toast）：联系=「标记已联系成功」、转化=「转化成功」、
- *   丢失=「标记已流失成功」（locales/zh-CN.ts crmLeads.message.*）。原用例误写「更新成功」，已修正为真实文案。
+ *   流失=「标记已流失成功」（locales/zh-CN.ts crmLeads.message.*）。
  */
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -86,13 +88,13 @@ test.describe('02 线索管理', () => {
     });
   });
 
-  test('02-03 线索可标记为已联系（NEW → CONTACTED）', async ({ page }) => {
-    // 方法一：建 NEW 线索 → 联系按钮渲染 → 定位自身行点击联系
-    const { leadNo } = await seedLead(page, 'NEW');
+  test('02-03 线索可标记为已联系（new → contacted）', async ({ page }) => {
+    // 方法一：建 new 线索 → 联系按钮渲染 → 定位自身行点击联系
+    const { leadNo } = await seedLead(page, 'new');
     await gotoLeads(page);
     const row = page.getByRole('row').filter({ hasText: leadNo });
     const contactBtn = row.getByText('联系', { exact: false }).first();
-    await expect(contactBtn, `定位 NEW 线索 ${leadNo} 的联系按钮失败`).toBeVisible({
+    await expect(contactBtn, `定位 new 线索 ${leadNo} 的联系按钮失败`).toBeVisible({
       timeout: 10000,
     });
     await contactBtn.click();
@@ -101,12 +103,12 @@ test.describe('02 线索管理', () => {
   });
 
   test('02-04 合格线索可转化为客户', async ({ page }) => {
-    // 方法一：建 QUALIFIED 线索 → 转化按钮渲染 → 定位自身行点击转化
-    const { leadNo } = await seedLead(page, 'QUALIFIED');
+    // 方法一：建 qualified 线索 → 转化按钮渲染 → 定位自身行点击转化
+    const { leadNo } = await seedLead(page, 'qualified');
     await gotoLeads(page);
     const row = page.getByRole('row').filter({ hasText: leadNo });
     const convertBtn = row.getByText('转化', { exact: false }).first();
-    await expect(convertBtn, `定位 QUALIFIED 线索 ${leadNo} 的转化按钮失败`).toBeVisible({
+    await expect(convertBtn, `定位 qualified 线索 ${leadNo} 的转化按钮失败`).toBeVisible({
       timeout: 10000,
     });
     await convertBtn.click();
@@ -115,8 +117,8 @@ test.describe('02 线索管理', () => {
   });
 
   test('02-05 线索可标记为丢失', async ({ page }) => {
-    // 方法一：建 NEW 线索（lead_status!=='CONVERTED'）→ 丢失按钮渲染 → 定位自身行点击丢失
-    const { leadNo } = await seedLead(page, 'NEW');
+    // 方法一：建 new 线索（lead_status!=='converted'）→ 流失按钮渲染 → 定位自身行点击流失
+    const { leadNo } = await seedLead(page, 'new');
     await gotoLeads(page);
     const row = page.getByRole('row').filter({ hasText: leadNo });
     // 行内按钮真实文案为「流失」（crmLeads.table.lost='流失'），非「丢失」

@@ -8,14 +8,17 @@ import { apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
 /**
  * 前置数据构造（方法一）：
  * 原 `if (await btn.isVisible())` 在无对应阶段商机时零断言假绿。
- * 按前端 opportunities/index.vue 按钮渲染条件建商机（阶段值存原样字符串）：
- *   跟进 stage!=='WON'&&!=='LOST'（:202）、赢单按钮 stage==='NEGOTIATION'（:210，按钮文案实为「成交」）、
- *   丢失 stage!=='WON'&&!=='LOST'（:218，按钮文案「流失」）。
- * 后端 crm_opportunity 词表（bpm_crm_contract.rs:132）只有大写 CLOSED_WON/CLOSED_LOST，
- * 无 INITIAL/REQUIREMENT/WON/LOST——与前端阶段词表（INITIAL/REQUIREMENT/PROPOSAL/NEGOTIATION/WON/LOST）
- * 不一致，属真缺陷（见 .monkeycode/doto.md）。
- * 真实 toast 文案（原用例误写「更新成功」）：赢单=「已标记为成交」（含「成交」）、
- *   输单=「已标记为流失」（含「流失」）、跟进保存=「保存成功」（locales/zh-CN.ts crmOpportunities.message.*）。
+ * 按前端 opportunities/index.vue 按钮渲染条件建商机，再按 opportunity_no 定位自身行操作：
+ *   跟进按钮 stage!==OPPORTUNITY_STAGE.CLOSED_WON && !==CLOSED_LOST（index.vue:193）、
+ *   成交(赢单)按钮 stage===OPPORTUNITY_STAGE.NEGOTIATION（index.vue:204，按钮文案「成交」）、
+ *   流失(输单)按钮 stage!==CLOSED_WON && !==CLOSED_LOST（index.vue:213，按钮文案「流失」）。
+ * 后端 crm_opportunity 阶段词表（models/status/bpm_crm_contract.rs::crm_opportunity::ALL_STAGES）
+ *   为大写 QUALIFICATION/NEEDS_ANALYSIS/PROPOSAL/NEGOTIATION/CLOSED_WON/CLOSED_LOST，
+ *   DB 侧有 chk_crm_opportunity_stage CHECK；状态词表 OPEN/CLOSED_WON/CLOSED_LOST（create 固定写 OPEN）。
+ *   前端 OPPORTUNITY_STAGE（utils/crm-status.ts）与之逐字一致。NEGOTIATION 本身即合法阶段，
+ *   用它建单既过 CHECK 又能驱动上述按钮，无需使用非法值。
+ * 真实 toast 文案（locales/zh-CN.ts crmOpportunities.message.*）：赢单含「成交」、输单含「流失」、
+ *   跟进保存成功提示含「跟进成功」。
  */
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
