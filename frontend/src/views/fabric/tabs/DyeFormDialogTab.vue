@@ -28,8 +28,8 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('fabric.dyeFormDialog.labelColor')" prop="color_name">
-            <el-input v-model="formData.color_name" />
+          <el-form-item :label="t('fabric.dyeFormDialog.labelColor')" prop="color_no">
+            <el-input v-model="formData.color_no" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -113,7 +113,7 @@ const submitLoading = ref(false);
 const formData = reactive({
   id: 0,
   batch_no: '',
-  color_name: '',
+  color_no: '',
   greige_fabric_id: undefined as number | undefined,
   planned_quantity: 0,
   actual_quantity: 0,
@@ -124,7 +124,7 @@ const formData = reactive({
 const resetForm = () => {
   formData.id = 0;
   formData.batch_no = '';
-  formData.color_name = '';
+  formData.color_no = '';
   formData.greige_fabric_id = undefined;
   formData.planned_quantity = 0;
   formData.actual_quantity = 0;

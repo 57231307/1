@@ -27,8 +27,8 @@
     >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="t('fabric.greigeFormDialog.labelCode')" prop="fabric_code">
-            <el-input v-model="formData.fabric_code" :disabled="!!formData.id" />
+          <el-form-item :label="t('fabric.greigeFormDialog.labelCode')" prop="fabric_no">
+            <el-input v-model="formData.fabric_no" :disabled="!!formData.id" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -102,7 +102,7 @@ const submitLoading = ref(false);
 
 const formData = reactive({
   id: 0,
-  fabric_code: '',
+  fabric_no: '',
   fabric_name: '',
   supplier_id: undefined as number | undefined,
   width: 0,
@@ -113,7 +113,7 @@ const formData = reactive({
 
 const resetForm = () => {
   formData.id = 0;
-  formData.fabric_code = '';
+  formData.fabric_no = '';
   formData.fabric_name = '';
   formData.supplier_id = undefined;
   formData.width = 0;
