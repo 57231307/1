@@ -23,12 +23,12 @@ pub struct Model {
     pub updated_at: DateTime<Utc>,
     // P0-5 新增字段
     pub max_quantity: Option<Decimal>,
-    pub customer_id: Option<i64>,
+    pub customer_id: Option<i32>,
     pub season: Option<String>,
     pub is_active: bool,
     pub priority: i32,
-    pub created_by: Option<i64>,
-    pub approved_by: Option<i64>,
+    pub created_by: Option<i32>,
+    pub approved_by: Option<i32>,
     pub approved_at: Option<DateTime<Utc>>,
     pub approval_status: String,
 }

@@ -18,9 +18,9 @@ pub struct Model {
     pub change_reason: Option<String>,
     pub change_percent: Option<Decimal>,
     pub quantity: Option<Decimal>,
-    pub operated_by: i64,
+    pub operated_by: i32,
     pub operated_at: DateTime<Utc>,
-    pub approved_by: Option<i64>,
+    pub approved_by: Option<i32>,
     pub approved_at: Option<DateTime<Utc>>,
 }
 

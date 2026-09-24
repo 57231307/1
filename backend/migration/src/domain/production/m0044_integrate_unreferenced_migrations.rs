@@ -739,7 +739,7 @@ ALTER TABLE "product_color_prices"
 
 -- 添加 customer_id 客户专属（NULL = 通用）
 ALTER TABLE "product_color_prices"
-    ADD COLUMN IF NOT EXISTS "customer_id" BIGINT REFERENCES "customers"("id");
+    ADD COLUMN IF NOT EXISTS "customer_id" INTEGER REFERENCES "customers"("id");
 
 -- 添加 season 季节标签
 ALTER TABLE "product_color_prices"
@@ -755,10 +755,10 @@ ALTER TABLE "product_color_prices"
 
 -- 添加创建人 / 审批人 / 审批时间
 ALTER TABLE "product_color_prices"
-    ADD COLUMN IF NOT EXISTS "created_by" BIGINT REFERENCES "users"("id");
+    ADD COLUMN IF NOT EXISTS "created_by" INTEGER REFERENCES "users"("id");
 
 ALTER TABLE "product_color_prices"
-    ADD COLUMN IF NOT EXISTS "approved_by" BIGINT REFERENCES "users"("id");
+    ADD COLUMN IF NOT EXISTS "approved_by" INTEGER REFERENCES "users"("id");
 
 ALTER TABLE "product_color_prices"
     ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
@@ -830,9 +830,9 @@ CREATE TABLE IF NOT EXISTS "color_price_history" (
     "change_reason" TEXT,
     "change_percent" DECIMAL(8,4),
     "quantity" DECIMAL(18,2),
-    "operated_by" BIGINT NOT NULL REFERENCES "users"("id"),
+    "operated_by" INTEGER NOT NULL REFERENCES "users"("id"),
     "operated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "approved_by" BIGINT REFERENCES "users"("id"),
+    "approved_by" INTEGER REFERENCES "users"("id"),
     "approved_at" TIMESTAMPTZ,
     "tenant_id" BIGINT NOT NULL,
     CONSTRAINT "chk_history_change_type" CHECK ("change_type" IN ('manual', 'batch', 'seasonal', 'customer_specific', 'tier'))
