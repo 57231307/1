@@ -104,7 +104,7 @@
             <!-- P3 维度 10 修复（批次 87）：编辑/复制/设默认/删除按钮补齐 v-permission -->
             <!-- v11 批次 169 P2-1 修复：row as any 改为 row as Bom -->
             <el-button
-              v-permission="'bom:update'"
+              v-permission="'boms:update'"
               type="primary"
               link
               size="small"
@@ -112,7 +112,7 @@
               >{{ $t('bomModule.table.edit') }}</el-button
             >
             <el-button
-              v-permission="'bom:create'"
+              v-permission="'boms:create'"
               type="primary"
               link
               size="small"
@@ -121,7 +121,7 @@
             >
             <el-button
               v-if="!row.is_default"
-              v-permission="'bom:update'"
+              v-permission="'boms:update'"
               type="success"
               link
               size="small"
@@ -151,7 +151,7 @@
               {{ $t('bomModule.table.versions') }}
             </el-button>
             <el-button
-              v-permission="'bom:delete'"
+              v-permission="'boms:delete'"
               type="danger"
               link
               size="small"
