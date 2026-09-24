@@ -12,6 +12,8 @@
 //! 通过 `crate::services::so::order::SalesService` 路径访问。
 
 use super::order::SalesService;
+// 赢单回写商机：状态/阶段必须与 CRM 权威词表逐字符一致（opp.rs 统计与门控按 CLOSED_WON 比对）
+use crate::models::status::crm_opportunity as opp_status;
 use crate::models::status::general::common;
 use crate::models::status::sales_order as so_status;
 use crate::models::{
@@ -512,7 +514,7 @@ impl SalesService {
         Ok(())
     }
 
-    /// 订单回写商机（actual_amount / actual_close_date / stage=closed_won）
+    /// 订单回写商机（actual_amount / actual_close_date / stage=CLOSED_WON / status=CLOSED_WON）
     async fn writeback_opportunity(
         &self,
         opportunity_id: Option<i32>,
@@ -532,8 +534,10 @@ impl SalesService {
         opp_active.actual_amount = sea_orm::ActiveValue::Set(Some(total_amount));
         opp_active.actual_close_date =
             sea_orm::ActiveValue::Set(Some(chrono::Utc::now().date_naive()));
-        opp_active.opportunity_stage = sea_orm::ActiveValue::Set(Some("closed_won".to_string()));
-        opp_active.opportunity_status = sea_orm::ActiveValue::Set(Some("won".to_string()));
+        opp_active.opportunity_stage =
+            sea_orm::ActiveValue::Set(Some(opp_status::CLOSED_WON.to_string()));
+        opp_active.opportunity_status =
+            sea_orm::ActiveValue::Set(Some(opp_status::CLOSED_WON.to_string()));
         opp_active.updated_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         opp_active.update(txn).await?;
         tracing::info!(
