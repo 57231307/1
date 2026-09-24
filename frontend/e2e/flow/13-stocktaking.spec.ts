@@ -140,7 +140,13 @@ test.describe('库存盘点完整流程', () => {
       `负例前置：盘点建单应返回 data.id，否则 record 请求打到 /undefined 会让拒绝断言假绿；实际响应：${JSON.stringify(result).slice(0, 200)}`
     ).toBeTruthy();
 
-    // 录入负数实盘数量（后端应拒绝）
+    // 负数实盘必须命中非负校验分支（record_count_items 的 is_sign_negative，
+    // inventory_count_service.rs:400-405 → AppError::validation → HTTP 400 /
+    // VALIDATION_ERROR）。但该校验位于 item_map.get(&stock_id) 之后（:395-397）：
+    // 若 stock_id 不在本次盘点明细里会先返回 not_found（HTTP 404 / NOT_FOUND），
+    // 根本走不到非负判断。建单用的是本行仓库（stockRow.warehouse_id），盘点的
+    // 明细正是该仓库下的库存行，故 stock_id 必须取 stockRow.id（与状态机用例
+    // :195 同法）才能命中真实修复分支；硬编码 id 会把 404 当成"拒绝"蒙过断言。
     const illegalRecord = await apiCallExpectFail(
       page,
       'POST',
@@ -148,20 +154,26 @@ test.describe('库存盘点完整流程', () => {
       {
         items: [
           {
-            stock_id: 1,
+            stock_id: Number(stockRow!.id),
             quantity_actual: '-100',
           },
         ],
       }
     );
-    // 拒绝判据：HTTP 状态码，或 utils/error.rs:143-148 直出的字符串机器码
-    // （error.rs:467 ValidationError / error.rs:468-469 BusinessError）
+    // 精确锚定非负校验：HTTP 400 + 机器码 VALIDATION_ERROR（error.rs:171/474），
+    // 排除 404 NOT_FOUND 或其它码混过。status 用 toBe 精确匹配而非 >=400，
+    // failureCode 用 toBe 精确命中 VALIDATION_ERROR（非负校验唯一出口）。
     const recordRejectCode = failureCode(illegalRecord);
     expect(
-      illegalRecord.status >= 400 ||
-        recordRejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
-        recordRejectCode === APP_ERROR_CODES.BUSINESS_ERROR
-    ).toBeTruthy();
+      illegalRecord.status,
+      `负数实盘应命中非负校验返回 HTTP 400，实际 status=${illegalRecord.status}、` +
+        `code=${recordRejectCode}、body=${JSON.stringify(illegalRecord).slice(0, 200)}`
+    ).toBe(400);
+    expect(
+      recordRejectCode,
+      `负数实盘应命中 VALIDATION_ERROR（非负校验分支），实际 code=${recordRejectCode}、` +
+        `status=${illegalRecord.status}——若是 NOT_FOUND 说明 stock_id 未在盘点明细内、走错分支`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
   });
 
   test('盘点状态机：已审批不能再次提交', async ({ page }) => {
