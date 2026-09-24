@@ -117,18 +117,20 @@ test.describe('表单校验真实 UI 交互', () => {
     await dialog.waitFor({ state: 'visible', timeout: 10_000 });
 
     // 输入借方金额（不输入贷方，制造借贷不平衡）。
-    // el-input-number 的 v-model 仅在 change（失焦/回车）时提交，单纯 fill() 只改 DOM 值
-    // 不驱动内部 currentValue → useVchrLst.ts:269 的 deep watch 不触发、total_debit 不重算、
-    // VoucherListForm.vue:109 的 |借-贷|>0.01 不平衡分支不命中，`.total-item .error` 永不出现。
-    // 用真实键盘逐字符输入（pressSequentially 逐键派发 keydown/input）填满当前值，再 Tab 失焦 +
-    // Enter 提交，强制触发 el-input-number 的 change → v-model 回灌 → 合计重算链。
+    // el-input-number 的 v-model 只在原生 change 事件提交（见 element-plus@2.14.4
+    // input-number setup：onInput→setCurrentValue(emitChange=false) 不 emit、
+    // onBlur→handleBlur 仅清 userInput 不提交，只有 onChange→handleInputChange
+    // → setCurrentValue→emit('update:modelValue')）。旧驱动 pressSequentially 逐键走
+    // handleInput、再 Tab/blur 走 handleBlur，全程未派发 change，值从未进 modelValue →
+    // useVchrLst.ts:269 entries deep watch 不触发 → calculateTotals 不重算 total_debit →
+    // VoucherListForm.vue:109 的 |借-贷|>0.01 分支不命中，`.total-item .error` 永不出现。
+    // 改为真实用户 fill 提交链：聚焦→fill 写入值→显式派发 change（等价真实失焦产生的
+    // 原生 change，经 ElInput @change 转发回 InputNumber），强制走 v-model 提交 →
+    // 合计重算 → 不平衡提示渲染。
     const debitInput = page.locator('.el-dialog .el-input-number input').first();
     await debitInput.click();
-    await debitInput.press('ControlOrMeta+a');
-    await debitInput.pressSequentially('1000', { delay: 30 });
-    await debitInput.press('Tab');
-    await debitInput.press('Enter');
-    await debitInput.blur();
+    await debitInput.fill('1000');
+    await debitInput.dispatchEvent('change');
     await page.waitForTimeout(500);
 
     // 借贷不平衡提示（VoucherListForm.vue:108-110 class="error"）仅在 |借-贷|>0.01 时渲染，
