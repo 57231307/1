@@ -7,6 +7,7 @@ import {
   genCode,
   getCtx,
   BASE_URL,
+  API_BASE,
   API_PREFIX,
   safeGet,
   safeGetList,
@@ -69,7 +70,45 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/credit`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/addresses`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/summary`);
-    await verifyEndpointHealthy(page, `/crm/customers/${customerId}/360`);
+    // 360 契约校验升级（假绿解封）：旧写法 verifyEndpointHealthy('/crm/customers/{id}/360')
+    // 只拦 5xx，对"200 但缺 tags/shipping_addresses 数组键"的信封盲区无感——而详情页
+    // detail.vue:221/:237 对 customer.shipping_addresses 取 .length，缺键运行期必崩。
+    // 现锁定 data 顶层契约：含 customer + tags(Array) + shipping_addresses(Array)，空为 []。
+    // 子资源对新客户确可能 404/403（尚未生成对应数据）→ 保留容忍但显式标注，绝不掩盖 2xx 缺键。
+    const r360 = await page.request.fetch(
+      `${API_BASE}${API_PREFIX}/crm/customers/${customerId}/360`,
+      {
+        method: 'GET',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-Token':
+            (await page.context().cookies()).find(c => c.name === 'csrf_token')?.value ?? '',
+        },
+      }
+    );
+    const st360 = r360.status();
+    if (st360 === 404 || st360 === 403) {
+      test.info().annotations.push({
+        type: '360-not-provisioned',
+        description: `/crm/customers/${customerId}/360 返回 ${st360}（客户无对应业务数据，容忍为健康）`,
+      });
+    } else {
+      expect(st360 < 500, `360 端点不得 5xx，实际 ${st360}`).toBeTruthy();
+      const env360 = (await r360.json()) as { code?: number; data?: Record<string, unknown> };
+      expect(env360.code, `360 信封应为成功码 200，实际 code=${env360.code}`).toBe(200);
+      const d360 = env360.data ?? {};
+      expect(d360.customer, '360 data 顶层应含 customer 对象').toBeTruthy();
+      expect(
+        Array.isArray(d360.tags),
+        `360 data.tags 应为数组（缺键使详情页崩溃），实际=${JSON.stringify(d360.tags)}`
+      ).toBe(true);
+      expect(
+        Array.isArray(d360.shipping_addresses),
+        `360 data.shipping_addresses 应为数组（detail.vue:237 取其 length），实际=${JSON.stringify(
+          d360.shipping_addresses
+        )}`
+      ).toBe(true);
+    }
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/follow-ups`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/rfm`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/audit-logs`);

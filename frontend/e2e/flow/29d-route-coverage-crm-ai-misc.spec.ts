@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, BASE_URL } from './helpers';
+import { loginViaUI, BASE_URL, API_BASE, API_PREFIX } from './helpers';
 
 test.describe('100% 前端路由 UI 交互全覆盖', () => {
   test.beforeEach(async ({ page }) => {
@@ -69,9 +69,50 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await verifyTable(page);
   });
   test('客户360 /crm/detail/:id', async ({ page }) => {
-    await visitPage(page, '/crm/detail/1');
-    const bodyOk = await page.locator('body').isVisible();
-    expect(bodyOk).toBe(true);
+    // 假绿解封（契约核查坐实）：detail.vue 对 customer.tags（:221/TagsPanelTab :33）与
+    // customer.shipping_addresses（:221/:237 对其取 .length）在 undefined 时运行期必崩，
+    // 旧断言仅 visitPage + body.isVisible() —— 崩了 body 仍可见，掩盖成伪全绿。
+    // 锁定 360 契约（data 顶层对象）：{customer, tags:[...], shipping_addresses:[...]}，空为 []。
+    //
+    // 先用真实存在的客户 id：不存在的 id 只会走 detail.vue:315 el-empty 分支（v-if="!customer"），
+    // 绕过崩溃路径 = 又一次假绿，故必须取真实客户。
+    const listResp = await page.request.get(
+      `${API_BASE}${API_PREFIX}/crm/customers?page=1&page_size=1`
+    );
+    expect(listResp.ok(), `客户列表请求失败，status=${listResp.status()}`).toBeTruthy();
+    const listJson = (await listResp.json()) as { data?: { items?: Array<{ id: number }> } };
+    const customerId = listJson?.data?.items?.[0]?.id;
+    expect(customerId, '库中无任何客户，无法验证 360 契约（前置缺失，非缺陷掩盖）').toBeTruthy();
+
+    // 契约层：GET /crm/customers/{id}/360 的 data 顶层必须含 customer 且 tags/shipping_addresses
+    // 均为数组（后端富化未做到位、缺任一数组键 → 详情页运行期崩溃，此处如实红）。
+    const r360 = await page.request.get(`${API_BASE}${API_PREFIX}/crm/customers/${customerId}/360`);
+    expect(r360.ok(), `360 端点应返回 2xx，实际 status=${r360.status()}`).toBeTruthy();
+    const env = (await r360.json()) as { code?: number; data?: Record<string, unknown> };
+    expect(env.code, `360 信封应返回成功码 200，实际 code=${env.code}`).toBe(200);
+    const data = env.data ?? {};
+    expect(data.customer, '360 data 顶层应含 customer 对象').toBeTruthy();
+    expect(
+      Array.isArray(data.tags),
+      `360 data.tags 应为数组（缺键会使详情页崩溃），实际=${JSON.stringify(data.tags)}`
+    ).toBe(true);
+    expect(
+      Array.isArray(data.shipping_addresses),
+      `360 data.shipping_addresses 应为数组（detail.vue:237 对其取 .length），实际=${JSON.stringify(
+        data.shipping_addresses
+      )}`
+    ).toBe(true);
+
+    // 渲染层：访问详情页，标签区容器与收货地址区块必须实际出现。
+    // 契约已满足但组件仍崩（如消费路径不符）时，这些容器永不提交 → waitFor 超时红。
+    await page.goto(`${BASE_URL}/crm/detail/${customerId}`);
+    await page.waitForTimeout(2000);
+    const tagsContainer = page.locator('.detail-content .tags-container').first();
+    await tagsContainer.waitFor({ state: 'visible', timeout: 15_000 });
+    expect(await tagsContainer.isVisible(), '标签区容器应实际渲染').toBe(true);
+    const addressList = page.locator('.detail-content .address-list').first();
+    await addressList.waitFor({ state: 'visible', timeout: 15_000 });
+    expect(await addressList.isVisible(), '收货地址区块应实际渲染').toBe(true);
   });
   test('客户信用 /customer-credit', async ({ page }) => {
     await visitPage(page, '/customer-credit');
