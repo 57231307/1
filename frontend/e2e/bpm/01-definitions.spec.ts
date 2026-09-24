@@ -54,35 +54,39 @@ test.describe('01 流程定义', () => {
   });
 
   test('01-01 进入流程定义页面', async ({ page }) => {
+    // 真实新建按钮文案为「新建流程」（src/views/bpm/definitions.vue:13 → i18n bpm.definitions.create='新建流程'），
+    // 非臆测的「新增」
     await page.goto('/bpm/definitions');
     await expect(page.getByRole('heading', { name: '流程定义' })).toBeVisible({ timeout: 30000 });
-    await expect(page.getByRole('button', { name: /新增/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: '新建流程' })).toBeVisible();
   });
 
   test('01-02 创建新流程定义', async ({ page }) => {
     await page.goto('/bpm/definitions');
-    await page.getByRole('button', { name: /新增/ }).click();
+    await page.getByRole('button', { name: '新建流程' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/流程标识/).fill(`e2e-${Date.now()}`);
-    await page.getByLabel(/流程名称/).fill('E2E 测试流程');
-    await page.getByLabel(/分类/).click();
+    // 弹窗内表单字段与背后筛选栏存在同名 label（「流程名称」「分类」），
+    // 全部限定在 .el-dialog 作用域内，避免 getByLabel strict-mode 命中多元素。
+    // 提交按钮真实文案为「确定」（bpm.definitions.form.confirm），非「确认/提交」。
+    const dlg = page.locator('.el-dialog');
+    await dlg.getByLabel('流程标识').fill(`e2e-${Date.now()}`);
+    await dlg.getByLabel('流程名称').fill('E2E 测试流程');
+    await dlg.getByLabel('分类').click();
     await page.getByRole('option').first().click();
-    await page.getByLabel(/描述/).fill('E2E 测试流程定义');
-    await page
-      .getByRole('button', { name: /确认|提交/ })
-      .last()
-      .click();
+    await dlg.getByLabel('描述').fill('E2E 测试流程定义');
+    await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({
       timeout: 30000,
     });
   });
 
   test('01-03 流程定义筛选功能可用', async ({ page }) => {
+    // 筛选栏真实 label 为「流程名称」（bpm.definitions.filter.processName），并不存在「关键词」字段
     await page.goto('/bpm/definitions');
-    await page.getByLabel(/关键词/).fill('E2E');
-    await page.getByRole('button', { name: /查询/ }).click();
+    await page.getByLabel('流程名称').fill('E2E');
+    await page.getByRole('button', { name: '查询' }).click();
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
-    await page.getByRole('button', { name: /重置/ }).click();
+    await page.getByRole('button', { name: '重置' }).click();
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 

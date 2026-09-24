@@ -30,15 +30,18 @@ test.describe('02 审批中心', () => {
   });
 
   test('02-01 进入审批中心页面', async ({ page }) => {
+    // 真实 tab 文案为「待审批」/「已审批」（src/views/bpm/approval/index.vue:105-106 →
+    // i18n bpm.approval.tab.pending='待审批'、completed='已审批'），非臆测的「待办」/「已办」。
+    // 二者互不为子串（待审批 vs 已审批），按名精确匹配各命中 1 个 tab。
     await page.goto('/bpm/approval');
     await expect(page.getByRole('heading', { name: '审批中心' })).toBeVisible({ timeout: 30000 });
-    await expect(page.getByRole('tab', { name: /待办/ })).toBeVisible();
-    await expect(page.getByRole('tab', { name: /已办/ })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '待审批' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '已审批' })).toBeVisible();
   });
 
   test('02-02 待办任务可审批同意', async ({ page }) => {
     await page.goto('/bpm/approval');
-    await page.getByRole('tab', { name: /待办/ }).click();
+    await page.getByRole('tab', { name: '待审批' }).click();
     const approveBtn = page.getByRole('button', { name: /同意|审批/ }).first();
     await expect(
       await approveBtn.isVisible(),
@@ -48,13 +51,13 @@ test.describe('02 审批中心', () => {
     await approveBtn.click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 3000 });
     await page.getByLabel(/审批意见/).fill('E2E 测试：审批同意');
-    await page.getByRole('button', { name: /确认/ }).click();
+    await page.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText(/审批通过/)).toBeVisible({ timeout: 30000 });
   });
 
   test('02-03 待办任务可审批拒绝', async ({ page }) => {
     await page.goto('/bpm/approval');
-    await page.getByRole('tab', { name: /待办/ }).click();
+    await page.getByRole('tab', { name: '待审批' }).click();
     const rejectBtn = page.getByRole('button', { name: /拒绝/ }).first();
     await expect(
       await rejectBtn.isVisible(),
@@ -62,13 +65,13 @@ test.describe('02 审批中心', () => {
     ).toBe(true);
     await rejectBtn.click();
     await page.getByLabel(/审批意见/).fill('E2E 测试：审批拒绝');
-    await page.getByRole('button', { name: /确认/ }).click();
+    await page.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText(/审批拒绝/)).toBeVisible({ timeout: 30000 });
   });
 
   test('02-04 已办任务可追溯审批链', async ({ page }) => {
     await page.goto('/bpm/approval');
-    await page.getByRole('tab', { name: /已办/ }).click();
+    await page.getByRole('tab', { name: '已审批' }).click();
     const chainBtn = page.getByRole('button', { name: /审批链/ }).first();
     await expect(
       await chainBtn.isVisible(),
