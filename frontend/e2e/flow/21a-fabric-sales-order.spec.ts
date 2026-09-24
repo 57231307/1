@@ -204,10 +204,35 @@ test.describe('面料单据专用字段全链路验证', () => {
     await colorHeader.first().waitFor({ state: 'visible', timeout: 5_000 });
     expect(await colorHeader.first().isVisible()).toBe(true);
 
-    // 客户（基本信息区第一个下拉）
-    await dialog.locator('.el-select:has(input[placeholder="选择客户"])').first().click();
-    await page.locator('.el-select-dropdown__item:visible').first().click();
-    console.log('[21a] 已选客户');
+    // 客户下拉：OrderFormDialog.vue:25-38 是非 filterable 的 <el-select>，
+    // Element Plus 2.14 下占位符以 .el-select__placeholder 文本节点渲染、内层 input 为
+    // readonly 且不带 placeholder 属性 → 旧选择器 :has(input[placeholder="选择客户"]) 恒不命中
+    // （30s 超时）。改按 form-item label「客户」精确锚定该 select（OrderFormDialog 基本信息区
+    // 唯一含「客户」的 el-form-item），再打开下拉选首个选项；下拉无选项=前置客户数据缺失，
+    // 属真实环境缺陷，须失败暴露（不放宽为恒真）。
+    const customerFormItem = dialog
+      .locator('.el-form-item')
+      .filter({ has: page.locator('.el-form-item__label', { hasText: '客户' }) })
+      .first();
+    const customerSelect = customerFormItem.locator('.el-select').first();
+    await customerSelect.click();
+    const customerDropdown = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
+    const customerCount = await customerDropdown.count();
+    expect(customerCount, '[21a] 客户下拉无选项（前置客户数据缺失）').toBeGreaterThan(0);
+    const chosenCustomer = ((await customerDropdown.first().textContent()) ?? '').trim();
+    expect(chosenCustomer, '[21a] 客户下拉首项文本为空').toBeTruthy();
+    await customerDropdown.first().click();
+    // 选中后校验下拉回显所选项（EP 2.14 单选回显渲染在 .el-select__wrapper）
+    await expect
+      .poll(
+        async () =>
+          (
+            (await customerSelect.locator('.el-select__wrapper').first().textContent()) ?? ''
+          ).trim(),
+        { message: '[21a] 选中客户后下拉未回显所选项', timeout: 5000 }
+      )
+      .toContain(chosenCustomer);
+    console.log(`[21a] 已选客户=${chosenCustomer}`);
 
     // 要求交货日期（第二个日期选择器）：填未来日期（后端拒收过去日期）
     const pad = (n: number) => String(n).padStart(2, '0');
