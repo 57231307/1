@@ -26,6 +26,7 @@ use rust_decimal::Decimal;
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct VoucherQuery {
+    pub voucher_no: Option<String>,
     pub voucher_type: Option<String>,
     pub status: Option<String>,
     pub start_date: Option<String>,
@@ -185,6 +186,7 @@ pub async fn list_vouchers(
 
     let service = VoucherService::new(state.db.clone());
     let query_params = VoucherQueryParams {
+        voucher_no: params.voucher_no,
         voucher_type: params.voucher_type,
         status: params.status,
         start_date: params.start_date.and_then(|d| d.parse().ok()),
@@ -512,6 +514,7 @@ pub async fn export_vouchers(
 
     let service = VoucherService::new(state.db.clone());
     let query_params = VoucherQueryParams {
+        voucher_no: params.voucher_no,
         voucher_type: params.voucher_type,
         status: params.status,
         start_date: params.start_date.and_then(|d| d.parse().ok()),

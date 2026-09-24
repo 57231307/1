@@ -85,6 +85,7 @@ pub struct UpdateVoucherRequest {
 /// 凭证查询参数
 #[derive(Debug, Clone)]
 pub struct VoucherQueryParams {
+    pub voucher_no: Option<String>,
     pub voucher_type: Option<String>,
     pub status: Option<String>,
     pub start_date: Option<chrono::NaiveDate>,

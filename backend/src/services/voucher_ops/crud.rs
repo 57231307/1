@@ -308,6 +308,12 @@ impl VoucherService {
 
         let mut query = voucher::Entity::find();
 
+        if let Some(voucher_no) = &params.voucher_no {
+            if !voucher_no.is_empty() {
+                query = query.filter(voucher::Column::VoucherNo.contains(voucher_no));
+            }
+        }
+
         if let Some(voucher_type) = params.voucher_type {
             query = query.filter(voucher::Column::VoucherType.eq(voucher_type));
         }
