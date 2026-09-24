@@ -121,7 +121,8 @@ export interface FollowUpRecord {
   created_at: string;
 }
 
-export interface Customer360 {
+/** 客户实体（从 360 视图 data.customer 字段取得） */
+export interface CustomerEntity {
   id: number;
   customer_code: string;
   customer_name: string;
@@ -136,27 +137,47 @@ export interface Customer360 {
   bank_account: string;
   credit_limit: number;
   owner_name: string;
-  tags: CustomerTag[];
-  contacts: Contact[];
-  shipping_addresses: ShippingAddress[];
-  follow_ups: FollowUpRecord[];
-  rfm_score: RfmScore;
   total_orders: number;
   total_amount: number;
   last_order_date: string;
   created_at: string;
 }
 
+/** 360 视图 summary 载荷（包含聚合统计与 RFM 评分） */
+export interface Customer360Summary {
+  rfm_score: RfmScore;
+  [key: string]: unknown;
+}
+
+/**
+ * GET /crm/customers/{id}/360 的 data 载荷（后端锁定契约）。
+ * tags/shipping_addresses 在顶层（非嵌套于 customer）。
+ */
+export interface Customer360Data {
+  customer: CustomerEntity;
+  summary: Customer360Summary;
+  opportunities: unknown[];
+  leads: unknown[];
+  recent_orders: unknown[];
+  tags: CustomerTag[];
+  shipping_addresses: ShippingAddress[];
+}
+
+/** @deprecated 使用 Customer360Data 替代（保留向后兼容引用） */
+export type Customer360 = Customer360Data;
+
 export interface ShippingAddress {
   id: number;
   customer_id: number;
-  name: string;
-  phone: string;
+  contact_name: string;
+  contact_phone: string;
   province: string;
   city: string;
   district: string;
-  detail: string;
+  address: string;
+  postal_code: string;
   is_default: boolean;
+  remark: string;
 }
 
 /**
@@ -235,8 +256,6 @@ export interface CustomerPage {
 
 // 客户详情
 // D14 Batch 5b：原 crmEnhancedApi.getCustomerDetail 转为风格 B 函数
-export const getCustomerDetail = (id: number) =>
-  request.get<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`);
 
 // 创建客户
 // D14 Batch 5b：原 crmEnhancedApi.createCustomer 转为风格 B 函数
@@ -250,7 +269,7 @@ export const getCustomerDetail = (id: number) =>
 // 客户 360 视图
 // D14 Batch 5b：原 crmEnhancedApi.getCustomer360 转为风格 B 函数
 export const getCustomer360 = (id: number) =>
-  request.get<ApiResponse<Customer360>>(`/crm/customers/${id}/360`);
+  request.get<ApiResponse<Customer360Data>>(`/crm/customers/${id}/360`);
 
 // 标签管理（后端 routes/crm.rs crm_tags()，nest 前缀 /api/v1/erp/crm + /tags）
 // D14 Batch 5b：原 crmEnhancedApi.getTags 转为风格 B 函数
