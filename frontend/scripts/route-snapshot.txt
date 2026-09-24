@@ -1,4 +1,4 @@
-# layers=8 endpoints=1736
+# layers=8 endpoints=1737
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -250,6 +250,7 @@ GET	/api/v1/erp/boms	bom_handler::list_boms	catalog
 GET	/api/v1/erp/boms/*	bom_handler::get_bom	catalog
 GET	/api/v1/erp/boms/*/print	crate::handlers::print_handler::bom_print_docx	catalog
 GET	/api/v1/erp/boms/*/tree	bom_handler::get_bom_tree	catalog
+GET	/api/v1/erp/boms/export	bom_handler::export_boms	catalog
 GET	/api/v1/erp/boms/versions/*	bom_handler::get_bom_versions	catalog
 GET	/api/v1/erp/bpm/business-relation	bpm_handler::get_business_relation	system
 GET	/api/v1/erp/bpm/definitions	bpm_definition_handler::list_process_definitions	system
