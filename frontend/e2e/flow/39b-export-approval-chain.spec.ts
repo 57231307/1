@@ -56,10 +56,17 @@ async function createApprovalAsManager(page: import('@playwright/test').Page): P
   });
   const body = (await resp.json().catch(() => null)) as { data?: ApprovalModel } | null;
   const id = body?.data?.id;
+  // 原 `expect(resp.ok() && id).toBe(true)`：`&&` 短路会把数字 id（1、2…）当返回值喂给
+  // toBe(true) 恒假（id 非布尔），功能其实正常（后端 code:200 且 data.id 有值）。
+  // 拆成两条清晰断言，如实反映"HTTP 成功"且"返回有效正整数 id"，不掩盖任何真实失败。
   expect(
-    resp.ok() && id,
-    `manager 创建导出审批申请失败 status=${resp.status()} body=${JSON.stringify(body).slice(0, 200)}`
+    resp.ok(),
+    `manager 创建导出审批申请 HTTP 非 2xx：status=${resp.status()} body=${JSON.stringify(body).slice(0, 200)}`
   ).toBe(true);
+  expect(
+    id,
+    `manager 创建导出审批申请成功但响应体缺少有效 data.id：body=${JSON.stringify(body).slice(0, 200)}`
+  ).toBeGreaterThan(0);
   console.log(`[39b] manager 已创建 customer 导出审批申请 id=${id}`);
   return id as number;
 }
