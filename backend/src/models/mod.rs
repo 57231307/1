@@ -243,6 +243,8 @@ pub mod opportunity_competitor;
 pub mod opportunity_follow_up;
 // 批次 122 v8 复审 P1 修复：CRM 标签字典表（替代 list_tags 硬编码 + create_tag/delete_tag 假实现）
 pub mod crm_tag;
+// 客户-标签多对多关联表（customer_tag）：承载客户 360 顶层 tags 与 /customers/{id}/tags 端点
+pub mod customer_tag;
 // V15 P2 18.1-D4: 线索来源 ROI 跟踪
 pub mod lead_source_roi;
 // V15 P2 18.1-D5: 线索分配规则

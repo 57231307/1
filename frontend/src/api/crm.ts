@@ -1,5 +1,6 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+import type { LeadStatus, OpportunityStage } from '@/utils/crm-status';
 
 export interface Lead {
   id: number;
@@ -25,7 +26,7 @@ export interface Lead {
   email: string;
   company: string;
   source: string;
-  status: 'new' | 'contacted' | 'qualified' | 'proposal' | 'converted' | 'lost';
+  status: LeadStatus;
   rating: number;
   address: string;
   description: string;
@@ -64,17 +65,9 @@ export interface Opportunity {
   customer_id: number;
   customer_name: string;
   /** 商机阶段（后端字段名，大写值：QUALIFICATION/NEEDS_ANALYSIS/PROPOSAL/NEGOTIATION/CLOSED_WON/CLOSED_LOST） */
-  opportunity_stage?:
-    'QUALIFICATION' | 'NEEDS_ANALYSIS' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
+  opportunity_stage?: OpportunityStage;
   /** @deprecated 向后兼容字段，新代码应使用 opportunity_stage */
-  stage?:
-    | 'qualification'
-    | 'needs_analysis'
-    | 'value_proposition'
-    | 'proposal'
-    | 'negotiation'
-    | 'closed_won'
-    | 'closed_lost';
+  stage?: OpportunityStage;
   estimated_amount: number;
   probability: number;
   expected_close_date: string;
@@ -129,7 +122,7 @@ export function deleteLead(id: number): Promise<ApiResponse<void>> {
 
 export function updateLeadStatus(
   id: number,
-  data: { status: Lead['status'] }
+  data: { status: LeadStatus }
 ): Promise<ApiResponse<void>> {
   return request.put(`/crm/leads/${id}/status`, data);
 }

@@ -74,11 +74,21 @@
             clearable
             @change="handleQuery"
           >
-            <el-option :label="$t('crmLeads.leadStatus.new')" value="NEW" />
-            <el-option :label="$t('crmLeads.leadStatus.contacted')" value="CONTACTED" />
-            <el-option :label="$t('crmLeads.leadStatus.qualified')" value="QUALIFIED" />
-            <el-option :label="$t('crmLeads.leadStatus.converted')" value="CONVERTED" />
-            <el-option :label="$t('crmLeads.leadStatus.lost')" value="LOST" />
+            <el-option :label="$t('crmLeads.leadStatus.new')" :value="LEAD_STATUS.NEW" />
+            <el-option
+              :label="$t('crmLeads.leadStatus.contacted')"
+              :value="LEAD_STATUS.CONTACTED"
+            />
+            <el-option
+              :label="$t('crmLeads.leadStatus.qualified')"
+              :value="LEAD_STATUS.QUALIFIED"
+            />
+            <el-option
+              :label="$t('crmLeads.leadStatus.converted')"
+              :value="LEAD_STATUS.CONVERTED"
+            />
+            <el-option :label="$t('crmLeads.leadStatus.lost')" :value="LEAD_STATUS.LOST" />
+            <el-option :label="$t('crmLeads.leadStatus.pool')" :value="LEAD_STATUS.POOL" />
           </el-select>
         </el-form-item>
         <!-- 后端 LeadQuery（crm_dto.rs:72）不读 owner_id / priority：原"负责人/优先级"筛选控件为假筛选，已移除 -->
@@ -199,7 +209,7 @@
             }}</el-button>
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
-              v-if="row.lead_status !== 'CONVERTED'"
+              v-if="row.lead_status !== LEAD_STATUS.CONVERTED"
               v-permission="'crm_lead:update'"
               type="primary"
               link
@@ -208,7 +218,7 @@
               >{{ $t('crmLeads.table.edit') }}</el-button
             >
             <el-button
-              v-if="row.lead_status === 'NEW'"
+              v-if="row.lead_status === LEAD_STATUS.NEW"
               type="warning"
               link
               size="small"
@@ -216,7 +226,7 @@
               >{{ $t('crmLeads.table.contact') }}</el-button
             >
             <el-button
-              v-if="row.lead_status === 'QUALIFIED'"
+              v-if="row.lead_status === LEAD_STATUS.QUALIFIED"
               type="success"
               link
               size="small"
@@ -224,7 +234,7 @@
               >{{ $t('crmLeads.table.convert') }}</el-button
             >
             <el-button
-              v-if="row.lead_status !== 'CONVERTED'"
+              v-if="row.lead_status !== LEAD_STATUS.CONVERTED"
               type="danger"
               link
               size="small"
@@ -232,7 +242,7 @@
               >{{ $t('crmLeads.table.lost') }}</el-button
             >
             <el-button
-              v-if="row.lead_status !== 'CONVERTED'"
+              v-if="row.lead_status !== LEAD_STATUS.CONVERTED"
               type="warning"
               link
               size="small"
@@ -284,6 +294,7 @@ import {
 import { getUserList, type User } from '@/api/user';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
+import { LEAD_STATUS, leadStatusLabelKey, leadStatusTagType } from '@/utils/crm-status';
 import LeadFormTab from './tabs/LeadFormTab.vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -578,25 +589,11 @@ const getSourceLabel = (source: string) => {
 };
 
 const getStatusType = (status: string) => {
-  const typeMap: Record<string, string> = {
-    NEW: 'info',
-    CONTACTED: 'warning',
-    QUALIFIED: 'primary',
-    CONVERTED: 'success',
-    LOST: 'danger',
-  };
-  return typeMap[status] || 'info';
+  return leadStatusTagType(status);
 };
 
 const getStatusLabel = (status: string) => {
-  const labelMap: Record<string, string> = {
-    NEW: t('crmLeads.leadStatus.new'),
-    CONTACTED: t('crmLeads.leadStatus.contacted'),
-    QUALIFIED: t('crmLeads.leadStatus.qualified'),
-    CONVERTED: t('crmLeads.leadStatus.converted'),
-    LOST: t('crmLeads.leadStatus.lost'),
-  };
-  return labelMap[status] || status;
+  return t(leadStatusLabelKey(status));
 };
 
 const getPriorityType = (priority: string) => {

@@ -3941,6 +3941,7 @@ export default {
       qualified: '已合格',
       converted: '已转化',
       lost: '已流失',
+      pool: '公海池',
     },
     priority: {
       low: '低',
@@ -6425,6 +6426,14 @@ export default {
       toOrder: '转订单',
       analytics: '分析',
     },
+    stageLabels: {
+      QUALIFICATION: '初步接触',
+      NEEDS_ANALYSIS: '需求确认',
+      PROPOSAL: '方案报价',
+      NEGOTIATION: '商务谈判',
+      CLOSED_WON: '赢单',
+      CLOSED_LOST: '输单',
+    },
     priority: {
       low: '低',
       medium: '中',
@@ -6540,6 +6549,8 @@ export default {
     stageOption: {
       initial: '初步接触',
       requirement: '需求确认',
+      qualification: '初步接触',
+      needs_analysis: '需求确认',
       proposal: '方案报价',
       negotiation: '谈判',
     },

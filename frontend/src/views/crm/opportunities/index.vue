@@ -47,12 +47,30 @@
             @change="handleQuery"
           >
             <!-- 选项值对齐后端真实阶段常量（QUALIFICATION/NEEDS_ANALYSIS/.../CLOSED_WON/CLOSED_LOST） -->
-            <el-option :label="t('crmOpportunities.stage.initial')" value="QUALIFICATION" />
-            <el-option :label="t('crmOpportunities.stage.requirement')" value="NEEDS_ANALYSIS" />
-            <el-option :label="t('crmOpportunities.stage.proposal')" value="PROPOSAL" />
-            <el-option :label="t('crmOpportunities.stage.negotiation')" value="NEGOTIATION" />
-            <el-option :label="t('crmOpportunities.stage.won')" value="CLOSED_WON" />
-            <el-option :label="t('crmOpportunities.stage.lost')" value="CLOSED_LOST" />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.QUALIFICATION')"
+              :value="OPPORTUNITY_STAGE.QUALIFICATION"
+            />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.NEEDS_ANALYSIS')"
+              :value="OPPORTUNITY_STAGE.NEEDS_ANALYSIS"
+            />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.PROPOSAL')"
+              :value="OPPORTUNITY_STAGE.PROPOSAL"
+            />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.NEGOTIATION')"
+              :value="OPPORTUNITY_STAGE.NEGOTIATION"
+            />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.CLOSED_WON')"
+              :value="OPPORTUNITY_STAGE.CLOSED_WON"
+            />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.CLOSED_LOST')"
+              :value="OPPORTUNITY_STAGE.CLOSED_LOST"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -160,7 +178,10 @@
             }}</el-button>
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
-              v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
+              v-if="
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_WON &&
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_LOST
+              "
               v-permission="'crm_opportunity:update'"
               type="primary"
               link
@@ -169,7 +190,10 @@
               >{{ t('crmOpportunities.table.edit') }}</el-button
             >
             <el-button
-              v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
+              v-if="
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_WON &&
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_LOST
+              "
               type="warning"
               link
               size="small"
@@ -177,7 +201,7 @@
               >{{ t('crmOpportunities.table.follow') }}</el-button
             >
             <el-button
-              v-if="row.opportunity_stage === 'NEGOTIATION'"
+              v-if="row.opportunity_stage === OPPORTUNITY_STAGE.NEGOTIATION"
               type="success"
               link
               size="small"
@@ -185,7 +209,10 @@
               >{{ t('crmOpportunities.table.win') }}</el-button
             >
             <el-button
-              v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
+              v-if="
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_WON &&
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_LOST
+              "
               type="danger"
               link
               size="small"
@@ -193,7 +220,7 @@
               >{{ t('crmOpportunities.table.lost') }}</el-button
             >
             <el-button
-              v-if="row.opportunity_stage === 'WON'"
+              v-if="row.opportunity_stage === OPPORTUNITY_STAGE.CLOSED_WON"
               type="success"
               link
               size="small"
@@ -321,6 +348,11 @@ import { formatCurrency } from '@/utils';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
+import {
+  OPPORTUNITY_STAGE,
+  opportunityStageLabelKey,
+  opportunityStageTagType,
+} from '@/utils/crm-status';
 import OpportunityFormTab from './tabs/OpportunityFormTab.vue';
 import OpportunityFollowTab from './tabs/OpportunityFollowTab.vue';
 
@@ -574,27 +606,11 @@ const handleCurrentChange = (val: number) => {
 };
 
 const getStageType = (stage: string) => {
-  const typeMap: Record<string, string> = {
-    INITIAL: 'info',
-    REQUIREMENT: '',
-    PROPOSAL: 'warning',
-    NEGOTIATION: 'primary',
-    WON: 'success',
-    LOST: 'danger',
-  };
-  return typeMap[stage] || 'info';
+  return opportunityStageTagType(stage);
 };
 
 const getStageLabel = (stage: string) => {
-  const labelMap: Record<string, string> = {
-    INITIAL: t('crmOpportunities.stage.initial'),
-    REQUIREMENT: t('crmOpportunities.stage.requirement'),
-    PROPOSAL: t('crmOpportunities.stage.proposal'),
-    NEGOTIATION: t('crmOpportunities.stage.negotiation'),
-    WON: t('crmOpportunities.stage.won'),
-    LOST: t('crmOpportunities.stage.lost'),
-  };
-  return labelMap[stage] || stage;
+  return t(opportunityStageLabelKey(stage));
 };
 
 onMounted(() => {

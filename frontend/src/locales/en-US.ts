@@ -3970,6 +3970,7 @@ export default {
       qualified: 'Qualified',
       converted: 'Converted',
       lost: 'Lost',
+      pool: 'Pool',
       score: 'Score',
     },
     priority: {
@@ -6456,6 +6457,14 @@ export default {
       toOrder: 'To Order',
       analytics: 'Analytics',
     },
+    stageLabels: {
+      QUALIFICATION: 'Qualification',
+      NEEDS_ANALYSIS: 'Needs Analysis',
+      PROPOSAL: 'Proposal',
+      NEGOTIATION: 'Negotiation',
+      CLOSED_WON: 'Closed Won',
+      CLOSED_LOST: 'Closed Lost',
+    },
     priority: {
       low: 'Low',
       medium: 'Medium',
@@ -6571,6 +6580,8 @@ export default {
     stageOption: {
       initial: 'Initial Contact',
       requirement: 'Requirements Confirmed',
+      qualification: 'Qualification',
+      needs_analysis: 'Needs Analysis',
       proposal: 'Proposal & Quote',
       negotiation: 'Negotiation',
     },

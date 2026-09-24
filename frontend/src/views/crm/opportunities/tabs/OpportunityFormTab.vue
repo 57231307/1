@@ -68,15 +68,21 @@
               v-model="formData.opportunity_stage"
               :placeholder="t('crmOpportunityForm.opportunityStagePlaceholder')"
             >
-              <el-option :label="t('crmOpportunityForm.stageOption.initial')" value="INITIAL" />
               <el-option
-                :label="t('crmOpportunityForm.stageOption.requirement')"
-                value="REQUIREMENT"
+                :label="t('crmOpportunityForm.stageOption.qualification')"
+                :value="OPPORTUNITY_STAGE.QUALIFICATION"
               />
-              <el-option :label="t('crmOpportunityForm.stageOption.proposal')" value="PROPOSAL" />
+              <el-option
+                :label="t('crmOpportunityForm.stageOption.needs_analysis')"
+                :value="OPPORTUNITY_STAGE.NEEDS_ANALYSIS"
+              />
+              <el-option
+                :label="t('crmOpportunityForm.stageOption.proposal')"
+                :value="OPPORTUNITY_STAGE.PROPOSAL"
+              />
               <el-option
                 :label="t('crmOpportunityForm.stageOption.negotiation')"
-                value="NEGOTIATION"
+                :value="OPPORTUNITY_STAGE.NEGOTIATION"
               />
             </el-select>
           </el-form-item>
@@ -160,6 +166,7 @@ import type { Opportunity } from '@/api/crm';
 import { createOpportunity, updateOpportunity } from '@/api/crm';
 import type { User } from '@/api/user';
 import type { Customer } from '@/api/customer';
+import { OPPORTUNITY_STAGE } from '@/utils/crm-status';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
