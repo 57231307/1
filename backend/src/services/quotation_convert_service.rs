@@ -122,7 +122,7 @@ impl QuotationConvertService {
         let new_order = OrderActive {
             id: Default::default(),
             order_no: Set(order_no),
-            customer_id: Set(quotation.customer_id),
+            customer_id: Set(quotation.customer_id as i32),
             opportunity_id: Set(None),
             order_date: Set(now),
             required_date: Set(Utc::now() + chrono::Duration::days(30)),

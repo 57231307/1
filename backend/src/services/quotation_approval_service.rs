@@ -158,7 +158,7 @@ impl QuotationApprovalService {
 
         let mut active: QuotationActive = quotation.into();
         active.status = Set(quotation_status::APPROVED.to_string());
-        active.approved_by = Set(Some(user_id));
+        active.approved_by = Set(Some(user_id as i64));
         active.approved_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
 
@@ -270,7 +270,7 @@ impl QuotationApprovalService {
     ) -> QuotationActive {
         let mut active: QuotationActive = quotation.into();
         active.status = Set(quotation_status::APPROVED.to_string());
-        active.approved_by = Set(Some(approver_id));
+        active.approved_by = Set(Some(approver_id as i64));
         active.approved_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
         active
@@ -387,7 +387,7 @@ impl QuotationApprovalService {
             .await?;
         let mut active: QuotationActive = quotation.into();
         active.status = Set(quotation_status::REJECTED.to_string());
-        active.approved_by = Set(Some(approver_id));
+        active.approved_by = Set(Some(approver_id as i64));
         active.rejection_reason = Set(Some(reason.to_string()));
         active.updated_at = Set(Utc::now());
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(

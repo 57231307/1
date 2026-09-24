@@ -231,8 +231,8 @@ impl QuotationService {
             return Ok(());
         }
 
-        // customers.id / users.id 均为 SERIAL(i32)；sales_user_id 仍为报价单侧 i64，按边界转换查 users(i32)。
-        let customer_ids: Vec<i32> = dtos.iter().map(|d| d.customer_id).collect();
+        // customers.id / users.id 均为 SERIAL(i32)；报价单侧 customer_id / sales_user_id / approved_by 为 BIGINT(i64)，按边界转换查关联表。
+        let customer_ids: Vec<i32> = dtos.iter().map(|d| d.customer_id as i32).collect();
         let name_map: HashMap<i32, String> = customer::Entity::find()
             .filter(customer::Column::Id.is_in(customer_ids))
             .all(&*self.db)
@@ -243,7 +243,10 @@ impl QuotationService {
 
         // 业务员与审批人同属 users 表，合并去重后一次查询
         let mut user_ids: Vec<i32> = dtos.iter().map(|d| d.sales_user_id as i32).collect();
-        user_ids.extend(dtos.iter().filter_map(|d| d.approved_by));
+        user_ids.extend(
+            dtos.iter()
+                .filter_map(|d| d.approved_by.map(|id| id as i32)),
+        );
         user_ids.sort_unstable();
         user_ids.dedup();
         let user_map: HashMap<i32, Option<String>> = user::Entity::find()
@@ -255,13 +258,13 @@ impl QuotationService {
             .collect();
 
         for dto in dtos.iter_mut() {
-            dto.customer_name = name_map.get(&dto.customer_id).cloned();
+            dto.customer_name = name_map.get(&(dto.customer_id as i32)).cloned();
             dto.sales_user_name = user_map
                 .get(&(dto.sales_user_id as i32))
                 .and_then(|n| n.clone());
             dto.approved_by_name = dto
                 .approved_by
-                .and_then(|id| user_map.get(&id).and_then(|n| n.clone()));
+                .and_then(|id| user_map.get(&(id as i32)).and_then(|n| n.clone()));
         }
         Ok(())
     }

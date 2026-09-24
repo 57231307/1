@@ -649,20 +649,14 @@ COMMENT ON COLUMN dim_dates.day_of_week IS '1=周一，7=周日';"#,
     // 20260618 系列（增强版销售报价/色价历史/梯度/客户色价/季节性价格）
     (
         "20260618000001_create_sales_quotations",
-        r#"-- 销售报价单主表
--- 用于存储销售报价单的核心业务信息（Incoterms 2020 + 多币种 + 状态机）
--- 创建时间: 2026-06-18
--- 关联计划: 2026-06-17-p12-batch1-quotation-port-plan.md PR-1
--- main 适配说明：
---   - ID 由 BIGSERIAL 调整为 SERIAL（i32），与 main 已有 sales_order / sales_fabric_order 主键类型保持一致
---   - 引用 main 现有表的外键列使用 INTEGER，与 customers.id / users.id / sales_orders.id 类型一致
---   - 枚举状态按任务规范：DRAFT / SUBMITTED / APPROVED / REJECTED / CONVERTED / CANCELLED / EXPIRED
+        r#"-- 销售报价单主表（权威定义在 sales_crm 域迁移，本处为兜底幂等声明）
+-- ID / FK 列统一为 BIGSERIAL / BIGINT，与 sales_crm 域实际建表一致
 
 CREATE TABLE IF NOT EXISTS "sales_quotations" (
-    "id" SERIAL PRIMARY KEY,
+    "id" BIGSERIAL PRIMARY KEY,
     "quotation_no" VARCHAR(50) UNIQUE NOT NULL,
-    "customer_id" INTEGER NOT NULL REFERENCES "customers"("id"),
-    "sales_user_id" INTEGER NOT NULL REFERENCES "users"("id"),
+    "customer_id" BIGINT NOT NULL REFERENCES "customers"("id"),
+    "sales_user_id" BIGINT NOT NULL REFERENCES "users"("id"),
     "quotation_date" DATE NOT NULL,
     "valid_until" DATE NOT NULL,
 
@@ -694,18 +688,18 @@ CREATE TABLE IF NOT EXISTS "sales_quotations" (
     "status" VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
 
     -- BPM 审批：approval_instance_id 暂不建外键约束（避免阻塞本迁移），后续 PR 通过补充迁移补建
-    "approval_instance_id" INTEGER,
-    "approved_by" INTEGER REFERENCES "users"("id"),
+    "approval_instance_id" BIGINT,
+    "approved_by" BIGINT REFERENCES "users"("id"),
     "approved_at" TIMESTAMPTZ,
     "rejection_reason" TEXT,
 
     -- 转换
-    "converted_sales_order_id" INTEGER REFERENCES "sales_orders"("id"),
+    "converted_sales_order_id" BIGINT REFERENCES "sales_orders"("id"),
     "converted_at" TIMESTAMPTZ,
 
     -- 元数据
     "notes" TEXT,
-    "created_by" INTEGER NOT NULL REFERENCES "users"("id"),
+    "created_by" BIGINT NOT NULL REFERENCES "users"("id"),
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -853,20 +847,15 @@ COMMENT ON COLUMN "color_price_history"."quantity" IS '触发价格的数量（�
     ),
     (
         "20260618000002_create_sales_quotation_items",
-        r#"-- 销售报价单明细
--- 用于存储报价单中每个产品/色号的行项目
--- 创建时间: 2026-06-18
--- 关联计划: 2026-06-17-p12-batch1-quotation-port-plan.md PR-1
--- main 适配说明：
---   - ID / 外键类型与主表保持一致（SERIAL / INTEGER）
---   - product_id / color_id 引用 main 已有的 products / product_colors 表
+        r#"-- 销售报价单明细（权威定义在 sales_crm 域迁移，本处为兜底幂等声明）
+-- ID / FK 列统一为 BIGSERIAL / BIGINT，与 sales_crm 域实际建表一致
 
 CREATE TABLE IF NOT EXISTS "sales_quotation_items" (
-    "id" SERIAL PRIMARY KEY,
-    "quotation_id" INTEGER NOT NULL REFERENCES "sales_quotations"("id") ON DELETE CASCADE,
+    "id" BIGSERIAL PRIMARY KEY,
+    "quotation_id" BIGINT NOT NULL REFERENCES "sales_quotations"("id") ON DELETE CASCADE,
 
-    "product_id" INTEGER NOT NULL REFERENCES "products"("id"),
-    "color_id" INTEGER REFERENCES "product_colors"("id"),
+    "product_id" BIGINT NOT NULL REFERENCES "products"("id"),
+    "color_id" BIGINT REFERENCES "product_colors"("id"),
     "color_code" VARCHAR(50),
     "pantone_code" VARCHAR(50),
     "cncs_code" VARCHAR(50),
@@ -933,17 +922,12 @@ COMMENT ON COLUMN "color_price_tiers"."sequence" IS '阶梯顺序（数值小 = 
     ),
     (
         "20260618000003_create_sales_quotation_terms",
-        r#"-- 销售报价单贸易条款
--- 用于存储报价单中各类贸易条款（物流/付款/样品/检验）
--- 创建时间: 2026-06-18
--- 关联计划: 2026-06-17-p12-batch1-quotation-port-plan.md PR-1
--- main 适配说明：
---   - ID / 外键类型与主表保持一致（SERIAL / INTEGER）
---   - term_type 枚举沿用 test 分支约定（logistics/payment/sample/inspection）
+        r#"-- 销售报价单贸易条款（权威定义在 sales_crm 域迁移，本处为兜底幂等声明）
+-- ID / FK 列统一为 BIGSERIAL / BIGINT，与 sales_crm 域实际建表一致
 
 CREATE TABLE IF NOT EXISTS "sales_quotation_terms" (
-    "id" SERIAL PRIMARY KEY,
-    "quotation_id" INTEGER NOT NULL REFERENCES "sales_quotations"("id") ON DELETE CASCADE,
+    "id" BIGSERIAL PRIMARY KEY,
+    "quotation_id" BIGINT NOT NULL REFERENCES "sales_quotations"("id") ON DELETE CASCADE,
     "term_type" VARCHAR(50) NOT NULL,
     "term_key" VARCHAR(100) NOT NULL,
     "term_value" TEXT NOT NULL,

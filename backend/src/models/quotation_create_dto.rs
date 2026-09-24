@@ -12,7 +12,7 @@ use validator::Validate;
 /// 创建报价单请求 DTO
 #[derive(Debug, Deserialize, Serialize, Validate, Clone)]
 pub struct CreateQuotationDto {
-    pub customer_id: i32,
+    pub customer_id: i64,
     pub sales_user_id: i64,
     pub quotation_date: NaiveDate,
     pub valid_until: NaiveDate,
