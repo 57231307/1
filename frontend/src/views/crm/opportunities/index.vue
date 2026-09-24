@@ -317,6 +317,7 @@ import {
 } from '@/api/crm';
 import { getUserList, type User } from '@/api/user';
 import { getCustomerList, type Customer } from '@/api/customer';
+import { formatCurrency } from '@/utils';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
@@ -570,10 +571,6 @@ const handleSizeChange = (val: number) => {
 
 const handleCurrentChange = (val: number) => {
   page.value = val;
-};
-
-const formatCurrency = (value: number) => {
-  return value ? `¥${value.toFixed(2)}` : '¥0.00';
 };
 
 const getStageType = (stage: string) => {
