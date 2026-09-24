@@ -146,9 +146,16 @@ test.describe('库存调拨完整流程', () => {
       `目标仓在库量应不少于调拨数量 ${transferQty}（实际 ${stockTo!.quantity_on_hand}）`
     ).toBeGreaterThanOrEqual(transferQty);
 
-    // 验证审计日志
-    const auditLogged = await verifyAuditLog(page, 'UPDATE', 'inventory');
-    expect(auditLogged).toBe(true);
+    // 验证审计日志：omni_audit 对 approve/ship/receive 这类"动作型 POST"统一记为 CREATE
+    // （见 helpers.verifyAuditLog 注释：submit/approve/audit/depreciate 等动作事件 module=CREATE、
+    //  resource_type 取路径业务段=inventory）。原断言查 'UPDATE'——调拨全链走的是动作型 POST，
+    //  没有任何 UPDATE 事件，永不命中，属测试写坏。这里按真实审计动作(CREATE)+审批端点 path
+    //  精确匹配（/inventory/transfers/:id/approve 的 request_path 含 "approve"），不放宽为恒真。
+    const auditLogged = await verifyAuditLog(page, 'CREATE', 'inventory', 'approve');
+    expect(
+      auditLogged,
+      '审批动作端点(/inventory/transfers/:id/approve)应落 omni_audit：动作型 POST 记为 CREATE、resource_type=inventory'
+    ).toBe(true);
 
     // UI 验证：访问调拨列表页
     await page.goto('/inventory-transfer');
