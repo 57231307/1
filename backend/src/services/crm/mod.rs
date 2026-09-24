@@ -58,6 +58,16 @@ pub struct OpportunityBrief {
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+/// 客户标签简报（customer_tag JOIN crm_tag 单次查询结果，嵌入客户 360 / 列表端点）。
+/// 契约：顶层 tags 元素形状 = {id, name, color, category}，字段顺序即序列化顺序。
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct CustomerTagBrief {
+    pub id: i32,
+    pub name: String,
+    pub color: String,
+    pub category: Option<String>,
+}
+
 /// 客户关联摘要
 #[derive(Debug, Clone, Serialize, FromQueryResult)]
 pub struct CustomerRelationSummary {
