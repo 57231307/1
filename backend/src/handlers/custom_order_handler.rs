@@ -54,7 +54,7 @@ pub struct ListCustomOrdersQuery {
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AdvanceRequest {
-    pub operator_id: i64,
+    pub operator_id: i32,
     pub notes: Option<String>,
 }
 

@@ -20,7 +20,7 @@ pub struct ProcessNodeDetail {
     pub planned_end_date: Option<DateTime<Utc>>,
     pub actual_start_date: Option<DateTime<Utc>>,
     pub actual_end_date: Option<DateTime<Utc>>,
-    pub operator_id: Option<i64>,
+    pub operator_id: Option<i32>,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -42,7 +42,7 @@ pub struct AdvanceNodeRequest {
     pub target_status: String,
 
     /// 操作人 ID
-    pub operator_id: i64,
+    pub operator_id: i32,
 
     /// 备注
     pub notes: Option<String>,

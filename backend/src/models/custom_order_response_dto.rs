@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 pub struct CustomOrderListItem {
     pub id: i64,
     pub order_no: String,
-    pub customer_id: i64,
-    pub product_id: i64,
-    pub color_id: Option<i64>,
+    pub customer_id: i32,
+    pub product_id: i32,
+    pub color_id: Option<i32>,
     pub spec: String,
     pub quantity: Decimal,
     pub unit: String,
@@ -23,7 +23,7 @@ pub struct CustomOrderListItem {
     pub actual_delivery_date: Option<NaiveDate>,
     pub total_amount: Option<Decimal>,
     pub currency: String,
-    pub sales_order_id: Option<i64>,
+    pub sales_order_id: Option<i32>,
     pub created_at: DateTime<Utc>,
     /// 批次 88 PH-1 占位符实现：订单备注
     pub notes: Option<String>,
@@ -34,9 +34,9 @@ pub struct CustomOrderListItem {
 pub struct CustomOrderDetail {
     pub id: i64,
     pub order_no: String,
-    pub customer_id: i64,
-    pub product_id: i64,
-    pub color_id: Option<i64>,
+    pub customer_id: i32,
+    pub product_id: i32,
+    pub color_id: Option<i32>,
     pub spec: String,
     pub quantity: Decimal,
     pub unit: String,
@@ -47,7 +47,7 @@ pub struct CustomOrderDetail {
     pub status: String,
     pub expected_delivery_date: Option<NaiveDate>,
     pub actual_delivery_date: Option<NaiveDate>,
-    pub sales_order_id: Option<i64>,
+    pub sales_order_id: Option<i32>,
     pub total_amount: Option<Decimal>,
     pub currency: String,
     pub created_by: Option<i64>,
@@ -78,7 +78,7 @@ pub struct ProcessNodeInfo {
     pub planned_end_date: Option<DateTime<Utc>>,
     pub actual_start_date: Option<DateTime<Utc>>,
     pub actual_end_date: Option<DateTime<Utc>>,
-    pub operator_id: Option<i64>,
+    pub operator_id: Option<i32>,
     pub notes: Option<String>,
 }
 
@@ -139,7 +139,7 @@ pub struct ProcessNodeWithLogs {
 pub struct ProcessLogInfo {
     pub id: i64,
     pub action: String,
-    pub operator_id: Option<i64>,
+    pub operator_id: Option<i32>,
     pub before_status: Option<String>,
     pub after_status: Option<String>,
     pub log_time: DateTime<Utc>,

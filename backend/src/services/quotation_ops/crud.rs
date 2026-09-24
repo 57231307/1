@@ -231,34 +231,34 @@ impl QuotationService {
             return Ok(());
         }
 
-        let customer_ids: Vec<i32> = dtos.iter().map(|d| d.customer_id as i32).collect();
-        let name_map: HashMap<i64, String> = customer::Entity::find()
+        // customers.id / users.id 均为 SERIAL(i32)；sales_user_id 仍为报价单侧 i64，按边界转换查 users(i32)。
+        let customer_ids: Vec<i32> = dtos.iter().map(|d| d.customer_id).collect();
+        let name_map: HashMap<i32, String> = customer::Entity::find()
             .filter(customer::Column::Id.is_in(customer_ids))
             .all(&*self.db)
             .await?
             .into_iter()
-            .map(|c| (c.id as i64, c.customer_name))
+            .map(|c| (c.id, c.customer_name))
             .collect();
 
         // 业务员与审批人同属 users 表，合并去重后一次查询
         let mut user_ids: Vec<i32> = dtos.iter().map(|d| d.sales_user_id as i32).collect();
-        user_ids.extend(
-            dtos.iter()
-                .filter_map(|d| d.approved_by.map(|id| id as i32)),
-        );
+        user_ids.extend(dtos.iter().filter_map(|d| d.approved_by));
         user_ids.sort_unstable();
         user_ids.dedup();
-        let user_map: HashMap<i64, Option<String>> = user::Entity::find()
+        let user_map: HashMap<i32, Option<String>> = user::Entity::find()
             .filter(user::Column::Id.is_in(user_ids))
             .all(&*self.db)
             .await?
             .into_iter()
-            .map(|u| (u.id as i64, u.real_name))
+            .map(|u| (u.id, u.real_name))
             .collect();
 
         for dto in dtos.iter_mut() {
             dto.customer_name = name_map.get(&dto.customer_id).cloned();
-            dto.sales_user_name = user_map.get(&dto.sales_user_id).and_then(|n| n.clone());
+            dto.sales_user_name = user_map
+                .get(&(dto.sales_user_id as i32))
+                .and_then(|n| n.clone());
             dto.approved_by_name = dto
                 .approved_by
                 .and_then(|id| user_map.get(&id).and_then(|n| n.clone()));

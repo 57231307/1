@@ -11,7 +11,7 @@ pub struct Model {
     pub id: i64,
     pub process_node_id: i64,
     pub action: String,
-    pub operator_id: Option<i64>,
+    pub operator_id: Option<i32>,
     pub before_status: Option<String>,
     pub after_status: Option<String>,
     pub log_time: DateTime<Utc>,

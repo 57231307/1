@@ -11,7 +11,7 @@ pub struct Model {
     pub id: i64,
     pub custom_order_id: i64,
     pub issue_type: String,
-    pub customer_id: i64,
+    pub customer_id: i32,
     pub description: String,
     pub status: String,
     pub opened_at: DateTime<Utc>,
