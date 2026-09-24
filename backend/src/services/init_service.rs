@@ -67,6 +67,7 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "purchase-prices",
     "suppliers",
     "supplier-evaluations",
+    "supplier-blacklists",
     // ===== 生产域（面料行业深化）=====
     "production-orders",
     "dye-batches",

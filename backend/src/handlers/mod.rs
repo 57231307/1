@@ -46,6 +46,7 @@ pub mod user_handler;
 pub mod warehouse_handler;
 // 供应商管理模块
 pub mod supplier_handler;
+pub mod supplier_blacklist_handler;
 // 采购管理模块
 pub mod purchase_inspection_handler;
 pub mod purchase_order_handler;

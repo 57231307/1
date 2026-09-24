@@ -101,6 +101,7 @@ pub mod logistics_service;
 pub mod incoterms_service;
 // 供应商管理模块
 pub mod supplier_evaluation_service;
+pub mod supplier_blacklist_service;
 pub mod supplier_service;
 // 采购管理模块
 pub mod po;

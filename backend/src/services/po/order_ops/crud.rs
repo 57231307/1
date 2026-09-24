@@ -29,6 +29,7 @@ use crate::models::{
 };
 use crate::services::po::order::{PurchaseOrderDto, PurchaseOrderService};
 use crate::services::po::{CreatePurchaseOrderRequest, UpdatePurchaseOrderRequest};
+use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
@@ -124,6 +125,11 @@ impl PurchaseOrderService {
                 req.supplier_id
             )));
         }
+
+        // 采购门控：校验供应商是否在有效黑名单中
+        SupplierBlacklistService::new(self.db.clone())
+            .check_supplier_not_blacklisted(req.supplier_id)
+            .await?;
 
         // 检查仓库是否存在
         let warehouse_id = req

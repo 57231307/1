@@ -15,7 +15,7 @@ use axum::{
 use crate::handlers::{
     print_handler, purchase_contract_handler, purchase_inspection_handler, purchase_order_handler,
     purchase_price_handler, purchase_receipt_handler, purchase_return_handler,
-    supplier_evaluation_handler, supplier_handler,
+    supplier_blacklist_handler, supplier_evaluation_handler, supplier_handler,
 };
 
 /// 采购订单路由（nest 到 /api/v1/erp/purchases）；主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
@@ -362,6 +362,16 @@ pub fn suppliers() -> Router<AppState> {
         .route(
             "/suppliers/{id}/evaluations",
             get(supplier_evaluation_handler::list_evaluation_records),
+        )
+        // 供应商黑名单管理端点
+        .route(
+            "/supplier-blacklists",
+            get(supplier_blacklist_handler::list_blacklists)
+                .post(supplier_blacklist_handler::add_to_blacklist),
+        )
+        .route(
+            "/supplier-blacklists/{id}/release",
+            post(supplier_blacklist_handler::release_from_blacklist),
         )
 }
 

@@ -18,6 +18,7 @@ use sea_orm::{
 use crate::models::{purchase_receipt, purchase_receipt_item, status};
 use crate::services::event_bus::EVENT_BUS;
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
+use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 use crate::utils::error::AppError;
 
 impl PurchaseReceiptService {
@@ -32,6 +33,11 @@ impl PurchaseReceiptService {
 
         // 锁定并校验入库单（DRAFT + 明细数 > 0），串行化并发 confirm
         let receipt = self.lock_and_validate_receipt_txn(receipt_id, &txn).await?;
+
+        // 采购门控：确认收货前再次校验供应商是否在有效黑名单中
+        SupplierBlacklistService::new(self.db.clone())
+            .check_supplier_not_blacklisted(receipt.supplier_id)
+            .await?;
 
         // 关联采购单时更新已收数量
         if let Some(order_id) = receipt.order_id {

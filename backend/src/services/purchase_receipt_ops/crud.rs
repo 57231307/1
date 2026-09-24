@@ -21,6 +21,7 @@ use crate::services::purchase_receipt_dto::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
 };
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
+use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 use crate::utils::error::AppError;
 
 impl PurchaseReceiptService {
@@ -36,6 +37,11 @@ impl PurchaseReceiptService {
         for item in &req.items {
             Self::validate_receipt_item_dimensions(item)?;
         }
+
+        // 采购门控：校验供应商是否在有效黑名单中
+        SupplierBlacklistService::new(self.db.clone())
+            .check_supplier_not_blacklisted(req.supplier_id)
+            .await?;
 
         let txn = (*self.db).begin().await?;
 
