@@ -72,6 +72,7 @@
             <span class="col-product">{{ t('purchase.createDlg.colProduct') }}</span>
             <span class="col-qty">{{ t('purchase.createDlg.colQuantity') }}</span>
             <span class="col-price">{{ t('purchase.createDlg.colUnitPrice') }}</span>
+            <span class="col-tolerance">{{ t('purchase.createDlg.colTolerance') }}</span>
             <span class="col-amount">{{ t('purchase.createDlg.colAmount') }}</span>
             <span class="col-action">{{ t('purchase.createDlg.colOperation') }}</span>
           </div>
@@ -96,6 +97,14 @@
               :precision="2"
               class="col-price"
               @change="onCalculateSubtotal(item)"
+            />
+            <el-input-number
+              v-model="item.quantity_tolerance_pct"
+              :min="0"
+              :max="100"
+              :precision="2"
+              :placeholder="t('purchase.createDlg.tolerancePlaceholder')"
+              class="col-tolerance"
             />
             <el-input-number v-model="item.subtotal" :precision="2" class="col-amount" readonly />
             <el-button
@@ -244,6 +253,10 @@ watch(
 .col-price,
 .col-amount {
   width: 110px;
+}
+
+.col-tolerance {
+  width: 120px;
 }
 
 .total-amount {

@@ -48,6 +48,8 @@ export interface SalesOrderItem {
   subtotal: number;
   /** 后端 SalesOrderItemDetail.shipped_quantity（services/so/mod.rs:94），非 delivered_quantity */
   shipped_quantity: number;
+  /** 后端 sales_order_items.quantity_tolerance_pct（可空，NULL=用品类/全局默认） */
+  quantity_tolerance_pct: number | null;
 }
 
 export interface SalesOrderQueryParams {

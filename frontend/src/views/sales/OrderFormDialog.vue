@@ -155,6 +155,19 @@
               <span class="amount">¥{{ (row.subtotal || 0).toLocaleString() }}</span>
             </template>
           </el-table-column>
+          <el-table-column :label="t('sales.orderForm.tolerance')" width="140">
+            <template #default="{ row }">
+              <el-input-number
+                v-model="row.quantity_tolerance_pct"
+                :min="0"
+                :max="100"
+                :precision="2"
+                size="small"
+                :placeholder="t('sales.orderForm.tolerancePlaceholder')"
+                style="width: 100%"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="t('sales.orderForm.operation')" width="80">
             <template #default="{ $index }">
               <el-button type="danger" link size="small" @click="removeItem($index)">{{
@@ -233,6 +246,8 @@ interface OrderItemForm {
   unit: string;
   unit_price: number;
   subtotal: number;
+  /** 交货容差百分比（undefined=未填，提交时转为 null） */
+  quantity_tolerance_pct: number | undefined;
 }
 
 interface OrderForm {
@@ -378,6 +393,7 @@ const addItem = () => {
     unit: t('sales.orderForm.defaultUnit'),
     unit_price: 0,
     subtotal: 0,
+    quantity_tolerance_pct: undefined,
   });
 };
 

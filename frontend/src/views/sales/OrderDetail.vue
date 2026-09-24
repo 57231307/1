@@ -80,6 +80,16 @@
           width="120"
           align="right"
         />
+        <el-table-column
+          prop="quantity_tolerance_pct"
+          :label="t('sales.orderDetail.tolerance')"
+          width="100"
+          align="right"
+        >
+          <template #default="{ row }">
+            {{ row.quantity_tolerance_pct != null ? row.quantity_tolerance_pct + '%' : '-' }}
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
   </div>

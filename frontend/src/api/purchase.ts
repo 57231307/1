@@ -67,6 +67,8 @@ export interface PurchaseOrderItem {
   tax_amount: number;
   total_amount: number;
   received_quantity: number;
+  /** 后端 purchase_order_item.quantity_tolerance_pct（可空，NULL=用品类/全局默认） */
+  quantity_tolerance_pct: number | null;
   /** 后端 purchase_order_item.notes（备注） */
   notes?: string | null;
 }

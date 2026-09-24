@@ -53,6 +53,8 @@ export interface OrderItemForm {
   unit: string;
   unit_price: number;
   subtotal: number;
+  /** 交货容差百分比（undefined=未填，提交时转为 null） */
+  quantity_tolerance_pct: number | undefined;
 }
 
 /** 销售订单表单类型 */
@@ -136,6 +138,7 @@ export function useOlv() {
         unit: '米',
         unit_price: 0,
         subtotal: 0,
+        quantity_tolerance_pct: undefined,
       },
     ],
     total_amount: 0,
@@ -338,6 +341,7 @@ export function useOlv() {
           unit: '米',
           unit_price: 0,
           subtotal: 0,
+          quantity_tolerance_pct: undefined,
         },
       ],
       total_amount: 0,
@@ -367,6 +371,7 @@ export function useOlv() {
         unit: it.unit || '',
         unit_price: it.unit_price,
         subtotal: it.subtotal,
+        quantity_tolerance_pct: it.quantity_tolerance_pct ?? undefined,
       })) || [
         {
           id: Date.now(),
@@ -378,6 +383,7 @@ export function useOlv() {
           unit: '米',
           unit_price: 0,
           subtotal: 0,
+          quantity_tolerance_pct: undefined,
         },
       ],
       total_amount: row.total_amount,

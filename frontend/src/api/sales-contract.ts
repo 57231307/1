@@ -47,6 +47,8 @@ export interface ContractItem {
   price: number;
   amount: number;
   remark: string;
+  /** 后端 sales_contract_items.quantity_tolerance_pct（可空，NULL=用品类/全局默认） */
+  quantity_tolerance_pct: number | null;
 }
 
 // 后端 sales_contract_handler::SalesContractQuery（list_contracts 的 Query<T>，全字段 Option、snake_case）
@@ -68,8 +70,34 @@ export function getSalesContract(id: number): Promise<ApiResponse<SalesContract>
   return request.get(`/sales/sales-contracts/${id}`);
 }
 
+/** 创建合同明细行入参（对齐后端 CreateContractItemDto） */
+export interface CreateContractItemInput {
+  product_id?: number;
+  product_name: string;
+  product_spec?: string;
+  unit: string;
+  quantity: number;
+  quantity_tolerance_pct?: number | null;
+  unit_price: number;
+  delivery_date?: string;
+  remarks?: string;
+}
+
+/** 创建销售合同入参（对齐后端 CreateSalesContractRequestDto） */
+export interface CreateSalesContractPayload {
+  contract_no: string;
+  contract_name: string;
+  customer_id: number;
+  total_amount: number;
+  contract_type?: string;
+  payment_terms?: string;
+  delivery_date?: string;
+  remark?: string;
+  items?: CreateContractItemInput[];
+}
+
 export function createSalesContract(
-  data: Partial<SalesContract>
+  data: CreateSalesContractPayload
 ): Promise<ApiResponse<SalesContract>> {
   return request.post('/sales/sales-contracts', data);
 }

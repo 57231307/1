@@ -16,6 +16,8 @@ export interface CreateItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  /** 交货容差百分比（undefined=未填，提交时转为 null） */
+  quantity_tolerance_pct: number | undefined;
 }
 
 /**
@@ -37,7 +39,15 @@ const defaultForm = (): CreateFormData => ({
   order_date: new Date().toISOString().split('T')[0],
   required_date: '',
   remark: '',
-  items: [{ product_id: undefined, quantity: 1, unit_price: 0, subtotal: 0 }],
+  items: [
+    {
+      product_id: undefined,
+      quantity: 1,
+      unit_price: 0,
+      subtotal: 0,
+      quantity_tolerance_pct: undefined,
+    },
+  ],
 });
 
 /**
@@ -64,7 +74,13 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
    * 添加采购明细行
    */
   const addItem = () => {
-    createForm.value.items.push({ product_id: undefined, quantity: 1, unit_price: 0, subtotal: 0 });
+    createForm.value.items.push({
+      product_id: undefined,
+      quantity: 1,
+      unit_price: 0,
+      subtotal: 0,
+      quantity_tolerance_pct: undefined,
+    });
   };
 
   /**
@@ -134,6 +150,7 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
           tax_amount: 0,
           total_amount: item.subtotal,
           received_quantity: 0,
+          quantity_tolerance_pct: item.quantity_tolerance_pct ?? null,
         })),
         total_amount: calculateTotal(),
       });

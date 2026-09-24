@@ -90,6 +90,16 @@ const emit = defineEmits<{
           />
           <el-table-column prop="quantity" :label="t('purchase.viewDlg.colQuantity')" width="100" />
           <el-table-column
+            prop="quantity_tolerance_pct"
+            :label="t('purchase.viewDlg.colTolerance')"
+            width="100"
+            align="right"
+          >
+            <template #default="{ row }">
+              {{ row.quantity_tolerance_pct != null ? row.quantity_tolerance_pct + '%' : '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column
             prop="unit_price"
             :label="t('purchase.viewDlg.colUnitPrice')"
             width="100"

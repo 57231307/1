@@ -166,6 +166,78 @@
           :placeholder="t('salesContract.form.placeholderRemarks')"
         />
       </el-form-item>
+
+      <el-divider content-position="left">{{ t('salesContract.form.contractItems') }}</el-divider>
+      <el-table :data="localFormData.items" border style="width: 100%">
+        <el-table-column :label="t('salesContract.form.colProductName')" min-width="150">
+          <template #default="{ row }">
+            <el-input
+              v-model="row.product_name"
+              size="small"
+              :placeholder="t('salesContract.form.placeholderProductName')"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('salesContract.form.colUnit')" width="80">
+          <template #default="{ row }">
+            <el-input
+              v-model="row.unit"
+              size="small"
+              :placeholder="t('salesContract.form.placeholderUnit')"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('salesContract.form.colQuantity')" width="120">
+          <template #default="{ row }">
+            <el-input-number
+              v-model="row.quantity"
+              :min="0"
+              :precision="2"
+              size="small"
+              style="width: 100%"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('salesContract.form.colUnitPrice')" width="120">
+          <template #default="{ row }">
+            <el-input-number
+              v-model="row.unit_price"
+              :min="0"
+              :precision="2"
+              size="small"
+              style="width: 100%"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('salesContract.form.colTolerance')" width="140">
+          <template #default="{ row }">
+            <el-input-number
+              v-model="row.quantity_tolerance_pct"
+              :min="0"
+              :max="100"
+              :precision="2"
+              size="small"
+              :placeholder="t('salesContract.form.tolerancePlaceholder')"
+              style="width: 100%"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('salesContract.form.colOperation')" width="70">
+          <template #default="{ $index }">
+            <el-button
+              v-if="localFormData.items.length > 1"
+              type="danger"
+              link
+              size="small"
+              @click="removeItem($index)"
+              >{{ t('salesContract.form.buttonDeleteItem') }}</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-button type="primary" plain size="small" style="margin-top: 10px" @click="addItem">
+        {{ t('salesContract.form.buttonAddItem') }}
+      </el-button>
     </el-form>
     <template #footer>
       <el-button @click="emit('update:visible', false)">{{
@@ -185,6 +257,15 @@ import type { Customer } from '@/api/customer';
 
 const { t } = useI18n({ useScope: 'global' });
 
+interface ContractItemForm {
+  product_name: string;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  /** 交货容差百分比（undefined=未填，提交时转为 null） */
+  quantity_tolerance_pct: number | undefined;
+}
+
 interface ScFormData {
   id?: number;
   contract_no: string;
@@ -200,6 +281,7 @@ interface ScFormData {
   delivery_date: string;
   delivery_location: string;
   remarks: string;
+  items: ContractItemForm[];
 }
 
 /**
@@ -246,11 +328,28 @@ watch(
   newForm => {
     if (syncing) return;
     syncing = true;
-    emit('update:formData', { ...newForm });
+    emit('update:formData', { ...newForm, items: [...(newForm.items ?? [])] });
     nextTick(() => {
       syncing = false;
     });
   },
   { deep: true }
 );
+
+const addItem = () => {
+  if (!localFormData.value.items) {
+    localFormData.value.items = [];
+  }
+  localFormData.value.items.push({
+    product_name: '',
+    unit: '',
+    quantity: 0,
+    unit_price: 0,
+    quantity_tolerance_pct: undefined,
+  });
+};
+
+const removeItem = (index: number) => {
+  localFormData.value.items.splice(index, 1);
+};
 </script>

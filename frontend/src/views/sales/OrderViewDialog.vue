@@ -78,6 +78,16 @@
           <strong>¥{{ row.subtotal.toLocaleString() }}</strong>
         </template>
       </el-table-column>
+      <el-table-column
+        prop="quantity_tolerance_pct"
+        :label="t('sales.orderView.tolerance')"
+        width="100"
+        align="right"
+      >
+        <template #default="{ row }">
+          {{ row.quantity_tolerance_pct != null ? row.quantity_tolerance_pct + '%' : '-' }}
+        </template>
+      </el-table-column>
     </el-table>
   </el-dialog>
 </template>
