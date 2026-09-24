@@ -8,6 +8,8 @@ use crate::models::{crm_lead, crm_opportunity, customer};
 use crate::models::status::master_data;
 // 批次 236 v13 P1-1：线索状态常量接入（规则 0）
 use crate::models::status::crm_lead as lead_status;
+// 商机状态/阶段常量接入（规则 0）：线索转商机、漏斗统计读写点统一引用权威词表
+use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{
     DataScopeContext, apply_department_scope_with_pool, check_resource_owner,
@@ -55,6 +57,11 @@ impl CrmService {
                 .unwrap_or_else(|| "未知".to_string())
         });
         let lead_status = req.lead_status.clone();
+        // 取值校验：lead_status 必须属于权威词表（models/status::crm_lead），
+        // 非法值直接拒绝，不再裸落库产生脏值（DB 侧兜底见 chk_crm_lead_lead_status）
+        if let Some(s) = &lead_status {
+            Self::ensure_valid_lead_status(s)?;
+        }
         let now = chrono::Utc::now();
 
         let lead = crm_lead::ActiveModel {
@@ -138,7 +145,7 @@ impl CrmService {
                 ctx,
                 crm_lead::Column::OwnerId,
                 crm_lead::Column::DepartmentId,
-                crm_lead::Column::LeadStatus.eq("pool"),
+                crm_lead::Column::LeadStatus.eq(lead_status::POOL),
             );
         }
 
@@ -368,6 +375,10 @@ impl CrmService {
         user_id: i32,
     ) -> Result<crm_lead::Model, AppError> {
         let lead = self.get_lead(lead_id, None).await?;
+        // 取值校验：与 create_lead 同口径，非法状态拒绝，不裸落库
+        if let Some(s) = &req.lead_status {
+            Self::ensure_valid_lead_status(s)?;
+        }
         let mut lead_active: crm_lead::ActiveModel = lead.into();
 
         Self::apply_lead_update_fields(&mut lead_active, req);
@@ -464,6 +475,20 @@ impl CrmService {
         .await
     }
 
+    /// 校验线索状态取值属于权威词表（models/status::crm_lead::ALL），
+    /// 非法值返回 ValidationError（400），错误信息携带非法值与合法取值列表。；
+    /// create_lead / update_lead / update_lead_status 三个写入口共用。
+    fn ensure_valid_lead_status(status: &str) -> Result<(), AppError> {
+        if !lead_status::ALL.contains(&status) {
+            return Err(AppError::validation(format!(
+                "非法线索状态 '{}'，合法取值为：{}",
+                status,
+                lead_status::ALL.join("/")
+            )));
+        }
+        Ok(())
+    }
+
     /// 更新线索状态
     pub async fn update_lead_status(
         &self,
@@ -471,6 +496,8 @@ impl CrmService {
         status: &str,
         user_id: i32,
     ) -> Result<(), AppError> {
+        // 取值校验：不再原样落库，非法状态直接拒绝（DB 侧兜底见 chk_crm_lead_lead_status）
+        Self::ensure_valid_lead_status(status)?;
         let lead = self.get_lead(lead_id, None).await?;
         let mut lead_active: crm_lead::ActiveModel = lead.into();
         lead_active.lead_status = Set(Some(status.to_string()));
@@ -591,7 +618,7 @@ impl CrmService {
             customer_id: Set(customer_id),
             lead_id: Set(Some(lead.id)),
             opportunity_type: Set(Some("NEW".to_string())),
-            opportunity_stage: Set(Some("QUALIFICATION".to_string())),
+            opportunity_stage: Set(Some(opp_status::QUALIFICATION.to_string())),
             win_probability: Set(Some(rust_decimal::Decimal::new(20, 0))),
             estimated_amount: Set(lead.estimated_amount),
             actual_amount: Set(None),
@@ -603,7 +630,7 @@ impl CrmService {
             product_desc: Set(lead.product_interest.clone()),
             owner_id: Set(lead.owner_id),
             owner_name: Set(lead.owner_name.clone()),
-            opportunity_status: Set(Some("OPEN".to_string())),
+            opportunity_status: Set(Some(opp_status::OPEN.to_string())),
             created_by: Set(Some(user_id)),
             created_at: Set(Some(chrono::Utc::now())),
             updated_at: Set(Some(chrono::Utc::now())),
@@ -820,7 +847,7 @@ impl CrmService {
                 .await?;
             if let Some(dup) = dup_lead {
                 let mut dup_active: crm_lead::ActiveModel = dup.into();
-                dup_active.lead_status = Set(Some("lost".to_string()));
+                dup_active.lead_status = Set(Some(lead_status::LOST.to_string()));
                 dup_active.lost_reason = Set(Some(format!(
                     "合并到主线索 {} ({})",
                     master.lead_no, master_lead_id
@@ -873,7 +900,7 @@ impl CrmService {
 
         // 已转化线索数
         let converted_leads = lead_query
-            .filter(crm_lead::Column::LeadStatus.eq("converted"))
+            .filter(crm_lead::Column::LeadStatus.eq(lead_status::CONVERTED))
             .count(&*self.db)
             .await?;
 
@@ -901,7 +928,7 @@ impl CrmService {
 
         // 已成交商机数
         let won_opportunities = opp_query
-            .filter(crm_opportunity::Column::OpportunityStage.eq("CLOSED_WON"))
+            .filter(crm_opportunity::Column::OpportunityStage.eq(opp_status::CLOSED_WON))
             .count(&*self.db)
             .await?;
 
@@ -1044,7 +1071,7 @@ impl CrmService {
         // 统计转化客户数
         let converted_count = crm_lead::Entity::find()
             .filter(crm_lead::Column::LeadSource.eq(source))
-            .filter(crm_lead::Column::LeadStatus.eq("converted"))
+            .filter(crm_lead::Column::LeadStatus.eq(lead_status::CONVERTED))
             .filter(crm_lead::Column::ConvertedAt.is_not_null())
             .filter(crm_lead::Column::ConvertedAt.gte(start_dt))
             .filter(crm_lead::Column::ConvertedAt.lte(end_dt))
