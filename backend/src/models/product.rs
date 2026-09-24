@@ -64,6 +64,14 @@ pub struct Model {
     pub min_order_quantity: Option<Decimal>,
     /// 交货期（天）
     pub lead_time: Option<i32>,
+    /// 每匹米数（匹↔米换算元数据）：单一真源的换算入参，供「约/按匹」换算视图使用。
+    /// 历史产品为 NULL，不影响既有；库存落库真相仍为米/公斤双列，本列不参与库存计量。
+    #[sea_orm(column_type = "Decimal(Some((12, 4)))")]
+    pub meters_per_piece: Option<Decimal>,
+    /// 每卷米数（卷↔米换算元数据）：单一真源的换算入参，供「按卷」换算视图使用。
+    /// 历史产品为 NULL，不影响既有；库存落库真相仍为米/公斤双列，本列不参与库存计量。
+    #[sea_orm(column_type = "Decimal(Some((12, 4)))")]
+    pub meters_per_roll: Option<Decimal>,
     /// 供应商产品编码
     pub supplier_product_code: Option<String>,
     /// 供应商 ID

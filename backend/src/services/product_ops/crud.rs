@@ -240,6 +240,10 @@ impl ProductService {
             factory_name: Set(factory_name),
             factory_address: Set(factory_address),
             product_grade: Set(product_grade),
+            // 匹/卷换算元数据：新建产品默认无（历史 NULL 语义），由产品主数据后续维护；
+            // 不影响库存米/公斤双列真相
+            meters_per_piece: sea_orm::ActiveValue::Set(None),
+            meters_per_roll: sea_orm::ActiveValue::Set(None),
         };
 
         let result = active_model.insert(&*self.db).await?;
