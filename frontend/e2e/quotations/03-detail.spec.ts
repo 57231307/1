@@ -62,8 +62,9 @@ test.describe('03 报价单详情与编辑', () => {
   test('03-01 报价单详情可查看', async ({ page }) => {
     const { id, quotationNo } = await createDraftQuotation(page);
     await page.goto(`${BASE_URL}/quotations/${id}`);
-    // detail.vue 头部标题为「报价单详情 - <quotation_no>」，quotation_no 独立 span 渲染
-    await expect(page.getByText('报价单详情')).toBeVisible({ timeout: 30000 });
+    // detail.vue 头部标题为「报价单详情 - <quotation_no>」，breadcrumb 也渲染同名 meta.title，
+    // getByText 子串匹配两处需 .first()
+    await expect(page.getByText('报价单详情').first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(quotationNo)).toBeVisible();
     // 描述列表标签 + 报价明细区（详情页无「基本信息」标题，改为断言真实存在的标签）
     await expect(page.getByText('客户', { exact: true })).toBeVisible();
@@ -79,8 +80,9 @@ test.describe('03 报价单详情与编辑', () => {
     await expect(editBtn, 'draft 详情页应渲染「编辑」按钮').toBeVisible({ timeout: 30000 });
     await editBtn.click();
     await page.waitForURL(`${BASE_URL}/quotations/${id}/edit`, { timeout: 30000 });
-    // create.vue 编辑模式标题「编辑报价单」，客户为必填表单控件（标签「客户」）
-    await expect(page.getByText('编辑报价单')).toBeVisible({ timeout: 30000 });
+    // create.vue 编辑模式标题「编辑报价单」，breadcrumb 也渲染同名 meta.title，需 .first()；
+    // 客户为必填表单控件（标签「客户」，与「客户等级」共享子串，须 exact）
+    await expect(page.getByText('编辑报价单').first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByLabel('客户', { exact: true })).toBeVisible();
   });
 });

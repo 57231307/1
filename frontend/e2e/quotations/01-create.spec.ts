@@ -12,8 +12,8 @@ test.describe('01 报价单创建', () => {
 
   test('01-01 进入报价单列表页', async ({ page }) => {
     await page.goto('/quotations');
-    // 列表页真实标题 quotations.list.title = '报价单管理'，用精确文本避免 /报价单/ 多命中 strict 违例
-    await expect(page.getByText('报价单管理')).toBeVisible({ timeout: 30000 });
+    // 列表页真实标题 quotations.list.title = '报价单管理'，breadcrumb 同文本需 .first()
+    await expect(page.getByText('报价单管理').first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: /新建报价单/ })).toBeVisible();
   });
 

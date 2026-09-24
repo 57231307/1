@@ -26,8 +26,8 @@ test.describe('01 创建报价单', () => {
     // 报价单为独立模块（router index.ts:1086 path:'quotations'），真实可达路径 /quotations；
     // 原 /sales/quotation/list 子路由不存在 → 落 404
     await page.goto('/quotations');
-    // 列表页真实标题 quotations.list.title = '报价单管理'
-    await expect(page.getByText('报价单管理')).toBeVisible();
+    // 列表页真实标题 quotations.list.title = '报价单管理'，breadcrumb 同文本需 .first()
+    await expect(page.getByText('报价单管理').first()).toBeVisible();
     // 验证列表区域有"新建报价单"按钮
     await expect(page.getByRole('button', { name: /新建报价单/ })).toBeVisible();
   });

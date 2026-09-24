@@ -26,8 +26,8 @@ test.describe('01 创建采购订单', () => {
     // 采购管理为扁平单页（router index.ts:223 path:'purchase' → views/purchase/index.vue 采购订单列表），
     // 无 /purchase/order/list 子路由 → 原落 404
     await page.goto('/purchase');
-    // PurchaseTop 页头真实标题 purchase.top.title = '采购管理'
-    await expect(page.getByText('采购管理')).toBeVisible();
+    // PurchaseTop 渲染 <h1>采购管理</h1>，breadcrumb 也渲染同名 meta.title，需 .first()
+    await expect(page.getByText('采购管理').first()).toBeVisible();
     // 新建按钮真实文案 purchase.top.create = '新建采购单'
     await expect(page.getByRole('button', { name: /新建采购单/ })).toBeVisible();
   });

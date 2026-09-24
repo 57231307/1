@@ -15,7 +15,7 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
   test('色卡列表加载：等待表格渲染 + 断言核心列存在', async ({ page }) => {
     await page.goto('/color-cards/list');
     // 页面标题为 el-card header 内 <span> 纯文本（colorCards.list.title='色卡列表'），非 heading 角色
-    await expect(page.getByText('色卡列表')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText('色卡列表').first()).toBeVisible({ timeout: 30000 });
 
     // 等待列表 API 响应完成
     await page.waitForResponse(
@@ -49,8 +49,9 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
 
   test('色卡发放管理页面加载：等待核心组件渲染', async ({ page }) => {
     await page.goto('/color-cards/issues');
-    // 发放页标题为 el-card header 内 <span>（colorCards.issue.title='色卡发放管理'），非 heading 角色
-    await expect(page.getByText('色卡发放管理')).toBeVisible({ timeout: 30000 });
+    // 发放页标题为 el-card header 内 <span>（colorCards.issue.title='色卡发放管理'），非 heading 角色；
+    // breadcrumb 也渲染 route meta.title='色卡发放管理'，需 .first() 避免 strict 多命中
+    await expect(page.getByText('色卡发放管理').first()).toBeVisible({ timeout: 30000 });
 
     // 等待发放列表 API 响应完成
     await page.waitForResponse(
@@ -61,7 +62,7 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
 
   test('色卡筛选条件区域：所有筛选项均可交互', async ({ page }) => {
     await page.goto('/color-cards/list');
-    await expect(page.getByText('色卡列表')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText('色卡列表').first()).toBeVisible({ timeout: 30000 });
 
     // 断言筛选下拉框存在且可点击
     const typeFilter = page.locator('.el-select').first();
@@ -70,6 +71,6 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     await page.keyboard.press('Escape');
 
     // 确认页面仍可交互（筛选操作未导致崩溃）
-    await expect(page.getByText('色卡列表')).toBeVisible();
+    await expect(page.getByText('色卡列表').first()).toBeVisible();
   });
 });

@@ -16,8 +16,9 @@ import { test, expect } from './diagnose-fixture';
 test.describe('面料多色号定价扩展', () => {
   test('1. 登录并访问色号价格列表', async ({ page }) => {
     await page.goto('/color-prices/list');
-    // 页面标题为 el-card header 内 <span>（colorPrices.list.title='色号价格列表'），非 heading 角色
-    await expect(page.getByText('色号价格列表')).toBeVisible({ timeout: 30000 });
+    // 页面标题为 el-card header 内 <span>（colorPrices.list.title='色号价格列表'），非 heading 角色；
+    // breadcrumb 也渲染 route meta.title='色号价格列表'，需 .first() 避免 strict
+    await expect(page.getByText('色号价格列表').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('2. 详情页查看历史图表', async ({ page }) => {
