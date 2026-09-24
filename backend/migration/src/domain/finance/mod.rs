@@ -762,6 +762,82 @@ FROM (VALUES
     ('500103', '生产成本-制造费用', 2, '5001', 'debit', false, false, false, false)
 ) AS v(code, name, level, parent_code, direction, assist_customer, assist_supplier, is_cash, is_bank)
 ON CONFLICT ("code") DO NOTHING;
+
+-- ============ 预算：方案头 + 明细行两级 + 按月/季期间分解 ============
+-- 现状核实结论（见 backend/src/models/budget_management.rs 与 m0012 DDL）：
+--   budget_plans(头)/budget_versions(plan_id)/budget_executions(plan_id) 三表均按 plan 组织，
+--   唯独带金额 planned_amount 的 budget_items 无 plan_id 外键，仅以 budget_year + account_subject_id 组织，
+--   造成外键断裂：无法做"方案→明细→执行占用"闭环，也校不了 Σitem = plan.total_amount；
+--   且明细仅有年度单一金额，无按月/季期间分解。下列 DDL 修复断裂并引入期间子表。
+-- 域顺序：finance 在 production（含 m0044 fix_fk_types）之后执行，本段 SQL 不经 fix_fk_types 改写；
+--   FK 宽度按被引用表 id 真实类型定为 INTEGER（budget_plans.id / budget_items.id 均为 SERIAL=INTEGER，
+--   全仓无 BIGINT 加宽路径，故用 INTEGER / i32）。
+
+-- (1) budget_items 并入 plan 主线：加 plan_id（先可空以便回填，回填后转 NOT NULL）
+ALTER TABLE "budget_items" ADD COLUMN IF NOT EXISTS "plan_id" INTEGER;
+
+-- 回填哨兵方案：无法按 budget_year 唯一匹配到既有方案的 items，集中挂到该可核查的历史归集方案（不静默丢数据）。
+INSERT INTO "budget_plans"
+    ("plan_no","plan_name","budget_year","budget_type","total_amount","status","remark")
+SELECT 'BUDGET-HISTORICAL-ORPHANS', '历史未关联预算明细归集方案（迁移回填，待财务核查）',
+       0, 'migration_placeholder', 0, 'draft',
+       '由预算两级结构迁移自动创建，用于归集无法按 budget_year 唯一匹配到方案的 budget_items；请财务核查后重新分配'
+WHERE NOT EXISTS (SELECT 1 FROM "budget_plans" WHERE "plan_no" = 'BUDGET-HISTORICAL-ORPHANS');
+
+-- 回填规则①：budget_year 恰好唯一匹配到一个方案的 items → 挂该方案（COUNT=1 消除一年多方案的歧义）
+UPDATE "budget_items" bi
+SET "plan_id" = p."id"
+FROM (
+    SELECT bp."budget_year", MIN(bp."id") AS "id", COUNT(*) AS cnt
+    FROM "budget_plans" bp
+    GROUP BY bp."budget_year"
+) p
+WHERE bi."plan_id" IS NULL
+  AND bi."budget_year" = p."budget_year"
+  AND p.cnt = 1;
+
+-- 回填规则②：仍为 NULL（无匹配方案 / budget_year 为空 / 同年度多方案歧义）→ 挂哨兵方案，显式可核查
+UPDATE "budget_items"
+SET "plan_id" = (SELECT "id" FROM "budget_plans" WHERE "plan_no" = 'BUDGET-HISTORICAL-ORPHANS')
+WHERE "plan_id" IS NULL;
+
+-- 回填完成后转 NOT NULL + 建外键 + 索引
+ALTER TABLE "budget_items" ALTER COLUMN "plan_id" SET NOT NULL;
+ALTER TABLE "budget_items"
+    DROP CONSTRAINT IF EXISTS "fk_budget_items_plan",
+    ADD CONSTRAINT "fk_budget_items_plan" FOREIGN KEY ("plan_id") REFERENCES "budget_plans" ("id");
+CREATE INDEX IF NOT EXISTS "idx_budget_items_plan" ON "budget_items" ("plan_id");
+
+-- (2) 期间子表：一条明细按多期间（月 '2026-01' / 季 '2026-Q1' / 年度聚合 '2026-FY'）多行金额
+CREATE TABLE IF NOT EXISTS "budget_item_periods" (
+    "id" SERIAL PRIMARY KEY,
+    "item_id" INTEGER NOT NULL,
+    "period" VARCHAR(10) NOT NULL,
+    "planned_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
+    "actual_amount" DECIMAL(14, 2) NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "fk_budget_item_periods_item" FOREIGN KEY ("item_id") REFERENCES "budget_items" ("id") ON DELETE CASCADE,
+    CONSTRAINT "uq_budget_item_periods_item_period" UNIQUE ("item_id", "period")
+);
+CREATE INDEX IF NOT EXISTS "idx_budget_item_periods_item" ON "budget_item_periods" ("item_id");
+COMMENT ON TABLE "budget_item_periods" IS '预算明细期间分解表（按月/季）';
+
+-- 回填现有明细的期间：把每条 item 的年度 planned_amount 落成一条年度合计期间行（period = '<year>-FY'），
+-- 使 Σperiods = item.planned_amount 天然成立（可核查、不静默；后续财务再拆月/季）。
+INSERT INTO "budget_item_periods" ("item_id", "period", "planned_amount", "actual_amount")
+SELECT bi."id", COALESCE(bi."budget_year", 0)::text || '-FY', bi."planned_amount", 0
+FROM "budget_items" bi
+WHERE NOT EXISTS (
+    SELECT 1 FROM "budget_item_periods" bp WHERE bp."item_id" = bi."id"
+);
+
+-- (3) budget_executions 支持按明细归集：加 item_id（可空：方案级下达/调整不绑定具体明细时为 NULL）
+ALTER TABLE "budget_executions" ADD COLUMN IF NOT EXISTS "item_id" INTEGER;
+ALTER TABLE "budget_executions"
+    DROP CONSTRAINT IF EXISTS "fk_budget_executions_item",
+    ADD CONSTRAINT "fk_budget_executions_item" FOREIGN KEY ("item_id") REFERENCES "budget_items" ("id");
+CREATE INDEX IF NOT EXISTS "idx_budget_executions_item" ON "budget_executions" ("item_id");
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

@@ -125,6 +125,7 @@ pub mod cost_analysis;
 pub mod cost_collection;
 // P1 模块
 pub mod budget_management;
+pub mod budget_item_periods;
 pub mod budget_plan;
 pub mod budget_version;
 pub mod customer_credit;

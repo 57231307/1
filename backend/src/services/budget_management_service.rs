@@ -1,4 +1,6 @@
-use crate::models::{budget_execution, budget_management, budget_plan, budget_version};
+use crate::models::{
+    budget_execution, budget_item_periods, budget_management, budget_plan, budget_version,
+};
 // 批次 158 v11 真实接入：审批状态常量替代字符串字面量
 use crate::models::status::approval;
 // 批次 209 P2-5 修复（v12 复审）：预算方案/项目状态字符串替换为 budget 常量
@@ -16,9 +18,9 @@ use tracing::info;
 pub use crate::models::dto::budget_management_dto::*;
 // 使用 pub use 再导出，避免外部引用断裂（E0603 修复）
 pub use crate::models::dto::budget_management_dto::{
-    BudgetAssessmentSummary, BudgetExecuteRequest, BudgetItemQueryParams, BudgetVarianceItem,
-    BudgetWarning, CreateBudgetExecutionParams, CreateBudgetItemRequest, CreateBudgetPlanRequest,
-    UpdateBudgetItemRequest,
+    BudgetAssessmentSummary, BudgetExecuteRequest, BudgetItemPeriodInput, BudgetItemQueryParams,
+    BudgetItemWithPeriods, BudgetVarianceItem, BudgetWarning, CreateBudgetExecutionParams,
+    CreateBudgetItemRequest, CreateBudgetPlanRequest, UpdateBudgetItemRequest,
 };
 
 pub struct BudgetManagementService {
@@ -45,6 +47,10 @@ impl BudgetManagementService {
             query = query.filter(budget_management::Column::Status.eq(status));
         }
 
+        if let Some(plan_id) = params.plan_id {
+            query = query.filter(budget_management::Column::PlanId.eq(plan_id));
+        }
+
         let total = query.clone().count(&*self.db).await?;
 
         let items = query
@@ -67,6 +73,88 @@ impl BudgetManagementService {
         Ok(item)
     }
 
+    /// 获取预算科目详情（含 plan_id 与按月/季期间分解数组）
+    pub async fn get_item_with_periods(&self, id: i32) -> Result<BudgetItemWithPeriods, AppError> {
+        let item = self.get_item_by_id(id).await?;
+        let periods = budget_item_periods::Entity::find()
+            .filter(budget_item_periods::Column::ItemId.eq(id))
+            .order_by(budget_item_periods::Column::Period, Order::Asc)
+            .all(&*self.db)
+            .await?;
+        Ok(BudgetItemWithPeriods { item, periods })
+    }
+
+    /// 将期间输入规范化为待落库行，并校验 Σ期间 = 年度 planned_amount（不一致返回清晰 AppError）。
+    /// 期间为空时按预算年度生成单条年度合计行 '{year}-FY'，保证 Σ期间 = planned_amount 成立（不静默）。
+    fn normalize_periods(
+        &self,
+        budget_year: Option<i32>,
+        planned_amount: Decimal,
+        periods: &[BudgetItemPeriodInput],
+    ) -> Result<Vec<BudgetItemPeriodInput>, AppError> {
+        if periods.is_empty() {
+            let year = budget_year.unwrap_or(0);
+            return Ok(vec![BudgetItemPeriodInput {
+                period: format!("{}-FY", year),
+                planned_amount,
+            }]);
+        }
+        let sum: Decimal = periods.iter().map(|p| p.planned_amount).sum();
+        if sum != planned_amount {
+            return Err(AppError::validation(format!(
+                "期间分解金额之和不等于年度计划金额：Σ期间={}, 年度计划={}",
+                sum, planned_amount
+            )));
+        }
+        for p in periods {
+            if p.period.trim().is_empty() {
+                return Err(AppError::validation("期间标识 period 不能为空".to_string()));
+            }
+        }
+        Ok(periods.to_vec())
+    }
+
+    /// 事务内整体替换指定明细的期间行（先删后插）
+    async fn replace_item_periods(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        item_id: i32,
+        periods: &[BudgetItemPeriodInput],
+    ) -> Result<(), AppError> {
+        budget_item_periods::Entity::delete_many()
+            .filter(budget_item_periods::Column::ItemId.eq(item_id))
+            .exec(txn)
+            .await?;
+        for p in periods {
+            let active = budget_item_periods::ActiveModel {
+                item_id: Set(item_id),
+                period: Set(p.period.clone()),
+                planned_amount: Set(p.planned_amount),
+                actual_amount: Set(Decimal::ZERO),
+                ..Default::default()
+            };
+            active.insert(txn).await?;
+        }
+        Ok(())
+    }
+
+    /// 一致性校验：Σ 该方案下各明细 planned_amount == plan.total_amount（保存/审批时调用，不一致返回 AppError）
+    pub async fn validate_plan_items_consistency(&self, plan_id: i32) -> Result<(), AppError> {
+        let plan = self.get_plan_by_id(plan_id).await?;
+        let items = budget_management::Entity::find()
+            .filter(budget_management::Column::PlanId.eq(plan_id))
+            .all(&*self.db)
+            .await?;
+        let items_sum: Decimal = items.iter().map(|i| i.planned_amount).sum();
+        if items_sum != plan.total_amount {
+            return Err(AppError::validation(format!(
+                "预算明细合计与方案总额不一致，无法审批：Σ明细计划金额={}, 方案总额={}, 方案ID={}",
+                items_sum, plan.total_amount, plan_id
+            )));
+        }
+        Ok(())
+    }
+
     /// 创建预算科目
     pub async fn create_item(
         &self,
@@ -80,7 +168,16 @@ impl BudgetManagementService {
             format!("BUD-{}-{:04}", timestamp, random)
         });
 
-        info!("用户 {} 正在创建预算科目：{}", user_id, item_code);
+        info!(
+            "用户 {} 正在创建预算科目：{}（方案ID={}）",
+            user_id, item_code, req.plan_id
+        );
+
+        // 校验所属方案存在（plan_id NOT NULL 外键；不存在显式报错，不静默）
+        self.get_plan_by_id(req.plan_id).await?;
+
+        // 期间规范化 + Σ期间 = 年度计划金额校验
+        let periods = self.normalize_periods(req.budget_year, req.planned_amount, &req.periods)?;
 
         // 层级计算：无父级为一级科目(level=1)，有父级为父级 level+1
         // （level 列 NOT NULL 无默认值，未显式 Set 会报 null violation 500）
@@ -93,6 +190,9 @@ impl BudgetManagementService {
                 .unwrap_or(1),
         };
 
+        // 明细主体 + 期间行在同一事务内写入，保证聚合一致性
+        let txn = (*self.db).begin().await?;
+
         let active_item = budget_management::ActiveModel {
             item_code: Set(item_code),
             item_name: Set(req.item_name),
@@ -100,6 +200,7 @@ impl BudgetManagementService {
             parent_id: Set(req.parent_id),
             level: Set(level),
             status: Set(budget::ACTIVE.to_string()),
+            plan_id: Set(req.plan_id),
             // v11 批次 145 P1-8：接入扩展字段（此前被丢弃，造成数据丢失）
             budget_year: Set(req.budget_year),
             planned_amount: Set(req.planned_amount),
@@ -109,8 +210,16 @@ impl BudgetManagementService {
             ..Default::default()
         };
 
-        let item = active_item.insert(&*self.db).await?;
-        info!("预算科目创建成功：{}", item.item_code);
+        let item = active_item.insert(&txn).await?;
+        self.replace_item_periods(&txn, item.id, &periods).await?;
+        txn.commit().await?;
+
+        info!(
+            "预算科目创建成功：{}（明细ID={}，期间行数={}）",
+            item.item_code,
+            item.id,
+            periods.len()
+        );
         Ok(item)
     }
 
@@ -134,6 +243,10 @@ impl BudgetManagementService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("预算科目不存在：{}", id)))?;
 
+        // 记录变更前的年度总额与预算年度，供期间一致性校验
+        let prior_planned_amount = item_model.planned_amount;
+        let budget_year = item_model.budget_year;
+
         let mut item: budget_management::ActiveModel = item_model.into();
 
         if let Some(item_name) = req.item_name {
@@ -146,6 +259,7 @@ impl BudgetManagementService {
             item.status = Set(status);
         }
         // v11 批次 145 P1-8：接入扩展字段（此前被丢弃，更新无效）
+        let effective_planned_amount = req.planned_amount.unwrap_or(prior_planned_amount);
         if let Some(planned_amount) = req.planned_amount {
             item.planned_amount = Set(planned_amount);
         }
@@ -155,6 +269,45 @@ impl BudgetManagementService {
         // P2-14：预算科目-会计科目映射
         if let Some(account_subject_id) = req.account_subject_id {
             item.account_subject_id = Set(account_subject_id);
+        }
+
+        // 期间一致性维护：Σ 期间必须等于年度 planned_amount
+        match req.periods.as_ref() {
+            Some(periods) => {
+                // 显式提供期间：规范化（内含 Σ期间==年度计划 校验）并整体替换
+                let normalized =
+                    self.normalize_periods(budget_year, effective_planned_amount, periods)?;
+                let updated =
+                    crate::services::audit_log_service::AuditLogService::update_with_audit(
+                        &txn,
+                        "auto_audit",
+                        item,
+                        Some(user_id),
+                    )
+                    .await?;
+                self.replace_item_periods(&txn, updated.id, &normalized)
+                    .await?;
+                txn.commit().await?;
+                info!("预算科目更新成功（含期间替换）：{}", id);
+                return Ok(updated);
+            }
+            None => {
+                // 未提供期间但改动了年度计划金额：现有期间之和必须仍等于新金额，否则显式报错（不静默掩盖不一致）
+                if req.planned_amount.is_some() {
+                    let existing_periods = budget_item_periods::Entity::find()
+                        .filter(budget_item_periods::Column::ItemId.eq(id))
+                        .all(&txn)
+                        .await?;
+                    let existing_sum: Decimal =
+                        existing_periods.iter().map(|p| p.planned_amount).sum();
+                    if existing_sum != effective_planned_amount {
+                        return Err(AppError::validation(format!(
+                            "改动年度计划金额须同时提交期间分解：Σ现有期间={}, 新年度计划={}（请通过 periods 字段重新按月/季分解）",
+                            existing_sum, effective_planned_amount
+                        )));
+                    }
+                }
+            }
         }
 
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -274,6 +427,10 @@ impl BudgetManagementService {
     ) -> Result<(), AppError> {
         info!("用户 {} 正在审批预算方案：{}", user_id, plan_id);
 
+        // 两级结构闭环校验：Σ 该方案下明细 planned_amount 必须 == plan.total_amount，
+        // 不一致则拒绝审批（清晰 AppError），杜绝"方案总额与明细对不上"进入执行阶段。
+        self.validate_plan_items_consistency(plan_id).await?;
+
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原状态门查询用 self.get_plan_by_id 裸查询无行锁，且 save 也用裸连接，无事务保护。
         // 改为在事务内用 find_by_id(id).lock_exclusive() 串行化并发状态变更，save 一并纳入事务。
@@ -328,6 +485,7 @@ impl BudgetManagementService {
         // 这里必须在 txn 内插入以保证与 plan 状态变更的原子性。
         let active_execution = budget_execution::ActiveModel {
             plan_id: Set(req.plan_id),
+            item_id: Set(None),
             execution_type: Set("使用".to_string()),
             amount: Set(req.actual_amount),
             expense_type: Set(Some(req.expense_type.clone())),
@@ -373,6 +531,7 @@ impl BudgetManagementService {
         user_id: i32,
     ) -> Result<budget_execution::Model, AppError> {
         let plan_id = params.plan_id;
+        let item_id = params.item_id;
         let execution_type = params.execution_type;
         let amount = params.amount;
         let expense_date = params.expense_date;
@@ -398,6 +557,7 @@ impl BudgetManagementService {
 
         let active_execution = budget_execution::ActiveModel {
             plan_id: Set(plan_id),
+            item_id: Set(item_id),
             execution_type: Set(execution_type.clone()),
             amount: Set(amount),
             expense_type: Set(expense_type),
@@ -808,6 +968,7 @@ impl BudgetManagementService {
             .create_execution(
                 CreateBudgetExecutionParams {
                     plan_id,
+                    item_id: None,
                     execution_type: "使用".to_string(),
                     amount,
                     expense_date: chrono::Utc::now().date_naive(),
@@ -844,6 +1005,7 @@ impl BudgetManagementService {
             .create_execution(
                 CreateBudgetExecutionParams {
                     plan_id,
+                    item_id: None,
                     execution_type: "使用".to_string(),
                     amount,
                     expense_date: chrono::Utc::now().date_naive(),
