@@ -188,6 +188,12 @@ pub async fn create_greige_fabric(
     _auth: AuthContext,
     Json(req): Json<CreateGreigeFabricRequest>,
 ) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
+    // fabric_type 为领域必填属性（DB NOT NULL），缺失时返回清晰校验错误而非裸 500
+    let fabric_type = req
+        .fabric_type
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| AppError::validation("坯布类型(fabric_type)不能为空"))?;
+
     // 自动生成编号
     let fabric_no = req.fabric_no.unwrap_or_else(|| {
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
@@ -215,7 +221,7 @@ pub async fn create_greige_fabric(
         warehouse_id: Set(req.warehouse_id),
         status: Set(Some(req.status.unwrap_or_else(|| "在库".to_string()))),
         is_deleted: Set(Some(false)),
-        fabric_type: Set(req.fabric_type),
+        fabric_type: Set(fabric_type),
         color_code: Set(req.color_code),
         width_cm: Set(req.width_cm.and_then(Decimal::from_f64_retain)),
         weight_kg: Set(req.weight_kg.and_then(Decimal::from_f64_retain)),
@@ -261,7 +267,7 @@ pub async fn update_greige_fabric(
         fabric.fabric_name = Set(fabric_name);
     }
     if let Some(fabric_type) = req.fabric_type {
-        fabric.fabric_type = Set(Some(fabric_type));
+        fabric.fabric_type = Set(fabric_type);
     }
     if let Some(color_code) = req.color_code {
         fabric.color_code = Set(Some(color_code));
