@@ -300,6 +300,10 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       payload: {
         fabric_no: `P0-GF-${TS}`,
         fabric_name: `P0坯布${TS}`,
+        // fabric_type 为 greige_fabric NOT NULL 必填列（缺失即 500/422）；
+        // 取值与 e2e/fabric/01 seedGreige 同源（'梭织'），本用例仅补 e2e payload 的必填数据，
+        // 源码侧对该列的必填校验由后端专家并行处理，两者互不冲突。
+        fabric_type: '梭织',
         product_id: 1,
         supplier_id: 1,
         warehouse_id: 1,
