@@ -226,7 +226,18 @@ pub fn crm_customers() -> Router<AppState> {
                 .put(crm_customer_handler::update_customer)
                 .delete(crm_customer_handler::delete_customer),
         )
-        .route("/customers/{id}/tags", post(crm_customer_handler::add_tags))
+        // 客户标签对象化：POST /customers/{id}/tags 保留旧 add_tags（lead 字符串数组），
+        // GET /customers/{id}/tags 返回该客户已挂载标签对象列表；
+        // POST/DELETE /customers/{id}/tags/{tagId} 单条挂/解。
+        .route(
+            "/customers/{id}/tags",
+            post(crm_customer_handler::add_tags).get(crm_customer_handler::list_customer_tags),
+        )
+        .route(
+            "/customers/{id}/tags/{tagId}",
+            post(crm_customer_handler::attach_customer_tag)
+                .delete(crm_customer_handler::detach_customer_tag),
+        )
         // 批次 90b P2-12：联系人 CRUD（GET 既有，新增 POST/PUT/DELETE）
         .route(
             "/customers/{id}/contacts",
