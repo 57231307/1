@@ -281,7 +281,9 @@ const rules: FormRules = {
           cb(new Error(t('quotations.create.validateItemsRequired')));
           return;
         }
-        const invalid = value.find(i => !i.product_id || i.quantity <= 0 || i.unit_price < 0);
+        const invalid = value.find(
+          i => !i.product_id || !i.unit || i.quantity <= 0 || i.unit_price < 0
+        );
         if (invalid) {
           cb(new Error(t('quotations.create.validateItemsInvalid')));
           return;

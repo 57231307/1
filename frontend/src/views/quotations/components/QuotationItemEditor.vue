@@ -30,12 +30,7 @@
             style="width: 100%"
             @change="(v: number | undefined) => handleProductChange(row, v)"
           >
-            <el-option
-              v-for="p in products"
-              :key="p.id"
-              :label="p.product_name || p.name"
-              :value="p.id"
-            />
+            <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
           </el-select>
         </template>
       </el-table-column>
@@ -68,16 +63,18 @@
         </template>
       </el-table-column>
 
-      <el-table-column :label="t('quotations.itemEditor.colUnit')" min-width="90">
+      <el-table-column :label="t('quotations.itemEditor.colUnit')" min-width="110">
         <template #default="{ row }">
-          <el-select v-model="row.unit" style="width: 100%">
-            <el-option
-              v-for="item in quotationUnitOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
+          <!--
+            单位由所选产品的交易单位（product.unit）只读带出并锁定：
+            后端 validate_item_units_against_products 要求报价行 unit 逐字符等于 product.unit，
+            不一致即 400，故此处不可自由选/手输。无产品时禁用。
+          -->
+          <el-input
+            v-model="row.unit"
+            disabled
+            :placeholder="t('quotations.itemEditor.unitFollowProductPlaceholder')"
+          />
         </template>
       </el-table-column>
 
@@ -135,17 +132,13 @@
 // - v-model 双向绑定
 // - 加载产品/色号
 // - 含税单价 = 单价 × 1.13
-import { computed, onMounted, ref, watch } from 'vue';
-import {
-  QUOTATION_UNIT,
-  QUOTATION_UNIT_LABEL_KEY,
-  QUOTATION_UNIT_VALUES,
-} from '@/constants/quotation-unit';
+import { onMounted, ref, watch } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { getProductColorList, getProductList } from '@/api/product';
-import type { ProductColor } from '@/api/product';
+import type { Product, ProductColor } from '@/api/product';
 import type { CreateQuotationItemDto } from '@/api/quotation';
 
 // QuotationItemRow 覆盖 product_id 为可选（创建空明细时 product_id 为 undefined，用户选择后才有值）
@@ -156,13 +149,6 @@ interface QuotationItemRow extends Omit<CreateQuotationItemDto, 'product_id'> {
 }
 
 const { t } = useI18n({ useScope: 'global' });
-// 单位下拉：库里存的是中文单位名（该列无字典），value 必须是稳定值而不是译文
-const quotationUnitOptions = computed(() =>
-  QUOTATION_UNIT_VALUES.map(value => ({
-    value,
-    label: t(QUOTATION_UNIT_LABEL_KEY[value]),
-  }))
-);
 
 const props = defineProps<{
   modelValue: QuotationItemRow[];
@@ -172,14 +158,14 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: QuotationItemRow[]): void;
 }>();
 
-const products = ref<Array<{ id: number; product_name?: string; name?: string }>>([]);
+const products = ref<Product[]>([]);
 
-/** 创建一行空明细 */
+/** 创建一行空明细（unit 由所选产品带出，创建时为空，不用兜底默认值掩盖） */
 function createBlankItem(): QuotationItemRow {
   return {
     product_id: undefined,
     color_id: undefined,
-    unit: QUOTATION_UNIT.meter,
+    unit: '',
     quantity: 0,
     unit_price: 0,
     unit_price_with_tax: 0,
@@ -200,12 +186,26 @@ function handleRemove(idx: number) {
   emit('update:modelValue', arr);
 }
 
-/** 产品变化时加载色号 */
+/** 产品变化时带出交易单位并加载色号 */
 async function handleProductChange(row: QuotationItemRow, productId: number | undefined) {
   // 重置色号与本地色号列表
   row.color_id = undefined;
   row._colors = [];
-  if (!productId) return;
+  if (!productId) {
+    // 取消产品选择时清空单位（不留兜底值）
+    row.unit = '';
+    emit('update:modelValue', [...props.modelValue]);
+    return;
+  }
+  // 单位跟随产品交易单位：后端要求报价行 unit 逐字符等于 product.unit，不一致会 400。
+  // 产品无 unit 时据实置空并提示去产品主数据配置，绝不用默认值掩盖。
+  const product = products.value.find(p => p.id === productId);
+  if (product?.unit) {
+    row.unit = product.unit;
+  } else {
+    row.unit = '';
+    ElMessage.warning(t('quotations.itemEditor.productUnitMissing'));
+  }
   try {
     const res = await getProductColorList(productId);
     const data: ProductColor[] = res.data || [];
