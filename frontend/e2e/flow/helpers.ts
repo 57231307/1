@@ -1777,9 +1777,13 @@ export async function verifyAuditLog(
 ): Promise<boolean> {
   // 业务操作审计有两条真实管道，两条都查、任一命中即通过：
   // 1. omni_audit 中间件（业务 CRUD）→ omni_audit_logs 表，查询端点
-  //    GET /finance/audit/search（module 列存事件类型 CREATE/UPDATE/...，
-  //    resource_type 存路径业务段，如 /api/v1/erp/purchase/orders → "purchase"；
-  //    动作类 POST（submit/approve/audit/depreciate 等）统一记为 CREATE）
+  //    GET /finance/audit/search（module 列存事件类型，落库映射见 omni_audit_service.rs:207
+  //    module=event_type、:209 resource_type=infer_module_from_path 的业务段；
+  //    事件类型取值以源码 middleware/omni_audit.rs::classify_operation 为唯一准：
+  //    路径末段含 approve 或末段为 reject/submit → "APPROVE"（非 CREATE），
+  //    GET→READ、POST→CREATE、PUT/PATCH→UPDATE、DELETE→DELETE，另有 PRINT/EXPORT/DOWNLOAD；
+  //    搜索按 event_type 参数过滤 module 列。resource_type 存路径业务段，
+  //    如 /api/v1/erp/inventory/transfers/1/approve → "inventory"）
   // 2. handler 显式写入（导出/打印等）→ audit_logs 表，查询端点 GET /audit-logs
   //    （system.rs 挂 /api/v1/erp 根下，无 /system 前缀）
   // pathIncludes：可选，按 request_path 子串精确匹配动作端点
