@@ -36,8 +36,12 @@ test.describe('MRP 计算', () => {
     const calcBtn = page.getByRole('button', { name: /开始计算/ });
     await expect(calcBtn, 'MRP 页面应渲染"开始计算"按钮').toBeVisible({ timeout: 30000 });
 
-    // 填表：远程搜索选产品 + 需求日期（demand_quantity 默认 1）
-    const productSelect = page.getByLabel(/产品选择/);
+    // 产品为远程搜索 el-select（filterable remote）：getByLabel(/产品选择/) 命中的是 el-form-item
+    // 标签元素，点它/在其上打字不会真正打开下拉并触发 remote-method → option 永不出现（原超时根因）。
+    // 改从计算参数表单容器（aria-label=MRP 计算参数表单）定位其第一个 combobox（产品；需求数量为
+    // el-input-number=spinbutton、需求日期在其后），在其上输入触发远程搜索。
+    const calcForm = page.getByLabel('MRP 计算参数表单');
+    const productSelect = calcForm.getByRole('combobox').first();
     await productSelect.click();
     await productSelect.pressSequentially('E2E', { delay: 60 });
     await page.getByRole('option').first().click();
