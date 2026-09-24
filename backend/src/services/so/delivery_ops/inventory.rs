@@ -1,9 +1,8 @@
 //! 销售发货-库存辅助子模块（delivery_ops/inventory）
 //!
 //! 批次 488 D10-3 拆分：从原 `so/delivery.rs` L747-1082 迁移。
-//! 包含 6 个库存辅助方法：
+//! 包含 5 个库存辅助方法：
 //! - check_inventory（库存充足性校验，出库四维口径）
-//! - lock_inventory（锁定库存，创建预留记录）
 //! - reduce_inventory_four_dim（按款号+色号+缸号+批次四维扣减库存，
 //!   指定缸不足时走显式跨缸回退，返回每笔实际扣减行的数量前后与真实缸号/批次）
 //! - release_reservations（释放订单未出库的预留，保留预留行用于审计追溯）
@@ -13,7 +12,7 @@
 use std::collections::HashMap;
 
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, Condition, EntityTrait, ExprTrait, QueryFilter, QuerySelect, Set};
+use sea_orm::{ColumnTrait, Condition, EntityTrait, ExprTrait, QueryFilter, QuerySelect};
 
 use crate::models::status::inventory_reservation as reservation_status;
 use crate::models::{inventory_reservation, inventory_stock, sales_order_item};
@@ -219,183 +218,6 @@ impl SalesService {
                     ));
                 }
             }
-        }
-        Ok(())
-    }
-
-    /// 锁定库存（创建预留记录）
-    pub(crate) async fn lock_inventory(
-        &self,
-        order_id: i32,
-        items: &[super::super::SalesOrderItemRequest],
-        user_id: i32,
-        txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(), AppError> {
-        let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
-        let existing_ids =
-            Self::query_existing_reservation_ids(order_id, &product_ids, txn).await?;
-        let stock_map = Self::query_locked_stock_map(&product_ids, &existing_ids, txn).await?;
-        let reservations = Self::build_and_lock_reservations(
-            order_id,
-            items,
-            user_id,
-            &existing_ids,
-            &stock_map,
-            txn,
-        )
-        .await?;
-        Self::batch_insert_reservations(reservations, txn).await
-    }
-
-    /// 查询订单已存在的 pending 预留 product_id 集合
-    async fn query_existing_reservation_ids(
-        order_id: i32,
-        product_ids: &[i32],
-        txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<std::collections::HashSet<i32>, AppError> {
-        if product_ids.is_empty() {
-            return Ok(std::collections::HashSet::new());
-        }
-        let ids: std::collections::HashSet<i32> = inventory_reservation::Entity::find()
-            .filter(inventory_reservation::Column::OrderId.eq(order_id))
-            .filter(inventory_reservation::Column::ProductId.is_in(product_ids.to_vec()))
-            .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
-            .all(txn)
-            .await?
-            .into_iter()
-            .map(|r| r.product_id)
-            .collect();
-        Ok(ids)
-    }
-
-    /// 批量加锁查询需锁定的库存记录
-    async fn query_locked_stock_map(
-        product_ids: &[i32],
-        existing_ids: &std::collections::HashSet<i32>,
-        txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<std::collections::HashMap<i32, inventory_stock::Model>, AppError> {
-        let need_lock: Vec<i32> = product_ids
-            .iter()
-            .filter(|pid| !existing_ids.contains(pid))
-            .copied()
-            .collect();
-        if need_lock.is_empty() {
-            return Ok(std::collections::HashMap::new());
-        }
-        let map: std::collections::HashMap<i32, inventory_stock::Model> =
-            inventory_stock::Entity::find()
-                .filter(inventory_stock::Column::ProductId.is_in(need_lock))
-                .lock_exclusive()
-                .all(txn)
-                .await?
-                .into_iter()
-                .map(|s| (s.product_id, s))
-                .collect();
-        Ok(map)
-    }
-
-    /// 遍历 items 构建预留记录并逐条锁定库存
-    async fn build_and_lock_reservations(
-        order_id: i32,
-        items: &[super::super::SalesOrderItemRequest],
-        user_id: i32,
-        existing_ids: &std::collections::HashSet<i32>,
-        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
-        txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<Vec<inventory_reservation::ActiveModel>, AppError> {
-        let mut reservations: Vec<inventory_reservation::ActiveModel> = Vec::new();
-        for item in items {
-            if existing_ids.contains(&item.product_id) {
-                tracing::info!("产品 {} 已存在预留记录，跳过创建", item.product_id);
-                continue;
-            }
-            let stock = stock_map.get(&item.product_id).cloned().ok_or_else(|| {
-                AppError::business(format!("产品 {} 没有库存记录，无法锁定", item.product_id))
-            })?;
-            Self::check_stock_sufficient(&stock, item)?;
-            reservations.push(Self::build_reservation_active_model(
-                order_id, item, user_id, &stock,
-            ));
-            Self::execute_stock_lock(&stock, item, txn).await?;
-        }
-        Ok(reservations)
-    }
-
-    /// 校验库存是否充足
-    fn check_stock_sufficient(
-        stock: &inventory_stock::Model,
-        item: &super::super::SalesOrderItemRequest,
-    ) -> Result<(), AppError> {
-        if stock.quantity_available < item.quantity {
-            return Err(AppError::business(format!(
-                "产品 {} 库存不足，无法锁定",
-                item.product_id
-            )));
-        }
-        Ok(())
-    }
-
-    /// 构建单条预留记录 ActiveModel
-    fn build_reservation_active_model(
-        order_id: i32,
-        item: &super::super::SalesOrderItemRequest,
-        user_id: i32,
-        stock: &inventory_stock::Model,
-    ) -> inventory_reservation::ActiveModel {
-        inventory_reservation::ActiveModel {
-            id: Default::default(),
-            order_id: Set(order_id),
-            product_id: Set(item.product_id),
-            warehouse_id: Set(stock.warehouse_id),
-            quantity: Set(item.quantity),
-            status: Set(reservation_status::PENDING.to_string()),
-            reserved_at: Set(chrono::Utc::now()),
-            released_at: Set(None),
-            notes: Set(None),
-            created_by: Set(Some(user_id)),
-            created_at: Set(chrono::Utc::now()),
-            updated_at: Set(chrono::Utc::now()),
-        }
-    }
-
-    /// 执行库存锁定 UPDATE（带防御性 WHERE 条件）
-    async fn execute_stock_lock(
-        stock: &inventory_stock::Model,
-        item: &super::super::SalesOrderItemRequest,
-        txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(), AppError> {
-        let lock_result = inventory_stock::Entity::update_many()
-            .filter(inventory_stock::Column::Id.eq(stock.id))
-            .filter(inventory_stock::Column::QuantityAvailable.gte(item.quantity))
-            .col_expr(
-                inventory_stock::Column::QuantityAvailable,
-                sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                    .sub(item.quantity),
-            )
-            .col_expr(
-                inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
-            )
-            .exec(txn)
-            .await?;
-        if lock_result.rows_affected == 0 {
-            return Err(AppError::business(format!(
-                "产品 {} 库存不足（并发冲突或库存已被其他事务扣减）",
-                item.product_id
-            )));
-        }
-        Ok(())
-    }
-
-    /// 批量插入预留记录
-    async fn batch_insert_reservations(
-        reservations: Vec<inventory_reservation::ActiveModel>,
-        txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(), AppError> {
-        if !reservations.is_empty() {
-            inventory_reservation::Entity::insert_many(reservations)
-                .exec(txn)
-                .await?;
         }
         Ok(())
     }
@@ -655,8 +477,9 @@ impl SalesService {
 
     /// 回滚指定状态集合内预留记录占用的库存（按 (product_id, warehouse_id) 聚合，不修改预留行）
     ///
-    /// 与 lock_inventory / reduce_inventory 严格对称：
-    /// - pending/locked：create_order 时只执行 quantity_available -= qty（仅锁定），回滚时回加 available；
+    /// 与 reduce_inventory 严格对称，兼容存量 lock 遗留行：
+    /// - pending/locked：历史建单锁定时执行了 quantity_available -= qty，回滚时回加 available；
+    ///   A5 决策后新建订单不再产生此类行，存量迁移完毕后可简化此分支；
     /// - consumed：发货时 reduce_inventory 执行 available -= qty 且 quantity_shipped += qty，
     ///   回滚时只能回减 shipped（available 已在发货时扣减，重复回加会导致库存超发）。
     ///

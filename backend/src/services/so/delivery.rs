@@ -4,15 +4,15 @@
 //! （订单号生成、发货记录查询、手动创建发货单）+ 单元测试。
 //! 业务实现已按职责拆分到 `delivery_ops/` 子模块（与 `delivery` 同为 `crate::services::so` 下兄弟模块）：
 //! - `delivery_ops::ship`：发货管理（ship_order 及 15 个辅助方法，原 L126-694）
-//! - `delivery_ops::inventory`：库存辅助（check_inventory/lock_inventory/reduce_inventory_four_dim/release_reservations，原 L747-1082）
+//! - `delivery_ops::inventory`：库存辅助（check_inventory/reduce_inventory_four_dim/release_reservations，原 L747-1082）
 //! - `delivery_ops::cancel`：取消发货（cancel_delivery 及 3 个辅助方法，原 L1084-1320）
 //! - `delivery_ops::export`：CSV 导出（export_orders_to_csv 及 2 个辅助方法，原 L1322-1443）
 //! - `delivery_ops::types`：内部聚合辅助 struct（ShipOrderContext/ShipmentItemsResult/ShipPostCommitContext）
 //!
 //! 设计要点（与拆分前一致）：
-//! - 包含销售订单的发货、库存扣减/释放、订单号生成等
-//! - `check_inventory`、`lock_inventory`、`reduce_inventory_four_dim`、`release_reservations`
-//!   这四个方法与发货/库存操作紧密相关，统一在 delivery_ops::inventory 中实现
+//! - 包含销售订单的发货、库存扣减/释放等
+//! - `check_inventory`、`reduce_inventory_four_dim`、`release_reservations`
+//!   这些方法与发货/库存操作紧密相关，统一在 delivery_ops::inventory 中实现
 //!
 //! 拆分兼容性：
 //! - 外部 handler 通过 `crate::services::so::delivery::ShipOrderRequest` 引用，路径不变

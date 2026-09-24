@@ -4,7 +4,7 @@
 //! 包含：create_order / update_order / delete_order
 //!
 //! ## 模块职责
-//! - 销售订单创建（含事务、订单号生成、库存锁定、信用校验）
+//! - 销售订单创建（含事务、订单号生成、信用校验；A5 决策：不锁库存，可用量门控仅在发货时生效）
 //! - 销售订单更新（订单头 + 明细项）
 //! - 销售订单删除
 //!
@@ -121,8 +121,6 @@ impl SalesService {
         let order_no = self.generate_unique_order_no(&txn).await?;
         let order_entity = self
             .create_order_main_record(&request, required_date, order_no, user_id, &txn)
-            .await?;
-        self.lock_inventory(order_entity.id, &request.items, user_id, &txn)
             .await?;
         Self::validate_products_exist(&request, &txn).await?;
         let totals = self

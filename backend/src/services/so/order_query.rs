@@ -507,8 +507,8 @@ impl SalesService {
     }
 
     // ========== 库存辅助方法（私有） ==========
-    // 注意：lock_inventory、reduce_inventory、release_reservations、check_inventory
-    // 已迁移到 so/delivery.rs，避免重复实现
+    // 注意：reduce_inventory_four_dim、release_reservations、check_inventory
+    // 已迁移到 so/delivery_ops/inventory.rs，避免重复实现
 
     // ========== 数据导出方法 ==========
     // 注意：export_orders_to_csv 已迁移到 so/delivery.rs
