@@ -11,9 +11,9 @@ use validator::Validate;
 /// 创建定制订单请求 DTO
 #[derive(Debug, Deserialize, Serialize, Validate, Clone)]
 pub struct CreateCustomOrderDto {
-    pub customer_id: i32,
-    pub product_id: i32,
-    pub color_id: Option<i32>,
+    pub customer_id: i64,
+    pub product_id: i64,
+    pub color_id: Option<i64>,
 
     /// 规格
     #[validate(length(min = 1, max = 200))]
@@ -42,7 +42,7 @@ pub struct CreateCustomOrderDto {
     pub expected_delivery_date: Option<NaiveDate>,
 
     /// 关联销售订单 ID（从销售订单转定制订单时使用）
-    pub sales_order_id: Option<i32>,
+    pub sales_order_id: Option<i64>,
 
     /// 金额
     pub total_amount: Option<Decimal>,
