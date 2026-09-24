@@ -21,7 +21,8 @@ test.describe('02 采购订单审批', () => {
   });
 
   test('02-01 草稿采购订单可提交审批', async ({ page }) => {
-    await page.goto('/purchase/order/list');
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
     const draft = page.locator('tr, .el-table__row').filter({ hasText: '草稿' }).first();
     await draft.getByRole('button', { name: /详情/ }).click();
     await expect(page).toHaveURL(/\/purchase\/order\/detail\/\d+/);
@@ -32,7 +33,8 @@ test.describe('02 采购订单审批', () => {
   });
 
   test('02-02 审批人可通过采购订单', async ({ page }) => {
-    await page.goto('/purchase/order/list');
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
     const pending = page.locator('tr, .el-table__row').filter({ hasText: '待审核' }).first();
     await pending.getByRole('button', { name: /详情/ }).click();
     // 审批操作
@@ -45,7 +47,8 @@ test.describe('02 采购订单审批', () => {
   });
 
   test('02-03 审批人可驳回采购订单', async ({ page }) => {
-    await page.goto('/purchase/order/list');
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
     const pending = page.locator('tr, .el-table__row').filter({ hasText: '待审核' }).first();
     await pending.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /审批/ }).click();

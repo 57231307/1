@@ -21,11 +21,12 @@ test.describe('03 销售订单审批', () => {
   });
 
   test('03-01 草稿订单可提交审批', async ({ page }) => {
-    await page.goto('/sales/order/list');
+    // 销售管理为扁平单页（router index.ts:202 path:'sales'），无 /sales/order/list 子路由 → 原落 404
+    await page.goto('/sales');
     // 找到草稿订单
     const draft = page.locator('tr, .el-table__row').filter({ hasText: '草稿' }).first();
     await draft.getByRole('button', { name: /详情/ }).click();
-    await expect(page).toHaveURL(/\/sales\/order\/detail\/\d+/);
+    await expect(page).toHaveURL(/\/sales\/orders\/\d+/);
     // 提交审批
     await page.getByRole('button', { name: /提交审批/ }).click();
     // 状态变为"待审核"
@@ -33,7 +34,8 @@ test.describe('03 销售订单审批', () => {
   });
 
   test('03-02 审批人可通过订单', async ({ page }) => {
-    await page.goto('/sales/order/list');
+    // 销售管理为扁平单页（router index.ts:202 path:'sales'），无 /sales/order/list 子路由 → 原落 404
+    await page.goto('/sales');
     const pending = page.locator('tr, .el-table__row').filter({ hasText: '待审核' }).first();
     await pending.getByRole('button', { name: /详情/ }).click();
     // 审批操作
@@ -46,7 +48,8 @@ test.describe('03 销售订单审批', () => {
   });
 
   test('03-03 审批人可驳回订单', async ({ page }) => {
-    await page.goto('/sales/order/list');
+    // 销售管理为扁平单页（router index.ts:202 path:'sales'），无 /sales/order/list 子路由 → 原落 404
+    await page.goto('/sales');
     const pending = page.locator('tr, .el-table__row').filter({ hasText: '待审核' }).first();
     await pending.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /审批/ }).click();

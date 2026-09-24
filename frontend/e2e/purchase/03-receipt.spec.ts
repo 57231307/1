@@ -22,7 +22,8 @@ test.describe('03 采购入库', () => {
   });
 
   test('03-01 已审核采购订单可创建入库单', async ({ page }) => {
-    await page.goto('/purchase/order/list');
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
     const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await approved.getByRole('button', { name: /详情/ }).click();
     // 创建入库单
@@ -38,7 +39,8 @@ test.describe('03 采购入库', () => {
   });
 
   test('03-02 入库数量必须 ≤ 采购订单数量', async ({ page }) => {
-    await page.goto('/purchase/order/list');
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
     const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await approved.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /创建入库/ }).click();
@@ -51,7 +53,8 @@ test.describe('03 采购入库', () => {
   });
 
   test('03-03 部分入库后采购订单状态为"部分入库"', async ({ page }) => {
-    await page.goto('/purchase/order/list');
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
     const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await approved.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /创建入库/ }).click();
@@ -65,7 +68,8 @@ test.describe('03 采购入库', () => {
   });
 
   test('03-04 全部入库后采购订单状态为"已入库"', async ({ page }) => {
-    await page.goto('/purchase/order/list');
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
     const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await approved.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /创建入库/ }).click();

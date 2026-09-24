@@ -22,7 +22,9 @@ test.describe('06 采购付款', () => {
   });
 
   test('06-01 应付单可一次性付清', async ({ page }) => {
-    await page.goto('/ap/invoice/list');
+    // 应付管理为扁平 Tab 页（router index.ts:173 path:'ap'），默认停「应付发票」tab；
+    // 无 /ap/invoice/list 子路由 → 原落 404
+    await page.goto('/ap');
     const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未付款' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /付款/ }).click();
@@ -33,7 +35,9 @@ test.describe('06 采购付款', () => {
   });
 
   test('06-02 应付单可多次部分付款', async ({ page }) => {
-    await page.goto('/ap/invoice/list');
+    // 应付管理为扁平 Tab 页（router index.ts:173 path:'ap'），默认停「应付发票」tab；
+    // 无 /ap/invoice/list 子路由 → 原落 404
+    await page.goto('/ap');
     const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未付款' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     // 第 1 次付款
@@ -48,7 +52,9 @@ test.describe('06 采购付款', () => {
   });
 
   test('06-03 支持 5 种付款方式', async ({ page }) => {
-    await page.goto('/ap/invoice/list');
+    // 应付管理为扁平 Tab 页（router index.ts:173 path:'ap'），默认停「应付发票」tab；
+    // 无 /ap/invoice/list 子路由 → 原落 404
+    await page.goto('/ap');
     const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未付款' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /付款/ }).click();
@@ -62,7 +68,10 @@ test.describe('06 采购付款', () => {
   });
 
   test('06-04 付款单可打印', async ({ page }) => {
-    await page.goto('/ap/payment/list');
+    // 应付管理为扁平 Tab 页（router index.ts:173 path:'ap'），付款单列表位于「付款管理」tab；
+    // 无 /ap/payment/list 子路由 → 原落 404。先进 /ap 再切「付款管理」tab 驱动到付款列表。
+    await page.goto('/ap');
+    await page.getByRole('tab', { name: /付款管理/ }).click();
     const payment = page.locator('tr, .el-table__row').first();
     await payment.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /打印/ }).click();

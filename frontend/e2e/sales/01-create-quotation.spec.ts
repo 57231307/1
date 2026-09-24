@@ -23,14 +23,18 @@ test.describe('01 创建报价单', () => {
   });
 
   test('01-01 进入报价单列表页可见菜单', async ({ page }) => {
-    await page.goto('/sales/quotation/list');
-    await expect(page.getByText('报价单列表')).toBeVisible();
+    // 报价单为独立模块（router index.ts:1086 path:'quotations'），真实可达路径 /quotations；
+    // 原 /sales/quotation/list 子路由不存在 → 落 404
+    await page.goto('/quotations');
+    // 列表页真实标题 quotations.list.title = '报价单管理'
+    await expect(page.getByText('报价单管理')).toBeVisible();
     // 验证列表区域有"新建报价单"按钮
     await expect(page.getByRole('button', { name: /新建报价单/ })).toBeVisible();
   });
 
   test('01-02 创建空报价单应校验失败', async ({ page }) => {
-    await page.goto('/sales/quotation/create');
+    // 真实新建报价单页 router index.ts:1097 path:'quotations/new'
+    await page.goto('/quotations/new');
     // 不填任何字段直接提交
     await page.getByRole('button', { name: /保存/ }).click();
     // 应显示客户/产品必填错误
@@ -38,7 +42,7 @@ test.describe('01 创建报价单', () => {
   });
 
   test('01-03 创建有效报价单成功并生成报价单号', async ({ page }) => {
-    await page.goto('/sales/quotation/create');
+    await page.goto('/quotations/new');
     // 选择客户
     await page.getByLabel(/客户/).first().click();
     await page.getByRole('option').first().click();
@@ -56,12 +60,12 @@ test.describe('01 创建报价单', () => {
   });
 
   test('01-04 报价单草稿可保存后再次编辑', async ({ page }) => {
-    await page.goto('/sales/quotation/list');
+    await page.goto('/quotations');
     // 找到第一条草稿
     const draft = page.getByText('草稿').first();
     await draft.click();
-    // 跳转到详情
-    await expect(page).toHaveURL(/\/sales\/quotation\/detail\/\d+/);
+    // 跳转到详情（真实详情路由 router index.ts:1109 path:'quotations/:id'）
+    await expect(page).toHaveURL(/\/quotations\/\d+/);
     await page.getByRole('button', { name: /编辑/ }).click();
     // 备注
     await page.getByLabel(/备注/).fill('E2E 测试备注');
@@ -70,11 +74,11 @@ test.describe('01 创建报价单', () => {
   });
 
   test('01-05 报价单可复制为新单', async ({ page }) => {
-    await page.goto('/sales/quotation/list');
+    await page.goto('/quotations');
     const firstRow = page.locator('tr, .el-table__row').nth(1);
     await firstRow.getByRole('button', { name: /复制/ }).click();
-    // 应跳转到新建页面并预填数据
-    await expect(page).toHaveURL(/\/sales\/quotation\/create/);
+    // 应跳转到新建页面并预填数据（真实新建页 router index.ts:1097 path:'quotations/new'）
+    await expect(page).toHaveURL(/\/quotations\/new/);
     // 客户字段应已预填
     const customerInput = page.getByLabel(/客户/).first();
     await expect(customerInput).not.toHaveValue('');

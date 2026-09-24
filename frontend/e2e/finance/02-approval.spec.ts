@@ -82,11 +82,21 @@ async function seedVoucher(
   CLEANUP.push({ path: `/vouchers/${id}`, label: 'voucher' });
   const voucherNo = created.data?.voucher_no ?? '';
 
+  // 后端真实端点为动词路径（backend/src/routes/finance.rs:226/230/233）：
+  //   POST /vouchers/{id}/submit → draft→submitted
+  //   POST /vouchers/{id}/review → submitted→reviewed
+  //   POST /vouchers/{id}/post   → reviewed→posted
+  // 原实现用状态名当端点段（/vouchers/{id}/submitted|reviewed|posted）→ 后端 404。
+  const transitionEndpoint: Record<'submitted' | 'reviewed' | 'posted', string> = {
+    submitted: 'submit',
+    reviewed: 'review',
+    posted: 'post',
+  };
   const order: VoucherStatus[] = ['draft', 'submitted', 'reviewed', 'posted'];
   const targetIdx = order.indexOf(targetStatus);
   // 从 draft 起逐级推进：submitted → reviewed → posted，到目标态即停
   for (let i = 1; i <= targetIdx; i++) {
-    await apiCall(page, 'POST', `/vouchers/${id}/${order[i]}`);
+    await apiCall(page, 'POST', `/vouchers/${id}/${transitionEndpoint[order[i]]}`);
   }
   return { id, voucherNo };
 }

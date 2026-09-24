@@ -21,7 +21,8 @@ test.describe('05 AR 应收单生成', () => {
   });
 
   test('05-01 已发货订单自动生成 AR 应收单', async ({ page }) => {
-    await page.goto('/sales/order/list');
+    // 销售管理为扁平单页（router index.ts:202 path:'sales'），无 /sales/order/list 子路由 → 原落 404
+    await page.goto('/sales');
     const shipped = page.locator('tr, .el-table__row').filter({ hasText: '已发货' }).first();
     await shipped.getByRole('button', { name: /详情/ }).click();
     // 查看关联的应收单
@@ -30,7 +31,8 @@ test.describe('05 AR 应收单生成', () => {
   });
 
   test('05-02 应收单金额 = 发货金额 + 税额', async ({ page }) => {
-    await page.goto('/sales/order/list');
+    // 销售管理为扁平单页（router index.ts:202 path:'sales'），无 /sales/order/list 子路由 → 原落 404
+    await page.goto('/sales');
     const shipped = page.locator('tr, .el-table__row').filter({ hasText: '已发货' }).first();
     await shipped.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('tab', { name: /应收单/ }).click();
@@ -40,7 +42,9 @@ test.describe('05 AR 应收单生成', () => {
   });
 
   test('05-03 应收单支持分次收款', async ({ page }) => {
-    await page.goto('/ar/invoice/list');
+    // 应收管理为扁平 Tab 页（router index.ts:179 path:'ar' → views/ar/index.vue），默认停「应收发票」tab；
+    // 无 /ar/invoice/list 子路由 → 原落 404
+    await page.goto('/ar');
     const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未收款' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     // 部分收款

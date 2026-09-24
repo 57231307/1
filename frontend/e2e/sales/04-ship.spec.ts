@@ -22,7 +22,8 @@ test.describe('04 销售发货', () => {
   });
 
   test('04-01 已审核订单可创建发货单', async ({ page }) => {
-    await page.goto('/sales/order/list');
+    // 销售管理为扁平单页（router index.ts:202 path:'sales'），无 /sales/order/list 子路由 → 原落 404
+    await page.goto('/sales');
     const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await approved.getByRole('button', { name: /详情/ }).click();
     // 创建发货单
@@ -37,7 +38,8 @@ test.describe('04 销售发货', () => {
   });
 
   test('04-02 发货数量必须 ≤ 订单数量', async ({ page }) => {
-    await page.goto('/sales/order/list');
+    // 销售管理为扁平单页（router index.ts:202 path:'sales'），无 /sales/order/list 子路由 → 原落 404
+    await page.goto('/sales');
     const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await approved.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /创建发货/ }).click();
@@ -50,7 +52,8 @@ test.describe('04 销售发货', () => {
   });
 
   test('04-03 部分发货后订单状态为"部分发货"', async ({ page }) => {
-    await page.goto('/sales/order/list');
+    // 销售管理为扁平单页（router index.ts:202 path:'sales'），无 /sales/order/list 子路由 → 原落 404
+    await page.goto('/sales');
     const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await approved.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /创建发货/ }).click();
@@ -64,7 +67,8 @@ test.describe('04 销售发货', () => {
   });
 
   test('04-04 全部发货后订单状态为"已发货"', async ({ page }) => {
-    await page.goto('/sales/order/list');
+    // 销售管理为扁平单页（router index.ts:202 path:'sales'），无 /sales/order/list 子路由 → 原落 404
+    await page.goto('/sales');
     const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await approved.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /创建发货/ }).click();

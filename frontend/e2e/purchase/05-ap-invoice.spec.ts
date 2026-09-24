@@ -21,7 +21,8 @@ test.describe('05 AP 应付单生成', () => {
   });
 
   test('05-01 已入库采购订单自动生成 AP 应付单', async ({ page }) => {
-    await page.goto('/purchase/order/list');
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
     const received = page.locator('tr, .el-table__row').filter({ hasText: '已入库' }).first();
     await received.getByRole('button', { name: /详情/ }).click();
     // 查看关联的应付单
@@ -30,7 +31,8 @@ test.describe('05 AP 应付单生成', () => {
   });
 
   test('05-02 应付单金额 = 入库金额 + 税额', async ({ page }) => {
-    await page.goto('/purchase/order/list');
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase'），无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
     const received = page.locator('tr, .el-table__row').filter({ hasText: '已入库' }).first();
     await received.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('tab', { name: /应付单/ }).click();
@@ -39,7 +41,9 @@ test.describe('05 AP 应付单生成', () => {
   });
 
   test('05-03 应付单支持分次付款', async ({ page }) => {
-    await page.goto('/ap/invoice/list');
+    // 应付管理为扁平 Tab 页（router index.ts:173 path:'ap'），默认停「应付发票」tab；
+    // 无 /ap/invoice/list 子路由 → 原落 404
+    await page.goto('/ap');
     const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未付款' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     // 部分付款

@@ -22,7 +22,9 @@ test.describe('06 销售收付款', () => {
   });
 
   test('06-01 应收单可一次性收清', async ({ page }) => {
-    await page.goto('/ar/invoice/list');
+    // 应收管理为扁平 Tab 页（router index.ts:179 path:'ar'），默认停「应收发票」tab；
+    // 无 /ar/invoice/list 子路由 → 原落 404
+    await page.goto('/ar');
     const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未收款' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /收款/ }).click();
@@ -33,7 +35,9 @@ test.describe('06 销售收付款', () => {
   });
 
   test('06-02 应收单可多次部分收款', async ({ page }) => {
-    await page.goto('/ar/invoice/list');
+    // 应收管理为扁平 Tab 页（router index.ts:179 path:'ar'），默认停「应收发票」tab；
+    // 无 /ar/invoice/list 子路由 → 原落 404
+    await page.goto('/ar');
     const invoice = page
       .locator('tr, .el-table__row')
       .filter({ hasText: /部分收款|未收款/ })
@@ -51,7 +55,9 @@ test.describe('06 销售收付款', () => {
   });
 
   test('06-03 支持 5 种收款方式', async ({ page }) => {
-    await page.goto('/ar/invoice/list');
+    // 应收管理为扁平 Tab 页（router index.ts:179 path:'ar'），默认停「应收发票」tab；
+    // 无 /ar/invoice/list 子路由 → 原落 404
+    await page.goto('/ar');
     const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未收款' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /收款/ }).click();
@@ -66,7 +72,10 @@ test.describe('06 销售收付款', () => {
   });
 
   test('06-04 收款单可打印', async ({ page }) => {
-    await page.goto('/ar/payment/list');
+    // 应收管理为扁平 Tab 页（router index.ts:179 path:'ar'），收款单列表位于「收款管理」tab；
+    // 无 /ar/payment/list 子路由 → 原落 404。先进 /ar 再切「收款管理」tab 驱动到收款列表。
+    await page.goto('/ar');
+    await page.getByRole('tab', { name: /收款管理/ }).click();
     const payment = page.locator('tr, .el-table__row').first();
     await payment.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /打印/ }).click();

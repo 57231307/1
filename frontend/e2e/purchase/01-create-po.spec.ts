@@ -23,13 +23,20 @@ test.describe('01 创建采购订单', () => {
   });
 
   test('01-01 进入采购订单列表页可见菜单', async ({ page }) => {
-    await page.goto('/purchase/order/list');
-    await expect(page.getByText('采购订单列表')).toBeVisible();
-    await expect(page.getByRole('button', { name: /新建采购订单/ })).toBeVisible();
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase' → views/purchase/index.vue 采购订单列表），
+    // 无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
+    // PurchaseTop 页头真实标题 purchase.top.title = '采购管理'
+    await expect(page.getByText('采购管理')).toBeVisible();
+    // 新建按钮真实文案 purchase.top.create = '新建采购单'
+    await expect(page.getByRole('button', { name: /新建采购单/ })).toBeVisible();
   });
 
   test('01-02 创建空采购订单应校验失败', async ({ page }) => {
-    await page.goto('/purchase/order/create');
+    // 采购建单为 /purchase 页内 PurchaseCreateDialog 对话框（router 无 /purchase/order/create）；
+    // 先进真实扁平路由，再由「新建采购单」按钮打开建单对话框驱动
+    await page.goto('/purchase');
+    await page.getByRole('button', { name: /新建采购单/ }).click();
     // 不填任何字段直接提交
     await page.getByRole('button', { name: /保存/ }).click();
     // 应显示供应商/产品必填错误
@@ -37,7 +44,10 @@ test.describe('01 创建采购订单', () => {
   });
 
   test('01-03 创建有效采购订单成功并生成采购单号', async ({ page }) => {
-    await page.goto('/purchase/order/create');
+    // 采购建单为 /purchase 页内 PurchaseCreateDialog 对话框（router 无 /purchase/order/create）；
+    // 先进真实扁平路由，再由「新建采购单」按钮打开建单对话框驱动
+    await page.goto('/purchase');
+    await page.getByRole('button', { name: /新建采购单/ }).click();
     // 选择供应商
     await page
       .getByLabel(/供应商/)
@@ -58,7 +68,10 @@ test.describe('01 创建采购订单', () => {
   });
 
   test('01-04 采购订单可指定交货日期与仓库', async ({ page }) => {
-    await page.goto('/purchase/order/create');
+    // 采购建单为 /purchase 页内 PurchaseCreateDialog 对话框（router 无 /purchase/order/create）；
+    // 先进真实扁平路由，再由「新建采购单」按钮打开建单对话框驱动
+    await page.goto('/purchase');
+    await page.getByRole('button', { name: /新建采购单/ }).click();
     await page
       .getByLabel(/供应商/)
       .first()
@@ -78,7 +91,10 @@ test.describe('01 创建采购订单', () => {
   });
 
   test('01-05 采购订单支持多产品行批量下单', async ({ page }) => {
-    await page.goto('/purchase/order/create');
+    // 采购建单为 /purchase 页内 PurchaseCreateDialog 对话框（router 无 /purchase/order/create）；
+    // 先进真实扁平路由，再由「新建采购单」按钮打开建单对话框驱动
+    await page.goto('/purchase');
+    await page.getByRole('button', { name: /新建采购单/ }).click();
     await page
       .getByLabel(/供应商/)
       .first()
