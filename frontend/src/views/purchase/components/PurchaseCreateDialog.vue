@@ -12,7 +12,7 @@
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
   >
     <el-form
-      ref="formRef"
+      ref="localFormRef"
       :model="localForm"
       :rules="rules"
       label-width="100px"
@@ -149,8 +149,6 @@ const props = defineProps<{
   suppliers: Supplier[];
   // 产品列表
   products: Product[];
-  // 表单 ref
-  formRef: FormInstance | undefined;
   // 提交
   onSubmit: () => void;
   // 取消
@@ -171,11 +169,17 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   // 整体回写表单（父组件监听此事件并回写到自己的 form.value）
   (e: 'update:form', form: CreateFormData): void;
+  // 将 el-form 实例上行给父组件（供 composable 调用 validate）
+  (e: 'update:formRef', ref: FormInstance | undefined): void;
 }>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 items 数组，需要深拷贝以保证本地修改与父组件解耦
 const localForm = ref<CreateFormData>(deepClone(props.form));
+
+// el-form 实例持有者，通过 emit 上行给父组件 composable
+const localFormRef = ref<FormInstance>();
+watch(localFormRef, v => emit('update:formRef', v));
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false;

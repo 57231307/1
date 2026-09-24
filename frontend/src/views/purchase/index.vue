@@ -44,7 +44,6 @@
       :rules="create.createFormRules"
       :suppliers="list.suppliers.value"
       :products="list.products.value"
-      :form-ref="create.createFormRef.value"
       :on-submit="create.submitCreate"
       :on-cancel="() => (create.createDialogVisible.value = false)"
       :on-add-item="create.addItem"
@@ -54,6 +53,7 @@
       :calculate-total="create.calculateTotal"
       @update:model-value="(v: boolean) => (create.createDialogVisible.value = v)"
       @update:form="v => (create.createForm.value = v)"
+      @update:form-ref="v => (create.createFormRef.value = v)"
     />
 
     <!-- 收货对话框 -->
