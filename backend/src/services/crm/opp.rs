@@ -49,6 +49,21 @@ fn default_win_probability_by_stage(stage: &str) -> Option<Decimal> {
     }
 }
 
+/// 校验商机阶段取值属于权威词表（`models::status::crm_opportunity::ALL_STAGES`），
+/// 非法值返回 ValidationError（400），错误信息携带非法值与合法取值列表。
+/// 与 `lead.rs::ensure_valid_lead_status` 同口径；create_opportunity 与
+/// update_opportunity 阶段流转共用。
+fn ensure_valid_opportunity_stage(stage: &str) -> Result<(), AppError> {
+    if !opp_status::ALL_STAGES.contains(&stage) {
+        return Err(AppError::validation(format!(
+            "非法商机阶段 '{}'，合法取值为：{}",
+            stage,
+            opp_status::ALL_STAGES.join("/")
+        )));
+    }
+    Ok(())
+}
+
 impl CrmService {
     /// 创建商机
     pub async fn create_opportunity(
@@ -70,6 +85,7 @@ impl CrmService {
             .opportunity_stage
             .clone()
             .unwrap_or_else(|| opp_status::QUALIFICATION.to_string());
+        ensure_valid_opportunity_stage(&opportunity_stage)?;
         let owner_id = user_id;
         let owner_name = format!("用户{}", user_id);
         let now = chrono::Utc::now();
