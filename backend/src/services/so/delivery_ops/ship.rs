@@ -280,11 +280,6 @@ impl SalesService {
     /// 落在 `数量×(1±容差)` 区间内一律放行（不拒发），仅越界时返回含上下界的业务错误。
     ///
     /// 容差解析优先级：行显式值 > 品类默认（按产品计量单位：面料/按量→5%、计件→0%）> 全局默认（5%）。
-    /// ⚠️ 现状说明：本 ERP 中 `sales_delivery`→`sales_order`→`sales_order_item` 履约链，与
-    /// `sales_contract` 之间**无外键链路**（`sales_orders` 无 `contract_id`），且销售订单行模型
-    /// 无 `quantity_tolerance_pct` 列，故此处行显式值恒为 `None`——合同行上写入的行级覆盖值
-    /// 目前无法回溯到发货点。要让销售侧支持行级覆盖，需先建立「合同行→订单行」链路或在订单行
-    /// 落容差列（跨域改动，已在交付报告中列为需产品/编排决策项）。此限制为如实暴露，非静默降级。
     fn validate_shipment_within_tolerance(
         ctx: &ShipOrderContext,
         request: &ShipOrderRequest,
@@ -305,7 +300,10 @@ impl SalesService {
                 .product_map
                 .get(&item.product_id)
                 .map(|p| p.unit.as_str());
-            let pct = crate::utils::delivery_tolerance::resolve_tolerance_pct(None, unit);
+            let pct = crate::utils::delivery_tolerance::resolve_tolerance_pct(
+                oi.quantity_tolerance_pct,
+                unit,
+            );
             let (lower, upper) =
                 crate::utils::delivery_tolerance::tolerance_bounds(oi.quantity, pct);
             let cumulative = oi.shipped_quantity

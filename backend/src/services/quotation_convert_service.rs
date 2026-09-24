@@ -211,6 +211,7 @@ impl QuotationConvertService {
                 shipped_quantity_kg: Set(Decimal::ZERO),
                 paper_tube_weight: Set(None),
                 is_net_weight: Set(None),
+                quantity_tolerance_pct: Set(None),
             };
             new_item.insert(txn).await?;
         }

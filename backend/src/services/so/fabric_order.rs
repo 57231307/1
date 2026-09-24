@@ -440,6 +440,7 @@ impl SalesService {
             shipped_quantity_kg: Set(Decimal::ZERO),
             paper_tube_weight: Set(item.paper_tube_weight),
             is_net_weight: Set(item.is_net_weight),
+            quantity_tolerance_pct: Set(None),
         }
     }
 }

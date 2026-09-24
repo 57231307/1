@@ -196,6 +196,9 @@ pub struct SalesOrderItemRequest {
     pub final_price: Option<rust_decimal::Decimal>,
     /// 匹号（染色匹号贯穿销售订单条目，匹号领域一期）
     pub piece_no: Option<String>,
+    /// 交货数量允收容差（百分比，可空）：NULL = 走默认解析（品类 > 全局），
+    /// 非空 = 行级覆盖（含「约」订单写 10.00）。
+    pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
 }
 
 /// 更新销售订单请求

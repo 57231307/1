@@ -412,6 +412,7 @@ impl SalesService {
             shipped_quantity_kg: sea_orm::ActiveValue::Set(zero),
             paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
             is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
+            quantity_tolerance_pct: sea_orm::ActiveValue::Set(item_req.quantity_tolerance_pct),
         }
     }
 

@@ -30,6 +30,7 @@ mod m0056_normalize_stock_quality_status;
 mod m0057_normalize_stock_status_domain;
 mod m0058_add_delivery_tolerance;
 mod m0059_add_product_piece_roll_conversion;
+mod m0060_add_so_item_tolerance;
 
 pub struct Migration;
 
@@ -152,6 +153,8 @@ impl MigrationTrait for Migration {
         m0059_add_product_piece_roll_conversion::Migration
             .up(manager)
             .await?;
+        // 销售订单行交货数量容差列（quantity_tolerance_pct），与 m0058 对称
+        m0060_add_so_item_tolerance::Migration.up(manager).await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
 ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_by" INTEGER;
 ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
@@ -453,6 +456,7 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0060_add_so_item_tolerance::Migration.down(manager).await?;
         m0059_add_product_piece_roll_conversion::Migration
             .down(manager)
             .await?;
