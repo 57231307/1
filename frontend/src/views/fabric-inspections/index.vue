@@ -59,7 +59,7 @@
               >打卷</el-button
             >
             <el-button
-              v-if="row.status === 'graded'"
+              v-if="['graded', 'rolled'].includes(row.status)"
               size="small"
               type="success"
               @click="onClose(row)"
