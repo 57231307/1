@@ -117,21 +117,38 @@ test.describe('表单校验真实 UI 交互', () => {
     await dialog.waitFor({ state: 'visible', timeout: 10_000 });
 
     // 输入借方金额（不输入贷方，制造借贷不平衡）。
-    // el-input-number 的 v-model 仅在 change/blur（回车或失焦）时提交，
-    // 单纯 fill() 只改 DOM 值不更新模型（CI 截图证据：填入 1000 但"借方合计"仍 0.00），
-    // 导致 useVchrLst.ts:269 的 deep watch 不触发、total_debit 不重算、不平衡分支不命中。
-    // 故 fill 后回车 + 失焦提交，再等待 watch 链（子 localForm→emit→父 form.entries→calculateTotals）回灌。
+    // el-input-number 的 v-model 仅在 change（失焦/回车）时提交，单纯 fill() 只改 DOM 值
+    // 不驱动内部 currentValue → useVchrLst.ts:269 的 deep watch 不触发、total_debit 不重算、
+    // VoucherListForm.vue:109 的 |借-贷|>0.01 不平衡分支不命中，`.total-item .error` 永不出现。
+    // 用真实键盘逐字符输入（pressSequentially 逐键派发 keydown/input）填满当前值，再 Tab 失焦 +
+    // Enter 提交，强制触发 el-input-number 的 change → v-model 回灌 → 合计重算链。
     const debitInput = page.locator('.el-dialog .el-input-number input').first();
     await debitInput.click();
-    await debitInput.fill('1000');
+    await debitInput.press('ControlOrMeta+a');
+    await debitInput.pressSequentially('1000', { delay: 30 });
+    await debitInput.press('Tab');
     await debitInput.press('Enter');
     await debitInput.blur();
     await page.waitForTimeout(500);
 
     // 借贷不平衡提示（VoucherListForm.vue:108-110 class="error"）仅在 |借-贷|>0.01 时渲染，
     // 先断言它可见，可证明确已提交并命中"不平衡"分支（而非空分录等其它校验的假绿）。
-    const imbalanceTip = page.locator('.el-dialog .total-item .error').first();
-    await imbalanceTip.waitFor({ state: 'visible', timeout: 5000 });
+    // 用 poll 轮询等重算链（子 localForm→emit→父 form.entries→calculateTotals→回灌）稳定收敛，
+    // 而非依赖单一固定 sleep。
+    await expect
+      .poll(
+        async () =>
+          await page
+            .locator('.el-dialog .total-item .error')
+            .first()
+            .isVisible()
+            .catch(() => false),
+        {
+          message: '借方有值、贷方为 0 时，应渲染借贷不平衡提示（.total-item .error）',
+          timeout: 10_000,
+        }
+      )
+      .toBe(true);
 
     // 提交
     await page
