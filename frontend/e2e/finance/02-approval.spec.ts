@@ -87,16 +87,18 @@ async function seedVoucher(
   //   POST /vouchers/{id}/review → submitted→reviewed
   //   POST /vouchers/{id}/post   → reviewed→posted
   // 原实现用状态名当端点段（/vouchers/{id}/submitted|reviewed|posted）→ 后端 404。
-  const transitionEndpoint: Record<'submitted' | 'reviewed' | 'posted', string> = {
+  type TransitionStatus = 'submitted' | 'reviewed' | 'posted';
+  const transitionEndpoint: Record<TransitionStatus, string> = {
     submitted: 'submit',
     reviewed: 'review',
     posted: 'post',
   };
   const order: VoucherStatus[] = ['draft', 'submitted', 'reviewed', 'posted'];
+  const transitions: TransitionStatus[] = ['submitted', 'reviewed', 'posted'];
   const targetIdx = order.indexOf(targetStatus);
   // 从 draft 起逐级推进：submitted → reviewed → posted，到目标态即停
   for (let i = 1; i <= targetIdx; i++) {
-    await apiCall(page, 'POST', `/vouchers/${id}/${transitionEndpoint[order[i]]}`);
+    await apiCall(page, 'POST', `/vouchers/${id}/${transitionEndpoint[transitions[i - 1]]}`);
   }
   return { id, voucherNo };
 }

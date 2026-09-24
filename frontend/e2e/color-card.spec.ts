@@ -51,7 +51,6 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     await page.goto('/color-cards/issues');
     // 等待页面标题渲染（heading 精确匹配）
     await expect(page.getByRole('heading', { name: /发放/ })).toBeVisible({
-      state: 'visible',
       timeout: 30000,
     });
 
