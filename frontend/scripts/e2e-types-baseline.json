@@ -1,7 +1,6 @@
 {
   "e2e/color-card.spec.ts|TS2580": 3,
   "e2e/color-price.spec.ts|TS2580": 3,
-  "e2e/custom-order.spec.ts|TS2580": 3,
   "e2e/ensure-role-users.ts|TS2580": 2,
   "e2e/fixtures/auth.ts|TS2580": 7,
   "e2e/fixtures/multi-context.ts|TS2580": 4,
