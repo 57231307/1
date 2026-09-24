@@ -199,8 +199,8 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       await verifyEndpointHealthy(page, `/crm/opportunities/${oppId}/competitors`);
       await verifyEndpointHealthy(page, `/crm/opportunities/${oppId}/follow-ups`);
       await safePostAction(page, `/crm/opportunities/${oppId}/stage-change`, {
-        from_stage: 'qualifying',
-        to_stage: 'proposal',
+        from_stage: 'QUALIFICATION',
+        to_stage: 'PROPOSAL',
       });
     }
   });
