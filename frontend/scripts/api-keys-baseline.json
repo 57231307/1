@@ -1,5 +1,5 @@
 {
-  "total": 184,
+  "total": 182,
   "files": {
     "frontend/src/api/account-subject.ts": {
       "count": 2,
@@ -135,15 +135,13 @@
       ]
     },
     "frontend/src/api/crm-enhanced.ts": {
-      "count": 11,
+      "count": 9,
       "keys": [
         "AssignmentRecord.assign_type",
         "AssignmentRecord.assigned_from",
         "AssignmentRecord.assigned_from_name",
         "AssignmentRecord.assigned_to_name",
-        "Customer360.follow_ups",
-        "Customer360.rfm_score",
-        "Customer360.shipping_addresses",
+        "Customer360Summary.rfm_score",
         "CustomerWithTags.last_follow_up",
         "RfmScore.monetary",
         "RfmScore.recency",
