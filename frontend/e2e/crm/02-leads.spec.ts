@@ -15,7 +15,12 @@ import { apiCall, genCode, tryCleanup } from '../flow/helpers';
  * 后端 crm_lead 词表（models/status/bpm_crm_contract.rs::crm_lead::ALL）为小写
  *   new/contacted/qualified/assigned/converted/pool/lost；create_lead/update_lead_status 按此
  *   校验取值（services/crm/lead.rs::ensure_valid_lead_status，非法值→400 VALIDATION_ERROR），
- *   DB 侧另有 chk_crm_lead_lead_status CHECK。前端 LEAD_STATUS（utils/crm-status.ts）与之逐字一致。
+ *   DB 侧另有 chk_crm_lead_lead_status CHECK。前端 LEAD_STATUS（utils/crm-status.ts）须与之逐字一致——
+ *   这是「易失配的约定」而非既成事实：历史上前端 LEAD_STATUS 曾漏 assigned，导致该态线索进入列表即
+ *   整页崩（normalizeLeadStatus 对词表外取值抛错），而本套件此前只 seed new/qualified，
+ *   从未触发该缺口，故此句「逐字一致」在补齐 assigned 前是靠注释自证的假绿来源。
+ *   现由 02-06 专门回归 assigned 的渲染，一致性缺口不再靠本注释背书（后端词表/CHECK 与前端映射的
+ *   静态同源另由 backend/tests/crm_status_word_list_test.rs 锁死）。
  *   故此处按后端权威小写码建单：既过入参校验与 DB CHECK，又能在前端小写门控下正确渲染目标按钮。
  * 成功提示文案（前端实际 toast）：联系=「标记已联系成功」、转化=「转化成功」、
  *   流失=「标记已流失成功」（locales/zh-CN.ts crmLeads.message.*）。
@@ -127,5 +132,27 @@ test.describe('02 线索管理', () => {
     await loseBtn.click();
     await page.getByRole('button', { name: /确定|确认/ }).click();
     await expect(page.getByText(/流失成功/)).toBeVisible({ timeout: 30000 });
+  });
+
+  test('02-06 已分配（assigned）线索状态标签正常渲染（回归：前端漏值致整页崩）', async ({
+    page,
+  }) => {
+    // assigned 是后端 crm_lead::ALL 与 chk_crm_lead_lead_status 的合法态（services/crm/assign.rs
+    // 自动分配/认领写入），前端 utils/crm-status.ts 的 normalizeLeadStatus 对词表外取值抛错，
+    // 会使 leads/index.vue 的状态列（getStatusLabel → t(leadStatusLabelKey)）在渲染 assigned 行时
+    // 让整页崩溃。历史缺陷：LEAD_STATUS 曾漏 assigned，而本套件此前无 assigned 种子从未触发该缺口。
+    // 本用例把该覆盖缺口钉成回归：seed 一条 assigned 线索 → 打开列表页（gotoLeads 内含表格可见断言，
+    // 即页面未崩的代理判据）→ 断该行的状态标签正常渲染为「已分配」（crmLeads.leadStatus.assigned）。
+    const { leadNo } = await seedLead(page, 'assigned');
+    await gotoLeads(page);
+    const row = page.getByRole('row').filter({ hasText: leadNo });
+    await expect(
+      row,
+      `列表未渲染 assigned 线索 ${leadNo}（疑似前端漏 assigned 致整页崩或状态列抛错）`
+    ).toHaveCount(1);
+    // 状态标签文案须为「已分配」（assigned 的 i18n 值），且页面存活至该行可见。
+    await expect(row.getByText('已分配', { exact: true }).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 });
