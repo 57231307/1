@@ -20,10 +20,14 @@ test.describe('01 库存调整', () => {
 
   test('01-02 库存筛选功能可用', async ({ page }) => {
     await page.goto('/inventory');
-    await page.getByLabel(/仓库/).click();
-    await expect(page.getByRole('option')).toBeVisible();
+    // 「仓库」为 el-select，页面另有隐藏的打印 el-dialog 内含同名「仓库」label（stockTab.colWarehouse），
+    // getByLabel(/仓库/) 会命中多元素且点到的是标签/不可见控件 → 下拉打不开、option 超时。
+    // 改从筛选表单容器（aria-label=库存台账筛选表单）定位其第一个 combobox（仓库），点开后断 option 出现。
+    const stockFilter = page.getByLabel('库存台账筛选表单');
+    await stockFilter.getByRole('combobox').first().click();
+    await expect(page.getByRole('option').first()).toBeVisible({ timeout: 30000 });
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: /查询/ }).click();
+    await stockFilter.getByRole('button', { name: '查询' }).click();
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 

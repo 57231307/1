@@ -23,13 +23,17 @@ test.describe('库存管理 - 01 库存台账', () => {
 
   test('库存筛选功能', async ({ page }) => {
     await page.goto('/inventory');
-    await page.getByLabel(/仓库/).click();
-    await expect(page.getByRole('option')).toBeVisible({ timeout: 30000 });
+    // 「仓库」「状态」均为筛选栏 el-select；隐藏打印对话框内有同名「仓库」label，
+    // getByLabel(/仓库/) 会多命中且点不到下拉。改从筛选表单容器（aria-label）定位 combobox：
+    // combobox[0]=仓库、combobox[1]=状态（关键词是 el-input，非 combobox）。
+    const stockFilter = page.getByLabel('库存台账筛选表单');
+    await stockFilter.getByRole('combobox').first().click();
+    await expect(page.getByRole('option').first()).toBeVisible({ timeout: 30000 });
     await page.keyboard.press('Escape');
-    await page.getByLabel(/状态/).click();
-    await expect(page.getByRole('option')).toBeVisible({ timeout: 30000 });
+    await stockFilter.getByRole('combobox').nth(1).click();
+    await expect(page.getByRole('option').first()).toBeVisible({ timeout: 30000 });
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: /查询/ }).click();
+    await stockFilter.getByRole('button', { name: '查询' }).click();
   });
 
   test('库存预警 Tab', async ({ page }) => {
