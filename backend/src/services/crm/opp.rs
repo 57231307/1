@@ -38,10 +38,10 @@ use super::cust::CrmService;
 /// V15 P0-B08：赢率自动计算；QUALIFICATION（资质确认）→ 10%；NEEDS_ANALYSIS（需求分析）→ 25%；PROPOSAL（方案报价）→ 40%；NEGOTIATION（谈判议价）→ 50%；CLOSED_WON（赢单）→ 100%；CLOSED_LOST（输单）→ 0%；其他/空 → None（无法自动计算）
 fn default_win_probability_by_stage(stage: &str) -> Option<Decimal> {
     match stage {
-        "QUALIFICATION" => Some(Decimal::new(10, 0)),
-        "NEEDS_ANALYSIS" => Some(Decimal::new(25, 0)),
-        "PROPOSAL" => Some(Decimal::new(40, 0)),
-        "NEGOTIATION" => Some(Decimal::new(50, 0)),
+        opp_status::QUALIFICATION => Some(Decimal::new(10, 0)),
+        opp_status::NEEDS_ANALYSIS => Some(Decimal::new(25, 0)),
+        opp_status::PROPOSAL => Some(Decimal::new(40, 0)),
+        opp_status::NEGOTIATION => Some(Decimal::new(50, 0)),
         // Decimal::ONE_HUNDRED / Decimal::ZERO 为 const，可直接使用
         opp_status::CLOSED_WON => Some(Decimal::ONE_HUNDRED),
         opp_status::CLOSED_LOST => Some(Decimal::ZERO),
@@ -69,7 +69,7 @@ impl CrmService {
         let opportunity_stage = req
             .opportunity_stage
             .clone()
-            .unwrap_or_else(|| "QUALIFICATION".to_string());
+            .unwrap_or_else(|| opp_status::QUALIFICATION.to_string());
         let owner_id = user_id;
         let owner_name = format!("用户{}", user_id);
         let now = chrono::Utc::now();
@@ -99,7 +99,7 @@ impl CrmService {
             product_desc: Set(req.product_desc),
             owner_id: Set(owner_id),
             owner_name: Set(owner_name),
-            opportunity_status: Set(Some("OPEN".to_string())),
+            opportunity_status: Set(Some(opp_status::OPEN.to_string())),
             priority: Set(req.priority),
             rating: Set(req.rating),
             tags: Set(req.tags),
@@ -254,10 +254,16 @@ impl CrmService {
     ) -> Result<(), AppError> {
         let current_str = current.clone().unwrap_or_default();
         let valid_next = match current_str.as_str() {
-            "QUALIFICATION" => vec!["NEEDS_ANALYSIS", "PROPOSAL"],
-            "NEEDS_ANALYSIS" => vec!["PROPOSAL", "QUALIFICATION"],
-            "PROPOSAL" => vec!["NEGOTIATION", "NEEDS_ANALYSIS"],
-            "NEGOTIATION" => vec![opp_status::CLOSED_WON, opp_status::CLOSED_LOST, "PROPOSAL"],
+            opp_status::QUALIFICATION => vec![opp_status::NEEDS_ANALYSIS, opp_status::PROPOSAL],
+            opp_status::NEEDS_ANALYSIS => vec![opp_status::PROPOSAL, opp_status::QUALIFICATION],
+            opp_status::PROPOSAL => vec![opp_status::NEGOTIATION, opp_status::NEEDS_ANALYSIS],
+            opp_status::NEGOTIATION => {
+                vec![
+                    opp_status::CLOSED_WON,
+                    opp_status::CLOSED_LOST,
+                    opp_status::PROPOSAL,
+                ]
+            }
             _ => vec![],
         };
 

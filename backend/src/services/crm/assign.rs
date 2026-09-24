@@ -224,7 +224,7 @@ impl CrmAssignService {
         let mut active: crm_lead::ActiveModel = lead.clone().into();
         active.owner_id = Set(assignee.id);
         active.owner_name = Set(assignee.username.clone());
-        active.lead_status = Set(Some("assigned".to_string()));
+        active.lead_status = Set(Some(lead_status::ASSIGNED.to_string()));
         active.updated_at = Set(Some(chrono::Utc::now()));
         active.updated_by = Set(Some(operator_id));
         let updated = active.update(txn).await?;
@@ -567,7 +567,7 @@ impl CrmAssignService {
         let mut active: crm_lead::ActiveModel = lead.into();
         active.owner_id = Set(claimer.id);
         active.owner_name = Set(claimer.username.clone());
-        active.lead_status = Set(Some("assigned".to_string()));
+        active.lead_status = Set(Some(lead_status::ASSIGNED.to_string()));
         active.updated_at = Set(Some(now));
         active.updated_by = Set(Some(operator_id));
         Ok(active.update(txn).await?)
