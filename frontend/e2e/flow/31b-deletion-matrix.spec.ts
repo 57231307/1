@@ -1,5 +1,13 @@
 import { test, expect } from '../diagnose-fixture';
-import { apiCall, apiCallRaw, ensureTestEntities, getCtx, loginViaUI, tryCleanup } from './helpers';
+import {
+  apiCall,
+  apiCallExpectFail,
+  apiCallRaw,
+  ensureTestEntities,
+  getCtx,
+  loginViaUI,
+  tryCleanup,
+} from './helpers';
 import { pickListArray, type ListShapeKey } from './ui-helpers';
 
 /**
@@ -121,7 +129,12 @@ async function createThenApiDelete(
   }
 }
 
-test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读验证', () => {
+// 非 serial：矩阵各例彼此独立（各自 beforeEach 登录+ensureTestEntities；每条用例用 TS 后缀
+// 自造唯一命名资源并自行创建/删除；依赖链用例的父资源亦在例内 inline 自建自删），
+// 不存在跨用例产物依赖。原 describe.serial 的链式语义会让任一用例失败即把其后所有用例
+// 判为 "did not run"（假覆盖盲区）——例如「坯布在库不可删」失败曾连带拖垮其后 28 例。
+// 降为普通 describe 后，各例独立执行、独立成败，恢复真实覆盖。
+test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
     await ensureTestEntities(page);
@@ -309,9 +322,26 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
         warehouse_id: 1,
         quantity_meters: 100,
         quantity_kg: 50,
+        // weight_kg / length_m 是 greige_fabric 独立于 quantity 的库存度量列
+        // （create handler:227-228 直接落 req 值）；stock_out 只按这两列递减判定
+        // 出库后状态（greige_fabric_handler.rs:489-504：两者归零→'已出库'，否则→'在库'）。
+        // 不显式填则二者为 None，出库会因"出库量>现有量"报错，无法构造可删态。
+        weight_kg: 50,
+        length_m: 100,
         dye_lot_no: `P0-DL-${TS}`,
         status: '在库',
         remarks: 'P0坯布备注',
+      },
+      // 业务规则（后端既定、源码正确）：在库坯布不允许删除
+      // （greige_fabric_handler.rs:345-346 status=='在库' → AppError::business → HTTP 400）。
+      // 通用「创建→删除→回读」模式的前置态对坯布不成立，故删除前先真实出库把状态转为
+      // '已出库'（构造可删态），再走通用 DELETE——如实反映业务流程，不 skip、不弱化断言。
+      // 「在库直接删除应被拒(400)」由下方独立用例专门覆盖。
+      preDelete: async (page, id) => {
+        await apiCall(page, 'POST', `/production/greige-fabrics/${id}/stock-out`, {
+          weight_kg: 50,
+          length_m: 100,
+        });
       },
     },
     {
@@ -558,6 +588,62 @@ test.describe.serial('P0 删除矩阵：全资源 API 创建→删除→回读�
       await createThenApiDelete(page, c);
     });
   }
+
+  // ===== 坯布删除业务规则守卫 =====
+  // 后端既定规则（greige_fabric_handler.rs:345-346）：status=='在库' 的坯布 DELETE 直接拒绝，
+  // 返回 AppError::business → HTTP 400。注意该 message 经 utils/error.rs::public_message() 脱敏
+  // 为常量「业务处理失败」，中文原文不外显，故此处据实断言 HTTP 400（不锁会被脱敏的文案），
+  // 证明"在库不可删"前置约束被真实执行——与上方"先出库转可删态再删"用例互为正反两面。
+  test('坯布：在库态直接删除应被拒(400)，出库后方可删除', async ({ page }) => {
+    test.setTimeout(120_000);
+    const fabric = await apiCall<{ id?: number }>(page, 'POST', '/production/greige-fabrics', {
+      fabric_no: `P0-GFGUARD-${TS}`,
+      fabric_name: `P0坯布守卫${TS}`,
+      fabric_type: '梭织',
+      product_id: 1,
+      supplier_id: 1,
+      warehouse_id: 1,
+      quantity_meters: 100,
+      quantity_kg: 50,
+      weight_kg: 50,
+      length_m: 100,
+      dye_lot_no: `P0-DL-${TS}`,
+      status: '在库',
+      remarks: 'P0坯布删除守卫',
+    });
+    const id = fabric?.data?.id;
+    expect(id, '[31b-坯布守卫] 在库坯布创建失败').toBeTruthy();
+
+    // 在库态：直接删除必须被拒（HTTP 400），不得静默成功。
+    const rejected = await apiCallExpectFail(page, 'DELETE', `/production/greige-fabrics/${id}`);
+    console.log(
+      `[31b-坯布守卫] 在库 DELETE → HTTP ${rejected.status} code=${rejected.code ?? '-'}`
+    );
+    expect(rejected.status, '[31b-坯布守卫] 在库坯布删除应返回 400（业务规则拒绝）').toBe(400);
+
+    // 记录仍在（删除被拒不应产生副作用）：详情回读仍 200。
+    const stillThere = await page.request.get(
+      `${API_BASE}${API_PREFIX}/production/greige-fabrics/${id}`
+    );
+    expect(stillThere.status(), '[31b-坯布守卫] 删除被拒后坯布记录不应消失').toBe(200);
+
+    // 出库构造可删态 → 删除成功 → 列表回读消失（软删），证明 400 是"态"所致而非端点坏。
+    await apiCall(page, 'POST', `/production/greige-fabrics/${id}/stock-out`, {
+      weight_kg: 50,
+      length_m: 100,
+    });
+    await apiCall(page, 'DELETE', `/production/greige-fabrics/${id}`);
+    console.log(`[31b-坯布守卫] 出库后 DELETE /production/greige-fabrics/${id} ✅成功`);
+    const listAfter = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+      page,
+      'GET',
+      `/production/greige-fabrics?fabric_no=P0-GFGUARD-${TS}&page=1&page_size=50`
+    );
+    const stillInList = (listAfter?.items ?? []).some(r => r.id === id);
+    expect(stillInList, `[31b-坯布守卫] 出库并删除后坯布 ${id} 仍出现在列表（软删未生效）`).toBe(
+      false
+    );
+  });
 
   // ===== 业务模式流程节点（子表） =====
   // 业务模式配置本身不走通用矩阵：mode_code 是 backend validate_mode_code 的封闭词表，
