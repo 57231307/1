@@ -11,6 +11,7 @@ import {
   TEST_USERNAME,
   TEST_PASSWORD,
   ensureTestEntities,
+  ensureStockInWarehouse,
   expectBadRequest,
   failureCode,
   type ApiFailureBody,
@@ -170,48 +171,84 @@ test.describe('异常处理与边界条件', () => {
     );
   });
 
-  test('库存为 0 时发货应被阻断', async ({ page }) => {
+  test('销售建单不锁库存：可用量不足仅在发货时门控（不预占 reservation）', async ({ page }) => {
     const ctx = getCtx();
+    const productId = ctx.productIds[0];
+    const warehouseId = ctx.warehouseIds[0];
+    expect(productId, '缺产品 id，无法验证建单/发货门控').toBeTruthy();
+    expect(warehouseId, '缺仓库 id，无法验证建单/发货门控').toBeTruthy();
 
-    const soData = {
-      order_no: genCode('SO'),
+    // 预置一行带全四维（色号+缸号+批次）的真实库存作为可用量基准，
+    // 并取真实仓库编码（ship.rs 按 warehouse_code 查仓）供发货请求使用。
+    const stockRow = await ensureStockInWarehouse(page, productId, warehouseId);
+    const wh = await apiCallRaw<{ warehouse_code?: string }>(
+      page,
+      'GET',
+      `/warehouses/${warehouseId}`
+    );
+    const warehouseCode = wh?.warehouse_code;
+    expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    expect(stockRow.batch_no, '库存行应带批次号（四维出库入参来源）').toBeTruthy();
+    expect(stockRow.dye_lot_no, '库存行应带缸号（四维出库入参来源）').toBeTruthy();
+
+    // 发货量刻意远超在库可用量（基准 + 巨大缺口）。
+    //
+    // A5 决策：纺织 ERP 按可用量经营销售，建单【不锁物理库存、不引入 reservation 预占】，
+    // 非负/可用量校验只在发货出库时门控。因此建单本身不因可用量不足被拒。
+    // ⚠️ 现状后端与此决策相悖：create_order（order_crud.rs:123）在建单事务内调用
+    //   lock_inventory（inventory.rs:227），其 build_and_lock_reservations 在无库存行时报
+    //   「没有库存记录，无法锁定」（inventory.rs:313）、有行但可用量不足时经
+    //   check_stock_sufficient 报 BUSINESS_ERROR「库存不足，无法锁定」（inventory.rs:329-336），
+    //   即【建单期硬锁库存】。已作为后端缺陷上报。该缺陷修复前，本用例在 build 步骤会如实变红
+    //   （apiCall 遇 code!=200 抛错）——这是暴露缺陷，不得为迁就后端把建单改成"被拒也算过"。
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
       customer_id: ctx.customerId,
-      warehouse_id: ctx.warehouseIds[0],
-      // 销售单 CreateSalesOrderRequest.order_date 为 chrono::DateTime<Utc>
-      // （backend/src/services/so/mod.rs:49），须传完整 RFC3339；
-      // 裸日期串会被 chrono 判 "premature end of input" → POST /sales/orders 422，
-      // 建单失败使整条发货阻断流程无从执行。与 helpers 建销售单口径一致。
       order_date: new Date().toISOString(),
       items: [
         {
-          product_id: ctx.productIds[0],
-          product_color_id: ctx.productColorIds[0],
-          quantity: 999999,
-          // 后端 SalesOrderItemRequest.unit_price 为 rust_decimal::Decimal 非 Option
-          // （backend/src/services/so/mod.rs:170）——缺该必填字段 → POST /sales/orders 422，
-          // 建单失败使"发货阻断"流程无从执行。与 01/02/11/12 等用例建销售单口径一致补上。
+          product_id: productId,
+          quantity: '999999',
           unit_price: '100',
-          unit: '米',
         },
       ],
-    };
+    });
+    const soId = created.data?.id;
+    expect(soId, '销售建单应成功：可用量不足不阻断建单（A5 不锁库存）').toBeTruthy();
 
-    const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', soData);
-    const soId = result.data?.id ?? null;
+    // 推进到可发货状态（APPROVED，ship.rs:111 仅此态可发货）
+    await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
+    await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
 
-    if (soId) {
-      await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
-      await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
-
-      // 发货应被阻断
-      const shipResult = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`);
-      expect(
-        shipResult.status === 400 ||
-          shipResult.status === 409 ||
-          shipResult.status === 422 ||
-          shipResult.status === 403
-      ).toBe(true);
-    }
+    // 发货门控：按真实出库四维请求远超可用量的发货量，可用量校验（check_inventory，
+    // ship.rs:145 → inventory.rs:153 decide_item_stock）应判 Insufficient/NoStockRows 拒发。
+    // 与旧版的两处假绿不同：
+    //  ①旧版用 if (soId) 包裹发货断言——建单未返回 id 时整段被跳过 = 空转假绿；现显式断言 soId。
+    //  ②旧版 ship 传空 body → 因缺 order_id/warehouse_code/items 被 serde 判 4xx，
+    //    "看似被阻断"实为请求格式错误（并非可用量门控），也是假绿；此处传结构合法请求体，
+    //    令拒绝只能来自可用量门控（status<500 且携带业务/校验机器码，非 500 崩溃、非 401/403）。
+    const ship = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`, {
+      order_id: soId,
+      warehouse_code: warehouseCode,
+      items: [
+        {
+          product_id: productId,
+          quantity: 999999,
+          color_no: stockRow.color_no,
+          batch_no: stockRow.batch_no,
+          dye_lot_no: stockRow.dye_lot_no,
+        },
+      ],
+    });
+    const shipReject = failureCode(ship);
+    const rejectedByGate =
+      ship.status >= 400 &&
+      ship.status < 500 &&
+      (shipReject === APP_ERROR_CODES.BUSINESS_ERROR ||
+        shipReject === APP_ERROR_CODES.VALIDATION_ERROR);
+    expect(
+      rejectedByGate,
+      `发货应因可用量不足被业务门控拒绝，实际 status=${ship.status} code=${ship.code ?? ''} message=${ship.message ?? ''}`
+    ).toBeTruthy();
   });
 
   test('会计期间关闭后凭证录入应被阻断', async ({ page }) => {
