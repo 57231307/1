@@ -14,6 +14,8 @@ pub mod request_ext;
 pub mod config; // Wave 4 漏洞 #12：统一 is_production 配置来源（APP_ENV）
 pub mod di_container;
 pub mod dual_unit_converter;
+// 交货数量容差（超收/短量允收）解析——语义与 dual_unit_converter 的 0.5% 录入自洽校验严格区分
+pub mod delivery_tolerance;
 pub mod error;
 // 批次 348 v12 复审 P2-2：fabric_five_dimension 模块已删除（死代码，仅被已删除的 five_dimension_query_service 引用）
 pub mod incoterms;

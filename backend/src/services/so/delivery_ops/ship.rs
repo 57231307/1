@@ -203,6 +203,8 @@ impl SalesService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<ShipmentItemsResult, AppError> {
+        // 超发交货容差门控：越界即整单拒绝（在扣减库存/写流水之前，事务回滚无副作用）
+        Self::validate_shipment_within_tolerance(ctx, request)?;
         let order_item_map: std::collections::HashMap<i32, &sales_order_item::Model> = ctx
             .order_items
             .iter()
@@ -270,6 +272,57 @@ impl SalesService {
             delivery_total_tax,
             pending_inventory_events,
         })
+    }
+
+    /// 销售发货超发容差门控（纯校验，无 DB）。
+    ///
+    /// 规则：同一订单行「累计已发 + 本次发货」不得超过「订单行数量×(1+容差)」上界；
+    /// 落在 `数量×(1±容差)` 区间内一律放行（不拒发），仅越界时返回含上下界的业务错误。
+    ///
+    /// 容差解析优先级：行显式值 > 品类默认（按产品计量单位：面料/按量→5%、计件→0%）> 全局默认（5%）。
+    /// ⚠️ 现状说明：本 ERP 中 `sales_delivery`→`sales_order`→`sales_order_item` 履约链，与
+    /// `sales_contract` 之间**无外键链路**（`sales_orders` 无 `contract_id`），且销售订单行模型
+    /// 无 `quantity_tolerance_pct` 列，故此处行显式值恒为 `None`——合同行上写入的行级覆盖值
+    /// 目前无法回溯到发货点。要让销售侧支持行级覆盖，需先建立「合同行→订单行」链路或在订单行
+    /// 落容差列（跨域改动，已在交付报告中列为需产品/编排决策项）。此限制为如实暴露，非静默降级。
+    fn validate_shipment_within_tolerance(
+        ctx: &ShipOrderContext,
+        request: &ShipOrderRequest,
+    ) -> Result<(), AppError> {
+        use std::collections::HashMap;
+        let mut running: HashMap<i32, Decimal> = HashMap::new();
+        for item in &request.items {
+            let oi = match ctx
+                .order_items
+                .iter()
+                .find(|oi| oi.product_id == item.product_id)
+            {
+                Some(oi) => oi,
+                // 订单行不存在：由既有发货/价格链路负责裁决，此处不重复判定
+                None => continue,
+            };
+            let unit = ctx
+                .product_map
+                .get(&item.product_id)
+                .map(|p| p.unit.as_str());
+            let pct = crate::utils::delivery_tolerance::resolve_tolerance_pct(None, unit);
+            let (lower, upper) =
+                crate::utils::delivery_tolerance::tolerance_bounds(oi.quantity, pct);
+            let cumulative = oi.shipped_quantity
+                + running
+                    .get(&item.product_id)
+                    .copied()
+                    .unwrap_or(Decimal::ZERO)
+                + item.quantity;
+            if cumulative > upper {
+                return Err(AppError::business(format!(
+                    "产品 {} 累计发货量 {} 超过销售订单行允许发货上界 {}（允许区间 [{}, {}]，含交货容差），拒绝发货",
+                    item.product_id, cumulative, upper, lower, upper
+                )));
+            }
+            *running.entry(item.product_id).or_insert(Decimal::ZERO) += item.quantity;
+        }
+        Ok(())
     }
 
     /// 取订单行的单价与税率（行缺失按 0 处理，与原逻辑一致）

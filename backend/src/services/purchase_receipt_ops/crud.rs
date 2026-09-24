@@ -16,7 +16,9 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 
-use crate::models::{purchase_order_item, purchase_receipt, purchase_receipt_item, status};
+use crate::models::{
+    product, purchase_order_item, purchase_receipt, purchase_receipt_item, status,
+};
 use crate::services::purchase_receipt_dto::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
 };
@@ -131,23 +133,45 @@ impl PurchaseReceiptService {
         Ok(())
     }
 
-    /// 按订单未收容量把入库明细匹配到订单明细行（纯决策，无 DB）。
+    /// 按订单未收容量 + 交货容差把入库明细匹配到订单明细行（纯决策，无 DB）。
     ///
     /// 返回 `(入库明细 id, 订单明细 id)` 分配表；任一明细触发以下情形即返回业务错误，
     /// 调用方据此整单拒绝（不落库、不改进度、不留部分成功）：
     /// - 显式指定的订单明细不属于本采购订单；
     /// - 明细产品完全不在订单中（产品对不上 ⇒ 硬拒绝）；
-    /// - 同产品订单行未收数量不足以容纳本行入库量（超收 ⇒ 当前无容差配置即拒绝）。
+    /// - 同产品订单行累计入库量超过「订单量×(1+容差)」上界（超收容差界外 ⇒ 拒绝，含上下界提示）。
+    ///
+    /// `tolerance_pct_by_item`：order_item_id → 解析后的允收百分比（见 utils::delivery_tolerance，
+    /// 行显式 > 品类默认 > 全局默认）。缺项按 0%（最严）fail-closed 处理；生产路径由调用方对
+    /// 全部订单行解析后完整填充，正常情况下不会缺项。
     pub(crate) fn plan_order_item_links(
         order_id: i32,
         order_items: &[purchase_order_item::Model],
         receipt_items: &[purchase_receipt_item::Model],
+        tolerance_pct_by_item: &std::collections::HashMap<i32, Decimal>,
     ) -> Result<Vec<(i32, i32)>, AppError> {
         use std::collections::HashMap;
-        // 每个订单明细行的未收容量 = 采购数量 - 已收数量
-        let capacity: HashMap<i32, Decimal> = order_items
+        // 每订单行：允许区间上下界 + 已扣减已收量后的可继续入库余量（含超收容差）。
+        struct LineBand {
+            headroom: Decimal, // 上界 − 已收量（仍可入库量）
+            lower: Decimal,    // 订单量×(1−tol)
+            upper: Decimal,    // 订单量×(1+tol)
+        }
+        let band: HashMap<i32, LineBand> = order_items
             .iter()
-            .map(|oi| (oi.id, oi.quantity - oi.received_quantity))
+            .map(|oi| {
+                let pct = *tolerance_pct_by_item.get(&oi.id).unwrap_or(&Decimal::ZERO);
+                let (lower, upper) =
+                    crate::utils::delivery_tolerance::tolerance_bounds(oi.quantity, pct);
+                (
+                    oi.id,
+                    LineBand {
+                        headroom: upper - oi.received_quantity,
+                        lower,
+                        upper,
+                    },
+                )
+            })
             .collect();
         let mut used: HashMap<i32, Decimal> = HashMap::new();
         let mut assignments: Vec<(i32, i32)> = Vec::new();
@@ -155,7 +179,7 @@ impl PurchaseReceiptService {
         for item in receipt_items {
             let target_id: i32 = match item.order_item_id {
                 Some(declared) => {
-                    if !capacity.contains_key(&declared) {
+                    if !band.contains_key(&declared) {
                         return Err(AppError::business(format!(
                             "入库单第 {} 行指定的采购订单明细 {} 不属于采购订单 {}，拒绝建单",
                             item.line_no, declared, order_id
@@ -164,25 +188,32 @@ impl PurchaseReceiptService {
                     declared
                 }
                 None => {
-                    // 未显式指定：贪心匹配同产品、且剩余可收容量足以容纳本行整量的订单行。
+                    // 未显式指定：贪心匹配同产品、且剩余可收容量（含超收容差）足以容纳本行整量的订单行。
                     // 一张入库明细只对应一个订单明细行（累加口径即如此），故不允许跨行拆分。
                     let matched = order_items.iter().find(|oi| {
                         oi.product_id == item.product_id
-                            && (capacity[&oi.id]
+                            && (band[&oi.id].headroom
                                 - used.get(&oi.id).copied().unwrap_or(Decimal::ZERO))
                                 >= item.quantity
                     });
                     match matched {
                         Some(oi) => oi.id,
                         None => {
-                            // 区分「产品对不上」与「超收」：产品是否出现在订单明细中
-                            if order_items
+                            // 区分「产品对不上」与「超过交货容差」：产品是否出现在订单明细中
+                            if let Some(oi) = order_items
                                 .iter()
-                                .any(|oi| oi.product_id == item.product_id)
+                                .find(|oi| oi.product_id == item.product_id)
                             {
+                                let b = &band[&oi.id];
                                 return Err(AppError::business(format!(
-                                    "入库单第 {} 行产品 {} 的入库量 {} 超过采购订单 {} 该产品的未收数量（暂无超收容差配置），拒绝建单",
-                                    item.line_no, item.product_id, item.quantity, order_id
+                                    "入库单第 {} 行产品 {} 的入库量 {} 超过采购订单 {} 该产品的允许收货上界 {}（允许区间 [{}, {}]，含交货容差），拒绝建单",
+                                    item.line_no,
+                                    item.product_id,
+                                    item.quantity,
+                                    order_id,
+                                    b.upper,
+                                    b.lower,
+                                    b.upper
                                 )));
                             } else {
                                 return Err(AppError::business(format!(
@@ -195,13 +226,13 @@ impl PurchaseReceiptService {
                 }
             };
 
-            let cap = capacity.get(&target_id).copied().unwrap_or(Decimal::ZERO);
+            let b = &band[&target_id];
             let entry = used.entry(target_id).or_insert(Decimal::ZERO);
             *entry += item.quantity;
-            if *entry > cap {
+            if *entry > b.headroom {
                 return Err(AppError::business(format!(
-                    "入库单第 {} 行产品 {} 累计入库量超过采购订单明细 {} 的未收数量（暂无超收容差配置），拒绝建单",
-                    item.line_no, item.product_id, target_id
+                    "入库单第 {} 行产品 {} 累计入库量超过采购订单明细 {} 的允许收货上界 {}（允许区间 [{}, {}]，含交货容差），拒绝建单",
+                    item.line_no, item.product_id, target_id, b.upper, b.lower, b.upper
                 )));
             }
             assignments.push((item.id, target_id));
@@ -239,8 +270,41 @@ impl PurchaseReceiptService {
             .all(txn)
             .await?;
 
+        // 解析每个订单行的允收容差百分比：行显式值 > 品类默认（按产品计量单位）> 全局默认。
+        // 取产品单位作为品类判定输入（面料按米/公斤→5%、计件→0%），缺产品时按全局默认兜底。
+        let product_ids: Vec<i32> = order_items.iter().map(|oi| oi.product_id).collect();
+        let units: std::collections::HashMap<i32, String> = if product_ids.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            product::Entity::find()
+                .filter(product::Column::Id.is_in(product_ids))
+                .all(txn)
+                .await?
+                .into_iter()
+                .map(|p| (p.id, p.unit))
+                .collect()
+        };
+        let tolerance_pct_by_item: std::collections::HashMap<i32, Decimal> = order_items
+            .iter()
+            .map(|oi| {
+                let unit = units.get(&oi.product_id).map(|s| s.as_str());
+                (
+                    oi.id,
+                    crate::utils::delivery_tolerance::resolve_tolerance_pct(
+                        oi.quantity_tolerance_pct,
+                        unit,
+                    ),
+                )
+            })
+            .collect();
+
         // 决策失败即整单拒绝（此处尚未写入，调用方事务回滚保证无部分成功中间态）
-        let assignments = Self::plan_order_item_links(order_id, &order_items, &receipt_items)?;
+        let assignments = Self::plan_order_item_links(
+            order_id,
+            &order_items,
+            &receipt_items,
+            &tolerance_pct_by_item,
+        )?;
 
         let mut assign_map: std::collections::HashMap<i32, i32> = assignments.into_iter().collect();
         for item in receipt_items {
@@ -443,6 +507,7 @@ mod fail_closed_tests {
             total_amount: dec("0"),
             received_quantity: dec(received),
             received_quantity_alt: Decimal::ZERO,
+            quantity_tolerance_pct: None,
             notes: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
@@ -574,8 +639,13 @@ mod fail_closed_tests {
         // 订单只有产品 500；入库明细产品 999 不在订单中 → 硬拒绝
         let order_items = vec![order_item(11, 1, 500, "1000", "0")];
         let receipt_items = vec![receipt_item(21, 1, 999, "100", None)];
-        let err = PurchaseReceiptService::plan_order_item_links(1, &order_items, &receipt_items)
-            .expect_err("产品与订单不符应拒绝");
+        let err = PurchaseReceiptService::plan_order_item_links(
+            1,
+            &order_items,
+            &receipt_items,
+            &std::collections::HashMap::new(),
+        )
+        .expect_err("产品与订单不符应拒绝");
         let msg = err.to_string();
         assert!(
             msg.contains("第 1 行") && msg.contains("999"),
@@ -594,8 +664,13 @@ mod fail_closed_tests {
         // 产品匹配但未收数量不足（超收）→ 当前无容差配置即拒绝，且文案说明超收
         let order_items = vec![order_item(11, 1, 500, "100", "50")]; // 剩余 50
         let receipt_items = vec![receipt_item(21, 3, 500, "80", None)]; // 入 80 > 50
-        let err = PurchaseReceiptService::plan_order_item_links(1, &order_items, &receipt_items)
-            .expect_err("超收应拒绝");
+        let err = PurchaseReceiptService::plan_order_item_links(
+            1,
+            &order_items,
+            &receipt_items,
+            &std::collections::HashMap::new(),
+        )
+        .expect_err("超收应拒绝");
         let msg = err.to_string();
         assert!(msg.contains("第 3 行"), "应定位到行：{}", msg);
         assert!(msg.contains("超过"), "应说明超收：{}", msg);
@@ -611,8 +686,13 @@ mod fail_closed_tests {
         let order_items = vec![order_item(11, 1, 500, "1000", "0")];
         // 显式指定了不属于本订单的明细 777
         let receipt_items = vec![receipt_item(21, 1, 500, "10", Some(777))];
-        let err = PurchaseReceiptService::plan_order_item_links(1, &order_items, &receipt_items)
-            .expect_err("指定明细不属于订单应拒绝");
+        let err = PurchaseReceiptService::plan_order_item_links(
+            1,
+            &order_items,
+            &receipt_items,
+            &std::collections::HashMap::new(),
+        )
+        .expect_err("指定明细不属于订单应拒绝");
         assert!(err.to_string().contains("777"));
     }
 
@@ -625,10 +705,44 @@ mod fail_closed_tests {
             order_item(12, 1, 600, "1000", "0"),
         ];
         let receipt_items = vec![receipt_item(21, 1, 600, "500", None)];
-        let assign = PurchaseReceiptService::plan_order_item_links(1, &order_items, &receipt_items)
-            .expect("齐套应通过");
+        let assign = PurchaseReceiptService::plan_order_item_links(
+            1,
+            &order_items,
+            &receipt_items,
+            &std::collections::HashMap::new(),
+        )
+        .expect("齐套应通过");
         // 入库行应挂到同产品(600)的订单明细 12，而非首行
         assert_eq!(assign, vec![(21, 12)], "应按产品匹配到正确订单行");
+    }
+
+    #[test]
+    fn over_receipt_within_tolerance_is_accepted() {
+        // 订单量 100、已收 0，行显式容差 5% ⇒ 上界 105；入库 104 落在允许区间 [95,105] ⇒ 放行
+        let order_items = vec![order_item(11, 1, 500, "100", "0")];
+        let receipt_items = vec![receipt_item(21, 1, 500, "104", Some(11))];
+        let mut tol = std::collections::HashMap::new();
+        tol.insert(11, dec("5.00"));
+        let assign =
+            PurchaseReceiptService::plan_order_item_links(1, &order_items, &receipt_items, &tol)
+                .expect("区间内超收应放行");
+        assert_eq!(assign, vec![(21, 11)], "超收但在容差内应正常挂接");
+    }
+
+    #[test]
+    fn over_receipt_beyond_tolerance_is_rejected_with_bounds() {
+        // 订单量 100、已收 0，容差 5% ⇒ 上界 105；入库 106 越界 ⇒ 拒绝，文案须含上下界
+        let order_items = vec![order_item(11, 1, 500, "100", "0")];
+        let receipt_items = vec![receipt_item(21, 3, 500, "106", Some(11))];
+        let mut tol = std::collections::HashMap::new();
+        tol.insert(11, dec("5.00"));
+        let err =
+            PurchaseReceiptService::plan_order_item_links(1, &order_items, &receipt_items, &tol)
+                .expect_err("超过容差上界应拒绝");
+        let msg = err.to_string();
+        assert!(msg.contains("第 3 行"), "应定位到行：{}", msg);
+        assert!(msg.contains("105"), "应给出上界 105：{}", msg);
+        assert!(msg.contains("95"), "应给出下界 95：{}", msg);
     }
 
     #[test]

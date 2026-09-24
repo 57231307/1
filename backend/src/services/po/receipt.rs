@@ -110,6 +110,7 @@ impl PurchaseOrderService {
             total_amount: Set(amount + tax_amount - discount_amount),
             received_quantity: Set(Decimal::ZERO),
             received_quantity_alt: Set(Decimal::ZERO),
+            quantity_tolerance_pct: Set(req.quantity_tolerance_pct),
             notes: Set(req.notes),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),

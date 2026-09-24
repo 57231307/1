@@ -58,6 +58,8 @@ pub struct CreateContractItemDto {
     pub product_spec: Option<String>,
     pub unit: String,
     pub quantity: rust_decimal::Decimal,
+    /// 交货数量允收容差（百分比，可空）：NULL 走默认解析；含「约」订单可写 10.00 覆盖。
+    pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
     pub unit_price: rust_decimal::Decimal,
     pub delivery_date: Option<chrono::NaiveDate>,
     pub remarks: Option<String>,
@@ -207,6 +209,7 @@ pub async fn create_contract(
                     product_spec: item.product_spec,
                     unit: item.unit,
                     quantity: item.quantity,
+                    quantity_tolerance_pct: item.quantity_tolerance_pct,
                     unit_price: item.unit_price,
                     delivery_date: item.delivery_date,
                     remarks: item.remarks,

@@ -112,6 +112,10 @@ pub struct CreateOrderItemRequest {
     /// 折扣百分比
     pub discount_percent: Option<Decimal>,
 
+    /// 交货数量允收容差（百分比，可空）：NULL = 走默认解析（品类 > 全局），
+    /// 非空 = 行级覆盖（含「约」订单写 10.00）。
+    pub quantity_tolerance_pct: Option<Decimal>,
+
     /// 备注
     pub notes: Option<String>,
 }

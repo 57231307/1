@@ -28,6 +28,7 @@ mod m0054_add_import_task_file_fields;
 mod m0055_create_system_update_tables;
 mod m0056_normalize_stock_quality_status;
 mod m0057_normalize_stock_status_domain;
+mod m0058_add_delivery_tolerance;
 
 pub struct Migration;
 
@@ -144,6 +145,8 @@ impl MigrationTrait for Migration {
         m0057_normalize_stock_status_domain::Migration
             .up(manager)
             .await?;
+        // 交货数量容差行级列（采购订单行 / 销售合同行），域内最后追加
+        m0058_add_delivery_tolerance::Migration.up(manager).await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
 ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_by" INTEGER;
 ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
@@ -445,6 +448,9 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0058_add_delivery_tolerance::Migration
+            .down(manager)
+            .await?;
         m0057_normalize_stock_status_domain::Migration
             .down(manager)
             .await?;
