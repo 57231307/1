@@ -19,8 +19,11 @@ test.describe('02 审计日志', () => {
   });
 
   test('02-01 进入审计日志页面', async ({ page }) => {
+    // 原 getByText('审计日志筛选表单') 臆测：该串仅为 el-form 的 aria-label 属性
+    // （auditLog.filter.ariaLabel），页面无此可见文本，getByText 恒不命中。
+    // 改断言该页真实可见的专属控件：导出 CSV 按钮（auditLog.filter.exportCsv）+ 查询按钮 + 列表。
     await page.goto(`${BASE_URL}/system/audit-log`);
-    await expect(page.getByText('审计日志筛选表单')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('button', { name: '导出 CSV' })).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: '查询' })).toBeVisible();
     await expect(page.getByRole('table').first()).toBeVisible({
       timeout: 30000,
