@@ -16,6 +16,10 @@
           <el-icon><Plus /></el-icon>
           {{ $t('bomModule.create') }}
         </el-button>
+        <el-button v-permission="'bom:export'" :loading="exporting" @click="handleExport">
+          <el-icon><Download /></el-icon>
+          {{ $t('common.export') }}
+        </el-button>
       </div>
     </div>
 
@@ -234,7 +238,8 @@ import { ref, reactive, computed } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, Download } from '@element-plus/icons-vue';
+import { exportFromBackend } from '@/utils/export';
 import {
   copyBom,
   setDefaultBom,
@@ -297,6 +302,21 @@ const handleReset = () => {
   syncQueryParams();
   page.value = 1;
   fetchData();
+};
+
+const exporting = ref(false);
+const handleExport = async () => {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    const params: Record<string, unknown> = {
+      product_name: queryParams.product_name || undefined,
+      status: queryParams.status || undefined,
+    };
+    await exportFromBackend('/boms/export', params, 'boms_export');
+  } finally {
+    exporting.value = false;
+  }
 };
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
