@@ -530,6 +530,7 @@ async fn test_cxpzlb_xyzssjk() {
     let service = VoucherService::new(Arc::new(db));
 
     let params = VoucherQueryParams {
+        voucher_no: None,
         voucher_type: None,
         status: None,
         start_date: None,

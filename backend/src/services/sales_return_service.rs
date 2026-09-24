@@ -1525,6 +1525,7 @@ mod tests {
             shipped_quantity_kg: Decimal::ZERO,
             paper_tube_weight: None,
             is_net_weight: None,
+            quantity_tolerance_pct: None,
         }
     }
 
