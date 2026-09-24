@@ -43,7 +43,9 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
   test('2-1 创建报价单（含色号+缸号要求+色号加价+等级差价）', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    const productId = ctx.productIds[1] || ctx.productIds[0] || 1;
+    // 引用 ensureTestEntities 自建、单位已知的报价专用产品（不复用 unit 未知的历史共享产品）
+    const productId = ctx.quotationProductId;
+    expect(productId, '前置失败：报价专用产品未就绪').toBeTruthy();
 
     const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
       customer_id: ctx.customerId,
@@ -59,7 +61,8 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       items: [
         {
           product_id: productId,
-          unit: '米',
+          // 报价行单位跟随产品主数据交易单位（后端 validate_item_units_against_products）
+          unit: ctx.quotationProductUnit,
           quantity: '800',
           unit_price: '100',
           unit_price_with_tax: '113',
@@ -91,9 +94,11 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       tax_rate: '0.13',
       items: [
         {
-          product_id: ctx.productIds[0],
+          // 引用自建报价专用产品；原写死 'm'（英文）与产品中文单位 token 不一致，
+          // 会被 validate_item_units_against_products 逐字符比对拒绝，改为产品落库真实单位
+          product_id: ctx.quotationProductId,
           quantity: 10,
-          unit: 'm',
+          unit: ctx.quotationProductUnit,
           unit_price: '2.50',
           unit_price_with_tax: '2.83',
         },

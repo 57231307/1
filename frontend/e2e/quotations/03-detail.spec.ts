@@ -33,8 +33,10 @@ async function createDraftQuotation(page: Page): Promise<{ id: number; quotation
     tax_rate: '0',
     items: [
       {
-        product_id: ctx.productIds[0],
-        unit: '米',
+        // 引用 ensureTestEntities 自建、单位已知的报价专用产品，报价行单位取后端落库真值，
+        // 满足 validate_item_units_against_products（报价 unit 须逐字符等于产品交易单位）
+        product_id: ctx.quotationProductId,
+        unit: ctx.quotationProductUnit,
         quantity: '5',
         unit_price: '100',
         unit_price_with_tax: '100',

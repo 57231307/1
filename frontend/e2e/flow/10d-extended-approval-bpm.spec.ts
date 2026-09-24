@@ -100,8 +100,10 @@ test.describe.serial('扩展: 二级审批/BPM审批链/金额自适应', () => 
       tax_rate: '13',
       items: [
         {
-          product_id: ctx.productIds[0],
-          unit: '米',
+          // 引用 ensureTestEntities 自建、单位已知的报价专用产品；unit 取后端落库真值，
+          // 满足 validate_item_units_against_products（报价单位须跟随产品主数据交易单位）
+          product_id: ctx.quotationProductId,
+          unit: ctx.quotationProductUnit,
           quantity: '1',
           unit_price: '1',
           unit_price_with_tax: '1.13',

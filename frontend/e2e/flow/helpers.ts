@@ -128,6 +128,16 @@ export interface EntityContext {
   productIds: number[];
   productColorIds: number[];
   colorNos: string[];
+  /**
+   * 报价专用产品：后端 validate_item_units_against_products 要求报价行 unit 逐字符等于
+   * 所引用产品的交易单位（单一真源）。ctx.productIds 可能复用库中 unit 未知的历史共享产品，
+   * 故 ensureTestEntities 无条件自建一个显式带 unit 的产品，报价造数一律引用它，
+   * quotationProductUnit 存后端落库的真实单位（非写死），保证单位配对。
+   */
+  quotationProductId?: number;
+  quotationProductUnit: string;
+  /** 报价专用产品的色号 ID，供需要 color_id 的报价用例自给自足引用 */
+  quotationProductColorId?: number;
   supplierId?: number;
   customerId?: number;
   accountSubjectIds: number[];
@@ -161,6 +171,7 @@ const ctx: EntityContext = {
   productIds: [],
   productColorIds: [],
   colorNos: [],
+  quotationProductUnit: '',
   accountSubjectIds: [],
   pieceIds: [],
   stockIds: [],
@@ -538,6 +549,63 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     }
   }
 
+  // ---- 9.5 报价专用产品（自建、显式带 unit、读回落库真实单位）----
+  // 后端 validate_item_units_against_products（quotation_ops/crud.rs:117）要求报价行 unit
+  // 逐字符等于所引用产品 product.unit（单一真源，不一致直接 400，不静默覆盖）。
+  // ctx.productIds 优先复用库中已有产品（见上方 unit 未知），报价块若写死 '米' 会与
+  // 历史产品单位（可能为 个/公斤/码…）冲突。故本用例无条件自建一个带 unit 的产品，
+  // 并读回后端 product::Model.unit 作为报价行单位的唯一事实来源，实现单位配对、自给自足。
+  try {
+    const qpCode = genCode('E2E-QP');
+    const created = await apiCall<{ id?: number; unit?: string }>(page, 'POST', '/products', {
+      code: qpCode,
+      name: `E2E报价产品${qpCode}`,
+      unit: '米',
+      category_id: ctx.productCategoryIds[0],
+    });
+    if (!created.data?.id) {
+      throw new Error(`报价专用产品创建未返回 id: ${JSON.stringify(created)}`);
+    }
+    ctx.quotationProductId = created.data.id;
+    // 单位取后端落库真值：create 响应已回 product::Model（含 unit），缺失时回查详情兜底，
+    // 保证与 validate_item_units_against_products 比对的产品主数据单位逐字符一致。
+    if (created.data.unit) {
+      ctx.quotationProductUnit = created.data.unit;
+    } else {
+      const detail = await apiCallRaw<{ unit?: string }>(
+        page,
+        'GET',
+        `/products/${ctx.quotationProductId}`
+      );
+      ctx.quotationProductUnit = detail?.unit ?? '米';
+    }
+    console.log(
+      `[ensureTestEntities] 报价专用产品 id=${ctx.quotationProductId} 落库单位=${ctx.quotationProductUnit}`
+    );
+    // 为该报价产品建一条色号，供 21b 等需 color_id 的报价用例引用（自给自足，不复用共享色号）
+    try {
+      const color = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        `/products/${ctx.quotationProductId}/colors`,
+        {
+          color_no: `E2E-QC${Date.now().toString().slice(-6)}`,
+          color_name: 'E2E报价色号',
+          color_type: '纯色',
+          extra_cost: 0,
+        }
+      );
+      ctx.quotationProductColorId = color.data?.id;
+    } catch (e) {
+      console.warn(
+        '[ensureTestEntities] 报价专用产品色号创建失败（不影响单位配对）:',
+        (e as Error).message
+      );
+    }
+  } catch (e) {
+    throw new Error(`[ensureTestEntities] 报价专用产品/单位准备失败: ${(e as Error).message}`);
+  }
+
   // ---- 10. 报价单（保留 API 创建）----
   try {
     const qts = await apiCallRaw<{ items: Array<{ id: number }> }>(
@@ -564,8 +632,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         tax_rate: '13',
         items: [
           {
-            product_id: ctx.productIds[0],
-            unit: '米',
+            // 引用自建、单位已知的报价专用产品；unit 用后端落库真值，满足单位一致性校验
+            product_id: ctx.quotationProductId,
+            unit: ctx.quotationProductUnit,
             quantity: '1',
             unit_price: '1',
             unit_price_with_tax: '1.13',
@@ -977,6 +1046,50 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   await Promise.race([ensureTestEntitiesInner(page), guard]).finally(() => {
     if (timer) clearTimeout(timer);
   });
+}
+
+/**
+ * 取得一个有效的预算方案 ID，用于创建预算明细（budget_items）。
+ *
+ * 后端 Q3 重构后预算为「方案头 + 明细行」两级：POST /budgets（create_budget → create_item）
+ * 的 plan_id 为 NOT NULL 且 create_item 会校验所属方案真实存在
+ * （budget_management_service.rs:176-177 get_plan_by_id），缺失/非法即 4xx。
+ * 故预算明细造数前必须先有一个存在的方案：
+ *   1. 优先复用库中已有方案（GET /budgets/plans 取首条，避免每次新增垃圾方案）；
+ *   2. 无方案时用 ensureTestEntities 已确保的部门自建一条（POST /budgets/plans，
+ *      create_plan 仅 department_id 必填，其余有服务端默认）。
+ * 失败即抛错，不兜底返回假 ID（假 ID 会在 create_item 外键校验处 404，掩盖真实缺方案）。
+ */
+export async function ensureBudgetPlan(page: Page): Promise<number> {
+  const existing = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+    page,
+    'GET',
+    '/budgets/plans?page=1&page_size=1'
+  ).catch(e => {
+    console.warn('[ensureBudgetPlan] 预算方案列表查询失败（转新建）:', (e as Error).message);
+    return undefined;
+  });
+  const existingId = existing?.items?.[0]?.id;
+  if (existingId) {
+    return existingId;
+  }
+  const deptId = getCtx().departmentIds[0];
+  if (!deptId) {
+    throw new Error('[ensureBudgetPlan] 无可用部门 ID（ctx.departmentIds 为空），无法创建预算方案');
+  }
+  const created = await apiCall<{ id?: number }>(page, 'POST', '/budgets/plans', {
+    plan_no: `E2E-BP${Date.now().toString().slice(-6)}`,
+    plan_name: `E2E预算方案${Date.now().toString().slice(-6)}`,
+    budget_year: new Date().getFullYear(),
+    budget_type: '年度预算',
+    department_id: deptId,
+    total_amount: 1000000,
+  });
+  if (!created.data?.id) {
+    throw new Error(`[ensureBudgetPlan] 预算方案创建未返回 id: ${JSON.stringify(created)}`);
+  }
+  console.log('[ensureBudgetPlan] 新建预算方案 id=', created.data.id);
+  return created.data.id;
 }
 
 async function getCsrfToken(page: Page): Promise<string> {

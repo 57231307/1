@@ -127,7 +127,10 @@ test.describe('面料单据专用字段全链路验证', () => {
   // ============================================================
   test('报价单：色号字段（color_id）+规格+含税价验证', async ({ page }) => {
     const ctx = getCtx();
-    const productId = ctx.productIds[0];
+    // 引用 ensureTestEntities 自建、单位已知且带专属色号的报价专用产品：
+    // 既满足 validate_item_units_against_products（单位配对），又能取到自身 color_id，
+    // 不复用 unit 未知的历史共享产品
+    const productId = ctx.quotationProductId;
 
     // 查询产品色号 ID
     let colorId: number | null = null;
@@ -161,7 +164,8 @@ test.describe('面料单据专用字段全链路验证', () => {
           product_id: productId,
           color_id: colorId,
           specification: 'T/C 65/35 45x45 110x76',
-          unit: '米',
+          // 报价行单位跟随产品主数据交易单位（后端 validate_item_units_against_products）
+          unit: ctx.quotationProductUnit,
           quantity: '100',
           unit_price: unitPrice,
           unit_price_with_tax: expectedWithTax,
@@ -185,7 +189,8 @@ test.describe('面料单据专用字段全链路验证', () => {
 
       expect(Number(item.product_id)).toBe(productId);
       expect(item.specification).toBe('T/C 65/35 45x45 110x76');
-      expect(item.unit).toBe('米');
+      // 落库单位应等于产品主数据交易单位（后端单一真源校验的等价断言）
+      expect(item.unit).toBe(ctx.quotationProductUnit);
       expect(Number(item.quantity)).toBe(100);
       if (colorId) {
         expect(Number(item.color_id)).toBe(colorId);
