@@ -16,7 +16,7 @@
           <el-icon><Plus /></el-icon>
           {{ $t('bomModule.create') }}
         </el-button>
-        <el-button v-permission="'bom:export'" :loading="exporting" @click="handleExport">
+        <el-button v-permission="'boms:export'" :loading="exporting" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ $t('common.export') }}
         </el-button>
