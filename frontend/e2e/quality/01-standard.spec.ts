@@ -59,18 +59,19 @@ test.describe('01 质量标准', () => {
 
   test('01-02 新建质量标准', async ({ page }) => {
     await page.goto('/quality');
-    await page.getByRole('button', { name: /新建/ }).click();
+    await page.getByRole('button', { name: '新建标准' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/标准编码/).fill(`QS-${Date.now()}`);
-    await page.getByLabel(/标准名称/).fill('E2E 测试质量标准');
-    await page.getByLabel(/类型/).click();
+    // 真实 label 为「标准编号」（quality.standardDialog.standardCode，原用例误写「标准编码」）、
+    // 「标准内容」；版本默认预置 1.0、类型默认 product（必填已满足），提交按钮真实「确定」，
+    // 成功提示为 quality.message.operationSuccess「操作成功」（非「创建成功/保存成功」）。限定 .el-dialog。
+    const dlg = page.locator('.el-dialog');
+    await dlg.getByLabel('标准编号').fill(`QS-${Date.now()}`);
+    await dlg.getByLabel('标准名称').fill('E2E 测试质量标准');
+    await dlg.getByLabel('类型').click();
     await page.getByRole('option').first().click();
-    await page.getByLabel(/内容/).fill('E2E 测试质量标准内容');
-    await page
-      .getByRole('button', { name: /确认|保存/ })
-      .last()
-      .click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
+    await dlg.getByLabel('标准内容').fill('E2E 测试质量标准内容');
+    await dlg.getByRole('button', { name: '确定' }).click();
+    await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
   });
 
   test('01-03 草稿标准可审批通过', async ({ page }) => {
