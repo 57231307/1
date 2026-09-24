@@ -53,21 +53,25 @@
         :aria-label="t('system.audit.aria.list')"
       >
         <el-table-column prop="created_at" :label="t('system.audit.column.time')" width="180" />
-        <el-table-column
-          prop="operator_name"
-          :label="t('system.audit.column.operator')"
-          width="120"
-        />
-        <el-table-column prop="module" :label="t('system.audit.column.module')" width="120" />
-        <el-table-column prop="action" :label="t('system.audit.column.action')" width="100" />
+        <el-table-column prop="username" :label="t('system.audit.column.operator')" width="120" />
         <el-table-column
           prop="resource_type"
+          :label="t('system.audit.column.module')"
+          width="120"
+        />
+        <el-table-column
+          prop="operation_type"
+          :label="t('system.audit.column.action')"
+          width="100"
+        />
+        <el-table-column
+          prop="resource_name"
           :label="t('system.audit.column.resource')"
           width="120"
         />
         <el-table-column prop="ip_address" :label="t('system.audit.column.ip')" width="130" />
         <el-table-column
-          prop="detail"
+          prop="description"
           :label="t('system.audit.column.detail')"
           min-width="200"
           show-overflow-tooltip
@@ -90,20 +94,15 @@
 import { reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useTableApi } from '@/composables/useTableApi';
+import type { AuditLogItem } from '@/api/audit';
 
 const { t } = useI18n({ useScope: 'global' });
 
-interface AuditLog {
-  created_at: string;
-  operator_name: string;
-  module: string;
-  action: string;
-  resource_type: string;
-  ip_address: string;
-  detail: string;
-}
-
-// 批次 281：filterForm 仅保留筛选字段，分页字段由 useTableApi 管理
+// filterForm 仅保留筛选字段，分页字段由 useTableApi 管理。
+// operator 字段为操作人姓名筛选；/audit-logs 端点仅暴露 user_id(数字)/resource_type/
+// operation_type/severity/keyword/start_time/end_time 过滤入参，无「按操作人姓名」过滤，
+// 故 operator 暂不下发到 query（列为待决策，需后端补 username 过滤入参后再接线），
+// 避免发送后端不识别的死参数造成「筛选恒无效」的假接线。
 const filterForm = reactive({
   operator: '',
   module: '',
@@ -118,29 +117,32 @@ const {
   total,
   refresh: fetchAuditLogs,
   setQueryParam,
-} = useTableApi<AuditLog>({
-  url: '/audit/logs',
+} = useTableApi<AuditLogItem>({
+  // 后端真实端点：/api/v1/erp/audit-logs（system.rs::audit_logs()，admin 域）；
+  // 与 api/audit.ts::getAuditLogList、system/audit-log 页同口径，返回 {data:{items,total,page,page_size}}。
+  url: '/audit-logs',
+  listKey: 'items',
   defaultPageSize: 20,
-  // 静默：审计日志查询失败不向用户弹出错误（保持原行为）
+  // 保持原行为：查询失败不额外弹出错误（列表已能正常 200 加载，该回调仅兜底极端网络故障）
   onError: () => {},
 });
 
 const syncQueryParams = () => {
-  setQueryParam('operator', filterForm.operator || undefined);
-  setQueryParam('module', filterForm.module || undefined);
+  // module 对应后端 resource_type 过滤；时间范围对应 start_time/end_time，
+  // 后端以 DateTime<Utc>(RFC3339) 解析，日期粒度补足到当日首/末秒避免漏记录。
+  setQueryParam('resource_type', filterForm.module || undefined);
   if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-    setQueryParam('start_date', filterForm.dateRange[0]);
-    setQueryParam('end_date', filterForm.dateRange[1]);
+    setQueryParam('start_time', `${filterForm.dateRange[0]}T00:00:00Z`);
+    setQueryParam('end_time', `${filterForm.dateRange[1]}T23:59:59Z`);
   } else {
-    setQueryParam('start_date', undefined);
-    setQueryParam('end_date', undefined);
+    setQueryParam('start_time', undefined);
+    setQueryParam('end_time', undefined);
   }
 };
 
 const handleSearch = () => {
   syncQueryParams();
   page.value = 1;
-  // 静默处理：审计日志查询失败不向用户弹出错误
   fetchAuditLogs().catch(e => console.error('[AuditTab] 审计日志加载失败:', e));
 };
 
