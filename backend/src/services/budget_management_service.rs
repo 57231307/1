@@ -555,6 +555,25 @@ impl BudgetManagementService {
             ));
         }
 
+        // D10 修复：对"使用"和"下达"类执行强制金额非负（"调整"允许负数表示预算调减）
+        if ["下达", "使用"].contains(&execution_type.as_str()) && amount < Decimal::ZERO {
+            return Err(AppError::validation(format!(
+                "执行类型为「{}」时金额不能为负数，当前金额：{}",
+                execution_type, amount
+            )));
+        }
+
+        // D11 修复：当 item_id 存在时，校验其归属的 plan_id 与传入 plan_id 一致
+        if let Some(effective_item_id) = item_id {
+            let item = self.get_item_by_id(effective_item_id).await?;
+            if item.plan_id != plan_id {
+                return Err(AppError::validation(format!(
+                    "预算科目 {} 不属于方案 {}（实际属于方案 {}）",
+                    effective_item_id, plan_id, item.plan_id
+                )));
+            }
+        }
+
         let active_execution = budget_execution::ActiveModel {
             plan_id: Set(plan_id),
             item_id: Set(item_id),
