@@ -1,8 +1,8 @@
 //! 坯布管理Handler（原料布匹管理）
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use sea_orm::{
