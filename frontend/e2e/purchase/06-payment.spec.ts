@@ -14,6 +14,15 @@ import { applyAuthMocks } from '../smoke/_helpers';
  * 3. 付款方式（5 种）
  * 4. 付款单打印
  */
+/**
+ * 状态标签事实来源（判责 #4647）：AP 发票列表状态列由
+ * src/views/ap/tabs/InvoiceTab.vue:getInvoiceStatusLabel 渲染，后端写入值集
+ * （models/ap_invoice.rs + ap_invoice_ops/crud.rs，finance.rs::INVOICE_AUDITED）与 i18n 文案
+ * （src/locales/zh-CN.ts apModule.invoice.*）为：
+ *   DRAFT→草稿 / AUDITED→已审核 / PARTIAL_PAID→部分付款 / PAID→已付清 / CANCELLED→已取消。
+ * 深链 seed 建的是 AUDITED（已审核、未付款）发票，实体无 payment_status 列（payment_status 属
+ * AP 付款单且词表为 REGISTERED/CONFIRMED），词表中不存在“未付款”文案 → 原 hasText:'未付款' 恒不命中。
+ */
 test.describe('06 采购付款', () => {
   test.beforeEach(async ({ page, context }) => {
     // V15 Batch 487 P0-T05：注入 auth mock，业务 API 走真实后端（applyAuthMocks 不再 mock 业务 API）
@@ -25,7 +34,7 @@ test.describe('06 采购付款', () => {
     // 应付管理为扁平 Tab 页（router index.ts:173 path:'ap'），默认停「应付发票」tab；
     // 无 /ap/invoice/list 子路由 → 原落 404
     await page.goto('/ap');
-    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未付款' }).first();
+    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /付款/ }).click();
     // 全额付款
@@ -38,7 +47,7 @@ test.describe('06 采购付款', () => {
     // 应付管理为扁平 Tab 页（router index.ts:173 path:'ap'），默认停「应付发票」tab；
     // 无 /ap/invoice/list 子路由 → 原落 404
     await page.goto('/ap');
-    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未付款' }).first();
+    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     // 第 1 次付款
     await page.getByRole('button', { name: /付款/ }).click();
@@ -55,7 +64,7 @@ test.describe('06 采购付款', () => {
     // 应付管理为扁平 Tab 页（router index.ts:173 path:'ap'），默认停「应付发票」tab；
     // 无 /ap/invoice/list 子路由 → 原落 404
     await page.goto('/ap');
-    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未付款' }).first();
+    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /付款/ }).click();
     await page.getByLabel(/付款方式/).click();

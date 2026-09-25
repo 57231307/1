@@ -14,6 +14,15 @@ import { applyAuthMocks } from '../smoke/_helpers';
  * 3. 收款方式（现金/银行转账/承兑汇票/支付宝/微信）
  * 4. 收款单打印
  */
+/**
+ * 状态标签事实来源（判责 #4647）：AR 发票列表状态列由
+ * src/views/ar/tabs/InvoiceTab.vue:getInvoiceStatusLabel 渲染，后端写入值集
+ * （backend/src/services/ar_invoice_service.rs，models/status/general.rs::common/payment）
+ * 与 i18n 文案（src/locales/zh-CN.ts arModule.invoice.*）为：
+ *   DRAFT→草稿 / APPROVED→已审核 / PARTIAL_PAID→部分收款 / PAID→已收讫 / CANCELLED→已取消。
+ * 深链 seed 建的是 APPROVED（未收款）发票，其状态标签真实为“已审核”，实体无 payment_status 列，
+ * 词表中不存在“未收款”文案 → 原 hasText:'未收款' 恒不命中。断言改用真实存在的标签。
+ */
 test.describe('06 销售收付款', () => {
   test.beforeEach(async ({ page, context }) => {
     // V15 Batch 487 P0-T05：注入 auth mock，业务 API 走真实后端（applyAuthMocks 不再 mock 业务 API）
@@ -25,7 +34,7 @@ test.describe('06 销售收付款', () => {
     // 应收管理为扁平 Tab 页（router index.ts:179 path:'ar'），默认停「应收发票」tab；
     // 无 /ar/invoice/list 子路由 → 原落 404
     await page.goto('/ar');
-    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未收款' }).first();
+    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /收款/ }).click();
     // 收款金额 = 应收金额（一键全额）
@@ -40,7 +49,7 @@ test.describe('06 销售收付款', () => {
     await page.goto('/ar');
     const invoice = page
       .locator('tr, .el-table__row')
-      .filter({ hasText: /部分收款|未收款/ })
+      .filter({ hasText: /部分收款|已审核/ })
       .first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     // 第 1 次收款
@@ -58,7 +67,7 @@ test.describe('06 销售收付款', () => {
     // 应收管理为扁平 Tab 页（router index.ts:179 path:'ar'），默认停「应收发票」tab；
     // 无 /ar/invoice/list 子路由 → 原落 404
     await page.goto('/ar');
-    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未收款' }).first();
+    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '已审核' }).first();
     await invoice.getByRole('button', { name: /详情/ }).click();
     await page.getByRole('button', { name: /收款/ }).click();
     // 验证 5 种方式
