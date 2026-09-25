@@ -1430,7 +1430,7 @@ async function ensureGlobalBusinessSeed(
           const poBody = await safeJson(poResp);
           const poId = (poBody?.data as Record<string, unknown>)?.id as number;
           if (!poResp.ok() || !poId) {
-            const errText = await poResp.text().catch(() => '');
+            const errText = JSON.stringify(await poResp.json().catch(() => null));
             console.error(
               `[globalSeed] ⚠️ 库存种子建采购订单失败 HTTP ${poResp.status()} warehouse=${wh.id} body=${errText.slice(0, 300)}${poResp.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
             );
@@ -1440,7 +1440,7 @@ async function ensureGlobalBusinessSeed(
           await seedPost(`${API_PREFIX}/purchase/orders/${poId}/submit`, {});
           const poApprove = await seedPost(`${API_PREFIX}/purchase/orders/${poId}/approve`, {});
           if (!poApprove.ok()) {
-            const errText = await poApprove.text().catch(() => '');
+            const errText = JSON.stringify(await poApprove.json().catch(() => null));
             console.error(
               `[globalSeed] ⚠️ 库存种子采购订单审批失败 HTTP ${poApprove.status()} po=${poId} body=${errText.slice(0, 300)}${poApprove.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
             );
@@ -1472,7 +1472,7 @@ async function ensureGlobalBusinessSeed(
           const rcvBody = await safeJson(rcvResp);
           const rcvId = (rcvBody?.data as Record<string, unknown>)?.id as number;
           if (!rcvResp.ok() || !rcvId) {
-            const errText = await rcvResp.text().catch(() => '');
+            const errText = JSON.stringify(await rcvResp.json().catch(() => null));
             console.error(
               `[globalSeed] ⚠️ 库存种子建入库单失败 HTTP ${rcvResp.status()} po=${poId} warehouse=${wh.id} body=${errText.slice(0, 300)}${rcvResp.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
             );
@@ -1488,7 +1488,7 @@ async function ensureGlobalBusinessSeed(
               `[globalSeed] 库存种子落库成功 product=${productId} warehouse=${wh.id} rcv=${rcvId} 色号=${colorCode} 批次=${batchNo} 缸号=${dyeLotNo} qty=10000`
             );
           } else {
-            const errText = await confirmResp.text().catch(() => '');
+            const errText = JSON.stringify(await confirmResp.json().catch(() => null));
             console.error(
               `[globalSeed] ⚠️ 库存种子「确认入库」失败 HTTP ${confirmResp.status()} rcv=${rcvId} warehouse=${wh.id} body=${errText.slice(0, 300)}${confirmResp.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
             );
