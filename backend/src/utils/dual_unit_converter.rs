@@ -101,14 +101,6 @@ impl DualUnitConverter {
         Decimal::new(10936, 4)
     }
 
-    /// 米数转码数：码 = 米 × 1.0936（quantity_meters 米数；Ok 码数，Err 输入非法）
-    pub fn meters_to_yards(quantity_meters: Decimal) -> Result<Decimal, String> {
-        if quantity_meters < Decimal::ZERO {
-            return Err("米数不能为负数".to_string());
-        }
-        Ok((quantity_meters * Self::yards_per_meter()).round_dp(2))
-    }
-
     /// 码数转米数：米 = 码 ÷ 1.0936（quantity_yards 码数；Ok 米数，Err 输入非法）
     pub fn yards_to_meters(quantity_yards: Decimal) -> Result<Decimal, String> {
         if quantity_yards < Decimal::ZERO {
@@ -131,20 +123,6 @@ impl DualUnitConverter {
         Ok((piece_count * meters_per_piece).round_dp(2))
     }
 
-    /// 米数转匹数（「约」匹数视图）：匹 = 米 ÷ 每匹米数（quantity_meters 米数，meters_per_piece 产品元数据）
-    pub fn meters_to_pieces(
-        quantity_meters: Decimal,
-        meters_per_piece: Decimal,
-    ) -> Result<Decimal, String> {
-        if quantity_meters < Decimal::ZERO {
-            return Err("米数不能为负数".to_string());
-        }
-        if meters_per_piece <= Decimal::ZERO {
-            return Err("每匹米数必须大于 0".to_string());
-        }
-        Ok((quantity_meters / meters_per_piece).round_dp(2))
-    }
-
     /// 卷数转米数：米 = 卷 × 每卷米数（roll_count 卷数，meters_per_roll 取自产品换算元数据列）
     pub fn rolls_to_meters(
         roll_count: Decimal,
@@ -157,19 +135,5 @@ impl DualUnitConverter {
             return Err("每卷米数必须大于 0".to_string());
         }
         Ok((roll_count * meters_per_roll).round_dp(2))
-    }
-
-    /// 米数转卷数（「约」卷数视图）：卷 = 米 ÷ 每卷米数（quantity_meters 米数，meters_per_roll 产品元数据）
-    pub fn meters_to_rolls(
-        quantity_meters: Decimal,
-        meters_per_roll: Decimal,
-    ) -> Result<Decimal, String> {
-        if quantity_meters < Decimal::ZERO {
-            return Err("米数不能为负数".to_string());
-        }
-        if meters_per_roll <= Decimal::ZERO {
-            return Err("每卷米数必须大于 0".to_string());
-        }
-        Ok((quantity_meters / meters_per_roll).round_dp(2))
     }
 }
