@@ -100,15 +100,12 @@
       <ElRow :gutter="20" class="total-row">
         <ElCol :span="12" class="total-item">
           <span class="label">{{ t('voucher.voucherListForm.labelDebitTotal') }}</span>
-          <span class="value debit">{{ formatAmount(localForm.total_debit) }}</span>
+          <span class="value debit">{{ formatAmount(totalDebit) }}</span>
         </ElCol>
         <ElCol :span="12" class="total-item">
           <span class="label">{{ t('voucher.voucherListForm.labelCreditTotal') }}</span>
-          <span class="value credit">{{ formatAmount(localForm.total_credit) }}</span>
-          <span
-            v-if="Math.abs((localForm.total_debit ?? 0) - (localForm.total_credit ?? 0)) > 0.01"
-            class="error"
-          >
+          <span class="value credit">{{ formatAmount(totalCredit) }}</span>
+          <span v-if="Math.abs(totalDebit - totalCredit) > 0.01" class="error">
             {{ t('voucher.voucherListForm.textNotBalanced') }}
           </span>
           <span v-else class="success">{{ t('voucher.voucherListForm.textBalanced') }}</span>
@@ -128,7 +125,7 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
-import { ref, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatAmount } from '../composables/vchrLstFmts';
 
@@ -193,6 +190,17 @@ const emit = defineEmits<{
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 entries 数组，需要深拷贝以保证本地修改与父组件解耦
 const localForm = ref<VoucherForm>(deepClone(props.form));
+
+// 借/贷合计按本地分录实时派生，用于底部展示与不平衡提示。
+// 与 useVchrLst.ts:calculateTotals 同源（对 entries 求和，金额 nullish 视为 0）。
+// 不读 localForm.total_debit / localForm.total_credit：这两个字段只能靠父组件
+// 计算后经 props 回灌，而回灌会被下方 syncing echo 抑制吞掉（emit 与 props watch
+// 落在同一 flushJobs 周期内、nextTick 复位尚未执行），导致真实录入不平衡时提示
+// 永不刷新。直接以 entries 派生可脱离该同步时序，且与提交校验读取的父侧合计等价。
+const sumEntries = (pick: (entry: VoucherEntry) => number | undefined) =>
+  (localForm.value.entries || []).reduce((sum, entry) => sum + (pick(entry) || 0), 0);
+const totalDebit = computed(() => sumEntries(e => e.debit_amount));
+const totalCredit = computed(() => sumEntries(e => e.credit_amount));
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false;
