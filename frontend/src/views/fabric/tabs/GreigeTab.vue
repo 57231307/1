@@ -26,6 +26,11 @@
           :label="t('fabric.greigeTab.columnName')"
           min-width="150"
         />
+        <el-table-column
+          prop="fabric_type"
+          :label="t('fabric.greigeTab.columnFabricType')"
+          width="100"
+        />
         <!--
           供应商列暂移除：后端列表端点仅返回 supplier_id，不返回 supplier_name
           （见 models/greige_fabric.rs / handlers/greige_fabric_handler.rs list），

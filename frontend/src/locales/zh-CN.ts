@@ -9722,6 +9722,7 @@ export default {
       tableAriaLabel: '坯布列表',
       columnCode: '编号',
       columnName: '名称',
+      columnFabricType: '布类',
       columnSupplier: '供应商',
       columnWidth: '幅宽',
       columnWeight: '克重',

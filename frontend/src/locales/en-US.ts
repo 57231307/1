@@ -9760,6 +9760,7 @@ export default {
       tableAriaLabel: 'Greige Fabric List',
       columnCode: 'Code',
       columnName: 'Name',
+      columnFabricType: 'Fabric Type',
       columnSupplier: 'Supplier',
       columnWidth: 'Width',
       columnWeight: 'Weight',
