@@ -42,12 +42,8 @@
       <el-table-column prop="unit" :label="t('greigeFabrics.index.colUnit')" width="80" />
       <el-table-column prop="status" :label="t('greigeFabrics.index.colStatus')" width="100">
         <template #default="{ row }">
-          <el-tag :type="row.status === 'active' ? 'success' : 'info'">
-            {{
-              row.status === 'active'
-                ? t('greigeFabrics.index.optionActive')
-                : t('greigeFabrics.index.optionInactive')
-            }}
+          <el-tag :type="row.status === GREIGE_STATUS.IN_STOCK ? 'success' : 'info'">
+            {{ row.status }}
           </el-tag>
         </template>
       </el-table-column>
@@ -174,8 +170,8 @@
             v-model="formData.status"
             :placeholder="t('greigeFabrics.index.placeholderSelectStatus')"
           >
-            <el-option :label="t('greigeFabrics.index.optionActive')" value="active" />
-            <el-option :label="t('greigeFabrics.index.optionInactive')" value="inactive" />
+            <el-option :label="GREIGE_STATUS.IN_STOCK" :value="GREIGE_STATUS.IN_STOCK" />
+            <el-option :label="GREIGE_STATUS.OUT_OF_STOCK" :value="GREIGE_STATUS.OUT_OF_STOCK" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('greigeFabrics.index.labelDescription')" prop="description">
@@ -205,7 +201,9 @@ import {
   createGreigeFabric,
   updateGreigeFabric,
   deleteGreigeFabric,
+  GREIGE_STATUS,
   type GreigeFabric,
+  type GreigeStatusValue,
 } from '@/api/greige-fabric';
 import { getSupplierList, type Supplier } from '@/api/supplier';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
@@ -236,7 +234,7 @@ interface GreigeFabricForm {
   composition: string;
   quantity: number;
   min_order_quantity: number;
-  status: 'active' | 'inactive';
+  status: GreigeStatusValue;
   description: string;
 }
 
@@ -252,7 +250,7 @@ const formData = reactive<GreigeFabricForm>({
   composition: '',
   quantity: 0,
   min_order_quantity: 0,
-  status: 'active',
+  status: GREIGE_STATUS.IN_STOCK,
   description: '',
 });
 
@@ -313,7 +311,7 @@ const resetForm = () => {
     composition: '',
     quantity: 0,
     min_order_quantity: 0,
-    status: 'active',
+    status: GREIGE_STATUS.IN_STOCK,
     description: '',
   });
 };

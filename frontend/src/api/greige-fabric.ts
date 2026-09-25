@@ -74,6 +74,23 @@ export interface GreigeFabric {
 }
 
 /**
+ * 坯布库存状态权威取值（中文 token 即落库值，禁止英文化）。
+ *
+ * 真相源 backend/src/handlers/greige_fabric_handler.rs：
+ *   :222 新建默认 `在库`；:405 入库置 `在库`；
+ *   :504-507 出库后重量与米数耗尽置 `已出库`，否则回 `在库`；
+ *   :349 删除门控 `status == Some("在库")` 拒绝删除。
+ * 后端只会写入这两个中文值，故比较点与门控值必须与此逐字符相同。
+ * 展示范式复用 views/fabric/tabs/GreigeTab.vue（直接渲染中文原值，不再套一层英文 code）。
+ */
+export const GREIGE_STATUS = {
+  IN_STOCK: '在库',
+  OUT_OF_STOCK: '已出库',
+} as const;
+
+export type GreigeStatusValue = (typeof GREIGE_STATUS)[keyof typeof GREIGE_STATUS];
+
+/**
  * 入库请求体：字段与后端 StockInRequest 逐一对应。
  * 真相源 backend/src/handlers/greige_fabric_handler.rs:110
  * 纺织坯布按重量交易、按长度核米：warehouse_id / weight_kg / length_m 均为必填。

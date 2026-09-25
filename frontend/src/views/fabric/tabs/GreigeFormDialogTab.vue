@@ -84,7 +84,13 @@ import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
-import { createGreigeFabric, updateGreigeFabric, type GreigeFabric } from '@/api/greige-fabric';
+import {
+  createGreigeFabric,
+  updateGreigeFabric,
+  GREIGE_STATUS,
+  type GreigeFabric,
+  type GreigeStatusValue,
+} from '@/api/greige-fabric';
 import type { Supplier } from '@/api/supplier';
 import { logger } from '@/utils/logger';
 
@@ -116,7 +122,7 @@ const formData = reactive({
   width: 0,
   weight: 0,
   composition: '',
-  status: 'active' as 'active' | 'inactive',
+  status: GREIGE_STATUS.IN_STOCK as GreigeStatusValue,
 });
 
 const rules = computed<FormRules>(() => ({
@@ -144,7 +150,7 @@ const resetForm = () => {
   formData.width = 0;
   formData.weight = 0;
   formData.composition = '';
-  formData.status = 'active';
+  formData.status = GREIGE_STATUS.IN_STOCK;
 };
 
 watch(
