@@ -40,12 +40,12 @@ impl PurchaseReceiptService {
             Self::validate_receipt_item_dimensions(item)?;
         }
 
-        // 采购门控：校验供应商是否在有效黑名单中
-        SupplierBlacklistService::new(self.db.clone())
-            .check_supplier_not_blacklisted(req.supplier_id)
-            .await?;
-
         let txn = (*self.db).begin().await?;
+
+        // 采购门控：校验供应商是否在有效黑名单中（事务内执行，消除 TOCTOU）
+        SupplierBlacklistService::new(self.db.clone())
+            .check_supplier_not_blacklisted(&txn, req.supplier_id)
+            .await?;
 
         // 1. 生成入库单号
         let receipt_no = self.generate_receipt_no().await?;

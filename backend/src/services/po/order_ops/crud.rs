@@ -31,7 +31,7 @@ use crate::services::po::order::{PurchaseOrderDto, PurchaseOrderService};
 use crate::services::po::{CreatePurchaseOrderRequest, UpdatePurchaseOrderRequest};
 use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
@@ -126,9 +126,9 @@ impl PurchaseOrderService {
             )));
         }
 
-        // 采购门控：校验供应商是否在有效黑名单中
+        // 采购门控：校验供应商是否在有效黑名单中（事务内执行，消除 TOCTOU）
         SupplierBlacklistService::new(self.db.clone())
-            .check_supplier_not_blacklisted(req.supplier_id)
+            .check_supplier_not_blacklisted(txn, req.supplier_id)
             .await?;
 
         // 检查仓库是否存在

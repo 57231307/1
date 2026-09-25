@@ -4,8 +4,8 @@
 //! 供采购门控（创建订单/收货/付款）调用的 `check_supplier_not_blacklisted` 校验方法。
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -228,16 +228,22 @@ impl SupplierBlacklistService {
     ///
     /// 命中时返回 `Err(AppError::business(...))` 含供应商名称与拉黑原因；
     /// 未命中或无记录时返回 `Ok(())`。
-    pub async fn check_supplier_not_blacklisted(&self, supplier_id: i32) -> Result<(), AppError> {
+    ///
+    /// 接受外部连接参数 `conn`，使调用者可在事务内执行以消除 TOCTOU 竞态。
+    pub async fn check_supplier_not_blacklisted<C: ConnectionTrait>(
+        &self,
+        conn: &C,
+        supplier_id: i32,
+    ) -> Result<(), AppError> {
         let record = supplier_blacklist::Entity::find()
             .filter(supplier_blacklist::Column::SupplierId.eq(supplier_id))
             .filter(supplier_blacklist::Column::ReleaseStatus.eq(RELEASE_STATUS_PENDING))
-            .one(&*self.db)
+            .one(conn)
             .await?;
 
         if let Some(blacklist_entry) = record {
             let supplier_name = supplier::Entity::find_by_id(supplier_id)
-                .one(&*self.db)
+                .one(conn)
                 .await?
                 .map(|s| s.supplier_name)
                 .unwrap_or_else(|| format!("供应商#{}", supplier_id));

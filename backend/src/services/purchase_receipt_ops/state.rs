@@ -34,9 +34,9 @@ impl PurchaseReceiptService {
         // 锁定并校验入库单（DRAFT + 明细数 > 0），串行化并发 confirm
         let receipt = self.lock_and_validate_receipt_txn(receipt_id, &txn).await?;
 
-        // 采购门控：确认收货前再次校验供应商是否在有效黑名单中
+        // 采购门控：确认收货前再次校验供应商是否在有效黑名单中（事务内执行，消除 TOCTOU）
         SupplierBlacklistService::new(self.db.clone())
-            .check_supplier_not_blacklisted(receipt.supplier_id)
+            .check_supplier_not_blacklisted(&txn, receipt.supplier_id)
             .await?;
 
         // 关联采购单时更新已收数量

@@ -8,7 +8,7 @@
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
 use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 // 批次 259 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -78,9 +78,9 @@ impl ApPaymentService {
             )));
         }
 
-        // 采购门控：校验供应商是否在有效黑名单中
+        // 采购门控：校验供应商是否在有效黑名单中（事务内执行，消除 TOCTOU）
         SupplierBlacklistService::new(self.db.clone())
-            .check_supplier_not_blacklisted(request.supplier_id)
+            .check_supplier_not_blacklisted(&txn, request.supplier_id)
             .await?;
 
         // 3. 检查是否已创建过付款单
