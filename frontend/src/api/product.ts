@@ -13,10 +13,17 @@ export interface Product {
   barcode?: string;
   specification?: string;
   description?: string;
-  /** 每匹米数（匹↔米换算元数据，可空）；仅换算视图入参，不参与库存计量（models/product.rs:70） */
-  meters_per_piece?: number;
-  /** 每卷米数（卷↔米换算元数据，可空）；仅换算视图入参，不参与库存计量（models/product.rs:74） */
-  meters_per_roll?: number;
+  /**
+   * 每匹米数（匹↔米换算元数据，可空）；仅换算视图入参，不参与库存计量（models/product.rs:70）。
+   * 后端 rust_decimal 序列化为字符串（如 "100.00"）、NULL→null；本接口亦用于创建/更新入参（表单数值），
+   * 故取并集。消费点：ProductFormDialogTab 编辑回显需 Number() 归一后绑定 el-input-number。
+   */
+  meters_per_piece?: number | string | null;
+  /**
+   * 每卷米数（卷↔米换算元数据，可空）；仅换算视图入参，不参与库存计量（models/product.rs:74）。
+   * 同上：Decimal→string，NULL→null，并含表单入参数值。
+   */
+  meters_per_roll?: number | string | null;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;

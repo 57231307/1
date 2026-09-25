@@ -67,8 +67,13 @@ export interface PurchaseOrderItem {
   tax_amount: number;
   total_amount: number;
   received_quantity: number;
-  /** 后端 purchase_order_item.quantity_tolerance_pct（可空，NULL=用品类/全局默认） */
-  quantity_tolerance_pct: number | null;
+  /**
+   * 后端 purchase_order_item.quantity_tolerance_pct（可空，NULL=用品类/全局默认）。
+   * 后端 rust_decimal 经 JSON 序列化为字符串（如 "5.00"），NULL→null；
+   * 本接口同时用于创建入参 items（useCreate.submitCreate 提交数值），故取并集 number | string | null。
+   * 消费点：详情展示 PurchaseViewDialog 需 Number() 归一。
+   */
+  quantity_tolerance_pct: number | string | null;
   /** 后端 purchase_order_item.notes（备注） */
   notes?: string | null;
 }

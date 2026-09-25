@@ -5,7 +5,8 @@ export interface CustomerTag {
   id: number;
   name: string;
   color: string;
-  category: string;
+  /** 后端 customer_tag.category 为 Option<String>，未分类时序列化为 null */
+  category: string | null;
   created_at: string;
 }
 

@@ -48,8 +48,13 @@ export interface SalesOrderItem {
   subtotal: number;
   /** 后端 SalesOrderItemDetail.shipped_quantity（services/so/mod.rs:94），非 delivered_quantity */
   shipped_quantity: number;
-  /** 后端 sales_order_items.quantity_tolerance_pct（可空，NULL=用品类/全局默认） */
-  quantity_tolerance_pct: number | null;
+  /**
+   * 后端 sales_order_items.quantity_tolerance_pct（可空，NULL=用品类/全局默认）。
+   * 后端 rust_decimal 经 JSON 序列化为字符串（如 "5.00"），NULL→null；
+   * 本接口同时用于创建/更新入参（表单侧提交数值），故取并集 number | string | null。
+   * 消费点：详情展示需 Number() 归一；编辑回显 useOlv.prepareEdit 转数值绑定 el-input-number。
+   */
+  quantity_tolerance_pct: number | string | null;
 }
 
 export interface SalesOrderQueryParams {

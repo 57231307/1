@@ -371,7 +371,9 @@ export function useOlv() {
         unit: it.unit || '',
         unit_price: it.unit_price,
         subtotal: it.subtotal,
-        quantity_tolerance_pct: it.quantity_tolerance_pct ?? undefined,
+        // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
+        quantity_tolerance_pct:
+          it.quantity_tolerance_pct != null ? Number(it.quantity_tolerance_pct) : undefined,
       })) || [
         {
           id: Date.now(),

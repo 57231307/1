@@ -47,8 +47,12 @@ export interface ContractItem {
   price: number;
   amount: number;
   remark: string;
-  /** 后端 sales_contract_items.quantity_tolerance_pct（可空，NULL=用品类/全局默认） */
-  quantity_tolerance_pct: number | null;
+  /**
+   * 后端 sales_contract_items.quantity_tolerance_pct（可空，NULL=用品类/全局默认）。
+   * 出参专用（创建入参另用 CreateContractItemInput，那边是数值），rust_decimal 序列化为字符串，NULL→null。
+   * 消费点：useSc.prepareEdit 回显需 Number() 归一后绑定 el-input-number。
+   */
+  quantity_tolerance_pct: string | null;
 }
 
 // 后端 sales_contract_handler::SalesContractQuery（list_contracts 的 Query<T>，全字段 Option、snake_case）

@@ -20,13 +20,19 @@
           currentReconciliation.customer_name
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('arReconciliationModule.invoiceAmount')">{{
-          currentReconciliation.invoice_amount.toFixed(2)
+          currentReconciliation.invoice_amount != null
+            ? formatCurrency(currentReconciliation.invoice_amount)
+            : '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('arReconciliationModule.paymentAmount')">{{
-          currentReconciliation.payment_amount.toFixed(2)
+          currentReconciliation.payment_amount != null
+            ? formatCurrency(currentReconciliation.payment_amount)
+            : '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('arReconciliationModule.differenceAmount')">{{
-          currentReconciliation.difference.toFixed(2)
+          currentReconciliation.difference != null
+            ? formatCurrency(currentReconciliation.difference)
+            : '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('arReconciliationModule.matchStatus')">
           <el-tag :type="getMatchType(currentReconciliation.match_status)" size="small">
@@ -97,6 +103,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { formatCurrency } from '@/utils';
 import type {
   AutoReconciliationResult,
   ReconciliationDetailItem,

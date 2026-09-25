@@ -310,6 +310,13 @@ watch(
       resetForm();
       if (props.rowData) {
         Object.assign(formData, props.rowData);
+        // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
+        formData.meters_per_piece =
+          props.rowData.meters_per_piece != null
+            ? Number(props.rowData.meters_per_piece)
+            : undefined;
+        formData.meters_per_roll =
+          props.rowData.meters_per_roll != null ? Number(props.rowData.meters_per_roll) : undefined;
       }
     }
   }

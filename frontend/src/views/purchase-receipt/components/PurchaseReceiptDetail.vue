@@ -29,7 +29,7 @@
           data.warehouse_name
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseReceipt.detail.label.amount')">{{
-          (data.total_amount || 0).toFixed(2)
+          data.total_amount != null ? formatCurrency(data.total_amount) : '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseReceipt.detail.label.status')">{{
           getStatusLabelFmt(data.status)
@@ -108,6 +108,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { formatCurrency } from '@/utils';
 import type { PurchaseReceiptEntity, ReceiptItem } from '@/api/purchase-receipt';
 import { getStatusLabel } from '../composables/prcFmts';
 
