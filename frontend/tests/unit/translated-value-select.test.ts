@@ -144,7 +144,7 @@ describe('「译文当业务值」门禁', () => {
       '韵达快递',
       '京东物流',
     ]);
-    expect([...QUOTATION_UNIT_VALUES]).toEqual(['米', '卷', '公斤', '件']);
+    expect([...QUOTATION_UNIT_VALUES]).toEqual(['米', '码', '公斤', '匹', '卷', '条', '件', '吨']);
     // 轨迹事件为小写码，与运单主状态的大写码分属两域（后端用例同口径钉住）
     expect([...LOGISTICS_EVENT_TYPE_VALUES]).toEqual([
       'pickup',

@@ -45,7 +45,7 @@ describe('新增域状态映射', () => {
   });
 
   it('验布状态映射', () => {
-    expect(INSPECTION_STATUS_LABEL.draft).toBe('草稿');
+    expect(INSPECTION_STATUS_LABEL.pending).toBe('待验布');
     expect(INSPECTION_STATUS_LABEL.graded).toBe('已定级');
   });
 
