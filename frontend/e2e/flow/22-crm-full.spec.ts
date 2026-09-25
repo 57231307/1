@@ -14,6 +14,7 @@ import {
   safePostAction,
   verifyEndpointHealthy,
   ensureTestEntities,
+  tryCleanup,
 } from './helpers';
 
 test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
@@ -102,6 +103,88 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         Array.isArray(d360.tags),
         `360 data.tags 应为数组（缺键使详情页崩溃），实际=${JSON.stringify(d360.tags)}`
       ).toBe(true);
+      // [BE-4] 补强 tags 元素字段形状断言（对应修复项 BE-4：CustomerTagBrief.category 可空）
+      // 后端 services/crm/mod.rs:64-69 CustomerTagBrief { id, name, color, category: Option<String> }
+      // category 序列化为 null 时前端详情组件不得崩溃；前端 api/crm-enhanced.ts:4-9 CustomerTag 接口
+      // 原把 category 声明为 string（非 nullable），与后端契约不一致——该缺陷导致前端 TS 编译期
+      // 漏掉 null 分支，运行期对 category 做 .trim()/.toLowerCase() 等调用时 TypeError。
+      // 本断言锁定 tags 数组每个元素的字段形状契约：
+      //   id: number（必有）
+      //   name: string（必有非空）
+      //   color: string（必有）
+      //   category: string | null（可空——BE-4 修复项核心）
+      // 注意：tags 数组可能为空（客户尚未挂标签），此时跳过元素级断言。
+      const tags = d360.tags as Array<Record<string, unknown>>;
+      if (tags.length > 0) {
+        for (const tag of tags) {
+          expect(typeof tag.id, `tag.id 应为 number，实际=${JSON.stringify(tag.id)}`).toBe(
+            'number'
+          );
+          expect(
+            typeof tag.name,
+            `tag.name 应为 string，实际=${JSON.stringify(tag.name)}`
+          ).toBe('string');
+          expect((tag.name as string)?.length, 'tag.name 不应为空字符串').toBeGreaterThan(0);
+          expect(
+            typeof tag.color,
+            `tag.color 应为 string（后端 CustomerTagBrief.color 非 Option），实际=${JSON.stringify(tag.color)}`
+          ).toBe('string');
+          // category 是本轮核心：可为 string 或 null，但键必须存在（后端序列化为 Option → null 或 string）
+          expect(
+            'category' in tag,
+            `tag 对象必须含 'category' 键（后端 CustomerTagBrief 四字段契约），实际 keys=${Object.keys(tag).join(',')}`
+          ).toBe(true);
+          expect(
+            tag.category === null || typeof tag.category === 'string',
+            `tag.category 应为 string 或 null（BE-4 Option<String>），实际 type=${typeof tag.category} value=${JSON.stringify(tag.category)}`
+          ).toBe(true);
+        }
+        console.log(
+          `[22-crm] tags 元素形状验证通过，共 ${tags.length} 条，category 取值分布=${JSON.stringify(
+            tags.map(t => (t.category === null ? 'null' : typeof t.category))
+          )}`
+        );
+      } else {
+        // 无标签时显式挂一个 category 为空的标签做契约验证（真实 UI 操作或 API 挂标签均可，
+        // 此处按最小侵入原则用 API attach，不污染 UI 流程）
+        const tagCreate = await apiCall<{ id?: number }>(page, 'POST', '/crm/tags', {
+          name: `E2E容null标签${Date.now().toString().slice(-6)}`,
+          color: '#FF5733',
+          // 不传 category（后端 Option<String> 无默认值 → 落库 NULL）
+        });
+        const newTagId = tagCreate.data?.id;
+        if (newTagId) {
+          await apiCall(page, 'POST', `/crm/customers/${customerId}/tags/${newTagId}`, {}).catch(
+            e => {
+              console.warn('[22-crm] 挂标签失败:', (e as Error).message);
+            }
+          );
+          // 重新获取 360 验证新标签的 category 为 null
+          const r360b = await page.request.fetch(
+            `${API_BASE}${API_PREFIX}/crm/customers/${customerId}/360`,
+            {
+              method: 'GET',
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token':
+                  (await page.context().cookies()).find(c => c.name === 'csrf_token')?.value ?? '',
+              },
+            }
+          );
+          const env360b = (await r360b.json()) as { code?: number; data?: Record<string, unknown> };
+          const tagsB = (env360b.data?.tags ?? []) as Array<Record<string, unknown>>;
+          const createdTag = tagsB.find(t => t.id === newTagId);
+          if (createdTag) {
+            expect(
+              createdTag.category === null || createdTag.category === undefined,
+              `category 未指定时后端应返回 null（BE-4 可空契约），实际=${JSON.stringify(createdTag.category)}`
+            ).toBe(true);
+            expect(typeof createdTag.color).toBe('string');
+          }
+          // 清理标签
+          await tryCleanup(page, 'DELETE', `/crm/tags/${newTagId}`, '22-crm-容null标签');
+        }
+      }
       expect(
         Array.isArray(d360.shipping_addresses),
         `360 data.shipping_addresses 应为数组（detail.vue:237 取其 length），实际=${JSON.stringify(

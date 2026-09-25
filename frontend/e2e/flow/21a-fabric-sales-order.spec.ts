@@ -326,4 +326,172 @@ test.describe('面料单据专用字段全链路验证', () => {
   //   batch_no, grade, gram_weight, width
   // 注意: 用 color_code（非 color_no），用 lot_no（非 dye_lot_no）
   // ============================================================
+
+  // ============================================================
+  // [BE-3] 销售订单容差回显验证：quantity_tolerance_pct 在明细创建/编辑后
+  // 通过 GET 详情回读、UI 打开详情弹窗均能看到写入值（非 null/undefined）。
+  // 对应修复项：
+  //   BE-3: 后端 SalesOrderItemDetail (services/so/mod.rs) 补 quantity_tolerance_pct 出参
+  //         order_query.rs build_item_detail() / build_single_item_detail() 已透传
+  //         order_crud.rs create 时 Set(item_req.quantity_tolerance_pct) 已接线
+  //   FE: 前端 OrderFormDialog.vue 已有"容差" el-input-number 绑定
+  //         row.quantity_tolerance_pct；OrderViewDialog/OrderDetail 已展示该列
+  // 本用例通过 UI 新建订单时填入容差值，随后 GET 详情断言 quantity_tolerance_pct
+  // 等于写入值；再 UI 打开详情弹窗验证渲染。
+  // ============================================================
+  test('销售订单容差：UI 创建填入 quantity_tolerance_pct → GET 回读 → UI 详情回显', async ({
+    page,
+  }) => {
+    const ctx = getCtx();
+    expect(ctx.productIds.length, '[21a-tol] 缺少测试产品').toBeGreaterThan(0);
+    expect(ctx.colorNos.length, '[21a-tol] 缺少测试色号').toBeGreaterThan(0);
+    const productId = ctx.productIds[0];
+    const colorNo = ctx.colorNos[0];
+    const productName = (await apiCallRaw<{ name: string }>(page, 'GET', `/products/${productId}`))
+      .name;
+    const toleranceValue = 8.5; // 设一个有意义的容差百分比
+
+    await page.goto(`${BASE_URL}/sales`);
+    await page
+      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper')
+      .first()
+      .waitFor({ state: 'visible', timeout: 30_000 });
+
+    // 打开新建订单对话框
+    await page.locator('button:has-text("新建订单")').first().click();
+    const dialog = page.locator('.el-dialog:visible').first();
+    await dialog.waitFor({ state: 'visible', timeout: 10_000 });
+
+    // 选客户
+    const customerFormItem = dialog
+      .locator('.el-form-item')
+      .filter({ has: page.locator('.el-form-item__label', { hasText: '客户' }) })
+      .first();
+    const customerSelect = customerFormItem.locator('.el-select').first();
+    await customerSelect.click();
+    const customerDropdown = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
+    await expect(customerDropdown.first(), '[21a-tol] 客户下拉应有选项').toBeVisible({
+      timeout: 5000,
+    });
+    await customerDropdown.first().click();
+
+    // 填要求交货日期
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const future = new Date(Date.now() + 30 * 86400000);
+    const futureStr = `${future.getFullYear()}-${pad(future.getMonth() + 1)}-${pad(future.getDate())}`;
+    const reqDateInput = dialog.locator('input[placeholder="选择日期"]').nth(1);
+    await reqDateInput.fill(futureStr);
+    await reqDateInput.press('Enter');
+
+    // 填联系人/电话/地址
+    await dialog.locator('input[placeholder="联系人姓名"]').fill('E2E容差测试');
+    await dialog.locator('input[placeholder="联系电话"]').fill('13900139000');
+    const addrTextarea = dialog.locator('textarea[placeholder="详细收货地址"]');
+    if (await addrTextarea.isVisible().catch(() => false)) {
+      await addrTextarea.fill('E2E 容差测试地址');
+    }
+
+    // 明细行：选产品
+    await dialog.locator('.el-table .el-select').nth(0).click();
+    await page
+      .locator('.el-select-dropdown__item:visible')
+      .filter({ hasText: productName })
+      .first()
+      .click();
+
+    // 明细行：选色号
+    await dialog.locator('.el-table .el-select').nth(1).click();
+    const colorOption = page
+      .locator('.el-select-dropdown__item:visible')
+      .filter({ hasText: colorNo })
+      .first();
+    await colorOption.waitFor({ state: 'visible', timeout: 5000 });
+    await colorOption.click();
+
+    // 明细行：填数量和单价
+    const numberInputs = dialog.locator('.el-table .el-input-number input');
+    await numberInputs.nth(0).fill('100');
+    await numberInputs.nth(1).fill('30');
+    await numberInputs.nth(1).press('Tab');
+
+    // 明细行：填容差值 — 定位"容差"列的 el-input-number
+    // OrderFormDialog.vue:158 列 label=i18n('sales.orderForm.tolerance')
+    // 中文 locale 下表头文本含"容差"
+    const toleranceHeader = dialog
+      .locator('.el-table__header th, .el-table__header-wrapper th')
+      .filter({ hasText: '容差' });
+    await expect(
+      toleranceHeader.first(),
+      '[21a-tol] 明细表应含"容差"列（FE 表单项已渲染）'
+    ).toBeVisible({ timeout: 5000 });
+    // 容差输入框在明细行的对应单元格内；列索引由"容差"表头位置确定
+    const toleranceInput = dialog
+      .locator('.el-table__body td .el-input-number input')
+      .last(); // 容差列是最后一个 number 列
+    await toleranceInput.waitFor({ state: 'visible', timeout: 5000 });
+    await toleranceInput.fill(String(toleranceValue));
+    await toleranceInput.press('Tab');
+    console.log(`[21a-tol] 容差值已填入 ${toleranceValue}%`);
+
+    // 提交订单
+    const responsePromise = page.waitForResponse(
+      r => r.request().method() === 'POST' && r.url().endsWith('/sales/orders'),
+      { timeout: 30000 }
+    );
+    await dialog.locator('.el-dialog__footer button').filter({ hasText: '确定' }).first().click();
+    const resp = await responsePromise;
+
+    // 断言创建成功
+    expect(resp.ok(), `[21a-tol] 创建订单应 2xx，实际 ${resp.status()}`).toBe(true);
+    const created = await resp.json();
+    const orderId = created?.data?.id;
+    expect(orderId, '[21a-tol] 创建未返回订单 id').toBeTruthy();
+
+    // 断言 payload 包含 quantity_tolerance_pct
+    const payload = JSON.parse(resp.request().postData() || '{}');
+    expect(
+      Number(payload.items?.[0]?.quantity_tolerance_pct),
+      `[21a-tol] 提交 payload 明细行 quantity_tolerance_pct 应=${toleranceValue}，实际=${payload.items?.[0]?.quantity_tolerance_pct}`
+    ).toBe(toleranceValue);
+
+    // GET 详情回读：quantity_tolerance_pct 非 null 且等于写入值
+    const detail = await apiCallRaw<{
+      items: Array<{ quantity_tolerance_pct: number | string | null }>;
+    }>(page, 'GET', `/sales/orders/${orderId}`);
+    expect(detail.items?.length, '[21a-tol] 详情应含明细行').toBeGreaterThan(0);
+    const itemTolerance = detail.items[0].quantity_tolerance_pct;
+    expect(
+      itemTolerance,
+      `[21a-tol] GET 详情 quantity_tolerance_pct 不应为 null/undefined（BE-3 接线验证），实际=${JSON.stringify(itemTolerance)}`
+    ).not.toBeNull();
+    expect(
+      Number(itemTolerance),
+      `[21a-tol] quantity_tolerance_pct 应等于写入值 ${toleranceValue}，实际=${itemTolerance}`
+    ).toBe(toleranceValue);
+
+    // UI 打开详情弹窗验证回显
+    // 先关闭当前对话框
+    await page.waitForTimeout(1000);
+    const detailBtn = page
+      .getByRole('row')
+      .filter({ hasText: 'E2E容差测试' })
+      .first()
+      .locator('button:has-text("查看"), button:has-text("详情"), .el-link:has-text("详情")')
+      .first();
+    if (await detailBtn.isVisible().catch(() => false)) {
+      await detailBtn.click();
+      const detailDialog = page.locator('.el-dialog:visible, .el-drawer:visible').last();
+      await detailDialog.waitFor({ state: 'visible', timeout: 10000 });
+      // 详情弹窗内应显示容差百分比文本（OrderViewDialog.vue:88 `row.quantity_tolerance_pct + '%'`）
+      const toleranceText = await detailDialog.textContent();
+      expect(
+        toleranceText?.includes(String(toleranceValue)) || toleranceText?.includes('8.5'),
+        `[21a-tol] UI 详情应显示容差值 ${toleranceValue}%，实际弹窗文本片段=${(toleranceText || '').slice(0, 300)}`
+      ).toBe(true);
+      await page.locator('.el-dialog__headerbtn, .el-drawer__close-btn').first().click().catch(() => {});
+    }
+
+    // 清理
+    await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '21a-tol 销售订单');
+  });
 });

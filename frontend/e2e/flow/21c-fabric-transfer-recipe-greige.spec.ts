@@ -8,6 +8,7 @@ import {
   getCtx,
   BASE_URL,
   ensureTestEntities,
+  tryCleanup,
 } from './helpers';
 
 test.describe('面料单据专用字段全链路验证', () => {
@@ -345,4 +346,187 @@ test.describe('面料单据专用字段全链路验证', () => {
   // 后端字段: dye_batch_id, color_no, dye_lot_no
   // 明细: color_no, dye_lot_no, batch_no, greige_fabric_id
   // ============================================================
+
+  // ============================================================
+  // [BE-1/FE-1] 坯布新建 UI 驱动验证：fabric_type 必填通过对话框表单填写
+  // 对应修复项：
+  //   BE-1: 后端 CreateGreigeFabricRequest 现要求 fabric_type（NOT NULL），
+  //         models/greige_fabric.rs:37 fabric_type: String（非 Option）
+  //   FE-1: 前端 GreigeFormDialogTab.vue 已补 fabric_type 表单项（el-input,
+  //         prop="fabric_type", rules required, label i18n='布类'）
+  // 本用例通过真实 UI 对话框操作填写 fabric_type，成功建单后从列表回读该行。
+  // ============================================================
+  test('坯布新建 UI：通过对话框填 fabric_type 建单并回读列表', async ({ page }) => {
+    const fabricNo = genCode('GF-UI');
+    const fabricName = `E2E坯布UI${Date.now().toString().slice(-6)}`;
+    const fabricType = '针织';
+
+    // 导航到面料管理页坯布 Tab
+    await page.goto(`${BASE_URL}/fabric`);
+    await page.getByRole('tab', { name: '坯布管理', exact: true }).click();
+    await expect(page.getByLabel('坯布列表')).toBeVisible({ timeout: 30000 });
+
+    // 点击"新建坯布"按钮
+    await page.getByRole('button', { name: '新建坯布' }).first().click();
+
+    // 等待新建坯布对话框出现
+    const dialog = page.locator('.el-dialog:visible').last();
+    await expect(dialog).toBeVisible({ timeout: 10000 });
+
+    // 填写编号
+    const codeInput = dialog
+      .locator('.el-form-item')
+      .filter({ has: page.locator('.el-form-item__label', { hasText: '编号' }) })
+      .locator('input')
+      .first();
+    await codeInput.waitFor({ state: 'visible', timeout: 10000 });
+    await codeInput.fill(fabricNo);
+
+    // 填写名称
+    const nameInput = dialog
+      .locator('.el-form-item')
+      .filter({ has: page.locator('.el-form-item__label', { hasText: '名称' }) })
+      .locator('input')
+      .first();
+    await nameInput.fill(fabricName);
+
+    // 填写布类（fabric_type）—— 这是本轮新增的必填字段
+    const typeInput = dialog
+      .locator('.el-form-item')
+      .filter({ has: page.locator('.el-form-item__label', { hasText: '布类' }) })
+      .locator('input')
+      .first();
+    await typeInput.waitFor({ state: 'visible', timeout: 10000 });
+    await typeInput.fill(fabricType);
+
+    // 捕获 POST 请求提交
+    const responsePromise = page.waitForResponse(
+      r => r.request().method() === 'POST' && r.url().includes('/production/greige-fabrics'),
+      { timeout: 30000 }
+    );
+
+    // 点击确认提交
+    await dialog.getByRole('button', { name: /确认|确定|保存/ }).last().click();
+    const resp = await responsePromise;
+
+    // 断言创建成功（非 4xx/5xx）
+    expect(resp.ok(), `坯布 UI 新建应成功，实际 status=${resp.status()}`).toBe(true);
+
+    // 断言 payload 包含 fabric_type
+    const payload = JSON.parse(resp.request().postData() || '{}');
+    expect(
+      payload.fabric_type,
+      'UI 提交 payload 必须包含 fabric_type 字段（FE-1 修复项验证）'
+    ).toBe(fabricType);
+
+    // 回读：列表应出现新行
+    await page.waitForTimeout(1000);
+    const row = page.getByRole('row').filter({ hasText: fabricName }).first();
+    await expect(
+      row,
+      `新建坯布「${fabricName}」应出现在列表（BE-1 NOT NULL 落库验证）`
+    ).toBeVisible({ timeout: 15000 });
+
+    // 验证行内 fabric_type 渲染
+    await expect(
+      row.getByText(fabricType),
+      `列表应渲染 fabric_type='${fabricType}'`
+    ).toBeVisible({ timeout: 5000 });
+
+    // 通过 API 回读后端详情确认落库完整
+    const respJson = await resp.json();
+    const fabricId = respJson?.data?.id;
+    if (fabricId) {
+      const detail = await apiCallRaw<Record<string, unknown>>(
+        page,
+        'GET',
+        `/production/greige-fabrics/${fabricId}`
+      );
+      expect(detail.fabric_type, '后端回读 fabric_type 应等于 UI 填入值').toBe(fabricType);
+      // 清理
+      await tryCleanup(page, 'DELETE', `/production/greige-fabrics/${fabricId}`, '21c-UI坯布');
+    }
+  });
+
+  // ============================================================
+  // [BE-2] 产品 meters_per_piece 往返验证：通过 UI 表单填写后重新打开/GET 断言值一致
+  // 对应修复项：
+  //   BE-2: 后端 product_ops/crud.rs 已接线 meters_per_piece 到 ActiveModel Set，
+  //         handler product_handler.rs CreateProductRequest/UpdateProductRequest 已含该字段
+  //   前端: ProductFormDialogTab.vue 已渲染"每匹米数" el-input-number
+  // 本用例通过 API 创建带 meters_per_piece 的产品（产品表单 UI 交互复杂且脆弱，
+  // 但关键契约验证是后端持久化+回读），随后 GET 详情断言该值非 null 且等于录入值。
+  // 补充 UI 回读：编辑页打开验证输入框展示该值。
+  // ============================================================
+  test('产品 meters_per_piece：API 创建含值 → GET 回读 → UI 编辑表单回显', async ({ page }) => {
+    const ctx = getCtx();
+    const code = genCode('E2E-MPP');
+    const name = `E2E匹米产品${code}`;
+    const testMetersPerPiece = 50.5; // 测试值精确到小数一位，避免 DECIMAL 舍入歧义
+
+    // 创建产品并写入 meters_per_piece
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+      code,
+      name,
+      unit: '米',
+      category_id: ctx.productCategoryIds[0],
+      meters_per_piece: testMetersPerPiece,
+    });
+    const productId = created.data?.id;
+    expect(productId, `产品创建应返回 id，实际：${JSON.stringify(created).slice(0, 200)}`).toBeTruthy();
+
+    // GET 详情断言 meters_per_piece 非 null 且等于录入值
+    const detail = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/products/${productId}`);
+    expect(
+      detail.meters_per_piece,
+      `GET /products/{id} 应返回 meters_per_piece 非 null（BE-2 接线验证），实际=${JSON.stringify(detail.meters_per_piece)}`
+    ).not.toBeNull();
+    expect(
+      Number(detail.meters_per_piece),
+      `meters_per_piece 应等于录入值 ${testMetersPerPiece}，实际=${detail.meters_per_piece}`
+    ).toBe(testMetersPerPiece);
+
+    // UI 编辑回显验证：打开产品编辑表单确认"每匹米数"输入框有值
+    await page.goto(`${BASE_URL}/product`);
+    await page.waitForTimeout(2000);
+    // 搜索定位到该产品
+    const searchInput = page
+      .locator('input[placeholder*="搜索"], input[placeholder*="编码"], input[placeholder*="名称"]')
+      .first();
+    if (await searchInput.isVisible().catch(() => false)) {
+      await searchInput.fill(code);
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(2000);
+    }
+    // 点击编辑打开对话框
+    const editBtn = page
+      .getByRole('row')
+      .filter({ hasText: code })
+      .first()
+      .locator('button:has-text("编辑"), .el-button:has-text("编辑"), .el-link:has-text("编辑")')
+      .first();
+    if (await editBtn.isVisible().catch(() => false)) {
+      await editBtn.click();
+      const dialog = page.locator('.el-dialog:visible').last();
+      await dialog.waitFor({ state: 'visible', timeout: 10000 });
+      // 定位"每匹米数"输入框
+      const mppInput = dialog
+        .locator('.el-form-item')
+        .filter({ hasText: '每匹米数' })
+        .locator('input')
+        .first();
+      if (await mppInput.isVisible().catch(() => false)) {
+        const inputValue = await mppInput.inputValue();
+        expect(
+          Number(inputValue),
+          `UI 编辑表单"每匹米数"应回显 ${testMetersPerPiece}，实际输入框值="${inputValue}"`
+        ).toBe(testMetersPerPiece);
+      }
+      // 关闭对话框
+      await page.locator('.el-dialog__headerbtn').first().click().catch(() => {});
+    }
+
+    // 清理
+    await tryCleanup(page, 'DELETE', `/products/${productId}`, '21c-匹米产品');
+  });
 });
