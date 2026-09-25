@@ -663,9 +663,11 @@ async function ensureGlobalBusinessSeed(
     requestWithCsrfRecovery(ctx, 'put', url, headers, data);
 
   // 辅助：安全 JSON 解析（响应可能是非 2xx 的文本）
-  const safeJson = async (
-    resp: { ok: () => boolean; status: () => number; json: () => Promise<unknown> }
-  ): Promise<Record<string, unknown> | null> => {
+  const safeJson = async (resp: {
+    ok: () => boolean;
+    status: () => number;
+    json: () => Promise<unknown>;
+  }): Promise<Record<string, unknown> | null> => {
     if (!resp.ok()) return null;
     try {
       return (await resp.json()) as Record<string, unknown>;
@@ -686,7 +688,7 @@ async function ensureGlobalBusinessSeed(
   try {
     const meResp = await ctx.get(`${API_PREFIX}/auth/me`, { headers });
     const meBody = await safeJson(meResp);
-    currentUserId = (meBody?.data as Record<string, unknown>)?.id as number ?? 0;
+    currentUserId = ((meBody?.data as Record<string, unknown>)?.id as number) ?? 0;
     if (!currentUserId) {
       console.error('[globalSeed] /auth/me 未返回 id，后续需要 user_id 的实体将跳过');
     }
@@ -707,7 +709,8 @@ async function ensureGlobalBusinessSeed(
       fabricCategoryId = fabricCat.id;
     } else {
       const createResp = await seedPost(`${API_PREFIX}/product-categories`, {
-        name: '面料', code: 'FABRIC',
+        name: '面料',
+        code: 'FABRIC',
       });
       const created = await safeJson(createResp);
       fabricCategoryId = (created?.data as Record<string, unknown>)?.id as number;
@@ -731,7 +734,10 @@ async function ensureGlobalBusinessSeed(
     } else if (prods.length > 0) {
       // 现有产品无克重（历史遗留），通过 PUT 补上
       const updateResp = await seedPut(`${API_PREFIX}/products/${prods[0].id}`, {
-        gram_weight: 180, width: 150, meters_per_piece: 50, meters_per_roll: 100,
+        gram_weight: 180,
+        width: 150,
+        meters_per_piece: 50,
+        meters_per_roll: 100,
       });
       if (updateResp.ok()) {
         productId = prods[0].id;
@@ -808,7 +814,8 @@ async function ensureGlobalBusinessSeed(
     if (cuss.length === 0) {
       const ts = Date.now().toString().slice(-6);
       await seedPost(`${API_PREFIX}/crm/customers`, {
-        customer_name: `E2E全局客户${ts}`, contact_phone: '13900000099',
+        customer_name: `E2E全局客户${ts}`,
+        contact_phone: '13900000099',
       });
       console.log('[globalSeed] 创建全局客户');
     }
@@ -825,7 +832,8 @@ async function ensureGlobalBusinessSeed(
       for (let i = whs.length; i < 2; i++) {
         const ts = Date.now().toString().slice(-6);
         await seedPost(`${API_PREFIX}/warehouses`, {
-          name: `E2E全局仓库${ts}${i}`, code: `E2E-GW${ts}${i}`,
+          name: `E2E全局仓库${ts}${i}`,
+          code: `E2E-GW${ts}${i}`,
         });
       }
       console.log('[globalSeed] 创建全局仓库');
@@ -898,26 +906,26 @@ async function ensureGlobalBusinessSeed(
             ((prodDetail?.data as Record<string, unknown>)?.unit as string) ?? '米';
 
           const createQ = await seedPost(`${API_PREFIX}/quotations`, {
-              customer_id: customerId,
-              sales_user_id: currentUserId,
-              quotation_date: new Date().toISOString().slice(0, 10),
-              valid_until: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
-              currency: 'CNY',
-              exchange_rate: '1',
-              base_currency: 'CNY',
-              price_terms: 'FOB',
-              tax_inclusive: false,
-              tax_rate: '13',
-              items: [
-                {
-                  product_id: productId,
-                  unit: productUnit,
-                  quantity: '5',
-                  unit_price: '12',
-                  unit_price_with_tax: '13.56',
-                },
-              ],
-            });
+            customer_id: customerId,
+            sales_user_id: currentUserId,
+            quotation_date: new Date().toISOString().slice(0, 10),
+            valid_until: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
+            currency: 'CNY',
+            exchange_rate: '1',
+            base_currency: 'CNY',
+            price_terms: 'FOB',
+            tax_inclusive: false,
+            tax_rate: '13',
+            items: [
+              {
+                product_id: productId,
+                unit: productUnit,
+                quantity: '5',
+                unit_price: '12',
+                unit_price_with_tax: '13.56',
+              },
+            ],
+          });
           if (createQ.ok()) {
             const qCreated = await safeJson(createQ);
             const qId = (qCreated?.data as Record<string, unknown>)?.id as number;
@@ -998,6 +1006,340 @@ async function ensureGlobalBusinessSeed(
     }
   } catch (e) {
     console.warn('[globalSeed] BPM 定义检查异常:', (e as Error).message);
+  }
+
+  // ---- 11. 销售订单多状态种子（覆盖 sales/03 draft+pending, sales/04 approved）----
+  // sales/03 期望列表中有"草稿"行(点提交)与"待审批"行(点审批/驳回)；
+  // sales/04 期望"已审批"行(点发货)。状态词表（backend/src/models/status/sales.rs:14-41）：
+  //   draft / pending / approved（小写）。
+  // 端点：POST /api/v1/erp/sales/orders + /orders/{id}/submit + /orders/{id}/approve
+  // DTO：CreateSalesOrderRequest（services/so/mod.rs:128）customer_id:i32 + items:[{product_id,quantity,unit_price}]
+  if (productId && currentUserId) {
+    // 获取客户 ID
+    let salesCustomerId: number | undefined;
+    try {
+      const cusResp = await ctx.get(`${API_PREFIX}/crm/customers?page=1&page_size=1`, { headers });
+      const cusBody = await safeJson(cusResp);
+      salesCustomerId = extractItems<{ id: number }>(cusBody)[0]?.id;
+    } catch (e) {
+      console.warn('[globalSeed] 销售订单种子获取客户失败:', (e as Error).message);
+    }
+
+    if (salesCustomerId) {
+      const SALES_ORDER_MIN_DRAFT = 2;
+      const SALES_ORDER_MIN_PENDING = 3;
+      const SALES_ORDER_MIN_APPROVED = 5;
+
+      // 查询各状态现有数量
+      let currentDraft = 0;
+      let currentPending = 0;
+      let currentApproved = 0;
+      try {
+        const draftResp = await ctx.get(
+          `${API_PREFIX}/sales/orders?page=1&page_size=1&status=draft`,
+          { headers }
+        );
+        const draftBody = await safeJson(draftResp);
+        currentDraft = ((draftBody?.data as Record<string, unknown>)?.total as number) ?? 0;
+
+        const pendingResp = await ctx.get(
+          `${API_PREFIX}/sales/orders?page=1&page_size=1&status=pending`,
+          { headers }
+        );
+        const pendingBody = await safeJson(pendingResp);
+        currentPending = ((pendingBody?.data as Record<string, unknown>)?.total as number) ?? 0;
+
+        const approvedResp = await ctx.get(
+          `${API_PREFIX}/sales/orders?page=1&page_size=1&status=approved`,
+          { headers }
+        );
+        const approvedBody = await safeJson(approvedResp);
+        currentApproved = ((approvedBody?.data as Record<string, unknown>)?.total as number) ?? 0;
+      } catch (e) {
+        console.warn('[globalSeed] 销售订单状态查询异常:', (e as Error).message);
+      }
+
+      // 辅助：创建一个 draft 态销售订单，返回 id
+      const createSalesOrder = async (): Promise<number | null> => {
+        const ts = Date.now().toString().slice(-8);
+        const resp = await seedPost(`${API_PREFIX}/sales/orders`, {
+          customer_id: salesCustomerId,
+          items: [{ product_id: productId, quantity: '10', unit_price: '25.00' }],
+          notes: `E2E-SEED-${ts}`,
+        });
+        if (resp.ok()) {
+          const body = await safeJson(resp);
+          const data = body?.data as Record<string, unknown> | undefined;
+          return (data?.id as number) ?? null;
+        }
+        if (resp.status() >= 500) {
+          console.error(
+            `[globalSeed] ⚠️ 销售订单创建返回 HTTP ${resp.status()}（疑似后端潜伏缺陷，不吞掉）`
+          );
+        }
+        return null;
+      };
+
+      // 补建 draft 态订单
+      const needDraft = Math.max(0, SALES_ORDER_MIN_DRAFT - currentDraft);
+      for (let i = 0; i < needDraft; i++) {
+        const id = await createSalesOrder();
+        if (id) console.log(`[globalSeed] 创建销售订单(draft) id=${id}`);
+      }
+
+      // 补建 pending 态订单（创建后 submit）
+      const needPending = Math.max(0, SALES_ORDER_MIN_PENDING - currentPending);
+      for (let i = 0; i < needPending; i++) {
+        const id = await createSalesOrder();
+        if (id) {
+          const submitResp = await seedPost(`${API_PREFIX}/sales/orders/${id}/submit`, {});
+          if (submitResp.ok()) {
+            console.log(`[globalSeed] 创建销售订单(pending) id=${id}`);
+          } else {
+            console.warn(`[globalSeed] 销售订单 submit 失败 id=${id} HTTP ${submitResp.status()}`);
+          }
+        }
+      }
+
+      // 补建 approved 态订单（创建后 submit + approve）
+      const needApproved = Math.max(0, SALES_ORDER_MIN_APPROVED - currentApproved);
+      for (let i = 0; i < needApproved; i++) {
+        const id = await createSalesOrder();
+        if (id) {
+          await seedPost(`${API_PREFIX}/sales/orders/${id}/submit`, {});
+          const approveResp = await seedPost(`${API_PREFIX}/sales/orders/${id}/approve`, {});
+          if (approveResp.ok()) {
+            console.log(`[globalSeed] 创建销售订单(approved) id=${id}`);
+          } else {
+            console.warn(
+              `[globalSeed] 销售订单 approve 失败 id=${id} HTTP ${approveResp.status()}`
+            );
+          }
+        }
+      }
+    }
+  }
+
+  // ---- 12. 采购订单多状态种子（覆盖 purchase/02 DRAFT+PENDING_APPROVAL, purchase/03 APPROVED）----
+  // purchase/02 期望"草稿"行(DRAFT,点提交)与"待审批"行(PENDING_APPROVAL,点审批/驳回)；
+  // purchase/03 期望"已审批"行(APPROVED,点收货)。
+  // 状态词表（backend/src/models/status/purchase_inventory.rs:13-31）：DRAFT / PENDING_APPROVAL / APPROVED（大写）。
+  // 端点：POST /api/v1/erp/purchase/orders + /orders/{id}/submit + /orders/{id}/approve
+  // DTO：CreatePurchaseOrderRequest（services/po/mod.rs:31）supplier_id:i32, order_date:NaiveDate(必填), items:[{material_id,quantity_ordered,unit_price}]
+  try {
+    const supResp = await ctx.get(`${API_PREFIX}/purchase/suppliers?page=1&page_size=1`, {
+      headers,
+    });
+    const supBody = await safeJson(supResp);
+    const supplierId = extractItems<{ id: number }>(supBody)[0]?.id;
+
+    if (supplierId && productId) {
+      const PO_MIN_DRAFT = 2;
+      const PO_MIN_PENDING = 3;
+      const PO_MIN_APPROVED = 5;
+
+      // 查询各状态现有数量
+      let poDraft = 0;
+      let poPending = 0;
+      let poApproved = 0;
+      try {
+        const poDraftResp = await ctx.get(
+          `${API_PREFIX}/purchase/orders?page=1&page_size=1&status=DRAFT`,
+          { headers }
+        );
+        const poDraftBody = await safeJson(poDraftResp);
+        poDraft = ((poDraftBody?.data as Record<string, unknown>)?.total as number) ?? 0;
+
+        const poPendResp = await ctx.get(
+          `${API_PREFIX}/purchase/orders?page=1&page_size=1&status=PENDING_APPROVAL`,
+          { headers }
+        );
+        const poPendBody = await safeJson(poPendResp);
+        poPending = ((poPendBody?.data as Record<string, unknown>)?.total as number) ?? 0;
+
+        const poApprResp = await ctx.get(
+          `${API_PREFIX}/purchase/orders?page=1&page_size=1&status=APPROVED`,
+          { headers }
+        );
+        const poApprBody = await safeJson(poApprResp);
+        poApproved = ((poApprBody?.data as Record<string, unknown>)?.total as number) ?? 0;
+      } catch (e) {
+        console.warn('[globalSeed] 采购订单状态查询异常:', (e as Error).message);
+      }
+
+      // 辅助：创建一个 DRAFT 态采购订单，返回 id
+      const today = new Date().toISOString().slice(0, 10);
+      const createPurchaseOrder = async (): Promise<number | null> => {
+        const ts = Date.now().toString().slice(-8);
+        const resp = await seedPost(`${API_PREFIX}/purchase/orders`, {
+          supplier_id: supplierId,
+          order_date: today,
+          notes: `E2E-SEED-PO-${ts}`,
+          items: [
+            {
+              material_id: productId,
+              quantity_ordered: '20',
+              unit_price: '15.00',
+            },
+          ],
+        });
+        if (resp.ok()) {
+          const body = await safeJson(resp);
+          const data = body?.data as Record<string, unknown> | undefined;
+          return (data?.id as number) ?? null;
+        }
+        if (resp.status() >= 500) {
+          console.error(
+            `[globalSeed] ⚠️ 采购订单创建返回 HTTP ${resp.status()}（疑似后端潜伏缺陷，不吞掉）`
+          );
+        }
+        return null;
+      };
+
+      // 补建 DRAFT
+      const needPoDraft = Math.max(0, PO_MIN_DRAFT - poDraft);
+      for (let i = 0; i < needPoDraft; i++) {
+        const id = await createPurchaseOrder();
+        if (id) console.log(`[globalSeed] 创建采购订单(DRAFT) id=${id}`);
+      }
+
+      // 补建 PENDING_APPROVAL（创建后 submit）
+      const needPoPending = Math.max(0, PO_MIN_PENDING - poPending);
+      for (let i = 0; i < needPoPending; i++) {
+        const id = await createPurchaseOrder();
+        if (id) {
+          const submitResp = await seedPost(`${API_PREFIX}/purchase/orders/${id}/submit`, {});
+          if (submitResp.ok()) {
+            console.log(`[globalSeed] 创建采购订单(PENDING_APPROVAL) id=${id}`);
+          } else {
+            console.warn(`[globalSeed] 采购订单 submit 失败 id=${id} HTTP ${submitResp.status()}`);
+          }
+        }
+      }
+
+      // 补建 APPROVED（创建后 submit + approve）
+      const needPoApproved = Math.max(0, PO_MIN_APPROVED - poApproved);
+      for (let i = 0; i < needPoApproved; i++) {
+        const id = await createPurchaseOrder();
+        if (id) {
+          await seedPost(`${API_PREFIX}/purchase/orders/${id}/submit`, {});
+          const approveResp = await seedPost(`${API_PREFIX}/purchase/orders/${id}/approve`, {});
+          if (approveResp.ok()) {
+            console.log(`[globalSeed] 创建采购订单(APPROVED) id=${id}`);
+          } else {
+            console.warn(
+              `[globalSeed] 采购订单 approve 失败 id=${id} HTTP ${approveResp.status()}`
+            );
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[globalSeed] 采购订单种子异常:', (e as Error).message);
+  }
+
+  // ---- 13. AR 应收发票种子（覆盖 sales/05-01 列表列头可见性验证）----
+  // 端点：POST /api/v1/erp/ar/invoices
+  // DTO：CreateArInvoiceRequestDto（handlers/ar_invoice_handler.rs:46）
+  // 状态：DRAFT（创建默认态），需 APPROVED 态用于后续收款流程测试
+  try {
+    const arResp = await ctx.get(`${API_PREFIX}/ar/invoices?page=1&page_size=1&status=DRAFT`, {
+      headers,
+    });
+    const arBody = await safeJson(arResp);
+    const arInvoices = Array.isArray(arBody?.data) ? arBody?.data : extractItems(arBody);
+    if ((arInvoices as unknown[]).length === 0 && currentUserId) {
+      // 获取一个客户 id
+      const cusResp = await ctx.get(`${API_PREFIX}/crm/customers?page=1&page_size=1`, { headers });
+      const cusBody = await safeJson(cusResp);
+      const arCustomerId = extractItems<{ id: number }>(cusBody)[0]?.id;
+      if (arCustomerId) {
+        const now = new Date();
+        const due = new Date(now.getTime() + 30 * 86400000);
+        const arCreate = await seedPost(`${API_PREFIX}/ar/invoices`, {
+          customer_id: arCustomerId,
+          invoice_date: now.toISOString().slice(0, 10),
+          due_date: due.toISOString().slice(0, 10),
+          invoice_amount: '12000',
+        });
+        if (arCreate.ok()) {
+          const arData = await safeJson(arCreate);
+          const arId = (arData?.data as Record<string, unknown>)?.id as number;
+          console.log(`[globalSeed] 创建 AR 应收发票(DRAFT) id=${arId}`);
+          // 审核通过使其变为 APPROVED（对应前端标签"已审核"）
+          if (arId) {
+            const approveAr = await seedPost(`${API_PREFIX}/ar/invoices/${arId}/approve`, {});
+            console.log(`[globalSeed] AR 发票审核 id=${arId} HTTP ${approveAr.status()}`);
+          }
+        } else if (arCreate.status() >= 500) {
+          console.error(
+            `[globalSeed] ⚠️ AR 发票创建返回 HTTP ${arCreate.status()}（疑似后端潜伏缺陷，不吞掉）`
+          );
+        } else {
+          const errBody = (await arCreate.json().catch(() => null)) as Record<
+            string,
+            unknown
+          > | null;
+          console.warn(
+            `[globalSeed] AR 发票创建失败 HTTP ${arCreate.status()} body=${JSON.stringify(errBody).slice(0, 200)}`
+          );
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[globalSeed] AR 发票种子异常:', (e as Error).message);
+  }
+
+  // ---- 14. AP 应付发票种子（覆盖 purchase/05-01 列表列头可见性验证）----
+  // 端点：POST /api/v1/erp/ap/invoices
+  // DTO：CreateApInvoiceRequest（services/ap_invoice_ops/types.rs:24）supplier_id, invoice_type, amount, invoice_date, due_date
+  // 状态：DRAFT→approve→AUDITED
+  try {
+    const apResp = await ctx.get(`${API_PREFIX}/ap/invoices?page=1&page_size=1`, { headers });
+    const apBody = await safeJson(apResp);
+    const apInvoices = Array.isArray(apBody?.data) ? apBody?.data : extractItems(apBody);
+    if ((apInvoices as unknown[]).length === 0 && currentUserId) {
+      const supResp = await ctx.get(`${API_PREFIX}/purchase/suppliers?page=1&page_size=1`, {
+        headers,
+      });
+      const supBody = await safeJson(supResp);
+      const apSupplierId = extractItems<{ id: number }>(supBody)[0]?.id;
+      if (apSupplierId) {
+        const now = new Date();
+        const due = new Date(now.getTime() + 30 * 86400000);
+        const apCreate = await seedPost(`${API_PREFIX}/ap/invoices`, {
+          supplier_id: apSupplierId,
+          invoice_type: 'PURCHASE',
+          amount: '8000',
+          invoice_date: now.toISOString().slice(0, 10),
+          due_date: due.toISOString().slice(0, 10),
+        });
+        if (apCreate.ok()) {
+          const apData = await safeJson(apCreate);
+          const apId = (apData?.data as Record<string, unknown>)?.id as number;
+          console.log(`[globalSeed] 创建 AP 应付发票(DRAFT) id=${apId}`);
+          // 审核通过 → AUDITED（前端标签"已审核"）
+          if (apId) {
+            const approveAp = await seedPost(`${API_PREFIX}/ap/invoices/${apId}/approve`, {});
+            console.log(`[globalSeed] AP 发票审核 id=${apId} HTTP ${approveAp.status()}`);
+          }
+        } else if (apCreate.status() >= 500) {
+          console.error(
+            `[globalSeed] ⚠️ AP 发票创建返回 HTTP ${apCreate.status()}（疑似后端潜伏缺陷，不吞掉）`
+          );
+        } else {
+          const errBody = (await apCreate.json().catch(() => null)) as Record<
+            string,
+            unknown
+          > | null;
+          console.warn(
+            `[globalSeed] AP 发票创建失败 HTTP ${apCreate.status()} body=${JSON.stringify(errBody).slice(0, 200)}`
+          );
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[globalSeed] AP 发票种子异常:', (e as Error).message);
   }
 
   console.log('[globalSeed] 全局业务实体种子完成');
