@@ -132,8 +132,11 @@ export function deleteQualityStandard(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/quality-standards/${id}`);
 }
 
-export function approveQualityStandard(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/quality-standards/${id}/approve`);
+export function approveQualityStandard(
+  id: number,
+  data?: { approval_comment?: string }
+): Promise<ApiResponse<void>> {
+  return request.post(`/quality-standards/${id}/approve`, data || {});
 }
 
 // 批次 157d-2 新增：驳回质量标准

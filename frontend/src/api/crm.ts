@@ -128,9 +128,10 @@ export function updateLeadStatus(
 }
 
 export function convertLead(
-  id: number
+  id: number,
+  data?: { customer_type?: string; notes?: string }
 ): Promise<ApiResponse<{ customer_id: number; opportunity_id: number }>> {
-  return request.post(`/crm/leads/${id}/convert`);
+  return request.post(`/crm/leads/${id}/convert`, data ?? {});
 }
 
 /**
