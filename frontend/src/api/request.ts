@@ -35,6 +35,8 @@ function onTokenRefreshFailed(error: unknown) {
 
 // V15 P2 20.2-D：错误消息去重，避免短时间内弹出多条相同错误提示
 const _recentErrors = new Set<string>();
+// 网络断开兜底文案只弹一次，直到有请求成功（证明网络恢复）再重置
+let _networkErrorToastShown = false;
 function showErrorOnce(message: string): void {
   if (_recentErrors.has(message)) return;
   _recentErrors.add(message);
@@ -171,6 +173,8 @@ class Request {
 
     this.instance.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
+        // 任意成功响应证明网络恢复，重置网络断开兜底文案的一次性提示标记
+        _networkErrorToastShown = false;
         // Blob 响应（文件下载/导出）无 code 信封，直接放行交给调用方处理二进制
         if (response.config.responseType === 'blob' || response.data instanceof Blob) {
           return response;
@@ -259,9 +263,12 @@ class Request {
 
         // 网络层自动重试仅限幂等方法（GET/HEAD）：
         // POST/PUT/DELETE 重试可能造成重复制单/重复扣减，必须由上层带幂等键显式控制
+        // 触发条件用 isIdempotent + shouldRetry，而非 _retry 标记：_retry 仅由 401 刷新链路置位，
+        // 普通网络错误（无 response / 5xx 网关态）若仍卡 _retry 则该重试分支永不进入，
+        // 退化为「首次失败即弹提示」，叠加 useTableApi 外层重试导致同一断网文案重复弹出。
         const reqMethod = (originalRequest?.method || '').toLowerCase();
         const isIdempotent = ['get', 'head', 'options'].includes(reqMethod);
-        if (originalRequest?._retry && isIdempotent && shouldRetry(error)) {
+        if (isIdempotent && shouldRetry(error)) {
           originalRequest._retryCount = originalRequest._retryCount || 0;
 
           if (originalRequest._retryCount < 3) {
@@ -277,6 +284,15 @@ class Request {
         const safeMessage =
           extractBackendMessage(error.response?.data) ??
           getSafeErrorMessage(error.response?.status);
+        // 纯网络错误（无 HTTP 响应）经拦截器 3 次退避重试穷尽后，断开期间同一兜底文案只弹一次，
+        // 直到任意请求成功（_networkErrorToastShown 在成功拦截器复位）。
+        // 这避免上层（useTableApi 等）继续重试时再次落入此处造成重复 toast。
+        if (!error.response) {
+          if (_networkErrorToastShown) {
+            return Promise.reject(error);
+          }
+          _networkErrorToastShown = true;
+        }
         showErrorOnce(safeMessage);
 
         if (error.response?.status === 401) {
