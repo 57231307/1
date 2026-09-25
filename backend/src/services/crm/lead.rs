@@ -12,11 +12,12 @@ use crate::models::status::crm_lead as lead_status;
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{
-    DataScopeContext, apply_department_scope_with_pool, check_resource_owner,
+    apply_department_scope_with_pool, check_resource_owner, DataScopeContext,
 };
 use crate::utils::error::AppError;
+use crate::utils::messages::err_msg;
 use crate::utils::xlsx_export::XlsxTable;
-use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
+use sea_orm::sea_query::{extension::postgres::PgExpr, Expr};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait,
@@ -243,7 +244,7 @@ impl CrmService {
 
     /// 读取 xlsx 字节，返回首个 sheet 的数据行（已跳过表头）
     async fn read_xlsx_rows(file_bytes: Vec<u8>) -> Result<Vec<Vec<calamine::Data>>, AppError> {
-        use calamine::{Reader, open_workbook_auto_from_rs};
+        use calamine::{open_workbook_auto_from_rs, Reader};
         use std::io::Cursor;
 
         let cursor = Cursor::new(file_bytes);
@@ -465,14 +466,49 @@ impl CrmService {
     }
 
     /// 删除线索
+    ///
+    /// 删除前先做引用校验：`crm_opportunity.lead_id` 通过外键 `fk_crm_opportunity_lead`
+    /// 引用 `crm_lead.id` 且无 `ON DELETE` 动作。若该线索已被任一存活商机引用，直接物理删除会
+    /// 命中 FK 约束并被裸映射成 500 `DATABASE_ERROR`（违反失败信封只能单一 `AppError` 形状的红线）。
+    /// 此处以与 DB 约束同口径的“是否存在引用”预校验，命中则返回可外显业务错误（HTTP 400 / `BUSINESS_ERROR`）。
+    /// 说明：`crm_lead` 表无软删列，线索状态词表亦无 `deleted/cancelled` 态，故维持硬删语义——
+    /// 已转商机的线索禁止直接删除，由调用方先处理关联商机（行业惯例口径，是否改软删保留引用待产品确认）。
     pub async fn delete_lead(&self, lead_id: i32, user_id: i32) -> Result<(), AppError> {
+        // 引用预校验：与 fk_crm_opportunity_lead 同口径——只要存在任意一条引用该线索的商机即拒绝删除
+        let referencing_opportunities = crm_opportunity::Entity::find()
+            .filter(crm_opportunity::Column::LeadId.eq(lead_id))
+            .count(&*self.db)
+            .await?;
+        if referencing_opportunities > 0 {
+            return Err(AppError::business_displayable(
+                "该线索已转商机，不可删除，请先处理关联商机",
+            ));
+        }
+
         // P0 8-3 修复：delete 操作补审计日志
         // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+        let result = crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             crm_lead::Entity,
             _,
         >(&*self.db, "crm_lead", lead_id, Some(user_id))
-        .await
+        .await;
+
+        // 竞态兜底：预校验通过后，仍可能在删除瞬间被并发新建的引用商机命中 FK 约束，
+        // 此时 delete_with_audit 内部经 From<DbErr> 把它映射成 DatabaseError(DB_RELATION)（500）。
+        // 降级为与预校验一致的业务错误（400），确保失败信封不会外泄为 500。
+        if let Err(e) = result {
+            if matches!(e, AppError::DatabaseError(ref msg) if msg == err_msg::DB_RELATION) {
+                tracing::warn!(
+                    "线索删除命中外键约束（并发引用商机，lead_id={}）：降级为业务错误",
+                    lead_id
+                );
+                return Err(AppError::business_displayable(
+                    "该线索已转商机，不可删除，请先处理关联商机",
+                ));
+            }
+            return Err(e);
+        }
+        Ok(())
     }
 
     /// 校验线索状态取值属于权威词表（models/status::crm_lead::ALL），
