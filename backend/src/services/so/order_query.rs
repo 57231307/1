@@ -281,6 +281,7 @@ impl SalesService {
             final_price: item.final_price,
             shipped_quantity_meters: item.shipped_quantity_meters,
             shipped_quantity_kg: item.shipped_quantity_kg,
+            quantity_tolerance_pct: item.quantity_tolerance_pct,
         }
     }
 
@@ -455,6 +456,7 @@ impl SalesService {
             final_price: item.final_price,
             shipped_quantity_meters: item.shipped_quantity_meters,
             shipped_quantity_kg: item.shipped_quantity_kg,
+            quantity_tolerance_pct: item.quantity_tolerance_pct,
         }
     }
 

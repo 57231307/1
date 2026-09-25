@@ -5,16 +5,16 @@ use crate::services::sales_contract_service::{
     CreateContractItemRequest, CreateSalesContractRequest, ExecuteSalesContractRequest,
     SalesContractService,
 };
-use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::ApiResponse;
 // V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -189,6 +189,19 @@ pub async fn create_contract(
         "用户 {} 正在创建销售合同：{}",
         auth.user_id, req.contract_no
     );
+
+    // 合同行交货允差百分比范围校验：Some 时必须在 [0, 100]
+    if let Some(ref items) = req.items {
+        for item in items {
+            if let Some(pct) = item.quantity_tolerance_pct {
+                if pct < rust_decimal::Decimal::ZERO || pct > rust_decimal::Decimal::new(100, 0) {
+                    return Err(AppError::validation(
+                        "合同行交货允差百分比(quantity_tolerance_pct)必须在0~100之间",
+                    ));
+                }
+            }
+        }
+    }
 
     let service = SalesContractService::new(state.db.clone());
     let create_req = CreateSalesContractRequest {

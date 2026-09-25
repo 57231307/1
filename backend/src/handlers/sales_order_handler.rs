@@ -283,6 +283,13 @@ pub async fn update_order(
     Path(id): Path<i32>,
     Json(request): Json<UpdateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 输入验证：与 create_order 同口径下钻校验订单行（交货容差等）
+    {
+        use validator::Validate;
+        if let Err(e) = request.validate() {
+            return Err(AppError::validation(e.to_string()));
+        }
+    }
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_order_detail + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();

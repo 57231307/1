@@ -18,7 +18,7 @@
 
 use sea_orm::FromQueryResult;
 use serde::{Deserialize, Serialize};
-use validator::Validate;
+use validator::{Validate, ValidationError};
 
 pub mod contract;
 pub mod delivery;
@@ -119,6 +119,8 @@ pub struct SalesOrderItemDetail {
     pub final_price: Option<rust_decimal::Decimal>,
     pub shipped_quantity_meters: rust_decimal::Decimal,
     pub shipped_quantity_kg: rust_decimal::Decimal,
+    /// 行级交付容差百分比（NULL = 走默认解析，非空 = 行级覆盖）
+    pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
 }
 
 /// 创建销售订单请求
@@ -142,7 +144,7 @@ pub struct CreateSalesOrderRequest {
     pub billing_address: Option<String>,
     #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
     pub notes: Option<String>,
-    #[validate(length(min = 1, message = "订单项不能为空"))]
+    #[validate(length(min = 1, message = "订单项不能为空"), nested)]
     pub items: Vec<SalesOrderItemRequest>,
     #[validate(length(max = 100, message = "付款条件长度不能超过100个字符"))]
     pub payment_terms: Option<String>,
@@ -198,17 +200,35 @@ pub struct SalesOrderItemRequest {
     pub piece_no: Option<String>,
     /// 交货数量允收容差（百分比，可空）：NULL = 走默认解析（品类 > 全局），
     /// 非空 = 行级覆盖（含「约」订单写 10.00）。
+    /// 范围校验 [0, 100]：负值使门控上下界倒转，超大值使超收门控失效；
+    /// None 合法（不覆盖，走默认解析）。
+    #[validate(custom(function = "validate_quantity_tolerance_pct"))]
     pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
 }
 
+/// 行级交付容差百分比范围校验 [0, 100]。
+///
+/// 由 `validator` 框架在 `Option<T>` 字段上自动解包：`None` 跳过（合法，不覆盖），
+/// `Some(v)` 时调用本函数校验 `0 <= v <= 100`。
+/// 负值会使容差门控上下界倒转、超大正值使超收门控失效。
+fn validate_quantity_tolerance_pct(v: &rust_decimal::Decimal) -> Result<(), ValidationError> {
+    let zero = rust_decimal::Decimal::ZERO;
+    let hundred = rust_decimal::Decimal::new(100, 0);
+    if *v < zero || *v > hundred {
+        return Err(ValidationError::new("交货容差百分比必须在 0 到 100 之间"));
+    }
+    Ok(())
+}
+
 /// 更新销售订单请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateSalesOrderRequest {
     pub required_date: Option<chrono::DateTime<chrono::Utc>>,
     pub status: Option<String>,
     pub shipping_address: Option<String>,
     pub billing_address: Option<String>,
     pub notes: Option<String>,
+    #[validate(nested)]
     pub items: Option<Vec<SalesOrderItemRequest>>,
 }
 
