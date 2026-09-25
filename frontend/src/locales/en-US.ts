@@ -747,8 +747,7 @@ export default {
       availableQty: 'Available',
       colorNo: 'Color No.',
       batchNo: 'Batch No.',
-      warehouseCodeMissing:
-        'Selected warehouse has no warehouse code; cannot ship (backend resolves warehouse by code)',
+      warehouseCodeMissing: 'Selected warehouse has no warehouse code; cannot ship',
       dyeLotNo: 'Dye Lot No.',
       orderQuantity: 'Order Quantity',
       delivered: 'Delivered',
@@ -1519,8 +1518,7 @@ export default {
     purchaseOrderCreated: 'Purchase order created successfully',
     purchaseOrderApproved: 'Purchase order {orderNo} approved successfully',
     receiveSuccess: 'Receipt successful',
-    receiveBatchRequired:
-      'Enter a batch number for each receipt line (a required inventory dimension, enforced at creation)',
+    receiveBatchRequired: 'Enter a batch number for each receipt line',
     shipSuccess: 'Shipment successful',
     pleaseAddReturnDetail: 'Please add at least one return detail',
     predictionComplete: 'Prediction complete',
