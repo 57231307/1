@@ -29,8 +29,8 @@ fn read_rel(manifest_rel: &str) -> String {
 /// 从 CHECK 的 `IN (...)` 捕获段里抽出全部单引号取值并排序（迁移文本里取值不含括号，
 /// 非贪婪 `[^)]*` 恰好停在 IN 列表右括号）。
 fn quoted_values(captured: &str) -> Vec<String> {
-    sorted_set(
-        &Regex::new(r"'([^']*)'")
+    sorted_owned(
+        Regex::new(r"'([^']*)'")
             .unwrap()
             .captures_iter(captured)
             .map(|c| c[1].to_string())
