@@ -4537,10 +4537,21 @@ COMMENT ON COLUMN "dye_batch"."remarks" IS '缸号备注（建单/编辑表单�
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
+        // m0058 交货数量容差行级列：其目标表 purchase_order_item / sales_contract_items
+        // 均在本域上方大 SQL 包内 CREATE，故 ADD COLUMN 必须后置到此包执行之后。
+        // 原注册于 production 域（早于 v15），首次真跑即报 "relation ... does not exist"
+        // (#4645) 拖垮整条迁移链。迁移文件类名 / MigrationName 未改，仅调整执行注册位置。
+        crate::domain::production::m0058_add_delivery_tolerance::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
-    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 与 up 对称：回滚 m0058 后置增列（列级 DROP IF EXISTS，不影响本域其余建表）。
+        crate::domain::production::m0058_add_delivery_tolerance::Migration
+            .down(manager)
+            .await?;
         Ok(())
     }
 }

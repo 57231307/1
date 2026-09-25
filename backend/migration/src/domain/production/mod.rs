@@ -28,7 +28,10 @@ mod m0054_add_import_task_file_fields;
 mod m0055_create_system_update_tables;
 mod m0056_normalize_stock_quality_status;
 mod m0057_normalize_stock_status_domain;
-mod m0058_add_delivery_tolerance;
+// m0058 目标表 purchase_order_item / sales_contract_items 均在 v15 域内 CREATE，
+// 而 production 域早于 v15 执行；故 m0058 的 up/down 改由 v15 域在建表之后调用
+// （见 domain/v15/mod.rs）。此处仅保留类型定义供跨域引用，故提升可见性为 pub(crate)。
+pub(crate) mod m0058_add_delivery_tolerance;
 mod m0059_add_product_piece_roll_conversion;
 mod m0060_add_so_item_tolerance;
 
@@ -147,8 +150,9 @@ impl MigrationTrait for Migration {
         m0057_normalize_stock_status_domain::Migration
             .up(manager)
             .await?;
-        // 交货数量容差行级列（采购订单行 / 销售合同行），域内最后追加
-        m0058_add_delivery_tolerance::Migration.up(manager).await?;
+        // 交货数量容差行级列（采购订单行 / 销售合同行）：目标表 purchase_order_item /
+        // sales_contract_items 均在 v15 域内建表，production 先于 v15 执行会导致
+        // "relation ... does not exist"，故 m0058.up() 已后置至 v15 域（见 domain/v15/mod.rs）。
         // 产品匹/卷换算元数据列（meters_per_piece / meters_per_roll），域内最后追加
         m0059_add_product_piece_roll_conversion::Migration
             .up(manager)
@@ -460,9 +464,7 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
         m0059_add_product_piece_roll_conversion::Migration
             .down(manager)
             .await?;
-        m0058_add_delivery_tolerance::Migration
-            .down(manager)
-            .await?;
+        // m0058 的 down() 已随之迁移至 v15 域（与 up 对称），此处不再回滚。
         m0057_normalize_stock_status_domain::Migration
             .down(manager)
             .await?;
