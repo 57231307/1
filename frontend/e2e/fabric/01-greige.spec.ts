@@ -34,7 +34,6 @@ async function seedGreige(
     fabric_no: `E2E-GF${suffix}`,
     fabric_name: name,
     fabric_type: '梭织',
-    status: 'pending',
     ...(extra ?? {}),
   });
   const id = created.data?.id;
