@@ -1214,6 +1214,19 @@ export async function apiCall<T = unknown>(
       return null;
     })) ?? '';
   const url = `${API_BASE}${API_PREFIX}${path}`;
+  // SYS-3 修复：动作型 POST/PUT/PATCH(如 color-card /color-prices/{id}/approve、
+  // production /fabric-inspections/{id}/grade)调用方不传 body。后端 handler 用 axum `Json<T>`
+  // 抽取器,收到**空体**直接 `Failed to parse ... EOF while parsing a value at line 1 column 0`
+  // 报 400(必填字段本身是正确的,不能回退后端)。对齐本波给 415 补 `{}` 的范式:
+  // body 缺省时,对**携带请求体的方法**补 `{}` 空 JSON(Playwright/axios 需有 body 才带
+  // Content-Type 与体);GET/DELETE 仍保持无体。用闭包外解析出的 dataPayload,
+  // CSRF 竞败重放 doFetch 复用同一 payload,绝不丢 body。
+  const dataPayload =
+    body !== undefined
+      ? JSON.stringify(body)
+      : method === 'POST' || method === 'PUT' || method === 'PATCH'
+        ? '{}'
+        : undefined;
   const doFetch = async (token: string) => {
     return page.request.fetch(url, {
       method,
@@ -1222,7 +1235,7 @@ export async function apiCall<T = unknown>(
         'X-Requested-With': 'XMLHttpRequest',
         'X-CSRF-Token': token,
       },
-      data: body ? JSON.stringify(body) : undefined,
+      data: dataPayload,
       // CI 16+ 分片并发时后端偶发响应超 30s（Playwright API 默认超时），
       // 显式放宽到 60s，避免把"慢"误判为失败
       timeout: 60_000,
@@ -1320,7 +1333,9 @@ export async function apiCallExpectFail(
         'X-Requested-With': 'XMLHttpRequest',
         'X-CSRF-Token': token,
       },
-      data: body ? JSON.stringify(body) : undefined,
+      // 负例专用：body 缺省仍发无体(不补 {}),让真实缺参/非法前置的失败如实暴露,
+      // 仅供 apiCallExpectFail 断言业务错误码用,不改动既有期望。
+      data: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
   let response = await doFetch(csrfToken);
