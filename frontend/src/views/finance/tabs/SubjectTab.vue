@@ -83,9 +83,9 @@
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
+            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
               {{
-                row.status === 1
+                row.status === 'active'
                   ? t('finance.subjectTab.statusActive')
                   : t('finance.subjectTab.statusInactive')
               }}
@@ -165,6 +165,16 @@
             <el-radio value="credit">{{ t('finance.subjectTab.directionCredit') }}</el-radio>
           </el-radio-group>
         </el-form-item>
+        <!-- 启用/停用：绑定 account_subjects.status 真实列（'active'/'inactive'），仅编辑态可切换 -->
+        <el-form-item v-if="subjectForm.id" :label="t('finance.subjectTab.labelStatus')">
+          <el-switch
+            v-model="subjectForm.status"
+            :active-value="'active'"
+            :inactive-value="'inactive'"
+            :active-text="t('finance.subjectTab.statusActive')"
+            :inactive-text="t('finance.subjectTab.statusInactive')"
+          />
+        </el-form-item>
         <el-form-item :label="t('finance.subjectTab.assistAccounting')">
           <el-checkbox v-model="subjectForm.assist_customer">{{
             t('finance.subjectTab.assistCustomer')
@@ -225,6 +235,8 @@ const blankSubjectForm = () => ({
   name: '',
   parent_id: undefined as number | undefined,
   balance_direction: 'debit',
+  // 启用/停用状态：新建默认 active（与后端 account_subjects.status DB 默认一致），编辑时回填真实值
+  status: 'active',
   assist_customer: false,
   assist_supplier: false,
   assist_batch: false,
@@ -295,7 +307,9 @@ const openSubjectDialog = (row?: AccountSubject) => {
     subjectForm.name = row.name;
     subjectForm.parent_id = row.parent_id;
     subjectForm.balance_direction = row.direction || 'debit';
-    // 注意：/subjects/tree 仅返回 id/code/name/level/children，不含辅助核算位，
+    // 启用/停用开关按真实值回填（/subjects/tree 现返回 status 列，NOT NULL，直连不兜底）
+    subjectForm.status = row.status;
+    // 注意：/subjects/tree 仅返回 id/code/name/level/status/children，不含辅助核算位，
     // 编辑时无法回填既有辅助位，需后端补齐树字段或前端改调 GET /subjects/:id（见交付报告）。
   }
   subjectDialogVisible.value = true;
@@ -316,6 +330,7 @@ const submitSubject = async () => {
         assist_batch: subjectForm.assist_batch,
         assist_color_no: subjectForm.assist_color_no,
         enable_dual_unit: subjectForm.enable_dual_unit,
+        status: subjectForm.status,
       });
       ElMessage.success(t('finance.subjectTab.messageUpdateSuccess'));
     } else {

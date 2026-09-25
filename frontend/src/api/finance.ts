@@ -10,7 +10,8 @@ export interface AccountSubject {
   category: string;
   direction: string;
   is_leaf: boolean;
-  status: number;
+  // account_subjects.status 为 VARCHAR（'active'/'inactive'），非数字
+  status: string;
   created_at: string;
   updated_at: string;
   children?: AccountSubject[];
@@ -31,7 +32,8 @@ export interface AccountSubjectCreateRequest {
   enable_dual_unit: boolean;
 }
 
-// 字段集严格对齐后端 UpdateSubjectRequestDto：无 status / code / level，辅助核算位必填
+// 字段集严格对齐后端 UpdateSubjectRequestDto：无 code / level；
+// status 可选（'active'/'inactive'，编辑对话框启用/停用开关）；辅助核算位必填
 export interface AccountSubjectUpdateRequest {
   name?: string;
   balance_direction?: string;
@@ -40,6 +42,7 @@ export interface AccountSubjectUpdateRequest {
   assist_batch: boolean;
   assist_color_no: boolean;
   enable_dual_unit: boolean;
+  status?: string;
 }
 
 // 科目列表查询参数：字段集严格对齐后端 SubjectQuery（handlers/account_subject_handler.rs）。
