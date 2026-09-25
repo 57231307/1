@@ -18,7 +18,7 @@ use crate::models::sales_quotation_term;
 pub struct QuotationResponseDto {
     pub id: i64,
     pub quotation_no: String,
-    pub customer_id: i64,
+    pub customer_id: i32,
     pub sales_user_id: i64,
     pub quotation_date: NaiveDate,
     pub valid_until: NaiveDate,

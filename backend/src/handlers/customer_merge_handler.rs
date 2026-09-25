@@ -72,9 +72,9 @@ pub async fn merge_customers(
 
     // 3. 转移销售报价
     sales_quotation::Entity::update_many()
-        .filter(sales_quotation::Column::CustomerId.eq(req.source_customer_id as i64))
+        .filter(sales_quotation::Column::CustomerId.eq(req.source_customer_id))
         .set(sales_quotation::ActiveModel {
-            customer_id: Set(req.target_customer_id as i64),
+            customer_id: Set(req.target_customer_id),
             ..Default::default()
         })
         .exec(&txn)

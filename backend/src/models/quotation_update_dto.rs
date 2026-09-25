@@ -12,7 +12,7 @@ use validator::Validate;
 /// 更新报价单请求 DTO
 #[derive(Debug, Deserialize, Serialize, Validate, Clone, Default)]
 pub struct UpdateQuotationDto {
-    pub customer_id: Option<i64>,
+    pub customer_id: Option<i32>,
     pub sales_user_id: Option<i64>,
     pub quotation_date: Option<NaiveDate>,
     pub valid_until: Option<NaiveDate>,

@@ -3936,7 +3936,7 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "converted_sales_order_i
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "created_by" BIGINT;
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "currency" VARCHAR(255);
-ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "customer_id" BIGINT;
+ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "customer_id" INTEGER;
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "customer_level" VARCHAR(255);
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "exchange_rate" DECIMAL(18,4);
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "incoterm_location" VARCHAR(255);

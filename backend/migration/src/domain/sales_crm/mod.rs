@@ -20,7 +20,7 @@ impl MigrationTrait for Migration {
 CREATE TABLE IF NOT EXISTS "sales_quotations" (
     "id" BIGSERIAL PRIMARY KEY,
     "quotation_no" VARCHAR(50) UNIQUE NOT NULL,
-    "customer_id" BIGINT NOT NULL REFERENCES "customers"("id"),
+    "customer_id" INTEGER NOT NULL REFERENCES "customers"("id"),
     "sales_user_id" BIGINT NOT NULL REFERENCES "users"("id"),
     "quotation_date" DATE NOT NULL,
     "valid_until" DATE NOT NULL,

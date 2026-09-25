@@ -227,7 +227,7 @@ impl QuotationService {
         page: u64,
         page_size: u64,
         status: Option<String>,
-        customer_id: Option<i64>,
+        customer_id: Option<i32>,
         sales_user_id: Option<i64>,
         keyword: Option<String>,
     ) -> Result<(Vec<QuotationResponseDto>, u64), ServiceError> {
@@ -273,8 +273,8 @@ impl QuotationService {
             return Ok(());
         }
 
-        // customers.id / users.id 均为 SERIAL(i32)；报价单侧 customer_id / sales_user_id / approved_by 为 BIGINT(i64)，按边界转换查关联表。
-        let customer_ids: Vec<i32> = dtos.iter().map(|d| d.customer_id as i32).collect();
+        // customers.id / users.id 均为 SERIAL(i32)；报价单 customer_id 同为 INTEGER(i32)，直接对齐。
+        let customer_ids: Vec<i32> = dtos.iter().map(|d| d.customer_id).collect();
         let name_map: HashMap<i32, String> = customer::Entity::find()
             .filter(customer::Column::Id.is_in(customer_ids))
             .all(&*self.db)
@@ -300,7 +300,7 @@ impl QuotationService {
             .collect();
 
         for dto in dtos.iter_mut() {
-            dto.customer_name = name_map.get(&(dto.customer_id as i32)).cloned();
+            dto.customer_name = name_map.get(&dto.customer_id).cloned();
             dto.sales_user_name = user_map
                 .get(&(dto.sales_user_id as i32))
                 .and_then(|n| n.clone());

@@ -44,7 +44,7 @@ pub struct ListQuotationsQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub status: Option<String>,
-    pub customer_id: Option<i64>,
+    pub customer_id: Option<i32>,
     pub sales_user_id: Option<i64>,
     pub keyword: Option<String>,
 }
