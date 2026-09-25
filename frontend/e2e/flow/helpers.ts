@@ -306,35 +306,30 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     console.warn('[ensureTestEntities] 产品列表查询失败（可能空库）:', (e as Error).message);
     ctx.productIds = [];
   }
-  if (ctx.productIds.length === 0) {
-    // 先 UI 尝试一次（下拉交互脆弱：分类 select 点击后偶发不更新 v-model）
-    // API 创建（CreateProductRequest：code/name/category_id 必填真实值，外键 fk_products_category）；失败即抛错
+  // 夹具基数假设：消费用例要求 ctx.productIds 至少 3 个——
+  // 03-production「3-8 创建 BOM」用 items: productIds.slice(1)（需 ≥2 才非空，
+  // 否则后端 bom_handler.rs:33 items min=1 合法 400）；
+  // 01-p2p「1-6b」用 ctx.productIds[1] 作「产品对不上」负例（需 ≥2 才不 undefined）。
+  // wave5c 的 global-setup.ensureGlobalBusinessSeed 会先建全局产品，跨分片共库下
+  // readEntityIds 读到的现有产品可能已是 1~2 个。原逻辑仅在 length===0 时补齐，
+  // seed 产品会让补齐整段被跳过 → ctx.productIds 饿死到 1 个 → 两用例红。
+  // 故改为无条件补齐到至少 3：读到的现有 id（含 seed 产品）全部保留并计入基数，
+  // 不足 3 才补建，补建走与本函数既有建产品一致的字段口径（含克重/幅宽）。
+  if (ctx.productIds.length < 3) {
     const catId = ctx.productCategoryIds[0];
     expect(catId, '[ensureTestEntities] 产品分类 id 缺失').toBeTruthy();
-    const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
-      code: `E2E-P${Date.now().toString().slice(-6)}`,
-      name: `E2E产品${Date.now().toString().slice(-6)}`,
-      unit: '米',
-      category_id: catId,
-      // Q1 报价转订单按产品克重×幅宽做米↔公斤真实换算，缺则拒绝——通用产品也需带
-      gram_weight: 180,
-      width: 150,
-      meters_per_piece: 50,
-      meters_per_roll: 100,
-    });
-    if (!result.data?.id) {
-      throw new Error(`[ensureTestEntities] 产品创建失败: ${JSON.stringify(result)}`);
-    }
-    ctx.productIds.push(result.data.id);
-    // API 兜底补齐到 3 个
     while (ctx.productIds.length < 3) {
+      const seq = ctx.productIds.length;
       try {
-        // CreateProductRequest 字段：code/name/category_id/unit
+        // CreateProductRequest：code/name/category_id 必填；
+        // Q1 报价转订单按产品克重×幅宽做米↔公斤真实换算，缺则后端拒绝——通用产品也需带。
+        // 编码/名称带「末6位毫秒时间戳 + 当前基数 seq」唯一后缀，保证幂等：
+        // 与 seed 产品及历史数据不重名，重跑/并发分片各建各的，不制造冲突。
         const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
-          code: `E2E-P${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
-          name: `E2E产品${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
+          code: `E2E-P${Date.now().toString().slice(-6)}${seq}`,
+          name: `E2E产品${Date.now().toString().slice(-6)}${seq}`,
           unit: '米',
-          category_id: ctx.productCategoryIds[0],
+          category_id: catId,
           gram_weight: 180,
           width: 150,
           meters_per_piece: 50,
@@ -342,13 +337,21 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         });
         if (result.data?.id) {
           ctx.productIds.push(result.data.id);
-          console.log('[ensureTestEntities] 产品 API 兜底创建成功 id=', result.data.id);
+          console.log(
+            `[ensureTestEntities] 产品补齐创建成功 id=${result.data.id}（当前基数=${ctx.productIds.length}）`
+          );
+        } else if (seq === 0) {
+          // 空库首轮一个产品都拿不到属真实环境缺陷，直接抛错暴露，不做假兜底
+          throw new Error(`[ensureTestEntities] 产品创建失败: ${JSON.stringify(result)}`);
         } else {
-          console.error('[ensureTestEntities] 产品 API 兜底未返回 id:', JSON.stringify(result));
+          console.error('[ensureTestEntities] 产品补齐未返回 id:', JSON.stringify(result));
           break;
         }
       } catch (e) {
-        console.error('[ensureTestEntities] 产品 API 兜底创建失败:', (e as Error).message);
+        if (seq === 0) {
+          throw new Error(`[ensureTestEntities] 产品创建失败: ${(e as Error).message}`);
+        }
+        console.error('[ensureTestEntities] 产品补齐创建失败:', (e as Error).message);
         break;
       }
     }
@@ -1060,7 +1063,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         fabric_width_inches: 60,
         inspector_name: 'E2E验布员',
       });
-      console.log(`[ensureTestEntities] 验布记录已创建 id=${insp?.data?.id}（含 fabric_width_inches=60）`);
+      console.log(
+        `[ensureTestEntities] 验布记录已创建 id=${insp?.data?.id}（含 fabric_width_inches=60）`
+      );
     }
   } catch (e) {
     console.warn('[ensureTestEntities] 验布记录造数异常:', (e as Error).message);
