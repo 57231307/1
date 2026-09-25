@@ -33,9 +33,9 @@ impl PurchaseReceiptService {
         req: CreatePurchaseReceiptRequest,
         user_id: i32,
     ) -> Result<purchase_receipt::Model, AppError> {
-        // 四维必入准入：产品/批次缺失的明细在建单期即拒绝，整单不落库。
-        // 色号/缸号的「染色布必填」口径依赖白坯布共享判定（尚未落地），见
-        // validate_receipt_item_dimensions 内 TODO。
+        // 四维必入准入：产品/批次缺失、染色布缺缸号的明细在建单期即拒绝，整单不落库。
+        // 色号/缸号的「染色布必填」口径复用 inv::fabric_class::validate_fabric_trace 单一实现，
+        // 见 validate_receipt_item_dimensions。
         for item in &req.items {
             Self::validate_receipt_item_dimensions(item)?;
         }
@@ -101,14 +101,14 @@ impl PurchaseReceiptService {
 
     /// 入库明细四维准入校验（建单/追加明细期即拒绝）。
     ///
-    /// 当前可无条件强制的两维：产品与批次——缺任一即返回定位到行的业务错误，
-    /// 不允许靠库存行的 `DEFAULT ''` 把缺失维度落空串。
+    /// 可无条件强制的两维：产品与批次——缺任一即返回定位到行的业务错误，
+    /// 不允许靠库存行的 `DEFAULT ''` 把缺失维度落空串；色号/缸号一维按布种判定，见下。
     ///
-    /// 色号/缸号「染色布必填」需先判定白坯布 vs 染色布（色号为空 ⇒ 白坯布 ⇒ 免缸号；
-    /// 色号非空 ⇒ 缸号与批次必填）。该判定口径由采购/库存共用，应调用共享函数
-    /// `crate::services::inv` 侧统一落地的「白坯布判定」（doto iter31 第 3/5 条，本域同事负责，
-    /// 尚未落地）。TODO：共享判定落地后，在此按色号是否为空追加
-    /// 「染色布缺缸号 ⇒ 拒绝」分支，切勿在本文件按色号名称嗅探白色。
+    /// 色号/缸号「染色布必填」维度：白坯布 vs 染色布判定与缸号/批次必填口径的唯一实现是
+    /// `crate::services::inv::fabric_class::validate_fabric_trace`（采购/库存/出库同源，本处
+    /// 仅委托之，不在本文件按色号名称嗅探白色）：
+    /// - 色号为空 ⇒ 白坯布 ⇒ 免缸号（批次已由上方 batch_no 校验保证非空，白坯建单不受影响）；
+    /// - 色号非空 ⇒ 染色布 ⇒ 缸号必填，缺失即返回定位到行的业务错误，整单拒绝。
     pub(crate) fn validate_receipt_item_dimensions(
         item: &CreateReceiptItemRequest,
     ) -> Result<(), AppError> {
@@ -130,6 +130,17 @@ impl PurchaseReceiptService {
                 item.line_no, item.material_id
             )));
         }
+        // 色号/缸号「染色布必填」维度：委托全仓唯一白坯/染色判定，避免与本文件另写规则漂移。
+        // 批次已由上方 batch_no 校验保证非空，故此处仅会因「色号非空(染色布)但缺缸号」被拒；
+        // 白坯布（色号为空）经该判定免缸号，建单照旧放行。
+        crate::services::inv::fabric_class::validate_fabric_trace(
+            item.color_code.clone(),
+            item.lot_no.clone(),
+            item.batch_no.clone(),
+        )
+        .map_err(|e| {
+            AppError::business(format!("入库单第 {} 行：{}，拒绝建单", item.line_no, e))
+        })?;
         Ok(())
     }
 
@@ -630,6 +641,35 @@ mod fail_closed_tests {
     fn complete_dimensions_pass() {
         PurchaseReceiptService::validate_receipt_item_dimensions(&item_req(1, 500, Some("B001")))
             .expect("产品+批次齐全应通过准入");
+    }
+
+    // ===== 规则②补充：色号/缸号「染色布必填」维度（复用 validate_fabric_trace 单一判定）=====
+
+    #[test]
+    fn dyed_item_missing_lot_is_rejected() {
+        // 色号非空 ⇒ 染色布，缺缸号(lot_no) → 拒绝，且错误定位到行并说明缸号原因
+        let mut item = item_req(1, 500, Some("B001"));
+        item.lot_no = None;
+        let err = PurchaseReceiptService::validate_receipt_item_dimensions(&item)
+            .expect_err("染色布缺缸号应拒绝");
+        assert!(
+            matches!(err, AppError::BusinessError(_)),
+            "应为业务错误：{:?}",
+            err
+        );
+        let msg = err.to_string();
+        assert!(msg.contains("第 1 行"), "错误需定位到行：{}", msg);
+        assert!(msg.contains("缸号"), "错误需说明缺缸号：{}", msg);
+    }
+
+    #[test]
+    fn greige_item_without_lot_passes() {
+        // 色号为空 ⇒ 白坯布：免缸号，仅批次必填（批次已给）→ 通过准入，不受染色布缸号校验影响
+        let mut item = item_req(1, 500, Some("B001"));
+        item.color_code = None;
+        item.lot_no = None;
+        PurchaseReceiptService::validate_receipt_item_dimensions(&item)
+            .expect("白坯布免缸号应通过准入");
     }
 
     // ===== 规则①：产品对不上 / 超收 → 整单拒绝决策 =====
