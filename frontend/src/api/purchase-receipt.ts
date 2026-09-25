@@ -97,6 +97,32 @@ export interface CreateReceiptItemRequest {
 }
 
 /**
+ * 更新入库明细请求 —— 与后端 DTO 逐字段对齐
+ * backend/src/services/purchase_receipt_dto.rs:123 UpdateReceiptItemRequest
+ * PUT /{id}/items/{itemId} 端点消费此结构，全部字段 Option（仅应用的字段落库）；
+ * 键名 snake_case，禁止用旧 Partial<ReceiptItem>（含 product_id/amount 等响应模型键）
+ * 冒充请求契约——那会让 batch_no/缸号等维度在类型层缺席、编译期无从校验。
+ */
+export interface UpdateReceiptItemRequest {
+  line_no?: number;
+  material_id?: number;
+  material_code?: string;
+  material_name?: string;
+  batch_no?: string;
+  color_code?: string;
+  lot_no?: string;
+  grade?: string;
+  gram_weight?: number;
+  width?: number;
+  quantity?: number;
+  quantity_alt?: number;
+  unit_price?: number;
+  location_code?: string;
+  notes?: string;
+  piece_no?: string;
+}
+
+/**
  * 创建采购入库单请求 —— 与后端 DTO 逐字段对齐
  * backend/src/services/purchase_receipt_dto.rs:11 CreatePurchaseReceiptRequest
  * 非 Option 必填：supplier_id/receipt_date/warehouse_id/items；
@@ -153,11 +179,11 @@ export function getReceiptItems(id: number) {
   return request.get<ApiResponse<ReceiptItem[]>>(`/purchase/receipts/${id}/items`);
 }
 
-export function createReceiptItem(id: number, data: Partial<ReceiptItem>) {
+export function createReceiptItem(id: number, data: CreateReceiptItemRequest) {
   return request.post<ApiResponse<ReceiptItem>>(`/purchase/receipts/${id}/items`, data);
 }
 
-export function updateReceiptItem(id: number, itemId: number, data: Partial<ReceiptItem>) {
+export function updateReceiptItem(id: number, itemId: number, data: UpdateReceiptItemRequest) {
   return request.put<ApiResponse<ReceiptItem>>(`/purchase/receipts/${id}/items/${itemId}`, data);
 }
 

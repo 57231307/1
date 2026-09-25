@@ -27,6 +27,7 @@ import {
   type PurchaseReceiptEntity,
   type ReceiptItem,
   type CreatePurchaseReceiptRequest,
+  type CreateReceiptItemRequest,
 } from '@/api/purchase-receipt';
 import type { PrcForm } from './usePrc';
 
@@ -82,7 +83,19 @@ export function usePrcProc(cb: PrcCallbacks) {
       supplier_id: undefined,
       warehouse_id: undefined,
       status: 'draft',
-      items: [{ product_id: 0, quantity: 0, quantity_alt: 0, unit_price: 0, amount: 0 }],
+      items: [
+        {
+          product_id: 0,
+          quantity: 0,
+          quantity_alt: 0,
+          unit_price: 0,
+          amount: 0,
+          batch_no: '',
+          color_code: '',
+          lot_no: '',
+          grade: '',
+        },
+      ],
     };
     cb.dialogVisible = true;
     // 预生成单号展示（generatePurchaseReceiptNo，后端保存时最终生成）
@@ -130,6 +143,10 @@ export function usePrcProc(cb: PrcCallbacks) {
       quantity_alt: 0,
       unit_price: 0,
       amount: 0,
+      batch_no: '',
+      color_code: '',
+      lot_no: '',
+      grade: '',
     });
   };
 
@@ -169,17 +186,44 @@ export function usePrcProc(cb: PrcCallbacks) {
       );
       return;
     }
+    // 批次号是后端 create_receipt / add_receipt_item → validate_receipt_item_dimensions
+    // 建单期强校验的入库四维之一，缺任一行即整单 400；本独立入库页不关联采购订单行、
+    // 产品主数据也不含批次，属收货实测维度，只能由操作人在对话框逐行录入，禁止塞假值蒙混建单。
+    const missingBatch = validItems.find(it => !it.batch_no?.trim());
+    if (missingBatch) {
+      msg.warning('receiveBatchRequired');
+      logger.warn(`[入库明细] 产品 ${missingBatch.product_id} 未录入批次号，四维不全，拒绝建单`);
+      return;
+    }
+    // 染色布追溯口径（与后端 wave5l validate_fabric_trace 对齐）：色号非空 ⇒ 缸号必填。
+    // 后端强制分支落地后此前端拦截即其前置镜像；未落地时也先行拦下，避免脏数据入库。
+    const missingLot = validItems.find(it => it.color_code?.trim() && !it.lot_no?.trim());
+    if (missingLot) {
+      msg.warning('lotNoRequiredForColor');
+      logger.warn(
+        `[入库明细] 产品 ${missingLot.product_id} 已填色号（${missingLot.color_code}）但未填缸号，染色布追溯维度不全，拒绝建单`
+      );
+      return;
+    }
 
-    // 明细字段映射到后端 CreateReceiptItemRequest 契约（material_id/material_code/material_name/
-    // line_no/quantity/quantity_alt/unit_master；原直接发 product_id/price 会被后端拒绝）
-    const mapItem = (it: ReceiptItem, idx: number) => ({
+    // 明细字段映射到后端 CreateReceiptItemRequest 契约（键名严格对齐 DTO：
+    // material_id/material_code/material_name/batch_no/color_code/lot_no/grade/
+    // line_no/quantity/quantity_alt/unit_master/unit_price）。
+    // material_code/name/unit_master/batch_no 经上方校验保证存在，用非空断言收窄类型（
+    // 非 ?? 兜底掩盖缺键——缺值已在校验阶段整单拦下，不会走到这里）。
+    const mapItem = (it: ReceiptItem, idx: number): CreateReceiptItemRequest => ({
       line_no: idx + 1,
       material_id: it.product_id,
-      material_code: it.material_code,
-      material_name: it.material_name,
+      material_code: it.material_code!,
+      material_name: it.material_name!,
+      batch_no: it.batch_no!.trim(),
+      // 追溯维度：有值才传（后端 DTO 为 Option），空值不下发空串避免落库脏维度
+      color_code: it.color_code?.trim() || undefined,
+      lot_no: it.lot_no?.trim() || undefined,
+      grade: it.grade?.trim() || undefined,
       quantity: it.quantity,
       quantity_alt: it.quantity_alt ?? 0,
-      unit_master: it.unit_master,
+      unit_master: it.unit_master!,
       unit_price: it.unit_price || undefined,
     });
 
@@ -205,8 +249,15 @@ export function usePrcProc(cb: PrcCallbacks) {
         removedItemIds.value = [];
         msg.success('updateSuccess');
       } else {
-        const data = { ...cb.form, items: validItems.map(mapItem) };
-        await createPurchaseReceipt(data as unknown as CreatePurchaseReceiptRequest);
+        // 建单：显式组装 CreatePurchaseReceiptRequest，不再把整个 cb.form（含 id/status/receipt_no
+        // 等响应/生成列）经 `as unknown as` 强塞进创建契约
+        const payload: CreatePurchaseReceiptRequest = {
+          supplier_id: cb.form.supplier_id as number,
+          warehouse_id: cb.form.warehouse_id as number,
+          receipt_date: cb.form.receipt_date as string,
+          items: validItems.map(mapItem),
+        };
+        await createPurchaseReceipt(payload);
         msg.success('createSuccess');
       }
       cb.dialogVisible = false;

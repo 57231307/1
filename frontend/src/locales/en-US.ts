@@ -1545,6 +1545,8 @@ export default {
     pleaseAddReceiptDetail: 'Please add at least one valid receipt detail',
     receiptItemMasterMissing:
       'Line {line} is missing material code/name/master unit: the master unit comes from the product master, maintain it on the product and reselect it',
+    lotNoRequiredForColor:
+      'Lines with a color code must also record a lot number (dyed-fabric trace dimension, enforced at creation by validate_fabric_trace)',
     addReceiptTitle: 'Add Receipt',
     addReceiptTitleWithNo: 'Add Receipt (pre-generated no. {no})',
     editReceiptTitle: 'Edit Receipt',
@@ -9292,6 +9294,10 @@ export default {
         supplier: 'Please select supplier',
         warehouse: 'Please select warehouse',
         product: 'Select product',
+        batch: 'Receipt batch no.',
+        colorNo: 'Color no. (blank for greige)',
+        lotNo: 'Lot no. (required when color set)',
+        grade: 'Grade (optional)',
       },
       itemsHeader: {
         product: 'Product',
@@ -9300,6 +9306,10 @@ export default {
         unit: 'Unit',
         price: 'Price',
         amount: 'Amount',
+        batch: 'Batch No.',
+        colorNo: 'Color No.',
+        lotNo: 'Lot No.',
+        grade: 'Grade',
         action: 'Action',
       },
       button: {

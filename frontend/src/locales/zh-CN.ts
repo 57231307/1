@@ -1541,6 +1541,8 @@ export default {
     pleaseAddReceiptDetail: '请至少添加一条有效的入库明细',
     receiptItemMasterMissing:
       '第 {line} 行缺少物料编码/名称/主单位：主单位来自产品档案，请先在产品档案维护计量单位后重新选择该产品',
+    lotNoRequiredForColor:
+      '已填色号的行必须录入缸号（染色布追溯维度，后端 validate_fabric_trace 建单期强校验）',
     addReceiptTitle: '新增入库单',
     addReceiptTitleWithNo: '新增入库（预生成单号 {no}）',
     editReceiptTitle: '编辑入库单',
@@ -9253,6 +9255,10 @@ export default {
         supplier: '请选择供应商',
         warehouse: '请选择仓库',
         product: '选择产品',
+        batch: '收货批次号',
+        colorNo: '色号(白坯可空)',
+        lotNo: '缸号(色号非空必填)',
+        grade: '等级(可选)',
       },
       itemsHeader: {
         product: '产品',
@@ -9261,6 +9267,10 @@ export default {
         unit: '主单位',
         price: '单价',
         amount: '金额',
+        batch: '批次号',
+        colorNo: '色号',
+        lotNo: '缸号',
+        grade: '等级',
         action: '操作',
       },
       button: {
