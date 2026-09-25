@@ -112,7 +112,8 @@ const act = usePurchAct(
 );
 
 // 收货（打开收货对话框 + 提交收货）
-const rcv = usePurchRcv(list.fetchData);
+// 物料编码/名称/主单位为后端入库明细必填契约字段，唯一干净来源是产品主数据（list.products）
+const rcv = usePurchRcv(list.fetchData, () => list.products.value);
 
 // 新建采购单（表单对话框）
 const create = useCreate(() => list.products.value, list.fetchData);

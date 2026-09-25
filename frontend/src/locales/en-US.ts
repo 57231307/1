@@ -1201,6 +1201,8 @@ export default {
       colReceivedQty: 'Received',
       colThisReceive: 'This Receipt',
       colUnitPrice: 'Unit Price',
+      colBatch: 'Batch No.',
+      batchPlaceholder: 'Receipt batch no.',
       colRemark: 'Remark',
       remarkPlaceholder: 'Remark',
       cancel: 'Cancel',
@@ -1517,6 +1519,8 @@ export default {
     purchaseOrderCreated: 'Purchase order created successfully',
     purchaseOrderApproved: 'Purchase order {orderNo} approved successfully',
     receiveSuccess: 'Receipt successful',
+    receiveBatchRequired:
+      'Enter a batch number for each receipt line (a required inventory dimension, enforced at creation)',
     shipSuccess: 'Shipment successful',
     pleaseAddReturnDetail: 'Please add at least one return detail',
     predictionComplete: 'Prediction complete',

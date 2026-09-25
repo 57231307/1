@@ -89,6 +89,16 @@
             :label="t('purchase.receiveDlg.colUnitPrice')"
             width="100"
           />
+          <!-- 批次号：后端建单期强校验的入库四维之一，须由收货人实测录入（无自动来源） -->
+          <el-table-column :label="t('purchase.receiveDlg.colBatch')" width="140">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.batch_no"
+                size="small"
+                :placeholder="t('purchase.receiveDlg.batchPlaceholder')"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="t('purchase.receiveDlg.colRemark')" min-width="150">
             <template #default="{ row }">
               <el-input

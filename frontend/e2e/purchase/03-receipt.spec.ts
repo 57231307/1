@@ -67,6 +67,9 @@ test.describe('03 采购收货', () => {
     await dialog.getByRole('combobox').click();
     await page.getByRole('option').first().click();
     await dialog.getByRole('spinbutton').first().fill('1');
+    // 批次号是后端入库建单期强校验的四维之一，收货对话框已新增该必填录入列（textbox），
+    // 本次收货行须录入批次方能成功建单（非弱化断言：真实契约要求收货人实测录入批次）
+    await dialog.getByRole('textbox').first().fill('E2E-RCV-BATCH');
     await dialog.getByRole('button', { name: '确定收货' }).click();
     // createPurchaseReceipt 成功 → msg.success('receiveSuccess') = '收货成功'
     await expect(page.getByText('收货成功')).toBeVisible({ timeout: 30000 });

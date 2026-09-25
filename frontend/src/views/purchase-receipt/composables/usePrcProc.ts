@@ -26,6 +26,7 @@ import {
   approvePurchaseReceipt,
   type PurchaseReceiptEntity,
   type ReceiptItem,
+  type CreatePurchaseReceiptRequest,
 } from '@/api/purchase-receipt';
 import type { PrcForm } from './usePrc';
 
@@ -205,7 +206,7 @@ export function usePrcProc(cb: PrcCallbacks) {
         msg.success('updateSuccess');
       } else {
         const data = { ...cb.form, items: validItems.map(mapItem) };
-        await createPurchaseReceipt(data as unknown as PurchaseReceiptEntity);
+        await createPurchaseReceipt(data as unknown as CreatePurchaseReceiptRequest);
         msg.success('createSuccess');
       }
       cb.dialogVisible = false;
