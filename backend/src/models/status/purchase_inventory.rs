@@ -252,6 +252,26 @@ pub mod inventory_stock_status {
     pub const ALL: &[&str] = &[NORMAL, SCRAPPED, DELETED];
 }
 
+/// 坯布状态（greige_fabrics.status，中文值——坯布库存主数据）
+///
+/// 系统当前真实写入的两个值：建单/入库置 `在库`，出库后按剩余量归零则置 `已出库`
+/// （见 handlers/greige_fabric_handler.rs 的 create/stock_in/stock_out）。删除走
+/// `is_deleted` 软删标记，不占用本列取值，故本列没有「已删除」这类值。
+/// 本列取值域是中文业务 token，与通用主数据状态 `active`/`inactive` 不通用：
+/// 前端表单曾直接提交英文 `active/inactive`，写库后与门控/出库中文值逐字符不符，
+/// 导致「在库不允许删除」等门控永不命中、库里中英混杂。写入侧校验与门控比较一律
+/// 取本模块常量，禁止引入英文 token 或散落裸字面量。
+pub mod greige_fabric_status {
+    /// 在库：坯布已入库、可出库的正常库存（建单默认、入库、出库后仍有剩余的取值）
+    pub const IN_STOCK: &str = "在库";
+
+    /// 已出库：出库后剩余重量与长度均归零，已非可用库存
+    pub const STOCKED_OUT: &str = "已出库";
+
+    /// 本列全部合法取值：写入侧入参校验与门控比较的唯一取值来源。
+    pub const ALL: &[&str] = &[IN_STOCK, STOCKED_OUT];
+}
+
 /// 缺料预警状态常量（material_shortage_alerts.status，小写值）
 ///
 /// 状态机：identified → purchase_request → purchase_order → received → resolved。
