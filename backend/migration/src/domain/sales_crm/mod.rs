@@ -388,13 +388,13 @@ SELECT setval('crm_tag_id_seq', COALESCE((SELECT MAX(id) FROM "crm_tag"), 0) + 1
 
 
 -- === 从旧迁移恢复的 ALTER ADD COLUMN（确保迁移表结构与 Model 一致）===
-ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "approved_by" BIGINT;
+ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "approved_by" INTEGER;
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "max_quantity" DECIMAL(18,2);
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "season" VARCHAR(10);
-ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "created_by" BIGINT;
+ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "created_by" INTEGER;
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN;
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "priority" INT;
-ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "customer_id" BIGINT;
+ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "customer_id" INTEGER;
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "approval_status" VARCHAR(20);
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "freight_cost" DECIMAL(14,2);
