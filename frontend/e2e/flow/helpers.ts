@@ -247,6 +247,20 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     }
   }
 
+  // ---- 1.5 当前用户 ID（后续步骤依赖：报价单 sales_user_id 必填）----
+  // 必须在报价单创建前完成，否则 ctx.userIds 为空导致 422
+  // /auth/me 不限角色；/users 列表仅 admin 可访问
+  try {
+    const me = await apiCallRaw<{ id: number; username?: string }>(page, 'GET', '/auth/me');
+    if (!me?.id) {
+      throw new Error('当前用户 ID 缺失（/auth/me 未返回 id）');
+    }
+    ctx.userIds = [me.id];
+    console.log('[ensureTestEntities] 当前用户 id=', me.id, 'username=', me.username);
+  } catch (e) {
+    throw new Error(`[ensureTestEntities] 当前用户查询失败: ${(e as Error).message}`);
+  }
+
   // ---- 2. 产品（UI 创建）----
   // 前置：确保"面料"产品分类存在（表单 category_id 必填，系统初始化不创建分类种子数据）
   try {
@@ -302,6 +316,11 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       name: `E2E产品${Date.now().toString().slice(-6)}`,
       unit: '米',
       category_id: catId,
+      // Q1 报价转订单按产品克重×幅宽做米↔公斤真实换算，缺则拒绝——通用产品也需带
+      gram_weight: 180,
+      width: 150,
+      meters_per_piece: 50,
+      meters_per_roll: 100,
     });
     if (!result.data?.id) {
       throw new Error(`[ensureTestEntities] 产品创建失败: ${JSON.stringify(result)}`);
@@ -315,6 +334,11 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
           code: `E2E-P${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
           name: `E2E产品${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
           unit: '米',
+          category_id: ctx.productCategoryIds[0],
+          gram_weight: 180,
+          width: 150,
+          meters_per_piece: 50,
+          meters_per_roll: 100,
         });
         if (result.data?.id) {
           ctx.productIds.push(result.data.id);
@@ -562,6 +586,12 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       name: `E2E报价产品${qpCode}`,
       unit: '米',
       category_id: ctx.productCategoryIds[0],
+      // Q1 报价转订单换算要求产品有克重/幅宽；缺则拒绝（源码正确行为），
+      // 转订单用例 flow02/quotations02 依赖此产品可转换
+      gram_weight: 180,
+      width: 150,
+      meters_per_piece: 50,
+      meters_per_roll: 100,
     });
     if (!created.data?.id) {
       throw new Error(`报价专用产品创建未返回 id: ${JSON.stringify(created)}`);
@@ -937,21 +967,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.roleId = undefined;
   }
 
-  // ---- 23. 用户 ID（报价单创建需要 sales_user_id；ctx.userIds 必须填充）----
-  // 用当前登录用户 ID 填充 userIds[0]：sales_user_id 语义即报价单创建者，
-  // /auth/me 不限角色；/users 列表仅 admin 可访问，非 admin shard 会 403
-  try {
-    const me = await apiCallRaw<{ id: number; username?: string }>(page, 'GET', '/auth/me');
-    if (!me?.id) {
-      throw new Error('当前用户 ID 缺失（/auth/me 未返回 id）');
-    }
-    ctx.userIds = [me.id];
-    console.log('[ensureTestEntities] 当前用户 id=', me.id, 'username=', me.username);
-  } catch (e) {
-    throw new Error(`[ensureTestEntities] 当前用户查询失败: ${(e as Error).message}`);
-  }
+  // ---- 23. 用户 ID 已在步骤 1.5 中确保（ctx.userIds[0] = 当前登录用户）----
 
-  // ---- 24. BPM 销售订单审批流程定义 ----
+  // ---- 24. BPM 销售订单审批流程定义（幂等：先查后建）----
   // 节点 schema 必须匹配后端 bpm_service.rs::resolve_first_task_node：
   // 键为 nodes[].id / nodes[].name / nodes[].type，取值为 start_event / user_task / end_event，
   // 且首任务需由 edges 从 start_event 串出（无 edges 时回退查找第一个 user_task）。
@@ -960,35 +978,92 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // approved，用例随后显式 approve 撞「订单状态为 approved，无法审核」。
   // assignee_value 需为字符串（后端 as_str() 后 parse::<i32>），故用 String(approverId)。
   try {
-    const approverId = ctx.userIds[0];
-    const res = await apiCall<{ id?: number }>(page, 'POST', '/bpm/definitions', {
-      name: '销售订单审批流程',
-      code: 'sales_order_approval',
-      description: 'E2E 测试用销售订单审批流程定义',
-      category: 'sales',
-      version: '1.0',
-      config: {
-        nodes: [
-          { id: 'start', name: '提交审批', type: 'start_event' },
-          {
-            id: 'approve_task',
-            name: '销售订单审批',
-            type: 'user_task',
-            assignee_value: String(approverId),
-          },
-          { id: 'end', name: '完成', type: 'end_event' },
-        ],
-        edges: [
-          { source: 'start', target: 'approve_task' },
-          { source: 'approve_task', target: 'end' },
-        ],
-      },
-      status: 'ACTIVE',
-    });
-    console.log(`[ensureTestEntities] BPM sales_order_approval 定义已提交 id=${res?.data?.id}`);
+    const existingDefs = await apiCallRaw<{ items?: Array<{ code?: string }> }>(
+      page,
+      'GET',
+      '/bpm/definitions?page=1&page_size=100'
+    );
+    const alreadyExists = existingDefs?.items?.some(d => d.code === 'sales_order_approval');
+    if (!alreadyExists) {
+      const approverId = ctx.userIds[0];
+      const res = await apiCall<{ id?: number }>(page, 'POST', '/bpm/definitions', {
+        name: '销售订单审批流程',
+        code: 'sales_order_approval',
+        description: 'E2E 测试用销售订单审批流程定义',
+        category: 'sales',
+        version: '1.0',
+        config: {
+          nodes: [
+            { id: 'start', name: '提交审批', type: 'start_event' },
+            {
+              id: 'approve_task',
+              name: '销售订单审批',
+              type: 'user_task',
+              assignee_value: String(approverId),
+            },
+            { id: 'end', name: '完成', type: 'end_event' },
+          ],
+          edges: [
+            { source: 'start', target: 'approve_task' },
+            { source: 'approve_task', target: 'end' },
+          ],
+        },
+        status: 'ACTIVE',
+      });
+      console.log(`[ensureTestEntities] BPM sales_order_approval 定义已创建 id=${res?.data?.id}`);
+    } else {
+      console.log('[ensureTestEntities] BPM sales_order_approval 已存在，跳过创建');
+    }
   } catch (e) {
     // 同 code 已存在时后端拒绝重复创建，属预期；真实是否可用由消费方用例断言兜住
     console.warn('[ensureTestEntities] BPM 定义创建返回异常:', (e as Error).message);
+  }
+
+  // ---- 25. 色号定价（供 color-price.spec 详情页/图表用例使用）----
+  try {
+    const cps = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/color-prices?page=1&page_size=1'
+    );
+    if (!cps?.items?.length) {
+      const colorPrice = await apiCall<{ id?: number }>(page, 'POST', '/color-prices', {
+        product_id: ctx.productIds[0],
+        color_id: ctx.productColorIds[0],
+        currency: 'CNY',
+        base_price: '12.50',
+        effective_from: new Date().toISOString().slice(0, 10),
+      });
+      console.log(`[ensureTestEntities] 色号定价已创建 id=${colorPrice?.data?.id}`);
+    }
+  } catch (e) {
+    console.warn('[ensureTestEntities] 色号定价造数异常:', (e as Error).message);
+  }
+
+  // ---- 26. 验布记录（带 fabric_width_inches，供 flow20 定级→关闭链路使用）----
+  // 后端 grade_inspection 要求 fabric_width_inches 非空（四分制计算），缺失则 400。
+  // 路由前缀 /production/fabric-inspections（routes/production.rs:276）。
+  try {
+    const inspections = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/production/fabric-inspections?page=1&page_size=1&status=pending'
+    );
+    if (!inspections?.items?.length) {
+      const insp = await apiCall<{ id?: number }>(page, 'POST', '/production/fabric-inspections', {
+        inspection_date: new Date().toISOString().slice(0, 10),
+        product_id: ctx.productIds[0],
+        product_name: `E2E验布产品`,
+        color_no: ctx.colorNos[0] || 'E2E-C001',
+        dye_lot_no: ctx.dyeLotNo || genDyeLotNo(),
+        scoring_system: 'four_point',
+        fabric_width_inches: 60,
+        inspector_name: 'E2E验布员',
+      });
+      console.log(`[ensureTestEntities] 验布记录已创建 id=${insp?.data?.id}（含 fabric_width_inches=60）`);
+    }
+  } catch (e) {
+    console.warn('[ensureTestEntities] 验布记录造数异常:', (e as Error).message);
   }
 }
 

@@ -125,6 +125,13 @@ export default async function globalSetup() {
 
   mkdirSync('e2e/.auth', { recursive: true });
   writeFileSync(STORAGE_STATE_PATH, JSON.stringify(cookies, null, 2));
+
+  // ---- 2.5 全局业务实体种子（供不依赖 ensureTestEntities 的 extras specs 使用）----
+  // extras 目录（sales/purchase/crm/color-card/price/production/quality 等）的
+  // spec 不调用 ensureTestEntities，直接 navigate 后断言"状态行存在/下拉有选项"。
+  // 本步骤用纯 API 建最小前置集，使 GET 列表非空。幂等：先查后建。
+  await ensureGlobalBusinessSeed(ctx);
+
   await ctx.dispose();
 }
 
@@ -607,4 +614,391 @@ export async function ensureRoleUsers(): Promise<void> {
   } catch (e) {
     console.error(`[globalSetup][诊断] ⚠️ 回读验证失败: ${(e as Error).message}`);
   }
+}
+
+// ==================== 全局业务实体种子 ====================
+
+/**
+ * 全局业务实体种子：为不依赖 ensureTestEntities 的 extras specs 提供最小前置数据。
+ *
+ * 背景（CI #4646 簇 A 铁证）：extras 分片的 sales/purchase/crm/color-card/price/
+ * production/quality 等 spec 不调用 ensureTestEntities，直接导航后断言"状态行存在/
+ * 下拉有选项"。globalSetup 过去只建角色/账号，不建业务实体 → 40+ 例成片空红。
+ *
+ * 本函数使用已登录的 request context（同 globalSetup 主流程）做纯 API 调用，
+ * 不依赖浏览器 page。所有创建均幂等（先查后建），跨分片复用同库不冲突。
+ *
+ * 覆盖实体与根因对照：
+ * - 产品（带 gram_weight/width/meters_per_piece/meters_per_roll）→ Q1 转订单换算 +
+ *   sales/purchase/production 产品下拉
+ * - 供应商 → purchase 供应商 combobox
+ * - 客户 → crm/sales 客户下拉
+ * - 仓库 → inventory/fabric 仓库下拉
+ * - 色卡 → color-card 列表/详情
+ * - 色号定价 → color-price 列表/历史
+ * - 报价单（带 sales_user_id）→ quotations/sales 已批准行
+ * - 验布记录（带 fabric_width_inches）→ flow20 定级→关闭
+ */
+async function ensureGlobalBusinessSeed(
+  ctx: Awaited<ReturnType<typeof request.newContext>>
+): Promise<void> {
+  // 获取 csrf_token（写操作需要）
+  const cookies = (await ctx.storageState()).cookies;
+  const csrfCookie = cookies.find(c => c.name === 'csrf_token');
+  if (!csrfCookie) {
+    console.warn('[globalSeed] 无 csrf_token cookie，跳过业务种子（后续写请求将 403）');
+    return;
+  }
+  const headers: Record<string, string> = {
+    'X-CSRF-Token': csrfCookie.value,
+    'X-Requested-With': 'XMLHttpRequest',
+  };
+
+  // 种子内写请求统一走 CSRF 恢复：token 一次性消费，连续写需读 X-New-CSRF-Token 头更新。
+  // 复用同文件已定义的 requestWithCsrfRecovery（接受 CsrfCapableRequestContext，
+  // Playwright APIRequestContext 结构化兼容）。
+  const seedPost = (url: string, data: Record<string, unknown>) =>
+    requestWithCsrfRecovery(ctx, 'post', url, headers, data);
+  const seedPut = (url: string, data: Record<string, unknown>) =>
+    requestWithCsrfRecovery(ctx, 'put', url, headers, data);
+
+  // 辅助：安全 JSON 解析（响应可能是非 2xx 的文本）
+  const safeJson = async (
+    resp: { ok: () => boolean; status: () => number; json: () => Promise<unknown> }
+  ): Promise<Record<string, unknown> | null> => {
+    if (!resp.ok()) return null;
+    try {
+      return (await resp.json()) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  };
+
+  // 辅助：从列表响应提取 items 数组
+  const extractItems = <T>(body: Record<string, unknown> | null): T[] => {
+    const data = body?.data as Record<string, unknown> | undefined;
+    const items = data?.items as T[] | undefined;
+    return items ?? [];
+  };
+
+  // 辅助：取当前用户 ID（用于 sales_user_id）
+  let currentUserId = 0;
+  try {
+    const meResp = await ctx.get(`${API_PREFIX}/auth/me`, { headers });
+    const meBody = await safeJson(meResp);
+    currentUserId = (meBody?.data as Record<string, unknown>)?.id as number ?? 0;
+    if (!currentUserId) {
+      console.error('[globalSeed] /auth/me 未返回 id，后续需要 user_id 的实体将跳过');
+    }
+  } catch (e) {
+    console.error('[globalSeed] /auth/me 查询异常:', (e as Error).message);
+  }
+
+  // ---- 1. 产品分类 "面料" ----
+  let fabricCategoryId: number | undefined;
+  try {
+    const catsResp = await ctx.get(`${API_PREFIX}/product-categories?page=1&page_size=50`, {
+      headers,
+    });
+    const catsBody = await safeJson(catsResp);
+    const cats = extractItems<{ id: number; name?: string }>(catsBody);
+    const fabricCat = cats.find(c => c.name?.includes('面料'));
+    if (fabricCat) {
+      fabricCategoryId = fabricCat.id;
+    } else {
+      const createResp = await seedPost(`${API_PREFIX}/product-categories`, {
+        name: '面料', code: 'FABRIC',
+      });
+      const created = await safeJson(createResp);
+      fabricCategoryId = (created?.data as Record<string, unknown>)?.id as number;
+      console.log(`[globalSeed] 创建产品分类"面料" id=${fabricCategoryId}`);
+    }
+  } catch (e) {
+    console.warn('[globalSeed] 产品分类检查异常:', (e as Error).message);
+  }
+
+  // ---- 2. 产品（带克重/幅宽/每匹米数/每卷米数）----
+  let productId: number | undefined;
+  let productColorId: number | undefined;
+  try {
+    const prodResp = await ctx.get(`${API_PREFIX}/products?page=1&page_size=5`, { headers });
+    const prodBody = await safeJson(prodResp);
+    const prods = extractItems<{ id: number; gram_weight?: number | null }>(prodBody);
+    // 优先找一个已有克重的产品（历史 seed 可能已创建）
+    const goodProd = prods.find(p => p.gram_weight != null);
+    if (goodProd) {
+      productId = goodProd.id;
+    } else if (prods.length > 0) {
+      // 现有产品无克重（历史遗留），通过 PUT 补上
+      const updateResp = await seedPut(`${API_PREFIX}/products/${prods[0].id}`, {
+        gram_weight: 180, width: 150, meters_per_piece: 50, meters_per_roll: 100,
+      });
+      if (updateResp.ok()) {
+        productId = prods[0].id;
+        console.log(`[globalSeed] 产品 ${productId} 已补克重/幅宽`);
+      } else {
+        productId = prods[0].id;
+      }
+    } else {
+      // 无任何产品，创建一个新的带克重的
+      const ts = Date.now().toString().slice(-6);
+      const createResp = await seedPost(`${API_PREFIX}/products`, {
+        code: `E2E-GP${ts}`,
+        name: `E2E全局产品${ts}`,
+        unit: '米',
+        category_id: fabricCategoryId,
+        gram_weight: 180,
+        width: 150,
+        meters_per_piece: 50,
+        meters_per_roll: 100,
+      });
+      const created = await safeJson(createResp);
+      productId = (created?.data as Record<string, unknown>)?.id as number;
+      console.log(`[globalSeed] 创建全局产品 id=${productId}`);
+    }
+
+    // 产品色号（报价/验布/库存需 color_no）
+    if (productId) {
+      const colorsResp = await ctx.get(`${API_PREFIX}/products/${productId}/colors`, { headers });
+      const colorsBody = await safeJson(colorsResp);
+      const colorList = (colorsBody?.data ?? []) as Array<{ id: number; color_no?: string }>;
+      if (colorList.length === 0) {
+        const ts = Date.now().toString().slice(-6);
+        const colorCreate = await seedPost(`${API_PREFIX}/products/${productId}/colors`, {
+          color_no: `E2E-GC${ts}`,
+          color_name: 'E2E全局色号',
+          color_type: '纯色',
+          extra_cost: 0,
+        });
+        const colorCreated = await safeJson(colorCreate);
+        productColorId = (colorCreated?.data as Record<string, unknown>)?.id as number;
+      } else {
+        productColorId = colorList[0].id;
+      }
+    }
+  } catch (e) {
+    console.warn('[globalSeed] 产品检查/创建异常:', (e as Error).message);
+  }
+
+  // ---- 3. 供应商 ----
+  try {
+    const supResp = await ctx.get(`${API_PREFIX}/purchase/suppliers?page=1&page_size=1`, {
+      headers,
+    });
+    const supBody = await safeJson(supResp);
+    const sups = extractItems<{ id: number }>(supBody);
+    if (sups.length === 0) {
+      const ts = Date.now().toString().slice(-6);
+      await seedPost(`${API_PREFIX}/purchase/suppliers`, {
+        supplier_name: `E2E全局供应商${ts}`,
+        supplier_short_name: 'E2EG',
+        contact_phone: '13800000099',
+      });
+      console.log('[globalSeed] 创建全局供应商');
+    }
+  } catch (e) {
+    console.warn('[globalSeed] 供应商检查异常:', (e as Error).message);
+  }
+
+  // ---- 4. 客户 ----
+  try {
+    const cusResp = await ctx.get(`${API_PREFIX}/crm/customers?page=1&page_size=1`, { headers });
+    const cusBody = await safeJson(cusResp);
+    const cuss = extractItems<{ id: number }>(cusBody);
+    if (cuss.length === 0) {
+      const ts = Date.now().toString().slice(-6);
+      await seedPost(`${API_PREFIX}/crm/customers`, {
+        customer_name: `E2E全局客户${ts}`, contact_phone: '13900000099',
+      });
+      console.log('[globalSeed] 创建全局客户');
+    }
+  } catch (e) {
+    console.warn('[globalSeed] 客户检查异常:', (e as Error).message);
+  }
+
+  // ---- 5. 仓库 ----
+  try {
+    const whResp = await ctx.get(`${API_PREFIX}/warehouses?page=1&page_size=2`, { headers });
+    const whBody = await safeJson(whResp);
+    const whs = extractItems<{ id: number }>(whBody);
+    if (whs.length < 2) {
+      for (let i = whs.length; i < 2; i++) {
+        const ts = Date.now().toString().slice(-6);
+        await seedPost(`${API_PREFIX}/warehouses`, {
+          name: `E2E全局仓库${ts}${i}`, code: `E2E-GW${ts}${i}`,
+        });
+      }
+      console.log('[globalSeed] 创建全局仓库');
+    }
+  } catch (e) {
+    console.warn('[globalSeed] 仓库检查异常:', (e as Error).message);
+  }
+
+  // ---- 6. 色卡 ----
+  try {
+    const ccResp = await ctx.get(`${API_PREFIX}/color-cards?page=1&page_size=1`, { headers });
+    const ccBody = await safeJson(ccResp);
+    const ccs = extractItems<{ id: number }>(ccBody);
+    if (ccs.length === 0) {
+      const ts = Date.now().toString().slice(-6);
+      await seedPost(`${API_PREFIX}/color-cards`, {
+        card_no: `E2E-GCC${ts}`,
+        card_name: `E2E全局色卡${ts}`,
+        card_type: 'PANTONE',
+      });
+      console.log('[globalSeed] 创建全局色卡');
+    }
+  } catch (e) {
+    console.warn('[globalSeed] 色卡检查异常:', (e as Error).message);
+  }
+
+  // ---- 7. 色号定价 ----
+  if (productId && productColorId) {
+    try {
+      const cpResp = await ctx.get(`${API_PREFIX}/color-prices?page=1&page_size=1`, { headers });
+      const cpBody = await safeJson(cpResp);
+      const cps = extractItems<{ id: number }>(cpBody);
+      if (cps.length === 0) {
+        await seedPost(`${API_PREFIX}/color-prices`, {
+          product_id: productId,
+          color_id: productColorId,
+          currency: 'CNY',
+          base_price: '15.00',
+          effective_from: new Date().toISOString().slice(0, 10),
+        });
+        console.log('[globalSeed] 创建全局色号定价');
+      }
+    } catch (e) {
+      console.warn('[globalSeed] 色号定价检查异常:', (e as Error).message);
+    }
+  }
+
+  // ---- 8. 报价单（带 sales_user_id + 已批准状态）----
+  // quotations/sales extras 期望列表中有"已批准"行用于筛选与转订单；
+  // 创建一个已批准报价单，引用带克重的全局产品。
+  if (productId && currentUserId) {
+    try {
+      const qResp = await ctx.get(`${API_PREFIX}/quotations?page=1&page_size=1&status=approved`, {
+        headers,
+      });
+      const qBody = await safeJson(qResp);
+      const qs = extractItems<{ id: number }>(qBody);
+      if (qs.length === 0) {
+        // 取客户 id
+        const cusResp2 = await ctx.get(`${API_PREFIX}/crm/customers?page=1&page_size=1`, {
+          headers,
+        });
+        const cusBody2 = await safeJson(cusResp2);
+        const customerId = extractItems<{ id: number }>(cusBody2)[0]?.id;
+        if (customerId) {
+          // 获取产品的 unit（确保报价行单位匹配）
+          const prodDetailResp = await ctx.get(`${API_PREFIX}/products/${productId}`, { headers });
+          const prodDetail = await safeJson(prodDetailResp);
+          const productUnit =
+            ((prodDetail?.data as Record<string, unknown>)?.unit as string) ?? '米';
+
+          const createQ = await seedPost(`${API_PREFIX}/quotations`, {
+              customer_id: customerId,
+              sales_user_id: currentUserId,
+              quotation_date: new Date().toISOString().slice(0, 10),
+              valid_until: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
+              currency: 'CNY',
+              exchange_rate: '1',
+              base_currency: 'CNY',
+              price_terms: 'FOB',
+              tax_inclusive: false,
+              tax_rate: '13',
+              items: [
+                {
+                  product_id: productId,
+                  unit: productUnit,
+                  quantity: '5',
+                  unit_price: '12',
+                  unit_price_with_tax: '13.56',
+                },
+              ],
+            });
+          if (createQ.ok()) {
+            const qCreated = await safeJson(createQ);
+            const qId = (qCreated?.data as Record<string, unknown>)?.id as number;
+            if (qId) {
+              // submit + approve（小额自批后端直接通过或需 approve）
+              await seedPost(`${API_PREFIX}/quotations/${qId}/submit`, {});
+              const approveResp = await seedPost(`${API_PREFIX}/quotations/${qId}/approve`, {});
+              console.log(
+                `[globalSeed] 创建并审批全局报价单 id=${qId} (approve ${approveResp.status()})`
+              );
+            }
+          } else {
+            console.warn(`[globalSeed] 报价单创建失败 HTTP ${createQ.status()}`);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[globalSeed] 报价单检查异常:', (e as Error).message);
+    }
+  }
+
+  // ---- 9. 验布记录（带 fabric_width_inches）----
+  // flow20 验布定级需要 pending/inspecting 状态且 fabric_width_inches 非空的记录
+  try {
+    const fiResp = await ctx.get(
+      `${API_PREFIX}/production/fabric-inspections?page=1&page_size=1&status=pending`,
+      { headers }
+    );
+    const fiBody = await safeJson(fiResp);
+    const fis = extractItems<{ id: number }>(fiBody);
+    if (fis.length === 0 && productId) {
+      await seedPost(`${API_PREFIX}/production/fabric-inspections`, {
+        inspection_date: new Date().toISOString().slice(0, 10),
+        product_id: productId,
+        color_no: 'E2E-GC',
+        scoring_system: 'four_point',
+        fabric_width_inches: 60,
+        inspector_name: 'E2E全局验布员',
+      });
+      console.log('[globalSeed] 创建全局验布记录（含 fabric_width_inches=60）');
+    }
+  } catch (e) {
+    console.warn('[globalSeed] 验布记录检查异常:', (e as Error).message);
+  }
+
+  // ---- 10. BPM 流程定义（幂等：先查后建）----
+  try {
+    const bpmResp = await ctx.get(`${API_PREFIX}/bpm/definitions?page=1&page_size=50`, { headers });
+    const bpmBody = await safeJson(bpmResp);
+    const bpms = extractItems<{ code?: string }>(bpmBody);
+    if (!bpms.some(d => d.code === 'sales_order_approval')) {
+      const approverId = currentUserId;
+      await seedPost(`${API_PREFIX}/bpm/definitions`, {
+        name: '销售订单审批流程',
+        code: 'sales_order_approval',
+        description: 'E2E 测试用销售订单审批流程定义',
+        category: 'sales',
+        version: '1.0',
+        config: {
+          nodes: [
+            { id: 'start', name: '提交审批', type: 'start_event' },
+            {
+              id: 'approve_task',
+              name: '销售订单审批',
+              type: 'user_task',
+              assignee_value: String(approverId),
+            },
+            { id: 'end', name: '完成', type: 'end_event' },
+          ],
+          edges: [
+            { source: 'start', target: 'approve_task' },
+            { source: 'approve_task', target: 'end' },
+          ],
+        },
+        status: 'ACTIVE',
+      });
+      console.log('[globalSeed] 创建 BPM sales_order_approval');
+    }
+  } catch (e) {
+    console.warn('[globalSeed] BPM 定义检查异常:', (e as Error).message);
+  }
+
+  console.log('[globalSeed] 全局业务实体种子完成');
 }
