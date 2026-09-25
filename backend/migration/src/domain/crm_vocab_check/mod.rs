@@ -1,6 +1,6 @@
-//! CRM 状态词表 DB CHECK 约束迁移
+//! CRM/BPM 状态词表 DB CHECK 约束迁移
 //!
-//! 将 `models/status::crm_lead` / `models/status::crm_opportunity` 的权威词表钉入数据库，
+//! 将 `models/status` 的权威词表钉入数据库，
 //! 阻止任何绕过服务层校验的写入产生脏值（与入参校验同一字典，避免两处维护）：
 //! - `crm_lead.lead_status`          VARCHAR(20) NULL：new/contacted/qualified/assigned/converted/pool/lost
 //!   （取值逐项等于 `models/status::crm_lead::ALL`）
@@ -8,6 +8,10 @@
 //!   （逐项等于 `models/status::crm_opportunity::ALL_STAGES`）
 //! - `crm_opportunity.opportunity_status` VARCHAR(20) NULL：OPEN/CLOSED_WON/CLOSED_LOST
 //!   （逐项等于 `models/status::crm_opportunity::ALL_STATUSES`；无 draft/cancelled/pool，均为幽灵值）
+//! - `bpm_task.status`                VARCHAR(20) NOT NULL：pending/completed/rejected/cancelled
+//!   （逐项等于 `models/status::bpm_crm_contract::bpm_task` 全部常量；processing/withdrawn
+//!   从未被任何写入点写入 bpm_task——instance.rs:141 的 PROCESSING 属 bpm_process_instance 表——
+//!   故不纳入，避免把没写的值钉进约束）。
 //!
 //! 列可空性与宽度保持不变（词表最长值 qualified(9)/CLOSED_LOST(10)/NEEDS_ANALYSIS(14)
 //! 均在原 VARCHAR(20)/VARCHAR(50) 宽度内），CHECK 采用 `col IS NULL OR col IN (...)` 保留 NULL。
@@ -17,8 +21,10 @@
 //! 使历史赢单商机重新计入；该回写属本词表规范码的数据侧修复，不做任何猜测性归一。
 //!
 //! 幂等：先 DROP CONSTRAINT IF EXISTS 再 ADD，可安全重跑；CHECK 不涉及 FK 类型，
-//! 不受 m0044 fix_fk_types（BIGINT→INT 改写）影响。建表位于 business 域 m0013，
-//! 本迁移排在全部域迁移之后，满足依赖顺序。
+//! 不受 m0044 fix_fk_types（BIGINT→INT 改写）影响。crm_lead/crm_opportunity 建表位于
+//! business 域 m0013，bpm_task 建表位于 system 域 m0001；本迁移排在全部域迁移之后，
+//! 尤其晚于 v15 域对 bpm_task.status 的默认收敛与 'PENDING'→'pending' 回填，
+//! 满足依赖顺序且首跑/存量数据均不违反 CHECK。
 
 use sea_orm_migration::prelude::*;
 
@@ -55,6 +61,13 @@ ALTER TABLE "crm_opportunity" DROP CONSTRAINT IF EXISTS "chk_crm_opportunity_sta
 ALTER TABLE "crm_opportunity" ADD CONSTRAINT "chk_crm_opportunity_status" CHECK (
   "opportunity_status" IS NULL OR "opportunity_status" IN ('OPEN','CLOSED_WON','CLOSED_LOST')
 );
+
+-- 5) bpm_task.status（词表来源 models/status::bpm_crm_contract::bpm_task，小写；
+--    实际写入值仅 pending/completed/rejected/cancelled，见 bpm_ops/task.rs、instance.rs、monitor.rs）
+ALTER TABLE "bpm_task" DROP CONSTRAINT IF EXISTS "chk_bpm_task_status";
+ALTER TABLE "bpm_task" ADD CONSTRAINT "chk_bpm_task_status" CHECK (
+  "status" IS NULL OR "status" IN ('pending','completed','rejected','cancelled')
+);
 "#;
         manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
@@ -66,6 +79,7 @@ ALTER TABLE "crm_opportunity" ADD CONSTRAINT "chk_crm_opportunity_status" CHECK 
 ALTER TABLE "crm_lead" DROP CONSTRAINT IF EXISTS "chk_crm_lead_lead_status";
 ALTER TABLE "crm_opportunity" DROP CONSTRAINT IF EXISTS "chk_crm_opportunity_stage";
 ALTER TABLE "crm_opportunity" DROP CONSTRAINT IF EXISTS "chk_crm_opportunity_status";
+ALTER TABLE "bpm_task" DROP CONSTRAINT IF EXISTS "chk_bpm_task_status";
 "#;
         manager.get_connection().execute_unprepared(sql).await?;
         Ok(())
