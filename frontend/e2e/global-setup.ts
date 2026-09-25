@@ -1342,5 +1342,163 @@ async function ensureGlobalBusinessSeed(
     console.warn('[globalSeed] AP 发票种子异常:', (e as Error).message);
   }
 
+  // ---- 15. 库存种子（sales/04 发货、purchase/04 质检等链路的前置库存）----
+  // 根因（取证 #4647 簇A）：步骤5只建了仓库、步骤2只建了产品，但从没建库存行，
+  //   导致 sales/04-04 打开发货对话框时 loadDeliveryStockRows（GET /inventory/stock?
+  //   warehouse_id&product_id）拿到空列表 → 「库存行」下拉无选项，四维出库走不通。
+  // seed 方式（最贴近真实业务，非直改库存真相表）：走后端确有的真实收货链路，
+  //   由「建专属采购订单 → submit → approve → 建入库单（带批次/色号/缸号四维）→
+  //   confirm」自动落 inventory_stocks：confirm_receipt 事务内 update_inventory_txn
+  //   → upsert_stock_for_item → create_stock_fabric_txn 落库（backend/src/services/
+  //   purchase_receipt_ops/state.rs:49、purchase_receipt_private.rs:197-356）。
+  // 维度口径（与后端真相源对齐，字段名以真实 DTO 为准）：
+  //   - 出库走「款号(product_id)+色号(color_no)+批次(batch_no)+缸号(dye_lot_no)」四维，
+  //     染色布色号/缸号均必填（backend/src/services/inv/fabric_class.rs:36 validate_fabric_trace），
+  //     故这里建的是「染色布」库存行，color_code/lot_no/batch_no 全部给非空值，
+  //     否则前端 DeliveryDialog.vue:236-242 与后端出库校验会因缺维度直接拒绝发货。
+  //   - 入库明细必填 material_id/line_no/material_code/material_name/quantity/quantity_alt/unit_master
+  //     （backend/src/services/purchase_receipt_dto.rs:53-118），batch_no 由
+  //     validate_receipt_item_dimensions（crud.rs:112）强校验非空。
+  //   - 库存等级取值域：一等品（models/status/purchase_inventory.rs:225 inventory_stock_grade::FIRST）。
+  // 仓库选择：发货/收货对话框的仓库下拉第一项 = 前端 fetchWarehouses 用的同一查询口径
+  //   （GET /warehouses，无 status、默认 page_size=10，后端按 warehouse_code 升序，
+  //    warehouse_service.rs:51），故逐一对该有序列表里的每个仓库补建库存，
+  //   保证测试无论点到哪一项都有四维库存行可用。
+  // 幂等：先查后建——对 (product_id, warehouse_id) 组合 GET /inventory/stock 取 total，
+  //   total>0 即跳过；batch_no/dye_lot_no 带时间戳+分片后缀保证跨分片共库唯一不冲突。
+  // 失败暴露：confirm/建单/建库任一步 >=500 视为后端潜伏缺陷，原样打印端点+HTTP+响应体，
+  //   不吞、不 fake（与 color_price INT8/i32 潜伏 bug 同类风险点）。
+  if (productId) {
+    try {
+      // 取供应商（步骤3建）与产品编码/名称（入库明细 material_code/material_name 必填真实值）
+      const supForStockResp = await ctx.get(`${API_PREFIX}/purchase/suppliers?page=1&page_size=1`, {
+        headers,
+      });
+      const supForStockBody = await safeJson(supForStockResp);
+      const stockSupplierId = extractItems<{ id: number }>(supForStockBody)[0]?.id;
+
+      const prodDetailResp = await ctx.get(`${API_PREFIX}/products/${productId}`, { headers });
+      const prodDetailBody = await safeJson(prodDetailResp);
+      const prodDetail = (prodDetailBody?.data as Record<string, unknown>) ?? {};
+      const materialCode = (prodDetail.code as string) ?? '';
+      const materialName = (prodDetail.name as string) ?? '';
+      const unitMaster = (prodDetail.unit as string) ?? '米';
+
+      // 取与前端发货对话框同口径的仓库有序列表
+      const whListResp = await ctx.get(`${API_PREFIX}/warehouses?page=1&page_size=10`, { headers });
+      const whListBody = await safeJson(whListResp);
+      const stockWarehouses = extractItems<{ id: number }>(whListBody);
+
+      if (!stockSupplierId || !materialCode || stockWarehouses.length === 0) {
+        console.warn(
+          `[globalSeed] 库存种子前置不足（supplier=${stockSupplierId} code=${materialCode} warehouses=${stockWarehouses.length}），跳过库存种子`
+        );
+      } else {
+        const today = new Date().toISOString().slice(0, 10);
+        for (const wh of stockWarehouses) {
+          // 幂等：该产品在该仓库已有库存行则跳过
+          const existResp = await ctx.get(
+            `${API_PREFIX}/inventory/stock?product_id=${productId}&warehouse_id=${wh.id}&page=1&page_size=1`,
+            { headers }
+          );
+          const existBody = await safeJson(existResp);
+          const existTotal = ((existBody?.data as Record<string, unknown>)?.total as number) ?? 0;
+          if (existTotal > 0) {
+            continue;
+          }
+
+          // batch_no / dye_lot_no 带时间戳+分片后缀：跨分片共库唯一，四维不撞行
+          const suffix = `${Date.now().toString().slice(-8)}s${SHARD_INDEX || 'x'}`;
+          const batchNo = `E2E-SB${suffix}`;
+          const dyeLotNo = `E2E-SD${suffix}`;
+          const colorCode = 'E2E-SEED-COLOR';
+
+          // 1) 专属采购订单（数量给足，一次入库 10000，避免多个发货用例耗尽）
+          const poResp = await seedPost(`${API_PREFIX}/purchase/orders`, {
+            supplier_id: stockSupplierId,
+            order_date: today,
+            warehouse_id: wh.id,
+            notes: `E2E-SEED-STOCK-PO-${suffix}`,
+            items: [
+              {
+                material_id: productId,
+                quantity_ordered: '10000',
+                unit_price: '15.00',
+              },
+            ],
+          });
+          const poBody = await safeJson(poResp);
+          const poId = (poBody?.data as Record<string, unknown>)?.id as number;
+          if (!poResp.ok() || !poId) {
+            const errText = await poResp.text().catch(() => '');
+            console.error(
+              `[globalSeed] ⚠️ 库存种子建采购订单失败 HTTP ${poResp.status()} warehouse=${wh.id} body=${errText.slice(0, 300)}${poResp.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
+            );
+            continue;
+          }
+          // 2) 提交 + 审批
+          await seedPost(`${API_PREFIX}/purchase/orders/${poId}/submit`, {});
+          const poApprove = await seedPost(`${API_PREFIX}/purchase/orders/${poId}/approve`, {});
+          if (!poApprove.ok()) {
+            const errText = await poApprove.text().catch(() => '');
+            console.error(
+              `[globalSeed] ⚠️ 库存种子采购订单审批失败 HTTP ${poApprove.status()} po=${poId} body=${errText.slice(0, 300)}${poApprove.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
+            );
+            continue;
+          }
+          // 3) 建入库单：染色布四维齐全（material_code/material_name 取产品真实值）
+          const rcvResp = await seedPost(`${API_PREFIX}/purchase/receipts`, {
+            supplier_id: stockSupplierId,
+            order_id: poId,
+            receipt_date: today,
+            warehouse_id: wh.id,
+            notes: `E2E-SEED-STOCK-RCV-${suffix}`,
+            items: [
+              {
+                line_no: 1,
+                material_id: productId,
+                material_code: materialCode,
+                material_name: materialName,
+                batch_no: batchNo,
+                color_code: colorCode,
+                lot_no: dyeLotNo,
+                grade: '一等品',
+                quantity: '10000',
+                quantity_alt: '0',
+                unit_master: unitMaster,
+              },
+            ],
+          });
+          const rcvBody = await safeJson(rcvResp);
+          const rcvId = (rcvBody?.data as Record<string, unknown>)?.id as number;
+          if (!rcvResp.ok() || !rcvId) {
+            const errText = await rcvResp.text().catch(() => '');
+            console.error(
+              `[globalSeed] ⚠️ 库存种子建入库单失败 HTTP ${rcvResp.status()} po=${poId} warehouse=${wh.id} body=${errText.slice(0, 300)}${rcvResp.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
+            );
+            continue;
+          }
+          // 4) 确认入库 → update_inventory_txn 自动落 inventory_stocks
+          const confirmResp = await seedPost(
+            `${API_PREFIX}/purchase/receipts/${rcvId}/confirm`,
+            {}
+          );
+          if (confirmResp.ok()) {
+            console.log(
+              `[globalSeed] 库存种子落库成功 product=${productId} warehouse=${wh.id} rcv=${rcvId} 色号=${colorCode} 批次=${batchNo} 缸号=${dyeLotNo} qty=10000`
+            );
+          } else {
+            const errText = await confirmResp.text().catch(() => '');
+            console.error(
+              `[globalSeed] ⚠️ 库存种子「确认入库」失败 HTTP ${confirmResp.status()} rcv=${rcvId} warehouse=${wh.id} body=${errText.slice(0, 300)}${confirmResp.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[globalSeed] 库存种子异常:', (e as Error).message);
+    }
+  }
+
   console.log('[globalSeed] 全局业务实体种子完成');
 }
