@@ -402,6 +402,9 @@ impl ProductService {
             factory_name,
             factory_address,
             product_grade,
+            // CSV 导入模板不含匹/卷换算元数据列，保持 NULL（不臆造换算值）
+            meters_per_piece: None,
+            meters_per_roll: None,
         }
     }
 

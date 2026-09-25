@@ -2,6 +2,7 @@ use axum::{
     Extension, Json,
     extract::{Multipart, Path, Query, State},
 };
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -74,6 +75,9 @@ pub struct CreateProductRequest {
     pub factory_address: Option<String>,
     #[validate(length(max = 10, message = "产品等级长度不能超过10个字符"))]
     pub product_grade: Option<String>,
+    // 匹↔米 / 卷↔米 换算元数据（码匹卷换算单一真源入参，供 dual_unit_converter 读取）
+    pub meters_per_piece: Option<Decimal>,
+    pub meters_per_roll: Option<Decimal>,
 }
 
 /// 更新产品请求（面料行业版）
@@ -120,6 +124,9 @@ pub struct UpdateProductRequest {
     pub factory_address: Option<String>,
     #[validate(length(max = 10, message = "产品等级长度不能超过10个字符"))]
     pub product_grade: Option<String>,
+    // 匹↔米 / 卷↔米 换算元数据（码匹卷换算单一真源入参，供 dual_unit_converter 读取）
+    pub meters_per_piece: Option<Decimal>,
+    pub meters_per_roll: Option<Decimal>,
 }
 
 // ========== 色号管理相关结构体 ==========
@@ -385,6 +392,8 @@ pub async fn create_product(
             factory_name: req.factory_name,
             factory_address: req.factory_address,
             product_grade: req.product_grade,
+            meters_per_piece: req.meters_per_piece,
+            meters_per_roll: req.meters_per_roll,
         })
         .await?;
 
@@ -433,6 +442,8 @@ pub async fn update_product(
             factory_name: req.factory_name,
             factory_address: req.factory_address,
             product_grade: req.product_grade,
+            meters_per_piece: req.meters_per_piece,
+            meters_per_roll: req.meters_per_roll,
             // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
             user_id: auth.user_id,
         })

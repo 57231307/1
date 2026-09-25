@@ -15,6 +15,7 @@
 //! 跨 ops 子模块调用的 `sync_product_to_es` 改为 `pub(crate)` 供 `crud` 子模块调用。
 //! `ValidatedRowFields` struct 迁移到 `product_ops::import_export`（私有，仅 CSV 流程内部用）。
 
+use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
@@ -121,6 +122,10 @@ pub struct CreateProductArgs {
     pub factory_address: Option<String>,
     /// V15 P1 合规字段：产品等级（优等品/一等品/合格品）
     pub product_grade: Option<String>,
+    /// 每匹米数（匹↔米换算元数据，可选数值，None 表示未录入）
+    pub meters_per_piece: Option<Decimal>,
+    /// 每卷米数（卷↔米换算元数据，可选数值，None 表示未录入）
+    pub meters_per_roll: Option<Decimal>,
 }
 
 /// 更新产品参数对象
@@ -173,6 +178,10 @@ pub struct UpdateProductArgs {
     pub factory_address: Option<String>,
     /// V15 P1 合规字段：产品等级（优等品/一等品/合格品）
     pub product_grade: Option<String>,
+    /// 每匹米数（匹↔米换算元数据，None 表示本次不更新/未录入）
+    pub meters_per_piece: Option<Decimal>,
+    /// 每卷米数（卷↔米换算元数据，None 表示本次不更新/未录入）
+    pub meters_per_roll: Option<Decimal>,
     /// 操作人 ID
     pub user_id: i32,
 }

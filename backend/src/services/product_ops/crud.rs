@@ -185,6 +185,8 @@ impl ProductService {
             factory_name,
             factory_address,
             product_grade,
+            meters_per_piece,
+            meters_per_roll,
         } = args;
         // 外键预校验：products.category_id REFERENCES product_categories(id)，
         // 无 ON DELETE 动作。若未预校验，非法 category_id 会在 insert 时抛出
@@ -240,10 +242,10 @@ impl ProductService {
             factory_name: Set(factory_name),
             factory_address: Set(factory_address),
             product_grade: Set(product_grade),
-            // 匹/卷换算元数据：新建产品默认无（历史 NULL 语义），由产品主数据后续维护；
-            // 不影响库存米/公斤双列真相
-            meters_per_piece: sea_orm::ActiveValue::Set(None),
-            meters_per_roll: sea_orm::ActiveValue::Set(None),
+            // 匹/卷换算元数据：透传录入值（码↔匹↔卷换算单一真源入参，供 dual_unit_converter 读取）；
+            // 未录入为 NULL，不影响既有；库存落库真相仍为米/公斤双列，本列不参与库存计量
+            meters_per_piece: Set(meters_per_piece),
+            meters_per_roll: Set(meters_per_roll),
         };
 
         let result = active_model.insert(&*self.db).await?;
@@ -390,6 +392,13 @@ impl ProductService {
         }
         if let Some(pg) = args.product_grade.take() {
             product.product_grade = Set(Some(pg));
+        }
+        // 匹/卷换算元数据：仅当传入 Some 才覆盖，None 保持原值（遵循可选数值字段条件 Set 惯例）
+        if let Some(mpp) = args.meters_per_piece.take() {
+            product.meters_per_piece = Set(Some(mpp));
+        }
+        if let Some(mpr) = args.meters_per_roll.take() {
+            product.meters_per_roll = Set(Some(mpr));
         }
     }
 
