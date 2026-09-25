@@ -22,6 +22,7 @@
     <el-form
       ref="formRef"
       :model="formData"
+      :rules="rules"
       label-width="100px"
       :aria-label="t('fabric.greigeFormDialog.formAriaLabel')"
     >
@@ -37,6 +38,12 @@
           </el-form-item>
         </el-col>
       </el-row>
+      <el-form-item :label="t('fabric.greigeFormDialog.labelFabricType')" prop="fabric_type">
+        <el-input
+          v-model="formData.fabric_type"
+          :placeholder="t('fabric.greigeFormDialog.placeholderFabricType')"
+        />
+      </el-form-item>
       <el-form-item :label="t('fabric.greigeFormDialog.labelSupplier')" prop="supplier_id">
         <el-select v-model="formData.supplier_id" style="width: 100%">
           <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
@@ -73,10 +80,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import type { FormInstance } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
 import { createGreigeFabric, updateGreigeFabric, type GreigeFabric } from '@/api/greige-fabric';
 import type { Supplier } from '@/api/supplier';
 import { logger } from '@/utils/logger';
@@ -104,6 +111,7 @@ const formData = reactive({
   id: 0,
   fabric_no: '',
   fabric_name: '',
+  fabric_type: '',
   supplier_id: undefined as number | undefined,
   width: 0,
   weight: 0,
@@ -111,10 +119,27 @@ const formData = reactive({
   status: 'active' as 'active' | 'inactive',
 });
 
+const rules = computed<FormRules>(() => ({
+  fabric_type: [
+    { required: true, message: t('fabric.greigeFormDialog.fabricTypeRequired'), trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) => {
+        if (typeof value === 'string' && value.trim() === '') {
+          callback(new Error(t('fabric.greigeFormDialog.fabricTypeRequired')));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+}));
+
 const resetForm = () => {
   formData.id = 0;
   formData.fabric_no = '';
   formData.fabric_name = '';
+  formData.fabric_type = '';
   formData.supplier_id = undefined;
   formData.width = 0;
   formData.weight = 0;
@@ -136,6 +161,8 @@ watch(
 );
 
 const handleSubmit = async () => {
+  const valid = await formRef.value?.validate().catch(() => false);
+  if (!valid) return;
   submitLoading.value = true;
   try {
     if (formData.id) {

@@ -22,7 +22,7 @@ export interface GreigeFabric {
   // ---- 后端真实字段（对齐 greige_fabric::Model）----
   fabric_no?: string;
   fabric_name?: string;
-  fabric_type?: string;
+  fabric_type: string;
   color_code?: string;
   supplier_id?: number;
   warehouse_id?: number;
