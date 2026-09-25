@@ -1,8 +1,8 @@
 //! 坯布管理Handler（原料布匹管理）
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -144,12 +144,27 @@ fn validate_greige_status(status: &str) -> Result<(), AppError> {
     )))
 }
 
+/// 坯布列表 `status` 筛选入参校验（取值域与 create/update 同源 `greige_fabric_status::ALL`）。
+///
+/// 列表原先把该参数原样下推成 SQL 等值条件，越界/英文值恒零命中并静默返回空列表，前端假
+/// 筛选永不显红。现按取值域拒绝并回显允许值；`None` 或去空白后的空串视为不加该筛选，交由
+/// 前端 `serializeParams` 与后端 `normalize_empty_query_params` 双侧剔除，与 inventory 的
+/// `validate_stock_status_param` 保持同一处理风格。
+fn validate_greige_status_param(raw: Option<&str>) -> Result<(), AppError> {
+    let Some(value) = raw.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    validate_greige_status(value)
+}
+
 /// 错误类型从 StatusCode 改为 AppError，并使用 `?` 运算符简化错误传播；
 /// `AppError: From<sea_orm::DbErr>` 已实现自动转换。
 pub async fn list_greige_fabrics(
     State(state): State<AppState>,
     Query(query): Query<GreigeFabricListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<greige_fabric::Model>>>, AppError> {
+    validate_greige_status_param(query.status.as_deref())?;
+
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
