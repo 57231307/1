@@ -463,6 +463,7 @@ pub async fn create_execution(
     // 批次 329 v10 复审 P3 修复：使用参数对象替代多参数
     let params = crate::services::budget_management_service::CreateBudgetExecutionParams {
         plan_id: id,
+        item_id: None,
         execution_type: req.execution_type,
         amount: req.amount,
         expense_date,

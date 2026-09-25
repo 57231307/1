@@ -334,7 +334,7 @@ pub async fn list_customer_tags(
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<crate::services::crm::CustomerTagBrief>>>, AppError> {
-    use sea_orm::{ColumnTrait, QueryFilter, QueryOrder, QuerySelect};
+    use sea_orm::{ColumnTrait, QueryFilter, QueryOrder};
 
     let tags: Vec<crate::services::crm::CustomerTagBrief> = crm_tag::Entity::find()
         .inner_join(crate::models::customer_tag::Entity)

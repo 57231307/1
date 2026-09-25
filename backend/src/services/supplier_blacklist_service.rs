@@ -289,7 +289,7 @@ pub struct CreateBlacklistRequest {
 }
 
 /// 黑名单列表返回项（含富化的供应商名称）
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct BlacklistListItem {
     pub id: i32,
     pub supplier_id: i32,
