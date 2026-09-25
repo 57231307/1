@@ -64,7 +64,16 @@ test.describe('05 AR 应收发票与收款', () => {
     // 客户 ID 为 el-input-number，收款方式为 el-select，收款金额为 el-input-number
     const spins = dialog.getByRole('spinbutton');
     await spins.first().fill('1'); // customer_id（真实库存在的客户 ID）
-    await dialog.getByRole('combobox').click();
+    // 收款日期（PaymentTab.vue:70-71 el-date-picker）：其内层 input 带 role=combobox
+    // （EP 日期选择器开弹层语义），与「收款方式」el-select 同为 combobox →
+    // 旧 dialog.getByRole('combobox').click() strict 命中 2 个。原测试又漏填日期（后端 payment_date
+    // 必填）。改走真实手输：定位 .el-date-editor 输入框，点开→输入→回车。
+    const payDate = dialog.locator('.el-date-editor input').first();
+    await payDate.click();
+    await payDate.fill('2026-08-19');
+    await payDate.press('Enter');
+    // 收款方式：对话框内唯一 .el-select（避开 date-picker 的 combobox），点开再选项。
+    await dialog.locator('.el-select').first().click();
     await page.getByRole('option', { name: '银行转账' }).click();
     await spins.nth(1).fill('3000'); // 部分收款金额
     await dialog.getByRole('button', { name: '保存', exact: true }).click();

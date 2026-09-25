@@ -50,7 +50,10 @@ test.describe('生产计划 - 03 工单管理', () => {
     await viewBtn.click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 10000 });
-    await expect(dialog.getByText(/订单编号|产品名称|计划数量/)).toBeVisible();
+    // el-descriptions 详情面板里「订单编号/产品名称/计划数量」三个标签 + 其值均可命中正则 →
+    // getByText strict 多命中（>=1 元素即可证详情面板已渲染这些字段，.first() 收敛多命中，
+    // 非放宽为恒真：若详情未渲染这些标签则 .first() 不可见、断言失败）。
+    await expect(dialog.getByText(/订单编号|产品名称|计划数量/).first()).toBeVisible();
     await dialog.getByRole('button', { name: /关闭/ }).click();
   });
 

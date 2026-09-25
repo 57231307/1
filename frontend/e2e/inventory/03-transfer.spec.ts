@@ -21,10 +21,22 @@ test.describe('库存管理 - 03 库存调拨', () => {
     await page.getByRole('button', { name: /调拨/ }).click();
     const dialog = page.locator('.el-dialog:visible').last();
     await expect(dialog).toBeVisible({ timeout: 30000 });
-    await expect(dialog.getByText('调出仓库')).toBeVisible({ timeout: 10000 });
-    await dialog.getByLabel(/调出仓库/).click();
+    // 「调出仓库」在对话框内命中两处：el-form-item 的 label（zh-CN.ts:942）与 el-select 占位符
+    // 「请选择调出仓库」（zh-CN.ts:943，含子串「调出仓库」）→ 旧 getByText('调出仓库') strict 多命中。
+    // 且 EP el-form-item 的 label 无 for 关联，getByLabel 命中 readonly combobox 不稳（click 超时）。
+    // 改按含该 label 文本的 form-item 锚定其内 .el-select，点开下拉再选项（真实交互）。
+    const fromItem = dialog
+      .locator('.el-form-item')
+      .filter({ has: page.locator('.el-form-item__label', { hasText: '调出仓库' }) })
+      .first();
+    await expect(fromItem.locator('.el-form-item__label')).toBeVisible({ timeout: 10000 });
+    await fromItem.locator('.el-select').first().click();
     await page.getByRole('option').first().click();
-    await dialog.getByLabel(/调入仓库/).click();
+    const toItem = dialog
+      .locator('.el-form-item')
+      .filter({ has: page.locator('.el-form-item__label', { hasText: '调入仓库' }) })
+      .first();
+    await toItem.locator('.el-select').first().click();
     await page.getByRole('option').nth(1).click();
     await dialog.getByRole('button', { name: /添加产品|添加|新增/ }).click();
     await expect(dialog.getByText(/数量/)).toBeVisible();

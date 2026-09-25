@@ -22,7 +22,14 @@ test.describe('01 凭证管理', () => {
     await page.goto('/finance');
     await page.getByRole('button', { name: /新建|新建凭证/ }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/凭证日期/).fill('2026-08-19');
+    // el-date-picker 的内层 input 不能用 getByLabel 命中（EP el-form-item 的 label 不带 for，
+    // 标签与控件无原生关联）且直接对只读编辑器 fill 会超时。改定位 .el-date-editor 的可编辑
+    // 输入框，走真实手输交互：点开 → 输入日期 → 回车提交（VoucherForm.vue:26-30 type=date
+    // + value-format=YYYY-MM-DD，支持手输解析）。
+    const voucherDate = page.locator('.el-dialog .el-date-editor input').first();
+    await voucherDate.click();
+    await voucherDate.fill('2026-08-19');
+    await voucherDate.press('Enter');
     await page.getByLabel(/凭证类型/).click();
     await page.getByRole('option').first().click();
     await page.getByLabel(/摘要/).fill('E2E 测试记账凭证');

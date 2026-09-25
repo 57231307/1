@@ -121,11 +121,20 @@ async function createThenApiDelete(
   } else if (chk.status() === 200) {
     const body = await chk.json();
     const d = body?.data as Record<string, unknown> | undefined;
-    // 软删场景：记录可能仍返回但 is_deleted=true 或 status 标记为非活跃
+    // 软删场景：记录仍返回 200 但已按各资源后端真实写入值标记为非活跃。
+    // 词表逐字符对齐写入方（状态词表唯一事实来源=写入方），大小写不混：
+    //   - users：user_handler.rs:562「软删除：将 is_active 标记为 false」→ UserResponse.is_active
+    //     （user_handler.rs:112 bool），GET /users/:id 详情返回 data.is_active === false（布尔，非 is_deleted）。
+    //   - report_template：report_template_service.rs:479 delete() 写 Set("INACTIVE".to_string())
+    //     （大写，models/report_template.rs:63 注释 ACTIVE/INACTIVE），详情回读 data.status === "INACTIVE"。
+    //   - 其余资源沿用各自小写 status 词表（inactive/deleted/cancelled）。
+    // 逐字段真实值匹配，禁止放宽为恒真（若字段缺失/值不符则判 stillActive，暴露真未收敛）。
     const isSoftDeleted =
       d != null &&
       (d.is_deleted === true ||
+        d.is_active === false ||
         d.status === 'inactive' ||
+        d.status === 'INACTIVE' ||
         d.status === 'deleted' ||
         d.status === 'cancelled');
     const recordMatches =

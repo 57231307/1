@@ -168,7 +168,11 @@ test.describe('02 凭证审批工作流', () => {
     const row = page.getByRole('row').filter({ hasText: voucherNo });
     await expect(row, `未找到已过账凭证行 ${voucherNo}`).toHaveCount(1);
     await expect(row.getByText('已过账')).toBeVisible({ timeout: 10000 });
-    const actionBtns = row.getByText(/提交|审核|过账/);
+    // 动作按钮在 VoucherTable.vue:71-97 为 el-button（role=button），文案精确为 提交/审核/过账
+    // （zh-CN.ts:1312-1314）。旧 getByText(/提交|审核|过账/) 子串匹配会把状态 el-tag「已过账」
+    // （vchrFmts.ts:18 posted→'已过账'，含子串"过账"）误计为动作按钮。
+    // 改按 role=button 且可访问名逐字精确匹配，排除状态标签文本；若前端真漏渲染门控按钮仍会被计到。
+    const actionBtns = row.getByRole('button', { name: /^(提交|审核|过账)$/ });
     await expect(actionBtns).toHaveCount(0);
   });
 });

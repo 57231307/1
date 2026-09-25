@@ -217,8 +217,16 @@ test.describe('面料单据专用字段全链路验证', () => {
     const customerSelect = customerFormItem.locator('.el-select').first();
     await customerSelect.click();
     const customerDropdown = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
-    const customerCount = await customerDropdown.count();
-    expect(customerCount, '[21a] 客户下拉无选项（前置客户数据缺失）').toBeGreaterThan(0);
+    // 客户列表由 useOlv.ts fetchCustomers 异步回填（GET /crm/customers）。开框瞬间可能尚未渲染
+    // 选项 → 旧代码 click() 后立即 count() 属"开框即点"竞态（flaky：偶发 0 选项）。
+    // 改为轮询等待选项渲染（对齐下方色号步骤 waitFor 的做法），窗口内仍无选项 = 真实前置客户数据
+    // 缺失，须失败暴露（toBeGreaterThan(0) 原样保留，不放宽/不 skip）。
+    await expect
+      .poll(async () => await customerDropdown.count(), {
+        message: '[21a] 客户下拉无选项（前置客户数据缺失）',
+        timeout: 10_000,
+      })
+      .toBeGreaterThan(0);
     const chosenCustomer = ((await customerDropdown.first().textContent()) ?? '').trim();
     expect(chosenCustomer, '[21a] 客户下拉首项文本为空').toBeTruthy();
     await customerDropdown.first().click();

@@ -72,7 +72,9 @@ test.describe('02 AI 质量预测', () => {
     // 定位自身行 → 硬断言确认按钮渲染 → 点击 → 断言真实 toast「确认成功」。
     const id = await seedUnacknowledgedPrediction(page);
     await page.goto('/ai-extend/quality-prediction');
-    await expect(page.getByLabel('AI 质量预测列表')).toBeVisible({ timeout: 30000 });
+    // 「AI 质量预测列表」aria-label 同时挂在 el-table 根与分页组件上 → getByLabel strict 命中 2 个。
+    // 这里只需断言列表容器可见，用 .first() 收敛（不放宽存在性）。
+    await expect(page.getByLabel('AI 质量预测列表').first()).toBeVisible({ timeout: 30000 });
     const row = page
       .getByRole('row')
       .filter({ hasText: String(id) })
