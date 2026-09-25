@@ -15,10 +15,25 @@
 //! 与 dual_unit 无任何引用关系。
 //!
 //! 解析优先级：**行显式值 > 品类默认 > 全局默认**（详见 [`resolve_tolerance_pct`]）。
-//! 「约 → 10%」在当前数据模型无「约」标志列的情况下，由业务在行显式值上写入 10.00 实现
-//! （[`approximate_default_pct`] 作为该推荐值的唯一来源）；行显式值优先，天然覆盖此规则。
+//! 「约 → 10%」在当前数据模型无「约」标志列的情况下，由业务在行显式值上直接写入 10.00
+//! 实现；行显式值优先级最高，天然覆盖此规则。
 
 use rust_decimal::Decimal;
+
+/// 行级交付容差百分比（`quantity_tolerance_pct`）合法区间**下界**：0。
+///
+/// 单一真源——`so`、`po` 各自的 `validate_quantity_tolerance_pct`、以及销售合同
+/// 创建入参校验均引用本常量，杜绝字面量在多处漂移。语义仍是闭区间 `0 <= v <= 100`，
+/// `None`（不覆盖）由各调用方跳过。`Decimal::ZERO` 是库内既有 const，故本项可为 `const`。
+pub const TOLERANCE_PCT_MIN: Decimal = Decimal::ZERO;
+
+/// 行级交付容差百分比合法区间**上界**：100。
+///
+/// 与 [`TOLERANCE_PCT_MIN`] 同为单一真源。`Decimal::new(100, 0)` 非 `const fn`，
+/// 无法在 `const` 上下文就地构造；改用库内 `const fn` [`Decimal::from_parts`]，
+/// 其参数 `(lo=100, mid=0, hi=0, negative=false, scale=0)` 与 `Decimal::new(100, 0)`
+/// 的内存表示逐位等价（即数值 100、标度 0），故取值完全一致。
+pub const TOLERANCE_PCT_MAX: Decimal = Decimal::from_parts(100, 0, 0, false, 0);
 
 /// 面料 / 按量计价（米、公斤等非包装计量）默认允收百分比：±5%
 /// 本纺织 ERP 以面料按量计价为行业常态，故该项同时作为全局默认。
@@ -29,12 +44,6 @@ pub fn fabric_default_pct() -> Decimal {
 /// 计件成品（按件/套/双等包装单位交付）默认允收百分比：0%（须精确交付）
 pub fn piece_default_pct() -> Decimal {
     Decimal::ZERO // 0.00
-}
-
-/// 合同数量含「约 / about」时默认允收百分比：±10%
-/// 作为业务在该行写入行显式值时的推荐取值唯一来源（行显式值优先级最高）。
-pub fn approximate_default_pct() -> Decimal {
-    Decimal::new(1000, 2) // 10.00
 }
 
 /// 全局默认允收百分比（无任何更具体信号时的兜底品类）。

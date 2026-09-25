@@ -135,7 +135,8 @@ pub struct UpdateOrderItemRequest {
 /// 交货允差百分比范围校验：Some 时必须在 [0, 100] 区间内。
 /// validator 框架对 Option<T> 自动解包，None 时跳过不校验。
 fn validate_quantity_tolerance_pct(value: &Decimal) -> Result<(), ValidationError> {
-    if *value < Decimal::ZERO || *value > Decimal::new(100, 0) {
+    use crate::utils::delivery_tolerance::{TOLERANCE_PCT_MAX, TOLERANCE_PCT_MIN};
+    if *value < TOLERANCE_PCT_MIN || *value > TOLERANCE_PCT_MAX {
         return Err(ValidationError::new(
             "交货允差百分比(quantity_tolerance_pct)必须在0~100之间",
         ));

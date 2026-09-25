@@ -212,9 +212,8 @@ pub struct SalesOrderItemRequest {
 /// `Some(v)` 时调用本函数校验 `0 <= v <= 100`。
 /// 负值会使容差门控上下界倒转、超大正值使超收门控失效。
 fn validate_quantity_tolerance_pct(v: &rust_decimal::Decimal) -> Result<(), ValidationError> {
-    let zero = rust_decimal::Decimal::ZERO;
-    let hundred = rust_decimal::Decimal::new(100, 0);
-    if *v < zero || *v > hundred {
+    use crate::utils::delivery_tolerance::{TOLERANCE_PCT_MAX, TOLERANCE_PCT_MIN};
+    if *v < TOLERANCE_PCT_MIN || *v > TOLERANCE_PCT_MAX {
         return Err(ValidationError::new("交货容差百分比必须在 0 到 100 之间"));
     }
     Ok(())
