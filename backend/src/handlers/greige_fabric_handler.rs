@@ -1,8 +1,8 @@
 //! 坯布管理Handler（原料布匹管理）
 
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -267,6 +267,10 @@ pub async fn update_greige_fabric(
         fabric.fabric_name = Set(fabric_name);
     }
     if let Some(fabric_type) = req.fabric_type {
+        let fabric_type = fabric_type.trim().to_string();
+        if fabric_type.is_empty() {
+            return Err(AppError::validation("坯布类型(fabric_type)不能为空"));
+        }
         fabric.fabric_type = Set(fabric_type);
     }
     if let Some(color_code) = req.color_code {
