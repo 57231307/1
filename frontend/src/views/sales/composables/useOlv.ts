@@ -274,10 +274,18 @@ export function useOlv() {
   /** 加载产品 */
   const fetchProducts = async () => {
     try {
-      const res = await request.get<{ list?: Product[] } | Product[]>('/products');
-      const d = res;
+      // 后端 GET /products 返回 ApiResponse<PaginatedResponse>，拦截器后真实形状为 {data:{items}}
+      const res = await request.get<
+        | {
+            data?: { items?: Product[] };
+          }
+        | Product[]
+      >('/products');
+      const d = res as unknown as { data?: { items?: Product[] } } & { list?: Product[] };
       if (Array.isArray(d)) {
         products.value = d;
+      } else if (d && typeof d === 'object' && 'items' in (d.data ?? {})) {
+        products.value = d.data?.items || [];
       } else if (d && typeof d === 'object' && 'list' in d) {
         products.value = d.list || [];
       } else {

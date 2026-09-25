@@ -20,13 +20,13 @@
   <div class="fabric-page">
     <el-tabs v-model="activeTab">
       <el-tab-pane :label="t('fabric.index.tabDye')" name="dye">
-        <DyeTab @open-dialog="openDyeDialog" />
+        <DyeTab ref="dyeTabRef" @open-dialog="openDyeDialog" />
       </el-tab-pane>
       <el-tab-pane :label="t('fabric.index.tabGreige')" name="greige">
         <GreigeTab ref="greigeTabRef" @open-dialog="openGreigeDialog" @open-stock="handleStock" />
       </el-tab-pane>
       <el-tab-pane :label="t('fabric.index.tabRecipe')" name="recipe">
-        <RecipeTab @open-dialog="openRecipeDialog" />
+        <RecipeTab ref="recipeTabRef" @open-dialog="openRecipeDialog" />
       </el-tab-pane>
     </el-tabs>
 
@@ -147,6 +147,8 @@ const recipeDialogVisible = ref(false);
 const currentRecipeRow = ref<ApiDyeRecipe | null>(null);
 
 const greigeTabRef = ref<InstanceType<typeof GreigeTab>>();
+const dyeTabRef = ref<InstanceType<typeof DyeTab>>();
+const recipeTabRef = ref<InstanceType<typeof RecipeTab>>();
 
 // ---- 坯布入库/出库对话框 ----
 const stockDialogVisible = ref(false);
@@ -303,7 +305,13 @@ const submitStock = async () => {
 };
 
 const handleSubmitted = () => {
-  // 各 Tab 内部已通过 emit 触发刷新
+  if (activeTab.value === 'greige') {
+    greigeTabRef.value?.fetchFabrics();
+  } else if (activeTab.value === 'dye') {
+    dyeTabRef.value?.fetchBatches();
+  } else if (activeTab.value === 'recipe') {
+    recipeTabRef.value?.fetchRecipes();
+  }
 };
 
 provide('fabricActions', {
