@@ -97,15 +97,15 @@
           align="center"
         />
         <el-table-column
-          prop="is_enabled"
+          prop="status"
           :label="$t('accountSubject.table.status')"
           width="80"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.is_enabled ? 'success' : 'info'" size="small">
+            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
               {{
-                row.is_enabled
+                row.status === 'active'
                   ? $t('accountSubject.status.enabled')
                   : $t('accountSubject.status.disabled')
               }}
@@ -190,7 +190,8 @@
           />
         </el-form-item>
         <el-form-item :label="$t('accountSubject.dialog.enable')">
-          <el-switch v-model="form.is_enabled" />
+          <!-- 启用/停用：绑定 account_subjects.status 真实列（'active'/'inactive'） -->
+          <el-switch v-model="form.status" :active-value="'active'" :inactive-value="'inactive'" />
         </el-form-item>
         <el-form-item :label="$t('accountSubject.dialog.description')">
           <el-input v-model="form.description" type="textarea" :rows="3" />
@@ -246,7 +247,7 @@ const form = reactive<Partial<AccountSubjectEntity>>({
   category: 'asset',
   type: 'detail',
   balance_type: 'debit',
-  is_enabled: true,
+  status: 'active',
   description: '',
 });
 
@@ -326,7 +327,7 @@ const openDialog = (row?: AccountSubjectEntity) => {
     form.category = 'asset';
     form.type = 'detail';
     form.balance_type = 'debit';
-    form.is_enabled = true;
+    form.status = 'active';
     form.description = '';
   }
   dialogVisible.value = true;
