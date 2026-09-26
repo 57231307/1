@@ -43,7 +43,7 @@ export function cancelInsurance(id: number) {
 }
 
 export const INSURANCE_STATUS_LABEL: Record<string, string> = {
-  unpaid: '未缴',
+  pending: '未缴',
   paid: '已缴',
   cancelled: '已取消',
 };

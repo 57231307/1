@@ -39,14 +39,14 @@
         <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
             <el-button
-              v-if="row.status === 'unpaid'"
+              v-if="row.status === 'pending'"
               size="small"
               type="success"
               @click="onMarkPaid(row)"
               >标记已缴</el-button
             >
             <el-button
-              v-if="row.status === 'unpaid'"
+              v-if="row.status === 'pending'"
               size="small"
               type="danger"
               plain
