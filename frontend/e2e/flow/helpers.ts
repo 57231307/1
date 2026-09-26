@@ -1248,9 +1248,11 @@ export async function apiCall<T = unknown>(
   try {
     json = JSON.parse(text);
   } catch {
-    throw new Error(
+    const httpErr = new Error(
       `API ${method} ${path} returned non-JSON (status ${response.status()}): ${text.slice(0, 500)}`
-    );
+    ) as Error & { status?: number };
+    httpErr.status = response.status();
+    throw httpErr;
   }
 
   // CSRF 校验失败恢复（两级）：
@@ -1286,17 +1288,28 @@ export async function apiCall<T = unknown>(
       try {
         json = JSON.parse(text);
       } catch {
-        throw new Error(
+        const httpErr = new Error(
           `retry returned non-JSON (status ${response.status()}): ${text.slice(0, 200)}`
-        );
+        ) as Error & { status?: number };
+        httpErr.status = response.status();
+        throw httpErr;
       }
     } catch (e) {
-      throw new Error(`API ${method} ${path} CSRF 重试失败: ${(e as Error).message}`);
+      const wrapped = new Error(
+        `API ${method} ${path} CSRF 重试失败: ${(e as Error).message}`
+      ) as Error & { status?: number };
+      const innerStatus = (e as { status?: number }).status;
+      if (innerStatus) wrapped.status = innerStatus;
+      throw wrapped;
     }
   }
 
   if (json.code !== 200 && json.code !== 0) {
-    throw new Error(`API ${method} ${path} failed: code=${json.code} message=${json.message}`);
+    const httpErr = new Error(
+      `API ${method} ${path} failed: code=${json.code} message=${json.message}`
+    ) as Error & { status?: number };
+    httpErr.status = response.status();
+    throw httpErr;
   }
 
   return json;

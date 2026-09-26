@@ -24,10 +24,7 @@ test.describe('04 采购质检', () => {
     // 采购入库为专用扁平路由（router index.ts:343 path:'purchase-receipt'）；
     // 无 /purchase/receipt/list 子路由 → 原落 404
     await page.goto('/purchase-receipt');
-    const receipt = page
-      .locator('tr, .el-table__row')
-      .filter({ hasText: '待质检|已入库/' })
-      .first();
+    const receipt = page.locator('tr, .el-table__row').filter({ hasText: '待检验' }).first();
     await receipt.getByRole('button', { name: /详情/ }).click();
     // 发起质检
     await page.getByRole('button', { name: /发起质检|质检/ }).click();
@@ -39,7 +36,7 @@ test.describe('04 采购质检', () => {
     // 采购质检为专用扁平路由（router index.ts:1013 path:'purchase-inspection'）；
     // 无 /purchase/inspection/list 子路由 → 原落 404
     await page.goto('/purchase-inspection');
-    const inspection = page.locator('tr, .el-table__row').filter({ hasText: '待质检' }).first();
+    const inspection = page.locator('tr, .el-table__row').filter({ hasText: '待检验' }).first();
     await inspection.getByRole('button', { name: /详情/ }).click();
     // 录入质检结果 - 全部合格
     await page.getByLabel(/合格数量/).fill('100');
@@ -53,7 +50,7 @@ test.describe('04 采购质检', () => {
     // 采购质检为专用扁平路由（router index.ts:1013 path:'purchase-inspection'）；
     // 无 /purchase/inspection/list 子路由 → 原落 404
     await page.goto('/purchase-inspection');
-    const inspection = page.locator('tr, .el-table__row').filter({ hasText: '待质检' }).first();
+    const inspection = page.locator('tr, .el-table__row').filter({ hasText: '待检验' }).first();
     await inspection.getByRole('button', { name: /详情/ }).click();
     // 录入不合格
     await page.getByLabel(/合格数量/).fill('80');
