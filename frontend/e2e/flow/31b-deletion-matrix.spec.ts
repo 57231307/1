@@ -1017,7 +1017,7 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
       payload: {
         role_id: roleId,
         resource_type: 'product',
-        scope_type: 'all',
+        scope_type: 'ALL',
         custom_condition: null,
         allowed_fields: null,
         hidden_fields: null,
@@ -1028,8 +1028,10 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
 
   // ===== 通知：自带创建端点（POST /notifications/announcement），据此构造可删对象 =====
   // 原实现从 data.items 取列表，而 list_notifications 的 key 是 data.list（handler:75），
-  // 于是 items 恒为 undefined → 走 skip 分支，删除→回读404 从未真正验证过。
-  test('通知：公告直发创建→删除→回读404', async ({ page }) => {
+  // 于是 items 恒为 undefined → 走 skip 分支，删除→回读从未真正验证过。
+  // 通知为软删除（notification_service.rs:506 置 status=Deleted），get_notification 不过滤，
+  // 故回读返回 200 并携带 status 字段；断言该字段以验证删除确实生效。
+  test('通知：公告直发创建→删除→回读软删标记(Deleted)', async ({ page }) => {
     test.setTimeout(180_000);
     await ensureTestEntities(page);
     const me = getCtx().userIds[0];
@@ -1062,6 +1064,14 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
     console.log(`[31b-通知] DELETE 通知 ${targetId} ✅`);
     const chk = await page.request.get(`${API_BASE}${API_PREFIX}/notifications/${targetId}`);
     console.log(`[31b-通知] 删除后回读 HTTP ${chk.status()}`);
-    expect(chk.status(), '[31b-通知] 删除后详情应 404').toBe(404);
+    expect(
+      chk.status(),
+      '[31b-通知] 软删除后详情应返回 200（记录保留，status 标记为 Deleted）'
+    ).toBe(200);
+    const notifBody = await chk.json();
+    expect(
+      notifBody?.data?.status,
+      '[31b-通知] 软删除后回读应含 status=Deleted（NotificationStatus::Deleted，models/notification.rs:63）'
+    ).toBe('Deleted');
   });
 });
