@@ -1,4 +1,4 @@
-# layers=8 endpoints=1750
+# layers=8 endpoints=1758
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -825,6 +825,10 @@ GET	/api/v1/erp/purchase/supplier-evaluations/records	supplier_evaluation_handle
 GET	/api/v1/erp/purchase/supplier-evaluations/records/*	supplier_evaluation_handler::get_evaluation_record	purchase
 GET	/api/v1/erp/purchase/supplier-evaluations/scores/*	supplier_evaluation_handler::get_supplier_score	purchase
 GET	/api/v1/erp/purchase/supplier-evaluations/suppliers/*/score	supplier_evaluation_handler::get_supplier_score_by_path	purchase
+GET	/api/v1/erp/purchase/supplier-product-colors	crate::handlers::supplier_product_color_handler::list_supplier_product_colors	purchase
+GET	/api/v1/erp/purchase/supplier-product-colors/*	crate::handlers::supplier_product_color_handler::get_supplier_product_color	purchase
+GET	/api/v1/erp/purchase/supplier-products	crate::handlers::supplier_product_handler::list_supplier_products	purchase
+GET	/api/v1/erp/purchase/supplier-products/*	crate::handlers::supplier_product_handler::get_supplier_product	purchase
 GET	/api/v1/erp/purchase/suppliers	supplier_handler::list_suppliers	purchase
 GET	/api/v1/erp/purchase/suppliers/*	supplier_handler::get_supplier	purchase
 GET	/api/v1/erp/purchase/suppliers/*/balance	supplier_handler::get_supplier_balance	purchase
@@ -1492,6 +1496,8 @@ POST	/api/v1/erp/purchase/supplier-blacklists/*/release	supplier_blacklist_handl
 POST	/api/v1/erp/purchase/supplier-evaluations	supplier_evaluation_handler::create_evaluation	purchase
 POST	/api/v1/erp/purchase/supplier-evaluations/indicators	supplier_evaluation_handler::create_indicator	purchase
 POST	/api/v1/erp/purchase/supplier-evaluations/records	supplier_evaluation_handler::create_evaluation_record	purchase
+POST	/api/v1/erp/purchase/supplier-product-colors	crate::handlers::supplier_product_color_handler::create_supplier_product_color	purchase
+POST	/api/v1/erp/purchase/supplier-products	crate::handlers::supplier_product_handler::create_supplier_product	purchase
 POST	/api/v1/erp/purchase/suppliers	supplier_handler::create_supplier	purchase
 POST	/api/v1/erp/purchase/suppliers/*/contacts	supplier_handler::create_supplier_contact	purchase
 POST	/api/v1/erp/purchase/suppliers/*/evaluate	supplier_evaluation_handler::create_evaluation_record	purchase
@@ -1721,6 +1727,8 @@ PUT	/api/v1/erp/purchase/returns/*	purchase_return_handler::update_purchase_retu
 PUT	/api/v1/erp/purchase/returns/*/items/*	purchase_return_handler::update_purchase_return_item	purchase
 PUT	/api/v1/erp/purchase/sku-mappings/*	crate::handlers::sku_mapping_handler::update_mapping	purchase
 PUT	/api/v1/erp/purchase/supplier-evaluations/*	supplier_evaluation_handler::update_evaluation	purchase
+PUT	/api/v1/erp/purchase/supplier-product-colors/*	crate::handlers::supplier_product_color_handler::update_supplier_product_color	purchase
+PUT	/api/v1/erp/purchase/supplier-products/*	crate::handlers::supplier_product_handler::update_supplier_product	purchase
 PUT	/api/v1/erp/purchase/suppliers/*	supplier_handler::update_supplier	purchase
 PUT	/api/v1/erp/purchase/suppliers/*/contacts/*	supplier_handler::update_supplier_contact	purchase
 PUT	/api/v1/erp/purchase/suppliers/*/qualifications/*	supplier_handler::update_supplier_qualification	purchase

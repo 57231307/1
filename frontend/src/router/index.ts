@@ -242,6 +242,17 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'purchase/supplier-product',
+        name: 'SupplierProduct',
+        component: () => import('@/views/supplier-product/index.vue'),
+        meta: {
+          title: '供应商商品',
+          icon: 'Goods',
+          permission: 'supplier-products:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'customer',
         name: 'Customer',
         component: () => import('@/views/customer/index.vue'),

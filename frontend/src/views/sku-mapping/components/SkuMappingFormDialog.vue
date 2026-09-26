@@ -1,6 +1,7 @@
 <!--
   SkuMappingFormDialog - SKU 对照表新建/编辑对话框
   色号选择使用 el-select-v2 虚拟滚动，支持上千色号场景。
+  供应商侧为三级级联：供应商 → 供应商商品 → 供应商色号（后两级远程搜索 + 分页，禁一次性渲染全部）。
 -->
 <template>
   <el-dialog
@@ -57,31 +58,58 @@
           :placeholder="t('skuMapping.placeholders.supplier')"
           filterable
           style="width: 100%"
+          @change="proc.handleSupplierChange"
         >
           <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
         </el-select>
       </el-form-item>
 
-      <el-form-item :label="t('skuMapping.fields.supplierProductId')">
-        <el-input
-          v-model.number="proc.form.supplier_product_id"
-          :placeholder="t('skuMapping.placeholders.supplierProductId')"
-          type="number"
+      <el-form-item :label="t('skuMapping.fields.supplierProduct')">
+        <el-select-v2
+          v-model="proc.form.supplier_product_id"
+          :options="proc.supplierProductV2Options.value"
+          :placeholder="
+            proc.form.supplier_id
+              ? t('skuMapping.placeholders.supplierProduct')
+              : t('skuMapping.placeholders.supplierFirst')
+          "
+          :disabled="!proc.form.supplier_id"
+          filterable
+          remote
+          :remote-method="searchSupplierProducts"
+          :loading="proc.supplierProductLoading.value"
+          clearable
+          style="width: 100%"
+          @change="proc.handleSupplierProductChange"
         />
       </el-form-item>
 
       <el-form-item :label="t('skuMapping.fields.supplierProductCode')">
-        <el-input
-          v-model="proc.form.supplier_product_code"
-          :placeholder="t('skuMapping.placeholders.supplierProductCode')"
+        <el-input v-model="proc.form.supplier_product_code" disabled />
+      </el-form-item>
+
+      <el-form-item :label="t('skuMapping.fields.supplierColor')">
+        <el-select-v2
+          v-model="proc.form.supplier_product_color_id"
+          :options="proc.supplierColorV2Options.value"
+          :placeholder="
+            proc.form.supplier_product_id
+              ? t('skuMapping.placeholders.supplierColor')
+              : t('skuMapping.placeholders.supplierProductFirst')
+          "
+          :disabled="!proc.form.supplier_product_id"
+          filterable
+          remote
+          :remote-method="searchSupplierColors"
+          :loading="proc.supplierColorLoading.value"
+          clearable
+          style="width: 100%"
+          @change="proc.handleSupplierColorChange"
         />
       </el-form-item>
 
       <el-form-item :label="t('skuMapping.fields.supplierColorNo')">
-        <el-input
-          v-model="proc.form.supplier_color_no"
-          :placeholder="t('skuMapping.placeholders.supplierColorNo')"
-        />
+        <el-input v-model="proc.form.supplier_color_no" disabled />
       </el-form-item>
 
       <el-form-item :label="t('skuMapping.fields.supplierPrice')">
@@ -150,10 +178,24 @@ const colorV2Options = computed(() =>
   }))
 );
 
-// 远程搜索色号（虚拟滚动场景）
+// 远程搜索我方色号（虚拟滚动场景）
 const searchColors = (query: string) => {
   if (props.proc.form.product_id) {
     props.proc.loadColors(props.proc.form.product_id, query);
+  }
+};
+
+// 远程搜索供应商商品（依赖已选供应商）
+const searchSupplierProducts = (query: string) => {
+  if (props.proc.form.supplier_id) {
+    props.proc.loadSupplierProducts(props.proc.form.supplier_id, query);
+  }
+};
+
+// 远程搜索供应商色号（依赖已选供应商商品）
+const searchSupplierColors = (query: string) => {
+  if (props.proc.form.supplier_product_id) {
+    props.proc.loadSupplierColors(props.proc.form.supplier_product_id, query);
   }
 };
 </script>
