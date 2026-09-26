@@ -12,12 +12,12 @@ use crate::models::status::crm_lead as lead_status;
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{
-    apply_department_scope_with_pool, check_resource_owner, DataScopeContext,
+    DataScopeContext, apply_department_scope_with_pool, check_resource_owner,
 };
 use crate::utils::error::AppError;
 use crate::utils::messages::err_msg;
 use crate::utils::xlsx_export::XlsxTable;
-use sea_orm::sea_query::{extension::postgres::PgExpr, Expr};
+use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait,
@@ -244,7 +244,7 @@ impl CrmService {
 
     /// 读取 xlsx 字节，返回首个 sheet 的数据行（已跳过表头）
     async fn read_xlsx_rows(file_bytes: Vec<u8>) -> Result<Vec<Vec<calamine::Data>>, AppError> {
-        use calamine::{open_workbook_auto_from_rs, Reader};
+        use calamine::{Reader, open_workbook_auto_from_rs};
         use std::io::Cursor;
 
         let cursor = Cursor::new(file_bytes);

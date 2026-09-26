@@ -1,10 +1,9 @@
 {
-  "total": 182,
+  "total": 181,
   "files": {
     "frontend/src/api/account-subject.ts": {
-      "count": 2,
+      "count": 1,
       "keys": [
-        "AccountSubject.subject_type",
         "AccountSubjectEntity.balance_type"
       ]
     },
