@@ -84,15 +84,14 @@ test.describe('03 商机管理', () => {
     await page.goto('/crm/opportunities');
     await page.getByRole('button', { name: '新建商机' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    // 弹窗字段真实 label（crmOpportunityForm.*）：商机名称/客户/商机类型/预估金额/成交概率/预计成交；
+    // 弹窗字段真实 label（crmOpportunityForm.*）：商机名称/客户/商机类型/商机阶段/预估金额/成交概率/预计成交；
     // 提交按钮真实文案为「确定」（crmOpportunityForm.confirm）。限定到 .el-dialog 作用域。
-    // 注意：OpportunityFormTab 表单规则还要求「商机阶段 opportunity_stage」「负责人 owner_id」必填，
-    // 本用例未填写二者，且 /crm/opportunities 页面当前存在前端加载崩溃（另一前端专家修复中）——
-    // 此用例在页面修复前会因校验/崩溃而红，非选择器问题，不做凑数。
+    // 表单必填项：opportunity_name, customer_id, opportunity_stage（OpportunityFormTab formRules）。
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('商机名称').fill(`E2E 商机 ${Date.now()}`);
     await pickSelect(page, elSelectByLabel(dlg, '客户'));
     await pickSelect(page, elSelectByLabel(dlg, '商机类型'));
+    await pickSelect(page, elSelectByLabel(dlg, '商机阶段'));
     await dlg.getByLabel('预估金额').fill('100000');
     await dlg.getByLabel('预计成交').fill('2026-12-31');
     await dlg.getByRole('button', { name: '确定' }).click();

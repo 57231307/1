@@ -227,13 +227,6 @@ const formRules: FormRules = {
       trigger: 'change',
     },
   ],
-  owner_id: [
-    {
-      required: true,
-      message: t('crmOpportunityForm.validation.ownerRequired'),
-      trigger: 'change',
-    },
-  ],
 };
 
 watch(
