@@ -73,27 +73,10 @@ const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
 const pi = usePi();
-const piProc = usePiProc({
-  tableData: pi.tableData,
-  loading: pi.loading,
-  total: pi.total,
-  dateRange: pi.dateRange,
-  queryParams: pi.queryParams,
-  page: pi.page,
-  pageSize: pi.pageSize,
-  suppliers: pi.suppliers,
-  receipts: pi.receipts,
-  dialogVisible: pi.dialogVisible,
-  isEdit: pi.isEdit,
-  submitLoading: pi.submitLoading,
-  formData: pi.formData,
-  detailDialogVisible: pi.detailDialogVisible,
-  detailData: pi.detailData,
-  detailItems: pi.detailItems,
-  fetchData: pi.fetchData,
-  handleReceiptChange: pi.handleReceiptChange,
-  syncDateRangeToQuery: pi.syncDateRangeToQuery,
-});
+// 直接传入 usePi 返回的 reactive 代理：proc 内 cb.dialogVisible = true / cb.isEdit 等
+// 写入经 proxy set 回写底层 ref，模板 v-model:visible 才响应；对象字面量快照会把
+// 解包后的普通值传进去，proc 的写入只落在临时对象上、底层 ref 永不被通知 → 弹框不打开。
+const piProc = usePiProc(pi);
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据（供应商/入库单）
 onMounted(() => {

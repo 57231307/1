@@ -78,17 +78,10 @@ const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态（reactive 包装，父组件可直接访问字段）
 const lgs = useLgs();
-const lgsProc = useLgsProc({
-  detailDialogVisible: lgs.detailDialogVisible,
-  detailData: lgs.detailData,
-  isEdit: lgs.isEdit,
-  formData: lgs.formData,
-  submitLoading: lgs.submitLoading,
-  dialogVisible: lgs.dialogVisible,
-  statusForm: lgs.statusForm,
-  statusDialogVisible: lgs.statusDialogVisible,
-  fetchData: lgs.fetchData,
-});
+// 直接传入 useLgs 返回的 reactive 代理，避免对象字面量快照断链：proc 内对
+// dialogVisible / detailDialogVisible / statusDialogVisible 的写入经 proxy set 回写
+// 底层 ref，模板 v-model:visible 才响应（否则运单/详情/状态弹框永不打开）。
+const lgsProc = useLgsProc(lgs);
 
 // 懒加载标记
 const hasLoaded = createLazyLoader();

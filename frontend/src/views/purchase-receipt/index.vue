@@ -70,17 +70,10 @@ const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
 const prc = usePrc();
-const prcProc = usePrcProc({
-  queryParams: prc.queryParams,
-  page: prc.page,
-  dialogVisible: prc.dialogVisible,
-  dialogTitle: prc.dialogTitle,
-  form: prc.form,
-  viewDialogVisible: prc.viewDialogVisible,
-  viewData: prc.viewData,
-  detailData: prc.detailData,
-  loadData: prc.loadData,
-});
+// 直接传入 usePrc 返回的 reactive 代理：proc 内 cb.dialogVisible = true 等写入
+// 经 proxy set 回写到底层 ref，模板 v-model:visible 立即响应；对象字面量快照会把
+// 解包后的普通值传进去，proc 的写入只落在临时对象上、底层 ref 永不被通知 → 弹框不打开。
+const prcProc = usePrcProc(prc);
 
 // 状态选项：取值来自与后端写入原值逐字一致的状态词表，标签走 i18n
 // （不再本地维护裸中文/大小写不符的选项数组——原 'draft'/'approved' 小写值与
