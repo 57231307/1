@@ -139,7 +139,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const newBtn = page.locator('button:has-text("新建预算")').first();
+    const newBtn = page.locator('button:has-text("新建方案")').first();
     await newBtn.waitFor({ state: 'visible', timeout: 5000 });
     const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
