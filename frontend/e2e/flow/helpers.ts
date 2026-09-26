@@ -1181,6 +1181,41 @@ async function getCsrfToken(page: Page): Promise<string> {
   return csrf.value;
 }
 
+/**
+ * 后端 CSRF Token 为一次性消费（csrf.rs:110 consume + :216-224 Set-Cookie 轮换）。
+ * page.request 成功写入后，响应 Set-Cookie 携带新 token，Playwright 自动存入 context。
+ * 本函数为防御性保障：从响应的 set-cookie 头中显式提取 csrf_token 值并 addCookies，
+ * 确保即便 Playwright 内部 cookie 传播存在微小时序差，下一次 getCsrfToken 也一定能读到
+ * 最新轮换后的 token，杜绝因使用已消费 token 导致的不必要 403。
+ */
+async function syncCsrfFromResponse(
+  page: Page,
+  response: { headers(): Record<string, string> },
+  url: string
+): Promise<void> {
+  const setCookie = response.headers()['set-cookie'];
+  if (!setCookie) return;
+  const match = /csrf_token=([^;]+)/.exec(setCookie);
+  if (!match) return;
+  try {
+    const urlObj = new URL(url);
+    await page.context().addCookies([
+      {
+        name: 'csrf_token',
+        value: match[1],
+        domain: urlObj.hostname,
+        path: '/',
+        httpOnly: false,
+        secure: false,
+        sameSite: 'Strict' as const,
+        expires: Math.floor(Date.now() / 1000) + 1800,
+      },
+    ]);
+  } catch {
+    // addCookies 异常（如域名不匹配）不阻塞——降级到下一次 403 恢复路径
+  }
+}
+
 async function refreshCsrfToken(page: Page): Promise<string> {
   // CSRF token 过期时，重新登录获取全新的 access_token + csrf_token
   // 不用 /auth/refresh（会吊销旧 access_token 导致后续 GET 请求 401）
@@ -1312,6 +1347,12 @@ export async function apiCall<T = unknown>(
     throw httpErr;
   }
 
+  // 写操作成功后主动同步轮换的 CSRF token，确保下一次 apiCall 的 getCsrfToken
+  // 一定读到最新值，而非依赖 Playwright 内部 set-cookie 处理的时机。
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+    await syncCsrfFromResponse(page, response, url);
+  }
+
   return json;
 }
 
@@ -1398,6 +1439,13 @@ export async function apiCallExpectFail(
     } catch (e) {
       console.warn(`[apiCallExpectFail] ${method} ${path} CSRF 重试失败: ${(e as Error).message}`);
     }
+  }
+
+  // CSRF 恢复/业务错误后 token 可能已被消费并轮换（后端 middleware 在校验通过后
+  // 消费旧 token + Set-Cookie 新 token，之后 handler 返回的业务错误不影响轮换）。
+  // 主动同步确保后续 apiCall 不再携带已消费的 token。
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+    await syncCsrfFromResponse(page, response, url);
   }
 
   return { status: response.status(), code: json.code, message: json.message };

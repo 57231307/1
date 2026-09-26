@@ -37,10 +37,13 @@ interface SetupApiResponse {
   text(): Promise<string>;
 }
 
-/** 仅声明 setup 用到的写方法（实参是 Playwright APIRequestContext，方法签名双变可赋值） */
+/** 仅声明 setup 用到的写方法 + storageState（CSRF 轮换后需重取 token） */
 interface CsrfCapableRequestContext {
   post(url: string, options: object): Promise<SetupApiResponse>;
   put(url: string, options: object): Promise<SetupApiResponse>;
+  storageState(): Promise<{
+    cookies: Array<{ name: string; value: string; domain: string; path: string }>;
+  }>;
 }
 
 /**
@@ -329,9 +332,11 @@ const ROLE_CREDENTIALS_PATH = 'e2e/.auth/role-credentials.json';
 const DEFAULT_ROLE_PASSWORD = 'E2eRole#2026';
 
 /**
- * CSRF 一次性消费的恢复包装：写请求 403（CSRF_TOKEN_INVALID）时读取
- * 响应头 X-New-CSRF-Token 更新 headers 并重试一次（每分片独立登录，
- * 并发分片同库时旧 token 必被竞争消费，无恢复则后续全部写请求 403）
+ * CSRF 一次性消费的恢复包装：后端 CSRF Token 为一次性消费——成功写入后响应
+ * Set-Cookie 下发轮换后的新 token，context 自动存储但 headers 对象不会同步。
+ * 本函数在每次写请求完成后（无论成功或 403 恢复），从 context cookie jar 重取
+ * csrf_token 并刷新到共享 headers 中，确保下一次调用不携带已消费的旧 token。
+ * 若恢复后仍失败（如 IP 不匹配），保留原 resp 由调用方判定并报告。
  */
 async function requestWithCsrfRecovery(
   ctx: CsrfCapableRequestContext,
@@ -346,6 +351,20 @@ async function requestWithCsrfRecovery(
     if (newToken) {
       headers['X-CSRF-Token'] = newToken;
       resp = await ctx[method](url, { headers, data });
+    }
+  }
+  // 写请求完成后，从 context cookie jar 重取轮换后的 csrf_token：
+  // 后端成功消费旧 token 后通过 Set-Cookie 下发新 token（csrf.rs:216-224），
+  // Playwright context 已自动存储，但 headers 对象仍为旧值——不同步则下次 403。
+  if (resp.ok()) {
+    try {
+      const state = await ctx.storageState();
+      const fresh = state.cookies.find(c => c.name === 'csrf_token');
+      if (fresh) {
+        headers['X-CSRF-Token'] = fresh.value;
+      }
+    } catch {
+      // storageState 异常不阻塞（降级到下次 403 恢复路径）
     }
   }
   return resp;
