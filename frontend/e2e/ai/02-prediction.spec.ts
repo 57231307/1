@@ -51,8 +51,15 @@ test.describe('02 AI 质量预测', () => {
     // 提交按钮真实文案「开始预测」（aiExtend.qualityPrediction.generate），原用例误写「确认/提交」。
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('产品 ID').fill('1');
-    await dlg.getByLabel('检验类型').click();
-    await page.getByRole('option').first().click();
+    // 检验类型是 el-select（quality-prediction.vue:500-507），getByLabel 命中 readonly combobox
+    // input，EP 拦截其直接 click → 30s 超时。改按含该 label 的 form-item 锚定其内 .el-select 触发，
+    // 选项渲染在 body-level popper 的 .el-select-dropdown__item（对齐 purchase/inventory 既有写法）。
+    const inspectItem = dlg
+      .locator('.el-form-item')
+      .filter({ has: dlg.locator('.el-form-item__label', { hasText: '检验类型' }) })
+      .first();
+    await inspectItem.locator('.el-select').first().click();
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
     await dlg.getByRole('button', { name: '开始预测' }).click();
     await expect(page.getByText(/预测完成/)).toBeVisible({
       timeout: 30000,

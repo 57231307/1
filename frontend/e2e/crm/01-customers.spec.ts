@@ -39,7 +39,10 @@ test.describe('01 客户管理', () => {
   test('01-03 客户列表支持筛选', async ({ page }) => {
     await page.goto('/crm');
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/客户名称/).fill('E2E');
+    // 列表页筛选栏并无「客户名称」可访问 label（客户名称仅存在于新建对话框，此页未打开对话框）；
+    // 真实搜索框是 keyword 输入（CustomerListTab.vue:51-58），其 placeholder=
+    // crmCustomer.filter.keywordPlaceholder「客户编码/名称/联系人」（zh-CN.ts:3787）。按 placeholder 锚定。
+    await page.getByPlaceholder(/客户编码/).fill('E2E');
     await page.getByRole('button', { name: /查询|搜索/ }).click();
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });

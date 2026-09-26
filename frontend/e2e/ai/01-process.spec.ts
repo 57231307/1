@@ -38,7 +38,11 @@ test.describe('01 AI 工艺优化', () => {
     await dlg.getByLabel('色号').fill('E2E-CN-001');
     await dlg.getByLabel('面料类型').fill('E2E 测试面料');
     await dlg.getByRole('button', { name: '生成推荐' }).click();
-    await expect(page.getByText(/推荐成功/)).toBeVisible({
+    // 成功提示是 ElMessage（teleport 到 body 的 .el-message 容器），文案取
+    // aiExtend.process.recommendSuccess「推荐成功（来源…）」（process-optimization.vue:141-146 调用；
+    // zh-CN.ts:1736）。原 getByText(/推荐成功/) 会命中任意含该词的页面文本且 toast 短暂，
+    // 改锚定真实 toast 容器 + 真实文案（仍要求成功提示出现，不放宽）。
+    await expect(page.locator('.el-message').filter({ hasText: '推荐成功' })).toBeVisible({
       timeout: 30000,
     });
   });

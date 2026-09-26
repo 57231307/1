@@ -84,8 +84,15 @@ test.describe('02 线索管理', () => {
     await dlg.getByLabel('联系人').fill('李四');
     await dlg.getByLabel('手机号').fill('13900139000');
     await dlg.getByLabel('邮箱').fill('li@test.com');
-    await dlg.getByLabel('线索来源').click();
-    await page.getByRole('option').first().click();
+    // 线索来源是 el-select（LeadFormTab.vue:23-39），getByLabel 命中 readonly combobox input，
+    // EP 拦截其直接 click → 30s 超时。改按含该 label 的 form-item 锚定其内 .el-select 触发，选项取
+    // body-level popper 的 .el-select-dropdown__item（对齐 purchase/inventory 既有写法）。
+    const srcItem = dlg
+      .locator('.el-form-item')
+      .filter({ has: dlg.locator('.el-form-item__label', { hasText: '线索来源' }) })
+      .first();
+    await srcItem.locator('.el-select').first().click();
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
     await dlg.getByLabel('备注').fill('E2E 测试线索');
     await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({
