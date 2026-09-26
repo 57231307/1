@@ -52,7 +52,11 @@ test.describe('02 审批中心', () => {
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 3000 });
     await page.getByLabel(/审批意见/).fill('E2E 测试：审批同意');
     await page.getByRole('button', { name: '确定' }).click();
-    await expect(page.getByText(/审批通过/)).toBeVisible({ timeout: 30000 });
+    // 成功提示锚定 .el-message__content：审批对话框标题亦为"审批通过"（i18n bpm.approval
+    // .approvalDialog.approveTitle, zh-CN.ts:2837），不限定则 getByText strict 双命中。
+    await expect(page.locator('.el-message__content').filter({ hasText: /审批通过/ })).toBeVisible({
+      timeout: 30000,
+    });
   });
 
   test('02-03 待办任务可审批拒绝', async ({ page }) => {
@@ -66,7 +70,10 @@ test.describe('02 审批中心', () => {
     await rejectBtn.click();
     await page.getByLabel(/审批意见/).fill('E2E 测试：审批拒绝');
     await page.getByRole('button', { name: '确定' }).click();
-    await expect(page.getByText(/审批拒绝/)).toBeVisible({ timeout: 30000 });
+    // 同 approve 分析：限定 toast 容器避免对话框/其他文本误匹配
+    await expect(page.locator('.el-message__content').filter({ hasText: /审批拒绝/ })).toBeVisible({
+      timeout: 30000,
+    });
   });
 
   test('02-04 已办任务可追溯审批链', async ({ page }) => {

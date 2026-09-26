@@ -133,8 +133,12 @@ test.describe('定制订单全流程跟踪 E2E', () => {
     if (orderNo) {
       await expect(page.getByText(orderNo).first(), '跟踪页头部应展示订单号').toBeVisible();
     }
-    // 时间线区块真实存在（tracking.dividerOperationLog=「操作日志」）
-    await expect(page.getByText('操作日志')).toBeVisible({ timeout: 30_000 });
+    // 时间线区块真实存在（tracking.dividerOperationLog='操作日志'，渲染为 el-divider__text）。
+    // 空态 el-empty description='暂无操作日志' 含子串"操作日志"导致 getByText strict 多命中，
+    // 须限定到 .el-divider__text 元素（tracking.vue:68）。
+    await expect(page.locator('.el-divider__text', { hasText: '操作日志' })).toBeVisible({
+      timeout: 30_000,
+    });
   });
 
   test('上报质量异常', async ({ page }) => {

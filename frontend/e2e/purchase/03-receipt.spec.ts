@@ -66,9 +66,10 @@ test.describe('03 采购收货', () => {
     const dialog = page.getByRole('dialog', { name: '采购收货' });
     await pickSelect(page, dialog.locator('.el-select').first());
     await dialog.getByRole('spinbutton').first().fill('1');
-    // 批次号是后端入库建单期强校验的四维之一，收货对话框已新增该必填录入列（textbox），
-    // 本次收货行须录入批次方能成功建单（非弱化断言：真实契约要求收货人实测录入批次）
-    await dialog.getByRole('textbox').first().fill('E2E-RCV-BATCH');
+    // 批次号输入位于明细表格内（placeholder='收货批次号'，来自 PurchaseReceiveDialog.vue:98
+    // + zh-CN.ts:1203）。dialog.getByRole('textbox') 会先命中 readonly 采购单号/供应商输入，
+    // 须用 placeholder 精确锚定可编辑的批次列。
+    await dialog.locator('input[placeholder="收货批次号"]').first().fill('E2E-RCV-BATCH');
     await dialog.getByRole('button', { name: '确定收货' }).click();
     // createPurchaseReceipt 成功 → msg.success('receiveSuccess') = '收货成功'
     await expect(page.getByText('收货成功')).toBeVisible({ timeout: 30000 });

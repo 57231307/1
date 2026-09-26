@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, BASE_URL, getCtx, ensureTestEntities } from './helpers';
-import { findTableRow } from './ui-helpers';
+import { findTableRow, pickSelect } from './ui-helpers';
 
 /**
  * 新增域业务流转链防线（flow/54-new-domains-lifecycle）
@@ -199,12 +199,42 @@ test.describe.serial('新域业务流转链', () => {
     await page.goto(`${BASE_URL}/outsourcing`);
     await expect(page.locator('.page')).toBeVisible();
 
-    const orderNo = `OUT-E2E-${Date.now()}`;
     await page.getByRole('button', { name: '新建委外单' }).click();
-    await page.locator('.el-dialog input').first().fill(orderNo);
-    await page.locator('.el-dialog .el-input-number input').first().fill('1');
-    await page.locator('.el-dialog .el-input-number input').nth(1).fill('100');
-    await page.getByRole('button', { name: '保存' }).click();
+    const dialog = page.locator('.el-dialog:visible').first();
+    await expect(dialog).toBeVisible();
+
+    // 委外单号由 openCreate() 客户端自动生成（generateUniqueDocNo），readonly 不可 fill。
+    // 选类型 el-select（dialog 内唯一 el-select）、填供应商ID/发出数量/发出日期。
+    await pickSelect(page, dialog.locator('.el-select').first(), '染色加工');
+    await dialog.locator('.el-input-number input').first().fill('1'); // 供应商ID
+    const today = new Date().toISOString().slice(0, 10);
+    const dateInput = dialog
+      .locator('.el-form-item')
+      .filter({ hasText: '发出日期' })
+      .locator('input')
+      .first();
+    await dateInput.click();
+    await dateInput.fill(today);
+    await page.keyboard.press('Enter');
+    await dialog.locator('.el-input-number input').nth(1).fill('100'); // 发出数量
+
+    // 等待创建响应获取真实单号（readonly 自动生成的值通过 POST 回传到服务端确认）
+    const [respPromise] = await Promise.all([
+      page.waitForResponse(
+        r =>
+          r.url().includes('/production/outsourcing-orders') &&
+          r.request().method() === 'POST' &&
+          r.status() === 200,
+        { timeout: 15_000 }
+      ),
+      dialog.getByRole('button', { name: '保存' }).click(),
+    ]);
+    const respData = await respPromise.json();
+    const orderNo = String(respData?.data?.order_no ?? '');
+    expect(
+      orderNo,
+      `创建委外单应返回 order_no，实际=${JSON.stringify(respData).slice(0, 200)}`
+    ).not.toBe('');
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
 
     // 状态链：draft → issued（发出）
