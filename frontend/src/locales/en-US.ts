@@ -6148,6 +6148,7 @@ export default {
       confirmMessage: 'Confirm that this payment has been received?',
       detailFailed: 'Failed to fetch AR payment detail',
       detailTitle: 'Receipt details',
+      printFailed: 'Failed to print receipt',
     },
     verification: {
       manual: 'Manual Verification',

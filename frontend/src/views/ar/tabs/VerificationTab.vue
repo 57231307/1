@@ -83,7 +83,7 @@
             <el-option
               v-for="pay in unverifiedPayments"
               :key="pay.id"
-              :label="`${pay.payment_no}（${formatMoney(pay.payment_amount)}）`"
+              :label="`${pay.payment_no}（${formatMoney(pay.amount)}）`"
               :value="pay.id"
             />
           </el-select>

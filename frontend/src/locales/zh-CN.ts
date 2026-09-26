@@ -6115,6 +6115,7 @@ export default {
       confirmMessage: '确认该笔收款已到账？',
       detailFailed: '获取收款详情失败',
       detailTitle: '收款详情',
+      printFailed: '打印收款单失败',
     },
     verification: {
       manual: '手动核销',

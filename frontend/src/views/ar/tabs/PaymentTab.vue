@@ -19,19 +19,19 @@
       <el-table-column prop="payment_date" :label="t('arModule.payment.paymentDate')" width="110" />
       <el-table-column prop="payment_method" :label="t('arModule.payment.method')" width="110" />
       <el-table-column
-        prop="payment_amount"
+        prop="amount"
         :label="t('arModule.payment.amount')"
         width="130"
         align="right"
       >
-        <template #default="{ row }">{{ formatMoney(row.payment_amount) }}</template>
+        <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
       </el-table-column>
       <el-table-column prop="status" :label="t('common.status')" width="100">
         <template #default="{ row }">
           <el-tag :type="statusTagType(row.status)" size="small">{{ row.status }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column :label="t('common.action')" width="220" fixed="right">
+      <el-table-column :label="t('common.action')" width="280" fixed="right">
         <template #default="{ row }">
           <el-button
             v-if="row.status === 'draft' || row.status === 'pending'"
@@ -53,6 +53,9 @@
           </el-button>
           <el-button size="small" link @click="showDetail(row)">
             {{ t('common.detail') }}
+          </el-button>
+          <el-button size="small" link @click="printCollection(row)">
+            {{ t('common.print') }}
           </el-button>
         </template>
       </el-table-column>
@@ -78,8 +81,8 @@
             <el-option label="承兑" value="bill" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('arModule.payment.amount')" prop="payment_amount">
-          <el-input-number v-model="form.payment_amount" :min="0.01" :precision="2" />
+        <el-form-item :label="t('arModule.payment.amount')" prop="amount">
+          <el-input-number v-model="form.amount" :min="0.01" :precision="2" />
         </el-form-item>
         <el-form-item :label="t('arModule.payment.notes')">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
@@ -106,7 +109,7 @@
           detailRow.status
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('arModule.payment.amount')">
-          {{ formatMoney(detailRow.payment_amount) }}
+          {{ formatMoney(detailRow.amount) }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('arModule.payment.paymentDate')">
           {{ detailRow.payment_date }}
@@ -129,6 +132,7 @@ import {
   createARPayment,
   updateARPayment,
   confirmARPayment,
+  printARCollectionDocx,
   type ARPayment,
 } from '@/api/ar';
 
@@ -177,7 +181,7 @@ const form = reactive({
   customer_id: undefined as number | undefined,
   payment_date: new Date().toISOString().split('T')[0],
   payment_method: 'bank_transfer',
-  payment_amount: 0,
+  amount: 0,
   bank_account: '',
   remark: '',
 });
@@ -189,9 +193,7 @@ const rules: FormRules = {
   payment_date: [
     { required: true, message: t('arModule.payment.dateRequired'), trigger: 'change' },
   ],
-  payment_amount: [
-    { required: true, message: t('arModule.payment.amountRequired'), trigger: 'blur' },
-  ],
+  amount: [{ required: true, message: t('arModule.payment.amountRequired'), trigger: 'blur' }],
 };
 
 const openCreateDialog = () => {
@@ -199,7 +201,7 @@ const openCreateDialog = () => {
   form.customer_id = undefined;
   form.payment_date = new Date().toISOString().split('T')[0];
   form.payment_method = 'bank_transfer';
-  form.payment_amount = 0;
+  form.amount = 0;
   form.remark = '';
   dialogVisible.value = true;
 };
@@ -209,7 +211,8 @@ const openEditDialog = (row: ARPayment) => {
   form.customer_id = row.customer_id;
   form.payment_date = row.payment_date;
   form.payment_method = row.payment_method;
-  form.payment_amount = Number(row.payment_amount ?? 0);
+  // 后端响应金额为 string（rust_decimal），回填数值供 el-input-number 编辑
+  form.amount = Number(row.amount ?? 0);
   form.remark = row.remark || '';
   dialogVisible.value = true;
 };
@@ -220,9 +223,22 @@ const handleSubmit = async () => {
   submitting.value = true;
   try {
     if (editId.value) {
-      await updateARPayment(editId.value, form);
+      await updateARPayment(editId.value, {
+        amount: form.amount,
+        payment_method: form.payment_method,
+        payment_date: form.payment_date,
+        bank_account: form.bank_account,
+        remark: form.remark,
+      });
     } else {
-      await createARPayment(form);
+      await createARPayment({
+        customer_id: form.customer_id as number,
+        amount: form.amount,
+        payment_method: form.payment_method,
+        payment_date: form.payment_date,
+        bank_account: form.bank_account,
+        remark: form.remark,
+      });
     }
     ElMessage.success(t('common.success'));
     dialogVisible.value = false;
@@ -262,6 +278,23 @@ const showDetail = async (row: ARPayment) => {
     detailRow.value = row;
   }
   detailVisible.value = true;
+};
+
+const printCollection = async (row: ARPayment) => {
+  try {
+    const blob = await printARCollectionDocx(row.id);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${row.payment_no}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('arModule.payment.printFailed'));
+  }
 };
 
 defineExpose({ refresh: fetchPayments });

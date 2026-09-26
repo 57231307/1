@@ -24,18 +24,51 @@ export interface ARInvoice {
   created_at: string;
 }
 
+/**
+ * 收款单列表/详情载荷（GET /ar/payments → ar_ops/json_helpers::collection_to_json）。
+ * 金额键为 amount / collection_amount，两者均为 rust_decimal::Decimal.to_string() 出的字符串，
+ * 响应里不存在 payment_amount 键（此前误声明 payment_amount:number ⇒ 列表金额恒显 0）。
+ */
 export interface ARPayment {
   id: number;
   payment_no: string;
   customer_id: number;
   customer_name: string;
   payment_date: string;
-  payment_amount: number;
+  /** 金额（后端键 amount，值为 rust_decimal 字符串，非 number、非 payment_amount） */
+  amount: string;
+  /** 后端 collection_to_json 同时回填的别名键，值同为 string */
+  collection_amount: string;
   payment_method: string;
   status: string;
   bank_account?: string;
   remark?: string;
   created_at: string;
+}
+
+/**
+ * 创建收款入参：逐字段对齐后端 `CreateArPaymentRequest`
+ * （backend/src/handlers/ar_payment_handler.rs:31-43）——金额键是 amount（非 payment_amount），
+ * customer_id/amount/payment_method/payment_date 必填，bank_account/remark/invoice_ids 可选。
+ * amount 为 rust_decimal：serde 接受 JSON number，故 el-input-number 的 number 直接可用。
+ */
+export interface CreateArPaymentRequest {
+  customer_id: number;
+  amount: number;
+  payment_method: string;
+  payment_date: string;
+  bank_account?: string;
+  remark?: string;
+  invoice_ids?: number[];
+}
+
+/** 更新收款入参：对齐后端 `UpdateArPaymentRequest`（全字段可选，无 customer_id，金额键 amount）。 */
+export interface UpdateArPaymentRequest {
+  amount?: number;
+  payment_method?: string;
+  payment_date?: string;
+  bank_account?: string;
+  remark?: string;
 }
 
 export interface ARVerification {
@@ -195,19 +228,31 @@ export function getARPayment(id: number): Promise<ApiResponse<ARPayment>> {
   return request.get(`/ar/payments/${id}`);
 }
 
-export function createARPayment(data: Partial<ARPayment>): Promise<ApiResponse<ARPayment>> {
+export function createARPayment(data: CreateArPaymentRequest): Promise<ApiResponse<ARPayment>> {
   return request.post('/ar/payments', data);
 }
 
 export function updateARPayment(
   id: number,
-  data: Partial<ARPayment>
+  data: UpdateArPaymentRequest
 ): Promise<ApiResponse<ARPayment>> {
   return request.put(`/ar/payments/${id}`, data);
 }
 
 export function confirmARPayment(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ar/payments/${id}/confirm`);
+}
+
+/**
+ * 收款单 DOCX 打印：后端 GET /ar/collections/{id}/print（routes/finance.rs:893
+ * → print_handler::ar_collection_print_docx）返回 docx 二进制流，前端转 Blob 触发下载。
+ * request 响应拦截器对 blob 响应返回完整 AxiosResponse（真 Blob 在其 data 上），
+ * 此处归一化，兼容「直接 Blob」与「AxiosResponse.data」两种形态（对齐 ap.ts printAPPaymentDocx）。
+ */
+export async function printARCollectionDocx(id: number): Promise<Blob> {
+  const res = await request.get<Blob>(`/ar/collections/${id}/print`, { responseType: 'blob' });
+  const payload = res as unknown as Blob | { data: Blob };
+  return payload instanceof Blob ? payload : payload.data;
 }
 
 /**
