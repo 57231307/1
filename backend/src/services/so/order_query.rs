@@ -16,6 +16,7 @@ use crate::utils::PaginatedResponse;
 use crate::utils::data_scope::{DataScopeContext, apply_department_scope};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+use crate::utils::sql_escape::safe_like_pattern;
 use sea_orm::{
     ColumnTrait, EntityTrait, LoaderTrait, ModelTrait, Order, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, RelationTrait,
@@ -76,6 +77,23 @@ impl OrderQuery {
     }
 }
 
+/// 销售订单列表/导出的筛选条件
+///
+/// 列表与导出必须共用同一套条件（否则导出数据与界面不一致而无人报错）；
+/// 用结构而非位置参数，也避免再加一个字段就把函数推到 clippy 的 too_many_arguments。
+#[derive(Debug, Clone, Default)]
+pub struct SalesOrderFilter {
+    pub status: Option<String>,
+    pub customer_id: Option<i32>,
+    pub order_no: Option<String>,
+    /// 客户名称模糊匹配（走已左连接的 customers 表）
+    pub customer_name: Option<String>,
+    /// 起始日期（含）：过滤 `sales_order.order_date >= 当日 00:00`
+    pub start_date: Option<chrono::NaiveDate>,
+    /// 截止日期（含）：过滤 `sales_order.order_date < 次日 00:00`（覆盖整日）
+    pub end_date: Option<chrono::NaiveDate>,
+}
+
 impl SalesService {
     // list_orders / get_order_detail / get_order_statistics
     // 内容来自原 order.rs L37-276 + L841-897
@@ -85,12 +103,10 @@ impl SalesService {
     pub async fn list_orders(
         &self,
         page_req: PageRequest,
-        status: Option<String>,
-        customer_id: Option<i32>,
-        order_no: Option<String>,
+        filter: SalesOrderFilter,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<PaginatedResponse<SalesOrderDetail>, AppError> {
-        let query = Self::build_orders_query(status, customer_id, order_no, data_scope);
+        let query = Self::build_orders_query(filter, data_scope);
         let (orders, total) = self.fetch_orders_page(query, &page_req).await?;
         let order_details = self.assemble_order_details(orders).await?;
         Ok(PaginatedResponse::new(
@@ -102,19 +118,30 @@ impl SalesService {
     }
 
     fn build_orders_query(
-        status: Option<String>,
-        customer_id: Option<i32>,
-        order_no: Option<String>,
+        filter: SalesOrderFilter,
         data_scope: Option<&DataScopeContext>,
     ) -> sea_orm::Select<sales_order::Entity> {
+        let SalesOrderFilter {
+            status,
+            customer_id,
+            order_no,
+            customer_name,
+            start_date,
+            end_date,
+        } = filter;
         let mut query = SalesOrderEntity::find()
             .column_as(
                 crate::models::customer::Column::CustomerName,
                 "customer_name",
             )
+            .column_as(crate::models::user::Column::RealName, "creator_name")
             .join(
                 sea_orm::JoinType::LeftJoin,
                 sales_order::Relation::Customer.def(),
+            )
+            .join(
+                sea_orm::JoinType::LeftJoin,
+                sales_order::Relation::Creator.def(),
             );
 
         // 行级数据权限过滤：owner=CreatedBy，dept=DepartmentId（m_rls_dept_domain）
@@ -136,6 +163,27 @@ impl SalesService {
         if let Some(no) = order_no {
             query = query.filter(sales_order::Column::OrderNo.contains(&no));
         }
+        // 客户名称走已左连接的 customers 表；转义 LIKE 通配符，避免用户输入的 % 变成通配
+        if let Some(name) = customer_name.filter(|s| !s.trim().is_empty()) {
+            let pattern = safe_like_pattern(name.trim());
+            query = query.filter(crate::models::customer::Column::CustomerName.like(&pattern));
+        }
+        // 日期范围：order_date 为 timestamptz，起始取当日 00:00（含），截止取次日 00:00（不含），
+        // 以覆盖截止日期当天的全部时刻。缺省端不加界，与既有 AND 组合语义一致。
+        if let Some(sd) = start_date {
+            let start_at = sd
+                .and_hms_opt(0, 0, 0)
+                .map(|t| t.and_utc())
+                .unwrap_or_else(chrono::Utc::now);
+            query = query.filter(sales_order::Column::OrderDate.gte(start_at));
+        }
+        if let Some(ed) = end_date {
+            let end_exclusive = (ed + chrono::Duration::days(1))
+                .and_hms_opt(0, 0, 0)
+                .map(|t| t.and_utc())
+                .unwrap_or_else(chrono::Utc::now);
+            query = query.filter(sales_order::Column::OrderDate.lt(end_exclusive));
+        }
 
         query.order_by(sales_order::Column::CreatedAt, Order::Desc)
     }
@@ -144,52 +192,52 @@ impl SalesService {
         &self,
         query: sea_orm::Select<sales_order::Entity>,
         page_req: &PageRequest,
-    ) -> Result<(Vec<sales_order::Model>, u64), AppError> {
-        let paginator = query.paginate(&*self.db, page_req.page_size);
+    ) -> Result<(Vec<SalesOrderDetail>, u64), AppError> {
+        // into_model 让 build_orders_query 的两条 LEFT JOIN（customer_name / creator_name）
+        // 真正落到出参；items 由后续批量装配填充（SalesOrderDetail.items 为 #[sea_orm(skip)]）。
+        let paginator = query
+            .into_model::<SalesOrderDetail>()
+            .paginate(&*self.db, page_req.page_size);
         // 使用统一分页辅助函数，并行执行分页查询与总数统计
-        let (orders, total): (Vec<sales_order::Model>, u64) =
+        let (orders, total): (Vec<SalesOrderDetail>, u64) =
             paginate_with_total(paginator, page_req.page).await?;
         Ok((orders, total))
     }
 
     async fn assemble_order_details(
         &self,
-        orders: Vec<sales_order::Model>,
+        mut order_details: Vec<SalesOrderDetail>,
     ) -> Result<Vec<SalesOrderDetail>, AppError> {
-        let mut order_details = Vec::with_capacity(orders.len());
-        if orders.is_empty() {
+        if order_details.is_empty() {
             return Ok(order_details);
         }
 
-        // 使用 LoaderTrait 批量加载 customer
-        let customers = orders
-            .load_one(crate::models::customer::Entity, &*self.db)
+        // 批量加载本表页所有订单的明细项（单次查询，无 N+1）
+        let order_ids: Vec<i32> = order_details.iter().map(|o| o.id).collect();
+        let items = sales_order_item::Entity::find()
+            .filter(sales_order_item::Column::OrderId.is_in(order_ids))
+            .order_by(sales_order_item::Column::Id, Order::Asc)
+            .all(&*self.db)
             .await?;
-        // 使用 LoaderTrait 批量加载 items
-        let items_vec = orders
-            .load_many(sales_order_item::Entity, &*self.db)
-            .await?;
-        // 提取所有 items，用于批量加载 products
-        let all_items_owned: Vec<sales_order_item::Model> =
-            items_vec.iter().flatten().cloned().collect();
-        // 使用 LoaderTrait 批量加载 products
-        let products = all_items_owned
+        // 批量加载明细项对应的产品（单次查询）
+        let products = items
             .load_one(crate::models::product::Entity, &*self.db)
             .await?;
 
-        let mut global_item_index = 0;
-        // 组装数据
-        for (i, order) in orders.into_iter().enumerate() {
-            let customer = customers[i].as_ref();
-            let items = &items_vec[i];
-            let mut item_details = Vec::with_capacity(items.len());
-            for item in items.iter() {
-                let product = products[global_item_index].as_ref();
-                global_item_index += 1;
-                item_details.push(Self::build_item_detail(item, product));
-            }
-            order_details.push(Self::build_order_detail(order, customer, item_details));
+        // 按 order_id 分组装配明细（保持 id 升序）
+        let mut grouped: std::collections::HashMap<i32, Vec<SalesOrderItemDetail>> =
+            std::collections::HashMap::new();
+        for (item, product) in items.iter().zip(products.into_iter()) {
+            grouped
+                .entry(item.order_id)
+                .or_default()
+                .push(Self::build_item_detail(item, product.as_ref()));
         }
+
+        for detail in order_details.iter_mut() {
+            detail.items = grouped.remove(&detail.id).unwrap_or_default();
+        }
+
         Ok(order_details)
     }
 
@@ -233,12 +281,14 @@ impl SalesService {
             final_price: item.final_price,
             shipped_quantity_meters: item.shipped_quantity_meters,
             shipped_quantity_kg: item.shipped_quantity_kg,
+            quantity_tolerance_pct: item.quantity_tolerance_pct,
         }
     }
 
     fn build_order_detail(
         order: sales_order::Model,
         customer: Option<&crate::models::customer::Model>,
+        creator_name: Option<String>,
         item_details: Vec<SalesOrderItemDetail>,
     ) -> SalesOrderDetail {
         SalesOrderDetail {
@@ -268,6 +318,9 @@ impl SalesService {
             packaging_requirement: order.packaging_requirement,
             quality_standard: order.quality_standard,
             created_by: order.created_by,
+            creator_name,
+            contact_person: order.contact_person,
+            contact_phone: order.contact_phone,
             approved_by: order.approved_by,
             approved_at: order.approved_at,
             created_at: order.created_at,
@@ -313,9 +366,20 @@ impl SalesService {
 
         let item_details = Self::build_item_details(items, &products);
 
+        // 创建人姓名：详情为单行，按 created_by 单查一次 users.real_name（非逐行）；
+        // 悬挂外键时取得 None，不影响本行返回。
+        let creator_name = match order.created_by {
+            Some(uid) => crate::models::user::Entity::find_by_id(uid)
+                .one(&*self.db)
+                .await?
+                .and_then(|u| u.real_name),
+            None => None,
+        };
+
         Ok(Self::build_order_detail(
             order,
             customer.as_ref(),
+            creator_name,
             item_details,
         ))
     }
@@ -392,6 +456,7 @@ impl SalesService {
             final_price: item.final_price,
             shipped_quantity_meters: item.shipped_quantity_meters,
             shipped_quantity_kg: item.shipped_quantity_kg,
+            quantity_tolerance_pct: item.quantity_tolerance_pct,
         }
     }
 
@@ -444,8 +509,8 @@ impl SalesService {
     }
 
     // ========== 库存辅助方法（私有） ==========
-    // 注意：lock_inventory、reduce_inventory、release_reservations、check_inventory
-    // 已迁移到 so/delivery.rs，避免重复实现
+    // 注意：reduce_inventory_four_dim、release_reservations、check_inventory
+    // 已迁移到 so/delivery_ops/inventory.rs，避免重复实现
 
     // ========== 数据导出方法 ==========
     // 注意：export_orders_to_csv 已迁移到 so/delivery.rs

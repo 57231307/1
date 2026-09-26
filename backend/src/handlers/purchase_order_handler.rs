@@ -13,12 +13,12 @@ use crate::services::po::{
 };
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, RelationTrait};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -27,16 +27,19 @@ pub async fn list_orders(
     Query(params): Query<OrderQueryParams>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
-    let (orders, _total) = service
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+    let (orders, total) = service
         .list_orders(
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-            params.page_size.unwrap_or(20).clamp(1, 100),
+            page,
+            page_size,
             params.status,
             params.supplier_id,
+            params.keyword,
             Some(&data_scope_ctx),
         )
         .await?;
@@ -88,7 +91,12 @@ pub async fn list_orders(
         }
     }
 
-    Ok(Json(ApiResponse::success(orders_json)))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        orders_json,
+        total,
+        page,
+        page_size,
+    ))))
 }
 
 /// 获取采购订单详情
@@ -104,12 +112,20 @@ pub async fn get_order(
     let mut order_json = serde_json::to_value(order)?;
 
     // 装配明细行：PurchaseOrderDto 不含 items，但详情页/E2E 与下方数据权限
-    // 字段过滤逻辑都依赖响应携带 items 数组
+    // 字段过滤逻辑都依赖响应携带 items 数组。
+    // 明细实体只有 product_id，需 LEFT JOIN products 补 product_name / product_code
+    // （products 实体真实列 name / code，别名为前端读取键）。单次查询、无 N+1。
     let items = crate::models::purchase_order_item::Entity::find()
+        .column_as(crate::models::product::Column::Name, "product_name")
+        .column_as(crate::models::product::Column::Code, "product_code")
+        .join(
+            sea_orm::JoinType::LeftJoin,
+            crate::models::purchase_order_item::Relation::Product.def(),
+        )
         .filter(crate::models::purchase_order_item::Column::OrderId.eq(id))
+        .into_json()
         .all(state.db.as_ref())
-        .await
-        .unwrap_or_default();
+        .await?;
     order_json["items"] = serde_json::to_value(items)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
@@ -169,6 +185,9 @@ pub async fn create_order(
     let order = service.create_order(req, user_id).await?;
 
     // 发送采购订单创建通知
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(ref event_service) = state.event_notification_service {
         let supplier_name = supplier::Entity::find_by_id(order.supplier_id)
             .one(state.db.as_ref())
@@ -291,6 +310,9 @@ pub async fn reject_order(
         .await?;
 
     // 发送审批拒绝通知
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(ref event_service) = state.event_notification_service {
         // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
         if let Err(e) = event_service
@@ -494,8 +516,20 @@ pub async fn calculate_delivery_date(
 pub struct OrderQueryParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+    // 未填写时前端会发 `status=`（空串）。空串必须在反序列化边界收敛为 None，
+    // 否则 service 层 `if let Some(status)` 生成 `WHERE order_status = ''` 恒 0 行。
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
+    /// 关键字：匹配采购单号或供应商名称
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
+    pub keyword: Option<String>,
 }
 
 /// 拒绝订单请求

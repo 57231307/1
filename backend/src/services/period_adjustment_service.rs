@@ -278,6 +278,7 @@ impl PeriodAdjustmentService {
             items: vec![
                 VoucherItemRequest {
                     line_no: None,
+                    subject_id: None,
                     subject_code: Some(debit_code),
                     subject_name: Some(debit_name),
                     debit: amount,
@@ -299,6 +300,7 @@ impl PeriodAdjustmentService {
                 },
                 VoucherItemRequest {
                     line_no: None,
+                    subject_id: None,
                     subject_code: Some(credit_code),
                     subject_name: Some(credit_name),
                     debit: Decimal::ZERO,

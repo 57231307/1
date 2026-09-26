@@ -78,6 +78,8 @@
       :form-data="prRtn.formData"
       :form-rules="prRtn.formRules"
       :purchase-orders="prRtn.purchaseOrders"
+      :suppliers="prRtn.suppliers"
+      :warehouses="prRtn.warehouses"
       :products="prRtn.products"
       @submit="onSubmitForm"
       @order-change="prRtn.handleOrderChange"
@@ -101,6 +103,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { Plus } from '@element-plus/icons-vue';
 import type { PurchaseReturn } from '@/api/purchase-return';
@@ -131,10 +134,21 @@ const onCreate = () => {
   dialogVisible.value = true;
 };
 
-/** 编辑 */
-const onEdit = (row: PurchaseReturn) => {
+/** 编辑（先按 ID 回源最新退货单，失败保留行数据） */
+const onEdit = async (row: PurchaseReturn) => {
   isEdit.value = true;
-  prRtn.prepareEdit(row);
+  try {
+    await prRtn.fetchDetail(row.id!);
+    // prRtn 为 reactive 包装，detailData 的 ref 已自动解包
+    if (prRtn.detailData?.id === row.id) {
+      prRtn.prepareEdit(prRtn.detailData);
+    } else {
+      prRtn.prepareEdit(row);
+    }
+  } catch (error) {
+    logger.error(t('purchaseReturn.messageDetailLoadFailed'), error);
+    prRtn.prepareEdit(row);
+  }
   dialogVisible.value = true;
 };
 

@@ -50,6 +50,10 @@
         @open-edit="onOpenEdit"
         @status-change="prdProc.handleStatusChange"
         @delete="prdProc.handleDelete"
+        @submit-approval="prdProc.handleSubmitForApproval"
+        @approve-order="prdProc.handleApproveOrder"
+        @report-progress="prdProc.handleProgressReport"
+        @view-logs="prdProc.handleViewLogs"
       />
     </el-card>
 

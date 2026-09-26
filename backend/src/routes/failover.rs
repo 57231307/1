@@ -1,10 +1,13 @@
 //! 主备隔离路由注册
 //!
-//! 注册 3 个端点：
-//! - `GET /api/v1/erp/admin/failover/status`
-//! - `GET /api/v1/erp/admin/failover/metrics`
-//! - `POST /api/v1/erp/admin/failover/test/switch`
-//! - `GET /api/v1/erp/admin/failover/health`
+//! 本文件只写**相对路径**，前缀由 `routes/mod.rs` 一次性组合：
+//! `.nest("/api/v1/erp/admin/failover", failover::failover_routes())`。
+//! 注册 5 个端点：
+//! - `GET  /status`        → `/api/v1/erp/admin/failover/status`
+//! - `GET  /metrics`       → `/api/v1/erp/admin/failover/metrics`
+//! - `POST /test/switch`   → `/api/v1/erp/admin/failover/test/switch`
+//! - `GET  /health`        → `/api/v1/erp/admin/failover/health`
+//! - `POST /failback`      → `/api/v1/erp/admin/failover/failback`
 
 use axum::{
     Router,
@@ -16,25 +19,13 @@ use crate::handlers::failover_handler::{
     get_failover_metrics, get_failover_status, health_check, post_failback, post_test_switch,
 };
 
-/// 主备隔离路由
+/// 主备隔离路由（相对路径；最终 URL 前缀见模块注释与 `route-snapshot.txt` 基线）
 pub fn failover_routes() -> Router<AppState> {
     Router::new()
-        .route(
-            "/api/v1/erp/admin/failover/status",
-            get(get_failover_status),
-        )
-        .route(
-            "/api/v1/erp/admin/failover/metrics",
-            get(get_failover_metrics),
-        )
-        .route(
-            "/api/v1/erp/admin/failover/test/switch",
-            post(post_test_switch),
-        )
-        .route("/api/v1/erp/admin/failover/health", get(health_check))
+        .route("/status", get(get_failover_status))
+        .route("/metrics", get(get_failover_metrics))
+        .route("/test/switch", post(post_test_switch))
+        .route("/health", get(health_check))
         // V15 P2 20.4-D：故障回切端点（人工确认后切换回主库）
-        .route(
-            "/api/v1/erp/admin/failover/failback",
-            post(post_failback),
-        )
+        .route("/failback", post(post_failback))
 }

@@ -24,6 +24,10 @@
       :on-view="(row: PurchaseOrder) => act.handleView(row)"
       :on-approve="(row: PurchaseOrder) => act.handleApprove(row)"
       :on-receive="(row: PurchaseOrder) => rcv.handleReceive(row)"
+      :on-submit-order="(row: PurchaseOrder) => act.handleSubmitOrder(row)"
+      :on-reject="(row: PurchaseOrder) => act.handleReject(row)"
+      :on-edit="(row: PurchaseOrder) => act.handleEdit(row)"
+      :on-delete-order="(row: PurchaseOrder) => act.handleDeleteOrder(row)"
       :on-query="list.handleQuery"
       :get-status-type="list.getStatusType"
       :get-status-text="list.getStatusText"
@@ -40,16 +44,18 @@
       :rules="create.createFormRules"
       :suppliers="list.suppliers.value"
       :products="list.products.value"
-      :form-ref="create.createFormRef.value"
       :on-submit="create.submitCreate"
       :on-cancel="() => (create.createDialogVisible.value = false)"
       :on-add-item="create.addItem"
       :on-remove-item="create.removeItem"
       :on-product-select="create.handleProductSelect"
+      :on-color-select="create.handleColorSelect"
+      :on-supplier-change="create.handleSupplierChange"
       :on-calculate-subtotal="create.calculateSubtotal"
       :calculate-total="create.calculateTotal"
       @update:model-value="(v: boolean) => (create.createDialogVisible.value = v)"
       @update:form="v => (create.createForm.value = v)"
+      @update:form-ref="v => (create.createFormRef.value = v)"
     />
 
     <!-- 收货对话框 -->
@@ -108,7 +114,8 @@ const act = usePurchAct(
 );
 
 // 收货（打开收货对话框 + 提交收货）
-const rcv = usePurchRcv(list.fetchData);
+// 物料编码/名称/主单位为后端入库明细必填契约字段，唯一干净来源是产品主数据（list.products）
+const rcv = usePurchRcv(list.fetchData, () => list.products.value);
 
 // 新建采购单（表单对话框）
 const create = useCreate(() => list.products.value, list.fetchData);

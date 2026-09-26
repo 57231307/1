@@ -2,6 +2,7 @@
 // 与后端 slow_query_handler 配套：分页 + 多维筛选 / 聚合统计 / 手动刷新
 
 import { request } from './request';
+import type { ApiResponse } from '@/types/api';
 
 /** 慢查询日志项 */
 export interface SlowQueryItem {
@@ -54,13 +55,6 @@ export interface SlowQueryStatsResponse {
 export interface SlowQueryRefreshResponse {
   inserted: number;
   message: string;
-}
-
-/** API 通用响应 */
-interface ApiResponse<T> {
-  code: number;
-  message: string;
-  data: T;
 }
 
 /**

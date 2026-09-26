@@ -29,8 +29,26 @@ impl MrpEngineService {
     ) -> Result<(Vec<MrpResultModel>, u64), AppError> {
         let mut select = MrpResultEntity::find();
 
-        if let Some(calc_no) = calculation_no {
-            select = select.filter(crate::models::mrp_result::Column::CalculationNo.eq(calc_no));
+        if let Some(calc_no) = calculation_no.as_deref() {
+            // 落库行号是「批次号 + 行序后缀」（见 batch_calculate / run_mrp_calculation_for_line：
+            // 主行 `{批次号}-{行序}`，BOM 子行 `{批次号}-{行序}-{子行序}`），
+            // 所以传入批次号时必须前缀匹配才能取到该批次的全部行，等值匹配只会命中 0 行。
+            // 转义复用生产订单列表（services/production_order_ops/crud.rs:457 的
+            // utils::sql_escape::safe_like_pattern）所用的同一套 sql_escape 工具；
+            // 那里要「包含」语义所以两端补 %，这里只要「前缀」语义故仅尾部补 %，
+            // 因此直接用其底层 escape_like_pattern 转义 % _ \，防用户输入变成 LIKE 通配。
+            // 空串/纯空白不触发过滤；长度上限 50 对齐 mrp_results.calculation_no VARCHAR(50)。
+            // 空串视为未按批次筛选；超长输入不再放宽为"不过滤"（那会返回全表），
+            // 直接按前缀过滤，比列宽更长的值本就匹配不到行，返回空集才是真实语义。
+            let trimmed = calc_no.trim();
+            if !trimmed.is_empty() {
+                let pattern = format!(
+                    "{}%",
+                    crate::utils::sql_escape::escape_like_pattern(trimmed)
+                );
+                select =
+                    select.filter(crate::models::mrp_result::Column::CalculationNo.like(&pattern));
+            }
         }
 
         if let Some(pid) = product_id {

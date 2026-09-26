@@ -125,7 +125,7 @@ export async function mockBusinessApi(context: BrowserContext): Promise<void> {
 }
 
 /**
- * 一站式应用 auth 初始化（smoke + bpm/crm/finance/quality/purchase-ext/enhanced 共用）
+ * 一站式应用 auth 初始化（smoke + bpm/crm/finance/quality/enhanced/purchase 共用）
  *
  * P2.4 去 mock 化（2026-09-09）：
  * 实现从 mock 换为真实 API 登录，根除 55 spec 的 mock 依赖。
@@ -178,11 +178,8 @@ export async function applyAuthMocks(context: BrowserContext): Promise<void> {
  * 等待 URL 不再是 /login（确认绕过鉴权）
  */
 export async function waitForPageReady(page: Page, expectedPath: string): Promise<void> {
-  await page
-    .waitForURL(url => url.pathname === expectedPath || url.pathname.includes(expectedPath), {
-      timeout: 30_000,
-    })
-    .catch(() => {
-      console.warn(`[smoke] URL 未匹配 ${expectedPath}，当前：${page.url()}`);
-    });
+  await page.waitForURL(
+    url => url.pathname === expectedPath || url.pathname.includes(expectedPath),
+    { timeout: 30_000 }
+  );
 }

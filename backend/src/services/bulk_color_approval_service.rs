@@ -40,6 +40,8 @@ use crate::models::inventory_piece;
 use crate::models::inventory_stock;
 use crate::models::production_order;
 use crate::models::status::inventory_piece as piece_status;
+use crate::models::status::purchase_inventory::inventory_stock_grade;
+use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -399,7 +401,7 @@ impl BulkColorApprovalService {
         let stock = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::DyeLotNo.eq(&dye_batch.dye_lot_no))
             .filter(inventory_stock::Column::BatchNo.eq(&dye_batch.batch_no))
-            .filter(inventory_stock::Column::QualityStatus.eq("合格"))
+            .filter(inventory_stock::Column::QualityStatus.eq(quality_status::PASS))
             .one(&txn)
             .await?
             .ok_or(BulkColorApprovalError::Validation(
@@ -455,7 +457,7 @@ impl BulkColorApprovalService {
             package_no: Set(None),
             production_date: Set(None),
             shelf_life: Set(None),
-            quality_status: Set(Some("passed".to_string())),
+            quality_status: Set(Some(quality_status::PASS.to_string())),
             inventory_status: Set(Some(piece_status::SAMPLE.to_string())),
             warehouse_id: Set(stock.warehouse_id),
             remarks: Set(Some("剪大货样产生的样布".to_string())),
@@ -945,8 +947,8 @@ impl BulkColorApprovalService {
         let service = InventoryStockService::new(self.db.clone());
         for stock in stocks {
             let new_grade = match stock.grade.as_str() {
-                "一等品" => "二等品",
-                "二等品" => "等外品",
+                inventory_stock_grade::FIRST => inventory_stock_grade::SECOND,
+                inventory_stock_grade::SECOND => inventory_stock_grade::OFF_GRADE,
                 other => {
                     tracing::info!(
                         stock_id = stock.id,

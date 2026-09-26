@@ -147,7 +147,7 @@ export function useVchr() {
       await createVoucher({
         voucher_date: voucherForm.voucher_date,
         voucher_type: voucherForm.voucher_type,
-        entries: voucherForm.entries
+        items: voucherForm.entries
           .filter(e => e.subject_id)
           .map(e => ({
             subject_id: e.subject_id!,

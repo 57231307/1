@@ -3936,7 +3936,7 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "converted_sales_order_i
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "created_by" BIGINT;
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "currency" VARCHAR(255);
-ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "customer_id" BIGINT;
+ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "customer_id" INTEGER;
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "customer_level" VARCHAR(255);
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "exchange_rate" DECIMAL(18,4);
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "incoterm_location" VARCHAR(255);
@@ -4266,14 +4266,349 @@ ALTER TABLE "webhooks" ALTER COLUMN "last_triggered_at" TYPE TIMESTAMPTZ USING "
 ALTER TABLE "webhooks" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
 ALTER TABLE "work_centers" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ USING "created_at" AT TIME ZONE 'UTC';
 ALTER TABLE "work_centers" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ USING "updated_at" AT TIME ZONE 'UTC';
+
+-- 委外收回单质检结论归一（写入侧已统一为 outsourcing_receipt_quality_status 常量并做入口校验）：
+-- 历史上界面提交 qualified/concession/unqualified、用例提交 passed、模型注释写 passed/failed、
+-- 库存域中文「合格」也曾流入同一列，而确认回仓只认 "qualified"，其余一律判不合格。
+-- 本段必须留在 v15 域内：outsourcing_receipt 就在本脚本前面创建。
+UPDATE "outsourcing_receipt"
+   SET "quality_status" = CASE "quality_status"
+        WHEN 'passed'  THEN 'qualified'
+        WHEN 'failed'  THEN 'unqualified'
+        WHEN '合格'    THEN 'qualified'
+        WHEN '不合格'  THEN 'unqualified'
+        WHEN '待检'    THEN 'pending'
+        ELSE "quality_status"
+   END
+ WHERE "quality_status" IN ('passed', 'failed', '合格', '不合格', '待检');
+
+UPDATE "outsourcing_receipt"
+   SET "quality_status" = 'pending'
+ WHERE "quality_status" IS NULL;
+
+-- 质量检验记录结论归一（写入侧已统一为 quality_inspection_result 常量并在入口校验）：
+-- 界面自造的 pass/fail/pending 与自动写入方的中文结论混在同一列，按结论筛选会各漏一半。
+UPDATE "quality_inspection_records"
+   SET "inspection_result" = CASE "inspection_result"
+        WHEN 'pass'    THEN '合格'
+        WHEN 'fail'    THEN '不合格'
+        WHEN 'pending' THEN '待检'
+        ELSE "inspection_result"
+   END
+ WHERE "inspection_result" IN ('pass', 'fail', 'pending');
+
+-- 报价行计量单位与物流公司归一：两列都是无字典的自由文本，此前界面把 el-option 的译文当业务值
+-- 提交，英文界面写入的 "Meter"/"SF Express" 与中文界面写入的「米」「顺丰速运」在库里裂成两套；
+-- 运单筛选按 logistics_company 精确等值匹配，跨语言就查不到历史单。
+-- 写入侧已改为提交稳定中文名（constants/quotation-unit.ts、constants/logistics-company.ts）。
+UPDATE "sales_quotation_items"
+   SET "unit" = CASE "unit"
+        WHEN 'Meter' THEN '米'
+        WHEN 'Roll'  THEN '卷'
+        WHEN 'Piece' THEN '件'
+        WHEN 'kg'    THEN '公斤'
+        WHEN 'Kg'    THEN '公斤'
+        WHEN 'KG'    THEN '公斤'
+        ELSE "unit"
+   END
+ WHERE "unit" IN ('Meter', 'Roll', 'Piece', 'kg', 'Kg', 'KG');
+
+UPDATE "logistics_waybills"
+   SET "logistics_company" = CASE "logistics_company"
+        WHEN 'SF Express'    THEN '顺丰速运'
+        WHEN 'ZTO Express'   THEN '中通快递'
+        WHEN 'YTO Express'   THEN '圆通速递'
+        WHEN 'Yunda Express' THEN '韵达快递'
+        WHEN 'JD Logistics'  THEN '京东物流'
+        ELSE "logistics_company"
+   END
+ WHERE "logistics_company" IN (
+        'SF Express', 'ZTO Express', 'YTO Express', 'Yunda Express', 'JD Logistics'
+   );
+
+-- 业务模式基础数据种子：mode_code 是封闭词表（backend validate_mode_code 只接受这 6 个代码，
+-- 且同代码在 is_deleted=false 范围内唯一），而库里此前一行都没有 —— 新部署环境的「多业务模式」
+-- 整条链路（模式详情 / 流程节点 / 业务规则 / 单据关联）没有可挂载的对象，配置页也只能靠手填
+-- 6 组互相约束的布尔位才建得出第一行。这里按 §6 业务模式定义补齐，NOT EXISTS 守卫保证与
+-- 运维已手工建过的代码不冲突、重复执行安全。
+INSERT INTO "business_mode_config" (
+    "mode_code", "mode_name", "description", "is_active", "is_default", "process_chain",
+    "material_source", "settlement_method", "inventory_type", "cost_method",
+    "require_purchase", "require_production", "require_outsourcing", "require_sales",
+    "mode_category", "is_deleted", "created_at", "updated_at"
+)
+SELECT v.mode_code, v.mode_name, v.description, true, false, '[]'::jsonb,
+       v.material_source, v.settlement_method, v.inventory_type, v.cost_method,
+       v.require_purchase, v.require_production, v.require_outsourcing, v.require_sales,
+       v.mode_category, false, now(), now()
+  FROM (VALUES
+    ('grey_trading',     '坯布经销', '采购坯布后对外经销，不进生产车间',   'purchase',         'sale_settlement',          'grey',    'standard',       true,  false, false, true,  'trading'),
+    ('finished_trading', '成品经销', '采购坯布加工成成品后经销',           'purchase',         'sale_settlement',          'finished', 'standard',      true,  true,  false, true,  'trading'),
+    ('dyeing_processing', '染整加工', '客供坯布染整加工，收加工费',         'customer_provided', 'processing_fee_settlement', 'both',  'processing_fee', false, true,  false, false, 'processing'),
+    ('self_weave_dye',   '自织自染', '自采纱线织造染整后自销',             'purchase',         'sale_settlement',          'both',    'actual',         true,  true,  false, true,  'integrated'),
+    ('outsourcing',      '委托加工', '自制坯布委托外厂加工后销售',         'self_made',        'sale_settlement',          'finished', 'actual',         false, true,  true,  true,  'processing'),
+    ('toll_processing',  '来料加工', '客户来料代为加工，收加工费',         'toll',             'processing_fee_settlement', 'both',   'processing_fee', false, true,  false, false, 'processing')
+  ) AS v(
+    mode_code, mode_name, description, material_source, settlement_method, inventory_type,
+    cost_method, require_purchase, require_production, require_outsourcing, require_sales, mode_category
+  )
+ WHERE NOT EXISTS (
+    SELECT 1 FROM "business_mode_config" e
+     WHERE e."mode_code" = v.mode_code AND e."is_deleted" = false
+ );
+
+-- ========== 出库四维匹配扣减（款号+色号+缸号+批次，用户拍板规则） ==========
+-- 出库扣减必须按入库四维匹配，指定缸不足时走显式跨缸回退；跨缸回退实际扣了哪个缸/哪一行，
+-- 必须如实落到出库明细：stock_id 记录被扣库存行 ID（同四维存在多行时取消发货才能精确回位），
+-- is_cross_dye_lot 显式标记这笔是跨缸回退而非精确命中。
+-- 放在 v15 域尾：sales_delivery_item 在 business 域创建（m0011），execution order 上 v15 在其后。
+ALTER TABLE "sales_delivery_item" ADD COLUMN IF NOT EXISTS "stock_id" INTEGER;
+ALTER TABLE "sales_delivery_item" ADD COLUMN IF NOT EXISTS "is_cross_dye_lot" BOOLEAN NOT NULL DEFAULT FALSE;
+COMMENT ON COLUMN "sales_delivery_item"."stock_id" IS '实际扣减的库存行 ID（inventory_stocks.id；出库四维扣减的落点，跨缸回退时为其他缸的行）';
+COMMENT ON COLUMN "sales_delivery_item"."is_cross_dye_lot" IS '是否为显式跨缸回退扣减（true=实际扣的缸号与出库单指定缸号不同）';
+-- 四维扣减候选行查询热点（product+warehouse+color+batch 等值匹配）
+CREATE INDEX IF NOT EXISTS "idx_inventory_stocks_four_dim"
+    ON "inventory_stocks" ("product_id", "warehouse_id", "color_no", "batch_no");
+
+-- ========== 调拨/盘点状态列默认值收敛进词表（规则 0：库层取值不得越界） ==========
+-- m0001 给 inventory_transfers / inventory_counts 建的 status 列 DEFAULT 'draft'，
+-- 但两个词表（models/status/purchase_inventory.rs 的 inventory_transfer / inventory_count）
+-- 里根本没有 draft：调拨是 pending/approved/rejected/[in_review]/shipped/completed，
+-- 盘点是 pending/in_review/completed。service 层建单都显式写 pending，所以这条默认值
+-- 平时看不见；一旦有绕过 service 的写入路径（导入/直连 SQL/以后新增的建单口），
+-- 就会落进一个界面筛不出、状态机不认的死状态行——与"常量取自别表词表"同一类缺陷，
+-- 且默认值越界比常量越界更隐蔽（它不报错，只是行从此消失）。
+ALTER TABLE "inventory_transfers" ALTER COLUMN "status" SET DEFAULT 'pending';
+ALTER TABLE "inventory_counts"    ALTER COLUMN "status" SET DEFAULT 'pending';
+-- 已存在的越界行回填为 pending（新建单本来就该是 pending，回填后这些行重新可被
+-- 列表筛出并进入审批流，而不是永远停在无人处理的状态）。
+UPDATE "inventory_transfers" SET "status" = 'pending' WHERE "status" = 'draft';
+UPDATE "inventory_counts"    SET "status" = 'pending' WHERE "status" = 'draft';
+
+-- ========== 全仓推广同一核对：状态类列 DEFAULT 收敛进各自取值域 ==========
+-- 逐列核对"建表 DEFAULT 值 ∈ 该列真实取值域（词表/CHECK/service 建单写值）"，
+-- 发现 5 处越界默认值，与 inventory_transfers/inventory_counts 同一类缺陷：
+-- 建表默认值不在词表内，service 建单显式写合法值把它遮住，一旦有绕过 service 的
+-- 写入（导入/直连 SQL/未来的建单口），行就落进状态机不认、界面筛不出的死状态。
+-- 目标表均在 system/business 域创建（早于 v15 域），本尾 ALTER/UPDATE 引用安全。
+
+-- 1) sales_delivery.status：词表 models/status/sales.rs 的 sales_delivery =
+--    {pending, shipped, cancelled}（无 DRAFT）；so/delivery.rs:160 建单写 pending。
+--    m0011:51 建表写 DEFAULT 'DRAFT'（大小写与词表双向不符）。回填 pending。
+ALTER TABLE "sales_delivery" ALTER COLUMN "status" SET DEFAULT 'pending';
+UPDATE "sales_delivery" SET "status" = 'pending' WHERE "status" = 'DRAFT';
+
+-- 2) sales_contracts.status：词表 models/status/bpm_crm_contract.rs 的 contract /
+--    contract_status = {draft, ...} 小写；sales_contract_service.rs:105 建单写 contract::DRAFT。
+--    m0011:31 建表写 DEFAULT 'DRAFT'（大写越界）。回填 draft。
+ALTER TABLE "sales_contracts" ALTER COLUMN "status" SET DEFAULT 'draft';
+UPDATE "sales_contracts" SET "status" = 'draft' WHERE "status" = 'DRAFT';
+
+-- 3) purchase_contracts.status：同上小写词表；purchase_contract_service.rs:70 建单写 "draft"。
+--    m0009:31 建表写 DEFAULT 'DRAFT'（大写越界）。回填 draft。
+ALTER TABLE "purchase_contracts" ALTER COLUMN "status" SET DEFAULT 'draft';
+UPDATE "purchase_contracts" SET "status" = 'draft' WHERE "status" = 'DRAFT';
+
+-- 4) bpm_task.status：词表 models/status/bpm_crm_contract.rs 的 bpm_task =
+--    {pending, completed, rejected, cancelled} 小写；bpm_ops/instance.rs:77 建单写
+--    task_status::PENDING，且 instance.rs:200 按 'pending' 过滤。m0001:704 建表写
+--    DEFAULT 'PENDING'（大写越界，绕过 service 建的任务永不被待办查询命中）。回填 pending。
+ALTER TABLE "bpm_task" ALTER COLUMN "status" SET DEFAULT 'pending';
+UPDATE "bpm_task" SET "status" = 'pending' WHERE "status" = 'PENDING';
+
+-- 5) dye_batch.status：真实取值域是缸号生命周期 16 态（handlers/dye_batch_handler.rs:116
+--    经 dye_batch_state_machine_validation::is_valid_status 校验，词表
+--    models/status/quality_dyeing.rs 的 dye_batch_lifecycle_status = {pending_schedule, ...}）。
+--    该列无 'pending'。建单默认 pending_schedule（dye_batch_handler.rs:121）。
+--    m0003:17 建表写 DEFAULT 'pending'（is_valid_status 直接判非法的死状态）。回填 pending_schedule。
+ALTER TABLE "dye_batch" ALTER COLUMN "status" SET DEFAULT 'pending_schedule';
+UPDATE "dye_batch" SET "status" = 'pending_schedule' WHERE "status" = 'pending';
+
+-- 6) sales_prices.status / purchase_prices.status：词表 models/status/general.rs 的
+--    master_data = {active, inactive, pending, approved, ...} 小写；建单写
+--    master_data::PENDING（sales_price_service.rs:113 / purchase_price_service.rs:101），
+--    审批写 approved、列表按 active 过滤，全为小写。m0009:249 / m0011:188 建表写
+--    DEFAULT 'ACTIVE'（大写越界，绕过 service 的价目行既不落入 pending 审批流也不被 active 过滤命中）。
+--    回填 pending（建单显式写值）。
+ALTER TABLE "sales_prices"    ALTER COLUMN "status" SET DEFAULT 'pending';
+ALTER TABLE "purchase_prices" ALTER COLUMN "status" SET DEFAULT 'pending';
+UPDATE "sales_prices"    SET "status" = 'pending' WHERE "status" = 'ACTIVE';
+UPDATE "purchase_prices" SET "status" = 'pending' WHERE "status" = 'ACTIVE';
+
+-- 7) inventory_piece.status / inventory_status：词表 models/status/purchase_inventory.rs 的
+--    inventory_piece = {AVAILABLE, UNAVAILABLE, RESERVED, SHIPPED, DEFECT, SAMPLE} 全大写。
+--    外发准入判断（piece_domain_service.rs:189）与扫码/台账读侧（barcode_scanner_handler.rs:207,
+--    210, 254）、piece_split_handler.rs:208、fabric_inspection_service.rs:645 一律按大写比对，
+--    而生产报工逐匹登记与委外回仓两处写入曾硬编码小写 'available'（piece_domain_service.rs:110,
+--    121, 338, 349）⇒ 这些匹对所有读侧永久不可见，且在准入处被判定'非可用，不可外发发料'。
+--    写入侧已改为引用 inventory_piece::AVAILABLE 常量；此处归一历史行。
+UPDATE "inventory_piece" SET "status" = 'AVAILABLE' WHERE "status" = 'available';
+UPDATE "inventory_piece" SET "inventory_status" = 'AVAILABLE' WHERE "inventory_status" = 'available';
+-- 8) financial_indicators.status：建表默认值落在写入方词表之外。
+--    m0012:350 写 DEFAULT 'ACTIVE'（大写），但该列唯一写入/过滤方是
+--    financial_analysis_service.rs（:200 过滤、:229/:687/:793/:1099 写入），用的是
+--    models/status/general.rs:52 的 master_data::ACTIVE = "active"（小写主数据词表，
+--    该模块注释明确与 common::STATUS_ACTIVE 大写区分）。绕过 service 的 INSERT 因此
+--    落到 'ACTIVE'，对所有按 'active' 的指标查询永久不可见。
+ALTER TABLE "financial_indicators" ALTER COLUMN "status" SET DEFAULT 'active';
+UPDATE "financial_indicators" SET "status" = 'active' WHERE "status" = 'ACTIVE';
+-- ========== purchase_orders：双状态列收口（order_status 为唯一真相，status 废弃） ==========
+-- 同表两列两套词表：m0001:457 建 `status VARCHAR(20) NOT NULL DEFAULT 'draft'`
+-- （小写 draft/confirmed/…），system 域 :331 又补 `order_status VARCHAR(20)`（可空、无默认）。
+-- 真实词表是 models/status/purchase_inventory.rs 的 purchase_order（全大写
+-- DRAFT/PENDING_APPROVAL/…），SeaORM 实体 models/purchase_order.rs 仅映射 order_status，
+-- 故全部读写/过滤（po/order_ops/crud.rs::OrderStatus.eq、contract.rs 状态机、handler 响应
+-- 键重命名为 status）都落在 order_status 上；遗留 status 列因不在实体内，insert 恒落
+-- DB 默认值 'draft'，对所有非草稿单永久失真。收口以 order_status 为准。
+-- 1) 夯实真相列：回填历史 NULL 建单默认为 DRAFT，并收敛 NOT NULL + DEFAULT 'DRAFT'，
+--    使绕过 service 的直连写入也落到词表内（order_status 可空无默认是本列的第二个隐患）。
+UPDATE "purchase_orders" SET "order_status" = 'DRAFT' WHERE "order_status" IS NULL;
+ALTER TABLE "purchase_orders" ALTER COLUMN "order_status" SET DEFAULT 'DRAFT';
+ALTER TABLE "purchase_orders" ALTER COLUMN "order_status" SET NOT NULL;
+-- 2) 确定性回填派生：以 order_status 覆盖遗留 status（两列同为 VARCHAR(20)，全大写信封值
+--    最长 PARTIAL_RECEIVED/PENDING_APPROVAL=16 字符可容纳）。回填依据=用户拍板"以
+--    order_status 为准"，遗留列降级为兼容列。
+UPDATE "purchase_orders" SET "status" = "order_status" WHERE "status" IS DISTINCT FROM "order_status";
+-- 遗留列默认值同步收敛到 'DRAFT'（与真相列一致），使旁路写入不再落小写 'draft' 死状态。
+ALTER TABLE "purchase_orders" ALTER COLUMN "status" SET DEFAULT 'DRAFT';
+-- 3) 标记废弃：实体不映射本列（ORM 无法读写/过滤），此处仅以列注释标明 deprecated，
+--    并声明它是由 order_status 派生的兼容列、不得再作为过滤条件。
+COMMENT ON COLUMN "purchase_orders"."status" IS
+    '[DEPRECATED 遗留列，勿读勿写勿过滤] 采购单状态唯一真相是 order_status（全大写词表，'
+    '见 models/status/purchase_inventory.rs::purchase_order）。本列为其派生兼容列，'
+    '值恒等于 order_status，SeaORM 实体不映射，保留仅为兼容外部只读报表/直连 SQL。';
+
+-- ========== color_cards.status：CHECK 与词表双向越界收口（active 视为 legacy=draft） ==========
+-- 词表 models/status/wage_energy_chemical_business.rs::color_card = {draft,issued,received,
+-- used,expired,archived,lost}（小写，模块注释明确 active 为 draft 的 legacy 等价）。
+-- m0044:280/:287 建表 DEFAULT 'active' 且 CHECK 仅允许 (active,archived,lost)。
+-- 双向越界：CHECK 认 active 但词表不认（legacy）；词表认 draft/issued/received/used/expired
+-- 但 CHECK 不认——service 的 issue/receive/use/expire 流转写这些值会被旧 CHECK 直接拒绝。
+-- 收口：回填 active→draft，默认值与 CHECK 全部对齐词表全集（依据=列注释/词表模块说明
+-- "active 等价 draft"）。
+-- 顺序必须是 DROP → 回填 → DEFAULT → ADD CHECK：旧 CHECK 只允许 (active,archived,lost)，
+-- 而回填要写的 'draft' 恰恰不在其中 —— 先 UPDATE 会让每一行回填自己触发 23514 使 up() 失败
+-- （全新库没有该行数据所以 CI 逃得过，存量库升级必红）；反过来 ADD 之前必须先把残留
+-- active 行清掉，否则新 CHECK 建立失败。两头都卡死，只有这个顺序能同时成立。
+ALTER TABLE "color_cards" DROP CONSTRAINT IF EXISTS "chk_color_card_status";
+UPDATE "color_cards" SET "status" = 'draft' WHERE "status" = 'active';
+ALTER TABLE "color_cards" ALTER COLUMN "status" SET DEFAULT 'draft';
+ALTER TABLE "color_cards"
+    ADD CONSTRAINT "chk_color_card_status"
+    CHECK ("status" IN ('draft', 'issued', 'received', 'used', 'expired', 'archived', 'lost'));
+COMMENT ON COLUMN "color_cards"."status" IS
+    '状态（全小写，取值见 models/status/wage_energy_chemical_business.rs::color_card，'
+    '与 CHECK chk_color_card_status 逐项一致）：draft(草稿/在用,legacy active 已回填为此值) / '
+    'issued(已发放) / received(已收回) / used(已使用) / expired(已过期) / archived(已归档) / lost(已丢失)';
+
+-- ========== dye_recipe.status：中英分裂词表收口（中文值→小写英文，DB/service 英文、中文仅 i18n） ==========
+-- 缺陷：service/handler 通过 status::dye_recipe 常量读写，但该常量值原为中文
+-- （草稿/待审核/已审核/已停用，见 models/status/quality_dyeing.rs::dye_recipe 收口前），
+-- 真实数据行落库为中文，而前端 RecipeTab.vue 按钮/标签用英文 draft/approved → 审批按钮永不渲染。
+-- 本项目口径：DB/service 用小写英文闭合词表，中文只出现在展示层。常量已改英文，本迁移把历史
+-- 中文值回填为对应英文，再收敛 DEFAULT、建 CHECK（该列此前为无默认无约束的 VARCHAR(255)）。
+-- 域顺序依据：dye_recipe 表由 system 域创建（domain/system/m0003_add_dye_tables.rs:27 CREATE TABLE，
+-- status 列在 domain/system/mod.rs:128 补列），system 执行早于 v15，故本 v15 尾 ALTER/UPDATE 引用安全。
+-- 顺序须为 DROP → 回填 → DEFAULT → ADD CHECK：旧库无此 CHECK，DROP 为空操作；回填写英文后再建
+-- CHECK，新库无历史行则 UPDATE 空操作、CHECK 直接成立（全新库 CI 与存量库升级均不 23514）。
+ALTER TABLE "dye_recipe" DROP CONSTRAINT IF EXISTS "chk_dye_recipe_status";
+UPDATE "dye_recipe" SET "status" = 'draft'            WHERE "status" = '草稿';
+UPDATE "dye_recipe" SET "status" = 'pending_approval' WHERE "status" = '待审核';
+UPDATE "dye_recipe" SET "status" = 'approved'         WHERE "status" = '已审核';
+UPDATE "dye_recipe" SET "status" = 'disabled'         WHERE "status" = '已停用';
+ALTER TABLE "dye_recipe" ALTER COLUMN "status" SET DEFAULT 'draft';
+ALTER TABLE "dye_recipe"
+    ADD CONSTRAINT "chk_dye_recipe_status"
+    CHECK ("status" IN ('draft', 'pending_approval', 'approved', 'disabled'));
+COMMENT ON COLUMN "dye_recipe"."status" IS
+    '状态（全小写，取值见 models/status/quality_dyeing.rs::dye_recipe，与 CHECK '
+    'chk_dye_recipe_status 逐项一致）：draft(草稿) / pending_approval(待审核) / '
+    'approved(已审核) / disabled(已停用)；中文仅前端 i18n 展示层';
+
+-- ========== dye_batch.remarks：缸号备注列（建单/编辑表单入参落库） ==========
+-- 新建缸号对话框采集 remarks 并随请求体提交，但 models/dye_batch.rs 的实体与 dye_batch 表
+-- 此前无备注列，备注字段在反序列化后被静默丢弃。补齐可空 TEXT 列；历史行保持 NULL（无需回填）。
+-- 依据：dye_batch 表由 system 域创建（domain/system/m0003_add_dye_tables.rs），执行早于 v15，
+-- 故此处 ADD COLUMN IF NOT EXISTS 幂等，新库/存量库升级均成立。
+ALTER TABLE "dye_batch" ADD COLUMN IF NOT EXISTS "remarks" TEXT;
+COMMENT ON COLUMN "dye_batch"."remarks" IS '缸号备注（建单/编辑表单录入，可空）';
+
+-- ========== product_supplier_mappings：唯一约束 + 反查索引 + 翻译部分索引 ==========
+-- 依据：product_supplier_mappings 表由 business 域 m0008 CREATE（domain/business/
+-- m0008_add_supplier_and_product_extensions.rs:217），执行早于 v15，故此处 ALTER 安全。
+
+-- 1. 去重（同 product_id + product_color_id + supplier_id 的多行，保留 is_primary=true
+--    且 priority 最小的那一行，其余删除），否则后续 ADD CONSTRAINT 因存量冲突失败。
+DO $$
+BEGIN
+    DELETE FROM product_supplier_mappings a
+    USING product_supplier_mappings b
+    WHERE a.id > b.id
+      AND a.product_id = b.product_id
+      AND COALESCE(a.product_color_id, -1) = COALESCE(b.product_color_id, -1)
+      AND a.supplier_id = b.supplier_id
+      AND (
+          (a.is_primary = false AND b.is_primary = true)
+          OR (a.is_primary = b.is_primary AND a.priority > b.priority)
+          OR (a.is_primary = b.is_primary AND a.priority = b.priority AND a.id > b.id)
+      );
+END $$;
+
+-- 2. UNIQUE NULLS NOT DISTINCT 约束（PG15+，CI 用 PG16）：
+--    同 product_id + product_color_id + supplier_id 组合仅允许一条记录。
+ALTER TABLE "product_supplier_mappings"
+    DROP CONSTRAINT IF EXISTS "uq_psm_product_color_supplier";
+ALTER TABLE "product_supplier_mappings"
+    ADD CONSTRAINT "uq_psm_product_color_supplier"
+    UNIQUE NULLS NOT DISTINCT ("product_id", "product_color_id", "supplier_id");
+
+-- 3. 反查索引：按供应商侧 SKU 定位映射行（用于导出/对账场景）
+CREATE INDEX IF NOT EXISTS "idx_psm_supplier_sku"
+    ON "product_supplier_mappings"("supplier_id", "supplier_product_id", "supplier_product_color_id");
+
+-- 4. 翻译专用部分索引：转采购翻译热路径（仅启用行）
+CREATE INDEX IF NOT EXISTS "idx_psm_translate"
+    ON "product_supplier_mappings"("product_id", "product_color_id")
+    WHERE "is_enabled" = TRUE;
+
+-- ========== purchase_order_item：供应商 SKU 快照列（转采购时落库） ==========
+-- 依据：purchase_order_item 表由 business 域 m0009 CREATE，执行早于 v15。
+ALTER TABLE "purchase_order_item" ADD COLUMN IF NOT EXISTS "supplier_product_code" VARCHAR(255);
+ALTER TABLE "purchase_order_item" ADD COLUMN IF NOT EXISTS "supplier_color_no" VARCHAR(255);
+COMMENT ON COLUMN "purchase_order_item"."supplier_product_code" IS '供应商商品编码快照（转采购时从映射表带入）';
+COMMENT ON COLUMN "purchase_order_item"."supplier_color_no" IS '供应商色号快照（转采购时从映射表带入）';
+
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
+        // m0058 交货数量容差行级列：其目标表 purchase_order_item / sales_contract_items
+        // 均在本域上方大 SQL 包内 CREATE，故 ADD COLUMN 必须后置到此包执行之后。
+        // 原注册于 production 域（早于 v15），首次真跑即报 "relation ... does not exist"
+        // (#4645) 拖垮整条迁移链。迁移文件类名 / MigrationName 未改，仅调整执行注册位置。
+        crate::domain::production::m0058_add_delivery_tolerance::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
-    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 回滚 SKU 映射唯一约束、索引和 purchase_order_item 快照列
+        let rollback_sql = r#"
+ALTER TABLE "purchase_order_item" DROP COLUMN IF EXISTS "supplier_color_no";
+ALTER TABLE "purchase_order_item" DROP COLUMN IF EXISTS "supplier_product_code";
+DROP INDEX IF EXISTS "idx_psm_translate";
+DROP INDEX IF EXISTS "idx_psm_supplier_sku";
+ALTER TABLE "product_supplier_mappings" DROP CONSTRAINT IF EXISTS "uq_psm_product_color_supplier";
+"#;
+        manager
+            .get_connection()
+            .execute_unprepared(rollback_sql)
+            .await?;
+        // 与 up 对称：回滚 m0058 后置增列（列级 DROP IF EXISTS，不影响本域其余建表）。
+        crate::domain::production::m0058_add_delivery_tolerance::Migration
+            .down(manager)
+            .await?;
         Ok(())
     }
 }

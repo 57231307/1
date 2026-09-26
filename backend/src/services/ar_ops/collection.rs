@@ -194,10 +194,7 @@ impl ArService {
         let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
             self.db.clone(),
         );
-        period_svc
-            .check_date_locked_txn(txn, payment_date)
-            .await
-            .map_err(|e| AppError::business(e.to_string()))
+        period_svc.check_date_locked_txn(txn, payment_date).await
     }
 
     /// 客户存在性校验 + 名称查询（事务内）
@@ -576,7 +573,7 @@ impl ArService {
                 ),
                 Self::build_voucher_item(
                     2,
-                    "1131",
+                    "1122",
                     "应收账款",
                     collection_amount,
                     false,
@@ -604,6 +601,7 @@ impl ArService {
         };
         crate::services::voucher_service::VoucherItemRequest {
             line_no: Some(line_no),
+            subject_id: None,
             subject_code: Some(subject_code.to_string()),
             subject_name: Some(subject_name.to_string()),
             debit,

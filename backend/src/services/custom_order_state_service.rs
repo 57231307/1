@@ -70,7 +70,7 @@ impl CustomOrderStateService {
     pub async fn advance(
         &self,
         order_id: i64,
-        operator_id: i64,
+        operator_id: i32,
         notes: Option<String>,
     ) -> Result<custom_order::Model, StateError> {
         let txn = (*self.db).begin().await?;
@@ -146,7 +146,7 @@ impl CustomOrderStateService {
     async fn complete_current_node_in_txn(
         &self,
         order_id: i64,
-        operator_id: i64,
+        operator_id: i32,
         notes: Option<String>,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), StateError> {
@@ -184,7 +184,7 @@ impl CustomOrderStateService {
     async fn start_next_node_in_txn(
         &self,
         order_id: i64,
-        operator_id: i64,
+        operator_id: i32,
         next_str: &str,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), StateError> {
@@ -252,7 +252,7 @@ impl CustomOrderStateService {
         &self,
         order_id: i64,
         target: &str,
-        operator_id: i64,
+        operator_id: i32,
         notes: Option<String>,
     ) -> Result<custom_order::Model, StateError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更

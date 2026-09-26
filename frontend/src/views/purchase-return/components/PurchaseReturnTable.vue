@@ -13,48 +13,48 @@
       :aria-label="t('purchaseReturn.table.aria.list')"
     >
       <el-table-column
-        prop="returnNo"
+        prop="return_no"
         :label="t('purchaseReturn.table.column.returnNo')"
         min-width="140"
       />
       <el-table-column
-        prop="purchaseOrderNo"
+        prop="purchase_order_no"
         :label="t('purchaseReturn.table.column.purchaseOrderNo')"
         min-width="140"
       />
       <el-table-column
-        prop="supplierName"
+        prop="supplier_name"
         :label="t('purchaseReturn.table.column.supplier')"
         min-width="150"
       />
       <el-table-column
-        prop="returnDate"
+        prop="return_date"
         :label="t('purchaseReturn.table.column.returnDate')"
         min-width="120"
       />
       <el-table-column
-        prop="totalAmount"
+        prop="total_amount"
         :label="t('purchaseReturn.table.column.returnAmount')"
         min-width="100"
       >
         <template #default="{ row }">
-          <span class="amount">¥{{ row.totalAmount || 0 }}</span>
+          <span class="amount">¥{{ row.total_amount }}</span>
         </template>
       </el-table-column>
       <el-table-column
-        prop="status"
+        prop="return_status"
         :label="t('purchaseReturn.table.column.status')"
         width="100"
         align="center"
       >
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)">
-            {{ getStatusText(row.status) }}
+          <el-tag :type="getStatusType(row.return_status)">
+            {{ getStatusText(row.return_status) }}
           </el-tag>
         </template>
       </el-table-column>
       <el-table-column
-        prop="reason"
+        prop="reason_detail"
         :label="t('purchaseReturn.table.column.reason')"
         min-width="150"
         show-overflow-tooltip
@@ -65,7 +65,7 @@
             t('purchaseReturn.table.button.view')
           }}</el-button>
           <el-button
-            v-if="row.status === 'draft'"
+            v-if="row.return_status === PURCHASE_RETURN_STATUS.DRAFT"
             size="small"
             type="primary"
             @click="emit('edit', row as PurchaseReturn)"
@@ -73,7 +73,7 @@
             {{ t('purchaseReturn.table.button.edit') }}
           </el-button>
           <el-button
-            v-if="row.status === 'draft'"
+            v-if="row.return_status === PURCHASE_RETURN_STATUS.DRAFT"
             size="small"
             type="warning"
             @click="emit('submit', row as PurchaseReturn)"
@@ -81,7 +81,7 @@
             {{ t('purchaseReturn.table.button.submit') }}
           </el-button>
           <el-button
-            v-if="row.status === 'pending'"
+            v-if="row.return_status === PURCHASE_RETURN_STATUS.SUBMITTED"
             size="small"
             type="success"
             @click="emit('approve', row as PurchaseReturn)"
@@ -89,7 +89,7 @@
             {{ t('purchaseReturn.table.button.approve') }}
           </el-button>
           <el-button
-            v-if="row.status === 'draft'"
+            v-if="row.return_status === PURCHASE_RETURN_STATUS.DRAFT"
             size="small"
             type="danger"
             @click="emit('delete', row as PurchaseReturn)"
@@ -117,6 +117,8 @@
 import { useI18n } from 'vue-i18n';
 import type { PurchaseReturn } from '@/api/purchase-return';
 import { getStatusType, getStatusText } from '../composables/prRtnFmts';
+// 行内操作的状态门槛以写入侧原值为比较对象（draft 可编辑/提交/删除，submitted 可审批）
+import { PURCHASE_RETURN_STATUS } from '@/utils/purchase-return-status';
 
 const { t } = useI18n({ useScope: 'global' });
 

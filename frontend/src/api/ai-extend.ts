@@ -3,6 +3,7 @@
 // 创建时间: 2026-06-17
 
 import { request } from './request';
+import type { PaginatedResponse } from '@/types/api';
 
 // =====================================================
 // 公共类型
@@ -145,13 +146,6 @@ export interface AiSummary {
   latest_quality_predictions: AiQualityPrediction[];
 }
 
-export interface PageResult<T> {
-  items: T[];
-  total: number;
-  page: number;
-  page_size: number;
-}
-
 // =====================================================
 // 工艺优化（7 端点）
 // =====================================================
@@ -174,7 +168,9 @@ export function getProcessOptimizationList(
     source?: string;
   } = {}
 ) {
-  return request.get<PageResult<AiProcessOptimization>>('/ai/process-optimizations', { params });
+  return request.get<PaginatedResponse<AiProcessOptimization>>('/ai/process-optimizations', {
+    params,
+  });
 }
 
 /** 工艺优化详情 */
@@ -238,7 +234,7 @@ export function getQualityPredictionList(
     is_acknowledged?: boolean;
   } = {}
 ) {
-  return request.get<PageResult<AiQualityPrediction>>('/ai/quality-predictions', { params });
+  return request.get<PaginatedResponse<AiQualityPrediction>>('/ai/quality-predictions', { params });
 }
 
 /** 质量预测详情 */
@@ -326,6 +322,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   knn: 'k-NN 加权',
   fallback: '典型参数表',
   history: '历史趋势',
+  degraded: 'AI 服务降级',
 };
 
 export const INSPECTION_TYPE_LABELS: Record<string, string> = {

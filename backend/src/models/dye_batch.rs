@@ -27,6 +27,7 @@ pub struct Model {
     pub status: Option<String>,
     pub started_at: Option<DateTimeWithTimeZone>,
     pub completed_at: Option<DateTimeWithTimeZone>,
+    pub remarks: Option<String>,
     pub is_deleted: Option<bool>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,

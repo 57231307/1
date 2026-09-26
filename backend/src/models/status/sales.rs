@@ -28,6 +28,17 @@ pub mod sales_order {
     pub const CANCELLED: &str = "cancelled";
     /// 已拒绝（so/contract.rs reject_order 接入，批次 158 v11 真实接入）
     pub const REJECTED: &str = "rejected";
+    /// 全部合法取值（更新订单头时用于取值域校验，禁止把任意字符串写进状态列）
+    pub const ALL: &[&str] = &[
+        DRAFT,
+        PENDING,
+        APPROVED,
+        PARTIAL_SHIPPED,
+        SHIPPED,
+        COMPLETED,
+        CANCELLED,
+        REJECTED,
+    ];
 }
 
 // 销售发货状态（sales_delivery.status，小写值）

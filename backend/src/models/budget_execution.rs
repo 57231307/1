@@ -15,6 +15,9 @@ pub struct Model {
     pub id: i32,
     /// 预算方案ID
     pub plan_id: i32,
+    /// 预算明细科目ID（外键 → budget_items.id，可空）：
+    /// 方案级下达/调整不绑定具体明细时为 NULL；按 (plan_id, item_id) 归集执行占用时填充。
+    pub item_id: Option<i32>,
     /// 执行类型：下达/调整/使用
     pub execution_type: String,
     /// 金额

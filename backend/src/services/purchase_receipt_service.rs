@@ -3,7 +3,7 @@
 //! 本文件为 facade：保留 `PurchaseReceiptService` struct 定义、`new` 构造器、
 //! 单号生成宏 `impl_generate_no!`（`generate_receipt_no`）、3 个纯函数
 //! （`build_receipt_active_model` / `build_receipt_items_and_totals` /
-//! `build_confirmed_receipt_active_model`）以及单元测试模块。
+//! `build_completed_receipt_active_model`）以及单元测试模块。
 //!
 //! 业务 impl 块已按职责拆分到 [`crate::services::purchase_receipt_ops`] 子模块：
 //! - `auth`：管理员身份校验 `is_admin_user`（`pub(crate)`，供 crud/items 跨模块调用）
@@ -71,7 +71,7 @@ impl PurchaseReceiptService {
             department_id: Set(req.department_id),
             receiver_id: Set(Some(user_id)),
             inspector_id: Set(req.inspector_id),
-            inspection_status: Set("PENDING".to_string()),
+            inspection_status: Set(status::purchase_receipt_inspection::PENDING.to_string()),
             receipt_status: Set(status::purchase_receipt::DRAFT.to_string()),
             notes: Set(req.notes.clone()),
             attachment_urls: Set(req.attachment_urls.clone()),
@@ -102,20 +102,9 @@ impl PurchaseReceiptService {
             total_quantity_alt += item_req.quantity_alt;
             total_amount += amount;
 
-            item_active_models.push(purchase_receipt_item::ActiveModel {
-                receipt_id: Set(receipt_id),
-                order_item_id: Set(item_req.order_item_id),
-                product_id: Set(item_req.material_id),
-                quantity: Set(item_req.quantity),
-                quantity_alt: Set(Some(item_req.quantity_alt)),
-                unit_price: Set(Some(
-                    item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)),
-                )),
-                amount: Set(Some(amount)),
-                piece_no: Set(item_req.piece_no),
-                notes: Set(item_req.notes),
-                ..Default::default()
-            });
+            item_active_models.push(Self::build_receipt_item_active_model(
+                item_req, receipt_id, amount,
+            ));
         }
         (
             item_active_models,
@@ -125,14 +114,56 @@ impl PurchaseReceiptService {
         )
     }
 
-    /// 构造 CONFIRMED 状态 ActiveModel，写入确认时间与审计字段（`pub(crate)`：state 子模块的 `confirm_receipt` 调用。）
-    pub(crate) fn build_confirmed_receipt_active_model(
+    /// 单条入库明细请求 → ActiveModel；建单与追加明细共用，保证两条入口落库字段一致
+    ///
+    /// 库存四维维度字段（色号/缸号/批次/等级/克重/幅宽/库位）必须带全：
+    /// 确认入库按「产品 + 色号 + 缸号 + 批次 + 等级」定位或新建库存行，
+    /// 缺任一维度都会把收到的货落到一条维度不完整的库存行上，四维查询再也检索不到。
+    pub(crate) fn build_receipt_item_active_model(
+        item_req: CreateReceiptItemRequest,
+        receipt_id: i32,
+        amount: Decimal,
+    ) -> purchase_receipt_item::ActiveModel {
+        purchase_receipt_item::ActiveModel {
+            receipt_id: Set(receipt_id),
+            order_item_id: Set(item_req.order_item_id),
+            product_id: Set(item_req.material_id),
+            line_no: Set(item_req.line_no),
+            material_code: Set(item_req.material_code.clone()),
+            material_name: Set(item_req.material_name.clone()),
+            quantity: Set(item_req.quantity),
+            quantity_alt: Set(Some(item_req.quantity_alt)),
+            unit_master: Set(item_req.unit_master.clone()),
+            unit_alt: Set(item_req.unit_alt.clone()),
+            unit_price: Set(Some(
+                item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)),
+            )),
+            amount: Set(Some(amount)),
+            batch_no: Set(item_req.batch_no),
+            color_code: Set(item_req.color_code),
+            lot_no: Set(item_req.lot_no),
+            grade: Set(item_req.grade),
+            gram_weight: Set(item_req.gram_weight),
+            width: Set(item_req.width),
+            location_code: Set(item_req.location_code),
+            piece_no: Set(item_req.piece_no),
+            package_no: Set(item_req.package_no),
+            production_date: Set(item_req.production_date),
+            shelf_life: Set(item_req.shelf_life),
+            notes: Set(item_req.notes),
+            ..Default::default()
+        }
+    }
+
+    /// 构造 COMPLETED 状态 ActiveModel，写入确认时间与审计字段（`pub(crate)`：state 子模块的 `confirm_receipt` 调用。）
+    /// 确认事务内即完成库存入库与订单已收数量推进，落账成功即为收货终态，不再依赖异步事件补状态。
+    pub(crate) fn build_completed_receipt_active_model(
         receipt: purchase_receipt::Model,
         user_id: i32,
     ) -> purchase_receipt::ActiveModel {
         let now = chrono::Utc::now();
         let mut active: purchase_receipt::ActiveModel = receipt.into();
-        active.receipt_status = Set(status::purchase_receipt::CONFIRMED.to_string());
+        active.receipt_status = Set(status::purchase_receipt::COMPLETED.to_string());
         active.confirmed_at = Set(Some(now));
         active.confirmed_by = Set(Some(user_id));
         active.updated_by = Set(Some(user_id));

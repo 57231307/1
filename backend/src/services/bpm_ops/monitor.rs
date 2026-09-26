@@ -5,15 +5,16 @@
 //! - `get_pending_tasks_for_monitor`：获取待处理任务列表（分页）
 //! - `list_instances_for_monitor`：获取流程实例列表（分页，可按状态过滤）
 
+use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 
-use crate::models::dto::PageResponse;
 use crate::models::status::bpm_instance as instance_status;
 use crate::models::status::bpm_task as task_status;
 use crate::models::{bpm_process_instance, bpm_task};
 use crate::services::bpm_service::BpmService;
 use crate::services::bpm_service_dto::ProcessMonitorStats;
 use crate::utils::error::AppError;
+use crate::utils::response::PaginatedResponse;
 
 impl BpmService {
     // ========== 流程监控功能 ==========
@@ -58,6 +59,14 @@ impl BpmService {
             .count(&*self.db)
             .await?;
 
+        // 逾期未办：仍处 pending 且已过截止时间。due_date 为 NULL 的行不参与比较
+        // （SQL 三值逻辑下 NULL < now 不为真），无需额外 is_not_null 过滤或默认值兜底。
+        let overdue_tasks = bpm_task::Entity::find()
+            .filter(bpm_task::Column::Status.eq(task_status::PENDING))
+            .filter(bpm_task::Column::DueDate.lt(Utc::now()))
+            .count(&*self.db)
+            .await?;
+
         // 计算平均流程处理时长（分钟）
         let avg_duration = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq(instance_status::COMPLETED))
@@ -83,6 +92,7 @@ impl BpmService {
             pending_tasks: pending_tasks as i64,
             completed_tasks: completed_tasks as i64,
             rejected_tasks: rejected_tasks as i64,
+            overdue_tasks: overdue_tasks as i64,
             avg_process_duration_minutes: avg_duration,
         })
     }
@@ -92,7 +102,7 @@ impl BpmService {
         &self,
         page: u64,
         page_size: u64,
-    ) -> Result<PageResponse<bpm_task::Model>, AppError> {
+    ) -> Result<PaginatedResponse<bpm_task::Model>, AppError> {
         // P0 3-4 修复：任务状态写入为小写，查询用小写匹配
         let stmt =
             bpm_task::Entity::find().filter(bpm_task::Column::Status.eq(task_status::PENDING));
@@ -101,18 +111,7 @@ impl BpmService {
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
-        let total_pages = if total == 0 {
-            0
-        } else {
-            total.div_ceil(page_size)
-        };
-        Ok(PageResponse {
-            data: items,
-            total,
-            page,
-            page_size,
-            total_pages,
-        })
+        Ok(PaginatedResponse::new(items, total, page, page_size))
     }
 
     /// 获取流程实例列表（用于监控）
@@ -121,7 +120,7 @@ impl BpmService {
         status: Option<String>,
         page: u64,
         page_size: u64,
-    ) -> Result<PageResponse<bpm_process_instance::Model>, AppError> {
+    ) -> Result<PaginatedResponse<bpm_process_instance::Model>, AppError> {
         let mut stmt = bpm_process_instance::Entity::find();
 
         if let Some(s) = status {
@@ -134,17 +133,6 @@ impl BpmService {
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
-        let total_pages = if total == 0 {
-            0
-        } else {
-            total.div_ceil(page_size)
-        };
-        Ok(PageResponse {
-            data: items,
-            total,
-            page,
-            page_size,
-            total_pages,
-        })
+        Ok(PaginatedResponse::new(items, total, page, page_size))
     }
 }

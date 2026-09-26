@@ -5,6 +5,7 @@
 //! - `get_bom_tree`：递归展开 BOM 树（返回 Pin<Box<Future>>，借用 self）
 //! - `fetch_bom_with_items`：查询 BOM 主记录及其子项（私有 helper）
 //! - `fetch_child_bom_map`：批量查询子物料默认 BOM 并按 product_id 索引（私有 helper）
+//! - `fetch_product_names`：批量查询本层涉及的产品名称并按 id 索引（私有 helper）
 //! - `calculate_bom_requirements`：多层级 BOM 用量计算
 //! - `collect_requirements`：递归收集需求（`pub(crate)`，借用 self 仅用于递归；facade 测试模块调用）
 //!
@@ -21,6 +22,7 @@ use crate::models::bom::{Column as BomColumn, Entity as BomEntity, Model as BomM
 use crate::models::bom_item::{
     Column as BomItemColumn, Entity as BomItemEntity, Model as BomItemModel,
 };
+use crate::models::product::{Column as ProductColumn, Entity as ProductEntity};
 use crate::services::bom_service::{BomRequirement, BomService, BomTreeNode};
 use crate::utils::error::AppError;
 
@@ -35,6 +37,11 @@ impl BomService {
     > {
         Box::pin(async move {
             let (bom, items) = self.fetch_bom_with_items(bom_id).await?;
+            // 本层一次批量查询名称：BOM 自身产品 + 全部明细物料（bom_item.material_id 与
+            // products.id 同域，见 fetch_child_bom_map）
+            let mut name_ids: Vec<i32> = items.iter().map(|item| item.material_id).collect();
+            name_ids.push(bom.product_id);
+            let names = self.fetch_product_names(&name_ids).await?;
             let mut children = Vec::new();
             let depth = max_depth.unwrap_or(10);
             if depth > 0 {
@@ -42,7 +49,9 @@ impl BomService {
                 for item in &items {
                     let child_node = match child_bom_map.get(&item.material_id) {
                         Some(child_bom) => self.get_bom_tree(child_bom.id, Some(depth - 1)).await?,
-                        None => Self::build_leaf_bom_node(item),
+                        None => {
+                            Self::build_leaf_bom_node(item, names.get(&item.material_id).cloned())
+                        }
                     };
                     children.push(child_node);
                 }
@@ -50,7 +59,7 @@ impl BomService {
             Ok(BomTreeNode {
                 id: format!("bom-{}", bom.id),
                 product_id: bom.product_id,
-                product_name: format!("产品 #{}", bom.product_id),
+                product_name: names.get(&bom.product_id).cloned(),
                 quantity: Decimal::ONE,
                 unit: None,
                 scrap_rate: None,
@@ -96,6 +105,21 @@ impl BomService {
             .into_iter()
             .map(|bom| (bom.product_id, bom))
             .collect())
+    }
+
+    /// 批量查询产品名称并按 id 索引（单次 IN 查询，避免逐节点查询）
+    async fn fetch_product_names(
+        &self,
+        ids: &[i32],
+    ) -> Result<std::collections::HashMap<i32, String>, AppError> {
+        if ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let products = ProductEntity::find()
+            .filter(ProductColumn::Id.is_in(ids.to_vec()))
+            .all(&*self.db)
+            .await?;
+        Ok(products.into_iter().map(|p| (p.id, p.name)).collect())
     }
 
     /// 获取BOM用量计算（多层级）

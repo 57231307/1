@@ -18,10 +18,9 @@ use crate::models::color_card::{self, ActiveModel as ColorCardActive, Entity as 
 use crate::models::color_card_create_dto::{
     ArchiveColorCardDto, CreateColorCardDto, UpdateColorCardDto,
 };
-// 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
-use crate::models::status::master_data;
 // V15 P2 B05-P2-4：色卡状态机闭环常量（draft/issued/received/used/expired/lost/archived）
-// status/mod.rs 通过 pub use wage_energy_chemical_business::* 重导出，直接用 color_card 子模块
+// status/mod.rs 通过 pub use wage_energy_chemical_business::* 重导出，直接用 color_card 子模块。
+// 色卡状态取值以本词表为唯一来源；历史遗留的 active 等价 DRAFT，且不再写入该值。
 use crate::models::status::color_card as card_status;
 use crate::utils::sql_escape::safe_like_pattern;
 
@@ -75,7 +74,7 @@ impl ColorCardCrudService {
             season: Set(dto.season),
             brand: Set(dto.brand),
             total_colors: Set(0),
-            status: Set(master_data::ACTIVE.to_string()),
+            status: Set(card_status::DRAFT.to_string()),
             description: Set(dto.description),
             cover_image_url: Set(dto.cover_image_url),
             // V15 P0-F10：新建色卡默认库存为 0，需后续库存初始化或入库调整
@@ -140,8 +139,8 @@ impl ColorCardCrudService {
             .ok_or(CrudError::NotFound)
     }
 
-    /// 更新色卡（仅 active 状态可更新）
-    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更；原实现完全无 txn 无 lock，并发 update 同时通过 active 状态检查后基于过期快照写入，；导致字段覆盖；色卡档案被并发修改无审计追溯。
+    /// 更新色卡（仅 draft 状态可更新）
+    /// 以 lock_exclusive 串行化并发状态变更：并发 update 在通过 draft 状态检查后基于过期快照写入会覆盖字段且无审计追溯。
     pub async fn update(
         &self,
         id: i64,
@@ -156,7 +155,7 @@ impl ColorCardCrudService {
             .one(&txn)
             .await?
             .ok_or(CrudError::NotFound)?;
-        if existing.status != master_data::ACTIVE {
+        if existing.status != card_status::DRAFT {
             return Err(CrudError::InvalidState);
         }
 
@@ -319,17 +318,20 @@ impl ColorCardCrudService {
         Ok(result)
     }
 
-    /// B05-P2-4：校验色卡状态流转（draft/active→issued→received→used→expired/lost/archived 终态）。
+    /// B05-P2-4：校验色卡状态流转（draft→issued→received→used→expired/lost/archived 终态）。
     pub fn validate_color_card_status_transition(from: &str, to: &str) -> Result<(), CrudError> {
         // 终态不可再流转
-        if matches!(from, "expired" | "lost" | "archived") {
+        if matches!(
+            from,
+            card_status::EXPIRED | card_status::LOST | card_status::ARCHIVED
+        ) {
             return Err(CrudError::InvalidState);
         }
         let allowed = match to {
-            card_status::ISSUED => matches!(from, "draft" | "active"),
-            card_status::RECEIVED => from == "issued",
-            card_status::USED => from == "received",
-            card_status::EXPIRED => from == "used",
+            card_status::ISSUED => from == card_status::DRAFT,
+            card_status::RECEIVED => from == card_status::ISSUED,
+            card_status::USED => from == card_status::RECEIVED,
+            card_status::EXPIRED => from == card_status::USED,
             card_status::LOST | card_status::ARCHIVED => true,
             _ => false,
         };

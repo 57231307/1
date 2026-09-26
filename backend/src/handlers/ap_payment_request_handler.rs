@@ -254,6 +254,9 @@ pub async fn submit_request(
     let request = service.submit(id, auth.user_id).await?;
 
     // 发送付款申请通知给审批人（admin/manager 角色用户，而非提交人本人）
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(ref event_service) = state.event_notification_service {
         let supplier_name = if let Ok(Some(sup)) = supplier::Entity::find_by_id(request.supplier_id)
             .one(&*state.db)
@@ -268,8 +271,8 @@ pub async fn submit_request(
         let approver_ids = fetch_approver_user_ids(&state.db).await;
 
         if !approver_ids.is_empty() {
-            use crate::services::event_notification_service::NotificationPayload;
             use crate::models::notification::NotificationPriority;
+            use crate::services::event_notification_service::NotificationPayload;
             let payload = NotificationPayload {
                 user_ids: approver_ids.clone(),
                 title: format!("付款申请待审批：{}", request.request_no),
@@ -311,6 +314,9 @@ pub async fn approve_request(
     let request = service.approve(id, auth.user_id).await?;
 
     // 发送审批通过通知
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(ref event_service) = state.event_notification_service {
         // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
         if let Err(e) = event_service
@@ -361,6 +367,9 @@ pub async fn reject_request(
     let request = service.reject(id, req.reason.clone(), auth.user_id).await?;
 
     // 发送审批拒绝通知
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(ref event_service) = state.event_notification_service {
         // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
         if let Err(e) = event_service
@@ -391,8 +400,8 @@ pub async fn reject_request(
 
 /// 查询付款审批人：admin 和 manager 角色的活跃用户 id 列表
 async fn fetch_approver_user_ids(db: &sea_orm::DatabaseConnection) -> Vec<i32> {
-    use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
     use crate::models::{role, user};
+    use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, sea_query::Cond};
 
     // 先查 admin/manager 角色 id

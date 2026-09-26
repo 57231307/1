@@ -21,6 +21,7 @@ use crate::services::inventory_count_service::{
     CountItemInput, CreateCountRequest, InventoryCountService, UpdateCountRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 use axum::{
     Json,
@@ -148,6 +149,10 @@ pub struct CountSummary {
     pub counted_items: i32,
     pub variance_items: i32,
     pub created_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub warehouse_name: Option<String>,
+    pub created_by_name: Option<String>,
 }
 
 /// 列表查询参数
@@ -158,9 +163,17 @@ pub struct ListCountsParams {
     pub page_size: Option<u64>,
     pub warehouse_id: Option<i32>,
     pub status: Option<String>,
+    pub count_no: Option<String>,
 }
 
 /// 录入实盘数量请求体
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct UpdateCountItemPayload {
+    pub quantity_actual: Option<rust_decimal::Decimal>,
+    pub notes: Option<String>,
+}
+
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct RecordItemsPayload {
@@ -226,6 +239,7 @@ pub async fn list_counts(
             page_size,
             params.warehouse_id,
             params.status,
+            params.count_no,
             Some(&data_scope_ctx),
         )
         .await?;
@@ -241,6 +255,10 @@ pub async fn list_counts(
             counted_items: c.counted_items,
             variance_items: c.variance_items,
             created_at: c.created_at,
+            completed_at: c.completed_at,
+            notes: c.notes,
+            warehouse_name: c.warehouse_name,
+            created_by_name: c.created_by_name,
         })
         .collect();
     Ok(Json(ApiResponse::success(CountListResponse {
@@ -374,4 +392,58 @@ pub async fn reject_count(
     let mut resp: CountResponse = updated.into();
     resp.items = detail.items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(resp)))
+}
+
+/// 生成库存盘点单号 GET /api/v1/erp/inventory/counts/generate-no；单据号格式：`IC{yyyyMMdd}{4 位流水}`
+/// 对应前端 api/inventory-count.ts 的 generateInventoryCountNo。
+pub async fn generate_no(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let count_no = DocumentNumberGenerator::generate_no_with_width(
+        &*state.db,
+        "IC",
+        inventory_count::Entity,
+        inventory_count::Column::CountNo,
+        4,
+    )
+    .await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "count_no": count_no
+    }))))
+}
+
+/// 更新单条盘点明细 PUT /api/v1/erp/inventory/counts/items/{itemId}
+/// 对应前端 updateCountItem（实盘数量/备注），仅待盘点状态可改。
+pub async fn update_count_item(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(item_id): Path<i32>,
+    Json(payload): Json<UpdateCountItemPayload>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let updated = InventoryCountService::new(state.db.clone())
+        .update_count_item(item_id, payload.quantity_actual, payload.notes)
+        .await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "id": updated.id,
+        "count_id": updated.count_id,
+        "stock_id": updated.stock_id,
+        "quantity_actual": updated.quantity_actual,
+        "quantity_difference": updated.quantity_difference,
+        "notes": updated.notes,
+    }))))
+}
+
+/// 删除单条盘点明细 DELETE /api/v1/erp/inventory/counts/items/{itemId}
+/// 对应前端 deleteCountItem，仅待盘点状态可删。
+pub async fn delete_count_item(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(item_id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    InventoryCountService::new(state.db.clone())
+        .delete_count_item(item_id)
+        .await?;
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "deleted": true }),
+    )))
 }

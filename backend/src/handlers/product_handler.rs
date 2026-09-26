@@ -2,12 +2,14 @@ use axum::{
     Extension, Json,
     extract::{Multipart, Path, Query, State},
 };
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use validator::Validate;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product;
+use crate::models::product_category;
 use crate::models::product_color;
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
@@ -34,6 +36,8 @@ pub struct CreateProductRequest {
     pub name: Option<String>,
     #[validate(length(max = 50, message = "产品编码长度不能超过50个字符"))]
     pub code: Option<String>,
+    #[validate(length(max = 100, message = "产品条码长度不能超过100个字符"))]
+    pub barcode: Option<String>,
     pub category_id: Option<i32>,
     #[validate(length(max = 500, message = "规格型号长度不能超过500个字符"))]
     pub specification: Option<String>,
@@ -71,6 +75,9 @@ pub struct CreateProductRequest {
     pub factory_address: Option<String>,
     #[validate(length(max = 10, message = "产品等级长度不能超过10个字符"))]
     pub product_grade: Option<String>,
+    // 匹↔米 / 卷↔米 换算元数据（码匹卷换算单一真源入参，供 dual_unit_converter 读取）
+    pub meters_per_piece: Option<Decimal>,
+    pub meters_per_roll: Option<Decimal>,
 }
 
 /// 更新产品请求（面料行业版）
@@ -79,6 +86,8 @@ pub struct CreateProductRequest {
 pub struct UpdateProductRequest {
     #[validate(length(max = 200, message = "产品名称长度不能超过200个字符"))]
     pub name: Option<String>,
+    #[validate(length(max = 100, message = "产品条码长度不能超过100个字符"))]
+    pub barcode: Option<String>,
     #[validate(length(max = 500, message = "规格型号长度不能超过500个字符"))]
     pub specification: Option<String>,
     #[validate(length(max = 20, message = "计量单位长度不能超过20个字符"))]
@@ -115,6 +124,9 @@ pub struct UpdateProductRequest {
     pub factory_address: Option<String>,
     #[validate(length(max = 10, message = "产品等级长度不能超过10个字符"))]
     pub product_grade: Option<String>,
+    // 匹↔米 / 卷↔米 换算元数据（码匹卷换算单一真源入参，供 dual_unit_converter 读取）
+    pub meters_per_piece: Option<Decimal>,
+    pub meters_per_roll: Option<Decimal>,
 }
 
 // ========== 色号管理相关结构体 ==========
@@ -164,6 +176,81 @@ pub struct ExportProductsQuery {
 /// 获取产品列表
 use crate::utils::field_mask::mask_sensitive_fields;
 
+/// 前端 `Product` 契约（frontend/src/api/product.ts:6）按 product_name / product_code /
+/// is_active / price 读取，而 products 实体字段是 name / code / status / standard_price，
+/// 导致产品列表与编辑弹窗的名称、编码、状态在 UI 上恒为空（18+ 个视图消费该契约，
+/// 含销售/采购/BOM 的产品选择器）。这里在字段级权限过滤**之后**补别名，且别名只从
+/// 过滤后的对象取值，避免用新键位绕过 hidden_fields 把已隐藏字段重新暴露出去。
+/// TODO(doto)：长期应收敛为单一契约（后端出 VO 或前端改读实体字段），避免一名两值。
+fn append_frontend_aliases(obj: &mut serde_json::Value) {
+    let Some(map) = obj.as_object_mut() else {
+        return;
+    };
+    for (alias, column) in [
+        ("product_name", "name"),
+        ("product_code", "code"),
+        ("price", "standard_price"),
+    ] {
+        let value = map.get(column).cloned();
+        if let Some(value) = value {
+            map.insert(alias.to_string(), value);
+        }
+    }
+    let is_active = map
+        .get("status")
+        .and_then(|status| status.as_str())
+        .map(|status| status == master_data::ACTIVE);
+    if let Some(is_active) = is_active {
+        map.insert("is_active".to_string(), serde_json::json!(is_active));
+    }
+}
+
+/// 分类名称：products 表只存 category_id，而产品列表与详情的「分类名称」列需要主数据名称
+async fn attach_category_names(db: &sea_orm::DatabaseConnection, rows: &mut [serde_json::Value]) {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    let cat_ids: Vec<i32> = rows
+        .iter()
+        .filter_map(|r| r.get("category_id").and_then(|v| v.as_i64()))
+        .map(|id| id as i32)
+        .collect();
+    if cat_ids.is_empty() {
+        return;
+    }
+    let categories = match product_category::Entity::find()
+        .filter(product_category::Column::Id.is_in(cat_ids))
+        .all(db)
+        .await
+    {
+        Ok(list) => list,
+        Err(e) => {
+            tracing::error!(error = %e, "查询产品分类主数据失败，产品分类名称将为空");
+            return;
+        }
+    };
+    let name_map: std::collections::HashMap<i32, String> =
+        categories.into_iter().map(|c| (c.id, c.name)).collect();
+    for row in rows.iter_mut() {
+        let Some(map) = row.as_object_mut() else {
+            continue;
+        };
+        let Some(cid) = map.get("category_id").and_then(|v| v.as_i64()) else {
+            continue;
+        };
+        match name_map.get(&(cid as i32)) {
+            Some(name) => {
+                map.insert(
+                    "category_name".to_string(),
+                    serde_json::Value::String(name.clone()),
+                );
+            }
+            None => tracing::error!(
+                category_id = cid,
+                "产品行指向的产品分类主数据不存在，分类名称将为空"
+            ),
+        }
+    }
+}
+
 pub async fn list_products(
     Extension(auth): Extension<AuthContext>,
     State(state): State<AppState>,
@@ -212,6 +299,12 @@ pub async fn list_products(
         }
     }
 
+    // 权限过滤完成后再补前端契约别名，避免别名键绕过 hidden_fields 暴露被隐藏字段
+    for item in masked_products.iter_mut() {
+        append_frontend_aliases(item);
+    }
+    attach_category_names(&state.db, &mut masked_products).await;
+
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         masked_products,
         total,
@@ -219,7 +312,6 @@ pub async fn list_products(
         page_size,
     ))))
 }
-
 /// 获取产品详情
 pub async fn get_product(
     State(state): State<AppState>,
@@ -244,6 +336,9 @@ pub async fn get_product(
             );
         }
     }
+
+    append_frontend_aliases(&mut product_json);
+    attach_category_names(&state.db, std::slice::from_mut(&mut product_json)).await;
 
     Ok(Json(ApiResponse::success(product_json)))
 }
@@ -273,6 +368,7 @@ pub async fn create_product(
                 .name
                 .unwrap_or_else(|| format!("产品_{}", chrono::Utc::now().timestamp())),
             code,
+            barcode: req.barcode,
             category_id: req.category_id,
             specification: req.specification,
             unit: req.unit.unwrap_or_else(|| "个".to_string()),
@@ -296,6 +392,8 @@ pub async fn create_product(
             factory_name: req.factory_name,
             factory_address: req.factory_address,
             product_grade: req.product_grade,
+            meters_per_piece: req.meters_per_piece,
+            meters_per_roll: req.meters_per_roll,
         })
         .await?;
 
@@ -323,6 +421,7 @@ pub async fn update_product(
         .update_product(UpdateProductArgs {
             id,
             name: req.name,
+            barcode: req.barcode,
             specification: req.specification,
             unit: req.unit,
             standard_price: req.standard_price,
@@ -343,6 +442,8 @@ pub async fn update_product(
             factory_name: req.factory_name,
             factory_address: req.factory_address,
             product_grade: req.product_grade,
+            meters_per_piece: req.meters_per_piece,
+            meters_per_roll: req.meters_per_roll,
             // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
             user_id: auth.user_id,
         })
@@ -368,14 +469,26 @@ pub async fn delete_product(
 
 // ========== 色号管理接口 ==========
 
-/// 获取产品色号列表
+/// 色号列表查询参数（keyword 用于前端 el-select-v2 远程搜索高基数场景）
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct ColorListQuery {
+    pub keyword: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+/// 获取产品色号列表（支持关键词搜索与分页）
 pub async fn list_product_colors(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(product_id): Path<i32>,
+    Query(params): Query<ColorListQuery>,
 ) -> Result<Json<ApiResponse<Vec<product_color::Model>>>, AppError> {
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
-    let colors = product_service.list_product_colors(product_id).await?;
+    let colors = product_service
+        .list_product_colors_with_filter(product_id, params.keyword, params.page, params.page_size)
+        .await?;
     Ok(Json(ApiResponse::success(colors)))
 }
 

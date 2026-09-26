@@ -140,8 +140,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('warehouse.index.colOperation')" width="180" fixed="right">
+        <el-table-column :label="t('warehouse.index.colOperation')" width="240" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="openDetail(row as Warehouse)">{{
+              t('warehouse.index.buttonDetail')
+            }}</el-button>
             <el-button
               v-permission="PERMISSIONS.WAREHOUSE_UPDATE"
               type="primary"
@@ -150,6 +153,9 @@
               @click="handleEdit(row as Warehouse)"
               >{{ t('warehouse.index.buttonEdit') }}</el-button
             >
+            <el-button type="warning" link size="small" @click="openLocations(row as Warehouse)">{{
+              t('warehouse.index.buttonLocations')
+            }}</el-button>
             <el-button
               v-permission="PERMISSIONS.WAREHOUSE_DELETE"
               type="danger"
@@ -289,6 +295,107 @@
         }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 仓库详情对话框（getWarehouseById 回源） -->
+    <el-dialog v-model="detailVisible" :title="t('warehouse.index.buttonDetail')" width="560">
+      <el-descriptions v-if="detailWarehouse" :column="2" border>
+        <el-descriptions-item label="ID">{{ detailWarehouse.id }}</el-descriptions-item>
+        <el-descriptions-item :label="t('warehouse.index.colName')">{{
+          detailWarehouse.warehouse_name
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('warehouse.index.colStatus')">{{
+          detailWarehouse.status
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('warehouse.index.colCapacity')">{{
+          detailWarehouse.capacity ? `${detailWarehouse.capacity} m³` : '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('warehouse.index.colDefault')">
+          <el-tag v-if="detailWarehouse.is_default" type="success" size="small">{{
+            t('warehouse.index.defaultYes')
+          }}</el-tag>
+          <span v-else>-</span>
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('warehouse.index.colOperation')">{{
+          detailWarehouse.notes || '-'
+        }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
+
+    <!-- 库位管理对话框 -->
+    <el-dialog v-model="locDialogVisible" :title="t('warehouse.index.buttonLocations')" width="720">
+      <div class="loc-toolbar">
+        <span class="loc-title">{{ currentWarehouse?.warehouse_name }}</span>
+        <el-button type="primary" size="small" plain @click="openLocationForm()">
+          {{ t('warehouse.index.buttonCreate') }}
+        </el-button>
+      </div>
+      <el-table v-loading="locLoading" :data="locations" border size="small" max-height="320">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="location_code" label="库位编码" min-width="120" />
+        <el-table-column prop="location_type" label="类型" width="100">
+          <template #default="{ row }">{{ row.location_type || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="max_weight" label="最大承重 kg" width="120">
+          <template #default="{ row }">{{ row.max_weight ?? '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="max_height" label="最大高度 m" width="120">
+          <template #default="{ row }">{{ row.max_height ?? '-' }}</template>
+        </el-table-column>
+        <el-table-column label="批次管理" width="90" align="center">
+          <template #default="{ row }">{{ row.is_batch_managed ? '是' : '否' }}</template>
+        </el-table-column>
+        <el-table-column label="色号管理" width="90" align="center">
+          <template #default="{ row }">{{ row.is_color_managed ? '是' : '否' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="openLocationForm(row)">{{
+              t('warehouse.index.buttonEdit')
+            }}</el-button>
+            <el-button link type="danger" size="small" @click="handleDeleteLocation(row)">{{
+              t('warehouse.index.buttonDelete')
+            }}</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+
+    <!-- 库位表单对话框（createWarehouseLocation / updateWarehouseLocation） -->
+    <el-dialog v-model="locFormVisible" :title="editingLocId ? '编辑库位' : '新建库位'" width="480">
+      <el-form :model="locForm" label-width="110px">
+        <el-form-item label="库位编码" required>
+          <el-input v-model="locForm.location_code" />
+        </el-form-item>
+        <el-form-item label="库位类型">
+          <el-select v-model="locForm.location_type" class="w-full" clearable>
+            <el-option label="原料区" value="material" />
+            <el-option label="成品区" value="finished" />
+            <el-option label="退货区" value="return" />
+            <el-option label="待检区" value="inspection" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="最大承重 kg">
+          <el-input-number v-model="locForm.max_weight" :min="0" :precision="1" class="w-full" />
+        </el-form-item>
+        <el-form-item label="最大高度 m">
+          <el-input-number v-model="locForm.max_height" :min="0" :precision="1" class="w-full" />
+        </el-form-item>
+        <el-form-item label="批次管理">
+          <el-switch v-model="locForm.is_batch_managed" />
+        </el-form-item>
+        <el-form-item label="色号管理">
+          <el-switch v-model="locForm.is_color_managed" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="locFormVisible = false">{{
+          t('warehouse.index.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="locSaving" @click="handleSaveLocation">{{
+          t('warehouse.index.buttonSave')
+        }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -298,7 +405,19 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';
-import { deleteWarehouse, updateWarehouse, createWarehouse, type Warehouse } from '@/api/warehouse';
+import {
+  deleteWarehouse,
+  updateWarehouse,
+  createWarehouse,
+  getWarehouseById,
+  getWarehouseLocationList,
+  createWarehouseLocation,
+  updateWarehouseLocation,
+  deleteWarehouseLocation,
+  getWarehouseLocation,
+  type Warehouse,
+  type WarehouseLocation,
+} from '@/api/warehouse';
 // V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
 // 后端 GET /warehouses/export 已就绪（含异步审计日志 + 水印）
 // 注意：后端 WarehouseListQuery 使用 search 字段而非 keyword，前端需做映射
@@ -307,6 +426,7 @@ import { printData } from '@/utils/print';
 import { useTableApi } from '@/composables/useTableApi';
 // Batch 462 P0-S24：引入权限码常量，与后端 warehouses 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
+import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -341,7 +461,7 @@ const {
 
 // 批次 275：同步筛选条件到 useTableApi.queryParams 并刷新
 const syncQueryParams = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined);
+  setQueryParam('search', queryParams.keyword || undefined);
   setQueryParam('warehouse_type', queryParams.warehouse_type || undefined);
   setQueryParam('status', queryParams.status || undefined);
 };
@@ -509,6 +629,7 @@ const handleExport = async () => {
   const params: Record<string, unknown> = {
     status: queryParams.status || undefined,
     search: queryParams.keyword || undefined,
+    warehouse_type: queryParams.warehouse_type || undefined,
   };
   await exportFromBackend('/warehouses/export', params, 'warehouses_export');
 };
@@ -541,6 +662,140 @@ const handlePrint = () => {
 };
 
 // 批次 275：useTableApi 构造时自动初始加载，无需 onMounted 调用 fetchData
+
+// ===== 仓库详情（getWarehouseById 回源） =====
+const detailVisible = ref(false);
+const detailWarehouse = ref<Warehouse | null>(null);
+
+const openDetail = async (row: Warehouse) => {
+  detailVisible.value = true;
+  detailWarehouse.value = row;
+  try {
+    const res = await getWarehouseById(row.id);
+    if (res.data) {
+      detailWarehouse.value = res.data;
+      detailVisible.value = true;
+    }
+  } catch (e) {
+    logger.warn('仓库详情回源失败', e instanceof Error ? e.message : String(e));
+  }
+};
+
+// ===== 库位管理（getWarehouseLocationList/create/update/delete + getWarehouseLocation 回源） =====
+const locDialogVisible = ref(false);
+const locFormVisible = ref(false);
+const locLoading = ref(false);
+const locSaving = ref(false);
+const currentWarehouse = ref<Warehouse | null>(null);
+const locations = ref<WarehouseLocation[]>([]);
+const editingLocId = ref<number | null>(null);
+const locForm = reactive({
+  location_code: '',
+  location_type: '',
+  max_weight: undefined as number | undefined,
+  max_height: undefined as number | undefined,
+  is_batch_managed: false,
+  is_color_managed: false,
+});
+
+const openLocations = async (row: Warehouse) => {
+  currentWarehouse.value = row;
+  locDialogVisible.value = true;
+  await fetchLocations();
+};
+
+const fetchLocations = async () => {
+  if (!currentWarehouse.value) return;
+  locLoading.value = true;
+  try {
+    const res = await getWarehouseLocationList(currentWarehouse.value.id);
+    const { items, total } = res.data;
+    locations.value = items;
+    // 对话框内没有分页控件：取满一页时被截断的条数必须显式告知，不能让用户以为库位丢失
+    if (total > items.length) {
+      ElMessage.warning(t('warehouse.index.locTruncated', { shown: items.length, total }));
+    }
+  } finally {
+    locLoading.value = false;
+  }
+};
+
+const openLocationForm = async (row?: WarehouseLocation) => {
+  editingLocId.value = row?.id ?? null;
+  if (row) {
+    // 编辑：按 ID 回源最新库位数据
+    try {
+      const res = await getWarehouseLocation(row.id);
+      row = res.data ?? row;
+    } catch (error) {
+      logger.error(t('warehouse.index.messageFetchLocationFailed'), error);
+    }
+    Object.assign(locForm, {
+      location_code: row.location_code,
+      location_type: row.location_type || '',
+      max_weight: row.max_weight ?? undefined,
+      max_height: row.max_height ?? undefined,
+      is_batch_managed: row.is_batch_managed ?? false,
+      is_color_managed: row.is_color_managed ?? false,
+    });
+  } else {
+    Object.assign(locForm, {
+      location_code: '',
+      location_type: '',
+      max_weight: undefined,
+      max_height: undefined,
+      is_batch_managed: false,
+      is_color_managed: false,
+    });
+  }
+  locFormVisible.value = true;
+};
+
+const handleSaveLocation = async () => {
+  if (!locForm.location_code) {
+    ElMessage.warning(t('warehouse.index.messageOperationFailed'));
+    return;
+  }
+  locSaving.value = true;
+  try {
+    if (editingLocId.value) {
+      await updateWarehouseLocation(editingLocId.value, locForm);
+      ElMessage.success(t('warehouse.index.messageUpdateSuccess'));
+    } else {
+      await createWarehouseLocation({
+        ...locForm,
+        warehouse_id: currentWarehouse.value?.id,
+      });
+      ElMessage.success(t('warehouse.index.messageCreateSuccess'));
+    }
+    locFormVisible.value = false;
+    await fetchLocations();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e));
+  } finally {
+    locSaving.value = false;
+  }
+};
+
+const handleDeleteLocation = async (row: WarehouseLocation) => {
+  try {
+    await ElMessageBox.confirm(
+      t('warehouse.index.messageConfirmDelete', { name: row.location_code }),
+      t('warehouse.index.titleDeleteConfirm'),
+      { type: 'warning' }
+    );
+    await deleteWarehouseLocation(row.id);
+    ElMessage.success(t('warehouse.index.messageDeleteSuccess'));
+    await fetchLocations();
+  } catch (error: unknown) {
+    if (error !== 'cancel') {
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('warehouse.index.messageDeleteFailed')
+      );
+    }
+  }
+};
 </script>
 
 <style scoped>
@@ -575,5 +830,18 @@ const handlePrint = () => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+.loc-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.loc-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.w-full {
+  width: 100%;
 }
 </style>

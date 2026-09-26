@@ -22,30 +22,34 @@
             :aria-label="t('supplierEvaluation.index.recordsTableAriaLabel')"
           >
             <el-table-column
-              prop="supplierName"
+              prop="supplier_name"
               :label="t('supplierEvaluation.index.column.supplierName')"
             />
-            <el-table-column prop="period" :label="t('supplierEvaluation.index.column.period')" />
             <el-table-column
-              prop="totalScore"
-              :label="t('supplierEvaluation.index.column.totalScore')"
+              prop="evaluation_period"
+              :label="t('supplierEvaluation.index.column.period')"
             />
-            <el-table-column prop="rating" :label="t('supplierEvaluation.index.column.rating')">
-              <template #default="{ row }">
-                <el-tag v-if="row.rating === 'A'" type="success">A</el-tag>
-                <el-tag v-else-if="row.rating === 'B'" type="warning">B</el-tag>
-                <el-tag v-else-if="row.rating === 'C'" type="danger">C</el-tag>
-                <el-tag v-else type="info">{{ row.rating }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="status" :label="t('supplierEvaluation.index.column.status')" />
             <el-table-column
-              prop="evaluatorName"
+              prop="indicator_name"
+              :label="t('supplierEvaluation.index.column.indicatorName')"
+            />
+            <el-table-column prop="score" :label="t('supplierEvaluation.index.column.score')" />
+            <el-table-column
+              prop="weighted_score"
+              :label="t('supplierEvaluation.index.column.weightedScore')"
+            />
+            <el-table-column
+              prop="evaluator_name"
               :label="t('supplierEvaluation.index.column.evaluator')"
             />
             <el-table-column
-              prop="createdAt"
-              :label="t('supplierEvaluation.index.column.createdAt')"
+              prop="evaluation_date"
+              :label="t('supplierEvaluation.index.column.evaluationDate')"
+            />
+            <el-table-column
+              prop="remark"
+              :label="t('supplierEvaluation.index.column.remark')"
+              show-overflow-tooltip
             />
             <el-table-column
               :label="t('supplierEvaluation.index.column.operation')"
@@ -94,11 +98,11 @@
               </template>
             </el-table-column>
             <el-table-column
-              prop="supplierName"
+              prop="supplier_name"
               :label="t('supplierEvaluation.index.column.supplierName')"
             />
             <el-table-column
-              prop="totalScore"
+              prop="average_score"
               :label="t('supplierEvaluation.index.column.totalScore')"
             />
             <el-table-column prop="rating" :label="t('supplierEvaluation.index.column.rating')">
@@ -110,6 +114,152 @@
               </template>
             </el-table-column>
           </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane :label="t('supplierEvaluation.index.tab.indicators')" name="indicators">
+          <div class="toolbar">
+            <el-button type="primary" @click="indicatorDialogVisible = true">{{
+              t('supplierEvaluation.index.indicators.dialogTitle')
+            }}</el-button>
+          </div>
+          <el-table
+            v-loading="indicatorLoading"
+            :data="indicatorList"
+            border
+            stripe
+            :aria-label="t('supplierEvaluation.index.indicators.tableAriaLabel')"
+          >
+            <el-table-column
+              prop="indicator_code"
+              :label="t('supplierEvaluation.index.indicators.label.code')"
+              width="140"
+            />
+            <el-table-column
+              prop="indicator_name"
+              :label="t('supplierEvaluation.index.indicators.label.name')"
+            />
+            <el-table-column
+              prop="category"
+              :label="t('supplierEvaluation.index.indicators.label.category')"
+              width="120"
+            />
+            <el-table-column
+              prop="weight"
+              :label="t('supplierEvaluation.index.indicators.label.weight')"
+              width="90"
+            />
+            <el-table-column
+              prop="max_score"
+              :label="t('supplierEvaluation.index.indicators.label.maxScore')"
+              width="90"
+            />
+            <el-table-column
+              prop="status"
+              :label="t('supplierEvaluation.index.column.status')"
+              width="100"
+            />
+            <el-table-column
+              prop="evaluation_method"
+              :label="t('supplierEvaluation.index.indicators.label.description')"
+              min-width="160"
+              show-overflow-tooltip
+            />
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane :label="t('supplierEvaluation.index.tab.evaluations')" name="evaluations">
+          <div class="toolbar">
+            <el-button type="primary" @click="handleCreateEvaluation">{{
+              t('supplierEvaluation.index.button.create')
+            }}</el-button>
+          </div>
+          <el-table
+            v-loading="evaluationLoading"
+            :data="evaluationList"
+            border
+            stripe
+            :aria-label="t('supplierEvaluation.index.evaluations.tableAriaLabel')"
+          >
+            <el-table-column prop="id" label="ID" width="80" />
+            <el-table-column
+              prop="supplier_name"
+              :label="t('supplierEvaluation.index.column.supplierName')"
+            />
+            <el-table-column
+              prop="evaluation_period"
+              :label="t('supplierEvaluation.index.column.period')"
+            />
+            <el-table-column
+              prop="indicator_name"
+              :label="t('supplierEvaluation.index.column.indicatorName')"
+            />
+            <el-table-column prop="score" :label="t('supplierEvaluation.index.column.score')" />
+            <el-table-column
+              prop="weighted_score"
+              :label="t('supplierEvaluation.index.column.weightedScore')"
+            />
+            <el-table-column
+              prop="evaluator_name"
+              :label="t('supplierEvaluation.index.column.evaluator')"
+            />
+            <el-table-column
+              prop="evaluation_date"
+              :label="t('supplierEvaluation.index.column.evaluationDate')"
+            />
+            <el-table-column
+              prop="remark"
+              :label="t('supplierEvaluation.index.column.remark')"
+              show-overflow-tooltip
+            />
+            <el-table-column
+              :label="t('supplierEvaluation.index.column.operation')"
+              fixed="right"
+              width="220"
+            >
+              <template #default="{ row }">
+                <el-button
+                  link
+                  type="primary"
+                  @click="handleViewEvaluation(row as EvaluationRecord)"
+                  >{{ t('supplierEvaluation.index.button.view') }}</el-button
+                >
+                <el-button
+                  link
+                  type="primary"
+                  @click="handleEditEvaluation(row as EvaluationRecord)"
+                  >{{ t('supplierEvaluation.index.evaluations.button.edit') }}</el-button
+                >
+                <el-button
+                  link
+                  type="danger"
+                  @click="handleDeleteEvaluation(row as EvaluationRecord)"
+                  >{{ t('supplierEvaluation.index.evaluations.button.delete') }}</el-button
+                >
+              </template>
+            </el-table-column>
+          </el-table>
+          <div class="toolbar">
+            <span class="score-label">{{ t('supplierEvaluation.index.score.label') }}</span>
+            <el-input
+              v-model="scoreSupplierId"
+              :placeholder="t('supplierEvaluation.index.score.placeholder')"
+              style="width: 160px"
+            />
+            <el-button type="primary" plain @click="handleQueryScore">{{
+              t('supplierEvaluation.index.score.button')
+            }}</el-button>
+            <el-descriptions v-if="scoreResult" :column="3" border class="score-result">
+              <el-descriptions-item :label="t('supplierEvaluation.index.score.totalScore')">{{
+                scoreResult.average_score
+              }}</el-descriptions-item>
+              <el-descriptions-item :label="t('supplierEvaluation.index.score.rating')">{{
+                scoreResult.rating
+              }}</el-descriptions-item>
+              <el-descriptions-item :label="t('supplierEvaluation.index.score.rank')">{{
+                scoreResult.rank
+              }}</el-descriptions-item>
+            </el-descriptions>
+          </div>
         </el-tab-pane>
       </el-tabs>
     </el-card>
@@ -134,10 +284,10 @@
       >
         <el-form-item
           :label="t('supplierEvaluation.index.dialog.label.supplier')"
-          prop="supplierId"
+          prop="supplier_id"
         >
           <el-select
-            v-model="recordForm.supplierId"
+            v-model="recordForm.supplier_id"
             :placeholder="t('supplierEvaluation.index.dialog.placeholder.supplier')"
             style="width: 100%"
             filterable
@@ -150,11 +300,27 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('supplierEvaluation.index.dialog.label.period')" prop="period">
+        <el-form-item :label="t('supplierEvaluation.index.tab.indicators')">
+          <el-select v-model="recordForm.indicator_id" style="width: 100%" filterable>
+            <el-option
+              v-for="ind in indicatorList"
+              :key="ind.id"
+              :label="ind.indicator_name"
+              :value="ind.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item
+          :label="t('supplierEvaluation.index.dialog.label.period')"
+          prop="evaluation_period"
+        >
           <el-input
-            v-model="recordForm.period"
+            v-model="recordForm.evaluation_period"
             :placeholder="t('supplierEvaluation.index.dialog.placeholder.period')"
           />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.column.score')">
+          <el-input-number v-model="recordForm.score" :min="0" :max="100" />
         </el-form-item>
         <el-form-item :label="t('supplierEvaluation.index.dialog.label.remark')" prop="remark">
           <el-input v-model="recordForm.remark" type="textarea" :rows="3" />
@@ -185,34 +351,70 @@
         :aria-label="t('supplierEvaluation.index.detail.ariaLabel')"
       >
         <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.supplier')">{{
-          currentRecord.supplierName
+          currentRecord.supplier_name
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.period')">{{
-          currentRecord.period
+          currentRecord.evaluation_period
         }}</el-descriptions-item>
-        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.totalScore')">{{
-          currentRecord.totalScore
+        <el-descriptions-item :label="t('supplierEvaluation.index.column.indicatorName')">{{
+          currentRecord.indicator_name
         }}</el-descriptions-item>
-        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.rating')">{{
-          currentRecord.rating
+        <el-descriptions-item :label="t('supplierEvaluation.index.column.score')">{{
+          currentRecord.score
         }}</el-descriptions-item>
-        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.status')">{{
-          currentRecord.status
+        <el-descriptions-item :label="t('supplierEvaluation.index.column.weightedScore')">{{
+          currentRecord.weighted_score
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('supplierEvaluation.index.column.evaluationDate')">{{
+          currentRecord.evaluation_date
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.evaluator')">{{
-          currentRecord.evaluatorName
+          currentRecord.evaluator_name
         }}</el-descriptions-item>
         <el-descriptions-item
           :label="t('supplierEvaluation.index.detail.label.createdAt')"
           :span="2"
-          >{{ currentRecord.createdAt }}</el-descriptions-item
+          >{{ currentRecord.created_at }}</el-descriptions-item
         >
         <el-descriptions-item
           :label="t('supplierEvaluation.index.detail.label.remark')"
           :span="2"
-          >{{ currentRecord.remark || '-' }}</el-descriptions-item
+          >{{ currentRecord.remark }}</el-descriptions-item
         >
       </el-descriptions>
+    </el-dialog>
+
+    <!-- 新增评估指标对话框（createIndicator + handleSaveIndicator） -->
+    <el-dialog
+      v-model="indicatorDialogVisible"
+      :title="t('supplierEvaluation.index.indicators.dialogTitle')"
+      width="520px"
+    >
+      <el-form :model="indicatorForm" label-width="110px">
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.code')" required>
+          <el-input v-model="indicatorForm.indicator_code" />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.name')" required>
+          <el-input v-model="indicatorForm.indicator_name" />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.category')" required>
+          <el-input v-model="indicatorForm.category" />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.weight')">
+          <el-input-number v-model="indicatorForm.weight" :min="0" :max="100" />
+        </el-form-item>
+        <el-form-item :label="t('supplierEvaluation.index.indicators.label.maxScore')">
+          <el-input-number v-model="indicatorForm.max_score" :min="0" :max="100" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="indicatorDialogVisible = false">{{
+          t('supplierEvaluation.index.dialog.button.cancel')
+        }}</el-button>
+        <el-button type="primary" @click="handleSaveIndicator">{{
+          t('supplierEvaluation.index.dialog.button.save')
+        }}</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -221,14 +423,24 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { useTableApi } from '@/composables/useTableApi';
 import {
   createEvaluationRecord,
   getSupplierRankings,
+  getEvaluationIndicatorList,
+  createIndicator,
+  getEvaluationRecord,
+  getEvaluationList,
+  getEvaluation,
+  updateEvaluation,
+  deleteEvaluation,
+  getSupplierScore,
   type EvaluationRecord,
+  type EvaluationIndicator,
   type SupplierScore,
   type CreateEvaluationRequest,
+  type CreateEvaluationIndicatorRequest,
 } from '@/api/supplier-evaluation';
 import { getSupplierList, type Supplier } from '@/api/supplier';
 import { logger } from '@/utils/logger';
@@ -262,20 +474,22 @@ const recordFormRef = ref();
 const currentRecord = ref<EvaluationRecord | null>(null);
 
 const recordForm = reactive({
-  supplierId: undefined as number | undefined,
-  period: '',
+  supplier_id: undefined as number | undefined,
+  evaluation_period: '',
+  indicator_id: undefined as number | undefined,
+  score: 0,
   remark: '',
 });
 
 const recordRules = computed(() => ({
-  supplierId: [
+  supplier_id: [
     {
       required: true,
       message: t('supplierEvaluation.index.validation.supplierRequired'),
       trigger: 'change',
     },
   ],
-  period: [
+  evaluation_period: [
     {
       required: true,
       message: t('supplierEvaluation.index.validation.periodRequired'),
@@ -310,13 +524,177 @@ const fetchRankings = async () => {
 
 const handleCreateRecord = () => {
   isEdit.value = false;
-  Object.assign(recordForm, { supplierId: undefined, period: '', remark: '' });
+  Object.assign(recordForm, {
+    supplier_id: undefined,
+    evaluation_period: '',
+    indicator_id: undefined,
+    score: 0,
+    remark: '',
+  });
   recordDialogVisible.value = true;
 };
 
 const handleViewRecord = (row: EvaluationRecord) => {
   currentRecord.value = row;
   detailDialogVisible.value = true;
+  void handleViewRecordRemote(row);
+};
+
+// 详情回源：按 ID 重新拉取最新数据，失败时保留行数据
+const handleViewRecordRemote = async (row: EvaluationRecord) => {
+  if (!row.id) return;
+  try {
+    const res = await getEvaluationRecord(row.id);
+    if (res.data) {
+      currentRecord.value = res.data;
+      detailDialogVisible.value = true;
+    }
+  } catch {
+    logger.error(t('supplierEvaluation.index.message.fetchDetailFailed'), String(row.id));
+  }
+};
+
+// 评估指标管理
+const indicatorList = ref<EvaluationIndicator[]>([]);
+const indicatorLoading = ref(false);
+const indicatorDialogVisible = ref(false);
+const indicatorForm = reactive({
+  indicator_code: '',
+  indicator_name: '',
+  category: '',
+  weight: 10,
+  max_score: 100,
+});
+
+const fetchIndicators = async () => {
+  indicatorLoading.value = true;
+  try {
+    const res = await getEvaluationIndicatorList({ page: 1, page_size: 100 });
+    // 后端 list_indicators 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+    indicatorList.value = res.data;
+  } catch {
+    ElMessage.error(t('supplierEvaluation.index.message.fetchIndicatorsFailed'));
+  } finally {
+    indicatorLoading.value = false;
+  }
+};
+
+const handleSaveIndicator = async () => {
+  if (!indicatorForm.indicator_code || !indicatorForm.indicator_name || !indicatorForm.category) {
+    ElMessage.warning(
+      `${t('supplierEvaluation.index.indicators.label.code')}/${t('supplierEvaluation.index.indicators.label.name')}/${t('supplierEvaluation.index.indicators.label.category')}`
+    );
+    return;
+  }
+  try {
+    await createIndicator(indicatorForm as CreateEvaluationIndicatorRequest);
+    ElMessage.success(t('supplierEvaluation.index.message.saveSuccess'));
+    indicatorDialogVisible.value = false;
+    await fetchIndicators();
+  } catch (e: unknown) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    ElMessage.error(errMsg || t('supplierEvaluation.index.message.saveFailed'));
+  }
+};
+
+// 评估管理（正式评估 CRUD）
+const evaluationList = ref<EvaluationRecord[]>([]);
+const evaluationLoading = ref(false);
+const editingEvaluationId = ref<number | null>(null);
+
+const fetchEvaluations = async () => {
+  evaluationLoading.value = true;
+  try {
+    const res = await getEvaluationList({ page: 1, page_size: 50 });
+    // 后端 list_evaluations 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+    evaluationList.value = res.data;
+  } catch {
+    ElMessage.error(t('supplierEvaluation.index.message.fetchEvaluationsFailed'));
+  } finally {
+    evaluationLoading.value = false;
+  }
+};
+
+const handleCreateEvaluation = () => {
+  isEdit.value = false;
+  editingEvaluationId.value = null;
+  Object.assign(recordForm, {
+    supplier_id: undefined,
+    evaluation_period: '',
+    indicator_id: undefined,
+    score: 0,
+    remark: '',
+  });
+  recordDialogVisible.value = true;
+};
+
+const handleEditEvaluation = (row: EvaluationRecord) => {
+  isEdit.value = true;
+  editingEvaluationId.value = row.id ?? null;
+  Object.assign(recordForm, {
+    supplier_id: row.supplier_id,
+    evaluation_period: row.evaluation_period || '',
+    indicator_id: undefined,
+    score: 0,
+    remark: row.remark || '',
+  });
+  recordDialogVisible.value = true;
+};
+
+const handleViewEvaluation = async (row: EvaluationRecord) => {
+  currentRecord.value = row;
+  detailDialogVisible.value = true;
+  if (!row.id) return;
+  try {
+    const res = await getEvaluation(row.id);
+    if (res.data) {
+      currentRecord.value = res.data;
+      detailDialogVisible.value = true;
+    }
+  } catch {
+    logger.error(t('supplierEvaluation.index.message.fetchDetailFailed'), String(row.id));
+  }
+};
+
+const handleDeleteEvaluation = async (row: EvaluationRecord) => {
+  if (!row.id) return;
+  try {
+    await ElMessageBox.confirm(
+      t('supplierEvaluation.index.evaluations.message.deleteConfirm'),
+      t('common.warning'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteEvaluation(row.id);
+    ElMessage.success(t('supplierEvaluation.index.evaluations.message.deleteSuccess'));
+    await fetchEvaluations();
+  } catch {
+    ElMessage.error(t('supplierEvaluation.index.message.deleteFailed'));
+  }
+};
+
+// 供应商评分查询
+const scoreSupplierId = ref('');
+const scoreResult = ref<SupplierScore | null>(null);
+
+const handleQueryScore = async () => {
+  const supplierId = Number(scoreSupplierId.value);
+  if (!supplierId) {
+    ElMessage.warning(t('supplierEvaluation.index.score.placeholder'));
+    return;
+  }
+  try {
+    const res = await getSupplierScore(supplierId);
+    scoreResult.value = res.data ?? null;
+    if (!scoreResult.value) {
+      ElMessage.info(t('supplierEvaluation.index.message.fetchScoreFailed'));
+    }
+  } catch {
+    ElMessage.error(t('supplierEvaluation.index.message.fetchScoreFailed'));
+  }
 };
 
 const handleSaveRecord = async () => {
@@ -327,11 +705,23 @@ const handleSaveRecord = async () => {
 
     submitLoading.value = true;
     try {
-      // v11 批次 176 P2-1 修复：recordForm as any 改为 as CreateEvaluationRequest
-      await createEvaluationRecord(recordForm as CreateEvaluationRequest);
+      if (isEdit.value && editingEvaluationId.value) {
+        await updateEvaluation(editingEvaluationId.value, {
+          score: recordForm.score,
+          remark: recordForm.remark,
+        });
+      } else {
+        // indicator_id / score 为后端 SupplierEvaluationRequest 必填：缺失时不发请求
+        if (recordForm.indicator_id == null) {
+          ElMessage.warning(t('supplierEvaluation.index.tab.indicators'));
+          return;
+        }
+        await createEvaluationRecord(recordForm as CreateEvaluationRequest);
+      }
       ElMessage.success(t('supplierEvaluation.index.message.saveSuccess'));
       recordDialogVisible.value = false;
       fetchRecords();
+      if (activeTab.value === 'evaluations') await fetchEvaluations();
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);
       ElMessage.error(errMsg || t('supplierEvaluation.index.message.saveFailed'));
@@ -352,6 +742,8 @@ const hasLoaded = createLazyLoader();
 onMounted(() => {
   loadIfNot('rankings', fetchRankings, hasLoaded);
   loadIfNot('suppliers', fetchSuppliers, hasLoaded);
+  loadIfNot('indicators', fetchIndicators, hasLoaded);
+  loadIfNot('evaluations', fetchEvaluations, hasLoaded);
 });
 </script>
 
@@ -364,6 +756,16 @@ onMounted(() => {
 
 .supplier-evaluation .toolbar {
   margin-bottom: 16px;
+}
+
+.supplier-evaluation .score-label {
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.supplier-evaluation .score-result {
+  margin-top: 12px;
+  width: 100%;
 }
 
 .supplier-evaluation .el-table {

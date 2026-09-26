@@ -27,7 +27,11 @@
       </el-breadcrumb>
     </div>
 
-    <TransferListTab @open-form="openForm" @open-approve="openApprove" />
+    <TransferListTab
+      @open-form="openForm"
+      @open-approve="openApprove"
+      @delete="handleDeleteTransfer"
+    />
 
     <TransferFormDialogTab
       v-model="formDialogVisible"
@@ -49,11 +53,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import { getProductList, type Product } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
-import type { InventoryTransferEntity } from '@/api/inventory-transfer';
+import { deleteInventoryTransfer, type InventoryTransferEntity } from '@/api/inventory-transfer';
 import TransferListTab from './tabs/TransferListTab.vue';
 import TransferFormDialogTab from './tabs/TransferFormDialogTab.vue';
 import ApproveTransferDialogTab from './tabs/ApproveTransferDialogTab.vue';
@@ -78,6 +83,25 @@ const openForm = (mode: 'create' | 'edit' | 'view', row: InventoryTransferEntity
 const openApprove = (row: InventoryTransferEntity) => {
   approveRow.value = row;
   approveDialogVisible.value = true;
+};
+
+// 删除调拨单（pending 态）
+const handleDeleteTransfer = async (row: InventoryTransferEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryTransfer.transferList.message.deleteConfirm'),
+      t('inventoryTransfer.transferList.message.deleteTitle'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteInventoryTransfer(row.id as number);
+    ElMessage.success(t('inventoryTransfer.transferList.message.success'));
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('inventoryTransfer.transferList.message.failure'));
+  }
 };
 const handleSubmitted = () => {
   // 子组件已通过 emit 触发刷新

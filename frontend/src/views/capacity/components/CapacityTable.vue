@@ -24,25 +24,32 @@
       <el-table-column prop="code" :label="$t('capacityModule.table.code')" width="120" />
       <el-table-column prop="name" :label="$t('capacityModule.table.name')" width="150" />
       <el-table-column
-        prop="capacity_hours"
+        prop="daily_capacity"
         :label="$t('capacityModule.table.capacityHours')"
         width="120"
       />
       <el-table-column
-        prop="used_hours"
+        prop="capacity_unit"
+        :label="$t('capacityModule.table.capacityUnit')"
+        width="90"
+      />
+      <el-table-column
+        prop="total_demand"
         :label="$t('capacityModule.table.usedHours')"
         width="120"
       />
       <el-table-column prop="load_rate" :label="$t('capacityModule.table.loadRate')" width="120">
         <template #default="{ row }">
-          <el-tag :type="getLoadRateType(row.load_rate)"
-            >{{ (row.load_rate * 100).toFixed(1) }}%</el-tag
+          <el-tag v-if="row.load_rate != null" :type="getLoadRateType(row.load_rate)"
+            >{{ row.load_rate.toFixed(1) }}%</el-tag
           >
         </template>
       </el-table-column>
       <el-table-column prop="status" :label="$t('capacityModule.table.status')" width="100">
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
+          <el-tag v-if="row.load_status != null" :type="getStatusType(row.load_status)">
+            {{ getStatusLabel(row.load_status) }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="bottleneck" :label="$t('capacityModule.table.bottleneck')" width="80">
@@ -69,20 +76,12 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n';
 import { Refresh } from '@element-plus/icons-vue';
-import type { WorkCenter } from '@/api/capacity';
-import { getStatusType, getLoadRateType } from '../composables/cpFmts';
-
-const { t } = useI18n({ useScope: 'global' });
-
-// 状态码 → 本地化标签（响应式：随语言切换自动更新）
-const getStatusLabel = (status: string) => {
-  return t(`capacityModule.workCenterStatus.${status}`) || status;
-};
+import type { CapacityRow } from '@/api/capacity';
+import { getStatusType, getStatusLabel, getLoadRateType } from '../composables/cpFmts';
 
 defineProps<{
-  data: WorkCenter[];
+  data: CapacityRow[];
   tableLoading: boolean;
   total: number;
   page: number;

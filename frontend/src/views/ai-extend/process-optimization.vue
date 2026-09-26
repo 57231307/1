@@ -9,15 +9,29 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   createProcessOptimization,
   deleteProcessOptimization,
+  batchCreateProcessOptimizations,
   SOURCE_LABELS,
   type AiProcessOptimization,
   type ProcessOptRequest,
 } from '@/api/ai-extend';
+import { DYE_TYPE_LABEL_KEY, DYE_TYPE_VALUES, isDyeType } from '@/constants/dye-type';
 // 批次 280：接入 useTableApi，消除手写 items/loading/total/page/pageSize/load 重复
 import { useTableApi } from '@/composables/useTableApi';
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' });
+
+// 染料类型下拉：提交后端白名单里的稳定码（此前 value 取译文，任何选择都会被 422 拒绝）
+const dyeTypeOptions = computed(() =>
+  DYE_TYPE_VALUES.map(value => ({
+    value,
+    label: t(DYE_TYPE_LABEL_KEY[value]),
+  }))
+);
+
+// 列表展示：词表内转文案，词表外的存量值原样展示（不猜测其含义）
+const dyeTypeText = (value: string | null): string | null =>
+  value !== null && isDyeType(value) ? t(DYE_TYPE_LABEL_KEY[value]) : value;
 
 const router = useRouter();
 
@@ -30,7 +44,8 @@ const filter = reactive({
 });
 
 // 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
-// getProcessOptimizationList 返回 PageResult<T>（{ items, total }），useTableApi detectList 会取 obj.items
+// 后端 ai_extend_handler::list_process_optimizations 以 json!({items,total,page,page_size}) 返回，
+// 显式钉 listKey='items'，不依赖 detectList 的顺序探测（否则信封漂移会被静默吞掉）。
 const {
   data: items,
   loading,
@@ -41,6 +56,7 @@ const {
   setQueryParam,
 } = useTableApi<AiProcessOptimization>({
   url: '/ai/process-optimizations',
+  listKey: 'items',
   onError: () => ElMessage.error(t('message.loadFailed')),
 });
 
@@ -76,6 +92,38 @@ function openCreate() {
   form.dye_type = '';
   form.k = 5;
   dialogVisible.value = true;
+}
+
+// ===== 批量创建（batchCreateProcessOptimizations） =====
+const batchVisible = ref(false);
+const batchSaving = ref(false);
+const batchText = ref('');
+
+async function handleBatchCreate() {
+  let requests: unknown;
+  try {
+    requests = JSON.parse(batchText.value || '[]');
+  } catch {
+    ElMessage.warning('JSON 格式有误');
+    return;
+  }
+  if (!Array.isArray(requests) || requests.length === 0) {
+    ElMessage.warning('请填写请求数组');
+    return;
+  }
+  batchSaving.value = true;
+  try {
+    const res = await batchCreateProcessOptimizations(requests as never[]);
+    ElMessage.success(`批量完成：成功 ${res.succeeded} / 失败 ${res.failed} / 共 ${res.total}`);
+    batchVisible.value = false;
+    batchText.value = '';
+    page.value = 1;
+    await load();
+  } catch (e) {
+    ElMessage.error((e as Error).message || '批量创建失败');
+  } finally {
+    batchSaving.value = false;
+  }
 }
 
 async function submitCreate() {
@@ -156,6 +204,7 @@ const appliedOptions = computed(() => [
         <el-button type="primary" @click="openCreate">{{
           $t('aiExtend.process.newRecommend')
         }}</el-button>
+        <el-button plain @click="batchVisible = true">批量创建</el-button>
       </div>
     </div>
 
@@ -227,7 +276,9 @@ const appliedOptions = computed(() => [
           :label="$t('aiExtend.process.colFabricType')"
           width="80"
         />
-        <el-table-column prop="dye_type" :label="$t('aiExtend.process.colDyeType')" width="100" />
+        <el-table-column prop="dye_type" :label="$t('aiExtend.process.colDyeType')" width="120">
+          <template #default="{ row }">{{ dyeTypeText(row.dye_type) }}</template>
+        </el-table-column>
         <el-table-column prop="source" :label="$t('aiExtend.process.colSource')" width="100">
           <template #default="{ row }">{{ SOURCE_LABELS[row.source] || row.source }}</template>
         </el-table-column>
@@ -349,24 +400,10 @@ const appliedOptions = computed(() => [
             style="width: 100%"
           >
             <el-option
-              :label="$t('aiExtend.process.dyeReactive')"
-              :value="t('aiExtend.process.dyeReactive')"
-            />
-            <el-option
-              :label="$t('aiExtend.process.dyeDisperse')"
-              :value="t('aiExtend.process.dyeDisperse')"
-            />
-            <el-option
-              :label="$t('aiExtend.process.dyeAcid')"
-              :value="t('aiExtend.process.dyeAcid')"
-            />
-            <el-option
-              :label="$t('aiExtend.process.dyeVat')"
-              :value="t('aiExtend.process.dyeVat')"
-            />
-            <el-option
-              :label="$t('aiExtend.process.dyeDirect')"
-              :value="t('aiExtend.process.dyeDirect')"
+              v-for="item in dyeTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
             />
           </el-select>
         </el-form-item>
@@ -386,6 +423,20 @@ const appliedOptions = computed(() => [
         <el-button type="primary" :loading="submitting" @click="submitCreate">{{
           $t('aiExtend.process.generate')
         }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量创建（batchCreateProcessOptimizations） -->
+    <el-dialog v-model="batchVisible" title="批量工艺优化（JSON 数组）" width="560">
+      <el-input
+        v-model="batchText"
+        type="textarea"
+        :rows="7"
+        placeholder='[{"color_no":"R001","fabric_type":"全棉","dye_type":"活性"},{"color_no":"R002","fabric_type":"涤棉"}]'
+      />
+      <template #footer>
+        <el-button @click="batchVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchSaving" @click="handleBatchCreate">提交</el-button>
       </template>
     </el-dialog>
   </div>

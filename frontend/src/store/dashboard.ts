@@ -13,19 +13,31 @@ import { msg } from '@/utils/message';
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const stats = ref<DashboardOverview>({
-    fabricCount: 0,
-    inventoryTotal: 0,
-    monthOrders: 0,
-    customerCount: 0,
-    todayOrders: 0,
-    pendingOrders: 0,
-    lowStockProducts: 0,
-    monthSales: 0,
-    recentActivities: [],
+    total_products: 0,
+    total_warehouses: 0,
+    total_orders: 0,
+    total_sales: '0',
+    low_stock_count: 0,
+    pending_orders: 0,
+    monthly_sales: '0',
+    recent_activities: [],
   });
 
-  const salesStatistics = ref<SalesStatistics>({});
-  const inventoryStatistics = ref<InventoryStatistics>({});
+  const salesStatistics = ref<SalesStatistics>({
+    daily_sales: [],
+    weekly_sales: [],
+    monthly_sales: [],
+    by_customer: [],
+    by_product: [],
+    by_salesperson: [],
+  });
+  const inventoryStatistics = ref<InventoryStatistics>({
+    total_inventory: '0',
+    by_warehouse: [],
+    by_category: [],
+    turnover_rate: '0',
+    aging_analysis: [],
+  });
   const loading = ref(false);
 
   const fetchStats = async () => {

@@ -20,7 +20,7 @@ impl MigrationTrait for Migration {
 CREATE TABLE IF NOT EXISTS "sales_quotations" (
     "id" BIGSERIAL PRIMARY KEY,
     "quotation_no" VARCHAR(50) UNIQUE NOT NULL,
-    "customer_id" BIGINT NOT NULL REFERENCES "customers"("id"),
+    "customer_id" INTEGER NOT NULL REFERENCES "customers"("id"),
     "sales_user_id" BIGINT NOT NULL REFERENCES "users"("id"),
     "quotation_date" DATE NOT NULL,
     "valid_until" DATE NOT NULL,
@@ -388,13 +388,13 @@ SELECT setval('crm_tag_id_seq', COALESCE((SELECT MAX(id) FROM "crm_tag"), 0) + 1
 
 
 -- === 从旧迁移恢复的 ALTER ADD COLUMN（确保迁移表结构与 Model 一致）===
-ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "approved_by" BIGINT;
+ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "approved_by" INTEGER;
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "max_quantity" DECIMAL(18,2);
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "season" VARCHAR(10);
-ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "created_by" BIGINT;
+ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "created_by" INTEGER;
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN;
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "priority" INT;
-ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "customer_id" BIGINT;
+ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "customer_id" INTEGER;
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "approval_status" VARCHAR(20);
 ALTER TABLE "product_color_prices" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
 ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "freight_cost" DECIMAL(14,2);
@@ -508,6 +508,29 @@ DO $$ BEGIN
         ALTER TABLE "custom_orders" ADD COLUMN IF NOT EXISTS "yarn_spec" VARCHAR(255);
     END IF;
 END $$;
+
+-- 客户-标签多对多关联表（customer_tag）
+-- 客户 360 顶层 tags 字段与 GET/POST/DELETE /crm/customers/{id}/tags 端点的数据载体。
+-- FK 宽度依据：customers.id 与 crm_tag.id 均为 SERIAL(INTEGER)
+--（customers 在 m0044 fix_fk_types 白名单 INTEGER_ID_TABLES；crm_tag 在 sales_crm CREATE TABLE 用 SERIAL）。
+-- ON DELETE CASCADE 保证客户或标签删除时关联行不残留；UNIQUE 保证同一客户不重复挂载同一标签（幂等）。
+
+CREATE TABLE IF NOT EXISTS "customer_tag" (
+    "id" SERIAL PRIMARY KEY,
+    "customer_id" INTEGER NOT NULL REFERENCES "customers"("id") ON DELETE CASCADE,
+    "tag_id" INTEGER NOT NULL REFERENCES "crm_tag"("id") ON DELETE CASCADE,
+    "created_by" INTEGER,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "uk_customer_tag" UNIQUE ("customer_id", "tag_id")
+);
+
+CREATE INDEX IF NOT EXISTS "idx_customer_tag_customer" ON "customer_tag"("customer_id");
+CREATE INDEX IF NOT EXISTS "idx_customer_tag_tag" ON "customer_tag"("tag_id");
+
+COMMENT ON TABLE "customer_tag" IS '客户-标签关联表（多对多，customer 360 对象化标签的数据来源）';
+COMMENT ON COLUMN "customer_tag"."customer_id" IS '客户 ID（关联 customers.id）';
+COMMENT ON COLUMN "customer_tag"."tag_id" IS '标签 ID（关联 crm_tag.id）';
+COMMENT ON COLUMN "customer_tag"."created_by" IS '打标操作者用户 ID';
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;

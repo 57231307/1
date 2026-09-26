@@ -166,10 +166,11 @@ fn test_validate_can_create_version_disabled() {
     assert!(DyeRecipeService::validate_can_create_version(Some(recipe_status::DISABLED)).is_err());
 }
 
-/// 测试状态常量值正确性
+/// 测试状态常量值正确性（v15 词表收口：DB/service 用小写英文闭合词表）
 #[test]
 fn test_status_constants() {
-    assert_eq!(recipe_status::DRAFT, "草稿");
-    assert_eq!(recipe_status::APPROVED, "已审核");
-    assert_eq!(recipe_status::DISABLED, "已停用");
+    assert_eq!(recipe_status::DRAFT, "draft");
+    assert_eq!(recipe_status::PENDING_APPROVAL, "pending_approval");
+    assert_eq!(recipe_status::APPROVED, "approved");
+    assert_eq!(recipe_status::DISABLED, "disabled");
 }

@@ -3,8 +3,48 @@
 //! 拆分自 purchase_receipt_service.rs：原 4 个 DTO 独立成文件。
 
 use rust_decimal::Decimal;
+use sea_orm::FromQueryResult;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
+
+/// 采购入库单视图对象（列表/详情出参）
+///
+/// 本表自身字段 + LEFT JOIN 富化字段（supplier_name / warehouse_name /
+/// purchase_order_no / created_by_name），参照 `PurchaseOrderDto` 范式实现单次查询无 N+1。
+#[derive(Debug, Clone, FromQueryResult, Serialize)]
+pub struct PurchaseReceiptDto {
+    pub id: i32,
+    pub receipt_no: String,
+    pub order_id: Option<i32>,
+    pub supplier_id: i32,
+    pub receipt_date: chrono::NaiveDate,
+    pub warehouse_id: i32,
+    pub department_id: Option<i32>,
+    pub receiver_id: Option<i32>,
+    pub inspector_id: Option<i32>,
+    pub inspection_status: String,
+    pub receipt_status: String,
+    pub total_quantity: Decimal,
+    pub total_quantity_alt: Decimal,
+    pub total_amount: Decimal,
+    pub notes: Option<String>,
+    pub attachment_urls: Option<Vec<String>>,
+    pub created_by: i32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_by: Option<i32>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub confirmed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub confirmed_by: Option<i32>,
+
+    /// 供应商名称：supplier_id -> suppliers.supplier_name（LEFT JOIN）
+    pub supplier_name: Option<String>,
+    /// 仓库名称：warehouse_id -> warehouses.name（LEFT JOIN）
+    pub warehouse_name: Option<String>,
+    /// 采购订单号：order_id -> purchase_orders.order_no（LEFT JOIN，无关联订单时为 NULL）
+    pub purchase_order_no: Option<String>,
+    /// 创建人姓名：created_by -> users.real_name（LEFT JOIN）
+    pub created_by_name: Option<String>,
+}
 
 /// 创建采购入库单请求
 #[derive(Debug, Validate, Deserialize)]

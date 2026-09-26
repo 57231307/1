@@ -26,8 +26,8 @@
               <el-icon><Clock /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">{{ t('inventoryCount.listTab.statLabelInProgress') }}</div>
-              <div class="stat-value">{{ stats.inProgress }}</div>
+              <div class="stat-label">{{ t('inventoryCount.listTab.statusLabel.in_review') }}</div>
+              <div class="stat-value">{{ stats.inReview }}</div>
             </div>
           </div>
         </el-card>
@@ -80,8 +80,12 @@
             :placeholder="t('inventoryCount.listTab.placeholderStatus')"
             clearable
           >
-            <el-option :label="t('inventoryCount.listTab.statusInProgress')" value="in_progress" />
-            <el-option :label="t('inventoryCount.listTab.statusCompleted')" value="completed" />
+            <el-option
+              v-for="s in INVENTORY_COUNT_STATUSES"
+              :key="s"
+              :label="t(inventoryCountStatusLabelKey(s))"
+              :value="s"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -131,8 +135,8 @@
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">
-              {{ getStatusLabel(row.status) }}
+            <el-tag :type="inventoryCountStatusTagType(row.status)" size="small">
+              {{ t(inventoryCountStatusLabelKey(row.status)) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -150,16 +154,14 @@
           prop="completed_at"
           :label="t('inventoryCount.listTab.colCompletedAt')"
           width="160"
-        >
-          <template #default="{ row }">{{ row.completed_at || '-' }}</template>
-        </el-table-column>
+        />
         <el-table-column :label="t('inventoryCount.listTab.colAction')" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="emit('openDetail', row)">{{
               t('inventoryCount.listTab.buttonDetail')
             }}</el-button>
             <el-button
-              v-if="row.status === 'in_progress'"
+              v-if="row.status === INVENTORY_COUNT_STATUS.PENDING"
               type="primary"
               link
               size="small"
@@ -167,12 +169,36 @@
               >{{ t('inventoryCount.listTab.buttonEdit') }}</el-button
             >
             <el-button
-              v-if="row.status === 'in_progress'"
+              v-if="row.status === INVENTORY_COUNT_STATUS.PENDING"
               type="success"
               link
               size="small"
               @click="handleSubmit(row)"
               >{{ t('inventoryCount.listTab.buttonComplete') }}</el-button
+            >
+            <el-button
+              v-if="row.status === INVENTORY_COUNT_STATUS.IN_REVIEW"
+              type="success"
+              link
+              size="small"
+              @click="handleApprove(row)"
+              >{{ t('inventoryCount.listTab.buttonApprove') }}</el-button
+            >
+            <el-button
+              v-if="row.status === INVENTORY_COUNT_STATUS.IN_REVIEW"
+              type="warning"
+              link
+              size="small"
+              @click="handleReject(row)"
+              >{{ t('inventoryCount.listTab.buttonReject') }}</el-button
+            >
+            <el-button
+              v-if="row.status === INVENTORY_COUNT_STATUS.PENDING"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row)"
+              >{{ t('inventoryCount.listTab.buttonDelete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -197,9 +223,22 @@ import { reactive, watch, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue';
-import { submitInventoryCount, type InventoryCountEntity } from '@/api/inventory-count';
+import {
+  submitInventoryCount,
+  approveInventoryCount,
+  rejectInventoryCount,
+  deleteInventoryCount,
+  type InventoryCountEntity,
+} from '@/api/inventory-count';
 // 批次 280：接入 useTableApi，消除手写 counts/loading/total/fetchCounts 重复
 import { useTableApi } from '@/composables/useTableApi';
+import { logger } from '@/utils/logger';
+import {
+  INVENTORY_COUNT_STATUS,
+  INVENTORY_COUNT_STATUSES,
+  inventoryCountStatusLabelKey,
+  inventoryCountStatusTagType,
+} from '@/utils/inventory-count-status';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -216,12 +255,14 @@ const filterForm = reactive({
 
 const stats = reactive({
   total: 0,
-  inProgress: 0,
+  inReview: 0,
   completed: 0,
   difference: 0,
 });
 
 // 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+// 后端 list_counts 的信封是 ApiResponse<CountListResponse>，列表键为 `counts`
+// （handlers/inventory_count_handler.rs:134），故钉住 listKey。
 const {
   data: counts,
   loading,
@@ -232,11 +273,14 @@ const {
   setQueryParam,
 } = useTableApi<InventoryCountEntity>({
   url: '/inventory/counts',
-  onError: (err: unknown) =>
+  listKey: 'counts',
+  onError: (err: unknown) => {
+    logger.error(t('inventoryCount.listTab.messageFetchFailure'), err);
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) ||
         t('inventoryCount.listTab.messageFetchFailure')
-    ),
+    );
+  },
 });
 
 // 批次 280：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -248,24 +292,10 @@ const syncQueryParams = () => {
 // 批次 280：watch counts 自动更新 stats 统计（原 fetchCounts 内的统计逻辑）
 watch(counts, () => {
   stats.total = total.value;
-  stats.inProgress = counts.value.filter(c => c.status === 'in_progress').length;
-  stats.completed = counts.value.filter(c => c.status === 'completed').length;
-  stats.difference = 0; // 实际差异数需在 details 弹窗中累加
+  stats.inReview = counts.value.filter(c => c.status === INVENTORY_COUNT_STATUS.IN_REVIEW).length;
+  stats.completed = counts.value.filter(c => c.status === INVENTORY_COUNT_STATUS.COMPLETED).length;
+  stats.difference = counts.value.reduce((sum, c) => sum + c.variance_items, 0);
 });
-
-/** 状态标签函数化：优先 i18n，未知状态回退到原始 status 字符串 */
-const getStatusLabel = (status: string) => {
-  const key = `inventoryCount.listTab.statusLabel.${status}`;
-  const translated = t(key);
-  return translated === key ? status : translated;
-};
-const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
-    in_progress: 'warning',
-    completed: 'success',
-  };
-  return map[status] || 'info';
-};
 
 const handleQuery = () => {
   syncQueryParams();
@@ -286,6 +316,57 @@ const handleSubmit = async (row: InventoryCountEntity) => {
       { type: 'warning' }
     );
     await submitInventoryCount(row.id as number);
+    ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
+    fetchCounts();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
+    }
+  }
+};
+
+const handleApprove = async (row: InventoryCountEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryCount.listTab.messageApproveConfirm'),
+      t('inventoryCount.listTab.titleApproveConfirm'),
+      { type: 'warning' }
+    );
+    await approveInventoryCount(row.id as number);
+    ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
+    fetchCounts();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
+    }
+  }
+};
+
+const handleReject = async (row: InventoryCountEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryCount.listTab.messageRejectConfirm'),
+      t('inventoryCount.listTab.titleRejectConfirm'),
+      { type: 'warning' }
+    );
+    await rejectInventoryCount(row.id as number);
+    ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
+    fetchCounts();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
+    }
+  }
+};
+
+const handleDelete = async (row: InventoryCountEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryCount.listTab.messageDeleteConfirm'),
+      t('inventoryCount.listTab.titleDeleteConfirm'),
+      { type: 'warning' }
+    );
+    await deleteInventoryCount(row.id as number);
     ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
     fetchCounts();
   } catch (error) {

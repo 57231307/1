@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::status::crm_lead as lead_status;
 use crate::services::assignment_history_service::{
     AssignmentHistoryQuery, AssignmentHistoryService, CreateAssignmentHistoryRequest,
 };
@@ -58,7 +59,7 @@ pub async fn assign_customer(
 
     // 更新线索归属人
     let update_req = crate::models::dto::crm_dto::UpdateLeadRequest {
-        lead_status: Some("assigned".to_string()),
+        lead_status: Some(lead_status::ASSIGNED.to_string()),
         ..Default::default()
     };
 
@@ -215,13 +216,13 @@ async fn assign_single_lead(
     lead_id: i32,
 ) -> Result<(), String> {
     // 检查是否可以分配
-    if lead.lead_status.as_deref() == Some("converted") {
+    if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
         return Err(format!("客户 {} 已转化为客户，无法分配", lead_id));
     }
 
     // 更新归属人
     let update_req = crate::models::dto::crm_dto::UpdateLeadRequest {
-        lead_status: Some("assigned".to_string()),
+        lead_status: Some(lead_status::ASSIGNED.to_string()),
         ..Default::default()
     };
     ctx.crm_service

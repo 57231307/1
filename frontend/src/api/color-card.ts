@@ -22,14 +22,25 @@ export const COLOR_CARD_TYPE_LABELS: Record<string, string> = {
 };
 
 // 色卡状态
+// 取值与后端 models/status/wage_energy_chemical_business.rs 的 color_card 常量逐字一致
+// （全小写 draft/issued/received/used/expired/archived/lost），也是 DB CHECK
+// chk_color_card_status 的全集。legacy "active" 已由迁移回填为 draft，不再出现。
 export const COLOR_CARD_STATUS = {
-  active: '在用',
+  draft: '草稿',
+  issued: '已发放',
+  received: '已收回',
+  used: '已使用',
+  expired: '已过期',
   archived: '已归档',
   lost: '遗失',
 } as const;
 
 export const COLOR_CARD_STATUS_COLORS: Record<string, string> = {
-  active: 'success',
+  draft: 'info',
+  issued: 'warning',
+  received: '',
+  used: 'success',
+  expired: 'info',
   archived: 'info',
   lost: 'danger',
 };

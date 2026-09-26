@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 // 批次 98 P2-D 修复（v5 复审）：原 type: any 改为 Element Plus Tag type 联合类型
 export type FundAccountStatusType = 'success' | 'info' | 'warning' | 'danger' | 'primary';
@@ -40,9 +40,18 @@ export interface FundTransferRecord {
   created_at: string;
 }
 
+// 资金账户列表查询参数：字段集严格对齐后端 FundAccountQuery（handlers/fund_management_handler.rs）
+export interface FundAccountListQuery {
+  account_type?: string;
+  status?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getFundAccountList(
-  params?: QueryParams
-): Promise<ApiResponse<{ items: FundAccount[]; total: number }>> {
+  params?: FundAccountListQuery
+  // 后端 fund_management_handler::list_accounts 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+): Promise<ApiResponse<FundAccount[]>> {
   return request.get('/fund-management/accounts', { params });
 }
 
@@ -98,8 +107,17 @@ export function transferFund(data: {
   return request.post('/fund-management/transfer', data);
 }
 
+// 资金转账记录列表查询参数：字段集严格对齐后端 FundTransferQuery（handlers/fund_management_handler.rs）
+export interface FundTransferListQuery {
+  from_account_id?: number;
+  to_account_id?: number;
+  status?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getFundTransferList(
-  params?: QueryParams
+  params?: FundTransferListQuery
 ): Promise<ApiResponse<FundTransferRecord[]>> {
   return request.get('/fund-management/transfers', { params });
 }

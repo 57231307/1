@@ -17,22 +17,29 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
+use sea_orm::sea_query::{Expr, Func, Query, SelectStatement, SubQueryStatement};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, JoinType, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, JoinType, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 use crate::models::{
-    department, product, purchase_order, purchase_order_item, status, supplier, warehouse,
+    department, product, product_color, purchase_order, purchase_order_item, purchase_receipt,
+    status, supplier, user, warehouse,
 };
 use crate::services::po::order::{PurchaseOrderDto, PurchaseOrderService};
-use crate::services::po::{CreatePurchaseOrderRequest, UpdatePurchaseOrderRequest};
+use crate::services::po::{
+    CreateOrderItemRequest, CreatePurchaseOrderRequest, UpdatePurchaseOrderRequest,
+};
+use crate::services::sku_mapping_service::SkuMappingService;
+use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// 单行明细金额计算结果（create_order_items 内部 helper 数据载体）
 struct ItemAmounts {
@@ -121,6 +128,11 @@ impl PurchaseOrderService {
                 req.supplier_id
             )));
         }
+
+        // 采购门控：校验供应商是否在有效黑名单中（事务内执行，消除 TOCTOU）
+        SupplierBlacklistService::new(self.db.clone())
+            .check_supplier_not_blacklisted(txn, req.supplier_id)
+            .await?;
 
         // 检查仓库是否存在
         let warehouse_id = req
@@ -299,13 +311,17 @@ impl PurchaseOrderService {
             total_amount: Set(amounts.amount + amounts.tax_amount - amounts.discount_amount),
             received_quantity: Set(Decimal::ZERO),
             received_quantity_alt: Set(Decimal::ZERO),
+            quantity_tolerance_pct: Set(item.quantity_tolerance_pct),
             notes: Set(item.notes.clone()),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             // v14 批次 417：面料行业追溯字段，使用 NotSet 让 DB 默认值处理
-            color_code: sea_orm::ActiveValue::NotSet,
+            color_code: Set(item.color_no.clone()),
             lot_no: sea_orm::ActiveValue::NotSet,
             batch_no: sea_orm::ActiveValue::NotSet,
+            // 转采购快照列：由 create_order_items 在 resolve 后设置
+            supplier_product_code: sea_orm::ActiveValue::NotSet,
+            supplier_color_no: sea_orm::ActiveValue::NotSet,
         })
     }
 
@@ -323,9 +339,84 @@ impl PurchaseOrderService {
         let items = req.items.clone().unwrap_or_default();
         Self::validate_products_exist_txn(txn, &items).await?;
 
+        // 转采购翻译：仅当请求携带来源销售订单标识时触发
+        let sku_service = if req.source_sales_order_id.is_some() {
+            Some(SkuMappingService::new(self.db.clone()))
+        } else {
+            None
+        };
+
         for (index, item) in items.iter().enumerate() {
-            let amounts = Self::calculate_item_amounts(item);
-            let order_item = Self::build_order_item_active_model(item, order_id, index, &amounts)?;
+            let mut amounts = Self::calculate_item_amounts(item);
+
+            // 预分配 resolved 快照
+            let mut resolved_product_code: Option<String> = None;
+            let mut resolved_color_no: Option<String> = None;
+
+            if let Some(ref svc) = sku_service {
+                let product_id = item.material_id.unwrap_or(0);
+                // 按 color_no 反查 product_colors.id
+                let product_color_id = match &item.color_no {
+                    Some(cn) if !cn.is_empty() => {
+                        let pc = product_color::Entity::find()
+                            .filter(product_color::Column::ProductId.eq(product_id))
+                            .filter(product_color::Column::ColorNo.eq(cn))
+                            .one(txn)
+                            .await?
+                            .ok_or_else(|| {
+                                AppError::business(format!(
+                                    "第 {} 行色号「{}」在产品 {} 下不存在，无法转采购",
+                                    index + 1,
+                                    cn,
+                                    product_id
+                                ))
+                            })?;
+                        Some(pc.id)
+                    }
+                    _ => None,
+                };
+
+                let resolved = svc
+                    .resolve_supplier_sku(product_id, product_color_id, req.supplier_id)
+                    .await?
+                    .ok_or_else(|| {
+                        // 措辞须中性且可外显：不得泄露该产品是调货还是自制，
+                        // 但要把「无该色号」如实回给用户（用 displayable，非脱敏 business）。
+                        AppError::business_displayable(format!(
+                            "第 {} 行无该色号，无法转采购",
+                            index + 1
+                        ))
+                    })?;
+
+                resolved_product_code = Some(resolved.supplier_product_code);
+                resolved_color_no = resolved.supplier_color_no;
+
+                // 若请求未显式指定单价，用 supplier_price 作为默认
+                if item.unit_price.is_none() || item.unit_price == Some(Decimal::ZERO) {
+                    if let Some(price) = resolved.supplier_price {
+                        amounts.unit_price = price;
+                        amounts.amount = (amounts.quantity_ordered * price).round_dp(2);
+                        amounts.tax_amount = (amounts.amount * amounts.tax_percent
+                            / Decimal::new(100, 0))
+                        .round_dp(2);
+                        amounts.discount_amount = (amounts.amount * amounts.discount_percent
+                            / Decimal::new(100, 0))
+                        .round_dp(2);
+                    }
+                }
+            }
+
+            let mut order_item =
+                Self::build_order_item_active_model(item, order_id, index, &amounts)?;
+
+            // 设置转采购快照列
+            if resolved_product_code.is_some() {
+                order_item.supplier_product_code = Set(resolved_product_code);
+            }
+            if resolved_color_no.is_some() {
+                order_item.supplier_color_no = Set(resolved_color_no);
+            }
+
             order_item.insert(txn).await?;
 
             total_amount += amounts.amount + amounts.tax_amount - amounts.discount_amount;
@@ -458,6 +549,24 @@ impl PurchaseOrderService {
         .await
     }
 
+    /// 已入库金额关联标量子查询：`SUM(purchase_receipt.total_amount) WHERE order_id = 当前订单.id`。
+    ///
+    /// 采用标量子查询而非 LEFT JOIN + GROUP BY，避免一对多 JOIN 造成的行倍增，
+    /// 从而保持列表 `paginate` 的行数与 `total` 不变，仍是单次查询。
+    fn received_amount_subquery() -> SelectStatement {
+        Query::select()
+            .expr(Func::sum(Expr::col((
+                purchase_receipt::Entity,
+                purchase_receipt::Column::TotalAmount,
+            ))))
+            .from(purchase_receipt::Entity)
+            .and_where(
+                Expr::col((purchase_receipt::Entity, purchase_receipt::Column::OrderId))
+                    .equals((purchase_order::Entity, purchase_order::Column::Id)),
+            )
+            .to_owned()
+    }
+
     /// 获取订单列表（分页）
     pub async fn list_orders(
         &self,
@@ -465,12 +574,18 @@ impl PurchaseOrderService {
         page_size: u64,
         status: Option<String>,
         supplier_id: Option<i32>,
+        keyword: Option<String>,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<PurchaseOrderDto>, u64), AppError> {
         let mut query = purchase_order::Entity::find()
             .column_as(supplier::Column::SupplierName, "supplier_name")
             .column_as(warehouse::Column::Name, "warehouse_name")
             .column_as(department::Column::Name, "department_name")
+            .column_as(user::Column::RealName, "creator_name")
+            .column_as(
+                Expr::from(SubQueryStatement::from(Self::received_amount_subquery())),
+                "received_amount",
+            )
             .join(JoinType::LeftJoin, purchase_order::Relation::Supplier.def())
             .join(
                 JoinType::LeftJoin,
@@ -479,7 +594,8 @@ impl PurchaseOrderService {
             .join(
                 JoinType::LeftJoin,
                 purchase_order::Relation::Department.def(),
-            );
+            )
+            .join(JoinType::LeftJoin, purchase_order::Relation::Creator.def());
 
         // V15 P0-S01：行级数据权限过滤（purchase_order 表有 created_by + department_id，支持完整 Dept）
         if let Some(ctx) = data_scope {
@@ -497,6 +613,15 @@ impl PurchaseOrderService {
         }
         if let Some(supplier_id) = supplier_id {
             query = query.filter(purchase_order::Column::SupplierId.eq(supplier_id));
+        }
+        // 关键字：列表页搜索框承诺匹配「订单号/供应商名」，两侧都要真正参与过滤
+        if let Some(kw) = keyword.as_deref().filter(|s| !s.is_empty()) {
+            let pattern = safe_like_pattern(kw);
+            query = query.filter(
+                purchase_order::Column::OrderNo
+                    .like(&pattern)
+                    .or(supplier::Column::SupplierName.like(&pattern)),
+            );
         }
 
         // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
@@ -519,6 +644,11 @@ impl PurchaseOrderService {
             .column_as(supplier::Column::SupplierName, "supplier_name")
             .column_as(warehouse::Column::Name, "warehouse_name")
             .column_as(department::Column::Name, "department_name")
+            .column_as(user::Column::RealName, "creator_name")
+            .column_as(
+                Expr::from(SubQueryStatement::from(Self::received_amount_subquery())),
+                "received_amount",
+            )
             .join(JoinType::LeftJoin, purchase_order::Relation::Supplier.def())
             .join(
                 JoinType::LeftJoin,
@@ -528,6 +658,7 @@ impl PurchaseOrderService {
                 JoinType::LeftJoin,
                 purchase_order::Relation::Department.def(),
             )
+            .join(JoinType::LeftJoin, purchase_order::Relation::Creator.def())
             .into_model::<PurchaseOrderDto>()
             .one(&*self.db)
             .await?

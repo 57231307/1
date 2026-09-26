@@ -62,30 +62,31 @@ export interface SalesTrendResult {
   [key: string]: unknown;
 }
 
-// D14 Batch 5b：原 salesAnalysisApi.getStats 转为风格 B 函数
-export const getSalesAnalysisStats = (params?: SalesStatsQueryParams) =>
-  request.get<ApiResponse<SalesStats>>('/sales-analysis/stats', { params });
+// 后端 sales_analysis_handler::get_stats 无 Query<T> 提取器（概览统计固定全量），
+// 传入 period/日期等都会被 Axum 丢弃，故不再发送 params。
+export const getSalesAnalysisStats = () =>
+  request.get<ApiResponse<SalesStats>>('/crm/sales-analysis/stats');
 
 // D14 Batch 5b：原 salesAnalysisApi.getProductRanking 转为风格 B 函数
 export const getProductRanking = (params?: { type?: string }) =>
-  request.get<ApiResponse<ProductRanking[]>>('/sales-analysis/product-ranking', { params });
+  request.get<ApiResponse<ProductRanking[]>>('/crm/sales-analysis/product-ranking', { params });
 
 // D14 Batch 5b：原 salesAnalysisApi.getCustomerRanking 转为风格 B 函数
 export const getCustomerRanking = (params?: { type?: string }) =>
-  request.get<ApiResponse<CustomerRanking[]>>('/sales-analysis/customer-ranking', { params });
+  request.get<ApiResponse<CustomerRanking[]>>('/crm/sales-analysis/customer-ranking', { params });
 
 // D14 Batch 5b：原 salesAnalysisApi.getSalesTargets 转为风格 B 函数
 export const getSalesTargetList = () =>
-  request.get<ApiResponse<SalesTarget[]>>('/sales-analysis/targets');
+  request.get<ApiResponse<SalesTarget[]>>('/crm/sales-analysis/targets');
 
 // D14 Batch 5b：原 salesAnalysisApi.updateSalesTarget 转为风格 B 函数
 export const updateSalesTarget = (period: string, data: Partial<SalesTarget>) =>
-  request.put<ApiResponse<SalesTarget>>(`/sales-analysis/targets/${period}`, data);
+  request.put<ApiResponse<SalesTarget>>(`/crm/sales-analysis/targets/${period}`, data);
 
 // D14 Batch 5b：原 salesAnalysisApi.getTrendData 转为风格 B 函数
 export const getSalesTrendData = (params?: { period?: string }) =>
-  request.get<ApiResponse<SalesTrendResult[]>>('/sales-analysis/trend', { params });
+  request.get<ApiResponse<SalesTrendResult[]>>('/crm/sales-analysis/trend', { params });
 
 // D14 Batch 5b：原 salesAnalysisApi.exportReport 转为风格 B 函数
 export const exportSalesAnalysisReport = (params?: SalesExportQueryParams) =>
-  request.get<Blob>('/sales-analysis/export', { params, responseType: 'blob' });
+  request.get<Blob>('/crm/sales-analysis/export', { params, responseType: 'blob' });

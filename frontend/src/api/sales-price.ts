@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface SalesPrice {
   id: number;
@@ -42,9 +42,19 @@ export interface PricingStrategyRule {
   price?: number;
 }
 
-export function getSalesPriceList(
-  params?: QueryParams
-): Promise<ApiResponse<{ items: SalesPrice[]; total: number }>> {
+// 后端 sales_price_handler::SalesPriceQuery（list_prices 的 Query<T>，全字段 Option、snake_case）。
+// download_token 为敏感导出 fail-closed 审批令牌：页面未暴露不等于类型不该有，仍如实声明。
+export interface SalesPriceQuery {
+  product_id?: number;
+  customer_type?: string;
+  status?: string;
+  page?: number;
+  page_size?: number;
+  download_token?: string;
+}
+
+// 后端 sales_price_handler::list_prices 返回 ApiResponse<Vec<Model>> ⇒ 裸数组
+export function getSalesPriceList(params?: SalesPriceQuery): Promise<ApiResponse<SalesPrice[]>> {
   return request.get('/sales/sales-prices', { params });
 }
 
@@ -67,14 +77,27 @@ export function deleteSalesPrice(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/sales/sales-prices/${id}`);
 }
 
-export function approveSalesPrice(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/sales/sales-prices/${id}/approve`);
+// 审批销售定价请求体：对齐后端 sales_price_handler::ApprovePriceRequest。
+// approved 必填布尔（通过/拒绝均需显式留痕）；remark 可选审批意见。
+export interface ApproveSalesPriceRequest {
+  approved: boolean;
+  remark?: string;
+}
+
+export function approveSalesPrice(
+  id: number,
+  data: ApproveSalesPriceRequest
+): Promise<ApiResponse<void>> {
+  return request.post(`/sales/sales-prices/${id}/approve`, data);
 }
 
 export function getPriceHistory(productId: number): Promise<ApiResponse<SalesPrice[]>> {
   return request.get(`/sales/sales-prices/history/${productId}`);
 }
 
-export function getPricingStrategyList(): Promise<ApiResponse<PricingStrategy[]>> {
+// 后端 sales_price_handler::list_strategies 返回 PaginatedResponse ⇒ {items,total,page,page_size}
+export function getPricingStrategyList(): Promise<
+  ApiResponse<{ items: PricingStrategy[]; total: number; page: number; page_size: number }>
+> {
   return request.get('/sales/sales-prices/strategies');
 }

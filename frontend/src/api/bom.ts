@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface Bom {
   id: number;
@@ -24,9 +24,16 @@ export interface BomItem {
   loss_rate: number;
 }
 
-export interface BomQueryParams extends QueryParams {
-  product_name?: string;
+/**
+ * GET /boms 查询参数，对齐后端 handlers/bom_handler.rs::ListBomsQuery
+ * （无 rename_all，字段保持 snake_case；全部 Option）。
+ */
+export interface BomQueryParams {
+  product_id?: number;
   status?: string;
+  is_default?: boolean;
+  page?: number;
+  page_size?: number;
 }
 
 // D14 Batch 5b：原 bomApi.list 转为风格 B 函数
@@ -54,10 +61,11 @@ export const copyBom = (id: number) => request.post<ApiResponse<Bom>>(`/boms/${i
 export const setDefaultBom = (id: number) => request.put<ApiResponse<Bom>>(`/boms/${id}/default`);
 
 // D14 Batch 5b：原 bomApi.getVersions 转为风格 B 函数（获取BOM版本历史）
+// 后端真实路由：GET /boms/versions/{product_id}（catalog.rs boms()）
 export const getBomVersionList = (productId: number) =>
   request.get<
     ApiResponse<{ id: number; version: string; created_at: string; is_default: boolean }[]>
-  >(`/boms/product/${productId}/versions`);
+  >(`/boms/versions/${productId}`);
 
 // D14 Batch 5b：原 bomApi.submit 转为风格 B 函数（提交BOM审核）
 export const submitBom = (id: number) => request.put<ApiResponse<void>>(`/boms/${id}/submit`);

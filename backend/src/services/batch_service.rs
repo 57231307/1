@@ -40,6 +40,7 @@ pub struct BatchError {
 pub struct BatchCreateProductRequest {
     pub name: String,
     pub code: String,
+    pub barcode: Option<String>,
     pub category_id: Option<i32>,
     pub specification: Option<String>,
     pub unit: Option<String>,
@@ -65,6 +66,7 @@ pub struct BatchCreateProductRequest {
 pub struct BatchUpdateProductRequest {
     pub id: i32,
     pub name: Option<String>,
+    pub barcode: Option<String>,
     pub category_id: Option<i32>,
     pub specification: Option<String>,
     pub unit: Option<String>,
@@ -166,6 +168,7 @@ impl BatchService {
             id: Default::default(),
             name: Set(req.name.clone()),
             code: Set(req.code.clone()),
+            barcode: Set(req.barcode.clone()),
             category_id: Set(req.category_id),
             specification: Set(req.specification.clone()),
             unit: Set(req.unit.clone().unwrap_or_else(|| "件".to_string())),
@@ -346,6 +349,9 @@ impl BatchService {
         // 增量更新
         if let Some(name) = &req.name {
             product.name = Set(name.clone());
+        }
+        if let Some(barcode) = &req.barcode {
+            product.barcode = Set(Some(barcode.clone()));
         }
         if let Some(category_id) = req.category_id {
             product.category_id = Set(Some(category_id));

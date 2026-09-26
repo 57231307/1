@@ -357,6 +357,7 @@ impl ProductService {
         validated: &ValidatedRowFields,
     ) -> CreateProductArgs {
         let category_id = Self::parse_optional_csv_i32(row, "类别ID");
+        let barcode = Self::parse_optional_csv_string(row, "条码");
         let standard_price = Self::parse_optional_csv_f64(row, "标准价格");
         let cost_price = Self::parse_optional_csv_f64(row, "成本价格");
         let specification = Self::parse_optional_csv_string(row, "规格型号");
@@ -379,6 +380,7 @@ impl ProductService {
         CreateProductArgs {
             name: validated.name.clone(),
             code: validated.code.clone(),
+            barcode,
             category_id,
             specification,
             unit: validated.unit.clone(),
@@ -400,6 +402,9 @@ impl ProductService {
             factory_name,
             factory_address,
             product_grade,
+            // CSV 导入模板不含匹/卷换算元数据列，保持 NULL（不臆造换算值）
+            meters_per_piece: None,
+            meters_per_roll: None,
         }
     }
 

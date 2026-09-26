@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 //! 导入任务记录 Model
 //!
-//! 批次 127 v8 复审 P2 修复：替代 import_export_handler list_import_tasks 空列表占位 +
-//! import_csv/import_excel 不落库任务记录。handler 在导入前创建 task 记录（status=running），
-//! 导入完成后更新 imported_rows / failed_rows / status。
+//! 记录每一次数据导入的执行情况：导入前建 task（status=running），
+//! 导入完成后回填 imported_rows / failed_rows 并置终态，供导入历史列表查询与失败追溯。
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -27,6 +26,10 @@ pub struct Model {
     pub failed_rows: i64,
     /// 操作用户 ID
     pub user_id: Option<i32>,
+    /// 导入源文件名（m0054 补列，上传时记录）
+    pub file_name: Option<String>,
+    /// 关联导入模板 ID（m0054 补列，历史任务无归属为空）
+    pub template_id: Option<i32>,
     /// 创建时间
     pub created_at: DateTimeWithTimeZone,
     /// 更新时间

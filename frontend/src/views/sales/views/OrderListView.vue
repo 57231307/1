@@ -36,6 +36,10 @@
       @approve="olvProc.handleApprove"
       @delivery="onDelivery"
       @cancel="olvProc.handleCancel"
+      @submit-order="olvProc.handleSubmitOrder"
+      @reject="olvProc.handleReject"
+      @delete-order="olvProc.handleDelete"
+      @detail="olvProc.handleDetail"
     />
 
     <!-- 拆分后的对话框子组件 -->
@@ -55,7 +59,11 @@
       v-model:visible="olv.deliveryDialogVisible"
       :form="olv.deliveryForm"
       :warehouses="olv.warehouses"
+      :stock-rows="olv.deliveryStockRows"
+      :submitting="olvDeliverySubmitting"
       @update:form="v => Object.assign(olv.deliveryForm, v)"
+      @warehouse-change="id => olv.loadDeliveryStockRows(id)"
+      @submit="onDeliverySubmit"
     />
   </div>
 </template>
@@ -63,9 +71,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { SalesOrder } from '@/api/sales';
-import { useOlv } from '../composables/useOlv';
+import { useOlv, type OrderForm } from '../composables/useOlv';
 import { useOlvProc } from '../composables/useOlvProc';
 import SalesOrderStat from '../components/SalesOrderStat.vue';
 import SalesOrderFilter from '../components/SalesOrderFilter.vue';
@@ -104,9 +113,30 @@ const onDelivery = (row: SalesOrder) => {
   olv.deliveryDialogVisible = true;
 };
 
-/** 提交订单表单 */
-const onFormSubmit = async () => {
-  const ok = await olvProc.handleFormSubmit(olv.formData);
+/** 发货提交（出库四维扣减：warehouse_code 从已选仓库带出，后端按编码查仓） */
+const olvDeliverySubmitting = ref(false);
+const onDeliverySubmit = async (form: typeof olv.deliveryForm) => {
+  const warehouse = olv.warehouses.find(w => w.id === form.warehouse_id);
+  if (!warehouse?.warehouse_code) {
+    ElMessage.warning(t('sales.delivery.warehouseCodeMissing'));
+    return;
+  }
+  olvDeliverySubmitting.value = true;
+  try {
+    const ok = await olvProc.handleDeliverySubmit(form, warehouse.warehouse_code);
+    if (ok) olv.deliveryDialogVisible = false;
+  } finally {
+    olvDeliverySubmitting.value = false;
+  }
+};
+
+/** 提交订单表单：使用 OrderFormDialog emit 的本地编辑副本（localData），
+ *  而非父组件的 olv.formData——dialog 只在挂载时同步 props→localData，
+ *  后续用户编辑只落在 localData；若仍提交 olv.formData 会把未同步的初始值
+ *  （required_date: ''）发出，后端 serde 解析 `Option<DateTime<Utc>>` 时
+ *  对 `""` 报 "premature end of input" 422，销售订单建单永远失败。 */
+const onFormSubmit = async (data: OrderForm) => {
+  const ok = await olvProc.handleFormSubmit(data);
   if (ok) formDialogVisible.value = false;
 };
 

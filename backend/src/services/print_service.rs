@@ -2285,6 +2285,7 @@ impl PrintService {
     /// 委外收货单打印数据
     async fn get_outsourcing_receipt_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         use crate::models::outsourcing_receipt;
+        use crate::models::status::outsourcing_receipt_quality_status;
 
         let record = outsourcing_receipt::Entity::find_by_id(id)
             .one(&*self.db)
@@ -2338,7 +2339,14 @@ impl PrintService {
         );
         data.insert(
             "quality_status".to_string(),
-            serde_json::json!(record.quality_status.clone().unwrap_or_default()),
+            // 打印件是给人签收的，不能只给英文码；词表外的存量值原样带出以便发现脏数据
+            serde_json::json!(
+                record
+                    .quality_status
+                    .as_deref()
+                    .map(|code| outsourcing_receipt_quality_status::label(code).unwrap_or(code))
+                    .unwrap_or_default()
+            ),
         );
         data.insert(
             "grade".to_string(),

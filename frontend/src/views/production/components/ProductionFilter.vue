@@ -27,11 +27,12 @@
           clearable
           style="width: 150px"
         >
-          <el-option :label="t('production.filter.statusDraft')" value="draft" />
-          <el-option :label="t('production.filter.statusPlanned')" value="planned" />
-          <el-option :label="t('production.filter.statusInProgress')" value="in_progress" />
-          <el-option :label="t('production.filter.statusCompleted')" value="completed" />
-          <el-option :label="t('production.filter.statusCancelled')" value="cancelled" />
+          <el-option
+            v-for="value in PRODUCTION_ORDER_STATUS_VALUES"
+            :key="value"
+            :label="t(PRODUCTION_ORDER_STATUS[value].labelKey)"
+            :value="value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -47,6 +48,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { PRODUCTION_ORDER_STATUS, PRODUCTION_ORDER_STATUS_VALUES } from '@/api/production';
 
 const { t } = useI18n({ useScope: 'global' });
 

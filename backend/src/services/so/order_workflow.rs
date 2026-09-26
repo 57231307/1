@@ -282,15 +282,8 @@ impl SalesService {
         // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderApproved 事件
         self.publish_approval_event(order_id, order.customer_id, user_id);
 
-        // 批次 356 v13 复审 B-P0-1：commit 后查询订单明细，为每个明细创建库存预留记录
+        // 批次 356 v13 复审 B-P0-1 + A5 决策：审批后不再创建库存预留（可用量门控仅在发货时生效）
         let order_items = self.fetch_order_items_for_approval(order_id).await?;
-        self.create_inventory_reservations_for_order(
-            order_id,
-            &order.order_no,
-            &order_items,
-            user_id,
-        )
-        .await;
 
         // B-P2-4 修复（批次 386 v13 复审）：commit 后对每个订单明细调用 MRP 计算
         self.run_mrp_for_order_items(order_id, &order_items).await;
@@ -363,63 +356,6 @@ impl SalesService {
             .all(&*self.db)
             .await
             .map_err(AppError::from)
-    }
-
-    /// 批次 356 v13 复审 B-P0-1 修复：销售订单审批后触发库存预留
-    /// 原实现 approve_order 仅更新订单状态，不调用 InventoryReservationService::create_reservation，；导致销售订单→库存锁定链路完全断开，存在超卖风险。
-    async fn create_inventory_reservations_for_order(
-        &self,
-        order_id: i32,
-        order_no: &str,
-        order_items: &[crate::models::sales_order_item::Model],
-        user_id: i32,
-    ) {
-        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-
-        let reservation_service =
-            crate::services::inventory_reservation_service::InventoryReservationService::new(
-                self.db.clone(),
-            );
-        for item in order_items {
-            // 查询产品默认仓库（使用第一个活跃仓库作为默认仓库）
-            let default_warehouse = match crate::models::warehouse::Entity::find()
-                .filter(crate::models::warehouse::Column::IsActive.eq(true))
-                .one(&*self.db)
-                .await
-            {
-                Ok(wh) => wh,
-                Err(e) => {
-                    tracing::warn!(
-                        order_id,
-                        product_id = item.product_id,
-                        error = %e,
-                        "批次 356 B-P0-1: 查询默认仓库失败，跳过该订单项的库存预留"
-                    );
-                    continue;
-                }
-            };
-
-            if let Some(wh) = default_warehouse {
-                if let Err(e) = reservation_service
-                    .create_reservation(
-                        order_id,
-                        item.product_id,
-                        wh.id,
-                        item.quantity,
-                        Some(user_id),
-                        Some(format!("销售订单 {} 审批通过，自动预留库存", order_no)),
-                    )
-                    .await
-                {
-                    tracing::warn!(
-                        order_id,
-                        product_id = item.product_id,
-                        error = %e,
-                        "批次 356 B-P0-1: 创建库存预留失败，订单已审批但库存未锁定，请人工检查"
-                    );
-                }
-            }
-        }
     }
 
     /// B-P2-4 修复（批次 386 v13 复审）：销售订单审批后触发 MRP 物料需求计算

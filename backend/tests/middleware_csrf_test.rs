@@ -47,7 +47,6 @@ async fn test_missing_response_payload() -> Result<(), Box<dyn std::error::Error
     // L-16 修复（批次 378 v13 复审）：原 expect 改为 ? 操作符，测试失败时返回错误而非 panic
     let body_bytes = axum::body::to_bytes(resp.into_body(), 4096).await?;
     let body: serde_json::Value = serde_json::from_slice(&body_bytes)?;
-    assert_eq!(body.get("success").and_then(|v| v.as_bool()), Some(false));
     assert_eq!(
         body.get("code").and_then(|v| v.as_str()),
         Some("CSRF_TOKEN_MISSING")
@@ -56,7 +55,22 @@ async fn test_missing_response_payload() -> Result<(), Box<dyn std::error::Error
         body.get("message").and_then(|v| v.as_str()),
         Some("CSRF Token 缺失")
     );
-    assert!(body.get("data").map(|v| v.is_null()).unwrap_or(false));
+    // 统一失败信封（utils/response.rs::unified_error_response → ErrorResponse）：
+    // {code, message, trace_id, timestamp}，无 success/data 字段。
+    assert!(
+        body.get("trace_id")
+            .map(|v| v.is_string() && !v.as_str().unwrap().is_empty())
+            .unwrap_or(false),
+        "trace_id 应为非空字符串"
+    );
+    assert!(
+        body.get("timestamp").map(|v| v.is_i64()).unwrap_or(false),
+        "timestamp 应为数字（秒级 i64）"
+    );
+    assert!(
+        body.get("success").is_none() && body.get("data").is_none(),
+        "统一错误信封不得含废弃的 success/data 字段"
+    );
     Ok(())
 }
 

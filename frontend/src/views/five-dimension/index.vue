@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import {
   ElTable,
@@ -25,6 +26,10 @@ import {
   type FiveDimensionStatsResponse,
   type FiveDimensionItem,
 } from '@/api/five-dimension';
+import {
+  getAssistRecordsByFiveDimension,
+  type AssistRecordResponse,
+} from '@/api/assist-accounting';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -55,6 +60,23 @@ const {
 
 const viewDialogVisible = ref(false);
 const viewData = ref<FiveDimensionStatsResponse | null>(null);
+
+// 五维详情钻取：按五维 ID 查关联辅助核算记录（后端 data 为裸数组 AssistRecordResponse[]）
+const assistRecords = ref<AssistRecordResponse[]>([]);
+const assistRecordsLoading = ref(false);
+
+const loadAssistRecords = async (fiveDimensionId: string) => {
+  assistRecordsLoading.value = true;
+  try {
+    const res = await getAssistRecordsByFiveDimension(fiveDimensionId);
+    assistRecords.value = res.data;
+  } catch (error) {
+    logger.error(t('fiveDimension.index.messageAssistRecordsFailed'), error);
+    assistRecords.value = [];
+  } finally {
+    assistRecordsLoading.value = false;
+  }
+};
 
 const parseInput = ref('');
 const parseResult = ref<FiveDimensionItem | null>(null);
@@ -127,11 +149,12 @@ const handlePageSizeChange = (s: number) => {
 const openViewDialog = async (item: FiveDimensionStatsResponse) => {
   try {
     // v11 批次 179 P2-1 修复：res: any 改为具体类型
-    const res = (await getStatsByFiveDimensionId(item.dimension.five_dimension_id!)) as {
+    const res = (await getStatsByFiveDimensionId(item.five_dimension_id)) as {
       data?: FiveDimensionStatsResponse;
     };
     viewData.value = res.data || null;
     viewDialogVisible.value = true;
+    loadAssistRecords(item.five_dimension_id);
   } catch (error) {
     ElMessage.error(t('fiveDimension.index.messageFetchDetailFailed'));
   }
@@ -295,36 +318,16 @@ const selectFromSearch = (item: FiveDimensionItem) => {
       style="width: 100%"
       :aria-label="t('fiveDimension.index.ariaTable')"
     >
+      <ElTableColumn prop="product_id" :label="t('fiveDimension.index.colProductId')" width="100" />
       <ElTableColumn
-        prop="dimension.product_id"
-        :label="t('fiveDimension.index.colProductId')"
-        width="100"
-      />
-      <ElTableColumn
-        prop="dimension.product_name"
+        prop="product_name"
         :label="t('fiveDimension.index.colProductName')"
         width="150"
       />
-      <ElTableColumn
-        prop="dimension.batch_no"
-        :label="t('fiveDimension.index.colBatchNo')"
-        width="120"
-      />
-      <ElTableColumn
-        prop="dimension.color_no"
-        :label="t('fiveDimension.index.colColorNo')"
-        width="100"
-      />
-      <ElTableColumn
-        prop="dimension.dye_lot_no"
-        :label="t('fiveDimension.index.colDyeLotNo')"
-        width="120"
-      />
-      <ElTableColumn
-        prop="dimension.grade"
-        :label="t('fiveDimension.index.colGrade')"
-        width="100"
-      />
+      <ElTableColumn prop="batch_no" :label="t('fiveDimension.index.colBatchNo')" width="120" />
+      <ElTableColumn prop="color_no" :label="t('fiveDimension.index.colColorNo')" width="100" />
+      <ElTableColumn prop="dye_lot_no" :label="t('fiveDimension.index.colDyeLotNo')" width="120" />
+      <ElTableColumn prop="grade" :label="t('fiveDimension.index.colGrade')" width="100" />
       <ElTableColumn
         prop="total_meters"
         :label="t('fiveDimension.index.colTotalMeters')"
@@ -348,7 +351,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
         align="center"
       />
       <ElTableColumn
-        prop="dimension.five_dimension_id"
+        prop="five_dimension_id"
         :label="t('fiveDimension.index.colFiveDimensionId')"
       />
       <ElTableColumn :label="t('fiveDimension.index.colOperation')" width="100" align="center">
@@ -383,22 +386,22 @@ const selectFromSearch = (item: FiveDimensionItem) => {
       <div v-if="viewData">
         <ElDescriptions :column="3" border>
           <ElDescriptionsItem :label="t('fiveDimension.index.labelProductId')">{{
-            viewData.dimension.product_id
+            viewData.product_id
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('fiveDimension.index.colProductName')">{{
-            viewData.dimension.product_name || '-'
+            viewData.product_name || '-'
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('fiveDimension.index.labelBatchNo')">{{
-            viewData.dimension.batch_no
+            viewData.batch_no
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('fiveDimension.index.labelColorNo')">{{
-            viewData.dimension.color_no
+            viewData.color_no
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('fiveDimension.index.labelDyeLotNo')">{{
-            viewData.dimension.dye_lot_no || '-'
+            viewData.dye_lot_no || '-'
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('fiveDimension.index.labelGrade')">{{
-            viewData.dimension.grade
+            viewData.grade
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('fiveDimension.index.colTotalMeters')">{{
             viewData.total_meters
@@ -438,6 +441,36 @@ const selectFromSearch = (item: FiveDimensionItem) => {
               prop="quantity_kg"
               :label="t('fiveDimension.index.colKg')"
               width="120"
+              align="right"
+            />
+          </ElTable>
+        </div>
+        <div style="margin-top: 20px">
+          <h4>{{ t('fiveDimension.index.titleAssistRecords') }}</h4>
+          <ElTable
+            :data="assistRecords"
+            v-loading="assistRecordsLoading"
+            border
+            style="width: 100%"
+            :aria-label="t('fiveDimension.index.ariaAssistTable')"
+          >
+            <ElTableColumn prop="business_no" :label="t('fiveDimension.index.colBusinessNo')" />
+            <ElTableColumn
+              prop="business_type"
+              :label="t('fiveDimension.index.colBusinessType')"
+              width="140"
+            />
+            <!-- 借/贷金额为后端 Decimal，线上为字符串，此处仅原样展示，不做数值转换 -->
+            <ElTableColumn
+              prop="debit_amount"
+              :label="t('fiveDimension.index.colDebitAmount')"
+              width="140"
+              align="right"
+            />
+            <ElTableColumn
+              prop="credit_amount"
+              :label="t('fiveDimension.index.colCreditAmount')"
+              width="140"
               align="right"
             />
           </ElTable>

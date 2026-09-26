@@ -35,6 +35,7 @@ use crate::models::ai_quality_accuracy_report::{
 use crate::models::ai_quality_prediction::{
     Column as QualityColumn, Entity as QualityEntity, Model as QualityModel,
 };
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 
 // =====================================================
@@ -143,8 +144,8 @@ impl AiModelManagementService {
         &self,
         req: CreateModelVersionRequest,
     ) -> Result<ModelVersionModel, AppError> {
-        Self::validate_model_status("draft")?;
-        Self::validate_approval_status("pending")?;
+        Self::validate_model_status(master_data::DRAFT)?;
+        Self::validate_approval_status(master_data::PENDING)?;
 
         let now = chrono::Utc::now();
         let active = ModelVersionActiveModel {
@@ -155,10 +156,10 @@ impl AiModelManagementService {
             training_date: Set(req.training_date),
             training_dataset_size: Set(req.training_dataset_size),
             accuracy_metrics_json: Set(req.accuracy_metrics_json),
-            status: Set("draft".to_string()),
+            status: Set(master_data::DRAFT.to_string()),
             changed_by: Set(req.changed_by),
             change_reason: Set(req.change_reason),
-            approval_status: Set("pending".to_string()),
+            approval_status: Set(master_data::PENDING.to_string()),
             approved_by: Set(None),
             approved_at: Set(None),
             created_at: Set(now),
@@ -190,7 +191,7 @@ impl AiModelManagementService {
     ) -> Result<Option<ModelVersionModel>, AppError> {
         Ok(ModelVersionEntity::find()
             .filter(ModelVersionColumn::ModelName.eq(model_name))
-            .filter(ModelVersionColumn::Status.eq("active"))
+            .filter(ModelVersionColumn::Status.eq(master_data::ACTIVE))
             .one(&*self.db)
             .await?)
     }
@@ -206,7 +207,7 @@ impl AiModelManagementService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("模型版本不存在: id={}", version_id)))?;
-        if model.approval_status != "pending" {
+        if model.approval_status != master_data::PENDING {
             return Err(AppError::business(format!(
                 "模型版本审批状态非法：当前 {}，仅 pending 可审批",
                 model.approval_status
@@ -235,14 +236,14 @@ impl AiModelManagementService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("模型版本不存在: id={}", version_id)))?;
 
-        if req.new_status == "active" && model.approval_status != "approved" {
+        if req.new_status == master_data::ACTIVE && model.approval_status != master_data::APPROVED {
             return Err(AppError::business(
                 "仅审批通过（approved）的模型版本可激活为 active",
             ));
         }
 
         // 激活新版本前，将同 model_name 的旧 active 版本降级为 retired
-        if req.new_status == "active" {
+        if req.new_status == master_data::ACTIVE {
             self.retire_previous_active_versions(&model.model_name)
                 .await?;
         }
@@ -262,13 +263,13 @@ impl AiModelManagementService {
         use crate::models::ai_model_version::Column;
         let olds = ModelVersionEntity::find()
             .filter(Column::ModelName.eq(model_name))
-            .filter(Column::Status.eq("active"))
+            .filter(Column::Status.eq(master_data::ACTIVE))
             .all(&*self.db)
             .await?;
         let now = chrono::Utc::now();
         for old in olds {
             let mut a: ModelVersionActiveModel = old.into();
-            a.status = Set("retired".to_string());
+            a.status = Set(master_data::RETIRED.to_string());
             a.updated_at = Set(now);
             a.update(&*self.db).await?;
         }
@@ -276,20 +277,33 @@ impl AiModelManagementService {
     }
 
     pub fn validate_model_status(status: &str) -> Result<(), AppError> {
-        if !matches!(status, "draft" | "active" | "retired" | "archived") {
+        const VALID_MODEL_STATUS: &[&str] = &[
+            master_data::DRAFT,
+            master_data::ACTIVE,
+            master_data::RETIRED,
+            master_data::ARCHIVED,
+        ];
+        if !VALID_MODEL_STATUS.contains(&status) {
             return Err(AppError::validation(format!(
-                "模型状态非法：{}，应为 draft/active/retired/archived",
-                status
+                "模型状态非法：{}，应为 {}",
+                status,
+                VALID_MODEL_STATUS.join("/")
             )));
         }
         Ok(())
     }
 
     pub fn validate_approval_status(status: &str) -> Result<(), AppError> {
-        if !matches!(status, "pending" | "approved" | "rejected") {
+        const VALID_APPROVAL_STATUS: &[&str] = &[
+            master_data::PENDING,
+            master_data::APPROVED,
+            master_data::REJECTED,
+        ];
+        if !VALID_APPROVAL_STATUS.contains(&status) {
             return Err(AppError::validation(format!(
-                "审批状态非法：{}，应为 pending/approved/rejected",
-                status
+                "审批状态非法：{}，应为 {}",
+                status,
+                VALID_APPROVAL_STATUS.join("/")
             )));
         }
         Ok(())

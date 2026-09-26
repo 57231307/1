@@ -32,16 +32,24 @@ pub mod quality_handling {
     pub const REJECTED: &str = "rejected";
 }
 
-/// 染色配方状态（dye_recipe.status 中文值，v14 批次 423A 常量化，依据 §11.1 化验室打样流程）
+/// 染色配方状态（dye_recipe.status 小写英文闭合词表，v14 批次 423A 常量化，
+/// v15 词表收口：DB/service 存小写英文，中文仅出现在前端 i18n 展示层，依据 §11.1 化验室打样流程。
+/// 取值与 migration v15 域尾 CHECK `chk_dye_recipe_status` 逐项一致。）
 pub mod dye_recipe {
     /// 草稿：配方初始状态
-    pub const DRAFT: &str = "草稿";
+    pub const DRAFT: &str = "draft";
+
+    /// 待审核：配方已提交，等待化验室主管审核（批次 423B 状态机贯通）
+    pub const PENDING_APPROVAL: &str = "pending_approval";
 
     /// 已审核：配方已审核通过
-    pub const APPROVED: &str = "已审核";
+    pub const APPROVED: &str = "approved";
 
     /// 已停用：配方已停用
-    pub const DISABLED: &str = "已停用";
+    pub const DISABLED: &str = "disabled";
+
+    /// 全部合法取值：迁移 CHECK 与守卫测试比对的唯一来源
+    pub const ALL: &[&str] = &[DRAFT, PENDING_APPROVAL, APPROVED, DISABLED];
 }
 
 /// 化验室打样通知单状态（lab_dip_request.status 小写，v14 批次 423B，状态机 pending→sampling→submitted→approved/rejected→completed）
@@ -290,4 +298,57 @@ pub mod dye_batch_operation_type {
     pub const SCHEDULE_CHANGE: &str = "schedule_change";
     /// 终止：终止缸号生产
     pub const TERMINATE: &str = "terminate";
+}
+
+/// 质量检验记录的检验类型（quality_inspection_records.inspection_type）
+///
+/// 前四个码由质检记录弹窗写入；`outsourcing_receipt` 是委外收回单确认回仓时自动建记录的来源标识。
+/// 与 `ai_quality_predictions.inspection_type`（CHECK 为 all/incoming/inprocess/final/outgoing）
+/// 分属两套词表，任何时候都不可互抄。
+pub mod quality_inspection_type {
+    /// 进货检验
+    pub const INCOMING: &str = "incoming";
+    /// 过程检验
+    pub const PROCESS: &str = "process";
+    /// 成品检验
+    pub const FINISHED: &str = "finished";
+    /// 出货检验
+    pub const OUTGOING: &str = "outgoing";
+    /// 委外回仓自动生成（系统写入，界面不提供该选项）
+    pub const OUTSOURCING_RECEIPT: &str = "outsourcing_receipt";
+
+    /// 全部合法取值，入参校验的唯一来源
+    pub const ALL: &[&str] = &[INCOMING, PROCESS, FINISHED, OUTGOING, OUTSOURCING_RECEIPT];
+}
+
+/// 质量检验记录的检验结论（quality_inspection_records.inspection_result）
+///
+/// 该列在迁移里是无 CHECK 的 VARCHAR，历史上同时收过中文结论与界面自造的 pass/fail 码；
+/// 库里唯一的自动写入方（委外收回单确认回仓）写的是中文结论，故以中文稳定值为词表。
+/// 与 `outsourcing_receipt_quality_status`（委外收回单自己的四态质检结论）是两回事，不可互抄。
+pub mod quality_inspection_result {
+    /// 待检：已建记录但尚未给出结论
+    pub const PENDING: &str = "待检";
+    /// 合格
+    pub const QUALIFIED: &str = "合格";
+    /// 不合格：触发不合格品处理流程
+    pub const UNQUALIFIED: &str = "不合格";
+
+    /// 全部合法取值，入参校验的唯一来源
+    pub const ALL: &[&str] = &[PENDING, QUALIFIED, UNQUALIFIED];
+}
+
+/// 批次染色明细状态（batch_dye_lot.status，大写 ACTIVE/COMPLETED）
+///
+/// 与 `dye_batch` 表的 `dye_batch_lifecycle_status`（小写十六态生命周期）是不同实体、
+/// 不同词表，不可互抄。词表以 batch_dye_lot 模型注释声明的两态为准，比较/门控须逐字符相同。
+pub mod batch_dye_lot_status {
+    /// 活跃：缸号档案已建立，仍处于染色/回仓流程中
+    pub const ACTIVE: &str = "ACTIVE";
+
+    /// 已完成：该批次染色全部处理完毕
+    pub const COMPLETED: &str = "COMPLETED";
+
+    /// 全部合法取值，入参校验的唯一来源
+    pub const ALL: &[&str] = &[ACTIVE, COMPLETED];
 }

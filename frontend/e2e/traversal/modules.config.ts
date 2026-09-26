@@ -44,7 +44,9 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'system-audit-log', route: '/system/audit-log', domain: 'system', tier: 'C', listApi: '/audit-logs', noCreate: true },
   { id: 'system-export-approvals', route: '/system/export-approvals', domain: 'system', tier: 'C', listApi: '/export-approvals', noCreate: true },
   { id: 'system-slow-query', route: '/system/slow-query', domain: 'system', tier: 'C', noCreate: true },
-  { id: 'report-templates', route: '/report-templates', domain: 'system', tier: 'A', listApi: '/report-templates' },
+  // listApi 必须是页面真正消费的那个端点：本页读 /reports/enhanced/templates（DB 表），
+  // 而 /report-templates 是 report_engine 的"预置模板"只读视图，指它会验到一条 UI 已不再走的链路。
+  { id: 'report-templates', route: '/report-templates', domain: 'system', tier: 'A', listApi: '/reports/enhanced/templates' },
   // print-templates 为内置模板只读展示（后端无创建端点），新建断言跳过
   { id: 'print-templates', route: '/print-templates', domain: 'system', tier: 'A', listApi: '/print-templates', noCreate: true },
   { id: 'api-gateway', route: '/api-gateway', domain: 'system', tier: 'C', noCreate: true },
@@ -80,14 +82,12 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'sales-returns', route: '/sales-returns', domain: 'sales', tier: 'B', listApi: '/sales-returns' },
   { id: 'sales-contract', route: '/sales-contract', domain: 'sales', tier: 'B', listApi: '/sales-contracts' },
   { id: 'sales-price', route: '/sales-price', domain: 'sales', tier: 'A', listApi: '/sales-prices' },
-  { id: 'sales-ext', route: '/sales-ext', domain: 'sales', tier: 'C', noCreate: true },
   { id: 'sales-analysis-bi', route: '/bi/sales-analysis', domain: 'sales', tier: 'C', noCreate: true },
   { id: 'quotations', route: '/quotations', domain: 'sales', tier: 'B', listApi: '/quotations' },
   { id: 'quotations-new', route: '/quotations/new', domain: 'sales', tier: 'B', noCreate: true },
   { id: 'custom-orders', route: '/custom-orders', domain: 'sales', tier: 'B', listApi: '/custom-orders' },
   { id: 'after-sales', route: '/after-sales', domain: 'sales', tier: 'B',  },
   { id: 'logistics', route: '/logistics', domain: 'sales', tier: 'C', noCreate: true },
-  { id: 'trading', route: '/trading', domain: 'sales', tier: 'C', noCreate: true },
 
   // ===== purchase 域 =====
   { id: 'purchase', route: '/purchase', domain: 'purchase', tier: 'C', noCreate: true },
@@ -96,7 +96,6 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'purchase-price', route: '/purchase-price', domain: 'purchase', tier: 'A', listApi: '/purchase-prices' },
   { id: 'purchase-inspection', route: '/purchase-inspection', domain: 'purchase', tier: 'B', listApi: '/purchase/inspections' },
   { id: 'purchase-return', route: '/purchase-return', domain: 'purchase', tier: 'B', listApi: '/purchase/returns' },
-  { id: 'purchase-ext', route: '/purchase-ext', domain: 'purchase', tier: 'C', noCreate: true },
   { id: 'supplier-evaluation', route: '/supplier-evaluation', domain: 'purchase', tier: 'A', listApi: '/supplier-evaluations' },
 
   // ===== crm 域 =====
@@ -141,7 +140,11 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'material-shortage', route: '/material-shortage', domain: 'production', tier: 'C', noCreate: true },
   { id: 'scheduling', route: '/scheduling', domain: 'production', tier: 'C', noCreate: true },
   { id: 'scheduling-gantt', route: '/scheduling/gantt', domain: 'production', tier: 'C', noCreate: true },
-  { id: 'process-routes', route: '/process-routes', domain: 'production', tier: 'A', listApi: '/process-routes' },
+  // 注：process-routes 已从 UI 遍历清单移除。前端 router/index.ts 无 /process-routes
+  // 路由、src/views 下亦无对应页面组件（grep 精确匹配数=0），page.goto('/process-routes')
+  // 落到 catch-all/空白路由，故 Tier A 的「新建」按钮断言必然 waitFor 超时。
+  // 后端 /production/process-routes 端点确实存在（production.rs:225-231），属"有后端、
+  // 无管理 UI"，不是可遍历的前端页面；若产品需补 UI，届时再登记本条并按实际按钮文案调整。
 
   // ===== quality 域 =====
   { id: 'quality', route: '/quality', domain: 'quality', tier: 'C', noCreate: true },

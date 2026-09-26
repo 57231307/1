@@ -29,6 +29,8 @@ sqlx = { version = "0.9.0", default-features = false, features = ["postgres", "r
 # 序列化
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+# 查询串解析/重建（utils/query_params.rs 边界归一化空值 query 参数；版本与 axum 传递依赖一致）
+form_urlencoded = "1.2"
 
 # 认证与安全
 argon2 = "0.5"

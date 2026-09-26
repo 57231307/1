@@ -78,7 +78,7 @@ pub struct ProcessNodeInfo {
     pub planned_end_date: Option<DateTime<Utc>>,
     pub actual_start_date: Option<DateTime<Utc>>,
     pub actual_end_date: Option<DateTime<Utc>>,
-    pub operator_id: Option<i64>,
+    pub operator_id: Option<i32>,
     pub notes: Option<String>,
 }
 
@@ -139,7 +139,7 @@ pub struct ProcessNodeWithLogs {
 pub struct ProcessLogInfo {
     pub id: i64,
     pub action: String,
-    pub operator_id: Option<i64>,
+    pub operator_id: Option<i32>,
     pub before_status: Option<String>,
     pub after_status: Option<String>,
     pub log_time: DateTime<Utc>,

@@ -6,14 +6,40 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive, watch, h } from 'vue';
+import { logger } from '@/utils/logger';
 import { ElTag } from 'element-plus';
 import { useTableApi } from '@/composables/useTableApi';
 import type { ColumnDef } from '@/components/V2Table/types';
 import { type SalesOrder, type SalesOrderItem } from '@/api/sales';
 import { request } from '@/api/request';
+import { getStockList, type InventoryStock } from '@/api/inventory';
+import { msg } from '@/utils/message';
 import type { Customer } from '@/api/customer';
 import type { Product } from '@/api/product';
 import { getStatusType, getStatusText, formatAmount } from './olvFmts';
+
+/** 销售发货明细行表单类型（出库四维扣减：色号/缸号/批次必须来自真实入库库存行） */
+export interface DeliveryItemForm {
+  product_id: number;
+  product_name: string;
+  /** 色号（出库四维之一，必填后随库存行选择写入） */
+  color_no: string;
+  /** 缸号（出库四维之一） */
+  dye_lot_no: string;
+  /** 批次号（出库四维之一） */
+  batch_no: string;
+  /** 选中的库存行组合键（`${color_no}__${batch_no}__${dye_lot_no}`，前端定位选项用） */
+  stock_row_key: string;
+  quantity: number;
+  delivered_quantity: number;
+  deliver_quantity: number;
+  unit_price: number;
+  remarks: string;
+}
+
+/** 库存行组合键（发货明细选择器用） */
+export const stockRowKey = (row: Pick<InventoryStock, 'color_no' | 'batch_no' | 'dye_lot_no'>) =>
+  `${row.color_no ?? ''}__${row.batch_no ?? ''}__${row.dye_lot_no ?? ''}`;
 
 /** 销售订单明细行表单类型 */
 export interface OrderItemForm {
@@ -21,10 +47,14 @@ export interface OrderItemForm {
   product_id: number | undefined;
   product_name: string;
   product_code: string;
+  /** 色号：空串=白坯布（合法），非空=染色布；来源为该产品的色号列表 */
+  color_no: string;
   quantity: number;
   unit: string;
   unit_price: number;
   subtotal: number;
+  /** 交货容差百分比（undefined=未填，提交时转为 null） */
+  quantity_tolerance_pct: number | undefined;
 }
 
 /** 销售订单表单类型 */
@@ -36,8 +66,8 @@ export interface OrderForm {
   required_date: string;
   contact_person: string;
   contact_phone: string;
-  delivery_address: string;
-  remark: string;
+  shipping_address: string;
+  notes: string;
   items: OrderItemForm[];
   total_amount?: number;
 }
@@ -72,7 +102,9 @@ export function useOlv() {
   // 辅助数据（不走 useTableApi，保留原 request.get 写法）
   const customers = ref<Customer[]>([]);
   const products = ref<Product[]>([]);
-  const warehouses = ref<{ id: number; warehouse_name?: string; name?: string }[]>([]);
+  const warehouses = ref<
+    { id: number; warehouse_name?: string; name?: string; warehouse_code?: string }[]
+  >([]);
 
   // 统计
   const stats = reactive({
@@ -93,18 +125,20 @@ export function useOlv() {
     required_date: '',
     contact_person: '',
     contact_phone: '',
-    delivery_address: '',
-    remark: '',
+    shipping_address: '',
+    notes: '',
     items: [
       {
         id: Date.now(),
         product_id: undefined,
         product_name: '',
         product_code: '',
+        color_no: '',
         quantity: 1,
         unit: '米',
         unit_price: 0,
         subtotal: 0,
+        quantity_tolerance_pct: undefined,
       },
     ],
     total_amount: 0,
@@ -122,16 +156,10 @@ export function useOlv() {
     customer_name: '',
     delivery_date: '',
     warehouse_id: undefined as number | undefined,
-    items: [] as {
-      product_id: number;
-      product_name: string;
-      quantity: number;
-      delivered_quantity: number;
-      deliver_quantity: number;
-      unit_price: number;
-      remarks: string;
-    }[],
+    items: [] as DeliveryItemForm[],
   });
+  // 出库四维（款号+色号+缸号+批次）扣减：按发货仓加载的库存行，供明细行选择真实入库维度
+  const deliveryStockRows = ref<Record<number, InventoryStock[]>>({});
 
   // 监听列表数据变化，重新计算统计
   watch(
@@ -220,36 +248,52 @@ export function useOlv() {
   /** 加载客户 */
   const fetchCustomers = async () => {
     try {
-      const res = await request.get<{ list?: Customer[] } | Customer[]>('/customers');
-      const d = res;
+      // 后端真实路由：GET /crm/customers（PaginatedResponse，业务数组在 data.items）
+      const res = await request.get<
+        | {
+            data?: { items?: Customer[]; list?: Customer[]; total?: number };
+          }
+        | Customer[]
+      >('/crm/customers');
+      const d = res as unknown as { data?: { items?: Customer[] } } & { list?: Customer[] };
       if (Array.isArray(d)) {
         customers.value = d;
+      } else if (d && typeof d === 'object' && 'items' in (d.data ?? {})) {
+        customers.value = d.data?.items || [];
       } else if (d && typeof d === 'object' && 'list' in d) {
         customers.value = d.list || [];
       } else {
         customers.value = [];
       }
     } catch (error) {
+      logger.error(msg.translate('loadCustomerListFailed'), error);
       customers.value = [];
-      void error;
     }
   };
 
   /** 加载产品 */
   const fetchProducts = async () => {
     try {
-      const res = await request.get<{ list?: Product[] } | Product[]>('/products');
-      const d = res;
+      // 后端 GET /products 返回 ApiResponse<PaginatedResponse>，拦截器后真实形状为 {data:{items}}
+      const res = await request.get<
+        | {
+            data?: { items?: Product[] };
+          }
+        | Product[]
+      >('/products');
+      const d = res as unknown as { data?: { items?: Product[] } } & { list?: Product[] };
       if (Array.isArray(d)) {
         products.value = d;
+      } else if (d && typeof d === 'object' && 'items' in (d.data ?? {})) {
+        products.value = d.data?.items || [];
       } else if (d && typeof d === 'object' && 'list' in d) {
         products.value = d.list || [];
       } else {
         products.value = [];
       }
     } catch (error) {
+      logger.error(msg.translate('loadProductListFailed'), error);
       products.value = [];
-      void error;
     }
   };
 
@@ -257,8 +301,15 @@ export function useOlv() {
   const fetchWarehouses = async () => {
     try {
       const res = await request.get<
-        | { list?: { id: number; warehouse_name?: string; name?: string }[] }
-        | { id: number; warehouse_name?: string; name?: string }[]
+        | {
+            list?: {
+              id: number;
+              warehouse_name?: string;
+              name?: string;
+              warehouse_code?: string;
+            }[];
+          }
+        | { id: number; warehouse_name?: string; name?: string; warehouse_code?: string }[]
       >('/warehouses');
       const d = res;
       if (Array.isArray(d)) {
@@ -269,8 +320,8 @@ export function useOlv() {
         warehouses.value = [];
       }
     } catch (error) {
+      logger.error(msg.translate('loadWarehouseListFailed'), error);
       warehouses.value = [];
-      void error;
     }
   };
 
@@ -285,18 +336,20 @@ export function useOlv() {
       required_date: '',
       contact_person: '',
       contact_phone: '',
-      delivery_address: '',
-      remark: '',
+      shipping_address: '',
+      notes: '',
       items: [
         {
           id: Date.now(),
           product_id: undefined,
           product_name: '',
           product_code: '',
+          color_no: '',
           quantity: 1,
           unit: '米',
           unit_price: 0,
           subtotal: 0,
+          quantity_tolerance_pct: undefined,
         },
       ],
       total_amount: 0,
@@ -314,27 +367,33 @@ export function useOlv() {
       required_date: row.required_date || '',
       contact_person: row.contact_person || '',
       contact_phone: row.contact_phone || '',
-      delivery_address: row.delivery_address || '',
-      remark: row.remark || '',
+      shipping_address: row.shipping_address || '',
+      notes: row.notes || '',
       items: row.items?.map((it: SalesOrderItem) => ({
         id: it.id || Date.now(),
         product_id: it.product_id,
         product_name: it.product_name,
         product_code: it.product_code || '',
+        color_no: it.color_no || '',
         quantity: it.quantity,
         unit: it.unit || '',
         unit_price: it.unit_price,
         subtotal: it.subtotal,
+        // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
+        quantity_tolerance_pct:
+          it.quantity_tolerance_pct != null ? Number(it.quantity_tolerance_pct) : undefined,
       })) || [
         {
           id: Date.now(),
           product_id: undefined,
           product_name: '',
           product_code: '',
+          color_no: '',
           quantity: 1,
           unit: '米',
           unit_price: 0,
           subtotal: 0,
+          quantity_tolerance_pct: undefined,
         },
       ],
       total_amount: row.total_amount,
@@ -353,13 +412,54 @@ export function useOlv() {
         row.items?.map(item => ({
           product_id: item.product_id,
           product_name: item.product_name,
+          color_no: '',
+          dye_lot_no: item.dye_lot_requirement || '',
+          batch_no: '',
+          stock_row_key: '',
           quantity: item.quantity,
-          delivered_quantity: item.delivered_quantity || 0,
+          delivered_quantity: item.shipped_quantity || 0,
           deliver_quantity: 0,
           unit_price: item.unit_price,
           remarks: '',
         })) || [],
     });
+    deliveryStockRows.value = {};
+  };
+
+  /**
+   * 加载发货仓的可出库库存行（出库四维扣减的候选维度组合）。
+   * 后端 GET /inventory/stock 支持 product_id + warehouse_id 下推过滤，
+   * 返回行即"款号+色号+缸号+批次"四维库存行，前端不手写任何维度数据。
+   */
+  const loadDeliveryStockRows = async (warehouseId?: number) => {
+    if (!warehouseId) {
+      deliveryStockRows.value = {};
+      return;
+    }
+    const productIds = [...new Set(deliveryForm.items.map(i => i.product_id))];
+    try {
+      const results = await Promise.all(
+        productIds.map(async pid => {
+          const res = await getStockList({
+            warehouse_id: warehouseId,
+            product_id: pid,
+            page: 1,
+            page_size: 100,
+          });
+          const payload = res.data as { items?: InventoryStock[]; total?: number } | null;
+          return [pid, payload?.items || []] as const;
+        })
+      );
+      const map: Record<number, InventoryStock[]> = {};
+      for (const [pid, rows] of results) {
+        map[pid] = rows;
+      }
+      deliveryStockRows.value = map;
+    } catch (error) {
+      logger.error('加载发货仓库存行失败', error);
+      deliveryStockRows.value = {};
+      throw error;
+    }
   };
 
   /** 初始化加载 */
@@ -396,6 +496,8 @@ export function useOlv() {
     // 发货对话框
     deliveryDialogVisible,
     deliveryForm,
+    deliveryStockRows,
+    loadDeliveryStockRows,
     // 列定义
     columns,
     // 操作

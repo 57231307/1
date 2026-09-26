@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface AccountSubject {
   id: number;
@@ -10,26 +10,51 @@ export interface AccountSubject {
   category: string;
   direction: string;
   is_leaf: boolean;
-  status: number;
+  // account_subjects.status 为 VARCHAR（'active'/'inactive'），非数字
+  status: string;
   created_at: string;
   updated_at: string;
   children?: AccountSubject[];
 }
 
+// 字段集严格对齐后端 CreateSubjectRequestDto（handlers/account_subject_handler.rs）
+// direction 语义映射为 balance_direction；辅助核算位为科目属性，后端非 Option 必填。
 export interface AccountSubjectCreateRequest {
   code: string;
   name: string;
+  level: number;
   parent_id?: number;
-  category: string;
-  direction: string;
+  balance_direction?: string;
+  assist_customer: boolean;
+  assist_supplier: boolean;
+  assist_batch: boolean;
+  assist_color_no: boolean;
+  enable_dual_unit: boolean;
 }
 
+// 字段集严格对齐后端 UpdateSubjectRequestDto：无 code / level；
+// status 可选（'active'/'inactive'，编辑对话框启用/停用开关）；辅助核算位必填
 export interface AccountSubjectUpdateRequest {
   name?: string;
-  status?: number;
+  balance_direction?: string;
+  assist_customer: boolean;
+  assist_supplier: boolean;
+  assist_batch: boolean;
+  assist_color_no: boolean;
+  enable_dual_unit: boolean;
+  status?: string;
 }
 
-export function getSubjectList(params?: QueryParams): Promise<ApiResponse<AccountSubject[]>> {
+// 科目列表查询参数：字段集严格对齐后端 SubjectQuery（handlers/account_subject_handler.rs）。
+// 注意：该端点后端无 page/page_size（全量返回），不要传分页键。
+export interface SubjectListQuery {
+  level?: number;
+  parent_id?: number;
+  status?: string;
+  keyword?: string;
+}
+
+export function getSubjectList(params?: SubjectListQuery): Promise<ApiResponse<AccountSubject[]>> {
   return request.get('/subjects', { params });
 }
 
@@ -85,30 +110,43 @@ export interface VoucherEntry {
   summary: string;
 }
 
+// 凭证分录请求行：字段对齐后端 VoucherItemDto（handlers/voucher_handler.rs）
+// 仅保留本视图收集且后端读取的字段，避免"填了被 serde 丢弃"。
+export interface VoucherEntryRequest {
+  subject_id: number;
+  debit: number;
+  credit: number;
+  summary: string;
+}
+
+// 后端 CreateVoucherRequestDto 的分录键是 items，不是 entries
 export interface VoucherCreateRequest {
   voucher_date: string;
   voucher_type: string;
-  entries: {
-    subject_id: number;
-    debit: number;
-    credit: number;
-    summary: string;
-  }[];
+  items: VoucherEntryRequest[];
 }
 
+// 后端 UpdateVoucherRequestDto：items 为可选，字段名同样是 items
 export interface VoucherUpdateRequest {
   voucher_date?: string;
   voucher_type?: string;
-  entries?: {
-    id?: number;
-    subject_id: number;
-    debit: number;
-    credit: number;
-    summary: string;
-  }[];
+  items?: VoucherEntryRequest[];
 }
 
-export function getVoucherList(params?: QueryParams): Promise<ApiResponse<Voucher[]>> {
+// 凭证列表查询参数：字段集严格对齐后端 VoucherQuery（handlers/voucher_handler.rs）。
+// 后端无 keyword/order_by/order_dir/supplier_name/customer_name 等通用键，不要传。
+export interface VoucherListQuery {
+  voucher_type?: string;
+  status?: string;
+  start_date?: string;
+  end_date?: string;
+  batch_no?: string;
+  color_no?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export function getVoucherList(params?: VoucherListQuery): Promise<ApiResponse<Voucher[]>> {
   return request.get('/vouchers', { params });
 }
 

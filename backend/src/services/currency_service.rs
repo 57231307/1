@@ -152,6 +152,13 @@ impl CurrencyService {
         if rate <= Decimal::ZERO {
             return Err(AppError::business("汇率必须大于0"));
         }
+        // P0-1 历史缺陷值防护（与 ap_invoice_service.rs:92-95 同语义）：
+        // 0.01 曾导致本位币换算被缩小 100 倍，任何入口都不得写入
+        if rate == Decimal::new(1, 2) {
+            return Err(AppError::business(
+                "汇率不能为0.01（P0-1历史缺陷值，本位币汇率应为1.0）",
+            ));
+        }
 
         let active_model = RateActiveModel {
             from_currency: Set(from_currency),

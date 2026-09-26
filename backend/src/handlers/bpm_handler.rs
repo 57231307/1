@@ -2,6 +2,7 @@ use crate::container::AppState;
 use crate::models::dto::bpm_dto::{
     ApproveTaskRequest, CancelInstanceRequest, StartProcessRequest, TaskQuery,
 };
+use crate::models::status::bpm_task as task_status;
 use crate::services::bpm_service::BpmService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -253,13 +254,16 @@ pub async fn urge_task(
 }
 
 /// 获取待办任务列表
+///
+/// 过滤值以任务状态写入点（`services/bpm_ops/instance.rs` 建单、`bpm_ops/task.rs` 推进）
+/// 所用的 `status::bpm_task` 词表常量为唯一来源，两侧大小写不同源会让待办恒空。
 pub async fn get_pending_tasks(
     State(state): State<AppState>,
     Query(query): Query<TaskQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
     let query = TaskQuery {
-        status: Some("PENDING".to_string()),
+        status: Some(task_status::PENDING.to_string()),
         ..query
     };
     let res = service.query_user_tasks(query).await?;
@@ -267,13 +271,15 @@ pub async fn get_pending_tasks(
 }
 
 /// 获取已完成任务列表
+///
+/// 同上：过滤值取 `status::bpm_task::COMPLETED`，与 `bpm_ops/task.rs` 的审批完成写入点同源。
 pub async fn get_completed_tasks(
     State(state): State<AppState>,
     Query(query): Query<TaskQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
     let query = TaskQuery {
-        status: Some("COMPLETED".to_string()),
+        status: Some(task_status::COMPLETED.to_string()),
         ..query
     };
     let res = service.query_user_tasks(query).await?;

@@ -12,6 +12,7 @@ use serde::Deserialize;
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::BatchClaimRequest;
+use crate::models::status::crm_lead as lead_status;
 use crate::services::crm::cust::CrmService;
 // V15 P0-S08：公海规则服务
 use crate::services::crm::pool::PoolRuleService;
@@ -59,7 +60,7 @@ pub async fn list_pool(
 
     // 查询公海客户（owner_id为空或特定状态的线索）
     let query = crate::models::dto::crm_dto::LeadQuery {
-        lead_status: Some("pool".to_string()),
+        lead_status: Some(lead_status::POOL.to_string()),
         // 批次 111 P1-10：透传 source / keyword 到 LeadQuery，由 list_leads 服务执行过滤
         source: params.source,
         keyword: params.keyword,
@@ -137,13 +138,13 @@ pub async fn claim_from_pool(
     let lead = service.get_lead(req.lead_id, None).await?;
 
     // 检查是否在公海中
-    if lead.lead_status.as_deref() != Some("pool") {
+    if lead.lead_status.as_deref() != Some(lead_status::POOL) {
         return Err(AppError::business("该客户不在公海中"));
     }
 
     // 更新线索归属人
     let update_req = crate::models::dto::crm_dto::UpdateLeadRequest {
-        lead_status: Some("new".to_string()),
+        lead_status: Some(lead_status::NEW.to_string()),
         ..Default::default()
     };
 
@@ -178,13 +179,13 @@ pub async fn recycle_to_pool(
     let lead = service.get_lead(req.lead_id, None).await?;
 
     // 检查状态
-    if lead.lead_status.as_deref() == Some("pool") {
+    if lead.lead_status.as_deref() == Some(lead_status::POOL) {
         return Err(AppError::business("该客户已在公海中"));
     }
 
     // 更新线索状态为公海
     let update_req = crate::models::dto::crm_dto::UpdateLeadRequest {
-        lead_status: Some("pool".to_string()),
+        lead_status: Some(lead_status::POOL.to_string()),
         ..Default::default()
     };
 

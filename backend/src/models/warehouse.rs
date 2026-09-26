@@ -9,6 +9,9 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub warehouse_code: String,
+    /// 仓库名称。列名 `name`，但出参键 rename 为 `warehouse_name`：全应用读键统一
+    /// （其它 DTO 均以 warehouse_name 承载仓库标签，见 inventory_stock_handler 等）。
+    #[serde(rename = "warehouse_name")]
     pub name: String,
     pub address: Option<String>,
     pub city: Option<String>,
@@ -16,6 +19,11 @@ pub struct Model {
     pub country: Option<String>,
     pub postal_code: Option<String>,
     pub phone: Option<String>,
+    /// 联系人（契约对齐：前端 Warehouse.contact_person「联系人」列与表单）
+    pub contact_person: Option<String>,
+    /// 默认仓库标志（契约对齐：前端 Warehouse.is_default「默认」列与开关；
+    /// 全局唯一默认仓库由 WarehouseService::create/update 保证）
+    pub is_default: bool,
     pub email: Option<String>,
     pub manager_id: Option<i32>,
     pub is_active: bool,

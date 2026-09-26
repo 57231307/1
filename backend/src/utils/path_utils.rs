@@ -13,7 +13,7 @@ pub fn is_module_prefix(part: &str) -> bool {
     is_system_module_prefix(part) || is_business_module_prefix(part)
 }
 
-/// 系统/基础设施类模块前缀（认证、IAM、通知、集成、流程、AI、管理域）
+/// 系统/基础设施类模块前缀（认证、IAM、集成、流程、AI、管理域）
 fn is_system_module_prefix(part: &str) -> bool {
     matches!(
         part,
@@ -22,7 +22,6 @@ fn is_system_module_prefix(part: &str) -> bool {
             | "ws"
             | "init"
             | "system-update"
-            | "dashboard"
             | "audit-logs"
             | "slow-queries"
             | "user"
@@ -30,8 +29,6 @@ fn is_system_module_prefix(part: &str) -> bool {
             // ===== IAM 与组织域 =====
             | "data-permissions"
             | "user-notification-settings"
-            // ===== 通知域 =====
-            | "notifications"
             // ===== 集成与网关域 =====
             | "webhooks"
             | "api-gateway"
@@ -62,6 +59,7 @@ fn is_business_module_prefix(part: &str) -> bool {
             | "scanner"
             // ===== 生产域（V15 新增：原缺失导致 30+ 资源共用 production 权限码）=====
             | "production"
+            | "production-orders"
             | "material-shortage"
             | "scheduling"
             // ===== 财务域 =====
@@ -213,10 +211,20 @@ fn is_misc_direct_resource(part: &str) -> bool {
             | "sales-forecast"
             | "inventory-optimization"
             | "anomaly-detection"
+        // ===== 仪表板与站内信：整体是一个注册资源 =====
+        // /dashboard/{overview,sales-stats,layout,...} 与 /notifications/{unread-count,read-all,:id,...}
+        // 的第四段是同一资源下的动作或记录 ID，不是独立权限资源；
+        // 权限注册表与角色种子里登记的资源名就是 dashboard / notifications。
+        // 若误判为模块前缀，推导出的资源名会变成 sales-stats/unread-count/<记录ID>，
+        // 任何角色种子都不含这些名字，非 admin 用户必然 403（fail-closed 静默失效）。
+        | "dashboard"
+        | "notifications"
         // ===== 审计与日志直接资源 =====
         | "logs"
         | "health"
         | "system-config"
+        // ===== 单据号查重（前端自动生成单据号后确认唯一性）=====
+        | "document-no"
         // V16 P0：审批流与 AI 模型直接资源（traversal 全量对照补齐，admin 被拒修复）
         | "export-approvals"
         | "role-change-approvals"
@@ -230,5 +238,62 @@ fn is_misc_direct_resource(part: &str) -> bool {
         | "pollution-monitoring"
         | "pollution-permits"
         | "social-insurance"
+        // ===== 简化版修复批次新增域资源（缺白名单会被 fail-closed 403）=====
+        | "outsourcing-orders"
+        | "outsourcing-receipts"
+        | "wage-rates"
+        | "wage-records"
+        | "wage-details"
+        | "period-adjustments"
+        | "contract-signatures"
+        | "customer-shares"
+        | "customer-team-members"
+        | "environmental-tax"
+        | "incoterms"
+        | "device-connections"
+        | "permission-delegations"
+        | "role-relations"
+        | "fabric-inspections"
+        | "fabric-defects"
+        | "chemical-categories"
+        | "chemical-lots"
+        // ===== 51 全端点扫描实证缺失的资源段（admin 全权仍被 fail-closed 拒绝）=====
+        | "audit"
+        | "business-modes"
+        | "business-mode-links"
+        | "consents"
+        | "customers"
+        | "dye-batches"
+        | "dye-batch-lifecycle-logs"
+        | "dye-batch-operations"
+        | "dye-batch-reworks"
+        | "dye-batch-state-rules"
+        | "dye-recipes"
+        | "energy-allocations"
+        | "energy-consumptions"
+        | "energy-meters"
+        | "energy-rules"
+        | "flow-cards"
+        | "lab-dip"
+        | "logistics"
+        | "me"
+        | "mrp"
+        | "mrp-history"
+        | "orders"
+        | "outsourcing-vouchers"
+        | "payments"
+        | "pool"
+        | "process-routes"
+        | "production-recipes"
+        | "purchase-prices"
+        | "receipts"
+        | "sales-contracts"
+        | "sales-prices"
+        | "sales-returns"
+        | "sales-users"
+        | "stock"
+        | "totp"
+        | "unread-count"
+        | "warnings"
     )
 }

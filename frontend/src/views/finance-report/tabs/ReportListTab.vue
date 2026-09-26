@@ -104,41 +104,530 @@
         </div>
       </template>
 
-      <el-empty
-        v-if="!reportData"
-        :description="t('financeReport.reportListTab.emptyDescription')"
-      />
-      <div v-else class="report-content">
+      <el-empty v-if="!hasData" :description="t('financeReport.reportListTab.emptyDescription')" />
+
+      <!-- 资产负债表：资产/负债/所有者权益三组明细 + 合计数 -->
+      <div v-else-if="balanceSheet" class="report-content">
         <div class="report-summary">
           <span
-            >{{ t('financeReport.reportListTab.labelPeriodPrefix')
-            }}{{ reportData.period_name || reportData.period }}</span
-          >
-          <span v-if="reportData.total != null"
-            >{{ t('financeReport.reportListTab.labelTotalPrefix') }}¥{{
-              reportData.total.toFixed(2)
-            }}</span
+            >{{ t('financeReport.reportListTab.labelReportDate')
+            }}{{ balanceSheet.report_date }}</span
           >
         </div>
-        <el-table
-          :data="reportData.items || []"
-          stripe
-          border
-          :aria-label="t('financeReport.reportListTab.tableAriaLabel')"
-        >
-          <el-table-column
-            v-for="col in reportColumns"
-            :key="col.key"
-            :prop="col.key"
-            :label="col.label"
-            :align="col.align || 'left'"
-            :width="col.width"
+        <div class="section-block">
+          <h3 class="section-title">{{ t('financeReport.reportListTab.sectionAssets') }}</h3>
+          <el-table :data="balanceSheet.assets" stripe border>
+            <el-table-column
+              :label="t('financeReport.reportListTab.colName')"
+              prop="name"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colDescription')"
+              prop="description"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colAmount')"
+              prop="amount"
+              align="right"
+              width="160"
+            >
+              <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+            </el-table-column>
+          </el-table>
+          <div class="total-line">
+            {{ t('financeReport.reportListTab.labelTotalAssets') }}
+            {{ formatAmount(balanceSheet.total_assets) }}
+          </div>
+        </div>
+        <div class="section-block">
+          <h3 class="section-title">{{ t('financeReport.reportListTab.sectionLiabilities') }}</h3>
+          <el-table :data="balanceSheet.liabilities" stripe border>
+            <el-table-column
+              :label="t('financeReport.reportListTab.colName')"
+              prop="name"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colDescription')"
+              prop="description"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colAmount')"
+              prop="amount"
+              align="right"
+              width="160"
+            >
+              <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+            </el-table-column>
+          </el-table>
+          <div class="total-line">
+            {{ t('financeReport.reportListTab.labelTotalLiabilities') }}
+            {{ formatAmount(balanceSheet.total_liabilities) }}
+          </div>
+        </div>
+        <div class="section-block">
+          <h3 class="section-title">{{ t('financeReport.reportListTab.sectionEquity') }}</h3>
+          <el-table :data="balanceSheet.equity" stripe border>
+            <el-table-column
+              :label="t('financeReport.reportListTab.colName')"
+              prop="name"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colDescription')"
+              prop="description"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colAmount')"
+              prop="amount"
+              align="right"
+              width="160"
+            >
+              <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+            </el-table-column>
+          </el-table>
+          <div class="total-line">
+            {{ t('financeReport.reportListTab.labelTotalEquity') }}
+            {{ formatAmount(balanceSheet.total_equity) }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 利润表 -->
+      <div v-else-if="incomeStatement" class="report-content">
+        <div class="report-summary">
+          <span
+            >{{ t('financeReport.reportListTab.labelPeriodRange')
+            }}{{ incomeStatement.period_start }} ~ {{ incomeStatement.period_end }}</span
           >
-            <template v-if="col.formatter" #default="{ row }">
-              {{ col.formatter(row[col.key]) }}
-            </template>
+        </div>
+        <div class="section-block">
+          <h3 class="section-title">{{ t('financeReport.reportListTab.sectionRevenue') }}</h3>
+          <el-table :data="incomeStatement.revenue" stripe border>
+            <el-table-column
+              :label="t('financeReport.reportListTab.colName')"
+              prop="name"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colDescription')"
+              prop="description"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colAmount')"
+              prop="amount"
+              align="right"
+              width="160"
+            >
+              <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+        <div class="section-block">
+          <h3 class="section-title">
+            {{ t('financeReport.reportListTab.sectionOperatingExpenses') }}
+          </h3>
+          <el-table :data="incomeStatement.operating_expenses" stripe border>
+            <el-table-column
+              :label="t('financeReport.reportListTab.colName')"
+              prop="name"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colDescription')"
+              prop="description"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colAmount')"
+              prop="amount"
+              align="right"
+              width="160"
+            >
+              <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+        <el-descriptions :column="2" border class="metrics">
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelTotalRevenue')">{{
+            formatAmount(incomeStatement.total_revenue)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelCostOfGoodsSold')">{{
+            formatAmount(incomeStatement.cost_of_goods_sold)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelGrossProfit')">{{
+            formatAmount(incomeStatement.gross_profit)
+          }}</el-descriptions-item>
+          <el-descriptions-item
+            :label="t('financeReport.reportListTab.labelTotalOperatingExpenses')"
+            >{{ formatAmount(incomeStatement.total_operating_expenses) }}</el-descriptions-item
+          >
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelOperatingIncome')">{{
+            formatAmount(incomeStatement.operating_income)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelOtherIncome')">{{
+            formatAmount(incomeStatement.other_income)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelOtherExpenses')">{{
+            formatAmount(incomeStatement.other_expenses)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelNetIncome')">{{
+            formatAmount(incomeStatement.net_income)
+          }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+
+      <!-- 现金流量表 -->
+      <div v-else-if="cashFlow" class="report-content">
+        <div class="report-summary">
+          <span
+            >{{ t('financeReport.reportListTab.labelPeriodRange') }}{{ cashFlow.period_start }} ~
+            {{ cashFlow.period_end }}</span
+          >
+        </div>
+        <div class="section-block">
+          <h3 class="section-title">
+            {{ t('financeReport.reportListTab.sectionOperatingActivities') }}
+          </h3>
+          <el-table :data="cashFlow.operating_activities" stripe border>
+            <el-table-column
+              :label="t('financeReport.reportListTab.colName')"
+              prop="name"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colDescription')"
+              prop="description"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colAmount')"
+              prop="amount"
+              align="right"
+              width="160"
+            >
+              <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+        <div class="section-block">
+          <h3 class="section-title">
+            {{ t('financeReport.reportListTab.sectionInvestingActivities') }}
+          </h3>
+          <el-table :data="cashFlow.investing_activities" stripe border>
+            <el-table-column
+              :label="t('financeReport.reportListTab.colName')"
+              prop="name"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colDescription')"
+              prop="description"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colAmount')"
+              prop="amount"
+              align="right"
+              width="160"
+            >
+              <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+        <div class="section-block">
+          <h3 class="section-title">
+            {{ t('financeReport.reportListTab.sectionFinancingActivities') }}
+          </h3>
+          <el-table :data="cashFlow.financing_activities" stripe border>
+            <el-table-column
+              :label="t('financeReport.reportListTab.colName')"
+              prop="name"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colDescription')"
+              prop="description"
+              min-width="160"
+            />
+            <el-table-column
+              :label="t('financeReport.reportListTab.colAmount')"
+              prop="amount"
+              align="right"
+              width="160"
+            >
+              <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+        <el-descriptions :column="2" border class="metrics">
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelNetCashOperations')">{{
+            formatAmount(cashFlow.net_cash_from_operations)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelNetCashInvesting')">{{
+            formatAmount(cashFlow.net_cash_from_investing)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelNetCashFinancing')">{{
+            formatAmount(cashFlow.net_cash_from_financing)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelNetChangeInCash')">{{
+            formatAmount(cashFlow.net_change_in_cash)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelBeginningCash')">{{
+            formatAmount(cashFlow.beginning_cash)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelEndingCash')">{{
+            formatAmount(cashFlow.ending_cash)
+          }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+
+      <!-- 试算平衡表（科目余额表） -->
+      <div v-else-if="trialBalance" class="report-content">
+        <div class="report-summary">
+          <span
+            >{{ t('financeReport.reportListTab.labelPeriodPrefix') }}{{ trialBalance.period }}</span
+          >
+        </div>
+        <el-table :data="trialBalance.entries" stripe border>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colSubjectCode')"
+            prop="subject_code"
+            width="120"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colSubjectName')"
+            prop="subject_name"
+            min-width="160"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colLevel')"
+            prop="level"
+            align="center"
+            width="80"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colInitialDebit')"
+            prop="initial_debit"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.initial_debit) }}</template>
+          </el-table-column>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colInitialCredit')"
+            prop="initial_credit"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.initial_credit) }}</template>
+          </el-table-column>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colPeriodDebit')"
+            prop="period_debit"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.period_debit) }}</template>
+          </el-table-column>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colPeriodCredit')"
+            prop="period_credit"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.period_credit) }}</template>
+          </el-table-column>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colEndingDebit')"
+            prop="ending_debit"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.ending_debit) }}</template>
+          </el-table-column>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colEndingCredit')"
+            prop="ending_credit"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.ending_credit) }}</template>
           </el-table-column>
         </el-table>
+        <el-descriptions :column="3" border class="metrics">
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelTotalInitialDebit')">{{
+            formatAmount(trialBalance.total_initial_debit)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelTotalInitialCredit')">{{
+            formatAmount(trialBalance.total_initial_credit)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelPeriodBalance')">{{
+            formatBalanceCheck(trialBalance.total_period_debit, trialBalance.total_period_credit)
+          }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+
+      <!-- 总分类账 -->
+      <div v-else-if="generalLedger" class="report-content">
+        <div class="report-summary">
+          <span
+            >{{ t('financeReport.reportListTab.labelSubject') }}{{ generalLedger.subject_code }}
+            {{ generalLedger.subject_name }}</span
+          >
+          <span
+            >{{ t('financeReport.reportListTab.labelPeriodRange')
+            }}{{ generalLedger.period_start }} ~ {{ generalLedger.period_end }}</span
+          >
+        </div>
+        <el-table :data="generalLedger.entries" stripe border>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colDate')"
+            prop="voucher_date"
+            width="120"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colVoucherNo')"
+            prop="voucher_no"
+            width="140"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colLineNo')"
+            prop="line_no"
+            align="center"
+            width="80"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colSummary')"
+            prop="summary"
+            min-width="160"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colDebitAmount')"
+            prop="debit"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.debit) }}</template>
+          </el-table-column>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colCreditAmount')"
+            prop="credit"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.credit) }}</template>
+          </el-table-column>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colDirection')"
+            prop="direction"
+            align="center"
+            width="80"
+          >
+            <template #default="{ row }">{{ formatDirection(row.direction) }}</template>
+          </el-table-column>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colBalance')"
+            prop="balance"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.balance) }}</template>
+          </el-table-column>
+        </el-table>
+        <el-descriptions :column="2" border class="metrics">
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelOpeningBalance')">{{
+            formatAmount(generalLedger.opening_balance)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelClosingBalance')">{{
+            formatAmount(generalLedger.closing_balance)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelTotalDebit')">{{
+            formatAmount(generalLedger.total_debit)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelTotalCredit')">{{
+            formatAmount(generalLedger.total_credit)
+          }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+
+      <!-- 明细分类账 -->
+      <div v-else-if="subsidiaryLedger" class="report-content">
+        <div class="report-summary">
+          <span
+            >{{ t('financeReport.reportListTab.labelDimensionType')
+            }}{{ subsidiaryLedger.dimension_type }}</span
+          >
+          <span
+            >{{ t('financeReport.reportListTab.labelDimensionValue')
+            }}{{ subsidiaryLedger.dimension_value }}</span
+          >
+          <span
+            >{{ t('financeReport.reportListTab.labelPeriodRange')
+            }}{{ subsidiaryLedger.period_start }} ~ {{ subsidiaryLedger.period_end }}</span
+          >
+        </div>
+        <el-table :data="subsidiaryLedger.entries" stripe border>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colBusinessDate')"
+            prop="business_date"
+            width="120"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colBusinessNo')"
+            prop="business_no"
+            width="160"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colBusinessType')"
+            prop="business_type"
+            width="120"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colSubjectCode')"
+            prop="subject_code"
+            width="120"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colSubjectName')"
+            prop="subject_name"
+            min-width="140"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colSummary')"
+            prop="summary"
+            min-width="160"
+          />
+          <el-table-column
+            :label="t('financeReport.reportListTab.colDebitAmount')"
+            prop="debit"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.debit) }}</template>
+          </el-table-column>
+          <el-table-column
+            :label="t('financeReport.reportListTab.colCreditAmount')"
+            prop="credit"
+            align="right"
+            width="140"
+          >
+            <template #default="{ row }">{{ formatAmount(row.credit) }}</template>
+          </el-table-column>
+        </el-table>
+        <el-descriptions :column="2" border class="metrics">
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelTotalDebit')">{{
+            formatAmount(subsidiaryLedger.total_debit)
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="t('financeReport.reportListTab.labelTotalCredit')">{{
+            formatAmount(subsidiaryLedger.total_credit)
+          }}</el-descriptions-item>
+        </el-descriptions>
       </div>
     </el-card>
   </div>
@@ -156,7 +645,12 @@ import {
   getTrialBalance,
   getGeneralLedger,
   getSubsidiaryLedger,
-  type ReportData,
+  type BalanceSheet,
+  type IncomeStatement,
+  type CashFlowStatement,
+  type TrialBalance,
+  type GeneralLedger,
+  type SubsidiaryLedger,
 } from '@/api/finance-report';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
@@ -164,7 +658,24 @@ import { exportFromBackend } from '@/utils/export';
 const { t } = useI18n({ useScope: 'global' });
 
 const loading = ref(false);
-const reportData = ref<ReportData | null>(null);
+
+// 每种报表的后端载荷是各自独立的单对象 DTO，分别持有，切换报表类型时清空其余。
+const balanceSheet = ref<BalanceSheet | null>(null);
+const incomeStatement = ref<IncomeStatement | null>(null);
+const cashFlow = ref<CashFlowStatement | null>(null);
+const trialBalance = ref<TrialBalance | null>(null);
+const generalLedger = ref<GeneralLedger | null>(null);
+const subsidiaryLedger = ref<SubsidiaryLedger | null>(null);
+
+const hasData = computed(
+  () =>
+    !!balanceSheet.value ||
+    !!incomeStatement.value ||
+    !!cashFlow.value ||
+    !!trialBalance.value ||
+    !!generalLedger.value ||
+    !!subsidiaryLedger.value
+);
 
 const queryForm = reactive({
   report_type: 'balance_sheet',
@@ -185,67 +696,35 @@ const getReportTypeLabel = (type: string) => {
   return map[type] || t('financeReport.reportListTab.labelReport');
 };
 
-type ColAlign = 'left' | 'right' | 'center';
-interface ColDef {
-  key: string;
-  label: string;
-  width: number;
-  align?: ColAlign;
-  formatter?: (v: unknown) => string;
-}
-
-/** 金额格式化（¥ 前缀 + 2 位小数） */
-const formatAmount = (val: unknown) => {
-  const num = Number(val) || 0;
-  return `¥${num.toFixed(2)}`;
+/** 金额格式化（¥ 前缀 + 2 位小数；后端 Decimal 序列化为字符串时按数值归一） */
+const formatAmount = (val: number | string | null | undefined) => {
+  const num = Number(val);
+  return `¥${(Number.isFinite(num) ? num : 0).toFixed(2)}`;
 };
 
-/** 借贷方向格式化 */
-const formatDirection = (v: unknown) =>
-  v === 'debit'
-    ? t('financeReport.reportListTab.directionDebit')
-    : t('financeReport.reportListTab.directionCredit');
-
-/** 根据首行数据字段动态构建列定义（≤50 行） */
-const buildReportColumns = (item: Record<string, unknown>): ColDef[] => {
-  const cols: ColDef[] = [];
-  const add = (
-    key: string,
-    label: string,
-    width: number,
-    align?: ColAlign,
-    formatter?: (v: unknown) => string
-  ) => {
-    if (key in item) cols.push({ key, label, width, align, formatter });
-  };
-  add('code', t('financeReport.reportListTab.colCode'), 100);
-  add('name', t('financeReport.reportListTab.colName'), 200);
-  add('level', t('financeReport.reportListTab.colLevel'), 80, 'center');
-  add('debit_amount', t('financeReport.reportListTab.colDebitAmount'), 140, 'right', formatAmount);
-  add(
-    'credit_amount',
-    t('financeReport.reportListTab.colCreditAmount'),
-    140,
-    'right',
-    formatAmount
-  );
-  add('balance', t('financeReport.reportListTab.colBalance'), 140, 'right', formatAmount);
-  add('amount', t('financeReport.reportListTab.colAmount'), 140, 'right', formatAmount);
-  add('inflow', t('financeReport.reportListTab.colInflow'), 140, 'right', formatAmount);
-  add('outflow', t('financeReport.reportListTab.colOutflow'), 140, 'right', formatAmount);
-  add('net_flow', t('financeReport.reportListTab.colNetFlow'), 140, 'right', formatAmount);
-  add('date', t('financeReport.reportListTab.colDate'), 120);
-  add('voucher_no', t('financeReport.reportListTab.colVoucherNo'), 120);
-  add('summary', t('financeReport.reportListTab.colSummary'), 200);
-  add('direction', t('financeReport.reportListTab.colDirection'), 80, 'center', formatDirection);
-  return cols;
+/** 借贷平衡校验展示 */
+const formatBalanceCheck = (debit: number, credit: number) => {
+  const balanced = Number(debit) === Number(credit);
+  return balanced
+    ? t('financeReport.reportListTab.balanceBalanced')
+    : t('financeReport.reportListTab.balanceUnbalanced');
 };
 
-const reportColumns = computed(() => {
-  const items = reportData.value?.items;
-  if (!items?.length) return [];
-  return buildReportColumns(items[0] as Record<string, unknown>);
-});
+/** 借贷方向格式化（后端写入大写 token DEBIT/CREDIT，比较点逐字符对齐） */
+const formatDirection = (v: string) => {
+  if (v === 'DEBIT') return t('financeReport.reportListTab.directionDebit');
+  if (v === 'CREDIT') return t('financeReport.reportListTab.directionCredit');
+  return v;
+};
+
+const clearReports = () => {
+  balanceSheet.value = null;
+  incomeStatement.value = null;
+  cashFlow.value = null;
+  trialBalance.value = null;
+  generalLedger.value = null;
+  subsidiaryLedger.value = null;
+};
 
 const handleGenerate = async () => {
   if (!queryForm.period) {
@@ -253,38 +732,49 @@ const handleGenerate = async () => {
     return;
   }
   loading.value = true;
+  clearReports();
   try {
-    let res: { data?: ReportData };
     const params = { period: queryForm.period };
     switch (queryForm.report_type) {
-      case 'balance_sheet':
-        res = await getBalanceSheet(params);
+      case 'balance_sheet': {
+        const res = await getBalanceSheet();
+        balanceSheet.value = res.data;
         break;
-      case 'income_statement':
-        res = await getProfitStatement(params);
+      }
+      case 'income_statement': {
+        const res = await getProfitStatement(params);
+        incomeStatement.value = res.data;
         break;
-      case 'cash_flow':
-        res = await getCashFlowStatement(params);
+      }
+      case 'cash_flow': {
+        const res = await getCashFlowStatement(params);
+        cashFlow.value = res.data;
         break;
-      case 'trial_balance':
-        res = await getTrialBalance(params);
+      }
+      case 'trial_balance': {
+        const res = await getTrialBalance(params);
+        trialBalance.value = res.data;
         break;
-      case 'general_ledger':
+      }
+      case 'general_ledger': {
         if (!queryForm.subject_code) {
           ElMessage.warning(t('financeReport.reportListTab.messageInputSubjectCode'));
           loading.value = false;
           return;
         }
-        res = await getGeneralLedger(queryForm.subject_code, params);
+        const res = await getGeneralLedger(queryForm.subject_code, params);
+        generalLedger.value = res.data;
         break;
-      case 'subsidiary_ledger':
-        res = await getSubsidiaryLedger(undefined, undefined, params);
+      }
+      case 'subsidiary_ledger': {
+        const res = await getSubsidiaryLedger(undefined, undefined, params);
+        subsidiaryLedger.value = res.data;
         break;
+      }
       default:
-        res = { data: undefined };
+        break;
     }
-    reportData.value = res?.data || null;
-    if (!reportData.value) {
+    if (!hasData.value) {
       ElMessage.info(t('financeReport.reportListTab.messageNoData'));
     }
   } catch (e) {
@@ -300,7 +790,7 @@ const handleReset = () => {
   queryForm.report_type = 'balance_sheet';
   queryForm.period = new Date().toISOString().slice(0, 7);
   queryForm.subject_code = '';
-  reportData.value = null;
+  clearReports();
 };
 
 const handlePrint = () => {
@@ -308,14 +798,14 @@ const handlePrint = () => {
 };
 
 const handleExport = () => {
-  if (!reportData.value?.items?.length) {
+  if (!hasData.value) {
     ElMessage.warning(t('financeReport.reportListTab.messageGenerateFirst'));
     return;
   }
   const reportType = queryForm.report_type;
   const filename = `${getReportTypeLabel(reportType)}_${queryForm.period}`;
 
-  // V15 P0 5-1 修复：所有报表类型统一使用后端导出
+  // 所有报表类型统一使用后端导出
   const exportApiMap: Record<string, string> = {
     trial_balance: '/finance/reports/trial-balance/export',
     balance_sheet: '/finance/reports/balance-sheet/export',
@@ -357,5 +847,23 @@ const handleExport = () => {
 }
 .report-content {
   padding: 8px 0;
+}
+.section-block {
+  margin-bottom: 20px;
+}
+.section-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+.total-line {
+  margin-top: 8px;
+  text-align: right;
+  font-weight: 600;
+  color: #303133;
+}
+.metrics {
+  margin-top: 12px;
 }
 </style>

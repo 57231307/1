@@ -17,12 +17,12 @@ export interface UserProfile {
   updated_at: string;
 }
 
+// 后端 UpdateCurrentUserProfileRequest 仅接受 real_name/email/phone；
+// department_id、role_ids 属管理字段，自助资料更新不读取（已移出请求体）。
 export interface UserProfileUpdateRequest {
   real_name?: string;
   email?: string;
   phone?: string;
-  department_id?: number;
-  role_ids?: number[];
 }
 
 export interface ChangePasswordRequest {
@@ -46,7 +46,7 @@ export function updateUserProfile(
 }
 
 export function changePassword(data: ChangePasswordRequest): Promise<ApiResponse<void>> {
-  return request.post('/user/change-password', data);
+  return request.post('/users/change-password', data);
 }
 
 export function uploadAvatar(file: File): Promise<ApiResponse<AvatarUploadResponse>> {

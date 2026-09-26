@@ -47,6 +47,7 @@ pub struct Model {
     /// 处方详情（染料组合+用量，文本描述）
     pub formula: Option<String>,
     /// 处方明细 JSON：[{dye_name, amount, unit, percentage}]
+    #[sea_orm(column_type = "JsonBinary", nullable)]
     pub formula_detail: Option<Vec<FormulaDetailItem>>,
 
     // ===== 工艺参数（真实业务关键参数） =====

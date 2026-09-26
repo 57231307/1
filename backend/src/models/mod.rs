@@ -125,6 +125,7 @@ pub mod cost_analysis;
 pub mod cost_collection;
 // P1 模块
 pub mod budget_management;
+pub mod budget_item_periods;
 pub mod budget_plan;
 pub mod budget_version;
 pub mod customer_credit;
@@ -243,6 +244,8 @@ pub mod opportunity_competitor;
 pub mod opportunity_follow_up;
 // 批次 122 v8 复审 P1 修复：CRM 标签字典表（替代 list_tags 硬编码 + create_tag/delete_tag 假实现）
 pub mod crm_tag;
+// 客户-标签多对多关联表（customer_tag）：承载客户 360 顶层 tags 与 /customers/{id}/tags 端点
+pub mod customer_tag;
 // V15 P2 18.1-D4: 线索来源 ROI 跟踪
 pub mod lead_source_roi;
 // V15 P2 18.1-D5: 线索分配规则
@@ -270,6 +273,8 @@ pub mod notification_template;
 pub mod user_notification_setting;
 // 批次 127 v8 复审 P2 修复：导入任务记录表（替代 list_import_tasks 空列表占位）
 pub mod import_task;
+pub mod system_update_task;
+pub mod system_update_backup;
 // 数据权限模块
 pub mod data_permission;
 // 字段权限模块

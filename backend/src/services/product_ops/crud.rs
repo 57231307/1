@@ -1,8 +1,9 @@
 //! 产品 Service CRUD 子模块（product_ops/crud）
 //!
 //! 批次 D10 拆分：从原 `product_service.rs` 迁移。
-//! 包含 `ProductService` 的 6 个产品 CRUD 方法：
+//! 包含 `ProductService` 的产品 CRUD 方法：
 //! - `generate_product_code`：生成产品编码（DocumentNumberGenerator）
+//! - `build_product_keyword_condition`：关键词检索条件（名称/编码/条码，列清单见 `PRODUCT_KEYWORD_COLUMNS`）
 //! - `list_products`：分页 + 过滤查询
 //! - `get_product`：详情查询（Redis 读穿透 + 写失效）
 //! - `create_product`：创建（含面料行业字段，事务提交后同步 ES）
@@ -16,11 +17,12 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 
 use crate::models::product::{self, Entity as ProductEntity};
+use crate::models::product_category;
 use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -41,6 +43,24 @@ impl ProductService {
             product::Column::Code,
         )
         .await
+    }
+
+    /// 产品关键词检索覆盖的列：名称/编码/条码
+    /// 面料行业按条码扫码取数是常规入口，故条码与名称、编码同层参与模糊匹配
+    pub const PRODUCT_KEYWORD_COLUMNS: [product::Column; 3] = [
+        product::Column::Name,
+        product::Column::Code,
+        product::Column::Barcode,
+    ];
+
+    /// 构建产品关键词检索条件：`PRODUCT_KEYWORD_COLUMNS` 任一列 LIKE 命中即匹配
+    /// `pattern` 必须是已按 LIKE 规则转义的模式串（`safe_like_pattern`）
+    pub fn build_product_keyword_condition(pattern: &str) -> sea_orm::Condition {
+        let mut cond = sea_orm::Condition::any();
+        for column in Self::PRODUCT_KEYWORD_COLUMNS {
+            cond = cond.add(column.like(pattern));
+        }
+        cond
     }
 
     /// 获取产品列表（支持分页和过滤）
@@ -70,11 +90,7 @@ impl ProductService {
 
         if let Some(keyword) = search {
             let pattern = safe_like_pattern(&keyword);
-            query = query.filter(
-                product::Column::Name
-                    .like(&pattern)
-                    .or(product::Column::Code.like(&pattern)),
-            );
+            query = query.filter(Self::build_product_keyword_condition(&pattern));
         }
 
         // 获取总数
@@ -147,6 +163,7 @@ impl ProductService {
         let CreateProductArgs {
             name,
             code,
+            barcode,
             category_id,
             specification,
             unit,
@@ -168,11 +185,25 @@ impl ProductService {
             factory_name,
             factory_address,
             product_grade,
+            meters_per_piece,
+            meters_per_roll,
         } = args;
+        // 外键预校验：products.category_id REFERENCES product_categories(id)，
+        // 无 ON DELETE 动作。若未预校验，非法 category_id 会在 insert 时抛出
+        // "violates foreign key constraint fk_products_category" 并被映射成 500 DATABASE_ERROR，
+        // 调用方无法区分数据错误与系统故障。
+        if let Some(cat_id) = category_id {
+            product_category::Entity::find_by_id(cat_id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::business(format!("产品分类 {} 不存在", cat_id)))?;
+        }
+
         let active_model = product::ActiveModel {
             id: NotSet,
             name: Set(name),
             code: Set(code),
+            barcode: Set(barcode),
             category_id: Set(category_id),
             specification: Set(specification),
             unit: Set(unit),
@@ -211,6 +242,10 @@ impl ProductService {
             factory_name: Set(factory_name),
             factory_address: Set(factory_address),
             product_grade: Set(product_grade),
+            // 匹/卷换算元数据：透传录入值（码↔匹↔卷换算单一真源入参，供 dual_unit_converter 读取）；
+            // 未录入为 NULL，不影响既有；库存落库真相仍为米/公斤双列，本列不参与库存计量
+            meters_per_piece: Set(meters_per_piece),
+            meters_per_roll: Set(meters_per_roll),
         };
 
         let result = active_model.insert(&*self.db).await?;
@@ -277,13 +312,16 @@ impl ProductService {
             .into())
     }
 
-    /// 应用产品基础字段更新（名称/规格/单位/价格/描述/状态）
+    /// 应用产品基础字段更新（名称/条码/规格/单位/价格/描述/状态）
     fn apply_product_basic_fields(
         product: &mut product::ActiveModel,
         args: &mut UpdateProductArgs,
     ) {
         if let Some(n) = args.name.take() {
             product.name = Set(n);
+        }
+        if let Some(b) = args.barcode.take() {
+            product.barcode = Set(Some(b));
         }
         if let Some(spec) = args.specification.take() {
             product.specification = Set(Some(spec));
@@ -354,6 +392,13 @@ impl ProductService {
         }
         if let Some(pg) = args.product_grade.take() {
             product.product_grade = Set(Some(pg));
+        }
+        // 匹/卷换算元数据：仅当传入 Some 才覆盖，None 保持原值（遵循可选数值字段条件 Set 惯例）
+        if let Some(mpp) = args.meters_per_piece.take() {
+            product.meters_per_piece = Set(Some(mpp));
+        }
+        if let Some(mpr) = args.meters_per_roll.take() {
+            product.meters_per_roll = Set(Some(mpr));
         }
     }
 

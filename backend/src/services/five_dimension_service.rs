@@ -10,7 +10,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::models::inventory_stock::{Column as StockColumn, Entity as InventoryStockEntity};
+// 台账状态取值域（正常/报废/已删除）：此前这里写的是字面量 "ACTIVE"，与库存列的中文
+// 取值域不符，五维统计对任何数据都恒返回空集
 use crate::models::product::{Column as ProductColumn, Entity as ProductEntity};
+use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::utils::error::AppError;
 
 /// 五维统计信息
@@ -77,7 +80,7 @@ impl FiveDimensionService {
         query: FiveDimensionQuery,
     ) -> Result<(Vec<FiveDimensionStats>, u64), AppError> {
         let stock_query = InventoryStockEntity::find()
-            .filter(StockColumn::StockStatus.eq("ACTIVE"))
+            .filter(StockColumn::StockStatus.eq(inventory_stock_status::NORMAL))
             .filter(StockColumn::QuantityAvailable.gt(Decimal::ZERO));
         let stock_query = Self::apply_stock_filters(stock_query, &query);
         let stocks = stock_query.all(&*self.db).await?;

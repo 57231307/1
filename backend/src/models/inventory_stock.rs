@@ -64,9 +64,10 @@ pub struct Model {
     /// 层号
     pub layer_no: Option<String>,
 
-    /// 库存状态：正常/冻结/待检
+    /// 库存状态：正常/报废/已删除（取值域见 models::status::purchase_inventory::inventory_stock_status；
+    /// 本列从未有「冻结/待检」写入方，接口文档若写这两个值即为假文档）
     pub stock_status: String,
-    /// 质量状态：合格/不合格/待检
+    /// 质量状态：合格/待检/不合格（取值域见 inventory_stock_quality_status，不得写其他检验域的 passed/qualified）
     pub quality_status: String,
 
     /// 乐观锁版本号

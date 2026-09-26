@@ -168,8 +168,8 @@ const getFollowUpTypeLabel = (type: string) => {
 const fetchFollowUps = async () => {
   try {
     const res = await getFollowUpList(props.customerId, query);
-    followUps.value = res.data?.data || [];
-    total.value = res.data?.total || 0;
+    followUps.value = res.data.items;
+    total.value = res.data.total;
   } catch (error) {
     const err = error as Error;
     logger.warn(t('crmFollowUp.message.loadFailed'), err.message);

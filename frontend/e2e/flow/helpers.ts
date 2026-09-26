@@ -1,20 +1,17 @@
 /* eslint-disable no-console */
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 // ESM 环境无 require（Playwright 原生 ESM 加载链），fs/crypto 必须静态导入；
 // 此前 require('fs')/require('crypto') 抛 "require is not defined" 导致
 // getRoleCredential 恒返 null（全角色 credentials not found）与 generateTotp 崩溃
 import { existsSync, readFileSync } from 'fs';
 import * as nodeCrypto from 'crypto';
 import {
-  createWarehouseUI,
-  createDepartmentUI,
-  createSupplierUI,
-  createProductUI,
   createColorCardUI,
   createDyeBatchUI,
   createDyeRecipeUI,
   createBomUI,
   createCustomOrderUI,
+  pickListArray,
   readFirstEntityId,
   readEntityIds,
 } from './ui-helpers';
@@ -37,6 +34,93 @@ export interface ApiResponse<T = unknown> {
   timestamp?: string;
 }
 
+// ============================================================================
+// 失败响应信封（e2e 侧显式建模）
+//
+// 全站 HTTP 失败体已收敛为一种形状（`utils/error.rs` 的 `ErrorResponse` 结构体）：
+//   { code: "<字符串机器码>", message: "<脱敏常量或可外显文案>", trace_id: "<uuid>", timestamp: <i64> }
+// 产出方：
+//   ① utils/error.rs:143-148 `AppError::into_response()`（状态码由
+//      error_status_and_type()（error.rs:168-182）决定）；
+//   ② utils/response.rs `unauthorized_response`/`forbidden_response`（auth/permission 中间件）
+//      与 middleware/auth_context.rs `AuthRejection::into_response`——三者都复用同一个
+//      `ErrorResponse` 结构体，因此键与类型完全相同，只是 message 原样外显固定文案。
+// 原先并存的两种数字 code 失败体（ApiResponse::error / error_with_status）与
+// `{ error: "Unauthorized", message }` 已从后端删除，失败体 code 恒为字符串。
+//
+// 唯一尚未收敛的例外：middleware/csrf.rs:234-242 `csrf_error_response()` 绕过 AppError
+// 直出 `{ success: false, code: "<机器码>", message, data: null }`，配 HTTP 403，
+// 且消费竞败时响应头带 x-new-csrf-token（csrf.rs:146-152）。它的 code 同为字符串机器码，
+// 因此在比较点用 failureCode() 取码，避免与其它 403 判据互相误判。
+// ============================================================================
+
+/**
+ * CSRF 机器码：与后端 backend/src/middleware/csrf.rs:39-45 的三个常量同名同值
+ * （CODE_MISS / CODE_INVAL / CODE_IP_MM）。此处引用真实来源而非散写魔法值，
+ * 后端改名/改值时 e2e 侧只有一个维护点。
+ */
+export const CSRF_ERROR_CODES = {
+  /** csrf.rs:39 CODE_MISS */
+  MISSING: 'CSRF_TOKEN_MISSING',
+  /** csrf.rs:42 CODE_INVAL */
+  INVALID: 'CSRF_TOKEN_INVALID',
+  /** csrf.rs:45 CODE_IP_MM（后端对 IP 不匹配不下发恢复头，不参与自动重试） */
+  IP_MISMATCH: 'CSRF_IP_MISMATCH',
+} as const;
+
+/**
+ * AppError 机器码（backend/src/utils/error.rs:461-476 AppError::error_code()）。
+ * 仅登记 e2e 负例实际断言到的三类；新增判据时在此补一行，不在用例里散写字面量。
+ */
+export const APP_ERROR_CODES = {
+  /** error.rs:467 AppError::ValidationError */
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  /** error.rs:468-469 BusinessError / BusinessErrorDisplayable */
+  BUSINESS_ERROR: 'BUSINESS_ERROR',
+  /** error.rs:464 AppError::BadRequest */
+  BAD_REQUEST: 'BAD_REQUEST',
+} as const;
+
+/**
+ * 失败响应体：统一形状 `{code,message,trace_id,timestamp}`，失败时 code 恒为字符串机器码
+ * （`utils/error.rs` 的 `ErrorResponse`）。`success`/`data` 仅由 csrf.rs:234-242 的直出体携带，
+ * 该体没有 trace_id/timestamp。
+ *
+ * `code` 仍保留 `number` 分支：`apiCall` 解析的是成功信封 `ApiResponse`（数字 200），
+ * 与失败体共用同一判据函数；`failureCode()` 只把字符串当机器码，数字码永不命中。
+ * `total` 同理来自成功信封顶层。
+ */
+export interface ApiFailureBody {
+  success?: false;
+  code?: string | number;
+  message?: string | null;
+  data?: unknown;
+  total?: number;
+  trace_id?: string;
+  timestamp?: string | number;
+}
+
+/** apiCallExpectFail 的返回：HTTP 状态码 + 未收窄的失败体字段 */
+export interface ApiFailureResult extends ApiFailureBody {
+  status: number;
+}
+
+/**
+ * 取失败体的字符串机器码（统一形状与 csrf.rs 直出体都是字符串）。
+ * 运行时 JSON 不受类型约束，故保留 typeof 判定：非字符串（缺失/异常）返回 undefined，
+ * 不做 String() 强转，避免把结构异常当成命中某个机器码。
+ */
+export function failureCode(json: ApiFailureBody | null | undefined): string | undefined {
+  const code = json?.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+/** 失败体是否 CSRF 中间件直出的 403 拒绝（缺 MISSING/INVALID 码即视为统一信封的业务机器码） */
+export function isCsrfRejection(status: number, json: ApiFailureBody | null | undefined): boolean {
+  const code = failureCode(json);
+  return status === 403 && (code === CSRF_ERROR_CODES.INVALID || code === CSRF_ERROR_CODES.MISSING);
+}
+
 export interface EntityContext {
   departmentIds: number[];
   warehouseIds: number[];
@@ -44,6 +128,16 @@ export interface EntityContext {
   productIds: number[];
   productColorIds: number[];
   colorNos: string[];
+  /**
+   * 报价专用产品：后端 validate_item_units_against_products 要求报价行 unit 逐字符等于
+   * 所引用产品的交易单位（单一真源）。ctx.productIds 可能复用库中 unit 未知的历史共享产品，
+   * 故 ensureTestEntities 无条件自建一个显式带 unit 的产品，报价造数一律引用它，
+   * quotationProductUnit 存后端落库的真实单位（非写死），保证单位配对。
+   */
+  quotationProductId?: number;
+  quotationProductUnit: string;
+  /** 报价专用产品的色号 ID，供需要 color_id 的报价用例自给自足引用 */
+  quotationProductColorId?: number;
   supplierId?: number;
   customerId?: number;
   accountSubjectIds: number[];
@@ -77,6 +171,7 @@ const ctx: EntityContext = {
   productIds: [],
   productColorIds: [],
   colorNos: [],
+  quotationProductUnit: '',
   accountSubjectIds: [],
   pieceIds: [],
   stockIds: [],
@@ -126,87 +221,141 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
 
   // ---- 1. 仓库（UI 创建）----
   try {
-    ctx.warehouseIds = await readEntityIds(page, '/warehouse', `${API_PREFIX}/warehouses`);
+    ctx.warehouseIds = await readEntityIds(
+      page,
+      '/warehouse',
+      `${API_PREFIX}/warehouses`,
+      // warehouse_handler.rs:88 define_crud_handlers! → warehouse_service::list PaginatedResponse
+      'items'
+    );
   } catch (e) {
     console.warn('[ensureTestEntities] 仓库列表查询失败（可能空库）:', (e as Error).message);
     ctx.warehouseIds = [];
   }
   if (ctx.warehouseIds.length < 2) {
+    // API 创建（CreateWarehouseRequest：name/code 经 serde alias 兼容 warehouse_*）
+    // 创建失败直接抛错：前置实体缺失时后续测试的断言无意义，禁止兜底掩盖
     for (let i = ctx.warehouseIds.length; i < 2; i++) {
-      const id = await uiCreateWithRetry(page, createWarehouseUI);
-      if (id) {
-        ctx.warehouseIds.push(id);
-      } else {
-        console.error(
-          '[ensureTestEntities] 仓库 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
-        );
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
+        name: `E2E仓库${Date.now().toString().slice(-6)}${i}`,
+        code: `E2E-W${Date.now().toString().slice(-6)}${i}`,
+      });
+      if (!result.data?.id) {
+        throw new Error(`[ensureTestEntities] 仓库创建失败: ${JSON.stringify(result)}`);
       }
+      ctx.warehouseIds.push(result.data.id);
     }
   }
-  if (ctx.warehouseIds.length < 2) ctx.warehouseIds = [1, 2];
+
+  // ---- 1.5 当前用户 ID（后续步骤依赖：报价单 sales_user_id 必填）----
+  // 必须在报价单创建前完成，否则 ctx.userIds 为空导致 422
+  // /auth/me 不限角色；/users 列表仅 admin 可访问
+  try {
+    const me = await apiCallRaw<{ id: number; username?: string }>(page, 'GET', '/auth/me');
+    if (!me?.id) {
+      throw new Error('当前用户 ID 缺失（/auth/me 未返回 id）');
+    }
+    ctx.userIds = [me.id];
+    console.log('[ensureTestEntities] 当前用户 id=', me.id, 'username=', me.username);
+  } catch (e) {
+    throw new Error(`[ensureTestEntities] 当前用户查询失败: ${(e as Error).message}`);
+  }
 
   // ---- 2. 产品（UI 创建）----
   // 前置：确保"面料"产品分类存在（表单 category_id 必填，系统初始化不创建分类种子数据）
   try {
-    const cats = await apiCallRaw<{ id?: number; name?: string }[] | { items?: { id: number }[] }>(
-      page,
-      'GET',
-      '/product-categories'
+    // /product-categories：product_category_handler.rs:44 define_crud_handlers! →
+    // product_category_service::list 返回 PaginatedResponse，data 形状为 {items,total,page,page_size}。
+    // 单一形状直读（'items'）；原写法 `Array.isArray(cats)?cats:(cats.items||[])` 同时吞裸数组/items，
+    // 且 `|| []` 把 items 键缺失当成"无分类"——分类端点若改形会静默走创建分支重复建"面料"。
+    const cats = await apiCallRaw<unknown>(page, 'GET', '/product-categories');
+    const catItems = pickListArray<{ id: number; name?: string }>(
+      cats,
+      'items',
+      'ensureTestEntities /product-categories'
     );
-    const catItems = Array.isArray(cats)
-      ? cats
-      : (cats as { items?: { id: number }[] }).items || [];
-    const hasFabric = catItems.some(c => (c as { name?: string }).name?.includes('面料'));
-    if (!hasFabric) {
+    const fabricCat = catItems.find(c => c.name?.includes('面料'));
+    if (fabricCat) {
+      ctx.productCategoryIds.push(fabricCat.id);
+    } else {
+      // create（crud_macro.rs:89-134 define_crud_handlers!）返回 ApiResponse<to_value(item)>，
+      // 载荷即实体本身，故泛型参数写载荷 { id?: number }，读 created.data.id；
+      // 原写法把 { data?: { id?: number } } 当作载荷传入，于是再读 .data.id 造成双重包装。
       const created = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
         name: '面料',
         code: 'FABRIC',
       });
-      console.log('[ensureTestEntities] 创建产品分类"面料":', created.code);
+      if (!created.data?.id) {
+        throw new Error(`[ensureTestEntities] 产品分类创建未返回 id: ${JSON.stringify(created)}`);
+      }
+      ctx.productCategoryIds.push(created.data.id);
+      console.log('[ensureTestEntities] 创建产品分类"面料" id=', created.data.id);
     }
   } catch (e) {
-    // 分类创建失败仅告警（可能已存在），产品创建失败时诊断信息会暴露详情
-    console.warn('[ensureTestEntities] 产品分类检查/创建失败:', (e as Error).message);
+    throw new Error(`[ensureTestEntities] 产品分类检查/创建失败: ${(e as Error).message}`);
   }
   try {
-    ctx.productIds = await readEntityIds(page, '/product', `${API_PREFIX}/products`);
+    ctx.productIds = await readEntityIds(
+      page,
+      '/product',
+      `${API_PREFIX}/products`,
+      // product_handler.rs:247 list_products → ApiResponse::success(PaginatedResponse) → {items}
+      'items'
+    );
   } catch (e) {
     console.warn('[ensureTestEntities] 产品列表查询失败（可能空库）:', (e as Error).message);
     ctx.productIds = [];
   }
-  if (ctx.productIds.length === 0) {
-    // 先 UI 尝试一次（下拉交互脆弱：分类 select 点击后偶发不更新 v-model）
-    const uiId = await uiCreateWithRetry(page, createProductUI);
-    if (uiId) {
-      ctx.productIds.push(uiId);
-    } else {
-      console.warn(
-        '[ensureTestEntities] 产品 UI 创建失败，改用 API 兜底创建（保证后续流程不被阻塞）'
-      );
-    }
-    // API 兜底补齐到 3 个
+  // 夹具基数假设：消费用例要求 ctx.productIds 至少 3 个——
+  // 03-production「3-8 创建 BOM」用 items: productIds.slice(1)（需 ≥2 才非空，
+  // 否则后端 bom_handler.rs:33 items min=1 合法 400）；
+  // 01-p2p「1-6b」用 ctx.productIds[1] 作「产品对不上」负例（需 ≥2 才不 undefined）。
+  // wave5c 的 global-setup.ensureGlobalBusinessSeed 会先建全局产品，跨分片共库下
+  // readEntityIds 读到的现有产品可能已是 1~2 个。原逻辑仅在 length===0 时补齐，
+  // seed 产品会让补齐整段被跳过 → ctx.productIds 饿死到 1 个 → 两用例红。
+  // 故改为无条件补齐到至少 3：读到的现有 id（含 seed 产品）全部保留并计入基数，
+  // 不足 3 才补建，补建走与本函数既有建产品一致的字段口径（含克重/幅宽）。
+  if (ctx.productIds.length < 3) {
+    const catId = ctx.productCategoryIds[0];
+    expect(catId, '[ensureTestEntities] 产品分类 id 缺失').toBeTruthy();
     while (ctx.productIds.length < 3) {
+      const seq = ctx.productIds.length;
       try {
-        // CreateProductRequest 字段：code/name/category_id/unit
+        // CreateProductRequest：code/name/category_id 必填；
+        // Q1 报价转订单按产品克重×幅宽做米↔公斤真实换算，缺则后端拒绝——通用产品也需带。
+        // 编码/名称带「末6位毫秒时间戳 + 当前基数 seq」唯一后缀，保证幂等：
+        // 与 seed 产品及历史数据不重名，重跑/并发分片各建各的，不制造冲突。
         const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
-          code: `E2E-P${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
-          name: `E2E产品${Date.now().toString().slice(-6)}${ctx.productIds.length}`,
+          code: `E2E-P${Date.now().toString().slice(-6)}${seq}`,
+          name: `E2E产品${Date.now().toString().slice(-6)}${seq}`,
           unit: '米',
+          category_id: catId,
+          gram_weight: 180,
+          width: 150,
+          meters_per_piece: 50,
+          meters_per_roll: 100,
         });
         if (result.data?.id) {
           ctx.productIds.push(result.data.id);
-          console.log('[ensureTestEntities] 产品 API 兜底创建成功 id=', result.data.id);
+          console.log(
+            `[ensureTestEntities] 产品补齐创建成功 id=${result.data.id}（当前基数=${ctx.productIds.length}）`
+          );
+        } else if (seq === 0) {
+          // 空库首轮一个产品都拿不到属真实环境缺陷，直接抛错暴露，不做假兜底
+          throw new Error(`[ensureTestEntities] 产品创建失败: ${JSON.stringify(result)}`);
         } else {
-          console.error('[ensureTestEntities] 产品 API 兜底未返回 id:', JSON.stringify(result));
+          console.error('[ensureTestEntities] 产品补齐未返回 id:', JSON.stringify(result));
           break;
         }
       } catch (e) {
-        console.error('[ensureTestEntities] 产品 API 兜底创建失败:', (e as Error).message);
+        if (seq === 0) {
+          throw new Error(`[ensureTestEntities] 产品创建失败: ${(e as Error).message}`);
+        }
+        console.error('[ensureTestEntities] 产品补齐创建失败:', (e as Error).message);
         break;
       }
     }
   }
-  if (ctx.productIds.length === 0) ctx.productIds = [1];
 
   // ---- 3. 产品色号（仍用 API，因为色号在详情页创建且依赖 product_id）----
   try {
@@ -219,38 +368,53 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.productColorIds = colors?.map(c => c.id) || [];
     ctx.colorNos = colors?.map(c => c.color_no) || ['TEST-COLOR'];
   } catch (e) {
-    console.warn('[ensureTestEntities] 色号查询失败（产品可能无色号）:', (e as Error).message);
-    ctx.colorNos = ['TEST-COLOR'];
-    ctx.productColorIds = [1];
+    throw new Error(`[ensureTestEntities] 色号查询失败: ${(e as Error).message}`);
   }
-  if (ctx.colorNos.length === 0) ctx.colorNos = ['TEST-COLOR'];
+  if (ctx.colorNos.length === 0) {
+    // 新建产品天然无色号——真实创建一个（CreateProductColorRequest），非占位兜底
+    const created = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      `/products/${ctx.productIds[0]}/colors`,
+      {
+        color_no: `E2E-C${Date.now().toString().slice(-6)}`,
+        color_name: 'E2E色号',
+        // CreateProductColorRequest 必填：color_type/extra_cost
+        color_type: '纯色',
+        extra_cost: 0,
+      }
+    );
+    if (!created.data?.id) {
+      throw new Error(`[ensureTestEntities] 色号创建失败: ${JSON.stringify(created)}`);
+    }
+    ctx.productColorIds = [created.data.id];
+    ctx.colorNos = [`E2E-C${Date.now().toString().slice(-6)}`];
+  }
 
   // ---- 4. 供应商（UI 创建）----
   try {
-    ctx.supplierId = await readFirstEntityId(page, '/supplier', `${API_PREFIX}/purchase/suppliers`);
+    ctx.supplierId = await readFirstEntityId(
+      page,
+      '/supplier',
+      `${API_PREFIX}/purchase/suppliers`,
+      // supplier_handler.rs:20 list_suppliers → supplier_service PaginatedResponse → {items}
+      'items'
+    );
   } catch (e) {
     console.error('[ensureTestEntities] supplierId 查找失败:', (e as Error).message);
     ctx.supplierId = undefined;
   }
   if (!ctx.supplierId) {
-    const id = await uiCreateWithRetry(page, createSupplierUI);
-    ctx.supplierId = id;
-    if (!id) {
-      console.warn('[ensureTestEntities] 供应商 UI 创建失败，改用 API 兜底创建');
-      try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
-          supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
-          supplier_short_name: 'E2E供',
-          contact_phone: '13800000001',
-        });
-        ctx.supplierId = result.data?.id;
-        if (!ctx.supplierId) {
-          console.error('[ensureTestEntities] 供应商 API 兜底未返回 id:', JSON.stringify(result));
-        }
-      } catch (e) {
-        console.error('[ensureTestEntities] 供应商 API 兜底创建失败:', (e as Error).message);
-      }
+    // API 创建（CreateSupplierRequest：supplier_short_name min=2、contact_phone）；失败即抛错
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
+      supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
+      supplier_short_name: 'E2E供',
+      contact_phone: '13800000001',
+    });
+    if (!result.data?.id) {
+      throw new Error(`[ensureTestEntities] 供应商创建失败: ${JSON.stringify(result)}`);
     }
+    ctx.supplierId = result.data.id;
   }
 
   // ---- 5. 客户（仍用 API，表单字段较多且下拉依赖复杂）----
@@ -262,8 +426,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     );
     ctx.customerId = customers.items?.[0]?.id;
   } catch (e) {
-    console.error('[ensureTestEntities] customerId 创建失败:', (e as Error).message);
-    ctx.customerId = undefined;
+    throw new Error(`[ensureTestEntities] 客户创建失败: ${(e as Error).message}`);
   }
   if (!ctx.customerId) {
     try {
@@ -293,20 +456,31 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // ---- 7. 部门（UI 创建）----
   if (ctx.departmentIds.length === 0) {
     try {
-      ctx.departmentIds = await readEntityIds(page, '/departments', `${API_PREFIX}/departments`);
+      ctx.departmentIds = await readEntityIds(
+        page,
+        '/departments',
+        `${API_PREFIX}/departments`,
+        // department_handler.rs:53 define_crud_handlers! → department_service::list PaginatedResponse → {items}
+        'items'
+      );
     } catch (e) {
       console.warn(`[E2E] catch: ${(e as Error).message}`);
       ctx.departmentIds = [];
     }
   }
   if (ctx.departmentIds.length === 0) {
-    const id = await uiCreateWithRetry(page, createDepartmentUI);
-    if (id) {
-      ctx.departmentIds.push(id);
-    } else {
-      console.error(
-        '[ensureTestEntities] 部门 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
-      );
+    try {
+      const result = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
+        name: `E2E部门${Date.now().toString().slice(-6)}`,
+        code: `E2E-D${Date.now().toString().slice(-6)}`,
+      });
+      if (result.data?.id) {
+        ctx.departmentIds.push(result.data.id);
+      } else {
+        console.error('[ensureTestEntities] 部门 API 创建未返回 id:', JSON.stringify(result));
+      }
+    } catch (e) {
+      throw new Error(`[ensureTestEntities] 部门创建失败: ${(e as Error).message}`);
     }
   }
 
@@ -323,12 +497,13 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   }
   if (!ctx.purchaseOrderId) {
     try {
+      // 前置实体（供应商/仓库/部门/产品）已在上方确保存在，缺失时让创建错误真实暴露
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
-        supplier_id: ctx.supplierId || 1,
-        warehouse_id: ctx.warehouseIds[0] || 1,
-        department_id: ctx.departmentIds[0] || 1,
+        supplier_id: ctx.supplierId,
+        warehouse_id: ctx.warehouseIds[0],
+        department_id: ctx.departmentIds[0],
         order_date: new Date().toISOString().slice(0, 10),
-        items: [{ material_id: ctx.productIds[0] || 1, quantity_ordered: '1', unit_price: '1' }],
+        items: [{ material_id: ctx.productIds[0], quantity_ordered: '1', unit_price: '1' }],
       });
       ctx.purchaseOrderId = result.data?.id;
     } catch (e) {
@@ -348,12 +523,35 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   } catch (e) {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
   }
+  // 9.1 确保 ctx.productIds[0] 有库存记录（销售订单创建会锁库存）
+  // 独立于 salesOrderId 逻辑：即使已有销售订单，新建订单仍需库存
+  if (ctx.productIds[0]) {
+    try {
+      const existingStock = await ensureStockInWarehouse(
+        page,
+        ctx.productIds[0],
+        ctx.warehouseIds[0],
+        ctx.colorNos[0]
+      );
+      if (existingStock) {
+        // 登记库存 ID 供清理链使用（新建的库存不在历史记录中）
+        const stockId = Number(existingStock.id);
+        if (stockId && !ctx.stockIds.includes(stockId)) {
+          ctx.stockIds.push(stockId);
+        }
+        console.log('[ensureTestEntities] 产品库存已确保 product_id=', ctx.productIds[0]);
+      }
+    } catch (e) {
+      console.warn('[ensureTestEntities] 库存确保失败:', (e as Error).message);
+    }
+  }
   if (!ctx.salesOrderId) {
     try {
-      // 先创建库存记录（销售订单创建会锁库存，无库存 → BUSINESS_ERROR）
+      // 先创建库存记录（销售订单创建会锁库存，无库存 → BUSINESS_ERROR）；
+      // 前置实体已在上方确保存在，缺失时让创建错误真实暴露
       const stock = await apiCall<{ id?: number }>(page, 'POST', '/inventory/stock/fabric', {
-        warehouse_id: ctx.warehouseIds[0] || 1,
-        product_id: ctx.productIds[0] || 1,
+        warehouse_id: ctx.warehouseIds[0],
+        product_id: ctx.productIds[0],
         batch_no: `E2E-STK${Date.now().toString().slice(-6)}`,
         color_no: ctx.colorNos[0] || 'TEST-COLOR',
         grade: '一等品',
@@ -367,15 +565,78 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         console.error('[ensureTestEntities] 库存兜底创建未返回 id:', JSON.stringify(stock));
       }
       const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-        customer_id: ctx.customerId || 1,
-        order_date: new Date().toISOString().slice(0, 10),
-        items: [{ product_id: ctx.productIds[0] || 1, quantity: '1', unit_price: '1' }],
+        customer_id: ctx.customerId,
+        order_date: new Date().toISOString(),
+        items: [{ product_id: ctx.productIds[0], quantity: '1', unit_price: '1' }],
       });
       ctx.salesOrderId = result.data?.id;
     } catch (e) {
       console.error('[ensureTestEntities] salesOrderId 创建失败:', (e as Error).message);
       ctx.salesOrderId = undefined;
     }
+  }
+
+  // ---- 9.5 报价专用产品（自建、显式带 unit、读回落库真实单位）----
+  // 后端 validate_item_units_against_products（quotation_ops/crud.rs:117）要求报价行 unit
+  // 逐字符等于所引用产品 product.unit（单一真源，不一致直接 400，不静默覆盖）。
+  // ctx.productIds 优先复用库中已有产品（见上方 unit 未知），报价块若写死 '米' 会与
+  // 历史产品单位（可能为 个/公斤/码…）冲突。故本用例无条件自建一个带 unit 的产品，
+  // 并读回后端 product::Model.unit 作为报价行单位的唯一事实来源，实现单位配对、自给自足。
+  try {
+    const qpCode = genCode('E2E-QP');
+    const created = await apiCall<{ id?: number; unit?: string }>(page, 'POST', '/products', {
+      code: qpCode,
+      name: `E2E报价产品${qpCode}`,
+      unit: '米',
+      category_id: ctx.productCategoryIds[0],
+      // Q1 报价转订单换算要求产品有克重/幅宽；缺则拒绝（源码正确行为），
+      // 转订单用例 flow02/quotations02 依赖此产品可转换
+      gram_weight: 180,
+      width: 150,
+      meters_per_piece: 50,
+      meters_per_roll: 100,
+    });
+    if (!created.data?.id) {
+      throw new Error(`报价专用产品创建未返回 id: ${JSON.stringify(created)}`);
+    }
+    ctx.quotationProductId = created.data.id;
+    // 单位取后端落库真值：create 响应已回 product::Model（含 unit），缺失时回查详情兜底，
+    // 保证与 validate_item_units_against_products 比对的产品主数据单位逐字符一致。
+    if (created.data.unit) {
+      ctx.quotationProductUnit = created.data.unit;
+    } else {
+      const detail = await apiCallRaw<{ unit?: string }>(
+        page,
+        'GET',
+        `/products/${ctx.quotationProductId}`
+      );
+      ctx.quotationProductUnit = detail?.unit ?? '米';
+    }
+    console.log(
+      `[ensureTestEntities] 报价专用产品 id=${ctx.quotationProductId} 落库单位=${ctx.quotationProductUnit}`
+    );
+    // 为该报价产品建一条色号，供 21b 等需 color_id 的报价用例引用（自给自足，不复用共享色号）
+    try {
+      const color = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        `/products/${ctx.quotationProductId}/colors`,
+        {
+          color_no: `E2E-QC${Date.now().toString().slice(-6)}`,
+          color_name: 'E2E报价色号',
+          color_type: '纯色',
+          extra_cost: 0,
+        }
+      );
+      ctx.quotationProductColorId = color.data?.id;
+    } catch (e) {
+      console.warn(
+        '[ensureTestEntities] 报价专用产品色号创建失败（不影响单位配对）:',
+        (e as Error).message
+      );
+    }
+  } catch (e) {
+    throw new Error(`[ensureTestEntities] 报价专用产品/单位准备失败: ${(e as Error).message}`);
   }
 
   // ---- 10. 报价单（保留 API 创建）----
@@ -392,8 +653,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   if (!ctx.quotationId) {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
-        customer_id: ctx.customerId || 1,
-        sales_user_id: 1,
+        customer_id: ctx.customerId,
+        sales_user_id: ctx.userIds[0],
         quotation_date: new Date().toISOString().slice(0, 10),
         valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
         currency: 'CNY',
@@ -404,8 +665,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         tax_rate: '13',
         items: [
           {
-            product_id: ctx.productIds[0] || 1,
-            unit: '米',
+            // 引用自建、单位已知的报价专用产品；unit 用后端落库真值，满足单位一致性校验
+            product_id: ctx.quotationProductId,
+            unit: ctx.quotationProductUnit,
             quantity: '1',
             unit_price: '1',
             unit_price_with_tax: '1.13',
@@ -424,7 +686,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.dyeBatchId = await readFirstEntityId(
       page,
       '/production',
-      `${API_PREFIX}/production/dye-batches`
+      `${API_PREFIX}/production/dye-batches`,
+      // dye_batch_handler.rs:59 list_dye_batches → ApiResponse<PaginatedResponse> → {items}
+      'items'
     );
   } catch (e) {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
@@ -485,7 +749,10 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
           color_code: ctx.colorNos[0] || 'TEST-COLOR',
           color_name: '测试色',
           chemical_formula: 'E2E测试内容',
-          status: 'DRAFT',
+          // dye_recipe.status 迁移 CHECK chk_dye_recipe_status 为小写英文闭合词表
+          // （draft/pending_approval/approved/disabled，见 quality_dyeing.rs::dye_recipe DRAFT="draft"），
+          // 传大写 'DRAFT' 会命中同一 CHECK 报 DATABASE_ERROR
+          status: 'draft',
         });
         ctx.dyeRecipeId = result.data?.id;
         if (!ctx.dyeRecipeId) {
@@ -508,30 +775,6 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   } catch (e) {
     console.error('[ensureTestEntities] productionRecipeId 创建失败:', (e as Error).message);
     ctx.productionRecipeId = undefined;
-  }
-
-  // ---- 12.5 BPM 流程定义（测试前置：销售订单 submit 触发 BPM 审批流程，
-  //        "sales_order_approval" 定义不存在则 submit 400 回滚 → approve/ship 连锁失败）----
-  try {
-    await apiCall<{ id?: number }>(page, 'POST', '/bpm/definitions', {
-      name: '销售订单审批流程',
-      code: 'sales_order_approval',
-      description: 'E2E 测试用销售订单审批流程定义',
-      category: 'sales',
-      version: '1.0',
-      config: {
-        nodes: [
-          { node_id: 'start', node_name: '提交审批', node_type: 'start' },
-          { node_id: 'approve', node_name: '审批', node_type: 'approval' },
-          { node_id: 'end', node_name: '完成', node_type: 'end' },
-        ],
-      },
-      status: 'ACTIVE',
-    });
-    console.log('[ensureTestEntities] BPM sales_order_approval 定义已创建/已存在');
-  } catch (e) {
-    // 已存在或 CSRF 恢复失败均视为成功（幂等）
-    console.warn('[ensureTestEntities] BPM 定义创建跳过:', (e as Error).message);
   }
 
   // ---- 13. BOM（UI 创建）----
@@ -664,7 +907,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.customOrderId = await readFirstEntityId(
       page,
       '/custom-orders',
-      `${API_PREFIX}/custom-orders`
+      `${API_PREFIX}/custom-orders`,
+      // custom_order_handler.rs:136 list_custom_orders → PagedResponse{items,...} → {items}
+      'items'
     );
   } catch (e) {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
@@ -683,7 +928,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.colorCardId = await readFirstEntityId(
       page,
       '/color-cards/list',
-      `${API_PREFIX}/color-cards`
+      `${API_PREFIX}/color-cards`,
+      // color_card/crud.rs:29 list_color_cards → PagedResponse{items,...} → {items}
+      'items'
     );
   } catch (e) {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
@@ -722,6 +969,107 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     console.error('[ensureTestEntities] roleId 创建失败:', (e as Error).message);
     ctx.roleId = undefined;
   }
+
+  // ---- 23. 用户 ID 已在步骤 1.5 中确保（ctx.userIds[0] = 当前登录用户）----
+
+  // ---- 24. BPM 销售订单审批流程定义（幂等：先查后建）----
+  // 节点 schema 必须匹配后端 bpm_service.rs::resolve_first_task_node：
+  // 键为 nodes[].id / nodes[].name / nodes[].type，取值为 start_event / user_task / end_event，
+  // 且首任务需由 edges 从 start_event 串出（无 edges 时回退查找第一个 user_task）。
+  // 此前用 node_id / node_name / node_type 且无 edges，后端解析不到任务节点，
+  // 走 bpm_ops/instance.rs 的「无任务节点，自动完成流程」分支：submit 即异步回写
+  // approved，用例随后显式 approve 撞「订单状态为 approved，无法审核」。
+  // assignee_value 需为字符串（后端 as_str() 后 parse::<i32>），故用 String(approverId)。
+  try {
+    const existingDefs = await apiCallRaw<{ items?: Array<{ code?: string }> }>(
+      page,
+      'GET',
+      '/bpm/definitions?page=1&page_size=100'
+    );
+    const alreadyExists = existingDefs?.items?.some(d => d.code === 'sales_order_approval');
+    if (!alreadyExists) {
+      const approverId = ctx.userIds[0];
+      const res = await apiCall<{ id?: number }>(page, 'POST', '/bpm/definitions', {
+        name: '销售订单审批流程',
+        code: 'sales_order_approval',
+        description: 'E2E 测试用销售订单审批流程定义',
+        category: 'sales',
+        version: '1.0',
+        config: {
+          nodes: [
+            { id: 'start', name: '提交审批', type: 'start_event' },
+            {
+              id: 'approve_task',
+              name: '销售订单审批',
+              type: 'user_task',
+              assignee_value: String(approverId),
+            },
+            { id: 'end', name: '完成', type: 'end_event' },
+          ],
+          edges: [
+            { source: 'start', target: 'approve_task' },
+            { source: 'approve_task', target: 'end' },
+          ],
+        },
+        status: 'ACTIVE',
+      });
+      console.log(`[ensureTestEntities] BPM sales_order_approval 定义已创建 id=${res?.data?.id}`);
+    } else {
+      console.log('[ensureTestEntities] BPM sales_order_approval 已存在，跳过创建');
+    }
+  } catch (e) {
+    // 同 code 已存在时后端拒绝重复创建，属预期；真实是否可用由消费方用例断言兜住
+    console.warn('[ensureTestEntities] BPM 定义创建返回异常:', (e as Error).message);
+  }
+
+  // ---- 25. 色号定价（供 color-price.spec 详情页/图表用例使用）----
+  try {
+    const cps = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/color-prices?page=1&page_size=1'
+    );
+    if (!cps?.items?.length) {
+      const colorPrice = await apiCall<{ id?: number }>(page, 'POST', '/color-prices', {
+        product_id: ctx.productIds[0],
+        color_id: ctx.productColorIds[0],
+        currency: 'CNY',
+        base_price: '12.50',
+        effective_from: new Date().toISOString().slice(0, 10),
+      });
+      console.log(`[ensureTestEntities] 色号定价已创建 id=${colorPrice?.data?.id}`);
+    }
+  } catch (e) {
+    console.warn('[ensureTestEntities] 色号定价造数异常:', (e as Error).message);
+  }
+
+  // ---- 26. 验布记录（带 fabric_width_inches，供 flow20 定级→关闭链路使用）----
+  // 后端 grade_inspection 要求 fabric_width_inches 非空（四分制计算），缺失则 400。
+  // 路由前缀 /production/fabric-inspections（routes/production.rs:276）。
+  try {
+    const inspections = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/production/fabric-inspections?page=1&page_size=1&status=pending'
+    );
+    if (!inspections?.items?.length) {
+      const insp = await apiCall<{ id?: number }>(page, 'POST', '/production/fabric-inspections', {
+        inspection_date: new Date().toISOString().slice(0, 10),
+        product_id: ctx.productIds[0],
+        product_name: `E2E验布产品`,
+        color_no: ctx.colorNos[0] || 'E2E-C001',
+        dye_lot_no: ctx.dyeLotNo || genDyeLotNo(),
+        scoring_system: 'four_point',
+        fabric_width_inches: 60,
+        inspector_name: 'E2E验布员',
+      });
+      console.log(
+        `[ensureTestEntities] 验布记录已创建 id=${insp?.data?.id}（含 fabric_width_inches=60）`
+      );
+    }
+  } catch (e) {
+    console.warn('[ensureTestEntities] 验布记录造数异常:', (e as Error).message);
+  }
 }
 
 /**
@@ -732,6 +1080,38 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
  * 其余测试的执行窗口（一个分片约 13 个测试 × 5 分钟 ensure 上限，
  * 最坏情况也不会触及 20 分钟分片强杀）。
  */
+/**
+ * 通知列表项。后端 notification_handler.rs:75 的 list_notifications 返回
+ * `{ list, total, page, page_size }`，key 是 list 而非 items；
+ * status 过滤仅接受大写 UNREAD/READ/PROCESSED（小写会匹配不到而被静默忽略）。
+ */
+export interface NotificationItem {
+  id: number;
+  title: string;
+  content?: string;
+  status?: string;
+}
+
+/** 读取当前用户通知；响应缺少 list 数组时直接抛错，不再退化成"0 条通知" */
+export async function listNotifications(
+  page: Page,
+  status: 'UNREAD' | 'READ' | 'PROCESSED' = 'UNREAD'
+): Promise<NotificationItem[]> {
+  const body = await apiCallRaw<{ list?: NotificationItem[] }>(
+    page,
+    'GET',
+    `/notifications?status=${status}&page=1&page_size=50`
+  );
+  if (!Array.isArray(body?.list)) {
+    throw new Error(
+      `[listNotifications] /notifications 响应缺少 list 数组，实际 keys=${JSON.stringify(
+        Object.keys(body ?? {})
+      )}`
+    );
+  }
+  return body.list;
+}
+
 export async function ensureTestEntities(page: Page): Promise<void> {
   const GUARD_MS = 300_000;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -748,6 +1128,50 @@ export async function ensureTestEntities(page: Page): Promise<void> {
   });
 }
 
+/**
+ * 取得一个有效的预算方案 ID，用于创建预算明细（budget_items）。
+ *
+ * 后端 Q3 重构后预算为「方案头 + 明细行」两级：POST /budgets（create_budget → create_item）
+ * 的 plan_id 为 NOT NULL 且 create_item 会校验所属方案真实存在
+ * （budget_management_service.rs:176-177 get_plan_by_id），缺失/非法即 4xx。
+ * 故预算明细造数前必须先有一个存在的方案：
+ *   1. 优先复用库中已有方案（GET /budgets/plans 取首条，避免每次新增垃圾方案）；
+ *   2. 无方案时用 ensureTestEntities 已确保的部门自建一条（POST /budgets/plans，
+ *      create_plan 仅 department_id 必填，其余有服务端默认）。
+ * 失败即抛错，不兜底返回假 ID（假 ID 会在 create_item 外键校验处 404，掩盖真实缺方案）。
+ */
+export async function ensureBudgetPlan(page: Page): Promise<number> {
+  const existing = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+    page,
+    'GET',
+    '/budgets/plans?page=1&page_size=1'
+  ).catch(e => {
+    console.warn('[ensureBudgetPlan] 预算方案列表查询失败（转新建）:', (e as Error).message);
+    return undefined;
+  });
+  const existingId = existing?.items?.[0]?.id;
+  if (existingId) {
+    return existingId;
+  }
+  const deptId = getCtx().departmentIds[0];
+  if (!deptId) {
+    throw new Error('[ensureBudgetPlan] 无可用部门 ID（ctx.departmentIds 为空），无法创建预算方案');
+  }
+  const created = await apiCall<{ id?: number }>(page, 'POST', '/budgets/plans', {
+    plan_no: `E2E-BP${Date.now().toString().slice(-6)}`,
+    plan_name: `E2E预算方案${Date.now().toString().slice(-6)}`,
+    budget_year: new Date().getFullYear(),
+    budget_type: '年度预算',
+    department_id: deptId,
+    total_amount: 1000000,
+  });
+  if (!created.data?.id) {
+    throw new Error(`[ensureBudgetPlan] 预算方案创建未返回 id: ${JSON.stringify(created)}`);
+  }
+  console.log('[ensureBudgetPlan] 新建预算方案 id=', created.data.id);
+  return created.data.id;
+}
+
 async function getCsrfToken(page: Page): Promise<string> {
   const cookies = await page.context().cookies();
   const csrf = cookies.find(c => c.name === 'csrf_token');
@@ -755,6 +1179,41 @@ async function getCsrfToken(page: Page): Promise<string> {
     throw new Error('csrf_token cookie not found — are you logged in?');
   }
   return csrf.value;
+}
+
+/**
+ * 后端 CSRF Token 为一次性消费（csrf.rs:110 consume + :216-224 Set-Cookie 轮换）。
+ * page.request 成功写入后，响应 Set-Cookie 携带新 token，Playwright 自动存入 context。
+ * 本函数为防御性保障：从响应的 set-cookie 头中显式提取 csrf_token 值并 addCookies，
+ * 确保即便 Playwright 内部 cookie 传播存在微小时序差，下一次 getCsrfToken 也一定能读到
+ * 最新轮换后的 token，杜绝因使用已消费 token 导致的不必要 403。
+ */
+async function syncCsrfFromResponse(
+  page: Page,
+  response: { headers(): Record<string, string> },
+  url: string
+): Promise<void> {
+  const setCookie = response.headers()['set-cookie'];
+  if (!setCookie) return;
+  const match = /csrf_token=([^;]+)/.exec(setCookie);
+  if (!match) return;
+  try {
+    const urlObj = new URL(url);
+    await page.context().addCookies([
+      {
+        name: 'csrf_token',
+        value: match[1],
+        domain: urlObj.hostname,
+        path: '/',
+        httpOnly: false,
+        secure: false,
+        sameSite: 'Strict' as const,
+        expires: Math.floor(Date.now() / 1000) + 1800,
+      },
+    ]);
+  } catch {
+    // addCookies 异常（如域名不匹配）不阻塞——降级到下一次 403 恢复路径
+  }
 }
 
 async function refreshCsrfToken(page: Page): Promise<string> {
@@ -790,6 +1249,19 @@ export async function apiCall<T = unknown>(
       return null;
     })) ?? '';
   const url = `${API_BASE}${API_PREFIX}${path}`;
+  // SYS-3 修复：动作型 POST/PUT/PATCH(如 color-card /color-prices/{id}/approve、
+  // production /fabric-inspections/{id}/grade)调用方不传 body。后端 handler 用 axum `Json<T>`
+  // 抽取器,收到**空体**直接 `Failed to parse ... EOF while parsing a value at line 1 column 0`
+  // 报 400(必填字段本身是正确的,不能回退后端)。对齐本波给 415 补 `{}` 的范式:
+  // body 缺省时,对**携带请求体的方法**补 `{}` 空 JSON(Playwright/axios 需有 body 才带
+  // Content-Type 与体);GET/DELETE 仍保持无体。用闭包外解析出的 dataPayload,
+  // CSRF 竞败重放 doFetch 复用同一 payload,绝不丢 body。
+  const dataPayload =
+    body !== undefined
+      ? JSON.stringify(body)
+      : method === 'POST' || method === 'PUT' || method === 'PATCH'
+        ? '{}'
+        : undefined;
   const doFetch = async (token: string) => {
     return page.request.fetch(url, {
       method,
@@ -798,7 +1270,7 @@ export async function apiCall<T = unknown>(
         'X-Requested-With': 'XMLHttpRequest',
         'X-CSRF-Token': token,
       },
-      data: body ? JSON.stringify(body) : undefined,
+      data: dataPayload,
       // CI 16+ 分片并发时后端偶发响应超 30s（Playwright API 默认超时），
       // 显式放宽到 60s，避免把"慢"误判为失败
       timeout: 60_000,
@@ -811,15 +1283,20 @@ export async function apiCall<T = unknown>(
   try {
     json = JSON.parse(text);
   } catch {
-    throw new Error(
+    const httpErr = new Error(
       `API ${method} ${path} returned non-JSON (status ${response.status()}): ${text.slice(0, 500)}`
-    );
+    ) as Error & { status?: number };
+    httpErr.status = response.status();
+    throw httpErr;
   }
 
   // CSRF 校验失败恢复（两级）：
   // 1. 优先读取后端 X-New-CSRF-Token 恢复头（并发竞败场景的权威来源，无需重新登录）
   // 2. 无恢复头时重新登录获取全新 token
-  if (json.code === 'CSRF_TOKEN_INVALID' || json.code === 'CSRF_TOKEN_MISSING') {
+  // CSRF 拒绝走 middleware/csrf.rs:234-242 直出体（字符串机器码 CSRF_* + HTTP 403），
+  // 统一失败信封的 FORBIDDEN/UNAUTHORIZED 也是字符串码，故用 failureCode() + status===403
+  // 双判据区分，避免把权限拒绝误当成 CSRF 竞败。
+  if (isCsrfRejection(response.status(), json)) {
     const recoveryToken = response.headers()['x-new-csrf-token'];
     try {
       if (recoveryToken) {
@@ -846,17 +1323,34 @@ export async function apiCall<T = unknown>(
       try {
         json = JSON.parse(text);
       } catch {
-        throw new Error(
+        const httpErr = new Error(
           `retry returned non-JSON (status ${response.status()}): ${text.slice(0, 200)}`
-        );
+        ) as Error & { status?: number };
+        httpErr.status = response.status();
+        throw httpErr;
       }
     } catch (e) {
-      throw new Error(`API ${method} ${path} CSRF 重试失败: ${(e as Error).message}`);
+      const wrapped = new Error(
+        `API ${method} ${path} CSRF 重试失败: ${(e as Error).message}`
+      ) as Error & { status?: number };
+      const innerStatus = (e as { status?: number }).status;
+      if (innerStatus) wrapped.status = innerStatus;
+      throw wrapped;
     }
   }
 
   if (json.code !== 200 && json.code !== 0) {
-    throw new Error(`API ${method} ${path} failed: code=${json.code} message=${json.message}`);
+    const httpErr = new Error(
+      `API ${method} ${path} failed: code=${json.code} message=${json.message}`
+    ) as Error & { status?: number };
+    httpErr.status = response.status();
+    throw httpErr;
+  }
+
+  // 写操作成功后主动同步轮换的 CSRF token，确保下一次 apiCall 的 getCsrfToken
+  // 一定读到最新值，而非依赖 Playwright 内部 set-cookie 处理的时机。
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+    await syncCsrfFromResponse(page, response, url);
   }
 
   return json;
@@ -877,29 +1371,83 @@ export async function apiCallExpectFail(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: Record<string, unknown>
-): Promise<{ status: number; code?: number; message?: string }> {
-  const csrfToken = await getCsrfToken(page);
+): Promise<ApiFailureResult> {
   const url = `${API_BASE}${API_PREFIX}${path}`;
-  const response = await page.request.fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-      'X-CSRF-Token': csrfToken,
-    },
-    data: body ? JSON.stringify(body) : undefined,
-  });
+  let csrfToken =
+    (await getCsrfToken(page).catch(e => {
+      console.warn(`[apiCallExpectFail] ${method} ${path} CSRF 提取失败: ${(e as Error).message}`);
+      return null;
+    })) ?? '';
 
-  const text = await response.text();
-  let json: { code?: number; message?: string } = {};
+  const doFetch = async (token: string) =>
+    page.request.fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': token,
+      },
+      // 负例专用：body 缺省仍发无体(不补 {}),让真实缺参/非法前置的失败如实暴露,
+      // 仅供 apiCallExpectFail 断言业务错误码用,不改动既有期望。
+      data: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+
+  let response = await doFetch(csrfToken);
+  let text = await response.text();
+  // 失败体的 code 恒为字符串机器码（统一信封 utils/error.rs 或 csrf.rs 直出体）
+  let json: ApiFailureBody = {};
   try {
     json = JSON.parse(text);
   } catch {
-    // IR 详细日志：非 JSON 响应必须可见（404 空响应/HTML 错误页等）
     console.warn(
       `[apiCall] 非 JSON 响应 status=${response.status()} body 前 120 字符: ${text.slice(0, 120)}`
     );
   }
+
+  // CSRF 竞败恢复（与 apiCall 一致的两级策略），避免把 CSRF 失败误判为业务错误。
+  // 判据同 apiCall：csrf.rs:234-242 直出体（字符串机器码）+ HTTP 403。
+  if (isCsrfRejection(response.status(), json)) {
+    const recoveryToken = response.headers()['x-new-csrf-token'];
+    try {
+      if (recoveryToken) {
+        const urlObj = new URL(url);
+        await page.context().addCookies([
+          {
+            name: 'csrf_token',
+            value: recoveryToken,
+            domain: urlObj.hostname,
+            path: '/',
+            httpOnly: false,
+            secure: false,
+            sameSite: 'Strict',
+            expires: Math.floor(Date.now() / 1000) + 1800,
+          },
+        ]);
+        csrfToken = recoveryToken;
+      } else {
+        csrfToken = await refreshCsrfToken(page);
+      }
+      response = await doFetch(csrfToken);
+      text = await response.text();
+      try {
+        json = JSON.parse(text);
+      } catch {
+        console.warn(
+          `[apiCallExpectFail] 重试后非 JSON status=${response.status()} body: ${text.slice(0, 120)}`
+        );
+      }
+    } catch (e) {
+      console.warn(`[apiCallExpectFail] ${method} ${path} CSRF 重试失败: ${(e as Error).message}`);
+    }
+  }
+
+  // CSRF 恢复/业务错误后 token 可能已被消费并轮换（后端 middleware 在校验通过后
+  // 消费旧 token + Set-Cookie 新 token，之后 handler 返回的业务错误不影响轮换）。
+  // 主动同步确保后续 apiCall 不再携带已消费的 token。
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+    await syncCsrfFromResponse(page, response, url);
+  }
+
   return { status: response.status(), code: json.code, message: json.message };
 }
 
@@ -915,6 +1463,13 @@ export async function loginViaUI(
   // 原因：P1.2 已将 check_lock_status 改为 OptionalAuthContext，
   // 匿名预检不再 401，16 分片并发挂起若复现属真实性能问题另立项
 
+  // force 模式：清除旧 cookie + 重置 LOGGED_IN，确保切换到新角色
+  // 不清除时旧 access_token 会让 /login 自动重定向到首页，新角色登录表单不执行
+  if (force) {
+    await page.context().clearCookies();
+    LOGGED_IN.done = false;
+  }
+
   // 检查 cookie 是否还在（同 BrowserContext 内已登录则跳过）
   // 注意：必须同时检查 access_token 和 csrf_token —— CSRF 失效场景下前端会清空 csrf_token
   // Cookie 并跳转登录页，仅凭 access_token 存在就跳过登录会导致后续所有 POST 请求 403。
@@ -923,17 +1478,47 @@ export async function loginViaUI(
     const hasToken = cookies.some(c => c.name === 'access_token');
     const hasCsrf = cookies.some(c => c.name === 'csrf_token');
     if (hasToken && hasCsrf) {
-      await page
-        .goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-        .catch(e => {
-          console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+      // 服务端有效性探测：cookie 存在不代表会话未被吊销（如 refresh 轮换/登出/管理员踢人
+      // 都会即时将 JTI 入黑名单，但 storageState 中的旧 cookie 不会自动消失）。
+      // 用 /auth/me 轻量 GET 验证会话仍然有效，401 则强制清 cookie 重新登录。
+      try {
+        const probe = await page.request.get(`${API_BASE}${API_PREFIX}/auth/me`, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
         });
-      return;
+        if (probe.status() === 401) {
+          console.warn(
+            `[loginViaUI] 服务端探测 /auth/me 返回 401（会话已被吊销），清除 cookie 并重新登录`
+          );
+          await page.context().clearCookies();
+          LOGGED_IN.done = false;
+        } else {
+          // 会话有效（200/429/5xx 等均视为"存在且未被吊销"，不触发重登；
+          // 429 限流不应触发重新登录——账号密码重试只会加剧限流）
+          await page
+            .goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+            .catch(e => {
+              console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
+            });
+          return;
+        }
+      } catch (e) {
+        // 网络异常（后端短暂不可达等）不触发重登，保留当前会话继续
+        console.warn(
+          `[loginViaUI] 会话探测 /auth/me 网络异常（视为会话仍有效，不重新登录）: ${(e as Error).message}`
+        );
+        await page
+          .goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+          .catch(reloadErr => {
+            console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(reloadErr as Error).message}`);
+          });
+        return;
+      }
+    } else {
+      console.warn(
+        `[loginViaUI] 检测到会话不完整 (access_token=${hasToken}, csrf_token=${hasCsrf})，强制重新登录`
+      );
+      LOGGED_IN.done = false;
     }
-    console.warn(
-      `[loginViaUI] 检测到会话不完整 (access_token=${hasToken}, csrf_token=${hasCsrf})，强制重新登录`
-    );
-    LOGGED_IN.done = false;
   }
 
   const u = username || TEST_USERNAME;
@@ -989,7 +1574,12 @@ export async function loginViaUI(
   throw new Error(`UI 登录失败（3 次重试后）: ${lastError?.message ?? 'unknown error'}`);
 }
 
-async function loginOnPage(page: Page, u: string, p: string, consoleLogs: string[]): Promise<void> {
+export async function loginOnPage(
+  page: Page,
+  u: string,
+  p: string,
+  consoleLogs: string[] = []
+): Promise<void> {
   // Element Plus el-input：同时匹配中英文 placeholder
   const usernameInput = page.locator('input[placeholder="用户名"], input[placeholder="Username"]');
   await usernameInput.first().waitFor({ state: 'visible', timeout: 30_000 });
@@ -1167,7 +1757,9 @@ export async function loginAsRole(page: Page, role: string): Promise<void> {
       `E2E role credentials not found for role: ${role}（env E2E_${role.toUpperCase()}_USERNAME 与 role-credentials.json 均无）`
     );
   }
-  await loginViaUI(page, cred.username, cred.password);
+  // force=true：清除旧 cookie + 跳过 LOGGED_IN 短路，确保切换到目标角色
+  // 不传 force 时 loginViaUI 检测到旧 access_token 会跳过登录，导致仍用上一个角色的 cookie
+  await loginViaUI(page, cred.username, cred.password, true);
 }
 
 export async function healthCheck(): Promise<boolean> {
@@ -1303,17 +1895,40 @@ export async function verifyPermissionDenied(
   }
 }
 
+/**
+ * 库存四维查询（产品 → 色号 → 缸号 → 批次/匹号，可选仓库维度）。
+ *
+ * 命中返回库存行原样 JSON，未命中返回 null——返回 `{}` 会把"无库存"
+ * 伪装成"有库存行"，调用方的字段断言随之空转。
+ * 后端 `/inventory/stock` 的 color_no/dye_lot_no/batch_no 为 SQL 下推过滤条件。
+ */
 export async function verifyStockFourDim(
   page: Page,
   productId: number,
   colorNo?: string,
-  dyeLotNo?: string
-): Promise<Record<string, unknown>> {
+  dyeLotNo?: string,
+  opts?: { batchNo?: string; warehouseId?: number }
+): Promise<Record<string, unknown> | null> {
   let path = `/inventory/stock?product_id=${productId}&page=1&page_size=50`;
   if (colorNo) path += `&color_no=${encodeURIComponent(colorNo)}`;
   if (dyeLotNo) path += `&dye_lot_no=${encodeURIComponent(dyeLotNo)}`;
-  const stock = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(page, 'GET', path);
-  return stock.items?.[0] || {};
+  if (opts?.batchNo) path += `&batch_no=${encodeURIComponent(opts.batchNo)}`;
+  if (opts?.warehouseId) path += `&warehouse_id=${opts.warehouseId}`;
+  const stock = await apiCallRaw<{ items?: unknown }>(page, 'GET', path);
+  if (!Array.isArray(stock.items)) {
+    throw new Error(
+      `verifyStockFourDim: ${path} 响应 data.items 不是数组，实际片段=${JSON.stringify(stock).slice(0, 200)}`
+    );
+  }
+  const row = stock.items[0] as Record<string, unknown> | undefined;
+  console.log(
+    `[verifyStockFourDim] ${path} → ${
+      row
+        ? `命中库存行 id=${row.id} on_hand=${row.quantity_on_hand} available=${row.quantity_available} shipped=${row.quantity_shipped} color_no=${row.color_no} dye_lot_no=${row.dye_lot_no}`
+        : '无库存行'
+    }`
+  );
+  return row ?? null;
 }
 
 /**
@@ -1331,12 +1946,16 @@ export async function ensureStockInWarehouse(
   preferredWarehouseId: number | undefined,
   colorNo?: string
 ): Promise<Record<string, unknown>> {
+  // 出库四维扣减（款号+色号+缸号+批次）要求库存行必须带全三个文本维度，
+  // 只返回"完整四维行"；缺缸号/批次的历史行不可用于出库，不作为命中结果。
+  const hasFullDims = (r: Record<string, unknown>) =>
+    Boolean(r.color_no) && Boolean(r.batch_no) && Boolean(r.dye_lot_no);
   const listStock = async (warehouseId?: number) => {
     let path = `/inventory/stock?product_id=${productId}&page=1&page_size=50`;
     if (warehouseId) path += `&warehouse_id=${warehouseId}`;
     if (colorNo) path += `&color_no=${encodeURIComponent(colorNo)}`;
     const res = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(page, 'GET', path);
-    return res.items?.[0];
+    return res.items?.find(hasFullDims);
   };
 
   // 1. 优先查指定仓库（用传入的仓库 ID，而非漂移的 ctx）
@@ -1349,30 +1968,74 @@ export async function ensureStockInWarehouse(
   });
   if (inWarehouse) return inWarehouse;
 
-  // 2. 任意仓库有该产品库存 → 直接用（以真实数据为准）
+  // 2. 任意仓库有该产品完整四维库存行 → 直接用（以真实数据为准）
   const anywhere = await listStock().catch(e => {
     console.warn('[ensureStockInWarehouse] 全仓库库存查询失败:', (e as Error).message);
     return undefined;
   });
   if (anywhere) return anywhere;
 
-  // 3. 都没有 → 在指定仓库创建（仓库 ID 缺失时回退 1）
+  // 3. 都没有 → 在指定仓库创建带全四维的库存行
+  // （调用方须保证仓库已存在，缺失时错误真实暴露）
   await apiCall(page, 'POST', '/inventory/stock/fabric', {
-    warehouse_id: preferredWarehouseId || 1,
+    warehouse_id: preferredWarehouseId,
     product_id: productId,
     batch_no: `E2E-STK${Date.now().toString().slice(-6)}`,
     color_no: colorNo || 'TEST-COLOR',
+    dye_lot_no: genDyeLotNo(),
     grade: '一等品',
     quantity_meters: '10000',
     quantity_kg: '5000',
   });
-  const created = await listStock(preferredWarehouseId).catch(e => {
-    console.warn('[ensureStockInWarehouse] 创建后库存查询失败:', (e as Error).message);
-    return undefined;
-  });
+  const created = await listStock(preferredWarehouseId);
   if (created) return created;
-  // 创建后仍查不到（理论异常）：返回空对象由调用方处理
-  return {};
+  // 入库成功却查不到该行不是"理论异常"，而是四维追溯链在本环境断了
+  // （创建返回 200 但按 product+warehouse+color 筛不到）。原先返回 {} 让调用方
+  // 拿到 undefined 的 stock id，故障现场变成一个 404 或"读取属性失败"，
+  // 看起来像产品缺陷。此处直接把筛选用条件打出来，失败原因一眼可判。
+  throw new Error(
+    `[ensureStockInWarehouse] POST /inventory/stock/fabric 成功但按 product_id=${productId}` +
+      ` warehouse_id=${preferredWarehouseId ?? '任意'} color_no=${colorNo ?? '未指定'}` +
+      ` 筛不到带全四维（color_no/batch_no/dye_lot_no 齐全）的库存行——` +
+      `要么创建未落库，要么落库行缺维度，见 reports/backend.log`
+  );
+}
+
+/**
+ * 按出库四维（款号+色号+缸号+批次）入库一行专属库存，返回真实库存行。
+ * 维度组合由调用方指定（每轮唯一），断言可对该行做精确前后比较。
+ */
+export async function seedFourDimStockIn(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    colorNo: string;
+    dyeLotNo: string;
+    batchNo: string;
+    quantityMeters: string;
+  }
+): Promise<Record<string, unknown>> {
+  await apiCall(page, 'POST', '/inventory/stock/fabric', {
+    warehouse_id: opts.warehouseId,
+    product_id: opts.productId,
+    batch_no: opts.batchNo,
+    color_no: opts.colorNo,
+    dye_lot_no: opts.dyeLotNo,
+    grade: '一等品',
+    quantity_meters: opts.quantityMeters,
+    quantity_kg: opts.quantityMeters,
+  });
+  const row = await verifyStockFourDim(page, opts.productId, opts.colorNo, opts.dyeLotNo, {
+    batchNo: opts.batchNo,
+    warehouseId: opts.warehouseId,
+  });
+  if (!row) {
+    throw new Error(
+      `[seedFourDimStockIn] 入库后查不到四维库存行：product=${opts.productId} color=${opts.colorNo} dye=${opts.dyeLotNo} batch=${opts.batchNo} warehouse=${opts.warehouseId}`
+    );
+  }
+  return row;
 }
 
 export async function verifyAuditLog(
@@ -1383,9 +2046,13 @@ export async function verifyAuditLog(
 ): Promise<boolean> {
   // 业务操作审计有两条真实管道，两条都查、任一命中即通过：
   // 1. omni_audit 中间件（业务 CRUD）→ omni_audit_logs 表，查询端点
-  //    GET /finance/audit/search（module 列存事件类型 CREATE/UPDATE/...，
-  //    resource_type 存路径业务段，如 /api/v1/erp/purchase/orders → "purchase"；
-  //    动作类 POST（submit/approve/audit/depreciate 等）统一记为 CREATE）
+  //    GET /finance/audit/search（module 列存事件类型，落库映射见 omni_audit_service.rs:207
+  //    module=event_type、:209 resource_type=infer_module_from_path 的业务段；
+  //    事件类型取值以源码 middleware/omni_audit.rs::classify_operation 为唯一准：
+  //    路径末段含 approve 或末段为 reject/submit → "APPROVE"（非 CREATE），
+  //    GET→READ、POST→CREATE、PUT/PATCH→UPDATE、DELETE→DELETE，另有 PRINT/EXPORT/DOWNLOAD；
+  //    搜索按 event_type 参数过滤 module 列。resource_type 存路径业务段，
+  //    如 /api/v1/erp/inventory/transfers/1/approve → "inventory"）
   // 2. handler 显式写入（导出/打印等）→ audit_logs 表，查询端点 GET /audit-logs
   //    （system.rs 挂 /api/v1/erp 根下，无 /system 前缀）
   // pathIncludes：可选，按 request_path 子串精确匹配动作端点
@@ -1545,76 +2212,169 @@ export async function verifyWeightConversion(
   meters: number,
   gramWeight: number,
   width: number
-): number {
+): Promise<number> {
   // 公斤 = 米 * 克重 * 幅宽 / 1000 / 100 (克→公斤, cm→m)
   return Number(((meters * gramWeight * width) / 100000).toFixed(2));
 }
 
-export async function verifyNetWeight(grossWeight: number, paperTubeWeight: number): number {
+export async function verifyNetWeight(
+  grossWeight: number,
+  paperTubeWeight: number
+): Promise<number> {
   return Number((grossWeight - paperTubeWeight).toFixed(2));
 }
 
+/** 业务模式配置行（GET /production/business-modes/by-code/{code} 的 data） */
+export interface BusinessModeConfigRow {
+  id: number;
+  mode_code: string;
+  mode_name: string;
+  material_source: string;
+  settlement_method: string;
+  inventory_type: string;
+  cost_method: string;
+  mode_category: string;
+  require_purchase: boolean;
+  require_production: boolean;
+  require_outsourcing: boolean;
+  require_sales: boolean;
+}
+
+/** 业务模式流程节点行（business_mode_flow_step 表） */
+export interface BusinessModeFlowStepRow {
+  id: number;
+  mode_id: number;
+  step_no: number;
+  step_code: string;
+  step_name: string;
+  module_name: string;
+  is_required: boolean;
+}
+
+/**
+ * 按代码取业务模式：backend routes/production.rs business_mode() 全部挂在
+ * /api/v1/erp/production 前缀下，且 mode_code 是封闭词表的种子数据，取不到即为环境缺陷。
+ */
+export async function getBusinessModeByCode(
+  page: Page,
+  modeCode: string
+): Promise<BusinessModeConfigRow> {
+  const mode = await apiCallRaw<BusinessModeConfigRow>(
+    page,
+    'GET',
+    `/production/business-modes/by-code/${modeCode}`
+  );
+  if (!mode?.id) {
+    throw new Error(
+      `[getBusinessModeByCode] ${modeCode} 详情缺少 id，响应：${JSON.stringify(mode).slice(0, 200)}`
+    );
+  }
+  return mode;
+}
+
+/**
+ * 取业务模式的流程链。
+ * 真实端点：GET /production/business-modes/flow-steps/by-mode/{mode_id}
+ * （backend 只注册了 by-mode 查询，没有 GET /business-modes/{id}/flow-steps，
+ * 也没有全局流程节点列表；响应 data 是裸数组，不是分页对象）。
+ */
 export async function getProcessSteps(
   page: Page,
   modeCode: string
-): Promise<Array<{ step_code: string; step_name: string; is_required: boolean }>> {
-  try {
-    const modes = await apiCallRaw<{ items: Array<{ id: number; mode_code: string }> }>(
-      page,
-      'GET',
-      '/business-modes?page=1&page_size=50'
+): Promise<BusinessModeFlowStepRow[]> {
+  const mode = await getBusinessModeByCode(page, modeCode);
+  const steps = await apiCallRaw<BusinessModeFlowStepRow[]>(
+    page,
+    'GET',
+    `/production/business-modes/flow-steps/by-mode/${mode.id}`
+  );
+  if (!Array.isArray(steps)) {
+    throw new Error(
+      `[getProcessSteps] ${modeCode} 流程节点应返回数组，实际：${JSON.stringify(steps).slice(0, 200)}`
     );
-    const mode = modes.items.find(m => m.mode_code === modeCode);
-    if (!mode) return [];
-    const steps = await apiCallRaw<{
-      items: Array<{ step_code: string; step_name: string; is_required: boolean }>;
-    }>(page, 'GET', `/business-modes/${mode.id}/flow-steps?page=1&page_size=20`);
-    return steps.items || [];
-  } catch (e) {
-    console.warn(`[getProcessSteps] 业务模式 ${modeCode} 流程步骤查询失败:`, (e as Error).message);
-    return [];
   }
+  return steps;
 }
 
+/**
+ * 按委外订单 + 凭证类型查凭证列表。
+ *
+ * 旧实现 catch 后返回 null，调用方又写 `expect(v === null || typeof v === 'object')`
+ * 这种恒真断言——端点 404/500/权限失败全都算通过。现改为**不吞错**：
+ * 请求失败直接抛出；成功则返回原始分页载荷，由用例自己做形状与过滤是否生效的断言。
+ * 后端真相：outsourcing_handler.rs:350 收 OutsourcingVoucherListQuery（含 voucher_type），
+ * :364 返回 ApiResponse<PaginatedResponse<...>> ⇒ data.items 是唯一形状。
+ * 路由挂载：routes/mod.rs:510 nest("/api/v1/erp/production", production::routes())，
+ * 因此端点真实路径必须带 /production 前缀（原缺少导致 404 假绿——无调用方，当前仅 10b/10d 死 import）。
+ */
 export async function verifyOutsourcingVoucher(
   page: Page,
   orderId: number,
   voucherType: string
-): Promise<Record<string, unknown> | null> {
-  try {
-    const vouchers = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(
-      page,
-      'GET',
-      `/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
-    );
-    return vouchers.items?.[0] || null;
-  } catch (e) {
-    console.warn(
-      `[verifyOutsourcingVoucher] order=${orderId} type=${voucherType} 凭证查询失败:`,
-      (e as Error).message
-    );
-    return null;
-  }
+): Promise<Array<Record<string, unknown>>> {
+  const data = await apiCallRaw<unknown>(
+    page,
+    'GET',
+    `/production/outsourcing-vouchers?outsourcing_order_id=${orderId}&voucher_type=${voucherType}&page=1&page_size=5`
+  );
+  return pickListArray<Record<string, unknown>>(data, 'items', '委外凭证列表');
 }
 
-export async function verifyTrialBalance(
-  page: Page
-): Promise<{ balanced: boolean; debit_total: number; credit_total: number }> {
-  try {
-    const result = await apiCallRaw<{ debit_total: number; credit_total: number }>(
-      page,
-      'GET',
-      '/finance/reports/trial-balance'
+/**
+ * 读取试算平衡表，校验会计不变量"期末借方合计 === 期末贷方合计"。
+ *
+ * 后端真相：handler finance_report_handler.rs:121 返回 ApiResponse<TrialBalance>；
+ * DTO models/dto/finance_report_dto.rs:78-87 字段为 total_ending_debit / total_ending_credit（Decimal）。
+ * rust_decimal 默认 serde 序列化为字符串（"123.45"），需 Number() 解析。
+ * apiCallRaw 剥离 ApiResponse 外层信封后返回 data 对象本身。
+ *
+ * 前置旧缺陷：读不存在的键 debit_total/credit_total + `|| 0` 兜底 → 恒 0 → 恒平衡 → 假绿。
+ * 本实现缺键/非数字/借贷皆零（未取到实际数据）均显式抛错，不回退为 0。
+ */
+export async function verifyTrialBalance(page: Page): Promise<{
+  balanced: boolean;
+  total_ending_debit: number;
+  total_ending_credit: number;
+}> {
+  const tb = await apiCallRaw<Record<string, unknown>>(
+    page,
+    'GET',
+    '/finance/reports/trial-balance'
+  );
+
+  if (tb == null || typeof tb !== 'object') {
+    throw new Error(
+      `[verifyTrialBalance] 响应非对象，无法读取试算平衡数据：${JSON.stringify(tb).slice(0, 200)}`
     );
-    return {
-      balanced: Math.abs((result.debit_total || 0) - (result.credit_total || 0)) < 0.01,
-      debit_total: result.debit_total || 0,
-      credit_total: result.credit_total || 0,
-    };
-  } catch (e) {
-    console.warn('[verifyTrialBalance] 试算平衡查询失败（按不平衡处理）:', (e as Error).message);
-    return { balanced: false, debit_total: 0, credit_total: 0 };
   }
+
+  for (const key of ['total_ending_debit', 'total_ending_credit'] as const) {
+    if (!Object.prototype.hasOwnProperty.call(tb, key)) {
+      throw new Error(
+        `[verifyTrialBalance] 响应缺少后端真实键 "${key}"，` +
+          `实际键：${Object.keys(tb).join(', ')}`
+      );
+    }
+  }
+
+  const total_ending_debit = Number(tb.total_ending_debit);
+  const total_ending_credit = Number(tb.total_ending_credit);
+
+  for (const [key, val] of [
+    ['total_ending_debit', total_ending_debit],
+    ['total_ending_credit', total_ending_credit],
+  ] as const) {
+    if (!Number.isFinite(val)) {
+      throw new Error(`[verifyTrialBalance] ${key} 不可解析为有限数字：raw="${tb[key]}"`);
+    }
+  }
+
+  if (total_ending_debit === 0 && total_ending_credit === 0) {
+    throw new Error('[verifyTrialBalance] 期末借贷合计均为 0——未取到实际账务数据，不视为平衡通过');
+  }
+
+  const balanced = Math.abs(total_ending_debit - total_ending_credit) < 0.001;
+  return { balanced, total_ending_debit, total_ending_credit };
 }
 
 /**
@@ -1736,21 +2496,60 @@ export function trackPageHealth(page: Page): PageHealthCollector {
 }
 
 /**
- * 断言页面健康：零 pageerror + 零未捕获 console.error + 零 5xx + 主容器非白屏
+ * 浏览器网络栈自身产生的 console 噪声（资源 4xx/5xx、连接被拒/中断等）。
+ * 这类消息由 Chromium 发出，不由应用代码控制，页面存在可选接口 403/404 时必然出现，
+ * 因此允许按站点显式豁免；应用层 logger.error 输出不在此列，必须拦截。
+ */
+export const BROWSER_NETWORK_NOISE: RegExp[] = [/Failed to load resource/i, /net::ERR_/i];
+
+/** 应用层 logger.error 的输出前缀（见 src/utils/logger.ts） */
+export const APP_ERROR_LOG = /^\[ERROR\]/;
+
+/**
+ * 取出采集器已累积的异常并清零，返回一份只含本次增量的采集器。
+ * 遍历类用例在同一 page 上连续访问多个模块，若共用累积结果，
+ * 第 N 个模块的断言会带上前 N-1 个模块的错误，失败信息无法定位实际出错模块。
+ */
+export function takePageHealth(collector: PageHealthCollector): PageHealthCollector {
+  return {
+    pageErrors: collector.pageErrors.splice(0),
+    consoleErrors: collector.consoleErrors.splice(0),
+    serverErrors: collector.serverErrors.splice(0),
+  };
+}
+
+/**
+ * 断言页面健康：零 pageerror + 零未豁免 console.error + 零 5xx + 主容器非白屏
+ *
+ * consoleNoisePatterns 是「按模式豁免」而非「整体跳过」：只有匹配到的 console.error
+ * 允许存在，未匹配的一条都不放过。收集器不采集 warn，因此应用层对预期权限拒绝
+ * （403 辅助下拉）降级为 logger.warn 后不会误伤本断言，而真实缺陷仍会以 [ERROR] 暴露。
  */
 export async function assertPageHealthy(
   page: Page,
   collector: PageHealthCollector,
-  options?: { allowConsoleWarn?: boolean; whiteListPaths?: string[] }
+  options?: {
+    consoleNoisePatterns?: RegExp[];
+    whiteListPaths?: string[];
+    /** 失败信息前缀，用于循环遍历场景标明是哪个模块/站点出错 */
+    label?: string;
+  }
 ): Promise<void> {
+  const tag = options?.label ? `${options.label}: ` : '';
   // 1. 零 pageerror
   if (collector.pageErrors.length > 0) {
-    throw new Error(`页面存在未捕获错误: ${collector.pageErrors.slice(0, 5).join('; ')}`);
+    throw new Error(`${tag}页面存在未捕获错误: ${collector.pageErrors.slice(0, 5).join('; ')}`);
   }
 
-  // 2. 零未捕获 console.error（warn 白名单可配）
-  if (!options?.allowConsoleWarn && collector.consoleErrors.length > 0) {
-    throw new Error(`控制台存在 error 输出: ${collector.consoleErrors.slice(0, 5).join('; ')}`);
+  // 2. 零未豁免的 console.error
+  const noise = options?.consoleNoisePatterns ?? [];
+  const realConsoleErrors = collector.consoleErrors.filter(
+    text => !noise.some(re => re.test(text))
+  );
+  if (realConsoleErrors.length > 0) {
+    throw new Error(
+      `${tag}控制台存在 error 输出: ${realConsoleErrors.slice(0, 5).join('; ')}（豁免模式 ${noise.length} 个）`
+    );
   }
 
   // 3. 零 5xx 响应（白名单路径可配）
@@ -1760,7 +2559,7 @@ export async function assertPageHealthy(
   );
   if (realServerErrors.length > 0) {
     throw new Error(
-      `存在 5xx 服务器错误: ${realServerErrors
+      `${tag}存在 5xx 服务器错误: ${realServerErrors
         .slice(0, 5)
         .map(e => `${e.status} ${e.url}`)
         .join('; ')}`
@@ -1773,7 +2572,7 @@ export async function assertPageHealthy(
     return main ? (main.textContent?.trim().length ?? 0) : 0;
   });
   if (mainContent < 10) {
-    throw new Error(`页面主容器内容过少（${mainContent} 字符），疑似白屏`);
+    throw new Error(`${tag}页面主容器内容过少（${mainContent} 字符），疑似白屏`);
   }
 }
 
@@ -1890,5 +2689,106 @@ export function getRoleCredential(role: string): RoleCredential | null {
   } catch (e) {
     console.error(`[getRoleCredential] 凭证文件读取异常: ${(e as Error).message}`);
     return null;
+  }
+}
+
+// ===========================================================================
+// 公共步骤原语（消除 spec 重复代码）
+// ===========================================================================
+
+/**
+ * 尽力执行清理操作（DELETE/PUT），失败仅告警不 rethrow
+ *
+ * 替代各 spec 中重复的:
+ *   try { await apiCall(page, 'DELETE', `/xxx/${id}`); } catch (e) { console.warn(...) }
+ */
+export async function tryCleanup(
+  page: Page,
+  method: 'DELETE' | 'PUT' | 'POST',
+  path: string,
+  label?: string
+): Promise<void> {
+  try {
+    await apiCall(page, method, path);
+  } catch (e) {
+    console.warn(`[cleanup] ${label ?? path} 失败: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * 断言 API 响应被拒绝（权限 403）
+ *
+ * 替代各 spec 中重复的: expect(result.status).toBe(403)
+ */
+export function expectDenied(result: { status: number }, context = ''): void {
+  expect(result.status, context || '应返回 403 权限拒绝').toBe(403);
+}
+
+/**
+ * 断言 API 响应为业务错误（status >= 400）
+ *
+ * 替代各 spec 中重复的: expect(result.status >= 400).toBe(true)
+ */
+export function expectBadRequest(result: { status: number }, context = ''): void {
+  expect(result.status, context || '应返回 400+ 业务错误').toBeGreaterThanOrEqual(400);
+}
+
+/**
+ * 创建业务实体 → 执行回调 → finally DELETE 清理（编排级封装）
+ *
+ * 替代各 spec 中重复的"POST 创建 → 存 id → 测试 → finally DELETE"模式。
+ * 创建失败时自动尝试查找已有实体（兜底）。
+ *
+ * @param page        Playwright Page
+ * @param createPath  POST 创建路径
+ * @param createBody  请求体
+ * @param run         回调（参数为创建的 id）
+ * @param deletePath  清理路径模板（默认 `${createPath}/${id}`）
+ * @param findPath    兜底查找路径（GET，取第一条 id）
+ */
+export async function withEntity(
+  page: Page,
+  createPath: string,
+  createBody: Record<string, unknown>,
+  run: (id: number) => Promise<void>,
+  options?: {
+    deletePath?: (id: number) => string;
+    findPath?: string;
+    label?: string;
+  }
+): Promise<void> {
+  const label = options?.label ?? createPath;
+  let id: number | undefined;
+
+  try {
+    const result = await apiCall<{ id?: number }>(page, 'POST', createPath, createBody);
+    id = result?.data?.id;
+  } catch (e) {
+    console.warn(`[withEntity] ${label} 创建失败: ${(e as Error).message}`);
+    if (options?.findPath) {
+      try {
+        const list = await apiCallRaw<{ items?: Array<{ id: number }> }>(
+          page,
+          'GET',
+          options.findPath
+        );
+        id = list?.items?.[0]?.id;
+        console.log(`[withEntity] ${label} 兜底查找到 id=${id}`);
+      } catch (e2) {
+        console.warn(`[withEntity] ${label} 兜底查找也失败: ${(e2 as Error).message}`);
+      }
+    }
+  }
+
+  if (!id) {
+    console.warn(`[withEntity] ${label} 无可用 id，跳过回调`);
+    return;
+  }
+
+  try {
+    await run(id);
+  } finally {
+    const delPath = options?.deletePath ? options.deletePath(id) : `${createPath}/${id}`;
+    await tryCleanup(page, 'DELETE', delPath, label);
   }
 }

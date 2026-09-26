@@ -57,7 +57,7 @@ impl ColorPriceCrudService {
     pub async fn create(
         &self,
         dto: CreateColorPriceDto,
-        operated_by: i64,
+        operated_by: i32,
     ) -> Result<product_color_price::Model, CrudError> {
         // 1. 业务校验
         Self::validate_currency(&dto.currency)?;

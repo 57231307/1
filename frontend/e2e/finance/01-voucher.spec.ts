@@ -3,6 +3,7 @@
 // 覆盖范围：凭证创建（含借贷平衡） → 提交 → 审核 → 过账
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
 
 test.describe('01 凭证管理', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -11,31 +12,44 @@ test.describe('01 凭证管理', () => {
   });
 
   test('01-01 进入财务管理页面', async ({ page }) => {
+    // /finance 为 el-tabs 容器，文本「财务管理/凭证管理」在左侧导航菜单等多处出现，
+    // getByText(/财务管理|凭证管理/) 会 strict-mode 命中 5 个 → 改断言该页专属的两个 tab 可见。
     await page.goto('/finance');
-    await expect(page.getByText(/财务管理|凭证管理/)).toBeVisible({ timeout: 30000 });
-    await expect(page.getByRole('tab', { name: /凭证/ })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '科目管理' })).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('tab', { name: '凭证管理' })).toBeVisible();
   });
 
   test('01-02 新建凭证（含借贷分录）', async ({ page }) => {
     await page.goto('/finance');
     await page.getByRole('button', { name: /新建|新建凭证/ }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/凭证日期/).fill('2026-08-19');
-    await page.getByLabel(/凭证类型/).click();
-    await page.getByRole('option').first().click();
+    // el-date-picker 的内层 input 不能用 getByLabel 命中（EP el-form-item 的 label 不带 for，
+    // 标签与控件无原生关联）且直接对只读编辑器 fill 会超时。改定位 .el-date-editor 的可编辑
+    // 输入框，走真实手输交互：点开 → 输入日期 → 回车提交（VoucherForm.vue:26-30 type=date
+    // + value-format=YYYY-MM-DD，支持手输解析）。
+    const voucherDate = page.locator('.el-dialog .el-date-editor input').first();
+    await voucherDate.click();
+    await voucherDate.fill('2026-08-19');
+    await voucherDate.press('Enter');
+    await pickSelect(page, elSelectByLabel(page, /凭证类型/));
     await page.getByLabel(/摘要/).fill('E2E 测试记账凭证');
-    await page.getByRole('button', { name: /确认|提交/ }).last().click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-      return null;
-        });
+    await page
+      .getByRole('button', { name: /确认|提交/ })
+      .last()
+      .click();
+    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
   });
 
   test('01-03 凭证筛选功能可用', async ({ page }) => {
+    // 「凭证号」筛选位于「凭证管理」Tab，而 /finance 默认停在「科目管理」Tab，须先切过去；
+    // 原 locator('table, .el-table') 会 strict-mode 命中多个（el-table 内含多个 <table>），
+    // 改精确到凭证列表容器（el-table 根上的 aria-label="凭证列表"）。
     await page.goto('/finance');
-    await page.getByLabel(/凭证号/).fill('E2E');
-    await page.getByRole('button', { name: /查询|搜索/ }).click();
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    await page.getByRole('tab', { name: '凭证管理' }).click();
+    await page.getByLabel('凭证号').fill('E2E');
+    await page.getByRole('button', { name: '查询' }).click();
+    await expect(page.locator('.el-table[aria-label="凭证列表"]').first()).toBeVisible({
+      timeout: 30000,
+    });
   });
 });

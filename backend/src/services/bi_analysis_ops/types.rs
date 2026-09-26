@@ -110,10 +110,10 @@ pub struct KpiSummary {
     pub customer_count: i64,
     /// 客单价
     pub avg_order_value: f64,
-    /// 同比增长率（与上一年同期）
-    pub yoy_growth: f64,
-    /// 环比增长率（与上月）
-    pub mom_growth: f64,
+    /// 同比增长率（与上一年同期）；无可比同期基期时为 None
+    pub yoy_growth: Option<f64>,
+    /// 环比增长率（与上月）；无可比上月基期时为 None
+    pub mom_growth: Option<f64>,
 }
 
 // ============================================================================

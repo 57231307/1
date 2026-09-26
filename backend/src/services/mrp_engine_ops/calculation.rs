@@ -1,7 +1,8 @@
 //! MRP 计算执行
 //!
 //! 批次 490 D10-3b 拆分：从 mrp_engine_service.rs 抽取的计算执行方法。
-//! 包含：run_mrp_calculation（单次计算）+ batch_calculate（批量计算）
+//! 包含：run_mrp_calculation（单次计算）+ run_mrp_calculation_for_line（按指定行号前缀计算）
+//! + batch_calculate（批量计算）
 //! + build_main_result_active_model/build_sub_result_active_model（ActiveModel 构建）
 
 use chrono::{Duration, Utc};
@@ -21,12 +22,30 @@ use crate::services::mrp_engine_service::MrpEngineService;
 
 impl MrpEngineService {
     /// 执行MRP计算并保存结果（批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `MrpCalculationQuery`，；消除 `clippy::too_many_arguments` 警告。）
+    ///
+    /// 单产品入口：行号前缀由本函数自生成（`MRP{毫秒时间戳}`），保持销售订单审批
+    /// （`services/so/order_workflow.rs`）与生产订单创建（`services/production_order_ops/crud.rs`）
+    /// 两处调用方的历史行为不变。批量场景请走 `run_mrp_calculation_for_line`，由批次调用方统一决定编号。
     pub async fn run_mrp_calculation(
         &self,
         query: MrpCalculationQuery,
     ) -> Result<Vec<MrpResultModel>, AppError> {
+        let line_no = format!("MRP{}", Utc::now().timestamp_millis());
+        self.run_mrp_calculation_for_line(query, &line_no).await
+    }
+
+    /// 以给定行号前缀执行一次（单产品）MRP 计算并落库。
+    ///
+    /// `line_no` 即本次计算主物料行的 `calculation_no`，其 BOM 子行为 `{line_no}-{子行序}`；
+    /// 由 batch_calculate 统一编号为 `{批次号}-{行序}`，使同一批次内主行/子行互不相同、
+    /// 不同批次间因批次号不同而互不相同（`mrp_results.calculation_no` 带 UNIQUE 约束），
+    /// 同时让整批行都能以批次号作前缀被检索出来。
+    pub(crate) async fn run_mrp_calculation_for_line(
+        &self,
+        query: MrpCalculationQuery,
+        line_no: &str,
+    ) -> Result<Vec<MrpResultModel>, AppError> {
         let mut results = Vec::new();
-        let calculation_no = format!("MRP{}", Utc::now().timestamp_millis());
 
         // 计算主物料需求
         let main_req = self
@@ -43,7 +62,7 @@ impl MrpEngineService {
             .await?;
 
         // 构建并保存主物料结果
-        let main_active_model = Self::build_main_result_active_model(&calculation_no, &main_req);
+        let main_active_model = Self::build_main_result_active_model(line_no, &main_req);
         let main_result = main_active_model.insert(&*self.db).await?;
         results.push(main_result);
 
@@ -62,7 +81,7 @@ impl MrpEngineService {
 
         // 遍历构建并保存子物料结果
         for (idx, req) in sub_requirements.iter().enumerate() {
-            let sub_active_model = Self::build_sub_result_active_model(&calculation_no, idx, req);
+            let sub_active_model = Self::build_sub_result_active_model(line_no, idx, req);
             let sub_result = sub_active_model.insert(&*self.db).await?;
             results.push(sub_result);
         }
@@ -72,11 +91,11 @@ impl MrpEngineService {
 
     /// 构建主物料 MRP 结果 ActiveModel
     fn build_main_result_active_model(
-        calculation_no: &str,
+        line_no: &str,
         main_req: &MaterialRequirement,
     ) -> MrpResultActiveModel {
         MrpResultActiveModel {
-            calculation_no: Set(calculation_no.to_string()),
+            calculation_no: Set(line_no.to_string()),
             product_id: Set(main_req.product_id),
             required_quantity: Set(main_req.required_quantity),
             required_date: Set(Some(main_req.required_date)),
@@ -97,12 +116,12 @@ impl MrpEngineService {
 
     /// 构建子物料 MRP 结果 ActiveModel
     fn build_sub_result_active_model(
-        calculation_no: &str,
+        line_no: &str,
         idx: usize,
         req: &MaterialRequirement,
     ) -> MrpResultActiveModel {
         MrpResultActiveModel {
-            calculation_no: Set(format!("{}-{}", calculation_no, idx + 1)),
+            calculation_no: Set(format!("{}-{}", line_no, idx + 1)),
             product_id: Set(req.product_id),
             required_quantity: Set(req.required_quantity),
             required_date: Set(Some(req.required_date)),
@@ -128,6 +147,8 @@ impl MrpEngineService {
         &self,
         request: MrpCalculationRequest,
     ) -> Result<MrpCalculationSummary, AppError> {
+        // 一次批量计算 = 一个批次：批次号既作为响应返回，也作为批内所有行号的前缀，
+        // 使 /mrp/results?calculation_no=<批次号> 能按前缀检索到整批行。
         let calculation_no = format!("MRPB{}", Utc::now().timestamp_millis());
         let mut all_results = Vec::new();
         let mut all_requirements = Vec::new();
@@ -137,17 +158,20 @@ impl MrpEngineService {
         let top_product_ids: Vec<i32> = request.items.iter().map(|i| i.product_id).collect();
         let top_stock_map = self.get_stock_info_batch(&top_product_ids).await?;
 
-        for item in request.items {
+        for (line_idx, item) in request.items.iter().enumerate() {
             let results = self
-                .run_mrp_calculation(MrpCalculationQuery {
-                    product_id: item.product_id,
-                    required_quantity: item.required_quantity,
-                    required_date: item.required_date,
-                    source_type: request.source_type.clone(),
-                    source_id: request.source_id,
-                    consider_safety_stock: request.consider_safety_stock,
-                    consider_in_transit: request.consider_in_transit,
-                })
+                .run_mrp_calculation_for_line(
+                    MrpCalculationQuery {
+                        product_id: item.product_id,
+                        required_quantity: item.required_quantity,
+                        required_date: item.required_date,
+                        source_type: request.source_type.clone(),
+                        source_id: request.source_id,
+                        consider_safety_stock: request.consider_safety_stock,
+                        consider_in_transit: request.consider_in_transit,
+                    },
+                    &format!("{calculation_no}-{line_idx}"),
+                )
                 .await?;
 
             all_results.extend(results);

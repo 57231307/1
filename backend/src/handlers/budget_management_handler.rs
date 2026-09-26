@@ -1,5 +1,6 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::dto::budget_management_dto::{BudgetItemPeriodInput, BudgetItemWithPeriods};
 use crate::models::{audit_log, budget_execution, budget_management, budget_plan};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::budget_management_service::{BudgetControlResponse, BudgetManagementService};
@@ -30,10 +31,15 @@ pub struct CreateBudgetDto {
     pub item_name: String,
     /// 预算类型：可选
     pub item_type: Option<String>,
+    /// 所属预算方案 ID：必填（并入 plan 主线，NOT NULL）
+    pub plan_id: i32,
     /// 预算年度：可选
     pub budget_year: Option<i32>,
     /// 计划金额：必填
     pub planned_amount: Decimal,
+    /// 期间分解（按月 '2026-01' / 季 '2026-Q1'）：为空时服务层按年度生成单条合计行
+    #[serde(default)]
+    pub periods: Vec<BudgetItemPeriodInput>,
     /// 备注：可选
     pub remark: Option<String>,
 }
@@ -49,6 +55,8 @@ pub struct UpdateBudgetDto {
     pub item_type: Option<String>,
     /// 计划金额：可选
     pub planned_amount: Option<Decimal>,
+    /// 期间分解：提供时整体替换并重新聚合校验
+    pub periods: Option<Vec<BudgetItemPeriodInput>>,
     /// 状态：可选
     pub status: Option<String>,
     /// 备注：可选
@@ -71,6 +79,8 @@ pub struct ApproveBudgetDto {
 pub struct BudgetItemQuery {
     pub item_type: Option<String>,
     pub status: Option<String>,
+    /// 按所属预算方案筛选
+    pub plan_id: Option<i32>,
     pub page: Option<i64>,
     pub page_size: Option<i64>,
 }
@@ -84,8 +94,13 @@ pub struct CreateBudgetItemRequest {
     pub item_name: String,
     pub item_type: Option<String>,
     pub parent_id: Option<i32>,
+    /// 所属预算方案 ID（NOT NULL，并入 plan 主线）
+    pub plan_id: i32,
     pub budget_year: Option<i32>,
     pub planned_amount: Decimal,
+    /// 期间分解（为空时服务层按年度生成单条合计行）
+    #[serde(default)]
+    pub periods: Vec<BudgetItemPeriodInput>,
     pub remark: Option<String>,
     /// P2-14：预算科目-会计科目映射
     pub account_subject_id: Option<i32>,
@@ -99,6 +114,8 @@ pub struct UpdateBudgetItemRequest {
     pub item_name: Option<String>,
     pub item_type: Option<String>,
     pub planned_amount: Option<Decimal>,
+    /// 期间分解：提供时整体替换并重新聚合校验
+    pub periods: Option<Vec<BudgetItemPeriodInput>>,
     pub status: Option<String>,
     pub remark: Option<String>,
     /// P2-14：预算科目-会计科目映射
@@ -165,6 +182,7 @@ pub async fn list_budget_items(
     let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
         item_type: params.item_type,
         status: params.status,
+        plan_id: params.plan_id,
         page: params.page.unwrap_or(1).clamp(1, 1000),
         // v11 批次 36 修复：page_size clamp 防止 DoS
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
@@ -197,10 +215,12 @@ pub async fn create_budget_item(
                 item_name: req.item_name,
                 item_type: req.item_type,
                 parent_id: req.parent_id,
+                plan_id: req.plan_id,
                 budget_year: req.budget_year,
                 planned_amount: req.planned_amount,
                 remark: req.remark,
                 account_subject_id: req.account_subject_id,
+                periods: req.periods,
             },
             auth.user_id,
         )
@@ -210,19 +230,19 @@ pub async fn create_budget_item(
     Ok(Json(ApiResponse::success(item)))
 }
 
-/// 获取预算科目详情
+/// 获取预算科目详情（含 plan_id 与按月/季期间分解数组）
 pub async fn get_budget_item(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<budget_management::Model>>, AppError> {
+) -> Result<Json<ApiResponse<BudgetItemWithPeriods>>, AppError> {
     info!("用户 {} 正在查询预算科目详情：{}", auth.username, id);
 
     let service = BudgetManagementService::new(state.db.clone());
-    let item = service.get_item_by_id(id).await?;
+    let detail = service.get_item_with_periods(id).await?;
 
-    info!("预算科目详情查询成功：{}", item.item_code);
-    Ok(Json(ApiResponse::success(item)))
+    info!("预算科目详情查询成功：{}", detail.item.item_code);
+    Ok(Json(ApiResponse::success(detail)))
 }
 
 /// 更新预算科目
@@ -246,6 +266,7 @@ pub async fn update_budget_item(
                 status: req.status,
                 remark: req.remark,
                 account_subject_id: req.account_subject_id,
+                periods: req.periods,
             },
             auth.user_id,
         )
@@ -442,6 +463,7 @@ pub async fn create_execution(
     // 批次 329 v10 复审 P3 修复：使用参数对象替代多参数
     let params = crate::services::budget_management_service::CreateBudgetExecutionParams {
         plan_id: id,
+        item_id: None,
         execution_type: req.execution_type,
         amount: req.amount,
         expense_date,
@@ -506,6 +528,10 @@ pub async fn list_budgets(
             .get("status")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
+        plan_id: params
+            .get("plan_id")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
         page,
         page_size,
     };
@@ -539,10 +565,12 @@ pub async fn create_budget(
         item_name: req.item_name,
         item_type: req.item_type,
         parent_id: None,
+        plan_id: req.plan_id,
         budget_year: req.budget_year,
         planned_amount: req.planned_amount,
         remark: req.remark,
         account_subject_id: None,
+        periods: req.periods,
     };
 
     let item = service.create_item(create_req, auth.user_id).await?;
@@ -575,6 +603,7 @@ pub async fn update_budget(
         status: req.status,
         remark: req.remark,
         account_subject_id: None,
+        periods: req.periods,
     };
 
     let item = service.update_item(id, update_req, auth.user_id).await?;
@@ -599,7 +628,7 @@ pub async fn delete_budget(
     Ok(Json(ApiResponse::success_with_message((), "预算已删除")))
 }
 
-/// GET /api/v1/erp/budgets/:id - 获取预算详情
+/// GET /api/v1/erp/budgets/:id - 获取预算详情（含 plan_id 与按月/季期间分解数组）
 pub async fn get_budget(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -608,9 +637,9 @@ pub async fn get_budget(
     info!("用户 {} 获取预算详情: ID={}", auth.username, id);
 
     let service = BudgetManagementService::new(state.db.clone());
-    let item = service.get_item_by_id(id).await?;
+    let detail = service.get_item_with_periods(id).await?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(item)?)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(detail)?)))
 }
 
 /// POST /api/v1/erp/budgets/:id/approve - 审批预算
@@ -795,6 +824,7 @@ pub async fn export_budget_items(
     let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
         item_type: query.item_type,
         status: query.status,
+        plan_id: query.plan_id,
         page: 1,
         page_size: 10000,
     };

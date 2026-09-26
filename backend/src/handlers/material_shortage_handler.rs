@@ -11,9 +11,40 @@ use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::services::material_shortage_service::{MaterialShortageService, ShortageCheckRequest};
+use crate::models::material_shortage as alert_model;
+use crate::models::status::purchase_inventory::shortage_alert_status;
+use crate::services::material_shortage_service::{
+    MaterialShortageService, ShortageAlertView, ShortageCheckRequest, ShortageLevel,
+};
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
+
+/// 枚举入参校验：返回 legal 中的规范取值（大小写不敏感匹配），
+/// 不在 legal 列表内直接 400 报出合法值——既避免非法筛选值被当成
+/// 「查无数据」静默返回空列表（假控件），也避免非规范写法被原样落库
+fn validate_enum_param<'a>(
+    raw: &str,
+    legal: &'a [&'a str],
+    field: &str,
+) -> Result<&'a str, AppError> {
+    legal
+        .iter()
+        .find(|v| v.eq_ignore_ascii_case(raw))
+        .copied()
+        .ok_or_else(|| {
+            AppError::validation(format!(
+                "无效的{}：{}（允许值：{}）",
+                field,
+                raw,
+                legal.join(" / ")
+            ))
+        })
+}
+
+/// 缺料级别合法取值（与 ShortageLevel 变体同源，落库值一致）
+fn shortage_level_names() -> Vec<&'static str> {
+    ShortageLevel::ALL.iter().map(|l| l.as_str()).collect()
+}
 
 /// 缺料预警状态更新请求
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -22,30 +53,12 @@ pub struct UpdateStatusRequest {
     pub status: String,
 }
 
-/// 缺料预警数据传输对象
-#[allow(dead_code, reason = "序列化/反序列化字段")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MaterialShortageDto {
-    pub id: i32,
-    pub material_code: String,
-    pub material_name: String,
-    pub spec: Option<String>,
-    pub current_stock: Decimal,
-    pub required_quantity: Decimal,
-    pub shortage_quantity: Decimal,
-    pub unit: Option<String>,
-    pub expected_date: Option<String>,
-    pub source_type: Option<String>,
-    pub source_no: Option<String>,
-    pub status: String,
-    pub severity: String,
-}
-
 /// 缺料预警列表查询参数
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ShortageAlertParams {
     pub level: Option<String>,
+    pub status: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }
@@ -65,24 +78,34 @@ pub async fn list_shortage_alerts(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(params): Query<ShortageAlertParams>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<ShortageAlertView>>>, AppError> {
     tracing::debug!(user_id = auth.user_id, "缺料预警列表查询");
     let service = MaterialShortageService::new(state.db.clone());
 
-    // 批次 95 P3-3~8 修复：max(1) 保证页码 >=1（防止 page=0 被接受），saturating_sub(1) 转 0-based offset
-    let page = params.page.unwrap_or(1).clamp(1, 1000).saturating_sub(1);
+    let level_names = shortage_level_names();
+    // 空串是「未选择该筛选项」，与其余列表接口口径一致；非空才校验取值域
+    let level = params
+        .level
+        .as_deref()
+        .filter(|raw| !raw.is_empty())
+        .map(|raw| validate_enum_param(raw, &level_names, "缺料级别"))
+        .transpose()?;
+    let status = params
+        .status
+        .as_deref()
+        .filter(|raw| !raw.is_empty())
+        .map(|raw| validate_enum_param(raw, shortage_alert_status::ALL, "缺料预警状态"))
+        .transpose()?;
+
+    // 页码 1-based 传给 service（service 内换算 offset），clamp 保证 page=0 不会被接受
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
-    let (items, total) = service
-        .list_alerts(params.level.as_deref(), page, page_size)
-        .await?;
+    let (items, total) = service.list_alerts(level, status, page, page_size).await?;
 
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "items": items,
-        "total": total,
-        "page": page + 1,
-        "page_size": page_size,
-    }))))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        items, total, page, page_size,
+    ))))
 }
 
 /// POST /api/v1/erp/material-shortage/check - 手动触发缺料检查
@@ -293,60 +316,30 @@ pub async fn get_monthly_report(
 }
 
 /// PUT /api/v1/erp/material-shortage/:id/status - 更新缺料预警状态
+///
+/// `:id` 语义为 material_id（同物料至多一条未解决预警，见 persist_alerts）。
+/// 状态取值只能落在 shortage_alert_status::ALL（identified → purchase_request →
+/// purchase_order → received → resolved），出参为该条 alert 的持久化快照。
 // 批次 94 P2-8 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
-// V15 P0-B15（Batch 484）：状态值与 migration m0068 状态机对齐
-//   identified → purchase_request → purchase_order → received → resolved
-// 并从持久化 alert 读取完整 DTO（替代原桩实现返回零值字段）
 pub async fn update_shortage_status(
     State(state): State<AppState>,
     auth: AuthContext,
-    Path(id): Path<i32>,
+    Path(material_id): Path<i32>,
     Json(req): Json<UpdateStatusRequest>,
-) -> Result<Json<ApiResponse<MaterialShortageDto>>, AppError> {
-    tracing::debug!(user_id = auth.user_id, id = id, "更新缺料预警状态");
-    // 校验状态值（V15 P0-B15：与 migration m0068 状态机一致）
-    let valid = matches!(
-        req.status.as_str(),
-        "identified" | "purchase_request" | "purchase_order" | "received" | "resolved"
+) -> Result<Json<ApiResponse<alert_model::Model>>, AppError> {
+    tracing::debug!(
+        user_id = auth.user_id,
+        material_id = material_id,
+        "更新缺料预警状态"
     );
-    if !valid {
-        return Err(AppError::validation(format!(
-            "无效的缺料状态：{}（允许值：identified / purchase_request / purchase_order / received / resolved）",
-            req.status
-        )));
-    }
+    let status = validate_enum_param(&req.status, shortage_alert_status::ALL, "缺料预警状态")?;
 
     let service = MaterialShortageService::new(state.db.clone());
-    // V15 P0-B15：service 返回更新后的 alert 快照，handler 据此构建完整 DTO
-    let alert = service.update_status(id, &req.status).await?;
-
-    // level（Critical/Severe/Warning/Normal）→ severity（critical/high/medium/low）
-    let severity = match alert.level.as_str() {
-        "Critical" => "critical",
-        "Severe" => "high",
-        "Warning" => "medium",
-        _ => "low",
-    }
-    .to_string();
-
-    let dto = MaterialShortageDto {
-        id: alert.material_id,
-        material_code: alert.material_code.unwrap_or_default(),
-        material_name: alert.material_name,
-        spec: None,
-        current_stock: alert.available_quantity,
-        required_quantity: alert.required_quantity,
-        shortage_quantity: alert.shortage_quantity,
-        unit: alert.unit,
-        expected_date: None,
-        source_type: None,
-        source_no: None,
-        status: alert.status,
-        severity,
-    };
+    // service 返回更新后的 alert 快照，直接作为出参（字段与列表视图同源，不再派生别名字段）
+    let alert = service.update_status(material_id, status).await?;
 
     Ok(Json(ApiResponse::success_with_message(
-        dto,
+        alert,
         "缺料状态已更新",
     )))
 }

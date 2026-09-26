@@ -23,7 +23,8 @@ pub struct Model {
     /// 线索来源
     pub lead_source: String,
 
-    /// 线索状态：new/contacted/qualified/converted/lost
+    /// 线索状态：new/contacted/qualified/assigned/converted/pool/lost
+    /// （权威词表见 models/status::crm_lead，DB CHECK：chk_crm_lead_lead_status）
     pub lead_status: Option<String>,
 
     /// 公司名称

@@ -100,6 +100,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { request } from '@/api/request';
@@ -136,19 +137,19 @@ const notifSaving = ref(false);
 
 const fetchNotificationSetting = async () => {
   try {
-    const res = await request.get<Partial<NotificationForm>>('/user/notification-setting');
+    const res = await request.get<Partial<NotificationForm>>('/user-notification-settings');
     if (res) {
       Object.assign(notificationForm, res);
     }
   } catch (_e) {
-    // 静默：通知设置接口失败时不影响界面默认显示
+    logger.error(t('system.notification.message.loadFailed'), _e);
   }
 };
 
 const saveNotificationSetting = async () => {
   notifSaving.value = true;
   try {
-    await request.put('/user/notification-setting', notificationForm);
+    await request.put('/user-notification-settings', notificationForm);
     ElMessage.success(t('system.notification.message.saveSuccess'));
   } catch (e) {
     const err = e as { message?: string };
@@ -172,10 +173,9 @@ const announcementForm = reactive({
 const fetchUserOptions = async () => {
   try {
     const res = await getUserList({ page: 1, page_size: 200 });
-    const d = res.data as { items?: User[]; list?: User[]; data?: User[] } | undefined;
-    userOptions.value = (d?.items || d?.list || d?.data || (Array.isArray(d) ? d : [])) as User[];
-  } catch {
-    // 非管理员无权限拉用户列表时静默
+    userOptions.value = res.data.users;
+  } catch (error) {
+    logAuxLoadFailure(t('system.notification.message.loadUsersFailed'), error);
   }
 };
 

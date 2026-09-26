@@ -26,17 +26,6 @@
         <el-form-item :label="$t('accountingPeriod.filter.year')">
           <el-input-number v-model="queryForm.year" :min="2000" :max="2100" style="width: 140px" />
         </el-form-item>
-        <el-form-item :label="$t('accountingPeriod.filter.status')">
-          <el-select
-            v-model="queryForm.status"
-            :placeholder="$t('accountingPeriod.filter.statusPlaceholder')"
-            clearable
-          >
-            <el-option :label="$t('accountingPeriod.status.pending')" value="pending" />
-            <el-option :label="$t('accountingPeriod.status.active')" value="active" />
-            <el-option :label="$t('accountingPeriod.status.closed')" value="closed" />
-          </el-select>
-        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">{{
             $t('accountingPeriod.filter.query')
@@ -215,7 +204,6 @@ const formRef = ref<FormInstance>();
 
 const queryForm = reactive({
   year: new Date().getFullYear(),
-  status: '',
 });
 
 const form = reactive<Partial<AccountingPeriodEntity>>({
@@ -272,7 +260,7 @@ const getStatusType = (status: string) => {
 const fetchPeriods = async () => {
   loading.value = true;
   try {
-    const res = await getAccountingPeriodList(queryForm);
+    const res = await getAccountingPeriodList();
     const d = (res as { data?: unknown }).data as
       | AccountingPeriodEntity[]
       | {
@@ -299,7 +287,6 @@ const handleSearch = () => {
 
 const handleReset = () => {
   queryForm.year = new Date().getFullYear();
-  queryForm.status = '';
   fetchPeriods();
 };
 

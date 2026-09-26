@@ -44,6 +44,19 @@ class Logger {
   }
 }
 
+/**
+ * 辅助下拉数据（用户/角色/部门等）加载失败的分级留痕。
+ *
+ * 403 表示当前角色本就无该接口权限，属权限下界正常生效：用户提示已由
+ * axios 拦截器统一给出，这里降为 warn 级，避免把「无权限」当成应用缺陷。
+ * 其余失败（5xx、超时、响应结构异常）是真实缺陷，保持 error 级始终输出。
+ */
+export function logAuxLoadFailure(message: string, error: unknown): void {
+  const status = (error as { response?: { status?: number } } | undefined)?.response?.status;
+  if (status === 403) logger.warn(message, error);
+  else logger.error(message, error);
+}
+
 export const logger = new Logger();
 // 同时导出 default 以兼容 `import logger from '@/utils/logger'`
 export default logger;

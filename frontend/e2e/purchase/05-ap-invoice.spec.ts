@@ -1,53 +1,63 @@
-// P9-4 采购 E2E 套件 — 05 应付单生成
-// 创建时间: 2026-06-17
-// 覆盖范围：入库后自动生成 AP 应付单（3 用例）
+// P9-4 采购 E2E 套件 — 05 应付（AP）发票与付款
+// 覆盖范围：/ap 应付发票 Tab 访问 + 新建发票；/ap 付款管理 Tab 新建付款
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelect } from '../flow/ui-helpers';
 
 /**
- * 测试套件：应付单生成
- *
- * 业务流程：
- * 1. 已入库采购订单自动生成应付单
- * 2. 应付单金额 = 入库金额 × (1 + 税率)
- * 3. 应付单可分次付款
+ * 真实 UI 事实（据 views/ap/index.vue、tabs/InvoiceTab.vue、tabs/PaymentTab.vue、locales 核对）：
+ * - 应付为 /ap 扁平 Tab 页（apModule.tabs）：'应付发票'(invoice，默认激活) / '付款管理'(payment) /
+ *   '付款申请' / '核销管理' / '对账管理' / '应付报表'。
+ *   采购订单查看对话框 PurchaseViewDialog 无“内嵌应付单 tab”，原 05-01/05-02 系按不存在的 UI 编写。
+ * - InvoiceTab：页标题 '应付发票'、按钮 '新建发票'、列表列 发票编号/供应商/发票金额/税额/已付/未付/状态、
+ *   行内 '详情' / DRAFT 行 '审核' / '取消'。新建应付发票对话框（createAria '新建应付发票对话框'）
+ *   字段：供应商 select / 发票编号 input(占位 '请输入发票编号') / 发票日期 / 到期日期 /
+ *   发票金额 spinbutton / 税额 spinbutton；底部 '取消' / '确认'。提交成功 '操作成功'(common.success)。
+ * - PaymentTab：'新建付款' → 对话框(createAria '新建付款对话框') 供应商 select / 付款日期 /
+ *   付款金额 spinbutton / 付款方式 select(默认银行转账) / 银行账号 / 备注；底部 '确认'。
+ *   成功 ElMessage.success(common.success)='操作成功'。AP 付款金额列以 toLocaleString 两位小数展示。
  */
-test.describe('05 AP 应付单生成', () => {
-  test.beforeEach(async ({ page, context }) => {
-    // V15 Batch 487 P0-T05：注入 auth mock，业务 API 走真实后端（applyAuthMocks 不再 mock 业务 API）
+test.describe('05 AP 应付发票与付款', () => {
+  test.beforeEach(async ({ context }) => {
     await applyAuthMocks(context);
-    await page.goto('/');
   });
 
-  test('05-01 已入库采购订单自动生成 AP 应付单', async ({ page }) => {
-    await page.goto('/purchase/order/list');
-    const received = page.locator('tr, .el-table__row').filter({ hasText: '已入库' }).first();
-    await received.getByRole('button', { name: /详情/ }).click();
-    // 查看关联的应付单
-    await page.getByRole('tab', { name: /应付单|AP/ }).click();
-    await expect(page.getByText(/应付单号.*AP-\d{8}-\d{4}/)).toBeVisible();
+  test('05-01 应付发票 Tab 默认可访问且渲染列表', async ({ page }) => {
+    await page.goto('/ap');
+    await expect(page.getByRole('tab', { name: '应付发票' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '应付发票' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '新建发票' })).toBeVisible();
+    await expect(page.getByText('发票编号').first()).toBeVisible();
   });
 
-  test('05-02 应付单金额 = 入库金额 + 税额', async ({ page }) => {
-    await page.goto('/purchase/order/list');
-    const received = page.locator('tr, .el-table__row').filter({ hasText: '已入库' }).first();
-    await received.getByRole('button', { name: /详情/ }).click();
-    await page.getByRole('tab', { name: /应付单/ }).click();
-    const total = page.getByTestId('ap-invoice-total');
-    await expect(total).toBeVisible();
+  test('05-02 应付发票可新建并落库给出成功反馈', async ({ page }) => {
+    await page.goto('/ap');
+    await page.getByRole('button', { name: '新建发票' }).click();
+    const dialog = page.getByRole('dialog', { name: '新建应付发票' });
+    await expect(dialog).toBeVisible();
+    // 供应商（对话框首个 el-select）
+    await pickSelect(page, dialog.locator('.el-select').first());
+    await dialog.getByPlaceholder('请输入发票编号').fill('E2E-AP-TEST-001');
+    await dialog.getByRole('spinbutton').first().fill('8000');
+    await dialog.getByRole('button', { name: '确认', exact: true }).click();
+    await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
   });
 
-  test('05-03 应付单支持分次付款', async ({ page }) => {
-    await page.goto('/ap/invoice/list');
-    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '未付款' }).first();
-    await invoice.getByRole('button', { name: /详情/ }).click();
-    // 部分付款
-    await page.getByRole('button', { name: /付款/ }).click();
-    await page.getByLabel(/付款金额/).fill('5000');
-    await page.getByLabel(/付款方式/).click();
-    await page.getByRole('option', { name: /银行转账/ }).click();
-    await page.getByRole('button', { name: /确认/ }).click();
-    await expect(page.getByText(/付款成功|已付款/)).toBeVisible();
+  test('05-03 付款管理 Tab 可新建一笔付款', async ({ page }) => {
+    await page.goto('/ap');
+    await page.getByRole('tab', { name: '付款管理' }).click();
+    await expect(page.getByRole('button', { name: '新建付款' })).toBeVisible();
+    await page.getByRole('button', { name: '新建付款' }).click();
+    const dialog = page.getByRole('dialog', { name: '新建付款' });
+    await expect(dialog).toBeVisible();
+    // 供应商
+    await pickSelect(page, dialog.locator('.el-select').first());
+    // 付款金额
+    await dialog.getByRole('spinbutton').fill('5000');
+    await dialog.getByRole('button', { name: '确认', exact: true }).click();
+    await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
+    // 列表刷新后该笔付款按金额列文本出现（真实展示 5,000.00，不虚构单号格式）
+    await expect(page.getByRole('row').filter({ hasText: '5,000.00' }).first()).toBeVisible();
   });
 });

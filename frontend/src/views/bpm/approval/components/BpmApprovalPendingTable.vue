@@ -28,9 +28,28 @@ import { ElButton, ElTag } from 'element-plus';
 import V2Table from '@/components/V2Table/index.vue';
 import type { ColumnDef } from '@/components/V2Table/types';
 import type { ApprovalTask } from '@/api/bpm-enhanced';
-import { isOverdue, getPriorityType } from '../composables/bpmApFmts';
+import {
+  isOverdue,
+  getPriorityType,
+  getTaskStatusType,
+  formatDateTime,
+  TASK_STATUSES,
+} from '../composables/bpmApFmts';
 
 const { t } = useI18n({ useScope: 'global' });
+
+/** 任务状态显示文本（取值域与后端 bpm_task 词表同源，见 TASK_STATUSES） */
+const TASK_STATUS_LABEL_KEYS: Record<(typeof TASK_STATUSES)[number], string> = {
+  pending: 'bpm.approval.taskStatus.pending',
+  completed: 'bpm.approval.taskStatus.completed',
+  rejected: 'bpm.approval.taskStatus.rejected',
+  cancelled: 'bpm.approval.taskStatus.cancelled',
+};
+
+const getTaskStatusLabel = (status: string) => {
+  const key = TASK_STATUS_LABEL_KEYS[status as (typeof TASK_STATUSES)[number]];
+  return key ? t(key) : status;
+};
 
 /**
  * 审批待办任务表组件
@@ -92,23 +111,58 @@ const renderActionCell = (row: ApprovalTask) =>
     ),
   ]);
 
-/** 列定义：任务名称固定左侧，操作列固定右侧 */
+/** 列定义：与后端 bpm_task 实体字段逐一对应（多余字段后端不返回，会渲染成空白列） */
 const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
-  { key: 'task_name', title: t('bpm.approval.pendingTable.taskName'), width: 180, fixed: 'left' },
-  { key: 'process_name', title: t('bpm.approval.pendingTable.processName'), width: 150 },
-  { key: 'start_user_name', title: t('bpm.approval.pendingTable.applicant'), width: 120 },
-  { key: 'business_key', title: t('bpm.approval.pendingTable.businessKey'), width: 160 },
-  { key: 'created_at', title: t('bpm.approval.pendingTable.applyTime'), width: 160 },
+  { key: 'task_no', title: t('bpm.approval.pendingTable.taskNo'), width: 160, fixed: 'left' },
+  { key: 'node_name', title: t('bpm.approval.pendingTable.taskName'), width: 160 },
+  {
+    key: 'instance_id',
+    title: t('bpm.approval.pendingTable.instanceId'),
+    width: 110,
+    renderCell: (row: ApprovalTask) => h('span', String(row.instance_id)),
+  },
+  {
+    key: 'actual_handler_id',
+    title: t('bpm.approval.pendingTable.handler'),
+    width: 110,
+    renderCell: (row: ApprovalTask) =>
+      h('span', row.actual_handler_name || row.actual_handler_id?.toString() || '-'),
+  },
+  {
+    key: 'created_at',
+    title: t('bpm.approval.pendingTable.applyTime'),
+    width: 160,
+    renderCell: (row: ApprovalTask) => h('span', formatDateTime(row.created_at)),
+  },
   {
     key: 'due_date',
     title: t('bpm.approval.pendingTable.dueDate'),
     width: 160,
     renderCell: (row: ApprovalTask) => {
       if (row.due_date) {
-        return h('span', { class: { overdue: isOverdue(row.due_date) } }, row.due_date);
+        return h(
+          'span',
+          { class: { overdue: isOverdue(row.due_date) } },
+          formatDateTime(row.due_date)
+        );
       }
       return h('span', '-');
     },
+  },
+  {
+    key: 'status',
+    title: t('bpm.approval.pendingTable.status'),
+    width: 100,
+    renderCell: (row: ApprovalTask) =>
+      h(
+        ElTag,
+        {
+          type: getTaskStatusType(row.status || '') as
+            'success' | 'warning' | 'info' | 'primary' | 'danger',
+          size: 'small',
+        },
+        { default: () => getTaskStatusLabel(row.status || '') }
+      ),
   },
   {
     key: 'priority',
@@ -118,11 +172,11 @@ const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
       h(
         ElTag,
         {
-          type: getPriorityType(row.priority) as
+          type: getPriorityType(row.priority || '') as
             'success' | 'warning' | 'info' | 'primary' | 'danger',
           size: 'small',
         },
-        { default: () => getPriorityTextFmt(row.priority) }
+        { default: () => getPriorityTextFmt(row.priority || '') }
       ),
   },
   {

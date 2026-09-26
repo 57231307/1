@@ -81,26 +81,9 @@ const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
 const bpmDf = useBpmDf();
-const bpmDfProc = useBpmDfProc({
-  definitions: bpmDf.definitions,
-  loading: bpmDf.loading,
-  total: bpmDf.total,
-  page: bpmDf.page,
-  queryParams: bpmDf.queryParams,
-  dialogVisible: bpmDf.dialogVisible,
-  isEdit: bpmDf.isEdit,
-  submitLoading: bpmDf.submitLoading,
-  formData: bpmDf.formData,
-  versionDialogVisible: bpmDf.versionDialogVisible,
-  versionLoading: bpmDf.versionLoading,
-  currentDefinition: bpmDf.currentDefinition,
-  versions: bpmDf.versions,
-  templateDialogVisible: bpmDf.templateDialogVisible,
-  templateLoading: bpmDf.templateLoading,
-  templateForm: bpmDf.templateForm,
-  fetchDefinitions: bpmDf.fetchDefinitions,
-  fetchVersions: bpmDf.fetchVersions,
-});
+// 直接传入 reactive 代理，确保 proc 内 cb.dialogVisible = true 等写入
+// 经由 proxy set 拦截正确回写到底层 ref，模板 v-model:visible 立即响应。
+const bpmDfProc = useBpmDfProc(bpmDf);
 
 // 表单验证规则
 const formRules = reactive<FormRules>({

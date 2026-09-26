@@ -26,17 +26,17 @@ import { useI18n } from 'vue-i18n';
 import { ElTag, ElButton } from 'element-plus';
 import V2Table from '@/components/V2Table/index.vue';
 import type { ColumnDef } from '@/components/V2Table/types';
-import { PRODUCTION_ORDER_STATUS, type ProductionOrder } from '@/api/production';
+import type { ProductionOrder } from '@/api/production';
+import { getStatusLabel, getStatusType } from '../composables/prdFmts';
 // P2-17 修复（批次 86 v2 复审）：h() 渲染函数无法使用 v-permission 指令，
 // 改为复用 router 守卫的 hasRoutePermission + useUserStore 做权限判断，
 // 行为与 v-permission 指令保持一致（无权限则不渲染该按钮）
-import { hasRoutePermission } from '@/router';
+import { hasRoutePermission, canAccessDetailPermission } from '@/router';
 import { useUserStore } from '@/store/user';
 
 const { t } = useI18n({ useScope: 'global' });
 
 // 状态 el-tag 类型别名（与 element-plus 类型保持一致）
-type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger';
 
 /** 权限检查辅助函数（与 v-permission 指令行为等价） */
 const can = (required: string): boolean => {
@@ -45,14 +45,26 @@ const can = (required: string): boolean => {
   return hasRoutePermission(required, permissions);
 };
 
-/** 状态标签：优先 i18n，回退到原始 status 字符串 */
-const statusLabel = (status: string): string => {
-  const key = `production.table.status${status.charAt(0).toUpperCase() + status.slice(1)}`;
-  const translated = t(key);
-  return translated === key
-    ? PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label || status
-    : translated;
-};
+// 详情/编辑入口回源/提交 `/production/.../orders/{id}`，后端对 resource_id=NULL 行拒绝 `/{id}`，
+// 非管理员点了必然 403。与后端同源判定（canAccessDetailPermission）决定是否隐藏。
+const canViewDetail = computed(() => {
+  const userStore = useUserStore();
+  return canAccessDetailPermission(
+    'production-orders',
+    'read',
+    userStore.userInfo?.permissions || []
+  );
+});
+const canEditDetail = computed(() => {
+  const userStore = useUserStore();
+  return canAccessDetailPermission(
+    'production-orders',
+    'update',
+    userStore.userInfo?.permissions || []
+  );
+});
+
+const statusLabel = getStatusLabel;
 
 defineProps<{
   data: ProductionOrder[];
@@ -69,19 +81,81 @@ const emit = defineEmits<{
   'open-edit': [row: ProductionOrder];
   'status-change': [row: ProductionOrder, status: string];
   delete: [row: ProductionOrder];
+  'submit-approval': [row: ProductionOrder];
+  'approve-order': [row: ProductionOrder, approved: boolean];
+  'report-progress': [row: ProductionOrder];
+  'view-logs': [row: ProductionOrder];
 }>();
 
 /** 创建操作按钮 vnode（≤50 行） */
 const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
-  const buttons: ReturnType<typeof h>[] = [
+  // 后端状态机为大写（DRAFT/PENDING_APPROVAL/SCHEDULED/IN_PROGRESS/COMPLETED/REJECTED）
+  const buttons: ReturnType<typeof h>[] = [];
+  // 详情入口：与后端同源判定无 /{id} 权限时不渲染，避免出现点了必然 403 的死入口
+  if (canViewDetail.value) {
+    buttons.push(
+      h(
+        ElButton,
+        { type: 'primary', link: true, size: 'small', onClick: () => emit('view-detail', row) },
+        { default: () => t('production.table.buttonView') }
+      )
+    );
+  }
+  buttons.push(
     h(
       ElButton,
-      { type: 'primary', link: true, size: 'small', onClick: () => emit('view-detail', row) },
-      { default: () => t('production.table.buttonView') }
-    ),
-  ];
-  if (row.status === 'draft') {
-    if (can('production_order:update')) {
+      { type: 'info', link: true, size: 'small', onClick: () => emit('view-logs', row) },
+      { default: () => '日志' }
+    )
+  );
+  const status = row.status;
+  if (status === 'DRAFT') {
+    buttons.push(
+      h(
+        ElButton,
+        { type: 'warning', link: true, size: 'small', onClick: () => emit('submit-approval', row) },
+        { default: () => '提交审批' }
+      )
+    );
+  }
+  if (status === 'PENDING_APPROVAL') {
+    buttons.push(
+      h(
+        ElButton,
+        {
+          type: 'success',
+          link: true,
+          size: 'small',
+          onClick: () => emit('approve-order', row, true),
+        },
+        { default: () => '审批通过' }
+      ),
+      h(
+        ElButton,
+        {
+          type: 'danger',
+          link: true,
+          size: 'small',
+          onClick: () => emit('approve-order', row, false),
+        },
+        { default: () => '驳回' }
+      )
+    );
+  }
+  if (status === 'IN_PROGRESS') {
+    buttons.push(
+      h(
+        ElButton,
+        { type: 'warning', link: true, size: 'small', onClick: () => emit('report-progress', row) },
+        { default: () => '汇报进度' }
+      )
+    );
+  }
+  // 草稿可改可删；排产/开工/完工按状态机的下一步给出，
+  // 目标状态取后端 PUT /status 白名单里的值（SCHEDULED/IN_PROGRESS/COMPLETED）
+  if (status === 'DRAFT') {
+    // 编辑入口提交 PUT /orders/{id}，后端对 resource_id=NULL 行拒绝；与后端同源判定后隐藏
+    if (can('production_order:update') && canEditDetail.value) {
       buttons.push(
         h(
           ElButton,
@@ -90,18 +164,6 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
         )
       );
     }
-    buttons.push(
-      h(
-        ElButton,
-        {
-          type: 'warning',
-          link: true,
-          size: 'small',
-          onClick: () => emit('status-change', row, 'planned'),
-        },
-        { default: () => t('production.table.buttonPlan') }
-      )
-    );
     if (can('production_order:delete')) {
       buttons.push(
         h(
@@ -112,7 +174,21 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
       );
     }
   }
-  if (row.status === 'planned') {
+  if (status === 'APPROVED') {
+    buttons.push(
+      h(
+        ElButton,
+        {
+          type: 'warning',
+          link: true,
+          size: 'small',
+          onClick: () => emit('status-change', row, 'SCHEDULED'),
+        },
+        { default: () => t('production.table.buttonPlan') }
+      )
+    );
+  }
+  if (status === 'SCHEDULED') {
     buttons.push(
       h(
         ElButton,
@@ -120,13 +196,13 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
           type: 'primary',
           link: true,
           size: 'small',
-          onClick: () => emit('status-change', row, 'in_production'),
+          onClick: () => emit('status-change', row, 'IN_PROGRESS'),
         },
         { default: () => t('production.table.buttonStartProduction') }
       )
     );
   }
-  if (row.status === 'in_production') {
+  if (status === 'IN_PROGRESS') {
     buttons.push(
       h(
         ElButton,
@@ -134,7 +210,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
           type: 'success',
           link: true,
           size: 'small',
-          onClick: () => emit('status-change', row, 'completed'),
+          onClick: () => emit('status-change', row, 'COMPLETED'),
         },
         { default: () => t('production.table.buttonComplete') }
       )
@@ -160,30 +236,26 @@ const columns = computed<ColumnDef<ProductionOrder>[]>(() => [
     align: 'right',
   },
   {
-    key: 'scheduled_start_date',
+    key: 'planned_start_date',
     title: t('production.table.colScheduledStart'),
     width: 140,
     formatter: (row: ProductionOrder) =>
-      row.scheduled_start_date ? row.scheduled_start_date.substring(0, 10) : '-',
+      row.planned_start_date ? row.planned_start_date.substring(0, 10) : '-',
   },
   {
-    key: 'scheduled_end_date',
+    key: 'planned_end_date',
     title: t('production.table.colScheduledEnd'),
     width: 140,
     formatter: (row: ProductionOrder) =>
-      row.scheduled_end_date ? row.scheduled_end_date.substring(0, 10) : '-',
+      row.planned_end_date ? row.planned_end_date.substring(0, 10) : '-',
   },
   {
     key: 'status',
     title: t('production.table.colStatus'),
     width: 120,
     align: 'center',
-    renderCell: (row: ProductionOrder) => {
-      const statusConfig =
-        PRODUCTION_ORDER_STATUS[row.status as keyof typeof PRODUCTION_ORDER_STATUS];
-      const tagType: ElTagType = (statusConfig?.type as ElTagType) || 'info';
-      return h(ElTag, { type: tagType }, { default: () => statusLabel(row.status) });
-    },
+    renderCell: (row: ProductionOrder) =>
+      h(ElTag, { type: getStatusType(row.status) }, { default: () => statusLabel(row.status) }),
   },
   { key: 'priority', title: t('production.table.colPriority'), width: 100, align: 'center' },
   {

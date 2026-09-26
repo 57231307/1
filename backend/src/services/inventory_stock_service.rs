@@ -1,14 +1,20 @@
 use crate::models::inventory_stock;
+use crate::models::product;
+use crate::models::status::purchase_inventory::inventory_stock_grade;
+use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
+use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
-use chrono::Utc;
+use crate::utils::sql_escape::safe_like_pattern;
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter, Set,
-    TransactionTrait,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, ExprTrait, JoinType,
+    PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -48,6 +54,85 @@ pub struct InventorySummaryQueryResult {
 /// 库存服务（面料行业版）
 ///
 /// P1 batch-18 缺陷 7.2：检测到告警时同步推送站内信+邮件给计划员/仓管员
+/// 库存台账查询条件（列表与导出共用同一口径）
+///
+/// `stock_status` 为空时只排除软删除行：删除是 `stock_status = 已删除` 的软删除，
+/// 行保留用于追溯，但它已不是在库库存，混进台账会被当成可出库的量。
+#[derive(Debug, Default, Clone)]
+pub struct StockListFilter {
+    pub page: u64,
+    pub page_size: u64,
+    pub warehouse_id: Option<i32>,
+    pub product_id: Option<i32>,
+    pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
+    pub batch_no: Option<String>,
+    pub stock_status: Option<String>,
+    /// 产品编码/名称关键词（库存表只存 product_id，需先按关键词取候选产品再下推）
+    pub keyword: Option<String>,
+}
+
+/// 批次列表查询条件（GET /inventory/batches）
+///
+/// 批次与台账同表（inventory_stocks），因此同样排除软删除行；
+/// 批次号/色号按模糊匹配（界面是输入框），等级/产品/仓库按精确匹配（界面是下拉）。
+#[derive(Debug, Default, Clone)]
+pub struct BatchListFilter {
+    pub product_id: Option<i32>,
+    pub batch_no: Option<String>,
+    pub color_no: Option<String>,
+    pub grade: Option<String>,
+    pub warehouse_id: Option<i32>,
+    pub start_date: Option<DateTime<Utc>>,
+    pub end_date: Option<DateTime<Utc>>,
+}
+
+/// 批次列表视图（GET /inventory/batches 出参）
+///
+/// inventory_stocks 表只存 product_id/warehouse_id，列表要显示产品/仓库名称必须
+/// 按 `PurchaseOrderDto` 范式做单次 LEFT JOIN 富化（column_as + Relation::Product/
+/// Warehouse + into_model，无 N+1），两个派生名列以 Option<String> 承载。
+#[derive(Debug, Clone, sea_orm::FromQueryResult, serde::Serialize)]
+pub struct InventoryBatchView {
+    pub id: i32,
+    pub warehouse_id: i32,
+    pub product_id: i32,
+    pub quantity_on_hand: Decimal,
+    pub quantity_available: Decimal,
+    pub quantity_reserved: Decimal,
+    pub quantity_shipped: Decimal,
+    pub quantity_incoming: Decimal,
+    pub reorder_point: Decimal,
+    pub max_stock_point: Decimal,
+    pub reorder_quantity: Decimal,
+    pub bin_location: Option<String>,
+    pub last_count_date: Option<DateTime<Utc>>,
+    pub last_movement_date: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub batch_no: String,
+    pub color_no: String,
+    pub dye_lot_no: Option<String>,
+    pub grade: String,
+    pub production_date: Option<DateTime<Utc>>,
+    pub expiry_date: Option<DateTime<Utc>>,
+    pub quantity_meters: Decimal,
+    pub quantity_kg: Decimal,
+    pub gram_weight: Option<Decimal>,
+    pub width: Option<Decimal>,
+    pub location_id: Option<i32>,
+    pub shelf_no: Option<String>,
+    pub layer_no: Option<String>,
+    pub stock_status: String,
+    pub quality_status: String,
+    pub version: i32,
+    pub replenishment_strategy: String,
+    /// 产品名称：product_id -> products.name（LEFT JOIN 派生，可空）
+    pub product_name: Option<String>,
+    /// 仓库名称：warehouse_id -> warehouses.name（LEFT JOIN 派生，可空）
+    pub warehouse_name: Option<String>,
+}
+
 pub struct InventoryStockService {
     pub db: Arc<DatabaseConnection>,
     /// 事件通知服务（用于库存告警主动通知）
@@ -261,19 +346,68 @@ impl InventoryStockService {
 
     pub async fn list_stock(
         &self,
-        page: u64,
-        page_size: u64,
-        warehouse_id: Option<i32>,
-        product_id: Option<i32>,
+        filter: &StockListFilter,
     ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
         let mut query = inventory_stock::Entity::find();
 
-        if let Some(wid) = warehouse_id {
+        // 关键词筛选（产品编码/名称）：库存表只存 product_id，先按关键词取候选产品，
+        // 再把 ID 集合下推。此前后端入参里根本没有 keyword，界面这个筛选框提交后被整个
+        // 忽略，用户看到的是"筛了没反应"（列表与导出同走本函数，一并生效）。
+        if let Some(keyword) = filter
+            .keyword
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
+            let pattern = safe_like_pattern(keyword);
+            let matched_product_ids: Vec<i32> = product::Entity::find()
+                .filter(
+                    sea_orm::Condition::any()
+                        .add(product::Column::Code.like(&pattern))
+                        .add(product::Column::Name.like(&pattern)),
+                )
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|p| p.id)
+                .collect();
+            if matched_product_ids.is_empty() {
+                // 无任何产品命中就是空集，不靠 `IN ()` 这类边界行为碰运气
+                return Ok((Vec::new(), 0));
+            }
+            query = query.filter(inventory_stock::Column::ProductId.is_in(matched_product_ids));
+        }
+
+        if let Some(wid) = filter.warehouse_id {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
         }
 
-        if let Some(pid) = product_id {
+        if let Some(pid) = filter.product_id {
             query = query.filter(inventory_stock::Column::ProductId.eq(pid));
+        }
+
+        // 面料四维查询：色号/缸号/批次（匹号）作为筛选条件下推到 SQL
+        if let Some(color) = filter.color_no.as_deref().filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::ColorNo.eq(color));
+        }
+        if let Some(lot) = filter.dye_lot_no.as_deref().filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::DyeLotNo.eq(lot));
+        }
+        if let Some(batch) = filter.batch_no.as_deref().filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
+        }
+
+        // 状态筛选：显式指定时精确匹配（报废/已删除行也可按需查回），
+        // 未指定时排除软删除行，避免已删除库存混入台账被当成在库量
+        match filter.stock_status.as_deref().filter(|s| !s.is_empty()) {
+            Some(status) => {
+                query = query.filter(inventory_stock::Column::StockStatus.eq(status));
+            }
+            None => {
+                query = query.filter(
+                    inventory_stock::Column::StockStatus.ne(inventory_stock_status::DELETED),
+                );
+            }
         }
 
         // 批次 97 P1-15 修复（v5 复审）：接入 SlowQueryRecorder 真实使用，
@@ -286,8 +420,9 @@ impl InventoryStockService {
             None,
             None,
         );
-        let paginator = query.paginate(&*self.db, page_size);
-        let (stock_list, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let paginator = query.paginate(&*self.db, filter.page_size);
+        let (stock_list, total) =
+            paginate_with_total(paginator, filter.page.clamp(1, 1000)).await?;
         rec.finish();
 
         Ok((stock_list, total))
@@ -306,13 +441,13 @@ impl InventoryStockService {
         // 实现基于仓库和批次的精确低库存检查
         let mut query = inventory_stock::Entity::find()
             // 只检查正常状态的库存
-            .filter(inventory_stock::Column::StockStatus.eq("正常"))
-            .filter(inventory_stock::Column::QualityStatus.eq("合格"))
-            // 检查可用库存低于重新订购点
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
+            .filter(inventory_stock::Column::QualityStatus.eq(quality_status::PASS))
+            // 检查可用库存低于重新订购点：列 vs 列比较不能走 ColumnTrait::lt
+            // （其 right 约束是 Into<Value>，只支持列 vs 字面量），必须用 Expr::col 两侧都是列表达式。
             .filter(
-                sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).lt(
-                    sea_orm::sea_query::Expr::col(inventory_stock::Column::ReorderPoint),
-                ),
+                Expr::col(inventory_stock::Column::QuantityAvailable)
+                    .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
             )
             // 只检查重新订购点大于0的记录
             .filter(inventory_stock::Column::ReorderPoint.gt(rust_decimal::Decimal::ZERO));
@@ -369,7 +504,7 @@ impl InventoryStockService {
         // 原实现直接 active_model.update(&*self.db) 绕过审计中间件
         let stock = self.find_by_id(id).await?;
         let mut active_model: inventory_stock::ActiveModel = stock.into();
-        active_model.stock_status = Set("已删除".to_string());
+        active_model.stock_status = Set(inventory_stock_status::DELETED.to_string());
         active_model.updated_at = Set(Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit::<
             inventory_stock::Entity,
@@ -540,8 +675,8 @@ impl InventoryStockService {
             shelf_no: Set(shelf_no),
             layer_no: Set(layer_no),
             bin_location: Set(None),
-            stock_status: Set("正常".to_string()),
-            quality_status: Set("合格".to_string()),
+            stock_status: Set(inventory_stock_status::NORMAL.to_string()),
+            quality_status: Set(quality_status::PASS.to_string()),
             version: Set(0),
             replenishment_strategy: Set("reorder_point".to_string()),
         }
@@ -558,7 +693,7 @@ impl InventoryStockService {
         user_id: Option<i32>,
     ) -> Result<inventory_stock::Model, AppError> {
         // 校验 new_grade 合法值（与 inventory_stock.rs Model.grade 注释一致）
-        if !matches!(new_grade.as_str(), "一等品" | "二等品" | "等外品") {
+        if !inventory_stock_grade::ALL.contains(&new_grade.as_str()) {
             return Err(AppError::validation(format!(
                 "非法等级值 {}，仅允许 一等品/二等品/等外品",
                 new_grade
@@ -569,7 +704,7 @@ impl InventoryStockService {
         let mut active: inventory_stock::ActiveModel = stock.into();
         active.grade = Set(new_grade);
         // 降级后质量状态自动降为"待检"（需重新质检判定合格/不合格）
-        active.quality_status = Set("待检".to_string());
+        active.quality_status = Set(quality_status::PENDING.to_string());
         active.updated_at = Set(Utc::now());
 
         crate::services::audit_log_service::AuditLogService::update_with_audit::<
@@ -591,8 +726,8 @@ impl InventoryStockService {
         let stock = self.find_by_id(stock_id).await?;
         let prev_loc = stock.bin_location.clone();
         let mut active: inventory_stock::ActiveModel = stock.into();
-        active.stock_status = Set("报废".to_string());
-        active.quality_status = Set("不合格".to_string());
+        active.stock_status = Set(inventory_stock_status::SCRAPPED.to_string());
+        active.quality_status = Set(quality_status::FAIL.to_string());
         // 在 bin_location 追加报废原因（保留原有库位信息便于追溯）
         let new_loc = match &prev_loc {
             Some(prev) if !prev.is_empty() => format!("{} [SCRAP:{}]", prev, reason),
@@ -612,24 +747,56 @@ impl InventoryStockService {
     // ========== 缺陷 3 修复：批次 CRUD/调拨业务逻辑（原 inventory_batch_handler 内联逻辑下沉） ==========
 
     /// 批次列表查询（batch_no 非空记录，分页）
+    ///
+    /// 产品名/仓库名通过单次 LEFT JOIN 富化（column_as + into_model），与
+    /// `PurchaseOrderDto` 范式一致：多对一 JOIN 不倍增行，paginate 的 items/total 语义不变。
     pub async fn list_batches(
         &self,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
+        filter: &BatchListFilter,
+    ) -> Result<(Vec<InventoryBatchView>, u64), AppError> {
         let page = page.clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
         let page_size = page_size.clamp(1, 100);
-        let paginator = inventory_stock::Entity::find()
+
+        let mut query = inventory_stock::Entity::find()
+            .column_as(product::Column::Name, "product_name")
+            .column_as(crate::models::warehouse::Column::Name, "warehouse_name")
+            .join(JoinType::LeftJoin, inventory_stock::Relation::Product.def())
+            .join(
+                JoinType::LeftJoin,
+                inventory_stock::Relation::Warehouse.def(),
+            )
             .filter(inventory_stock::Column::BatchNo.ne(""))
+            .filter(inventory_stock::Column::StockStatus.ne(inventory_stock_status::DELETED));
+
+        if let Some(pid) = filter.product_id {
+            query = query.filter(inventory_stock::Column::ProductId.eq(pid));
+        }
+        if let Some(wid) = filter.warehouse_id {
+            query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
+        }
+        if let Some(grade) = filter.grade.as_deref().filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::Grade.eq(grade));
+        }
+        if let Some(batch) = filter.batch_no.as_deref().filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::BatchNo.like(safe_like_pattern(batch)));
+        }
+        if let Some(color) = filter.color_no.as_deref().filter(|s| !s.is_empty()) {
+            query = query.filter(inventory_stock::Column::ColorNo.like(safe_like_pattern(color)));
+        }
+        if let Some(start) = filter.start_date {
+            query = query.filter(inventory_stock::Column::CreatedAt.gte(start));
+        }
+        if let Some(end) = filter.end_date {
+            query = query.filter(inventory_stock::Column::CreatedAt.lte(end));
+        }
+
+        let paginator = query
+            .into_model::<InventoryBatchView>()
             .paginate(&*self.db, page_size);
-        let batches = paginator
-            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
-            .await
-            .map_err(|e| AppError::database(format!("获取批次列表失败：{}", e)))?;
-        let total = paginator
-            .num_items()
-            .await
-            .map_err(|e| AppError::database(format!("获取批次总数失败：{}", e)))?;
+        // paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1
+        let (batches, total) = paginate_with_total(paginator, page).await?;
         Ok((batches, total))
     }
 
@@ -655,14 +822,15 @@ impl InventoryStockService {
         let meters = Decimal::from_f64_retain(quantity_meters).unwrap_or(Decimal::ZERO);
         let kg = Decimal::from_f64_retain(quantity_kg).unwrap_or(Decimal::ZERO);
         let batch = inventory_stock::ActiveModel {
-            id: Set(0),
+            // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
+            id: NotSet,
             warehouse_id: Set(warehouse_id),
             product_id: Set(product_id),
             batch_no: Set(batch_no),
             color_no: Set(color_no),
             dye_lot_no: Set(dye_lot_no),
             grade: Set(if grade.is_empty() {
-                "一等品".to_string()
+                inventory_stock_grade::FIRST.to_string()
             } else {
                 grade
             }),
@@ -684,8 +852,8 @@ impl InventoryStockService {
             width: Set(width.and_then(Decimal::from_f64_retain)),
             production_date: Set(production_date),
             expiry_date: Set(expiry_date),
-            stock_status: Set("正常".to_string()),
-            quality_status: Set("合格".to_string()),
+            stock_status: Set(inventory_stock_status::NORMAL.to_string()),
+            quality_status: Set(quality_status::PASS.to_string()),
             location_id: Set(None),
             shelf_no: Set(None),
             layer_no: Set(None),
@@ -827,7 +995,8 @@ impl InventoryStockService {
             }
             None => {
                 let new_batch = inventory_stock::ActiveModel {
-                    id: Set(0),
+                    // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
+                    id: NotSet,
                     warehouse_id: Set(to_warehouse_id),
                     product_id: Set(source.product_id),
                     batch_no: Set(source.batch_no.clone()),
@@ -852,8 +1021,8 @@ impl InventoryStockService {
                     width: Set(source.width),
                     production_date: Set(source.production_date),
                     expiry_date: Set(source.expiry_date),
-                    stock_status: Set("正常".to_string()),
-                    quality_status: Set("合格".to_string()),
+                    stock_status: Set(inventory_stock_status::NORMAL.to_string()),
+                    quality_status: Set(quality_status::PASS.to_string()),
                     location_id: Set(None),
                     shelf_no: Set(None),
                     layer_no: Set(None),

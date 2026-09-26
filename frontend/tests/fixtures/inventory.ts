@@ -4,11 +4,11 @@
  * 覆盖库存列表项、库存告警、库存调整等核心库存域实体。
  */
 import type { InventoryStock, StockAlert, StockAdjustmentData } from '@/api/inventory';
+import { INVENTORY_STOCK_STATUS } from '@/constants/inventory-stock-status';
+import { STOCK_ALERT_TYPE } from '@/constants/stock-alert-type';
 
 /** 创建库存项 mock（默认 active 状态，可通过 overrides 覆盖） */
-export function createInventoryStockMock(
-  overrides: Partial<InventoryStock> = {}
-): InventoryStock {
+export function createInventoryStockMock(overrides: Partial<InventoryStock> = {}): InventoryStock {
   const now = new Date().toISOString();
   return {
     id: 1,
@@ -27,9 +27,7 @@ export function createInventoryStockMock(
 }
 
 /** 创建库存列表 mock（默认 2 个不同面料） */
-export function createInventoryStockListMock(
-  count = 2
-): InventoryStock[] {
+export function createInventoryStockListMock(count = 2): InventoryStock[] {
   return Array.from({ length: count }, (_, i) =>
     createInventoryStockMock({
       id: i + 1,
@@ -46,24 +44,29 @@ export function createStockAlertMock(overrides: Partial<StockAlert> = {}): Stock
     product_id: 1,
     product_name: '面料A',
     product_code: 'FAB-001',
+    unit: '米',
     warehouse_id: 1,
     warehouse_name: '主仓库',
-    current_quantity: 5,
-    min_quantity: 20,
-    unit: '米',
-    alert_level: 'warning',
+    // 数量类字段是后端 Decimal 的字符串序列化，与 StockAlert 契约同口径
+    quantity_on_hand: '5',
+    quantity_available: '3',
+    quantity_reserved: '2',
+    reorder_point: '20',
+    max_stock_point: '500',
+    expiry_date: null,
+    last_movement_date: null,
+    stock_status: INVENTORY_STOCK_STATUS.normal,
+    alert_type: STOCK_ALERT_TYPE.lowStock,
     ...overrides,
   };
 }
 
 /** 创建库存告警列表 mock（默认 1 个低库存告警） */
-export function createStockAlertListMock(
-  count = 1
-): StockAlert[] {
+export function createStockAlertListMock(count = 1): StockAlert[] {
   return Array.from({ length: count }, (_, i) =>
     createStockAlertMock({
       id: i + 1,
-      alert_level: i % 2 === 0 ? 'warning' : 'danger',
+      alert_type: i % 2 === 0 ? STOCK_ALERT_TYPE.lowStock : STOCK_ALERT_TYPE.overStock,
     })
   );
 }

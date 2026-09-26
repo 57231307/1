@@ -523,7 +523,8 @@ pub fn quality_inspection() -> Router<AppState> {
         )
         .route(
             "/quality-inspection/records/{id}",
-            get(quality_inspection_handler::get_record),
+            get(quality_inspection_handler::get_record)
+                .put(quality_inspection_handler::update_record),
         )
         .route(
             "/quality-inspection/defects",

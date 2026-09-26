@@ -23,6 +23,17 @@ mod m0049_create_processed_events;
 mod m0050_create_event_dead_letters;
 mod m0051_add_piece_type_and_machine_no;
 mod m0052_add_piece_no_to_flow_documents;
+mod m0053_add_warehouse_contact_and_default;
+mod m0054_add_import_task_file_fields;
+mod m0055_create_system_update_tables;
+mod m0056_normalize_stock_quality_status;
+mod m0057_normalize_stock_status_domain;
+// m0058 目标表 purchase_order_item / sales_contract_items 均在 v15 域内 CREATE，
+// 而 production 域早于 v15 执行；故 m0058 的 up/down 改由 v15 域在建表之后调用
+// （见 domain/v15/mod.rs）。此处仅保留类型定义供跨域引用，故提升可见性为 pub(crate)。
+pub(crate) mod m0058_add_delivery_tolerance;
+mod m0059_add_product_piece_roll_conversion;
+mod m0060_add_so_item_tolerance;
 
 pub struct Migration;
 
@@ -124,6 +135,30 @@ impl MigrationTrait for Migration {
         m0052_add_piece_no_to_flow_documents::Migration
             .up(manager)
             .await?;
+        m0053_add_warehouse_contact_and_default::Migration
+            .up(manager)
+            .await?;
+        m0054_add_import_task_file_fields::Migration
+            .up(manager)
+            .await?;
+        m0055_create_system_update_tables::Migration
+            .up(manager)
+            .await?;
+        m0056_normalize_stock_quality_status::Migration
+            .up(manager)
+            .await?;
+        m0057_normalize_stock_status_domain::Migration
+            .up(manager)
+            .await?;
+        // 交货数量容差行级列（采购订单行 / 销售合同行）：目标表 purchase_order_item /
+        // sales_contract_items 均在 v15 域内建表，production 先于 v15 执行会导致
+        // "relation ... does not exist"，故 m0058.up() 已后置至 v15 域（见 domain/v15/mod.rs）。
+        // 产品匹/卷换算元数据列（meters_per_piece / meters_per_roll），域内最后追加
+        m0059_add_product_piece_roll_conversion::Migration
+            .up(manager)
+            .await?;
+        // 销售订单行交货数量容差列（quantity_tolerance_pct），与 m0058 对称
+        m0060_add_so_item_tolerance::Migration.up(manager).await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
 ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_by" INTEGER;
 ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
@@ -425,6 +460,29 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0060_add_so_item_tolerance::Migration.down(manager).await?;
+        m0059_add_product_piece_roll_conversion::Migration
+            .down(manager)
+            .await?;
+        // m0058 的 down() 已随之迁移至 v15 域（与 up 对称），此处不再回滚。
+        m0057_normalize_stock_status_domain::Migration
+            .down(manager)
+            .await?;
+        m0056_normalize_stock_quality_status::Migration
+            .down(manager)
+            .await?;
+        m0055_create_system_update_tables::Migration
+            .down(manager)
+            .await?;
+        m0054_add_import_task_file_fields::Migration
+            .down(manager)
+            .await?;
+        m0053_add_warehouse_contact_and_default::Migration
+            .down(manager)
+            .await?;
+        m0052_add_piece_no_to_flow_documents::Migration
+            .down(manager)
+            .await?;
         m0052_add_piece_no_to_flow_documents::Migration
             .down(manager)
             .await?;

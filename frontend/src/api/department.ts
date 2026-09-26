@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface Department {
   id: number;
@@ -30,7 +30,19 @@ export interface DepartmentUpdateRequest {
   is_active?: boolean;
 }
 
-export function getDepartmentList(params?: QueryParams): Promise<ApiResponse<Department[]>> {
+// 部门列表查询参数：字段集严格对齐后端 DepartmentListQuery（handlers/department_handler.rs）。
+// 搜索键是 search（不是 keyword）；后端不读 order_by/order_dir/status 等通用键。
+export interface DepartmentListQuery {
+  page?: number;
+  page_size?: number;
+  parent_id?: number;
+  search?: string;
+}
+
+// 后端 department_handler::list（define_crud_handlers 宏）返回 PaginatedResponse { items, total, page, page_size }
+export function getDepartmentList(
+  params?: DepartmentListQuery
+): Promise<ApiResponse<{ items: Department[]; total: number; page: number; page_size: number }>> {
   return request.get('/departments', { params });
 }
 

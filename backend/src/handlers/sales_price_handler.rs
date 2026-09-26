@@ -18,6 +18,7 @@ use axum::{
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
+use validator::Validate;
 
 // V15 P0-S12 修复（Batch 475d）：派生 Clone，export_prices 需要 clone 后覆盖分页参数用于全量导出
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -80,6 +81,8 @@ pub async fn create_price(
     auth: AuthContext,
     Json(req): Json<CreateSalesPriceInput>,
 ) -> Result<Json<ApiResponse<sales_price::Model>>, AppError> {
+    req.validate()?;
+
     info!(
         "用户 {} 正在创建销售价格，产品 ID: {}",
         auth.user_id, req.product_id

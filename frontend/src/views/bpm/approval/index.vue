@@ -62,6 +62,7 @@
       v-model:visible="bpmApProc.transferDialogVisible"
       :current-task="bpmApProc.currentTask"
       :submit-loading="bpmApProc.submitLoading"
+      :candidates="bpmApProc.transferCandidates"
       :form="bpmApProc.transferForm"
       :rules="bpmApProc.transferRules"
       @confirm="bpmApProc.confirmTransfer"
@@ -96,6 +97,7 @@ const activeTab = ref('pending');
 const bpmAp = useBpmAp();
 const bpmApProc = useBpmApProc({
   fetchPendingTasks: bpmAp.fetchPendingTasks,
+  fetchCompletedTasks: bpmAp.fetchCompletedTasks,
 });
 
 // 页面标题与 Tab 标签（响应式求值，随语言切换更新）

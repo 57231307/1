@@ -40,9 +40,9 @@ impl SalesService {
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
         for item in delivery_items {
-            // 恢复库存（对称反向）：quantity_available += qty，quantity_shipped -= qty
-            self.restore_inventory(item.product_id, warehouse_id, item.quantity, txn)
-                .await?;
+            // 恢复库存（对称反向）：quantity_available += qty，quantity_shipped -= qty；
+            // 按出库明细记录的实际扣减落点（stock_id / 四维）精确回位，不做兜底
+            self.restore_inventory(item, warehouse_id, txn).await?;
 
             // 回退订单明细已发货数量
             sales_order_item::Entity::update_many()
@@ -201,28 +201,76 @@ impl SalesService {
         Ok(updated_delivery)
     }
 
-    /// 恢复库存（取消发货时使用，对称反向于 reduce_inventory）（quantity_available += qty，quantity_shipped -= qty）
+    /// 恢复库存（取消发货时使用，对称反向于 reduce_inventory_four_dim）
+    /// （quantity_available += qty，quantity_shipped -= qty）
+    ///
+    /// 出库按"款号+色号+缸号+批次"四维扣减，回位必须回到**实际被扣的那一行**：
+    /// - 明细带 stock_id（四维扣减上线后的新数据）→ 精确回位到该行；
+    /// - 老数据无 stock_id → 按明细记录的真实四维（色号/批次/缸号）匹配唯一库存行；
+    ///   匹配不到或出现多行歧义时报业务错误，不随便挑一行回加（不做兜底）。
     async fn restore_inventory(
         &self,
-        product_id: i32,
+        item: &sales_delivery_item::Model,
         warehouse_id: i32,
-        quantity: Decimal,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        // 加行锁查询库存记录
-        let stock = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::ProductId.eq(product_id))
-            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
-            .lock_exclusive()
-            .one(txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("产品 {} 库存记录", product_id)))?;
+        let stock = match item.stock_id {
+            Some(sid) => inventory_stock::Entity::find_by_id(sid)
+                .lock_exclusive()
+                .one(txn)
+                .await?
+                .ok_or_else(|| {
+                    AppError::business(format!(
+                        "出库明细 {} 记录的实际扣减库存行 {} 不存在，无法精确回位（需人工核查）",
+                        item.id, sid
+                    ))
+                })?,
+            None => {
+                let mut query = inventory_stock::Entity::find()
+                    .filter(inventory_stock::Column::ProductId.eq(item.product_id))
+                    .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
+                    .filter(inventory_stock::Column::ColorNo.eq(&item.color_no))
+                    .filter(inventory_stock::Column::BatchNo.eq(&item.batch_no))
+                    .lock_exclusive();
+                if item.dye_lot_no.is_empty() {
+                    query = query.filter(
+                        inventory_stock::Column::DyeLotNo
+                            .is_null()
+                            .or(inventory_stock::Column::DyeLotNo.eq("")),
+                    );
+                } else {
+                    query = query.filter(inventory_stock::Column::DyeLotNo.eq(&item.dye_lot_no));
+                }
+                let rows = query.all(txn).await?;
+                match rows.as_slice() {
+                    [single] => single.clone(),
+                    [] => {
+                        return Err(AppError::business(format!(
+                            "出库明细 {} 的四维（款号产品 {}+色号 {}+缸号 {}+批次 {}）找不到对应库存行，无法精确回位（不做兜底）",
+                            item.id, item.product_id, item.color_no, item.dye_lot_no, item.batch_no
+                        )));
+                    }
+                    many => {
+                        return Err(AppError::business(format!(
+                            "出库明细 {} 的四维（款号产品 {}+色号 {}+缸号 {}+批次 {}）命中 {} 个库存行（老数据缺 stock_id，无法判定实际扣的是哪一行），需人工核查后回位（不做兜底）",
+                            item.id,
+                            item.product_id,
+                            item.color_no,
+                            item.dye_lot_no,
+                            item.batch_no,
+                            many.len()
+                        )));
+                    }
+                }
+            }
+        };
+        let quantity = item.quantity;
 
         // 防御性校验：已发货数量不能小于要恢复的数量
         if stock.quantity_shipped < quantity {
             return Err(AppError::business(format!(
                 "产品 {} 已发货数量 {} 小于要恢复的数量 {}，库存数据不一致",
-                product_id, stock.quantity_shipped, quantity
+                item.product_id, stock.quantity_shipped, quantity
             )));
         }
 
@@ -250,7 +298,7 @@ impl SalesService {
         if restore_result.rows_affected == 0 {
             return Err(AppError::business(format!(
                 "产品 {} 库存恢复失败（并发冲突或已发货数量不足）",
-                product_id
+                item.product_id
             )));
         }
 

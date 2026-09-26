@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface Role {
   id: number;
@@ -51,8 +51,12 @@ export interface AssignPermissionRequest {
   allowed: boolean;
 }
 
-export function getRoleList(params?: QueryParams): Promise<ApiResponse<Role[]>> {
-  return request.get('/roles', { params });
+// 后端 role_handler::list_roles 返回 ApiResponse<RoleListResponse>，
+// RoleListResponse { roles: Vec<RoleResponse>; total: u64 }（信封键为 roles，非 items）。
+// 后端 role_handler::list_roles 无 Query<T> 提取器（一次性返回全部角色），
+// 页面若展示分页控件即为客户端分页，不能假装是服务端分页。
+export function getRoleList(): Promise<ApiResponse<{ roles: Role[]; total: number }>> {
+  return request.get('/roles');
 }
 
 export function getRole(id: number): Promise<ApiResponse<Role>> {

@@ -2,7 +2,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::purchase_contract;
 use crate::services::purchase_contract_service::{
-    CreateContractRequest, ExecuteContractRequest, PurchaseContractService,
+    CreateContractRequest, ExecuteContractRequest, PurchaseContractService, PurchaseContractView,
 };
 use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
@@ -21,6 +21,9 @@ pub struct ContractQuery {
     pub keyword: Option<String>,
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
+    /// 签订日期范围（前端 date_range 数组：重复键 date_range=from&date_range=to）
+    #[serde(default)]
+    pub date_range: Option<Vec<String>>,
     pub page: Option<i64>,
     pub page_size: Option<i64>,
 }
@@ -74,7 +77,7 @@ pub async fn list_contracts(
     Query(params): Query<ContractQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<purchase_contract::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<PurchaseContractView>>>, AppError> {
     info!("用户 {} 正在查询采购合同列表", auth.user_id);
 
     let service = PurchaseContractService::new(state.db.clone());
@@ -82,6 +85,7 @@ pub async fn list_contracts(
         keyword: params.keyword,
         status: params.status,
         supplier_id: params.supplier_id,
+        date_range: params.date_range,
         page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
@@ -219,7 +223,7 @@ pub async fn update_contract(
     let mut contract = service.get_by_id(id).await?;
 
     // 检查状态
-    if contract.status != "draft" {
+    if contract.status != crate::models::status::contract::DRAFT {
         return Err(AppError::validation(
             "只有草稿状态的合同才能修改".to_string(),
         ));
@@ -260,7 +264,7 @@ pub async fn delete_contract(
     let contract = service.get_by_id(id).await?;
 
     // 检查状态
-    if contract.status != "draft" {
+    if contract.status != crate::models::status::contract::DRAFT {
         return Err(AppError::validation(
             "只有草稿状态的合同才能删除".to_string(),
         ));

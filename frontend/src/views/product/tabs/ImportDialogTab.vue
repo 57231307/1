@@ -102,11 +102,10 @@ const handleSubmit = async () => {
   importLoading.value = true;
   try {
     const res = await importProducts(importFile.value);
-    const data = res.data as { success?: number; failed?: number } | undefined;
     ElMessage.success(
       t('product.importDialogTab.messageImportSuccess', {
-        success: data?.success || 0,
-        failed: data?.failed || 0,
+        success: res.data.success_count,
+        failed: res.data.error_count,
       })
     );
     importFile.value = null;

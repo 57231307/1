@@ -2,6 +2,7 @@
 // 与后端 audit_log_handler 配套：分页 + 多维筛选 / 详情 / CSV 导出
 
 import { request } from './request';
+import type { ApiResponse } from '@/types/api';
 
 /** 操作类型枚举（与后端 OperationType 同步） */
 export type OperationType =
@@ -57,13 +58,6 @@ export interface AuditLogListResponse {
   total: number;
   page: number;
   page_size: number;
-}
-
-/** API 通用响应 */
-interface ApiResponse<T> {
-  code: number;
-  message: string;
-  data: T;
 }
 
 /**

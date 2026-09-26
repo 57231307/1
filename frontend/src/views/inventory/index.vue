@@ -55,6 +55,10 @@
           @view="handleView"
           @query="fetchData"
           @reset="handleReset"
+          @create="openStockDialog()"
+          @edit="openStockDialog"
+          @delete="handleDeleteStock"
+          @export="handleExportStock"
           @update:query-params="(v: StockQuery) => Object.assign(queryParams, v)"
         />
       </el-tab-pane>
@@ -71,6 +75,18 @@
           @approve-transfer="handleApproveTransfer"
         />
       </el-tab-pane>
+
+      <el-tab-pane :label="t('inventory.page.tabTransaction')" name="transaction" lazy>
+        <InventoryTransactionTab />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('inventory.page.tabReservation')" name="reservation" lazy>
+        <InventoryReservationTab />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('inventory.page.tabFabricStock')" name="fabricStock" lazy>
+        <FabricStockTab />
+      </el-tab-pane>
     </el-tabs>
 
     <AdjustmentDialog
@@ -78,6 +94,47 @@
       :initial-form="adjustmentForm"
       @submit="onSubmitAdjustment"
     />
+
+    <!-- 库存记录新建/编辑对话框 -->
+    <el-dialog
+      v-model="stockDialogVisible"
+      :title="stockEditingId ? t('inventory.stockTab.edit') : t('inventory.stockTab.create')"
+      width="520px"
+    >
+      <el-form :model="stockForm" label-width="110px">
+        <el-form-item :label="t('inventory.stockTab.colProductCode')">
+          <el-input-number v-model="stockForm.product_id" :min="1" />
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colWarehouse')">
+          <el-select v-model="stockForm.warehouse_id" filterable>
+            <el-option
+              v-for="wh in warehouses"
+              :key="wh.id"
+              :label="wh.warehouse_name"
+              :value="wh.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colBatchNo')">
+          <el-input v-model="stockForm.batch_no" />
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colColorCode')">
+          <el-input v-model="stockForm.color_code" />
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colLocation')">
+          <el-input v-model="stockForm.location" />
+        </el-form-item>
+        <el-form-item :label="t('inventory.stockTab.colQuantity')">
+          <el-input-number v-model="stockForm.quantity" :min="0" :precision="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="stockDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="stockSubmitLoading" @click="submitStock">
+          {{ t('common.save') }}
+        </el-button>
+      </template>
+    </el-dialog>
 
     <TransferDialog
       v-model:visible="transferDialogVisible"
@@ -110,11 +167,17 @@ import type { Warehouse } from '@/api/warehouse';
 import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue';
 import InventoryAlertTab from './tabs/InventoryAlertTab.vue';
 import InventoryTransferTab from './tabs/InventoryTransferTab.vue';
+import InventoryTransactionTab from './tabs/InventoryTransactionTab.vue';
+import InventoryReservationTab from './tabs/InventoryReservationTab.vue';
+import FabricStockTab from './tabs/FabricStockTab.vue';
 import StatCards from './components/StatCards.vue';
 import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDialog.vue';
 import TransferDialog from './components/TransferDialog.vue';
 // Batch 468 P0-S28：引入权限码常量，与后端 inventory 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
+// 打印与列表共用同一份格式化/取值映射，避免同一状态在纸上和表里两种写法
+import { formatNumber, getStockStatusLabel } from './composables/invFmts';
+import { logger } from '@/utils/logger';
 
 const hasLoaded = createLazyLoader();
 const router = useRouter();
@@ -129,10 +192,7 @@ const warehouses = ref<Warehouse[]>([]);
 const total = ref(0);
 
 const stats = ref({
-  totalQuantity: 0,
   alertCount: 0,
-  warehouseCount: 0,
-  lowStockCount: 0,
 });
 
 const queryParams = reactive<StockQuery>({
@@ -140,25 +200,16 @@ const queryParams = reactive<StockQuery>({
   page_size: 20,
   keyword: '',
   warehouse_id: undefined,
-  status: '',
+  stock_status: '',
 });
 
 const fetchData = async () => {
   loading.value = true;
   try {
-    const { getStockList, getInventoryReport } = await import('@/api/inventory');
+    const { getStockList } = await import('@/api/inventory');
     const res = await getStockList(queryParams);
     stocks.value = res.data?.items || [];
     total.value = res.data?.total || 0;
-
-    const summaryRes = await getInventoryReport({});
-    const summary = summaryRes.data?.summary || {};
-    stats.value = {
-      totalQuantity: summary.total_quantity || 0,
-      alertCount: summary.alert_count || 0,
-      warehouseCount: summary.warehouse_count || 0,
-      lowStockCount: summary.low_stock_count || 0,
-    };
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
@@ -174,9 +225,22 @@ const fetchData = async () => {
 
 const fetchAlerts = async () => {
   try {
-    const { getStockAlertList } = await import('@/api/inventory');
-    const res = await getStockAlertList();
-    alerts.value = res.data || [];
+    const { getStockAlertList, STOCK_ALERT_PAGE_SIZE } = await import('@/api/inventory');
+    // 预警 tab 无分页控件：按一屏上限取数，仍有剩余时显式提示截断，而不是静默少显示
+    const res = await getStockAlertList({ page: 1, page_size: STOCK_ALERT_PAGE_SIZE });
+    const payload = res.data;
+    if (!payload || !Array.isArray(payload.items)) {
+      // 出参形状不符（此前正是这里把 {list,total} 当数组赋值，表格恒空且无人出声）
+      throw new Error('库存预警出参缺少 items 数组');
+    }
+    alerts.value = payload.items;
+    // KPI 取后端分层 total（全局值），不是本页行数；与下方"仅显示前 N 条"的截断提示不冲突
+    stats.value.alertCount = payload.total;
+    if (payload.items.length < payload.total) {
+      logger.warn(
+        `库存预警仅显示前 ${payload.items.length} 条（共 ${payload.total} 条），请按仓库/产品缩小范围查看剩余告警`
+      );
+    }
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
@@ -191,7 +255,7 @@ const fetchTransfers = async () => {
   try {
     const { getInventoryTransferList } = await import('@/api/inventory');
     const res = await getInventoryTransferList(queryParams);
-    transfers.value = res.data?.items || [];
+    transfers.value = res.data.items;
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
@@ -220,7 +284,7 @@ const fetchWarehouses = async () => {
 const handleReset = () => {
   queryParams.keyword = '';
   queryParams.warehouse_id = undefined;
-  queryParams.status = '';
+  queryParams.stock_status = '';
   queryParams.page = 1;
   fetchData();
 };
@@ -355,11 +419,11 @@ const handleNewTransfer = () => handleTransfer();
 const handleViewTransfer = (row: InventoryTransfer) => {
   const lines = [
     t('inventory.transferDetail.transferNo', { value: row.transfer_no }),
-    t('inventory.transferDetail.fromWarehouse', { value: row.from_warehouse_name || '-' }),
-    t('inventory.transferDetail.toWarehouse', { value: row.to_warehouse_name || '-' }),
+    t('inventory.transferDetail.fromWarehouse', { value: row.from_warehouse_name ?? '' }),
+    t('inventory.transferDetail.toWarehouse', { value: row.to_warehouse_name ?? '' }),
     t('inventory.transferDetail.totalQty', { value: row.total_quantity }),
     t('inventory.transferDetail.status', { value: row.status }),
-    t('inventory.transferDetail.creator', { value: row.creator_name || '-' }),
+    t('inventory.transferDetail.creator', { value: row.created_by_name ?? '' }),
     t('inventory.transferDetail.createdAt', { value: row.created_at }),
   ];
   ElMessageBox.alert(lines.join('\n'), t('inventory.transferDetail.title'), {
@@ -375,7 +439,7 @@ const handleApproveTransfer = async (row: InventoryTransfer) => {
       { type: 'info' }
     );
     const { approveInventoryTransfer } = await import('@/api/inventory');
-    await approveInventoryTransfer(row.id);
+    await approveInventoryTransfer(row.id, { approved: true });
     ElMessage.success(t('inventory.message.approveSuccess'));
     fetchTransfers();
   } catch (error) {
@@ -388,6 +452,98 @@ const handleApproveTransfer = async (row: InventoryTransfer) => {
     }
   }
 };
+// 库存记录新建/编辑对话框（createStock / updateStock）
+const stockDialogVisible = ref(false);
+const stockEditingId = ref<number | null>(null);
+const stockSubmitLoading = ref(false);
+const stockForm = reactive({
+  product_id: undefined as number | undefined,
+  warehouse_id: undefined as number | undefined,
+  batch_no: '',
+  color_code: '',
+  location: '',
+  quantity: 0,
+});
+
+const openStockDialog = (row?: InventoryStock) => {
+  stockEditingId.value = row ? row.id : null;
+  stockForm.product_id = row?.product_id;
+  stockForm.warehouse_id = row?.warehouse_id;
+  stockForm.batch_no = row?.batch_no || '';
+  stockForm.color_code = row?.color_no || '';
+  stockForm.location = row?.bin_location || '';
+  stockForm.quantity = Number(row?.quantity_meters ?? 0);
+  stockDialogVisible.value = true;
+};
+
+const submitStock = async () => {
+  if (!stockForm.product_id || !stockForm.warehouse_id) {
+    ElMessage.warning(t('inventory.message.productWarehouseRequired'));
+    return;
+  }
+  stockSubmitLoading.value = true;
+  try {
+    if (stockEditingId.value) {
+      const { updateStock } = await import('@/api/inventory');
+      await updateStock(stockEditingId.value, stockForm);
+    } else {
+      const { createStock } = await import('@/api/inventory');
+      // 按后端 CreateStockFabricRequest DTO 字段提交：色号/数量映射到 color_no/quantity_meters
+      await createStock({
+        warehouse_id: stockForm.warehouse_id,
+        product_id: stockForm.product_id,
+        batch_no: stockForm.batch_no,
+        color_no: stockForm.color_code,
+        grade: 'A',
+        quantity_meters: stockForm.quantity,
+      });
+    }
+    ElMessage.success(t('common.success'));
+    stockDialogVisible.value = false;
+    fetchData();
+  } catch (error: unknown) {
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('common.failed'));
+  } finally {
+    stockSubmitLoading.value = false;
+  }
+};
+
+// 删除库存记录（deleteStock，确认后执行）
+const handleDeleteStock = async (row: InventoryStock) => {
+  try {
+    await ElMessageBox.confirm(t('inventory.message.deleteStockConfirm'), t('common.delete'), {
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  try {
+    const { deleteStock } = await import('@/api/inventory');
+    await deleteStock(row.id);
+    ElMessage.success(t('common.success'));
+    fetchData();
+  } catch (error: unknown) {
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('common.failed'));
+  }
+};
+
+// 导出库存 xlsx（exportStock，Blob 下载）
+const handleExportStock = async () => {
+  try {
+    const { exportStock } = await import('@/api/inventory');
+    const res = await exportStock(queryParams);
+    const blob = res as unknown as Blob;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inventory-${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error: unknown) {
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('common.failed'));
+  }
+};
+
 // 批次 157a P1-1 修复：接入 getStockById API 展示库存详情
 const handleView = async (row: InventoryStock) => {
   try {
@@ -403,10 +559,12 @@ const handleView = async (row: InventoryStock) => {
       t('inventory.stockDetail.productName', { value: d.product_name }),
       t('inventory.stockDetail.warehouse', { value: d.warehouse_name }),
       t('inventory.stockDetail.batchNo', { value: d.batch_no || '-' }),
-      t('inventory.stockDetail.color', { value: d.color_name || '-' }),
-      t('inventory.stockDetail.currentQty', { value: d.quantity, unit: d.unit || '' }),
-      t('inventory.stockDetail.status', { value: d.status }),
-      t('inventory.stockDetail.location', { value: d.location || '-' }),
+      t('inventory.stockDetail.color', { value: d.color_no || '-' }),
+      t('inventory.stockDetail.dyeLot', { value: d.dye_lot_no || '-' }),
+      t('inventory.stockDetail.qtyMeters', { value: d.quantity_meters }),
+      t('inventory.stockDetail.qtyKg', { value: d.quantity_kg }),
+      t('inventory.stockDetail.status', { value: getStockStatusLabel(d.stock_status, t) }),
+      t('inventory.stockDetail.location', { value: d.bin_location || '-' }),
     ];
     await ElMessageBox.alert(lines.join('\n'), t('inventory.stockDetail.title'), {
       confirmButtonText: t('inventory.stockDetail.close'),
@@ -423,10 +581,41 @@ const handleView = async (row: InventoryStock) => {
 const handlePurchase = (row: StockAlert) => {
   router.push({ name: 'Purchase', query: { product_name: row.product_name || '' } });
 };
+// 打印列与列表/后端导出同一口径。
+// 原实现用 `properties: [..., 'quantity']`：quantity 不是后端字段（实际为 quantity_on_hand），
+// 该列在纸上恒为空白，四维（批次/色号/缸号/等级）与状态列也没打出来；
+// 表头也只会回显英文字段名。现显式给出列与本地化表头，状态按主数据取值映射文案。
 const handlePrint = () => {
   printJS({
-    printable: stocks.value,
-    properties: ['product_code', 'product_name', 'warehouse_name', 'quantity'],
+    printable: stocks.value.map(row => ({
+      product_code: row.product_code ?? '-',
+      product_name: row.product_name ?? '-',
+      warehouse_name: row.warehouse_name ?? '-',
+      batch_no: row.batch_no,
+      color_no: row.color_no,
+      dye_lot_no: row.dye_lot_no ?? '-',
+      grade: row.grade,
+      quantity_on_hand: formatNumber(Number(row.quantity_on_hand)),
+      quantity_available: formatNumber(Number(row.quantity_available)),
+      stock_status: getStockStatusLabel(row.stock_status, t),
+      quality_status: row.quality_status,
+      bin_location: row.bin_location ?? '-',
+    })),
+    // print-js 的列定义项叫 properties（json 模式），不存在的键会被静默忽略
+    properties: [
+      { field: 'product_code', displayName: t('inventory.stockTab.colProductCode') },
+      { field: 'product_name', displayName: t('inventory.stockTab.colProductName') },
+      { field: 'warehouse_name', displayName: t('inventory.stockTab.colWarehouse') },
+      { field: 'batch_no', displayName: t('inventory.stockTab.colBatchNo') },
+      { field: 'color_no', displayName: t('inventory.stockTab.colColorCode') },
+      { field: 'dye_lot_no', displayName: t('inventory.stockTab.colDyeLot') },
+      { field: 'grade', displayName: t('inventory.stockTab.colGrade') },
+      { field: 'quantity_on_hand', displayName: t('inventory.stockTab.colQuantity') },
+      { field: 'quantity_available', displayName: t('inventory.stockTab.colAvailable') },
+      { field: 'stock_status', displayName: t('inventory.stockTab.colStatus') },
+      { field: 'quality_status', displayName: t('inventory.stockTab.colQualityStatus') },
+      { field: 'bin_location', displayName: t('inventory.stockTab.colLocation') },
+    ],
     type: 'json',
     header: t('inventory.printHeader'),
   });
@@ -440,9 +629,11 @@ const handleExport = async () => {
     ElMessage.warning(t('inventory.message.noExportData'));
     return;
   }
+  // 导出与列表同一筛选口径：只带 warehouse_id 时，关键词与台账状态筛选在导出文件里失效
   const params: Record<string, unknown> = {
     warehouse_id: queryParams.warehouse_id,
-    product_id: undefined,
+    keyword: queryParams.keyword,
+    stock_status: queryParams.stock_status,
   };
   await exportFromBackend('/inventory/stock/export', params, 'inventory_stock_export');
   ElMessage.success(t('inventory.message.exportSuccess'));

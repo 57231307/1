@@ -150,6 +150,11 @@ pub mod color_card {
 
     /// 已丢失：色卡已丢失，终态
     pub const LOST: &str = "lost";
+
+    /// 本列全部合法取值：DB CHECK 约束 `chk_color_card_status` 与前端筛选词表的唯一取值来源。
+    /// 历史 legacy 值 `active` 不在本集合内（等价于 DRAFT，已由迁移回填为 draft），
+    /// 不得再写入本列。约束集合必须与本数组逐项一致。
+    pub const ALL: &[&str] = &[DRAFT, ISSUED, RECEIVED, USED, EXPIRED, ARCHIVED, LOST];
 }
 
 /// 染化料类型（chemical_master.chemical_type 等，v14 批次 429，染料/助剂/化工原料）
@@ -287,6 +292,48 @@ pub mod outsourcing_receipt_status {
     pub const CONFIRMED: &str = "confirmed";
     /// 已取消：作废
     pub const CANCELLED: &str = "cancelled";
+}
+
+/// 委外收回质检结论（outsourcing_receipt.quality_status，建单时由收回人判定，confirm 据此生成质检记录）
+///
+/// 本列取值域独立于另外两个同名概念：
+/// - `chemical_lot.inspection_status` 用 pending/passed/failed/quarantine（染化料来料检验）；
+/// - `inventory_stocks.quality_status` 用中文 合格/待检/不合格（库存质量状态）。
+/// 历史上三种写法都往本列落过值（前端提交 qualified/concession/unqualified、
+/// 用例提交 passed、模型注释写的是 passed/failed），而 confirm 只认字符串 "qualified"，
+/// 于是 `passed` 的收回单在确认时被整体判成不合格并生成「不合格」质检记录。
+/// v15 域内的归一语句 已把存量写法归一到本模块取值。
+pub mod outsourcing_receipt_quality_status {
+    /// 待检：建单时未给出质检结论，须先判定才能确认回仓
+    pub const PENDING: &str = "pending";
+
+    /// 合格：按收回数量全额计合格
+    pub const QUALIFIED: &str = "qualified";
+
+    /// 让步接收：接收但降级处理（对应 B 级），不计为不合格
+    pub const CONCESSION: &str = "concession";
+
+    /// 不合格：全额计不合格并触发不合格品处理流程
+    pub const UNQUALIFIED: &str = "unqualified";
+
+    /// 全部合法取值，入参校验的唯一取值来源
+    pub const ALL: &[&str] = &[PENDING, QUALIFIED, CONCESSION, UNQUALIFIED];
+
+    /// 词表内取值的中文文案，供服务端渲染的打印件/导出使用（界面文案仍走前端 i18n）。
+    /// 词表外返回 None，由调用方决定原样展示还是报错，不猜测越界值的含义。
+    pub fn label(code: &str) -> Option<&'static str> {
+        if code == PENDING {
+            Some("待检")
+        } else if code == QUALIFIED {
+            Some("合格")
+        } else if code == CONCESSION {
+            Some("让步接收")
+        } else if code == UNQUALIFIED {
+            Some("不合格")
+        } else {
+            None
+        }
+    }
 }
 
 /// 委外加工凭证类型（outsourcing_voucher.voucher_type，v14 批次 430，发料/加工费/入库/损耗处理）

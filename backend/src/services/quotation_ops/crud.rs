@@ -10,17 +10,23 @@ use sea_orm::{
     TransactionTrait,
 };
 
+use crate::models::customer;
+use crate::models::product;
 use crate::models::quotation_create_dto::{
     CreateQuotationDto, CreateQuotationItemDto, CreateQuotationTermDto,
 };
+use crate::models::quotation_response_dto::QuotationResponseDto;
 use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
 use crate::models::sales_quotation_item::{ActiveModel as ItemActive, Entity as ItemEntity};
 use crate::models::sales_quotation_term::{ActiveModel as TermActive, Entity as TermEntity};
 use crate::models::status::quotation as quotation_status;
+use crate::models::user;
 use crate::services::quotation_service::{QuotationService, ServiceError};
+use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+use std::collections::HashMap;
 
 impl QuotationService {
     /// 创建报价单草稿
@@ -44,6 +50,9 @@ impl QuotationService {
             now,
         );
         let result = active.insert(&txn).await?;
+        // 报价行单位跟随产品主数据交易单位（单一真源）：前端传入与产品不一致即拒创建，
+        // 不静默覆盖，杜绝「报价/订单/库存单位各写一套」的自由文本漂移
+        Self::validate_item_units_against_products(&txn, &dto.items).await?;
         Self::insert_new_quotation_items(&txn, &dto.items, result.id).await?;
         Self::insert_new_quotation_terms(&txn, dto.terms, result.id).await?;
         txn.commit().await?;
@@ -96,6 +105,43 @@ impl QuotationService {
             created_at: Set(now),
             updated_at: Set(now),
         }
+    }
+
+    /// 校验报价明细单位与其引用产品主数据交易单位一致（单一真源）。
+    ///
+    /// - 报价行 `unit` 必须逐字符等于 `product.unit`（中文单位 token，如 米/公斤/码/匹/卷/条…）；
+    /// - 不一致：返回 `AppError::validation` 明确拒绝，**绝不静默覆盖**前端传入值；
+    /// - 产品不存在：同样拒绝，报价行不允许悬挂引用；
+    /// - 不引入第二套单位字典/枚举，沿用产品既有中文单位 token 比对，避免词表分叉。
+    /// 单次批量查询取回全部涉及产品，杜绝逐行查询（N+1）。
+    pub(crate) async fn validate_item_units_against_products(
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[CreateQuotationItemDto],
+    ) -> Result<(), AppError> {
+        if items.is_empty() {
+            return Ok(());
+        }
+        // products.id 为 SERIAL(i32)，报价行 product_id 为 BIGINT(i64)：与既有富化/转换按边界转换一致。
+        let product_ids: Vec<i32> = items.iter().map(|i| i.product_id as i32).collect();
+        let unit_map: HashMap<i32, String> = product::Entity::find()
+            .filter(product::Column::Id.is_in(product_ids))
+            .all(txn)
+            .await?
+            .into_iter()
+            .map(|p| (p.id, p.unit))
+            .collect();
+        for item in items {
+            let product_unit = unit_map.get(&(item.product_id as i32)).ok_or_else(|| {
+                AppError::validation(format!("报价明细引用的产品 {} 不存在", item.product_id))
+            })?;
+            if item.unit != *product_unit {
+                return Err(AppError::validation(format!(
+                    "报价明细单位不一致：产品 {} 的交易单位为「{}」，报价传入「{}」；报价单位须跟随产品主数据交易单位",
+                    item.product_id, product_unit, item.unit
+                )));
+            }
+        }
+        Ok(())
     }
 
     /// 批量插入报价单明细（insert_many，N 条合并为 1 次 INSERT）
@@ -181,10 +227,10 @@ impl QuotationService {
         page: u64,
         page_size: u64,
         status: Option<String>,
-        customer_id: Option<i64>,
+        customer_id: Option<i32>,
         sales_user_id: Option<i64>,
         keyword: Option<String>,
-    ) -> Result<(Vec<sales_quotation::Model>, u64), ServiceError> {
+    ) -> Result<(Vec<QuotationResponseDto>, u64), ServiceError> {
         let mut query = QuotationEntity::find();
 
         if let Some(s) = status {
@@ -205,8 +251,64 @@ impl QuotationService {
             .order_by_desc(sales_quotation::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
-        Ok((items, total))
+        let (items, total): (Vec<sales_quotation::Model>, u64) =
+            paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+
+        let mut dtos: Vec<QuotationResponseDto> =
+            items.into_iter().map(QuotationResponseDto::from).collect();
+        self.attach_names(&mut dtos).await?;
+        Ok((dtos, total))
+    }
+
+    /// 批量富化报价单的客户名称 / 业务员姓名 / 审批人姓名。
+    ///
+    /// 单次查询取回本页涉及的全部 customers 与 users（业务员 + 审批人合并一次），
+    /// 再在内存里回填，杜绝逐行查询（N+1）。所有富化列均为 `Option<String>`，
+    /// 悬挂外键只让对应名称为空，不会丢弃报价单行。
+    pub async fn attach_names(
+        &self,
+        dtos: &mut [QuotationResponseDto],
+    ) -> Result<(), ServiceError> {
+        if dtos.is_empty() {
+            return Ok(());
+        }
+
+        // customers.id / users.id 均为 SERIAL(i32)；报价单 customer_id 同为 INTEGER(i32)，直接对齐。
+        let customer_ids: Vec<i32> = dtos.iter().map(|d| d.customer_id).collect();
+        let name_map: HashMap<i32, String> = customer::Entity::find()
+            .filter(customer::Column::Id.is_in(customer_ids))
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .map(|c| (c.id, c.customer_name))
+            .collect();
+
+        // 业务员与审批人同属 users 表，合并去重后一次查询
+        let mut user_ids: Vec<i32> = dtos.iter().map(|d| d.sales_user_id as i32).collect();
+        user_ids.extend(
+            dtos.iter()
+                .filter_map(|d| d.approved_by.map(|id| id as i32)),
+        );
+        user_ids.sort_unstable();
+        user_ids.dedup();
+        let user_map: HashMap<i32, Option<String>> = user::Entity::find()
+            .filter(user::Column::Id.is_in(user_ids))
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .map(|u| (u.id, u.real_name))
+            .collect();
+
+        for dto in dtos.iter_mut() {
+            dto.customer_name = name_map.get(&dto.customer_id).cloned();
+            dto.sales_user_name = user_map
+                .get(&(dto.sales_user_id as i32))
+                .and_then(|n| n.clone());
+            dto.approved_by_name = dto
+                .approved_by
+                .and_then(|id| user_map.get(&(id as i32)).and_then(|n| n.clone()));
+        }
+        Ok(())
     }
 
     /// 按 ID 查询

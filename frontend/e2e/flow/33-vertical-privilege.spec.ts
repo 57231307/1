@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginAsRole, apiCallExpectFail } from './helpers';
+import { loginAsRole, apiCallExpectFail, expectDenied } from './helpers';
 
 /**
  * P5.3 垂直越权端点矩阵
@@ -33,8 +33,16 @@ const ADMIN_READONLY_ENDPOINTS = [
 ];
 
 /** admin 专属写端点（POST/PUT，非 admin 必须 403） */
-const ADMIN_WRITE_ENDPOINTS: Array<{ method: string; path: string; body?: Record<string, unknown> }> = [
-  { method: 'POST', path: '/users', body: { username: 'e2e_vpriv_user', password: 'Xk9#mQ2$vL8pW4nR', role_id: 1 } },
+const ADMIN_WRITE_ENDPOINTS: Array<{
+  method: string;
+  path: string;
+  body?: Record<string, unknown>;
+}> = [
+  {
+    method: 'POST',
+    path: '/users',
+    body: { username: 'e2e_vpriv_user', password: 'Xk9#mQ2$vL8pW4nR', role_id: 1 },
+  },
   { method: 'POST', path: '/roles', body: { code: 'e2e_vpriv_role', name: 'VPriv 测试角色' } },
   { method: 'POST', path: '/data-permissions', body: { scope_type: 'self' } },
 ];
@@ -49,17 +57,9 @@ test.describe('P5.3 垂直越权矩阵', () => {
         test(`GET ${ep} → 403`, async ({ page }) => {
           await loginAsRole(page, role);
 
-          const resp = await page.request
-            .get(`${API_BASE}${API_PREFIX}${ep}`)
-            .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-          if (!resp) throw new Error(`网络错误: ${ep}`);
-
-          const status = resp.status();
+          const result = await apiCallExpectFail(page, 'GET', ep);
           // 非 admin 对 admin 端点：403=权限拒绝（正确）；401=会话问题（真缺陷）；200=越权（真缺陷）
-          expect(
-            status,
-            `${role} 访问 ${ep} 应 403，实际 ${status}（${status === 200 ? '越权可达——权限缺陷' : status === 401 ? '401 会话异常' : '其他状态'}`,
-          ).toBe(403);
+          expectDenied(result, `${role} 访问 ${ep} 应 403`);
         });
       }
 
@@ -67,24 +67,14 @@ test.describe('P5.3 垂直越权矩阵', () => {
         test(`${ep.method} ${ep.path} → 403`, async ({ page }) => {
           await loginAsRole(page, role);
 
-          // 带 CSRF 头消除歧义：403 只能来自权限拒绝（CSRF 缺失同样返回 403）
-          const cookies = await page.context().cookies();
-          const csrf = cookies.find((c) => c.name === 'csrf_token');
-
-          const resp = await page.request
-            .post(`${API_BASE}${API_PREFIX}${ep.path}`, {
-              data: ep.body ?? {},
-              headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Content-Type': 'application/json',
-                ...(csrf ? { 'X-CSRF-Token': csrf.value } : {}),
-              },
-            })
-            .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-          if (!resp) throw new Error(`网络错误: ${ep.path}`);
-
-          const status = resp.status();
-          expect(status, `${role} 写操作 ${ep.path} 应 403，实际 ${status}`).toBe(403);
+          // apiCallExpectFail 内建 CSRF 恢复，403 只能来自权限拒绝
+          const result = await apiCallExpectFail(
+            page,
+            ep.method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+            ep.path,
+            ep.body
+          );
+          expectDenied(result, `${role} 写操作 ${ep.path} 应 403`);
         });
       }
     });
@@ -96,8 +86,7 @@ test.describe('P5.3 垂直越权矩阵', () => {
     const reachable: string[] = [];
     const unexpected: string[] = [];
     for (const ep of ADMIN_READONLY_ENDPOINTS) {
-      const resp = await page.request.get(`${API_BASE}${API_PREFIX}${ep}`).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-      if (!resp) continue;
+      const resp = await page.request.get(`${API_BASE}${API_PREFIX}${ep}`);
       const status = resp.status();
       if (status < 400) reachable.push(ep);
       else if (status !== 404 && status !== 400) unexpected.push(`${ep}=${status}`);
@@ -106,7 +95,7 @@ test.describe('P5.3 垂直越权矩阵', () => {
     // admin 至少可达一半端点（种子库 users/roles/audit-logs 必在）
     expect(
       reachable.length,
-      `admin 可达端点数 ${reachable.length} 过少（${reachable.join(', ')}），端点族可能整体失效`,
+      `admin 可达端点数 ${reachable.length} 过少（${reachable.join(', ')}），端点族可能整体失效`
     ).toBeGreaterThanOrEqual(4);
   });
 });

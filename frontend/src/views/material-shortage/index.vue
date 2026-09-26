@@ -14,6 +14,12 @@
 
     <MaterialShortageSeverityCard :summary="ms.summary" />
 
+    <MaterialShortageReplenishment
+      :suggestions="ms.suggestions"
+      :loading="ms.suggestionsLoading"
+      @refresh="ms.fetchSuggestions"
+    />
+
     <MaterialShortageTable
       :data="ms.shortageList"
       :loading="ms.tableLoading"
@@ -21,15 +27,14 @@
       :checking="ms.checking"
       :current-page="ms.currentPage"
       :page-size="ms.pageSize"
-      :filter-severity="ms.filterSeverity"
+      :filter-level="ms.filterLevel"
       :filter-status="ms.filterStatus"
       @filter-change="msProc.handleFilterChange"
       @check="msProc.handleCheck"
-      @notify="msProc.handleNotify"
-      @resolve="msProc.handleResolve"
+      @status-change="msProc.handleStatusChange"
       @update:page="(v: number) => (ms.currentPage = v)"
       @update:size="(v: number) => (ms.pageSize = v)"
-      @update:filter-severity="(v: string) => (ms.filterSeverity = v)"
+      @update:filter-level="(v: string) => (ms.filterLevel = v)"
       @update:filter-status="(v: string) => (ms.filterStatus = v)"
     />
   </div>
@@ -42,6 +47,7 @@ import { useMs } from './composables/useMs';
 import { useMsProc } from './composables/useMsProc';
 import MaterialShortageStat from './components/MaterialShortageStat.vue';
 import MaterialShortageSeverityCard from './components/MaterialShortageSeverityCard.vue';
+import MaterialShortageReplenishment from './components/MaterialShortageReplenishment.vue';
 import MaterialShortageTable from './components/MaterialShortageTable.vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -52,7 +58,7 @@ const msProc = useMsProc({
   currentPage: ms.currentPage,
   pageSize: ms.pageSize,
   total: ms.total,
-  filterSeverity: ms.filterSeverity,
+  filterLevel: ms.filterLevel,
   filterStatus: ms.filterStatus,
   tableLoading: ms.tableLoading,
   checking: ms.checking,
@@ -60,12 +66,14 @@ const msProc = useMsProc({
   shortageList: ms.shortageList,
   fetchSummary: ms.fetchSummary,
   fetchShortages: ms.fetchShortages,
+  fetchSuggestions: ms.fetchSuggestions,
   syncFilterToQuery: ms.syncFilterToQuery,
 });
 
-// 列表由 useTableApi setup 自动加载，onMounted 仅加载汇总
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载汇总与补货建议
 onMounted(() => {
   ms.fetchSummary();
+  ms.fetchSuggestions();
 });
 </script>
 

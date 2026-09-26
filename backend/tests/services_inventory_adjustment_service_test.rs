@@ -81,7 +81,7 @@ async fn test_list_adjustments_empty() {
     let service = InventoryAdjustmentService::new(Arc::new(db));
 
     let (adjustments, total) = service
-        .list_adjustments(0, 20, None)
+        .list_adjustments(0, 20, None, None, None)
         .await
         .expect("list_adjustments should succeed");
 

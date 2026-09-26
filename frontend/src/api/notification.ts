@@ -1,9 +1,13 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
-export interface NotificationQueryParams extends QueryParams {
+// 通知列表查询参数：字段集严格对齐后端 NotificationListQuery（handlers/notification_handler.rs）。
+// 类型过滤键是 snake_case 的 notification_type；status 后端仅识别 UNREAD/READ/PROCESSED。
+export interface NotificationQueryParams {
+  page?: number;
+  page_size?: number;
   status?: string;
-  notificationType?: string;
+  notification_type?: string;
 }
 
 export interface Notification {
@@ -20,10 +24,15 @@ export interface Notification {
 
 export interface NotificationSetting {
   id?: number;
-  businessType?: string;
-  enableInternal?: boolean;
-  enableEmail?: boolean;
-  enableSms?: boolean;
+  user_id?: number;
+  email_enabled: boolean;
+  internal_enabled: boolean;
+  order_notification_type: string;
+  approval_notification_type: string;
+  inventory_notification_type: string;
+  purchase_notification_type: string;
+  finance_notification_type: string;
+  system_notification_type: string;
 }
 
 export interface BatchOperationRequest {
@@ -31,10 +40,14 @@ export interface BatchOperationRequest {
 }
 
 export interface UpdateSettingRequest {
-  businessType: string;
-  enableInternal: boolean;
-  enableEmail: boolean;
-  enableSms: boolean;
+  email_enabled?: boolean;
+  internal_enabled?: boolean;
+  order_notification_type?: string;
+  approval_notification_type?: string;
+  inventory_notification_type?: string;
+  purchase_notification_type?: string;
+  finance_notification_type?: string;
+  system_notification_type?: string;
 }
 
 /** 系统公告发送请求（仅管理员） */
@@ -51,10 +64,12 @@ export interface AnnouncementResult {
   deliveredCount: number;
 }
 
+// 后端 notification_handler::list_notifications 返回 ApiResponse<serde_json::Value>，
+// 其 data 由 json!({ "list": notifications, "total": total }) 构造，真实列表键为 list（非 items）。
 export function getNotificationList(
   params?: NotificationQueryParams
-): Promise<ApiResponse<{ items: Notification[]; total: number }>> {
-  return request.get('/notifications/', { params });
+): Promise<ApiResponse<{ list: Notification[]; total: number }>> {
+  return request.get('/notifications', { params });
 }
 
 export function getNotification(id: number): Promise<ApiResponse<Notification>> {
@@ -81,14 +96,14 @@ export function deleteNotification(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/notifications/${id}`);
 }
 
-export function getSettings(): Promise<ApiResponse<NotificationSetting[]>> {
-  return request.get('/notifications/settings');
+export function getSettings(): Promise<ApiResponse<NotificationSetting>> {
+  return request.get('/user-notification-settings');
 }
 
 export function updateSetting(
   data: UpdateSettingRequest
 ): Promise<ApiResponse<NotificationSetting>> {
-  return request.put('/notifications/settings', data);
+  return request.put('/user-notification-settings', data);
 }
 
 /**

@@ -16,6 +16,10 @@
           <el-icon><Plus /></el-icon>
           {{ $t('bomModule.create') }}
         </el-button>
+        <el-button v-permission="'boms:export'" :loading="exporting" @click="handleExport">
+          <el-icon><Download /></el-icon>
+          {{ $t('common.export') }}
+        </el-button>
       </div>
     </div>
 
@@ -100,7 +104,7 @@
             <!-- P3 维度 10 修复（批次 87）：编辑/复制/设默认/删除按钮补齐 v-permission -->
             <!-- v11 批次 169 P2-1 修复：row as any 改为 row as Bom -->
             <el-button
-              v-permission="'bom:update'"
+              v-permission="'boms:update'"
               type="primary"
               link
               size="small"
@@ -108,7 +112,7 @@
               >{{ $t('bomModule.table.edit') }}</el-button
             >
             <el-button
-              v-permission="'bom:create'"
+              v-permission="'boms:create'"
               type="primary"
               link
               size="small"
@@ -117,7 +121,7 @@
             >
             <el-button
               v-if="!row.is_default"
-              v-permission="'bom:update'"
+              v-permission="'boms:update'"
               type="success"
               link
               size="small"
@@ -126,7 +130,28 @@
               {{ $t('bomModule.table.setDefault') }}
             </el-button>
             <el-button
-              v-permission="'bom:delete'"
+              v-if="row.status !== 'PENDING'"
+              type="warning"
+              link
+              size="small"
+              @click="handleSubmitApproval(row as Bom)"
+            >
+              {{ $t('bomModule.table.submit') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'PENDING'"
+              type="success"
+              link
+              size="small"
+              @click="openApprove(row as Bom)"
+            >
+              {{ $t('bomModule.table.approve') }}
+            </el-button>
+            <el-button type="info" link size="small" @click="openVersions(row as Bom)">
+              {{ $t('bomModule.table.versions') }}
+            </el-button>
+            <el-button
+              v-permission="'boms:delete'"
               type="danger"
               link
               size="small"
@@ -170,15 +195,63 @@
         @cancel="dialogVisible = false"
       />
     </el-dialog>
+
+    <!-- 审批对话框（approveBom） -->
+    <el-dialog v-model="approveVisible" :title="$t('bomModule.table.approve')" width="440">
+      <el-form :model="approveForm" label-width="90px">
+        <el-form-item :label="$t('bomModule.approve.decision')" required>
+          <el-radio-group v-model="approveForm.approved">
+            <el-radio :value="true">{{ $t('bomModule.approve.pass') }}</el-radio>
+            <el-radio :value="false">{{ $t('bomModule.approve.reject') }}</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item :label="$t('bomModule.approve.remark')">
+          <el-input v-model="approveForm.remark" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="approveVisible = false">{{ $t('bomModule.approve.cancel') }}</el-button>
+        <el-button type="primary" :loading="approveSaving" @click="handleApprove">{{
+          $t('bomModule.approve.confirm')
+        }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 版本历史对话框（getBomVersionList） -->
+    <el-dialog v-model="versionsVisible" :title="$t('bomModule.table.versions')" width="560">
+      <el-table v-loading="versionsLoading" :data="versions" border size="small" max-height="320">
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column prop="version" :label="$t('bomModule.table.version')" width="110" />
+        <el-table-column prop="status" :label="$t('bomModule.filter.status')" width="110" />
+        <el-table-column
+          prop="created_at"
+          :label="$t('bomModule.table.createdAt')"
+          min-width="150"
+        />
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
-import { copyBom, setDefaultBom, deleteBom, createBom, updateBom, type Bom } from '@/api/bom';
+import { Plus, Download } from '@element-plus/icons-vue';
+import { exportFromBackend } from '@/utils/export';
+import {
+  copyBom,
+  setDefaultBom,
+  deleteBom,
+  createBom,
+  updateBom,
+  submitBom,
+  approveBom,
+  getBomById,
+  getBomVersionList,
+  type Bom,
+} from '@/api/bom';
 import BillOfMaterialsForm from './BillOfMaterialsForm.vue';
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -229,6 +302,21 @@ const handleReset = () => {
   syncQueryParams();
   page.value = 1;
   fetchData();
+};
+
+const exporting = ref(false);
+const handleExport = async () => {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    const params: Record<string, unknown> = {
+      product_name: queryParams.product_name || undefined,
+      status: queryParams.status || undefined,
+    };
+    await exportFromBackend('/boms/export', params, 'boms_export');
+  } finally {
+    exporting.value = false;
+  }
 };
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
@@ -298,17 +386,25 @@ const handleCreate = () => {
   dialogVisible.value = true;
 };
 
-const handleEdit = (row: Bom) => {
+const handleEdit = async (row: Bom) => {
   resetForm();
+  // 编辑前按 ID 回源最新 BOM（失败保留行数据）
+  let source: Bom = row;
+  try {
+    const res = await getBomById(row.id);
+    if (res.data) source = res.data;
+  } catch (error) {
+    logger.error(t('bomModule.message.fetchDetailFailed'), error);
+  }
   Object.assign(formData, {
-    id: row.id,
-    product_id: row.product_id,
-    product_name: row.product_name,
-    version: row.version,
-    is_default: row.is_default,
-    status: row.status,
-    remark: row.remark,
-    items: row.items || [],
+    id: source.id,
+    product_id: source.product_id,
+    product_name: source.product_name,
+    version: source.version,
+    is_default: source.is_default,
+    status: source.status,
+    remark: source.remark,
+    items: source.items || [],
   });
   dialogMode.value = 'edit';
   dialogVisible.value = true;
@@ -351,6 +447,76 @@ const handleSetDefault = async (row: Bom) => {
           t('bomModule.message.setDefaultFailed')
       );
     }
+  }
+};
+
+// ===== 提交审核（submitBom：非 PENDING 态 → PENDING） =====
+const handleSubmitApproval = async (row: Bom) => {
+  try {
+    await ElMessageBox.confirm(
+      t('bomModule.approve.submitConfirm', { version: row.version }),
+      t('bomModule.approve.confirmTitle'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await submitBom(row.id);
+    ElMessage.success(t('bomModule.approve.submitSuccess'));
+    fetchData();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e));
+  }
+};
+
+// ===== 审批（approveBom：PENDING → ACTIVE/INACTIVE） =====
+const approveVisible = ref(false);
+const approveSaving = ref(false);
+const approveForm = reactive({ id: 0, approved: true, remark: '' });
+
+const openApprove = (row: Bom) => {
+  approveForm.id = row.id;
+  approveForm.approved = true;
+  approveForm.remark = '';
+  approveVisible.value = true;
+};
+
+const handleApprove = async () => {
+  approveSaving.value = true;
+  try {
+    await approveBom(approveForm.id, {
+      approved: approveForm.approved,
+      remark: approveForm.remark || undefined,
+    });
+    ElMessage.success(t('bomModule.approve.success'));
+    approveVisible.value = false;
+    fetchData();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e));
+  } finally {
+    approveSaving.value = false;
+  }
+};
+
+// ===== 版本历史（getBomVersionList） =====
+const versionsVisible = ref(false);
+const versionsLoading = ref(false);
+const versions = ref<Array<Record<string, unknown>>>([]);
+
+const openVersions = async (row: Bom) => {
+  versionsVisible.value = true;
+  versionsLoading.value = true;
+  try {
+    const res = await getBomVersionList(row.product_id);
+    const d = res.data as unknown;
+    versions.value = Array.isArray(d)
+      ? d
+      : ((d as { items?: Array<Record<string, unknown>> })?.items ?? []);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e));
+  } finally {
+    versionsLoading.value = false;
   }
 };
 

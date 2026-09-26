@@ -99,7 +99,7 @@ const handlePass = async () => {
   if (!formRef.value || !props.currentRow) return;
   submitLoading.value = true;
   try {
-    await approveInventoryTransfer(props.currentRow.id as number);
+    await approveInventoryTransfer(props.currentRow.id as number, { approved: true });
     ElMessage.success(t('inventoryTransfer.approvePassed'));
     emit('update:modelValue', false);
     emit('submitted');
@@ -120,8 +120,8 @@ const handleReject = async () => {
       { type: 'warning' }
     );
     submitLoading.value = true;
-    // reject 接口未在 api/inventoryTransfer 中实现，复用 approve 接口
-    await approveInventoryTransfer(props.currentRow.id as number);
+    // 同一端点按 approved 分支（inventory_move.rs:550 `if approved`），拒绝必须显式传 false
+    await approveInventoryTransfer(props.currentRow.id as number, { approved: false });
     ElMessage.success(t('inventoryTransfer.rejected'));
     emit('update:modelValue', false);
     emit('submitted');

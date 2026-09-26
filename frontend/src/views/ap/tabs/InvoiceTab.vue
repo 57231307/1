@@ -11,6 +11,10 @@
         <el-button type="primary" @click="openInvoiceDialog()">
           <el-icon><Plus /></el-icon> {{ $t('apModule.invoice.create') }}
         </el-button>
+        <el-button :loading="autoGenerating" @click="handleAutoGenerate">
+          {{ $t('apModule.invoice.autoGenerate') }}
+        </el-button>
+        <el-button @click="showAgingAnalysis">{{ $t('apModule.invoice.agingAnalysis') }}</el-button>
         <el-button v-permission="'ap.invoice.print'" @click="handlePrintInvoices">
           <el-icon><Printer /></el-icon> {{ $t('common.print') }}
         </el-button>
@@ -22,30 +26,17 @@
 
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="invoiceQuery" :aria-label="$t('apModule.invoice.filterAria')">
-        <el-form-item :label="$t('apModule.invoice.supplier')">
-          <el-input
-            v-model="invoiceQuery.supplier_name"
-            :placeholder="$t('apModule.invoice.supplierNamePlaceholder')"
-            clearable
-          />
-        </el-form-item>
-        <el-form-item :label="$t('apModule.invoice.invoiceNo')">
-          <el-input
-            v-model="invoiceQuery.invoice_no"
-            :placeholder="$t('apModule.invoice.invoiceNoPlaceholder')"
-            clearable
-          />
-        </el-form-item>
         <el-form-item :label="$t('common.status')">
           <el-select
-            v-model="invoiceQuery.status"
+            v-model="invoiceQuery.invoice_status"
             :placeholder="$t('apModule.invoice.statusPlaceholder')"
             clearable
           >
-            <el-option :label="$t('apModule.invoice.statusPending')" value="pending" />
-            <el-option :label="$t('apModule.invoice.statusApproved')" value="approved" />
-            <el-option :label="$t('apModule.invoice.statusVerified')" value="verified" />
-            <el-option :label="$t('apModule.invoice.statusCancelled')" value="cancelled" />
+            <el-option :label="$t('apModule.invoice.statusDraft')" value="DRAFT" />
+            <el-option :label="$t('apModule.invoice.statusAudited')" value="AUDITED" />
+            <el-option :label="$t('apModule.invoice.statusPartialPaid')" value="PARTIAL_PAID" />
+            <el-option :label="$t('apModule.invoice.statusPaid')" value="PAID" />
+            <el-option :label="$t('apModule.invoice.statusCancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -63,11 +54,9 @@
         :aria-label="$t('apModule.invoice.listAria')"
       >
         <el-table-column prop="invoice_no" :label="$t('apModule.invoice.invoiceNo')" width="140" />
-        <el-table-column
-          prop="supplier_name"
-          :label="$t('apModule.invoice.supplier')"
-          width="150"
-        />
+        <el-table-column :label="$t('apModule.invoice.supplier')" width="150">
+          <template #default="{ row }">{{ supplierLabel(row.supplier_id) }}</template>
+        </el-table-column>
         <el-table-column
           prop="invoice_date"
           :label="$t('apModule.invoice.invoiceDate')"
@@ -75,7 +64,7 @@
         />
         <el-table-column :label="$t('apModule.invoice.invoiceAmount')" width="120" align="right">
           <template #default="{ row }">
-            {{ formatMoney(row.invoice_amount) }}
+            {{ formatMoney(row.amount) }}
           </template>
         </el-table-column>
         <el-table-column :label="$t('apModule.invoice.taxAmount')" width="100" align="right">
@@ -83,22 +72,27 @@
             {{ formatMoney(row.tax_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('apModule.invoice.verifiedAmount')" width="110" align="right">
+        <el-table-column :label="$t('apModule.invoice.paidAmount')" width="110" align="right">
           <template #default="{ row }">
-            {{ formatMoney(row.verified_amount) }}
+            {{ formatMoney(row.paid_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('apModule.invoice.unverifiedAmount')" width="110" align="right">
+        <el-table-column :label="$t('apModule.invoice.unpaidAmount')" width="110" align="right">
           <template #default="{ row }">
-            <span :class="{ 'text-red': row.unverified_amount > 0 }">
-              {{ formatMoney(row.unverified_amount) }}
+            <span :class="{ 'text-red': row.unpaid_amount > 0 }">
+              {{ formatMoney(row.unpaid_amount) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="$t('common.status')" width="90" align="center">
+        <el-table-column
+          prop="invoice_status"
+          :label="$t('common.status')"
+          width="90"
+          align="center"
+        >
           <template #default="{ row }">
-            <el-tag :type="getInvoiceStatusType(row.status)" size="small">
-              {{ getInvoiceStatusLabel(row.status) }}
+            <el-tag :type="getInvoiceStatusType(row.invoice_status)" size="small">
+              {{ getInvoiceStatusLabel(row.invoice_status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -109,7 +103,7 @@
               $t('common.detail')
             }}</el-button>
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.invoice_status === 'DRAFT'"
               type="success"
               link
               size="small"
@@ -117,7 +111,7 @@
               >{{ $t('apModule.invoice.approve') }}</el-button
             >
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.invoice_status === 'DRAFT'"
               type="danger"
               link
               size="small"
@@ -225,6 +219,33 @@
         }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 账龄分析弹窗 -->
+    <el-dialog v-model="agingVisible" :title="$t('apModule.invoice.agingAnalysis')" width="520px">
+      <el-table :data="agingRows" border size="small">
+        <el-table-column
+          prop="aging_bucket"
+          :label="$t('apModule.invoice.agingBucket')"
+          min-width="140"
+        />
+        <el-table-column
+          prop="invoice_count"
+          :label="$t('apModule.invoice.agingInvoiceCount')"
+          width="100"
+          align="right"
+        />
+        <el-table-column
+          prop="total_amount"
+          :label="$t('apModule.invoice.agingAmount')"
+          width="140"
+          align="right"
+        >
+          <template #default="{ row }">{{
+            Number(row.total_amount ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })
+          }}</template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -233,6 +254,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Printer, Download } from '@element-plus/icons-vue';
+import { promptCancelReason } from '@/composables/useActionPrompts';
 import printJS from 'print-js';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
@@ -246,18 +268,61 @@ import {
 } from '@/api/ap-invoice';
 import { exportFromBackend } from '@/utils/export';
 import { logger } from '@/utils/logger';
-import type { Supplier } from '@/api/supplier';
+import { autoGenerateAPInvoices, getAPAgingAnalysis, type APAgingItem } from '@/api/ap';
+import { getSupplierList, type Supplier } from '@/api/supplier';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 应付发票自动生成（按到期的采购收货单批量开票）
+const autoGenerating = ref(false);
+const handleAutoGenerate = async () => {
+  try {
+    // 后端契约：按入库单 ID 生成应付单，需用户输入入库单 ID
+    const { value } = await ElMessageBox.prompt(
+      t('apModule.invoice.autoGenerateConfirm'),
+      t('apModule.invoice.autoGenerate'),
+      {
+        type: 'info',
+        inputValidator: v => {
+          const n = Number(v);
+          return Number.isInteger(n) && n > 0 ? true : '请输入有效的入库单 ID';
+        },
+      }
+    );
+    autoGenerating.value = true;
+    await autoGenerateAPInvoices({ receipt_id: Number(value) });
+    ElMessage.success(t('apModule.invoice.autoGenerateSuccess'));
+    fetchInvoices();
+  } catch (e) {
+    if (e === 'cancel') return;
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    autoGenerating.value = false;
+  }
+};
+
+// 账龄分析：调后端账龄接口，弹窗展示汇总
+const agingVisible = ref(false);
+const agingRows = ref<APAgingItem[]>([]);
+const showAgingAnalysis = async () => {
+  try {
+    const res = await getAPAgingAnalysis();
+    // 后端 get_aging_analysis 直接返回裸数组 Vec<AgingAnalysisItem>
+    agingRows.value = res.data;
+    agingVisible.value = true;
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+};
 
 const invoices = ref<APInvoice[]>([]);
 const invoiceLoading = ref(false);
 const suppliers = ref<Supplier[]>([]);
 
 const invoiceQuery = reactive({
-  supplier_name: '',
-  invoice_no: '',
-  status: '',
+  invoice_status: '',
 });
 
 const formatMoney = (amount: number | undefined) => {
@@ -266,20 +331,26 @@ const formatMoney = (amount: number | undefined) => {
 
 const getInvoiceStatusType = (status: string) => {
   const map: Record<string, string> = {
-    pending: 'warning',
-    approved: 'primary',
-    verified: 'success',
-    cancelled: 'danger',
+    DRAFT: 'warning',
+    AUDITED: 'primary',
+    PARTIAL_PAID: 'warning',
+    PAID: 'success',
+    CANCELLED: 'danger',
   };
   return map[status] || 'info';
 };
 
+/** 列表响应只带 supplier_id（无 JOIN），用本页已加载的供应商主数据映射名称 */
+const supplierLabel = (id: number) =>
+  suppliers.value.find(s => s.id === id)?.supplier_name ?? String(id);
+
 const getInvoiceStatusLabel = (status: string) => {
   const keyMap: Record<string, string> = {
-    pending: 'apModule.invoice.statusPending',
-    approved: 'apModule.invoice.statusApproved',
-    verified: 'apModule.invoice.statusVerified',
-    cancelled: 'apModule.invoice.statusCancelled',
+    DRAFT: 'apModule.invoice.statusDraft',
+    AUDITED: 'apModule.invoice.statusAudited',
+    PARTIAL_PAID: 'apModule.invoice.statusPartialPaid',
+    PAID: 'apModule.invoice.statusPaid',
+    CANCELLED: 'apModule.invoice.statusCancelled',
   };
   const key = keyMap[status];
   if (key) return t(key);
@@ -306,9 +377,7 @@ const fetchInvoices = async () => {
 };
 
 const resetInvoiceQuery = () => {
-  invoiceQuery.supplier_name = '';
-  invoiceQuery.invoice_no = '';
-  invoiceQuery.status = '';
+  invoiceQuery.invoice_status = '';
   fetchInvoices();
 };
 
@@ -381,15 +450,15 @@ const viewInvoice = async (row: APInvoice) => {
     }
     const lines = [
       t('apModule.invoice.detailNo', { value: d.invoice_no }),
-      t('apModule.invoice.detailSupplier', { value: d.supplier_name }),
+      t('apModule.invoice.detailSupplier', { value: supplierLabel(d.supplier_id) }),
       t('apModule.invoice.detailDate', { value: d.invoice_date }),
       t('apModule.invoice.detailDueDate', { value: d.due_date || '-' }),
-      t('apModule.invoice.detailAmount', { value: formatMoney(d.invoice_amount) }),
+      t('apModule.invoice.detailAmount', { value: formatMoney(d.amount) }),
       t('apModule.invoice.detailTax', { value: formatMoney(d.tax_amount) }),
-      t('apModule.invoice.detailVerified', { value: formatMoney(d.verified_amount) }),
-      t('apModule.invoice.detailUnverified', { value: formatMoney(d.unverified_amount) }),
-      t('apModule.invoice.detailStatus', { value: getInvoiceStatusLabel(d.status) }),
-      t('apModule.invoice.detailRemark', { value: d.remark || '-' }),
+      t('apModule.invoice.detailPaid', { value: formatMoney(d.paid_amount) }),
+      t('apModule.invoice.detailUnpaid', { value: formatMoney(d.unpaid_amount) }),
+      t('apModule.invoice.detailStatus', { value: getInvoiceStatusLabel(d.invoice_status) }),
+      t('apModule.invoice.detailRemark', { value: d.notes || '-' }),
     ];
     await ElMessageBox.alert(lines.join('\n'), t('apModule.invoice.detailTitle'), {
       confirmButtonText: t('common.close'),
@@ -419,20 +488,16 @@ const approveInvoice = async (row: APInvoice) => {
 };
 
 const cancelInvoice = async (row: APInvoice) => {
+  // 后端 CancelInvoiceRequest 必填 reason：弹框真实采集取消原因（必填校验），取消即中断。
+  const reason = await promptCancelReason();
+  if (!reason) return;
   try {
-    await ElMessageBox.confirm(
-      t('apModule.invoice.cancelConfirm'),
-      t('apModule.invoice.cancelTitle'),
-      { type: 'warning' }
-    );
-    await cancelAPInvoice(row.id);
+    await cancelAPInvoice(row.id, reason);
     ElMessage.success(t('apModule.invoice.cancelSuccess'));
     fetchInvoices();
   } catch (e) {
-    if (e !== 'cancel') {
-      const err = e as { message?: string };
-      ElMessage.error(err.message || t('common.failed'));
-    }
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
   }
 };
 
@@ -445,10 +510,10 @@ const handlePrintInvoices = () => {
   const printData = invoices.value.map((item, index) => ({
     [t('apModule.invoice.colSeq')]: index + 1,
     [t('apModule.invoice.invoiceNo')]: item.invoice_no,
-    [t('apModule.invoice.supplier')]: item.supplier_name,
-    [t('apModule.invoice.invoiceAmount')]: `¥${item.invoice_amount}`,
+    [t('apModule.invoice.supplier')]: supplierLabel(item.supplier_id),
+    [t('apModule.invoice.invoiceAmount')]: `¥${item.amount}`,
     [t('apModule.invoice.taxAmount')]: `¥${item.tax_amount}`,
-    [t('common.status')]: getInvoiceStatusLabel(item.status),
+    [t('common.status')]: getInvoiceStatusLabel(item.invoice_status),
     [t('apModule.invoice.invoiceDate')]: item.invoice_date,
   }));
   printJS({
@@ -467,7 +532,7 @@ const handlePrintInvoices = () => {
 // V15 P0-S12 修复（Batch 475e）：迁移到后端导出，注入水印 + 审计日志
 const handleExportInvoices = async () => {
   const params: Record<string, unknown> = {
-    invoice_status: invoiceQuery.status || undefined,
+    invoice_status: invoiceQuery.invoice_status || undefined,
   };
   await exportFromBackend('/ap/invoices/export', params, 'ap_invoices_export');
   logger.info(t('apModule.invoice.exportedLog'));
@@ -475,12 +540,11 @@ const handleExportInvoices = async () => {
 
 const fetchSuppliers = async () => {
   try {
-    const res = await getAPInvoiceList({} as never);
-    void res;
-  } catch (_e) {
-    // suppliers 实际应通过 supplierApi 加载；此处保持空列表不影响主流程
+    const res = await getSupplierList({ page: 1, page_size: 1000 });
+    suppliers.value = res.data?.items || [];
+  } catch (error) {
+    logger.error(t('apModule.invoice.loadSuppliersFailed'), error);
   }
-  suppliers.value = [];
 };
 
 defineExpose({ refresh: fetchInvoices });

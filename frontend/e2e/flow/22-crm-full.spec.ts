@@ -7,12 +7,14 @@ import {
   genCode,
   getCtx,
   BASE_URL,
+  API_BASE,
   API_PREFIX,
   safeGet,
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
   ensureTestEntities,
+  tryCleanup,
 } from './helpers';
 
 test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
@@ -27,23 +29,19 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     // 动态获取客户 id：ctx.customerId 缺失时从列表首个回退（库中不存在 id=1 的保证）
     let customerId = ctx.customerId;
     if (!customerId) {
-      try {
-        const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-          page,
-          'GET',
-          '/crm/customers?page=1&page_size=1'
-        );
-        customerId = list.items?.[0]?.id;
-      } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); /* 保留 undefined */ }
+      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
+        page,
+        'GET',
+        '/crm/customers?page=1&page_size=1'
+      );
+      customerId = list.items?.[0]?.id;
     }
     // 仍无任何客户时创建一个
     if (!customerId) {
-      try {
-        const created = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
-          customer_name: 'E2E 客户 ' + Date.now(),
-        });
-        customerId = created.data?.id;
-      } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); /* 后续断言将给出明确失败信息 */ }
+      const created = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+        customer_name: 'E2E 客户 ' + Date.now(),
+      });
+      customerId = created.data?.id;
     }
     if (!customerId) throw new Error('无法获得任何客户 id（列表为空且创建失败）');
 
@@ -51,9 +49,9 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await apiCallRaw(page, 'GET', '/crm/customers/select?page=1&page_size=5');
     // P1.1 fail-closed 落地后：客户导出为敏感资源端点，
     // 无 download_token 必须 403（此处验证 fail-closed 生效而非文件内容）
-    const exportResp = await page.request
-      .get(`${process.env.API_BASE || 'http://localhost:8082'}${API_PREFIX}/crm/customers/export`)
-      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    const exportResp = await page.request.get(
+      `${process.env.API_BASE || 'http://localhost:8082'}${API_PREFIX}/crm/customers/export`
+    );
     if (exportResp) {
       // 敏感端点 fail-closed：403=生效；200=尚未纳入 fail-closed（CRM 前缀路由差异），记录标注
       const st = exportResp.status();
@@ -73,7 +71,127 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/credit`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/addresses`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/summary`);
-    await verifyEndpointHealthy(page, `/crm/customers/${customerId}/360`);
+    // 360 契约校验升级（假绿解封）：旧写法 verifyEndpointHealthy('/crm/customers/{id}/360')
+    // 只拦 5xx，对"200 但缺 tags/shipping_addresses 数组键"的信封盲区无感——而详情页
+    // detail.vue:221/:237 对 customer.shipping_addresses 取 .length，缺键运行期必崩。
+    // 现锁定 data 顶层契约：含 customer + tags(Array) + shipping_addresses(Array)，空为 []。
+    // 子资源对新客户确可能 404/403（尚未生成对应数据）→ 保留容忍但显式标注，绝不掩盖 2xx 缺键。
+    const r360 = await page.request.fetch(
+      `${API_BASE}${API_PREFIX}/crm/customers/${customerId}/360`,
+      {
+        method: 'GET',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-Token':
+            (await page.context().cookies()).find(c => c.name === 'csrf_token')?.value ?? '',
+        },
+      }
+    );
+    const st360 = r360.status();
+    if (st360 === 404 || st360 === 403) {
+      test.info().annotations.push({
+        type: '360-not-provisioned',
+        description: `/crm/customers/${customerId}/360 返回 ${st360}（客户无对应业务数据，容忍为健康）`,
+      });
+    } else {
+      expect(st360 < 500, `360 端点不得 5xx，实际 ${st360}`).toBeTruthy();
+      const env360 = (await r360.json()) as { code?: number; data?: Record<string, unknown> };
+      expect(env360.code, `360 信封应为成功码 200，实际 code=${env360.code}`).toBe(200);
+      const d360 = env360.data ?? {};
+      expect(d360.customer, '360 data 顶层应含 customer 对象').toBeTruthy();
+      expect(
+        Array.isArray(d360.tags),
+        `360 data.tags 应为数组（缺键使详情页崩溃），实际=${JSON.stringify(d360.tags)}`
+      ).toBe(true);
+      // [BE-4] 补强 tags 元素字段形状断言（对应修复项 BE-4：CustomerTagBrief.category 可空）
+      // 后端 services/crm/mod.rs:64-69 CustomerTagBrief { id, name, color, category: Option<String> }
+      // category 序列化为 null 时前端详情组件不得崩溃；前端 api/crm-enhanced.ts:4-9 CustomerTag 接口
+      // 原把 category 声明为 string（非 nullable），与后端契约不一致——该缺陷导致前端 TS 编译期
+      // 漏掉 null 分支，运行期对 category 做 .trim()/.toLowerCase() 等调用时 TypeError。
+      // 本断言锁定 tags 数组每个元素的字段形状契约：
+      //   id: number（必有）
+      //   name: string（必有非空）
+      //   color: string（必有）
+      //   category: string | null（可空——BE-4 修复项核心）
+      // 注意：tags 数组可能为空（客户尚未挂标签），此时跳过元素级断言。
+      const tags = d360.tags as Array<Record<string, unknown>>;
+      if (tags.length > 0) {
+        for (const tag of tags) {
+          expect(typeof tag.id, `tag.id 应为 number，实际=${JSON.stringify(tag.id)}`).toBe(
+            'number'
+          );
+          expect(
+            typeof tag.name,
+            `tag.name 应为 string，实际=${JSON.stringify(tag.name)}`
+          ).toBe('string');
+          expect((tag.name as string)?.length, 'tag.name 不应为空字符串').toBeGreaterThan(0);
+          expect(
+            typeof tag.color,
+            `tag.color 应为 string（后端 CustomerTagBrief.color 非 Option），实际=${JSON.stringify(tag.color)}`
+          ).toBe('string');
+          // category 是本轮核心：可为 string 或 null，但键必须存在（后端序列化为 Option → null 或 string）
+          expect(
+            'category' in tag,
+            `tag 对象必须含 'category' 键（后端 CustomerTagBrief 四字段契约），实际 keys=${Object.keys(tag).join(',')}`
+          ).toBe(true);
+          expect(
+            tag.category === null || typeof tag.category === 'string',
+            `tag.category 应为 string 或 null（BE-4 Option<String>），实际 type=${typeof tag.category} value=${JSON.stringify(tag.category)}`
+          ).toBe(true);
+        }
+        console.log(
+          `[22-crm] tags 元素形状验证通过，共 ${tags.length} 条，category 取值分布=${JSON.stringify(
+            tags.map(t => (t.category === null ? 'null' : typeof t.category))
+          )}`
+        );
+      } else {
+        // 无标签时显式挂一个 category 为空的标签做契约验证（真实 UI 操作或 API 挂标签均可，
+        // 此处按最小侵入原则用 API attach，不污染 UI 流程）
+        const tagCreate = await apiCall<{ id?: number }>(page, 'POST', '/crm/tags', {
+          name: `E2E容null标签${Date.now().toString().slice(-6)}`,
+          color: '#FF5733',
+          // 不传 category（后端 Option<String> 无默认值 → 落库 NULL）
+        });
+        const newTagId = tagCreate.data?.id;
+        if (newTagId) {
+          await apiCall(page, 'POST', `/crm/customers/${customerId}/tags/${newTagId}`, {}).catch(
+            e => {
+              console.warn('[22-crm] 挂标签失败:', (e as Error).message);
+            }
+          );
+          // 重新获取 360 验证新标签的 category 为 null
+          const r360b = await page.request.fetch(
+            `${API_BASE}${API_PREFIX}/crm/customers/${customerId}/360`,
+            {
+              method: 'GET',
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token':
+                  (await page.context().cookies()).find(c => c.name === 'csrf_token')?.value ?? '',
+              },
+            }
+          );
+          const env360b = (await r360b.json()) as { code?: number; data?: Record<string, unknown> };
+          const tagsB = (env360b.data?.tags ?? []) as Array<Record<string, unknown>>;
+          const createdTag = tagsB.find(t => t.id === newTagId);
+          if (createdTag) {
+            expect(
+              createdTag.category === null || createdTag.category === undefined,
+              `category 未指定时后端应返回 null（BE-4 可空契约），实际=${JSON.stringify(createdTag.category)}`
+            ).toBe(true);
+            expect(typeof createdTag.color).toBe('string');
+          }
+          // 清理标签
+          await tryCleanup(page, 'DELETE', `/crm/tags/${newTagId}`, '22-crm-容null标签');
+        }
+      }
+      expect(
+        Array.isArray(d360.shipping_addresses),
+        `360 data.shipping_addresses 应为数组（detail.vue:237 取其 length），实际=${JSON.stringify(
+          d360.shipping_addresses
+        )}`
+      ).toBe(true);
+    }
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/follow-ups`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/rfm`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/audit-logs`);
@@ -124,9 +242,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       lead_source: 'web',
     });
     let leadId: number | undefined;
-    try {
-      leadId = (result as { data?: { id?: number } }).data?.id;
-    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); }
+    leadId = (result as { data?: { id?: number } }).data?.id;
     if (!leadId) {
       const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
         page,
@@ -166,8 +282,8 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       await verifyEndpointHealthy(page, `/crm/opportunities/${oppId}/competitors`);
       await verifyEndpointHealthy(page, `/crm/opportunities/${oppId}/follow-ups`);
       await safePostAction(page, `/crm/opportunities/${oppId}/stage-change`, {
-        from_stage: 'qualifying',
-        to_stage: 'proposal',
+        from_stage: 'QUALIFICATION',
+        to_stage: 'PROPOSAL',
       });
     }
   });
@@ -195,7 +311,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/crm/sales-analysis/customer-ranking');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/trend');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/targets');
-    await verifyEndpointHealthy(page, '/crm/crm/tags');
+    await verifyEndpointHealthy(page, '/crm/tags');
   });
 
   // ===== 真实 UI 交互验证 =====
@@ -213,19 +329,15 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         'input[placeholder*="客户编码"], input[placeholder*="客户"], input[placeholder*="线索"]'
       )
       .first();
-    await searchInput
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const searchVisible = await searchInput.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await searchInput.waitFor({ state: 'visible', timeout: 5000 });
+    const searchVisible = await searchInput.isVisible();
     if (searchVisible) {
       await searchInput.fill('测试');
       await page.waitForTimeout(500);
       // 点击查询按钮
       const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn
-        .waitFor({ state: 'visible', timeout: 3000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const btnVisible = await queryBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await queryBtn.waitFor({ state: 'visible', timeout: 3000 });
+      const btnVisible = await queryBtn.isVisible();
       if (btnVisible) {
         await queryBtn.click();
         await page.waitForTimeout(2000);
@@ -237,8 +349,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         )
         .first()
         .waitFor({ state: 'visible', timeout: 5000 })
-        .then(() => true)
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        .then(() => true);
       expect(tableOk).toBe(true);
       // 清空搜索
       await searchInput.clear();
@@ -254,45 +365,34 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 点击新建客户按钮
     const newBtn = page.locator('button:has-text("新建客户")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       // 验证弹窗出现
       const dialog = page.locator('.el-dialog').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await dialog.waitFor({ state: 'visible', timeout: 5000 });
+      const dialogVisible = await dialog.isVisible();
       expect(dialogVisible).toBe(true);
       // 验证表单字段存在
       const codeInput = dialog.locator('input[placeholder*="客户编码"]').first();
-      await codeInput
-        .waitFor({ state: 'visible', timeout: 3000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const codeVisible = await codeInput.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await codeInput.waitFor({ state: 'visible', timeout: 3000 });
+      const codeVisible = await codeInput.isVisible();
       expect(codeVisible).toBe(true);
       // 直接点保存触发必填校验
       const saveBtn = dialog.locator('button:has-text("保存"), button:has-text("确定")').first();
-      await saveBtn.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await saveBtn.click();
       await page.waitForTimeout(1000);
       // 验证校验错误提示
       const hasError = await page
         .locator('.el-form-item__error, .el-message--error')
         .first()
         .waitFor({ state: 'visible', timeout: 5000 })
-        .then(() => true)
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        .then(() => true);
       expect(hasError).toBe(true);
       // 关闭弹窗
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await page.locator('.el-dialog__headerbtn').first().click();
     }
   });
 
@@ -309,10 +409,8 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const tableVisible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await table.waitFor({ state: 'visible', timeout: 10_000 });
+    const tableVisible = await table.isVisible();
     expect(tableVisible).toBe(true);
     // 验证表头存在
     const headers = table.locator('th, .el-table-v2__header-cell');
@@ -324,17 +422,13 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         'input[placeholder*="线索"], input[placeholder*="公司"], input[placeholder*="联系人"]'
       )
       .first();
-    await searchInput
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const searchVisible = await searchInput.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await searchInput.waitFor({ state: 'visible', timeout: 5000 });
+    const searchVisible = await searchInput.isVisible();
     if (searchVisible) {
       await searchInput.fill('测试');
       const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn
-        .waitFor({ state: 'visible', timeout: 3000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const btnVisible = await queryBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await queryBtn.waitFor({ state: 'visible', timeout: 3000 });
+      const btnVisible = await queryBtn.isVisible();
       if (btnVisible) {
         await queryBtn.click();
         await page.waitForTimeout(2000);
@@ -344,8 +438,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
           '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
         )
         .first()
-        .isVisible()
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        .isVisible();
       expect(tableOk).toBe(true);
     }
   });
@@ -362,31 +455,21 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const tableVisible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await table.waitFor({ state: 'visible', timeout: 10_000 });
+    const tableVisible = await table.isVisible();
     expect(tableVisible).toBe(true);
     // 验证新建商机按钮存在
     const newBtn = page.locator('button:has-text("新建商机")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await dialog.waitFor({ state: 'visible', timeout: 5000 });
+      const dialogVisible = await dialog.isVisible();
       expect(dialogVisible).toBe(true);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await page.locator('.el-dialog__headerbtn').first().click();
     }
   });
 
@@ -412,10 +495,8 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await page.waitForTimeout(3000);
     // isVisible 立即返回，组件异步挂载可能未渲染 → 改用 waitFor 等待可见
     const container = page.locator('.el-card, .el-table, .el-empty, body').first();
-    await container
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await container.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await container.waitFor({ state: 'visible', timeout: 15_000 });
+    const visible = await container.isVisible();
     expect(visible).toBe(true);
   });
 
@@ -433,10 +514,8 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
       )
       .first();
-    await table
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const tableVisible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await table.waitFor({ state: 'visible', timeout: 10_000 });
+    const tableVisible = await table.isVisible();
     if (tableVisible) {
       const headers = table.locator('th, .el-table-v2__header-cell');
       const headerCount = await headers.count();

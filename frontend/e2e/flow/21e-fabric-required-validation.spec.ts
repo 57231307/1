@@ -8,6 +8,9 @@ import {
   getCtx,
   BASE_URL,
   ensureTestEntities,
+  expectBadRequest,
+  failureCode,
+  APP_ERROR_CODES,
 } from './helpers';
 
 test.describe('面料单据专用字段全链路验证', () => {
@@ -22,8 +25,12 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 创建不带色号的销售订单
     const soData = {
-      customer_id: ctx.customerId || 1,
-      order_date: new Date().toISOString().slice(0, 10),
+      customer_id: ctx.customerId,
+      // order_date 后端按完整 ISO datetime 反序列化，仅传日期串（YYYY-MM-DD）会
+      // 触发 422 "order_date: premature end of input"（见 reports/backend.log），
+      // 与本用例"缺色号"的判定无关、且非 VALIDATION/BUSINESS 码 → 断言假失败。
+      // 与 21a 同：用 new Date().toISOString() 完整时间戳。
+      order_date: new Date().toISOString(),
       items: [
         {
           product_id: ctx.productIds[0],
@@ -43,8 +50,12 @@ test.describe('面料单据专用字段全链路验证', () => {
       // 如果被拒绝，应有明确错误信息
       const msg = result.message || '';
       const mentionsColor = msg.toLowerCase().includes('color') || msg.includes('色号');
+      // 机器码出自 utils/error.rs:143-148（AppError 直出体，code 为字符串）
+      const rejectCode = failureCode(result);
       expect(
-        mentionsColor || result.code === 'VALIDATION_ERROR' || result.code === 'BUSINESS_ERROR'
+        mentionsColor ||
+          rejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
+          rejectCode === APP_ERROR_CODES.BUSINESS_ERROR
       ).toBeTruthy();
     }
   });
@@ -54,7 +65,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 创建缺少 material_code 的采购收货
     const receiptData = {
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       receipt_date: new Date().toISOString().slice(0, 10),
       warehouse_id: ctx.warehouseIds[0],
       items: [
@@ -72,7 +83,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     const result = await apiCallExpectFail(page, 'POST', '/purchase/receipts', receiptData);
 
     // 后端应拒绝（material_code 是必填）
-    expect(result.status >= 400).toBe(true);
+    expectBadRequest(result);
     expect(result.status < 500).toBe(true);
   });
 
@@ -80,7 +91,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     const ctx = getCtx();
 
     const receiptData = {
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       receipt_date: new Date().toISOString().slice(0, 10),
       warehouse_id: ctx.warehouseIds[0],
       items: [
@@ -98,7 +109,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/receipts', receiptData);
 
-    expect(result.status >= 400).toBe(true);
+    expectBadRequest(result);
     expect(result.status < 500).toBe(true);
   });
 
@@ -119,19 +130,12 @@ test.describe('面料单据专用字段全链路验证', () => {
       brand: 'Pantone',
     };
 
-    let cardId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', cardData);
-      cardId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/color-cards?page=1&page_size=1'
-      );
-      cardId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', cardData);
+    const cardId = result.data?.id;
+    expect(
+      cardId,
+      `色卡创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (cardId) {
       const detail = await apiCallRaw<{
@@ -165,7 +169,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       page,
       'GET',
       '/sales/orders?page=1&page_size=1'
-    ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
+    );
     if (soList.items?.length > 0) {
       const so = soList.items?.[0];
       // 销售订单可能有 color_no 字段
@@ -177,7 +181,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       page,
       'GET',
       '/production/dye-recipes?page=1&page_size=1'
-    ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
+    );
     if (recipeList.items?.length > 0) {
       const recipe = recipeList.items?.[0];
       // 染色配方用 color_code
@@ -189,7 +193,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       page,
       'GET',
       '/inventory/transfers?page=1&page_size=1'
-    ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
+    );
     if (transferList.items?.length > 0) {
       // 调拨明细可能有 color_no
       expect(true).toBe(true);
@@ -232,21 +236,17 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 点击新建
     const newBtn = page.locator('button:has-text("新建")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
 
       const dialog = page.locator('.el-dialog').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 10_000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await dialog.waitFor({ state: 'visible', timeout: 10_000 });
 
       // 检查表单是否有色号/缸号/批次号字段
-      const dialogText = await dialog.textContent().catch((e) => { console.warn(`[E2E] 文本读取失败（返回空）: ${(e as Error).message}`); return ''; });
+      const dialogText = await dialog.textContent();
       const hasColorNo = dialogText?.includes('色号');
       const hasDyeLotNo = dialogText?.includes('缸号');
       const hasBatchNo = dialogText?.includes('批次');
@@ -254,11 +254,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       // 后端有 color_no/dye_lot_no/batch_no 但前端表单可能未显示
       expect(true).toBe(true); // 记录现状
 
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await page.locator('.el-dialog__headerbtn').first().click();
     }
   });
 });

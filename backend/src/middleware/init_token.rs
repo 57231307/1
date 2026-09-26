@@ -20,7 +20,7 @@ use axum::{
     extract::Request,
     http::{HeaderMap, StatusCode},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use subtle::ConstantTimeEq;
 
@@ -109,10 +109,11 @@ fn extract_token_from_headers(headers: &HeaderMap) -> Option<String> {
 
 /// 构造 401 响应
 fn init_token_unauthorized(reason: String) -> Response {
-    let body = serde_json::json!({
-        "code": 40101,
-        "message": "初始化接口鉴权失败",
-        "detail": reason,
-    });
-    (StatusCode::UNAUTHORIZED, axum::Json(body)).into_response()
+    // 具体失败原因只进日志：响应体形状与全仓失败信封一致，且不把内部校验细节外显给客户端
+    tracing::warn!("初始化接口鉴权失败: {}", reason);
+    crate::utils::response::unified_error_response(
+        StatusCode::UNAUTHORIZED,
+        "INIT_TOKEN_INVALID",
+        "初始化接口鉴权失败",
+    )
 }

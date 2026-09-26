@@ -130,6 +130,7 @@
  * - 后端路由：/api/v1/erp/slow-queries（list / stats / refresh）
  */
 import { ref, reactive, onMounted, h, computed } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElTag } from 'element-plus';
 import { Search, Refresh } from '@element-plus/icons-vue';
@@ -242,7 +243,7 @@ const loadStats = async () => {
   try {
     stats.value = await getSlowQueryStats();
   } catch (err) {
-    // 统计接口失败不阻断列表展示
+    logger.error(t('system.slowQuery.message.statsFailed'), err);
   } finally {
     statsLoading.value = false;
   }

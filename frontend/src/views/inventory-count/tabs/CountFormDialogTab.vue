@@ -49,9 +49,9 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item :label="t('inventoryCount.formDialogTab.labelRemark')" prop="remark">
+      <el-form-item :label="t('inventoryCount.formDialogTab.labelRemark')" prop="notes">
         <el-input
-          v-model="formData.remark"
+          v-model="formData.notes"
           type="textarea"
           :rows="3"
           :placeholder="t('inventoryCount.formDialogTab.placeholderRemark')"
@@ -105,11 +105,13 @@ const submitLoading = ref(false);
 
 const formData = reactive({
   id: 0,
+  /** 单号由后端 generate_count_no 生成，建单入参不含该字段，仅展示 */
   count_no: '',
+  /** 日期控件按 YYYY-MM-DD 取值，提交前转 RFC3339（后端 count_date 解析为 DateTime<Utc>） */
   count_date: new Date().toISOString().split('T')[0],
   warehouse_id: undefined as number | undefined,
-  status: 'in_progress' as 'in_progress' | 'completed',
-  remark: '',
+  /** 备注（后端 CreateCountPayload.notes / UpdateCountPayload.notes） */
+  notes: '',
 });
 
 const resetForm = () => {
@@ -117,8 +119,7 @@ const resetForm = () => {
   formData.count_no = '';
   formData.count_date = new Date().toISOString().split('T')[0];
   formData.warehouse_id = undefined;
-  formData.status = 'in_progress';
-  formData.remark = '';
+  formData.notes = '';
 };
 
 const generateNo = async () => {
@@ -154,12 +155,22 @@ onMounted(() => {
 });
 
 const handleSubmit = async () => {
+  if (!formData.warehouse_id) {
+    ElMessage.warning(t('inventoryCount.formDialogTab.warehouseRequired'));
+    return;
+  }
   submitLoading.value = true;
   try {
+    const count_date = new Date(formData.count_date).toISOString();
     if (formData.id) {
-      await updateInventoryCount(formData.id, formData as Partial<InventoryCountEntity>);
+      // UpdateCountPayload 只有 count_date / notes 两字段
+      await updateInventoryCount(formData.id, { count_date, notes: formData.notes });
     } else {
-      await createInventoryCount(formData as Partial<InventoryCountEntity>);
+      await createInventoryCount({
+        warehouse_id: formData.warehouse_id,
+        count_date,
+        notes: formData.notes,
+      });
     }
     ElMessage.success(t('inventoryCount.formDialogTab.messageSuccess'));
     emit('update:modelValue', false);

@@ -5,7 +5,7 @@
 //!
 //! 路由设计说明：所有子 router 内部 path 都已加上各自独立前缀
 //!（`/customers`、`/customer-credits`、`/five-dimension`、`/sales-analysis`、
-//!  `/customers/enhanced`、`/crm/tags`、`/pool`、`/assignments`、
+//!  `/customers/enhanced`、`/tags`、`/pool`、`/assignments`、
 //!  `/sales-users`、`/recycle-rules`、`/leads`、`/opportunities` 等），
 //!  这样 `routes()` 入口用 `merge` 组合时不会出现 path+method 重叠，
 //!  避免 axum 0.7 `Overlapping method route` panic。
@@ -226,7 +226,18 @@ pub fn crm_customers() -> Router<AppState> {
                 .put(crm_customer_handler::update_customer)
                 .delete(crm_customer_handler::delete_customer),
         )
-        .route("/customers/{id}/tags", post(crm_customer_handler::add_tags))
+        // 客户标签对象化：POST /customers/{id}/tags 保留旧 add_tags（lead 字符串数组），
+        // GET /customers/{id}/tags 返回该客户已挂载标签对象列表；
+        // POST/DELETE /customers/{id}/tags/{tagId} 单条挂/解。
+        .route(
+            "/customers/{id}/tags",
+            post(crm_customer_handler::add_tags).get(crm_customer_handler::list_customer_tags),
+        )
+        .route(
+            "/customers/{id}/tags/{tagId}",
+            post(crm_customer_handler::attach_customer_tag)
+                .delete(crm_customer_handler::detach_customer_tag),
+        )
         // 批次 90b P2-12：联系人 CRUD（GET 既有，新增 POST/PUT/DELETE）
         .route(
             "/customers/{id}/contacts",
@@ -238,15 +249,15 @@ pub fn crm_customers() -> Router<AppState> {
         )
 }
 
-/// CRM 标签路由（/crm/tags，与前端 crm-enhanced.ts 调用路径匹配）
-/// 批次 122 v8 复审 P1 修复：原 `/crm-tags` 与前端不一致导致 404，已统一
+/// CRM 标签路由；本函数被 `crm::routes()` merge 后再 `.nest("/api/v1/erp/crm", ...)`，
+/// 因此 path 只能写 `/tags`，写 `/crm/tags` 会装配成 `/api/v1/erp/crm/crm/tags`
 pub fn crm_tags() -> Router<AppState> {
     Router::new()
         .route(
-            "/crm/tags",
+            "/tags",
             get(crm_customer_handler::list_tags).post(crm_customer_handler::create_tag),
         )
-        .route("/crm/tags/{id}", delete(crm_customer_handler::delete_tag))
+        .route("/tags/{id}", delete(crm_customer_handler::delete_tag))
 }
 
 /// CRM 公海池路由（path 前缀 /pool）

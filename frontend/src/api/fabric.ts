@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 export interface Fabric {
   id: number;
@@ -61,7 +61,7 @@ export const deleteFabric = (id: number) => request.delete<ApiResponse<null>>(`/
 
 // D14 Batch 5b：原 fabricApi.getCategories 转为风格 B 函数
 export const getFabricCategoryList = () =>
-  request.get<ApiResponse<FabricCategory[]>>('/product-categories');
+  request.get<ApiResponse<PaginatedResponse<FabricCategory>>>('/product-categories');
 
 // D14 Batch 5b：原 fabricApi.createCategory 转为风格 B 函数
 export const createFabricCategory = (data: Partial<FabricCategory>) =>

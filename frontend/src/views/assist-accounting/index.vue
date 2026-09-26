@@ -97,24 +97,16 @@ const getBusinessTypeLabel = (value: string) => {
   return option?.label || value;
 };
 
+// 借/贷金额与米数/公斤数在后端为 Decimal，线上序列化为 JSON 字符串（见 api 层类型注释）。
+// 本页仅原样展示这些字符串，不在前端做数值转换或合计——避免把 number 混入本应为 string 的列。
+
 const loadDimensions = async () => {
   try {
-    // v11 批次 175 P2-1 修复：res: any 和 res.data as any 改为具体类型
-    const res = (await getAssistDimensionList()) as {
-      data?:
-        | AssistDimensionResponse[]
-        | { data?: AssistDimensionResponse[]; items?: AssistDimensionResponse[] };
-    };
-    const d = res.data;
-    if (Array.isArray(d)) {
-      dimensions.value = d;
-    } else if (d && typeof d === 'object') {
-      const obj = d as { data?: AssistDimensionResponse[]; items?: AssistDimensionResponse[] };
-      dimensions.value = obj?.data || obj?.items || [];
-    } else {
-      dimensions.value = [];
-    }
+    // 后端 /dimensions 的 data 恒为裸数组 AssistDimensionResponse[]，直接取 res.data
+    const res = await getAssistDimensionList();
+    dimensions.value = res.data;
   } catch (error) {
+    logger.error(t('assistAccounting.message.loadDimensionFailed'), error);
     ElMessage.error(t('assistAccounting.message.loadDimensionFailed'));
   }
 };
@@ -123,25 +115,14 @@ const loadSummary = async () => {
   summaryLoading.value = true;
   try {
     const period = searchForm.value.accounting_period || new Date().toISOString().slice(0, 7);
-    // v11 批次 175 P2-1 修复：res: any 和 res.data as any 改为具体类型
-    const res = (await getAssistSummary({
+    // 后端 /summary 的 data 恒为裸数组 AssistSummaryResponse[]，直接取 res.data
+    const res = await getAssistSummary({
       accounting_period: period,
       dimension_code: searchForm.value.dimension_code || undefined,
-    })) as {
-      data?:
-        | AssistSummaryResponse[]
-        | { data?: AssistSummaryResponse[]; items?: AssistSummaryResponse[] };
-    };
-    const d = res.data;
-    if (Array.isArray(d)) {
-      summaryData.value = d;
-    } else if (d && typeof d === 'object') {
-      const obj = d as { data?: AssistSummaryResponse[]; items?: AssistSummaryResponse[] };
-      summaryData.value = obj?.data || obj?.items || [];
-    } else {
-      summaryData.value = [];
-    }
+    });
+    summaryData.value = res.data;
   } catch (error) {
+    logger.error(t('assistAccounting.message.loadSummaryFailed'), error);
     ElMessage.error(t('assistAccounting.message.loadSummaryFailed'));
   } finally {
     summaryLoading.value = false;

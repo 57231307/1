@@ -9,6 +9,7 @@ pub mod bulk_product_handler;
 pub mod business_trace_handler;
 pub mod crm_handler;
 pub mod customer_handler;
+pub mod document_no_handler;
 pub mod dashboard_handler;
 pub mod department_handler;
 pub mod dual_unit_converter_handler;
@@ -45,6 +46,7 @@ pub mod user_handler;
 pub mod warehouse_handler;
 // 供应商管理模块
 pub mod supplier_handler;
+pub mod supplier_blacklist_handler;
 // 采购管理模块
 pub mod purchase_inspection_handler;
 pub mod purchase_order_handler;
@@ -229,3 +231,9 @@ pub mod customer_merge_handler;
 pub mod conversion_time_handler;
 // batch-14 P3: 人工复核状态机不完整
 pub mod opportunity_stage_handler;
+// 供应商商品/色号对照表 handler（sku-mapping）
+pub mod sku_mapping_handler;
+// 供应商商品目录 handler（supplier-products，对照表依赖的父级数据）
+pub mod supplier_product_handler;
+// 供应商商品色号目录 handler（supplier-product-colors，对照表依赖的父级数据）
+pub mod supplier_product_color_handler;

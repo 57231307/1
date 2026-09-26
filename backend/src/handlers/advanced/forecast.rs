@@ -78,7 +78,7 @@ pub async fn sales_forecast(
         }
         Err(e) => {
             tracing::error!("销售预测失败: {}", e);
-            Ok(Json(ApiResponse::error(format!("销售预测失败: {}", e))))
+            Err(AppError::internal("销售预测失败"))
         }
     }
 }

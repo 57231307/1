@@ -60,6 +60,63 @@ impl VoucherService {
         Ok(())
     }
 
+    /// 凭证反过账冲销：将过账时累加的借贷发生额取负回写科目余额
+    /// 仅更新已存在的余额记录；过账时未生成余额记录的科目跳过（数据异常容错）
+    pub(crate) async fn reverse_account_balances(
+        &self,
+        voucher_id: i32,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        info!("冲销科目余额 voucher_id={}", voucher_id);
+
+        let (voucher, items) = Self::fetch_voucher_and_items(voucher_id, txn).await?;
+        let period = Self::compute_period_from_date(voucher.voucher_date);
+        let subjects = Self::fetch_subjects_for_items(&items, txn).await?;
+        let balance_map = Self::aggregate_balance_by_subject(&items, &subjects)?;
+        let subject_ids: Vec<i32> = balance_map.keys().copied().collect();
+        let existing_balances = Self::fetch_existing_balances(&subject_ids, &period, txn).await?;
+
+        let subject_by_id: std::collections::HashMap<i32, &account_subject::Model> =
+            subjects.iter().map(|s| (s.id, s)).collect();
+        let mut balance_record_map: std::collections::HashMap<
+            i32,
+            crate::models::account_balance::Model,
+        > = existing_balances
+            .into_iter()
+            .map(|b| (b.subject_id, b))
+            .collect();
+
+        for (subject_id, (debit_amount, credit_amount)) in balance_map {
+            let subject = subject_by_id
+                .get(&subject_id)
+                .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", subject_id)))?;
+            let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
+
+            if let Some(balance) = balance_record_map.remove(&subject_id) {
+                // 冲销：发生额取负（post 的反向操作）
+                Self::update_existing_balance(
+                    balance,
+                    -debit_amount,
+                    -credit_amount,
+                    balance_direction,
+                    user_id,
+                    txn,
+                )
+                .await?;
+            } else {
+                tracing::warn!(
+                    voucher_id,
+                    subject_id,
+                    "反过账冲销：未找到对应期间余额记录，跳过冲销"
+                );
+            }
+        }
+
+        info!("科目余额冲销成功");
+        Ok(())
+    }
+
     /// 获取凭证及其分录
     async fn fetch_voucher_and_items(
         voucher_id: i32,

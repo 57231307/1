@@ -26,23 +26,23 @@ pub async fn list_purchase_returns(
     let service = PurchaseReturnService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
     let (returns, total) = service
         .list_returns(
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-            params.page_size.unwrap_or(20).clamp(1, 100),
+            page,
+            page_size,
             params.status,
             params.supplier_id,
+            params.keyword,
+            params.start_date,
+            params.end_date,
             Some(&data_scope_ctx),
         )
         .await?;
 
-    let result = serde_json::to_value(PaginatedResponse::new(
-        returns,
-        total,
-        params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-        params.page_size.unwrap_or(20).clamp(1, 100),
-    ))
-    .map_err(|e| AppError::internal(e.to_string()))?;
+    let result = serde_json::to_value(PaginatedResponse::new(returns, total, page, page_size))
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -150,6 +150,9 @@ pub async fn reject_purchase_return(
         .await?;
 
     // 发送审批拒绝通知
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(ref event_service) = state.event_notification_service {
         if let Some(created_by) = return_order.created_by {
             // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
@@ -205,6 +208,12 @@ pub struct ReturnQueryParams {
     pub page_size: Option<u64>,
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
+    /// 关键字：匹配退货单号
+    pub keyword: Option<String>,
+    /// 退货日期范围下界（ISO / YYYY-MM-DD）
+    pub start_date: Option<String>,
+    /// 退货日期范围上界（ISO / YYYY-MM-DD）
+    pub end_date: Option<String>,
 }
 
 /// 拒绝退货单请求

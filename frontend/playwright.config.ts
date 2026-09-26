@@ -28,6 +28,10 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  // 默认单 worker（本地顺序可复现）。CI e2e 分片通过 CLI `--workers` 覆盖为多 worker，
+  // 让同一片内不同 spec 文件并行、文件内 `test.describe.serial` 业务流链仍保持串行，
+  // 从而消除 flow 分片的串行长尾（见 .github/workflows/ci-cd.yml ci-e2e）。
+  // 这里保持 fullyParallel:false 是有意的：开它会打散文件内 serial 链、引入假失败。
   workers: 1,
   // 真实登录一次，保存 cookie storageState 供所有 spec 复用（避免每 spec 独立登录触发 429）
   globalSetup: './e2e/global-setup.ts',
@@ -40,10 +44,17 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
+    // el-dialog/el-select 开合逐帧动画导致 Playwright 动作性"element is not stable"点击超时;
+    // 关 CSS 动画使交互确定性稳定,不改任何断言(组件已核无真实重渲染)。
+    animations: 'disabled',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     // 诊断模式（用户指令：尽可能多获取测试日志便于错误分析，减少 CI 重跑次数）
-    video: 'retain-on-failure',
+    // video 仍只在失败时保留（通过片不产录屏，无诊断损失）。显式降低录屏分辨率到
+    // 854x480（默认跟随 viewport 1280x720）：webm 体积随像素数近似线性下降，
+    // 单条失败录屏约缩到原来的 ~47%，是失败片产物瘦身的主贡献项之一。
+    // 失败诊断能力不减：trace（含 action 时间线/网络/console）与 error-context 仍在。
+    video: { mode: 'retain-on-failure', size: { width: 854, height: 480 } },
     // 浏览器语言设为中文（i18n 浏览器语言协商读 navigator.language，
     // Playwright 默认 en-US 导致页面英文渲染，E2E 中文文本断言全部失败）
     locale: 'zh-CN',
@@ -74,15 +85,28 @@ export default defineConfig({
     },
   ],
   // 项目级覆盖：smoke 可并行，flow 串行。
-  // testMatch 扩全业务目录（P3.3）：purchase/sales/purchase-ext/quality/
-  // finance/crm/bpm/enhanced/traversal 去 mock 后全部进主 CI testMatch
-  // e2e/setup-wizard/ 仍由 playwright.setup-wizard.config.ts 单独运行
+  // 收集策略：排除式（testIgnore），不再用目录白名单。
+  //
+  // 白名单踩过的坑：这里曾经是
+  // /(flow|smoke|enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm|traversal)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/
+  // CI 矩阵给 extras 分片新增了 ai/dashboard/fabric/inventory/mrp/production/
+  // quotations/sales-ext/system 九个目录，白名单没同步，而这九个目录在 Linux 上
+  // 一条分支都匹配不到 → 分片以 `Error: No tests found.` 退出码 1 直接红。
+  // 本地 Windows 看不出这个差异：testMatch 匹配的是**相对 config 文件**的路径，
+  // Windows 分隔符是反斜杠，第二分支 `^[^/]*\.spec\.ts$` 里的 `[^/]*` 能吃掉整条
+  // `e2e\ai\01-process.spec.ts`，于是同一份配置实测收 260 文件（Windows）
+  // vs 237 文件（Linux）。结论：这类"只在一种路径分隔符下成立"的锚定正则不可用。
+  //
+  // 现在的写法：testMatch 只认扩展名，目录级排除交给 testIgnore（优先级高于
+  // testMatch，且不需要锚点，天然对两种分隔符一致）。新增测试目录无需登记，
+  // 忘记登记也不会再出现"目录写了 spec 但主套件不收"的漂移。
+  testIgnore: /[/\\]setup-wizard[/\\]/,
+  testIgnore: /[/\\]setup-wizard[/\\]/,
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testMatch:
-        /(flow|smoke|enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm|traversal)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/,
+      testMatch: /\.spec\.ts$/,
     },
     {
       name: 'firefox',
@@ -92,8 +116,7 @@ export default defineConfig({
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
-      testMatch:
-        /(flow|smoke|enhanced|purchase|sales|purchase-ext|quality|finance|crm|bpm|traversal)\/.*\.spec\.ts|^[^/]*\.spec\.ts$/,
+      testMatch: /\.spec\.ts$/,
     },
   ],
 })

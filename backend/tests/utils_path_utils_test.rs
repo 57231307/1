@@ -41,7 +41,14 @@ fn test_is_module_prefix_rzyxty() {
     assert!(is_module_prefix("ws"));
     assert!(is_module_prefix("init"));
     assert!(is_module_prefix("system-update"));
-    assert!(is_module_prefix("dashboard"));
+    // dashboard / notifications 是叶子资源：其子路径（overview/sales-stats/unread-count/
+    // 记录 ID）是同一注册资源下的动作或记录，权限注册表登记的资源名就是它们本身。
+    // 若当模块前缀，推导资源名会变成注册表外的 sales-stats/unread-count，
+    // 任何角色都拿不到该权限码，非 admin 访问仪表板与铃铛恒 fail-closed 403。
+    assert!(!is_module_prefix("dashboard"));
+    assert!(!is_module_prefix("notifications"));
+    assert!(is_known_resource_segment("dashboard"));
+    assert!(is_known_resource_segment("notifications"));
     assert!(is_module_prefix("audit-logs"));
     assert!(is_module_prefix("slow-queries"));
     assert!(is_module_prefix("user"));

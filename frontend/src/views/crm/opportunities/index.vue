@@ -37,15 +37,8 @@
         class="filter-form"
         :aria-label="t('crmOpportunities.filter.ariaLabel')"
       >
-        <el-form-item :label="t('crmOpportunities.filter.keyword')">
-          <el-input
-            v-model="queryParams.keyword"
-            :placeholder="t('crmOpportunities.filter.keywordPlaceholder')"
-            clearable
-            @clear="handleQuery"
-            @keyup.enter="handleQuery"
-          />
-        </el-form-item>
+        <!-- 后端 OpportunityQuery（crm_dto.rs:108）仅有 opportunity_stage/page/page_size：
+             原 keyword/owner_id/priority 筛选控件系假筛选（参数被 Axum 静默丢弃），已移除 -->
         <el-form-item :label="t('crmOpportunities.filter.stage')">
           <el-select
             v-model="queryParams.opportunity_stage"
@@ -53,36 +46,31 @@
             clearable
             @change="handleQuery"
           >
-            <el-option :label="t('crmOpportunities.stage.initial')" value="INITIAL" />
-            <el-option :label="t('crmOpportunities.stage.requirement')" value="REQUIREMENT" />
-            <el-option :label="t('crmOpportunities.stage.proposal')" value="PROPOSAL" />
-            <el-option :label="t('crmOpportunities.stage.negotiation')" value="NEGOTIATION" />
-            <el-option :label="t('crmOpportunities.stage.won')" value="WON" />
-            <el-option :label="t('crmOpportunities.stage.lost')" value="LOST" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="t('crmOpportunities.filter.owner')">
-          <el-select
-            v-model="queryParams.owner_id"
-            :placeholder="t('crmOpportunities.filter.ownerPlaceholder')"
-            clearable
-            filterable
-            @change="handleQuery"
-          >
-            <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="t('crmOpportunities.filter.priority')">
-          <el-select
-            v-model="queryParams.priority"
-            :placeholder="t('crmOpportunities.filter.priorityPlaceholder')"
-            clearable
-            @change="handleQuery"
-          >
-            <el-option :label="t('crmOpportunities.priority.low')" value="LOW" />
-            <el-option :label="t('crmOpportunities.priority.medium')" value="MEDIUM" />
-            <el-option :label="t('crmOpportunities.priority.high')" value="HIGH" />
-            <el-option :label="t('crmOpportunities.priority.urgent')" value="URGENT" />
+            <!-- 选项值对齐后端真实阶段常量（QUALIFICATION/NEEDS_ANALYSIS/.../CLOSED_WON/CLOSED_LOST） -->
+            <el-option
+              :label="t('crmOpportunities.stageLabels.QUALIFICATION')"
+              :value="OPPORTUNITY_STAGE.QUALIFICATION"
+            />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.NEEDS_ANALYSIS')"
+              :value="OPPORTUNITY_STAGE.NEEDS_ANALYSIS"
+            />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.PROPOSAL')"
+              :value="OPPORTUNITY_STAGE.PROPOSAL"
+            />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.NEGOTIATION')"
+              :value="OPPORTUNITY_STAGE.NEGOTIATION"
+            />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.CLOSED_WON')"
+              :value="OPPORTUNITY_STAGE.CLOSED_WON"
+            />
+            <el-option
+              :label="t('crmOpportunities.stageLabels.CLOSED_LOST')"
+              :value="OPPORTUNITY_STAGE.CLOSED_LOST"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -190,7 +178,10 @@
             }}</el-button>
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
-              v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
+              v-if="
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_WON &&
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_LOST
+              "
               v-permission="'crm_opportunity:update'"
               type="primary"
               link
@@ -199,7 +190,10 @@
               >{{ t('crmOpportunities.table.edit') }}</el-button
             >
             <el-button
-              v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
+              v-if="
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_WON &&
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_LOST
+              "
               type="warning"
               link
               size="small"
@@ -207,7 +201,7 @@
               >{{ t('crmOpportunities.table.follow') }}</el-button
             >
             <el-button
-              v-if="row.opportunity_stage === 'NEGOTIATION'"
+              v-if="row.opportunity_stage === OPPORTUNITY_STAGE.NEGOTIATION"
               type="success"
               link
               size="small"
@@ -215,13 +209,27 @@
               >{{ t('crmOpportunities.table.win') }}</el-button
             >
             <el-button
-              v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
+              v-if="
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_WON &&
+                row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_LOST
+              "
               type="danger"
               link
               size="small"
               @click="handleLost(row)"
               >{{ t('crmOpportunities.table.lost') }}</el-button
             >
+            <el-button
+              v-if="row.opportunity_stage === OPPORTUNITY_STAGE.CLOSED_WON"
+              type="success"
+              link
+              size="small"
+              @click="handleConvertToOrder(row)"
+              >{{ t('crmOpportunities.table.toOrder') }}</el-button
+            >
+            <el-button type="info" link size="small" @click="handleCrmAnalytics(row)">
+              {{ t('crmOpportunities.table.analytics') }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -306,6 +314,17 @@
         }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
+
+    <!-- 商机分析弹窗 -->
+    <el-dialog
+      v-model="analyticsVisible"
+      :title="t('crmOpportunities.table.analyticsDialogTitle')"
+      width="560px"
+    >
+      <div class="analytics-lines" style="white-space: pre-wrap; line-height: 1.8">
+        {{ analyticsLines.join('\n') }}
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -314,12 +333,26 @@ import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue';
-import { updateOpportunity, exportOpportunities, type Opportunity } from '@/api/crm';
+import {
+  updateOpportunity,
+  exportOpportunities,
+  convertOpportunityToOrder,
+  getForecastAccuracy,
+  getConversionRate,
+  getStageDuration,
+  type Opportunity,
+} from '@/api/crm';
 import { getUserList, type User } from '@/api/user';
 import { getCustomerList, type Customer } from '@/api/customer';
+import { formatCurrency } from '@/utils';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
+import {
+  OPPORTUNITY_STAGE,
+  opportunityStageLabelKey,
+  opportunityStageTagType,
+} from '@/utils/crm-status';
 import OpportunityFormTab from './tabs/OpportunityFormTab.vue';
 import OpportunityFollowTab from './tabs/OpportunityFollowTab.vue';
 
@@ -338,11 +371,9 @@ interface OpportunityRow extends Opportunity {
   win_probability?: number;
 }
 
+// 键名与后端 OpportunityQuery（crm_dto.rs:108）对齐：后端不读 keyword/owner_id/priority
 const queryParams = reactive({
-  keyword: '',
   opportunity_stage: '',
-  owner_id: '',
-  priority: '',
 });
 
 // 批次 269：接入 useTableApi，消除手写分页重复
@@ -356,6 +387,8 @@ const {
   setQueryParam,
 } = useTableApi<OpportunityRow>({
   url: '/crm/opportunities',
+  // 钉到后端真实键（crm_service::list_opportunities → json!({ data, total, page, page_size })）
+  listKey: 'data',
   onError: (e: unknown) => logger.warn(t('crmOpportunities.message.loadFailed'), String(e)),
 });
 
@@ -375,8 +408,9 @@ const viewData = ref<OpportunityRow | null>(null);
 const fetchUsers = async () => {
   try {
     const res = await getUserList();
-    users.value = res.data?.users || [];
+    users.value = res.data.users;
   } catch (error) {
+    logAuxLoadFailure(t('crmOpportunities.message.loadUsersFailed'), error);
     users.value = [];
   }
 };
@@ -386,24 +420,20 @@ const fetchCustomers = async () => {
     const res = await getCustomerList();
     customers.value = res.data?.items || [];
   } catch (error) {
+    logAuxLoadFailure(t('crmOpportunities.message.loadCustomersFailed'), error);
     customers.value = [];
   }
 };
 
 const handleQuery = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined);
+  // 同步筛选条件到 useTableApi（后端 OpportunityQuery 仅读 opportunity_stage）
   setQueryParam('opportunity_stage', queryParams.opportunity_stage || undefined);
-  setQueryParam('owner_id', queryParams.owner_id || undefined);
-  setQueryParam('priority', queryParams.priority || undefined);
   page.value = 1;
   getList();
 };
 
 const handleReset = () => {
-  queryParams.keyword = '';
   queryParams.opportunity_stage = '';
-  queryParams.owner_id = '';
-  queryParams.priority = '';
   handleQuery();
 };
 
@@ -457,6 +487,67 @@ const handleWin = async (row: OpportunityRow) => {
   }
 };
 
+// 赢单商机一键转销售订单（后端生成订单草稿并回填关联）
+const handleConvertToOrder = async (row: OpportunityRow) => {
+  try {
+    await ElMessageBox.confirm(
+      `${t('crmOpportunities.message.convertConfirm')}（${row.opportunity_name}）`,
+      t('crmOpportunities.table.toOrder'),
+      { type: 'info' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    const res = await convertOpportunityToOrder(row.id);
+    const orderId = (res.data as unknown as { order_id?: number })?.order_id;
+    ElMessage.success(
+      orderId
+        ? `${t('crmOpportunities.message.convertSuccess')}：SO #${orderId}`
+        : t('crmOpportunities.message.convertSuccess')
+    );
+    getList();
+  } catch (error) {
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('crmOpportunities.message.convertFailed'));
+  }
+};
+
+// 商机分析弹窗：预测准确率 + 转化率 + 阶段时长（汇总文本展示）
+const analyticsVisible = ref(false);
+const analyticsLines = ref<string[]>([]);
+const handleCrmAnalytics = async (row: OpportunityRow) => {
+  analyticsVisible.value = true;
+  analyticsLines.value = [t('crmOpportunities.message.analyticsLoading')];
+  const lines: string[] = [];
+  try {
+    const res = await getForecastAccuracy({ year: new Date().getFullYear() });
+    const d = res.data as unknown as Record<string, unknown> | null;
+    lines.push(...Object.entries(d || {}).map(([k, v]) => `预测准确率.${k}: ${v}`));
+  } catch (e) {
+    lines.push(`预测准确率: ${(e as Error).message}`);
+  }
+  try {
+    const res = await getConversionRate({ months_back: 12 });
+    const d = res.data as unknown as Record<string, unknown> | null;
+    lines.push(...Object.entries(d || {}).map(([k, v]) => `转化率.${k}: ${v}`));
+  } catch (e) {
+    lines.push(`转化率: ${(e as Error).message}`);
+  }
+  try {
+    const res = await getStageDuration({ opportunity_id: row.id });
+    const d = res.data as unknown as Array<Record<string, unknown>> | null;
+    lines.push(
+      ...((d || []) as Array<{ stage?: string; days?: number }>).map(
+        it => `阶段时长.${it.stage}: ${it.days} 天`
+      )
+    );
+  } catch (e) {
+    lines.push(`阶段时长: ${(e as Error).message}`);
+  }
+  analyticsLines.value = lines.length ? lines : ['暂无分析数据'];
+};
+
 const handleLost = async (row: OpportunityRow) => {
   try {
     await ElMessageBox.confirm(
@@ -482,7 +573,11 @@ const handleLost = async (row: OpportunityRow) => {
 // v11 批次 141 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载
 const handleExport = async () => {
   try {
-    const blob = await exportOpportunities(queryParams);
+    // 后端 export_opportunities 带 Query<OpportunityQuery>，仅应用 opportunity_stage；
+    // 空串归一为 undefined，避免 Some("") 精确匹配把结果滤空。
+    const blob = await exportOpportunities({
+      opportunity_stage: queryParams.opportunity_stage || undefined,
+    });
     const url = window.URL.createObjectURL(new Blob([blob]));
     const link = document.createElement('a');
     link.href = url;
@@ -510,32 +605,12 @@ const handleCurrentChange = (val: number) => {
   page.value = val;
 };
 
-const formatCurrency = (value: number) => {
-  return value ? `¥${value.toFixed(2)}` : '¥0.00';
-};
-
 const getStageType = (stage: string) => {
-  const typeMap: Record<string, string> = {
-    INITIAL: 'info',
-    REQUIREMENT: '',
-    PROPOSAL: 'warning',
-    NEGOTIATION: 'primary',
-    WON: 'success',
-    LOST: 'danger',
-  };
-  return typeMap[stage] || 'info';
+  return opportunityStageTagType(stage);
 };
 
 const getStageLabel = (stage: string) => {
-  const labelMap: Record<string, string> = {
-    INITIAL: t('crmOpportunities.stage.initial'),
-    REQUIREMENT: t('crmOpportunities.stage.requirement'),
-    PROPOSAL: t('crmOpportunities.stage.proposal'),
-    NEGOTIATION: t('crmOpportunities.stage.negotiation'),
-    WON: t('crmOpportunities.stage.won'),
-    LOST: t('crmOpportunities.stage.lost'),
-  };
-  return labelMap[stage] || stage;
+  return t(opportunityStageLabelKey(stage));
 };
 
 onMounted(() => {

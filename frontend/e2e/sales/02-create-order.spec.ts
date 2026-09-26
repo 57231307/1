@@ -1,92 +1,107 @@
 // P9-3 销售 E2E 套件 — 02 创建销售订单
-// 创建时间: 2026-06-17
-// 覆盖范围：销售订单创建全流程（5 用例）
+// 覆盖范围：销售订单列表访问、报价转订单、建单表单字段/校验/明细行增删
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelect } from '../flow/ui-helpers';
 
 /**
- * 测试套件：销售订单创建
- *
- * 业务流程：
- * 1. 报价单转销售订单
- * 2. 直接创建销售订单
- * 3. 多产品行/双计量单位（米+公斤）
- * 4. 颜色/等级要求
- * 5. 批次要求
+ * 真实 UI 事实（据源码核对，不虚构选择器）：
+ * - 销售管理为扁平单页：router path:'sales' → views/sales/index.vue → OrderListView.vue。
+ *   无 /sales/order/create 子路由；新建为页内 OrderFormDialog 对话框。
+ * - OrderFormDialog.vue 真实字段（locales/zh-CN.ts sales.orderForm.*）：
+ *   客户(customer select 占位 '选择客户')、订单日期(默认今日)、要求交货日期(必填 date 占位 '选择日期')、
+ *   联系人(占位 '联系人姓名')、联系电话(占位 '联系电话')、收货地址(占位 '详细收货地址')、
+ *   明细行内 el-table：产品(select 占位 '选择产品')、色号(select 占位 '留空表示白坯布')、
+ *   数量(spinbutton)、单价(spinbutton)；底部按钮 '取消'/'确定'。
+ *   —— 不存在“双计量(米+公斤)”“潘通色号”“等级”等字段，原 02-03/02-04 系按不存在的 UI 编写。
+ * - 明细行操作：'添加明细' 按钮新增、行内 '删除' 链接删除（剩 1 行时删除弹 '至少保留一条明细'）。
+ * - 提交成功走 useOlvProc.handleFormSubmit → msg.success('createSuccess') = '创建成功'
+ *   （message.createSuccess 存在）。必填项缺失时 el-form 校验文案 '请选择客户' 等。
+ * - 报价转订单：/quotations 列表已批准行（状态标签 '已批准'，QUOTATION_STATUS_LABELS）
+ *   行内 '转订单' 按钮 → ElMessageBox.confirm('确定') → convertQuotation →
+ *   router.push('/sales/orders/:id') → OrderDetail.vue 标题 '销售订单详情'。
  */
 test.describe('02 创建销售订单', () => {
-  test.beforeEach(async ({ page, context }) => {
-    // V15 Batch 487 P0-T05：注入 auth mock，业务 API 走真实后端（applyAuthMocks 不再 mock 业务 API）
+  test.beforeEach(async ({ context }) => {
+    // auth mock 仅注入登录态，业务 API 走真实后端
     await applyAuthMocks(context);
-    await page.goto('/');
   });
 
   test('02-01 销售订单列表可访问', async ({ page }) => {
-    await page.goto('/sales/order/list');
-    await expect(page.getByText('销售订单列表')).toBeVisible();
-    await expect(page.getByRole('button', { name: /新建销售订单/ })).toBeVisible();
+    await page.goto('/sales');
+    // OrderListView 页头真实标题 sales.indexPage.title = '销售订单管理'
+    await expect(page.getByText('销售订单管理')).toBeVisible();
+    // 新建按钮真实文案 sales.indexPage.newOrder = '新建订单'
+    await expect(page.getByRole('button', { name: /新建订单/ })).toBeVisible();
   });
 
-  test('02-02 从报价单一键转销售订单', async ({ page }) => {
-    await page.goto('/sales/quotation/list');
-    // 找到已审批通过的报价单
-    const approved = page.locator('tr, .el-table__row').filter({ hasText: '已审批' }).first();
-    await approved.getByRole('button', { name: /转订单/ }).click();
-    // 确认对话框
-    await page.getByRole('button', { name: /确定/ }).click();
-    // 跳转到销售订单创建页（带预填数据）
-    await expect(page).toHaveURL(/\/sales\/order\/create/);
-    // 客户/产品应已预填
-    const customerInput = page.getByLabel(/客户/).first();
-    await expect(customerInput).not.toHaveValue('');
+  test('02-02 从报价单一键转销售订单并跳转订单详情', async ({ page }) => {
+    await page.goto('/quotations');
+    // 报价单已批准状态标签为 '已批准'（QUOTATION_STATUS_LABELS.approved），原用例误写 '已审批'
+    const approved = page.getByRole('row').filter({ hasText: '已批准' }).first();
+    await expect(approved).toBeVisible();
+    // 真实行内按钮文案 quotations.list.convertOrder = '转订单'
+    await approved.getByRole('button', { name: '转订单', exact: true }).click();
+    // 确认对话框（handleConvert ElMessageBox.confirm）
+    await page.getByRole('button', { name: '确定', exact: true }).click();
+    // 成功后跳转 /sales/orders/:id（OrderDetail.vue）
+    await expect(page).toHaveURL(/\/sales\/orders\/\d+/);
+    // 详情页真实标题 sales.orderDetail.title = '销售订单详情'
+    await expect(page.getByText('销售订单详情')).toBeVisible();
   });
 
-  test('02-03 创建带双计量单位（米 + 公斤）的销售订单', async ({ page }) => {
-    await page.goto('/sales/order/create');
-    // 选客户
-    await page.getByLabel(/客户/).first().click();
-    await page.getByRole('option').first().click();
-    // 选产品
-    await page.getByLabel(/产品/).first().click();
-    await page.getByRole('option').first().click();
-    // 米数
-    await page.getByLabel(/数量.*米|米数/).fill('500');
-    // 公斤数
-    await page.getByLabel(/数量.*公斤|公斤数/).fill('120');
-    // 单价
-    await page.getByLabel(/单价/).fill('35.50');
-    await page.getByRole('button', { name: /保存/ }).click();
-    await expect(page.getByText(/销售订单号.*SO-\d{8}-\d{4}/)).toBeVisible({ timeout: 30000 });
+  test('02-03 建单表单必填校验拦截空提交', async ({ page }) => {
+    await page.goto('/sales');
+    await page.getByRole('button', { name: /新建订单/ }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    // 明细行产品未选、必填基本信息未填，直接点 '确定'
+    await dialog.getByRole('button', { name: '确定', exact: true }).click();
+    // el-form 校验：客户为必填 → 展示 sales.orderForm.customerRequired = '请选择客户'
+    await expect(dialog.getByText('请选择客户')).toBeVisible();
+    // 校验未通过时不应产生成功提示
+    await expect(page.locator('.el-message--success')).toHaveCount(0);
   });
 
-  test('02-04 创建带颜色与等级要求的销售订单', async ({ page }) => {
-    await page.goto('/sales/order/create');
-    await page.getByLabel(/客户/).first().click();
-    await page.getByRole('option').first().click();
-    await page.getByLabel(/产品/).first().click();
-    await page.getByRole('option').first().click();
-    // 色号
-    await page.getByLabel(/色号/).fill('CN-2026-001');
-    await page.getByLabel(/潘通色号/).fill('PANTONE-18-1664');
-    await page.getByLabel(/等级/).fill('A');
-    await page.getByLabel(/数量/).fill('200');
-    await page.getByLabel(/单价/).fill('45.00');
-    await page.getByRole('button', { name: /保存/ }).click();
-    await expect(page.getByText(/保存成功|创建成功/)).toBeVisible();
+  test('02-04 合法填写客户与明细后可创建销售订单', async ({ page }) => {
+    await page.goto('/sales');
+    await page.getByRole('button', { name: /新建订单/ }).click();
+    const dialog = page.getByRole('dialog');
+    // 客户：对话框内首个 el-select（el-select 不含 date-picker，索引稳定），下拉选项 teleported 到 body
+    await pickSelect(page, dialog.locator('.el-select').first());
+    // 要求交货日期（必填 date picker，占位 '选择日期' 的第 2 个）
+    await dialog.getByPlaceholder('选择日期').nth(1).fill('2026-12-31');
+    await page.keyboard.press('Enter');
+    // 联系人 / 联系电话 / 收货地址（el-input，占位属性真实存在）
+    await dialog.getByPlaceholder('联系人姓名').fill('张三');
+    await dialog.getByPlaceholder('联系电话').fill('13800138000');
+    await dialog.getByPlaceholder('详细收货地址').fill('浙江省杭州市西湖区文三路 100 号');
+    // 明细行产品（客户之后第 2 个 el-select，el-select 排除 date-picker 故索引稳定）
+    await pickSelect(page, dialog.locator('.el-select').nth(1));
+    // 数量 / 单价（spinbutton）
+    await dialog.getByRole('spinbutton').first().fill('200');
+    await dialog.getByRole('spinbutton').nth(1).fill('45.5');
+    // 确定提交
+    await dialog.getByRole('button', { name: '确定', exact: true }).click();
+    // 真实落库反馈：msg.success('createSuccess') = '创建成功'
+    await expect(page.getByText('创建成功')).toBeVisible({ timeout: 30000 });
   });
 
-  test('02-05 销售订单行项可动态增删', async ({ page }) => {
-    await page.goto('/sales/order/create');
-    // 添加 3 行产品
-    for (let i = 0; i < 3; i++) {
-      await page.getByRole('button', { name: /添加行项|新增行/ }).click();
-    }
-    // 验证有 3 个产品行
-    const rows = page.locator('[data-testid="order-item-row"]');
-    await expect(rows).toHaveCount(3);
-    // 删除第 2 行
-    await rows.nth(1).getByRole('button', { name: /删除/ }).click();
-    await expect(rows).toHaveCount(2);
+  test('02-05 销售订单明细行可动态增删', async ({ page }) => {
+    await page.goto('/sales');
+    await page.getByRole('button', { name: /新建订单/ }).click();
+    const dialog = page.getByRole('dialog');
+    // 明细编辑表 aria-label sales.orderForm.itemsTableAriaLabel = '销售订单明细编辑表'
+    const itemsTable = dialog.getByRole('table', { name: '销售订单明细编辑表' });
+    // 默认 1 行
+    await expect(itemsTable.getByRole('row')).toHaveCount(1);
+    // '添加明细' 两次 → 3 行
+    await dialog.getByRole('button', { name: '添加明细' }).click();
+    await dialog.getByRole('button', { name: '添加明细' }).click();
+    await expect(itemsTable.getByRole('row')).toHaveCount(3);
+    // 删除末行 → 2 行
+    await itemsTable.getByRole('row').last().getByRole('button', { name: '删除' }).click();
+    await expect(itemsTable.getByRole('row')).toHaveCount(2);
   });
 });

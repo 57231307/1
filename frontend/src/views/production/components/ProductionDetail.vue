@@ -33,10 +33,10 @@
           order.actual_quantity || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('production.detail.labelScheduledStart')">{{
-          order.scheduled_start_date?.substring(0, 10) || '-'
+          order.planned_start_date?.substring(0, 10) || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('production.detail.labelScheduledEnd')">{{
-          order.scheduled_end_date?.substring(0, 10) || '-'
+          order.planned_end_date?.substring(0, 10) || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('production.detail.labelActualStart')">{{
           order.actual_start_date?.substring(0, 10) || '-'
@@ -51,10 +51,10 @@
           order.priority
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('production.detail.labelCreateTime')" :span="2">
-          {{ order.created_at || '-' }}
+          {{ order.created_at }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('production.detail.labelRemark')" :span="2">{{
-          order.remark || '-'
+          order.remarks || '-'
         }}</el-descriptions-item>
       </el-descriptions>
     </div>
@@ -67,9 +67,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { PRODUCTION_ORDER_STATUS, type ProductionOrder } from '@/api/production';
+import { ElMessage } from 'element-plus';
+import { getProductionOrder, type ProductionOrder } from '@/api/production';
+import { getStatusLabel, getStatusType } from '../composables/prdFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -82,36 +84,30 @@ const emit = defineEmits<{
   'update:visible': [v: boolean];
 }>();
 
-/** 状态标签：优先 i18n，回退到 PRODUCTION_ORDER_STATUS 字典 */
-const statusLabel = (status: string): string => {
-  const key = `production.detail.status${status.charAt(0).toUpperCase() + status.slice(1)}`;
-  const translated = t(key);
-  return translated === key
-    ? PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label || status
-    : translated;
-};
+// 详情回源：打开时按 ID 拉取最新订单，失败保留行数据
+const freshOrder = ref<ProductionOrder | null>(null);
 
-// el-tag 组件支持的 type 联合类型
-type TagType = '' | 'success' | 'warning' | 'info' | 'danger';
+watch(
+  () => props.visible,
+  async val => {
+    if (val && props.order?.id) {
+      try {
+        const res = await getProductionOrder(props.order.id);
+        if (res.data) freshOrder.value = res.data;
+      } catch (e) {
+        ElMessage.error((e as Error).message || '获取生产订单详情失败');
+      }
+    } else if (!val) {
+      freshOrder.value = null;
+    }
+  }
+);
 
-// 合法 TagType 集合
-const VALID_TAG_TYPES: ReadonlySet<TagType> = new Set(['', 'success', 'warning', 'info', 'danger']);
+// 模板优先展示回源后的最新数据，回源失败回退行数据
+const order = computed(() => freshOrder.value ?? props.order);
 
-/** 将任意字符串安全转换为 el-tag 合法 TagType */
-const toTagType = (s: string): TagType => (VALID_TAG_TYPES.has(s as TagType) ? (s as TagType) : '');
+const statusLabel = getStatusLabel;
 
-// 状态字符串到 el-tag type 的原始映射
-const statusTagTypeMap: Record<string, string> = {
-  draft: 'info',
-  planned: 'primary',
-  in_progress: 'warning',
-  completed: 'success',
-  cancelled: 'danger',
-};
-
-// 状态对应的 el-tag type
-const statusTagType = computed<TagType>(() => {
-  const status = props.order?.status || '';
-  return toTagType(statusTagTypeMap[status] || 'info');
-});
+// 状态配色与列表同源（prdFmts 取后端真实状态机取值）
+const statusTagType = computed(() => getStatusType(props.order?.status || ''));
 </script>

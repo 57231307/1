@@ -36,6 +36,10 @@
         />
       </el-tab-pane>
 
+      <el-tab-pane label="报表订阅" name="subscription">
+        <SubscriptionPanel />
+      </el-tab-pane>
+
       <el-tab-pane :label="t('advancedModule.tabRecipe')" name="recipe">
         <AdvancedRecipePanel
           :recipe-form="rcp.recipeForm.value"
@@ -79,6 +83,7 @@ import AdvancedAiPanel from './components/AdvancedAiPanel.vue';
 import AdvancedReportPanel from './components/AdvancedReportPanel.vue';
 import AdvancedRecipePanel from './components/AdvancedRecipePanel.vue';
 import AdvancedQualityPanel from './components/AdvancedQualityPanel.vue';
+import SubscriptionPanel from './components/SubscriptionPanel.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 

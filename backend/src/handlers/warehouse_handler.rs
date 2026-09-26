@@ -30,6 +30,8 @@ pub struct WarehouseListQuery {
     pub page_size: Option<u64>,
     pub status: Option<String>,
     pub search: Option<String>,
+    /// 仓库类型（greige/raw/finished/semi/return），列表页的类型下拉按此值精确筛选
+    pub warehouse_type: Option<String>,
 }
 
 /// 创建仓库请求
@@ -46,6 +48,11 @@ pub struct CreateWarehouseRequest {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
+    /// 联系人（契约对齐：前端创建表单 contact_person）
+    #[validate(length(max = 100, message = "联系人最长100字符"))]
+    pub contact_person: Option<String>,
+    /// 默认仓库标志（契约对齐：前端创建表单 is_default 开关）
+    pub is_default: Option<bool>,
     /// 仓库容量（批次 158 v11 真实接入：扩展 schema 持久化，原 #[allow(dead_code)] 移除）
     pub capacity: Option<i32>,
     // 批次 93 P1 扩展：description 已接入 WarehouseService::create（写入 notes 列）
@@ -65,6 +72,11 @@ pub struct UpdateWarehouseRequest {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
+    /// 联系人（契约对齐：前端编辑表单 contact_person）
+    #[validate(length(max = 100, message = "联系人最长100字符"))]
+    pub contact_person: Option<String>,
+    /// 默认仓库标志（契约对齐：前端编辑表单 is_default 开关）
+    pub is_default: Option<bool>,
     /// 仓库容量（批次 158 v11 真实接入：扩展 schema 持久化，原 #[allow(dead_code)] 移除）
     pub capacity: Option<i32>,
     pub status: Option<String>,
@@ -88,7 +100,6 @@ pub struct LocationListQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub warehouse_id: Option<i32>,
-    pub search: Option<String>,
 }
 
 /// 创建库位请求
@@ -315,7 +326,7 @@ fn build_warehouse_row(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<
     vec![
         get_str("id"),
         get_str("warehouse_code"),
-        get_str("name"),
+        get_str("warehouse_name"),
         get_str("address"),
         get_str("city"),
         get_str("province"),
@@ -375,6 +386,7 @@ fn record_warehouses_export_audit(
             "total": row_count,
             "status_filter": query.status,
             "search_filter": query.search,
+            "warehouse_type_filter": query.warehouse_type,
         })),
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));

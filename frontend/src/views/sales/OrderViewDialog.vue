@@ -36,7 +36,7 @@
         order?.contact_phone
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('sales.orderView.deliveryAddress')" :span="2">{{
-        order?.delivery_address
+        order?.shipping_address
       }}</el-descriptions-item>
       <el-descriptions-item :label="t('sales.orderView.orderAmount')">
         ¥{{ order?.total_amount?.toLocaleString() }}
@@ -50,6 +50,9 @@
     <el-table :data="order?.items" border :aria-label="t('sales.orderView.itemsTableAriaLabel')">
       <el-table-column prop="product_name" :label="t('sales.orderView.productName')" />
       <el-table-column prop="product_code" :label="t('sales.orderView.productCode')" width="120" />
+      <el-table-column :label="t('sales.orderView.colorNo')" width="120">
+        <template #default="{ row }">{{ row.color_no || t('sales.orderView.greige') }}</template>
+      </el-table-column>
       <el-table-column
         prop="quantity"
         :label="t('sales.orderView.quantity')"
@@ -75,6 +78,16 @@
           <strong>¥{{ row.subtotal.toLocaleString() }}</strong>
         </template>
       </el-table-column>
+      <el-table-column
+        prop="quantity_tolerance_pct"
+        :label="t('sales.orderView.tolerance')"
+        width="100"
+        align="right"
+      >
+        <template #default="{ row }">
+          {{ row.quantity_tolerance_pct != null ? Number(row.quantity_tolerance_pct) + '%' : '-' }}
+        </template>
+      </el-table-column>
     </el-table>
   </el-dialog>
 </template>
@@ -82,6 +95,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import type { SalesOrder } from '@/api/sales';
+import { salesStatusLabelKey, salesStatusTagType } from '@/utils/sales-status';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -94,25 +108,11 @@ const emit = defineEmits<{
   'update:visible': [value: boolean];
 }>();
 
-const getStatusType = (status: string | undefined) => {
-  const typeMap: Record<string, string> = {
-    pending: 'warning',
-    approved: 'primary',
-    shipped: 'success',
-    completed: 'info',
-    cancelled: 'danger',
-  };
-  return typeMap[status || ''] || 'info';
-};
+const getStatusType = (status: string | undefined) => salesStatusTagType(status);
 
+/** 状态文案：词表外的值由 utils/sales-status 抛错暴露，不再回显裸枚举；订单未加载时无状态可显示 */
 const getStatusText = (status: string | undefined) => {
-  const textMap: Record<string, string> = {
-    pending: t('sales.statusLabels.pending'),
-    approved: t('sales.statusLabels.approved'),
-    shipped: t('sales.statusLabels.shipped'),
-    completed: t('sales.statusLabels.completed'),
-    cancelled: t('sales.statusLabels.cancelled'),
-  };
-  return textMap[status || ''] || status || '';
+  const key = salesStatusLabelKey(status);
+  return key ? t(key) : '';
 };
 </script>

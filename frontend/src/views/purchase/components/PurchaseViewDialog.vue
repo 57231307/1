@@ -44,17 +44,17 @@ const emit = defineEmits<{
           data.order_date
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchase.viewDlg.requiredDate')">{{
-          data.required_date
+          data.expected_delivery_date
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchase.viewDlg.totalAmount')"
           >¥{{ data.total_amount?.toLocaleString() }}</el-descriptions-item
         >
         <el-descriptions-item :label="t('purchase.viewDlg.receivedAmount')"
-          >¥{{ (data.received_amount || 0).toLocaleString() }}</el-descriptions-item
+          >¥{{ data.received_amount }}</el-descriptions-item
         >
         <el-descriptions-item :label="t('purchase.viewDlg.paymentStatus')">
-          <el-tag :type="getPaymentStatusType(data.payment_status || '')">{{
-            getPaymentStatusText(data.payment_status || '')
+          <el-tag :type="getPaymentStatusType(data.payment_status ?? '')">{{
+            getPaymentStatusText(data.payment_status ?? '')
           }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item :label="t('purchase.viewDlg.status')">
@@ -67,7 +67,7 @@ const emit = defineEmits<{
           data.created_at
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchase.viewDlg.remark')" :span="2">{{
-          data.remarks || t('purchase.viewDlg.noRemark')
+          data.notes
         }}</el-descriptions-item>
       </el-descriptions>
       <div style="margin-top: 20px">
@@ -90,6 +90,18 @@ const emit = defineEmits<{
           />
           <el-table-column prop="quantity" :label="t('purchase.viewDlg.colQuantity')" width="100" />
           <el-table-column
+            prop="quantity_tolerance_pct"
+            :label="t('purchase.viewDlg.colTolerance')"
+            width="100"
+            align="right"
+          >
+            <template #default="{ row }">
+              {{
+                row.quantity_tolerance_pct != null ? Number(row.quantity_tolerance_pct) + '%' : '-'
+              }}
+            </template>
+          </el-table-column>
+          <el-table-column
             prop="unit_price"
             :label="t('purchase.viewDlg.colUnitPrice')"
             width="100"
@@ -100,7 +112,7 @@ const emit = defineEmits<{
             :label="t('purchase.viewDlg.colReceived')"
             width="100"
           />
-          <el-table-column prop="remarks" :label="t('purchase.viewDlg.colRemark')" />
+          <el-table-column prop="notes" :label="t('purchase.viewDlg.colRemark')" />
         </el-table>
       </div>
     </template>

@@ -35,11 +35,30 @@ function onTokenRefreshFailed(error: unknown) {
 
 // V15 P2 20.2-D：错误消息去重，避免短时间内弹出多条相同错误提示
 const _recentErrors = new Set<string>();
+// 网络断开兜底文案只弹一次，直到有请求成功（证明网络恢复）再重置
+let _networkErrorToastShown = false;
 function showErrorOnce(message: string): void {
   if (_recentErrors.has(message)) return;
   _recentErrors.add(message);
   ElMessage.error(message);
   setTimeout(() => _recentErrors.delete(message), 2000);
+}
+
+/**
+ * 从后端错误响应体中提取 message。
+ *
+ * 后端 AppError 出参的 message 默认即为脱敏常量（如「业务处理失败」），
+ * 仅当构造点显式声明可外显（AppError::business_displayable）时才是真实业务文案
+ * （见 backend/src/utils/error.rs 模块文档的安全边界）。
+ * 因此这里优先展示后端 message，不再用前端固定文案覆盖它；
+ * message 缺失/非字符串/空白时才回退到按 HTTP 状态码映射的固定文案。
+ */
+function extractBackendMessage(data: unknown): string | undefined {
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const m = (data as { message?: unknown }).message;
+    if (typeof m === 'string' && m.trim() !== '') return m;
+  }
+  return undefined;
 }
 
 /**
@@ -67,6 +86,32 @@ function isCsrfPublicPath(url: string): boolean {
   return CSRF_PUBLIC_PREFIXES.some(prefix => url === prefix || url.startsWith(prefix + '/'));
 }
 
+/**
+ * 查询参数序列化：未填写的筛选项（空串/纯空白）不进入 query string。
+ *
+ * 与后端「空串查询参数在边界视为未提供」是同一契约的两端。列表页未选的筛选项会以
+ * `?keyword=`/`?status=` 形态提交，若进入 query 会被后端反序列化成 Some("") 并生成
+ * `WHERE col = ''` 恒 0 行。此处统一剔除空值键，从源头避免该缺陷复发。
+ * 注意：数字 0 与布尔 false 是有效取值，绝不因「假值」被丢弃；仅空串/纯空白被剔除。
+ */
+function serializeParams(params: Record<string, unknown>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item === undefined || item === null) continue;
+        if (typeof item === 'string' && item.trim() === '') continue;
+        search.append(key, String(item));
+      }
+      continue;
+    }
+    if (typeof value === 'string' && value.trim() === '') continue;
+    search.append(key, String(value));
+  }
+  return search.toString();
+}
+
 class Request {
   private instance: AxiosInstance;
 
@@ -77,6 +122,7 @@ class Request {
       // Wave B-3：开启凭据发送，使 httpOnly Cookie（access_token / refresh_token）能随请求到达后端
       // 这是 httpOnly Cookie 鉴权方案的**关键开关**：未开启则浏览器拒绝发送 Set-Cookie 之外的 Cookie
       withCredentials: true,
+      paramsSerializer: { serialize: serializeParams },
       headers: {
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
@@ -127,24 +173,17 @@ class Request {
 
     this.instance.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
+        // 任意成功响应证明网络恢复，重置网络断开兜底文案的一次性提示标记
+        _networkErrorToastShown = false;
         // Blob 响应（文件下载/导出）无 code 信封，直接放行交给调用方处理二进制
         if (response.config.responseType === 'blob' || response.data instanceof Blob) {
           return response;
         }
-        const res = response.data;
-        if (res.code !== 200 && res.code !== 0) {
-          const safeMessage = getSafeErrorMessage(res.code);
-          showErrorOnce(safeMessage);
-          if (res.code === 401) {
-            // Wave B-3：凭据由后端 Cookie 管理，前端无需清理 localStorage；
-            // 直接跳转登录页，后端会在登出时通过 Set-Cookie 清除 Cookie
-            router.push('/login');
-          }
-          return Promise.reject(new Error(safeMessage));
-        }
-        // P2 1-11 修复：原 `return res as any` 丢失类型信息
-        // 拦截器返回 ApiResponse 而非 AxiosResponse，用 unknown 断言满足 axios 类型系统
-        return res as unknown as AxiosResponse;
+        // 2xx 响应体即成功：后端成功信封的 code 恒为 200，失败一律以非 2xx 状态码返回并
+        // 出参统一失败信封 `{code: "<字符串机器码>", message, trace_id, timestamp}`
+        // （backend/src/utils/error.rs），因此这里不存在"200 里夹带业务错误码"的分支，
+        // 业务/认证/权限失败全部由下方 error 拦截器处理。
+        return response.data as unknown as AxiosResponse;
       },
       async error => {
         const originalRequest = error.config;
@@ -224,9 +263,12 @@ class Request {
 
         // 网络层自动重试仅限幂等方法（GET/HEAD）：
         // POST/PUT/DELETE 重试可能造成重复制单/重复扣减，必须由上层带幂等键显式控制
+        // 触发条件用 isIdempotent + shouldRetry，而非 _retry 标记：_retry 仅由 401 刷新链路置位，
+        // 普通网络错误（无 response / 5xx 网关态）若仍卡 _retry 则该重试分支永不进入，
+        // 退化为「首次失败即弹提示」，叠加 useTableApi 外层重试导致同一断网文案重复弹出。
         const reqMethod = (originalRequest?.method || '').toLowerCase();
         const isIdempotent = ['get', 'head', 'options'].includes(reqMethod);
-        if (originalRequest?._retry && isIdempotent && shouldRetry(error)) {
+        if (isIdempotent && shouldRetry(error)) {
           originalRequest._retryCount = originalRequest._retryCount || 0;
 
           if (originalRequest._retryCount < 3) {
@@ -237,7 +279,20 @@ class Request {
           }
         }
 
-        const safeMessage = getSafeErrorMessage(error.response?.status);
+        // 优先展示后端 message（AppError 出参默认即脱敏常量，显式外显时为真实业务文案），
+        // 缺失时回退按 HTTP 状态码映射的固定文案
+        const safeMessage =
+          extractBackendMessage(error.response?.data) ??
+          getSafeErrorMessage(error.response?.status);
+        // 纯网络错误（无 HTTP 响应）经拦截器 3 次退避重试穷尽后，断开期间同一兜底文案只弹一次，
+        // 直到任意请求成功（_networkErrorToastShown 在成功拦截器复位）。
+        // 这避免上层（useTableApi 等）继续重试时再次落入此处造成重复 toast。
+        if (!error.response) {
+          if (_networkErrorToastShown) {
+            return Promise.reject(error);
+          }
+          _networkErrorToastShown = true;
+        }
         showErrorOnce(safeMessage);
 
         if (error.response?.status === 401) {

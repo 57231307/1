@@ -264,9 +264,10 @@ pub async fn create_announcement(
     user_ids.sort_unstable();
     user_ids.dedup();
 
-    let event_service = state.event_notification_service.clone().ok_or_else(|| {
-        AppError::internal("事件通知服务未启用，无法发送系统公告")
-    })?;
+    let event_service = state
+        .event_notification_service
+        .clone()
+        .ok_or_else(|| AppError::internal("事件通知服务未启用，无法发送系统公告"))?;
 
     event_service
         .send_system_announcement(user_ids.clone(), title, content)

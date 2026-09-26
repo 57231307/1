@@ -8,7 +8,12 @@
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
-import { createSalesContract, updateSalesContract, type SalesContract } from '@/api/sales-contract';
+import {
+  createSalesContract,
+  updateSalesContract,
+  type SalesContract,
+  type CreateSalesContractPayload,
+} from '@/api/sales-contract';
 // D14 Batch 5b：原 customerApi 对象已转风格 B 函数
 import { getCustomerList, type Customer } from '@/api/customer';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
@@ -73,6 +78,13 @@ export function useSc() {
     delivery_date: '',
     delivery_location: '',
     remarks: '',
+    items: [] as Array<{
+      product_name: string;
+      unit: string;
+      quantity: number;
+      unit_price: number;
+      quantity_tolerance_pct: number | undefined;
+    }>,
   });
 
   // 懒加载标记
@@ -139,22 +151,53 @@ export function useSc() {
       delivery_date: '',
       delivery_location: '',
       remarks: '',
+      items: [],
     });
   };
 
   /** 准备编辑表单（父组件需自行打开对话框） */
   const prepareEdit = (row: SalesContract) => {
     dialogTitle.value = '编辑销售合同';
-    Object.assign(formData, row);
+    Object.assign(formData, {
+      ...row,
+      items: (row.items ?? []).map(it => ({
+        product_name: it.product_name,
+        unit: it.unit,
+        quantity: it.quantity,
+        unit_price: it.price,
+        // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
+        quantity_tolerance_pct:
+          it.quantity_tolerance_pct != null ? Number(it.quantity_tolerance_pct) : undefined,
+      })),
+    });
   };
 
   /** 提交表单 */
   const handleSubmitForm = async () => {
     try {
       if (formData.id) {
-        await updateSalesContract(formData.id, formData);
+        await updateSalesContract(formData.id, formData as unknown as Partial<SalesContract>);
       } else {
-        await createSalesContract(formData);
+        const payload: CreateSalesContractPayload = {
+          contract_no: formData.contract_no,
+          contract_name: formData.contract_name,
+          customer_id: formData.customer_id!,
+          total_amount: formData.total_amount,
+          contract_type: formData.contract_type || undefined,
+          payment_terms: formData.payment_terms || undefined,
+          delivery_date: formData.delivery_date || undefined,
+          remark: formData.remarks || undefined,
+          items: formData.items
+            .filter(i => i.product_name && i.quantity > 0)
+            .map(i => ({
+              product_name: i.product_name,
+              unit: i.unit,
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+              quantity_tolerance_pct: i.quantity_tolerance_pct,
+            })),
+        };
+        await createSalesContract(payload);
       }
       msg.success('saveSuccess');
       await getList();

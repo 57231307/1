@@ -69,11 +69,16 @@
     />
     <ElTableColumn :label="t('voucher.voucherListTable.columnAction')" width="300" align="center">
       <template #default="scope">
-        <ElButton size="small" @click="emit('view', scope.row as VoucherEntity)">
+        <ElButton
+          v-permission-detail="{ resource: 'vouchers', action: 'read' }"
+          size="small"
+          @click="emit('view', scope.row as VoucherEntity)"
+        >
           <View />
         </ElButton>
         <ElButton
           v-if="scope.row.status === 'draft'"
+          v-permission-detail="{ resource: 'vouchers', action: 'update' }"
           size="small"
           type="primary"
           @click="emit('edit', scope.row as VoucherEntity)"

@@ -622,14 +622,14 @@ impl AccountingPeriodService {
 
         if let Some(p) = period {
             if p.status == period_status::CLOSED {
-                return Err(AppError::business(format!(
+                return Err(AppError::business_displayable(format!(
                     "日期 {} 属于已结账的财务期间 ({})，该期间的数据已被锁定，不可修改或新增。",
                     date.format("%Y-%m-%d"),
                     p.period_name
                 )));
             }
         } else {
-            return Err(AppError::business(format!(
+            return Err(AppError::business_displayable(format!(
                 "日期 {} 不在任何已设置的会计期间内，请先创建对应的会计期间。",
                 date.format("%Y-%m-%d")
             )));
@@ -661,14 +661,14 @@ impl AccountingPeriodService {
 
         if let Some(p) = period {
             if p.status == period_status::CLOSED {
-                return Err(AppError::business(format!(
+                return Err(AppError::business_displayable(format!(
                     "日期 {} 属于已结账的财务期间 ({})，该期间的数据已被锁定，不可修改或新增。",
                     date.format("%Y-%m-%d"),
                     p.period_name
                 )));
             }
         } else {
-            return Err(AppError::business(format!(
+            return Err(AppError::business_displayable(format!(
                 "日期 {} 不在任何已设置的会计期间内，请先创建对应的会计期间。",
                 date.format("%Y-%m-%d")
             )));

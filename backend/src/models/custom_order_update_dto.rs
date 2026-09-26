@@ -32,7 +32,7 @@ pub struct CreateProcessNodeDto {
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct UpdateProcessNodeDto {
     pub status: Option<String>,
-    pub operator_id: Option<i64>,
+    pub operator_id: Option<i32>,
     pub actual_start_date: Option<chrono::DateTime<chrono::Utc>>,
     pub actual_end_date: Option<chrono::DateTime<chrono::Utc>>,
     pub notes: Option<String>,
@@ -42,7 +42,7 @@ pub struct UpdateProcessNodeDto {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AdvanceNodeDto {
     pub action: String,
-    pub operator_id: i64,
+    pub operator_id: i32,
     pub notes: Option<String>,
     pub attachments: Option<Vec<String>>,
 }
@@ -51,7 +51,7 @@ pub struct AdvanceNodeDto {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AddProcessLogDto {
     pub action: String,
-    pub operator_id: i64,
+    pub operator_id: i32,
     pub before_status: Option<String>,
     pub after_status: Option<String>,
     pub log_content: Option<String>,

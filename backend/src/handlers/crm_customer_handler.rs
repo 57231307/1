@@ -16,7 +16,7 @@ use crate::models::crm_tag;
 use crate::models::dto::crm_dto::{CreateLeadRequest, LeadQuery, UpdateLeadRequest};
 use crate::services::crm::cust::CrmService;
 use crate::services::customer_service::{
-    CreateCustomerContactRequest, CustomerService, UpdateCustomerContactRequest,
+    CreateCustomerContactRequest, CustomerService, UpdateCustomerArgs, UpdateCustomerContactRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -107,17 +107,65 @@ pub async fn get_customer(
     Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
 }
 
-/// PUT /api/v1/erp/crm/customers/:id - 更新客户
+/// CRM 增强客户更新请求 DTO：客户编辑弹窗提交字段，含状态（active/inactive）
+/// 走客户域 CustomerService 更新链路落库
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateEnhancedCustomerRequest {
+    pub customer_name: Option<String>,
+    pub contact_person: Option<String>,
+    pub contact_phone: Option<String>,
+    pub contact_email: Option<String>,
+    pub address: Option<String>,
+    pub customer_type: Option<String>,
+    /// 税号（前端字段名 tax_number → 后端 tax_id）
+    pub tax_number: Option<String>,
+    pub credit_limit: Option<rust_decimal::Decimal>,
+    pub bank_name: Option<String>,
+    pub bank_account: Option<String>,
+    /// 客户状态（active/inactive）——31c 停用矩阵的核心字段
+    pub status: Option<String>,
+}
+
+/// PUT /api/v1/erp/crm/customers/enhanced/:id - 更新客户（增强路由，客户域落库含 status）
 pub async fn update_customer(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<UpdateLeadRequest>,
+    Json(req): Json<UpdateEnhancedCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = CrmService::new(state.db.clone());
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
+
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-    let lead = service.update_lead(id, req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
+    let customer = customer_service
+        .update_customer(UpdateCustomerArgs {
+            customer_id: id,
+            customer_name: req.customer_name,
+            contact_person: req.contact_person,
+            contact_phone: req.contact_phone,
+            contact_email: req.contact_email,
+            address: req.address,
+            city: None,
+            province: None,
+            postal_code: None,
+            credit_limit: req.credit_limit,
+            payment_terms: None,
+            tax_id: req.tax_number,
+            bank_name: req.bank_name,
+            bank_account: req.bank_account,
+            customer_type: req.customer_type,
+            status: req.status,
+            country: None,
+            customer_industry: None,
+            main_products: None,
+            annual_purchase: None,
+            quality_requirement: None,
+            inspection_standard: None,
+            notes: None,
+            user_id: auth.user_id,
+        })
+        .await?;
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(customer)?)))
 }
 
 /// DELETE /api/v1/erp/crm/customers/:id - 删除客户
@@ -276,5 +324,103 @@ pub async fn delete_tag(
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({"deleted": true, "id": id}),
         "标签删除成功",
+    )))
+}
+
+/// GET /api/v1/erp/crm/customers/:id/tags - 获取客户已挂载标签对象列表
+/// 单次 JOIN 查询（customer_tag INNER JOIN crm_tag），无 N+1。
+pub async fn list_customer_tags(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<Vec<crate::services::crm::CustomerTagBrief>>>, AppError> {
+    use sea_orm::{ColumnTrait, QueryFilter, QueryOrder};
+
+    let tags: Vec<crate::services::crm::CustomerTagBrief> = crm_tag::Entity::find()
+        .inner_join(crate::models::customer_tag::Entity)
+        .filter(crate::models::customer_tag::Column::CustomerId.eq(id))
+        .order_by(crm_tag::Column::Id, sea_orm::Order::Asc)
+        .into_model::<crate::services::crm::CustomerTagBrief>()
+        .all(&*state.db)
+        .await?;
+
+    Ok(Json(ApiResponse::success(tags)))
+}
+
+/// POST /api/v1/erp/crm/customers/:id/tags/:tagId - 给客户挂载标签（幂等）
+/// 如果关联已存在，不报错直接返回成功。
+pub async fn attach_customer_tag(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path((customer_id, tag_id)): Path<(i32, i32)>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use crate::models::customer_tag;
+    use sea_orm::{ColumnTrait, QueryFilter};
+
+    // 校验客户存在
+    let _customer = crate::models::customer::Entity::find_by_id(customer_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
+
+    // 校验标签存在
+    let _tag = crm_tag::Entity::find_by_id(tag_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("标签 {} 不存在", tag_id)))?;
+
+    // 幂等检查：已存在则直接返回成功
+    let existing = customer_tag::Entity::find()
+        .filter(customer_tag::Column::CustomerId.eq(customer_id))
+        .filter(customer_tag::Column::TagId.eq(tag_id))
+        .one(&*state.db)
+        .await?;
+
+    if existing.is_some() {
+        return Ok(Json(ApiResponse::success_with_message(
+            serde_json::json!({"customer_id": customer_id, "tag_id": tag_id, "already_exists": true}),
+            "标签已关联",
+        )));
+    }
+
+    let new_rel = customer_tag::ActiveModel {
+        customer_id: Set(customer_id),
+        tag_id: Set(tag_id),
+        created_by: Set(Some(auth.user_id)),
+        ..Default::default()
+    };
+    new_rel.insert(&*state.db).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({"customer_id": customer_id, "tag_id": tag_id}),
+        "标签关联成功",
+    )))
+}
+
+/// DELETE /api/v1/erp/crm/customers/:id/tags/:tagId - 解除客户标签关联
+pub async fn detach_customer_tag(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path((customer_id, tag_id)): Path<(i32, i32)>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use crate::models::customer_tag;
+    use sea_orm::{ColumnTrait, QueryFilter};
+
+    let result = customer_tag::Entity::delete_many()
+        .filter(customer_tag::Column::CustomerId.eq(customer_id))
+        .filter(customer_tag::Column::TagId.eq(tag_id))
+        .exec(&*state.db)
+        .await?;
+
+    if result.rows_affected == 0 {
+        return Err(AppError::not_found(format!(
+            "客户 {} 与标签 {} 的关联不存在",
+            customer_id, tag_id
+        )));
+    }
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({"customer_id": customer_id, "tag_id": tag_id, "deleted": true}),
+        "标签解除成功",
     )))
 }

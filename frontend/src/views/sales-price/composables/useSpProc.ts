@@ -5,8 +5,9 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
+import { promptApproval } from '@/composables/useActionPrompts';
 import {
   approveSalesPrice,
   getPriceHistory,
@@ -50,17 +51,18 @@ export function useSpProc(refresh: RefreshCallbacks) {
 
   /** 审批 */
   const handleApprove = async (row: SalesPrice) => {
+    // 后端 ApprovePriceRequest 必填 approved（通过/拒绝均留痕）+ 可选 remark：
+    // 采集器让用户显式选择通过/不通过，取消即中断，不预设结论。
+    const decision = await promptApproval();
+    if (!decision) return;
     try {
-      await ElMessageBox.confirm('确认审批通过该价格？', '提示', { type: 'warning' });
-      await approveSalesPrice(row.id);
+      await approveSalesPrice(row.id, { approved: decision.approved, remark: decision.remark });
       msg.success('approveSuccess');
       await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        if (errMsg) ElMessage.error(errMsg || msg.translate('approveFailed'));
-      }
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (errMsg) ElMessage.error(errMsg || msg.translate('approveFailed'));
     }
   };
 
@@ -89,7 +91,8 @@ export function useSpProc(refresh: RefreshCallbacks) {
     strategyLoading.value = true;
     try {
       const res = await getPricingStrategyList();
-      strategyList.value = res.data || [];
+      // 后端 list_strategies 返回 PaginatedResponse ⇒ data.items
+      strategyList.value = res.data.items;
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);

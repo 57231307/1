@@ -59,10 +59,28 @@
     <el-card shadow="hover">
       <template #header>
         <div class="card-header">
-          <span>{{ t('financialAnalysis.analysisListTab.cardTitle') }}</span>
-          <el-button type="primary" size="small" @click="openCreateDialog">
-            <el-icon><Plus /></el-icon>{{ t('financialAnalysis.analysisListTab.buttonCreate') }}
-          </el-button>
+          <div>
+            <span>{{ t('financialAnalysis.analysisListTab.cardTitle') }}</span>
+            <el-button type="primary" size="small" @click="openCreateDialog">
+              <el-icon><Plus /></el-icon>{{ t('financialAnalysis.analysisListTab.buttonCreate') }}
+            </el-button>
+            <el-button type="warning" size="small" plain @click="indicatorVisible = true">
+              新增指标
+            </el-button>
+            <el-button
+              type="info"
+              size="small"
+              plain
+              @click="
+                () => {
+                  trendVisible = true;
+                  handleTrendQuery();
+                }
+              "
+            >
+              财务趋势
+            </el-button>
+          </div>
         </div>
       </template>
       <el-table
@@ -72,17 +90,17 @@
         :aria-label="t('financialAnalysis.analysisListTab.ariaLabelList')"
       >
         <el-table-column
-          prop="reportName"
+          prop="name"
           :label="t('financialAnalysis.analysisListTab.columnReportName')"
           min-width="180"
         />
         <el-table-column
-          prop="reportType"
+          prop="indicator_type"
           :label="t('financialAnalysis.analysisListTab.columnType')"
           width="120"
         >
           <template #default="{ row }">
-            <el-tag size="small">{{ getReportTypeLabel(row.reportType) }}</el-tag>
+            <el-tag size="small">{{ getReportTypeLabel(row.indicator_type) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column
@@ -96,11 +114,13 @@
           width="100"
         >
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
+            <el-tag :type="financialStatusTagType(row.status)">
+              {{ t(financialStatusLabelKey(row.status)) }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column
-          prop="executedAt"
+          prop="executed_at"
           :label="t('financialAnalysis.analysisListTab.columnExecutedAt')"
           width="180"
         />
@@ -112,6 +132,9 @@
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="executeReport(row)">{{
               t('financialAnalysis.analysisListTab.buttonExecute')
+            }}</el-button>
+            <el-button type="warning" link size="small" @click="openParamExec(row)">{{
+              t('financialAnalysis.analysisListTab.buttonParamExec')
             }}</el-button>
             <el-button type="success" link size="small" @click="viewReport(row)">{{
               t('financialAnalysis.analysisListTab.buttonView')
@@ -158,21 +181,18 @@
         label-width="100px"
         :aria-label="t('financialAnalysis.analysisListTab.ariaLabelForm')"
       >
-        <el-form-item
-          :label="t('financialAnalysis.analysisListTab.labelReportName')"
-          prop="reportName"
-        >
+        <el-form-item :label="t('financialAnalysis.analysisListTab.labelReportName')" prop="name">
           <el-input
-            v-model="form.reportName"
+            v-model="form.name"
             :placeholder="t('financialAnalysis.analysisListTab.placeholderReportName')"
           />
         </el-form-item>
         <el-form-item
           :label="t('financialAnalysis.analysisListTab.labelFormReportType')"
-          prop="reportType"
+          prop="report_type"
         >
           <el-select
-            v-model="form.reportType"
+            v-model="form.report_type"
             :placeholder="t('financialAnalysis.analysisListTab.placeholderSelectType')"
             style="width: 100%"
           >
@@ -213,6 +233,77 @@
         }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 带参执行对话框（executeReportWithParams） -->
+    <el-dialog v-model="paramExecVisible" title="带参数执行报表" width="480">
+      <el-form label-width="90px">
+        <el-form-item label="报表">
+          <el-input :model-value="paramExecRow?.name || ''" disabled />
+        </el-form-item>
+        <el-form-item :label="t('financialAnalysis.analysisListTab.labelPeriod')">
+          <!-- 后端仅读 query.period（YYYY-MM）；此前的自由 JSON 参数框发过去会被整体丢弃 -->
+          <el-date-picker
+            v-model="paramExecPeriod"
+            type="month"
+            value-format="YYYY-MM"
+            :clearable="true"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="paramExecVisible = false">取消</el-button>
+        <el-button type="primary" :loading="paramExecSaving" @click="handleParamExec">
+          执行
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 新增财务指标（createFinancialIndicator） -->
+    <el-dialog v-model="indicatorVisible" title="新增财务指标" width="520">
+      <el-form :model="indicatorForm" label-width="100px">
+        <el-form-item label="指标名称" required>
+          <el-input v-model="indicatorForm.name" />
+        </el-form-item>
+        <el-form-item label="计算公式" required>
+          <el-input v-model="indicatorForm.formula" type="textarea" :rows="2" />
+        </el-form-item>
+        <el-form-item label="分类">
+          <el-input v-model="indicatorForm.indicator_type" placeholder="如：ratio" />
+        </el-form-item>
+        <el-form-item label="单位">
+          <el-input v-model="indicatorForm.unit" placeholder="如：% / 元" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="indicatorVisible = false">取消</el-button>
+        <el-button type="primary" :loading="indicatorSaving" @click="handleSaveIndicator">
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 财务趋势查询（getFinancialTrends） -->
+    <el-dialog v-model="trendVisible" title="财务趋势查询" width="640">
+      <div class="toolbar" style="margin-bottom: 8px">
+        <el-input v-model="trendForm.indicator_id" placeholder="指标ID" style="width: 150px" />
+        <el-input v-model="trendForm.start_date" placeholder="开始日期" style="width: 140px" />
+        <el-input v-model="trendForm.end_date" placeholder="结束日期" style="width: 140px" />
+        <el-button type="primary" :loading="trendLoading" @click="handleTrendQuery">
+          查询
+        </el-button>
+      </div>
+      <el-table v-if="trendRows.length" :data="trendRows" border size="small" max-height="300">
+        <el-table-column
+          v-for="col in trendCols"
+          :key="col"
+          :prop="col"
+          :label="col"
+          min-width="120"
+          show-overflow-tooltip
+        />
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -227,8 +318,14 @@ import {
   updateReport,
   deleteReport as deleteReportApi,
   executeFinancialReport,
+  getFinancialReport,
+  executeReportWithParams,
+  createFinancialIndicator,
+  getFinancialTrends,
   type FinancialReport,
+  type CreateReportRequest,
 } from '@/api/financial-analysis';
+import { financialStatusLabelKey, financialStatusTagType } from '@/utils/financial-status';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -244,22 +341,22 @@ const queryForm = reactive({
   period: new Date().toISOString().slice(0, 7),
 });
 
-const form = reactive<Partial<FinancialReport>>({
-  id: undefined,
-  reportName: '',
-  reportType: 'profitability',
+const form = reactive({
+  id: undefined as number | undefined,
+  name: '',
+  report_type: 'profitability',
   period: new Date().toISOString().slice(0, 7),
 });
 
 const rules: FormRules = {
-  reportName: [
+  name: [
     {
       required: true,
       message: t('financialAnalysis.analysisListTab.validateReportNameRequired'),
       trigger: 'blur',
     },
   ],
-  reportType: [
+  report_type: [
     {
       required: true,
       message: t('financialAnalysis.analysisListTab.validateReportTypeRequired'),
@@ -284,46 +381,11 @@ const getReportTypeLabel = (type?: string) => {
   }
 };
 
-/** 报表状态 → i18n 标签（语言切换响应） */
-const getStatusLabel = (status?: string) => {
-  switch (status) {
-    case 'draft':
-      return t('financialAnalysis.analysisListTab.statusDraft');
-    case 'executed':
-      return t('financialAnalysis.analysisListTab.statusExecuted');
-    case 'failed':
-      return t('financialAnalysis.analysisListTab.statusFailed');
-    default:
-      return status || '-';
-  }
-};
-
-const getStatusType = (status?: string) => {
-  const map: Record<string, string> = {
-    draft: 'info',
-    executed: 'success',
-    failed: 'danger',
-  };
-  return map[status || ''] || 'info';
-};
-
 const fetchReports = async () => {
   loading.value = true;
   try {
-    const res = await getReportList(queryForm);
-    const d = (res as { data?: unknown }).data as
-      | {
-          list?: FinancialReport[];
-          items?: FinancialReport[];
-          data?: FinancialReport[];
-          total?: number;
-        }
-      | FinancialReport[];
-    if (Array.isArray(d)) {
-      reports.value = d;
-    } else {
-      reports.value = d?.list || d?.items || [];
-    }
+    const res = await getReportList({ page: 1, page_size: 100 });
+    reports.value = res.data.items;
   } catch (e) {
     const err = e as Error;
     logger.error(t('financialAnalysis.analysisListTab.logFetchFailed'), err);
@@ -339,14 +401,17 @@ const handleAnalyze = () => {
 
 const openCreateDialog = () => {
   form.id = undefined;
-  form.reportName = '';
-  form.reportType = 'profitability';
+  form.name = '';
+  form.report_type = 'profitability';
   form.period = new Date().toISOString().slice(0, 7);
   dialogVisible.value = true;
 };
 
 const editReport = (row: FinancialReport) => {
-  Object.assign(form, row);
+  form.id = row.id;
+  form.name = row.name;
+  form.report_type = row.indicator_type;
+  form.period = row.period || new Date().toISOString().slice(0, 7);
   dialogVisible.value = true;
 };
 
@@ -357,10 +422,16 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     try {
       if (form.id) {
-        await updateReport(form.id, form);
+        await updateReport(form.id, { name: form.name, report_type: form.report_type });
         ElMessage.success(t('financialAnalysis.analysisListTab.messageUpdateSuccess'));
       } else {
-        await createReport(form);
+        const payload: CreateReportRequest = {
+          name: form.name,
+          report_type: form.report_type,
+          period_start: `${form.period}-01`,
+          period_end: `${form.period}-01`,
+        };
+        await createReport(payload);
         ElMessage.success(t('financialAnalysis.analysisListTab.messageCreateSuccess'));
       }
       dialogVisible.value = false;
@@ -386,33 +457,142 @@ const executeReport = async (row: FinancialReport) => {
   }
 };
 
-// 批次 157b P1-1 修复：展示报表详情（无独立 getReport API，使用行数据展示）
+// ===== 带参执行（executeReportWithParams） =====
+const paramExecVisible = ref(false);
+const paramExecSaving = ref(false);
+const paramExecRow = ref<FinancialReport | null>(null);
+const paramExecPeriod = ref('');
+
+const openParamExec = (row: FinancialReport) => {
+  paramExecRow.value = row;
+  paramExecPeriod.value = '';
+  paramExecVisible.value = true;
+};
+
+const handleParamExec = async () => {
+  if (!paramExecRow.value?.id) return;
+  paramExecSaving.value = true;
+  try {
+    await executeReportWithParams(paramExecRow.value.id, paramExecPeriod.value || undefined);
+    ElMessage.success(t('financialAnalysis.analysisListTab.messageExecuteSuccess'));
+    paramExecVisible.value = false;
+    fetchReports();
+  } catch (e) {
+    ElMessage.error(
+      (e as Error).message || t('financialAnalysis.analysisListTab.messageExecuteFailed')
+    );
+  } finally {
+    paramExecSaving.value = false;
+  }
+};
+
+// ===== 新增财务指标（createFinancialIndicator） =====
+const indicatorVisible = ref(false);
+const indicatorSaving = ref(false);
+const indicatorForm = reactive({
+  name: '',
+  formula: '',
+  indicator_type: '',
+  unit: '',
+});
+
+const handleSaveIndicator = async () => {
+  if (!indicatorForm.name || !indicatorForm.formula) {
+    ElMessage.warning('请填写指标名称与计算公式');
+    return;
+  }
+  indicatorSaving.value = true;
+  try {
+    await createFinancialIndicator({
+      name: indicatorForm.name,
+      formula: indicatorForm.formula,
+      indicator_type: indicatorForm.indicator_type || undefined,
+      unit: indicatorForm.unit || undefined,
+    });
+    ElMessage.success(t('common.success'));
+    indicatorVisible.value = false;
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('common.failed'));
+  } finally {
+    indicatorSaving.value = false;
+  }
+};
+
+// ===== 财务趋势查询（getFinancialTrends） =====
+const trendVisible = ref(false);
+const trendLoading = ref(false);
+const trendRows = ref<Array<Record<string, unknown>>>([]);
+const trendCols = ref<string[]>([]);
+const trendForm = reactive({ indicator_id: '', start_date: '', end_date: '' });
+
+const handleTrendQuery = async () => {
+  const indicatorId = Number(trendForm.indicator_id);
+  if (!indicatorId) {
+    trendRows.value = [];
+    trendCols.value = [];
+    return;
+  }
+  trendLoading.value = true;
+  try {
+    const res = await getFinancialTrends({
+      indicator_id: indicatorId,
+      start_date: trendForm.start_date || undefined,
+      end_date: trendForm.end_date || undefined,
+    });
+    const trends = res.data.items;
+    trendRows.value = trends as unknown as Array<Record<string, unknown>>;
+    trendCols.value = trendRows.value.length ? Object.keys(trendRows.value[0]).slice(0, 8) : [];
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('common.failed'));
+  } finally {
+    trendLoading.value = false;
+  }
+};
+
+// 批次 157b P1-1 修复：展示报表详情（现接入 getFinancialReport 按 ID 回源最新数据）
 const viewReport = async (row: FinancialReport) => {
-  const lines = [
-    t('financialAnalysis.analysisListTab.detailReportName', { value: row.reportName || '-' }),
-    t('financialAnalysis.analysisListTab.detailReportType', {
-      value: getReportTypeLabel(row.reportType),
-    }),
-    t('financialAnalysis.analysisListTab.detailPeriod', { value: row.period || '-' }),
-    t('financialAnalysis.analysisListTab.detailStatus', { value: getStatusLabel(row.status) }),
-    t('financialAnalysis.analysisListTab.detailExecutedAt', { value: row.executedAt || '-' }),
-    t('financialAnalysis.analysisListTab.detailCreatedAt', { value: row.createdAt || '-' }),
-    t('financialAnalysis.analysisListTab.detailUpdatedAt', { value: row.updatedAt || '-' }),
-  ];
-  await ElMessageBox.alert(
-    lines.join('\n'),
-    t('financialAnalysis.analysisListTab.dialogTitleDetail'),
-    {
-      confirmButtonText: t('financialAnalysis.analysisListTab.buttonClose'),
+  if (row.id === undefined) return;
+  try {
+    const res = await getFinancialReport(row.id);
+    if (res.data) {
+      const detail = res.data;
+      const lines = [
+        t('financialAnalysis.analysisListTab.detailReportName', {
+          value: detail.name || '-',
+        }),
+        t('financialAnalysis.analysisListTab.detailReportType', {
+          value: getReportTypeLabel(detail.indicator_type),
+        }),
+        t('financialAnalysis.analysisListTab.detailPeriod', { value: detail.period || '-' }),
+        t('financialAnalysis.analysisListTab.detailStatus', {
+          value: t(financialStatusLabelKey(detail.status)),
+        }),
+        t('financialAnalysis.analysisListTab.detailExecutedAt', {
+          value: detail.executed_at || '-',
+        }),
+        t('financialAnalysis.analysisListTab.detailCreatedAt', { value: detail.created_at || '-' }),
+        t('financialAnalysis.analysisListTab.detailUpdatedAt', { value: detail.updated_at || '-' }),
+      ];
+      await ElMessageBox.alert(
+        lines.join('\n'),
+        t('financialAnalysis.analysisListTab.dialogTitleDetail'),
+        {
+          confirmButtonText: t('financialAnalysis.analysisListTab.buttonClose'),
+        }
+      );
     }
-  );
+  } catch (err) {
+    ElMessage.error(
+      (err as Error).message || t('financialAnalysis.analysisListTab.messageFetchFailed')
+    );
+  }
 };
 
 const deleteReport = async (row: FinancialReport) => {
   if (row.id === undefined) return;
   try {
     await ElMessageBox.confirm(
-      t('financialAnalysis.analysisListTab.confirmDeleteMessage', { name: row.reportName }),
+      t('financialAnalysis.analysisListTab.confirmDeleteMessage', { name: row.name }),
       t('financialAnalysis.analysisListTab.dialogTitleDeleteConfirm'),
       { type: 'warning' }
     );

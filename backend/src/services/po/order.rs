@@ -41,6 +41,10 @@ pub struct PurchaseOrderDto {
     pub shipping_terms: Option<String>,
     pub notes: Option<String>,
     pub created_by: i32,
+    /// 创建人姓名：created_by -> users.real_name（LEFT JOIN，可空）
+    pub creator_name: Option<String>,
+    /// 已入库金额：该订单下所有 purchase_receipt.total_amount 之和（关联标量子查询聚合，无入库单时为 NULL）
+    pub received_amount: Option<rust_decimal::Decimal>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -67,6 +71,11 @@ pub struct PurchaseOrderItemDto {
     pub total_amount: rust_decimal::Decimal,
     pub received_quantity: rust_decimal::Decimal,
     pub returned_quantity: rust_decimal::Decimal,
+    // 转采购翻译回填的供应商侧快照编码（采购域可见，用于实际下单/收货核对；
+    // 属 purchase_order_item 真实列，经 list_order_items 全列 SELECT 自动映射）。
+    // 保密：销售域响应不含这两列——此 DTO 仅由 /purchase/orders/{id}/items 返回。
+    pub supplier_product_code: Option<String>,
+    pub supplier_color_no: Option<String>,
     pub notes: Option<String>,
 }
 

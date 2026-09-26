@@ -1,7 +1,7 @@
 # Bingxi Management Platform
 
 [![Build Status](https://github.com/57231307/1/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/57231307/1/actions/workflows/ci-cd.yml)
-[![License](https://img.shields.io/badge/license-Proprietary-blue)]()
+[![License](https://img.shields.io/badge/license-Proprietary-blue)](<>)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 > **Bingxi Management Platform** 是一款面向**面料纺织行业**的现代化企业资源计划平台，覆盖采购、销售、库存、生产、财务、CRM 等核心业务，并集成 **AI 智能分析**、**BI 数据仓库**、**WebSocket 实时通信**、**BPM 审批流** 等能力，赋能企业数字化转型。
@@ -40,31 +40,31 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 - **合规安全**：RBAC 权限矩阵 + 字段级权限 + PostgreSQL RLS 行级安全（dept 数据范围语义）+ 打印导出审计 + 二级审批 + 中国法律合规（劳动法/数据安全法/个人信息保护法）
 - **可观测性**：trace 链路 + Prometheus 指标 + 慢查询审计 + API 网关熔断 + 流复制故障转移
 
-**项目数据（截至 2026-09-09，RLS dept 数据范围语义落地）**：
+**项目数据（截至 2026-09-20，Round 7-iter21 后端编译阻塞清除与安全豁免清单收敛）**：
 
-| 指标 | 数值 |
-|------|------|
-| 后端 Rust 代码 | ~294,000 行（src 247,234 + tests 32,721 + migration 14,104 实测） |
-| 后端 Rust 文件 | 1,360 个（src 1,070 + tests 249 + migration 41） |
-| 后端 Handler | 181 个 |
-| 后端 Service | 410 个（含 ops 子模块拆分文件） |
-| 后端 Model | 336 个 |
-| 后端 Route 模块 | 43 个 |
-| 后端 Middleware | 21 个（含 RLS 会话上下文中间件） |
-| 后端业务事件 | 34 种（事件总线 + Kafka + ES 刷新 + 幂等去重） |
-| 后端状态机 | 30+ 个（四种范式：DB规则表/枚举payload/utils纯函数/JSON图遍历） |
-| 后端集成测试 | 249 个文件 / 2,050 个测试函数 |
-| 后端迁移 | 7 个业务域聚合迁移（system/business/sales_crm/production/finance/v15/rls_dept），Rust 代码内联 SQL，`bingxi migrate run` 执行 |
-| 后端基准测试 | 4 个 criterion 基准（染整成本/库存/凭证/工资） |
-| 前端 Vue 文件 | 376 个（~85,700 行） |
-| 前端 TS 文件 | 229 个（~51,200 行） |
-| 前端 Views 子模块 | 81 个 |
-| 前端 API 模块 | 96 个 |
-| 前端 i18n 翻译键 | 10,500+ 个 |
-| 前端 E2E 测试 | 733 个 / 218 个 spec 文件（116 冒烟 + 394 工作流 + 9 Setup 向导真实链路 + 214 其他） |
-| Clippy Baseline | 4,274 行（185 条唯一警告） |
-| 最新版本 | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001） |
-| 安全漏洞存量 | 0（密钥泄露扫描工作区+git 历史：0 发现） |
+| 指标              | 数值                                                                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 后端 Rust 代码    | ~298,600 行（src 251,054 + tests 33,246 + migration 14,285 实测）                                                                  |
+| 后端 Rust 文件    | 1,370 个（src 1,073 + tests 253 + migration 44）                                                                                   |
+| 后端 Handler      | 182 个                                                                                                                             |
+| 后端 Service      | 410 个（含 ops 子模块拆分文件）                                                                                                    |
+| 后端 Model        | 338 个                                                                                                                             |
+| 后端 Route 模块   | 43 个                                                                                                                              |
+| 后端 Middleware   | 21 个（含 RLS 会话上下文中间件）                                                                                                   |
+| 后端业务事件      | 34 种（事件总线 + Kafka + ES 刷新 + 幂等去重）                                                                                     |
+| 后端状态机        | 30+ 个（四种范式：DB规则表/枚举payload/utils纯函数/JSON图遍历）                                                                    |
+| 后端集成测试      | 257 个文件 / 2,095 个测试函数                                                                                                      |
+| 后端迁移          | 7 个业务域聚合迁移（system/business/sales_crm/production/finance/v15/rls_dept），Rust 代码内联 SQL，`bingxi migrate run` 执行      |
+| 后端基准测试      | 4 个 criterion 基准（染整成本/库存/凭证/工资）                                                                                     |
+| 前端 Vue 文件     | 420 个                                                                                                                             |
+| 前端 TS 文件      | 268 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                        |
+| 前端 Views 子模块 | 110 个                                                                                                                             |
+| 前端 API 模块     | 121 个                                                                                                                             |
+| 前端 i18n 翻译键  | zh-CN 10,101 / en-US 10,124（代码引用字面键 9,328，双语缺失校验 0；`labelKey:` 词表键同受校验；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验） |
+| 前端 E2E 测试     | 2,668 个 / 259 个 spec 文件（flow 工作流 + traversal 端点遍历 + 冒烟 + enhanced + Setup 向导 + 其余业务目录）                              |
+| Clippy Baseline   | 4,274 行（185 条唯一警告）                                                                                                         |
+| 最新版本          | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001）                                                                     |
+| 安全漏洞存量      | 0（密钥泄露扫描工作区+git 历史：0 发现）                                                                                           |
 
 ---
 
@@ -98,7 +98,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 ### 3. AI 智能分析
 
 - **工艺优化**：染料-布类配伍性校验 + 参数推荐 + 化验室打样集成 + 模型版本管理
-- **质量预测**：特征工程（dye_type/auxiliary_type/temperature_range 等）+ 实际结果回填 + 准确率对账
+- **质量预测**：特征工程（dye_type/auxiliary_type/temperature_range 等）+ 推理超时/模型不可用降级标记；实际结果回填与准确率对账端点已实现，界面尚未接入（见 doto）
 - **补货推荐**：与 MRP 引擎对账 + 差异标注人工复核
 - **异常检测**：统计 + 机器学习双引擎
 - **AI 治理**：模型可解释性 + 数据脱敏 + 推理超时降级 + 并发控制 + 缓存策略 + 决策审计日志
@@ -117,7 +117,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 - **权限矩阵**：14 类业务角色差异化权限 + 职责分离 SoD 校验 + is_system 滥用治理
 - **PostgreSQL RLS 行级安全**：数据库原生 Row Level Security + 会话级 GUC 上下文（tokio task-local + 连接池钩子自动注入）+ dept 数据范围语义（主部门+兼职部门+子部门动态展开）+ fail-closed 策略 + 应用层双语义条件对齐（成员集合/部门归属）
 - **打印导出审计**：端点合理性 + 角色权限矩阵 + 二级审批 + 文件水印 + 并发控制 + 合规定期审查
-- **安全防护**：JWT + refresh_token（2 天对齐）+ PUBLIC_PATHS 精确匹配 + Webhook payload 脱敏 + magic bytes 校验 + zip bomb 防护 + SSRF 防护 + 路径穿越防护
+- **安全防护**：JWT + refresh_token（2 天对齐）+ PUBLIC_PATHS / AUTH_ONLY_PATHS 双清单精确匹配（集中 `middleware/public_routes.rs` 单一真相源，CSRF 与 RBAC 中间件共用，新增条目须逐条论证无业务写副作用）+ Webhook payload 脱敏 + magic bytes 校验 + zip bomb 防护 + SSRF 防护 + 路径穿越防护
 - **法律合规**：中国法律法规 + 数据脱敏（手机/邮箱/身份证/银行卡）+ 成品文档格式（xlsx/docx）+ 纺织行业法律财税环保劳动
 
 ### 6. 可观测性与运维
@@ -133,7 +133,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 ### 7. 国际化与前端体验
 
-- **vue-i18n** 中英双语 + 9,424 个翻译键
+- **vue-i18n** 中英双语 + 约 1.01 万个翻译键（zh-CN 10,101 / en-US 10,124）
 - **PWA 支持**：manifest.json + Service Worker + 离线缓存
 - **移动端适配**：响应式 + 侧边栏抽屉化 + 汉堡按钮 ≥44px（WCAG 2.5.5）
 - **性能优化**：manualChunks 代码分割 + ECharts 按需引入 + optimizeDeps + V2Table 虚拟列表
@@ -148,64 +148,64 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 ### 后端（单体 Rust 服务）
 
-| 类别 | 技术 | 版本 |
-|------|------|------|
-| 语言 | Rust | 1.94+ |
-| Web 框架 | Axum | 0.8 |
-| ORM | SeaORM | 2.0 |
-| 数据库 | PostgreSQL | 15+ |
-| 缓存 | Redis | 7+ |
-| 异步运行时 | Tokio | 1.x |
-| 事件总线 | rskafka | 0.5 |
-| 序列化 | serde | 1.0 |
-| 密码 | argon2 | 0.5 |
-| JWT | jsonwebtoken | 11.0 |
-| 验证 | validator | 0.21 |
-| 日志 | tracing | 0.1 |
-| 缓存（进程内） | moka | 0.12 |
-| 全局单例 | arc-swap | 1.7 |
-| Excel 导出 | rust_xlsxwriter | 0.98 |
-| Excel 导入 | calamine | 0.36 |
-| Word 生成 | docx-rs | 0.4 |
-| PDF 生成 | printpdf | 0.7 |
-| API 文档 | utoipa | 5.2 |
-| TOTP 2FA | totp-rs | 6.0 |
-| HTTP 客户端 | reqwest | 0.13 |
-| 配置 | config | 0.15 |
-| 错误处理 | thiserror | 2.0 |
-| 并发数据结构 | dashmap | 6.2 |
-| 测试 | cargo test + mockall + criterion | — |
+| 类别           | 技术                             | 版本  |
+| -------------- | -------------------------------- | ----- |
+| 语言           | Rust                             | 1.94+ |
+| Web 框架       | Axum                             | 0.8   |
+| ORM            | SeaORM                           | 2.0   |
+| 数据库         | PostgreSQL                       | 15+   |
+| 缓存           | Redis                            | 7+    |
+| 异步运行时     | Tokio                            | 1.x   |
+| 事件总线       | rskafka                          | 0.5   |
+| 序列化         | serde                            | 1.0   |
+| 密码           | argon2                           | 0.5   |
+| JWT            | jsonwebtoken                     | 11.0  |
+| 验证           | validator                        | 0.21  |
+| 日志           | tracing                          | 0.1   |
+| 缓存（进程内） | moka                             | 0.12  |
+| 全局单例       | arc-swap                         | 1.7   |
+| Excel 导出     | rust_xlsxwriter                  | 0.98  |
+| Excel 导入     | calamine                         | 0.36  |
+| Word 生成      | docx-rs                          | 0.4   |
+| PDF 生成       | printpdf                         | 0.7   |
+| API 文档       | utoipa                           | 5.2   |
+| TOTP 2FA       | totp-rs                          | 6.0   |
+| HTTP 客户端    | reqwest                          | 0.13  |
+| 配置           | config                           | 0.15  |
+| 错误处理       | thiserror                        | 2.0   |
+| 并发数据结构   | dashmap                          | 6.2   |
+| 测试           | cargo test + mockall + criterion | —     |
 
 ### 前端（单体 Vue 3 SPA）
 
-| 类别 | 技术 | 版本 |
-|------|------|------|
-| 语言 | TypeScript | 5.9 |
-| 框架 | Vue | 3.5 |
-| 构建 | Vite | 8.2 |
-| UI 库 | Element Plus | 2.14+ |
-| 状态 | Pinia | 4.0 |
-| 路由 | Vue Router | 5.2 |
-| HTTP | Axios | 1.19 |
-| 国际化 | vue-i18n | 11.4 |
-| 图表 | ECharts | 6.1 |
-| 虚拟列表 | el-table-v2 | 2.14+ |
-| 单元测试 | Vitest | 4.1 |
-| E2E 测试 | Playwright | 1.40 |
-| 规范 | ESLint | 10.8 |
-| 格式化 | Prettier | 3.9 |
+| 类别     | 技术         | 版本  |
+| -------- | ------------ | ----- |
+| 语言     | TypeScript   | 5.9   |
+| 框架     | Vue          | 3.5   |
+| 构建     | Vite         | 8.2   |
+| UI 库    | Element Plus | 2.14+ |
+| 状态     | Pinia        | 4.0   |
+| 路由     | Vue Router   | 5.2   |
+| HTTP     | Axios        | 1.19  |
+| 国际化   | vue-i18n     | 11.4  |
+| 图表     | ECharts      | 6.1   |
+| 虚拟列表 | el-table-v2  | 2.14+ |
+| 单元测试 | Vitest       | 4.1   |
+| E2E 测试 | Playwright   | 1.40  |
+| 规范     | ESLint       | 10.8  |
+| 格式化   | Prettier     | 3.9   |
 
 ### 基础设施
 
-| 类别 | 技术 | 用途 |
-|------|------|------|
-| 部署 | systemd + CLI 工具（bingxi） | 服务管理 |
-| 反向代理 | Nginx | HTTP / WS / CSP |
-| 监控 | Prometheus | 指标采集 |
-| 可视化 | Grafana | 仪表盘 |
-| 告警 | Alertmanager | 告警路由 |
-| 日志 | Loki | 日志聚合 |
-| CI/CD | GitHub Actions | 自动化 |
+| 类别     | 技术                         | 用途            |
+| -------- | ---------------------------- | --------------- |
+| 部署     | systemd + CLI 工具（bingxi） | 服务管理        |
+| 反向代理 | Nginx                        | HTTP / WS / CSP |
+| 监控     | Prometheus                   | 指标采集        |
+| 可视化   | Grafana                      | 仪表盘          |
+| 告警     | Alertmanager                 | 告警路由        |
+| 日志     | Loki                         | 日志聚合        |
+| CI/CD    | GitHub Actions               | 自动化          |
 
 > **注意**：项目**不使用** Docker / Kubernetes / Helm，采用 systemd 直部署方式。
 
@@ -290,33 +290,51 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 ### 5 域核心业务
 
-| 域 | 子功能 | 状态 |
-|----|--------|------|
-| 采购管理 | 供应商 / 订单 / 合同 / 价格 / 入库 / 退货 / 供应商评估 | 已完成 |
-| 销售管理 | 客户 / 订单 / 合同 / 价格 / 出库 / 退货 / 客户信用 | 已完成 |
-| 库存管理 | 盘点 / 调拨 / 调整 / 批次 / 预警 / 安全库存 / 缸号分区 | 已完成 |
-| 生产管理 | 订单 / MRP / 工序 / 质量 / 产能 / 自动排程 | 已完成 |
-| 财务管理 | 总账 / 应收应付 / 固定资产 / 资金 / 成本 / 期间 / 辅助核算 / 预算 / 财务分析 | 已完成 |
-| CRM | 线索 / 商机 / 客户池 / 团队协作 / 转移审批 / 信用 | 已完成 |
+| 域       | 子功能                                                                                           | 状态   |
+| -------- | ------------------------------------------------------------------------------------------------ | ------ |
+| 采购管理 | 供应商 / 订单 / 合同 / 价格 / 入库 / 退货 / 供应商评估                                           | 已完成 |
+| 销售管理 | 客户 / 订单 / 合同 / 价格 / 出库 / 退货 / 客户信用                                               | 已完成 |
+| 库存管理 | 盘点 / 调拨 / 调整 / 批次 / 缺料预警（需求 vs 可用实时检测 + 预警状态闭环 + 补货建议）/ 缸号分区 | 已完成 |
+| 生产管理 | 订单 / MRP / 工序 / 质量 / 产能 / 自动排程                                                       | 已完成 |
+| 财务管理 | 总账 / 应收应付 / 固定资产 / 资金 / 成本 / 期间 / 辅助核算 / 预算 / 财务分析                     | 已完成 |
+| CRM      | 线索 / 商机 / 客户池 / 团队协作 / 转移审批 / 信用                                                | 已完成 |
 
 ### 纺织行业特性
 
-| 子模块 | 状态 |
-|--------|------|
+| 子模块                                                                       | 状态   |
+| ---------------------------------------------------------------------------- | ------ |
 | 化验室打样 / 大货处方 / 流转卡 / 验布打卷 / 产量工资 / 能耗管理 / 缸号状态机 | 已完成 |
-| 胚布拆匹 / 质量处理 / 不合格品降级返工报废 | 已完成 |
-| 色卡发放 / 大货批色 / 多色号定价 / 定制订单 / 销售报价 | 已完成 |
+| 胚布拆匹 / 质量处理 / 不合格品降级返工报废                                   | 已完成 |
+| 色卡发放 / 大货批色 / 多色号定价 / 定制订单 / 销售报价                       | 已完成 |
+
+### 扩展业务域
+
+| 域         | 子功能                                          | 状态   |
+| ---------- | ----------------------------------------------- | ------ |
+| 质量 8D    | D0~D8 状态机 / 问题上报 / 8D 报告 / 纠正措施    | 已完成 |
+| 坏账与催收 | 坏账准备 / 催收任务 / 回款跟踪                  | 已完成 |
+| 委外管理   | 委外订单 / 发料 / 回仓 / 成本归集 / 凭证        | 已完成 |
+| 产量工资   | 计件工资 / 工价管理 / 工资核算 / 发放           | 已完成 |
+| 染化料管理 | 化料目录 / 批次 / 领用 / 库存 / 成本            | 已完成 |
+| 验布管理   | 验布记录 / 打卷 / 疵点 / 分等                   | 已完成 |
+| 外贸合规   | 出口商检 / 出口退税 / 贸易术语 / 环保税         | 已完成 |
+| 系统治理   | 权限委托 / 角色关系 / AI 模型治理 / 设备连接    | 已完成 |
+| 财务增强   | 期末调整 / 预算审批链 / 发票审批 / 会计期间年结 | 已完成 |
+| 人力合规   | 劳动合同（续签/解除/预警）/ 社保 / 职业健康     | 已完成 |
+| 合同与协作 | 合同签署/验证/撤销 / 客户共享 / 团队协作        | 已完成 |
+| 全局搜索   | 三域并行检索（批次/订单/客户）                  | 已完成 |
+| 通知实时化 | WebSocket 铃铛 + 未读数 + 公告                  | 已完成 |
 
 ### 智能与协同能力
 
-| 能力 | 状态 | 备注 |
-|------|------|------|
-| AI 智能分析 | 已完成 | 工艺优化 / 质量预测 / 补货推荐 / 异常检测 + 模型版本管理 |
-| BI 数据仓库 | 已完成 | 16 个 HTTP 端点 + 仪表板 + 报表引擎 + 订阅推送 |
-| BPM 审批流 | 已完成 | 流程定义 / 实例 / 任务 |
-| WebSocket 实时 | 已完成 | 通知 / 订单 / 库存 / 审批 / 仪表板 |
-| 国际化（i18n） | 已完成 | 中英双语 + 9,424 翻译键 |
-| systemd 部署 | 已完成 | CLI 工具 + SHA256 校验 |
+| 能力           | 状态   | 备注                                                     |
+| -------------- | ------ | -------------------------------------------------------- |
+| AI 智能分析    | 已完成 | 工艺优化 / 质量预测 / 补货推荐 / 异常检测 + 模型版本管理 |
+| BI 数据仓库    | 已完成 | 16 个 HTTP 端点 + 仪表板 + 报表引擎 + 订阅推送           |
+| BPM 审批流     | 已完成 | 流程定义 / 实例 / 任务                                   |
+| WebSocket 实时 | 已完成 | 通知 / 订单 / 库存 / 审批 / 仪表板                       |
+| 国际化（i18n） | 已完成 | 中英双语 + 1.01 万翻译键，界面文案已无 `t()` 死兜底                     |
+| systemd 部署   | 已完成 | CLI 工具 + SHA256 校验                                   |
 
 ---
 
@@ -421,10 +439,10 @@ sudo journalctl -u bingxi-backend -f
 
 ### 两类部署环境（只允许生产与测试）
 
-| 环境 | 用途 | 部署方式 | 配置 |
-|------|------|---------|------|
-| 生产 | 正式环境 | `deploy/deploy.sh`（服务器执行）或 `deploy/deploy-latest.sh`（远程执行，拉取 GitHub Release） | `/etc/bingxi/.env` + config.yaml |
-| 测试 | 自动化验证 | GitHub Actions（Rust nextest 30 分片 + E2E 34 矩阵 + Setup 真实链路 E2E） | CI 环境变量注入 |
+| 环境 | 用途       | 部署方式                                                                                      | 配置                             |
+| ---- | ---------- | --------------------------------------------------------------------------------------------- | -------------------------------- |
+| 生产 | 正式环境   | `deploy/deploy.sh`（服务器执行）或 `deploy/deploy-latest.sh`（远程执行，拉取 GitHub Release） | `/etc/bingxi/.env` + config.yaml |
+| 测试 | 自动化验证 | GitHub Actions（Rust nextest 30 分片 + E2E 34 矩阵 + Setup 真实链路 E2E）                     | CI 环境变量注入                  |
 
 ### 部署架构
 
@@ -469,41 +487,67 @@ sudo journalctl -u bingxi-backend -f
 
 ### 测试策略
 
-| 层级 | 数量 | 工具 | 覆盖范围 |
-|------|------|------|---------|
-| 后端集成测试 | 249 文件 / 2,050 函数 | cargo test + nextest | 服务层 + API 层 |
-| 前端 E2E 冒烟测试 | 116 | Playwright | 全部前端路由（1:1 映射） |
-| 前端 E2E 工作流测试 | 394 | Playwright | 44 个 flow spec 文件，业务闭环 + 匹号领域 + 响应式矩阵 |
-| 前端 E2E 真实链路测试 | 9 | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录 |
-| 前端 E2E 其他覆盖 | 214 | Playwright | 58 个 spec 文件（smoke 之外各业务目录：AI/BPM/CRM/财务/库存/生产/采购/销售/质量/系统等） |
-| 性能基准 | 4 | criterion | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算 |
+| 层级                      | 数量                  | 工具                  | 覆盖范围                                                                                 |
+| ------------------------- | --------------------- | --------------------- | ---------------------------------------------------------------------------------------- |
+| 后端集成测试              | 257 文件 / 2,095 函数 | cargo test + nextest  | 服务层 + API 层                                                                          |
+| 前端 E2E 冒烟测试         | 130                   | Playwright            | 全部前端路由 + 物流/缺料取值契约（5 分片并行）                                           |
+| 前端 E2E 工作流测试       | 670                   | Playwright            | 75 个 flow spec 文件，业务闭环 + 纺织领域 + 权限矩阵 + 健康巡检                          |
+| 前端 E2E 端点遍历         | 266                   | Playwright            | 10 个 traversal spec：打印/导出/审批端点矩阵 + 42a-d 全模块遍历 + 角色矩阵（5 分片）     |
+| 前端 E2E 真实链路测试     | 9                     | Playwright（零 mock） | Setup 向导初始化：空库 → UI 真实点击 → 完整模式 → 真实登录                               |
+| 前端 E2E 增强链路         | 14                    | Playwright（零 mock） | 3 个 enhanced spec：多角色协同 / RPA 取数 / 真实网络韧性（离线 + CDP 链路延迟）          |
+| 前端 E2E 其余业务域       | 117                   | Playwright（零 mock） | 6 个业务目录（采购/销售/质量/财务/CRM/BPM）+ 根级 3 spec，共 30 个文件          |
+| 前端 E2E testMatch 八目录 | 64                    | Playwright（零 mock） | ai/dashboard/fabric/inventory/mrp/production/quotations/system，19 个文件                |
+| ↳ 以上两行为 extras 覆盖  | 181                   | —                     | **自 iter31 起以 extras 6 分片进 CI**（此前只在 testMatch 白名单内、从未被任何分片执行） |
+| **前端 E2E 合计**         | **1,263**             | —                     | 254 个 spec 文件；其中 chromium project 收 1,254/253，Setup 向导 9/1 由独立 config 跑    |
+| 性能基准                  | 4                     | criterion             | 库存核算 / 凭证生成 / 染整成本归集 / 产量工资计算                                        |
+
+> E2E 数量口径（2026-09-23 按 `playwright test --list --project=chromium <目录>` 逐组实测，purchase-ext 并入 purchase 后重算）：
+> flow 668/75 + smoke 127/116 + traversal 264/10 + enhanced 14/3 + 其余业务域 117/30
+>
+> - testMatch 八目录 64/19 + Setup 向导 9/1
+>   = **1,263 个用例 / 254 个文件**，七组全部进 CI（Setup 向导由独立 job 跑）。
+>   `firefox` project 另跑 127 个冒烟用例；`webkit` 与 chromium 同集。
+>   关于 `ai / dashboard / fabric / inventory / mrp / production / quotations / system`
+>   八个目录（**64 个用例 / 19 个文件**）：iter31 起已并入 extras 分片、与其余业务域一起真实执行。
+>   顺带纠正一处此前的混为一谈：在 Windows 上不带路径参数执行 `playwright test --list` 会**多收**
+>   这 71 个用例（testMatch 的根级分支 `^[^/]*\.spec\.ts$` 在反斜杠路径下误匹配），
+>   那是本地测量假象；但"多收"不等于"已执行"——CI 的分片命令从不传这九个目录，它们确实从未进过矩阵。
+>   两个事实此前各被说反过一次，现均以分片配置为准。
+>   **iter33 补充**：分片矩阵补上这九个目录后，旧 testMatch 白名单反过来成了新的漏口——按 Linux 语义
+>   （路径相对 config 文件、以 `e2e/` 开头）它只收 237/260 个文件，那九个目录一条分支都不匹配，
+>   分片会以 `Error: No tests found.` 退出码 1 红掉；同一配置在 Windows 上收 260/260，所以本地看不出来。
+>   现已把收集策略改为 `testMatch: /\.spec\.ts$/` + `testIgnore: /[/\\]setup-wizard[/\\]/`
+>   （目录级排除不依赖锚点、两种分隔符语义一致），新增测试目录无需再登记白名单。
 
 ### E2E 测试覆盖
 
-218 个 spec 文件（34 矩阵分片按 Playwright --shard=x/34 轮转执行），核心工作流覆盖：
+CI 执行口径的 254 个 spec 文件（36 分片：flow 20 片 + smoke 5 片 + traversal 5 片 + extras 6 片；Playwright `--shard` 按用例 hash 分配，分片与 spec 文件无对应关系，故 label 只标目录与片号），核心覆盖：
 
-| 类别 | spec 文件 | 覆盖内容 |
-|------|-----------|---------|
-| 部署初始化 | 00-deploy-init | 健康检查 / 登录验证 / 基础数据创建 |
-| 响应式矩阵 | 00-responsive | 21 机型（国产手机/平板 + 苹果全尺寸）+ 断点边界 + 横屏 + 桌面热切换 |
-| 核心业务流 | 01-p2p / 02-o2c / 03-production / 04-finance / 05-system / 06-collaboration | 采购到付款 / 订单到收款 / 生产 / 财务 / 系统 / 协作全闭环 |
-| 匹号领域 | 07-fabric-four-dim | 报工逐匹 → 染色外发回仓 → 净布例外 → 仓库约束 |
-| 业务模式与权限 | 08-business-modes / 09-permissions | 业务模式流程步骤 / 权限矩阵 |
-| 扩展流程 | 10a-10e / 11-returns / 12-inventory-ops / 13-stocktaking / 14-costing-period | 库存审批 / 委外成本 / 定制订单 / BPM / 状态 i18n / 退货 / 库存操作 / 盘点 / 成本期间 |
-| 表单与交互 | 15-form-validation / 16-list-interaction / 17-batch-dialog | 表单校验 / 列表交互 / 批量对话框 |
-| 韧性 | 18-resilience-boundary / 19-token-connection / 20-status-display | 边界 / 令牌与连接 / 状态展示 |
-| 面料业务 | 21a-21e | 面料销售单 / 采购报价 / 调拨配方 / 委外成本凭证 / 必填校验 |
-| 全模块回归 | 22-crm-full … 27-other-modules-full | CRM / 色卡 / 生产 / 财务 / 系统 / 其余模块完整回归 |
-| 路由与 UI 覆盖 | 28a-28c / 29a-29d | 核心 UI 列表/页面/响应式 + 全路由覆盖（采购销售/库存生产/财务系统/CRM AI） |
+| 类别           | spec 文件                                                                    | 覆盖内容                                                                                   |
+| -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 部署初始化     | 00-deploy-init                                                               | 健康检查 / 登录验证 / 基础数据创建                                                         |
+| 响应式矩阵     | 00-responsive                                                                | 21 机型（国产手机/平板 + 苹果全尺寸）+ 断点边界 + 横屏 + 桌面热切换                        |
+| 核心业务流     | 01-p2p / 02-o2c / 03-production / 04-finance / 05-system / 06-collaboration  | 采购到付款 / 订单到收款 / 生产 / 财务 / 系统 / 协作全闭环                                  |
+| 匹号领域       | 07-fabric-four-dim                                                           | 报工逐匹 → 染色外发回仓 → 净布例外 → 仓库约束                                              |
+| 业务模式与权限 | 08-business-modes / 09-permissions                                           | 6 种种子业务模式与模块开关 / 流程链写入回读 / 业务规则 / 单据-模式快照 / 权限矩阵          |
+| 扩展流程       | 10a-10e / 11-returns / 12-inventory-ops / 13-stocktaking / 14-costing-period | 库存审批 / 委外成本 / 定制订单 / BPM / 状态 i18n / 退货 / 库存操作 / 盘点 / 成本期间       |
+| 表单与交互     | 15-form-validation / 16-list-interaction / 17-batch-dialog                   | 表单校验 / 列表交互 / 批量对话框                                                           |
+| 韧性           | 18-resilience-boundary / 19-token-connection / 20-status-display             | 边界 / 令牌与连接 / 状态展示                                                               |
+| 面料业务       | 21a-21e                                                                      | 面料销售单 / 采购报价 / 调拨配方 / 委外成本凭证 / 必填校验                                 |
+| 全模块回归     | 22-crm-full … 27-other-modules-full                                          | CRM / 色卡 / 生产 / 财务 / 系统 / 其余模块完整回归                                         |
+| 路由与 UI 覆盖 | 28a-28c / 29a-29d                                                            | 核心 UI 列表/页面/响应式 + 全路由覆盖（采购销售/库存生产/财务系统/CRM AI）                 |
+| 权限与安全     | 32-roles-login / 33 / 33b / 34 / 40                                          | 30+ 角色登录矩阵 / 垂直越权 / 打印导出黑名单 / 水平越权 / 系统更新授权                     |
+| 审批纵深       | 39b / 41b / 44a / 44e / 47 / 53                                              | 导出审批链 / 专业审批 / 缸号状态矩阵 / 状态机扩展 / 边界幂等 / 防自审批双人约束            |
+| 新域流转       | 44f / 45 / 46 / 48 / 51 / 52 / 54                                            | 真实生命周期 / 删除约束 / 页面健康巡检 / P2C-O2C 补偿 / 全端点扫描 / 化料边界 / 新域业务链 |
 
 ### 运行测试
 
 ```bash
-# 后端测试（CI 用 nextest 30 分片并行；本地可直接 cargo test）
+# 后端测试（CI 用 nextest 10 分片并行；本地可直接 cargo test）
 cd backend
 cargo test --all
 
-# 前端 E2E 测试（CI 为 34 矩阵分片按 --shard=x/34 轮转）
+# 前端 E2E 测试（CI 36 分片：flow --shard=x/20 + smoke --shard=x/5 + traversal --shard=x/5 + extras --shard=x/6）
 cd frontend
 npm run test:e2e
 
@@ -520,13 +564,13 @@ cargo bench --features bench
 
 项目通过 V15 25 大类 195 维度最严格审计体系。
 
-| 审计阶段 | 状态 | 说明 |
-|----------|------|------|
+| 审计阶段                 | 状态   | 说明                                |
+| ------------------------ | ------ | ----------------------------------- |
 | V15 25 大类 195 维度审计 | 已完成 | 详见 `.monkeycode/docs/audits/v15/` |
-| P0 修复（39 项） | 已完成 | 100% |
-| P1 修复（257 项） | 已完成 | 100% |
-| V15 主线八维审计 | 进行中 | P0 + P2 已完成 |
-| P2 修复（248 项） | 待启动 | P1 完成后启动 |
+| P0 修复（39 项）         | 已完成 | 100%                                |
+| P1 修复（257 项）        | 已完成 | 100%                                |
+| V15 主线八维审计         | 进行中 | P0 + P2 已完成                      |
+| P2 修复（248 项）        | 待启动 | P1 完成后启动                       |
 
 ### 质量规则
 
@@ -540,6 +584,19 @@ cargo bench --features bench
 - **规则 13**：PR 描述必须依据 `/.github/PULL_REQUEST_TEMPLATE.md` 模板填写
 - **规则 15**：个人规则（IR）高于项目规则（PR），优先级 IR > PR > PH > IH
 - 完整规则索引见 `.monkeycode/MEMORY.md`
+
+### 前端 API 封装接线收敛（2026-09-18）
+
+对前端 121 个 API 模块做零调用封装全量盘点与接线收敛，确保「每个封装都有真实 UI 消费」：
+
+- **精确盘点**：修正扫描器缺陷后确认 83 个真实零调用缺口（14 个功能域批次接线 76+ 封装函数）
+- **接线模式**：新功能一律挂现有页面 tab/弹窗/行操作列（禁止新开页面）；明细行维护采用「查看态回源 + 行级编辑/删除/添加栏」模式；契约差异逐域对照后端真实 DTO 修正（驼峰/蛇形、分页对象、item 级同步）
+- **重复判定**：剩余 64 个零调用全部为已决策项——同 URL 重复封装、useTableApi 内联同 URL 消费、查询变体等价覆盖、批量保存等价覆盖、模块内部工具
+- **完整性校验**：check-i18n（zh/en 键对齐 0 缺失；并清除 `t('key') || '中文'` 死兜底 47 处——vue-i18n 取不到键时返回键名本身，兜底分支不可达，只会把缺键降级成界面上冒出的另一语言裸字面量）+ check-contract（前后端契约映射 13 组 / 164 字段 / 0 错误）纳入质量门禁
+- **路由挂载约定（2026-09-23 收口）**：路径只写在 `backend/src/routes/` 下的域文件里且一律相对路径，URL 前缀只在 `routes/mod.rs` 用 `.nest()` 组合一次，handler 文件不得自带 `router()`；实测 1531 条 `.route()` 字面量中绝对路径已归零、161 个返回 `Router` 的 `pub fn` 无孤儿。两份配套工具：`scripts/route-snapshot.mjs` 把解析后的 1741 条端点（+ `routes/` 的 `.layer()` 总数）固化为 `route-snapshot.txt` 基线，任何挂载结构改动都必须与基线逐字一致（用"改掉一条真实路径"的探针验证过会判负）；`scripts/check-route-mount.mjs` 校验三条约定，现存偏离按"文件 + 条数 + 理由"显式豁免，**多于登记也判负**（防把豁免当配额）。
+- **响应键名与前端声明的一致性（当前靠人工逐页核对）**：多数 list handler 直接 `serde_json::to_value(实体)`（无 JOIN、无 DTO 改名），响应键名即实体字段名；已在 finance 域查出并修复 6 个页面按直觉声明的幻键（`status`/`invoice_amount`/`verified_amount`/`supplier_name`/`remark` 等）与借用他表的小写状态词元，其症状是列恒空、筛选恒无结果、`v-if` 门控按钮结构性不可达。`check-api-envelope` 目前只比"形状"不比"键名"，且这类 handler 返回 `Value` 正落在其"未分类"桶里 —— 字段级比对需沿 service 返回类型解析，登记为后续批次（曾试做该检查，因自检不通过而撤回，不留"看似在跑其实从不判负"的门禁）。
+- **契约一致性脚本（已全部接入 CI 阻断链，见 `ci-static-checks`）**：check-api-paths（前端调用 ↔ 后端路由，A 类失配 0、16 条功能缺口逐条显式登记原因，含"导出按钮指向后端不存在的路由、点击必 404"实例）、check-api-envelope（响应信封形状，**667 条可比对：失配 0 / 未分类 0 / handler 符号未定义 0；13 条后端手拼 `json!` 或经未定型 helper 返回 `serde_json::Value` 的端点写成带 `文件:行号` 证据的显式豁免**）、check-api-request（**请求体与查询参数侧**：前端实参键集 ↔ 后端 `Json<T>`/`Query<T>` 字段集，可比对项全部一致，`--json` 直接输出可派单工单）。判负口径统一为「解析不出即失败」，不静默放行；三类载荷形状（裸 `Vec`、手写 `json!({list})`、`PaginatedResponse{items}`）都按 handler 函数体实测归类，宏生成（`define_crud_handlers!`）、目录型模块（`pub mod advanced;`）、路由就地定义的 handler（`routes/search_api.rs`）与 `to_value(具体类型)` 递归回溯均已支持。**两个"万能类型"已清除**：`QueryParams` 的 API 层用法归零（47 条"前端传了后端不读、后端支持的筛选前端从没传过"全部按端点用真实 `Query<T>` 定型；仅剩 2 个采购视图组件把它当本地表单 shape），`PageResult<T>`（data/list/items/users 四键全可选，后端怎么返都"对得上"）已 19 处清零并删除类型本体——它掩盖的正是"列表恒空但不报错"这一族（实修 5 处：AR 自动对账结果、CRM 增强客户、RfmTab、BPM 待办、质检检验人下拉）。**覆盖数本身也是被测出来的**：门禁曾长期只解析 `export function f(): Promise<ApiResponse<T>>` 签名，而全仓另有 500 处 `request.get<ApiResponse<T>>(url)` 写法完全不进统计，"0 失配"一度只覆盖约一半接口。另已知盲区：`tsconfig.json` 只含 `src/**`，2668 个 e2e 用例此前从不做类型检查；新增 `tsconfig.e2e.json` 后实测真实类型错误已全部清零，仅剩 93 条因缺 `@types/node`（`process`/`fs`/`path`/`crypto`）无法解析。 同批接入的还有 **e2e 类型棘轮** `check-e2e-types`（`tsc -p tsconfig.e2e.json`：`tsconfig.json` 只含 `src/**`，e2e 长期不进类型检查，本轮在其中发现 6 条真实错误——用例按后端根本不存在的键断言、`expect(locator).first()` 挂错位置等；按 `文件|错误码` 记 93 条 `@types/node` 族基线，只准降不准升）。
+> - 同批新增并接入的还有：check-route-mount（路由挂载结构约定：注册只在 `routes/` 下、`.route()` 只写相对路径、绝对前缀在 `mod.rs` nest 一次、`handlers/` 下不再放 `router()`——路径形状同时决定权限中间件推导出的鉴权键，故属安全问题而非风格问题）、route-snapshot（1741→1736 条端点基线，挂载重构必须逐字节不变）、check-api-keys（**接口键名编造棘轮**：前端类型里的每个键都必须在后端字段全集里存在，存量按文件记 `{count, keys}` 基线，只准降不准升，当前 390→184）。
 
 ### CI/CD
 

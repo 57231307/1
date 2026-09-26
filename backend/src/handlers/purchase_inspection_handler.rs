@@ -23,22 +23,23 @@ pub async fn list_inspections(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseInspectionService::new(state.db.clone());
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
     let (inspections, total) = service
         .list_inspections(
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-            params.page_size.unwrap_or(20).clamp(1, 100),
+            page,
+            page_size,
             params.status,
             params.supplier_id,
+            params.keyword,
+            params.result,
+            params.inspection_date_from,
+            params.inspection_date_to,
         )
         .await?;
 
-    let result = serde_json::to_value(PaginatedResponse::new(
-        inspections,
-        total,
-        params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-        params.page_size.unwrap_or(20).clamp(1, 100),
-    ))
-    .map_err(|e| AppError::internal(e.to_string()))?;
+    let result = serde_json::to_value(PaginatedResponse::new(inspections, total, page, page_size))
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -125,6 +126,14 @@ pub struct InspectionQueryParams {
     pub page_size: Option<u64>,
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
+    /// 关键字：匹配质检单号或入库单号
+    pub keyword: Option<String>,
+    /// 质检结果筛选（按写入方 token 等值匹配，如 pass/fail/partial）
+    pub result: Option<String>,
+    /// 质检日期范围下界（ISO / YYYY-MM-DD）
+    pub inspection_date_from: Option<String>,
+    /// 质检日期范围上界（ISO / YYYY-MM-DD）
+    pub inspection_date_to: Option<String>,
 }
 
 /// P1-2i 修复（批次 81 v1 复审）：创建质检明细请求 DTO 替代 create_inspection_item 中的

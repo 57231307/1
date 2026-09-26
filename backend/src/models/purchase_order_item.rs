@@ -71,6 +71,12 @@ pub struct Model {
     #[sea_orm(column_type = "Decimal(Some((18, 4)))")]
     pub received_quantity_alt: Decimal,
 
+    /// 交货数量允收容差（百分比，DECIMAL(5,2)，可空）。
+    /// NULL = 未行级指定，按「品类默认 > 全局默认」解析（见 utils::delivery_tolerance）。
+    /// 语义为「实际交付量 vs 本行订购量」的允收区间，与 dual_unit_converter 的 0.5% 录入校验无关。
+    #[sea_orm(column_type = "Decimal(Some((5, 2)))")]
+    pub quantity_tolerance_pct: Option<Decimal>,
+
     /// 备注
     pub notes: Option<String>,
 
@@ -92,6 +98,12 @@ pub struct Model {
     /// 批次号（SQL 列名：batch_no，面料行业追溯字段）
     #[sea_orm(column_name = "batch_no")]
     pub batch_no: Option<String>,
+
+    /// 供应商商品编码快照（转采购时从映射表带入）
+    pub supplier_product_code: Option<String>,
+
+    /// 供应商色号快照（转采购时从映射表带入）
+    pub supplier_color_no: Option<String>,
 }
 
 /// 采购订单明细 Relation

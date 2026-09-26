@@ -20,12 +20,12 @@ export interface PrdOrderForm {
   order_no?: string;
   product_id?: number | undefined;
   planned_quantity?: number | undefined;
-  scheduled_start_date?: string;
-  scheduled_end_date?: string;
+  planned_start_date?: string;
+  planned_end_date?: string;
   status?: string;
   priority?: number;
   work_center_id?: number | undefined;
-  remark?: string;
+  remarks?: string;
 }
 
 /**
@@ -53,12 +53,11 @@ export function usePrd() {
     order_no: '',
     product_id: undefined,
     planned_quantity: undefined,
-    scheduled_start_date: '',
-    scheduled_end_date: '',
-    status: 'draft',
+    planned_start_date: '',
+    planned_end_date: '',
     priority: 5,
     work_center_id: undefined,
-    remark: '',
+    remarks: '',
   });
 
   // 表单验证规则
@@ -76,12 +75,11 @@ export function usePrd() {
       order_no: '',
       product_id: undefined,
       planned_quantity: undefined,
-      scheduled_start_date: '',
-      scheduled_end_date: '',
-      status: 'draft',
+      planned_start_date: '',
+      planned_end_date: '',
       priority: 5,
       work_center_id: undefined,
-      remark: '',
+      remarks: '',
     });
   };
 

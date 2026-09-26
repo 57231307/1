@@ -11,6 +11,13 @@ import {
   TEST_USERNAME,
   TEST_PASSWORD,
   ensureTestEntities,
+  ensureStockInWarehouse,
+  expectBadRequest,
+  failureCode,
+  tryCleanup,
+  type ApiFailureBody,
+  APP_ERROR_CODES,
+  CSRF_ERROR_CODES,
 } from './helpers';
 
 test.describe('异常处理与边界条件', () => {
@@ -21,37 +28,60 @@ test.describe('异常处理与边界条件', () => {
 
   test('并发编辑冲突：同一用户两个 context 同时修改同一单据', async ({ page, context }) => {
     const ctx = getCtx();
-    const poId = ctx.purchaseOrderId;
-    expect(poId).toBeDefined();
+
+    // 自建一张 DRAFT 采购订单作为并发编辑目标，不依赖 pool head(ctx.purchaseOrderId)。
+    // 背景：ctx.purchaseOrderId = GET /purchase/orders 的 items[0]，而后端 list_orders
+    // 按 created_at DESC 排序（crud.rs:548），即"最新创建的一张单"。globalSeed 步骤12/15
+    // 新增多状态采购单（PENDING_APPROVAL / APPROVED）后，head 会漂移到不可编辑态单，
+    // 对其 PUT 会被 update_order → validate_order_modification 以 BUSINESS_ERROR 正当拒绝
+    // （仅 DRAFT/REJECTED 可改，非本批回归）。该拒绝与"编辑冲突"意图无关地让 result1 抛错。
+    // 故本用例显式建一张草稿单，保证两个 PUT 都命中可编辑记录，如实验证并发编辑不崩溃。
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
+      order_date: new Date().toISOString().slice(0, 10),
+      items: [{ material_id: ctx.productIds[0], quantity_ordered: '1', unit_price: '1' }],
+    });
+    const poId = created.data?.id;
+    expect(poId, '自建草稿采购单应返回 id，否则无法验证并发编辑').toBeTruthy();
 
     // 复用当前 context 的 cookie（不重新登录，避免 429）
     // 创建第二个 page（共享 cookie）
     const page2 = await context.newPage();
 
-    // 两个 page 同时更新同一单据
-    const updateData1 = { notes: `并发修改1-${Date.now()}` };
-    const updateData2 = { notes: `并发修改2-${Date.now()}` };
+    try {
+      // 两个 page 同时更新同一单据
+      const updateData1 = { notes: `并发修改1-${Date.now()}` };
+      const updateData2 = { notes: `并发修改2-${Date.now()}` };
 
-    // 第一个 page 先更新
-    const result1 = await apiCall(page, 'PUT', `/purchase/orders/${poId}`, updateData1).catch((e) => { console.warn(`[E2E] 操作失败: ${(e as Error).message}`); return null; });
+      // 第一个 page 先更新（apiCall 非 200/0 即抛，走到下一行即代表首次编辑成功）
+      const result1 = await apiCall(page, 'PUT', `/purchase/orders/${poId}`, updateData1);
+      expect(
+        result1.code === 200 || result1.code === 0,
+        `首次编辑应成功，实际：${JSON.stringify(result1)}`
+      ).toBe(true);
 
-    // 第二个 page 也尝试更新（可能因乐观锁/版本号冲突被拒）
-    const csrf2 = (await context.cookies()).find(c => c.name === 'csrf_token')?.value || '';
-    const resp2 = await page2.request.fetch(`${API_BASE}${API_PREFIX}/purchase/orders/${poId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-Token': csrf2,
-      },
-      data: JSON.stringify(updateData2),
-    });
+      // 第二个 page 也尝试更新（可能因乐观锁/版本号冲突被拒）
+      const csrf2 = (await context.cookies()).find(c => c.name === 'csrf_token')?.value || '';
+      const resp2 = await page2.request.fetch(`${API_BASE}${API_PREFIX}/purchase/orders/${poId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-Token': csrf2,
+        },
+        data: JSON.stringify(updateData2),
+      });
 
-    // 至少一个应成功，另一个可能因乐观锁被拒（4xx）
-    const status2 = resp2.status();
-    expect(status2 >= 200 && status2 < 500).toBe(true);
-
-    await page2.close();
+      // 至少一个应成功，另一个可能因乐观锁被拒（4xx），但不得 5xx 崩溃
+      const status2 = resp2.status();
+      expect(status2 >= 200 && status2 < 500).toBe(true);
+    } finally {
+      await page2.close();
+      // 草稿单可删除（delete_order 仅放行 DRAFT），清理避免 pool 堆积
+      await tryCleanup(page, 'DELETE', `/purchase/orders/${poId}`, '并发编辑草稿采购单');
+    }
   });
 
   test('不存在的资源 ID 返回 404', async ({ page }) => {
@@ -67,7 +97,7 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: '<script>alert("xss")</script>',
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [],
@@ -81,7 +111,7 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: genCode('PO'),
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [
@@ -93,8 +123,12 @@ test.describe('异常处理与边界条件', () => {
       ],
     });
 
+    // 拒绝判据：HTTP 状态码，或 utils/error.rs:143-148 直出的字符串机器码
+    const rejectCode = failureCode(result);
     expect(
-      result.status >= 400 || result.code === 'VALIDATION_ERROR' || result.code === 'BUSINESS_ERROR'
+      result.status >= 400 ||
+        rejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
+        rejectCode === APP_ERROR_CODES.BUSINESS_ERROR
     ).toBeTruthy();
   });
 
@@ -103,7 +137,7 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: genCode('PO'),
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [
@@ -113,11 +147,9 @@ test.describe('异常处理与边界条件', () => {
           unit_price: 123.4567,
         },
       ],
-    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    });
 
-    if (result) {
-      expect(result.status < 500).toBe(true);
-    }
+    expect(result.status < 500).toBe(true);
   });
 
   test('未认证请求返回 401', async ({ browser }) => {
@@ -154,65 +186,97 @@ test.describe('异常处理与边界条件', () => {
       data: JSON.stringify({ order_no: genCode('PO') }),
     });
 
-    // 后端应返回 403 CSRF_TOKEN_MISSING
+    // 后端应返回 403 + CSRF 机器码（middleware/csrf.rs:234-242 直出体，
+    // code 为字符串机器码而非 ApiResponse 的数字码；常量出处 csrf.rs:39-45）
     expect(resp.status() === 403).toBe(true);
-    const body = await resp.text();
-    expect(body.includes('CSRF') || body.includes('csrf') || body.includes('token')).toBe(true);
+    const body: ApiFailureBody = await resp.json();
+    expect(failureCode(body), `CSRF 拒绝机器码，实际响应：${JSON.stringify(body)}`).toBe(
+      CSRF_ERROR_CODES.MISSING
+    );
   });
 
-  test('库存为 0 时发货应被阻断', async ({ page }) => {
+  test('销售建单不锁库存：可用量不足仅在发货时门控（不预占 reservation）', async ({ page }) => {
     const ctx = getCtx();
+    const productId = ctx.productIds[0];
+    const warehouseId = ctx.warehouseIds[0];
+    expect(productId, '缺产品 id，无法验证建单/发货门控').toBeTruthy();
+    expect(warehouseId, '缺仓库 id，无法验证建单/发货门控').toBeTruthy();
 
-    const soData = {
-      order_no: genCode('SO'),
-      customer_id: ctx.customerId || 1,
-      warehouse_id: ctx.warehouseIds[0],
-      order_date: new Date().toISOString().slice(0, 10),
+    // 预置一行带全四维（色号+缸号+批次）的真实库存作为可用量基准，
+    // 并取真实仓库编码（ship.rs 按 warehouse_code 查仓）供发货请求使用。
+    const stockRow = await ensureStockInWarehouse(page, productId, warehouseId);
+    const wh = await apiCallRaw<{ warehouse_code?: string }>(
+      page,
+      'GET',
+      `/warehouses/${warehouseId}`
+    );
+    const warehouseCode = wh?.warehouse_code;
+    expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    expect(stockRow.batch_no, '库存行应带批次号（四维出库入参来源）').toBeTruthy();
+    expect(stockRow.dye_lot_no, '库存行应带缸号（四维出库入参来源）').toBeTruthy();
+
+    // 发货量刻意远超在库可用量（基准 + 巨大缺口）。
+    //
+    // A5 决策：纺织 ERP 按可用量经营销售，建单【不锁物理库存、不引入 reservation 预占】，
+    // 非负/可用量校验只在发货出库时门控。因此建单本身不因可用量不足被拒。
+    // A5 已落地：create_order（order_crud.rs 建单流程）不再调用建单锁、不产生 PENDING
+    //   reservation 行，历史 lock_inventory 死代码链已删除；唯一可用量门控是发货期
+    //   check_inventory → decide_item_stock（四维口径）。故建单应返回 id 成功，发货因可用量
+    //   不足被业务码拒绝——本用例两端断言均如实反映该语义，非为过而过的放宽。
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+      customer_id: ctx.customerId,
+      order_date: new Date().toISOString(),
       items: [
         {
-          product_id: ctx.productIds[0],
-          product_color_id: ctx.productColorIds[0],
-          quantity: 999999,
-          unit: '米',
+          product_id: productId,
+          quantity: '999999',
+          unit_price: '100',
         },
       ],
-    };
+    });
+    const soId = created.data?.id;
+    expect(soId, '销售建单应成功：可用量不足不阻断建单（A5 不锁库存）').toBeTruthy();
 
-    let soId: number | null = null;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', soData);
-      soId = result.data?.id ?? null;
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
-      // 创建可能因库存不足直接被拒
-     }
+    // 推进到可发货状态（APPROVED，ship.rs:111 仅此态可发货）
+    await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
+    await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
 
-    if (soId) {
-      try {
-        await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
-      } catch (e) {
-        console.log(`submit: ${(e as { message?: string }).message || e}`);
-      }
-      try {
-        await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
-      } catch (e) {
-        console.log(`approve: ${(e as { message?: string }).message || e}`);
-      }
-
-      // 发货应被阻断
-      const shipResult = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`);
-      expect(
-        shipResult.status === 400 ||
-          shipResult.status === 409 ||
-          shipResult.status === 422 ||
-          shipResult.status === 403
-      ).toBe(true);
-    }
+    // 发货门控：按真实出库四维请求远超可用量的发货量，可用量校验（check_inventory，
+    // ship.rs:145 → inventory.rs:153 decide_item_stock）应判 Insufficient/NoStockRows 拒发。
+    // 与旧版的两处假绿不同：
+    //  ①旧版用 if (soId) 包裹发货断言——建单未返回 id 时整段被跳过 = 空转假绿；现显式断言 soId。
+    //  ②旧版 ship 传空 body → 因缺 order_id/warehouse_code/items 被 serde 判 4xx，
+    //    "看似被阻断"实为请求格式错误（并非可用量门控），也是假绿；此处传结构合法请求体，
+    //    令拒绝只能来自可用量门控（status<500 且携带业务/校验机器码，非 500 崩溃、非 401/403）。
+    const ship = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`, {
+      order_id: soId,
+      warehouse_code: warehouseCode,
+      items: [
+        {
+          product_id: productId,
+          quantity: 999999,
+          color_no: stockRow.color_no,
+          batch_no: stockRow.batch_no,
+          dye_lot_no: stockRow.dye_lot_no,
+        },
+      ],
+    });
+    const shipReject = failureCode(ship);
+    const rejectedByGate =
+      ship.status >= 400 &&
+      ship.status < 500 &&
+      (shipReject === APP_ERROR_CODES.BUSINESS_ERROR ||
+        shipReject === APP_ERROR_CODES.VALIDATION_ERROR);
+    expect(
+      rejectedByGate,
+      `发货应因可用量不足被业务门控拒绝，实际 status=${ship.status} code=${ship.code ?? ''} message=${ship.message ?? ''}`
+    ).toBeTruthy();
   });
 
   test('会计期间关闭后凭证录入应被阻断', async ({ page }) => {
     const periods = await apiCallRaw<{
       items: Array<{ id: number; status: string; period_name: string }>;
-    }>(page, 'GET', '/finance/accounting-periods?page=1&page_size=50').catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
+    }>(page, 'GET', '/finance/accounting-periods?page=1&page_size=50');
 
     const closedPeriod = periods.items?.find(p => p.status === 'closed' || p.status === '已关闭');
 
@@ -226,7 +290,7 @@ test.describe('异常处理与边界条件', () => {
         ],
       });
 
-      expect(result.status >= 400).toBe(true);
+      expectBadRequest(result);
     }
   });
 
@@ -252,7 +316,7 @@ test.describe('异常处理与边界条件', () => {
             status: '生产中',
           }
         );
-        expect(result.status >= 400).toBe(true);
+        expectBadRequest(result);
       }
     }
   });
@@ -263,15 +327,13 @@ test.describe('异常处理与边界条件', () => {
 
     const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
       order_no: genCode('PO'),
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       notes: longString,
       items: [],
-    }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+    });
 
-    if (result) {
-      expect(result.status < 500).toBe(true);
-    }
+    expect(result.status < 500).toBe(true);
   });
 });

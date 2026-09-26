@@ -18,19 +18,19 @@
         <el-icon><CircleCheck /></el-icon>
         <p>{{ t('capacityModule.bottleneck.empty') }}</p>
       </div>
-      <div v-for="item in data" :key="item.id" class="bottleneck-item">
+      <div v-for="item in data" :key="item.work_center_id" class="bottleneck-item">
         <div class="bottleneck-header">
-          <span class="bottleneck-name">{{ item.name }}</span>
+          <span class="bottleneck-name">{{ item.work_center_name }}</span>
           <el-tag type="danger" size="small">{{ t('capacityModule.bottleneck.tag') }}</el-tag>
         </div>
         <div class="bottleneck-info">
           <span
             >{{ t('capacityModule.bottleneck.loadRate') }}:
-            <strong>{{ (item.load_rate * 100).toFixed(1) }}%</strong></span
+            <strong>{{ item.load_rate.toFixed(1) }}%</strong></span
           >
           <span
-            >{{ t('capacityModule.bottleneck.usedHours') }}: {{ item.used_hours }} /
-            {{ item.capacity_hours }}</span
+            >{{ t('capacityModule.bottleneck.usedHours') }}: {{ item.total_demand }} /
+            {{ item.daily_capacity }}</span
           >
         </div>
       </div>
@@ -41,12 +41,12 @@
 <script setup lang="ts">
 import { CircleCheck } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
-import type { WorkCenter } from '@/api/capacity';
+import type { CapacityLoadItem } from '@/api/capacity';
 
 const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
-  data: WorkCenter[];
+  data: CapacityLoadItem[];
   loading: boolean;
 }>();
 </script>

@@ -23,11 +23,17 @@
       <el-tab-pane :label="t('apModule.tabs.payment')" name="payment">
         <PaymentTab />
       </el-tab-pane>
+      <el-tab-pane :label="t('apModule.tabs.paymentRequest')" name="paymentRequest" lazy>
+        <PaymentRequestTab />
+      </el-tab-pane>
       <el-tab-pane :label="t('apModule.tabs.verification')" name="verification">
         <VerificationTab />
       </el-tab-pane>
       <el-tab-pane :label="t('apModule.tabs.reconciliation')" name="reconciliation">
         <ReconciliationTab />
+      </el-tab-pane>
+      <el-tab-pane :label="t('apModule.tabs.report')" name="report" lazy>
+        <ApReportTab />
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -38,8 +44,10 @@ import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import InvoiceTab from './tabs/InvoiceTab.vue';
 import PaymentTab from './tabs/PaymentTab.vue';
+import PaymentRequestTab from './tabs/PaymentRequestTab.vue';
 import VerificationTab from './tabs/VerificationTab.vue';
 import ReconciliationTab from './tabs/ReconciliationTab.vue';
+import ApReportTab from './tabs/ApReportTab.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 

@@ -27,11 +27,12 @@
           :placeholder="t('sales.filter.statusPlaceholder')"
           clearable
         >
-          <el-option :label="t('sales.statusLabels.pending')" value="pending" />
-          <el-option :label="t('sales.statusLabels.approved')" value="approved" />
-          <el-option :label="t('sales.statusLabels.shipped')" value="shipped" />
-          <el-option :label="t('sales.statusLabels.completed')" value="completed" />
-          <el-option :label="t('sales.statusLabels.cancelled')" value="cancelled" />
+          <el-option
+            v-for="st in SALES_ORDER_STATUSES"
+            :key="st"
+            :label="t(SALES_STATUS_LABEL_KEYS[st])"
+            :value="st"
+          />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('sales.filter.date')">
@@ -54,6 +55,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { SALES_ORDER_STATUSES, SALES_STATUS_LABEL_KEYS } from '@/utils/sales-status';
 
 const { t } = useI18n({ useScope: 'global' });
 

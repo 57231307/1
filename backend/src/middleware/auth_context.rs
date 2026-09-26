@@ -3,14 +3,17 @@
 //! 提供从 JWT Token 提取用户信息的功能
 
 use crate::services::auth_service::AppClaims;
+use crate::utils::error::{CODE_FORBIDDEN, CODE_UNAUTHORIZED, ErrorResponse};
 use axum::{
     Json,
     extract::FromRequestParts,
     http::{StatusCode, request::Parts},
     response::{IntoResponse, Response},
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use uuid::Uuid;
 
 /// 认证错误响应
 #[derive(Debug)]
@@ -33,11 +36,21 @@ impl AuthRejection {
 }
 
 impl IntoResponse for AuthRejection {
+    /// 出参体与 `AppError::into_response` 同构（复用 `ErrorResponse`，HTTP 状态码沿用
+    /// `self.status` 不变）。message 原样外显：该文案是提取器自身的固定字面量
+    /// （「未授权：缺少认证信息」），走 `AppError::unauthorized` 会被 `public_message()`
+    /// 替换成脱敏常量「未授权」，丢失告知用户的细节。
     fn into_response(self) -> Response {
-        let body = serde_json::json!({
-            "error": "Unauthorized",
-            "message": self.message
-        });
+        let code = match self.status {
+            StatusCode::FORBIDDEN => CODE_FORBIDDEN,
+            _ => CODE_UNAUTHORIZED,
+        };
+        let body = ErrorResponse {
+            code: code.to_string(),
+            message: self.message,
+            trace_id: Uuid::new_v4().to_string(),
+            timestamp: Utc::now().timestamp(),
+        };
         (self.status, Json(body)).into_response()
     }
 }

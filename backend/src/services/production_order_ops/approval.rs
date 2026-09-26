@@ -25,6 +25,7 @@ use crate::models::production_order::{
 };
 use crate::utils::error::AppError;
 
+use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
 use crate::services::production_order_service::ProductionOrderService;
 
 impl ProductionOrderService {
@@ -165,9 +166,9 @@ impl ProductionOrderService {
     ) {
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         let action = if approved {
-            "approve".to_string()
+            APPROVE_ACTION.to_string()
         } else {
-            "reject".to_string()
+            REJECT_ACTION.to_string()
         };
         let Ok(Some(instance)) = bpm_service
             .get_process_by_business("production_order", id)
@@ -186,7 +187,7 @@ impl ProductionOrderService {
         else {
             return;
         };
-        for task in task_list.data {
+        for task in task_list.items {
             if task.instance_id != instance.id {
                 continue;
             }
@@ -238,7 +239,7 @@ impl ProductionOrderService {
 
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
-            "auto_audit",
+            super::types::AUDIT_RESOURCE_TYPE,
             active_model,
             Some(approver_id),
         )
@@ -273,7 +274,7 @@ impl ProductionOrderService {
 
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
-            "auto_audit",
+            super::types::AUDIT_RESOURCE_TYPE,
             active_model,
             Some(approver_id),
         )

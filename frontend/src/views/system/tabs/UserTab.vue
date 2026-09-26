@@ -135,9 +135,6 @@
         <el-form-item v-if="!userForm.id" :label="t('system.user.dialog.password')" prop="password">
           <el-input v-model="userForm.password" type="password" show-password />
         </el-form-item>
-        <el-form-item :label="t('system.user.dialog.realName')" prop="real_name">
-          <el-input v-model="userForm.real_name" />
-        </el-form-item>
         <el-form-item :label="t('system.user.dialog.phone')" prop="phone">
           <el-input v-model="userForm.phone" />
         </el-form-item>
@@ -171,6 +168,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -250,7 +248,6 @@ const userForm = reactive({
   id: 0,
   username: '',
   password: '',
-  real_name: '',
   phone: '',
   email: '',
   role_id: undefined as number | undefined,
@@ -263,12 +260,11 @@ const userForm = reactive({
 const roles = ref<Role[]>([]);
 const fetchRoles = async () => {
   try {
-    const res = await getRoleList({ page: 1, page_size: 100 });
-    const data = res.data as unknown;
-    roles.value = Array.isArray(data)
-      ? (data as Role[])
-      : ((data as { items?: Role[] })?.items ?? []);
-  } catch {
+    const res = await getRoleList();
+    // 后端 list_roles 返回 RoleListResponse { roles, total }
+    roles.value = res.data.roles;
+  } catch (error) {
+    logAuxLoadFailure(t('system.user.message.loadRolesFailed'), error);
     roles.value = [];
   }
 };
@@ -301,14 +297,6 @@ const userRules: FormRules = {
     { min: 3, max: 20, message: t('system.user.validation.usernameLength'), trigger: 'blur' },
   ],
   password: [{ required: true, validator: validatePassword, trigger: 'blur' }],
-  // real_name 为幽灵字段：user 表无此列，后端不持久化也不返回——必填校验会导致编辑保存必败
-  real_name: [
-    {
-      required: false,
-      message: t('system.user.validation.realNameRequired'),
-      trigger: 'blur',
-    },
-  ],
   email: [{ validator: validateEmail, trigger: 'blur' }],
   phone: [{ validator: validatePhone, trigger: 'blur' }],
   role_id: [
@@ -326,7 +314,6 @@ const openUserDialog = (row?: User) => {
     Object.assign(userForm, {
       id: row.id,
       username: row.username,
-      real_name: row.real_name ?? '',
       phone: row.phone || '',
       email: row.email || '',
       department_id: row.department_id,
@@ -340,7 +327,6 @@ const openUserDialog = (row?: User) => {
       id: 0,
       username: '',
       password: '',
-      real_name: '',
       phone: '',
       email: '',
       role_id: undefined,
@@ -352,15 +338,19 @@ const openUserDialog = (row?: User) => {
 };
 
 const submitUser = async () => {
-  const valid = await userFormRef.value?.validate();
+  // ElForm.validate() 契约：字段全部通过时 resolve(true)，任一不通过时 reject(校验字段集合)，
+  // 并非返回 false。这里以 .catch(() => false) 归一为布尔，交由下方 if (!valid) return 短路；
+  // 校验不通过的反馈由 el-form 自身渲染字段级错误提示，不应冒泡成未捕获 rejection（否则会经
+  // Vue 异步错误处理冒泡至 ErrorBoundary 使整页崩溃），也不进 try/catch 被误当成接口错误弹提示。
+  const valid = await userFormRef.value?.validate().catch(() => false);
   if (!valid) return;
   userSubmitLoading.value = true;
   try {
     if (userForm.id) {
       await updateUser(userForm.id, {
-        real_name: userForm.real_name,
         phone: userForm.phone,
         email: userForm.email,
+        role_id: userForm.role_id,
         department_id: userForm.department_id,
         // 后端 UpdateUserRequest.status 为 "active"/"inactive" 字符串（非数字）
         status: userForm.status === 1 ? 'active' : 'inactive',
@@ -370,7 +360,6 @@ const submitUser = async () => {
       await createUser({
         username: userForm.username,
         password: userForm.password,
-        real_name: userForm.real_name,
         phone: userForm.phone,
         email: userForm.email,
         role_id: userForm.role_id,

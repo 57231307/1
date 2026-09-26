@@ -12,36 +12,46 @@ test.describe('仪表盘', () => {
 
   test('仪表盘 KPI 统计卡片正常加载', async ({ page }) => {
     await page.goto('/dashboard');
-    await expect(page.locator('.el-card, .kpi-card, [class*="stat"]').first()).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.el-card, .kpi-card, [class*="stat"]').first()).toBeVisible({
+      timeout: 30000,
+    });
   });
 
   test('仪表盘销售趋势图正常加载', async ({ page }) => {
     await page.goto('/dashboard');
-    const chartContainer = page.locator('div').filter({ has: page.locator('.echarts, .chart, svg') });
+    const chartContainer = page
+      .locator('div')
+      .filter({ has: page.locator('.echarts, .chart, svg') });
     await expect(chartContainer.first()).toBeVisible({ timeout: 30000 });
   });
 
   test('仪表盘最近活动表正常加载', async ({ page }) => {
     await page.goto('/dashboard');
-    await expect(page.getByText(/最近活动|活动记录/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-      return null;
-        });
-    const activityTable = page.locator('table, .el-table');
-    await expect(activityTable).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-      return null;
-        });
+    // 真实文案以 i18n 为准：dashboard.activityTable.title = 「最新活动」（DashboardActivityTable.vue
+    // 走 t('dashboard.activityTable.title')），原用例写 /最近活动|活动记录/ 与实际字面量不符 → 恒定位不到。
+    await expect(page.getByText('最新活动')).toBeVisible({
+      timeout: 30000,
+    });
+    // 活动表按 aria-label（dashboard.activityTable.ariaLabel = 「最新活动表格」）精确定位：
+    // 原 `page.locator('table, .el-table')` 在全页会命中多个表格容器 → strict mode 违例。
+    // 表格在无数据时仍渲染表头 + 「暂无数据」空态（属正常渲染），故断表格可见即验证加载。
+    await expect(page.getByLabel('最新活动表格')).toBeVisible({ timeout: 30000 });
   });
 
   test('仪表盘日期筛选功能可用', async ({ page }) => {
+    // 假绿清零（Tier A）：原 `if (await dateRange.isVisible()) { click; Escape }` 用
+    // getByLabel(/日期/) 定位——Dashboard.vue 的 el-date-picker 没有 <label>「日期」，
+    // 只有 startPlaceholder/endPlaceholder（且随 locale 变化），恒定位不到 → 零断言通过。
+    // 日期筛选是仪表盘头部无条件渲染控件（Dashboard.vue:12 无 v-if），缺失即产品缺陷，必须红。
+    // 改为硬断言：控件存在且可交互（点击后日期区间面板真实弹出）。纯 UI 控件，无需造数据。
     await page.goto('/dashboard');
-    const dateRange = page.getByLabel(/日期/).first();
-    if (await dateRange.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
-      await dateRange.click();
-      await page.keyboard.press('Escape');
-    }
+    const dateFilter = page.locator('.dashboard-header .el-date-editor').first();
+    await expect(dateFilter, '仪表盘头部日期筛选控件应存在且可见').toBeVisible({ timeout: 30000 });
+    await dateFilter.click();
+    await expect(
+      page.locator('.el-date-range-picker, .el-picker-panel').first(),
+      '点击日期筛选后日期区间选择面板应弹出'
+    ).toBeVisible({ timeout: 30000 });
+    await page.keyboard.press('Escape');
   });
 });

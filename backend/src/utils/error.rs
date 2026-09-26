@@ -1,3 +1,36 @@
+//! 统一错误类型 `AppError` 与 HTTP 出参脱敏机制。
+//!
+//! # 出参文案规则（白名单式外显，默认脱敏）
+//!
+//! 所有错误经 [`IntoResponse`] 出参时，`message` 字段默认是**固定脱敏常量**
+//! （如 `AppError::business` → "业务处理失败"），真实文案只进 tracing 日志。
+//!
+//! 唯一例外：构造点显式使用 [`AppError::business_displayable`]（新变体
+//! `BusinessErrorDisplayable`）时，出参 `message` 携带真实文案。
+//! **不存在任何全局开关/环境变量**，是否外显由每个构造点逐条显式声明。
+//!
+//! ## 何时允许 `business_displayable`（安全边界，硬性规则）
+//!
+//! 仅当文案**只涉及当前用户自己提交的输入或本应告知用户的业务规则**，
+//! 且不包含以下任何内容时才允许外显：
+//! - 权限判定依据（角色/权限比对结果、管理员身份校验逻辑）
+//! - 其它用户/其它主体的数据（他人姓名、库存数量、余额、未付金额等）
+//! - 内部标识（数据库表名、记录 ID、内部编码、文件路径）
+//! - SQL / 堆栈 / 任何系统实现细节
+//!
+//! 不确定的一律用 [`AppError::business`]（脱敏）。禁止通过拼 format! 把
+//! 查询到的实体数据塞进可外显文案。
+//!
+//! 允许的例子：
+//! 1. "二级审批人不能与一级审批人相同"（双方均为操作者自己提交的审批身份约束）
+//! 2. "device_id 不能为空"（用户请求体字段校验）
+//! 3. "只有敏感角色变更需要审批"（公开业务规则，不泄露权限判定细节）
+//!
+//! 禁止的例子：
+//! 1. "当前库存 12.5 米，不足出库"（含库存数量）
+//! 2. "业务模式 42 不存在"（含内部记录 ID）
+//! 3. "unique constraint failed: users.username"（含表名/SQL 细节）
+
 use axum::{
     Json,
     http::StatusCode,
@@ -14,6 +47,11 @@ pub enum AppError {
     ValidationError(String),
     NotFound(String),
     BusinessError(String),
+    /// 可外显的业务错误：仅允许由 [`AppError::business_displayable`] 构造。
+    /// 出参 `code` 与 `BusinessError` 完全一致（`BUSINESS_ERROR`），
+    /// 唯一区别是 HTTP 响应的 `message` 携带真实文案。
+    /// 使用条件见模块文档的安全边界；默认请始终使用 [`AppError::business`]。
+    BusinessErrorDisplayable(String),
     Unauthorized(String),
     InternalError(String),
     BadRequest(String),
@@ -31,6 +69,14 @@ impl AppError {
     }
     pub fn business(msg: impl Into<String>) -> Self {
         Self::BusinessError(msg.into())
+    }
+    /// 构造**可外显**的业务错误：HTTP 出参 `message` 携带真实文案。
+    ///
+    /// 仅当文案满足模块文档的安全边界（只涉及用户自己提交的数据/公开业务规则，
+    /// 不含库存数量、余额、他人数据、内部 ID、表名、SQL、权限判定依据）时才允许使用；
+    /// 不满足就改用 [`AppError::business`]（默认脱敏）。
+    pub fn business_displayable(msg: impl Into<String>) -> Self {
+        Self::BusinessErrorDisplayable(msg.into())
     }
     pub fn validation(msg: impl Into<String>) -> Self {
         Self::ValidationError(msg.into())
@@ -68,6 +114,9 @@ impl fmt::Display for AppError {
             AppError::ValidationError(msg) => write!(f, "{}{}", err_msg::VALIDATION_PREFIX, msg),
             AppError::NotFound(msg) => write!(f, "{}{}", err_msg::NOT_FOUND_PREFIX, msg),
             AppError::BusinessError(msg) => write!(f, "{}{}", err_msg::BUSINESS_PREFIX, msg),
+            AppError::BusinessErrorDisplayable(msg) => {
+                write!(f, "{}{}", err_msg::BUSINESS_PREFIX, msg)
+            }
             AppError::Unauthorized(msg) => write!(f, "{}{}", err_msg::UNAUTHORIZED_PREFIX, msg),
             AppError::InternalError(msg) => write!(f, "{}{}", err_msg::INTERNAL_PREFIX, msg),
             AppError::BadRequest(msg) => write!(f, "{}{}", err_msg::BAD_REQUEST_PREFIX, msg),
@@ -122,6 +171,7 @@ impl AppError {
             AppError::ValidationError(_) => (StatusCode::BAD_REQUEST, "ValidationError"),
             AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NotFound"),
             AppError::BusinessError(_) => (StatusCode::BAD_REQUEST, "BusinessError"),
+            AppError::BusinessErrorDisplayable(_) => (StatusCode::BAD_REQUEST, "BusinessError"),
             AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "Unauthorized"),
             AppError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "InternalError"),
             AppError::PermissionDenied(_) => (StatusCode::FORBIDDEN, "PermissionDenied"),
@@ -138,6 +188,7 @@ impl AppError {
             AppError::ValidationError(_) => ("LOW", err_msg::ACTION_VALIDATION),
             AppError::NotFound(_) => ("MEDIUM", err_msg::ACTION_NOT_FOUND),
             AppError::BusinessError(_) => ("MEDIUM", err_msg::ACTION_BUSINESS),
+            AppError::BusinessErrorDisplayable(_) => ("MEDIUM", err_msg::ACTION_BUSINESS),
             AppError::Unauthorized(_) => ("HIGH", err_msg::ACTION_UNAUTHORIZED),
             AppError::InternalError(_) => ("CRITICAL", err_msg::ACTION_INTERNAL),
             AppError::PermissionDenied(_) => ("HIGH", err_msg::ACTION_PERMISSION),
@@ -154,6 +205,7 @@ impl AppError {
             | AppError::ValidationError(m)
             | AppError::NotFound(m)
             | AppError::BusinessError(m)
+            | AppError::BusinessErrorDisplayable(m)
             | AppError::Unauthorized(m)
             | AppError::InternalError(m)
             | AppError::BadRequest(m)
@@ -198,6 +250,9 @@ impl AppError {
             ),
             AppError::NotFound(_) => (err_msg::LOG_NOT_FOUND, err_msg::HINT_NOT_FOUND.to_string()),
             AppError::BusinessError(_) => {
+                (err_msg::LOG_BUSINESS, err_msg::HINT_BUSINESS.to_string())
+            }
+            AppError::BusinessErrorDisplayable(_) => {
                 (err_msg::LOG_BUSINESS, err_msg::HINT_BUSINESS.to_string())
             }
             AppError::Unauthorized(_) => (
@@ -380,6 +435,13 @@ pub struct ErrorResponse {
     pub timestamp: i64,
 }
 
+/// `Unauthorized` 变体的字符串错误码（与 [`AppError::error_code`] 同源）。
+/// 认证中间件不经 `AppError` 出参（需原样外显固定文案）时必须复用这两个常量，
+/// 保证失败信封的 `code` 取值全站唯一。
+pub const CODE_UNAUTHORIZED: &str = "UNAUTHORIZED";
+/// `PermissionDenied` 变体的字符串错误码（与 [`AppError::error_code`] 同源）
+pub const CODE_FORBIDDEN: &str = "FORBIDDEN";
+
 /// 为已有 `AppError` 追加响应序列化能力（不修改任何现有方法）
 impl AppError {
     /// 转换为对外统一的 [`ErrorResponse`]
@@ -407,10 +469,11 @@ impl AppError {
         match self {
             AppError::NotFound(_) => "NOT_FOUND",
             AppError::BadRequest(_) => "BAD_REQUEST",
-            AppError::Unauthorized(_) => "UNAUTHORIZED",
-            AppError::PermissionDenied(_) => "FORBIDDEN",
+            AppError::Unauthorized(_) => CODE_UNAUTHORIZED,
+            AppError::PermissionDenied(_) => CODE_FORBIDDEN,
             AppError::ValidationError(_) => "VALIDATION_ERROR",
             AppError::BusinessError(_) => "BUSINESS_ERROR",
+            AppError::BusinessErrorDisplayable(_) => "BUSINESS_ERROR",
             AppError::DatabaseError(_) => "DATABASE_ERROR",
             AppError::InternalError(_) => "INTERNAL_ERROR",
             AppError::NotImplemented(_) => "NOT_IMPLEMENTED",
@@ -419,13 +482,18 @@ impl AppError {
         .to_string()
     }
 
-    /// 生产环境对外暴露的脱敏文案
-    fn public_message(&self) -> String {
+    /// 生产环境对外暴露的脱敏文案。
+    ///
+    /// 例外：`BusinessErrorDisplayable` 由构造点（`AppError::business_displayable`）
+    /// 显式声明文案安全，直接返回真实文案；其余一律返回固定脱敏常量。
+    /// 出参文案：默认脱敏，仅 `BusinessErrorDisplayable` 变体返回真实文案。
+    pub(crate) fn public_message(&self) -> String {
         match self {
             AppError::DatabaseError(_) => err_msg::DB_ERROR_PUBLIC.to_string(),
             AppError::ValidationError(_) => err_msg::VALIDATION_PUBLIC.to_string(),
             AppError::NotFound(_) => err_msg::NOT_FOUND_PUBLIC.to_string(),
             AppError::BusinessError(_) => err_msg::BUSINESS_PUBLIC.to_string(),
+            AppError::BusinessErrorDisplayable(msg) => msg.clone(),
             AppError::Unauthorized(_) => err_msg::UNAUTHORIZED_PUBLIC.to_string(),
             AppError::InternalError(_) => err_msg::INTERNAL_PUBLIC.to_string(),
             AppError::BadRequest(_) => err_msg::BAD_REQUEST_PUBLIC.to_string(),
@@ -433,5 +501,68 @@ impl AppError {
             AppError::NotImplemented(_) => err_msg::NOT_IMPLEMENTED_PUBLIC.to_string(),
             AppError::TooManyRequests { .. } => err_msg::TOO_MANY_REQUESTS_PUBLIC.to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod displayable_message_tests {
+    use super::*;
+
+    /// ① 默认 business 构造：出参 message 仍为固定脱敏常量，真实文案不外显
+    #[test]
+    fn business_default_still_sanitized() {
+        let err = AppError::business("二级审批人不能与一级审批人相同");
+        let resp = err.to_response();
+        assert_eq!(resp.message, err_msg::BUSINESS_PUBLIC);
+        assert_eq!(resp.message, "业务处理失败");
+    }
+
+    /// ② displayable 构造：出参 message 携带真实文案
+    #[test]
+    fn business_displayable_exposes_real_message() {
+        let err = AppError::business_displayable("审批人不能是申请人");
+        let resp = err.to_response();
+        assert_eq!(resp.message, "审批人不能是申请人");
+    }
+
+    /// ③ 两种构造的 code 完全一致（出参契约不变）
+    #[test]
+    fn business_and_displayable_share_code() {
+        let a = AppError::business("x");
+        let b = AppError::business_displayable("x");
+        assert_eq!(a.error_code(), b.error_code());
+        assert_eq!(b.error_code(), "BUSINESS_ERROR");
+    }
+
+    /// IntoResponse 出参链路与 to_response 共用同一 public_message，
+    /// 这里验证两条链路（默认脱敏 / 显式外显）行为一致
+    #[test]
+    fn into_response_and_to_response_consistent() {
+        let err_default = AppError::business("库存不足 12.5");
+        assert_eq!(err_default.error_code(), "BUSINESS_ERROR");
+        assert_eq!(err_default.to_response().message, err_msg::BUSINESS_PUBLIC);
+        assert!(!err_default.to_response().message.contains("12.5"));
+
+        let err_display = AppError::business_displayable("只有敏感角色变更需要审批");
+        assert_eq!(err_display.error_code(), "BUSINESS_ERROR");
+        assert_eq!(
+            err_display.to_response().message,
+            "只有敏感角色变更需要审批"
+        );
+    }
+
+    /// 真实文案仍进 Display（tracing 日志侧不受外显开关影响）
+    #[test]
+    fn display_keeps_real_message_for_both() {
+        assert!(
+            AppError::business("内部原因ABC")
+                .to_string()
+                .contains("内部原因ABC")
+        );
+        assert!(
+            AppError::business_displayable("审批人不能是申请人")
+                .to_string()
+                .contains("审批人不能是申请人")
+        );
     }
 }

@@ -64,6 +64,7 @@ pub struct UpdateSubjectRequestDto {
     pub assist_batch: bool,
     pub assist_color_no: bool,
     pub enable_dual_unit: bool,
+    pub status: Option<String>,
 }
 
 /// 查询科目列表
@@ -176,6 +177,7 @@ pub async fn update_subject(
         assist_batch: req.assist_batch,
         assist_color_no: req.assist_color_no,
         enable_dual_unit: req.enable_dual_unit,
+        status: req.status,
     };
 
     let subject = service.update(id, update_req, auth.user_id).await?;

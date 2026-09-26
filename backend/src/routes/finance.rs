@@ -231,6 +231,7 @@ pub fn gl() -> Router<AppState> {
             post(voucher_handler::review_voucher),
         )
         .route("/vouchers/{id}/post", post(voucher_handler::post_voucher))
+        .route("/vouchers/{id}/unpost", post(voucher_handler::unpost_voucher))
         // V15 修复（A0）：会计凭证打印，返回 docx 成品（规则 3 合规）
         .route(
             "/vouchers/{id}/print",
@@ -502,7 +503,9 @@ pub fn financial_analysis() -> Router<AppState> {
         )
         .route(
             "/financial-analysis/reports/{id}",
-            get(financial_analysis_handler::get_report),
+            get(financial_analysis_handler::get_report)
+                .put(financial_analysis_handler::update_report)
+                .delete(financial_analysis_handler::delete_report),
         )
         .route(
             "/financial-analysis/reports/{id}/execute",

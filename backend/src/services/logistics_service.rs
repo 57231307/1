@@ -17,6 +17,7 @@ use std::sync::Arc;
 use crate::container::AppState;
 use crate::models::logistics_tracking_event;
 use crate::models::logistics_waybill::{self, Entity as WaybillEntity};
+use crate::models::status::logistics_event_type;
 use crate::utils::error::AppError;
 
 /// 物流跟踪事件 DTO
@@ -91,6 +92,15 @@ impl LogisticsService {
         }
 
         let data_source = event.data_source.unwrap_or_else(|| "manual".to_string());
+        // 事件类型必须先过取值域：该列历史上无校验，任意写法进轨迹后界面只能显示码原文，
+        // 按事件判断运单进展的逻辑也会静默失配
+        if !logistics_event_type::ALL.contains(&event.event_type.as_str()) {
+            return Err(AppError::validation(format!(
+                "无效的轨迹事件类型：{}（允许值：{}）",
+                event.event_type,
+                logistics_event_type::ALL.join("/")
+            )));
+        }
         let now = Utc::now();
         let active = logistics_tracking_event::ActiveModel {
             id: Default::default(),

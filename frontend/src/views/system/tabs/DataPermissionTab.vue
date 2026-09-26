@@ -42,6 +42,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { request } from '@/api/request';
 import type { ApiResponse } from '@/types/api';
@@ -65,6 +66,7 @@ const fetchDataPermissions = async () => {
     // 拦截器返回 ApiResponse 信封，业务数组在 data 字段（信封对象直赋表格会触发 rows not iterable 崩溃）
     dataPermissionList.value = (res.data as DataPermissionRow[]) ?? [];
   } catch (_e) {
+    logger.error(t('system.dataPermission.loadListFailed'), _e);
     dataPermissionList.value = [];
   } finally {
     dataPermLoading.value = false;

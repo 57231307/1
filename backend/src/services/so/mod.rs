@@ -18,7 +18,7 @@
 
 use sea_orm::FromQueryResult;
 use serde::{Deserialize, Serialize};
-use validator::Validate;
+use validator::{Validate, ValidationError};
 
 pub mod contract;
 pub mod delivery;
@@ -67,6 +67,12 @@ pub struct SalesOrderDetail {
     pub packaging_requirement: Option<String>,
     pub quality_standard: Option<String>,
     pub created_by: Option<i32>,
+    /// 创建人姓名（由 LEFT JOIN 到 `users` 表的 `real_name` 列富化；非实体列）
+    pub creator_name: Option<String>,
+    /// 收货联系人快照（`sales_order.contact_person`）：编辑表单预填用
+    pub contact_person: Option<String>,
+    /// 收货联系电话快照（`sales_order.contact_phone`）：编辑表单预填用
+    pub contact_phone: Option<String>,
     pub approved_by: Option<i32>,
     pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -113,6 +119,8 @@ pub struct SalesOrderItemDetail {
     pub final_price: Option<rust_decimal::Decimal>,
     pub shipped_quantity_meters: rust_decimal::Decimal,
     pub shipped_quantity_kg: rust_decimal::Decimal,
+    /// 行级交付容差百分比（NULL = 走默认解析，非空 = 行级覆盖）
+    pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
 }
 
 /// 创建销售订单请求
@@ -121,6 +129,12 @@ pub struct CreateSalesOrderRequest {
     #[validate(range(min = 1, message = "客户ID必须大于0"))]
     pub customer_id: i32,
     pub opportunity_id: Option<i32>,
+    /// 订单日期：可空，缺省落库为当前时间
+    pub order_date: Option<chrono::DateTime<chrono::Utc>>,
+    /// 收货联系人快照（可从客户档案带出）
+    pub contact_person: Option<String>,
+    /// 收货联系电话快照
+    pub contact_phone: Option<String>,
     pub required_date: Option<chrono::DateTime<chrono::Utc>>,
     #[validate(length(max = 50, message = "状态长度不能超过50个字符"))]
     pub status: Option<String>,
@@ -130,7 +144,7 @@ pub struct CreateSalesOrderRequest {
     pub billing_address: Option<String>,
     #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
     pub notes: Option<String>,
-    #[validate(length(min = 1, message = "订单项不能为空"))]
+    #[validate(length(min = 1, message = "订单项不能为空"), nested)]
     pub items: Vec<SalesOrderItemRequest>,
     #[validate(length(max = 100, message = "付款条件长度不能超过100个字符"))]
     pub payment_terms: Option<String>,
@@ -184,16 +198,36 @@ pub struct SalesOrderItemRequest {
     pub final_price: Option<rust_decimal::Decimal>,
     /// 匹号（染色匹号贯穿销售订单条目，匹号领域一期）
     pub piece_no: Option<String>,
+    /// 交货数量允收容差（百分比，可空）：NULL = 走默认解析（品类 > 全局），
+    /// 非空 = 行级覆盖（含「约」订单写 10.00）。
+    /// 范围校验 [0, 100]：负值使门控上下界倒转，超大值使超收门控失效；
+    /// None 合法（不覆盖，走默认解析）。
+    #[validate(custom(function = "validate_quantity_tolerance_pct"))]
+    pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
+}
+
+/// 行级交付容差百分比范围校验 [0, 100]。
+///
+/// 由 `validator` 框架在 `Option<T>` 字段上自动解包：`None` 跳过（合法，不覆盖），
+/// `Some(v)` 时调用本函数校验 `0 <= v <= 100`。
+/// 负值会使容差门控上下界倒转、超大正值使超收门控失效。
+fn validate_quantity_tolerance_pct(v: &rust_decimal::Decimal) -> Result<(), ValidationError> {
+    use crate::utils::delivery_tolerance::{TOLERANCE_PCT_MAX, TOLERANCE_PCT_MIN};
+    if *v < TOLERANCE_PCT_MIN || *v > TOLERANCE_PCT_MAX {
+        return Err(ValidationError::new("交货容差百分比必须在 0 到 100 之间"));
+    }
+    Ok(())
 }
 
 /// 更新销售订单请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateSalesOrderRequest {
     pub required_date: Option<chrono::DateTime<chrono::Utc>>,
     pub status: Option<String>,
     pub shipping_address: Option<String>,
     pub billing_address: Option<String>,
     pub notes: Option<String>,
+    #[validate(nested)]
     pub items: Option<Vec<SalesOrderItemRequest>>,
 }
 

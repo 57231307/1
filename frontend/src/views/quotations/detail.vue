@@ -42,7 +42,7 @@
       <!-- 基本信息 -->
       <el-descriptions :column="3" border>
         <el-descriptions-item :label="t('quotations.detail.labelCustomer')">
-          {{ quotation.customer_name || quotation.customer_id }}
+          {{ quotation.customer_name }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('quotations.detail.labelQuotationDate')">{{
           quotation.quotation_date
@@ -78,8 +78,7 @@
           </el-tag>
           <span v-if="quotation.approved_at" class="approved-info">
             {{ t('quotations.detail.approvalTimeLabel') }}{{ quotation.approved_at }}
-            {{ t('quotations.detail.approverLabel')
-            }}{{ quotation.approved_by_name || quotation.approved_by }}
+            {{ t('quotations.detail.approverLabel') }}{{ quotation.approved_by_name }}
           </span>
         </el-descriptions-item>
         <el-descriptions-item
@@ -119,7 +118,7 @@
         <el-table-column type="index" label="#" width="50" align="center" />
         <el-table-column :label="t('quotations.detail.colProduct')" min-width="180">
           <template #default="{ row }">
-            {{ row.product_name || row.product_code || row.product_id }}
+            {{ row.product_name }}
           </template>
         </el-table-column>
         <el-table-column :label="t('quotations.detail.colColor')" width="100">

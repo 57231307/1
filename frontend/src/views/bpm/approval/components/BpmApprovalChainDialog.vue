@@ -13,21 +13,18 @@
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <div v-if="chain.length > 0" class="approval-chain">
-      <div v-for="(node, index) in chain" :key="index" class="chain-item">
+      <div v-for="(node, index) in chain" :key="node.node_id" class="chain-item">
         <div class="chain-node" :class="getNodeStatusClassFmt(node.status)">
-          <div class="node-order">{{ node.order }}</div>
+          <div class="node-order">{{ index + 1 }}</div>
           <div class="node-content">
             <div class="node-name">{{ node.node_name }}</div>
             <div class="node-type">{{ getNodeTypeNameFmt(node.node_type) }}</div>
-            <div v-if="node.approver_name" class="node-approver">
-              {{ $t('bpm.approval.chainDialog.approver') }}：{{ node.approver_name }}
+            <div v-if="node.assignee_name" class="node-approver">
+              {{ $t('bpm.approval.chainDialog.approver') }}：{{ node.assignee_name }}
             </div>
-            <div v-if="node.approved_at" class="node-time">{{ node.approved_at }}</div>
+            <div v-if="node.completed_at" class="node-time">{{ node.completed_at }}</div>
             <div v-if="node.comment" class="node-comment">
               {{ $t('bpm.approval.chainDialog.comment') }}：{{ node.comment }}
-            </div>
-            <div v-if="node.duration" class="node-duration">
-              {{ $t('bpm.approval.chainDialog.durationText', { minutes: node.duration }) }}
             </div>
           </div>
         </div>
@@ -66,11 +63,12 @@ const emit = defineEmits<{
 const getNodeStatusClassFmt = getNodeStatusClass;
 
 // 节点类型名称（响应式求值，随语言切换更新）
+// 取值域 = 流程定义 config.nodes[].type（start_event/end_event/user_task/condition）
 const getNodeTypeNameFmt = (type: string) => {
   const map: Record<string, string> = {
-    start: t('bpm.nodeType.start'),
-    end: t('bpm.nodeType.end'),
-    approval: t('bpm.nodeType.approval'),
+    start_event: t('bpm.nodeType.start'),
+    end_event: t('bpm.nodeType.end'),
+    user_task: t('bpm.nodeType.approval'),
     condition: t('bpm.nodeType.condition'),
     notify: t('bpm.nodeType.notify'),
   };

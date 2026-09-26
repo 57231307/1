@@ -17,7 +17,7 @@
             v-model="localQuery.keyword"
             :placeholder="t('inventory.stockTab.keywordPlaceholder')"
             clearable
-            @clear="emit('query')"
+            @clear="handleQuery"
           />
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.warehouse')">
@@ -25,7 +25,7 @@
             v-model="localQuery.warehouse_id"
             :placeholder="t('inventory.stockTab.warehousePlaceholder')"
             clearable
-            @change="emit('query')"
+            @change="handleQuery"
           >
             <el-option
               v-for="wh in warehouses"
@@ -37,18 +37,21 @@
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.status')">
           <el-select
-            v-model="localQuery.status"
+            v-model="localQuery.stock_status"
             :placeholder="t('inventory.stockTab.statusPlaceholder')"
             clearable
-            @change="emit('query')"
+            @change="handleQuery"
           >
-            <el-option :label="t('inventory.stockTab.statusNormal')" value="normal" />
-            <el-option :label="t('inventory.stockTab.statusWarning')" value="warning" />
-            <el-option :label="t('inventory.stockTab.statusFrozen')" value="frozen" />
+            <el-option
+              v-for="opt in INVENTORY_STOCK_STATUS_OPTIONS"
+              :key="opt"
+              :label="t(INVENTORY_STOCK_STATUS_LABEL_KEY[opt])"
+              :value="opt"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="emit('query')">
+          <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
             {{ t('inventory.stockTab.query') }}
           </el-button>
@@ -56,11 +59,20 @@
             <el-icon><Refresh /></el-icon>
             {{ t('inventory.stockTab.reset') }}
           </el-button>
+          <el-button type="success" @click="emit('create')">
+            {{ t('inventory.stockTab.create') }}
+          </el-button>
+          <el-button @click="emit('export')">{{ t('inventory.stockTab.export') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
+      <div class="table-toolbar">
+        <el-button size="small" @click="emit('create')">
+          {{ t('inventory.stockTab.create') }}
+        </el-button>
+      </div>
       <V2Table
         :data="stocks"
         :columns="stockColumns"
@@ -69,7 +81,7 @@
         :total="total"
         :page="localQuery.page"
         :page-size="localQuery.page_size"
-        @row-click="(row: InventoryStock) => emit('view', row)"
+        @row-click="handleRowView"
         @page-change="handlePageChange"
         @size-change="handleSizeChange"
       />
@@ -78,11 +90,19 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { computed, h, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElButton } from 'element-plus';
 import { Search, Refresh } from '@element-plus/icons-vue';
 import V2Table from '@/components/V2Table/index.vue';
 import { useTableColumns } from '@/composables/useTableColumns';
+import { useUserStore } from '@/store/user';
+import { canAccessDetailPermission } from '@/router';
+import { getStockStatusLabel } from '../composables/invFmts';
+import {
+  INVENTORY_STOCK_STATUS_LABEL_KEY,
+  INVENTORY_STOCK_STATUS_OPTIONS,
+} from '@/constants/inventory-stock-status';
 // v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
 import type { InventoryStock } from '@/api/inventory';
 import type { Warehouse } from '@/api/warehouse';
@@ -95,7 +115,7 @@ export interface StockQuery {
   page_size: number;
   keyword: string;
   warehouse_id: number | undefined;
-  status: string;
+  stock_status: string;
 }
 
 const props = defineProps<{
@@ -110,6 +130,10 @@ const emit = defineEmits<{
   view: [row: InventoryStock];
   query: [];
   reset: [];
+  create: [];
+  edit: [row: InventoryStock];
+  delete: [row: InventoryStock];
+  export: [];
   'update:queryParams': [value: StockQuery];
 }>();
 
@@ -123,14 +147,21 @@ watch(
   { deep: true }
 );
 
-// 状态标签映射函数化响应式求值
-const getStatusText = (status: string) => {
-  const textMap: Record<string, string> = {
-    normal: t('inventory.stockTab.statusNormal'),
-    warning: t('inventory.stockTab.statusWarning'),
-    frozen: t('inventory.stockTab.statusFrozen'),
-  };
-  return textMap[status] || status;
+// 状态标签映射：与详情页、打印共用同一份取值→文案映射（见 composables/invFmts）
+const getStatusText = (status: string) => getStockStatusLabel(status, t);
+
+// 后端对 resource_id=NULL 权限行拒绝 `/inventory/stock/{id}` 的 GET(查看)/PUT(编辑)，
+// 非管理员点了必然 403。与后端同源判定（canAccessDetailPermission）决定是否隐藏入口。
+const userStore = useUserStore();
+const canViewStockDetail = computed(() =>
+  canAccessDetailPermission('inventory', 'read', userStore.userInfo?.permissions || [])
+);
+const canEditStockDetail = computed(() =>
+  canAccessDetailPermission('inventory', 'update', userStore.userInfo?.permissions || [])
+);
+// 行点击进入详情：无 /{id} 读权限时不触发（详情数据无法加载，避免必然 403）
+const handleRowView = (row: InventoryStock) => {
+  if (canViewStockDetail.value) emit('view', row);
 };
 
 const { columns: stockColumns } = useTableColumns<InventoryStock>([
@@ -143,24 +174,74 @@ const { columns: stockColumns } = useTableColumns<InventoryStock>([
   { key: 'product_name', title: t('inventory.stockTab.colProductName'), width: 200 },
   { key: 'warehouse_name', title: t('inventory.stockTab.colWarehouse'), width: 120 },
   { key: 'batch_no', title: t('inventory.stockTab.colBatchNo'), width: 120 },
-  { key: 'color_code', title: t('inventory.stockTab.colColorCode'), width: 100 },
+  { key: 'color_no', title: t('inventory.stockTab.colColorCode'), width: 100 },
+  { key: 'dye_lot_no', title: t('inventory.stockTab.colDyeLot'), width: 110 },
   {
-    key: 'quantity',
+    key: 'quantity_on_hand',
     title: t('inventory.stockTab.colQuantity'),
     width: 120,
     align: 'right',
     formatter: (row: InventoryStock) =>
-      row.quantity != null ? row.quantity.toLocaleString() : '-',
+      row.quantity_on_hand != null ? Number(row.quantity_on_hand).toLocaleString() : '-',
   },
   {
-    key: 'status',
+    key: 'stock_status',
     title: t('inventory.stockTab.colStatus'),
     width: 100,
     align: 'center',
-    formatter: (row: InventoryStock) => getStatusText(row.status),
+    formatter: (row: InventoryStock) => getStatusText(row.stock_status),
   },
-  { key: 'location', title: t('inventory.stockTab.colLocation'), width: 100 },
+  { key: 'bin_location', title: t('inventory.stockTab.colLocation'), width: 100 },
+  {
+    key: 'operation',
+    title: t('inventory.stockTab.colOperation'),
+    width: 120,
+    fixed: 'right',
+    // V2Table 通过 renderCell 渲染操作列（无插槽机制）
+    renderCell: (row: InventoryStock) => {
+      const actions = [
+        // 编辑入口保存走 PUT /inventory/stock/{id}，无 /{id} 更新权限时不渲染
+        ...(canEditStockDetail.value
+          ? [
+              h(
+                ElButton,
+                {
+                  size: 'small',
+                  type: 'primary',
+                  link: true,
+                  onClick: (e: Event) => {
+                    e.stopPropagation();
+                    emit('edit', row);
+                  },
+                },
+                () => t('common.edit')
+              ),
+            ]
+          : []),
+        h(
+          ElButton,
+          {
+            size: 'small',
+            type: 'danger',
+            link: true,
+            onClick: (e: Event) => {
+              e.stopPropagation();
+              emit('delete', row);
+            },
+          },
+          () => t('common.delete')
+        ),
+      ];
+      return h('div', { class: 'operation-cell' }, actions);
+    },
+  },
 ]);
+
+// 查询前先回传本地筛选值，确保父组件 fetchData 读到最新 keyword/warehouse_id/stock_status
+const handleQuery = () => {
+  emit('update:queryParams', { ...localQuery });
+  emit('query');
+};
 
 const handlePageChange = (newPage: number) => {
   emit('update:queryParams', { ...localQuery, page: newPage });

@@ -21,6 +21,7 @@ pub struct Model {
     #[sea_orm(column_type = "Date")]
     pub opened_date: Option<NaiveDate>,
     pub remark: Option<String>,
+    pub created_by: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

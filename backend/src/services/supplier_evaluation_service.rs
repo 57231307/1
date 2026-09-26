@@ -8,8 +8,8 @@ use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Datelike, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, JoinType,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationDef, Select, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -63,6 +63,30 @@ pub struct SupplierScoreResponse {
     pub rating: String,
     /// 最近评估日期
     pub latest_evaluation_date: Option<DateTime<Utc>>,
+}
+
+/// 评估记录读模型：`supplier_evaluation_record` 实体列 + 单次 LEFT JOIN 富化出的三个名称列。
+///
+/// 一行仍是「一个指标的一次评分」（本表无跨指标聚合语义，故不含 total_score/rating/status）。
+/// 三个 JOIN 名列均 `Option<String>`：`evaluator_id` 可空、外键缺失时对应名列为 NULL。
+/// `score` / `weighted_score` 保持 `Decimal`（`rust_decimal` 仅开 serde 特性 → 序列化为 JSON 字符串）。
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct EvaluationRecordView {
+    pub id: i32,
+    pub supplier_id: i32,
+    pub evaluation_period: String,
+    pub indicator_id: i32,
+    pub score: Decimal,
+    pub max_score: Option<i32>,
+    pub weighted_score: Option<Decimal>,
+    pub evaluator_id: Option<i32>,
+    pub evaluation_date: Option<chrono::NaiveDate>,
+    pub remark: Option<String>,
+    pub created_at: DateTime<Utc>,
+    // JOIN 富化列：供应商名 / 指标名 / 评估人真实姓名（出参键名逐字与前端契约对齐）
+    pub supplier_name: Option<String>,
+    pub indicator_name: Option<String>,
+    pub evaluator_name: Option<String>,
 }
 
 pub struct SupplierEvaluationService {
@@ -423,20 +447,59 @@ impl SupplierEvaluationService {
         Ok(rankings)
     }
 
+    /// 构造评估记录富化查询的基底：实体全列 + 三个 LEFT JOIN 名列（供应商名 / 指标名 / 评估人姓名）。
+    ///
+    /// `supplier_evaluation_record::Relation` 为空（无声明式关系），故对三张目标表各构造一次内联
+    /// RelationDef（范式同 po/order_ops/crud.rs:492 与 purchase_return_service.rs:554，
+    /// 及 inventory_count_service.rs:237 的 `belongs_to(...).from(...).to(...).into()`）。
+    /// 均为多对一 JOIN，不倍增行，单次查询无 N+1。
+    /// evaluator_id 为可空外键：sea-orm 2.0.2 的 RelationBuilder 无 from_nulls，普通 from +
+    /// JoinType::LeftJoin 即满足语义（外键为 NULL 的行仍保留，对应名列取 NULL）。
+    fn record_view_select() -> Select<supplier_evaluation_record::Entity> {
+        use crate::models::supplier;
+        use crate::models::user;
+
+        let supplier_rel: RelationDef =
+            supplier_evaluation_record::Entity::belongs_to(supplier::Entity)
+                .from(supplier_evaluation_record::Column::SupplierId)
+                .to(supplier::Column::Id)
+                .into();
+        let indicator_rel: RelationDef =
+            supplier_evaluation_record::Entity::belongs_to(supplier_evaluation_indicator::Entity)
+                .from(supplier_evaluation_record::Column::IndicatorId)
+                .to(supplier_evaluation_indicator::Column::Id)
+                .into();
+        let evaluator_rel: RelationDef =
+            supplier_evaluation_record::Entity::belongs_to(user::Entity)
+                .from(supplier_evaluation_record::Column::EvaluatorId)
+                .to(user::Column::Id)
+                .into();
+
+        supplier_evaluation_record::Entity::find()
+            .column_as(supplier::Column::SupplierName, "supplier_name")
+            .column_as(
+                supplier_evaluation_indicator::Column::IndicatorName,
+                "indicator_name",
+            )
+            .column_as(user::Column::RealName, "evaluator_name")
+            .join(JoinType::LeftJoin, supplier_rel)
+            .join(JoinType::LeftJoin, indicator_rel)
+            .join(JoinType::LeftJoin, evaluator_rel)
+    }
+
     pub async fn get_evaluation_records(
         &self,
         supplier_id: Option<i32>,
         period: Option<String>,
         page: i64,
         page_size: i64,
-    ) -> Result<Vec<supplier_evaluation_record::Model>, AppError> {
+    ) -> Result<Vec<EvaluationRecordView>, AppError> {
         info!(
             "查询评估记录列表，supplier_id: {:?}, period: {:?}",
             supplier_id, period
         );
 
-        let mut query = supplier_evaluation_record::Entity::find();
-
+        let mut query = Self::record_view_select();
         if let Some(sid) = supplier_id {
             query = query.filter(supplier_evaluation_record::Column::SupplierId.eq(sid));
         }
@@ -450,6 +513,7 @@ impl SupplierEvaluationService {
             .order_by(supplier_evaluation_record::Column::Id, Order::Desc)
             .offset(offset)
             .limit(limit)
+            .into_model::<EvaluationRecordView>()
             .all(&*self.db)
             .await?;
 
@@ -457,11 +521,28 @@ impl SupplierEvaluationService {
         Ok(records)
     }
 
+    /// 查询单条评估记录详情（富化视图）：与列表同一 JOIN 基底，保证详情三个名列不缺。
+    pub async fn get_evaluation_record_view(
+        &self,
+        id: i32,
+    ) -> Result<EvaluationRecordView, AppError> {
+        info!("查询评估记录详情：{}", id);
+
+        let record = Self::record_view_select()
+            .filter(supplier_evaluation_record::Column::Id.eq(id))
+            .into_model::<EvaluationRecordView>()
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("评估记录不存在：{}", id)))?;
+
+        Ok(record)
+    }
+
     pub async fn get_evaluation_record_by_id(
         &self,
         id: i32,
     ) -> Result<supplier_evaluation_record::Model, AppError> {
-        info!("查询评估记录详情：{}", id);
+        info!("查询评估记录：{}", id);
 
         let record = supplier_evaluation_record::Entity::find_by_id(id)
             .one(&*self.db)

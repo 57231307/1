@@ -83,20 +83,10 @@
             clearable
           >
             <el-option
-              :label="t('inventoryTransfer.transferList.status.pending')"
-              value="pending"
-            />
-            <el-option
-              :label="t('inventoryTransfer.transferList.status.approved')"
-              value="approved"
-            />
-            <el-option
-              :label="t('inventoryTransfer.transferList.status.executed')"
-              value="executed"
-            />
-            <el-option
-              :label="t('inventoryTransfer.transferList.status.cancelled')"
-              value="cancelled"
+              v-for="s in INVENTORY_TRANSFER_STATUSES"
+              :key="s"
+              :label="t(inventoryTransferStatusLabelKey(s))"
+              :value="s"
             />
           </el-select>
         </el-form-item>
@@ -114,6 +104,9 @@
             @click="emit('openForm', 'create', null)"
           >
             <el-icon><Plus /></el-icon>{{ t('inventoryTransfer.transferList.button.create') }}
+          </el-button>
+          <el-button plain @click="handleGenerateNo">
+            {{ t('inventoryTransfer.transferList.button.generateNo') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -162,8 +155,8 @@
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">
-              {{ getStatusLabel(row.status) }}
+            <el-tag :type="inventoryTransferStatusTagType(row.status)" size="small">
+              {{ t(inventoryTransferStatusLabelKey(row.status)) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -187,7 +180,7 @@
               t('inventoryTransfer.transferList.button.detail')
             }}</el-button>
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === INVENTORY_TRANSFER_STATUS.PENDING"
               type="primary"
               link
               size="small"
@@ -195,12 +188,28 @@
               >{{ t('inventoryTransfer.transferList.button.edit') }}</el-button
             >
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === INVENTORY_TRANSFER_STATUS.PENDING"
               type="success"
               link
               size="small"
               @click="emit('openApprove', row)"
               >{{ t('inventoryTransfer.transferList.button.approve') }}</el-button
+            >
+            <el-button
+              v-if="row.status === INVENTORY_TRANSFER_STATUS.APPROVED"
+              type="warning"
+              link
+              size="small"
+              @click="handleShip(row)"
+              >{{ t('inventoryTransfer.transferList.button.ship') }}</el-button
+            >
+            <el-button
+              v-if="row.status === INVENTORY_TRANSFER_STATUS.PENDING"
+              type="danger"
+              link
+              size="small"
+              @click="emit('delete', row)"
+              >{{ t('inventoryTransfer.transferList.button.delete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -224,12 +233,22 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue';
-import { type InventoryTransferEntity } from '@/api/inventory-transfer';
+import { executeInventoryTransfer } from '@/api/inventory';
+import {
+  generateInventoryTransferNo,
+  type InventoryTransferEntity,
+} from '@/api/inventory-transfer';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
 import { formatCurrency } from '@/utils';
+import {
+  INVENTORY_TRANSFER_STATUS,
+  INVENTORY_TRANSFER_STATUSES,
+  inventoryTransferStatusLabelKey,
+  inventoryTransferStatusTagType,
+} from '@/utils/inventory-transfer-status';
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' });
@@ -237,11 +256,12 @@ const { t } = useI18n({ useScope: 'global' });
 const emit = defineEmits<{
   openForm: [mode: 'create' | 'edit' | 'view', row: InventoryTransferEntity | null];
   openApprove: [row: InventoryTransferEntity];
+  delete: [row: InventoryTransferEntity];
 }>();
 
 // 批次 391：接入 useTableApi，统一分页规范（1-based），由 setup 自动加载 + watch page/pageSize 触发。
-// 后端返回 { data: { list: [], total: 0 } }，listKey 默认 'list' 命中自动探测。
-// 原手写 queryParams/transfers/loading/total/fetchTransfers 模板代码消除。
+// 后端 list_transfers 返回裸数组 ApiResponse<Vec<Value>>：useTableApi 把 res.data 数组挂到 payload.data，
+// 故显式钉住 listKey='data'，不依赖内部 list/items/data 探测（total 后端未返回，恒为 0）。
 const {
   data: transfers,
   total,
@@ -252,6 +272,7 @@ const {
   refresh: fetchTransfers,
 } = useTableApi<InventoryTransferEntity>({
   url: '/inventory/transfers',
+  listKey: 'data',
   defaultPageSize: 20,
   defaultParams: {
     transfer_no: '',
@@ -276,23 +297,16 @@ watch(
   transfers,
   newData => {
     stats.total = total.value;
-    stats.pending = newData.filter(item => item.status === 'pending').length;
-    stats.approved = newData.filter(item => item.status === 'approved').length;
-    stats.totalAmount = newData.reduce((sum, item) => sum + (item.total_amount || 0), 0);
+    stats.pending = newData.filter(
+      item => item.status === INVENTORY_TRANSFER_STATUS.PENDING
+    ).length;
+    stats.approved = newData.filter(
+      item => item.status === INVENTORY_TRANSFER_STATUS.APPROVED
+    ).length;
+    stats.totalAmount = newData.reduce((sum, item) => sum + Number(item.total_amount), 0);
   },
   { immediate: true }
 );
-
-const getStatusLabel = (status: string) => t(`inventoryTransfer.transferList.status.${status}`);
-const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
-    pending: 'warning',
-    approved: 'success',
-    executed: 'primary',
-    cancelled: 'info',
-  };
-  return map[status] || 'info';
-};
 
 // handleQuery 同步搜索表单到 useTableApi queryParams 后重置到第 1 页并加载。
 // useTableApi watch 只监听 page/pageSize，不监听 queryParams，所以修改后需手动调 refresh。
@@ -310,6 +324,45 @@ const handleReset = () => {
 
 // 保留父组件调用接口：expose refresh 代替原 fetchTransfers
 defineExpose({ fetchTransfers });
+
+// 发货（executeInventoryTransfer：approved → shipped，按调拨明细扣减/增加在途库存）
+const handleShip = async (row: InventoryTransferEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryTransfer.transferList.message.shipConfirm'),
+      t('inventoryTransfer.transferList.message.shipTitle'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await executeInventoryTransfer(row.id as number);
+    ElMessage.success(t('inventoryTransfer.transferList.message.shipSuccess'));
+    await fetchTransfers();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(
+        (error as Error).message || t('inventoryTransfer.transferList.message.failure')
+      );
+    }
+  }
+};
+
+// 取号：预生成调拨单号（供线下单据核对/登记使用）
+const handleGenerateNo = async () => {
+  try {
+    const res = await generateInventoryTransferNo();
+    const no =
+      (res.data as { transfer_no?: string })?.transfer_no ??
+      (res as { transfer_no?: string })?.transfer_no;
+    ElMessageBox.alert(no || '-', t('inventoryTransfer.transferList.message.generateNoTitle'));
+  } catch (error) {
+    ElMessage.error(
+      (error as Error).message || t('inventoryTransfer.transferList.message.failure')
+    );
+  }
+};
 </script>
 
 <style scoped>

@@ -11,6 +11,7 @@ use sea_orm::{
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::info;
+use validator::Validate;
 
 #[derive(Debug, Clone, Default)]
 pub struct SalesPriceQueryParams {
@@ -21,13 +22,17 @@ pub struct SalesPriceQueryParams {
     pub page_size: i64,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct CreateSalesPriceInput {
     pub product_id: i32,
     pub customer_id: Option<i32>,
     pub customer_type: Option<String>,
     pub price: Decimal,
     pub currency: Option<String>,
+    #[validate(length(min = 1, message = "计量单位不能为空"))]
+    pub unit: String,
+    #[validate(length(min = 1, message = "价格类型不能为空"))]
+    pub price_type: String,
     pub min_order_qty: Option<Decimal>,
     pub effective_date: Option<String>,
     pub expiry_date: Option<String>,
@@ -103,6 +108,8 @@ impl SalesPriceService {
             currency: Set(req
                 .currency
                 .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
+            unit: Set(req.unit),
+            price_type: Set(req.price_type),
             min_order_qty: Set(req.min_order_qty.unwrap_or_default()),
             effective_date: Set(req
                 .effective_date

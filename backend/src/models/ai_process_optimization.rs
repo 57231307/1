@@ -26,7 +26,8 @@ pub struct Model {
     pub candidates_json: Option<Json>,
     pub is_applied: bool,
     pub applied_at: Option<DateTime<Utc>>,
-    pub applied_by: Option<i64>,
+    /// 关联 users.id（INTEGER/SERIAL 主键）
+    pub applied_by: Option<i32>,
     pub feedback_score: Option<i16>,
     pub feedback_remark: Option<String>,
     /// V15 P1 3.1：关联模型版本
@@ -35,7 +36,8 @@ pub struct Model {
     pub production_recipe_id: Option<i32>,
     /// V15 P1 10.3：推理耗时毫秒
     pub inference_latency_ms: Option<i32>,
-    pub created_by: Option<i64>,
+    /// 关联 users.id（INTEGER/SERIAL 主键）
+    pub created_by: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

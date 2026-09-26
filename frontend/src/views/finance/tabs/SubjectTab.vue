@@ -83,9 +83,9 @@
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
+            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
               {{
-                row.status === 1
+                row.status === 'active'
                   ? t('finance.subjectTab.statusActive')
                   : t('finance.subjectTab.statusInactive')
               }}
@@ -159,26 +159,38 @@
             check-strictly
           />
         </el-form-item>
-        <el-form-item :label="t('finance.subjectTab.labelCategory')" prop="category">
-          <el-select
-            v-model="subjectForm.category"
-            :placeholder="t('finance.subjectTab.placeholderCategory')"
-          >
-            <el-option :label="t('finance.subjectTab.optionAsset')" value="asset" />
-            <el-option :label="t('finance.subjectTab.optionLiability')" value="liability" />
-            <el-option :label="t('finance.subjectTab.optionEquity')" value="equity" />
-            <el-option :label="t('finance.subjectTab.optionCost')" value="cost" />
-            <el-option :label="t('finance.subjectTab.optionProfitLoss')" value="profit_loss" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="t('finance.subjectTab.labelDirection')" prop="direction">
-          <el-radio-group v-model="subjectForm.direction">
+        <el-form-item :label="t('finance.subjectTab.labelDirection')" prop="balance_direction">
+          <el-radio-group v-model="subjectForm.balance_direction">
             <el-radio value="debit">{{ t('finance.subjectTab.directionDebit') }}</el-radio>
             <el-radio value="credit">{{ t('finance.subjectTab.directionCredit') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item :label="t('finance.subjectTab.labelStatus')">
-          <el-switch v-model="subjectForm.status" :active-value="1" :inactive-value="0" />
+        <!-- 启用/停用：绑定 account_subjects.status 真实列（'active'/'inactive'），仅编辑态可切换 -->
+        <el-form-item v-if="subjectForm.id" :label="t('finance.subjectTab.labelStatus')">
+          <el-switch
+            v-model="subjectForm.status"
+            :active-value="'active'"
+            :inactive-value="'inactive'"
+            :active-text="t('finance.subjectTab.statusActive')"
+            :inactive-text="t('finance.subjectTab.statusInactive')"
+          />
+        </el-form-item>
+        <el-form-item :label="t('finance.subjectTab.assistAccounting')">
+          <el-checkbox v-model="subjectForm.assist_customer">{{
+            t('finance.subjectTab.assistCustomer')
+          }}</el-checkbox>
+          <el-checkbox v-model="subjectForm.assist_supplier">{{
+            t('finance.subjectTab.assistSupplier')
+          }}</el-checkbox>
+          <el-checkbox v-model="subjectForm.assist_batch">{{
+            t('finance.subjectTab.assistBatch')
+          }}</el-checkbox>
+          <el-checkbox v-model="subjectForm.assist_color_no">{{
+            t('finance.subjectTab.assistColorNo')
+          }}</el-checkbox>
+          <el-checkbox v-model="subjectForm.enable_dual_unit">{{
+            t('finance.subjectTab.enableDualUnit')
+          }}</el-checkbox>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -217,23 +229,44 @@ const subjectSubmitLoading = ref(false);
 const subjectDialogVisible = ref(false);
 const subjectFormRef = ref<FormInstance>();
 
-const subjectForm = reactive({
+const blankSubjectForm = () => ({
   id: 0,
   code: '',
   name: '',
   parent_id: undefined as number | undefined,
-  category: '',
-  direction: 'debit',
-  status: 1,
+  balance_direction: 'debit',
+  // 启用/停用状态：新建默认 active（与后端 account_subjects.status DB 默认一致），编辑时回填真实值
+  status: 'active',
+  assist_customer: false,
+  assist_supplier: false,
+  assist_batch: false,
+  assist_color_no: false,
+  enable_dual_unit: false,
 });
+
+const subjectForm = reactive(blankSubjectForm());
+
+// 级次按上级科目派生：无上级=1 级，有上级=上级级次 +1（后端 level 必填）
+const findNodeLevel = (list: AccountSubject[], id: number): number | undefined => {
+  for (const node of list) {
+    if (node.id === id) return node.level;
+    if (node.children?.length) {
+      const found = findNodeLevel(node.children, id);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+};
+const resolveLevel = (parentId?: number): number => {
+  if (parentId === undefined) return 1;
+  const parentLevel = findNodeLevel(subjects.value, parentId);
+  return parentLevel === undefined ? 2 : parentLevel + 1;
+};
 
 const subjectRules = computed<FormRules>(() => ({
   code: [{ required: true, message: t('finance.subjectTab.ruleCodeRequired'), trigger: 'blur' }],
   name: [{ required: true, message: t('finance.subjectTab.ruleNameRequired'), trigger: 'blur' }],
-  category: [
-    { required: true, message: t('finance.subjectTab.ruleCategoryRequired'), trigger: 'change' },
-  ],
-  direction: [
+  balance_direction: [
     { required: true, message: t('finance.subjectTab.ruleDirectionRequired'), trigger: 'change' },
   ],
 }));
@@ -267,22 +300,17 @@ const fetchSubjects = async () => {
 
 const openSubjectDialog = (row?: AccountSubject) => {
   subjectFormRef.value?.resetFields();
+  Object.assign(subjectForm, blankSubjectForm());
   if (row) {
     subjectForm.id = row.id;
     subjectForm.code = row.code;
     subjectForm.name = row.name;
     subjectForm.parent_id = row.parent_id;
-    subjectForm.category = row.category;
-    subjectForm.direction = row.direction;
+    subjectForm.balance_direction = row.direction || 'debit';
+    // 启用/停用开关按真实值回填（/subjects/tree 现返回 status 列，NOT NULL，直连不兜底）
     subjectForm.status = row.status;
-  } else {
-    subjectForm.id = 0;
-    subjectForm.code = '';
-    subjectForm.name = '';
-    subjectForm.parent_id = undefined;
-    subjectForm.category = '';
-    subjectForm.direction = 'debit';
-    subjectForm.status = 1;
+    // 注意：/subjects/tree 仅返回 id/code/name/level/status/children，不含辅助核算位，
+    // 编辑时无法回填既有辅助位，需后端补齐树字段或前端改调 GET /subjects/:id（见交付报告）。
   }
   subjectDialogVisible.value = true;
 };
@@ -294,15 +322,29 @@ const submitSubject = async () => {
   subjectSubmitLoading.value = true;
   try {
     if (subjectForm.id) {
-      await updateSubject(subjectForm.id, { name: subjectForm.name, status: subjectForm.status });
+      await updateSubject(subjectForm.id, {
+        name: subjectForm.name,
+        balance_direction: subjectForm.balance_direction,
+        assist_customer: subjectForm.assist_customer,
+        assist_supplier: subjectForm.assist_supplier,
+        assist_batch: subjectForm.assist_batch,
+        assist_color_no: subjectForm.assist_color_no,
+        enable_dual_unit: subjectForm.enable_dual_unit,
+        status: subjectForm.status,
+      });
       ElMessage.success(t('finance.subjectTab.messageUpdateSuccess'));
     } else {
       await createSubject({
         code: subjectForm.code,
         name: subjectForm.name,
+        level: resolveLevel(subjectForm.parent_id),
         parent_id: subjectForm.parent_id,
-        category: subjectForm.category,
-        direction: subjectForm.direction,
+        balance_direction: subjectForm.balance_direction,
+        assist_customer: subjectForm.assist_customer,
+        assist_supplier: subjectForm.assist_supplier,
+        assist_batch: subjectForm.assist_batch,
+        assist_color_no: subjectForm.assist_color_no,
+        enable_dual_unit: subjectForm.enable_dual_unit,
       });
       ElMessage.success(t('finance.subjectTab.messageCreateSuccess'));
     }
@@ -359,7 +401,7 @@ const handlePrintSubjects = () => {
 };
 
 const handleExportSubjects = () => {
-  exportFromBackend('/gl/subjects/export', {}, t('finance.subjectTab.exportFilename'));
+  exportFromBackend('/subjects/export', {}, t('finance.subjectTab.exportFilename'));
 };
 
 onMounted(() => {

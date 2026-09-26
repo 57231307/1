@@ -11,6 +11,7 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::models::cost_collection;
+use crate::models::status::cost_collection as cc_status;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
@@ -136,8 +137,10 @@ impl CostCollectionService {
     /// 查询成本归集列表
     pub async fn get_list(
         &self,
+        collection_no: Option<String>,
         batch_no: Option<String>,
         color_no: Option<String>,
+        status: Option<String>,
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<cost_collection::Model>, u64), AppError> {
@@ -145,12 +148,30 @@ impl CostCollectionService {
 
         let mut query = cost_collection::Entity::find();
 
+        // 归集单号：单号类文本筛选按仓库惯例做模糊匹配（同 order_no），
+        // 空串/空白跳过、长度上限 64 防御、safe_like_pattern 转义 LIKE 通配符。
+        if let Some(cn) = collection_no.as_deref() {
+            let trimmed = cn.trim();
+            if !trimmed.is_empty() && trimmed.chars().count() <= 64 {
+                let pattern = crate::utils::sql_escape::safe_like_pattern(trimmed);
+                query = query.filter(cost_collection::Column::CollectionNo.like(&pattern));
+            }
+        }
+
         if let Some(batch) = batch_no {
             query = query.filter(cost_collection::Column::BatchNo.eq(batch));
         }
 
         if let Some(color) = color_no {
             query = query.filter(cost_collection::Column::ColorNo.eq(color));
+        }
+
+        // 状态下拉：等值匹配 cost_collection.status 真实列（值与前端 draft/approved/rejected 一致）。
+        if let Some(st) = status.as_deref() {
+            let trimmed = st.trim();
+            if !trimmed.is_empty() {
+                query = query.filter(cost_collection::Column::Status.eq(trimmed));
+            }
         }
 
         let total = query.clone().count(&*self.db).await?;
@@ -184,7 +205,7 @@ impl CostCollectionService {
     ) -> Result<Option<cost_collection::Model>, AppError> {
         let collection = cost_collection::Entity::find()
             .filter(cost_collection::Column::DyeLotNo.eq(dye_lot_no))
-            .filter(cost_collection::Column::Status.eq("draft"))
+            .filter(cost_collection::Column::Status.eq(cc_status::DRAFT))
             .order_by(cost_collection::Column::CollectionDate, Order::Desc)
             .one(&*self.db)
             .await?;
