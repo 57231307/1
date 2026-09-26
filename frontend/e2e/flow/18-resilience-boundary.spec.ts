@@ -14,6 +14,7 @@ import {
   ensureStockInWarehouse,
   expectBadRequest,
   failureCode,
+  tryCleanup,
   type ApiFailureBody,
   APP_ERROR_CODES,
   CSRF_ERROR_CODES,
@@ -27,37 +28,60 @@ test.describe('异常处理与边界条件', () => {
 
   test('并发编辑冲突：同一用户两个 context 同时修改同一单据', async ({ page, context }) => {
     const ctx = getCtx();
-    const poId = ctx.purchaseOrderId;
-    expect(poId).toBeDefined();
+
+    // 自建一张 DRAFT 采购订单作为并发编辑目标，不依赖 pool head(ctx.purchaseOrderId)。
+    // 背景：ctx.purchaseOrderId = GET /purchase/orders 的 items[0]，而后端 list_orders
+    // 按 created_at DESC 排序（crud.rs:548），即"最新创建的一张单"。globalSeed 步骤12/15
+    // 新增多状态采购单（PENDING_APPROVAL / APPROVED）后，head 会漂移到不可编辑态单，
+    // 对其 PUT 会被 update_order → validate_order_modification 以 BUSINESS_ERROR 正当拒绝
+    // （仅 DRAFT/REJECTED 可改，非本批回归）。该拒绝与"编辑冲突"意图无关地让 result1 抛错。
+    // 故本用例显式建一张草稿单，保证两个 PUT 都命中可编辑记录，如实验证并发编辑不崩溃。
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
+      order_date: new Date().toISOString().slice(0, 10),
+      items: [{ material_id: ctx.productIds[0], quantity_ordered: '1', unit_price: '1' }],
+    });
+    const poId = created.data?.id;
+    expect(poId, '自建草稿采购单应返回 id，否则无法验证并发编辑').toBeTruthy();
 
     // 复用当前 context 的 cookie（不重新登录，避免 429）
     // 创建第二个 page（共享 cookie）
     const page2 = await context.newPage();
 
-    // 两个 page 同时更新同一单据
-    const updateData1 = { notes: `并发修改1-${Date.now()}` };
-    const updateData2 = { notes: `并发修改2-${Date.now()}` };
+    try {
+      // 两个 page 同时更新同一单据
+      const updateData1 = { notes: `并发修改1-${Date.now()}` };
+      const updateData2 = { notes: `并发修改2-${Date.now()}` };
 
-    // 第一个 page 先更新
-    const result1 = await apiCall(page, 'PUT', `/purchase/orders/${poId}`, updateData1);
+      // 第一个 page 先更新（apiCall 非 200/0 即抛，走到下一行即代表首次编辑成功）
+      const result1 = await apiCall(page, 'PUT', `/purchase/orders/${poId}`, updateData1);
+      expect(
+        result1.code === 200 || result1.code === 0,
+        `首次编辑应成功，实际：${JSON.stringify(result1)}`
+      ).toBe(true);
 
-    // 第二个 page 也尝试更新（可能因乐观锁/版本号冲突被拒）
-    const csrf2 = (await context.cookies()).find(c => c.name === 'csrf_token')?.value || '';
-    const resp2 = await page2.request.fetch(`${API_BASE}${API_PREFIX}/purchase/orders/${poId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-Token': csrf2,
-      },
-      data: JSON.stringify(updateData2),
-    });
+      // 第二个 page 也尝试更新（可能因乐观锁/版本号冲突被拒）
+      const csrf2 = (await context.cookies()).find(c => c.name === 'csrf_token')?.value || '';
+      const resp2 = await page2.request.fetch(`${API_BASE}${API_PREFIX}/purchase/orders/${poId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-Token': csrf2,
+        },
+        data: JSON.stringify(updateData2),
+      });
 
-    // 至少一个应成功，另一个可能因乐观锁被拒（4xx）
-    const status2 = resp2.status();
-    expect(status2 >= 200 && status2 < 500).toBe(true);
-
-    await page2.close();
+      // 至少一个应成功，另一个可能因乐观锁被拒（4xx），但不得 5xx 崩溃
+      const status2 = resp2.status();
+      expect(status2 >= 200 && status2 < 500).toBe(true);
+    } finally {
+      await page2.close();
+      // 草稿单可删除（delete_order 仅放行 DRAFT），清理避免 pool 堆积
+      await tryCleanup(page, 'DELETE', `/purchase/orders/${poId}`, '并发编辑草稿采购单');
+    }
   });
 
   test('不存在的资源 ID 返回 404', async ({ page }) => {
