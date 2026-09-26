@@ -365,6 +365,8 @@ impl InitService {
                     ("supplier-evaluations", "*"),
                     ("ap", "read"),
                     ("inventory", "read"),
+                    // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
+                    ("products", "read"),
                     ("reports", "read"),
                 ],
             ),
@@ -389,6 +391,8 @@ impl InitService {
                     ("supplier-product-colors", "read"),
                     ("supplier-product-colors", "create"),
                     ("supplier-product-colors", "update"),
+                    // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
+                    ("products", "read"),
                 ],
             ),
             (
@@ -409,6 +413,8 @@ impl InitService {
                     ("supplier-product-colors", "read"),
                     ("supplier-product-colors", "create"),
                     ("supplier-product-colors", "update"),
+                    // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
+                    ("products", "read"),
                 ],
             ),
         ]

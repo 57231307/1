@@ -71,6 +71,11 @@ pub struct PurchaseOrderItemDto {
     pub total_amount: rust_decimal::Decimal,
     pub received_quantity: rust_decimal::Decimal,
     pub returned_quantity: rust_decimal::Decimal,
+    // 转采购翻译回填的供应商侧快照编码（采购域可见，用于实际下单/收货核对；
+    // 属 purchase_order_item 真实列，经 list_order_items 全列 SELECT 自动映射）。
+    // 保密：销售域响应不含这两列——此 DTO 仅由 /purchase/orders/{id}/items 返回。
+    pub supplier_product_code: Option<String>,
+    pub supplier_color_no: Option<String>,
     pub notes: Option<String>,
 }
 
