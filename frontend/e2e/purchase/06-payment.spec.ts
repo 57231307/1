@@ -37,6 +37,25 @@ async function createApprovedPaymentRequest(
     throw new Error('[06-payment] 无可用供应商（globalSeed 未建立或列表为空）');
   }
 
+  // CreateApPaymentRequest.items 为必填（Vec 无 serde default，缺即 422 missing field items）；
+  // create→validate_invoice_items_txn（ap_payment_request_service.rs:90-131）要求每个
+  // item.invoice_id 引用一张存在、非 DRAFT/CANCELLED 且 apply_amount<=unpaid_amount 的应付单。
+  // 从 B 组 seed 的 AP 发票中取一张可付款发票（禁自造 invoice_id/兜底）。
+  const invRes = await apiCallRaw<{
+    items: Array<{ id: number; invoice_status: string; unpaid_amount: string | number }>;
+  }>(page, 'GET', '/ap/invoices?page=1&page_size=50');
+  const payable = invRes.items?.find(
+    i =>
+      i.invoice_status !== 'DRAFT' &&
+      i.invoice_status !== 'CANCELLED' &&
+      Number(i.unpaid_amount) > 0
+  );
+  if (!payable) {
+    throw new Error('[06-payment] 无可用应付单（B组 seed 缺非草稿/取消且未付额>0 的 AP 发票）');
+  }
+  // apply_amount 受未付额约束，与表头 request_amount（对话框展示金额）相互独立，不校验合计。
+  const applyAmount = Math.min(Number(amount), Number(payable.unpaid_amount));
+
   const pr = await apiCall<{ id?: number; request_no?: string }>(
     page,
     'POST',
@@ -48,6 +67,7 @@ async function createApprovedPaymentRequest(
       payment_method: 'bank_transfer',
       request_amount: amount,
       notes: `E2E-PAY-REQ-${Date.now()}`,
+      items: [{ invoice_id: payable.id, apply_amount: applyAmount, notes: 'E2E 付款申请明细' }],
     }
   );
   const prId = pr.data?.id;

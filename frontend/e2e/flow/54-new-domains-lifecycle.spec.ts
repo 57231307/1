@@ -122,8 +122,19 @@ test.describe.serial('新域业务流转链', () => {
           r.status() === 200,
         { timeout: 15_000 }
       ),
+      // 新建验布单默认评分制式为四分制（four_point），而 grade_inspection 四分制分支
+      // 要求 fabric_width_inches 非空（fabric_inspection_service.rs:454-455），缺则定级被正当
+      // 拒绝（400「四分制评级需要幅宽」）。建单表单已有「门幅(英寸)」el-input-number
+      // （index.vue:116-123 绑 fabric_width_inches），保存前真实填入，保证后续定级可 2xx。
       (async () => {
         await page.getByRole('button', { name: '新建验布单' }).click();
+        const widthInput = page
+          .locator('.el-dialog:visible .el-form-item')
+          .filter({ has: page.locator('.el-form-item__label', { hasText: '门幅' }) })
+          .locator('.el-input-number input')
+          .first();
+        await widthInput.waitFor({ state: 'visible', timeout: 10_000 });
+        await widthInput.fill('60');
         await page.getByRole('button', { name: '保存' }).click();
       })(),
     ]);

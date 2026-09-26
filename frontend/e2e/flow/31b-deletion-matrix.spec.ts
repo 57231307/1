@@ -415,7 +415,9 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
         route_code: `P0-RT-${TS}`,
         route_name: `P0工艺${TS}`,
         seq: 1,
-        process_type: '染色',
+        // process_type 为封闭英文词表（flow_card_ops/route.rs:34
+        // ["pretreat","dye","print","finish","inspect","other"]），中文「染色」被正当拒 400
+        process_type: 'dye',
         require_scan: true,
         remarks: 'P0工艺备注',
       },
@@ -460,7 +462,9 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
     },
     {
       label: '库存批次',
-      createApi: '/batches',
+      // 后端路由 nest 到 /api/v1/erp/inventory（routes/inventory.rs:273 register "/batches"）；
+      // 此前漏 /inventory 前缀致 permission 中间件按 URL 段推不出模块 → "未知的资源路径"。
+      createApi: '/inventory/batches',
       payload: {
         batch_no: `P0-BT-${TS}`,
         product_id: 1,
@@ -527,7 +531,9 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
     },
     {
       label: '采购价格',
-      createApi: '/purchase-prices',
+      // 后端路由在 purchase 域（routes/purchase.rs:267 register "/purchase-prices"，
+      // nest 到 /api/v1/erp/purchase）；此前漏 /purchase 前缀致 404（未匹配）。
+      createApi: '/purchase/purchase-prices',
       payload: {
         product_id: 1,
         supplier_id: 1,
@@ -590,6 +596,11 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
       createApi: '/purchase/orders',
       payload: {
         supplier_id: 1,
+        // validate_order_request（po/order_ops/crud.rs:137/150）要求 warehouse_id、
+        // department_id 非空，缺则 BAD_REQUEST「仓库/部门 ID 不能为空」。
+        // 与 helpers PO 建单同口径，取 seed 行 1（本矩阵其余资源亦引用 id=1）。
+        warehouse_id: 1,
+        department_id: 1,
         order_date: '2026-01-01',
         expected_delivery_date: '2026-12-31',
         items: [{ material_id: 1, quantity_ordered: 10, unit_price: 18 }],
@@ -602,7 +613,10 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
       createApi: '/production/outsourcing-orders',
       payload: {
         order_no: `P0-OS-${TS}`,
-        order_type: '染色',
+        // order_type 为封闭英文词表（outsourcing_service.rs validate_order_type，
+        // 权威值 status/wage_energy_chemical_business.rs:248 outsourcing_order_type
+        // DYEING="dyeing" 等），中文「染色」被正当拒 400
+        order_type: 'dyeing',
         supplier_id: 1,
         issue_date: '2026-01-01',
         expected_return_date: '2026-12-31',
@@ -845,12 +859,19 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
     const inspectionId = ins?.data?.id;
     expect(inspectionId, '[31b-疵点] 检验单创建失败').toBeTruthy();
     console.log(`[31b-疵点] 检验单创建成功 id=${inspectionId}`);
+    // 建疵点前置：验布记录须在 inspecting 状态（fabric_inspection_service.rs:774-779
+    // 「仅验布中(inspecting)状态可添加疵点」，pending 直建会被正当拒 400）。
+    // start_inspection handler 无 body 抽取器（fabric_inspection_handler.rs:132），
+    // 空体 POST 即推进 pending→inspecting。
+    await apiCall(page, 'POST', `/production/fabric-inspections/${inspectionId}/start`);
     await createThenApiDelete(page, {
       label: '疵点',
       createApi: '/production/fabric-defects',
       payload: {
         inspection_id: inspectionId,
-        defect_type: '破洞',
+        // defect_type 为封闭英文词表（validate_defect_type，含 hole）；
+        // 中文「破洞」被正当拒 400，权威英文 token 为 hole
+        defect_type: 'hole',
         position_yards: 12,
         defect_length_inches: 2,
         direction: '横向',
@@ -874,7 +895,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
       route_code: `P0-WG-RT-${TS}`,
       route_name: `P0工资工艺${TS}`,
       seq: 1,
-      process_type: '染色',
+      // 同上：process_type 封闭英文词表（route.rs:34），取 dye
+      process_type: 'dye',
       require_scan: true,
       remarks: 'P0工资工艺备注',
     });
@@ -886,7 +908,10 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
       createApi: '/production/wage-rates',
       payload: {
         process_route_id: routeId,
-        wage_type: '计件',
+        // wage_type 为封闭英文词表（validate_wage_type，权威值
+        // status/wage_energy_chemical_business.rs:24 PIECE="piece"），中文「计件」被正当拒 400；
+        // 计件工价要求 piece_price>0（rate.rs:124），payload 已带 piece_price:1.5
+        wage_type: 'piece',
         piece_price: 1.5,
         time_price: 20,
         grade_a_ratio: 1.0,

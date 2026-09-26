@@ -305,7 +305,9 @@ test.describe('面料单据专用字段全链路验证', () => {
       dye_lot_no: dyeLotNo,
       color_no: colorNo,
       quality_grade: 'A',
-      status: 'active',
+      // 坯布库存状态词表唯一事实来源=写入方 purchase_inventory.rs:266 IN_STOCK="在库"
+      // / :269 STOCKED_OUT="已出库"（英文 token 'active' 不在闭合词表内，后端拒收）。
+      status: '在库',
     };
 
     const result = await apiCall<{ id?: number }>(
@@ -406,7 +408,10 @@ test.describe('面料单据专用字段全链路验证', () => {
     );
 
     // 点击确认提交
-    await dialog.getByRole('button', { name: /确认|确定|保存/ }).last().click();
+    await dialog
+      .getByRole('button', { name: /确认|确定|保存/ })
+      .last()
+      .click();
     const resp = await responsePromise;
 
     // 断言创建成功（非 4xx/5xx）
@@ -428,10 +433,9 @@ test.describe('面料单据专用字段全链路验证', () => {
     ).toBeVisible({ timeout: 15000 });
 
     // 验证行内 fabric_type 渲染
-    await expect(
-      row.getByText(fabricType),
-      `列表应渲染 fabric_type='${fabricType}'`
-    ).toBeVisible({ timeout: 5000 });
+    await expect(row.getByText(fabricType), `列表应渲染 fabric_type='${fabricType}'`).toBeVisible({
+      timeout: 5000,
+    });
 
     // 通过 API 回读后端详情确认落库完整
     const respJson = await resp.json();
@@ -473,7 +477,10 @@ test.describe('面料单据专用字段全链路验证', () => {
       meters_per_piece: testMetersPerPiece,
     });
     const productId = created.data?.id;
-    expect(productId, `产品创建应返回 id，实际：${JSON.stringify(created).slice(0, 200)}`).toBeTruthy();
+    expect(
+      productId,
+      `产品创建应返回 id，实际：${JSON.stringify(created).slice(0, 200)}`
+    ).toBeTruthy();
 
     // GET 详情断言 meters_per_piece 非 null 且等于录入值
     const detail = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/products/${productId}`);
@@ -523,7 +530,11 @@ test.describe('面料单据专用字段全链路验证', () => {
         ).toBe(testMetersPerPiece);
       }
       // 关闭对话框
-      await page.locator('.el-dialog__headerbtn').first().click().catch(() => {});
+      await page
+        .locator('.el-dialog__headerbtn')
+        .first()
+        .click()
+        .catch(() => {});
     }
 
     // 清理

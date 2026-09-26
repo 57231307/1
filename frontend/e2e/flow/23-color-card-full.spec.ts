@@ -77,7 +77,10 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       await apiCallRaw(page, 'GET', `/color-prices/${priceId}`);
       await verifyEndpointHealthy(page, `/color-prices/${priceId}/history`);
       await verifyEndpointHealthy(page, `/color-prices/tiers/${priceId}`);
-      await safePostAction(page, `/color-prices/${priceId}/approve`);
+      // approve 需携带 ApproveColorPriceDto（color_price_dto.rs:102）：decision 必填，
+      // 取值须为 APPROVED/REJECTED（batch_service.rs:210-219 权威 token）。
+      // 空体 → 后端 serde 422 missing field decision，属正当拒绝，不放宽。
+      await safePostAction(page, `/color-prices/${priceId}/approve`, { decision: 'APPROVED' });
     }
     await verifyEndpointHealthy(page, '/color-prices/calculate?product_id=1&quantity=100');
   });

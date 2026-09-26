@@ -65,7 +65,11 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       await apiCallRaw(page, 'GET', `/production/fabric-inspections/${inspId}`);
       await verifyEndpointHealthy(page, `/production/fabric-inspections/${inspId}/defects`);
       await safePostAction(page, `/production/fabric-inspections/${inspId}/start`);
-      await safePostAction(page, `/production/fabric-inspections/${inspId}/grade`);
+      // grade 需携带 GradeInspectionRequest（fabric_inspection_service.rs:181）：
+      // inspected_yards 必填(Decimal>0)。空体 → serde 422 missing field inspected_yards。
+      await safePostAction(page, `/production/fabric-inspections/${inspId}/grade`, {
+        inspected_yards: 120,
+      });
       await safePostAction(page, `/production/fabric-inspections/${inspId}/roll`);
       await safePostAction(page, `/production/fabric-inspections/${inspId}/close`);
     }
