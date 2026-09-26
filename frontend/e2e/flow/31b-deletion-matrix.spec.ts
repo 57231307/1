@@ -576,7 +576,9 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
       payload: {
         customer_id: 1,
         items: [{ product_id: 1, quantity: 10, unit_price: 25.5 }],
-        required_date: '2026-12-31',
+        // CreateSalesOrderRequest.required_date 是 Option<chrono::DateTime<chrono::Utc>>，
+        // 期望完整 RFC 3339；裸日期串 '2026-12-31' serde 立即 EOF（后端 422）。
+        required_date: '2026-12-31T00:00:00Z',
         shipping_address: 'P0收货地址',
         payment_terms: '月结30天',
         remarks: 'P0销售订单备注',

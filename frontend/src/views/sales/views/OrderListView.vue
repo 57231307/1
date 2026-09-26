@@ -74,7 +74,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { SalesOrder } from '@/api/sales';
-import { useOlv } from '../composables/useOlv';
+import { useOlv, type OrderForm } from '../composables/useOlv';
 import { useOlvProc } from '../composables/useOlvProc';
 import SalesOrderStat from '../components/SalesOrderStat.vue';
 import SalesOrderFilter from '../components/SalesOrderFilter.vue';
@@ -130,9 +130,13 @@ const onDeliverySubmit = async (form: typeof olv.deliveryForm) => {
   }
 };
 
-/** 提交订单表单 */
-const onFormSubmit = async () => {
-  const ok = await olvProc.handleFormSubmit(olv.formData);
+/** 提交订单表单：使用 OrderFormDialog emit 的本地编辑副本（localData），
+ *  而非父组件的 olv.formData——dialog 只在挂载时同步 props→localData，
+ *  后续用户编辑只落在 localData；若仍提交 olv.formData 会把未同步的初始值
+ *  （required_date: ''）发出，后端 serde 解析 `Option<DateTime<Utc>>` 时
+ *  对 `""` 报 "premature end of input" 422，销售订单建单永远失败。 */
+const onFormSubmit = async (data: OrderForm) => {
+  const ok = await olvProc.handleFormSubmit(data);
   if (ok) formDialogVisible.value = false;
 };
 
