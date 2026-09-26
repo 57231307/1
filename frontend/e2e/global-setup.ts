@@ -2023,5 +2023,97 @@ async function ensureGlobalBusinessSeed(
     }
   }
 
+  // ---- 19. 供应商商品色号对照表种子（sku-mapping 功能 e2e 前置；幂等，按 supplier_code 精确定位）----
+  // 背景（后端 m0015 business 域种子）：已自建 2 个演示供应商 SUP-DEMO-FAB-01/02 + 各自商品/色号，
+  // 但对照表 product_supplier_mappings 本身为空壳数据，e2e 需要至少一条完整"我方产品色号 ↔
+  // 供应商商品色号"映射用于级联维护页/转采购翻译等用例的只读前提（写用例自带独立数据 + 清理，不依赖此步）。
+  // ⚠️定位方式：m0015 使 suppliers 表多出演示行，`suppliers?page_size=1` 的 [0] 现为 SUP-DEMO-FAB-01
+  //   （最小 id），既有用例依赖分页顺序的 supplier 已不可靠。此处一律按 supplier_code 精确匹配，
+  //   绝不依赖分页顺序。
+  // ⚠️保密：供应商编码仅用于采购域对照，绝不写入任何销售域 seed。
+  // 幂等：引用全局 product+color + SUP-DEMO-FAB-01/FAB-P001/PC-A01，先查后建（存在则跳过）。
+  if (productId && productColorId) {
+    try {
+      // 1) 按 supplier_code 精确定位演示供应商 SUP-DEMO-FAB-01
+      const demoSupResp = await ctx.get(`${API_PREFIX}/purchase/suppliers?page=1&page_size=200`, {
+        headers,
+      });
+      const demoSupBody = await safeJson(demoSupResp);
+      const demoSup = extractItems<{ id: number; supplier_code?: string }>(demoSupBody).find(
+        s => s.supplier_code === 'SUP-DEMO-FAB-01'
+      );
+      if (!demoSup?.id) {
+        console.warn(
+          '[globalSeed] ⚠️ 未找到演示供应商 SUP-DEMO-FAB-01（m0015 未生效？），跳过对照表种子'
+        );
+      } else {
+        // 2) 定位其商品 FAB-P001（按 product_code 精确匹配）
+        const dpResp = await ctx.get(
+          `${API_PREFIX}/purchase/supplier-products?supplier_id=${demoSup.id}&page=1&page_size=200`,
+          { headers }
+        );
+        const dpBody = await safeJson(dpResp);
+        const demoProduct = extractItems<{ id: number; product_code?: string }>(dpBody).find(
+          p => p.product_code === 'FAB-P001'
+        );
+        // 3) 定位该商品的色号 PC-A01（按 color_no 精确匹配）
+        let demoColorId: number | undefined;
+        if (demoProduct?.id) {
+          const dcResp = await ctx.get(
+            `${API_PREFIX}/purchase/supplier-product-colors?supplier_product_id=${demoProduct.id}&page=1&page_size=200`,
+            { headers }
+          );
+          const dcBody = await safeJson(dcResp);
+          const demoColor = extractItems<{ id: number; color_no?: string }>(dcBody).find(
+            c => c.color_no === 'PC-A01'
+          );
+          demoColorId = demoColor?.id;
+        }
+        if (!demoProduct?.id || !demoColorId) {
+          console.warn(
+            `[globalSeed] ⚠️ 演示供应商商品/色号缺失（product=${demoProduct?.id} color=${demoColorId}），跳过对照表种子`
+          );
+        } else {
+          // 4) 幂等检查：该 (我方产品, 我方色号, 演示供应商) 组合是否已有对照
+          const mapResp = await ctx.get(
+            `${API_PREFIX}/purchase/sku-mappings?product_id=${productId}&supplier_id=${demoSup.id}&page=1&page_size=200`,
+            { headers }
+          );
+          const mapBody = await safeJson(mapResp);
+          const existing = extractItems<{ product_color_id?: number | null }>(mapBody).some(
+            m => (m.product_color_id ?? null) === productColorId
+          );
+          if (existing) {
+            console.log(
+              `[globalSeed] 对照表种子已存在（product=${productId} color=${productColorId} supplier=${demoSup.id}），跳过`
+            );
+          } else {
+            const createResp = await seedPost(`${API_PREFIX}/purchase/sku-mappings`, {
+              product_id: productId,
+              product_color_id: productColorId,
+              supplier_id: demoSup.id,
+              supplier_product_id: demoProduct.id,
+              supplier_product_color_id: demoColorId,
+              supplier_price: '88.00',
+              is_primary: true,
+              is_enabled: true,
+            });
+            if (createResp.ok()) {
+              const created = await safeJson(createResp);
+              console.log(
+                `[globalSeed] 创建对照表种子 id=${(created?.data as Record<string, unknown>)?.id} ` +
+                  `(product=${productId} color=${productColorId} → SUP-DEMO-FAB-01/FAB-P001/PC-A01)`
+              );
+            } else {
+              await reportSeedWrite(createResp, '对照表种子创建');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[globalSeed] 对照表种子异常:', (e as Error).message);
+    }
+  }
+
   console.log('[globalSeed] 全局业务实体种子完成');
 }
