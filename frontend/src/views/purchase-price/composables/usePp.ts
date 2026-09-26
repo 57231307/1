@@ -189,8 +189,8 @@ export function usePp() {
 
   /**
    * 提交表单
-   * 新建：构造 CreatePurchasePricePayload（对齐后端 CreatePurchasePriceInput），
-   *       不发送 unit/price_type/remarks（后端不接受，unit/price_type 为 schema gap）
+   * 新建：构造 CreatePurchasePricePayload（对齐后端 CreatePurchasePriceInput，
+   *       必填 unit/price_type — 后端列 NOT NULL 无默认，缺失即被校验拒 400）
    * 编辑：构造 UpdatePurchasePricePayload（对齐后端 UpdatePriceRequest），
    *       仅可更新 price（须为字符串）/expiry_date；其余字段为 schema gap
    */
@@ -208,6 +208,8 @@ export function usePp() {
           product_id: formData.product_id as number,
           supplier_id: formData.supplier_id as number,
           price: formData.price,
+          unit: formData.unit,
+          price_type: formData.price_type,
           currency: formData.currency || undefined,
           min_order_qty: formData.min_order_qty || undefined,
           effective_date: formData.effective_date || undefined,

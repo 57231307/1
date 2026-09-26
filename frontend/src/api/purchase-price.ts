@@ -45,13 +45,14 @@ export interface PurchasePriceQueryParams {
 /**
  * 创建采购价格请求（严格对齐 backend CreatePurchasePriceInput，
  * services/purchase_price_service.rs:25）。
- * 不含 unit/price_type：后端 CreatePurchasePriceInput 不接受这些字段（使用数据库默认值），
- * 前端 UI 的 unit/price_type 选择框属待补 schema gap。
+ * unit/price_type 必填：后端列 NOT NULL 无 DB 默认（m0009），缺失即被 400 校验拒绝。
  */
 export interface CreatePurchasePricePayload {
   product_id: number;
   supplier_id: number;
   price: number;
+  unit: string;
+  price_type: string;
   currency?: string;
   min_order_qty?: number;
   effective_date?: string;
