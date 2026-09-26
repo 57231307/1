@@ -546,6 +546,10 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
         supplier_id: 1,
         price: 15.5,
         currency: 'CNY',
+        // 后端 CreatePurchasePriceInput 新增必填 unit / price_type（validator min=1，
+        // 缺失即 400）。取值来自前端表单权威枚举：unit∈{meter,kg,piece}、price_type∈{STANDARD,AGREED,PROMOTION}
+        unit: 'meter',
+        price_type: 'STANDARD',
         min_order_qty: 100,
         effective_date: '2026-01-01',
         expiry_date: '2026-12-31',

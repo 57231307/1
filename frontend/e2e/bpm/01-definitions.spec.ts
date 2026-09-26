@@ -63,6 +63,8 @@ test.describe('01 流程定义', () => {
 
   test('01-02 创建新流程定义', async ({ page }) => {
     await page.goto('/bpm/definitions');
+    // 点击前先等待「新建流程」按钮进入稳定可见态，避免首屏列表加载中/重绘导致的瞬时点击超时
+    await expect(page.getByRole('button', { name: '新建流程' })).toBeVisible({ timeout: 15000 });
     await page.getByRole('button', { name: '新建流程' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
     // 弹窗内表单字段与背后筛选栏存在同名 label（「流程名称」「分类」），

@@ -33,7 +33,7 @@ test.describe('05 AP 应付发票与付款', () => {
   test('05-02 应付发票可新建并落库给出成功反馈', async ({ page }) => {
     await page.goto('/ap');
     await page.getByRole('button', { name: '新建发票' }).click();
-    const dialog = page.getByRole('dialog', { name: '新建应付发票对话框' });
+    const dialog = page.getByRole('dialog', { name: '新建应付发票' });
     await expect(dialog).toBeVisible();
     // 供应商（对话框首个 combobox）
     await dialog.getByRole('combobox').first().click();
@@ -49,7 +49,7 @@ test.describe('05 AP 应付发票与付款', () => {
     await page.getByRole('tab', { name: '付款管理' }).click();
     await expect(page.getByRole('button', { name: '新建付款' })).toBeVisible();
     await page.getByRole('button', { name: '新建付款' }).click();
-    const dialog = page.getByRole('dialog', { name: '新建付款对话框' });
+    const dialog = page.getByRole('dialog', { name: '新建付款' });
     await expect(dialog).toBeVisible();
     // 供应商
     await dialog.getByRole('combobox').first().click();

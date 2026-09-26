@@ -92,7 +92,7 @@ async function createPaymentViaDialog(
   amountDisplay: string
 ): Promise<void> {
   await page.getByRole('button', { name: '新建付款' }).click();
-  const dialog = page.getByRole('dialog', { name: '新建付款对话框' });
+  const dialog = page.getByRole('dialog', { name: '新建付款' });
   await expect(dialog).toBeVisible();
 
   // 对话框内唯一 .el-select 是付款申请下拉（PaymentTab.vue:102-117）
@@ -168,7 +168,7 @@ test.describe('06 采购付款', () => {
     await expect(page.getByRole('button', { name: '新建付款' })).toBeVisible({ timeout: 10_000 });
 
     await page.getByRole('button', { name: '新建付款' }).click();
-    const dialog = page.getByRole('dialog', { name: '新建付款对话框' });
+    const dialog = page.getByRole('dialog', { name: '新建付款' });
     await expect(dialog).toBeVisible();
 
     // 选申请前，只读区域（v-if="selectedRequest"）不渲染

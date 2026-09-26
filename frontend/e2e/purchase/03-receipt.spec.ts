@@ -27,7 +27,7 @@ test.describe('03 采购收货', () => {
     const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
     await expect(approved).toBeVisible();
     await approved.getByRole('button', { name: '收货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '收货对话框' });
+    const dialog = page.getByRole('dialog', { name: '采购收货' });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button', { name: '确定收货' })).toBeVisible();
   });
@@ -36,7 +36,7 @@ test.describe('03 采购收货', () => {
     const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
     await expect(approved).toBeVisible();
     await approved.getByRole('button', { name: '收货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '收货对话框' });
+    const dialog = page.getByRole('dialog', { name: '采购收货' });
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: '确定收货' }).click();
     // 真实校验 message.pleaseSelectWarehouse = '请选择收货仓库'
@@ -48,7 +48,7 @@ test.describe('03 采购收货', () => {
     const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
     await expect(approved).toBeVisible();
     await approved.getByRole('button', { name: '收货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '收货对话框' });
+    const dialog = page.getByRole('dialog', { name: '采购收货' });
     // 选仓库
     await dialog.getByRole('combobox').click();
     await page.getByRole('option').first().click();
@@ -63,7 +63,7 @@ test.describe('03 采购收货', () => {
     const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
     await expect(approved).toBeVisible();
     await approved.getByRole('button', { name: '收货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '收货对话框' });
+    const dialog = page.getByRole('dialog', { name: '采购收货' });
     await dialog.getByRole('combobox').click();
     await page.getByRole('option').first().click();
     await dialog.getByRole('spinbutton').first().fill('1');

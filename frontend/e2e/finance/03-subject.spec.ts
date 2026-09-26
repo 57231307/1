@@ -73,9 +73,14 @@ test.describe('03 会计科目管理', () => {
     await expect(dialog).toBeVisible({ timeout: 10000 });
     const switchEl = dialog.locator('.el-switch');
     await expect(switchEl, '编辑对话框内未渲染状态开关').toBeVisible();
-    const before = await switchEl.getAttribute('aria-checked');
+    // Element Plus 把 role=switch/aria-checked 挂在内层 input.el-switch__input 上，
+    // 外层 .el-switch 读 aria-checked 恒 null；对齐 31c-deactivation-matrix 既有范式，
+    // 改为比较外层 .el-switch 的 class 中 is-checked 是否翻转（断言强度不变：仍要求翻转）。
+    const before = (await switchEl.getAttribute('class')) ?? '';
     await switchEl.click();
-    const after = await switchEl.getAttribute('aria-checked');
-    expect(after, '点击状态开关后未发生启用/停用翻转').not.toBe(before);
+    const after = (await switchEl.getAttribute('class')) ?? '';
+    expect(after.includes('is-checked'), '点击状态开关后未发生启用/停用翻转').not.toBe(
+      before.includes('is-checked')
+    );
   });
 });

@@ -39,7 +39,7 @@ test.describe('05 AR 应收发票与收款', () => {
   test('05-02 应收发票可新建并落库给出成功反馈', async ({ page }) => {
     await page.goto('/ar');
     await page.getByRole('button', { name: '新建发票' }).click();
-    const dialog = page.getByRole('dialog', { name: '新建应收发票对话框' });
+    const dialog = page.getByRole('dialog', { name: '新建应收发票' });
     await expect(dialog).toBeVisible();
     // 客户（对话框首个 combobox）
     await dialog.getByRole('combobox').first().click();

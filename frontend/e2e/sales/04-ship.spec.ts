@@ -28,7 +28,7 @@ test.describe('04 销售发货', () => {
     const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
     await expect(approved).toBeVisible();
     await approved.getByRole('button', { name: '发货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '销售发货对话框' });
+    const dialog = page.getByRole('dialog', { name: '销售发货' });
     await expect(dialog).toBeVisible();
     // 底部真实按钮 sales.delivery.confirmDelivery = '确定发货'
     await expect(dialog.getByRole('button', { name: '确定发货' })).toBeVisible();
@@ -38,7 +38,7 @@ test.describe('04 销售发货', () => {
     const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
     await expect(approved).toBeVisible();
     await approved.getByRole('button', { name: '发货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '销售发货对话框' });
+    const dialog = page.getByRole('dialog', { name: '销售发货' });
     await expect(dialog).toBeVisible();
     // 未选仓库即点确定发货
     await dialog.getByRole('button', { name: '确定发货' }).click();
@@ -51,7 +51,7 @@ test.describe('04 销售发货', () => {
     const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
     await expect(approved).toBeVisible();
     await approved.getByRole('button', { name: '发货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '销售发货对话框' });
+    const dialog = page.getByRole('dialog', { name: '销售发货' });
     // 先选仓库以启用库存行与本次发货上限计算
     await dialog.getByRole('combobox').first().click();
     await page.getByRole('option').first().click();
@@ -67,7 +67,7 @@ test.describe('04 销售发货', () => {
     const approved = page.getByRole('row').filter({ hasText: '已审批' }).first();
     await expect(approved).toBeVisible();
     await approved.getByRole('button', { name: '发货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '销售发货对话框' });
+    const dialog = page.getByRole('dialog', { name: '销售发货' });
     // 仓库
     await dialog.getByRole('combobox').first().click();
     await page.getByRole('option').first().click();
