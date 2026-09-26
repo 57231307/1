@@ -32,10 +32,15 @@ export interface APInvoice {
 // 原先声明的 supplier_name 与 status 在响应里不存在 ⇒ 供应商列恒空、确认按钮门控恒真。
 export type APPaymentStatus = 'REGISTERED' | 'CONFIRMED';
 
+// 付款单由「已审批的付款申请」派生创建（create 逻辑见 ap_payment_service.rs:57-120）：
+// request_id 关联来源申请，supplier_id / payment_amount / payment_method / bank_* 均从申请继承，
+// 前端不可手填。transaction_no 需确认前经 PUT 回填（confirm 强制非空，见 :231-239）。
 export interface APPayment {
   id: number;
   payment_no: string;
   supplier_id: number;
+  /** 来源付款申请 ID（后端 models/ap_payment.rs:33 request_id: Option<i32>，nullable 故前端 ? ） */
+  request_id?: number;
   payment_date: string;
   payment_amount: number;
   payment_method: string;
@@ -46,6 +51,21 @@ export interface APPayment {
   transaction_no?: string;
   notes?: string;
   created_at: string;
+}
+
+/**
+ * 创建付款单入参：逐字段对齐后端 `CreateApPaymentRequest`
+ * （backend/src/services/ap_payment_service.rs:751-764）。
+ * 后端仅接受 request_id / payment_date / notes / attachment_urls，
+ * 供应商、金额、方式、银行信息由服务端从所选已审批申请派生（见 :100-108），
+ * 前端不得手填、也不得作为可编辑字段发送。
+ */
+export interface CreateApPaymentInput {
+  request_id: number;
+  /** NaiveDate：YYYY-MM-DD */
+  payment_date: string;
+  notes?: string;
+  attachment_urls?: string[];
 }
 
 // 行由 GET /ap/payment-requests 直接序列化 SeaORM 实体 models/ap_payment_request.rs 返回
@@ -203,7 +223,7 @@ export function getAPPayment(id: number): Promise<ApiResponse<APPayment>> {
   return request.get(`/ap/payments/${id}`);
 }
 
-export function createAPPayment(data: Partial<APPayment>): Promise<ApiResponse<APPayment>> {
+export function createAPPayment(data: CreateApPaymentInput): Promise<ApiResponse<APPayment>> {
   return request.post('/ap/payments', data);
 }
 
@@ -216,6 +236,18 @@ export function updateAPPayment(
 
 export function confirmAPPayment(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ap/payments/${id}/confirm`);
+}
+
+/**
+ * 付款单 DOCX 打印：后端 GET /ap/payments/{id}/print（routes/finance.rs:699-701
+ * → print_handler::ap_payment_print_docx）返回 docx 二进制流，前端转 Blob 触发下载。
+ * request 响应拦截器对 blob 响应返回完整 AxiosResponse（真 Blob 在其 data 上），
+ * 此处归一化，兼容「直接 Blob」与「AxiosResponse.data」两种形态。
+ */
+export async function printAPPaymentDocx(id: number): Promise<Blob> {
+  const res = await request.get<Blob>(`/ap/payments/${id}/print`, { responseType: 'blob' });
+  const payload = res as unknown as Blob | { data: Blob };
+  return payload instanceof Blob ? payload : payload.data;
 }
 
 /**
