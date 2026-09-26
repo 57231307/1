@@ -2555,11 +2555,18 @@ jobs:
           # 告警写着"kill 进程树后重跑"而代码根本不重跑。现统一为一个运行器，
           # 分片参数集中在上方一处派生。
           SPEC_TARGETS=""
+          # 分片内并行度：Playwright 以 spec 文件为调度单位并行（fullyParallel:false 保证
+          # 文件内 test.describe.serial 业务流链仍串行），故提高 --workers 只并行"不同文件"，
+          # 不破坏 flow spec 的顺序依赖。ubuntu runner 4 核，flow 取 3（留 1 核给浏览器/系统），
+          # 把串行长尾打散：原 workers=1 下单片 20+ 文件串行累加 → flow 分片撞满 SHARD_LIMIT
+          # 被 timeout kill（exit 124，非断言失败）。并行后单片墙钟约缩到 1/2~1/3。
+          SHARD_WORKERS=2
           if [ "$SHARD" -le 19 ]; then
             # 分片 0-19: flow 全流程测试（20 片）
             SPEC_TARGETS=e2e/flow/
             SHARD_TOTAL=20
             SHARD_NO=$((SHARD + 1))
+            SHARD_WORKERS=3
             # 单轮上限 3600s（60 分钟）：run #4641 暴露 flow(6/20) 与 flow(8/20) 均在
             # 2400s 被 timeout kill（exit 124），但输出持续增长、停滞 watchdog（180s 无
             # 新增即判定挂起）未触发，说明分片并非假死而是串行长尾用例集确实需要更多
@@ -2567,13 +2574,16 @@ jobs:
             # 31 有 18 条），叠加每用例 420s 超时上限，最慢片实际需要 2400~3200s。
             # 上调至 3600s（相对最慢实测片留 ~15% 余量），仍远低于 job 级 360min，
             # 且真实卡死仍由 stall watchdog 在 180s 内捕获 kill，不会掩盖问题。
+            # 注：本分支已启用 --workers=3 文件间并行（见上方 SHARD_WORKERS），串行长尾被打散，
+            # 正常分片墙钟大幅下降；SHARD_LIMIT 维持 3600 不收紧，作为极端慢盘冷缓存时的
+            # 安全余量——收紧上限只会把真实性能回归伪装成超时，与"不掩盖失败"红线相悖。
             SHARD_LIMIT=3600
           elif [ "$SHARD" -le 24 ]; then
             # 分片 20-24: smoke 页面加载测试（5 片）。用例本身轻量，
             # 保留 tee 直连输出（此前行为），不套 watchdog。
             # 退出码必须取 playwright 而非 tee：`$?` 在管道后拿到的是管道末端 tee 的
             # 状态（恒 0），会把失败分片判成绿。
-            timeout 2400 npx playwright test --project=chromium --shard=$((SHARD - 19))/5 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
+            timeout 2400 npx playwright test --project=chromium --workers="${SHARD_WORKERS}" --shard=$((SHARD - 19))/5 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
             EXIT_CODE=${PIPESTATUS[0]}
           elif [ "$SHARD" -le 29 ]; then
             # 分片 25-29: traversal 全量遍历 + 端点矩阵（5 片）
@@ -2609,7 +2619,7 @@ jobs:
             run_shard() {
               local out=reports/playwright-output-r$1.txt
               # SPEC_TARGETS 故意不加引号：extras 分支要把它当多个独立参数展开
-              npx playwright test --project=chromium --shard="${SHARD_NO}/${SHARD_TOTAL}" ${SPEC_TARGETS} > "$out" 2>&1 &
+              npx playwright test --project=chromium --workers="${SHARD_WORKERS}" --shard="${SHARD_NO}/${SHARD_TOTAL}" ${SPEC_TARGETS} > "$out" 2>&1 &
               local pw_pid=$!
               local last_size=0 stall=0
               while kill -0 "$pw_pid" 2>/dev/null; do
@@ -2637,7 +2647,7 @@ jobs:
               echo $?
               return $?
             }
-            timeout "$SHARD_LIMIT" bash -c "$(declare -f run_shard); SPEC_TARGETS=\"$SPEC_TARGETS\" SHARD_NO=$SHARD_NO SHARD_TOTAL=$SHARD_TOTAL run_shard 1" > /tmp/shard-exit.txt
+            timeout "$SHARD_LIMIT" bash -c "$(declare -f run_shard); SPEC_TARGETS=\"$SPEC_TARGETS\" SHARD_NO=$SHARD_NO SHARD_TOTAL=$SHARD_TOTAL SHARD_WORKERS=$SHARD_WORKERS run_shard 1" > /tmp/shard-exit.txt
             EXIT_CODE=$(tail -1 /tmp/shard-exit.txt)
             # timeout 杀掉包装进程时上面的 echo 根本没执行，取到空串；
             # 若不兜成 124，后续 exit "$EXIT_CODE" 会退化成 exit（=0），超时被记成通过
@@ -2718,19 +2728,48 @@ jobs:
           # 汇总到 step summary
           cat reports/ui-failures.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: 上传 E2E 报告
+      # 产物分两层上传：轻量文本报告(每片必传，体积极小) + 失败诊断产物(仅失败片传)。
+      # 原设计把 playwright-report/ 与 test-results/ 一起 always() 全量上传是假性膨胀主因：
+      # html reporter 默认把每条失败用例的 video/trace 复制进 playwright-report/data/，与
+      # test-results/ 里的原件内容完全重复 → 单片产物近乎翻倍(实测 70~135MB)。
+      # test-results/<失败用例>/ 下已含 trace.zip、video.webm、error-context.md、*.png 全套
+      # 失败诊断原件，去掉 playwright-report/ 副本不损失任何错误分析能力。
+      - name: 上传 E2E 轻量报告（每片必传）
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-report-shard-${{ matrix.shard }}-${{ github.run_id }}
           path: |
-            frontend/playwright-report/
             frontend/reports/e2e-report.md
             frontend/reports/ui-failures.md
+            frontend/reports/e2e-exit-code.txt
             frontend/reports/backend.log
+            frontend/reports/frontend.log
             frontend/reports/playwright-output*.txt
-            frontend/test-results/
           retention-days: 30
+
+      - name: 打包失败诊断产物（仅失败片，压缩为单归档）
+        if: failure()
+        working-directory: frontend
+        run: |
+          # retain-on-failure 下 test-results/ 里只有失败用例目录会产 trace/video/screenshot，
+          # 通过的用例不落任何附件，故该目录本身即"失败诊断集合"。压成单个 tar.gz，
+          # 既降碎文件数（减少下载往返），又排除与 test-results 重复的 playwright-report/ 副本。
+          if [ -d test-results ] && [ -n "$(find test-results -type f -print -quit 2>/dev/null)" ]; then
+            tar -czf reports/e2e-diag-shard-${{ matrix.shard }}.tar.gz -C test-results .
+            echo "诊断归档大小: $(du -h reports/e2e-diag-shard-${{ matrix.shard }}.tar.gz | cut -f1)"
+          else
+            echo "test-results 为空（无失败附件），跳过诊断归档"
+          fi
+
+      - name: 上传 E2E 失败诊断产物（trace/video/error-context）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-diag-shard-${{ matrix.shard }}-${{ github.run_id }}
+          path: frontend/reports/e2e-diag-shard-${{ matrix.shard }}.tar.gz
+          retention-days: 30
+          if-no-files-found: ignore
 
   # ==========================================================================
   # Job 15b: 全角色权限矩阵（P5.14）

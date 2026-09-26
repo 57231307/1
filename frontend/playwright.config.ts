@@ -28,6 +28,10 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  // 默认单 worker（本地顺序可复现）。CI e2e 分片通过 CLI `--workers` 覆盖为多 worker，
+  // 让同一片内不同 spec 文件并行、文件内 `test.describe.serial` 业务流链仍保持串行，
+  // 从而消除 flow 分片的串行长尾（见 .github/workflows/ci-cd.yml ci-e2e）。
+  // 这里保持 fullyParallel:false 是有意的：开它会打散文件内 serial 链、引入假失败。
   workers: 1,
   // 真实登录一次，保存 cookie storageState 供所有 spec 复用（避免每 spec 独立登录触发 429）
   globalSetup: './e2e/global-setup.ts',
@@ -46,7 +50,11 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     // 诊断模式（用户指令：尽可能多获取测试日志便于错误分析，减少 CI 重跑次数）
-    video: 'retain-on-failure',
+    // video 仍只在失败时保留（通过片不产录屏，无诊断损失）。显式降低录屏分辨率到
+    // 854x480（默认跟随 viewport 1280x720）：webm 体积随像素数近似线性下降，
+    // 单条失败录屏约缩到原来的 ~47%，是失败片产物瘦身的主贡献项之一。
+    // 失败诊断能力不减：trace（含 action 时间线/网络/console）与 error-context 仍在。
+    video: { mode: 'retain-on-failure', size: { width: 854, height: 480 } },
     // 浏览器语言设为中文（i18n 浏览器语言协商读 navigator.language，
     // Playwright 默认 en-US 导致页面英文渲染，E2E 中文文本断言全部失败）
     locale: 'zh-CN',
