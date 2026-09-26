@@ -352,6 +352,9 @@ impl InitService {
                     ("purchase-contracts", "approve"),
                     ("purchase-prices", "read"),
                     ("purchase-prices", "approve"),
+                    ("sku-mappings", "read"),
+                    ("sku-mappings", "update"),
+                    ("sku-mappings", "delete"),
                     ("suppliers", "*"),
                     ("supplier-evaluations", "*"),
                     ("ap", "read"),
@@ -370,6 +373,9 @@ impl InitService {
                     ("suppliers", "read"),
                     ("inventory", "read"),
                     ("purchase-prices", "read"),
+                    ("sku-mappings", "read"),
+                    ("sku-mappings", "create"),
+                    ("sku-mappings", "update"),
                 ],
             ),
             (
@@ -382,6 +388,7 @@ impl InitService {
                     ("supplier-evaluations", "create"),
                     ("purchase-prices", "*"),
                     ("purchase-contracts", "read"),
+                    ("sku-mappings", "*"),
                 ],
             ),
         ]

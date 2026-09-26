@@ -231,3 +231,5 @@ pub mod customer_merge_handler;
 pub mod conversion_time_handler;
 // batch-14 P3: 人工复核状态机不完整
 pub mod opportunity_stage_handler;
+// 供应商商品/色号对照表 handler（sku-mapping）
+pub mod sku_mapping_handler;

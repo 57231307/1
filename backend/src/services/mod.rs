@@ -168,6 +168,7 @@ pub mod order_change_history_service;
 pub mod purchase_contract_service;
 pub mod purchase_delivery_calculator;
 pub mod purchase_price_service;
+pub mod sku_mapping_service;
 pub mod quality_inspection_service;
 pub mod quality_standard_service;
 pub mod sales_analysis_service;

@@ -67,6 +67,9 @@ pub struct CreatePurchaseOrderRequest {
     /// 附件 URL 列表
     pub attachment_urls: Option<Vec<String>>,
 
+    /// 来源销售订单 ID（转采购时传入，触发 SKU 对照翻译）
+    pub source_sales_order_id: Option<i32>,
+
     /// 订单明细
     #[validate(nested)]
     #[validate(length(min = 1, message = "订单至少需要一行明细"))]
@@ -117,6 +120,9 @@ pub struct CreateOrderItemRequest {
     /// 非空 = 行级覆盖（含「约」订单写 10.00）。
     #[validate(custom(function = "validate_quantity_tolerance_pct"))]
     pub quantity_tolerance_pct: Option<Decimal>,
+
+    /// 色号（转采购场景下从销售订单明细带入，用于反查供应商 SKU 对照）
+    pub color_no: Option<String>,
 
     /// 备注
     pub notes: Option<String>,

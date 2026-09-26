@@ -98,6 +98,12 @@ pub struct Model {
     /// 批次号（SQL 列名：batch_no，面料行业追溯字段）
     #[sea_orm(column_name = "batch_no")]
     pub batch_no: Option<String>,
+
+    /// 供应商商品编码快照（转采购时从映射表带入）
+    pub supplier_product_code: Option<String>,
+
+    /// 供应商色号快照（转采购时从映射表带入）
+    pub supplier_color_no: Option<String>,
 }
 
 /// 采购订单明细 Relation

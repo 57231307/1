@@ -4533,6 +4533,51 @@ COMMENT ON COLUMN "dye_recipe"."status" IS
 ALTER TABLE "dye_batch" ADD COLUMN IF NOT EXISTS "remarks" TEXT;
 COMMENT ON COLUMN "dye_batch"."remarks" IS '缸号备注（建单/编辑表单录入，可空）';
 
+-- ========== product_supplier_mappings：唯一约束 + 反查索引 + 翻译部分索引 ==========
+-- 依据：product_supplier_mappings 表由 business 域 m0008 CREATE（domain/business/
+-- m0008_add_supplier_and_product_extensions.rs:217），执行早于 v15，故此处 ALTER 安全。
+
+-- 1. 去重（同 product_id + product_color_id + supplier_id 的多行，保留 is_primary=true
+--    且 priority 最小的那一行，其余删除），否则后续 ADD CONSTRAINT 因存量冲突失败。
+DO $$
+BEGIN
+    DELETE FROM product_supplier_mappings a
+    USING product_supplier_mappings b
+    WHERE a.id > b.id
+      AND a.product_id = b.product_id
+      AND COALESCE(a.product_color_id, -1) = COALESCE(b.product_color_id, -1)
+      AND a.supplier_id = b.supplier_id
+      AND (
+          (a.is_primary = false AND b.is_primary = true)
+          OR (a.is_primary = b.is_primary AND a.priority > b.priority)
+          OR (a.is_primary = b.is_primary AND a.priority = b.priority AND a.id > b.id)
+      );
+END $$;
+
+-- 2. UNIQUE NULLS NOT DISTINCT 约束（PG15+，CI 用 PG16）：
+--    同 product_id + product_color_id + supplier_id 组合仅允许一条记录。
+ALTER TABLE "product_supplier_mappings"
+    DROP CONSTRAINT IF EXISTS "uq_psm_product_color_supplier";
+ALTER TABLE "product_supplier_mappings"
+    ADD CONSTRAINT "uq_psm_product_color_supplier"
+    UNIQUE NULLS NOT DISTINCT ("product_id", "product_color_id", "supplier_id");
+
+-- 3. 反查索引：按供应商侧 SKU 定位映射行（用于导出/对账场景）
+CREATE INDEX IF NOT EXISTS "idx_psm_supplier_sku"
+    ON "product_supplier_mappings"("supplier_id", "supplier_product_id", "supplier_product_color_id");
+
+-- 4. 翻译专用部分索引：转采购翻译热路径（仅启用行）
+CREATE INDEX IF NOT EXISTS "idx_psm_translate"
+    ON "product_supplier_mappings"("product_id", "product_color_id")
+    WHERE "is_enabled" = TRUE;
+
+-- ========== purchase_order_item：供应商 SKU 快照列（转采购时落库） ==========
+-- 依据：purchase_order_item 表由 business 域 m0009 CREATE，执行早于 v15。
+ALTER TABLE "purchase_order_item" ADD COLUMN IF NOT EXISTS "supplier_product_code" VARCHAR(255);
+ALTER TABLE "purchase_order_item" ADD COLUMN IF NOT EXISTS "supplier_color_no" VARCHAR(255);
+COMMENT ON COLUMN "purchase_order_item"."supplier_product_code" IS '供应商商品编码快照（转采购时从映射表带入）';
+COMMENT ON COLUMN "purchase_order_item"."supplier_color_no" IS '供应商色号快照（转采购时从映射表带入）';
+
 "#;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
@@ -4548,6 +4593,18 @@ COMMENT ON COLUMN "dye_batch"."remarks" IS '缸号备注（建单/编辑表单�
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 回滚 SKU 映射唯一约束、索引和 purchase_order_item 快照列
+        let rollback_sql = r#"
+ALTER TABLE "purchase_order_item" DROP COLUMN IF EXISTS "supplier_color_no";
+ALTER TABLE "purchase_order_item" DROP COLUMN IF EXISTS "supplier_product_code";
+DROP INDEX IF EXISTS "idx_psm_translate";
+DROP INDEX IF EXISTS "idx_psm_supplier_sku";
+ALTER TABLE "product_supplier_mappings" DROP CONSTRAINT IF EXISTS "uq_psm_product_color_supplier";
+"#;
+        manager
+            .get_connection()
+            .execute_unprepared(rollback_sql)
+            .await?;
         // 与 up 对称：回滚 m0058 后置增列（列级 DROP IF EXISTS，不影响本域其余建表）。
         crate::domain::production::m0058_add_delivery_tolerance::Migration
             .down(manager)

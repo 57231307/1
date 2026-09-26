@@ -231,6 +231,17 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'purchase/sku-mapping',
+        name: 'SkuMapping',
+        component: () => import('@/views/sku-mapping/index.vue'),
+        meta: {
+          title: 'SKU对照表',
+          icon: 'Link',
+          permission: 'sku-mappings:read',
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'customer',
         name: 'Customer',
         component: () => import('@/views/customer/index.vue'),

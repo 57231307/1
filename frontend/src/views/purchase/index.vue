@@ -49,6 +49,8 @@
       :on-add-item="create.addItem"
       :on-remove-item="create.removeItem"
       :on-product-select="create.handleProductSelect"
+      :on-color-select="create.handleColorSelect"
+      :on-supplier-change="create.handleSupplierChange"
       :on-calculate-subtotal="create.calculateSubtotal"
       :calculate-total="create.calculateTotal"
       @update:model-value="(v: boolean) => (create.createDialogVisible.value = v)"

@@ -469,14 +469,26 @@ pub async fn delete_product(
 
 // ========== 色号管理接口 ==========
 
-/// 获取产品色号列表
+/// 色号列表查询参数（keyword 用于前端 el-select-v2 远程搜索高基数场景）
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct ColorListQuery {
+    pub keyword: Option<String>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+/// 获取产品色号列表（支持关键词搜索与分页）
 pub async fn list_product_colors(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(product_id): Path<i32>,
+    Query(params): Query<ColorListQuery>,
 ) -> Result<Json<ApiResponse<Vec<product_color::Model>>>, AppError> {
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
-    let colors = product_service.list_product_colors(product_id).await?;
+    let colors = product_service
+        .list_product_colors_with_filter(product_id, params.keyword, params.page, params.page_size)
+        .await?;
     Ok(Json(ApiResponse::success(colors)))
 }
 

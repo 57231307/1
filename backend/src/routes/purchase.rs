@@ -440,6 +440,33 @@ pub fn supplier_evaluations() -> Router<AppState> {
         )
 }
 
+/// SKU 对照表路由（path 前缀 /sku-mappings）
+fn sku_mapping_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/sku-mappings",
+            get(crate::handlers::sku_mapping_handler::list_mappings),
+        )
+        .route(
+            "/sku-mappings",
+            post(crate::handlers::sku_mapping_handler::create_mapping),
+        )
+        .route(
+            "/sku-mappings/import",
+            post(crate::handlers::sku_mapping_handler::import_mappings),
+        )
+        .route(
+            "/sku-mappings/resolve",
+            get(crate::handlers::sku_mapping_handler::resolve_sku),
+        )
+        .route(
+            "/sku-mappings/{id}",
+            get(crate::handlers::sku_mapping_handler::get_mapping)
+                .put(crate::handlers::sku_mapping_handler::update_mapping)
+                .delete(crate::handlers::sku_mapping_handler::delete_mapping),
+        )
+}
+
 /// 采购域统一入口；子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -448,4 +475,5 @@ pub fn routes() -> Router<AppState> {
         .merge(purchase_prices())
         .merge(suppliers())
         .merge(supplier_evaluations())
+        .merge(sku_mapping_routes())
 }

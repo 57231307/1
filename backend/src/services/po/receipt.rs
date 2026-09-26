@@ -118,6 +118,9 @@ impl PurchaseOrderService {
             color_code: sea_orm::ActiveValue::NotSet,
             lot_no: sea_orm::ActiveValue::NotSet,
             batch_no: sea_orm::ActiveValue::NotSet,
+            // 供应商商品编码/色号快照列：此处非转采购路径，NotSet 留 DB 默认
+            supplier_product_code: sea_orm::ActiveValue::NotSet,
+            supplier_color_no: sea_orm::ActiveValue::NotSet,
         }
         .insert(txn)
         .await?;

@@ -1,4 +1,4 @@
-# layers=8 endpoints=1743
+# layers=8 endpoints=1750
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -103,6 +103,7 @@ DELETE	/api/v1/erp/purchase/receipts/*	purchase_receipt_handler::delete_receipt	
 DELETE	/api/v1/erp/purchase/receipts/*/items/*	purchase_receipt_handler::delete_receipt_item	purchase
 DELETE	/api/v1/erp/purchase/returns/*	purchase_return_handler::delete_purchase_return	purchase
 DELETE	/api/v1/erp/purchase/returns/*/items/*	purchase_return_handler::delete_purchase_return_item	purchase
+DELETE	/api/v1/erp/purchase/sku-mappings/*	crate::handlers::sku_mapping_handler::delete_mapping	purchase
 DELETE	/api/v1/erp/purchase/supplier-evaluations/*	supplier_evaluation_handler::delete_evaluation	purchase
 DELETE	/api/v1/erp/purchase/suppliers/*	supplier_handler::delete_supplier	purchase
 DELETE	/api/v1/erp/purchase/suppliers/*/contacts/*	supplier_handler::delete_supplier_contact	purchase
@@ -810,6 +811,9 @@ GET	/api/v1/erp/purchase/receipts/generate-no	purchase_receipt_handler::generate
 GET	/api/v1/erp/purchase/returns	purchase_return_handler::list_purchase_returns	purchase
 GET	/api/v1/erp/purchase/returns/*	purchase_return_handler::get_purchase_return	purchase
 GET	/api/v1/erp/purchase/returns/*/items	purchase_return_handler::list_purchase_return_items	purchase
+GET	/api/v1/erp/purchase/sku-mappings	crate::handlers::sku_mapping_handler::list_mappings	purchase
+GET	/api/v1/erp/purchase/sku-mappings/*	crate::handlers::sku_mapping_handler::get_mapping	purchase
+GET	/api/v1/erp/purchase/sku-mappings/resolve	crate::handlers::sku_mapping_handler::resolve_sku	purchase
 GET	/api/v1/erp/purchase/supplier-blacklists	supplier_blacklist_handler::list_blacklists	purchase
 GET	/api/v1/erp/purchase/supplier-evaluations	supplier_evaluation_handler::list_evaluations	purchase
 GET	/api/v1/erp/purchase/supplier-evaluations/*	supplier_evaluation_handler::get_evaluation	purchase
@@ -1481,6 +1485,8 @@ POST	/api/v1/erp/purchase/returns/*/approve	purchase_return_handler::approve_pur
 POST	/api/v1/erp/purchase/returns/*/items	purchase_return_handler::create_purchase_return_item	purchase
 POST	/api/v1/erp/purchase/returns/*/reject	purchase_return_handler::reject_purchase_return	purchase
 POST	/api/v1/erp/purchase/returns/*/submit	purchase_return_handler::submit_purchase_return	purchase
+POST	/api/v1/erp/purchase/sku-mappings	crate::handlers::sku_mapping_handler::create_mapping	purchase
+POST	/api/v1/erp/purchase/sku-mappings/import	crate::handlers::sku_mapping_handler::import_mappings	purchase
 POST	/api/v1/erp/purchase/supplier-blacklists	supplier_blacklist_handler::add_to_blacklist	purchase
 POST	/api/v1/erp/purchase/supplier-blacklists/*/release	supplier_blacklist_handler::release_from_blacklist	purchase
 POST	/api/v1/erp/purchase/supplier-evaluations	supplier_evaluation_handler::create_evaluation	purchase
@@ -1713,6 +1719,7 @@ PUT	/api/v1/erp/purchase/receipts/*	purchase_receipt_handler::update_receipt	pur
 PUT	/api/v1/erp/purchase/receipts/*/items/*	purchase_receipt_handler::update_receipt_item	purchase
 PUT	/api/v1/erp/purchase/returns/*	purchase_return_handler::update_purchase_return	purchase
 PUT	/api/v1/erp/purchase/returns/*/items/*	purchase_return_handler::update_purchase_return_item	purchase
+PUT	/api/v1/erp/purchase/sku-mappings/*	crate::handlers::sku_mapping_handler::update_mapping	purchase
 PUT	/api/v1/erp/purchase/supplier-evaluations/*	supplier_evaluation_handler::update_evaluation	purchase
 PUT	/api/v1/erp/purchase/suppliers/*	supplier_handler::update_supplier	purchase
 PUT	/api/v1/erp/purchase/suppliers/*/contacts/*	supplier_handler::update_supplier_contact	purchase

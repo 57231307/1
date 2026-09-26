@@ -2,12 +2,13 @@
   CreateDlg - 新建采购单对话框
   任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 新建采购单对话框）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
+  新增：色号选择 + resolveSkuMapping 回填只读供应商品/色号/协议价
 -->
 <template>
   <el-dialog
     :model-value="modelValue"
     :title="t('purchase.createDlg.title')"
-    width="800px"
+    width="900px"
     :aria-label="t('purchase.createDlg.ariaLabel')"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
   >
@@ -25,6 +26,7 @@
               v-model="localForm.supplier_id"
               :placeholder="t('purchase.createDlg.supplierPlaceholder')"
               style="width: 100%"
+              @change="onSupplierChange"
             >
               <el-option
                 v-for="s in suppliers"
@@ -70,9 +72,10 @@
         <div class="items-table">
           <div class="items-header">
             <span class="col-product">{{ t('purchase.createDlg.colProduct') }}</span>
+            <span class="col-color">{{ t('purchase.createDlg.colColor') }}</span>
             <span class="col-qty">{{ t('purchase.createDlg.colQuantity') }}</span>
             <span class="col-price">{{ t('purchase.createDlg.colUnitPrice') }}</span>
-            <span class="col-tolerance">{{ t('purchase.createDlg.colTolerance') }}</span>
+            <span class="col-supplier-info">{{ t('purchase.createDlg.colSupplierInfo') }}</span>
             <span class="col-amount">{{ t('purchase.createDlg.colAmount') }}</span>
             <span class="col-action">{{ t('purchase.createDlg.colOperation') }}</span>
           </div>
@@ -81,10 +84,21 @@
               v-model="item.product_id"
               :placeholder="t('purchase.createDlg.productPlaceholder')"
               class="col-product"
+              filterable
               @change="onProductSelect(index)"
             >
               <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
             </el-select>
+            <el-select-v2
+              v-model="item.color_id"
+              :options="getColorOptions(index)"
+              :placeholder="t('purchase.createDlg.colorPlaceholder')"
+              :loading="itemColorLoading[index]"
+              filterable
+              clearable
+              class="col-color"
+              @change="onColorSelect(index)"
+            />
             <el-input-number
               v-model="item.quantity"
               :min="1"
@@ -98,14 +112,17 @@
               class="col-price"
               @change="onCalculateSubtotal(item)"
             />
-            <el-input-number
-              v-model="item.quantity_tolerance_pct"
-              :min="0"
-              :max="100"
-              :precision="2"
-              :placeholder="t('purchase.createDlg.tolerancePlaceholder')"
-              class="col-tolerance"
-            />
+            <div class="col-supplier-info">
+              <template v-if="item.resolved">
+                <span class="resolved-text">
+                  {{ item.resolved.supplier_product_code }}
+                  <template v-if="item.resolved.supplier_color_no">
+                    / {{ item.resolved.supplier_color_no }}
+                  </template>
+                </span>
+              </template>
+              <span v-else class="resolved-placeholder">--</span>
+            </div>
             <el-input-number v-model="item.subtotal" :precision="2" class="col-amount" readonly />
             <el-button
               v-if="localForm.items.length > 1"
@@ -141,59 +158,42 @@ import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormRules, FormInstance } from 'element-plus';
 import type { Supplier } from '@/api/supplier';
-import type { Product } from '@/api/product';
+import type { Product, ProductColor } from '@/api/product';
+import { getProductColorList } from '@/api/product';
 import type { CreateFormData, CreateItem } from '../composables/useCreate';
 
-// 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
-  // 对话框可见性
   modelValue: boolean;
-  // 表单数据（由父组件管理，子组件通过 emit('update:form') 回写）
   form: CreateFormData;
-  // 校验规则
   rules: FormRules;
-  // 供应商列表
   suppliers: Supplier[];
-  // 产品列表
   products: Product[];
-  // 提交
   onSubmit: () => void;
-  // 取消
   onCancel: () => void;
-  // 添加明细
   onAddItem: () => void;
-  // 删除明细
   onRemoveItem: (index: number) => void;
-  // 选择产品
   onProductSelect: (index: number) => void;
-  // 重算小计
+  onColorSelect: (index: number) => void;
+  onSupplierChange: () => void;
   onCalculateSubtotal: (item: CreateItem) => void;
-  // 计算总金额
   calculateTotal: () => number;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
-  // 整体回写表单（父组件监听此事件并回写到自己的 form.value）
   (e: 'update:form', form: CreateFormData): void;
-  // 将 el-form 实例上行给父组件（供 composable 调用 validate）
   (e: 'update:formRef', ref: FormInstance | undefined): void;
 }>();
 
-// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-// 注意：表单内有 items 数组，需要深拷贝以保证本地修改与父组件解耦
 const localForm = ref<CreateFormData>(deepClone(props.form));
 
-// el-form 实例持有者，通过 emit 上行给父组件 composable
 const localFormRef = ref<FormInstance>();
 watch(localFormRef, v => emit('update:formRef', v));
 
-// 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false;
 
-// 外部 prop 变化时同步到 local（如父组件点击"新建"重置表单）
 watch(
   () => props.form,
   newForm => {
@@ -207,7 +207,6 @@ watch(
   { deep: true }
 );
 
-// 本地变化时通知父组件（用户输入）
 watch(
   localForm,
   newForm => {
@@ -220,6 +219,40 @@ watch(
   },
   { deep: true }
 );
+
+// 每行色号选项（懒加载缓存）
+const itemColorCache = ref<Record<number, ProductColor[]>>({});
+const itemColorLoading = ref<Record<number, boolean>>({});
+
+const getColorOptions = (index: number) => {
+  const pid = localForm.value.items[index]?.product_id;
+  if (!pid) return [];
+  return (itemColorCache.value[pid] ?? []).map(c => ({
+    value: c.id,
+    label: `${c.color_no} - ${c.color_name}`,
+  }));
+};
+
+watch(
+  () => localForm.value.items.map(i => i.product_id),
+  async (ids, oldIds) => {
+    for (let i = 0; i < ids.length; i++) {
+      const pid = ids[i];
+      if (pid && pid !== oldIds?.[i] && !itemColorCache.value[pid]) {
+        itemColorLoading.value[i] = true;
+        try {
+          const res = await getProductColorList(pid);
+          itemColorCache.value[pid] = res.data;
+        } catch (e) {
+          console.error('[purchase] load colors error:', e);
+        } finally {
+          itemColorLoading.value[i] = false;
+        }
+      }
+    }
+  },
+  { deep: true }
+);
 </script>
 
 <style scoped>
@@ -229,7 +262,7 @@ watch(
 
 .items-header {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   padding: 8px 0;
   font-weight: 600;
   color: #303133;
@@ -238,7 +271,7 @@ watch(
 
 .items-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid #f0f0f0;
@@ -246,17 +279,33 @@ watch(
 
 .col-product {
   flex: 1;
-  min-width: 200px;
+  min-width: 150px;
+}
+
+.col-color {
+  width: 150px;
 }
 
 .col-qty,
 .col-price,
 .col-amount {
-  width: 110px;
+  width: 100px;
 }
 
-.col-tolerance {
-  width: 120px;
+.col-supplier-info {
+  width: 160px;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resolved-text {
+  color: #409eff;
+}
+
+.resolved-placeholder {
+  color: #c0c4cc;
 }
 
 .total-amount {

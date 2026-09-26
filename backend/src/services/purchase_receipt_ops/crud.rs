@@ -525,6 +525,8 @@ mod fail_closed_tests {
             color_code: None,
             lot_no: None,
             batch_no: None,
+            supplier_product_code: None,
+            supplier_color_no: None,
         }
     }
 

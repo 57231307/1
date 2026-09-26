@@ -24,11 +24,14 @@ use sea_orm::{
 };
 
 use crate::models::{
-    department, product, purchase_order, purchase_order_item, purchase_receipt, status, supplier,
-    user, warehouse,
+    department, product, product_color, purchase_order, purchase_order_item, purchase_receipt,
+    status, supplier, user, warehouse,
 };
 use crate::services::po::order::{PurchaseOrderDto, PurchaseOrderService};
-use crate::services::po::{CreatePurchaseOrderRequest, UpdatePurchaseOrderRequest};
+use crate::services::po::{
+    CreateOrderItemRequest, CreatePurchaseOrderRequest, UpdatePurchaseOrderRequest,
+};
+use crate::services::sku_mapping_service::SkuMappingService;
 use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
@@ -313,9 +316,12 @@ impl PurchaseOrderService {
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             // v14 批次 417：面料行业追溯字段，使用 NotSet 让 DB 默认值处理
-            color_code: sea_orm::ActiveValue::NotSet,
+            color_code: Set(item.color_no.clone()),
             lot_no: sea_orm::ActiveValue::NotSet,
             batch_no: sea_orm::ActiveValue::NotSet,
+            // 转采购快照列：由 create_order_items 在 resolve 后设置
+            supplier_product_code: sea_orm::ActiveValue::NotSet,
+            supplier_color_no: sea_orm::ActiveValue::NotSet,
         })
     }
 
@@ -333,9 +339,84 @@ impl PurchaseOrderService {
         let items = req.items.clone().unwrap_or_default();
         Self::validate_products_exist_txn(txn, &items).await?;
 
+        // 转采购翻译：仅当请求携带来源销售订单标识时触发
+        let sku_service = if req.source_sales_order_id.is_some() {
+            Some(SkuMappingService::new(self.db.clone()))
+        } else {
+            None
+        };
+
         for (index, item) in items.iter().enumerate() {
-            let amounts = Self::calculate_item_amounts(item);
-            let order_item = Self::build_order_item_active_model(item, order_id, index, &amounts)?;
+            let mut amounts = Self::calculate_item_amounts(item);
+
+            // 预分配 resolved 快照
+            let mut resolved_product_code: Option<String> = None;
+            let mut resolved_color_no: Option<String> = None;
+
+            if let Some(ref svc) = sku_service {
+                let product_id = item.material_id.unwrap_or(0);
+                // 按 color_no 反查 product_colors.id
+                let product_color_id = match &item.color_no {
+                    Some(cn) if !cn.is_empty() => {
+                        let pc = product_color::Entity::find()
+                            .filter(product_color::Column::ProductId.eq(product_id))
+                            .filter(product_color::Column::ColorNo.eq(cn))
+                            .one(txn)
+                            .await?
+                            .ok_or_else(|| {
+                                AppError::business(format!(
+                                    "第 {} 行色号「{}」在产品 {} 下不存在，无法转采购",
+                                    index + 1,
+                                    cn,
+                                    product_id
+                                ))
+                            })?;
+                        Some(pc.id)
+                    }
+                    _ => None,
+                };
+
+                let resolved = svc
+                    .resolve_supplier_sku(product_id, product_color_id, req.supplier_id)
+                    .await?
+                    .ok_or_else(|| {
+                        // 措辞须中性且可外显：不得泄露该产品是调货还是自制，
+                        // 但要把「无该色号」如实回给用户（用 displayable，非脱敏 business）。
+                        AppError::business_displayable(format!(
+                            "第 {} 行无该色号，无法转采购",
+                            index + 1
+                        ))
+                    })?;
+
+                resolved_product_code = Some(resolved.supplier_product_code);
+                resolved_color_no = resolved.supplier_color_no;
+
+                // 若请求未显式指定单价，用 supplier_price 作为默认
+                if item.unit_price.is_none() || item.unit_price == Some(Decimal::ZERO) {
+                    if let Some(price) = resolved.supplier_price {
+                        amounts.unit_price = price;
+                        amounts.amount = (amounts.quantity_ordered * price).round_dp(2);
+                        amounts.tax_amount = (amounts.amount * amounts.tax_percent
+                            / Decimal::new(100, 0))
+                        .round_dp(2);
+                        amounts.discount_amount = (amounts.amount * amounts.discount_percent
+                            / Decimal::new(100, 0))
+                        .round_dp(2);
+                    }
+                }
+            }
+
+            let mut order_item =
+                Self::build_order_item_active_model(item, order_id, index, &amounts)?;
+
+            // 设置转采购快照列
+            if resolved_product_code.is_some() {
+                order_item.supplier_product_code = Set(resolved_product_code);
+            }
+            if resolved_color_no.is_some() {
+                order_item.supplier_color_no = Set(resolved_color_no);
+            }
+
             order_item.insert(txn).await?;
 
             total_amount += amounts.amount + amounts.tax_amount - amounts.discount_amount;
