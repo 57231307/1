@@ -40,6 +40,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
+    // el-dialog/el-select 开合逐帧动画导致 Playwright 动作性"element is not stable"点击超时;
+    // 关 CSS 动画使交互确定性稳定,不改任何断言(组件已核无真实重渲染)。
+    animations: 'disabled',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     // 诊断模式（用户指令：尽可能多获取测试日志便于错误分析，减少 CI 重跑次数）
