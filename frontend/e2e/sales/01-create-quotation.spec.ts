@@ -4,6 +4,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
 
 /**
  * 测试套件：销售报价单创建
@@ -44,14 +45,12 @@ test.describe('01 创建报价单', () => {
   test('01-03 创建有效报价单成功并生成报价单号', async ({ page }) => {
     await page.goto('/quotations/new');
     // 客户（form-item label='客户'，与 '客户等级' 共享子串，须 exact）
-    await page.getByLabel('客户', { exact: true }).click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, elSelectByLabel(page, '客户', true));
     // 报价单 items 验证要求至少 1 行，通过 QuotationItemEditor 添加产品
     await page.getByRole('button', { name: '添加产品' }).click();
     // 产品选择：QuotationItemEditor 内 el-select placeholder='选择产品'
     const itemsTable = page.locator('[aria-label="报价明细编辑表"]');
-    await itemsTable.getByPlaceholder('选择产品').first().click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, itemsTable.locator('.el-select').first());
     // 数量/单价（el-input-number → spinbutton 在明细行内）
     await itemsTable.getByRole('spinbutton').first().fill('100');
     await itemsTable.getByRole('spinbutton').nth(1).fill('50');

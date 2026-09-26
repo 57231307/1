@@ -3,6 +3,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
+import { pickSelect } from '../flow/ui-helpers';
 
 test.describe('库存管理 - 03 库存调拨', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -30,14 +31,12 @@ test.describe('库存管理 - 03 库存调拨', () => {
       .filter({ has: page.locator('.el-form-item__label', { hasText: '调出仓库' }) })
       .first();
     await expect(fromItem.locator('.el-form-item__label')).toBeVisible({ timeout: 10000 });
-    await fromItem.locator('.el-select').first().click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, fromItem.locator('.el-select').first());
     const toItem = dialog
       .locator('.el-form-item')
       .filter({ has: page.locator('.el-form-item__label', { hasText: '调入仓库' }) })
       .first();
-    await toItem.locator('.el-select').first().click();
-    await page.getByRole('option').nth(1).click();
+    await pickSelect(page, toItem.locator('.el-select').first(), undefined, { index: 1 });
     await dialog.getByRole('button', { name: /添加产品|添加|新增/ }).click();
     await expect(dialog.getByText(/数量/)).toBeVisible();
     await dialog.getByRole('button', { name: /确认/ }).click();

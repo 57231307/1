@@ -4,6 +4,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw } from '../flow/helpers';
+import { pickSelect } from '../flow/ui-helpers';
 
 /**
  * 测试套件：采购付款（AP 付款管理）
@@ -96,11 +97,8 @@ async function createPaymentViaDialog(
   await expect(dialog).toBeVisible();
 
   // 对话框内唯一 .el-select 是付款申请下拉（PaymentTab.vue:102-117）
-  // 点开下拉 → 按 request_no 文本匹配选中目标申请
-  await dialog.locator('.el-select').first().click();
-  const options = page.getByRole('option');
-  await expect(options.filter({ hasText: requestNo }).first()).toBeVisible({ timeout: 10_000 });
-  await options.filter({ hasText: requestNo }).first().click();
+  // 点开下拉 → 按 request_no 文本匹配选中目标申请（pickSelect 内部等待目标项可见后再点）
+  await pickSelect(page, dialog.locator('.el-select').first(), requestNo);
 
   // payment_date 已默认当天（PaymentTab.vue:239/286），无需额外填写
   // 点击对话框底部"确认"按钮（common.confirm='确认'，PaymentTab.vue:153）
@@ -175,8 +173,7 @@ test.describe('06 采购付款', () => {
     await expect(dialog.getByText('9,999.99')).not.toBeVisible();
 
     // 点开下拉 → 选中目标申请
-    await dialog.locator('.el-select').first().click();
-    await page.getByRole('option').filter({ hasText: request_no }).first().click();
+    await pickSelect(page, dialog.locator('.el-select').first(), request_no);
 
     // 只读区域渲染（PaymentTab.vue:122-136）：
     // 金额（PaymentTab.vue:126 formatMoney(selectedRequest.request_amount)）

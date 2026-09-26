@@ -3,6 +3,7 @@
 // 覆盖范围：凭证创建（含借贷平衡） → 提交 → 审核 → 过账
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
 
 test.describe('01 凭证管理', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -30,8 +31,7 @@ test.describe('01 凭证管理', () => {
     await voucherDate.click();
     await voucherDate.fill('2026-08-19');
     await voucherDate.press('Enter');
-    await page.getByLabel(/凭证类型/).click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, elSelectByLabel(page, /凭证类型/));
     await page.getByLabel(/摘要/).fill('E2E 测试记账凭证');
     await page
       .getByRole('button', { name: /确认|提交/ })

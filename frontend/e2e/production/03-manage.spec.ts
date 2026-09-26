@@ -3,11 +3,11 @@
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
+import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
 
 async function filterByStatus(page: Page, statusLabel: string): Promise<void> {
   await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
-  await page.getByLabel(/状态/).click();
-  await page.getByRole('option', { name: statusLabel, exact: true }).click();
+  await pickSelect(page, elSelectByLabel(page, /状态/), new RegExp(`^${statusLabel}$`));
   await page.getByRole('button', { name: /查询/ }).click();
 }
 

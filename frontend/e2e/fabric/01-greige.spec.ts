@@ -4,6 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
+import { pickSelect } from '../flow/ui-helpers';
 
 /**
  * 前后端契约缺陷（曾致本套件只能"硬断按钮渲染"，现已修复，恢复真实点击 + 真实 toast）：
@@ -140,8 +141,8 @@ test.describe('01 坯布管理', () => {
     const dialog = page.locator('.el-dialog:visible').last();
     await expect(dialog).toBeVisible({ timeout: 30000 });
     // 仓库选择（不给默认值，必须手动选）
-    await dialog.getByRole('combobox').click();
-    await page.getByRole('option', { name: whName }).click();
+    // 仓库为 el-select：点外层 .el-select 触发 + 从 body-level 可见 dropdown 按仓名选项
+    await pickSelect(page, dialog.locator('.el-select').first(), whName);
     await dialog.getByLabel(/重量/).fill('50');
     await dialog.getByLabel(/长度/).fill('100');
     await dialog.getByRole('button', { name: /确认|保存|提交/ }).click();

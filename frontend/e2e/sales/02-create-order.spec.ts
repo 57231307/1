@@ -3,6 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelect } from '../flow/ui-helpers';
 
 /**
  * 真实 UI 事实（据源码核对，不虚构选择器）：
@@ -67,9 +68,8 @@ test.describe('02 创建销售订单', () => {
     await page.goto('/sales');
     await page.getByRole('button', { name: /新建订单/ }).click();
     const dialog = page.getByRole('dialog');
-    // 客户：对话框内首个 combobox（el-select），下拉选项 teleported 到 body
-    await dialog.getByRole('combobox').first().click();
-    await page.getByRole('option').first().click();
+    // 客户：对话框内首个 el-select（el-select 不含 date-picker，索引稳定），下拉选项 teleported 到 body
+    await pickSelect(page, dialog.locator('.el-select').first());
     // 要求交货日期（必填 date picker，占位 '选择日期' 的第 2 个）
     await dialog.getByPlaceholder('选择日期').nth(1).fill('2026-12-31');
     await page.keyboard.press('Enter');
@@ -77,9 +77,8 @@ test.describe('02 创建销售订单', () => {
     await dialog.getByPlaceholder('联系人姓名').fill('张三');
     await dialog.getByPlaceholder('联系电话').fill('13800138000');
     await dialog.getByPlaceholder('详细收货地址').fill('浙江省杭州市西湖区文三路 100 号');
-    // 明细行产品（客户之后第 2 个 combobox）
-    await dialog.getByRole('combobox').nth(1).click();
-    await page.getByRole('option').first().click();
+    // 明细行产品（客户之后第 2 个 el-select，el-select 排除 date-picker 故索引稳定）
+    await pickSelect(page, dialog.locator('.el-select').nth(1));
     // 数量 / 单价（spinbutton）
     await dialog.getByRole('spinbutton').first().fill('200');
     await dialog.getByRole('spinbutton').nth(1).fill('45.5');

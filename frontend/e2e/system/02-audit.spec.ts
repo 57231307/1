@@ -12,6 +12,7 @@
 //    关键字标签为「关键字」（auditLog.filter.keyword），原用例写 /关键词/ 不匹配。
 import { test, expect } from '@playwright/test';
 import { loginViaUI, BASE_URL } from '../flow/helpers';
+import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
 
 test.describe('02 审计日志', () => {
   test.beforeEach(async ({ page }) => {
@@ -69,9 +70,8 @@ test.describe('02 审计日志', () => {
   test('02-04 审计日志支持按操作类型筛选', async ({ page }) => {
     await page.goto(`${BASE_URL}/system/audit-log`);
     await expect(page.getByLabel('操作类型', { exact: true })).toBeVisible({ timeout: 30000 });
-    await page.getByLabel('操作类型', { exact: true }).click();
     // 选项标签来自 auditLog.operationType.login = 「登录」（值 LOGIN）
-    await page.getByRole('option', { name: '登录' }).click();
+    await pickSelect(page, elSelectByLabel(page, '操作类型', true), '登录');
     const typeReq = page.waitForRequest(
       r =>
         /\/audit-logs\?/.test(r.url()) &&

@@ -4,6 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
+import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
 
 /**
  * 前置数据构造（方法一）：
@@ -90,10 +91,8 @@ test.describe('03 商机管理', () => {
     // 此用例在页面修复前会因校验/崩溃而红，非选择器问题，不做凑数。
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('商机名称').fill(`E2E 商机 ${Date.now()}`);
-    await dlg.getByLabel('客户').click();
-    await page.getByRole('option').first().click();
-    await dlg.getByLabel('商机类型').click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, elSelectByLabel(dlg, '客户'));
+    await pickSelect(page, elSelectByLabel(dlg, '商机类型'));
     await dlg.getByLabel('预估金额').fill('100000');
     await dlg.getByLabel('预计成交').fill('2026-12-31');
     await dlg.getByRole('button', { name: '确定' }).click();

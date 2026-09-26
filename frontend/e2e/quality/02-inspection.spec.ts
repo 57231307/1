@@ -4,6 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
+import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
 
 /**
  * 缺陷管理（DefectTab）列表数据源是 unqualified_product 表
@@ -85,7 +86,7 @@ test.describe('02 检验记录与缺陷处理', () => {
     await page.getByLabel(/产品名称/).fill('E2E 测试产品');
     await page.getByLabel(/批次号/).fill(`BATCH-${Date.now()}`);
     await page.getByLabel(/检验员/).fill('E2E 检验员');
-    await page.getByLabel(/检验结果/).click();
+    await pickSelect(page, elSelectByLabel(page, /检验结果/));
     await page
       .getByRole('button', { name: /确认|保存|提交/ })
       .last()

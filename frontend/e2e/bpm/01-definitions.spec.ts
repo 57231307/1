@@ -4,6 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
+import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
 
 /**
  * 01-04 编辑流程定义（方法一）：
@@ -73,8 +74,7 @@ test.describe('01 流程定义', () => {
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('流程标识').fill(`e2e-${Date.now()}`);
     await dlg.getByLabel('流程名称').fill('E2E 测试流程');
-    await dlg.getByLabel('分类').click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, elSelectByLabel(dlg, '分类'));
     await dlg.getByLabel('描述').fill('E2E 测试流程定义');
     await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({

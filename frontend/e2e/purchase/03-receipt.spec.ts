@@ -3,6 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelect } from '../flow/ui-helpers';
 
 /**
  * 真实 UI 事实（据 PurchaseTable.vue / components/PurchaseReceiveDialog.vue / usePurchRcv.ts / locales 核对）：
@@ -50,8 +51,7 @@ test.describe('03 采购收货', () => {
     await approved.getByRole('button', { name: '收货', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '采购收货' });
     // 选仓库
-    await dialog.getByRole('combobox').click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, dialog.locator('.el-select').first());
     const qty = dialog.getByRole('spinbutton').first();
     await qty.fill('99999');
     await page.keyboard.press('Tab');
@@ -64,8 +64,7 @@ test.describe('03 采购收货', () => {
     await expect(approved).toBeVisible();
     await approved.getByRole('button', { name: '收货', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '采购收货' });
-    await dialog.getByRole('combobox').click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, dialog.locator('.el-select').first());
     await dialog.getByRole('spinbutton').first().fill('1');
     // 批次号是后端入库建单期强校验的四维之一，收货对话框已新增该必填录入列（textbox），
     // 本次收货行须录入批次方能成功建单（非弱化断言：真实契约要求收货人实测录入批次）

@@ -4,6 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
+import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
 
 /**
  * 前置数据构造（方法一）：
@@ -67,8 +68,7 @@ test.describe('01 质量标准', () => {
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('标准编号').fill(`QS-${Date.now()}`);
     await dlg.getByLabel('标准名称').fill('E2E 测试质量标准');
-    await dlg.getByLabel('类型').click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, elSelectByLabel(dlg, '类型', true));
     await dlg.getByLabel('标准内容').fill('E2E 测试质量标准内容');
     await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });

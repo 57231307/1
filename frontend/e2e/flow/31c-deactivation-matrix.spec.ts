@@ -36,7 +36,9 @@ async function openEditDialog(
     await safeGoto(page, route);
     await page.waitForTimeout(1500);
   }
-  const target = await findTableRow(page, rowText);
+  // 并行模式下 31b 并发写产品会令列表膨胀、目标行不在首页 → 先用搜索框按目标名/编号过滤，
+  // 再在过滤结果里定位行（findTableRow 第 4 参 filterKeyword），而非只扫首页 20 行。
+  const target = await findTableRow(page, rowText, 1, rowText);
   if (!target) {
     editFailReason = `未找到目标行 ${rowText}`;
     console.error(`[31c] ${editFailReason}`);

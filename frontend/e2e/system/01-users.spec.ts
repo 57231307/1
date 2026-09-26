@@ -3,6 +3,7 @@
 // 覆盖范围：用户管理（创建/编辑） + 角色管理（创建/权限配置）
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
 
 test.describe('01 用户与角色', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -35,8 +36,7 @@ test.describe('01 用户与角色', () => {
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('用户名').fill(`e2e_user_${Date.now()}`);
     await dlg.getByLabel('密码').fill('E2ePassw0rd');
-    await dlg.getByLabel('角色').click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, elSelectByLabel(dlg, '角色'));
     await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText('创建成功')).toBeVisible({ timeout: 30000 });
   });

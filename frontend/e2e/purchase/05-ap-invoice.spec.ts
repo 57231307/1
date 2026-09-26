@@ -3,6 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelect } from '../flow/ui-helpers';
 
 /**
  * 真实 UI 事实（据 views/ap/index.vue、tabs/InvoiceTab.vue、tabs/PaymentTab.vue、locales 核对）：
@@ -35,9 +36,8 @@ test.describe('05 AP 应付发票与付款', () => {
     await page.getByRole('button', { name: '新建发票' }).click();
     const dialog = page.getByRole('dialog', { name: '新建应付发票' });
     await expect(dialog).toBeVisible();
-    // 供应商（对话框首个 combobox）
-    await dialog.getByRole('combobox').first().click();
-    await page.getByRole('option').first().click();
+    // 供应商（对话框首个 el-select）
+    await pickSelect(page, dialog.locator('.el-select').first());
     await dialog.getByPlaceholder('请输入发票编号').fill('E2E-AP-TEST-001');
     await dialog.getByRole('spinbutton').first().fill('8000');
     await dialog.getByRole('button', { name: '确认', exact: true }).click();
@@ -52,8 +52,7 @@ test.describe('05 AP 应付发票与付款', () => {
     const dialog = page.getByRole('dialog', { name: '新建付款' });
     await expect(dialog).toBeVisible();
     // 供应商
-    await dialog.getByRole('combobox').first().click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, dialog.locator('.el-select').first());
     // 付款金额
     await dialog.getByRole('spinbutton').fill('5000');
     await dialog.getByRole('button', { name: '确认', exact: true }).click();

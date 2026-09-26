@@ -3,6 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelect } from '../flow/ui-helpers';
 
 /**
  * 真实 UI 事实（据 SalesOrderTable.vue / DeliveryDialog.vue / useOlv.ts / locales 核对）：
@@ -53,8 +54,7 @@ test.describe('04 销售发货', () => {
     await approved.getByRole('button', { name: '发货', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '销售发货' });
     // 先选仓库以启用库存行与本次发货上限计算
-    await dialog.getByRole('combobox').first().click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, dialog.locator('.el-select').first());
     const qty = dialog.getByRole('spinbutton').first();
     // 输入远超订单数量的值
     await qty.fill('99999');
@@ -69,15 +69,12 @@ test.describe('04 销售发货', () => {
     await approved.getByRole('button', { name: '发货', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '销售发货' });
     // 仓库
-    await dialog.getByRole('combobox').first().click();
-    await page.getByRole('option').first().click();
+    await pickSelect(page, dialog.locator('.el-select').first());
     // 发货日期
     await dialog.getByPlaceholder('选择日期').fill('2026-12-31');
     await page.keyboard.press('Enter');
-    // 库存行（第 2 个 combobox，仓库选定后启用），选第一条四维库存行
-    const stockRow = dialog.getByRole('combobox').nth(1);
-    await stockRow.click();
-    await page.getByRole('option').first().click();
+    // 库存行（仓库之后第 2 个 el-select，仓库选定后启用），选第一条四维库存行
+    await pickSelect(page, dialog.locator('.el-select').nth(1));
     // 本次发货数量（默认取上限）
     await dialog.getByRole('spinbutton').first().fill('1');
     await dialog.getByRole('button', { name: '确定发货' }).click();

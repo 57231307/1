@@ -1348,16 +1348,40 @@ export async function uiImportUpload(
  * 替代各 spec 中重复的"遍历 .el-table__row → textContent 匹配 → 返回 target"循环。
  * 仅搜索可见行（:visible），排除隐藏 Tab 渲染的 DOM。
  *
- * @param page      Playwright Page
- * @param value     要匹配的列值（toString 后 includes 匹配）
- * @param minRows   最少等待行数（默认 1），列表未渲染时先等
+ * @param page          Playwright Page
+ * @param value         要匹配的列值（toString 后 includes 匹配）
+ * @param minRows       最少等待行数（默认 1），列表未渲染时先等
+ * @param filterKeyword 可选：先在列表搜索框按该关键字过滤再扫描目标行。并行模式下
+ *                      他人用例（如 31b 并发写产品）可能令列表膨胀到目标行不在首页 20 行内，
+ *                      仅扫首页会漏找；传关键字走搜索框收敛结果，规避分页/膨胀。
  * @returns 目标行 Locator 或 null
  */
 export async function findTableRow(
   page: Page,
   value: string | number,
-  minRows = 1
+  minRows = 1,
+  filterKeyword?: string
 ): Promise<Locator | null> {
+  if (filterKeyword !== undefined) {
+    // 与 31c 用户 Tab 既有写法一致：仅命中当前激活区可见搜索框（隐藏 Tab 的 filter-card 不抢）
+    const keywordInput = page.locator('.filter-card input:visible').first();
+    const hasSearch = await keywordInput.isVisible({ timeout: 4000 }).catch(() => false);
+    if (hasSearch) {
+      await keywordInput.fill(String(filterKeyword));
+      await keywordInput.press('Enter');
+      // 等 keyword 请求返回 + 表格重渲染出结果行
+      await page
+        .locator('.el-table__row')
+        .first()
+        .waitFor({ state: 'visible', timeout: 10_000 })
+        .catch(() => {});
+      await page.waitForTimeout(500);
+    } else {
+      console.warn(
+        `[findTableRow] 未找到可见搜索框，跳过过滤回退首页扫描（keyword=${filterKeyword}）`
+      );
+    }
+  }
   const rows = page.locator('.el-table__row:visible');
   await rows
     .first()
@@ -1417,6 +1441,93 @@ export async function closeDialog(dialog: Locator): Promise<void> {
     await cancel.click();
   } else {
     await dialog.page().keyboard.press('Escape');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// el-select 通用交互（对齐 8c1adf03 / ef1f6137 已跑通范式）
+// ---------------------------------------------------------------------------
+
+/**
+ * 构造「按 form-item 内 label 文本锚出其内层 .el-select」的触发 Locator。
+ *
+ * EP 的 el-select 内层为 readonly combobox input：直接 getByLabel/combobox 命中该 input，
+ * 会被 `.el-select__placeholder` 拦截 pointer events 或 `element is not stable` → 30s 超时。
+ * 正确姿势是锚到含该 label 的 `.el-form-item`，再取其中的 `.el-select` 外层触发点。
+ *
+ * @param root      作用域（对话框/页面/表格容器）Locator 或 Page
+ * @param labelText form-item 的 label 文本（string 子串匹配；RegExp 按原样匹配）
+ * @param exact     true 时 label 必须整串相等（避免 '客户' 命中 '客户等级' 这类共享子串）
+ */
+export function elSelectByLabel(
+  root: Locator | Page,
+  labelText: string | RegExp,
+  exact = false
+): Locator {
+  const pattern =
+    exact && typeof labelText === 'string'
+      ? new RegExp(`^\\s*${labelText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`)
+      : labelText;
+  return root
+    .locator('.el-form-item')
+    .filter({ has: root.locator('.el-form-item__label', { hasText: pattern }) })
+    .first()
+    .locator('.el-select')
+    .first();
+}
+
+/** pickSelect 行为开关 */
+export interface PickSelectOptions {
+  /** 未传 optionText 时按下标选第 N 个 option（默认 0=首个），等价旧 getByRole('option').nth(k) */
+  index?: number;
+  /** 多选：选完后按 Escape 收起 dropdown（EP 多选面板不自动关闭） */
+  multiple?: boolean;
+  /** 仅展开并等待首个 option 可见，不做选择（用于「验证下拉可打开」型用例，调用方自行 Escape） */
+  openOnly?: boolean;
+  /** 单步超时（默认 10_000ms） */
+  timeout?: number;
+}
+
+/**
+ * 打开一个 el-select（点外层 .el-select/.el-select__wrapper 而非 readonly input），
+ * 并从 body-level 的可见 dropdown 选取 option。
+ *
+ * 选项面板由 EP teleport 到 body，故用 `.el-select-dropdown:visible` + `.el-select-dropdown__item`
+ * 定位（对齐 ef1f6137 purchase/01、8c1adf03 ai/crm 既有写法），不再走 getByRole('option')
+ * （后者在 dropdown 提前关闭时不稳）。
+ *
+ * @param page       Playwright Page
+ * @param trigger    指向 `.el-select`（或含之的 form-item/容器）的 Locator；内部优先点 .el-select__wrapper
+ * @param optionText 目标 option 文本（string 子串/RegExp）；省略则按 opts.index 取下标项
+ */
+export async function pickSelect(
+  page: Page,
+  trigger: Locator,
+  optionText?: string | RegExp,
+  opts: PickSelectOptions = {}
+): Promise<void> {
+  const timeout = opts.timeout ?? 10_000;
+  const wrapper = trigger.locator('.el-select__wrapper').first();
+  const clickTarget = (await wrapper.count()) > 0 ? wrapper : trigger;
+  await clickTarget.click({ timeout });
+  const dropdown = page.locator('.el-select-dropdown:visible').last();
+  await dropdown.waitFor({ state: 'visible', timeout });
+  const items = dropdown.locator('.el-select-dropdown__item');
+  if (opts.openOnly) {
+    await items.first().waitFor({ state: 'visible', timeout });
+    return;
+  }
+  const item =
+    optionText === undefined
+      ? items.nth(opts.index ?? 0)
+      : items.filter({ hasText: optionText }).first();
+  await item.waitFor({ state: 'visible', timeout });
+  await item.click({ timeout });
+  if (opts.multiple) {
+    await page.keyboard.press('Escape');
+  } else {
+    // 单选后 dropdown 收起（非致命，仅确保动画稳定再让下一步执行）
+    await dropdown.waitFor({ state: 'hidden', timeout }).catch(() => {});
   }
 }
 
