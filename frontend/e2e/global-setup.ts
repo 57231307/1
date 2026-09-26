@@ -1768,7 +1768,10 @@ async function ensureGlobalBusinessSeed(
   // ---- 17. AP 付款申请+付款单种子（族B purchase/06-04 付款管理 tab 需有记录）----
   // 端点链：
   //   POST /ap/payment-requests → submit → approve → POST /ap/payments。
-  // CreateApPaymentRequest(付款申请) 必填：supplier_id, request_date, payment_type, payment_method, request_amount。
+  // CreateApPaymentRequest(付款申请) 必填：supplier_id, request_date, payment_type, payment_method, request_amount, items。
+  // ApPaymentRequestItemDto（后端 ap_payment_request_service.rs:641）：invoice_id, apply_amount, notes(可选)。
+  // items 中 invoice_id 必须关联真实非 DRAFT/非 CANCELLED 的应付单（validate_invoice_items_txn），
+  // 且 apply_amount 不超过该应付单 unpaid_amount。
   // CreateApPaymentRequest(付款单) 必填：request_id, payment_date。
   // 付款申请状态流转：DRAFT →(submit)→ APPROVING →(approve)→ APPROVED；然后建付款单。
   if (currentUserId) {
@@ -1795,19 +1798,47 @@ async function ensureGlobalBusinessSeed(
         const supForPayBody = await safeJson(supForPayResp);
         const paySupplierId = extractItems<{ id: number }>(supForPayBody)[0]?.id;
 
-        if (paySupplierId) {
+        // 取一张已审核 AUDITED 的应付单用于 items 关联（步骤14 已建 AUDITED 发票）
+        let linkedApInvoiceId: number | undefined;
+        let linkedApInvoiceUnpaid = 0;
+        try {
+          const apInvResp = await ctx.get(
+            `${API_PREFIX}/ap/invoices?page=1&page_size=1&invoice_status=AUDITED`,
+            { headers }
+          );
+          const apInvBody = await safeJson(apInvResp);
+          const apInvList = extractItems<{ id: number; unpaid_amount?: string | number }>(
+            apInvBody
+          );
+          if (apInvList.length > 0) {
+            linkedApInvoiceId = apInvList[0].id;
+            linkedApInvoiceUnpaid = Number(apInvList[0].unpaid_amount ?? 0);
+          }
+        } catch (e) {
+          console.warn('[globalSeed] AP 应付单(AUDITED)查询异常:', (e as Error).message);
+        }
+
+        if (paySupplierId && linkedApInvoiceId) {
           const today = new Date().toISOString().slice(0, 10);
           const need = PAYMENT_MIN - existingPayments;
           for (let i = 0; i < need; i++) {
             const ts = `${Date.now().toString().slice(-8)}p${i}s${SHARD_INDEX || 'x'}`;
-            // 1) 创建付款申请
+            // apply_amount 不超过 unpaid_amount，取 min(5000, unpaid)
+            const applyAmt = String(Math.min(5000, linkedApInvoiceUnpaid || 5000));
+            // 1) 创建付款申请（含 items 明细，后端 CreateApPaymentRequest 必填）
             const prCreateResp = await seedPost(`${API_PREFIX}/ap/payment-requests`, {
               supplier_id: paySupplierId,
               request_date: today,
               payment_type: 'PURCHASE',
               payment_method: '银行转账',
-              request_amount: '5000',
+              request_amount: applyAmt,
               notes: `E2E-SEED-PAYREQ-${ts}`,
+              items: [
+                {
+                  invoice_id: linkedApInvoiceId,
+                  apply_amount: applyAmt,
+                },
+              ],
             });
             const prData = await safeJson(prCreateResp);
             const prId = (prData?.data as Record<string, unknown>)?.id as number;
@@ -1847,6 +1878,10 @@ async function ensureGlobalBusinessSeed(
               await reportSeedWrite(payCreateResp, `AP 付款单创建(req=${prId})`);
             }
           }
+        } else if (paySupplierId && !linkedApInvoiceId) {
+          console.warn(
+            '[globalSeed] ⚠️ AP 付款申请缺已审核应付单(items 必填 invoice_id)，跳过步骤17'
+          );
         }
       } else {
         console.log(`[globalSeed] AP 付款单已有 ${existingPayments}，满足需求`);
@@ -1856,10 +1891,50 @@ async function ensureGlobalBusinessSeed(
     }
   }
 
+  // ---- 17.5 确保覆盖当前日期的会计期间存在（AR 收款/凭证的期间校验前置）----
+  // 后端 check_date_locked_txn（accounting_period_service.rs:645）按 payment_date 查询
+  // accounting_periods 表 start_date<=date AND end_date>=date，不存在则报
+  // 「日期 xxx 不在任何已设置的会计期间内」（HTTP 500/BusinessError）。
+  // 端点：POST /api/v1/erp/finance/accounting-periods（routes/finance.rs:70-73，missing_handlers.rs:110）
+  // Payload：{ year, period }（period=1-12），后端自动计算当月首日至末日为 start/end_date。
+  // 幂等：已存在时后端返回 BusinessError「xxx 年 xx 月的会计期间已存在」，HTTP 400，视为成功。
+  {
+    const now = new Date();
+    const periodYear = now.getFullYear();
+    const periodMonth = now.getMonth() + 1;
+    try {
+      const periodResp = await seedPost(`${API_PREFIX}/finance/accounting-periods`, {
+        year: periodYear,
+        period: periodMonth,
+      });
+      if (periodResp.ok()) {
+        console.log(
+          `[globalSeed] 创建会计期间 ${periodYear}-${String(periodMonth).padStart(2, '0')} 成功`
+        );
+      } else if (periodResp.status() === 400) {
+        // 已存在（后端 missing_handlers.rs:125 返回 BusinessError「已存在」），幂等跳过
+        const body = await periodResp.text().catch(() => '');
+        if (body.includes('已存在')) {
+          console.log(
+            `[globalSeed] 会计期间 ${periodYear}-${String(periodMonth).padStart(2, '0')} 已存在，跳过`
+          );
+        } else {
+          await reportSeedWrite(periodResp, `会计期间创建 ${periodYear}-${periodMonth}`);
+        }
+      } else {
+        await reportSeedWrite(periodResp, `会计期间创建 ${periodYear}-${periodMonth}`);
+      }
+    } catch (e) {
+      console.warn('[globalSeed] 会计期间创建异常:', (e as Error).message);
+    }
+  }
+
   // ---- 18. AR 收款单种子（族B sales/06-04 收款管理 tab 需有记录）----
   // 端点：POST /api/v1/erp/ar/payments
   // CreateArPaymentRequest（handlers/ar_payment_handler.rs:31）必填：
   //   customer_id:i32, amount:Decimal, payment_method:String(min1,max50), payment_date:NaiveDate。
+  // 业务校验：check_payment_period_locked 要求 payment_date 落在已设置的 OPEN 会计期间内
+  //   （步骤 17.5 已确保当前年月期间存在）。
   if (currentUserId) {
     try {
       const AR_PAY_MIN = 2;
