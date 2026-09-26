@@ -52,12 +52,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import {
+  PURCHASE_RECEIPT_STATUSES,
+  purchaseReceiptStatusLabelKey,
+} from '@/utils/purchase-receipt-status';
 import { usePrc } from './composables/usePrc';
 import { usePrcProc } from './composables/usePrcProc';
-import { STATUS_OPTIONS } from './composables/prcFmts';
 import PurchaseReceiptFilter from './components/PurchaseReceiptFilter.vue';
 import PurchaseReceiptTable from './components/PurchaseReceiptTable.vue';
 import PurchaseReceiptForm from './components/PurchaseReceiptForm.vue';
@@ -79,8 +82,16 @@ const prcProc = usePrcProc({
   loadData: prc.loadData,
 });
 
-// 状态选项
-const statusOptions = STATUS_OPTIONS;
+// 状态选项：取值来自与后端写入原值逐字一致的状态词表，标签走 i18n
+// （不再本地维护裸中文/大小写不符的选项数组——原 'draft'/'approved' 小写值与
+// 后端 receipt_status 的 DRAFT/CONFIRMED/COMPLETED 永不相等，筛选恒零命中）
+const statusOptions = computed(() => [
+  { value: '', label: t('purchaseReceipt.filter.label.all') },
+  ...PURCHASE_RECEIPT_STATUSES.map(value => ({
+    value,
+    label: t(purchaseReceiptStatusLabelKey(value)),
+  })),
+]);
 
 // 懒加载标记
 const hasLoaded = createLazyLoader();

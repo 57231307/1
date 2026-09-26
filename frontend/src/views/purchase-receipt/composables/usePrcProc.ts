@@ -11,6 +11,7 @@ import { reactive, ref } from 'vue';
 import { logger } from '@/utils/logger';
 import { ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { PURCHASE_RECEIPT_STATUS } from '@/utils/purchase-receipt-status';
 import {
   createReceiptItem,
   updateReceiptItem,
@@ -269,7 +270,9 @@ export function usePrcProc(cb: PrcCallbacks) {
 
   /** 删除入库单 */
   const handleDelete = async (row: PurchaseReceiptEntity) => {
-    if (row.status === 'approved') {
+    // 行内删除按钮仅在 DRAFT 态渲染；此处二次防御：非草稿（已确认/已完成）视为已审核，禁止删除。
+    // 比较值与后端 purchase_receipt.receipt_status 写入原值逐字一致。
+    if (row.receipt_status !== PURCHASE_RECEIPT_STATUS.DRAFT) {
       msg.warning('auditedReceiptCannotDelete');
       return;
     }

@@ -32,7 +32,7 @@
           data.total_amount != null ? formatCurrency(data.total_amount) : '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseReceipt.detail.label.status')">{{
-          getStatusLabelFmt(data.status)
+          getStatusLabelFmt(data.receipt_status)
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseReceipt.detail.label.createdBy')">{{
           data.created_by_name
@@ -110,7 +110,7 @@
 import { useI18n } from 'vue-i18n';
 import { formatCurrency } from '@/utils';
 import type { PurchaseReceiptEntity, ReceiptItem } from '@/api/purchase-receipt';
-import { getStatusLabel } from '../composables/prcFmts';
+import { getReceiptStatusLabel } from '../composables/prcFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -131,7 +131,7 @@ const emit = defineEmits<{
 }>();
 
 // 透传格式化函数
-const getStatusLabelFmt = getStatusLabel;
+const getStatusLabelFmt = getReceiptStatusLabel;
 </script>
 
 <style scoped>

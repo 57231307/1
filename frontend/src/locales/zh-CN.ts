@@ -9325,6 +9325,7 @@ export default {
         warehouse: '仓库',
         amount: '入库金额',
         status: '状态',
+        inspectionStatus: '质检状态',
         createdBy: '创建人',
         createdAt: '创建时间',
         action: '操作',
@@ -9335,6 +9336,19 @@ export default {
     },
     index: {
       pageAriaLabel: '采购入库管理',
+    },
+    // 入库状态（purchase_receipt.receipt_status，大写原值 = 键名）
+    statusLabels: {
+      DRAFT: '草稿',
+      CONFIRMED: '已确认',
+      COMPLETED: '已完成',
+    },
+    // 入库单质检状态（purchase_receipt.inspection_status，大写原值 = 键名）
+    // PENDING 权威显示词与后端 purchase_receipt_inspection 模块文档「待检验」一致
+    inspectionLabels: {
+      PENDING: '待检验',
+      PASSED: '合格',
+      REJECTED: '不合格',
     },
   },
   logistics: {

@@ -9362,6 +9362,7 @@ export default {
         warehouse: 'Warehouse',
         amount: 'Receipt Amount',
         status: 'Status',
+        inspectionStatus: 'Inspection Status',
         createdBy: 'Created By',
         createdAt: 'Created At',
         action: 'Action',
@@ -9372,6 +9373,16 @@ export default {
     },
     index: {
       pageAriaLabel: 'Purchase Receipt Management',
+    },
+    statusLabels: {
+      DRAFT: 'Draft',
+      CONFIRMED: 'Confirmed',
+      COMPLETED: 'Completed',
+    },
+    inspectionLabels: {
+      PENDING: 'Pending Inspection',
+      PASSED: 'Passed',
+      REJECTED: 'Rejected',
     },
   },
   logistics: {

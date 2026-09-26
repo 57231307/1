@@ -11,7 +11,14 @@ export interface PurchaseReceiptEntity {
   supplier_name?: string;
   warehouse_id: number;
   warehouse_name?: string;
-  status: string;
+  /**
+   * 入库状态：后端 purchase_receipt.receipt_status（大写 DRAFT/CONFIRMED/COMPLETED）。
+   * 列表/详情接口直接 serde_json::to_value(Model)，出参键为 receipt_status——此前误写成
+   * status，导致状态列与行内按钮门控读到的恒为 undefined（列恒空、按钮恒不可达）。
+   */
+  receipt_status: string;
+  /** 质检状态：后端 purchase_receipt.inspection_status（大写 PENDING/PASSED/REJECTED），同样随 Model 返回 */
+  inspection_status: string;
   total_amount: number;
   remark?: string;
   created_at?: string;
