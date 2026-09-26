@@ -50,11 +50,18 @@ test.describe('01 创建采购订单', () => {
     const dlg = page.locator('.el-dialog:visible');
     await expect(dlg).toBeVisible({ timeout: 30000 });
     // 选择供应商（form-item label = '供应商'）
-    await dlg.getByLabel('供应商').click();
-    await page.getByRole('option').first().click();
+    // 供应商是 el-select 的 readonly combobox，getByLabel 命中内层 input，EP 拦截其直接
+    // click → 30s 超时。改锚含该 label 的 form-item 内 .el-select 触发，选项取 body-level
+    // popper 的 .el-select-dropdown__item（对齐 8c1adf03 ai/crm 既有写法）。
+    const supplierItem = dlg
+      .locator('.el-form-item')
+      .filter({ has: dlg.locator('.el-form-item__label', { hasText: '供应商' }) })
+      .first();
+    await supplierItem.locator('.el-select').first().click();
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
     // 产品：div 明细行内 el-select（placeholder '选择产品'），非 form-item label
-    await dlg.getByPlaceholder('选择产品').first().click();
-    await page.getByRole('option').first().click();
+    await dlg.locator('.items-row').first().locator('.el-select').first().click();
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
     // 数量 / 单价（el-input-number → spinbutton，在 .items-row 内无标签）
     const spinbuttons = dlg.locator('.items-row').first().locator('input[type="number"]');
     await spinbuttons.first().fill('200');
@@ -72,16 +79,23 @@ test.describe('01 创建采购订单', () => {
     const dlg = page.locator('.el-dialog:visible');
     await expect(dlg).toBeVisible({ timeout: 30000 });
     // 供应商
-    await dlg.getByLabel('供应商').click();
-    await page.getByRole('option').first().click();
+    // 供应商是 el-select 的 readonly combobox，getByLabel 命中内层 input，EP 拦截其直接
+    // click → 30s 超时。改锚含该 label 的 form-item 内 .el-select 触发，选项取 body-level
+    // popper 的 .el-select-dropdown__item（对齐 8c1adf03 ai/crm 既有写法）。
+    const supplierItem = dlg
+      .locator('.el-form-item')
+      .filter({ has: dlg.locator('.el-form-item__label', { hasText: '供应商' }) })
+      .first();
+    await supplierItem.locator('.el-select').first().click();
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
     // 要求交货日期（form-item label = '要求交货日期'，el-date-picker 内 input）
     const dateInput = dlg.getByLabel('要求交货日期');
     await dateInput.click();
     await dateInput.fill('2026-07-15');
     await page.keyboard.press('Enter');
     // 产品
-    await dlg.getByPlaceholder('选择产品').first().click();
-    await page.getByRole('option').first().click();
+    await dlg.locator('.items-row').first().locator('.el-select').first().click();
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
     // 数量/单价（spinbutton in items-row）
     const spinbuttons = dlg.locator('.items-row').first().locator('input[type="number"]');
     await spinbuttons.first().fill('100');
@@ -96,8 +110,15 @@ test.describe('01 创建采购订单', () => {
     await page.getByRole('button', { name: /新建采购单/ }).click();
     const dlg = page.locator('.el-dialog:visible');
     await expect(dlg).toBeVisible({ timeout: 30000 });
-    await dlg.getByLabel('供应商').click();
-    await page.getByRole('option').first().click();
+    // 供应商是 el-select 的 readonly combobox，getByLabel 命中内层 input，EP 拦截其直接
+    // click → 30s 超时。改锚含该 label 的 form-item 内 .el-select 触发，选项取 body-level
+    // popper 的 .el-select-dropdown__item（对齐 8c1adf03 ai/crm 既有写法）。
+    const supplierItem = dlg
+      .locator('.el-form-item')
+      .filter({ has: dlg.locator('.el-form-item__label', { hasText: '供应商' }) })
+      .first();
+    await supplierItem.locator('.el-select').first().click();
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
     // 添加行项：按钮文本 purchase.createDlg.addItem = '+ 添加明细'
     // 默认已有 1 行，添加 2 次 → 共 3 行
     await dlg.getByRole('button', { name: '+ 添加明细' }).click();

@@ -86,10 +86,12 @@ test.describe('定制订单全流程跟踪 E2E', () => {
 
     // 填写表单（真实字段：客户ID / 产品ID / 规格 / 数量；unit 默认 'm'）
     // labelSpec='规格' 与 labelYarnSpec='纱线规格' 共享子串，须 exact 避免 strict 多命中
+    // 数量项 form-item 内同时含数字 input 与 unit el-select，源码已加 for="co-create-quantity"
+    // （commit 04362934），直接锚真实 input id 填值，避免 getByLabel 命中容器 div。
     await page.getByLabel('客户ID').fill(String(customerId));
     await page.getByLabel('产品ID').fill(String(productId));
     await page.getByLabel('规格', { exact: true }).fill('E2E 100% 棉 200g/m²');
-    await page.getByLabel('数量').fill('100');
+    await page.locator('#co-create-quantity').fill('100');
 
     // 提交（create.buttonSaveDraft=「保存草稿」）→ 成功提示（create.messageCreateSuccess）
     await page.getByRole('button', { name: '保存草稿' }).click();
@@ -148,8 +150,19 @@ test.describe('定制订单全流程跟踪 E2E', () => {
     await expect(dialog, '上报异常对话框应打开').toBeVisible({ timeout: 30_000 });
 
     // 异常类型下拉选「色差」（issueType.colorDiff）；严重度默认 medium 已满足必填
-    await dialog.getByRole('combobox').first().click();
-    await page.getByRole('option', { name: '色差', exact: true }).click();
+    // 异常类型是 el-select 的 readonly combobox，getByRole('combobox') 命中内层 input，EP 拦截其
+    // 直接 click → 30s 超时。改锚含该 label 的 form-item 内 .el-select 触发，选项取 body-level
+    // popper 的 .el-select-dropdown__item（对齐 8c1adf03 ai/crm 既有写法）。
+    const issueTypeItem = dialog
+      .locator('.el-form-item')
+      .filter({ has: dialog.locator('.el-form-item__label', { hasText: '异常类型' }) })
+      .first();
+    await issueTypeItem.locator('.el-select').first().click();
+    await page
+      .locator('.el-select-dropdown:visible .el-select-dropdown__item')
+      .filter({ hasText: '色差' })
+      .first()
+      .click();
 
     // 描述为必填（reportRules.description）
     await dialog.getByLabel('描述').fill('批次色差 ΔE=3.5 超过 2.0 阈值');

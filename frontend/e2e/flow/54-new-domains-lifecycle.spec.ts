@@ -171,11 +171,21 @@ test.describe.serial('新域业务流转链', () => {
     await expect(page.locator('.page')).toBeVisible();
 
     await page.getByRole('button', { name: '新建参保记录' }).click();
-    await page.locator('.el-dialog .el-input-number input').first().fill('1');
-    await page.locator('.el-dialog .el-input-number input').nth(2).fill('5000');
+    // 对话框内 .el-input-number 自上而下为 员工ID/年度/月份/缴费基数，各含一个可定位的真实
+    // input（增减按钮是其兄弟节点，直接命中 input 即避开 intercepts pointer events）。
+    // 原用例把「缴费基数」错填成 nth(2)（实为月份），致 base_amount 为空 → 前端守卫弹 warning、
+    // 无 success toast。修正为 nth(3)，值 5000 落在后端合规区间 [4250,31884]；年/月保留表单默认。
+    const spins = page.locator('.el-dialog .el-input-number input');
+    await spins.nth(0).fill('1'); // 员工ID
+    await spins.nth(3).fill('5000'); // 缴费基数
     await page.getByRole('button', { name: '保存' }).click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
 
+    // 注：本步在 create 成功后仍会失败，根因是状态词表不一致（非测试姿势）——后端 service.create
+    // 无 payment_date 时写入 status="pending"（social_insurance_service.rs:200-203），mark_paid 门槛
+    // 也要求 "pending"（:287），而前端 index.vue 标签/按钮以 "unpaid" 为键（INSURANCE_STATUS_LABEL
+    // 无 pending，v-if="row.status === 'unpaid'"），致行不显示「未缴」且「标记已缴」按钮不渲染。
+    // 属源码缺陷（消费方词表须对齐写入方 pending，AGENTS.md 状态词表铁律），未放宽/未 skip，交前端修。
     const row = page.locator('.el-table__row', { hasText: '未缴' }).first();
     await row.getByRole('button', { name: '标记已缴' }).click();
     // MarkPaidRequest { payment_date } 必填，默认今天
