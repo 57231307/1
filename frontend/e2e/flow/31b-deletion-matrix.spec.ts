@@ -160,6 +160,13 @@ async function createThenApiDelete(
 // 判为 "did not run"（假覆盖盲区）——例如「坯布在库不可删」失败曾连带拖垮其后 28 例。
 // 降为普通 describe 后，各例独立执行、独立成败，恢复真实覆盖。
 test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', () => {
+  // 分片并行修复：本 describe 内 44 例彼此独立（各自 beforeEach 登录+ensureTestEntities，
+  // 每条用例用 TS 后缀自造唯一资源并 inline 自建自删，无任何跨用例产物/顺序依赖，见上方注释）。
+  // 但全局 fullyParallel:false 下，普通 describe 的例仍以"文件为单位"在单 worker 内串行跑完，
+  // --workers=3 无法把这一重文件内部打散：最慢片(shard14)因此串行长尾撞满超时被 kill(exit124)，
+  // 其余 worker 空转。此处显式声明 mode:'parallel' 让本文件的独立例可被多 worker 并行消费，
+  // 真正消除重尾；不影响其它用 test.describe.serial 声明的业务流链（它们仍串行）。
+  test.describe.configure({ mode: 'parallel' });
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
     await ensureTestEntities(page);
