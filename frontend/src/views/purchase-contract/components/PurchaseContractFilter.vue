@@ -46,6 +46,7 @@
         <el-date-picker
           v-model="localQuery.date_range"
           type="daterange"
+          value-format="YYYY-MM-DD"
           :range-separator="t('purchaseContract.filter.dateRangeSeparator')"
           :start-placeholder="t('purchaseContract.filter.dateStartPlaceholder')"
           :end-placeholder="t('purchaseContract.filter.dateEndPlaceholder')"
