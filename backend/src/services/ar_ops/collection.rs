@@ -194,10 +194,7 @@ impl ArService {
         let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
             self.db.clone(),
         );
-        period_svc
-            .check_date_locked_txn(txn, payment_date)
-            .await
-            .map_err(|e| AppError::business(e.to_string()))
+        period_svc.check_date_locked_txn(txn, payment_date).await
     }
 
     /// 客户存在性校验 + 名称查询（事务内）

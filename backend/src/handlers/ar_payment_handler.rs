@@ -76,8 +76,7 @@ pub async fn list_payments(
             query.payment_no,
             Some(&data_scope_ctx),
         )
-        .await
-        .map_err(|e| AppError::internal(format!("获取收款列表失败: {}", e)))?;
+        .await?;
 
     let result = serde_json::json!({
         "list": payments,
@@ -100,10 +99,7 @@ pub async fn get_payment(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
 
-    let payment = service
-        .get_payment(id, Some(&data_scope_ctx))
-        .await
-        .map_err(|e| AppError::internal(format!("获取收款详情失败: {}", e)))?;
+    let payment = service.get_payment(id, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(payment)))
 }
@@ -129,10 +125,7 @@ pub async fn create_payment(
         remark: payload.remark,
         invoice_ids: payload.invoice_ids,
     };
-    let payment = service
-        .create_payment(params, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("创建收款失败: {}", e)))?;
+    let payment = service.create_payment(params, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(payment)))
 }
@@ -149,18 +142,13 @@ pub async fn update_payment(
 
     // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_payment + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
-    service
-        .get_payment(id, Some(&data_scope_ctx))
-        .await
-        .map_err(|e| AppError::internal(format!("IDOR 校验失败: {}", e)))?;
+    service.get_payment(id, Some(&data_scope_ctx)).await?;
 
-    let payload_json = serde_json::to_value(payload)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let payload_json = serde_json::to_value(payload)?;
 
     let payment = service
         .update_payment(id, payload_json, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("更新收款失败: {}", e)))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(payment)))
 }
@@ -174,10 +162,7 @@ pub async fn confirm_payment(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
-    let payment = service
-        .confirm_payment(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("确认收款失败: {}", e)))?;
+    let payment = service.confirm_payment(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(payment)))
 }
@@ -191,10 +176,7 @@ pub async fn cancel_payment(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
-    let payment = service
-        .cancel_collection(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("取消收款失败: {}", e)))?;
+    let payment = service.cancel_collection(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(payment)))
 }
