@@ -989,12 +989,27 @@ async function ensureGlobalBusinessSeed(
             const qCreated = await safeJson(createQ);
             const qId = (qCreated?.data as Record<string, unknown>)?.id as number;
             if (qId) {
-              // submit + approve（小额自批后端直接通过或需 approve）
-              await seedPost(`${API_PREFIX}/quotations/${qId}/submit`, {});
-              const approveResp = await seedPost(`${API_PREFIX}/quotations/${qId}/approve`, {});
-              console.log(
-                `[globalSeed] 创建并审批全局报价单 id=${qId} (approve ${approveResp.status()})`
-              );
+              // submit：小额(<10万)后端自批→APPROVED，大额→pending_approval
+              const submitResp = await seedPost(`${API_PREFIX}/quotations/${qId}/submit`, {});
+              const submitBody = await safeJson(submitResp);
+              const qStatus = (submitBody?.data as Record<string, unknown>)?.status as
+                string | undefined;
+              if (qStatus === 'pending_approval') {
+                // 仅当 submit 后仍在待审批态才需调 approve
+                const approveResp = await seedPost(`${API_PREFIX}/quotations/${qId}/approve`, {});
+                console.log(
+                  `[globalSeed] 创建全局报价单 id=${qId} submit→pending_approval, approve ${approveResp.status()}`
+                );
+              } else if (qStatus === 'approved') {
+                // 小额自批已直接 APPROVED（quotation_approval_service.rs:122），无需再调 approve
+                console.log(
+                  `[globalSeed] 创建全局报价单 id=${qId} submit→approved（小额自批），跳过 approve`
+                );
+              } else {
+                // submit 失败或状态未知
+                await reportSeedWrite(submitResp, `报价单提交 id=${qId}`);
+                console.warn(`[globalSeed] 报价单 submit 后状态非预期 id=${qId} status=${qStatus}`);
+              }
             }
           } else {
             console.warn(`[globalSeed] 报价单创建失败 HTTP ${createQ.status()}`);
@@ -1305,96 +1320,136 @@ async function ensureGlobalBusinessSeed(
     console.warn('[globalSeed] 采购订单种子异常:', (e as Error).message);
   }
 
-  // ---- 13. AR 应收发票种子（覆盖 sales/05-01 列表列头可见性验证）----
-  // 端点：POST /api/v1/erp/ar/invoices
+  // ---- 13. AR 应收发票种子（覆盖 sales/05 列表 + sales/06 收款按钮需已审核态）----
+  // 端点：POST /api/v1/erp/ar/invoices + /ar/invoices/{id}/approve
   // DTO：CreateArInvoiceRequestDto（handlers/ar_invoice_handler.rs:46）
-  // 状态：DRAFT（创建默认态），需 APPROVED 态用于后续收款流程测试
-  try {
-    const arResp = await ctx.get(`${API_PREFIX}/ar/invoices?page=1&page_size=1&status=DRAFT`, {
-      headers,
-    });
-    const arBody = await safeJson(arResp);
-    const arInvoices = Array.isArray(arBody?.data) ? arBody?.data : extractItems(arBody);
-    if ((arInvoices as unknown[]).length === 0 && currentUserId) {
-      // 获取一个客户 id
-      const cusResp = await ctx.get(`${API_PREFIX}/crm/customers?page=1&page_size=1`, { headers });
-      const cusBody = await safeJson(cusResp);
-      const arCustomerId = extractItems<{ id: number }>(cusBody)[0]?.id;
-      if (arCustomerId) {
-        const now = new Date();
-        const due = new Date(now.getTime() + 30 * 86400000);
-        const arCreate = await seedPost(`${API_PREFIX}/ar/invoices`, {
-          customer_id: arCustomerId,
-          invoice_date: now.toISOString().slice(0, 10),
-          due_date: due.toISOString().slice(0, 10),
-          invoice_amount: '12000',
+  // 状态词表（models/status/general.rs common）：DRAFT→APPROVED 经 approve 端点。
+  // 前端 arModule.invoice.getInvoiceStatusLabel(APPROVED) = '已审核'。
+  // 保证至少 3 张 APPROVED 发票（sales/06 多用例需逐张操作不同发票）。
+  {
+    const AR_MIN_APPROVED = 3;
+    try {
+      let approvedArCount = 0;
+      try {
+        const arResp = await ctx.get(
+          `${API_PREFIX}/ar/invoices?page=1&page_size=1&status=APPROVED`,
+          {
+            headers,
+          }
+        );
+        const arBody = await safeJson(arResp);
+        // AR list handler 返回 ApiResponse<Vec<Model>> 或 PaginatedResponse；探测 total
+        approvedArCount =
+          ((arBody?.data as Record<string, unknown>)?.total as number) ??
+          (Array.isArray(arBody?.data) ? (arBody.data as unknown[]).length : 0);
+      } catch (e) {
+        console.warn('[globalSeed] AR 发票计数查询异常:', (e as Error).message);
+      }
+
+      if (approvedArCount < AR_MIN_APPROVED && currentUserId) {
+        const cusResp = await ctx.get(`${API_PREFIX}/crm/customers?page=1&page_size=1`, {
+          headers,
         });
-        if (arCreate.ok()) {
-          const arData = await safeJson(arCreate);
-          const arId = (arData?.data as Record<string, unknown>)?.id as number;
-          console.log(`[globalSeed] 创建 AR 应收发票(DRAFT) id=${arId}`);
-          // 审核通过使其变为 APPROVED（对应前端标签"已审核"）
-          if (arId) {
-            const approveAr = await seedPost(`${API_PREFIX}/ar/invoices/${arId}/approve`, {});
-            if (approveAr.ok()) {
-              console.log(`[globalSeed] AR 发票审核成功 id=${arId}`);
+        const cusBody = await safeJson(cusResp);
+        const arCustomerId = extractItems<{ id: number }>(cusBody)[0]?.id;
+        if (arCustomerId) {
+          const need = AR_MIN_APPROVED - approvedArCount;
+          for (let i = 0; i < need; i++) {
+            const now = new Date();
+            const due = new Date(now.getTime() + 30 * 86400000);
+            const arCreate = await seedPost(`${API_PREFIX}/ar/invoices`, {
+              customer_id: arCustomerId,
+              invoice_date: now.toISOString().slice(0, 10),
+              due_date: due.toISOString().slice(0, 10),
+              invoice_amount: '12000',
+            });
+            if (arCreate.ok()) {
+              const arData = await safeJson(arCreate);
+              const arId = (arData?.data as Record<string, unknown>)?.id as number;
+              if (arId) {
+                const approveAr = await seedPost(`${API_PREFIX}/ar/invoices/${arId}/approve`, {});
+                if (approveAr.ok()) {
+                  console.log(`[globalSeed] 创建 AR 应收发票(APPROVED) id=${arId}`);
+                } else {
+                  await reportSeedWrite(approveAr, `AR 发票审核 id=${arId}`);
+                }
+              }
             } else {
-              await reportSeedWrite(approveAr, `AR 发票审核 id=${arId}`);
+              await reportSeedWrite(arCreate, `AR 发票创建(第${i + 1}张)`);
             }
           }
-        } else {
-          await reportSeedWrite(arCreate, 'AR 发票创建');
         }
+      } else {
+        console.log(`[globalSeed] AR 发票 APPROVED 已有 ${approvedArCount}，满足需求`);
       }
+    } catch (e) {
+      console.warn('[globalSeed] AR 发票种子异常:', (e as Error).message);
     }
-  } catch (e) {
-    console.warn('[globalSeed] AR 发票种子异常:', (e as Error).message);
   }
 
-  // ---- 14. AP 应付发票种子（覆盖 purchase/05-01 列表列头可见性验证）----
-  // 端点：POST /api/v1/erp/ap/invoices
+  // ---- 14. AP 应付发票种子（覆盖 purchase/05 列表 + purchase/06 付款需已审核态）----
+  // 端点：POST /api/v1/erp/ap/invoices + /ap/invoices/{id}/approve
   // DTO：CreateApInvoiceRequest（services/ap_invoice_ops/types.rs:24）supplier_id, invoice_type, amount, invoice_date, due_date
-  // 状态：DRAFT→approve→AUDITED
-  try {
-    const apResp = await ctx.get(`${API_PREFIX}/ap/invoices?page=1&page_size=1`, { headers });
-    const apBody = await safeJson(apResp);
-    const apInvoices = Array.isArray(apBody?.data) ? apBody?.data : extractItems(apBody);
-    if ((apInvoices as unknown[]).length === 0 && currentUserId) {
-      const supResp = await ctx.get(`${API_PREFIX}/purchase/suppliers?page=1&page_size=1`, {
-        headers,
-      });
-      const supBody = await safeJson(supResp);
-      const apSupplierId = extractItems<{ id: number }>(supBody)[0]?.id;
-      if (apSupplierId) {
-        const now = new Date();
-        const due = new Date(now.getTime() + 30 * 86400000);
-        const apCreate = await seedPost(`${API_PREFIX}/ap/invoices`, {
-          supplier_id: apSupplierId,
-          invoice_type: 'PURCHASE',
-          amount: '8000',
-          invoice_date: now.toISOString().slice(0, 10),
-          due_date: due.toISOString().slice(0, 10),
+  // 状态词表（finance.rs INVOICE_AUDITED + common STATUS_DRAFT）：DRAFT→AUDITED 经 approve。
+  // 前端 apModule.invoice.getInvoiceStatusLabel(AUDITED) = '已审核'。
+  // 保证至少 3 张 AUDITED 发票（purchase/06 多用例需逐张操作不同发票）。
+  {
+    const AP_MIN_AUDITED = 3;
+    try {
+      let auditedApCount = 0;
+      try {
+        const apResp = await ctx.get(
+          `${API_PREFIX}/ap/invoices?page=1&page_size=1&invoice_status=AUDITED`,
+          { headers }
+        );
+        const apBody = await safeJson(apResp);
+        auditedApCount =
+          ((apBody?.data as Record<string, unknown>)?.total as number) ??
+          (Array.isArray(apBody?.data) ? (apBody.data as unknown[]).length : 0);
+      } catch (e) {
+        console.warn('[globalSeed] AP 发票计数查询异常:', (e as Error).message);
+      }
+
+      if (auditedApCount < AP_MIN_AUDITED && currentUserId) {
+        const supResp = await ctx.get(`${API_PREFIX}/purchase/suppliers?page=1&page_size=1`, {
+          headers,
         });
-        if (apCreate.ok()) {
-          const apData = await safeJson(apCreate);
-          const apId = (apData?.data as Record<string, unknown>)?.id as number;
-          console.log(`[globalSeed] 创建 AP 应付发票(DRAFT) id=${apId}`);
-          // 审核通过 → AUDITED（前端标签"已审核"）
-          if (apId) {
-            const approveAp = await seedPost(`${API_PREFIX}/ap/invoices/${apId}/approve`, {});
-            if (approveAp.ok()) {
-              console.log(`[globalSeed] AP 发票审核成功 id=${apId}`);
+        const supBody = await safeJson(supResp);
+        const apSupplierId = extractItems<{ id: number }>(supBody)[0]?.id;
+        if (apSupplierId) {
+          const need = AP_MIN_AUDITED - auditedApCount;
+          for (let i = 0; i < need; i++) {
+            const now = new Date();
+            const due = new Date(now.getTime() + 30 * 86400000);
+            const apCreate = await seedPost(`${API_PREFIX}/ap/invoices`, {
+              supplier_id: apSupplierId,
+              invoice_type: 'PURCHASE',
+              amount: '8000',
+              invoice_date: now.toISOString().slice(0, 10),
+              due_date: due.toISOString().slice(0, 10),
+            });
+            if (apCreate.ok()) {
+              const apData = await safeJson(apCreate);
+              const apId = (apData?.data as Record<string, unknown>)?.id as number;
+              if (apId) {
+                const approveAp = await seedPost(`${API_PREFIX}/ap/invoices/${apId}/approve`, {});
+                if (approveAp.ok()) {
+                  console.log(`[globalSeed] 创建 AP 应付发票(AUDITED) id=${apId}`);
+                } else {
+                  await reportSeedWrite(approveAp, `AP 发票审核 id=${apId}`);
+                }
+              }
             } else {
-              await reportSeedWrite(approveAp, `AP 发票审核 id=${apId}`);
+              await reportSeedWrite(apCreate, `AP 发票创建(第${i + 1}张)`);
             }
           }
-        } else {
-          await reportSeedWrite(apCreate, 'AP 发票创建');
         }
+      } else {
+        console.log(`[globalSeed] AP 发票 AUDITED 已有 ${auditedApCount}，满足需求`);
       }
+    } catch (e) {
+      console.warn('[globalSeed] AP 发票种子异常:', (e as Error).message);
     }
-  } catch (e) {
-    console.warn('[globalSeed] AP 发票种子异常:', (e as Error).message);
   }
 
   // ---- 15. 库存种子（sales/04 发货、purchase/04 质检等链路的前置库存）----
@@ -1556,6 +1611,321 @@ async function ensureGlobalBusinessSeed(
       }
     } catch (e) {
       console.error('[globalSeed] 库存种子异常:', (e as Error).message);
+    }
+  }
+
+  // ---- 16. 采购入库单 + 质检单种子（族B 采购后链：purchase/04 待质检 + 收货入口）----
+  // purchase/04 期望 /purchase-receipt 页有已确认入库行，/purchase-inspection 页有 pending 态质检行。
+  // 端点链：
+  //   建入库单 POST /purchase/receipts → 确认 POST /purchase/receipts/{id}/confirm →
+  //   建质检单 POST /purchase/inspections (receipt_id 关联)。
+  // 质检单创建后 inspection_status 默认 pending（purchase_inspection_service.rs:107）。
+  // 确认入库单后 receipt 的 inspection_status 保持 PENDING（模型默认值，state.rs 不改此字段）。
+  // 入库单确认需 supplier_id/warehouse_id/receipt_date + 明细(batch_no 必填, color_code 非空时 lot_no 必填)。
+  // 幂等：先查 pending 态质检数量，不足则补建。
+  if (productId && currentUserId) {
+    try {
+      const INSPECTION_MIN_PENDING = 3;
+      let pendingInsCount = 0;
+      try {
+        const piResp = await ctx.get(
+          `${API_PREFIX}/purchase/inspections?page=1&page_size=1&status=pending`,
+          { headers }
+        );
+        const piBody = await safeJson(piResp);
+        pendingInsCount =
+          ((piBody?.data as Record<string, unknown>)?.total as number) ??
+          extractItems(piBody)?.length ??
+          0;
+      } catch (e) {
+        console.warn('[globalSeed] 采购质检计数查询异常:', (e as Error).message);
+      }
+
+      if (pendingInsCount < INSPECTION_MIN_PENDING) {
+        const supForInsResp = await ctx.get(`${API_PREFIX}/purchase/suppliers?page=1&page_size=1`, {
+          headers,
+        });
+        const supForInsBody = await safeJson(supForInsResp);
+        const insSupplierId = extractItems<{ id: number }>(supForInsBody)[0]?.id;
+
+        const insWarehouseId = await resolveWarehouseId();
+        const insDeptId = await resolveDepartmentId();
+
+        // 产品明细字段（入库单 items 必填）
+        const prodForInsResp = await ctx.get(`${API_PREFIX}/products/${productId}`, { headers });
+        const prodForInsBody = await safeJson(prodForInsResp);
+        const insProdDetail = (prodForInsBody?.data as Record<string, unknown>) ?? {};
+        const insMatCode = (insProdDetail.code as string) ?? '';
+        const insMatName = (insProdDetail.name as string) ?? '';
+        const insUnit = (insProdDetail.unit as string) ?? '米';
+
+        if (insSupplierId && insWarehouseId) {
+          const today = new Date().toISOString().slice(0, 10);
+          const need = INSPECTION_MIN_PENDING - pendingInsCount;
+          for (let i = 0; i < need; i++) {
+            const ts = `${Date.now().toString().slice(-8)}i${i}s${SHARD_INDEX || 'x'}`;
+            // 1) 建专属采购订单 + 提交 + 审批（入库需关联已审批订单）
+            const poResp = await seedPost(`${API_PREFIX}/purchase/orders`, {
+              supplier_id: insSupplierId,
+              order_date: today,
+              warehouse_id: insWarehouseId,
+              department_id: insDeptId,
+              notes: `E2E-SEED-INSP-${ts}`,
+              items: [
+                {
+                  material_id: productId,
+                  quantity_ordered: '500',
+                  unit_price: '15.00',
+                },
+              ],
+            });
+            const poData = await safeJson(poResp);
+            const poId = (poData?.data as Record<string, unknown>)?.id as number;
+            if (!poResp.ok() || !poId) {
+              await reportSeedWrite(poResp, `质检前置采购订单创建 i=${i}`);
+              continue;
+            }
+            await seedPost(`${API_PREFIX}/purchase/orders/${poId}/submit`, {});
+            const poApprove = await seedPost(`${API_PREFIX}/purchase/orders/${poId}/approve`, {});
+            if (!poApprove.ok()) {
+              await reportSeedWrite(poApprove, `质检前置采购订单审批 po=${poId}`);
+              continue;
+            }
+
+            // 2) 建入库单（染色布四维齐全：batch_no/color_code/lot_no 均非空）
+            const rcvResp = await seedPost(`${API_PREFIX}/purchase/receipts`, {
+              supplier_id: insSupplierId,
+              order_id: poId,
+              receipt_date: today,
+              warehouse_id: insWarehouseId,
+              department_id: insDeptId,
+              notes: `E2E-SEED-INSP-RCV-${ts}`,
+              items: [
+                {
+                  line_no: 1,
+                  material_id: productId,
+                  material_code: insMatCode,
+                  material_name: insMatName,
+                  batch_no: `E2E-IB${ts}`,
+                  color_code: 'E2E-INSP-COLOR',
+                  lot_no: `E2E-IL${ts}`,
+                  grade: '一等品',
+                  quantity: '500',
+                  quantity_alt: '0',
+                  unit_master: insUnit,
+                  unit_price: '15.00',
+                },
+              ],
+            });
+            const rcvData = await safeJson(rcvResp);
+            const rcvId = (rcvData?.data as Record<string, unknown>)?.id as number;
+            if (!rcvResp.ok() || !rcvId) {
+              await reportSeedWrite(rcvResp, `质检前置入库单创建 i=${i}`);
+              continue;
+            }
+
+            // 3) 确认入库（receipt_status→COMPLETED, inventory落库, 自动生成AP）
+            const confirmResp = await seedPost(
+              `${API_PREFIX}/purchase/receipts/${rcvId}/confirm`,
+              {}
+            );
+            if (!confirmResp.ok()) {
+              await reportSeedWrite(confirmResp, `质检前置入库单确认 rcv=${rcvId}`);
+              continue;
+            }
+
+            // 4) 建质检单（POST /purchase/inspections），关联入库单
+            const insCreateResp = await seedPost(`${API_PREFIX}/purchase/inspections`, {
+              receipt_id: rcvId,
+              order_id: poId,
+              supplier_id: insSupplierId,
+              inspection_date: today,
+              notes: `E2E-SEED-INSP-Q-${ts}`,
+            });
+            if (insCreateResp.ok()) {
+              const insData = await safeJson(insCreateResp);
+              const insId = (insData?.data as Record<string, unknown>)?.id as number;
+              console.log(
+                `[globalSeed] 创建采购质检单(pending) id=${insId} receipt=${rcvId} po=${poId}`
+              );
+            } else {
+              await reportSeedWrite(insCreateResp, `采购质检单创建(关联 rcv=${rcvId})`);
+            }
+          }
+        } else {
+          console.warn(
+            `[globalSeed] ⚠️ 质检种子缺前置(supplier=${insSupplierId} warehouse=${insWarehouseId})，跳过步骤16`
+          );
+        }
+      } else {
+        console.log(`[globalSeed] 采购质检单 pending 已有 ${pendingInsCount}，满足需求`);
+      }
+    } catch (e) {
+      console.warn('[globalSeed] 采购入库+质检种子异常:', (e as Error).message);
+    }
+  }
+
+  // ---- 17. AP 付款申请+付款单种子（族B purchase/06-04 付款管理 tab 需有记录）----
+  // 端点链：
+  //   POST /ap/payment-requests → submit → approve → POST /ap/payments。
+  // CreateApPaymentRequest(付款申请) 必填：supplier_id, request_date, payment_type, payment_method, request_amount。
+  // CreateApPaymentRequest(付款单) 必填：request_id, payment_date。
+  // 付款申请状态流转：DRAFT →(submit)→ APPROVING →(approve)→ APPROVED；然后建付款单。
+  if (currentUserId) {
+    try {
+      const PAYMENT_MIN = 2;
+      let existingPayments = 0;
+      try {
+        const payListResp = await ctx.get(`${API_PREFIX}/ap/payments?page=1&page_size=1`, {
+          headers,
+        });
+        const payListBody = await safeJson(payListResp);
+        existingPayments =
+          ((payListBody?.data as Record<string, unknown>)?.total as number) ??
+          extractItems(payListBody)?.length ??
+          0;
+      } catch (e) {
+        console.warn('[globalSeed] AP 付款计数查询异常:', (e as Error).message);
+      }
+
+      if (existingPayments < PAYMENT_MIN) {
+        const supForPayResp = await ctx.get(`${API_PREFIX}/purchase/suppliers?page=1&page_size=1`, {
+          headers,
+        });
+        const supForPayBody = await safeJson(supForPayResp);
+        const paySupplierId = extractItems<{ id: number }>(supForPayBody)[0]?.id;
+
+        if (paySupplierId) {
+          const today = new Date().toISOString().slice(0, 10);
+          const need = PAYMENT_MIN - existingPayments;
+          for (let i = 0; i < need; i++) {
+            const ts = `${Date.now().toString().slice(-8)}p${i}s${SHARD_INDEX || 'x'}`;
+            // 1) 创建付款申请
+            const prCreateResp = await seedPost(`${API_PREFIX}/ap/payment-requests`, {
+              supplier_id: paySupplierId,
+              request_date: today,
+              payment_type: 'PURCHASE',
+              payment_method: '银行转账',
+              request_amount: '5000',
+              notes: `E2E-SEED-PAYREQ-${ts}`,
+            });
+            const prData = await safeJson(prCreateResp);
+            const prId = (prData?.data as Record<string, unknown>)?.id as number;
+            if (!prCreateResp.ok() || !prId) {
+              await reportSeedWrite(prCreateResp, `AP 付款申请创建 i=${i}`);
+              continue;
+            }
+            // 2) 提交付款申请
+            const prSubmitResp = await seedPost(
+              `${API_PREFIX}/ap/payment-requests/${prId}/submit`,
+              {}
+            );
+            if (!prSubmitResp.ok()) {
+              await reportSeedWrite(prSubmitResp, `AP 付款申请提交 id=${prId}`);
+              continue;
+            }
+            // 3) 审批付款申请
+            const prApproveResp = await seedPost(
+              `${API_PREFIX}/ap/payment-requests/${prId}/approve`,
+              {}
+            );
+            if (!prApproveResp.ok()) {
+              await reportSeedWrite(prApproveResp, `AP 付款申请审批 id=${prId}`);
+              continue;
+            }
+            // 4) 创建付款单
+            const payCreateResp = await seedPost(`${API_PREFIX}/ap/payments`, {
+              request_id: prId,
+              payment_date: today,
+              notes: `E2E-SEED-PAY-${ts}`,
+            });
+            if (payCreateResp.ok()) {
+              const payData = await safeJson(payCreateResp);
+              const payId = (payData?.data as Record<string, unknown>)?.id as number;
+              console.log(`[globalSeed] 创建 AP 付款单 id=${payId} (request=${prId})`);
+            } else {
+              await reportSeedWrite(payCreateResp, `AP 付款单创建(req=${prId})`);
+            }
+          }
+        }
+      } else {
+        console.log(`[globalSeed] AP 付款单已有 ${existingPayments}，满足需求`);
+      }
+    } catch (e) {
+      console.warn('[globalSeed] AP 付款种子异常:', (e as Error).message);
+    }
+  }
+
+  // ---- 18. AR 收款单种子（族B sales/06-04 收款管理 tab 需有记录）----
+  // 端点：POST /api/v1/erp/ar/payments
+  // CreateArPaymentRequest（handlers/ar_payment_handler.rs:31）必填：
+  //   customer_id:i32, amount:Decimal, payment_method:String(min1,max50), payment_date:NaiveDate。
+  if (currentUserId) {
+    try {
+      const AR_PAY_MIN = 2;
+      let existingArPayments = 0;
+      try {
+        const arPayListResp = await ctx.get(`${API_PREFIX}/ar/payments?page=1&page_size=1`, {
+          headers,
+        });
+        const arPayListBody = await safeJson(arPayListResp);
+        // AR payment list 返回 { list: [], total: n }（handlers/ar_payment_handler.rs:82）
+        const arPayData = arPayListBody?.data as Record<string, unknown> | undefined;
+        existingArPayments =
+          (arPayData?.total as number) ??
+          (Array.isArray(arPayData?.list) ? (arPayData.list as unknown[]).length : 0);
+      } catch (e) {
+        console.warn('[globalSeed] AR 收款计数查询异常:', (e as Error).message);
+      }
+
+      if (existingArPayments < AR_PAY_MIN) {
+        const cusForArPayResp = await ctx.get(`${API_PREFIX}/crm/customers?page=1&page_size=1`, {
+          headers,
+        });
+        const cusForArPayBody = await safeJson(cusForArPayResp);
+        const arPayCustomerId = extractItems<{ id: number }>(cusForArPayBody)[0]?.id;
+
+        // 取一张 APPROVED AR 发票用于关联（可选）
+        let relatedInvoiceId: number | undefined;
+        try {
+          const arInvResp = await ctx.get(
+            `${API_PREFIX}/ar/invoices?page=1&page_size=1&status=APPROVED`,
+            { headers }
+          );
+          const arInvBody = await safeJson(arInvResp);
+          const arInvList = Array.isArray(arInvBody?.data)
+            ? (arInvBody.data as Array<{ id: number }>)
+            : extractItems<{ id: number }>(arInvBody);
+          relatedInvoiceId = arInvList[0]?.id;
+        } catch {
+          // 关联发票可选，查询失败不阻塞
+        }
+
+        if (arPayCustomerId) {
+          const today = new Date().toISOString().slice(0, 10);
+          const need = AR_PAY_MIN - existingArPayments;
+          for (let i = 0; i < need; i++) {
+            const arPayCreateResp = await seedPost(`${API_PREFIX}/ar/payments`, {
+              customer_id: arPayCustomerId,
+              amount: '6000',
+              payment_method: '银行转账',
+              payment_date: today,
+              ...(relatedInvoiceId ? { invoice_ids: [relatedInvoiceId] } : {}),
+            });
+            if (arPayCreateResp.ok()) {
+              const arPayData = await safeJson(arPayCreateResp);
+              const arPayId = (arPayData?.data as Record<string, unknown>)?.id as number;
+              console.log(`[globalSeed] 创建 AR 收款单 id=${arPayId} customer=${arPayCustomerId}`);
+            } else {
+              await reportSeedWrite(arPayCreateResp, `AR 收款单创建 i=${i}`);
+            }
+          }
+        }
+      } else {
+        console.log(`[globalSeed] AR 收款单已有 ${existingArPayments}，满足需求`);
+      }
+    } catch (e) {
+      console.warn('[globalSeed] AR 收款种子异常:', (e as Error).message);
     }
   }
 
