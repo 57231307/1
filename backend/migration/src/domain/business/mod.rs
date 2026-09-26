@@ -13,6 +13,7 @@ mod m0011_add_sales_and_logistics_extensions;
 mod m0012_add_ap_ar_finance_analysis;
 mod m0013_add_business_process_and_traceability;
 mod m0014_add_saas_notification_report_email_oa;
+mod m0015_seed_supplier_product_catalog;
 
 pub struct Migration;
 
@@ -193,11 +194,19 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
+        // 供应商商品/色号目录种子：必须晚于 m0008（建两表）与 system 的 suppliers 表，
+        // 放在 business.up() 末尾，保证依赖表与补列全部就绪后再灌演示数据。
+        m0015_seed_supplier_product_catalog::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0015_seed_supplier_product_catalog::Migration
+            .down(manager)
+            .await?;
         m0014_add_saas_notification_report_email_oa::Migration
             .down(manager)
             .await?;

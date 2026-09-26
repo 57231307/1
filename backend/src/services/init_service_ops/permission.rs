@@ -355,6 +355,12 @@ impl InitService {
                     ("sku-mappings", "read"),
                     ("sku-mappings", "update"),
                     ("sku-mappings", "delete"),
+                    // 供应商商品/色号目录（对照表依赖的父级数据；采购经理审批可改不可建，
+                    // 且保密：销售角色一律不授，故仅出现在采购域分组）
+                    ("supplier-products", "read"),
+                    ("supplier-products", "update"),
+                    ("supplier-product-colors", "read"),
+                    ("supplier-product-colors", "update"),
                     ("suppliers", "*"),
                     ("supplier-evaluations", "*"),
                     ("ap", "read"),
@@ -376,6 +382,13 @@ impl InitService {
                     ("sku-mappings", "read"),
                     ("sku-mappings", "create"),
                     ("sku-mappings", "update"),
+                    // 供应商商品/色号目录（采购员可建可改，对照表父级数据维护主力；保密域不授销售）
+                    ("supplier-products", "read"),
+                    ("supplier-products", "create"),
+                    ("supplier-products", "update"),
+                    ("supplier-product-colors", "read"),
+                    ("supplier-product-colors", "create"),
+                    ("supplier-product-colors", "update"),
                 ],
             ),
             (
@@ -389,6 +402,13 @@ impl InitService {
                     ("purchase-prices", "*"),
                     ("purchase-contracts", "read"),
                     ("sku-mappings", "*"),
+                    // 供应商商品/色号目录（采购专员维护商品与色号目录，read/create/update）
+                    ("supplier-products", "read"),
+                    ("supplier-products", "create"),
+                    ("supplier-products", "update"),
+                    ("supplier-product-colors", "read"),
+                    ("supplier-product-colors", "create"),
+                    ("supplier-product-colors", "update"),
                 ],
             ),
         ]

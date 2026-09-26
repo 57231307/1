@@ -467,6 +467,43 @@ fn sku_mapping_routes() -> Router<AppState> {
         )
 }
 
+/// 供应商商品目录路由（path 前缀 /supplier-products，sku-mapping 依赖的父级数据）
+fn supplier_product_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/supplier-products",
+            get(crate::handlers::supplier_product_handler::list_supplier_products),
+        )
+        .route(
+            "/supplier-products",
+            post(crate::handlers::supplier_product_handler::create_supplier_product),
+        )
+        .route(
+            "/supplier-products/{id}",
+            get(crate::handlers::supplier_product_handler::get_supplier_product)
+                .put(crate::handlers::supplier_product_handler::update_supplier_product),
+        )
+}
+
+/// 供应商商品色号目录路由（path 前缀 /supplier-product-colors，sku-mapping 依赖的父级数据）
+fn supplier_product_color_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/supplier-product-colors",
+            get(crate::handlers::supplier_product_color_handler::list_supplier_product_colors),
+        )
+        .route(
+            "/supplier-product-colors",
+            post(crate::handlers::supplier_product_color_handler::create_supplier_product_color),
+        )
+        .route(
+            "/supplier-product-colors/{id}",
+            get(crate::handlers::supplier_product_color_handler::get_supplier_product_color).put(
+                crate::handlers::supplier_product_color_handler::update_supplier_product_color,
+            ),
+        )
+}
+
 /// 采购域统一入口；子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -476,4 +513,6 @@ pub fn routes() -> Router<AppState> {
         .merge(suppliers())
         .merge(supplier_evaluations())
         .merge(sku_mapping_routes())
+        .merge(supplier_product_routes())
+        .merge(supplier_product_color_routes())
 }

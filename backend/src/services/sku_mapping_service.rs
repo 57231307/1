@@ -658,13 +658,23 @@ impl SkuMappingService {
             }
         }
 
-        // 供应商
-        supplier::Entity::find_by_id(input.supplier_id)
+        // 供应商：仅取主键判存在，避免对 supplier::Model 的 NULLABLE 扩展列
+        // （supplier_type/credit_code/legal_representative/… 经 ALTER 以可空列加入、
+        // 但模型声明为非 Option）整行解码而在历史/手工供应商行上抛 500。
+        let supplier_exists = supplier::Entity::find()
+            .filter(supplier::Column::Id.eq(input.supplier_id))
+            .select_only()
+            .column(supplier::Column::Id)
+            .into_tuple::<i32>()
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("供应商 ID {} 不存在", input.supplier_id))
-            })?;
+            .is_some();
+        if !supplier_exists {
+            return Err(AppError::validation(format!(
+                "供应商 ID {} 不存在",
+                input.supplier_id
+            )));
+        }
 
         // 供应商商品
         let sp = supplier_product::Entity::find_by_id(input.supplier_product_id)

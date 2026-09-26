@@ -233,3 +233,7 @@ pub mod conversion_time_handler;
 pub mod opportunity_stage_handler;
 // 供应商商品/色号对照表 handler（sku-mapping）
 pub mod sku_mapping_handler;
+// 供应商商品目录 handler（supplier-products，对照表依赖的父级数据）
+pub mod supplier_product_handler;
+// 供应商商品色号目录 handler（supplier-product-colors，对照表依赖的父级数据）
+pub mod supplier_product_color_handler;
