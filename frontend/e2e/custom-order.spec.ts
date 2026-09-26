@@ -86,8 +86,8 @@ test.describe('定制订单全流程跟踪 E2E', () => {
 
     // 填写表单（真实字段：客户ID / 产品ID / 规格 / 数量；unit 默认 'm'）
     // labelSpec='规格' 与 labelYarnSpec='纱线规格' 共享子串，须 exact 避免 strict 多命中
-    // 数量项 form-item 内同时含数字 input 与 unit el-select，源码已加 for="co-create-quantity"
-    // （commit 04362934），直接锚真实 input id 填值，避免 getByLabel 命中容器 div。
+    // 数量项 form-item 内同时含数字 input 与 unit el-select，源码有 for="co-create-quantity"，
+    // 直接锚真实 input id 填值，避免 getByLabel 命中容器 div。
     await page.getByLabel('客户ID').fill(String(customerId));
     await page.getByLabel('产品ID').fill(String(productId));
     await page.getByLabel('规格', { exact: true }).fill('E2E 100% 棉 200g/m²');
