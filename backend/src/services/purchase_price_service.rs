@@ -11,6 +11,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
+use validator::Validate;
 
 /// 采购价格读模型：实体列 + LEFT JOIN 关联出的产品名 / 产品编码 / 供应商名（实体仅有外键 ID）。
 ///
@@ -49,12 +50,21 @@ pub struct PurchasePriceQueryParams {
 }
 
 /// 创建采购价格请求
-#[derive(Debug, Clone, Deserialize)]
+///
+/// `unit`（计量单位）与 `price_type`（价格类型）为创建必填：价格必依附计量单位与价格类型，
+/// 对应列 `purchase_prices.unit` / `purchase_prices.price_type` 为 NOT NULL 且无数据库默认值。
+/// 缺失/空字符串由 validator 返回 4xx VALIDATION_ERROR（单一 AppError 信封），
+/// 不再依赖 DB NOT NULL 约束裸抛 500 DATABASE_ERROR。
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct CreatePurchasePriceInput {
     pub product_id: i32,
     pub supplier_id: i32,
     pub price: rust_decimal::Decimal,
     pub currency: Option<String>,
+    #[validate(length(min = 1, message = "计量单位不能为空"))]
+    pub unit: String,
+    #[validate(length(min = 1, message = "价格类型不能为空"))]
+    pub price_type: String,
     pub min_order_qty: Option<rust_decimal::Decimal>,
     pub effective_date: Option<String>,
     pub expiry_date: Option<String>,
@@ -126,6 +136,8 @@ impl PurchasePriceService {
             currency: Set(req
                 .currency
                 .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
+            unit: Set(req.unit),
+            price_type: Set(req.price_type),
             min_order_qty: Set(req.min_order_qty.unwrap_or_default()),
             effective_date: Set(req
                 .effective_date

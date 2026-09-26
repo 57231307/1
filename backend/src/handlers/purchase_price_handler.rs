@@ -12,6 +12,7 @@ use axum::{
 };
 use serde::Deserialize;
 use tracing::info;
+use validator::Validate;
 
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -79,6 +80,8 @@ pub async fn create_price(
     auth: AuthContext,
     Json(req): Json<CreatePurchasePriceInput>,
 ) -> Result<Json<ApiResponse<purchase_price::Model>>, AppError> {
+    req.validate()?;
+
     info!(
         "用户 {} 正在创建采购价格，产品 ID: {}",
         auth.user_id, req.product_id
@@ -201,6 +204,8 @@ pub struct ImportPriceItem {
     pub supplier_id: i32,
     pub price: String,
     pub currency: Option<String>,
+    pub unit: String,
+    pub price_type: String,
     pub effective_date: Option<String>,
     pub expiry_date: Option<String>,
 }
@@ -246,10 +251,18 @@ pub async fn import_prices(
             supplier_id: item.supplier_id,
             price,
             currency: item.currency.clone(),
+            unit: item.unit.clone(),
+            price_type: item.price_type.clone(),
             min_order_qty: None,
             effective_date: item.effective_date.clone(),
             expiry_date: item.expiry_date.clone(),
         };
+
+        if let Err(e) = input.validate() {
+            failed_count += 1;
+            errors.push(format!("第 {} 条校验失败: {}", index + 1, e));
+            continue;
+        }
 
         match service.create_price(input, auth.user_id).await {
             Ok(_) => success_count += 1,
