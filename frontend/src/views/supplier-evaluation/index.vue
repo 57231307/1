@@ -137,6 +137,7 @@
             <el-table-column
               prop="indicator_name"
               :label="t('supplierEvaluation.index.indicators.label.name')"
+              min-width="120"
             />
             <el-table-column
               prop="category"

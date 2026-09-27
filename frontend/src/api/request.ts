@@ -34,14 +34,19 @@ function onTokenRefreshFailed(error: unknown) {
 }
 
 // V15 P2 20.2-D：错误消息去重，避免短时间内弹出多条相同错误提示
-const _recentErrors = new Set<string>();
+// 使用 Map 而非 Set 以记录消息出现时间；去重窗口与 _networkErrorToastShown 对齐：
+// 仅在成功响应时清理（而非固定超时），确保并发请求各自经 3 次拦截器重试（随机退避
+// 总计可达 ~9s）后，后到达的相同文案仍被抑制。
+const _recentErrors = new Map<string, number>();
+const ERROR_DEDUP_WINDOW_MS = 5000;
 // 网络断开兜底文案只弹一次，直到有请求成功（证明网络恢复）再重置
 let _networkErrorToastShown = false;
 function showErrorOnce(message: string): void {
-  if (_recentErrors.has(message)) return;
-  _recentErrors.add(message);
+  const now = Date.now();
+  const lastShown = _recentErrors.get(message);
+  if (lastShown !== undefined && now - lastShown < ERROR_DEDUP_WINDOW_MS) return;
+  _recentErrors.set(message, now);
   ElMessage.error(message);
-  setTimeout(() => _recentErrors.delete(message), 2000);
 }
 
 /**
@@ -173,8 +178,9 @@ class Request {
 
     this.instance.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
-        // 任意成功响应证明网络恢复，重置网络断开兜底文案的一次性提示标记
+        // 任意成功响应证明网络恢复，重置网络断开兜底文案的一次性提示标记与去重集合
         _networkErrorToastShown = false;
+        _recentErrors.clear();
         // Blob 响应（文件下载/导出）无 code 信封，直接放行交给调用方处理二进制
         if (response.config.responseType === 'blob' || response.data instanceof Blob) {
           return response;

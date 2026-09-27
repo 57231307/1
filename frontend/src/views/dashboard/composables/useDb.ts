@@ -3,7 +3,6 @@
 // 业务领域：仪表板（overview + 2 图表数据 + 日期范围 + 趋势天数）
 // 行为完全保持一致（仅结构重构）
 import { reactive, ref, watch } from 'vue';
-import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
 import {
   getDashboardOverview,
@@ -42,10 +41,9 @@ export const useDb = () => {
       const res = await getDashboardOverview();
       stats.value = res.data ?? overviewDefaults();
     } catch (error: unknown) {
-      ElMessage.error(
-        (error instanceof Error ? error.message : String(error)) ||
-          msg.translate('loadDashboardDataFailed')
-      );
+      // 拦截器（request.ts showErrorOnce）已弹出统一错误提示；
+      // 此处仅记录日志与回落数据，不再重复 ElMessage 避免同刻出现多条 toast。
+      logger.error(msg.translate('loadDashboardDataFailed'), error);
       stats.value = overviewDefaults();
     }
   };
