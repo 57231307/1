@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { expect, type Page } from '@playwright/test';
+import { expect, type Page, type APIResponse } from '@playwright/test';
 // ESM 环境无 require（Playwright 原生 ESM 加载链），fs/crypto 必须静态导入；
 // 此前 require('fs')/require('crypto') 抛 "require is not defined" 导致
 // getRoleCredential 恒返 null（全角色 credentials not found）与 generateTotp 崩溃
@@ -1182,6 +1182,30 @@ async function getCsrfToken(page: Page): Promise<string> {
 }
 
 /**
+ * 把一个 csrf_token 写入浏览器上下文 Cookie（非 httpOnly，前端 document.cookie 可读）。
+ * 域取 url 的 hostname；域名不匹配等异常静默降级（交由各请求的 403 恢复路径兜底）。
+ */
+async function writeCsrfCookie(page: Page, url: string, value: string): Promise<void> {
+  try {
+    const urlObj = new URL(url);
+    await page.context().addCookies([
+      {
+        name: 'csrf_token',
+        value,
+        domain: urlObj.hostname,
+        path: '/',
+        httpOnly: false,
+        secure: false,
+        sameSite: 'Strict',
+        expires: Math.floor(Date.now() / 1000) + 1800,
+      },
+    ]);
+  } catch {
+    // addCookies 异常（如域名不匹配）不阻塞——降级到下一次 403 恢复路径
+  }
+}
+
+/**
  * 后端 CSRF Token 为一次性消费（csrf.rs:110 consume + :216-224 Set-Cookie 轮换）。
  * page.request 成功写入后，响应 Set-Cookie 携带新 token，Playwright 自动存入 context。
  * 本函数为防御性保障：从响应的 set-cookie 头中显式提取 csrf_token 值并 addCookies，
@@ -1197,23 +1221,7 @@ async function syncCsrfFromResponse(
   if (!setCookie) return;
   const match = /csrf_token=([^;]+)/.exec(setCookie);
   if (!match) return;
-  try {
-    const urlObj = new URL(url);
-    await page.context().addCookies([
-      {
-        name: 'csrf_token',
-        value: match[1],
-        domain: urlObj.hostname,
-        path: '/',
-        httpOnly: false,
-        secure: false,
-        sameSite: 'Strict' as const,
-        expires: Math.floor(Date.now() / 1000) + 1800,
-      },
-    ]);
-  } catch {
-    // addCookies 异常（如域名不匹配）不阻塞——降级到下一次 403 恢复路径
-  }
+  await writeCsrfCookie(page, url, match[1]);
 }
 
 async function refreshCsrfToken(page: Page): Promise<string> {
@@ -1233,6 +1241,59 @@ async function refreshCsrfToken(page: Page): Promise<string> {
     throw new Error('csrf_token cookie not found after re-login');
   }
   return csrf.value;
+}
+
+/**
+ * loginViaUI 短路路径的 csrf 活性探测（缺陷1 修复点4）。
+ *
+ * 背景：storage-state 里的 csrf_token 是"服务端一次性消费"的凭证，会被第一个使用它的
+ * 写请求打死；而 loginViaUI 的短路分支（同 worker 内 LOGGED_IN 已置位 + cookie 存在）
+ * 只做 /auth/me（GET，天然不消费 csrf）会话有效性探测，无法察觉 csrf 已被上一用例消费，
+ * 于是带着死 csrf 返回 → 该用例首个写请求 403 CSRF_TOKEN_INVALID（成片 403 的会话级来源）。
+ *
+ * 探测方式（零业务副作用）：POST /webhooks 携带空体 '{}'。
+ * - CreateWebhookRequest 的 name/url/events 均为非 Option 必填字段（webhook_handler.rs:29-34），
+ *   空体在 axum `Json<T>` 抽取器反序列化阶段即报 422，早于 handler 主体、绝不触库，
+ *   故不可能创建任何 webhook 行（对比 /warehouses、/products 的字段全是 Option，空体可过校验，
+ *   会落 DB NOT NULL 500 甚至插脏行——不可用作探测）；
+ * - 但 csrf.rs 在 handler 之前已完成消费+轮换：:199 consume → :202-211 生成并登记新 token →
+ *   :215-224 把轮换后的新 token 以 Set-Cookie append 到 next.run 的响应（422/403 同样携带）。
+ *   故两条路径都能取回一个"仍然存活"的 token：
+ *   · 传入 token 存活 → 被消费并轮换，响应 Set-Cookie 带新活 token → syncCsrfFromResponse 取回；
+ *   · 传入 token 已死 → 403 CSRF_* + x-new-csrf-token 恢复头（服务端已登记）→ 采用恢复 token。
+ * 无论哪种，探测结束后会话上下文都持有一个存活 csrf，短路返回后不再撞首轮 403。
+ */
+async function probeCsrfLiveness(page: Page): Promise<void> {
+  const url = `${API_BASE}${API_PREFIX}/webhooks`;
+  const token = await getCsrfToken(page).catch(e => {
+    console.warn(`[loginViaUI] csrf 活性探测：读取当前 csrf_token 失败: ${(e as Error).message}`);
+    return '';
+  });
+  let resp: APIResponse;
+  try {
+    resp = await page.request.fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': token,
+      },
+      data: '{}',
+      timeout: 30_000,
+    });
+  } catch (e) {
+    // 探测请求本身网络异常：不阻塞登录（交由后续 apiCall / 前端的 403 恢复兜底），仅告警
+    console.warn(`[loginViaUI] csrf 活性探测请求异常（跳过探测）: ${(e as Error).message}`);
+    return;
+  }
+  const recovery = resp.headers()['x-new-csrf-token'];
+  if (recovery) {
+    await writeCsrfCookie(page, url, recovery);
+    console.log('[loginViaUI] csrf 活性探测：原 token 已失效，已采用后端下发的恢复 token');
+  } else {
+    await syncCsrfFromResponse(page, resp, url);
+    console.log('[loginViaUI] csrf 活性探测：token 存活并已轮换回写');
+  }
 }
 
 export async function apiCall<T = unknown>(
@@ -1339,18 +1400,23 @@ export async function apiCall<T = unknown>(
     }
   }
 
+  // 写请求（含 CSRF 竞败重试后的最终 response）完成后，先同步轮换后的 csrf 到会话，
+  // 再判定业务错误——顺序至关重要（缺陷1 修复点3）。
+  // 根因：后端在 handler 之前即消费旧 token 并 Set-Cookie 下发轮换后的新 token
+  // （csrf.rs:199 consume → :215-224 把新 token append 到 next.run 的响应，业务 4xx/5xx 同样携带）。
+  // 旧写法把同步放在 `json.code !== 200` 抛错之后，业务错误分支抛出时同步永不执行，
+  // 轮换出的新 token 丢失，同会话下一请求仍携带已消费的旧 token → 级联成片 403。
+  // 故对携带请求体的方法无条件先同步，再决定是否抛业务错误。
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+    await syncCsrfFromResponse(page, response, url);
+  }
+
   if (json.code !== 200 && json.code !== 0) {
     const httpErr = new Error(
       `API ${method} ${path} failed: code=${json.code} message=${json.message}`
     ) as Error & { status?: number };
     httpErr.status = response.status();
     throw httpErr;
-  }
-
-  // 写操作成功后主动同步轮换的 CSRF token，确保下一次 apiCall 的 getCsrfToken
-  // 一定读到最新值，而非依赖 Playwright 内部 set-cookie 处理的时机。
-  if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
-    await syncCsrfFromResponse(page, response, url);
   }
 
   return json;
@@ -1494,6 +1560,9 @@ export async function loginViaUI(
         } else {
           // 会话有效（200/429/5xx 等均视为"存在且未被吊销"，不触发重登；
           // 429 限流不应触发重新登录——账号密码重试只会加剧限流）
+          // /auth/me 是 GET、不消费 csrf，故此处补一次 csrf 活性探测：确保 storage-state
+          // 里可能已被上一用例消费的 csrf_token 被换成存活 token，避免本用例首个写请求 403。
+          await probeCsrfLiveness(page);
           await page
             .goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 30000 })
             .catch(e => {

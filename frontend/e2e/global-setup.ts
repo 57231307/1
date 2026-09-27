@@ -129,13 +129,36 @@ export default async function globalSetup() {
   }
 
   mkdirSync('e2e/.auth', { recursive: true });
-  writeFileSync(STORAGE_STATE_PATH, JSON.stringify(cookies, null, 2));
 
   // ---- 2.5 全局业务实体种子（供不依赖 ensureTestEntities 的 extras specs 使用）----
   // extras 目录（sales/purchase/crm/color-card/price/production/quality 等）的
   // spec 不调用 ensureTestEntities，直接 navigate 后断言"状态行存在/下拉有选项"。
   // 本步骤用纯 API 建最小前置集，使 GET 列表非空。幂等：先查后建。
   await ensureGlobalBusinessSeed(ctx);
+
+  // ---- 2.9 seed 之后回写 storage-state（CSRF 启动即失效根因的根治点）----
+  // 后端 CSRF Token 为服务端一次性消费（middleware/csrf.rs:199 consume → :216 Set-Cookie
+  // 轮换）。上面 :118 登录拿到的 csrf=T0；ensureGlobalBusinessSeed 内的连续写请求会逐次
+  // 消费并轮换 T0（seed 走 requestWithCsrfRecovery，从 ctx cookie jar 读回轮换后的新 token），
+  // 至 seed 结束时 T0 早已死亡。若在 seed 前就把 T0 写入 storage-state（旧行为），
+  // 之后每条 playwright 用例从磁盘 storageState 恢复上下文都会带回已死的 T0，
+  // 任何需 CSRF 的写请求首轮即 403 CSRF_TOKEN_INVALID——这正是成片 403 的根因。
+  // 因此在 seed 完成后重新读取当前 ctx 的 cookie jar（含仍然存活的 access_token 与
+  // 轮换链末端的 csrf_token），覆盖写回磁盘，保证持久化的 storage-state 携带存活 token。
+  const postSeedState = await ctx.storageState();
+  const postSeedAccess = postSeedState.cookies.find(c => c.name === 'access_token');
+  const postSeedCsrf = postSeedState.cookies.find(c => c.name === 'csrf_token');
+  if (!postSeedAccess || !postSeedCsrf) {
+    throw new Error(
+      `globalSetup seed 后 storage-state 缺关键 cookie（access=${!!postSeedAccess} csrf=${!!postSeedCsrf}），` +
+        `持久化登录态将不可用`
+    );
+  }
+  writeFileSync(STORAGE_STATE_PATH, JSON.stringify(postSeedState, null, 2));
+  console.log(
+    `[globalSetup] storage-state 于 seed 后回写完成：csrf_token=${postSeedCsrf.value.slice(0, 8)}…` +
+      `（携带存活 token，非 seed 前已消费的旧值）`
+  );
 
   await ctx.dispose();
 }

@@ -154,22 +154,43 @@ async function createThenApiDelete(
   }
 }
 
-// 非 serial：矩阵各例彼此独立（各自 beforeEach 登录+ensureTestEntities；每条用例用 TS 后缀
+// 非 serial：矩阵各例彼此独立（登录在各自 beforeEach、实体初始化在 beforeAll 整 worker 一次；
+// 每条用例用 TS 后缀
 // 自造唯一命名资源并自行创建/删除；依赖链用例的父资源亦在例内 inline 自建自删），
 // 不存在跨用例产物依赖。原 describe.serial 的链式语义会让任一用例失败即把其后所有用例
 // 判为 "did not run"（假覆盖盲区）——例如「坯布在库不可删」失败曾连带拖垮其后 28 例。
 // 降为普通 describe 后，各例独立执行、独立成败，恢复真实覆盖。
 test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', () => {
-  // 分片并行修复：本 describe 内 44 例彼此独立（各自 beforeEach 登录+ensureTestEntities，
+  // 分片并行修复：本 describe 内 44 例彼此独立（登录 per-test、ensureTestEntities 见下方 beforeAll，
   // 每条用例用 TS 后缀自造唯一资源并 inline 自建自删，无任何跨用例产物/顺序依赖，见上方注释）。
   // 但全局 fullyParallel:false 下，普通 describe 的例仍以"文件为单位"在单 worker 内串行跑完，
   // --workers=3 无法把这一重文件内部打散：最慢片(shard14)因此串行长尾撞满超时被 kill(exit124)，
   // 其余 worker 空转。此处显式声明 mode:'parallel' 让本文件的独立例可被多 worker 并行消费，
   // 真正消除重尾；不影响其它用 test.describe.serial 声明的业务流链（它们仍串行）。
   test.describe.configure({ mode: 'parallel' });
+
+  // 缺陷2 修复：实体初始化提为"整 worker 一次"。
+  // 根因（证据）：原 beforeEach 每例都调用 ensureTestEntities，其内含多轮 safeGoto UI 页面
+  // 加载 + API 建/查实体，单例实测 ~200s × 本文件 40+ 例 → 严重拖垮超时预算；上一轮为掩盖
+  // 它把 test.setTimeout 抬到 300s（伪全绿红线），后端实体写入实测仅 2ms，根本不是慢在源码。
+  // ensure 建立的是全 worker 共享的真实库实体，结果落在 helpers 的模块级 ctx 单例，只需
+  // 初始化一次供本 worker 全部用例复用。beforeAll 为 worker 作用域：parallel 模式下每个
+  // worker 只跑一次（而非每例一次）。beforeAll 不注入 page，这里用 storageState 独立建
+  // context 完成"登录 + ensure"，随后关闭；各用例 beforeEach 仅复用登录态、不再重复 ensure。
+  test.beforeAll(async ({ browser }) => {
+    const seedContext = await browser.newContext({ storageState: 'e2e/.auth/storage-state.json' });
+    const seedPage = await seedContext.newPage();
+    try {
+      await loginViaUI(seedPage);
+      await ensureTestEntities(seedPage);
+    } finally {
+      await seedContext.close();
+    }
+  });
+
   test.beforeEach(async ({ page }) => {
+    // 仅复用 storageState 登录态（内含 csrf 活性探测）；实体初始化已在 beforeAll 完成。
     await loginViaUI(page);
-    await ensureTestEntities(page);
   });
 
   for (const c of [
@@ -641,7 +662,12 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
     },
   ] as DelCase[]) {
     test(`${c.label}：创建→删除→详情404`, async ({ page }) => {
-      test.setTimeout(180_000);
+      // 缺陷2 收敛后预算：ensureTestEntities 已从每例 beforeEach 提为 beforeAll 整 worker
+      // 一次，本例耗时只剩 loginViaUI（复用 storageState 登录态，仅一次 goto /dashboard，
+      // 慢环境实测数秒）+ 测试体 API 往返（POST 创建→GET 列表→DELETE→GET 回读，后端均 ms 级）。
+      // 上一轮为掩盖 ensure 重复初始化把此值抬到 300s（伪全绿），与真实耗时严重不符。
+      // 90s = 登录数秒 + 体数秒 + ~60s 前端 dev-server 冷导航/CSRF 竞败重放余量。
+      test.setTimeout(90_000);
       await createThenApiDelete(page, c);
     });
   }
@@ -652,7 +678,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
   // 为常量「业务处理失败」，中文原文不外显，故此处据实断言 HTTP 400（不锁会被脱敏的文案），
   // 证明"在库不可删"前置约束被真实执行——与上方"先出库转可删态再删"用例互为正反两面。
   test('坯布：在库态直接删除应被拒(400)，出库后方可删除', async ({ page }) => {
-    test.setTimeout(120_000);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例（含 inline 依赖前置）仅 ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
     const fabric = await apiCall<{ id?: number }>(page, 'POST', '/production/greige-fabrics', {
       fabric_no: `P0-GFGUARD-${TS}`,
       fabric_name: `P0坯布守卫${TS}`,
@@ -708,7 +735,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
   // （同代码唯一）也会删掉别人的前置数据。这里改为删除矩阵真正能覆盖的子资源：
   // 流程节点有 POST/DELETE 端点，step_code 自由填写（同模式内唯一），回读入口是 by-mode 列表。
   test('业务模式流程节点：创建→删除→按模式回读消失', async ({ page }) => {
-    test.setTimeout(180_000);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例仅 login + ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
     // /production/business-modes：business_mode_handler::list_business_modes → PaginatedResponse → {items}。
     // 单一形状直读（原 `(modes.items ?? [])` 把 items 键漂移当成"无种子"→误抛）。
     const modes = await apiCallRaw<unknown>(
@@ -769,7 +797,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
 
   // ===== 凭证（items 必填 debit/credit）=====
   test('凭证：创建→删除→详情404', async ({ page }) => {
-    test.setTimeout(180_000);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例仅 login + ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
     await createThenApiDelete(page, {
       label: '凭证',
       createApi: '/vouchers',
@@ -788,7 +817,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
 
   // ===== 用户（密码强度规则：≥8 大小写数字特殊符）=====
   test('用户：创建→删除→详情404', async ({ page }) => {
-    test.setTimeout(180_000);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例仅 login + ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
     await createThenApiDelete(page, {
       label: '用户',
       createApi: '/users',
@@ -805,7 +835,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
 
   // ===== 客户信用（依赖 customer_id=1 seed）=====
   test('客户信用：创建→删除→详情404', async ({ page }) => {
-    test.setTimeout(180_000);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例仅 login + ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
     await createThenApiDelete(page, {
       label: '客户信用',
       createApi: '/crm/customer-credits',
@@ -822,7 +853,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
 
   // ===== 供应商评估（依赖指标先建）=====
   test('供应商评估：指标→评估记录→删除→回读', async ({ page }) => {
-    test.setTimeout(120_000);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例（含 inline 依赖前置）仅 ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
     const ind = await apiCall<{ id?: number }>(
       page,
       'POST',
@@ -854,7 +886,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
 
   // ===== 疵点（依赖检验单先建，闭环删除检验单）=====
   test('坯布疵点：检验单→疵点→删除→回读', async ({ page }) => {
-    test.setTimeout(120_000);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例（含 inline 依赖前置）仅 ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
     const ins = await apiCall<{ id?: number }>(page, 'POST', '/production/fabric-inspections', {
       inspection_date: '2026-01-01',
       product_id: 1,
@@ -901,7 +934,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
 
   // ===== 工资率（依赖工艺路线先建，闭环删除）=====
   test('工资率：工艺路线→工资率→删除→回读', async ({ page }) => {
-    test.setTimeout(120_000);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例（含 inline 依赖前置）仅 ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
     const rt = await apiCall<{ id?: number }>(page, 'POST', '/production/process-routes', {
       route_code: `P0-WG-RT-${TS}`,
       route_name: `P0工资工艺${TS}`,
@@ -938,7 +972,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
 
   // ===== 角色互斥（依赖两个角色先建，闭环删除）=====
   test('角色互斥：双角色→互斥关系→删除→回读', async ({ page }) => {
-    test.setTimeout(150_000);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；双角色+互斥关系为多次 ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
     const codeA = `p0ra_${TS}`,
       codeB = `p0rb_${TS}`;
     const ra = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
@@ -1003,7 +1038,8 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
 
   // ===== 数据权限（依赖角色先建，闭环删除）=====
   test('数据权限：角色→权限记录→删除→回读', async ({ page }) => {
-    test.setTimeout(120_000);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例（含 inline 依赖前置）仅 ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
     const r = await apiCall<{ id?: number }>(page, 'POST', '/roles', {
       name: `P0DP角色${TS}`,
       code: `p0dp_${TS}`,
@@ -1032,8 +1068,9 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
   // 通知为软删除（notification_service.rs:506 置 status=Deleted），get_notification 不过滤，
   // 故回读返回 200 并携带 status 字段；断言该字段以验证删除确实生效。
   test('通知：公告直发创建→删除→回读软删标记(Deleted)', async ({ page }) => {
-    test.setTimeout(180_000);
-    await ensureTestEntities(page);
+    // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例仅 login + ms 级 API 往返，90s 相称
+    test.setTimeout(90_000);
+    // getCtx().userIds 由 beforeAll 的 ensureTestEntities 统一就绪，无需在此重复初始化。
     const me = getCtx().userIds[0];
     expect(me, '[31b-通知] 当前用户 id 未就绪，无法自造可删通知').toBeTruthy();
 
