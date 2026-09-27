@@ -8763,6 +8763,8 @@ export default {
     },
     form: {
       ariaLabel: 'Purchase Contract Form',
+      dialogCreateTitle: 'New Purchase Contract',
+      dialogEditTitle: 'Edit Purchase Contract',
       contractNo: 'Contract No.',
       contractNoPlaceholder: 'Please enter contract no.',
       contractName: 'Contract Name',

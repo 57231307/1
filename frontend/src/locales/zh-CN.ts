@@ -8726,6 +8726,8 @@ export default {
     },
     form: {
       ariaLabel: '采购合同表单',
+      dialogCreateTitle: '新建采购合同',
+      dialogEditTitle: '编辑采购合同',
       contractNo: '合同编号',
       contractNoPlaceholder: '请输入合同编号',
       contractName: '合同名称',

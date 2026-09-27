@@ -141,7 +141,7 @@ export function usePc() {
 
   /** 准备新建表单（父组件需自行打开对话框） */
   const prepareCreate = () => {
-    dialogTitle.value = '新建采购合同';
+    dialogTitle.value = i18n.global.t('purchaseContract.form.dialogCreateTitle');
     Object.assign(formData, {
       id: undefined,
       contract_no: '',
@@ -162,7 +162,7 @@ export function usePc() {
 
   /** 准备编辑表单（父组件需自行打开对话框） */
   const prepareEdit = (row: PurchaseContract) => {
-    dialogTitle.value = '编辑采购合同';
+    dialogTitle.value = i18n.global.t('purchaseContract.form.dialogEditTitle');
     Object.assign(formData, row);
   };
 
