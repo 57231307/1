@@ -43,7 +43,7 @@ test.describe('MRP 计算', () => {
     // 改用冻结 helper：以计算参数表单容器（aria-label=MRP 计算参数表单）为 root + 精确 label
     // 「产品选择」锚定，点外层 .el-select__wrapper → keyboard.type('E2E') 触发远程搜索 → 选首项。
     const calcForm = page.getByLabel('MRP 计算参数表单');
-    await pickSelectIn(calcForm, page, '产品选择', { query: 'E2E', index: 0 });
+    await pickSelectIn(calcForm, page, '产品选择', { query: 'E2E', index: 0, multiple: true });
 
     // 需求日期为 el-date-picker：定位其真 input，fill 后 Enter 确认（Escape 会清空 → 校验失败）。
     const demandDate = formItemByExactLabel(calcForm, '需求日期').locator('input').first();

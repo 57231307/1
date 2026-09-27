@@ -48,7 +48,7 @@ test.describe('02 创建销售订单', () => {
     // 成功后跳转 /sales/orders/:id（OrderDetail.vue）
     await expect(page).toHaveURL(/\/sales\/orders\/\d+/);
     // 详情页真实标题 sales.orderDetail.title = '销售订单详情'
-    await expect(page.getByText('销售订单详情')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '销售订单详情' })).toBeVisible();
   });
 
   test('02-03 建单表单必填校验拦截空提交', async ({ page }) => {

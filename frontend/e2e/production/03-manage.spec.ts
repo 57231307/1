@@ -54,7 +54,10 @@ test.describe('生产计划 - 03 工单管理', () => {
     // getByText strict 多命中（>=1 元素即可证详情面板已渲染这些字段，.first() 收敛多命中，
     // 非放宽为恒真：若详情未渲染这些标签则 .first() 不可见、断言失败）。
     await expect(dialog.getByText(/订单编号|产品名称|计划数量/).first()).toBeVisible();
-    await dialog.getByRole('button', { name: /关闭/ }).click();
+    await dialog
+      .locator('.el-dialog__footer')
+      .getByRole('button', { name: '关闭', exact: true })
+      .click();
   });
 
   test('草稿工单可删除', async ({ page }) => {
