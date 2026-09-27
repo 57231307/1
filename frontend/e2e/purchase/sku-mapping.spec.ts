@@ -56,11 +56,25 @@ function escRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** 锚到含指定 label 的 el-form-item（对话框/页面作用域内）。 */
+/**
+ * 锚到含指定 label 的 el-form-item（作用域内，如对话框根）。
+ *
+ * 定位策略（消除假红根因）：
+ *  - 精确标签匹配：hasText 用 `^label$` 锚定行首行尾，杜绝子串误命中——本弹窗内
+ *    '供应商' 是 '供应商商品'/'供应商品编码'/'供应商色号'/'供应商色号编号' 的子串，
+ *    '我方色号' 是 '我方色号编号' 的子串，旧写法 hasText 子串匹配 + `.first()` 会命中
+ *    错误 form-item（如 el-select 无 .el-select-v2），进而被调用方静默成 false。
+ *  - `has` 子定位器（Playwright 自动 re-root 到每个候选 .el-form-item 的后代）配合精确锚定，
+ *    保证仅唯一对应 form-item 命中。
+ * 调用方（chooseOption/v2IsDisabled/fieldInputValue/fillFieldByLabel）应始终以 dialog（或目标
+ * 表单根）为 root，页头筛选栏（同名标签 '我方产品'/'供应商'）在 dialog 之外，天然被作用域排除。
+ */
 function formItem(root: Locator, labelText: string): Locator {
   return root
     .locator('.el-form-item')
-    .filter({ has: root.locator('.el-form-item__label', { hasText: labelText }) })
+    .filter({
+      has: root.locator('.el-form-item__label', { hasText: new RegExp(`^${escRe(labelText)}$`) }),
+    })
     .first();
 }
 
@@ -93,25 +107,25 @@ async function chooseOption(
   await dropdown.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
 }
 
-/** 读取某 el-select-v2 表单项当前是否处于禁用态（级联「未选上级则下级 disabled」断言）。 */
+/**
+ * 读取某 el-select-v2 表单项当前是否处于禁用态（级联「未选上级则下级 disabled」断言）。
+ * 不再用 `.catch(()=>null)` 吞掉定位失败——formItem 定位不到时 getAttribute 超时抛错，
+ * 让断言真实失败而非静默成 false（假红根因之一）。
+ */
 async function v2IsDisabled(root: Locator, labelText: string): Promise<boolean> {
   const cls = await formItem(root, labelText)
     .locator('.el-select-v2')
     .first()
-    .getAttribute('class')
-    .catch(() => null);
+    .getAttribute('class');
   return !!cls && cls.includes('is-disabled');
 }
 
-/** 读取禁用/只读展示 el-input 的当前值（如「供应商品编码」只读回显）。 */
+/**
+ * 读取禁用/只读展示 el-input 的当前值（如「供应商品编码」只读回显）。
+ * 不再用 `.catch(() => '')` 把定位失败静默成空串——inputValue 定位不到会超时抛错，真实失败。
+ */
 async function fieldInputValue(root: Locator, labelText: string): Promise<string> {
-  return (
-    (await formItem(root, labelText)
-      .locator('input')
-      .first()
-      .inputValue()
-      .catch(() => '')) ?? ''
-  );
+  return formItem(root, labelText).locator('input').first().inputValue();
 }
 
 /** 按 label 填充可编辑 el-input（如「协议价」）。 */
@@ -234,7 +248,9 @@ test.describe('SKU 对照表 - 采购维护契约与保密矩阵', () => {
     const data = await apiCallRaw<{ items: unknown[]; total: number; page: number }>(
       page,
       'GET',
-      `${API_PREFIX}/purchase/sku-mappings?page=1&page_size=20&keyword=E2E-GC`
+      // apiCall/apiCallRaw 内部已拼 `${API_BASE}${API_PREFIX}`，此处只传相对路径——
+      // 旧写法多拼 ${API_PREFIX} 造成双前缀 → permission.rs:65 判"未知的资源路径" FORBIDDEN（假红）。
+      '/purchase/sku-mappings?page=1&page_size=20&keyword=E2E-GC'
     );
     expect(Array.isArray(data.items), 'data.items 必须是数组（分页契约）').toBe(true);
     expect(typeof data.total, 'data.total 必须是数字').toBe('number');
@@ -464,16 +480,15 @@ test.describe('SKU 对照表 - 级联交互（purchaser 供应商侧）', () => 
       ''
     );
     // 清空下级后「供应商商品」仍可用（供应商已选），但其值应为空（下拉无选中项文本回显）
+    // 去掉 `.catch(() => '')`：formItem 精确锚定后 .el-select-v2 必在位，定位失败应真实抛错。
     const spText = await formItem(dialog, '供应商商品')
       .locator('.el-select-v2')
       .first()
-      .innerText()
-      .catch(() => '');
+      .innerText();
     expect(spText.includes('FAB-P001'), '切换供应商后不应仍残留旧商品').toBe(false);
 
     // 本用例只验证级联交互行为（禁用/解禁/清空），不提交（完整保存见下方 purchaser 完整级联用例）
-    const cancel = dialog.getByRole('button', { name: /取消/ }).first();
-    await cancel.click().catch(() => {});
+    await dialog.getByRole('button', { name: /取消/ }).first().click();
   });
 });
 
