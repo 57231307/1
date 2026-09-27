@@ -81,11 +81,7 @@
         :label="t('skuMapping.columns.productCode')"
         width="130"
       />
-      <el-table-column
-        prop="color_no"
-        :label="t('skuMapping.columns.ourColorNo')"
-        width="120"
-      />
+      <el-table-column prop="color_no" :label="t('skuMapping.columns.ourColorNo')" width="120" />
       <el-table-column prop="supplier_name" :label="t('skuMapping.columns.supplier')" width="140" />
       <el-table-column
         prop="supplier_product_code"
@@ -147,18 +143,15 @@
     />
 
     <!-- 新建/编辑对话框 -->
-    <SkuMappingFormDialog
-      :proc="dialog"
-      :products="list.products.value"
-      :suppliers="list.suppliers.value"
-    />
+    <SkuMappingFormDialog :products="list.products.value" :suppliers="list.suppliers.value" />
 
     <!-- 导入对话框 -->
-    <SkuMappingImportDialog :proc="importProc" />
+    <SkuMappingImportDialog />
   </div>
 </template>
 
 <script setup lang="ts">
+import { provide } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessageBox } from 'element-plus';
 import { PERMISSIONS } from '@/constants/permissions';
@@ -172,9 +165,11 @@ import SkuMappingImportDialog from './components/SkuMappingImportDialog.vue';
 const { t } = useI18n({ useScope: 'global' });
 
 const list = useSkuMappingList();
-// 传 reactive 代理本身（非快照），proc 对象内的 ref 属性保持双向响应
 const dialog = useSkuMappingDialog(list.loadData);
 const importProc = useSkuMappingImport(list.loadData);
+
+provide('skuMappingDialogProc', dialog);
+provide('skuMappingImportProc', importProc);
 
 const confirmDelete = async (id: number) => {
   try {

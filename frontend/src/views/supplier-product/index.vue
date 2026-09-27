@@ -29,7 +29,12 @@
           style="width: 220px"
           @change="list.handleQuery()"
         >
-          <el-option v-for="s in list.suppliers.value" :key="s.id" :label="s.supplier_name" :value="s.id" />
+          <el-option
+            v-for="s in list.suppliers.value"
+            :key="s.id"
+            :label="s.supplier_name"
+            :value="s.id"
+          />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('supplierProduct.filter.keyword')">
@@ -48,7 +53,13 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="list.loading.value" :data="list.list.value" border stripe style="width: 100%">
+    <el-table
+      v-loading="list.loading.value"
+      :data="list.list.value"
+      border
+      stripe
+      style="width: 100%"
+    >
       <el-table-column
         prop="product_code"
         :label="t('supplierProduct.columns.productCode')"
@@ -109,12 +120,13 @@
       @current-change="list.handlePageChange"
     />
 
-    <SupplierProductFormDialog :proc="dialog" :suppliers="list.suppliers.value" />
-    <SupplierProductColorDialog :proc="color" />
+    <SupplierProductFormDialog :suppliers="list.suppliers.value" />
+    <SupplierProductColorDialog />
   </div>
 </template>
 
 <script setup lang="ts">
+import { provide } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { PERMISSIONS } from '@/constants/permissions';
 import { useSupplierProductList } from './composables/useSupplierProductList';
@@ -126,9 +138,11 @@ import SupplierProductColorDialog from './components/SupplierProductColorDialog.
 const { t } = useI18n({ useScope: 'global' });
 
 const list = useSupplierProductList();
-// proc 传 reactive 代理本身，保持内部 ref 双向响应
 const dialog = useSupplierProductDialog(list.loadData);
 const color = useSupplierProductColor(() => {});
+
+provide('supplierProductDialogProc', dialog);
+provide('supplierProductColorProc', color);
 </script>
 
 <style scoped>

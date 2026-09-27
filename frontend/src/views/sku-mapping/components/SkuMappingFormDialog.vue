@@ -154,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { Product } from '@/api/product';
 import type { Supplier } from '@/api/supplier';
@@ -164,15 +164,16 @@ const { t } = useI18n({ useScope: 'global' });
 
 type ProcState = ReturnType<typeof useSkuMappingDialog>;
 
-const props = defineProps<{
-  proc: ProcState;
+const proc = inject<ProcState>('skuMappingDialogProc')!;
+
+defineProps<{
   products: Product[];
   suppliers: Supplier[];
 }>();
 
 // 将 colorOptions 转为 el-select-v2 需要的 {value, label}[] 格式
 const colorV2Options = computed(() =>
-  props.proc.colorOptions.value.map(c => ({
+  proc.colorOptions.value.map(c => ({
     value: c.id,
     label: `${c.color_no} - ${c.color_name}`,
   }))
@@ -180,22 +181,22 @@ const colorV2Options = computed(() =>
 
 // 远程搜索我方色号（虚拟滚动场景）
 const searchColors = (query: string) => {
-  if (props.proc.form.product_id) {
-    props.proc.loadColors(props.proc.form.product_id, query);
+  if (proc.form.product_id) {
+    proc.loadColors(proc.form.product_id, query);
   }
 };
 
 // 远程搜索供应商商品（依赖已选供应商）
 const searchSupplierProducts = (query: string) => {
-  if (props.proc.form.supplier_id) {
-    props.proc.loadSupplierProducts(props.proc.form.supplier_id, query);
+  if (proc.form.supplier_id) {
+    proc.loadSupplierProducts(proc.form.supplier_id, query);
   }
 };
 
 // 远程搜索供应商色号（依赖已选供应商商品）
 const searchSupplierColors = (query: string) => {
-  if (props.proc.form.supplier_product_id) {
-    props.proc.loadSupplierColors(props.proc.form.supplier_product_id, query);
+  if (proc.form.supplier_product_id) {
+    proc.loadSupplierColors(proc.form.supplier_product_id, query);
   }
 };
 </script>

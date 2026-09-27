@@ -25,7 +25,10 @@
         @clear="proc.handleQuery"
       />
       <el-button type="primary" @click="proc.handleQuery">{{ t('common.search') }}</el-button>
-      <el-button v-permission="PERMISSIONS.SUPPLIER_PRODUCT_COLOR_CREATE" @click="proc.openCreate()">
+      <el-button
+        v-permission="PERMISSIONS.SUPPLIER_PRODUCT_COLOR_CREATE"
+        @click="proc.openCreate()"
+      >
         {{ t('supplierProduct.color.create') }}
       </el-button>
     </div>
@@ -49,7 +52,11 @@
       <el-table-column :label="t('supplierProduct.color.columns.extraCost')" width="120">
         <template #default="{ row }">{{ formatCost(row.extra_cost) }}</template>
       </el-table-column>
-      <el-table-column :label="t('supplierProduct.color.columns.isEnabled')" width="90" align="center">
+      <el-table-column
+        :label="t('supplierProduct.color.columns.isEnabled')"
+        width="90"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag v-if="row.is_enabled" type="success" size="small">{{ t('common.yes') }}</el-tag>
           <el-tag v-else type="danger" size="small">{{ t('common.no') }}</el-tag>
@@ -89,12 +96,12 @@
       @current-change="proc.handlePageChange"
     />
 
-    <SupplierProductColorFormDialog :proc="proc" />
+    <SupplierProductColorFormDialog />
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { PERMISSIONS } from '@/constants/permissions';
 import type { useSupplierProductColor } from '../composables/useSupplierProductColor';
@@ -104,12 +111,10 @@ const { t } = useI18n({ useScope: 'global' });
 
 type ProcState = ReturnType<typeof useSupplierProductColor>;
 
-const props = defineProps<{
-  proc: ProcState;
-}>();
+const proc = inject<ProcState>('supplierProductColorProc')!;
 
 const currentProductLabel = computed(() => {
-  const p = props.proc.currentProduct.value;
+  const p = proc.currentProduct.value;
   return p ? `${p.product_code} - ${p.product_name}` : '';
 });
 

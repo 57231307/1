@@ -5,7 +5,11 @@
 <template>
   <el-dialog
     :model-value="proc.formVisible.value"
-    :title="proc.isEdit.value ? t('supplierProduct.color.editTitle') : t('supplierProduct.color.createTitle')"
+    :title="
+      proc.isEdit.value
+        ? t('supplierProduct.color.editTitle')
+        : t('supplierProduct.color.createTitle')
+    "
     width="520px"
     destroy-on-close
     append-to-body
@@ -58,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { useSupplierProductColor } from '../composables/useSupplierProductColor';
 
@@ -65,7 +70,5 @@ const { t } = useI18n({ useScope: 'global' });
 
 type ProcState = ReturnType<typeof useSupplierProductColor>;
 
-defineProps<{
-  proc: ProcState;
-}>();
+const proc = inject<ProcState>('supplierProductColorProc')!;
 </script>

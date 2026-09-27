@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { Supplier } from '@/api/supplier';
 import type { useSupplierProductDialog } from '../composables/useSupplierProductDialog';
@@ -88,8 +89,9 @@ const { t } = useI18n({ useScope: 'global' });
 
 type ProcState = ReturnType<typeof useSupplierProductDialog>;
 
+const proc = inject<ProcState>('supplierProductDialogProc')!;
+
 defineProps<{
-  proc: ProcState;
   suppliers: Supplier[];
 }>();
 </script>

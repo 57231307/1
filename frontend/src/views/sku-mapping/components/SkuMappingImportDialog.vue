@@ -57,6 +57,7 @@
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { UploadFilled } from '@element-plus/icons-vue';
 import type { useSkuMappingImport } from '../composables/useSkuMappingImport';
@@ -65,13 +66,11 @@ const { t } = useI18n({ useScope: 'global' });
 
 type ProcState = ReturnType<typeof useSkuMappingImport>;
 
-const props = defineProps<{
-  proc: ProcState;
-}>();
+const proc = inject<ProcState>('skuMappingImportProc')!;
 
 const onFileChange = (uploadFile: { raw?: File }) => {
   if (uploadFile.raw) {
-    props.proc.handleFileChange(uploadFile.raw);
+    proc.handleFileChange(uploadFile.raw);
   }
 };
 </script>
