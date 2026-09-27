@@ -161,6 +161,15 @@
         <el-form-item label="单位">
           <el-input v-model="form.issue_unit" placeholder="kg / m" />
         </el-form-item>
+        <el-form-item :label="$t('outsourcing.form.materialCost')" required>
+          <el-input-number
+            v-model="form.material_cost"
+            :min="0"
+            :precision="2"
+            :placeholder="$t('outsourcing.formPlaceholders.materialCost')"
+            class="w-full"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -187,6 +196,9 @@
         }}</el-descriptions-item>
         <el-descriptions-item label="单位">{{
           detailOrder.issue_unit || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('outsourcing.form.materialCost')">{{
+          detailOrder.material_cost ?? '-'
         }}</el-descriptions-item>
       </el-descriptions>
 
@@ -392,6 +404,7 @@ const form = reactive({
   expected_return_date: '',
   issue_quantity: undefined as number | undefined,
   issue_unit: '',
+  material_cost: undefined as number | undefined,
 });
 
 const unwrapList = (p: unknown): OutsourcingOrder[] =>
@@ -417,8 +430,15 @@ async function load() {
 }
 
 async function onCreate() {
-  if (!form.order_no || !form.supplier_id || !form.issue_date || !form.issue_quantity) {
-    ElMessage.warning('请填写必填项：单号/供应商/日期/数量');
+  // material_cost 后端允许为 0（真实成本可为 0），仅校验是否填写，不能用 !value 误判 0
+  if (
+    !form.order_no ||
+    !form.supplier_id ||
+    !form.issue_date ||
+    !form.issue_quantity ||
+    form.material_cost == null
+  ) {
+    ElMessage.warning('请填写必填项：单号/供应商/日期/数量/材料成本');
     return;
   }
   saving.value = true;
@@ -431,11 +451,13 @@ async function onCreate() {
       expected_return_date: form.expected_return_date || undefined,
       issue_quantity: form.issue_quantity,
       issue_unit: form.issue_unit || undefined,
+      material_cost: form.material_cost,
     });
     ElMessage.success('委外单已创建');
     dialogVisible.value = false;
     form.order_no = '';
     form.issue_quantity = undefined;
+    form.material_cost = undefined;
     await load();
   } finally {
     saving.value = false;
@@ -453,6 +475,7 @@ const openEdit = (row: OutsourcingOrder) => {
     expected_return_date: row.expected_return_date || '',
     issue_quantity: row.issue_quantity,
     issue_unit: row.issue_unit || '',
+    material_cost: row.material_cost as number | undefined,
   });
   dialogVisible.value = true;
 };
@@ -472,6 +495,7 @@ const onSave = async () => {
         expected_return_date: form.expected_return_date || undefined,
         issue_quantity: form.issue_quantity,
         issue_unit: form.issue_unit || undefined,
+        material_cost: form.material_cost,
       });
       ElMessage.success('委外单已更新');
       dialogVisible.value = false;

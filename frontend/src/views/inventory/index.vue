@@ -92,6 +92,8 @@
     <AdjustmentDialog
       v-model:visible="adjustmentDialogVisible"
       :initial-form="adjustmentForm"
+      :warehouses="warehouses"
+      :products="products"
       @submit="onSubmitAdjustment"
     />
 
@@ -140,6 +142,7 @@
       v-model:visible="transferDialogVisible"
       :initial-form="transferForm"
       :warehouses="warehouses"
+      :products="products"
       @add-item="handleAddTransferItem"
       @remove-item="handleRemoveTransferItem"
       @submit="onSubmitTransfer"
@@ -164,6 +167,7 @@ import { exportFromBackend } from '@/utils/export';
 // v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
 import type { InventoryStock, StockAlert, InventoryTransfer, TransferData } from '@/api/inventory';
 import type { Warehouse } from '@/api/warehouse';
+import type { Product } from '@/api/product';
 import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue';
 import InventoryAlertTab from './tabs/InventoryAlertTab.vue';
 import InventoryTransferTab from './tabs/InventoryTransferTab.vue';
@@ -189,6 +193,7 @@ const stocks = ref<InventoryStock[]>([]);
 const alerts = ref<StockAlert[]>([]);
 const transfers = ref<InventoryTransfer[]>([]);
 const warehouses = ref<Warehouse[]>([]);
+const products = ref<Product[]>([]);
 const total = ref(0);
 
 const stats = ref({
@@ -281,6 +286,20 @@ const fetchWarehouses = async () => {
   }
 };
 
+const fetchProducts = async () => {
+  try {
+    const { getProductList } = await import('@/api/product');
+    const res = await getProductList({ page: 1, page_size: 1000 });
+    products.value = res.data?.items || [];
+  } catch (error: unknown) {
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('inventory.message.fetchProductFailed')
+    );
+    products.value = [];
+  }
+};
+
 const handleReset = () => {
   queryParams.keyword = '';
   queryParams.warehouse_id = undefined;
@@ -335,6 +354,10 @@ const handleAdjustment = () => {
 
 // v11 批次 164 P2-1 修复：form: any 改为具体类型
 const onSubmitAdjustment = async (form: AdjustmentForm) => {
+  if (form.product_id === null || form.warehouse_id === null) {
+    ElMessage.warning(t('inventory.message.adjustmentProductWarehouseRequired'));
+    return;
+  }
   if (!form.adjustment_quantity || form.adjustment_quantity <= 0) {
     ElMessage.warning(t('inventory.message.adjustmentQtyInvalid'));
     return;
@@ -387,17 +410,20 @@ const onSubmitTransfer = async (form: typeof transferForm.value) => {
     ElMessage.warning(t('inventory.message.warehouseRequired'));
     return;
   }
+  const validItems = form.items.filter(item => item.product_id !== null);
+  if (validItems.length === 0) {
+    ElMessage.warning(t('inventory.message.transferItemProductRequired'));
+    return;
+  }
   try {
     const { createInventoryTransfer } = await import('@/api/inventory');
     const transferData: TransferData = {
       from_warehouse_id: form.from_warehouse_id,
       to_warehouse_id: form.to_warehouse_id,
-      items: form.items
-        .filter(item => item.product_id !== null)
-        .map(item => ({
-          product_id: item.product_id as number,
-          quantity: item.quantity,
-        })),
+      items: validItems.map(item => ({
+        product_id: item.product_id as number,
+        quantity: item.quantity,
+      })),
       remark: form.remark,
     };
     await createInventoryTransfer(transferData);
@@ -642,6 +668,7 @@ const handleExport = async () => {
 const initPage = () => {
   loadIfNot('fetchData', fetchData, hasLoaded);
   loadIfNot('fetchWarehouses', fetchWarehouses, hasLoaded);
+  loadIfNot('fetchProducts', fetchProducts, hasLoaded);
 };
 
 onMounted(() => {

@@ -866,6 +866,9 @@ export default {
       exportSuccess: 'Exported successfully',
       productWarehouseRequired: 'Please select product and warehouse',
       deleteStockConfirm: 'Delete this stock record?',
+      adjustmentProductWarehouseRequired: 'Please select product and warehouse for adjustment',
+      transferItemProductRequired: 'Please select a product for each transfer item',
+      fetchProductFailed: 'Failed to load product list',
     },
     transferTab: {
       newTransfer: 'New Transfer Order',
@@ -945,6 +948,8 @@ export default {
       toWarehouse: 'To Warehouse',
       toWarehousePlaceholder: 'Select destination warehouse',
       divider: 'Transfer Products',
+      itemProduct: 'Product',
+      productPlaceholder: 'Select product',
       quantityPlaceholder: 'Quantity',
       addProduct: 'Add Product',
       remark: 'Remark',
@@ -963,7 +968,9 @@ export default {
       ariaLabel: 'Stock adjustment dialog',
       formAria: 'Stock adjustment form',
       product: 'Product',
+      productPlaceholder: 'Select product',
       warehouse: 'Warehouse',
+      warehousePlaceholder: 'Select warehouse',
       currentQty: 'Current Stock',
       adjustType: 'Adjustment Type',
       typeIncrease: 'Increase',
@@ -12838,6 +12845,14 @@ export default {
         pantoneCode: 'e.g. 19-4052 TCX',
         extraCost: 'e.g. 0 or 2.50',
       },
+    },
+  },
+  outsourcing: {
+    form: {
+      materialCost: 'Material Cost',
+    },
+    formPlaceholders: {
+      materialCost: 'Please enter the issued material cost',
     },
   },
 };

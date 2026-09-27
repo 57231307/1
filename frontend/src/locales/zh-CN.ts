@@ -865,6 +865,9 @@ export default {
       exportSuccess: '导出成功',
       productWarehouseRequired: '请选择产品和仓库',
       deleteStockConfirm: '确定删除该库存记录吗？',
+      adjustmentProductWarehouseRequired: '请选择调整的产品和仓库',
+      transferItemProductRequired: '请为调拨明细选择产品',
+      fetchProductFailed: '获取产品列表失败',
     },
     transferTab: {
       newTransfer: '新建调拨单',
@@ -944,6 +947,8 @@ export default {
       toWarehouse: '调入仓库',
       toWarehousePlaceholder: '请选择调入仓库',
       divider: '调拨产品',
+      itemProduct: '产品',
+      productPlaceholder: '选择产品',
       quantityPlaceholder: '数量',
       addProduct: '添加产品',
       remark: '备注',
@@ -962,7 +967,9 @@ export default {
       ariaLabel: '库存调整对话框',
       formAria: '库存调整表单',
       product: '产品',
+      productPlaceholder: '请选择产品',
       warehouse: '仓库',
+      warehousePlaceholder: '请选择仓库',
       currentQty: '当前库存',
       adjustType: '调整类型',
       typeIncrease: '增加',
@@ -12795,6 +12802,14 @@ export default {
         pantoneCode: '如 19-4052 TCX',
         extraCost: '如 0 或 2.50',
       },
+    },
+  },
+  outsourcing: {
+    form: {
+      materialCost: '材料成本',
+    },
+    formPlaceholders: {
+      materialCost: '请输入发出材料成本',
     },
   },
 };

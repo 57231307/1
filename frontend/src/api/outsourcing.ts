@@ -20,6 +20,9 @@ export interface CreateOutsourcingOrderPayload {
   expected_return_date?: string;
   issue_quantity: number;
   issue_unit?: string;
+  // 后端 CreateOutsourcingOrderRequest.material_cost 为 rust_decimal::Decimal 必填字段，
+  // 与本文件其它金额字段(issue_quantity/unit_cost 等)一致，统一以 JSON number 传参序列化。
+  material_cost: number;
 }
 
 export function getOutsourcingOrderList(params?: Record<string, unknown>) {

@@ -2,9 +2,10 @@
   TransferDialog.vue - 新建调拨单对话框
   任务编号: P14 批 2 I-3 第 8 批
   拆分原 inventory/index.vue 的新建调拨单对话框
-  行为完全保持一致（仅结构重构）
   使用 props.initialForm 初始化 + 内部 localForm
   submit 时 emit submitWithForm(localForm) 把当前 form 回传
+
+  修复（缺陷B）：每行明细增加产品选择器（el-select），绑定 item.product_id。
 -->
 <template>
   <el-dialog
@@ -55,25 +56,40 @@
         </el-col>
       </el-row>
       <el-divider content-position="left">{{ t('inventory.transferDialog.divider') }}</el-divider>
-      <div
+      <el-form-item
         v-for="(item, index) in localForm.items"
         :key="index"
-        style="display: flex; gap: 10px; margin-bottom: 10px"
+        :label="t('inventory.transferDialog.itemProduct')"
       >
-        <el-input-number
-          v-model="item.quantity"
-          :min="1"
-          :placeholder="t('inventory.transferDialog.quantityPlaceholder')"
-          style="flex: 1"
-        />
-        <el-button
-          type="danger"
-          :icon="Delete"
-          circle
-          :disabled="localForm.items.length <= 1"
-          @click="emit('removeItem', index)"
-        />
-      </div>
+        <div style="display: flex; gap: 10px; width: 100%">
+          <el-select
+            v-model="item.product_id"
+            filterable
+            :placeholder="t('inventory.transferDialog.productPlaceholder')"
+            style="flex: 2"
+          >
+            <el-option
+              v-for="p in products"
+              :key="p.id"
+              :label="`${p.product_code} - ${p.product_name}`"
+              :value="p.id"
+            />
+          </el-select>
+          <el-input-number
+            v-model="item.quantity"
+            :min="1"
+            :placeholder="t('inventory.transferDialog.quantityPlaceholder')"
+            style="flex: 1"
+          />
+          <el-button
+            type="danger"
+            :icon="Delete"
+            circle
+            :disabled="localForm.items.length <= 1"
+            @click="emit('removeItem', index)"
+          />
+        </div>
+      </el-form-item>
       <el-button type="primary" link @click="emit('addItem')">
         <el-icon><Plus /></el-icon>
         {{ t('inventory.transferDialog.addProduct') }}
@@ -102,8 +118,8 @@ import { deepClone } from '@/utils';
 import { Delete, Plus } from '@element-plus/icons-vue';
 import { reactive, watch } from 'vue';
 import { getWarehouseLabel } from '../composables/invFmts';
-// v11 批次 160 P2-7 修复：导入 Warehouse 接口替代 any[]
 import type { Warehouse } from '@/api/warehouse';
+import type { Product } from '@/api/product';
 
 // 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });
@@ -126,6 +142,7 @@ const props = defineProps<{
   visible: boolean;
   initialForm: TransferForm;
   warehouses: Warehouse[];
+  products: Product[];
 }>();
 
 const emit = defineEmits<{
