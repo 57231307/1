@@ -1579,7 +1579,12 @@ export function formItemByExactLabel(root: Locator | Page, labelText: string): L
   return root
     .locator('.el-form-item')
     .filter({
-      has: root.locator('.el-form-item__label', { hasText: new RegExp(`^${escRe(labelText)}$`) }),
+      has: root.locator('.el-form-item__label', {
+        // 必填项 Element Plus 在 label 文本前置 `*`(见 CI #4656 crm「* 客户」、
+        // ai「* 产品 ID」error-context)。锚点容忍可选前导 `*`+空白,仍全行首尾锚定,
+        // 不放长子串匹配(「客户」仍不命中「客户等级」)。
+        hasText: new RegExp(`^\\s*\\*?\\s*${escRe(labelText)}\\s*$`),
+      }),
     })
     .first();
 }
