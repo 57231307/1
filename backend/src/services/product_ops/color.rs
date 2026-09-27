@@ -1,8 +1,8 @@
 //! 产品 Service 色号管理子模块（product_ops/color）
 //!
 //! 批次 D10 拆分：从原 `product_service.rs` 迁移。
-//! 包含 `ProductService` 的 5 个产品色号管理方法：
-//! - `list_product_colors`：获取产品的色号列表
+//! 包含 `ProductService` 的 4 个产品色号管理方法：
+//! - `list_product_colors_with_filter`：获取产品的色号列表（关键词过滤 + 可选分页）
 //! - `create_product_color`：创建产品色号
 //! - `batch_create_product_colors`：批量创建（内部循环调用 create_product_color）
 //! - `update_product_color`：更新（审计日志）
@@ -23,20 +23,6 @@ use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 
 impl ProductService {
-    /// 获取产品的色号列表
-    pub async fn list_product_colors(
-        &self,
-        product_id: i32,
-    ) -> Result<Vec<product_color::Model>, AppError> {
-        ProductColorEntity::find()
-            .filter(product_color::Column::ProductId.eq(product_id))
-            .filter(product_color::Column::IsActive.eq(true))
-            .order_by(product_color::Column::ColorNo, Order::Asc)
-            .all(&*self.db)
-            .await
-            .map_err(AppError::from)
-    }
-
     /// 获取产品色号列表（支持关键词 + 分页，用于高基数场景如前端 el-select-v2 远程搜索）
     pub async fn list_product_colors_with_filter(
         &self,

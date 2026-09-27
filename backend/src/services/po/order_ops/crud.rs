@@ -28,9 +28,7 @@ use crate::models::{
     status, supplier, user, warehouse,
 };
 use crate::services::po::order::{PurchaseOrderDto, PurchaseOrderService};
-use crate::services::po::{
-    CreateOrderItemRequest, CreatePurchaseOrderRequest, UpdatePurchaseOrderRequest,
-};
+use crate::services::po::{CreatePurchaseOrderRequest, UpdatePurchaseOrderRequest};
 use crate::services::sku_mapping_service::SkuMappingService;
 use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 // V15 P0-S01：行级数据权限工具
