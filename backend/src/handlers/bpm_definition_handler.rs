@@ -26,11 +26,18 @@ use serde_json::{Value, json};
 
 /// 将 Model 转换为前端期望的 JSON 格式；字段映射： - `code` → `process_key` - `name` →
 /// `process_name` - `config` → 保留原字段，同时提取 `config.nodes` 为顶层 `nodes`
+/// 同时原样承载实体真源键 `code`/`name`（响应键名以实体为准），供按实体字段取数的消费方使用。
 fn model_to_frontend_json(model: bpm_process_definition::Model) -> Value {
     let config = model.config.clone();
     let nodes = config.as_ref().and_then(|c| c.get("nodes")).cloned();
     json!({
         "id": model.id,
+        // 实体真源字段键（`code`/`name`）：响应键名以实体为准，消费方（e2e 幂等守卫
+        // 读 `d.code` 判存在、按实体字段取数）依赖此键。缺它会使 GET /bpm/definitions
+        // 列表项无 `code`，守卫恒 false → 反复 POST 撞"流程编码已存在"校验报 4xx。
+        "code": model.code,
+        "name": model.name,
+        // 前端 api/bpm-enhanced.ts ProcessDefinition 契约的映射别名（同值，向后兼容保留）
         "process_key": model.code,
         "process_name": model.name,
         "description": model.description,
