@@ -132,6 +132,12 @@ fn create_and_update_map_unique_violation_to_business() {
 #[test]
 fn validate_refs_each_branch_uses_validation_error() {
     let body = extract_fn(SERVICE_SRC, "async fn validate_refs");
+    // 空白归一化后再 contains：源码里 `AppError::validation(format!( … ))` 的参数会被
+    // rustfmt 拆成多行（换行 + 缩进），单行字面 needle 直接匹配会因折行而假失败
+    // （CI 分片 6 的 G4 根因：源码正确，仅测断言写法过脆）。契约只要求「该失败分支确实
+    // 写了」，与折行/缩进无关，故双侧剥离全部空白再比对。仅用于正向 contains（去空白会
+    // 扩大匹配面，负向 !contains 断言不可套用，否则把「不含」误判成「含」）。
+    let body_c = strip_ws(body);
     let expected = [
         "AppError::validation(format!(\"产品 ID {} 不存在\"",
         "AppError::validation(\"产品色号不属于指定的产品\")",
@@ -142,16 +148,16 @@ fn validate_refs_each_branch_uses_validation_error() {
     ];
     for needle in expected {
         assert!(
-            body.contains(needle),
+            body_c.contains(&strip_ws(needle)),
             "validate_refs 缺少预期失败分支：{needle}"
         );
     }
     // 「色号不属于该产品」等三类归属校验都必须是 validation（422 语义 → 本仓 400），
     // 不得是 business（那会走脱敏文案、丢失定位信息，且语义错误）。
     assert!(
-        body.contains("不属于指定的产品")
-            && body.contains("不属于指定的供应商")
-            && body.contains("不属于指定的供应商商品"),
+        body_c.contains(&strip_ws("不属于指定的产品"))
+            && body_c.contains(&strip_ws("不属于指定的供应商"))
+            && body_c.contains(&strip_ws("不属于指定的供应商商品")),
         "三类归属校验文案应齐全"
     );
 }
@@ -342,4 +348,11 @@ fn extract_fn<'a>(src: &'a str, sig: &str) -> &'a str {
     } else {
         rest
     }
+}
+
+/// 剥离全部空白（空格/制表/换行），供源码字面契约做「不依赖 rustfmt 折行」的匹配。
+/// 契约断言的是「源码里确实写了该分支」，折行与缩进属实现细节，不应成为断言失败根因。
+/// 仅用于正向 `contains`（去空白只会扩大匹配面，负向 `!contains` 断言不可套用）。
+fn strip_ws(s: &str) -> String {
+    s.chars().filter(|c| !c.is_whitespace()).collect()
 }

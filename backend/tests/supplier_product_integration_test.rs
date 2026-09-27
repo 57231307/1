@@ -19,7 +19,7 @@ use bingxi_backend::services::supplier_product_service::{
 };
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{EntityTrait, QuerySelect};
 use std::sync::Arc;
 
 fn unique_suffix() -> String {

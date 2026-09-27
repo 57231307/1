@@ -72,9 +72,27 @@ fn supplier_product_color_list_filters_by_parent_and_keyword() {
 #[test]
 fn supplier_product_create_validates_parent_exists_via_validation_error() {
     let body = extract_fn(SUP_PRODUCT_SERVICE_SRC, "async fn ensure_supplier_exists");
+    // G5：存在性检查刻意改用「只取主键」的存在性查询，而非整行 `find_by_id`——
+    // supplier::Model 的 NULLABLE 扩展列（supplier_type/credit_code/…）在历史/手工
+    // 供应商行上整行解码会抛 500（与 sku_mapping validate_refs 同源既存缺陷），故源码
+    // 走 `find().filter(Id.eq(..)).select_only().column(Id).into_tuple::<i32>()`。
+    // 断的是「行为契约」（存在性查询 + validation 语义），而非某个具体 API 字面；
+    // 同样对源码字面做空白归一化，避免依赖 rustfmt 折行（见 strip_ws）。
+    let body_c = strip_ws(body);
     assert!(
-        body.contains("supplier::Entity::find_by_id"),
-        "create/update 应查 suppliers 表校验父级存在"
+        body_c.contains(&strip_ws("supplier::Entity::find()"))
+            && body_c.contains(&strip_ws("supplier::Column::Id.eq"))
+            && body_c.contains(&strip_ws(
+                "select_only().column(supplier::Column::Id).into_tuple::<i32>()"
+            )),
+        "ensure_supplier_exists 应用 find().filter(Id.eq(..)) 做只取主键的存在性查询，\
+         规避 supplier::Model 整行解码 500（NULLABLE 扩展列在历史行上会炸）"
+    );
+    // 反向锁死：不得退回整行 find_by_id（那正是触发 500 的写法）。负向断言用原始 body
+    // （去空白会扩大匹配面，可能把「不含」误判成「含」）。
+    assert!(
+        !body.contains("find_by_id"),
+        "存在性检查不应回退到整行 supplier::Entity::find_by_id（会触发 supplier::Model 解码 500）"
     );
     assert!(
         body.contains("AppError::validation"),
@@ -254,4 +272,10 @@ fn extract_role_group<'a>(src: &'a str, role: &str) -> &'a str {
     } else {
         rest
     }
+}
+
+/// 剥离全部空白（空格/制表/换行），供源码字面契约做「不依赖 rustfmt 折行」的匹配。
+/// 仅用于正向 `contains`（去空白只会扩大匹配面，负向 `!contains` 断言不可套用）。
+fn strip_ws(s: &str) -> String {
+    s.chars().filter(|c| !c.is_whitespace()).collect()
 }
