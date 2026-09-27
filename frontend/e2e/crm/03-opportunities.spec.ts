@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
-import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 前置数据构造（方法一）：
@@ -89,9 +89,11 @@ test.describe('03 商机管理', () => {
     // 表单必填项：opportunity_name, customer_id, opportunity_stage（OpportunityFormTab formRules）。
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('商机名称').fill(`E2E 商机 ${Date.now()}`);
-    await pickSelect(page, elSelectByLabel(dlg, '客户'));
-    await pickSelect(page, elSelectByLabel(dlg, '商机类型'));
-    await pickSelect(page, elSelectByLabel(dlg, '商机阶段'));
+    // 客户/商机类型/商机阶段均为 el-select：用共享 helper pickSelectIn（root=dlg + 精确 label）
+    // 打开下拉选首项。精确 label 消除旧 elSelectByLabel 子串匹配下「客户」误命中「客户等级」等假红。
+    await pickSelectIn(dlg, page, '客户');
+    await pickSelectIn(dlg, page, '商机类型');
+    await pickSelectIn(dlg, page, '商机阶段');
     await dlg.getByLabel('预估金额').fill('100000');
     await dlg.getByLabel('预计成交').fill('2026-12-31');
     await dlg.getByRole('button', { name: '确定' }).click();

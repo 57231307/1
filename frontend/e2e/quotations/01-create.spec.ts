@@ -3,7 +3,7 @@
 // 覆盖范围：报价单创建（含明细行、币种、价格条款）→ 提交审批
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
 
 test.describe('01 报价单创建', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -21,14 +21,14 @@ test.describe('01 报价单创建', () => {
   test('01-02 新建报价单', async ({ page }) => {
     await page.goto('/quotations/new');
     await expect(page.locator('form')).toBeVisible({ timeout: 30000 });
-    // labelCustomer='客户' 与 labelCustomerLevel='客户等级' 共享子串，exact 避免 strict 多命中
-    await pickSelect(page, elSelectByLabel(page, '客户', true));
+    // labelCustomer='客户' 与 labelCustomerLevel='客户等级' 共享子串，pickSelectIn 精确锚定
+    await pickSelectIn(page, page, '客户');
     await page.getByLabel('报价日期').fill('2026-08-19');
     await page.keyboard.press('Enter');
     await page.getByLabel('有效期至').fill('2026-09-19');
     await page.keyboard.press('Enter');
-    await pickSelect(page, elSelectByLabel(page, '价格条款'));
-    await pickSelect(page, elSelectByLabel(page, '币种'));
+    await pickSelectIn(page, page, '价格条款');
+    await pickSelectIn(page, page, '币种');
     await page.getByLabel('汇率').fill('1');
     // 报价单 items 验证规则要求至少 1 行明细
     await page.getByRole('button', { name: '添加产品' }).click();
@@ -45,6 +45,9 @@ test.describe('01 报价单创建', () => {
 
   test('01-03 报价单列表可正常加载', async ({ page }) => {
     await page.goto('/quotations');
-    await expect(page.locator('table, .el-table')).toBeVisible({ timeout: 30000 });
+    // 列表 el-table 包装 div 带 aria-label '报价单列表'（quotationList.tableAriaLabel）。
+    // 原 `page.locator('table, .el-table')` 在 strict 模式下命中 3 个（外层 div + 内层
+    // header/body <table>）→ "strict mode violation" 假红。改按唯一 aria-label 锚定包装元素。
+    await expect(page.locator('[aria-label="报价单列表"]')).toBeVisible({ timeout: 30000 });
   });
 });

@@ -3,7 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { pickSelect } from '../flow/ui-helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 真实 UI 事实（据 views/ar/index.vue、tabs/InvoiceTab.vue、tabs/PaymentTab.vue、locales 核对）：
@@ -42,8 +42,8 @@ test.describe('05 AR 应收发票与收款', () => {
     await page.getByRole('button', { name: '新建发票' }).click();
     const dialog = page.getByRole('dialog', { name: '新建应收发票' });
     await expect(dialog).toBeVisible();
-    // 客户（对话框首个 el-select）
-    await pickSelect(page, dialog.locator('.el-select').first());
+    // 客户（el-select，label '客户'）：pickSelectIn 点 wrapper→选首项
+    await pickSelectIn(dialog, page, '客户');
     // 发票编号 / 发票金额
     await dialog.getByPlaceholder('请输入发票编号').fill('E2E-AR-TEST-001');
     await dialog.getByRole('spinbutton').first().fill('10000');
@@ -72,8 +72,9 @@ test.describe('05 AR 应收发票与收款', () => {
     await payDate.click();
     await payDate.fill('2026-08-19');
     await payDate.press('Enter');
-    // 收款方式：对话框内唯一 .el-select（避开 date-picker 的 combobox），点开再选项。
-    await pickSelect(page, dialog.locator('.el-select').first(), '银行转账');
+    // 收款方式：对话框内唯一 el-select（label '收款方式'，避开 date-picker 的 combobox），
+    // pickSelectIn 点 wrapper→选含“银行转账”的项。
+    await pickSelectIn(dialog, page, '收款方式', { optionText: '银行转账' });
     await spins.nth(1).fill('3000'); // 部分收款金额
     await dialog.getByRole('button', { name: '保存', exact: true }).click();
     await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });

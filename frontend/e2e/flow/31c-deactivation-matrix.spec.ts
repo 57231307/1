@@ -36,9 +36,31 @@ async function openEditDialog(
     await safeGoto(page, route);
     await page.waitForTimeout(1500);
   }
-  // 并行模式下 31b 并发写产品会令列表膨胀、目标行不在首页 → 先用搜索框按目标名/编号过滤，
-  // 再在过滤结果里定位行（findTableRow 第 4 参 filterKeyword），而非只扫首页 20 行。
-  const target = await findTableRow(page, rowText, 1, rowText);
+  // 并行模式下并发写产品会令列表膨胀、目标行不在首页 → 先用搜索框按目标名/编号过滤。
+  // 注意：findTableRow 内部用 press('Enter') 触发搜索，但产品等列表页搜索由"查询"按钮
+  // @click 触发（el-input 无 @keyup.enter 监听），Enter 不生效导致目标行分页隐藏找不到。
+  // 此处手动 fill + click 查询按钮（通用兼容），再以无 keyword 方式扫描已过滤的列表。
+  const searchInput = page.locator('.filter-card input:visible').first();
+  const searchBtn = page
+    .locator('.filter-card')
+    .locator('button')
+    .filter({ hasText: /查询|搜索/ })
+    .first();
+  if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await searchInput.fill(rowText);
+    if (await searchBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await searchBtn.click();
+    } else {
+      await searchInput.press('Enter');
+    }
+    await page
+      .locator('.el-table__row')
+      .first()
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(() => {});
+    await page.waitForTimeout(500);
+  }
+  const target = await findTableRow(page, rowText);
   if (!target) {
     editFailReason = `未找到目标行 ${rowText}`;
     console.error(`[31c] ${editFailReason}`);

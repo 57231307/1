@@ -4,6 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
+import { fillFieldByLabel } from '../flow/ui-helpers';
 
 /**
  * 03-03 造数据前置：创建一条 status='draft' 的染色配方，令 RecipeTab.vue 审批按钮
@@ -58,14 +59,17 @@ test.describe('03 染色配方', () => {
     await page.goto('/fabric');
     await page.getByRole('tab', { name: /配方/ }).click();
     await page.getByRole('button', { name: /新建|创建/ }).click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/配方编号/).fill(`RP-${Date.now()}`);
-    await page.getByLabel(/配方名称/).fill('E2E 测试染色配方');
-    await page
-      .getByRole('button', { name: /确认|保存|提交/ })
-      .last()
-      .click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
+    const dlg = page.locator('.el-dialog:visible').last();
+    await expect(dlg).toBeVisible({ timeout: 30000 });
+    // 旧用 getByLabel(/配方编号/)/getByLabel(/配方名称/)：RecipeFormDialogTab 真实 label 为
+    // 「配方号」(readonly，新建时 generateUniqueDocNo 预生成) /「名称」/「颜色」/「面料类型」/
+    // 「配方详情」——「配方编号」「配方名称」根本不存在 → getByLabel 定位超时（本用例红根因）。
+    // 成功提示 fabric.common.success=「操作成功」（非「创建成功/保存成功」），提交按钮「确定」。
+    await fillFieldByLabel(dlg, page, '名称', 'E2E 测试染色配方');
+    await fillFieldByLabel(dlg, page, '颜色', 'E2E测试色');
+    await fillFieldByLabel(dlg, page, '面料类型', '纯棉');
+    await dlg.getByRole('button', { name: '确定' }).click();
+    await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
   });
 
   test('03-03 草稿配方可审批（端到端点击 + 断真实 toast）', async ({ page }) => {
@@ -85,7 +89,13 @@ test.describe('03 染色配方', () => {
       timeout: 30000,
     });
     await approveBtn.click();
-    await page.getByRole('button', { name: /确定|确认|OK/ }).click();
+    // handleApprove（RecipeTab.vue:159）用 ElMessageBox.confirm 二次确认，确认按钮文案「确定」；
+    // 限定到 .el-message-box 作用域点确认，避免误命中页面其它同名按钮。
+    const msgBox = page.locator('.el-message-box');
+    await msgBox.getByRole('button', { name: '确定' }).click();
+    // 注：确认后 approveDyeRecipe(id,{approved_by:userStore.userInfo.id})。后端 validate_can_approve
+    // 允许 draft/pending_approval 审批、approve_recipe 收 approved_by:i32。若此断言仍红，
+    // 属真实登录用户身份/权限或后端 approve 落库侧缺陷（非选择器问题），不改断言方向掩盖，交回复核。
     await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 });
   });
 });

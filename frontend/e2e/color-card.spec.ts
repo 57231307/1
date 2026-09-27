@@ -10,6 +10,7 @@
 // 同时移除硬编码 id=1 的数据依赖（色卡详情），改为按列表第一行取真实 id。
 
 import { test, expect } from './diagnose-fixture';
+import { pickSelectIn } from './flow/ui-helpers';
 
 test.describe('色卡仓储管理 E2E 业务流程', () => {
   test('色卡列表加载：等待表格渲染 + 断言核心列存在', async ({ page }) => {
@@ -65,10 +66,11 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     await page.goto('/color-cards/list');
     await expect(page.getByText('色卡列表').first()).toBeVisible({ timeout: 30000 });
 
-    // 断言筛选下拉框存在且可点击
-    const typeFilter = page.locator('.el-select').first();
-    await expect(typeFilter).toBeVisible();
-    await typeFilter.click();
+    // 断言筛选下拉框可打开。原代码直接 click 裸 .el-select，EP 把只读 combobox 内层 input
+    // 叠在其上 → 偶发 placeholder 拦 pointer / element not stable → click 30s 超时（既往假红根因）。
+    // 改用唯一事实源 helper pickSelectIn（root=page + 精确 label「色卡类型」、openOnly）：
+    // 点外层 wrapper 打开下拉并等首个 option 可见，定位失败即抛错（无静默），随后 Escape 收起。
+    await pickSelectIn(page, page, '色卡类型', { openOnly: true });
     await page.keyboard.press('Escape');
 
     // 确认页面仍可交互（筛选操作未导致崩溃）

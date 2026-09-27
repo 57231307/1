@@ -3,7 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { pickSelect } from '../flow/ui-helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 真实 UI 事实（据 views/ap/index.vue、tabs/InvoiceTab.vue、tabs/PaymentTab.vue、locales 核对）：
@@ -36,8 +36,8 @@ test.describe('05 AP 应付发票与付款', () => {
     await page.getByRole('button', { name: '新建发票' }).click();
     const dialog = page.getByRole('dialog', { name: '新建应付发票' });
     await expect(dialog).toBeVisible();
-    // 供应商（对话框首个 el-select）
-    await pickSelect(page, dialog.locator('.el-select').first());
+    // 供应商（el-select，对话框内 label '供应商'；pickSelectIn 按精确 label 点 wrapper→选首项）
+    await pickSelectIn(dialog, page, '供应商');
     await dialog.getByPlaceholder('请输入发票编号').fill('E2E-AP-TEST-001');
     await dialog.getByRole('spinbutton').first().fill('8000');
     await dialog.getByRole('button', { name: '确认', exact: true }).click();
@@ -51,8 +51,9 @@ test.describe('05 AP 应付发票与付款', () => {
     await page.getByRole('button', { name: '新建付款' }).click();
     const dialog = page.getByRole('dialog', { name: '新建付款' });
     await expect(dialog).toBeVisible();
-    // 供应商
-    await pickSelect(page, dialog.locator('.el-select').first());
+    // 付款申请（AP 付款对话框内唯一 el-select 为 label '付款申请'，供应商为只读展示非 select；
+    // pickSelectIn 按精确 label 点 wrapper→选首项，消除点 .el-select/只读 input 的超时）
+    await pickSelectIn(dialog, page, '付款申请');
     // 付款金额
     await dialog.getByRole('spinbutton').fill('5000');
     await dialog.getByRole('button', { name: '确认', exact: true }).click();

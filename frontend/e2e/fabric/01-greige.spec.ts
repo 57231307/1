@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
-import { pickSelect } from '../flow/ui-helpers';
+import { pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
 
 /**
  * 前后端契约缺陷（曾致本套件只能"硬断按钮渲染"，现已修复，恢复真实点击 + 真实 toast）：
@@ -114,6 +114,8 @@ test.describe('01 坯布管理', () => {
     await page.goto('/fabric');
     await page.getByRole('tab', { name: '坯布管理', exact: true }).click();
     await expect(page.getByLabel('坯布列表')).toBeVisible({ timeout: 30000 });
+    // 说明：seedGreige 直接 API 造坯布（含 fabric_type='梭织'），此断言验证 /fabric 坯布列表
+    // 真实回显该行的 fabric_type（GreigeTab.vue 现含「坯布类型」列，列读 fabric_type）。
     // 列表按名称定位行
     const row = page.getByRole('row').filter({ hasText: name }).first();
     await expect(row, `新建坯布「${name}」应出现在 /fabric 坯布列表`).toBeVisible({
@@ -140,12 +142,16 @@ test.describe('01 坯布管理', () => {
 
     const dialog = page.locator('.el-dialog:visible').last();
     await expect(dialog).toBeVisible({ timeout: 30000 });
-    // 仓库选择（不给默认值，必须手动选）
-    // 仓库为 el-select：点外层 .el-select 触发 + 从 body-level 可见 dropdown 按仓名选项
-    await pickSelect(page, dialog.locator('.el-select').first(), whName);
-    await dialog.getByLabel(/重量/).fill('50');
-    await dialog.getByLabel(/长度/).fill('100');
-    await dialog.getByRole('button', { name: /确认|保存|提交/ }).click();
+    // 仓库为 el-select：旧 getByRole('combobox').click() 命中只读内层 input 被 placeholder
+    // 「请选择仓库」拦 → click 超时。改用冻结 helper：dialog 作用域 + 精确 label「仓库」，按仓名选项。
+    // 重量(kg)/长度(m) 为 el-input-number：fill 后 Tab 提交 v-model；提交按钮真实文案「确定」
+    // （fabric.common.confirm），旧 /确认|保存|提交/ 不匹配「确定」→ click 超时（本用例红根因）。
+    await pickSelectIn(dialog, page, '仓库', { optionText: whName });
+    await fillFieldByLabel(dialog, page, '重量(kg)', '50');
+    await page.keyboard.press('Tab');
+    await fillFieldByLabel(dialog, page, '长度(m)', '100');
+    await page.keyboard.press('Tab');
+    await dialog.getByRole('button', { name: '确定' }).click();
 
     await expect(page.getByText('入库成功')).toBeVisible({ timeout: 30000 });
   });
@@ -158,9 +164,13 @@ test.describe('01 坯布管理', () => {
 
     const dialog = page.locator('.el-dialog:visible').last();
     await expect(dialog).toBeVisible({ timeout: 30000 });
-    await dialog.getByLabel(/重量/).fill('10');
-    await dialog.getByLabel(/长度/).fill('20');
-    await dialog.getByRole('button', { name: /确认|保存|提交/ }).click();
+    // 出库无仓库字段；重量(kg)/长度(m) 为 el-input-number，fill 后 Tab 提交 v-model；
+    // 提交按钮真实「确定」（旧 /确认|保存|提交/ 不匹配 → click 超时，本用例红根因）。
+    await fillFieldByLabel(dialog, page, '重量(kg)', '10');
+    await page.keyboard.press('Tab');
+    await fillFieldByLabel(dialog, page, '长度(m)', '20');
+    await page.keyboard.press('Tab');
+    await dialog.getByRole('button', { name: '确定' }).click();
 
     await expect(page.getByText('出库成功')).toBeVisible({ timeout: 30000 });
   });

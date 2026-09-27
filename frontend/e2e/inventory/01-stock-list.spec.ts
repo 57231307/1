@@ -2,7 +2,7 @@
 // 覆盖范围：库存台账列表加载、筛选、统计卡片
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { pickSelect } from '../flow/ui-helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 test.describe('库存管理 - 01 库存台账', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -25,17 +25,14 @@ test.describe('库存管理 - 01 库存台账', () => {
   test('库存筛选功能', async ({ page }) => {
     await page.goto('/inventory');
     // 「仓库」「状态」均为筛选栏 el-select；隐藏打印对话框内有同名「仓库」label，
-    // getByLabel(/仓库/) 会多命中且点不到下拉。改从筛选表单容器（aria-label）定位 combobox：
-    // combobox[0]=仓库、combobox[1]=状态（关键词是 el-input，非 combobox）。
+    // getByLabel(/仓库/) 会多命中且点到只读 combobox 内层 input（被 placeholder 拦 → 超时）。
+    // 改用冻结 helper：以筛选表单容器（aria-label=库存台账筛选表单）为 root + 精确 label 锚定，
+    // 点外层 .el-select__wrapper 打开下拉，仅验证下拉可打开（openOnly）。
     const stockFilter = page.getByLabel('库存台账筛选表单');
-    await pickSelect(page, stockFilter.locator('.el-select').first(), undefined, {
-      openOnly: true,
-    });
+    await pickSelectIn(stockFilter, page, '仓库', { openOnly: true });
     await expect(page.getByRole('option').first()).toBeVisible({ timeout: 30000 });
     await page.keyboard.press('Escape');
-    await pickSelect(page, stockFilter.locator('.el-select').nth(1), undefined, {
-      openOnly: true,
-    });
+    await pickSelectIn(stockFilter, page, '状态', { openOnly: true });
     await expect(page.getByRole('option').first()).toBeVisible({ timeout: 30000 });
     await page.keyboard.press('Escape');
     await stockFilter.getByRole('button', { name: '查询' }).click();

@@ -3,7 +3,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
-import { pickSelect } from '../flow/ui-helpers';
+import { pickSelectIn, formItemByExactLabel } from '../flow/ui-helpers';
 
 test.describe('库存管理 - 03 库存调拨', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -18,29 +18,27 @@ test.describe('库存管理 - 03 库存调拨', () => {
   });
 
   test('创建库存调拨单', async ({ page }) => {
+    // 缺陷B 修复后：调拨对话框明细行有产品 el-select，绑定 item.product_id。
+    // 提交前校验至少一行选了产品，否则弹出真实提示。
     await page.goto('/inventory');
     await page.getByRole('button', { name: /调拨/ }).click();
     const dialog = page.locator('.el-dialog:visible').last();
     await expect(dialog).toBeVisible({ timeout: 30000 });
-    // 「调出仓库」在对话框内命中两处：el-form-item 的 label（zh-CN.ts:942）与 el-select 占位符
-    // 「请选择调出仓库」（zh-CN.ts:943，含子串「调出仓库」）→ 旧 getByText('调出仓库') strict 多命中。
-    // 且 EP el-form-item 的 label 无 for 关联，getByLabel 命中 readonly combobox 不稳（click 超时）。
-    // 改按含该 label 文本的 form-item 锚定其内 .el-select，点开下拉再选项（真实交互）。
-    const fromItem = dialog
-      .locator('.el-form-item')
-      .filter({ has: page.locator('.el-form-item__label', { hasText: '调出仓库' }) })
-      .first();
-    await expect(fromItem.locator('.el-form-item__label')).toBeVisible({ timeout: 10000 });
-    await pickSelect(page, fromItem.locator('.el-select').first());
-    const toItem = dialog
-      .locator('.el-form-item')
-      .filter({ has: page.locator('.el-form-item__label', { hasText: '调入仓库' }) })
-      .first();
-    await pickSelect(page, toItem.locator('.el-select').first(), undefined, { index: 1 });
-    await dialog.getByRole('button', { name: /添加产品|添加|新增/ }).click();
-    await expect(dialog.getByText(/数量/)).toBeVisible();
-    await dialog.getByRole('button', { name: /确认/ }).click();
-    await expect(page.getByText(/成功|已提交|已创建/)).toBeVisible({ timeout: 30000 });
+    // 选择调出/调入仓库
+    await expect(formItemByExactLabel(dialog, '调出仓库')).toBeVisible({ timeout: 10000 });
+    await pickSelectIn(dialog, page, '调出仓库', { index: 0 });
+    await pickSelectIn(dialog, page, '调入仓库', { index: 1 });
+    // 选择第一行产品（修复后新增的 el-select，form-item label="产品"）
+    await pickSelectIn(dialog, page, '产品', { index: 0 });
+    // 填写数量：el-input-number 内层 input，定位到同一 form-item 下的数字输入框
+    const qtyInput = formItemByExactLabel(dialog, '产品').locator('.el-input-number input').first();
+    await qtyInput.waitFor({ state: 'visible', timeout: 10000 });
+    await qtyInput.click({ clickCount: 3 });
+    await qtyInput.fill('10');
+    await page.keyboard.press('Tab');
+    // 提交按钮真实文案「确定」（inventory.transferDialog.confirm）
+    await dialog.getByRole('button', { name: '确定' }).click();
+    await expect(page.getByText('调拨单创建成功')).toBeVisible({ timeout: 30000 });
   });
 
   test('审批待审批调拨单', async ({ page }) => {

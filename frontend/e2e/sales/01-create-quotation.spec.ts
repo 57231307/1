@@ -4,7 +4,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 测试套件：销售报价单创建
@@ -44,8 +44,8 @@ test.describe('01 创建报价单', () => {
 
   test('01-03 创建有效报价单成功并生成报价单号', async ({ page }) => {
     await page.goto('/quotations/new');
-    // 客户（form-item label='客户'，与 '客户等级' 共享子串，须 exact）
-    await pickSelect(page, elSelectByLabel(page, '客户', true));
+    // 客户（form-item label='客户'，与 '客户等级' 共享子串，pickSelectIn 精确锚定）
+    await pickSelectIn(page, page, '客户');
     // 报价单 items 验证要求至少 1 行，通过 QuotationItemEditor 添加产品
     await page.getByRole('button', { name: '添加产品' }).click();
     // 产品选择：QuotationItemEditor 内 el-select placeholder='选择产品'

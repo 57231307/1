@@ -3,7 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { pickSelect } from '../flow/ui-helpers';
+import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 真实 UI 事实（据源码核对，不虚构选择器）：
@@ -68,8 +68,8 @@ test.describe('02 创建销售订单', () => {
     await page.goto('/sales');
     await page.getByRole('button', { name: /新建订单/ }).click();
     const dialog = page.getByRole('dialog');
-    // 客户：对话框内首个 el-select（el-select 不含 date-picker，索引稳定），下拉选项 teleported 到 body
-    await pickSelect(page, dialog.locator('.el-select').first());
+    // 客户（el-select，label '客户'）：pickSelectIn 点 wrapper→选首项，消除点只读 combobox 超时
+    await pickSelectIn(dialog, page, '客户');
     // 要求交货日期（必填 date picker，占位 '选择日期' 的第 2 个）
     await dialog.getByPlaceholder('选择日期').nth(1).fill('2026-12-31');
     await page.keyboard.press('Enter');

@@ -4,6 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, tryCleanup } from '../flow/helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 02-04 造数据前置：创建一条"未确认"质量预测（is_acknowledged=false），
@@ -51,15 +52,10 @@ test.describe('02 AI 质量预测', () => {
     // 提交按钮真实文案「开始预测」（aiExtend.qualityPrediction.generate），原用例误写「确认/提交」。
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('产品 ID').fill('1');
-    // 检验类型是 el-select（quality-prediction.vue:500-507），getByLabel 命中 readonly combobox
-    // input，EP 拦截其直接 click → 30s 超时。改按含该 label 的 form-item 锚定其内 .el-select 触发，
-    // 选项渲染在 body-level popper 的 .el-select-dropdown__item（对齐 purchase/inventory 既有写法）。
-    const inspectItem = dlg
-      .locator('.el-form-item')
-      .filter({ has: dlg.locator('.el-form-item__label', { hasText: '检验类型' }) })
-      .first();
-    await inspectItem.locator('.el-select').first().click();
-    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
+    // 检验类型是 el-select（quality-prediction.vue:500-507）：用共享 helper pickSelectIn 以
+    // root(dlg)+精确 label 作用域打开下拉并选首项，消除直接点 readonly combobox input 的
+    // 「element is not stable / placeholder 拦 pointer」假红。
+    await pickSelectIn(dlg, page, '检验类型');
     await dlg.getByRole('button', { name: '开始预测' }).click();
     await expect(page.getByText(/预测完成/)).toBeVisible({
       timeout: 30000,

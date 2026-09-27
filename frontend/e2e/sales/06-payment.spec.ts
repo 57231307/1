@@ -3,8 +3,8 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { apiCall, apiCallRaw } from '../flow/helpers';
-import { pickSelect } from '../flow/ui-helpers';
+import { apiCallRaw } from '../flow/helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 测试套件：销售收款（AR 收款管理）
@@ -36,8 +36,8 @@ async function createCollectionViaDialog(
   const spins = dialog.getByRole('spinbutton');
   await spins.first().fill(String(customerId));
 
-  // payment_method: 对话框唯一 .el-select（PaymentTab.vue:77-82，避开 date-picker combobox）
-  await pickSelect(page, dialog.locator('.el-select').first(), method);
+  // payment_method: 对话框唯一 el-select（label '收款方式'，避开 date-picker combobox）
+  await pickSelectIn(dialog, page, '收款方式', { optionText: method });
 
   // amount: el-input-number → role=spinbutton（PaymentTab.vue:85, 第二个 spinbutton）
   await spins.nth(1).fill(amount);

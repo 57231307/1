@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
-import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 01-04 编辑流程定义（方法一）：
@@ -74,7 +74,9 @@ test.describe('01 流程定义', () => {
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('流程标识').fill(`e2e-${Date.now()}`);
     await dlg.getByLabel('流程名称').fill('E2E 测试流程');
-    await pickSelect(page, elSelectByLabel(dlg, '分类'));
+    // 分类是 el-select：用共享 helper pickSelectIn（root=dlg + 精确 label「分类」）打开下拉选首项，
+    // 消除旧 pickSelect+elSelectByLabel（子串匹配、点 readonly combobox）的假红。
+    await pickSelectIn(dlg, page, '分类');
     await dlg.getByLabel('描述').fill('E2E 测试流程定义');
     await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({

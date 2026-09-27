@@ -23,6 +23,7 @@
 import { test, expect, type Page } from './diagnose-fixture';
 import { applyAuthMocks } from './smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx, tryCleanup } from './flow/helpers';
+import { pickSelectIn } from './flow/ui-helpers';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 
@@ -153,20 +154,11 @@ test.describe('定制订单全流程跟踪 E2E', () => {
     const dialog = page.locator('.el-dialog:visible').last();
     await expect(dialog, '上报异常对话框应打开').toBeVisible({ timeout: 30_000 });
 
-    // 异常类型下拉选「色差」（issueType.colorDiff）；严重度默认 medium 已满足必填
-    // 异常类型是 el-select 的 readonly combobox，getByRole('combobox') 命中内层 input，EP 拦截其
-    // 直接 click → 30s 超时。改锚含该 label 的 form-item 内 .el-select 触发，选项取 body-level
-    // popper 的 .el-select-dropdown__item（对齐 8c1adf03 ai/crm 既有写法）。
-    const issueTypeItem = dialog
-      .locator('.el-form-item')
-      .filter({ has: dialog.locator('.el-form-item__label', { hasText: '异常类型' }) })
-      .first();
-    await issueTypeItem.locator('.el-select').first().click();
-    await page
-      .locator('.el-select-dropdown:visible .el-select-dropdown__item')
-      .filter({ hasText: '色差' })
-      .first()
-      .click();
+    // 异常类型下拉选「色差」（issueType.colorDiff）；严重度默认 medium 已满足必填。
+    // 用唯一事实源 helper pickSelectIn 以 root=dialog + 精确 label「异常类型」锚定 form-item、
+    // 点外层 wrapper（非只读内层 input）打开下拉并选「色差」，消除旧式直接点 .el-select、
+    // filter 子串定位与 readonly combobox 拦 pointer 的假红（契约：root 作用域 / 精确 label / 定位失败即抛错）。
+    await pickSelectIn(dialog, page, '异常类型', { optionText: '色差' });
 
     // 描述为必填（reportRules.description）
     await dialog.getByLabel('描述').fill('批次色差 ΔE=3.5 超过 2.0 阈值');

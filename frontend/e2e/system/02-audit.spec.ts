@@ -12,7 +12,7 @@
 //    关键字标签为「关键字」（auditLog.filter.keyword），原用例写 /关键词/ 不匹配。
 import { test, expect } from '@playwright/test';
 import { loginViaUI, BASE_URL } from '../flow/helpers';
-import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 test.describe('02 审计日志', () => {
   test.beforeEach(async ({ page }) => {
@@ -70,8 +70,11 @@ test.describe('02 审计日志', () => {
   test('02-04 审计日志支持按操作类型筛选', async ({ page }) => {
     await page.goto(`${BASE_URL}/system/audit-log`);
     await expect(page.getByLabel('操作类型', { exact: true })).toBeVisible({ timeout: 30000 });
-    // 选项标签来自 auditLog.operationType.login = 「登录」（值 LOGIN）
-    await pickSelect(page, elSelectByLabel(page, '操作类型', true), '登录');
+    // 选项标签来自 auditLog.operationType.login = 「登录」（值 LOGIN）。审计页为独立路由（非对话框），
+    // 以 page 为 root，用唯一事实源 helper pickSelectIn 以精确 label「操作类型」锚 form-item、
+    // 点外层 wrapper 打开下拉并选「登录」，消除旧 pickSelect+elSelectByLabel（子串匹配 /
+    // 点 readonly combobox）的假红。
+    await pickSelectIn(page, page, '操作类型', { optionText: '登录' });
     const typeReq = page.waitForRequest(
       r =>
         /\/audit-logs\?/.test(r.url()) &&

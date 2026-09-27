@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, BASE_URL, getCtx, ensureTestEntities } from './helpers';
-import { findTableRow, pickSelect } from './ui-helpers';
+import { findTableRow, pickSelect, fillFieldByLabel } from './ui-helpers';
 
 /**
  * 新增域业务流转链防线（flow/54-new-domains-lifecycle）
@@ -217,6 +217,8 @@ test.describe.serial('新域业务流转链', () => {
     await dateInput.fill(today);
     await page.keyboard.press('Enter');
     await dialog.locator('.el-input-number input').nth(1).fill('100'); // 发出数量
+    // 材料成本为后端 DTO 必填(>=0)且前端已加提交守卫,须真实填写否则前端拦下不发 POST。
+    await fillFieldByLabel(dialog, page, '材料成本', '500');
 
     // 等待创建响应获取真实单号（readonly 自动生成的值通过 POST 回传到服务端确认）
     const [respPromise] = await Promise.all([

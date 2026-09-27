@@ -12,45 +12,13 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCallRaw, ensureTestEntities, tryCleanup } from '../flow/helpers';
-import type { Page } from '@playwright/test';
+import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
   for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
   CLEANUP.length = 0;
 });
-
-/** 展开可见 el-select 并点选第一个选项（用于 header 内的 el-form-item 选择器） */
-async function pickHeaderFirstOption(page: Page, labelText: string): Promise<void> {
-  const dlg = page.locator('.el-dialog:visible');
-  await dlg
-    .locator('.el-form-item')
-    .filter({ hasText: labelText })
-    .first()
-    .locator('.el-select')
-    .click();
-  await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
-}
-
-/** 展开可见 el-select 并点选指定文案选项（用于固定词表，如退货原因） */
-async function pickHeaderOptionByText(
-  page: Page,
-  labelText: string,
-  optionText: string
-): Promise<void> {
-  const dlg = page.locator('.el-dialog:visible');
-  await dlg
-    .locator('.el-form-item')
-    .filter({ hasText: labelText })
-    .first()
-    .locator('.el-select')
-    .click();
-  await page
-    .locator('.el-select-dropdown:visible .el-select-dropdown__item')
-    .filter({ hasText: optionText })
-    .first()
-    .click();
-}
 
 test.describe('10 采购退货', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -73,8 +41,9 @@ test.describe('10 采购退货', () => {
     const dlg = page.locator('.el-dialog:visible');
     await expect(dlg).toBeVisible({ timeout: 30000 });
 
-    // 采购订单：选中后供应商自动派生（后端 CreatePurchaseReturnRequest.supplier_id 非 Option）
-    await pickHeaderFirstOption(page, '采购订单');
+    // 采购订单（filterable el-select，label '采购订单'）：pickSelectIn 点 wrapper→选首项，
+    // 选中后供应商由后端/handleOrderChange 自动派生。
+    await pickSelectIn(dlg, page, '采购订单');
 
     // 退货日期（该 date-picker 带 value-format=YYYY-MM-DD，填入即字符串，无时区退化）
     const dateInput = dlg
@@ -87,8 +56,8 @@ test.describe('10 采购退货', () => {
     await dateInput.fill('2026-08-19');
     await page.keyboard.press('Enter');
 
-    // 原因类型（固定中文词表，取“色差”）+ 退货原因详情
-    await pickHeaderOptionByText(page, '原因类型', '色差');
+    // 原因类型（固定中文词表，label '原因类型'，取“色差”）+ 退货原因详情
+    await pickSelectIn(dlg, page, '原因类型', { optionText: '色差' });
     await dlg
       .locator('.el-form-item')
       .filter({ hasText: '退货原因' })
@@ -97,11 +66,13 @@ test.describe('10 采购退货', () => {
       .first()
       .fill('E2E 迁移用例：色差退货');
 
-    // 退货明细：选中订单后已自动生成一行，补一行并给首个产品赋值（quantity 默认 1）
+    // 退货明细：选中订单后已自动生成一行，补一行并给首个产品赋值（quantity 默认 1）。
+    // 明细行内 el-select 无 form-item label 可锚定，用向后兼容 pickSelect：点其
+    // .el-select__wrapper（非外层/只读 input）并先 waitFor option 可见再点，消除
+    // 原 `.el-select').click()`+`dropdown__item').first().click()` 的“element not
+    // stable / not visible” 30s 超时（#4654 10-02 同类根因）。
     await dlg.getByRole('button', { name: '添加明细' }).click();
-    const itemSelect = dlg.locator('.el-table .el-select').last();
-    await itemSelect.click();
-    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click();
+    await pickSelect(page, dlg.locator('.el-table .el-select').last());
 
     const createdResp = page
       .waitForResponse(

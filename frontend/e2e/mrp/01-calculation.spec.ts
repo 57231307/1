@@ -4,6 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCallRaw, ensureTestEntities } from '../flow/helpers';
+import { pickSelectIn, formItemByExactLabel } from '../flow/ui-helpers';
 
 test.describe('MRP 计算', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -36,17 +37,16 @@ test.describe('MRP 计算', () => {
     const calcBtn = page.getByRole('button', { name: /开始计算/ });
     await expect(calcBtn, 'MRP 页面应渲染"开始计算"按钮').toBeVisible({ timeout: 30000 });
 
-    // 产品为远程搜索 el-select（filterable remote）：getByLabel(/产品选择/) 命中的是 el-form-item
-    // 标签元素，点它/在其上打字不会真正打开下拉并触发 remote-method → option 永不出现（原超时根因）。
-    // 改从计算参数表单容器（aria-label=MRP 计算参数表单）定位其第一个 combobox（产品；需求数量为
-    // el-input-number=spinbutton、需求日期在其后），在其上输入触发远程搜索。
+    // 产品为 remote el-select（filterable remote，:remote-method=searchProducts）：旧写法
+    // getByRole('combobox').click() 命中只读内层 input，被 placeholder「请输入产品名称搜索」拦
+    // pointer events → click 超时；即便点开，pressSequentially 也未点外层 wrapper 稳定触发 remote。
+    // 改用冻结 helper：以计算参数表单容器（aria-label=MRP 计算参数表单）为 root + 精确 label
+    // 「产品选择」锚定，点外层 .el-select__wrapper → keyboard.type('E2E') 触发远程搜索 → 选首项。
     const calcForm = page.getByLabel('MRP 计算参数表单');
-    const productSelect = calcForm.getByRole('combobox').first();
-    await productSelect.click();
-    await productSelect.pressSequentially('E2E', { delay: 60 });
-    await page.getByRole('option').first().click();
+    await pickSelectIn(calcForm, page, '产品选择', { query: 'E2E', index: 0 });
 
-    const demandDate = page.getByLabel(/需求日期/);
+    // 需求日期为 el-date-picker：定位其真 input，fill 后 Enter 确认（Escape 会清空 → 校验失败）。
+    const demandDate = formItemByExactLabel(calcForm, '需求日期').locator('input').first();
     await demandDate.click();
     await demandDate.fill('2026-09-30');
     await page.keyboard.press('Enter');

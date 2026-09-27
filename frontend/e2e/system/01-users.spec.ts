@@ -3,7 +3,7 @@
 // 覆盖范围：用户管理（创建/编辑） + 角色管理（创建/权限配置）
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 test.describe('01 用户与角色', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -36,7 +36,10 @@ test.describe('01 用户与角色', () => {
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('用户名').fill(`e2e_user_${Date.now()}`);
     await dlg.getByLabel('密码').fill('E2ePassw0rd');
-    await pickSelect(page, elSelectByLabel(dlg, '角色'));
+    // 角色是 el-select（UserTab.vue:144-152）。用唯一事实源 helper pickSelectIn 以
+    // root=dlg + 精确 label「角色」作用域，点外层 wrapper（非只读内层 input）打开下拉选首项，
+    // 消除旧 pickSelect+elSelectByLabel（子串匹配 / 点 readonly combobox）的假红。
+    await pickSelectIn(dlg, page, '角色');
     await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText('创建成功')).toBeVisible({ timeout: 30000 });
   });

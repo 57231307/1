@@ -11,6 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCallRaw, ensureTestEntities, tryCleanup } from '../flow/helpers';
+import { pickSelect } from '../flow/ui-helpers';
 import type { Page } from '@playwright/test';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
@@ -19,14 +20,16 @@ test.afterEach(async ({ page }) => {
   CLEANUP.length = 0;
 });
 
-/** 展开当前可见 el-select 并点选其第一个选项（建单只需任一有效产品/供应商） */
+/**
+ * 展开当前可见 el-select 并点选其第一个选项（建单只需任一有效产品/供应商）。
+ * 原实现点完外层 .el-select 后直接 `option.click()`，dropdown 内首个 option 尚在动画
+ * → "element is not stable" 30s 超时假红（#4654 09-02 根因）。改用向后兼容 pickSelect：
+ * 点 .el-select__wrapper（非外层/只读 input）并先 waitFor option 可见再点，消除不稳定。
+ */
 async function pickFirstOption(page: Page, labelText: string): Promise<void> {
   const dlg = page.locator('.el-dialog:visible');
-  await dlg.locator('.el-form-item').filter({ hasText: labelText }).first().locator('.el-select').click();
-  const option = page
-    .locator('.el-select-dropdown:visible .el-select-dropdown__item')
-    .first();
-  await option.click();
+  const trigger = dlg.locator('.el-form-item').filter({ hasText: labelText }).first();
+  await pickSelect(page, trigger.locator('.el-select').first());
 }
 
 test.describe('09 采购价格', () => {

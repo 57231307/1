@@ -44,10 +44,10 @@ test.describe('02 审批中心', () => {
     await page.getByRole('tab', { name: '待审批' }).click();
     const approveBtn = page.getByRole('button', { name: /同意|审批/ }).first();
     await expect(
-      await approveBtn.isVisible(),
+      approveBtn,
       '缺少可同意的待办任务：/bpm/tasks/pending 以大写 PENDING 过滤而任务实际存小写 pending，' +
         '待办列表恒空（前后端状态大小写不一致，见 .monkeycode/doto.md）'
-    ).toBe(true);
+    ).toBeVisible({ timeout: 10_000 });
     await approveBtn.click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 3000 });
     await page.getByLabel(/审批意见/).fill('E2E 测试：审批同意');
@@ -64,9 +64,9 @@ test.describe('02 审批中心', () => {
     await page.getByRole('tab', { name: '待审批' }).click();
     const rejectBtn = page.getByRole('button', { name: /拒绝/ }).first();
     await expect(
-      await rejectBtn.isVisible(),
+      rejectBtn,
       '缺少可拒绝的待办任务：待办列表因 PENDING/pending 大小写不一致恒空（见 .monkeycode/doto.md）'
-    ).toBe(true);
+    ).toBeVisible({ timeout: 10_000 });
     await rejectBtn.click();
     await page.getByLabel(/审批意见/).fill('E2E 测试：审批拒绝');
     await page.getByRole('button', { name: '确定' }).click();
@@ -81,10 +81,10 @@ test.describe('02 审批中心', () => {
     await page.getByRole('tab', { name: '已审批' }).click();
     const chainBtn = page.getByRole('button', { name: /审批链/ }).first();
     await expect(
-      await chainBtn.isVisible(),
+      chainBtn,
       '缺少可追溯的已办任务：/bpm/tasks/completed 以大写 COMPLETED 过滤而已办任务实际存小写 completed，' +
         '已办列表恒空（见 .monkeycode/doto.md）'
-    ).toBe(true);
+    ).toBeVisible({ timeout: 10_000 });
     await chainBtn.click();
     await expect(page.locator('.el-dialog')).toBeVisible();
     await page.getByRole('button', { name: /关闭/ }).click();

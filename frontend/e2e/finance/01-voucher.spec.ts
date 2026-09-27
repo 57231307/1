@@ -3,7 +3,7 @@
 // 覆盖范围：凭证创建（含借贷平衡） → 提交 → 审核 → 过账
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 test.describe('01 凭证管理', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -22,21 +22,26 @@ test.describe('01 凭证管理', () => {
   test('01-02 新建凭证（含借贷分录）', async ({ page }) => {
     await page.goto('/finance');
     await page.getByRole('button', { name: /新建|新建凭证/ }).click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
+    const dlg = page.locator('.el-dialog');
+    await expect(dlg).toBeVisible({ timeout: 30000 });
     // el-date-picker 的内层 input 不能用 getByLabel 命中（EP el-form-item 的 label 不带 for，
     // 标签与控件无原生关联）且直接对只读编辑器 fill 会超时。改定位 .el-date-editor 的可编辑
     // 输入框，走真实手输交互：点开 → 输入日期 → 回车提交（VoucherForm.vue:26-30 type=date
-    // + value-format=YYYY-MM-DD，支持手输解析）。
-    const voucherDate = page.locator('.el-dialog .el-date-editor input').first();
+    // + value-format=YYYY-MM-DD，支持手输解析）。限定到对话框作用域，避免与筛选栏同名控件串台。
+    const voucherDate = dlg.locator('.el-date-editor input').first();
     await voucherDate.click();
     await voucherDate.fill('2026-08-19');
     await voucherDate.press('Enter');
-    await pickSelect(page, elSelectByLabel(page, /凭证类型/));
-    await page.getByLabel(/摘要/).fill('E2E 测试记账凭证');
-    await page
-      .getByRole('button', { name: /确认|提交/ })
-      .last()
-      .click();
+    // 凭证类型是 el-select（VoucherForm.vue:35-45）。用唯一事实源 helper pickSelectIn 以
+    // root=dlg + 精确 label「凭证类型」作用域，点外层 wrapper（非只读内层 input）打开下拉并
+    // 选首项，消除旧 pickSelect+elSelectByLabel（子串匹配 / 点 readonly combobox）的假红。
+    await pickSelectIn(dlg, page, '凭证类型');
+    // 「摘要」并非 el-form-item（VoucherForm.vue:55-60 是 entries 表格列，每行 el-input
+    // 的 placeholder=「摘要」/ placeholderSummary），getByLabel 命中不到 → 旧选择器恒超时。
+    // 按 placeholder 锚定首行摘要输入框。
+    await dlg.locator('input[placeholder="摘要"]').first().fill('E2E 测试记账凭证');
+    // 提交按钮真实文案「确定」（finance.voucherForm.buttonConfirm='确定'），旧 /确认|提交/ 命不中 → click 超时。
+    await dlg.getByRole('button', { name: '确定' }).last().click();
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
   });
 

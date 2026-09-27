@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
-import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+import { pickSelectIn, fillFieldByLabel, formItemByExactLabel } from '../flow/ui-helpers';
 
 /**
  * 前置数据构造（方法一）：
@@ -65,11 +65,17 @@ test.describe('01 质量标准', () => {
     // 真实 label 为「标准编号」（quality.standardDialog.standardCode，原用例误写「标准编码」）、
     // 「标准内容」；版本默认预置 1.0、类型默认 product（必填已满足），提交按钮真实「确定」，
     // 成功提示为 quality.message.operationSuccess「操作成功」（非「创建成功/保存成功」）。限定 .el-dialog。
-    const dlg = page.locator('.el-dialog');
-    await dlg.getByLabel('标准编号').fill(`QS-${Date.now()}`);
-    await dlg.getByLabel('标准名称').fill('E2E 测试质量标准');
-    await pickSelect(page, elSelectByLabel(dlg, '类型', true));
-    await dlg.getByLabel('标准内容').fill('E2E 测试质量标准内容');
+    const dlg = page.locator('.el-dialog:visible').last();
+    await fillFieldByLabel(dlg, page, '标准编号', `QS-${Date.now()}`);
+    await fillFieldByLabel(dlg, page, '标准名称', 'E2E 测试质量标准');
+    // 「类型」为 el-select（选项 产品标准/工艺标准）：旧 pickSelect+elSelectByLabel 命中只读
+    // 内层 input（被 placeholder 拦 → click 超时）。改用冻结 helper 精确 label 锚定，选首项。
+    await pickSelectIn(dlg, page, '类型');
+    // 标准内容为 el-input type=textarea（真 <textarea>），fillFieldByLabel 只命中 input，单独定位
+    await formItemByExactLabel(dlg, '标准内容')
+      .locator('textarea')
+      .first()
+      .fill('E2E 测试质量标准内容');
     await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
   });
@@ -84,9 +90,20 @@ test.describe('01 质量标准', () => {
       timeout: 10000,
     });
     await approveBtn.click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 3000 });
-    await page.getByLabel(/审批意见/).fill('E2E 测试：审批通过');
-    await page.getByRole('button', { name: /通过/ }).click();
+    // 审批对话框字段与主表单同名（标准编号/标准名称/版本），审批意见为必填 textarea：
+    // 限定到可见对话框 + 精确 label 填充，避免跨容器命中；「通过」按钮真实文案 pass='通过'。
+    const approveDlg = page.locator('.el-dialog:visible').last();
+    await expect(approveDlg).toBeVisible({ timeout: 10000 });
+    // 审批意见为 el-input type=textarea（真 <textarea>），fillFieldByLabel 只命中 input，单独定位
+    await formItemByExactLabel(approveDlg, '审批意见')
+      .locator('textarea')
+      .first()
+      .fill('E2E 测试：审批通过');
+    await approveDlg.getByRole('button', { name: '通过' }).click();
+    // 注：审批经 ElMessageBox 之外的 confirmApprove→approveQualityStandard(id) 落库，成功弹
+    // quality.message.approveSuccess=「审批成功」。后端 QualityApproveRequest.approval_comment
+    // 为 Option（UI 不传 body 亦可通过）→ 若本断言仍红，属登录用户审批权限/状态机侧真实缺陷，
+    // 不改断言方向掩盖（需带真实后端复核）。
     await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 });
   });
 

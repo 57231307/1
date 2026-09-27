@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
-import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+import { pickSelectIn, fillFieldByLabel, formItemByExactLabel } from '../flow/ui-helpers';
 
 /**
  * 缺陷管理（DefectTab）列表数据源是 unqualified_product 表
@@ -80,18 +80,29 @@ test.describe('02 检验记录与缺陷处理', () => {
 
   test('02-01 新建检验记录', async ({ page }) => {
     await page.goto('/quality');
-    await page.getByRole('tab', { name: /记录|检验记录/ }).click();
+    await page.getByRole('tab', { name: /检验记录/ }).click();
     await page.getByRole('button', { name: /新建/ }).click();
-    await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    await page.getByLabel(/产品名称/).fill('E2E 测试产品');
-    await page.getByLabel(/批次号/).fill(`BATCH-${Date.now()}`);
-    await page.getByLabel(/检验员/).fill('E2E 检验员');
-    await pickSelect(page, elSelectByLabel(page, /检验结果/));
-    await page
-      .getByRole('button', { name: /确认|保存|提交/ })
-      .last()
-      .click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
+    const dlg = page.locator('.el-dialog:visible').last();
+    await expect(dlg).toBeVisible({ timeout: 30000 });
+    // 旧用例用错控件/标签：把「产品」当文本框 fill（实为 filterable el-select）、把「检验结果」
+    // 当 el-select（实为 el-radio-group，默认已选「待检」），且漏填必填的 记录编号/检验类型/
+    // 检验日期/送检总数/实际检验数 → 本地必填校验拦下，永不发请求（timeout 根因）。
+    // 按真实表单契约以可见对话框为 root + 精确 label 逐项驱动（number fill 后 Tab 提交 v-model）。
+    await fillFieldByLabel(dlg, page, '记录编号', genCode('E2E-QIR'));
+    await pickSelectIn(dlg, page, '检验类型', { index: 0 });
+    await pickSelectIn(dlg, page, '产品', { index: 0 });
+    await fillFieldByLabel(dlg, page, '批次号', `BATCH-${Date.now()}`);
+    const dateInput = formItemByExactLabel(dlg, '检验日期').locator('input').first();
+    await dateInput.click();
+    await dateInput.fill(new Date().toISOString().slice(0, 10));
+    await page.keyboard.press('Enter');
+    await fillFieldByLabel(dlg, page, '送检总数', '100');
+    await page.keyboard.press('Tab');
+    await fillFieldByLabel(dlg, page, '实际检验数', '100');
+    await page.keyboard.press('Tab');
+    await dlg.getByRole('button', { name: '确定' }).click();
+    // 成功提示 quality.message.operationSuccess=「操作成功」（非「创建成功/保存成功」）
+    await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
   });
 
   test('02-02 检验记录列表可正常加载', async ({ page }) => {

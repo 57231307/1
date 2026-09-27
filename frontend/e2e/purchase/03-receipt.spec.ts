@@ -3,7 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { pickSelect } from '../flow/ui-helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 真实 UI 事实（据 PurchaseTable.vue / components/PurchaseReceiveDialog.vue / usePurchRcv.ts / locales 核对）：
@@ -51,7 +51,7 @@ test.describe('03 采购收货', () => {
     await approved.getByRole('button', { name: '收货', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '采购收货' });
     // 选仓库
-    await pickSelect(page, dialog.locator('.el-select').first());
+    await pickSelectIn(dialog, page, '仓库');
     const qty = dialog.getByRole('spinbutton').first();
     await qty.fill('99999');
     await page.keyboard.press('Tab');
@@ -64,7 +64,7 @@ test.describe('03 采购收货', () => {
     await expect(approved).toBeVisible();
     await approved.getByRole('button', { name: '收货', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '采购收货' });
-    await pickSelect(page, dialog.locator('.el-select').first());
+    await pickSelectIn(dialog, page, '仓库');
     await dialog.getByRole('spinbutton').first().fill('1');
     // 批次号输入位于明细表格内（placeholder='收货批次号'，来自 PurchaseReceiveDialog.vue:98
     // + zh-CN.ts:1203）。dialog.getByRole('textbox') 会先命中 readonly 采购单号/供应商输入，

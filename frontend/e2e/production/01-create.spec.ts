@@ -3,7 +3,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
-import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+import { pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
 
 /**
  * 按状态筛选生产订单列表。
@@ -12,7 +12,11 @@ import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
  */
 async function filterByStatus(page: Page, statusLabel: string): Promise<void> {
   await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
-  await pickSelect(page, elSelectByLabel(page, /状态/), new RegExp(`^${statusLabel}$`));
+  // 状态为筛选栏 el-select：旧 pickSelect+elSelectByLabel(/状态/) 命中只读 combobox 内层 input
+  // 被 placeholder 拦 → click 超时。改用冻结 helper：以筛选表单容器（aria-label=生产订单筛选表单）
+  // 为 root + 精确 label「状态」锚定，按整串匹配目标状态项。
+  const filterForm = page.getByLabel('生产订单筛选表单');
+  await pickSelectIn(filterForm, page, '状态', { optionText: new RegExp(`^${statusLabel}$`) });
   await page.getByRole('button', { name: /查询/ }).click();
 }
 
@@ -79,13 +83,18 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
     await page.goto('/production');
     await page.getByRole('button', { name: '新建订单' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    // 限定到 .el-dialog 消除同名 strict；提交按钮真实文案「确定」（production.form.buttonConfirm）；
-    // 成功提示为 production.index.messageCreateSuccess=「创建生产订单成功」。
-    const dlg = page.locator('.el-dialog');
-    await dlg.getByLabel('订单编号').fill(`E2E-${Date.now()}`);
-    await dlg.getByLabel('产品ID').fill(String(ctx.productIds[0]));
-    await dlg.getByLabel('计划数量').fill('100');
-    await dlg.getByLabel('优先级').fill('5');
+    // 限定到可见 .el-dialog 消除与筛选栏「订单编号」同名 strict；提交按钮真实文案「确定」
+    // （production.form.buttonConfirm）；成功提示 production.index.messageCreateSuccess=「创建生产订单成功」。
+    // 产品ID/计划数量/优先级均为 el-input-number：fillFieldByLabel 填入后按 Tab 失焦提交 v-model，
+    // 否则 modelValue 不更新 → 必填校验拦下 → 不发请求 → 成功 toast 永不出现（既往红根因）。
+    const dlg = page.locator('.el-dialog:visible').last();
+    await fillFieldByLabel(dlg, page, '订单编号', `E2E-${Date.now()}`);
+    await fillFieldByLabel(dlg, page, '产品ID', String(ctx.productIds[0]));
+    await page.keyboard.press('Tab');
+    await fillFieldByLabel(dlg, page, '计划数量', '100');
+    await page.keyboard.press('Tab');
+    await fillFieldByLabel(dlg, page, '优先级', '5');
+    await page.keyboard.press('Tab');
     await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText('创建生产订单成功')).toBeVisible({ timeout: 30000 });
   });

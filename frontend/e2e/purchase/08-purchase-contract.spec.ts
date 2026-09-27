@@ -15,13 +15,8 @@
 //   check_remaining_amount_txn 拒绝即证明第一次执行已持久化）。
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import {
-  apiCall,
-  apiCallRaw,
-  apiCallExpectFail,
-  genCode,
-  tryCleanup,
-} from '../flow/helpers';
+import { pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
+import { apiCall, apiCallRaw, apiCallExpectFail, genCode, tryCleanup } from '../flow/helpers';
 import type { Page } from '@playwright/test';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
@@ -98,39 +93,13 @@ test.describe('08 采购合同', () => {
     const dlg = page.locator('.el-dialog:visible');
     await expect(dlg).toBeVisible({ timeout: 30000 });
 
-    await dlg
-      .locator('.el-form-item')
-      .filter({ hasText: '合同编号' })
-      .first()
-      .locator('input')
-      .first()
-      .fill(contractNo);
-    await dlg
-      .locator('.el-form-item')
-      .filter({ hasText: '合同名称' })
-      .first()
-      .locator('input')
-      .first()
-      .fill(contractName);
-    // 供应商：任一有效供应商即可（后端建单需真实外键 supplier_id），选列表首项
-    await dlg
-      .locator('.el-form-item')
-      .filter({ hasText: '供应商' })
-      .first()
-      .locator('.el-select')
-      .click();
-    await page
-      .locator('.el-select-dropdown:visible .el-select-dropdown__item')
-      .first()
-      .click();
-    // 合同金额（el-input-number）
-    await dlg
-      .locator('.el-form-item')
-      .filter({ hasText: '合同金额' })
-      .first()
-      .locator('input')
-      .first()
-      .fill('100000');
+    await fillFieldByLabel(dlg, page, '合同编号', contractNo);
+    await fillFieldByLabel(dlg, page, '合同名称', contractName);
+    // 供应商（filterable el-select，label '供应商'）：pickSelectIn 点 wrapper→选首项，
+    // 消除点外层 .el-select/只读 input 后 dropdown first() 不稳定的 30s 超时（#4654 根因）。
+    await pickSelectIn(dlg, page, '供应商');
+    // 合同金额（el-input-number，label '合同金额'）
+    await fillFieldByLabel(dlg, page, '合同金额', '100000');
     // 交货日期（el-date-picker，后端 CreateContractRequestDto 必填 NaiveDate）
     const dateInput = dlg
       .locator('.el-form-item')
@@ -146,14 +115,16 @@ test.describe('08 采购合同', () => {
     await expect(page.getByText('保存成功')).toBeVisible({ timeout: 30000 });
 
     // 真实回读：列表按合同编号检索（后端 list 返回 ApiResponse<Vec> ⇒ data 为裸数组）
-    const rows = await apiCallRaw<Array<{
-      id: number;
-      contract_no: string;
-      contract_name: string;
-      supplier_id: number;
-      total_amount: number | string;
-      status: string;
-    }>>(page, 'GET', `/purchase/purchase-contracts?keyword=${contractNo}&page=1&page_size=20`);
+    const rows = await apiCallRaw<
+      Array<{
+        id: number;
+        contract_no: string;
+        contract_name: string;
+        supplier_id: number;
+        total_amount: number | string;
+        status: string;
+      }>
+    >(page, 'GET', `/purchase/purchase-contracts?keyword=${contractNo}&page=1&page_size=20`);
     const mine = rows.find(r => r.contract_no === contractNo);
     expect(mine, `回读未找到新建合同 ${contractNo}`).toBeTruthy();
     expect(mine!.contract_name).toBe(contractName);
@@ -176,7 +147,11 @@ test.describe('08 采购合同', () => {
     await expect(page.getByText('审批成功')).toBeVisible({ timeout: 30000 });
 
     // 真实回读：审批后合同状态由 draft → active（后端 contract::ACTIVE）
-    const after = await apiCallRaw<{ status: string }>(page, 'GET', `/purchase/purchase-contracts/${id}`);
+    const after = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/purchase/purchase-contracts/${id}`
+    );
     expect(after.status, '审批后状态应变为 active').toBe('active');
   });
 
@@ -202,11 +177,16 @@ test.describe('08 采购合同', () => {
       execution_amount: 50000,
       execution_date: '2026-12-31',
     });
-    const over = await apiCallExpectFail(page, 'PUT', `/purchase/purchase-contracts/${id}/execute`, {
-      execution_type: 'PARTIAL',
-      execution_amount: 999999,
-      execution_date: '2026-12-31',
-    });
+    const over = await apiCallExpectFail(
+      page,
+      'PUT',
+      `/purchase/purchase-contracts/${id}/execute`,
+      {
+        execution_type: 'PARTIAL',
+        execution_amount: 999999,
+        execution_date: '2026-12-31',
+      }
+    );
     // 回读方式：后端无执行记录读回端点，改以剩余金额守卫证伪——
     // 第二次超量执行（999999 > 剩余 50000）必须被拒，说明第一次 50000 已计入已执行额
     expect(over.status, '第二次超量执行应被剩余金额守卫拒绝').toBeGreaterThanOrEqual(400);
