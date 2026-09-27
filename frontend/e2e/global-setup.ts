@@ -304,6 +304,36 @@ const SEED_ROLES = [
 // 登录后落地页 /dashboard，主框架铃铛拉取自身未读数。缺码的角色登录后停在 /403。
 const SHELL_PERMISSIONS = ['dashboard:read', 'notifications:read'];
 
+// SEED_ROLES 中部分角色承载专项业务 spec（如 purchase/sku-mapping.spec.ts 的保密矩阵、
+// 采购维护端到端），仅给 SHELL 无法访问对应端点。此映射为这些角色叠加"本 spec 真实需要"
+// 的业务权限码——严格对齐后端 init_service_ops/permission.rs 中同名角色的权限集，
+// 不越界、不虚构。保密矩阵所需的**不授**purchase/sku-mappings 等对销售角色的保密面，
+// 保持负向断言（403 FORBIDDEN）真实成立。
+const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
+  // purchaser 对齐 permission.rs 的 purchase_clerk 权限集（read/create/update，不含 delete）。
+  // 覆盖 sku-mapping.spec.ts A/C/D1/D2b/E1 用例：产品/供应商只读 + 目录 + 对照 CRUD。
+  purchaser: [
+    'sku-mappings:read',
+    'sku-mappings:create',
+    'sku-mappings:update',
+    'supplier-products:read',
+    'supplier-products:create',
+    'supplier-products:update',
+    'supplier-product-colors:read',
+    'supplier-product-colors:create',
+    'supplier-product-colors:update',
+    'products:read',
+    'suppliers:read',
+  ],
+  // salesperson 对齐 permission.rs 的 sales_rep 权限集：可读销售订单（保密扫描用例
+  // "响应体不含 supplier_ 键"要求 200 才有效），但绝不授任何 purchase/supplier 侧权限，
+  // 保证 sku-mappings/supplier-products/supplier-product-colors 三端点 403 负向真实成立。
+  salesperson: ['orders:read'],
+  // sales_manager 对齐 permission.rs：orders 只读+审批链（此处仅补读，其余 approve/reject
+  // 由后端角色 init 授予，本 spec 只依赖 GET 列表/详情）。不授 purchase 侧任何码。
+  sales_manager: ['orders:read'],
+};
+
 // 边界测试角色
 const BOUNDARY_ROLES = [
   { code: 'e2e_readonly', name: 'E2E只读角色', permissions: SHELL_PERMISSIONS },
@@ -472,13 +502,13 @@ export async function ensureRoleUsers(): Promise<void> {
   console.log(`[globalSetup] 后端现有角色 ${existingRoles.length} 个`);
 
   // 3. 自动补建缺失种子角色 + 边界角色 + 黑名单验证角色
-  // 补建角色只给应用外壳权限码（落地页 + 自己的收件箱）：
-  // 32-roles 断言"登录 + Dashboard 可达"，业务域权限按各专项 spec 自行分配
+  // 补建角色给应用外壳权限码 + 该角色在 SEED_ROLE_EXTRA_PERMISSIONS 中的专项业务权限码
+  // （若映射中未定义则仅 SHELL；32-roles 断言"登录 + Dashboard 可达"仍成立）。
   const allRolesToEnsure = [
     ...SEED_ROLES.filter(code => !existingCodes.has(code)).map(code => ({
       code,
       name: code,
-      permissions: SHELL_PERMISSIONS,
+      permissions: [...SHELL_PERMISSIONS, ...(SEED_ROLE_EXTRA_PERMISSIONS[code] ?? [])],
     })),
     ...BOUNDARY_ROLES.filter(r => !existingCodes.has(r.code)),
     ...BLACKLIST_TEST_ROLES.filter(r => !existingCodes.has(r.code)),
@@ -566,6 +596,22 @@ export async function ensureRoleUsers(): Promise<void> {
     console.log(
       `[globalSetup] 角色清单重拉完成，共 ${refetched.length} 角色，roleCodeToId=${roleCodeToId.size}`
     );
+  }
+
+  // 3.5 幂等补授 SEED_ROLE_EXTRA_PERMISSIONS：即便目标角色此前已存在（409 分支不触发
+  // assignPermissionList），也要保证本 spec 依赖的业务权限码落库——POST /roles/:id/permissions
+  // 由后端处理为 upsert，重复授同码安全。此步保证 purchaser/salesperson/sales_manager 三
+  // 角色对 purchase/sku-mapping.spec.ts 的读写/403 断言前提稳定成立。
+  for (const [code, extras] of Object.entries(SEED_ROLE_EXTRA_PERMISSIONS)) {
+    const roleId = roleCodeToId.get(code);
+    if (!roleId) {
+      console.warn(
+        `[globalSetup] SEED_ROLE_EXTRA_PERMISSIONS 角色 ${code} 未在 roleCodeToId 中，跳过补授`
+      );
+      continue;
+    }
+    await assignPermissionList(loginCtx, roleId, extras, headers);
+    console.log(`[globalSetup] 角色 ${code} 业务权限码补授完成（${extras.length} 项）`);
   }
 
   // 4. 为每个角色创建测试账号

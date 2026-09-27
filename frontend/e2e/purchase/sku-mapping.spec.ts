@@ -21,13 +21,13 @@ import { safeGoto } from '../flow/ui-helpers';
  * 本文件覆盖：
  *  A. 对照表 API 契约：keyword 过滤分页形状、validate_refs 真实链路、resolve 无映射中性拒 +
  *     出参脱敏、供应商商品/色号目录 create/duplicate/supplier-not-exist 的真实错误词表。
- *  B. 保密矩阵：sales_rep/sales_manager 对 sku-mappings、supplier-products、supplier-product-colors
+ *  B. 保密矩阵：salesperson/sales_manager 对 sku-mappings、supplier-products、supplier-product-colors
  *     全 403；销售订单列表/详情响应体递归扫描无任何 supplier_ 前缀键。
- *  C. 角色可达：admin 对照表可达；purchase_clerk 维护页「新增对照」按钮可见；sales_rep 直航被路由守卫拦截。
- *  D. 级联 UI：purchase_clerk 供应商侧三级级联（供应商→供应商商品→供应商色号）的「未选上级则下级
- *     disabled」+「切换供应商清空下级」+ 远程搜索出 FAB-P001/PC-A01；purchase_clerk 完整 UI happy-path
+ *  C. 角色可达：admin 对照表可达；purchaser 维护页「新增对照」按钮可见；salesperson 直航被路由守卫拦截。
+ *  D. 级联 UI：purchaser 供应商侧三级级联（供应商→供应商商品→供应商色号）的「未选上级则下级
+ *     disabled」+「切换供应商清空下级」+ 远程搜索出 FAB-P001/PC-A01；purchaser 完整 UI happy-path
  *     端到端选我方产品+色号→级联→保存→列表 keyword 命中（目标角色自证）；admin 同路径亦保留（全权验证）。
- *  E. API 全链路 + 转采购翻译 hook：purchase_clerk 建供应商商品/色号→对照→list→resolve→重复负例（自证）；
+ *  E. API 全链路 + 转采购翻译 hook：purchaser 建供应商商品/色号→对照→list→resolve→重复负例（自证）；
  *     转采购有映射→回填生效（未给单价时 unit_price 被 supplier_price 默认，作为可观测代理）；
  *     无映射→中性业务拒「无该色号」且不含保密词；色号在产品下不存在→中性拒（脱敏 business）。
  *
@@ -130,7 +130,7 @@ async function fillFieldByLabel(
 
 // ---------------------------------------------------------------------------
 // 真实数据发现（以 admin 会话执行——需跨产品/色号/供应商/商品/色号目录做全量取数）
-// 注：products:read 已授采购三角色，purchase_clerk 亦可自行调用；此处沿用 admin 会话以简化复用。
+// 注：products:read 已授采购三角色，purchaser 亦可自行调用；此处沿用 admin 会话以简化复用。
 // ---------------------------------------------------------------------------
 
 interface DemoFixture {
@@ -230,7 +230,7 @@ async function discoverDemoFixture(page: Page): Promise<DemoFixture> {
 
 test.describe('SKU 对照表 - 采购维护契约与保密矩阵', () => {
   test('采购角色列表查询支持 keyword 过滤且返回分页形状', async ({ page }) => {
-    await loginAsRole(page, 'purchase_clerk');
+    await loginAsRole(page, 'purchaser');
     const data = await apiCallRaw<{ items: unknown[]; total: number; page: number }>(
       page,
       'GET',
@@ -247,7 +247,7 @@ test.describe('SKU 对照表 - 采购维护契约与保密矩阵', () => {
     // 先 admin 发现真实 product/supplier（全量取数复用 admin 会话），再切回 clerk 发写请求。
     await loginAsRole(page, 'admin');
     const fx = await discoverDemoFixture(page);
-    await loginAsRole(page, 'purchase_clerk');
+    await loginAsRole(page, 'purchaser');
 
     // supplier_product_id 指向不存在记录 → validate_refs「供应商商品 ID 不存在」→ validation
     const res = await apiCallExpectFail(page, 'POST', '/purchase/sku-mappings', {
@@ -274,7 +274,7 @@ test.describe('SKU 对照表 - 采购维护契约与保密矩阵', () => {
     const fx = await discoverDemoFixture(page);
     // 选一个对 (productId, color IS NULL) 无映射的供应商：用 SUP-DEMO-FAB-02（种子只给 01 建了映射，
     // 且 resolve 未带 color_id → 查 product_color_id IS NULL 的行，演示库无此类映射）。
-    await loginAsRole(page, 'purchase_clerk');
+    await loginAsRole(page, 'purchaser');
     const res = await apiCallExpectFail(
       page,
       'GET',
@@ -294,7 +294,7 @@ test.describe('SKU 对照表 - 采购维护契约与保密矩阵', () => {
 // ===========================================================================
 
 test.describe('SKU 对照表 - 销售域保密与角色矩阵', () => {
-  for (const salesRole of ['sales_rep', 'sales_manager']) {
+  for (const salesRole of ['salesperson', 'sales_manager']) {
     test(`${salesRole} 访问对照表/供应商目录端点全部 403`, async ({ page }) => {
       await loginAsRole(page, salesRole);
 
@@ -358,26 +358,50 @@ test.describe('SKU 对照表 - 销售域保密与角色矩阵', () => {
     });
   }
 
-  test('admin 对照：同端点可达（区分端点缺失与权限拒绝）', async ({ page }) => {
+  test('admin 对照：同端点全部 200 可达（区分端点缺失与权限拒绝）', async ({ page }) => {
     await loginAsRole(page, 'admin');
-    const res = await page.request.get(
+    // 强化到严格 200（非 <400）——与 salesperson/sales_manager 侧 403 断言形成"权限矩阵"
+    // 真值表：admin 全权 → 200；销售角色无 purchase 权限 → 403。避免 204/3xx 蒙混。
+    const mappingList = await page.request.get(
       `${API_BASE}${API_PREFIX}/purchase/sku-mappings?page=1&page_size=5`
     );
-    expect(res.status(), 'admin 应可访问对照表（<400）').toBeLessThan(400);
+    expect(mappingList.status(), 'admin GET 对照表应 200').toBe(200);
+
+    const products = await page.request.get(
+      `${API_BASE}${API_PREFIX}/purchase/supplier-products?supplier_id=1&page=1&page_size=5`
+    );
+    expect(products.status(), 'admin GET 供应商商品目录应 200').toBe(200);
+
+    const colors = await page.request.get(
+      `${API_BASE}${API_PREFIX}/purchase/supplier-product-colors?supplier_product_id=1&page=1&page_size=5`
+    );
+    expect(colors.status(), 'admin GET 供应商色号目录应 200').toBe(200);
+
+    // resolve：无映射时后端返 400 BUSINESS_ERROR（见 A 段 resolve 用例）。
+    // 这里断 admin 有权限（≠403），端点存在性由 4xx 侧证；403 与 400/404 的语义
+    // 区分：403=权限拒，400=业务拒（无映射），404=路径不存在。admin 只应 403/404 二选一被排除。
+    const resolve = await page.request.get(
+      `${API_BASE}${API_PREFIX}/purchase/sku-mappings/resolve?product_id=1&supplier_id=1`
+    );
+    expect(
+      resolve.status(),
+      `admin resolve 应不为 403（权限拒）/非 404（路径缺失），实际 ${resolve.status()}`
+    ).not.toBe(403);
+    expect(resolve.status()).not.toBe(404);
   });
 });
 
 test.describe('SKU 对照表 - 前端路由与菜单矩阵', () => {
-  test('purchase_clerk 可达维护页且「新增对照」按钮可见（授予 create）', async ({ page }) => {
-    await loginAsRole(page, 'purchase_clerk');
+  test('purchaser 可达维护页且「新增对照」按钮可见（授予 create）', async ({ page }) => {
+    await loginAsRole(page, 'purchaser');
     await safeGoto(page, '/purchase/sku-mapping');
     await page.waitForTimeout(500);
     const createBtn = page.getByRole('button', { name: /新增对照/ }).first();
     await expect(createBtn).toBeVisible({ timeout: 15000 });
   });
 
-  test('sales_rep 无对照表入口：直接导航被路由守卫拦截（不渲染维护页表格）', async ({ page }) => {
-    await loginAsRole(page, 'sales_rep');
+  test('salesperson 无对照表入口：直接导航被路由守卫拦截（不渲染维护页表格）', async ({ page }) => {
+    await loginAsRole(page, 'salesperson');
     await safeGoto(page, '/purchase/sku-mapping');
     await page.waitForTimeout(800);
     const createBtn = page.getByRole('button', { name: /新增对照|新增|新建/ });
@@ -388,16 +412,16 @@ test.describe('SKU 对照表 - 前端路由与菜单矩阵', () => {
 });
 
 // ===========================================================================
-// D1. purchase_clerk 供应商侧级联：未选上级禁用 + 切换供应商清空下级 + 远程搜索
+// D1. purchaser 供应商侧级联：未选上级禁用 + 切换供应商清空下级 + 远程搜索
 // ===========================================================================
 
-test.describe('SKU 对照表 - 级联交互（purchase_clerk 供应商侧）', () => {
+test.describe('SKU 对照表 - 级联交互（purchaser 供应商侧）', () => {
   test('供应商商品/色号级联：未选供应商则下级 disabled；选供应商后出 FAB-P001、选商品后出 PC-A01；切换供应商清空下级', async ({
     page,
   }) => {
     await loginAsRole(page, 'admin');
     const fx = await discoverDemoFixture(page);
-    await loginAsRole(page, 'purchase_clerk');
+    await loginAsRole(page, 'purchaser');
 
     await safeGoto(page, '/purchase/sku-mapping');
     await page
@@ -447,7 +471,7 @@ test.describe('SKU 对照表 - 级联交互（purchase_clerk 供应商侧）', (
       .catch(() => '');
     expect(spText.includes('FAB-P001'), '切换供应商后不应仍残留旧商品').toBe(false);
 
-    // 本用例只验证级联交互行为（禁用/解禁/清空），不提交（完整保存见下方 purchase_clerk 完整级联用例）
+    // 本用例只验证级联交互行为（禁用/解禁/清空），不提交（完整保存见下方 purchaser 完整级联用例）
     const cancel = dialog.getByRole('button', { name: /取消/ }).first();
     await cancel.click().catch(() => {});
   });
@@ -455,7 +479,7 @@ test.describe('SKU 对照表 - 级联交互（purchase_clerk 供应商侧）', (
 
 // ===========================================================================
 // D2. admin 完整 UI happy-path 建对照 → 列表 keyword 按我方色号命中
-//     （admin 全权路径有效；purchase_clerk 自证路径见 D2b）
+//     （admin 全权路径有效；purchaser 自证路径见 D2b）
 // ===========================================================================
 
 test.describe('SKU 对照表 - 完整 UI happy-path（admin 全权路径）', () => {
@@ -546,13 +570,13 @@ test.describe('SKU 对照表 - 完整 UI happy-path（admin 全权路径）', ()
 });
 
 // ===========================================================================
-// D2b. purchase_clerk 完整 UI happy-path 建对照 → 列表 keyword 按我方色号命中
+// D2b. purchaser 完整 UI happy-path 建对照 → 列表 keyword 按我方色号命中
 //     目标角色自证：products:read 已授采购三角色（permission.rs:395），
-//     purchase_clerk 可端到端在维护页选我方产品+色号→供应商三级级联→保存。
+//     purchaser 可端到端在维护页选我方产品+色号→供应商三级级联→保存。
 // ===========================================================================
 
-test.describe('SKU 对照表 - 完整 UI happy-path（purchase_clerk 自证）', () => {
-  test('purchase_clerk 新增对照：选我方产品+色号→级联供应商/商品/色号→协议价→保存→列表命中', async ({
+test.describe('SKU 对照表 - 完整 UI happy-path（purchaser 自证）', () => {
+  test('purchaser 新增对照：选我方产品+色号→级联供应商/商品/色号→协议价→保存→列表命中', async ({
     page,
   }) => {
     // 前置数据发现（需跨产品/色号/供应商/商品/色号目录做全量取数，沿用 admin 会话）
@@ -571,8 +595,8 @@ test.describe('SKU 对照表 - 完整 UI happy-path（purchase_clerk 自证）',
       }
     }
 
-    // ── 切换到 purchase_clerk，以目标角色身份执行全流程 ──
-    await loginAsRole(page, 'purchase_clerk');
+    // ── 切换到 purchaser，以目标角色身份执行全流程 ──
+    await loginAsRole(page, 'purchaser');
 
     await safeGoto(page, '/purchase/sku-mapping');
     await page
@@ -583,14 +607,14 @@ test.describe('SKU 对照表 - 完整 UI happy-path（purchase_clerk 自证）',
     await dialog.waitFor({ state: 'visible', timeout: 15_000 });
     await page.waitForTimeout(300);
 
-    // 我方产品（el-select filterable，经 GET /products 取数——purchase_clerk 已授 products:read）
+    // 我方产品（el-select filterable，经 GET /products 取数——purchaser 已授 products:read）
     await chooseOption(page, dialog, '我方产品', { query: fx.productCode, target: fx.productCode });
     // 我方色号（el-select-v2 remote，经 GET /products/:id/colors）
     await chooseOption(page, dialog, '我方色号', { query: fx.colorNo, target: fx.colorNo });
     // 断言只读回显 == 选中的色号编号
     expect(await fieldInputValue(dialog, '我方色号编号')).toContain(fx.colorNo);
 
-    // 供应商三级级联（purchase_clerk 有 suppliers:read、supplier-products:read、supplier-product-colors:read）
+    // 供应商三级级联（purchaser 有 suppliers:read、supplier-products:read、supplier-product-colors:read）
     await chooseOption(page, dialog, '供应商', { query: fx.sup1Name, target: fx.sup1Name });
     await chooseOption(page, dialog, '供应商商品', { query: 'FAB-P001', target: 'FAB-P001' });
     await chooseOption(page, dialog, '供应商色号', { query: 'PC-A01', target: 'PC-A01' });
@@ -598,7 +622,7 @@ test.describe('SKU 对照表 - 完整 UI happy-path（purchase_clerk 自证）',
     // 协议价
     await fillFieldByLabel(page, dialog, '协议价', '55.55');
 
-    // 提交并捕获创建响应（purchase_clerk 已授 sku-mappings:create）
+    // 提交并捕获创建响应（purchaser 已授 sku-mappings:create）
     const respPromise = page.waitForResponse(
       r =>
         r.url().includes('/purchase/sku-mappings') &&
@@ -615,13 +639,11 @@ test.describe('SKU 对照表 - 完整 UI happy-path（purchase_clerk 自证）',
       code?: number;
       data?: { id?: number };
     } | null;
-    expect(resp.status(), `purchase_clerk 新建对照应成功，实际 HTTP ${resp.status()}`).toBeLessThan(
-      400
-    );
+    expect(resp.status(), `purchaser 新建对照应成功，实际 HTTP ${resp.status()}`).toBeLessThan(400);
     const createdId = created?.data?.id;
     expect(typeof createdId, '创建响应应回 data.id').toBe('number');
 
-    // 列表按我方色号 keyword 命中该新建对照（purchase_clerk 已授 sku-mappings:read）
+    // 列表按我方色号 keyword 命中该新建对照（purchaser 已授 sku-mappings:read）
     const listed = await apiCallRaw<{
       items: Array<{
         id: number;
@@ -635,43 +657,40 @@ test.describe('SKU 对照表 - 完整 UI happy-path（purchase_clerk 自证）',
       `/purchase/sku-mappings?keyword=${encodeURIComponent(fx.colorNo)}&page=1&page_size=200`
     );
     const hit = (listed?.items ?? []).find(x => x.id === createdId);
-    expect(
-      hit,
-      `keyword=${fx.colorNo} 未命中 purchase_clerk 新建的对照 id=${createdId}`
-    ).toBeTruthy();
+    expect(hit, `keyword=${fx.colorNo} 未命中 purchaser 新建的对照 id=${createdId}`).toBeTruthy();
     expect(hit?.supplier_product_code).toBe('FAB-P001');
     expect(hit?.supplier_color_no).toBe('PC-A01');
 
-    // 清理：purchase_clerk 无 sku-mappings:delete，切 admin 仅做运维清理
+    // 清理：purchaser 无 sku-mappings:delete，切 admin 仅做运维清理
     await loginAsRole(page, 'admin');
     await tryCleanup(page, 'DELETE', `/purchase/sku-mappings/${createdId}`, 'D2b用例后清理对照');
   });
 });
 
 // ===========================================================================
-// E1. API 级 happy-path 全链路（purchase_clerk 自证：建供应商商品→色号→对照→list→resolve→重复拒）
-//     purchase_clerk 已授 products:read / supplier-products:read+create+update /
+// E1. API 级 happy-path 全链路（purchaser 自证：建供应商商品→色号→对照→list→resolve→重复拒）
+//     purchaser 已授 products:read / supplier-products:read+create+update /
 //     supplier-product-colors:read+create+update / sku-mappings:read+create+update，
 //     全部步骤（除最终 DELETE 清理外）均可由目标角色完成。
 // ===========================================================================
 
-test.describe('SKU 对照表 - API 全链路 happy-path（purchase_clerk 自证）', () => {
-  test('purchase_clerk: create supplier-product→color→mapping→list→resolve + 重复/非法负例', async ({
+test.describe('SKU 对照表 - API 全链路 happy-path（purchaser 自证）', () => {
+  test('purchaser: create supplier-product→color→mapping→list→resolve + 重复/非法负例', async ({
     page,
   }) => {
     // 前置数据发现（跨产品/供应商/目录全量取数，沿用 admin 会话简化复用）
     await loginAsRole(page, 'admin');
     const fx = await discoverDemoFixture(page);
 
-    // ── 切换到 purchase_clerk，以目标角色执行全部业务操作 ──
-    await loginAsRole(page, 'purchase_clerk');
+    // ── 切换到 purchaser，以目标角色执行全部业务操作 ──
+    await loginAsRole(page, 'purchaser');
     const ts = Date.now().toString().slice(-8);
 
     let spId = 0;
     let scId = 0;
     let mapId = 0;
     try {
-      // 1) 新建供应商商品（purchase_clerk 有 supplier-products:create）
+      // 1) 新建供应商商品（purchaser 有 supplier-products:create）
       const sp = await apiCall<{ id?: number }>(page, 'POST', '/purchase/supplier-products', {
         supplier_id: fx.sup1Id,
         product_code: `E2E-SP${ts}`,
@@ -679,9 +698,9 @@ test.describe('SKU 对照表 - API 全链路 happy-path（purchase_clerk 自证�
         unit: '米',
       });
       spId = Number(sp.data?.id);
-      expect(spId, 'purchase_clerk 创建供应商商品应回 id').toBeGreaterThan(0);
+      expect(spId, 'purchaser 创建供应商商品应回 id').toBeGreaterThan(0);
 
-      // 2) 新建供应商色号（purchase_clerk 有 supplier-product-colors:create）
+      // 2) 新建供应商色号（purchaser 有 supplier-product-colors:create）
       const sc = await apiCall<{ id?: number }>(page, 'POST', '/purchase/supplier-product-colors', {
         supplier_product_id: spId,
         color_no: `E2E-SC${ts}`,
@@ -689,13 +708,13 @@ test.describe('SKU 对照表 - API 全链路 happy-path（purchase_clerk 自证�
         extra_cost: '2.50',
       });
       scId = Number(sc.data?.id);
-      expect(scId, 'purchase_clerk 创建供应商色号应回 id').toBeGreaterThan(0);
+      expect(scId, 'purchaser 创建供应商色号应回 id').toBeGreaterThan(0);
       expect(
         String((sc.data as Record<string, unknown> | undefined)?.extra_cost ?? ''),
         'extra_cost 应回显为字符串承载的 Decimal'
       ).toMatch(/2\.5/);
 
-      // 3) 新建对照（purchase_clerk 有 sku-mappings:create + products:read 前置校验通过）
+      // 3) 新建对照（purchaser 有 sku-mappings:create + products:read 前置校验通过）
       const map = await apiCall<{ id?: number; supplier_price?: string }>(
         page,
         'POST',
@@ -712,7 +731,7 @@ test.describe('SKU 对照表 - API 全链路 happy-path（purchase_clerk 自证�
         }
       );
       mapId = Number(map.data?.id);
-      expect(mapId, 'purchase_clerk 创建对照应回 id').toBeGreaterThan(0);
+      expect(mapId, 'purchaser 创建对照应回 id').toBeGreaterThan(0);
 
       // 4) list keyword 按我方色号命中，供应方编码回显正确
       const listed = await apiCallRaw<{
@@ -786,7 +805,7 @@ test.describe('SKU 对照表 - API 全链路 happy-path（purchase_clerk 自证�
       expect(dupSc.code, `重复色号应 BUSINESS_ERROR，实际 ${dupSc.code}`).toBe('BUSINESS_ERROR');
       expect(dupSc.message ?? '').toMatch(/已存在|色号/);
     } finally {
-      // 清理：purchase_clerk 有 supplier-products/colors 的 update（PUT 停用），但无 sku-mappings:delete。
+      // 清理：purchaser 有 supplier-products/colors 的 update（PUT 停用），但无 sku-mappings:delete。
       // 供应商商品/色号无 DELETE 端点，置停用软清理。
       if (scId)
         await apiCall(page, 'PUT', `/purchase/supplier-product-colors/${scId}`, {
@@ -803,7 +822,7 @@ test.describe('SKU 对照表 - API 全链路 happy-path（purchase_clerk 自证�
           unit: '米',
           is_enabled: false,
         }).catch(e => console.warn('[清理] 停用供应商品失败:', (e as Error).message));
-      // 对照 DELETE 需 admin（purchase_clerk 无此权限），仅做运维清理
+      // 对照 DELETE 需 admin（purchaser 无此权限），仅做运维清理
       if (mapId) {
         await loginAsRole(page, 'admin');
         await tryCleanup(page, 'DELETE', `/purchase/sku-mappings/${mapId}`, 'E1清理对照(admin)');
