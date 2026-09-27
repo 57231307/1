@@ -1455,6 +1455,10 @@ export async function closeDialog(dialog: Locator): Promise<void> {
  * 会被 `.el-select__placeholder` 拦截 pointer events 或 `element is not stable` → 30s 超时。
  * 正确姿势是锚到含该 label 的 `.el-form-item`，再取其中的 `.el-select` 外层触发点。
  *
+ * 【迁移提示】新代码优先用本文件「唯一事实源」区块的 pickSelectIn / pickV2In / pickV2Remote /
+ * formItemByExactLabel（默认精确锚定、root 作用域、无静默）。本函数仅为既有 ~30 处 spec 调用
+ * 向后兼容保留（默认子串匹配 + 部分调用方传 RegExp），勿在新域修复中使用。
+ *
  * @param root      作用域（对话框/页面/表格容器）Locator 或 Page
  * @param labelText form-item 的 label 文本（string 子串匹配；RegExp 按原样匹配）
  * @param exact     true 时 label 必须整串相等（避免 '客户' 命中 '客户等级' 这类共享子串）
@@ -1466,7 +1470,7 @@ export function elSelectByLabel(
 ): Locator {
   const pattern =
     exact && typeof labelText === 'string'
-      ? new RegExp(`^\\s*${labelText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`)
+      ? new RegExp(`^\\s*${escRe(labelText)}\\s*$`)
       : labelText;
   return root
     .locator('.el-form-item')
@@ -1495,6 +1499,9 @@ export interface PickSelectOptions {
  * 选项面板由 EP teleport 到 body，故用 `.el-select-dropdown:visible` + `.el-select-dropdown__item`
  * 定位（对齐 ef1f6137 purchase/01、8c1adf03 ai/crm 既有写法），不再走 getByRole('option')
  * （后者在 dropdown 提前关闭时不稳）。
+ *
+ * 【迁移提示】本函数接收调用方已构造好的 trigger Locator，保留供既有 spec 向后兼容。
+ * 新域修复改用 pickSelectIn / pickV2In / pickV2Remote（按精确 label 自管 root 作用域，无静默）。
  *
  * @param page       Playwright Page
  * @param trigger    指向 `.el-select`（或含之的 form-item/容器）的 Locator；内部优先点 .el-select__wrapper
@@ -1529,6 +1536,244 @@ export async function pickSelect(
     // 单选后 dropdown 收起（非致命，仅确保动画稳定再让下一步执行）
     await dropdown.waitFor({ state: 'hidden', timeout }).catch(() => {});
   }
+}
+
+// ---------------------------------------------------------------------------
+// el-select / el-select-v2 选择器 helper —— 唯一事实源（single source of truth）
+// ---------------------------------------------------------------------------
+//
+// 后续所有 e2e 域修复只调用本区块 API，不再各自内联下拉交互逻辑，也不再改本文件。
+// 契约（三条硬规则，违反即回退本 helper，不在 spec 里临时兜底）：
+//  1. 作用域：所有 form-item / select / input 定位一律以传入的 root（dialog 或页内某 form
+//     容器）为界，绝不绝对作用域——列表页搜索栏常有与弹窗同名的 label（如「我方产品」），
+//     绝对作用域会跨容器命中错误节点。
+//  2. 精确标签锚定：.el-form-item__label 用 RegExp('^'+escRe(label)+'$') 行首尾锚定，
+//     消除子串误命中（「供应商品编码」⊃「供应商品」、「我方色号编号」⊃「我方色号」、
+//     「客户」⊃「客户等级」这类同前缀 label 是既往假红的直接来源）。
+//  3. 禁静默：定位失败必须让 Playwright 自然超时抛错（真实红），本区块内**严禁**任何
+//     `.catch(()=>null/false/[])` 把「找不到」吞成「为假/为空」。仅允许对「点击后下拉收起
+//     的动画收尾」这类已确认成功之后的软等待做 .catch。
+//
+// 选 API 的判据：
+//  - el-select（普通单选/多选，选项全量渲染）→ pickSelectIn
+//  - el-select-v2（虚拟滚动 / filterable 本地）→ pickV2In
+//  - el-select-v2 + remote（filterable remote，输入触发远程搜索 / 高基数不整表渲染）→ pickV2Remote
+//  - 读禁用 → isFieldDisabled；读值 → getFieldValue；填文本值 → fillFieldByLabel
+
+/** 正则元字符转义，供精确锚定 label / option 文本构造 RegExp('^…$') 使用。 */
+export function escRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * 锚到含「整串相等」label 的 .el-form-item（契约第 2 条：精确标签锚定）。
+ *
+ * 与旧 elSelectByLabel 的区别：旧函数默认子串匹配（hasText 直接命中「供应商品编码」里的
+ * 「供应商品」），且仅返回内层 .el-select。本函数始终以 root 为作用域、以精确 label 命中
+ * 唯一 form-item，并返回 form-item 本身供上层继续下钻到 wrapper / input / v2 容器。
+ *
+ * @param root      作用域（dialog 或页内某 form 容器）Locator 或 Page
+ * @param labelText form-item 的 label 全文（非子串、非正则；内部自动 escRe 锚定行首尾）
+ */
+export function formItemByExactLabel(root: Locator | Page, labelText: string): Locator {
+  return root
+    .locator('.el-form-item')
+    .filter({
+      has: root.locator('.el-form-item__label', { hasText: new RegExp(`^${escRe(labelText)}$`) }),
+    })
+    .first();
+}
+
+/** 下拉交互共参（各 pick* 系列复用）。 */
+interface DropdownPickOpts {
+  /** 目标 option 文本：string 走「转义后子串」匹配；RegExp 按原样。省略则按下标 index 选。 */
+  optionText?: string | RegExp;
+  /** 未传 optionText 时按下标选第 N 项（默认 0=首个）。 */
+  index?: number;
+  /** 多选：选完按 Escape 收起（EP 多选面板不自动关）。 */
+  multiple?: boolean;
+  /** 仅展开并等首个 option 可见即返回（「验证下拉可打开」型用例，调用方自行 Escape）。 */
+  openOnly?: boolean;
+  /** 远程搜索输入词：非空则先 click 触发器、keyboard.type 触发 remote-method 再选。 */
+  query?: string;
+  /** 单步超时（默认 15_000ms；CI 并发慢）。 */
+  timeout?: number;
+}
+
+/**
+ * 内部核心：点下拉触发器（wrapper，非只读内层 input）→（可选 type query 触发远程）
+ * → 等 body 级可见 dropdown → 精确/子串匹配 option 并点。
+ *
+ * 触发器由调用方（pickSelectIn/pickV2In/pickV2Remote）用 wrapper 类构造，这里只负责通用
+ * 的「点 - 等面板 - 选项」时序。任何一步定位失败均直接抛错（契约第 3 条），无 catch。
+ * 唯一 .catch 用于「点完后面板收起的动画收尾」（面板已确认出现过，属成功之后的软等待）。
+ */
+async function openDropdownAndPick(
+  page: Page,
+  trigger: Locator,
+  opts: DropdownPickOpts
+): Promise<void> {
+  const timeout = opts.timeout ?? 15_000;
+  await trigger.waitFor({ state: 'visible', timeout });
+  // 点 wrapper（.el-select__wrapper / .el-select-v2__wrapper），不点只读 combobox 内层 input
+  // ——内层 input 被 placeholder 拦 pointer events / element not stable（既往假红根因②）。
+  await trigger.click({ timeout });
+  if (opts.query) {
+    await page.keyboard.type(opts.query, { delay: 50 });
+    // 远程搜索：等 remote-method 请求回、loading 指示消失后再找项。
+    // state:'detached' 对「本就无 loading 节点」立即 resolve（搜索秒回的正常态），
+    // 而对「loading 卡住不消失」超时抛错（远程搜索挂起=真实红），故此处不加 .catch 吞错。
+    await page
+      .locator(
+        '.el-select-dropdown:visible .el-select-loading, .el-select-dropdown:visible .is-loading'
+      )
+      .first()
+      .waitFor({ state: 'detached', timeout });
+  }
+  const dropdown = page.locator('.el-select-dropdown:visible').last();
+  await dropdown.waitFor({ state: 'visible', timeout });
+  // el-select 与 el-select-v2 虚拟列表的 option 类名不同，一并匹配
+  const items = dropdown.locator('.el-select-dropdown__item, .el-select-v2__item');
+  if (opts.openOnly) {
+    await items.first().waitFor({ state: 'visible', timeout });
+    return;
+  }
+  const option =
+    opts.optionText === undefined
+      ? items.nth(opts.index ?? 0)
+      : items.filter({ hasText: opts.optionText }).first();
+  await option.waitFor({ state: 'visible', timeout });
+  await option.click({ timeout });
+  if (opts.multiple) {
+    await page.keyboard.press('Escape');
+  } else {
+    // 点完面板收起属动画收尾（option 已确认可见并点击成功），此处 .catch 不掩盖定位失败
+    await dropdown.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+  }
+}
+
+/**
+ * el-select（普通下拉）：按精确 label 打开并从 body 级面板选目标项。
+ * 契约同本区块头部三条。optionText 省略则按下标选（默认首项）。
+ *
+ * @param root      作用域（dialog / 页内 form 容器）
+ * @param page      用于等 teleport 到 body 的下拉面板
+ * @param labelText form-item 精确 label 全文
+ */
+export async function pickSelectIn(
+  root: Locator | Page,
+  page: Page,
+  labelText: string,
+  opts: DropdownPickOpts = {}
+): Promise<void> {
+  const wrapper = formItemByExactLabel(root, labelText).locator('.el-select__wrapper').first();
+  await openDropdownAndPick(page, wrapper, opts);
+}
+
+/**
+ * el-select-v2（虚拟滚动 / 本地 filterable）：按精确 label 打开并在虚拟列表面板选目标。
+ * 高基数场景 optionText 必传（不整表扫描），走转义子串/正则匹配。
+ *
+ * @param root      作用域
+ * @param page      用于等 body 级面板
+ * @param labelText form-item 精确 label 全文
+ */
+export async function pickV2In(
+  root: Locator | Page,
+  page: Page,
+  labelText: string,
+  opts: DropdownPickOpts = {}
+): Promise<void> {
+  const wrapper = formItemByExactLabel(root, labelText).locator('.el-select-v2__wrapper').first();
+  await openDropdownAndPick(page, wrapper, opts);
+}
+
+/**
+ * el-select-v2 + remote（filterable remote，输入关键词触发 remote-method）：
+ * 按精确 label 打开 → keyboard.type(keyword) 触发远程搜索 → 等 loading 收 → 点含 pickText 的项。
+ * 高基数不整表渲染，故必须先输关键词把候选收敛到可见项再点。
+ *
+ * @param root      作用域
+ * @param page      用于 keyboard.type 与等 body 级面板
+ * @param labelText form-item 精确 label 全文
+ * @param keyword   触发远程搜索的输入词（如商品编码片段）
+ * @param pickText  搜索回来后要点中的候选文本（string 走转义子串；RegExp 原样）
+ */
+export async function pickV2Remote(
+  root: Locator | Page,
+  page: Page,
+  labelText: string,
+  keyword: string,
+  pickText: string | RegExp,
+  opts: Omit<DropdownPickOpts, 'optionText' | 'query'> = {}
+): Promise<void> {
+  const wrapper = formItemByExactLabel(root, labelText).locator('.el-select-v2__wrapper').first();
+  await openDropdownAndPick(page, wrapper, { ...opts, query: keyword, optionText: pickText });
+}
+
+/**
+ * 读某表单项当前是否真实禁用（级联「未选上级则下级 disabled」断言）。
+ *
+ * 兼容 el-select 与 el-select-v2：disabled 标记节点在不同组件不一致——
+ *   优先读容器 aria-disabled；否则读容器 / 内层 __wrapper 的 is-disabled 类。
+ * 定位不到（容器不存在 / form-item 命不中）→ getAttribute 自然超时抛错（契约第 3 条），
+ * **绝不** `.catch(()=>false)` 把「找不到」吞成「未禁用」（既往 #17 假红根因：只读根元素
+ * class 找 is-disabled，而 EP 实际把 disabled 标在 aria-disabled / __wrapper 上）。
+ *
+ * @param root      作用域
+ * @param labelText form-item 精确 label 全文
+ * @param timeout   定位超时（默认 10_000ms）
+ */
+export async function isFieldDisabled(
+  root: Locator | Page,
+  labelText: string,
+  timeout = 10_000
+): Promise<boolean> {
+  const container = formItemByExactLabel(root, labelText)
+    .locator('.el-select, .el-select-v2')
+    .first();
+  await container.waitFor({ state: 'attached', timeout });
+  const aria = await container.getAttribute('aria-disabled');
+  if (aria !== null) return aria === 'true';
+  const containerCls = (await container.getAttribute('class')) ?? '';
+  if (containerCls.includes('is-disabled')) return true;
+  // 兜底：部分版本把 is-disabled 只加在内层 __wrapper 上（getAttribute 命中失败会超时抛错）
+  const wrapperCls = await container
+    .locator('.el-select__wrapper, .el-select-v2__wrapper')
+    .first()
+    .getAttribute('class');
+  return !!wrapperCls && wrapperCls.includes('is-disabled');
+}
+
+/**
+ * 读某表单项真 input 当前值（如只读回显「供应商品编码」）。
+ * 以 root 作用域 + 精确 label 命中真 input；inputValue 定位失败即超时抛错，
+ * **绝不** `.catch(()=>'')` 把定位失败吞成空串（#18 假红根因之一）。
+ */
+export async function getFieldValue(
+  root: Locator | Page,
+  labelText: string,
+  timeout = 10_000
+): Promise<string> {
+  return formItemByExactLabel(root, labelText).locator('input').first().inputValue({ timeout });
+}
+
+/**
+ * 按精确 label 填充可编辑 el-input（如「协议价」）。
+ * 以 root 作用域 + 精确 label 命中真 input；任一步定位失败抛错（无静默）。
+ */
+export async function fillFieldByLabel(
+  root: Locator | Page,
+  page: Page,
+  labelText: string,
+  value: string,
+  timeout = 10_000
+): Promise<void> {
+  const inp = formItemByExactLabel(root, labelText).locator('input').first();
+  await inp.waitFor({ state: 'visible', timeout });
+  await inp.click({ clickCount: 3, timeout });
+  await inp.fill(value);
+  await page.waitForTimeout(100);
 }
 
 // ---------------------------------------------------------------------------
