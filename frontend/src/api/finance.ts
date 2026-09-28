@@ -9,7 +9,8 @@ export interface AccountSubject {
   level: number;
   category: string;
   direction: string;
-  is_leaf: boolean;
+  // 注：后端 /subjects/tree(SubjectTreeNode) 与 account_subject 模型均**不输出 is_leaf**，
+  // 叶子与否由 children 是否为空派生，故此处不声明 is_leaf（声明恒缺值的字段=谎报契约）。
   // account_subjects.status 为 VARCHAR（'active'/'inactive'），非数字
   status: string;
   created_at: string;

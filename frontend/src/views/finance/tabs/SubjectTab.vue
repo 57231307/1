@@ -64,15 +64,11 @@
           width="80"
           align="center"
         />
-        <el-table-column
-          prop="is_leaf"
-          :label="t('finance.subjectTab.columnIsLeaf')"
-          width="80"
-          align="center"
-        >
+        <el-table-column :label="t('finance.subjectTab.columnIsLeaf')" width="80" align="center">
+          <!-- 后端 /subjects/tree 不输出 is_leaf；叶子=该节点无 children（与 useVchr 叶子判定同源） -->
           <template #default="{ row }">
-            <el-tag :type="row.is_leaf ? 'success' : 'info'" size="small">
-              {{ row.is_leaf ? t('finance.subjectTab.yes') : t('finance.subjectTab.no') }}
+            <el-tag :type="!row.children?.length ? 'success' : 'info'" size="small">
+              {{ !row.children?.length ? t('finance.subjectTab.yes') : t('finance.subjectTab.no') }}
             </el-tag>
           </template>
         </el-table-column>
