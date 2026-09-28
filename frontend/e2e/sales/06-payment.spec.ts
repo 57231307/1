@@ -178,6 +178,11 @@ test.describe('06 销售收款', () => {
     await expect(targetRow.getByText('pending')).toBeVisible();
 
     // 点击"确认收款"按钮（PaymentTab.vue:45-53, arModule.payment.confirm='确认收款'）
+    // createCollectionViaDialog 结尾已断言过一条「操作成功」toast，其在本例 15s 窗口内可能
+    // 尚未自动收起；后续确认收款/打印还会各弹一条 → getByText('操作成功') strict 命中 2。
+    // 开本次动作前先把既有 success toast 等到收起，令下方断言只对应"本次确认收款"这一条真实
+    // 提示（.el-message--success 不存在时 waitFor hidden 立即 resolve，首笔正常态）。
+    await page.locator('.el-message--success').last().waitFor({ state: 'hidden', timeout: 15_000 });
     await targetRow.getByRole('button', { name: '确认收款' }).click();
 
     // ElMessageBox.confirm（PaymentTab.vue:256-260）
@@ -188,8 +193,12 @@ test.describe('06 销售收款', () => {
     await expect(confirmBox).toBeVisible();
     await confirmBox.getByRole('button', { name: '确定' }).click();
 
-    // 成功 toast：common.success='操作成功'（PaymentTab.vue:262）
-    await expect(page.getByText('操作成功')).toBeVisible({ timeout: 15_000 });
+    // 成功 toast：common.success='操作成功'（PaymentTab.vue:262），作用域到成功提示容器
+    // .el-message--success，与行状态/其它文本出现点解耦，消除 getByText strict 双命中。
+    // 后端回读真证据不倒退：下方 :列表刷新后状态 confirmed 断言保留。
+    await expect(page.locator('.el-message--success').filter({ hasText: '操作成功' })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // 列表刷新后状态变为 'confirmed'（PaymentTab.vue:31 渲染 row.status 原始值）
     const confirmedRow = page.locator('tr, .el-table__row').filter({ hasText: '6,666.66' }).first();
