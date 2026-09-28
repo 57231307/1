@@ -77,12 +77,22 @@ export function useVchr() {
   // 根本不存在 .el-tree-node__content → e2e pickSubjectInTreeSelect 的 node.waitFor 恒 15s 超时。
   // 故改为以真实存在的结构字段 children 判定叶子：树中「无子节点」即叶子（与账户科目层级语义一致，
   // 非兜底掩盖——children 是端点确凿返回的权威结构）。递归收集所有叶子，父节点本身不作为可选项。
+  //
+  // 叶子节点必须剥离 children 属性再传入 el-tree-select：后端 SubjectTreeNode.children 类型为
+  // Vec<SubjectTreeNode>（非 Option），叶子序列化为 children: []。el-tree 见到 children 为数组
+  // （即使空）即视为可展开分支，渲染出折叠箭头并改变 DOM 结构，导致 e2e 点击 node content 时
+  // 可能触发折叠而非选中，面板收起→节点不可见。此处仅构造 tree-select 所需字段(id/code/name/level/status)。
   const leafSubjects = computed(() => {
     const flatten = (list: AccountSubject[]): AccountSubject[] =>
       list.reduce((acc, item) => {
         const hasChildren = Array.isArray(item.children) && item.children.length > 0;
-        if (hasChildren) acc.push(...flatten(item.children as AccountSubject[]));
-        else acc.push(item);
+        if (hasChildren) {
+          acc.push(...flatten(item.children as AccountSubject[]));
+        } else {
+          const leaf = { ...item } as Record<string, unknown>;
+          delete leaf.children;
+          acc.push(leaf as unknown as AccountSubject);
+        }
         return acc;
       }, [] as AccountSubject[]);
     return flatten(subjects.value);
