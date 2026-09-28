@@ -48,13 +48,17 @@ export function usePrd() {
   });
 
   // 订单表单
+  // 计划起止日期留空时必须为 undefined（不是 ''）：后端 CreateProductionOrderPayload 的
+  // planned_start_date/planned_end_date 是 Option<chrono::NaiveDate>，空串 '' 会被 serde
+  // 当作 Some 去解析 NaiveDate → 解析失败 → 422，导致新建工单被拒（01 新建红根因）。
+  // undefined 在 JSON.stringify 时被剔除 → 后端按 None 处理。
   const orderForm = reactive<PrdOrderForm>({
     id: undefined,
     order_no: '',
     product_id: undefined,
     planned_quantity: undefined,
-    planned_start_date: '',
-    planned_end_date: '',
+    planned_start_date: undefined,
+    planned_end_date: undefined,
     priority: 5,
     work_center_id: undefined,
     remarks: '',
@@ -75,8 +79,8 @@ export function usePrd() {
       order_no: '',
       product_id: undefined,
       planned_quantity: undefined,
-      planned_start_date: '',
-      planned_end_date: '',
+      planned_start_date: undefined,
+      planned_end_date: undefined,
       priority: 5,
       work_center_id: undefined,
       remarks: '',
