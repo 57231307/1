@@ -44,6 +44,8 @@
       :rules="create.createFormRules"
       :suppliers="list.suppliers.value"
       :products="list.products.value"
+      :warehouses="list.warehouses.value"
+      :departments="list.departments.value"
       :on-submit="create.submitCreate"
       :on-cancel="() => (create.createDialogVisible.value = false)"
       :on-add-item="create.addItem"

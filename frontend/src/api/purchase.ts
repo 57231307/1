@@ -136,8 +136,40 @@ export const getPurchaseOrderList = (params?: PurchaseOrderQueryParams) =>
 export const getPurchaseOrderById = (id: number) =>
   request.get<ApiResponse<PurchaseOrder>>(`/purchase/orders/${id}`);
 
+// 创建采购订单请求体：严格对齐后端 CreatePurchaseOrderRequest
+// （backend/src/services/po/mod.rs:31）与明细 CreateOrderItemRequest（:96）。
+// 契约以实体/DTO snake_case 为准：明细用 material_id（=产品 ID）/quantity_ordered，
+// 表头用 expected_delivery_date/notes；服务层 validate_order_request
+// （services/po/order_ops/crud.rs:137/:149）强制 warehouse_id、department_id 非空且真实存在。
+export interface CreatePurchaseOrderItemPayload {
+  line_no?: number;
+  material_id?: number;
+  quantity_ordered?: number;
+  quantity_alt_ordered?: number;
+  unit_price?: number;
+  tax_rate?: number;
+  discount_percent?: number;
+  quantity_tolerance_pct?: number;
+  color_no?: string;
+  notes?: string;
+}
+
+export interface CreatePurchaseOrderPayload {
+  supplier_id: number;
+  order_date: string;
+  expected_delivery_date?: string;
+  warehouse_id: number;
+  department_id: number;
+  currency?: string;
+  exchange_rate?: number;
+  payment_terms?: string;
+  shipping_terms?: string;
+  notes?: string;
+  items: CreatePurchaseOrderItemPayload[];
+}
+
 // D14 Batch 5b：原 purchaseApi.createOrder 转为风格 B 函数
-export const createPurchaseOrder = (data: Partial<PurchaseOrder>) =>
+export const createPurchaseOrder = (data: CreatePurchaseOrderPayload) =>
   request.post<ApiResponse<PurchaseOrder>>('/purchase/orders', data);
 
 // D14 Batch 5b：原 purchaseApi.updateOrder 转为风格 B 函数

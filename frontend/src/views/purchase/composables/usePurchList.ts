@@ -9,9 +9,11 @@ import { getPurchaseOrderList, type PurchaseOrder } from '@/api/purchase';
 import type { Supplier } from '@/api/supplier';
 import type { Product } from '@/api/product';
 import type { Warehouse } from '@/api/warehouse';
+import type { Department } from '@/api/department';
 import { getSupplierList } from '@/api/supplier';
 import { getProductList } from '@/api/product';
 import { getWarehouseList } from '@/api/warehouse';
+import { getDepartmentList } from '@/api/department';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
 import { i18n } from '@/i18n';
@@ -50,6 +52,7 @@ export function usePurchList() {
   const suppliers = ref<Supplier[]>([]);
   const products = ref<Product[]>([]);
   const warehouses = ref<Warehouse[]>([]);
+  const departments = ref<Department[]>([]);
   const total = ref(0);
 
   const stats = ref({
@@ -197,6 +200,18 @@ export function usePurchList() {
     }
   };
 
+  /**
+   * 获取部门列表（采购建单归属部门下拉，后端 department_id 必填）
+   */
+  const fetchDepartments = async () => {
+    try {
+      const res = await getDepartmentList({ page: 1, page_size: 1000 });
+      departments.value = extractList<Department>(res.data);
+    } catch (error) {
+      logger.error('获取部门列表失败:', error);
+    }
+  };
+
   const handleQuery = () => {
     queryParams.page = 1;
     fetchData();
@@ -217,6 +232,7 @@ export function usePurchList() {
     loadIfNot('fetchSuppliers', fetchSuppliers, hasLoaded);
     loadIfNot('fetchProducts', fetchProducts, hasLoaded);
     loadIfNot('fetchWarehouses', fetchWarehouses, hasLoaded);
+    loadIfNot('fetchDepartments', fetchDepartments, hasLoaded);
   };
 
   return {
@@ -225,6 +241,7 @@ export function usePurchList() {
     suppliers,
     products,
     warehouses,
+    departments,
     total,
     stats,
     queryParams,

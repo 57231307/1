@@ -115,6 +115,7 @@
               v-model="localFormData.effective_date"
               type="date"
               :placeholder="t('purchasePrice.form.placeholder.effectiveDate')"
+              value-format="YYYY-MM-DD"
               style="width: 100%"
             />
           </el-form-item>
@@ -127,6 +128,7 @@
               v-model="localFormData.expiry_date"
               type="date"
               :placeholder="t('purchasePrice.form.placeholder.expiryDate')"
+              value-format="YYYY-MM-DD"
               style="width: 100%"
             />
           </el-form-item>

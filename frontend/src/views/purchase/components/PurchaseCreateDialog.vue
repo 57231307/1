@@ -43,8 +43,38 @@
               v-model="localForm.order_date"
               type="date"
               :placeholder="t('purchase.createDlg.datePlaceholder')"
+              value-format="YYYY-MM-DD"
               style="width: 100%"
             />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item :label="t('purchase.createDlg.warehouse')" prop="warehouse_id">
+            <el-select
+              v-model="localForm.warehouse_id"
+              :placeholder="t('purchase.createDlg.warehousePlaceholder')"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="w in warehouses"
+                :key="w.id"
+                :label="w.warehouse_name"
+                :value="w.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item :label="t('purchase.createDlg.department')" prop="department_id">
+            <el-select
+              v-model="localForm.department_id"
+              :placeholder="t('purchase.createDlg.departmentPlaceholder')"
+              style="width: 100%"
+            >
+              <el-option v-for="d in departments" :key="d.id" :label="d.name" :value="d.id" />
+            </el-select>
           </el-form-item>
         </el-col>
       </el-row>
@@ -55,6 +85,7 @@
               v-model="localForm.required_date"
               type="date"
               :placeholder="t('purchase.createDlg.datePlaceholder')"
+              value-format="YYYY-MM-DD"
               style="width: 100%"
             />
           </el-form-item>
@@ -159,6 +190,8 @@ import { useI18n } from 'vue-i18n';
 import type { FormRules, FormInstance } from 'element-plus';
 import type { Supplier } from '@/api/supplier';
 import type { Product, ProductColor } from '@/api/product';
+import type { Warehouse } from '@/api/warehouse';
+import type { Department } from '@/api/department';
 import { getProductColorList } from '@/api/product';
 import type { CreateFormData, CreateItem } from '../composables/useCreate';
 
@@ -170,6 +203,8 @@ const props = defineProps<{
   rules: FormRules;
   suppliers: Supplier[];
   products: Product[];
+  warehouses: Warehouse[];
+  departments: Department[];
   onSubmit: () => void;
   onCancel: () => void;
   onAddItem: () => void;

@@ -7,6 +7,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { msg } from '@/utils/message';
 import { createPurchaseOrder } from '@/api/purchase';
 import { resolveSkuMapping } from '@/api/sku-mapping';
+import { i18n } from '@/i18n';
 import type { Product } from '@/api/product';
 
 /** SKU 对照解析结果（只读展示用） */
@@ -39,6 +40,10 @@ export interface CreateFormData {
   order_date: string;
   required_date: string;
   remark: string;
+  /** 收货仓库（后端 validate_order_request 强制非空且真实存在） */
+  warehouse_id: number | undefined;
+  /** 归属部门（后端 validate_order_request 强制非空且真实存在） */
+  department_id: number | undefined;
   items: CreateItem[];
 }
 
@@ -60,6 +65,8 @@ const defaultForm = (): CreateFormData => ({
   order_date: new Date().toISOString().split('T')[0],
   required_date: '',
   remark: '',
+  warehouse_id: undefined,
+  department_id: undefined,
   items: [defaultItem()],
 });
 
@@ -72,6 +79,20 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
   const createFormRules: FormRules = {
     supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
     order_date: [{ required: true, message: '请选择订单日期', trigger: 'change' }],
+    warehouse_id: [
+      {
+        required: true,
+        message: i18n.global.t('purchase.createDlg.warehouseRequired'),
+        trigger: 'change',
+      },
+    ],
+    department_id: [
+      {
+        required: true,
+        message: i18n.global.t('purchase.createDlg.departmentRequired'),
+        trigger: 'change',
+      },
+    ],
   };
   const createForm = ref<CreateFormData>(defaultForm());
 
@@ -210,25 +231,33 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
       msg.error('skuMappingRequired');
       return;
     }
+    // supplier_id/order_date/warehouse_id/department_id 均由表单必填校验保证非空，
+    // 缺失时上方 validate() 已中断，此处收敛类型供契约负载使用。
+    const supplierId = createForm.value.supplier_id;
+    const orderDate = createForm.value.order_date;
+    const warehouseId = createForm.value.warehouse_id;
+    const departmentId = createForm.value.department_id;
+    if (supplierId == null || !orderDate || warehouseId == null || departmentId == null) {
+      // validate() 理论上已拦截；显式兜底返回而非把 undefined 发往后端
+      return;
+    }
     try {
       await createPurchaseOrder({
-        ...createForm.value,
+        supplier_id: supplierId,
+        order_date: orderDate,
+        warehouse_id: warehouseId,
+        department_id: departmentId,
+        expected_delivery_date: createForm.value.required_date || undefined,
+        notes: createForm.value.remark || undefined,
         items: validItems.map((item, idx) => ({
-          id: 0,
-          order_id: 0,
           line_no: idx + 1,
-          product_id: item.product_id!,
-          product_name: '',
-          product_code: '',
-          quantity: item.quantity,
+          material_id: item.product_id!,
+          quantity_ordered: item.quantity,
           unit_price: item.unit_price,
-          subtotal: item.subtotal,
-          tax_amount: 0,
-          total_amount: item.subtotal,
-          received_quantity: 0,
-          quantity_tolerance_pct: item.quantity_tolerance_pct ?? null,
+          ...(item.quantity_tolerance_pct != null
+            ? { quantity_tolerance_pct: item.quantity_tolerance_pct }
+            : {}),
         })),
-        total_amount: calculateTotal(),
       });
       msg.success('purchaseOrderCreated');
       createDialogVisible.value = false;

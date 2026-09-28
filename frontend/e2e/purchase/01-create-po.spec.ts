@@ -54,6 +54,11 @@ test.describe('01 创建采购订单', () => {
     // （root=dlg + 精确 label「供应商」）打开下拉选首项，消除点 readonly .el-select / 内层
     // combobox input 的 30s 超时假红（#4654 三例 create-po 失败根因）。
     await pickSelectIn(dlg, page, '供应商');
+    // 仓库 / 部门：后端 validate_order_request（services/po/order_ops/crud.rs:137/:149）
+    // 强制 warehouse_id、department_id 非空且真实存在，建单对话框已补该两项必填下拉，
+    // 用例须据实填写（globalSeed 已保证至少 2 仓库、1 部门）。
+    await pickSelectIn(dlg, page, '仓库');
+    await pickSelectIn(dlg, page, '部门');
     // 产品：div 明细行内 el-select（placeholder '选择产品'），无 form-item label 可锚定，
     // 用向后兼容 pickSelect 点其 .el-select__wrapper（非外层 .el-select/只读 input）选首项。
     await pickSelect(page, dlg.locator('.items-row').first().locator('.el-select').first());
@@ -75,10 +80,14 @@ test.describe('01 创建采购订单', () => {
     await expect(dlg).toBeVisible({ timeout: 30000 });
     // 供应商：pickSelectIn（root=dlg + 精确 label）打开下拉选首项（消除 readonly .el-select 点击超时）。
     await pickSelectIn(dlg, page, '供应商');
-    // 要求交货日期（form-item label = '要求交货日期'，el-date-picker 内 input）
+    // 仓库 / 部门（后端建单必填，见 01-03 注释）
+    await pickSelectIn(dlg, page, '仓库');
+    await pickSelectIn(dlg, page, '部门');
+    // 要求交货日期（form-item label = '要求交货日期'，映射后端 expected_delivery_date；
+    // 后端校验「预计交货日期不得早于订单日期」，order_date 取默认当天，故此处给未来日期）
     const dateInput = dlg.getByLabel('要求交货日期');
     await dateInput.click();
-    await dateInput.fill('2026-07-15');
+    await dateInput.fill('2030-07-15');
     await page.keyboard.press('Enter');
     // 产品：明细行内 el-select 无 label，用 pickSelect 点 wrapper 选首项
     await pickSelect(page, dlg.locator('.items-row').first().locator('.el-select').first());
