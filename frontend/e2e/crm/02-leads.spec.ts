@@ -76,10 +76,11 @@ test.describe('02 线索管理', () => {
     await page.getByRole('button', { name: '新建线索' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
     // 弹窗内「线索来源」与筛选栏同名 label，限定到 .el-dialog 作用域避免 strict-mode 命中多元素；
-    // 提交按钮真实文案为「确定」（crmLeads.leadForm.confirm）。
-    // 注意：LeadFormTab 表单规则要求「负责人 owner_id」必填，本用例未填写负责人，
-    // 且 /crm/leads 页面当前存在前端加载崩溃（另一前端专家修复中）——
-    // 此用例在页面修复前会因校验/崩溃而红，非选择器问题，不做凑数。
+    // 提交按钮真实文案为「确定」（crmLeads.leadForm.confirm）；成功提示走
+    // ElMessage.success(crmLeads.leadForm.message.saveSuccess)「保存成功」（LeadFormTab.vue:250），
+    // 命中本用例 regex /创建成功|保存成功/。
+    // 负责人 owner_id 现为选填：后端 create_lead 恒以登录用户为负责人（services/crm/lead.rs::create_lead
+    // `owner_id = user_id`，入参无 owner_id），前端虚假必填已解除，故本用例不填负责人即可合法建单。
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('公司名称').fill('E2E 测试公司');
     await dlg.getByLabel('联系人').fill('李四');

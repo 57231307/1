@@ -195,9 +195,10 @@ const formRules: FormRules = {
       trigger: 'blur',
     },
   ],
-  owner_id: [
-    { required: true, message: t('crmLeads.leadForm.validation.ownerRequired'), trigger: 'change' },
-  ],
+  // owner_id 不再前端强制：后端 create_lead/update 一律以登录用户为负责人
+  // （services/crm/lead.rs::create_lead `let owner_id = user_id;`，入参不含 owner_id 字段），
+  // 前端此前的 required 属虚假必填——用户未选负责人时表单卡在校验、合法建单无法提交。
+  // 负责人下拉保留为可选项（编辑时可显式改派），但不再阻断提交。
 };
 
 watch(

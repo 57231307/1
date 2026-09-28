@@ -265,12 +265,16 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
-    // 后端契约：customer_id/owner_id 为整数，opportunity_stage 为大写枚举，提交前归一化；id 空值转为 undefined
+    // 后端契约：customer_id/owner_id 为整数，opportunity_stage 为大写枚举，提交前归一化；id 空值转为 undefined。
+    // expected_close_date 为 el-date-picker（后端 Option<NaiveDate>）：手输/未选时 v-model 为空串，
+    // 空串会被后端 serde 反序列化成非法 NaiveDate → 整单 400。选填日期缺失应等价于「不填」，故空串归一为 undefined 省略该字段。
     const payload = {
       ...formData,
       id: formData.id ?? undefined,
       customer_id: Number(formData.customer_id),
       owner_id: formData.owner_id === '' ? undefined : Number(formData.owner_id),
+      expected_close_date: formData.expected_close_date || undefined,
+      opportunity_type: formData.opportunity_type || undefined,
       opportunity_stage: (formData.opportunity_stage ||
         undefined) as Opportunity['opportunity_stage'],
     };
