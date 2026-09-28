@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-09-28
+
+| PR | 一句话总结 |
+|----|-----------|
+| PR #941 | wave5y（承 #4661 残余 23 红→#4662）：先修 #4662 逐用例 12 红、单点推 `19942d40` 触发 #4663。真源码缺陷族——`/auth/me` 被 RBAC 当业务资源要求伪权限码 `me:read` 致所有非 admin 整页刷新必 403（入 AUTH_ONLY_PATHS）；采购合同 `formatCurrency` 对后端 Decimal 字符串 `.toFixed()` 崩→整页 ErrorBoundary；凭证 `useVchr` 叶子带后端返回的空 `children:[]` 被 el-tree 当可展开分支致 tree-select 折叠不可选；染色配方 `content`→后端实有列 `chemical_formula`（原 serde 静默丢）、BPM 顶层 `nodes`→`config.nodes`；科目「是否叶子」列与凭证按 `children` 派生并删后端从不输出的 `is_leaf`；AP/AR 新建移除对后端自生成 `invoice_no` 的虚假必填采集；新建用户 username 上限对齐后端 50；useOlv 仓库/客户/产品下拉单形状直读 data.items。AI 建单 429 加 Retry-After 抖动退避（不放宽限流）。 |
+| PR #941 | wave5y-续（#4663 残余 6 红→推 `6d7df80d` 触发 #4664 验证）：crm 商机跟进端点映射缺陷（误调 `/crm/customers/{id}/follow-ups` 404→改走专用 `/crm/opportunities/{id}/follow-ups` 并补 `follow_up_type`）；sku-mapping 级联"无数据"根因＝`list_suppliers` 行级 self/dept 数据权限把 `created_by IS NULL` 的种子演示供应商滤空→范围条件 OR `created_by IS NULL`（主数据对已认证用户可见、保密负向不变）；报价 01-04 由抢共享行改为自建专属草稿单去并行 ID 耦合；ai/01-04 持续 429 根因＝ai/01×ai/02 共享同一 e2e 用户 10/min AI 桶→global-setup 建第二用户确定性隔桶（非靠退避侥幸、未放宽限流）；AP 05-02 随 invoice_no 移除同步去填该字段并加强后端回读；并 #109 同族——资金/产能/凭证 Decimal 字符串漏包 `Number()` 致 `.toFixed` 运行期崩（一并删假字段 `current_balance`、api 类型对齐 `string\|number`）。本地 cargo `--all-targets`+fmt、vue-tsc 整树、route-snapshot、check-i18n·api-keys·paths·envelope·request·contract·route-mount·e2e-types 全门禁绿后单推。轨迹：#4661 23红→#4662 12红→#4663 6红→#4664 待验。 |
+
 ## 2026-09-23
 
 | PR | 一句话总结 |
