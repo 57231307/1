@@ -598,8 +598,16 @@ async fn check_permission(
         .any(|p| matches_permission(p, resource_type, resource_id, action))
 }
 
-/// 权限匹配纯函数：resource_type 精确匹配，action 支持 "*"，resource_id 精确匹配防越权
+/// 权限匹配纯函数：resource_type 精确匹配，action 支持 "*"，resource_id 仅约束「按记录授权」。
 /// V15 P2 14.11-F：resource_type 支持 "*" 通配（超级权限码 "resource:*" 或 "*:*"）
+///
+/// 资源授权语义（RBAC）：
+/// - 角色级授权（p.resource_id = None）覆盖该资源类型的**全部实例**，既能命中列表类请求
+///   （request resource_id = None），也能命中按 ID 操作的请求（request resource_id = Some），
+///   否则任何非 admin 角色的 GET/PUT/DELETE /{id} 都会被误判越权拒绝（返回 403）。
+/// - 记录级授权（p.resource_id = Some(id)）只放行**同一实例**；
+///   不得据此放行整集合操作（request resource_id = None 视为不授权），也不得放行其它实例。
+/// - resource_type = "*"（超级通配）豁免上述 ID 维度判定。
 pub fn matches_permission(
     p: &role_permission::Model,
     resource_type: &str,
@@ -611,9 +619,12 @@ pub fn matches_permission(
     // 超级通配（resource_type="*"）豁免 resource_id 垂直越权防护
     let id_match = p.resource_type == "*"
         || match (p.resource_id, resource_id) {
-            (None, None) => true,
+            // 角色级授权：覆盖该类型的全部实例（含列表与按 ID 操作）
+            (None, _) => true,
+            // 记录级授权：不得用于整集合读
+            (Some(_), None) => false,
+            // 记录级授权：仅放行同一实例
             (Some(pid), Some(rid)) => pid == rid,
-            _ => false,
         };
     resource_match && (p.action == action || p.action == "*") && id_match
 }
