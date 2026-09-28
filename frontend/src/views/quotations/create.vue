@@ -435,9 +435,22 @@ async function loadForCopy() {
   }
 }
 
-/** 确保有 sales_user_id（默认当前用户） */
-function ensureSalesUserId() {
-  if (!form.sales_user_id && userStore.userInfo?.id) {
+/**
+ * 确保有 sales_user_id（默认当前用户）。
+ * 兼容 localStorage 缓存路径：路由守卫在 store 已有 permissions 缓存时跳过 fetchUserInfo，
+ * 导致 userInfo 对象可能仅有 permissions 而无 id/username；此处主动补刷以获取完整 id。
+ */
+async function ensureSalesUserId() {
+  if (form.sales_user_id) return;
+  if (!userStore.userInfo?.id) {
+    // 缓存态不完整：主动获取用户信息（cookie 有效时 API 正常返回）
+    try {
+      await userStore.fetchUserInfo();
+    } catch {
+      // 网络/API 失败不阻塞保存流程，后端会根据 session 取当前用户
+    }
+  }
+  if (userStore.userInfo?.id) {
     form.sales_user_id = userStore.userInfo.id;
   }
 }
@@ -451,7 +464,7 @@ async function handleSaveDraft() {
     ElMessage.error(t('quotations.create.validateForm'));
     return;
   }
-  ensureSalesUserId();
+  await ensureSalesUserId();
   submitting.value = true;
   try {
     if (isEdit.value) {
@@ -484,7 +497,7 @@ async function handleSubmit() {
     ElMessage.error(t('quotations.create.validateForm'));
     return;
   }
-  ensureSalesUserId();
+  await ensureSalesUserId();
   submitting.value = true;
   try {
     let quotationId: number;

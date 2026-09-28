@@ -80,8 +80,12 @@ test.describe('01 创建报价单', () => {
     await firstRow.getByRole('button', { name: /复制/ }).click();
     // 应跳转到新建页面并预填数据（真实新建页 router index.ts:1097 path:'quotations/new'）
     await expect(page).toHaveURL(/\/quotations\/new/);
-    // 客户字段应已预填
-    const customerInput = page.getByLabel(/客户/).first();
-    await expect(customerInput).not.toHaveValue('');
+    // 客户字段应已预填：el-select 选中项文本渲染在 .el-select__selected-item（非 el-select__input.value）
+    const customerSelected = page
+      .locator('.el-form-item')
+      .filter({ has: page.locator('.el-form-item__label', { hasText: /^\s*\*?\s*客户\s*$/ }) })
+      .first()
+      .locator('.el-select__selected-item');
+    await expect(customerSelected.first()).not.toHaveText('', { timeout: 15_000 });
   });
 });
