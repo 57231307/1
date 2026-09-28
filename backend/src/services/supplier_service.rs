@@ -1,6 +1,6 @@
 use crate::models::{supplier, supplier_contact, supplier_qualification};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
+use crate::utils::data_scope::{DataScope, DataScopeContext, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::messages::err_msg;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -13,7 +13,7 @@ use crate::utils::response::PaginatedResponse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, ExprTrait, Order,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
@@ -197,13 +197,25 @@ impl SupplierService {
         let mut query = supplier::Entity::find();
 
         // 行级数据权限过滤：owner=CreatedBy，dept=DepartmentId（m_rls_dept_domain）
+        // 供应商为主数据：created_by IS NULL 的系统种子/共享记录对所有已认证用户可见
         if let Some(ctx) = data_scope {
-            query = apply_department_scope(
-                query,
-                ctx,
-                supplier::Column::CreatedBy,
-                supplier::Column::DepartmentId,
-            );
+            let scope_cond = match ctx.scope {
+                DataScope::All => Condition::all(),
+                DataScope::Dept => {
+                    let owner_branch = if ctx.dept_ids.is_empty() {
+                        Condition::all().add(supplier::Column::CreatedBy.eq(ctx.user_id))
+                    } else {
+                        Condition::any()
+                            .add(supplier::Column::CreatedBy.eq(ctx.user_id))
+                            .add(supplier::Column::DepartmentId.is_in(ctx.dept_ids.clone()))
+                    };
+                    owner_branch.add(supplier::Column::CreatedBy.is_null())
+                }
+                DataScope::Self_ => Condition::any()
+                    .add(supplier::Column::CreatedBy.eq(ctx.user_id))
+                    .add(supplier::Column::CreatedBy.is_null()),
+            };
+            query = query.filter(scope_cond);
         }
 
         // 应用筛选与排序
@@ -326,10 +338,15 @@ impl SupplierService {
         };
 
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // supplier 表无 department_id，Dept 退化为 Self（按 created_by 校验）
-        // P0-D03：缓存命中的 model 同样需要校验权限，防止越权读取缓存
+        // 供应商为主数据：created_by IS NULL 视为系统/共享种子记录，不受数据范围约束
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, supplier_model.created_by, supplier_model.department_id) {
+            if supplier_model.created_by.is_some()
+                && !check_resource_owner(
+                    ctx,
+                    supplier_model.created_by,
+                    supplier_model.department_id,
+                )
+            {
                 return Err(AppError::permission_denied(format!(
                     "无权访问供应商 {}（数据范围限制）",
                     id
