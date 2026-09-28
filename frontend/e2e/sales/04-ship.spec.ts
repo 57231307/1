@@ -86,14 +86,33 @@ async function seedApprovedOrder(page: Page): Promise<SalesOrderLite> {
   return { id, order_no: orderNo, status: afterApprove.status };
 }
 
-/** 用「订单号」筛选把列表收敛到本例那一行（跨分页/并发唯一稳定锚点），返回该行定位器 */
+/** 用「订单号」筛选把列表收敛到本例那一行（跨分页/并发唯一稳定锚点）并断言命中 */
 async function locateRowByOrderNo(page: Page, orderNo: string) {
   await page.goto('/sales');
   await page.getByPlaceholder('订单号').fill(orderNo);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   const row = page.getByRole('row').filter({ hasText: orderNo });
   await expect(row, `按订单号 ${orderNo} 应筛选出本例专属行`).toHaveCount(1, { timeout: 30000 });
-  return row;
+}
+
+/**
+ * 筛选到本例唯一行后按精确名取行内操作按钮。
+ * 销售列表是 V2Table（el-table-v2），操作列 fixed:'right' 由 EP 渲染到独立 overlay Grid，
+ * 其按钮与承载「订单号」的主 Grid 行分属不同 DOM row（EP row.mjs），故不能用 `row.getByRole('button')`
+ * 作用域定位（会命中 0 个 → click 30s 超时）。唯一订单号已把整表筛到 1 行，页面级精确名即唯一命中
+ * （对齐 production/01、system/02 既有 V2Table 范式）。
+ */
+function orderActionBtn(page: Page, name: string) {
+  return page.getByRole('button', { name, exact: true }).first();
+}
+
+/** 打开本例已审批订单的发货对话框：筛到唯一行 → 点行内「发货」→ 返回 '销售发货' 对话框 */
+async function openDeliveryDialog(page: Page, orderNo: string) {
+  await locateRowByOrderNo(page, orderNo);
+  await orderActionBtn(page, '发货').click();
+  const dialog = page.getByRole('dialog', { name: '销售发货' });
+  await expect(dialog).toBeVisible();
+  return dialog;
 }
 
 test.describe('04 销售发货', () => {
@@ -104,20 +123,14 @@ test.describe('04 销售发货', () => {
 
   test('04-01 已审批订单行内「发货」打开发货对话框', async ({ page }) => {
     const { order_no: orderNo } = await seedApprovedOrder(page);
-    const row = await locateRowByOrderNo(page, orderNo);
-    await row.getByRole('button', { name: '发货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '销售发货' });
-    await expect(dialog).toBeVisible();
+    const dialog = await openDeliveryDialog(page, orderNo);
     // 底部真实按钮 sales.delivery.confirmDelivery = '确定发货'
     await expect(dialog.getByRole('button', { name: '确定发货' })).toBeVisible();
   });
 
   test('04-02 未选仓库直接确定发货被拦截', async ({ page }) => {
     const { order_no: orderNo } = await seedApprovedOrder(page);
-    const row = await locateRowByOrderNo(page, orderNo);
-    await row.getByRole('button', { name: '发货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '销售发货' });
-    await expect(dialog).toBeVisible();
+    const dialog = await openDeliveryDialog(page, orderNo);
     // 未选仓库即点确定发货
     await dialog.getByRole('button', { name: '确定发货' }).click();
     // 真实校验 sales.delivery.warehouseRequired = '请选择仓库'
@@ -127,9 +140,7 @@ test.describe('04 销售发货', () => {
 
   test('04-03 本次发货数量受订单可发数量钳制', async ({ page }) => {
     const { order_no: orderNo } = await seedApprovedOrder(page);
-    const row = await locateRowByOrderNo(page, orderNo);
-    await row.getByRole('button', { name: '发货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '销售发货' });
+    const dialog = await openDeliveryDialog(page, orderNo);
     // 先选仓库以启用库存行与本次发货上限计算
     await pickSelectIn(dialog, page, '仓库');
     const qty = dialog.getByRole('spinbutton').first();
@@ -163,9 +174,7 @@ test.describe('04 销售发货', () => {
     }
 
     const { id, order_no: orderNo } = await seedApprovedOrder(page);
-    const row = await locateRowByOrderNo(page, orderNo);
-    await row.getByRole('button', { name: '发货', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '销售发货' });
+    const dialog = await openDeliveryDialog(page, orderNo);
     // 仓库
     await pickSelectIn(dialog, page, '仓库');
     // 发货日期

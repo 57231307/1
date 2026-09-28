@@ -104,8 +104,16 @@ async function seedSalesOrder(
 }
 
 /**
- * 用「订单号」筛选把列表收敛到本例那一行，返回该行定位器。
+ * 用「订单号」筛选把列表收敛到本例那一行，并断言筛选结果确为本例专属单（唯一 order_no → 1 行）。
  * 筛选是唯一能跨分页、跨并发稳定锚定自造单的手段：全局种子行会被并发流转/翻页挤掉。
+ *
+ * 行内操作按钮的定位（V2Table 真实 DOM，非用例臆测）：
+ * 销售订单列表是 V2Table（el-table-v2 虚拟滚动）。操作列声明为 fixed:'right'，
+ * EP TableV2 会把固定列渲染到独立的 overlay Grid（另一组 role="row" 节点），
+ * 与承载「订单号」单元格的主 Grid 行不是同一个 DOM row（EP row.mjs：一个 role="row" 只含本 Grid 的列）。
+ * 因此 `row.getByRole('button')` 命中 0 个 → click 30s 超时（既往假红根因）。
+ * 正确定位（对齐 production/01、system/02 既有 V2Table 范式）：先按唯一订单号把列表筛到 1 行，
+ * 再在页面/表格作用域内按精确按钮名定位——筛选后仅存这一行，动作按钮名在整页唯一。
  */
 async function locateRowByOrderNo(page: Page, orderNo: string) {
   await page.goto('/sales');
@@ -115,7 +123,11 @@ async function locateRowByOrderNo(page: Page, orderNo: string) {
   await expect(row, `按订单号 ${orderNo} 应筛选出本例专属行`).toHaveCount(1, {
     timeout: 30000,
   });
-  return row;
+}
+
+/** 筛选到本例唯一行后，在页面作用域按精确名取行内操作按钮（V2Table 固定列与主行分属不同 DOM row） */
+function orderActionBtn(page: Page, name: string) {
+  return page.getByRole('button', { name, exact: true }).first();
 }
 
 test.describe('03 销售订单审批', () => {
@@ -127,9 +139,9 @@ test.describe('03 销售订单审批', () => {
 
   test('03-01 草稿订单行内可提交进入审批', async ({ page }) => {
     const { id, order_no: orderNo } = await seedSalesOrder(page, 'draft');
-    const row = await locateRowByOrderNo(page, orderNo);
+    await locateRowByOrderNo(page, orderNo);
     // 真实行内按钮 sales.table.submit = '提交'
-    await row.getByRole('button', { name: '提交', exact: true }).click();
+    await orderActionBtn(page, '提交').click();
     // ElMessageBox.confirm 默认确认按钮 '确定'
     await page.getByRole('button', { name: '确定', exact: true }).click();
     // 成功提示 message.submitSuccess = '提交成功'
@@ -141,9 +153,9 @@ test.describe('03 销售订单审批', () => {
 
   test('03-02 待审批订单行内可审批通过', async ({ page }) => {
     const { id, order_no: orderNo } = await seedSalesOrder(page, 'pending');
-    const row = await locateRowByOrderNo(page, orderNo);
+    await locateRowByOrderNo(page, orderNo);
     // sales.table.approve = '审批'
-    await row.getByRole('button', { name: '审批', exact: true }).click();
+    await orderActionBtn(page, '审批').click();
     await page.getByRole('button', { name: '确定', exact: true }).click();
     // approveSalesOrder 成功 → msg.success('approveSuccess') = '审批成功'
     await expect(page.getByText('审批成功')).toBeVisible({ timeout: 30000 });
@@ -154,9 +166,9 @@ test.describe('03 销售订单审批', () => {
 
   test('03-03 待审批订单行内可驳回（原因必填）', async ({ page }) => {
     const { id, order_no: orderNo } = await seedSalesOrder(page, 'pending');
-    const row = await locateRowByOrderNo(page, orderNo);
+    await locateRowByOrderNo(page, orderNo);
     // sales.table.reject = '驳回'，触发 ElMessageBox.prompt('请输入驳回原因')
-    await row.getByRole('button', { name: '驳回', exact: true }).click();
+    await orderActionBtn(page, '驳回').click();
     const msgBox = page.locator('.el-message-box');
     await expect(msgBox.getByText('请输入驳回原因')).toBeVisible();
     await msgBox.getByRole('textbox').fill('E2E 测试驳回：价格不符合规范');

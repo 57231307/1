@@ -93,15 +93,18 @@ test.describe('02 创建销售订单', () => {
     await page.getByRole('button', { name: /新建订单/ }).click();
     const dialog = page.getByRole('dialog');
     // 明细编辑表 aria-label sales.orderForm.itemsTableAriaLabel = '销售订单明细编辑表'
-    const itemsTable = dialog.getByRole('table', { name: '销售订单明细编辑表' });
+    // EP el-table 把 aria-label 挂在根 div（.el-table）上，而非内层 <table role=table>；
+    // 故 getByRole('table',{name}) 零命中（既往假红根因）。用真实属性选择器锚定容器，
+    // 数据行用 el-table 专属类 .el-table__row（不含表头行），计数才能等于明细条数。
+    const itemsTable = dialog.locator('[aria-label="销售订单明细编辑表"]');
     // 默认 1 行
-    await expect(itemsTable.getByRole('row')).toHaveCount(1);
+    await expect(itemsTable.locator('.el-table__row')).toHaveCount(1);
     // '添加明细' 两次 → 3 行
     await dialog.getByRole('button', { name: '添加明细' }).click();
     await dialog.getByRole('button', { name: '添加明细' }).click();
-    await expect(itemsTable.getByRole('row')).toHaveCount(3);
+    await expect(itemsTable.locator('.el-table__row')).toHaveCount(3);
     // 删除末行 → 2 行
-    await itemsTable.getByRole('row').last().getByRole('button', { name: '删除' }).click();
-    await expect(itemsTable.getByRole('row')).toHaveCount(2);
+    await itemsTable.locator('.el-table__row').last().getByRole('button', { name: '删除' }).click();
+    await expect(itemsTable.locator('.el-table__row')).toHaveCount(2);
   });
 });

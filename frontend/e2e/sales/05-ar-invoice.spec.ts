@@ -4,6 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
+import { apiCallRaw } from '../flow/helpers';
 
 /**
  * 真实 UI 事实（据 views/ar/index.vue、tabs/InvoiceTab.vue、tabs/PaymentTab.vue、locales 核对）：
@@ -53,6 +54,17 @@ test.describe('05 AR 应收发票与收款', () => {
   });
 
   test('05-03 收款管理 Tab 可新建一笔收款', async ({ page }) => {
+    // 客户 ID 走后端 create_payment→load_customer_for_payment 的存在性校验：
+    // 硬编码 id=1 在真实库无该客户时返回 404「客户 1 不存在」→ 只出错误 toast、永不出「操作成功」。
+    // 取一个真实存在的客户 id（与 06 收款套件同源，GET /crm/customers 分页 items）。
+    const cusRes = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/crm/customers?page=1&page_size=1'
+    );
+    const customerId = cusRes.items?.[0]?.id;
+    if (!customerId) throw new Error('[05-03] 无可用客户，前置缺失');
+
     await page.goto('/ar');
     await page.getByRole('tab', { name: '收款管理' }).click();
     // 切换到收款 Tab，新建收款按钮
@@ -63,7 +75,7 @@ test.describe('05 AR 应收发票与收款', () => {
     await expect(dialog).toBeVisible();
     // 客户 ID 为 el-input-number，收款方式为 el-select，收款金额为 el-input-number
     const spins = dialog.getByRole('spinbutton');
-    await spins.first().fill('1'); // customer_id（真实库存在的客户 ID）
+    await spins.first().fill(String(customerId)); // customer_id（真实存在的客户 ID）
     // 收款日期（PaymentTab.vue:70-71 el-date-picker）：其内层 input 带 role=combobox
     // （EP 日期选择器开弹层语义），与「收款方式」el-select 同为 combobox →
     // 旧 dialog.getByRole('combobox').click() strict 命中 2 个。原测试又漏填日期（后端 payment_date

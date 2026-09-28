@@ -27,6 +27,12 @@ async function createCollectionViaDialog(
   amount: string,
   method = '银行转账'
 ): Promise<void> {
+  // 两次连续创建会各自弹出一条「操作成功」toast，前一条在 15s 断言窗口内可能尚未自动消失，
+  // 使 getByText('操作成功') strict 命中 2 个（06-02 红因）。每次开新对话框前先把上一批
+  // 成功 toast 等到收起，保证本次断言只对应"本次创建"这一条提示（真实提示，非放宽断言）。
+  // .el-message--success 不存在时 waitFor hidden 立即 resolve（首笔的正常态）。
+  await page.locator('.el-message--success').last().waitFor({ state: 'hidden', timeout: 15_000 });
+
   await page.getByRole('button', { name: '新建收款' }).click();
   // AR 对话框 title='新建收款'（arModule.payment.create, PaymentTab.vue:66）
   const dialog = page.getByRole('dialog', { name: '新建收款' });
