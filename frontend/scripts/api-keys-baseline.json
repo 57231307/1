@@ -1,5 +1,5 @@
 {
-  "total": 181,
+  "total": 178,
   "files": {
     "frontend/src/api/account-subject.ts": {
       "count": 1,
@@ -233,15 +233,12 @@
       ]
     },
     "frontend/src/api/inventory.ts": {
-      "count": 7,
+      "count": 4,
       "keys": [
         "InventoryQueryParams.low_stock",
         "InventoryReservation.expire_date",
         "InventoryReservation.reserved_quantity",
-        "ReservationData.expire_date",
-        "StockAdjustmentData.adjustment_quantity",
-        "TransferData.from_location",
-        "TransferData.to_location"
+        "ReservationData.expire_date"
       ]
     },
     "frontend/src/api/notification.ts": {
