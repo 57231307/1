@@ -2,7 +2,7 @@
   报价单列表页
   - 筛选（客户/状态）
   - 表格 + 分页
-  - 行操作：查看 / 编辑（draft, rejected） / 转订单（approved） / 取消（draft）
+  - 行操作：查看 / 复制为新单 / 编辑（draft, rejected） / 转订单（approved） / 取消（draft）
 -->
 <template>
   <div class="quotation-list">
@@ -116,11 +116,14 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('quotations.list.colAction')" width="340" fixed="right">
+        <el-table-column :label="t('quotations.list.colAction')" width="400" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="goDetail(row)">{{
               t('quotations.list.view')
             }}</el-button>
+            <el-button link type="primary" @click="goCopy(row)">
+              {{ t('quotations.list.copy') }}
+            </el-button>
             <el-button
               v-if="row.status === 'draft' || row.status === 'rejected'"
               v-permission="'quotation:update'"
@@ -207,7 +210,7 @@
 <script setup lang="ts">
 // 报价单列表页脚本
 // - 列表加载
-// - 行操作：查看/编辑/转订单/取消
+// - 行操作：查看/复制为新单/编辑/转订单/取消
 import { ref, reactive, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
@@ -319,6 +322,15 @@ function goDetail(row: QuotationResponseDto) {
 
 function goEdit(row: QuotationResponseDto) {
   router.push(`/quotations/${row.id}/edit`);
+}
+
+/**
+ * 复制为新单：跳转新建页并以 query 携带源报价单 id（copyFrom），
+ * 由 create.vue 复用"按 id 载入详情"逻辑预填表头与明细，但仍走新建态（isEdit=false），
+ * 保存生成新单，不覆盖源单。可见性与"查看"一致（任意可载入详情的行均可复制）。
+ */
+function goCopy(row: QuotationResponseDto) {
+  router.push({ path: '/quotations/new', query: { copyFrom: String(row.id) } });
 }
 
 async function handleCancel(row: QuotationResponseDto) {

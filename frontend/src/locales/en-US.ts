@@ -7651,6 +7651,7 @@ export default {
       colStatus: 'Status',
       colAction: 'Action',
       view: 'View',
+      copy: 'Copy',
       edit: 'Edit',
       convertOrder: 'Convert to Order',
       cancel: 'Cancel',

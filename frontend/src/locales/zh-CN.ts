@@ -7615,6 +7615,7 @@ export default {
       colStatus: '状态',
       colAction: '操作',
       view: '查看',
+      copy: '复制',
       edit: '编辑',
       convertOrder: '转订单',
       cancel: '取消',

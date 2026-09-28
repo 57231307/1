@@ -180,6 +180,8 @@
 <script setup lang="ts">
 // 新建/编辑报价单页脚本
 // - 接受 quotationId prop 时为编辑模式，否则为新建
+// - query.copyFrom 存在时为"复制为新单"：复用按 id 载入详情预填表头/明细，但仍保持新建态（isEdit=false），
+//   单号由新建流程生成、明细/条款剥离源行 id，保存走 POST 生成新单，不覆盖源单
 // - 加载客户列表
 // - 提交保存草稿 / 提交审批
 import { ref, reactive, computed, onMounted } from 'vue';
@@ -199,6 +201,9 @@ import {
   type PriceTerms,
   type CurrencyCode,
   type CustomerLevel,
+  type QuotationResponseDto,
+  type QuotationItemResponseDto,
+  type QuotationTermResponseDto,
 } from '@/api/quotation';
 import { getCustomerList } from '@/api/customer';
 import { useUserStore } from '@/store/user';
@@ -219,6 +224,14 @@ const loading = ref(false);
 const submitting = ref(false);
 
 const isEdit = computed(() => !!props.quotationId || !!route.params.id);
+
+/** 复制来源报价单 id（来自 query.copyFrom，非编辑目标，故 isEdit 保持 false） */
+const copyFromId = computed(() => {
+  const raw = route.query.copyFrom;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const id = Number(value);
+  return Number.isFinite(id) && id > 0 ? id : 0;
+});
 
 /** 当前日期 YYYY-MM-DD */
 function todayStr(): string {
@@ -321,6 +334,54 @@ async function loadCustomers() {
   }
 }
 
+/** 由报价详情构建表头字段（编辑态与复制态共用；不含明细/条款） */
+function buildQuotationHeader(data: QuotationResponseDto) {
+  return {
+    customer_id: data.customer_id,
+    sales_user_id: data.sales_user_id,
+    quotation_date: data.quotation_date,
+    valid_until: data.valid_until,
+    currency: data.currency as CurrencyCode,
+    exchange_rate: Number(data.exchange_rate),
+    base_currency: data.base_currency || 'CNY',
+    price_terms: data.price_terms as PriceTerms,
+    incoterms_version: data.incoterms_version || '2020',
+    incoterm_location: data.incoterm_location || '',
+    tax_inclusive: data.tax_inclusive,
+    tax_rate: Number(data.tax_rate),
+    moq: data.moq,
+    lead_time_days: data.lead_time_days,
+    customer_level: (data.customer_level as CustomerLevel) || 'NORMAL',
+    notes: data.notes || '',
+  };
+}
+
+/** 复制明细：按新建处理，剥离源行 id/序列/金额等响应字段，仅保留 CreateQuotationItemDto 字段 */
+function mapQuotationItemsForCopy(items: QuotationItemResponseDto[]): CreateQuotationItemDto[] {
+  return items.map(i => ({
+    product_id: i.product_id,
+    color_id: i.color_id,
+    specification: i.specification,
+    unit: i.unit,
+    quantity: i.quantity,
+    unit_price: i.unit_price,
+    unit_price_with_tax: i.unit_price_with_tax,
+    tier_pricing: i.tier_pricing,
+    discount_rate: i.discount_rate,
+    notes: i.notes,
+  }));
+}
+
+/** 复制条款：按新建处理，剥离源条款 id，仅保留 CreateQuotationTermDto 字段 */
+function mapQuotationTermsForCopy(terms: QuotationTermResponseDto[]): CreateQuotationTermDto[] {
+  return terms.map(term => ({
+    term_type: term.term_type,
+    term_key: term.term_key,
+    term_value: term.term_value,
+    sequence: term.sequence,
+  }));
+}
+
 /** 编辑模式：加载已有数据 */
 async function loadExisting() {
   const id = Number(props.quotationId || route.params.id);
@@ -330,29 +391,42 @@ async function loadExisting() {
     const res = await getQuotation(id);
     const data = res.data;
     if (data) {
-      Object.assign(form, {
-        customer_id: data.customer_id,
-        sales_user_id: data.sales_user_id,
-        quotation_date: data.quotation_date,
-        valid_until: data.valid_until,
-        currency: data.currency as CurrencyCode,
-        exchange_rate: Number(data.exchange_rate),
-        base_currency: data.base_currency || 'CNY',
-        price_terms: data.price_terms as PriceTerms,
-        incoterms_version: data.incoterms_version || '2020',
-        incoterm_location: data.incoterm_location || '',
-        tax_inclusive: data.tax_inclusive,
-        tax_rate: Number(data.tax_rate),
-        moq: data.moq,
-        lead_time_days: data.lead_time_days,
-        customer_level: (data.customer_level as CustomerLevel) || 'NORMAL',
-        notes: data.notes || '',
+      Object.assign(form, buildQuotationHeader(data), {
         items: (data.items || []) as CreateQuotationItemDto[],
         terms: (data.terms || []) as CreateQuotationTermDto[],
       });
     }
   } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('quotations.create.loadFailed')
+    );
+  } finally {
+    loading.value = false;
+  }
+}
+
+/**
+ * 复制为新单：复用"按 id 载入详情"逻辑预填表头/明细/条款，但保持新建态。
+ * - 不设置 editingId、isEdit 仍为 false，保存走 createQuotation(POST) 生成新单；
+ * - 表单本身不含 quotation_no/status/id 字段，单号由新建流程重新生成、状态为新草稿；
+ * - 明细/条款剥离源行 id，避免被当更新或污染源单。
+ */
+async function loadForCopy() {
+  const id = copyFromId.value;
+  if (!id) return;
+  loading.value = true;
+  try {
+    const res = await getQuotation(id);
+    const data = res.data;
+    if (data) {
+      Object.assign(form, buildQuotationHeader(data), {
+        items: mapQuotationItemsForCopy(data.items || []),
+        terms: mapQuotationTermsForCopy(data.terms || []),
+      });
+      // 复制的新单归属当前操作人：清零源单销售员，交由 ensureSalesUserId 按当前用户填充（与空白新建一致）
+      form.sales_user_id = 0;
+    }
+  } catch (e: unknown) {
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.create.loadFailed')
     );
@@ -452,6 +526,8 @@ onMounted(async () => {
   await loadCustomers();
   if (isEdit.value) {
     await loadExisting();
+  } else if (copyFromId.value) {
+    await loadForCopy();
   }
 });
 </script>
