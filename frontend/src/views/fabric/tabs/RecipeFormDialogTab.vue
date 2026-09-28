@@ -102,7 +102,10 @@ const formData = reactive({
   recipe_name: '',
   color_name: '',
   fabric_type: '',
-  version: '1.0',
+  // 后端 dye_recipe_handler.rs::CreateDyeRecipeRequest.version 为 Option<i32>；
+  // 此前写成字符串 '1.0' → serde 反序列化整数失败 → 422，新建被拒（03-02 红根因）。
+  // DyeRecipe.version 契约亦为 number，初值须与后端整数版本口径一致。
+  version: 1 as number,
   content: '',
   status: 'draft' as 'draft' | 'pending_approval' | 'approved' | 'disabled',
 });
@@ -113,7 +116,7 @@ const resetForm = () => {
   formData.recipe_name = '';
   formData.color_name = '';
   formData.fabric_type = '';
-  formData.version = '1.0';
+  formData.version = 1;
   formData.content = '';
   formData.status = 'draft';
 };
