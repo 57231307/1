@@ -66,7 +66,15 @@ export const getStatusLabel = (status: string | undefined | null): string => {
   return i18n.global.t(key);
 };
 
-/** 格式化货币（人民币 2 位精度） */
-export const formatCurrency = (value: number) => {
-  return value ? `¥${value.toFixed(2)}` : '¥0.00';
+/**
+ * 格式化货币（人民币 2 位精度）。
+ *
+ * 后端 purchase_contract.total_amount 为 Option\<Decimal\>（rust_decimal），
+ * serde 默认序列化为 JSON 字符串（如 "12345.67000"）而非数字。
+ * 直接对字符串调用 .toFixed() 抛 TypeError → 页面渲染崩溃。
+ * 此处以 Number(x ?? 0) 统一转换，兼容 string / number / null / undefined。
+ */
+export const formatCurrency = (value: number | string | null | undefined) => {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) && n !== 0 ? `¥${n.toFixed(2)}` : '¥0.00';
 };

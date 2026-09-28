@@ -12,7 +12,8 @@ export interface PurchaseContract {
   contract_type: string | null;
   supplier_id: number;
   supplier_name: string | null;
-  total_amount: number | null;
+  /** 后端 rust_decimal::Decimal 默认 serde 序列化为字符串（如 "12345.67"）；读展示须 Number() 化 */
+  total_amount: string | null;
   signed_date: string | null;
   effective_date: string | null;
   expiry_date: string | null;

@@ -72,7 +72,7 @@ interface PcViewData {
   contract_name?: string;
   supplier_name?: string | null;
   contract_type?: string | null;
-  total_amount?: number | null;
+  total_amount?: number | string | null;
   signed_date?: string | null;
   effective_date?: string | null;
   expiry_date?: string | null;

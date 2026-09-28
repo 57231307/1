@@ -164,6 +164,7 @@ export function usePc() {
   const prepareEdit = (row: PurchaseContract) => {
     dialogTitle.value = i18n.global.t('purchaseContract.form.dialogEditTitle');
     Object.assign(formData, row);
+    formData.total_amount = Number(row.total_amount ?? 0);
   };
 
   /**
