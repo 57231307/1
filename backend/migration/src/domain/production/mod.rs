@@ -34,6 +34,7 @@ mod m0057_normalize_stock_status_domain;
 pub(crate) mod m0058_add_delivery_tolerance;
 mod m0059_add_product_piece_roll_conversion;
 mod m0060_add_so_item_tolerance;
+mod m0061_custom_order_status_add_lab_dip_quotation;
 
 pub struct Migration;
 
@@ -159,6 +160,10 @@ impl MigrationTrait for Migration {
             .await?;
         // 销售订单行交货数量容差列（quantity_tolerance_pct），与 m0058 对称
         m0060_add_so_item_tolerance::Migration.up(manager).await?;
+        // 定制订单状态 CHECK 补齐 lab_dip/quotation（与状态机 as_str() 同源），须在建表后执行
+        m0061_custom_order_status_add_lab_dip_quotation::Migration
+            .up(manager)
+            .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
 ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_by" INTEGER;
 ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
@@ -460,6 +465,9 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0061_custom_order_status_add_lab_dip_quotation::Migration
+            .down(manager)
+            .await?;
         m0060_add_so_item_tolerance::Migration.down(manager).await?;
         m0059_add_product_piece_roll_conversion::Migration
             .down(manager)
