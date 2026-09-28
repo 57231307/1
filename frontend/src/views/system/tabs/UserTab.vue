@@ -348,8 +348,11 @@ const submitUser = async () => {
   try {
     if (userForm.id) {
       await updateUser(userForm.id, {
-        phone: userForm.phone,
-        email: userForm.email,
+        // 后端 UpdateUserRequest.email 校验 email 格式、phone 校验 length(min=1)，
+        // 空串会被序列化成 Some("") 并被这两个 validator 判 422；未填写时省略字段
+        // （契约 Option = 缺省不携带），仅在非空时提交。
+        ...(userForm.phone ? { phone: userForm.phone } : {}),
+        ...(userForm.email ? { email: userForm.email } : {}),
         role_id: userForm.role_id,
         department_id: userForm.department_id,
         // 后端 UpdateUserRequest.status 为 "active"/"inactive" 字符串（非数字）
@@ -360,8 +363,10 @@ const submitUser = async () => {
       await createUser({
         username: userForm.username,
         password: userForm.password,
-        phone: userForm.phone,
-        email: userForm.email,
+        // 同 updateUser：CreateUserRequest.email/phone 为 Option，validator 仅对
+        // Some(非空) 校验（email 格式、phone 长度≥1），未填写项省略以免空串触发 422。
+        ...(userForm.phone ? { phone: userForm.phone } : {}),
+        ...(userForm.email ? { email: userForm.email } : {}),
         role_id: userForm.role_id,
         department_id: userForm.department_id,
       });
