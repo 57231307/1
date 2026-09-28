@@ -1,5 +1,5 @@
 {
-  "total": 177,
+  "total": 176,
   "files": {
     "frontend/src/api/account-subject.ts": {
       "count": 1,
@@ -184,10 +184,9 @@
       "keys": ["FinanceReportQueryParams.company_id"]
     },
     "frontend/src/api/fund.ts": {
-      "count": 7,
+      "count": 6,
       "keys": [
         "FundAccount.account_code",
-        "FundAccount.current_balance",
         "FundAccountStatusType.active",
         "FundAccountStatusType.frozen",
         "FundAccountStatusType.inactive",

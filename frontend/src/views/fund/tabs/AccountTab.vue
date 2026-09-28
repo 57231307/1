@@ -51,14 +51,12 @@
           min-width="160"
         />
         <el-table-column
-          prop="current_balance"
+          prop="balance"
           :label="t('fund.accountTab.columnCurrentBalance')"
           width="140"
         >
           <template #default="{ row }">
-            <span class="balance-positive"
-              >¥{{ (row.current_balance || row.balance || 0).toFixed(2) }}</span
-            >
+            <span class="balance-positive">¥{{ Number(row.balance ?? 0).toFixed(2) }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -243,20 +241,18 @@
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('fund.accountTab.columnCurrentBalance')">
           <span class="balance-positive"
-            >¥{{
-              (currentAccount?.current_balance || currentAccount?.balance || 0).toFixed(2)
-            }}</span
+            >¥{{ Number(currentAccount?.balance ?? 0).toFixed(2) }}</span
           >
         </el-descriptions-item>
         <el-descriptions-item :label="t('fund.accountTab.columnFrozenBalance')">
           <span v-if="currentAccount?.frozen_balance" class="balance-frozen"
-            >¥{{ currentAccount.frozen_balance.toFixed(2) }}</span
+            >¥{{ Number(currentAccount.frozen_balance ?? 0).toFixed(2) }}</span
           >
           <span v-else>-</span>
         </el-descriptions-item>
         <el-descriptions-item :label="t('fund.accountTab.fieldAvailableBalance')">
           <span class="balance-available"
-            >¥{{ (currentAccount?.available_balance || 0).toFixed(2) }}</span
+            >¥{{ Number(currentAccount?.available_balance ?? 0).toFixed(2) }}</span
           >
         </el-descriptions-item>
         <el-descriptions-item :label="t('fund.accountTab.fieldBankName')">{{
@@ -300,9 +296,7 @@
         </el-form-item>
         <el-form-item :label="t('fund.accountTab.columnCurrentBalance')">
           <span class="balance-positive"
-            >¥{{
-              (currentAccount?.current_balance || currentAccount?.balance || 0).toFixed(2)
-            }}</span
+            >¥{{ Number(currentAccount?.balance ?? 0).toFixed(2) }}</span
           >
         </el-form-item>
         <el-form-item :label="t('fund.accountTab.fieldAmount')" prop="amount">
@@ -398,7 +392,6 @@ const accountForm = reactive<Partial<FundAccount>>({
   account_type: 'cash',
   bank_name: '',
   bank_account: '',
-  current_balance: 0,
   balance: 0,
   status: 'active',
   remark: '',
@@ -472,7 +465,6 @@ const resetForm = () => {
     account_type: 'cash',
     bank_name: '',
     bank_account: '',
-    current_balance: 0,
     balance: 0,
     status: 'active',
     remark: '',

@@ -138,11 +138,8 @@
             {{ t('fund.transferTab.availableBalance') }}:
             <span class="balance-available"
               >¥{{
-                (
-                  selectedFromAccount.available_balance ||
-                  selectedFromAccount.current_balance ||
-                  selectedFromAccount.balance ||
-                  0
+                Number(
+                  selectedFromAccount.available_balance ?? selectedFromAccount.balance ?? 0
                 ).toFixed(2)
               }}</span
             >
@@ -253,27 +250,19 @@ const selectedFromAccount = computed(() => {
 
 const availableBalance = computed(() => {
   return selectedFromAccount.value
-    ? selectedFromAccount.value.available_balance ||
-        selectedFromAccount.value.current_balance ||
-        selectedFromAccount.value.balance ||
-        0
+    ? selectedFromAccount.value.available_balance || selectedFromAccount.value.balance || 0
     : 999999999;
 });
 
 /** 格式化转出账户下拉选项标签 */
 const formatFromAccountLabel = (account: FundAccount): string => {
-  const balance = (
-    account.available_balance ||
-    account.current_balance ||
-    account.balance ||
-    0
-  ).toFixed(2);
+  const balance = Number(account.available_balance ?? account.balance ?? 0).toFixed(2);
   return `${account.account_name} (${t('fund.transferTab.available')}: ¥${balance})`;
 };
 
 /** 格式化转入账户下拉选项标签 */
 const formatToAccountLabel = (account: FundAccount): string => {
-  const balance = (account.current_balance || account.balance || 0).toFixed(2);
+  const balance = Number(account.balance ?? 0).toFixed(2);
   return `${account.account_name} (${t('fund.transferTab.current')}: ¥${balance})`;
 };
 
@@ -332,7 +321,7 @@ const buildTransferDetailLines = (d: FundTransferRecord): string[] => {
     t('fund.transferTab.detailTransferNo', { value: d.transfer_no }),
     t('fund.transferTab.detailFromAccount', { value: d.from_account_name || '-' }),
     t('fund.transferTab.detailToAccount', { value: d.to_account_name || '-' }),
-    t('fund.transferTab.detailAmount', { value: d.amount.toFixed(2) }),
+    t('fund.transferTab.detailAmount', { value: Number(d.amount ?? 0).toFixed(2) }),
     t('fund.transferTab.detailCurrentStatus', { value: getTransferStatusLabel(d.status) }),
     t('fund.transferTab.detailCreatedAt', { value: d.created_at }),
     t('fund.transferTab.detailRemark', { value: d.remark || '-' }),

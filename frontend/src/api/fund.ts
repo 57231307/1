@@ -17,7 +17,6 @@ export interface FundAccount {
   account_name: string;
   account_type: string;
   balance?: number;
-  current_balance?: number;
   frozen_balance?: number;
   available_balance?: number;
   status: string;
