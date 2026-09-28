@@ -7,11 +7,31 @@ import { apiCall, tryCleanup } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
 
 // AI 推理端点有真实的按用户限流（middleware/rate_limit.rs::rate_limit_ai_endpoint，
-// 10 req/min/user，整段 ai_extend 路由含 GET 列表/详情/acknowledge 都计入同一 user 桶）。
-// 同分片同一账号在 AI 套件里连续建单/翻页/详情回源会短时超限 → POST 返回 429。
-// 限流是安全设计，严禁为过测关闭/放宽；合规做法：仅对 429 按其 Retry-After（固定窗口 60s）
-// 退避到窗口重置后重试；非 429 的真实错误一律不重试，让断言如实失败。
-const AI_WINDOW_RESET_MS = 61_000;
+// 10 req/min/user，整段 ai_extend 路由含 GET 列表/详情/acknowledge 都计入同一 user 桶，
+// 该限流不受 is_production() 保护，CI 里始终生效）。extras 分片 --workers=2 文件间并行，
+// ai/01 与 ai/02 两条链共享同一 storageState 账号（e2e_admin_s{shard}，admin 角色，故 POST
+// 非 403），两条链的 GET + POST 合计可短时超过 10 req/min → POST 返回 429。
+// 限流是安全设计，严禁为过测关闭/放宽。合规做法：仅对 429 按其 Retry-After 头动态等待到固定
+// 窗口重置后重试。上一版用逐字相同的 61s 定长退避，两条并行链锁步（同时睡醒→同时再发→再次
+// 一起击穿窗口），耗尽尝试后成功 toast 永不出；改为 Retry-After + 5-15s 随机抖动错峰唤醒。
+// 非 429 的真实错误一律不重试，让断言如实失败。累计退避封顶 300s，落在用例 420s 超时内。
+const AI_BACKOFF_BUDGET_MS = 300_000;
+
+/** 取 429 响应的 Retry-After 头（秒），缺省按固定窗口 60s；加 5-15s 抖动错峰唤醒。 */
+async function waitUntilWindowReset(
+  page: import('@playwright/test').Page,
+  resp: import('@playwright/test').Response
+): Promise<void> {
+  const retryAfterSec = Number(resp.headers()['retry-after'] ?? '60') || 60;
+  const jitterMs = 5_000 + Math.floor(Math.random() * 10_000);
+  await page.waitForTimeout(retryAfterSec * 1000 + jitterMs);
+}
+
+/** apiCall 无法直接拿到响应头，按固定窗口 60s + 5-15s 抖动错峰等待。 */
+async function waitWindowResetBlind(page: import('@playwright/test').Page): Promise<void> {
+  const jitterMs = 5_000 + Math.floor(Math.random() * 10_000);
+  await page.waitForTimeout(60_000 + jitterMs);
+}
 
 /** 判定 apiCall 抛出的错误是否为限流 429（统一失败信封 code=TOO_MANY_REQUESTS，HTTP 429）。 */
 function isRateLimited(e: unknown): boolean {
@@ -38,7 +58,8 @@ test.afterEach(async ({ page }) => {
 async function seedUnacknowledgedPrediction(
   page: import('@playwright/test').Page
 ): Promise<number> {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  const deadline = Date.now() + AI_BACKOFF_BUDGET_MS;
+  for (;;) {
     try {
       const created = await apiCall<{ id?: number }>(page, 'POST', '/ai/quality-predictions', {
         request: { inspection_type: 'all', window_days: 90 },
@@ -49,19 +70,23 @@ async function seedUnacknowledgedPrediction(
       return id;
     } catch (e) {
       if (isRateLimited(e)) {
-        // 尊重限流：等窗口重置后重试；不关闭/放宽限流。非 429 的真实错误直接暴露。
-        await page.waitForTimeout(AI_WINDOW_RESET_MS);
+        // 尊重限流：等窗口重置后重试（错峰抖动，避免与 ai/01 并行链锁步）；不关闭/放宽限流。
+        // 非 429 的真实错误直接暴露。退避总时长封顶于用例超时。
+        if (Date.now() >= deadline) {
+          throw new Error('seedUnacknowledgedPrediction 累计退避超预算仍被限流，放弃');
+        }
+        await waitWindowResetBlind(page);
         continue;
       }
       throw e;
     }
   }
-  throw new Error('seedUnacknowledgedPrediction 退避 5 次仍被限流，放弃');
 }
 
 /**
- * 对 UI 触发的 AI POST 做 429 退避重试：点击按钮 → 等待对应 POST 响应；命中 429 则等窗口重置
- * 后重新点击（前端失败分支不关弹窗，可直接重试）。非 429 停止重试，交由成功断言如实失败。
+ * 对 UI 触发的 AI POST 做 429 退避重试：点击按钮 → 等待对应 POST 响应；命中 429 则按其
+ * Retry-After 头动态等待到窗口重置（加抖动错峰）后重新点击（前端失败分支不关弹窗，可直接重试）。
+ * 非 429 停止重试，交由成功断言如实失败。累计退避封顶于用例 420s 超时内。
  */
 async function clickSubmitWithBackoff(
   page: import('@playwright/test').Page,
@@ -69,7 +94,8 @@ async function clickSubmitWithBackoff(
   buttonName: string | RegExp,
   postUrlMatch: string
 ): Promise<void> {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  const deadline = Date.now() + AI_BACKOFF_BUDGET_MS;
+  for (;;) {
     const respPromise = page.waitForResponse(
       r => r.request().method() === 'POST' && r.url().includes(postUrlMatch),
       { timeout: 60_000 }
@@ -77,7 +103,10 @@ async function clickSubmitWithBackoff(
     await root.getByRole('button', { name: buttonName }).click();
     const resp = await respPromise;
     if (resp.status() === 429) {
-      await page.waitForTimeout(AI_WINDOW_RESET_MS);
+      if (Date.now() >= deadline) {
+        break;
+      }
+      await waitUntilWindowReset(page, resp);
       continue;
     }
     break;

@@ -3,7 +3,7 @@
 // 创建时间: 2026-06-17
 
 import { request } from './request';
-import type { PaginatedResponse } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 // =====================================================
 // 公共类型
@@ -152,9 +152,10 @@ export interface AiSummary {
 
 /** 触发工艺优化（算法 + 落库） */
 export function createProcessOptimization(request_body: ProcessOptRequest) {
-  return request.post<{ id: number; response: ProcessOptResponse }>('/ai/process-optimizations', {
-    request: request_body,
-  });
+  return request.post<ApiResponse<{ id: number; response: ProcessOptResponse }>>(
+    '/ai/process-optimizations',
+    { request: request_body }
+  );
 }
 
 /** 工艺优化列表 */
@@ -218,9 +219,10 @@ export function batchCreateProcessOptimizations(requests: ProcessOptRequest[]) {
 
 /** 触发质量预测（算法 + 落库） */
 export function createQualityPrediction(request_body: QualityPredRequest) {
-  return request.post<{ id: number; response: QualityPredResponse }>('/ai/quality-predictions', {
-    request: request_body,
-  });
+  return request.post<ApiResponse<{ id: number; response: QualityPredResponse }>>(
+    '/ai/quality-predictions',
+    { request: request_body }
+  );
 }
 
 /** 质量预测列表 */

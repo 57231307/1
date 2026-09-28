@@ -100,13 +100,17 @@ async function submitCreate() {
   }
   submitting.value = true;
   try {
+    // request 拦截器返回完整 ApiResponse 信封（{code,message,data}），真实载荷在 resp.data。
+    // 直接读 resp.response 会取到 undefined → 落入 catch 误弹「创建失败」，尽管 POST 实际 200。
     const resp = await createQualityPrediction({ ...form });
+    const created = resp.data;
     ElMessage.success(
       t('aiExtend.qualityPrediction.predictSuccess', {
-        risk: RISK_LEVEL_LABELS[resp.response.risk_level],
-        score: resp.response.risk_score,
+        risk: RISK_LEVEL_LABELS[created.response.risk_level],
+        score: created.response.risk_score,
         trend:
-          TREND_LABELS[resp.response.trend as keyof typeof TREND_LABELS] ?? resp.response.trend,
+          TREND_LABELS[created.response.trend as keyof typeof TREND_LABELS] ??
+          created.response.trend,
       })
     );
     dialogVisible.value = false;

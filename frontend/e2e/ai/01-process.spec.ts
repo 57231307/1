@@ -5,11 +5,27 @@ import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 
 // AI 推理端点有真实的按用户限流（backend middleware/rate_limit.rs::rate_limit_ai_endpoint，
-// 10 req/min/user，整段 ai_extend 路由含 GET 列表都计数）。同分片同一账号在 AI 套件里连续
-// 建单/翻页会短时超限，UI 建单 POST 返回 429 → submitCreate 落入 catch 弹「创建失败」而非
-// 成功 toast（用例红）。限流是安全设计，严禁为过测放宽/关闭；合规做法是：仅对 429 按其
-// Retry-After（固定窗口 60s）退避到窗口重置后重试，非 429 的真实错误一律不重试、让断言如实失败。
-const AI_WINDOW_RESET_MS = 61_000;
+// 10 req/min/user，整段 ai_extend 路由含 GET 列表/详情/acknowledge 都计入同一 user 桶，
+// 且该限流不受 is_production() 保护——CI 里与生产一样始终生效）。extras 分片按用例 hash 混排
+// 多目录并以 --workers=2 文件间并行，ai/01 与 ai/02 两条链共享同一 storageState 账号
+// （e2e_admin_s{shard}，admin 角色，故 POST 非 403），两条链的 GET 列表 + POST 建单合计可短时
+// 超过 10 req/min → 建单 POST 返回 429，submitCreate 落入 catch 弹「创建失败」而非成功 toast。
+// 限流是安全设计，严禁为过测放宽/关闭。合规做法：仅对 429 按其 Retry-After 头动态等待到固定
+// 窗口重置后重试——关键是用抖动打散两条并行链的唤醒时刻：上一版用逐字相同的 61s 定长退避，
+// 两条链会锁步（同时睡醒→同时再发→再次一起击穿窗口），5 次耗尽后成功 toast 永不出。改为
+// Retry-After + 5-15s 随机抖动后两链错峰，必有一条落入真正空闲的窗口。非 429 的真实错误
+// （4xx/5xx）一律不重试，让断言如实失败。累计退避封顶 300s，落在用例 420s 超时内。
+const AI_BACKOFF_BUDGET_MS = 300_000;
+
+/** 取 429 响应的 Retry-After 头（秒），缺省按固定窗口 60s；加 5-15s 抖动错峰唤醒。 */
+async function waitUntilWindowReset(
+  page: import('@playwright/test').Page,
+  resp: import('@playwright/test').Response
+): Promise<void> {
+  const retryAfterSec = Number(resp.headers()['retry-after'] ?? '60') || 60;
+  const jitterMs = 5_000 + Math.floor(Math.random() * 10_000);
+  await page.waitForTimeout(retryAfterSec * 1000 + jitterMs);
+}
 
 async function submitCreateWithBackoff(
   page: import('@playwright/test').Page,
@@ -18,7 +34,8 @@ async function submitCreateWithBackoff(
   postUrlMatch: string,
   successText: string
 ): Promise<void> {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  const deadline = Date.now() + AI_BACKOFF_BUDGET_MS;
+  for (;;) {
     const respPromise = page.waitForResponse(
       r => r.request().method() === 'POST' && r.url().includes(postUrlMatch),
       { timeout: 60_000 }
@@ -26,11 +43,15 @@ async function submitCreateWithBackoff(
     await dlg.getByRole('button', { name: submitName }).click();
     const resp = await respPromise;
     if (resp.status() === 429) {
-      // 尊重限流：等窗口重置后重试（submitCreate 失败时不关弹窗，可直接再次提交）
-      await page.waitForTimeout(AI_WINDOW_RESET_MS);
+      // 仅退避到 Retry-After 指示的窗口重置之后；退避总时长封顶于用例超时。
+      if (Date.now() >= deadline) {
+        break;
+      }
+      // submitCreate 失败分支不关弹窗，可直接再次提交。
+      await waitUntilWindowReset(page, resp);
       continue;
     }
-    // 2xx 或真实业务错误（4xx/5xx 非 429）都停止重试；后者会让下方成功断言如实失败
+    // 2xx 或真实业务错误（4xx/5xx 非 429）都停止重试；后者让下方成功断言如实失败。
     break;
   }
   await expect(page.locator('.el-message').filter({ hasText: successText })).toBeVisible({

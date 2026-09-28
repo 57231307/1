@@ -137,17 +137,21 @@ async function submitCreate() {
   }
   submitting.value = true;
   try {
+    // request 拦截器返回完整 ApiResponse 信封（{code,message,data}），真实载荷在 resp.data。
+    // 直接读 resp.response 会取到 undefined → .toFixed 抛错落入 catch 误弹「创建失败」，
+    // 尽管 POST 实际 200。必须经 resp.data 解包（与 useTableApi/bpm-enhanced 的信封约定一致）。
     const resp = await createProcessOptimization({ ...form });
+    const created = resp.data;
     ElMessage.success(
       t('aiExtend.process.recommendSuccess', {
-        source: SOURCE_LABELS[resp.response.source],
-        confidence: resp.response.confidence.toFixed(2),
+        source: SOURCE_LABELS[created.response.source],
+        confidence: created.response.confidence.toFixed(2),
       })
     );
     dialogVisible.value = false;
     page.value = 1;
     await load();
-    router.push(`/ai-extend/process-detail/${resp.id}`);
+    router.push(`/ai-extend/process-detail/${created.id}`);
   } catch (e) {
     ElMessage.error(t('message.createFailed'));
   } finally {
