@@ -14,8 +14,10 @@ import { apiCallRaw } from '../flow/helpers';
  * - InvoiceTab 真实控件：页标题 '应收发票'（arModule.invoice.title）、
  *   按钮 '新建发票'（arModule.invoice.create）、状态筛选下拉 + '搜索'/'重置'、
  *   发票列表（列 发票编号/客户/发票金额/税额/已收/未收/状态），行内 '详情' / DRAFT 行 '审核' / '取消'。
- *   新建发票对话框（createTitle '新建应收发票'）字段：客户 select / 发票编号 input /
- *   发票日期 date / 到期日期 date / 发票金额 spinbutton / 税额 spinbutton / 备注；底部 '取消' / '确认'。
+ *   新建发票对话框（createTitle '新建应收发票'）字段：客户 select / 发票日期 date / 到期日期 date /
+ *   发票金额 spinbutton / 税额 spinbutton / 备注；底部 '取消' / '确认'。
+ *   发票编号由后端 generate_invoice_no 自生成（CreateArInvoiceRequestDto 无 invoice_no 字段），
+ *   新建对话框对发票编号只做只读回显、不采集，故本用例不填发票编号；到期日为选填（留空后端回退当天）。
  *   提交成功 → ElMessage.success(t('common.success') = '操作成功')。
  * - PaymentTab 真实控件：'新建收款'（arModule.payment.create）→ 对话框字段 客户(input-number)/
  *   收款日期(date)/收款方式(select)/收款金额(spinbutton)/备注，底部 '取消'/'保存'；
@@ -45,8 +47,7 @@ test.describe('05 AR 应收发票与收款', () => {
     await expect(dialog).toBeVisible();
     // 客户（el-select，label '客户'）：pickSelectIn 点 wrapper→选首项
     await pickSelectIn(dialog, page, '客户');
-    // 发票编号 / 发票金额
-    await dialog.getByPlaceholder('请输入发票编号').fill('E2E-AR-TEST-001');
+    // 发票金额（首个 el-input-number）；发票日期在打开对话框时默认今天、到期日选填留空
     await dialog.getByRole('spinbutton').first().fill('10000');
     await dialog.getByRole('button', { name: '确认', exact: true }).click();
     // createARInvoice 成功 → ElMessage.success(common.success = '操作成功')
@@ -78,11 +79,16 @@ test.describe('05 AR 应收发票与收款', () => {
     await spins.first().fill(String(customerId)); // customer_id（真实存在的客户 ID）
     // 收款日期（PaymentTab.vue:70-71 el-date-picker）：其内层 input 带 role=combobox
     // （EP 日期选择器开弹层语义），与「收款方式」el-select 同为 combobox →
-    // 旧 dialog.getByRole('combobox').click() strict 命中 2 个。原测试又漏填日期（后端 payment_date
-    // 必填）。改走真实手输：定位 .el-date-editor 输入框，点开→输入→回车。
+    // 旧 dialog.getByRole('combobox').click() strict 命中 2 个。改走真实手输：定位 .el-date-editor 输入框，点开→输入→回车。
+    // ⚠️ 日期必须落在已存在的会计期间内：后端 create_payment→check_date_locked_txn
+    // （accounting_period_service.rs:645）要求 payment_date 命中 accounting_periods 的 [start,end]，
+    // 否则报「日期 xxx 不在任何已设置的会计期间内」→ 只出错误 toast、永不出「操作成功」。
+    // global-setup 步骤 17.5 只种子「当前年月」的会计期间，故此处取当天（必在该期间内），
+    // 而非硬编码历史月日（如 2026-08-19，CI 跨到别的月份即落期间外被拒）。
+    const paymentDate = new Date().toISOString().slice(0, 10);
     const payDate = dialog.locator('.el-date-editor input').first();
     await payDate.click();
-    await payDate.fill('2026-08-19');
+    await payDate.fill(paymentDate);
     await payDate.press('Enter');
     // 收款方式：对话框内唯一 el-select（label '收款方式'，避开 date-picker 的 combobox），
     // pickSelectIn 点 wrapper→选含“银行转账”的项。
