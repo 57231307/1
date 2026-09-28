@@ -294,7 +294,11 @@ const validatePassword = (_rule: unknown, v: string, cb: (error?: Error) => void
 const userRules: FormRules = {
   username: [
     { required: true, message: t('system.user.validation.usernameRequired'), trigger: 'blur' },
-    { min: 3, max: 20, message: t('system.user.validation.usernameLength'), trigger: 'blur' },
+    // 与后端 CreateUserRequest.username validator 对齐：min=3, max=50（user_handler.rs:77）。
+    // 旧前端上限 20 严于后端 50，会拦截一个后端合法（≤50）的用户名，在 ElForm.validate()
+    // 阶段即判失败 → 短路不发请求 → 「创建成功」永不出现（e2e 01-03 红根因）。属前端校验与
+    // 后端契约不符，非断言问题；以前端契约（后端为准）修正上限，不放宽测试断言。
+    { min: 3, max: 50, message: t('system.user.validation.usernameLength'), trigger: 'blur' },
   ],
   password: [{ required: true, validator: validatePassword, trigger: 'blur' }],
   email: [{ validator: validateEmail, trigger: 'blur' }],
