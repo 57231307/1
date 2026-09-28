@@ -35,10 +35,12 @@ impl QuotationService {
         dto: CreateQuotationDto,
         user_id: i64,
     ) -> Result<sales_quotation::Model, ServiceError> {
-        let quotation_no = self.generate_quotation_no().await?;
         let (subtotal, tax_amount, total_amount) = self.calculate_totals(&dto)?;
         self.validate_create(&dto)?;
         let txn = self.db.begin().await?;
+        // 报价单号在插入事务内生成：通用生成器的 pg_advisory_xact_lock 持续到本事务提交，
+        // 串行化并发的「计数→插入」，避免并发建单拼出相同 QT 号再撞唯一约束（500）。
+        let quotation_no = Self::generate_quotation_no_txn(&txn).await?;
         let now = Utc::now();
         let active = Self::build_new_quotation_active(
             &dto,
