@@ -357,6 +357,43 @@ export const createFollowUp = (
   data: { type: string; content: string; next_follow_date?: string }
 ) => request.post<ApiResponse<FollowUpRecord>>(`/crm/customers/${customerId}/follow-ups`, data);
 
+/**
+ * 商机跟进记录创建请求，对齐后端 services/crm/opp.rs::CreateOpportunityFollowUpRequest
+ * （该结构体无 #[serde(rename_all)]，按原样 snake_case；follow_up_type/content 必填，
+ *  follow_up_time/next_follow_up_date 为 Option）。客户跟进的 {type/next_follow_date} 键集与之不同，
+ *  不可复用 createFollowUp。
+ */
+export interface OpportunityFollowUpInput {
+  follow_up_type: string;
+  content: string;
+  next_follow_up_date?: string;
+}
+
+/**
+ * 商机跟进记录，对齐后端 models/opportunity_follow_up.rs::Model（handler 经 to_value 序列化为
+ * snake_case，Option 列输出 null）。与客户实体跟进 FollowUpRecord 是不同表/不同端点。
+ */
+export interface OpportunityFollowUpRecord {
+  id: number;
+  opportunity_id: number;
+  follow_up_type: string;
+  content: string;
+  follow_up_time: string;
+  next_follow_up_date: string | null;
+  user_id: number;
+  user_name: string;
+  created_at: string | null;
+}
+
+// 商机跟进记录：POST /crm/opportunities/{id}/follow-ups
+// 后端 routes/crm.rs:496 create_opportunity_follow_up —— 与客户 /crm/customers/{id}/follow-ups
+// 是两个不同域端点，商机跟进必须走此端点，不能把 opportunityId 传给 createFollowUp。
+export const createOpportunityFollowUp = (opportunityId: number, data: OpportunityFollowUpInput) =>
+  request.post<ApiResponse<OpportunityFollowUpRecord>>(
+    `/crm/opportunities/${opportunityId}/follow-ups`,
+    data
+  );
+
 // RFM 模型
 // D14 Batch 5b：原 crmEnhancedApi.getRfmScore 转为风格 B 函数
 export const getCustomerRfmScore = (customerId: number) =>
