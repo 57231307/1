@@ -39,8 +39,36 @@ export interface PurchaseInspection {
 }
 
 /**
- * 明细出参：后端 purchase_inspection_item::Model 的键为 snake_case。
- * product_name/product_code 由 list_inspection_items 的 JOIN 产出（schema gap：后端无此列）。
+ * 明细出参 = 后端 purchase_inspection_item::Model 原键
+ * （services/purchase_inspection_service.rs:323 list_inspection_items 直接序列化实体，
+ * 无 JOIN、无别名：产品名/预期数量这类列在明细表里根本不存在）。
+ * qualified/unqualified 为 DECIMAL，经 JSON 序列化为字符串（如 "50.0000"），故取并集。
+ * 端点信封为 { items, total, inspection_id }（handlers/purchase_inspection_handler.rs:185-189）。
+ */
+export interface PurchaseInspectionItemRecord {
+  id: number;
+  inspection_id: number;
+  product_id: number;
+  /** 检验项目名称（purchase_inspection_item.item_name，该表唯一的名称列） */
+  item_name: string;
+  qualified_quantity: number | string;
+  unqualified_quantity: number | string;
+  remark: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PurchaseInspectionItemListResponse {
+  items: PurchaseInspectionItemRecord[];
+  total: number;
+  inspection_id: number;
+}
+
+/**
+ * 检验单明细的 UI 行模型（新建/编辑表单与详情对话框的 el-table 数据形状）。
+ * 注意：这不是 /inspections/{id}/items 的出参类型——后端明细只有 item_name /
+ * qualified_quantity / unqualified_quantity / remark 四列业务字段，
+ * 读侧请用 `PurchaseInspectionItemRecord` 再映射到本模型（见 usePiProc / usePrRtn）。
  */
 export interface PurchaseInspectionItem {
   id?: number;
@@ -49,11 +77,32 @@ export interface PurchaseInspectionItem {
   product_name?: string;
   product_code?: string;
   expected_quantity?: number;
-  inspected_quantity: number;
+  /** UI 编辑态字段（purchase_inspection_item 无此列，读侧映射不填） */
+  inspected_quantity?: number;
   passed_quantity: number;
   failed_quantity: number;
   defect_reason?: string;
   remark?: string;
+}
+
+/**
+ * 明细出参记录 → 检验明细 UI 行（新建/编辑表单与详情对话框表格的数据形状）。
+ *
+ * purchase_inspection_item 只有 item_name / qualified_quantity / unqualified_quantity / remark
+ * 四个业务列：item_name 是该表唯一的名称列，映射到行上的 product_name 供「产品名称」列显示；
+ * expected_quantity / inspected_quantity / defect_reason 后端从不提供（明细表无这些列），
+ * 映射时如实不写，不用其它列凑数。数量列为 DECIMAL（JSON 里是字符串），统一 Number() 归一。
+ */
+export function toInspectionUiRow(record: PurchaseInspectionItemRecord): PurchaseInspectionItem {
+  return {
+    id: record.id,
+    inspection_id: record.inspection_id,
+    product_id: record.product_id,
+    product_name: record.item_name,
+    passed_quantity: Number(record.qualified_quantity),
+    failed_quantity: Number(record.unqualified_quantity),
+    remark: record.remark ?? undefined,
+  };
 }
 
 export interface PurchaseInspectionQueryParams {
@@ -150,11 +199,10 @@ export interface CompleteInspectionPayload {
 export const completePurchaseInspection = (id: number, data: CompleteInspectionPayload) =>
   request.post<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}/complete`, data);
 
-// 获取检验明细；后端 list_inspection_items 返回 {items:[], total, inspection_id} 嵌套对象
+// 获取检验明细；后端 list_inspection_items 返回 {items:[], total, inspection_id} 嵌套对象，
+// items = purchase_inspection_item::Model 原键（见 PurchaseInspectionItemRecord）
 export const getPurchaseInspectionItemList = (id: number) =>
-  request.get<ApiResponse<{ items: PurchaseInspectionItem[]; total: number }>>(
-    `/purchase/inspections/${id}/items`
-  );
+  request.get<ApiResponse<PurchaseInspectionItemListResponse>>(`/purchase/inspections/${id}/items`);
 
 // 创建检验明细：请求体严格为 CreateInspectionItemPayload（对齐后端 CreateInspectionItemDto）。
 export const createPurchaseInspectionItem = (id: number, data: CreateInspectionItemPayload) =>

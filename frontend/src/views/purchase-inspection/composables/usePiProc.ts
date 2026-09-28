@@ -19,6 +19,7 @@ import {
   type PurchaseInspectionItem,
   type CreatePurchaseInspectionPayload,
   type UpdatePurchaseInspectionPayload,
+  toInspectionUiRow,
 } from '@/api/purchase-inspection';
 import { logger } from '@/utils/logger';
 
@@ -124,7 +125,7 @@ export function usePiProc(cb: PiCallbacks) {
       try {
         const itemsRes = await getPurchaseInspectionItemList(row.id);
         if (cb.formData.id === row.id) {
-          cb.formData.items = itemsRes.data.items;
+          cb.formData.items = itemsRes.data.items.map(toInspectionUiRow);
         }
       } catch (error) {
         logger.error('[purchase-inspection] 明细回填失败', error);
@@ -144,7 +145,7 @@ export function usePiProc(cb: PiCallbacks) {
       cb.detailDialogVisible = true;
       try {
         const itemsRes = await getPurchaseInspectionItemList(row.id!);
-        cb.detailItems = itemsRes.data.items;
+        cb.detailItems = itemsRes.data.items.map(toInspectionUiRow);
       } catch (error) {
         logger.error('[purchase-inspection] 详情明细加载失败', error);
       }

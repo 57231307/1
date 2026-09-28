@@ -183,15 +183,20 @@ export function usePi() {
 
   /**
    * 入库单变化时：
-   * 1. 从入库单派生 supplier_id（CreatePurchaseInspectionRequest 实际必填 supplier_id，缺失时后端拒绝）
-   * 2. 加载入库单明细作为质检明细初始值
+   * 1. 把选中的入库单落回 formData.receipt_id（表单项 prop="receipt_id" 的必填校验与
+   *    创建 payload 都读这一处；表单子组件的明细镜像只读不写该键，父组件是唯一写入方，
+   *    否则选完入库单后 receipt_id 恒为 undefined，el-form 校验挡下提交、质检单永远建不出来）
+   * 2. 从入库单派生 supplier_id（CreatePurchaseInspectionRequest 实际必填 supplier_id，缺失时后端拒绝）
+   * 3. 加载入库单明细作为质检明细初始值
    */
   const handleReceiptChange = async (receiptId: number) => {
     if (!receiptId) {
+      formData.receipt_id = undefined;
       formData.items = [];
       formData.supplier_id = undefined;
       return;
     }
+    formData.receipt_id = receiptId;
     // 从已加载的 receipts 列表中找到所选入库单的 supplier_id
     const receipt = receipts.value.find(r => r.id === receiptId);
     if (receipt) {

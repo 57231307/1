@@ -9,19 +9,23 @@
 //   zh-CN:8805）→ 打开 PurchaseInspectionForm.vue 对话框（aria-label purchaseInspection.form.ariaLabel.create
 //   = '新建检验单对话框'，zh-CN:8875）。
 // - 表单第一个字段即「入库单号」下拉（PurchaseInspectionForm.vue:30-44，label purchaseInspection.form.label.
-//   receiptNo = '入库单号' zh-CN:8880），选项 = 已加载的入库单 receipt_no；选中后 usePi.handleReceiptChange
-//   （usePi.ts:189-229）从入库单派生 supplier_id 并带出明细。第二个必填项「检验日期」（formRules:107-122）。
-//   payload 含 receipt_id + supplier_id（usePiProc.ts:181-187），supplier_id 缺失会被前端拦截
-//   （usePiProc.ts:174-180 message.supplierNotDerived = '入库单未带出供应商，无法创建质检单' zh-CN:8796）。
+//   receiptNo = '入库单号' zh-CN:8880），选项 = 已加载的入库单 receipt_no；该下拉只 emit
+//   receipt-change，receipt_id 由 usePi.handleReceiptChange（usePi.ts:192-234）写入 formData 后
+//   经 props 镜像回表单（父组件是唯一写入方）；同一函数还从入库单派生 supplier_id 并带出明细。
+//   第二个必填项「检验日期」（formRules:107-122）。
+//   payload 含 receipt_id + supplier_id（usePiProc.ts:182-188），supplier_id 缺失会被前端拦截
+//   （usePiProc.ts:175-181 purchaseInspection.message.supplierNotDerived
+//    = '入库单未带出供应商，无法创建质检单' zh-CN:8796）。
 // - 提交按钮 purchaseInspection.form.button.confirm = '确定'（zh-CN:8902）；成功 toast
-//   msg.success('createSuccess') = message.createSuccess = '新增成功'（zh-CN:67）。
+//   msg.success('createSuccess') 走 message 命名空间（utils/message.ts 的 t() 固定前缀 message.），
+//   即 zh-CN:1446 message.createSuccess = '创建成功'（不是 common/其它命名空间里的 '新增成功'）。
 // - 录入结果不是「带 label 的合格/不合格/原因表单」，而是列表行内「完成」按钮（table.button.complete =
 //   '完成' zh-CN:8929，仅 inspection_status==='pending' 时渲染 PurchaseInspectionTable.vue:89-96）
-//   → usePiProc.handleComplete（:205-252）弹三连 ElMessageBox.prompt：合格数量（complete.passQuantityTip =
-//   '请输入合格数量' zh-CN:8935）→ 不合格数量（rejectQuantityTip = '请输入不合格数量' zh-CN:8937）→
-//   质检结论（resultTip = '请输入质检结论（pass / fail / partial）' zh-CN:8940，pattern /^(pass|fail|partial)$/）。
+//   → usePiProc.handleComplete（:206-253）弹三连 ElMessageBox.prompt：合格数量（complete.passQuantityTip =
+//   '请输入合格数量' zh-CN:8936）→ 不合格数量（rejectQuantityTip = '请输入不合格数量' zh-CN:8938）→
+//   质检结论（resultTip = '请输入质检结论（pass / fail / partial）' zh-CN:8941，pattern /^(pass|fail|partial)$/）。
 //   每个 prompt 确认按钮 = t('common.confirm') = '确认'（zh-CN:18）。成功 toast
-//   msg.success('operationSuccess') = '操作成功'（zh-CN:64）。
+//   msg.success('operationSuccess') = message.operationSuccess = '操作成功'（zh-CN:1453）。
 // - 状态/结果 tag 文案（PurchaseInspectionTable.vue 状态列 getStatusText / 结果列 getResultText，
 //   piFmts.ts + utils/purchase-inspection-status.ts）：inspection_status pending→'待检验'（zh-CN:8858）
 //   completed→'已完成'（zh-CN:8859）；inspection_result pass→'合格'（zh-CN:8863）partial→'部分合格'
@@ -162,7 +166,7 @@ async function seedConfirmedReceipt(page: import('@playwright/test').Page): Prom
 
 /**
  * 在 /purchase-inspection 页用真实 UI 新建一张质检单：
- * 「新建检验单」→ 选「入库单号」→ 填「检验日期」→「确定」→ 断言新增成功 toast + 本用例种子行出现。
+ * 「新建检验单」→ 选「入库单号」→ 填「检验日期」→「确定」→ 断言创建成功 toast + 本用例种子行出现。
  * 返回定位到该新行的 Locator（以唯一 receipt_no 锚定，不依赖分页顺序）。
  */
 async function createInspectionViaUI(
@@ -189,8 +193,8 @@ async function createInspectionViaUI(
   // 提交：form.button.confirm = '确定'
   await dialog.getByRole('button', { name: '确定', exact: true }).click();
 
-  // 真实 createSuccess toast = '新增成功'
-  await expect(page.locator('.el-message').filter({ hasText: '新增成功' }).first()).toBeVisible({
+  // 真实 createSuccess toast = message.createSuccess = '创建成功'
+  await expect(page.locator('.el-message').filter({ hasText: '创建成功' }).first()).toBeVisible({
     timeout: 30_000,
   });
 
