@@ -476,7 +476,11 @@ test.describe('SKU 对照表 - 完整 UI happy-path（admin 全权路径）', ()
     // 协议价
     await fillFieldByLabel(dialog, page, '协议价', '66.60');
 
-    // 提交并捕获创建响应 id（跳过 CSRF 竞败的 403 中间态）
+    // 提交并捕获创建响应 id（跳过 CSRF 竞败的 403 中间态）。
+    // 对话框主按钮走 t('common.confirm')，真实文案为「确认」（非「确定」）——
+    // 本仓 common.confirm=「确认」被 23 个视图与 ui-helpers.submitDialog 默认词表共用；
+    // 旧正则 /确定|保存|提交/ 漏掉「确认」→ .last() 零命中 → 点击 30s 超时、POST 从不发出（假红）。
+    // 锚定到对话框作用域后仅「确认」命中，无「取消」子串歧义（取消不含上述任一词）。
     const respPromise = page.waitForResponse(
       r =>
         r.url().includes('/purchase/sku-mappings') &&
@@ -485,7 +489,7 @@ test.describe('SKU 对照表 - 完整 UI happy-path（admin 全权路径）', ()
       { timeout: 30_000 }
     );
     await dialog
-      .getByRole('button', { name: /确定|保存|提交/ })
+      .getByRole('button', { name: /确定|确认|保存|提交/ })
       .last()
       .click();
     const resp = await respPromise;
@@ -577,7 +581,8 @@ test.describe('SKU 对照表 - 完整 UI happy-path（purchaser 自证）', () =
     // 协议价
     await fillFieldByLabel(dialog, page, '协议价', '55.55');
 
-    // 提交并捕获创建响应（purchaser 已授 sku-mappings:create）
+    // 提交并捕获创建响应（purchaser 已授 sku-mappings:create）。
+    // 主按钮真实文案「确认」= t('common.confirm')；正则须含「确认」，否则点击零命中超时、POST 不发出。
     const respPromise = page.waitForResponse(
       r =>
         r.url().includes('/purchase/sku-mappings') &&
@@ -586,7 +591,7 @@ test.describe('SKU 对照表 - 完整 UI happy-path（purchaser 自证）', () =
       { timeout: 30_000 }
     );
     await dialog
-      .getByRole('button', { name: /确定|保存|提交/ })
+      .getByRole('button', { name: /确定|确认|保存|提交/ })
       .last()
       .click();
     const resp = await respPromise;
