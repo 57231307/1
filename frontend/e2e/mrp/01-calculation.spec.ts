@@ -37,19 +37,22 @@ test.describe('MRP 计算', () => {
     const calcBtn = page.getByRole('button', { name: /开始计算/ });
     await expect(calcBtn, 'MRP 页面应渲染"开始计算"按钮').toBeVisible({ timeout: 30000 });
 
+    // 需求日期为 el-date-picker：先于产品多选填写。产品是 multiple remote el-select，
+    // 其 teleport 到 body 的下拉面板会覆盖同表单下一行的日期输入框；若在选完产品后再点
+    // date input，Playwright click 的 hit-target 校验被面板拦截 → 30s 超时（本用例红根因）。
+    // 先填日期（此时无面板遮挡）再驱动产品多选，交互顺序与页面真实操作一致。
+    const calcForm = page.getByLabel('MRP 计算参数表单');
+    const demandDate = formItemByExactLabel(calcForm, '需求日期').locator('input').first();
+    await demandDate.click();
+    await demandDate.fill('2026-09-30');
+    await page.keyboard.press('Enter');
+
     // 产品为 remote el-select（filterable remote，:remote-method=searchProducts）：旧写法
     // getByRole('combobox').click() 命中只读内层 input，被 placeholder「请输入产品名称搜索」拦
     // pointer events → click 超时；即便点开，pressSequentially 也未点外层 wrapper 稳定触发 remote。
     // 改用冻结 helper：以计算参数表单容器（aria-label=MRP 计算参数表单）为 root + 精确 label
     // 「产品选择」锚定，点外层 .el-select__wrapper → keyboard.type('E2E') 触发远程搜索 → 选首项。
-    const calcForm = page.getByLabel('MRP 计算参数表单');
     await pickSelectIn(calcForm, page, '产品选择', { query: 'E2E', index: 0, multiple: true });
-
-    // 需求日期为 el-date-picker：定位其真 input，fill 后 Enter 确认（Escape 会清空 → 校验失败）。
-    const demandDate = formItemByExactLabel(calcForm, '需求日期').locator('input').first();
-    await demandDate.click();
-    await demandDate.fill('2026-09-30');
-    await page.keyboard.press('Enter');
 
     await calcBtn.click();
     await expect(page.getByText(/计算成功/)).toBeVisible({ timeout: 30000 });
