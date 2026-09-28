@@ -79,7 +79,10 @@ test.describe('01 流程定义', () => {
     await pickSelectIn(dlg, page, '分类');
     await dlg.getByLabel('描述').fill('E2E 测试流程定义');
     await dlg.getByRole('button', { name: '确定' }).click();
-    await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({
+    // 真实成功提示走 msg.success('createSuccess')（useBpmDfProc.ts:181）→
+    // i18n message.createSuccess 实际中文为「新增成功」（zh-CN.ts:67），既非「创建成功」也非「保存成功」。
+    // 原用例 regex 未覆盖该文案恒不可见而红；锚定真实 toast 容器 .el-message + 真实文案（仍要求成功提示出现，不放宽）。
+    await expect(page.locator('.el-message').filter({ hasText: '新增成功' })).toBeVisible({
       timeout: 30000,
     });
   });
