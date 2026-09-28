@@ -1576,13 +1576,18 @@ export function escRe(s: string): string {
  * @param labelText form-item 的 label 全文（非子串、非正则；内部自动 escRe 锚定行首尾）
  */
 export function formItemByExactLabel(root: Locator | Page, labelText: string): Locator {
+  // 真根因(#4657 证伪"星号说"后定位,Playwright filter({has}) 语义):
+  // 内层 `has` locator 的 **selector** 会被再嵌到候选元素内部匹配。若内层写成
+  // `root.locator('.el-form-item__label')`(root 携带 `.el-dialog`/form 段),就变成
+  // "在单个 form-item 内部再找一个 .el-dialog" → 永远零命中 → 上层 .el-select__wrapper
+  // 超时假红(无对话框的 inventory 筛选表单同样零命中,与星号/CSS 无关;EP 必填星号是
+  // ::before 生成内容,根本不在 textContent,先前据 a11y 快照的 "* 客户" 推断是取证错误)。
+  // 正解:内层以 **Page 为基、只带 `.el-form-item__label`**,重嵌后即 `form-item .el-form-item__label` ✓。
+  const page = (root as Locator).page?.() ?? (root as Page);
   return root
     .locator('.el-form-item')
     .filter({
-      has: root.locator('.el-form-item__label', {
-        // 必填项 Element Plus 在 label 文本前置 `*`(见 CI #4656 crm「* 客户」、
-        // ai「* 产品 ID」error-context)。锚点容忍可选前导 `*`+空白,仍全行首尾锚定,
-        // 不放长子串匹配(「客户」仍不命中「客户等级」)。
+      has: page.locator('.el-form-item__label', {
         hasText: new RegExp(`^\\s*\\*?\\s*${escRe(labelText)}\\s*$`),
       }),
     })
