@@ -1208,20 +1208,44 @@ async function writeCsrfCookie(page: Page, url: string, value: string): Promise<
 /**
  * 后端 CSRF Token 为一次性消费（csrf.rs:110 consume + :216-224 Set-Cookie 轮换）。
  * page.request 成功写入后，响应 Set-Cookie 携带新 token，Playwright 自动存入 context。
- * 本函数为防御性保障：从响应的 set-cookie 头中显式提取 csrf_token 值并 addCookies，
- * 确保即便 Playwright 内部 cookie 传播存在微小时序差，下一次 getCsrfToken 也一定能读到
- * 最新轮换后的 token，杜绝因使用已消费 token 导致的不必要 403。
+ * 本函数为防御性保障：从响应的 set-cookie 头/ x-new-csrf-token 恢复头中显式提取 csrf_token 值
+ * 并 addCookies，确保即便 Playwright 内部 cookie 传播存在微小时序差或 headers() 对多 Set-Cookie
+ * 合并行为变化（Playwright >= 1.40 的 headers() 不保证返回 set-cookie），下一次 getCsrfToken
+ * 也一定能读到最新轮换后的 token，杜绝因使用已消费 token 导致的不必要 403。
  */
-async function syncCsrfFromResponse(
-  page: Page,
-  response: { headers(): Record<string, string> },
-  url: string
-): Promise<void> {
-  const setCookie = response.headers()['set-cookie'];
-  if (!setCookie) return;
-  const match = /csrf_token=([^;]+)/.exec(setCookie);
-  if (!match) return;
-  await writeCsrfCookie(page, url, match[1]);
+async function syncCsrfFromResponse(page: Page, response: APIResponse, url: string): Promise<void> {
+  let csrfValue: string | undefined;
+
+  // 优先从 headersArray 中逐项匹配 Set-Cookie（Playwright 文档明确 headersArray 保留
+  // 所有同名头且包含 set-cookie，而 headers() 在 >= 1.40 版本可能省略 set-cookie）。
+  const entries = response.headersArray();
+  for (const entry of entries) {
+    if (entry.name.toLowerCase() === 'set-cookie') {
+      const match = /csrf_token=([^;]+)/.exec(entry.value);
+      if (match) {
+        csrfValue = match[1];
+        break;
+      }
+    }
+  }
+
+  // 回退：若 headersArray 未找到（极端兼容场景），尝试 headers() 合并值
+  if (!csrfValue) {
+    const setCookie = response.headers()['set-cookie'];
+    if (setCookie) {
+      const match = /csrf_token=([^;]+)/.exec(setCookie);
+      if (match) csrfValue = match[1];
+    }
+  }
+
+  // 额外处理：后端 CSRF 拒绝时的恢复头 x-new-csrf-token（csrf.rs:144-151）
+  if (!csrfValue) {
+    const recovery = response.headers()['x-new-csrf-token'];
+    if (recovery) csrfValue = recovery;
+  }
+
+  if (!csrfValue) return;
+  await writeCsrfCookie(page, url, csrfValue);
 }
 
 async function refreshCsrfToken(page: Page): Promise<string> {
