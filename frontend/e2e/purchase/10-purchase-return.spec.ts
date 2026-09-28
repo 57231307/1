@@ -79,7 +79,15 @@ test.describe('10 采购退货', () => {
         res =>
           res.request().method() === 'POST' &&
           res.url().includes('/purchase/returns') &&
-          !res.url().includes('/items'),
+          !res.url().includes('/items') &&
+          // CSRF 令牌一次性消费：并发下 UI 提交首个 POST 可能返回 403（后端经
+          // X-New-CSRF-Token 下发恢复头，前端 axios 拦截器自动重放第二次 POST 成功，
+          // 见 api/request.ts:197-223）。此处若不过滤，waitForResponse 会命中 403 中间态——
+          // 它是 AppError 形状、data=null，读 id 落空即「建单响应未返回 id」的真红假象。
+          // 后端 create_purchase_return（handlers/purchase_return_handler.rs:79）经
+          // ApiResponse::success_with_message 序列化 purchase_return::Model，data.id 确凿返回；
+          // 与 flow/ui-helpers waitCreateResponse 同则跳过 403，绑定真实业务响应（200 或真实 4xx 失败）。
+          res.status() !== 403,
         { timeout: 30000 }
       )
       .catch(() => null);
