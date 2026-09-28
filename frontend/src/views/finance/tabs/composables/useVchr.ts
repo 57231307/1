@@ -67,15 +67,24 @@ export function useVchr() {
   // 详情相关
   const currentVoucher = ref<Voucher | null>(null);
 
-  // 叶子科目（用于树形选择）
+  // 叶子科目（用于凭证分录的 el-tree-select 数据源）。
+  //
+  // 根因（本轮取证订正）：科目树端点 `GET /subjects/tree`（handlers/account_subject_handler.rs
+  // → services/account_subject_service.rs get_tree）出参为 SubjectTreeNode{id, code, name, level,
+  // status, children}——后端从不输出 is_leaf（account_subjects 主键 Model 也无 is_leaf 列，见
+  // models/account_subject.rs）。旧实现按 `item.is_leaf` 过滤叶子，运行期该字段恒 undefined →
+  // 判定为假 → leafSubjects 恒空数组 → el-tree-select :data 为空 → 面板渲染 el-empty「无数据」，
+  // 根本不存在 .el-tree-node__content → e2e pickSubjectInTreeSelect 的 node.waitFor 恒 15s 超时。
+  // 故改为以真实存在的结构字段 children 判定叶子：树中「无子节点」即叶子（与账户科目层级语义一致，
+  // 非兜底掩盖——children 是端点确凿返回的权威结构）。递归收集所有叶子，父节点本身不作为可选项。
   const leafSubjects = computed(() => {
-    const flatten = (list: AccountSubject[]): AccountSubject[] => {
-      return list.reduce((acc, item) => {
-        if (item.is_leaf) acc.push(item);
-        if (item.children?.length) acc.push(...flatten(item.children));
+    const flatten = (list: AccountSubject[]): AccountSubject[] =>
+      list.reduce((acc, item) => {
+        const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+        if (hasChildren) acc.push(...flatten(item.children as AccountSubject[]));
+        else acc.push(item);
         return acc;
       }, [] as AccountSubject[]);
-    };
     return flatten(subjects.value);
   });
 
