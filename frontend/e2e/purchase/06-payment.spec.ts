@@ -4,7 +4,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw } from '../flow/helpers';
-import { pickSelectIn } from '../flow/ui-helpers';
+import { pickSelectIn, formItemByExactLabel } from '../flow/ui-helpers';
 
 /**
  * 测试套件：采购付款（AP 付款管理）
@@ -92,6 +92,12 @@ async function createPaymentViaDialog(
   requestNo: string,
   amountDisplay: string
 ): Promise<void> {
+  // 两笔连建会各自弹一条「操作成功」toast；前一条在本例断言窗口内可能尚未自动收起，
+  // 使 getByText('操作成功') strict 命中 2（06-02 红因）。开新对话框前先把已有 success
+  // toast 等到收起，令本次断言只对应"本次创建"这一条真实提示（非放宽断言）。
+  // .el-message--success 不存在时 waitFor hidden 立即 resolve（首笔正常态）。
+  await page.locator('.el-message--success').last().waitFor({ state: 'hidden', timeout: 15_000 });
+
   await page.getByRole('button', { name: '新建付款' }).click();
   const dialog = page.getByRole('dialog', { name: '新建付款' });
   await expect(dialog).toBeVisible();
@@ -100,12 +106,25 @@ async function createPaymentViaDialog(
   // 点开下拉 → 按 request_no 文本匹配选中目标申请（pickSelect 内部等待目标项可见后再点）
   await pickSelectIn(dialog, page, '付款申请', { optionText: requestNo });
 
+  // 方案B：付款方式/金额从已审批申请只读派生。选中申请后，对话框「申请金额」只读项必须显示
+  // 该申请金额（formatMoney 千分位，PaymentTab.vue:126）。以 label 精确锚定该只读表单项，
+  // 既真实校验派生值正确、也让 amountDisplay 参数发挥作用（而非列表侧才首次见到金额）。
+  await expect(
+    dialog
+      .locator('.el-form-item')
+      .filter({ has: page.locator('.el-form-item__label', { hasText: /^申请金额$/ }) })
+      .getByText(amountDisplay)
+  ).toBeVisible({ timeout: 10_000 });
+
   // payment_date 已默认当天（PaymentTab.vue:239/286），无需额外填写
   // 点击对话框底部"确认"按钮（common.confirm='确认'，PaymentTab.vue:153）
   await dialog.getByRole('button', { name: '确认' }).click();
 
   // 断言成功 toast（common.success='操作成功'，PaymentTab.vue:303）
-  await expect(page.getByText('操作成功')).toBeVisible({ timeout: 15_000 });
+  // 作用域到成功提示容器 .el-message--success，与"派生金额/表格文本"等其它出现点解耦。
+  await expect(page.locator('.el-message--success').filter({ hasText: '操作成功' })).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 test.describe('06 采购付款', () => {
@@ -177,13 +196,25 @@ test.describe('06 采购付款', () => {
 
     // 只读区域渲染（PaymentTab.vue:122-136）：
     // 金额（PaymentTab.vue:126 formatMoney(selectedRequest.request_amount)）
-    await expect(dialog.getByText('9,999.99')).toBeVisible();
+    // 「9,999.99」在对话框内出现两处：① 已选付款申请下拉的选中项展示（option label =
+    // `${request_no} · ${供应商} · ${金额}`，PaymentTab.vue:253/114）；② 只读派生金额 span（:126）。
+    // getByText('9,999.99') 命中 2（06-03 红因）。断言作用域到承载派生金额的具体只读表单项
+    // （label=apModule.paymentRequest.requestAmount='申请金额'），确保仍是对"派生值正确"的真证据，
+    // 而非放宽成命中下拉展示。
+    await expect(
+      page
+        .getByRole('dialog', { name: '新建付款' })
+        .locator('.el-form-item')
+        .filter({ has: page.locator('.el-form-item__label', { hasText: /^申请金额$/ }) })
+        .getByText('9,999.99')
+    ).toBeVisible();
     // 付款方式（PaymentTab.vue:129 getPaymentMethodLabel(selectedRequest.payment_method)）
     // request payment_method='bank_transfer' → keyMap 命中 → i18n zh-CN '银行转账'
     await expect(dialog.getByText('银行转账')).toBeVisible();
     // 供应商名（PaymentTab.vue:123 supplierLabel）非空——验证不是裸 ID 数字
-    // 供应商列存在 form-item 标签"供应商"（apModule.payment.supplier）
-    const supplierFormItem = dialog.locator('.el-form-item').filter({ hasText: '供应商' });
+    // 用整串精确 label '供应商' 锚定该只读表单项：付款申请下拉的选中项展示里也含供应商名
+    // （种子供应商名带「供应商」字样时，旧的子串 filter '供应商' 会同时命中「付款申请」项 → strict 2）。
+    const supplierFormItem = formItemByExactLabel(dialog, '供应商');
     await expect(supplierFormItem).toBeVisible();
     // supplierLabel 返回值：若 supplier_id 在 suppliers 列表中则返回 supplier_name（非纯数字）
     const supplierText = await supplierFormItem.locator('.el-form-item__content').innerText();

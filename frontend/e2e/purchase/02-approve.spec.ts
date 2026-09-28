@@ -141,8 +141,15 @@ test.describe('02 采购订单审批', () => {
     // ElMessageBox.confirm 默认确认按钮 '确定'
     await page.getByRole('button', { name: '确定', exact: true }).click();
     // 成功提示 message.purchaseOrderSubmitted = '采购订单 {orderNo} 已提交'
-    await expect(page.getByText('已提交')).toBeVisible({ timeout: 30000 });
-    // 后端真实状态字面量（大写词表）：提交后应为 PENDING_APPROVAL
+    // 「已提交」在本页同时出现于成功 toast 与筛选栏「订单状态」下拉的 SUBMITTED 选项
+    // （getByText 命中隐藏 option → strict resolved to 2）。据真实 DOM 判定：把断言作用域到
+    // 成功 toast 容器 .el-message--success（提交只产生这一条成功提示），而非 .first() 蒙混。
+    await expect(page.locator('.el-message--success').filter({ hasText: '已提交' })).toBeVisible({
+      timeout: 30000,
+    });
+    // 该单状态确实变了（双重真证据）：① 本例专属单行的状态标签真实变为「待审批」（PENDING_APPROVAL）；
+    // ② 后端回查状态字面量 PENDING_APPROVAL。二者共同证明流转生效，未依赖被放宽的文案匹配。
+    await expect(row.getByText('待审批')).toBeVisible({ timeout: 30000 });
     const after = await apiCallRaw<PurchaseOrderLite>(page, 'GET', `/purchase/orders/${id}`);
     expect(after.status, `提交后状态应为 PENDING_APPROVAL（实际 ${after.status}）`).toBe(
       'PENDING_APPROVAL'
@@ -172,7 +179,13 @@ test.describe('02 采购订单审批', () => {
     await msgBox.getByRole('textbox').fill('E2E 测试驳回：数量超预算');
     await msgBox.getByRole('button', { name: '确定', exact: true }).click();
     // rejectPurchaseOrder 成功 → msg.success('purchaseOrderRejected') = '采购订单 {orderNo} 已驳回'
-    await expect(page.getByText('已驳回')).toBeVisible({ timeout: 30000 });
+    // 「已驳回」同时出现在成功 toast 与刷新后本行状态标签（REJECTED→'已驳回'）——两个不同来源，
+    // getByText 命中 2。把 toast 断言作用域到 .el-message--success 容器（精确锚定成功提示来源）。
+    await expect(page.locator('.el-message--success').filter({ hasText: '已驳回' })).toBeVisible({
+      timeout: 30000,
+    });
+    // 该单状态确实变了（双重真证据）：① 专属单行状态标签真实变为「已驳回」；② 后端回查 REJECTED。
+    await expect(row.getByText('已驳回')).toBeVisible({ timeout: 30000 });
     // 后端真实状态字面量（大写词表）：驳回后为 REJECTED
     const after = await apiCallRaw<PurchaseOrderLite>(page, 'GET', `/purchase/orders/${id}`);
     expect(after.status, `驳回后状态应为 REJECTED（实际 ${after.status}）`).toBe('REJECTED');
