@@ -9,5 +9,6 @@ export {
   mockInitStatus,
   mockBusinessApi,
   applyAuthMocks,
+  getAiTestUsername,
   waitForPageReady,
 } from '../fixtures/auth';

@@ -2,7 +2,7 @@
 // 创建时间: 2026-08-19
 // 覆盖范围：AI 质量预测创建 → 确认处理
 import { test, expect } from '@playwright/test';
-import { applyAuthMocks } from '../smoke/_helpers';
+import { applyAuthMocks, getAiTestUsername } from '../smoke/_helpers';
 import { apiCall, tryCleanup } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
 
@@ -115,7 +115,9 @@ async function clickSubmitWithBackoff(
 
 test.describe('02 AI 质量预测', () => {
   test.beforeEach(async ({ page, context }) => {
-    await applyAuthMocks(context);
+    // 使用独立的 AI 测试用户（e2e_ai_s{shard}），与 ai/01 的 e2e_admin_s{shard} 不同 user_id
+    // → 后端按 user 维度的 10 req/min 限流桶相互独立，彻底消除两文件并行抢桶。
+    await applyAuthMocks(context, { username: getAiTestUsername() });
     await page.goto('/');
   });
 

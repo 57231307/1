@@ -125,6 +125,17 @@ export async function mockBusinessApi(context: BrowserContext): Promise<void> {
 }
 
 /**
+ * AI 限流专用第二用户（e2e_ai_s{shard}）用户名派生。
+ * 后端 AI 端点限流按 user_id 维度（rate_limit.rs:330），不同用户名 → 不同 user_id → 独立桶。
+ * ai/01 使用 e2e_admin_s{shard}，ai/02 使用此用户，两文件并行不再争抢同一 10/min 窗口。
+ * global-setup 在创建分片主账号后同步创建此用户（admin 角色，访问 AI 端点无 403）。
+ */
+export function getAiTestUsername(): string {
+  const shardIndex = process.env.E2E_SHARD_INDEX ?? '';
+  return shardIndex !== '' ? `e2e_ai_s${shardIndex}` : 'e2e_ai';
+}
+
+/**
  * 一站式应用 auth 初始化（smoke + bpm/crm/finance/quality/enhanced/purchase 共用）
  *
  * P2.4 去 mock 化（2026-09-09）：
@@ -134,8 +145,13 @@ export async function mockBusinessApi(context: BrowserContext): Promise<void> {
  * 登录账号使用与 global-setup 一致的分片账号（TEST_USERNAME/TEST_PASSWORD env），
  * 登录后 addCookies 注入 Set-Cookie 全量，后续请求自动携带认证态。
  * injectAuthToken/mockAuthMe/mockInitStatus 三个 mock 函数体保留但不再调用。
+ *
+ * opts.username：显式指定登录账号（AI 限流隔离场景），缺省按分片派生 e2e_admin_s{n}。
  */
-export async function applyAuthMocks(context: BrowserContext): Promise<void> {
+export async function applyAuthMocks(
+  context: BrowserContext,
+  opts?: { username?: string }
+): Promise<void> {
   const { request } = await import('@playwright/test');
 
   const apiBase = process.env.API_BASE || 'http://localhost:8082';
@@ -143,7 +159,8 @@ export async function applyAuthMocks(context: BrowserContext): Promise<void> {
   const shardIndex = process.env.E2E_SHARD_INDEX ?? '';
   const baseUsername = process.env.E2E_BASE_USERNAME || 'e2e_admin';
   const basePassword = process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
-  const username = shardIndex !== '' ? `e2e_admin_s${shardIndex}` : baseUsername;
+  const username =
+    opts?.username ?? (shardIndex !== '' ? `e2e_admin_s${shardIndex}` : baseUsername);
 
   const ctx = await request.newContext({
     baseURL: apiBase,

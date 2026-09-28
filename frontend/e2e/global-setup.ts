@@ -13,6 +13,9 @@ const BASE_PASSWORD = process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
 const SHARD_INDEX = process.env.E2E_SHARD_INDEX ?? '';
 const SHARD_USERNAME = SHARD_INDEX !== '' ? `e2e_admin_s${SHARD_INDEX}` : BASE_USERNAME;
 const SHARD_PASSWORD = BASE_PASSWORD;
+// AI 限流隔离专用第二用户：ai/02 使用此用户登录，与 ai/01 的 SHARD_USERNAME 不同 user_id，
+// 后端 rate_limit_ai_endpoint 按 user_id 维度限流（rate_limit.rs:330）→ 两文件独立 10/min 桶。
+const AI_USERNAME = SHARD_INDEX !== '' ? `e2e_ai_s${SHARD_INDEX}` : 'e2e_ai';
 const STORAGE_STATE_PATH = 'e2e/.auth/storage-state.json';
 
 /**
@@ -102,6 +105,9 @@ export default async function globalSetup() {
   if (SHARD_USERNAME !== BASE_USERNAME) {
     await ensureShardUserViaUI();
   }
+
+  // ---- 1.2 AI 限流隔离第二用户（admin 角色，与分片主用户不同 user_id → 独立 AI 限流桶）----
+  await ensureAiUser();
 
   // ---- 1.5 全量角色账号 setup（P3.1）----
   await ensureRoleUsers();
@@ -281,6 +287,99 @@ async function ensureShardUserViaUI(): Promise<void> {
     );
   }
   console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 就绪（登录验证通过）`);
+}
+
+/**
+ * 确保 AI 限流隔离第二用户存在并可登录（admin 角色）。
+ * ai/02-prediction 使用此用户登录，与 ai/01 的分片主用户（e2e_admin_s{n}）拥有不同
+ * user_id → 后端 rate_limit_ai_endpoint 按 user_id 维度的 10 req/min 桶彼此独立，
+ * 两文件在 extras 分片内并行（workers=2）不再争抢同一桶，确定性根除 429 互踩。
+ * 幂等：已存在（400/409/「已存在」）视为成功跳过。
+ */
+async function ensureAiUser(): Promise<void> {
+  const loginCtx = await request.newContext({
+    baseURL: API_BASE,
+    extraHTTPHeaders: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  });
+  const loginResp = await loginWithRetry(loginCtx, BASE_USERNAME, BASE_PASSWORD);
+  if (!loginResp.ok()) {
+    const body = await loginResp.text();
+    await loginCtx.dispose();
+    throw new Error(`ensureAiUser: ${BASE_USERNAME} 登录失败 HTTP ${loginResp.status()}: ${body}`);
+  }
+  const loginCookies = (await loginCtx.storageState()).cookies;
+  const csrfCookie = loginCookies.find(c => c.name === 'csrf_token');
+  if (!csrfCookie) {
+    await loginCtx.dispose();
+    throw new Error('ensureAiUser: 登录后未取得 csrf_token cookie');
+  }
+  const headers: Record<string, string> = {
+    'X-CSRF-Token': csrfCookie.value,
+    'X-Requested-With': 'XMLHttpRequest',
+  };
+
+  // 查询 admin 角色 id
+  const rolesResp = await loginCtx.get(`${API_PREFIX}/roles`, { headers });
+  if (!rolesResp.ok()) {
+    const body = await rolesResp.text();
+    await loginCtx.dispose();
+    throw new Error(`ensureAiUser: 角色清单拉取失败 HTTP ${rolesResp.status()}: ${body}`);
+  }
+  const rolesBody = (await rolesResp.json()) as {
+    data?: { roles?: Array<{ id: number; code?: string; name?: string }> };
+  };
+  const adminRole = rolesBody?.data?.roles?.find(r => r.code === 'admin' || r.name === 'admin');
+  if (!adminRole) {
+    await loginCtx.dispose();
+    throw new Error('ensureAiUser: 未找到 admin 角色');
+  }
+
+  // 创建用户（幂等）
+  const createResp = await requestWithCsrfRecovery(
+    loginCtx as unknown as CsrfCapableRequestContext,
+    'post',
+    `${API_PREFIX}/users`,
+    headers,
+    {
+      username: AI_USERNAME,
+      password: BASE_PASSWORD,
+      role_id: adminRole.id,
+      real_name: 'E2E-AI限流隔离',
+    }
+  );
+  if (createResp.ok()) {
+    console.log(`[globalSetup] AI 隔离用户 ${AI_USERNAME} 创建成功`);
+  } else if (createResp.status() === 400 || createResp.status() === 409) {
+    console.log(`[globalSetup] AI 隔离用户 ${AI_USERNAME} 已存在，跳过`);
+  } else {
+    const body = await createResp.text();
+    await loginCtx.dispose();
+    throw new Error(
+      `ensureAiUser: 创建 ${AI_USERNAME} 失败 HTTP ${createResp.status()}: ${body.slice(0, 300)}`
+    );
+  }
+  await loginCtx.dispose();
+
+  // 终验：确保可登录
+  const checkCtx = await request.newContext({
+    baseURL: API_BASE,
+    extraHTTPHeaders: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  });
+  const loginCheck = await loginWithRetry(checkCtx, AI_USERNAME, BASE_PASSWORD);
+  await checkCtx.dispose();
+  if (!loginCheck.ok()) {
+    const body = await loginCheck.text().catch(() => '');
+    throw new Error(
+      `ensureAiUser: ${AI_USERNAME} 终验登录失败 HTTP ${loginCheck.status()}: ${body.slice(0, 300)}`
+    );
+  }
+  console.log(`[globalSetup] AI 隔离用户 ${AI_USERNAME} 就绪`);
 }
 
 // ==================== P3.1 全量角色账号 setup ====================
