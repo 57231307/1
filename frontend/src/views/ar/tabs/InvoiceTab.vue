@@ -239,6 +239,7 @@ import {
   type ARInvoice,
 } from '@/api/ar';
 import type { Customer } from '@/api/customer';
+import { getCustomerList } from '@/api/customer';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
 
@@ -451,8 +452,25 @@ const handleExportInvoices = async () => {
   logger.info(t('arModule.invoice.exportedLog'));
 };
 
+/**
+ * 加载新建发票对话框「客户」下拉候选。
+ * 后端 customer_handler::list_customers 返回 ApiResponse<PaginatedResponse<Customer>>，
+ * 列表键为 items（api/customer.ts:42 契约）；不写兜底默认，加载失败仅记日志并留空
+ * （空候选会让用户明确看到"无可选项"，而非被假数据掩盖）。
+ */
+const loadCustomers = async () => {
+  try {
+    const res = await getCustomerList({ page: 1, page_size: 1000 });
+    customers.value = res.data.items;
+  } catch (error) {
+    logger.error(t('arModule.invoice.fetchListFailed'), error);
+    customers.value = [];
+  }
+};
+
 onMounted(() => {
   fetchInvoices();
+  loadCustomers();
 });
 </script>
 
