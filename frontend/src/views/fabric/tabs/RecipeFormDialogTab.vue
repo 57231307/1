@@ -49,9 +49,9 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item :label="t('fabric.recipeFormDialog.labelContent')" prop="content">
+      <el-form-item :label="t('fabric.recipeFormDialog.labelContent')" prop="chemical_formula">
         <el-input
-          v-model="formData.content"
+          v-model="formData.chemical_formula"
           type="textarea"
           :rows="6"
           :placeholder="t('fabric.recipeFormDialog.placeholderContent')"
@@ -106,7 +106,7 @@ const formData = reactive({
   // 此前写成字符串 '1.0' → serde 反序列化整数失败 → 422，新建被拒（03-02 红根因）。
   // DyeRecipe.version 契约亦为 number，初值须与后端整数版本口径一致。
   version: 1 as number,
-  content: '',
+  chemical_formula: '',
   status: 'draft' as 'draft' | 'pending_approval' | 'approved' | 'disabled',
 });
 
@@ -117,7 +117,7 @@ const resetForm = () => {
   formData.color_name = '';
   formData.fabric_type = '';
   formData.version = 1;
-  formData.content = '';
+  formData.chemical_formula = '';
   formData.status = 'draft';
 };
 

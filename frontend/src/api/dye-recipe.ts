@@ -21,6 +21,8 @@ export interface DyeRecipe {
   color_code: string;
   color_name: string;
   fabric_type: string;
+  /** 配方正文列（后端 dye_recipe.chemical_formula，Option → 可空；建单/编辑表单以此键提交正文） */
+  chemical_formula: string | null;
   version: number;
   status: DyeRecipeStatus;
   recipe_items: RecipeItem[];
