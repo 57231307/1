@@ -123,8 +123,17 @@ test.describe('网络韧性：真实网络中断', () => {
     const okResponses = trackOkApiResponses(page);
     console.log('[network-resilience] 已恢复在线，重新加载页面验证自愈');
     await page.goto('/sales', { timeout: 60_000 });
+    // page.goto 在 'load' 事件即返回，此时 SPA 启动阶段的应用数据请求可能尚未落地；
+    // 原实现在 goto 之后同步读 okResponses.length，窗口过短会误判为 0（并非源码缺
+    // 「online 重取」——整页 reload 必然重新取数）。改为对该数组做 web-first 轮询，
+    // 给恢复后的真实响应以充分到达时间，仍硬断 >0（不放宽为 0）。
+    await expect
+      .poll(() => okResponses.length, {
+        timeout: RETRY_SETTLE_TIMEOUT,
+        message: '恢复在线后应用应真实拉到数据（等待首个 200 数据响应落地）',
+      })
+      .toBeGreaterThan(0);
     console.log(`[network-resilience] 恢复后捕获 200 数据响应 ${okResponses.length} 条`);
-    expect(okResponses.length, '恢复在线后应用应真实拉到数据').toBeGreaterThan(0);
     await expect(page.locator('[role="menuitem"]').first()).toBeVisible({ timeout: 30_000 });
     await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
   });

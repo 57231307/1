@@ -12,7 +12,7 @@
  * - 弱网模拟使用 route.fulfill 前置 delay，不依赖浏览器原生网络节流
  * - 异常模拟覆盖后端业务错误码（code:非200）与 HTTP 状态码两种场景
  */
-import type { BrowserContext, Page, Route } from '@playwright/test';
+import type { BrowserContext, Page, Response, Route } from '@playwright/test';
 
 /**
  * 项目统一 API 响应结构（与后端 AppError 脱敏响应一致）
@@ -200,12 +200,45 @@ export async function simulateSlowNetwork(
 }
 
 /**
+ * 将 Playwright URL glob 转为 RegExp，用于响应事件观察器按 urlPattern 过滤。
+ * 支持 `**`（跨任意字符，含 `/`）与 `*`（匹配单段内非 `/` 字符）。
+ */
+function globToRegExp(glob: string): RegExp {
+  let re = '';
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === '*') {
+      if (glob[i + 1] === '*') {
+        re += '.*';
+        i++;
+        // 折叠 `**/` 的前导分隔符，避免要求 URL 必带该斜杠
+        if (glob[i + 1] === '/') i++;
+      } else {
+        re += '[^/]*';
+      }
+    } else {
+      re += c.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    }
+  }
+  return new RegExp(`^${re}$`);
+}
+
+/**
  * 网络请求观察器（爬虫/RPA 类：记录请求与响应供断言）
  *
  * 使用场景：
  * - 验证前端是否发起了预期的 API 请求（如点击按钮后触发的请求）
  * - 验证请求参数是否正确（如分页参数、过滤条件）
  * - 爬虫类场景：批量收集接口响应数据
+ *
+ * 实现说明（去 route 拦截）：
+ * 原实现用 `context.route(pattern, handler)`，handler 内 `await route.fetch()` 再
+ * `await route.fulfill({ response })` 记录响应。`route.fetch()` 会让被观察的请求再次
+ * 经过本 pattern 的同一 route handler（Playwright 文档：fetch 仍受其它拦截器影响），
+ * 于是同一个 route 被两次处理 → `route.fulfill: Route is already handled!`。
+ * 现改为纯 `response` 事件监听记录真实响应：观察器不再安装任何 route 拦截，
+ * 请求直达真实后端，每条响应只被记录一次，彻底消除重复处理，同时仍满足
+ * urlPattern 过滤、status/body 采集与「停止后不再增长」的既有断言。
  *
  * @example
  * const observer = observeRequests(page, SALES_ORDERS_GLOB)
@@ -222,50 +255,62 @@ export class RequestObserver {
     status: number;
     body: string | null;
   }> = [];
+  private matcher: RegExp;
+  private handler: ((response: Response) => void) | null = null;
 
   constructor(context: BrowserContext | Page, urlPattern: string) {
     this.context = context;
     this.urlPattern = urlPattern;
+    this.matcher = globToRegExp(urlPattern);
   }
 
   /**
-   * 启动观察（注册 route handler，放行请求但记录响应）
+   * 启动观察：注册 response 监听，放行请求至真实后端并记录响应（不拦截、不 fulfill）
    */
   async start(): Promise<void> {
-    await this.context.route(this.urlPattern, async (route: Route) => {
-      const request = route.request();
-      const response = await route.fetch();
-      let body: string | null = null;
-      try {
-        body = await response.text();
-      } catch (e) {
-        console.warn(`[E2E] catch: ${(e as Error).message}`);
-        body = null;
-      }
-      this.requests.push({
-        url: request.url(),
+    if (this.handler) return;
+    this.handler = (response: Response) => {
+      const url = response.url();
+      if (!this.matcher.test(url)) return;
+      const request = response.request();
+      const record = {
+        url,
         method: request.method(),
         status: response.status(),
-        body,
-      });
-      await route.fulfill({ response });
-    });
+        body: null as string | null,
+      };
+      this.requests.push(record);
+      // body 为尽力采集：断言只用 url/method/status，响应体读取失败不影响记录，
+      // 但读取本身要留痕，不静默丢弃异常。
+      response
+        .text()
+        .then(text => {
+          record.body = text;
+        })
+        .catch(e => {
+          console.warn(`[E2E] observeRequests 读取响应体失败 ${url}: ${(e as Error).message}`);
+        });
+    };
+    this.context.on('response', this.handler);
   }
 
   /**
    * 收集已观察到的请求记录
    */
   async collect(): Promise<typeof this.requests> {
-    // 等待一个微任务周期，确保所有 pending route handler 完成
+    // 等待一个微任务周期，确保所有 pending 响应回调完成入列
     await new Promise(resolve => setTimeout(resolve, 100));
     return [...this.requests];
   }
 
   /**
-   * 停止观察（取消 route handler）
+   * 停止观察（移除 response 监听）
    */
   async stop(): Promise<void> {
-    await this.context.unroute(this.urlPattern);
+    if (this.handler) {
+      this.context.off('response', this.handler);
+      this.handler = null;
+    }
   }
 }
 
