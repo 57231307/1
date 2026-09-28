@@ -25,6 +25,10 @@ import {
   type CreatePurchaseReturnItemPayload,
   type UpdatePurchaseReturnItemPayload,
 } from '@/api/purchase-return';
+import {
+  getPurchaseInspectionById,
+  getPurchaseInspectionItemList,
+} from '@/api/purchase-inspection';
 import { useTableApi } from '@/composables/useTableApi';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
@@ -122,6 +126,7 @@ export function usePrRtn() {
   const formData = reactive({
     id: undefined as number | undefined,
     purchaseOrderId: undefined as number | undefined,
+    receiptId: undefined as number | undefined,
     supplierId: undefined as number | undefined,
     returnDate: '',
     warehouseId: undefined as number | undefined,
@@ -263,6 +268,7 @@ export function usePrRtn() {
     Object.assign(formData, {
       id: undefined,
       purchaseOrderId: undefined,
+      receiptId: undefined,
       supplierId: undefined,
       returnDate: '',
       warehouseId: undefined,
@@ -284,6 +290,52 @@ export function usePrRtn() {
   });
 
   /**
+   * 从质检单派生退货预填数据（新建态，不携原 id）
+   * 与 quotation copy 同构：加载源单数据 → 以新建态预填 → 保存走 POST 建新单
+   */
+  const prepareFromInspection = async (inspectionId: number) => {
+    try {
+      const [inspRes, itemsRes] = await Promise.all([
+        getPurchaseInspectionById(inspectionId),
+        getPurchaseInspectionItemList(inspectionId),
+      ]);
+      const insp = inspRes.data;
+      if (!insp) {
+        logger.error('[purchase-return] 质检单数据为空', { inspectionId });
+        return false;
+      }
+      // 表头预填：采购订单/入库单/供应商/退货日期
+      Object.assign(formData, {
+        id: undefined,
+        purchaseOrderId: insp.order_id ?? undefined,
+        receiptId: insp.receipt_id ?? undefined,
+        supplierId: insp.supplier_id,
+        returnDate: new Date().toISOString().slice(0, 10),
+        warehouseId: undefined,
+        reasonType: '品质瑕疵',
+        reason: insp.defect_description || '',
+        remarks: insp.notes || '',
+        items: [],
+      });
+      // 明细预填：取不合格数量 > 0 的检验明细行
+      const inspItems = itemsRes.data.items || [];
+      formData.items = inspItems
+        .filter(item => item.failed_quantity > 0)
+        .map(item => ({
+          productId: item.product_id,
+          productName: item.product_name ?? '',
+          quantity: item.failed_quantity,
+          unitPrice: 0,
+          reason: item.defect_reason ?? '',
+        }));
+      return true;
+    } catch (error) {
+      logger.error('[purchase-return] 从质检单预填退货表单失败', error);
+      return false;
+    }
+  };
+
+  /**
    * 准备编辑表单（父组件需自行打开对话框）
    * 表头由调用方传入（来自 fetchDetail），明细由 loadFormItems 异步加载（独立端点，表头响应不含 items）
    */
@@ -291,6 +343,7 @@ export function usePrRtn() {
     Object.assign(formData, {
       id: row.id,
       purchaseOrderId: row.order_id ?? undefined,
+      receiptId: row.receipt_id ?? undefined,
       supplierId: row.supplier_id,
       returnDate: row.return_date,
       warehouseId: row.warehouse_id ?? undefined,
@@ -429,6 +482,7 @@ export function usePrRtn() {
       } else {
         const headBody: CreatePurchaseReturnPayload = {
           order_id: formData.purchaseOrderId,
+          receipt_id: formData.receiptId,
           supplier_id: formData.supplierId as number,
           return_date: formData.returnDate,
           warehouse_id: formData.warehouseId,
@@ -488,6 +542,7 @@ export function usePrRtn() {
     formData,
     formRules,
     prepareCreate,
+    prepareFromInspection,
     prepareEdit,
     handleOrderChange,
     handleAddItem,

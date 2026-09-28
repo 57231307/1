@@ -94,6 +94,14 @@
           >
             {{ t('purchaseInspection.table.button.complete') }}
           </el-button>
+          <el-button
+            v-if="canGenerateReturn(row)"
+            size="small"
+            type="warning"
+            @click="emit('createReturn', row as PurchaseInspection)"
+          >
+            {{ t('purchaseInspection.table.button.generateReturn') }}
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -140,9 +148,19 @@ const emit = defineEmits<{
   view: [row: PurchaseInspection];
   edit: [row: PurchaseInspection];
   complete: [row: PurchaseInspection];
+  createReturn: [row: PurchaseInspection];
   'update:page': [v: number];
   'update:page-size': [v: number];
 }>();
+
+/** 仅 completed 且结果为 fail/partial 时可发起退货 */
+const RETURN_ELIGIBLE_RESULTS = new Set(['fail', 'partial']);
+function canGenerateReturn(row: PurchaseInspection): boolean {
+  return (
+    row.inspection_status === PURCHASE_INSPECTION_STATUS.COMPLETED &&
+    RETURN_ELIGIBLE_RESULTS.has(row.inspection_result ?? '')
+  );
+}
 </script>
 
 <style scoped>

@@ -34,6 +34,7 @@
       @view="piProc.handleView"
       @edit="piProc.handleEdit"
       @complete="piProc.handleComplete"
+      @create-return="onCreateReturn"
     />
 
     <PurchaseInspectionForm
@@ -59,8 +60,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { loadIfNot } from '@/utils/lazy-loader';
 import { Plus } from '@element-plus/icons-vue';
+import type { PurchaseInspection } from '@/api/purchase-inspection';
 import { usePi } from './composables/usePi';
 import { usePiProc } from './composables/usePiProc';
 import PurchaseInspectionStat from './components/PurchaseInspectionStat.vue';
@@ -70,6 +73,7 @@ import PurchaseInspectionForm from './components/PurchaseInspectionForm.vue';
 import PurchaseInspectionDetail from './components/PurchaseInspectionDetail.vue';
 
 const { t } = useI18n({ useScope: 'global' });
+const router = useRouter();
 
 // 业务状态
 const pi = usePi();
@@ -77,6 +81,11 @@ const pi = usePi();
 // 写入经 proxy set 回写底层 ref，模板 v-model:visible 才响应；对象字面量快照会把
 // 解包后的普通值传进去，proc 的写入只落在临时对象上、底层 ref 永不被通知 → 弹框不打开。
 const piProc = usePiProc(pi);
+
+/** 跳转采购退货新建页，以 query 携带质检单 id（与 quotation copy 同构模式） */
+function onCreateReturn(row: PurchaseInspection) {
+  router.push({ path: '/purchase-return', query: { fromInspection: String(row.id) } });
+}
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据（供应商/入库单）
 onMounted(() => {

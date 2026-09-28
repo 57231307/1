@@ -8964,6 +8964,7 @@ export default {
         view: 'View',
         edit: 'Edit',
         complete: 'Complete',
+        generateReturn: 'Generate Return',
       },
       ariaLabelPagination: 'Purchase Inspection List Pagination',
     },
@@ -9291,6 +9292,9 @@ export default {
       },
     },
     messageDetailLoadFailed: 'Failed to fetch purchase return detail',
+    message: {
+      inspectionLoadFailed: 'Failed to load inspection data, cannot prefill return form',
+    },
   },
   purchaseReceipt: {
     filter: {

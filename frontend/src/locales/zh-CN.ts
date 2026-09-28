@@ -8927,6 +8927,7 @@ export default {
         view: '查看',
         edit: '编辑',
         complete: '完成',
+        generateReturn: '生成退货',
       },
       ariaLabelPagination: '采购验货列表分页',
     },
@@ -9254,6 +9255,9 @@ export default {
       },
     },
     messageDetailLoadFailed: '获取采购退货单详情失败',
+    message: {
+      inspectionLoadFailed: '加载质检单数据失败，无法预填退货',
+    },
   },
   purchaseReceipt: {
     filter: {

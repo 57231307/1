@@ -103,6 +103,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { ElMessage } from 'element-plus';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { Plus } from '@element-plus/icons-vue';
@@ -116,6 +118,8 @@ import PurchaseReturnDetail from './components/PurchaseReturnDetail.vue';
 import PurchaseReturnApproval from './components/PurchaseReturnApproval.vue';
 
 const { t } = useI18n({ useScope: 'global' });
+const route = useRoute();
+const router = useRouter();
 
 const prRtn = usePrRtn();
 const prRtnProc = usePrRtnProc({
@@ -164,9 +168,30 @@ const onView = async (row: PurchaseReturn) => {
   detailDialogVisible.value = true;
 };
 
-// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据（供应商/采购单/产品）
-onMounted(() => {
+/**
+ * 从质检单跳转过来时（query.fromInspection），加载质检数据以新建态预填退货表单。
+ * 与 quotation copy 同构：按源单 id 载入 → 新建态预填 → 保存走 POST 建新单。
+ */
+async function handleFromInspection() {
+  const raw = route.query.fromInspection;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const id = Number(value);
+  if (!Number.isFinite(id) || id <= 0) return;
+  // 清除 query 避免刷新后重复触发
+  router.replace({ path: '/purchase-return' });
+  isEdit.value = false;
+  const ok = await prRtn.prepareFromInspection(id);
+  if (ok) {
+    dialogVisible.value = true;
+  } else {
+    ElMessage.error(t('purchaseReturn.message.inspectionLoadFailed'));
+  }
+}
+
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据 + 处理 fromInspection 预填
+onMounted(async () => {
   prRtn.initLoad();
+  await handleFromInspection();
 });
 </script>
 

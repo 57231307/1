@@ -229,6 +229,7 @@ interface Product {
 interface FormDataType {
   id?: number | undefined;
   purchaseOrderId?: number | undefined;
+  receiptId?: number | undefined;
   supplierId?: number | undefined;
   returnDate?: string;
   warehouseId?: number | undefined;
