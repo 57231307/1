@@ -12,6 +12,10 @@ export interface ProcessDefinition {
   // 批次 98 P2-D 修复（v5 复审）：原 any 改为 Record<string, unknown>，动态 JSON Schema 字段
   form_schema?: Record<string, unknown>;
   nodes?: ProcessNode[];
+  // 后端持久化真源：节点存于 config.nodes（bpm_service.rs:141 resolve_first_task_node），
+  // GET 出参亦回传 config（bpm_definition_handler model_to_frontend_json）。建单/更新须把
+  // nodes 包进 config 提交，否则流程节点被后端静默丢弃（顶层 nodes 非契约字段）。
+  config?: { nodes?: ProcessNode[] } & Record<string, unknown>;
   created_at: string;
   updated_at: string;
   created_by?: string;

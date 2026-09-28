@@ -170,14 +170,27 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
   const handleSubmit = async () => {
     cb.submitLoading = true;
     try {
+      // 后端契约：流程节点持久化在 config.nodes（bpm_service.rs:141），顶层 nodes 非契约字段
+      // 会被 serde 忽略 → 节点静默丢失。提交时把 nodes 包进 config，并按 DTO 真实键名构造载荷
+      // （create/update 走 process_key/process_name 别名映射到 name/code，见 bpm_dto.rs）。
       if (cb.isEdit && cb.formData.id) {
-        await updateBpmDefinition(
-          cb.formData.id,
-          cb.formData as unknown as Partial<ProcessDefinition>
-        );
+        const payload: Partial<ProcessDefinition> = {
+          process_name: cb.formData.process_name,
+          description: cb.formData.description,
+          category: cb.formData.category,
+          config: { nodes: cb.formData.nodes },
+        };
+        await updateBpmDefinition(cb.formData.id, payload);
         msg.success('updateSuccess');
       } else {
-        await createBpmDefinition(cb.formData as unknown as Partial<ProcessDefinition>);
+        const payload: Partial<ProcessDefinition> = {
+          process_key: cb.formData.process_key,
+          process_name: cb.formData.process_name,
+          description: cb.formData.description,
+          category: cb.formData.category,
+          config: { nodes: cb.formData.nodes },
+        };
+        await createBpmDefinition(payload);
         msg.success('createSuccess');
       }
       cb.dialogVisible = false;
