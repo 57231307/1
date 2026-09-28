@@ -123,10 +123,46 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
     }
 
     // ---- 4. 打印审计闭环：audit-logs 出现 PRINT 记录 ----
+    // 审计日志经 omni_audit 中间件异步落库（backend.log 实测 PRINT 写入晚于打印请求约
+    // 40~60ms，CI 并发下同库延迟更大）。直接单次回读会早于落库 → total=0 假红。
+    // 用 expect.poll 轮询等待落库（上限 15s、每 1s 一次），断言仍严格 >0 不放宽——
+    // 若后端根本未把 /print 归类为 operation_type=PRINT，轮询到点仍红，暴露真缺陷而非掩盖。
+    const printLogs = await expect
+      .poll(
+        async () => {
+          const auditResp = await page.request.get(
+            `${API_BASE}${API_PREFIX}/audit-logs?operation_type=PRINT&page=1&page_size=20`
+          );
+          if (auditResp.status() !== 200) return -1;
+          const auditJson = (await auditResp.json()) as ApiResponse<{
+            items: Array<{
+              id: number;
+              operation_type?: string;
+              action?: string;
+              uri?: string;
+              path?: string;
+            }>;
+            total: number;
+          }>;
+          if (auditJson.code !== 200) return -1;
+          const items = auditJson.data?.items;
+          // 出参形态区分：后端未返回 items（缺字段）与返回空集合不同——缺字段时返回 -1
+          // 让下方断言判红并暴露真实契约问题，绝不用 ?? [] 把缺字段伪装成"暂时还没落库"。
+          if (!Array.isArray(items)) return -1;
+          return items.length;
+        },
+        {
+          message: '审计应存在 PRINT 记录（打印后闭环，等待异步落库）',
+          timeout: 15_000,
+          intervals: [1_000],
+        }
+      )
+      .toBeGreaterThan(0);
+
+    // 落库后单次回读完整 items 供后续 uri/path 匹配（轮询仅判条数，避免把回读逻辑塞进 poll 反复请求）。
     const auditResp = await page.request.get(
       `${API_BASE}${API_PREFIX}/audit-logs?operation_type=PRINT&page=1&page_size=20`
     );
-    expect(auditResp.status(), '审计列表应可查询（admin）').toBe(200);
     const auditJson = (await auditResp.json()) as ApiResponse<{
       items: Array<{
         id: number;
@@ -137,21 +173,11 @@ test.describe('37b 打印内容匹配与审计闭环', () => {
       }>;
       total: number;
     }>;
-    expect(auditJson.code, `审计查询业务码应 200，实际 ${auditJson.code}`).toBe(200);
-    // 先断言出参形态，再取用：把"后端没返回 items"与"返回了空集合"区分开（原 ?? [] 会把前者伪装成后者）
-    const auditItems = auditJson.data?.items;
-    expect(
-      Array.isArray(auditItems),
-      `审计响应缺少 data.items 数组（字段缺失≠空集合）：${JSON.stringify(auditJson).slice(0, 200)}`
-    ).toBe(true);
-    const printLogs = auditItems as NonNullable<typeof auditItems>;
-    expect(
-      printLogs.length,
-      `审计应存在 PRINT 记录（打印后闭环），实际 total=${auditJson.data?.total}`
-    ).toBeGreaterThan(0);
-    const matched = printLogs.find(l => (l.uri ?? l.path ?? '').includes(String(salesOrderId)));
+    const matched = (auditJson.data?.items ?? []).find(l =>
+      (l.uri ?? l.path ?? '').includes(String(salesOrderId))
+    );
     console.log(
-      `[37b] ✅ 审计闭环：PRINT 记录 ${printLogs.length} 条${matched ? '（含本次打印的单据记录）' : ''}`
+      `[37b] ✅ 审计闭环：PRINT 记录 ${printLogs} 条${matched ? '（含本次打印的单据记录）' : ''}`
     );
   });
 
