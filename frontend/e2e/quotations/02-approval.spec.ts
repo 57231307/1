@@ -141,7 +141,16 @@ test.describe('02 报价单审批与转订单', () => {
     await expect(cancelBtn, 'draft 详情页应渲染「取消」按钮').toBeVisible({ timeout: 30000 });
     await cancelBtn.click();
     await page.locator('.el-message-box__btns .el-button--primary').click();
-    await expect(page.getByText('已取消')).toBeVisible({ timeout: 30000 });
+    // 成功提示锚定到 toast 容器 .el-message--success（取消成功仅这一条成功提示），避免
+    // getByText('已取消') 在详情页命中 2 个元素的 strict violation：行状态 el-tag__content
+    // + 操作成功 toast el-message__content。真证据三重并存、均不放宽：
+    //  1) toast 容器作用域的"已取消"成功提示（操作成功来源）
+    //  2) 详情页行状态 el-tag 的"已取消"（UI 真实回显状态）
+    //  3) 后端 /quotations/{id} 回读 status==='cancelled'（落库权威事实，下一行断言）
+    await expect(page.locator('.el-message--success').filter({ hasText: '已取消' })).toBeVisible({
+      timeout: 30000,
+    });
+    await expect(page.locator('.el-tag').filter({ hasText: '已取消' })).toBeVisible();
     expect(await quotationStatus(page, id), '取消后状态应为 cancelled').toBe('cancelled');
   });
 });
