@@ -13,6 +13,7 @@ import type { ColumnDef } from '@/components/V2Table/types';
 import { type SalesOrder, type SalesOrderItem } from '@/api/sales';
 import { request } from '@/api/request';
 import { getStockList, type InventoryStock } from '@/api/inventory';
+import { getWarehouseList } from '@/api/warehouse';
 import { msg } from '@/utils/message';
 import type { Customer } from '@/api/customer';
 import type { Product } from '@/api/product';
@@ -248,23 +249,15 @@ export function useOlv() {
   /** 加载客户 */
   const fetchCustomers = async () => {
     try {
-      // 后端真实路由：GET /crm/customers（PaginatedResponse，业务数组在 data.items）
-      const res = await request.get<
-        | {
-            data?: { items?: Customer[]; list?: Customer[]; total?: number };
-          }
-        | Customer[]
-      >('/crm/customers');
-      const d = res as unknown as { data?: { items?: Customer[] } } & { list?: Customer[] };
-      if (Array.isArray(d)) {
-        customers.value = d;
-      } else if (d && typeof d === 'object' && 'items' in (d.data ?? {})) {
-        customers.value = d.data?.items || [];
-      } else if (d && typeof d === 'object' && 'list' in d) {
-        customers.value = d.list || [];
-      } else {
-        customers.value = [];
+      // 后端 GET /crm/customers 返回 ApiResponse<PaginatedResponse>（customer_handler.rs:142/206），
+      // 拦截器后业务数组恒在 data.items。单形状直读，缺键即抛——不再「裸数组/items/list」三态探测
+      // 或用 `|| []` 吞掉形状漂移（文档判负写法：会把契约漂移静默成「下拉恒空」的功能失效）。
+      const res = await request.get<{ data?: { items?: Customer[] } }>('/crm/customers');
+      const items = res.data?.items;
+      if (!Array.isArray(items)) {
+        throw new Error(`GET /crm/customers 响应缺少 data.items 数组：${JSON.stringify(res)}`);
       }
+      customers.value = items;
     } catch (error) {
       logger.error(msg.translate('loadCustomerListFailed'), error);
       customers.value = [];
@@ -274,51 +267,34 @@ export function useOlv() {
   /** 加载产品 */
   const fetchProducts = async () => {
     try {
-      // 后端 GET /products 返回 ApiResponse<PaginatedResponse>，拦截器后真实形状为 {data:{items}}
-      const res = await request.get<
-        | {
-            data?: { items?: Product[] };
-          }
-        | Product[]
-      >('/products');
-      const d = res as unknown as { data?: { items?: Product[] } } & { list?: Product[] };
-      if (Array.isArray(d)) {
-        products.value = d;
-      } else if (d && typeof d === 'object' && 'items' in (d.data ?? {})) {
-        products.value = d.data?.items || [];
-      } else if (d && typeof d === 'object' && 'list' in d) {
-        products.value = d.list || [];
-      } else {
-        products.value = [];
+      // 后端 GET /products 返回 ApiResponse<PaginatedResponse>（product_handler.rs:254/308），
+      // 列表键恒为 data.items。单形状直读、缺键即抛，同 fetchCustomers 口径。
+      const res = await request.get<{ data?: { items?: Product[] } }>('/products');
+      const items = res.data?.items;
+      if (!Array.isArray(items)) {
+        throw new Error(`GET /products 响应缺少 data.items 数组：${JSON.stringify(res)}`);
       }
+      products.value = items;
     } catch (error) {
       logger.error(msg.translate('loadProductListFailed'), error);
       products.value = [];
     }
   };
 
-  /** 加载仓库 */
+  /** 加载仓库（发货对话框「仓库」下拉数据源） */
   const fetchWarehouses = async () => {
     try {
-      const res = await request.get<
-        | {
-            list?: {
-              id: number;
-              warehouse_name?: string;
-              name?: string;
-              warehouse_code?: string;
-            }[];
-          }
-        | { id: number; warehouse_name?: string; name?: string; warehouse_code?: string }[]
-      >('/warehouses');
-      const d = res;
-      if (Array.isArray(d)) {
-        warehouses.value = d;
-      } else if (d && typeof d === 'object' && 'list' in d) {
-        warehouses.value = d.list || [];
-      } else {
-        warehouses.value = [];
+      // 后端 GET /warehouses 返回 ApiResponse<PaginatedResponse<Warehouse>>（warehouse_service.rs:21），
+      // 经 response 拦截器返回完整信封体 { code, data:{ items, total, page, page_size } }，列表键为 data.items
+      // （契约见 api/warehouse.ts getWarehouseList、e2e ui-helpers listKey='items'）。
+      // 此前误按「裸数组 / data.list」读取，命中不到 items 分支 → warehouses 恒为空 →
+      // 发货对话框仓库下拉无选项，出库流程无法进行。
+      const res = await getWarehouseList({ page: 1, page_size: 100 });
+      const items = res.data?.items;
+      if (!Array.isArray(items)) {
+        throw new Error(`GET /warehouses 响应缺少 data.items 数组：${JSON.stringify(res)}`);
       }
+      warehouses.value = items;
     } catch (error) {
       logger.error(msg.translate('loadWarehouseListFailed'), error);
       warehouses.value = [];
