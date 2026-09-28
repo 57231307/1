@@ -114,6 +114,7 @@
             <el-date-picker
               v-model="formData.expected_close_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('crmOpportunityForm.expectedCloseDatePlaceholder')"
               style="width: 100%"
             />
