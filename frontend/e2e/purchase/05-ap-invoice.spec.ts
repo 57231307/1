@@ -66,8 +66,9 @@ async function seedApprovedPaymentRequest(
  *   采购订单查看对话框 PurchaseViewDialog 无“内嵌应付单 tab”，原 05-01/05-02 系按不存在的 UI 编写。
  * - InvoiceTab：页标题 '应付发票'、按钮 '新建发票'、列表列 发票编号/供应商/发票金额/税额/已付/未付/状态、
  *   行内 '详情' / DRAFT 行 '审核' / '取消'。新建应付发票对话框（createAria '新建应付发票对话框'）
- *   字段：供应商 select / 发票编号 input(占位 '请输入发票编号') / 发票日期 / 到期日期 /
- *   发票金额 spinbutton / 税额 spinbutton；底部 '取消' / '确认'。提交成功 '操作成功'(common.success)。
+ *   字段：供应商 select / 发票日期 / 到期日期 / 发票金额 spinbutton / 税额 spinbutton；底部 '取消' / '确认'。
+ *   发票编号由后端 generate_invoice_no 自生成（CreateAPInvoiceRequest 无 invoice_no 字段，见 ddcf51ca），
+ *   新建对话框不采集发票编号；提交成功 '操作成功'(common.success)。
  * - PaymentTab：'新建付款' → 对话框(createAria '新建付款对话框') 供应商 select / 付款日期 /
  *   付款金额 spinbutton / 付款方式 select(默认银行转账) / 银行账号 / 备注；底部 '确认'。
  *   成功 ElMessage.success(common.success)='操作成功'。AP 付款金额列以 toLocaleString 两位小数展示。
@@ -92,7 +93,8 @@ test.describe('05 AP 应付发票与付款', () => {
     await expect(dialog).toBeVisible();
     // 供应商（el-select，对话框内 label '供应商'；pickSelectIn 按精确 label 点 wrapper→选首项）
     await pickSelectIn(dialog, page, '供应商');
-    await dialog.getByPlaceholder('请输入发票编号').fill('E2E-AP-TEST-001');
+    // 发票编号由后端 generate_invoice_no 自生成、对话框不采集（见 ddcf51ca），故此处不填发票编号，
+    // 对齐 AR 侧同类已修用例 2350a23c（应收用例同样去填 invoice_no）。
     // 发票日期为前端必填（InvoiceTab invoiceRules.invoice_date required），据实填写
     const dateInput = dialog.getByLabel('发票日期');
     await dateInput.click();
@@ -100,7 +102,19 @@ test.describe('05 AP 应付发票与付款', () => {
     await page.keyboard.press('Enter');
     await dialog.getByRole('spinbutton').first().fill('8000');
     await dialog.getByRole('button', { name: '确认', exact: true }).click();
-    await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
+    // 建单成功真断：① 成功 toast 锚定 ElMessage teleport 容器（不放宽为裸 getByText）
+    await expect(page.locator('.el-message').filter({ hasText: '操作成功' })).toBeVisible({
+      timeout: 30000,
+    });
+    // ② 后端回读列表确实落库新建单：发票编号后端自生成无法据以检索，改按本用例唯一可观测组合
+    //   （发票金额 8000 ＋ 新建默认状态 DRAFT）检索，对齐既有绿用例 05-01/05-03 的回读口径。
+    const created = await apiCallRaw<{
+      items: Array<{ id: number; amount: string | number; invoice_status: string }>;
+    }>(page, 'GET', '/ap/invoices?page=1&page_size=50');
+    expect(
+      created.items?.some(i => Number(i.amount) === 8000 && i.invoice_status === 'DRAFT'),
+      `后端 /ap/invoices 未回读到新建单（amount=8000 且 DRAFT）`
+    ).toBe(true);
   });
 
   test('05-03 付款管理 Tab 可新建一笔付款', async ({ page }) => {
