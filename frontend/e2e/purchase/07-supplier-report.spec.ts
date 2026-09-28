@@ -49,8 +49,13 @@ test.describe('07 供应商评估（真实视图）', () => {
   test('07-03 评估指标 Tab 渲染指标编码列', async ({ page }) => {
     await page.goto('/supplier-evaluation');
     await page.getByRole('tab', { name: '评估指标' }).click();
-    await expect(page.getByText('指标编码').first()).toBeVisible();
-    await expect(page.getByText('指标名称').first()).toBeVisible();
+    // 指标 Tab 表格根 div 带 aria-label='评估指标列表'（index.vue:130）。
+    // 记录 Tab 也有一列 label 同为 '指标名称'（column.indicatorName），且记录 pane 停用时
+    // 其表头 display:none；全局 getByText('指标名称').first() 会命中该隐藏表头 → "hidden" 假红。
+    // 以指标表格作用域锚定，确保断言的是当前可见 Tab 的列头。
+    const indicatorTable = page.locator('[aria-label="评估指标列表"]');
+    await expect(indicatorTable.getByText('指标编码').first()).toBeVisible();
+    await expect(indicatorTable.getByText('指标名称').first()).toBeVisible();
   });
 
   test('07-04 评估记录 Tab 提供新建评估入口', async ({ page }) => {
