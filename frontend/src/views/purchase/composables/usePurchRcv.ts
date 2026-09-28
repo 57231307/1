@@ -11,7 +11,7 @@ import {
   type CreatePurchaseReceiptRequest,
   type CreateReceiptItemRequest,
 } from '@/api/purchase-receipt';
-import type { PurchaseOrder, PurchaseOrderItem } from '@/api/purchase';
+import { getPurchaseOrderById, type PurchaseOrder, type PurchaseOrderItem } from '@/api/purchase';
 import type { Product } from '@/api/product';
 
 /**
@@ -61,8 +61,38 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
 
   /**
    * 打开收货对话框
+   *
+   * 明细必须回源：列表出参 = `PurchaseOrderDto`（backend/src/services/po/order.rs:19），该 DTO 不含
+   * items 键（明细只在 `get_order` 详情里由 handler 单查 purchase_order_item 并 LEFT JOIN products
+   * 补 product_name/product_code 后挂到 order_json["items"]，
+   * backend/src/handlers/purchase_order_handler.rs:100-127）。此前直接用列表行 row.items，
+   * 该键恒不存在 → 对话框明细表恒 0 行 → 「本次收货」输入框根本不渲染，收货无法录入。
+   * 明细的数量/单价列在后端是 DECIMAL，经 JSON 序列化为字符串（如 "20.0000"），
+   * 这里统一 Number() 归一，供 el-input-number 的 :max 与显示使用。
    */
-  const handleReceive = (row: PurchaseOrder) => {
+  const handleReceive = async (row: PurchaseOrder) => {
+    let detailItems: PurchaseOrderItem[];
+    try {
+      const res = await getPurchaseOrderById(row.id);
+      // 详情出参的 items 由后端 handler 注入（见上），而 api/purchase.ts 的 PurchaseOrder 把 items
+      // 声明为必填键（列表 DTO 实际不给这个键），故这里按真实出参形状取值并做运行时数组校验，
+      // 缺键/空数组一律显式报错中止，不用 || [] 之类的默认值掩盖。
+      const items = (res.data as unknown as { items?: PurchaseOrderItem[] })?.items;
+      if (!Array.isArray(items) || items.length === 0) {
+        logger.error('[收货] 采购订单详情未返回可用明细，拒绝打开收货对话框', {
+          orderNo: row.order_no,
+          items,
+        });
+        msg.error('loadPurchaseOrderDetailFailed');
+        return;
+      }
+      detailItems = items;
+    } catch (error: unknown) {
+      // 非 2xx 由 api/request.ts 响应拦截器统一提示后端 message，此处只记日志并中止打开
+      logger.error(`[收货] 获取采购订单 ${row.order_no} 明细失败`, error);
+      return;
+    }
+
     receiveForm.value = {
       order_id: row.id,
       order_no: row.order_no,
@@ -70,8 +100,11 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
       supplier_name: row.supplier_name,
       receive_date: new Date().toISOString().split('T')[0],
       warehouse_id: undefined,
-      items: (row.items || []).map((item: PurchaseOrderItem) => ({
+      items: detailItems.map((item: PurchaseOrderItem) => ({
         ...item,
+        quantity: Number(item.quantity),
+        received_quantity: Number(item.received_quantity),
+        unit_price: Number(item.unit_price),
         receive_quantity: 0,
         remarks: '',
         batch_no: '',

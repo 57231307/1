@@ -10,10 +10,14 @@
 // 真实 UI 事实（据 PurchaseTable.vue / components/PurchaseReceiveDialog.vue / usePurchRcv.ts / locales 核对）：
 // - 收货入口：/purchase 列表已审批行（状态 '已审批'，PURCHASE_ORDER_STATUS.APPROVED）行内
 //   按钮 purchase.table.receive = '收货' → index.vue rcv.handleReceive → 打开 PurchaseReceiveDialog。
+// - rcv.handleReceive 先回源 GET /purchase/orders/{id} 取明细再打开对话框：列表出参
+//   PurchaseOrderDto（backend/src/services/po/order.rs:19）不含 items 键，明细只在详情 handler
+//   里单查 purchase_order_item + LEFT JOIN products 挂到 order_json["items"]
+//   （backend/src/handlers/purchase_order_handler.rs:100-127）。
 // - PurchaseReceiveDialog（aria-label purchase.index.receiveDlgAriaLabel = '收货对话框'，标题 '采购收货'）：
 //   只读采购单号/供应商；收货日期(默认今日 date)；仓库 el-select(label '仓库')；
 //   明细 el-table 列 产品/订购数量/已收货/本次收货(el-input-number)/单价/批次号/备注；底部 '取消' / '确定收货'。
-//   本次收货 el-input-number 的 :max = 订购数量 - 已收货（PurchaseReceiveDialog.vue 第 82 行），超限输入被钳制。
+//   本次收货 el-input-number :max = 订购数量 - 已收货（PurchaseReceiveDialog.vue 第 82 行），超限输入被钳制。
 // - 校验（submitReceive）：未选仓库 → msg.warning('pleaseSelectWarehouse') = '请选择收货仓库'；
 //   全部本次收货为 0 → msg.warning('pleaseFillItem') = '请填写至少一项收货数量'；
 //   批次号为空 → msg.warning('receiveBatchRequired') = '请为每行收货录入批次号'。
@@ -30,12 +34,31 @@ import {
   genCode,
 } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
+import { pickListArray } from '../flow/ui-helpers';
 
 /** 后端 PurchaseOrderDto 中本套件用到的字段 */
 interface PurchaseOrderLite {
   id: number;
   order_no: string;
   status: string;
+}
+
+/**
+ * PurchaseReceiptDto（services/purchase_receipt_dto.rs:16）中本用例用到的字段。
+ * total_quantity 是 DECIMAL，经 JSON 序列化为字符串（如 "5.0000"），断言前 Number() 归一。
+ */
+interface PurchaseReceiptLite {
+  id: number;
+  order_id: number | null;
+  receipt_status: string;
+  total_quantity: number | string;
+}
+
+/** GET /purchase/receipts/{id}/items 明细行 = purchase_receipt_item::Model 原键 */
+interface ReceiptItemLite {
+  id: number;
+  batch_no: string | null;
+  quantity: number | string;
 }
 
 /** 本 spec 内所有用例创建的专属订单 id，afterEach 尽力清理（已流转的删除失败仅告警属预期） */
@@ -168,15 +191,52 @@ test.describe('03 采购收货', () => {
     // 填收货数量
     await dialog.getByRole('spinbutton').first().fill('5');
     // 批次号：placeholder='收货批次号'（PurchaseReceiveDialog.vue 第 98 行）
-    await dialog
-      .locator('input[placeholder="收货批次号"]')
-      .first()
-      .fill(`E2E-${genCode('RCV')}`);
+    const batchNo = `E2E-${genCode('RCV')}`;
+    await dialog.locator('input[placeholder="收货批次号"]').first().fill(batchNo);
     await dialog.getByRole('button', { name: '确定收货' }).click();
     // createPurchaseReceipt 成功 → msg.success('receiveSuccess') = '收货成功'
     await expect(page.getByText('收货成功')).toBeVisible({ timeout: 30000 });
-    // 后端真实状态字面量：收货成功后 PO 应离开 APPROVED（变 PARTIAL_RECEIVED 或 COMPLETED）
+
+    // 落库核对：收货登记建的是 DRAFT 入库单（purchase_receipt_service.rs:75 build_receipt_active_model
+    // 写 status::purchase_receipt::DRAFT），并携带对话框录入的数量与批次号。
+    const receiptList = pickListArray<PurchaseReceiptLite>(
+      await apiCallRaw<unknown>(
+        page,
+        'GET',
+        `/purchase/receipts?order_id=${id}&page=1&page_size=10`
+      ),
+      'items',
+      '按单收货后的入库单列表'
+    );
+    const mine = receiptList.find(r => r.order_id === id);
+    expect(
+      mine,
+      `订单 ${orderNo} 应按单生成入库单，实际列表=${JSON.stringify(receiptList)}`
+    ).toBeTruthy();
+
+    const receipt = mine!;
+    expect(receipt.receipt_status, '入库单初始状态应为写入方原值 DRAFT').toBe('DRAFT');
+    expect(Number(receipt.total_quantity), '入库单主表数量应等于本次收货 5').toBe(5);
+
+    // 明细回源：GET /purchase/receipts/{id}/items 的 data 是裸数组
+    // （handlers/purchase_receipt_handler.rs list_receipt_items）
+    const lines = pickListArray<ReceiptItemLite>(
+      await apiCallRaw<unknown>(page, 'GET', `/purchase/receipts/${receipt.id}/items`),
+      'bare',
+      '入库单明细'
+    );
+    const line = lines.find(l => l.batch_no === batchNo);
+    expect(line, `入库明细应带回收货时录入的批次号 ${batchNo}`).toBeTruthy();
+    expect(Number(line!.quantity), '入库明细数量应等于本次收货 5').toBe(5);
+
+    // 采购订单进度与库存/应付都在「确认入库」里同事务落账
+    // （purchase_receipt_ops/state.rs:43-49 update_order_received_quantity + update_inventory_txn），
+    // 收货登记本身不推进订单状态，故此刻仍应是 APPROVED。
+    // 原用例断言「收货后状态离开 APPROVED」把两步合成了一个动作，与写入方语义不符（据实修正）。
     const after = await apiCallRaw<PurchaseOrderLite>(page, 'GET', `/purchase/orders/${id}`);
-    expect(after.status, `收货后状态应离开 APPROVED（实际 ${after.status}）`).not.toBe('APPROVED');
+    expect(
+      after.status,
+      `收货登记只建 DRAFT 入库单，采购订单应仍为 APPROVED（实际 ${after.status}）`
+    ).toBe('APPROVED');
   });
 });
