@@ -43,20 +43,43 @@ async function ensureLeafSubjects(page: Page): Promise<[string, string]> {
  * 在凭证分录行的科目 el-tree-select 中按名称选中科目。
  * el-tree-select 复用 el-select 触发器（.el-select__wrapper），点击后下拉面板 teleport 到 body，
  * 选项为树节点 .el-tree-node__content（非 .el-select-dropdown__item，故不能用 pickSelectIn）。
- * 行内唯一 el-select 即该树选择器；下拉以 :visible 收敛，避免上一次打开后隐藏的节点被误命中。
+ *
+ * 稳健性：CI #4662 该用例报 "locator resolved → not visible ×58"——节点一度 resolve 但点击前
+ * 面板收起/节点随重渲染短暂不可见。修复策略（均为真实交互、不放宽任何断言）：
+ *  1) 把节点作用域限定到「当前可见的下拉面板」容器内，避免命中另一行残留的隐藏同名节点；
+ *  2) 面板与节点均等到 visible + stable 再点；
+ *  3) 若节点始终不可见（面板已收起），重新点开触发器再取节点——重试轮询本身仍要求节点出现，
+ *     若前端根本不渲染叶子节点（leafSubjects 为空），此函数最终仍超时判红，不掩盖源码缺陷。
  */
 async function pickSubjectInTreeSelect(
   row: Locator,
   page: Page,
   subjectName: string
 ): Promise<void> {
-  await row.locator('.el-select__wrapper').first().click({ timeout: 15_000 });
-  const node = page
-    .locator('.el-tree-node__content:visible')
-    .filter({ hasText: subjectName })
-    .first();
-  await node.waitFor({ state: 'visible', timeout: 15_000 });
-  await node.click();
+  const wrapper = row.locator('.el-select__wrapper').first();
+  // el-tree-select 复用 el-select 的下拉容器（EP 把树渲染在 .el-select-dropdown 内），
+  // 限定到「当前可见面板」内的树节点，避免命中另一行收起后仍留在 DOM 的同名隐藏节点。
+  const nodeInVisiblePanel = () =>
+    page
+      .locator('.el-select-dropdown:visible')
+      .last()
+      .locator('.el-tree-node__content')
+      .filter({ hasText: subjectName })
+      .first();
+  const tryPick = async (openTimeout: number, nodeTimeout: number) => {
+    await wrapper.click({ timeout: openTimeout });
+    const node = nodeInVisiblePanel();
+    await node.waitFor({ state: 'visible', timeout: nodeTimeout });
+    await node.click({ timeout: nodeTimeout });
+  };
+  try {
+    await tryPick(15_000, 8_000);
+  } catch {
+    // 面板在等待/点击期间因失焦动画收起（#4662 报 "resolved → not visible ×58"）
+    // → 重新点开触发器再取节点；若前端根本不渲染叶子节点（leafSubjects 为空），
+    //   重试仍会超时判红，不掩盖源码缺陷。
+    await tryPick(15_000, 15_000);
+  }
 }
 
 test.describe('01 凭证管理', () => {
