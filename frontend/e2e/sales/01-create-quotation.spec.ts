@@ -80,12 +80,17 @@ test.describe('01 创建报价单', () => {
     await firstRow.getByRole('button', { name: /复制/ }).click();
     // 应跳转到新建页面并预填数据（真实新建页 router index.ts:1097 path:'quotations/new'）
     await expect(page).toHaveURL(/\/quotations\/new/);
-    // 客户字段应已预填：el-select 选中项文本渲染在 .el-select__selected-item（非 el-select__input.value）
+    // 客户 el-select 为 filterable，EP 2.14 下选中值渲染在 .el-select__selected-item.el-select__placeholder，
+    // 且无值时该节点带 is-transparent（显示占位文案）。首个 .el-select__selected-item 是只读输入框容器
+    // （.el-select__input-wrapper），textContent 恒为 ""（见 EP select2.mjs 渲染顺序 / flow/17-batch 取证）。
+    // 因此取"可见选中项"（placeholder 且非 transparent）这一唯一能证明"确有值选中"的节点，
+    // 未预填时该节点带 is-transparent → :not(.is-transparent) 命中 0 → 断言自然超时失败（真实红），不放宽。
     const customerSelected = page
       .locator('.el-form-item')
       .filter({ has: page.locator('.el-form-item__label', { hasText: /^\s*\*?\s*客户\s*$/ }) })
       .first()
-      .locator('.el-select__selected-item');
+      .locator('.el-select__selected-item.el-select__placeholder:not(.is-transparent)');
+    await expect(customerSelected.first()).toBeVisible({ timeout: 15_000 });
     await expect(customerSelected.first()).not.toHaveText('', { timeout: 15_000 });
   });
 });
