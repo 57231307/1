@@ -13,17 +13,21 @@ import { applyAuthMocks } from '../smoke/_helpers';
 // 限流是安全设计，严禁为过测放宽/关闭。合规做法：仅对 429 按其 Retry-After 头动态等待到固定
 // 窗口重置后重试——关键是用抖动打散两条并行链的唤醒时刻：上一版用逐字相同的 61s 定长退避，
 // 两条链会锁步（同时睡醒→同时再发→再次一起击穿窗口），5 次耗尽后成功 toast 永不出。改为
-// Retry-After + 5-15s 随机抖动后两链错峰，必有一条落入真正空闲的窗口。非 429 的真实错误
-// （4xx/5xx）一律不重试，让断言如实失败。累计退避封顶 300s，落在用例 420s 超时内。
-const AI_BACKOFF_BUDGET_MS = 300_000;
+// Retry-After + 宽抖动错峰唤醒，两链错开后必有一条落入真正空闲的窗口。非 429 的真实错误
+// （4xx/5xx）一律不重试，让断言如实失败。累计退避封顶贴近用例 420s 超时（留出首次请求
+// 与最后一次成功 toast 渲染的时间窗），使持续的桶竞争有更长清空机会——仍不改后端阈值、
+// 不放宽成功断言，属既有 429 退避范式的错峰/预算强化。
+const AI_BACKOFF_BUDGET_MS = 360_000;
 
-/** 取 429 响应的 Retry-After 头（秒），缺省按固定窗口 60s；加 5-15s 抖动错峰唤醒。 */
+/** 取 429 响应的 Retry-After 头（秒），缺省按固定窗口 60s；加 15-45s 宽抖动错峰唤醒。 */
 async function waitUntilWindowReset(
   page: import('@playwright/test').Page,
   resp: import('@playwright/test').Response
 ): Promise<void> {
   const retryAfterSec = Number(resp.headers()['retry-after'] ?? '60') || 60;
-  const jitterMs = 5_000 + Math.floor(Math.random() * 10_000);
+  // 宽抖动（15-45s，较原 5-15s 显著拉大）进一步打散两条并行 AI 链的唤醒时刻，
+  // 降低再次同刻击穿 10/min 窗口的概率；错峰是消除 flaky 的关键，不涉断言。
+  const jitterMs = 15_000 + Math.floor(Math.random() * 30_000);
   await page.waitForTimeout(retryAfterSec * 1000 + jitterMs);
 }
 
@@ -34,6 +38,10 @@ async function submitCreateWithBackoff(
   postUrlMatch: string,
   successText: string
 ): Promise<void> {
+  // 首次提交前随机错峰：ai/01 与 ai/02 两条并行链共享同一 storageState 用户的 10/min AI 桶，
+  // 若同时在窗口内发起 GET 列表 + POST 建单会立即合计超限，首个 POST 直接 429。随机前置
+  // 等待把两链的首发时刻打散到窗口不同相位，让其一先落入空闲窗——非退避、不放宽任何断言。
+  await page.waitForTimeout(2_000 + Math.floor(Math.random() * 6_000));
   const deadline = Date.now() + AI_BACKOFF_BUDGET_MS;
   for (;;) {
     const respPromise = page.waitForResponse(
