@@ -30,12 +30,19 @@ test.describe('01 用户与角色', () => {
     await page.getByRole('tab', { name: '用户管理' }).click();
     await page.getByRole('button', { name: '新建用户' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
-    // 新建用户对话框真实字段为「用户名/密码/角色」（均必填，密码需 ≥8 且含大小写与数字，见
-    // UserTab validatePassword），无「姓名」输入项；提交按钮文案「确定」（system.user.button.confirm）；
-    // 成功提示为 settings.user.createSuccess=「创建成功」。全部限定到 .el-dialog 作用域避免与筛选栏同名 label 冲突。
+    // 新建用户对话框真实字段为「用户名/密码/角色」（均必填）；提交按钮文案「确定」
+    // （system.user.button.confirm）；成功提示为 settings.user.createSuccess=「创建成功」。
+    // 全部限定到 .el-dialog 作用域避免与筛选栏同名 label 冲突。
+    //
+    // 密码须满足后端权威强度契约（backend/src/utils/password_validator.rs::PasswordPolicy::default +
+    // handlers/user_handler.rs::validate_password_strength），而非前端 UserTab 较弱规则：
+    //   长度 ≥8、必含大写+小写+数字+特殊字符各一、强度 ≥ 中等、不命中常见密码黑名单、无键盘序列。
+    // 旧值 E2ePassw0rd 无特殊字符 → POST /users 400「密码必须包含特殊字符」，成功提示永不出现（真红）。
+    // 不削弱后端校验迁就旧测试，改用例数据合契约：Erp!Bx#2026 含四类字符、避开黑名单/键盘序列、
+    // 强度 VeryStrong。用户名用 Date.now() 保证唯一、不含于密码故不触发 contains_username_fragment。
     const dlg = page.locator('.el-dialog');
     await dlg.getByLabel('用户名').fill(`e2e_user_${Date.now()}`);
-    await dlg.getByLabel('密码').fill('E2ePassw0rd');
+    await dlg.getByLabel('密码').fill('Erp!Bx#2026');
     // 角色是 el-select（UserTab.vue:144-152）。用唯一事实源 helper pickSelectIn 以
     // root=dlg + 精确 label「角色」作用域，点外层 wrapper（非只读内层 input）打开下拉选首项，
     // 消除旧 pickSelect+elSelectByLabel（子串匹配 / 点 readonly combobox）的假红。
