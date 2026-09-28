@@ -1582,10 +1582,12 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.meta.requiresAuth) {
-    // Wave B-3：access_token 存于 httpOnly Cookie，JS 不可读。
-    // 改用 userStore.userInfo 作为"已登录"标识；后端 getCurrentUser 失败则跳转登录。
+    // access_token 存于 httpOnly Cookie，JS 不可读。
+    // 以 userStore.userInfo 是否「完整」作为已登录判据；后端 getCurrentUser 失败则跳转登录。
     const userStore = useUserStore();
-    if (!userStore.userInfo) {
+    // 缓存权限态（store 初始化自 localStorage，id=0/username=''）只够首屏权限渲染，
+    // 缺有效 id 时不可信，必须照常 fetchUserInfo 拉全；缺 id 即「不完整」，触发补全。
+    if (!userStore.userInfo?.id) {
       try {
         await userStore.fetchUserInfo();
       } catch (error) {
