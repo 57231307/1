@@ -14,7 +14,6 @@ import {
   safeGoto,
   formItemByExactLabel,
   pickSelectIn,
-  pickV2Remote,
   isFieldDisabled,
   getFieldValue,
   fillFieldByLabel,
@@ -62,10 +61,16 @@ const FORBIDDEN_SECRETS = /供应商|对照|supplier|调货|自制/i;
 
 // 下拉/字段交互统一委托 flow/ui-helpers 唯一事实源（本文件旧内联 formItem/chooseOption/
 // v2IsDisabled/fieldInputValue/fillFieldByLabel 已删除，改调共享 API）：
-//  - 我方产品（el-select，本地 filterable）→ pickSelectIn（传 query 触发过滤 + optionText 选目标）
-//  - 我方色号 / 供应商 / 供应商商品 / 供应商色号（el-select-v2 remote，高基数）→ pickV2Remote
+//  - 我方产品 / 供应商（el-select，本地 filterable）→ pickSelectIn（传 query 触发过滤 + optionText 选目标）
+//  - 我方色号 / 供应商商品 / 供应商色号（el-select-v2 remote，高基数）→ 亦用 pickSelectIn：
+//      Element Plus 2.14.4 下 el-select-v2 与 el-select 共用 `useNamespace('select')`，
+//      触发器真实类名同为 `.el-select__wrapper`（不存在 `.el-select-v2__wrapper`），
+//      option 同为 `.el-select-dropdown__item`；pickSelectIn 已按真实渲染类名定位，
+//      并以 query 走 keyboard.type 触发 remote-method + 等 loading 收，等价于远程搜索选择。
+//      （共享 helper pickV2Remote/pickV2In 现按 `.el-select-v2__wrapper` 定位，本 EP 版本永不命中，
+//       属 ui-helpers 侧缺陷，已单独上报编排者，不在本 spec 内私改。）
 //  - 级联禁用态 → isFieldDisabled；只读回显值 → getFieldValue；文本填写 → fillFieldByLabel
-//  - 需要 form-item 本身下钻（如读 .el-select-v2 innerText）→ formItemByExactLabel
+//  - 需要 form-item 本身下钻（如读 el-select-v2 根块 .el-select 的 innerText）→ formItemByExactLabel
 // 共享 helper 均以 root 作用域 + `^label$` 精确锚定、无静默 catch，与旧内联实现语义等价但更健壮。
 
 // ---------------------------------------------------------------------------
@@ -384,21 +389,21 @@ test.describe('SKU 对照表 - 级联交互（purchaser 供应商侧）', () => 
     );
 
     // (2) 选供应商=演示甲 → 供应商商品变可用；远程搜索出 FAB-P001
-    await pickV2Remote(dialog, page, '供应商', fx.sup1Name, fx.sup1Name);
+    await pickSelectIn(dialog, page, '供应商', { query: fx.sup1Name, optionText: fx.sup1Name });
     expect(await isFieldDisabled(dialog, '供应商商品'), '选供应商后「供应商商品」应解禁').toBe(
       false
     );
-    await pickV2Remote(dialog, page, '供应商商品', 'FAB-P001', 'FAB-P001');
+    await pickSelectIn(dialog, page, '供应商商品', { query: 'FAB-P001', optionText: 'FAB-P001' });
 
     // 供应商商品编码只读回显 FAB-P001
     expect(await getFieldValue(dialog, '供应商品编码')).toContain('FAB-P001');
     // 选商品后供应商色号解禁
     expect(await isFieldDisabled(dialog, '供应商色号'), '选商品后「供应商色号」应解禁').toBe(false);
-    await pickV2Remote(dialog, page, '供应商色号', 'PC-A01', 'PC-A01');
+    await pickSelectIn(dialog, page, '供应商色号', { query: 'PC-A01', optionText: 'PC-A01' });
     expect(await getFieldValue(dialog, '供应商色号编号')).toContain('PC-A01');
 
     // (3) 切换供应商 → 清空下级：改选演示乙后，供应商商品/编码/色号回显全部清空
-    await pickV2Remote(dialog, page, '供应商', '演示乙', '演示乙');
+    await pickSelectIn(dialog, page, '供应商', { query: '演示乙', optionText: '演示乙' });
     expect(await getFieldValue(dialog, '供应商品编码'), '切换供应商后供应商品编码应被清空').toBe(
       ''
     );
@@ -406,9 +411,10 @@ test.describe('SKU 对照表 - 级联交互（purchaser 供应商侧）', () => 
       ''
     );
     // 清空下级后「供应商商品」仍可用（供应商已选），但其值应为空（下拉无选中项文本回显）
-    // 用共享 formItemByExactLabel（精确锚定，无静默）取 .el-select-v2 文本，定位失败应真实抛错。
+    // 用共享 formItemByExactLabel（精确锚定，无静默）取 el-select-v2 的根块类文本
+    // （EP 2.14.x 下 el-select-v2 根 class 为 .el-select，不存在 .el-select-v2 类块）。
     const spText = await formItemByExactLabel(dialog, '供应商商品')
-      .locator('.el-select-v2')
+      .locator('.el-select')
       .first()
       .innerText();
     expect(spText.includes('FAB-P001'), '切换供应商后不应仍残留旧商品').toBe(false);
@@ -453,19 +459,19 @@ test.describe('SKU 对照表 - 完整 UI happy-path（admin 全权路径）', ()
     await page.waitForTimeout(300);
 
     // 我方产品（el-select 本地 filterable）→ pickSelectIn（query 触发过滤 + optionText 选目标）；
-    // 我方色号（el-select-v2 remote）→ pickV2Remote
+    // 我方色号（el-select-v2 remote，EP 触发器类名同为 .el-select__wrapper）→ pickSelectIn + query 触发远程
     await pickSelectIn(dialog, page, '我方产品', {
       query: fx.productCode,
       optionText: fx.productCode,
     });
-    await pickV2Remote(dialog, page, '我方色号', fx.colorNo, fx.colorNo);
+    await pickSelectIn(dialog, page, '我方色号', { query: fx.colorNo, optionText: fx.colorNo });
     // 只读展示我方色号编号 == 选中的 colorNo
     expect(await getFieldValue(dialog, '我方色号编号')).toContain(fx.colorNo);
 
     // 供应商三级级联（均 el-select-v2 remote）
-    await pickV2Remote(dialog, page, '供应商', fx.sup1Name, fx.sup1Name);
-    await pickV2Remote(dialog, page, '供应商商品', 'FAB-P001', 'FAB-P001');
-    await pickV2Remote(dialog, page, '供应商色号', 'PC-A01', 'PC-A01');
+    await pickSelectIn(dialog, page, '供应商', { query: fx.sup1Name, optionText: fx.sup1Name });
+    await pickSelectIn(dialog, page, '供应商商品', { query: 'FAB-P001', optionText: 'FAB-P001' });
+    await pickSelectIn(dialog, page, '供应商色号', { query: 'PC-A01', optionText: 'PC-A01' });
 
     // 协议价
     await fillFieldByLabel(dialog, page, '协议价', '66.60');
@@ -558,15 +564,15 @@ test.describe('SKU 对照表 - 完整 UI happy-path（purchaser 自证）', () =
       optionText: fx.productCode,
     });
     // 我方色号（el-select-v2 remote，经 GET /products/:id/colors）
-    await pickV2Remote(dialog, page, '我方色号', fx.colorNo, fx.colorNo);
+    await pickSelectIn(dialog, page, '我方色号', { query: fx.colorNo, optionText: fx.colorNo });
     // 断言只读回显 == 选中的色号编号
     expect(await getFieldValue(dialog, '我方色号编号')).toContain(fx.colorNo);
 
     // 供应商三级级联（均 el-select-v2 remote；purchaser 有 suppliers:read、supplier-products:read、
     // supplier-product-colors:read）
-    await pickV2Remote(dialog, page, '供应商', fx.sup1Name, fx.sup1Name);
-    await pickV2Remote(dialog, page, '供应商商品', 'FAB-P001', 'FAB-P001');
-    await pickV2Remote(dialog, page, '供应商色号', 'PC-A01', 'PC-A01');
+    await pickSelectIn(dialog, page, '供应商', { query: fx.sup1Name, optionText: fx.sup1Name });
+    await pickSelectIn(dialog, page, '供应商商品', { query: 'FAB-P001', optionText: 'FAB-P001' });
+    await pickSelectIn(dialog, page, '供应商色号', { query: 'PC-A01', optionText: 'PC-A01' });
 
     // 协议价
     await fillFieldByLabel(dialog, page, '协议价', '55.55');
