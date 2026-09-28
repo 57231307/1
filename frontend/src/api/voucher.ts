@@ -13,8 +13,8 @@ export interface VoucherEntry {
   account_subject_id: number;
   account_subject_code?: string;
   account_subject_name?: string;
-  debit_amount: number;
-  credit_amount: number;
+  debit_amount: string | number;
+  credit_amount: string | number;
   description?: string;
 }
 

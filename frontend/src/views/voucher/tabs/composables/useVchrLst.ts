@@ -138,8 +138,8 @@ export function useVchrLst() {
     let totalDebit = 0;
     let totalCredit = 0;
     form.entries.forEach(entry => {
-      totalDebit += entry.debit_amount || 0;
-      totalCredit += entry.credit_amount || 0;
+      totalDebit += Number(entry.debit_amount ?? 0);
+      totalCredit += Number(entry.credit_amount ?? 0);
     });
     form.total_debit = totalDebit;
     form.total_credit = totalCredit;
@@ -221,7 +221,9 @@ export function useVchrLst() {
       return false;
     }
     const validEntries = (form.entries || []).filter(
-      e => e.account_subject_id > 0 && (e.debit_amount > 0 || e.credit_amount > 0)
+      e =>
+        e.account_subject_id > 0 &&
+        (Number(e.debit_amount ?? 0) > 0 || Number(e.credit_amount ?? 0) > 0)
     );
     if (validEntries.length === 0) {
       msg.warning('pleaseAddEntry');

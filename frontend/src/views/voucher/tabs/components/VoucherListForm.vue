@@ -128,11 +128,20 @@ import { deepClone } from '@/utils';
 import { ref, computed, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatAmount } from '../composables/vchrLstFmts';
+import type { VoucherEntity, VoucherEntry as ApiVoucherEntry } from '@/api/voucher';
 
 const { t } = useI18n({ useScope: 'global' });
 
+/**
+ * 分录编辑模型：ElInputNumber 双向绑定与借贷合计实时计算均以 number 为契约。
+ * 入参金额来自后端 rust_decimal（JSON 序列化为字符串，见 @/api/voucher 的 VoucherEntry），
+ * 在 prop→local 边界经 toLocalForm 归一为 number，避免以字符串驱动数值控件。
+ */
 interface VoucherEntry {
+  id?: number;
   account_subject_id: number;
+  account_subject_code?: string;
+  account_subject_name?: string;
   debit_amount: number;
   credit_amount: number;
   description?: string;
@@ -166,8 +175,8 @@ const props = defineProps<{
   visible: boolean;
   // 对话框标题
   title: string;
-  // 表单数据（由父组件管理，子组件通过 emit 回写）
-  form: VoucherForm;
+  // 表单数据（由父组件管理，金额字段为后端 Decimal 字符串，子组件通过 emit 回写）
+  form: Partial<VoucherEntity>;
   // 凭证类型下拉选项
   voucherTypes: { label: string; value: string }[];
   // 科目下拉选项
@@ -187,9 +196,25 @@ const emit = defineEmits<{
   (e: 'update:form', form: VoucherForm): void;
 }>();
 
+// prop→local 边界归一：后端 Decimal 字符串金额转为 number（nullish 视为 0）。
+const toNumberEntry = (e: ApiVoucherEntry): VoucherEntry => ({
+  id: e.id,
+  account_subject_id: e.account_subject_id,
+  account_subject_code: e.account_subject_code,
+  account_subject_name: e.account_subject_name,
+  debit_amount: Number(e.debit_amount ?? 0),
+  credit_amount: Number(e.credit_amount ?? 0),
+  description: e.description,
+});
+
+const toLocalForm = (f: Partial<VoucherEntity>): VoucherForm => ({
+  ...f,
+  entries: (f.entries ?? []).map(toNumberEntry),
+});
+
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 entries 数组，需要深拷贝以保证本地修改与父组件解耦
-const localForm = ref<VoucherForm>(deepClone(props.form));
+const localForm = ref<VoucherForm>(toLocalForm(deepClone(props.form)));
 
 // 借/贷合计按本地分录实时派生，用于底部展示与不平衡提示。
 // 与 useVchrLst.ts:calculateTotals 同源（对 entries 求和，金额 nullish 视为 0）。
@@ -211,7 +236,7 @@ watch(
   newForm => {
     if (syncing) return;
     syncing = true;
-    localForm.value = deepClone(newForm);
+    localForm.value = toLocalForm(deepClone(newForm));
     nextTick(() => {
       syncing = false;
     });
