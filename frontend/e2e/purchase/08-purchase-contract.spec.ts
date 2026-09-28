@@ -15,7 +15,7 @@
 //   check_remaining_amount_txn 拒绝即证明第一次执行已持久化）。
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
+import { safeGoto, pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
 import { apiCall, apiCallRaw, apiCallExpectFail, genCode, tryCleanup } from '../flow/helpers';
 import type { Page } from '@playwright/test';
 
@@ -61,14 +61,27 @@ async function seedDraftContract(
 
 /** 进入采购合同列表页（专用页，非枢纽 Tab） */
 async function gotoContractList(page: Page): Promise<void> {
-  await page.goto('/purchase-contract');
+  // 用 safeGoto（Vite 冷编译 504 / 路由 chunk 未就绪时最多重试 3 次）替代裸 page.goto：
+  // 采购合同页标题文案经核对真实为 locales purchaseContract.index.title='采购合同管理'（index.vue
+  // 的 <h1 class="page-title"> 渲染），关键字筛选控件经核对真实存在（PurchaseContractFilter.vue
+  // 的 <el-form-item :label="t('purchaseContract.filter.keyword')">→'关键词' 内含 el-input）。
+  // 本批 08-03/08-04 的红是非确定性（同页 08-01/08-02 绿、且两例失败点不同）→ 属 CI 冷加载
+  // 竞态而非源码/用例文案错。断言文案保持不变（不放宽），仅让导航容忍冷编译竞态。
+  await safeGoto(page, '/purchase-contract');
   await expect(page.getByText('采购合同管理')).toBeVisible({ timeout: 30000 });
 }
 
 /** 在筛选栏按关键词（合同编号/名称）检索并触发查询 */
 async function filterByKeyword(page: Page, keyword: string): Promise<void> {
+  // 以「关键词」label 锚定专属 el-input（PurchaseContractFilter.vue 唯一含该 label 的 form-item）
   const keywordItem = page.locator('.el-form-item').filter({ hasText: '关键词' }).first();
-  await keywordItem.locator('input').first().fill(keyword);
+  const keywordInput = keywordItem.locator('input').first();
+  // 先等待真实存在的关键词输入框可见，把「fill 30s 超时（元素不在/未挂载）」转成显式可见性
+  // 断言——若筛选栏确未渲染，这里会以明确信息失败，而非泛化的 fill 超时（不掩盖真缺陷）。
+  // 经核对源码该控件确实存在且文案为「关键词」；本批 08-04 的红是 CI 页面冷加载竞态下的
+  // fill 超时（同页 08-01/08-02 用例绿），断言值与匹配方式保持不变，仅加显式可见等待。
+  await expect(keywordInput, '采购合同筛选栏关键词输入框应可见').toBeVisible({ timeout: 30_000 });
+  await keywordInput.fill(keyword);
   await page.getByRole('button', { name: '查询', exact: true }).click();
 }
 
