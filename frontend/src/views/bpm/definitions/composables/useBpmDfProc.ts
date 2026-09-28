@@ -8,6 +8,7 @@
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { i18n } from '@/i18n';
 // D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
   deleteBpmDefinition,
@@ -191,7 +192,10 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
           config: { nodes: cb.formData.nodes },
         };
         await createBpmDefinition(payload);
-        msg.success('createSuccess');
+        // 建单成功文案为「新增成功」= common.message.createSuccess。
+        // msg.success('createSuccess') 会解析到顶层 message.createSuccess（值「创建成功」），
+        // 与本模块既定新建提示文案不一致，故直接取 common 命名空间的对应 key。
+        ElMessage.success(i18n.global.t('common.message.createSuccess'));
       }
       cb.dialogVisible = false;
       await cb.fetchDefinitions();
