@@ -70,9 +70,19 @@ pub fn is_public_path(path: &str) -> bool {
 /// - `/ws/ticket`：WebSocket 一次性票据签发。票据本身即属"鉴权材料"而非业务写操作，
 ///   鉴权强依赖 JWT。若不豁免，WS 重连风暴（1~30s 退避）会与页面其它 POST 争抢
 ///   一次性 CSRF token，把并发请求全部打成 CSRF_TOKEN_INVALID。
+/// - `/auth/me`：自服务身份端点（`get_current_user` 仅按 `auth.user_id` 回读调用者本人的
+///   UserInfo + permissions，`handler=Extension<AuthContext>`，无任何越权/跨用户读、无写副作用）。
+///   它按 URL 段推导出资源名 `me`/动作 `read`（`auth` 为模块前缀，`me` 走 `_ => resource` 兜底），
+///   若照常过 RBAC，则要求业务权限码 `me:read`；而 `me:read` 从不在任何角色种子
+///   （`init_service_ops/permission.rs` SHELL_PERMISSIONS 仅 dashboard/notifications，业务角色亦无）
+///   中出现 → 任何非 admin 角色整页刷新时守卫 fetchUserInfo(GET /auth/me) 必 403，
+///   被 request.ts 拦截器踢回 /login，用户彻底无法进入任何受保护页（admin 靠 `*:*` 掩盖此缺口）。
+///   这正是本端点 `批次 24 v6 P0-2` 注释要根治的"刷新后 permissions 缺失→403 跳转"回归。
+///   安全等价：GET 无 CSRF 消费面，返回体只含调用者自身数据无越权面，故仅需认证、免 RBAC。
 pub const AUTH_ONLY_PATHS: &[&str] = &[
     "/api/v1/erp/audit-logs/record-print",
     "/api/v1/erp/ws/ticket",
+    "/api/v1/erp/auth/me",
 ];
 
 /// 路径是否仅需认证（严格精确匹配，语义与 [`is_public_path`] 一致，不做子路径前缀放行）
