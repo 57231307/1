@@ -150,30 +150,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('arModule.invoice.invoiceNo')" prop="invoice_no">
-              <el-input
-                v-model="invoiceForm.invoice_no"
-                :placeholder="$t('arModule.invoice.invoiceNoInputPlaceholder')"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
             <el-form-item :label="$t('arModule.invoice.invoiceDate')" prop="invoice_date">
               <el-date-picker
                 v-model="invoiceForm.invoice_date"
-                type="date"
-                :placeholder="$t('arModule.invoice.datePlaceholder')"
-                value-format="YYYY-MM-DD"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item :label="$t('arModule.invoice.dueDate')">
-              <el-date-picker
-                v-model="invoiceForm.due_date"
                 type="date"
                 :placeholder="$t('arModule.invoice.datePlaceholder')"
                 value-format="YYYY-MM-DD"
@@ -201,6 +180,25 @@
                 :precision="2"
                 style="width: 100%"
               />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item :label="$t('arModule.invoice.dueDate')">
+              <el-date-picker
+                v-model="invoiceForm.due_date"
+                type="date"
+                :placeholder="$t('arModule.invoice.datePlaceholder')"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <!-- 发票编号后端自生成，新建时只读展示（未创建为空），不入提交请求体 -->
+            <el-form-item :label="$t('arModule.invoice.invoiceNo')">
+              <el-input :model-value="invoiceNoDisplay()" readonly />
             </el-form-item>
           </el-col>
         </el-row>
@@ -258,7 +256,6 @@ const invoiceQuery = reactive({
 
 const invoiceForm = reactive({
   customer_id: undefined as number | undefined,
-  invoice_no: '',
   invoice_date: '',
   invoice_amount: 0,
   tax_amount: 0,
@@ -269,9 +266,6 @@ const invoiceForm = reactive({
 const invoiceRules: FormRules = {
   customer_id: [
     { required: true, message: t('arModule.invoice.customerRequired'), trigger: 'change' },
-  ],
-  invoice_no: [
-    { required: true, message: t('arModule.invoice.invoiceNoRequired'), trigger: 'blur' },
   ],
   invoice_date: [
     { required: true, message: t('arModule.invoice.invoiceDateRequired'), trigger: 'change' },
@@ -311,6 +305,14 @@ const getInvoiceStatusType = (status: string) => {
   return map[status] || 'info';
 };
 
+/**
+ * 新建对话框「发票编号」只读回显：发票号由后端 create_ar_invoice → generate_invoice_no 自生成，
+ * 前端不采集、不入请求体（见后端 CreateArInvoiceRequestDto 无 invoice_no 字段）；
+ * 未创建时留空并回退到占位提示文案。
+ */
+const invoiceNoDisplay = () =>
+  invoiceDialogVisible.value ? '' : t('arModule.invoice.invoiceNoPlaceholder');
+
 const fetchInvoices = async () => {
   invoiceLoading.value = true;
   try {
@@ -334,7 +336,6 @@ const resetInvoiceQuery = () => {
 const openInvoiceDialog = () => {
   invoiceFormRef.value?.resetFields();
   invoiceForm.customer_id = undefined;
-  invoiceForm.invoice_no = '';
   invoiceForm.invoice_date = new Date().toISOString().split('T')[0];
   invoiceForm.invoice_amount = 0;
   invoiceForm.tax_amount = 0;
@@ -349,7 +350,16 @@ const submitInvoice = async () => {
 
   invoiceSubmitLoading.value = true;
   try {
-    await createARInvoice(invoiceForm);
+    // 请求体逐字段对齐后端 CreateArInvoiceRequestDto（handlers/ar_invoice_handler.rs:46）：
+    // 不含 invoice_no（后端 generate_invoice_no 自生成）、不含 tax_amount/remark（DTO 无此字段）。
+    // 到期日为选填：留空时为 ''，后端把 due_date 反序列化为 Some("") 后 parse::<NaiveDate> 失败
+    // →「到期日格式错误」422 使创建被拒；空串归 undefined（JSON 省略该键），后端回退为当天。
+    await createARInvoice({
+      customer_id: invoiceForm.customer_id,
+      invoice_date: invoiceForm.invoice_date,
+      due_date: invoiceForm.due_date || undefined,
+      invoice_amount: invoiceForm.invoice_amount,
+    });
     ElMessage.success(t('common.success'));
     invoiceDialogVisible.value = false;
     fetchInvoices();
