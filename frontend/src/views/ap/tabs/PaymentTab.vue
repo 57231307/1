@@ -185,8 +185,12 @@ const suppliers = ref<Supplier[]>([]);
 const supplierLabel = (id: number) =>
   suppliers.value.find(s => s.id === id)?.supplier_name ?? String(id);
 
-const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+const formatMoney = (amount: number | string | undefined) => {
+  // 后端 rust_decimal（features=["serde"]）将 payment_amount / request_amount 序列化为字符串，
+  // 对字符串调用 toLocaleString 不会补千分位（如 "8888.88" 原样返回）。统一 Number() 归一。
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return '0.00';
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 };
 
 const getPaymentMethodLabel = (method: string) => {

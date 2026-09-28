@@ -325,8 +325,12 @@ const invoiceQuery = reactive({
   invoice_status: '',
 });
 
-const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+const formatMoney = (amount: number | string | undefined) => {
+  // 后端 rust_decimal（features=["serde"]，无 serde-float）将金额序列化为字符串，
+  // 直接对字符串调用 toLocaleString 不会补千分位。统一 Number() 归一再格式化。
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return '0.00';
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 };
 
 const getInvoiceStatusType = (status: string) => {
@@ -427,7 +431,17 @@ const submitInvoice = async () => {
   if (!valid) return;
   invoiceSubmitLoading.value = true;
   try {
-    await createAPInvoice(invoiceForm);
+    // 契约对齐后端 CreateApInvoiceRequest（services/ap_invoice_ops/types.rs:24）：
+    // 金额键为 amount（非表单本地键 invoice_amount）、备注键为 notes（非 remark）；
+    // invoice_no 由后端 generate_invoice_no() 生成，不入请求体。
+    await createAPInvoice({
+      supplier_id: invoiceForm.supplier_id,
+      invoice_date: invoiceForm.invoice_date,
+      due_date: invoiceForm.due_date || undefined,
+      amount: invoiceForm.invoice_amount,
+      tax_amount: invoiceForm.tax_amount,
+      notes: invoiceForm.remark || undefined,
+    });
     ElMessage.success(t('common.success'));
     invoiceDialogVisible.value = false;
     fetchInvoices();
