@@ -254,10 +254,13 @@ test.describe.serial('新域业务流转链', () => {
     await expect(page.locator('.page')).toBeVisible();
 
     await page.getByRole('button', { name: '签署合同' }).click();
+    // 作用域限定到对话框：页面另有工具栏「签署合同」按钮，其可访问名包含「签署」子串，
+    // getByRole(name:'签署') 默认子串匹配会同时命中「签署合同」+ 对话框「签署」→ strict 违例。
+    const dlg = page.locator('.el-dialog:visible').last();
     // SignContractRequest { contract_id, signed_by_user_id, signature_image_url? }
-    await page.locator('.el-dialog .el-input-number input').first().fill('1');
-    await page.locator('.el-dialog .el-input-number input').nth(1).fill('1');
-    await page.getByRole('button', { name: '签署' }).click();
+    await dlg.locator('.el-input-number input').first().fill('1');
+    await dlg.locator('.el-input-number input').nth(1).fill('1');
+    await dlg.getByRole('button', { name: '签署', exact: true }).click();
     await expect(page.locator('.el-message--success, .el-message--error').first()).toBeVisible({
       timeout: 8000,
     });
