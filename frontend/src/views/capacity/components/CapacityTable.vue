@@ -40,8 +40,8 @@
       />
       <el-table-column prop="load_rate" :label="$t('capacityModule.table.loadRate')" width="120">
         <template #default="{ row }">
-          <el-tag v-if="row.load_rate != null" :type="getLoadRateType(row.load_rate)"
-            >{{ row.load_rate.toFixed(1) }}%</el-tag
+          <el-tag v-if="row.load_rate != null" :type="getLoadRateType(Number(row.load_rate ?? 0))"
+            >{{ Number(row.load_rate ?? 0).toFixed(1) }}%</el-tag
           >
         </template>
       </el-table-column>

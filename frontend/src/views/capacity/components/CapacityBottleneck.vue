@@ -26,7 +26,7 @@
         <div class="bottleneck-info">
           <span
             >{{ t('capacityModule.bottleneck.loadRate') }}:
-            <strong>{{ item.load_rate.toFixed(1) }}%</strong></span
+            <strong>{{ Number(item.load_rate ?? 0).toFixed(1) }}%</strong></span
           >
           <span
             >{{ t('capacityModule.bottleneck.usedHours') }}: {{ item.total_demand }} /

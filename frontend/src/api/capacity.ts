@@ -9,7 +9,7 @@ export interface WorkCenter {
   code: string;
   name: string;
   work_center_type: string | null;
-  daily_capacity: number;
+  daily_capacity: string | number;
   capacity_unit: string | null;
   // 工作中心运营态（active_status：ACTIVE/INACTIVE/…，见 models/status/general.rs），非负荷态
   status: string;
@@ -20,7 +20,7 @@ export interface ShiftInfo {
   shift_name: string;
   start_time: string;
   end_time: string;
-  capacity_ratio: number;
+  capacity_ratio: string | number;
 }
 
 // 产能负荷项（后端 GET /capacity/load-analysis → Vec<CapacityLoadItem>，
@@ -30,21 +30,21 @@ export interface CapacityLoadItem {
   work_center_id: number;
   work_center_code: string;
   work_center_name: string;
-  daily_capacity: number;
+  daily_capacity: string | number;
   capacity_unit: string | null;
-  planned_quantity: number;
-  in_progress_quantity: number;
-  total_demand: number;
-  load_rate: number;
+  planned_quantity: string | number;
+  in_progress_quantity: string | number;
+  total_demand: string | number;
+  load_rate: string | number;
   status: string;
-  gap_quantity: number;
+  gap_quantity: string | number;
   suggestions: BottleneckSuggestion[];
 }
 
 export interface BottleneckSuggestion {
   suggestion_type: string;
   description: string;
-  suggested_quantity: number;
+  suggested_quantity: string | number;
   priority: string;
 }
 
@@ -52,8 +52,8 @@ export interface BottleneckSuggestion {
 // id 关联。负荷列在无对应 load 记录（如工作中心非启用态、不在 load_analysis 结果内）时为 null，
 // 属真实缺省而非缺键，由展示层按空处理。
 export interface CapacityRow extends WorkCenter {
-  total_demand: number | null;
-  load_rate: number | null;
+  total_demand: string | number | null;
+  load_rate: string | number | null;
   load_status: string | null;
   bottleneck: boolean;
 }
