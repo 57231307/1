@@ -103,7 +103,16 @@ test.describe('02 报价单审批与转订单', () => {
     });
     await approveBtn.click();
     await page.locator('.el-message-box__btns .el-button--primary').click();
-    await expect(page.getByText('已批准')).toBeVisible({ timeout: 30000 });
+    // 成功提示锚定到 toast 容器 .el-message--success，避免 getByText('已批准') 命中 2 个元素
+    // 的 strict violation：行状态 el-tag__content + 操作成功 toast el-message__content。
+    // 真证据三重并存、均不放宽（对齐 02-04 三重证据风格）：
+    //  1) toast 容器作用域的"已批准"成功提示（操作成功来源）
+    //  2) 详情页行状态 el-tag 的"已批准"（UI 真实回显状态）
+    //  3) 后端 /quotations/{id} 回读 status==='approved'（落库权威事实，下一行断言）
+    await expect(page.locator('.el-message--success').filter({ hasText: '已批准' })).toBeVisible({
+      timeout: 30000,
+    });
+    await expect(page.locator('.el-tag').filter({ hasText: '已批准' })).toBeVisible();
     expect(await quotationStatus(page, id), '批准后状态应为 approved').toBe('approved');
   });
 
