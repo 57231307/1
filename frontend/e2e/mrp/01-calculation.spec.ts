@@ -54,6 +54,15 @@ test.describe('MRP 计算', () => {
     // 「产品选择」锚定，点外层 .el-select__wrapper → keyboard.type('E2E') 触发远程搜索 → 选首项。
     await pickSelectIn(calcForm, page, '产品选择', { query: 'E2E', index: 0, multiple: true });
 
+    // 点计算前先收起产品多选面板：filterable remote 多选的 el-select 面板 teleport 到 body，
+    // 选完项后面板在 CI 下仍可能展开，其层叠区域盖住同表单下一行的「开始计算」按钮 →
+    // Playwright hit-target 校验失败 → calcBtn.click() 30s 超时（按钮已 resolved 却点不下）。
+    // pickSelectIn(multiple) 内虽已按一次 Escape，但不足以在慢环境下稳定收起远程搜索面板；此处
+    // 补一次 Escape 并等待 teleport 下拉面板确不可见（toHaveCount 自动重试，非放宽断言），
+    // 交互顺序与真实用户「选完产品→收起下拉→点开始计算」一致。
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.el-select-dropdown:visible')).toHaveCount(0);
+
     await calcBtn.click();
     await expect(page.getByText(/计算成功/)).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/物料需求列表/)).toBeVisible({ timeout: 30000 });
