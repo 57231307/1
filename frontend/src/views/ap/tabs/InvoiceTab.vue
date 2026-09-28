@@ -153,14 +153,6 @@
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item :label="$t('apModule.invoice.invoiceNo')" prop="invoice_no">
-              <el-input
-                v-model="invoiceForm.invoice_no"
-                :placeholder="$t('apModule.invoice.invoiceNoInputPlaceholder')"
-              />
-            </el-form-item>
-          </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
@@ -390,7 +382,6 @@ const invoiceFormRef = ref<FormInstance>();
 const invoiceSubmitLoading = ref(false);
 const invoiceForm = reactive({
   supplier_id: undefined as number | undefined,
-  invoice_no: '',
   invoice_date: '',
   due_date: '',
   invoice_amount: 0,
@@ -401,9 +392,6 @@ const invoiceForm = reactive({
 const invoiceRules: FormRules = {
   supplier_id: [
     { required: true, message: t('apModule.invoice.supplierRequired'), trigger: 'change' },
-  ],
-  invoice_no: [
-    { required: true, message: t('apModule.invoice.invoiceNoRequired'), trigger: 'blur' },
   ],
   invoice_date: [
     { required: true, message: t('apModule.invoice.invoiceDateRequired'), trigger: 'change' },
@@ -416,7 +404,6 @@ const invoiceRules: FormRules = {
 const openInvoiceDialog = () => {
   Object.assign(invoiceForm, {
     supplier_id: undefined,
-    invoice_no: '',
     invoice_date: '',
     due_date: '',
     invoice_amount: 0,
