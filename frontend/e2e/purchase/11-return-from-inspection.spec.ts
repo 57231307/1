@@ -4,13 +4,28 @@
 //   → 退货新建对话框以新建态预填（供应商/原因/退货日期/明细非空）→ 提交 → 断言新退货单落库。
 //
 // 与 quotation copy 同构：以源单 id 载入派生数据、以新建态呈现、保存走 POST /purchase/returns。
+// 预填取数口径（契约以出参为准，逐个核对源码）：
+// - 表头：GET /purchase/inspections/{id} = purchase_inspection::Model 原键
+//   （order_id/receipt_id/supplier_id/defect_description/notes），退货表单写
+//   purchaseOrderId/receiptId/supplierId/returnDate(当日)/reasonType/reason/remarks（usePrRtn.ts）。
+// - 原因类型：purchase_return.reason_type 的取值词表在共用常量 constants/return-reason，
+//   预填取该表 qualityDefect 档 = 落库原值「品质瑕疵」。
+// - 明细：GET /purchase/inspections/{id}/items 直接序列化 purchase_inspection_item::Model
+//   （backend/src/services/purchase_inspection_service.rs:323），业务列只有
+//   product_id / item_name / qualified_quantity / unqualified_quantity / remark，
+//   **没有** failed_quantity / passed_quantity / product_name / defect_reason 这些键；
+//   退货行取 unqualified_quantity > 0 的行，退货数量 = Number(unqualified_quantity)
+//   （DECIMAL 经 JSON 序列化为字符串，如 "50.0000"）。
+// - 提交按钮文案 = purchaseReturn.form.button.submit = '确定'；
+//   成功 toast = msg.success('createSuccess') = message.createSuccess = '创建成功'。
 // 状态/结果词表真值（后端 models/status/purchase_inventory.rs）：
 //   inspection_status: pending/completed（全小写）
 //   inspection_result: 自由文本，本用例写 pass/fail/partial（piFmts 映射已知取值）
+//   purchase_return.return_status 写入方原值 draft（create_return）
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, tryCleanup } from '../flow/helpers';
-import { pickSelect, pickListArray } from '../flow/ui-helpers';
+import { pickListArray } from '../flow/ui-helpers';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -204,12 +219,12 @@ test.describe('11 质检不合格生成退货', () => {
     await expect(dlg).toBeVisible({ timeout: 30_000 });
     await expect(dlg.locator('.el-dialog__title')).toContainText('新建退货单');
 
-    // 预填验证：供应商下拉值非空
+    // 预填验证：供应商下拉值非空（filterable 单选读 placeholder 项，input-wrapper 恒空）
     const supplierSelect = dlg
       .locator('.el-form-item')
       .filter({ hasText: '供应商' })
       .first()
-      .locator('.el-select__selected-item');
+      .locator('.el-select__selected-item.el-select__placeholder:not(.is-transparent)');
     await expect(supplierSelect.first()).not.toHaveText('', { timeout: 10_000 });
 
     // 退货日期已预填
@@ -222,17 +237,29 @@ test.describe('11 质检不合格生成退货', () => {
     const dateVal = await dateInput.inputValue();
     expect(dateVal, '退货日期应被预填').toBeTruthy();
 
-    // 原因类型 = 品质瑕疵（预填自质检 fail）
+    // 原因类型 = 品质瑕疵（预填自质检 fail）。filterable 单选的真实选中值渲染在
+    // `.el-select__selected-item.el-select__placeholder`（非 input-wrapper），已选且收起时不带
+    // `is-transparent`（见 EP select2.mjs:234-246：input-wrapper 恒空、placeholder 项才承载 label）。
     const reasonTypeSelect = dlg
       .locator('.el-form-item')
       .filter({ hasText: '原因类型' })
       .first()
-      .locator('.el-select__selected-item');
+      .locator('.el-select__selected-item.el-select__placeholder:not(.is-transparent)');
     await expect(reasonTypeSelect.first()).toContainText('品质瑕疵', { timeout: 10_000 });
 
-    // 明细表有预填行（不合格数量 > 0 映射为退货数量）
+    // 明细表有预填行，且该行真实带出产品与不合格数量（seed 写 unqualified_quantity=50）
     const itemsTable = dlg.locator('.el-table').first();
-    await expect(itemsTable.locator('.el-table__row').first()).toBeVisible({ timeout: 10_000 });
+    const firstRow = itemsTable.locator('.el-table__row').first();
+    await expect(firstRow).toBeVisible({ timeout: 10_000 });
+    // 产品 el-select 预填 productId：读真实选中项(placeholder 项非透明即确已选中)，空即预填未带产品
+    await expect(
+      firstRow
+        .locator('.el-select__selected-item.el-select__placeholder:not(.is-transparent)')
+        .first()
+    ).not.toHaveText('', {
+      timeout: 10_000,
+    });
+    await expect(firstRow.getByRole('spinbutton').first()).toHaveValue('50', { timeout: 10_000 });
   });
 
   test('11-03 提交预填退货单后生成新退货单并落库', async ({ page }) => {
@@ -262,18 +289,16 @@ test.describe('11 质检不合格生成退货', () => {
       .first()
       .fill('E2E 质检不合格自动生成');
 
-    // 给退货明细中的产品赋值（预填有产品但需确认 product select 非空）
-    // 预填 items 已带 productId，表单明细行 el-select 应显示产品名
-    const firstItemProduct = dlg.locator('.el-table .el-table__row').first().locator('.el-select');
-    // 若 product select 显示为空（因预填只写了 productId，el-select 需要对应 option 才能显示）
-    // 则手动选取首项
-    const selText = await firstItemProduct
-      .first()
-      .locator('.el-select__selected-item')
-      .textContent();
-    if (!selText || !selText.trim()) {
-      await pickSelect(page, firstItemProduct.first());
-    }
+    // 明细行的产品必须由预填带出（不再"为空则手选"：手选会把「预填未带产品」的真实缺陷吃成绿灯）
+    // 读真实选中项(placeholder 项非透明即确已选中)，input-wrapper 恒空不可用作判据
+    const firstRow = dlg.locator('.el-table .el-table__row').first();
+    await expect(
+      firstRow
+        .locator('.el-select__selected-item.el-select__placeholder:not(.is-transparent)')
+        .first()
+    ).not.toHaveText('', {
+      timeout: 10_000,
+    });
 
     // 监听 POST 建单请求
     const createdResp = page

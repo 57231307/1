@@ -34,6 +34,7 @@ import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
 import { i18n } from '@/i18n';
 import { PURCHASE_RETURN_STATUS } from '@/utils/purchase-return-status';
+import { RETURN_REASON_OPTIONS } from '@/constants/return-reason';
 
 /**
  * 退货明细表单行（编辑态本地结构）：提交时经 buildCreateItemPayload / buildUpdateItemPayload
@@ -47,6 +48,23 @@ export interface ReturnFormItem {
   quantity: number;
   unitPrice?: number;
   reason?: string;
+}
+
+/**
+ * 质检不合格一键生成退货时的原因分类落库值。
+ * `purchase_return.reason_type` 是自由文本列，其取值词表唯一来源是共用常量
+ * `constants/return-reason`（value 即写入方原值）；本域不再抄一份中文常量，
+ * 避免同一含义在库里分裂成两种写法。词表被改到取不到该档时显式抛错（由预填入口
+ * 记录并中止），禁止用裸字面量兜底掩盖。
+ */
+function qualityDefectReasonType(): string {
+  const option = RETURN_REASON_OPTIONS.find(
+    opt => opt.labelKey === 'common.returnReason.qualityDefect'
+  );
+  if (!option) {
+    throw new Error('[purchase-return] 共用退货原因词表缺少 qualityDefect 档，无法预填退货原因');
+  }
+  return option.value;
 }
 
 /**
@@ -292,9 +310,18 @@ export function usePrRtn() {
   /**
    * 从质检单派生退货预填数据（新建态，不携原 id）
    * 与 quotation copy 同构：加载源单数据 → 以新建态预填 → 保存走 POST 建新单
+   *
+   * 明细口径（契约以出参为准）：GET /purchase/inspections/{id}/items 直接序列化
+   * `purchase_inspection_item::Model`（backend/src/services/purchase_inspection_service.rs:323），
+   * 业务列只有 product_id / item_name / qualified_quantity / unqualified_quantity / remark，
+   * 没有 failed_quantity / passed_quantity / product_name / defect_reason 这些键
+   * （历史前端按它们取值，恒 undefined → `undefined > 0` 恒 false → 明细永远预填不出行，
+   *  一键生成退货名存实亡）。不合格数量取 `unqualified_quantity`，DECIMAL 经 JSON 是字符串，
+   * 需 Number() 归一。
    */
   const prepareFromInspection = async (inspectionId: number) => {
     try {
+      const reasonType = qualityDefectReasonType();
       const [inspRes, itemsRes] = await Promise.all([
         getPurchaseInspectionById(inspectionId),
         getPurchaseInspectionItemList(inspectionId),
@@ -312,22 +339,25 @@ export function usePrRtn() {
         supplierId: insp.supplier_id,
         returnDate: new Date().toISOString().slice(0, 10),
         warehouseId: undefined,
-        reasonType: '品质瑕疵',
+        reasonType,
         reason: insp.defect_description || '',
         remarks: insp.notes || '',
         items: [],
       });
-      // 明细预填：取不合格数量 > 0 的检验明细行
-      const inspItems = itemsRes.data.items || [];
-      formData.items = inspItems
-        .filter(item => item.failed_quantity > 0)
+      // 明细预填：只取不合格数量 > 0 的检验明细行，退货数量 = 不合格数量
+      formData.items = itemsRes.data.items
+        .filter(item => Number(item.unqualified_quantity) > 0)
         .map(item => ({
           productId: item.product_id,
-          productName: item.product_name ?? '',
-          quantity: item.failed_quantity,
+          quantity: Number(item.unqualified_quantity),
+          // 单价与「添加明细」生成的空行同初值 0：purchase_inspection_item 不落单价，无来源可带，
+          // 由退货员按实填写（不是用主数据/采购价凑一个假单价）
           unitPrice: 0,
-          reason: item.defect_reason ?? '',
+          reason: item.remark ?? undefined,
         }));
+      if (formData.items.length === 0) {
+        logger.error('[purchase-return] 质检单无不合格明细，退货单无可派生行', { inspectionId });
+      }
       return true;
     } catch (error) {
       logger.error('[purchase-return] 从质检单预填退货表单失败', error);
