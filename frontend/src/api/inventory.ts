@@ -112,14 +112,29 @@ export interface InventoryQueryParams {
   batch_no?: string;
 }
 
+/**
+ * 库存调整建单入参：字段严格对齐后端
+ * `handlers/inventory_adjustment_handler.rs::CreateAdjustmentRequestPayload`——
+ * 该端点按「仓库 + 调整日期 + 调整类型 + 原因类型 + 明细项(stock_id+quantity)」建模，
+ * 调整对象是既有库存行（stock_id），不是「产品+仓库」裸组合：
+ * service 的 create_adjustment_items 会按 stock_id 读取 quantity_on_hand 作为调整前量。
+ * 此前前端写 product_id/adjustment_quantity/reason，与后端必填
+ * adjustment_date/reason_type/items 完全不同 → serde 反序列化缺字段 → 422，
+ * 提交必被拒（02 盘盈/盘亏红根因）。quantity 为 Decimal 串，按 §3 出/入参口径传字符串。
+ */
 export interface StockAdjustmentData {
   warehouse_id: number;
-  product_id: number;
-  batch_no?: string;
-  adjustment_quantity: number;
+  adjustment_date: string;
   adjustment_type: 'increase' | 'decrease';
-  reason: string;
-  remark?: string;
+  reason_type: string;
+  reason_description?: string;
+  notes?: string;
+  items: Array<{
+    stock_id: number;
+    quantity: string;
+    unit_cost?: string;
+    notes?: string;
+  }>;
 }
 
 export interface ReservationData {
@@ -139,10 +154,13 @@ export interface TransferData {
   items: {
     product_id: number;
     quantity: number;
-    from_location?: string;
-    to_location?: string;
+    // 批次为后端出入库四维追溯必填项；色号留空即白坯布（后端免缸号）。
+    batch_no?: string;
+    color_no?: string;
+    dye_lot_no?: string;
   }[];
-  remark?: string;
+  /** 备注：后端 CreateInventoryTransferRequest 字段名为 notes（此前误写 remark 被静默丢弃） */
+  notes?: string;
 }
 
 export interface InventoryReportParams {

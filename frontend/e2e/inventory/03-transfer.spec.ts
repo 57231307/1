@@ -1,9 +1,46 @@
 // 库存管理 E2E 套件 — 03 库存调拨（创建 → 审批）
 // 覆盖范围：调拨单创建（调出→调入仓库、明细行）、调拨审批
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
-import { pickSelectIn, formItemByExactLabel } from '../flow/ui-helpers';
+import {
+  apiCall,
+  apiCallRaw,
+  ensureTestEntities,
+  getCtx,
+  seedFourDimStockIn,
+} from '../flow/helpers';
+import { pickSelectIn, formItemByExactLabel, fillFieldByLabel } from '../flow/ui-helpers';
+
+// 调拨出库要求「调出仓库对该产品有足量库存」（inventory_move::check_from_warehouse_inventory）
+// 且每条明细批次非空（fabric_class::validate_fabric_trace）。工具栏入口按对话框渲染口径
+// （GET /warehouses、/products page_size=1000）取首行作为调出仓库/产品——与对话框两个下拉的
+// index 0 命中同一行——为其造一行足量四维库存，使「选中的调出仓库/产品」确有货可调。
+async function seedTransferSource(page: Page): Promise<void> {
+  await ensureTestEntities(page);
+  const wh = await apiCallRaw<{ items: { id: number }[] }>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=1000'
+  );
+  const pr = await apiCallRaw<{ items: { id: number }[] }>(
+    page,
+    'GET',
+    '/products?page=1&page_size=1000'
+  );
+  const fromWarehouseId = wh.items?.[0]?.id;
+  const productId = pr.items?.[0]?.id;
+  expect(fromWarehouseId, '前置：调拨需至少一个调出仓库（对话框首项）').toBeTruthy();
+  expect(productId, '前置：调拨需至少一个产品（对话框首项）').toBeTruthy();
+  const tag = Date.now().toString().slice(-6);
+  await seedFourDimStockIn(page, {
+    productId: productId!,
+    warehouseId: fromWarehouseId!,
+    colorNo: `E2E-TRF-C${tag}`,
+    dyeLotNo: `E2E-TRF-D${tag}`,
+    batchNo: `E2E-TRF-B${tag}`,
+    quantityMeters: '5000',
+  });
+}
 
 test.describe('库存管理 - 03 库存调拨', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -20,6 +57,8 @@ test.describe('库存管理 - 03 库存调拨', () => {
   test('创建库存调拨单', async ({ page }) => {
     // 缺陷B 修复后：调拨对话框明细行有产品 el-select，绑定 item.product_id。
     // 提交前校验至少一行选了产品，否则弹出真实提示。
+    // 真实后端另要求：调出仓库对该产品有货、明细批次非空（四维追溯）。见 seedTransferSource。
+    await seedTransferSource(page);
     await page.goto('/inventory');
     await page.getByRole('button', { name: /调拨/ }).click();
     const dialog = page.locator('.el-dialog:visible').last();
@@ -36,6 +75,8 @@ test.describe('库存管理 - 03 库存调拨', () => {
     await qtyInput.click({ clickCount: 3 });
     await qtyInput.fill('10');
     await page.keyboard.press('Tab');
+    // 批次为后端出入库四维必填（白坯布色号留空即免缸号）：缺陷B 补齐的产品选择器之外必须录入批次
+    await fillFieldByLabel(dialog, page, '批次号', `E2E-TRF-${Date.now().toString().slice(-6)}`);
     // 提交按钮真实文案「确定」（inventory.transferDialog.confirm）
     await dialog.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText('调拨单创建成功')).toBeVisible({ timeout: 30000 });

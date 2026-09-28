@@ -1,7 +1,8 @@
 // 库存管理 E2E 套件 — 02 库存调整（盘盈/盘亏）
 // 覆盖范围：库存调整对话框（increase/decrease）、表单填写、提交
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { ensureTestEntities, apiCallRaw, seedFourDimStockIn } from '../flow/helpers';
 import { fillFieldByLabel, formItemByExactLabel, pickSelectIn } from '../flow/ui-helpers';
 
 test.describe('库存管理 - 02 库存调整', () => {
@@ -18,7 +19,41 @@ test.describe('库存管理 - 02 库存调整', () => {
     await dialog.getByText(label, { exact: true }).click();
   };
 
+  // 后端库存调整以「既有库存行 stock_id」为调整对象（inventory_adjustment_service
+  // ::create_adjustment_items 按 stock_id 读取在库量作为调整前量），工具栏入口只选「产品+仓库」，
+  // 提交前须保证该组合确有库存行，否则调整对象不存在、后端拒绝。
+  // 这里以对话框两个下拉实际渲染的口径（GET /warehouses、/products，page_size=1000）读取首项
+  // ——与对话框 fetchWarehouses/fetchProducts 完全相同的请求，index 0 命中同一行——再为其造
+  // 一行带全四维的库存，确保「选中的首行」确有库存可调整。属补齐真实前置，不弱化成功断言。
+  const seedAdjustmentTarget = async (page: Page): Promise<void> => {
+    await ensureTestEntities(page);
+    const wh = await apiCallRaw<{ items: { id: number }[] }>(
+      page,
+      'GET',
+      '/warehouses?page=1&page_size=1000'
+    );
+    const pr = await apiCallRaw<{ items: { id: number }[] }>(
+      page,
+      'GET',
+      '/products?page=1&page_size=1000'
+    );
+    const warehouseId = wh.items?.[0]?.id;
+    const productId = pr.items?.[0]?.id;
+    expect(warehouseId, '前置：库存调整需至少一个仓库（对话框首项）').toBeTruthy();
+    expect(productId, '前置：库存调整需至少一个产品（对话框首项）').toBeTruthy();
+    const tag = Date.now().toString().slice(-6);
+    await seedFourDimStockIn(page, {
+      productId: productId!,
+      warehouseId: warehouseId!,
+      colorNo: `E2E-ADJ-C${tag}`,
+      dyeLotNo: `E2E-ADJ-D${tag}`,
+      batchNo: `E2E-ADJ-B${tag}`,
+      quantityMeters: '5000',
+    });
+  };
+
   test('库存调整 - 盘盈', async ({ page }) => {
+    await seedAdjustmentTarget(page);
     await page.goto('/inventory');
     await page.getByRole('button', { name: '库存调整' }).click();
     const dialog = page.locator('.el-dialog:visible').last();
@@ -44,6 +79,7 @@ test.describe('库存管理 - 02 库存调整', () => {
   });
 
   test('库存调整 - 盘亏', async ({ page }) => {
+    await seedAdjustmentTarget(page);
     await page.goto('/inventory');
     await page.getByRole('button', { name: '库存调整' }).click();
     const dialog = page.locator('.el-dialog:visible').last();

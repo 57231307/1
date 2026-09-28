@@ -333,7 +333,7 @@ const transferDialogVisible = ref(false);
 const transferForm = ref({
   from_warehouse_id: null as number | null,
   to_warehouse_id: null as number | null,
-  items: [{ product_id: null as number | null, quantity: 0 }],
+  items: [{ product_id: null as number | null, quantity: 0, batch_no: '' }],
   remark: '',
 });
 
@@ -367,13 +367,30 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
     return;
   }
   try {
-    const { createStockAdjustment } = await import('@/api/inventory');
+    const { createStockAdjustment, getStockList } = await import('@/api/inventory');
+    // 后端调整单以「既有库存行 stock_id」为调整对象（service 读取该行的在库量作为调整前量），
+    // 工具栏入口只选了产品+仓库，需先据此定位到对应的库存记录，取首条作为被调整行。
+    const stockRes = await getStockList({
+      page: 1,
+      page_size: 1,
+      warehouse_id: form.warehouse_id,
+      product_id: form.product_id,
+    });
+    const stockRow = stockRes.data?.items?.[0];
+    if (!stockRow) {
+      // 该产品在该仓库没有库存行，无法盘盈/盘亏：给出真实失败提示，不发无意义请求、不假成功。
+      ElMessage.error(t('inventory.message.adjustmentFailed'));
+      return;
+    }
     await createStockAdjustment({
-      warehouse_id: form.warehouse_id!,
-      product_id: form.product_id!,
+      warehouse_id: form.warehouse_id,
+      adjustment_date: new Date().toISOString(),
       adjustment_type: form.adjustment_type,
-      adjustment_quantity: form.adjustment_quantity,
-      reason: form.reason,
+      // reason_type 为自由文本业务词（models/status 无对应模块），此处以用户填写的调整原因落库，
+      // 同时冗余到 reason_description 供详情展示。
+      reason_type: form.reason,
+      reason_description: form.reason,
+      items: [{ stock_id: stockRow.id, quantity: String(form.adjustment_quantity) }],
     });
     ElMessage.success(t('inventory.message.adjustmentSuccess'));
     adjustmentDialogVisible.value = false;
@@ -391,14 +408,14 @@ const handleTransfer = () => {
   transferForm.value = {
     from_warehouse_id: null,
     to_warehouse_id: null,
-    items: [{ product_id: null, quantity: 0 }],
+    items: [{ product_id: null, quantity: 0, batch_no: '' }],
     remark: '',
   };
   transferDialogVisible.value = true;
 };
 
 const handleAddTransferItem = () => {
-  transferForm.value.items.push({ product_id: null, quantity: 0 });
+  transferForm.value.items.push({ product_id: null, quantity: 0, batch_no: '' });
 };
 const handleRemoveTransferItem = (index: number) => {
   if (transferForm.value.items.length > 1) {
@@ -415,6 +432,12 @@ const onSubmitTransfer = async (form: typeof transferForm.value) => {
     ElMessage.warning(t('inventory.message.transferItemProductRequired'));
     return;
   }
+  // 后端 fabric_class::validate_fabric_trace 要求每条明细批次非空（缺批次 400）。
+  // 提交前本地拦截并给出真实提示，避免带空批次发请求得到后端「缺少批号」错误。
+  if (validItems.some(item => !item.batch_no || item.batch_no.trim() === '')) {
+    ElMessage.warning(t('inventory.message.transferItemProductRequired'));
+    return;
+  }
   try {
     const { createInventoryTransfer } = await import('@/api/inventory');
     const transferData: TransferData = {
@@ -423,8 +446,11 @@ const onSubmitTransfer = async (form: typeof transferForm.value) => {
       items: validItems.map(item => ({
         product_id: item.product_id as number,
         quantity: item.quantity,
+        // 白坯布口径：色号留空（→ 后端判定免缸号），批次必填并如实下传。
+        batch_no: item.batch_no.trim(),
       })),
-      remark: form.remark,
+      // 后端 CreateInventoryTransferRequest 备注字段名为 notes，此前误传 remark 被 serde 静默丢弃。
+      notes: form.remark,
     };
     await createInventoryTransfer(transferData);
     ElMessage.success(t('inventory.message.transferCreated'));

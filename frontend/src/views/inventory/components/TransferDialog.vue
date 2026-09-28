@@ -56,40 +56,48 @@
         </el-col>
       </el-row>
       <el-divider content-position="left">{{ t('inventory.transferDialog.divider') }}</el-divider>
-      <el-form-item
-        v-for="(item, index) in localForm.items"
-        :key="index"
-        :label="t('inventory.transferDialog.itemProduct')"
-      >
-        <div style="display: flex; gap: 10px; width: 100%">
-          <el-select
-            v-model="item.product_id"
-            filterable
-            :placeholder="t('inventory.transferDialog.productPlaceholder')"
-            style="flex: 2"
-          >
-            <el-option
-              v-for="p in products"
-              :key="p.id"
-              :label="`${p.product_code} - ${p.product_name}`"
-              :value="p.id"
+      <template v-for="(item, index) in localForm.items" :key="index">
+        <el-form-item :label="t('inventory.transferDialog.itemProduct')">
+          <div style="display: flex; gap: 10px; width: 100%">
+            <el-select
+              v-model="item.product_id"
+              filterable
+              :placeholder="t('inventory.transferDialog.productPlaceholder')"
+              style="flex: 2"
+            >
+              <el-option
+                v-for="p in products"
+                :key="p.id"
+                :label="`${p.product_code} - ${p.product_name}`"
+                :value="p.id"
+              />
+            </el-select>
+            <el-input-number
+              v-model="item.quantity"
+              :min="1"
+              :placeholder="t('inventory.transferDialog.quantityPlaceholder')"
+              style="flex: 1"
             />
-          </el-select>
-          <el-input-number
-            v-model="item.quantity"
-            :min="1"
-            :placeholder="t('inventory.transferDialog.quantityPlaceholder')"
-            style="flex: 1"
+            <el-button
+              type="danger"
+              :icon="Delete"
+              circle
+              :disabled="localForm.items.length <= 1"
+              @click="emit('removeItem', index)"
+            />
+          </div>
+        </el-form-item>
+        <!-- 批次为四维追溯的入库批次，任何布种（含白坯）都必填：后端
+             fabric_class::validate_fabric_trace 缺批次直接 400。缺陷B 仅补了产品选择器，
+             未收批次，提交仍被拒——此处补批次录入（色号留空即白坯、免缸号口径）。 -->
+        <el-form-item :label="t('inventory.stockTab.colBatchNo')">
+          <el-input
+            v-model="item.batch_no"
+            :placeholder="t('inventory.stockTab.colBatchNo')"
+            style="width: 100%"
           />
-          <el-button
-            type="danger"
-            :icon="Delete"
-            circle
-            :disabled="localForm.items.length <= 1"
-            @click="emit('removeItem', index)"
-          />
-        </div>
-      </el-form-item>
+        </el-form-item>
+      </template>
       <el-button type="primary" link @click="emit('addItem')">
         <el-icon><Plus /></el-icon>
         {{ t('inventory.transferDialog.addProduct') }}
@@ -128,6 +136,8 @@ const { t } = useI18n({ useScope: 'global' });
 interface TransferFormItem {
   product_id: number | null;
   quantity: number;
+  // 批次为后端出入库四维追溯必填项（白坯布色号可空、免缸号，但批次必填）。
+  batch_no: string;
 }
 
 /** 调拨单表单数据 */
