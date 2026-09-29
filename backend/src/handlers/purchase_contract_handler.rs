@@ -1,11 +1,14 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::purchase_contract;
+use crate::services::import_export_service::MAX_EXPORT_ROWS;
 use crate::services::purchase_contract_service::{
-    CreateContractRequest, ExecuteContractRequest, PurchaseContractService, PurchaseContractView,
+    ContractQueryParams, CreateContractRequest, ExecuteContractRequest, PurchaseContractService,
+    PurchaseContractView,
 };
 use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -282,4 +285,133 @@ pub async fn delete_contract(
         (),
         "采购合同已删除",
     )))
+}
+
+/// GET /api/v1/erp/purchase/purchase-contracts/export - 导出采购合同列表为 xlsx
+///
+/// 复用 `list_contracts` 的查询参数（ContractQuery）与查询逻辑（PurchaseContractService::get_list，
+/// 含 keyword/status/supplier_id/date_range 过滤与创建人姓名 LEFT JOIN），强制行数上限 MAX_EXPORT_ROWS
+/// 防大表导出 OOM；导出真实列生成 OOXML xlsx 字节流，以 blob（application/vnd...sheet +
+/// Content-Disposition: attachment）返回，前端用 URL.createObjectURL 触发下载。
+pub async fn export_purchase_contracts(
+    Query(params): Query<ContractQuery>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<axum::response::Response, AppError> {
+    info!("用户 {} 正在导出采购合同", auth.username);
+
+    let service = PurchaseContractService::new(state.db.clone());
+    // 分页参数不参与导出：page 固定 1，page_size 取导出上限（与既有导出 MAX_EXPORT_ROWS 口径一致）
+    let query_params = ContractQueryParams {
+        keyword: params.keyword,
+        status: params.status,
+        supplier_id: params.supplier_id,
+        date_range: params.date_range,
+        page: 1,
+        page_size: MAX_EXPORT_ROWS as i64,
+    };
+
+    let (contracts, _total) = service.get_list(query_params).await?;
+    let row_count = contracts.len();
+
+    let table = XlsxTable {
+        sheet_name: "采购合同列表".to_string(),
+        headers: purchase_contracts_export_headers(),
+        rows: contracts.iter().map(build_purchase_contract_row).collect(),
+    };
+
+    let filename = format!(
+        "purchase_contracts_export_{}",
+        chrono::Utc::now().format("%Y%m%d%H%M%S")
+    );
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("采购合同列表导出（共 {} 条）", row_count)),
+    };
+
+    record_purchase_contracts_export_audit(&state, &auth, row_count);
+
+    info!("采购合同导出成功，共 {} 条", row_count);
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
+}
+
+/// 采购合同导出表头（16 列，均为 purchase_contracts 真实列 + 创建人 JOIN 名列）
+fn purchase_contracts_export_headers() -> Vec<String> {
+    vec![
+        "合同编号".to_string(),
+        "合同名称".to_string(),
+        "合同类型".to_string(),
+        "供应商名称".to_string(),
+        "合同金额".to_string(),
+        "签订日期".to_string(),
+        "生效日期".to_string(),
+        "到期日期".to_string(),
+        "付款条款".to_string(),
+        "付款方式".to_string(),
+        "交货日期".to_string(),
+        "交货地点".to_string(),
+        "状态".to_string(),
+        "创建人".to_string(),
+        "创建时间".to_string(),
+        "更新时间".to_string(),
+    ]
+}
+
+/// Option<NaiveDate> 渲染为 `YYYY-MM-DD`，None 为空串
+fn fmt_optional_date(d: Option<chrono::NaiveDate>) -> String {
+    d.map(|x| x.format("%Y-%m-%d").to_string())
+        .unwrap_or_default()
+}
+
+/// DateTime<Utc> 渲染为本地可读时间串
+fn fmt_datetime(dt: chrono::DateTime<chrono::Utc>) -> String {
+    dt.format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+/// 从强类型读模型 PurchaseContractView 构造导出行（列顺序与表头一致）
+fn build_purchase_contract_row(c: &PurchaseContractView) -> Vec<String> {
+    vec![
+        c.contract_no.clone(),
+        c.contract_name.clone(),
+        c.contract_type.clone().unwrap_or_default(),
+        c.supplier_name.clone().unwrap_or_default(),
+        c.total_amount.map(|d| d.to_string()).unwrap_or_default(),
+        fmt_optional_date(c.signed_date),
+        fmt_optional_date(c.effective_date),
+        fmt_optional_date(c.expiry_date),
+        c.payment_terms.clone().unwrap_or_default(),
+        c.payment_method.clone().unwrap_or_default(),
+        fmt_optional_date(c.delivery_date),
+        c.delivery_location.clone().unwrap_or_default(),
+        c.status.clone(),
+        c.created_by_name.clone().unwrap_or_default(),
+        fmt_datetime(c.created_at),
+        fmt_datetime(c.updated_at),
+    ]
+}
+
+/// 异步记录采购合同导出操作（审计自身，best-effort 不阻塞响应）
+fn record_purchase_contracts_export_audit(state: &AppState, auth: &AuthContext, row_count: usize) {
+    use crate::models::audit_log::{OperationType, Severity};
+    use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+    use std::sync::Arc;
+
+    let svc = AuditLogService::new(state.db.clone());
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("purchase-contract".to_string()),
+        resource_id: None,
+        resource_name: Some("采购合同列表导出".to_string()),
+        description: Some(format!("导出 {} 条采购合同数据（含水印）", row_count)),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/purchase/purchase-contracts/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: None,
+    };
+    Arc::new(svc).record_async(event, None);
 }

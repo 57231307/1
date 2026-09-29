@@ -231,6 +231,12 @@ pub fn purchase_contracts() -> Router<AppState> {
             "/purchase-contracts",
             post(purchase_contract_handler::create_contract),
         )
+        // 静态路径 /purchase-contracts/export 必须在 /purchase-contracts/{id} 之前注册，
+        // 避免 axum 把 "export" 当作 {id} 参数匹配
+        .route(
+            "/purchase-contracts/export",
+            get(purchase_contract_handler::export_purchase_contracts),
+        )
         .route(
             "/purchase-contracts/{id}",
             get(purchase_contract_handler::get_contract),
