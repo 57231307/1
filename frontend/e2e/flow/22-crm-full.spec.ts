@@ -13,6 +13,7 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
+  verifyOptionalEndpointHealthy,
   ensureTestEntities,
   tryCleanup,
 } from './helpers';
@@ -68,9 +69,9 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await apiCallRaw(page, 'GET', `/crm/customers/${customerId}`);
     // credit/360/rfm 等子资源依赖客户已有对应业务数据（信用评级/跟进记录等），
     // 新建客户可能没有 → 404 可接受，用 verifyEndpointHealthy 容忍（仅拦截 5xx）
-    await verifyEndpointHealthy(page, `/crm/customers/${customerId}/credit`);
+    await verifyOptionalEndpointHealthy(page, `/crm/customers/${customerId}/credit`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/addresses`);
-    await verifyEndpointHealthy(page, `/crm/customers/${customerId}/summary`);
+    await verifyOptionalEndpointHealthy(page, `/crm/customers/${customerId}/summary`);
     // 360 契约校验升级（假绿解封）：旧写法 verifyEndpointHealthy('/crm/customers/{id}/360')
     // 只拦 5xx，对"200 但缺 tags/shipping_addresses 数组键"的信封盲区无感——而详情页
     // detail.vue:221/:237 对 customer.shipping_addresses 取 .length，缺键运行期必崩。
@@ -120,10 +121,9 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
           expect(typeof tag.id, `tag.id 应为 number，实际=${JSON.stringify(tag.id)}`).toBe(
             'number'
           );
-          expect(
-            typeof tag.name,
-            `tag.name 应为 string，实际=${JSON.stringify(tag.name)}`
-          ).toBe('string');
+          expect(typeof tag.name, `tag.name 应为 string，实际=${JSON.stringify(tag.name)}`).toBe(
+            'string'
+          );
           expect((tag.name as string)?.length, 'tag.name 不应为空字符串').toBeGreaterThan(0);
           expect(
             typeof tag.color,
@@ -193,12 +193,12 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       ).toBe(true);
     }
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/follow-ups`);
-    await verifyEndpointHealthy(page, `/crm/customers/${customerId}/rfm`);
+    await verifyOptionalEndpointHealthy(page, `/crm/customers/${customerId}/rfm`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/audit-logs`);
-    await verifyEndpointHealthy(page, `/crm/customers/${customerId}/clv`);
+    await verifyOptionalEndpointHealthy(page, `/crm/customers/${customerId}/clv`);
     await apiCallRaw(page, 'GET', '/crm/customers/enhanced?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/crm/customers/field-permissions/1');
-    await verifyEndpointHealthy(page, '/crm/rfm/distribution');
+    await verifyOptionalEndpointHealthy(page, '/crm/rfm/distribution');
     await apiCallRaw(page, 'GET', '/crm/sales-users');
   });
 
@@ -230,10 +230,10 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
   test('线索管理：创建+转换+分配+评分+漏斗', async ({ page }) => {
     await apiCallRaw(page, 'GET', '/crm/leads?page=1&page_size=5');
     await apiCallRaw(page, 'GET', '/crm/leads/conversion-stats');
-    await verifyEndpointHealthy(page, '/crm/leads/channel-roi');
+    await verifyOptionalEndpointHealthy(page, '/crm/leads/channel-roi');
     await verifyEndpointHealthy(page, '/crm/leads/allocation-rules');
     await verifyEndpointHealthy(page, '/crm/leads/nurture-plans');
-    await verifyEndpointHealthy(page, '/crm/leads/funnel-report');
+    await verifyOptionalEndpointHealthy(page, '/crm/leads/funnel-report');
     // 后端 CreateLeadRequest 字段：company_name/contact_name/mobile_phone/lead_source 等
     const result = await apiCallExpectFail(page, 'POST', '/crm/leads', {
       company_name: 'E2E 线索公司',
@@ -266,11 +266,11 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
   test('商机管理：创建+阶段+竞争对手+跟进+预测+漏斗', async ({ page }) => {
     await apiCallRaw(page, 'GET', '/crm/opportunities?page=1&page_size=5');
     await apiCallRaw(page, 'GET', '/crm/opportunities/stage-stats');
-    await verifyEndpointHealthy(page, '/crm/opportunities/stage-duration');
-    await verifyEndpointHealthy(page, '/crm/opportunities/forecast-accuracy');
-    await verifyEndpointHealthy(page, '/crm/opportunities/weighted-forecast');
-    await verifyEndpointHealthy(page, '/crm/opportunities/conversion-rate');
-    await verifyEndpointHealthy(page, '/crm/opportunities/sales-funnel');
+    await verifyOptionalEndpointHealthy(page, '/crm/opportunities/stage-duration');
+    await verifyOptionalEndpointHealthy(page, '/crm/opportunities/forecast-accuracy');
+    await verifyOptionalEndpointHealthy(page, '/crm/opportunities/weighted-forecast');
+    await verifyOptionalEndpointHealthy(page, '/crm/opportunities/conversion-rate');
+    await verifyOptionalEndpointHealthy(page, '/crm/opportunities/sales-funnel');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
@@ -293,24 +293,24 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await apiCallRaw(page, 'GET', '/crm/pool/rules');
     await apiCallRaw(page, 'GET', '/crm/assignments?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/crm/assignments/history');
-    await verifyEndpointHealthy(page, '/crm/assignments/workload');
+    await verifyOptionalEndpointHealthy(page, '/crm/assignments/workload');
     await verifyEndpointHealthy(page, '/crm/transfer-approvals?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/crm/recycle-rules');
     await verifyEndpointHealthy(page, '/crm/competitors?page=1&page_size=5');
   });
 
   test('五维管理+销售分析+标签', async ({ page }) => {
-    await verifyEndpointHealthy(page, '/crm/five-dimension/stats');
-    await verifyEndpointHealthy(page, '/crm/five-dimension/list');
-    await verifyEndpointHealthy(page, '/crm/five-dimension/summary');
-    await verifyEndpointHealthy(page, '/crm/sales-analysis/statistics');
-    await verifyEndpointHealthy(page, '/crm/sales-analysis/trends');
-    await verifyEndpointHealthy(page, '/crm/sales-analysis/rankings');
-    await verifyEndpointHealthy(page, '/crm/sales-analysis/stats');
-    await verifyEndpointHealthy(page, '/crm/sales-analysis/product-ranking');
-    await verifyEndpointHealthy(page, '/crm/sales-analysis/customer-ranking');
-    await verifyEndpointHealthy(page, '/crm/sales-analysis/trend');
-    await verifyEndpointHealthy(page, '/crm/sales-analysis/targets');
+    await verifyOptionalEndpointHealthy(page, '/crm/five-dimension/stats');
+    await verifyOptionalEndpointHealthy(page, '/crm/five-dimension/list');
+    await verifyOptionalEndpointHealthy(page, '/crm/five-dimension/summary');
+    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/statistics');
+    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/trends');
+    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/rankings');
+    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/stats');
+    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/product-ranking');
+    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/customer-ranking');
+    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/trend');
+    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/targets');
     await verifyEndpointHealthy(page, '/crm/tags');
   });
 

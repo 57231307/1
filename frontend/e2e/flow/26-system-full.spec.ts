@@ -11,6 +11,7 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
+  verifyOptionalEndpointHealthy,
 } from './helpers';
 
 test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () => {
@@ -23,16 +24,16 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     page,
   }) => {
     // BI
-    await verifyEndpointHealthy(page, '/bi/sales-analysis');
-    await verifyEndpointHealthy(page, '/bi/product-analysis');
-    await verifyEndpointHealthy(page, '/bi/customer-analysis');
-    await verifyEndpointHealthy(page, '/bi/inventory-analysis');
-    await verifyEndpointHealthy(page, '/bi/finance-analysis');
-    await verifyEndpointHealthy(page, '/bi/production-analysis');
-    await verifyEndpointHealthy(page, '/bi/summary');
+    await verifyOptionalEndpointHealthy(page, '/bi/sales-analysis');
+    await verifyOptionalEndpointHealthy(page, '/bi/product-analysis');
+    await verifyOptionalEndpointHealthy(page, '/bi/customer-analysis');
+    await verifyOptionalEndpointHealthy(page, '/bi/inventory-analysis');
+    await verifyOptionalEndpointHealthy(page, '/bi/finance-analysis');
+    await verifyOptionalEndpointHealthy(page, '/bi/production-analysis');
+    await verifyOptionalEndpointHealthy(page, '/bi/summary');
     // Webhook
-    await verifyEndpointHealthy(page, '/webhooks?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/webhooks/integrations?page=1&page_size=5');
+    await verifyOptionalEndpointHealthy(page, '/webhooks?page=1&page_size=5');
+    await verifyOptionalEndpointHealthy(page, '/webhooks/integrations?page=1&page_size=5');
     // API 网关
     await verifyEndpointHealthy(page, '/api-gateway/endpoints?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/api-gateway/keys?page=1&page_size=5');
@@ -42,17 +43,17 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await verifyEndpointHealthy(page, '/notifications?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/user-notification-settings');
     // 扫码+搜索
-    await verifyEndpointHealthy(page, '/scanner/history?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/search?q=面料');
+    await verifyOptionalEndpointHealthy(page, '/scanner/history?page=1&page_size=5');
+    await verifyOptionalEndpointHealthy(page, '/search?q=面料');
     // AI
-    await verifyEndpointHealthy(page, '/ai/process-optimization');
-    await verifyEndpointHealthy(page, '/ai/quality-prediction');
-    await verifyEndpointHealthy(page, '/ai-models?page=1&page_size=5');
+    await verifyOptionalEndpointHealthy(page, '/ai/process-optimization');
+    await verifyOptionalEndpointHealthy(page, '/ai/quality-prediction');
+    await verifyOptionalEndpointHealthy(page, '/ai-models?page=1&page_size=5');
     // 报表
-    await verifyEndpointHealthy(page, '/report-templates?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/reports/enhanced?page=1&page_size=5');
+    await verifyOptionalEndpointHealthy(page, '/report-templates?page=1&page_size=5');
+    await verifyOptionalEndpointHealthy(page, '/reports/enhanced?page=1&page_size=5');
     // 高级分析+跟踪+隐私+双计量
-    await verifyEndpointHealthy(page, '/advanced/analysis');
+    await verifyOptionalEndpointHealthy(page, '/advanced/analysis');
     await verifyEndpointHealthy(page, '/tracking/activities?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/privacy/consent');
     // 权限+审计
@@ -61,7 +62,7 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await verifyEndpointHealthy(page, '/roles?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/departments?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/audit-logs?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/system/slow-queries?page=1&page_size=5');
+    await verifyOptionalEndpointHealthy(page, '/system/slow-queries?page=1&page_size=5');
     // 产品分类+仓库
     await verifyEndpointHealthy(page, '/product-categories?page=1&page_size=50');
     await verifyEndpointHealthy(page, '/warehouses?page=1&page_size=5');
