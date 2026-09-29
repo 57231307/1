@@ -1,5 +1,8 @@
 // 库存管理 E2E 套件 — 03 库存调拨（创建 → 审批）
-// 覆盖范围：调拨单创建（调出→调入仓库、明细行）、调拨审批
+// 覆盖范围：正规页 /inventory-transfer 的调拨单创建（调出→调入仓库、明细行经真实库存行选四维）、审批
+// 说明：库存页 /inventory 的「库存调拨」Tab 及老 TransferDialog 已随源码物理删除，
+// 调拨入口统一为 /inventory 页头「库存调拨」按钮（router.push InventoryTransfer）。
+// 本套件因此改测正规页 views/inventory-transfer 的真实交互路径。
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -9,77 +12,155 @@ import {
   getCtx,
   seedFourDimStockIn,
 } from '../flow/helpers';
-import { pickSelectIn, formItemByExactLabel, fillFieldByLabel } from '../flow/ui-helpers';
+import { pickSelect, pickSelectIn, fillFieldByLabel, escRe } from '../flow/ui-helpers';
 
-// 调拨出库要求「调出仓库对该产品有足量库存」（inventory_move::check_from_warehouse_inventory）
-// 且每条明细批次非空（fabric_class::validate_fabric_trace）。工具栏入口按对话框渲染口径
-// （GET /warehouses、/products page_size=1000）取首行作为调出仓库/产品——与对话框两个下拉的
-// index 0 命中同一行——为其造一行足量四维库存，使「选中的调出仓库/产品」确有货可调。
-async function seedTransferSource(page: Page): Promise<void> {
+interface TransferSeed {
+  productId: number;
+  productCode: string;
+  fromWarehouseId: number;
+  fromWarehouseName: string;
+  toWarehouseName: string;
+}
+
+// 调拨出库要求「调出仓库对该产品有足量库存」（inventory_move::check_from_warehouse_inventory），
+// 且正规页 TransferFormDialogTab 的出库维度（色号+缸号+批次）经「调出仓+产品的真实库存行」下拉
+// （GET /inventory/stock）选定——若该产品在调出仓无库存行，则明细的下拉为空、无法建单。
+// 因此先取真实存在的「仓库/产品」首行（与对话框两个下拉 index 0 命中同一数据源），为其造一行足量
+// 四维库存，使正规页能选到真实库存行完成建单。
+async function seedTransferSource(page: Page): Promise<TransferSeed> {
   await ensureTestEntities(page);
-  const wh = await apiCallRaw<{ items: { id: number }[] }>(
+  const wh = await apiCallRaw<{ items: { id: number; warehouse_name: string }[] }>(
     page,
     'GET',
-    '/warehouses?page=1&page_size=1000'
+    '/warehouses?page=1&page_size=100'
   );
-  const pr = await apiCallRaw<{ items: { id: number }[] }>(
+  const pr = await apiCallRaw<{ items: { id: number; product_code: string }[] }>(
     page,
     'GET',
-    '/products?page=1&page_size=1000'
+    '/products?page=1&page_size=100'
   );
-  const fromWarehouseId = wh.items?.[0]?.id;
-  const productId = pr.items?.[0]?.id;
-  expect(fromWarehouseId, '前置：调拨需至少一个调出仓库（对话框首项）').toBeTruthy();
-  expect(productId, '前置：调拨需至少一个产品（对话框首项）').toBeTruthy();
+  const fromWarehouse = wh.items?.[0];
+  const toWarehouse = wh.items?.[1];
+  const product = pr.items?.[0];
+  expect(fromWarehouse?.id, '前置：调拨需至少一个调出仓库').toBeTruthy();
+  expect(toWarehouse?.id, '前置：调拨需至少两个仓库（调出/调入不可同仓）').toBeTruthy();
+  expect(product?.id, '前置：调拨需至少一个产品').toBeTruthy();
   const tag = Date.now().toString().slice(-6);
   await seedFourDimStockIn(page, {
-    productId: productId!,
-    warehouseId: fromWarehouseId!,
+    productId: product!.id,
+    warehouseId: fromWarehouse!.id,
     colorNo: `E2E-TRF-C${tag}`,
     dyeLotNo: `E2E-TRF-D${tag}`,
     batchNo: `E2E-TRF-B${tag}`,
     quantityMeters: '5000',
   });
+  return {
+    productId: product!.id,
+    productCode: product!.product_code,
+    fromWarehouseId: fromWarehouse!.id,
+    fromWarehouseName: fromWarehouse!.warehouse_name,
+    toWarehouseName: toWarehouse!.warehouse_name,
+  };
 }
 
-test.describe('库存管理 - 03 库存调拨', () => {
+test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）', () => {
   test.beforeEach(async ({ page, context }) => {
     await applyAuthMocks(context);
     await page.goto('/');
   });
 
-  test('库存调拨 Tab 数据加载', async ({ page }) => {
-    await page.goto('/inventory');
-    await page.getByRole('tab', { name: /库存调拨/ }).click();
-    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
+  test('库存调拨页列表加载', async ({ page }) => {
+    // 老「库存调拨 Tab 数据加载」经 /inventory 的 Tab，Tab 已删除——改为直达正规页并断言列表真实渲染。
+    await page.goto('/inventory-transfer');
+    await expect(page.getByRole('heading', { name: '库存调拨' })).toBeVisible({ timeout: 30000 });
+    // TransferListTab 的 el-table aria-label=库存调拨列表（transferList.table.ariaLabel）
+    await expect(page.getByLabel('库存调拨列表')).toBeVisible({ timeout: 30000 });
   });
 
-  test('创建库存调拨单', async ({ page }) => {
-    // 缺陷B 修复后：调拨对话框明细行有产品 el-select，绑定 item.product_id。
-    // 提交前校验至少一行选了产品，否则弹出真实提示。
-    // 真实后端另要求：调出仓库对该产品有货、明细批次非空（四维追溯）。见 seedTransferSource。
-    await seedTransferSource(page);
-    await page.goto('/inventory');
-    await page.getByRole('button', { name: /调拨/ }).click();
+  test('创建库存调拨单（经正规页新建对话框，明细从真实库存行选四维）', async ({ page }) => {
+    const seed = await seedTransferSource(page);
+    await page.goto('/inventory-transfer');
+
+    // 「新建」按钮：TransferListTab 内 v-permission='inventory:create'，文案 transferList.button.create
+    const createBtn = page.getByRole('button', { name: '新建', exact: true }).first();
+    await expect(createBtn, '正规页应渲染"新建"入口').toBeVisible({ timeout: 30000 });
+    await createBtn.click();
+
     const dialog = page.locator('.el-dialog:visible').last();
     await expect(dialog).toBeVisible({ timeout: 30000 });
-    // 选择调出/调入仓库
-    await expect(formItemByExactLabel(dialog, '调出仓库')).toBeVisible({ timeout: 10000 });
-    await pickSelectIn(dialog, page, '调出仓库', { index: 0 });
-    await pickSelectIn(dialog, page, '调入仓库', { index: 1 });
-    // 选择第一行产品（修复后新增的 el-select，form-item label="产品"）
-    await pickSelectIn(dialog, page, '产品', { index: 0 });
-    // 填写数量：el-input-number 内层 input，定位到同一 form-item 下的数字输入框
-    const qtyInput = formItemByExactLabel(dialog, '产品').locator('.el-input-number input').first();
+    // 表头 aria-label=新建调拨单对话框（transferForm.createDialogTitle）
+    await expect(page.getByLabel('新建调拨单对话框')).toBeVisible({ timeout: 10000 });
+
+    // 选择调出/调入仓库（选项 label 为真实仓库名，按名精确锚定，规避并发下单据顺序漂移）
+    await pickSelectIn(dialog, page, '调出仓库', {
+      optionText: new RegExp(`^${escRe(seed.fromWarehouseName)}$`),
+      timeout: 30_000,
+    });
+    await pickSelectIn(dialog, page, '调入仓库', {
+      optionText: new RegExp(`^${escRe(seed.toWarehouseName)}$`),
+      timeout: 30_000,
+    });
+
+    // 明细行：对话框内 el-select 顺序为 [调出仓库, 调入仓库, 产品, 库存行]。
+    // 产品下拉（nth 2，无 form-item label，filterable）：按真实款号（label 前缀 code - name）锚定。
+    await pickSelect(
+      page,
+      dialog.locator('.el-select').nth(2),
+      new RegExp(`^${escRe(seed.productCode)} `),
+      { timeout: 30_000 }
+    );
+    // 选定产品后 TransferFormDialogTab 触发 loadStockRows（GET /inventory/stock 按调出仓+产品下推）；
+    // 等待该回源完成，再打开库存行下拉（nth 3），确保下拉命中真实库存行而非空列表。
+    await page
+      .waitForResponse(
+        r => r.url().includes('/inventory/stock') && r.request().method() === 'GET',
+        { timeout: 15_000 }
+      )
+      .catch(() => {});
+    // 库存行下拉：选项为该调出仓+产品下的真实四维行，选首行（含刚造的 E2E-TRF 行）即选定 色号+缸号+批次。
+    await pickSelect(page, dialog.locator('.el-select').nth(3), undefined, {
+      index: 0,
+      timeout: 30_000,
+    });
+
+    // 数量：明细行首个 el-input-number（quantity），fill 后 Tab 同步 v-model
+    const qtyInput = dialog.locator('.el-input-number input').first();
     await qtyInput.waitFor({ state: 'visible', timeout: 10000 });
     await qtyInput.click({ clickCount: 3 });
-    await qtyInput.fill('10');
+    await qtyInput.fill('5');
     await page.keyboard.press('Tab');
-    // 批次为后端出入库四维必填（白坯布色号留空即免缸号）：缺陷B 补齐的产品选择器之外必须录入批次
-    await fillFieldByLabel(dialog, page, '批次号', `E2E-TRF-${Date.now().toString().slice(-6)}`);
-    // 提交按钮真实文案「确定」（inventory.transferDialog.confirm）
-    await dialog.getByRole('button', { name: '确定' }).click();
-    await expect(page.getByText('调拨单创建成功')).toBeVisible({ timeout: 30000 });
+
+    // 落库回读前置：记录当前该调出仓已存在的调拨单 id，提交后据此识别本次新建
+    const before = await apiCallRaw<{ items: { id: number }[] }>(
+      page,
+      'GET',
+      `/inventory/transfers?from_warehouse_id=${seed.fromWarehouseId}&page=1&page_size=100`
+    );
+    const beforeIds = new Set((before.items ?? []).map(t => t.id));
+
+    // 提交按钮真实文案「保存」（transferForm.save）；成功后 ElMessage.success(t('message.operationSuccess'))='操作成功'
+    await dialog.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
+
+    // 走后端 API 回读命中：新建调拨单应落库、出现在 GET /inventory/transfers（同一调出仓），初始态 pending。
+    const after = await apiCallRaw<{
+      items: { id: number; from_warehouse_id: number; status: string }[];
+    }>(
+      page,
+      'GET',
+      `/inventory/transfers?from_warehouse_id=${seed.fromWarehouseId}&page=1&page_size=100`
+    );
+    const created = (after.items ?? []).filter(
+      t => !beforeIds.has(t.id) && t.from_warehouse_id === seed.fromWarehouseId
+    );
+    expect(
+      created.length,
+      `回读：经正规页新建的调拨单应命中 GET /inventory/transfers（调出仓 ${seed.fromWarehouseId}）`
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      String(created[0].status).toLowerCase(),
+      `新建调拨单初始态应为 pending，实际=${created[0].status}`
+    ).toBe('pending');
   });
 
   test('审批待审批调拨单', async ({ page }) => {
@@ -95,27 +176,53 @@ test.describe('库存管理 - 03 库存调拨', () => {
 
     // 白坯布口径（色号为空、免缸号、批次必填）满足后端建单校验，落库初始态 PENDING
     const batchNo = `E2E-AP-${Date.now().toString().slice(-6)}`;
-    const created = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
-      from_warehouse_id: ctx.warehouseIds[0],
-      to_warehouse_id: ctx.warehouseIds[1],
-      transfer_date: new Date().toISOString(),
-      notes: 'E2E 审批用例造数',
-      items: [{ product_id: ctx.productIds[0], quantity: '5', color_no: '', batch_no: batchNo }],
-    });
+    const created = await apiCall<{ id?: number; transfer_no?: string }>(
+      page,
+      'POST',
+      '/inventory/transfers',
+      {
+        from_warehouse_id: ctx.warehouseIds[0],
+        to_warehouse_id: ctx.warehouseIds[1],
+        transfer_date: new Date().toISOString(),
+        notes: 'E2E 审批用例造数',
+        items: [{ product_id: ctx.productIds[0], quantity: '5', color_no: '', batch_no: batchNo }],
+      }
+    );
+    const transferId = created.data?.id;
+    const transferNo = created.data?.transfer_no;
     expect(
-      created.data?.id,
+      transferId,
       `调拨建单应返回 data.id，实际响应：${JSON.stringify(created).slice(0, 200)}`
     ).toBeTruthy();
+    expect(
+      transferNo,
+      `调拨建单应返回 data.transfer_no 供列表检索定位，实际响应：${JSON.stringify(created).slice(0, 200)}`
+    ).toBeTruthy();
 
-    // 切到库存调拨 Tab，让刚造的 pending 单进入列表
-    await page.goto('/inventory');
-    await page.getByRole('tab', { name: /库存调拨/ }).click();
+    // 进入正规页，按单号精确过滤，确保点击的是本用例刚造的 pending 单（非并发他人行）。
+    await page.goto('/inventory-transfer');
+    const filter = page.getByLabel('库存调拨筛选表单');
+    await fillFieldByLabel(filter, page, '调拨单号', String(transferNo));
+    await filter.getByRole('button', { name: '查询', exact: true }).click();
 
-    // 硬断言（Tier A）：待审批单必然渲染"审批"按钮，缺失即缺陷
+    // 硬断言（Tier A）：过滤后该待审批单必然渲染"审批"按钮（transferList.button.approve），缺失即缺陷
     const approveBtn = page.getByRole('button', { name: '审批', exact: true }).first();
     await expect(approveBtn, '待审批调拨单应渲染"审批"按钮').toBeVisible({ timeout: 30000 });
     await approveBtn.click();
-    await page.getByRole('button', { name: /确定/ }).click();
-    await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 });
+
+    // 审批对话框（ApproveTransferDialogTab）：点"通过"（approveTransfer.pass）
+    const approveDialog = page.locator('.el-dialog:visible').last();
+    await expect(approveDialog).toBeVisible({ timeout: 15000 });
+    await approveDialog.getByRole('button', { name: '通过', exact: true }).click();
+    // 成功提示 approvePassed='审批通过'
+    await expect(page.getByText('审批通过')).toBeVisible({ timeout: 30000 });
+
+    // API 回读：真实状态迁移 pending→approved（GET /inventory/transfers/{id} 详情）
+    const detail = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/inventory/transfers/${transferId}`
+    );
+    expect(String(detail.status).toLowerCase(), '审批后调拨单状态应为 approved').toBe('approved');
   });
 });
