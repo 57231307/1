@@ -334,7 +334,8 @@ impl ApPaymentRequestService {
             .await?;
 
         if items.is_empty() {
-            return Err(AppError::business("付款申请没有明细，不可提交".to_string()));
+            // 公开业务规则拒绝（无敏感数据），外显文案让用户看到具体不可提交原因
+            return Err(AppError::business_displayable("付款申请没有明细，不可提交"));
         }
 
         // 4. 提交付款申请

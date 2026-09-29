@@ -47,9 +47,10 @@ pub async fn split_fabric_piece(
     validate_parent_piece(&parent, req.cut_length)?;
 
     // V15 P2 缺陷 3.2：确定原始长度（首次拆分时记录，后续复用）
-    let original_length = parent
-        .original_length
-        .unwrap_or(parent.length + req.cut_length);
+    // original_length 为空即该匹从未拆过（生产报工建匹即为 None），拆分前母卷长度就是全长：
+    // 剩余(parent.length - cut) + 子卷(cut) ≡ parent.length，与 validate_split_consistency
+    // 的「剩余 + Σ子 == original」恒等式同式（旧式 length + cut 与之恒矛盾，成功路径不可达）。
+    let original_length = parent.original_length.unwrap_or(parent.length);
     let original_weight = match (parent.original_weight, parent.weight, req.cut_weight) {
         (Some(ow), _, _) => Some(ow),
         (None, Some(pw), Some(cw)) => Some(pw + cw),

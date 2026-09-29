@@ -165,7 +165,7 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：未收金额不足"
             );
-            return Err(AppError::business(format!(
+            return Err(AppError::business_displayable(format!(
                 "应收单 {} 未收金额 {} 小于核销金额 {}",
                 invoice.invoice_no, invoice.unpaid_amount, amount
             )));
@@ -198,7 +198,7 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：收款单未确认"
             );
-            return Err(AppError::business(format!(
+            return Err(AppError::business_displayable(format!(
                 "收款单 {} 状态为 {}，未确认不可核销",
                 payment.collection_no, payment.status
             )));
@@ -215,7 +215,9 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：发票客户与收款客户不一致"
             );
-            return Err(AppError::business("发票客户与收款客户不一致，不可核销"));
+            return Err(AppError::business_displayable(
+                "发票客户与收款客户不一致，不可核销",
+            ));
         }
         Ok(payment)
     }
@@ -251,7 +253,7 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：收款单可用余额不足"
             );
-            return Err(AppError::business(format!(
+            return Err(AppError::business_displayable(format!(
                 "收款单 {} 可用余额 {} 小于核销金额 {}",
                 payment.collection_no, available, amount
             )));

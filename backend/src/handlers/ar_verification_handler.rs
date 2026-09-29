@@ -45,6 +45,7 @@ pub async fn list_verifications(
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
 
+    // service 已返回 AppError，直接 ? 传播真实 status/code（脱敏转 500 会把 4xx 业务/权限错伪装成内部错误）
     let (verifications, total) = service
         .list_verifications(
             page,
@@ -54,8 +55,7 @@ pub async fn list_verifications(
             query.status,
             Some(&data_scope_ctx),
         )
-        .await
-        .map_err(|e| AppError::internal(format!("获取核销列表失败: {}", e)))?;
+        .await?;
 
     let result = serde_json::json!({
         "list": verifications,
@@ -78,10 +78,7 @@ pub async fn get_verification(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
 
-    let verification = service
-        .get_verification(id, Some(&data_scope_ctx))
-        .await
-        .map_err(|e| AppError::internal(format!("获取核销详情失败: {}", e)))?;
+    let verification = service.get_verification(id, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(verification)))
 }
@@ -94,10 +91,7 @@ pub async fn auto_verify(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
-    let result = service
-        .auto_verify(auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("自动核销失败: {}", e)))?;
+    let result = service.auto_verify(auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -119,8 +113,7 @@ pub async fn manual_verify(
             payload.remark,
             auth.user_id,
         )
-        .await
-        .map_err(|e| AppError::internal(format!("手动核销失败: {}", e)))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(verification)))
 }
@@ -134,10 +127,7 @@ pub async fn cancel_verification(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
-    let result = service
-        .cancel_verification(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("取消核销失败: {}", e)))?;
+    let result = service.cancel_verification(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -151,10 +141,7 @@ pub async fn get_unverified_invoices(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
-    let invoices = service
-        .get_unverified_invoices(query)
-        .await
-        .map_err(|e| AppError::internal(format!("获取未核销发票失败: {}", e)))?;
+    let invoices = service.get_unverified_invoices(query).await?;
 
     Ok(Json(ApiResponse::success(invoices)))
 }
@@ -168,10 +155,7 @@ pub async fn get_unverified_payments(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
-    let payments = service
-        .get_unverified_payments(query)
-        .await
-        .map_err(|e| AppError::internal(format!("获取未核销收款失败: {}", e)))?;
+    let payments = service.get_unverified_payments(query).await?;
 
     Ok(Json(ApiResponse::success(payments)))
 }
