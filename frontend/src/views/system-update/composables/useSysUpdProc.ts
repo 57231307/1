@@ -1,27 +1,23 @@
 /**
  * useSysUpdProc.ts - 系统更新流程操作 composable
  * 任务编号: P14 批 2 I-3 第 1 批（拆分原 system-update/index.vue）
- * 封装下载/安装/回滚/取消/恢复/下载备份/删除等流程性方法
- * 行为完全保持一致（仅结构重构）
+ * 封装回滚/取消/备份删除/备份恢复/备份下载等流程性方法
+ * 行为完全保持一致（仅结构重构）；版本下载/安装随版本 tab 移除一并删除
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import {
-  downloadUpdate,
-  installUpdate,
   cancelUpdateTask,
   rollbackUpdate,
   deleteSystemBackup,
   restoreFromBackup,
   downloadBackup,
-  type SystemVersion,
   type UpdateTask,
   type SystemBackup,
 } from '@/api/system-update';
 
 /** 刷新回调 */
 interface RefreshCallbacks {
-  fetchVersions: () => Promise<void>;
   fetchTasks: () => Promise<void>;
   fetchBackups: () => Promise<void>;
 }
@@ -30,47 +26,6 @@ interface RefreshCallbacks {
  * 系统更新流程操作方法集合
  */
 export function useSysUpdProc(refresh: RefreshCallbacks) {
-  /** 下载更新 */
-  const handleDownload = async (row: SystemVersion) => {
-    try {
-      await ElMessageBox.confirm(`确定要下载版本 ${row.version} 吗？`, '确认下载', {
-        type: 'warning',
-      });
-      await downloadUpdate(row.id);
-      msg.success('downloadTaskCreated');
-      await refresh.fetchVersions();
-      await refresh.fetchTasks();
-    } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel')
-        ElMessage.error(
-          (error instanceof Error ? error.message : String(error)) ||
-            msg.translate('downloadFailed')
-        );
-    }
-  };
-
-  /** 安装更新 */
-  const handleInstall = async (row: SystemVersion) => {
-    try {
-      await ElMessageBox.confirm(
-        `确定要安装版本 ${row.version} 吗？安装过程中系统可能会重启。`,
-        '确认安装',
-        { type: 'warning' }
-      );
-      await installUpdate(row.id);
-      msg.success('installTaskCreated');
-      await refresh.fetchVersions();
-      await refresh.fetchTasks();
-    } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel')
-        ElMessage.error(
-          (error instanceof Error ? error.message : String(error)) || msg.translate('installFailed')
-        );
-    }
-  };
-
   /** 取消任务 */
   const handleCancelTask = async (row: UpdateTask) => {
     try {
@@ -158,8 +113,6 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
   };
 
   return {
-    handleDownload,
-    handleInstall,
     handleCancelTask,
     handleRollback,
     handleDeleteBackup,
