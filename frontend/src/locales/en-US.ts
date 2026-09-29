@@ -9189,6 +9189,9 @@ export default {
       itemsTitle: 'Return Items',
       column: {
         productName: 'Product Name',
+        colorNo: 'Color No.',
+        dyeLotNo: 'Dye Lot No.',
+        batchNo: 'Batch No.',
         quantity: 'Return Quantity',
         unitPrice: 'Unit Price',
         amount: 'Amount',
@@ -9255,6 +9258,9 @@ export default {
         reasonType: 'Select reason type',
         warehouse: 'Select warehouse (required for stock deduction on approval)',
         supplier: 'Select supplier',
+        colorNo: 'Color No.',
+        dyeLotNo: 'Dye Lot No.',
+        batchNo: 'Batch No.',
       },
       itemsTitle: 'Return Items',
       button: {
@@ -9265,6 +9271,9 @@ export default {
       },
       column: {
         productName: 'Product Name',
+        colorNo: 'Color No.',
+        dyeLotNo: 'Dye Lot No.',
+        batchNo: 'Batch No.',
         quantity: 'Return Quantity',
         unitPrice: 'Unit Price',
         amount: 'Amount',

@@ -9150,6 +9150,9 @@ export default {
       itemsTitle: '退货明细',
       column: {
         productName: '产品名称',
+        colorNo: '色号',
+        dyeLotNo: '缸号',
+        batchNo: '批次',
         quantity: '退货数量',
         unitPrice: '单价',
         amount: '金额',
@@ -9216,6 +9219,9 @@ export default {
         reasonType: '请选择原因类型',
         warehouse: '请选择仓库（审批扣减库存时需要）',
         supplier: '请选择供应商',
+        colorNo: '色号',
+        dyeLotNo: '缸号',
+        batchNo: '批次',
       },
       itemsTitle: '退货明细',
       button: {
@@ -9226,6 +9232,9 @@ export default {
       },
       column: {
         productName: '产品名称',
+        colorNo: '色号',
+        dyeLotNo: '缸号',
+        batchNo: '批次',
         quantity: '退货数量',
         unitPrice: '单价',
         amount: '金额',

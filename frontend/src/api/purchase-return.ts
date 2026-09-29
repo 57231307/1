@@ -56,6 +56,14 @@ export interface PurchaseReturnItem {
   discount_amount: number;
   total_amount: number;
   notes: string | null;
+  /**
+   * 面料追溯维度（审批按 产品+色号+缸号+批次 四维精确定位库存行扣减）。
+   * 后端 PurchaseReturnItemDto（services/purchase_return_service.rs:994）已随 list_items 的
+   * 全列 SELECT + into_model 输出这三列（非空 String，白坯/单库存行为空串），故此处真实回读。
+   */
+  color_no: string;
+  dye_lot_no: string;
+  batch_no: string;
 }
 
 // 列表查询参数 = 后端 ReturnQueryParams（handlers/purchase_return_handler.rs:206）。
@@ -115,6 +123,10 @@ export interface CreatePurchaseReturnItemPayload {
   tax_rate?: number;
   discount_percent?: number;
   notes?: string;
+  /** 面料追溯维度；空串=白坯/单库存行（对齐后端 CreateReturnItemRequest Option<String>） */
+  color_no?: string;
+  dye_lot_no?: string;
+  batch_no?: string;
 }
 
 /**
@@ -129,6 +141,10 @@ export interface UpdatePurchaseReturnItemPayload {
   tax_rate?: number;
   discount_percent?: number;
   notes?: string;
+  /** 面料追溯维度；undefined=本次不改动该维度（后端 if let Some 才更新），string=显式设定（含空串=白坯） */
+  color_no?: string;
+  dye_lot_no?: string;
+  batch_no?: string;
 }
 
 // D14 Batch 5b：原 purchaseReturnApi.list 转为风格 B 函数

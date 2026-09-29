@@ -48,6 +48,13 @@ export interface ReturnFormItem {
   quantity: number;
   unitPrice?: number;
   reason?: string;
+  /**
+   * 面料追溯维度（审批按 产品+色号+缸号+批次 精确扣库存）。undefined=未设定：
+   * 新建时落库为空串（白坯/单库存行语义），编辑时不下发（不覆盖后端原值）。
+   */
+  colorNo?: string;
+  dyeLotNo?: string;
+  batchNo?: string;
 }
 
 /**
@@ -305,6 +312,11 @@ export function usePrRtn() {
     quantity: raw.quantity_returned,
     unitPrice: raw.unit_price,
     reason: raw.notes ?? undefined,
+    // 维度回读：后端有值才回填；缺省保持 undefined（编辑提交时不下发，避免误覆盖原维度）。
+    // 依赖后端 PurchaseReturnItemDto 补 SELECT 这三列（见 api 注释），否则编辑态维度为空态需退货员重选。
+    colorNo: raw.color_no ?? undefined,
+    dyeLotNo: raw.dye_lot_no ?? undefined,
+    batchNo: raw.batch_no ?? undefined,
   });
 
   /**
@@ -354,6 +366,8 @@ export function usePrRtn() {
           // 由退货员按实填写（不是用主数据/采购价凑一个假单价）
           unitPrice: 0,
           reason: item.remark ?? undefined,
+          // 质检明细 purchase_inspection_item 不落 色号/缸号/批次（后端无该三列，无来源可带），
+          // 故维度不预填、不写死、不从空兜底：留 undefined 由退货员按实际退的库存行选定。
         }));
       if (formData.items.length === 0) {
         logger.error('[purchase-return] 质检单无不合格明细，退货单无可派生行', { inspectionId });
@@ -467,13 +481,21 @@ export function usePrRtn() {
     quantity_returned: it.quantity ?? 0,
     unit_price: it.unitPrice ?? 0,
     notes: it.reason || undefined,
+    // 面料追溯维度：有值随 POST 下发；未填（undefined）时 JSON 省略该键，后端 unwrap_or_default 落空串（白坯）。
+    color_no: it.colorNo,
+    dye_lot_no: it.dyeLotNo,
+    batch_no: it.batchNo,
   });
 
-  /** 构造更新明细请求体（对齐 UpdatePurchaseReturnItemPayload，仅发可变字段） */
+  /** 构造更新明细请求体（对齐 UpdateReturnItemRequest，仅发可变字段） */
   const buildUpdateItemPayload = (it: ReturnFormItem): UpdatePurchaseReturnItemPayload => ({
     quantity_returned: it.quantity ?? 0,
     unit_price: it.unitPrice ?? 0,
     notes: it.reason || undefined,
+    // 维度：undefined 不下发（后端 if let Some 才更新，保留原值）；有值则显式设定（含空串=白坯）。
+    color_no: it.colorNo,
+    dye_lot_no: it.dyeLotNo,
+    batch_no: it.batchNo,
   });
 
   /**

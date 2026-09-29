@@ -1007,6 +1007,11 @@ pub struct PurchaseReturnItemDto {
     pub discount_amount: Decimal,
     pub total_amount: Decimal,
     pub notes: Option<String>,
+    /// 面料追溯维度（与创建/审批四维扣减同源）：list_items 经全列 SELECT + into_model 自动带出，
+    /// 供详情回读与编辑回填，非兜底默认值。
+    pub color_no: String,
+    pub dye_lot_no: String,
+    pub batch_no: String,
 }
 
 impl PurchaseReturnService {
