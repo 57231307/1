@@ -1,5 +1,11 @@
 /* eslint-disable no-console */
-import { expect, type Page, type APIResponse } from '@playwright/test';
+import {
+  expect,
+  type Page,
+  type APIResponse,
+  type Browser,
+  type BrowserContext,
+} from '@playwright/test';
 // ESM 环境无 require（Playwright 原生 ESM 加载链），fs/crypto 必须静态导入；
 // 此前 require('fs')/require('crypto') 抛 "require is not defined" 导致
 // getRoleCredential 恒返 null（全角色 credentials not found）与 generateTotp 崩溃
@@ -2528,9 +2534,75 @@ export async function safePostAction(
 }
 
 /**
- * 验证端点可达但不崩溃（用于报表/统计类端点）
+ * 端点健康校验参数。
+ *
+ * - `allowForbidden`：该端点是否属于「权限外探测」场景（用一个无权角色去访问、
+ *   预期被鉴权中间件 403 拒绝）。仅在此类显式声明时 403 才算健康；默认 false，
+ *   403 视为失败——避免把「未授权访问被拒」误当成路由/权限回归的绿灯掩盖。
  */
-export async function verifyEndpointHealthy(page: Page, path: string): Promise<void> {
+export interface EndpointHealthOptions {
+  allowForbidden?: boolean;
+}
+
+/**
+ * 验证「应当注册存在」的端点可达且不崩溃（严格模式，默认）。
+ *
+ * 判红口径（收紧假绿）：
+ * - 2xx            → 健康。
+ * - 5xx            → 失败（服务器内部错误）。
+ * - 404            → 失败（端点未注册 / 路由漂移：这正是过去被吞掉的回归）。
+ * - 403            → 失败，除非显式 `allowForbidden: true`（权限外探测的正常拒绝）。
+ * - 其它 4xx       → 失败（请求契约破坏，如非法参数命中该端点）。
+ *
+ * 真正「可选、允许缺失」的端点请改用 `verifyOptionalEndpointHealthy`，不要用本函数
+ * 兜底 404/403——否则会把路由/权限回归伪装成健康。
+ */
+export async function verifyEndpointHealthy(
+  page: Page,
+  path: string,
+  opts: EndpointHealthOptions = {}
+): Promise<void> {
+  let status: number;
+  try {
+    const res = await apiCallRaw(page, 'GET', path);
+    // apiCallRaw 成功即 2xx（非 2xx 会抛），无返回值也视为健康
+    void res;
+    return;
+  } catch (e) {
+    const err = e as { status?: number; message?: string };
+    status = err.status || 0;
+  }
+
+  if (status >= 500) {
+    throw new Error(`GET ${path} 返回 ${status}（服务器内部错误）`);
+  }
+  if (status === 404) {
+    throw new Error(`GET ${path} 返回 404：端点未注册或路由已漂移（严格健康检查判红，不再吞 404）`);
+  }
+  if (status === 403) {
+    if (opts.allowForbidden === true) {
+      return; // 显式权限外探测：403 属预期，健康
+    }
+    throw new Error(
+      `GET ${path} 返回 403：鉴权拒绝。若这是权限外探测端点，请显式传 { allowForbidden: true } 或改用 verifyOptionalEndpointHealthy；否则视为权限/路由回归判红`
+    );
+  }
+  if (status >= 400) {
+    throw new Error(`GET ${path} 返回 ${status}（请求契约破坏）`);
+  }
+  // status === 0：网络层错误（apiCall 已抛非数字状态）
+  throw new Error(`GET ${path} 请求异常（status=${status}）`);
+}
+
+/**
+ * 验证「真正可选」的端点健康（可选端点扫描专用，宽松模式）。
+ *
+ * 与历史 verifyEndpointHealthy 的行为等价：仅 5xx 判红，404/403/其它 4xx 均放过。
+ * 仅用于「端点允许缺失/未实现」的报表·统计类可选接口健康扫描。迁移调用点时必须
+ * 先判责：若该端点其实应当存在却返回 404，应保留在严格 verifyEndpointHealthy 下让它红，
+ * 不得用本函数把回归伪装成健康。
+ */
+export async function verifyOptionalEndpointHealthy(page: Page, path: string): Promise<void> {
   try {
     await apiCallRaw(page, 'GET', path);
   } catch (e) {
@@ -2538,7 +2610,7 @@ export async function verifyEndpointHealthy(page: Page, path: string): Promise<v
     if (err.status && err.status >= 500) {
       throw new Error(`GET ${path} 返回 ${err.status}（服务器内部错误）`);
     }
-    // 404/403 可接受（端点未实现或权限不足）
+    // 可选端点：404/403/其它 4xx 均可接受（端点允许缺失或未授权）
   }
 }
 
@@ -2785,6 +2857,90 @@ export function getRoleCredential(role: string): RoleCredential | null {
   }
 }
 
+/** 隔离会话：独立 BrowserContext + 一个已登录 Page，供水平越权等多用户测试使用。 */
+export interface IsolatedAuthedSession {
+  context: BrowserContext;
+  page: Page;
+  username: string;
+  close: () => Promise<void>;
+}
+
+/**
+ * 在一个全新的隔离 BrowserContext 内用指定账号真实登录（cookie 会话独立，与默认 fixture
+ * context 互不干扰），返回该会话。用于水平越权：以 B 账号凭证去改/删 A 账号的资源。
+ *
+ * 走后端真实登录（POST /auth/login，Set-Cookie 写入本 context），不使用 UI 表单——UI 登录
+ * 会改写模块级共享 LOGGED_IN 标志并依赖 storageState，多 context 下不可靠。/auth/login 免
+ * 鉴权且 CSRF 豁免，故无需预取 csrf token。登录成功后校验 access_token 已落本 context，
+ * 否则判红（前置未就绪，不得伪装成"越权被拒"的绿灯）。
+ */
+export async function loginInIsolatedContext(
+  browser: Browser,
+  username: string,
+  password: string
+): Promise<IsolatedAuthedSession> {
+  // 不继承 storageState，确保是干净的独立会话（用另一账号重新登录）
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const page = await context.newPage();
+  const loginResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
+    data: { username, password },
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+  });
+  if (!loginResp.ok()) {
+    const body = await loginResp.text().catch(() => '');
+    await context.close();
+    throw new Error(
+      `loginInIsolatedContext：账号 ${username} 登录失败 HTTP ${loginResp.status()} body=${body.slice(0, 200)}`
+    );
+  }
+  const cookies = await context.cookies();
+  if (!cookies.some(c => c.name === 'access_token')) {
+    await context.close();
+    throw new Error(`loginInIsolatedContext：账号 ${username} 登录后未获得 access_token cookie`);
+  }
+  return {
+    context,
+    page,
+    username,
+    close: async () => {
+      await context.close().catch(e => {
+        console.warn(`[loginInIsolatedContext] 关闭 context 失败: ${(e as Error).message}`);
+      });
+    },
+  };
+}
+
+/**
+ * 取一个与默认分片账号（TEST_USERNAME，即"用户 A"）不同的"用户 B"凭证。
+ * 从 role-credentials.json 中选一个 username 明确不等于 TEST_USERNAME 的角色账号，
+ * 保证 B 是独立身份的账号（水平越权前提：两个不同 owner）。找不到即判红，
+ * 不允许退化成"用同一账号自己测自己"的假越权。
+ */
+export function pickDifferentUserCredential(): { username: string; password: string } {
+  try {
+    if (!existsSync(ROLE_CREDENTIALS_PATH)) {
+      throw new Error(
+        `凭证文件不存在: ${ROLE_CREDENTIALS_PATH}（global-setup ensureRoleUsers 未运行？）`
+      );
+    }
+    const data = JSON.parse(readFileSync(ROLE_CREDENTIALS_PATH, 'utf-8')) as Record<
+      string,
+      RoleCredential
+    >;
+    const candidate = Object.values(data).find(
+      c => c && c.username && c.username !== TEST_USERNAME
+    );
+    if (!candidate) {
+      throw new Error(
+        `role-credentials.json 中找不到与分片账号 ${TEST_USERNAME} 不同的第二个账号，无法构造水平越权前提`
+      );
+    }
+    return { username: candidate.username, password: candidate.password };
+  } catch (e) {
+    throw new Error(`pickDifferentUserCredential 失败：${(e as Error).message}`);
+  }
+}
+
 // ===========================================================================
 // 公共步骤原语（消除 spec 重复代码）
 // ===========================================================================
@@ -2821,9 +2977,55 @@ export function expectDenied(result: { status: number }, context = ''): void {
  * 断言 API 响应为业务错误（status >= 400）
  *
  * 替代各 spec 中重复的: expect(result.status >= 400).toBe(true)
+ *
+ * 注意：本函数刻意保留「宽松」语义仅供确实只关心"被拒且非 5xx"的历史调用点。
+ * 删除/引用等防护类断言禁止用它兜底，应改用 expectBusinessRejection（钉死 400 + 业务码
+ * + 错误 message），否则后端裸 500 会被 >=400 伪装成"删除守卫生效"的绿灯。
  */
 export function expectBadRequest(result: { status: number }, context = ''): void {
   expect(result.status, context || '应返回 400+ 业务错误').toBeGreaterThanOrEqual(400);
+}
+
+/** 500/501 家族机器码：命中即"后端未实现前置校验、靠 DB 约束/未处理 panic 裸抛"——非业务拒绝。 */
+const SERVER_FAULT_CODES: ReadonlySet<string> = new Set([
+  'INTERNAL_ERROR',
+  'DATABASE_ERROR',
+  'NOT_IMPLEMENTED',
+]);
+
+/**
+ * 断言「删除/引用防护被业务规则正确拒绝」的精确契约（收紧 >=400 假绿）。
+ *
+ * 三条同时成立才算通过：
+ * 1. HTTP 状态恰为 400（业务拒绝的正确契约，非 500 裸崩、非 404 路径错误）；
+ * 2. 响应 code 为字符串业务机器码且不属于 500 家族（INTERNAL_ERROR/DATABASE_ERROR/
+ *    NOT_IMPLEMENTED）——排除"靠 DB FK 约束在 delete 阶段裸抛 500"被当成守卫；
+ * 3. 响应含非空业务错误 message（守卫命中必带可读拒绝原因）。
+ *
+ * 判责：若后端实为裸 500（如引用校验前置缺失、FK 直接炸），本断言会红——这是源码缺陷，
+ * 应保持红并交后端修复（补前置业务校验返回 400 BUSINESS_ERROR），禁止把断言放宽回 >=400 蒙过。
+ */
+export function expectBusinessRejection(
+  result: ApiFailureResult,
+  context = '删除/引用防护应被业务拒绝（HTTP 400 + 业务码 + 拒绝原因）'
+): void {
+  expect(
+    result.status,
+    `${context}：实际 status=${result.status} code=${result.code ?? '(none)'} message=${result.message ?? '(none)'}`
+  ).toBe(400);
+  const code = typeof result.code === 'string' ? result.code : undefined;
+  expect(
+    code,
+    `${context}：code 应为字符串业务机器码（非数字/非缺失），实际 raw code=${JSON.stringify(result.code)} message=${result.message ?? '(none)'}`
+  ).toBeTruthy();
+  expect(
+    code === undefined || !SERVER_FAULT_CODES.has(code),
+    `${context}：code=${code} 属 5xx 裸崩家族（后端缺少删除前置校验，靠 DB 约束/panic 兜底），应返回 400 业务码——源码缺陷，勿放宽本断言`
+  ).toBe(true);
+  expect(
+    typeof result.message === 'string' && result.message.trim().length > 0,
+    `${context}：响应应含非空业务错误 message，实际 message=${JSON.stringify(result.message)}`
+  ).toBe(true);
 }
 
 /**
