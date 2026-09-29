@@ -39,7 +39,7 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchInvoices">{{ $t('common.search') }}</el-button>
+          <el-button type="primary" @click="handleSearch">{{ $t('common.search') }}</el-button>
           <el-button @click="resetInvoiceQuery">{{ $t('common.reset') }}</el-button>
         </el-form-item>
       </el-form>
@@ -80,7 +80,7 @@
         </el-table-column>
         <el-table-column :label="$t('arModule.invoice.unpaidAmount')" width="110" align="right">
           <template #default="{ row }">
-            <span :class="{ 'text-red': row.unpaid_amount > 0 }">
+            <span :class="{ 'text-red': Number(row.unpaid_amount) > 0 }">
               {{ formatMoney(row.unpaid_amount) }}
             </span>
           </template>
@@ -117,6 +117,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-wrapper">
+        <el-pagination
+          :current-page="invoicePage"
+          :page-size="invoicePageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="invoiceTotal"
+          layout="total, sizes, prev, pager, next, jumper"
+          :aria-label="$t('arModule.invoice.paginationAria')"
+          @current-change="handlePageChange"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <el-dialog
@@ -254,6 +267,11 @@ const invoiceQuery = reactive({
   status: '',
 });
 
+// 分页状态（真实驱动）：page/page_size 由本页持有并随请求发给后端，total 取后端真实总数。
+const invoicePage = ref(1);
+const invoicePageSize = ref(20);
+const invoiceTotal = ref(0);
+
 const invoiceForm = reactive({
   customer_id: undefined as number | undefined,
   invoice_date: '',
@@ -275,8 +293,11 @@ const invoiceRules: FormRules = {
   ],
 };
 
-const formatMoney = (amount: number) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+// 后端 ar_invoice 金额字段为 rust_decimal 经 serde 序列化的 JSON 字符串（见 api/ar.ts ARInvoice 注释）。
+// 展示走仓库既有 decimal-string 安全范式（同 ar/tabs/ReconciliationTab.vue、ar/tabs/PaymentTab.vue）：
+// 形参如实声明为 string（不把字符串谎称成 number），仅在展示时 Number() 数值化并本地化格式化。
+const formatMoney = (amount: string | null | undefined) => {
+  return Number(amount ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 };
 
 const getInvoiceStatusLabel = (status: string) => {
@@ -316,10 +337,16 @@ const invoiceNoDisplay = () =>
 const fetchInvoices = async () => {
   invoiceLoading.value = true;
   try {
-    const res = await getARInvoiceList(invoiceQuery);
-    const d = res.data as
-      { list?: ARInvoice[]; items?: ARInvoice[]; data?: ARInvoice[] } | ARInvoice[];
-    invoices.value = Array.isArray(d) ? d : d?.items || d?.data || [];
+    const res = await getARInvoiceList({
+      status: invoiceQuery.status || undefined,
+      page: invoicePage.value,
+      page_size: invoicePageSize.value,
+    });
+    // 后端 list_ar_invoices 返回标准 ApiResponse<PaginatedResponse<ARInvoice>>
+    // （data = {items,total,page,page_size}），直接消费真实键；不再对裸数组/list/items/data 做兜底猜测。
+    // page/page_size 为前端发起值（后端原样回传），total 为后端真实总数驱动分页控件。
+    invoices.value = res.data.items;
+    invoiceTotal.value = res.data.total;
   } catch (error) {
     const err = error as Error;
     ElMessage.error(err.message || t('arModule.invoice.fetchListFailed'));
@@ -328,8 +355,27 @@ const fetchInvoices = async () => {
   }
 };
 
+// 分页控件回调：改页/页大小后重新拉取（单向绑定，组件不会自改状态，无重复请求风险）。
+const handlePageChange = (page: number) => {
+  invoicePage.value = page;
+  fetchInvoices();
+};
+
+const handleSizeChange = (size: number) => {
+  invoicePageSize.value = size;
+  invoicePage.value = 1;
+  fetchInvoices();
+};
+
+// 查询按钮：切换筛选条件后回到第一页再拉取（避免停留在越界页码看到空列表）。
+const handleSearch = () => {
+  invoicePage.value = 1;
+  fetchInvoices();
+};
+
 const resetInvoiceQuery = () => {
   invoiceQuery.status = '';
+  invoicePage.value = 1;
   fetchInvoices();
 };
 
@@ -437,8 +483,8 @@ const handlePrintInvoices = () => {
     [t('arModule.invoice.colSeq')]: index + 1,
     [t('arModule.invoice.invoiceNo')]: item.invoice_no,
     [t('arModule.invoice.customer')]: item.customer_name,
-    [t('arModule.invoice.invoiceAmount')]: `¥${item.invoice_amount}`,
-    [t('arModule.invoice.taxAmount')]: `¥${item.tax_amount}`,
+    [t('arModule.invoice.invoiceAmount')]: `¥${formatMoney(item.invoice_amount)}`,
+    [t('arModule.invoice.taxAmount')]: `¥${formatMoney(item.tax_amount)}`,
     [t('common.status')]: getInvoiceStatusLabel(item.status),
     [t('arModule.invoice.invoiceDate')]: item.invoice_date,
   }));
@@ -487,5 +533,10 @@ onMounted(() => {
 <style scoped>
 .text-red {
   color: #f56c6c;
+}
+.pagination-wrapper {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

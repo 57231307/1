@@ -5988,6 +5988,7 @@ export default {
       statusVerified: '已核销',
       statusCancelled: '已取消',
       listAria: '应收发票列表',
+      paginationAria: '应收发票列表分页',
       invoiceDate: '发票日期',
       invoiceAmount: '发票金额',
       taxAmount: '税额',

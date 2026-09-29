@@ -400,7 +400,9 @@ const handleEdit = async (row: Bom) => {
     id: source.id,
     product_id: source.product_id,
     product_name: source.product_name,
-    version: source.version,
+    // 响应 version 为 number（后端 i32），表单 el-input 绑字符串，回显转 String；
+    // 提交时 BillOfMaterialsForm 再 Number() 转回数字（保持请求体为 i32）。
+    version: String(source.version ?? ''),
     is_default: source.is_default,
     status: source.status,
     remark: source.remark,

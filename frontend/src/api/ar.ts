@@ -3,11 +3,16 @@ import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 /**
  * 应收发票（列表/详情载荷）。
- * 后端 `ar_invoice_handler::list_ar_invoices` 直接 `to_value` 返回 SeaORM 实体
- * （无 JOIN、无 DTO 改名），字段与 `backend/src/models/ar_invoice.rs` 逐字一致：
+ * 后端 `ar_invoice_handler::list_ar_invoices` 返回标准 `PaginatedResponse<ar_invoice::Model>`
+ * （data = {items,total,page,page_size}），items 为 SeaORM 实体（无 JOIN、无 DTO 改名），
+ * 字段与 `backend/src/models/ar_invoice.rs` 逐字一致：
  * 金额键为 received_amount / unpaid_amount（非 verified_amount / unverified_amount），
  * status 值集为大写 DRAFT/APPROVED/PAID/PARTIAL_PAID/CANCELLED（见 ar_invoice_service 写入点）。
  * 实体无 payment_status / remark 列，故此处不再声明。
+ * 金额字段（invoice_amount/received_amount/unpaid_amount/tax_amount）为 rust_decimal：
+ * 后端依赖 `rust_decimal` 仅启用 `serde` feature（Cargo.toml，非 serde-float），
+ * 经 `serde_json::to_value` 序列化为 JSON **字符串**（如 "1234.56"），故类型为 string；
+ * tax_amount 后端为 Option<Decimal> ⇒ string | null。展示走 utils 侧 decimal-string 安全范式。
  */
 export interface ARInvoice {
   id: number;
@@ -15,10 +20,10 @@ export interface ARInvoice {
   customer_id: number;
   customer_name: string;
   invoice_date: string;
-  invoice_amount: number;
-  tax_amount: number;
-  received_amount: number;
-  unpaid_amount: number;
+  invoice_amount: string;
+  tax_amount: string | null;
+  received_amount: string;
+  unpaid_amount: string;
   status: string;
   due_date?: string;
   created_at: string;
@@ -129,7 +134,14 @@ export interface ArInvoiceQuery {
   page_size?: number;
 }
 
-export function getARInvoiceList(params?: ArInvoiceQuery): Promise<ApiResponse<ARInvoice[]>> {
+/**
+ * 应收发票列表：后端 `ar_invoice_handler::list_ar_invoices` 返回标准
+ * `ApiResponse<PaginatedResponse<ARInvoice>>`（data = {items,total,page,page_size}）。
+ * items 为 ar_invoice::Model 数组，金额字段为 rust_decimal 序列化的 JSON 字符串（见 ARInvoice 注释）。
+ */
+export function getARInvoiceList(
+  params?: ArInvoiceQuery
+): Promise<ApiResponse<PaginatedResponse<ARInvoice>>> {
   return request.get('/ar/invoices', { params });
 }
 
@@ -137,13 +149,43 @@ export function getARInvoice(id: number): Promise<ApiResponse<ARInvoice>> {
   return request.get(`/ar/invoices/${id}`);
 }
 
-export function createARInvoice(data: Partial<ARInvoice>): Promise<ApiResponse<ARInvoice>> {
+/**
+ * 创建应收发票入参：对齐后端 `CreateArInvoiceRequestDto`（backend/src/handlers/ar_invoice_handler.rs:46），
+ * 全部字段 Option。金额键 invoice_amount 为 `Option<Decimal>`：serde 接受 JSON number，
+ * 故 el-input-number 的 number 可直接提交；请求侧金额是 number（与响应侧 ARInvoice 的 string 解耦，
+ * 因后端入参/出参对 Decimal 的 serde 处理方向不同）。invoice_no 由后端自生成，不入参。
+ */
+export interface CreateARInvoiceRequest {
+  customer_id?: number;
+  invoice_date?: string;
+  due_date?: string;
+  customer_name?: string;
+  source_type?: string;
+  source_bill_id?: number;
+  source_bill_no?: string;
+  invoice_amount?: number;
+  batch_no?: string;
+  color_no?: string;
+  sales_order_no?: string;
+}
+
+/**
+ * 更新应收发票入参：对齐后端 `UpdateArInvoiceRequest`
+ * （backend/src/services/ar_invoice_service.rs:26），全字段可选，金额键 invoice_amount（number）。
+ */
+export interface UpdateARInvoiceRequest {
+  invoice_date?: string;
+  due_date?: string;
+  invoice_amount?: number;
+}
+
+export function createARInvoice(data: CreateARInvoiceRequest): Promise<ApiResponse<ARInvoice>> {
   return request.post('/ar/invoices', data);
 }
 
 export function updateARInvoice(
   id: number,
-  data: Partial<ARInvoice>
+  data: UpdateARInvoiceRequest
 ): Promise<ApiResponse<ARInvoice>> {
   return request.put(`/ar/invoices/${id}`, data);
 }

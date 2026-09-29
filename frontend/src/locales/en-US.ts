@@ -6023,6 +6023,7 @@ export default {
       statusVerified: 'Verified',
       statusCancelled: 'Cancelled',
       listAria: 'AR invoice list',
+      paginationAria: 'AR invoice list pagination',
       invoiceDate: 'Invoice Date',
       invoiceAmount: 'Invoice Amount',
       taxAmount: 'Tax Amount',

@@ -6,7 +6,8 @@ export interface Bom {
   product_id: number;
   product_name?: string;
   product_code?: string;
-  version: string;
+  /** 后端 models/bom.rs:47 `pub version: i32`（JSON number，非字符串）；请求侧亦为 number，与后端 i32 双向一致 */
+  version: number;
   is_default: boolean;
   status: 'draft' | 'active' | 'archived';
   remark?: string;
@@ -64,7 +65,7 @@ export const setDefaultBom = (id: number) => request.put<ApiResponse<Bom>>(`/bom
 // 后端真实路由：GET /boms/versions/{product_id}（catalog.rs boms()）
 export const getBomVersionList = (productId: number) =>
   request.get<
-    ApiResponse<{ id: number; version: string; created_at: string; is_default: boolean }[]>
+    ApiResponse<{ id: number; version: number; created_at: string; is_default: boolean }[]>
   >(`/boms/versions/${productId}`);
 
 // D14 Batch 5b：原 bomApi.submit 转为风格 B 函数（提交BOM审核）
