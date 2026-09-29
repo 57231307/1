@@ -25,7 +25,8 @@ export interface ARInvoice {
   received_amount: string;
   unpaid_amount: string;
   status: string;
-  due_date?: string;
+  // 后端 models/ar_invoice.rs:17 due_date 为 NaiveDate(NOT NULL)，响应必带 → 必填 string
+  due_date: string;
   created_at: string;
 }
 
