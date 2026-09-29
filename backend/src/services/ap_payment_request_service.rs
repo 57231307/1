@@ -69,17 +69,28 @@ impl ApPaymentRequestService {
         // 生成付款申请单号
         let request_no = self.generate_request_no().await?;
 
-        // 校验明细关联的应付单
-        self.validate_invoice_items_txn(&req.items, &txn).await?;
+        // 校验明细关联的应付单（items 可选：缺省时按空切片处理，不伪造默认明细，
+        // 因明细 invoice_id 为 NOT NULL 外键且表头无应付单来源，凭空生成会产生脏引用）
+        self.validate_invoice_items_txn(req.items.as_deref().unwrap_or(&[]), &txn)
+            .await?;
 
         // 构建并插入付款申请主表
         let request = Self::build_payment_request_active_model(&req, request_no, user_id)
             .insert(&txn)
             .await?;
 
-        // 创建付款申请明细
-        self.create_payment_request_items_txn(req.items, request.id, &txn)
+        // 创建付款申请明细（缺省 items 时不插入明细行，提交阶段由 submit 门控强制补真实明细）
+        let item_count = req.items.as_ref().map_or(0, |v| v.len());
+        self.create_payment_request_items_txn(req.items.unwrap_or_default(), request.id, &txn)
             .await?;
+
+        if item_count == 0 {
+            tracing::info!(
+                request_no = %request.request_no,
+                request_id = request.id,
+                "付款申请未携带明细创建（items 缺省），主表金额取表头 request_amount，提交前须补真实应付单明细"
+            );
+        }
 
         txn.commit().await?;
 
@@ -633,8 +644,15 @@ pub struct CreateApPaymentRequest {
     /// 附件 URL 列表
     pub attachment_urls: Option<Vec<String>>,
 
-    /// 付款申请明细
-    pub items: Vec<ApPaymentRequestItemDto>,
+    /// 付款申请明细（可选）
+    ///
+    /// 前端付款申请创建 UI 当前不录入逐条应付单明细（`createAPPaymentRequest` 从不发 items），
+    /// 故 items 为可选：缺省时按空明细集合处理，主表仍以 `request_amount` 落库。
+    /// 说明：明细行 `invoice_id` 为 NOT NULL 且外键引用 `ap_invoice(id)`，表头不含应付单来源，
+    /// 无法在「数据自洽 + 不硬编码业务值」前提下自动伪造一条默认明细；
+    /// 「申请无明细不可提交」由 `submit` 现有门控强制保证核销前必须补真实应付单明细。
+    #[serde(default)]
+    pub items: Option<Vec<ApPaymentRequestItemDto>>,
 }
 
 /// 付款申请明细 DTO

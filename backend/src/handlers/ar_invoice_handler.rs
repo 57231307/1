@@ -17,7 +17,7 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::services::ar_invoice_service::{ArInvoiceService, CreateArInvoiceRequest};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 use rust_decimal::Decimal;
 
@@ -62,22 +62,29 @@ pub async fn list_ar_invoices(
     Query(params): Query<ArInvoiceQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<ar_invoice::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<ar_invoice::Model>>>, AppError> {
     info!("用户 {} 查询应收单列表", auth.username);
+
+    // 分页不变量：与仓库其它 list handler 同源，返回标准 PaginatedResponse{items,total,page,page_size}
+    // page/page_size 仍从同一查询参数读取，路由路径与参数名不变
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let service = ArInvoiceService::new(state.db.clone());
     let (invoices, total) = service
-        .get_list(
-            params.customer_id,
-            params.status,
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-            params.page_size.unwrap_or(20).clamp(1, 100),
-        )
+        .get_list(params.customer_id, params.status, page, page_size)
         .await?;
 
-    info!("用户 {} 查询应收单成功，共 {} 条", auth.username, total);
+    info!(
+        "用户 {} 查询应收单成功，共 {} 条，当前页 {} 条",
+        auth.username,
+        total,
+        invoices.len()
+    );
 
-    Ok(Json(ApiResponse::success(invoices)))
+    Ok(Json(ApiResponse::success_paginated(
+        invoices, total, page, page_size,
+    )))
 }
 
 /// 创建应收单
