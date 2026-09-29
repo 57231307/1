@@ -1348,7 +1348,10 @@ jobs:
     runs-on: ubuntu-latest
     # 10 个分片仅从 archive 运行测试（不编译），时间大幅缩短
     timeout-minutes: 360
-    needs: ci-build-test-artifacts
+    # ci-build-rust 提供 release `bingxi` CLI（backend-binary 产物），
+    # 用于分片执行前对本 job 专属 postgres service 跑 migrate。
+    # 没有已迁移 schema，setup_test_db() 指向的 PG 只是空库，"集成测试"仍是假覆盖。
+    needs: [ci-build-test-artifacts, ci-build-rust]
     # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
     if: github.event_name == 'pull_request'
     strategy:
@@ -1376,6 +1379,9 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      # 测试 harness（setup_test_db）读的是 TEST_DATABASE_URL；不注入则所有
+      # "集成测试"实际跑 sqlite::memory: 空表（假绿）。与 DATABASE_URL 同库，先 migrate 后跑测试。
+      TEST_DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
       # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust 智能探测写入 GITHUB_ENV（防 OOM，用满最大上限）
     steps:
@@ -1398,6 +1404,32 @@ jobs:
         with:
           name: nextest-archive
           path: backend/
+
+      - name: 下载后端 CLI 二进制（migrate 用，复用 ci-build-rust release 产物，分片不重编）
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/target/release
+
+      - name: 迁移本分片 PostgreSQL service（集成测试真跑活库的前提）
+        working-directory: backend
+        # 迁移失败必须让 job 红（bash 默认 -e，migrate/psql 非零退出即传导），
+        # 严禁静默跳过后带着空 schema 跑测试造成假绿。
+        run: |
+          set -e
+          chmod +x target/release/bingxi
+          ./target/release/bingxi migrate run
+          # 迁移"成功但没建表"同样是假绿，psql 硬校验 schema 非空 + 核心表存在
+          TABLES=$(psql "$DATABASE_URL" -At -c "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")
+          echo "迁移后 public 基表数量: $TABLES"
+          if [ "${TABLES:-0}" -lt 50 ]; then
+            echo "::error::迁移后表数量异常（$TABLES < 50），分片拒绝以空/半空 schema 运行"
+            exit 1
+          fi
+          if [ -z "$(psql "$DATABASE_URL" -At -c "select to_regclass('public.sales_orders')")" ]; then
+            echo "::error::核心表 sales_orders 不存在，迁移未真正生效"
+            exit 1
+          fi
 
       - name: 运行测试分片 ${{ matrix.partition }}/10（nextest archive run --partition hash:${{ matrix.partition }}/10）
         working-directory: backend
@@ -1486,6 +1518,181 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-report-partition-${{ matrix.partition }}
+          path: backend/reports/
+          retention-days: 90
+
+  # ==============================================================================
+  # Job 8b: Rust ignored 用例真库执行（#8b，杜绝"CI 永远 SKIP = 假绿"）
+  #
+  # 背景：约 60 个 #[ignore] 用例是真库流程集成测试（so_order/voucher/
+  # inventory_adjustment/bi/sku_mapping/supplier_product/bad_debt 等），
+  # 原分片命令 `nextest run --partition` 不带 ignored 参数 ⇒ 这些用例从未执行。
+  # 本 job 复用同一 nextest archive 与同一迁移流程，仅跑 ignored 子集
+  # （--run-ignored only），与 10 分片零重复、耗时只取决于 ignored 用例数。
+  # 退出码零容忍传导：任何 FAIL / 进程异常退出（含迁移失败）都让 job 红。
+  # ==============================================================================
+  ci-test-rust-ignored:
+    name: 🧪 Rust 集成测试（ignored 真库用例）
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    needs: [ci-build-test-artifacts, ci-build-rust]
+    if: github.event_name == 'pull_request'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      TEST_DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
+      # 部分 ignored 用例（websocket/bi e2e）会拉起 axum server，Settings::from_env
+      # 需要与 e2e job 同款的 CI 专用占位密钥（非真实密钥），否则以配置错误失败
+      JWT_SECRET: ci-only-jwt-signing-key-do-not-use-in-prod-32b
+      COOKIE_SECRET: ci-only-cookie-secret-do-not-use-in-prod-32b
+      WEBHOOK_SECRET: ci-only-webhook-secret-do-not-use-in-prod-32b
+      APP_ENV: development
+      ENV: development
+      KAFKA_ENABLED: "false"
+      ELASTICSEARCH_URL: ""
+      CACHE_ENABLED: "false"
+      SERVER__HOST: 127.0.0.1
+      SERVER__PORT: "8082"
+      DATABASE__HOST: localhost
+      DATABASE__PORT: "5432"
+      DATABASE__NAME: bingxi_test
+      DATABASE__USERNAME: bingxi
+      DATABASE__PASSWORD: bingxi_test
+      LOG__LEVEL: info
+      LOG__DIR: /tmp/ignored-test-logs
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: Setup Rust（系统依赖含 postgresql-client）
+        uses: ./.github/actions/setup-rust
+        with:
+          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+
+      - name: 安装 cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      - name: 下载预编译测试 archive（与分片同一产物）
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-archive
+          path: backend/
+
+      - name: 下载后端 CLI 二进制（migrate 用）
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/target/release
+
+      - name: 迁移本 job PostgreSQL service（ignored 真库用例的执行前提）
+        working-directory: backend
+        run: |
+          set -e
+          mkdir -p /tmp/ignored-test-logs
+          chmod +x target/release/bingxi
+          ./target/release/bingxi migrate run
+          TABLES=$(psql "$DATABASE_URL" -At -c "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")
+          echo "迁移后 public 基表数量: $TABLES"
+          if [ "${TABLES:-0}" -lt 50 ]; then
+            echo "::error::迁移后表数量异常（$TABLES < 50），拒绝以空/半空 schema 运行真库用例"
+            exit 1
+          fi
+          if [ -z "$(psql "$DATABASE_URL" -At -c "select to_regclass('public.sales_orders')")" ]; then
+            echo "::error::核心表 sales_orders 不存在，迁移未真正生效"
+            exit 1
+          fi
+
+      - name: 运行全部 #[ignore] 真库用例（nextest --run-ignored only）
+        working-directory: backend
+        # --run-ignored only：只跑 ignored 子集（真库流程测试），非 ignored 用例
+        #   已由 10 分片覆盖，此处不重复执行；nextest 对 ignored 的支持自 0.9.x
+        #   起提供（install-action 安装的当前 nextest 均含该参数）。
+        # --test-threads=1：真库写删串行，避免同库竞态。
+        run: |
+          mkdir -p reports
+          set +e
+          cargo nextest run \
+            --archive-file nextest-archive.tar.zst \
+            --run-ignored only \
+            --test-threads=1 \
+            --no-fail-fast \
+            > reports/nextest-ignored-output.txt 2>&1
+          EXIT_CODE=$?
+          set -e
+
+          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/nextest-ignored-output.txt 2>/dev/null)
+          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/nextest-ignored-output.txt 2>/dev/null)
+          TOTAL=$((PASSED + FAILED))
+
+          {
+            echo "# Rust ignored 真库用例报告"
+            echo ""
+            echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
+            echo "**通过**: $PASSED  "
+            echo "**失败**: $FAILED  "
+            echo "**总计**: $TOTAL  "
+            echo "**EXIT_CODE**: $EXIT_CODE  "
+            echo ""
+            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
+              echo "## ❌ 进程异常退出（EXIT_CODE=$EXIT_CODE，含迁移库不可用/参数错误）"
+              echo ""
+              { tail -50 reports/nextest-ignored-output.txt 2>/dev/null || true; }
+            elif [ "$FAILED" -eq "0" ]; then
+              echo "## ✅ ignored 真库用例全部通过"
+            else
+              echo "## ❌ 发现 $FAILED 个失败"
+              echo ""
+              { grep -E "^ FAIL " reports/nextest-ignored-output.txt 2>/dev/null || true; } | head -40
+              echo ""
+              { grep -A 10 "^ FAIL " reports/nextest-ignored-output.txt 2>/dev/null || true; } | head -80
+            fi
+          } > reports/cargo-ignored-report.md
+
+          {
+            echo "## 🧪 Rust ignored 真库用例"
+            echo ""
+            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
+              echo "❌ 进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            elif [ "$FAILED" -eq "0" ]; then
+              echo "✅ 通过 $PASSED / $TOTAL"
+            else
+              echo "❌ 失败 $FAILED / $TOTAL"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 零容忍：与分片同款退出码传导
+          if [ "$FAILED" -gt "0" ]; then
+            echo "❌ ignored 真库用例发现 $FAILED 个失败，CI 失败"
+            exit 1
+          fi
+          if [ "$EXIT_CODE" -ne "0" ]; then
+            echo "❌ ignored 用例进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            exit 1
+          fi
+          echo "✅ ignored 真库用例全部通过（$PASSED 个）"
+          exit 0
+
+      - name: 上传 ignored 用例测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-ignored
           path: backend/reports/
           retention-days: 90
 
@@ -3820,6 +4027,7 @@ jobs:
       ci-type-check,
       ci-build-test-artifacts,
       ci-test-rust,
+      ci-test-rust-ignored,
       ci-coverage-rust,
       ci-test-fe,
       ci-perf-bench,
