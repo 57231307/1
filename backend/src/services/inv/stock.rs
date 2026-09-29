@@ -223,7 +223,7 @@ mod tests {
 
         let wrong_batch = item(1, "50", Some(""), None, Some("B9"));
         let err = run_check(&wrong_batch, &stocks).expect_err("白坯批次不匹配应无库存记录被拒");
-        assert!(err.to_string().contains("没有匹配库存"), "实际：{}", err);
+        assert!(err.to_string().contains("无匹配库存"), "实际：{}", err);
     }
 
     #[test]
@@ -245,7 +245,7 @@ mod tests {
         // 缸号不同则四维不齐 → 不命中，被拒（证明缸号已纳入染色布匹配）
         let wrong_dye = item(1, "50", Some("RED"), Some("DL-Z"), Some("B1"));
         let err = run_check(&wrong_dye, &stocks).expect_err("染色布缸号不匹配应被拒");
-        assert!(err.to_string().contains("没有匹配库存"), "实际：{}", err);
+        assert!(err.to_string().contains("无匹配库存"), "实际：{}", err);
     }
 
     #[test]
