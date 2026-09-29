@@ -118,10 +118,16 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     }
 
     const q = await apiCallRaw<{ status: string }>(page, 'GET', `/quotations/${id}`);
-    const status = (q.status || '').toLowerCase();
-    expect(['approved', 'confirmed', 'converted', 'submitted', 'draft', 'expired']).toContain(
-      status ?? '(missing-status)'
-    );
+    // 2-2 用例即"draft → submitted → approved"：上面已 submit 并在必要时补 approve，
+    // 本用例独立报价单不会被 2-4 转化（2-4 用 ctx.quotationId/2-1 的报价）。
+    // 旧白名单 ['approved','confirmed','converted','submitted','draft','expired'] 里
+    // confirmed/submitted 根本不在 quotation 词表（draft/approved/rejected/cancelled +
+    // quotation_ext pending_approval/expired/converted），且允许 draft/expired/converted →
+    // 无论审批链是否真的走通都能绿=恒真。收紧为该步骤精确期望值 approved。
+    expect(
+      (q.status || '').toLowerCase(),
+      `submit+approve 后报价单 ${id} 应为 approved（词表 quotation），实际 ${q.status}`
+    ).toBe('approved');
   });
 
   test('2-3 验证报价单非法转换被拒绝', async ({ page }) => {
@@ -300,16 +306,14 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     });
 
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
-    const status = (order.status || '').toLowerCase();
-    // 后端状态枚举为 partial_shipped（models/status/sales.rs PARTIAL_SHIPPED）
-    expect([
-      'shipped',
-      'partial_shipped',
-      'completed',
-      'approved',
-      'confirmed',
-      'pending_shipment',
-    ]).toContain(status ?? '(missing-status)');
+    // 2-4 由报价（数量 800）转单，2-6 发货 500+300=800 已全额发出。
+    // ship.rs:559-562 check_order_fully_shipped：所有明细 shipped_quantity>=quantity → SHIPPED，
+    // 否则 PARTIAL_SHIPPED。旧白名单含 confirmed/pending_shipment（根本不属 so_status 枚举）
+    // 与 approved（"发货没推进状态"也照样过）→ 恒真。收紧为该步骤精确期望值 shipped。
+    expect(
+      order.status,
+      `全额发货后销售订单 ${id} 应为 shipped（词表 so_status，models/status/sales.rs），实际 ${order.status}`
+    ).toBe('shipped');
   });
 
   test('2-7 验证库存扣减（四维查询）', async ({ page }) => {
