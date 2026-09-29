@@ -9923,6 +9923,9 @@ export default {
       labelReleaseDate: 'Release Date',
       statusHasUpdate: 'Update Available',
       statusUpToDate: 'Up to Date',
+      headerReleaseNotes: "What's New",
+      labelFileSize: 'File Size',
+      noReleaseNotes: 'No release notes provided for this update',
     },
     versionDetail: {
       dialogTitle: 'Version Details',

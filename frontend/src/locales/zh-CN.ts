@@ -9888,6 +9888,9 @@ export default {
       labelReleaseDate: '发布日期',
       statusHasUpdate: '有可用更新',
       statusUpToDate: '已是最新版本',
+      headerReleaseNotes: '本次更新内容',
+      labelFileSize: '文件大小',
+      noReleaseNotes: '本次更新暂无说明内容',
     },
     versionDetail: {
       dialogTitle: '版本详情',
