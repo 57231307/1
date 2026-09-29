@@ -332,10 +332,17 @@ pub async fn delete_count(
 /// 录入实盘数量并自动计算差异
 pub async fn record_count_items(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<RecordItemsPayload>,
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——录入实盘前先校验资源归属（复用 P0-S01 的 get_count + data_scope_ctx），
+    // 与 update_count/delete_count 的「先 get_count(Some(&data_scope_ctx))」写法同源；
+    // record_count_items 服务侧仅 find_by_id+lock_exclusive 无归属校验，越权由 get_count 返回 403。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_count(id, Some(&data_scope_ctx)).await?;
+
     let mut inputs = Vec::with_capacity(payload.items.len());
     for it in payload.items {
         let qty = it
@@ -357,9 +364,16 @@ pub async fn record_count_items(
 /// 提交盘点单进入审批
 pub async fn submit_for_approval(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——提交审批前先校验资源归属（复用 P0-S01 的 get_count + data_scope_ctx），
+    // 与 update_count/delete_count 的「先 get_count(Some(&data_scope_ctx))」写法同源；
+    // submit_for_approval 服务侧仅 find_by_id+lock_exclusive 无归属校验，越权由 get_count 返回 403。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_count(id, Some(&data_scope_ctx)).await?;
+
     let updated = service.submit_for_approval(id).await?;
     let detail = service.get_count(id, None).await?;
     let mut resp: CountResponse = updated.into();

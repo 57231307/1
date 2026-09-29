@@ -295,6 +295,12 @@ pub async fn submit_for_approval(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
+    // IDOR 防护：提交审批前先按当前用户数据范围校验资源归属（与 update/delete 的
+    // get_by_id(Some(&data_scope_ctx)) 同源），越权由 get_by_id 内部 check_resource_owner
+    // 返回 403（permission_denied）；submit_for_approval 服务侧仅 find_by_id+lock_exclusive，无归属校验。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+
     let model = service
         .submit_for_approval(id, auth.user_id, &auth.username)
         .await?;
@@ -354,10 +360,16 @@ pub struct UpdateProgressRequest {
 /// 更新生产订单进度
 pub async fn update_production_progress(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateProgressRequest>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
+    // IDOR 防护：改写前先按当前用户数据范围校验资源归属（与 update/delete 的
+    // get_by_id(Some(&data_scope_ctx)) 同源），越权返回 403。下方 find_by_id 仅用于读取回写实体，无归属校验。
+    let service = ProductionOrderService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+
     // 该路径为写操作、直接返回更新后的实体（无需 product_name JOIN），
     // 故用 find_by_id 读取生产订单 Model（get_by_id 现返回富化 DTO，不含回写所需的实体）。
     let model = crate::models::production_order::Entity::find_by_id(id)
@@ -401,7 +413,7 @@ pub async fn get_production_order_logs(
 /// 更新生产订单状态
 pub async fn update_production_order_status(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateProductionOrderStatusDto>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
@@ -411,6 +423,10 @@ pub async fn update_production_order_status(
         .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = ProductionOrderService::new(state.db.clone());
+    // IDOR 防护：状态改写前先按当前用户数据范围校验资源归属（与 update/delete 的
+    // get_by_id(Some(&data_scope_ctx)) 同源），越权返回 403；update_status 服务侧仅 find_by_id+lock_exclusive，无归属校验。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
     let actual_quantity = payload
         .actual_quantity

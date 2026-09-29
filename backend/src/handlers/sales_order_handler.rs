@@ -413,6 +413,18 @@ pub async fn ship_order(
     Json(payload): Json<crate::services::so::delivery::ShipOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+    // 消除双源错位：路径 :id 与 payload.order_id 必须一致，否则以路径为准将错就错或
+    // 静默发往另一订单（发货用 payload.order_id，详情/通知用 :id）。此处强校验，不一致直接拒绝，不静默。
+    if payload.order_id != id {
+        return Err(AppError::bad_request("发货订单 ID 与路径参数不一致"));
+    }
+    // IDOR 防护：发货前先按当前用户数据范围校验订单归属（复用 get_order_detail 内部的
+    // validate_order_data_scope），与 customer/supplier 的「先 get_X(Some(&data_scope_ctx))」写法同源；
+    // ship_order 服务侧仅 find_by_id+lock_exclusive 无归属校验，越权返回 403。
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     // 调用原有 ship_order(request, user_id)
     sales_service.ship_order(payload, auth.user_id).await?;
     // 重新获取订单详情用于通知（发货操作后内部调用，无数据权限过滤）
