@@ -141,27 +141,50 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
       )
     );
 
-    // 矩阵断言（双模）：
-    // - 无黄金基线（首轮）：仅生成 access-map 报告供人工审核，零漂移才 fail——
-    //   首轮 CI 种子角色与推导模型的差异是预期信息，由人工审核后固化基线
-    // - 有基线：漂移即 fail（权限回归防护）
-    const fs2 = await import('fs');
-    const hasBaseline = fs2.existsSync('e2e/traversal/access-map-baseline.json');
-    if (hasBaseline) {
+    // 矩阵断言（收紧假绿）：
+    // - 有基线：漂移即 fail（权限回归防护，保持）。
+    // - 无基线（首轮）：旧实现只 console.warn + 加 annotation，测试"通过"——等于"根本没比对
+    //   就报绿"的假绿。现改为：首轮自动生成/固化基线文件供人工审阅，但本用例判红，
+    //   明确要求"人工核对 access-map 无误并提交基线后再复跑"，无基线不算通过。
+    const fs2 = fs;
+    const baselinePath = 'e2e/traversal/access-map-baseline.json';
+    if (fs2.existsSync(baselinePath)) {
+      const raw = fs2.readFileSync(baselinePath, 'utf-8');
+      const baseline = JSON.parse(raw) as {
+        roles?: Record<string, Array<{ route: string; derived: string; actual: string }>>;
+      };
+      const prior = baseline.roles?.[role];
+      if (!prior) {
+        throw new Error(
+          `基线文件存在但无角色 ${role} 的条目（access-map-baseline.json.roles 缺该键）——需人工为该角色固化基线后再复跑，无基线不算通过。`
+        );
+      }
+      const priorDrift = prior.filter(
+        e => !(e.derived === e.actual || (e.derived === 'denied' && e.actual === 'denied'))
+      ).length;
       expect(
         accessMap.summary.drift,
-        `角色 ${role} 存在 ${accessMap.summary.drift} 项权限漂移: ${entries
+        `角色 ${role} 相对基线存在权限漂移（当前 ${accessMap.summary.drift} 项漂移，基线记录 ${priorDrift} 项）: ${entries
           .filter(e => !e.match)
           .map(e => `${e.route}(期望${e.derived}/实际${e.actual})`)
           .join('; ')}`
       ).toBe(0);
     } else {
+      // 首轮无基线：写出本次快照，初始化基线文件（人工审阅后提交），并判红强制人工确认。
+      const baselineFile = {
+        roles: {
+          [role]: entries.map(e => ({ route: e.route, derived: e.derived, actual: e.actual })),
+        },
+      };
+      fs2.mkdirSync('e2e/traversal', { recursive: true });
+      fs2.writeFileSync(baselinePath, JSON.stringify(baselineFile, null, 2));
       test.info().annotations.push({
-        type: 'baseline-missing',
-        description: `角色 ${role} 首轮矩阵：${accessMap.summary.drift} 项漂移待人工审核后固化基线`,
+        type: 'baseline-initializing',
+        description: `角色 ${role} 首轮：已初始化基线 ${baselinePath}（${accessMap.summary.drift} 项漂移待人工核对），本用例判红要求确认。`,
       });
-      console.warn(
-        `[role-matrix] 角色 ${role} 首轮：${accessMap.summary.drift} 项漂移（无基线，不 fail）`
+      throw new Error(
+        `角色 ${role} 无权限矩阵基线，本轮已初始化 ${baselinePath}（含 ${accessMap.summary.total} 项，其中 ${accessMap.summary.drift} 项派生/实际不一致）。` +
+          `请人工审阅 access-map 无误后提交该基线文件并重跑，"无基线"不算通过。`
       );
     }
 

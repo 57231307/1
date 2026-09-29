@@ -31,7 +31,7 @@
   "e2e/traversal/42c-sales-crm.spec.ts|TS2580": 2,
   "e2e/traversal/42d-finance-system.spec.ts|TS2580": 2,
   "e2e/traversal/44-role-matrix.spec.ts|TS2580": 4,
-  "e2e/traversal/44-role-matrix.spec.ts|TS2307": 2,
+  "e2e/traversal/44-role-matrix.spec.ts|TS2307": 1,
   "e2e/traversal/matrix-probe.ts|TS2580": 1,
   "e2e/traversal/permission-model.ts|TS2580": 1,
   "e2e/traversal/permission-model.ts|TS2307": 2
