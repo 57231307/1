@@ -1,4 +1,4 @@
-# layers=8 endpoints=1758
+# layers=8 endpoints=1759
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -797,6 +797,7 @@ GET	/api/v1/erp/purchase/orders/generate-no	purchase_order_handler::generate_ord
 GET	/api/v1/erp/purchase/purchase-contracts	purchase_contract_handler::list_contracts	purchase
 GET	/api/v1/erp/purchase/purchase-contracts/*	purchase_contract_handler::get_contract	purchase
 GET	/api/v1/erp/purchase/purchase-contracts/*/print	print_handler::purchase_contract_print_docx	purchase
+GET	/api/v1/erp/purchase/purchase-contracts/export	purchase_contract_handler::export_purchase_contracts	purchase
 GET	/api/v1/erp/purchase/purchase-prices	purchase_price_handler::list_prices	purchase
 GET	/api/v1/erp/purchase/purchase-prices/*	purchase_price_handler::get_price	purchase
 GET	/api/v1/erp/purchase/purchase-prices/*/history	purchase_price_handler::get_price_history	purchase
