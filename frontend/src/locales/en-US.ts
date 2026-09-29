@@ -9923,7 +9923,6 @@ export default {
       headerCurrentVersion: 'Current Version',
       headerLatestVersion: 'Latest Version',
       headerUpdateStatus: 'Update Status',
-      labelBuildDate: 'Build Date',
       labelReleaseDate: 'Release Date',
       statusHasUpdate: 'Update Available',
       statusUpToDate: 'Up to Date',

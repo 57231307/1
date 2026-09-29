@@ -142,6 +142,8 @@ export function downloadBackup(id: number): Promise<Blob> {
   });
 }
 
-export function getCurrentVersion(): Promise<ApiResponse<{ version: string; build_date: string }>> {
+export function getCurrentVersion(): Promise<
+  ApiResponse<{ version: string; release_date: string }>
+> {
   return request.get('/system-update/current-version');
 }

@@ -9887,7 +9887,6 @@ export default {
       headerCurrentVersion: '当前版本',
       headerLatestVersion: '最新版本',
       headerUpdateStatus: '更新状态',
-      labelBuildDate: '构建日期',
       labelReleaseDate: '发布日期',
       statusHasUpdate: '有可用更新',
       statusUpToDate: '已是最新版本',

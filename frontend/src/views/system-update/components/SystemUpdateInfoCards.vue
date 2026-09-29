@@ -15,8 +15,8 @@
         <div class="info-content">
           <div class="version">{{ currentVersion?.version || '-' }}</div>
           <div class="date">
-            {{ t('systemUpdate.infoCards.labelBuildDate') }}:
-            {{ currentVersion?.build_date || '-' }}
+            {{ t('systemUpdate.infoCards.labelReleaseDate') }}:
+            {{ currentVersion?.release_date || '-' }}
           </div>
         </div>
       </el-card>
@@ -136,7 +136,7 @@ const { t } = useI18n({ useScope: 'global' });
  */
 const props = defineProps<{
   // 当前版本（GET /system-update/current-version）
-  currentVersion: { version: string; build_date: string } | null;
+  currentVersion: { version: string; release_date: string } | null;
   // 最新检查结果（GET /system-update/check，含两份 release_notes）
   latestVersion: CheckUpdateResult | null;
   // 是否有可用更新（后端权威 has_update）
