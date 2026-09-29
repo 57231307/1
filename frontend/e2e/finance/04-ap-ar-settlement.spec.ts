@@ -6,6 +6,8 @@
 //   - AP 应付：走完整方案B内控链（应付单审核 → 付款申请 → 提交 → 审批 → 建付款 → 填交易流水号 → 确认付款），
 //     确认付款后回读 paid_amount 递增、unpaid_amount 递减（amount - paid = unpaid 恒等）。
 // 全部基于真实后端 + 数值断言，禁用 verifyEndpointHealthy / >=400 / 仅 toast / toBeTruthy。
+//   - 04-03 AR 列表分页真值：本批 GET /ar/invoices 迁移 PaginatedResponse{items,total,page,page_size}，
+//     seed 6 条 > page_size=3，断跨页满页、total=全量、两页 id 不相交且日期并集不重不漏。
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
 
@@ -204,5 +206,85 @@ test.describe('04 AP/AR 核销金额级回读', () => {
       'AP 恒等：amount-paid=unpaid'
     );
     expect(String(after.invoice_status), '部分付款后状态应为 PARTIAL_PAID').toBe('PARTIAL_PAID');
+  });
+
+  test('04-03 AR 列表分页真值：PaginatedResponse{items,total,page,page_size}，跨页不重不漏', async ({
+    page,
+  }) => {
+    // 本批契约：GET /ar/invoices 迁移到标准 PaginatedResponse（ar_invoice_handler.rs:61-88
+    // → ApiResponse::success_paginated，utils/response.rs:95-113：data={items,total,page,page_size}）。
+    // 专属新客户的行数完全可控（customer_id 过滤 = 真值 total），
+    // 且每单 invoice_date 互不相同 —— 服务层唯一排序是 invoice_date desc
+    //（ar_invoice_service.rs:263-268），同值排序在 DB 层不保证稳定，异值才谈得上"不重不漏"。
+    const customerId = await seedCustomer(page);
+    const dates: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+      dates.push(day);
+      const inv = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ar/invoices', {
+        customer_id: customerId,
+        invoice_amount: 100 + i,
+        invoice_date: day,
+        due_date: day,
+      });
+      const id = Number(inv.id);
+      if (!id) throw new Error(`建应收单失败：${JSON.stringify(inv)}`);
+      CLEANUP.push({ path: `/ar/invoices/${id}`, label: 'ar_invoice' });
+    }
+
+    interface ArInvoicePage {
+      items: Array<Record<string, unknown>>;
+      total: number;
+      page: number;
+      page_size: number;
+    }
+    const qs = `customer_id=${customerId}&page_size=3`;
+    const p1 = await apiCallRaw<ArInvoicePage>(page, 'GET', `/ar/invoices?page=1&${qs}`);
+    const p2 = await apiCallRaw<ArInvoicePage>(page, 'GET', `/ar/invoices?page=2&${qs}`);
+
+    // PaginatedResponse 四键齐全（缺任一键即假绿温床，直接抛错而非 undefined 通过）。
+    for (const [label, body] of [
+      ['第1页', p1],
+      ['第2页', p2],
+    ] as Array<[string, ArInvoicePage]>) {
+      for (const k of ['items', 'total', 'page', 'page_size']) {
+        if (!Object.prototype.hasOwnProperty.call(body, k)) {
+          throw new Error(`${label}响应缺少分页键 "${k}"，实际键=${Object.keys(body).join(',')}`);
+        }
+      }
+    }
+
+    expect(p1.items.length, '第1页应满页 3 条').toBe(3);
+    expect(p2.items.length, `第2页应满页 3 条（共 6 条 = 2 整页）实际=${p2.items.length}`).toBe(3);
+    expect(p1.total, 'total 应等于全量 6（客户过滤真值）').toBe(6);
+    expect(p2.total, 'total 跨页恒定等于全量 6').toBe(6);
+    expect(p1.page, 'page 回显请求页码 1').toBe(1);
+    expect(p2.page, 'page 回显请求页码 2').toBe(2);
+    expect(p1.page_size, 'page_size 回显 3').toBe(3);
+    expect(p2.page_size, 'page_size 回显 3').toBe(3);
+
+    const ids1 = p1.items.map(o => Number(o.id));
+    const ids2 = p2.items.map(o => Number(o.id));
+    expect(ids1.every(Number.isFinite) && ids2.every(Number.isFinite), '条目 id 均为数字').toBe(
+      true
+    );
+    const overlap = ids1.filter(id => ids2.includes(id));
+    expect(overlap, `第2页与第1页 id 必不相交，实际交集=${JSON.stringify(overlap)}`).toEqual([]);
+    // 并集恰好覆盖 6 个不同 invoice_date → 不重之外还要求不漏。
+    const allDates = [...ids1, ...ids2].length;
+    expect(allDates, '两页合计行数 = 全量 6').toBe(6);
+    const d1 = p1.items.map(o => String(o.invoice_date));
+    const d2 = p2.items.map(o => String(o.invoice_date));
+    expect(
+      new Set([...d1, ...d2]).size,
+      '两页并集 invoice_date 互不相同（覆盖全部 6 个种子日）'
+    ).toBe(6);
+    // 排序真值：invoice_date desc → 第 1 页每行日期不早于第 2 页任一行。
+    const minP1 = d1.slice().sort().at(0)!;
+    const maxP2 = d2.slice().sort().at(-1)!;
+    expect(
+      minP1 >= maxP2,
+      `应按 invoice_date 降序：P1 最旧=${minP1} 不应早于 P2 最新=${maxP2}`
+    ).toBe(true);
   });
 });
