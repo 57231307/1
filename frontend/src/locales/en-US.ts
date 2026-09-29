@@ -5199,10 +5199,17 @@ export default {
       dialogTitle: 'Camera Scan',
       close: 'Close',
       scanning: 'Detecting…',
+      cameraSelect: 'Camera',
+      switchCamera: 'Switch camera',
+      cameraFallbackLabel: 'Camera',
       noCamera: 'No camera detected, please enter barcode manually',
       permissionDenied: 'Camera permission denied, please allow access in browser settings',
+      insecureContext:
+        'This origin is not secure. Camera scanning requires HTTPS or localhost access, please use a secure address or enter barcode manually',
       notSupported:
-        'Camera access is not supported in this environment (HTTPS required), please enter barcode manually',
+        'Camera access is not supported by this browser, please upgrade or enter barcode manually',
+      cameraBusy:
+        'Camera is unavailable (it may be in use by another app), please switch device or enter barcode manually',
       initError: 'Camera failed to start, please enter barcode manually',
     },
   },
