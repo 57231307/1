@@ -1,10 +1,16 @@
 // MRP 计算 E2E 测试
 // 创建时间: 2026-08-19
-// 覆盖范围：MRP 计算执行 → 结果查看 → 建议采购
+// 覆盖范围：MRP 计算执行 → 结果查看 → 建议采购 → BOM 多级展开净需求数值正确性
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { apiCallRaw, ensureTestEntities } from '../flow/helpers';
+import { apiCall, apiCallRaw, ensureTestEntities, getCtx, tryCleanup } from '../flow/helpers';
 import { pickSelectIn, formItemByExactLabel } from '../flow/ui-helpers';
+
+const CLEANUP: Array<{ path: string; label: string }> = [];
+test.afterEach(async ({ page }) => {
+  for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
+  CLEANUP.length = 0;
+});
 
 test.describe('MRP 计算', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -71,5 +77,92 @@ test.describe('MRP 计算', () => {
   test('MRP 历史页面可正常加载', async ({ page }) => {
     await page.goto('/mrp/history');
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
+  });
+
+  test('BOM 多级展开 → MRP 净需求数值正确性', async ({ page }) => {
+    await ensureTestEntities(page);
+    const ctx = getCtx();
+    // 取至少 3 个产品：父产品 + 2 个子物料
+    expect(
+      ctx.productIds.length,
+      'MRP BOM 展开测试需要至少 3 个产品（1 父 + 2 子）'
+    ).toBeGreaterThanOrEqual(3);
+    const parentProductId = ctx.productIds[0];
+    const childMaterialId1 = ctx.productIds[1];
+    const childMaterialId2 = ctx.productIds[2];
+
+    // 创建 BOM：父产品含 2 个物料，数量/损耗率明确可推算
+    // material1: quantity=3, scrap_rate=10 → 有效用量 = 3 * (1 + 10/100) = 3.3
+    // material2: quantity=5, scrap_rate=0  → 有效用量 = 5
+    const bomResult = await apiCall<{
+      bom?: { id: number; product_id: number };
+      items?: Array<{ material_id: number; quantity: number; scrap_rate: number | null }>;
+    }>(page, 'POST', '/boms', {
+      product_id: parentProductId,
+      version: 1,
+      is_default: true,
+      items: [
+        { material_id: childMaterialId1, quantity: '3.0', unit: '千克', scrap_rate: '10.0' },
+        { material_id: childMaterialId2, quantity: '5.0', unit: '米', scrap_rate: '0' },
+      ],
+    });
+    const bomId = bomResult.data?.bom?.id;
+    expect(bomId, `BOM 创建应返回 id: ${JSON.stringify(bomResult).slice(0, 200)}`).toBeTruthy();
+    CLEANUP.push({ path: `/boms/${bomId}`, label: 'bom_mrptest' });
+
+    // 触发 MRP 计算：父产品需求 100 单位
+    const mrpResult = await apiCallRaw<{
+      calculation_no: string;
+      requirements: Array<{
+        product_id: number;
+        required_quantity: string | number;
+        bom_level: number;
+        shortage_quantity: string | number;
+        on_hand_quantity: string | number;
+      }>;
+    }>(page, 'POST', '/production/mrp/calculate', {
+      items: [
+        {
+          product_id: parentProductId,
+          required_quantity: '100',
+          required_date: '2026-12-31',
+        },
+      ],
+      consider_safety_stock: false,
+      consider_in_transit: false,
+    });
+    expect(mrpResult.requirements, 'MRP 计算应返回 requirements 数组').toBeDefined();
+    expect(
+      mrpResult.requirements.length,
+      'BOM 展开后 requirements 至少应包含 2 行子物料需求'
+    ).toBeGreaterThanOrEqual(2);
+
+    // 找子物料需求行（bom_level >= 1）
+    const reqChild1 = mrpResult.requirements.find(
+      r => r.product_id === childMaterialId1 && r.bom_level >= 1
+    );
+    const reqChild2 = mrpResult.requirements.find(
+      r => r.product_id === childMaterialId2 && r.bom_level >= 1
+    );
+    expect(
+      reqChild1,
+      `requirements 应包含 childMaterial1(id=${childMaterialId1}) 的需求行`
+    ).toBeDefined();
+    expect(
+      reqChild2,
+      `requirements 应包含 childMaterial2(id=${childMaterialId2}) 的需求行`
+    ).toBeDefined();
+
+    // 数值断言：
+    // child1 净需求 = 100 * 3 * (1 + 10/100) = 330
+    // child2 净需求 = 100 * 5 = 500
+    const q1 = Number(reqChild1!.required_quantity);
+    const q2 = Number(reqChild2!.required_quantity);
+    expect(q1, `child1 需求应为 100*3*1.1=330（含10%损耗），实际: ${q1}`).toBeCloseTo(330, 1);
+    expect(q2, `child2 需求应为 100*5=500，实际: ${q2}`).toBeCloseTo(500, 1);
+
+    // bom_level 应为 1（一级 BOM 展开）
+    expect(reqChild1!.bom_level, 'child1 的 bom_level 应为 1').toBe(1);
+    expect(reqChild2!.bom_level, 'child2 的 bom_level 应为 1').toBe(1);
   });
 });
