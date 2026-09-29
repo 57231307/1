@@ -138,10 +138,7 @@ pub async fn create_adjustment(
         items,
     };
 
-    let detail = service
-        .create_adjustment(request)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let detail = service.create_adjustment(request).await?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,
@@ -181,15 +178,9 @@ pub async fn approve_adjustment(
     let service = InventoryAdjustmentService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    service
-        .approve_adjustment(id, user_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    service.approve_adjustment(id, user_id).await?;
 
-    let detail = service
-        .get_adjustment(id, None)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let detail = service.get_adjustment(id, None).await?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,
@@ -228,15 +219,9 @@ pub async fn reject_adjustment(
 ) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
 
-    service
-        .reject_adjustment(id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    service.reject_adjustment(id).await?;
 
-    let detail = service
-        .get_adjustment(id, None)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let detail = service.get_adjustment(id, None).await?;
 
     // 发送审批拒绝通知
     if state.event_notification_service.is_none() {
@@ -311,8 +296,7 @@ pub async fn list_adjustments(
             params.status,
             Some(&data_scope_ctx),
         )
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(AdjustmentListResponse {
         adjustments: adjustments
@@ -357,10 +341,7 @@ pub async fn get_adjustment(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
 
-    let detail = service
-        .get_adjustment(id, Some(&data_scope_ctx))
-        .await
-        .map_err(|e| AppError::not_found(e.to_string()))?;
+    let detail = service.get_adjustment(id, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,
@@ -433,15 +414,9 @@ pub async fn update_adjustment(
         notes: payload.notes,
     };
 
-    service
-        .update_adjustment(id, req)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    service.update_adjustment(id, req).await?;
 
-    let detail = service
-        .get_adjustment(id, None)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let detail = service.get_adjustment(id, None).await?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,
@@ -484,10 +459,7 @@ pub async fn delete_adjustment(
     service.get_adjustment(id, Some(&data_scope_ctx)).await?;
 
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-    service
-        .delete_adjustment(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    service.delete_adjustment(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(())))
 }
 
@@ -497,10 +469,7 @@ pub async fn list_items(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<AdjustmentItemResponse>>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
-    let items = service
-        .list_items(id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let items = service.list_items(id).await?;
     Ok(Json(ApiResponse::success(
         items
             .into_iter()
@@ -535,10 +504,7 @@ pub async fn add_item(
         unit_cost: payload.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
         notes: payload.notes,
     };
-    let item = service
-        .add_item(id, req)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    let item = service.add_item(id, req).await?;
     Ok(Json(ApiResponse::success(AdjustmentItemResponse {
         id: item.id,
         stock_id: item.stock_id,
@@ -568,10 +534,7 @@ pub async fn update_item(
         unit_cost: payload.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
         notes: payload.notes,
     };
-    let item: inventory_adjustment_item::Model = service
-        .update_item(item_id, req)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    let item: inventory_adjustment_item::Model = service.update_item(item_id, req).await?;
     Ok(Json(ApiResponse::success(AdjustmentItemResponse {
         id: item.id,
         stock_id: item.stock_id,
@@ -590,10 +553,7 @@ pub async fn delete_item(
     Path(item_id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
-    service
-        .delete_item(item_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    service.delete_item(item_id).await?;
     Ok(Json(ApiResponse::success(())))
 }
 
