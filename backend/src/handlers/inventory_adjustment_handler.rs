@@ -466,9 +466,16 @@ pub async fn delete_adjustment(
 /// 列出调整单的所有明细项
 pub async fn list_items(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<AdjustmentItemResponse>>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    // IDOR 防护：明细只读同样需 data-scope，先校验父调整单归属（与同文件
+    // update/delete_adjustment 的 get_adjustment(Some(&data_scope_ctx)) 同源），
+    // 越权由 get_adjustment 内部 check_resource_owner 返回 403，避免越权枚举他人明细。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_adjustment(id, Some(&data_scope_ctx)).await?;
+
     let items = service.list_items(id).await?;
     Ok(Json(ApiResponse::success(
         items
@@ -490,10 +497,16 @@ pub async fn list_items(
 /// 向调整单添加明细
 pub async fn add_item(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<AdjustmentItemPayload>,
 ) -> Result<Json<ApiResponse<AdjustmentItemResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    // IDOR 防护：路径 id 即父调整单 id，添加明细前先校验其归属（与同文件
+    // update/delete_adjustment 的 get_adjustment(Some(&data_scope_ctx)) 同源），越权 403。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_adjustment(id, Some(&data_scope_ctx)).await?;
+
     let quantity = payload
         .quantity
         .parse::<Decimal>()
@@ -520,10 +533,19 @@ pub async fn add_item(
 /// 更新调整单明细
 pub async fn update_item(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(item_id): Path<i32>,
     Json(payload): Json<AdjustmentItemPayload>,
 ) -> Result<Json<ApiResponse<AdjustmentItemResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    // IDOR 防护：路径仅有 item_id，先反查其所属调整单 id，再走父调整单归属校验
+    // （与同文件 update/delete_adjustment 的 get_adjustment(Some(&data_scope_ctx)) 同源），越权 403。
+    let adjustment_id = service.get_adjustment_id_by_item(item_id).await?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_adjustment(adjustment_id, Some(&data_scope_ctx))
+        .await?;
+
     let quantity = payload
         .quantity
         .parse::<Decimal>()
@@ -550,9 +572,18 @@ pub async fn update_item(
 /// 删除调整单明细
 pub async fn delete_item(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(item_id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    // IDOR 防护：路径仅有 item_id，先反查其所属调整单 id，再走父调整单归属校验
+    // （与同文件 update/delete_adjustment 的 get_adjustment(Some(&data_scope_ctx)) 同源），越权 403。
+    let adjustment_id = service.get_adjustment_id_by_item(item_id).await?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_adjustment(adjustment_id, Some(&data_scope_ctx))
+        .await?;
+
     service.delete_item(item_id).await?;
     Ok(Json(ApiResponse::success(())))
 }

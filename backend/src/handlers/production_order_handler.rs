@@ -397,10 +397,20 @@ pub async fn update_production_progress(
 /// audit_logs 表，按 resource_id = order_id 过滤，按 created_at 倒序返回。
 pub async fn get_production_order_logs(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
+    // IDOR 防护：操作日志只读同样需 data-scope。get_order_logs 服务侧无归属校验，
+    // 故在 handler 入口先按当前用户数据范围校验该订单归属（复用同文件 update/delete 的
+    // get_by_id(Some(&data_scope_ctx)) 范式），越权由 get_by_id 内部 check_resource_owner 返回 403；
+    // 订单不存在返回 404（与 get_production_order 同源）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let _ = service
+        .get_by_id(id, Some(&data_scope_ctx))
+        .await?
+        .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+
     let logs = service.get_order_logs(id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({

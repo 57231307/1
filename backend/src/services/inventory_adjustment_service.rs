@@ -613,6 +613,18 @@ impl InventoryAdjustmentService {
         Ok(())
     }
 
+    /// 由明细项反查其所属调整单 ID（供 item 级端点做归属校验）。
+    /// handler 路径仅有 item_id 而无父调整单 id 时（如 `PUT/DELETE /adjustments/items/{item_id}`），
+    /// 先用此查询拿到 adjustment_id，再走 `get_adjustment(adjustment_id, Some(&ctx))` 的既有 data-scope 范式。
+    /// 明细不存在返回 404（not_found）。不改 schema，仅复用既有实体查询。
+    pub async fn get_adjustment_id_by_item(&self, item_id: i32) -> Result<i32, AppError> {
+        let item = inventory_adjustment_item::Entity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("调整单明细 {} 不存在", item_id)))?;
+        Ok(item.adjustment_id)
+    }
+
     /// 列出调整单的所有明细项
     pub async fn list_items(
         &self,
