@@ -197,7 +197,15 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/audit-logs`);
     await verifyOptionalEndpointHealthy(page, `/crm/customers/${customerId}/clv`);
     await apiCallRaw(page, 'GET', '/crm/customers/enhanced?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/crm/customers/field-permissions/1');
+    const roleId =
+      ctx.roleId ??
+      (await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/roles?page=1&page_size=1'))
+        .items?.[0]?.id;
+    expect(
+      roleId,
+      '无法获取任何角色 id（ensureTestEntities.ctx.roleId 缺失且角色列表为空）'
+    ).toBeTruthy();
+    await verifyEndpointHealthy(page, `/crm/customers/field-permissions/${roleId}`);
     await verifyOptionalEndpointHealthy(page, '/crm/rfm/distribution');
     await apiCallRaw(page, 'GET', '/crm/sales-users');
   });

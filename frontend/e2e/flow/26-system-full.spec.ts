@@ -54,8 +54,8 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await verifyOptionalEndpointHealthy(page, '/reports/enhanced?page=1&page_size=5');
     // 高级分析+跟踪+隐私+双计量
     await verifyOptionalEndpointHealthy(page, '/advanced/analysis');
-    await verifyEndpointHealthy(page, '/tracking/activities?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/privacy/consent');
+    await verifyEndpointHealthy(page, '/page-view/stats');
+    await verifyEndpointHealthy(page, '/privacy/consents');
     // 权限+审计
     await verifyEndpointHealthy(page, '/data-permissions?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/users?page=1&page_size=5');
