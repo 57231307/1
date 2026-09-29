@@ -446,8 +446,6 @@ const handleViewDetail = async (row: AuditLogItem) => {
 /**
  * 导出 Excel：调用后端 /audit-logs/export 接口下载带水印 xlsx
  *
- * V15 P0-S13 修复（Batch 475a）：原本地 exportToExcel 无水印无审计无合规保障，
- * 改用后端接口（admin 权限 + xlsx + 自审计 + 11 列 + 水印）。
  * 后端导出动作本身会写入审计日志（OperationType::Export），形成"导出审计日志"自身的审计闭环。
  * 后端水印：操作员/导出时间/导出条数（在 xlsx 第 0 行合并所有列）。
  *

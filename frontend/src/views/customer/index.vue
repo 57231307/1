@@ -259,8 +259,6 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';
 import { deleteCustomer, getCustomerById, type Customer } from '@/api/customer';
 import { formatCurrency } from '@/utils';
-// V15 P0-S12 + P0-S15 修复（Batch 474）：客户导出改用后端带水印 xlsx 接口
-// 保留 exportData 仅用于兼容场景（本视图已切换为 exportFromBackend）
 import { exportFromBackend } from '@/utils/export';
 import { printData } from '@/utils/print';
 import { logger } from '@/utils/logger';
