@@ -5194,6 +5194,17 @@ export default {
       shipSuccess: 'Shipment successful',
       shipFailed: 'Shipment failed',
     },
+    camera: {
+      openButton: 'Camera Scan',
+      dialogTitle: 'Camera Scan',
+      close: 'Close',
+      scanning: 'Detecting…',
+      noCamera: 'No camera detected, please enter barcode manually',
+      permissionDenied: 'Camera permission denied, please allow access in browser settings',
+      notSupported:
+        'Camera access is not supported in this environment (HTTPS required), please enter barcode manually',
+      initError: 'Camera failed to start, please enter barcode manually',
+    },
   },
   biSalesAnalysis: {
     title: 'BI Multi-dimensional Sales Analysis (P3-4 Key Path Demo)',

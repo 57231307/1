@@ -26,17 +26,34 @@ import { scanToShip, scanInventory, type ScanData, type ScanHistory } from '@/ap
 import type { ApiResponse } from '@/types/api';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
+import BarcodeScannerDialog from '@/components/BarcodeScannerDialog.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
 const activeTab = ref('scan');
 const barcodeInput = ref('');
-const orderId = ref(0);
 const scanResult = ref<ScanData | null>(null);
 const scanMessage = ref('');
 const scanSuccess = ref(false);
 // scan/ship tab 独立 loading（不接入 useTableApi）
 const scanLoading = ref(false);
+
+const scannerDialogRef = ref<InstanceType<typeof BarcodeScannerDialog> | null>(null);
+/** 标记当前摄像头识别结果回填目标（scan tab 用 barcodeInput，ship tab 用 shipForm.barcode） */
+const cameraTarget = ref<'scan' | 'ship'>('scan');
+
+function openCamera(target: 'scan' | 'ship') {
+  cameraTarget.value = target;
+  scannerDialogRef.value?.open();
+}
+
+function handleCameraScanned(barcode: string) {
+  if (cameraTarget.value === 'ship') {
+    shipForm.value.barcode = barcode;
+  } else {
+    barcodeInput.value = barcode;
+  }
+}
 
 const shipForm = ref({
   orderId: 0,
@@ -101,29 +118,26 @@ const handleScan = async () => {
 };
 
 const handleScanToShip = async () => {
-  if (!barcodeInput.value.trim()) {
+  if (!shipForm.value.barcode.trim()) {
     ElMessage.warning(t('barcodeScanner.message.barcodeRequired'));
     return;
   }
-  if (!orderId.value) {
+  if (!shipForm.value.orderId) {
     ElMessage.warning(t('barcodeScanner.message.orderIdRequired'));
     return;
   }
   scanLoading.value = true;
   try {
-    // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
-    // res.data 即业务数据（ScanToShipResponse），无需 res.data!.data 双层访问
     const res = await scanToShip({
-      barcode: barcodeInput.value,
-      order_id: Number(orderId.value),
+      barcode: shipForm.value.barcode,
+      order_id: Number(shipForm.value.orderId),
     });
     const data = (res as ApiResponse<{ message?: string }> | undefined)?.data;
     scanSuccess.value = true;
     scanMessage.value = data?.message || t('barcodeScanner.message.shipSuccess');
     scanResult.value = null;
-    barcodeInput.value = '';
+    shipForm.value.barcode = '';
   } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     scanSuccess.value = false;
     scanMessage.value =
       (error as { response?: { data?: { message?: string } } }).response?.data?.message ||
@@ -151,6 +165,9 @@ const handleScanToShip = async () => {
               />
             </div>
             <div class="scan-actions">
+              <ElButton class="camera-btn" @click="openCamera('scan')">
+                {{ $t('barcodeScanner.camera.openButton') }}
+              </ElButton>
               <ElButton type="primary" :loading="scanLoading" class="scan-btn" @click="handleScan">
                 <Search /> {{ $t('barcodeScanner.scan.button') }}
               </ElButton>
@@ -225,7 +242,7 @@ const handleScanToShip = async () => {
             :aria-label="$t('barcodeScanner.ship.formAriaLabel')"
           >
             <ElRow :gutter="20">
-              <ElCol :span="8">
+              <ElCol :span="6">
                 <ElFormItem :label="$t('barcodeScanner.ship.orderId')">
                   <ElInputNumber
                     v-model="shipForm.orderId"
@@ -234,7 +251,7 @@ const handleScanToShip = async () => {
                   />
                 </ElFormItem>
               </ElCol>
-              <ElCol :span="12">
+              <ElCol :span="10">
                 <ElFormItem :label="$t('barcodeScanner.ship.barcode')">
                   <ElInput
                     v-model="shipForm.barcode"
@@ -243,6 +260,11 @@ const handleScanToShip = async () => {
                     @keyup.enter="handleScanToShip"
                   />
                 </ElFormItem>
+              </ElCol>
+              <ElCol :span="4">
+                <ElButton class="w-full" style="margin-top: 24px" @click="openCamera('ship')">
+                  {{ $t('barcodeScanner.camera.openButton') }}
+                </ElButton>
               </ElCol>
               <ElCol :span="4">
                 <ElButton
@@ -320,6 +342,8 @@ const handleScanToShip = async () => {
         </div>
       </ElTabPane>
     </ElTabs>
+
+    <BarcodeScannerDialog ref="scannerDialogRef" @scanned="handleCameraScanned" />
   </div>
 </template>
 

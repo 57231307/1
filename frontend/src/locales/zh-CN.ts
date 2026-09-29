@@ -5161,6 +5161,16 @@ export default {
       shipSuccess: '发货成功',
       shipFailed: '发货失败',
     },
+    camera: {
+      openButton: '摄像头扫码',
+      dialogTitle: '摄像头扫码',
+      close: '关闭',
+      scanning: '正在识别…',
+      noCamera: '未检测到可用摄像头，请手动输入条码',
+      permissionDenied: '摄像头权限被拒绝，请在浏览器设置中允许访问后重试',
+      notSupported: '当前环境不支持摄像头访问（需 HTTPS 且浏览器兼容），请手动输入条码',
+      initError: '摄像头启动失败，请手动输入条码',
+    },
   },
   biSalesAnalysis: {
     title: 'BI 销售多维分析（P3-4 关键路径 demo）',
