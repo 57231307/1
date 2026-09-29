@@ -2137,6 +2137,60 @@ export async function seedFourDimStockIn(
   return row;
 }
 
+/**
+ * 白坯布库存播种（color_no 为空、无缸号、有批次）。
+ *
+ * 入库端点选择：POST /inventory/stock（通用建库存 handler `create_stock`，
+ * backend/src/handlers/inventory_stock_handler.rs:146）。
+ * 该 handler 虽复用 `CreateStockFabricRequest` DTO（含 color_no min=1 校验注解），
+ * 但**不调用 payload.validate()**（区别于 /stock/fabric 的 `create_stock_fabric`），
+ * service 层 `create_stock`（inventory_stock_service.rs:276）直接 Set(color_no) 落库，
+ * 且 DB 列 `inventory_stocks.color_no VARCHAR(255)` 无 CHECK 约束——
+ * 因此传 color_no="" 可合法写入白坯库存行。
+ *
+ * 另一条合法路径为采购收货入库（purchase_receipt_private.rs:327
+ * `item.color_code.clone().unwrap_or_default()` 当 color_code=None 时落空串），
+ * 但构造完整采购链（订单→收货→确认）复杂度过高且非本用例意图，
+ * 故 e2e seed 统一走 /inventory/stock 通用端点。
+ *
+ * seed 维度与调拨出库白坯口径一致：color_no=""、batch_no 必填、dye_lot_no 为空/不传。
+ */
+export async function seedGreigeStockIn(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    batchNo: string;
+    quantityMeters: string;
+  }
+): Promise<Record<string, unknown>> {
+  await apiCall(page, 'POST', '/inventory/stock', {
+    warehouse_id: opts.warehouseId,
+    product_id: opts.productId,
+    batch_no: opts.batchNo,
+    color_no: '',
+    grade: '一等品',
+    quantity_meters: opts.quantityMeters,
+    quantity_kg: opts.quantityMeters,
+  });
+  // 回读验证：按 product+warehouse+batch 查询，确认落库行 color_no 为空
+  const path =
+    `/inventory/stock?product_id=${opts.productId}` +
+    `&warehouse_id=${opts.warehouseId}` +
+    `&batch_no=${encodeURIComponent(opts.batchNo)}` +
+    `&page=1&page_size=50`;
+  const res = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(page, 'GET', path);
+  const row = res.items?.find(r => !r.color_no || String(r.color_no) === '');
+  if (!row) {
+    throw new Error(
+      `[seedGreigeStockIn] POST /inventory/stock 成功但回读未命中白坯行：` +
+        `product=${opts.productId} warehouse=${opts.warehouseId} batch=${opts.batchNo} ` +
+        `—— 落库行 color_no 非空或行不存在，见 reports/backend.log`
+    );
+  }
+  return row;
+}
+
 export async function verifyAuditLog(
   page: Page,
   action: string,

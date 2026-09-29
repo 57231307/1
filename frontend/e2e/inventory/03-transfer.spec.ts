@@ -11,6 +11,7 @@ import {
   ensureTestEntities,
   getCtx,
   seedFourDimStockIn,
+  seedGreigeStockIn,
 } from '../flow/helpers';
 import { pickSelect, pickSelectIn, fillFieldByLabel, escRe } from '../flow/ui-helpers';
 
@@ -272,5 +273,72 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
       `/inventory/transfers/${transferId}`
     );
     expect(String(detail.status).toLowerCase(), '审批后调拨单状态应为 approved').toBe('approved');
+  });
+
+  test('白坯调拨建单成功（color_no 空、免缸号，验证 is_dyed=false 宽松放行路径）', async ({
+    page,
+  }) => {
+    // 根因覆盖：match_single_item_against_stocks 的白坯分支（is_dyed=false）——
+    // 当 color_no 为空时仅按 款号+批次 匹配库存、不强制缸号，调拨建单应成功放行。
+    // 上一波因 /stock/fabric 对 color_no 强制 min=1 而丢失此分支 e2e 覆盖，
+    // 本用例经 POST /inventory/stock（通用 handler，不调 payload.validate()）播种白坯库存行
+    // （color_no=''、无缸号），再以同维度建调拨单，走 API 回读确认落库。
+    await ensureTestEntities(page);
+    const ctx = getCtx();
+    expect(ctx.warehouseIds.length, '前置：需至少两个仓库').toBeGreaterThanOrEqual(2);
+    expect(ctx.productIds.length, '前置：需至少一个产品').toBeGreaterThanOrEqual(1);
+
+    const tag = Date.now().toString().slice(-6);
+    const batchNo = `E2E-GRG-B${tag}`;
+
+    // seed：白坯库存行（color_no 空、batch_no 有、无缸号）
+    await seedGreigeStockIn(page, {
+      productId: ctx.productIds[0],
+      warehouseId: ctx.warehouseIds[0],
+      batchNo,
+      quantityMeters: '2000',
+    });
+
+    // 建调拨单：明细只给 款号+批次，color_no 传空串（白坯口径），不带缸号
+    const created = await apiCall<{ id?: number; transfer_no?: string }>(
+      page,
+      'POST',
+      '/inventory/transfers',
+      {
+        from_warehouse_id: ctx.warehouseIds[0],
+        to_warehouse_id: ctx.warehouseIds[1],
+        transfer_date: new Date().toISOString(),
+        notes: `E2E 白坯调拨用例 tag=${tag}`,
+        items: [
+          {
+            product_id: ctx.productIds[0],
+            quantity: '10',
+            color_no: '',
+            batch_no: batchNo,
+          },
+        ],
+      }
+    );
+    const transferId = created.data?.id;
+    expect(
+      transferId,
+      `白坯调拨建单应成功返回 data.id（验证 is_dyed=false 免缸号路径），实际响应：${JSON.stringify(created).slice(0, 300)}`
+    ).toBeTruthy();
+
+    // 回读 GET /inventory/transfers/{id}：状态 pending（建单初始态）、调出仓正确
+    const detail = await apiCallRaw<{ id: number; from_warehouse_id: number; status: string }>(
+      page,
+      'GET',
+      `/inventory/transfers/${transferId}`
+    );
+    expect(detail.id, '回读 id 应与建单返回一致').toBe(transferId);
+    expect(detail.from_warehouse_id, '调出仓应为 seed 仓库').toBe(ctx.warehouseIds[0]);
+    expect(
+      String(detail.status).toLowerCase(),
+      `白坯调拨单初始态应为 pending，实际=${detail.status}`
+    ).toBe('pending');
+
+    // 清理：删除本用例创建的调拨单（避免污染后续用例）
+    await apiCall(page, 'DELETE', `/inventory/transfers/${transferId}`).catch(() => {});
   });
 });

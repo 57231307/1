@@ -8,6 +8,7 @@ import {
   ensureTestEntities,
   getCtx,
   seedFourDimStockIn,
+  seedGreigeStockIn,
 } from './helpers';
 
 /**
@@ -118,6 +119,58 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     expect(id, '调拨单创建失败（应先 seed 匹配库存再建单）').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/inventory/transfers/${id}/ship`);
     expect(r.status, 'pending 调拨直接发出应被拒（仅 approved）').toBeGreaterThanOrEqual(400);
+  });
+
+  test('44e-4b 白坯调拨：color_no 空建单成功 + pending 禁 ship（覆盖 is_dyed=false 宽松放行路径）', async ({
+    page,
+  }) => {
+    // 与 44e-4 对照：本用例走白坯口径（color_no=""、无缸号、有批次）验证
+    // match_single_item_against_stocks 的白坯分支放行后，状态机门控仍生效。
+    // seed 端点：POST /inventory/stock（通用 handler create_stock 不调 payload.validate()，
+    // 故空 color_no 合法写入 inventory_stocks 表）。
+    await ensureTestEntities(page);
+    const ctx = getCtx();
+    const tag = Date.now().toString().slice(-6);
+    const batchNo = `E2E-44eB-B${tag}`;
+
+    await seedGreigeStockIn(page, {
+      productId: ctx.productIds[0],
+      warehouseId: ctx.warehouseIds[0],
+      batchNo,
+      quantityMeters: '1000',
+    });
+
+    // 白坯明细：color_no 空串，不传 dye_lot_no → 后端 validate_fabric_trace 归一为白坯、免缸号
+    const tf = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
+      from_warehouse_id: ctx.warehouseIds[0],
+      to_warehouse_id: ctx.warehouseIds[1],
+      transfer_date: new Date().toISOString(),
+      items: [
+        {
+          product_id: ctx.productIds[0],
+          quantity: 5,
+          color_no: '',
+          batch_no: batchNo,
+        },
+      ],
+    });
+    const id = tf?.data?.id;
+    if (id) CLEANUP.push({ path: `/inventory/transfers/${id}`, label: '[44e-4b] 白坯调拨' });
+    expect(
+      id,
+      `白坯调拨建单应成功（is_dyed=false 宽松放行），实际响应：${JSON.stringify(tf).slice(0, 200)}`
+    ).toBeTruthy();
+
+    // 状态机门控仍生效：白坯调拨单 pending 直接 ship 应被拒（业务 4xx，非 5xx 裸崩）
+    const r = await apiCallExpectFail(page, 'POST', `/inventory/transfers/${id}/ship`);
+    expect(
+      r.status,
+      `白坯调拨 pending 直接发出应被状态门以 4xx 拒绝，实际=${r.status}`
+    ).toBeGreaterThanOrEqual(400);
+    expect(
+      r.status,
+      `白坯调拨 pending 直接发出须为业务拒绝（4xx）而非 5xx 裸崩，实际=${r.status}`
+    ).toBeLessThan(500);
   });
 
   test('44e-5 染色配方：已审核禁删（dye_recipe_service.rs:119-125）+ 端点可达', async ({
