@@ -11,6 +11,7 @@ import {
   verifyAuditLog,
   ensureTestEntities,
   ensureStockInWarehouse,
+  seedFourDimStockIn,
 } from './helpers';
 
 test.describe('库存调拨完整流程', () => {
@@ -173,6 +174,28 @@ test.describe('库存调拨完整流程', () => {
   test('调拨状态机非法转换验证', async ({ page }) => {
     const ctx = getCtx();
 
+    // 染色布建单为 fail-closed 校验：color_no 非白坯时必须同时提供缸号与批号，
+    // 否则 create_transfer_items_and_compute_total 直接 400（inventory_move.rs:247-258）。
+    // 维度常量提取到此处，确保 seed 与随后 POST 的调拨明细三字段逐一对应。
+    const colorNo = ctx.colorNos[0] || 'CN-001';
+    const dyeLotNo = ctx.dyeLotNo || 'DL-E2E-12';
+    const batchNo = 'E2E-BATCH-12NEG';
+
+    // 根因C：本负例要先建出一张 pending 调拨单（否则 transferId=undefined，
+    // /transfers/undefined/receive|ship 的非法转换断言会假绿）。而 inv/stock.rs::
+    // check_from_warehouse_inventory 要求调出仓对该产品有维度匹配的足量库存，
+    // 原实现未造源库存 → 建单被正确拒（无匹配库存）、拿不到 id → 本用例红。
+    // 先按下方调拨明细的同一组维度（款号+色号+缸号+批次）在调出仓 seed 真实库存行，
+    // 再建单（不造假库存）。
+    await seedFourDimStockIn(page, {
+      productId: ctx.productIds[0],
+      warehouseId: ctx.warehouseIds[0],
+      colorNo,
+      dyeLotNo,
+      batchNo,
+      quantityMeters: '1000',
+    });
+
     const transferData = {
       from_warehouse_id: ctx.warehouseIds[0],
       to_warehouse_id: ctx.warehouseIds[1] || ctx.warehouseIds[0],
@@ -181,12 +204,9 @@ test.describe('库存调拨完整流程', () => {
         {
           product_id: ctx.productIds[0],
           quantity: '1',
-          color_no: ctx.colorNos[0],
-          // 染色布建单为 fail-closed 校验：color_no 非白坯时必须同时提供缸号与批号，
-          // 否则 create_transfer_items_and_compute_total 直接 400
-          // （inventory_move.rs:247-258）。缸号取前置数据真实值，批号为必填的非空追溯串。
-          dye_lot_no: ctx.dyeLotNo,
-          batch_no: 'E2E-BATCH-12NEG',
+          color_no: colorNo,
+          dye_lot_no: dyeLotNo,
+          batch_no: batchNo,
         },
       ],
     };

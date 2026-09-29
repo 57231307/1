@@ -8,6 +8,7 @@ import {
   getCtx,
   BASE_URL,
   ensureTestEntities,
+  seedFourDimStockIn,
   tryCleanup,
 } from './helpers';
 
@@ -23,6 +24,20 @@ test.describe('面料单据专用字段全链路验证', () => {
     const colorNo = ctx.colorNos[0] || 'CN-001';
     const dyeLotNo = ctx.dyeLotNo || genCode('DL');
     const batchNo = genCode('BN');
+
+    // 根因C：调拨建单前置校验 inv/stock.rs::check_from_warehouse_inventory 要求调出仓对该产品
+    // 有维度匹配的足量库存，否则返回 BUSINESS_ERROR（无匹配库存）、建单拿不到 id。
+    // 本用例是三件套追溯正例（断言 color_no/dye_lot_no/batch_no 原样回传），须先建单成功。
+    // 这里 colorNo 非空 = 染色布，四维齐全；据下方 transferData 将 POST 的同一组维度
+    // （款号+色号+缸号+批次）在调出仓 seed 一行真实库存（seed 维度与被测明细逐一对应，不造假）。
+    await seedFourDimStockIn(page, {
+      productId: ctx.productIds[0],
+      warehouseId: ctx.warehouseIds[0],
+      colorNo,
+      dyeLotNo,
+      batchNo,
+      quantityMeters: '1000',
+    });
 
     const transferData = {
       from_warehouse_id: ctx.warehouseIds[0],
@@ -148,6 +163,20 @@ test.describe('面料单据专用字段全链路验证', () => {
     ).toBeLessThan(500);
 
     // 2) 对照组：白色号 + 带缸号 → 建单成功，证明上一条被拒确因缺缸号
+    // 根因C：本对照组要「建单成功」，故调出仓须先有与明细维度逐一对应的足量库存，
+    // 否则 inv/stock.rs::check_from_warehouse_inventory 会因无匹配库存正确拒单、拿不到 id。
+    // color_no=本白（非空）= 染色布，四维齐全：先按同一组维度 seed，再建单（不造假库存）。
+    // 维度常量提取到此处，确保 seed 与随后 POST 的三字段完全一致。
+    const posDyeLotNo = genCode('DL-WHITE');
+    const posBatchNo = genCode('BN-WHITE-POS');
+    await seedFourDimStockIn(page, {
+      productId,
+      warehouseId: fromWarehouseId,
+      colorNo: whiteDyedColorNo,
+      dyeLotNo: posDyeLotNo,
+      batchNo: posBatchNo,
+      quantityMeters: '1000',
+    });
     const accepted = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
       from_warehouse_id: fromWarehouseId,
       to_warehouse_id: toWarehouseId,
@@ -157,8 +186,8 @@ test.describe('面料单据专用字段全链路验证', () => {
           product_id: productId,
           quantity: '1',
           color_no: whiteDyedColorNo,
-          dye_lot_no: genCode('DL-WHITE'),
-          batch_no: genCode('BN-WHITE-POS'),
+          dye_lot_no: posDyeLotNo,
+          batch_no: posBatchNo,
         },
       ],
     });

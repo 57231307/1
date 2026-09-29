@@ -7,6 +7,7 @@ import {
   tryCleanup,
   ensureTestEntities,
   getCtx,
+  seedFourDimStockIn,
 } from './helpers';
 
 /**
@@ -80,6 +81,25 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
   }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
+    // 根因C：建调拨单前，调出仓须对该产品有「维度匹配」的足量库存，否则
+    // inv/stock.rs::check_from_warehouse_inventory 正确返回 BUSINESS_ERROR（无匹配库存）、
+    // 拿不到 data.id → 后续 URL 退化为 /undefined、ship 负例断言假绿。
+    // 本用例目标是「pending 直接 ship 应被状态门拒绝」，与白坯/染色无关；又因
+    // /inventory/stock/fabric 对 color_no 强制 length(min=1)（inventory_stock_handler_dto.rs:20），
+    // 白坯空色号无法经该端点播种，故采用染色口径：先 seed 一行与本用例调拨明细
+    // 逐一对应（款号+色号+缸号+批次）的真实库存，再建单（不造假库存）。
+    const tag = Date.now().toString().slice(-6);
+    const colorNo = `E2E-TF-C${tag}`;
+    const dyeLotNo = `E2E-TF-D${tag}`;
+    const batchNo = `E2E-TF-B${tag}`;
+    await seedFourDimStockIn(page, {
+      productId: ctx.productIds[0],
+      warehouseId: ctx.warehouseIds[0],
+      colorNo,
+      dyeLotNo,
+      batchNo,
+      quantityMeters: '1000',
+    });
     const tf = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
       from_warehouse_id: ctx.warehouseIds[0],
       to_warehouse_id: ctx.warehouseIds[1],
@@ -87,13 +107,15 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
         {
           product_id: ctx.productIds[0],
           quantity: 1,
-          batch_no: `E2E-TF${Date.now().toString().slice(-6)}`,
+          color_no: colorNo,
+          dye_lot_no: dyeLotNo,
+          batch_no: batchNo,
         },
       ],
     });
     const id = tf?.data?.id;
     if (id) CLEANUP.push({ path: `/inventory/transfers/${id}`, label: '[44e-4] 调拨' });
-    expect(id, '调拨单创建失败').toBeTruthy();
+    expect(id, '调拨单创建失败（应先 seed 匹配库存再建单）').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/inventory/transfers/${id}/ship`);
     expect(r.status, 'pending 调拨直接发出应被拒（仅 approved）').toBeGreaterThanOrEqual(400);
   });

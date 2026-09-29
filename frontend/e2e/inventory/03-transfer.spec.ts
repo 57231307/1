@@ -20,6 +20,8 @@ interface TransferSeed {
   fromWarehouseId: number;
   fromWarehouseName: string;
   toWarehouseName: string;
+  /** 本用例刚 seed 的四维库存行色号：正规页库存行下拉须据此选中它自己的行（而非盲选 index 0）。 */
+  seedColorNo: string;
 }
 
 // 调拨出库要求「调出仓库对该产品有足量库存」（inventory_move::check_from_warehouse_inventory），
@@ -46,10 +48,11 @@ async function seedTransferSource(page: Page): Promise<TransferSeed> {
   expect(toWarehouse?.id, '前置：调拨需至少两个仓库（调出/调入不可同仓）').toBeTruthy();
   expect(product?.id, '前置：调拨需至少一个产品').toBeTruthy();
   const tag = Date.now().toString().slice(-6);
+  const seedColorNo = `E2E-TRF-C${tag}`;
   await seedFourDimStockIn(page, {
     productId: product!.id,
     warehouseId: fromWarehouse!.id,
-    colorNo: `E2E-TRF-C${tag}`,
+    colorNo: seedColorNo,
     dyeLotNo: `E2E-TRF-D${tag}`,
     batchNo: `E2E-TRF-B${tag}`,
     quantityMeters: '5000',
@@ -60,6 +63,7 @@ async function seedTransferSource(page: Page): Promise<TransferSeed> {
     fromWarehouseId: fromWarehouse!.id,
     fromWarehouseName: fromWarehouse!.warehouse_name,
     toWarehouseName: toWarehouse!.warehouse_name,
+    seedColorNo,
   };
 }
 
@@ -73,8 +77,12 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
     // 老「库存调拨 Tab 数据加载」经 /inventory 的 Tab，Tab 已删除——改为直达正规页并断言列表真实渲染。
     await page.goto('/inventory-transfer');
     await expect(page.getByRole('heading', { name: '库存调拨' })).toBeVisible({ timeout: 30000 });
-    // TransferListTab 的 el-table aria-label=库存调拨列表（transferList.table.ariaLabel）
-    await expect(page.getByLabel('库存调拨列表')).toBeVisible({ timeout: 30000 });
+    // TransferListTab 的 el-table aria-label=库存调拨列表（transferList.table.ariaLabel，zh-CN.ts:2260）。
+    // 根因A（strict mode violation）：同页 el-pagination 的 aria-label=库存调拨列表分页
+    // （transferList.table.paginationAriaLabel，zh-CN.ts:2270）含「库存调拨列表」子串，
+    // getByLabel 默认子串匹配同时命中表格与分页两个 aria-label 宿主 → 报命中 2 元素。
+    // 正解：以 exact 精确锚定表格的可访问名，保留「列表真实渲染」这一断言意图（不删、不放宽）。
+    await expect(page.getByLabel('库存调拨列表', { exact: true })).toBeVisible({ timeout: 30000 });
   });
 
   test('创建库存调拨单（经正规页新建对话框，明细从真实库存行选四维）', async ({ page }) => {
@@ -117,15 +125,26 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
         { timeout: 15_000 }
       )
       .catch(() => {});
-    // 库存行下拉：选项为该调出仓+产品下的真实四维行，选首行（含刚造的 E2E-TRF 行）即选定 色号+缸号+批次。
-    await pickSelect(page, dialog.locator('.el-select').nth(3), undefined, {
-      index: 0,
+    // 库存行下拉：选项为该调出仓+产品下的真实四维行。
+    // 根因C 指引：并发下产品/仓库可能存有其它 E2E-SEED 行，盲选 index 0 会命中「非本用例 seed」
+    // 的行（甚至被他人扣减到可用量不足）。改为按本用例刚 seed 的色号（seedColorNo，唯一 tag）
+    // 精确锚定它自己造的那行（TransferFormDialogTab.stockRowLabel 含 `色号: <color_no>` 文本），
+    // 确保选中的行与随后建单扣减的维度一致、且可用量充足。
+    await pickSelect(page, dialog.locator('.el-select').nth(3), seed.seedColorNo, {
       timeout: 30_000,
     });
 
-    // 数量：明细行首个 el-input-number（quantity），fill 后 Tab 同步 v-model
-    const qtyInput = dialog.locator('.el-input-number input').first();
-    await qtyInput.waitFor({ state: 'visible', timeout: 10000 });
+    // 数量：明细行 el-input-number 的内层 <input>（Element Plus 运行时对其 setAttribute role=spinbutton，
+    // 可及名回落到 placeholder「数量」——见 node_modules/element-plus/es/components/input-number/
+    // src/input-number...mjs:202/264/271，本组件未传 aria-label 故名称=placeholder）。
+    // 根因B：`dialog.locator('.el-input-number input').first()` 在本对话框内解析到一个
+    // 同 placeholder=「数量」但 hidden 的输入（CI 取证：resolved to hidden ×24 → 10s 超时），
+    // 而真正可见的 spinbutton「数量」存在（快照可见）。正解：按可及名精确锚定 spinbutton 并用
+    // visible=true 过滤到可见项——无可见数量输入时自然超时抛真实红，绝不改成「填不进就跳过」。
+    const qtyInput = dialog
+      .getByRole('spinbutton', { name: '数量', exact: true })
+      .locator('visible=true');
+    await expect(qtyInput, '明细数量输入应可见且可填').toBeVisible({ timeout: 10000 });
     await qtyInput.click({ clickCount: 3 });
     await qtyInput.fill('5');
     await page.keyboard.press('Tab');
@@ -174,8 +193,29 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
     );
     expect(ctx.productIds.length, '前置：需要至少一个产品').toBeGreaterThanOrEqual(1);
 
-    // 白坯布口径（色号为空、免缸号、批次必填）满足后端建单校验，落库初始态 PENDING
-    const batchNo = `E2E-AP-${Date.now().toString().slice(-6)}`;
+    // 根因C：调拨出库前置校验 inv/stock.rs::check_from_warehouse_inventory →
+    // match_single_item_against_stocks 要求「调出仓对该产品有维度匹配的足量库存行」，
+    // 否则返回 BUSINESS_ERROR（无匹配库存，4xx）。原实现直接 POST /inventory/transfers 而未造源库存
+    // → 建单被正确拒绝、拿不到 data.id → 本用例红（后端行为正确，测试缺前置 seed）。
+    //
+    // 布种口径说明：本用例只验证「pending→审批→approved」状态流，与白坯/染色无关。
+    // 由于 /inventory/stock/fabric 入库端点对 color_no 强制 length(min=1)
+    // （backend/src/handlers/inventory_stock_handler_dto.rs:20-21，白坯空色号无法经此端点播种），
+    // 故此处采用染色布口径（色号/缸号/批次齐全），并以 seedFourDimStockIn 在调出仓为「同一产品+同一
+    // 四维」造一行足量库存——seed 维度与随后 POST 的调拨明细三字段逐一对应（不造假库存）。
+    const tag = Date.now().toString().slice(-6);
+    const colorNo = `E2E-AP-C${tag}`;
+    const dyeLotNo = `E2E-AP-D${tag}`;
+    const batchNo = `E2E-AP-B${tag}`;
+    await seedFourDimStockIn(page, {
+      productId: ctx.productIds[0],
+      warehouseId: ctx.warehouseIds[0],
+      colorNo,
+      dyeLotNo,
+      batchNo,
+      quantityMeters: '1000',
+    });
+
     const created = await apiCall<{ id?: number; transfer_no?: string }>(
       page,
       'POST',
@@ -185,7 +225,15 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
         to_warehouse_id: ctx.warehouseIds[1],
         transfer_date: new Date().toISOString(),
         notes: 'E2E 审批用例造数',
-        items: [{ product_id: ctx.productIds[0], quantity: '5', color_no: '', batch_no: batchNo }],
+        items: [
+          {
+            product_id: ctx.productIds[0],
+            quantity: '5',
+            color_no: colorNo,
+            dye_lot_no: dyeLotNo,
+            batch_no: batchNo,
+          },
+        ],
       }
     );
     const transferId = created.data?.id;
