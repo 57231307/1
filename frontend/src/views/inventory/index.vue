@@ -27,7 +27,7 @@
           <el-icon><Edit /></el-icon>
           {{ t('inventory.page.adjustment') }}
         </el-button>
-        <el-button v-permission="PERMISSIONS.INVENTORY_TRANSFER" @click="handleTransfer">
+        <el-button v-permission="PERMISSIONS.INVENTORY_TRANSFER" @click="goToTransferPage">
           <el-icon><RefreshRight /></el-icon>
           {{ t('inventory.page.transfer') }}
         </el-button>
@@ -65,15 +65,6 @@
 
       <el-tab-pane :label="t('inventory.page.tabAlert')" name="alert">
         <InventoryAlertTab :alerts="alerts" @purchase="handlePurchase" />
-      </el-tab-pane>
-
-      <el-tab-pane :label="t('inventory.page.tabTransfer')" name="transfer">
-        <InventoryTransferTab
-          :transfers="transfers"
-          @new-transfer="handleNewTransfer"
-          @view-transfer="handleViewTransfer"
-          @approve-transfer="handleApproveTransfer"
-        />
       </el-tab-pane>
 
       <el-tab-pane :label="t('inventory.page.tabTransaction')" name="transaction" lazy>
@@ -137,16 +128,6 @@
         </el-button>
       </template>
     </el-dialog>
-
-    <TransferDialog
-      v-model:visible="transferDialogVisible"
-      :initial-form="transferForm"
-      :warehouses="warehouses"
-      :products="products"
-      @add-item="handleAddTransferItem"
-      @remove-item="handleRemoveTransferItem"
-      @submit="onSubmitTransfer"
-    />
   </div>
 </template>
 
@@ -161,25 +142,18 @@ import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 
 // 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });
-// V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
-// 后端 GET /inventory/stock/export 已就绪（含字段级数据权限 + 异步审计日志 + 水印）
 import { exportFromBackend } from '@/utils/export';
-// v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
-import type { InventoryStock, StockAlert, InventoryTransfer, TransferData } from '@/api/inventory';
+import type { InventoryStock, StockAlert } from '@/api/inventory';
 import type { Warehouse } from '@/api/warehouse';
 import type { Product } from '@/api/product';
 import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue';
 import InventoryAlertTab from './tabs/InventoryAlertTab.vue';
-import InventoryTransferTab from './tabs/InventoryTransferTab.vue';
 import InventoryTransactionTab from './tabs/InventoryTransactionTab.vue';
 import InventoryReservationTab from './tabs/InventoryReservationTab.vue';
 import FabricStockTab from './tabs/FabricStockTab.vue';
 import StatCards from './components/StatCards.vue';
 import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDialog.vue';
-import TransferDialog from './components/TransferDialog.vue';
-// Batch 468 P0-S28：引入权限码常量，与后端 inventory 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
-// 打印与列表共用同一份格式化/取值映射，避免同一状态在纸上和表里两种写法
 import { formatNumber, getStockStatusLabel } from './composables/invFmts';
 import { logger } from '@/utils/logger';
 
@@ -188,10 +162,8 @@ const router = useRouter();
 
 const loading = ref(false);
 const activeTab = ref('stock');
-// v11 批次 160 P2-7 修复：4 个核心状态从 any[] 改为具体接口类型，恢复类型保护
 const stocks = ref<InventoryStock[]>([]);
 const alerts = ref<StockAlert[]>([]);
-const transfers = ref<InventoryTransfer[]>([]);
 const warehouses = ref<Warehouse[]>([]);
 const products = ref<Product[]>([]);
 const total = ref(0);
@@ -216,7 +188,6 @@ const fetchData = async () => {
     stocks.value = res.data?.items || [];
     total.value = res.data?.total || 0;
   } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (error instanceof Error ? error.message : String(error)) ||
         t('inventory.message.fetchStockFailed')
@@ -231,15 +202,12 @@ const fetchData = async () => {
 const fetchAlerts = async () => {
   try {
     const { getStockAlertList, STOCK_ALERT_PAGE_SIZE } = await import('@/api/inventory');
-    // 预警 tab 无分页控件：按一屏上限取数，仍有剩余时显式提示截断，而不是静默少显示
     const res = await getStockAlertList({ page: 1, page_size: STOCK_ALERT_PAGE_SIZE });
     const payload = res.data;
     if (!payload || !Array.isArray(payload.items)) {
-      // 出参形状不符（此前正是这里把 {list,total} 当数组赋值，表格恒空且无人出声）
       throw new Error('库存预警出参缺少 items 数组');
     }
     alerts.value = payload.items;
-    // KPI 取后端分层 total（全局值），不是本页行数；与下方"仅显示前 N 条"的截断提示不冲突
     stats.value.alertCount = payload.total;
     if (payload.items.length < payload.total) {
       logger.warn(
@@ -247,27 +215,11 @@ const fetchAlerts = async () => {
       );
     }
   } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (error instanceof Error ? error.message : String(error)) ||
         t('inventory.message.fetchAlertFailed')
     );
     alerts.value = [];
-  }
-};
-
-const fetchTransfers = async () => {
-  try {
-    const { getInventoryTransferList } = await import('@/api/inventory');
-    const res = await getInventoryTransferList(queryParams);
-    transfers.value = res.data.items;
-  } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error(
-      (error instanceof Error ? error.message : String(error)) ||
-        t('inventory.message.fetchTransferFailed')
-    );
-    transfers.value = [];
   }
 };
 
@@ -277,7 +229,6 @@ const fetchWarehouses = async () => {
     const res = await getWarehouseList({ page: 1, page_size: 1000 });
     warehouses.value = res.data?.items || [];
   } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (error instanceof Error ? error.message : String(error)) ||
         t('inventory.message.fetchWarehouseFailed')
@@ -311,8 +262,6 @@ const handleReset = () => {
 const handleTabChange = (tabName: string) => {
   if (tabName === 'alert') {
     fetchAlerts();
-  } else if (tabName === 'transfer') {
-    fetchTransfers();
   }
 };
 
@@ -327,14 +276,6 @@ const adjustmentForm = ref<AdjustmentForm>({
   adjustment_type: 'increase',
   adjustment_quantity: 0,
   reason: '',
-});
-
-const transferDialogVisible = ref(false);
-const transferForm = ref({
-  from_warehouse_id: null as number | null,
-  to_warehouse_id: null as number | null,
-  items: [{ product_id: null as number | null, quantity: 0, batch_no: '' }],
-  remark: '',
 });
 
 const handleAdjustment = () => {
@@ -352,7 +293,6 @@ const handleAdjustment = () => {
   adjustmentDialogVisible.value = true;
 };
 
-// v11 批次 164 P2-1 修复：form: any 改为具体类型
 const onSubmitAdjustment = async (form: AdjustmentForm) => {
   if (form.product_id === null || form.warehouse_id === null) {
     ElMessage.warning(t('inventory.message.adjustmentProductWarehouseRequired'));
@@ -368,8 +308,6 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
   }
   try {
     const { createStockAdjustment, getStockList } = await import('@/api/inventory');
-    // 后端调整单以「既有库存行 stock_id」为调整对象（service 读取该行的在库量作为调整前量），
-    // 工具栏入口只选了产品+仓库，需先据此定位到对应的库存记录，取首条作为被调整行。
     const stockRes = await getStockList({
       page: 1,
       page_size: 1,
@@ -378,7 +316,6 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
     });
     const stockRow = stockRes.data?.items?.[0];
     if (!stockRow) {
-      // 该产品在该仓库没有库存行，无法盘盈/盘亏：给出真实失败提示，不发无意义请求、不假成功。
       ElMessage.error(t('inventory.message.adjustmentFailed'));
       return;
     }
@@ -386,8 +323,6 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
       warehouse_id: form.warehouse_id,
       adjustment_date: new Date().toISOString(),
       adjustment_type: form.adjustment_type,
-      // reason_type 为自由文本业务词（models/status 无对应模块），此处以用户填写的调整原因落库，
-      // 同时冗余到 reason_description 供详情展示。
       reason_type: form.reason,
       reason_description: form.reason,
       items: [{ stock_id: stockRow.id, quantity: String(form.adjustment_quantity) }],
@@ -396,7 +331,6 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
     adjustmentDialogVisible.value = false;
     fetchData();
   } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (error instanceof Error ? error.message : String(error)) ||
         t('inventory.message.adjustmentFailed')
@@ -404,106 +338,10 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
   }
 };
 
-const handleTransfer = () => {
-  transferForm.value = {
-    from_warehouse_id: null,
-    to_warehouse_id: null,
-    items: [{ product_id: null, quantity: 0, batch_no: '' }],
-    remark: '',
-  };
-  transferDialogVisible.value = true;
+const goToTransferPage = () => {
+  router.push({ name: 'InventoryTransfer' });
 };
 
-const handleAddTransferItem = () => {
-  transferForm.value.items.push({ product_id: null, quantity: 0, batch_no: '' });
-};
-const handleRemoveTransferItem = (index: number) => {
-  if (transferForm.value.items.length > 1) {
-    transferForm.value.items.splice(index, 1);
-  }
-};
-const onSubmitTransfer = async (form: typeof transferForm.value) => {
-  if (!form.from_warehouse_id || !form.to_warehouse_id) {
-    ElMessage.warning(t('inventory.message.warehouseRequired'));
-    return;
-  }
-  const validItems = form.items.filter(item => item.product_id !== null);
-  if (validItems.length === 0) {
-    ElMessage.warning(t('inventory.message.transferItemProductRequired'));
-    return;
-  }
-  // 后端 fabric_class::validate_fabric_trace 要求每条明细批次非空（缺批次 400）。
-  // 提交前本地拦截并给出真实提示，避免带空批次发请求得到后端「缺少批号」错误。
-  if (validItems.some(item => !item.batch_no || item.batch_no.trim() === '')) {
-    ElMessage.warning(t('inventory.message.transferItemProductRequired'));
-    return;
-  }
-  try {
-    const { createInventoryTransfer } = await import('@/api/inventory');
-    const transferData: TransferData = {
-      from_warehouse_id: form.from_warehouse_id,
-      to_warehouse_id: form.to_warehouse_id,
-      items: validItems.map(item => ({
-        product_id: item.product_id as number,
-        quantity: item.quantity,
-        // 白坯布口径：色号留空（→ 后端判定免缸号），批次必填并如实下传。
-        batch_no: item.batch_no.trim(),
-      })),
-      // 后端 CreateInventoryTransferRequest 备注字段名为 notes，此前误传 remark 被 serde 静默丢弃。
-      notes: form.remark,
-    };
-    await createInventoryTransfer(transferData);
-    ElMessage.success(t('inventory.message.transferCreated'));
-    transferDialogVisible.value = false;
-    if (activeTab.value === 'transfer') {
-      fetchTransfers();
-    }
-  } catch (error: unknown) {
-    ElMessage.error(
-      (error instanceof Error ? error.message : String(error)) ||
-        t('inventory.message.transferCreateFailed')
-    );
-  }
-};
-
-const handleNewTransfer = () => handleTransfer();
-// 批次 157a P1-1 修复：调拨单详情无独立 API，直接展示列表行数据
-const handleViewTransfer = (row: InventoryTransfer) => {
-  const lines = [
-    t('inventory.transferDetail.transferNo', { value: row.transfer_no }),
-    t('inventory.transferDetail.fromWarehouse', { value: row.from_warehouse_name ?? '' }),
-    t('inventory.transferDetail.toWarehouse', { value: row.to_warehouse_name ?? '' }),
-    t('inventory.transferDetail.totalQty', { value: row.total_quantity }),
-    t('inventory.transferDetail.status', { value: row.status }),
-    t('inventory.transferDetail.creator', { value: row.created_by_name ?? '' }),
-    t('inventory.transferDetail.createdAt', { value: row.created_at }),
-  ];
-  ElMessageBox.alert(lines.join('\n'), t('inventory.transferDetail.title'), {
-    confirmButtonText: t('inventory.transferDetail.close'),
-  });
-};
-// 批次 157a P1-1 修复：接入 approveTransfer API 完成调拨审批
-const handleApproveTransfer = async (row: InventoryTransfer) => {
-  try {
-    await ElMessageBox.confirm(
-      t('inventory.message.approveConfirm', { no: row.transfer_no }),
-      t('inventory.message.approveTitle'),
-      { type: 'info' }
-    );
-    const { approveInventoryTransfer } = await import('@/api/inventory');
-    await approveInventoryTransfer(row.id, { approved: true });
-    ElMessage.success(t('inventory.message.approveSuccess'));
-    fetchTransfers();
-  } catch (error) {
-    if (error !== 'cancel') {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error(
-        (error instanceof Error ? error.message : String(error)) ||
-          t('inventory.message.approveFailed')
-      );
-    }
-  }
-};
 // 库存记录新建/编辑对话框（createStock / updateStock）
 const stockDialogVisible = ref(false);
 const stockEditingId = ref<number | null>(null);
@@ -540,7 +378,6 @@ const submitStock = async () => {
       await updateStock(stockEditingId.value, stockForm);
     } else {
       const { createStock } = await import('@/api/inventory');
-      // 按后端 CreateStockFabricRequest DTO 字段提交：色号/数量映射到 color_no/quantity_meters
       await createStock({
         warehouse_id: stockForm.warehouse_id,
         product_id: stockForm.product_id,
@@ -596,7 +433,6 @@ const handleExportStock = async () => {
   }
 };
 
-// 批次 157a P1-1 修复：接入 getStockById API 展示库存详情
 const handleView = async (row: InventoryStock) => {
   try {
     const { getStockById } = await import('@/api/inventory');
@@ -622,21 +458,17 @@ const handleView = async (row: InventoryStock) => {
       confirmButtonText: t('inventory.stockDetail.close'),
     });
   } catch (error) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (error instanceof Error ? error.message : String(error)) ||
         t('inventory.message.fetchStockDetailFailed')
     );
   }
 };
-// 批次 157b P1-1 修复：采购按钮跳转到采购页面
+
 const handlePurchase = (row: StockAlert) => {
   router.push({ name: 'Purchase', query: { product_name: row.product_name || '' } });
 };
-// 打印列与列表/后端导出同一口径。
-// 原实现用 `properties: [..., 'quantity']`：quantity 不是后端字段（实际为 quantity_on_hand），
-// 该列在纸上恒为空白，四维（批次/色号/缸号/等级）与状态列也没打出来；
-// 表头也只会回显英文字段名。现显式给出列与本地化表头，状态按主数据取值映射文案。
+
 const handlePrint = () => {
   printJS({
     printable: stocks.value.map(row => ({
@@ -653,7 +485,6 @@ const handlePrint = () => {
       quality_status: row.quality_status,
       bin_location: row.bin_location ?? '-',
     })),
-    // print-js 的列定义项叫 properties（json 模式），不存在的键会被静默忽略
     properties: [
       { field: 'product_code', displayName: t('inventory.stockTab.colProductCode') },
       { field: 'product_name', displayName: t('inventory.stockTab.colProductName') },
@@ -672,16 +503,12 @@ const handlePrint = () => {
     header: t('inventory.printHeader'),
   });
 };
-// 批次 157b P1-1 修复：导出改为 .xls 格式（规则 3：禁止 CSV 作为最终交付格式）
-// V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
-// 调用后端 GET /inventory/stock/export，传入当前列表筛选条件（warehouse_id），
-// 保证导出数据与列表筛选一致；后端注入水印 + 字段级数据权限 + 异步审计日志
+
 const handleExport = async () => {
   if (stocks.value.length === 0) {
     ElMessage.warning(t('inventory.message.noExportData'));
     return;
   }
-  // 导出与列表同一筛选口径：只带 warehouse_id 时，关键词与台账状态筛选在导出文件里失效
   const params: Record<string, unknown> = {
     warehouse_id: queryParams.warehouse_id,
     keyword: queryParams.keyword,

@@ -148,21 +148,6 @@ export interface ReservationData {
   notes?: string;
 }
 
-export interface TransferData {
-  from_warehouse_id: number;
-  to_warehouse_id: number;
-  items: {
-    product_id: number;
-    quantity: number;
-    // 批次为后端出入库四维追溯必填项；色号留空即白坯布（后端免缸号）。
-    batch_no?: string;
-    color_no?: string;
-    dye_lot_no?: string;
-  }[];
-  /** 备注：后端 CreateInventoryTransferRequest 字段名为 notes（此前误写 remark 被静默丢弃） */
-  notes?: string;
-}
-
 export interface InventoryReportParams {
   warehouse_id?: number;
   product_id?: number;
@@ -273,11 +258,6 @@ export const getInventoryTransferList = (params?: InventoryQueryParams) =>
     params,
   });
 
-// D14 Batch 5b：原 inventoryApi.createTransfer 转为风格 B 函数
-export const createInventoryTransfer = (data: TransferData) =>
-  request.post<ApiResponse<InventoryTransfer>>('/inventory/transfers', data);
-
-// D14 Batch 5b：原 inventoryApi.approveTransfer 转为风格 B 函数
 /** 批准体（后端 inventory_transfer_handler.rs::ApproveTransferRequest：approved 必填） */
 export interface ApproveTransferPayload {
   approved: boolean;
