@@ -23,14 +23,26 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
   test('BI+Webhook+API网关+邮件+通知+扫码+导入导出+AI+报表+高级分析+跟踪+隐私+双计量+权限+审计+产品分类', async ({
     page,
   }) => {
-    // BI
-    await verifyOptionalEndpointHealthy(page, '/bi/sales-analysis');
-    await verifyOptionalEndpointHealthy(page, '/bi/product-analysis');
-    await verifyOptionalEndpointHealthy(page, '/bi/customer-analysis');
-    await verifyOptionalEndpointHealthy(page, '/bi/inventory-analysis');
-    await verifyOptionalEndpointHealthy(page, '/bi/finance-analysis');
-    await verifyOptionalEndpointHealthy(page, '/bi/production-analysis');
-    await verifyOptionalEndpointHealthy(page, '/bi/summary');
+    // BI 多维分析：后端 bi()(analytics.rs:488，nest 到 /bi) 仅注册 /bi/sales/* 一组聚合端点。
+    // 旧探针 /bi/{sales,product,customer,inventory,finance,production}-analysis 与 /bi/summary
+    // 全是臆造路径（后端无 GET /bi/sales-analysis、无 /bi/summary、亦无 product/customer/
+    // inventory/finance/production 各域的 BI 端点），optional 长期吞其 404 = 假绿。
+    // 改为真实存在路径并 strict（admin 无必填参或带合法参，应 2xx）；无真实等价物的臆造分析
+    // 探针（上述 5 个非 sales 域 + summary）删除——测试对着不存在端点写属测试错，不保留 optional 掩盖。
+    // by-time 的 start/end/granularity 为 handler 必填(缺参 400)，用当前年度合法日期区间作入参
+    //（区间聚合、空数据仍返回 200，非实体 id 查询不会 404）；其余 7 端点无必填参。
+    const biYear = new Date().getFullYear();
+    await verifyEndpointHealthy(
+      page,
+      `/bi/sales/by-time?start_date=${biYear}-01-01&end_date=${biYear}-12-31&granularity=month`
+    );
+    await verifyEndpointHealthy(page, '/bi/sales/by-customer');
+    await verifyEndpointHealthy(page, '/bi/sales/by-product');
+    await verifyEndpointHealthy(page, '/bi/sales/by-region');
+    await verifyEndpointHealthy(page, '/bi/sales/by-category');
+    await verifyEndpointHealthy(page, '/bi/sales/trend');
+    await verifyEndpointHealthy(page, '/bi/sales/profit');
+    await verifyEndpointHealthy(page, '/bi/sales/kpi');
     // Webhook（webhooks() 在 analytics.rs:354 注册 GET /，nest 到 /webhooks → strict）
     await verifyEndpointHealthy(page, '/webhooks?page=1&page_size=5');
     await verifyOptionalEndpointHealthy(page, '/webhooks/integrations?page=1&page_size=5');
@@ -51,7 +63,10 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await verifyOptionalEndpointHealthy(page, '/ai-models?page=1&page_size=5');
     // 报表
     await verifyOptionalEndpointHealthy(page, '/report-templates?page=1&page_size=5');
-    await verifyOptionalEndpointHealthy(page, '/reports/enhanced?page=1&page_size=5');
+    // 报表增强：reports_enhanced()(analytics.rs:122，nest 到 /reports/enhanced) 无 GET / 根，
+    // 旧探针 /reports/enhanced 打裸路径必 404（臆造）。真实 list 端点为 /reports/enhanced/templates
+    // （report_enhanced_handler::list_report_templates，Query 字段全 Option）→ 改为真实路径并 strict。
+    await verifyEndpointHealthy(page, '/reports/enhanced/templates?page=1&page_size=5');
     // 高级分析+跟踪+隐私+双计量
     await verifyOptionalEndpointHealthy(page, '/advanced/analysis');
     await verifyEndpointHealthy(page, '/page-view/stats');

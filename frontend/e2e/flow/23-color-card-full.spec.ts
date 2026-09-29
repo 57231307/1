@@ -11,6 +11,7 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
+  verifyDownloadEndpointHealthy,
   verifyOptionalEndpointHealthy,
 } from './helpers';
 
@@ -37,22 +38,15 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       await apiCallRaw(page, 'GET', `/color-cards/${cardId}/items`);
       await verifyEndpointHealthy(page, `/color-cards/warnings/${cardId}`);
       await verifyEndpointHealthy(page, `/color-cards/cost/production/${cardId}`);
-      await verifyEndpointHealthy(page, `/color-cards/export/${cardId}`);
+      await verifyDownloadEndpointHealthy(page, `/color-cards/export/${cardId}`);
       await verifyEndpointHealthy(page, `/color-cards/scan-by-id/${cardId}`);
     }
     await verifyEndpointHealthy(page, '/color-cards/issues?page=1&page_size=5');
-    await verifyOptionalEndpointHealthy(
-      page,
-      '/color-cards/reports/issue-detail?page=1&page_size=5'
-    );
-    await verifyOptionalEndpointHealthy(
-      page,
-      '/color-cards/reports/issue-summary?page=1&page_size=5'
-    );
-    await verifyOptionalEndpointHealthy(
-      page,
-      '/color-cards/reports/expired-unused?page=1&page_size=5'
-    );
+    // 色卡发放报表三端点（color_card.rs:80/88/96 已注册，仅分页入参可选、admin 经
+    // check_permission 角色绕过 require_issue_permission，应 2xx）：迁回严格，不再 optional 吞 404。
+    await verifyEndpointHealthy(page, '/color-cards/reports/issue-detail?page=1&page_size=5');
+    await verifyEndpointHealthy(page, '/color-cards/reports/issue-summary?page=1&page_size=5');
+    await verifyEndpointHealthy(page, '/color-cards/reports/expired-unused?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/color-cards/by-sales-order?sales_order_id=1');
     // scan/{code} 用真实存在的色号入参才可 strict；TEST001 为未 seed 码，后端设计性返回
     // 404/业务码属正确，若 strict 判 2xx 会是"测试用臆造入参"致假红——留 optional 并待补

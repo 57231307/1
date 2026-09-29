@@ -2668,6 +2668,38 @@ export async function verifyOptionalEndpointHealthy(page: Page, path: string): P
   }
 }
 
+/**
+ * 验证返回二进制/非 JSON 的下载类端点（xlsx / docx / zip 等）严格健康。
+ *
+ * `verifyEndpointHealthy` 走 apiCall → response.text() + JSON.parse()，对**二进制 2xx**
+ * 响应会因 JSON.parse 失败而抛错（status 仍是 200），落入其末尾分支误判「请求异常」——
+ * 对导出端点是假红。本函数改用原始响应状态判定，语义与 verifyEndpointHealthy 的严格口径一致：
+ * - 2xx            → 健康。
+ * - 5xx            → 失败（服务器内部错误）。
+ * - 404            → 失败（端点未注册 / 路由漂移）。
+ * - 403            → 失败，除非显式 `allowForbidden: true`（权限外探测的正常拒绝 / fail-closed）。
+ * - 其它非 2xx     → 失败（重定向、请求契约破坏等）。
+ *
+ * 适用于 admin 上下文应直接 2xx 的导出端点（如 /production/wage-records/export）。
+ */
+export async function verifyDownloadEndpointHealthy(
+  page: Page,
+  path: string,
+  opts: EndpointHealthOptions = {}
+): Promise<void> {
+  const res = await page.request.get(`${API_BASE}${API_PREFIX}${path}`);
+  const status = res.status();
+  if (status >= 200 && status < 300) {
+    return;
+  }
+  if (status === 403 && opts.allowForbidden === true) {
+    return;
+  }
+  throw new Error(
+    `GET ${path} 返回 ${status}（下载端点严格健康检查：期望 2xx；404=路由漂移/未注册，403=权限拒，5xx=服务错误，其它非 2xx 均判红）`
+  );
+}
+
 // ==================== P3.2 E2E 公共断言库 ====================
 
 /**

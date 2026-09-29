@@ -12,6 +12,7 @@ import {
   safePostAction,
   verifyEndpointHealthy,
   verifyOptionalEndpointHealthy,
+  verifyDownloadEndpointHealthy,
   ensureTestEntities,
 } from './helpers';
 
@@ -108,7 +109,9 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
   test('产量工资：工价+工票+计算+确认+支付', async ({ page }) => {
     await verifyEndpointHealthy(page, '/production/wage-rates?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/production/wage-records?page=1&page_size=5');
-    await verifyOptionalEndpointHealthy(page, '/production/wage-records/export');
+    // 工资记录导出 xlsx（production.rs:322 已注册，handler 直出二进制、无 download_token fail-closed 网关）；
+    // 返回非 JSON，故用下载专用严格校验（2xx=健康；404 路由漂移/403 权限/5xx 均判红），不再 optional 吞 404。
+    await verifyDownloadEndpointHealthy(page, '/production/wage-records/export');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',

@@ -13,7 +13,6 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
-  verifyOptionalEndpointHealthy,
   ensureTestEntities,
   tryCleanup,
 } from './helpers';
@@ -70,7 +69,9 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     // credit/360/rfm 等子资源后端已注册（crm.rs:48/550/561），admin 下应 2xx，strict 验证
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/credit`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/addresses`);
-    await verifyOptionalEndpointHealthy(page, `/crm/customers/${customerId}/summary`);
+    // 客户关系汇总（crm.rs:537 已注册，Path(customer_id) 取上面真实 seed 客户 id，service 汇总计数
+    // 空关系仍返回 200）：迁回严格。
+    await verifyEndpointHealthy(page, `/crm/customers/${customerId}/summary`);
     // 360 契约校验升级（假绿解封）：旧写法 verifyEndpointHealthy('/crm/customers/{id}/360')
     // 只拦 5xx，对"200 但缺 tags/shipping_addresses 数组键"的信封盲区无感——而详情页
     // detail.vue:221/:237 对 customer.shipping_addresses 取 .length，缺键运行期必崩。
@@ -300,7 +301,17 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await apiCallRaw(page, 'GET', '/crm/pool/rules');
     await apiCallRaw(page, 'GET', '/crm/assignments?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/crm/assignments/history');
-    await verifyOptionalEndpointHealthy(page, '/crm/assignments/workload');
+    // 线索负载（crm.rs:343 已注册）：handler 必填 user_ids(逗号分隔)，缺省会返 400 校验；
+    // 取 ensureTestEntities 从 /auth/me 落地的真实登录用户 id 作入参，admin 上下文应 2xx → 迁回严格。
+    // 省略/臆造 user_ids（如固定 1）会致假红，故用真实 id，空则 fail-fast 暴露 setup 问题而非端点假红。
+    const ctx = getCtx();
+    const workloadUserId = ctx.userIds[0];
+    if (!workloadUserId) {
+      throw new Error(
+        '[flow/22 workload] ctx.userIds 为空（/auth/me 未返回 id），拒绝以臆造入参 strict 校验'
+      );
+    }
+    await verifyEndpointHealthy(page, `/crm/assignments/workload?user_ids=${workloadUserId}`);
     await verifyEndpointHealthy(page, '/crm/transfer-approvals?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/crm/recycle-rules');
     await verifyEndpointHealthy(page, '/crm/competitors?page=1&page_size=5');

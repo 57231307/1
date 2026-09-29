@@ -11,7 +11,6 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
-  verifyOptionalEndpointHealthy,
 } from './helpers';
 
 test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
@@ -25,8 +24,18 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/fund-management/accounts/by-type');
     await verifyEndpointHealthy(page, '/fund-management/transfers?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/fund-management/transfers/pending');
-    await verifyOptionalEndpointHealthy(page, '/fund-management/reports/daily');
-    await verifyOptionalEndpointHealthy(page, '/fund-management/reports/monthly');
+    // 资金日报/月报（finance.rs:599/603 已注册）：handler 的 Query 结构体 date / year+month
+    // 为必填(非 Option、无 serde default)，缺参会 400；报表为按日期区间聚合、空数据仍返回 200，
+    // 故用合法当前日期作入参迁回严格(非实体 id 查询、不会 404)。
+    const today = new Date();
+    const fundDailyDate = today.toISOString().slice(0, 10);
+    const fundYear = today.getFullYear();
+    const fundMonth = today.getMonth() + 1;
+    await verifyEndpointHealthy(page, `/fund-management/reports/daily?date=${fundDailyDate}`);
+    await verifyEndpointHealthy(
+      page,
+      `/fund-management/reports/monthly?year=${fundYear}&month=${fundMonth}`
+    );
     await verifyEndpointHealthy(page, '/fund-management/cash-flow-forecast');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
@@ -51,10 +60,14 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     // 应收对账
     await verifyEndpointHealthy(page, '/ar-reconciliations?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/ar-reconciliations-enhanced/aging-report');
-    await verifyOptionalEndpointHealthy(page, '/ar-reconciliation-alias/auto-reconcile/results');
+    // 自动对账结果（finance.rs:1027 已注册）：list_results 的 Query 字段全 Option、page 默认 1，
+    // admin 上下文应 2xx → 迁回严格。
+    await verifyEndpointHealthy(page, '/ar-reconciliation-alias/auto-reconcile/results');
     // 财务分析
-    await verifyOptionalEndpointHealthy(page, '/financial-analysis/reports');
-    await verifyOptionalEndpointHealthy(page, '/financial-analysis/indicators');
+    // financial-analysis/reports（finance.rs:497，Query<Value> 空参默认分页）与
+    // indicators（finance.rs:515，Query 的 page/page_size 为必填非 Option，缺参 400，故补合法分页）：迁回严格。
+    await verifyEndpointHealthy(page, '/financial-analysis/reports');
+    await verifyEndpointHealthy(page, '/financial-analysis/indicators?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/financial-analysis/dupont');
     // 报表
     await verifyEndpointHealthy(page, '/finance/reports/balance-sheet');
@@ -69,7 +82,8 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     // 预算
     await verifyEndpointHealthy(page, '/budgets?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/budgets/plans?page=1&page_size=5');
-    await verifyOptionalEndpointHealthy(page, '/budgets/execution-warnings');
+    // 预算执行预警（finance.rs:407 已注册）：budget_year 缺省时后端取当前年度，admin 应 2xx → 迁回严格。
+    await verifyEndpointHealthy(page, '/budgets/execution-warnings');
     // 固定资产
     await verifyEndpointHealthy(page, '/fixed-assets?page=1&page_size=5');
     const faList = await apiCallRaw<{ items: Array<{ id: number }> }>(
