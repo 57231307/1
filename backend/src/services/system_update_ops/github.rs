@@ -5,15 +5,14 @@
 //! - `fetch_latest_release`：调用 GitHub API `/repos/{owner}/{repo}/releases/latest`（私有）
 //! - `compare_versions`：比较 current < latest（`pub(crate)`，供 status 子模块 `check_local_updates`
 //!  + facade 测试调用）
-//! - `compare_versions_for_sort`：版本号排序比较（`pub(crate)`，供 status 子模块 `list_local_releases` 调用）
-//! - `download_update`：下载 GitHub Release asset（pub，handler + `download_and_update` 调用）
+//! - `compare_versions_for_sort`：版本号排序比较（`pub(crate)`，供 status 子模块 `list_local_releases` 调用）//! - `download_update`：下载 GitHub Release asset（pub，handler + `download_and_update` 调用）
 //! - `find_release_asset`：在 Release 中查找匹配 asset（私有，关联函数）
 //! - `build_safe_download_client`：构建 SSRF 防御下载客户端（私有，关联函数）
 //! - `download_and_update`：下载并应用更新（pub，handler 调用）
 //!
 //! 跨模块依赖：
 //! - `check_for_updates` 调用 `status::get_current_version`（pub）
-//! - `compare_versions` / `compare_versions_for_sort` 调用 facade 纯函数 `parse_version`（`pub(crate)`）
+//! - `compare_versions` / `compare_versions_for_sort` 调用 facade 归一函数 `normalize_versions_for_compare`（`pub(crate)`，内部含 `parse_version` 与三段↔四段 MD 反解兜底）
 //! - `download_update` 调用 `apply::log_update`（`pub(crate)`）+ facade 纯函数
 //!  `validate_asset_name` / `validate_download_url`（`pub(crate)`）
 //! - `download_and_update` 调用 `apply::apply_update`（pub）+ `apply::log_update`（`pub(crate)`）
@@ -21,8 +20,8 @@
 
 use crate::services::system_update_service::{GITHUB_API_URL, GITHUB_REPO};
 use crate::services::system_update_service::{
-    GitHubAsset, GitHubRelease, SystemUpdateService, UpdateCheckResult, UpdateError, parse_version,
-    validate_asset_name, validate_download_url,
+    GitHubAsset, GitHubRelease, SystemUpdateService, UpdateCheckResult, UpdateError,
+    normalize_versions_for_compare, validate_asset_name, validate_download_url,
 };
 use std::fs;
 use std::io;
@@ -101,10 +100,10 @@ impl SystemUpdateService {
     }
 
     pub fn compare_versions(&self, current: &str, latest: &str) -> bool {
-        // 批次 322 v9 复审低危修复：parse_version 抽取为共享函数，消除与
-        // compare_versions_for_sort 的逻辑重复
-        let current_parts = parse_version(current);
-        let latest_parts = parse_version(latest);
+        // 任务 #116：改走共享归一路径，消除三段 current vs 四段 tag 的跨格式假阴性
+        // （同段数原样比 / 3↔4 才 MD 反解 / 不可判定退回 element-wise 并 warn）；
+        // 与 compare_versions_for_sort 同源，避免逻辑重复。
+        let (current_parts, latest_parts) = normalize_versions_for_compare(current, latest);
 
         for i in 0..std::cmp::max(current_parts.len(), latest_parts.len()) {
             let current_val = current_parts.get(i).unwrap_or(&0);
@@ -121,10 +120,9 @@ impl SystemUpdateService {
     }
 
     pub fn compare_versions_for_sort(&self, a: &str, b: &str) -> std::cmp::Ordering {
-        // 批次 322 v9 复审低危修复：parse_version 抽取为共享函数，消除与
-        // compare_versions 的逻辑重复
-        let a_parts = parse_version(a);
-        let b_parts = parse_version(b);
+        // 任务 #116：与 compare_versions 走同一归一路径（normalize_versions_for_compare），
+        // 保证排序与"是否最新"判定对三段/四段混排的口径一致。
+        let (a_parts, b_parts) = normalize_versions_for_compare(a, b);
 
         for i in 0..std::cmp::max(a_parts.len(), b_parts.len()) {
             let a_val = a_parts.get(i).unwrap_or(&0);

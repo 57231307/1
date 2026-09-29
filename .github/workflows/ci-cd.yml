@@ -1907,6 +1907,11 @@ jobs:
 
       - name: 构建后端 (Release)
         working-directory: backend
+        # 任务 #116：注入与 release tag 同格式的四段版本（YYYY.M.D.HHMM）作为权威版本，
+        # 供 build.rs 编译期写入 BINGXI_RELEASE_VERSION，使部署实例 current 与 GitHub
+        # tag latest 同为四段，跨格式比较假阴性从根上消除（tag / PR / main 三种触发均经此步）。
+        env:
+          BINGXI_RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p reports
           echo "🔨 开始构建后端（详细日志输出到 reports/cargo-build.log）"

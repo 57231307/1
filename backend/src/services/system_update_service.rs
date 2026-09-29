@@ -168,6 +168,127 @@ pub fn parse_version(v: &str) -> Vec<u32> {
 }
 
 // =====================================================
+// 任务 #116：编译期权威四段版本 + 三段(MD 折叠)↔四段 跨格式确定性反解
+// =====================================================
+
+/// 本项目 CalVer 特征年份下限。首段 >= 此值才认定为本项目双编码版本，
+/// 方可对三段 MD 折叠格式做确定性反解；否则不臆测（退回 element-wise）。
+const PROJECT_CALVER_MIN_YEAR: u32 = 2000;
+
+/// 权威当前版本：编译期注入的四段版本（`BINGXI_RELEASE_VERSION`，与 release tag 同格式）优先，
+/// 未注入（本地开发 / 历史二进制）时回退构建内嵌三段 `CARGO_PKG_VERSION`。
+///
+/// 回退分支用 [`std::sync::Once`] 在首次调用时 `tracing::warn!` 一次说明跨格式比较将走
+/// MD 反解兜底，不静默。后端 `get_current_version` 与 CLI `cmd_upgrade` 同源调用此函数，
+/// 避免各写一份注入/回退逻辑。
+pub fn authoritative_current_version() -> String {
+    static FALLBACK_WARNED: std::sync::Once = std::sync::Once::new();
+    if let Some(v) = option_env!("BINGXI_RELEASE_VERSION")
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        return v.to_string();
+    }
+    FALLBACK_WARNED.call_once(|| {
+        tracing::warn!(
+            "未注入编译期权威版本 BINGXI_RELEASE_VERSION，回退构建内嵌三段版本 \
+             CARGO_PKG_VERSION={}；跨格式（三段 current vs 四段 tag）版本比较将走 MD 反解兜底",
+            env!("CARGO_PKG_VERSION")
+        );
+    });
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// 将解析后的版本段数归一为本项目四元组 `(year, month, day, time)`。
+///
+/// - 四段（tag / 注入格式）`[Y, M, D, T]` → 透传。
+/// - 三段（Cargo 格式，月日折叠进第二段）`[Y, MD, T]`：当首段为本项目 CalVer 年份
+///   （`>= PROJECT_CALVER_MIN_YEAR`）且 MD 可无损反解出合法月/日（月 1..=12、日 1..=31）时，
+///   反解为 `[Y, MD/100, MD%100, T]`；否则 `None`（不可归类，交由调用方决定 element-wise
+///   或 fail-open，均不臆测）。
+/// - 其它段数（含 0）一律 `None`。
+///
+/// 该函数为纯函数，被 `normalize_versions_for_compare`（后端比较归一）与 CLI
+/// `check_version_downgrade` 共用，MD 反解公式只此一份。
+pub fn to_calver_quad(parts: &[u32]) -> Option<[u32; 4]> {
+    match parts.len() {
+        4 => Some([parts[0], parts[1], parts[2], parts[3]]),
+        3 => {
+            let year = parts[0];
+            let md = parts[1];
+            let time = parts[2];
+            if year < PROJECT_CALVER_MIN_YEAR {
+                return None;
+            }
+            let month = md / 100;
+            let day = md % 100;
+            if (1..=12).contains(&month) && (1..=31).contains(&day) {
+                Some([year, month, day, time])
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// 比较前归一：返回一对等长（或原样）的数字段，供 `compare_versions` /
+/// `compare_versions_for_sort` 逐段数值比较。
+///
+/// 归一策略（保证既有同段数用例零回归）：
+/// 1. 两侧段数相同 → 原样返回，维持逐段比（如 `1.0.0` vs `1.0.1`、`2026.7.1` vs `2026.7.2`）。
+/// 2. 段数为 3 vs 4 且两侧首段均 >= 本项目 CalVer 年份 → 把三段 `[Y, MD, T]` 反解为四元组
+///    `[Y, MD/100, MD%100, T]`，与四段 `[Y, M, D, T]` 对齐成同长 4 元组逐段比。
+/// 3. 段数 3 vs 4 但年份非本项目 CalVer → 不臆测，原样返回（调用方 element-wise 补 0）。
+/// 4. 段数 3 vs 4 且年份符合但三段 MD 反解落非法月/日 → `tracing::warn!` 记录"版本方案无法
+///    确定"后原样返回（element-wise 补 0），不强行归类。
+/// 5. 其它长度差（含 0 段 / 2 段 vs 4 段 等）→ 不臆测，原样返回。
+pub(crate) fn normalize_versions_for_compare(a: &str, b: &str) -> (Vec<u32>, Vec<u32>) {
+    let a_parts = parse_version(a);
+    let b_parts = parse_version(b);
+
+    // 1. 同段数：原样逐段比
+    if a_parts.len() == b_parts.len() {
+        return (a_parts, b_parts);
+    }
+
+    // 仅处理 3↔4 跨格式，其它长度差不臆测
+    let a_three_b_four = a_parts.len() == 3 && b_parts.len() == 4;
+    let b_three_a_four = b_parts.len() == 3 && a_parts.len() == 4;
+    if !(a_three_b_four || b_three_a_four) {
+        return (a_parts, b_parts);
+    }
+
+    let three = if a_three_b_four { &a_parts } else { &b_parts };
+    let four = if a_three_b_four { &b_parts } else { &a_parts };
+
+    // 2. 两侧首段须均为本项目 CalVer 年份，否则不归类
+    let calver_year = three.first().copied().unwrap_or(0) >= PROJECT_CALVER_MIN_YEAR
+        && four.first().copied().unwrap_or(0) >= PROJECT_CALVER_MIN_YEAR;
+    if !calver_year {
+        return (a_parts, b_parts);
+    }
+
+    match (to_calver_quad(three), to_calver_quad(four)) {
+        // 2. 三段成功反解为四元组，与四段对齐逐段比
+        (Some(t), Some(f)) => {
+            let (tv, fv) = (t.to_vec(), f.to_vec());
+            if a_three_b_four { (tv, fv) } else { (fv, tv) }
+        }
+        // 4. 三段形似 CalVer 但 MD 反解落非法月/日：记录不可判定后退回 element-wise
+        _ => {
+            tracing::warn!(
+                "版本跨格式比较不可判定：三段 MD 折叠无法反解出合法月/日（a={} b={}），\
+                 退回逐段 element-wise 补 0 比较",
+                a,
+                b
+            );
+            (a_parts, b_parts)
+        }
+    }
+}
+
+// =====================================================
 // 批次 323 v9 复审低危修复：extract_zip_entry 拆分
 // =====================================================
 

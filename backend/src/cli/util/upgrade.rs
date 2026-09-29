@@ -214,31 +214,23 @@ fn init_upgrade_logger() {
 
 /// V15 P2 25.3-D：版本降级检查（禁止降级，除非 --force-downgrade）
 /// 返回 true 表示允许继续，false 表示终止
+///
+/// 任务 #116 修复：不再要求"必须四段"才判定（原逻辑使三段 current 配四段 target 恒 fail-open）。
+/// 改用后端共享归一路径 `to_calver_quad`：四段（tag / 注入格式）直接透传，三段
+/// （Cargo `Y.MD.T` MD 折叠）在本项目 CalVer 年份下反解为四元组后比较；任一侧无法归类
+/// （非本项目 CalVer / MD 折叠非法 / 段数不足）→ 显式 `[WARN]` 记录后 fail-open，不静默放行。
 fn check_version_downgrade(current: &str, target: &str) -> bool {
-    // 解析版本号格式：vYYYY.M.D.HHMM 或 vX.X.X.X
-    let parse_version = |v: &str| -> Option<(u32, u32, u32, u32)> {
-        let v = v.trim_start_matches('v');
-        let parts: Vec<&str> = v.split('.').collect();
-        if parts.len() >= 4 {
-            let major: u32 = parts[0].parse().ok()?;
-            let minor: u32 = parts[1].parse().ok()?;
-            let patch: u32 = parts[2].parse().ok()?;
-            let build: u32 = parts[3].parse().ok()?;
-            Some((major, minor, patch, build))
-        } else {
-            None
-        }
-    };
+    use crate::services::system_update_service::{parse_version, to_calver_quad};
 
-    let current_ver = parse_version(current);
-    let target_ver = parse_version(target);
+    let quad =
+        |v: &str| -> Option<[u32; 4]> { to_calver_quad(&parse_version(v.trim_start_matches('v'))) };
 
-    match (current_ver, target_ver) {
+    match (quad(current), quad(target)) {
         (Some(c), Some(t)) => {
             if t < c {
                 println!(
                     "[ERROR] 版本降级不允许：当前 v{}.{}.{}.{}, 目标 v{}.{}.{}.{}",
-                    c.0, c.1, c.2, c.3, t.0, t.1, t.2, t.3
+                    c[0], c[1], c[2], c[3], t[0], t[1], t[2], t[3]
                 );
                 println!("如需强制降级，请使用 --force-downgrade 参数");
                 false
@@ -247,7 +239,11 @@ fn check_version_downgrade(current: &str, target: &str) -> bool {
             }
         }
         _ => {
-            // 版本号格式不标准，跳过检查（fail-open）
+            // 版本方案不可判定：显式告警后跳过降级检查（fail-open），不再静默放行
+            eprintln!(
+                "[WARN] 版本方案不可判定（当前 '{}' 或目标 '{}' 无法解析为本项目四段 / 可反解三段版本），已跳过降级检查",
+                current, target
+            );
             true
         }
     }
@@ -469,7 +465,10 @@ pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
     init_upgrade_logger();
 
     println!("=== 系统升级 ===\n");
-    let current = env!("CARGO_PKG_VERSION");
+    // 任务 #116：current 与后端 get_current_version 同源 —— 优先编译期注入的权威四段版本
+    // （BINGXI_RELEASE_VERSION，与 release tag 同格式），未注入时回退三段 CARGO_PKG_VERSION
+    // 并显式告警（见 authoritative_current_version），避免 CLI 与后端各写一份版本来源。
+    let current = crate::services::system_update_service::authoritative_current_version();
     println!("当前版本: v{}", current);
 
     let target = match resolve_target_version(&version) {
@@ -478,7 +477,7 @@ pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
     };
 
     // V15 P2 25.3-D 修复：版本降级检查
-    if !check_version_downgrade(current, &target) {
+    if !check_version_downgrade(&current, &target) {
         return;
     }
 
