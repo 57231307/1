@@ -5,7 +5,7 @@
  * 业务流程（确认对话框的下载/安装/回滚/恢复等）由 useSysUpdProc 提供
  * 批次 283：3 个表格接入 useTableApi，返回改为 reactive 包装
  */
-import { ref, computed, reactive } from 'vue';
+import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
 import {
@@ -16,6 +16,7 @@ import {
   getSystemVersion,
   getUpdateTask,
   type SystemVersion,
+  type CheckUpdateResult,
   type UpdateTask,
   type SystemBackup,
 } from '@/api/system-update';
@@ -26,11 +27,10 @@ import { useTableApi } from '@/composables/useTableApi';
 export function useSysUpd() {
   // 当前/最新版本
   const currentVersion = ref<{ version: string; build_date: string } | null>(null);
-  const latestVersion = ref<SystemVersion | null>(null);
-  const hasUpdate = computed(() => {
-    if (!currentVersion.value || !latestVersion.value) return false;
-    return currentVersion.value.version !== latestVersion.value.version;
-  });
+  // 最新检查结果：直接承载后端 check 响应（含 release_notes/published_at/file_size 供卡片渲染）
+  const latestVersion = ref<CheckUpdateResult | null>(null);
+  // 是否有更新以后端权威 has_update 为准；未检查时保持 false（诚实显示"无更新"，不自算）
+  const hasUpdate = ref(false);
 
   // 版本列表 - 接入 useTableApi（批次 283）
   const {
@@ -107,8 +107,9 @@ export function useSysUpd() {
     try {
       const res = await checkForUpdates();
       latestVersion.value = res.data;
-      if (hasUpdate.value) {
-        msg.success('newVersionFound', { version: res.data.version });
+      hasUpdate.value = res.data.has_update;
+      if (res.data.has_update) {
+        msg.success('newVersionFound', { version: res.data.latest_version });
       } else {
         msg.info('alreadyLatestVersion');
       }
