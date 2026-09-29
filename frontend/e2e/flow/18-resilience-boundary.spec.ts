@@ -123,12 +123,17 @@ test.describe('异常处理与边界条件', () => {
       ],
     });
 
-    // 拒绝判据：HTTP 状态码，或 utils/error.rs:143-148 直出的字符串机器码
+    // 拒绝判据（与 :265 同风格）：4xx + 业务机器码，排除 5xx 裸崩
     const rejectCode = failureCode(result);
+    const rejectedByGate =
+      result.status >= 400 &&
+      result.status < 500 &&
+      (rejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
+        rejectCode === APP_ERROR_CODES.BUSINESS_ERROR ||
+        rejectCode === APP_ERROR_CODES.BAD_REQUEST);
     expect(
-      result.status >= 400 ||
-        rejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
-        rejectCode === APP_ERROR_CODES.BUSINESS_ERROR
+      rejectedByGate,
+      `零数量应被业务/校验拒绝（4xx + 业务码），实际 status=${result.status} code=${rejectCode ?? ''} message=${result.message ?? ''}`
     ).toBeTruthy();
   });
 

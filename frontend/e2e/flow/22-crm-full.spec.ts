@@ -67,9 +67,8 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       }
     }
     await apiCallRaw(page, 'GET', `/crm/customers/${customerId}`);
-    // credit/360/rfm 等子资源依赖客户已有对应业务数据（信用评级/跟进记录等），
-    // 新建客户可能没有 → 404 可接受，用 verifyEndpointHealthy 容忍（仅拦截 5xx）
-    await verifyOptionalEndpointHealthy(page, `/crm/customers/${customerId}/credit`);
+    // credit/360/rfm 等子资源后端已注册（crm.rs:48/550/561），admin 下应 2xx，strict 验证
+    await verifyEndpointHealthy(page, `/crm/customers/${customerId}/credit`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/addresses`);
     await verifyOptionalEndpointHealthy(page, `/crm/customers/${customerId}/summary`);
     // 360 契约校验升级（假绿解封）：旧写法 verifyEndpointHealthy('/crm/customers/{id}/360')
@@ -193,9 +192,9 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       ).toBe(true);
     }
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/follow-ups`);
-    await verifyOptionalEndpointHealthy(page, `/crm/customers/${customerId}/rfm`);
+    await verifyEndpointHealthy(page, `/crm/customers/${customerId}/rfm`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/audit-logs`);
-    await verifyOptionalEndpointHealthy(page, `/crm/customers/${customerId}/clv`);
+    await verifyEndpointHealthy(page, `/crm/customers/${customerId}/clv`);
     await apiCallRaw(page, 'GET', '/crm/customers/enhanced?page=1&page_size=5');
     const roleId =
       ctx.roleId ??
@@ -206,7 +205,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       '无法获取任何角色 id（ensureTestEntities.ctx.roleId 缺失且角色列表为空）'
     ).toBeTruthy();
     await verifyEndpointHealthy(page, `/crm/customers/field-permissions/${roleId}`);
-    await verifyOptionalEndpointHealthy(page, '/crm/rfm/distribution');
+    await verifyEndpointHealthy(page, '/crm/rfm/distribution');
     await apiCallRaw(page, 'GET', '/crm/sales-users');
   });
 
@@ -238,10 +237,10 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
   test('线索管理：创建+转换+分配+评分+漏斗', async ({ page }) => {
     await apiCallRaw(page, 'GET', '/crm/leads?page=1&page_size=5');
     await apiCallRaw(page, 'GET', '/crm/leads/conversion-stats');
-    await verifyOptionalEndpointHealthy(page, '/crm/leads/channel-roi');
+    await verifyEndpointHealthy(page, '/crm/leads/channel-roi');
     await verifyEndpointHealthy(page, '/crm/leads/allocation-rules');
     await verifyEndpointHealthy(page, '/crm/leads/nurture-plans');
-    await verifyOptionalEndpointHealthy(page, '/crm/leads/funnel-report');
+    await verifyEndpointHealthy(page, '/crm/leads/funnel-report');
     // 后端 CreateLeadRequest 字段：company_name/contact_name/mobile_phone/lead_source 等
     const result = await apiCallExpectFail(page, 'POST', '/crm/leads', {
       company_name: 'E2E 线索公司',
@@ -274,11 +273,11 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
   test('商机管理：创建+阶段+竞争对手+跟进+预测+漏斗', async ({ page }) => {
     await apiCallRaw(page, 'GET', '/crm/opportunities?page=1&page_size=5');
     await apiCallRaw(page, 'GET', '/crm/opportunities/stage-stats');
-    await verifyOptionalEndpointHealthy(page, '/crm/opportunities/stage-duration');
-    await verifyOptionalEndpointHealthy(page, '/crm/opportunities/forecast-accuracy');
-    await verifyOptionalEndpointHealthy(page, '/crm/opportunities/weighted-forecast');
-    await verifyOptionalEndpointHealthy(page, '/crm/opportunities/conversion-rate');
-    await verifyOptionalEndpointHealthy(page, '/crm/opportunities/sales-funnel');
+    await verifyEndpointHealthy(page, '/crm/opportunities/stage-duration');
+    await verifyEndpointHealthy(page, '/crm/opportunities/forecast-accuracy');
+    await verifyEndpointHealthy(page, '/crm/opportunities/weighted-forecast');
+    await verifyEndpointHealthy(page, '/crm/opportunities/conversion-rate');
+    await verifyEndpointHealthy(page, '/crm/opportunities/sales-funnel');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
@@ -308,17 +307,17 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
   });
 
   test('五维管理+销售分析+标签', async ({ page }) => {
-    await verifyOptionalEndpointHealthy(page, '/crm/five-dimension/stats');
-    await verifyOptionalEndpointHealthy(page, '/crm/five-dimension/list');
-    await verifyOptionalEndpointHealthy(page, '/crm/five-dimension/summary');
-    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/statistics');
-    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/trends');
-    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/rankings');
-    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/stats');
-    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/product-ranking');
-    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/customer-ranking');
-    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/trend');
-    await verifyOptionalEndpointHealthy(page, '/crm/sales-analysis/targets');
+    await verifyEndpointHealthy(page, '/crm/five-dimension/stats');
+    await verifyEndpointHealthy(page, '/crm/five-dimension/list');
+    await verifyEndpointHealthy(page, '/crm/five-dimension/summary');
+    await verifyEndpointHealthy(page, '/crm/sales-analysis/statistics');
+    await verifyEndpointHealthy(page, '/crm/sales-analysis/trends');
+    await verifyEndpointHealthy(page, '/crm/sales-analysis/rankings');
+    await verifyEndpointHealthy(page, '/crm/sales-analysis/stats');
+    await verifyEndpointHealthy(page, '/crm/sales-analysis/product-ranking');
+    await verifyEndpointHealthy(page, '/crm/sales-analysis/customer-ranking');
+    await verifyEndpointHealthy(page, '/crm/sales-analysis/trend');
+    await verifyEndpointHealthy(page, '/crm/sales-analysis/targets');
     await verifyEndpointHealthy(page, '/crm/tags');
   });
 

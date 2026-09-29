@@ -5,6 +5,7 @@ import {
   apiCall,
   apiCallRaw,
   apiCallExpectFail,
+  expectBusinessRejection,
   genCode,
   getCtx,
   verifyStockFourDim,
@@ -431,7 +432,9 @@ test.describe('库存调拨完整流程', () => {
     console.warn(
       `[染色对照] 染色布缺缸号建单 status=${rejected.status} message=${rejected.message}`
     );
-    expect(rejected.status, '染色布缺缸号建单应被拒（>=400）').toBeGreaterThanOrEqual(400);
-    expect(rejected.status, '应为客户端校验错误而非 5xx').toBeLessThan(500);
+    expectBusinessRejection(
+      rejected,
+      '染色布缺缸号建单应被业务校验拒绝（400 + 业务码 + 非空 message）'
+    );
   });
 });

@@ -167,15 +167,15 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
   });
 
   test('产能分析+排程+质量标准+质量检验+BOM+打样+缺料+缸号状态机+委外', async ({ page }) => {
-    // 产能（overview/bottlenecks/load-analysis/overload-check 为 BI 统计类增强端点，允许缺失）
-    await verifyOptionalEndpointHealthy(page, '/production/capacity/overview');
-    await verifyOptionalEndpointHealthy(page, '/production/capacity/bottlenecks');
+    // 产能（overview/bottlenecks/load-analysis/overload-check 为 BI 统计类增强端点，后端已注册）
+    await verifyEndpointHealthy(page, '/production/capacity/overview');
+    await verifyEndpointHealthy(page, '/production/capacity/bottlenecks');
     await verifyEndpointHealthy(page, '/production/capacity/work-centers?page=1&page_size=5');
-    await verifyOptionalEndpointHealthy(page, '/production/capacity/load-analysis');
-    await verifyOptionalEndpointHealthy(page, '/production/capacity/overload-check');
-    // 排程（gantt/conflicts 为可视化/分析增强端点，允许缺失）
+    await verifyEndpointHealthy(page, '/production/capacity/load-analysis');
+    await verifyEndpointHealthy(page, '/production/capacity/overload-check');
+    // 排程（gantt 为可视化增强端点允许缺失；conflicts 后端已注册须 strict）
     await verifyOptionalEndpointHealthy(page, '/scheduling/gantt');
-    await verifyOptionalEndpointHealthy(page, '/scheduling/conflicts');
+    await verifyEndpointHealthy(page, '/scheduling/conflicts');
     await verifyEndpointHealthy(page, '/scheduling/tasks?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/scheduling/history?page=1&page_size=5');
     // 质量检验（真实端点：/production/quality-inspection/*，质量标准在其 standards 子路径下；
@@ -213,9 +213,9 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       await safePostAction(page, `/production/lab-dip/requests/${reqId}/start-sampling`);
       await safePostAction(page, `/production/lab-dip/requests/${reqId}/complete`);
     }
-    // 缺料预警（alerts/threshold 为核心列表/配置，summary 为统计增强）
+    // 缺料预警（alerts/threshold/summary 后端均已注册，strict 验证）
     await verifyEndpointHealthy(page, '/material-shortage/alerts?page=1&page_size=5');
-    await verifyOptionalEndpointHealthy(page, '/material-shortage/summary');
+    await verifyEndpointHealthy(page, '/material-shortage/summary');
     await verifyEndpointHealthy(page, '/material-shortage/threshold');
     // 缸号状态机
     const ctx = getCtx();

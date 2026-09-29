@@ -25,7 +25,7 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     await apiCallRaw(page, 'GET', '/color-cards/warnings');
     await verifyEndpointHealthy(page, '/color-cards/customer-color-cards?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/color-cards/reorder-dye-lot?page=1&page_size=5');
-    await verifyOptionalEndpointHealthy(page, '/color-cards/statistics/daily');
+    await verifyEndpointHealthy(page, '/color-cards/statistics/daily');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
@@ -36,9 +36,9 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       await apiCallRaw(page, 'GET', `/color-cards/${cardId}`);
       await apiCallRaw(page, 'GET', `/color-cards/${cardId}/items`);
       await verifyEndpointHealthy(page, `/color-cards/warnings/${cardId}`);
-      await verifyOptionalEndpointHealthy(page, `/color-cards/cost/production/${cardId}`);
-      await verifyOptionalEndpointHealthy(page, `/color-cards/export/${cardId}`);
-      await verifyOptionalEndpointHealthy(page, `/color-cards/scan-by-id/${cardId}`);
+      await verifyEndpointHealthy(page, `/color-cards/cost/production/${cardId}`);
+      await verifyEndpointHealthy(page, `/color-cards/export/${cardId}`);
+      await verifyEndpointHealthy(page, `/color-cards/scan-by-id/${cardId}`);
     }
     await verifyEndpointHealthy(page, '/color-cards/issues?page=1&page_size=5');
     await verifyOptionalEndpointHealthy(
@@ -54,6 +54,9 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       '/color-cards/reports/expired-unused?page=1&page_size=5'
     );
     await verifyEndpointHealthy(page, '/color-cards/by-sales-order?sales_order_id=1');
+    // scan/{code} 用真实存在的色号入参才可 strict；TEST001 为未 seed 码，后端设计性返回
+    // 404/业务码属正确，若 strict 判 2xx 会是"测试用臆造入参"致假红——留 optional 并待补
+    // 真实 seed 色号入参的专测（见测试专家挂账），不据此判后端缺陷。
     await verifyOptionalEndpointHealthy(page, '/color-cards/scan/TEST001');
   });
 
@@ -92,7 +95,7 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       // 空体 → 后端 serde 422 missing field decision，属正当拒绝，不放宽。
       await safePostAction(page, `/color-prices/${priceId}/approve`, { decision: 'APPROVED' });
     }
-    await verifyOptionalEndpointHealthy(page, '/color-prices/calculate?product_id=1&quantity=100');
+    await verifyEndpointHealthy(page, '/color-prices/calculate?product_id=1&quantity=100');
   });
 
   // ===== 真实 UI 交互验证 =====

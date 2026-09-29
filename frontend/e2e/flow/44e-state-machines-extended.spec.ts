@@ -4,6 +4,7 @@ import {
   apiCall,
   apiCallRaw,
   apiCallExpectFail,
+  expectBusinessRejection,
   tryCleanup,
   ensureTestEntities,
   getCtx,
@@ -41,9 +42,9 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
         from_status: from,
         to_status: to,
       });
-      // 端点存在性由 404/400 区分：非 404 且 <300 即漏洞
+      // 端点存在性由 404 排除：非 404 且 >=400 即业务拒绝（状态门）
       if (r.status !== 404) {
-        expect(r.status, `流转卡 ${from}→${to} 非法跳转应被拒`).toBeGreaterThanOrEqual(400);
+        expectBusinessRejection(r, `流转卡 ${from}→${to} 非法跳转应被拒`);
       }
     }
   });
@@ -72,9 +73,9 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
   test('44e-3 采购收货：重复确认被拒（purchase_receipt_ops/state.rs:24-33 仅 DRAFT 可确认）', async ({
     page,
   }) => {
-    // 无收货单时验证端点状态门可达性
+    // 无收货单时验证端点状态门可达性：不存在 ID 应返回 404
     const r = await apiCallExpectFail(page, 'POST', '/purchase/receipts/99999999/confirm');
-    expect(r.status, '不存在收货单确认应 4xx').toBeGreaterThanOrEqual(400);
+    expect(r.status, `不存在收货单确认应 404 not found，实际=${r.status}`).toBe(404);
   });
 
   test('44e-4 库存调拨：pending 直接收货被拒（inv/batch.rs:100-104 仅 approved 可发出）', async ({
@@ -118,7 +119,7 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     if (id) CLEANUP.push({ path: `/inventory/transfers/${id}`, label: '[44e-4] 调拨' });
     expect(id, '调拨单创建失败（应先 seed 匹配库存再建单）').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/inventory/transfers/${id}/ship`);
-    expect(r.status, 'pending 调拨直接发出应被拒（仅 approved）').toBeGreaterThanOrEqual(400);
+    expectBusinessRejection(r, 'pending 调拨直接发出应被拒（仅 approved）');
   });
 
   test('44e-4b 白坯调拨：color_no 空建单成功 + pending 禁 ship（覆盖 is_dyed=false 宽松放行路径）', async ({
@@ -161,28 +162,21 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
       `白坯调拨建单应成功（is_dyed=false 宽松放行），实际响应：${JSON.stringify(tf).slice(0, 200)}`
     ).toBeTruthy();
 
-    // 状态机门控仍生效：白坯调拨单 pending 直接 ship 应被拒（业务 4xx，非 5xx 裸崩）
+    // 状态机门控仍生效：白坯调拨单 pending 直接 ship 应被拒（业务 400）
     const r = await apiCallExpectFail(page, 'POST', `/inventory/transfers/${id}/ship`);
-    expect(
-      r.status,
-      `白坯调拨 pending 直接发出应被状态门以 4xx 拒绝，实际=${r.status}`
-    ).toBeGreaterThanOrEqual(400);
-    expect(
-      r.status,
-      `白坯调拨 pending 直接发出须为业务拒绝（4xx）而非 5xx 裸崩，实际=${r.status}`
-    ).toBeLessThan(500);
+    expectBusinessRejection(r, '白坯调拨 pending 直接发出应被状态门拒绝（非 5xx）');
   });
 
   test('44e-5 染色配方：已审核禁删（dye_recipe_service.rs:119-125）+ 端点可达', async ({
     page,
   }) => {
     const r = await apiCallExpectFail(page, 'DELETE', '/production/dye-recipes/99999999');
-    expect(r.status, '不存在配方删除应 4xx').toBeGreaterThanOrEqual(400);
+    expect(r.status, `不存在配方删除应 404 not found，实际=${r.status}`).toBe(404);
   });
 
   test('44e-6 打样通知单：仅 pending 可删除（lab_dip_service.rs:91-99）', async ({ page }) => {
     const r = await apiCallExpectFail(page, 'DELETE', '/production/lab-dips/99999999');
-    expect(r.status, '不存在打样单删除应 4xx').toBeGreaterThanOrEqual(400);
+    expect(r.status, `不存在打样单删除应 404 not found，实际=${r.status}`).toBe(404);
   });
 
   test('44e-7 报废审批：跳级拦截（quality_inspection_service.rs:656-661 总经理前必须财务）', async ({
@@ -195,7 +189,7 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
       '/quality/inspections/99999999/scrap-approval/gm'
     );
     if (r.status !== 404) {
-      expect(r.status, '报废 GM 级审批应要求先财务审批').toBeGreaterThanOrEqual(400);
+      expectBusinessRejection(r, '报废 GM 级审批应要求先财务审批');
     }
   });
 
@@ -203,14 +197,14 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     page,
   }) => {
     const r = await apiCallExpectFail(page, 'POST', '/fund/transfers/99999999/approve');
-    expect(r.status, '不存在转账审批应 4xx').toBeGreaterThanOrEqual(400);
+    expect(r.status, `不存在转账审批应 404 not found，实际=${r.status}`).toBe(404);
   });
 
   test('44e-9 大货处方：closed 后非法转换（production_recipe_service.rs:203-220）', async ({
     page,
   }) => {
     const r = await apiCallExpectFail(page, 'POST', '/production/recipes/99999999/approve');
-    expect(r.status, '不存在处方审批应 4xx').toBeGreaterThanOrEqual(400);
+    expect(r.status, `不存在处方审批应 404 not found，实际=${r.status}`).toBe(404);
   });
 
   test('44e-10 销售订单删除后残留检查（order_crud.rs:684-714 事务删：预留+明细+主表）', async ({

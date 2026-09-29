@@ -44,9 +44,11 @@ async function createUserAndSeedLead(
   leadNo: string;
 }> {
   const cred = getRoleCredential(role);
+  // global-setup ensureRoleUsers 必须保证角色凭证就绪；缺失属 setup 缺陷，判红不 skip 掩盖
   if (!cred) {
-    test.skip(true, `角色 ${role} 凭证不存在（global-setup ensureRoleUsers 应创建）`);
-    return null!;
+    throw new Error(
+      `角色 ${role} 凭证不存在——global-setup ensureRoleUsers 未正确执行，属 setup 缺陷判红`
+    );
   }
 
   const context = await browser.newContext({ baseURL: BASE_URL });
@@ -130,9 +132,11 @@ test.describe('数据范围行级隔离（self scope）', () => {
 
     // User B（不同 self 用户）尝试直接按 ID 获取 User A 的线索
     const credB = getRoleCredential('customer_service');
+    // global-setup ensureRoleUsers 必须保证角色凭证就绪；缺失属 setup 缺陷，判红不 skip 掩盖
     if (!credB) {
-      test.skip(true, 'customer_service 角色凭证不存在');
-      return;
+      throw new Error(
+        'customer_service 角色凭证不存在——global-setup ensureRoleUsers 未正确执行，属 setup 缺陷判红'
+      );
     }
     const contextB = await browser.newContext({ baseURL: BASE_URL });
     await applyAuthMocks(contextB, { username: credB.username });

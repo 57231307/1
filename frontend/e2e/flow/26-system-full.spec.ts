@@ -31,8 +31,8 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await verifyOptionalEndpointHealthy(page, '/bi/finance-analysis');
     await verifyOptionalEndpointHealthy(page, '/bi/production-analysis');
     await verifyOptionalEndpointHealthy(page, '/bi/summary');
-    // Webhook
-    await verifyOptionalEndpointHealthy(page, '/webhooks?page=1&page_size=5');
+    // Webhook（webhooks() 在 analytics.rs:354 注册 GET /，nest 到 /webhooks → strict）
+    await verifyEndpointHealthy(page, '/webhooks?page=1&page_size=5');
     await verifyOptionalEndpointHealthy(page, '/webhooks/integrations?page=1&page_size=5');
     // API 网关
     await verifyEndpointHealthy(page, '/api-gateway/endpoints?page=1&page_size=5');
@@ -42,8 +42,8 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     await verifyEndpointHealthy(page, '/email-templates?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/notifications?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/user-notification-settings');
-    // 扫码+搜索
-    await verifyOptionalEndpointHealthy(page, '/scanner/history?page=1&page_size=5');
+    // 扫码+搜索（scanner/history 在 analytics.rs:108 注册，nest 到 /scanner → strict）
+    await verifyEndpointHealthy(page, '/scanner/history?page=1&page_size=5');
     await verifyOptionalEndpointHealthy(page, '/search?q=面料');
     // AI
     await verifyOptionalEndpointHealthy(page, '/ai/process-optimization');
