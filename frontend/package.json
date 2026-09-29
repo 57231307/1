@@ -21,6 +21,7 @@
     "dompurify": "^3.4.13",
     "echarts": "^6.1.0",
     "element-plus": "^2.14.4",
+    "html5-qrcode": "^2.3.8",
     "pinia": "^4.0.3",
     "print-js": "^1.6.0",
     "vue": "^3.5.41",
