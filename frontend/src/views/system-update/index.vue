@@ -24,6 +24,7 @@
       :current-version="upd.currentVersion"
       :latest-version="upd.latestVersion"
       :has-update="upd.hasUpdate"
+      :format-file-size="formatFileSize"
     />
 
     <el-tabs v-model="activeTab">
