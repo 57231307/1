@@ -412,6 +412,203 @@ test.describe('库存调拨完整流程', () => {
   // 对照：染色布（色号非空）缺缸号建单必须被拒（4xx），证明白坯免缸号是"布种差异"而非
   // 放宽所有校验——与白坯出库测试同一判定源（fabric_class）双向锁死。
   // ============================================================
+  // ============================================================
+  // 预留链贯穿（routes/inventory.rs:186-206 reservation_routes）：
+  // POST /reservations → /{id}/lock → /{id}/release，每步 GET 回读状态，
+  // 词表权威 = models/status/purchase_inventory.rs::inventory_reservation（小写
+  // pending/locked/released/consumed/cancelled），service 写入值逐字符一致。
+  // 可用量守恒（实现真相）：create_reservation/lock/release 三步均只动
+  // inventory_reservations 行（inventory_reservation_service.rs:25-127，无任何
+  // inventory_stocks 更新）；库存可用量只在销售发货时扣减并把预留置 consumed
+  // （so/delivery_ops/inventory.rs）。故本用例钉：预留链全程库存行的
+  // quantity_available / quantity_reserved 不变，且 inventory_reservations.quantity
+  // 恒等于建单预留量 —— 等式：avail(前) == avail(后)，reservation.quantity == 20。
+  // 前置说明：inventory_reservations.order_id 有 FK → sales_orders.id
+  // （migration m0010_add_inventory_extensions.rs:63），必须引用真实销售订单，
+  // 不造假 ID（FK 裸违例会被 handler map_err 成 500，掩盖真实契约）。
+  // ============================================================
+  test('预留链贯穿：pending→locked→released 每步回读 + 库存可用量守恒', async ({ page }) => {
+    const ctx = getCtx();
+    const productId = ctx.productIds[0];
+    const warehouseId = ctx.warehouseIds[0];
+    expect(productId, '前置产品缺失').toBeTruthy();
+    expect(warehouseId, '前置仓库缺失').toBeTruthy();
+
+    // 专属四维库存行（预留量 20 米 < 库存 100 米；即便实现占用也有余量）
+    const tag = Date.now().toString().slice(-6);
+    const colorNo = `E2E-RSV-C${tag}`;
+    const dyeLotNo = `E2E-RSV-D${tag}`;
+    const batchNo = `E2E-RSV-B${tag}`;
+    await seedFourDimStockIn(page, {
+      productId: productId!,
+      warehouseId: warehouseId!,
+      colorNo,
+      dyeLotNo,
+      batchNo,
+      quantityMeters: '100',
+    });
+    const readStock = async () =>
+      verifyStockFourDim(page, productId!, colorNo, dyeLotNo, {
+        batchNo,
+        warehouseId: warehouseId!,
+      });
+    const stock0 = await readStock();
+    expect(stock0, 'seed 后应存在四维库存行').toBeTruthy();
+    const avail0 = Number(stock0!.quantity_available);
+    const reservedCol0 = Number(stock0!.quantity_reserved);
+    expect(avail0, 'seed 库存行可用量应为 100').toBeCloseTo(100, 2);
+
+    // FK 前置：真实销售订单（仅建单，预留链不要求审批态）
+    const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+      customer_id: ctx.customerId,
+      order_date: new Date().toISOString(),
+      items: [{ product_id: productId, quantity: 5, unit_price: '20.00' }],
+    });
+    const soId = so.data?.id;
+    expect(
+      soId,
+      `销售订单建单应返回 id（预留 order_id FK），实际：${JSON.stringify(so).slice(0, 200)}`
+    ).toBeTruthy();
+
+    // ---- 1. 创建预留：期望 pending；回读走 GET list（非响应回声）----
+    const reservationQty = 20;
+    const created = await apiCall<{ id?: number; status?: string; quantity?: string }>(
+      page,
+      'POST',
+      '/inventory/reservations',
+      {
+        product_id: productId,
+        warehouse_id: warehouseId,
+        quantity: String(reservationQty),
+        order_id: soId,
+        notes: `E2E 预留链贯穿 tag=${tag}`,
+      }
+    );
+    const reservationId = created.data?.id;
+    expect(
+      reservationId,
+      `创建预留应返回 data.id，实际：${JSON.stringify(created).slice(0, 200)}`
+    ).toBeTruthy();
+    expect(String(created.data?.status), '创建预留响应状态应为 pending').toBe('pending');
+
+    // 写后必回读：GET /reservations 列表（data_scope=all 的默认账号可见本人行）
+    const listAfterCreate = await apiCallRaw<{ list: Array<Record<string, unknown>> }>(
+      page,
+      'GET',
+      `/inventory/reservations?product_id=${productId}&warehouse_id=${warehouseId}&page=1&page_size=100`
+    );
+    const rowCreate = pickListArray<Record<string, unknown>>(
+      listAfterCreate,
+      'list',
+      '12 预留列表 /inventory/reservations'
+    ).find(r => Number(r.id) === reservationId);
+    expect(rowCreate, `回读：预留 ${reservationId} 应出现在 GET /reservations 列表`).toBeTruthy();
+    expect(String(rowCreate!.status), '回读：初始落库状态应为 pending').toBe('pending');
+    expect(Number(rowCreate!.quantity), `回读：预留行数量应恒为 ${reservationQty}`).toBeCloseTo(
+      reservationQty,
+      2
+    );
+
+    // 守恒：pending 阶段库存行 quantity_available / quantity_reserved 不变
+    const stockCreate = await readStock();
+    expect(
+      Number(stockCreate!.quantity_available),
+      `预留创建不应改可用量（实现：create_reservation 不触 inventory_stocks），期望 ${avail0}，实际 ${stockCreate!.quantity_available}`
+    ).toBeCloseTo(avail0, 2);
+    expect(
+      Number(stockCreate!.quantity_reserved),
+      '预留创建不应改库存行 quantity_reserved 列'
+    ).toBeCloseTo(reservedCol0, 2);
+
+    // ---- 2. 锁定：pending→locked（非法态负例 + 非法写后状态不变回读）----
+    await apiCall(page, 'POST', `/inventory/reservations/${reservationId}/lock`);
+    const listAfterLock = await apiCallRaw<{ list: Array<Record<string, unknown>> }>(
+      page,
+      'GET',
+      `/inventory/reservations?product_id=${productId}&warehouse_id=${warehouseId}&page=1&page_size=100`
+    );
+    const rowLock = pickListArray<Record<string, unknown>>(
+      listAfterLock,
+      'list',
+      '12 预留列表 /inventory/reservations（锁定后）'
+    ).find(r => Number(r.id) === reservationId);
+    expect(
+      String(rowLock!.status),
+      `回读：锁定后状态应为 locked（词表 purchase_inventory.rs::inventory_reservation::LOCKED），实际 ${rowLock!.status}`
+    ).toBe('locked');
+
+    // 非法转换：locked 再 lock 应被状态门拒绝（service.rs:68-73 仅 pending 可锁定）
+    const illegalRelock = await apiCallExpectFail(
+      page,
+      'POST',
+      `/inventory/reservations/${reservationId}/lock`
+    );
+    expectBusinessRejection(illegalRelock, 'locked 状态重复锁定应被业务拒绝');
+    // 非法写被拒后回读：状态必须仍是 locked（失败写不得改变状态）
+    const listAfterIllegal = await apiCallRaw<{ list: Array<Record<string, unknown>> }>(
+      page,
+      'GET',
+      `/inventory/reservations?product_id=${productId}&warehouse_id=${warehouseId}&page=1&page_size=100`
+    );
+    const rowAfterIllegal = pickListArray<Record<string, unknown>>(
+      listAfterIllegal,
+      'list',
+      '12 预留列表 /inventory/reservations（非法重复锁定后）'
+    ).find(r => Number(r.id) === reservationId);
+    expect(
+      String(rowAfterIllegal!.status),
+      '非法重复锁定被拒后，预留状态应仍为 locked（失败写不改状态）'
+    ).toBe('locked');
+    // 守恒：lock 阶段库存可用量仍不变
+    const stockLock = await readStock();
+    expect(
+      Number(stockLock!.quantity_available),
+      `锁定不应改可用量（期望 ${avail0}，实际 ${stockLock!.quantity_available}）`
+    ).toBeCloseTo(avail0, 2);
+
+    // ---- 3. 释放：locked→released ----
+    await apiCall(page, 'POST', `/inventory/reservations/${reservationId}/release`);
+    const listAfterRelease = await apiCallRaw<{ list: Array<Record<string, unknown>> }>(
+      page,
+      'GET',
+      `/inventory/reservations?product_id=${productId}&warehouse_id=${warehouseId}&page=1&page_size=100`
+    );
+    const rowRelease = pickListArray<Record<string, unknown>>(
+      listAfterRelease,
+      'list',
+      '12 预留列表 /inventory/reservations（释放后）'
+    ).find(r => Number(r.id) === reservationId);
+    expect(
+      String(rowRelease!.status),
+      `回读：释放后状态应为 released，实际 ${rowRelease!.status}`
+    ).toBe('released');
+    expect(rowRelease!.released_at, '回读：释放应落 released_at（service.rs:117）').toBeTruthy();
+
+    // 非法转换：released 不可再 lock（仅 pending 可锁定）
+    const illegalLockAfterRelease = await apiCallExpectFail(
+      page,
+      'POST',
+      `/inventory/reservations/${reservationId}/lock`
+    );
+    expectBusinessRejection(illegalLockAfterRelease, 'released 状态再锁定应被业务拒绝');
+
+    // ---- 4. 终局守恒：全链结束后库存行数量与初始完全一致 ----
+    const stockFinal = await readStock();
+    expect(
+      Number(stockFinal!.quantity_available),
+      `预留链（pending→locked→released）全程可用量守恒：期望 ${avail0}，实际 ${stockFinal!.quantity_available}`
+    ).toBeCloseTo(avail0, 2);
+    expect(
+      Number(stockFinal!.quantity_reserved),
+      '预留链全程库存行 quantity_reserved 守恒'
+    ).toBeCloseTo(reservedCol0, 2);
+    // 预留行数量守恒（quantity 不随状态迁移变化）
+    expect(
+      Number(rowRelease!.quantity),
+      `回读：释放后预留行数量仍应为 ${reservationQty}`
+    ).toBeCloseTo(reservationQty, 2);
+  });
+
   test('染色布缺缸号：调拨建单仍被拒（白坯免缸号的对照）', async ({ page }) => {
     const ctx = getCtx();
     const productId = ctx.productIds[0];
