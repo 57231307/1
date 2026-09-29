@@ -438,11 +438,6 @@ pub async fn apply_local_update(
     }
 }
 
-pub async fn get_backup_versions() -> Json<ApiResponse<Vec<String>>> {
-    let service = SystemUpdateService::new();
-    Json(ApiResponse::success(service.list_backup_versions()))
-}
-
 // ============================================================================
 // 更新任务 / 备份任务 / 版本详情（最小实现：任务与备份存内存，版本复用 system_version 表）
 // 对应前端 api/system-update.ts 的调用契约（UpdateTask / SystemBackup / SystemVersion）

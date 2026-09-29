@@ -394,14 +394,29 @@ pub fn set_safe_permissions(path: &Path, mode: u32, is_dir: bool) {
 pub(crate) const OFFICIAL_DOWNLOAD_HOSTS: &[&str] =
     &["github.com", "objects.githubusercontent.com"];
 
-/// 下载/重定向链允许的 host：官方域 ∪ `config.update.mirrors` 派生 host（任务 #121）。
+/// 下载/重定向链允许的 host：官方域 ∪ `config.update.mirrors` 派生 host ∪（默认档）内置默认镜像派生 host（任务 #121）。
 /// 仅用于**字节下载** URL 与重定向终点复核；校验值取源走 `is_official_digest_host`（官方域收窄）。
+/// 内置默认镜像（`DEFAULT_RELEASE_MIRRORS`）在 `use_default_mirrors==true` 时并入允许域，
+/// 使 `{mirror}/{official}` 候选能过 `validate_download_url`；但**绝不**并入
+/// `OFFICIAL_DOWNLOAD_HOSTS`，故这些 host 在 `is_official_digest_host` 恒为 false（取不到校验值）。
 fn allowed_download_hosts() -> Vec<String> {
+    let cfg = crate::config::settings::global_update_config();
     let mut hosts: Vec<String> = OFFICIAL_DOWNLOAD_HOSTS
         .iter()
         .map(|s| s.to_string())
         .collect();
-    for raw in &crate::config::settings::global_update_config().mirrors {
+
+    // 运维显式镜像 +（默认档）内置默认镜像 → 派生 host 并入字节下载允许域（大小写无关去重）。
+    let mut mirror_sources: Vec<String> = cfg.mirrors.clone();
+    if cfg.use_default_mirrors {
+        mirror_sources.extend(
+            crate::config::settings::DEFAULT_RELEASE_MIRRORS
+                .iter()
+                .map(|s| s.to_string()),
+        );
+    }
+
+    for raw in &mirror_sources {
         if let Some(h) = url::Url::parse(raw.trim())
             .ok()
             .and_then(|u| u.host_str().map(|h| h.to_string()))
@@ -448,7 +463,7 @@ pub fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
     let host = parsed.host_str().unwrap_or("");
     if !is_allowed_download_host(host) {
         return Err(UpdateError::NetworkError(format!(
-            "下载域名 {host} 不在允许列表中（官方域 ∪ config.update.mirrors 派生 host）"
+            "下载域名 {host} 不在允许列表中（官方域 ∪ config.update.mirrors ∪ 内置默认镜像 派生 host）"
         )));
     }
 
@@ -613,7 +628,7 @@ mod integrity_tests {
     use super::*;
 
     fn hex64(c: char) -> String {
-        std::iter::repeat(c).take(64).collect()
+        std::iter::repeat_n(c, 64).collect()
     }
 
     /// 官方 .sha256 资产命中 → pass（优先级最高）
@@ -715,6 +730,31 @@ mod integrity_tests {
             !is_official_digest_host("mirror.example.com"),
             "任意镜像 host 必须拒"
         );
+    }
+
+    /// 不变量：内置默认镜像 host **绝不允许取校验值**（信任锚永远收窄到官方域）。
+    /// 默认镜像允许作字节下载候选由 github.rs 候选生成 + 运行期逐候选尝试保证（失败优雅跳官方）；
+    /// 此处用纯函数（不依赖进程级 `global_update_config` 单例，避免跨测试污染）钉死"绝不入校验锚"。
+    #[test]
+    fn default_mirrors_are_never_official_digest_hosts() {
+        for raw in crate::config::settings::DEFAULT_RELEASE_MIRRORS {
+            let host = url::Url::parse(raw)
+                .expect("默认镜像须为合法 URL")
+                .host_str()
+                .expect("默认镜像须含 host")
+                .to_string();
+            assert!(
+                !is_official_digest_host(&host),
+                "默认镜像 host {host} 绝不能进入校验值信任锚（防连带投毒）"
+            );
+            let digest_url = format!("{}/release-1.tar.gz.sha256", raw.trim_end_matches('/'));
+            let err =
+                validate_official_digest_url(&digest_url).expect_err("默认镜像取校验值必须被拒");
+            assert!(
+                matches!(err, UpdateError::IntegrityError(_)),
+                "默认镜像校验值 URL 应为 IntegrityError，实得: {err:?}"
+            );
+        }
     }
 
     /// validate_official_digest_url：官方 https pass；镜像 host 被 IntegrityError 拒；http 被 NetworkError 拒

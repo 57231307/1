@@ -18,7 +18,9 @@
 //! - `download_and_update` 调用 `apply::apply_update`（pub）+ `apply::log_update`（`pub(crate)`）
 //! - `fetch_latest_release` 使用 facade 常量 `GITHUB_API_URL` / `GITHUB_REPO`（`pub(crate)`）
 
-use crate::config::settings::{MirrorOrder, UpdateConfig, global_update_config};
+use crate::config::settings::{
+    DEFAULT_RELEASE_MIRRORS, MirrorOrder, UpdateConfig, global_update_config,
+};
 use crate::services::system_update_service::{GITHUB_API_URL, GITHUB_REPO};
 use crate::services::system_update_service::{
     GitHubAsset, GitHubRelease, SystemUpdateService, UpdateCheckResult, UpdateError,
@@ -293,7 +295,7 @@ impl SystemUpdateService {
         // 任务 #121：字节到手后取【官方】校验值 + 本地 SHA-256 重算比对（fail-closed）。
         // 校验值只从官方域取（CI .sha256 资产优先，其次 API assets[].digest）；镜像仅搬 tar 字节。
         if let Err(e) = self
-            .verify_downloaded_integrity(&asset, &release.assets, &download_path, &cfg)
+            .verify_downloaded_integrity(asset, &release.assets, &download_path, &cfg)
             .await
         {
             // 校验不通过 / 不可得 → 删除已下文件 + 返回错误（绝不 apply）
@@ -313,14 +315,37 @@ impl SystemUpdateService {
     /// 任务 #121：按 `mirror_order` 生成候选下载 URL 列表。
     /// - 官方 `browser_download_url` 永远列入且作最终兜底；
     /// - 镜像改写形如 `{mirror}/{githubAssetUrl}`（**仅搬大 tar 字节，绝不用于取校验值**）；
-    /// - `MirrorFirst`：镜像优先、官方兜底；`OfficialFirst`（默认）：官方优先、镜像兜底。
+    /// - 镜像 base 集合 = 运维显式 `cfg.mirrors` ∪（`cfg.use_default_mirrors==true` 时并入的
+    ///   内置默认 [`DEFAULT_RELEASE_MIRRORS`]），按出现顺序去重（尾斜杠归一）；
+    /// - `MirrorFirst`：镜像优先、官方兜底末位；`OfficialFirst`（默认）：官方优先、镜像兜底。
     fn build_download_candidates(official_url: &str, cfg: &UpdateConfig) -> Vec<String> {
-        let mirror_urls: Vec<String> = cfg
-            .mirrors
+        // 镜像 base 归一：trim + 去尾斜杠 + 去空 + 精确去重（运维清单在前，内置默认在后）。
+        // 内置默认镜像只在下载期作为候选按序尝试、失败优雅跳到下一候选/官方，绝不参与启动
+        // fail-fast（`validate_update_mirrors` 只校验运维 `cfg.mirrors`）。
+        let mut mirror_bases: Vec<String> = Vec::new();
+        {
+            let push_unique = |bases: &mut Vec<String>, raw: &str| {
+                let base = raw.trim().trim_end_matches('/');
+                if base.is_empty() {
+                    return;
+                }
+                if !bases.iter().any(|b| b == base) {
+                    bases.push(base.to_string());
+                }
+            };
+            for raw in &cfg.mirrors {
+                push_unique(&mut mirror_bases, raw);
+            }
+            if cfg.use_default_mirrors {
+                for raw in DEFAULT_RELEASE_MIRRORS {
+                    push_unique(&mut mirror_bases, raw);
+                }
+            }
+        }
+
+        let mirror_urls: Vec<String> = mirror_bases
             .iter()
-            .map(|m| m.trim())
-            .filter(|m| !m.is_empty())
-            .map(|m| format!("{}/{}", m.trim_end_matches('/'), official_url))
+            .map(|m| format!("{}/{}", m, official_url))
             .collect();
 
         let mut candidates = Vec::new();
@@ -541,9 +566,12 @@ impl SystemUpdateService {
 mod download_candidate_tests {
     use super::*;
 
+    /// 构造测试配置。`use_default_mirrors` 默认置 false，使既有镜像用例只对显式镜像集合敏感、
+    /// 与内置 [`DEFAULT_RELEASE_MIRRORS`] 解耦（默认档行为另由专用用例覆盖）。
     fn cfg(order: MirrorOrder, mirrors: &[&str]) -> UpdateConfig {
         UpdateConfig {
             mirrors: mirrors.iter().map(|s| s.to_string()).collect(),
+            use_default_mirrors: false,
             mirror_order: order,
             verify_digest: true,
             connect_timeout_secs: 15,
@@ -555,9 +583,59 @@ mod download_candidate_tests {
 
     #[test]
     fn no_mirrors_yields_only_official() {
+        // 产品默认档为 use_default_mirrors=true；此用例断言的是"关闭内置默认 + 空运维清单"时
+        // 候选仅剩官方（运维显式配置语义不变），与默认档行为解耦。
         let c = cfg(MirrorOrder::OfficialFirst, &[]);
         let got = SystemUpdateService::build_download_candidates(OFFICIAL, &c);
-        assert_eq!(got, vec![OFFICIAL.to_string()], "无镜像时候选应仅官方");
+        assert_eq!(
+            got,
+            vec![OFFICIAL.to_string()],
+            "关闭默认镜像且空清单时候选应仅官方"
+        );
+    }
+
+    /// 默认档（`use_default_mirrors=true` + 空运维清单）：候选并入内置默认镜像，官方仍永远兜底。
+    #[test]
+    fn default_mirrors_on_includes_defaults_with_official_fallback() {
+        let mut c = cfg(MirrorOrder::MirrorFirst, &[]);
+        c.use_default_mirrors = true;
+        let got = SystemUpdateService::build_download_candidates(OFFICIAL, &c);
+
+        // 每个内置默认镜像派生一个候选（MirrorFirst：镜像在前）。
+        for m in DEFAULT_RELEASE_MIRRORS {
+            let expected = format!("{}/{}", m.trim_end_matches('/'), OFFICIAL);
+            assert!(
+                got.iter().any(|u| u == &expected),
+                "默认镜像 {} 应进入候选",
+                m
+            );
+        }
+        assert_eq!(
+            *got.last().unwrap(),
+            OFFICIAL,
+            "官方永远兜底：默认档 MirrorFirst 时官方排在末位"
+        );
+        assert_eq!(
+            got.len(),
+            DEFAULT_RELEASE_MIRRORS.len() + 1,
+            "空运维清单 + 默认开启 = 内置默认数 + 官方兜底"
+        );
+    }
+
+    /// 运维显式镜像与内置默认重叠时须去重，避免同一候选重复尝试。
+    #[test]
+    fn default_mirrors_on_dedupes_overlapping_config_mirror() {
+        let dup = DEFAULT_RELEASE_MIRRORS[0];
+        let mut c = cfg(
+            MirrorOrder::OfficialFirst,
+            &[dup, "https://ops-only.example.com"],
+        );
+        c.use_default_mirrors = true;
+        let got = SystemUpdateService::build_download_candidates(OFFICIAL, &c);
+        let dup_candidate = format!("{}/{}", dup.trim_end_matches('/'), OFFICIAL);
+        let dup_count = got.iter().filter(|u| **u == dup_candidate).count();
+        assert_eq!(dup_count, 1, "重叠镜像候选必须去重，实得 {dup_count} 次");
+        assert_eq!(*got.last().unwrap(), OFFICIAL, "OfficialFirst 时官方仍兜底");
     }
 
     #[test]

@@ -29,19 +29,51 @@ pub(crate) const SERVICE_NAME: &str = "bingxi";
 /// GitHub 仓库
 pub(crate) const GITHUB_REPO: &str = "57231307/1";
 
-/// 任务 #121：更新下载 / API 加速镜像清单——一律从环境变量 `UPDATE__MIRRORS`（逗号分隔）读取，
-/// 与后端 `config.update.mirrors` 同源语义，**禁止在源码硬编码镜像域名**。
-/// 未配置时返回空列表（仅官方源）。官方域永远是候选并作最终兜底（`download_*` 均先直连官方）。
-/// 信任模型：镜像仅用于搬运大 tar 字节；校验值取源走官方直连（见 [`download_official_only`]）。
+/// 任务 #121：更新下载 / API 加速镜像清单 = 运维显式环境变量 `UPDATE__MIRRORS`（逗号分隔）
+/// ∪（默认档）内置公共默认加速镜像 [`DEFAULT_RELEASE_MIRRORS`]，与后端 `config.update.mirrors`
+/// + `use_default_mirrors` 完全同源同口径（复用同一 `pub(crate) const`，不各写一套域名）。
+/// 内置默认开关：环境变量 `UPDATE__USE_DEFAULT_MIRRORS`（`false/0/no/off`→关闭，其它/未设→开启，
+/// 与后端 `UpdateConfig::default`（true）一致）。
+/// 官方域永远是候选并作最终兜底（`download_*` / `fetch_*` 均先直连官方）；镜像仅搬运大 tar 字节，
+/// 校验值取源走官方直连（见 [`download_official_only`]），绝不从镜像取校验基准。
+/// 内置默认镜像可用性可能漂移，仅在此按序尝试、失败优雅跳到下一候选/官方（不参与启动 fail-fast）。
 pub(crate) fn update_mirrors() -> Vec<String> {
-    std::env::var("UPDATE__MIRRORS")
+    let mut mirrors: Vec<String> = std::env::var("UPDATE__MIRRORS")
         .map(|s| {
             s.split(',')
                 .map(|m| m.trim().to_string())
                 .filter(|m| !m.is_empty())
                 .collect()
         })
-        .unwrap_or_default()
+        .unwrap_or_default();
+
+    // 内置默认开关（默认开启），与后端 UpdateConfig::default / load_update_from_env 口径一致。
+    let use_defaults = std::env::var("UPDATE__USE_DEFAULT_MIRRORS")
+        .map(|v| {
+            !matches!(
+                v.trim().to_lowercase().as_str(),
+                "0" | "false" | "no" | "off"
+            )
+        })
+        .unwrap_or(true);
+
+    if use_defaults {
+        for m in crate::config::settings::DEFAULT_RELEASE_MIRRORS {
+            let trimmed = m.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let norm = trimmed.trim_end_matches('/');
+            if !mirrors
+                .iter()
+                .any(|e| e.trim().trim_end_matches('/') == norm)
+            {
+                mirrors.push(trimmed.to_string());
+            }
+        }
+    }
+
+    mirrors
 }
 
 // ==================== 子命令枚举 ====================
@@ -289,7 +321,7 @@ pub(crate) fn download_with_mirrors(url: &str, output: &str, timeout: u32) -> bo
         return true;
     }
 
-    // 2. 尝试镜像源（来自 UPDATE__MIRRORS 环境变量，官方域已在步骤 1 直连兜底）
+    // 2. 尝试镜像源（UPDATE__MIRRORS ∪ 内置默认镜像，官方域已在步骤 1 直连兜底）
     for mirror in update_mirrors() {
         let mirror_url = format!("{}/{}", mirror, url);
         println!("  尝试镜像: {}...", mirror);
@@ -337,7 +369,7 @@ pub(crate) fn fetch_with_mirrors(api_path: &str, timeout: u32) -> Option<String>
         }
     }
 
-    // 2. 尝试镜像源（来自 UPDATE__MIRRORS 环境变量，官方 API 已在步骤 1 直连兜底）
+    // 2. 尝试镜像源（UPDATE__MIRRORS ∪ 内置默认镜像，官方 API 已在步骤 1 直连兜底）
     for mirror in update_mirrors() {
         let mirror_url = format!("{}/{}", mirror, full_url);
         if let Ok(output) = run_cmd(
