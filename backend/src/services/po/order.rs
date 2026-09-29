@@ -63,6 +63,11 @@ pub struct PurchaseOrderItemDto {
     pub material_name: Option<String>,
     #[serde(rename = "quantity_ordered")]
     pub quantity: rust_decimal::Decimal,
+    /// 换算后辅助单位数量（面料行业米/公斤双计量：主单位 quantity 对应的辅单位已存列
+    /// purchase_order_item.quantity_alt，由转采购/创建链路按产品 UOM 换算结果写入；
+    /// list_order_items 走 `Entity::find()` 全列 SELECT，此字段按列名直映真实列，非现算/非默认。
+    /// 语义：主单位为匹/码/卷/张等时本列为米数；主单位为米时本列为公斤数（克重×幅宽换算）。
+    pub quantity_alt: rust_decimal::Decimal,
     pub unit_price: rust_decimal::Decimal,
     #[serde(rename = "tax_rate")]
     pub tax_percent: rust_decimal::Decimal,

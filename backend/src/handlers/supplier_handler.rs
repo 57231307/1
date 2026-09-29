@@ -173,6 +173,9 @@ pub async fn toggle_supplier_status(
     Json(req): Json<ToggleStatusRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
+    // 与 update/delete 同源 IDOR 防护：状态改写前校验资源归属（越权 403）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_supplier(id, Some(&data_scope_ctx)).await?;
 
     let supplier = service
         .toggle_supplier_status(id, req.enable, auth.user_id)

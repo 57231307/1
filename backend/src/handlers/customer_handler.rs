@@ -333,18 +333,14 @@ pub async fn update_customer(
 
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
-    // M-1 修复：检查数据权限
-    // 使用 created_by 做数据隔离：
-    // - 管理员可修改所有客户
-    // - 普通用户只能修改自己创建的客户
-    let customer = customer_service.get_customer(id, None).await?;
-    let is_admin = is_admin_role(&state.db, auth.role_id.unwrap_or(0)).await;
-    let is_owner = customer.created_by == Some(auth.user_id);
-    if !is_admin && !is_owner {
-        return Err(AppError::permission_denied(
-            "无权修改该客户信息".to_string(),
-        ));
-    }
+    // 行级数据权限（IDOR）防护：复用 get_customer 内部的 check_resource_owner
+    // （owner=created_by、dept=department_id），与 update_supplier/delete_supplier/delete_order
+    // 的「先 get_X(Some(&data_scope_ctx))」写法同源——self 仅本人、dept 限可见部门集合、
+    // all 放行；越权返回 403（permission_denied），不静默放行。
+    let data_scope_ctx = auth.to_data_scope_context();
+    customer_service
+        .get_customer(id, Some(&data_scope_ctx))
+        .await?;
 
     // P2-1 修复（批次 388 v13 复审）：原 parse().ok() 静默吞错，
     // 用户输入非法值时信用额度不更新且无提示，改为显式校验报错
@@ -401,16 +397,13 @@ pub async fn delete_customer(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
-    // M-1 修复：检查数据权限
-    // 使用 created_by 做数据隔离：
-    // - 管理员可删除所有客户
-    // - 普通用户只能删除自己创建的客户
-    let customer = customer_service.get_customer(id, None).await?;
-    let is_admin = is_admin_role(&state.db, auth.role_id.unwrap_or(0)).await;
-    let is_owner = customer.created_by == Some(auth.user_id);
-    if !is_admin && !is_owner {
-        return Err(AppError::permission_denied("无权删除该客户".to_string()));
-    }
+    // V15 P0-S01/P0-S02：行级数据权限（IDOR）防护——删除前先按当前用户数据范围校验资源归属，
+    // 复用 get_customer 内部 check_resource_owner，与 update_supplier/delete_supplier/delete_order
+    // 的「先 get_X(Some(&data_scope_ctx))」写法同源；越权返回 403（permission_denied），不静默放行。
+    let data_scope_ctx = auth.to_data_scope_context();
+    customer_service
+        .get_customer(id, Some(&data_scope_ctx))
+        .await?;
 
     // 批次 101 v6 复审 P2-2：透传操作人 user_id 用于审计日志
     customer_service.delete_customer(id, auth.user_id).await?;

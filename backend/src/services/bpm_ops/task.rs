@@ -72,15 +72,24 @@ impl BpmService {
         // P0 5-3 修复：事务内仅收集待发事件，commit 成功后再 publish，避免 commit 失败产生幻事件
         let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
 
+        // 审批处理人必须取「已认证操作人」，禁止信任前端传入的 req.handler_id / req.handler_name
+        // （否则代审/伪造会污染 actual_handler_* 与审计追溯）。`user_id` 由 handler 层从
+        // AuthContext 透传真实登录用户；无身份即报未授权，绝不兜底成 0/系统。
+        // 处理人姓名按该 user_id 从 users 表解析真实值，缺失同样报错不静默。
+        let actor_id = user_id.ok_or_else(|| {
+            AppError::unauthorized("审批动作缺少已认证操作人身份，无法记录处理人")
+        })?;
+        let actor_name = self.resolve_actor_name(&txn, actor_id).await?;
+
         let ctx = self.load_approve_context(&req, &txn).await?;
-        self.update_task_status(&req, &ctx.task, user_id, &txn)
+        self.update_task_status(&req, &ctx.task, actor_id, &actor_name, &txn)
             .await?;
 
         if req.action == REJECT_ACTION {
-            self.handle_task_reject(&ctx.instance, user_id, &txn, &mut pending_event)
+            self.handle_task_reject(&ctx.instance, Some(actor_id), &txn, &mut pending_event)
                 .await?;
         } else {
-            self.handle_task_approve(&ctx, user_id, &txn, &mut pending_event)
+            self.handle_task_approve(&ctx, Some(actor_id), &txn, &mut pending_event)
                 .await?;
         }
 
@@ -130,11 +139,14 @@ impl BpmService {
     }
 
     /// 更新当前任务状态（COMPLETED/REJECTED）+ 审计
+    /// 缺陷4：处理人 handler_id/handler_name 取已认证操作人（actor_id/actor_name），
+    /// 不再写入前端可伪造的 req.handler_id；handler_name 此前从未落库，现按真实用户补全。
     async fn update_task_status(
         &self,
         req: &ApproveTaskRequest,
         task: &bpm_task::Model,
-        user_id: Option<i32>,
+        actor_id: i32,
+        actor_name: &str,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
         let mut task_active: bpm_task::ActiveModel = task.clone().into();
@@ -143,7 +155,8 @@ impl BpmService {
         } else {
             task_status::REJECTED.to_string()
         }));
-        task_active.actual_handler_id = Set(Some(req.handler_id));
+        task_active.actual_handler_id = Set(Some(actor_id));
+        task_active.actual_handler_name = Set(Some(actor_name.to_string()));
         task_active.approval_opinion = Set(req.approval_opinion.clone());
         task_active.handled_at = Set(Some(chrono::Utc::now()));
         task_active.updated_at = Set(Some(chrono::Utc::now()));
@@ -155,10 +168,43 @@ impl BpmService {
             txn,
             "bpm_task",
             task_active,
-            user_id,
+            Some(actor_id),
         )
         .await?;
         Ok(())
+    }
+
+    /// 缺陷4：按已认证 user_id 解析处理人真实姓名（real_name 优先，空则 username）。
+    /// 用户不存在即报未授权（身份无效），绝不以 "user_{id}" 之类占位符或空串兜底。
+    async fn resolve_actor_name(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        actor_id: i32,
+    ) -> Result<String, AppError> {
+        use crate::models::user;
+        let actor = user::Entity::find_by_id(actor_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::unauthorized(format!(
+                    "审批操作人身份无效：用户 {} 不存在，无法记录处理人",
+                    actor_id
+                ))
+            })?;
+        let name = actor
+            .real_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .unwrap_or(actor.username.clone());
+        if name.is_empty() {
+            return Err(AppError::unauthorized(format!(
+                "审批操作人身份无效：用户 {} 无有效姓名字段，无法记录处理人",
+                actor_id
+            )));
+        }
+        Ok(name)
     }
 
     /// 拒绝任务：终止 instance + 收集 BpmProcessFinished 事件

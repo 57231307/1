@@ -105,7 +105,7 @@ impl PurchaseOrderService {
 
         let updated_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
-            "auto_audit",
+            "purchase_order",
             order_active,
             Some(user_id),
         )
@@ -175,7 +175,7 @@ impl PurchaseOrderService {
 
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
-            "auto_audit",
+            "purchase_order",
             order_active,
             Some(user_id),
         )
@@ -230,7 +230,7 @@ impl PurchaseOrderService {
 
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
-            "auto_audit",
+            "purchase_order",
             order_active,
             Some(user_id),
         )
@@ -287,7 +287,7 @@ impl PurchaseOrderService {
 
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
-            "auto_audit",
+            "purchase_order",
             order_active,
             Some(user_id),
         )
