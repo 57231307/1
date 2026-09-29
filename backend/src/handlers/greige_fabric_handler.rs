@@ -390,7 +390,9 @@ pub async fn delete_greige_fabric(
         .ok_or_else(|| AppError::not_found("坯布不存在"))?;
 
     if fabric.status.as_deref() == Some(greige_fabric_status::IN_STOCK) {
-        return Err(AppError::business("在库坯布不允许删除，请先完成出库"));
+        return Err(AppError::business_displayable(
+            "在库坯布不允许删除，请先完成出库",
+        ));
     }
 
     // 软删除

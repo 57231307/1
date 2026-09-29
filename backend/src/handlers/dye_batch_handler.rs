@@ -318,7 +318,9 @@ pub async fn delete_dye_batch(
             | Some("drying")
             | Some("inspecting")
     ) {
-        return Err(AppError::business("生产中的缸号不允许删除，请先取消或完成"));
+        return Err(AppError::business_displayable(
+            "生产中的缸号不允许删除，请先取消或完成",
+        ));
     }
 
     // 软删除

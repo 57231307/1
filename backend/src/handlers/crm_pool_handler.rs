@@ -139,7 +139,7 @@ pub async fn claim_from_pool(
 
     // 检查是否在公海中
     if lead.lead_status.as_deref() != Some(lead_status::POOL) {
-        return Err(AppError::business("该客户不在公海中"));
+        return Err(AppError::business_displayable("该客户不在公海中"));
     }
 
     // 更新线索归属人
@@ -180,7 +180,7 @@ pub async fn recycle_to_pool(
 
     // 检查状态
     if lead.lead_status.as_deref() == Some(lead_status::POOL) {
-        return Err(AppError::business("该客户已在公海中"));
+        return Err(AppError::business_displayable("该客户已在公海中"));
     }
 
     // 更新线索状态为公海
@@ -223,7 +223,7 @@ pub async fn claim_specific(
         .await?;
 
     if claimed == 0 {
-        return Err(AppError::business("该客户不在公海中或领取失败"));
+        return Err(AppError::business_displayable("该客户不在公海中或领取失败"));
     }
 
     tracing::info!("用户 {} 从公海领取客户 {}", auth.username, customer_id);
