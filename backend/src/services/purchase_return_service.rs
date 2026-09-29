@@ -6,9 +6,11 @@
 // Some(0) 占位符改为真实 user_id，调用方 create_item / update_item / delete_item / delete
 // 同步添加 user_id 参数透传（P2-3 / P2-4 / P2-5）。
 
+use crate::models::status::purchase_order as po_status;
 use crate::models::status::purchase_return as pr_status;
 use crate::models::{
-    inventory_stock, product, purchase_order, purchase_return, purchase_return_item, supplier, user,
+    inventory_stock, product, purchase_order, purchase_order_item, purchase_return,
+    purchase_return_item, supplier, user,
 };
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::inventory_stock_query::RecordTransactionArgs;
@@ -87,6 +89,48 @@ struct ItemAmounts {
     discount_amount: Decimal,
     tax_amount: Decimal,
     total_amount: Decimal,
+}
+
+/// 库存四维定位键：产品 + 色号 + 缸号 + 批次（仓库由退货单 `warehouse_id` 统一约束）。
+///
+/// 与采购收货侧 `purchase_receipt_private::StockDimKey`（产品+批次+色号+缸号+等级）同口径的
+/// 四维子集：退货明细 `purchase_return_item` 不携带等级维度，故键不含等级。缸号在库存行侧为
+/// `Option<String>`（白坯 NULL）、在退货明细侧为 `String`（白坯空串），两侧统一 trim 归一为空串，
+/// 与 `so::delivery_ops::cancel::restore_inventory` 的空缸号回位判定同源（不做兜底、不任选一行）。
+type StockDimKey = (i32, String, String, String);
+
+/// 归一化缸号：trim 后空白视为白坯的空串（对齐 inventory_stock.dye_lot_no NULL→''、
+/// purchase_return_item.dye_lot_no '' 两侧口径）。
+fn normalize_dye_lot(raw: &str) -> String {
+    raw.trim().to_string()
+}
+
+/// 退货明细行的四维库存定位键。
+fn return_item_stock_key(item: &purchase_return_item::Model) -> StockDimKey {
+    (
+        item.product_id,
+        item.color_no.clone(),
+        normalize_dye_lot(&item.dye_lot_no),
+        item.batch_no.clone(),
+    )
+}
+
+/// 库存行的四维库存定位键，与 `return_item_stock_key` 同口径。
+fn stock_row_key(stock: &inventory_stock::Model) -> StockDimKey {
+    (
+        stock.product_id,
+        stock.color_no.clone(),
+        normalize_dye_lot(stock.dye_lot_no.as_deref().unwrap_or("")),
+        stock.batch_no.clone(),
+    )
+}
+
+/// 四维库存索引：`by_key` 为唯一命中行；`ambiguous` 记录同一四维键命中多行
+/// （退货明细未携带等级维度、无法判定实际扣哪一行）的键，查询时对 `ambiguous` 命中报业务错误，
+/// 绝不任选一行，也不回退到"任意同产品行"。
+struct StockIndex {
+    by_key: std::collections::HashMap<StockDimKey, inventory_stock::Model>,
+    ambiguous: std::collections::HashSet<StockDimKey>,
 }
 
 impl PurchaseReturnService {
@@ -254,19 +298,25 @@ impl PurchaseReturnService {
             Self::update_return_status_to_approved(&txn, return_order, user_id).await?;
 
         // 1. 扣减库存（在事务内执行，保证原子性）
-        let (items, stock_map) =
+        let (items, stock_index) =
             Self::load_return_items_with_stock_map(&txn, &return_order).await?;
         Self::deduct_stock_for_return_items(
             &txn,
             &return_order,
-            items,
-            &stock_map,
+            items.clone(),
+            &stock_index,
             user_id,
             &mut pending_events,
         )
         .await?;
 
-        // 2. 提交事务（库存扣减和状态更新在同一事务内）
+        // 2. 回写来源采购订单进度：退货即撤销一部分已收货，必须在同一事务内把来源 PO 明细的
+        //    已收货量（received_quantity/quantity_alt）按退货量减回并重算 PO 状态，与库存扣减
+        //    原子一致（不得在 commit 后单独裸写，否则回滚时库存已扣而订单进度未撤，账实漂移）。
+        Self::writeback_source_order_received_quantity(&txn, &return_order, &items, user_id)
+            .await?;
+
+        // 3. 提交事务（库存扣减、退货状态更新与订单进度回写在同一事务内）
         txn.commit().await?;
 
         // P0 5-2 修复：commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
@@ -274,7 +324,7 @@ impl PurchaseReturnService {
             EVENT_BUS.publish(ev);
         }
 
-        // 3. 自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
+        // 4. 自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
         self.try_generate_ap_invoice_from_return(return_id, user_id, &return_order.return_no)
             .await;
 
@@ -339,49 +389,64 @@ impl PurchaseReturnService {
         Ok(return_order)
     }
 
-    /// 加载退货明细 + 批量加载库存记录（避免 N+1；warehouse_id 缺失时 stock_map 为空）
+    /// 加载退货明细 + 批量加载库存记录（避免 N+1；warehouse_id 缺失时索引为空）。
+    ///
+    /// 缺陷修复：原实现仅按 `product_id` 建 `HashMap<i32, _>`，`.collect()` 会把同仓库、同产品
+    /// 但色号/缸号/批次/等级不同的多条库存行相互覆盖（后读到的赢），导致扣错行或扣到不存在的那行。
+    /// 现按退货明细真实携带的四维（产品+色号+缸号+批次）建索引，同键多行登记为歧义供扣减时显式报错。
     async fn load_return_items_with_stock_map(
         txn: &sea_orm::DatabaseTransaction,
         return_order: &purchase_return::Model,
-    ) -> Result<
-        (
-            Vec<purchase_return_item::Model>,
-            std::collections::HashMap<i32, inventory_stock::Model>,
-        ),
-        AppError,
-    > {
+    ) -> Result<(Vec<purchase_return_item::Model>, StockIndex), AppError> {
         let items = purchase_return_item::Entity::find()
             .filter(purchase_return_item::Column::ReturnId.eq(return_order.id))
             .all(txn)
             .await?;
 
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
-            match return_order.warehouse_id {
-                Some(warehouse_id) => {
-                    let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
-                    if product_ids.is_empty() {
-                        std::collections::HashMap::new()
-                    } else {
-                        let stocks = inventory_stock::Entity::find()
-                            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
-                            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
-                            .all(txn)
-                            .await?;
-                        stocks.into_iter().map(|s| (s.product_id, s)).collect()
+        let (by_key, ambiguous) = match return_order.warehouse_id {
+            Some(warehouse_id) => {
+                let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
+                let mut by_key: std::collections::HashMap<StockDimKey, inventory_stock::Model> =
+                    std::collections::HashMap::new();
+                let mut ambiguous: std::collections::HashSet<StockDimKey> =
+                    std::collections::HashSet::new();
+                if !product_ids.is_empty() {
+                    let stocks = inventory_stock::Entity::find()
+                        .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
+                        .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+                        .all(txn)
+                        .await?;
+                    // 按四维键建索引：首个命中行入 by_key；同键再来一行即登记 ambiguous 并保留
+                    // 已入行（歧义判定用）。不再像原 `HashMap<i32, _>` 那样静默后读覆盖先读。
+                    for s in stocks {
+                        let key = stock_row_key(&s);
+                        match by_key.get(&key) {
+                            Some(_) => {
+                                ambiguous.insert(key);
+                            }
+                            None => {
+                                by_key.insert(key, s);
+                            }
+                        }
                     }
                 }
-                None => std::collections::HashMap::new(),
-            };
+                (by_key, ambiguous)
+            }
+            None => (
+                std::collections::HashMap::new(),
+                std::collections::HashSet::new(),
+            ),
+        };
 
-        Ok((items, stock_map))
+        Ok((items, StockIndex { by_key, ambiguous }))
     }
 
-    /// 循环扣减每项退货明细的库存
+    /// 循环扣减每项退货明细的库存（按四维精确命中库存行；找不到或多行歧义均报业务错误，不兜底）
     async fn deduct_stock_for_return_items(
         txn: &sea_orm::DatabaseTransaction,
         return_order: &purchase_return::Model,
         items: Vec<purchase_return_item::Model>,
-        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        stock_index: &StockIndex,
         user_id: i32,
         pending_events: &mut Vec<BusinessEvent>,
     ) -> Result<(), AppError> {
@@ -406,10 +471,29 @@ impl PurchaseReturnService {
         };
 
         for item in items {
-            let Some(s) = stock_map.get(&item.product_id).cloned() else {
+            let key = return_item_stock_key(&item);
+            // 同四维键命中多条库存行（差异仅在退货明细未携带的等级维度）：无法唯一定位，显式报错。
+            if stock_index.ambiguous.contains(&key) {
                 return Err(AppError::business(format!(
-                    "产品 {} 在仓库 {} 没有库存记录，无法退货",
-                    item.product_id, warehouse_id
+                    "退货明细 {} 的四维（产品 {}+色号 {}+缸号 {}+批次 {}）在仓库 {} 命中多条库存行，退货明细未携带等级维度无法唯一定位，需人工核查（不兜底、不任选一行）",
+                    item.id,
+                    item.product_id,
+                    item.color_no,
+                    item.dye_lot_no,
+                    item.batch_no,
+                    warehouse_id
+                )));
+            }
+            // 四维精确匹配不到库存行：报业务错误并指明缺失的维度，不回退到"任意同产品行"。
+            let Some(s) = stock_index.by_key.get(&key).cloned() else {
+                return Err(AppError::business(format!(
+                    "退货明细 {} 的四维（产品 {}+色号 {}+缸号 {}+批次 {}）在仓库 {} 找不到对应库存行，无法退货（缺少对应维度库存，不兜底）",
+                    item.id,
+                    item.product_id,
+                    item.color_no,
+                    item.dye_lot_no,
+                    item.batch_no,
+                    warehouse_id
                 )));
             };
 
@@ -468,6 +552,210 @@ impl PurchaseReturnService {
             },
         ).await?;
         Ok(txn_event)
+    }
+
+    /// 退货审批回写来源采购订单进度：把退货量从来源 PO 明细的已收货量
+    /// （`received_quantity`/`received_quantity_alt`）减回（下限 0，不得负），并按收货进度重算 PO 状态。
+    ///
+    /// 依据权威实现 `purchase_receipt_private`（正向累加 + 全收/部分收判定）反向对称落地；
+    /// 状态取值来自 `crate::models::status::purchase_order`，与写入方同源，不自造词表。
+    /// 必须在审批事务内、与库存扣减同一 `txn` 原子提交（不得在 commit 后单独裸写）。
+    ///
+    /// 退货明细不携带来源订单行 ID（`order_item_id`），故按产品维度归集退货量、在该订单同产品的
+    /// 订单明细间按 `line_no` 升序逐行减回（确定性次序，逐行 `min` 保证下限 0，绝不写负）。
+    async fn writeback_source_order_received_quantity(
+        txn: &sea_orm::DatabaseTransaction,
+        return_order: &purchase_return::Model,
+        items: &[purchase_return_item::Model],
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        // 退货单可无来源采购订单（order_id 可空）：显式告警跳过，不静默。
+        let Some(order_id) = return_order.order_id else {
+            tracing::warn!(
+                "采购退货单 {} 未关联来源采购订单，跳过已收货量回写",
+                return_order.return_no
+            );
+            return Ok(());
+        };
+
+        // 1. 按产品维度归集退货量（主单位 + 辅单位），BTreeMap 保证遍历确定性
+        let mut returned_by_product: std::collections::BTreeMap<i32, (Decimal, Decimal)> =
+            std::collections::BTreeMap::new();
+        for item in items {
+            let entry = returned_by_product
+                .entry(item.product_id)
+                .or_insert((Decimal::ZERO, Decimal::ZERO));
+            entry.0 += item.quantity;
+            entry.1 += item.quantity_alt;
+        }
+        if returned_by_product.is_empty() {
+            return Ok(());
+        }
+
+        // 2. 锁定来源 PO 明细行（串行化并发收货/退货，防已收货量丢失更新）
+        let po_items = purchase_order_item::Entity::find()
+            .filter(purchase_order_item::Column::OrderId.eq(order_id))
+            .lock_exclusive()
+            .all(txn)
+            .await?;
+
+        // 3. 按产品分组、line_no 升序，逐行把退货量减回（每行 min(退货, 该行已收) 保证下限 0）
+        let mut po_items_by_product: std::collections::BTreeMap<
+            i32,
+            Vec<purchase_order_item::Model>,
+        > = std::collections::BTreeMap::new();
+        for oi in po_items {
+            po_items_by_product
+                .entry(oi.product_id)
+                .or_default()
+                .push(oi);
+        }
+        for po_lines in po_items_by_product.values_mut() {
+            po_lines.sort_by_key(|oi| oi.line_no);
+        }
+
+        for (product_id, (ret_qty, ret_qty_alt)) in returned_by_product {
+            let Some(lines) = po_items_by_product.get_mut(&product_id) else {
+                return Err(AppError::business(format!(
+                    "采购订单 {} 无产品 {} 的订单明细行，无法回写退货已收货量",
+                    order_id, product_id
+                )));
+            };
+            let mut remaining = ret_qty;
+            let mut remaining_alt = ret_qty_alt;
+            for line in lines.iter_mut() {
+                if remaining.is_zero() && remaining_alt.is_zero() {
+                    break;
+                }
+                let take = remaining.min(line.received_quantity);
+                let take_alt = remaining_alt.min(line.received_quantity_alt);
+                let before = line.received_quantity;
+                let new_received = line.received_quantity - take;
+                let new_received_alt = line.received_quantity_alt - take_alt;
+                remaining -= take;
+                remaining_alt -= take_alt;
+                let updated = Self::decrease_po_item_received(
+                    txn,
+                    line.clone(),
+                    new_received,
+                    new_received_alt,
+                    user_id,
+                )
+                .await?;
+                tracing::info!(
+                    "退货单 {} 回写采购订单 {} 明细 {}（产品 {}）已收货量：{} → {}",
+                    return_order.return_no,
+                    order_id,
+                    updated.id,
+                    product_id,
+                    before,
+                    updated.received_quantity
+                );
+                *line = updated;
+            }
+            // 退货量超出该订单该产品累计已收货量：已按 0 下限逐行截断；仍有剩余即数据异常，显式告警不静默。
+            if remaining > Decimal::ZERO || remaining_alt > Decimal::ZERO {
+                tracing::warn!(
+                    "退货单 {}：采购订单 {} 产品 {} 退货量超出其累计已收货量，已按 0 下限截断（剩余主 {} 辅 {}）",
+                    return_order.return_no,
+                    order_id,
+                    product_id,
+                    remaining,
+                    remaining_alt
+                );
+            }
+        }
+
+        // 4. 按重算后的收货进度同步 PO 状态（与收货侧判定同源，补充退货至零的「未收」态）
+        let new_status = Self::determine_order_status_after_return(txn, order_id).await?;
+        Self::save_order_status_update(txn, order_id, new_status, user_id).await?;
+        tracing::info!(
+            "退货单 {} 回写采购订单 {} 状态为 {}",
+            return_order.return_no,
+            order_id,
+            new_status
+        );
+        Ok(())
+    }
+
+    /// 写回单个采购订单明细的已收货量（含审计日志），返回带新值的模型。
+    async fn decrease_po_item_received(
+        txn: &sea_orm::DatabaseTransaction,
+        order_item: purchase_order_item::Model,
+        new_received: Decimal,
+        new_received_alt: Decimal,
+        user_id: i32,
+    ) -> Result<purchase_order_item::Model, AppError> {
+        let mut active: purchase_order_item::ActiveModel = order_item.into();
+        active.received_quantity = Set(new_received);
+        active.received_quantity_alt = Set(new_received_alt);
+        active.updated_at = Set(Utc::now());
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            active,
+            // P1 1-1 同口径：审计日志操作人为真实审批人 user_id
+            Some(user_id),
+        )
+        .await?;
+        Ok(updated)
+    }
+
+    /// 退货回写后重新判定采购订单收货状态。
+    ///
+    /// 依据 `purchase_receipt_private::determine_order_receipt_status` 的全收/部分收规则，
+    /// 补充退货至零的「未收」态回退到收货前态 [`po_status::APPROVED`]（与写入方 po/contract.rs
+    /// 审批落库值同源）；状态取值全部来自 `crate::models::status::purchase_order`，不自造字面量。
+    async fn determine_order_status_after_return(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+    ) -> Result<&'static str, AppError> {
+        let all_order_items = purchase_order_item::Entity::find()
+            .filter(purchase_order_item::Column::OrderId.eq(order_id))
+            .all(txn)
+            .await?;
+        let mut is_fully_received = true;
+        let mut has_received = false;
+        for oi in &all_order_items {
+            if oi.received_quantity > Decimal::ZERO {
+                has_received = true;
+            }
+            if oi.received_quantity < oi.quantity {
+                is_fully_received = false;
+            }
+        }
+        Ok(if is_fully_received {
+            po_status::COMPLETED
+        } else if has_received {
+            po_status::PARTIAL_RECEIVED
+        } else {
+            po_status::APPROVED
+        })
+    }
+
+    /// 更新采购订单状态并写审计日志（与 `purchase_receipt_private::save_order_status_update` 同口径）。
+    async fn save_order_status_update(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+        new_status: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let order = purchase_order::Entity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
+        let mut active_order: purchase_order::ActiveModel = order.into();
+        active_order.order_status = Set(new_status.to_string());
+        active_order.updated_at = Set(Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            active_order,
+            Some(user_id),
+        )
+        .await?;
+        Ok(())
     }
 
     /// 后置：自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
@@ -681,6 +969,11 @@ pub struct CreateReturnItemRequest {
     pub tax_rate: Option<Decimal>,
     pub discount_percent: Option<Decimal>,
     pub notes: Option<String>,
+    /// 面料追溯维度：审批时按 (产品+色号+缸号+批次) 精确定位库存行扣减，
+    /// 缺省即空串（对应白坯/单库存行产品）；同产品多批次时必须传入以唯一定位。
+    pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
+    pub batch_no: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -692,6 +985,9 @@ pub struct UpdateReturnItemRequest {
     pub tax_rate: Option<Decimal>,
     pub discount_percent: Option<Decimal>,
     pub notes: Option<String>,
+    pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
+    pub batch_no: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sea_orm::FromQueryResult)]
@@ -787,10 +1083,11 @@ impl PurchaseReturnService {
             notes: Set(req.notes),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-            // v14 批次 417：面料行业追溯字段（D-P1-4），使用 NotSet 让 DB 默认值处理
-            color_no: sea_orm::ActiveValue::NotSet,
-            dye_lot_no: sea_orm::ActiveValue::NotSet,
-            batch_no: sea_orm::ActiveValue::NotSet,
+            // 面料行业追溯字段（D-P1-4）：由请求带入，缺省落空串（对齐 inventory_stock
+            // dye_lot_no NULL→'' 归一口径），供审批按四维精确定位库存行扣减。
+            color_no: Set(req.color_no.unwrap_or_default()),
+            dye_lot_no: Set(req.dye_lot_no.unwrap_or_default()),
+            batch_no: Set(req.batch_no.unwrap_or_default()),
         }
         .insert(&txn)
         .await?;
@@ -930,6 +1227,16 @@ impl PurchaseReturnService {
 
         if let Some(notes) = req.notes {
             active_item.notes = Set(Some(notes));
+        }
+
+        if let Some(color_no) = req.color_no {
+            active_item.color_no = Set(color_no);
+        }
+        if let Some(dye_lot_no) = req.dye_lot_no {
+            active_item.dye_lot_no = Set(dye_lot_no);
+        }
+        if let Some(batch_no) = req.batch_no {
+            active_item.batch_no = Set(batch_no);
         }
 
         active_item.updated_at = Set(Utc::now());
