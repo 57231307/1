@@ -12,6 +12,7 @@
         : $t('inventoryTransfer.transferForm.createTitle')
     "
     width="800px"
+    destroy-on-close
     :aria-label="
       mode === 'view'
         ? $t('inventoryTransfer.transferForm.viewDialogTitle')
@@ -406,6 +407,10 @@ watch(
       } else {
         resetForm();
       }
+    } else {
+      // 关闭即清空明细数据：destroy-on-close 已卸载对话框 DOM，此处同步重置 reactive items，
+      // 确保复用的常驻组件在下一次打开时只渲染干净单行，杜绝残留的隐藏数量输入。
+      resetForm();
     }
   }
 );
