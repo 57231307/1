@@ -6,7 +6,7 @@ export interface ProcessDefinition {
   process_key: string;
   process_name: string;
   description?: string;
-  version: number;
+  version?: string;
   status: 'draft' | 'active' | 'suspended' | 'deprecated';
   category?: string;
   // 批次 98 P2-D 修复（v5 复审）：原 any 改为 Record<string, unknown>，动态 JSON Schema 字段
@@ -34,7 +34,7 @@ export interface ProcessNode {
 export interface ProcessVersion {
   id: number;
   process_definition_id: number;
-  version: number;
+  version: string;
   status: 'draft' | 'active' | 'deprecated';
   change_log?: string;
   created_at: string;
