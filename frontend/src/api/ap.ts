@@ -148,7 +148,27 @@ export function getAPInvoice(id: number): Promise<ApiResponse<APInvoice>> {
   return request.get(`/ap/invoices/${id}`);
 }
 
-export function createAPInvoice(data: Partial<APInvoice>): Promise<ApiResponse<APInvoice>> {
+/**
+ * 创建应付单请求体：逐字段对齐后端
+ * `services/ap_invoice_ops/types.rs::CreateApInvoiceRequest`（全 Option）。
+ */
+export interface CreateAPInvoiceRequest {
+  supplier_id?: number;
+  invoice_type?: string;
+  /** NaiveDate: YYYY-MM-DD */
+  invoice_date?: string;
+  /** NaiveDate: YYYY-MM-DD */
+  due_date?: string;
+  payment_terms?: number;
+  amount?: number;
+  currency?: string;
+  exchange_rate?: number;
+  tax_amount?: number;
+  notes?: string;
+  attachment_urls?: string[];
+}
+
+export function createAPInvoice(data: CreateAPInvoiceRequest): Promise<ApiResponse<APInvoice>> {
   return request.post('/ap/invoices', data);
 }
 
