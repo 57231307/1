@@ -68,6 +68,12 @@ export interface PurchaseOrderItem {
   total_amount: number;
   received_quantity: number;
   /**
+   * 换算后辅助单位数量（面料米/公斤双计量）。后端 PurchaseOrderItemDto.quantity_alt
+   * 为 rust_decimal::Decimal（非 Option，见 services/po/order.rs:70），经 JSON 序列化为**字符串**
+   * （如 "120.500000"）。消费处须 Number() 归一后再参与运算/.toFixed，禁止直接对字符串 .toFixed。
+   */
+  quantity_alt: string;
+  /**
    * 后端 purchase_order_item.quantity_tolerance_pct（可空，NULL=用品类/全局默认）。
    * 后端 rust_decimal 经 JSON 序列化为字符串（如 "5.00"），NULL→null；
    * 本接口同时用于创建入参 items（useCreate.submitCreate 提交数值），故取并集 number | string | null。
