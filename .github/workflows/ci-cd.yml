@@ -2203,6 +2203,25 @@ jobs:
           echo "✅ 找到 $RELEASE_COUNT 个发布包文件"
           ls -lh release-*.tar.gz
 
+      - name: 生成官方校验资产（SHA-256 / MD5）
+        # 任务 #121：CI 产出第一方官方校验资产，作为后端/CLI 下载后 SHA-256 强校验的权威源。
+        # SHA-256 为安全判据；MD5 仅补充记录（不抗碰撞，不作独立门槛）。
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.package-release.outputs.version }}"
+          RELEASE_FILE="release-${VERSION}.tar.gz"
+          if [ ! -f "$RELEASE_FILE" ]; then
+            echo "::error::发布包不存在，无法生成校验资产: $RELEASE_FILE"
+            exit 1
+          fi
+          # SHA-256：后端 resolve_expected_sha256 优先取此资产内容（格式 `<hash>  <file>`）
+          sha256sum "$RELEASE_FILE" > "${RELEASE_FILE}.sha256"
+          # MD5：仅补充记录，非抗碰撞算法，后端不本地重算比对（不作安全门槛）
+          md5sum "$RELEASE_FILE" > "${RELEASE_FILE}.md5"
+          echo "✅ 已生成官方校验资产:"
+          cat "${RELEASE_FILE}.sha256"
+          cat "${RELEASE_FILE}.md5"
+
       - name: 生成发布说明（解析 commit body 中的 bullet points）
         id: release-notes
         run: |
@@ -2223,6 +2242,8 @@ jobs:
           VERSION="${{ needs.package-release.outputs.version }}"
           TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
           RELEASE_FILE="release-${VERSION}.tar.gz"
+          SHA_FILE="${RELEASE_FILE}.sha256"
+          MD_FILE="${RELEASE_FILE}.md5"
 
           echo "版本: $VERSION"
           echo "Tag: $TAG_NAME"
@@ -2237,10 +2258,18 @@ jobs:
           fi
           echo "✅ 发布包文件存在: $(ls -lh "$RELEASE_FILE" | awk '{print $5}')"
 
+          # 任务 #121：官方校验资产必须存在才能上传（缺失即 fail-fast，绝不静默放行无校验的发布）
+          if [ ! -f "$SHA_FILE" ] || [ ! -f "$MD_FILE" ]; then
+            echo "::error::官方校验资产缺失（$SHA_FILE 或 $MD_FILE），拒绝上传 Release"
+            ls -la release-*.sha256 release-*.md5 2>/dev/null || echo "无校验资产文件"
+            exit 1
+          fi
+          echo "✅ 官方校验资产就绪: $(ls -lh "$SHA_FILE" "$MD_FILE" | awk '{print $9": "$5}')"
+
           # 创建 Release（如果 tag 已存在则复用）
           if gh release view "$TAG_NAME" --repo ${{ github.repository }} >/dev/null 2>&1; then
             echo "Release $TAG_NAME 已存在，更新资产..."
-            gh release upload "$TAG_NAME" "$RELEASE_FILE" \
+            gh release upload "$TAG_NAME" "$RELEASE_FILE" "$SHA_FILE" "$MD_FILE" \
               --repo ${{ github.repository }} \
               --clobber
           else
@@ -2249,7 +2278,7 @@ jobs:
               --title "Bingxi Management Platform ${VERSION}" \
               --notes-file release_notes.md \
               --latest \
-              "$RELEASE_FILE"
+              "$RELEASE_FILE" "$SHA_FILE" "$MD_FILE"
           fi
 
           # 验证 Release 创建成功
@@ -2265,7 +2294,7 @@ jobs:
           ASSET_COUNT=$(gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets -q '.assets | length' 2>/dev/null || echo "0")
           if [ "$ASSET_COUNT" -eq "0" ]; then
             echo "::error::Release 资产为空，重新上传..."
-            gh release upload "$TAG_NAME" "$RELEASE_FILE" \
+            gh release upload "$TAG_NAME" "$RELEASE_FILE" "$SHA_FILE" "$MD_FILE" \
               --repo ${{ github.repository }} \
               --clobber
             ASSET_COUNT=$(gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets -q '.assets | length' 2>/dev/null || echo "0")
@@ -2275,6 +2304,19 @@ jobs:
             fi
           fi
           echo "✅ Release 资产数量: $ASSET_COUNT"
+
+          # 任务 #121：确认官方校验资产确实随 Release 上传（缺失则后端/CLI 将取不到校验值 → fail-closed）。
+          # 显式断言不静默：任一校验资产缺失即报错终止本步。
+          ASSET_NAMES=$(gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets -q '.assets[].name' 2>/dev/null || echo "")
+          if ! printf '%s\n' "$ASSET_NAMES" | grep -qxF "$SHA_FILE"; then
+            echo "::error::官方 SHA-256 校验资产未随 Release 上传: $SHA_FILE"
+            exit 1
+          fi
+          if ! printf '%s\n' "$ASSET_NAMES" | grep -qxF "$MD_FILE"; then
+            echo "::error::官方 MD5 校验资产未随 Release 上传: $MD_FILE"
+            exit 1
+          fi
+          echo "✅ 官方校验资产已上传: $SHA_FILE, $MD_FILE"
 
       - name: 清理旧 Release（保留最近 10 个）
         env:

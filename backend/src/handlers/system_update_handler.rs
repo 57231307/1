@@ -292,10 +292,14 @@ fn cleanup_file(path: &PathBuf) {
 fn map_update_error(e: UpdateError) -> AppError {
     let message = e.to_string();
     match e {
+        // 任务 #121：完整性/校验值错误属服务端安全护栏判定，映射为 internal（与 facade
+        // From<UpdateError> 一致，不外泄细节），真实原因已在 tracing 中文日志留痕。
         UpdateError::IoError(_)
         | UpdateError::UnzipError(_)
         | UpdateError::BackupError(_)
-        | UpdateError::NetworkError(_) => AppError::internal(message),
+        | UpdateError::NetworkError(_)
+        | UpdateError::IntegrityError(_)
+        | UpdateError::ChecksumUnavailable(_) => AppError::internal(message),
         UpdateError::ValidationError(_) | UpdateError::VersionError(_) => {
             AppError::bad_request(message)
         }
@@ -418,10 +422,13 @@ pub async fn apply_local_update(
         Err(e) => {
             let message = e.to_string();
             Err(match e {
+                // 任务 #121：完整性/校验值错误映射 internal（安全护栏判定不外泄）。
                 UpdateError::IoError(_)
                 | UpdateError::UnzipError(_)
                 | UpdateError::BackupError(_)
-                | UpdateError::NetworkError(_) => AppError::internal(message),
+                | UpdateError::NetworkError(_)
+                | UpdateError::IntegrityError(_)
+                | UpdateError::ChecksumUnavailable(_) => AppError::internal(message),
                 UpdateError::ValidationError(_) | UpdateError::VersionError(_) => {
                     AppError::bad_request(message)
                 }

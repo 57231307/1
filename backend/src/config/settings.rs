@@ -1,6 +1,25 @@
 use config::{Config, ConfigError, File};
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 use tracing::{error, warn};
+
+/// 进程级 `UpdateConfig` 单例（任务 #121）：`AppSettings::new()` 校验通过后写入，
+/// `SystemUpdateService`（无状态构造，`new()` 不带参数）与 SSRF 域名白名单由此读取
+/// 下载镜像清单 / 校验开关，避免把第二套配置常量散落到下载链路。
+/// 未加载配置时 `global_update_config()` 回退 [`UpdateConfig::default`]（仅官方域 + 强校验），
+/// 该默认值本身即安全兜底（不放行任何镜像、verify_digest=true）。
+static GLOBAL_UPDATE_CONFIG: OnceLock<UpdateConfig> = OnceLock::new();
+
+/// 读取进程级更新配置；未初始化时返回安全默认值（仅官方域、强校验）。
+pub fn global_update_config() -> UpdateConfig {
+    GLOBAL_UPDATE_CONFIG.get().cloned().unwrap_or_default()
+}
+
+/// 将校验通过的 `UpdateConfig` 写入进程级单例（重复调用仅首次生效，幂等）。
+fn set_global_update_config(cfg: UpdateConfig) {
+    // OnceLock 进程生命周期内仅设置一次；测试/多实例场景下重复 set 静默忽略旧值即可
+    let _ = GLOBAL_UPDATE_CONFIG.set(cfg);
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppSettings {
@@ -27,6 +46,11 @@ pub struct AppSettings {
     /// 缺失时走 [`FabricIndustryConfig::default()`]，关键配置（如 dyehouse_vat_count）由 main.rs fail-fast 校验。
     #[serde(default)]
     pub fabric_industry: FabricIndustryConfig,
+    /// 系统更新下载配置（任务 #121：多镜像加速 + 官方 SHA-256 强校验，防镜像投毒）。
+    /// `#[serde(default)]`：缺失 update 段时走 [`UpdateConfig::default`]（仅官方域 + 强校验），
+    /// 老配置无需补充即可解析。镜像清单为 `""`（默认空）→ 仅官方源；环境变量 `UPDATE__MIRRORS` 可覆盖。
+    #[serde(default)]
+    pub update: UpdateConfig,
     pub env: String,
 }
 
@@ -233,6 +257,60 @@ impl Default for FabricIndustryConfig {
     }
 }
 
+/// 更新下载镜像优先策略（任务 #121）。
+/// 无论选择哪种顺序，官方域（github.com / objects.githubusercontent.com）永远列入候选并作为最终兜底。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MirrorOrder {
+    /// 镜像优先：先试配置镜像加速，官方源作为兜底（墙内/慢链路部署常用）。
+    MirrorFirst,
+    /// 官方优先（默认）：先官方源，镜像仅在官方失败时兜底，最大限度降低投毒面。
+    OfficialFirst,
+}
+
+impl Default for MirrorOrder {
+    fn default() -> Self {
+        MirrorOrder::OfficialFirst
+    }
+}
+
+/// 系统更新下载配置（任务 #121：多镜像加速 + 官方强校验，防镜像投毒）。
+///
+/// 信任模型（安全红线，违反即引入 RCE）：
+/// - `mirrors` **只用于搬运大 tar 字节**；校验基准永远只从官方域取（见 `github.rs` / facade），
+///   绝不从镜像拼接 checksum URL。
+/// - `verify_digest=true` 时若两官方源（CI 上传的 `.sha256` 资产 / GitHub API `assets[].digest`）
+///   都拿不到 SHA-256 校验值 → **fail-closed 拒绝 apply**（见 `UpdateError::ChecksumUnavailable`）。
+/// - 镜像清单禁止硬编码在源码，只从本配置（config.yaml / 环境变量 `UPDATE__MIRRORS`）读取。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UpdateConfig {
+    /// GitHub Release 加速镜像 base URL 列表（如 `https://ghfast.top`）。
+    /// 空列表（默认）= 仅官方域下载。下载时镜像改写形如 `{mirror}/{githubAssetUrl}`。
+    pub mirrors: Vec<String>,
+    /// 镜像优先 / 官方优先（默认 [`MirrorOrder::OfficialFirst`]）。
+    pub mirror_order: MirrorOrder,
+    /// 是否强制 SHA-256 完整校验（默认 true）。
+    /// 生产环境必须保持 true；置 false 仅在校验源不可达的隔离调试场景，且会显式告警不静默。
+    pub verify_digest: bool,
+    /// 下载连接超时（秒）。
+    pub connect_timeout_secs: u64,
+    /// 下载读取（单次 chunk）超时（秒）。
+    pub read_timeout_secs: u64,
+}
+
+impl Default for UpdateConfig {
+    fn default() -> Self {
+        Self {
+            mirrors: Vec::new(),
+            mirror_order: MirrorOrder::OfficialFirst,
+            verify_digest: true,
+            connect_timeout_secs: 15,
+            read_timeout_secs: 180,
+        }
+    }
+}
+
 impl AppSettings {
     pub fn new() -> Result<Self, ConfigError> {
         let mut app_settings = Self::load_from_env()?;
@@ -241,6 +319,11 @@ impl AppSettings {
         Self::validate_production_config(&app_settings)?;
         Self::load_cors_from_env(&mut app_settings);
         Self::load_database_config(&mut app_settings);
+        Self::load_update_from_env(&mut app_settings);
+        // 任务 #121：镜像清单 fail-fast 校验（非法 https/内网/IP 字面量 → 拒绝启动），
+        // 校验通过后再写入进程级单例供下载链路读取，避免带病镜像进入运行期。
+        Self::validate_update_mirrors(&app_settings)?;
+        set_global_update_config(app_settings.update.clone());
         Ok(app_settings)
     }
 
@@ -384,6 +467,117 @@ impl AppSettings {
                 app_settings.database.name
             );
         }
+    }
+
+    /// 任务 #121：从环境变量覆盖 `update` 段（仿 `load_cors_from_env` 逗号分隔范式）。
+    /// - `UPDATE__MIRRORS`：逗号分隔的镜像 base URL 列表（覆盖 config.yaml mirrors）。
+    /// - `UPDATE__MIRROR_ORDER`：`mirror`→MirrorFirst / `official`→OfficialFirst。
+    /// - `UPDATE__VERIFY_DIGEST`：`0/false/no`→关闭强校验（默认 true，仅显式关闭）。
+    /// - `UPDATE__CONNECT_TIMEOUT_SECS` / `UPDATE__READ_TIMEOUT_SECS`：超时时钟。
+    /// 环境变量优先级高于 config.yaml（与全仓 config crate + env 覆盖约定一致）。
+    fn load_update_from_env(app_settings: &mut AppSettings) {
+        if let Ok(mirrors_str) = std::env::var("UPDATE__MIRRORS") {
+            app_settings.update.mirrors = mirrors_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+
+        if let Ok(order_str) = std::env::var("UPDATE__MIRROR_ORDER") {
+            let normalized = order_str.trim().to_lowercase();
+            app_settings.update.mirror_order = match normalized.as_str() {
+                "mirror" | "mirror_first" | "mirrorfirst" => MirrorOrder::MirrorFirst,
+                "official" | "official_first" | "officialfirst" | "" => MirrorOrder::OfficialFirst,
+                other => {
+                    warn!(
+                        "UPDATE__MIRROR_ORDER 取值 '{}' 无法识别，回退官方优先(OfficialFirst)以保证镜像仅作兜底",
+                        other
+                    );
+                    MirrorOrder::OfficialFirst
+                }
+            };
+        }
+
+        if let Ok(v) = std::env::var("UPDATE__VERIFY_DIGEST") {
+            let normalized = v.trim().to_lowercase();
+            // 默认 true：仅显式 0/false/no/off 才关闭；其它非空值保持开启（安全默认，不因笔误弱化校验）
+            app_settings.update.verify_digest =
+                !matches!(normalized.as_str(), "0" | "false" | "no" | "off");
+        }
+
+        if let Ok(v) = std::env::var("UPDATE__CONNECT_TIMEOUT_SECS") {
+            if let Ok(parsed) = v.trim().parse::<u64>() {
+                app_settings.update.connect_timeout_secs = parsed;
+            }
+        }
+
+        if let Ok(v) = std::env::var("UPDATE__READ_TIMEOUT_SECS") {
+            if let Ok(parsed) = v.trim().parse::<u64>() {
+                app_settings.update.read_timeout_secs = parsed;
+            }
+        }
+    }
+
+    /// 任务 #121：启动 fail-fast 校验 `update.mirrors`（配置错误绝不容忍到运行期被利用）。
+    /// 每个镜像必须满足：
+    /// 1. 合法**绝对 URL** 且 scheme=https；
+    /// 2. host 非 IP 字面量（镜像须为域名，禁裸 IP 绕过 DNS/SSRF 判定）；
+    /// 3. host 不在 blocked-hostname（localhost/.local/.internal/...）黑名单；
+    /// 4. 通过 `ssrf_guard::validate_url_and_resolve`（解析后挡内网/loopback/云元数据）。
+    /// 任一不满足即返回 `ConfigError` 拒绝启动。空列表（默认仅官方）直接通过。
+    fn validate_update_mirrors(app_settings: &AppSettings) -> Result<(), ConfigError> {
+        for raw in &app_settings.update.mirrors {
+            let mirror = raw.trim();
+            if mirror.is_empty() {
+                // 空白项已在 load_update_from_env 过滤，此处再兜底跳过，避免误拒启动
+                continue;
+            }
+
+            let parsed = url::Url::parse(mirror).map_err(|e| {
+                ConfigError::Message(format!(
+                    "致命错误：update.mirrors 中镜像 '{}' 不是合法绝对 URL: {}",
+                    mirror, e
+                ))
+            })?;
+
+            if parsed.scheme() != "https" {
+                return Err(ConfigError::Message(format!(
+                    "致命错误：update.mirrors 镜像 '{}' 必须使用 https（当前 scheme={}），防止降级为明文下载被中间人投毒",
+                    mirror,
+                    parsed.scheme()
+                )));
+            }
+
+            let host = parsed.host_str().ok_or_else(|| {
+                ConfigError::Message(format!(
+                    "致命错误：update.mirrors 镜像 '{}' 缺少主机名",
+                    mirror
+                ))
+            })?;
+
+            if host.parse::<std::net::IpAddr>().is_ok() {
+                return Err(ConfigError::Message(format!(
+                    "致命错误：update.mirrors 镜像 '{}' 的 host 为 IP 字面量，镜像必须是可解析的域名（禁裸 IP 绕过 DNS/SSRF 判定）",
+                    mirror
+                )));
+            }
+
+            // 复用 SSRF 判定：blocked-hostname + 解析后内网/loopback/云元数据拦截
+            crate::utils::ssrf_guard::validate_url_and_resolve(mirror).map_err(|e| {
+                ConfigError::Message(format!(
+                    "致命错误：update.mirrors 镜像 '{}' 未通过 SSRF/内网校验: {}",
+                    mirror, e
+                ))
+            })?;
+
+            tracing::info!(
+                "update.mirrors 镜像 '{}' 通过启动校验（https + 非 IP + SSRF 安全解析）",
+                mirror
+            );
+        }
+
+        Ok(())
     }
 
     fn load_sensitive_from_env(&mut self) -> Result<(), ConfigError> {

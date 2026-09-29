@@ -111,6 +111,35 @@ fabric_industry:
   # 缸号状态机超时（秒，超过此阈值触发异常告警，默认 14400=4 小时）
   dyebatch_status_timeout_secs: 14400
 
+# 系统更新下载配置（任务 #121：多镜像加速 + 官方 SHA-256 强校验，防镜像投毒）
+# 信任模型（安全红线）：
+#   1. mirrors 仅用于搬运大 tar 字节；SHA-256 校验基准永远只从官方域取
+#      （CI 上传的 .sha256 资产 / GitHub API assets[].digest），绝不从镜像取校验值。
+#   2. verify_digest=true 时，若两官方校验源均不可得 → fail-closed 拒绝 apply（严禁放行）。
+#   3. 官方域（github.com / objects.githubusercontent.com）永远是候选之一并作最终兜底，
+#      留空 mirrors 即"仅官方源"（安全默认）。
+# 优先级：环境变量 > config.yaml update 段 > 默认值
+# 环境变量覆盖：UPDATE__MIRRORS（逗号分隔）/ UPDATE__MIRROR_ORDER / UPDATE__VERIFY_DIGEST /
+#               UPDATE__CONNECT_TIMEOUT_SECS / UPDATE__READ_TIMEOUT_SECS
+# 启动 fail-fast：每个镜像必须是合法 https 绝对 URL、host 为域名（非 IP 字面量）、
+#                 通过 SSRF/内网解析校验；任一不满足直接拒绝启动（配置错误不带病上线）。
+update:
+  # GitHub Release 加速镜像 base URL 列表（示例，请替换为可信镜像域名；默认空 = 仅官方源）
+  # 下载时镜像改写形如：{mirror}/{githubAssetUrl}
+  # 切勿填 http、裸 IP、内网地址（会被启动校验拒绝）。
+  mirrors: []
+    # - "https://your-trusted-mirror.example.com"
+  # 镜像/官方优先：official（默认，官方优先、镜像仅兜底，投毒面最小）| mirror（镜像优先）
+  # 注意：serde 采用 lowercase 枚举名，取值须为 officialfirst / mirrorfirst（或对应环境变量简写）
+  mirror_order: "officialfirst"
+  # 是否强制 SHA-256 完整校验（默认 true，生产必须保持 true）
+  # 置 false 仅用于校验源不可达的隔离调试，且会显式告警；即便 false，取到校验值不匹配仍拒绝。
+  verify_digest: true
+  # 下载连接超时（秒）
+  connect_timeout_secs: 15
+  # 下载单次读取超时（秒）
+  read_timeout_secs: 180
+
 # 批次 398 修复：env 字段现已接入 is_production() 判定链路
 # AppSettings::new() 启动时若 APP_ENV 环境变量未设置，会将此字段同步到 APP_ENV
 # 优先级：APP_ENV 环境变量 > config.yaml env 字段

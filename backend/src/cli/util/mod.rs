@@ -29,22 +29,20 @@ pub(crate) const SERVICE_NAME: &str = "bingxi";
 /// GitHub 仓库
 pub(crate) const GITHUB_REPO: &str = "57231307/1";
 
-/// 国内 GitHub 加速镜像源 (按优先级排序)
-pub(crate) const GITHUB_MIRRORS: &[&str] = &[
-    "https://ghfast.top",         // FastGit 加速
-    "https://ghproxy.net",        // GitHub Proxy
-    "https://github.moeyy.xyz",   // Moeyy 加速
-    "https://mirror.ghproxy.com", // 镜像加速
-    "https://gh-proxy.com",       // 代理加速
-    "https://ghps.cc",            // 加速代理
-];
-
-/// GitHub API 加速镜像
-pub(crate) const GITHUB_API_MIRRORS: &[&str] = &[
-    "https://ghfast.top",
-    "https://ghproxy.net",
-    "https://github.moeyy.xyz",
-];
+/// 任务 #121：更新下载 / API 加速镜像清单——一律从环境变量 `UPDATE__MIRRORS`（逗号分隔）读取，
+/// 与后端 `config.update.mirrors` 同源语义，**禁止在源码硬编码镜像域名**。
+/// 未配置时返回空列表（仅官方源）。官方域永远是候选并作最终兜底（`download_*` 均先直连官方）。
+/// 信任模型：镜像仅用于搬运大 tar 字节；校验值取源走官方直连（见 [`download_official_only`]）。
+pub(crate) fn update_mirrors() -> Vec<String> {
+    std::env::var("UPDATE__MIRRORS")
+        .map(|s| {
+            s.split(',')
+                .map(|m| m.trim().to_string())
+                .filter(|m| !m.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
 // ==================== 子命令枚举 ====================
 
@@ -255,6 +253,18 @@ pub(crate) fn build_release_url(version: &str) -> String {
     )
 }
 
+/// 任务 #121：仅官方直连下载（不试任何镜像）。
+/// 专用于取回**校验值文件**（.sha256）——校验基准绝不能从镜像下载，否则投毒镜像可伪造
+/// 校验文件使校验形同虚设（与后端 `is_official_digest_host`/`validate_official_digest_url` 同模型）。
+/// 调用方须保证 `url` 为官方域（本模块 `build_release_url` 派生的 github.com URL 即满足）。
+pub(crate) fn download_official_only(url: &str, output: &str, timeout: u32) -> bool {
+    run_cmd(
+        "curl",
+        &["-fsSL", "-m", &timeout.to_string(), "-o", output, url],
+    )
+    .is_ok()
+}
+
 /// 带镜像源的下载 (自动尝试多个镜像)
 /// V15 P2 25.3-B 修复：添加 `-C -` 断点续传参数，大文件下载中断后可从断点恢复
 pub(crate) fn download_with_mirrors(url: &str, output: &str, timeout: u32) -> bool {
@@ -279,8 +289,8 @@ pub(crate) fn download_with_mirrors(url: &str, output: &str, timeout: u32) -> bo
         return true;
     }
 
-    // 2. 尝试镜像源
-    for mirror in GITHUB_MIRRORS {
+    // 2. 尝试镜像源（来自 UPDATE__MIRRORS 环境变量，官方域已在步骤 1 直连兜底）
+    for mirror in update_mirrors() {
         let mirror_url = format!("{}/{}", mirror, url);
         println!("  尝试镜像: {}...", mirror);
         if run_cmd(
@@ -327,8 +337,8 @@ pub(crate) fn fetch_with_mirrors(api_path: &str, timeout: u32) -> Option<String>
         }
     }
 
-    // 2. 尝试镜像源
-    for mirror in GITHUB_API_MIRRORS {
+    // 2. 尝试镜像源（来自 UPDATE__MIRRORS 环境变量，官方 API 已在步骤 1 直连兜底）
+    for mirror in update_mirrors() {
         let mirror_url = format!("{}/{}", mirror, full_url);
         if let Ok(output) = run_cmd(
             "curl",

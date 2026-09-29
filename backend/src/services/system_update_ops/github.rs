@@ -18,14 +18,17 @@
 //! - `download_and_update` 调用 `apply::apply_update`（pub）+ `apply::log_update`（`pub(crate)`）
 //! - `fetch_latest_release` 使用 facade 常量 `GITHUB_API_URL` / `GITHUB_REPO`（`pub(crate)`）
 
+use crate::config::settings::{MirrorOrder, UpdateConfig, global_update_config};
 use crate::services::system_update_service::{GITHUB_API_URL, GITHUB_REPO};
 use crate::services::system_update_service::{
     GitHubAsset, GitHubRelease, SystemUpdateService, UpdateCheckResult, UpdateError,
-    normalize_versions_for_compare, validate_asset_name, validate_download_url,
+    find_official_md5_asset, find_official_sha256_asset, normalize_versions_for_compare,
+    resolve_expected_sha256, sha256_hex_of_file, validate_asset_name, validate_download_url,
+    validate_official_digest_url, verify_sha256_matches,
 };
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 impl SystemUpdateService {
     pub async fn check_for_updates(&self) -> UpdateCheckResult {
@@ -237,12 +240,114 @@ impl SystemUpdateService {
         }
         let download_path = download_dir.join(&asset.name);
 
-        let client = Self::build_safe_download_client(&asset.browser_download_url)?;
+        // 任务 #121：读取进程级更新配置，按 mirror_order 生成候选下载 URL（官方永远列入并兜底）。
+        let cfg = global_update_config();
+        let candidates = Self::build_download_candidates(&asset.browser_download_url, &cfg);
+        tracing::info!(
+            "[system_update] 更新包 '{}' 生成 {} 个下载候选（mirror_order={:?}，官方域永远列入并兜底）",
+            asset.name,
+            candidates.len(),
+            cfg.mirror_order
+        );
 
-        // V15 P1 20.1-A：下载请求也注入 traceparent
+        // 逐个候选尝试：任一成功即停止；全部失败返回最后错误（每步 warn，不静默）。
+        let mut last_err: Option<UpdateError> = None;
+        let mut downloaded = false;
+        for (idx, cand_url) in candidates.iter().enumerate() {
+            match self.try_download_candidate(cand_url, &download_path).await {
+                Ok(()) => {
+                    tracing::info!(
+                        "[system_update] 下载候选[{}/{}] 成功: {}",
+                        idx + 1,
+                        candidates.len(),
+                        cand_url
+                    );
+                    downloaded = true;
+                    break;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "[system_update] 下载候选[{}/{}] 失败（{}）: {}",
+                        idx + 1,
+                        candidates.len(),
+                        cand_url,
+                        e
+                    );
+                    // 清理该候选写入的半成品，避免残损文件影响后续候选与校验
+                    if let Err(rm) = fs::remove_file(&download_path)
+                        && rm.kind() != std::io::ErrorKind::NotFound
+                    {
+                        tracing::warn!("[system_update] 清理失败候选残件出错: {}", rm);
+                    }
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        if !downloaded {
+            let msg = "所有下载候选（含官方域）均失败";
+            self.log_update(msg);
+            return Err(last_err.unwrap_or_else(|| UpdateError::NetworkError(msg.to_string())));
+        }
+
+        // 任务 #121：字节到手后取【官方】校验值 + 本地 SHA-256 重算比对（fail-closed）。
+        // 校验值只从官方域取（CI .sha256 资产优先，其次 API assets[].digest）；镜像仅搬 tar 字节。
+        if let Err(e) = self
+            .verify_downloaded_integrity(&asset, &release.assets, &download_path, &cfg)
+            .await
+        {
+            // 校验不通过 / 不可得 → 删除已下文件 + 返回错误（绝不 apply）
+            if let Err(rm) = fs::remove_file(&download_path)
+                && rm.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!("[system_update] 校验失败后清理下载文件出错: {}", rm);
+            }
+            self.log_update(&format!("完整性校验未通过，已删除下载文件: {}", e));
+            return Err(e);
+        }
+
+        self.log_update(&format!("更新包下载并通过完整性校验: {:?}", download_path));
+        Ok(download_path)
+    }
+
+    /// 任务 #121：按 `mirror_order` 生成候选下载 URL 列表。
+    /// - 官方 `browser_download_url` 永远列入且作最终兜底；
+    /// - 镜像改写形如 `{mirror}/{githubAssetUrl}`（**仅搬大 tar 字节，绝不用于取校验值**）；
+    /// - `MirrorFirst`：镜像优先、官方兜底；`OfficialFirst`（默认）：官方优先、镜像兜底。
+    fn build_download_candidates(official_url: &str, cfg: &UpdateConfig) -> Vec<String> {
+        let mirror_urls: Vec<String> = cfg
+            .mirrors
+            .iter()
+            .map(|m| m.trim())
+            .filter(|m| !m.is_empty())
+            .map(|m| format!("{}/{}", m.trim_end_matches('/'), official_url))
+            .collect();
+
+        let mut candidates = Vec::new();
+        match cfg.mirror_order {
+            MirrorOrder::MirrorFirst => {
+                candidates.extend(mirror_urls);
+                candidates.push(official_url.to_string());
+            }
+            MirrorOrder::OfficialFirst => {
+                candidates.push(official_url.to_string());
+                candidates.extend(mirror_urls);
+            }
+        }
+        candidates
+    }
+
+    /// 对单个候选 URL 流式下载到 `download_path`（host 过下载白名单 + SSRF + 重定向终点复核）。
+    async fn try_download_candidate(
+        &self,
+        url: &str,
+        download_path: &Path,
+    ) -> Result<(), UpdateError> {
+        let client = Self::build_safe_download_client(url)?;
+
         let traceparent = crate::observability::trace_context::traceparent_from_current_span();
         let mut response = client
-            .get(&asset.browser_download_url)
+            .get(url)
             .header(
                 crate::observability::trace_context::TRACEPARENT_HEADER,
                 traceparent,
@@ -251,11 +356,11 @@ impl SystemUpdateService {
             .await
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
 
-        // TS-S-7：二次校验最终跳转后的 URL 域名
-        let final_url = response.url();
+        // TS-S-7：二次校验最终跳转后的 URL 域名（镜像若 302 到别处，终点仍须在允许域内）
+        let final_url = response.url().clone();
         validate_download_url(final_url.as_str())?;
 
-        let mut file = fs::File::create(&download_path)?;
+        let mut file = fs::File::create(download_path)?;
         while let Some(chunk) = response
             .chunk()
             .await
@@ -263,9 +368,124 @@ impl SystemUpdateService {
         {
             io::copy(&mut chunk.as_ref(), &mut file)?;
         }
+        Ok(())
+    }
 
-        self.log_update(&format!("更新包下载完成: {:?}", download_path));
-        Ok(download_path)
+    /// 任务 #121：取【官方】SHA-256 校验基准 + 本地重算比对。
+    /// 优先级：① CI 上传的官方 `.sha256` 资产内容 ② GitHub API `assets[].digest` 兜底。
+    /// - 两源皆无 → `Err(ChecksumUnavailable)`（`verify_digest=true` 时 fail-closed 拒绝 apply）；
+    /// - 取到但不匹配 → `Err(IntegrityError)`（无论 verify_digest 均拒绝，投毒零容忍）。
+    /// - MD5 资产仅作补充记录（不抗碰撞、非门槛；仓内无 md5 crate，不本地重算）。
+    async fn verify_downloaded_integrity(
+        &self,
+        asset: &GitHubAsset,
+        assets: &[GitHubAsset],
+        download_path: &Path,
+        cfg: &UpdateConfig,
+    ) -> Result<(), UpdateError> {
+        // MD5：补充记录（明确注释：不抗碰撞，不作为独立安全门槛）
+        if let Some(md5_asset) = find_official_md5_asset(assets, &asset.name) {
+            tracing::info!(
+                "[system_update] 存在官方 MD5 资产 '{}'（仅补充记录；SHA-256 为权威安全判据，MD5 不抗碰撞不作独立门槛）",
+                md5_asset.name
+            );
+        }
+
+        // ① 官方 .sha256 资产内容（host 须官方域，只走官方直连取回）
+        let official_sha256_content = match find_official_sha256_asset(assets, &asset.name) {
+            Some(sha_asset) => {
+                match Self::fetch_official_digest_content(&sha_asset.browser_download_url).await {
+                    Ok(content) => Some(content),
+                    Err(e) => {
+                        tracing::warn!(
+                            "[system_update] 官方 .sha256 资产取回失败，回退 API assets[].digest: {}",
+                            e
+                        );
+                        None
+                    }
+                }
+            }
+            None => {
+                tracing::info!(
+                    "[system_update] release 无官方 .sha256 资产，尝试 API assets[].digest 兜底"
+                );
+                None
+            }
+        };
+
+        let expected = match resolve_expected_sha256(
+            official_sha256_content.as_deref(),
+            asset.digest.as_deref(),
+        ) {
+            Ok(hex) => hex,
+            Err(e) => {
+                if cfg.verify_digest {
+                    // fail-closed：两官方校验源皆不可得 → 拒绝（严禁因取不到校验值而放行）
+                    tracing::error!("[system_update] fail-closed：{}（verify_digest=true）", e);
+                    return Err(e);
+                }
+                // 显式逃生阀（仅隔离调试）：verify_digest=false 且无校验源 → 告警放行，不静默
+                tracing::warn!(
+                    "[system_update] update.verify_digest=false 且无官方校验源，跳过校验（仅调试用途，生产严禁）: {}",
+                    e
+                );
+                return Ok(());
+            }
+        };
+
+        // 本地重算 SHA-256 并与官方基准比对（不匹配必拒，无论 verify_digest）
+        let actual = sha256_hex_of_file(download_path)?;
+        tracing::info!(
+            "[system_update] SHA-256 校验：官方基准 {}，本地重算 {}",
+            expected,
+            actual
+        );
+        verify_sha256_matches(&expected, &actual)
+    }
+
+    /// 只从【官方域】取回校验值文件内容（.sha256）。
+    /// host 必须过 `validate_official_digest_url`（收窄官方域，严禁从镜像取校验基准）+ SSRF；
+    /// 重定向终点二次复核仍在官方域，否则拒绝。
+    async fn fetch_official_digest_content(url: &str) -> Result<String, UpdateError> {
+        // 校验值 URL 必须 https + 官方域（github.com / objects.githubusercontent.com）
+        validate_official_digest_url(url)?;
+
+        let (host, safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(url)
+            .map_err(|e| UpdateError::NetworkError(format!("校验值 URL SSRF 校验失败: {}", e)))?;
+
+        let client = reqwest::Client::builder()
+            .user_agent("BingxiManagementPlatform/1.0")
+            .redirect(reqwest::redirect::Policy::limited(3))
+            .resolve_to_addrs(&host, &safe_addrs)
+            .build()
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+
+        let traceparent = crate::observability::trace_context::traceparent_from_current_span();
+        let response = client
+            .get(url)
+            .header(
+                crate::observability::trace_context::TRACEPARENT_HEADER,
+                traceparent,
+            )
+            .send()
+            .await
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+
+        // 终点复核：校验值绝不能来自被重定向到的非官方域
+        let final_url = response.url().clone();
+        validate_official_digest_url(final_url.as_str())?;
+
+        if !response.status().is_success() {
+            return Err(UpdateError::NetworkError(format!(
+                "官方校验值资产返回错误状态: {}",
+                response.status()
+            )));
+        }
+
+        response
+            .text()
+            .await
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))
     }
 
     /// 在发布信息中查找匹配的资源（按名称匹配或按扩展名自动选择 .zip/.tar.gz）
@@ -311,5 +531,75 @@ impl SystemUpdateService {
         }
 
         Ok(result)
+    }
+}
+
+// =====================================================
+// 任务 #121：多镜像候选下载 URL 生成单测（官方永远列入且兜底）
+// =====================================================
+#[cfg(test)]
+mod download_candidate_tests {
+    use super::*;
+
+    fn cfg(order: MirrorOrder, mirrors: &[&str]) -> UpdateConfig {
+        UpdateConfig {
+            mirrors: mirrors.iter().map(|s| s.to_string()).collect(),
+            mirror_order: order,
+            verify_digest: true,
+            connect_timeout_secs: 15,
+            read_timeout_secs: 180,
+        }
+    }
+
+    const OFFICIAL: &str = "https://github.com/57231307/1/releases/download/v1/release-1.tar.gz";
+
+    #[test]
+    fn no_mirrors_yields_only_official() {
+        let c = cfg(MirrorOrder::OfficialFirst, &[]);
+        let got = SystemUpdateService::build_download_candidates(OFFICIAL, &c);
+        assert_eq!(got, vec![OFFICIAL.to_string()], "无镜像时候选应仅官方");
+    }
+
+    #[test]
+    fn official_first_places_official_leading_and_mirrors_after() {
+        let c = cfg(
+            MirrorOrder::OfficialFirst,
+            &["https://m1.example.com", "https://m2.example.com/"],
+        );
+        let got = SystemUpdateService::build_download_candidates(OFFICIAL, &c);
+        assert_eq!(got.len(), 3);
+        assert_eq!(got[0], OFFICIAL, "官方优先须排首位");
+        assert_eq!(got[1], format!("https://m1.example.com/{OFFICIAL}"));
+        // 镜像尾斜杠被 trim，避免拼接双斜杠
+        assert_eq!(got[2], format!("https://m2.example.com/{OFFICIAL}"));
+    }
+
+    #[test]
+    fn mirror_first_places_official_last_as_fallback() {
+        let c = cfg(MirrorOrder::MirrorFirst, &["https://m1.example.com"]);
+        let got = SystemUpdateService::build_download_candidates(OFFICIAL, &c);
+        assert_eq!(got.len(), 2);
+        assert_eq!(
+            got[0],
+            format!("https://m1.example.com/{OFFICIAL}"),
+            "镜像优先"
+        );
+        assert_eq!(
+            *got.last().unwrap(),
+            OFFICIAL,
+            "官方永远兜底：MirrorFirst 时官方排最后"
+        );
+    }
+
+    #[test]
+    fn official_never_omitted_regardless_of_order() {
+        for order in [MirrorOrder::OfficialFirst, MirrorOrder::MirrorFirst] {
+            let c = cfg(order, &["https://m1.example.com", "https://m2.example.com"]);
+            let got = SystemUpdateService::build_download_candidates(OFFICIAL, &c);
+            assert!(
+                got.iter().any(|u| u == OFFICIAL),
+                "{order:?} 下官方域必须在候选中"
+            );
+        }
     }
 }

@@ -16,8 +16,9 @@
 //!   活跃/非活跃实例由 `/etc/nginx/bingxi-upstream.active.conf` 软链接判定。
 
 use super::{
-    GITHUB_REPO, build_release_url, download_with_mirrors, fetch_with_mirrors, get_backup_dir,
-    get_install_dir, is_service_active, parse_json_field, require_root, run_cmd, timestamp,
+    GITHUB_REPO, build_release_url, download_official_only, download_with_mirrors,
+    fetch_with_mirrors, get_backup_dir, get_install_dir, is_service_active, parse_json_field,
+    require_root, run_cmd, timestamp,
 };
 
 // 批次 322 v9 复审低危修复：路径校验逻辑已抽取到共享模块 `utils::path_validator`，
@@ -58,53 +59,81 @@ const POST_DEPLOY_MONITOR_INTERVAL_SECS: u64 = 10;
 
 // ==================== V15 P1 升级流程加固辅助函数 ====================
 
-/// V15 P1 25.3-A：下载后 SHA256 校验（对比 Release assets 中的 .sha256 文件）
-/// 返回 true 表示校验通过或无 sha256 文件可下载（fail-open，避免 release 未提供 sha256 阻塞升级）
+/// 任务 #121（收口原 fail-open）：下载后 SHA256 强校验，返回 true 仅在**官方校验值取得且本地重算匹配**时。
+///
+/// 信任模型（与后端 `github.rs`/facade 同源，复用其 `pub(crate)` 原语，勿各写一套）：
+/// - 校验基准**只从官方域取**（`validate_official_digest_url` + 仅官方直连下载，绝不走镜像）；
+/// - **fail-closed**：URL 非官方域 / .sha256 下载失败 / 内容无有效 hash → 一律返回 false（拒绝升级），
+///   严禁"取不到校验值就放行"；
+/// - 本地重算复用 `sha256_hex_of_file`（流式、跨平台，不依赖外部 sha256sum 命令）；
+/// - 比对复用 `verify_sha256_matches`（不匹配返回 false）。
 fn verify_sha256(release_url: &str, download_path: &str) -> bool {
+    use crate::services::system_update_service::{
+        parse_checksum_line, sha256_hex_of_file, validate_official_digest_url,
+        verify_sha256_matches,
+    };
+
     let sha256_url = format!("{}.sha256", release_url);
-    let sha256_file = format!("{}.sha256", download_path);
-    println!("下载 SHA256 校验文件...");
-    if !download_with_mirrors(&sha256_url, &sha256_file, 30) {
-        println!("[WARN] 无法下载 .sha256 文件，跳过校验（fail-open）");
-        return true;
+
+    // 校验值 URL 必须 https + 官方域（github.com / objects.githubusercontent.com）；否则直接拒绝。
+    if let Err(e) = validate_official_digest_url(&sha256_url) {
+        println!(
+            "[ERROR] 校验值 URL 未通过官方域校验，拒绝升级（严禁从镜像取校验基准）: {}",
+            e
+        );
+        return false;
     }
+
+    let sha256_file = format!("{}.sha256", download_path);
+    println!("下载官方 SHA256 校验文件（仅官方直连，不走镜像）...");
+    if !download_official_only(&sha256_url, &sha256_file, 30) {
+        println!(
+            "[ERROR] 无法从官方域下载 .sha256 校验文件，拒绝升级（fail-closed：取不到校验值绝不放行）"
+        );
+        return false;
+    }
+
     let expected_raw = match std::fs::read_to_string(&sha256_file) {
         Ok(s) => s,
         Err(e) => {
-            println!("[WARN] 读取 .sha256 文件失败，跳过校验: {}", e);
-            return true;
-        }
-    };
-    // sha256sum 文件格式：`<hash>  <filename>`，取第一个空白前字段
-    let expected = expected_raw
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .to_lowercase();
-    if expected.is_empty() {
-        println!("[WARN] .sha256 文件内容为空，跳过校验");
-        return true;
-    }
-    let computed = match run_cmd("sha256sum", &[download_path]) {
-        Ok(s) => s,
-        Err(e) => {
-            println!("[ERROR] sha256sum 命令执行失败: {}", e);
+            let _ = std::fs::remove_file(&sha256_file);
+            println!(
+                "[ERROR] 读取 .sha256 文件失败，拒绝升级（fail-closed）: {}",
+                e
+            );
             return false;
         }
     };
-    let computed_hash = computed
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .to_lowercase();
-    if computed_hash == expected {
-        println!("[OK] SHA256 校验通过");
-        true
-    } else {
-        println!("[ERROR] SHA256 校验失败");
-        println!("  期望: {}", expected);
-        println!("  实际: {}", computed_hash);
-        false
+    // 用完即删临时校验文件（不影响主流程结论）
+    let _ = std::fs::remove_file(&sha256_file);
+
+    // sha256sum 格式 `<hash>  <filename>`，复用后端 parse_checksum_line 取小写 hex；无有效 hash 拒绝。
+    let expected = match parse_checksum_line(&expected_raw) {
+        Some(h) => h,
+        None => {
+            println!("[ERROR] .sha256 文件内容无有效 hash，拒绝升级（fail-closed）");
+            return false;
+        }
+    };
+
+    // 本地重算（跨平台流式 SHA-256）；失败视为不可判定 → 拒绝（fail-closed）
+    let actual = match sha256_hex_of_file(std::path::Path::new(download_path)) {
+        Ok(h) => h,
+        Err(e) => {
+            println!("[ERROR] 本地 SHA-256 计算失败，拒绝升级: {}", e);
+            return false;
+        }
+    };
+
+    match verify_sha256_matches(&expected, &actual) {
+        Ok(()) => {
+            println!("[OK] SHA256 校验通过（官方基准 {}）", expected);
+            true
+        }
+        Err(e) => {
+            println!("[ERROR] {}", e);
+            false
+        }
     }
 }
 
