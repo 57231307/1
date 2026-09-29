@@ -8,7 +8,7 @@ use crate::models::system_version;
 use crate::services::system_update_service::{LocalRelease, SystemUpdateService, UpdateError};
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Multipart, Path, State},
@@ -78,6 +78,8 @@ pub struct CheckUpdateResponse {
     pub file_size: Option<u64>,
     pub release_notes: Option<String>,
     pub published_at: Option<String>,
+    pub current_release_notes: Option<String>,
+    pub current_published_at: Option<String>,
 }
 
 pub async fn check_for_updates() -> Result<Json<ApiResponse<CheckUpdateResponse>>, AppError> {
@@ -87,6 +89,10 @@ pub async fn check_for_updates() -> Result<Json<ApiResponse<CheckUpdateResponse>
     if let Some(err) = result.error {
         return Err(AppError::internal(err));
     }
+
+    let current_release = result.current_release_info.as_ref();
+    let current_release_notes = current_release.and_then(|r| r.body.clone());
+    let current_published_at = current_release.map(|r| r.published_at.clone());
 
     let response = if result.has_update {
         let release = result.release_info.as_ref();
@@ -104,6 +110,8 @@ pub async fn check_for_updates() -> Result<Json<ApiResponse<CheckUpdateResponse>
             file_size: asset.map(|a| a.size),
             release_notes: release.and_then(|r| r.body.clone()),
             published_at: release.map(|r| r.published_at.clone()),
+            current_release_notes,
+            current_published_at,
         }
     } else {
         CheckUpdateResponse {
@@ -114,6 +122,8 @@ pub async fn check_for_updates() -> Result<Json<ApiResponse<CheckUpdateResponse>
             file_size: None,
             release_notes: None,
             published_at: None,
+            current_release_notes,
+            current_published_at,
         }
     };
 
@@ -478,7 +488,7 @@ async fn push_update_task(
 }
 
 /// system_update_task Model → 前端 `UpdateTask` 契约 JSON
-fn task_to_frontend_json(t: &system_update_task::Model) -> serde_json::Value {
+pub fn task_to_frontend_json(t: &system_update_task::Model) -> serde_json::Value {
     serde_json::json!({
         "id": t.id,
         "task_code": t.task_code,
@@ -497,7 +507,7 @@ fn task_to_frontend_json(t: &system_update_task::Model) -> serde_json::Value {
 }
 
 /// system_update_backup Model → 前端 `SystemBackup` 契约 JSON
-fn backup_to_frontend_json(b: &system_update_backup::Model) -> serde_json::Value {
+pub fn backup_to_frontend_json(b: &system_update_backup::Model) -> serde_json::Value {
     serde_json::json!({
         "id": b.id,
         "backup_code": b.backup_code,
@@ -689,4 +699,52 @@ pub async fn install_version_update(
         task,
         "版本安装任务已创建",
     )))
+}
+
+/// GET /api/v1/erp/system-update/tasks — 更新任务列表（全表，按 id 降序）
+pub async fn list_update_tasks(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
+    use sea_orm::{EntityTrait, QueryOrder};
+
+    let tasks = system_update_task::Entity::find()
+        .order_by_desc(system_update_task::Column::Id)
+        .all(state.db.as_ref())
+        .await?;
+    let total = tasks.len() as u64;
+    let items: Vec<serde_json::Value> = tasks.iter().map(task_to_frontend_json).collect();
+
+    tracing::info!(
+        "[system_update] list_update_tasks 返回 {} 条更新任务",
+        total
+    );
+
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        items, total, 1, total,
+    ))))
+}
+
+/// GET /api/v1/erp/system-update/backups — 备份任务列表（全表，按 id 降序）
+pub async fn list_backup_tasks(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
+    use sea_orm::{EntityTrait, QueryOrder};
+
+    let backups = system_update_backup::Entity::find()
+        .order_by_desc(system_update_backup::Column::Id)
+        .all(state.db.as_ref())
+        .await?;
+    let total = backups.len() as u64;
+    let items: Vec<serde_json::Value> = backups.iter().map(backup_to_frontend_json).collect();
+
+    tracing::info!(
+        "[system_update] list_backup_tasks 返回 {} 条备份记录",
+        total
+    );
+
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        items, total, 1, total,
+    ))))
 }

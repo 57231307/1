@@ -72,6 +72,8 @@ pub struct UpdateCheckResult {
     pub current_version: String,
     pub latest_version: String,
     pub release_info: Option<GitHubRelease>,
+    /// 当前版本对应的 GitHub Release（按 tag 精确查询；历史/开发构建无匹配 tag 时为 None）
+    pub current_release_info: Option<GitHubRelease>,
     pub error: Option<String>,
 }
 

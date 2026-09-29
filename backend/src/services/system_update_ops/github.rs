@@ -36,11 +36,25 @@ impl SystemUpdateService {
                 let latest_version = release.tag_name.trim_start_matches('v').to_string();
                 let has_update = self.compare_versions(&current_version, &latest_version);
 
+                // 按当前版本 tag 查询对应 Release（查不到返回 None，不冒充）
+                let current_release_info = match self.fetch_release_by_tag(&current_version).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::warn!(
+                            "[system_update] fetch_release_by_tag(current={}) 失败: {}",
+                            current_version,
+                            e
+                        );
+                        None
+                    }
+                };
+
                 UpdateCheckResult {
                     has_update,
                     current_version,
                     latest_version,
                     release_info: Some(release),
+                    current_release_info,
                     error: None,
                 }
             }
@@ -49,6 +63,7 @@ impl SystemUpdateService {
                 current_version: current_version.clone(),
                 latest_version: current_version,
                 release_info: None,
+                current_release_info: None,
                 error: Some(e.to_string()),
             },
         }
@@ -97,6 +112,67 @@ impl SystemUpdateService {
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
 
         Ok(release)
+    }
+
+    /// 按 tag 精确查询 GitHub Release（复用与 `fetch_latest_release` 同款 SSRF 防护）。
+    ///
+    /// - 成功（HTTP 200）：返回 `Ok(Some(release))`
+    /// - 未找到（HTTP 404，历史版本无 tag）：返回 `Ok(None)`（诚实空态，严禁拿新版本冒充）
+    /// - 其他网络/解析错误：返回 `Err`
+    pub(crate) async fn fetch_release_by_tag(
+        &self,
+        version: &str,
+    ) -> Result<Option<GitHubRelease>, UpdateError> {
+        let url = format!(
+            "{}/repos/{}/releases/tags/v{}",
+            GITHUB_API_URL, GITHUB_REPO, version
+        );
+
+        let (api_host, api_safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(&url)
+            .map_err(|e| {
+            UpdateError::NetworkError(format!("GitHub API tag-release URL SSRF 校验失败: {}", e))
+        })?;
+
+        let client = reqwest::Client::builder()
+            .user_agent("BingxiManagementPlatform/1.0")
+            .redirect(reqwest::redirect::Policy::limited(3))
+            .resolve_to_addrs(&api_host, &api_safe_addrs)
+            .build()
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+
+        let traceparent = crate::observability::trace_context::traceparent_from_current_span();
+        let response = client
+            .get(&url)
+            .header(
+                crate::observability::trace_context::TRACEPARENT_HEADER,
+                traceparent,
+            )
+            .send()
+            .await
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+
+        // 404 表示该 tag 不存在对应 release（历史/开发构建） → 诚实返回 None
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            tracing::info!(
+                "[system_update] fetch_release_by_tag: tag v{} 无对应 GitHub Release",
+                version
+            );
+            return Ok(None);
+        }
+
+        if !response.status().is_success() {
+            return Err(UpdateError::NetworkError(format!(
+                "GitHub API tag-release 返回错误状态: {}",
+                response.status()
+            )));
+        }
+
+        let release: GitHubRelease = response
+            .json()
+            .await
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+
+        Ok(Some(release))
     }
 
     pub fn compare_versions(&self, current: &str, latest: &str) -> bool {
