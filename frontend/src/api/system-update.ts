@@ -54,7 +54,24 @@ export interface SystemBackup {
   created_at: string;
 }
 
-export function checkForUpdates(): Promise<ApiResponse<SystemVersion>> {
+/**
+ * GET /system-update/check 的响应载荷，逐字段对齐后端
+ * `backend/src/handlers/system_update_handler.rs:73` 的 `CheckUpdateResponse`。
+ * 后端无 `version` 字段（旧前端误用 SystemVersion.version 自算 hasUpdate 导致
+ * "已是最新仍永远提示有更新"）。has_update 为后端权威布尔，前端直接采用，不再自算。
+ * 各 Option 字段后端未加 skip_serializing_if，序列化时键恒在、值可为 null。
+ */
+export interface CheckUpdateResult {
+  has_update: boolean;
+  current_version: string;
+  latest_version: string;
+  download_url: string | null;
+  file_size: number | null;
+  release_notes: string | null;
+  published_at: string | null;
+}
+
+export function checkForUpdates(): Promise<ApiResponse<CheckUpdateResult>> {
   return request.get('/system-update/check');
 }
 
