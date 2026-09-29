@@ -108,10 +108,6 @@ pub fn system_update() -> Router<AppState> {
             get(system_update_handler::get_update_status),
         )
         .route(
-            "/system-update/versions",
-            get(system_update_handler::get_backup_versions),
-        )
-        .route(
             "/system-update/rollback",
             post(system_update_handler::rollback_version),
         )

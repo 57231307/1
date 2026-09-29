@@ -471,6 +471,10 @@ const KNOWN_GAPS = new Map([
     `${BASE_URL}/ar-reconciliations-enhanced/*/confirm/send POST`,
     'D: 发送客户对账确认后端为 /ar-reconciliations/{id}/send（base 域），增强域无 confirm/send',
   ],
+  [
+    `${BASE_URL}/system-update/versions GET`,
+    'D: 后端 GET /system-update/versions 原错绑 get_backup_versions(非真实版本列表)，已删除该错绑路由；前端调用待 #119 随版本 tab 一并移除',
+  ],
 ]);
 
 // ---------- 对照主流程 ----------

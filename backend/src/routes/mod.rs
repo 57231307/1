@@ -257,11 +257,11 @@ fn system_update_extra_routes() -> Router<AppState> {
         )
         .route(
             "/system-update/tasks",
-            get(system_update_handler::get_update_status),
+            get(system_update_handler::list_update_tasks),
         )
         .route(
             "/system-update/backups",
-            get(system_update_handler::get_backup_versions)
+            get(system_update_handler::list_backup_tasks)
                 .post(system_update_handler::create_backup_task),
         )
         // 更新任务详情/取消（对应前端 api/system-update.ts getUpdateTask / cancelUpdateTask）

@@ -1,4 +1,4 @@
-# layers=8 endpoints=1759
+# layers=8 endpoints=1758
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -930,16 +930,15 @@ GET	/api/v1/erp/subjects/*	account_subject_handler::get_subject	finance
 GET	/api/v1/erp/subjects/export	account_subject_handler::export_subjects	finance
 GET	/api/v1/erp/subjects/tree	account_subject_handler::get_subject_tree	finance
 GET	/api/v1/erp/suppliers/select	crate::handlers::supplier_handler::list_suppliers	mod
-GET	/api/v1/erp/system-update/backups	system_update_handler::get_backup_versions	mod
+GET	/api/v1/erp/system-update/backups	system_update_handler::list_backup_tasks	mod
 GET	/api/v1/erp/system-update/check	system_update_handler::check_for_updates	system
 GET	/api/v1/erp/system-update/current-version	system_update_handler::get_version	mod
 GET	/api/v1/erp/system-update/local-check	system_update_handler::check_for_local_updates	system
 GET	/api/v1/erp/system-update/local-releases	system_update_handler::list_local_releases	system
-GET	/api/v1/erp/system-update/tasks	system_update_handler::get_update_status	mod
+GET	/api/v1/erp/system-update/tasks	system_update_handler::list_update_tasks	mod
 GET	/api/v1/erp/system-update/tasks/*	system_update_handler::get_update_task_by_id	mod
 GET	/api/v1/erp/system-update/update-status	system_update_handler::get_update_status	system
 GET	/api/v1/erp/system-update/version	system_update_handler::get_version	system
-GET	/api/v1/erp/system-update/versions	system_update_handler::get_backup_versions	system
 GET	/api/v1/erp/system-update/versions/*	system_update_handler::get_system_version_by_id	mod
 GET	/api/v1/erp/templates/download/*	import_export_handler::download_template	analytics
 GET	/api/v1/erp/user-notification-settings	user_notification_setting_handler::get_setting	analytics
