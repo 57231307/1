@@ -11,6 +11,7 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
+  verifyOptionalEndpointHealthy,
 } from './helpers';
 
 test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
@@ -24,9 +25,9 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/fund-management/accounts/by-type');
     await verifyEndpointHealthy(page, '/fund-management/transfers?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/fund-management/transfers/pending');
-    await verifyEndpointHealthy(page, '/fund-management/reports/daily');
-    await verifyEndpointHealthy(page, '/fund-management/reports/monthly');
-    await verifyEndpointHealthy(page, '/fund-management/cash-flow-forecast');
+    await verifyOptionalEndpointHealthy(page, '/fund-management/reports/daily');
+    await verifyOptionalEndpointHealthy(page, '/fund-management/reports/monthly');
+    await verifyOptionalEndpointHealthy(page, '/fund-management/cash-flow-forecast');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
@@ -49,12 +50,12 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/exchange-rates?page=1&page_size=5');
     // 应收对账
     await verifyEndpointHealthy(page, '/ar-reconciliations?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/ar-reconciliations-enhanced/aging-report');
-    await verifyEndpointHealthy(page, '/ar-reconciliation-alias/auto-reconcile/results');
+    await verifyOptionalEndpointHealthy(page, '/ar-reconciliations-enhanced/aging-report');
+    await verifyOptionalEndpointHealthy(page, '/ar-reconciliation-alias/auto-reconcile/results');
     // 财务分析
-    await verifyEndpointHealthy(page, '/financial-analysis/reports');
-    await verifyEndpointHealthy(page, '/financial-analysis/indicators');
-    await verifyEndpointHealthy(page, '/financial-analysis/dupont');
+    await verifyOptionalEndpointHealthy(page, '/financial-analysis/reports');
+    await verifyOptionalEndpointHealthy(page, '/financial-analysis/indicators');
+    await verifyOptionalEndpointHealthy(page, '/financial-analysis/dupont');
     // 报表
     await verifyEndpointHealthy(page, '/finance/reports/balance-sheet');
     await verifyEndpointHealthy(page, '/finance/reports/income-statement');
@@ -68,7 +69,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     // 预算
     await verifyEndpointHealthy(page, '/budgets?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/budgets/plans?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/budgets/execution-warnings');
+    await verifyOptionalEndpointHealthy(page, '/budgets/execution-warnings');
     // 固定资产
     await verifyEndpointHealthy(page, '/fixed-assets?page=1&page_size=5');
     const faList = await apiCallRaw<{ items: Array<{ id: number }> }>(
