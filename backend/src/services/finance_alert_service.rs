@@ -33,6 +33,7 @@ use crate::models::finance_alert_dto::{
 use crate::models::fund_account;
 use crate::models::inventory_stock;
 use crate::models::notification::{NotificationPriority, NotificationType};
+use crate::models::status::common;
 use crate::services::notification_service::{CreateNotificationRequest, NotificationService};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -310,7 +311,7 @@ impl FinanceAlertService {
         let invoices = ar_invoice::Entity::find()
             .filter(ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .filter(ar_invoice::Column::DueDate.lt(today))
-            .filter(ar_invoice::Column::ApprovalStatus.eq("approved"))
+            .filter(ar_invoice::Column::ApprovalStatus.eq(common::STATUS_APPROVED))
             .all(txn)
             .await?;
 

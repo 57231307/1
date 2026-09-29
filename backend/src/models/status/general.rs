@@ -93,6 +93,9 @@ pub mod import_task {
 
     /// 部分成功：导入任务部分成功部分失败
     pub const PARTIAL: &str = "partial";
+
+    /// 已取消：导入任务被用户手动取消（cancel 端点使用）
+    pub const CANCELLED: &str = "cancelled";
 }
 
 /// 登录日志状态（log_login.status，大写值）

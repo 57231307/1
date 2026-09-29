@@ -1,8 +1,8 @@
 //! 产品 Service 色号管理子模块（product_ops/color）
 //!
 //! 批次 D10 拆分：从原 `product_service.rs` 迁移。
-//! 包含 `ProductService` 的 5 个产品色号管理方法：
-//! - `list_product_colors`：获取产品的色号列表
+//! 包含 `ProductService` 的 4 个产品色号管理方法：
+//! - `list_product_colors_with_filter`：获取产品的色号列表（关键词过滤 + 可选分页）
 //! - `create_product_color`：创建产品色号
 //! - `batch_create_product_colors`：批量创建（内部循环调用 create_product_color）
 //! - `update_product_color`：更新（审计日志）
@@ -10,27 +10,53 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, Order, QueryFilter, QueryOrder,
+    QuerySelect, Set,
+};
 
 use crate::models::product_color::{self, Entity as ProductColorEntity};
 use crate::services::product_service::{
     CreateProductColorInput, ProductService, UpdateProductColorParams,
 };
 use crate::utils::error::AppError;
+use crate::utils::sql_escape::safe_like_pattern;
 
 impl ProductService {
-    /// 获取产品的色号列表
-    pub async fn list_product_colors(
+    /// 获取产品色号列表（支持关键词 + 分页，用于高基数场景如前端 el-select-v2 远程搜索）
+    pub async fn list_product_colors_with_filter(
         &self,
         product_id: i32,
+        keyword: Option<String>,
+        page: Option<u64>,
+        page_size: Option<u64>,
     ) -> Result<Vec<product_color::Model>, AppError> {
-        ProductColorEntity::find()
+        let mut query = ProductColorEntity::find()
             .filter(product_color::Column::ProductId.eq(product_id))
-            .filter(product_color::Column::IsActive.eq(true))
-            .order_by(product_color::Column::ColorNo, Order::Asc)
-            .all(&*self.db)
-            .await
-            .map_err(AppError::from)
+            .filter(product_color::Column::IsActive.eq(true));
+
+        if let Some(kw) = &keyword {
+            if !kw.is_empty() {
+                let pattern = safe_like_pattern(kw);
+                query = query.filter(
+                    Condition::any()
+                        .add(product_color::Column::ColorNo.like(&pattern))
+                        .add(product_color::Column::ColorName.like(&pattern)),
+                );
+            }
+        }
+
+        query = query.order_by(product_color::Column::ColorNo, Order::Asc);
+
+        // 分页：仅当传入 page 参数时生效
+        let page = page.unwrap_or(0);
+        let page_size = page_size.unwrap_or(0).clamp(1, 500);
+        if page > 0 {
+            let offset = (page - 1) * page_size;
+            query = query.offset(offset).limit(page_size);
+        }
+
+        query.all(&*self.db).await.map_err(AppError::from)
     }
 
     /// 创建产品色号

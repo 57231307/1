@@ -53,7 +53,7 @@
         <el-col :span="12">
           <el-form-item :label="t('production.form.labelScheduledStart')">
             <el-date-picker
-              v-model="localForm.scheduled_start_date"
+              v-model="localForm.planned_start_date"
               type="date"
               :placeholder="t('production.form.placeholderDate')"
               style="width: 100%"
@@ -64,7 +64,7 @@
         <el-col :span="12">
           <el-form-item :label="t('production.form.labelScheduledEnd')">
             <el-date-picker
-              v-model="localForm.scheduled_end_date"
+              v-model="localForm.planned_end_date"
               type="date"
               :placeholder="t('production.form.placeholderDate')"
               style="width: 100%"
@@ -78,7 +78,7 @@
       </el-form-item>
       <el-form-item :label="t('production.form.labelRemark')">
         <el-input
-          v-model="localForm.remark"
+          v-model="localForm.remarks"
           type="textarea"
           :rows="3"
           :placeholder="t('production.form.placeholderRemark')"
@@ -109,11 +109,11 @@ interface OrderForm {
   order_no?: string;
   product_id?: number | undefined;
   planned_quantity?: number | undefined;
-  scheduled_start_date?: string;
-  scheduled_end_date?: string;
+  planned_start_date?: string;
+  planned_end_date?: string;
   priority?: number;
   work_center_id?: number | undefined;
-  remark?: string;
+  remarks?: string;
   status?: string;
 }
 

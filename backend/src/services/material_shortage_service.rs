@@ -7,7 +7,7 @@
 //! detect_shortages 检测到缺料时持久化 alert 快照到 material_shortage_alerts 表，
 //! 支持识别→采购申请→采购订单→入库→解除闭环。
 
-use chrono::{NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, ExprTrait,
@@ -26,6 +26,9 @@ use crate::models::product::{Column as ProductColumn, Entity as ProductEntity};
 use crate::models::production_order::{
     Column as ProductionOrderColumn, Entity as ProductionOrderEntity,
 };
+use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
+use crate::models::status::purchase_inventory::inventory_stock_status;
+use crate::models::status::purchase_inventory::shortage_alert_status;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
 
@@ -43,10 +46,30 @@ pub enum ShortageLevel {
 }
 
 impl ShortageLevel {
-    pub fn from_deficit_rate(rate: Decimal) -> Self {
-        if rate >= Decimal::from(100) {
+    /// 全部级别，入参校验与文案清单的唯一取值来源
+    pub const ALL: [ShortageLevel; 4] = [
+        ShortageLevel::Critical,
+        ShortageLevel::Severe,
+        ShortageLevel::Warning,
+        ShortageLevel::Normal,
+    ];
+
+    /// 级别名（与 material_shortage_alerts.level 落库值一致）
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ShortageLevel::Critical => "Critical",
+            ShortageLevel::Severe => "Severe",
+            ShortageLevel::Warning => "Warning",
+            ShortageLevel::Normal => "Normal",
+        }
+    }
+
+    /// 按缺口率定级：阈值取自预警阈值配置（critical_threshold / severe_threshold），
+    /// 不写死数值，否则 /threshold 页面保存的配置永不生效。
+    pub fn from_deficit_rate(rate: Decimal, thresholds: &ShortageThresholdConfig) -> Self {
+        if rate >= thresholds.critical_threshold {
             ShortageLevel::Critical
-        } else if rate > Decimal::from(50) {
+        } else if rate > thresholds.severe_threshold {
             ShortageLevel::Severe
         } else if rate > Decimal::ZERO {
             ShortageLevel::Warning
@@ -88,6 +111,27 @@ pub struct AffectedOrder {
     pub order_no: String,
     pub demand_quantity: Decimal,
     pub planned_end_date: Option<NaiveDate>,
+}
+
+/// 缺料预警列表行：实时缺料结果 + 未解决预警的落库状态（GET /material-shortage/list 出参）
+#[derive(Debug, Clone, Serialize)]
+pub struct ShortageAlertView {
+    pub material_id: i32,
+    pub alert_id: Option<i64>,
+    pub alert_no: Option<String>,
+    pub material_code: String,
+    pub material_name: String,
+    pub required_quantity: Decimal,
+    pub available_quantity: Decimal,
+    pub shortage_quantity: Decimal,
+    pub deficit_rate: Decimal,
+    /// 级别：Critical / Severe / Warning / Normal，见 ShortageLevel::as_str
+    pub level: String,
+    /// 状态机取值，见 shortage_alert_status::ALL；未落库时为空
+    pub status: Option<String>,
+    pub unit: Option<String>,
+    pub affected_orders: Vec<AffectedOrder>,
+    pub identified_at: Option<DateTime<Utc>>,
 }
 
 /// 缺料汇总
@@ -262,7 +306,7 @@ fn publish_shortage_event(
         required_quantity: required,
         available_quantity: available,
         shortage_quantity: shortage,
-        shortage_level: format!("{:?}", level),
+        shortage_level: level.as_str().to_string(),
         affected_orders_count: affected.len() as i32,
     });
 }
@@ -336,7 +380,11 @@ impl MaterialShortageService {
         &self,
         request: ShortageCheckRequest,
     ) -> Result<ShortageSummary, AppError> {
-        let _threshold = request.threshold.unwrap_or_default();
+        // 定级阈值：请求显式指定 > 已保存的阈值配置（material_shortage_threshold_configs）
+        let thresholds = match request.threshold {
+            Some(config) => config,
+            None => self.load_threshold_config().await?,
+        };
         let orders = self
             .fetch_active_orders(
                 request.product_ids.as_ref(),
@@ -364,6 +412,7 @@ impl MaterialShortageService {
                 &stock_map,
                 &material_names,
                 &material_affected_orders,
+                &thresholds,
             )
             .await;
         sort_items_by_level(&mut items);
@@ -534,6 +583,7 @@ impl MaterialShortageService {
         stock_map: &HashMap<i32, Decimal>,
         material_names: &HashMap<i32, (String, String)>,
         material_affected_orders: &HashMap<i32, Vec<AffectedOrder>>,
+        thresholds: &ShortageThresholdConfig,
     ) -> Vec<MaterialShortageItem> {
         let mut items = Vec::new();
         for (material_id, (required, unit, _)) in material_requirements {
@@ -544,7 +594,7 @@ impl MaterialShortageService {
                 Decimal::ZERO
             };
             let deficit_rate = compute_deficit_rate(*required, shortage);
-            let level = ShortageLevel::from_deficit_rate(deficit_rate);
+            let level = ShortageLevel::from_deficit_rate(deficit_rate, thresholds);
             if level == ShortageLevel::Normal {
                 continue;
             }
@@ -620,7 +670,7 @@ impl MaterialShortageService {
         // 批量查询未解决 alerts（status != 'resolved'）按 material_id 索引
         let existing_alerts = alert_model::Entity::find()
             .filter(alert_model::Column::MaterialId.is_in(material_ids))
-            .filter(alert_model::Column::Status.ne("resolved"))
+            .filter(alert_model::Column::Status.ne(shortage_alert_status::RESOLVED))
             .all(&*self.db)
             .await?;
 
@@ -632,7 +682,7 @@ impl MaterialShortageService {
         let txn = self.db.begin().await?;
 
         for item in items {
-            let level_str = format!("{:?}", item.level);
+            let level_str = item.level.as_str().to_string();
             let affected_orders_count = item.affected_orders.len() as i32;
 
             if let Some(existing) = existing_map.get(&item.material_id) {
@@ -660,7 +710,7 @@ impl MaterialShortageService {
                     shortage_quantity: Set(item.shortage_quantity),
                     deficit_rate: Set(item.deficit_rate),
                     level: Set(level_str),
-                    status: Set("identified".to_string()),
+                    status: Set(shortage_alert_status::IDENTIFIED.to_string()),
                     affected_orders_count: Set(affected_orders_count),
                     purchase_request_id: Set(None),
                     purchase_order_id: Set(None),
@@ -708,14 +758,20 @@ impl MaterialShortageService {
         Ok(format!("{}{:03}", prefix, next_seq))
     }
 
-    /// 获取缺料预警列表（可按级别过滤）
-    /// BE-P 优化（2026-06-26）：detect_shortages 是实时计算（非 DB 全量加载），内存分页是合理的。；优化点：先过滤再计算 total，避免构建完整 filtered Vec 再 skip/take。
+    /// 缺料预警列表：实时检测结果 + 该物料未解决预警的持久化状态
+    ///
+    /// 行集以 detect_shortages 为准（库存补足后不再缺料的物料自动从列表消失，
+    /// 预警表只在 persist_alerts 里更新快照、不自动关闭，单用它会长期显示陈旧缺料）；
+    /// status / alert_no 取自该 material_id 的未解决 alert（persist_alerts 保证同物料至多一条），
+    /// 关联不到时保留该行为 status=None 并告警——只可能是 persist_alerts 降级失败的例外。
+    /// 级别与状态都按内存过滤后再分页（数据源本身是实时计算，非 DB 全量加载）。
     pub async fn list_alerts(
         &self,
         level_filter: Option<&str>,
+        status_filter: Option<&str>,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<MaterialShortageItem>, u64), AppError> {
+    ) -> Result<(Vec<ShortageAlertView>, u64), AppError> {
         let summary = self
             .detect_shortages(ShortageCheckRequest {
                 product_ids: None,
@@ -725,26 +781,92 @@ impl MaterialShortageService {
             })
             .await?;
 
-        // 先过滤（惰性迭代器，不构建中间 Vec）
-        let filtered: Vec<MaterialShortageItem> = if let Some(level) = level_filter {
-            summary
-                .items
-                .into_iter()
-                .filter(|i| format!("{:?}", i.level).to_uppercase() == level.to_uppercase())
-                .collect()
-        } else {
-            summary.items
-        };
-
-        let total = filtered.len() as u64;
-        let start = (page.saturating_sub(1) * page_size) as usize;
-        let paged = filtered
+        let matched: Vec<MaterialShortageItem> = summary
+            .items
             .into_iter()
-            .skip(start)
+            .filter(|i| match level_filter {
+                Some(level) => i.level.as_str().eq_ignore_ascii_case(level),
+                None => true,
+            })
+            .collect();
+        let material_ids: Vec<i32> = matched.iter().map(|i| i.material_id).collect();
+        let alert_map = self.load_open_alerts(&material_ids).await?;
+
+        let mut views: Vec<ShortageAlertView> = Vec::new();
+        let mut missing_alert: Vec<i32> = Vec::new();
+        for item in matched {
+            let alert = alert_map.get(&item.material_id);
+            if let Some(status) = status_filter {
+                let matched_status = alert.is_some_and(|a| a.status.eq_ignore_ascii_case(status));
+                if !matched_status {
+                    continue;
+                }
+            }
+            let (alert_id, alert_no, status, identified_at) = match alert {
+                Some(a) => (
+                    Some(a.id),
+                    Some(a.alert_no.clone()),
+                    Some(a.status.clone()),
+                    Some(a.identified_at),
+                ),
+                None => {
+                    missing_alert.push(item.material_id);
+                    (None, None, None, None)
+                }
+            };
+            views.push(ShortageAlertView {
+                material_id: item.material_id,
+                alert_id,
+                alert_no,
+                material_code: item.material_code,
+                material_name: item.material_name,
+                required_quantity: item.required_quantity,
+                available_quantity: item.available_quantity,
+                shortage_quantity: item.shortage_quantity,
+                deficit_rate: item.deficit_rate,
+                level: item.level.as_str().to_string(),
+                status,
+                unit: item.unit,
+                affected_orders: item.affected_orders,
+                identified_at,
+            });
+        }
+        if !missing_alert.is_empty() {
+            tracing::warn!(
+                materials = ?missing_alert,
+                "缺料预警列表：以下物料的实时缺料关联不到未解决 alert（persist_alerts 未落库），状态列暂空，需核查预警落库"
+            );
+        }
+
+        let total = views.len() as u64;
+        let start = page.saturating_sub(1) * page_size;
+        let paged = views
+            .into_iter()
+            .skip(start as usize)
             .take(page_size as usize)
             .collect();
 
         Ok((paged, total))
+    }
+
+    /// 批量加载未解决预警：material_id -> alert（同物料至多一条未解决，见 persist_alerts）
+    async fn load_open_alerts(
+        &self,
+        material_ids: &[i32],
+    ) -> Result<HashMap<i32, alert_model::Model>, AppError> {
+        if material_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let alerts = alert_model::Entity::find()
+            .filter(alert_model::Column::MaterialId.is_in(material_ids.to_vec()))
+            .filter(alert_model::Column::Status.ne(shortage_alert_status::RESOLVED))
+            .all(&*self.db)
+            .await?;
+        let mut map: HashMap<i32, alert_model::Model> = HashMap::new();
+        for a in alerts {
+            map.insert(a.material_id, a);
+        }
+        Ok(map)
     }
 
     /// 查询物料库存映射：material_id -> 可用库存总量
@@ -758,8 +880,8 @@ impl MaterialShortageService {
 
         let stocks = InventoryStockEntity::find()
             .filter(StockColumn::ProductId.is_in(material_ids.to_vec()))
-            .filter(StockColumn::StockStatus.eq("正常"))
-            .filter(StockColumn::QualityStatus.eq("合格"))
+            .filter(StockColumn::StockStatus.eq(inventory_stock_status::NORMAL))
+            .filter(StockColumn::QualityStatus.eq(quality_status::PASS))
             .all(&*self.db)
             .await?;
 
@@ -948,17 +1070,18 @@ impl MaterialShortageService {
             std::collections::HashMap::new();
 
         for alert in &alerts {
-            // 级别统计
-            match alert.level.as_str() {
-                "Critical" => critical_count += 1,
-                "Severe" => severe_count += 1,
-                "Warning" => warning_count += 1,
-                _ => {}
+            // 级别统计（取值来自 ShortageLevel::as_str，与落库值同源）
+            if alert.level == ShortageLevel::Critical.as_str() {
+                critical_count += 1;
+            } else if alert.level == ShortageLevel::Severe.as_str() {
+                severe_count += 1;
+            } else if alert.level == ShortageLevel::Warning.as_str() {
+                warning_count += 1;
             }
 
             // 状态统计
             *status_map.entry(alert.status.clone()).or_default() += 1;
-            if alert.status == "resolved" {
+            if alert.status == shortage_alert_status::RESOLVED {
                 resolved_count += 1;
             }
 
@@ -1009,7 +1132,7 @@ impl MaterialShortageService {
     }
 
     /// 更新缺料预警状态（V15 P0-B15：持久化状态到 material_shortage_alerts 表）
-    /// 状态机：identified → purchase_request → purchase_order → received → resolved；查找该 material_id 最新未解决（status != 'resolved'）的 alert；更新 status 字段；若新状态为 resolved，同步填入 resolved_at；返回更新后的 alert 快照（含 level / status / 物料信息），供 handler 构建 DTO；设计：URL `/:id/status` 中的 id 语义为 material_id（与原桩实现一致），；因 persist_alerts 保证同 material_id 至多一条未解决 alert，故查找唯一。
+    /// 状态机：identified → purchase_request → purchase_order → received → resolved；查找该 material_id 最新未解决（status != 'resolved'）的 alert；更新 status 字段；若新状态为 resolved，同步填入 resolved_at；返回更新后的 alert 快照（含 level / status / 物料信息），直接作为接口出参；设计：URL `/:id/status` 中的 id 语义为 material_id（与原桩实现一致），；因 persist_alerts 保证同 material_id 至多一条未解决 alert，故查找唯一。
     pub async fn update_status(
         &self,
         material_id: i32,
@@ -1018,7 +1141,7 @@ impl MaterialShortageService {
         // 1. 查找该 material_id 最新未解决 alert
         let alert = alert_model::Entity::find()
             .filter(alert_model::Column::MaterialId.eq(material_id))
-            .filter(alert_model::Column::Status.ne("resolved"))
+            .filter(alert_model::Column::Status.ne(shortage_alert_status::RESOLVED))
             .order_by_desc(alert_model::Column::IdentifiedAt)
             .one(&*self.db)
             .await?
@@ -1033,7 +1156,7 @@ impl MaterialShortageService {
         let now = Utc::now();
         let mut active: alert_model::ActiveModel = alert.into();
         active.status = Set(new_status.to_string());
-        if new_status == "resolved" {
+        if new_status == shortage_alert_status::RESOLVED {
             active.resolved_at = Set(Some(now));
         }
         active.updated_at = Set(now);

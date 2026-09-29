@@ -11,7 +11,7 @@ use bingxi_backend::ymd;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 
-/// 构建测试用 BOM 树节点夹具（封装 `BomTreeNode` 的构造，便于在各测试中复用，；默认 unit 为 "个"，product_name 按 product_id 生成。）
+/// 构建测试用 BOM 树节点夹具（封装 `BomTreeNode` 的构造，便于在各测试中复用，；默认 unit 为 "个"；product_name 固定为 None，；名称由 get_bom_tree 侧的 products 批量查询解析，不在此夹具内赋值。）
 fn make_bom_tree_node(
     product_id: i32,
     quantity: Decimal,
@@ -21,7 +21,7 @@ fn make_bom_tree_node(
     BomTreeNode {
         id: format!("node-{}", product_id),
         product_id,
-        product_name: format!("物料 #{}", product_id),
+        product_name: None,
         quantity,
         unit: Some("个".to_string()),
         scrap_rate,
@@ -175,6 +175,9 @@ async fn test_bomxqsljs_dgdcj() {
     assert_eq!(requirements[0].required_quantity, decs!("22"));
     assert_eq!(requirements[1].product_id, 202);
     assert_eq!(requirements[1].required_quantity, decs!("30"));
+    // 未解析到产品名称的节点保持 None，不生成占位名
+    assert_eq!(requirements[0].product_name, None);
+    assert_eq!(requirements[1].product_name, None);
 }
 
 /// test_bomshlcsgs（验证 collect_requirements 中的损耗率乘数公式：rate > 0 时乘数 = 1 + rate/100；否则乘数 = 1。）
@@ -211,20 +214,27 @@ fn test_bomsgjdslwy() {
     assert_eq!(required, decs!("100"));
 }
 
-/// test_bomxqsj_dyzjd（验证 collect_requirements 对单叶子节点树（无子节点）直接产出一条需求记录，；需求量 = 父级需求量 * 节点数量。）
+/// test_bomxqsj_dyzjd（验证 collect_requirements 对单叶子节点树（无子节点）直接产出一条需求记录，；需求量 = 父级需求量 * 节点数量，product_name 原样透传节点上已解析的名称。）
 #[tokio::test]
 async fn test_bomxqsj_dyzjd() {
     let db = setup_test_db().await;
     let service = BomService::new(Arc::new(db));
 
-    let leaf = make_bom_tree_node(101, decs!("3"), None, vec![]);
+    // 节点名称由 get_bom_tree 侧的 products 批量查询解析后写入，此处模拟已解析结果
+    let leaf = BomTreeNode {
+        product_name: Some("40S 棉斜纹布".to_string()),
+        ..make_bom_tree_node(101, decs!("3"), None, vec![])
+    };
     let mut requirements = Vec::new();
     service.collect_requirements(&leaf, decs!("10"), &mut requirements);
 
     assert_eq!(requirements.len(), 1);
     assert_eq!(requirements[0].product_id, 101);
     assert_eq!(requirements[0].required_quantity, decs!("30"));
-    assert_eq!(requirements[0].product_name, "物料 #101");
+    assert_eq!(
+        requirements[0].product_name,
+        Some("40S 棉斜纹布".to_string())
+    );
 }
 
 /// test_bbhjs_sgbbw1（验证 get_next_version 中无历史 BOM 时返回 1（纯逻辑复现）。）

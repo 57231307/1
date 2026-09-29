@@ -19,7 +19,7 @@
       />
       <el-table-column prop="order_date" :label="t('purchase.table.colOrderDate')" width="120" />
       <el-table-column
-        prop="required_date"
+        prop="expected_delivery_date"
         :label="t('purchase.table.colRequiredDate')"
         width="120"
       />
@@ -40,7 +40,7 @@
         align="right"
       >
         <template #default="{ row }">
-          <span>¥{{ (row.received_amount || 0).toLocaleString() }}</span>
+          <span>¥{{ row.received_amount }}</span>
         </template>
       </el-table-column>
       <el-table-column
@@ -62,13 +62,43 @@
         </template>
       </el-table-column>
       <el-table-column prop="creator_name" :label="t('purchase.table.colCreator')" width="100" />
-      <el-table-column :label="t('purchase.table.colOperation')" width="200" fixed="right">
+      <el-table-column :label="t('purchase.table.colOperation')" width="320" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="onView(row as PurchaseOrder)">{{
-            t('purchase.table.detail')
-          }}</el-button>
           <el-button
-            v-if="row.status === 'approved'"
+            v-permission-detail="{ resource: 'purchase-orders', action: 'read' }"
+            type="primary"
+            link
+            size="small"
+            @click="onView(row as PurchaseOrder)"
+            >{{ t('purchase.table.detail') }}</el-button
+          >
+          <el-button
+            v-if="isEditableStatus(row.status)"
+            type="warning"
+            link
+            size="small"
+            @click="onSubmitOrder(row as PurchaseOrder)"
+            >{{ t('purchase.table.submit') }}</el-button
+          >
+          <el-button
+            v-if="isEditableStatus(row.status)"
+            v-permission-detail="{ resource: 'purchase-orders', action: 'update' }"
+            type="primary"
+            link
+            size="small"
+            @click="onEdit(row as PurchaseOrder)"
+            >{{ t('common.edit') }}</el-button
+          >
+          <el-button
+            v-if="row.status === PURCHASE_ORDER_STATUS.DRAFT"
+            type="danger"
+            link
+            size="small"
+            @click="onDeleteOrder(row as PurchaseOrder)"
+            >{{ t('common.delete') }}</el-button
+          >
+          <el-button
+            v-if="row.status === PURCHASE_ORDER_STATUS.APPROVED"
             v-permission="PERMISSIONS.PURCHASE_ORDER_RECEIVE"
             type="warning"
             link
@@ -77,13 +107,21 @@
             >{{ t('purchase.table.receive') }}</el-button
           >
           <el-button
-            v-if="row.status === 'pending'"
+            v-if="row.status === PURCHASE_ORDER_STATUS.PENDING_APPROVAL"
             v-permission="PERMISSIONS.PURCHASE_ORDER_APPROVE"
             type="success"
             link
             size="small"
             @click="onApprove(row as PurchaseOrder)"
             >{{ t('purchase.table.approve') }}</el-button
+          >
+          <el-button
+            v-if="row.status === PURCHASE_ORDER_STATUS.PENDING_APPROVAL"
+            type="danger"
+            link
+            size="small"
+            @click="onReject(row as PurchaseOrder)"
+            >{{ t('purchase.table.reject') }}</el-button
           >
         </template>
       </el-table-column>
@@ -107,20 +145,25 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { PurchaseOrder } from '@/api/purchase';
+import type { PurchaseOrder, PurchaseOrderQueryParams } from '@/api/purchase';
 // Batch 468 P0-S28：引入权限码常量，与后端 purchase-orders 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
+// 行内操作的状态门槛以后端真实词表值为比较对象：
+// 提交/修改在后端允许 DRAFT 与 REJECTED（po/contract.rs submit_order、
+// order_ops/crud.rs validate_order_modification），删除仅 DRAFT（delete_order），
+// 审批/驳回仅 PENDING_APPROVAL（po/contract.rs approve_order/reject_order）
+import { PURCHASE_ORDER_STATUS, type PurchaseOrderStatus } from '@/utils/purchase-status';
 
 // 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });
 
-interface QueryParams {
-  page: number;
-  page_size: number;
-  keyword: string;
-  supplier_id: number | undefined;
-  status: string;
-}
+/** 可提交/可修改状态（后端允许草稿与被驳回两种） */
+const EDITABLE_STATUSES: PurchaseOrderStatus[] = [
+  PURCHASE_ORDER_STATUS.DRAFT,
+  PURCHASE_ORDER_STATUS.REJECTED,
+];
+const isEditableStatus = (status: string) =>
+  EDITABLE_STATUSES.includes(status as PurchaseOrderStatus);
 
 const props = defineProps<{
   // 采购订单列表
@@ -130,13 +173,21 @@ const props = defineProps<{
   // 总数
   total: number;
   // 查询参数（分页相关，由父组件管理，子组件通过 emit('update:queryParams') 回写）
-  queryParams: QueryParams;
+  queryParams: PurchaseOrderQueryParams;
   // 查看
   onView: (row: PurchaseOrder) => void;
   // 审批
   onApprove: (row: PurchaseOrder) => void;
   // 收货
   onReceive: (row: PurchaseOrder) => void;
+  // 提交审批（draft 态）
+  onSubmitOrder: (row: PurchaseOrder) => void;
+  // 驳回（submitted 态）
+  onReject: (row: PurchaseOrder) => void;
+  // 编辑
+  onEdit: (row: PurchaseOrder) => void;
+  // 删除（draft 态）
+  onDeleteOrder: (row: PurchaseOrder) => void;
   // 查询回调
   onQuery: () => void;
   // 状态类型
@@ -151,11 +202,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   // 整体回写查询参数（父组件监听此事件并 Object.assign 到自己的 queryParams）
-  (e: 'update:queryParams', queryParams: QueryParams): void;
+  (e: 'update:queryParams', queryParams: PurchaseOrderQueryParams): void;
 }>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localQueryParams = ref<QueryParams>({ ...props.queryParams });
+const localQueryParams = ref<PurchaseOrderQueryParams>({ ...props.queryParams });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false;

@@ -2,13 +2,14 @@
 //!
 //! 批次 D10 拆分：从原 `purchase_receipt_service.rs` 迁移。
 //! 包含 `PurchaseReceiptService` 的 1 个状态流转方法 + 2 个 helper：
-//! - `confirm_receipt`：确认入库单（DRAFT → CONFIRMED），触发库存入库 + 事件发布 + 自动生成应付账单
+//! - `confirm_receipt`：确认入库单（DRAFT → COMPLETED），事务内完成库存入库与订单已收数量推进，
+//!   commit 后发布事件 + 自动生成应付账单
 //! - `lock_and_validate_receipt_txn`：锁定入库单并校验状态（私有 helper）
 //! - `publish_events_and_generate_ap`：commit 后发布事件并自动生成应付账单（私有 helper）
 //!
 //! 跨模块调用：
 //! - `confirm_receipt` 调用 `purchase_receipt_private` 中的 update_order_received_quantity / update_inventory_txn（已 `pub`，跨 impl 块可访问）
-//! - `confirm_receipt` 调用 facade 的纯函数 `build_confirmed_receipt_active_model`（`pub(crate)`）
+//! - `confirm_receipt` 调用 facade 的纯函数 `build_completed_receipt_active_model`（`pub(crate)`）
 
 use sea_orm::{
     ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, TransactionTrait,
@@ -17,6 +18,7 @@ use sea_orm::{
 use crate::models::{purchase_receipt, purchase_receipt_item, status};
 use crate::services::event_bus::EVENT_BUS;
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
+use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 use crate::utils::error::AppError;
 
 impl PurchaseReceiptService {
@@ -32,14 +34,22 @@ impl PurchaseReceiptService {
         // 锁定并校验入库单（DRAFT + 明细数 > 0），串行化并发 confirm
         let receipt = self.lock_and_validate_receipt_txn(receipt_id, &txn).await?;
 
+        // 采购门控：确认收货前再次校验供应商是否在有效黑名单中（事务内执行，消除 TOCTOU）
+        SupplierBlacklistService::new(self.db.clone())
+            .check_supplier_not_blacklisted(&txn, receipt.supplier_id)
+            .await?;
+
         // 关联采购单时更新已收数量
         if let Some(order_id) = receipt.order_id {
             self.update_order_received_quantity(order_id, receipt_id, &txn, user_id)
                 .await?;
         }
 
-        // 更新状态为 CONFIRMED 并写入审计
-        let receipt_active = Self::build_confirmed_receipt_active_model(receipt, user_id);
+        // 事务内更新库存（入库明细口径：色号/缸号/批次/等级/克重/门幅）
+        let pending_events = self.update_inventory_txn(&receipt, &txn).await?;
+
+        // 库存与订单已收数量在同一事务内落账，落账成功即收货终态 COMPLETED
+        let receipt_active = Self::build_completed_receipt_active_model(receipt, user_id);
         let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -47,9 +57,6 @@ impl PurchaseReceiptService {
             Some(user_id),
         )
         .await?;
-
-        // 事务内更新库存，收集待发布事件
-        let pending_events = self.update_inventory_txn(&receipt, &txn).await?;
 
         txn.commit().await?;
 

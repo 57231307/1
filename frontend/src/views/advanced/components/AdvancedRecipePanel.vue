@@ -6,9 +6,15 @@
  * 数据与函数全部由父组件通过 props 传入
  * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
-import { ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
+import {
+  RECIPE_FABRIC_TYPE_LABEL_KEY,
+  RECIPE_FABRIC_TYPE_VALUES,
+} from '@/constants/recipe-fabric-type';
 import type { RecipeFormData, RecipeResult } from '../composables/useRcp';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
   // 工艺推荐表单（由父组件管理，子组件通过 emit('update:recipeForm') 回写）
@@ -18,7 +24,13 @@ const props = defineProps<{
   runRecipeOptimization: () => Promise<void>;
 }>();
 
-const { t } = useI18n({ useScope: 'global' });
+// 布类下拉：库里存的是中文布类名本身，界面文案才走 i18n
+const fabricTypeOptions = computed(() =>
+  RECIPE_FABRIC_TYPE_VALUES.map(value => ({
+    value,
+    label: t(RECIPE_FABRIC_TYPE_LABEL_KEY[value]),
+  }))
+);
 
 const emit = defineEmits<{
   // 整体回写表单
@@ -95,24 +107,10 @@ function sourceLabel(source: string): string {
               style="width: 100%"
             >
               <el-option
-                :label="$t('advancedModule.recipe.fabricCotton')"
-                :value="t('advancedModule.recipe.fabricCotton')"
-              />
-              <el-option
-                :label="$t('advancedModule.recipe.fabricPolyester')"
-                :value="t('advancedModule.recipe.fabricPolyester')"
-              />
-              <el-option
-                :label="$t('advancedModule.recipe.fabricSilk')"
-                :value="t('advancedModule.recipe.fabricSilk')"
-              />
-              <el-option
-                :label="$t('advancedModule.recipe.fabricWool')"
-                :value="t('advancedModule.recipe.fabricWool')"
-              />
-              <el-option
-                :label="$t('advancedModule.recipe.fabricSynthetic')"
-                :value="t('advancedModule.recipe.fabricSynthetic')"
+                v-for="item in fabricTypeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
               />
             </el-select>
           </el-form-item>

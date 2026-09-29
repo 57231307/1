@@ -1,81 +1,53 @@
-// P9-3 销售 E2E 套件 — 07 销售统计报表
-// 创建时间: 2026-06-17
-// 覆盖范围：销售统计与报表（6 用例）
+// P9-3 销售 E2E 套件 — 07 销售分析（真实 BI 视图）
+// 覆盖范围：/sales-analysis 销售分析页统计/排名/目标渲染 + 导出报表
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 
 /**
- * 测试套件：销售统计
- *
- * 业务流程：
- * 1. 销售订单汇总（按月/客户/产品）
- * 2. 销售业绩排行
- * 3. 销售回款率
- * 4. 销售毛利率
- * 5. 退货率
- * 6. 导出 Excel
+ * 真实 UI 事实（据 router 与 views/sales-analysis 核对）：
+ * - 原用例 goto '/sales/report/order-summary'、'/sales/report/performance'、
+ *   '/sales/report/collection-rate'、'/sales/report/gross-margin' —— 这些子路由与
+ *   “统计维度/起始月份/截止月份/查询按钮 + 分组报表表格”在真实应用完全不存在（router 中无
+ *   任何 /sales/report/* 路由）。
+ * - 真实“销售统计/报表”视图为 /sales-analysis（router path:'sales-analysis' →
+ *   views/sales-analysis/index.vue），页面为 BI 布局，真实可断言元素（locales salesAnalysis.*）：
+ *   标题 '销售分析'（index.pageTitle）；统计卡 labelMonthOrders='本月订单数' / labelMonthAmount=
+ *   '本月销售额' / labelGrossProfitRate='毛利率' / labelActiveCustomers='活跃客户数'；
+ *   产品排名卡 cardTitle='产品销售排名'、客户排名卡 cardTitle='客户销售排名'；
+ *   销售目标卡 cardTitle='销售目标'；导出按钮 index.buttonExport='导出报表'
+ *   → useSaProc.handleExport 触发 blob 下载 '销售分析报表.xlsx' + msg.success('exportSuccess')。
+ *   —— 本用例据真实视图重写，去除“按客户分组/回款率/毛利率列/导出行”等不存在的报表表格断言。
  */
-test.describe('07 销售统计报表', () => {
-  test.beforeEach(async ({ page, context }) => {
-    // V15 Batch 487 P0-T05：注入 auth mock，业务 API 走真实后端（applyAuthMocks 不再 mock 业务 API）
+test.describe('07 销售分析（真实 BI 视图）', () => {
+  test.beforeEach(async ({ context }) => {
     await applyAuthMocks(context);
-    await page.goto('/');
   });
 
-  test('07-01 销售订单汇总按月份分组', async ({ page }) => {
-    await page.goto('/sales/report/order-summary');
-    await page.getByLabel(/统计维度/).click();
-    await page.getByRole('option', { name: /按月/ }).click();
-    await page.getByLabel(/起始月份/).fill('2026-01');
-    await page.getByLabel(/截止月份/).fill('2026-06');
-    await page.getByRole('button', { name: /查询/ }).click();
-    // 验证有数据行
-    const rows = page.locator('tr, .el-table__row').filter({ hasText: '2026' });
-    await expect(rows.first()).toBeVisible({ timeout: 30000 });
+  test('07-01 销售分析页可访问并渲染统计卡', async ({ page }) => {
+    await page.goto('/sales-analysis');
+    await expect(page.getByText('销售分析').first()).toBeVisible();
+    await expect(page.getByText('本月订单数')).toBeVisible();
+    await expect(page.getByText('本月销售额')).toBeVisible();
+    await expect(page.getByText('毛利率')).toBeVisible();
   });
 
-  test('07-02 销售订单汇总按客户分组', async ({ page }) => {
-    await page.goto('/sales/report/order-summary');
-    await page.getByLabel(/统计维度/).click();
-    await page.getByRole('option', { name: /按客户/ }).click();
-    await page.getByRole('button', { name: /查询/ }).click();
-    // 验证有客户名列
-    await expect(page.getByText(/客户名称|客户/)).toBeVisible();
+  test('07-02 产品与客户排名卡片渲染', async ({ page }) => {
+    await page.goto('/sales-analysis');
+    await expect(page.getByText('产品销售排名')).toBeVisible();
+    await expect(page.getByText('客户销售排名')).toBeVisible();
   });
 
-  test('07-03 销售业绩排行（销售员 TOP 10）', async ({ page }) => {
-    await page.goto('/sales/report/performance');
-    await expect(page.getByText('销售业绩')).toBeVisible();
-    // 验证有 TOP 10 排名
-    const rows = page.locator('tr, .el-table__row');
-    await expect(rows).toHaveCount(11, { timeout: 30000 }); // 1 表头 + 10 数据
+  test('07-03 销售目标卡片渲染', async ({ page }) => {
+    await page.goto('/sales-analysis');
+    await expect(page.getByText('销售目标')).toBeVisible();
   });
 
-  test('07-04 销售回款率统计', async ({ page }) => {
-    await page.goto('/sales/report/collection-rate');
-    await page.getByLabel(/年度/).fill('2026');
-    await page.getByRole('button', { name: /查询/ }).click();
-    // 验证有"回款率"列
-    await expect(page.getByText(/回款率.*%/)).toBeVisible({ timeout: 30000 });
-  });
-
-  test('07-05 销售毛利率统计', async ({ page }) => {
-    await page.goto('/sales/report/gross-margin');
-    await page.getByLabel(/起始月份/).fill('2026-01');
-    await page.getByLabel(/截止月份/).fill('2026-06');
-    await page.getByRole('button', { name: /查询/ }).click();
-    // 验证毛利率列
-    await expect(page.getByText(/毛利率.*%/)).toBeVisible({ timeout: 30000 });
-  });
-
-  test('07-06 销售报表可导出 Excel', async ({ page }) => {
-    await page.goto('/sales/report/order-summary');
-    await page.getByRole('button', { name: /查询/ }).click();
-    // 触发下载
+  test('07-04 销售分析可导出报表 xlsx', async ({ page }) => {
+    await page.goto('/sales-analysis');
     const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: /导出/ }).click();
+    await page.getByRole('button', { name: '导出报表' }).click();
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toMatch(/\.xlsx?$/);
+    expect(download.suggestedFilename()).toMatch(/\.xlsx$/);
   });
 });

@@ -22,6 +22,7 @@ use std::sync::Arc;
 fn make_voucher_item_request(debit: Decimal, credit: Decimal) -> VoucherItemRequest {
     VoucherItemRequest {
         line_no: None,
+        subject_id: None,
         subject_code: Some("1001".to_string()),
         subject_name: Some("库存现金".to_string()),
         debit,
@@ -529,6 +530,7 @@ async fn test_cxpzlb_xyzssjk() {
     let service = VoucherService::new(Arc::new(db));
 
     let params = VoucherQueryParams {
+        voucher_no: None,
         voucher_type: None,
         status: None,
         start_date: None,

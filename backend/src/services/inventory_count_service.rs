@@ -11,7 +11,7 @@
 //! 模型 inventory_count / inventory_count_item 已通过迁移对齐 schema。
 
 use crate::models::status::inventory_count as count_status;
-use crate::models::{inventory_count, inventory_count_item, inventory_stock};
+use crate::models::{inventory_count, inventory_count_item, inventory_stock, user, warehouse};
 use crate::services::audit_log_service::AuditLogService;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
@@ -26,10 +26,32 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, FromQueryResult,
+    JoinType, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationDef,
+    RelationTrait, Set, TransactionTrait,
 };
 use std::sync::Arc;
+
+/// 盘点单列表行读模型（单次 JOIN 富化的查询结果）。
+///
+/// 表头实体列按 `inventory_count` 的 NOT NULL 约束保持非空；
+/// `warehouse_name` / `created_by_name` 由 LEFT JOIN 派生，故为 `Option<String>`。
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct CountListRow {
+    pub id: i32,
+    pub count_no: String,
+    pub warehouse_id: i32,
+    pub count_date: DateTime<Utc>,
+    pub status: String,
+    pub total_items: i32,
+    pub counted_items: i32,
+    pub variance_items: i32,
+    pub created_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub warehouse_name: Option<String>,
+    pub created_by_name: Option<String>,
+}
 
 /// 创建盘点单请求
 #[derive(Debug, Clone)]
@@ -192,7 +214,7 @@ impl InventoryCountService {
                 // 面料追溯字段使用 NotSet，由 DB 默认值处理
                 color_no: sea_orm::ActiveValue::NotSet,
                 dye_lot_no: sea_orm::ActiveValue::NotSet,
-                batch_no: sea_orm::ActiveValue::NotSet,
+                batch_no: sea_orm::ActiveValue::Set(String::new()),
             };
             item_models.push(item.insert(txn).await?);
         }
@@ -207,14 +229,31 @@ impl InventoryCountService {
         page_size: u64,
         warehouse_id: Option<i32>,
         status: Option<String>,
+        count_no: Option<String>,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<(Vec<inventory_count::Model>, u64), AppError> {
-        let mut query = inventory_count::Entity::find();
+    ) -> Result<(Vec<CountListRow>, u64), AppError> {
+        // 单次查询：warehouse 走实体声明的 Relation::Warehouse.def()；
+        // created_by 无声明关系，用 belongs_to 构造一次性 RelationDef LEFT JOIN users.real_name。
+        let created_by_rel: RelationDef = inventory_count::Entity::belongs_to(user::Entity)
+            .from(inventory_count::Column::CreatedBy)
+            .to(user::Column::Id)
+            .into();
+        let mut query = inventory_count::Entity::find()
+            .column_as(warehouse::Column::Name, "warehouse_name")
+            .column_as(user::Column::RealName, "created_by_name")
+            .join(
+                JoinType::LeftJoin,
+                inventory_count::Relation::Warehouse.def(),
+            )
+            .join(JoinType::LeftJoin, created_by_rel);
         if let Some(wid) = warehouse_id {
             query = query.filter(inventory_count::Column::WarehouseId.eq(wid));
         }
         if let Some(s) = status {
             query = query.filter(inventory_count::Column::Status.eq(s));
+        }
+        if let Some(no) = count_no {
+            query = query.filter(inventory_count::Column::CountNo.contains(&no));
         }
         // V15 P0-S01：行级数据权限过滤
         // inventory_count 表无 department_id，Dept 退化为 Self，使用 created_by（Option<i32>）。
@@ -229,6 +268,7 @@ impl InventoryCountService {
         // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(inventory_count::Column::CreatedAt, Order::Desc)
+            .into_model::<CountListRow>()
             .paginate(&*self.db, page_size);
         let (counts, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((counts, total))
@@ -355,6 +395,14 @@ impl InventoryCountService {
             let item_model = item_map.get(&input.stock_id).ok_or_else(|| {
                 AppError::not_found(format!("库存 {} 不在盘点明细中", input.stock_id))
             })?;
+            // 实盘数量非负校验：允许为 0（表示实际盘点数量为零），仅拒绝严格负数。
+            // 位于任何写库之前，且整个录入在一个事务内，负值直接返回错误使事务回滚，不产生半写。
+            if input.quantity_actual.is_sign_negative() {
+                return Err(AppError::validation(format!(
+                    "实盘数量不能为负：库存 {}（产品 {}）实盘数量为 {}",
+                    input.stock_id, item_model.product_id, input.quantity_actual
+                )));
+            }
             let difference = input.quantity_actual - item_model.quantity_before;
             let mut active: inventory_count_item::ActiveModel = item_model.clone().into();
             active.quantity_actual = Set(input.quantity_actual);
@@ -414,7 +462,7 @@ impl InventoryCountService {
             ));
         }
         let mut active: inventory_count::ActiveModel = count_model.into();
-        active.status = Set("in_review".to_string());
+        active.status = Set(count_status::IN_REVIEW.to_string());
         active.updated_at = Set(Utc::now());
         let updated = active.update(&txn).await?;
         txn.commit().await?;
@@ -432,7 +480,7 @@ impl InventoryCountService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
-        if count_model.status != "in_review" {
+        if count_model.status != count_status::IN_REVIEW {
             return Err(AppError::business(
                 "只有待审批状态的盘点单可以审批通过".to_string(),
             ));
@@ -556,6 +604,105 @@ impl InventoryCountService {
     }
 
     /// 驳回审批，盘点单退回 pending 状态
+    /// 重算盘点单统计（counted_items / variance_items），单条明细更新/删除后调用
+    async fn recalc_count_stats(
+        txn: &sea_orm::DatabaseTransaction,
+        count_id: i32,
+    ) -> Result<(), AppError> {
+        let items = inventory_count_item::Entity::find()
+            .filter(inventory_count_item::Column::CountId.eq(count_id))
+            .all(txn)
+            .await?;
+        let counted = items.len() as i32;
+        let variance = items
+            .iter()
+            .filter(|it| it.quantity_difference != Decimal::ZERO)
+            .count() as i32;
+        let model = inventory_count::Entity::find_by_id(count_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
+        let mut active: inventory_count::ActiveModel = model.into();
+        active.counted_items = Set(counted);
+        active.variance_items = Set(variance);
+        active.updated_at = Set(Utc::now());
+        active.update(txn).await?;
+        Ok(())
+    }
+
+    /// 更新单条盘点明细（实盘数量/备注；仅待盘点状态可改）
+    pub async fn update_count_item(
+        &self,
+        item_id: i32,
+        quantity_actual: Option<Decimal>,
+        notes: Option<String>,
+    ) -> Result<inventory_count_item::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+        let item = inventory_count_item::Entity::find_by_id(item_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点明细 {} 不存在", item_id)))?;
+        let count_model = inventory_count::Entity::find_by_id(item.count_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", item.count_id)))?;
+        if count_model.status != count_status::PENDING {
+            return Err(AppError::business(
+                "只有待盘点状态的盘点单可以修改盘点明细".to_string(),
+            ));
+        }
+
+        let mut active: inventory_count_item::ActiveModel = item.clone().into();
+        if let Some(q) = quantity_actual {
+            // 与批量录入保持一致：实盘数量非负（允许 0，仅拒严格负数），
+            // 校验位于任何写库之前，负值返回错误使整个事务回滚，不产生半写。
+            if q.is_sign_negative() {
+                return Err(AppError::validation(format!(
+                    "实盘数量不能为负：库存 {}（产品 {}）实盘数量为 {}",
+                    item.stock_id, item.product_id, q
+                )));
+            }
+            active.quantity_actual = Set(q);
+            active.quantity_difference = Set(q - item.quantity_before);
+        }
+        if let Some(n) = notes {
+            active.notes = Set(Some(n));
+        }
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&txn).await?;
+
+        Self::recalc_count_stats(&txn, item.count_id).await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// 删除单条盘点明细（仅待盘点状态可删；删除后重算统计）
+    pub async fn delete_count_item(&self, item_id: i32) -> Result<(), AppError> {
+        let txn = (*self.db).begin().await?;
+        let item = inventory_count_item::Entity::find_by_id(item_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点明细 {} 不存在", item_id)))?;
+        let count_model = inventory_count::Entity::find_by_id(item.count_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", item.count_id)))?;
+        if count_model.status != count_status::PENDING {
+            return Err(AppError::business(
+                "只有待盘点状态的盘点单可以删除盘点明细".to_string(),
+            ));
+        }
+
+        inventory_count_item::Entity::delete_by_id(item_id)
+            .exec(&txn)
+            .await?;
+        Self::recalc_count_stats(&txn, item.count_id).await?;
+        txn.commit().await?;
+        Ok(())
+    }
+
     pub async fn reject_count(&self, count_id: i32) -> Result<inventory_count::Model, AppError> {
         let txn = (*self.db).begin().await?;
         let count_model = inventory_count::Entity::find_by_id(count_id)
@@ -563,7 +710,7 @@ impl InventoryCountService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
-        if count_model.status != "in_review" {
+        if count_model.status != count_status::IN_REVIEW {
             return Err(AppError::business(
                 "只有待审批状态的盘点单可以驳回".to_string(),
             ));

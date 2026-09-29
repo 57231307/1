@@ -15,9 +15,9 @@ use validator::Validate;
 /// 创建客户专属价请求 DTO
 #[derive(Debug, Deserialize, Serialize, Validate, Clone)]
 pub struct CreateCustomerColorPriceDto {
-    pub customer_id: i64,
-    pub product_id: i64,
-    pub color_id: i64,
+    pub customer_id: i32,
+    pub product_id: i32,
+    pub color_id: i32,
     pub special_price: Decimal,
     pub discount_percent: Option<Decimal>,
     pub currency: String,
@@ -35,9 +35,9 @@ pub struct CreateCustomerColorPriceDto {
 pub struct ListCustomerColorPricesQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
-    pub customer_id: Option<i64>,
-    pub product_id: Option<i64>,
-    pub color_id: Option<i64>,
+    pub customer_id: Option<i32>,
+    pub product_id: Option<i32>,
+    pub color_id: Option<i32>,
     pub active_only: Option<bool>,
 }
 
@@ -49,16 +49,16 @@ pub struct ListCustomerColorPricesQuery {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CustomerColorPriceInfo {
     pub id: i64,
-    pub customer_id: i64,
-    pub product_id: i64,
-    pub color_id: i64,
+    pub customer_id: i32,
+    pub product_id: i32,
+    pub color_id: i32,
     pub special_price: Decimal,
     pub discount_percent: Option<Decimal>,
     pub currency: String,
     pub valid_from: NaiveDate,
     pub valid_until: Option<NaiveDate>,
     pub notes: Option<String>,
-    pub approved_by: Option<i64>,
+    pub approved_by: Option<i32>,
     pub approved_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

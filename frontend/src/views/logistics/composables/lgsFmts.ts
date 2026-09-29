@@ -2,46 +2,39 @@
  * lgsFmts.ts - 物流管理格式化工具
  * 任务编号: P14 批 2 I-3 第 4 批（拆分原 logistics/index.vue）
  * 提供状态类型/文本映射、运费格式化等纯函数
- * 行为完全保持一致（仅结构重构）
  */
-
-/** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
-type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger';
+import { i18n } from '@/i18n';
+import { logger } from '@/utils/logger';
+import {
+  WAYBILL_STATUS_LABEL_KEY,
+  WAYBILL_STATUS_TAG_TYPE,
+  type WaybillTagType,
+} from '@/constants/waybill-status';
 
 /**
- * 状态对应的 el-tag 类型
+ * 获取运单状态 el-tag 类型；状态机外的取值告警后按 info 展示
  */
-const STATUS_TYPE_MAP: Record<string, TagType> = {
-  pending: 'info',
-  shipped: 'warning',
-  in_transit: 'primary',
-  delivered: 'success',
-  cancelled: 'danger',
+export const getStatusType = (status: string): WaybillTagType => {
+  const type = WAYBILL_STATUS_TAG_TYPE[status];
+  if (!type) {
+    logger.warn(
+      `[lgsFmts] 未知运单状态「${status}」，不在后端状态机 IN_TRANSIT/DELIVERED/SIGNED 内`
+    );
+    return 'info';
+  }
+  return type;
 };
 
 /**
- * 获取运单状态 el-tag 类型
- */
-export const getStatusType = (status: string): TagType => {
-  return STATUS_TYPE_MAP[status] || 'info';
-};
-
-/**
- * 状态中文文本
- */
-const STATUS_TEXT_MAP: Record<string, string> = {
-  pending: '待发货',
-  shipped: '已发货',
-  in_transit: '运输中',
-  delivered: '已签收',
-  cancelled: '已取消',
-};
-
-/**
- * 获取运单状态中文文本
+ * 运单状态文本（i18n）；无映射键的状态告警后原样显示，便于暴露脏数据
  */
 export const getStatusText = (status: string): string => {
-  return STATUS_TEXT_MAP[status] || status;
+  const key = WAYBILL_STATUS_LABEL_KEY[status];
+  if (!key) {
+    logger.warn(`[lgsFmts] 未知运单状态「${status}」，无对应文案键`);
+    return status;
+  }
+  return i18n.global.t(key);
 };
 
 /**

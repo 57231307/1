@@ -29,10 +29,10 @@
           data.warehouse_name
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseReceipt.detail.label.amount')">{{
-          (data.total_amount || 0).toFixed(2)
+          data.total_amount != null ? formatCurrency(data.total_amount) : '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseReceipt.detail.label.status')">{{
-          getStatusLabelFmt(data.status)
+          getStatusLabelFmt(data.receipt_status)
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('purchaseReceipt.detail.label.createdBy')">{{
           data.created_by_name
@@ -47,17 +47,17 @@
           :aria-label="t('purchaseReceipt.detail.aria.itemsList')"
         >
           <el-table-column
-            prop="product_code"
+            prop="material_code"
             :label="t('purchaseReceipt.detail.column.productCode')"
             width="120"
           />
           <el-table-column
-            prop="product_name"
+            prop="material_name"
             :label="t('purchaseReceipt.detail.column.productName')"
             width="150"
           />
           <el-table-column
-            prop="color_no"
+            prop="color_code"
             :label="t('purchaseReceipt.detail.column.colorNo')"
             width="100"
           />
@@ -72,14 +72,21 @@
             width="100"
             align="right"
           />
+          <el-table-column prop="unit_master" :label="t('purchaseReceipt.detail.column.unit')" />
           <el-table-column
-            prop="price"
+            prop="quantity_alt"
+            :label="t('purchaseReceipt.detail.column.quantityAlt')"
+            width="100"
+            align="right"
+          />
+          <el-table-column
+            prop="unit_price"
             :label="t('purchaseReceipt.detail.column.price')"
             width="100"
             align="right"
           >
             <template #default="scope">
-              {{ Number(scope.row.price ?? 0).toFixed(2) }}
+              {{ Number(scope.row.unit_price ?? 0).toFixed(2) }}
             </template>
           </el-table-column>
           <el-table-column
@@ -92,7 +99,7 @@
               {{ Number(scope.row.amount ?? 0).toFixed(2) }}
             </template>
           </el-table-column>
-          <el-table-column prop="remark" :label="t('purchaseReceipt.detail.column.remark')" />
+          <el-table-column prop="notes" :label="t('purchaseReceipt.detail.column.remark')" />
         </el-table>
       </div>
     </div>
@@ -101,8 +108,9 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { formatCurrency } from '@/utils';
 import type { PurchaseReceiptEntity, ReceiptItem } from '@/api/purchase-receipt';
-import { getStatusLabel } from '../composables/prcFmts';
+import { getReceiptStatusLabel } from '../composables/prcFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -123,7 +131,7 @@ const emit = defineEmits<{
 }>();
 
 // 透传格式化函数
-const getStatusLabelFmt = getStatusLabel;
+const getStatusLabelFmt = getReceiptStatusLabel;
 </script>
 
 <style scoped>

@@ -6,13 +6,15 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use serde::Deserialize;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::greige_fabric;
+use crate::models::status::purchase_inventory::greige_fabric_status;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -125,12 +127,44 @@ pub struct StockOutRequest {
     pub remarks: Option<String>,
 }
 
+/// 坯布状态入参校验（create/update 提交的 `status`）。
+///
+/// `greige_fabrics.status` 取值域是中文主数据（见 `greige_fabric_status`），前端表单
+/// 曾用通用主数据英文 token（`active`/`inactive`）直接提交，越界值原样写库后与出库/
+/// 门控使用的中文值逐字符不符，导致「在库不允许删除」门控永不命中、库里中英混杂。
+/// 现按取值域拒绝并回显允许值；`None` 由调用方保持不覆盖，不进入本校验。
+fn validate_greige_status(status: &str) -> Result<(), AppError> {
+    if greige_fabric_status::ALL.contains(&status) {
+        return Ok(());
+    }
+    Err(AppError::validation(format!(
+        "无效的坯布状态：{}（允许值：{}）",
+        status,
+        greige_fabric_status::ALL.join("/")
+    )))
+}
+
+/// 坯布列表 `status` 筛选入参校验（取值域与 create/update 同源 `greige_fabric_status::ALL`）。
+///
+/// 列表原先把该参数原样下推成 SQL 等值条件，越界/英文值恒零命中并静默返回空列表，前端假
+/// 筛选永不显红。现按取值域拒绝并回显允许值；`None` 或去空白后的空串视为不加该筛选，交由
+/// 前端 `serializeParams` 与后端 `normalize_empty_query_params` 双侧剔除，与 inventory 的
+/// `validate_stock_status_param` 保持同一处理风格。
+fn validate_greige_status_param(raw: Option<&str>) -> Result<(), AppError> {
+    let Some(value) = raw.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    validate_greige_status(value)
+}
+
 /// 错误类型从 StatusCode 改为 AppError，并使用 `?` 运算符简化错误传播；
 /// `AppError: From<sea_orm::DbErr>` 已实现自动转换。
 pub async fn list_greige_fabrics(
     State(state): State<AppState>,
     Query(query): Query<GreigeFabricListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<greige_fabric::Model>>>, AppError> {
+    validate_greige_status_param(query.status.as_deref())?;
+
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -187,6 +221,12 @@ pub async fn create_greige_fabric(
     _auth: AuthContext,
     Json(req): Json<CreateGreigeFabricRequest>,
 ) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
+    // fabric_type 为领域必填属性（DB NOT NULL），缺失时返回清晰校验错误而非裸 500
+    let fabric_type = req
+        .fabric_type
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| AppError::validation("坯布类型(fabric_type)不能为空"))?;
+
     // 自动生成编号
     let fabric_no = req.fabric_no.unwrap_or_else(|| {
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
@@ -194,8 +234,18 @@ pub async fn create_greige_fabric(
         format!("GF-{}-{:04}", timestamp, random)
     });
 
+    // 状态：未提交时默认「在库」，提交时必须是本列取值域内的中文 token
+    let status = match req.status {
+        Some(s) => {
+            validate_greige_status(&s)?;
+            s
+        }
+        None => greige_fabric_status::IN_STOCK.to_string(),
+    };
+
     let fabric = greige_fabric::ActiveModel {
-        id: Set(0),
+        // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
+        id: NotSet,
         fabric_no: Set(fabric_no),
         fabric_name: Set(req.fabric_name.unwrap_or_else(|| "未命名坯布".to_string())),
         product_id: Set(req.product_id),
@@ -211,9 +261,9 @@ pub async fn create_greige_fabric(
         quantity_meters: Set(req.quantity_meters.and_then(Decimal::from_f64_retain)),
         quantity_kg: Set(req.quantity_kg.and_then(Decimal::from_f64_retain)),
         warehouse_id: Set(req.warehouse_id),
-        status: Set(Some(req.status.unwrap_or_else(|| "在库".to_string()))),
+        status: Set(Some(status)),
         is_deleted: Set(Some(false)),
-        fabric_type: Set(req.fabric_type),
+        fabric_type: Set(fabric_type),
         color_code: Set(req.color_code),
         width_cm: Set(req.width_cm.and_then(Decimal::from_f64_retain)),
         weight_kg: Set(req.weight_kg.and_then(Decimal::from_f64_retain)),
@@ -259,7 +309,11 @@ pub async fn update_greige_fabric(
         fabric.fabric_name = Set(fabric_name);
     }
     if let Some(fabric_type) = req.fabric_type {
-        fabric.fabric_type = Set(Some(fabric_type));
+        let fabric_type = fabric_type.trim().to_string();
+        if fabric_type.is_empty() {
+            return Err(AppError::validation("坯布类型(fabric_type)不能为空"));
+        }
+        fabric.fabric_type = Set(fabric_type);
     }
     if let Some(color_code) = req.color_code {
         fabric.color_code = Set(Some(color_code));
@@ -286,6 +340,7 @@ pub async fn update_greige_fabric(
         fabric.location = Set(Some(location));
     }
     if let Some(status) = req.status {
+        validate_greige_status(&status)?;
         fabric.status = Set(Some(status));
     }
     if let Some(quality_grade) = req.quality_grade {
@@ -334,7 +389,7 @@ pub async fn delete_greige_fabric(
         .await?
         .ok_or_else(|| AppError::not_found("坯布不存在"))?;
 
-    if fabric.status.as_deref() == Some("在库") {
+    if fabric.status.as_deref() == Some(greige_fabric_status::IN_STOCK) {
         return Err(AppError::business("在库坯布不允许删除，请先完成出库"));
     }
 
@@ -390,7 +445,7 @@ pub async fn stock_in(
     fabric.length_m = Set(Decimal::from_f64_retain(new_length));
     fabric.quantity_kg = Set(Decimal::from_f64_retain(current_qty_kg + req.weight_kg));
     fabric.quantity_meters = Set(Decimal::from_f64_retain(current_qty_meters + req.length_m));
-    fabric.status = Set(Some("在库".to_string()));
+    fabric.status = Set(Some(greige_fabric_status::IN_STOCK.to_string()));
     if let Some(grade) = req.quality_grade {
         fabric.quality_grade = Set(Some(grade));
     }
@@ -490,9 +545,9 @@ pub async fn stock_out(
         .unwrap_or(0.0);
 
     let new_status = if final_weight <= 0.0 && final_length <= 0.0 {
-        "已出库".to_string()
+        greige_fabric_status::STOCKED_OUT.to_string()
     } else {
-        "在库".to_string()
+        greige_fabric_status::IN_STOCK.to_string()
     };
 
     update_fabric.status = Set(Some(new_status));

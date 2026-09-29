@@ -26,6 +26,7 @@ impl ApReconciliationService {
     ) -> crate::services::voucher_service::VoucherItemRequest {
         crate::services::voucher_service::VoucherItemRequest {
             line_no: Some(line_no),
+            subject_id: None,
             subject_code: Some("2202".to_string()),
             subject_name: Some("应付账款".to_string()),
             debit,

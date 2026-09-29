@@ -49,6 +49,24 @@ pub struct CreateCustomerRequest {
     pub bank_account: Option<String>,
     #[validate(custom(function = validate_customer_type))]
     pub customer_type: Option<String>,
+    /// 国家（缺省"中国"）
+    pub country: Option<String>,
+    /// 客户状态（active/inactive）
+    pub status: Option<String>,
+    /// 客户行业
+    #[validate(length(max = 100, message = "行业长度不能超过100个字符"))]
+    pub customer_industry: Option<String>,
+    /// 主营产品
+    #[validate(length(max = 500, message = "主营产品长度不能超过500个字符"))]
+    pub main_products: Option<String>,
+    /// 年采购额
+    pub annual_purchase: Option<rust_decimal::Decimal>,
+    /// 质量要求
+    #[validate(length(max = 500, message = "质量要求长度不能超过500个字符"))]
+    pub quality_requirement: Option<String>,
+    /// 验货标准
+    #[validate(length(max = 500, message = "验货标准长度不能超过500个字符"))]
+    pub inspection_standard: Option<String>,
     #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
     pub notes: Option<String>,
 }
@@ -100,6 +118,22 @@ pub struct UpdateCustomerRequest {
     #[validate(custom(function = validate_customer_type))]
     pub customer_type: Option<String>,
     pub status: Option<String>,
+    /// 国家
+    pub country: Option<String>,
+    /// 客户行业
+    #[validate(length(max = 100, message = "行业长度不能超过100个字符"))]
+    pub customer_industry: Option<String>,
+    /// 主营产品
+    #[validate(length(max = 500, message = "主营产品长度不能超过500个字符"))]
+    pub main_products: Option<String>,
+    /// 年采购额
+    pub annual_purchase: Option<rust_decimal::Decimal>,
+    /// 质量要求
+    #[validate(length(max = 500, message = "质量要求长度不能超过500个字符"))]
+    pub quality_requirement: Option<String>,
+    /// 验货标准
+    #[validate(length(max = 500, message = "验货标准长度不能超过500个字符"))]
+    pub inspection_standard: Option<String>,
     #[validate(length(max = 1000, message = "备注长度不能超过1000个字符"))]
     pub notes: Option<String>,
 }
@@ -259,7 +293,7 @@ pub async fn create_customer(
             address: payload.address,
             city: payload.city,
             province: payload.province,
-            country: Some("中国".to_string()),
+            country: Some(payload.country.unwrap_or_else(|| "中国".to_string())),
             postal_code: payload.postal_code,
             credit_limit,
             payment_terms: payload
@@ -269,6 +303,12 @@ pub async fn create_customer(
             bank_name: payload.bank_name,
             bank_account: payload.bank_account,
             customer_type,
+            status: payload.status,
+            customer_industry: payload.customer_industry,
+            main_products: payload.main_products,
+            annual_purchase: payload.annual_purchase,
+            quality_requirement: payload.quality_requirement,
+            inspection_standard: payload.inspection_standard,
             notes: payload.notes,
             created_by: Some(auth.user_id),
         })
@@ -333,6 +373,12 @@ pub async fn update_customer(
             bank_account: payload.bank_account,
             customer_type: payload.customer_type,
             status: payload.status,
+            country: payload.country,
+            customer_industry: payload.customer_industry,
+            main_products: payload.main_products,
+            annual_purchase: payload.annual_purchase,
+            quality_requirement: payload.quality_requirement,
+            inspection_standard: payload.inspection_standard,
             notes: payload.notes,
             // 批次 101 v6 复审 P2-1：透传操作人 user_id 用于审计日志
             user_id: auth.user_id,

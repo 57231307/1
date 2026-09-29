@@ -196,7 +196,8 @@ pub async fn get_by_barcode(
         let model = card_service(&state).get_by_dye_lot(&dye_lot_no).await?;
         Ok(Json(ApiResponse::success(model)))
     } else {
-        Err(AppError::business(
+        // 纯请求参数校验，仅涉及用户自己的查询输入，可外显
+        Err(AppError::business_displayable(
             "必须提供 barcode 或 dye_lot_no 查询参数",
         ))
     }

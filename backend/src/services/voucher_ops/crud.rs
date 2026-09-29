@@ -151,36 +151,67 @@ impl VoucherService {
     }
 
     /// P2 1-6 修复：批量校验科目是否存在（从 create 抽取）
+    ///
+    /// 契约对齐扩展：除按 subject_code 校验外，同时校验按 subject_id 提交的科目
+    /// （前端 VoucherEntry 仅带科目 ID，不带 code）
     async fn precheck_subjects_exist_txn(
         items: &[VoucherItemRequest],
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
         let mut subject_codes = std::collections::HashSet::new();
+        let mut subject_ids = std::collections::HashSet::new();
         for item_req in items {
             if let Some(ref subject_code) = item_req.subject_code {
                 if !subject_code.is_empty() {
                     subject_codes.insert(subject_code.clone());
                 }
             }
+            if let Some(sid) = item_req.subject_id {
+                subject_ids.insert(sid);
+            }
         }
-        if subject_codes.is_empty() {
+        if subject_codes.is_empty() && subject_ids.is_empty() {
             return Ok(());
         }
 
-        let existing_subjects = account_subject::Entity::find()
-            .filter(
-                account_subject::Column::Code
-                    .is_in(subject_codes.iter().cloned().collect::<Vec<_>>()),
-            )
-            .filter(account_subject::Column::Status.eq(master_data::ACTIVE))
-            .all(txn)
-            .await
-            .map_err(|e| {
-                tracing::error!("批量查询科目失败: {}", e);
-                AppError::internal(format!("批量查询科目失败: {}", e))
-            })?;
-        let existing_codes: std::collections::HashSet<String> =
-            existing_subjects.into_iter().map(|s| s.code).collect();
+        let mut existing_codes: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        let mut existing_ids: std::collections::HashSet<i32> = std::collections::HashSet::new();
+
+        if !subject_codes.is_empty() {
+            let existing = account_subject::Entity::find()
+                .filter(
+                    account_subject::Column::Code
+                        .is_in(subject_codes.iter().cloned().collect::<Vec<_>>()),
+                )
+                .filter(account_subject::Column::Status.eq(master_data::ACTIVE))
+                .all(txn)
+                .await
+                .map_err(|e| {
+                    tracing::error!("批量查询科目失败: {}", e);
+                    AppError::internal(format!("批量查询科目失败: {}", e))
+                })?;
+            existing_codes = existing.iter().map(|s| s.code.clone()).collect();
+            existing_ids.extend(existing.iter().map(|s| s.id));
+        }
+
+        if !subject_ids.is_empty() {
+            let existing = account_subject::Entity::find()
+                .filter(
+                    account_subject::Column::Id
+                        .is_in(subject_ids.iter().copied().collect::<Vec<_>>()),
+                )
+                .filter(account_subject::Column::Status.eq(master_data::ACTIVE))
+                .all(txn)
+                .await
+                .map_err(|e| {
+                    tracing::error!("批量查询科目失败: {}", e);
+                    AppError::internal(format!("批量查询科目失败: {}", e))
+                })?;
+            existing_ids.extend(existing.iter().map(|s| s.id));
+            existing_codes.extend(existing.iter().map(|s| s.code.clone()));
+        }
+
         for code in subject_codes {
             if !existing_codes.contains(&code) {
                 return Err(AppError::bad_request(format!(
@@ -189,21 +220,58 @@ impl VoucherService {
                 )));
             }
         }
+        for sid in subject_ids {
+            if !existing_ids.contains(&sid) {
+                return Err(AppError::bad_request(format!(
+                    "科目不存在或已停用：ID={}",
+                    sid
+                )));
+            }
+        }
         Ok(())
     }
 
-    /// P2 1-6 修复：批量插入凭证分录（从 create 抽取）
+    /// 契约对齐：按科目 ID 批量反查科目（code/name），用于请求只带 subject_id 的分录补全
+    async fn load_subject_map_by_ids(
+        subject_ids: &[i32],
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<std::collections::HashMap<i32, (String, String)>, AppError> {
+        if subject_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let subjects = account_subject::Entity::find()
+            .filter(account_subject::Column::Id.is_in(subject_ids.to_vec()))
+            .all(txn)
+            .await
+            .map_err(|e| AppError::internal(format!("批量查询科目失败: {}", e)))?;
+        Ok(subjects
+            .into_iter()
+            .map(|s| (s.id, (s.code, s.name)))
+            .collect())
+    }
+
+    /// 批量插入凭证分录（从 create 抽取）
+    ///
+    /// 契约对齐：请求只带 subject_id 时，反查科目补全 code/name 落库并持久化 subject_id
     async fn insert_voucher_items_txn(
         voucher_id: i32,
         items: &[VoucherItemRequest],
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
+        let subject_ids: Vec<i32> = items.iter().filter_map(|i| i.subject_id).collect();
+        let subject_map = Self::load_subject_map_by_ids(&subject_ids, txn).await?;
+
         for (index, item_req) in items.iter().enumerate() {
+            let (code, name) = match item_req.subject_id.and_then(|id| subject_map.get(&id)) {
+                Some((c, n)) => (Some(c.clone()), Some(n.clone())),
+                None => (item_req.subject_code.clone(), item_req.subject_name.clone()),
+            };
             let item_active_model = voucher_item::ActiveModel {
                 voucher_id: sea_orm::Set(voucher_id),
                 line_no: sea_orm::Set(item_req.line_no.unwrap_or((index + 1) as i32)),
-                subject_code: sea_orm::Set(item_req.subject_code.clone().unwrap_or_default()),
-                subject_name: sea_orm::Set(item_req.subject_name.clone().unwrap_or_default()),
+                subject_id: sea_orm::Set(item_req.subject_id),
+                subject_code: sea_orm::Set(code.unwrap_or_default()),
+                subject_name: sea_orm::Set(name.unwrap_or_default()),
                 debit: sea_orm::Set(item_req.debit),
                 credit: sea_orm::Set(item_req.credit),
                 summary: sea_orm::Set(item_req.summary.clone()),
@@ -239,6 +307,12 @@ impl VoucherService {
         info!("查询凭证列表");
 
         let mut query = voucher::Entity::find();
+
+        if let Some(voucher_no) = &params.voucher_no {
+            if !voucher_no.is_empty() {
+                query = query.filter(voucher::Column::VoucherNo.contains(voucher_no));
+            }
+        }
 
         if let Some(voucher_type) = params.voucher_type {
             query = query.filter(voucher::Column::VoucherType.eq(voucher_type));
@@ -386,18 +460,28 @@ impl VoucherService {
     }
 
     /// 插入凭证分录（update 路径，含 created_at）
+    ///
+    /// 契约对齐：请求只带 subject_id 时，反查科目补全 code/name 落库并持久化 subject_id
     async fn insert_voucher_items_for_update(
         voucher_id: i32,
         items: &[VoucherItemRequest],
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
+        let subject_ids: Vec<i32> = items.iter().filter_map(|i| i.subject_id).collect();
+        let subject_map = Self::load_subject_map_by_ids(&subject_ids, txn).await?;
+
         for (index, item_req) in items.iter().enumerate() {
+            let (code, name) = match item_req.subject_id.and_then(|id| subject_map.get(&id)) {
+                Some((c, n)) => (Some(c.clone()), Some(n.clone())),
+                None => (item_req.subject_code.clone(), item_req.subject_name.clone()),
+            };
             let item_active = vi::ActiveModel {
                 id: sea_orm::ActiveValue::NotSet,
                 voucher_id: sea_orm::Set(voucher_id),
                 line_no: sea_orm::Set(item_req.line_no.unwrap_or((index + 1) as i32)),
-                subject_code: sea_orm::Set(item_req.subject_code.clone().unwrap_or_default()),
-                subject_name: sea_orm::Set(item_req.subject_name.clone().unwrap_or_default()),
+                subject_id: sea_orm::Set(item_req.subject_id),
+                subject_code: sea_orm::Set(code.unwrap_or_default()),
+                subject_name: sea_orm::Set(name.unwrap_or_default()),
                 debit: sea_orm::Set(item_req.debit),
                 credit: sea_orm::Set(item_req.credit),
                 summary: sea_orm::Set(item_req.summary.clone()),

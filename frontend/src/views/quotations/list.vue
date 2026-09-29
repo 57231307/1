@@ -2,7 +2,7 @@
   报价单列表页
   - 筛选（客户/状态）
   - 表格 + 分页
-  - 行操作：查看 / 编辑（draft, rejected） / 转订单（approved） / 取消（draft）
+  - 行操作：查看 / 复制为新单 / 编辑（draft, rejected） / 转订单（approved） / 取消（draft）
 -->
 <template>
   <div class="quotation-list">
@@ -10,10 +10,18 @@
       <template #header>
         <div class="card-header">
           <span class="title">{{ t('quotations.list.title') }}</span>
-          <el-button type="primary" @click="$router.push('/quotations/new')">
-            <el-icon><Plus /></el-icon>
-            {{ t('quotations.list.createNew') }}
-          </el-button>
+          <div style="display: flex; gap: 8px">
+            <el-button @click="showExpiring(false)">
+              {{ t('quotations.list.expiringSoon') }}
+            </el-button>
+            <el-button @click="showExpiring(true)">
+              {{ t('quotations.list.expired') }}
+            </el-button>
+            <el-button type="primary" @click="$router.push('/quotations/new')">
+              <el-icon><Plus /></el-icon>
+              {{ t('quotations.list.createNew') }}
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -80,7 +88,7 @@
         />
         <el-table-column :label="t('quotations.list.colCustomer')" min-width="160">
           <template #default="{ row }">
-            {{ row.customer_name || row.customer_id }}
+            {{ row.customer_name }}
           </template>
         </el-table-column>
         <el-table-column
@@ -108,11 +116,14 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('quotations.list.colAction')" width="280" fixed="right">
+        <el-table-column :label="t('quotations.list.colAction')" width="400" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="goDetail(row)">{{
               t('quotations.list.view')
             }}</el-button>
+            <el-button link type="primary" @click="goCopy(row)">
+              {{ t('quotations.list.copy') }}
+            </el-button>
             <el-button
               v-if="row.status === 'draft' || row.status === 'rejected'"
               v-permission="'quotation:update'"
@@ -139,6 +150,9 @@
             >
               {{ t('quotations.list.cancel') }}
             </el-button>
+            <el-button link type="warning" @click="showTerms(row)">
+              {{ t('quotations.list.terms') }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -154,14 +168,51 @@
         @size-change="onSizeChange"
       />
     </el-card>
+
+    <!-- 到期/过期报价弹窗（getExpiringQuotationList / getExpiredQuotationList） -->
+    <el-dialog v-model="expiringVisible" :title="t('quotations.list.expiringSoon')" width="720px">
+      <el-table :data="expiringRows" border size="small" max-height="420">
+        <el-table-column prop="quotation_no" :label="t('quotations.list.colNo')" min-width="150" />
+        <el-table-column
+          prop="customer_name"
+          :label="t('quotations.list.colCustomer')"
+          min-width="140"
+        />
+        <el-table-column prop="valid_until" label="有效期至" width="120" />
+        <el-table-column prop="status" label="状态" width="100" />
+      </el-table>
+    </el-dialog>
+
+    <!-- 贸易条款查看/维护弹窗（getQuotationTerms / setQuotationTerms） -->
+    <el-dialog v-model="termsVisible" :title="t('quotations.list.terms')" width="600px">
+      <el-table v-loading="termsLoading" :data="termsRows" border size="small">
+        <el-table-column prop="term_type" label="条款类型" width="120" />
+        <el-table-column prop="term_value" label="条款内容" min-width="220" />
+        <el-table-column :label="t('common.action')" width="90">
+          <template #default="{ row }">
+            <el-button size="small" type="danger" link @click="removeTerm(row)">
+              {{ t('common.delete') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div style="display: flex; gap: 8px; margin-top: 12px">
+        <el-input v-model="newTermType" placeholder="条款类型（如 PAYMENT）" style="width: 200px" />
+        <el-input v-model="newTermContent" placeholder="条款内容" />
+        <el-button type="primary" :loading="termsSaving" @click="addTerm">
+          {{ t('common.save') }}
+        </el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 // 报价单列表页脚本
 // - 列表加载
-// - 行操作：查看/编辑/转订单/取消
+// - 行操作：查看/复制为新单/编辑/转订单/取消
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -170,10 +221,16 @@ import { useTableApi } from '@/composables/useTableApi';
 import {
   cancelQuotation,
   convertQuotation,
+  getQuotationTerms,
+  setQuotationTerms,
+  getExpiringQuotationList,
+  getExpiredQuotationList,
   QUOTATION_STATUS_LABELS,
   QUOTATION_STATUS_TAG_TYPES,
   type QuotationResponseDto,
   type QuotationStatus,
+  type CreateQuotationTermDto,
+  type TermType,
 } from '@/api/quotation';
 import { getCustomerList } from '@/api/customer';
 
@@ -207,6 +264,8 @@ const {
   setQueryParam,
 } = useTableApi<QuotationResponseDto>({
   url: '/quotations',
+  // 钉到后端真实键（quotation_handler::list_quotations → ListQuotationsResponse{ list, total }）
+  listKey: 'list',
   onError: (e: unknown) =>
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.list.loadFailed')
@@ -229,7 +288,8 @@ async function loadCustomers() {
       list?: Array<{ id: number; customer_name?: string; name?: string }>;
     } | null;
     customers.value = payload?.items || payload?.list || [];
-  } catch {
+  } catch (error) {
+    logger.error(t('quotations.list.customerLoadFailed'), error);
     customers.value = [];
   }
 }
@@ -262,6 +322,15 @@ function goDetail(row: QuotationResponseDto) {
 
 function goEdit(row: QuotationResponseDto) {
   router.push(`/quotations/${row.id}/edit`);
+}
+
+/**
+ * 复制为新单：跳转新建页并以 query 携带源报价单 id（copyFrom），
+ * 由 create.vue 复用"按 id 载入详情"逻辑预填表头与明细，但仍走新建态（isEdit=false），
+ * 保存生成新单，不覆盖源单。可见性与"查看"一致（任意可载入详情的行均可复制）。
+ */
+function goCopy(row: QuotationResponseDto) {
+  router.push({ path: '/quotations/new', query: { copyFrom: String(row.id) } });
 }
 
 async function handleCancel(row: QuotationResponseDto) {
@@ -314,6 +383,105 @@ function formatAmount(value?: number): string {
 onMounted(() => {
   loadCustomers();
 });
+
+// 贸易条款维护（getQuotationTerms / setQuotationTerms）
+const termsVisible = ref(false);
+const termsLoading = ref(false);
+const termsSaving = ref(false);
+const termsRows = ref<Array<Record<string, unknown>>>([]);
+const currentQuotationId = ref<number | null>(null);
+const newTermType = ref('');
+const newTermContent = ref('');
+
+const showTerms = async (row: QuotationResponseDto) => {
+  currentQuotationId.value = row.id;
+  termsVisible.value = true;
+  termsLoading.value = true;
+  try {
+    const res = await getQuotationTerms(row.id);
+    termsRows.value = (res.data as unknown as Array<Record<string, unknown>>) || [];
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    termsLoading.value = false;
+  }
+};
+
+/** 将条款行/表单输入映射为后端 CreateQuotationTermDto（sequence 按顺序重排） */
+const mapTermDto = (row: Record<string, unknown>, idx: number): CreateQuotationTermDto => ({
+  term_type: String(row.term_type || '') as TermType,
+  term_key: String(row.term_key ?? row.term_type ?? ''),
+  term_value: String(row.term_value ?? row.content ?? ''),
+  sequence: idx + 1,
+});
+
+const addTerm = async () => {
+  if (!currentQuotationId.value) return;
+  if (!newTermType.value.trim() || !newTermContent.value.trim()) {
+    ElMessage.warning(t('quotations.list.termRequired'));
+    return;
+  }
+  termsSaving.value = true;
+  try {
+    const newTerm: CreateQuotationTermDto = {
+      term_type: newTermType.value.trim() as TermType,
+      term_key: newTermType.value.trim(),
+      term_value: newTermContent.value.trim(),
+      sequence: termsRows.value.length + 1,
+    };
+    await setQuotationTerms(currentQuotationId.value, [
+      ...termsRows.value.map((row, idx) => mapTermDto(row, idx)),
+      newTerm,
+    ]);
+    ElMessage.success(t('common.success'));
+    newTermType.value = '';
+    newTermContent.value = '';
+    const res = await getQuotationTerms(currentQuotationId.value);
+    termsRows.value = (res.data as unknown as Array<Record<string, unknown>>) || [];
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    termsSaving.value = false;
+  }
+};
+
+const removeTerm = async (row: Record<string, unknown>) => {
+  if (!currentQuotationId.value) return;
+  const remain = (termsRows.value as Array<{ id?: number }>).filter(r => r.id !== row.id);
+  termsSaving.value = true;
+  try {
+    await setQuotationTerms(
+      currentQuotationId.value,
+      remain.map((r, idx) => mapTermDto(r, idx))
+    );
+    ElMessage.success(t('common.success'));
+    termsRows.value = remain as unknown as Array<Record<string, unknown>>;
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    termsSaving.value = false;
+  }
+};
+
+// 到期/过期报价查询（弹窗展示，用于催单提醒）
+const expiringVisible = ref(false);
+const expiringRows = ref<QuotationResponseDto[]>([]);
+const showExpiring = async (expired: boolean) => {
+  expiringVisible.value = true;
+  expiringRows.value = [];
+  try {
+    const res = expired ? await getExpiredQuotationList() : await getExpiringQuotationList();
+    const d = res.data as unknown as
+      QuotationResponseDto[] | { list?: QuotationResponseDto[]; items?: QuotationResponseDto[] };
+    expiringRows.value = Array.isArray(d) ? d : d?.list || d?.items || [];
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
+};
 </script>
 
 <style scoped>

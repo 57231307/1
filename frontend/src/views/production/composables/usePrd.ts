@@ -20,12 +20,12 @@ export interface PrdOrderForm {
   order_no?: string;
   product_id?: number | undefined;
   planned_quantity?: number | undefined;
-  scheduled_start_date?: string;
-  scheduled_end_date?: string;
+  planned_start_date?: string;
+  planned_end_date?: string;
   status?: string;
   priority?: number;
   work_center_id?: number | undefined;
-  remark?: string;
+  remarks?: string;
 }
 
 /**
@@ -48,17 +48,20 @@ export function usePrd() {
   });
 
   // 订单表单
+  // 计划起止日期留空时必须为 undefined（不是 ''）：后端 CreateProductionOrderPayload 的
+  // planned_start_date/planned_end_date 是 Option<chrono::NaiveDate>，空串 '' 会被 serde
+  // 当作 Some 去解析 NaiveDate → 解析失败 → 422，导致新建工单被拒（01 新建红根因）。
+  // undefined 在 JSON.stringify 时被剔除 → 后端按 None 处理。
   const orderForm = reactive<PrdOrderForm>({
     id: undefined,
     order_no: '',
     product_id: undefined,
     planned_quantity: undefined,
-    scheduled_start_date: '',
-    scheduled_end_date: '',
-    status: 'draft',
+    planned_start_date: undefined,
+    planned_end_date: undefined,
     priority: 5,
     work_center_id: undefined,
-    remark: '',
+    remarks: '',
   });
 
   // 表单验证规则
@@ -76,12 +79,11 @@ export function usePrd() {
       order_no: '',
       product_id: undefined,
       planned_quantity: undefined,
-      scheduled_start_date: '',
-      scheduled_end_date: '',
-      status: 'draft',
+      planned_start_date: undefined,
+      planned_end_date: undefined,
       priority: 5,
       work_center_id: undefined,
-      remark: '',
+      remarks: '',
     });
   };
 

@@ -5,11 +5,11 @@
 -->
 <template>
   <el-table v-loading="loading" :data="list" border :aria-label="t('salesReturns.table.ariaLabel')">
-    <el-table-column prop="returnNo" :label="t('salesReturns.table.columnReturnNo')" />
-    <el-table-column prop="salesOrderNo" :label="t('salesReturns.table.columnSalesOrderNo')" />
-    <el-table-column prop="customerName" :label="t('salesReturns.table.columnCustomerName')" />
-    <el-table-column prop="returnDate" :label="t('salesReturns.table.columnReturnDate')" />
-    <el-table-column prop="totalAmount" :label="t('salesReturns.table.columnReturnAmount')" />
+    <el-table-column prop="return_no" :label="t('salesReturns.table.columnReturnNo')" />
+    <el-table-column prop="sales_order_no" :label="t('salesReturns.table.columnSalesOrderNo')" />
+    <el-table-column prop="customer_name" :label="t('salesReturns.table.columnCustomerName')" />
+    <el-table-column prop="return_date" :label="t('salesReturns.table.columnReturnDate')" />
+    <el-table-column prop="total_amount" :label="t('salesReturns.table.columnReturnAmount')" />
     <el-table-column prop="status" :label="t('salesReturns.table.columnStatus')">
       <template #default="{ row }">
         <el-tag :type="getStatusType(row.status)">
@@ -30,7 +30,30 @@
           >{{ t('salesReturns.table.buttonEdit') }}</el-button
         >
         <el-button
-          v-if="row.status === 'PENDING'"
+          v-if="row.status === 'DRAFT'"
+          size="small"
+          type="primary"
+          plain
+          @click="emit('submit', row)"
+          >{{ t('salesReturns.table.buttonSubmit') }}</el-button
+        >
+        <el-button
+          v-if="row.status === 'SUBMITTED'"
+          size="small"
+          type="warning"
+          plain
+          @click="emit('reject', row)"
+          >{{ t('salesReturns.table.buttonReject') }}</el-button
+        >
+        <el-button
+          v-if="row.status === 'APPROVED'"
+          size="small"
+          type="success"
+          @click="emit('execute', row)"
+          >{{ t('salesReturns.table.buttonExecute') }}</el-button
+        >
+        <el-button
+          v-if="row.status === 'SUBMITTED'"
           size="small"
           type="primary"
           @click="emit('approve', row)"
@@ -44,7 +67,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import type { SalesReturn } from '@/api/sales-return';
-import { getStatusType } from '../composables/srFmts';
+import {
+  salesReturnStatusLabelKey,
+  salesReturnStatusTagType as getStatusType,
+} from '@/utils/sales-return-status';
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-returns 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 
@@ -59,16 +85,14 @@ const emit = defineEmits<{
   (e: 'view', row: SalesReturn): void;
   (e: 'edit', row: SalesReturn): void;
   (e: 'approve', row: SalesReturn): void;
+  (e: 'submit', row: SalesReturn): void;
+  (e: 'reject', row: SalesReturn): void;
+  (e: 'execute', row: SalesReturn): void;
 }>();
 
-/** 获取退货状态标签（i18n 响应式） */
+/** 退货状态标签：词表与标签键的单一来源在 utils/sales-return-status.ts */
 const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    PENDING: t('salesReturns.table.statusPending'),
-    APPROVED: t('salesReturns.table.statusApproved'),
-    REJECTED: t('salesReturns.table.statusRejected'),
-    COMPLETED: t('salesReturns.table.statusCompleted'),
-  };
-  return map[status] || status;
+  const key = salesReturnStatusLabelKey(status);
+  return key ? t(key) : '';
 };
 </script>

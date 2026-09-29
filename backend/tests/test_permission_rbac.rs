@@ -93,6 +93,40 @@ async fn read_json(body: axum::body::Body) -> Value {
     serde_json::from_slice(&bytes).expect("响应体不是合法 JSON")
 }
 
+/// 失败信封唯一形状断言：全站 HTTP 失败体只有
+/// `{"code": "<字符串码>", "message": "<文案>", "trace_id": "<uuid>", "timestamp": <i64>}`
+/// 一种（`utils/error.rs` 的 `ErrorResponse` / `AppError::into_response`）。
+/// 数字 code、`data: null`、`error` 键都不应再出现。
+fn assert_unified_error_body(body: &Value, expected_code: &str, scene: &str) {
+    assert_eq!(
+        body.get("code").and_then(|v| v.as_str()),
+        Some(expected_code),
+        "{scene} 的 code 应为字符串错误码 {expected_code}，实际: {:?}",
+        body.get("code")
+    );
+    let message = body.get("message").and_then(|v| v.as_str()).unwrap_or("");
+    assert!(
+        !message.is_empty(),
+        "{scene} 应外显非空 message，实际: {:?}",
+        body.get("message")
+    );
+    let trace_id = body.get("trace_id").and_then(|v| v.as_str()).unwrap_or("");
+    assert!(
+        uuid::Uuid::parse_str(trace_id).is_ok(),
+        "{scene} 的 trace_id 应为 UUID，实际: {:?}",
+        body.get("trace_id")
+    );
+    assert!(
+        body.get("timestamp").and_then(|v| v.as_i64()).is_some(),
+        "{scene} 的 timestamp 应为 i64，实际: {:?}",
+        body.get("timestamp")
+    );
+    assert!(
+        body.get("data").is_none() && body.get("error").is_none(),
+        "{scene} 的失败信封不应含 data/error 键，实际: {body}"
+    );
+}
+
 /// 场景 1（14.11-A）：非 admin 角色（role_id=999）访问受限资源 → 403
 #[tokio::test]
 async fn test_non_admin_denied_without_permission() {
@@ -114,12 +148,7 @@ async fn test_non_admin_denied_without_permission() {
     );
 
     let body = read_json(resp.into_body()).await;
-    assert_eq!(
-        body.get("code").and_then(|v| v.as_i64()),
-        Some(403),
-        "业务码应为 403，实际: {:?}",
-        body.get("code")
-    );
+    assert_unified_error_body(&body, "FORBIDDEN", "非 admin 无权限 403");
 }
 
 /// 场景 2（14.11-A）：不同非 admin 角色（role_id=888）访问另一受限资源 → 403
@@ -184,12 +213,7 @@ async fn test_missing_auth_context_returns_401() {
     );
 
     let body = read_json(resp.into_body()).await;
-    assert_eq!(
-        body.get("code").and_then(|v| v.as_i64()),
-        Some(401),
-        "业务码应为 401，实际: {:?}",
-        body.get("code")
-    );
+    assert_unified_error_body(&body, "UNAUTHORIZED", "缺少 AuthContext 401");
 }
 
 /// 场景 5（14.11-A 边界）：AuthContext 无 role_id → 403（未关联角色）

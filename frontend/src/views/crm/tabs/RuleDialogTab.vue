@@ -1,12 +1,14 @@
 <!--
-  RuleDialogTab.vue - 客户分配规则对话框
+  RuleDialogTab.vue - 客户回收规则对话框
   来源：原 crm/assignment.vue 中 新建/编辑规则对话框
+  修正：表单对齐后端真实契约（name/days/is_enabled，services/crm/recycle_rule.rs），
+        接入 createRecycleRule/updateRecycleRule 真实保存（原为假保存）
 -->
 <template>
   <el-dialog
     v-model="visible"
     :title="title"
-    width="700px"
+    width="560px"
     :close-on-click-modal="false"
     :aria-label="title"
   >
@@ -20,45 +22,18 @@
       <el-form-item :label="t('crmRuleDialog.form.name')" prop="name">
         <el-input v-model="formData.name" :placeholder="t('crmRuleDialog.form.namePlaceholder')" />
       </el-form-item>
-      <el-form-item :label="t('crmRuleDialog.form.strategy')" prop="strategy">
-        <el-select
-          v-model="formData.strategy"
-          :placeholder="t('crmRuleDialog.form.strategyPlaceholder')"
+      <el-form-item :label="t('crmRuleDialog.form.days')" prop="days">
+        <el-input-number
+          v-model="formData.days"
+          :min="1"
+          :max="365"
           style="width: 100%"
-        >
-          <el-option :label="t('crmRuleDialog.strategy.average')" value="average" />
-          <el-option :label="t('crmRuleDialog.strategy.region')" value="region" />
-          <el-option :label="t('crmRuleDialog.strategy.industry')" value="industry" />
-          <el-option :label="t('crmRuleDialog.strategy.scale')" value="scale" />
-        </el-select>
+          :placeholder="t('crmRuleDialog.form.daysPlaceholder')"
+        />
       </el-form-item>
-      <el-form-item :label="t('crmRuleDialog.form.assignees')" prop="userIds">
-        <el-select
-          v-model="formData.userIds"
-          multiple
-          filterable
-          :placeholder="t('crmRuleDialog.form.assigneesPlaceholder')"
-          style="width: 100%"
-        >
-          <el-option
-            v-for="user in users"
-            :key="user.id"
-            :label="user.real_name"
-            :value="user.id"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item :label="t('crmRuleDialog.form.priority')" prop="priority">
-        <el-input-number v-model="formData.priority" :min="0" :max="100" style="width: 100%" />
-      </el-form-item>
-      <el-form-item :label="t('crmRuleDialog.form.enabled')" prop="enabled">
-        <el-radio-group v-model="formData.enabled">
-          <el-radio :value="true">{{ t('crmRuleDialog.form.enabledYes') }}</el-radio>
-          <el-radio :value="false">{{ t('crmRuleDialog.form.enabledNo') }}</el-radio>
-        </el-radio-group>
-      </el-form-item>
-      <el-form-item :label="t('crmRuleDialog.form.remark')" prop="remark">
-        <el-input v-model="formData.remark" type="textarea" :rows="3" />
+      <el-form-item :label="t('crmRuleDialog.form.enabled')" prop="is_enabled">
+        <el-switch v-model="formData.is_enabled" />
+        <span class="form-tip">{{ t('crmRuleDialog.form.daysTip') }}</span>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -75,7 +50,7 @@ import { ref, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { User } from '@/api/user';
+import { createRecycleRule, updateRecycleRule, type RecycleRule } from '@/api/crm-enhanced';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -83,18 +58,7 @@ const { t } = useI18n({ useScope: 'global' });
 interface Props {
   modelValue: boolean;
   title: string;
-  rowData: Partial<RuleRow> | null;
-  users: User[];
-}
-
-interface RuleRow {
-  id?: number;
-  name?: string;
-  strategy?: string;
-  userIds?: number[];
-  priority?: number;
-  enabled?: boolean;
-  remark?: string;
+  rowData: RecycleRule | null;
 }
 
 interface Emits {
@@ -112,21 +76,13 @@ const formRef = ref<FormInstance>();
 const formData = reactive({
   id: undefined as number | undefined,
   name: '',
-  strategy: '',
-  userIds: [] as number[],
-  priority: 50,
-  enabled: true,
-  remark: '',
+  days: 30,
+  is_enabled: true,
 });
 
 const formRules: FormRules = {
   name: [{ required: true, message: t('crmRuleDialog.validation.nameRequired'), trigger: 'blur' }],
-  strategy: [
-    { required: true, message: t('crmRuleDialog.validation.strategyRequired'), trigger: 'change' },
-  ],
-  userIds: [
-    { required: true, message: t('crmRuleDialog.validation.assigneesRequired'), trigger: 'change' },
-  ],
+  days: [{ required: true, message: t('crmRuleDialog.validation.daysRequired'), trigger: 'blur' }],
 };
 
 watch(
@@ -136,7 +92,12 @@ watch(
     if (val) {
       resetForm();
       if (props.rowData) {
-        Object.assign(formData, props.rowData);
+        Object.assign(formData, {
+          id: props.rowData.id,
+          name: props.rowData.name || '',
+          days: props.rowData.days || 30,
+          is_enabled: props.rowData.is_enabled ?? true,
+        });
       }
     }
   }
@@ -149,27 +110,48 @@ watch(visible, val => {
 const resetForm = () => {
   formData.id = undefined;
   formData.name = '';
-  formData.strategy = '';
-  formData.userIds = [];
-  formData.priority = 50;
-  formData.enabled = true;
-  formData.remark = '';
+  formData.days = 30;
+  formData.is_enabled = true;
   formRef.value?.clearValidate();
 };
 
 const handleSubmit = async () => {
   if (!formRef.value) return;
-  try {
-    await formRef.value.validate();
+  await formRef.value.validate(async valid => {
+    if (!valid) return;
     submitLoading.value = true;
-    ElMessage.success(t('crmRuleDialog.message.saveSuccess'));
-    visible.value = false;
-    emit('submitted');
-  } catch (error) {
-    const err = error as Error;
-    logger.warn(t('crmRuleDialog.message.validationFailed'), err.message);
-  } finally {
-    submitLoading.value = false;
-  }
+    try {
+      if (formData.id) {
+        await updateRecycleRule(formData.id, {
+          name: formData.name,
+          days: formData.days,
+          is_enabled: formData.is_enabled,
+        });
+      } else {
+        await createRecycleRule({
+          name: formData.name,
+          days: formData.days,
+          is_enabled: formData.is_enabled,
+        });
+      }
+      ElMessage.success(t('crmRuleDialog.message.saveSuccess'));
+      visible.value = false;
+      emit('submitted');
+    } catch (error) {
+      const err = error as Error;
+      ElMessage.error(err.message || t('crmRuleDialog.message.saveFailed'));
+      logger.warn('保存回收规则失败', err.message);
+    } finally {
+      submitLoading.value = false;
+    }
+  });
 };
 </script>
+
+<style scoped>
+.form-tip {
+  margin-left: 12px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+</style>

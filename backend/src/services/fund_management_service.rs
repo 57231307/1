@@ -110,6 +110,7 @@ impl FundManagementService {
             status: Set(master_data::ACTIVE.to_string()),
             opened_date: Set(req.opened_date),
             remark: Set(req.remark),
+            created_by: Set(user_id),
             ..Default::default()
         };
 

@@ -207,7 +207,7 @@ CREATE POLICY crm_lead_isolation ON crm_lead
   );
 
 -- 5. crm_opportunity（owner_id NOT NULL）
--- 注意：opportunity_status 业务取值为 OPEN/CLOSED_WON/CLOSED_LOST/draft/cancelled，
+-- 注意：opportunity_status 业务取值为 OPEN/CLOSED_WON/CLOSED_LOST，
 -- 无 'pool' 公海态（公海机制仅存在于 crm_lead 的 lead_status），故无公海分支。
 DROP POLICY IF EXISTS crm_opportunity_isolation ON crm_opportunity;
 CREATE POLICY crm_opportunity_isolation ON crm_opportunity

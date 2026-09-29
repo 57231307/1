@@ -24,184 +24,208 @@
         </div>
       </template>
 
-      <el-form
-        :inline="true"
-        :model="filterForm"
-        class="filter-form"
-        :aria-label="$t('colorPrices.list.filter.ariaLabel')"
-      >
-        <el-form-item :label="$t('colorPrices.list.filter.productId')">
-          <el-input
-            v-model.number="filterForm.product_id"
-            :placeholder="$t('colorPrices.list.filter.productId')"
-            clearable
-            style="width: 140px"
-          />
-        </el-form-item>
-        <el-form-item :label="$t('colorPrices.list.filter.colorId')">
-          <el-input
-            v-model.number="filterForm.color_id"
-            :placeholder="$t('colorPrices.list.filter.colorId')"
-            clearable
-            style="width: 140px"
-          />
-        </el-form-item>
-        <el-form-item :label="$t('colorPrices.list.filter.customerLevel')">
-          <el-select
-            v-model="filterForm.customer_level"
-            :placeholder="$t('colorPrices.common.all')"
-            clearable
-            style="width: 120px"
+      <el-tabs v-model="activeTab">
+        <el-tab-pane :label="$t('colorPrices.list.title')" name="prices">
+          <el-form
+            :inline="true"
+            :model="filterForm"
+            class="filter-form"
+            :aria-label="$t('colorPrices.list.filter.ariaLabel')"
           >
-            <el-option :label="$t('colorPrices.customerLevel.VIP')" value="VIP" />
-            <el-option :label="$t('colorPrices.customerLevel.NORMAL')" value="NORMAL" />
-            <el-option :label="$t('colorPrices.customerLevel.GOLD')" value="GOLD" />
-            <el-option :label="$t('colorPrices.customerLevel.SILVER')" value="SILVER" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('colorPrices.list.filter.season')">
-          <el-select
-            v-model="filterForm.season"
-            :placeholder="$t('colorPrices.common.all')"
-            clearable
-            style="width: 120px"
-          >
-            <el-option :label="$t('colorPrices.season.SS')" value="SS" />
-            <el-option :label="$t('colorPrices.season.AW')" value="AW" />
-            <el-option :label="$t('colorPrices.season.HOLIDAY')" value="HOLIDAY" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('colorPrices.list.filter.currency')">
-          <el-select
-            v-model="filterForm.currency"
-            :placeholder="$t('colorPrices.common.all')"
-            clearable
-            style="width: 100px"
-          >
-            <el-option :label="$t('colorPrices.currency.CNY')" value="CNY" />
-            <el-option :label="$t('colorPrices.currency.USD')" value="USD" />
-            <el-option :label="$t('colorPrices.currency.EUR')" value="EUR" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('colorPrices.list.filter.status')">
-          <el-select
-            v-model="filterForm.is_active"
-            :placeholder="$t('colorPrices.common.all')"
-            clearable
-            style="width: 100px"
-          >
-            <el-option :label="$t('colorPrices.common.enable')" :value="true" />
-            <el-option :label="$t('colorPrices.common.disable')" :value="false" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('colorPrices.list.filter.approvalStatus')">
-          <el-select
-            v-model="filterForm.approval_status"
-            :placeholder="$t('colorPrices.common.all')"
-            clearable
-            style="width: 120px"
-          >
-            <el-option :label="$t('colorPrices.approvalStatus.PENDING')" value="PENDING" />
-            <el-option :label="$t('colorPrices.approvalStatus.APPROVED')" value="APPROVED" />
-            <el-option :label="$t('colorPrices.approvalStatus.REJECTED')" value="REJECTED" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleSearch">{{
-            $t('colorPrices.common.search')
-          }}</el-button>
-          <el-button :icon="Refresh" @click="handleReset">{{
-            $t('colorPrices.common.reset')
-          }}</el-button>
-        </el-form-item>
-      </el-form>
+            <el-form-item :label="$t('colorPrices.list.filter.productId')">
+              <el-input
+                v-model.number="filterForm.product_id"
+                :placeholder="$t('colorPrices.list.filter.productId')"
+                clearable
+                style="width: 140px"
+              />
+            </el-form-item>
+            <el-form-item :label="$t('colorPrices.list.filter.colorId')">
+              <el-input
+                v-model.number="filterForm.color_id"
+                :placeholder="$t('colorPrices.list.filter.colorId')"
+                clearable
+                style="width: 140px"
+              />
+            </el-form-item>
+            <el-form-item :label="$t('colorPrices.list.filter.customerLevel')">
+              <el-select
+                v-model="filterForm.customer_level"
+                :placeholder="$t('colorPrices.common.all')"
+                clearable
+                style="width: 120px"
+              >
+                <el-option :label="$t('colorPrices.customerLevel.VIP')" value="VIP" />
+                <el-option :label="$t('colorPrices.customerLevel.NORMAL')" value="NORMAL" />
+                <el-option :label="$t('colorPrices.customerLevel.GOLD')" value="GOLD" />
+                <el-option :label="$t('colorPrices.customerLevel.SILVER')" value="SILVER" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="$t('colorPrices.list.filter.season')">
+              <el-select
+                v-model="filterForm.season"
+                :placeholder="$t('colorPrices.common.all')"
+                clearable
+                style="width: 120px"
+              >
+                <el-option :label="$t('colorPrices.season.SS')" value="SS" />
+                <el-option :label="$t('colorPrices.season.AW')" value="AW" />
+                <el-option :label="$t('colorPrices.season.HOLIDAY')" value="HOLIDAY" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="$t('colorPrices.list.filter.currency')">
+              <el-select
+                v-model="filterForm.currency"
+                :placeholder="$t('colorPrices.common.all')"
+                clearable
+                style="width: 100px"
+              >
+                <el-option :label="$t('colorPrices.currency.CNY')" value="CNY" />
+                <el-option :label="$t('colorPrices.currency.USD')" value="USD" />
+                <el-option :label="$t('colorPrices.currency.EUR')" value="EUR" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="$t('colorPrices.list.filter.status')">
+              <el-select
+                v-model="filterForm.is_active"
+                :placeholder="$t('colorPrices.common.all')"
+                clearable
+                style="width: 100px"
+              >
+                <el-option :label="$t('colorPrices.common.enable')" :value="true" />
+                <el-option :label="$t('colorPrices.common.disable')" :value="false" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="$t('colorPrices.list.filter.approvalStatus')">
+              <el-select
+                v-model="filterForm.approval_status"
+                :placeholder="$t('colorPrices.common.all')"
+                clearable
+                style="width: 120px"
+              >
+                <el-option :label="$t('colorPrices.approvalStatus.PENDING')" value="PENDING" />
+                <el-option :label="$t('colorPrices.approvalStatus.APPROVED')" value="APPROVED" />
+                <el-option :label="$t('colorPrices.approvalStatus.REJECTED')" value="REJECTED" />
+              </el-select>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :icon="Search" @click="handleSearch">{{
+                $t('colorPrices.common.search')
+              }}</el-button>
+              <el-button :icon="Refresh" @click="handleReset">{{
+                $t('colorPrices.common.reset')
+              }}</el-button>
+            </el-form-item>
+          </el-form>
 
-      <el-table
-        v-loading="loading"
-        :data="tableData"
-        border
-        stripe
-        :aria-label="$t('colorPrices.list.table.ariaLabel')"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" :label="$t('colorPrices.list.table.id')" width="80" />
-        <el-table-column
-          prop="product_id"
-          :label="$t('colorPrices.list.table.product')"
-          width="100"
-        />
-        <el-table-column prop="color_id" :label="$t('colorPrices.list.table.color')" width="100" />
-        <el-table-column :label="$t('colorPrices.list.table.customerLevel')" width="100">
-          <template #default="{ row }">
-            <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level)">
-              {{ getLevelLabel(row.customer_level) }}
-            </el-tag>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('colorPrices.list.table.season')" width="100">
-          <template #default="{ row }">
-            <el-tag v-if="row.season" :type="getSeasonColor(row.season)">
-              {{ getSeasonLabel(row.season) }}
-            </el-tag>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('colorPrices.list.table.basePrice')" width="140">
-          <template #default="{ row }">{{ formatPrice(row.base_price, row.currency) }}</template>
-        </el-table-column>
-        <el-table-column
-          :label="$t('colorPrices.list.table.currency')"
-          width="80"
-          prop="currency"
-        />
-        <el-table-column :label="$t('colorPrices.list.table.approvalStatus')" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getApprovalColor(row.approval_status)">
-              {{ getApprovalLabel(row.approval_status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column
-          :label="$t('colorPrices.list.table.effectiveFrom')"
-          width="120"
-          prop="effective_from"
-        />
-        <el-table-column :label="$t('colorPrices.list.table.status')" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info'">
-              {{
-                row.is_active ? $t('colorPrices.common.enable') : $t('colorPrices.common.disable')
-              }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('colorPrices.list.table.operation')" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="handleView(row)">{{
-              $t('colorPrices.common.detail')
-            }}</el-button>
-            <el-button link type="warning" @click="handleAdjust(row)">{{
-              $t('colorPrices.list.table.adjust')
-            }}</el-button>
-            <el-button v-if="row.is_active" link type="danger" @click="handleDelete(row)">{{
-              $t('colorPrices.common.delete')
-            }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+          <el-table
+            v-loading="loading"
+            :data="tableData"
+            border
+            stripe
+            :aria-label="$t('colorPrices.list.table.ariaLabel')"
+            @selection-change="handleSelectionChange"
+          >
+            <el-table-column type="selection" width="55" />
+            <el-table-column prop="id" :label="$t('colorPrices.list.table.id')" width="80" />
+            <el-table-column
+              prop="product_id"
+              :label="$t('colorPrices.list.table.product')"
+              width="100"
+            />
+            <el-table-column
+              prop="color_id"
+              :label="$t('colorPrices.list.table.color')"
+              width="100"
+            />
+            <el-table-column :label="$t('colorPrices.list.table.customerLevel')" width="100">
+              <template #default="{ row }">
+                <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level)">
+                  {{ getLevelLabel(row.customer_level) }}
+                </el-tag>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column :label="$t('colorPrices.list.table.season')" width="100">
+              <template #default="{ row }">
+                <el-tag v-if="row.season" :type="getSeasonColor(row.season)">
+                  {{ getSeasonLabel(row.season) }}
+                </el-tag>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column :label="$t('colorPrices.list.table.basePrice')" width="140">
+              <template #default="{ row }">{{
+                formatPrice(row.base_price, row.currency)
+              }}</template>
+            </el-table-column>
+            <el-table-column
+              :label="$t('colorPrices.list.table.currency')"
+              width="80"
+              prop="currency"
+            />
+            <el-table-column :label="$t('colorPrices.list.table.approvalStatus')" width="100">
+              <template #default="{ row }">
+                <el-tag :type="getApprovalColor(row.approval_status)">
+                  {{ getApprovalLabel(row.approval_status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column
+              :label="$t('colorPrices.list.table.effectiveFrom')"
+              width="120"
+              prop="effective_from"
+            />
+            <el-table-column :label="$t('colorPrices.list.table.status')" width="80">
+              <template #default="{ row }">
+                <el-tag :type="row.is_active ? 'success' : 'info'">
+                  {{
+                    row.is_active
+                      ? $t('colorPrices.common.enable')
+                      : $t('colorPrices.common.disable')
+                  }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column
+              :label="$t('colorPrices.list.table.operation')"
+              width="180"
+              fixed="right"
+            >
+              <template #default="{ row }">
+                <el-button link type="primary" @click="handleView(row)">{{
+                  $t('colorPrices.common.detail')
+                }}</el-button>
+                <el-button link type="warning" @click="handleAdjust(row)">{{
+                  $t('colorPrices.list.table.adjust')
+                }}</el-button>
+                <el-button v-if="row.is_active" link type="danger" @click="handleDelete(row)">{{
+                  $t('colorPrices.common.delete')
+                }}</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
 
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="page"
-          v-model:page-size="pageSize"
-          :total="total"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
-          :aria-label="$t('colorPrices.list.table.paginationAriaLabel')"
-        />
-      </div>
+          <div class="pagination-wrapper">
+            <el-pagination
+              v-model:current-page="page"
+              v-model:page-size="pageSize"
+              :total="total"
+              :page-sizes="[10, 20, 50, 100]"
+              layout="total, sizes, prev, pager, next, jumper"
+              :aria-label="$t('colorPrices.list.table.paginationAriaLabel')"
+            />
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane :label="$t('colorPrices.seasonalRules.title')" name="seasonal" lazy>
+          <SeasonalRulesTab />
+        </el-tab-pane>
+
+        <el-tab-pane :label="$t('colorPrices.customerSpecial.title')" name="customer-special" lazy>
+          <CustomerSpecialTab />
+        </el-tab-pane>
+      </el-tabs>
     </el-card>
   </div>
 </template>
@@ -222,8 +246,13 @@ import {
 } from '@/api/color-price';
 // 批次 280：接入 useTableApi，消除手写 tableData/loading/total/loadData 重复
 import { useTableApi } from '@/composables/useTableApi';
+import SeasonalRulesTab from './tabs/SeasonalRulesTab.vue';
+import CustomerSpecialTab from './tabs/CustomerSpecialTab.vue';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 三合一页签：色号价格 / 季节性规则 / 客户专属价（合并独立页面，统一入口）
+const activeTab = ref('prices');
 
 // 状态码 → 本地化标签（响应式：随语言切换自动更新）
 const getLevelLabel = (level: string | null | undefined) =>

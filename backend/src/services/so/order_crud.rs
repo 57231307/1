@@ -4,7 +4,7 @@
 //! 包含：create_order / update_order / delete_order
 //!
 //! ## 模块职责
-//! - 销售订单创建（含事务、订单号生成、库存锁定、信用校验）
+//! - 销售订单创建（含事务、订单号生成、信用校验；A5 决策：不锁库存，可用量门控仅在发货时生效）
 //! - 销售订单更新（订单头 + 明细项）
 //! - 销售订单删除
 //!
@@ -12,6 +12,8 @@
 //! 通过 `crate::services::so::order::SalesService` 路径访问。
 
 use super::order::SalesService;
+// 赢单回写商机：状态/阶段必须与 CRM 权威词表逐字符一致（opp.rs 统计与门控按 CLOSED_WON 比对）
+use crate::models::status::crm_opportunity as opp_status;
 use crate::models::status::general::common;
 use crate::models::status::sales_order as so_status;
 use crate::models::{
@@ -119,8 +121,6 @@ impl SalesService {
         let order_no = self.generate_unique_order_no(&txn).await?;
         let order_entity = self
             .create_order_main_record(&request, required_date, order_no, user_id, &txn)
-            .await?;
-        self.lock_inventory(order_entity.id, &request.items, user_id, &txn)
             .await?;
         Self::validate_products_exist(&request, &txn).await?;
         let totals = self
@@ -267,7 +267,12 @@ impl SalesService {
             order_no: sea_orm::ActiveValue::Set(order_no),
             customer_id: sea_orm::ActiveValue::Set(request.customer_id),
             opportunity_id: sea_orm::ActiveValue::Set(request.opportunity_id),
-            order_date: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            // 订单日期：用户指定优先，缺省为当前时间
+            order_date: sea_orm::ActiveValue::Set(
+                request.order_date.unwrap_or_else(chrono::Utc::now),
+            ),
+            contact_person: sea_orm::ActiveValue::Set(request.contact_person.clone()),
+            contact_phone: sea_orm::ActiveValue::Set(request.contact_phone.clone()),
             required_date: sea_orm::ActiveValue::Set(required_date),
             ship_date: sea_orm::ActiveValue::NotSet,
             status: sea_orm::ActiveValue::Set(
@@ -407,6 +412,7 @@ impl SalesService {
             shipped_quantity_kg: sea_orm::ActiveValue::Set(zero),
             paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
             is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
+            quantity_tolerance_pct: sea_orm::ActiveValue::Set(item_req.quantity_tolerance_pct),
         }
     }
 
@@ -507,7 +513,7 @@ impl SalesService {
         Ok(())
     }
 
-    /// 订单回写商机（actual_amount / actual_close_date / stage=closed_won）
+    /// 订单回写商机（actual_amount / actual_close_date / stage=CLOSED_WON / status=CLOSED_WON）
     async fn writeback_opportunity(
         &self,
         opportunity_id: Option<i32>,
@@ -527,8 +533,10 @@ impl SalesService {
         opp_active.actual_amount = sea_orm::ActiveValue::Set(Some(total_amount));
         opp_active.actual_close_date =
             sea_orm::ActiveValue::Set(Some(chrono::Utc::now().date_naive()));
-        opp_active.opportunity_stage = sea_orm::ActiveValue::Set(Some("closed_won".to_string()));
-        opp_active.opportunity_status = sea_orm::ActiveValue::Set(Some("won".to_string()));
+        opp_active.opportunity_stage =
+            sea_orm::ActiveValue::Set(Some(opp_status::CLOSED_WON.to_string()));
+        opp_active.opportunity_status =
+            sea_orm::ActiveValue::Set(Some(opp_status::CLOSED_WON.to_string()));
         opp_active.updated_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         opp_active.update(txn).await?;
         tracing::info!(
@@ -620,6 +628,14 @@ impl SalesService {
             order_update.required_date = sea_orm::ActiveValue::Set(required_date);
         }
         if let Some(status) = &request.status {
+            // 状态列只允许写状态机内的取值：越界写入会让工作流判断与列表筛选双双失真
+            if !so_status::ALL.contains(&status.as_str()) {
+                return Err(AppError::validation(format!(
+                    "订单状态 {} 不是合法取值，允许值：{}",
+                    status,
+                    so_status::ALL.join("/")
+                )));
+            }
             order_update.status = sea_orm::ActiveValue::Set(status.clone());
         }
         if let Some(shipping_address) = &request.shipping_address {
@@ -701,8 +717,8 @@ impl SalesService {
             )));
         }
 
-        // 释放预留库存
-        self.release_reservations(order_id, &txn).await?;
+        // 释放并删除预留记录（硬删除订单必须清掉预留行，否则 fk_inventory_reservations_order 阻断主表删除）
+        self.delete_reservations(order_id, &txn).await?;
 
         // 删除订单明细项
         SalesOrderItemEntity::delete_many()

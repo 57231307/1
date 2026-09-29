@@ -63,8 +63,11 @@
         :label="t('systemUpdate.backupTab.columnCreatedAt')"
         width="160"
       />
-      <el-table-column :label="t('systemUpdate.backupTab.columnActions')" width="250" fixed="right">
+      <el-table-column :label="t('systemUpdate.backupTab.columnActions')" width="300" fixed="right">
         <template #default="{ row }">
+          <el-button type="info" link size="small" @click="emit('view-detail', row)">{{
+            t('systemUpdate.backupTab.buttonDetail')
+          }}</el-button>
           <el-button
             v-if="row.status === 'completed'"
             type="primary"
@@ -123,6 +126,7 @@ const emit = defineEmits<{
   download: [row: SystemBackup];
   restore: [row: SystemBackup];
   delete: [row: SystemBackup];
+  'view-detail': [row: SystemBackup];
   'update:page': [v: number];
   'update:page-size': [v: number];
 }>();

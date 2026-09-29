@@ -10,6 +10,7 @@
 //!
 //! 跨模块调用：
 //! - 调用 `auth::is_admin_user`（`pub(crate)`）做管理员绕过校验
+//! - 调用 `crud::link_receipt_items_to_order_items`（`pub(crate)`）在明细增改后挂接订单明细行
 
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -29,6 +30,9 @@ impl PurchaseReceiptService {
         req: CreateReceiptItemRequest,
         user_id: i32,
     ) -> Result<purchase_receipt_item::Model, AppError> {
+        // 四维必入：追加的明细同样先过产品/批次准入，缺失即拒绝（建单入口同口径）
+        PurchaseReceiptService::validate_receipt_item_dimensions(&req)?;
+
         // 批次 19（2026-06-28）：补全事务边界，明细写与总金额重算原子化。
         // 原实现明细 insert 与 calculate_receipt_total 非原子，且均用 &*self.db 无锁，
         // 并发 add_receipt_item 会导致总金额丢失更新。
@@ -56,26 +60,30 @@ impl PurchaseReceiptService {
             ));
         }
 
-        // 4. 创建明细
+        // 4. 创建明细：与建单入口共用同一字段映射，
+        // 否则追加的明细会缺行号/物料/单位与色号缸号批次等库存维度
         let amount = req.quantity * req.unit_price.unwrap_or_else(|| Decimal::new(0, 0));
-        let item = purchase_receipt_item::ActiveModel {
-            receipt_id: Set(receipt_id),
-            order_item_id: Set(req.order_item_id),
-            product_id: Set(req.material_id),
-            quantity: Set(req.quantity),
-            quantity_alt: Set(Some(req.quantity_alt)),
-            unit_price: Set(Some(req.unit_price.unwrap_or_else(|| Decimal::new(0, 0)))),
-            amount: Set(Some(amount)),
-            piece_no: Set(req.piece_no),
-            notes: Set(req.notes),
-            ..Default::default()
-        }
-        .insert(&txn)
-        .await?;
+        let item = PurchaseReceiptService::build_receipt_item_active_model(req, receipt_id, amount)
+            .insert(&txn)
+            .await?;
 
         // 5. 更新入库单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
         self.calculate_receipt_total_txn(receipt_id, &txn, user_id)
             .await?;
+
+        // 6. 关联订单的入库单，新增明细同样要挂到订单明细行，
+        // 否则确认入库时该行的收货量无处累加，订单进度失真
+        if let Some(order_id) = receipt.order_id {
+            Self::link_receipt_items_to_order_items(&txn, receipt_id, order_id).await?;
+            // 返回值取挂接后的行，避免响应里 order_item_id 仍为插入时的空值
+            let item = purchase_receipt_item::Entity::find_by_id(item.id)
+                .one(&txn)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("采购入库明细 {}", item.id)))?;
+
+            txn.commit().await?;
+            return Ok(item);
+        }
 
         txn.commit().await?;
 
@@ -123,8 +131,63 @@ impl PurchaseReceiptService {
         }
 
         // 5. 更新明细（update_with_audit 传 &txn 纳入事务，保证原子性）
+        let linked_order_item_id = item.order_item_id;
         let mut item_active: purchase_receipt_item::ActiveModel = item.into();
 
+        // DTO 声明的字段必须逐项落地：原实现只应用数量/辅助数量/单价/备注，
+        // 前端提交的行号、物料、色号、缸号、批次、等级、克重、门幅、库位、匹号
+        // 全部被静默丢弃，界面上改了、库里没变（假保存）。
+        if let Some(line_no) = req.line_no {
+            item_active.line_no = Set(line_no);
+        }
+        if let Some(material_id) = req.material_id {
+            // 已挂订单明细的行不允许改选其他产品，否则收货量会累加到别的产品的订单行上
+            if let Some(order_item_id) = linked_order_item_id {
+                let linked = crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
+                    .one(&txn)
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::not_found(format!("采购订单明细 {}", order_item_id))
+                    })?;
+                if linked.product_id != material_id {
+                    return Err(AppError::business(format!(
+                        "该明细已挂在采购订单明细 {}（产品 {}）上，不能改选其他产品；如需换货请删除本行后重新添加",
+                        order_item_id, linked.product_id
+                    )));
+                }
+            }
+            item_active.product_id = Set(material_id);
+        }
+        if let Some(code) = req.material_code {
+            item_active.material_code = Set(code);
+        }
+        if let Some(name) = req.material_name {
+            item_active.material_name = Set(name);
+        }
+        if let Some(v) = req.batch_no {
+            item_active.batch_no = Set(Some(v));
+        }
+        if let Some(v) = req.color_code {
+            item_active.color_code = Set(Some(v));
+        }
+        if let Some(v) = req.lot_no {
+            item_active.lot_no = Set(Some(v));
+        }
+        if let Some(v) = req.grade {
+            item_active.grade = Set(Some(v));
+        }
+        if let Some(v) = req.gram_weight {
+            item_active.gram_weight = Set(Some(v));
+        }
+        if let Some(v) = req.width {
+            item_active.width = Set(Some(v));
+        }
+        if let Some(v) = req.location_code {
+            item_active.location_code = Set(Some(v));
+        }
+        if let Some(v) = req.piece_no {
+            item_active.piece_no = Set(Some(v));
+        }
         if let Some(quantity) = req.quantity {
             item_active.quantity = Set(quantity);
         }
@@ -150,6 +213,11 @@ impl PurchaseReceiptService {
         // 6. 更新入库单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
         self.calculate_receipt_total_txn(receipt.id, &txn, user_id)
             .await?;
+
+        // 7. 按单入库时重新挂接明细与订单明细行（覆盖本次改产品或此前未挂接的行）
+        if let Some(order_id) = receipt.order_id {
+            Self::link_receipt_items_to_order_items(&txn, receipt.id, order_id).await?;
+        }
 
         txn.commit().await?;
 

@@ -26,7 +26,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     const orderData = {
       order_no: genCode('OS'),
       order_type: 'dyeing',
-      supplier_id: ctx.supplierId || 1,
+      supplier_id: ctx.supplierId,
       dye_batch_id: ctx.dyeBatchId,
       color_no: colorNo,
       dye_lot_no: dyeLotNo,
@@ -36,41 +36,30 @@ test.describe('面料单据专用字段全链路验证', () => {
       material_cost: '500',
     };
 
-    let orderId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/production/outsourcing-orders',
-        orderData
-      );
-      orderId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/production/outsourcing-orders?page=1&page_size=1'
-      ).catch((e) => { console.warn(`[E2E] 失败: ${(e as Error).message}`); return { items: [] }; });
-      orderId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/outsourcing-orders',
+      orderData
+    );
+    const orderId = result.data?.id;
+    expect(
+      orderId,
+      `委外加工订单创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (orderId) {
       // 添加发料明细（含面料追溯字段）
-      try {
-        await apiCall(page, 'POST', '/production/outsourcing-orders/items', {
-          outsourcing_order_id: orderId,
-          product_id: ctx.productIds[0],
-          color_no: colorNo,
-          dye_lot_no: dyeLotNo,
-          batch_no: batchNo,
-          quantity: '100',
-          unit: '米',
-          unit_cost: '5.00',
-        });
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
-        // 明细添加可能失败
-       }
+      await apiCall(page, 'POST', '/production/outsourcing-orders/items', {
+        outsourcing_order_id: orderId,
+        product_id: ctx.productIds[0],
+        color_no: colorNo,
+        dye_lot_no: dyeLotNo,
+        batch_no: batchNo,
+        quantity: '100',
+        unit: '米',
+        unit_cost: '5.00',
+      });
 
       // 查询订单详情
       const detail = await apiCallRaw<{
@@ -114,20 +103,18 @@ test.describe('面料单据专用字段全链路验证', () => {
       output_quantity_kg: outputKg,
     };
 
-    let costId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/production/cost-collections',
-        costData
-      );
-      costId = result.data?.id!;
-    } catch (e) {
-      // 创建失败直接暴露（兜底旧成本单无自建字段，精确断言会失真）
-      throw e;
-    }
-    expect(costId).toBeDefined();
+    // 创建失败直接暴露：apiCall 非 2xx 抛错即向上冒泡（原 try/catch 仅 throw e 属空转，已删除）
+    const result = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/cost-collections',
+      costData
+    );
+    const costId = result.data?.id;
+    expect(
+      costId,
+      `成本归集创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (costId) {
       const detail = await apiCallRaw<Record<string, unknown>>(
@@ -174,7 +161,10 @@ test.describe('面料单据专用字段全链路验证', () => {
       color_no: colorNo,
       items: [
         {
-          subject_code: '1401',
+          // 原材料入库借方：预置科目里"原材料"是 1403（migration finance/mod.rs:728），
+          // 不存在 1401；用不存在的编码会在凭证 create 的 assist 明细 lookup_subject_id 处
+          // 抛"科目不存在"（voucher_ops/assist.rs:177-179）。
+          subject_code: '1403',
           debit: '100',
           credit: '0',
           summary: '入库-涤棉坯布',
@@ -194,19 +184,14 @@ test.describe('面料单据专用字段全链路验证', () => {
       ],
     };
 
-    let voucherId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/vouchers', voucherData);
-      voucherId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/vouchers?page=1&page_size=1'
-      );
-      voucherId = list.items?.[0]?.id;
-    }
+    // 凭证创建端点是 POST /vouchers（routes/finance.rs:224 create_voucher），
+    // 与下方 GET /vouchers/{id} 同前缀；不存在 /finance/vouchers 路由（原写法 404）。
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', voucherData);
+    const voucherId = result.data?.id;
+    expect(
+      voucherId,
+      `凭证创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (voucherId) {
       const detail = await apiCallRaw<{
@@ -223,9 +208,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       const firstEntry = detail.entries?.[0];
       if (firstEntry) {
         expect(firstEntry.assist_grade).toBe('A');
-        expect(String(firstEntry.quantity_meters)).toBe('100');
-        expect(String(firstEntry.quantity_kg)).toBe('30');
-        expect(String(firstEntry.unit_price)).toBe('25.50');
+        // 后端 quantity_meters/quantity_kg/unit_price 均为 Decimal，serde 序列化为两位
+        // 小数字符串（"100.00"/"30.00"/"25.50"），断言未对齐真实出参格式 → 数值归一比对。
+        expect(Number(firstEntry.quantity_meters)).toBe(100);
+        expect(Number(firstEntry.quantity_kg)).toBe(30);
+        expect(Number(firstEntry.unit_price)).toBe(25.5);
       }
 
       // 验证借贷平衡
@@ -259,27 +246,20 @@ test.describe('面料单据专用字段全链路验证', () => {
       color_no: colorNo,
       dye_lot_no: dyeLotNo,
       planned_quantity: 100,
-      status: 'draft',
+      status: 'pending_schedule',
     };
 
-    let batchId: number;
-    try {
-      const result = await apiCall<{ id?: number }>(
-        page,
-        'POST',
-        '/production/dye-batches',
-        batchData
-      );
-      batchId = result.data?.id!;
-    } catch (e) {
-      console.warn(`[E2E] 创建失败（回退查询列表）: ${(e as Error).message}`);
-      const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
-        page,
-        'GET',
-        '/production/dye-batches?page=1&page_size=1'
-      );
-      batchId = list.items?.[0]?.id;
-    }
+    const result = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/dye-batches',
+      batchData
+    );
+    const batchId = result.data?.id;
+    expect(
+      batchId,
+      `染色批次创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+    ).toBeTruthy();
 
     if (batchId) {
       const detail = await apiCallRaw<{

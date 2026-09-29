@@ -162,6 +162,8 @@ impl QuotationService {
         if items.is_empty() {
             return Err(AppError::validation("明细至少 1 条".to_string()));
         }
+        // 与创建同源的报价行单位一致性校验：更新明细同样必须跟随产品主数据交易单位
+        Self::validate_item_units_against_products(txn, &items).await?;
         ItemEntity::delete_many()
             .filter(sales_quotation_item::Column::QuotationId.eq(id))
             .exec(txn)

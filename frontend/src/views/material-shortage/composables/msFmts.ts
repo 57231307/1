@@ -1,124 +1,113 @@
 /**
- * msFmts.ts - 物料短缺格式化工具
- * 任务编号: P14 批 2 I-3 第 5 批（拆分原 material-shortage/index.vue）
- * 包含严重程度、状态、来源类型的类型与文本映射
- * 行为完全保持一致（仅结构重构）
+ * msFmts.ts - 物料缺料格式化工具
+ * 提供级别 / 状态的 el-tag 配色与 i18n 文案，取值域来自 @/constants/shortage
+ * 越界取值（脏数据）告警后原样显示，不静默掩盖
  */
+import { i18n } from '@/i18n';
+import { logger } from '@/utils/logger';
+import {
+  REPLENISHMENT_PRIORITY_LABEL_KEY,
+  REPLENISHMENT_PRIORITY_TAG_TYPE,
+  SHORTAGE_ALERT_STATUS_LABEL_KEY,
+  SHORTAGE_ALERT_STATUS_TAG_TYPE,
+  SHORTAGE_LEVEL_LABEL_KEY,
+  SHORTAGE_LEVEL_TAG_TYPE,
+  type ShortageTagType,
+} from '@/constants/shortage';
 
-/**
- * 严重程度元数据列表
- */
-export interface SeverityLevel {
-  value: 'critical' | 'high' | 'medium' | 'low';
-  label: string;
-  color: string;
-  class: string;
-}
-
-/**
- * 严重程度元数据（用于严重程度进度卡片）
- */
-export const SEVERITY_LEVELS: SeverityLevel[] = [
-  { value: 'critical', label: '严重', color: '#f56c6c', class: 'critical' },
-  { value: 'high', label: '高', color: '#e6a23c', class: 'high' },
-  { value: 'medium', label: '中', color: '#409eff', class: 'medium' },
-  { value: 'low', label: '低', color: '#909399', class: 'low' },
-];
-
-/**
- * 严重程度到 el-tag 类型
- */
-export const SEVERITY_COLOR_MAP: Record<string, string> = {
-  critical: 'danger',
-  high: 'warning',
-  medium: '',
-  low: 'info',
+/** 缺料级别 el-tag 类型 */
+export const getLevelTagType = (level: string): ShortageTagType => {
+  const type = SHORTAGE_LEVEL_TAG_TYPE[level];
+  if (!type) {
+    logger.warn(
+      `[msFmts] 未知缺料级别「${level}」，不在后端取值 Critical/Severe/Warning/Normal 内`
+    );
+    return 'info';
+  }
+  return type;
 };
 
-/**
- * 严重程度到中文标签
- */
-export const SEVERITY_LABEL_MAP: Record<string, string> = {
-  critical: '严重',
-  high: '高',
-  medium: '中',
-  low: '低',
+/** 缺料级别文案 */
+export const getLevelText = (level: string): string => {
+  const key = SHORTAGE_LEVEL_LABEL_KEY[level];
+  if (!key) {
+    logger.warn(`[msFmts] 未知缺料级别「${level}」，无对应文案键`);
+    return level;
+  }
+  return i18n.global.t(key);
 };
 
-/**
- * 状态到 el-tag 类型
- */
-export const STATUS_COLOR_MAP: Record<string, string> = {
-  pending: 'danger',
-  notified: 'warning',
-  resolved: 'success',
+/** 缺料预警状态 el-tag 类型 */
+export const getStatusTagType = (status: string | null | undefined): ShortageTagType => {
+  if (!status) return 'info';
+  const type = SHORTAGE_ALERT_STATUS_TAG_TYPE[status];
+  if (!type) {
+    logger.warn(
+      `[msFmts] 未知缺料预警状态「${status}」，不在后端状态机 identified/purchase_request/purchase_order/received/resolved 内`
+    );
+    return 'info';
+  }
+  return type;
 };
 
-/**
- * 状态到中文标签
- */
-export const STATUS_LABEL_MAP: Record<string, string> = {
-  pending: '待处理',
-  notified: '已通知',
-  resolved: '已解决',
+/** 缺料预警状态文案；未落库（status 为空）时明确提示而非伪造状态 */
+export const getStatusText = (status: string | null | undefined): string => {
+  if (!status) return i18n.global.t('materialShortage.table.statusUnsaved');
+  const key = SHORTAGE_ALERT_STATUS_LABEL_KEY[status];
+  if (!key) {
+    logger.warn(`[msFmts] 未知缺料预警状态「${status}」，无对应文案键`);
+    return status;
+  }
+  return i18n.global.t(key);
 };
 
-/**
- * 来源类型到 el-tag 类型
- */
-export const SOURCE_TYPE_COLOR_MAP: Record<string, string> = {
-  production: 'primary',
-  sales: 'success',
-  purchase: 'warning',
+/** 补货建议优先级 el-tag 类型 */
+export const getPriorityTagType = (priority: string): ShortageTagType => {
+  const type = REPLENISHMENT_PRIORITY_TAG_TYPE[priority];
+  if (!type) {
+    logger.warn(`[msFmts] 未知补货优先级「${priority}」，不在后端取值 URGENT/HIGH/MEDIUM/LOW 内`);
+    return 'info';
+  }
+  return type;
 };
 
-/**
- * 来源类型到中文标签
- */
-export const SOURCE_TYPE_LABEL_MAP: Record<string, string> = {
-  production: '生产',
-  sales: '销售',
-  purchase: '采购',
+/** 补货建议优先级文案 */
+export const getPriorityText = (priority: string): string => {
+  const key = REPLENISHMENT_PRIORITY_LABEL_KEY[priority];
+  if (!key) {
+    logger.warn(`[msFmts] 未知补货优先级「${priority}」，无对应文案键`);
+    return priority;
+  }
+  return i18n.global.t(key);
 };
 
-/**
- * 获取严重程度类型
- */
-export function getSeverityColor(severity: string): string {
-  return SEVERITY_COLOR_MAP[severity] || 'info';
-}
+/** 时间显示（后端为 RFC3339，按浏览器 locale 展示）；空值返回空串由模板决定占位 */
+export const formatDateTime = (value: string | null | undefined): string => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    logger.warn(`[msFmts] 无法解析时间值「${value}」`);
+    return value;
+  }
+  return date.toLocaleString();
+};
 
-/**
- * 获取严重程度文本
- */
-export function getSeverityLabel(severity: string): string {
-  return SEVERITY_LABEL_MAP[severity] || severity;
-}
+/** 数量显示：整数不带小数，小数保留两位 */
+export const formatQuantity = (value: number | string | null | undefined): string => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    logger.warn(`[msFmts] 缺料数量不是合法数值：${String(value)}`);
+    return String(value ?? '');
+  }
+  return Number.isInteger(num) ? String(num) : num.toFixed(2);
+};
 
-/**
- * 获取状态类型
- */
-export function getStatusColor(status: string): string {
-  return STATUS_COLOR_MAP[status] || 'info';
-}
-
-/**
- * 获取状态文本
- */
-export function getStatusLabel(status: string): string {
-  return STATUS_LABEL_MAP[status] || status;
-}
-
-/**
- * 获取来源类型类型
- */
-export function getSourceTypeColor(type: string): string {
-  return SOURCE_TYPE_COLOR_MAP[type] || 'info';
-}
-
-/**
- * 获取来源类型文本
- */
-export function getSourceTypeLabel(type: string): string {
-  return SOURCE_TYPE_LABEL_MAP[type] || type;
-}
+/** 缺口率显示（后端已是百分比数值） */
+export const formatDeficitRate = (rate: number | string | null | undefined): string => {
+  const num = Number(rate);
+  if (!Number.isFinite(num)) {
+    logger.warn(`[msFmts] 缺口率不是合法数值：${String(rate)}`);
+    return String(rate ?? '');
+  }
+  return `${num.toFixed(1)}%`;
+};

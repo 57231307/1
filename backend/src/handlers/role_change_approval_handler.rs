@@ -25,9 +25,9 @@ pub async fn create_approval(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     tracing::debug!(user_id = auth.user_id, "创建角色变更审批请求");
 
-    // 检查目标角色是否为敏感角色
+    // 检查目标角色是否为敏感角色（公开业务规则，文案可外显）
     if !RoleChangeApprovalService::is_sensitive_role(&req.target_role_code) {
-        return Err(AppError::business("只有敏感角色变更需要审批"));
+        return Err(AppError::business_displayable("只有敏感角色变更需要审批"));
     }
 
     let service = RoleChangeApprovalService::new(state.db.clone());

@@ -183,58 +183,50 @@
               <template #header
                 ><div class="card-header">{{ t('crmDetail.rfmScore') }}</div></template
               >
-              <div v-if="customer.rfm_score" class="rfm-display">
+              <div v-if="rfmScore" class="rfm-display">
                 <div class="rfm-level">
-                  <span class="level-badge">{{ customer.rfm_score.level }}</span>
-                  <span class="level-label">{{ customer.rfm_score.label }}</span>
+                  <span class="level-badge">{{ rfmScore.level }}</span>
+                  <span class="level-label">{{ rfmScore.label }}</span>
                 </div>
                 <div class="rfm-scores">
                   <div class="rfm-item">
                     <span class="rfm-label">{{ t('crmDetail.field.rfmRecency') }}</span>
-                    <span class="rfm-value">{{ customer.rfm_score.recency }}</span>
+                    <span class="rfm-value">{{ rfmScore.recency }}</span>
                   </div>
                   <div class="rfm-item">
                     <span class="rfm-label">{{ t('crmDetail.field.rfmFrequency') }}</span>
-                    <span class="rfm-value">{{ customer.rfm_score.frequency }}</span>
+                    <span class="rfm-value">{{ rfmScore.frequency }}</span>
                   </div>
                   <div class="rfm-item">
                     <span class="rfm-label">{{ t('crmDetail.field.rfmMonetary') }}</span>
-                    <span class="rfm-value">{{ customer.rfm_score.monetary }}</span>
+                    <span class="rfm-value">{{ rfmScore.monetary }}</span>
                   </div>
                 </div>
               </div>
               <el-empty v-else :description="t('crmDetail.rfmEmpty')" />
             </el-card>
 
-            <TagsPanelTab
-              :customer-id="customerId"
-              :tags="customer.tags"
-              @updated="fetchCustomer360"
-            />
+            <TagsPanelTab :customer-id="customerId" :tags="tags" @updated="fetchCustomer360" />
 
             <el-card shadow="hover" class="mt-20">
               <template #header
                 ><div class="card-header">{{ t('crmDetail.shippingAddress') }}</div></template
               >
               <div class="address-list">
-                <div
-                  v-for="addr in customer.shipping_addresses"
-                  :key="addr.id"
-                  class="address-item"
-                >
+                <div v-for="addr in shippingAddresses" :key="addr.id" class="address-item">
                   <div class="address-header">
-                    <span class="addr-name">{{ addr.name }}</span>
+                    <span class="addr-name">{{ addr.contact_name }}</span>
                     <el-tag v-if="addr.is_default" type="warning" size="small">{{
                       t('crmDetail.field.defaultAddress')
                     }}</el-tag>
                   </div>
-                  <div class="addr-phone">{{ addr.phone }}</div>
+                  <div class="addr-phone">{{ addr.contact_phone }}</div>
                   <div class="addr-detail">
-                    {{ addr.province }} {{ addr.city }} {{ addr.district }} {{ addr.detail }}
+                    {{ addr.province }} {{ addr.city }} {{ addr.district }} {{ addr.address }}
                   </div>
                 </div>
                 <el-empty
-                  v-if="!customer.shipping_addresses.length"
+                  v-if="!shippingAddresses.length"
                   :description="t('crmDetail.addressEmpty')"
                 />
               </div>
@@ -331,7 +323,10 @@ import {
   createCustomerContact,
   updateCustomerContact,
   type Contact,
-  type Customer360,
+  type CustomerEntity,
+  type CustomerTag,
+  type ShippingAddress,
+  type RfmScore,
 } from '@/api/crm-enhanced';
 import { logger } from '@/utils/logger';
 import FollowUpTab from './tabs/FollowUpTab.vue';
@@ -343,7 +338,10 @@ const route = useRoute();
 const router = useRouter();
 
 const loading = ref(false);
-const customer = ref<Customer360 | null>(null);
+const customer = ref<CustomerEntity | null>(null);
+const tags = ref<CustomerTag[]>([]);
+const shippingAddresses = ref<ShippingAddress[]>([]);
+const rfmScore = ref<RfmScore | null>(null);
 const customerId = Number(route.params.id);
 const followUpRef = ref<InstanceType<typeof FollowUpTab> | null>(null);
 
@@ -388,7 +386,11 @@ const fetchCustomer360 = async () => {
   loading.value = true;
   try {
     const res = await getCustomer360(customerId);
-    customer.value = res.data;
+    const d = res.data;
+    customer.value = d.customer;
+    tags.value = d.tags;
+    shippingAddresses.value = d.shipping_addresses;
+    rfmScore.value = d.summary?.rfm_score ?? null;
   } catch (error) {
     const err = error as Error;
     ElMessage.error(err.message || t('crmDetail.message.loadFailed'));

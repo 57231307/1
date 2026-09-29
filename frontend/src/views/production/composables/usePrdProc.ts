@@ -10,11 +10,15 @@
 import { reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { i18n } from '@/i18n';
 import {
   deleteProductionOrder,
   updateProductionOrderStatus,
+  submitProductionOrder,
+  approveProductionOrder,
+  reportProductionProgress,
+  getProductionOrderLogs,
   type ProductionOrder,
-  PRODUCTION_ORDER_STATUS,
 } from '@/api/production';
 import { getStatusLabel } from './prdFmts';
 import { escapeHtml } from '@/utils/print';
@@ -45,9 +49,7 @@ export function usePrdProc(cb: PrdCallbacks) {
   const handleStatusChange = async (row: ProductionOrder, status: string) => {
     try {
       await ElMessageBox.confirm(
-        `确认将订单 ${row.order_no} 状态更改为 ${
-          PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label
-        } 吗？`,
+        `确认将订单 ${row.order_no} 状态更改为 ${getStatusLabel(status)} 吗？`,
         '确认',
         { type: 'warning' }
       );
@@ -85,7 +87,7 @@ export function usePrdProc(cb: PrdCallbacks) {
    * 导出 Excel（V15 P0-S12 修复 Batch 475c）
    *
    * 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
-   * 改为调用后端 GET /production-orders/orders/export，后端注入水印 + 行级数据权限 + 异步审计日志
+   * 改为调用后端 GET /production/production-orders/orders/export，后端注入水印 + 行级数据权限 + 异步审计日志
    * 传入当前列表筛选条件（status/product_id），保证导出与列表一致
    */
   const handleExport = async () => {
@@ -98,7 +100,11 @@ export function usePrdProc(cb: PrdCallbacks) {
       status: filters.status || undefined,
       product_id: filters.product_id,
     };
-    await exportFromBackend('/production-orders/orders/export', params, 'production_orders_export');
+    await exportFromBackend(
+      '/production/production-orders/orders/export',
+      params,
+      'production_orders_export'
+    );
   };
 
   /** 打印 */
@@ -115,8 +121,8 @@ export function usePrdProc(cb: PrdCallbacks) {
       <td>${escapeHtml(item.order_no)}</td><td>${escapeHtml(item.product_name || '-')}</td>
       <td style="text-align:right">${escapeHtml(item.planned_quantity)}</td>
       <td style="text-align:right">${escapeHtml(item.actual_quantity || '-')}</td>
-      <td>${escapeHtml(item.scheduled_start_date?.substring(0, 10) || '-')}</td>
-      <td>${escapeHtml(item.scheduled_end_date?.substring(0, 10) || '-')}</td>
+      <td>${escapeHtml(item.planned_start_date?.substring(0, 10) || '-')}</td>
+      <td>${escapeHtml(item.planned_end_date?.substring(0, 10) || '-')}</td>
       <td>${escapeHtml(getStatusLabel(item.status))}</td><td>${escapeHtml(item.priority)}</td>
     </tr>
   `
@@ -130,11 +136,107 @@ export function usePrdProc(cb: PrdCallbacks) {
     printWindow.onload = () => printWindow.print();
   };
 
+  // ===== 提交审批（DRAFT → PENDING_APPROVAL） =====
+  const handleSubmitForApproval = async (row: ProductionOrder) => {
+    try {
+      await ElMessageBox.confirm(`确定提交生产订单 ${row.order_no} 进入审批吗？`, '提交审批确认', {
+        type: 'warning',
+      });
+      await submitProductionOrder(row.id);
+      ElMessage.success('已提交审批');
+      await cb.refresh();
+    } catch (error) {
+      if (error !== 'cancel') {
+        ElMessage.error((error as Error).message || '提交审批失败');
+      }
+    }
+  };
+
+  // ===== 审批（PENDING_APPROVAL → SCHEDULED / REJECTED） =====
+  const handleApproveOrder = async (row: ProductionOrder, approved: boolean) => {
+    let opinion: string | undefined;
+    try {
+      if (approved) {
+        await ElMessageBox.confirm(`确定通过生产订单 ${row.order_no} 的审批吗？`, '审批确认', {
+          type: 'warning',
+        });
+      } else {
+        const { value } = await ElMessageBox.prompt('请输入驳回意见', `驳回 ${row.order_no}`, {
+          type: 'warning',
+          inputPattern: /\S+/,
+          inputErrorMessage: '驳回意见不能为空',
+        });
+        opinion = value;
+      }
+      await approveProductionOrder(row.id, { approved, opinion });
+      ElMessage.success(approved ? '审批通过，已排产' : '已驳回');
+      await cb.refresh();
+    } catch (error) {
+      if (error !== 'cancel') {
+        ElMessage.error((error as Error).message || '审批失败');
+      }
+    }
+  };
+
+  // ===== 汇报生产进度（IN_PROGRESS 态） =====
+  const handleProgressReport = async (row: ProductionOrder) => {
+    let completed = '';
+    try {
+      const r1 = await ElMessageBox.prompt('请输入本次完成数量', `汇报进度 ${row.order_no}`, {
+        inputPattern: /^\d+(\.\d+)?$/,
+        inputErrorMessage: '请输入有效数量',
+      });
+      completed = r1.value;
+      const r2 = await ElMessageBox.prompt('备注（可留空）', `汇报进度 ${row.order_no}`, {
+        inputValidator: () => true,
+      });
+      // 键名对齐后端 UpdateProgressRequest（actual_quantity / remarks）。
+      // 次品数量后端无列可存，故此处不再采集——详见交付报告的能力缺口说明。
+      await reportProductionProgress(row.id, {
+        actual_quantity: Number(completed),
+        remarks: r2.value || undefined,
+      });
+      ElMessage.success('进度已汇报');
+      await cb.refresh();
+    } catch (error) {
+      if (error !== 'cancel') {
+        ElMessage.error((error as Error).message || '进度汇报失败');
+      }
+    }
+  };
+
+  // ===== 查看操作日志（getProductionOrderLogs） =====
+  const handleViewLogs = async (row: ProductionOrder) => {
+    try {
+      const res = await getProductionOrderLogs(row.id);
+      const logs = res.data.logs;
+      const text =
+        logs.length === 0
+          ? '暂无操作日志'
+          : logs
+              .map(
+                l =>
+                  `[${l.created_at ?? '-'}] ${l.operation_type ?? l.action} - ` +
+                  `${l.username ?? i18n.global.t('production.audit.unknownOperator')}${l.description ? `：${l.description}` : ''}`
+              )
+              .join('\n');
+      ElMessageBox.alert(text, `生产订单 ${row.order_no} 操作日志`, {
+        customStyle: { whiteSpace: 'pre-wrap' },
+      });
+    } catch (error) {
+      ElMessage.error((error as Error).message || '获取日志失败');
+    }
+  };
+
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
     handleStatusChange,
     handleDelete,
     handleExport,
     handlePrint,
+    handleSubmitForApproval,
+    handleApproveOrder,
+    handleProgressReport,
+    handleViewLogs,
   });
 }

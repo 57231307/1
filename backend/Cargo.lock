@@ -617,6 +617,7 @@ dependencies = [
  "docx-rs",
  "dotenvy",
  "fastrand",
+ "form_urlencoded",
  "futures",
  "hex",
  "hmac 0.12.1",

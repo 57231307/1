@@ -44,6 +44,8 @@ pub struct ProcessMonitorStats {
     pub pending_tasks: i64,
     pub completed_tasks: i64,
     pub rejected_tasks: i64,
+    /// 逾期未办任务数（status=pending 且 due_date 已过）：前端「紧急任务」卡片的唯一数据源
+    pub overdue_tasks: i64,
     pub avg_process_duration_minutes: Option<f64>,
 }
 

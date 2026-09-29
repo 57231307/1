@@ -116,11 +116,18 @@ export const NON_SENSITIVE_EXPORT_ENDPOINTS: string[] = [
   '/crm/leads/export',
   '/login-logs/export',
   '/crm/opportunities/export',
+  '/purchase/orders/export',
   '/sales/orders/export',
   '/production/production-orders/orders/export',
   '/production/quality-inspection/records/export',
   '/quality-standards/export',
-  '/reports/export',
+  // 注：/reports/export 已从本 GET 列表移除（原为 grep 误匹配）。后端唯一的
+  // /reports/export 是 `advanced()` 路由内 POST /reports/export（analytics.rs:481），
+  // 经 nest("/advanced")（analytics.rs:617）装配后真实完整路径为
+  // POST /api/v1/erp/advanced/reports/export，且需报表请求体（非"导出整表"语义），
+  // 不属于本"GET 直接导出 xlsx"矩阵；GET /api/v1/erp/reports/export 无路由 → 404。
+  // 报表导出能力由 /advanced/reports/export（POST）与 finance 各 /reports/<名>/export
+  // （GET，见敏感清单）覆盖。如需专项校验 POST /advanced/reports/export，另建探测用例。
   '/color-cards/reports/issue-detail/export',
   '/crm/sales-analysis/export',
   '/sales/sales-contracts/export',
@@ -135,27 +142,36 @@ export const NON_SENSITIVE_EXPORT_ENDPOINTS: string[] = [
  * approve/reject 端点全量矩阵
  * 每项配置：路径 + 前置创建调用链（创建单据拿 id）+ 审批请求体
  * 前置调用链缺失的端点在执行时按 routes 文件内 handler 签名补齐
+ *
+ * method：审批 HTTP 方法，缺省 POST（矩阵绝大多数为 POST）。
+ * 少数端点后端注册为 PUT，统一 POST 会命中 axum 的 405（方法不匹配），
+ * 被误判成"路由未注册/路径写错"。据后端 routes 显式标注真实方法：
+ * - /boms/{id}/approve                                → PUT（catalog.rs:133）
+ * - /budgets/versions/{id}/approve                    → PUT（finance.rs:392）
+ * - /fixed-assets/impairment-tests/{id}/approve       → PUT（finance.rs:290）
+ * - /fixed-assets/depreciation-policy-changes/{id}/approve → PUT（finance.rs:303）
  */
 export const APPROVE_ENDPOINTS: Array<{
   path: string;
   entity: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   createApi?: string;
   createBody?: Record<string, unknown>;
 }> = [
   { path: '/inventory/adjustments/{id}/approve', entity: 'adjustment' },
   { path: '/inventory/adjustments/{id}/reject', entity: 'adjustment' },
-  { path: '/ai-models/ai-models/versions/{version_id}/approve', entity: 'ai_model_version' },
+  { path: '/ai-models/versions/{version_id}/approve', entity: 'ai_model_version' },
   { path: '/ap/invoices/{id}/approve', entity: 'ap_invoice', createApi: '/ap/invoices' },
   { path: '/ap/payment-requests/{id}/approve', entity: 'ap_payment_request', createApi: '/ap/payment-requests' },
   { path: '/ap/payment-requests/{id}/reject', entity: 'ap_payment_request', createApi: '/ap/payment-requests' },
   { path: '/ar/invoices/{id}/approve', entity: 'ar_invoice', createApi: '/ar/invoices' },
-  { path: '/boms/{id}/approve', entity: 'bom', createApi: '/boms' },
+  { path: '/boms/{id}/approve', entity: 'bom', method: 'PUT', createApi: '/boms' },
   { path: '/bpm/tasks/approve', entity: 'bpm_task' },
   { path: '/budgets/adjust/{id}/approve', entity: 'budget_adjust' },
   { path: '/budgets/adjust/{id}/reject', entity: 'budget_adjust' },
   { path: '/budgets/plans/{id}/approve', entity: 'budget_plan' },
   { path: '/budgets/plans/{id}/reject', entity: 'budget_plan' },
-  { path: '/budgets/versions/{id}/approve', entity: 'budget_version' },
+  { path: '/budgets/versions/{id}/approve', entity: 'budget_version', method: 'PUT' },
   { path: '/budgets/{id}/approve', entity: 'budget' },
   { path: '/chemical-requisitions/{id}/approve', entity: 'chemical_requisition' },
   { path: '/inventory/counts/{id}/approve', entity: 'inventory_count', createApi: '/inventory/counts' },
@@ -165,8 +181,12 @@ export const APPROVE_ENDPOINTS: Array<{
   { path: '/export-approvals/{id}/approve', entity: 'export_approval', createApi: '/export-approvals' },
   { path: '/export-approvals/{id}/reject', entity: 'export_approval', createApi: '/export-approvals' },
   { path: '/sales/fabric-orders/{id}/approve', entity: 'fabric_order' },
-  { path: '/fixed-assets/depreciation-policy-changes/{id}/approve', entity: 'depreciation_policy_change' },
-  { path: '/fixed-assets/impairment-tests/{id}/approve', entity: 'impairment_test' },
+  {
+    path: '/fixed-assets/depreciation-policy-changes/{id}/approve',
+    entity: 'depreciation_policy_change',
+    method: 'PUT',
+  },
+  { path: '/fixed-assets/impairment-tests/{id}/approve', entity: 'impairment_test', method: 'PUT' },
   { path: '/fund-management/transfers/{id}/approve', entity: 'fund_transfer' },
   { path: '/fund-management/transfers/{id}/reject', entity: 'fund_transfer' },
   { path: '/finance/invoices/{id}/approve', entity: 'invoice' },

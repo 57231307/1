@@ -430,7 +430,7 @@ const damagedForm = reactive({ compensation_amount: 0, remark: '' });
 const cancelForm = reactive({ remark: '' });
 
 const loadCards = async () => {
-  const res = await getColorCardList({ status: 'active', page_size: 200 });
+  const res = await getColorCardList({ status: 'draft', page_size: 200 });
   availableCards.value = res.data?.items || [];
 };
 

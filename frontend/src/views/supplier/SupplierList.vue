@@ -189,6 +189,7 @@ const handleReset = () => {
   localQuery.keyword = '';
   localQuery.grade = '';
   localQuery.status = '';
+  localQuery.is_processor = undefined;
   localQuery.page = 1;
   localQuery.page_size = 20;
   handleQuery();

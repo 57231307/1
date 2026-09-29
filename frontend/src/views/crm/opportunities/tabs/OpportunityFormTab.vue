@@ -68,15 +68,21 @@
               v-model="formData.opportunity_stage"
               :placeholder="t('crmOpportunityForm.opportunityStagePlaceholder')"
             >
-              <el-option :label="t('crmOpportunityForm.stageOption.initial')" value="INITIAL" />
               <el-option
-                :label="t('crmOpportunityForm.stageOption.requirement')"
-                value="REQUIREMENT"
+                :label="t('crmOpportunityForm.stageOption.qualification')"
+                :value="OPPORTUNITY_STAGE.QUALIFICATION"
               />
-              <el-option :label="t('crmOpportunityForm.stageOption.proposal')" value="PROPOSAL" />
+              <el-option
+                :label="t('crmOpportunityForm.stageOption.needs_analysis')"
+                :value="OPPORTUNITY_STAGE.NEEDS_ANALYSIS"
+              />
+              <el-option
+                :label="t('crmOpportunityForm.stageOption.proposal')"
+                :value="OPPORTUNITY_STAGE.PROPOSAL"
+              />
               <el-option
                 :label="t('crmOpportunityForm.stageOption.negotiation')"
-                value="NEGOTIATION"
+                :value="OPPORTUNITY_STAGE.NEGOTIATION"
               />
             </el-select>
           </el-form-item>
@@ -108,6 +114,7 @@
             <el-date-picker
               v-model="formData.expected_close_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('crmOpportunityForm.expectedCloseDatePlaceholder')"
               style="width: 100%"
             />
@@ -157,8 +164,10 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { Opportunity } from '@/api/crm';
+import { createOpportunity, updateOpportunity } from '@/api/crm';
 import type { User } from '@/api/user';
 import type { Customer } from '@/api/customer';
+import { OPPORTUNITY_STAGE } from '@/utils/crm-status';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -219,13 +228,6 @@ const formRules: FormRules = {
       trigger: 'change',
     },
   ],
-  owner_id: [
-    {
-      required: true,
-      message: t('crmOpportunityForm.validation.ownerRequired'),
-      trigger: 'change',
-    },
-  ],
 };
 
 watch(
@@ -264,12 +266,30 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
-    // 调用由父组件处理实际的保存逻辑（通过 emit）
+    // 后端契约：customer_id/owner_id 为整数，opportunity_stage 为大写枚举，提交前归一化；id 空值转为 undefined。
+    // expected_close_date 为 el-date-picker（后端 Option<NaiveDate>）：手输/未选时 v-model 为空串，
+    // 空串会被后端 serde 反序列化成非法 NaiveDate → 整单 400。选填日期缺失应等价于「不填」，故空串归一为 undefined 省略该字段。
+    const payload = {
+      ...formData,
+      id: formData.id ?? undefined,
+      customer_id: Number(formData.customer_id),
+      owner_id: formData.owner_id === '' ? undefined : Number(formData.owner_id),
+      expected_close_date: formData.expected_close_date || undefined,
+      opportunity_type: formData.opportunity_type || undefined,
+      opportunity_stage: (formData.opportunity_stage ||
+        undefined) as Opportunity['opportunity_stage'],
+    };
+    if (formData.id) {
+      await updateOpportunity(formData.id, payload);
+    } else {
+      await createOpportunity(payload);
+    }
     ElMessage.success(t('crmOpportunityForm.message.saveSuccess'));
     visible.value = false;
     emit('submitted');
   } catch (error) {
     const err = error as Error;
+    ElMessage.error(err.message || t('crmOpportunityForm.message.validationFailed'));
     logger.warn(t('crmOpportunityForm.message.validationFailed'), err.message);
   } finally {
     submitLoading.value = false;

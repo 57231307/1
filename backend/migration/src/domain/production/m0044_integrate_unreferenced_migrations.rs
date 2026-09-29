@@ -99,9 +99,9 @@ ON CONFLICT (function_name) DO NOTHING;"#,
 CREATE TABLE IF NOT EXISTS "custom_orders" (
     "id" BIGSERIAL PRIMARY KEY,
     "order_no" VARCHAR(50) UNIQUE NOT NULL,
-    "customer_id" BIGINT NOT NULL REFERENCES "customers"("id"),
-    "product_id" BIGINT NOT NULL REFERENCES "products"("id"),
-    "color_id" BIGINT REFERENCES "product_colors"("id"),
+    "customer_id" INTEGER NOT NULL REFERENCES "customers"("id"),
+    "product_id" INTEGER NOT NULL REFERENCES "products"("id"),
+    "color_id" INTEGER REFERENCES "product_colors"("id"),
     "spec" VARCHAR(200) NOT NULL,
     "quantity" DECIMAL(18,2) NOT NULL CHECK ("quantity" > 0),
     "unit" VARCHAR(20) NOT NULL DEFAULT 'm',
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS "custom_orders" (
     "status" VARCHAR(30) NOT NULL DEFAULT 'draft',
     "expected_delivery_date" DATE,
     "actual_delivery_date" DATE,
-    "sales_order_id" BIGINT REFERENCES "sales_orders"("id"),
+    "sales_order_id" INTEGER REFERENCES "sales_orders"("id"),
     "total_amount" DECIMAL(18,2),
     "currency" VARCHAR(10) NOT NULL DEFAULT 'CNY',
     "tenant_id" BIGINT NOT NULL,
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS "process_nodes" (
     "planned_end_date" TIMESTAMPTZ,
     "actual_start_date" TIMESTAMPTZ,
     "actual_end_date" TIMESTAMPTZ,
-    "operator_id" BIGINT REFERENCES "users"("id"),
+    "operator_id" INTEGER REFERENCES "users"("id"),
     "notes" TEXT,
     "tenant_id" BIGINT NOT NULL,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS "process_logs" (
     "id" BIGSERIAL PRIMARY KEY,
     "process_node_id" BIGINT NOT NULL REFERENCES "process_nodes"("id") ON DELETE CASCADE,
     "action" VARCHAR(50) NOT NULL,
-    "operator_id" BIGINT REFERENCES "users"("id"),
+    "operator_id" INTEGER REFERENCES "users"("id"),
     "before_status" VARCHAR(20),
     "after_status" VARCHAR(20),
     "log_time" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -235,7 +235,7 @@ CREATE TABLE IF NOT EXISTS "after_sales" (
     "id" BIGSERIAL PRIMARY KEY,
     "custom_order_id" BIGINT NOT NULL REFERENCES "custom_orders"("id"),
     "issue_type" VARCHAR(30) NOT NULL,
-    "customer_id" BIGINT NOT NULL REFERENCES "customers"("id"),
+    "customer_id" INTEGER NOT NULL REFERENCES "customers"("id"),
     "description" TEXT NOT NULL,
     "status" VARCHAR(20) NOT NULL DEFAULT 'opened',
     "opened_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -361,8 +361,8 @@ COMMENT ON COLUMN "color_card_items"."sequence" IS '色卡中色号的显示顺�
 CREATE TABLE IF NOT EXISTS "color_card_borrow_records" (
     "id" BIGSERIAL PRIMARY KEY,
     "color_card_id" BIGINT NOT NULL REFERENCES "color_cards"("id") ON DELETE RESTRICT,
-    "customer_id" BIGINT NOT NULL REFERENCES "customers"("id") ON DELETE RESTRICT,
-    "borrowed_by" BIGINT NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+    "customer_id" INTEGER NOT NULL REFERENCES "customers"("id") ON DELETE RESTRICT,
+    "borrowed_by" INTEGER NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
     "borrowed_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "expected_return_at" TIMESTAMPTZ,
     "actual_return_at" TIMESTAMPTZ,
@@ -414,11 +414,11 @@ CREATE TABLE IF NOT EXISTS "ai_process_optimizations" (
     "candidates_json" JSONB,
     "is_applied" BOOLEAN NOT NULL DEFAULT false,
     "applied_at" TIMESTAMPTZ,
-    "applied_by" BIGINT REFERENCES "users"("id"),
+    "applied_by" INTEGER REFERENCES "users"("id"),
     "feedback_score" SMALLINT,
     "feedback_remark" TEXT,
     "tenant_id" BIGINT NOT NULL,
-    "created_by" BIGINT REFERENCES "users"("id"),
+    "created_by" INTEGER REFERENCES "users"("id"),
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT "chk_ai_proc_source" CHECK ("source" IN ('knn', 'fallback')),
@@ -455,7 +455,7 @@ COMMENT ON COLUMN "ai_process_optimizations"."feedback_score" IS '采纳后质�
 CREATE TABLE IF NOT EXISTS "ai_quality_predictions" (
     "id" BIGSERIAL PRIMARY KEY,
     "request_id" VARCHAR(64) NOT NULL UNIQUE,
-    "product_id" BIGINT REFERENCES "products"("id"),
+    "product_id" INTEGER REFERENCES "products"("id"),
     "inspection_type" VARCHAR(32) NOT NULL DEFAULT 'all',
     "window_days" INTEGER NOT NULL DEFAULT 90,
     "total_inspections" BIGINT NOT NULL DEFAULT 0,
@@ -471,9 +471,9 @@ CREATE TABLE IF NOT EXISTS "ai_quality_predictions" (
     "source" VARCHAR(16) NOT NULL,
     "is_acknowledged" BOOLEAN NOT NULL DEFAULT false,
     "acknowledged_at" TIMESTAMPTZ,
-    "acknowledged_by" BIGINT REFERENCES "users"("id"),
+    "acknowledged_by" INTEGER REFERENCES "users"("id"),
     "tenant_id" BIGINT NOT NULL,
-    "created_by" BIGINT REFERENCES "users"("id"),
+    "created_by" INTEGER REFERENCES "users"("id"),
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT "chk_ai_qual_type" CHECK ("inspection_type" IN ('all', 'incoming', 'inprocess', 'final', 'outgoing')),
@@ -649,20 +649,14 @@ COMMENT ON COLUMN dim_dates.day_of_week IS '1=周一，7=周日';"#,
     // 20260618 系列（增强版销售报价/色价历史/梯度/客户色价/季节性价格）
     (
         "20260618000001_create_sales_quotations",
-        r#"-- 销售报价单主表
--- 用于存储销售报价单的核心业务信息（Incoterms 2020 + 多币种 + 状态机）
--- 创建时间: 2026-06-18
--- 关联计划: 2026-06-17-p12-batch1-quotation-port-plan.md PR-1
--- main 适配说明：
---   - ID 由 BIGSERIAL 调整为 SERIAL（i32），与 main 已有 sales_order / sales_fabric_order 主键类型保持一致
---   - 引用 main 现有表的外键列使用 INTEGER，与 customers.id / users.id / sales_orders.id 类型一致
---   - 枚举状态按任务规范：DRAFT / SUBMITTED / APPROVED / REJECTED / CONVERTED / CANCELLED / EXPIRED
+        r#"-- 销售报价单主表（权威定义在 sales_crm 域迁移，本处为兜底幂等声明）
+-- ID / FK 列统一为 BIGSERIAL / BIGINT，与 sales_crm 域实际建表一致
 
 CREATE TABLE IF NOT EXISTS "sales_quotations" (
-    "id" SERIAL PRIMARY KEY,
+    "id" BIGSERIAL PRIMARY KEY,
     "quotation_no" VARCHAR(50) UNIQUE NOT NULL,
-    "customer_id" INTEGER NOT NULL REFERENCES "customers"("id"),
-    "sales_user_id" INTEGER NOT NULL REFERENCES "users"("id"),
+    "customer_id" BIGINT NOT NULL REFERENCES "customers"("id"),
+    "sales_user_id" BIGINT NOT NULL REFERENCES "users"("id"),
     "quotation_date" DATE NOT NULL,
     "valid_until" DATE NOT NULL,
 
@@ -694,18 +688,18 @@ CREATE TABLE IF NOT EXISTS "sales_quotations" (
     "status" VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
 
     -- BPM 审批：approval_instance_id 暂不建外键约束（避免阻塞本迁移），后续 PR 通过补充迁移补建
-    "approval_instance_id" INTEGER,
-    "approved_by" INTEGER REFERENCES "users"("id"),
+    "approval_instance_id" BIGINT,
+    "approved_by" BIGINT REFERENCES "users"("id"),
     "approved_at" TIMESTAMPTZ,
     "rejection_reason" TEXT,
 
     -- 转换
-    "converted_sales_order_id" INTEGER REFERENCES "sales_orders"("id"),
+    "converted_sales_order_id" BIGINT REFERENCES "sales_orders"("id"),
     "converted_at" TIMESTAMPTZ,
 
     -- 元数据
     "notes" TEXT,
-    "created_by" INTEGER NOT NULL REFERENCES "users"("id"),
+    "created_by" BIGINT NOT NULL REFERENCES "users"("id"),
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -739,7 +733,7 @@ ALTER TABLE "product_color_prices"
 
 -- 添加 customer_id 客户专属（NULL = 通用）
 ALTER TABLE "product_color_prices"
-    ADD COLUMN IF NOT EXISTS "customer_id" BIGINT REFERENCES "customers"("id");
+    ADD COLUMN IF NOT EXISTS "customer_id" INTEGER REFERENCES "customers"("id");
 
 -- 添加 season 季节标签
 ALTER TABLE "product_color_prices"
@@ -755,10 +749,10 @@ ALTER TABLE "product_color_prices"
 
 -- 添加创建人 / 审批人 / 审批时间
 ALTER TABLE "product_color_prices"
-    ADD COLUMN IF NOT EXISTS "created_by" BIGINT REFERENCES "users"("id");
+    ADD COLUMN IF NOT EXISTS "created_by" INTEGER REFERENCES "users"("id");
 
 ALTER TABLE "product_color_prices"
-    ADD COLUMN IF NOT EXISTS "approved_by" BIGINT REFERENCES "users"("id");
+    ADD COLUMN IF NOT EXISTS "approved_by" INTEGER REFERENCES "users"("id");
 
 ALTER TABLE "product_color_prices"
     ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
@@ -830,9 +824,9 @@ CREATE TABLE IF NOT EXISTS "color_price_history" (
     "change_reason" TEXT,
     "change_percent" DECIMAL(8,4),
     "quantity" DECIMAL(18,2),
-    "operated_by" BIGINT NOT NULL REFERENCES "users"("id"),
+    "operated_by" INTEGER NOT NULL REFERENCES "users"("id"),
     "operated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "approved_by" BIGINT REFERENCES "users"("id"),
+    "approved_by" INTEGER REFERENCES "users"("id"),
     "approved_at" TIMESTAMPTZ,
     "tenant_id" BIGINT NOT NULL,
     CONSTRAINT "chk_history_change_type" CHECK ("change_type" IN ('manual', 'batch', 'seasonal', 'customer_specific', 'tier'))
@@ -853,20 +847,15 @@ COMMENT ON COLUMN "color_price_history"."quantity" IS '触发价格的数量（�
     ),
     (
         "20260618000002_create_sales_quotation_items",
-        r#"-- 销售报价单明细
--- 用于存储报价单中每个产品/色号的行项目
--- 创建时间: 2026-06-18
--- 关联计划: 2026-06-17-p12-batch1-quotation-port-plan.md PR-1
--- main 适配说明：
---   - ID / 外键类型与主表保持一致（SERIAL / INTEGER）
---   - product_id / color_id 引用 main 已有的 products / product_colors 表
+        r#"-- 销售报价单明细（权威定义在 sales_crm 域迁移，本处为兜底幂等声明）
+-- ID / FK 列统一为 BIGSERIAL / BIGINT，与 sales_crm 域实际建表一致
 
 CREATE TABLE IF NOT EXISTS "sales_quotation_items" (
-    "id" SERIAL PRIMARY KEY,
-    "quotation_id" INTEGER NOT NULL REFERENCES "sales_quotations"("id") ON DELETE CASCADE,
+    "id" BIGSERIAL PRIMARY KEY,
+    "quotation_id" BIGINT NOT NULL REFERENCES "sales_quotations"("id") ON DELETE CASCADE,
 
-    "product_id" INTEGER NOT NULL REFERENCES "products"("id"),
-    "color_id" INTEGER REFERENCES "product_colors"("id"),
+    "product_id" BIGINT NOT NULL REFERENCES "products"("id"),
+    "color_id" BIGINT REFERENCES "product_colors"("id"),
     "color_code" VARCHAR(50),
     "pantone_code" VARCHAR(50),
     "cncs_code" VARCHAR(50),
@@ -933,17 +922,12 @@ COMMENT ON COLUMN "color_price_tiers"."sequence" IS '阶梯顺序（数值小 = 
     ),
     (
         "20260618000003_create_sales_quotation_terms",
-        r#"-- 销售报价单贸易条款
--- 用于存储报价单中各类贸易条款（物流/付款/样品/检验）
--- 创建时间: 2026-06-18
--- 关联计划: 2026-06-17-p12-batch1-quotation-port-plan.md PR-1
--- main 适配说明：
---   - ID / 外键类型与主表保持一致（SERIAL / INTEGER）
---   - term_type 枚举沿用 test 分支约定（logistics/payment/sample/inspection）
+        r#"-- 销售报价单贸易条款（权威定义在 sales_crm 域迁移，本处为兜底幂等声明）
+-- ID / FK 列统一为 BIGSERIAL / BIGINT，与 sales_crm 域实际建表一致
 
 CREATE TABLE IF NOT EXISTS "sales_quotation_terms" (
-    "id" SERIAL PRIMARY KEY,
-    "quotation_id" INTEGER NOT NULL REFERENCES "sales_quotations"("id") ON DELETE CASCADE,
+    "id" BIGSERIAL PRIMARY KEY,
+    "quotation_id" BIGINT NOT NULL REFERENCES "sales_quotations"("id") ON DELETE CASCADE,
     "term_type" VARCHAR(50) NOT NULL,
     "term_key" VARCHAR(100) NOT NULL,
     "term_value" TEXT NOT NULL,
@@ -967,16 +951,16 @@ COMMENT ON COLUMN "sales_quotation_terms"."term_type" IS '条款类型 - logisti
 
 CREATE TABLE IF NOT EXISTS "customer_color_prices" (
     "id" BIGSERIAL PRIMARY KEY,
-    "customer_id" BIGINT NOT NULL REFERENCES "customers"("id"),
-    "product_id" BIGINT NOT NULL REFERENCES "products"("id"),
-    "color_id" BIGINT NOT NULL REFERENCES "product_colors"("id"),
+    "customer_id" INTEGER NOT NULL REFERENCES "customers"("id"),
+    "product_id" INTEGER NOT NULL REFERENCES "products"("id"),
+    "color_id" INTEGER NOT NULL REFERENCES "product_colors"("id"),
     "special_price" DECIMAL(18,6) NOT NULL,
     "discount_percent" DECIMAL(5,2),
     "currency" VARCHAR(10) NOT NULL DEFAULT 'CNY',
     "valid_from" DATE NOT NULL,
     "valid_until" DATE,
     "notes" TEXT,
-    "approved_by" BIGINT REFERENCES "users"("id"),
+    "approved_by" INTEGER REFERENCES "users"("id"),
     "approved_at" TIMESTAMPTZ,
     "tenant_id" BIGINT NOT NULL,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -1008,7 +992,7 @@ CREATE TABLE IF NOT EXISTS "seasonal_price_rules" (
     "id" BIGSERIAL PRIMARY KEY,
     "rule_name" VARCHAR(100) NOT NULL,
     "season" VARCHAR(10) NOT NULL,
-    "product_category_id" BIGINT REFERENCES "product_categories"("id"),
+    "product_category_id" INTEGER REFERENCES "product_categories"("id"),
     "adjustment_type" VARCHAR(20) NOT NULL,
     "adjustment_value" DECIMAL(8,4) NOT NULL,
     "valid_from" DATE NOT NULL,

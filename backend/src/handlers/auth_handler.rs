@@ -786,7 +786,7 @@ fn build_login_cookies(
         token,
         is_secure,
         true,
-        CookieDuration::minutes(30),
+        CookieDuration::hours(8),
     );
     // refresh_token: httpOnly，2 天有效期（P2 7-9：原 7 天窗口过长缩短至 2 天）
     let refresh_cookie = build_session_cookie(

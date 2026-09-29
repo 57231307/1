@@ -2,9 +2,11 @@
   AdjustmentDialog.vue - 库存调整对话框
   任务编号: P14 批 2 I-3 第 8 批
   拆分原 inventory/index.vue 的库存调整对话框
-  行为完全保持一致（仅结构重构）
   使用 props.initialForm 初始化 + 内部 localForm（不直接突变 prop）
   submit 时 emit submitWithForm(localForm) 把当前 form 回传
+
+  修复（缺陷A）：从工具栏进入时（无预置 product_name/warehouse_name），
+  渲染可选 el-select 供用户选定目标库存；从行内进入时保留只读回显。
 -->
 <template>
   <el-dialog
@@ -20,14 +22,40 @@
       label-width="100px"
       :aria-label="t('inventory.adjustmentDialog.formAria')"
     >
-      <el-form-item v-if="localForm.product_name" :label="t('inventory.adjustmentDialog.product')">
-        <el-input :value="localForm.product_name" disabled />
+      <!-- 产品：行内入口（有预置 name）→ 只读回显；工具栏入口 → 可选 el-select -->
+      <el-form-item :label="t('inventory.adjustmentDialog.product')">
+        <el-input v-if="localForm.product_name" :value="localForm.product_name" disabled />
+        <el-select
+          v-else
+          v-model="localForm.product_id"
+          filterable
+          :placeholder="t('inventory.adjustmentDialog.productPlaceholder')"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="p in products"
+            :key="p.id"
+            :label="`${p.product_code} - ${p.product_name}`"
+            :value="p.id"
+          />
+        </el-select>
       </el-form-item>
-      <el-form-item
-        v-if="localForm.warehouse_name"
-        :label="t('inventory.adjustmentDialog.warehouse')"
-      >
-        <el-input :value="localForm.warehouse_name" disabled />
+      <!-- 仓库：同上逻辑 -->
+      <el-form-item :label="t('inventory.adjustmentDialog.warehouse')">
+        <el-input v-if="localForm.warehouse_name" :value="localForm.warehouse_name" disabled />
+        <el-select
+          v-else
+          v-model="localForm.warehouse_id"
+          :placeholder="t('inventory.adjustmentDialog.warehousePlaceholder')"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="wh in warehouses"
+            :key="wh.id"
+            :label="wh.warehouse_name"
+            :value="wh.id"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item
         v-if="localForm.current_quantity"
@@ -66,6 +94,8 @@
 import { useI18n } from 'vue-i18n';
 import { deepClone } from '@/utils';
 import { reactive, watch } from 'vue';
+import type { Warehouse } from '@/api/warehouse';
+import type { Product } from '@/api/product';
 
 // 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });
@@ -86,6 +116,8 @@ export interface AdjustmentForm {
 const props = defineProps<{
   visible: boolean;
   initialForm: AdjustmentForm;
+  warehouses: Warehouse[];
+  products: Product[];
 }>();
 
 const emit = defineEmits<{

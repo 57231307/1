@@ -11,7 +11,14 @@ export interface PurchaseReceiptEntity {
   supplier_name?: string;
   warehouse_id: number;
   warehouse_name?: string;
-  status: string;
+  /**
+   * 入库状态：后端 purchase_receipt.receipt_status（大写 DRAFT/CONFIRMED/COMPLETED）。
+   * 列表/详情接口直接 serde_json::to_value(Model)，出参键为 receipt_status——此前误写成
+   * status，导致状态列与行内按钮门控读到的恒为 undefined（列恒空、按钮恒不可达）。
+   */
+  receipt_status: string;
+  /** 质检状态：后端 purchase_receipt.inspection_status（大写 PENDING/PASSED/REJECTED），同样随 Model 返回 */
+  inspection_status: string;
   total_amount: number;
   remark?: string;
   created_at?: string;
@@ -23,24 +30,124 @@ export interface PurchaseReceiptEntity {
   items?: ReceiptItem[];
 }
 
+/**
+ * 入库明细行：字段名与后端 purchase_receipt_item Model /
+ * CreateReceiptItemRequest 对齐（material_code/material_name/unit_master/
+ * quantity_alt/unit_price/notes）；编辑回显直接消费后端返回，不再另起别名
+ */
 export interface ReceiptItem {
   id?: number;
   receipt_id?: number;
+  line_no?: number;
+  /** 产品（物料）ID；提交明细时按 CreateReceiptItemRequest 映射为 material_id */
   product_id: number;
-  product_code?: string;
-  product_name?: string;
-  color_no?: string;
+  material_code?: string;
+  material_name?: string;
+  batch_no?: string;
+  color_code?: string;
+  lot_no?: string;
   grade?: string;
-  unit?: string;
+  gram_weight?: number;
+  width?: number;
+  /** 入库数量（主单位） */
   quantity: number;
-  price: number;
-  amount: number;
-  remark?: string;
+  /** 入库数量（辅助单位，面料行业常为公斤） */
+  quantity_alt?: number;
+  /** 主单位（取自产品档案，不手工录入） */
+  unit_master?: string;
+  unit_alt?: string;
+  unit_price?: number;
+  amount?: number;
+  location_code?: string;
+  notes?: string;
 }
 
 // P2-9c 修复（批次 82 v1 复审）：PurchaseReceiptQueryParams 已在 purchase.ts 定义，此处复用避免重复导出
 import type { PurchaseReceiptQueryParams } from './purchase';
 export type { PurchaseReceiptQueryParams };
+
+/**
+ * 创建入库明细请求 —— 与后端 DTO 逐字段对齐
+ * backend/src/services/purchase_receipt_dto.rs:54 CreateReceiptItemRequest
+ * 键名 snake_case；非 Option 必填：line_no/material_id/material_code/material_name/
+ *   quantity/quantity_alt/unit_master；batch_no 后端 DTO 为 Option 但
+ *   create_receipt→validate_receipt_item_dimensions(crud.rs:112) 建单期强校验非空，
+ *   故此处收紧为必填 string（不给 undefined 兜底掩盖缺键）。
+ * color_code/lot_no/piece_no/grade 为染色布追溯维度（validate_fabric_trace 口径），
+ *   后端建单期「染色布必填」分支尚未落地（crud.rs:107-111 TODO），故按可选传递。
+ */
+export interface CreateReceiptItemRequest {
+  order_item_id?: number;
+  line_no: number;
+  /** 物料（产品）id；validate_receipt_item_dimensions 要求 >0 */
+  material_id: number;
+  material_code: string;
+  material_name: string;
+  batch_no: string;
+  color_code?: string;
+  lot_no?: string;
+  /** 染色匹号（匹号领域：入库使用染色匹号） */
+  piece_no?: string;
+  grade?: string;
+  gram_weight?: number;
+  width?: number;
+  quantity: number;
+  quantity_alt: number;
+  unit_master: string;
+  unit_alt?: string;
+  unit_price?: number;
+  location_code?: string;
+  package_no?: string;
+  production_date?: string;
+  shelf_life?: number;
+  notes?: string;
+}
+
+/**
+ * 更新入库明细请求 —— 与后端 DTO 逐字段对齐
+ * backend/src/services/purchase_receipt_dto.rs:123 UpdateReceiptItemRequest
+ * PUT /{id}/items/{itemId} 端点消费此结构，全部字段 Option（仅应用的字段落库）；
+ * 键名 snake_case，禁止用旧 Partial<ReceiptItem>（含 product_id/amount 等响应模型键）
+ * 冒充请求契约——那会让 batch_no/缸号等维度在类型层缺席、编译期无从校验。
+ */
+export interface UpdateReceiptItemRequest {
+  line_no?: number;
+  material_id?: number;
+  material_code?: string;
+  material_name?: string;
+  batch_no?: string;
+  color_code?: string;
+  lot_no?: string;
+  grade?: string;
+  gram_weight?: number;
+  width?: number;
+  quantity?: number;
+  quantity_alt?: number;
+  unit_price?: number;
+  location_code?: string;
+  notes?: string;
+  piece_no?: string;
+}
+
+/**
+ * 创建采购入库单请求 —— 与后端 DTO 逐字段对齐
+ * backend/src/services/purchase_receipt_dto.rs:11 CreatePurchaseReceiptRequest
+ * 非 Option 必填：supplier_id/receipt_date/warehouse_id/items；
+ * order_id 为 Option：按单收货传采购订单 id，后端据此把入库明细挂到订单行累加收货进度。
+ * 注：PurchaseReceiptEntity 是响应/编辑回显模型（含 id/单号/状态等生成列，明细键名为 product_id），
+ *   不能作创建入参类型——缺 order_id 且明细键名（material_id/material_code/...）与契约不符。
+ */
+export interface CreatePurchaseReceiptRequest {
+  order_id?: number;
+  supplier_id: number;
+  receipt_date: string;
+  warehouse_id: number;
+  department_id?: number;
+  inspector_id?: number;
+  notes?: string;
+  attachment_urls?: string[];
+  items: CreateReceiptItemRequest[];
+}
 
 export function getPurchaseReceiptList(params?: PurchaseReceiptQueryParams) {
   return request.get<ApiResponse<{ items: PurchaseReceiptEntity[]; total: number }>>(
@@ -53,7 +160,7 @@ export function getPurchaseReceipt(id: number) {
   return request.get<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}`);
 }
 
-export function createPurchaseReceipt(data: Partial<PurchaseReceiptEntity>) {
+export function createPurchaseReceipt(data: CreatePurchaseReceiptRequest) {
   return request.post<ApiResponse<PurchaseReceiptEntity>>('/purchase/receipts', data);
 }
 
@@ -65,30 +172,25 @@ export function deletePurchaseReceipt(id: number) {
   return request.delete<ApiResponse<void>>(`/purchase/receipts/${id}`);
 }
 
+// 后端真实端点：POST /purchase/receipts/{id}/confirm（purchase_receipt_handler::confirm_receipt）
 export function approvePurchaseReceipt(id: number) {
-  return request.patch<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}/approve`);
-}
-
-// 入库单明细响应载荷
-export interface ReceiptItemsResponse {
-  items: ReceiptItem[];
-  total?: number;
+  return request.post<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}/confirm`);
 }
 
 /**
  * 获取入库单明细
- * 修复前返回 Promise<any>，导致调用方需要做大量类型断言；
- * 修复后返回明确的 ApiResponse<ReceiptItemsResponse>，调用方可直接 res.data?.items 解构。
+ * 后端 purchase_receipt_handler::list_receipt_items 直接返回 ApiResponse<Vec<Value>>，
+ * data 即明细数组本身（裸数组，非 {items} 信封）。
  */
 export function getReceiptItems(id: number) {
-  return request.get<ApiResponse<ReceiptItemsResponse>>(`/purchase/receipts/${id}/items`);
+  return request.get<ApiResponse<ReceiptItem[]>>(`/purchase/receipts/${id}/items`);
 }
 
-export function createReceiptItem(id: number, data: Partial<ReceiptItem>) {
+export function createReceiptItem(id: number, data: CreateReceiptItemRequest) {
   return request.post<ApiResponse<ReceiptItem>>(`/purchase/receipts/${id}/items`, data);
 }
 
-export function updateReceiptItem(id: number, itemId: number, data: Partial<ReceiptItem>) {
+export function updateReceiptItem(id: number, itemId: number, data: UpdateReceiptItemRequest) {
   return request.put<ApiResponse<ReceiptItem>>(`/purchase/receipts/${id}/items/${itemId}`, data);
 }
 

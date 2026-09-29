@@ -28,8 +28,12 @@ use rust_decimal::Decimal;
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct CostCollectionQuery {
+    /// 成本归集单号模糊筛选（前端列表页有该筛选框，此前后端无字段被静默丢弃）
+    pub collection_no: Option<String>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
+    /// 状态筛选（draft/approved/rejected，等值匹配 cost_collection.status 真实列）
+    pub status: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }
@@ -68,8 +72,10 @@ pub async fn list_collections(
     let service = CostCollectionService::new(state.db.clone());
     let (collections, total) = service
         .get_list(
+            params.collection_no,
             params.batch_no,
             params.color_no,
+            params.status,
             params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
         )
@@ -362,7 +368,14 @@ pub async fn export_collections(
 ) -> Result<axum::response::Response, AppError> {
     let service = CostCollectionService::new(state.db.clone());
     let (collections, _total) = service
-        .get_list(query.batch_no, query.color_no, 1, 10000)
+        .get_list(
+            query.collection_no,
+            query.batch_no,
+            query.color_no,
+            query.status,
+            1,
+            10000,
+        )
         .await?;
     let row_count = collections.len();
     let collections_json: Vec<serde_json::Value> = collections

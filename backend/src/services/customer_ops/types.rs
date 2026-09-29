@@ -98,6 +98,18 @@ pub struct CreateCustomerArgs {
     pub bank_account: Option<String>,
     /// 客户类型
     pub customer_type: String,
+    /// 客户状态（active/inactive）
+    pub status: Option<String>,
+    /// 客户行业
+    pub customer_industry: Option<String>,
+    /// 主营产品
+    pub main_products: Option<String>,
+    /// 年采购额
+    pub annual_purchase: Option<rust_decimal::Decimal>,
+    /// 质量要求
+    pub quality_requirement: Option<String>,
+    /// 验货标准
+    pub inspection_standard: Option<String>,
     /// 备注
     pub notes: Option<String>,
     /// 创建人 ID
@@ -139,6 +151,18 @@ pub struct UpdateCustomerArgs {
     pub customer_type: Option<String>,
     /// 状态
     pub status: Option<String>,
+    /// 国家
+    pub country: Option<String>,
+    /// 客户行业
+    pub customer_industry: Option<String>,
+    /// 主营产品
+    pub main_products: Option<String>,
+    /// 年采购额
+    pub annual_purchase: Option<rust_decimal::Decimal>,
+    /// 质量要求
+    pub quality_requirement: Option<String>,
+    /// 验货标准
+    pub inspection_standard: Option<String>,
     /// 备注
     pub notes: Option<String>,
     /// 操作人 ID

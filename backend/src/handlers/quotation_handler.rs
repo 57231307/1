@@ -7,7 +7,7 @@
 use chrono::Utc;
 // v9 P1-G 修复（修正）：仅移除未使用的 ActiveModelTrait（测试模块内有独立 import）。
 // 保留 QueryFilter（主代码大量使用 .filter()）；保留 ColumnTrait（Column.eq 需要其支持）。
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, RelationTrait};
 use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
@@ -20,6 +20,7 @@ use crate::models::quotation_response_dto::{
 };
 use crate::models::quotation_update_dto::UpdateQuotationDto;
 use crate::models::status::approval;
+use crate::models::status::quotation as quotation_status;
 use crate::services::quotation_approval_service::QuotationApprovalService;
 use crate::services::quotation_convert_service::QuotationConvertService;
 use crate::services::quotation_pricing_service::{PricingContext, QuotationPricingService};
@@ -43,7 +44,7 @@ pub struct ListQuotationsQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub status: Option<String>,
-    pub customer_id: Option<i64>,
+    pub customer_id: Option<i32>,
     pub sales_user_id: Option<i64>,
     pub keyword: Option<String>,
 }
@@ -111,7 +112,7 @@ pub async fn list_quotations(
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
-    let (items, total) = service
+    let (dtos, total) = service
         .list(
             page,
             page_size,
@@ -121,9 +122,6 @@ pub async fn list_quotations(
             query.keyword,
         )
         .await?;
-
-    let dtos: Vec<QuotationResponseDto> =
-        items.into_iter().map(QuotationResponseDto::from).collect();
 
     Ok(Json(ApiResponse::success(ListQuotationsResponse {
         list: dtos,
@@ -142,13 +140,18 @@ pub async fn get_quotation(
     let service = QuotationService::from_state(&state);
     let model = service.get_by_id(id).await?;
 
+    // 明细：LEFT JOIN products，取真实 name/code 别名为 product_name/product_code（单次查询）
     let items: Vec<QuotationItemResponseDto> = crate::models::sales_quotation_item::Entity::find()
+        .column_as(crate::models::product::Column::Name, "product_name")
+        .column_as(crate::models::product::Column::Code, "product_code")
+        .join(
+            sea_orm::JoinType::LeftJoin,
+            crate::models::sales_quotation_item::Relation::Product.def(),
+        )
         .filter(crate::models::sales_quotation_item::Column::QuotationId.eq(id))
+        .into_model::<QuotationItemResponseDto>()
         .all(&*state.db)
-        .await?
-        .into_iter()
-        .map(Into::into)
-        .collect();
+        .await?;
 
     let terms: Vec<QuotationTermResponseDto> = crate::models::sales_quotation_term::Entity::find()
         .filter(crate::models::sales_quotation_term::Column::QuotationId.eq(id))
@@ -159,6 +162,8 @@ pub async fn get_quotation(
         .collect();
 
     let mut dto = QuotationResponseDto::from(model);
+    // 表头富化：客户名 / 业务员姓名 / 审批人姓名（批量关联，杜绝 N+1）
+    service.attach_names(std::slice::from_mut(&mut dto)).await?;
     dto.items = items;
     dto.terms = terms;
 
@@ -377,7 +382,7 @@ pub async fn list_expiring(
 
     use crate::models::sales_quotation;
     let items: Vec<QuotationResponseDto> = sales_quotation::Entity::find()
-        .filter(sales_quotation::Column::Status.eq("approved"))
+        .filter(sales_quotation::Column::Status.eq(quotation_status::APPROVED))
         .filter(sales_quotation::Column::ValidUntil.between(today, until))
         .all(&*state.db)
         .await?

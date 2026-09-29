@@ -5,6 +5,9 @@ vi.mock('@/api/inventory', () => ({
   getStockList: vi.fn(),
   getStockAlertList: vi.fn(),
   createStockAdjustment: vi.fn(),
+  // store 依赖该常量决定预警页大小。这里给一个与生产值（100）不同的数，
+  // 断言再用同一个符号比对，即可证明 store 走的是常量而非写死数字。
+  STOCK_ALERT_PAGE_SIZE: 50,
 }));
 
 // Use real Pinia for store tests
@@ -15,10 +18,15 @@ vi.mock('pinia', async importOriginal => {
 
 import { setActivePinia, createPinia } from 'pinia';
 import { useInventoryStore } from '@/store/inventory';
-import { getStockList, getStockAlertList, createStockAdjustment } from '@/api/inventory';
+import {
+  getStockList,
+  getStockAlertList,
+  createStockAdjustment,
+  STOCK_ALERT_PAGE_SIZE,
+} from '@/api/inventory';
 // P2-18 修复（批次 86 v2 复审）：清理 6 处 as any，改为显式类型断言
 import type { ApiResponse } from '@/types/api';
-import type { InventoryStock, StockAlert } from '@/api/inventory';
+import type { InventoryStock, StockAlert, Paginated } from '@/api/inventory';
 // V15 P2 B06-P2-3 修复（规则 6）：内联 mock 数据抽取到 fixtures 工厂函数
 import {
   createInventoryStockListMock,
@@ -28,7 +36,7 @@ import {
 
 // 测试用响应类型别名（提升可读性）
 type StockListResponse = ApiResponse<{ list: InventoryStock[]; total: number }>;
-type StockAlertsResponse = ApiResponse<StockAlert[]>;
+type StockAlertsResponse = ApiResponse<Paginated<StockAlert>>;
 type AdjustmentResponse = ApiResponse<{ id: number; adjustment_no: string }>;
 
 describe('Inventory Store 测试', () => {
@@ -92,17 +100,37 @@ describe('Inventory Store 测试', () => {
     expect(store.loading).toBe(false);
   });
 
-  it('fetchAlerts 应该获取库存告警', async () => {
-    const mockAlerts = createStockAlertListMock();
+  it('fetchAlerts 应该按分页出参取库存告警', async () => {
+    const mockAlerts = createStockAlertListMock(2);
     vi.mocked(getStockAlertList).mockResolvedValue({
-      data: mockAlerts,
+      data: { items: mockAlerts, total: 2, page: 1, page_size: STOCK_ALERT_PAGE_SIZE },
     } as unknown as StockAlertsResponse);
 
     const store = useInventoryStore();
     await store.fetchAlerts();
 
-    expect(getStockAlertList).toHaveBeenCalled();
+    expect(getStockAlertList).toHaveBeenCalledWith({
+      page: 1,
+      page_size: STOCK_ALERT_PAGE_SIZE,
+    });
     expect(store.alerts).toEqual(mockAlerts);
+  });
+
+  it('fetchAlerts 出参缺 items 数组时应报错并保持告警为空', async () => {
+    // 回归守卫：此前 store 把整个出参直接赋给 alerts 数组，
+    // 而真实出参是 PaginatedResponse{items,total,page,page_size}——
+    // 结果是预警列表恒空且不报错（分页对象当数组用）。
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(getStockAlertList).mockResolvedValue({
+      data: createStockAlertListMock(),
+    } as unknown as StockAlertsResponse);
+
+    const store = useInventoryStore();
+    await store.fetchAlerts();
+
+    expect(store.alerts).toEqual([]);
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
   });
 
   it('fetchAlerts 应该处理错误', async () => {

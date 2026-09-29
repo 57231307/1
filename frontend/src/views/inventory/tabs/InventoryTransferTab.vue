@@ -41,7 +41,7 @@
         </template>
       </el-table-column>
       <el-table-column
-        prop="creator_name"
+        prop="created_by_name"
         :label="t('inventory.transferTab.colCreator')"
         width="100"
       />

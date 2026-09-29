@@ -56,6 +56,36 @@ pub struct StockResponse {
     /// 库存上限（v11 批次 144 P1-4：新增，支持 OverStock 告警阈值展示）
     pub max_stock_point: Decimal,
     pub bin_location: Option<String>,
+    // ===== 面料行业四维库存维度（产品→批次/匹号→色号→缸号）=====
+    // 库存行按这组维度唯一区分，响应缺它们时前端四维列表与四维查询都无法成立
+    /// 批次号（面料匹号/批次）
+    pub batch_no: String,
+    /// 色号
+    pub color_no: String,
+    /// 缸号
+    pub dye_lot_no: Option<String>,
+    /// 等级（一等品/二等品/等外品）
+    pub grade: String,
+    /// 库存状态（正常/报废/已删除，见 models::status::purchase_inventory::inventory_stock_status；
+    /// 冻结/待检从未有写入方，前端不得提供这两个筛选项）
+    pub stock_status: String,
+    /// 质量状态（合格/不合格/待检）
+    pub quality_status: String,
+    /// 已发货数量（销售发货累计）
+    pub quantity_shipped: Decimal,
+    /// 在途数量（采购收货累计）
+    pub quantity_incoming: Decimal,
+    /// 数量（米，主计量）
+    pub quantity_meters: Decimal,
+    /// 数量（公斤，辅计量）
+    pub quantity_kg: Decimal,
+    // ===== 主数据名称（库存表只存 ID，列表/详情/导出按名称展示）=====
+    /// 产品编码
+    pub product_code: Option<String>,
+    /// 产品名称
+    pub product_name: Option<String>,
+    /// 仓库名称
+    pub warehouse_name: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -84,6 +114,56 @@ pub struct ListStockParams {
     #[validate(range(min = 1, message = "仓库ID必须大于0"))]
     pub warehouse_id: Option<i32>,
     #[validate(range(min = 1, message = "产品ID必须大于0"))]
+    pub product_id: Option<i32>,
+    /// 产品编码/名称关键词（列表筛选栏的输入框，与导出共用同一口径）
+    pub keyword: Option<String>,
+    /// 色号筛选（面料四维查询维度之一）
+    pub color_no: Option<String>,
+    /// 缸号筛选（面料四维查询维度之一）
+    pub dye_lot_no: Option<String>,
+    /// 批次/匹号筛选（面料四维查询维度之一）
+    pub batch_no: Option<String>,
+    /// 库存状态筛选（取 inventory_stocks.stock_status 的真实主数据值：正常/报废/已删除）；
+    /// 不传时按在库口径排除软删除行
+    pub stock_status: Option<String>,
+}
+
+/// 库存预警行（GET /inventory/stock/alerts 的出参单元）
+///
+/// 数量类字段是 Decimal 的字符串序列化（与 `StockResponse` 同口径）；产品编码/名称/单位/仓库名称
+/// 按 ID 批量带出——预警要能被处置（去补货、找仓管），只给 ID 就成不了决策依据。
+/// `alert_type` 取值见 `services::stock_alert::compute_alert_type`，前端词表在
+/// `constants/stock-alert-type.ts`，两侧必须同步。
+#[derive(Debug, Clone, Serialize)]
+pub struct StockAlertRow {
+    pub id: i32,
+    pub product_id: i32,
+    pub product_code: Option<String>,
+    pub product_name: Option<String>,
+    /// 产品计量单位（products.unit）
+    pub unit: Option<String>,
+    pub warehouse_id: i32,
+    pub warehouse_name: Option<String>,
+    pub quantity_on_hand: String,
+    pub quantity_available: String,
+    pub quantity_reserved: String,
+    /// 补货点（低于它即 low_stock 告警）
+    pub reorder_point: String,
+    pub max_stock_point: String,
+    pub expiry_date: Option<String>,
+    pub last_movement_date: Option<String>,
+    /// 台账状态（正常/报废/已删除）
+    pub stock_status: String,
+    pub alert_type: String,
+}
+
+/// 预警列表查询入参：分页真实生效（此前 page/page_size 被完全忽略并返回全量）
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct StockAlertQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub warehouse_id: Option<i32>,
     pub product_id: Option<i32>,
 }
 

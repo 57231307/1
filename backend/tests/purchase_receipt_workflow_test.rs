@@ -1,8 +1,8 @@
 //! P0-T02 采购收货全流程集成测试（V15 Batch 487）
 //!
 //! 覆盖：状态常量值 + Service 实例化 + DB 异常路径 + 完整流程（#[ignore]）
-//! COMPLETED 状态当前在 PurchaseReceiptService 中无公开方法触发，
-//! 集成测试覆盖到 CONFIRMED 流转即可（DRAFT → CONFIRMED）。
+//! confirm_receipt 在同一事务内完成库存入库并把入库单推进到 COMPLETED 终态，
+//! 集成测试覆盖 DRAFT → COMPLETED 全流程。
 
 mod test_common;
 
@@ -158,10 +158,7 @@ async fn test_cgshqlc_cjdqr() {
     let receipt = svc.create_receipt(req, 1).await.expect("创建失败");
     assert_eq!(receipt.receipt_status, purchase_receipt::DRAFT);
 
-    // 2. 确认（DRAFT → CONFIRMED，触发库存更新 + 应付账单生成）
+    // 2. 确认（DRAFT → COMPLETED，事务内完成库存入库、订单已收数量推进与应付账单生成）
     let receipt = svc.confirm_receipt(receipt.id, 1).await.expect("确认失败");
-    assert_eq!(receipt.receipt_status, purchase_receipt::CONFIRMED);
-
-    // 注：COMPLETED 状态当前在 PurchaseReceiptService 中无公开方法触发，
-    // 由后续业务流程（如入库检验完成）自动标记，此处不覆盖。
+    assert_eq!(receipt.receipt_status, purchase_receipt::COMPLETED);
 }

@@ -1,16 +1,51 @@
 use crate::models::purchase_contract;
 // 批次 210 P2-5 修复（v12 复审）：合同状态字符串替换为 contract 常量
 use crate::models::status::contract;
+use crate::models::user;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, FromQueryResult,
+    JoinType, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set,
+    TransactionTrait,
 };
+use serde::Serialize;
 use std::sync::Arc;
 use tracing::info;
+
+/// 采购合同读模型：实体列 + LEFT JOIN 关联出的创建人姓名（实体仅有 created_by 数值）。
+///
+/// JOIN 名列 `Option<String>`；实体自身列（含真实列 supplier_name）按 `purchase_contract`
+/// 约束保持原类型。
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct PurchaseContractView {
+    pub id: i32,
+    pub contract_no: String,
+    pub contract_name: String,
+    pub contract_type: Option<String>,
+    pub supplier_id: i32,
+    pub supplier_name: Option<String>,
+    pub total_amount: Option<Decimal>,
+    pub signed_date: Option<chrono::NaiveDate>,
+    pub effective_date: Option<chrono::NaiveDate>,
+    pub expiry_date: Option<chrono::NaiveDate>,
+    pub payment_terms: Option<String>,
+    pub payment_method: Option<String>,
+    pub delivery_date: Option<chrono::NaiveDate>,
+    pub delivery_location: Option<String>,
+    pub status: String,
+    pub created_by: i32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub created_by_name: Option<String>,
+}
+
+/// 解析日期筛选边界：前端下发 ISO / `YYYY-MM-DD`，取日期部分转 `NaiveDate`；解析失败视为未提供。
+fn parse_date_bound(raw: &str) -> Option<chrono::NaiveDate> {
+    chrono::NaiveDate::parse_from_str(&raw[..raw.len().min(10)], "%Y-%m-%d").ok()
+}
 
 /// 采购合同查询参数
 #[derive(Debug, Clone, Default)]
@@ -18,6 +53,8 @@ pub struct ContractQueryParams {
     pub keyword: Option<String>,
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
+    /// 签订日期范围（前端 date_range 数组：[from, to]，取首/末两项）
+    pub date_range: Option<Vec<String>>,
     pub page: i64,
     pub page_size: i64,
 }
@@ -67,7 +104,7 @@ impl PurchaseContractService {
             contract_name: Set(req.contract_name),
             supplier_id: Set(req.supplier_id),
             total_amount: Set(Some(req.total_amount)),
-            status: Set("draft".to_string()),
+            status: Set(contract::DRAFT.to_string()),
             payment_terms: Set(req.payment_terms),
             delivery_date: Set(Some(req.delivery_date)),
             created_by: Set(user_id),
@@ -83,7 +120,7 @@ impl PurchaseContractService {
     pub async fn get_list(
         &self,
         params: ContractQueryParams,
-    ) -> Result<(Vec<purchase_contract::Model>, u64), AppError> {
+    ) -> Result<(Vec<PurchaseContractView>, u64), AppError> {
         let mut query = purchase_contract::Entity::find();
 
         // 关键词筛选
@@ -106,15 +143,35 @@ impl PurchaseContractService {
             query = query.filter(purchase_contract::Column::SupplierId.eq(supplier_id));
         }
 
-        // 获取总数
+        // 签订日期范围（date_range = [from, to]，任一端可缺省）
+        if let Some(range) = &params.date_range {
+            if let Some(first) = range.first().and_then(|s| parse_date_bound(s)) {
+                query = query.filter(purchase_contract::Column::SignedDate.gte(first));
+            }
+            if let Some(last) = range
+                .last()
+                .filter(|_| range.len() >= 2)
+                .and_then(|s| parse_date_bound(s))
+            {
+                query = query.filter(purchase_contract::Column::SignedDate.lte(last));
+            }
+        }
+
+        // 总数在无 JOIN 的基础查询上统计：Creator JOIN 为多对一（不倍增行），单次查询无 N+1。
         let total = query.clone().count(&*self.db).await?;
 
-        // 分页和排序
+        // 分页和排序（LEFT JOIN users 补创建人姓名）
         let contracts = query
+            .column_as(user::Column::RealName, "created_by_name")
+            .join(
+                JoinType::LeftJoin,
+                purchase_contract::Relation::Creator.def(),
+            )
             .order_by(purchase_contract::Column::Id, Order::Desc)
             // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
             .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
+            .into_model::<PurchaseContractView>()
             .all(&*self.db)
             .await?;
 

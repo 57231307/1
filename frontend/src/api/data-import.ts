@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface ImportTemplate {
   id: number;
@@ -45,10 +45,10 @@ export interface ImportTask {
   completed_at: string;
 }
 
-export function getImportTemplateList(
-  params?: QueryParams
-): Promise<ApiResponse<ImportTemplate[]>> {
-  return request.get('/data-import/templates', { params });
+// 后端 import_export_handler::list_import_templates 只有 State 提取器，没有 Query<T>：
+// 原先声明的 params? 是撒谎签名（所有调用点也不传），删掉。
+export function getImportTemplateList(): Promise<ApiResponse<ImportTemplate[]>> {
+  return request.get('/data-import/templates');
 }
 
 export function getImportTemplate(id: number): Promise<ApiResponse<ImportTemplate>> {
@@ -72,8 +72,8 @@ export function deleteImportTemplate(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/data-import/templates/${id}`);
 }
 
-export function getImportTaskList(params?: QueryParams): Promise<ApiResponse<ImportTask[]>> {
-  return request.get('/data-import/tasks', { params });
+export function getImportTaskList(): Promise<ApiResponse<ImportTask[]>> {
+  return request.get('/data-import/tasks');
 }
 
 export function getImportTask(id: number): Promise<ApiResponse<ImportTask>> {

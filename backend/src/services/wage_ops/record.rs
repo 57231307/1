@@ -233,6 +233,7 @@ impl WageRecordService {
             items: vec![
                 crate::services::voucher_service::VoucherItemRequest {
                     line_no: None,
+                    subject_id: None,
                     subject_code: Some("500101".to_string()),
                     subject_name: Some("生产成本-直接人工".to_string()),
                     debit: amount,
@@ -254,6 +255,7 @@ impl WageRecordService {
                 },
                 crate::services::voucher_service::VoucherItemRequest {
                     line_no: None,
+                    subject_id: None,
                     subject_code: Some("2211".to_string()),
                     subject_name: Some("应付职工薪酬".to_string()),
                     debit: Decimal::ZERO,
@@ -304,6 +306,7 @@ impl WageRecordService {
             items: vec![
                 crate::services::voucher_service::VoucherItemRequest {
                     line_no: None,
+                    subject_id: None,
                     subject_code: Some("2211".to_string()),
                     subject_name: Some("应付职工薪酬".to_string()),
                     debit: amount,
@@ -325,6 +328,7 @@ impl WageRecordService {
                 },
                 crate::services::voucher_service::VoucherItemRequest {
                     line_no: None,
+                    subject_id: None,
                     subject_code: Some("1002".to_string()),
                     subject_name: Some("银行存款".to_string()),
                     debit: Decimal::ZERO,

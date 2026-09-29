@@ -102,7 +102,7 @@
           }}</el-button>
           <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
           <el-button
-            v-if="row.status === 'active'"
+            v-if="row.status === PURCHASE_PRICE_STATUS.APPROVED"
             v-permission="'purchase_price:update'"
             type="primary"
             link
@@ -111,7 +111,7 @@
             >{{ t('purchasePrice.table.button.edit') }}</el-button
           >
           <el-button
-            v-if="row.status === 'active'"
+            v-if="row.status === PURCHASE_PRICE_STATUS.APPROVED"
             type="warning"
             link
             size="small"
@@ -148,6 +148,7 @@ import {
   getPriceTypeLabel,
   getStatusType,
   getStatusLabel,
+  PURCHASE_PRICE_STATUS,
 } from '../composables/ppFmts';
 
 const { t } = useI18n({ useScope: 'global' });

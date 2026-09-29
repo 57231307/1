@@ -196,6 +196,10 @@ ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "remark" VARCH
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "temperature" DECIMAL(18,4);
 ALTER TABLE "quality_inspection_records" ADD COLUMN IF NOT EXISTS "total_qty" DECIMAL(18,4);
 ALTER TABLE "role_permissions" ADD COLUMN IF NOT EXISTS "permission_code" VARCHAR(255);
+ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "contact_person" VARCHAR(100);
+ALTER TABLE "sales_orders" ADD COLUMN IF NOT EXISTS "contact_phone" VARCHAR(50);
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "real_name" VARCHAR(100);
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar" VARCHAR(500);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "last_event" VARCHAR(255);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "last_payload" VARCHAR(255);
 ALTER TABLE "webhooks" ADD COLUMN IF NOT EXISTS "user_id" INTEGER;
@@ -292,6 +296,7 @@ ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "approved_by_role" VA
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "received_at" TIMESTAMPTZ;
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "shipped_at" TIMESTAMPTZ;
 ALTER TABLE "inventory_transfers" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(18,4);
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "barcode" VARCHAR(100);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "batch_level" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "code" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "cost_price" DECIMAL(18,4);
@@ -314,6 +319,8 @@ ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "status" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "structure" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "supplier_product_code" VARCHAR(255);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "yarn_count" VARCHAR(255);
+-- 产品条码：列表关键词检索与扫码按条码取数走该列
+CREATE INDEX IF NOT EXISTS "idx_products_barcode" ON "products" ("barcode");
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "actual_delivery_date" DATE;
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
 ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "attachment_urls" TEXT[];
@@ -461,6 +468,11 @@ ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "notes" VARCHAR(255);
 ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "phone" VARCHAR(255);
 ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "postal_code" VARCHAR(255);
 ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "province" VARCHAR(255);
+-- bpm_task.process_instance_id / bpm_task.name 是遗留的重复列，业务代码读写的是
+-- instance_id / node_name。这两个遗留列不承载数据，只保留历史值与外键，
+-- 因此允许为空，以便含 user_task 节点的流程定义能正常插入首任务记录。
+ALTER TABLE "bpm_task" ALTER COLUMN "process_instance_id" DROP NOT NULL;
+ALTER TABLE "bpm_task" ALTER COLUMN "name" DROP NOT NULL;
 ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "warehouse_code" VARCHAR(255);
 "#;
         if !sql.trim().is_empty() {

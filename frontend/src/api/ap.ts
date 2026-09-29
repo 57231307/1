@@ -1,62 +1,110 @@
 import { request } from './request';
-import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
+
+// 后端 GET /ap/invoices 直接序列化 SeaORM 实体 models/ap_invoice.rs（无 JOIN、无 DTO 改名），
+// 因此行的键名与实体字段逐字一致；此前声明的 supplier_name/invoice_amount/verified_amount/
+// unverified_amount/status/payment_status 在响应里并不存在（列表这几列恒空）。
+export type APInvoiceStatus = 'DRAFT' | 'AUDITED' | 'PARTIAL_PAID' | 'PAID' | 'CANCELLED';
 
 export interface APInvoice {
   id: number;
   invoice_no: string;
   supplier_id: number;
-  supplier_name: string;
+  invoice_type: string;
   invoice_date: string;
-  invoice_amount: number;
+  due_date: string;
+  /** 发票金额（实体列 amount） */
+  amount: number;
+  /** 已付金额 */
+  paid_amount: number;
+  /** 未付金额 */
+  unpaid_amount: number;
   tax_amount: number;
-  verified_amount: number;
-  unverified_amount: number;
-  status: string;
-  payment_status: string;
-  due_date?: string;
-  remark?: string;
+  currency: string;
+  /** 词表来源 models/ap_invoice.rs:68 与 ap_invoice_ops/crud.rs 的 common::STATUS_* */
+  invoice_status: APInvoiceStatus;
+  notes?: string;
   created_at: string;
 }
 
+// 行由 GET /ap/payments 直接序列化 SeaORM 实体 models/ap_payment.rs（无 JOIN、无 DTO 改名）：
+// 状态列是 payment_status，词表 REGISTERED/CONFIRMED（models/status/general.rs:37/40）。
+// 原先声明的 supplier_name 与 status 在响应里不存在 ⇒ 供应商列恒空、确认按钮门控恒真。
+export type APPaymentStatus = 'REGISTERED' | 'CONFIRMED';
+
+// 付款单由「已审批的付款申请」派生创建（create 逻辑见 ap_payment_service.rs:57-120）：
+// request_id 关联来源申请，supplier_id / payment_amount / payment_method / bank_* 均从申请继承，
+// 前端不可手填。transaction_no 需确认前经 PUT 回填（confirm 强制非空，见 :231-239）。
 export interface APPayment {
   id: number;
   payment_no: string;
   supplier_id: number;
-  supplier_name: string;
+  /** 来源付款申请 ID（后端 models/ap_payment.rs:33 request_id: Option<i32>，nullable 故前端 ? ） */
+  request_id?: number;
   payment_date: string;
   payment_amount: number;
   payment_method: string;
-  status: string;
+  payment_status: APPaymentStatus;
+  currency?: string;
+  bank_name?: string;
   bank_account?: string;
-  remark?: string;
+  transaction_no?: string;
+  notes?: string;
   created_at: string;
 }
+
+/**
+ * 创建付款单入参：逐字段对齐后端 `CreateApPaymentRequest`
+ * （backend/src/services/ap_payment_service.rs:751-764）。
+ * 后端仅接受 request_id / payment_date / notes / attachment_urls，
+ * 供应商、金额、方式、银行信息由服务端从所选已审批申请派生（见 :100-108），
+ * 前端不得手填、也不得作为可编辑字段发送。
+ */
+export interface CreateApPaymentInput {
+  request_id: number;
+  /** NaiveDate：YYYY-MM-DD */
+  payment_date: string;
+  notes?: string;
+  attachment_urls?: string[];
+}
+
+// 行由 GET /ap/payment-requests 直接序列化 SeaORM 实体 models/ap_payment_request.rs 返回
+// （无 JOIN、无 DTO 改名）：审批状态列名是 approval_status，词表见 models/status/finance.rs:53-58
+// （DRAFT/APPROVING/APPROVED/REJECTED）。此前声明的 supplier_name / approved_amount / status /
+// remark 在响应中不存在 —— 状态列恒空、五处 v-if 恒假，编辑/提交/审批/驳回/删除按钮结构性不可达。
+export type APPaymentRequestStatus = 'DRAFT' | 'APPROVING' | 'APPROVED' | 'REJECTED';
 
 export interface APPaymentRequest {
   id: number;
   request_no: string;
   supplier_id: number;
-  supplier_name: string;
   request_amount: number;
-  approved_amount?: number;
   request_date: string;
-  status: string;
+  approval_status: APPaymentRequestStatus;
   payment_method?: string;
+  payment_type?: string;
+  currency?: string;
+  expected_payment_date?: string;
+  bank_name?: string;
   bank_account?: string;
-  remark?: string;
+  notes?: string;
   created_at: string;
 }
+
+// GET /ap/verifications 直接序列化实体 models/ap_verification.rs（主表无发票/付款单号，
+// 明细在 ap_verification_item）；状态列 verification_status 词表 COMPLETED/CANCELLED
+// （models/status/general.rs:25/28，服务写入见 ap_verification_service.rs:200/450/578）。
+export type APVerificationStatus = 'COMPLETED' | 'CANCELLED';
 
 export interface APVerification {
   id: number;
   verification_no: string;
-  invoice_id: number;
-  invoice_no: string;
-  payment_id?: number;
-  payment_no?: string;
-  verification_amount: number;
+  supplier_id: number;
+  verification_type?: string;
   verification_date: string;
-  status: string;
+  total_amount: number;
+  verification_status: APVerificationStatus;
+  notes?: string;
   created_at: string;
 }
 
@@ -75,8 +123,23 @@ export interface APReconciliation {
   created_at: string;
 }
 
+/**
+ * 应付发票列表查询参数：对齐后端 `ap_invoice_handler::ApInvoiceQueryParams`
+ * （backend/src/handlers/ap_invoice_handler.rs:29，list_ap_invoices 的 Query 提取器 :41）。
+ * 后端无 `#[serde(rename_all)]`，字段保持 snake_case；start_date/end_date 为 NaiveDate（"YYYY-MM-DD"）。
+ */
+export interface ApInvoiceQueryParams {
+  supplier_id?: number;
+  invoice_status?: string;
+  invoice_type?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getAPInvoiceList(
-  params?: QueryParams
+  params?: ApInvoiceQueryParams
 ): Promise<ApiResponse<PaginatedResponse<APInvoice>>> {
   return request.get('/ap/invoices', { params });
 }
@@ -104,28 +167,27 @@ export function approveAPInvoice(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ap/invoices/${id}/approve`);
 }
 
-export function cancelAPInvoice(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/ap/invoices/${id}/cancel`);
+// 后端 ap_invoice_handler::CancelInvoiceRequest 必填 reason（取消原因，用于审计留痕）
+export function cancelAPInvoice(id: number, reason: string): Promise<ApiResponse<void>> {
+  return request.post(`/ap/invoices/${id}/cancel`, { reason });
 }
 
 export function autoGenerateAPInvoices(data: {
-  order_ids: number[];
-}): Promise<ApiResponse<{ invoice_ids: number[] }>> {
+  receipt_id: number;
+}): Promise<ApiResponse<APInvoice>> {
   return request.post('/ap/invoices/auto-generate', data);
 }
 
-// 账龄分析项
+// 账龄分析项（对齐后端 ap_invoice_ops::types::AgingAnalysisItem；金额为 Decimal.to_string）
 export interface APAgingItem {
-  supplier_id: number;
-  supplier_name: string;
-  total_amount: number;
-  current: number;
-  days_30: number;
-  days_60: number;
-  days_90: number;
-  over_90: number;
+  aging_bucket: string;
+  invoice_count: number;
+  total_amount: string;
 }
 
+/**
+ * 账龄分析：后端 `ap_invoice_handler::get_aging_analysis` 返回 `Vec<AgingAnalysisItem>`（裸数组）。
+ */
 export function getAPAgingAnalysis(params?: {
   supplier_id?: number;
   date?: string;
@@ -133,7 +195,27 @@ export function getAPAgingAnalysis(params?: {
   return request.get('/ap/invoices/aging', { params });
 }
 
-export function getAPPaymentList(params?: QueryParams): Promise<ApiResponse<APPayment[]>> {
+/**
+ * 付款列表：后端 `ap_payment_handler::list_payments` 返回
+ * `PaginatedResponse<...>`（data = {items,total,page,page_size}）。
+ */
+/**
+ * 付款列表查询参数：对齐后端 `ap_payment_handler::ApPaymentQueryParams`
+ * （backend/src/handlers/ap_payment_handler.rs:25，list_payments 的 Query 提取器 :37）。
+ */
+export interface ApPaymentQueryParams {
+  supplier_id?: number;
+  payment_status?: string;
+  payment_method?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export function getAPPaymentList(
+  params?: ApPaymentQueryParams
+): Promise<ApiResponse<PaginatedResponse<APPayment>>> {
   return request.get('/ap/payments', { params });
 }
 
@@ -141,7 +223,7 @@ export function getAPPayment(id: number): Promise<ApiResponse<APPayment>> {
   return request.get(`/ap/payments/${id}`);
 }
 
-export function createAPPayment(data: Partial<APPayment>): Promise<ApiResponse<APPayment>> {
+export function createAPPayment(data: CreateApPaymentInput): Promise<ApiResponse<APPayment>> {
   return request.post('/ap/payments', data);
 }
 
@@ -156,9 +238,39 @@ export function confirmAPPayment(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ap/payments/${id}/confirm`);
 }
 
+/**
+ * 付款单 DOCX 打印：后端 GET /ap/payments/{id}/print（routes/finance.rs:699-701
+ * → print_handler::ap_payment_print_docx）返回 docx 二进制流，前端转 Blob 触发下载。
+ * request 响应拦截器对 blob 响应返回完整 AxiosResponse（真 Blob 在其 data 上），
+ * 此处归一化，兼容「直接 Blob」与「AxiosResponse.data」两种形态。
+ */
+export async function printAPPaymentDocx(id: number): Promise<Blob> {
+  const res = await request.get<Blob>(`/ap/payments/${id}/print`, { responseType: 'blob' });
+  const payload = res as unknown as Blob | { data: Blob };
+  return payload instanceof Blob ? payload : payload.data;
+}
+
+/**
+ * 付款申请列表：后端 `ap_payment_request_handler::list_requests` 返回
+ * `PaginatedResponse`（data = {items,total,page,page_size}）。
+ */
+/**
+ * 付款申请列表查询参数：对齐后端 `ap_payment_request_handler::ApPaymentRequestQueryParams`
+ * （backend/src/handlers/ap_payment_request_handler.rs:28，list_requests 的 Query 提取器 :40）。
+ */
+export interface ApPaymentRequestQueryParams {
+  supplier_id?: number;
+  approval_status?: string;
+  payment_type?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getAPPaymentRequestList(
-  params?: QueryParams
-): Promise<ApiResponse<APPaymentRequest[]>> {
+  params?: ApPaymentRequestQueryParams
+): Promise<ApiResponse<PaginatedResponse<APPaymentRequest>>> {
   return request.get('/ap/payment-requests', { params });
 }
 
@@ -195,9 +307,26 @@ export function rejectAPPaymentRequest(id: number, reason: string): Promise<ApiR
   return request.post(`/ap/payment-requests/${id}/reject`, { reason });
 }
 
+/**
+ * 核销列表：后端 `ap_verification_handler::list_verifications` 返回
+ * `PaginatedResponse`（data = {items,total,page,page_size}）。
+ */
+/**
+ * 核销列表查询参数：对齐后端 `ap_verification_handler::ApVerificationQueryParams`
+ * （backend/src/handlers/ap_verification_handler.rs:23，list_verifications 的 Query 提取器 :34）。
+ */
+export interface ApVerificationQueryParams {
+  supplier_id?: number;
+  verification_type?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export function getAPVerificationList(
-  params?: QueryParams
-): Promise<ApiResponse<APVerification[]>> {
+  params?: ApVerificationQueryParams
+): Promise<ApiResponse<PaginatedResponse<APVerification>>> {
   return request.get('/ap/verifications', { params });
 }
 
@@ -205,36 +334,69 @@ export function getAPVerification(id: number): Promise<ApiResponse<APVerificatio
   return request.get(`/ap/verifications/${id}`);
 }
 
-export function autoVerifyAP(data: {
-  invoice_id: number;
-  payment_id?: number;
-}): Promise<ApiResponse<APVerification>> {
+export function autoVerifyAP(data: { supplier_id: number }): Promise<ApiResponse<APVerification>> {
   return request.post('/ap/verifications/auto', data);
 }
 
-export function manualVerifyAP(data: {
+/** 手工核销明细：对齐后端 ap_verification_service::ApVerificationItemDto */
+export interface ApVerificationItemInput {
   invoice_id: number;
   payment_id: number;
-  amount: number;
+  verify_amount: number;
+  notes?: string;
+}
+
+/**
+ * 手工核销：对齐后端 ManualVerifyRequest（ap_verification_service.rs:714）
+ * ——supplier_id 必填（非 Option，后端直接落库），核销关系走 items[]，金额键是 verify_amount。
+ */
+export function manualVerifyAP(data: {
+  supplier_id: number;
+  items: ApVerificationItemInput[];
+  notes?: string;
 }): Promise<ApiResponse<APVerification>> {
   return request.post('/ap/verifications/manual', data);
 }
 
-export function cancelAPVerification(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/ap/verifications/${id}/cancel`);
+// 后端 ap_verification_handler::CancelVerificationRequest 必填 reason（取消原因）
+export function cancelAPVerification(id: number, reason: string): Promise<ApiResponse<void>> {
+  return request.post(`/ap/verifications/${id}/cancel`, { reason });
 }
 
-export function getUnverifiedAPInvoices(): Promise<ApiResponse<APInvoice[]>> {
-  return request.get('/ap/verifications/unverified/invoices');
+// 后端 get_unverified_invoices / get_unverified_payments 强制要求 supplier_id
+// （handlers/ap_verification_handler.rs:189/217：缺失即 400），故按供应商查询。
+export function getUnverifiedAPInvoices(supplierId: number): Promise<ApiResponse<APInvoice[]>> {
+  return request.get('/ap/verifications/unverified/invoices', {
+    params: { supplier_id: supplierId },
+  });
 }
 
-export function getUnverifiedAPPayments(): Promise<ApiResponse<APPayment[]>> {
-  return request.get('/ap/verifications/unverified/payments');
+export function getUnverifiedAPPayments(supplierId: number): Promise<ApiResponse<APPayment[]>> {
+  return request.get('/ap/verifications/unverified/payments', {
+    params: { supplier_id: supplierId },
+  });
+}
+
+/**
+ * 对账单列表：后端 `ap_reconciliation_handler::list_reconciliations` 返回
+ * `PaginatedResponse`（data = {items,total,page,page_size}）。
+ */
+/**
+ * 对账单列表查询参数：对齐后端 `ap_reconciliation_handler::ApReconciliationQueryParams`
+ * （backend/src/handlers/ap_reconciliation_handler.rs:25，list_reconciliations 的 Query 提取器 :36）。
+ */
+export interface ApReconciliationQueryParams {
+  supplier_id?: number;
+  reconciliation_status?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
 }
 
 export function getAPReconciliationList(
-  params?: QueryParams
-): Promise<ApiResponse<APReconciliation[]>> {
+  params?: ApReconciliationQueryParams
+): Promise<ApiResponse<PaginatedResponse<APReconciliation>>> {
   return request.get('/ap/reconciliations', { params });
 }
 
@@ -258,31 +420,44 @@ export function disputeAPReconciliation(id: number, reason: string): Promise<Api
   return request.post(`/ap/reconciliations/${id}/dispute`, { reason });
 }
 
-export function autoReconcileAllAP(): Promise<ApiResponse<void>> {
-  return request.post('/ap/reconciliations/auto');
+export function autoReconcileAllAP(data: {
+  start_date: string;
+  end_date: string;
+}): Promise<ApiResponse<void>> {
+  return request.post('/ap/reconciliations/auto', data);
 }
 
-// 供应商汇总
+// 供应商应付汇总（后端返回按供应商分组的数组，元素对齐 SupplierApSummary）
 export interface APSupplierSummary {
   supplier_id: number;
+  supplier_code: string;
   supplier_name: string;
+  total_invoice_count: number;
   total_invoice_amount: number;
-  total_payment_amount: number;
-  balance: number;
-  unverified_amount: number;
+  total_paid_amount: number;
+  total_unpaid_amount: number;
+  paid_invoice_count: number;
+  partial_paid_invoice_count: number;
+  overdue_invoice_count: number;
+  overdue_amount: number;
 }
 
-export function getAPSupplierSummary(supplierId: number): Promise<ApiResponse<APSupplierSummary>> {
+export function getAPSupplierSummary(
+  supplierId: number
+): Promise<ApiResponse<APSupplierSummary[]>> {
   return request.get(`/ap/reconciliations/summary`, { params: { supplier_id: supplierId } });
 }
 
-// 发票关联数据
-export interface APInvoiceRelations {
+// 发票关联数据（后端返回关联记录数组，元素对齐 InvoiceRelationInfo）
+export interface APInvoiceRelation {
   invoice_id: number;
   invoice_no: string;
-  payments: APPayment[];
-  verifications: APVerification[];
-  reconciliations: APReconciliation[];
+  source_type: string;
+  source_id: number;
+  source_no: string | null;
+  supplier_id: number;
+  amount: number;
+  status: string;
 }
 
 // 统计报表数据
@@ -328,18 +503,31 @@ export interface APAgingReportData {
   total: number;
 }
 
-export function getAPInvoiceRelations(id: number): Promise<ApiResponse<APInvoiceRelations>> {
+export function getAPInvoiceRelations(id: number): Promise<ApiResponse<APInvoiceRelation[]>> {
   return request.get(`/ap/invoices/${id}/relations`);
 }
 
+/**
+ * 统计报表查询参数：对齐后端 `ap_report_handler::ApStatisticsQueryParams`
+ * （backend/src/handlers/ap_report_handler.rs:25，get_statistics_report 的 Query 提取器 :34）。
+ * start_date/end_date 后端为非 Option 的 NaiveDate（必填），TS 侧同样必填；无分页字段。
+ */
+export interface ApStatisticsQueryParams {
+  supplier_id?: number;
+  start_date: string;
+  end_date: string;
+}
+
 export function getAPStatisticsReport(
-  params?: QueryParams
+  params?: ApStatisticsQueryParams
 ): Promise<ApiResponse<APStatisticsData>> {
   return request.get('/ap/reports/statistics', { params });
 }
 
+// 后端 ap_report_handler::ApDailyQueryParams 读取 report_date（必填，NaiveDate）与可选 supplier_id，
+// 而非前端此前误传的 date（会被 serde 静默丢弃）。
 export function getAPDailyReport(date: string): Promise<ApiResponse<APDailyReportData>> {
-  return request.get('/ap/reports/daily', { params: { date } });
+  return request.get('/ap/reports/daily', { params: { report_date: date } });
 }
 
 export function getAPMonthlyReport(

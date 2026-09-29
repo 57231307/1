@@ -10,11 +10,11 @@ import en from 'element-plus/es/locale/lang/en';
 import App from './App.vue';
 import router from './router';
 import { i18n, getCurrentLocale } from './i18n';
-import { permission } from './directives/permission';
+import { permission, permissionDetail } from './directives/permission';
 // V15 P1-20-15 全局 CSS 变量主题（支持亮色/暗黑模式切换）
 import './styles/theme.css';
 // V15 P1-20-10 前端错误监控 SDK（自研轻量方案，监听 error + unhandledrejection + 5min 去重）
-import { initMonitor } from './utils/monitor';
+import { initMonitor, isDialogDismissal } from './utils/monitor';
 
 const app = createApp(App);
 
@@ -24,6 +24,8 @@ app.config.errorHandler = (err, _instance, info) => {
 };
 
 window.addEventListener('unhandledrejection', event => {
+  // ElMessageBox 取消会以 'cancel'/'close' reject；调用方不 catch 是有意中止流程，不是故障。
+  if (isDialogDismissal(event.reason)) return;
   console.error('[未捕获 Promise]', event.reason);
 });
 
@@ -45,6 +47,8 @@ app.use(i18n);
  * Vue 静默忽略 v-permission，按钮永远显示。
  * V15 P2 B10-P2-6：删除 v-role 指令注册，统一使用 v-permission 权限码 */
 app.directive('permission', permission);
+/* 注册 v-permission-detail：隐藏后端对 resource_id=NULL 行必然 403 的 `/{id}` 详情/编辑入口 */
+app.directive('permission-detail', permissionDetail);
 
 /* 根据当前语言切换 ElementPlus locale */
 const elementLocale = getCurrentLocale() === 'en-US' ? en : zhCn;

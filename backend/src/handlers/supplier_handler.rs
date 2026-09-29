@@ -1,5 +1,6 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::{supplier_contact, supplier_qualification};
 use crate::services::supplier_service::{
     CreateContactRequest, CreateQualificationRequest, CreateSupplierRequest, SupplierQueryParams,
     SupplierService, UpdateContactRequest, UpdateSupplierRequest,
@@ -200,13 +201,11 @@ pub struct ToggleStatusRequest {
 pub async fn list_supplier_contacts(
     Path(supplier_id): Path<i32>,
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<supplier_contact::Model>>>, AppError> {
     let service = SupplierService::new(state.db.clone());
     let contacts = service.list_supplier_contacts(supplier_id).await?;
 
-    Ok(Json(ApiResponse::success(
-        serde_json::to_value(contacts).map_err(AppError::from)?,
-    )))
+    Ok(Json(ApiResponse::success(contacts)))
 }
 
 /// 创建供应商联系人
@@ -275,13 +274,11 @@ pub async fn delete_supplier_contact(
 pub async fn list_supplier_qualifications(
     Path(supplier_id): Path<i32>,
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<supplier_qualification::Model>>>, AppError> {
     let service = SupplierService::new(state.db.clone());
     let qualifications = service.list_supplier_qualifications(supplier_id).await?;
 
-    Ok(Json(ApiResponse::success(
-        serde_json::to_value(qualifications).map_err(AppError::from)?,
-    )))
+    Ok(Json(ApiResponse::success(qualifications)))
 }
 
 /// 创建供应商资质；批次 118 P2-9 修复：原 handler 返回拼接的假数据 `{"supplier_id": ..., "qualification": req}`， 违反规则

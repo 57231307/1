@@ -12,10 +12,11 @@ use crate::models::{
     crm_lead::Entity as CrmLeadEntity,
     crm_opportunity,
     crm_opportunity::Entity as CrmOpportunityEntity,
-    customer,
+    crm_tag, customer,
     customer::Entity as CustomerEntity,
-    customer_followup,
+    customer_address, customer_followup,
     customer_followup::Entity as CustomerFollowupEntity,
+    customer_tag,
     sales_order::{Column as SalesOrderColumn, Entity as SalesOrderEntity},
 };
 // V15 P0-S01：行级数据权限工具
@@ -183,12 +184,33 @@ impl CrmService {
             .all(&*self.db)
             .await?;
 
+        // 客户标签对象（单次 JOIN 查询，无 N+1）：
+        // crm_tag INNER JOIN customer_tag ON customer_tag.tag_id = crm_tag.id
+        // WHERE customer_tag.customer_id = ? ；只 select crm_tag 列，into_model 直接映射为 CustomerTagBrief。
+        let tags: Vec<super::CustomerTagBrief> = crm_tag::Entity::find()
+            .inner_join(customer_tag::Entity)
+            .filter(customer_tag::Column::CustomerId.eq(customer_id))
+            .order_by(crm_tag::Column::Id, sea_orm::Order::Asc)
+            .into_model::<super::CustomerTagBrief>()
+            .all(&*self.db)
+            .await?;
+
+        // 客户真实收货地址（沿用既有 customer_addresses 表，字段保持后端原名）
+        let shipping_addresses = customer_address::Entity::find()
+            .filter(customer_address::Column::CustomerId.eq(customer_id))
+            .order_by_desc(customer_address::Column::IsDefault)
+            .order_by_desc(customer_address::Column::CreatedAt)
+            .all(&*self.db)
+            .await?;
+
         Ok(serde_json::json!({
             "customer": customer_info,
             "summary": summary,
             "opportunities": opportunities,
             "leads": [],
             "recent_orders": recent_orders,
+            "tags": tags,
+            "shipping_addresses": shipping_addresses,
         }))
     }
 

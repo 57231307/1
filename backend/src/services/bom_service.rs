@@ -82,7 +82,8 @@ pub struct BomDetail {
 pub struct BomTreeNode {
     pub id: String,
     pub product_id: i32,
-    pub product_name: String,
+    /// 产品名称（来自 products.name 批量查询；查不到为 None，前端渲染空白）
+    pub product_name: Option<String>,
     pub quantity: Decimal,
     pub unit: Option<String>,
     pub scrap_rate: Option<Decimal>,
@@ -93,9 +94,26 @@ pub struct BomTreeNode {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct BomRequirement {
     pub product_id: i32,
-    pub product_name: String,
+    /// 产品名称（随树节点透传；查不到为 None）
+    pub product_name: Option<String>,
     pub required_quantity: Decimal,
     pub unit: Option<String>,
+}
+
+/// BOM导出视图对象（LEFT JOIN products 富化产品编码/名称）
+#[derive(Debug, Clone, sea_orm::FromQueryResult)]
+pub struct BomExportDto {
+    pub id: i32,
+    pub product_id: i32,
+    pub product_code: Option<String>,
+    pub product_name: Option<String>,
+    pub version: i32,
+    pub is_default: bool,
+    pub status: String,
+    pub remarks: Option<String>,
+    pub created_by: i32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// BOM Service（字段声明为 `pub(crate)` 以便 `bom_ops` 子模块的 `impl BomService` 块直接访问；（业务方法已迁移至 `bom_ops::{crud,state,tree}`）。）
@@ -153,12 +171,14 @@ impl BomService {
     }
 
     /// 构建叶子节点 BomTreeNode
-    /// 纯函数（无 `&self`）：由 BOM 明细行构造无子节点的 `BomTreeNode`，；供 `bom_ops::tree` 的 get_bom_tree 在子物料无默认 BOM 时调用。
-    pub fn build_leaf_bom_node(item: &BomItemModel) -> BomTreeNode {
+    /// 纯函数（无 `&self`）：由 BOM 明细行构造无子节点的 `BomTreeNode`，名称由调用方从
+    /// products 批量查询结果传入（查不到时为 `None`）；供 `bom_ops::tree` 的 get_bom_tree
+    /// 在子物料无默认 BOM 时调用。
+    pub fn build_leaf_bom_node(item: &BomItemModel, product_name: Option<String>) -> BomTreeNode {
         BomTreeNode {
             id: format!("item-{}", item.id),
             product_id: item.material_id,
-            product_name: format!("物料 #{}", item.material_id),
+            product_name,
             quantity: item.quantity,
             unit: item.unit.clone(),
             scrap_rate: item.scrap_rate,

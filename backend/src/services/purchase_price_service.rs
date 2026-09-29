@@ -1,14 +1,43 @@
 use crate::models::purchase_price;
 use crate::models::status::master_data;
+use crate::models::{product, supplier};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, JoinType,
+    ModelTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set,
+    TransactionTrait,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
+use validator::Validate;
+
+/// 采购价格读模型：实体列 + LEFT JOIN 关联出的产品名 / 产品编码 / 供应商名（实体仅有外键 ID）。
+///
+/// JOIN 名列均 `Option<String>`；实体自身列按 `purchase_price` 约束保持原类型。
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct PurchasePriceView {
+    pub id: i32,
+    pub product_id: i32,
+    pub supplier_id: i32,
+    pub price: Decimal,
+    pub currency: String,
+    pub unit: String,
+    pub min_order_qty: Decimal,
+    pub price_type: String,
+    pub effective_date: chrono::NaiveDate,
+    pub expiry_date: Option<chrono::NaiveDate>,
+    pub status: String,
+    pub approved_by: Option<i32>,
+    pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_by: Option<i32>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub product_name: Option<String>,
+    pub product_code: Option<String>,
+    pub supplier_name: Option<String>,
+}
 
 /// 采购价格查询参数
 #[derive(Debug, Clone, Default)]
@@ -21,12 +50,21 @@ pub struct PurchasePriceQueryParams {
 }
 
 /// 创建采购价格请求
-#[derive(Debug, Clone, Deserialize)]
+///
+/// `unit`（计量单位）与 `price_type`（价格类型）为创建必填：价格必依附计量单位与价格类型，
+/// 对应列 `purchase_prices.unit` / `purchase_prices.price_type` 为 NOT NULL 且无数据库默认值。
+/// 缺失/空字符串由 validator 返回 4xx VALIDATION_ERROR（单一 AppError 信封），
+/// 不再依赖 DB NOT NULL 约束裸抛 500 DATABASE_ERROR。
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct CreatePurchasePriceInput {
     pub product_id: i32,
     pub supplier_id: i32,
     pub price: rust_decimal::Decimal,
     pub currency: Option<String>,
+    #[validate(length(min = 1, message = "计量单位不能为空"))]
+    pub unit: String,
+    #[validate(length(min = 1, message = "价格类型不能为空"))]
+    pub price_type: String,
     pub min_order_qty: Option<rust_decimal::Decimal>,
     pub effective_date: Option<String>,
     pub expiry_date: Option<String>,
@@ -45,7 +83,7 @@ impl PurchasePriceService {
     pub async fn get_prices_list(
         &self,
         params: PurchasePriceQueryParams,
-    ) -> Result<(Vec<purchase_price::Model>, u64), AppError> {
+    ) -> Result<(Vec<PurchasePriceView>, u64), AppError> {
         let mut query = purchase_price::Entity::find();
 
         if let Some(product_id) = params.product_id {
@@ -60,13 +98,20 @@ impl PurchasePriceService {
             query = query.filter(purchase_price::Column::Status.eq(status));
         }
 
+        // 总数在无 JOIN 的基础查询上统计：所有 JOIN 均为多对一（不倍增行），单次查询无 N+1。
         let total = query.clone().count(&*self.db).await?;
 
         let prices = query
+            .column_as(product::Column::Name, "product_name")
+            .column_as(product::Column::Code, "product_code")
+            .column_as(supplier::Column::SupplierName, "supplier_name")
+            .join(JoinType::LeftJoin, purchase_price::Relation::Product.def())
+            .join(JoinType::LeftJoin, purchase_price::Relation::Supplier.def())
             .order_by(purchase_price::Column::Id, Order::Desc)
             // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
             .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
+            .into_model::<PurchasePriceView>()
             .all(&*self.db)
             .await?;
 
@@ -91,6 +136,8 @@ impl PurchasePriceService {
             currency: Set(req
                 .currency
                 .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
+            unit: Set(req.unit),
+            price_type: Set(req.price_type),
             min_order_qty: Set(req.min_order_qty.unwrap_or_default()),
             effective_date: Set(req
                 .effective_date

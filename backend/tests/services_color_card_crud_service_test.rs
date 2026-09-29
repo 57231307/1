@@ -10,10 +10,6 @@ fn test_valid_forward_transition_chain() {
             .is_ok()
     );
     assert!(
-        ColorCardCrudService::validate_color_card_status_transition("active", card_status::ISSUED)
-            .is_ok()
-    );
-    assert!(
         ColorCardCrudService::validate_color_card_status_transition(
             card_status::ISSUED,
             card_status::RECEIVED

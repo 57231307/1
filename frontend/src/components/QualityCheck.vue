@@ -20,11 +20,9 @@
       :empty-text="t('common.qualityCheck.emptyText')"
       :aria-label="t('common.qualityCheck.tableAriaLabel')"
     >
-      <el-table-column
-        prop="issue_type"
-        :label="t('common.qualityCheck.colIssueType')"
-        width="140"
-      />
+      <el-table-column :label="t('common.qualityCheck.colIssueType')" width="140">
+        <template #default="{ row }">{{ getIssueTypeLabel(row.issue_type) }}</template>
+      </el-table-column>
       <el-table-column :label="t('common.qualityCheck.colSeverity')" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="ISSUE_SEVERITY_COLORS[row.severity] || 'info'">
@@ -188,6 +186,7 @@ import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
+import { useUserStore } from '@/store/user';
 import {
   reportQualityIssue,
   resolveQualityIssue,
@@ -196,6 +195,7 @@ import {
 } from '@/api/custom-order';
 
 const { t } = useI18n({ useScope: 'global' });
+const userStore = useUserStore();
 
 // v11 批次 181 P2-1 修复：使用 API 导出的 QualityIssue 类型，替代本地定义
 
@@ -241,6 +241,19 @@ function getSeverityLabel(s: string): string {
   return t(`common.qualityCheck.severity.${s}`);
 }
 
+/** 异常类型标签：写入方 token（snake）→ 词表键（camel）→ 中文标签；未知 token 原样显示，不静默丢弃 */
+const ISSUE_TYPE_LABEL_KEY: Record<string, string> = {
+  color_diff: 'colorDiff',
+  color_fastness: 'colorFastness',
+  spec: 'spec',
+  damage: 'damage',
+  other: 'other',
+};
+function getIssueTypeLabel(v: string): string {
+  const key = ISSUE_TYPE_LABEL_KEY[v];
+  return key ? t(`common.qualityCheck.issueType.${key}`) : v;
+}
+
 /** 状态标签映射（响应式 t() 求值，替代直接显示 row.status 原值） */
 function getStatusLabel(s: string): string {
   const known = ['open', 'investigating', 'resolved'];
@@ -273,7 +286,13 @@ async function handleReportSubmit() {
   }
   submitting.value = true;
   try {
-    await reportQualityIssue(props.orderId, reportForm.value);
+    // 后端 ReportQualityIssueDto.custom_order_id 为必填 i64（models/quality_issue_dto.rs:14，
+    // NOT NULL 列、非 Option），请求体缺失会被 serde 判 422；reportForm 未含该字段，
+    // 此处以组件持有的 orderId 补齐（handler 再以 URL id 为权威覆盖，两者同值）。
+    await reportQualityIssue(props.orderId, {
+      ...reportForm.value,
+      custom_order_id: props.orderId,
+    });
     ElMessage.success(t('common.qualityCheck.reportSuccess'));
     reportVisible.value = false;
     emit('refresh');
@@ -298,11 +317,17 @@ async function handleResolveSubmit() {
     return;
   }
   if (!currentIssue.value) return;
+  // 操作人取当前登录用户，不得硬编码（与 custom-orders/list.vue 同源）
+  const operatorId = userStore.userInfo?.id;
+  if (!operatorId) {
+    ElMessage.warning(t('common.qualityCheck.operatorMissing'));
+    return;
+  }
   submitting.value = true;
   try {
     await resolveQualityIssue(currentIssue.value.id, {
       resolution: resolveForm.value.resolution,
-      operator_id: 1,
+      operator_id: operatorId,
     });
     ElMessage.success(t('common.qualityCheck.resolveSuccess'));
     resolveVisible.value = false;

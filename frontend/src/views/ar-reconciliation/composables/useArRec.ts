@@ -61,8 +61,9 @@ export function useArRec() {
         start_date: searchForm.value.start_date || undefined,
         end_date: searchForm.value.end_date || undefined,
       });
-      tableData.value = res.data?.items || [];
-      total.value = res.data?.total || 0;
+      // 后端 auto-match 结果列表以 json!({"list","total",...}) 承载，按 list 显式读取
+      tableData.value = res.data.list;
+      total.value = res.data.total;
     } catch {
       ElMessage.error(t('arReconciliationModule.loadResultsFailed'));
     } finally {
@@ -103,7 +104,8 @@ export function useArRec() {
   const handleViewDetail = async (row: AutoReconciliationResult) => {
     try {
       const res = await getReconciliationDetailItems(row.id);
-      detailData.value = res.data || [];
+      // 后端返回 { reconciliation, details }，明细在 details 键下
+      detailData.value = res.data.details;
       currentReconciliation.value = row;
       detailDialogVisible.value = true;
     } catch {
@@ -136,8 +138,9 @@ export function useArRec() {
         page: 1,
         page_size: 20,
       });
-      confirmData.value = (Array.isArray(res.data) ? res.data : res.data?.list) || [];
-      confirmTotal.value = res.data?.total || 0;
+      // 后端 list_confirmations 以 json!({"list","total",...}) 承载，显式读取 list
+      confirmData.value = res.data.list;
+      confirmTotal.value = res.data.total;
       confirmDialogVisible.value = true;
     } catch {
       ElMessage.error(t('arReconciliationModule.loadConfirmationsFailed'));

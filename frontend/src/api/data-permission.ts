@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 // 自定义条件类型
 export type CustomCondition = Record<string, string | number | boolean | null>;
@@ -21,22 +21,24 @@ export interface DataPermission {
 
 export interface DataPermissionRole {
   id?: number;
-  roleId?: number;
-  resourceType?: string;
-  scopeType?: string;
-  customCondition?: CustomCondition;
-  allowedFields?: AllowedFields;
-  hiddenFields?: HiddenFields;
-  isEnabled?: boolean;
+  role_id?: number;
+  resource_type?: string;
+  scope_type?: string;
+  custom_condition?: CustomCondition;
+  allowed_fields?: AllowedFields;
+  hidden_fields?: HiddenFields;
+  is_enabled?: boolean;
 }
 
+export type DataPermissionRow = DataPermissionRole;
+
 export interface SetDataPermissionRequest {
-  roleId: number;
-  resourceType: string;
-  scopeType: string;
-  customCondition?: CustomCondition;
-  allowedFields?: AllowedFields;
-  hiddenFields?: HiddenFields;
+  role_id: number;
+  resource_type: string;
+  scope_type: string;
+  custom_condition?: CustomCondition;
+  allowed_fields?: AllowedFields;
+  hidden_fields?: HiddenFields;
 }
 
 export interface ScopeType {
@@ -45,30 +47,26 @@ export interface ScopeType {
   description: string;
 }
 
-// 数据权限查询参数
-export interface DataPermissionQueryParams extends QueryParams {
-  user_id?: number;
-  resource_type?: string;
-  department_id?: number;
-}
-
-export const getDataPermissionList = (params?: DataPermissionQueryParams) =>
-  request.get<ApiResponse<DataPermission[]>>('/data-permissions/', { params });
+// GET /data-permissions：后端 handlers/data_permission_handler.rs::list_data_permissions
+// 仅带 State + AuthContext 提取器，无 Query<T>，不读取任何查询参数（此前
+// DataPermissionQueryParams 的 user_id/resource_type/department_id 全被 Axum 静默丢弃）。
+export const getDataPermissionList = () =>
+  request.get<ApiResponse<DataPermission[]>>('/data-permissions');
 
 export const getDataPermission = (id: number) =>
   request.get<ApiResponse<DataPermission>>(`/data-permissions/${id}`);
 
 export const createDataPermission = (data: Partial<DataPermission>) =>
-  request.post<ApiResponse<DataPermission>>('/data-permissions/', data);
+  request.post<ApiResponse<DataPermission>>('/data-permissions', data);
 
-export const updateDataPermission = (id: number, data: Partial<DataPermission>) =>
-  request.put<ApiResponse<DataPermission>>(`/data-permissions/${id}`, data);
+// 数据权限 upsert 走 set_data_permission（POST /，按 role_id+resource_type 幂等），
+// 后端无 PUT /{id} 路由，故不提供 update 封装（规则 0：禁止指向不存在端点的封装）。
 
 export const deleteDataPermission = (id: number) =>
   request.delete<ApiResponse<void>>(`/data-permissions/${id}`);
 
 export const setDataPermission = (data: SetDataPermissionRequest) =>
-  request.post<ApiResponse<DataPermissionRole>>('/data-permissions/', data);
+  request.post<ApiResponse<DataPermissionRole>>('/data-permissions', data);
 
 export const getRoleDataPermissionList = (roleId: number) =>
   request.get<ApiResponse<DataPermissionRole[]>>(`/data-permissions/roles/${roleId}`);

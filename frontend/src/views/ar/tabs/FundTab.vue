@@ -286,9 +286,8 @@ const fetchFunds = async () => {
   fundLoading.value = true;
   try {
     const res = await getFundAccountList();
-    const d = res.data as
-      { list?: FundAccount[]; items?: FundAccount[]; data?: FundAccount[] } | FundAccount[];
-    funds.value = Array.isArray(d) ? d : d?.list || d?.items || [];
+    // 后端 list_accounts 返回 ApiResponse<Vec<Model>> ⇒ data 就是裸数组
+    funds.value = res.data;
   } catch (error) {
     const err = error as Error;
     ElMessage.error(err.message || t('arModule.fund.fetchListFailed'));

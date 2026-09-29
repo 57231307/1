@@ -8,11 +8,13 @@
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { i18n } from '@/i18n';
 // D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
   deleteBpmDefinition,
   updateBpmDefinition,
   createBpmDefinition,
+  getBpmDefinitionById,
   createBpmVersion,
   activateBpmVersion,
   saveBpmAsTemplate,
@@ -126,16 +128,23 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
     cb.dialogVisible = true;
   };
 
-  /** 编辑 */
-  const handleEdit = (row: ProcessDefinition) => {
+  /** 编辑（按 ID 回源最新定义，失败保留行数据） */
+  const handleEdit = async (row: ProcessDefinition) => {
     cb.isEdit = true;
+    let source: ProcessDefinition = row;
+    try {
+      const res = await getBpmDefinitionById(row.id);
+      if (res.data) source = res.data;
+    } catch (e) {
+      logger.warn('流程定义回源失败，使用行数据', e instanceof Error ? e.message : String(e));
+    }
     Object.assign(cb.formData, {
-      id: row.id,
-      process_key: row.process_key,
-      process_name: row.process_name,
-      description: row.description || '',
-      category: row.category || 'finance',
-      nodes: row.nodes || [],
+      id: source.id,
+      process_key: source.process_key,
+      process_name: source.process_name,
+      description: source.description || '',
+      category: source.category || 'finance',
+      nodes: source.nodes || [],
     });
     cb.dialogVisible = true;
   };
@@ -162,15 +171,31 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
   const handleSubmit = async () => {
     cb.submitLoading = true;
     try {
+      // 后端契约：流程节点持久化在 config.nodes（bpm_service.rs:141），顶层 nodes 非契约字段
+      // 会被 serde 忽略 → 节点静默丢失。提交时把 nodes 包进 config，并按 DTO 真实键名构造载荷
+      // （create/update 走 process_key/process_name 别名映射到 name/code，见 bpm_dto.rs）。
       if (cb.isEdit && cb.formData.id) {
-        await updateBpmDefinition(
-          cb.formData.id,
-          cb.formData as unknown as Partial<ProcessDefinition>
-        );
+        const payload: Partial<ProcessDefinition> = {
+          process_name: cb.formData.process_name,
+          description: cb.formData.description,
+          category: cb.formData.category,
+          config: { nodes: cb.formData.nodes },
+        };
+        await updateBpmDefinition(cb.formData.id, payload);
         msg.success('updateSuccess');
       } else {
-        await createBpmDefinition(cb.formData as unknown as Partial<ProcessDefinition>);
-        msg.success('createSuccess');
+        const payload: Partial<ProcessDefinition> = {
+          process_key: cb.formData.process_key,
+          process_name: cb.formData.process_name,
+          description: cb.formData.description,
+          category: cb.formData.category,
+          config: { nodes: cb.formData.nodes },
+        };
+        await createBpmDefinition(payload);
+        // 建单成功文案为「新增成功」= common.message.createSuccess。
+        // msg.success('createSuccess') 会解析到顶层 message.createSuccess（值「创建成功」），
+        // 与本模块既定新建提示文案不一致，故直接取 common 命名空间的对应 key。
+        ElMessage.success(i18n.global.t('common.message.createSuccess'));
       }
       cb.dialogVisible = false;
       await cb.fetchDefinitions();

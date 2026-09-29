@@ -4,6 +4,7 @@
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::data_permission;
 use crate::services::data_permission_service::DataPermissionService;
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
@@ -12,6 +13,7 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -184,14 +186,19 @@ pub async fn list_role_data_permissions(
 
 /// 删除数据权限
 pub async fn delete_data_permission(
-    Path((role_id, resource_type)): Path<(i32, String)>,
+    Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     require_admin_role(&state, &auth).await?;
+    // 按主键定位记录，再委托 service 执行软删（置 is_enabled=false），删除语义保持不变
+    let record = data_permission::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("数据权限不存在"))?;
     let service = DataPermissionService::new(state.db.clone());
     service
-        .delete_data_permission(role_id, &resource_type)
+        .delete_data_permission(record.role_id, &record.resource_type)
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -202,9 +209,16 @@ pub async fn delete_data_permission(
 
 /// 获取数据权限详情
 pub async fn get_data_permission(
-    Path((role_id, resource_type)): Path<(i32, String)>,
+    Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Option<DataPermissionResponse>>>, AppError> {
+    // 按主键定位记录，复用 service 的可见性过滤（仅 is_enabled=true）与 admin 短路，详情语义保持不变
+    let record = data_permission::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("数据权限不存在"))?;
+    let role_id = record.role_id;
+    let resource_type = record.resource_type;
     let service = DataPermissionService::new(state.db.clone());
     let permission = service
         .get_role_data_permission(role_id, &resource_type)
@@ -212,7 +226,7 @@ pub async fn get_data_permission(
 
     Ok(Json(ApiResponse::success(permission.map(|p| {
         DataPermissionResponse {
-            id: 0,
+            id,
             role_id,
             resource_type: resource_type.clone(),
             scope_type: p.scope_type,

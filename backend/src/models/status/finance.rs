@@ -145,3 +145,42 @@ pub mod accounting_period_closing {
     /// 关账中：会计期间正在关账
     pub const CLOSING: &str = "CLOSING";
 }
+
+/// 坏账准备计提状态（bad_debt_provisions.status，小写值）
+/// 状态机 draft→confirmed→reversed；取值集与迁移 chk_bdp_status 一致
+pub mod bad_debt_provision_status {
+    /// 草稿：计提记录初始状态，可确认或删除
+    pub const DRAFT: &str = "draft";
+
+    /// 已确认：计提已确认入账
+    pub const CONFIRMED: &str = "confirmed";
+
+    /// 已转回：计提已转回
+    pub const REVERSED: &str = "reversed";
+
+    /// 全部合法计提状态，入参校验的唯一取值来源
+    pub const ALL: &[&str] = &[DRAFT, CONFIRMED, REVERSED];
+}
+
+/// 坏账核销审批状态（bad_debt_writeoffs.approval_status，小写值）
+/// 二级审批流：pending→finance_approved→approved（终态），rejected/cancelled 为终态；
+/// 取值集与迁移 chk_bdw_status 一致。注意：与 ar_invoice.approval_status（大写 APPROVED）无关
+pub mod bad_debt_writeoff_status {
+    /// 待审：核销申请初始状态，待财务经理审批
+    pub const PENDING: &str = "pending";
+
+    /// 财务经理通过：一级审批通过，待总经理二级审批
+    pub const FINANCE_APPROVED: &str = "finance_approved";
+
+    /// 已批准：二级审批通过，核销执行，终态
+    pub const APPROVED: &str = "approved";
+
+    /// 已拒绝：任一级审批拒绝，终态
+    pub const REJECTED: &str = "rejected";
+
+    /// 已取消：申请人取消，终态
+    pub const CANCELLED: &str = "cancelled";
+
+    /// 全部合法审批状态，入参校验的唯一取值来源
+    pub const ALL: &[&str] = &[PENDING, FINANCE_APPROVED, APPROVED, REJECTED, CANCELLED];
+}

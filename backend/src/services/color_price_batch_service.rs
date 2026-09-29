@@ -54,7 +54,7 @@ impl ColorPriceBatchService {
     pub async fn batch_adjust(
         &self,
         dto: BatchAdjustPriceDto,
-        operated_by: i64,
+        operated_by: i32,
     ) -> Result<BatchAdjustResult, BatchError> {
         let total = dto.items.len();
         let mut price_map = self.fetch_prices_map(&dto.items).await?;
@@ -107,7 +107,7 @@ impl ColorPriceBatchService {
         existing: product_color_price::Model,
         item: &BatchAdjustItem,
         change_reason: &Option<String>,
-        operated_by: i64,
+        operated_by: i32,
     ) -> Result<(HistoryActive, ColorPriceActive, bool), BatchError> {
         let new_price = calculate_new_price(
             existing.base_price,
@@ -188,7 +188,7 @@ impl ColorPriceBatchService {
     pub async fn approve(
         &self,
         id: i64,
-        approved_by: i64,
+        approved_by: i32,
         dto: ApproveColorPriceDto,
     ) -> Result<product_color_price::Model, BatchError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
@@ -241,7 +241,7 @@ impl ColorPriceBatchService {
             &txn,
             "auto_audit",
             active,
-            Some(approved_by as i32),
+            Some(approved_by),
         )
         .await
         .map_err(|e| BatchError::Validation(e.to_string()))?;

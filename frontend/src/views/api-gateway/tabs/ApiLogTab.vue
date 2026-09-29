@@ -22,18 +22,12 @@
         clearable
         style="width: 120px"
       >
-        <el-option :label="t('apiGateway.logTab.status2xx')" value="2xx" />
-        <el-option :label="t('apiGateway.logTab.status4xx')" value="4xx" />
-        <el-option :label="t('apiGateway.logTab.status5xx')" value="5xx" />
+        <!-- 后端 list_api_logs 将 status parse::<i32> 后按 [n*100, n*100+99] 过滤，
+             真实取值是百位数字（2/4/5），原 "2xx"/"4xx"/"5xx" 永远解析失败=假筛选，已纠正 -->
+        <el-option :label="t('apiGateway.logTab.status2xx')" value="2" />
+        <el-option :label="t('apiGateway.logTab.status4xx')" value="4" />
+        <el-option :label="t('apiGateway.logTab.status5xx')" value="5" />
       </el-select>
-      <el-date-picker
-        v-model="localQuery.date_range"
-        type="daterange"
-        :range-separator="t('apiGateway.logTab.dateRangeSeparator')"
-        :start-placeholder="t('apiGateway.logTab.startDatePlaceholder')"
-        :end-placeholder="t('apiGateway.logTab.endDatePlaceholder')"
-        style="width: 260px"
-      />
       <el-button type="primary" @click="handleSearch">
         <el-icon><Search /></el-icon>
         {{ t('apiGateway.logTab.search') }}
@@ -66,10 +60,10 @@ import type { ApiLog } from '@/api/api-gateway';
 
 const { t } = useI18n({ useScope: 'global' });
 
+// 后端 ApiGwQuery 无日期字段：原 date_range 为假筛选，控件与键均已移除
 export interface LogQuery {
   keyword: string;
   status: string;
-  date_range: [Date, Date] | null;
 }
 
 // ElTag 类型联合（与 element-plus TagProps type 对齐，避免将 string 直接传入 type）
@@ -97,7 +91,6 @@ const emit = defineEmits<{
 const localQuery = reactive<LogQuery>({
   keyword: '',
   status: '',
-  date_range: null,
   ...(props.queryParams as Partial<LogQuery>),
 });
 

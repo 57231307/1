@@ -473,7 +473,8 @@ fn test_ghtddjy_dcpgzdghtg() {
     assert!(validate_dye_lot_consistency(&items).is_ok());
 }
 
-/// test_ghtddjy_tcpbtghjj（同一 product_id 出现多个不同 dye_lot_no → 拒绝（混缸色差风险）。）
+/// test_ghtddjy_tcpbtghjj（同一 product_id 出现多个不同 dye_lot_no → 记警告日志但允许通过。
+/// IR 2026-09-17：同缸出完允许换缸——多缸号记警告日志（裁床分缸裁剪防色差），禁止阻断发货）
 #[test]
 fn test_ghtddjy_tcpbtghjj() {
     let items = vec![
@@ -481,13 +482,7 @@ fn test_ghtddjy_tcpbtghjj() {
         build_ship_item(1001, decs!("20"), Some("DL002".to_string())),
     ];
     let result = validate_dye_lot_consistency(&items);
-    assert!(result.is_err(), "同产品不同缸号应被拒绝");
-    let err = result.unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("1001"), "错误信息应包含 product_id");
-    assert!(msg.contains("DL001"), "错误信息应包含第一个缸号");
-    assert!(msg.contains("DL002"), "错误信息应包含第二个缸号");
-    assert!(msg.contains("色差"), "错误信息应说明色差风险");
+    assert!(result.is_ok(), "同产品不同缸号应允许通过（记警告不阻断）");
 }
 
 /// test_ghtddjy_wzdghtg（所有明细均未指定 dye_lot_no（None 或空字符串）→ 跳过校验通过，兼容无缸号场景。）
@@ -522,7 +517,8 @@ fn test_ghtddjy_bfzdbfwzdtg() {
     assert!(validate_dye_lot_consistency(&items).is_ok());
 }
 
-/// test_ghtddjy_cwxxbhghlb（验证错误信息中包含所有冲突的缸号，便于业务人员定位问题。）
+/// test_ghtddjy_cwxxbhghlb（IR 2026-09-17：多缸号不再阻断发货，仅记警告日志。
+/// 本测试验证同产品多缸号仍返回 Ok 且不 panic。）
 #[test]
 fn test_ghtddjy_cwxxbhghlb() {
     let items = vec![
@@ -530,12 +526,11 @@ fn test_ghtddjy_cwxxbhghlb() {
         build_ship_item(2002, decs!("20"), Some("缸号B".to_string())),
         build_ship_item(2002, decs!("5"), Some("缸号C".to_string())),
     ];
-    let err = validate_dye_lot_consistency(&items).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("2002"));
-    assert!(msg.contains("缸号A"));
-    assert!(msg.contains("缸号B"));
-    assert!(msg.contains("缸号C"));
+    let result = validate_dye_lot_consistency(&items);
+    assert!(
+        result.is_ok(),
+        "多缸号应允许通过（记警告不阻断，IR 2026-09-17）"
+    );
 }
 
 /// 测试夹具：构造 ShipOrderItemRequest

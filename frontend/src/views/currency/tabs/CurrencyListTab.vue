@@ -39,27 +39,27 @@
           align="center"
         />
         <el-table-column
-          prop="isBase"
+          prop="is_base"
           :label="t('currency.table.isBase')"
           width="100"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag v-if="row.isBase" type="success" size="small">{{
+            <el-tag v-if="row.is_base" type="success" size="small">{{
               t('currency.table.baseTag')
             }}</el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column
-          prop="isActive"
+          prop="is_active"
           :label="t('currency.table.status')"
           width="80"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
-              {{ getStatusLabel(row.isActive) }}
+            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
+              {{ getStatusLabel(row.is_active) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -68,7 +68,7 @@
             <el-button type="primary" link size="small" @click="openRateDialog(row.code)">{{
               t('currency.table.rate')
             }}</el-button>
-            <el-button v-if="!row.isBase" type="warning" link size="small" @click="setBase(row)">{{
+            <el-button v-if="!row.is_base" type="warning" link size="small" @click="setBase(row)">{{
               t('currency.table.setBase')
             }}</el-button>
           </template>
@@ -102,7 +102,7 @@
           <el-input-number v-model="form.precision" :min="0" :max="6" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="t('currency.dialog.isBase')">
-          <el-switch v-model="form.isBase" />
+          <el-switch v-model="form.is_base" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -126,9 +126,9 @@
         label-width="100px"
         :aria-label="t('currency.rateDialog.formAriaLabel')"
       >
-        <el-form-item :label="t('currency.rateDialog.fromCurrency')" prop="fromCurrency">
+        <el-form-item :label="t('currency.rateDialog.fromCurrency')" prop="from_currency">
           <el-select
-            v-model="rateForm.fromCurrency"
+            v-model="rateForm.from_currency"
             :placeholder="t('currency.rateDialog.fromCurrencyPlaceholder')"
             style="width: 100%"
           >
@@ -140,9 +140,9 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('currency.rateDialog.toCurrency')" prop="toCurrency">
+        <el-form-item :label="t('currency.rateDialog.toCurrency')" prop="to_currency">
           <el-select
-            v-model="rateForm.toCurrency"
+            v-model="rateForm.to_currency"
             :placeholder="t('currency.rateDialog.toCurrencyPlaceholder')"
             style="width: 100%"
           >
@@ -163,19 +163,13 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item :label="t('currency.rateDialog.effectiveDate')" prop="effectiveDate">
+        <el-form-item :label="t('currency.rateDialog.effectiveDate')" prop="effective_date">
           <el-date-picker
-            v-model="rateForm.effectiveDate"
+            v-model="rateForm.effective_date"
             type="date"
             :placeholder="t('currency.rateDialog.effectiveDatePlaceholder')"
             value-format="YYYY-MM-DD"
             style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item :label="t('currency.rateDialog.source')">
-          <el-input
-            v-model="rateForm.source"
-            :placeholder="t('currency.rateDialog.sourcePlaceholder')"
           />
         </el-form-item>
       </el-form>
@@ -221,16 +215,15 @@ const form = reactive<CreateCurrencyRequest>({
   code: '',
   name: '',
   symbol: '',
-  isBase: false,
+  is_base: false,
   precision: 2,
 });
 
 const rateForm = reactive<CreateExchangeRateRequest>({
-  fromCurrency: '',
-  toCurrency: '',
+  from_currency: '',
+  to_currency: '',
   rate: 1,
-  effectiveDate: new Date().toISOString().split('T')[0],
-  source: '',
+  effective_date: new Date().toISOString().split('T')[0],
 });
 
 const rules: FormRules = {
@@ -239,14 +232,14 @@ const rules: FormRules = {
 };
 
 const rateRules: FormRules = {
-  fromCurrency: [
+  from_currency: [
     { required: true, message: t('currency.rateDialog.fromCurrencyRequired'), trigger: 'change' },
   ],
-  toCurrency: [
+  to_currency: [
     { required: true, message: t('currency.rateDialog.toCurrencyRequired'), trigger: 'change' },
   ],
   rate: [{ required: true, message: t('currency.rateDialog.rateRequired'), trigger: 'blur' }],
-  effectiveDate: [
+  effective_date: [
     { required: true, message: t('currency.rateDialog.effectiveDateRequired'), trigger: 'change' },
   ],
 };
@@ -262,9 +255,7 @@ const fetchCurrencies = async () => {
   loading.value = true;
   try {
     const res = await getCurrencyList();
-    const d = (res as { data?: unknown }).data as
-      Currency[] | { items?: Currency[]; data?: Currency[]; list?: Currency[] };
-    currencyList.value = Array.isArray(d) ? d : d?.items || d?.data || d?.list || [];
+    currencyList.value = res.data;
   } catch (e) {
     const err = e as Error;
     ElMessage.error(err.message || t('currency.message.fetchListFailed'));
@@ -278,7 +269,7 @@ const openDialog = () => {
   form.code = '';
   form.name = '';
   form.symbol = '';
-  form.isBase = false;
+  form.is_base = false;
   form.precision = 2;
   dialogVisible.value = true;
 };
@@ -304,11 +295,10 @@ const handleSubmit = async () => {
 
 const openRateDialog = (defaultFromCode?: string) => {
   rateFormRef.value?.resetFields();
-  rateForm.fromCurrency = defaultFromCode || '';
-  rateForm.toCurrency = '';
+  rateForm.from_currency = defaultFromCode || '';
+  rateForm.to_currency = '';
   rateForm.rate = 1;
-  rateForm.effectiveDate = new Date().toISOString().split('T')[0];
-  rateForm.source = '';
+  rateForm.effective_date = new Date().toISOString().split('T')[0];
   rateDialogVisible.value = true;
 };
 

@@ -18,16 +18,16 @@
       :aria-label="t('inventoryAdjustment.approveDialogTab.ariaLabelForm')"
     >
       <el-form-item :label="t('inventoryAdjustment.approveDialogTab.labelAdjustNo')">
-        <el-input :model-value="currentRow?.adjust_no" disabled />
+        <el-input :model-value="currentRow?.adjustment_no" disabled />
       </el-form-item>
       <el-form-item :label="t('inventoryAdjustment.approveDialogTab.labelAdjustDate')">
-        <el-input :model-value="currentRow?.adjust_date" disabled />
+        <el-input :model-value="currentRow?.adjustment_date" disabled />
       </el-form-item>
       <el-form-item :label="t('inventoryAdjustment.approveDialogTab.labelWarehouse')">
         <el-input :model-value="currentRow?.warehouse_name" disabled />
       </el-form-item>
       <el-form-item :label="t('inventoryAdjustment.approveDialogTab.labelReason')">
-        <el-input :model-value="currentRow?.reason" disabled type="textarea" :rows="2" />
+        <el-input :model-value="currentRow?.reason_type" disabled type="textarea" :rows="2" />
       </el-form-item>
       <el-form-item
         :label="t('inventoryAdjustment.approveDialogTab.labelApprovalComment')"

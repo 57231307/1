@@ -27,7 +27,11 @@
       </el-breadcrumb>
     </div>
 
-    <AdjustmentListTab @open-form="openForm" @open-approve="openApprove" />
+    <AdjustmentListTab
+      @open-form="openForm"
+      @open-approve="openApprove"
+      @delete="handleDeleteAdjustment"
+    />
 
     <AdjustmentFormDialogTab
       v-model="formDialogVisible"
@@ -49,11 +53,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import { getProductList, type Product } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
-import type { InventoryAdjustmentEntity } from '@/api/inventory-adjustment';
+import {
+  deleteInventoryAdjustment,
+  type InventoryAdjustmentEntity,
+} from '@/api/inventory-adjustment';
 import AdjustmentListTab from './tabs/AdjustmentListTab.vue';
 import AdjustmentFormDialogTab from './tabs/AdjustmentFormDialogTab.vue';
 import ApproveDialogTab from './tabs/ApproveDialogTab.vue';
@@ -78,6 +86,25 @@ const openForm = (mode: 'create' | 'edit' | 'view', row: InventoryAdjustmentEnti
 const openApprove = (row: InventoryAdjustmentEntity) => {
   approveRow.value = row;
   approveDialogVisible.value = true;
+};
+
+// 删除调整单（pending 态）
+const handleDeleteAdjustment = async (row: InventoryAdjustmentEntity) => {
+  try {
+    await ElMessageBox.confirm(
+      t('inventoryAdjustment.listTab.messageDeleteConfirm'),
+      t('inventoryAdjustment.listTab.titleDeleteConfirm'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await deleteInventoryAdjustment(row.id as number);
+    ElMessage.success(t('inventoryAdjustment.listTab.messageSuccess'));
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('inventoryAdjustment.listTab.messageFailure'));
+  }
 };
 const handleSubmitted = () => {
   // 子组件已通过 emit 触发刷新

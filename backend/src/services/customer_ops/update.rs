@@ -101,17 +101,20 @@ impl CustomerService {
             tax_id: Set(args.tax_id.clone()),
             bank_name: Set(args.bank_name.clone()),
             bank_account: Set(args.bank_account.clone()),
-            status: Set(master_data::ACTIVE.to_string()),
+            status: Set(args
+                .status
+                .clone()
+                .unwrap_or_else(|| master_data::ACTIVE.to_string())),
             customer_type: Set(args.customer_type.clone()),
             notes: Set(args.notes.clone()),
             created_by: Set(args.created_by),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-            customer_industry: sea_orm::ActiveValue::NotSet,
-            main_products: sea_orm::ActiveValue::NotSet,
-            annual_purchase: sea_orm::ActiveValue::NotSet,
-            quality_requirement: sea_orm::ActiveValue::NotSet,
-            inspection_standard: sea_orm::ActiveValue::NotSet,
+            customer_industry: Set(args.customer_industry.clone()),
+            main_products: Set(args.main_products.clone()),
+            annual_purchase: Set(args.annual_purchase),
+            quality_requirement: Set(args.quality_requirement.clone()),
+            inspection_standard: Set(args.inspection_standard.clone()),
             owner_id: Set(args.created_by.unwrap_or(0)),
             owner_assigned_at: Set(Some(Utc::now())),
             ..Default::default()
@@ -139,6 +142,12 @@ impl CustomerService {
             bank_account,
             customer_type,
             status,
+            country,
+            customer_industry,
+            main_products,
+            annual_purchase,
+            quality_requirement,
+            inspection_standard,
             notes,
             ..
         } = args;
@@ -168,6 +177,25 @@ impl CustomerService {
             status,
             notes,
         );
+        // 业务扩展字段（行业/主营/采购额/质量/验货/国家）
+        if let Some(v) = country {
+            m.country = Set(Some(v));
+        }
+        if let Some(v) = customer_industry {
+            m.customer_industry = Set(Some(v));
+        }
+        if let Some(v) = main_products {
+            m.main_products = Set(Some(v));
+        }
+        if let Some(v) = annual_purchase {
+            m.annual_purchase = Set(Some(v));
+        }
+        if let Some(v) = quality_requirement {
+            m.quality_requirement = Set(Some(v));
+        }
+        if let Some(v) = inspection_standard {
+            m.inspection_standard = Set(Some(v));
+        }
         m
     }
 

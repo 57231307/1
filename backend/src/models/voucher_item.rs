@@ -16,6 +16,9 @@ pub struct Model {
     pub line_no: i32,
 
     // 科目
+    /// 科目 ID（契约对齐：前端 VoucherEntry.subject_id / account_subject_id；
+    /// 请求只带 ID 时由 service 反查 account_subjects 补全 code/name 落库）
+    pub subject_id: Option<i32>,
     pub subject_code: String,
     pub subject_name: String,
 

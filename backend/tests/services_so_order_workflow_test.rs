@@ -40,6 +40,8 @@ fn make_order_model(
         balance_amount: total_amount,
         shipping_address: None,
         billing_address: None,
+        contact_person: None,
+        contact_phone: None,
         notes: None,
         batch_no: None,
         color_no: None,

@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface SystemVersion {
   id: number;
@@ -19,6 +19,8 @@ export interface SystemVersion {
 export interface UpdateTask {
   id: number;
   task_code: string;
+  /** 任务类型（对齐后端 system_update_task.task_type） */
+  task_type?: string;
   from_version: string;
   to_version: string;
   status:
@@ -56,8 +58,9 @@ export function checkForUpdates(): Promise<ApiResponse<SystemVersion>> {
   return request.get('/system-update/check');
 }
 
-export function getSystemVersionList(params?: QueryParams): Promise<ApiResponse<SystemVersion[]>> {
-  return request.get('/system-update/versions', { params });
+// 后端 system_update_handler::get_backup_versions() 无参数提取器
+export function getSystemVersionList(): Promise<ApiResponse<SystemVersion[]>> {
+  return request.get('/system-update/versions');
 }
 
 export function getSystemVersion(id: number): Promise<ApiResponse<SystemVersion>> {
@@ -72,9 +75,10 @@ export function installUpdate(versionId: number): Promise<ApiResponse<UpdateTask
   return request.post(`/system-update/versions/${versionId}/install`);
 }
 
-export function getUpdateTaskList(params?: QueryParams): Promise<ApiResponse<UpdateTask[]>> {
-  return request.get('/system-update/tasks', { params });
-}
+// 说明：GET /system-update/tasks 在 routes/mod.rs:259 被注册到 get_update_status
+// （返回单个「更新状态」对象，不是任务列表），仓库里没有任务列表端点，也没有任何界面消费它，
+// 故原先那个名为 getUpdateTaskList 的声明已删除——名字与载荷都不符，留着就是下一个契约陷阱。
+// 任务详情/取消走 /system-update/tasks/{id}，后端确有对应 handler。
 
 export function getUpdateTask(id: number): Promise<ApiResponse<UpdateTask>> {
   return request.get(`/system-update/tasks/${id}`);
@@ -93,8 +97,8 @@ export function rollbackUpdate(version: string): Promise<ApiResponse<void>> {
   return request.post('/system-update/rollback', { version });
 }
 
-export function getSystemBackupList(params?: QueryParams): Promise<ApiResponse<SystemBackup[]>> {
-  return request.get('/system-update/backups', { params });
+export function getSystemBackupList(): Promise<ApiResponse<SystemBackup[]>> {
+  return request.get('/system-update/backups');
 }
 
 export function getSystemBackup(id: number): Promise<ApiResponse<SystemBackup>> {

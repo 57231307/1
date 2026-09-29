@@ -61,7 +61,7 @@
         width="100"
       >
         <template #default="{ row }">
-          {{ row.file_format.toUpperCase() }}
+          {{ (row.file_format || '').toUpperCase() }}
         </template>
       </el-table-column>
       <el-table-column

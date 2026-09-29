@@ -4,6 +4,7 @@
 
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { pickSelectIn, pickSelect } from '../flow/ui-helpers';
 
 /**
  * 测试套件：采购订单创建
@@ -23,77 +24,95 @@ test.describe('01 创建采购订单', () => {
   });
 
   test('01-01 进入采购订单列表页可见菜单', async ({ page }) => {
-    await page.goto('/purchase/order/list');
-    await expect(page.getByText('采购订单列表')).toBeVisible();
-    await expect(page.getByRole('button', { name: /新建采购订单/ })).toBeVisible();
+    // 采购管理为扁平单页（router index.ts:223 path:'purchase' → views/purchase/index.vue 采购订单列表），
+    // 无 /purchase/order/list 子路由 → 原落 404
+    await page.goto('/purchase');
+    // PurchaseTop 渲染 <h1>采购管理</h1>，breadcrumb 也渲染同名 meta.title，需 .first()
+    await expect(page.getByText('采购管理').first()).toBeVisible();
+    // 新建按钮真实文案 purchase.top.create = '新建采购单'
+    await expect(page.getByRole('button', { name: /新建采购单/ })).toBeVisible();
   });
 
   test('01-02 创建空采购订单应校验失败', async ({ page }) => {
-    await page.goto('/purchase/order/create');
-    // 不填任何字段直接提交
-    await page.getByRole('button', { name: /保存/ }).click();
-    // 应显示供应商/产品必填错误
-    await expect(page.getByText(/供应商.*必选|请选择供应商/)).toBeVisible();
+    // 采购建单为 /purchase 页内 PurchaseCreateDialog 对话框（router 无 /purchase/order/create）；
+    // 先进真实扁平路由，再由「新建采购单」按钮打开建单对话框驱动
+    await page.goto('/purchase');
+    await page.getByRole('button', { name: /新建采购单/ }).click();
+    // 不填任何字段直接提交（确认按钮文本 purchase.createDlg.confirm = '确定'）
+    await page.getByRole('button', { name: '确定', exact: true }).click();
+    // 应显示供应商必填错误
+    await expect(page.getByText('请选择供应商')).toBeVisible();
   });
 
   test('01-03 创建有效采购订单成功并生成采购单号', async ({ page }) => {
-    await page.goto('/purchase/order/create');
-    // 选择供应商
-    await page
-      .getByLabel(/供应商/)
-      .first()
-      .click();
-    await page.getByRole('option').first().click();
-    // 选择产品
-    await page.getByLabel(/产品/).first().click();
-    await page.getByRole('option').first().click();
-    // 数量
-    await page.getByLabel(/数量/).fill('200');
-    // 单价
-    await page.getByLabel(/单价/).fill('30.00');
-    // 提交
-    await page.getByRole('button', { name: /保存/ }).click();
-    // 验证成功提示 + 采购单号格式 PO-YYYYMMDD-XXXX
-    await expect(page.getByText(/采购订单号.*PO-\d{8}-\d{4}/)).toBeVisible({ timeout: 30000 });
+    // 采购建单为 /purchase 页内 PurchaseCreateDialog 对话框
+    await page.goto('/purchase');
+    await page.getByRole('button', { name: /新建采购单/ }).click();
+    const dlg = page.locator('.el-dialog:visible');
+    await expect(dlg).toBeVisible({ timeout: 30000 });
+    // 选择供应商（form-item label = '供应商'，el-select）：用共享 helper pickSelectIn
+    // （root=dlg + 精确 label「供应商」）打开下拉选首项，消除点 readonly .el-select / 内层
+    // combobox input 的 30s 超时假红（#4654 三例 create-po 失败根因）。
+    await pickSelectIn(dlg, page, '供应商');
+    // 仓库 / 部门：后端 validate_order_request（services/po/order_ops/crud.rs:137/:149）
+    // 强制 warehouse_id、department_id 非空且真实存在，建单对话框已补该两项必填下拉，
+    // 用例须据实填写（globalSeed 已保证至少 2 仓库、1 部门）。
+    await pickSelectIn(dlg, page, '仓库');
+    await pickSelectIn(dlg, page, '部门');
+    // 产品：div 明细行内 el-select（placeholder '选择产品'），无 form-item label 可锚定，
+    // 用向后兼容 pickSelect 点其 .el-select__wrapper（非外层 .el-select/只读 input）选首项。
+    await pickSelect(page, dlg.locator('.items-row').first().locator('.el-select').first());
+    // 数量 / 单价（el-input-number → spinbutton，在 .items-row 内无标签）
+    const spinbuttons = dlg.locator('.items-row').first().locator('input[type="number"]');
+    await spinbuttons.first().fill('200');
+    await spinbuttons.nth(1).fill('30');
+    // 提交（确认按钮 purchase.createDlg.confirm = '确定'）
+    await dlg.getByRole('button', { name: '确定', exact: true }).click();
+    // 真实成功提示 purchase.message.purchaseOrderCreated = '采购单创建成功'
+    await expect(page.getByText('采购单创建成功')).toBeVisible({ timeout: 30000 });
   });
 
-  test('01-04 采购订单可指定交货日期与仓库', async ({ page }) => {
-    await page.goto('/purchase/order/create');
-    await page
-      .getByLabel(/供应商/)
-      .first()
-      .click();
-    await page.getByRole('option').first().click();
-    await page.getByLabel(/产品/).first().click();
-    await page.getByRole('option').first().click();
-    // 交货日期
-    await page.getByLabel(/交货日期/).fill('2026-07-15');
-    // 仓库
-    await page.getByLabel(/仓库/).click();
-    await page.getByRole('option').first().click();
-    await page.getByLabel(/数量/).fill('100');
-    await page.getByLabel(/单价/).fill('25.50');
-    await page.getByRole('button', { name: /保存/ }).click();
-    await expect(page.getByText(/保存成功|创建成功/)).toBeVisible();
+  test('01-04 采购订单可指定要求交货日期', async ({ page }) => {
+    // 采购建单为 /purchase 页内 PurchaseCreateDialog 对话框
+    await page.goto('/purchase');
+    await page.getByRole('button', { name: /新建采购单/ }).click();
+    const dlg = page.locator('.el-dialog:visible');
+    await expect(dlg).toBeVisible({ timeout: 30000 });
+    // 供应商：pickSelectIn（root=dlg + 精确 label）打开下拉选首项（消除 readonly .el-select 点击超时）。
+    await pickSelectIn(dlg, page, '供应商');
+    // 仓库 / 部门（后端建单必填，见 01-03 注释）
+    await pickSelectIn(dlg, page, '仓库');
+    await pickSelectIn(dlg, page, '部门');
+    // 要求交货日期（form-item label = '要求交货日期'，映射后端 expected_delivery_date；
+    // 后端校验「预计交货日期不得早于订单日期」，order_date 取默认当天，故此处给未来日期）
+    const dateInput = dlg.getByLabel('要求交货日期');
+    await dateInput.click();
+    await dateInput.fill('2030-07-15');
+    await page.keyboard.press('Enter');
+    // 产品：明细行内 el-select 无 label，用 pickSelect 点 wrapper 选首项
+    await pickSelect(page, dlg.locator('.items-row').first().locator('.el-select').first());
+    // 数量/单价（spinbutton in items-row）
+    const spinbuttons = dlg.locator('.items-row').first().locator('input[type="number"]');
+    await spinbuttons.first().fill('100');
+    await spinbuttons.nth(1).fill('25.5');
+    await dlg.getByRole('button', { name: '确定', exact: true }).click();
+    await expect(page.getByText('采购单创建成功')).toBeVisible({ timeout: 30000 });
   });
 
   test('01-05 采购订单支持多产品行批量下单', async ({ page }) => {
-    await page.goto('/purchase/order/create');
-    await page
-      .getByLabel(/供应商/)
-      .first()
-      .click();
-    await page.getByRole('option').first().click();
-    // 添加 3 行产品
-    for (let i = 0; i < 3; i++) {
-      await page.getByRole('button', { name: /添加行项|新增行/ }).click();
-      // 每行选不同产品
-      const productSelect = page.locator('[data-testid="po-item-row"]').nth(i).getByLabel(/产品/);
-      await productSelect.click();
-      await page.getByRole('option').nth(i).click();
-    }
-    // 验证有 3 个采购行
-    const rows = page.locator('[data-testid="po-item-row"]');
+    // 采购建单为 /purchase 页内 PurchaseCreateDialog 对话框
+    await page.goto('/purchase');
+    await page.getByRole('button', { name: /新建采购单/ }).click();
+    const dlg = page.locator('.el-dialog:visible');
+    await expect(dlg).toBeVisible({ timeout: 30000 });
+    // 供应商：pickSelectIn（root=dlg + 精确 label）打开下拉选首项（消除 readonly .el-select 点击超时）。
+    await pickSelectIn(dlg, page, '供应商');
+    // 添加行项：按钮文本 purchase.createDlg.addItem = '+ 添加明细'
+    // 默认已有 1 行，添加 2 次 → 共 3 行
+    await dlg.getByRole('button', { name: '+ 添加明细' }).click();
+    await dlg.getByRole('button', { name: '+ 添加明细' }).click();
+    // 验证明细行数为 3（div.items-row）
+    const rows = dlg.locator('.items-row');
     await expect(rows).toHaveCount(3);
   });
 });

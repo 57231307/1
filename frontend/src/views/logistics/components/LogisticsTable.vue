@@ -28,7 +28,8 @@ import { useI18n } from 'vue-i18n';
 import V2Table from '@/components/V2Table/index.vue';
 import type { ColumnDef } from '@/components/V2Table/types';
 import type { LogisticsWaybill } from '@/api/logistics';
-import { getStatusType, formatFreight } from '../composables/lgsFmts';
+import { WAYBILL_STATUS } from '@/constants/waybill-status';
+import { getStatusText, getStatusType, formatFreight } from '../composables/lgsFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -52,24 +53,21 @@ defineProps<{
 const emit = defineEmits<{
   view: [row: LogisticsWaybill];
   edit: [row: LogisticsWaybill];
-  ship: [row: LogisticsWaybill];
   'update-status': [row: LogisticsWaybill];
+  sign: [row: LogisticsWaybill];
   delete: [row: LogisticsWaybill];
   'update:page': [v: number];
   'update:page-size': [v: number];
 }>();
 
-/** 状态文本：优先 i18n，未知状态回退到原始 status 字符串 */
-const statusText = (status: string): string => {
-  const key = `logistics.common.status.${status}`;
-  const translated = t(key);
-  return translated === key ? status : translated;
-};
-
 /** 列定义：保持与原 el-table 列完全一致；computed 确保 locale 切换时表头响应式更新 */
 const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
-  { key: 'waybill_no', title: t('logistics.table.column.waybillNo'), width: 140 },
-  { key: 'order_no', title: t('logistics.table.column.relatedOrder'), width: 140 },
+  {
+    // 关联销售订单号：运单表只存 order_id，由列表接口回查补齐
+    key: 'order_no',
+    title: t('logistics.table.column.relatedOrder'),
+    width: 140,
+  },
   { key: 'logistics_company', title: t('logistics.table.column.logisticsCompany'), width: 120 },
   { key: 'tracking_number', title: t('logistics.table.column.trackingNumber'), width: 150 },
   { key: 'driver_name', title: t('logistics.table.column.driverName'), width: 100 },
@@ -89,10 +87,10 @@ const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
     width: 100,
     align: 'center',
     renderCell: row =>
-      h(ElTag, { type: getStatusType(row.status) }, { default: () => statusText(row.status) }),
+      h(ElTag, { type: getStatusType(row.status) }, { default: () => getStatusText(row.status) }),
   },
   {
-    // 操作列：根据 row.status 条件渲染按钮（查看 / 编辑 / 发货 / 更新状态 / 删除）
+    // 操作列：按状态机给出当前阶段可执行的动作
     key: '__actions__',
     title: t('logistics.table.column.action'),
     width: 250,
@@ -105,8 +103,8 @@ const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
           { default: () => t('logistics.table.action.view') }
         ),
       ];
-      // 待发货状态：显示编辑 / 发货 / 删除
-      if (row.status === 'pending') {
+      // 运输中：运单信息仍可订正，且可登记送达 / 撤销误建运单
+      if (row.status === WAYBILL_STATUS.inTransit) {
         buttons.push(
           h(
             ElButton,
@@ -115,8 +113,8 @@ const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
           ),
           h(
             ElButton,
-            { size: 'small', type: 'success', onClick: () => emit('ship', row) },
-            { default: () => t('logistics.table.action.ship') }
+            { size: 'small', type: 'warning', onClick: () => emit('update-status', row) },
+            { default: () => t('logistics.table.action.deliver') }
           ),
           h(
             ElButton,
@@ -125,13 +123,13 @@ const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
           )
         );
       }
-      // 已发货 / 运输中：显示更新状态
-      if (row.status === 'shipped' || row.status === 'in_transit') {
+      // 已送达：进入电子签收（签收同时确认应收）
+      if (row.status === WAYBILL_STATUS.delivered) {
         buttons.push(
           h(
             ElButton,
-            { size: 'small', type: 'warning', onClick: () => emit('update-status', row) },
-            { default: () => t('logistics.table.action.updateStatus') }
+            { size: 'small', type: 'success', onClick: () => emit('sign', row) },
+            { default: () => t('logistics.table.action.sign') }
           )
         );
       }

@@ -68,12 +68,12 @@ export const ROUTE_PERMISSIONS: Record<string, string | null> = {
 export function hasPermission(userPermissions: string[], required: string | null): boolean {
   if (required === null) return true;
   return userPermissions.some(
-    (p) =>
+    p =>
       p === '*' ||
       p === '*:*' ||
       p === required ||
       // `users:*` 覆盖 `users:read`
-      (p.endsWith(':*') && required.startsWith(p.slice(0, -1))),
+      (p.endsWith(':*') && required.startsWith(p.slice(0, -1)))
   );
 }
 
@@ -83,24 +83,35 @@ export function hasPermission(userPermissions: string[], required: string | null
  */
 export async function fetchRolePermissions(
   roleId: number,
-  authHeaders: Record<string, string>,
+  authHeaders: Record<string, string>
 ): Promise<string[]> {
   const resp = await fetch(`${API_BASE}${API_PREFIX}/roles/${roleId}`, {
     headers: authHeaders,
-  }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-  if (!resp || !resp.ok) return [];
-  const body = (await resp.json().catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; })) as
-    | { data?: { permissions?: string[] } }
-    | null;
-  return body?.data?.permissions ?? [];
+  });
+  // 非 2xx 不再退化成"空权限"（空权限会把该角色所有受限路由误判为不可达）：直接抛错
+  // 注意：这里是全局 fetch 的 WHATWG Response（Node undici），status/ok 都是**属性**，
+  // 不是 Playwright APIResponse 的 ok()/status() 方法——写成 resp.status() 会在
+  // 这条错误路径上抛 TypeError，把"权限查询失败"伪装成崩溃。
+  if (!resp.ok) {
+    throw new Error(`GET /roles/${roleId} 权限查询失败，HTTP ${resp.status}`);
+  }
+  const body = (await resp.json()) as { data?: { permissions?: unknown } } | null;
+  const perms = body?.data?.permissions;
+  // 字段缺失 ≠ 空集合：后端未返回 permissions 数组时抛错，不伪装成"该角色无任何权限"
+  if (!Array.isArray(perms)) {
+    throw new Error(
+      `GET /roles/${roleId} 响应缺少 data.permissions 数组：keys=${JSON.stringify(
+        Object.keys(body?.data ?? {})
+      )}`
+    );
+  }
+  return perms as string[];
 }
 
 /**
  * 推导角色可达路由集合
  */
-export function deriveReachableRoutes(
-  userPermissions: string[],
-): Map<string, boolean> {
+export function deriveReachableRoutes(userPermissions: string[]): Map<string, boolean> {
   const result = new Map<string, boolean>();
   for (const mod of TRAVERSAL_MODULES) {
     const required = ROUTE_PERMISSIONS[mod.id] ?? null;
@@ -114,22 +125,25 @@ export function deriveReachableRoutes(
  * 基线文件不存在时返回 null（首轮生成基线）
  */
 export async function compareWithBaseline(
-  accessMap: RoleAccessMap,
+  accessMap: RoleAccessMap
 ): Promise<RoleAccessEntry[] | null> {
   const fs = await import('fs');
   const baselinePath = 'e2e/traversal/access-map-baseline.json';
   if (!fs.existsSync(baselinePath)) return null;
 
-  const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf-8')) as Record<
-    string,
-    string[]
-  >;
-  const baselineRoutes = new Set(baseline[accessMap.role] ?? []);
+  const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf-8')) as Record<string, string[]>;
+  // 基线里没有该角色条目 ≠ "该角色无可达路由"：按空集对比会把整角色误判为全漂移/全通过。
+  // 缺键必须显式抛错，交由人工补录基线，而非静默当成空集合。
+  if (!Object.prototype.hasOwnProperty.call(baseline, accessMap.role)) {
+    throw new Error(
+      `基线文件缺少角色 ${accessMap.role} 的条目（不得按空集对比）：现有角色=${Object.keys(
+        baseline
+      ).join(',')}`
+    );
+  }
+  const baselineRoutes = new Set(baseline[accessMap.role]);
 
-  return accessMap.entries.filter(
-    (e) =>
-      baselineRoutes.has(e.route) !== (e.actual === 'reachable'),
-  );
+  return accessMap.entries.filter(e => baselineRoutes.has(e.route) !== (e.actual === 'reachable'));
 }
 
 /**
@@ -140,9 +154,7 @@ export async function writeBaseline(accessMaps: RoleAccessMap[]): Promise<void> 
   const baselinePath = 'e2e/traversal/access-map-baseline.json';
   const baseline: Record<string, string[]> = {};
   for (const map of accessMaps) {
-    baseline[map.role] = map.entries
-      .filter((e) => e.actual === 'reachable')
-      .map((e) => e.route);
+    baseline[map.role] = map.entries.filter(e => e.actual === 'reachable').map(e => e.route);
   }
   fs.writeFileSync(baselinePath, JSON.stringify(baseline, null, 2));
 }

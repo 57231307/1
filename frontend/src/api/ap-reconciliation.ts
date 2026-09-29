@@ -2,6 +2,8 @@
 // 实际定义在 ap.ts 中
 export {
   getAPReconciliationList,
+  getAPReconciliation,
+  autoReconcileAllAP,
   generateAPReconciliation,
   confirmAPReconciliation,
   disputeAPReconciliation,

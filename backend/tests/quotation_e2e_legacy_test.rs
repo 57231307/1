@@ -83,6 +83,8 @@ fn test_response_dto_serializable() {
         discount_amount: None,
         notes: None,
         sequence: 1,
+        product_name: Some("面料A".to_string()),
+        product_code: Some("FAB-A".to_string()),
     };
     let json = serde_json::to_string(&item_dto).expect("序列化应成功");
     assert!(json.contains("\"product_id\":200"));

@@ -1,7 +1,7 @@
 <!--
   LogisticsStat.vue - 物流管理统计卡片（4 张）
   拆分自 logistics/index.vue（P14 批 2 I-3 第 4 批）
-  行为完全保持一致（仅结构重构）
+  总运单数取列表接口的全库 total，三张状态卡按当前页数据计数
 -->
 <template>
   <el-row :gutter="20" class="stats-row">
@@ -10,14 +10,6 @@
         <div class="stat-item">
           <div class="stat-label">{{ t('logistics.stat.label.total') }}</div>
           <div class="stat-value">{{ stats.total || 0 }}</div>
-        </div>
-      </el-card>
-    </el-col>
-    <el-col :span="6">
-      <el-card shadow="hover">
-        <div class="stat-item">
-          <div class="stat-label">{{ t('logistics.stat.label.pending') }}</div>
-          <div class="stat-value text-warning">{{ stats.pending || 0 }}</div>
         </div>
       </el-card>
     </el-col>
@@ -33,7 +25,15 @@
       <el-card shadow="hover">
         <div class="stat-item">
           <div class="stat-label">{{ t('logistics.stat.label.delivered') }}</div>
-          <div class="stat-value text-success">{{ stats.delivered || 0 }}</div>
+          <div class="stat-value text-warning">{{ stats.delivered || 0 }}</div>
+        </div>
+      </el-card>
+    </el-col>
+    <el-col :span="6">
+      <el-card shadow="hover">
+        <div class="stat-item">
+          <div class="stat-label">{{ t('logistics.stat.label.signed') }}</div>
+          <div class="stat-value text-success">{{ stats.signed || 0 }}</div>
         </div>
       </el-card>
     </el-col>
@@ -45,12 +45,12 @@ import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 统计字段类型
+// 统计字段类型（与运单状态机的三个状态一一对应）
 interface LgsStats {
   total: number;
-  pending: number;
   inTransit: number;
   delivered: number;
+  signed: number;
 }
 
 /**

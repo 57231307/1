@@ -85,9 +85,11 @@ export interface QuotationResponseDto {
   id: number;
   quotation_no: string;
   customer_id: number;
-  customer_name?: string;
+  /** 后端 QuotationResponseDto 无 customer_name（models/quotation_response_dto.rs:17 仅 customer_id），需后端 JOIN customers 补 customer_name */
+  customer_name: string | null;
   sales_user_id: number;
-  sales_user_name?: string;
+  /** 后端 QuotationResponseDto 无 sales_user_name（models/quotation_response_dto.rs:17 仅 sales_user_id），需后端 JOIN users 补 sales_user_name */
+  sales_user_name: string | null;
   quotation_date: string;
   valid_until: string;
   currency: string;
@@ -106,7 +108,8 @@ export interface QuotationResponseDto {
   tax_amount: number;
   total_amount: number;
   approved_by?: number;
-  approved_by_name?: string;
+  /** 后端 QuotationResponseDto 无 approved_by_name（models/quotation_response_dto.rs:17 仅 approved_by id），需后端 JOIN users 补 approved_by_name */
+  approved_by_name: string | null;
   approved_at?: string;
   rejection_reason?: string;
   converted_sales_order_id?: number;
@@ -122,8 +125,10 @@ export interface QuotationResponseDto {
 export interface QuotationItemResponseDto {
   id: number;
   product_id: number;
-  product_name?: string;
-  product_code?: string;
+  /** 后端 QuotationItemResponseDto 无 product_name（models/quotation_response_dto.rs:104 仅 product_id），需后端 JOIN products 补 product_name */
+  product_name: string | null;
+  /** 后端 QuotationItemResponseDto 无 product_code（models/quotation_response_dto.rs:104 仅 product_id），需后端 JOIN products 补 product_code */
+  product_code: string | null;
   color_id?: number;
   color_code?: string;
   pantone_code?: string;
@@ -205,12 +210,18 @@ export interface ListResponse {
 /**
  * 列出报价单（分页）
  * @param params 查询参数
+ * 后端 quotation_handler::list_quotations 返回 ApiResponse<ListQuotationsResponse>，
+ * ListQuotationsResponse { list, total, page, page_size }，真实列表键为 list（非裸数组）。
  */
 export function getQuotationList(
   params: QuotationListQuery = {}
-): Promise<ApiResponse<QuotationResponseDto[]>> {
+): Promise<
+  ApiResponse<{ list: QuotationResponseDto[]; total: number; page: number; page_size: number }>
+> {
   // P2 1-11 修复：去掉 as any，使用显式泛型传递类型契约
-  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations', { params });
+  return request.get<
+    ApiResponse<{ list: QuotationResponseDto[]; total: number; page: number; page_size: number }>
+  >('/quotations', { params });
 }
 
 /**
@@ -329,12 +340,18 @@ export function calculatePrice(
 }
 
 /**
- * 获取色号价格
+ * 获取色号价格（分页）
  * @param productColorId 产品色号 ID
+ * 后端 quotation_handler::list_color_prices 返回 ApiResponse<PaginatedResponse<product_color_price::Model>>，
+ * data 为信封 { items, total, page, page_size }，真实列表键为 items（非裸数组）。
  */
 // P2 1-11 修复：去掉 as any 和 any 类型，使用 unknown 占位（后端返回结构待定义 DTO）
-export function getColorPrices(productColorId: number): Promise<ApiResponse<unknown[]>> {
-  return request.get<ApiResponse<unknown[]>>(`/quotations/color-prices/${productColorId}`);
+export function getColorPrices(
+  productColorId: number
+): Promise<ApiResponse<{ items: unknown[]; total: number; page: number; page_size: number }>> {
+  return request.get<
+    ApiResponse<{ items: unknown[]; total: number; page: number; page_size: number }>
+  >(`/quotations/color-prices/${productColorId}`);
 }
 
 /**

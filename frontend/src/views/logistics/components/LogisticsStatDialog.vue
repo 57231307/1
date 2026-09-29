@@ -50,8 +50,8 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { getStatusType } from '../composables/lgsFmts';
-import type { WaybillStatus } from '@/api/logistics';
+import { getStatusText, getStatusType } from '../composables/lgsFmts';
+import type { WaybillStatus } from '@/constants/waybill-status';
 import type { LgsStatusForm } from '../composables/useLgsProc';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -81,15 +81,9 @@ const emit = defineEmits<{
   (e: 'update:form', form: LgsStatusForm): void;
 }>();
 
-// 透传格式化函数
+// 状态标签与文本统一走 lgsFmts，保证列表 / 详情 / 对话框口径一致
 const getStatusTypeFmt = getStatusType;
-
-/** 状态文本：优先 i18n，未知状态回退到原始 status 字符串 */
-const statusTextFmt = (status: string): string => {
-  const key = `logistics.common.status.${status}`;
-  const translated = t(key);
-  return translated === key ? status : translated;
-};
+const statusTextFmt = getStatusText;
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 const localForm = ref<LgsStatusForm>({ ...props.form });

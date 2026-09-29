@@ -34,7 +34,7 @@ pub struct Model {
     pub is_deleted: Option<bool>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
-    pub fabric_type: Option<String>,
+    pub fabric_type: String,
     pub color_code: Option<String>,
     #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
     pub width_cm: Option<Decimal>,

@@ -99,6 +99,8 @@ const queryParams = reactive({
   keyword: '',
   grade: '',
   status: '',
+  // batch-13 P3 加工商筛选（后端 SupplierQueryParams.is_processor 真实支持）
+  is_processor: undefined as boolean | undefined,
 });
 
 // 批次 277：接入 useTableApi，消除手写 suppliers/total/loading/fetchData 重复
@@ -113,6 +115,8 @@ const {
   setQueryParam,
 } = useTableApi<Supplier>({
   url: '/purchase/suppliers',
+  // 钉到后端真实键（supplier_service::list_suppliers → PaginatedResponse{ items, total, page, page_size }）
+  listKey: 'items',
   onError: (err: unknown) =>
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) ||
@@ -125,6 +129,8 @@ const syncQueryParams = () => {
   setQueryParam('keyword', queryParams.keyword || undefined);
   setQueryParam('grade', queryParams.grade || undefined);
   setQueryParam('status', queryParams.status || undefined);
+  // 原视图暴露了"类型"（供应商/加工商）下拉但从未同步——接入真实后端字段 is_processor
+  setQueryParam('is_processor', queryParams.is_processor);
 };
 
 // 批次 277：搜索时先同步筛选条件再刷新
@@ -176,6 +182,7 @@ const handleReset = () => {
   queryParams.keyword = '';
   queryParams.grade = '';
   queryParams.status = '';
+  queryParams.is_processor = undefined;
   syncQueryParams();
   page.value = 1;
   fetchData();

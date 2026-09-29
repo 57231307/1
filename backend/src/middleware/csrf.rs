@@ -20,17 +20,15 @@
 use crate::container::AppState;
 use crate::middleware::audit_context::extract_client_ip as extract_client_ip_helper;
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::public_routes::is_public_path;
+use crate::middleware::public_routes::{is_auth_only_path, is_public_path};
 use crate::utils::cache::CsrfConsumeResult;
 use axum::{
-    Json,
     body::Body,
     extract::State,
     http::{Method, Request, StatusCode},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
 };
-use serde_json::json;
 
 /// CSRF 请求头名称（小写形式，对应 HTTP/2 规范）
 pub const CSRF_HDR_NAME: &str = "x-csrf-token";
@@ -175,6 +173,14 @@ pub async fn csrf_middleware(
         return Ok(next.run(request).await);
     }
 
+    // 2b. 认证豁免路径（record-print / ws/ticket）：仅需 JWT 认证，不消耗一次性 token。
+    // 必须在 token 提取/消费之前短路——csrf_middleware 在 permission_middleware 之外层执行，
+    // 若不在此豁免，is_auth_only_path 永远轮不到，ws/ticket 的重连风暴会与页面其它 POST
+    // 争抢一次性 token，把并发请求全部打成 CSRF_TOKEN_INVALID（见 permission.rs 的声明）。
+    if is_auth_only_path(&path) {
+        return Ok(next.run(request).await);
+    }
+
     // 3. 提取并校验 CSRF Token 头
     let token = match extract_csrf_token(&request) {
         Some(t) => t,
@@ -224,11 +230,5 @@ pub async fn csrf_middleware(
 
 /// 构造 403 CSRF 错误响应（统一 JSON 格式）
 pub fn csrf_error_response(code: &str, message: &str) -> Response {
-    let body = json!({
-        "success": false,
-        "code": code,
-        "message": message,
-        "data": null,
-    });
-    (StatusCode::FORBIDDEN, Json(body)).into_response()
+    crate::utils::response::unified_error_response(StatusCode::FORBIDDEN, code, message)
 }

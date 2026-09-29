@@ -25,30 +25,17 @@
 
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="invoiceQuery" :aria-label="$t('arModule.invoice.filterAria')">
-        <el-form-item :label="$t('arModule.invoice.customer')">
-          <el-input
-            v-model="invoiceQuery.customer_name"
-            :placeholder="$t('arModule.invoice.customerNamePlaceholder')"
-            clearable
-          />
-        </el-form-item>
-        <el-form-item :label="$t('arModule.invoice.invoiceNo')">
-          <el-input
-            v-model="invoiceQuery.invoice_no"
-            :placeholder="$t('arModule.invoice.invoiceNoPlaceholder')"
-            clearable
-          />
-        </el-form-item>
         <el-form-item :label="$t('common.status')">
           <el-select
             v-model="invoiceQuery.status"
             :placeholder="$t('arModule.invoice.statusPlaceholder')"
             clearable
           >
-            <el-option :label="$t('arModule.invoice.statusPending')" value="pending" />
-            <el-option :label="$t('arModule.invoice.statusApproved')" value="approved" />
-            <el-option :label="$t('arModule.invoice.statusVerified')" value="verified" />
-            <el-option :label="$t('arModule.invoice.statusCancelled')" value="cancelled" />
+            <el-option :label="$t('arModule.invoice.statusDraft')" value="DRAFT" />
+            <el-option :label="$t('arModule.invoice.statusApproved')" value="APPROVED" />
+            <el-option :label="$t('arModule.invoice.statusPartialPaid')" value="PARTIAL_PAID" />
+            <el-option :label="$t('arModule.invoice.statusPaid')" value="PAID" />
+            <el-option :label="$t('arModule.invoice.statusCancelled')" value="CANCELLED" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -86,15 +73,15 @@
             {{ formatMoney(row.tax_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('arModule.invoice.verifiedAmount')" width="110" align="right">
+        <el-table-column :label="$t('arModule.invoice.receivedAmount')" width="110" align="right">
           <template #default="{ row }">
-            {{ formatMoney(row.verified_amount) }}
+            {{ formatMoney(row.received_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('arModule.invoice.unverifiedAmount')" width="110" align="right">
+        <el-table-column :label="$t('arModule.invoice.unpaidAmount')" width="110" align="right">
           <template #default="{ row }">
-            <span :class="{ 'text-red': row.unverified_amount > 0 }">
-              {{ formatMoney(row.unverified_amount) }}
+            <span :class="{ 'text-red': row.unpaid_amount > 0 }">
+              {{ formatMoney(row.unpaid_amount) }}
             </span>
           </template>
         </el-table-column>
@@ -112,7 +99,7 @@
               $t('common.detail')
             }}</el-button>
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === 'DRAFT'"
               type="success"
               link
               size="small"
@@ -120,7 +107,7 @@
               >{{ $t('arModule.invoice.approve') }}</el-button
             >
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === 'DRAFT'"
               type="danger"
               link
               size="small"
@@ -163,30 +150,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('arModule.invoice.invoiceNo')" prop="invoice_no">
-              <el-input
-                v-model="invoiceForm.invoice_no"
-                :placeholder="$t('arModule.invoice.invoiceNoInputPlaceholder')"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
             <el-form-item :label="$t('arModule.invoice.invoiceDate')" prop="invoice_date">
               <el-date-picker
                 v-model="invoiceForm.invoice_date"
-                type="date"
-                :placeholder="$t('arModule.invoice.datePlaceholder')"
-                value-format="YYYY-MM-DD"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item :label="$t('arModule.invoice.dueDate')">
-              <el-date-picker
-                v-model="invoiceForm.due_date"
                 type="date"
                 :placeholder="$t('arModule.invoice.datePlaceholder')"
                 value-format="YYYY-MM-DD"
@@ -217,6 +183,25 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item :label="$t('arModule.invoice.dueDate')">
+              <el-date-picker
+                v-model="invoiceForm.due_date"
+                type="date"
+                :placeholder="$t('arModule.invoice.datePlaceholder')"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <!-- 发票编号后端自生成，新建时只读展示（未创建为空），不入提交请求体 -->
+            <el-form-item :label="$t('arModule.invoice.invoiceNo')">
+              <el-input :model-value="invoiceNoDisplay()" readonly />
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-form-item :label="$t('arModule.invoice.remark')">
           <el-input
             v-model="invoiceForm.remark"
@@ -240,6 +225,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Printer, Download } from '@element-plus/icons-vue';
+import { promptCancelReason } from '@/composables/useActionPrompts';
 import printJS from 'print-js';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
@@ -251,6 +237,7 @@ import {
   type ARInvoice,
 } from '@/api/ar';
 import type { Customer } from '@/api/customer';
+import { getCustomerList } from '@/api/customer';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
 
@@ -264,14 +251,11 @@ const invoiceDialogVisible = ref(false);
 const invoiceFormRef = ref<FormInstance>();
 
 const invoiceQuery = reactive({
-  customer_name: '',
-  invoice_no: '',
   status: '',
 });
 
 const invoiceForm = reactive({
   customer_id: undefined as number | undefined,
-  invoice_no: '',
   invoice_date: '',
   invoice_amount: 0,
   tax_amount: 0,
@@ -282,9 +266,6 @@ const invoiceForm = reactive({
 const invoiceRules: FormRules = {
   customer_id: [
     { required: true, message: t('arModule.invoice.customerRequired'), trigger: 'change' },
-  ],
-  invoice_no: [
-    { required: true, message: t('arModule.invoice.invoiceNoRequired'), trigger: 'blur' },
   ],
   invoice_date: [
     { required: true, message: t('arModule.invoice.invoiceDateRequired'), trigger: 'change' },
@@ -299,11 +280,15 @@ const formatMoney = (amount: number) => {
 };
 
 const getInvoiceStatusLabel = (status: string) => {
+  // 真实 ar_invoice.status 值集（大写）：见 backend/src/services/ar_invoice_service.rs
+  // create→STATUS_DRAFT、approve→STATUS_APPROVED、mark_as_paid→PAID/PARTIAL_PAID、cancel→STATUS_CANCELLED
+  // 常量定义 backend/src/models/status/general.rs（common / payment 子模块）
   const keyMap: Record<string, string> = {
-    pending: 'arModule.invoice.statusPending',
-    approved: 'arModule.invoice.statusApproved',
-    verified: 'arModule.invoice.statusVerified',
-    cancelled: 'arModule.invoice.statusCancelled',
+    DRAFT: 'arModule.invoice.statusDraft',
+    APPROVED: 'arModule.invoice.statusApproved',
+    PARTIAL_PAID: 'arModule.invoice.statusPartialPaid',
+    PAID: 'arModule.invoice.statusPaid',
+    CANCELLED: 'arModule.invoice.statusCancelled',
   };
   const key = keyMap[status];
   return key ? t(key) : status;
@@ -311,13 +296,22 @@ const getInvoiceStatusLabel = (status: string) => {
 
 const getInvoiceStatusType = (status: string) => {
   const map: Record<string, string> = {
-    pending: 'warning',
-    approved: 'success',
-    verified: 'primary',
-    cancelled: 'info',
+    DRAFT: 'warning',
+    APPROVED: 'primary',
+    PARTIAL_PAID: 'warning',
+    PAID: 'success',
+    CANCELLED: 'danger',
   };
   return map[status] || 'info';
 };
+
+/**
+ * 新建对话框「发票编号」只读回显：发票号由后端 create_ar_invoice → generate_invoice_no 自生成，
+ * 前端不采集、不入请求体（见后端 CreateArInvoiceRequestDto 无 invoice_no 字段）；
+ * 未创建时留空并回退到占位提示文案。
+ */
+const invoiceNoDisplay = () =>
+  invoiceDialogVisible.value ? '' : t('arModule.invoice.invoiceNoPlaceholder');
 
 const fetchInvoices = async () => {
   invoiceLoading.value = true;
@@ -335,8 +329,6 @@ const fetchInvoices = async () => {
 };
 
 const resetInvoiceQuery = () => {
-  invoiceQuery.customer_name = '';
-  invoiceQuery.invoice_no = '';
   invoiceQuery.status = '';
   fetchInvoices();
 };
@@ -344,7 +336,6 @@ const resetInvoiceQuery = () => {
 const openInvoiceDialog = () => {
   invoiceFormRef.value?.resetFields();
   invoiceForm.customer_id = undefined;
-  invoiceForm.invoice_no = '';
   invoiceForm.invoice_date = new Date().toISOString().split('T')[0];
   invoiceForm.invoice_amount = 0;
   invoiceForm.tax_amount = 0;
@@ -359,7 +350,16 @@ const submitInvoice = async () => {
 
   invoiceSubmitLoading.value = true;
   try {
-    await createARInvoice(invoiceForm);
+    // 请求体逐字段对齐后端 CreateArInvoiceRequestDto（handlers/ar_invoice_handler.rs:46）：
+    // 不含 invoice_no（后端 generate_invoice_no 自生成）、不含 tax_amount/remark（DTO 无此字段）。
+    // 到期日为选填：留空时为 ''，后端把 due_date 反序列化为 Some("") 后 parse::<NaiveDate> 失败
+    // →「到期日格式错误」422 使创建被拒；空串归 undefined（JSON 省略该键），后端回退为当天。
+    await createARInvoice({
+      customer_id: invoiceForm.customer_id,
+      invoice_date: invoiceForm.invoice_date,
+      due_date: invoiceForm.due_date || undefined,
+      invoice_amount: invoiceForm.invoice_amount,
+    });
     ElMessage.success(t('common.success'));
     invoiceDialogVisible.value = false;
     fetchInvoices();
@@ -387,10 +387,9 @@ const viewInvoice = async (row: ARInvoice) => {
       t('arModule.invoice.detailDueDate', { value: d.due_date || '-' }),
       t('arModule.invoice.detailAmount', { value: formatMoney(d.invoice_amount) }),
       t('arModule.invoice.detailTax', { value: formatMoney(d.tax_amount) }),
-      t('arModule.invoice.detailVerified', { value: formatMoney(d.verified_amount) }),
-      t('arModule.invoice.detailUnverified', { value: formatMoney(d.unverified_amount) }),
+      t('arModule.invoice.detailReceived', { value: formatMoney(d.received_amount) }),
+      t('arModule.invoice.detailUnpaid', { value: formatMoney(d.unpaid_amount) }),
       t('arModule.invoice.detailStatus', { value: getInvoiceStatusLabel(d.status) }),
-      t('arModule.invoice.detailRemark', { value: d.remark || '-' }),
     ];
     await ElMessageBox.alert(lines.join('\n'), t('arModule.invoice.detailTitle'), {
       confirmButtonText: t('common.close'),
@@ -420,20 +419,16 @@ const approveInvoice = async (row: ARInvoice) => {
 };
 
 const cancelInvoice = async (row: ARInvoice) => {
+  // 后端 CancelReason 必填 reason：真实采集取消原因，取消即中断。
+  const reason = await promptCancelReason();
+  if (!reason) return;
   try {
-    await ElMessageBox.confirm(
-      t('arModule.invoice.cancelConfirm'),
-      t('arModule.invoice.cancelTitle'),
-      { type: 'warning' }
-    );
-    await cancelARInvoice(row.id);
+    await cancelARInvoice(row.id, reason);
     ElMessage.success(t('arModule.invoice.cancelSuccess'));
     fetchInvoices();
   } catch (error) {
-    if (error !== 'cancel') {
-      const err = error as Error;
-      ElMessage.error(err.message || t('common.failed'));
-    }
+    const err = error as Error;
+    ElMessage.error(err.message || t('common.failed'));
   }
 };
 
@@ -467,8 +462,25 @@ const handleExportInvoices = async () => {
   logger.info(t('arModule.invoice.exportedLog'));
 };
 
+/**
+ * 加载新建发票对话框「客户」下拉候选。
+ * 后端 customer_handler::list_customers 返回 ApiResponse<PaginatedResponse<Customer>>，
+ * 列表键为 items（api/customer.ts:42 契约）；不写兜底默认，加载失败仅记日志并留空
+ * （空候选会让用户明确看到"无可选项"，而非被假数据掩盖）。
+ */
+const loadCustomers = async () => {
+  try {
+    const res = await getCustomerList({ page: 1, page_size: 1000 });
+    customers.value = res.data.items;
+  } catch (error) {
+    logger.error(t('arModule.invoice.fetchListFailed'), error);
+    customers.value = [];
+  }
+};
+
 onMounted(() => {
   fetchInvoices();
+  loadCustomers();
 });
 </script>
 

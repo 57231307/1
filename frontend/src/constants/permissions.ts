@@ -219,6 +219,22 @@ export const PERMISSIONS = {
   OA_ANNOUNCEMENT_CREATE: 'oa-announcements:create',
   OA_ANNOUNCEMENT_UPDATE: 'oa-announcements:update',
   OA_ANNOUNCEMENT_DELETE: 'oa-announcements:delete',
+
+  // SKU 对照表（后端资源：sku-mappings，采购域）
+  SKU_MAPPING_READ: 'sku-mappings:read',
+  SKU_MAPPING_CREATE: 'sku-mappings:create',
+  SKU_MAPPING_UPDATE: 'sku-mappings:update',
+  SKU_MAPPING_DELETE: 'sku-mappings:delete',
+
+  // 供应商商品目录（后端资源：supplier-products，采购域）
+  SUPPLIER_PRODUCT_READ: 'supplier-products:read',
+  SUPPLIER_PRODUCT_CREATE: 'supplier-products:create',
+  SUPPLIER_PRODUCT_UPDATE: 'supplier-products:update',
+
+  // 供应商商品色号目录（后端资源：supplier-product-colors，采购域）
+  SUPPLIER_PRODUCT_COLOR_READ: 'supplier-product-colors:read',
+  SUPPLIER_PRODUCT_COLOR_CREATE: 'supplier-product-colors:create',
+  SUPPLIER_PRODUCT_COLOR_UPDATE: 'supplier-product-colors:update',
 } as const;
 
 // ============================================================================

@@ -6,6 +6,7 @@
 // 批次 100 P3-A 修复（v5 复审）：状态字符串常量化，引用 crate::models::status
 
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
+use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
@@ -76,6 +77,11 @@ impl ApPaymentService {
                 request.approval_status
             )));
         }
+
+        // 采购门控：校验供应商是否在有效黑名单中（事务内执行，消除 TOCTOU）
+        SupplierBlacklistService::new(self.db.clone())
+            .check_supplier_not_blacklisted(&txn, request.supplier_id)
+            .await?;
 
         // 3. 检查是否已创建过付款单
         let exists = ap_payment::Entity::find()
@@ -440,6 +446,7 @@ impl ApPaymentService {
     ) -> crate::services::voucher_service::VoucherItemRequest {
         crate::services::voucher_service::VoucherItemRequest {
             line_no: Some(1),
+            subject_id: None,
             subject_code: Some("2202".to_string()),
             subject_name: Some("应付账款".to_string()),
             debit: payment_amount,
@@ -470,6 +477,7 @@ impl ApPaymentService {
     ) -> crate::services::voucher_service::VoucherItemRequest {
         crate::services::voucher_service::VoucherItemRequest {
             line_no: Some(2),
+            subject_id: None,
             subject_code: Some(credit_code.to_string()),
             subject_name: Some(credit_name.to_string()),
             debit: Decimal::ZERO,

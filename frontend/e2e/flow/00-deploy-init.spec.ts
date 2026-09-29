@@ -23,19 +23,18 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-2 登录验证 + 权限验证', async ({ page }) => {
-    await loginViaUI(page);
     const me = await apiCallRaw<{ username: string; permissions: string[] }>(
       page,
       'GET',
       '/auth/me'
     );
     expect(me.username).toBeTruthy();
-    expect(me.permissions);
-    expect(me.permissions.length).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(me.permissions), '/auth/me 应返回权限数组').toBe(true);
+    // admin 必须带权限码：空数组意味着权限注入失效（此前 >=0 恒真）
+    expect(me.permissions.length, '/auth/me 应返回非空权限集').toBeGreaterThan(0);
   });
 
   test('0-3 创建部门', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     for (const dept of [
       { name: genName('销售部'), code: genCode('DEPT-SALE'), sort_order: 1, is_active: true },
@@ -58,11 +57,10 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         if (list.items?.[0]?.id) ctx.departmentIds.push(list.items[0].id);
       }
     }
-    expect(ctx.departmentIds.length).toBeGreaterThanOrEqual(0);
+    expect(ctx.departmentIds.length, '部署初始化应创建出至少一个部门').toBeGreaterThan(0);
   });
 
   test('0-4 创建仓库', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     for (const wh of [
       { name: genName('原料仓'), code: genCode('WH-RAW'), address: 'A区' },
@@ -84,11 +82,10 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         if (list.items?.[0]?.id) ctx.warehouseIds.push(list.items[0].id);
       }
     }
-    expect(ctx.warehouseIds.length).toBeGreaterThanOrEqual(0);
+    expect(ctx.warehouseIds.length, '部署初始化应创建出至少一个仓库').toBeGreaterThan(0);
   });
 
   test('0-5 创建产品分类', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     for (const cat of [
       { name: genName('坯布类'), code: genCode('CAT-GREY'), is_active: true },
@@ -109,11 +106,10 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         if (list.items?.[0]?.id) ctx.productCategoryIds.push(list.items[0].id);
       }
     }
-    expect(ctx.productCategoryIds.length).toBeGreaterThanOrEqual(0);
+    expect(ctx.productCategoryIds.length, '部署初始化应创建出至少一个产品分类').toBeGreaterThan(0);
   });
 
   test('0-6 创建产品 A（坯布，四级批次管理，完整面料规格）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
@@ -144,11 +140,10 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       );
       if (list.items?.[0]?.id) ctx.productIds.push(list.items[0].id);
     }
-    expect(ctx.productIds.length).toBeGreaterThanOrEqual(0);
+    expect(ctx.productIds.length, '部署初始化应创建/复用到至少一个产品').toBeGreaterThan(0);
   });
 
   test('0-7 创建产品 B（成品布）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
@@ -170,14 +165,14 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         is_active: true,
       });
       if (result.data?.id) ctx.productIds.push(result.data.id);
-    } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] //: ${(e as Error).message}`);
       // 产品可能已存在
-     }
-    expect(ctx.productIds.length).toBeGreaterThanOrEqual(0);
+    }
+    expect(ctx.productIds.length, '部署初始化应创建/复用到至少一个产品').toBeGreaterThan(0);
   });
 
   test('0-8 创建色号 RED-001（产品 A 的红色色号）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
     try {
@@ -186,18 +181,19 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         color_name: '大红',
         pantone_code: '179C',
         color_type: '常规色',
+        extra_cost: 0,
         is_active: true,
       });
       if (result.data?.id) ctx.productColorIds.push(result.data.id);
       ctx.colorNos.push('RED-001');
-    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] catch: ${(e as Error).message}`);
       ctx.colorNos.push('RED-001');
-     }
+    }
     expect(ctx.colorNos).toContain('RED-001');
   });
 
   test('0-9 创建色号 BLUE-001（产品 A 的蓝色色号）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
     try {
@@ -206,18 +202,19 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         color_name: '藏青',
         pantone_code: '19-3939C',
         color_type: '常规色',
+        extra_cost: 0,
         is_active: true,
       });
       if (result.data?.id) ctx.productColorIds.push(result.data.id);
       ctx.colorNos.push('BLUE-001');
-    } catch (e) { console.warn(`[E2E] catch: ${(e as Error).message}`); 
+    } catch (e) {
+      console.warn(`[E2E] catch: ${(e as Error).message}`);
       ctx.colorNos.push('BLUE-001');
-     }
+    }
     expect(ctx.colorNos).toContain('BLUE-001');
   });
 
   test('0-10 创建供应商（含缸号映射）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
@@ -239,7 +236,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-11 创建客户（含信用额度）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
@@ -265,7 +261,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-12 创建会计科目', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const subjects = [
       { code: '1001', name: '库存现金', level: 1, balance_direction: 'debit' },
@@ -275,19 +270,46 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       { code: '6001', name: '主营业务收入', level: 1, balance_direction: 'credit' },
       { code: '5001', name: '生产成本', level: 1, balance_direction: 'debit' },
     ];
+    // 预置科目码（1001/1002/…）在部署初始化种子数据里已存在（backend migration finance）。
+    // 直投 POST /subjects 撞唯一约束 → 后端返回 400「科目编码已存在」（脱敏成"请求参数错误"），
+    // apiCall 对非 2xx 抛错。原实现 catch 里既不上报也不回查 → accountSubjectIds 恒 0 →
+    // 末尾断言恒失败。修法与同文件 0-10/0-11 一致：创建失败即回落到 GET /subjects
+    // （list_subjects 返回裸数组 account_subject::Model，含 id/code，见
+    // handlers/account_subject_handler.rs:71-94）按 code 取已存在科目的 id；若回查也取不到，
+    // 显式抛错暴露真实原因，不静默丢弃。
+    const list = await apiCallRaw<Array<{ id: number; code: string }>>(page, 'GET', '/subjects');
     for (const s of subjects) {
       try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/finance/subjects', s);
-        if (result.data?.id) ctx.accountSubjectIds.push(result.data.id);
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
-        // 已存在则跳过
-       }
+        // 会计科目挂载在 /api/v1/erp/subjects（routes/mod.rs:509 将 finance::sub_routes()
+        // 含 gl() 的 /subjects 直接 nest 到 /api/v1/erp），前端 api/account-subject.ts:40
+        // 亦 request.post('/subjects')。此前误写 /finance/subjects → 404，6 条全落空。
+        const result = await apiCall<{ id?: number }>(page, 'POST', '/subjects', s);
+        if (result.data?.id) {
+          ctx.accountSubjectIds.push(result.data.id);
+        } else {
+          throw new Error(`创建科目 ${s.code} 未返回 data.id：${JSON.stringify(result)}`);
+        }
+      } catch (e) {
+        console.warn(
+          `[E2E] 创建科目 ${s.code} 失败，回落按 code 取已存在 id: ${(e as Error).message}`
+        );
+        const existing = Array.isArray(list) ? list.find(x => x.code === s.code) : undefined;
+        if (existing?.id) {
+          ctx.accountSubjectIds.push(existing.id);
+        } else {
+          throw new Error(
+            `[E2E] 科目 ${s.code} 既无法创建、GET /subjects 也查不到已存在项，前置数据契约不成立`
+          );
+        }
+      }
     }
-    expect(ctx.accountSubjectIds.length).toBeGreaterThanOrEqual(0);
+    expect(
+      ctx.accountSubjectIds.length,
+      `部署初始化应解析出全部 ${subjects.length} 个会计科目 id（实际 ${ctx.accountSubjectIds.length}）`
+    ).toBe(subjects.length);
   });
 
   test('0-13 创建色卡（RGB/CMYK/LAB 数值）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/color-cards', {
@@ -305,7 +327,6 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
   });
 
   test('0-14 创建坯布（关联产品 + 双计量）', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
     const dyeLotNo = genDyeLotNo();
     ctx.dyeLotNo = dyeLotNo;
@@ -314,7 +335,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         fabric_no: genCode('GF'),
         fabric_name: genName('E2E坯布'),
         product_id: ctx.productIds[0] || 1,
-        supplier_id: ctx.supplierId || 1,
+        supplier_id: ctx.supplierId,
         warehouse_id: ctx.warehouseIds[0] || 1,
         composition: '65%棉 35%涤',
         yarn_count: '40S',
@@ -341,15 +362,15 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
           '/greige-fabrics?page=1&page_size=1'
         );
         ctx.greigeFabricId = list.items?.[0]?.id;
-      } catch (e) { console.warn(`[E2E] //: ${(e as Error).message}`); 
+      } catch (e) {
+        console.warn(`[E2E] //: ${(e as Error).message}`);
         // 跳过
-       }
+      }
     }
     expect(ctx.dyeLotNo).toBeTruthy();
   });
 
   test('0-15 基础数据验证', async ({ page }) => {
-    await loginViaUI(page);
     const ctx = getCtx();
 
     const products = await apiCallRaw<{ items: unknown[] }>(
@@ -357,28 +378,48 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
       'GET',
       '/products?page=1&page_size=5'
     );
-    expect(products?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
+    expect(
+      Array.isArray(products?.items),
+      `产品列表应返回 items 数组，实际：${JSON.stringify(products).slice(0, 120)}`
+    ).toBe(true);
+    // 本文件前序用例刚造过产品，基础数据校验若查不到即为真缺陷（原写法 >=0 恒真）
+    expect(products.items.length, `产品基础数据不应为空`).toBeGreaterThan(0);
 
     const suppliers = await apiCallRaw<{ items: unknown[] }>(
       page,
       'GET',
       '/purchase/suppliers?page=1&page_size=5'
     );
-    expect(suppliers?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
+    expect(
+      Array.isArray(suppliers?.items),
+      `供应商列表应返回 items 数组，实际：${JSON.stringify(suppliers).slice(0, 120)}`
+    ).toBe(true);
+    // 本文件前序用例刚造过供应商，基础数据校验若查不到即为真缺陷（原写法 >=0 恒真）
+    expect(suppliers.items.length, `供应商基础数据不应为空`).toBeGreaterThan(0);
 
     const customers = await apiCallRaw<{ items: unknown[] }>(
       page,
       'GET',
       '/crm/customers?page=1&page_size=5'
     );
-    expect(customers?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
+    expect(
+      Array.isArray(customers?.items),
+      `客户列表应返回 items 数组，实际：${JSON.stringify(customers).slice(0, 120)}`
+    ).toBe(true);
+    // 本文件前序用例刚造过客户，基础数据校验若查不到即为真缺陷（原写法 >=0 恒真）
+    expect(customers.items.length, `客户基础数据不应为空`).toBeGreaterThan(0);
 
     const warehouses = await apiCallRaw<{ items: unknown[] }>(
       page,
       'GET',
       '/warehouses?page=1&page_size=5'
     );
-    expect(warehouses?.items?.length ?? 0).toBeGreaterThanOrEqual(0);
+    expect(
+      Array.isArray(warehouses?.items),
+      `仓库列表应返回 items 数组，实际：${JSON.stringify(warehouses).slice(0, 120)}`
+    ).toBe(true);
+    // 本文件前序用例刚造过仓库，基础数据校验若查不到即为真缺陷（原写法 >=0 恒真）
+    expect(warehouses.items.length, `仓库基础数据不应为空`).toBeGreaterThan(0);
 
     // 验证非法 API 调用被拒绝
     const failResult = await apiCallExpectFail(page, 'GET', '/nonexistent-endpoint');

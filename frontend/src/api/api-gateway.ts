@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface ApiEndpoint {
   id: number;
@@ -49,7 +49,21 @@ export interface ApiKey {
   last_used_at: string;
 }
 
-export function getApiEndpointList(params?: QueryParams): Promise<ApiResponse<ApiEndpoint[]>> {
+/**
+ * API 网关三个列表端点（/api-gateway/endpoints|logs|keys GET）共用的查询参数。
+ * 对应后端 api_gateway_handler::ApiGwQuery（backend/src/handlers/api_gateway_handler.rs:62），
+ * 无 rename_all → snake_case，全 Option → 可选。
+ * 后端不读 order_by/order_dir/supplier_name/... （原 QueryParams 键被 Axum 静默丢弃）。
+ */
+export interface ApiGwQueryParams {
+  page?: number;
+  page_size?: number;
+  keyword?: string;
+  status?: string;
+  method?: string;
+}
+
+export function getApiEndpointList(params?: ApiGwQueryParams): Promise<ApiResponse<ApiEndpoint[]>> {
   return request.get('/api-gateway/endpoints', { params });
 }
 
@@ -72,7 +86,7 @@ export function deleteApiEndpoint(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/api-gateway/endpoints/${id}`);
 }
 
-export function getApiLogList(params?: QueryParams): Promise<ApiResponse<ApiLog[]>> {
+export function getApiLogList(params?: ApiGwQueryParams): Promise<ApiResponse<ApiLog[]>> {
   return request.get('/api-gateway/logs', { params });
 }
 
@@ -80,7 +94,7 @@ export function getApiLog(id: number): Promise<ApiResponse<ApiLog>> {
   return request.get(`/api-gateway/logs/${id}`);
 }
 
-export function getApiKeyList(params?: QueryParams): Promise<ApiResponse<ApiKey[]>> {
+export function getApiKeyList(params?: ApiGwQueryParams): Promise<ApiResponse<ApiKey[]>> {
   return request.get('/api-gateway/keys', { params });
 }
 

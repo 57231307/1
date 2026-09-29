@@ -269,6 +269,8 @@ export interface CustomOrderDetail extends CustomOrderListItem {
   yarn_spec?: string;
   dye_method?: string;
   finishing_method?: string;
+  /** 定制要求（JSONB，含 note 等自由键） */
+  custom_requirements?: unknown;
   updated_at: string;
   process_nodes: CustomOrderProcessNode[];
   // v11 批次 181 P2-1 修复：详情接口返回的关联字段，之前未声明导致前端用 unknown[] 绕过
@@ -303,13 +305,17 @@ export interface OrderTimeline {
 }
 
 // 列表查询
+// 后端 custom_order_handler::list_custom_orders 返回 ApiResponse<PagedResponse<CustomOrderListItem>>，
+// PagedResponse { items, total, page, page_size }，真实列表键为 items（非裸数组）。
 export function getCustomOrderList(params: {
   page?: number;
   page_size?: number;
   status?: string;
   customer_id?: number;
   keyword?: string;
-}): Promise<ApiResponse<CustomOrderListItem[]>> {
+}): Promise<
+  ApiResponse<{ items: CustomOrderListItem[]; total: number; page: number; page_size: number }>
+> {
   return request.get('/custom-orders', { params });
 }
 

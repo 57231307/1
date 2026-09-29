@@ -43,6 +43,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { request } from '@/api/request';
@@ -98,7 +99,7 @@ const fetchSystemVersion = async () => {
     systemVersion.value = info?.version || 'unknown';
     lastUpdate.value = info?.updated_at || '-';
   } catch (_e) {
-    // 静默：版本信息拉取失败时保留默认值
+    logger.error(t('system.systemUpdate.message.loadVersionFailed'), _e);
   }
 };
 

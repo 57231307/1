@@ -8,6 +8,7 @@
 //! struct 定义 + new 构造函数保留在 facade（dye_batch_state_machine_service.rs），
 //! 本模块通过 `impl DyeBatchStateRuleService` 追加业务方法。
 
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
@@ -19,6 +20,7 @@ use crate::services::dye_batch_state_machine_service::{
     CreateStateRuleRequest, DyeBatchStateRuleService, StateRuleQuery, UpdateStateRuleRequest,
     validate_lifecycle_status, validate_transition_code,
 };
+use crate::services::dye_batch_state_machine_validation as state_rule_validation;
 use crate::utils::error::AppError;
 
 impl DyeBatchStateRuleService {
@@ -141,7 +143,15 @@ impl DyeBatchStateRuleService {
             q = q.filter(dye_batch_state_rule::Column::FromStatus.eq(fs));
         }
         let count = q.count(&*self.db).await?;
-        Ok(count > 0)
+        if count > 0 {
+            return Ok(true);
+        }
+        // DB 规则未命中（seed 不全时）回退内建状态机规则表，保证 44a 全量合法转换一致
+        Ok(state_rule_validation::is_valid_transition(
+            from_status,
+            to_status,
+            transition_code,
+        ))
     }
 
     /// 查询允许的流转列表
@@ -159,7 +169,45 @@ impl DyeBatchStateRuleService {
             .order_by_asc(dye_batch_state_rule::Column::Id)
             .all(&*self.db)
             .await?;
-        Ok(items)
+        // seed 不全时补齐内建规则表缺失的合法转换（与 check_transition 回退语义一致）
+        let mut seen: std::collections::HashSet<(String, String, String)> = items
+            .iter()
+            .map(|m| {
+                (
+                    m.from_status.clone(),
+                    m.to_status.clone(),
+                    m.transition_code.clone(),
+                )
+            })
+            .collect();
+        let mut all = items;
+        let builtin = state_rule_validation::get_allowed_transitions(from_status.unwrap_or(""));
+        for (to, code) in builtin {
+            // get_allowed_transitions 已按 from 过滤；from_status=None 时 fallback 表也按 from 取
+            if seen.insert((
+                from_status.unwrap_or("").to_string(),
+                to.to_string(),
+                code.to_string(),
+            )) {
+                all.push(StateRuleModel {
+                    id: 0,
+                    from_status: from_status.unwrap_or("").to_string(),
+                    to_status: to.to_string(),
+                    transition_code: code.to_string(),
+                    transition_name: code.to_string(),
+                    is_allowed: true,
+                    require_operator: false,
+                    require_equipment: false,
+                    require_remarks: false,
+                    validation_logic: None,
+                    description: None,
+                    is_active: true,
+                    created_at: Utc::now().into(),
+                    updated_at: Utc::now().into(),
+                });
+            }
+        }
+        Ok(all)
     }
 
     /// 分页查询

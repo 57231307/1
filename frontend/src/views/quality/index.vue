@@ -203,37 +203,37 @@
       <el-form
         ref="recordFormRef"
         :model="recordForm"
+        :rules="recordFormRules"
         label-width="100px"
         :aria-label="$t('quality.recordDialog.formAriaLabel')"
       >
-        <el-form-item :label="$t('quality.recordDialog.recordNo')" prop="record_no">
-          <el-input v-model="recordForm.record_no" :disabled="!!recordForm.id" />
+        <el-form-item :label="$t('quality.recordDialog.recordNo')" prop="inspection_no">
+          <el-input v-model="recordForm.inspection_no" :disabled="!!recordForm.id" />
         </el-form-item>
         <el-form-item :label="$t('quality.recordDialog.inspectionType')" prop="inspection_type">
           <el-select v-model="recordForm.inspection_type" style="width: 100%">
             <el-option
-              :label="$t('quality.recordDialog.inspectionTypeOptions.incoming')"
-              value="incoming"
-            />
-            <el-option
-              :label="$t('quality.recordDialog.inspectionTypeOptions.process')"
-              value="process"
-            />
-            <el-option
-              :label="$t('quality.recordDialog.inspectionTypeOptions.finished')"
-              value="finished"
-            />
-            <el-option
-              :label="$t('quality.recordDialog.inspectionTypeOptions.outgoing')"
-              value="outgoing"
+              v-for="item in inspectionTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('quality.recordDialog.product')" prop="product_name">
-          <el-input
-            v-model="recordForm.product_name"
+        <el-form-item :label="$t('quality.recordDialog.product')" prop="product_id">
+          <el-select
+            v-model="recordForm.product_id"
+            filterable
             :placeholder="$t('quality.recordDialog.productPlaceholder')"
-          />
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in productOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item :label="$t('quality.recordDialog.batchNo')" prop="batch_no">
           <el-input v-model="recordForm.batch_no" />
@@ -246,16 +246,48 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item :label="$t('quality.recordDialog.inspector')" prop="inspector">
-          <el-input v-model="recordForm.inspector" />
+        <el-form-item :label="$t('quality.recordDialog.inspector')" prop="inspector_id">
+          <el-select
+            v-model="recordForm.inspector_id"
+            filterable
+            clearable
+            :placeholder="$t('quality.recordDialog.inspectorPlaceholder')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in inspectorOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item :label="$t('quality.recordDialog.result')" prop="result">
-          <el-radio-group v-model="recordForm.result">
-            <el-radio label="pass">{{ $t('quality.recordDialog.resultOptions.pass') }}</el-radio>
-            <el-radio label="fail">{{ $t('quality.recordDialog.resultOptions.fail') }}</el-radio>
-            <el-radio label="pending">{{
-              $t('quality.recordDialog.resultOptions.pending')
-            }}</el-radio>
+        <el-form-item :label="$t('quality.recordDialog.totalQty')" prop="total_qty">
+          <el-input-number
+            v-model="recordForm.total_qty"
+            :min="0"
+            :precision="2"
+            :controls="false"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('quality.recordDialog.inspectedQty')" prop="inspected_qty">
+          <el-input-number
+            v-model="recordForm.inspected_qty"
+            :min="0"
+            :precision="2"
+            :controls="false"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('quality.recordDialog.result')" prop="inspection_result">
+          <el-radio-group v-model="recordForm.inspection_result">
+            <el-radio
+              v-for="item in resultOptions"
+              :key="item.value"
+              :label="item.value"
+              :value="item.value"
+            >
+              {{ item.label }}
+            </el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item :label="$t('quality.recordDialog.remark')" prop="remark">
@@ -275,7 +307,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, provide } from 'vue';
+import { computed, ref, reactive, onMounted, provide } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -298,6 +330,16 @@ import {
   type QualityRecord,
   type Defect,
 } from '@/api/quality';
+import { useQualityLookups } from './composables/useQualityLookups';
+import {
+  QUALITY_RECORD_RESULT,
+  QUALITY_RECORD_RESULT_LABEL_KEY,
+  QUALITY_RECORD_RESULT_VALUES,
+} from '@/constants/quality-inspection-record';
+import {
+  QUALITY_INSPECTION_TYPE_LABEL_KEY,
+  QUALITY_INSPECTION_TYPE_VALUES,
+} from '@/constants/quality-inspection-type';
 
 // v11 批次 173 P2-1 修复：el-tag type 类型
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
@@ -332,10 +374,9 @@ const fetchStandards = async () => {
 const fetchRecords = async () => {
   recordLoading.value = true;
   try {
-    // v11 批次 161 P2-5 修复：后端返回 PaginatedResponse（items + total）
+    // 后端 list_records 以 PaginatedResponse 返回（data.items + total），按 items 显式读取
     const res = await getQualityRecordList({ page: 1, page_size: 10 });
-    const data = res.data;
-    records.value = data?.items || [];
+    records.value = res.data.items;
   } finally {
     recordLoading.value = false;
   }
@@ -548,49 +589,117 @@ const viewVersionHistory = async (row: QualityStandard) => {
 const recordDialogVisible = ref(false);
 const recordFormRef = ref<FormInstance>();
 const recordSubmitLoading = ref(false);
-const recordForm = reactive({
+
+// 记录表只存 product_id / inspector_id，界面按主数据选择而不是让人手输名称
+const { load: loadLookups, productOptions, inspectorOptions } = useQualityLookups();
+
+// 检验类型与检验结论的取值词表出自 constants，切语言时文案随之更新
+const inspectionTypeOptions = computed(() =>
+  QUALITY_INSPECTION_TYPE_VALUES.map(value => ({
+    value,
+    label: t(QUALITY_INSPECTION_TYPE_LABEL_KEY[value]),
+  }))
+);
+const resultOptions = computed(() =>
+  QUALITY_RECORD_RESULT_VALUES.map(value => ({
+    value,
+    label: t(QUALITY_RECORD_RESULT_LABEL_KEY[value]),
+  }))
+);
+
+/**
+ * 表单模型与后端 CreateInspectionRecordRequest 同名同域：
+ * inspection_no / inspection_type / product_id / inspection_date / total_qty /
+ * inspected_qty / inspection_result 六项在后端都是非 Option，缺任一项即被反序列化拒绝。
+ */
+const emptyRecordForm = () => ({
   id: 0,
-  record_no: '',
+  inspection_no: '',
   inspection_type: '',
   product_id: undefined as number | undefined,
-  product_name: '',
   batch_no: '',
   inspection_date: '',
-  inspector: '',
-  result: 'pending' as const,
-  defects: [] as Defect[],
+  inspector_id: undefined as number | undefined,
+  total_qty: undefined as number | undefined,
+  inspected_qty: undefined as number | undefined,
+  inspection_result: QUALITY_RECORD_RESULT.pending as string,
   remark: '',
 });
+const recordForm = reactive(emptyRecordForm());
+
+const recordFormRules: FormRules = {
+  inspection_no: [{ required: true, message: t('quality.recordDialog.ruleNo'), trigger: 'blur' }],
+  inspection_type: [
+    { required: true, message: t('quality.recordDialog.ruleType'), trigger: 'change' },
+  ],
+  product_id: [
+    { required: true, message: t('quality.recordDialog.ruleProduct'), trigger: 'change' },
+  ],
+  inspection_date: [
+    { required: true, message: t('quality.recordDialog.ruleDate'), trigger: 'change' },
+  ],
+  total_qty: [{ required: true, message: t('quality.recordDialog.ruleTotalQty'), trigger: 'blur' }],
+  inspected_qty: [
+    { required: true, message: t('quality.recordDialog.ruleInspectedQty'), trigger: 'blur' },
+  ],
+  inspection_result: [
+    { required: true, message: t('quality.recordDialog.ruleResult'), trigger: 'change' },
+  ],
+};
 
 const openRecordDialog = (row?: QualityRecord) => {
   if (row) {
-    Object.assign(recordForm, row);
-  } else {
     Object.assign(recordForm, {
-      id: 0,
-      record_no: '',
-      inspection_type: '',
-      product_id: undefined,
-      product_name: '',
-      batch_no: '',
-      inspection_date: '',
-      inspector: '',
-      result: 'pending',
-      defects: [],
-      remark: '',
+      id: row.id,
+      inspection_no: row.inspection_no,
+      inspection_type: row.inspection_type,
+      product_id: row.product_id,
+      batch_no: row.batch_no ?? '',
+      inspection_date: row.inspection_date,
+      inspector_id: row.inspector_id ?? undefined,
+      total_qty: Number(row.total_qty),
+      inspected_qty: Number(row.inspected_qty),
+      inspection_result: row.inspection_result,
+      remark: row.remark ?? '',
     });
+  } else {
+    Object.assign(recordForm, emptyRecordForm());
   }
   recordDialogVisible.value = true;
 };
 
 const submitRecord = async () => {
+  const formInstance = recordFormRef.value;
+  if (!formInstance) return;
+  try {
+    await formInstance.validate();
+  } catch {
+    // 必填项缺失时表单已就地标红，不再发必然被后端拒绝的请求
+    return;
+  }
+  const { product_id, total_qty, inspected_qty } = recordForm;
+  if (product_id === undefined || total_qty === undefined || inspected_qty === undefined) {
+    // validate() 已拦下缺失项；这里只是让类型收敛到后端要求的非空值
+    return;
+  }
+  const fields = {
+    inspection_type: recordForm.inspection_type,
+    product_id,
+    inspection_date: recordForm.inspection_date,
+    total_qty,
+    inspected_qty,
+    inspection_result: recordForm.inspection_result,
+    batch_no: recordForm.batch_no || undefined,
+    inspector_id: recordForm.inspector_id,
+    remark: recordForm.remark || undefined,
+  };
   recordSubmitLoading.value = true;
   try {
     if (recordForm.id) {
       // 批次 94 P2-12 修复：原占位"更新功能待实现"，现接入真实更新 API
-      await updateQualityRecord(recordForm.id, recordForm as Partial<QualityRecord>);
+      await updateQualityRecord(recordForm.id, fields);
     } else {
-      await createQualityRecord(recordForm as Partial<QualityRecord>);
+      await createQualityRecord({ inspection_no: recordForm.inspection_no, ...fields });
     }
     ElMessage.success(t('quality.message.operationSuccess'));
     recordDialogVisible.value = false;
@@ -611,6 +720,7 @@ onMounted(() => {
   fetchStandards();
   loadIfNot('records', fetchRecords, hasLoaded);
   loadIfNot('defects', fetchDefects, hasLoaded);
+  void loadLookups();
 });
 
 // provide 必须在所有函数定义之后，避免 hoisting 问题
@@ -618,6 +728,7 @@ provide('qualityActions', {
   openStandardDialog,
   openRecordDialog,
 });
+// 主数据（产品/检验人）由 useQualityLookups 模块级缓存，父页与子 tab 共用一份
 </script>
 
 <style scoped>

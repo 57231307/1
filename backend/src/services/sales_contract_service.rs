@@ -46,6 +46,8 @@ pub struct CreateContractItemRequest {
     pub product_spec: Option<String>,
     pub unit: String,
     pub quantity: Decimal,
+    /// 交货数量允收容差（百分比，可空）：NULL = 走默认解析，非空 = 行级覆盖。
+    pub quantity_tolerance_pct: Option<Decimal>,
     pub unit_price: Decimal,
     pub delivery_date: Option<NaiveDate>,
     pub remarks: Option<String>,
@@ -123,6 +125,7 @@ impl SalesContractService {
                     product_spec: Set(item.product_spec.clone()),
                     unit: Set(item.unit.clone()),
                     quantity: Set(item.quantity),
+                    quantity_tolerance_pct: Set(item.quantity_tolerance_pct),
                     unit_price: Set(item.unit_price),
                     amount: Set(amount),
                     delivery_date: Set(item.delivery_date),

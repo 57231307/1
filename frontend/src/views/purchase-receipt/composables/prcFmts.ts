@@ -1,34 +1,38 @@
 /**
  * prcFmts.ts - 采购入库格式化工具
- * 任务编号: P14 批 2 I-3 第 4 批（拆分原 purchaseReceipt/index.vue）
- * 提供状态标签/状态 css 类等纯函数
- * 行为完全保持一致（仅结构重构）
+ * 任务编号: P14 批 2 第 4 批（拆分原 purchaseReceipt/index.vue）
+ *
+ * 状态标签文案/配色统一以 utils/purchase-receipt-status 为唯一事实源（与后端
+ * models/status/purchase_inventory.rs 的 purchase_receipt / purchase_receipt_inspection
+ * 原值逐字一致），本文件只负责把 i18n 键翻译为当前语言文案，不再本地维护裸中文词表。
  */
+import { i18n } from '@/i18n';
+import {
+  purchaseReceiptStatusLabelKey,
+  purchaseReceiptStatusTagType,
+  purchaseReceiptInspectionStatusLabelKey,
+  purchaseReceiptInspectionStatusTagType,
+  type PurchaseReceiptTagType,
+} from '@/utils/purchase-receipt-status';
 
-/**
- * 状态选项
- */
-const STATUS_OPTIONS: { label: string; value: string }[] = [
-  { label: '全部', value: '' },
-  { label: '草稿', value: 'draft' },
-  { label: '已审核', value: 'approved' },
-];
+/** 入库状态 → 显示文案（i18n，缺失渲染中性占位；词表外非空值抛错并记日志） */
+export function getReceiptStatusLabel(status: string | null | undefined): string {
+  return i18n.global.t(purchaseReceiptStatusLabelKey(status));
+}
 
-/**
- * 获取入库单状态中文标签
- */
-export const getStatusLabel = (value: string): string => {
-  return STATUS_OPTIONS.find(s => s.value === value)?.label || value;
-};
+/** 入库状态 → el-tag 配色 */
+export function getReceiptStatusTagType(status: string | null | undefined): PurchaseReceiptTagType {
+  return purchaseReceiptStatusTagType(status);
+}
 
-/**
- * 获取入库单状态 css 类名
- */
-export const getStatusClass = (value: string): string => {
-  return value === 'draft' ? 'status-draft' : 'status-approved';
-};
+/** 入库单质检状态 → 显示文案（i18n） */
+export function getReceiptInspectionStatusLabel(status: string | null | undefined): string {
+  return i18n.global.t(purchaseReceiptInspectionStatusLabelKey(status));
+}
 
-/**
- * 暴露状态选项
- */
-export { STATUS_OPTIONS };
+/** 入库单质检状态 → el-tag 配色 */
+export function getReceiptInspectionStatusTagType(
+  status: string | null | undefined
+): PurchaseReceiptTagType {
+  return purchaseReceiptInspectionStatusTagType(status);
+}

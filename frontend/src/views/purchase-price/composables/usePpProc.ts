@@ -35,7 +35,8 @@ export function usePpProc(refresh: RefreshCallbacks) {
   const handleDisable = async (row: PurchasePrice) => {
     try {
       await ElMessageBox.confirm('确认停用该价格？', '提示', { type: 'warning' });
-      await updatePurchasePrice(row.id, { status: 'inactive' });
+      // 后端 UpdatePriceRequest 要求 price 必填，停用时回传当前价格不变
+      await updatePurchasePrice(row.id, { price: String(row.price), status: 'inactive' });
       msg.success('disableSuccess');
       await refresh.getList();
     } catch (error) {

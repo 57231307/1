@@ -26,7 +26,8 @@ use crate::models::outsourcing_receipt::{
 };
 use crate::models::outsourcing_voucher::ActiveModel as VoucherActiveModel;
 use crate::models::status::{
-    outsourcing_order_status, outsourcing_receipt_status, outsourcing_voucher_type,
+    outsourcing_order_status, outsourcing_receipt_quality_status, outsourcing_receipt_status,
+    outsourcing_voucher_type, quality_inspection_result, quality_inspection_type,
 };
 use crate::utils::error::AppError;
 
@@ -47,6 +48,25 @@ pub(crate) struct ReceiptCalculation {
     pub(crate) abnormal_loss_amount: Decimal,
     pub(crate) total_cost: Decimal,
     pub(crate) unit_cost: Decimal,
+}
+
+/// 校验收回单质检结论取值，返回 `outsourcing_receipt_quality_status` 中的规范值。
+///
+/// 命中后一律回传常量本身的写法（大小写不敏感仅用于容错读取，落库值永远是规范值）；
+/// 别域同义写法（`passed`、中文「合格」）虽然含义相近，落进本列后会被 confirm 侧
+/// 当成另一种含义，因此不放行；归一由v15 域内的归一语句 对存量数据统一处理。
+pub fn validate_receipt_quality_status(raw: &str) -> Result<&'static str, AppError> {
+    outsourcing_receipt_quality_status::ALL
+        .iter()
+        .find(|value| value.eq_ignore_ascii_case(raw))
+        .copied()
+        .ok_or_else(|| {
+            AppError::business(format!(
+                "无效的收回质检结论：{}（允许值：{}；passed/failed 属染化料来料检验域，中文「合格」「不合格」属库存质量状态，均不得写入本列）",
+                raw,
+                outsourcing_receipt_quality_status::ALL.join("/")
+            ))
+        })
 }
 
 impl OutsourcingReceiptService {
@@ -132,6 +152,12 @@ impl OutsourcingReceiptService {
             )));
         }
 
+        // 质检结论取值域校验：本列独立于染化料来料检验（passed/failed）与库存质量状态（中文合格/不合格），
+        // 别域写法落库后会在 confirm 侧被当成不合格，因此越界取值必须在入口处拒绝
+        if let Some(raw) = req.quality_status.as_deref() {
+            validate_receipt_quality_status(raw)?;
+        }
+
         Ok(())
     }
 
@@ -158,7 +184,13 @@ impl OutsourcingReceiptService {
             unit_cost: Set(Decimal::ZERO),
             total_cost: Set(Decimal::ZERO),
             abnormal_loss_amount: Set(Decimal::ZERO),
-            quality_status: Set(req.quality_status.clone()),
+            quality_status: Set(Some(
+                // 未给出质检结论时显式记为待检：留空会让 confirm 侧无法区分「未判定」与「已判定」，
+                // 旧实现把它默认成 qualified，等于伪造质检结论
+                req.quality_status
+                    .clone()
+                    .unwrap_or_else(|| outsourcing_receipt_quality_status::PENDING.to_string()),
+            )),
             grade: Set(req.grade.clone()),
             inventory_transaction_id: Set(None),
             status: Set(outsourcing_receipt_status::DRAFT.to_string()),
@@ -215,6 +247,7 @@ impl OutsourcingReceiptService {
             active.loss_quantity = Set(v);
         }
         if let Some(v) = req.quality_status {
+            validate_receipt_quality_status(&v)?;
             active.quality_status = Set(Some(v));
         }
         if let Some(v) = req.grade {
@@ -434,24 +467,47 @@ impl OutsourcingReceiptService {
         let inspection_no = format!("QI-OS-{}-{}", receipt.outsourcing_order_id, receipt.id);
         let inspection_date = chrono::Utc::now().date_naive();
         let grade = receipt.grade.clone().unwrap_or_else(|| "B".to_string());
-        let quality_status = receipt
-            .quality_status
-            .clone()
-            .unwrap_or_else(|| "qualified".to_string());
-        let inspection_result = if quality_status == "qualified" {
-            "合格".to_string()
+        let quality_status = receipt.quality_status.clone().ok_or_else(|| {
+            AppError::business(format!(
+                "收回单 {} 未记录质检结论，无法确认回仓：需先补录结论（允许值：{}）",
+                receipt.receipt_no,
+                outsourcing_receipt_quality_status::ALL.join("/")
+            ))
+        })?;
+        if quality_status == outsourcing_receipt_quality_status::PENDING {
+            return Err(AppError::business(format!(
+                "收回单 {} 的质检结论仍为待检，请先完成判定再确认回仓",
+                receipt.receipt_no
+            )));
+        }
+        if quality_status != outsourcing_receipt_quality_status::QUALIFIED
+            && quality_status != outsourcing_receipt_quality_status::CONCESSION
+            && quality_status != outsourcing_receipt_quality_status::UNQUALIFIED
+        {
+            return Err(AppError::business(format!(
+                "收回单 {} 的质检结论「{}」不在取值域内，需先核查该条数据（允许值：{}）",
+                receipt.receipt_no,
+                quality_status,
+                outsourcing_receipt_quality_status::ALL.join("/")
+            )));
+        }
+        // 让步接收按接收处理（降级体现在 grade 上），不得与不合格混为一谈
+        let is_accepted = quality_status == outsourcing_receipt_quality_status::QUALIFIED
+            || quality_status == outsourcing_receipt_quality_status::CONCESSION;
+        let inspection_result = if is_accepted {
+            quality_inspection_result::QUALIFIED.to_string()
         } else {
-            "不合格".to_string()
+            quality_inspection_result::UNQUALIFIED.to_string()
         };
-        let qualified_qty = if quality_status == "qualified" {
+        let qualified_qty = if is_accepted {
             receipt.return_quantity
         } else {
             Decimal::ZERO
         };
-        let unqualified_qty = if quality_status != "qualified" {
-            receipt.return_quantity
-        } else {
+        let unqualified_qty = if is_accepted {
             Decimal::ZERO
+        } else {
+            receipt.return_quantity
         };
         let qualification_rate = if receipt.return_quantity > Decimal::ZERO {
             Some((qualified_qty / receipt.return_quantity) * Decimal::from(100))
@@ -461,7 +517,7 @@ impl OutsourcingReceiptService {
 
         let req = CreateInspectionRecordRequest {
             inspection_no,
-            inspection_type: "outsourcing_receipt".to_string(),
+            inspection_type: quality_inspection_type::OUTSOURCING_RECEIPT.to_string(),
             related_type: Some("outsourcing_receipt".to_string()),
             related_id: Some(receipt.id),
             product_id: receipt.product_id,
@@ -490,7 +546,7 @@ impl OutsourcingReceiptService {
         )
         .await?;
 
-        if quality_status != "qualified" {
+        if !is_accepted {
             tracing::warn!(
                 receipt_id = receipt.id,
                 inspection_id = record.id,

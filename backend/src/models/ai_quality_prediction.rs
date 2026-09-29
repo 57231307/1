@@ -11,7 +11,8 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub request_id: String,
-    pub product_id: Option<i64>,
+    /// 关联 products.id（INTEGER/SERIAL 主键）
+    pub product_id: Option<i32>,
     pub inspection_type: String,
     pub window_days: i32,
     pub total_inspections: i64,
@@ -27,7 +28,8 @@ pub struct Model {
     pub source: String,
     pub is_acknowledged: bool,
     pub acknowledged_at: Option<DateTime<Utc>>,
-    pub acknowledged_by: Option<i64>,
+    /// 关联 users.id（INTEGER/SERIAL 主键）
+    pub acknowledged_by: Option<i32>,
     /// V15 P1 2.1：实际风险等级（对账回填）
     pub actual_risk_level: Option<String>,
     /// V15 P1 2.1：实际平均合格率（对账回填）
@@ -44,7 +46,8 @@ pub struct Model {
     pub claim_amount: Option<Decimal>,
     /// V15 P2 14.2.3：索赔记录时间
     pub claim_recorded_at: Option<DateTime<Utc>>,
-    pub created_by: Option<i64>,
+    /// 关联 users.id（INTEGER/SERIAL 主键）
+    pub created_by: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

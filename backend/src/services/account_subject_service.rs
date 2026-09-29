@@ -41,6 +41,8 @@ pub struct UpdateSubjectRequest {
     pub assist_batch: bool,
     pub assist_color_no: bool,
     pub enable_dual_unit: bool,
+    /// 启用/停用（account_subjects.status 真实列，取值 'active'/'inactive'）；None 表示不改动状态。
+    pub status: Option<String>,
 }
 
 /// 科目查询参数
@@ -148,6 +150,7 @@ impl AccountSubjectService {
                 code: subject.code.clone(),
                 name: subject.name.clone(),
                 level: subject.level,
+                status: subject.status.clone(),
                 children: Vec::new(),
             };
             subject_map.insert(subject.id, node);
@@ -252,6 +255,11 @@ impl AccountSubjectService {
         active_model.assist_batch = sea_orm::Set(req.assist_batch);
         active_model.assist_color_no = sea_orm::Set(req.assist_color_no);
         active_model.enable_dual_unit = sea_orm::Set(req.enable_dual_unit);
+
+        // status 为 account_subjects 既有真实列，仅在请求携带时更新（None 保持原值）
+        if let Some(status) = req.status {
+            active_model.status = sea_orm::Set(status);
+        }
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
@@ -483,6 +491,8 @@ pub struct SubjectTreeNode {
     pub code: String,
     pub name: String,
     pub level: i32,
+    /// 启用/停用（'active'/'inactive'），供前端列表状态列与编辑对话框初始化真实回填。
+    pub status: String,
     pub children: Vec<SubjectTreeNode>,
 }
 

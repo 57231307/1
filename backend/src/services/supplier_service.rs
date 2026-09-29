@@ -1,7 +1,8 @@
 use crate::models::{supplier, supplier_contact, supplier_qualification};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
+use crate::utils::data_scope::{DataScope, DataScopeContext, check_resource_owner};
 use crate::utils::error::AppError;
+use crate::utils::messages::err_msg;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（get_supplier 读穿透 + 写失效）
@@ -12,7 +13,7 @@ use crate::utils::response::PaginatedResponse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, ExprTrait, Order,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
@@ -196,13 +197,25 @@ impl SupplierService {
         let mut query = supplier::Entity::find();
 
         // 行级数据权限过滤：owner=CreatedBy，dept=DepartmentId（m_rls_dept_domain）
+        // 供应商为主数据：created_by IS NULL 的系统种子/共享记录对所有已认证用户可见
         if let Some(ctx) = data_scope {
-            query = apply_department_scope(
-                query,
-                ctx,
-                supplier::Column::CreatedBy,
-                supplier::Column::DepartmentId,
-            );
+            let scope_cond = match ctx.scope {
+                DataScope::All => Condition::all(),
+                DataScope::Dept => {
+                    let owner_branch = if ctx.dept_ids.is_empty() {
+                        Condition::all().add(supplier::Column::CreatedBy.eq(ctx.user_id))
+                    } else {
+                        Condition::any()
+                            .add(supplier::Column::CreatedBy.eq(ctx.user_id))
+                            .add(supplier::Column::DepartmentId.is_in(ctx.dept_ids.clone()))
+                    };
+                    owner_branch.add(supplier::Column::CreatedBy.is_null())
+                }
+                DataScope::Self_ => Condition::any()
+                    .add(supplier::Column::CreatedBy.eq(ctx.user_id))
+                    .add(supplier::Column::CreatedBy.is_null()),
+            };
+            query = query.filter(scope_cond);
         }
 
         // 应用筛选与排序
@@ -325,10 +338,15 @@ impl SupplierService {
         };
 
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // supplier 表无 department_id，Dept 退化为 Self（按 created_by 校验）
-        // P0-D03：缓存命中的 model 同样需要校验权限，防止越权读取缓存
+        // 供应商为主数据：created_by IS NULL 视为系统/共享种子记录，不受数据范围约束
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, supplier_model.created_by, supplier_model.department_id) {
+            if supplier_model.created_by.is_some()
+                && !check_resource_owner(
+                    ctx,
+                    supplier_model.created_by,
+                    supplier_model.department_id,
+                )
+            {
                 return Err(AppError::permission_denied(format!(
                     "无权访问供应商 {}（数据范围限制）",
                     id
@@ -491,17 +509,19 @@ impl SupplierService {
     /// 删除供应商
     // 批次 93 P1-5 修复：补 user_id 参数 + txn + lock_exclusive + 审计日志
     pub async fn delete_supplier(&self, id: i32, user_id: i32) -> Result<(), AppError> {
-        // 检查是否有交易记录（只读校验，可在事务外做）
-        let can_delete = self.can_delete_supplier(id).await?;
-        if !can_delete {
-            return Err(AppError::validation(
-                "供应商有交易记录，无法删除".to_string(),
-            ));
+        // 引用校验前置：供应商被任一业务/档案单据引用时，返回带具体引用类型的业务错误，
+        // 而非依赖数据库 FK 约束在 delete 阶段裸抛 DATABASE_ERROR(500)（见 CI #4653：
+        // DELETE /purchase/suppliers/3 被 fk_ap_payment_request_supplier 拒后 500）。
+        if let Some(ref_label) = self.find_supplier_reference(id).await? {
+            return Err(AppError::business_displayable(format!(
+                "该供应商已被{}引用，无法删除",
+                ref_label
+            )));
         }
 
         // 批次 93 P1-5 修复：get + delete 移入同一事务，补 lock_exclusive 串行化并发
         // 原实现 get_supplier 在 self.db → delete 在 self.db，两步非原子，
-        // 并发场景下 get 与 delete 之间可能出现关联交易记录插入，绕过 can_delete 门控。
+        // 并发场景下 get 与 delete 之间可能出现关联交易记录插入，绕过引用门控。
         let txn = (*self.db).begin().await?;
 
         // lock_exclusive 串行化并发删除；锁持有至 txn 提交，model 仅用于持锁与存在性校验
@@ -512,15 +532,21 @@ impl SupplierService {
             .ok_or_else(|| AppError::not_found(format!("供应商 {} 不存在", id)))?;
 
         // 删除供应商（含审计日志）
-        crate::services::audit_log_service::AuditLogService::delete_with_audit::<supplier::Entity, _>(
-            &txn,
-            "supplier",
-            id,
-            Some(user_id),
-        )
-        .await?;
+        let delete_result =
+            crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+                supplier::Entity,
+                _,
+            >(&txn, "supplier", id, Some(user_id))
+            .await;
+        // 兜底：count 与 delete 之间存在并发窗口，或引用表未纳入前置枚举，
+        // 数据库 FK(23503/数据关联错误) 仍可能命中；映射为业务错误，绝不放行裸 500。
+        if let Err(e) = delete_result {
+            return Err(Self::map_supplier_fk_error(e));
+        }
 
-        txn.commit().await?;
+        txn.commit()
+            .await
+            .map_err(|e| Self::map_supplier_fk_error(AppError::from(e)))?;
 
         // P0-D03：失效供应商缓存（供应商已硬删除）
         redis_cache_del(&cache_key("supplier", id)).await;
@@ -528,38 +554,97 @@ impl SupplierService {
         Ok(())
     }
 
-    /// 检查供应商是否可删除
-    pub async fn can_delete_supplier(&self, id: i32) -> Result<bool, AppError> {
-        // 检查是否有未完成的采购订单
-        use crate::models::purchase_order;
-        use crate::models::status::purchase_order as po_status;
-        let has_active_orders = purchase_order::Entity::find()
-            .filter(purchase_order::Column::SupplierId.eq(id))
-            .filter(purchase_order::Column::OrderStatus.is_in(vec![
-                po_status::DRAFT,
-                po_status::SUBMITTED,
-                po_status::APPROVED,
-                po_status::PARTIAL_RECEIVED,
-            ]))
-            .count(&*self.db)
-            .await?;
+    /// 将删除阶段命中数据库 FK/关联错误（`AppError::DatabaseError(DB_RELATION)`，
+    /// 由 `From<DbErr>` 对 foreign key 违规归类）映射为可外显业务错误；
+    /// 非 FK 类数据库错误原样返回（属真实内部故障，须保留 500，不吞异常）。
+    fn map_supplier_fk_error(err: AppError) -> AppError {
+        match &err {
+            AppError::DatabaseError(m) if m == err_msg::DB_RELATION => {
+                AppError::business_displayable("该供应商已被业务单据引用，无法删除")
+            }
+            _ => err,
+        }
+    }
 
-        if has_active_orders > 0 {
-            return Ok(false);
+    /// 枚举所有对 suppliers(id) 建外键（或语义上引用供应商）的业务/档案表，
+    /// 返回首个存在引用的表的可读名称。任一命中即不应删除供应商。
+    /// 与数据库 FK 集对齐：迁移 grep `REFERENCES "suppliers" ("id")` 得到的引用表清单
+    /// （purchase_orders / purchase_receipt / purchase_contracts / ap_payment_request /
+    /// ap_invoice / ap_payment / ap_reconciliation / ap_verification /
+    /// product_supplier_mappings / supplier_evaluation_records / greige_fabric）。
+    /// 说明：purchase_orders 原实现仅统计“未完成”状态，但 FK 不区分状态，
+    /// 只要存在任意历史订单删除即会 500，故此处改为统计全部状态以与 FK 对齐。
+    async fn find_supplier_reference(&self, id: i32) -> Result<Option<&'static str>, AppError> {
+        use crate::models::{
+            ap_invoice, ap_payment, ap_payment_request, ap_reconciliation, ap_verification,
+            greige_fabric, product_supplier_mapping, purchase_contract, purchase_order,
+            purchase_receipt, supplier_evaluation_record,
+        };
+
+        // (实体查询闭包, 引用类型名称)；顺序即用户看到的优先级（先财务硬引用后档案）。
+        macro_rules! count_refs {
+            ($entity:ident, $col:expr) => {{
+                $entity::Entity::find()
+                    .filter($col.eq(id))
+                    .count(&*self.db)
+                    .await?
+            }};
         }
 
-        // 检查是否有采购收货记录
-        use crate::models::purchase_receipt;
-        let has_receipts = purchase_receipt::Entity::find()
-            .filter(purchase_receipt::Column::SupplierId.eq(id))
-            .count(&*self.db)
-            .await?;
+        let checks: Vec<(u64, &'static str)> = vec![
+            (
+                count_refs!(ap_payment_request, ap_payment_request::Column::SupplierId),
+                "应付付款申请",
+            ),
+            (
+                count_refs!(ap_payment, ap_payment::Column::SupplierId),
+                "付款记录",
+            ),
+            (
+                count_refs!(ap_invoice, ap_invoice::Column::SupplierId),
+                "应付发票",
+            ),
+            (
+                count_refs!(ap_reconciliation, ap_reconciliation::Column::SupplierId),
+                "应付对账单",
+            ),
+            (
+                count_refs!(ap_verification, ap_verification::Column::SupplierId),
+                "应付核销单",
+            ),
+            (
+                count_refs!(purchase_order, purchase_order::Column::SupplierId),
+                "采购订单",
+            ),
+            (
+                count_refs!(purchase_receipt, purchase_receipt::Column::SupplierId),
+                "采购收货单",
+            ),
+            (
+                count_refs!(purchase_contract, purchase_contract::Column::SupplierId),
+                "采购合同",
+            ),
+            (
+                count_refs!(
+                    product_supplier_mapping,
+                    product_supplier_mapping::Column::SupplierId
+                ),
+                "供应商商品对照表",
+            ),
+            (
+                count_refs!(
+                    supplier_evaluation_record,
+                    supplier_evaluation_record::Column::SupplierId
+                ),
+                "供应商评估记录",
+            ),
+            (
+                count_refs!(greige_fabric, greige_fabric::Column::SupplierId),
+                "坯布台账",
+            ),
+        ];
 
-        if has_receipts > 0 {
-            return Ok(false);
-        }
-
-        Ok(true)
+        Ok(checks.into_iter().find(|(n, _)| *n > 0).map(|(_, l)| l))
     }
 
     /// 切换供应商状态

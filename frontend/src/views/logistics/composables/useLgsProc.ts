@@ -10,14 +10,17 @@
 import { reactive, computed } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { i18n } from '@/i18n';
 import {
   getLogisticsById,
+  signWaybill,
   updateLogistics,
   createLogistics,
   deleteLogistics,
   type LogisticsWaybill,
-  type WaybillStatus,
+  type UpdateWaybillPayload,
 } from '@/api/logistics';
+import { WAYBILL_STATUS, type WaybillStatus } from '@/constants/waybill-status';
 import { logger } from '@/utils/logger';
 
 /**
@@ -122,7 +125,17 @@ export function useLgsProc(cb: LgsCallbacks) {
     cb.submitLoading = true;
     try {
       if (cb.isEdit && cb.formData.id) {
-        await updateLogistics(cb.formData.id, cb.formData);
+        // 关联订单不随编辑变更：运单与订单的归属在建单时确定，改派需重建运单
+        const payload: UpdateWaybillPayload = {
+          logistics_company: cb.formData.logistics_company,
+          tracking_number: cb.formData.tracking_number,
+          driver_name: cb.formData.driver_name,
+          driver_phone: cb.formData.driver_phone,
+          freight_fee: cb.formData.freight_fee,
+          expected_arrival: cb.formData.expected_arrival,
+          notes: cb.formData.notes,
+        };
+        await updateLogistics(cb.formData.id, payload);
         msg.success('updateSuccess');
       } else {
         await createLogistics(cb.formData);
@@ -134,20 +147,6 @@ export function useLgsProc(cb: LgsCallbacks) {
       logger.error('提交失败:', error);
     } finally {
       cb.submitLoading = false;
-    }
-  };
-
-  /** 发货 */
-  const handleShip = async (row: LogisticsWaybill) => {
-    try {
-      await ElMessageBox.confirm('确定要发货吗？', '提示', { type: 'warning' });
-      await updateLogistics(row.id!, { status: 'shipped' });
-      msg.success('shipSuccess');
-      await cb.fetchData();
-    } catch (error) {
-      if (error !== 'cancel') {
-        logger.error('发货失败:', error);
-      }
     }
   };
 
@@ -171,10 +170,35 @@ export function useLgsProc(cb: LgsCallbacks) {
     }
   };
 
+  /**
+   * 电子签收：DELIVERED → SIGNED。
+   * 后端在同一事务内写入签收人/签收时间，并把关联销售订单的应收发票推进为已确认。
+   */
+  const handleSign = async (row: LogisticsWaybill) => {
+    try {
+      await ElMessageBox.confirm(
+        i18n.global.t('logistics.confirm.sign'),
+        i18n.global.t('logistics.confirm.title'),
+        { type: 'warning' }
+      );
+      await signWaybill(row.id!);
+      msg.success('signSuccess');
+      await cb.fetchData();
+    } catch (error) {
+      if (error !== 'cancel') {
+        logger.error('签收失败:', error);
+      }
+    }
+  };
+
   /** 删除 */
   const handleDelete = async (row: LogisticsWaybill) => {
     try {
-      await ElMessageBox.confirm('确定要删除该运单吗？', '提示', { type: 'warning' });
+      await ElMessageBox.confirm(
+        i18n.global.t('logistics.confirm.delete'),
+        i18n.global.t('logistics.confirm.title'),
+        { type: 'warning' }
+      );
       await deleteLogistics(row.id!);
       msg.success('deleteSuccess');
       await cb.fetchData();
@@ -185,16 +209,22 @@ export function useLgsProc(cb: LgsCallbacks) {
     }
   };
 
-  /** 可选新状态映射（根据当前状态） */
+  /** 可选新状态映射（根据当前状态）：状态机内运输中只允许推进到已送达 */
   const availableStatuses = computed(() => {
     const map: Record<string, { label: string; value: WaybillStatus }[]> = {
-      shipped: [
-        { label: '运输中', value: 'in_transit' },
-        { label: '已签收', value: 'delivered' },
+      [WAYBILL_STATUS.inTransit]: [
+        {
+          label: i18n.global.t('logistics.common.status.delivered'),
+          value: WAYBILL_STATUS.delivered,
+        },
       ],
-      in_transit: [{ label: '已签收', value: 'delivered' }],
     };
-    return map[cb.statusForm.currentStatus] || [];
+    const options = map[cb.statusForm.currentStatus];
+    if (!options) {
+      logger.warn(`[useLgsProc] 状态「${cb.statusForm.currentStatus}」没有可选的推进目标`);
+      return [];
+    }
+    return options;
   });
 
   // 使用 reactive 包装，访问字段时自动解包 ref
@@ -203,9 +233,9 @@ export function useLgsProc(cb: LgsCallbacks) {
     handleEdit,
     handleView,
     handleSubmit,
-    handleShip,
     handleUpdateStatus,
     handleStatusSubmit,
+    handleSign,
     handleDelete,
     availableStatuses,
   });

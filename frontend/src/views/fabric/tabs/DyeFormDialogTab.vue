@@ -24,12 +24,12 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('fabric.dyeFormDialog.labelBatchNo')" prop="batch_no">
-            <el-input v-model="formData.batch_no" :disabled="!!formData.id" />
+            <el-input v-model="formData.batch_no" readonly />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('fabric.dyeFormDialog.labelColor')" prop="color_name">
-            <el-input v-model="formData.color_name" />
+          <el-form-item :label="t('fabric.dyeFormDialog.labelColor')" prop="color_no">
+            <el-input v-model="formData.color_no" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -87,6 +87,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance } from 'element-plus';
 import { createDyeBatch, updateDyeBatch, type DyeBatch } from '@/api/dye-batch';
+import { generateUniqueDocNo } from '@/utils/document-no';
 import type { GreigeFabric } from '@/api/greige-fabric';
 import { logger } from '@/utils/logger';
 
@@ -112,23 +113,23 @@ const submitLoading = ref(false);
 const formData = reactive({
   id: 0,
   batch_no: '',
-  color_name: '',
+  color_no: '',
   greige_fabric_id: undefined as number | undefined,
   planned_quantity: 0,
   actual_quantity: 0,
   start_date: '',
-  status: 'pending' as 'pending' | 'in_progress' | 'completed' | 'cancelled',
+  status: 'pending_schedule' as DyeBatch['status'],
 });
 
 const resetForm = () => {
   formData.id = 0;
   formData.batch_no = '';
-  formData.color_name = '';
+  formData.color_no = '';
   formData.greige_fabric_id = undefined;
   formData.planned_quantity = 0;
   formData.actual_quantity = 0;
   formData.start_date = '';
-  formData.status = 'pending';
+  formData.status = 'pending_schedule';
 };
 
 watch(
@@ -139,6 +140,10 @@ watch(
         Object.assign(formData, props.currentRow);
       } else {
         resetForm();
+        // 新建时预生成缸号（查重唯一后只读展示，防手动输入重复）
+        generateUniqueDocNo('DB', 'dye_batch').then(no => {
+          formData.batch_no = no;
+        });
       }
     }
   }

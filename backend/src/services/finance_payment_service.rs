@@ -79,8 +79,7 @@ impl FinancePaymentService {
         );
         period_svc
             .check_date_locked(input.payment_date.date_naive())
-            .await
-            .map_err(|e| AppError::business(e.to_string()))?;
+            .await?;
 
         // 验证关联单据是否存在（事务内，与付款插入原子化）
         if let Some(inv_id) = input.invoice_id {

@@ -3,53 +3,37 @@
 //
 // v8 复审 P0-2 修复（2026-06-30）：
 // 对齐批次 28 P0-1 fail-secure 模式，凭据从环境变量注入，禁止硬编码 admin/admin123。
+//
+// extras 分片修复（族 D）：
+// 原 BASE_URL = process.env.BASE_URL || 'http://localhost:8080' 手写 login() 导航到 :8080/login——
+// CI 前端由 playwright.config.ts webServer 起在 :3000（后端 :8082），:8080 无监听 →
+// net::ERR_CONNECTION_REFUSED 全灭。改为复用 globalSetup 注入的真实登录态 storageState
+// （playwright.config.ts use.storageState）+ 相对导航（baseURL 已是 :3000），
+// 与同目录其他 spec 一致；不再自行拼绝对端口，也不重复登录。
 
-import { test, expect, type Page } from './diagnose-fixture';
-
-const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
-
-/**
- * 批次 28 P0-1 fail-secure 模式：
- * 凭据必须从环境变量注入，缺失时直接 fail，禁止硬编码 admin/admin123。
- */
-const TEST_USERNAME = process.env.TEST_USERNAME;
-const TEST_PASSWORD = process.env.TEST_PASSWORD;
-
-async function login(page: Page) {
-  if (!TEST_USERNAME || !TEST_PASSWORD) {
-    throw new Error(
-      'E2E 测试需要环境变量 TEST_USERNAME / TEST_PASSWORD（fail-secure 模式，对齐批次 28 P0-1）'
-    );
-  }
-  await page.goto(`${BASE_URL}/login`);
-  await page.fill('input[name="username"]', TEST_USERNAME);
-  await page.fill('input[name="password"]', TEST_PASSWORD);
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/dashboard/);
-}
+import { test, expect } from './diagnose-fixture';
 
 test.describe('面料多色号定价扩展', () => {
   test('1. 登录并访问色号价格列表', async ({ page }) => {
-    await login(page);
-    await page.goto(`${BASE_URL}/color-prices/list`);
-    await expect(page.locator('h3, .el-card__header')).toContainText('色号价格');
+    await page.goto('/color-prices/list');
+    // 页面标题为 el-card header 内 <span>（colorPrices.list.title='色号价格列表'），非 heading 角色；
+    // breadcrumb 也渲染 route meta.title='色号价格列表'，需 .first() 避免 strict
+    await expect(page.getByText('色号价格列表').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('2. 详情页查看历史图表', async ({ page }) => {
-    await login(page);
-    await page.goto(`${BASE_URL}/color-prices/list`);
-    // 点击第一个详情链接
+    await page.goto('/color-prices/list');
+    await page.waitForLoadState('networkidle');
+    // 点击第一个详情链接（列表页应渲染详情入口；无入口=列表为空或页面异常，必须失败暴露）
     const detailLink = page.locator('a:has-text("详情"), button:has-text("详情")').first();
-    if (await detailLink.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
-      await detailLink.click();
-      await page.waitForLoadState('networkidle');
-    }
+    await expect(detailLink, '[color-prices] 详情链接应可见').toBeVisible({ timeout: 30000 });
+    await detailLink.click();
+    await page.waitForLoadState('networkidle');
   });
 
   test('3. 批量调价页面加载', async ({ page }) => {
-    await login(page);
-    await page.goto(`${BASE_URL}/color-prices/batch`);
-    // 等待页面加载
+    // 真实路由为 /color-prices/batch-adjust（router index.ts path:'color-prices/batch-adjust'）
+    await page.goto('/color-prices/batch-adjust');
     await page.waitForLoadState('networkidle');
   });
 });

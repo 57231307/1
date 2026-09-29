@@ -37,7 +37,7 @@
     <el-row :gutter="20" class="activities-row">
       <el-col :span="24">
         <DashboardActivityTable
-          :data="db.stats.recentActivities || []"
+          :data="db.stats.recent_activities || []"
           @refresh="db.refreshActivities"
         />
       </el-col>

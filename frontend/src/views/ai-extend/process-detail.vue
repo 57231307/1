@@ -9,6 +9,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getProcessOptimization,
   deleteProcessOptimization,
+  applyProcessOptimization,
+  getProcessOptimizationListByColor,
   SOURCE_LABELS,
   type AiProcessOptimization,
   type ProcessOptCandidate,
@@ -60,6 +62,62 @@ async function handleDelete() {
   }
 }
 
+// 应用工艺优化（登记反馈分与备注，后端落库 applied 状态）
+const applying = ref(false);
+
+async function handleApply() {
+  if (!model.value) return;
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '反馈分（0-100，可留空）| 反馈备注（可留空），用 | 分隔',
+      '应用工艺优化',
+      { inputValidator: () => true }
+    );
+    const [score, remark] = value.split('|').map(s => s.trim());
+    applying.value = true;
+    await applyProcessOptimization(model.value.id, {
+      feedback_score: score ? Number(score) : undefined,
+      feedback_remark: remark || undefined,
+    });
+    ElMessage.success('已应用');
+    await load();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error((e as Error).message || '应用失败');
+  } finally {
+    applying.value = false;
+  }
+}
+
+// 按色号 + 布类查询历史（列表模式 + 详情页联动查询）
+const historyVisible = ref(false);
+const historyLoading = ref(false);
+const historyItems = ref<AiProcessOptimization[]>([]);
+
+async function handleHistoryQuery() {
+  if (!model.value?.color_no) {
+    ElMessage.warning('当前记录无色号，无法查询');
+    return;
+  }
+  try {
+    const { value } = await ElMessageBox.prompt('请输入布类', '按色号查询历史', {
+      inputValue: model.value.fabric_type || '',
+      inputValidator: v => !!v.trim() || '布类必填',
+    });
+    historyLoading.value = true;
+    historyVisible.value = true;
+    const res = await getProcessOptimizationListByColor({
+      color_no: model.value.color_no,
+      fabric_type: value.trim(),
+      limit: 20,
+    });
+    historyItems.value = res.items ?? [];
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error((e as Error).message || '查询历史失败');
+  } finally {
+    historyLoading.value = false;
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -69,6 +127,10 @@ onMounted(load);
       <h2>{{ $t('aiExtend.process.detailTitle') }}</h2>
       <div class="header-right">
         <el-button @click="router.back()">{{ $t('aiExtend.process.back') }}</el-button>
+        <el-button v-if="model" type="primary" :loading="applying" @click="handleApply"
+          >应用</el-button
+        >
+        <el-button v-if="model" plain @click="handleHistoryQuery">按色号查历史</el-button>
         <el-button
           v-if="model"
           v-permission="'ai_process_optimization:delete'"
@@ -219,6 +281,27 @@ onMounted(load);
         </el-table>
       </el-card>
     </template>
+
+    <el-dialog
+      v-model="historyVisible"
+      title="同色号历史记录"
+      width="720"
+      v-loading="historyLoading"
+    >
+      <el-table :data="historyItems" border size="small" max-height="360">
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column prop="color_no" label="色号" width="110" />
+        <el-table-column prop="fabric_type" label="布类" width="110" />
+        <el-table-column prop="dye_type" label="染色类型" width="110" />
+        <el-table-column prop="status" label="状态" width="100" />
+        <el-table-column prop="applied_at" label="应用时间" min-width="150">
+          <template #default="{ row }">{{ row.applied_at || '-' }}</template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="historyVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

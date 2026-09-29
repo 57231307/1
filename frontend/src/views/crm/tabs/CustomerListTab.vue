@@ -136,16 +136,10 @@
         </el-table-column>
         <el-table-column prop="tags" :label="$t('crmCustomer.table.tag')" min-width="150">
           <template #default="{ row }">
-            <el-tag
-              v-for="tag in row.tags"
-              :key="tag.id"
-              :color="tag.color"
-              size="small"
-              class="table-tag"
-            >
-              {{ tag.name }}
+            <el-tag v-for="tag in row.tags" :key="tag" size="small" class="table-tag">
+              {{ tag }}
             </el-tag>
-            <span v-if="!row.tags.length" class="no-tags">-</span>
+            <span v-if="!row.tags?.length" class="no-tags">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="owner_name" :label="$t('crmCustomer.table.owner')" width="100" />
@@ -373,10 +367,20 @@ import { useTableApi } from '@/composables/useTableApi';
 // 后端 GET /crm/customers/export 已就绪（Batch 474 注入水印 + 行级数据权限 + 异步审计日志）
 import { exportFromBackend } from '@/utils/export';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { escapeHtml } from '@/utils/print';
 
 const { t } = useI18n({ useScope: 'global' });
+
+/**
+ * 列表行真实形状：GET /crm/customers/enhanced → crm_customer_handler::list_customers
+ * → services/crm/lead.rs::list_leads 直接序列化 crm_lead::Model（backend/src/models/crm_lead.rs）。
+ * 其中 tags 列为 `Option<Vec<String>>`（标签名数组，非 CustomerTag 对象），
+ * JSON 出参为 `null` 或 `["标签名", ...]`。CustomerWithTags 的 `tags: CustomerTag[]` 断言与后端不符，
+ * 若沿用会在此列对 `null` 调用 `.length` 触发 TypeError（本 tab 运行期崩溃根因）。
+ * 此处按后端契约把 tags 收敛为可空的字符串数组。
+ */
+type CustomerListRow = Omit<CustomerWithTags, 'tags'> & { tags: string[] | null };
 
 const hasLoaded = createLazyLoader();
 
@@ -405,8 +409,10 @@ const {
   total,
   refresh: fetchCustomerList,
   setQueryParam,
-} = useTableApi<CustomerWithTags>({
+} = useTableApi<CustomerListRow>({
   url: '/crm/customers/enhanced',
+  // 后端 list_leads 返回 json!{data,total,page,page_size}，承载列表的键为 data，显式钉住 listKey。
+  listKey: 'data',
   onError: (err: unknown) =>
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) || t('crmCustomer.message.loadFailed')
@@ -485,6 +491,7 @@ const fetchTags = async () => {
     const res = await getCrmTagList();
     tags.value = res.data || [];
   } catch (error) {
+    logAuxLoadFailure(t('crmCustomer.message.loadTagsFailed'), error);
     tags.value = [];
   }
 };
@@ -540,14 +547,14 @@ const handleCreate = () => {
   dialogVisible.value = true;
 };
 
-const handleEdit = (row: CustomerWithTags) => {
+const handleEdit = (row: CustomerListRow) => {
   resetForm();
   Object.assign(formData, row);
   isEdit.value = true;
   dialogVisible.value = true;
 };
 
-const handleDelete = async (row: CustomerWithTags) => {
+const handleDelete = async (row: CustomerListRow) => {
   try {
     await ElMessageBox.confirm(
       t('crmCustomer.message.deleteConfirm', { name: row.customer_name }),

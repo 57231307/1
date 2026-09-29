@@ -121,6 +121,8 @@ pub fn boms() -> Router<AppState> {
             "/boms",
             get(bom_handler::list_boms).post(bom_handler::create_bom),
         )
+        // 导出端点必须在 /{id} 之前注册，避免 axum matchit 把 "export" 当 {id} 匹配
+        .route("/boms/export", get(bom_handler::export_boms))
         .route(
             "/boms/{id}",
             get(bom_handler::get_bom)

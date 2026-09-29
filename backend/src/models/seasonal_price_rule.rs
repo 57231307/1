@@ -12,7 +12,7 @@ pub struct Model {
     pub id: i64,
     pub rule_name: String,
     pub season: String,
-    pub product_category_id: Option<i64>,
+    pub product_category_id: Option<i32>,
     pub adjustment_type: String,
     pub adjustment_value: Decimal,
     pub valid_from: NaiveDate,

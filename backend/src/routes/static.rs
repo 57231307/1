@@ -178,10 +178,51 @@ async fn serve_wasm_binary(_req: Request<Body>) -> Result<Response, Infallible> 
     Ok(res)
 }
 
+/// /uploads/avatars/{file} handler：头像图片服务（文件名服务端生成，防路径遍历）
+async fn serve_avatar_file(Path(path): Path<String>) -> Result<Response, Infallible> {
+    let safe_path = match sanitize_static_path(&path) {
+        Some(p) => p,
+        None => {
+            tracing::warn!("拒绝非法头像路径（疑似路径遍历攻击）: input={:?}", path);
+            return Ok(build_text_response(StatusCode::BAD_REQUEST, "Invalid path"));
+        }
+    };
+    let avatar_dir = std::path::PathBuf::from("uploads/avatars");
+    let resolved = match tokio::fs::canonicalize(avatar_dir.join(&safe_path)).await {
+        Ok(p) => p,
+        Err(_) => return Ok(build_text_response(StatusCode::NOT_FOUND, "File not found")),
+    };
+    // 边界校验：仅允许头像目录内文件
+    if !resolved.starts_with(
+        tokio::fs::canonicalize("uploads/avatars")
+            .await
+            .unwrap_or_default(),
+    ) {
+        return Ok(build_text_response(StatusCode::BAD_REQUEST, "Invalid path"));
+    }
+    let content_type = match resolved.extension().and_then(|e| e.to_str()) {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        _ => "application/octet-stream",
+    };
+    match tokio::fs::read(&resolved).await {
+        Ok(content) => {
+            let mut res = response::Response::new(Body::from(content));
+            res.headers_mut()
+                .insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+            Ok(res)
+        }
+        Err(_) => Ok(build_text_response(StatusCode::NOT_FOUND, "File not found")),
+    }
+}
+
 /// 静态资源服务路由聚合（Catch-all 通配路由，挂到主 Router）
 pub fn static_assets_handler() -> Router<AppState> {
     Router::<AppState>::new()
         .route("/static/{*path}", get(serve_static_asset))
+        .route("/uploads/avatars/{*path}", get(serve_avatar_file))
         .route("/bingxi_frontend.js", get(serve_wasm_loader_js))
         .route("/bingxi_frontend_bg.wasm", get(serve_wasm_binary))
 }

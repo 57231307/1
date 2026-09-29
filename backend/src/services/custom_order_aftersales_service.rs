@@ -24,7 +24,7 @@ use crate::utils::pagination::paginate_with_total;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CreateAfterSalesDto {
     pub custom_order_id: i64,
-    pub customer_id: i64,
+    pub customer_id: i32,
     /// 售后类型：complaint / repair / exchange / refund
     pub issue_type: String,
     pub description: String,

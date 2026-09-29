@@ -24,6 +24,12 @@ pub struct SalesOrderQuery {
     pub status: Option<String>,
     pub customer_id: Option<i32>,
     pub order_no: Option<String>,
+    /// 客户名称模糊查询：列表页一直有这个输入框，此前后端无此字段被直接丢弃
+    pub customer_name: Option<String>,
+    /// 订单日期范围（含）：页面的日期区间控件发送 start_date/end_date，
+    /// 此前后端无此二字段 ⇒ 筛选静默失效（空筛选恒 0 行同类缺陷）
+    pub start_date: Option<chrono::NaiveDate>,
+    pub end_date: Option<chrono::NaiveDate>,
 }
 
 /// P1-2d 修复（批次 81 v1 复审）：创建发货请求 DTO
@@ -55,9 +61,14 @@ pub async fn list_orders(
     let orders = sales_service
         .list_orders(
             page_req,
-            query.status,
-            query.customer_id,
-            query.order_no,
+            crate::services::so::order_query::SalesOrderFilter {
+                status: query.status,
+                customer_id: query.customer_id,
+                order_no: query.order_no,
+                customer_name: query.customer_name,
+                start_date: query.start_date,
+                end_date: query.end_date,
+            },
             Some(&data_scope_ctx),
         )
         .await?;
@@ -241,14 +252,17 @@ pub async fn create_order(
     let order = sales_service.create_order(request, auth.user_id).await?;
 
     // 订单创建成功后发送通知
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            // 创建后订单为草稿态，通知语义为「已创建」；提交审批由 submit_order 发「订单已提交」
             if let Err(e) = event_service
-                .notify_order_submitted(created_by, &order.order_no, order.id)
+                .notify_order_created(created_by, &order.order_no, order.id)
                 .await
             {
-                tracing::warn!("批次 94 P2-11：订单创建通知发送失败: {}", e);
+                tracing::warn!(error = %e, order_id = order.id, "销售订单创建通知发送失败");
             }
         }
     }
@@ -269,6 +283,13 @@ pub async fn update_order(
     Path(id): Path<i32>,
     Json(request): Json<UpdateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 输入验证：与 create_order 同口径下钻校验订单行（交货容差等）
+    {
+        use validator::Validate;
+        if let Err(e) = request.validate() {
+            return Err(AppError::validation(e.to_string()));
+        }
+    }
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_order_detail + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
@@ -320,6 +341,9 @@ pub async fn submit_order(
     let order = sales_service.submit_order(id, user_id).await?;
 
     // 订单提交成功后发送通知给申请人
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
@@ -351,6 +375,9 @@ pub async fn approve_order(
     let order = sales_service.approve_order(id, auth.user_id).await?;
 
     // 订单审批成功后发送通知给申请人
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
@@ -392,6 +419,9 @@ pub async fn ship_order(
     let order = sales_service.get_order_detail(id, None).await?;
 
     // 订单发货成功后发送通知给申请人
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
@@ -424,6 +454,9 @@ pub async fn complete_order(
     let order = sales_service.complete_order(id, auth.user_id).await?;
 
     // 订单完成后发送通知给申请人
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
@@ -506,7 +539,14 @@ pub async fn export_orders(
 
     // T3: 直接获取结构化数据，去除 CSV 中转
     let (headers, rows) = sales_service
-        .export_orders_to_xlsx(query.status, query.customer_id, query.order_no)
+        .export_orders_to_xlsx(crate::services::so::order_query::SalesOrderFilter {
+            status: query.status,
+            customer_id: query.customer_id,
+            order_no: query.order_no,
+            customer_name: query.customer_name,
+            start_date: query.start_date,
+            end_date: query.end_date,
+        })
         .await
         .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;
 
@@ -582,17 +622,28 @@ pub async fn generate_order_no(
 
 // ========== 订单状态操作接口 ==========
 
+/// 拒绝销售订单请求（字段与校验对齐 purchase_order_handler.rs::RejectOrderRequest，
+/// 此前本 handler 无 Json 提取器，前端传来的拒绝原因被 Axum 丢弃、
+/// 审计里恒为写死的「订单被拒绝」）
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct RejectSalesOrderRequest {
+    #[validate(length(min = 1, max = 500, message = "拒绝原因不能为空且最长500字符"))]
+    pub reason: String,
+}
+
 /// 拒绝订单
 /// POST /api/v1/erp/sales/orders/:id/reject
 pub async fn reject_order(
     _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    Json(req): Json<RejectSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     sales_service
-        .reject_order(id, "订单被拒绝".to_string(), _auth.user_id)
+        .reject_order(id, req.reason, _auth.user_id)
         .await
         .map_err(|e| AppError::internal(format!("拒绝订单失败: {}", e)))?;
 

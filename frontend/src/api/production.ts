@@ -1,39 +1,74 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
-// 生产订单接口
+// 生产订单出参：键 = handlers/production_order_handler.rs 的 ProductionOrderResponse 字段名
+// （snake_case，Option ⇒ | null，NOT NULL ⇒ 必选）。名称类列后端未透出，见下注释。
 export interface ProductionOrder {
   id: number;
   order_no: string;
   sales_order_id?: number;
   product_id: number;
-  product_name?: string;
+  // 名称列：ProductionOrderResponse（handlers/production_order_handler.rs:93）只有 product_id、
+  // 无 product_name，需后端按 §5 范式 LEFT JOIN product.product_name 输出为 product_name。
+  product_name: string | null;
   planned_quantity: number;
   actual_quantity?: number;
-  scheduled_start_date?: string;
-  scheduled_end_date?: string;
-  actual_start_date?: string;
-  actual_end_date?: string;
-  status: 'draft' | 'planned' | 'in_production' | 'completed' | 'cancelled';
+  planned_start_date: string | null;
+  planned_end_date: string | null;
+  // 实际起止日期：production_order 表有列（models/production_order.rs），但 ProductionOrderResponse
+  // 未透出，需后端在 DTO 补 actual_start_date/actual_end_date 后此列方有值。
+  actual_start_date?: string | null;
+  actual_end_date?: string | null;
+  // 状态为 NOT NULL，词表为全大写（models/status/production.rs + general.rs 的 common）。
+  status: string;
   priority: number;
   work_center_id?: number;
-  remark?: string;
-  created_at?: string;
-  updated_at?: string;
+  remarks: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // 生产订单状态字典
+/**
+ * 生产订单状态字典。取值必须与后端一致：`models/status::general` 与
+ * `models/status::production` 写入的是大写下划线值，
+ * 此前这里用 draft/planned/in_production 一套小写名，
+ * 导致筛选项、状态标签与操作按钮对任何真实订单都不生效。
+ */
 export const PRODUCTION_ORDER_STATUS = {
-  draft: { label: '草稿', type: 'info' },
-  planned: { label: '已计划', type: 'warning' },
-  in_production: { label: '生产中', type: 'primary' },
-  completed: { label: '已完成', type: 'success' },
-  cancelled: { label: '已取消', type: 'danger' },
-};
+  DRAFT: { labelKey: 'production.status.draft', type: 'info' },
+  PENDING_APPROVAL: { labelKey: 'production.status.pendingApproval', type: 'warning' },
+  APPROVED: { labelKey: 'production.status.approved', type: 'primary' },
+  REJECTED: { labelKey: 'production.status.rejected', type: 'danger' },
+  SCHEDULED: { labelKey: 'production.status.scheduled', type: 'warning' },
+  IN_PROGRESS: { labelKey: 'production.status.inProgress', type: 'primary' },
+  COMPLETED: { labelKey: 'production.status.completed', type: 'success' },
+  CANCELLED: { labelKey: 'production.status.cancelled', type: 'info' },
+} as const satisfies Record<string, { labelKey: string; type: string }>;
+
+export type ProductionOrderStatusValue = keyof typeof PRODUCTION_ORDER_STATUS;
+
+/** 全部状态（按状态机顺序），筛选下拉直接取此列表 */
+export const PRODUCTION_ORDER_STATUS_VALUES = Object.keys(
+  PRODUCTION_ORDER_STATUS
+) as ProductionOrderStatusValue[];
+
+/**
+ * 生产订单列表查询参数——严格对齐后端 production_order_handler.rs::ListProductionOrdersQuery。
+ * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ * status 词表见 models/status/production（PRODUCTION_ORDER_STATUS）。
+ */
+export interface ProductionOrderListParams {
+  order_no?: string;
+  status?: string;
+  product_id?: number;
+  page?: number;
+  page_size?: number;
+}
 
 // 获取生产订单列表
 export function getProductionOrderList(
-  params?: QueryParams
+  params?: ProductionOrderListParams
 ): Promise<ApiResponse<{ items: ProductionOrder[]; total: number }>> {
   return request.get('/production/production-orders/orders', { params });
 }
@@ -76,33 +111,40 @@ export function submitProductionOrder(id: number): Promise<ApiResponse<void>> {
   return request.post(`/production/production-orders/orders/${id}/submit-approval`);
 }
 
-// 审核生产订单（后端: POST /production/production-orders/orders/:id/approve）
+// 审核生产订单（后端: POST /production/production-orders/orders/:id/approve，ApprovalRequest { approved, opinion }）
 export function approveProductionOrder(
   id: number,
-  data: { approved: boolean; remark?: string }
+  data: { approved: boolean; opinion?: string }
 ): Promise<ApiResponse<void>> {
   return request.post(`/production/production-orders/orders/${id}/approve`, data);
 }
 
 // 汇报生产进度
+// 后端 UpdateProgressRequest（handlers/production_order_handler.rs:320）仅接受
+// actual_quantity / remarks 两字段，无次品数量列——故此处不再发送 defect_quantity（详见交付报告的能力缺口）。
 export function reportProductionProgress(
   id: number,
   data: {
-    completed_quantity: number;
-    defect_quantity?: number;
-    remark?: string;
+    actual_quantity: number;
+    remarks?: string;
   }
 ): Promise<ApiResponse<void>> {
   return request.post(`/production/production-orders/orders/${id}/progress`, data);
 }
 
-// 获取生产订单日志
+// 获取生产订单操作日志：后端返回 {order_id, logs, total}，logs 为 audit_logs 记录
+// （字段与 backend/src/models/audit_log.rs::Model 对齐；旧的 operator/remark 是前端臆造字段）
+export interface ProductionOrderAuditLog {
+  id: number;
+  username: string | null;
+  action: string;
+  operation_type: string | null;
+  description: string | null;
+  created_at: string | null;
+}
+
 export function getProductionOrderLogs(
   id: number
-): Promise<
-  ApiResponse<
-    { id: number; action: string; operator: string; created_at: string; remark?: string }[]
-  >
-> {
+): Promise<ApiResponse<{ order_id: number; logs: ProductionOrderAuditLog[]; total: number }>> {
   return request.get(`/production/production-orders/orders/${id}/logs`);
 }

@@ -1,54 +1,73 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  tryCleanup,
+  ensureTestEntities,
+  ensureStockInWarehouse,
+  getCtx,
+  listNotifications,
+} from './helpers';
 
 /**
  * P0 自动通知全链路覆盖（2026-09-11 用户指令："自动产生的通知需要详细覆盖所有功能，每条链路都要触发验证通知"）
  *
- * 5 条可测链路 + 1 条死代码 skip：
+ * 5 条可测链路：
  * A. 订单提交 → notify_order_submitted → 创建人收到通知
  * B. 订单审批 → notify_order_approved → 创建人收到通知
  * C. 订单发货 → notify_order_shipped → 创建人收到通知
- * D. 库存预警 → notify_inventory_alert_batch → admin/manager 收到通知
- * E. 应收到期 → notify_ar_due → 死代码（已实现无调用方），skip 并记录
- * F. 付款申请提交 → notify_multiple_users → admin/manager 审批人收到通知
+ * D. 库存预警 → notify_inventory_alert_batch → admin/manager 收到预警通知
+ * F. 付款申请提交 → admin/manager 审批人收到通知
+ *
+ * （原 E 链路 notify_ar_due 为死代码：已实现无调用方，其 skip 占位测试已移除）
  *
  * 验证模式：触发业务动作 → 查询通知列表 → 断言通知产生（标题/内容匹配）→ 清理
+ *
+ * iter23 修正：本地 getUnreadNotifications 按 data.items 取列表，而后端
+ * list_notifications 的 key 是 data.list（notification_handler.rs:75），返回恒为空数组，
+ * 导致"没找到通知就只 warn"的分支全部空转、A/B/C 三条链路一条断言都没跑到；
+ * 现统一改用 helpers.listNotifications，并把 A/B/C 的软分支改成真实断言。
  */
 
-const TS = Date.now().toString().slice(-8);
+/** 通知落库由 commit 后事件驱动，触发后需给监听器留出写入窗口 */
+const NOTIF_SETTLE_MS = 3000;
 
-/** 查询当前用户通知列表，返回未读通知 */
-async function getUnreadNotifications(page: import('@playwright/test').Page, userId?: number): Promise<{ id: number; title: string; content: string; businessType?: string }[]> {
-  try {
-    const res = await page.request.get(`http://localhost:8082/api/v1/erp/notifications/?status=unread&page=1&page_size=50`);
-    if (!res.ok()) {
-      console.warn(`[31d] 通知列表查询 HTTP ${res.status()}`);
-      return [];
-    }
-    const body = await res.json();
-    const items = body?.data?.items || body?.data?.data || body?.data || [];
-    return Array.isArray(items) ? items : [];
-  } catch (e) {
-    console.warn(`[31d] 通知列表查询异常: ${(e as Error).message}`);
-    return [];
-  }
-}
-
-/** 删除通知（清理） */
-async function deleteNotification(page: import('@playwright/test').Page, id: number): Promise<void> {
-  try {
-    await page.request.delete(`http://localhost:8082/api/v1/erp/notifications/notification/${id}`);
-    console.log(`[31d] 清理通知 id=${id} ✅`);
-  } catch (e) {
-    console.warn(`[31d] 清理通知 id=${id} 失败: ${(e as Error).message}`);
-  }
-}
-
-/** 标记通知已读（清理，避免影响后续用例） */
+/** 清理动作：走 helpers 的 CSRF/重试链路，失败仅记录（行为已由用例断言验证） */
 async function markRead(page: import('@playwright/test').Page, id: number): Promise<void> {
-  try {
-    await page.request.post(`http://localhost:8082/api/v1/erp/notifications/notification/${id}/read`);
-  } catch { /* 静默 */ }
+  await tryCleanup(page, 'POST', `/notifications/${id}/read`, '[31d] 标记已读');
+}
+
+async function deleteNotification(
+  page: import('@playwright/test').Page,
+  id: number
+): Promise<void> {
+  await tryCleanup(page, 'DELETE', `/notifications/${id}`, '[31d] 删除通知');
+}
+
+/**
+ * 自建一条独立「启用」客户供订单提交链路（A/B/C）使用。
+ * 不用 ensureTestEntities 的 ctx.customerId：它取客户列表首条（helpers.ts:389 items[0].id），
+ * 而 list_customers 默认不过滤软删除（query.rs:77 仅在显式传入 status 时过滤），
+ * 首条可能是被其它用例软删除的 inactive 客户 → 触发 sales 提交守卫
+ * 「客户状态为 inactive，不允许提交订单」→ 提交通知链路无法验证。
+ * create_customer 默认 status=active（customer_ops/update.rs:104-107），此处再显式传一次确保为 active。
+ */
+async function createActiveCustomer(
+  page: import('@playwright/test').Page,
+  tag: string
+): Promise<number> {
+  const res = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+    customer_name: `31d${tag}活跃客户${Date.now()}`,
+    customer_type: 'retail',
+    status: 'active',
+  });
+  const id = res?.data?.id;
+  expect(
+    id,
+    `[31d-${tag}] 自建 active 客户失败，订单提交链路前置不成立：${JSON.stringify(res)}`
+  ).toBeTruthy();
+  return id!;
 }
 
 test.describe.serial('P0 自动通知全链路：业务动作→通知产生验证', () => {
@@ -58,248 +77,311 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
   test('A. 订单提交→创建人收到提交通知', async ({ page }) => {
     test.setTimeout(180_000);
+    await ensureTestEntities(page);
+    const ctx = getCtx();
     // 先记录已有通知数（基线）
-    const before = await getUnreadNotifications(page);
-    console.log(`[31d-A] 提交前未读通知 ${before.length} 条`);
+    const before = await listNotifications(page);
+    console.warn(`[31d-A] 提交前未读通知 ${before.length} 条`);
 
-    let orderId: number | undefined;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-        customer_id: 1,
-        order_date: new Date().toISOString().slice(0, 10),
-        items: [{ product_id: 1, quantity: 10, unit_price: 25.5 }],
-      });
-      orderId = r?.data?.id;
-    } catch (e) {
-      console.error(`[31d-A] 订单创建失败: ${(e as Error).message}`);
-    }
-    if (!orderId) { test.skip(); return; }
-    console.log(`[31d-A] 订单创建成功 id=${orderId}`);
+    // 自建独立 active 客户（不用可能被软删除污染的 ctx.customerId，见 createActiveCustomer 注释）
+    const customerId = await createActiveCustomer(page, 'A');
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+      customer_id: customerId,
+      order_date: new Date().toISOString(),
+      items: [{ product_id: ctx.productIds[0], quantity: 10, unit_price: 25.5 }],
+    });
+    const orderId = r?.data?.id;
+    expect(orderId, '[31d-A] 销售订单创建失败，提交通知链路无从验证').toBeTruthy();
+    console.warn(`[31d-A] 订单创建成功 id=${orderId}`);
+
+    // 创建即草稿态，应先收到「销售订单已创建」（notify_order_created），
+    // 且与后续提交通知用不同 dedup_key，不被 5 分钟窗口折叠
+    await page.waitForTimeout(NOTIF_SETTLE_MS);
+    const afterCreate = await listNotifications(page);
+    const createdNotif = afterCreate
+      .filter(n => !before.some(b => b.id === n.id))
+      .find(n => n.title === '销售订单已创建');
+    expect(
+      createdNotif,
+      `[31d-A] 未收到「销售订单已创建」通知（新增 ${afterCreate.length} 条：${afterCreate
+        .map(n => n.title)
+        .join('|')}）`
+    ).toBeTruthy();
+    console.warn(`[31d-A] 已收到创建通知 id=${createdNotif!.id}`);
 
     // submit 端点触发通知
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
-      console.log(`[31d-A] 订单提交成功`);
-    } catch (e) {
-      console.error(`[31d-A] 订单提交失败: ${(e as Error).message}`);
-    }
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
+    console.warn(`[31d-A] 订单提交成功`);
 
-    await page.waitForTimeout(3000);
-    const after = await getUnreadNotifications(page);
-    console.log(`[31d-A] 提交后未读通知 ${after.length} 条`);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const orderNotif = newOnes.find((n) => n.title?.includes('订单') || n.businessType === 'ORDER');
-    console.log(`[31d-A] 新增通知 ${newOnes.length} 条，匹配订单通知: ${!!orderNotif}`);
-
-    if (orderNotif) {
-      expect(orderNotif.title, `[31d-A] 通知标题应含"订单"相关字样`).toBeTruthy();
-      await markRead(page, orderNotif.id);
-      await deleteNotification(page, orderNotif.id);
-    } else {
-      console.warn('[31d-A] 未找到订单提交通知（可能通知服务未配置或去重窗口内已存在）');
-    }
+    await page.waitForTimeout(NOTIF_SETTLE_MS);
+    const after = await listNotifications(page);
+    console.warn(`[31d-A] 提交后未读通知 ${after.length} 条`);
+    const newOnes = after.filter(n => !afterCreate.some(b => b.id === n.id));
+    // event_notification_service.rs 的 notify_order_submitted 固定标题
+    const orderNotif = newOnes.find(n => n.title === '订单已提交');
+    console.warn(`[31d-A] 提交后新增通知 ${newOnes.length} 条，匹配提交通知: ${!!orderNotif}`);
+    expect(
+      orderNotif,
+      `[31d-A] 未收到「订单已提交」通知（新增 ${newOnes.length} 条：${newOnes
+        .map(n => n.title)
+        .join('|')}）`
+    ).toBeTruthy();
+    await markRead(page, orderNotif!.id);
+    await deleteNotification(page, orderNotif!.id);
+    await markRead(page, createdNotif!.id);
+    await deleteNotification(page, createdNotif!.id);
 
     // 清理订单
-    try {
-      await apiCall(page, 'DELETE', `/sales/orders/${orderId}`);
-      console.log(`[31d-A] 清理订单 id=${orderId} ✅`);
-    } catch (e) {
-      console.warn(`[31d-A] 清理订单失败: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-A]');
+    await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, '[31d-A] 客户');
   });
 
   test('B. 订单审批→创建人收到审批通知', async ({ page }) => {
     test.setTimeout(180_000);
+    await ensureTestEntities(page);
+    const ctx = getCtx();
     // 创建+提交订单，再审批
-    let orderId: number | undefined;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-        customer_id: 1,
-        order_date: new Date().toISOString().slice(0, 10),
-        items: [{ product_id: 1, quantity: 5, unit_price: 30 }],
-      });
-      orderId = r?.data?.id;
-    } catch (e) {
-      console.error(`[31d-B] 订单创建失败: ${(e as Error).message}`);
-    }
-    if (!orderId) { test.skip(); return; }
-    console.log(`[31d-B] 订单创建成功 id=${orderId}`);
+    const customerId = await createActiveCustomer(page, 'B');
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+      customer_id: customerId,
+      order_date: new Date().toISOString(),
+      items: [{ product_id: ctx.productIds[0], quantity: 5, unit_price: 30 }],
+    });
+    const orderId = r?.data?.id;
+    expect(orderId, '[31d-B] 销售订单创建失败，审批通知链路无从验证').toBeTruthy();
+    console.warn(`[31d-B] 订单创建成功 id=${orderId}`);
 
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
-    } catch (e) {
-      console.warn(`[31d-B] 订单提交失败: ${(e as Error).message}`);
-    }
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
 
-    const before = await getUnreadNotifications(page);
+    const before = await listNotifications(page);
 
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
-      console.log(`[31d-B] 订单审批成功`);
-    } catch (e) {
-      console.error(`[31d-B] 订单审批失败: ${(e as Error).message}`);
-    }
+    // submit 只会把订单置为 pending 并拉起 BPM 首任务，不存在"小额直接终审"分支；
+    // 原实现按 status!=='approved' 跳过 approve，是为 BPM 流程定义 schema 不匹配
+    // 导致后端自动完成回写 approved 而写的兜底（已在 helpers 修正 schema）。
+    const afterSubmit = await apiCallRaw<{ status?: string }>(
+      page,
+      'GET',
+      `/sales/orders/${orderId}`
+    );
+    expect(afterSubmit.status, '[31d-B] submit 后订单应为 pending').toBe('pending');
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
+    console.warn(`[31d-B] 订单审批成功`);
 
-    await page.waitForTimeout(3000);
-    const after = await getUnreadNotifications(page);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const approvalNotif = newOnes.find((n) => n.title?.includes('审批') || n.title?.includes('approve') || n.businessType === 'ORDER');
-    console.log(`[31d-B] 新增通知 ${newOnes.length} 条，匹配审批通知: ${!!approvalNotif}`);
+    await page.waitForTimeout(NOTIF_SETTLE_MS);
+    const after = await listNotifications(page);
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    // event_notification_service.rs:192 notify_order_approved 的固定标题
+    const approvalNotif = newOnes.find(n => n.title === '订单审批通过');
+    console.warn(`[31d-B] 新增通知 ${newOnes.length} 条，匹配审批通知: ${!!approvalNotif}`);
+    expect(
+      approvalNotif,
+      `[31d-B] 未收到「订单审批通过」通知（新增 ${newOnes.length} 条：${newOnes
+        .map(n => n.title)
+        .join('|')}）`
+    ).toBeTruthy();
+    await markRead(page, approvalNotif!.id);
+    await deleteNotification(page, approvalNotif!.id);
 
-    if (approvalNotif) {
-      await markRead(page, approvalNotif.id);
-      await deleteNotification(page, approvalNotif.id);
-    } else {
-      console.warn('[31d-B] 未找到订单审批通知（可能通知服务未配置或已读）');
-    }
-
-    try {
-      await apiCall(page, 'DELETE', `/sales/orders/${orderId}`);
-      console.log(`[31d-B] 清理订单 id=${orderId} ✅`);
-    } catch (e) {
-      console.warn(`[31d-B] 清理订单失败: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-B]');
+    await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, '[31d-B] 客户');
   });
 
   test('C. 订单发货→创建人收到发货通知', async ({ page }) => {
     test.setTimeout(180_000);
-    let orderId: number | undefined;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-        customer_id: 1,
-        order_date: new Date().toISOString().slice(0, 10),
-        items: [{ product_id: 1, quantity: 8, unit_price: 20 }],
-      });
-      orderId = r?.data?.id;
-    } catch (e) {
-      console.error(`[31d-C] 订单创建失败: ${(e as Error).message}`);
-    }
-    if (!orderId) { test.skip(); return; }
-    console.log(`[31d-C] 订单创建成功 id=${orderId}`);
+    await ensureTestEntities(page);
+    const ctx = getCtx();
+    // 产品取 ensureTestEntities 真实保障的实体；客户自建独立 active（原实现复用
+    // ctx.customerId/硬编码 id，易被软删除污染或不随空库漂移，致提交守卫拦截）
+    const customerId = await createActiveCustomer(page, 'C');
+    const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+      customer_id: customerId,
+      order_date: new Date().toISOString(),
+      items: [{ product_id: ctx.productIds[0], quantity: 8, unit_price: 20 }],
+    });
+    const orderId = r?.data?.id;
+    expect(orderId, '[31d-C] 销售订单创建失败，发货通知链路无从验证').toBeTruthy();
+    console.warn(`[31d-C] 订单创建成功 id=${orderId}`);
 
     // 提交+审批后才能发货
-    try { await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`); } catch (e) { console.warn(`[31d-C] 提交失败: ${(e as Error).message}`); }
-    try { await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`); } catch (e) { console.warn(`[31d-C] 审批失败: ${(e as Error).message}`); }
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
+    const afterCSubmit = await apiCallRaw<{ status?: string }>(
+      page,
+      'GET',
+      `/sales/orders/${orderId}`
+    );
+    expect(afterCSubmit.status, '[31d-C] submit 后订单应为 pending').toBe('pending');
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
 
-    const before = await getUnreadNotifications(page);
+    const before = await listNotifications(page);
 
-    try {
-      await apiCall(page, 'POST', `/sales/orders/${orderId}/ship`, {
-        order_id: orderId,
-        warehouse_code: 'WH001',
-        items: [{ product_id: 1, quantity: 8 }],
-      });
-      console.log(`[31d-C] 订单发货成功`);
-    } catch (e) {
-      console.error(`[31d-C] 订单发货失败: ${(e as Error).message}`);
-    }
+    // ship.rs:135 按 warehouse::Column::WarehouseCode 查仓，原实现硬编码 'WH001'
+    // 在 CI 空库中不存在 → 发货接口回 NOT_FOUND。改为按 ctx 真实仓库反查其编码，
+    // 并保障该仓库有可发出库存。
+    // 出库四维扣减（款号+色号+缸号+批次）：发货明细必须携带与真实入库库存行一致的维度。
+    const warehouseId = ctx.warehouseIds[0];
+    const stockRow = await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
+    const wh = await apiCallRaw<{ warehouse_code?: string }>(
+      page,
+      'GET',
+      `/warehouses/${warehouseId}`
+    );
+    expect(wh?.warehouse_code, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    expect(stockRow.batch_no, '发货前库存行应带批次号（四维出库入参来源）').toBeTruthy();
+    expect(stockRow.dye_lot_no, '发货前库存行应带缸号（四维出库入参来源）').toBeTruthy();
 
-    await page.waitForTimeout(3000);
-    const after = await getUnreadNotifications(page);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const shipNotif = newOnes.find((n) => n.title?.includes('发货') || n.title?.includes('ship') || n.businessType === 'ORDER');
-    console.log(`[31d-C] 新增通知 ${newOnes.length} 条，匹配发货通知: ${!!shipNotif}`);
+    await apiCall(page, 'POST', `/sales/orders/${orderId}/ship`, {
+      order_id: orderId,
+      warehouse_code: wh.warehouse_code,
+      items: [
+        {
+          product_id: ctx.productIds[0],
+          quantity: 8,
+          color_no: stockRow.color_no,
+          batch_no: stockRow.batch_no,
+          dye_lot_no: stockRow.dye_lot_no,
+        },
+      ],
+    });
+    console.warn(`[31d-C] 订单发货成功（仓库编码 ${wh.warehouse_code}）`);
 
-    if (shipNotif) {
-      await markRead(page, shipNotif.id);
-      await deleteNotification(page, shipNotif.id);
-    } else {
-      console.warn('[31d-C] 未找到发货通知（可能通知服务未配置或库存不足拒绝发货）');
-    }
+    await page.waitForTimeout(NOTIF_SETTLE_MS);
+    const after = await listNotifications(page);
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    // event_notification_service.rs:228 notify_order_shipped 的固定标题
+    const shipNotif = newOnes.find(n => n.title === '订单已发货');
+    console.warn(`[31d-C] 新增通知 ${newOnes.length} 条，匹配发货通知: ${!!shipNotif}`);
+    expect(
+      shipNotif,
+      `[31d-C] 未收到「订单已发货」通知（新增 ${newOnes.length} 条：${newOnes
+        .map(n => n.title)
+        .join('|')}）`
+    ).toBeTruthy();
+    await markRead(page, shipNotif!.id);
+    await deleteNotification(page, shipNotif!.id);
 
-    try {
-      await apiCall(page, 'DELETE', `/sales/orders/${orderId}`);
-      console.log(`[31d-C] 清理订单 id=${orderId} ✅`);
-    } catch (e) {
-      console.warn(`[31d-C] 清理订单失败: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-C]');
+    await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, '[31d-C] 客户');
   });
 
   test('D. 库存预警→admin/manager收到预警通知', async ({ page }) => {
     test.setTimeout(120_000);
-    const before = await getUnreadNotifications(page);
-    console.log(`[31d-D] 触发前未读通知 ${before.length} 条`);
+    const before = await listNotifications(page);
+    console.warn(`[31d-D] 触发前未读通知 ${before.length} 条`);
 
     // GET /inventory/stock/low-stock 触发 check_low_stock → 发布事件 → 通知 admin/manager
-    try {
-      const res = await page.request.get('http://localhost:8082/api/v1/erp/inventory/stock/low-stock');
-      console.log(`[31d-D] low-stock 检查 HTTP ${res.status()}`);
-    } catch (e) {
-      console.warn(`[31d-D] low-stock 检查异常: ${(e as Error).message}`);
-    }
+    await apiCallRaw<unknown>(page, 'GET', '/inventory/stock/low-stock');
+    console.warn('[31d-D] low-stock 检查完成');
 
     await page.waitForTimeout(5000);
-    const after = await getUnreadNotifications(page);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const stockNotif = newOnes.find((n) => n.title?.includes('库存') || n.title?.includes('stock') || n.title?.includes('预警') || n.businessType === 'INVENTORY');
-    console.log(`[31d-D] 新增通知 ${newOnes.length} 条，匹配库存预警通知: ${!!stockNotif}`);
+    const after = await listNotifications(page);
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    const stockNotif = newOnes.find(
+      n => n.title?.includes('库存') || n.title?.includes('stock') || n.title?.includes('预警')
+    );
+    console.warn(
+      `[31d-D] 新增通知 ${newOnes.length} 条（${newOnes.map(n => n.title).join('|')}），` +
+        `匹配库存预警通知: ${!!stockNotif}`
+    );
 
     if (stockNotif) {
-      expect(stockNotif.title, '[31d-D] 库存预警通知标题应存在').toBeTruthy();
       await markRead(page, stockNotif.id);
       await deleteNotification(page, stockNotif.id);
     } else {
-      console.warn('[31d-D] 未找到库存预警通知（可能当前库存均高于安全线，无预警产生）');
+      // TODO(doto iter23)：本链路要变成硬断言，需先把某商品的 safety_stock 抬到
+      // 现有库存之上以构造确定性的低库存前提，再断言必产生预警通知。
+      console.warn('[31d-D] 本轮无库存预警通知（当前库存均高于安全线）');
     }
-  });
-
-  test('E. 应收到期通知（死代码，skip）', async () => {
-    // notify_ar_due 在 event_notification_service.rs:615 已实现但无任何调用方
-    // 既无 HTTP 端点也无定时调度触发——已实现的死代码
-    // 需后续补接触发链路（定时扫描应收账款到期表 → notify_ar_due）
-    test.skip();
-    console.log('[31d-E] notify_ar_due 为死代码（已实现无调用方），skip');
   });
 
   test('F. 付款申请提交→admin/manager审批人收到通知', async ({ page }) => {
     test.setTimeout(180_000);
-    let requestId: number | undefined;
-    try {
-      const r = await apiCall<{ id?: number }>(page, 'POST', '/finance/ap/payment-requests', {
-        request_no: `P0-NOTIF-${TS}`,
+    await ensureTestEntities(page);
+    const ctx = getCtx();
+    // 原实现 supplier_id 硬编码为 1，CI 空库中依赖种子恰好存在该供应商
+    // 付款申请必须挂在真实应付单上：后端 CreateApPaymentRequest.items 为必填，
+    // 且校验应付单非 DRAFT/CANCELLED、apply_amount 不超过未付金额。
+    // 路由为 /api/v1/erp/ap/payment-requests（routes/finance.rs:712，AP 域经
+    // sub_routes() 挂在 /api/v1/erp 下，无 /finance 前缀）。
+    const invoice = await apiCallRaw<{ id?: number; unpaid_amount?: number }>(
+      page,
+      'POST',
+      '/ap/invoices',
+      {
+        supplier_id: ctx.supplierId,
+        amount: 8000,
+        invoice_date: new Date().toISOString().slice(0, 10),
+      }
+    );
+    expect(invoice?.id, '[31d-F] 应付单创建失败，付款申请前置不成立').toBeTruthy();
+    await apiCall(page, 'POST', `/ap/invoices/${invoice.id}/approve`);
+    const approved = await apiCallRaw<{ invoice_status?: string; unpaid_amount?: number }>(
+      page,
+      'GET',
+      `/ap/invoices/${invoice.id}`
+    );
+    console.warn(
+      `[31d-F] 应付单 id=${invoice.id} 状态=${approved.invoice_status} 未付=${approved.unpaid_amount}`
+    );
+    // approve 必然写入 AUDITED（ap_invoice_ops/crud.rs:222，状态机 DRAFT → AUDITED → PAID），
+    // 因此断收到精确值；旧写法用 || '' + toUpperCase 容忍空值，审批没生效也可能通过。
+    expect(
+      approved.invoice_status,
+      `[31d-F] 应付单审批后状态非可付款态（实际 ${approved.invoice_status}）`
+    ).toBe('AUDITED');
+    const unpaid = Number(approved.unpaid_amount);
+    expect(unpaid, `[31d-F] 应付单未付金额无效（实际 ${approved.unpaid_amount}）`).toBeGreaterThan(
+      0
+    );
+
+    const r = await apiCall<{ id?: number; request_no?: string }>(
+      page,
+      'POST',
+      '/ap/payment-requests',
+      {
+        supplier_id: ctx.supplierId,
         request_date: new Date().toISOString().slice(0, 10),
-        supplier_id: 1,
         payment_type: 'bank_transfer',
         payment_method: 'bank',
         request_amount: 5000,
         currency: 'CNY',
         exchange_rate: 1,
-      });
-      requestId = r?.data?.id;
-    } catch (e) {
-      console.error(`[31d-F] 付款申请创建失败: ${(e as Error).message}`);
-    }
-    if (!requestId) { test.skip(); return; }
-    console.log(`[31d-F] 付款申请创建成功 id=${requestId}`);
+        items: [{ invoice_id: invoice.id, apply_amount: 5000 }],
+      }
+    );
+    const requestId = r?.data?.id;
+    expect(requestId, `[31d-F] 付款申请创建失败（supplier_id=${ctx.supplierId}）`).toBeTruthy();
+    // request_no 由后端生成（服务内 generate_request_no），通知标题按回写值匹配
+    const requestNo = r?.data?.request_no;
+    expect(requestNo, '[31d-F] 创建响应未返回 request_no，无法匹配通知标题').toBeTruthy();
+    console.warn(
+      `[31d-F] 付款申请创建成功 id=${requestId} request_no=${requestNo} 应付单=${invoice.id}`
+    );
 
-    const before = await getUnreadNotifications(page);
+    const before = await listNotifications(page);
 
-    try {
-      await apiCall(page, 'POST', `/finance/ap/payment-requests/${requestId}/submit`);
-      console.log(`[31d-F] 付款申请提交成功`);
-    } catch (e) {
-      console.error(`[31d-F] 付款申请提交失败: ${(e as Error).message}`);
-    }
+    await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/submit`);
+    console.warn(`[31d-F] 付款申请提交成功`);
 
-    await page.waitForTimeout(3000);
-    const after = await getUnreadNotifications(page);
-    const newOnes = after.filter((n) => !before.some((b) => b.id === n.id));
-    const payNotif = newOnes.find((n) => n.title?.includes('付款') || n.title?.includes('payment') || n.businessType === 'FINANCE');
-    console.log(`[31d-F] 新增通知 ${newOnes.length} 条，匹配付款申请通知: ${!!payNotif}`);
+    await page.waitForTimeout(NOTIF_SETTLE_MS);
+    const after = await listNotifications(page);
+    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
+    // ap_payment_request_handler.rs submit_request 的固定标题：付款申请待审批：{request_no}
+    const expectedTitle = `付款申请待审批：${requestNo}`;
+    const payNotif = newOnes.find(n => n.title === expectedTitle);
+    console.warn(
+      `[31d-F] 新增通知 ${newOnes.length} 条（${newOnes.map(n => n.title).join('|')}），` +
+        `匹配「${expectedTitle}」: ${!!payNotif}`
+    );
+    expect(
+      payNotif,
+      `[31d-F] 未收到付款申请审批人通知「${expectedTitle}」（新增 ${newOnes.length} 条：${newOnes
+        .map(n => n.title)
+        .join('|')}）`
+    ).toBeTruthy();
 
-    if (payNotif) {
-      expect(payNotif.title, '[31d-F] 付款申请通知标题应含"付款"相关字样').toBeTruthy();
-      await markRead(page, payNotif.id);
-      await deleteNotification(page, payNotif.id);
-    } else {
-      console.warn('[31d-F] 未找到付款申请通知（可能通知服务未配置或用户非 admin/manager）');
-    }
+    await markRead(page, payNotif!.id);
+    await deleteNotification(page, payNotif!.id);
 
-    try {
-      await apiCall(page, 'DELETE', `/finance/ap/payment-requests/${requestId}`);
-      console.log(`[31d-F] 清理付款申请 id=${requestId} ✅`);
-    } catch (e) {
-      console.warn(`[31d-F] 清理付款申请失败: ${(e as Error).message}`);
-    }
+    await tryCleanup(page, 'DELETE', `/ap/payment-requests/${requestId}`, '[31d-F]');
   });
 });

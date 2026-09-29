@@ -6,6 +6,8 @@
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { i18n } from '@/i18n';
+import { promptContractExecute } from '@/composables/useActionPrompts';
 import {
   deleteSalesContract,
   approveSalesContract,
@@ -68,17 +70,28 @@ export function useScProc(refresh: RefreshCallbacks) {
 
   /** 执行 */
   const handleExecute = async (row: SalesContract) => {
+    // 后端 ExecuteSalesContractRequestDto 必填 execution_type/execution_amount（无执行日期）。
+    // execution_type 由 sales_contract_service 强校验：仅 delivery（出库）/ payment（收款）。
+    const form = await promptContractExecute(
+      [
+        { value: 'delivery', label: i18n.global.t('actionForm.executeTypeDelivery') },
+        { value: 'payment', label: i18n.global.t('actionForm.executeTypePayment') },
+      ],
+      false
+    );
+    if (!form) return;
     try {
-      await ElMessageBox.confirm('确认执行该合同？', '提示', { type: 'warning' });
-      await executeSalesContract(row.id);
+      await executeSalesContract(row.id, {
+        execution_type: form.execution_type,
+        execution_amount: form.execution_amount,
+        remark: form.remark,
+      });
       msg.success('executeSuccess');
       await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || msg.translate('executeFailed'));
-      }
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('executeFailed'));
     }
   };
 
@@ -104,7 +117,7 @@ export function useScProc(refresh: RefreshCallbacks) {
       `<div>
         <p><strong>合同编号：</strong>${row.contract_no}</p>
         <p><strong>合同名称：</strong>${row.contract_name}</p>
-        <p><strong>客户：</strong>${row.customer_name}</p>
+        <p><strong>客户：</strong>${row.customer_name || '-'}</p>
         <p><strong>合同金额：</strong>${formatCurrency(row.total_amount)}</p>
         <p><strong>签订日期：</strong>${row.signed_date || '-'}</p>
         <p><strong>生效日期：</strong>${row.effective_date || '-'}</p>

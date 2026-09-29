@@ -4,15 +4,15 @@
 //! （订单号生成、发货记录查询、手动创建发货单）+ 单元测试。
 //! 业务实现已按职责拆分到 `delivery_ops/` 子模块（与 `delivery` 同为 `crate::services::so` 下兄弟模块）：
 //! - `delivery_ops::ship`：发货管理（ship_order 及 15 个辅助方法，原 L126-694）
-//! - `delivery_ops::inventory`：库存辅助（check_inventory/lock_inventory/reduce_inventory/release_reservations，原 L747-1082）
+//! - `delivery_ops::inventory`：库存辅助（check_inventory/reduce_inventory_four_dim/release_reservations，原 L747-1082）
 //! - `delivery_ops::cancel`：取消发货（cancel_delivery 及 3 个辅助方法，原 L1084-1320）
 //! - `delivery_ops::export`：CSV 导出（export_orders_to_csv 及 2 个辅助方法，原 L1322-1443）
 //! - `delivery_ops::types`：内部聚合辅助 struct（ShipOrderContext/ShipmentItemsResult/ShipPostCommitContext）
 //!
 //! 设计要点（与拆分前一致）：
-//! - 包含销售订单的发货、库存扣减/释放、订单号生成等
-//! - `check_inventory`、`lock_inventory`、`reduce_inventory`、`release_reservations`
-//!   这四个方法与发货/库存操作紧密相关，统一在 delivery_ops::inventory 中实现
+//! - 包含销售订单的发货、库存扣减/释放等
+//! - `check_inventory`、`reduce_inventory_four_dim`、`release_reservations`
+//!   这些方法与发货/库存操作紧密相关，统一在 delivery_ops::inventory 中实现
 //!
 //! 拆分兼容性：
 //! - 外部 handler 通过 `crate::services::so::delivery::ShipOrderRequest` 引用，路径不变
@@ -46,14 +46,18 @@ pub struct ShipOrderRequest {
 
 #[derive(Debug, Validate, Deserialize)]
 pub struct ShipOrderItemRequest {
+    /// 产品 ID（款号维度：products.id，款号编码为 products.code）
     pub product_id: i32,
     pub quantity: Decimal,
+    /// 批次号 —— 出库四维扣减必填（缺失报业务错误，不做兜底）
     #[validate(length(max = 50, message = "批次号长度不能超过50个字符"))]
     pub batch_no: Option<String>,
     // v14 批次 421 T-P1-5：缸号同订单校验支持字段
     // 依据：fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
+    /// 色号 —— 出库四维扣减必填（缺失报业务错误，不做兜底）
     #[validate(length(max = 50, message = "色号长度不能超过50个字符"))]
     pub color_no: Option<String>,
+    /// 缸号 —— 出库四维扣减必填；仅当该缸数量不足时才允许显式跨缸回退
     #[validate(length(max = 50, message = "缸号长度不能超过50个字符"))]
     pub dye_lot_no: Option<String>,
     /// 染色匹号（匹号领域：出库使用染色匹号）
@@ -65,11 +69,14 @@ pub struct ShipOrderItemRequest {
 // =====================================================
 
 /// v14 批次 421 T-P1-5：缸号同订单校验
-/// 依据：fabric-industry-research.md §2.3 约束 5；业务规则：出库时，同一订单必须使用相同缸号的面料，系统校验订单中所有该面料是否来自同一批次，不一致则报警提示；业务语义：一个缸号代表一次染色，同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺；校验逻辑：同一 product_id 的所有发货明细必须使用相同的 dye_lot_no；同 product_id 但 dye_lot_no 不一致 → 返回业务错误（避免混缸色差）；dye_lot_no 均为 None → 视为未指定缸号，跳过校验（兼容无缸号场景）；单 product_id 单 dye_lot_no → 通过校验
+/// 缸号一致性提示：校验发货明细的缸号使用情况
+/// 业务规则：同缸面料优先、同缸出完后允许使用其他缸面料继续供货；
+/// 同一产品出现多个缸号时记录警告日志（提示裁床分缸裁剪避免色差），不阻断发货；
+/// 缸号均为空视为未指定，跳过校验
 pub fn validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<(), AppError> {
     use std::collections::HashMap;
 
-    // 按 product_id 分组收集 dye_lot_no
+    // 按 product_id 分组收集缸号集合
     let mut product_dye_lots: HashMap<i32, std::collections::HashSet<String>> = HashMap::new();
     for item in items {
         if let Some(dye_lot_no) = &item.dye_lot_no {
@@ -82,15 +89,15 @@ pub fn validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<()
         }
     }
 
-    // 校验每个 product_id 下不能有多个不同的 dye_lot_no
+    // 同产品多缸号：记录警告日志（不阻断发货）
     for (product_id, dye_lots) in &product_dye_lots {
         if dye_lots.len() > 1 {
             let dye_lot_list: Vec<String> = dye_lots.iter().cloned().collect();
-            return Err(AppError::business(format!(
-                "产品 {} 在同一订单中使用了多个不同缸号 {}，违反缸号同订单校验：同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺",
-                product_id,
-                dye_lot_list.join("/")
-            )));
+            tracing::warn!(
+                product_id = %product_id,
+                dye_lots = %dye_lot_list.join("/"),
+                "同一订单同产品使用多个缸号，裁床请分缸裁剪避免色差"
+            );
         }
     }
 
@@ -129,6 +136,11 @@ impl SalesService {
         // P1 3-8 修复（批次 60）：包裹事务，确保单号生成的 advisory_xact_lock
         // 与 INSERT 在同一事务内，锁覆盖完整临界区
         let txn = (*self.db).begin().await?;
+        // customer_id 必须来自订单本身：硬编码 0 会让发货单脱离客户归属，破坏按客户维度统计
+        let order = sales_order::Entity::find_by_id(order_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("销售订单不存在"))?;
         let delivery = sales_delivery::ActiveModel {
             id: Default::default(),
             // P1 3-8 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
@@ -142,7 +154,7 @@ impl SalesService {
                 .await?,
             ),
             order_id: Set(order_id),
-            customer_id: Set(0),
+            customer_id: Set(order.customer_id),
             warehouse_id: Set(warehouse_id),
             delivery_date: Set(chrono::Utc::now().date_naive()),
             status: Set(delivery_status::PENDING.to_string()),

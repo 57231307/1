@@ -12,8 +12,8 @@
 
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
-    Set, TransactionTrait,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 
@@ -356,7 +356,8 @@ impl SalesService {
         user_id: i32,
     ) -> sales_order::ActiveModel {
         sales_order::ActiveModel {
-            id: Set(0),
+            // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
+            id: NotSet,
             order_no: Set(order_no),
             customer_id: Set(req.customer_id),
             opportunity_id: Set(None),
@@ -373,6 +374,8 @@ impl SalesService {
             balance_amount: Set(total_amount),
             shipping_address: Set(req.shipping_address.clone()),
             billing_address: Set(req.delivery_address.clone()),
+            contact_person: Set(None),
+            contact_phone: Set(None),
             notes: Set(req.remarks.clone()),
             batch_no: Set(Some(String::new())),
             color_no: Set(Some(String::new())),
@@ -402,7 +405,8 @@ impl SalesService {
         let final_p = item.final_price.unwrap_or(item.unit_price_meters);
         let subtotal = quantity_meters * final_p;
         sales_order_item::ActiveModel {
-            id: Set(0),
+            // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
+            id: NotSet,
             order_id: Set(order_id),
             product_id: Set(item.product_id),
             quantity: Set(quantity_meters),
@@ -436,6 +440,7 @@ impl SalesService {
             shipped_quantity_kg: Set(Decimal::ZERO),
             paper_tube_weight: Set(item.paper_tube_weight),
             is_net_weight: Set(item.is_net_weight),
+            quantity_tolerance_pct: Set(None),
         }
     }
 }

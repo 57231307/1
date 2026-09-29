@@ -88,14 +88,14 @@ fn test_validate_dye_lot_consistency_tcptghtg() {
 
 /// test_validate_dye_lot_consistency_tcpbtghsb
 ///
-/// 验证同一产品的多个 item 使用不同缸号时返回 Err（违反缸号一致性约束）。
+/// IR 2026-09-17：同缸出完允许换缸——同产品不同缸号记警告日志但返回 Ok（禁止阻断发货）
 #[test]
 fn test_validate_dye_lot_consistency_tcpbtghsb() {
     let items = vec![make_item(1, Some("DL001")), make_item(1, Some("DL002"))];
     let result = validate_dye_lot_consistency(&items);
     assert!(
-        result.is_err(),
-        "同产品不同缸号应返回 Err（违反缸号一致性约束）"
+        result.is_ok(),
+        "同产品不同缸号应返回 Ok（记警告不阻断，IR 2026-09-17）"
     );
 }
 

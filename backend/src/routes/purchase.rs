@@ -15,7 +15,7 @@ use axum::{
 use crate::handlers::{
     print_handler, purchase_contract_handler, purchase_inspection_handler, purchase_order_handler,
     purchase_price_handler, purchase_receipt_handler, purchase_return_handler,
-    supplier_evaluation_handler, supplier_handler,
+    supplier_blacklist_handler, supplier_evaluation_handler, supplier_handler,
 };
 
 /// 采购订单路由（nest 到 /api/v1/erp/purchases）；主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
@@ -363,6 +363,16 @@ pub fn suppliers() -> Router<AppState> {
             "/suppliers/{id}/evaluations",
             get(supplier_evaluation_handler::list_evaluation_records),
         )
+        // 供应商黑名单管理端点
+        .route(
+            "/supplier-blacklists",
+            get(supplier_blacklist_handler::list_blacklists)
+                .post(supplier_blacklist_handler::add_to_blacklist),
+        )
+        .route(
+            "/supplier-blacklists/{id}/release",
+            post(supplier_blacklist_handler::release_from_blacklist),
+        )
 }
 
 /// 供应商评估路由（path 前缀 /supplier-evaluations）
@@ -430,6 +440,70 @@ pub fn supplier_evaluations() -> Router<AppState> {
         )
 }
 
+/// SKU 对照表路由（path 前缀 /sku-mappings）
+fn sku_mapping_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/sku-mappings",
+            get(crate::handlers::sku_mapping_handler::list_mappings),
+        )
+        .route(
+            "/sku-mappings",
+            post(crate::handlers::sku_mapping_handler::create_mapping),
+        )
+        .route(
+            "/sku-mappings/import",
+            post(crate::handlers::sku_mapping_handler::import_mappings),
+        )
+        .route(
+            "/sku-mappings/resolve",
+            get(crate::handlers::sku_mapping_handler::resolve_sku),
+        )
+        .route(
+            "/sku-mappings/{id}",
+            get(crate::handlers::sku_mapping_handler::get_mapping)
+                .put(crate::handlers::sku_mapping_handler::update_mapping)
+                .delete(crate::handlers::sku_mapping_handler::delete_mapping),
+        )
+}
+
+/// 供应商商品目录路由（path 前缀 /supplier-products，sku-mapping 依赖的父级数据）
+fn supplier_product_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/supplier-products",
+            get(crate::handlers::supplier_product_handler::list_supplier_products),
+        )
+        .route(
+            "/supplier-products",
+            post(crate::handlers::supplier_product_handler::create_supplier_product),
+        )
+        .route(
+            "/supplier-products/{id}",
+            get(crate::handlers::supplier_product_handler::get_supplier_product)
+                .put(crate::handlers::supplier_product_handler::update_supplier_product),
+        )
+}
+
+/// 供应商商品色号目录路由（path 前缀 /supplier-product-colors，sku-mapping 依赖的父级数据）
+fn supplier_product_color_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/supplier-product-colors",
+            get(crate::handlers::supplier_product_color_handler::list_supplier_product_colors),
+        )
+        .route(
+            "/supplier-product-colors",
+            post(crate::handlers::supplier_product_color_handler::create_supplier_product_color),
+        )
+        .route(
+            "/supplier-product-colors/{id}",
+            get(crate::handlers::supplier_product_color_handler::get_supplier_product_color).put(
+                crate::handlers::supplier_product_color_handler::update_supplier_product_color,
+            ),
+        )
+}
+
 /// 采购域统一入口；子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -438,4 +512,7 @@ pub fn routes() -> Router<AppState> {
         .merge(purchase_prices())
         .merge(suppliers())
         .merge(supplier_evaluations())
+        .merge(sku_mapping_routes())
+        .merge(supplier_product_routes())
+        .merge(supplier_product_color_routes())
 }

@@ -93,11 +93,6 @@ async fn test_post_without_csrf_header_returns_missing() {
 
     let body = read_json(resp.into_body()).await;
     assert_eq!(
-        body.get("success").and_then(|v| v.as_bool()),
-        Some(false),
-        "success 字段应为 false"
-    );
-    assert_eq!(
         body.get("code").and_then(|v| v.as_str()),
         Some("CSRF_TOKEN_MISSING"),
         "业务码应为 CSRF_TOKEN_MISSING，实际: {:?}",
@@ -107,6 +102,24 @@ async fn test_post_without_csrf_header_returns_missing() {
         body.get("message").and_then(|v| v.as_str()),
         Some("CSRF Token 缺失"),
         "message 应为常量 CSRF Token 缺失"
+    );
+    // 统一失败信封（utils/response.rs::unified_error_response → ErrorResponse）：
+    // {code, message, trace_id, timestamp}，无废弃的 success 字段。
+    assert!(
+        body.get("success").is_none(),
+        "统一错误信封不得含废弃的 success 字段"
+    );
+    assert!(
+        body.get("trace_id")
+            .map(|v| v.is_string() && !v.as_str().unwrap().is_empty())
+            .unwrap_or(false),
+        "trace_id 应为非空字符串，实际: {:?}",
+        body.get("trace_id")
+    );
+    assert!(
+        body.get("timestamp").map(|v| v.is_i64()).unwrap_or(false),
+        "timestamp 应为数字（秒级 i64），实际: {:?}",
+        body.get("timestamp")
     );
 }
 

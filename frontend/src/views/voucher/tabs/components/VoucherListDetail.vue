@@ -36,8 +36,8 @@
           <span class="col-subject"
             >{{ entry.account_subject_code }} - {{ entry.account_subject_name }}</span
           >
-          <span class="col-debit">{{ entry.debit_amount.toFixed(2) }}</span>
-          <span class="col-credit">{{ entry.credit_amount.toFixed(2) }}</span>
+          <span class="col-debit">{{ Number(entry.debit_amount ?? 0).toFixed(2) }}</span>
+          <span class="col-credit">{{ Number(entry.credit_amount ?? 0).toFixed(2) }}</span>
           <span class="col-desc">{{ entry.description || '-' }}</span>
         </div>
       </div>

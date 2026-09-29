@@ -16,16 +16,34 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     Set, TransactionTrait,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::container::AppState;
+use crate::models::product;
 use crate::models::sales_order::{self, ActiveModel as OrderActive, Entity as OrderEntity};
 use crate::models::sales_order_item::ActiveModel as OrderItemActive;
 use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
 use crate::models::sales_quotation_item::{self, Entity as QuotationItemEntity};
+use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
+
+/// 报价行交易单位的换算策略：仅作为「单位 token → dual_unit_converter 函数」的
+/// 内部分派标签，不承载任何换算系数（系数与防御校验单一真源在 utils::dual_unit_converter）。
+enum UnitStrategy {
+    /// 米制：quantity 即米数
+    Meters,
+    /// 码制：yards_to_meters
+    Yards,
+    /// 匹制：pieces_to_meters(× meters_per_piece)
+    Pieces,
+    /// 卷制：rolls_to_meters(× meters_per_roll)
+    Rolls,
+    /// 公斤制：quantity 即公斤数，米数走 kg_to_meters
+    Kilograms,
+}
 
 /// 转订单服务
 pub struct QuotationConvertService {
@@ -122,7 +140,7 @@ impl QuotationConvertService {
         let new_order = OrderActive {
             id: Default::default(),
             order_no: Set(order_no),
-            customer_id: Set(quotation.customer_id as i32),
+            customer_id: Set(quotation.customer_id),
             opportunity_id: Set(None),
             order_date: Set(now),
             required_date: Set(Utc::now() + chrono::Duration::days(30)),
@@ -137,17 +155,20 @@ impl QuotationConvertService {
             balance_amount: Set(quotation.total_amount),
             shipping_address: Set(None),
             billing_address: Set(None),
+            contact_person: Set(None),
+            contact_phone: Set(None),
             notes: Set(Some(format!(
                 "[源自报价单 {}]\n{}",
                 quotation.quotation_no,
                 quotation.notes.clone().unwrap_or_default()
             ))),
-            batch_no: Set(Some(String::new())),
-            color_no: Set(Some(String::new())),
-            dye_lot_no: Set(Some(String::new())),
-            grade: Set(None),
-            packaging_requirement: Set(None),
-            quality_standard: Set(None),
+            // 面料行业追溯字段：报价单不含这些信息，用 NotSet 让 DB DEFAULT '' 生效
+            batch_no: sea_orm::ActiveValue::NotSet,
+            color_no: sea_orm::ActiveValue::NotSet,
+            dye_lot_no: sea_orm::ActiveValue::NotSet,
+            grade: sea_orm::ActiveValue::NotSet,
+            packaging_requirement: sea_orm::ActiveValue::NotSet,
+            quality_standard: sea_orm::ActiveValue::NotSet,
             created_by: Set(Some(user_id)),
             // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
             department_id: sea_orm::ActiveValue::NotSet,
@@ -170,7 +191,32 @@ impl QuotationConvertService {
     where
         C: sea_orm::ConnectionTrait,
     {
+        // 批量取回涉及产品（换算元数据真源），杜绝逐行查询 N+1；
+        // products.id 为 SERIAL(i32)，报价行 product_id 为 BIGINT(i64)：与既有边界转换约定一致。
+        let product_ids: Vec<i32> = items.iter().map(|i| i.product_id as i32).collect();
+        let product_map: HashMap<i32, product::Model> = if product_ids.is_empty() {
+            HashMap::new()
+        } else {
+            product::Entity::find()
+                .filter(product::Column::Id.is_in(product_ids))
+                .all(txn)
+                .await?
+                .into_iter()
+                .map(|p| (p.id, p))
+                .collect()
+        };
+
         for item in items {
+            let product = product_map.get(&(item.product_id as i32)).ok_or_else(|| {
+                AppError::validation(format!(
+                    "报价单转订单失败：报价明细引用的产品 {} 不存在（悬挂引用不允许转为订单行）",
+                    item.product_id
+                ))
+            })?;
+            // 真实单位换算：报价行 unit + 产品换算元数据 → 米/公斤双计量（converter 单一真源）
+            let (quantity_meters, quantity_kg) =
+                Self::convert_item_quantity_to_dual_units(item, product)?;
+
             let subtotal = item.amount;
             let tax_amount = item.amount_with_tax - item.amount;
             let new_item = OrderItemActive {
@@ -194,10 +240,11 @@ impl QuotationConvertService {
                 color_name: Set(None),
                 pantone_code: Set(item.pantone_code.clone()),
                 grade_required: Set(None),
-                quantity_meters: Set(item.quantity),
-                quantity_kg: Set(Decimal::ZERO),
-                gram_weight: Set(None),
-                width: Set(None),
+                quantity_meters: Set(quantity_meters),
+                quantity_kg: Set(quantity_kg),
+                // 产品换算/计量元数据带入订单行（此前 Set(None) 丢失真实字段）
+                gram_weight: Set(product.gram_weight),
+                width: Set(product.width),
                 batch_requirement: Set(None),
                 dye_lot_requirement: Set(None),
                 base_price: Set(Some(item.unit_price)),
@@ -208,10 +255,121 @@ impl QuotationConvertService {
                 shipped_quantity_kg: Set(Decimal::ZERO),
                 paper_tube_weight: Set(None),
                 is_net_weight: Set(None),
+                // 报价实体无行级容差字段（已核 sales_quotation_item 全字段），无从带入；
+                // 订单行 NULL = 交付时按 delivery_tolerance 既有链路解析（品类 > 全局），
+                // 此处保持 NULL 不是吞值，而是「未显式指定」的既定语义。
+                quantity_tolerance_pct: Set(None),
             };
             new_item.insert(txn).await?;
         }
         Ok(())
+    }
+
+    /// 报价行交易单位 → 换算策略（对应 dual_unit_converter 的换算函数选择）。
+    ///
+    /// 词表依据：全仓无「单位→换算类别」权威枚举（models/status/** 仅状态词表；
+    /// quotation_ops::crud 明确约定报价单位逐字符等于产品主数据中文单位 token、
+    /// 不引入第二套字典/枚举），故此处只做「token → converter 函数选择」的分派匹配；
+    /// 换算系数与防御校验（负数/元数据 ≤0 拒绝）全部留在 utils::dual_unit_converter，
+    /// 本文件零自造系数、零静默兜底。token 集与 dual_unit_converter 各函数文档口径一致。
+    fn resolve_unit_conversion(unit: &str) -> Option<UnitStrategy> {
+        match unit.trim().to_lowercase().as_str() {
+            "米" | "公尺" | "m" | "meter" | "meters" => Some(UnitStrategy::Meters),
+            "码" | "yd" | "yard" | "yards" => Some(UnitStrategy::Yards),
+            "匹" | "piece" | "pieces" => Some(UnitStrategy::Pieces),
+            "卷" | "roll" | "rolls" => Some(UnitStrategy::Rolls),
+            "公斤" | "千克" | "kg" => Some(UnitStrategy::Kilograms),
+            _ => None,
+        }
+    }
+
+    /// 将 converter 的防御式 Err(String) 包装为带报价行上下文的 AppError（不吞错、不猜值）。
+    fn converter_err(item: &sales_quotation_item::Model, source: String) -> AppError {
+        AppError::validation(format!(
+            "报价单转订单失败（产品 {}，单位「{}」）：{}",
+            item.product_id, item.unit, source
+        ))
+    }
+
+    /// 按报价行单位与产品换算元数据，把交易量换算为订单行米/公斤双计量。
+    ///
+    /// - 米：quantity 即米数；码：`yards_to_meters`（米↔码率真源在 converter，1 米 = 1.0936 码）；
+    /// - 匹：`pieces_to_meters(× product.meters_per_piece)`；卷：`rolls_to_meters(× product.meters_per_roll)`；
+    /// - 公斤：quantity 即公斤数，米数走 `kg_to_meters(克重×幅宽)`；
+    /// - 米→公斤统一走 `meters_to_kg(gram_weight × width_cm ÷ 1000)`；
+    /// - 元数据缺失（克重/幅宽/每匹米数/每卷米数）或不支持单位（件/条/吨等）：
+    ///   明确 AppError 拒绝，绝不静默写 0 或猜测——与 converter 对 ≤0 入参直接 Err 的既有语义同源。
+    fn convert_item_quantity_to_dual_units(
+        item: &sales_quotation_item::Model,
+        product: &product::Model,
+    ) -> Result<(Decimal, Decimal), AppError> {
+        let qty = item.quantity;
+        let strategy = Self::resolve_unit_conversion(&item.unit).ok_or_else(|| {
+            AppError::business(format!(
+                "报价单转订单失败：产品 {} 的交易单位「{}」不在米/公斤可换算词表内（dual_unit_converter 无对应换算函数），不能猜测米/公斤数；请修正产品主数据交易单位后重试",
+                item.product_id, item.unit
+            ))
+        })?;
+
+        // 米↔公斤与米数→公斤数均强依赖克重×幅宽；缺失即明确报错（converter 对 ≤0 同样拒绝）
+        let kg_meta = || -> Result<(Decimal, Decimal), AppError> {
+            let gram_weight = product.gram_weight.ok_or_else(|| {
+                AppError::validation(format!(
+                    "报价单转订单失败：产品 {} 缺少克重(gram_weight)元数据，无法完成米↔公斤换算（拒绝以 0 兜底）",
+                    item.product_id
+                ))
+            })?;
+            let width = product.width.ok_or_else(|| {
+                AppError::validation(format!(
+                    "报价单转订单失败：产品 {} 缺少幅宽(width, cm)元数据，无法完成米↔公斤换算（拒绝以 0 兜底）",
+                    item.product_id
+                ))
+            })?;
+            Ok((gram_weight, width))
+        };
+        let meters_to_kg = |meters: Decimal| -> Result<Decimal, AppError> {
+            let (gram_weight, width) = kg_meta()?;
+            DualUnitConverter::meters_to_kg(meters, gram_weight, width)
+                .map_err(|e| Self::converter_err(item, e))
+        };
+
+        let (quantity_meters, quantity_kg) = match strategy {
+            UnitStrategy::Meters => (qty, meters_to_kg(qty)?),
+            UnitStrategy::Yards => {
+                let meters = DualUnitConverter::yards_to_meters(qty)
+                    .map_err(|e| Self::converter_err(item, e))?;
+                (meters, meters_to_kg(meters)?)
+            }
+            UnitStrategy::Pieces => {
+                let meters_per_piece = product.meters_per_piece.ok_or_else(|| {
+                    AppError::validation(format!(
+                        "报价单转订单失败：产品 {} 按「匹」计价但缺少每匹米数(meters_per_piece)换算元数据，无法换算米数（拒绝以 0 或猜测值兜底）",
+                        item.product_id
+                    ))
+                })?;
+                let meters = DualUnitConverter::pieces_to_meters(qty, meters_per_piece)
+                    .map_err(|e| Self::converter_err(item, e))?;
+                (meters, meters_to_kg(meters)?)
+            }
+            UnitStrategy::Rolls => {
+                let meters_per_roll = product.meters_per_roll.ok_or_else(|| {
+                    AppError::validation(format!(
+                        "报价单转订单失败：产品 {} 按「卷」计价但缺少每卷米数(meters_per_roll)换算元数据，无法换算米数（拒绝以 0 或猜测值兜底）",
+                        item.product_id
+                    ))
+                })?;
+                let meters = DualUnitConverter::rolls_to_meters(qty, meters_per_roll)
+                    .map_err(|e| Self::converter_err(item, e))?;
+                (meters, meters_to_kg(meters)?)
+            }
+            UnitStrategy::Kilograms => {
+                let (gram_weight, width) = kg_meta()?;
+                let meters = DualUnitConverter::kg_to_meters(qty, gram_weight, width)
+                    .map_err(|e| Self::converter_err(item, e))?;
+                (meters, qty)
+            }
+        };
+        Ok((quantity_meters, quantity_kg))
     }
 
     async fn update_quotation_to_converted<C>(

@@ -38,6 +38,7 @@ use crate::models::status::fabric_grade;
 use crate::models::status::fabric_inspection as inspection_status;
 use crate::models::status::fabric_scoring;
 use crate::models::status::inventory_piece as piece_status;
+use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::utils::error::AppError;
 
 // ============================================================================
@@ -654,7 +655,7 @@ impl FabricInspectionService {
             package_no: Default::default(),
             production_date: Default::default(),
             shelf_life: Default::default(),
-            quality_status: Set(Some("passed".to_string())),
+            quality_status: Set(Some(quality_status::PASS.to_string())),
             inventory_status: Set(Some("available".to_string())),
             created_by: Default::default(),
             updated_by: Default::default(),
@@ -687,12 +688,13 @@ impl FabricInspectionService {
         Ok(updated)
     }
 
-    /// 关闭归档（rolled → closed）
+    /// 关闭归档（graded | rolled → closed）
+    /// 业务场景：整批拒收/退关时无需打卷即可直接归档
     pub async fn close_inspection(&self, id: i32) -> Result<InspectionModel, AppError> {
         let model = self.get_by_id(id).await?;
-        if model.status != inspection_status::ROLLED {
+        if model.status != inspection_status::GRADED && model.status != inspection_status::ROLLED {
             return Err(AppError::business(format!(
-                "仅已打卷(rolled)状态可关闭归档，当前状态: {}",
+                "仅已评级(graded)或已打卷(rolled)状态可关闭归档，当前状态: {}",
                 model.status
             )));
         }

@@ -127,6 +127,52 @@ impl EventNotificationService {
         }
     }
 
+    /// 销售订单创建通知（草稿态）
+    pub async fn notify_order_created(
+        &self,
+        user_id: i32,
+        order_no: &str,
+        order_id: i32,
+    ) -> Result<(), AppError> {
+        let should_email = self
+            .setting_service
+            .should_send_email(user_id, "ORDER")
+            .await?;
+        let should_internal = self
+            .setting_service
+            .should_send_internal(user_id, "ORDER")
+            .await?;
+
+        if should_internal {
+            self.notification_service
+                .create_notification(CreateNotificationRequest {
+                    user_id,
+                    notification_type: NotificationType::Internal,
+                    title: "销售订单已创建".to_string(),
+                    content: format!("销售订单 {} 已创建，当前为草稿状态", order_no),
+                    priority: NotificationPriority::Normal,
+                    business_type: Some("ORDER".to_string()),
+                    business_id: Some(order_id),
+                    action_url: Some(format!("/sales/orders/{}", order_id)),
+                    sender_id: None,
+                    sender_name: Some("系统".to_string()),
+                    dedup_key: Some(format!("order_created:{}", order_id)),
+                })
+                .await?;
+        }
+
+        if should_email {
+            let html = format!(
+                "<h2>销售订单已创建</h2><p>销售订单 {} 已创建，当前为草稿状态</p>",
+                order_no
+            );
+            self.send_email_notification(user_id, "销售订单创建通知", html)
+                .await;
+        }
+
+        Ok(())
+    }
+
     /// 订单提交通知
     pub async fn notify_order_submitted(
         &self,

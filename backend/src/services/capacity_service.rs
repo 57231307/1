@@ -494,6 +494,9 @@ impl CapacityService {
             remarks: Set(input.remarks),
             created_at: Set(now),
             updated_at: Set(now),
+            // 调度异常自动重排开关：创建工作中心默认启用（true），与工作中心实体 default_value
+            // 及迁移列 DEFAULT TRUE 同源；显式 Set 使插入不依赖 DB 列默认值，避免非空 bool 列未落值。
+            auto_reschedule_enabled: Set(true),
             ..Default::default()
         };
 

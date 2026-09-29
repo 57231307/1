@@ -13,7 +13,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.fabricTotal') }}</div>
-            <div class="stat-value">{{ stats.fabricCount || 0 }}</div>
+            <div class="stat-value">{{ stats.total_products }}</div>
           </div>
         </div>
       </el-card>
@@ -26,7 +26,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.inventoryTotal') }}</div>
-            <div class="stat-value">{{ formatNumber(stats.inventoryTotal) }}</div>
+            <div class="stat-value">{{ formatNumber(stats.inventory_total) }}</div>
           </div>
         </div>
       </el-card>
@@ -39,7 +39,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.monthOrders') }}</div>
-            <div class="stat-value">{{ stats.monthOrders || 0 }}</div>
+            <div class="stat-value">{{ stats.total_orders }}</div>
           </div>
         </div>
       </el-card>
@@ -52,7 +52,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.customerTotal') }}</div>
-            <div class="stat-value">{{ stats.customerCount || 0 }}</div>
+            <div class="stat-value">{{ stats.customer_count ?? 0 }}</div>
           </div>
         </div>
       </el-card>
@@ -68,7 +68,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.todayOrders') }}</div>
-            <div class="stat-value">{{ stats.todayOrders || 0 }}</div>
+            <div class="stat-value">{{ stats.today_orders ?? 0 }}</div>
           </div>
         </div>
       </el-card>
@@ -81,7 +81,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.pendingOrders') }}</div>
-            <div class="stat-value">{{ stats.pendingOrders || 0 }}</div>
+            <div class="stat-value">{{ stats.pending_orders }}</div>
           </div>
         </div>
       </el-card>
@@ -94,7 +94,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.lowStockAlert') }}</div>
-            <div class="stat-value">{{ stats.lowStockProducts || 0 }}</div>
+            <div class="stat-value">{{ stats.low_stock_count }}</div>
           </div>
         </div>
       </el-card>
@@ -107,7 +107,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.monthSales') }}</div>
-            <div class="stat-value">{{ formatCurrency(stats.monthSales) }}</div>
+            <div class="stat-value">{{ formatCurrency(stats.monthly_sales) }}</div>
           </div>
         </div>
       </el-card>

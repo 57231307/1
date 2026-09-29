@@ -1,5 +1,11 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, trackPageHealth, assertPageHealthy } from './helpers';
+import {
+  loginViaUI,
+  trackPageHealth,
+  assertPageHealthy,
+  BROWSER_NETWORK_NOISE,
+  BASE_URL,
+} from './helpers';
 
 /**
  * P5.13 重复提示测试
@@ -14,17 +20,36 @@ test.describe('P5.13 重复提示', () => {
     await loginViaUI(page);
     const collector = trackPageHealth(page);
 
-    // 导航到一个有提交按钮的页面（客户管理）
-    await page.goto('/system/users').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-    await page.waitForLoadState('networkidle').catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
+    // 原实现 goto('/system/users') —— 该路由不存在（router 无 users 子路由，快照直接 404
+    // 「页面不存在」），后续找不到「新增」按钮。用户管理是 /system 页的「用户」Tab
+    // （views/system/index.vue：el-tab-pane name="user"，默认激活；UserTab 头部按钮
+    //  i18n system.user.button.create = 「新建用户」）。改为导航到 /system 并进入用户 Tab。
+    await page.goto(`${BASE_URL}/system`);
+    await page.waitForLoadState('networkidle');
+    const userTab = page.locator('.el-tabs__item:has-text("用户")').first();
+    await userTab.click();
+    await page.waitForTimeout(2000);
 
-    // 找一个提交按钮，快速连续点击
-    const submitBtn = page.locator('button[type="submit"], button:has-text("保存"), button:has-text("确认")').first();
-    if (await submitBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
-      // 快速连续点击 5 次
-      for (let i = 0; i < 5; i++) {
-        await submitBtn.click({ timeout: 1000 }).catch((e) => { console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`); });
-      }
+    // 原实现 `if (await submitBtn.isVisible()) { ...5 次点击... }`：列表页找不到提交按钮时
+    // 一次点击都不执行，toastCount=0 仍 ≤1 → 假绿。改为进入真实含提交按钮的表单弹窗
+    // （新增用户），对弹窗提交按钮连续点击；提交入口缺失即硬失败。
+    const createBtn = page.getByRole('button', { name: /新增|新建|添加/ }).first();
+    expect(
+      await createBtn.isVisible({ timeout: 5000 }),
+      '[P5.13] /system 用户 Tab 未渲染「新建用户」按钮，无法进入含提交按钮的表单弹窗'
+    ).toBe(true);
+    await createBtn.click();
+    const dialog = page.locator('.el-dialog:visible').first();
+    await dialog.waitFor({ state: 'visible', timeout: 10000 });
+    const submitBtn = dialog.getByRole('button', { name: /保存|确[认定]|提交/ }).last();
+    expect(
+      await submitBtn.isVisible({ timeout: 5000 }),
+      '[P5.13] 新增用户弹窗未渲染提交/保存按钮'
+    ).toBe(true);
+
+    // 快速连续点击 5 次（提交禁用/瞬时不可点时容错跳过该次点击）
+    for (let i = 0; i < 5; i++) {
+      await submitBtn.click({ timeout: 1000 }).catch(() => {});
     }
 
     // 等待 toast 出现
@@ -35,6 +60,6 @@ test.describe('P5.13 重复提示', () => {
     const toastCount = await page.locator('.el-message').count();
     expect(toastCount).toBeLessThanOrEqual(1);
 
-    await assertPageHealthy(page, collector, { allowConsoleWarn: true });
+    await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
   });
 });

@@ -233,6 +233,13 @@ fn bpm_definition_routes() -> Router<AppState> {
             "/bpm/templates",
             get(bpm_definition_handler::list_templates),
         )
+        // BPM 模板详情/删除（对应前端 api/bpm-enhanced.ts getBpmTemplateById / deleteBpmTemplate）
+        // 参数名与下方 {template_id}/create 保持一致，避免 matchit 同位置参数名冲突
+        .route(
+            "/bpm/templates/{template_id}",
+            get(bpm_definition_handler::get_template)
+                .delete(bpm_definition_handler::delete_template),
+        )
         .route(
             "/bpm/templates/{template_id}/create",
             post(bpm_definition_handler::create_from_template),
@@ -254,6 +261,14 @@ pub fn health() -> Router<AppState> {
         .route("/health", get(health_handler::health_check))
         .route("/health/readiness", get(health_handler::readiness_check))
         .route("/health/liveness", get(health_handler::liveness_check))
+}
+
+/// 单据号查重路由（/document-no/check：前端生成单据号后确认唯一性）
+pub fn document_no() -> Router<AppState> {
+    Router::new().route(
+        "/document-no/check",
+        get(crate::handlers::document_no_handler::check_doc_no),
+    )
 }
 
 /// 审计日志查询路由（/audit-logs：列表/详情/xlsx 导出/前端打印埋点/导出二次审计记录）
@@ -467,4 +482,5 @@ pub fn routes() -> Router<AppState> {
         .merge(ws())
         .merge(audit_logs())
         .merge(slow_queries())
+        .merge(document_no())
 }

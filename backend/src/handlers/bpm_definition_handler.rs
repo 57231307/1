@@ -6,7 +6,7 @@
 //! 字段映射说明：
 //! 后端 Model 字段（`code`/`name`/`config`）与前端 API 契约
 //!（`process_key`/`process_name`/`nodes`）不一致，handler 层负责转换。
-//! 前端 `PageResult.list` 对应后端 `PageResponse.data`，也在此处映射。
+//! 列表承载键与全仓统一分页信封 `PaginatedResponse` 一致，为 `items`。
 
 use crate::container::AppState;
 use crate::models::bpm_process_definition;
@@ -17,7 +17,7 @@ use crate::models::dto::bpm_dto::{
 use crate::services::bpm_service::BpmService;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -26,11 +26,18 @@ use serde_json::{Value, json};
 
 /// 将 Model 转换为前端期望的 JSON 格式；字段映射： - `code` → `process_key` - `name` →
 /// `process_name` - `config` → 保留原字段，同时提取 `config.nodes` 为顶层 `nodes`
+/// 同时原样承载实体真源键 `code`/`name`（响应键名以实体为准），供按实体字段取数的消费方使用。
 fn model_to_frontend_json(model: bpm_process_definition::Model) -> Value {
     let config = model.config.clone();
     let nodes = config.as_ref().and_then(|c| c.get("nodes")).cloned();
     json!({
         "id": model.id,
+        // 实体真源字段键（`code`/`name`）：响应键名以实体为准，消费方（e2e 幂等守卫
+        // 读 `d.code` 判存在、按实体字段取数）依赖此键。缺它会使 GET /bpm/definitions
+        // 列表项无 `code`，守卫恒 false → 反复 POST 撞"流程编码已存在"校验报 4xx。
+        "code": model.code,
+        "name": model.name,
+        // 前端 api/bpm-enhanced.ts ProcessDefinition 契约的映射别名（同值，向后兼容保留）
         "process_key": model.code,
         "process_name": model.name,
         "description": model.description,
@@ -44,21 +51,19 @@ fn model_to_frontend_json(model: bpm_process_definition::Model) -> Value {
     })
 }
 
-/// 将 PageResponse 转换为前端期望的分页格式（`data` → `list`）
-fn page_to_frontend_json(
-    page_resp: crate::models::dto::PageResponse<bpm_process_definition::Model>,
-) -> Value {
-    let list: Vec<Value> = page_resp
-        .data
+/// 将 PaginatedResponse 转换为前端期望的分页格式：逐条经 `model_to_frontend_json`
+/// 映射字段，列表承载键与统一分页信封一致为 `items`（total/page/page_size 原样透传）
+fn page_to_frontend_json(page_resp: PaginatedResponse<bpm_process_definition::Model>) -> Value {
+    let items: Vec<Value> = page_resp
+        .items
         .into_iter()
         .map(model_to_frontend_json)
         .collect();
     json!({
-        "list": list,
+        "items": items,
         "total": page_resp.total,
         "page": page_resp.page,
         "page_size": page_resp.page_size,
-        "total_pages": page_resp.total_pages,
     })
 }
 
@@ -206,4 +211,46 @@ pub async fn create_from_template(
     let service = BpmService::new(state.db.clone());
     let res = service.create_from_template(template_id, req).await?;
     Ok(Json(ApiResponse::success(model_to_frontend_json(res))))
+}
+
+/// 模板分类标记（与 bpm_process_definition_service 的 TEMPLATE_CATEGORY 常量保持一致）
+const BPM_TEMPLATE_CATEGORY: &str = "__TEMPLATE__";
+
+/// GET /bpm/templates/{template_id} - 获取 BPM 模板详情
+/// （对应前端 api/bpm-enhanced.ts getBpmTemplateById；仅返回 category=__TEMPLATE__ 的记录）
+pub async fn get_template(
+    State(state): State<AppState>,
+    Path(template_id): Path<i32>,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let res = service.get_process_definition(template_id).await?;
+    match res {
+        Some(model) if model.category.as_deref() == Some(BPM_TEMPLATE_CATEGORY) => {
+            Ok(Json(ApiResponse::success(model_to_frontend_json(model))))
+        }
+        _ => Err(AppError::not_found(format!(
+            "流程模板不存在: {}",
+            template_id
+        ))),
+    }
+}
+
+/// DELETE /bpm/templates/{template_id} - 删除 BPM 模板
+/// （对应前端 api/bpm-enhanced.ts deleteBpmTemplate；校验记录为模板后复用流程定义删除逻辑）
+pub async fn delete_template(
+    State(state): State<AppState>,
+    Path(template_id): Path<i32>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let res = service.get_process_definition(template_id).await?;
+    match res {
+        Some(model) if model.category.as_deref() == Some(BPM_TEMPLATE_CATEGORY) => {
+            service.delete_process_definition(template_id).await?;
+            Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
+        }
+        _ => Err(AppError::not_found(format!(
+            "流程模板不存在: {}",
+            template_id
+        ))),
+    }
 }

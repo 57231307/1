@@ -27,7 +27,7 @@
 
       <el-descriptions :column="2" border style="margin-top: 24px">
         <el-descriptions-item :label="t('quotations.approval.labelCustomer')">
-          {{ quotation.customer_name || quotation.customer_id }}
+          {{ quotation.customer_name }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('quotations.approval.labelAmount')">
           {{ quotation.currency }} {{ formatAmount(quotation.total_amount) }}
@@ -46,7 +46,7 @@
           {{ quotation.valid_until }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('quotations.approval.labelApprover')" :span="2">
-          {{ quotation.approved_by_name || quotation.approved_by || '-' }}
+          {{ quotation.approved_by_name }}
           <span v-if="quotation.approved_at" class="meta-text">
             ({{ quotation.approved_at }})
           </span>

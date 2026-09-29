@@ -52,7 +52,7 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/color-cards/issues?page=1&page_size=1'
-    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
+    );
     const issueId = issues.items?.[0]?.id;
     if (issueId) {
       await apiCallRaw(page, 'GET', `/color-cards/issues/${issueId}`);
@@ -71,13 +71,16 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/color-prices?page=1&page_size=1'
-    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
+    );
     const priceId = list.items?.[0]?.id;
     if (priceId) {
       await apiCallRaw(page, 'GET', `/color-prices/${priceId}`);
       await verifyEndpointHealthy(page, `/color-prices/${priceId}/history`);
       await verifyEndpointHealthy(page, `/color-prices/tiers/${priceId}`);
-      await safePostAction(page, `/color-prices/${priceId}/approve`);
+      // approve 需携带 ApproveColorPriceDto（color_price_dto.rs:102）：decision 必填，
+      // 取值须为 APPROVED/REJECTED（batch_service.rs:210-219 权威 token）。
+      // 空体 → 后端 serde 422 missing field decision，属正当拒绝，不放宽。
+      await safePostAction(page, `/color-prices/${priceId}/approve`, { decision: 'APPROVED' });
     }
     await verifyEndpointHealthy(page, '/color-prices/calculate?product_id=1&quantity=100');
   });
@@ -94,17 +97,13 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     const searchInput = page
       .locator('input[placeholder*="卡号"], input[placeholder*="卡名"]')
       .first();
-    await searchInput
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const searchVisible = await searchInput.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await searchInput.waitFor({ state: 'visible', timeout: 5000 });
+    const searchVisible = await searchInput.isVisible();
     if (searchVisible) {
       await searchInput.fill('测试');
       const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn
-        .waitFor({ state: 'visible', timeout: 3000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const btnVisible = await queryBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await queryBtn.waitFor({ state: 'visible', timeout: 3000 });
+      const btnVisible = await queryBtn.isVisible();
       if (btnVisible) {
         await queryBtn.click();
         await page.waitForTimeout(2000);
@@ -114,17 +113,14 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
           '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
         )
         .first()
-        .isVisible()
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        .isVisible();
       expect(tableOk).toBe(true);
       await searchInput.clear();
     }
     // 验证新建色卡按钮
     const newBtn = page.locator('button:has-text("新建色卡")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(2000);
@@ -139,10 +135,8 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     await page.waitForTimeout(3000);
     // 验证表单存在
     const form = page.locator('.el-form, .el-card').first();
-    await form
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const formVisible = await form.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await form.waitFor({ state: 'visible', timeout: 15_000 });
+    const formVisible = await form.isVisible();
     expect(formVisible).toBe(true);
     // 验证有卡号、卡名、类型输入字段
     const inputs = page.locator('.el-input input, .el-select');
@@ -159,10 +153,8 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 验证新建价格按钮
     const newBtn = page.locator('button:has-text("新建价格")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(2000);
@@ -176,29 +168,23 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
     await page.waitForTimeout(3000);
     // isVisible 立即返回，组件异步挂载可能尚未渲染 → 改用 waitFor 等待可见
     const container = page.locator('.el-card, .el-form, .el-table, .el-empty, body').first();
-    await container
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const visible = await container.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await container.waitFor({ state: 'visible', timeout: 15_000 });
+    const visible = await container.isVisible();
     expect(visible).toBe(true);
   });
 
   test('色卡借出记录 UI 页面', async ({ page }) => {
     await page.goto(`${BASE_URL}/color-cards/issues`);
-    await page.waitForTimeout(3000);
-    const table = page
-      .locator(
-        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
-      )
-      .first();
-    await table
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const tableVisible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-    if (tableVisible) {
-      const headers = table.locator('th, .el-table-v2__header-cell');
-      const headerCount = await headers.count();
-      expect(headerCount).toBeGreaterThan(0);
-    }
+    // 页面 el-tabs 默认 activeTab='issue'（发放表单，views/color-cards/issues.vue:385），
+    // "发放中"（:94-177）与"历史"（:180+）两张 el-table 在未激活的 pane 里（display:none），
+    // 不切 tab 直接等表格必然拿到 hidden/超时。先真实点击"发放中"tab，再断该 pane 内真实列。
+    await page.getByRole('tab', { name: /发放中/ }).click();
+    const table = page.locator('.el-table:visible').first();
+    await expect(table, '切到"发放中"tab 后应见其表格').toBeVisible({ timeout: 15_000 });
+    // 真实表头列（对照 colorCards.issue.activeTable.*）
+    const headers = await table.locator('th').allTextContents();
+    console.log(`[E2E][23] 色卡借出记录(发放中)表头=${JSON.stringify(headers)}`);
+    expect(headers.length, '发放中表格应渲染出表头').toBeGreaterThan(0);
+    expect(headers.join('|'), '发放中表格应含"发放数量"列').toContain('发放数量');
   });
 });

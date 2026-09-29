@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
 
 export interface PrintTemplate {
   id: number;
@@ -21,8 +21,9 @@ export interface PrintTemplate {
   updated_at: string;
 }
 
-export function getPrintTemplateList(params?: QueryParams): Promise<ApiResponse<PrintTemplate[]>> {
-  return request.get('/print-templates', { params });
+// 后端 print_handler::list_print_templates 无 Query<T> 提取器，传了也会被忽略 -> 不再声明参数
+export function getPrintTemplateList(): Promise<ApiResponse<PrintTemplate[]>> {
+  return request.get('/print-templates');
 }
 
 export function getPrintTemplate(id: number): Promise<ApiResponse<PrintTemplate>> {

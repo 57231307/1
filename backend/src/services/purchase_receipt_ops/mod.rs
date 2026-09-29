@@ -6,7 +6,7 @@
 //!
 //! `PurchaseReceiptService` struct 定义 + `new` 构造器 + 单号生成宏
 //! (`impl_generate_no!` generate_receipt_no) + 纯函数（build_receipt_active_model /
-//! build_receipt_items_and_totals / build_confirmed_receipt_active_model）
+//! build_receipt_items_and_totals / build_completed_receipt_active_model）
 //! + 单元测试保留在 facade `purchase_receipt_service` 中。
 //! `db` 字段声明为 `pub(crate)` 供本子模块访问。
 //!

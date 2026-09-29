@@ -1,72 +1,50 @@
 /**
  * piFmts.ts - 采购验货格式化工具
  * 任务编号: P14 批 2 I-3 第 5 批（拆分原 purchase-inspection/index.vue）
- * 包含状态/结果的类型与文本映射
- * 行为完全保持一致（仅结构重构）
+ *
+ * 状态词表/配色/文案键统一出自 utils/purchase-inspection-status（与后端
+ * models/status/purchase_inventory.rs 的 purchase_inspection 原值 pending/completed 逐字一致）。
+ * 检验结果（inspection_result）后端为自由文本、无状态词表，故不走 normalize，仅映射已知取值到
+ * i18n 文案与配色，未映射值回显其本身（展示真实入库值，非掩盖缺键）。
  */
+import { i18n } from '@/i18n';
+import {
+  purchaseInspectionStatusLabelKey,
+  purchaseInspectionStatusTagType,
+  type PurchaseInspectionTagType,
+} from '@/utils/purchase-inspection-status';
 
-/**
- * 检验单状态到 el-tag 类型
- */
-export const STATUS_TYPE_MAP: Record<string, string> = {
-  draft: 'info',
-  pending: 'warning',
-  completed: 'success',
-  rejected: 'danger',
-};
+/** 检验单状态 → el-tag 配色 */
+export function getStatusType(status: string | null | undefined): PurchaseInspectionTagType {
+  return purchaseInspectionStatusTagType(status);
+}
 
-/**
- * 检验单状态到中文标签
- */
-export const STATUS_TEXT_MAP: Record<string, string> = {
-  draft: '草稿',
-  pending: '待检验',
-  completed: '已完成',
-  rejected: '已拒绝',
-};
+/** 检验单状态 → 显示文案（i18n，键名即后端原值；缺失渲染中性占位，非空非法值抛错并记日志） */
+export function getStatusText(status: string | null | undefined): string {
+  return i18n.global.t(purchaseInspectionStatusLabelKey(status));
+}
 
-/**
- * 检验结果到 el-tag 类型
- */
-export const RESULT_TYPE_MAP: Record<string, string> = {
+/** 检验结果 → el-tag 配色 */
+const RESULT_TYPE_MAP: Record<string, PurchaseInspectionTagType> = {
   pass: 'success',
   fail: 'danger',
   partial: 'warning',
 };
 
-/**
- * 检验结果到中文标签
- */
-export const RESULT_TEXT_MAP: Record<string, string> = {
-  pass: '合格',
-  fail: '不合格',
-  partial: '部分合格',
+/** 检验结果 → i18n 文案键 */
+const RESULT_LABEL_KEY_MAP: Record<string, string> = {
+  pass: 'purchaseInspection.filter.result.pass',
+  fail: 'purchaseInspection.filter.result.fail',
+  partial: 'purchaseInspection.filter.result.partial',
 };
 
-/**
- * 获取状态类型
- */
-export function getStatusType(status: string): string {
-  return STATUS_TYPE_MAP[status] || 'info';
+/** 检验结果 → el-tag 配色 */
+export function getResultType(result: string | null | undefined): PurchaseInspectionTagType {
+  return RESULT_TYPE_MAP[result ?? ''] ?? 'info';
 }
 
-/**
- * 获取状态文本
- */
-export function getStatusText(status: string): string {
-  return STATUS_TEXT_MAP[status] || status;
-}
-
-/**
- * 获取结果类型
- */
-export function getResultType(result: string): string {
-  return RESULT_TYPE_MAP[result] || 'info';
-}
-
-/**
- * 获取结果文本
- */
-export function getResultText(result: string): string {
-  return RESULT_TEXT_MAP[result] || result;
+/** 检验结果 → 显示文案（已知取值走 i18n，未知回显入库原值） */
+export function getResultText(result: string | null | undefined): string {
+  const key = RESULT_LABEL_KEY_MAP[result ?? ''];
+  return key ? i18n.global.t(key) : (result ?? '');
 }

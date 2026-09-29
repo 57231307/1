@@ -19,7 +19,7 @@
       :aria-label="$t('bpm.approval.approvalDialog.formAriaLabel')"
     >
       <el-form-item :label="$t('bpm.approval.approvalDialog.taskName')">
-        <span>{{ currentTask?.task_name }}</span>
+        <span>{{ currentTask?.node_name }}</span>
       </el-form-item>
       <el-form-item :label="$t('bpm.approval.approvalDialog.comment')">
         <el-input

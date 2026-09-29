@@ -76,9 +76,10 @@ export const getSchedulingGanttData = (params?: {
   work_center_ids?: number[];
 }) => request.get<ApiResponse<GanttData>>('/scheduling/gantt', { params });
 
-// D14 Batch 5b：原 schedulingApi.detectConflicts 转为风格 B 函数
-export const detectSchedulingConflicts = (params?: { start_date?: string; end_date?: string }) =>
-  request.get<ApiResponse<ConflictItem[]>>('/scheduling/conflicts', { params });
+// 后端 scheduling_handler::detect_conflicts 无 Query<T> 提取器，start_date/end_date 会被 Axum 丢弃，
+// 故不再发送 params。
+export const detectSchedulingConflicts = () =>
+  request.get<ApiResponse<ConflictItem[]>>('/scheduling/conflicts');
 
 // D14 Batch 5b：原 schedulingApi.adjustTask 转为风格 B 函数
 export const adjustSchedulingTask = (

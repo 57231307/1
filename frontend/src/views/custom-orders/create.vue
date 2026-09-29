@@ -46,8 +46,18 @@
         <el-form-item :label="t('customOrders.create.labelSpec')" prop="spec">
           <el-input v-model="form.spec" :placeholder="t('customOrders.create.placeholderSpec')" />
         </el-form-item>
-        <el-form-item :label="t('customOrders.create.labelQuantity')" prop="quantity">
-          <el-input-number v-model="form.quantity" :min="0.01" :precision="2" :step="1" />
+        <el-form-item
+          :label="t('customOrders.create.labelQuantity')"
+          prop="quantity"
+          for="co-create-quantity"
+        >
+          <el-input-number
+            id="co-create-quantity"
+            v-model="form.quantity"
+            :min="0.01"
+            :precision="2"
+            :step="1"
+          />
           <el-select v-model="form.unit" style="width: 100px; margin-left: 8px">
             <el-option :label="t('customOrders.create.unitMeter')" value="m" />
             <el-option :label="t('customOrders.create.unitKilogram')" value="kg" />
@@ -95,8 +105,17 @@
             :placeholder="t('customOrders.create.placeholderExpectedDelivery')"
           />
         </el-form-item>
-        <el-form-item :label="t('customOrders.create.labelTotalAmount')">
-          <el-input-number v-model="form.total_amount" :min="0" :precision="2" :step="100" />
+        <el-form-item
+          :label="t('customOrders.create.labelTotalAmount')"
+          for="co-create-total-amount"
+        >
+          <el-input-number
+            id="co-create-total-amount"
+            v-model="form.total_amount"
+            :min="0"
+            :precision="2"
+            :step="100"
+          />
           <el-select v-model="form.currency" style="width: 100px; margin-left: 8px">
             <el-option label="CNY" value="CNY" />
             <el-option label="USD" value="USD" />

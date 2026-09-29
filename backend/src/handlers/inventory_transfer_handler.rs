@@ -15,7 +15,7 @@ use crate::services::inv::{
 };
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -42,13 +42,16 @@ pub async fn list_transfers(
     auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<InventoryTransferQuery>,
-) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
 
     let page_req = PageRequest {
         page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         page_size: query.page_size.unwrap_or(10).clamp(1, 100),
     };
+    // PageRequest 不是 Copy，list_transfers 会拿走它 ⇒ 之后再读 page_req 是 use-after-move，
+    // 故先把分页两值取出，用于回传给前端分页条。
+    let (page, page_size) = (page_req.page, page_req.page_size);
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
 
@@ -71,7 +74,13 @@ pub async fn list_transfers(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(Json(ApiResponse::success(transfers_json)))
+    // 透传 service 已算出的总数，分页条据此渲染（原实现丢弃 total 致前端分页失效）
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        transfers_json,
+        transfers.total,
+        page,
+        page_size,
+    ))))
 }
 
 /// 获取库存调拨详情

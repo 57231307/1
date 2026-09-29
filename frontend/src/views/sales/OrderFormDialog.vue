@@ -76,9 +76,9 @@
           style="width: 50%"
         />
       </el-form-item>
-      <el-form-item :label="t('sales.orderForm.deliveryAddress')" prop="delivery_address">
+      <el-form-item :label="t('sales.orderForm.deliveryAddress')" prop="shipping_address">
         <el-input
-          v-model="localData.delivery_address"
+          v-model="localData.shipping_address"
           type="textarea"
           :rows="2"
           :placeholder="t('sales.orderForm.deliveryAddressPlaceholder')"
@@ -105,6 +105,25 @@
                   :key="p.id"
                   :label="p.product_name"
                   :value="p.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('sales.orderForm.colorNo')" width="160">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.color_no"
+                clearable
+                filterable
+                :disabled="!row.product_id"
+                :placeholder="t('sales.orderForm.colorNoPlaceholder')"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="c in colorOptionsByProduct[row.product_id] || []"
+                  :key="c.id"
+                  :label="c.color_name ? `${c.color_no} · ${c.color_name}` : c.color_no"
+                  :value="c.color_no"
                 />
               </el-select>
             </template>
@@ -136,6 +155,19 @@
               <span class="amount">¥{{ (row.subtotal || 0).toLocaleString() }}</span>
             </template>
           </el-table-column>
+          <el-table-column :label="t('sales.orderForm.tolerance')" width="140">
+            <template #default="{ row }">
+              <el-input-number
+                v-model="row.quantity_tolerance_pct"
+                :min="0"
+                :max="100"
+                :precision="2"
+                size="small"
+                :placeholder="t('sales.orderForm.tolerancePlaceholder')"
+                style="width: 100%"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="t('sales.orderForm.operation')" width="80">
             <template #default="{ $index }">
               <el-button type="danger" link size="small" @click="removeItem($index)">{{
@@ -152,7 +184,7 @@
       <el-divider content-position="left">{{ t('sales.orderForm.otherInfo') }}</el-divider>
       <el-form-item :label="t('sales.orderForm.remark')">
         <el-input
-          v-model="localData.remark"
+          v-model="localData.notes"
           type="textarea"
           :rows="3"
           :placeholder="t('sales.orderForm.remarkPlaceholder')"
@@ -197,7 +229,9 @@ import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { Customer } from '@/api/customer';
-import type { Product } from '@/api/product';
+import { getProductColorList, type Product } from '@/api/product';
+import type { ProductColor } from '@/api/product';
+import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -206,10 +240,14 @@ interface OrderItemForm {
   product_id: number | undefined;
   product_name: string;
   product_code: string;
+  /** 色号：空串=白坯布（合法），非空=染色布；下拉选项来自该行产品的色号列表 */
+  color_no: string;
   quantity: number;
   unit: string;
   unit_price: number;
   subtotal: number;
+  /** 交货容差百分比（undefined=未填，提交时转为 null） */
+  quantity_tolerance_pct: number | undefined;
 }
 
 interface OrderForm {
@@ -220,8 +258,8 @@ interface OrderForm {
   required_date: string;
   contact_person: string;
   contact_phone: string;
-  delivery_address: string;
-  remark: string;
+  shipping_address: string;
+  notes: string;
   items: OrderItemForm[];
   total_amount?: number;
 }
@@ -252,8 +290,8 @@ const localData = reactive<OrderForm>({
   required_date: '',
   contact_person: '',
   contact_phone: '',
-  delivery_address: '',
-  remark: '',
+  shipping_address: '',
+  notes: '',
   items: [],
   total_amount: 0,
 });
@@ -264,6 +302,15 @@ watch(
     Object.assign(localData, deepClone(newData));
   },
   { deep: true, immediate: true }
+);
+
+// 编辑回显：对话框打开时按各行已选产品预加载色号选项，使已存 color_no 命中下拉项正常显示
+watch(
+  () => props.visible,
+  visible => {
+    if (!visible) return;
+    props.formData.items.forEach(item => ensureColorOptions(item.product_id));
+  }
 );
 
 const formRules = computed<FormRules>(() => ({
@@ -287,7 +334,7 @@ const formRules = computed<FormRules>(() => ({
       trigger: 'blur',
     },
   ],
-  delivery_address: [
+  shipping_address: [
     { required: true, message: t('sales.orderForm.deliveryAddressRequired'), trigger: 'blur' },
   ],
 }));
@@ -299,14 +346,32 @@ const handleCustomerChange = (customerId: number) => {
   }
 };
 
-const handleProductSelect = (index: number, _v: number) => {
-  const product = props.products.find(p => p.id === localData.items[index].product_id);
-  if (product) {
-    localData.items[index].product_name = product.product_name;
-    localData.items[index].product_code = product.product_code;
-    localData.items[index].unit_price = product.price || 0;
-    calculateSubtotal(localData.items[index]);
+/** 色号下拉选项缓存：key=product_id，来源为后端该产品色号列表 GET /products/{id}/colors */
+const colorOptionsByProduct = reactive<Record<number, ProductColor[]>>({});
+
+/** 按产品加载色号选项，已加载则复用；失败经 logger 暴露后不再重复请求 */
+const ensureColorOptions = async (productId: number | undefined) => {
+  if (!productId || colorOptionsByProduct[productId]) return;
+  try {
+    const res = await getProductColorList(productId);
+    colorOptionsByProduct[productId] = res.data ?? [];
+  } catch (error) {
+    logger.error(t('sales.orderForm.colorLoadFailed'), error);
   }
+};
+
+const handleProductSelect = async (index: number, productId: number) => {
+  const row = localData.items[index];
+  // 换产品清空按旧产品选定的色号，避免残留不属于新产品的色号
+  row.color_no = '';
+  const product = props.products.find(p => p.id === productId);
+  if (product) {
+    row.product_name = product.product_name;
+    row.product_code = product.product_code;
+    row.unit_price = product.price || 0;
+    calculateSubtotal(row);
+  }
+  await ensureColorOptions(row.product_id);
 };
 
 const calculateSubtotal = (item: OrderItemForm) => {
@@ -323,10 +388,12 @@ const addItem = () => {
     product_id: undefined,
     product_name: '',
     product_code: '',
+    color_no: '',
     quantity: 1,
     unit: t('sales.orderForm.defaultUnit'),
     unit_price: 0,
     subtotal: 0,
+    quantity_tolerance_pct: undefined,
   });
 };
 

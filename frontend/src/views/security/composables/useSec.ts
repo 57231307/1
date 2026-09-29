@@ -29,6 +29,7 @@ export const useSec = () => {
     refresh: getLoginLogs,
   } = useTableApi<LoginLog>({
     url: '/login-logs',
+    listKey: 'list',
     defaultParams: { username: '', status: '', date_range: [] as string[] },
     onError: (err: unknown) => logger.error('获取登录日志失败:', err),
   });

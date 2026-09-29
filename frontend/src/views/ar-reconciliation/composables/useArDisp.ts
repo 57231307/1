@@ -48,8 +48,9 @@ export function useArDisp(loadData: () => Promise<void>) {
         page: 1,
         page_size: 10,
       });
-      disputes.value = res.data?.list || [];
-      disputesTotal.value = res.data?.total || 0;
+      // 后端 list_disputes 以 json!({"list","total",...}) 承载，显式读取 list
+      disputes.value = res.data.list;
+      disputesTotal.value = res.data.total;
     } catch {
       logger.warn(t('arReconciliationModule.loadDisputesFailed'));
     }

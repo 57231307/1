@@ -52,7 +52,7 @@ const { t } = useI18n({ useScope: 'global' });
 const props = defineProps<{
   status: QuotationStatus | string;
   approvedAt?: string;
-  approvedByName?: string;
+  approvedByName?: string | null;
   rejectionReason?: string;
   convertedAt?: string;
   convertedOrderId?: number;

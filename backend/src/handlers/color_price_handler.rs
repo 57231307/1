@@ -158,7 +158,7 @@ pub async fn create_color_price(
     State(state): State<AppState>,
     Json(dto): Json<CreateColorPriceDto>,
 ) -> Result<Json<ApiResponse<ColorPriceDetail>>, AppError> {
-    let user_id = auth.user_id as i64;
+    let user_id = auth.user_id;
     let service = ColorPriceCrudService::from_state(&state);
 
     let created = service.create(dto, user_id).await.map_err(crud_err)?;
@@ -212,7 +212,7 @@ pub async fn batch_adjust_color_prices(
     State(state): State<AppState>,
     Json(dto): Json<BatchAdjustPriceDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let user_id = auth.user_id as i64;
+    let user_id = auth.user_id;
     let service = ColorPriceBatchService::from_state(&state);
 
     let result = service
@@ -233,7 +233,7 @@ pub async fn approve_color_price(
     Path(id): Path<i64>,
     Json(dto): Json<ApproveColorPriceDto>,
 ) -> Result<Json<ApiResponse<ColorPriceDetail>>, AppError> {
-    let user_id = auth.user_id as i64;
+    let user_id = auth.user_id;
     let service = ColorPriceBatchService::from_state(&state);
 
     let m = service.approve(id, user_id, dto).await.map_err(batch_err)?;

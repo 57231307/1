@@ -14,4 +14,7 @@ pub mod completion;
 pub mod crud;
 pub mod types;
 
-pub use types::{CreateProductionOrderRequest, ProductionOrderQuery, UpdateProductionOrderRequest};
+pub use types::{
+    CreateProductionOrderRequest, ProductionOrderDto, ProductionOrderQuery,
+    UpdateProductionOrderRequest,
+};

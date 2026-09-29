@@ -24,6 +24,10 @@ pub struct Model {
     pub paid_amount: Decimal,
     pub balance_amount: Decimal,
     pub shipping_address: Option<String>,
+    /// 收货联系人快照（下单时从客户档案带出，可编辑）
+    pub contact_person: Option<String>,
+    /// 收货联系电话快照
+    pub contact_phone: Option<String>,
     pub billing_address: Option<String>,
     pub notes: Option<String>,
     pub batch_no: Option<String>,

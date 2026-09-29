@@ -8,9 +8,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
-};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::Deserialize;
 
 use crate::container::AppState;
@@ -172,24 +170,14 @@ pub async fn get_recipe_versions(
     Ok(Json(ApiResponse::success(recipes)))
 }
 
-/// POST /api/v1/erp/dye-recipes/:id/submit - 提交配方审核；当前实现为轻量提交动作（仅刷新 updated_at + 标记
-/// approved_by=-1 占位）， 状态保持草稿不变。批次 423B 化验室打样流程贯通时将重设计状态机， 引入"待审核"中间态，由 service 层提供 submit 方法。
+/// POST /api/v1/erp/dye-recipes/:id/submit - 提交配方审核；批次 423B 状态机贯通：DRAFT → PENDING_APPROVAL，
+/// 化验室主管在待审核态执行审批（DRAFT 态仍保留直审兼容路径）。
 pub async fn submit_dye_recipe(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let recipe = service(&state).get_by_id(id).await?;
-    // 校验：仅草稿状态可提交
-    DyeRecipeService::validate_can_approve(recipe.status.as_deref())?;
-
-    // 当前仅记录提交动作占位，不修改状态（保留向后兼容）
-    // TODO(批次 423B)：引入"待审核"中间态，submit 改为 DRAFT → PENDING_APPROVAL 状态转换
-    let mut active: dye_recipe::ActiveModel = recipe.into();
-    active.approved_by = Set(Some(-1));
-    active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-
-    let updated = active.update(&*state.db).await?;
+    let updated = service(&state).submit(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "配方已提交审核",

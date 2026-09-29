@@ -1,10 +1,15 @@
 use crate::models::quality_inspection;
 use crate::models::quality_inspection_record;
+use crate::models::status::purchase_inventory::{
+    inventory_stock_grade, purchase_receipt_inspection,
+};
 use crate::models::unqualified_product;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::models::status::quality_dyeing::quality_handling;
+use crate::models::status::quality_dyeing::quality_inspection_result;
 use crate::utils::error::AppError;
+use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -44,8 +49,8 @@ pub const HANDLING_SCRAP: &str = "scrap"; // C 级报废
 // P1 batch-18 缺陷 5.1：B 级降级销售价格联动常量
 // 业务规则：B 级（让步接收）降级销售时，按 A 级标准价的 80% 自动生成二等品销售价
 // 依据：面料行业惯例，B 级让步接收品售价为 A 级的 70%-85%，取中位数 80%
-pub const DOWNGRADE_PRICE_LEVEL_B: &str = "二等品"; // 对应库存 grade 字段值
-pub const STANDARD_PRICE_LEVEL_A: &str = "一等品"; // 标准品价格 level 标记
+pub const DOWNGRADE_PRICE_LEVEL_B: &str = inventory_stock_grade::SECOND;
+pub const STANDARD_PRICE_LEVEL_A: &str = inventory_stock_grade::FIRST;
 /// B 级降级销售价折扣因子（标准价的 80%）
 pub fn downgrade_price_factor() -> Decimal {
     Decimal::new(8, 1) // 0.8
@@ -109,6 +114,21 @@ pub fn validate_handling_method_by_grade(
 pub struct QualityInspectionQueryParams {
     pub inspection_type: Option<String>,
     pub status: Option<String>,
+    pub page: i64,
+    pub page_size: i64,
+}
+
+/// 检验记录列表的查询条件
+///
+/// 此前记录列表复用 [`QualityInspectionQueryParams`]，把 `inspection_result` 塞进名为
+/// `inspection_type` 的字段里再去过滤 InspectionResult 列（同一结构还被标准/不合格品两个
+/// 列表使用），命名与语义错位；并且 `product_id`、`batch_number` 收进 handler 后从未参与查询。
+#[derive(Debug, Clone, Default)]
+pub struct RecordListParams {
+    pub inspection_type: Option<String>,
+    pub inspection_result: Option<String>,
+    pub product_id: Option<i32>,
+    pub batch_no: Option<String>,
     pub page: i64,
     pub page_size: i64,
 }
@@ -250,13 +270,25 @@ impl QualityInspectionService {
 
     pub async fn get_records_list(
         &self,
-        params: QualityInspectionQueryParams,
+        params: RecordListParams,
     ) -> Result<(Vec<quality_inspection_record::Model>, u64), AppError> {
         let mut query = quality_inspection_record::Entity::find();
 
-        if let Some(inspection_result) = &params.inspection_type {
+        if let Some(inspection_type) = &params.inspection_type {
+            query =
+                query.filter(quality_inspection_record::Column::InspectionType.eq(inspection_type));
+        }
+        if let Some(inspection_result) = &params.inspection_result {
             query = query
                 .filter(quality_inspection_record::Column::InspectionResult.eq(inspection_result));
+        }
+        if let Some(product_id) = params.product_id {
+            query = query.filter(quality_inspection_record::Column::ProductId.eq(product_id));
+        }
+        // 批号按片段模糊匹配（用户输入的是缸号/批次号的一部分），并转义 LIKE 通配符
+        if let Some(batch_no) = &params.batch_no {
+            let pattern = safe_like_pattern(batch_no);
+            query = query.filter(quality_inspection_record::Column::BatchNo.like(&pattern));
         }
 
         let total = query.clone().count(&*self.db).await?;
@@ -368,22 +400,48 @@ impl QualityInspectionService {
         }
         let receipt_id = match result.related_id {
             Some(id) => id,
-            None => return Ok(()),
+            None => {
+                return Err(AppError::validation(format!(
+                    "质检记录 {} 声明关联入库单（related_type=PURCHASE_RECEIPT）却没有 related_id，\
+                     无法回写检验状态",
+                    result.inspection_no
+                )));
+            }
         };
         let receipt = crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
             .one(txn)
             .await?;
-        if let Some(r) = receipt {
-            let mut receipt_active: crate::models::purchase_receipt::ActiveModel = r.into();
-            receipt_active.inspection_status = Set(result.inspection_result.clone());
-            // P1 1-1 修复：原 Some(0) 占位符改为真实操作人 user_id
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                txn,
-                "auto_audit",
-                receipt_active,
-                Some(user_id),
-            )
-            .await?;
+        // 两列词表不同源：入库单检验状态是大写码（PENDING/PASSED/REJECTED），质检结论是中文
+        // （待检/合格/不合格）。此前这里直接把中文结论复制过去，本列唯一的取值 PENDING 之外
+        // 的值全由这条路径写入，任何按大写码判断的读取方都会把它当成"未检验"。
+        let receipt_status =
+            purchase_receipt_inspection::from_inspection_result(&result.inspection_result)
+                .ok_or_else(|| {
+                    AppError::validation(format!(
+                        "质检结论「{}」不在取值域内（允许值：{}），无法映射为入库单检验状态",
+                        result.inspection_result,
+                        quality_inspection_result::ALL.join("/")
+                    ))
+                })?;
+        match receipt {
+            Some(r) => {
+                let mut receipt_active: crate::models::purchase_receipt::ActiveModel = r.into();
+                receipt_active.inspection_status = Set(receipt_status.to_string());
+                // P1 1-1 修复：原 Some(0) 占位符改为真实操作人 user_id
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    txn,
+                    "auto_audit",
+                    receipt_active,
+                    Some(user_id),
+                )
+                .await?;
+            }
+            None => {
+                return Err(AppError::not_found(format!(
+                    "质检记录 {} 关联的入库单 {} 不存在，检验状态无法回写（外键已破坏，需先修正数据）",
+                    result.inspection_no, receipt_id
+                )));
+            }
         }
         Ok(())
     }

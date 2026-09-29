@@ -37,6 +37,12 @@ pub struct Model {
     /// 染色匹号（匹号领域：出库使用染色匹号）
     pub piece_no: Option<String>,
 
+    /// 出库四维扣减：实际被扣的库存行 ID（inventory_stocks.id；跨缸回退时为其他缸的行）
+    pub stock_id: Option<i32>,
+
+    /// 出库四维扣减：本笔是否为显式跨缸回退（true=实际缸号与出库单指定缸号不同）
+    pub is_cross_dye_lot: bool,
+
     /// 交货数量
     pub quantity: Decimal,
 

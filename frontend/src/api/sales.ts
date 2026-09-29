@@ -12,11 +12,17 @@ export interface SalesOrder {
   total_amount: number;
   tax_amount?: number;
   discount_amount?: number;
-  contact_person?: string;
-  contact_phone?: string;
+  /** 后端 SalesOrderDetail 未返回此键（services/so/mod.rs:43 仅 created_by），需后端补进详情 DTO */
+  contact_person: string | null;
+  /** 后端 SalesOrderDetail 未返回此键（services/so/mod.rs:43 仅 created_by），需后端补进详情 DTO */
+  contact_phone: string | null;
   delivery_address?: string;
-  remark?: string;
-  creator_name?: string;
+  /** 后端 sales_orders.shipping_address（收货地址快照） */
+  shipping_address?: string;
+  /** 后端 sales_orders.notes（备注） */
+  notes?: string;
+  /** 后端 SalesOrderDetail 未返回创建人名称（services/so/mod.rs:43 仅 created_by id），需后端 JOIN users 补 creator_name */
+  creator_name: string | null;
   created_at?: string;
   updated_at?: string;
   items: SalesOrderItem[];
@@ -27,16 +33,28 @@ export interface SalesOrderItem {
   product_id: number;
   product_name: string;
   product_code: string;
+  /** 色号：后端 sales_order_items.color_no（String）。空串=白坯布，非空=染色布 */
+  color_no?: string;
+  /** 后端 SalesOrderItemDetail.dye_lot_requirement（services/so/mod.rs:109） */
+  dye_lot_requirement: string | null;
   quantity: number;
-  unit?: string;
+  /** 后端 SalesOrderItemDetail 无 unit 键（services/so/mod.rs:80 至 :116 全字段核对），需后端补 unit */
+  unit: string | null;
   unit_price: number;
   tax_rate?: number;
   tax_amount?: number;
   discount_rate?: number;
   discount_amount?: number;
   subtotal: number;
-  delivered_quantity?: number;
-  delivered_amount?: number;
+  /** 后端 SalesOrderItemDetail.shipped_quantity（services/so/mod.rs:94），非 delivered_quantity */
+  shipped_quantity: number;
+  /**
+   * 后端 sales_order_items.quantity_tolerance_pct（可空，NULL=用品类/全局默认）。
+   * 后端 rust_decimal 经 JSON 序列化为字符串（如 "5.00"），NULL→null；
+   * 本接口同时用于创建/更新入参（表单侧提交数值），故取并集 number | string | null。
+   * 消费点：详情展示需 Number() 归一；编辑回显 useOlv.prepareEdit 转数值绑定 el-input-number。
+   */
+  quantity_tolerance_pct: number | string | null;
 }
 
 export interface SalesOrderQueryParams {
@@ -58,7 +76,8 @@ export interface SalesDelivery {
   customer_name: string;
   delivery_date: string;
   warehouse_id?: number;
-  status: 'draft' | 'pending' | 'shipped' | 'delivered';
+  /** 与后端 models/status/sales.rs 的 sales_delivery 常量同源（该表无 draft/delivered） */
+  status: 'pending' | 'shipped' | 'cancelled';
   items: SalesDeliveryItem[];
   remark?: string;
   created_at?: string;
@@ -143,7 +162,34 @@ export const createSalesDelivery = (orderId: number, data: Partial<SalesDelivery
 
 // D14 Batch 5b：原 salesApi.getDeliveries 转为风格 B 函数
 export const getSalesDeliveryList = (orderId: number) =>
-  request.get<ApiResponse<SalesDelivery[]>>(`/sales/orders/${orderId}/deliveries`);
+  request.get<ApiResponse<{ list: SalesDelivery[]; total: number }>>(
+    `/sales/orders/${orderId}/deliveries`
+  );
+
+/**
+ * 销售发货出库（真实扣减库存）——与后端 ShipOrderRequest/ShipOrderItemRequest 同构
+ * （backend/src/services/so/delivery.rs）。
+ * 出库按"款号(product_id)+色号+缸号+批次"四维匹配扣减：三个维度必填，
+ * 指定缸号数量不足时后端才走显式跨缸回退，并把实际扣减缸号记入出库明细/流水。
+ */
+export interface SalesShipItem {
+  product_id: number;
+  quantity: number;
+  color_no: string;
+  dye_lot_no: string;
+  batch_no: string;
+  piece_no?: string;
+}
+
+export interface SalesShipPayload {
+  order_id: number;
+  warehouse_code: string;
+  items: SalesShipItem[];
+  remarks?: string;
+}
+
+export const shipSalesOrder = (orderId: number, data: SalesShipPayload) =>
+  request.post<ApiResponse<null>>(`/sales/orders/${orderId}/ship`, data);
 
 // D14 Batch 5b：原 salesApi.getOrderStatistics 转为风格 B 函数
 export const getSalesOrderStatistics = (params: SalesStatisticsParams) =>

@@ -6,6 +6,7 @@ import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
 import { optimizeRecipe, type RecipeOptParams } from '@/api/advanced';
+import { RECIPE_FABRIC_TYPE } from '@/constants/recipe-fabric-type';
 import type { ApiResponse } from '@/types/api';
 
 /**
@@ -41,7 +42,7 @@ export interface RecipeResult {
 export function useRcp() {
   const recipeForm = ref<RecipeFormData>({
     color_no: '',
-    fabric_type: '棉',
+    fabric_type: RECIPE_FABRIC_TYPE.cotton,
     dye_type: '',
     color_name: '',
     k: 5,

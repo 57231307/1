@@ -17,6 +17,7 @@ fn make_dye_batch_model(id: i32, status: &str) -> DyeBatchModel {
         status: Some(status.to_string()),
         started_at: None,
         completed_at: None,
+        remarks: None,
         is_deleted: None,
         created_at: now,
         updated_at: now,

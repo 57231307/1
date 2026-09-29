@@ -255,6 +255,22 @@ pub async fn publish_standard(
     Ok(Json(ApiResponse::success("发布成功".to_string())))
 }
 
+/// 归档质量标准（状态置 archived）
+#[axum::debug_handler]
+pub async fn archive_standard(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在归档质量标准：{}", auth.username, id);
+
+    let service = QualityStandardService::new(state.db.clone());
+    service.archive_standard(id, auth.user_id).await?;
+
+    info!("质量标准归档成功：{}", id);
+    Ok(Json(ApiResponse::success("归档成功".to_string())))
+}
+
 /// GET /api/v1/erp/quality-standards/:id/versions - 获取质量标准版本历史
 pub async fn list_versions(
     Path(id): Path<i32>,

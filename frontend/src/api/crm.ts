@@ -1,15 +1,32 @@
 import { request } from './request';
-import type { ApiResponse, QueryParams } from '@/types/api';
+import type { ApiResponse } from '@/types/api';
+import type { LeadStatus, OpportunityStage } from '@/utils/crm-status';
 
 export interface Lead {
   id: number;
   lead_no: string;
+  // 后端 crm_lead 契约字段（CreateLeadRequest / crm_lead.rs Model）
+  lead_source?: string;
+  lead_status?: string;
+  company_name?: string;
+  contact_name?: string;
+  contact_title?: string;
+  mobile_phone?: string;
+  tel_phone?: string;
+  wechat?: string;
+  qq?: string;
+  owner_id?: number;
+  owner_name?: string;
+  priority?: string;
+  requirement_desc?: string;
+  remarks?: string;
+  // 兼容历史前端字段
   name: string;
   phone: string;
   email: string;
   company: string;
   source: string;
-  status: 'new' | 'contacted' | 'qualified' | 'proposal' | 'converted' | 'lost';
+  status: LeadStatus;
   rating: number;
   address: string;
   description: string;
@@ -37,21 +54,20 @@ export interface ImportLeadsResult {
 export interface Opportunity {
   id: number;
   opportunity_no: string;
+  // 后端 CreateOpportunityRequest / crm_opportunity 契约字段
+  opportunity_name?: string;
+  opportunity_type?: string;
+  win_probability?: number;
+  owner_id?: number;
+  product_desc?: string;
+  remarks?: string;
   name: string;
   customer_id: number;
   customer_name: string;
   /** 商机阶段（后端字段名，大写值：QUALIFICATION/NEEDS_ANALYSIS/PROPOSAL/NEGOTIATION/CLOSED_WON/CLOSED_LOST） */
-  opportunity_stage?:
-    'QUALIFICATION' | 'NEEDS_ANALYSIS' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
+  opportunity_stage?: OpportunityStage;
   /** @deprecated 向后兼容字段，新代码应使用 opportunity_stage */
-  stage?:
-    | 'qualification'
-    | 'needs_analysis'
-    | 'value_proposition'
-    | 'proposal'
-    | 'negotiation'
-    | 'closed_won'
-    | 'closed_lost';
+  stage?: OpportunityStage;
   estimated_amount: number;
   probability: number;
   expected_close_date: string;
@@ -62,7 +78,29 @@ export interface Opportunity {
   updated_at: string;
 }
 
-export function getLeadList(params?: QueryParams): Promise<ApiResponse<Lead[]>> {
+/**
+ * GET /crm/leads 与 GET /crm/leads/export 的查询参数。
+ * 对应后端 crm_dto::LeadQuery（backend/src/models/dto/crm_dto.rs:72），无 rename_all → snake_case，
+ * 全部 Option<serde(default 缺省即 None)> → 可选。
+ */
+export interface LeadQueryParams {
+  /** 线索状态（精确匹配 lead_status 列） */
+  lead_status?: string;
+  /** 线索来源（精确匹配 lead_source 列） */
+  source?: string;
+  /** 关键词模糊搜索（company_name / contact_name / mobile_phone / email） */
+  keyword?: string;
+  /** 行业（精确匹配 industry 列；仅 list 生效，export_leads 服务未应用该过滤） */
+  industry?: string;
+  page?: number;
+  page_size?: number;
+}
+
+// 后端 crm_handler::list_leads 构造 json!({ "data": [...], "total", "page", "page_size" })，
+// 经 crm_handler::list_leads 原样返回，真实列表键为 data（非裸数组）。
+export function getLeadList(
+  params?: LeadQueryParams
+): Promise<ApiResponse<{ data: Lead[]; total: number; page: number; page_size: number }>> {
   return request.get('/crm/leads', { params });
 }
 
@@ -84,18 +122,34 @@ export function deleteLead(id: number): Promise<ApiResponse<void>> {
 
 export function updateLeadStatus(
   id: number,
-  data: { status: Lead['status'] }
+  data: { status: LeadStatus }
 ): Promise<ApiResponse<void>> {
   return request.put(`/crm/leads/${id}/status`, data);
 }
 
 export function convertLead(
-  id: number
+  id: number,
+  data?: { customer_type?: string; notes?: string }
 ): Promise<ApiResponse<{ customer_id: number; opportunity_id: number }>> {
-  return request.post(`/crm/leads/${id}/convert`);
+  return request.post(`/crm/leads/${id}/convert`, data ?? {});
 }
 
-export function getOpportunityList(params?: QueryParams): Promise<ApiResponse<Opportunity[]>> {
+/**
+ * GET /crm/opportunities 与 GET /crm/opportunities/export 的查询参数。
+ * 对应后端 crm_dto::OpportunityQuery（backend/src/models/dto/crm_dto.rs:108），无 rename_all → snake_case。
+ * 注意：后端不读 keyword/owner_id/priority（原 QueryParams 里这些键被 Axum 静默丢弃）。
+ */
+export interface OpportunityQueryParams {
+  opportunity_stage?: string;
+  page?: number;
+  page_size?: number;
+}
+
+// 后端 crm_service::list_opportunities 构造 json!({ "data": [...], "total", "page", "page_size" })，
+// 真实列表键为 data（非裸数组）。
+export function getOpportunityList(
+  params?: OpportunityQueryParams
+): Promise<ApiResponse<{ data: Opportunity[]; total: number; page: number; page_size: number }>> {
   return request.get('/crm/opportunities', { params });
 }
 
@@ -134,7 +188,9 @@ export function getCustomerSummary(customerId: number): Promise<ApiResponse<Cust
 
 // 批次 94 P2-12 修复：补全 CRM 线索导出接口（原缺失，导致 leads/index.vue 导出占位假成功）
 // 返回 blob，前端用 URL.createObjectURL 触发下载
-export function exportLeads(params?: QueryParams): Promise<Blob> {
+// 后端 crm_handler::export_leads 带 Query<LeadQuery> 提取器并应用 lead_status/source/keyword
+// （industry 虽可反序列化但 export 服务未过滤，传了不生效）。
+export function exportLeads(params?: LeadQueryParams): Promise<Blob> {
   return request.get('/crm/leads/export', {
     params,
     responseType: 'blob',
@@ -150,9 +206,237 @@ export function importLeads(file: File): Promise<ApiResponse<ImportLeadsResult>>
 
 // v11 批次 141 修复：补全 CRM 商机导出接口（原缺失，导致 opportunities/index.vue 导出假成功）
 // 返回 blob，前端用 URL.createObjectURL 触发下载
-export function exportOpportunities(params?: QueryParams): Promise<Blob> {
+// 后端 crm_handler::export_opportunities 带 Query<OpportunityQuery> 提取器，仅应用 opportunity_stage。
+export function exportOpportunities(params?: OpportunityQueryParams): Promise<Blob> {
   return request.get('/crm/opportunities/export', {
     params,
     responseType: 'blob',
   });
+}
+
+// ============== V15 P1/P2 商机分析与线索增强（Batch 补齐 API 封装）==============
+
+/** 销售漏斗报告（对应后端 services/crm/opp.rs::SalesFunnelReport） */
+export interface SalesFunnelReport {
+  lead_count: number;
+  opportunity_count: number;
+  opportunity_amount: number;
+  quotation_count: number;
+  won_count: number;
+  won_amount: number;
+  order_count: number;
+  order_amount: number;
+  collected_amount: number;
+  lead_to_opp_rate: number;
+  opp_to_quotation_rate: number;
+  opp_to_order_rate: number;
+  order_to_collection_rate: number;
+}
+
+/** 加权预测项（对应后端 WeightedForecastItem） */
+export interface WeightedForecastItem {
+  opportunity_id: number;
+  opportunity_no: string;
+  opportunity_name: string;
+  stage: string;
+  estimated_amount: number;
+  win_probability: number;
+  weighted_amount: number;
+  expected_close_date?: string;
+}
+
+/** 加权预测结果（对应后端 WeightedForecastResult） */
+export interface WeightedForecastResult {
+  total_opportunities: number;
+  total_estimated_amount: number;
+  total_weighted_amount: number;
+  details: WeightedForecastItem[];
+}
+
+/** 预测准确性结果（对应后端 ForecastAccuracyResult） */
+export interface ForecastAccuracyResult {
+  year: number;
+  month: number;
+  forecast_amount: number;
+  forecast_count: number;
+  actual_amount: number;
+  won_count: number;
+  accuracy_rate: number;
+}
+
+/** 阶段计数（对应后端 StageCount） */
+export interface StageCount {
+  stage: string;
+  count: number;
+}
+
+/** 转化率分析（对应后端 ConversionRateAnalysis） */
+export interface ConversionRateAnalysis {
+  period_start: string;
+  period_end: string;
+  total_opportunities: number;
+  won_count: number;
+  lost_count: number;
+  open_count: number;
+  win_rate: number;
+  conversion_rate: number;
+  stage_distribution: StageCount[];
+}
+
+/** 阶段停留时长项（对应后端 StageDurationItem） */
+export interface StageDurationItem {
+  opportunity_id: number;
+  from_stage: string;
+  to_stage: string;
+  changed_at: string;
+  duration_days: number;
+}
+
+/** 线索评分结果（对应后端 LeadScoreResult） */
+export interface LeadScoreResult {
+  lead_id: number;
+  score: number;
+  priority: string;
+  breakdown: unknown;
+}
+
+/** 重复线索组（对应后端 DuplicateLeadGroup） */
+export interface DuplicateLeadGroup {
+  match_key: string;
+  match_type: string;
+  lead_ids: number[];
+  lead_nos: string[];
+  company_names: string[];
+  count: number;
+}
+
+/** 合并线索结果（对应后端 MergeResult） */
+export interface MergeResult {
+  master_lead_id: number;
+  master_lead_no: string;
+  merged_count: number;
+  merged_lead_nos: string[];
+}
+
+/** 线索转化漏斗报表（对应后端 LeadFunnelReport） */
+export interface LeadFunnelReport {
+  total_leads: number;
+  converted_leads: number;
+  total_opportunities: number;
+  won_opportunities: number;
+  total_customers: number;
+  total_orders: number;
+  lead_to_opp_rate: number;
+  opp_to_customer_rate: number;
+  opp_to_order_rate: number;
+  overall_conversion_rate: number;
+}
+
+/** 商机转订单结果（对应后端 convert_opportunity_to_order 返回 json） */
+export interface OpportunityConvertResult {
+  order_id: number;
+  order_no: string;
+}
+
+/**
+ * 销售漏斗报告（V15 P2 18.2-D4）
+ * 后端路由：GET /api/v1/erp/crm/opportunities/sales-funnel（routes/crm.rs crm_opportunity_routes）
+ */
+export function getSalesFunnel(params?: {
+  start_date?: string;
+  end_date?: string;
+}): Promise<ApiResponse<SalesFunnelReport>> {
+  return request.get('/crm/opportunities/sales-funnel', { params });
+}
+
+/**
+ * 加权销售预测（V15 P2 18.2-D5）
+ * 后端路由：GET /api/v1/erp/crm/opportunities/weighted-forecast（routes/crm.rs crm_opportunity_routes）
+ */
+export function getWeightedForecast(params?: {
+  owner_id?: number;
+}): Promise<ApiResponse<WeightedForecastResult>> {
+  return request.get('/crm/opportunities/weighted-forecast', { params });
+}
+
+/**
+ * 预测准确性分析（V15 P2 18.2-D4；year/month 缺省时取当前年月）
+ * 后端路由：GET /api/v1/erp/crm/opportunities/forecast-accuracy（routes/crm.rs crm_opportunity_routes）
+ */
+export function getForecastAccuracy(params?: {
+  year?: number;
+  month?: number;
+}): Promise<ApiResponse<ForecastAccuracyResult>> {
+  return request.get('/crm/opportunities/forecast-accuracy', { params });
+}
+
+/**
+ * 商机转化率分析（V15 P2 18.2-D5；months_back 缺省时后端取 12 个月）
+ * 后端路由：GET /api/v1/erp/crm/opportunities/conversion-rate（routes/crm.rs crm_opportunity_routes）
+ */
+export function getConversionRate(params?: {
+  months_back?: number;
+}): Promise<ApiResponse<ConversionRateAnalysis>> {
+  return request.get('/crm/opportunities/conversion-rate', { params });
+}
+
+/**
+ * 商机阶段停留时长分析（V15 P2 18.2-D5）
+ * 后端路由：GET /api/v1/erp/crm/opportunities/stage-duration（routes/crm.rs crm_opportunity_routes）
+ */
+export function getStageDuration(params?: {
+  opportunity_id?: number;
+}): Promise<ApiResponse<StageDurationItem[]>> {
+  return request.get('/crm/opportunities/stage-duration', { params });
+}
+
+/**
+ * 线索评分（V15 P1 18.1-D1）
+ * 后端路由：POST /api/v1/erp/crm/leads/{id}/score（routes/crm.rs crm_lead_routes）
+ */
+export function scoreLead(id: number): Promise<ApiResponse<LeadScoreResult>> {
+  return request.post(`/crm/leads/${id}/score`);
+}
+
+/**
+ * 重复线索检测（V15 P1 18.1-D2；mobile_phone 与 company_name 至少传一项）
+ * 后端路由：POST /api/v1/erp/crm/leads/detect-duplicates（routes/crm.rs crm_lead_routes）
+ */
+export function detectDuplicateLeads(data: {
+  mobile_phone?: string;
+  company_name?: string;
+}): Promise<ApiResponse<DuplicateLeadGroup[]>> {
+  return request.post('/crm/leads/detect-duplicates', data);
+}
+
+/**
+ * 合并重复线索（V15 P1 18.1-D3；primary_id 必填，duplicate_ids 为被合并线索 ID 列表）
+ * 后端路由：POST /api/v1/erp/crm/leads/merge（routes/crm.rs crm_lead_routes）
+ */
+export function mergeLeads(data: {
+  primary_id: number;
+  duplicate_ids: number[];
+}): Promise<ApiResponse<MergeResult>> {
+  return request.post('/crm/leads/merge', data);
+}
+
+/**
+ * 线索转化漏斗报表（V15 P1 18.1-D3：线索→商机→客户→订单）
+ * 后端路由：GET /api/v1/erp/crm/leads/funnel-report（routes/crm.rs crm_lead_routes）
+ */
+export function getLeadFunnelReport(params?: {
+  start_date?: string;
+  end_date?: string;
+}): Promise<ApiResponse<LeadFunnelReport>> {
+  return request.get('/crm/leads/funnel-report', { params });
+}
+
+/**
+ * 商机转化为销售订单（生成草稿订单并将商机标记为 CLOSED_WON）
+ * 后端路由：POST /api/v1/erp/crm/opportunities/{id}/convert（routes/crm.rs crm_opportunity_routes）
+ */
+export function convertOpportunityToOrder(
+  id: number
+): Promise<ApiResponse<OpportunityConvertResult>> {
+  return request.post(`/crm/opportunities/${id}/convert`);
 }

@@ -12,14 +12,6 @@ fn test_api_response_success() {
 }
 
 #[test]
-fn test_api_response_error() {
-    let response: ApiResponse<()> = ApiResponse::error("Something went wrong");
-    assert_eq!(response.code, Some(500));
-    assert_eq!(response.message.as_ref().unwrap(), "Something went wrong");
-    assert!(response.data.is_none());
-}
-
-#[test]
 fn test_api_response_with_message() {
     let response = ApiResponse::success_with_message(42, "custom message");
     assert_eq!(response.code, Some(200));

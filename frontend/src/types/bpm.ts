@@ -17,12 +17,6 @@ export interface BpmVariables {
 }
 
 /**
- * BPM 流程实例状态
- * FE-P2-1 修复（批次 388 v13 复审）：原 status: string 过于宽泛，收窄为字面量联合类型
- */
-export type BpmProcessStatus = 'running' | 'completed' | 'terminated' | 'cancelled' | 'suspended';
-
-/**
  * 启动流程请求参数
  */
 export interface StartProcessRequest {
@@ -50,50 +44,21 @@ export interface ApproveTaskRequest {
 }
 
 /**
- * 业务关系响应数据
- */
-export interface BusinessRelationResponse {
-  business_type: string;
-  business_id: number;
-  instance_id: string;
-  process_name: string;
-  status: BpmProcessStatus;
-}
-
-/**
- * 流程可视化响应数据
- */
-export interface ProcessVisualizationResponse {
-  instance_id: string;
-  process_name: string;
-  current_activity: string;
-  activity_history: string[];
-  diagram_url?: string;
-}
-
-/**
- * 流程实例详情响应数据
- */
-export interface InstanceDetailResponse {
-  instance_id: string;
-  process_name: string;
-  start_user: string;
-  start_time: string;
-  end_time?: string;
-  status: BpmProcessStatus;
-  current_activities: string[];
-  variables: BpmVariables;
-}
-
-/**
  * 监控统计数据
  */
 export interface MonitorStatsResponse {
   total_instances: number;
-  running_instances: number;
+  processing_instances: number;
   completed_instances: number;
+  terminated_instances: number;
+  total_tasks: number;
   pending_tasks: number;
+  completed_tasks: number;
+  rejected_tasks: number;
+  /** status=pending 且 due_date 已过的任务数 */
   overdue_tasks: number;
+  /** 已完成实例平均处理时长（分钟）；无样本时后端返回 null */
+  avg_process_duration_minutes: number | null;
 }
 
 /**

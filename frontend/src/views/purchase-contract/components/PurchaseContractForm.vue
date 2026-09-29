@@ -85,11 +85,11 @@
         <el-col :span="12">
           <el-form-item :label="t('purchaseContract.form.signedDate')" prop="signed_date">
             <el-date-picker
-              :model-value="localFormData.signed_date"
+              v-model="localFormData.signed_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('purchaseContract.form.signedDatePlaceholder')"
               style="width: 100%"
-              @update:model-value="(v: string) => (localFormData.signed_date = v ?? '')"
             />
           </el-form-item>
         </el-col>
@@ -98,22 +98,22 @@
         <el-col :span="12">
           <el-form-item :label="t('purchaseContract.form.effectiveDate')" prop="effective_date">
             <el-date-picker
-              :model-value="localFormData.effective_date"
+              v-model="localFormData.effective_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('purchaseContract.form.effectiveDatePlaceholder')"
               style="width: 100%"
-              @update:model-value="(v: string) => (localFormData.effective_date = v ?? '')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('purchaseContract.form.expiryDate')" prop="expiry_date">
             <el-date-picker
-              :model-value="localFormData.expiry_date"
+              v-model="localFormData.expiry_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('purchaseContract.form.expiryDatePlaceholder')"
               style="width: 100%"
-              @update:model-value="(v: string) => (localFormData.expiry_date = v ?? '')"
             />
           </el-form-item>
         </el-col>
@@ -149,11 +149,11 @@
         <el-col :span="12">
           <el-form-item :label="t('purchaseContract.form.deliveryDate')" prop="delivery_date">
             <el-date-picker
-              :model-value="localFormData.delivery_date"
+              v-model="localFormData.delivery_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('purchaseContract.form.deliveryDatePlaceholder')"
               style="width: 100%"
-              @update:model-value="(v: string) => (localFormData.delivery_date = v ?? '')"
             />
           </el-form-item>
         </el-col>

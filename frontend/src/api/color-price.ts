@@ -1,5 +1,5 @@
 // 面料多色号定价扩展 API 客户端
-// 16 端点 + 5 枚举 + 4 接口 + 4 辅助函数
+// 19 端点 + 5 枚举 + 4 接口 + 4 辅助函数
 // 创建时间: 2026-06-18
 // 关联 spec: docs/superpowers/specs/2026-06-16-color-price-extension-design.md
 
@@ -218,6 +218,18 @@ export interface CreateSeasonalRuleDto {
   description?: string | null;
 }
 
+export interface UpdateSeasonalRuleDto {
+  rule_name?: string;
+  season?: 'SS' | 'AW' | 'HOLIDAY';
+  product_category_id?: number | null;
+  adjustment_type?: 'percentage' | 'fixed';
+  adjustment_value?: number;
+  valid_from?: string;
+  valid_until?: string | null;
+  is_active?: boolean;
+  description?: string | null;
+}
+
 export interface ListColorPricesQuery {
   page?: number;
   page_size?: number;
@@ -351,6 +363,21 @@ export function getSeasonalRuleList(params: {
 // 16. 季节规则创建
 export function createSeasonalRule(data: CreateSeasonalRuleDto) {
   return request.post<SeasonalPriceRule>(`${BASE_URL}/seasonal-rules`, data);
+}
+
+// 17. 季节规则详情
+export function getSeasonalRule(id: number) {
+  return request.get<SeasonalPriceRule>(`${BASE_URL}/seasonal-rules/${id}`);
+}
+
+// 18. 季节规则更新
+export function updateSeasonalRule(id: number, data: UpdateSeasonalRuleDto) {
+  return request.put<SeasonalPriceRule>(`${BASE_URL}/seasonal-rules/${id}`, data);
+}
+
+// 19. 季节规则删除
+export function deleteSeasonalRule(id: number) {
+  return request.delete<{ deleted: number }>(`${BASE_URL}/seasonal-rules/${id}`);
 }
 
 // ----------------------------------------------------------------------

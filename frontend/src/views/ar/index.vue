@@ -19,11 +19,20 @@
       <el-tab-pane :label="t('arModule.tabs.invoice')" name="invoice">
         <InvoiceTab />
       </el-tab-pane>
+      <el-tab-pane :label="t('arModule.tabs.payment')" name="payment" lazy>
+        <PaymentTab />
+      </el-tab-pane>
+      <el-tab-pane :label="t('arModule.tabs.verification')" name="verification" lazy>
+        <VerificationTab />
+      </el-tab-pane>
       <el-tab-pane :label="t('arModule.tabs.reconciliation')" name="reconciliation">
         <ReconciliationTab />
       </el-tab-pane>
       <el-tab-pane :label="t('arModule.tabs.fund')" name="fund">
         <FundTab />
+      </el-tab-pane>
+      <el-tab-pane :label="t('arModule.tabs.report')" name="report" lazy>
+        <ArReportTab />
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -33,8 +42,11 @@
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import InvoiceTab from './tabs/InvoiceTab.vue';
+import PaymentTab from './tabs/PaymentTab.vue';
+import VerificationTab from './tabs/VerificationTab.vue';
 import ReconciliationTab from './tabs/ReconciliationTab.vue';
 import FundTab from './tabs/FundTab.vue';
+import ArReportTab from './tabs/ArReportTab.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 

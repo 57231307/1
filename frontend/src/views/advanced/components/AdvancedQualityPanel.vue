@@ -9,11 +9,23 @@ const fmtRate = (v: unknown): string => `${Number(v ?? 0).toFixed(2)}%`;
  * 数据与函数全部由父组件通过 props 传入
  * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
-import { ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
+import {
+  QUALITY_INSPECTION_TYPE_LABEL_KEY,
+  QUALITY_INSPECTION_TYPE_VALUES,
+} from '@/constants/quality-inspection-type';
 import type { QualityFormData, QualityResult } from '../composables/useQlt';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 检验类型下拉：提交库里落地的稳定码，文案才走 i18n
+const inspectionTypeOptions = computed(() =>
+  QUALITY_INSPECTION_TYPE_VALUES.map(value => ({
+    value,
+    label: t(QUALITY_INSPECTION_TYPE_LABEL_KEY[value]),
+  }))
+);
 
 const props = defineProps<{
   // 质量预测表单（由父组件管理，子组件通过 emit('update:qualityForm') 回写）
@@ -97,20 +109,10 @@ watch(
             >
               <el-option :label="t('advancedModule.quality.typeAll')" value="" />
               <el-option
-                :label="t('advancedModule.quality.typeIncoming')"
-                :value="t('advancedModule.quality.typeIncoming')"
-              />
-              <el-option
-                :label="t('advancedModule.quality.typeInprocess')"
-                :value="t('advancedModule.quality.typeInprocess')"
-              />
-              <el-option
-                :label="t('advancedModule.quality.typeFinal')"
-                :value="t('advancedModule.quality.typeFinal')"
-              />
-              <el-option
-                :label="t('advancedModule.quality.typeOutgoing')"
-                :value="t('advancedModule.quality.typeOutgoing')"
+                v-for="item in inspectionTypeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
               />
             </el-select>
           </el-form-item>

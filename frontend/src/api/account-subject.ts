@@ -10,20 +10,8 @@ export interface AccountSubjectEntity {
   type: string;
   balance_type: string;
   description?: string;
-  is_enabled: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface AccountSubject {
-  id?: number;
-  subject_code: string;
-  subject_name: string;
-  subject_type: string;
-  parent_id?: number;
-  level: number;
-  balance_direction: string;
-  is_active: boolean;
+  // account_subjects.status 为 VARCHAR（'active'/'inactive'）真实列，非布尔
+  status: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -46,14 +34,6 @@ export function updateAccountSubject(id: number, data: Partial<AccountSubjectEnt
 
 export function deleteAccountSubject(id: number) {
   return request.delete(`/subjects/${id}`);
-}
-
-export function enableAccountSubject(id: number) {
-  return request.put(`/subjects/${id}`, { is_enabled: true });
-}
-
-export function disableAccountSubject(id: number) {
-  return request.put(`/subjects/${id}`, { is_enabled: false });
 }
 
 export function getAccountSubjectTree() {

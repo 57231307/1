@@ -55,7 +55,9 @@ pub struct Model {
     /// 非正常损耗金额
     #[sea_orm(column_type = "Decimal(Some((14, 4)))")]
     pub abnormal_loss_amount: Decimal,
-    /// 质量状态：pending(待检) / passed(合格) / failed(不合格)
+    /// 质检结论：pending / qualified / concession / unqualified
+    /// （取值域见 `models::status::outsourcing_receipt_quality_status`；
+    /// 不是染化料来料检验的 passed/failed，也不是库存质量状态的中文「合格」）
     pub quality_status: Option<String>,
     /// 等级：A/B/C
     pub grade: Option<String>,

@@ -102,6 +102,31 @@ fn test_extract_resource_info_scymkqz() {
 }
 
 #[test]
+fn test_extract_resource_info_ybxqzljyzy_mc() {
+    // 仪表板子路径（overview/sales-stats/layout…）是注册资源 dashboard 下的动作，
+    // 不是独立权限资源：资源名必须取 segment3，否则角色种子里的 dashboard:read 永不命中
+    let (rt, rid) = extract_resource_info("/api/v1/erp/dashboard/sales-stats");
+    assert_eq!(rt, "dashboard");
+    assert_eq!(rid, None);
+}
+
+#[test]
+fn test_extract_resource_info_tzxljyzy_mc() {
+    // 站内信未读数/列表是认证用户自有数据视图，资源名为注册表里的 notifications
+    let (rt, rid) = extract_resource_info("/api/v1/erp/notifications/unread-count");
+    assert_eq!(rt, "notifications");
+    assert_eq!(rid, None);
+}
+
+#[test]
+fn test_extract_resource_info_tzxljd_id_ts() {
+    // 通知记录详情：资源名取 notifications，记录 ID 正常提取供垂直越权校验
+    let (rt, rid) = extract_resource_info("/api/v1/erp/notifications/42");
+    assert_eq!(rt, "notifications");
+    assert_eq!(rid, Some(42));
+}
+
+#[test]
 fn test_extract_resource_info_cgyxzpx() {
     // V15 P0-S21 修正：purchase（单数）应正确识别为模块前缀
     // V15 P1-14.4-C：purchase/orders 消歧为 purchase-orders（与权限定义对齐）
@@ -651,18 +676,23 @@ fn test_matches_permission_id_jqppxd() {
 }
 
 #[test]
-fn test_matches_permission_id_jqppbdfh_false() {
-    // 垂直越权防护：权限 ID=100 不能访问 ID=200
-    let p = make_permission("users", Some(100), "read");
-    assert!(!matches_permission(&p, "users", Some(200), "read"));
+fn test_matches_permission_qxw_id_qqy_id_pfh_true() {
+    // 角色级授权（resource_id=None）应覆盖该资源类型的全部实例：
+    // 既放行列表请求（request=None），也放行按 ID 操作（request=Some），
+    // 否则非 admin 角色的 GET/PUT/DELETE /{id} 会被误判越权拒绝（403）。
+    let p = make_permission("users", None, "read");
+    assert!(matches_permission(&p, "users", Some(100), "read"));
+    // 动作维度仍严格：无 update 授权则按 ID 改仍拒
+    assert!(!matches_permission(&p, "users", Some(100), "update"));
+    // 资源维度仍严格：别的资源不被串权
+    assert!(!matches_permission(&p, "orders", Some(100), "read"));
 }
 
 #[test]
-fn test_matches_permission_qxw_id_qqy_id_fh_false() {
-    // M-6 修复点：权限 resource_id=None 不能匹配请求 resource_id=Some
-    // 防止拥有全局权限的用户操作特定资源（应通过 action="*" 明确授予）
-    let p = make_permission("users", None, "read");
-    assert!(!matches_permission(&p, "users", Some(100), "read"));
+fn test_matches_permission_id_jqppbdfh_false() {
+    // 垂直越权防护：记录级授权 ID=100 不能访问 ID=200
+    let p = make_permission("users", Some(100), "read");
+    assert!(!matches_permission(&p, "users", Some(200), "read"));
 }
 
 #[test]

@@ -1,104 +1,77 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
-// 统计数据类型
-export type StatsData = Record<string, string | number | boolean | null>;
-
-// 元数据类型
-export type Metadata = Record<string, string | number | boolean | null>;
-
-// 仓库分布项
+/** 仓库库存分布项 = `five_dimension_service.rs` 的 `WarehouseStock`（数量为字符串/Decimal） */
 export interface WarehouseDistributionItem {
   warehouse_id: number;
   warehouse_name: string;
-  quantity: number;
-  meters?: number;
-  kg?: number;
+  quantity_meters: string;
+  quantity_kg: string;
 }
 
+/**
+ * 五维统计行 = `five_dimension_service.rs` 的 `FiveDimensionStats`（扁平结构，无 `dimension` 嵌套）。
+ * stats/search/list 均按此返回，前端不得再读 `item.dimension.xxx`。
+ */
 export interface FiveDimensionStats {
-  dimensionId?: number;
-  dimensionName?: string;
-  five_dimension_id?: number;
-  product_id?: number;
-  product_name?: string;
-  batch_no?: string;
-  color_no?: string;
-  dye_lot_no?: string;
-  grade?: string;
-  stats: StatsData;
-  period?: string;
+  product_id: number;
+  product_name: string;
+  batch_no: string;
+  color_no: string;
+  dye_lot_no?: string | null;
+  grade: string;
+  five_dimension_id: string;
+  total_meters: string;
+  total_kg: string;
+  stock_count: number;
+  warehouse_distribution: WarehouseDistributionItem[];
 }
 
-export interface FiveDimensionQuery {
-  dimensionId?: number;
-  startDate?: string;
-  endDate?: string;
-  metrics?: string[];
-}
+/** 详情钻取/表格行统一即扁平统计行（保留别名以兼容既有引用） */
+export type FiveDimensionStatsResponse = FiveDimensionStats;
+export type FiveDimensionItem = FiveDimensionStats;
 
-export interface FiveDimensionSearchResult {
-  id: number;
-  name: string;
-  type: string;
-  score: number;
-  metadata: Metadata;
-}
-
-export interface FiveDimensionStatsResponse {
-  dimension: FiveDimensionStats;
-  list: FiveDimensionItem[];
-  total: number;
-  total_meters?: number;
-  total_kg?: number;
-  stock_count?: number;
-  warehouse_distribution?: WarehouseDistributionItem[];
-}
-
-export interface FiveDimensionItem {
-  id: number;
-  name: string;
-  product_id?: number;
-  batch_no?: string;
-  color_no?: string;
-  dye_lot_no?: string;
-  grade?: string;
-}
-
-// 统计查询参数
+/** 统计/列表查询参数 = `five_dimension_handler.rs` 的 `FiveDimensionStatsParams` */
 export interface StatsQueryParams {
-  dimensionId?: number;
-  period?: string;
-  startDate?: string;
-  endDate?: string;
-  page?: number;
-  page_size?: number;
   product_id?: number;
   batch_no?: string;
   color_no?: string;
+  dye_lot_no?: string;
   grade?: string;
-}
-
-// 搜索查询参数
-export interface SearchQueryParams {
-  q?: string;
-  dimensionId?: number;
-  type?: string;
+  warehouse_id?: number;
   page?: number;
   page_size?: number;
-  keyword?: string;
+}
+
+/** 搜索查询参数 = `five_dimension_handler.rs` 的 `FiveDimensionSearchParams`（keyword 必填） */
+export interface SearchQueryParams {
+  keyword: string;
   search_type?: string;
+  page?: number;
+  page_size?: number;
+}
+
+interface PagedStats {
+  items: FiveDimensionStats[];
+  total: number;
 }
 
 export const getFiveDimensionStatsList = (params?: StatsQueryParams) =>
-  request.get('/crm/five-dimension/stats', { params });
-export const getStatsByFiveDimensionId = (id: number) =>
-  request.get(`/crm/five-dimension/stats/${id}`);
-export const parseFiveDimensionId = (id: number | string) =>
-  request.get(`/crm/five-dimension/parse/${id}`);
-export const searchFiveDimension = (params?: SearchQueryParams) =>
-  request.get('/crm/five-dimension/search', { params });
+  request.get<ApiResponse<PagedStats>>('/crm/five-dimension/stats', { params });
 
-// D14 Batch 5b：原 fiveDimensionApi.getByDimensionId 转为风格 B 函数（其余方法与已有风格 B 函数重复，已移除）
-export const getFiveDimensionById = (dimensionId: number) =>
-  request.get<ApiResponse<FiveDimensionStats>>(`/crm/five-dimension/${dimensionId}`);
+// 后端真实路由：GET /five-dimension/{five_dimension_id}（Path<String>，五维编码）
+export const getStatsByFiveDimensionId = (fiveDimensionId: string) =>
+  request.get<ApiResponse<FiveDimensionStats>>(`/crm/five-dimension/${fiveDimensionId}`);
+
+// 后端真实路由：POST /five-dimension/parse，body { five_dimension_id }
+export const parseFiveDimensionId = (id: string) =>
+  request.post<ApiResponse<{ success: boolean; dimension?: FiveDimensionStats; error?: string }>>(
+    '/crm/five-dimension/parse',
+    { five_dimension_id: id }
+  );
+
+export const searchFiveDimension = (params: SearchQueryParams) =>
+  request.get<ApiResponse<PagedStats>>('/crm/five-dimension/search', { params });
+
+export const getFiveDimensionById = (fiveDimensionId: string) =>
+  request.get<ApiResponse<FiveDimensionStats>>(`/crm/five-dimension/${fiveDimensionId}`);

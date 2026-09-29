@@ -23,6 +23,11 @@ pub struct Model {
     /// 数量
     #[sea_orm(column_type = "Decimal(Some((15, 2)))")]
     pub quantity: Decimal,
+    /// 交货数量允收容差（百分比，DECIMAL(5,2)，可空）。
+    /// NULL = 未行级指定，按「品类默认 > 全局默认」解析（见 utils::delivery_tolerance）。
+    /// 与 dual_unit_converter 的 0.5% 录入校验无关。
+    #[sea_orm(column_type = "Decimal(Some((5, 2)))")]
+    pub quantity_tolerance_pct: Option<Decimal>,
     /// 单价
     #[sea_orm(column_type = "Decimal(Some((15, 4)))")]
     pub unit_price: Decimal,

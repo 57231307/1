@@ -10,15 +10,19 @@
 
 use axum::{
     Json,
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
 };
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::Deserialize;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use tracing::info;
 use validator::Validate;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
+use crate::models::import_task;
+use crate::models::status::import_task as import_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::import_export_service::{ExportQuery, ImportExportService, ImportResult};
 use crate::utils::error::AppError;
@@ -51,7 +55,13 @@ pub async fn import_excel(
 
     // 批次 127 v8 复审 P2 修复：导入前创建任务记录（status=running）
     let task_id = service
-        .create_import_task(&req.import_type, req.data.len() as u64, auth.user_id)
+        .create_import_task(
+            &req.import_type,
+            req.data.len() as u64,
+            auth.user_id,
+            None,
+            None,
+        )
         .await?;
 
     let errors = ImportExportService::validate_import_data(&req.data, &template);
@@ -360,25 +370,9 @@ pub struct ImportTaskItem {
 /// GET /api/v1/erp/data-import/templates - 获取导入模板列表
 pub async fn list_import_templates(
     State(_state): State<AppState>,
-) -> Result<Json<ApiResponse<Vec<ImportTemplateListItem>>>, AppError> {
-    let templates = vec![
-        ImportTemplateListItem {
-            import_type: "products".to_string(),
-            name: "产品导入模板".to_string(),
-            description: "用于批量导入产品信息".to_string(),
-        },
-        ImportTemplateListItem {
-            import_type: "customers".to_string(),
-            name: "客户导入模板".to_string(),
-            description: "用于批量导入客户信息".to_string(),
-        },
-        ImportTemplateListItem {
-            import_type: "inventory".to_string(),
-            name: "库存导入模板".to_string(),
-            description: "用于批量导入库存信息".to_string(),
-        },
-    ];
-    Ok(Json(ApiResponse::success(templates)))
+) -> Result<Json<ApiResponse<Vec<ImportTemplateRecord>>>, AppError> {
+    let records = lock_import_templates()?;
+    Ok(Json(ApiResponse::success(records.clone())))
 }
 
 /// GET /api/v1/erp/data-import/tasks - 获取导入任务列表
@@ -404,4 +398,470 @@ pub async fn list_import_tasks(
         .collect();
 
     Ok(Json(ApiResponse::success(items)))
+}
+
+// ---------- 数据导入模板明细/更新/删除/下载（内存存储，预填充系统内置模板） ----------
+
+static IMPORT_TEMPLATE_STORE: OnceLock<Mutex<Vec<ImportTemplateRecord>>> = OnceLock::new();
+
+fn import_template_store() -> &'static Mutex<Vec<ImportTemplateRecord>> {
+    IMPORT_TEMPLATE_STORE.get_or_init(|| Mutex::new(builtin_import_template_records()))
+}
+
+fn lock_import_templates() -> Result<MutexGuard<'static, Vec<ImportTemplateRecord>>, AppError> {
+    import_template_store()
+        .lock()
+        .map_err(|_| AppError::internal("导入模板存储不可用"))
+}
+
+fn map_import_data_type(data_type: &str) -> String {
+    match data_type {
+        "decimal" | "number" | "int" => "number".to_string(),
+        "date" => "date".to_string(),
+        "boolean" => "boolean".to_string(),
+        _ => "string".to_string(),
+    }
+}
+
+fn builtin_import_template_records() -> Vec<ImportTemplateRecord> {
+    let specs: [(&str, &str); 3] = [
+        ("products", "product"),
+        ("customers", "customer"),
+        ("inventory", "inventory"),
+    ];
+    let created_at = "2026-01-01T00:00:00Z".to_string();
+
+    specs
+        .iter()
+        .filter_map(|(import_type, module)| {
+            let template = ImportExportService::get_import_template(import_type).ok()?;
+            let columns: Vec<ImportColumnDto> = template
+                .columns
+                .iter()
+                .map(|c| ImportColumnDto {
+                    key: c.field.clone(),
+                    label: c.title.clone(),
+                    column_type: map_import_data_type(&c.data_type),
+                    required: c.required,
+                    default_value: c.example.clone().map(serde_json::Value::String),
+                    validation_rule: None,
+                })
+                .collect();
+            let sample_row = serde_json::Value::Object(
+                template
+                    .columns
+                    .iter()
+                    .filter_map(|c| {
+                        c.example
+                            .as_ref()
+                            .map(|ex| (c.field.clone(), serde_json::Value::String(ex.clone())))
+                    })
+                    .collect(),
+            );
+            Some(ImportTemplateRecord {
+                id: 0,
+                import_type: template.import_type,
+                template_code: format!("IMP_{}", import_type.to_uppercase()),
+                template_name: template.name,
+                description: template.description,
+                module: module.to_string(),
+                file_format: "xlsx".to_string(),
+                columns,
+                sample_data: vec![sample_row],
+                status: "active".to_string(),
+                created_at: created_at.clone(),
+                updated_at: created_at.clone(),
+            })
+        })
+        .enumerate()
+        .map(|(idx, mut record)| {
+            record.id = idx as i32 + 1;
+            record
+        })
+        .collect()
+}
+
+#[allow(dead_code, reason = "序列化输出字段")]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
+pub struct ImportTemplateRecord {
+    pub id: i32,
+    pub import_type: String,
+    pub template_code: String,
+    pub template_name: String,
+    pub description: String,
+    pub module: String,
+    pub file_format: String,
+    pub columns: Vec<ImportColumnDto>,
+    pub sample_data: Vec<serde_json::Value>,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[allow(dead_code, reason = "序列化/反序列化字段")]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
+pub struct ImportColumnDto {
+    pub key: String,
+    pub label: String,
+    #[serde(rename = "type")]
+    pub column_type: String,
+    pub required: bool,
+    pub default_value: Option<serde_json::Value>,
+    pub validation_rule: Option<String>,
+}
+
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateImportTemplateRequest {
+    #[validate(length(min = 1, max = 100, message = "模板名称长度须为 1-100 字符"))]
+    pub template_name: Option<String>,
+    #[validate(length(max = 500, message = "描述长度不得超过 500 字符"))]
+    pub description: Option<String>,
+    pub module: Option<String>,
+    pub file_format: Option<String>,
+    pub columns: Option<Vec<ImportColumnDto>>,
+    pub sample_data: Option<Vec<serde_json::Value>>,
+    #[validate(length(max = 20, message = "状态取值非法"))]
+    pub status: Option<String>,
+}
+
+/// GET /api/v1/erp/data-import/templates/{id} - 获取导入模板详情
+pub async fn get_import_template_by_id(
+    Path(id): Path<i32>,
+    State(_state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<ImportTemplateRecord>>, AppError> {
+    let records = lock_import_templates()?;
+    let record = records
+        .iter()
+        .find(|r| r.id == id)
+        .ok_or_else(|| AppError::not_found(format!("导入模板 {} 不存在", id)))?;
+    Ok(Json(ApiResponse::success(record.clone())))
+}
+
+/// PUT /api/v1/erp/data-import/templates/{id} - 更新导入模板
+pub async fn update_import_template(
+    Path(id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<UpdateImportTemplateRequest>,
+) -> Result<Json<ApiResponse<ImportTemplateRecord>>, AppError> {
+    info!("用户 {} 更新导入模板 ID: {}", auth.username, id);
+    req.validate()?;
+
+    let mut records = lock_import_templates()?;
+    let record = records
+        .iter_mut()
+        .find(|r| r.id == id)
+        .ok_or_else(|| AppError::not_found(format!("导入模板 {} 不存在", id)))?;
+
+    if let Some(v) = req.template_name {
+        record.template_name = v;
+    }
+    if let Some(v) = req.description {
+        record.description = v;
+    }
+    if let Some(v) = req.module {
+        record.module = v;
+    }
+    if let Some(v) = req.file_format {
+        record.file_format = v;
+    }
+    if let Some(v) = req.columns {
+        record.columns = v;
+    }
+    if let Some(v) = req.sample_data {
+        record.sample_data = v;
+    }
+    if let Some(v) = req.status {
+        record.status = v;
+    }
+    record.updated_at = chrono::Utc::now().to_rfc3339();
+
+    let updated = record.clone();
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "导入模板更新成功",
+    )))
+}
+
+/// DELETE /api/v1/erp/data-import/templates/{id} - 删除导入模板
+pub async fn delete_import_template(
+    Path(id): Path<i32>,
+    State(_state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 删除导入模板 ID: {}", auth.username, id);
+
+    let mut records = lock_import_templates()?;
+    let before = records.len();
+    records.retain(|r| r.id != id);
+    if records.len() == before {
+        return Err(AppError::not_found(format!("导入模板 {} 不存在", id)));
+    }
+
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "导入模板删除成功",
+    )))
+}
+
+/// GET|POST /api/v1/erp/data-import/templates/{id}/download - 下载导入模板（xlsx）
+pub async fn download_import_template_by_id(
+    Path(id): Path<i32>,
+    State(_state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<axum::response::Response, AppError> {
+    let import_type = {
+        let records = lock_import_templates()?;
+        let record = records
+            .iter()
+            .find(|r| r.id == id)
+            .ok_or_else(|| AppError::not_found(format!("导入模板 {} 不存在", id)))?;
+        record.import_type.clone()
+    };
+
+    let template = ImportExportService::get_import_template(&import_type)?;
+    let headers: Vec<String> = template.columns.iter().map(|c| c.title.clone()).collect();
+    let example_row: Vec<String> = template
+        .columns
+        .iter()
+        .map(|c| c.example.clone().unwrap_or_default())
+        .collect();
+
+    let xlsx_bytes = ImportExportService::generate_xlsx(&headers, &[example_row])?;
+
+    let response = axum::response::Response::builder()
+        .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        .header(
+            "Content-Disposition",
+            format!("attachment; filename=\"{}_template.xlsx\"", import_type),
+        )
+        .header("Content-Length", xlsx_bytes.len())
+        .body(axum::body::Body::from(xlsx_bytes))
+        .map_err(|e| AppError::internal(format!("构建响应失败: {}", e)))?;
+
+    Ok(response)
+}
+
+// ============================================================================
+// 数据导入任务生命周期（复用 import_tasks 表，models/import_task.rs）
+// 对应前端 api/data-import.ts 的任务详情/取消/重试/错误日志调用
+// ============================================================================
+
+/// 将 import_task Model 映射为前端 `ImportTask` 期望的 JSON 结构
+/// （m0054 补列后 template_id/file_name 从任务表真实落库值读取）
+fn import_task_to_frontend_json(t: import_task::Model) -> serde_json::Value {
+    let processed = t.imported_rows.max(0) + t.failed_rows.max(0);
+    serde_json::json!({
+        "id": t.id,
+        "task_code": format!("IMP-{:06}", t.id),
+        "template_id": t.template_id.unwrap_or(0),
+        "template_name": t.import_type,
+        "file_name": t.file_name.clone().unwrap_or_default(),
+        "file_path": "",
+        "status": t.status,
+        "total_rows": t.total_rows.max(0),
+        "processed_rows": processed,
+        "success_rows": t.imported_rows.max(0),
+        "failed_rows": t.failed_rows.max(0),
+        "error_log": build_import_task_error_log(&t),
+        "created_by": t.user_id.unwrap_or(0),
+        "created_by_name": "",
+        "created_at": t.created_at.to_rfc3339(),
+        "completed_at": t.updated_at.to_rfc3339(),
+    })
+}
+
+/// 生成导入任务的错误日志说明文本（任务表无独立 error_log 字段，按统计聚合生成）
+fn build_import_task_error_log(t: &import_task::Model) -> String {
+    if t.failed_rows <= 0 {
+        String::new()
+    } else {
+        format!(
+            "导入类型 {}：共 {} 行，其中 {} 行失败；请修正数据后使用重试端点重新导入",
+            t.import_type,
+            t.total_rows.max(0),
+            t.failed_rows.max(0)
+        )
+    }
+}
+
+/// POST /api/v1/erp/data-import/tasks - 上传文件创建导入任务（对应前端 api/data-import.ts uploadImportFile）
+/// multipart 字段：file（文件，最小实现仅登记文件名，不做真实解析导入）+ template_id
+pub async fn create_import_task_from_upload(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    mut multipart: Multipart,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 上传文件创建导入任务", auth.username);
+
+    let mut template_id: Option<i32> = None;
+    let mut file_name = String::new();
+
+    while let Some(field) = multipart.next_field().await.unwrap_or(None) {
+        match field.name() {
+            Some("template_id") => {
+                let text = field.text().await.unwrap_or_default();
+                template_id = text.trim().parse::<i32>().ok();
+            }
+            Some("file") => {
+                if let Some(name) = field.file_name() {
+                    file_name = name.to_string();
+                }
+                // 最小实现：丢弃文件内容，仅记录文件名（真实解析导入走 /import/excel 端点）
+            }
+            _ => {}
+        }
+    }
+
+    let template_id = template_id.ok_or_else(|| AppError::bad_request("缺少 template_id 字段"))?;
+
+    // 从内存模板存储定位模板，取其 import_type 作为任务的导入类型
+    let import_type = {
+        let records = lock_import_templates()?;
+        records
+            .iter()
+            .find(|r| r.id == template_id)
+            .map(|r| r.import_type.clone())
+            .ok_or_else(|| AppError::not_found(format!("导入模板 {} 不存在", template_id)))?
+    };
+
+    let service = ImportExportService::new(state.db.clone());
+    let task_id = service
+        .create_import_task(
+            &import_type,
+            0,
+            auth.user_id,
+            Some(file_name.clone()),
+            Some(template_id),
+        )
+        .await?;
+
+    let task = import_task::Entity::find_by_id(task_id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::internal("导入任务记录创建后查询失败"))?;
+
+    info!(
+        "用户 {} 创建导入任务成功：ID={}，模板={}，文件={}",
+        auth.username, task_id, import_type, file_name
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        import_task_to_frontend_json(task),
+        "导入任务已创建",
+    )))
+}
+
+/// GET /api/v1/erp/data-import/tasks/{id} - 获取导入任务详情（对应前端 api/data-import.ts getImportTask）
+pub async fn get_import_task_detail(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 查询导入任务详情 ID={}", auth.username, id);
+
+    let task = import_task::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("导入任务 {} 不存在", id)))?;
+
+    Ok(Json(ApiResponse::success(import_task_to_frontend_json(
+        task,
+    ))))
+}
+
+/// POST /api/v1/erp/data-import/tasks/{id}/cancel - 取消导入任务（对应前端 api/data-import.ts cancelImportTask）
+/// 仅运行中的任务可取消，取消后任务标记为 cancelled
+pub async fn cancel_import_task(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 取消导入任务 ID={}", auth.username, id);
+
+    let task = import_task::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("导入任务 {} 不存在", id)))?;
+
+    if task.status != import_status::RUNNING {
+        return Err(AppError::business(format!(
+            "导入任务 {} 当前状态为 {}，仅运行中的任务可取消",
+            id, task.status
+        )));
+    }
+
+    let mut active: import_task::ActiveModel = task.into();
+    active.status = Set(import_status::CANCELLED.to_string());
+    active.updated_at = Set(chrono::Utc::now().into());
+    let updated = active.update(state.db.as_ref()).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        import_task_to_frontend_json(updated),
+        "导入任务已取消",
+    )))
+}
+
+/// POST /api/v1/erp/data-import/tasks/{id}/retry - 重试导入任务（对应前端 api/data-import.ts retryImportTask）
+/// 仅失败/部分成功/已取消的任务可重试，重试后状态重置为 running
+pub async fn retry_import_task(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 重试导入任务 ID={}", auth.username, id);
+
+    let task = import_task::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("导入任务 {} 不存在", id)))?;
+
+    if matches!(
+        task.status.as_str(),
+        import_status::RUNNING | import_status::SUCCESS
+    ) {
+        return Err(AppError::business(format!(
+            "导入任务 {} 当前状态为 {}，仅失败/部分成功/已取消的任务可重试",
+            id, task.status
+        )));
+    }
+
+    let mut active: import_task::ActiveModel = task.into();
+    active.status = Set(import_status::RUNNING.to_string());
+    active.updated_at = Set(chrono::Utc::now().into());
+    let updated = active.update(state.db.as_ref()).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        import_task_to_frontend_json(updated),
+        "导入任务已重新开始",
+    )))
+}
+
+/// GET /api/v1/erp/data-import/tasks/{id}/error-log - 获取导入任务错误日志（对应前端 api/data-import.ts downloadErrorLog）
+/// 返回 JSON（前端以 blob 方式接收后可保存为日志文件）
+pub async fn get_import_task_error_log(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 获取导入任务错误日志 ID={}", auth.username, id);
+
+    let task = import_task::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("导入任务 {} 不存在", id)))?;
+
+    let error_log = build_import_task_error_log(&task);
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "task_id": task.id,
+        "task_code": format!("IMP-{:06}", task.id),
+        "status": task.status,
+        "filename": format!("import_task_{}_errors.log", task.id),
+        "content": error_log,
+    }))))
 }

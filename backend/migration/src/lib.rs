@@ -1,19 +1,22 @@
 //! 数据库迁移模块
 //!
-//! 按业务域聚合，每个域 1 个迁移文件，共 7 个：
-//! system → business → sales_crm → production → finance → v15 → rls_dept
+//! 按业务域聚合，每个域 1 个迁移文件，共 8 个：
+//! system → business → sales_crm → production → finance → v15 → rls_dept → crm_vocab_check
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
-//!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain
+//!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
+//!         m_crm_vocab_check
 //!
 //! 顺序说明：
 //! 1. system: 核心表（含 customers.owner_id/suppliers.created_by 补列）
-//! 2. business: 业务表（依赖 system 的基础表）
+//! 2. business: 业务表（依赖 system 的基础表；含 crm_lead/crm_opportunity 建表 m0013）
 //! 3. sales_crm: 销售报价（依赖 business 的 product_color_prices）
 //! 4. production: 生产/质量（依赖 business 的 custom_orders/process_nodes）
 //! 5. finance: 合规/RLS（依赖 system 的 customers.owner_id/suppliers.created_by）
 //! 6. v15: V15 各批次扩展
 //! 7. rls_dept: RLS dept 语义扩展（依赖 finance 的 5 表 RLS 策略，重写为 dept 级）
+//! 8. crm_vocab_check: CRM 状态词表 CHECK（依赖 business 建的 crm_lead/crm_opportunity，
+//!    排最后确保全部建表/回填类迁移（含 m0044 fix_fk_types）先行完成）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -32,6 +35,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::finance::Migration),
             Box::new(domain::v15::Migration),
             Box::new(domain::rls_dept::Migration),
+            Box::new(domain::crm_vocab_check::Migration),
         ]
     }
 }

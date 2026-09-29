@@ -1,35 +1,90 @@
 // 报价单 E2E 套件 — 03 报价单详情与编辑
-// 创建时间: 2026-08-19
-// 覆盖范围：报价单详情查看 → 编辑草稿 → 报价单列表状态筛选
-import { test, expect } from '@playwright/test';
-import { applyAuthMocks } from '../smoke/_helpers';
+// 创建时间: 2026-08-19（本轮去假绿改造 2026-09-23）
+// 覆盖范围：报价单详情查看 → 草稿报价单进入编辑页
+//
+// 去假绿说明：原 2 个用例在报价单「列表页」用 `if (await btn.isVisible())` 判断查看/编辑按钮，
+// 且断言的文案与产品实际渲染不一致（详情页无「基本信息」标题；编辑页标签是「客户」而非可被
+// `getByLabel(/客户/)` 命中的形式）。真实数据下这些条件可能不成立即 0 断言 → 假绿。
+// 现改为：真实造一张草稿报价单 → 进详情页硬断言渲染内容（标题/报价单号/状态标签）→
+// 从详情页点「编辑」→ 硬断言进入编辑页且表单渲染。
+import { test, expect, type Page } from '@playwright/test';
+import {
+  loginViaUI,
+  ensureTestEntities,
+  getCtx,
+  apiCall,
+  apiCallRaw,
+  BASE_URL,
+} from '../flow/helpers';
+
+/** 创建一张最小草稿报价单，返回 id 与后端报价单号 */
+async function createDraftQuotation(page: Page): Promise<{ id: number; quotationNo: string }> {
+  const ctx = getCtx();
+  const res = await apiCall<{ id?: number }>(page, 'POST', '/quotations', {
+    customer_id: ctx.customerId,
+    sales_user_id: ctx.userIds[0],
+    quotation_date: new Date().toISOString().slice(0, 10),
+    valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    currency: 'CNY',
+    exchange_rate: '1',
+    base_currency: 'CNY',
+    price_terms: 'FOB',
+    tax_inclusive: true,
+    tax_rate: '0',
+    items: [
+      {
+        // 引用 ensureTestEntities 自建、单位已知的报价专用产品，报价行单位取后端落库真值，
+        // 满足 validate_item_units_against_products（报价 unit 须逐字符等于产品交易单位）
+        product_id: ctx.quotationProductId,
+        unit: ctx.quotationProductUnit,
+        quantity: '5',
+        unit_price: '100',
+        unit_price_with_tax: '100',
+      },
+    ],
+    notes: 'E2E 报价单详情用例',
+  });
+  const id = res.data?.id;
+  expect(id, '前置失败：报价单创建未返回 id').toBeTruthy();
+  const created = await apiCallRaw<{ status: string; quotation_no: string }>(
+    page,
+    'GET',
+    `/quotations/${id}`
+  );
+  expect(created.status, '新建报价单应为 draft').toBe('draft');
+  return { id: id as number, quotationNo: created.quotation_no };
+}
 
 test.describe('03 报价单详情与编辑', () => {
-  test.beforeEach(async ({ page, context }) => {
-    await applyAuthMocks(context);
-    await page.goto('/');
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+    await ensureTestEntities(page);
   });
 
   test('03-01 报价单详情可查看', async ({ page }) => {
-    await page.goto('/quotations');
-    const viewBtn = page.getByRole('button', { name: /查看/ }).first();
-    if (await viewBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
-      await viewBtn.click();
-      await expect(page.getByText(/基本信息/)).toBeVisible({ timeout: 30000 }).catch((e) => {
-      console.warn(`[E2E] 断言容错: ${(e as Error).message}`);
-
-        return null;
-          });
-    }
+    const { id, quotationNo } = await createDraftQuotation(page);
+    await page.goto(`${BASE_URL}/quotations/${id}`);
+    // detail.vue 头部标题为「报价单详情 - <quotation_no>」，breadcrumb 也渲染同名 meta.title，
+    // getByText 子串匹配两处需 .first()
+    await expect(page.getByText('报价单详情').first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText(quotationNo)).toBeVisible();
+    // 描述列表标签 + 报价明细区（详情页无「基本信息」标题，改为断言真实存在的标签）
+    await expect(page.getByText('客户', { exact: true })).toBeVisible();
+    await expect(page.getByText('报价明细')).toBeVisible();
+    // draft 报价单状态标签渲染为「草稿」
+    await expect(page.getByText('草稿')).toBeVisible();
   });
 
   test('03-02 草稿报价单可编辑', async ({ page }) => {
-    await page.goto('/quotations');
-    const editBtn = page.getByRole('button', { name: /编辑/ }).first();
-    if (await editBtn.isVisible({ timeout: 3000 }).catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; })) {
-      await editBtn.click();
-      await expect(page.locator('form')).toBeVisible({ timeout: 30000 });
-      await expect(page.getByLabel(/客户/)).toBeVisible();
-    }
+    const { id } = await createDraftQuotation(page);
+    await page.goto(`${BASE_URL}/quotations/${id}`);
+    const editBtn = page.getByRole('button', { name: '编辑', exact: true });
+    await expect(editBtn, 'draft 详情页应渲染「编辑」按钮').toBeVisible({ timeout: 30000 });
+    await editBtn.click();
+    await page.waitForURL(`${BASE_URL}/quotations/${id}/edit`, { timeout: 30000 });
+    // create.vue 编辑模式标题「编辑报价单」，breadcrumb 也渲染同名 meta.title，需 .first()；
+    // 客户为必填表单控件（标签「客户」，与「客户等级」共享子串，须 exact）
+    await expect(page.getByText('编辑报价单').first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByLabel('客户', { exact: true })).toBeVisible();
   });
 });

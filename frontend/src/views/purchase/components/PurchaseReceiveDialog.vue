@@ -65,7 +65,7 @@
             width="150"
           />
           <el-table-column
-            prop="ordered_quantity"
+            prop="quantity"
             :label="t('purchase.receiveDlg.colOrderedQty')"
             width="100"
           />
@@ -79,7 +79,7 @@
               <el-input-number
                 v-model="row.receive_quantity"
                 :min="0"
-                :max="row.ordered_quantity - row.received_quantity"
+                :max="row.quantity - row.received_quantity"
                 size="small"
               />
             </template>
@@ -89,6 +89,16 @@
             :label="t('purchase.receiveDlg.colUnitPrice')"
             width="100"
           />
+          <!-- 批次号：后端建单期强校验的入库四维之一，须由收货人实测录入（无自动来源） -->
+          <el-table-column :label="t('purchase.receiveDlg.colBatch')" width="140">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.batch_no"
+                size="small"
+                :placeholder="t('purchase.receiveDlg.batchPlaceholder')"
+              />
+            </template>
+          </el-table-column>
           <el-table-column :label="t('purchase.receiveDlg.colRemark')" min-width="150">
             <template #default="{ row }">
               <el-input

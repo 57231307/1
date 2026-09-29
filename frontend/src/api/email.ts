@@ -80,7 +80,7 @@ export const deleteEmailTemplate = (id: number) =>
 
 // D14 Batch 5b：原 emailApi.getRecords 转为风格 B 函数（后端路由 /api/v1/erp/email-records）
 export const getEmailRecordList = (params?: EmailQueryParams) =>
-  request.get<ApiResponse<{ items: EmailLog[]; total: number }>>('/email-records', { params });
+  request.get<ApiResponse<{ list: EmailLog[]; total: number }>>('/email-records', { params });
 
 // D14 Batch 5b：原 emailApi.getStatistics 转为风格 B 函数（后端路由 /api/v1/erp/email-statistics）
 export const getEmailStatistics = () =>

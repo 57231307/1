@@ -22,7 +22,7 @@ pub struct CreateSeasonalRuleDto {
     #[validate(length(min = 1, max = 10))]
     pub season: String,
 
-    pub product_category_id: Option<i64>,
+    pub product_category_id: Option<i32>,
 
     /// percentage / fixed
     #[validate(length(min = 1, max = 20))]
@@ -42,7 +42,7 @@ pub struct CreateSeasonalRuleDto {
 pub struct UpdateSeasonalRuleDto {
     pub rule_name: Option<String>,
     pub season: Option<String>,
-    pub product_category_id: Option<i64>,
+    pub product_category_id: Option<i32>,
     pub adjustment_type: Option<String>,
     pub adjustment_value: Option<Decimal>,
     pub valid_from: Option<NaiveDate>,
@@ -62,7 +62,7 @@ pub struct ListSeasonalRulesQuery {
     pub page_size: Option<u64>,
     pub season: Option<String>,
     pub is_active: Option<bool>,
-    pub product_category_id: Option<i64>,
+    pub product_category_id: Option<i32>,
 }
 
 // ----------------------------------------------------------------------
@@ -75,7 +75,7 @@ pub struct SeasonalRuleInfo {
     pub id: i64,
     pub rule_name: String,
     pub season: String,
-    pub product_category_id: Option<i64>,
+    pub product_category_id: Option<i32>,
     pub adjustment_type: String,
     pub adjustment_value: Decimal,
     pub valid_from: NaiveDate,

@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, BASE_URL } from './helpers';
+import { loginViaUI, BASE_URL, ensureTestEntities } from './helpers';
 
 test.describe('批量操作与弹窗确认', () => {
   test.beforeEach(async ({ page }) => {
@@ -23,9 +23,7 @@ test.describe('批量操作与弹窗确认', () => {
 
     if (checkboxCount > 1) {
       const firstRowCheckbox = checkboxes.nth(1);
-      await firstRowCheckbox
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await firstRowCheckbox.click();
       await page.waitForTimeout(500);
 
       // 查找批量操作按钮
@@ -34,10 +32,8 @@ test.describe('批量操作与弹窗确认', () => {
           'button:has-text("批量审批"), button:has-text("批量通过"), button:has-text("批量提交")'
         )
         .first();
-      await batchApproveBtn
-        .waitFor({ state: 'visible', timeout: 3000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const batchBtnVisible = await batchApproveBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await batchApproveBtn.waitFor({ state: 'visible', timeout: 3000 });
+      const batchBtnVisible = await batchApproveBtn.isVisible();
       if (batchBtnVisible) {
         await batchApproveBtn.click();
         await page.waitForTimeout(1000);
@@ -46,19 +42,15 @@ test.describe('批量操作与弹窗确认', () => {
         const confirmDialog = page
           .locator('.el-message-box, .el-dialog:has-text("确认"), .el-popconfirm')
           .first();
-        await confirmDialog
-          .waitFor({ state: 'visible', timeout: 5000 })
-          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-        const dialogVisible = await confirmDialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        await confirmDialog.waitFor({ state: 'visible', timeout: 5000 });
+        const dialogVisible = await confirmDialog.isVisible();
         if (dialogVisible) {
           const confirmBtn = page
             .locator(
               '.el-message-box__btns button:has-text("确定"), .el-dialog button:has-text("确定")'
             )
             .first();
-          await confirmBtn
-            .click()
-            .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+          await confirmBtn.click();
           await page.waitForTimeout(2000);
         }
       }
@@ -68,11 +60,7 @@ test.describe('批量操作与弹窗确认', () => {
     const selectedCheckboxes = page.locator('.el-table .el-checkbox.is-checked');
     const selectedCount = await selectedCheckboxes.count();
     if (selectedCount > 0) {
-      await page
-        .locator('.el-table .el-checkbox.is-checked')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await page.locator('.el-table .el-checkbox.is-checked').first().click();
     }
   });
 
@@ -90,20 +78,25 @@ test.describe('批量操作与弹窗确认', () => {
     const deleteBtn = page
       .locator('button:has-text("删除"), .el-button--danger:has-text("删")')
       .first();
-    await deleteBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const deleteVisible = await deleteBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await deleteBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const deleteVisible = await deleteBtn.isVisible();
     if (deleteVisible) {
+      // 监听真实网络（非 mock/拦截）：取消后若发起了删除类请求必须让用例失败
+      const mutatingRequests: string[] = [];
+      const onRequest = (req: { method: () => string; url: () => string }) => {
+        const m = req.method();
+        if ((m === 'DELETE' || m === 'POST' || m === 'PUT') && req.url().includes('/api/v1/')) {
+          mutatingRequests.push(`${m} ${req.url()}`);
+        }
+      };
+      page.on('request', onRequest);
+
       await deleteBtn.click();
-      await page.waitForTimeout(500);
 
       // 验证确认弹窗
       const popconfirm = page.locator('.el-popconfirm, .el-message-box').first();
-      await popconfirm
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const popVisible = await popconfirm.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await popconfirm.waitFor({ state: 'visible', timeout: 5000 });
+      const popVisible = await popconfirm.isVisible();
       if (popVisible) {
         // 点击取消
         const cancelBtn = page
@@ -111,22 +104,20 @@ test.describe('批量操作与弹窗确认', () => {
             '.el-popconfirm button:has-text("取消"), .el-message-box__btns button:has-text("取消")'
           )
           .first();
-        await cancelBtn
-          .waitFor({ state: 'visible', timeout: 3000 })
-          .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-        const cancelVisible = await cancelBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        await cancelBtn.waitFor({ state: 'visible', timeout: 3000 });
+        const cancelVisible = await cancelBtn.isVisible();
         if (cancelVisible) {
           await cancelBtn.click();
-          await page.waitForTimeout(500);
 
-          await popconfirm
-            .waitFor({ state: 'visible', timeout: 2000 })
-            .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-
-          const popStillVisible = await popconfirm.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-          expect(popStillVisible).toBe(false);
+          // 原实现在点取消后又 waitFor(popconfirm,'visible')——弹窗已关闭，必然超时。
+          // 正确语义：断言弹窗从可见变为不可见（关闭）。
+          await popconfirm.waitFor({ state: 'hidden', timeout: 5000 });
+          expect(await popconfirm.isVisible()).toBe(false);
         }
       }
+      page.off('request', onRequest);
+      // 取消即中止：整个过程不得发出任何删除/变更类 API 请求
+      expect(mutatingRequests, '点击取消后不应发起批量/删除请求').toEqual([]);
     }
   });
 
@@ -143,12 +134,10 @@ test.describe('批量操作与弹窗确认', () => {
 
     // 查找导出按钮（真实文本"导出"）
     const exportBtn = page.locator('button:has-text("导出")').first();
-    await exportBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const exportVisible = await exportBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await exportBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const exportVisible = await exportBtn.isVisible();
     if (exportVisible) {
-      const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
+      const downloadPromise = page.waitForEvent('download', { timeout: 5000 });
       await exportBtn.click();
       await page.waitForTimeout(1000);
 
@@ -164,6 +153,12 @@ test.describe('批量操作与弹窗确认', () => {
   });
 
   test('下拉级联选择交互', async ({ page }) => {
+    // 供应商下拉选项来自 GET /purchase/suppliers，依赖前置供应商数据。
+    // 本文件 beforeEach 只 loginViaUI（其余用例为条件交互无需实体），而级联用例
+    // 需真实供应商才能填充下拉——补 ensureTestEntities 建/查供应商（其内部会创建
+    // ctx.supplierId），否则空库时下拉恒 0 项触发本用例既有的"前置数据缺失"断言。
+    await ensureTestEntities(page);
+
     await page.goto(`${BASE_URL}/purchase`);
     await page.waitForTimeout(3000);
 
@@ -176,49 +171,48 @@ test.describe('批量操作与弹窗确认', () => {
 
     // 点击新建采购单
     const newBtn = page.locator('button:has-text("新建采购单")').first();
-    await newBtn.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await newBtn.click();
 
     await page.waitForTimeout(1000);
     const dialog = page.locator('.el-dialog').first();
-    await dialog
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await dialog.waitFor({ state: 'visible', timeout: 10_000 });
 
     // 查找供应商下拉选择（真实 placeholder"选择供应商"）
     const supplierSelect = page.locator('.el-dialog .el-select').first();
-    await supplierSelect
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const selectVisible = await supplierSelect.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await supplierSelect.waitFor({ state: 'visible', timeout: 5000 });
+    const selectVisible = await supplierSelect.isVisible();
     if (selectVisible) {
       await supplierSelect.click();
       await page.waitForTimeout(500);
 
       // 验证下拉选项出现（只统计可见 dropdown 的 item，页面可能有隐藏 dropdown 实例）。
-      // 供应商列表依赖前置数据，CI 环境可能为空 → 空时跳过交互验证而非硬失败
+      // 供应商列表依赖前置数据，空列表=前置数据缺失，必须失败暴露
       const dropdownItems = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
       const itemCount = await dropdownItems.count();
-      if (itemCount > 0) {
-        // 选择第一项
+      expect(itemCount, '[下拉级联] 供应商下拉无选项（前置供应商数据缺失）').toBeGreaterThan(0);
+      {
+        // Element Plus 2.14 单选下拉：选中项文本渲染在 .el-select__wrapper 内
+        // （.el-select__selected-item / .el-select__placeholder 首个节点常是隐藏的
+        // 空占位，textContent 恒 ""）。正确契约：先记录被点击选项的文本，选中后断言
+        // wrapper 回显包含该文本——精确锚定"选中的正是这一项"，而非读到空也放过。
+        const chosenLabel = ((await dropdownItems.first().textContent()) ?? '').trim();
+        expect(chosenLabel, '[下拉级联] 首项选项文本为空').toBeTruthy();
         await dropdownItems.first().click();
-        await page.waitForTimeout(500);
 
-        // 验证已选择
-        const selectedValue = await supplierSelect
-          .locator('.el-select__selected-item, .el-select__placeholder')
-          .first()
-          .textContent();
-        expect(selectedValue).toBeTruthy();
-      } else {
-        console.warn('[下拉级联] 下拉无选项（供应商列表为空），跳过选择交互验证');
+        // 等待选中态渲染（wrapper 文本回填所选供应商名）后再读，避免读到过渡空态。
+        const wrapper = supplierSelect.locator('.el-select__wrapper').first();
+        await expect
+          .poll(async () => ((await wrapper.textContent()) ?? '').trim().length, {
+            message: '[下拉级联] 选中后供应商下拉未回显所选项',
+            timeout: 5000,
+          })
+          .toBeGreaterThan(0);
+        const selectedValue = ((await wrapper.textContent()) ?? '').trim();
+        expect(selectedValue, `选中后应回显所选项 "${chosenLabel}"`).toContain(chosenLabel);
       }
     }
 
     // 关闭弹窗
-    await page
-      .locator('.el-dialog__headerbtn')
-      .first()
-      .click()
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await page.locator('.el-dialog__headerbtn').first().click();
   });
 });

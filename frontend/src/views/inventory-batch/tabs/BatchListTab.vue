@@ -38,16 +38,10 @@
               style="width: 120px"
             >
               <el-option
-                :label="t('inventoryBatch.batchListTab.optionGradeFirst')"
-                :value="t('inventoryBatch.batchListTab.optionGradeFirst')"
-              />
-              <el-option
-                :label="t('inventoryBatch.batchListTab.optionGradeSecond')"
-                :value="t('inventoryBatch.batchListTab.optionGradeSecond')"
-              />
-              <el-option
-                :label="t('inventoryBatch.batchListTab.optionGradeThird')"
-                :value="t('inventoryBatch.batchListTab.optionGradeThird')"
+                v-for="grade in STOCK_GRADE_VALUES"
+                :key="grade"
+                :label="t(STOCK_GRADE_LABEL_KEY[grade])"
+                :value="grade"
               />
             </el-select>
           </el-form-item>
@@ -76,21 +70,21 @@
         :aria-label="t('inventoryBatch.batchListTab.ariaTable')"
       >
         <el-table-column
-          prop="batchNo"
+          prop="batch_no"
           :label="t('inventoryBatch.batchListTab.colBatchNo')"
           width="140"
         />
         <el-table-column
-          prop="productName"
+          prop="product_name"
           :label="t('inventoryBatch.batchListTab.colProductName')"
         />
         <el-table-column
-          prop="colorNo"
+          prop="color_no"
           :label="t('inventoryBatch.batchListTab.colColorNo')"
           width="100"
         />
         <el-table-column
-          prop="dyeLotNo"
+          prop="dye_lot_no"
           :label="t('inventoryBatch.batchListTab.colDyeLotNo')"
           width="100"
         />
@@ -100,31 +94,21 @@
           width="100"
         >
           <template #default="{ row }">
-            <el-tag
-              v-if="row.grade === t('inventoryBatch.batchListTab.optionGradeFirst')"
-              type="success"
-              >{{ row.grade }}</el-tag
-            >
-            <el-tag
-              v-else-if="row.grade === t('inventoryBatch.batchListTab.optionGradeSecond')"
-              type="warning"
-              >{{ row.grade }}</el-tag
-            >
-            <el-tag v-else type="danger">{{ row.grade }}</el-tag>
+            <el-tag :type="gradeTagType(row.grade)">{{ gradeLabel(row.grade) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column
-          prop="quantityMeters"
+          prop="quantity_meters"
           :label="t('inventoryBatch.batchListTab.colQuantityMeters')"
           width="120"
         />
         <el-table-column
-          prop="quantityKg"
+          prop="quantity_kg"
           :label="t('inventoryBatch.batchListTab.colQuantityKg')"
           width="100"
         />
         <el-table-column
-          prop="gramWeight"
+          prop="gram_weight"
           :label="t('inventoryBatch.batchListTab.colGramWeight')"
           width="100"
         />
@@ -134,39 +118,31 @@
           width="100"
         />
         <el-table-column
-          prop="warehouseName"
+          prop="warehouse_name"
           :label="t('inventoryBatch.batchListTab.colWarehouse')"
         />
         <el-table-column
-          prop="stockStatus"
+          prop="stock_status"
           :label="t('inventoryBatch.batchListTab.colStockStatus')"
           width="100"
         >
           <template #default="{ row }">
-            <el-tag
-              v-if="row.stockStatus === t('inventoryBatch.batchListTab.statusNormal')"
-              type="success"
-              >{{ row.stockStatus }}</el-tag
-            >
-            <el-tag v-else type="warning">{{ row.stockStatus }}</el-tag>
+            <el-tag :type="stockStatusTagType(row.stock_status)">{{ row.stock_status }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column
-          prop="qualityStatus"
+          prop="quality_status"
           :label="t('inventoryBatch.batchListTab.colQualityStatus')"
           width="100"
         >
           <template #default="{ row }">
-            <el-tag
-              v-if="row.qualityStatus === t('inventoryBatch.batchListTab.statusQualified')"
-              type="success"
-              >{{ row.qualityStatus }}</el-tag
-            >
-            <el-tag v-else type="danger">{{ row.qualityStatus }}</el-tag>
+            <el-tag :type="qualityStatusTagType(row.quality_status)">
+              {{ row.quality_status }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column
-          prop="productionDate"
+          prop="production_date"
           :label="t('inventoryBatch.batchListTab.colProductionDate')"
           width="120"
         />
@@ -282,6 +258,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
+import { logAuxLoadFailure, logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import {
@@ -292,6 +269,13 @@ import {
 } from '@/api/inventory-batch';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import { useTableApi } from '@/composables/useTableApi';
+import {
+  STOCK_GRADE_LABEL_KEY,
+  STOCK_GRADE_TAG_TYPE,
+  STOCK_GRADE_VALUES,
+  type StockGradeTagType,
+} from '@/constants/stock-grade';
+import { qualityStatusTagType, stockStatusTagType } from '@/constants/stock-status';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -302,6 +286,24 @@ const queryParams = reactive({
   colorNo: '',
   grade: '',
 });
+
+/** 等级文案：库里存的是中文稳定值，界面按当前语言翻译；取值域外告警后原样显示 */
+function gradeLabel(grade: string | null | undefined): string {
+  if (!grade) return '';
+  const key = STOCK_GRADE_LABEL_KEY[grade];
+  if (!key) {
+    logger.warn(
+      `[BatchListTab] 未知库存等级「${grade}」，不在取值域 ${STOCK_GRADE_VALUES.join('/')} 内`
+    );
+    return grade;
+  }
+  return t(key);
+}
+
+function gradeTagType(grade: string | null | undefined): StockGradeTagType {
+  const type = grade ? STOCK_GRADE_TAG_TYPE[grade] : undefined;
+  return type ?? 'danger';
+}
 
 // 批次 276：接入 useTableApi，消除手写 batchList/loading/pagination/fetchBatches 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -324,8 +326,9 @@ const {
 
 // 批次 276：同步筛选条件到 useTableApi.queryParams 并刷新
 const syncQueryParams = () => {
-  setQueryParam('batchNo', queryParams.batchNo || undefined);
-  setQueryParam('colorNo', queryParams.colorNo || undefined);
+  // 参数名必须与后端 BatchListQuery 一致（snake_case），此前发 batchNo/colorNo 后端收不到
+  setQueryParam('batch_no', queryParams.batchNo || undefined);
+  setQueryParam('color_no', queryParams.colorNo || undefined);
   setQueryParam('grade', queryParams.grade || undefined);
 };
 
@@ -400,17 +403,20 @@ const fetchWarehouseOptions = async () => {
   try {
     const res = await getWarehouseList({ page: 1, page_size: 1000 });
     warehouseOptions.value = res.data?.items || [];
-  } catch {
+  } catch (error) {
+    logAuxLoadFailure(t('inventoryBatch.batchListTab.messageLoadWarehousesFailed'), error);
     warehouseOptions.value = [];
   }
 };
 
 const handleTransfer = async (row: InventoryBatch) => {
   transferCurrentRow.value = row;
-  transferForm.fromWarehouseName = row.warehouseName || '-';
+  transferForm.fromWarehouseName = row.warehouse_name || '-';
   transferForm.toWarehouseId = null;
-  transferForm.quantityMeters = row.quantityMeters || 0;
-  transferForm.quantityKg = row.quantityKg || 0;
+  // quantity_meters/quantity_kg 后端为 Decimal，出参是字符串；转移入参是 f64，
+  // 在边界显式转数（Number），空/非法值归零，避免把 "1250.00" 字符串灌进 f64 字段导致 422
+  transferForm.quantityMeters = Number(row.quantity_meters) || 0;
+  transferForm.quantityKg = Number(row.quantity_kg) || 0;
   transferForm.remarks = '';
   if (warehouseOptions.value.length === 0) {
     await fetchWarehouseOptions();
@@ -423,17 +429,17 @@ const onSubmitTransfer = async () => {
   const row = transferCurrentRow.value;
   await transferFormRef.value.validate(async valid => {
     if (!valid) return;
-    if (!row.warehouseId || !transferForm.toWarehouseId) {
+    if (!row.warehouse_id || !transferForm.toWarehouseId) {
       ElMessage.warning(t('inventoryBatch.batchListTab.messageWarehouseInfoIncomplete'));
       return;
     }
     transferSubmitting.value = true;
     try {
       const payload: TransferBatchRequest = {
-        fromWarehouseId: row.warehouseId,
-        toWarehouseId: transferForm.toWarehouseId,
-        quantityMeters: transferForm.quantityMeters,
-        quantityKg: transferForm.quantityKg,
+        from_warehouse_id: row.warehouse_id,
+        to_warehouse_id: transferForm.toWarehouseId,
+        quantity_meters: transferForm.quantityMeters,
+        quantity_kg: transferForm.quantityKg,
         remarks: transferForm.remarks || undefined,
       };
       await transferBatch(row.id as number, payload);
@@ -453,7 +459,7 @@ const onSubmitTransfer = async () => {
 const handleDelete = async (row: InventoryBatch) => {
   try {
     await ElMessageBox.confirm(
-      t('inventoryBatch.batchListTab.messageConfirmDelete', { batchNo: row.batchNo }),
+      t('inventoryBatch.batchListTab.messageConfirmDelete', { batchNo: row.batch_no }),
       t('inventoryBatch.batchListTab.titleDeleteConfirm'),
       { type: 'warning' }
     );

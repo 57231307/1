@@ -16,7 +16,7 @@
       </el-form-item>
       <el-form-item :label="t('purchaseReturn.filter.label.supplier')">
         <el-select
-          v-model="localQuery.supplierId"
+          v-model="localQuery.supplier_id"
           :placeholder="t('purchaseReturn.filter.placeholder.supplier')"
           clearable
           filterable
@@ -37,11 +37,11 @@
           clearable
           @change="handleSearch"
         >
+          <!-- 状态取值与写入侧词表逐字一致：purchase_return.return_status 为 draft/submitted/approved/rejected -->
           <el-option :label="t('purchaseReturn.filter.status.draft')" value="draft" />
-          <el-option :label="t('purchaseReturn.filter.status.pending')" value="pending" />
+          <el-option :label="t('purchaseReturn.filter.status.submitted')" value="submitted" />
           <el-option :label="t('purchaseReturn.filter.status.approved')" value="approved" />
           <el-option :label="t('purchaseReturn.filter.status.rejected')" value="rejected" />
-          <el-option :label="t('purchaseReturn.filter.status.completed')" value="completed" />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('purchaseReturn.filter.label.returnDate')">
@@ -97,11 +97,11 @@ const emit = defineEmits<{
 // 本地查询条件（筛选字段，不含分页参数）
 const localQuery = reactive<{
   keyword: string;
-  supplierId: number | undefined;
+  supplier_id: number | undefined;
   status: string;
 }>({
   keyword: (props.queryParams.keyword as string) ?? '',
-  supplierId: props.queryParams.supplierId as number | undefined,
+  supplier_id: props.queryParams.supplier_id as number | undefined,
   status: (props.queryParams.status as string) ?? '',
 });
 
@@ -123,7 +123,7 @@ const handleSearch = () => {
 /** 重置：清空筛选条件 + 同步 + 触发加载 */
 const handleReset = () => {
   localQuery.keyword = '';
-  localQuery.supplierId = undefined;
+  localQuery.supplier_id = undefined;
   localQuery.status = '';
   localDateRange.value = null;
   emit('date-change', null);

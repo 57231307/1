@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { login as loginApi, logout as logoutApi, getUserInfo } from '@/api/auth';
 import type { UserInfo, LoginRequest } from '@/types/api';
 
-// V15 P2 20.11-D：权限码 localStorage 缓存，减少页面刷新时的 API 调用
+// 权限码 localStorage 缓存：整页刷新时优先用缓存权限渲染首屏，完整用户信息异步补全
 const PERMS_CACHE_KEY = 'erp_cached_perms';
 const PERMS_CACHE_TTL_KEY = 'erp_cached_perms_ts';
 const PERMS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 分钟有效期
@@ -34,20 +34,21 @@ function clearCachedPerms(): void {
 }
 
 export const useUserStore = defineStore('user', () => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const token = ref<string | null>(null);
-  // 20.11-D：初始化时尝试从 localStorage 恢复权限，避免每次刷新都调 API
+  // 首屏优化：从 localStorage 恢复权限码，用于快速渲染菜单/按钮门控，避免每次刷新都等 API。
+  // 缓存仅含权限、不含 id/username 等完整字段：用 id=0、username='' 作"不完整"哨兵，
+  // 由路由守卫识别（userInfo 缺有效 id）后异步补全 fetchUserInfo，二者不冲突。
   const _cachedPerms = readCachedPerms();
   const userInfo = ref<UserInfo | null>(
-    _cachedPerms ? ({ permissions: _cachedPerms } as UserInfo) : null
+    _cachedPerms ? { id: 0, username: '', permissions: _cachedPerms } : null
   );
 
   async function login(loginData: LoginRequest) {
     // loginApi 已在 api 层解包 ApiResponse 信封，返回业务数据 LoginResponse
     const res = await loginApi(loginData);
     // Wave B-3：access_token / refresh_token 由后端写入 httpOnly Cookie，前端不再持有 token
-    // FE-P-2/FE-P-3 修复：后端 LoginResponse 顶层 permissions 优先于 user.permissions
-    // 批次 22 v5 P0-5：Object.freeze 防止前端组件恶意修改权限码数组
+    // 后端 LoginResponse 顶层 permissions 优先于 user.permissions（后端按角色聚合的权威权限码）
+    // Object.freeze 防止前端组件运行时篡改权限码数组（如 push 注入 admin:write）
     const perms = res.permissions || res.user?.permissions || [];
     const frozenPerms = Object.freeze([...perms]) as readonly string[];
     userInfo.value = {
@@ -72,8 +73,7 @@ export const useUserStore = defineStore('user', () => {
   async function fetchUserInfo() {
     // getUserInfo 已在 api 层解包 ApiResponse 信封，返回业务数据 UserInfo
     const info = await getUserInfo();
-    // 批次 22 v5 P0-5 修复：对 permissions 字段添加 Object.freeze 运行时保护，
-    // 防止前端组件恶意修改权限码数组（如 push 注入 admin:write）。
+    // permissions 用 Object.freeze 做运行时深度防御，防止组件篡改权限码数组。
     // permissions 为 readonly 属性，通过解构创建新对象赋值，避免直接赋值类型错误。
     if (info && info.permissions) {
       const frozenPerms = Object.freeze([...info.permissions]) as readonly string[];

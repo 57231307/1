@@ -3,6 +3,7 @@
 // 创建时间: 2026-06-17
 
 import { request } from './request';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 // =====================================================
 // 公共类型
@@ -145,22 +146,16 @@ export interface AiSummary {
   latest_quality_predictions: AiQualityPrediction[];
 }
 
-export interface PageResult<T> {
-  items: T[];
-  total: number;
-  page: number;
-  page_size: number;
-}
-
 // =====================================================
 // 工艺优化（7 端点）
 // =====================================================
 
 /** 触发工艺优化（算法 + 落库） */
 export function createProcessOptimization(request_body: ProcessOptRequest) {
-  return request.post<{ id: number; response: ProcessOptResponse }>('/ai/process-optimizations', {
-    request: request_body,
-  });
+  return request.post<ApiResponse<{ id: number; response: ProcessOptResponse }>>(
+    '/ai/process-optimizations',
+    { request: request_body }
+  );
 }
 
 /** 工艺优化列表 */
@@ -174,7 +169,9 @@ export function getProcessOptimizationList(
     source?: string;
   } = {}
 ) {
-  return request.get<PageResult<AiProcessOptimization>>('/ai/process-optimizations', { params });
+  return request.get<PaginatedResponse<AiProcessOptimization>>('/ai/process-optimizations', {
+    params,
+  });
 }
 
 /** 工艺优化详情 */
@@ -222,9 +219,10 @@ export function batchCreateProcessOptimizations(requests: ProcessOptRequest[]) {
 
 /** 触发质量预测（算法 + 落库） */
 export function createQualityPrediction(request_body: QualityPredRequest) {
-  return request.post<{ id: number; response: QualityPredResponse }>('/ai/quality-predictions', {
-    request: request_body,
-  });
+  return request.post<ApiResponse<{ id: number; response: QualityPredResponse }>>(
+    '/ai/quality-predictions',
+    { request: request_body }
+  );
 }
 
 /** 质量预测列表 */
@@ -238,7 +236,7 @@ export function getQualityPredictionList(
     is_acknowledged?: boolean;
   } = {}
 ) {
-  return request.get<PageResult<AiQualityPrediction>>('/ai/quality-predictions', { params });
+  return request.get<PaginatedResponse<AiQualityPrediction>>('/ai/quality-predictions', { params });
 }
 
 /** 质量预测详情 */
@@ -326,6 +324,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   knn: 'k-NN 加权',
   fallback: '典型参数表',
   history: '历史趋势',
+  degraded: 'AI 服务降级',
 };
 
 export const INSPECTION_TYPE_LABELS: Record<string, string> = {

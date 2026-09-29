@@ -207,12 +207,17 @@ fn build_app_services(
     let cookie_key = Key::derive_from(cookie_secret.as_bytes());
     let di_container = Arc::new(DIContainer::new());
     let email_service = EmailService::from_env().map(Arc::new);
-    let event_notification_service = email_service.as_ref().map(|email_svc| {
-        Arc::new(EventNotificationService::with_email(
-            db.clone(),
-            email_svc.clone(),
-        ))
-    });
+    // 站内通知不依赖 SMTP。此前用 email_service.as_ref().map(..) 装配，
+    // 未配置邮件时整个 EventNotificationService 为 None，于是订单创建/提交/审批/发货、
+    // 库存预警、OA 公告联动等站内通知全部静默不产生
+    // （处理器侧只剩一句 warn 或直接跳过，CI 实证：
+    //  "event_notification_service 未配置，OA 公告 2 跳过通知推送" → notified_count=0）。
+    // 服务内部已按 Option<Arc<EmailService>> 区分邮件通道（event_notification_service.rs:110），
+    // 因此这里无条件构造，仅在缺少 SMTP 配置时不启用邮件而已。
+    let event_notification_service = Some(Arc::new(match &email_service {
+        Some(email_svc) => EventNotificationService::with_email(db.clone(), email_svc.clone()),
+        None => EventNotificationService::new(db.clone()),
+    }));
     let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
     let notification_service = Arc::new(NotificationService::new(db.clone()));
     let quotation_service = Arc::new(QuotationService::new(db.clone()));

@@ -2,8 +2,13 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_stock::Model as InventoryStock;
 use crate::models::product;
-// 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
-use crate::models::status::master_data;
+use crate::models::warehouse;
+// 库存台账状态与质量状态取值域（中文主数据值）。批次 213 曾把本文件的 "active"
+// 字面量替换为 `master_data::ACTIVE` 常量——常量选错了域，写入值依旧落在取值域之外，
+// 现改用本列自己的常量（详见 inventory_stock_status 模块文档）。
+use crate::models::status::purchase_inventory::{
+    inventory_stock_quality_status, inventory_stock_status,
+};
 use crate::services::inventory_stock_service::{CreateStockArgs, InventoryStockService};
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -28,6 +33,58 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use std::sync::Arc;
 
+/// 列表与导出共用的查询条件构造：分页由调用方决定（导出取全量页），
+/// 四维与状态筛选原样下推到 service 层的同一实现，避免两条出口口径不一致
+fn stock_list_filter(
+    params: &ListStockParams,
+    page: u64,
+    page_size: u64,
+) -> crate::services::inventory_stock_service::StockListFilter {
+    crate::services::inventory_stock_service::StockListFilter {
+        page,
+        page_size,
+        warehouse_id: params.warehouse_id,
+        product_id: params.product_id,
+        color_no: params.color_no.clone(),
+        dye_lot_no: params.dye_lot_no.clone(),
+        batch_no: params.batch_no.clone(),
+        stock_status: params.stock_status.clone(),
+        keyword: params.keyword.clone(),
+    }
+}
+
+/// 台账状态筛选入参校验。
+///
+/// `inventory_stocks.stock_status` 的取值域是中文主数据（正常/报废/已删除），与
+/// `master_data::ACTIVE`（active）等其它状态列不通用。此前越界值原样下推成 SQL 等值
+/// 条件，返回 200 + 零行，前端假筛选永不显红；现按取值域拒绝并回显允许值。
+pub fn validate_stock_status_param(raw: Option<&str>) -> Result<(), AppError> {
+    let Some(value) = raw.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    if inventory_stock_status::ALL.contains(&value) {
+        return Ok(());
+    }
+    Err(AppError::validation(format!(
+        "无效的库存台账状态：{}（允许值：{}）",
+        value,
+        inventory_stock_status::ALL.join("/")
+    )))
+}
+
+/// 新建库存行的初始台账状态与质量状态。
+///
+/// 两列都是无 CHECK 的 VARCHAR，取值必须各自落在本列取值域内：可用量计算、可出库筛选
+/// 与缺料预警一律按「正常 + 合格」过滤，写入越界值（历史上线上写过 `active`/`qualified`）
+/// 会让该行账上有货、界面无货且永远出不了库。单独成函数是为了让这两个取值能被
+/// `tests/handlers_inventory_stock_status_test.rs` 钉住。
+pub fn initial_stock_statuses() -> (String, String) {
+    (
+        inventory_stock_status::NORMAL.to_string(),
+        inventory_stock_quality_status::PASS.to_string(),
+    )
+}
+
 pub async fn get_stock(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -39,19 +96,8 @@ pub async fn get_stock(
     // 导致 DB 错误也返回 404。service 返回 AppError，直接用 ? 透传保留原始错误分类
     let stock = service.find_by_id(id).await?;
 
-    let response = StockResponse {
-        id: stock.id,
-        warehouse_id: stock.warehouse_id,
-        product_id: stock.product_id,
-        quantity_on_hand: stock.quantity_on_hand,
-        quantity_available: stock.quantity_available,
-        quantity_reserved: stock.quantity_reserved,
-        reorder_point: stock.reorder_point,
-        max_stock_point: stock.max_stock_point,
-        bin_location: stock.bin_location,
-        created_at: stock.created_at,
-        updated_at: stock.updated_at,
-    };
+    let mut response = to_stock_response(stock);
+    attach_master_names(&state.db, std::slice::from_mut(&mut response)).await;
 
     let mut response_json = serde_json::to_value(response)?;
 
@@ -104,6 +150,7 @@ pub async fn create_stock(
 ) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
+    let (stock_status, quality_status) = initial_stock_statuses();
     let stock = service
         .create_stock(CreateStockArgs {
             warehouse_id: payload.warehouse_id,
@@ -116,24 +163,14 @@ pub async fn create_stock(
             dye_lot_no: payload.dye_lot_no,
             gram_weight: payload.gram_weight,
             width: payload.width,
-            stock_status: master_data::ACTIVE.to_string(),
-            quality_status: "qualified".to_string(),
+            stock_status,
+            quality_status,
         })
         .await?;
 
-    Ok(Json(ApiResponse::success(StockResponse {
-        id: stock.id,
-        warehouse_id: stock.warehouse_id,
-        product_id: stock.product_id,
-        quantity_on_hand: stock.quantity_on_hand,
-        quantity_available: stock.quantity_available,
-        quantity_reserved: stock.quantity_reserved,
-        reorder_point: stock.reorder_point,
-        max_stock_point: stock.max_stock_point,
-        bin_location: stock.bin_location,
-        created_at: stock.created_at,
-        updated_at: stock.updated_at,
-    })))
+    let mut created_response = to_stock_response(stock);
+    attach_master_names(&state.db, std::slice::from_mut(&mut created_response)).await;
+    Ok(Json(ApiResponse::success(created_response)))
 }
 
 pub async fn update_stock(
@@ -185,19 +222,9 @@ pub async fn update_stock(
     // 改为 ? 透传，由 From<DbErr> for AppError 自动分类（RecordNotFound→404, 其他→500）
     let updated = active_model.update(&*state.db).await?;
 
-    Ok(Json(ApiResponse::success(StockResponse {
-        id: updated.id,
-        warehouse_id: updated.warehouse_id,
-        product_id: updated.product_id,
-        quantity_on_hand: updated.quantity_on_hand,
-        quantity_available: updated.quantity_available,
-        quantity_reserved: updated.quantity_reserved,
-        reorder_point: updated.reorder_point,
-        max_stock_point: updated.max_stock_point,
-        bin_location: updated.bin_location,
-        created_at: updated.created_at,
-        updated_at: updated.updated_at,
-    })))
+    let mut updated_response = to_stock_response(updated);
+    attach_master_names(&state.db, std::slice::from_mut(&mut updated_response)).await;
+    Ok(Json(ApiResponse::success(updated_response)))
 }
 
 pub async fn delete_stock(
@@ -224,16 +251,18 @@ pub async fn list_stock(
     params
         .validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
+    validate_stock_status_param(params.stock_status.as_deref())?;
 
     let service = InventoryStockService::new(state.db.clone());
     let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (stock_list, total) = service
-        .list_stock(page, page_size, params.warehouse_id, params.product_id)
+        .list_stock(&stock_list_filter(&params, page, page_size))
         .await?;
 
-    let stock_responses: Vec<_> = stock_list.into_iter().map(to_stock_response).collect();
+    let mut stock_responses: Vec<_> = stock_list.into_iter().map(to_stock_response).collect();
+    attach_master_names(&state.db, &mut stock_responses).await;
 
     send_inventory_alerts(&state, &stock_responses).await;
 
@@ -254,11 +283,86 @@ fn to_stock_response(stock: InventoryStock) -> StockResponse {
         quantity_on_hand: stock.quantity_on_hand,
         quantity_available: stock.quantity_available,
         quantity_reserved: stock.quantity_reserved,
+        quantity_shipped: stock.quantity_shipped,
+        quantity_incoming: stock.quantity_incoming,
         reorder_point: stock.reorder_point,
         max_stock_point: stock.max_stock_point,
         bin_location: stock.bin_location,
+        batch_no: stock.batch_no,
+        color_no: stock.color_no,
+        dye_lot_no: stock.dye_lot_no,
+        grade: stock.grade,
+        stock_status: stock.stock_status,
+        quality_status: stock.quality_status,
+        quantity_meters: stock.quantity_meters,
+        quantity_kg: stock.quantity_kg,
+        product_code: None,
+        product_name: None,
+        warehouse_name: None,
         created_at: stock.created_at,
         updated_at: stock.updated_at,
+    }
+}
+
+/// 为库存响应批量附上产品编码/名称与仓库名称。
+///
+/// 库存表只存 `product_id` / `warehouse_id`，而库存列表、详情与导出要按名称展示；
+/// 主数据行缺失（外键被破坏）时记录 error 并保持名称为空，不用 ID 拼假名称。
+async fn attach_master_names(db: &sea_orm::DatabaseConnection, responses: &mut [StockResponse]) {
+    if responses.is_empty() {
+        return;
+    }
+    let product_ids: Vec<i32> = responses.iter().map(|r| r.product_id).collect();
+    let warehouse_ids: Vec<i32> = responses.iter().map(|r| r.warehouse_id).collect();
+
+    let products = match product::Entity::find()
+        .filter(product::Column::Id.is_in(product_ids))
+        .all(db)
+        .await
+    {
+        Ok(list) => list,
+        Err(e) => {
+            tracing::error!(error = %e, "查询库存行的产品主数据失败，产品编码/名称将为空");
+            vec![]
+        }
+    };
+    let warehouses = match warehouse::Entity::find()
+        .filter(warehouse::Column::Id.is_in(warehouse_ids))
+        .all(db)
+        .await
+    {
+        Ok(list) => list,
+        Err(e) => {
+            tracing::error!(error = %e, "查询库存行的仓库主数据失败，仓库名称将为空");
+            vec![]
+        }
+    };
+
+    let product_map: std::collections::HashMap<i32, &product::Model> =
+        products.iter().map(|p| (p.id, p)).collect();
+    let warehouse_map: std::collections::HashMap<i32, &warehouse::Model> =
+        warehouses.iter().map(|w| (w.id, w)).collect();
+
+    for r in responses.iter_mut() {
+        match product_map.get(&r.product_id) {
+            Some(p) => {
+                r.product_code = Some(p.code.clone());
+                r.product_name = Some(p.name.clone());
+            }
+            None => tracing::error!(
+                product_id = r.product_id,
+                stock_id = r.id,
+                "库存行指向的产品主数据不存在（外键异常）"
+            ),
+        }
+        match warehouse_map.get(&r.warehouse_id) {
+            Some(w) => r.warehouse_name = Some(w.name.clone()),
+            None => tracing::error!(
+                warehouse_id = r.warehouse_id,
+                stock_id = r.id,
+                "库存行指向的仓库主数据不存在（外键异常）"
+            ),
+        }
     }
 }
 
@@ -403,6 +507,9 @@ pub async fn check_low_stock(
     let stock_responses = convert_to_stock_responses(stock_list);
 
     // 发送库存预警通知
+    if state.event_notification_service.is_none() {
+        tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
+    }
     if let Some(ref event_service) = state.event_notification_service {
         let product_map = load_low_stock_product_map(&state.db, &stock_responses).await;
         send_low_stock_notifications(event_service, &stock_responses, &product_map).await;
@@ -417,22 +524,7 @@ pub async fn check_low_stock(
 fn convert_to_stock_responses(
     stock_list: Vec<crate::models::inventory_stock::Model>,
 ) -> Vec<StockResponse> {
-    stock_list
-        .into_iter()
-        .map(|stock| StockResponse {
-            id: stock.id,
-            warehouse_id: stock.warehouse_id,
-            product_id: stock.product_id,
-            quantity_on_hand: stock.quantity_on_hand,
-            quantity_available: stock.quantity_available,
-            quantity_reserved: stock.quantity_reserved,
-            reorder_point: stock.reorder_point,
-            max_stock_point: stock.max_stock_point,
-            bin_location: stock.bin_location,
-            created_at: stock.created_at,
-            updated_at: stock.updated_at,
-        })
-        .collect()
+    stock_list.into_iter().map(to_stock_response).collect()
 }
 
 /// 批量查询产品信息，返回以 id 为键的 map（P2-1 修复：DB 错误降级为空集合）
@@ -532,15 +624,18 @@ pub async fn export_stock(
     params
         .validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
+    // 导出与列表同一口径，含越界台账状态一律拒绝
+    validate_stock_status_param(params.stock_status.as_deref())?;
 
     let service = InventoryStockService::new(state.db.clone());
     let (stock_list, _total) = service
-        .list_stock(1, 10000, params.warehouse_id, params.product_id)
+        .list_stock(&stock_list_filter(&params, 1, 10000))
         .await?;
     let row_count = stock_list.len();
 
-    let stock_responses: Vec<StockResponse> =
+    let mut stock_responses: Vec<StockResponse> =
         stock_list.into_iter().map(to_stock_response).collect();
+    attach_master_names(&state.db, &mut stock_responses).await;
     let mut stock_json = serialize_stock_responses(stock_responses)?;
     apply_data_permission_filter(&state, &auth, &mut stock_json).await;
 
@@ -557,13 +652,28 @@ pub async fn export_stock(
 }
 
 fn build_stock_xlsx_table(stock_json: &[serde_json::Value]) -> Result<XlsxTable, AppError> {
+    // 导出列与列表口径一致：库存表只存 product_id/warehouse_id，attach_master_names
+    // 已按 ID 批量带出编码与名称，此前导出把这三列丢掉、只回显裸 ID，人工读数无法使用
     let headers = vec![
-        "ID".to_string(),
-        "仓库ID".to_string(),
-        "产品ID".to_string(),
+        "库存ID".to_string(),
+        "产品编码".to_string(),
+        "产品名称".to_string(),
+        "仓库名称".to_string(),
+        "批次/匹号".to_string(),
+        "色号".to_string(),
+        "缸号".to_string(),
+        "等级".to_string(),
         "在库量".to_string(),
         "可用量".to_string(),
         "预留量".to_string(),
+        "已发货量".to_string(),
+        "在途量".to_string(),
+        "补货点".to_string(),
+        "库存上限".to_string(),
+        "库存状态".to_string(),
+        "质量状态".to_string(),
+        "数量(米)".to_string(),
+        "数量(公斤)".to_string(),
         "库位".to_string(),
         "创建时间".to_string(),
         "更新时间".to_string(),
@@ -577,11 +687,24 @@ fn build_stock_xlsx_table(stock_json: &[serde_json::Value]) -> Result<XlsxTable,
                 .ok_or_else(|| AppError::internal("库存序列化失败：期望 JSON 对象"))?;
             Ok(vec![
                 get_json_str(obj, "id"),
-                get_json_str(obj, "warehouse_id"),
-                get_json_str(obj, "product_id"),
+                get_json_str(obj, "product_code"),
+                get_json_str(obj, "product_name"),
+                get_json_str(obj, "warehouse_name"),
+                get_json_str(obj, "batch_no"),
+                get_json_str(obj, "color_no"),
+                get_json_str(obj, "dye_lot_no"),
+                get_json_str(obj, "grade"),
                 get_json_str(obj, "quantity_on_hand"),
                 get_json_str(obj, "quantity_available"),
                 get_json_str(obj, "quantity_reserved"),
+                get_json_str(obj, "quantity_shipped"),
+                get_json_str(obj, "quantity_incoming"),
+                get_json_str(obj, "reorder_point"),
+                get_json_str(obj, "max_stock_point"),
+                get_json_str(obj, "stock_status"),
+                get_json_str(obj, "quality_status"),
+                get_json_str(obj, "quantity_meters"),
+                get_json_str(obj, "quantity_kg"),
                 get_json_str(obj, "bin_location"),
                 get_json_str(obj, "created_at"),
                 get_json_str(obj, "updated_at"),
@@ -635,8 +758,15 @@ fn record_export_audit(
         after_snapshot: Some(serde_json::json!({
             "format": "xlsx",
             "total": row_count,
+            // 审计快照要能还原"导出的是哪一份数据"：只记仓库/产品两项时，
+            // 按四维或台账状态导出的记录在审计里看不出实际口径
             "warehouse_id_filter": params.warehouse_id,
             "product_id_filter": params.product_id,
+            "keyword_filter": params.keyword,
+            "batch_no_filter": params.batch_no,
+            "color_no_filter": params.color_no,
+            "dye_lot_no_filter": params.dye_lot_no,
+            "stock_status_filter": params.stock_status,
         })),
     };
     let svc = Arc::new(AuditLogService::new(db.clone()));

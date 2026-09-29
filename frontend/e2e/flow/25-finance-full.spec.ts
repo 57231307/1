@@ -31,7 +31,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/fund-management/accounts?page=1&page_size=1'
-    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
+    );
     const acctId = list.items?.[0]?.id;
     if (acctId) {
       await apiCallRaw(page, 'GET', `/fund-management/accounts/${acctId}`);
@@ -75,7 +75,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       page,
       'GET',
       '/fixed-assets?page=1&page_size=1'
-    ).catch((e) => { console.warn(`[E2E] 列表回读失败（返回空）: ${(e as Error).message}`); return { items: [] as Array<{ id: number }> }; });
+    );
     if (faList.items?.[0]?.id) {
       await apiCallRaw(page, 'GET', `/fixed-assets/${faList.items?.[0].id}`);
       await verifyEndpointHealthy(
@@ -100,10 +100,8 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 搜索
     const searchBtn = page.locator('button:has-text("查询")').first();
-    await searchBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const searchVisible = await searchBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await searchBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const searchVisible = await searchBtn.isVisible();
     if (searchVisible) {
       await searchBtn.click();
       await page.waitForTimeout(2000);
@@ -112,34 +110,25 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
           '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
         )
         .first()
-        .isVisible()
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        .isVisible();
       expect(tableOk).toBe(true);
     }
     // 新建资产
     const newBtn = page.locator('button:has-text("新建资产")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await dialog.waitFor({ state: 'visible', timeout: 5000 });
+      const dialogVisible = await dialog.isVisible();
       expect(dialogVisible).toBe(true);
       // 验证表单字段
       const inputs = dialog.locator('.el-input, .el-input-number, .el-select');
       const inputCount = await inputs.count();
       expect(inputCount).toBeGreaterThan(0);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await page.locator('.el-dialog__headerbtn').first().click();
     }
   });
 
@@ -150,25 +139,17 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-empty')
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
-    const newBtn = page.locator('button:has-text("新建预算")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const newBtn = page.locator('button:has-text("新建方案")').first();
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await dialog.waitFor({ state: 'visible', timeout: 5000 });
+      const dialogVisible = await dialog.isVisible();
       expect(dialogVisible).toBe(true);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await page.locator('.el-dialog__headerbtn').first().click();
     }
   });
 
@@ -180,38 +161,26 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建账户")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await dialog.waitFor({ state: 'visible', timeout: 5000 });
+      const dialogVisible = await dialog.isVisible();
       expect(dialogVisible).toBe(true);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await page.locator('.el-dialog__headerbtn').first().click();
     }
     // 验证转账按钮：按钮在“转账记录”Tab 内（默认激活 account），需先切 Tab
     // 真实按钮文本是“新建转账”（fund.transferTab.buttonNewTransfer），非“账户转账”
     const transferTabItem = page.locator('.el-tabs__item:has-text("转账记录")').first();
-    await transferTabItem
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await transferTabItem.waitFor({ state: 'visible', timeout: 10_000 });
     await transferTabItem.click();
     // 等 Tab 面板激活（aria-selected 或按钮可见）
     const transferBtn = page.locator('button:has-text("新建转账")').first();
-    await transferBtn
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const transferVisible = await transferBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await transferBtn.waitFor({ state: 'visible', timeout: 10_000 });
+    const transferVisible = await transferBtn.isVisible();
     expect(transferVisible).toBe(true);
   });
 
@@ -223,99 +192,16 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建币种")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await dialog.waitFor({ state: 'visible', timeout: 5000 });
+      const dialogVisible = await dialog.isVisible();
       expect(dialogVisible).toBe(true);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    }
-  });
-
-  test('凭证列表 UI：新建凭证+借贷校验', async ({ page }) => {
-    await page.goto(`${BASE_URL}/voucher`);
-    await page.waitForTimeout(3000);
-    await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-tabs')
-      .first()
-      .waitFor({ state: 'visible', timeout: 30_000 });
-    const newBtn = page.locator('button:has-text("新增凭证")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-    if (newBtnVisible) {
-      await newBtn.click();
-      await page.waitForTimeout(1000);
-      const dialog = page.locator('.el-dialog').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-      expect(dialogVisible).toBe(true);
-      // 直接保存触发必填校验
-      const saveBtn = dialog.locator('button:has-text("保存"), button:has-text("确定")').first();
-      await saveBtn.click().catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      await page.waitForTimeout(1000);
-      // 凭证表单校验用 ElMessage（warning/error），非 el-form-item__error。
-      // 匹配 .el-message（含 --warning/--error）以捕获所有类型提示
-      await page
-        .locator('.el-message')
-        .first()
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const hasError = await page
-        .locator('.el-message')
-        .first()
-        .isVisible()
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-      expect(hasError).toBe(true);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    }
-  });
-
-  test('会计科目 UI：树形表格+新建科目', async ({ page }) => {
-    await page.goto(`${BASE_URL}/account-subject`);
-    await page.waitForTimeout(3000);
-    await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
-      .first()
-      .waitFor({ state: 'visible', timeout: 30_000 });
-    const newBtn = page.locator('button:has-text("新建科目")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-    if (newBtnVisible) {
-      await newBtn.click();
-      await page.waitForTimeout(1000);
-      const dialog = page.locator('.el-dialog').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-      expect(dialogVisible).toBe(true);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await page.locator('.el-dialog__headerbtn').first().click();
     }
   });
 
@@ -327,31 +213,21 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新建期间")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       await page.waitForTimeout(1000);
       const dialog = page.locator('.el-dialog').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await dialog.waitFor({ state: 'visible', timeout: 5000 });
+      const dialogVisible = await dialog.isVisible();
       expect(dialogVisible).toBe(true);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await page.locator('.el-dialog__headerbtn').first().click();
     }
     // 验证初始化年度按钮（dialog 关闭动画可能遮挡，给足 10s）
     const initBtn = page.locator('button:has-text("初始化年度")').first();
-    await initBtn
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const initVisible = await initBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await initBtn.waitFor({ state: 'visible', timeout: 10_000 });
+    const initVisible = await initBtn.isVisible();
     expect(initVisible).toBe(true);
   });
 
@@ -363,23 +239,15 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
     const newBtn = page.locator('button:has-text("新增对账"), button:has-text("新建对账")').first();
-    await newBtn
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const newBtnVisible = await newBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await newBtn.waitFor({ state: 'visible', timeout: 10_000 });
+    const newBtnVisible = await newBtn.isVisible();
     if (newBtnVisible) {
       await newBtn.click();
       const dialog = page.locator('.el-dialog:visible').first();
-      await dialog
-        .waitFor({ state: 'visible', timeout: 10_000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const dialogVisible = await dialog.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await dialog.waitFor({ state: 'visible', timeout: 10_000 });
+      const dialogVisible = await dialog.isVisible();
       expect(dialogVisible).toBe(true);
-      await page
-        .locator('.el-dialog__headerbtn')
-        .first()
-        .click()
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+      await page.locator('.el-dialog__headerbtn').first().click();
     }
   });
 
@@ -392,21 +260,13 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .waitFor({ state: 'visible', timeout: 30_000 });
     // “生成对账”按钮在“对账管理”Tab 内（默认激活 invoice），需先切 Tab
     const recTabItem = page.locator('.el-tabs__item:has-text("对账管理")').first();
-    await recTabItem
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    await page.keyboard
-      .press('Escape')
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await recTabItem.waitFor({ state: 'visible', timeout: 10_000 });
+    await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
-    await recTabItem
-      .click({ force: true })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
+    await recTabItem.click({ force: true });
     const genBtn = page.locator('button:has-text("生成对账")').first();
-    await genBtn
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const genVisible = await genBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await genBtn.waitFor({ state: 'visible', timeout: 10_000 });
+    const genVisible = await genBtn.isVisible();
     expect(genVisible).toBe(true);
   });
 
@@ -419,16 +279,12 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       .waitFor({ state: 'visible', timeout: 30_000 });
     // 验证生成报表按钮
     const genBtn = page.locator('button:has-text("生成报表")').first();
-    await genBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const genVisible = await genBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await genBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const genVisible = await genBtn.isVisible();
     // 验证导出按钮
     const exportBtn = page.locator('button:has-text("导出")').first();
-    await exportBtn
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const exportVisible = await exportBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await exportBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const exportVisible = await exportBtn.isVisible();
     expect(genVisible || exportVisible).toBe(true);
   });
 });

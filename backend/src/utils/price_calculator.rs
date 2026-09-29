@@ -14,6 +14,7 @@ use crate::models::color_price_tier;
 use crate::models::customer_color_price;
 use crate::models::product_color_price;
 use crate::models::seasonal_price_rule;
+use crate::models::status::approval as price_approval_status;
 
 /// 计算错误
 #[derive(Debug, Error)]
@@ -238,7 +239,7 @@ async fn find_base_price(
         .filter(product_color_price::Column::ColorId.eq(req.color_id))
         .filter(product_color_price::Column::Currency.eq(&req.currency))
         .filter(product_color_price::Column::IsActive.eq(true))
-        .filter(product_color_price::Column::ApprovalStatus.eq("APPROVED"));
+        .filter(product_color_price::Column::ApprovalStatus.eq(price_approval_status::APPROVED));
 
     // 客户等级匹配：NULL = 通用
     if let Some(lvl) = &req.customer_level {

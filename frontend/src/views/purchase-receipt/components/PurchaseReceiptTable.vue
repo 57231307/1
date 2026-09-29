@@ -48,11 +48,28 @@
         {{ Number(scope.row.total_amount ?? 0).toFixed(2) }}
       </template>
     </el-table-column>
-    <el-table-column prop="status" :label="t('purchaseReceipt.table.column.status')" width="100">
+    <el-table-column
+      prop="receipt_status"
+      :label="t('purchaseReceipt.table.column.status')"
+      width="100"
+      align="center"
+    >
       <template #default="scope">
-        <span :class="['status-tag', getStatusClassFmt(scope.row.status)]">
-          {{ getStatusLabelFmt(scope.row.status) }}
-        </span>
+        <el-tag :type="getReceiptStatusTagFmt(scope.row.receipt_status)">
+          {{ getReceiptStatusLabelFmt(scope.row.receipt_status) }}
+        </el-tag>
+      </template>
+    </el-table-column>
+    <el-table-column
+      prop="inspection_status"
+      :label="t('purchaseReceipt.table.column.inspectionStatus')"
+      width="100"
+      align="center"
+    >
+      <template #default="scope">
+        <el-tag :type="getReceiptInspectionStatusTagFmt(scope.row.inspection_status)">
+          {{ getReceiptInspectionStatusLabelFmt(scope.row.inspection_status) }}
+        </el-tag>
       </template>
     </el-table-column>
     <el-table-column
@@ -75,7 +92,7 @@
           <el-icon><View /></el-icon>
         </el-button>
         <el-button
-          v-if="scope.row.status === 'draft'"
+          v-if="scope.row.receipt_status === RECEIPT_STATUS.DRAFT"
           size="small"
           type="primary"
           :aria-label="t('purchaseReceipt.table.aria.edit')"
@@ -84,7 +101,7 @@
           <el-icon><Edit /></el-icon>
         </el-button>
         <el-button
-          v-if="scope.row.status === 'draft'"
+          v-if="scope.row.receipt_status === RECEIPT_STATUS.DRAFT"
           size="small"
           type="warning"
           @click="emit('approve', scope.row as PurchaseReceiptEntity)"
@@ -92,7 +109,7 @@
           <el-icon><Check /></el-icon> {{ t('purchaseReceipt.table.button.approve') }}
         </el-button>
         <el-button
-          v-if="scope.row.status === 'draft'"
+          v-if="scope.row.receipt_status === RECEIPT_STATUS.DRAFT"
           size="small"
           type="danger"
           :aria-label="t('purchaseReceipt.table.aria.delete')"
@@ -122,7 +139,13 @@
 import { View, Edit, Delete, Check } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
 import type { PurchaseReceiptEntity } from '@/api/purchase-receipt';
-import { getStatusClass, getStatusLabel } from '../composables/prcFmts';
+import { PURCHASE_RECEIPT_STATUS as RECEIPT_STATUS } from '@/utils/purchase-receipt-status';
+import {
+  getReceiptStatusLabel,
+  getReceiptStatusTagType,
+  getReceiptInspectionStatusLabel,
+  getReceiptInspectionStatusTagType,
+} from '../composables/prcFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -152,25 +175,13 @@ const emit = defineEmits<{
 }>();
 
 // 透传格式化函数
-const getStatusClassFmt = getStatusClass;
-const getStatusLabelFmt = getStatusLabel;
+const getReceiptStatusLabelFmt = getReceiptStatusLabel;
+const getReceiptStatusTagFmt = getReceiptStatusTagType;
+const getReceiptInspectionStatusLabelFmt = getReceiptInspectionStatusLabel;
+const getReceiptInspectionStatusTagFmt = getReceiptInspectionStatusTagType;
 </script>
 
 <style scoped>
-.status-tag {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-}
-.status-draft {
-  background: #f5f7fa;
-  color: #909399;
-}
-.status-approved {
-  background: #f0f9eb;
-  color: #67c23a;
-}
 .pagination-container {
   display: flex;
   justify-content: flex-end;

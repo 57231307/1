@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import JSZip from 'jszip';
-import { loginViaUI, apiCallRaw } from '../flow/helpers';
+import { loginViaUI, apiCallRaw, ensureTestEntities } from '../flow/helpers';
 
 /**
  * 39c 导出内容断言（doto 2026-09-09 导出内容缺口）
@@ -35,6 +35,8 @@ async function extractXlsxText(body: Buffer): Promise<{ text: string; sheetRows:
   for (const f of sheetFiles) {
     const xml = await zip.file(f)!.async('string');
     text += xml;
+    // xml 恒存在（刚 async('string') 读出）；无 <row> 时 match 返回 null，此处 ?? 0 表示"该 sheet 无数据行"，
+    // 是行计数归零的正确语义，非"字段缺失伪装成空集合"，保留。
     sheetRows += (xml.match(/<row[ >]/g) ?? []).length;
   }
   return { text, sheetRows };
@@ -46,33 +48,35 @@ test.describe('39c 导出内容断言', () => {
   });
 
   test('仓库导出 xlsx 内容与列表数据一致（列头+行数）', async ({ page }) => {
-    test.setTimeout(120_000);
+    // 与 playwright.config.ts 单测默认 420s 基线一致（该值专为 ensureTestEntities
+    // 需 UI 创建 10+ 实体、50 分片并发同库的耗时设定）。原 120s 覆盖低于基线，
+    // 内联 ensureTestEntities 在末段（/auth/me）踩上限。
+    test.setTimeout(420_000);
+    // 造数据：ensureTestEntities 保证至少 2 个仓库，导出内容匹配不再依赖种子数据缺失而 skip
+    await ensureTestEntities(page);
 
     // ---- 1. 列表 API 行数（源数据基准）----
     const list = await apiCallRaw<{
       items: Array<{ id: number; name?: string; code?: string }>;
       total: number;
     }>(page, 'GET', '/warehouses?page=1&page_size=100');
-    const listCount = list.items?.length ?? 0;
+    // 先断言出参形态：字段缺失不得伪装成空集合
+    expect(
+      Array.isArray(list.items),
+      `仓库列表缺 items 数组：${JSON.stringify(list).slice(0, 200)}`
+    ).toBe(true);
+    const listCount = list.items.length;
+    expect(listCount, 'ensureTestEntities 后仓库列表不应为空').toBeGreaterThan(0);
     console.log(`[39c] 仓库列表行数=${listCount}（total=${list.total}）`);
 
-    // ---- 2. 真实导出 ----
-    const exportResp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/warehouses/export`)
-      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-    if (!exportResp) throw new Error('网络错误: /warehouses/export');
+    // ---- 2. 真实导出（已注册 catalog.rs:91 /warehouses/export，有数据必须 200）----
+    const exportResp = await page.request.get(`${API_BASE}${API_PREFIX}/warehouses/export`);
     const status = exportResp.status();
     console.log(`[39c] /warehouses/export → ${status}`);
-    if (status === 404 || status === 400) {
-      test.info().annotations.push({
-        type: 'missing-data',
-        description: `仓库导出返回 ${status}（端点或数据缺失）`,
-      });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
-    expect(status, `导出应 200，实际 ${status}`).toBe(200);
+    expect(
+      status,
+      `仓库导出应 200（端点已注册且已造数据）；${status} 说明导出处理器坏掉，判红`
+    ).toBe(200);
 
     const body = await exportResp.body();
     expect(body.length, `xlsx 应 >512B，实际 ${body.length}B`).toBeGreaterThan(512);
@@ -86,14 +90,17 @@ test.describe('39c 导出内容断言', () => {
 
     // 列头断言：仓库名称/编码类中文表头应出现（sharedStrings 或内联）
     const hasHeader =
-      text.includes('仓库') || text.includes('名称') || text.includes('编码') || text.includes('code');
+      text.includes('仓库') ||
+      text.includes('名称') ||
+      text.includes('编码') ||
+      text.includes('code');
     expect(hasHeader, '导出应包含仓库相关列头').toBeTruthy();
 
     // 行数断言：导出数据行 ≥ 列表行数（列表分页 page_size=100，导出全量）
     if (listCount > 0) {
       expect(
         sheetRows,
-        `导出数据行 ${sheetRows} 应 ≥ 列表行数 ${listCount}（内容完整性）`,
+        `导出数据行 ${sheetRows} 应 ≥ 列表行数 ${listCount}（内容完整性）`
       ).toBeGreaterThanOrEqual(listCount);
     }
     // 名称内容匹配：列表第一条名称应出现在导出文本中
@@ -101,42 +108,39 @@ test.describe('39c 导出内容断言', () => {
     if (first?.name) {
       expect(
         text.includes(first.name),
-        `导出应包含列表首条名称 "${first.name}"（内容与源数据一致）`,
+        `导出应包含列表首条名称 "${first.name}"（内容与源数据一致）`
       ).toBeTruthy();
       console.log(`[39c] ✅ 内容匹配："${first.name}" 出现在导出文件`);
     }
   });
 
   test('库存导出 xlsx 行数与列表一致', async ({ page }) => {
-    test.setTimeout(120_000);
+    // 与 playwright.config.ts 单测默认 420s 基线一致（该值专为 ensureTestEntities
+    // 需 UI 创建 10+ 实体、50 分片并发同库的耗时设定）。原 120s 覆盖低于基线，
+    // 内联 ensureTestEntities 在末段（/auth/me）踩上限。
+    test.setTimeout(420_000);
+    // 造数据：ensureTestEntities 会建库存行；导出处理器已注册则必须 200，不再 skip
+    await ensureTestEntities(page);
 
-    let listCount = 0;
-    let firstText = '';
-    try {
-      const list = await apiCallRaw<{
-        items: Array<{ id: number; batch_no?: string; product_name?: string }>;
-        total: number;
-      }>(page, 'GET', '/inventory/stock?page=1&page_size=100');
-      listCount = list.items?.length ?? 0;
-      firstText = list.items?.[0]?.batch_no ?? '';
-      console.log(`[39c] 库存列表行数=${listCount}，首条=${firstText}`);
-    } catch (e) {
-      console.log('[39c] 库存列表查询失败:', (e as Error).message);
-    }
+    const list = await apiCallRaw<{
+      items: Array<{ id: number; batch_no?: string; product_name?: string }>;
+      total: number;
+    }>(page, 'GET', '/inventory/stock?page=1&page_size=100');
+    expect(
+      Array.isArray(list.items),
+      `库存列表缺 items 数组：${JSON.stringify(list).slice(0, 200)}`
+    ).toBe(true);
+    const listCount = list.items.length;
+    const firstText = list.items[0]?.batch_no ?? '';
+    console.log(`[39c] 库存列表行数=${listCount}，首条=${firstText}`);
 
-    const exportResp = await page.request
-      .get(`${API_BASE}${API_PREFIX}/inventory/stock/export`)
-      .catch((e) => { console.warn(`[E2E] 操作失败（降级跳过）: ${(e as Error).message}`); return null; });
-    if (!exportResp) throw new Error('网络错误: /inventory/stock/export');
+    const exportResp = await page.request.get(`${API_BASE}${API_PREFIX}/inventory/stock/export`);
     const status = exportResp.status();
     console.log(`[39c] /stock/export → ${status}`);
-    if (status === 404 || status === 400) {
-      test.info().annotations.push({ type: 'missing-data', description: `库存导出返回 ${status}` });
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
-    expect(status, `库存导出应 200，实际 ${status}`).toBe(200);
+    expect(
+      status,
+      `库存导出应 200（端点已注册 inventory.rs:59）；${status} 说明导出处理器坏掉，判红`
+    ).toBe(200);
 
     const body = await exportResp.body();
     expect(body.length, '库存 xlsx 应 >512B').toBeGreaterThan(512);
@@ -144,16 +148,12 @@ test.describe('39c 导出内容断言', () => {
     console.log(`[39c] 库存 xlsx：${text.length}B / ${sheetRows} 行`);
 
     if (listCount > 0) {
-      expect(
-        sheetRows,
-        `导出行 ${sheetRows} 应 ≥ 列表行 ${listCount}`,
-      ).toBeGreaterThanOrEqual(listCount);
+      expect(sheetRows, `导出行 ${sheetRows} 应 ≥ 列表行 ${listCount}`).toBeGreaterThanOrEqual(
+        listCount
+      );
     }
     if (firstText) {
-      expect(
-        text.includes(firstText),
-        `导出应包含首条批号 ${firstText}（内容一致）`,
-      ).toBeTruthy();
+      expect(text.includes(firstText), `导出应包含首条批号 ${firstText}（内容一致）`).toBeTruthy();
       console.log(`[39c] ✅ 库存批号 ${firstText} 内容匹配`);
     }
   });

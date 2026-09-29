@@ -121,7 +121,8 @@ pub struct QualityPredResponse {
     pub recommendations: Vec<String>,
     /// 按月分段统计
     pub period_breakdown: Vec<PeriodStat>,
-    /// 数据来源标识："history" | "fallback"
+    /// 数据来源标识："history"（按历史检验趋势计算）| "fallback"（历史数据不足的算法退化）|
+    /// "degraded"（推理超时或模型不可用时的服务降级）
     pub source: String,
     /// V15 P1 5.3：是否命中缓存（true 表示 5 分钟内相同入参已计算过）
     pub cache_hit: bool,

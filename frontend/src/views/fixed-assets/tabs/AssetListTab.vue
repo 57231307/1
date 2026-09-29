@@ -23,16 +23,9 @@
 
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryForm" :aria-label="$t('fixedAssets.filter.ariaLabel')">
-        <el-form-item :label="$t('fixedAssets.filter.assetCode')">
-          <el-input
-            v-model="queryForm.asset_code"
-            :placeholder="$t('fixedAssets.filter.assetCodePlaceholder')"
-            clearable
-          />
-        </el-form-item>
         <el-form-item :label="$t('fixedAssets.filter.assetName')">
           <el-input
-            v-model="queryForm.asset_name"
+            v-model="queryForm.keyword"
             :placeholder="$t('fixedAssets.filter.assetNamePlaceholder')"
             clearable
           />
@@ -114,8 +107,11 @@
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('fixedAssets.table.operation')" width="240" fixed="right">
+        <el-table-column :label="$t('fixedAssets.table.operation')" width="290" fixed="right">
           <template #default="{ row }">
+            <el-button type="info" link size="small" @click="openDetail(row as FixedAsset)">{{
+              $t('fixedAssets.table.detail')
+            }}</el-button>
             <el-button type="primary" link size="small" @click="openDialog(row)">{{
               $t('fixedAssets.table.edit')
             }}</el-button>
@@ -167,8 +163,8 @@
       >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item :label="$t('fixedAssets.dialog.assetCode')" prop="asset_code">
-              <el-input v-model="form.asset_code" :disabled="!!form.id" />
+            <el-form-item :label="$t('fixedAssets.dialog.assetCode')" prop="asset_no">
+              <el-input v-model="form.asset_no" :disabled="!!form.id" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -179,9 +175,9 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item :label="$t('fixedAssets.dialog.category')" prop="category">
+            <el-form-item :label="$t('fixedAssets.dialog.category')" prop="asset_category">
               <el-select
-                v-model="form.category"
+                v-model="form.asset_category"
                 :placeholder="$t('fixedAssets.dialog.categoryPlaceholder')"
                 style="width: 100%"
               >
@@ -207,9 +203,9 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item :label="$t('fixedAssets.dialog.originalValue')" prop="purchase_amount">
+            <el-form-item :label="$t('fixedAssets.dialog.originalValue')" prop="original_value">
               <el-input-number
-                v-model="form.purchase_amount"
+                v-model="form.original_value"
                 :min="0"
                 :precision="2"
                 style="width: 100%"
@@ -217,25 +213,20 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('fixedAssets.dialog.salvageValue')" prop="salvage_value">
+            <el-form-item
+              :label="$t('fixedAssets.dialog.usefulLifeMonths')"
+              prop="useful_life_months"
+            >
               <el-input-number
-                v-model="form.salvage_value"
-                :min="0"
-                :precision="2"
+                v-model="form.useful_life_months"
+                :min="1"
+                :step="12"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item
-              :label="$t('fixedAssets.dialog.usefulLifeMonths')"
-              prop="useful_life_months"
-            >
-              <el-input-number v-model="form.useful_life_months" :min="1" style="width: 100%" />
-            </el-form-item>
-          </el-col>
           <el-col :span="12">
             <el-form-item
               :label="$t('fixedAssets.dialog.depreciationMethod')"
@@ -261,16 +252,9 @@
               </el-select>
             </el-form-item>
           </el-col>
-        </el-row>
-        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('fixedAssets.dialog.location')">
               <el-input v-model="form.location" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item :label="$t('fixedAssets.dialog.custodian')">
-              <el-input v-model="form.custodian" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -349,6 +333,43 @@
         }}</el-button>
       </template>
     </el-dialog>
+    <!-- 资产详情（getAsset 回源） -->
+    <el-dialog v-model="detailVisible" :title="$t('fixedAssets.table.detailTitle')" width="560">
+      <el-descriptions v-if="detailAsset" :column="2" border>
+        <el-descriptions-item label="资产编码">{{ detailAsset.asset_code }}</el-descriptions-item>
+        <el-descriptions-item label="资产名称">{{ detailAsset.asset_name }}</el-descriptions-item>
+        <el-descriptions-item label="类别">{{ detailAsset.category || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="getStatusType(detailAsset.status)">{{
+            getStatusLabel(detailAsset.status)
+          }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="购置日期">{{
+          detailAsset.purchase_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="购置金额">{{
+          detailAsset.purchase_amount ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="残值">{{
+          detailAsset.salvage_value ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="使用年限(月)">{{
+          detailAsset.useful_life_months ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="折旧方法">{{
+          detailAsset.depreciation_method || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="存放位置">{{
+          detailAsset.location || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="保管人">{{
+          detailAsset.custodian || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="累计折旧">{{
+          detailAsset.accumulated_depreciation ?? '-'
+        }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
@@ -358,6 +379,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus, Refresh, Download } from '@element-plus/icons-vue';
 import {
+  getAsset,
   createAsset,
   updateAsset,
   deleteAsset as deleteAssetApi,
@@ -426,9 +448,9 @@ const disposalRules: FormRules = {
 };
 
 // 批次 278：筛选条件（仅保留业务字段，page/page_size 由 useTableApi 管理）
+// 键名对齐后端 AssetQuery：keyword（编码/名称模糊）、status、asset_category
 const queryForm = reactive({
-  asset_code: '',
-  asset_name: '',
+  keyword: '',
   category: '',
   status: '',
 });
@@ -455,12 +477,11 @@ const {
   },
 });
 
-// 批次 278：将筛选字段同步到 queryParams
+// 批次 278：将筛选字段同步到 queryParams（键名对齐后端 AssetQuery；空值置 undefined，避免发出空串参数）
 const syncQueryParams = () => {
-  setQueryParam('asset_code', queryForm.asset_code);
-  setQueryParam('asset_name', queryForm.asset_name);
-  setQueryParam('category', queryForm.category);
-  setQueryParam('status', queryForm.status);
+  setQueryParam('keyword', queryForm.keyword || undefined);
+  setQueryParam('asset_category', queryForm.category || undefined);
+  setQueryParam('status', queryForm.status || undefined);
 };
 
 // 批次 278：分页变化处理函数
@@ -472,28 +493,25 @@ const handleSizeChange = (_s: number) => {
   page.value = 1;
 };
 
-const form = reactive<FixedAssetCreateRequest & { id?: number }>({
-  id: undefined,
-  asset_code: '',
+// 表单模型（视图态）：字段名对齐后端 CreateAssetRequestDto；
+// useful_life_months 仅用于 UI（后端 useful_life 单位为年，提交时换算）。
+const form = reactive({
+  id: undefined as number | undefined,
+  asset_no: '',
   asset_name: '',
-  category: 'equipment',
+  asset_category: 'equipment',
   purchase_date: new Date().toISOString().split('T')[0],
-  purchase_amount: 0,
-  salvage_value: 0,
+  original_value: 0,
   useful_life_months: 60,
   depreciation_method: 'straight_line',
   location: '',
-  custodian: '',
 });
 
 const rules: FormRules = {
-  asset_code: [
-    { required: true, message: t('fixedAssets.validation.assetCodeRequired'), trigger: 'blur' },
-  ],
   asset_name: [
     { required: true, message: t('fixedAssets.validation.assetNameRequired'), trigger: 'blur' },
   ],
-  category: [
+  asset_category: [
     { required: true, message: t('fixedAssets.validation.categoryRequired'), trigger: 'change' },
   ],
   purchase_date: [
@@ -503,7 +521,7 @@ const rules: FormRules = {
       trigger: 'change',
     },
   ],
-  purchase_amount: [
+  original_value: [
     {
       required: true,
       message: t('fixedAssets.validation.purchaseAmountRequired'),
@@ -559,39 +577,52 @@ const handleSearch = () => {
 };
 
 const handleReset = () => {
-  queryForm.asset_code = '';
-  queryForm.asset_name = '';
+  queryForm.keyword = '';
   queryForm.category = '';
   queryForm.status = '';
   handleSearch();
+};
+
+// ===== 资产详情（getAsset 按 ID 回源） =====
+const detailVisible = ref(false);
+const detailAsset = ref<FixedAsset | null>(null);
+
+const openDetail = async (row: FixedAsset) => {
+  detailVisible.value = true;
+  detailAsset.value = row;
+  try {
+    const res = await getAsset(row.id);
+    if (res.data) {
+      detailAsset.value = res.data;
+      detailVisible.value = true;
+    }
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error((e as Error).message || '获取详情失败');
+  }
 };
 
 const openDialog = (row?: FixedAsset) => {
   formRef.value?.resetFields();
   if (row) {
     form.id = row.id;
-    form.asset_code = row.asset_code;
+    form.asset_no = row.asset_code;
     form.asset_name = row.asset_name;
-    form.category = row.category;
+    form.asset_category = row.category;
     form.purchase_date = row.purchase_date;
-    form.purchase_amount = row.purchase_amount;
-    form.salvage_value = row.salvage_value;
+    form.original_value = row.purchase_amount;
     form.useful_life_months = row.useful_life_months;
     form.depreciation_method = row.depreciation_method;
-    form.location = row.location;
-    form.custodian = row.custodian;
+    form.location = row.location ?? '';
   } else {
     form.id = undefined;
-    form.asset_code = '';
+    form.asset_no = '';
     form.asset_name = '';
-    form.category = 'equipment';
+    form.asset_category = 'equipment';
     form.purchase_date = new Date().toISOString().split('T')[0];
-    form.purchase_amount = 0;
-    form.salvage_value = 0;
+    form.original_value = 0;
     form.useful_life_months = 60;
     form.depreciation_method = 'straight_line';
     form.location = '';
-    form.custodian = '';
   }
   dialogVisible.value = true;
 };
@@ -605,13 +636,24 @@ const handleSubmit = async () => {
       if (form.id) {
         const updateData: FixedAssetUpdateRequest = {
           asset_name: form.asset_name,
-          location: form.location,
-          custodian: form.custodian,
+          asset_category: form.asset_category || undefined,
+          use_location: form.location || undefined,
         };
         await updateAsset(form.id, updateData);
         ElMessage.success(t('fixedAssets.message.updateSuccess'));
       } else {
-        await createAsset(form);
+        // 后端 useful_life 单位为年：将按月录入的使用寿命换算为整年
+        const payload: FixedAssetCreateRequest = {
+          asset_no: form.asset_no || undefined,
+          asset_name: form.asset_name,
+          asset_category: form.asset_category || undefined,
+          location: form.location || undefined,
+          original_value: form.original_value,
+          useful_life: Math.round(form.useful_life_months / 12),
+          depreciation_method: form.depreciation_method,
+          purchase_date: form.purchase_date,
+        };
+        await createAsset(payload);
         ElMessage.success(t('fixedAssets.message.createSuccess'));
       }
       dialogVisible.value = false;

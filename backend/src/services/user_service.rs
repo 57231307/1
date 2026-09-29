@@ -57,6 +57,47 @@ impl UserService {
 
     /// 按 ID 查找用户（命中 Redis 时直接返回缓存）
     /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）；读穿透：先查 Redis，未命中查 DB 后回填 Redis；写失效：create/update/delete 时清除对应 key；# 参数；`id`: 用户 ID；# 返回；`Ok(user)`: 找到用户；`Err(DbErr::RecordNotFound)`: 用户不存在
+    /// 更新当前登录用户资料（仅姓名/邮箱/电话，管理字段走管理员链路）
+    pub async fn update_current_profile(
+        &self,
+        user_id: i32,
+        real_name: Option<String>,
+        email: Option<String>,
+        phone: Option<String>,
+    ) -> Result<user::Model, AppError> {
+        let existing = user::Entity::find_by_id(user_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", user_id)))?;
+        let mut user: user::ActiveModel = existing.into();
+        if let Some(v) = real_name {
+            user.real_name = Set(Some(v));
+        }
+        if let Some(v) = email {
+            user.email = Set(Some(v));
+        }
+        if let Some(v) = phone {
+            user.phone = Set(Some(v));
+        }
+        let updated = user.update(self.db.as_ref()).await?;
+        // 资料变更后失效用户缓存，保证后续读取拿到新数据
+        redis_cache_del(&cache_key("user", user_id)).await;
+        Ok(updated)
+    }
+
+    /// 更新用户头像 URL
+    pub async fn update_avatar(&self, user_id: i32, avatar_url: &str) -> Result<(), AppError> {
+        let existing = user::Entity::find_by_id(user_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", user_id)))?;
+        let mut user: user::ActiveModel = existing.into();
+        user.avatar = Set(Some(avatar_url.to_string()));
+        user.update(self.db.as_ref()).await?;
+        redis_cache_del(&cache_key("user", user_id)).await;
+        Ok(())
+    }
+
     pub async fn find_by_id(&self, id: i32) -> Result<user::Model, AppError> {
         // P0-D03：先查 Redis 缓存
         let cache_key_str = cache_key("user", id);

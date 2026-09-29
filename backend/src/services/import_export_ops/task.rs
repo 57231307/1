@@ -1,11 +1,9 @@
 //! 导入任务记录管理子模块（import_export_ops::task）
 //!
-//! 批次 127 v8 复审 P2 修复：原 list_import_tasks 返回空列表 vec![]，
-//! import_csv/import_excel 不落库任务记录。
-//! 现新增 task 管理方法：create_import_task / update_import_task / list_import_tasks。
-//! handler 在导入前创建 task 记录（status=running），导入完成后更新统计 + 状态。
+//! 为每次导入维护一条任务记录，使导入过程可查询、结果可追溯：
+//! handler 在导入前创建 task（status=running），导入完成后回填统计并置终态。
 //!
-//! 从原 `import_export_service.rs` 迁移 3 个方法：
+//! 三个方法：
 //! - `create_import_task`：导入开始时创建任务记录（status=running）
 //! - `update_import_task`：导入完成时根据 ImportResult 更新任务状态与统计
 //! - `list_import_tasks`：按创建时间倒序返回最近 100 条任务记录
@@ -17,12 +15,16 @@ use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, QueryOrder, Query
 
 impl ImportExportService {
     /// 创建导入任务记录（导入开始时调用）
-    /// 批次 127 v8 复审 P2 修复：在 import_csv/import_excel 执行实际导入前创建任务记录，；status 初始化为 "running"，total_rows 为待导入行数。；返回任务 ID 供后续 update_import_task 使用。
+    ///
+    /// 在执行实际导入前登记任务：status 初始化为 "running"，total_rows 为待导入行数。
+    /// 返回任务 ID 供后续 update_import_task 回填统计与终态。
     pub async fn create_import_task(
         &self,
         import_type: &str,
         total_rows: u64,
         user_id: i32,
+        file_name: Option<String>,
+        template_id: Option<i32>,
     ) -> Result<i32, AppError> {
         // 批次 357 v13 复审 baseline 清零：移除 unused import self（仅使用 ActiveModel）
         use crate::models::import_task::ActiveModel;
@@ -36,6 +38,8 @@ impl ImportExportService {
             imported_rows: Set(0),
             failed_rows: Set(0),
             user_id: Set(Some(user_id)),
+            file_name: Set(file_name),
+            template_id: Set(template_id),
             created_at: Set(now.into()),
             updated_at: Set(now.into()),
             ..Default::default()

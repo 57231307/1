@@ -119,6 +119,9 @@
           <el-menu-item v-if="canAccessMenu('/logistics')" role="menuitem" index="/logistics">{{
             t('layout.menu.logistics')
           }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/chemicals')" role="menuitem" index="/chemicals">{{
+            t('layout.menu.chemicals')
+          }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu
@@ -141,9 +144,6 @@
             index="/sales-returns"
             >{{ t('layout.menu.salesReturns') }}</el-menu-item
           >
-          <el-menu-item v-if="canAccessMenu('/sales-ext')" role="menuitem" index="/sales-ext">{{
-            t('layout.menu.salesExt')
-          }}</el-menu-item>
           <el-menu-item v-if="canAccessMenu('/customer')" role="menuitem" index="/customer">{{
             t('layout.menu.customer')
           }}</el-menu-item>
@@ -171,6 +171,18 @@
           <el-menu-item v-if="canAccessMenu('/quotations')" role="menuitem" index="/quotations">{{
             t('layout.menu.quotations')
           }}</el-menu-item>
+          <el-menu-item
+            v-if="canAccessMenu('/custom-orders')"
+            role="menuitem"
+            index="/custom-orders"
+            >{{ t('layout.menu.customOrders') }}</el-menu-item
+          >
+          <el-menu-item
+            v-if="canAccessMenu('/export-compliance')"
+            role="menuitem"
+            index="/export-compliance"
+            >{{ t('layout.menu.exportCompliance') }}</el-menu-item
+          >
         </el-sub-menu>
 
         <el-sub-menu
@@ -192,12 +204,6 @@
             role="menuitem"
             index="/purchase-receipt"
             >{{ t('layout.menu.purchaseReceipt') }}</el-menu-item
-          >
-          <el-menu-item
-            v-if="canAccessMenu('/purchase-ext')"
-            role="menuitem"
-            index="/purchase-ext"
-            >{{ t('layout.menu.purchaseExt') }}</el-menu-item
           >
           <el-menu-item v-if="canAccessMenu('/supplier')" role="menuitem" index="/supplier">{{
             t('layout.menu.supplier')
@@ -232,6 +238,12 @@
             index="/purchase-return"
             >{{ t('layout.menu.purchaseReturn') }}</el-menu-item
           >
+          <el-menu-item
+            v-if="canAccessMenu('/supplier-enhanced')"
+            role="menuitem"
+            index="/supplier-enhanced"
+            >{{ t('layout.menu.supplierEnhanced') }}</el-menu-item
+          >
         </el-sub-menu>
 
         <el-sub-menu
@@ -265,6 +277,18 @@
             role="menuitem"
             index="/crm/opportunities"
             >{{ t('layout.menu.crmOpportunities') }}</el-menu-item
+          >
+          <el-menu-item
+            v-if="canAccessMenu('/crm-enhanced')"
+            role="menuitem"
+            index="/crm-enhanced"
+            >{{ t('layout.menu.crmEnhanced') }}</el-menu-item
+          >
+          <el-menu-item
+            v-if="canAccessMenu('/customer-collab')"
+            role="menuitem"
+            index="/customer-collab"
+            >{{ t('layout.menu.customerCollab') }}</el-menu-item
           >
         </el-sub-menu>
 
@@ -324,6 +348,39 @@
           <el-menu-item v-if="canAccessMenu('/dye-batch')" role="menuitem" index="/dye-batch">{{
             t('layout.menu.dyeBatch')
           }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/flow-cards')" role="menuitem" index="/flow-cards">{{
+            t('layout.menu.flowCards')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/lab-dip')" role="menuitem" index="/lab-dip">{{
+            t('layout.menu.labDip')
+          }}</el-menu-item>
+          <el-menu-item
+            v-if="canAccessMenu('/bulk-color-approval')"
+            role="menuitem"
+            index="/bulk-color-approval"
+            >{{ t('layout.menu.bulkColorApproval') }}</el-menu-item
+          >
+          <el-menu-item
+            v-if="canAccessMenu('/production-recipes')"
+            role="menuitem"
+            index="/production-recipes"
+            >{{ t('layout.menu.productionRecipes') }}</el-menu-item
+          >
+          <el-menu-item v-if="canAccessMenu('/quality-8d')" role="menuitem" index="/quality-8d">{{
+            t('layout.menu.quality8d')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/outsourcing')" role="menuitem" index="/outsourcing">{{
+            t('layout.menu.outsourcing')
+          }}</el-menu-item>
+          <el-menu-item v-if="canAccessMenu('/wage')" role="menuitem" index="/wage">{{
+            t('layout.menu.wage')
+          }}</el-menu-item>
+          <el-menu-item
+            v-if="canAccessMenu('/fabric-inspections')"
+            role="menuitem"
+            index="/fabric-inspections"
+            >{{ t('layout.menu.fabricInspections') }}</el-menu-item
+          >
         </el-sub-menu>
 
         <el-sub-menu
@@ -403,9 +460,7 @@
           <el-menu-item v-if="canAccessMenu('/voucher')" role="menuitem" index="/voucher">{{
             t('layout.menu.voucher')
           }}</el-menu-item>
-          <el-menu-item v-if="canAccessMenu('/trading')" role="menuitem" index="/trading">{{
-            t('layout.menu.trading')
-          }}</el-menu-item>
+
           <el-menu-item
             v-if="canAccessMenu('/ar-reconciliation/enhanced')"
             role="menuitem"
@@ -418,6 +473,27 @@
             index="/bi/sales-analysis"
             >{{ t('layout.menu.biSalesAnalysis') }}</el-menu-item
           >
+          <el-menu-item v-if="canAccessMenu('/bad-debts')" role="menuitem" index="/bad-debts">{{
+            t('layout.menu.badDebts')
+          }}</el-menu-item>
+          <el-menu-item
+            v-if="canAccessMenu('/period-adjustments')"
+            role="menuitem"
+            index="/period-adjustments"
+            >{{ t('layout.menu.periodAdjustments') }}</el-menu-item
+          >
+          <el-menu-item v-if="canAccessMenu('/budgets')" role="menuitem" index="/budgets">{{
+            t('layout.menu.budgetApprovals')
+          }}</el-menu-item>
+          <el-menu-item
+            v-if="canAccessMenu('/invoice-details')"
+            role="menuitem"
+            index="/invoice-details"
+            >{{ t('layout.menu.invoiceDetails') }}</el-menu-item
+          >
+          <el-menu-item v-if="canAccessMenu('/periods')" role="menuitem" index="/periods">{{
+            t('layout.menu.accountingPeriods')
+          }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu
@@ -561,6 +637,30 @@
             index="/admin/failover"
             >{{ t('layout.menu.failover') }}</el-menu-item
           >
+          <el-menu-item
+            v-if="canAccessMenu('/system-governance')"
+            role="menuitem"
+            index="/system-governance"
+            >{{ t('layout.menu.systemGovernance') }}</el-menu-item
+          >
+          <el-menu-item
+            v-if="canAccessMenu('/labor-contracts')"
+            role="menuitem"
+            index="/labor-contracts"
+            >{{ t('layout.menu.laborContracts') }}</el-menu-item
+          >
+          <el-menu-item
+            v-if="canAccessMenu('/social-insurance')"
+            role="menuitem"
+            index="/social-insurance"
+            >{{ t('layout.menu.socialInsurance') }}</el-menu-item
+          >
+          <el-menu-item
+            v-if="canAccessMenu('/occupational-health')"
+            role="menuitem"
+            index="/occupational-health"
+            >{{ t('layout.menu.occupationalHealth') }}</el-menu-item
+          >
         </el-sub-menu>
 
         <el-sub-menu
@@ -614,9 +714,30 @@
             }}</el-breadcrumb-item>
             <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
+          <!-- 全局搜索：真实接入后端 /search 端点（批次 104 SearchClient）；移动端隐藏防 header 溢出 -->
+          <GlobalSearch v-if="!isMobile" class="header-search" />
         </div>
         <div class="header-right">
           <!-- V15 P1-20-16 暗黑模式切换按钮（触屏尺寸 ≥ 44px，WCAG 2.5.5） -->
+          <!-- 通知实时推送：未读数徽标（WS 断连时自动回退轮询间隔由 unread poller 承担） -->
+          <el-tooltip :content="t('layout.main.notifications')" placement="bottom">
+            <el-badge
+              :value="unreadCount"
+              :hidden="unreadCount === 0"
+              :max="99"
+              class="notification-badge"
+            >
+              <el-button
+                size="large"
+                text
+                :aria-label="t('layout.main.notifications')"
+                :title="t('layout.main.notifications')"
+                @click="$router.push('/notification')"
+              >
+                <el-icon :size="18"><Bell /></el-icon>
+              </el-button>
+            </el-badge>
+          </el-tooltip>
           <el-button
             class="theme-toggle-btn"
             size="large"
@@ -663,6 +784,17 @@
 </template>
 
 <script setup lang="ts">
+import {
+  onNewNotification,
+  startNotificationWs,
+  stopNotificationWs,
+} from '@/composables/useNotificationWs';
+import { getUnreadCount } from '@/api/notification';
+import { logger } from '@/utils/logger';
+import { ref as vueRef, onBeforeUnmount } from 'vue';
+import { Bell } from '@element-plus/icons-vue';
+
+import GlobalSearch from './GlobalSearch.vue';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -805,6 +937,33 @@ watch(isMobile, mobile => {
  * @param menuItemPath 菜单项 index（即路由 path，如 '/inventory'）
  * @returns 是否在菜单中显示
  */
+
+// ===== 通知实时推送（WS）与未读数 =====
+const unreadCount = vueRef(0);
+
+async function refreshUnread() {
+  try {
+    const res = await getUnreadCount();
+    const data = res as unknown as { data?: number };
+    unreadCount.value = Number(data?.data ?? 0);
+  } catch (error) {
+    logger.error(t('layout.main.unreadCountFailed'), error);
+  }
+}
+
+onNewNotification(() => {
+  refreshUnread();
+});
+
+if (userStore.userInfo) {
+  refreshUnread();
+  startNotificationWs();
+}
+
+onBeforeUnmount(() => {
+  stopNotificationWs();
+});
+
 function canAccessMenu(menuItemPath: string): boolean {
   // 通过 router.resolve 找到匹配的叶子路由 record
   const resolved = router.resolve(menuItemPath);
@@ -856,7 +1015,6 @@ const visibleSubMenu = computed<Record<string, boolean>>(() => {
     sales: [
       '/sales',
       '/sales-returns',
-      '/sales-ext',
       '/customer',
       '/customer-credit',
       '/sales-contract',
@@ -867,7 +1025,6 @@ const visibleSubMenu = computed<Record<string, boolean>>(() => {
     purchase: [
       '/purchase',
       '/purchase-receipt',
-      '/purchase-ext',
       '/supplier',
       '/supplier-evaluation',
       '/purchase-contract',
@@ -906,7 +1063,6 @@ const visibleSubMenu = computed<Record<string, boolean>>(() => {
       '/account-subject',
       '/accounting-period',
       '/voucher',
-      '/trading',
       '/ar-reconciliation/enhanced',
       '/bi/sales-analysis',
     ],

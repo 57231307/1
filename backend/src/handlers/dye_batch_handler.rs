@@ -5,70 +5,26 @@ use axum::{
     extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
+use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, FromQueryResult, JoinType,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::dye_batch;
+use crate::models::greige_fabric;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use std::sync::Arc;
 
-/// 缸号状态枚举
-#[derive(Debug, Clone, PartialEq)]
-pub enum DyeBatchStatus {
-    /// 待生产
-    Pending,
-    /// 生产中
-    InProgress,
-    /// 已完成
-    Completed,
-    /// 已取消
-    Cancelled,
-    /// 生产失败（L-23 修复，批次 369 v13 复审）：染色过程异常终止，可重试或放弃
-    Failed,
-    /// 已暂停（L-23 修复，批次 369 v13 复审）：生产过程中临时挂起，可恢复或取消
-    OnHold,
-}
-
-impl DyeBatchStatus {
-    pub fn from_chinese_str(s: &str) -> Option<Self> {
-        match s {
-            "待生产" => Some(Self::Pending),
-            "生产中" => Some(Self::InProgress),
-            "已完成" => Some(Self::Completed),
-            "已取消" => Some(Self::Cancelled),
-            "失败" => Some(Self::Failed),
-            "暂停" => Some(Self::OnHold),
-            _ => None,
-        }
-    }
-
-    /// 检查状态流转是否合法
-    pub fn can_transition_to(&self, target: &Self) -> bool {
-        match self {
-            Self::Pending => matches!(target, Self::InProgress | Self::Cancelled | Self::OnHold),
-            Self::InProgress => {
-                matches!(
-                    target,
-                    Self::Completed | Self::Cancelled | Self::Failed | Self::OnHold
-                )
-            }
-            Self::OnHold => matches!(target, Self::InProgress | Self::Cancelled),
-            Self::Failed => matches!(target, Self::Pending | Self::Cancelled),
-            Self::Completed => false,
-            Self::Cancelled => false,
-        }
-    }
-}
+use crate::services::dye_batch_state_machine_validation;
 
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -90,6 +46,10 @@ pub struct CreateDyeBatchRequest {
     pub dye_lot_no: Option<String>,
     pub planned_quantity: Option<f64>,
     pub status: Option<String>,
+    // 备注：与实体列同名，落库 dye_batch.remarks。
+    pub remarks: Option<String>,
+    // 染色日期：新建表单采集，落库映射到既有 started_at 时间戳列（无独立日期列）。
+    pub dye_date: Option<chrono::NaiveDate>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -100,18 +60,49 @@ pub struct UpdateDyeBatchRequest {
     pub dye_lot_no: Option<String>,
     pub planned_quantity: Option<f64>,
     pub status: Option<String>,
+    // 备注：与实体列同名，落库 dye_batch.remarks。
+    pub remarks: Option<String>,
+}
+
+/// 缸号列表出参 DTO：实体 `dye_batch::Model` 全字段 + 经 LEFT JOIN 富化的坯布名称。
+/// 严格对齐前端 `api/dye-batch.ts::DyeBatch` 键集；可空列以 `Option` 表达，NOT NULL 列不用 `Option`。
+/// 唯一富化方式：`column_as(greige_fabric.fabric_name, "greige_fabric_name")` + `LeftJoin`
+/// + `into_model`（单次查询、无 N+1，见 §5 范式），禁止 `format!` 造假名或逐行再查。
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct DyeBatchDto {
+    pub id: i32,
+    pub batch_no: String,
+    pub greige_fabric_id: Option<i32>,
+    pub color_code: String,
+    pub color_name: String,
+    pub color_no: Option<String>,
+    pub dye_lot_no: String,
+    pub planned_quantity: Option<Decimal>,
+    pub status: Option<String>,
+    pub started_at: Option<DateTimeWithTimeZone>,
+    pub completed_at: Option<DateTimeWithTimeZone>,
+    pub is_deleted: Option<bool>,
+    pub created_at: DateTimeWithTimeZone,
+    pub updated_at: DateTimeWithTimeZone,
+    pub remarks: Option<String>,
+    pub greige_fabric_name: Option<String>,
 }
 
 pub async fn list_dye_batches(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<DyeBatchListQuery>,
-) -> Result<Json<ApiResponse<PaginatedResponse<dye_batch::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<DyeBatchDto>>>, AppError> {
     let _data_scope = auth.to_data_scope_context();
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
-    let mut q = dye_batch::Entity::find().filter(dye_batch::Column::IsDeleted.eq(false));
+    // §5 范式：LEFT JOIN 坯布表，把 fabric_name 以列别名 greige_fabric_name 富化进同一查询，
+    // 单次查询、无 N+1；禁止逐行再查或 format! 造假名。
+    let mut q = dye_batch::Entity::find()
+        .column_as(greige_fabric::Column::FabricName, "greige_fabric_name")
+        .join(JoinType::LeftJoin, dye_batch::Relation::GreigeFabric.def())
+        .filter(dye_batch::Column::IsDeleted.eq(false));
 
     if let Some(batch_no) = &query.batch_no {
         q = q.filter(dye_batch::Column::BatchNo.contains(batch_no));
@@ -128,7 +119,9 @@ pub async fn list_dye_batches(
 
     q = q.order_by_desc(dye_batch::Column::CreatedAt);
 
-    let paginator = q.paginate(&*state.db, page_size);
+    let paginator = q
+        .into_model::<DyeBatchDto>()
+        .paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
     let batches = paginator
@@ -156,15 +149,15 @@ pub async fn create_dye_batch(
     _auth: AuthContext,
     Json(req): Json<CreateDyeBatchRequest>,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
-    // 验证状态值
+    // 验证状态值（14 态 lifecycle_status 英文 key）
     let status = match req.status {
         Some(s) => {
-            if DyeBatchStatus::from_chinese_str(&s).is_none() {
+            if !dye_batch_state_machine_validation::is_valid_status(&s) {
                 return Err(AppError::bad_request(format!("无效的缸号状态：{}", s)));
             }
             Some(s)
         }
-        None => Some("待生产".to_string()),
+        None => Some("pending_schedule".to_string()),
     };
 
     // 自动生成缸号
@@ -177,6 +170,16 @@ pub async fn create_dye_batch(
     // V15 P0-F01：dye_lot_no 默认 'DEFAULT'，新接口允许调用方传入实际染色批号
     // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
     let dye_lot_no = req.dye_lot_no.unwrap_or_else(|| "DEFAULT".to_string());
+
+    // 染色日期：新建表单采集的 dye_date 落库映射到既有 started_at 时间戳列（00:00:00 UTC）。
+    // 说明：dye_batch 无独立的"染色日期"DATE 列，此处按实体既有语义写入 started_at；
+    // 若需要精确到日且与起止时间语义分离，应新增真实 DATE 列（见交付报告）。
+    let started_at = req.dye_date.map(|d| {
+        d.and_hms_opt(0, 0, 0)
+            .unwrap_or_default()
+            .and_utc()
+            .with_timezone(&crate::utils::date_utils::utc_offset())
+    });
 
     let batch = dye_batch::ActiveModel {
         id: NotSet,
@@ -191,8 +194,9 @@ pub async fn create_dye_batch(
         dye_lot_no: Set(dye_lot_no),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),
         status: Set(status),
-        started_at: Set(None),
+        started_at: Set(started_at),
         completed_at: Set(None),
+        remarks: Set(req.remarks),
         is_deleted: Set(Some(false)),
         created_at: Set(crate::utils::date_utils::utc_now_fixed()),
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
@@ -223,11 +227,17 @@ pub async fn update_dye_batch(
     _auth: AuthContext,
     Json(req): Json<UpdateDyeBatchRequest>,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
-    let mut batch: dye_batch::ActiveModel = dye_batch::Entity::find_by_id(id)
+    let model = dye_batch::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::not_found("缸号不存在"))?
-        .into();
+        .ok_or_else(|| AppError::not_found("缸号不存在"))?;
+    // 从 Model 读取当前状态（Model -> ActiveModel 转换后值语义为 Unchanged，
+    // 用 ActiveValue::Set 匹配会恒落到默认分支，导致状态流转前置校验失真）
+    let current_status = model
+        .status
+        .clone()
+        .unwrap_or_else(|| "pending_schedule".to_string());
+    let mut batch: dye_batch::ActiveModel = model.into();
 
     if let Some(greige_fabric_id) = req.greige_fabric_id {
         batch.greige_fabric_id = Set(Some(greige_fabric_id));
@@ -241,37 +251,39 @@ pub async fn update_dye_batch(
     if let Some(planned_quantity) = req.planned_quantity {
         batch.planned_quantity = Set(Decimal::from_f64_retain(planned_quantity));
     }
+    if let Some(remarks) = req.remarks {
+        batch.remarks = Set(Some(remarks));
+    }
     if let Some(status) = req.status {
-        // 验证状态流转
-        let current_status = match &batch.status {
-            sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
-            _ => "待生产",
-        };
-        let target_status = DyeBatchStatus::from_chinese_str(&status);
-
-        if let Some(target) = target_status {
-            let current =
-                DyeBatchStatus::from_chinese_str(current_status).unwrap_or(DyeBatchStatus::Pending);
-            if !current.can_transition_to(&target) {
-                return Err(AppError::business(format!(
-                    "状态流转不合法：{} -> {}",
-                    current_status, status
-                )));
-            }
-        } else {
+        // 验证状态值合法性（14 态 lifecycle_status）
+        if !dye_batch_state_machine_validation::is_valid_status(&status) {
             return Err(AppError::bad_request(format!("无效的状态：{}", status)));
+        }
+        // 验证状态流转合法性
+        if !dye_batch_state_machine_validation::is_valid_status_transition(&current_status, &status)
+        {
+            return Err(AppError::business(format!(
+                "状态流转不合法：{} -> {}",
+                current_status, status
+            )));
         }
 
         batch.status = Set(Some(status.clone()));
 
-        // 自动设置时间戳
-        if status == "生产中" {
+        // 自动设置时间戳：染色中及之后工序记录开始时间
+        let in_production = matches!(
+            status.as_str(),
+            "preparing" | "dyeing" | "washing" | "fixing" | "dehydrating" | "drying" | "inspecting"
+        );
+        if in_production {
             let needs_start_time = batch.started_at.as_ref().is_none();
             if needs_start_time {
                 batch.started_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
             }
         }
-        if status == "已完成" {
+        // 入库及之后状态记录完成时间
+        let is_finished = matches!(status.as_str(), "stored" | "shipped");
+        if is_finished {
             batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
         }
     }
@@ -296,7 +308,16 @@ pub async fn delete_dye_batch(
         .await?
         .ok_or_else(|| AppError::not_found("缸号不存在"))?;
 
-    if batch.status.as_deref() == Some("生产中") {
+    if matches!(
+        batch.status.as_deref(),
+        Some("preparing")
+            | Some("dyeing")
+            | Some("washing")
+            | Some("fixing")
+            | Some("dehydrating")
+            | Some("drying")
+            | Some("inspecting")
+    ) {
         return Err(AppError::business("生产中的缸号不允许删除，请先取消或完成"));
     }
 
@@ -314,38 +335,34 @@ pub async fn complete_dye_batch(
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
-    let mut batch: dye_batch::ActiveModel = dye_batch::Entity::find_by_id(id)
+    let model = dye_batch::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::not_found("缸号不存在"))?
-        .into();
+        .ok_or_else(|| AppError::not_found("缸号不存在"))?;
+    // 与 update_dye_batch 一致：从 Model 读当前状态，Model -> ActiveModel 后值语义非 Set
+    let current_status = model
+        .status
+        .clone()
+        .unwrap_or_else(|| "pending_schedule".to_string());
+    let mut batch: dye_batch::ActiveModel = model.into();
 
-    // 检查当前状态是否允许完成
-    let current_status = match &batch.status {
-        sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
-        _ => "待生产",
-    };
-    let current =
-        DyeBatchStatus::from_chinese_str(current_status).unwrap_or(DyeBatchStatus::Pending);
-
-    if !current.can_transition_to(&DyeBatchStatus::Completed) {
+    // 检查当前状态是否允许完成（流转到 stored 终态前态）
+    if !dye_batch_state_machine_validation::is_valid_status_transition(&current_status, "stored") {
         return Err(AppError::business(format!(
-            "状态流转不合法：{} -> 已完成",
+            "状态流转不合法：{} -> stored",
             current_status
         )));
     }
 
-    // v14 批次 420 修复 T-P1-2：染色完成发布业务事件
-    // 原实现仅做状态更新，未发布任何业务事件，导致下游（质检单生成、染缸产能统计、
-    // 成本结转、BI 生产报表）无法被动感知染色完成节点。
-    // 修复：在 update 成功后构造 DyeBatchCompleted 事件并发布到事件总线。
-    batch.status = Set(Some("已完成".to_string()));
+    // 染色完成时发布 DyeBatchCompleted 业务事件，供质检单生成、染缸产能统计、
+    // 成本结转、BI 生产报表等下游被动感知
+    batch.status = Set(Some("stored".to_string()));
     batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
     batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = batch.update(&*state.db).await?;
 
-    // v14 批次 420 修复 T-P1-2：update 成功后发布 DyeBatchCompleted 事件
+    // 落库成功后发布 DyeBatchCompleted 事件
     crate::services::event_bus::EVENT_BUS.publish(
         crate::services::event_bus::BusinessEvent::DyeBatchCompleted {
             batch_id: updated.id,

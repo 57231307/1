@@ -42,10 +42,9 @@
           clearable
           @change="handleSearch"
         >
-          <el-option :label="t('purchaseInspection.filter.status.draft')" value="draft" />
+          <!-- 状态取值与写入侧词表逐字一致：后端 purchase_inspection.inspection_status 仅有 pending/completed -->
           <el-option :label="t('purchaseInspection.filter.status.pending')" value="pending" />
           <el-option :label="t('purchaseInspection.filter.status.completed')" value="completed" />
-          <el-option :label="t('purchaseInspection.filter.status.rejected')" value="rejected" />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('purchaseInspection.filter.label.result')">

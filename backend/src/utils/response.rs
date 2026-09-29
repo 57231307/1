@@ -3,9 +3,13 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use chrono::Utc;
 use serde::Serialize;
+use uuid::Uuid;
 
 use utoipa::ToSchema;
+
+use crate::utils::error::{CODE_FORBIDDEN, CODE_UNAUTHORIZED, ErrorResponse};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ApiResponse<T> {
@@ -32,7 +36,6 @@ impl<T> Default for ApiResponse<T> {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PaginatedResponse<T> {
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub items: Vec<T>,
     pub total: u64,
     pub page: u64,
@@ -117,24 +120,6 @@ impl<T: Serialize> ApiResponse<T> {
             total: None,
         }
     }
-
-    pub fn error(message: impl Into<String>) -> Self {
-        Self {
-            code: Some(500),
-            data: None,
-            message: Some(message.into()),
-            total: None,
-        }
-    }
-
-    pub fn error_with_status(status: StatusCode, message: impl Into<String>) -> Self {
-        Self {
-            code: Some(status.as_u16()),
-            data: None,
-            message: Some(message.into()),
-            total: None,
-        }
-    }
 }
 
 impl<T: Serialize> From<T> for ApiResponse<T> {
@@ -151,19 +136,27 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
 }
 
 pub fn unauthorized_response(message: &str) -> Response {
-    let body = serde_json::json!({
-        "code": 401,
-        "message": message,
-        "data": null
-    });
-    (StatusCode::UNAUTHORIZED, Json(body)).into_response()
+    unified_error_response(StatusCode::UNAUTHORIZED, CODE_UNAUTHORIZED, message)
 }
 
 pub fn forbidden_response(message: &str) -> Response {
-    let body = serde_json::json!({
-        "code": 403,
-        "message": message,
-        "data": null
-    });
-    (StatusCode::FORBIDDEN, Json(body)).into_response()
+    unified_error_response(StatusCode::FORBIDDEN, CODE_FORBIDDEN, message)
+}
+
+/// 认证/鉴权中间件失败出参：与 `AppError::into_response` 完全同构（复用
+/// [`ErrorResponse`]，键与类型一致：`code` 为字符串码、`trace_id` 为 UUID、`timestamp` 为秒级 i64），
+/// HTTP 状态码由调用方（`StatusCode::UNAUTHORIZED` / `FORBIDDEN`）决定，保持不变。
+///
+/// message 不走 `AppError::unauthorized(...).into_response()`：`public_message()`（`utils/error.rs`）
+/// 对 `Unauthorized`/`PermissionDenied` 一律返回脱敏常量（「未授权」/「无权限」），
+/// 会抹掉中间件刻意告知用户下一步动作的文案（如「令牌已被吊销，请重新登录」）。
+/// 这些文案是中间件自身的固定字面量、不含他人数据/内部 ID/SQL，外显不越出脱敏契约的安全边界。
+pub fn unified_error_response(status: StatusCode, code: &str, message: &str) -> Response {
+    let body = ErrorResponse {
+        code: code.to_string(),
+        message: message.to_string(),
+        trace_id: Uuid::new_v4().to_string(),
+        timestamp: Utc::now().timestamp(),
+    };
+    (status, Json(body)).into_response()
 }

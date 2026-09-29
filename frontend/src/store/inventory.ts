@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import {
   getStockList,
   getStockAlertList,
+  STOCK_ALERT_PAGE_SIZE,
   createStockAdjustment,
   type InventoryStock,
   type StockAlert,
@@ -41,9 +42,13 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   const fetchAlerts = async () => {
     try {
-      const res = await getStockAlertList();
-      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
-      if (res.data) alerts.value = res.data;
+      const res = await getStockAlertList({ page: 1, page_size: STOCK_ALERT_PAGE_SIZE });
+      const payload = res.data;
+      if (!payload || !Array.isArray(payload.items)) {
+        // 出参是 PaginatedResponse{items,total,...}；把它当数组赋值会让预警列表静默变空
+        throw new Error('库存预警出参缺少 items 数组');
+      }
+      alerts.value = payload.items;
     } catch (error) {
       logger.error('获取库存预警失败:', error);
       msg.error('inventory.fetchAlertsFailed');

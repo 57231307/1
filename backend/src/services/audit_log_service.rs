@@ -30,56 +30,65 @@ pub struct AuditLogService {
     db: Arc<DatabaseConnection>,
     /// L-32 修复：后台消费者 task handle，供 shutdown abort
     handle: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
-    /// L-32 修复：事件发送端（消费者 spawn 时创建）
-    sender: mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
+    /// L-32 修复：事件发送端（全局单例，避免每次 new() 创建新 channel 后旧消费者退出）
+    sender: &'static mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
 }
 
-impl AuditLogService {
-    /// 创建审计日志服务（L-32 修复：启动后台消费者 task）
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        // 创建 unbounded channel
-        let (sender, mut receiver) =
-            mpsc::unbounded_channel::<(AuditEvent, Option<AuditContext>)>();
+/// 全局单例：channel + 消费者只创建一次，避免每次 AuditLogService::new() 创建新 channel
+/// 导致旧消费者退出（sender drop → receiver None → 消费者退出 → 审计日志丢失）
+static AUDIT_SENDER: std::sync::OnceLock<
+    mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
+> = std::sync::OnceLock::new();
 
-        // 启动后台消费者 task
-        let db_clone = db.clone();
-        let handle = tokio::spawn(async move {
-            while let Some((event, ctx)) = receiver.recv().await {
-                // 批次 8（2026-06-28）：一次性 spawn panic 隔离
-                let result = AssertUnwindSafe(async {
-                    let log = build_active_model(&event, ctx.as_ref());
-                    match log.insert(db_clone.as_ref()).await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            tracing::error!(
-                                user_id = ?event.user_id,
-                                operation = event.operation_type.as_str(),
-                                error = %e,
-                                "异步审计日志落库失败"
-                            );
+impl AuditLogService {
+    /// 创建审计日志服务（全局单例 channel，消费者只启动一次）
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        let sender = AUDIT_SENDER.get_or_init(|| {
+            let (sender, mut receiver) =
+                mpsc::unbounded_channel::<(AuditEvent, Option<AuditContext>)>();
+
+            // 启动后台消费者 task（全局唯一，不会被 drop 关闭）
+            let db_clone = db.clone();
+            tokio::spawn(async move {
+                while let Some((event, ctx)) = receiver.recv().await {
+                    // 批次 8（2026-06-28）：一次性 spawn panic 隔离
+                    let result = AssertUnwindSafe(async {
+                        let log = build_active_model(&event, ctx.as_ref());
+                        match log.insert(db_clone.as_ref()).await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                tracing::error!(
+                                    user_id = ?event.user_id,
+                                    operation = event.operation_type.as_str(),
+                                    error = %e,
+                                    "异步审计日志落库失败"
+                                );
+                            }
                         }
+                    })
+                    .catch_unwind()
+                    .await;
+                    if let Err(panic_payload) = result {
+                        let panic_msg = panic_payload
+                            .downcast_ref::<String>()
+                            .map(|s| s.as_str())
+                            .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                            .unwrap_or("<非字符串 panic payload>");
+                        tracing::error!(
+                            panic = %panic_msg,
+                            "⚠ 异步审计日志落库 spawn panic 已被隔离（单条日志丢失）"
+                        );
                     }
-                })
-                .catch_unwind()
-                .await;
-                if let Err(panic_payload) = result {
-                    let panic_msg = panic_payload
-                        .downcast_ref::<String>()
-                        .map(|s| s.as_str())
-                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                        .unwrap_or("<非字符串 panic payload>");
-                    tracing::error!(
-                        panic = %panic_msg,
-                        "⚠ 异步审计日志落库 spawn panic 已被隔离（单条日志丢失）"
-                    );
                 }
-            }
-            tracing::info!("AuditLogService 后台消费者 task 已退出");
+                tracing::info!("AuditLogService 后台消费者 task 已退出");
+            });
+
+            sender
         });
 
         Self {
             db,
-            handle: std::sync::Mutex::new(Some(handle)),
+            handle: std::sync::Mutex::new(None),
             sender,
         }
     }

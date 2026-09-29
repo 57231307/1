@@ -46,8 +46,7 @@ test.describe('表单校验真实 UI 交互', () => {
       .locator('.el-form-item__error, .el-message--error')
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
-      .then(() => true)
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .then(() => true);
     expect(hasError).toBe(true);
 
     // 关闭弹窗
@@ -93,8 +92,7 @@ test.describe('表单校验真实 UI 交互', () => {
       .locator('.el-form-item__error, .el-message--error')
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
-      .then(() => true)
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .then(() => true);
     expect(hasError).toBe(true);
 
     const closeBtn = page.locator('.el-dialog__headerbtn').first();
@@ -118,9 +116,41 @@ test.describe('表单校验真实 UI 交互', () => {
     const dialog = page.locator('.el-dialog').first();
     await dialog.waitFor({ state: 'visible', timeout: 10_000 });
 
-    // 输入借方金额（不输入贷方，制造借贷不平衡）
+    // 输入借方金额（不输入贷方，制造借贷不平衡）。
+    // el-input-number 的 v-model 只在原生 change 事件提交（见 element-plus@2.14.4
+    // input-number setup：onInput→setCurrentValue(emitChange=false) 不 emit、
+    // onBlur→handleBlur 仅清 userInput 不提交，只有 onChange→handleInputChange
+    // → setCurrentValue→emit('update:modelValue')）。旧驱动 pressSequentially 逐键走
+    // handleInput、再 Tab/blur 走 handleBlur，全程未派发 change，值从未进 modelValue →
+    // useVchrLst.ts:269 entries deep watch 不触发 → calculateTotals 不重算 total_debit →
+    // VoucherListForm.vue:109 的 |借-贷|>0.01 分支不命中，`.total-item .error` 永不出现。
+    // 改为真实用户 fill 提交链：聚焦→fill 写入值→显式派发 change（等价真实失焦产生的
+    // 原生 change，经 ElInput @change 转发回 InputNumber），强制走 v-model 提交 →
+    // 合计重算 → 不平衡提示渲染。
     const debitInput = page.locator('.el-dialog .el-input-number input').first();
+    await debitInput.click();
     await debitInput.fill('1000');
+    await debitInput.dispatchEvent('change');
+    await page.waitForTimeout(500);
+
+    // 借贷不平衡提示（VoucherListForm.vue:108-110 class="error"）仅在 |借-贷|>0.01 时渲染，
+    // 先断言它可见，可证明确已提交并命中"不平衡"分支（而非空分录等其它校验的假绿）。
+    // 用 poll 轮询等重算链（子 localForm→emit→父 form.entries→calculateTotals→回灌）稳定收敛，
+    // 而非依赖单一固定 sleep。
+    await expect
+      .poll(
+        async () =>
+          await page
+            .locator('.el-dialog .total-item .error')
+            .first()
+            .isVisible()
+            .catch(() => false),
+        {
+          message: '借方有值、贷方为 0 时，应渲染借贷不平衡提示（.total-item .error）',
+          timeout: 10_000,
+        }
+      )
+      .toBe(true);
 
     // 提交
     await page
@@ -130,13 +160,14 @@ test.describe('表单校验真实 UI 交互', () => {
 
     await page.waitForTimeout(1000);
 
-    // 验证校验提示
+    // 凭证表单校验反馈统一走 msg.warning（useVchrLst.ts:220 entriesUnbalanced → el-message--warning），
+    // 与采购/销售内联错误不同，故选择器需覆盖 el-message--warning；
+    // 断言出现校验提示消息（配合上方不平衡提示可见，共同证明不平衡校验生效）。
     const hasError = await page
-      .locator('.el-form-item__error, .el-message--error')
+      .locator('.el-form-item__error, .el-message--error, .el-message--warning')
       .first()
       .waitFor({ state: 'visible', timeout: 5000 })
-      .then(() => true)
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .then(() => true);
     expect(hasError).toBe(true);
 
     const closeBtn = page.locator('.el-dialog__headerbtn').first();

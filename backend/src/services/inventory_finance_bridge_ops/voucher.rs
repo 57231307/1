@@ -41,6 +41,7 @@ impl InventoryFinanceBridgeService {
     fn make_voucher_item(args: VoucherItemArgs<'_>) -> VoucherItemRequest {
         VoucherItemRequest {
             line_no: Some(args.line_no),
+            subject_id: None,
             subject_code: Some(args.subject_code.to_string()),
             subject_name: Some(args.subject_name.to_string()),
             debit: args.debit,

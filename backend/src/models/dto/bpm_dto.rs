@@ -3,7 +3,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateProcessDefinitionRequest {
+    // 入参字段名桥接：前端 api/bpm-enhanced.ts 的 ProcessDefinition 契约与 GET 列表出参别名
+    // 均用 `process_name`/`process_key`（见 bpm_definition_handler.rs model_to_frontend_json）。
+    // 出参已补齐实体真源键 code/name，但入参此前只认 code/name，导致 UI 建单提交的
+    // {process_key, process_name} 反序列化缺必填 name/code → 400。这里按 handler 注释声明的
+    // “入参出参字段名差异由 handler 层负责转换”补齐反序列化别名；Rust 字段名与内部构造
+    // （create_version 复制记录仍用 name/code）保持不变。
+    #[serde(alias = "process_name")]
     pub name: String,
+    #[serde(alias = "process_key")]
     pub code: String,
     pub description: Option<String>,
     pub category: Option<String>,
@@ -14,6 +22,7 @@ pub struct CreateProcessDefinitionRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UpdateProcessDefinitionRequest {
+    #[serde(alias = "process_name")]
     pub name: Option<String>,
     pub description: Option<String>,
     pub category: Option<String>,

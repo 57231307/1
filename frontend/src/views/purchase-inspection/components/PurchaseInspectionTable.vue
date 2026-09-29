@@ -39,32 +39,32 @@
         min-width="100"
       />
       <el-table-column
-        prop="status"
+        prop="inspection_status"
         :label="t('purchaseInspection.table.column.status')"
         width="100"
         align="center"
       >
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)">
-            {{ getStatusText(row.status) }}
+          <el-tag :type="getStatusType(row.inspection_status)">
+            {{ getStatusText(row.inspection_status) }}
           </el-tag>
         </template>
       </el-table-column>
       <el-table-column
-        prop="result"
+        prop="inspection_result"
         :label="t('purchaseInspection.table.column.result')"
         width="100"
         align="center"
       >
         <template #default="{ row }">
-          <el-tag v-if="row.result" :type="getResultType(row.result)">
-            {{ getResultText(row.result) }}
+          <el-tag v-if="row.inspection_result" :type="getResultType(row.inspection_result)">
+            {{ getResultText(row.inspection_result) }}
           </el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>
       <el-table-column
-        prop="remark"
+        prop="notes"
         :label="t('purchaseInspection.table.column.remark')"
         min-width="150"
         show-overflow-tooltip
@@ -79,7 +79,7 @@
             t('purchaseInspection.table.button.view')
           }}</el-button>
           <el-button
-            v-if="row.status === 'draft' || row.status === 'pending'"
+            v-if="row.inspection_status === PURCHASE_INSPECTION_STATUS.PENDING"
             size="small"
             type="primary"
             @click="emit('edit', row as PurchaseInspection)"
@@ -87,12 +87,20 @@
             {{ t('purchaseInspection.table.button.edit') }}
           </el-button>
           <el-button
-            v-if="row.status === 'pending'"
+            v-if="row.inspection_status === PURCHASE_INSPECTION_STATUS.PENDING"
             size="small"
             type="success"
             @click="emit('complete', row as PurchaseInspection)"
           >
             {{ t('purchaseInspection.table.button.complete') }}
+          </el-button>
+          <el-button
+            v-if="canGenerateReturn(row)"
+            size="small"
+            type="warning"
+            @click="emit('createReturn', row as PurchaseInspection)"
+          >
+            {{ t('purchaseInspection.table.button.generateReturn') }}
           </el-button>
         </template>
       </el-table-column>
@@ -114,6 +122,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { getStatusType, getStatusText, getResultType, getResultText } from '../composables/piFmts';
+// 行内操作按钮的状态门槛以写入侧原值为比较对象（后端 purchase_inspection.inspection_status：pending/completed）
+import { PURCHASE_INSPECTION_STATUS } from '@/utils/purchase-inspection-status';
 import type { PurchaseInspection } from '@/api/purchase-inspection';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -138,9 +148,19 @@ const emit = defineEmits<{
   view: [row: PurchaseInspection];
   edit: [row: PurchaseInspection];
   complete: [row: PurchaseInspection];
+  createReturn: [row: PurchaseInspection];
   'update:page': [v: number];
   'update:page-size': [v: number];
 }>();
+
+/** 仅 completed 且结果为 fail/partial 时可发起退货 */
+const RETURN_ELIGIBLE_RESULTS = new Set(['fail', 'partial']);
+function canGenerateReturn(row: PurchaseInspection): boolean {
+  return (
+    row.inspection_status === PURCHASE_INSPECTION_STATUS.COMPLETED &&
+    RETURN_ELIGIBLE_RESULTS.has(row.inspection_result ?? '')
+  );
+}
 </script>
 
 <style scoped>

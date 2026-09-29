@@ -26,6 +26,9 @@ export interface CostCollectionQueryParams {
   page?: number;
   page_size?: number;
   keyword?: string;
+  // 归集单号 / 颜色：后端 DTO 真实接收并下推到列（collection_no 模糊、color_no 等值）
+  collection_no?: string;
+  color_no?: string;
   batch_no?: string;
   status?: string;
   period?: string;

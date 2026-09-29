@@ -19,18 +19,21 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, JoinType, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 use crate::models::bom::{
     ActiveModel, BomStatus, Column as BomColumn, Entity as BomEntity, Model as BomModel,
+    Relation as BomRelation,
 };
 use crate::models::bom_item::{
     ActiveModel as BomItemActiveModel, Column as BomItemColumn, Entity as BomItemEntity,
 };
+use crate::models::product::Column as ProductColumn;
 use crate::services::bom_service::{
-    BomDetail, BomQuery, BomService, CreateBomItemRequest, CreateBomRequest, UpdateBomRequest,
+    BomDetail, BomExportDto, BomQuery, BomService, CreateBomItemRequest, CreateBomRequest,
+    UpdateBomRequest,
 };
 use crate::utils::error::AppError;
 
@@ -308,5 +311,37 @@ impl BomService {
         txn.commit().await?;
 
         Ok(updated_bom)
+    }
+
+    /// 导出用全量查询（LEFT JOIN products 富化产品编码/名称，不分页）
+    pub async fn list_for_export(
+        &self,
+        product_name: Option<String>,
+        status: Option<String>,
+    ) -> Result<Vec<BomExportDto>, AppError> {
+        let mut select = BomEntity::find()
+            .column_as(ProductColumn::Code, "product_code")
+            .column_as(ProductColumn::Name, "product_name")
+            .join(JoinType::LeftJoin, BomRelation::Product.def());
+
+        if let Some(ref name) = product_name {
+            if !name.is_empty() {
+                select = select.filter(ProductColumn::Name.contains(name));
+            }
+        }
+        if let Some(ref st) = status {
+            if !st.is_empty() {
+                select = select.filter(BomColumn::Status.eq(st.clone()));
+            }
+        }
+
+        let rows = select
+            .order_by_desc(BomColumn::CreatedAt)
+            .limit(10000)
+            .into_model::<BomExportDto>()
+            .all(&*self.db)
+            .await?;
+
+        Ok(rows)
     }
 }

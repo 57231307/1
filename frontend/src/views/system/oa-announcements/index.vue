@@ -256,6 +256,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -289,9 +290,8 @@ const fetchList = async () => {
       status: query.status || undefined,
       announcement_type: query.announcement_type || undefined,
     });
-    const d = res.data as { items?: OaAnnouncement[]; data?: OaAnnouncement[] } | undefined;
-    list.value = d?.items || d?.data || [];
-    total.value = (res.data as { total?: number })?.total ?? 0;
+    list.value = res.data.items;
+    total.value = res.data.total;
   } catch (e) {
     ElMessage.error((e as Error).message || t('system.oaAnnouncement.message.fetchFailed'));
   } finally {
@@ -468,33 +468,27 @@ const handleDelete = async (row: OaAnnouncement) => {
 const fetchOptions = async () => {
   try {
     const ures = await getUserList({ page: 1, page_size: 200 });
-    const ud = ures.data as { items?: User[]; list?: User[]; data?: User[] } | undefined;
-    userOptions.value = (ud?.items ||
-      ud?.list ||
-      ud?.data ||
-      (Array.isArray(ud) ? ud : [])) as User[];
-  } catch {
-    /* 非管理员静默 */
+    userOptions.value = ures.data.users;
+  } catch (error) {
+    logAuxLoadFailure(t('system.oaAnnouncement.message.loadUsersFailed'), error);
   }
   try {
     const rres = await getRoleList();
-    const rd = rres.data as { roles?: Role[]; items?: Role[]; data?: Role[] } | Role[] | undefined;
-    roleOptions.value = (
-      Array.isArray(rd) ? rd : rd?.roles || rd?.items || rd?.data || []
-    ) as Role[];
-  } catch {
-    /* 静默 */
+    // 后端 list_roles 返回 RoleListResponse { roles, total }
+    roleOptions.value = rres.data.roles;
+  } catch (error) {
+    logAuxLoadFailure(t('system.oaAnnouncement.message.loadRolesFailed'), error);
   }
   try {
-    const dres = await request.get<{ items?: { id: number; name: string }[] }>('/departments/', {
+    const dres = await request.get<{ items?: { id: number; name: string }[] }>('/departments', {
       params: { page: 1, page_size: 200 },
     });
     const raw = dres as unknown as {
       data?: { items?: { id: number; name: string }[]; list?: { id: number; name: string }[] };
     };
     deptOptions.value = raw.data?.items || raw.data?.list || [];
-  } catch {
-    /* 静默 */
+  } catch (error) {
+    logAuxLoadFailure(t('system.oaAnnouncement.message.loadDeptsFailed'), error);
   }
 };
 

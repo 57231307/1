@@ -23,12 +23,12 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { echarts } from '@/utils/echarts';
 import type { ECharts } from '@/utils/echarts';
-import type { SalesTrend } from '@/api/dashboard';
+import type { SalesDataPoint } from '@/api/dashboard';
 
 const { t } = useI18n({ useScope: 'global' });
 
 // 趋势数据 + 天数（v-model 双向）
-const props = defineProps<{ data: SalesTrend[]; days: number }>();
+const props = defineProps<{ data: SalesDataPoint[]; days: number }>();
 const emit = defineEmits<{ 'update:days': [v: number] }>();
 
 const updateDays = (v: number) => emit('update:days', v);
@@ -39,7 +39,7 @@ let trendChart: ECharts | null = null;
 let resizeHandler: (() => void) | null = null;
 
 // 渲染 ECharts 折线柱状图
-const renderChart = (trends: SalesTrend[]) => {
+const renderChart = (trends: SalesDataPoint[]) => {
   if (!chartRef.value) return;
   if (!trendChart) {
     trendChart = echarts.init(chartRef.value);

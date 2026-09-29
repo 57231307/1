@@ -3,7 +3,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 部门实体（组织树节点，支持父子层级和负责人关联）
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Default, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "departments")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -12,6 +12,10 @@ pub struct Model {
     pub code: String,
     pub parent_id: Option<i32>,
     pub manager_id: Option<i32>,
+    /// 负责人姓名（契约对齐：前端「负责人」列读取 manager_name；
+    /// 非数据库列，由 DepartmentService::list/get/create 查 users 表填充）
+    #[sea_orm(ignore)]
+    pub manager_name: Option<String>,
     pub description: Option<String>,
     pub sort_order: i32,
     pub is_active: bool,

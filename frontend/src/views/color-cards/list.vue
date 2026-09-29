@@ -135,7 +135,7 @@
               $t('colorCards.table.edit')
             }}</el-button>
             <el-button
-              v-if="row.status === 'active'"
+              v-if="row.status === 'draft'"
               link
               type="danger"
               @click="handleArchive(row)"

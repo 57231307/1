@@ -1,7 +1,6 @@
 use axum::{
     Json,
     extract::{Path, Query, State},
-    http::StatusCode,
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -272,29 +271,25 @@ pub async fn get_exchange_rate_history(
     Ok(Json(ApiResponse::success(responses)))
 }
 
-/// 金额换算；注意：业务错误（如币种不存在）通过 200 + ApiResponse::error 返回， 让前端可以正常解析业务错误码；其他错误类型直接走 `?` 传播。
+/// 金额换算；业务错误（如币种不存在）与其余错误一律由 `AppError` 出参：
+/// `AppError::BusinessError` → HTTP 400 + `code: "BUSINESS_ERROR"`，message 取 `public_message()`
+/// 脱敏常量，真实文案只进 tracing 日志（见 `utils/error.rs` 模块文档的安全边界）。
 pub async fn convert_amount(
     State(state): State<AppState>,
     Json(req): Json<ConvertAmountRequest>,
 ) -> Result<Json<ApiResponse<ConversionResultResponse>>, AppError> {
     let service = CurrencyService::new(state.db);
-    match service
+    let result = service
         .convert_amount(
             &req.from_currency,
             &req.to_currency,
             req.amount,
             req.conversion_date,
         )
-        .await
-    {
-        Ok(result) => Ok(Json(ApiResponse::success(ConversionResultResponse::from(
-            result,
-        )))),
-        Err(crate::utils::error::AppError::BusinessError(msg)) => Ok(Json(
-            ApiResponse::error_with_status(StatusCode::BAD_REQUEST, msg),
-        )),
-        Err(e) => Err(e),
-    }
+        .await?;
+    Ok(Json(ApiResponse::success(ConversionResultResponse::from(
+        result,
+    ))))
 }
 
 /// 批量同步所有币种汇率

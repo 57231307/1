@@ -17,20 +17,30 @@ test.describe('列表交互与状态显示', () => {
       .first()
       .waitFor({ state: 'visible', timeout: 30_000 });
 
-    // 验证状态标签（el-tag）存在
+    // 验证订单状态标签（el-tag）渲染出真实文案。
+    // 注意：PurchaseTable 里 payment_status 列（PurchaseTable.vue:46）先于 status 列
+    // （:57）渲染，而后端 PurchaseOrderDto 不含 payment_status 字段，usePurchList.ts
+    // getPaymentStatusText 对缺值恒返回空串——该列 el-tag 恒为空文本。
+    // 因此不能直接取 .first()（拿到的是空的付款标签），需校验订单状态列渲染出非空标签。
     const statusTags = page.locator('.el-table .el-tag');
     const tagCount = await statusTags.count();
-    if (tagCount > 0) {
-      const firstTagText = await statusTags.first().textContent();
-      expect(firstTagText?.trim().length).toBeGreaterThan(0);
+    expect(tagCount, '采购订单列表应渲染状态 el-tag').toBeGreaterThan(0);
+    let sawNonEmptyStatusTag = false;
+    for (let i = 0; i < tagCount; i++) {
+      const text = (await statusTags.nth(i).textContent())?.trim() ?? '';
+      if (text.length > 0) {
+        sawNonEmptyStatusTag = true;
+        break;
+      }
     }
+    expect(sawNonEmptyStatusTag, '应至少有一个订单状态 el-tag 渲染出非空文案').toBe(true);
 
     // 测试分页
     const pagination = page.locator('.el-pagination').first();
-    const paginationVisible = await pagination.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    const paginationVisible = await pagination.isVisible();
     if (paginationVisible) {
       const page2 = pagination.locator('.el-pager .number:has-text("2")').first();
-      const page2Visible = await page2.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      const page2Visible = await page2.isVisible();
       if (page2Visible) {
         await page2.click();
         await page.waitForTimeout(2000);
@@ -44,33 +54,43 @@ test.describe('列表交互与状态显示', () => {
     }
   });
 
-  test('库存列表：空数据展示验证', async ({ page }) => {
+  test('库存列表：构造空筛选结果集并验证空态展示', async ({ page }) => {
     await page.goto(`${BASE_URL}/inventory`);
-    await page.waitForTimeout(3000);
 
-    const table = page
-      .locator(
-        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
-      )
+    // 库存台账 tab 默认加载（V2Table/el-table-v2，非 .el-table）
+    const table = page.locator('.v2-table-wrapper, [role="table"]').first();
+    await table.waitFor({ state: 'visible', timeout: 15_000 });
+
+    // 原实现在此处直接 waitFor .el-table__empty-block 可见——表格有数据时
+    // 空态块恒 hidden（call log: resolved to hidden ×14），前提不成立。
+    // 改为用可构造的筛选条件构造空集：关键词在后端按产品编码/名称 LIKE 下推，
+    // 无任何产品命中时显式返回空集（inventory_stock_service.rs:327-330）。
+    const keywordInput = page.locator('.filter-card input:visible').first();
+    await keywordInput.waitFor({ state: 'visible', timeout: 5_000 });
+    const noMatchKeyword = `NOMATCH-${Date.now()}`;
+    await keywordInput.fill(noMatchKeyword);
+
+    const responsePromise = page.waitForResponse(
+      res => res.url().includes('/inventory/stock') && res.url().includes('page='),
+      { timeout: 30_000 }
+    );
+    await page.locator('.filter-card button:has-text("查询")').first().click();
+    const res = await responsePromise;
+    const body = await res.json();
+
+    // 后端真实形态：分页对象 {items,total}，非匹配关键词必须返回 total=0 空集
+    expect(body?.data?.total, `关键词 ${noMatchKeyword} 应命中 0 条`).toBe(0);
+    expect(
+      Array.isArray(body?.data?.items) && body.data.items.length,
+      '空筛选结果的 items 应为空数组'
+    ).toBe(0);
+
+    // 空态呈现：el-table-v2 空占位必须可见
+    const emptyBlock = page
+      .locator('.el-table-v2__empty, .el-empty, .el-table__empty-block')
       .first();
-    const empty = page.locator('.el-empty, .el-table__empty-block, .el-table__empty-text').first();
-
-    await table
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-
-    const tableVisible = await table.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-    await empty
-      .waitFor({ state: 'visible', timeout: 5_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const emptyVisible = await empty.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-    expect(tableVisible || emptyVisible).toBe(true);
-
-    if (tableVisible) {
-      const headers = page.locator('.el-table__header th, .el-table__header-wrapper th');
-      const headerCount = await headers.count();
-      expect(headerCount).toBeGreaterThan(0);
-    }
+    await emptyBlock.waitFor({ state: 'visible', timeout: 10_000 });
+    expect(await emptyBlock.isVisible()).toBe(true);
   });
 
   test('仪表盘加载状态和图表渲染', async ({ page }) => {
@@ -83,13 +103,8 @@ test.describe('列表交互与状态显示', () => {
     const hasStats = await page
       .locator('.el-statistic, .el-card, [class*="stat"]')
       .first()
-      .isVisible()
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
-    const hasChart = await page
-      .locator('canvas, .echarts, [class*="chart"]')
-      .first()
-      .isVisible()
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      .isVisible();
+    const hasChart = await page.locator('canvas, .echarts, [class*="chart"]').first().isVisible();
     expect(hasStats || hasChart).toBe(true);
   });
 
@@ -105,20 +120,16 @@ test.describe('列表交互与状态显示', () => {
 
     // 查找搜索输入框（真实 placeholder 含"供应商名称"或类似）
     const searchInput = page.locator('.filter-form input, .filter-card input').first();
-    await searchInput
-      .waitFor({ state: 'visible', timeout: 5000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const searchVisible = await searchInput.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await searchInput.waitFor({ state: 'visible', timeout: 5000 });
+    const searchVisible = await searchInput.isVisible();
     if (searchVisible) {
       await searchInput.fill('测试');
       await page.waitForTimeout(1000);
 
       // 点击查询按钮（真实文本"查询"）
       const searchBtn = page.locator('button:has-text("查询")').first();
-      await searchBtn
-        .waitFor({ state: 'visible', timeout: 3000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const searchBtnVisible = await searchBtn.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await searchBtn.waitFor({ state: 'visible', timeout: 3000 });
+      const searchBtnVisible = await searchBtn.isVisible();
       if (searchBtnVisible) {
         await searchBtn.click();
         await page.waitForTimeout(2000);
@@ -129,8 +140,7 @@ test.describe('列表交互与状态显示', () => {
           '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
         )
         .first()
-        .isVisible()
-        .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+        .isVisible();
       expect(tableStillVisible).toBe(true);
 
       await searchInput.clear();
@@ -144,21 +154,13 @@ test.describe('列表交互与状态显示', () => {
 
     // 等待 el-tabs 加载
     const tabs = page.locator('.el-tabs');
-    await tabs
-      .first()
-      .waitFor({ state: 'visible', timeout: 15_000 })
-      .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-    const tabsVisible = await tabs
-      .first()
-      .isVisible()
-      .catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+    await tabs.first().waitFor({ state: 'visible', timeout: 15_000 });
+    const tabsVisible = await tabs.first().isVisible();
     if (tabsVisible) {
       // 点击第二个 tab
       const secondTab = page.locator('.el-tabs__item').nth(1);
-      await secondTab
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
-      const secondTabVisible = await secondTab.isVisible().catch((e) => { console.warn(`[E2E] 元素状态查询失败: ${(e as Error).message}`); return false; });
+      await secondTab.waitFor({ state: 'visible', timeout: 5000 });
+      const secondTabVisible = await secondTab.isVisible();
       if (secondTabVisible) {
         await secondTab.click();
         await page.waitForTimeout(2000);

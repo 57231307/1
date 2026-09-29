@@ -58,7 +58,7 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
 
   /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
   const handleExport = () => {
-    exportFromBackend('/gl/vouchers/export', {}, '会计凭证');
+    exportFromBackend('/vouchers/export', {}, '会计凭证');
   };
 
   /** 删除凭证 */

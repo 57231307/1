@@ -37,6 +37,9 @@ use crate::models::bad_debt_provision::{
 use crate::models::bad_debt_writeoff::{
     self, ActiveModel as WriteoffActiveModel, Entity as WriteoffEntity,
 };
+use crate::models::status::bad_debt_provision_status as provision_status;
+use crate::models::status::bad_debt_writeoff_status as writeoff_status;
+use crate::models::status::common;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -217,7 +220,7 @@ impl BadDebtService {
     ) -> Result<Vec<ar_invoice::Model>, BadDebtError> {
         let invoices = ar_invoice::Entity::find()
             .filter(ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
-            .filter(ar_invoice::Column::ApprovalStatus.eq("approved"))
+            .filter(ar_invoice::Column::ApprovalStatus.eq(common::STATUS_APPROVED))
             .all(txn)
             .await?;
         Ok(invoices)
@@ -260,7 +263,10 @@ impl BadDebtService {
             .filter(bad_debt_provision::Column::PeriodYear.eq(period_year))
             .filter(bad_debt_provision::Column::PeriodMonth.eq(period_month))
             .filter(bad_debt_provision::Column::AgingBucket.eq(bucket.as_str()))
-            .filter(bad_debt_provision::Column::Status.is_in(["draft", "confirmed"]))
+            .filter(
+                bad_debt_provision::Column::Status
+                    .is_in([provision_status::DRAFT, provision_status::CONFIRMED]),
+            )
             .one(txn)
             .await?;
         Ok(existing.is_some())
@@ -290,7 +296,7 @@ impl BadDebtService {
             provision_rate: Set(rate),
             provision_amount: Set(provision_amount),
             voucher_id: Set(None),
-            status: Set("draft".to_string()),
+            status: Set(provision_status::DRAFT.to_string()),
             created_by: Set(created_by),
             confirmed_at: Set(None),
             reversed_at: Set(None),
@@ -312,16 +318,16 @@ impl BadDebtService {
             .await?
             .ok_or(BadDebtError::ProvisionNotFound)?;
 
-        if existing.status != "draft" {
+        if existing.status != provision_status::DRAFT {
             return Err(BadDebtError::InvalidState {
                 current: existing.status,
-                expected: "draft",
+                expected: provision_status::DRAFT,
             });
         }
 
         let now = Utc::now();
         let mut active: ProvisionActiveModel = existing.into();
-        active.status = Set("confirmed".to_string());
+        active.status = Set(provision_status::CONFIRMED.to_string());
         active.confirmed_at = Set(Some(now));
         active.updated_at = Set(now);
         let updated = active.update(&txn).await?;
@@ -341,16 +347,16 @@ impl BadDebtService {
             .await?
             .ok_or(BadDebtError::ProvisionNotFound)?;
 
-        if existing.status != "confirmed" {
+        if existing.status != provision_status::CONFIRMED {
             return Err(BadDebtError::InvalidState {
                 current: existing.status,
-                expected: "confirmed",
+                expected: provision_status::CONFIRMED,
             });
         }
 
         let now = Utc::now();
         let mut active: ProvisionActiveModel = existing.into();
-        active.status = Set("reversed".to_string());
+        active.status = Set(provision_status::REVERSED.to_string());
         active.reversed_at = Set(Some(now));
         active.reverse_voucher_id = Set(req.reverse_voucher_id);
         if let Some(remark) = req.remark {
@@ -402,10 +408,11 @@ impl BadDebtService {
             select = select.filter(bad_debt_provision::Column::AgingBucket.eq(v));
         }
         if let Some(v) = query.status {
-            if !["draft", "confirmed", "reversed"].contains(&v.as_str()) {
+            if !provision_status::ALL.contains(&v.as_str()) {
                 return Err(BadDebtError::Validation(format!(
-                    "非法 status: {}，合法值：draft/confirmed/reversed",
-                    v
+                    "非法 status: {}，合法值：{}",
+                    v,
+                    provision_status::ALL.join("/")
                 )));
             }
             select = select.filter(bad_debt_provision::Column::Status.eq(v));
@@ -422,7 +429,7 @@ impl BadDebtService {
     // ==================== B02 坏账核销审批 ====================
 
     /// 申请核销
-    /// 业务规则：1. 校验 ar_invoice 存在且 approval_status='approved'；2. 校验 writeoff_amount > 0 且 <= ar_invoice.unpaid_amount；3. 创建 pending 状态核销申请，approval_level=1
+    /// 业务规则：1. 校验 ar_invoice 存在且已审批通过（ar_invoice.approval_status=APPROVED，大写词表）；2. 校验 writeoff_amount > 0 且 <= ar_invoice.unpaid_amount；3. 创建 pending 状态核销申请，approval_level=1
     pub async fn create_writeoff(
         &self,
         req: CreateWriteoffRequest,
@@ -446,7 +453,7 @@ impl BadDebtService {
             .await?
             .ok_or(BadDebtError::ArInvoiceNotFound)?;
 
-        if invoice.approval_status != "approved" {
+        if invoice.approval_status != common::STATUS_APPROVED {
             return Err(BadDebtError::Validation(format!(
                 "应收单 {} 未审核通过（当前 approval_status={}）",
                 req.ar_invoice_id, invoice.approval_status
@@ -471,7 +478,7 @@ impl BadDebtService {
             applicant_username: Set(applicant_username),
             applicant_at: Set(now),
             approval_level: Set(1),
-            approval_status: Set("pending".to_string()),
+            approval_status: Set(writeoff_status::PENDING.to_string()),
             finance_manager_id: Set(None),
             finance_manager_at: Set(None),
             finance_manager_comment: Set(None),
@@ -504,10 +511,10 @@ impl BadDebtService {
             .await?
             .ok_or(BadDebtError::WriteoffNotFound)?;
 
-        if existing.approval_status != "pending" {
+        if existing.approval_status != writeoff_status::PENDING {
             return Err(BadDebtError::InvalidState {
                 current: existing.approval_status,
-                expected: "pending",
+                expected: writeoff_status::PENDING,
             });
         }
         // 反自审批：审批人不能是申请人
@@ -518,7 +525,7 @@ impl BadDebtService {
         let now = Utc::now();
         let mut active: WriteoffActiveModel = existing.into();
         active.approval_level = Set(2);
-        active.approval_status = Set("finance_approved".to_string());
+        active.approval_status = Set(writeoff_status::FINANCE_APPROVED.to_string());
         active.finance_manager_id = Set(Some(approver_user_id));
         active.finance_manager_at = Set(Some(now));
         active.finance_manager_comment = Set(req.comment);
@@ -541,10 +548,10 @@ impl BadDebtService {
             .await?
             .ok_or(BadDebtError::WriteoffNotFound)?;
 
-        if existing.approval_status != "finance_approved" {
+        if existing.approval_status != writeoff_status::FINANCE_APPROVED {
             return Err(BadDebtError::InvalidState {
                 current: existing.approval_status,
-                expected: "finance_approved",
+                expected: writeoff_status::FINANCE_APPROVED,
             });
         }
         // 反自审批：审批人不能是申请人
@@ -554,7 +561,7 @@ impl BadDebtService {
 
         let now = Utc::now();
         let mut active: WriteoffActiveModel = existing.into();
-        active.approval_status = Set("approved".to_string());
+        active.approval_status = Set(writeoff_status::APPROVED.to_string());
         active.general_manager_id = Set(Some(approver_user_id));
         active.general_manager_at = Set(Some(now));
         active.general_manager_comment = Set(req.comment);
@@ -582,7 +589,9 @@ impl BadDebtService {
             .await?
             .ok_or(BadDebtError::WriteoffNotFound)?;
 
-        if !["pending", "finance_approved"].contains(&existing.approval_status.as_str()) {
+        if ![writeoff_status::PENDING, writeoff_status::FINANCE_APPROVED]
+            .contains(&existing.approval_status.as_str())
+        {
             return Err(BadDebtError::InvalidState {
                 current: existing.approval_status,
                 expected: "pending 或 finance_approved",
@@ -597,10 +606,10 @@ impl BadDebtService {
         // 在 existing.into() 移动前保存 approval_status，用于判断当前审批层级
         let prev_status = existing.approval_status.clone();
         let mut active: WriteoffActiveModel = existing.into();
-        active.approval_status = Set("rejected".to_string());
+        active.approval_status = Set(writeoff_status::REJECTED.to_string());
 
         // 根据当前层级写入对应审批人字段
-        if prev_status == "pending" {
+        if prev_status == writeoff_status::PENDING {
             active.finance_manager_id = Set(Some(approver_user_id));
             active.finance_manager_at = Set(Some(now));
             active.finance_manager_comment = Set(Some(req.comment));
@@ -639,16 +648,16 @@ impl BadDebtService {
             return Err(BadDebtError::NotApplicant);
         }
         // 仅 pending 状态可取消
-        if existing.approval_status != "pending" {
+        if existing.approval_status != writeoff_status::PENDING {
             return Err(BadDebtError::InvalidState {
                 current: existing.approval_status,
-                expected: "pending",
+                expected: writeoff_status::PENDING,
             });
         }
 
         let now = Utc::now();
         let mut active: WriteoffActiveModel = existing.into();
-        active.approval_status = Set("cancelled".to_string());
+        active.approval_status = Set(writeoff_status::CANCELLED.to_string());
         active.cancelled_at = Set(Some(now));
         active.cancel_reason = Set(Some(req.cancel_reason));
         active.updated_at = Set(now);
@@ -684,15 +693,7 @@ impl BadDebtService {
             select = select.filter(bad_debt_writeoff::Column::ArInvoiceId.eq(v));
         }
         if let Some(v) = query.approval_status {
-            if ![
-                "pending",
-                "finance_approved",
-                "approved",
-                "rejected",
-                "cancelled",
-            ]
-            .contains(&v.as_str())
-            {
+            if !writeoff_status::ALL.contains(&v.as_str()) {
                 return Err(BadDebtError::Validation(format!(
                     "非法 approval_status: {}",
                     v

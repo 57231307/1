@@ -605,6 +605,7 @@ fn test_qqjg_gxddqqkgz() {
 #[test]
 fn test_cxcs_fycskgz() {
     let query = ProductionOrderQuery {
+        order_no: None,
         status: Some(common::STATUS_DRAFT.to_string()),
         product_id: Some(1),
         page: 1,
@@ -613,4 +614,5 @@ fn test_cxcs_fycskgz() {
     assert_eq!(query.page, 1);
     assert_eq!(query.page_size, 20);
     assert_eq!(query.status, Some("DRAFT".to_string()));
+    assert_eq!(query.order_no, None);
 }

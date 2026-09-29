@@ -30,7 +30,7 @@ export const test = base.extend<{ diag: DiagSignals }>({
       requestFailures: [],
       httpErrors: [],
     };
-    page.on('console', (msg) => {
+    page.on('console', msg => {
       const type = msg.type();
       if (type === 'error') {
         diag.consoleErrors.push(`${Date.now()} ${msg.text().slice(0, 500)}`);
@@ -38,24 +38,24 @@ export const test = base.extend<{ diag: DiagSignals }>({
         diag.consoleWarns.push(`${Date.now()} ${msg.text().slice(0, 500)}`);
       }
     });
-    page.on('pageerror', (err) => {
+    page.on('pageerror', err => {
       const line = `${Date.now()} ${err.message.slice(0, 500)}`;
       diag.pageErrors.push(line);
       console.log(`[diag][pageerror] ${line} @ ${testInfo.title}`);
     });
-    page.on('requestfailed', (req) => {
+    page.on('requestfailed', req => {
       const line = `${req.method()} ${req.url()} -> ${(req.failure() as { errorText?: string } | null)?.errorText ?? 'unknown'}`;
       diag.requestFailures.push(line);
       console.log(`[diag][requestfailed] ${line} @ ${testInfo.title}`);
     });
-    page.on('response', (res) => {
+    page.on('response', res => {
       const status = res.status();
       if (status >= 300) {
         const loc = testInfo.title;
         const isError = status >= 400;
         res
           .text()
-          .then((body) => {
+          .then(body => {
             const line = `${res.request().method()} ${res.url()} -> ${status} | ${body.slice(0, BODY_TRUNCATE).replace(/\s+/g, ' ')}`;
             diag.httpErrors.push(line);
             // 4xx/5xx 无条件即时输出（用户指令：尽可能多拿日志减少 CI 次数）；3xx 仅汇总防刷屏
@@ -75,13 +75,17 @@ export const test = base.extend<{ diag: DiagSignals }>({
     console.log(
       `[diag][summary] ${testInfo.title} | status=${testInfo.status} dur=${Math.round(testInfo.duration / 1000)}s ` +
         `consoleErr=${diag.consoleErrors.length} consoleWarn=${diag.consoleWarns.length} ` +
-        `pageErr=${diag.pageErrors.length} reqFail=${diag.requestFailures.length} httpErr=${diag.httpErrors.length}`,
+        `pageErr=${diag.pageErrors.length} reqFail=${diag.requestFailures.length} httpErr=${diag.httpErrors.length}`
     );
     if (failed || slow) {
-      for (const e of diag.consoleErrors.slice(0, CONSOLE_DETAIL_MAX)) console.log(`[diag][console.error] ${e} @ ${testInfo.title}`);
-      for (const e of diag.pageErrors.slice(0, CONSOLE_DETAIL_MAX)) console.log(`[diag][pageerror] ${e} @ ${testInfo.title}`);
-      for (const e of diag.requestFailures.slice(0, CONSOLE_DETAIL_MAX)) console.log(`[diag][requestfailed] ${e} @ ${testInfo.title}`);
-      for (const e of diag.httpErrors.slice(0, CONSOLE_DETAIL_MAX)) console.log(`[diag][http] ${e} @ ${testInfo.title}`);
+      for (const e of diag.consoleErrors.slice(0, CONSOLE_DETAIL_MAX))
+        console.log(`[diag][console.error] ${e} @ ${testInfo.title}`);
+      for (const e of diag.pageErrors.slice(0, CONSOLE_DETAIL_MAX))
+        console.log(`[diag][pageerror] ${e} @ ${testInfo.title}`);
+      for (const e of diag.requestFailures.slice(0, CONSOLE_DETAIL_MAX))
+        console.log(`[diag][requestfailed] ${e} @ ${testInfo.title}`);
+      for (const e of diag.httpErrors.slice(0, CONSOLE_DETAIL_MAX))
+        console.log(`[diag][http] ${e} @ ${testInfo.title}`);
     }
   },
 });

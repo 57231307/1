@@ -12,11 +12,15 @@ use validator::Validate;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::bom_service::{
-    BomQuery, BomService, CreateBomItemRequest, CreateBomRequest, UpdateBomRequest,
+    BomExportDto, BomQuery, BomService, CreateBomItemRequest, CreateBomRequest, UpdateBomRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
+use std::sync::Arc;
 
 /// 创建BOM请求
 #[allow(dead_code, reason = "序列化/反序列化字段")]
@@ -511,4 +515,107 @@ pub async fn approve_bom(
             "BOM已驳回"
         },
     )))
+}
+
+/// 导出 BOM 列表查询参数（与前端 BOM 列表页筛选键对齐）
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExportBomsQuery {
+    pub product_name: Option<String>,
+    pub status: Option<String>,
+}
+
+/// BOM 导出表头
+fn bom_export_headers() -> Vec<String> {
+    vec![
+        "ID".to_string(),
+        "产品编码".to_string(),
+        "产品名称".to_string(),
+        "版本号".to_string(),
+        "是否默认".to_string(),
+        "状态".to_string(),
+        "备注".to_string(),
+        "创建人ID".to_string(),
+        "创建时间".to_string(),
+        "更新时间".to_string(),
+    ]
+}
+
+/// 将单条 BOMExportDto 转为 xlsx 行
+fn build_bom_export_row(dto: &BomExportDto) -> Vec<String> {
+    vec![
+        dto.id.to_string(),
+        dto.product_code.clone().unwrap_or_default(),
+        dto.product_name.clone().unwrap_or_default(),
+        dto.version.to_string(),
+        if dto.is_default {
+            "是".to_string()
+        } else {
+            "否".to_string()
+        },
+        dto.status.clone(),
+        dto.remarks.clone().unwrap_or_default(),
+        dto.created_by.to_string(),
+        dto.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+        dto.updated_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+    ]
+}
+
+/// 导出 BOM 列表（GET /boms/export）
+pub async fn export_boms(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<ExportBomsQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = BomService::new(state.db.clone());
+
+    let audit_product_name = query.product_name.clone();
+    let audit_status = query.status.clone();
+
+    let rows = service
+        .list_for_export(query.product_name, query.status)
+        .await?;
+    let row_count = rows.len();
+
+    let table = XlsxTable {
+        sheet_name: "BOM列表".to_string(),
+        headers: bom_export_headers(),
+        rows: rows.iter().map(build_bom_export_row).collect(),
+    };
+
+    let filename = format!("boms_export_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("bom".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出BOM列表（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/boms/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "product_name_filter": audit_product_name,
+            "status_filter": audit_status,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("BOM导出（共 {} 条）", row_count)),
+    };
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

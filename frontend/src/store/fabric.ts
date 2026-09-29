@@ -44,7 +44,7 @@ export const useFabricStore = defineStore('fabric', () => {
     try {
       const res = await getFabricCategoryList();
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
-      if (res.data) categories.value = res.data;
+      if (res.data) categories.value = res.data.items;
     } catch (error) {
       logger.error('获取面料分类失败:', error);
       msg.error('fabric.fetchCategoriesFailed');

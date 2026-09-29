@@ -4,7 +4,16 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+/// 预算明细期间输入（按月 '2026-01' / 季 '2026-Q1' / 年度聚合 '2026-FY' 分解的金额行）
+#[derive(Debug, Clone, Deserialize)]
+pub struct BudgetItemPeriodInput {
+    /// 期间标识
+    pub period: String,
+    /// 该期间计划金额
+    pub planned_amount: Decimal,
+}
 
 /// 预算控制响应数据结构
 #[derive(Debug, Clone, Serialize)]
@@ -26,8 +35,20 @@ pub struct BudgetControlResponse {
 pub struct BudgetItemQueryParams {
     pub item_type: Option<String>,
     pub status: Option<String>,
+    /// 按所属预算方案筛选（并入 plan 主线后新增）
+    pub plan_id: Option<i32>,
     pub page: i64,
     pub page_size: i64,
+}
+
+/// 预算科目详情出参：明细主体（含 plan_id）+ 按月/季分解的期间数组
+#[derive(Debug, Clone, Serialize)]
+pub struct BudgetItemWithPeriods {
+    /// 预算明细主体（budget_items 全列，键名 snake_case，含 NOT NULL 的 plan_id）
+    #[serde(flatten)]
+    pub item: crate::models::budget_management::Model,
+    /// 期间分解明细（budget_item_periods，键名 snake_case）
+    pub periods: Vec<crate::models::budget_item_periods::Model>,
 }
 
 /// 创建预算科目请求
@@ -38,11 +59,15 @@ pub struct CreateBudgetItemRequest {
     pub item_name: String,
     pub item_type: Option<String>,
     pub parent_id: Option<i32>,
+    /// 所属预算方案 ID（NOT NULL，并入 plan 主线）
+    pub plan_id: i32,
     pub budget_year: Option<i32>,
     pub planned_amount: Decimal,
     pub remark: Option<String>,
     /// P2-14：预算科目-会计科目映射
     pub account_subject_id: Option<i32>,
+    /// 期间分解（为空时服务层按年度生成单条 'FY' 合计行）
+    pub periods: Vec<BudgetItemPeriodInput>,
 }
 
 /// 更新预算科目请求（v11 批次 145 P1-8：移除 dead_code 标注，扩展字段已接入 budget_management 模型）
@@ -55,6 +80,8 @@ pub struct UpdateBudgetItemRequest {
     pub remark: Option<String>,
     /// P2-14：预算科目-会计科目映射
     pub account_subject_id: Option<Option<i32>>,
+    /// 期间分解：Some(..) 时整体替换该明细的期间行并重新聚合校验；None 时保持原期间不变
+    pub periods: Option<Vec<BudgetItemPeriodInput>>,
 }
 
 /// 创建预算方案请求
@@ -86,6 +113,8 @@ pub struct BudgetExecuteRequest {
 pub struct CreateBudgetExecutionParams {
     /// 预算方案 ID
     pub plan_id: i32,
+    /// 预算明细科目 ID（可空：方案级下达/调整不绑定具体明细时为 None）
+    pub item_id: Option<i32>,
     /// 执行类型（下达/调整/使用）
     pub execution_type: String,
     /// 金额

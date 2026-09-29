@@ -32,7 +32,8 @@ pub struct Model {
     /// 商机类型
     pub opportunity_type: Option<String>,
 
-    /// 商机阶段
+    /// 商机阶段：QUALIFICATION/NEEDS_ANALYSIS/PROPOSAL/NEGOTIATION/CLOSED_WON/CLOSED_LOST
+    /// （权威词表见 models/status::crm_opportunity，DB CHECK：chk_crm_opportunity_stage）
     pub opportunity_stage: Option<String>,
 
     /// 成交概率
@@ -66,7 +67,8 @@ pub struct Model {
     pub owner_id: i32,
 
     /// 数据部门 ID（RLS dept 语义，由 trg_crm_opportunity_dept 触发器自动维护 =
-    /// owner_id 指向用户的 department_id；公海行 opportunity_status='pool' 由策略放行）
+    /// owner_id 指向用户的 department_id；商机无公海态，RLS 策略无 pool 分支，
+    /// 公海机制仅存在于 crm_lead.lead_status）
     /// m_rls_dept_domain 迁移补列
     pub department_id: Option<i32>,
 
@@ -88,7 +90,8 @@ pub struct Model {
     /// 竞争优势
     pub competitive_advantage: Option<String>,
 
-    /// 商机状态
+    /// 商机状态：OPEN/CLOSED_WON/CLOSED_LOST
+    /// （权威词表见 models/status::crm_opportunity，DB CHECK：chk_crm_opportunity_status）
     pub opportunity_status: Option<String>,
 
     /// 成交原因

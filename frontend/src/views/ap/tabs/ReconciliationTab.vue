@@ -7,9 +7,15 @@
   <div class="reconciliation-tab">
     <div class="page-header">
       <h2 class="page-title">{{ $t('apModule.reconciliation.title') }}</h2>
-      <el-button type="primary" @click="generateReconciliation()">
-        <el-icon><Plus /></el-icon> {{ $t('apModule.reconciliation.generate') }}
-      </el-button>
+      <div class="header-actions">
+        <el-button type="primary" @click="generateReconciliation()">
+          <el-icon><Plus /></el-icon> {{ $t('apModule.reconciliation.generate') }}
+        </el-button>
+        <el-button :loading="autoReconciling" @click="handleAutoReconcile">
+          {{ $t('apModule.reconciliation.autoReconcile') }}
+        </el-button>
+        <el-button @click="showSummary">{{ $t('apModule.reconciliation.summary') }}</el-button>
+      </div>
     </div>
 
     <el-card shadow="hover">
@@ -88,6 +94,9 @@
               @click="disputeReconciliation(row as unknown as APReconciliation)"
               >{{ $t('apModule.reconciliation.dispute') }}</el-button
             >
+            <el-button size="small" link @click="showReconciliationDetail(row as APReconciliation)">
+              {{ $t('common.detail') }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -139,16 +148,47 @@
         }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 自动对账汇总弹窗 -->
+    <el-dialog
+      v-model="summaryVisible"
+      :title="$t('apModule.reconciliation.summary')"
+      width="560px"
+    >
+      <el-descriptions v-if="summaryRow" :column="2" border>
+        <el-descriptions-item label="对账单总数">{{ summaryRow.total ?? 0 }}</el-descriptions-item>
+        <el-descriptions-item label="已确认">{{ summaryRow.confirmed ?? 0 }}</el-descriptions-item>
+        <el-descriptions-item label="待确认">{{ summaryRow.pending ?? 0 }}</el-descriptions-item>
+        <el-descriptions-item label="争议">{{ summaryRow.disputed ?? 0 }}</el-descriptions-item>
+        <el-descriptions-item label="发票总额" :span="2">
+          {{
+            Number(summaryRow.total_invoice_amount ?? 0).toLocaleString('zh-CN', {
+              minimumFractionDigits: 2,
+            })
+          }}
+        </el-descriptions-item>
+        <el-descriptions-item label="付款总额" :span="2">
+          {{
+            Number(summaryRow.total_payment_amount ?? 0).toLocaleString('zh-CN', {
+              minimumFractionDigits: 2,
+            })
+          }}
+        </el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import {
   getAPReconciliationList,
+  getAPReconciliation,
+  autoReconcileAllAP,
   generateAPReconciliation,
   confirmAPReconciliation,
   disputeAPReconciliation,
@@ -279,6 +319,75 @@ const disputeReconciliation = async (row: APReconciliation) => {
       ElMessage.error(err.message || t('common.failed'));
     }
   }
+};
+
+// 自动对账：后端匹配发票与付款生成对账单
+const autoReconciling = ref(false);
+const handleAutoReconcile = async () => {
+  try {
+    await ElMessageBox.confirm(
+      t('apModule.reconciliation.autoReconcileConfirm'),
+      t('apModule.reconciliation.autoReconcile'),
+      { type: 'info' }
+    );
+  } catch {
+    return;
+  }
+  autoReconciling.value = true;
+  try {
+    // 后端契约：/ap/reconciliations/auto 需要日期范围，默认覆盖近 90 天
+    const end = new Date();
+    const start = new Date(end.getTime() - 90 * 24 * 60 * 60 * 1000);
+    await autoReconcileAllAP({
+      start_date: start.toISOString().split('T')[0],
+      end_date: end.toISOString().split('T')[0],
+    });
+    ElMessage.success(t('apModule.reconciliation.autoReconcileSuccess'));
+    fetchReconciliations();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    autoReconciling.value = false;
+  }
+};
+
+// 对账汇总统计
+const summaryVisible = ref(false);
+const summaryRow = ref<Record<string, number> | null>(null);
+const showSummary = async () => {
+  try {
+    // 后端汇总接口按供应商维度返回，这里按对账单状态在客户端聚合展示
+    if (reconciliations.value.length === 0) await fetchReconciliations();
+    const list = reconciliations.value;
+    summaryRow.value = {
+      total: list.length,
+      confirmed: list.filter(r => r.status === 'confirmed').length,
+      pending: list.filter(r => r.status === 'pending').length,
+      disputed: list.filter(r => r.status === 'disputed').length,
+      total_invoice_amount: list.reduce((s, r) => s + Number(r.total_invoice_amount ?? 0), 0),
+      total_payment_amount: list.reduce((s, r) => s + Number(r.total_payment_amount ?? 0), 0),
+    };
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+    return;
+  }
+  summaryVisible.value = true;
+};
+
+// 对账详情（行操作调用，弹窗展示）
+const detailVisible = ref(false);
+const detailRow = ref<APReconciliation | null>(null);
+const showReconciliationDetail = async (row: APReconciliation) => {
+  try {
+    const res = await getAPReconciliation(row.id);
+    detailRow.value = (res.data as APReconciliation) || row;
+  } catch (error) {
+    logger.error(t('apModule.reconciliation.detailFailed'), error);
+    detailRow.value = row;
+  }
+  detailVisible.value = true;
 };
 
 defineExpose({ refresh: fetchReconciliations });

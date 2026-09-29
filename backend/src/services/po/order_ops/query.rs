@@ -24,11 +24,15 @@ impl PurchaseOrderService {
     ) -> Result<Vec<PurchaseOrderItemDto>, AppError> {
         // amount 映射到实体 subtotal 列；returned_quantity 数据库无对应列，置 0
         // （若 FromQueryResult 按默认列名匹配不到列会 TryGetError 导致接口 500）
+        // returned_quantity 的 0 必须写成 `CAST(0 AS NUMERIC)` 而非裸 `Expr::value(0)`：
+        // 裸整数常量在 Postgres 结果集里带 INT4 OID，而 DTO 字段是 Decimal(NUMERIC)，
+        // 解码期会因 INT4 与 Option<Decimal> 不匹配抛 500（CI #4653）；显式 CAST 令列 OID
+        // 为 numeric，与 FromQueryResult 期望类型同源，勿改回整数字面量。
         let items = purchase_order_item::Entity::find()
             .column_as(product::Column::Code, "material_code")
             .column_as(product::Column::Name, "material_name")
             .column_as(purchase_order_item::Column::Subtotal, "amount")
-            .column_as(Expr::value(0), "returned_quantity")
+            .column_as(Expr::cust("CAST(0 AS NUMERIC)"), "returned_quantity")
             .join(
                 JoinType::LeftJoin,
                 purchase_order_item::Relation::Product.def(),
@@ -51,7 +55,7 @@ impl PurchaseOrderService {
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         // V15 P0-S01：内部调用传 None（导出由调用方决定权限范围，service 不再二次过滤）
         let (orders, _total) = self
-            .list_orders(1, 10000, status, supplier_id, None)
+            .list_orders(1, 10000, status, supplier_id, None, None)
             .await?;
 
         let headers = Self::csv_headers();

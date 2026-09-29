@@ -28,8 +28,20 @@ import { ElButton, ElTag } from 'element-plus';
 import V2Table from '@/components/V2Table/index.vue';
 import type { ColumnDef } from '@/components/V2Table/types';
 import type { ApprovalTask } from '@/api/bpm-enhanced';
+import { getTaskStatusType, formatDateTime } from '../composables/bpmApFmts';
 
 const { t } = useI18n({ useScope: 'global' });
+
+/** 已办任务状态（completed/rejected/cancelled）显示文本，取值域与后端 bpm_task 词表同源 */
+const getTaskStatusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    completed: t('bpm.approval.taskStatus.completed'),
+    rejected: t('bpm.approval.taskStatus.rejected'),
+    cancelled: t('bpm.approval.taskStatus.cancelled'),
+    pending: t('bpm.approval.taskStatus.pending'),
+  };
+  return map[status] || status;
+};
 
 /**
  * 审批已办任务表组件
@@ -53,30 +65,43 @@ const emit = defineEmits<{
   'update:page-size': [v: number];
 }>();
 
-/** 列定义：任务名称 / 流程名称 / 申请人 / 业务单号 / 审批时间 / 审批结果 / 审批意见 / 操作 */
+/** 列定义：与后端 bpm_task 实体字段逐一对应（任务编号/节点名称/流程实例/办理时间/办理结果/审批意见） */
 const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
-  { key: 'task_name', title: t('bpm.approval.completedTable.taskName'), minWidth: 180 },
-  { key: 'process_name', title: t('bpm.approval.completedTable.processName'), width: 150 },
-  { key: 'start_user_name', title: t('bpm.approval.completedTable.applicant'), width: 120 },
-  { key: 'business_key', title: t('bpm.approval.completedTable.businessKey'), width: 160 },
-  { key: 'approved_at', title: t('bpm.approval.completedTable.approvedAt'), width: 160 },
+  { key: 'task_no', title: t('bpm.approval.completedTable.taskNo'), minWidth: 160 },
+  { key: 'node_name', title: t('bpm.approval.completedTable.taskName'), minWidth: 160 },
   {
-    key: 'result',
+    key: 'instance_id',
+    title: t('bpm.approval.completedTable.instanceId'),
+    width: 110,
+    renderCell: (row: ApprovalTask) => h('span', String(row.instance_id)),
+  },
+  {
+    key: 'handled_at',
+    title: t('bpm.approval.completedTable.approvedAt'),
+    width: 180,
+    renderCell: (row: ApprovalTask) => h('span', formatDateTime(row.handled_at)),
+  },
+  {
+    key: 'status',
     title: t('bpm.approval.completedTable.result'),
-    width: 100,
+    width: 110,
     renderCell: (row: ApprovalTask) =>
       h(
         ElTag,
-        { type: row.result === 'approved' ? 'success' : 'danger', size: 'small' },
         {
-          default: () =>
-            row.result === 'approved'
-              ? t('bpm.approval.completedTable.approved')
-              : t('bpm.approval.completedTable.rejected'),
-        }
+          type: getTaskStatusType(row.status || '') as
+            'success' | 'warning' | 'info' | 'primary' | 'danger',
+          size: 'small',
+        },
+        { default: () => getTaskStatusLabel(row.status || '') }
       ),
   },
-  { key: 'comment', title: t('bpm.approval.completedTable.comment'), minWidth: 200 },
+  {
+    key: 'approval_opinion',
+    title: t('bpm.approval.completedTable.comment'),
+    minWidth: 200,
+    renderCell: (row: ApprovalTask) => h('span', row.approval_opinion || '-'),
+  },
   {
     key: '__actions__',
     title: t('bpm.approval.completedTable.operation'),

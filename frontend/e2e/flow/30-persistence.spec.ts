@@ -1,5 +1,13 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  getCtx,
+  ensureTestEntities,
+  ensureStockInWarehouse,
+} from './helpers';
+import { pickListArray } from './ui-helpers';
 
 /**
  * P0 级数据持久性验证（2026-09-10 用户指令）
@@ -22,10 +30,8 @@ import { loginViaUI, apiCall, apiCallRaw } from './helpers';
  * 全部真实后端 + 真实 PostgreSQL，每步显式日志
  */
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8082';
-const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
-const uniqueKey = (prefix: string) => `${prefix}${TS}`;
+const uniqueKey = (prefix: string) => `${prefix}${TS}-${Math.random().toString(36).slice(2, 8)}`;
 
 // 共享前置资源（跨 test 复用）：CI 库种子不保证 id=1 存在，订单类测试的
 // customer/supplier/warehouse/department/product 引用必须动态创建
@@ -38,31 +44,34 @@ const shared: {
 } = {};
 async function ensureSharedEntities(page: import('@playwright/test').Page): Promise<boolean> {
   if (shared.custId && shared.prodId && shared.supId && shared.whId && shared.deptId) return true;
-  const cust = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
+  const cust = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
     customer_name: `P0共享客户${TS}`,
     customer_type: 'retail',
-  }).catch(() => null);
+  });
   shared.custId = cust?.data?.id;
+  await ensureTestEntities(page);
   const prod = await apiCall<{ id?: number }>(page, 'POST', '/products', {
     name: `P0共享产品${TS}`,
     code: uniqueKey('P0-SPRD-'),
+    category_id: getCtx().productCategoryIds[0],
+    unit: '米',
     standard_price: 5,
     status: 'active',
-  }).catch(() => null);
+  });
   shared.prodId = prod?.data?.id;
   const sup = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
     supplier_name: `P0共享供应商${TS}`,
     supplier_type: 'material',
-  }).catch(() => null);
+  });
   shared.supId = sup?.data?.id;
   const wh = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
     name: `P0共享仓库${TS}`,
     code: uniqueKey('P0-SWH-'),
-  }).catch(() => null);
+  });
   shared.whId = wh?.data?.id;
   const dept = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
     name: `P0共享部门${TS}`,
-  }).catch(() => null);
+  });
   shared.deptId = dept?.data?.id;
   const ok = !!(shared.custId && shared.prodId && shared.supId && shared.whId && shared.deptId);
   if (!ok) {
@@ -80,13 +89,14 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 1. 产品（全字段：name/code/category_id/specification/unit/standard_price/cost_price/description/status/product_type/fabric_composition） =====
   test('产品：全字段填写→创建→列表回读→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
+    await ensureTestEntities(page);
     const code = uniqueKey('P0-PRD-');
     const name = `P0测试产品${TS}`;
     const payload = {
       code,
       name,
-      category_id: 1,
+      category_id: getCtx().productCategoryIds[0],
       specification: 'P0测试规格100D',
       unit: '米',
       standard_price: 25.5,
@@ -97,26 +107,24 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       fabric_composition: '100%涤纶',
     };
 
-    let createResp: { data?: { id?: number } } | null = null;
-    try {
-      createResp = await apiCall<{ data?: { id?: number } }>(page, 'POST', '/products', payload);
-    } catch (e) {
-      // DATABASE_ERROR（如分片 DB seed 外键时序）属环境级失败：输出完整响应便于诊断后 skip
-      console.error(`[P0-产品] 创建失败（环境级，skip）: ${(e as Error).message}`);
-      console.error(`[P0-产品] payload=${JSON.stringify(payload)}`);
-      test.skip();
-      return;
-    }
-    const id = createResp?.data?.id;
+    // apiCall 返回 ApiResponse<T>（data 已是载荷本身），泛型须为载荷 { id? } 而非
+    // 再包一层 { data?: { id? } }——否则 createResp.data.id 多套一层读不到。
+    // 后端 create_product → ApiResponse<product::Model>，data 含 id（product_handler.rs:340-391）
+    const createResp = await apiCall<{ id?: number }>(page, 'POST', '/products', payload);
+    const id = createResp.data?.id;
     console.log(`[P0-产品] 创建成功 id=${id} code=${code}`);
     expect(id, '产品创建必须返回 id').toBeTruthy();
 
     // 列表回读
-    const list = await apiCallRaw<
-      | Array<{ id: number; code: string; name: string }>
-      | { items?: Array<{ id: number; code: string; name: string }> }
-    >(page, 'GET', `/products?page=1&page_size=200`);
-    const items = Array.isArray(list) ? list : (list?.items ?? []);
+    // /products：product_handler.rs:247 list_products → ApiResponse<PaginatedResponse> → data={items}。
+    // 单一形状直读；原 `Array.isArray(list)?list:(list?.items??[])` 双形状探测 + `?? []` 会把
+    // items 键缺失/改形当成"空列表"→ found=undefined，读成"数据没落库"而非"契约漂移"。
+    const list = await apiCallRaw<unknown>(page, 'GET', `/products?page=1&page_size=200`);
+    const items = pickListArray<{ id: number; code: string; name: string }>(
+      list,
+      'items',
+      '30 P0-产品列表回读'
+    );
     const found = items.find(i => i.id === id);
     console.log(
       `[P0-产品] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
@@ -147,8 +155,9 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     expect(detail?.name, `详情 name 应为 ${name}`).toBe(name);
     expect(detail?.unit, `详情 unit 应为 米`).toBe('米');
     expect(detail?.specification, `详情 specification 应为 P0测试规格100D`).toBe('P0测试规格100D');
-    expect(detail?.standard_price, `详情 standard_price 应为 25.5`).toBe(25.5);
-    expect(detail?.cost_price, `详情 cost_price 应为 18.0`).toBe(18.0);
+    // 后端 Decimal 序列化为字符串，转为数值比对
+    expect(Number(detail?.standard_price), `详情 standard_price 应为 25.5`).toBeCloseTo(25.5);
+    expect(Number(detail?.cost_price), `详情 cost_price 应为 18.0`).toBeCloseTo(18.0);
     expect(detail?.description, '详情 description 应一致').toBe(payload.description);
     expect(detail?.product_type, '详情 product_type 应为 fabric').toBe('fabric');
     expect(detail?.fabric_composition, '详情 fabric_composition 应为 100%涤纶').toBe('100%涤纶');
@@ -157,7 +166,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 2. 客户（全字段：customer_name/customer_type/contact_person/contact_phone/contact_email/address/city/province/country/postal_code/credit_limit/payment_terms/tax_id/bank_name/bank_account/status/notes） =====
   test('客户：全字段填写→创建→列表回读→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const name = `P0测试客户${TS}`;
     const payload = {
       customer_name: name, // 后端 DTO 字段名 customer_name（非 name）
@@ -184,12 +193,14 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-客户] 创建成功 id=${id} name=${name}`);
     expect(id, '客户创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<{ items?: Array<{ id: number; customer_name?: string }> }>(
-      page,
-      'GET',
-      `/crm/customers?page=1&page_size=200`
+    // /crm/customers：customer_handler.rs list_customers → ApiResponse<PaginatedResponse> → data={items}。
+    // 单一形状直读，items 缺失即抛错（不再 `list?.items ?? []` 把"键漂移"当成空集）
+    const list = await apiCallRaw<unknown>(page, 'GET', `/crm/customers?page=1&page_size=200`);
+    const items = pickListArray<{ id: number; customer_name?: string }>(
+      list,
+      'items',
+      '30 P0-客户列表回读'
     );
-    const items = list?.items ?? [];
     const found = items.find(i => i.id === id);
     console.log(
       `[P0-客户] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
@@ -240,7 +251,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 3. 供应商（全字段：supplier_name/supplier_short_name/supplier_type/credit_code/registered_address/business_address/legal_representative/registered_capital/establishment_date/business_term/business_scope/taxpayer_type） =====
   test('供应商：全字段填写→创建→列表回读→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const name = `P0测试供应商${TS}`;
     const payload = {
       supplier_name: name, // 后端 DTO 字段名 supplier_name（非 name）
@@ -264,12 +275,14 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-供应商] 创建成功 id=${id} name=${name}`);
     expect(id, '供应商创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<{ items?: Array<{ id: number; supplier_name?: string }> }>(
-      page,
-      'GET',
-      `/purchase/suppliers?page=1&page_size=200`
+    // /purchase/suppliers：supplier_handler.rs:20 list_suppliers → ApiResponse<PaginatedResponse> → data={items}。
+    // 单一形状直读，items 缺失即抛错
+    const list = await apiCallRaw<unknown>(page, 'GET', `/purchase/suppliers?page=1&page_size=200`);
+    const items = pickListArray<{ id: number; supplier_name?: string }>(
+      list,
+      'items',
+      '30 P0-供应商列表回读'
     );
-    const items = list?.items ?? [];
     const found = items.find(i => i.id === id);
     console.log(
       `[P0-供应商] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
@@ -303,7 +316,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 4. 仓库（全字段：name/code/address/manager/phone/capacity/description/warehouse_type） =====
   test('仓库：全字段填写→创建→列表回读（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const code = uniqueKey('P0-WH-');
     const name = `P0测试仓库${TS}`;
     const payload = {
@@ -322,27 +335,27 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-仓库] 创建成功 id=${id} code=${code}`);
     expect(id, '仓库创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<{
-      items?: Array<{
-        id: number;
-        code?: string;
-        name?: string;
-        address?: string;
-        // 列表响应序列化字段为 warehouse_code（warehouse model 列名），非 code
-        warehouse_code?: string;
-        phone?: string;
-        capacity?: number;
-        warehouse_type?: string;
-      }>;
-    }>(page, 'GET', `/warehouses?page=1&page_size=200`);
-    const items = list?.items ?? [];
+    // /warehouses：warehouse_handler.rs:88 define_crud_handlers! → warehouse_service::list PaginatedResponse → data={items}
+    // 单一形状直读，items 缺失即抛错（不再 `?? []`）
+    const list = await apiCallRaw<unknown>(page, 'GET', `/warehouses?page=1&page_size=200`);
+    const items = pickListArray<{
+      id: number;
+      // 列表响应序列化字段为 warehouse_code（warehouse model 列名），非 code
+      warehouse_code?: string;
+      // 列表响应序列化字段为 warehouse_name：models/warehouse.rs:14 `#[serde(rename = "warehouse_name")]`
+      warehouse_name?: string;
+      address?: string;
+      phone?: string;
+      capacity?: number;
+      warehouse_type?: string;
+    }>(list, 'items', '30 P0-仓库列表回读');
     const found = items.find(i => i.id === id);
     console.log(
       `[P0-仓库] 列表回读（即二次访问）：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
     );
     expect(found, '创建的仓库必须出现在列表中').toBeTruthy();
     expect(found!.warehouse_code, `warehouse_code 应为 ${code}`).toBe(code);
-    expect(found!.name, `name 应为 ${name}`).toBe(name);
+    expect(found!.warehouse_name, `warehouse_name 应为 ${name}`).toBe(name);
     expect(found!.address, 'address 应为 P0仓库地址A区').toBe('P0仓库地址A区');
     expect(found!.phone, 'phone 应为 13700000000').toBe('13700000000');
     expect(found!.capacity, 'capacity 应为 10000').toBe(10000);
@@ -352,7 +365,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 5. 会计科目（全字段：code/name/level/parent_id/balance_direction/assist_customer/assist_supplier/assist_batch/assist_color_no） =====
   test('会计科目：全字段填写→创建→列表回读→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const code = uniqueKey('P0-SUB-');
     const name = `P0测试科目${TS}`;
     const payload = {
@@ -371,11 +384,15 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     console.log(`[P0-科目] 创建成功 id=${id} code=${code}`);
     expect(id, '科目创建必须返回 id').toBeTruthy();
 
-    const list = await apiCallRaw<
-      | Array<{ id: number; code: string; name: string }>
-      | { items?: Array<{ id: number; code: string; name: string }> }
-    >(page, 'GET', `/subjects?page=1&page_size=200`);
-    const items = Array.isArray(list) ? list : (list?.items ?? []);
+    // /subjects：account_subject_handler.rs list_subjects → ApiResponse<Vec<Model>>，data 直接是裸数组。
+    // 单一形状直读（'bare'）；原 `Array.isArray(list)?list:(list?.items??[])` 双形状探测会把
+    // 后端若改为分页 items 的漂移读成 items=[]→"数据没落库"。声明为裸数组后，一旦改形即抛错。
+    const list = await apiCallRaw<unknown>(page, 'GET', `/subjects?page=1&page_size=200`);
+    const items = pickListArray<{ id: number; code: string; name: string }>(
+      list,
+      'bare',
+      '30 P0-科目列表回读'
+    );
     const found = items.find(i => i.id === id);
     console.log(
       `[P0-科目] 列表回读：共 ${items.length} 条，找到 id=${id} → ${found ? '✅存在' : '❌不存在'}`
@@ -411,26 +428,26 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 6. 销售订单（全字段：customer_id/opportunity_id/required_date/status/shipping_address/billing_address/notes/items/payment_terms/remarks/batch_no + items 全字段） =====
   test('销售订单：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
-    // 前置：动态创建客户与产品（CI 库种子不保证 id=1 存在，写死 id 会"客户 1 不存在"BUSINESS_ERROR）
-    const cust = await apiCall<{ id?: number }>(page, 'POST', '/customers', {
+    test.setTimeout(180_000);
+    // 前置：动态创建客户（CI 库种子不保证存在），产品用 ctx.productIds[0]（已有库存）
+    const cust = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
       customer_name: `P0订单客户${TS}`,
       customer_type: 'retail',
-    }).catch(() => null);
+    });
     const custId = cust?.data?.id;
-    const prod = await apiCall<{ id?: number }>(page, 'POST', '/products', {
-      name: `P0订单产品${TS}`,
-      code: uniqueKey('P0-PRD-'),
-      standard_price: 5,
-      status: 'active',
-    }).catch(() => null);
-    const prodId = prod?.data?.id;
-    if (!custId || !prodId) {
-      console.warn(`[P0-销售订单] 前置数据缺失（cust=${custId} prod=${prodId}），跳过`);
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
+    const ctx = getCtx();
+    // 使用 ensureTestEntities 已确保库存的产品（ctx.productIds[0]），避免库存锁定失败
+    const prodId = ctx.productIds[0];
+    const whId = ctx.warehouseIds[0];
+    expect(custId, '[P0-销售订单] 客户创建失败').toBeTruthy();
+    expect(prodId, '[P0-销售订单] 前置产品 ID 缺失').toBeTruthy();
+    expect(whId, '[P0-销售订单] 前置仓库 ID 缺失').toBeTruthy();
+    // ensureTestEntities 已为 ctx.productIds[0] 创建库存，二次确认库存存在
+    const stock = await ensureStockInWarehouse(page, prodId, whId, ctx.colorNos[0]);
+    if (!stock || !stock.id) {
+      throw new Error('[P0-销售订单] 库存记录确保失败（查询和创建均未返回有效记录）');
     }
+    console.log('[P0-销售订单] 库存已确保 prodId=', prodId, 'stockId=', stock.id);
     const orderDate = new Date().toISOString().slice(0, 10);
     const payload = {
       customer_id: custId,
@@ -489,37 +506,33 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 7. 采购订单（全字段：supplier_id/order_date/expected_delivery_date/warehouse_id/department_id/currency/exchange_rate/payment_terms/shipping_terms/notes + items） =====
   test('采购订单：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     // 前置：动态创建供应商/仓库/部门/物料（CI 库种子不保证 id=1 存在，写死 id 会 BAD_REQUEST）
     const sup = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
       supplier_name: `P0采购供应商${TS}`,
       supplier_type: 'material',
-    }).catch(() => null);
+    });
     const supId = sup?.data?.id;
     const wh = await apiCall<{ id?: number }>(page, 'POST', '/warehouses', {
       name: `P0采购仓库${TS}`,
       code: uniqueKey('P0-WHP-'),
-    }).catch(() => null);
+    });
     const whId = wh?.data?.id;
     const dept = await apiCall<{ id?: number }>(page, 'POST', '/departments', {
       name: `P0采购部门${TS}`,
-    }).catch(() => null);
+    });
     const deptId = dept?.data?.id;
     const mat = await apiCall<{ id?: number }>(page, 'POST', '/products', {
       name: `P0采购物料${TS}`,
       code: uniqueKey('P0-MAT-'),
       standard_price: 10,
       status: 'active',
-    }).catch(() => null);
+    });
     const matId = mat?.data?.id;
-    if (!supId || !whId || !deptId || !matId) {
-      console.warn(
-        `[P0-采购订单] 前置数据缺失（sup=${supId} wh=${whId} dept=${deptId} mat=${matId}），跳过`
-      );
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    expect(supId, `[P0-采购订单] 前置供应商创建未返回 id（POST /purchase/suppliers）`).toBeTruthy();
+    expect(whId, `[P0-采购订单] 前置仓库创建未返回 id（POST /warehouses）`).toBeTruthy();
+    expect(deptId, `[P0-采购订单] 前置部门创建未返回 id（POST /departments）`).toBeTruthy();
+    expect(matId, `[P0-采购订单] 前置物料创建未返回 id（POST /products）`).toBeTruthy();
     const orderDate = new Date().toISOString().slice(0, 10);
     const payload = {
       supplier_id: supId,
@@ -564,12 +577,12 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 8. BOM（全字段：product_id/version/is_default/remarks + items 全字段） =====
   test('BOM：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
-    if (!(await ensureSharedEntities(page))) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    test.setTimeout(180_000);
+    await ensureSharedEntities(page);
+    expect(
+      [shared.custId, shared.prodId, shared.supId, shared.whId, shared.deptId].every(Boolean),
+      `[P0-共享前置] 共享实体创建失败（cust=${shared.custId} prod=${shared.prodId} sup=${shared.supId} wh=${shared.whId} dept=${shared.deptId}），本用例前置失败`
+    ).toBe(true);
     const payload = {
       product_id: shared.prodId,
       version: 1,
@@ -586,26 +599,34 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       ],
     };
 
-    const createResp = await apiCall<{ id?: number }>(page, 'POST', '/boms', payload);
-    const id = createResp.data?.id;
+    const createResp = await apiCall<{ bom?: { id?: number } }>(page, 'POST', '/boms', payload);
+    const id = createResp.data?.bom?.id;
     console.log(`[P0-BOM] 创建成功 id=${id}`);
     expect(id, 'BOM 创建必须返回 id').toBeTruthy();
 
     const detail = await apiCallRaw<{
-      id: number;
-      product_id?: number;
-      version?: number;
-      is_default?: boolean;
-      remarks?: string;
+      bom?: {
+        id: number;
+        product_id?: number;
+        version?: number;
+        is_default?: boolean;
+        remarks?: string;
+      };
       items?: Array<Record<string, unknown>>;
     }>(page, 'GET', `/boms/${id}`);
+    const bom = detail?.bom;
     console.log(
-      `[P0-BOM] 详情二次访问 → product_id=${detail?.product_id} version=${detail?.version} is_default=${detail?.is_default} items=${detail?.items?.length ?? 0} 条`
+      `[P0-BOM] 详情二次访问 → product_id=${bom?.product_id} version=${bom?.version} is_default=${bom?.is_default} items=${detail?.items?.length ?? 0} 条`
     );
-    expect(detail?.id, '详情 id 应一致').toBe(id);
-    expect(detail?.product_id, '详情 product_id 应为 1').toBe(1);
-    expect(detail?.version, '详情 version 应为 1').toBe(1);
-    expect(detail?.is_default, '详情 is_default 应为 true').toBe(true);
+    expect(bom?.id, '详情 id 应一致').toBe(id);
+    // 逐字段比对必须对照本用例真实创建时使用的值。
+    // 原实现写 toBe(1) 把 product_id 硬编码成字面量 1，而创建用的是动态 shared.prodId
+    // （本次 CI 实际为 6），等于假定库里第一个产品永远是本项目造的测试数据。
+    expect(bom?.product_id, `详情 product_id 应为创建时的 ${shared.prodId}`).toBe(shared.prodId);
+    // version/is_default 属于响应里的 bom 对象（结构为 { bom, items }），
+    // 原实现从 detail 顶层取，恒为 undefined
+    expect(bom?.version, '详情 version 应为 1').toBe(1);
+    expect(bom?.is_default, '详情 is_default 应为 true').toBe(true);
     expect(detail?.items?.length ?? 0, 'BOM 应有 1 条明细').toBe(1);
     const item = detail?.items?.[0] as Record<string, unknown>;
     expect(item?.quantity, '明细 quantity 应为 5').toBeTruthy();
@@ -615,21 +636,31 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 9. 凭证（全字段：voucher_type/voucher_date/source_type/source_module/batch_no/color_no + items 全字段） =====
   test('凭证：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(180_000);
     const voucherDate = new Date().toISOString().split('T')[0];
 
-    const subjectsResp = await apiCallRaw<
-      Array<{ id: number; code: string }> | { items?: Array<{ id: number; code: string }> }
-    >(page, 'GET', '/subjects?page=1&page_size=50').catch(e => {
-      console.warn('[P0-凭证] 科目列表查询失败:', (e as Error).message);
-      return { items: [] };
-    });
-    const subjectList = Array.isArray(subjectsResp) ? subjectsResp : (subjectsResp?.items ?? []);
-    if (subjectList.length < 3) {
-      console.log('[P0-凭证] 科目不足 3 个，跳过');
-      test.skip();
-      return;
+    const listSubjects = async () => {
+      // /subjects：account_subject_handler.rs list_subjects → ApiResponse<Vec> → 裸数组（'bare'）
+      const resp = await apiCallRaw<unknown>(page, 'GET', '/subjects?page=1&page_size=50');
+      return pickListArray<{ id: number; code: string }>(resp, 'bare', '30 凭证分录-科目列表');
+    };
+    let subjectList = await listSubjects();
+    // 分录需要 3 个科目：种子不足时真实创建 E2E 专用科目后重查
+    // （CreateSubjectRequest：code/name/level/balance_direction，与 4-2 用例同一契约）
+    for (let i = subjectList.length; i < 3; i++) {
+      const code = `P0VS${TS}${i}`;
+      await apiCall(page, 'POST', '/subjects', {
+        code,
+        name: `P0凭证科目${code}`,
+        level: 1,
+        balance_direction: 'debit',
+      });
+      subjectList = await listSubjects();
     }
+    expect(
+      subjectList.length,
+      `补齐后会计科目仍不足 3 条（实际 ${subjectList.length}），凭证分录前置失败`
+    ).toBeGreaterThanOrEqual(3);
     const s1 = subjectList[0].code,
       s2 = subjectList[1 % subjectList.length].code,
       s3 = subjectList[2 % subjectList.length].code;
@@ -659,17 +690,19 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       voucher_type?: string;
       voucher_date?: string;
       status?: string;
-      items?: Array<Record<string, unknown>>;
+      // VoucherDetailResponse（handlers/voucher_handler.rs:172）把分录列表放在 entries，
+      // 凭证本体字段 flatten 到顶层；此前按 items 读取恒为 undefined → 明细数永远 0
+      entries?: Array<Record<string, unknown>>;
     }>(page, 'GET', `/vouchers/${id}`);
     console.log(
-      `[P0-凭证] 详情二次访问 → type=${detail?.voucher_type} date=${detail?.voucher_date} status=${detail?.status} items=${detail?.items?.length ?? 0} 条`
+      `[P0-凭证] 详情二次访问 → type=${detail?.voucher_type} date=${detail?.voucher_date} status=${detail?.status} entries=${detail?.entries?.length ?? 0} 条`
     );
     expect(detail?.id, '详情 id 应一致').toBe(id);
     expect(detail?.voucher_type, '详情 voucher_type 应为 general').toBe('general');
-    expect(detail?.items?.length ?? 0, '凭证应有 3 条明细').toBe(3);
-    // 明细逐条字段比对
+    expect(detail?.entries?.length ?? 0, '凭证应有 3 条分录').toBe(3);
+    // 分录逐条字段比对
     for (let i = 0; i < 3; i++) {
-      const item = detail?.items?.[i] as Record<string, unknown>;
+      const item = detail?.entries?.[i] as Record<string, unknown>;
       expect(item?.summary, `明细${i + 1} summary 应存在`).toBeTruthy();
     }
     console.log('[P0-凭证] ✅ 全字段创建→详情二次访问+明细行数+摘要字段全通过');
@@ -677,12 +710,12 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
 
   // ===== 10. 报价单（全字段：customer_id/sales_user_id/quotation_date/valid_until/currency/exchange_rate/base_currency/price_terms/incoterms_version/incoterm_location/tax_inclusive/tax_rate/moq/lead_time_days/customer_level + items 全字段） =====
   test('报价单：全字段填写→创建→详情二次访问（逐字段比对）', async ({ page }) => {
-    test.setTimeout(60_000);
-    if (!(await ensureSharedEntities(page))) {
-      console.warn('[E2E] test.skip: 前置数据缺失/条件不满足');
-      test.skip();
-      return;
-    }
+    test.setTimeout(180_000);
+    await ensureSharedEntities(page);
+    expect(
+      [shared.custId, shared.prodId, shared.supId, shared.whId, shared.deptId].every(Boolean),
+      `[P0-共享前置] 共享实体创建失败（cust=${shared.custId} prod=${shared.prodId} sup=${shared.supId} wh=${shared.whId} dept=${shared.deptId}），本用例前置失败`
+    ).toBe(true);
     const qDate = new Date().toISOString().slice(0, 10);
     const validUntil = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
     const payload = {
@@ -719,16 +752,12 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       'POST',
       '/quotations',
       payload
-    ).catch(e => {
-      console.warn('[P0-报价单] 创建失败（可能需要前置数据）:', (e as Error).message);
-      return null;
-    });
-    if (!createResp?.data?.id) {
-      console.log('[P0-报价单] 创建失败，跳过');
-      test.skip();
-      return;
-    }
-    const id = createResp.data.id;
+    );
+    const id = createResp?.data?.id;
+    expect(
+      id,
+      `[P0-报价单] 创建未返回 id（响应 ${JSON.stringify(createResp?.data ?? null).slice(0, 200)}），前置失败`
+    ).toBeTruthy();
     console.log(`[P0-报价单] 创建成功 id=${id} status=${createResp.data.status}`);
 
     const detail = await apiCallRaw<{
@@ -746,7 +775,9 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       `[P0-报价单] 详情二次访问 → customer_id=${detail?.customer_id} date=${detail?.quotation_date} valid=${detail?.valid_until} currency=${detail?.currency} price_terms=${detail?.price_terms} items=${detail?.items?.length ?? 0} 条`
     );
     expect(detail?.id, '详情 id 应一致').toBe(id);
-    expect(detail?.customer_id, '详情 customer_id 应为 1').toBe(1);
+    // 原实现写 toBe(1) 把 customer_id 硬编码成字面量 1，而创建用的是动态 shared.custId，
+    // 分片内实体 id 随并发增长，断言必然随环境漂移
+    expect(detail?.customer_id, `详情 customer_id 应为 ${shared.custId}`).toBe(shared.custId);
     expect(detail?.quotation_date, `详情 quotation_date 应为 ${qDate}`).toBe(qDate);
     expect(detail?.currency, '详情 currency 应为 CNY').toBe('CNY');
     expect(detail?.price_terms, '详情 price_terms 应为 FOB').toBe('FOB');

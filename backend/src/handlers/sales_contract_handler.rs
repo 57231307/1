@@ -35,7 +35,7 @@ pub struct SalesContractQuery {
 
 /// 创建销售合同请求 DTO
 #[allow(dead_code, reason = "序列化/反序列化字段")]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateSalesContractRequestDto {
     pub contract_no: String,
     pub contract_name: String,
@@ -46,21 +46,41 @@ pub struct CreateSalesContractRequestDto {
     pub delivery_date: chrono::NaiveDate,
     pub remark: Option<String>,
     /// 合同明细行
+    #[validate(nested)]
     pub items: Option<Vec<CreateContractItemDto>>,
 }
 
 /// 创建合同明细行 DTO
 #[allow(dead_code, reason = "序列化/反序列化字段")]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateContractItemDto {
     pub product_id: Option<i32>,
     pub product_name: String,
     pub product_spec: Option<String>,
     pub unit: String,
     pub quantity: rust_decimal::Decimal,
+    /// 交货数量允收容差（百分比，可空）：NULL 走默认解析；含「约」订单可写 10.00 覆盖。
+    /// 范围校验 [0, 100]：`None` 合法（不覆盖），`Some(v)` 时校验 `0 <= v <= 100`。
+    #[validate(custom(function = "validate_quantity_tolerance_pct"))]
+    pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
     pub unit_price: rust_decimal::Decimal,
     pub delivery_date: Option<chrono::NaiveDate>,
     pub remarks: Option<String>,
+}
+
+/// 合同行交货允差百分比范围校验：Some 时必须在 [0, 100] 区间内。
+/// validator 框架对 `Option<T>` 自动解包，`None` 时跳过不校验。
+/// 上下限复用 [`crate::utils::delivery_tolerance`] 的共享单一真源常量，与其它域一致。
+fn validate_quantity_tolerance_pct(
+    value: &rust_decimal::Decimal,
+) -> Result<(), validator::ValidationError> {
+    use crate::utils::delivery_tolerance::{TOLERANCE_PCT_MAX, TOLERANCE_PCT_MIN};
+    if *value < TOLERANCE_PCT_MIN || *value > TOLERANCE_PCT_MAX {
+        return Err(validator::ValidationError::new(
+            "合同行交货允差百分比(quantity_tolerance_pct)必须在0~100之间",
+        ));
+    }
+    Ok(())
 }
 
 /// P1-2o 修复（批次 81 v1 复审）：更新销售合同请求 DTO
@@ -98,7 +118,8 @@ pub async fn list_contracts(
     Query(params): Query<SalesContractQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<sales_contract::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     info!("用户 {} 正在查询销售合同列表", auth.user_id);
 
     let service = SalesContractService::new(state.db.clone());
@@ -113,7 +134,36 @@ pub async fn list_contracts(
     let (contracts, _total) = service.get_list(query_params).await?;
     info!("销售合同列表查询成功，共 {} 条记录", contracts.len());
 
-    Ok(Json(ApiResponse::success(contracts)))
+    // created_by_name 富化：单次批量查询 users.real_name（杜绝逐行查询），
+    // 悬挂外键仅让该列名为空、不丢行。出参键 = sales_contract 实体列 + created_by_name。
+    let created_by_ids: Vec<i32> = contracts.iter().map(|c| c.created_by).collect();
+    let name_map: std::collections::HashMap<i32, Option<String>> =
+        crate::models::user::Entity::find()
+            .filter(crate::models::user::Column::Id.is_in(created_by_ids))
+            .all(&*state.db)
+            .await?
+            .into_iter()
+            .map(|u| (u.id, u.real_name))
+            .collect();
+
+    let rows: Vec<serde_json::Value> = contracts
+        .into_iter()
+        .map(|c| {
+            let created_by_name = name_map.get(&c.created_by).and_then(|n| n.clone());
+            let mut value = serde_json::to_value(c).map_err(AppError::from)?;
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert(
+                    "created_by_name".to_string(),
+                    created_by_name
+                        .map(serde_json::Value::String)
+                        .unwrap_or(serde_json::Value::Null),
+                );
+            }
+            Ok(value)
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(ApiResponse::success(rows)))
 }
 
 /// 获取销售合同详情
@@ -158,6 +208,12 @@ pub async fn create_contract(
         auth.user_id, req.contract_no
     );
 
+    // 合同行交货允差百分比范围校验（validator derive 范式，与 so/po create 同口径）：
+    // 通过 `#[validate(nested)]` + 字段级 `custom` 校验 Some 值须落在 [0, 100]，None 跳过；
+    // 判定语义与原内联循环完全一致，仅统一校验范式与上下限单一真源。
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = SalesContractService::new(state.db.clone());
     let create_req = CreateSalesContractRequest {
         contract_no: req.contract_no,
@@ -177,6 +233,7 @@ pub async fn create_contract(
                     product_spec: item.product_spec,
                     unit: item.unit,
                     quantity: item.quantity,
+                    quantity_tolerance_pct: item.quantity_tolerance_pct,
                     unit_price: item.unit_price,
                     delivery_date: item.delivery_date,
                     remarks: item.remarks,
@@ -273,7 +330,7 @@ pub async fn update_contract(
     let mut contract = service.get_by_id(id).await?;
 
     // 检查状态
-    if contract.status != "draft" {
+    if contract.status != crate::models::status::contract::DRAFT {
         return Err(AppError::validation(
             "只有草稿状态的合同才能修改".to_string(),
         ));
@@ -314,7 +371,7 @@ pub async fn delete_contract(
     let contract = service.get_by_id(id).await?;
 
     // 检查状态
-    if contract.status != "draft" {
+    if contract.status != crate::models::status::contract::DRAFT {
         return Err(AppError::validation(
             "只有草稿状态的合同才能删除".to_string(),
         ));

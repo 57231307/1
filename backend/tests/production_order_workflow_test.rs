@@ -126,6 +126,7 @@ async fn test_productionorderservice_list_kdbfherr() {
     let db = setup_test_db().await;
     let svc = ProductionOrderService::new(Arc::new(db));
     let query = ProductionOrderQuery {
+        order_no: None,
         status: None,
         product_id: None,
         page: 1,

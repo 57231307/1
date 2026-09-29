@@ -33,6 +33,30 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    /// 关联采购订单（order_id -> purchase_orders.id）
+    #[sea_orm(
+        belongs_to = "super::purchase_order::Entity",
+        from = "Column::OrderId",
+        to = "super::purchase_order::Column::Id"
+    )]
+    Order,
+
+    /// 关联供应商（supplier_id -> suppliers.id）
+    #[sea_orm(
+        belongs_to = "super::supplier::Entity",
+        from = "Column::SupplierId",
+        to = "super::supplier::Column::Id"
+    )]
+    Supplier,
+
+    /// 关联创建人（created_by -> users.id）
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::CreatedBy",
+        to = "super::user::Column::Id"
+    )]
+    Creator,
+}
 
 impl ActiveModelBehavior for ActiveModel {}

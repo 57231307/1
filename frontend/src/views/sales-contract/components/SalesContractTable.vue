@@ -34,11 +34,9 @@ import type { SalesContract } from '@/api/sales-contract';
 import { hasRoutePermission } from '@/router';
 import { useUserStore } from '@/store/user';
 import { formatCurrency, getStatusType } from '../composables/scFmts';
+import { salesContractStatusLabelKey } from '@/utils/sales-contract-status';
 
 const { t } = useI18n({ useScope: 'global' });
-
-// 状态 el-tag 类型别名（与 element-plus 类型保持一致）
-type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger';
 
 /**
  * 权限检查辅助函数（与 v-permission 指令行为等价）
@@ -53,18 +51,14 @@ const can = (required: string): boolean => {
 
 /**
  * 获取合同状态标签（i18n 响应式：语言切换后自动重算）
+ * 词表与配色出自 utils/sales-contract-status（后端 contract = draft/active/cancelled）；
+ * 词表外取值由 normalize 抛错，不再 `|| status` 回显裸枚举。
  * @param status 合同状态码
  * @returns 状态对应的本地化标签
  */
 const getStatusLabel = (status: string): string => {
-  const map: Record<string, string> = {
-    draft: t('salesContract.table.statusDraft'),
-    pending: t('salesContract.table.statusPending'),
-    active: t('salesContract.table.statusActive'),
-    completed: t('salesContract.table.statusCompleted'),
-    cancelled: t('salesContract.table.statusCancelled'),
-  };
-  return map[status] || status;
+  const key = salesContractStatusLabelKey(status);
+  return key ? t(key) : '';
 };
 
 /**
@@ -122,8 +116,8 @@ const buildActionButtons = (row: SalesContract): ReturnType<typeof h>[] => {
       buttons.push(mkBtn('danger', 'salesContract.table.buttonDelete', () => emit('delete', row)));
     }
   }
-  // 待审批状态：审批
-  if (row.status === 'pending') {
+  // 审批：后端 sales_contract_service 仅接受草稿态合同审核（draft→active），无 pending 态
+  if (row.status === 'draft') {
     buttons.push(mkBtn('success', 'salesContract.table.buttonApprove', () => emit('approve', row)));
   }
   // 执行中状态：执行
@@ -173,11 +167,8 @@ const columns: ColumnDef<SalesContract>[] = [
     title: t('salesContract.table.columnStatus'),
     width: 100,
     align: 'center',
-    renderCell: row => {
-      // scFmts 的 getStatusType 返回 string，需收窄为 ElTagType 以满足 el-tag 类型约束
-      const tagType: ElTagType = (getStatusType(row.status) as ElTagType) || 'info';
-      return h(ElTag, { type: tagType }, { default: () => getStatusLabel(row.status) });
-    },
+    renderCell: row =>
+      h(ElTag, { type: getStatusType(row.status) }, { default: () => getStatusLabel(row.status) }),
   },
   {
     key: '__actions__',

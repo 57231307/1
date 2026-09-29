@@ -370,6 +370,117 @@ pub async fn create_report(
     )))
 }
 
+/// 更新财务分析报告请求（对应前端 api/financial-analysis.ts updateReport 传 Partial<FinancialReport>）
+/// 兼容前端 camelCase 字段名（reportName/reportType）
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateReportRequest {
+    #[serde(alias = "reportName")]
+    #[validate(length(min = 1, max = 100, message = "报告名称长度必须在1到100字符之间"))]
+    pub name: Option<String>,
+    #[serde(alias = "reportType")]
+    #[validate(length(max = 30, message = "报告类型长度不能超过30字符"))]
+    pub report_type: Option<String>,
+    #[serde(alias = "description")]
+    #[validate(length(max = 500, message = "描述长度不能超过500字符"))]
+    pub description: Option<String>,
+    #[validate(length(max = 20, message = "状态取值非法"))]
+    pub status: Option<String>,
+}
+
+/// 更新 remark 中的“描述:”段（保留期间/关联指标等其他元数据段）
+fn upsert_remark_description(old_remark: Option<&str>, description: &str) -> String {
+    let mut kept: Vec<String> = Vec::new();
+    if let Some(remark) = old_remark {
+        for part in remark.split(" | ") {
+            if !part.trim_start().starts_with("描述:") {
+                kept.push(part.to_string());
+            }
+        }
+    }
+    kept.push(format!("描述: {}", description));
+    kept.join(" | ")
+}
+
+/// PUT /api/v1/erp/financial-analysis/reports/{id} - 更新财务分析报告
+/// （对应前端 api/financial-analysis.ts updateReport；报告复用 financial_analysis 表，仅更新显式提供的字段）
+pub async fn update_report(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<UpdateReportRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
+    let existing = financial_analysis::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("财务分析报告 {} 不存在", id)))?;
+
+    // 转换前留存原 remark，供描述段更新时保留期间/关联指标元数据
+    let old_remark = existing.remark.clone();
+    let mut active: financial_analysis::ActiveModel = existing.into();
+
+    if let Some(v) = req.name {
+        active.indicator_name = Set(v);
+    }
+    if let Some(v) = req.report_type {
+        active.indicator_type = Set(v);
+    }
+    if let Some(v) = req.status {
+        active.status = Set(v);
+    }
+    if let Some(desc) = req.description {
+        active.remark = Set(Some(upsert_remark_description(
+            old_remark.as_deref(),
+            &desc,
+        )));
+    }
+    active.updated_at = Set(chrono::Utc::now());
+
+    let updated = active.update(state.db.as_ref()).await?;
+    info!("用户 {} 更新财务分析报告: ID={}", auth.username, id);
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({
+            "id": updated.id,
+            "name": updated.indicator_name,
+            "indicator_code": updated.indicator_code,
+            "indicator_type": updated.indicator_type,
+            "status": updated.status,
+            "remark": updated.remark,
+            "updated_at": updated.updated_at.to_rfc3339(),
+        }),
+        "财务分析报告更新成功",
+    )))
+}
+
+/// DELETE /api/v1/erp/financial-analysis/reports/{id} - 删除财务分析报告
+/// （对应前端 api/financial-analysis.ts deleteReport）
+pub async fn delete_report(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    use sea_orm::EntityTrait;
+
+    let result = financial_analysis::Entity::delete_by_id(id)
+        .exec(state.db.as_ref())
+        .await?;
+    if result.rows_affected == 0 {
+        return Err(AppError::not_found(format!("财务分析报告 {} 不存在", id)));
+    }
+
+    info!("用户 {} 删除财务分析报告: ID={}", auth.username, id);
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "财务分析报告删除成功",
+    )))
+}
+
 /// GET /api/v1/erp/financial-analysis/reports/:id - 获取财务分析报告详情
 pub async fn get_report(
     State(state): State<AppState>,

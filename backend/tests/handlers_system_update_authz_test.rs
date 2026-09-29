@@ -116,8 +116,18 @@ async fn test_system_update_unauthenticated_401() {
         resp.status()
     );
     let json = read_json(resp.into_body()).await;
-    let code = json.get("code").and_then(|v| v.as_i64()).unwrap_or(0);
-    assert_ne!(code, 200, "未登录不应返回业务码 200");
+    // 统一失败信封（`utils/error.rs` 的 `ErrorResponse`）的 code 是字符串机器码，
+    // 不再是数字状态码；数字 200 只出现在成功信封里。
+    assert_eq!(
+        json.get("code").and_then(|v| v.as_str()),
+        Some("UNAUTHORIZED"),
+        "未登录应返回字符串机器码 UNAUTHORIZED，实际: {:?}",
+        json.get("code")
+    );
+    assert!(
+        json.get("trace_id").and_then(|v| v.as_str()).is_some(),
+        "失败信封应带 trace_id，实际: {json}"
+    );
 }
 
 /// 场景 2：非 admin（role_id=999，mock fail-closed）调用 download_and_update → 403

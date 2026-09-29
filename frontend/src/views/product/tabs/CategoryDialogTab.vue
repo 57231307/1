@@ -37,11 +37,24 @@
           prop="description"
           :label="t('product.categoryDialogTab.colDescription')"
         />
-        <el-table-column :label="t('product.categoryDialogTab.colActions')" width="120">
+        <el-table-column :label="t('product.categoryDialogTab.colActions')" width="160">
           <template #default="{ row }">
-            <el-button type="danger" link size="small" @click="handleDelete(row)">{{
-              t('product.categoryDialogTab.buttonDelete')
-            }}</el-button>
+            <el-button
+              size="small"
+              type="primary"
+              link
+              @click="handleRename(row as ProductCategory)"
+            >
+              {{ t('common.edit') }}
+            </el-button>
+            <el-button
+              size="small"
+              type="danger"
+              link
+              @click="handleDelete(row as ProductCategory)"
+            >
+              {{ t('common.delete') }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -58,6 +71,7 @@ import {
   getProductCategoryList,
   createProductCategory,
   deleteProductCategory,
+  updateProductCategory,
   type ProductCategory,
 } from '@/api/product';
 import { logger } from '@/utils/logger';
@@ -84,7 +98,7 @@ const fetchCategories = async () => {
   loading.value = true;
   try {
     const res = await getProductCategoryList();
-    categories.value = (res.data as ProductCategory[] | undefined) || [];
+    categories.value = res.data.items;
   } catch (error) {
     const err = error as Error;
     logger.error(t('product.categoryDialogTab.messageFetchFailed'), err.message);
@@ -107,6 +121,30 @@ const handleAdd = async () => {
   } catch (error) {
     const err = error as Error;
     ElMessage.error(err.message || t('product.categoryDialogTab.messageAddFailed'));
+  }
+};
+
+// 重命名分类（updateProductCategory，prompt 输入新名）
+const handleRename = async (row: ProductCategory) => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      t('product.categoryDialogTab.messageRenamePrompt'),
+      `${t('common.edit')} - ${row.name}`,
+      {
+        type: 'info',
+        inputPattern: /\S+/,
+        inputErrorMessage: t('product.categoryDialogTab.messageCategoryNameRequired'),
+      }
+    );
+    await updateProductCategory(row.id, { name: value.trim() });
+    ElMessage.success(t('product.categoryDialogTab.messageAddSuccess'));
+    fetchCategories();
+    emit('changed');
+  } catch (e) {
+    if (e !== 'cancel') {
+      const err = e as Error;
+      ElMessage.error(err.message || t('product.categoryDialogTab.messageAddFailed'));
+    }
   }
 };
 

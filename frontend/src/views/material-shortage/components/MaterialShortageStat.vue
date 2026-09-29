@@ -1,7 +1,7 @@
 <!--
-  MaterialShortageStat.vue - 物料短缺 4 张统计卡片
+  MaterialShortageStat.vue - 物料缺料 4 张统计卡片
   拆分自 material-shortage/index.vue（P14 批 2 I-3 第 5 批）
-  行为完全保持一致（仅结构重构）
+  字段取自后端 ShortageSummary（实时检测结果汇总）
 -->
 <template>
   <el-row :gutter="20" class="stats-row">
@@ -9,11 +9,24 @@
       <el-card shadow="hover" class="stat-card total">
         <div class="stat-content">
           <div class="stat-icon total-icon">
+            <el-icon><Files /></el-icon>
+          </div>
+          <div class="stat-info">
+            <div class="stat-label">{{ t('materialShortage.stat.materialsChecked') }}</div>
+            <div class="stat-value">{{ summary.total_materials_checked }}</div>
+          </div>
+        </div>
+      </el-card>
+    </el-col>
+    <el-col :xs="24" :sm="12" :lg="6">
+      <el-card shadow="hover" class="stat-card high">
+        <div class="stat-content">
+          <div class="stat-icon high-icon">
             <el-icon><Warning /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">{{ t('materialShortage.stat.totalShortage') }}</div>
-            <div class="stat-value">{{ summary.total_shortage_count || 0 }}</div>
+            <div class="stat-label">{{ t('materialShortage.stat.shortageCount') }}</div>
+            <div class="stat-value">{{ summary.shortage_count }}</div>
           </div>
         </div>
       </el-card>
@@ -26,20 +39,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('materialShortage.stat.criticalShortage') }}</div>
-            <div class="stat-value">{{ summary.critical_count || 0 }}</div>
-          </div>
-        </div>
-      </el-card>
-    </el-col>
-    <el-col :xs="24" :sm="12" :lg="6">
-      <el-card shadow="hover" class="stat-card high">
-        <div class="stat-content">
-          <div class="stat-icon high-icon">
-            <el-icon><WarningFilled /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">{{ t('materialShortage.stat.highShortage') }}</div>
-            <div class="stat-value">{{ summary.high_count || 0 }}</div>
+            <div class="stat-value">{{ summary.critical_count }}</div>
           </div>
         </div>
       </el-card>
@@ -48,11 +48,11 @@
       <el-card shadow="hover" class="stat-card info">
         <div class="stat-content">
           <div class="stat-icon info-icon">
-            <el-icon><Clock /></el-icon>
+            <el-icon><Tickets /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">{{ t('materialShortage.stat.lastCheckTime') }}</div>
-            <div class="stat-value time-value">{{ summary.last_check_time || '-' }}</div>
+            <div class="stat-label">{{ t('materialShortage.stat.affectedOrders') }}</div>
+            <div class="stat-value">{{ summary.affected_orders_count }}</div>
           </div>
         </div>
       </el-card>
@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { Warning, CircleClose, WarningFilled, Clock } from '@element-plus/icons-vue';
+import { Files, Warning, CircleClose, Tickets } from '@element-plus/icons-vue';
 import type { MaterialShortageSummary } from '@/api/material-shortage';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -81,44 +81,7 @@ defineProps<{
   margin-bottom: 20px;
 }
 .stat-card {
-  border-radius: 12px;
-  transition: all 0.3s ease;
-}
-.stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-.stat-card.total .stat-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-card.total .stat-label,
-.stat-card.total .stat-value {
-  color: white;
-}
-.stat-card.critical .stat-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-card.critical .stat-label,
-.stat-card.critical .stat-value {
-  color: white;
-}
-.stat-card.high .stat-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-card.high .stat-label,
-.stat-card.high .stat-value {
-  color: white;
-}
-.stat-card.info .stat-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-card.info .stat-label,
-.stat-card.info .stat-value {
-  color: white;
+  margin-bottom: 0;
 }
 .stat-content {
   display: flex;
@@ -126,46 +89,38 @@ defineProps<{
   gap: 16px;
 }
 .stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  font-size: 24px;
+  color: #fff;
 }
-.stat-icon.total-icon {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+.total-icon {
+  background: #409eff;
 }
-.stat-icon.critical-icon {
-  background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-  color: white;
+.critical-icon {
+  background: #f56c6c;
 }
-.stat-icon.high-icon {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
+.high-icon {
+  background: #e6a23c;
 }
-.stat-icon.info-icon {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  color: white;
+.info-icon {
+  background: #909399;
 }
 .stat-info {
   flex: 1;
 }
 .stat-label {
-  font-size: 14px;
+  font-size: 13px;
   color: #909399;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 .stat-value {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 600;
   color: #303133;
-  line-height: 1.2;
-}
-.time-value {
-  font-size: 14px;
-  font-weight: 500;
 }
 </style>
