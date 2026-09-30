@@ -7,8 +7,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -16,6 +16,8 @@ use thiserror::Error;
 
 use crate::container::AppState;
 use crate::models::after_sales::{self, ActiveModel, Entity};
+use crate::models::custom_order_response_dto::AfterSalesInfo;
+use crate::models::customer;
 use crate::models::quality_issue;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -249,22 +251,48 @@ impl CustomOrderAfterSalesService {
         Ok((updated_after_sales, inserted_issue))
     }
 
-    /// 列出订单的售后工单
-    /// 按订单查询售后工单列表（分页）；批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。；paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。；补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
+    /// 列出订单的售后工单（分页）
+    ///
+    /// 读侧为单次查询的关联名富化：`LEFT JOIN customers` +
+    /// `column_as(customer::Column::CustomerName, "customer_name")` +
+    /// `into_model::<AfterSalesInfo>()`（本仓唯一正解范式，对照
+    /// `services/po/order_ops/crud.rs::list_orders`），客户名由 JOIN 结果忠实回显，
+    /// 客户行缺失时 `customer_name` 为 NULL，禁止逐项再查或拼装假名。
+    /// 批次 263：paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1；
+    /// clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
     pub async fn list_by_order(
         &self,
         order_id: i64,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<after_sales::Model>, u64), AfterSalesError> {
-        let query = Entity::find().filter(after_sales::Column::CustomOrderId.eq(order_id));
+    ) -> Result<(Vec<AfterSalesInfo>, u64), AfterSalesError> {
+        let query = Entity::find()
+            .column_as(customer::Column::CustomerName, "customer_name")
+            .join(JoinType::LeftJoin, after_sales::Relation::Customer.def())
+            .filter(after_sales::Column::CustomOrderId.eq(order_id));
 
         let paginator = query
             .order_by_desc(after_sales::Column::OpenedAt)
+            .into_model::<AfterSalesInfo>()
             .paginate(&*self.db, page_size);
 
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((items, total))
+    }
+
+    /// 与 `list_by_order` 同一条 LEFT JOIN 富化链路的单条回读（按 id）。
+    ///
+    /// 创建 / 更新端点写库后必须经本方法回读一次，出参的 `customer_name` 与
+    /// 列表 / 详情同源（真实客户名或 NULL），禁止在构造点填 None 或拼装名蒙混。
+    pub async fn find_dto_by_id(&self, id: i64) -> Result<Option<AfterSalesInfo>, AfterSalesError> {
+        let dto = Entity::find()
+            .column_as(customer::Column::CustomerName, "customer_name")
+            .join(JoinType::LeftJoin, after_sales::Relation::Customer.def())
+            .filter(after_sales::Column::Id.eq(id))
+            .into_model::<AfterSalesInfo>()
+            .one(&*self.db)
+            .await?;
+        Ok(dto)
     }
 
     /// V15 P1 batch-19 缺陷 23.3.2：受理售后工单（opened → accepted）

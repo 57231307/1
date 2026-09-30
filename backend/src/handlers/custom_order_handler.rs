@@ -278,7 +278,9 @@ pub async fn get_custom_order(
             notes: order.notes,
             process_nodes: map_process_nodes(nodes),
             quality_issues: map_quality_issues(issues),
-            after_sales: map_after_sales(after_sales_list),
+            // after_sales_list 由 service::list_by_order 的 LEFT JOIN 富化查询直接产出，
+            // customer_name 即 JOIN 真值（客户行缺失为 null），此处不再逐字段构造
+            after_sales: after_sales_list,
         })
     })
     .await
@@ -324,26 +326,6 @@ fn map_quality_issues(issues: Vec<crate::models::quality_issue::Model>) -> Vec<Q
             resolved_at: i.resolved_at,
             resolution: i.resolution,
             status: i.status,
-        })
-        .collect()
-}
-
-/// 转换售后记录列表为响应 DTO
-fn map_after_sales(list: Vec<crate::models::after_sales::Model>) -> Vec<AfterSalesInfo> {
-    list.into_iter()
-        .map(|a| AfterSalesInfo {
-            id: a.id,
-            issue_type: a.issue_type,
-            customer_id: a.customer_id,
-            description: a.description,
-            status: a.status,
-            opened_at: a.opened_at,
-            closed_at: a.closed_at,
-            resolution: a.resolution,
-            refund_amount: a.refund_amount,
-            quality_issue_id: a.quality_issue_id,
-            reason_category: a.reason_category,
-            reason_detail: a.reason_detail,
         })
         .collect()
 }
@@ -695,20 +677,20 @@ pub async fn create_after_sales(
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
     let service = CustomOrderAfterSalesService::from_state(&state);
     let after = service.create(id, dto).await.map_err(aftersales_err)?;
-    Ok(Json(ApiResponse::success(AfterSalesInfo {
-        id: after.id,
-        issue_type: after.issue_type,
-        customer_id: after.customer_id,
-        description: after.description,
-        status: after.status,
-        opened_at: after.opened_at,
-        closed_at: after.closed_at,
-        resolution: after.resolution,
-        refund_amount: after.refund_amount,
-        quality_issue_id: after.quality_issue_id,
-        reason_category: after.reason_category,
-        reason_detail: after.reason_detail,
-    })))
+    // 出参与列表/详情同源：写入后回读一次带 customers LEFT JOIN 的富化查询，
+    // customer_name 取 JOIN 真值（客户行缺失为 null）；本仓禁止在构造点填 None
+    // 或拼装名，回读不到刚写入的行即数据异常，如实报错
+    let info = service
+        .find_dto_by_id(after.id)
+        .await
+        .map_err(aftersales_err)?
+        .ok_or_else(|| {
+            AppError::InternalError(format!(
+                "售后工单创建成功（id={}）但富化回读未命中，读侧链路与写入不一致",
+                after.id
+            ))
+        })?;
+    Ok(Json(ApiResponse::success(info)))
 }
 
 /// GET /api/v1/erp/custom-orders/:id/after-sales - 售后列表
@@ -721,31 +703,15 @@ pub async fn list_after_sales(
     let service = CustomOrderAfterSalesService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+    // service::list_by_order 即带 customers LEFT JOIN + column_as(customer_name) +
+    // into_model::<AfterSalesInfo> 的单次富化查询，items 已是出参 DTO，不得再逐字段构造
     let (items, total) = service
         .list_by_order(id, page, page_size)
         .await
         .map_err(aftersales_err)?;
 
-    let list: Vec<AfterSalesInfo> = items
-        .into_iter()
-        .map(|a| AfterSalesInfo {
-            id: a.id,
-            issue_type: a.issue_type,
-            customer_id: a.customer_id,
-            description: a.description,
-            status: a.status,
-            opened_at: a.opened_at,
-            closed_at: a.closed_at,
-            resolution: a.resolution,
-            refund_amount: a.refund_amount,
-            quality_issue_id: a.quality_issue_id,
-            reason_category: a.reason_category,
-            reason_detail: a.reason_detail,
-        })
-        .collect();
-
     Ok(Json(ApiResponse::success(PagedResponse {
-        items: list,
+        items,
         total,
         page,
         page_size,
@@ -761,20 +727,14 @@ pub async fn update_after_sales(
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
     let service = CustomOrderAfterSalesService::from_state(&state);
     let after = service.update(id, dto).await.map_err(aftersales_err)?;
-    Ok(Json(ApiResponse::success(AfterSalesInfo {
-        id: after.id,
-        issue_type: after.issue_type,
-        customer_id: after.customer_id,
-        description: after.description,
-        status: after.status,
-        opened_at: after.opened_at,
-        closed_at: after.closed_at,
-        resolution: after.resolution,
-        refund_amount: after.refund_amount,
-        quality_issue_id: after.quality_issue_id,
-        reason_category: after.reason_category,
-        reason_detail: after.reason_detail,
-    })))
+    // 与创建端点同口径：更新后回读带 customers LEFT JOIN 的富化查询出参，
+    // customer_name 取 JOIN 真值；回读未命中说明行已被并发移除，如实 404
+    let info = service
+        .find_dto_by_id(after.id)
+        .await
+        .map_err(aftersales_err)?
+        .ok_or_else(|| AppError::not_found("售后工单不存在"))?;
+    Ok(Json(ApiResponse::success(info)))
 }
 
 // ----------------------------------------------------------------------

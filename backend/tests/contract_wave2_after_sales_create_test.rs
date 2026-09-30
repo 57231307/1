@@ -38,9 +38,7 @@ use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::after_sales;
 use bingxi_backend::services::custom_order_aftersales_service::CreateAfterSalesDto;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, Statement,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, Statement};
 use serde_json::{Value, json};
 use std::str::FromStr;
 use tower::ServiceExt;
@@ -168,11 +166,28 @@ async fn create_after_sales_table(db: &sea_orm::DatabaseConnection) {
     .unwrap_or_else(|e| panic!("DDL 执行失败: {e}"));
 }
 
+/// 读侧富化链路（list_by_order / find_dto_by_id）带 `LEFT JOIN customers`，
+/// 建表必须与查询同波到位；表名 `customers`、名称列 `customer_name` 取真实实体
+/// （`models/customer.rs:9,19`），测试仅建 JOIN 用到的列
+async fn create_customers_table(db: &sea_orm::DatabaseConnection) {
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        r#"CREATE TABLE customers (
+            id INTEGER PRIMARY KEY,
+            customer_name TEXT
+        )"#,
+        Vec::new(),
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("customers DDL 执行失败: {e}"));
+}
+
 async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
     let db = sea_orm::Database::connect("sqlite::memory:")
         .await
         .expect("sqlite::memory: 连接失败");
     create_after_sales_table(&db).await;
+    create_customers_table(&db).await;
     let mut state = AppState::default();
     state.db = std::sync::Arc::new(db.clone());
     let app = Router::new()
@@ -409,7 +424,8 @@ async fn create_and_list_endpoints_read_back_reason_and_customer_fields() {
     assert_eq!(row.reason_category.as_deref(), Some("quality"));
     assert_eq!(row.reason_detail.as_deref(), Some(detail));
 
-    // 列表端点回读（定制订单详情的 after_sales 与本列表共用同一 map 链路）
+    // 列表端点回读（定制订单详情的 after_sales 与本列表共用 service::list_by_order
+    // 同一条 LEFT JOIN 富化查询链路）
     let (status, lv) = get_list(&app, 42).await;
     assert_eq!(status, StatusCode::OK, "列表端点应 200，实际体: {lv}");
     assert_eq!(lv["code"], 200);
@@ -451,7 +467,9 @@ async fn create_response_keeps_reason_keys_as_null_when_not_provided() {
 /// 否则 "\r\n" 会使本应命中的锚点漏检（脆弱断言防御，非放宽断言）
 fn extract_block(src: &str, anchor: &str) -> String {
     let src = src.replace('\r', "");
-    let i = src.find(anchor).unwrap_or_else(|| panic!("源码锚点丢失: {anchor}"));
+    let i = src
+        .find(anchor)
+        .unwrap_or_else(|| panic!("源码锚点丢失: {anchor}"));
     let j = src[i..]
         .find("\n}")
         .unwrap_or_else(|| panic!("块结束定位失败: {anchor}"));
@@ -528,14 +546,18 @@ fn source_scan_service_dto_and_create_signature() {
     );
 }
 
-/// 读端防回潮锁：AfterSalesInfo 必须声明三列且 map_after_sales 如实透传
-/// （本波缺陷本体：写入侧 Set(...) 落库了，读端 DTO/映射缺列导致前端永远读不回）
+/// 读端防回潮锁：AfterSalesInfo 必须声明读端字段，且售后读侧必须走
+/// LEFT JOIN + column_as(customer_name) + into_model::<AfterSalesInfo> 富化链路
+/// （本波缺陷本体：写入侧 Set(...) 落库了，读端 DTO/映射缺列导致前端永远读不回；
+/// 旧 map_after_sales 逐字段透传形态已被单次 JOIN 富化取代，customer_name
+/// 只允许来自该查询，真实回显断言见 contract_wave3 测试文件）
 #[test]
 fn source_scan_after_sales_readback_dto_and_mapping() {
     let dto_src = include_str!("../src/models/custom_order_response_dto.rs");
     let dto_block = extract_block(dto_src, "pub struct AfterSalesInfo");
     for field in [
         "pub customer_id: i32,",
+        "pub customer_name: Option<String>,",
         "pub reason_category: Option<String>,",
         "pub reason_detail: Option<String>,",
     ] {
@@ -545,16 +567,17 @@ fn source_scan_after_sales_readback_dto_and_mapping() {
         );
     }
 
-    let handler_src = include_str!("../src/handlers/custom_order_handler.rs");
-    let map_block = extract_block(handler_src, "fn map_after_sales");
-    for passthrough in [
-        "customer_id: a.customer_id,",
-        "reason_category: a.reason_category,",
-        "reason_detail: a.reason_detail,",
+    let svc_src = include_str!("../src/services/custom_order_aftersales_service.rs");
+    let list_block = extract_block(svc_src, "pub async fn list_by_order");
+    for marker in [
+        "column_as(customer::Column::CustomerName, \"customer_name\")",
+        "JoinType::LeftJoin",
+        "after_sales::Relation::Customer.def()",
+        "into_model::<AfterSalesInfo>",
     ] {
         assert!(
-            map_block.contains(passthrough),
-            "map_after_sales 未透传 {passthrough}，实际块:\n{map_block}"
+            list_block.contains(marker),
+            "list_by_order 读侧缺富化链路锚点 {marker}，实际块:\n{list_block}"
         );
     }
 }

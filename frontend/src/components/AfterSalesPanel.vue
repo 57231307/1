@@ -24,11 +24,17 @@
           <el-tag>{{ getIssueTypeLabel(row.issue_type) }}</el-tag>
         </template>
       </el-table-column>
-      <!-- 后端读端已透传 customer_id（实体 NOT NULL i32）；客户名称 JOIN 富化代价大，
-           本列如实显示 id，名称富化已登记待决（见修复报告），禁止造假名 -->
-      <el-table-column :label="t('common.afterSales.formCustomer')" width="90" align="center">
+      <!-- 客户名由后端读侧 LEFT JOIN customers 富化出参（customer_name，恒含键）；
+           客户行缺失时为 null，显示 '-'（与本文件金额/时间列空值口径一致），
+           禁止回退显示 customer_id 数字冒充名称 -->
+      <el-table-column
+        :label="t('common.afterSales.formCustomer')"
+        min-width="120"
+        show-overflow-tooltip
+      >
         <template #default="{ row }">
-          {{ row.customer_id }}
+          <span v-if="row.customer_name != null">{{ row.customer_name }}</span>
+          <span v-else>-</span>
         </template>
       </el-table-column>
       <el-table-column :label="t('common.afterSales.formReasonCategory')" width="110">

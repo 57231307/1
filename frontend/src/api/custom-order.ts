@@ -189,6 +189,10 @@ export interface AfterSales {
   issue_type: string;
   /** 后端实体 after_sales.customer_id 为 NOT NULL i32，出参恒有键，不得标可选 */
   customer_id: number;
+  /** 客户名：后端读侧 LEFT JOIN customers + column_as(customer_name) 富化，
+   *  出参恒含该键；客户行缺失时 JOIN 产生 NULL → null（前端显示 '-'），
+   *  禁止用 customer_id 冒充名称显示 */
+  customer_name: string | null;
   description: string;
   status: string;
   opened_at: string;
