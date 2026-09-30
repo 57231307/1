@@ -68,11 +68,18 @@ pub struct PurchaseOrderItemDto {
     /// list_order_items 走 `Entity::find()` 全列 SELECT，此字段按列名直映真实列，非现算/非默认。
     /// 语义：主单位为匹/码/卷/张等时本列为米数；主单位为米时本列为公斤数（克重×幅宽换算）。
     pub quantity_alt: rust_decimal::Decimal,
+    /// 交货数量允收容差（百分比，可空）：NULL = 未行级指定，按「品类默认 > 全局默认」解析。
+    /// purchase_order_item 真实列，经 list_order_items 全列 SELECT 按列名直映。
+    pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
     pub unit_price: rust_decimal::Decimal,
     #[serde(rename = "tax_rate")]
     pub tax_percent: rust_decimal::Decimal,
+    /// 折扣率（百分比）：purchase_order_item.discount_percent 真实列（NOT NULL）。
+    pub discount_percent: rust_decimal::Decimal,
     pub amount: rust_decimal::Decimal,
     pub tax_amount: rust_decimal::Decimal,
+    /// 折扣金额（本位币）：purchase_order_item.discount_amount 真实列（NOT NULL）。
+    pub discount_amount: rust_decimal::Decimal,
     pub total_amount: rust_decimal::Decimal,
     pub received_quantity: rust_decimal::Decimal,
     pub returned_quantity: rust_decimal::Decimal,
@@ -81,6 +88,8 @@ pub struct PurchaseOrderItemDto {
     // 保密：销售域响应不含这两列——此 DTO 仅由 /purchase/orders/{id}/items 返回。
     pub supplier_product_code: Option<String>,
     pub supplier_color_no: Option<String>,
+    /// 色号（面料行业追溯字段，DB 列名 color_code）：purchase_order_item 真实列，可空。
+    pub color_code: Option<String>,
     pub notes: Option<String>,
 }
 

@@ -62,6 +62,10 @@ pub struct CreateSalesReturnItemRequest {
     pub tax_percent: Option<Decimal>,
     /// 折扣率（百分比）。缺省按 0（无折扣为合法业务默认，非缺失字段掩盖）。
     pub discount_percent: Option<Decimal>,
+    /// 辅助单位数量（面料双计量 kg 侧，与退货入库流水 quantity_kg 同源）。
+    /// 缺省按 0：非面料品类辅量为 0 是合法业务默认；面料退货应由前端传真实辅量，
+    /// 读模型 SalesReturnItemView.quantity_alt 如实回传落库值。
+    pub quantity_alt: Option<Decimal>,
     pub reason: Option<String>,
 }
 
@@ -488,7 +492,7 @@ impl SalesReturnService {
             dye_lot_no: Set(trace.dye_lot_no),
             batch_no: Set(trace.batch_no),
             notes: Set(req.reason),
-            quantity_alt: Set(Decimal::ZERO),
+            quantity_alt: Set(req.quantity_alt.unwrap_or(Decimal::ZERO)),
             ..Default::default()
         };
 

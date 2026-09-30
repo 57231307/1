@@ -249,6 +249,7 @@ impl InventoryTransferService {
     }
 
     /// 构建调拨主表 ActiveModel（状态默认 PENDING，数量与金额初始为 0，审批层级 L1）
+    /// created_by 落当前操作人：Self/Dept 数据范围过滤与 created_by_name 富化均依赖此列。
     fn build_transfer_active_model(
         transfer_no: String,
         from_warehouse_id: i32,
@@ -256,6 +257,7 @@ impl InventoryTransferService {
         transfer_date: Option<chrono::DateTime<chrono::Utc>>,
         status: Option<String>,
         notes: Option<String>,
+        user_id: i32,
     ) -> inventory_transfer::ActiveModel {
         inventory_transfer::ActiveModel {
             id: Default::default(),
@@ -270,7 +272,8 @@ impl InventoryTransferService {
             ),
             total_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             notes: sea_orm::ActiveValue::Set(notes),
-            created_by: sea_orm::ActiveValue::NotSet,
+            // inventory_transfer.created_by 为 Option<i32>（可空列），建单时如实落当前操作人
+            created_by: sea_orm::ActiveValue::Set(Some(user_id)),
             approved_by: sea_orm::ActiveValue::NotSet,
             approved_at: sea_orm::ActiveValue::NotSet,
             shipped_at: sea_orm::ActiveValue::NotSet,
@@ -386,6 +389,7 @@ impl InventoryTransferService {
             request.transfer_date,
             request.status,
             request.notes,
+            user_id,
         );
         let transfer_entity = transfer.insert(&txn).await?;
         let transfer_id = transfer_entity.id;
