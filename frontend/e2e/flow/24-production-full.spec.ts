@@ -11,7 +11,6 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
-  verifyOptionalEndpointHealthy,
   verifyDownloadEndpointHealthy,
   ensureTestEntities,
 } from './helpers';
@@ -176,8 +175,11 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/production/capacity/work-centers?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/production/capacity/load-analysis');
     await verifyEndpointHealthy(page, '/production/capacity/overload-check');
-    // 排程（gantt 为可视化增强端点允许缺失；conflicts 后端已注册须 strict）
-    await verifyOptionalEndpointHealthy(page, '/scheduling/gantt');
+    // 排程（gantt 后端已注册：routes/mod.rs:150 → scheduling_handler::get_gantt_data，
+    // GanttQuery 三字段全 Option（scheduling_handler.rs:134-138），无 query 参也返回
+    // 2xx 结构体（空数据 items 为空数组）→ admin 必 2xx，迁 strict，不再 optional 吞 404；
+    // conflicts 后端已注册须 strict）
+    await verifyEndpointHealthy(page, '/scheduling/gantt');
     await verifyEndpointHealthy(page, '/scheduling/conflicts');
     await verifyEndpointHealthy(page, '/scheduling/tasks?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/scheduling/history?page=1&page_size=5');
