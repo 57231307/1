@@ -281,8 +281,14 @@ async fn test_update_stock_grade_ffdjz() {
         .update_stock_grade(1, "三等品".to_string(), None)
         .await;
     assert!(result.is_err(), "非法等级值应返回 validation 错误");
-    if let Err(AppError::ValidationError(msg)) = result {
-        assert!(msg.contains("非法等级值"), "错误信息应包含非法等级值提示");
+    // 必须显式判定变体：原写法 `if let Err(AppError::ValidationError(msg))` 在
+    // 该分支改走可外显变体后静默不进入＝用例什么都不断仍算绿（假绿）。
+    match result {
+        Err(AppError::ValidationErrorDisplayable(msg)) => {
+            assert!(msg.contains("非法等级值"), "错误信息应包含非法等级值提示: {msg}");
+        }
+        Err(other) => panic!("非法等级值必须走可外显校验族，实际={other:?}"),
+        Ok(_) => panic!("非法等级值必须被拒"),
     }
 }
 

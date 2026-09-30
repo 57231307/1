@@ -140,11 +140,11 @@ fn validate_refs_each_branch_uses_validation_error() {
     let body_c = strip_ws(body);
     let expected = [
         "AppError::validation(format!(\"产品 ID {} 不存在\"",
-        "AppError::validation(\"产品色号不属于指定的产品\")",
+        "AppError::validation_displayable(\"产品色号不属于指定的产品\")",
         "AppError::validation(format!(\"供应商 ID {} 不存在\"",
         "AppError::validation(format!(",
-        "AppError::validation(\"供应商商品不属于指定的供应商\")",
-        "AppError::validation(\"供应商色号不属于指定的供应商商品\")",
+        "AppError::validation_displayable(\"供应商商品不属于指定的供应商\")",
+        "AppError::validation_displayable(\"供应商色号不属于指定的供应商商品\")",
     ];
     for needle in expected {
         assert!(
@@ -152,8 +152,10 @@ fn validate_refs_each_branch_uses_validation_error() {
             "validate_refs 缺少预期失败分支：{needle}"
         );
     }
-    // 「色号不属于该产品」等三类归属校验都必须是 validation（422 语义 → 本仓 400），
-    // 不得是 business（那会走脱敏文案、丢失定位信息，且语义错误）。
+    // 「色号不属于该产品」等三类归属校验都必须是 validation 族（422 语义 → 本仓 400），
+    // 且必须是 _displayable 变体（普通 `AppError::validation` 出参会被脱敏成
+    // 「请求参数验证失败」，用户丢失定位信息）；不得是 business（语义错误）。
+    // 含内部记录 ID 的「产品 ID 不存在」类仍走脱敏 validation（不外泄 ID）。
     assert!(
         body_c.contains(&strip_ws("不属于指定的产品"))
             && body_c.contains(&strip_ws("不属于指定的供应商"))

@@ -350,13 +350,14 @@ fn test_khzyztj_cgkzh() {
 // =====================================================
 
 /// test_ppcljy_wxclcwxx
-/// 验证 auto_match 中传入不支持的策略时返回 ValidationError，；错误消息格式："无效的匹配策略: {strategy}（支持 exact / date_order / all）"
+/// 验证 auto_match 中传入不支持的策略时返回可外显的校验错误（策略词表是用户可自助
+/// 修正的公开规则），；错误消息格式："无效的匹配策略: {strategy}（支持 exact / date_order / all）"
 #[test]
 fn test_ppcljy_wxclcwxx() {
     let result = validate_match_strategy(Some("invalid"));
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(matches!(err, AppError::ValidationError(_)));
+    assert!(matches!(err, AppError::ValidationErrorDisplayable(_)));
     let msg = format!("{err}");
     assert!(msg.contains("无效的匹配策略: invalid"));
     assert!(msg.contains("exact / date_order / all"));

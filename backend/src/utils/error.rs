@@ -644,4 +644,85 @@ mod displayable_message_tests {
                 .contains("审批人不能是申请人")
         );
     }
+
+    // ------------------------------------------------------------------
+    // 校验族（ValidationError / ValidationErrorDisplayable）对称断言
+    // ------------------------------------------------------------------
+
+    /// ① 手工 `validation` 构造仍默认脱敏（携带第三方库错误原文的构造点必须走这条）
+    #[test]
+    fn validation_default_still_sanitized() {
+        let err = AppError::validation("Timestamp parse failed: premature end of input");
+        assert_eq!(err.error_code(), "VALIDATION_ERROR");
+        assert_eq!(err.to_response().message, err_msg::VALIDATION_PUBLIC);
+        assert!(
+            !err.to_response().message.contains("premature"),
+            "第三方库错误原文不得进 HTTP 出参"
+        );
+    }
+
+    /// ② displayable 构造：code/HTTP 与脱敏形态完全一致，仅 message 换真实原因
+    #[test]
+    fn validation_displayable_exposes_real_reason() {
+        use axum::response::IntoResponse as _;
+        let err = AppError::validation_displayable("批次号长度必须在1-50个字符之间");
+        assert_eq!(err.error_code(), "VALIDATION_ERROR");
+        assert_eq!(
+            err.to_response().message,
+            "批次号长度必须在1-50个字符之间"
+        );
+        assert_eq!(
+            AppError::validation("x").into_response().status(),
+            err.clone().into_response().status(),
+            "两变体 HTTP 状态必须一致（不得因外显而改变出参契约）"
+        );
+    }
+
+    /// ③ `From<validator::ValidationErrors>`：提取字段级可读文案、多字段去重拼接，
+    /// 且产出的是可外显变体——这是"提交只报参数错误、看不到原因"的总修复点。
+    #[test]
+    fn validation_errors_from_dto_are_readable_and_displayable() {
+        use validator::Validate;
+
+        #[derive(Validate)]
+        struct Probe {
+            #[validate(length(min = 1, message = "批次号不能为空"))]
+            batch_no: String,
+            #[validate(range(min = 0, message = "数量不能为负"))]
+            quantity: i32,
+        }
+
+        let errors = Probe {
+            batch_no: String::new(),
+            quantity: -1,
+        }
+        .validate()
+        .expect_err("空批次号与负数量必须被拒");
+
+        let err = AppError::from(errors);
+        assert!(
+            matches!(err, AppError::ValidationErrorDisplayable(_)),
+            "DTO 校验拒绝必须走可读外显变体，实际={err:?}"
+        );
+        let msg = err.to_response().message;
+        assert_ne!(msg, err_msg::VALIDATION_PUBLIC, "出参不得再是脱敏常量");
+        assert!(msg.contains("批次号不能为空"), "实际外显: {msg}");
+        assert!(msg.contains("数量不能为负"), "两个字段的原因都必须带到: {msg}");
+        assert!(
+            !msg.contains("ValidationErrors") && !msg.contains("batch_no"),
+            "不得把结构体序列化文本/内部字段名塞给出参: {msg}"
+        );
+    }
+
+    /// ④ 无 message 只有规则 code 时退回「字段: code」，整体为空时退回序列化——不吞原因
+    #[test]
+    fn validation_errors_without_message_still_surface_something() {
+        let mut errors = validator::ValidationErrors::new();
+        errors.add(
+            "consent_type",
+            validator::ValidationError::new("length"),
+        );
+        let msg = AppError::from(errors).to_response().message;
+        assert_eq!(msg, "consent_type: length", "实际: {msg}");
+    }
 }
