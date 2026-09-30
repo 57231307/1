@@ -19,9 +19,10 @@ import {
   shipSalesOrder,
   type SalesOrder,
 } from '@/api/sales';
-import type { OrderForm } from './useOlv';
+import type { OrderForm, OrderItemForm } from './useOlv';
 import { logger } from '@/utils/logger';
 import { msg } from '@/utils/message';
+import type { CreateSalesOrderPayload, SalesOrderItemPayload } from '@/api/sales';
 
 /** 刷新回调 */
 interface RefreshCallbacks {
@@ -74,14 +75,53 @@ export function useOlvProc(refresh: RefreshCallbacks) {
     }
   };
 
+  /**
+   * 明细行 → 后端 SalesOrderItemRequest 契约映射：
+   * product_id/quantity/unit_price 非 Option 必填；color_no 空串=白坯布为业务语义，按原样透传；
+   * quantity_tolerance_pct 未填=null（后端 Option，走默认解析：品类>全局）。
+   * id/product_name/product_code/unit/subtotal 为响应/表单派生列，不在请求契约，不下发。
+   */
+  const toItemPayload = (it: OrderItemForm): SalesOrderItemPayload => ({
+    product_id: it.product_id as number,
+    quantity: it.quantity,
+    unit_price: it.unit_price,
+    color_no: it.color_no,
+    quantity_tolerance_pct: it.quantity_tolerance_pct ?? null,
+  });
+
+  /**
+   * 日期入参边界归一：后端 order_date/required_date 为 DateTime<Utc>（serde 仅收 RFC3339），
+   * 表单原生 date input 给 'YYYY-MM-DD'、默认值给 Date 对象——统一转 ISO 全串；
+   * 非法日期抛 RangeError 暴露给调用方（不静默吞错）。
+   */
+  const toIsoDateTime = (v: Date | string | undefined): string | undefined =>
+    v ? new Date(v).toISOString() : undefined;
+
   /** 提交订单表单 */
   const handleFormSubmit = async (data: OrderForm) => {
     try {
       if (data.id) {
-        await updateSalesOrder(data.id, data as unknown as Partial<SalesOrder>);
+        // 更新契约（UpdateSalesOrderRequest）仅 required_date/status/shipping_address/
+        // billing_address/notes/items；客户/下单日期/联系人不在其中（编辑需后端支持，已登记串行清单）
+        await updateSalesOrder(data.id, {
+          required_date: toIsoDateTime(data.required_date),
+          shipping_address: data.shipping_address || undefined,
+          notes: data.notes || undefined,
+          items: data.items.map(toItemPayload),
+        });
         msg.success('updateSuccess');
       } else {
-        await createSalesOrder(data as unknown as Partial<SalesOrder>);
+        const payload: CreateSalesOrderPayload = {
+          customer_id: data.customer_id as number,
+          order_date: toIsoDateTime(data.order_date),
+          required_date: toIsoDateTime(data.required_date),
+          contact_person: data.contact_person || undefined,
+          contact_phone: data.contact_phone || undefined,
+          shipping_address: data.shipping_address || undefined,
+          notes: data.notes || undefined,
+          items: data.items.map(toItemPayload),
+        };
+        await createSalesOrder(payload);
         msg.success('createSuccess');
       }
       await refresh.refresh();

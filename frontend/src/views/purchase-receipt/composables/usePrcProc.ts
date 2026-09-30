@@ -230,11 +230,14 @@ export function usePrcProc(cb: PrcCallbacks) {
 
     try {
       if (cb.form.id) {
-        // 编辑：明细走 item 级端点（PUT /{id} 仅接受表头字段，原整单 PUT 会静默丢弃明细改动）
-        await updatePurchaseReceipt(
-          cb.form.id,
-          cb.form as unknown as Partial<PurchaseReceiptEntity>
-        );
+        // 编辑：表头 PUT 仅提交 UpdatePurchaseReceiptRequest 契约内的字段（此前把整个 cb.form
+        // ——含 id/receipt_no/warehouse_id/status/items 等非契约键——强转提交，全部被 serde 丢弃，
+        // 属假保存）；明细改动走 item 级端点（POST/PUT/DELETE /{id}/items）。
+        // warehouse_id 不在更新契约（后端更新 DTO 无该列，换仓需后端支持，已登记后端串行清单）。
+        await updatePurchaseReceipt(cb.form.id, {
+          supplier_id: cb.form.supplier_id as number,
+          receipt_date: cb.form.receipt_date as string,
+        });
         let idx = 0;
         for (const it of validItems) {
           if (it.id) {

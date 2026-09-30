@@ -250,6 +250,9 @@
         <el-form-item :label="t('product.productListTab.colColorName')">
           <el-input v-model="colorForm.color_name" style="width: 160px" />
         </el-form-item>
+        <el-form-item :label="t('product.productListTab.colColorExtraCost')">
+          <el-input-number v-model="colorForm.extra_cost" :min="0" :precision="2" />
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="colorSubmitting" @click="submitColor">
             {{
@@ -361,6 +364,7 @@ import {
   type Product,
   type ProductCategory,
   type ProductColor,
+  type CreateProductColorPayload,
 } from '@/api/product';
 import { exportFabrics } from '@/api/fabric';
 import { useTableApi } from '@/composables/useTableApi';
@@ -513,7 +517,12 @@ const handleDelete = async (row: Product) => {
 const colorDialogVisible = ref(false);
 const colorProduct = ref<Product | null>(null);
 const colorRows = ref<ProductColor[]>([]);
-const colorForm = reactive({ color_no: '', color_name: '' });
+// 后端 CreateProductColorRequest 必填 color_no/color_name/color_type/extra_cost，
+// 建单请求此前缺 color_type/extra_cost 必 422（缺非 Option 必填）。
+// color_type 全仓唯一确证取值为 DB 列默认 'STANDARD'（无后端枚举/迁移种子给出其余取值，
+// 完整取值域已列待决策），建/改固定提交 'STANDARD'；extra_cost 表单以数值真实采集（默认 0）。
+const COLOR_TYPE_STANDARD = 'STANDARD';
+const colorForm = reactive({ color_no: '', color_name: '', extra_cost: 0 });
 const colorEditingId = ref<number | null>(null);
 const colorSubmitting = ref(false);
 
@@ -522,6 +531,7 @@ const openColorDialog = async (row: Product) => {
   colorEditingId.value = null;
   colorForm.color_no = '';
   colorForm.color_name = '';
+  colorForm.extra_cost = 0;
   colorDialogVisible.value = true;
   try {
     const { getProductColorList } = await import('@/api/product');
@@ -542,14 +552,25 @@ const submitColor = async () => {
   colorSubmitting.value = true;
   try {
     if (colorEditingId.value) {
-      await updateProductColor(colorProduct.value.id, colorEditingId.value, colorForm);
+      // 更新契约（UpdateProductColorRequest）无 color_no，且 color_type 非用户可编辑项——
+      // 省略即不改，避免把已有色号的非标准 color_type 覆盖成 STANDARD
+      await updateProductColor(colorProduct.value.id, colorEditingId.value, {
+        color_name: colorForm.color_name,
+        extra_cost: colorForm.extra_cost,
+      });
     } else {
-      await createProductColor(colorProduct.value.id, colorForm);
+      await createProductColor(colorProduct.value.id, {
+        color_no: colorForm.color_no,
+        color_name: colorForm.color_name,
+        color_type: COLOR_TYPE_STANDARD,
+        extra_cost: colorForm.extra_cost,
+      });
     }
     ElMessage.success(t('common.success'));
     colorEditingId.value = null;
     colorForm.color_no = '';
     colorForm.color_name = '';
+    colorForm.extra_cost = 0;
     const { getProductColorList } = await import('@/api/product');
     const res = await getProductColorList(colorProduct.value.id);
     colorRows.value = (res.data as unknown as ProductColor[]) || [];
@@ -565,6 +586,8 @@ const editColor = (row: ProductColor) => {
   colorEditingId.value = row.id;
   colorForm.color_no = row.color_no || '';
   colorForm.color_name = row.color_name || '';
+  // extra_cost 为 rust_decimal 出参字符串（"0.00"），绑定 el-input-number 前 Number() 归一
+  colorForm.extra_cost = Number(row.extra_cost);
 };
 
 // 删除色号（deleteProductColor）
@@ -611,7 +634,7 @@ const handleBatchColors = async () => {
   }
   batchColorSaving.value = true;
   try {
-    await batchCreateProductColors(colorProduct.value.id, colors as Partial<ProductColor>[]);
+    await batchCreateProductColors(colorProduct.value.id, colors as CreateProductColorPayload[]);
     ElMessage.success(t('common.success'));
     batchColorsText.value = '';
     const { getProductColorList } = await import('@/api/product');

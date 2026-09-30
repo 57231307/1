@@ -149,6 +149,24 @@ export interface CreatePurchaseReceiptRequest {
   items: CreateReceiptItemRequest[];
 }
 
+/**
+ * 更新入库单表头请求 —— 与后端 DTO 逐字段对齐
+ * backend/src/services/purchase_receipt_dto.rs:83 UpdatePurchaseReceiptRequest（全部 Option）。
+ * PUT 仅接受这 6 个表头字段：receipt_no/receipt_status/warehouse_id/total_amount/items 等均不在
+ * 更新契约（单号与状态走专用端点、仓库不可改、明细走 item 级端点）——此前用
+ * Partial<PurchaseReceiptEntity> 整表强转提交，多余键被 serde 静默丢弃、notes 键名错位，
+ * 属"传了后端不读"假保存形态。备注的真实键名是 notes（响应模型无 remark 列）。
+ */
+export interface UpdatePurchaseReceiptPayload {
+  supplier_id?: number;
+  /** receipt_date 后端为 NaiveDate，格式 YYYY-MM-DD */
+  receipt_date?: string;
+  department_id?: number;
+  inspector_id?: number;
+  notes?: string;
+  attachment_urls?: string[];
+}
+
 export function getPurchaseReceiptList(params?: PurchaseReceiptQueryParams) {
   return request.get<ApiResponse<{ items: PurchaseReceiptEntity[]; total: number }>>(
     '/purchase/receipts',
@@ -164,7 +182,7 @@ export function createPurchaseReceipt(data: CreatePurchaseReceiptRequest) {
   return request.post<ApiResponse<PurchaseReceiptEntity>>('/purchase/receipts', data);
 }
 
-export function updatePurchaseReceipt(id: number, data: Partial<PurchaseReceiptEntity>) {
+export function updatePurchaseReceipt(id: number, data: UpdatePurchaseReceiptPayload) {
   return request.put<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}`, data);
 }
 
