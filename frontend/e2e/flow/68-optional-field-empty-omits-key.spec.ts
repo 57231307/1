@@ -26,8 +26,12 @@ import {
  *    （views/supplier/index.vue:246-254；views/sales-contract/composables/useSc.ts:257-265 `|| undefined`）；
  * ② 整表重插把未提交的列洗成 NULL：销售合同 update 对明细走 delete+重插
  *    （services/sales_contract_service.rs:205-321 update 注释），前端 prepareEdit 回源明细并
- *    原样回传真实列（useSc.ts:174-245 buildItemsPayload），未提交的表头可空列经 Option=None
- *    走 service 的 `if let Some` 保持原值（sales_contract_service.rs:256-259 起）。
+ *    原样回传真实列（useSc.ts:174-245 buildItemsPayload）。
+ * ③ 表头可空列的三态（本批已把合同/部门/付款的更新 DTO 改为 RFC 7386 显式 null 清空）：
+ *    键缺席=保持原值、显式 null=清空该列、有值=覆盖（useSc.ts:40 explicitToNull、
+ *    sales_contract_service.rs 的 DoubleOption 分支）。因此合同域"清空"的正确形态是
+ *    **送 null 并真的清空**，而供应商域（仍是单层 Option 的 if-let-覆盖语义）正确形态是
+ *    **省略键并保持原值**——两种语义各自被 68-03 与 68-02 钉住，不得互相套用。
  *
  * 断言形态（不是只看 200）：
  * - 用 page.waitForResponse 抓**前端真实发出的请求体**（postData），逐键断言
@@ -240,7 +244,7 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     await tryCleanup(page, 'DELETE', `/purchase/suppliers/${supplierId}`, '[68-02] 供应商');
   });
 
-  test('68-03 UI 编辑销售合同·清空可选交货日期：省略 delivery_date/remark 键 → 表头原值保持、明细整表重插不洗列', async ({
+  test('68-03 UI 编辑销售合同·清空可选交货日期：送显式 null 真的清空该列、未触碰列与明细整表重插不洗列', async ({
     page,
   }) => {
     const customerId = await seedCustomer(page, '合期');
@@ -304,8 +308,12 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
 
     expect(
       Object.prototype.hasOwnProperty.call(cap.body, 'delivery_date'),
-      `[68-03] 清空后的交货日期必须省略键（useSc.ts:259 的 || undefined；直发 ""/null 分别撞 NaiveDate 反序列化/覆盖语义），实际=${cap.bodyRaw}`
-    ).toBe(false);
+      `[68-03] 三态契约：清空后的交货日期必须**送显式 null**（useSc.ts:40 explicitToNull；省略键在后端语义是"保持原值"，用户清空却清不掉＝本轮消灭的静默丢弃形态），实际=${cap.bodyRaw}`
+    ).toBe(true);
+    expect(
+      cap.body.delivery_date,
+      `[68-03] 清空字段必须送 null（送 ""/省略键 都属塌层，实际 ${JSON.stringify(cap.body.delivery_date)}）`
+    ).toBeNull();
     expect(
       cap.status,
       `[68-03] 清空可选日期的提交不得报参数错误，实际 status=${cap.status} body=${cap.bodyRaw}`
@@ -328,17 +336,19 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
       '请求体 items[0].quantity_tolerance_pct 必须回传原值 10（Number 归一）'
     ).toBe(10);
 
-    // 回读：表头被省略的 delivery_date/remark 保持原值（不被洗 NULL）；明细四个可选真实列不被重插洗掉
+    // 回读：送显式 null 的 delivery_date 必须**真的被清空**（这是三态语义的另一半——只断请求体
+    // 送 null 而回读仍是旧值，说明 service 把 null 当"未提交"塌层了）；未触碰而经回显原样回传的
+    // remark 保持原值；明细四个可选真实列不被整表重插洗掉
     const detailEp = `/sales/sales-contracts/${contractId}`;
     await verifyEndpointHealthy(page, detailEp);
     const header = await apiCallRaw<Row>(page, 'GET', detailEp);
     expect(
       header.delivery_date,
-      `回读：delivery_date 省略键=保持原值（service 的 if-let-覆盖，sales_contract_service.rs:256 起），实际 ${JSON.stringify(header.delivery_date)}`
-    ).toBe(headerDeliveryDate);
+      `回读：UI 清空并送 null 的 delivery_date 必须落 NULL（仍为 ${headerDeliveryDate} 即 service 把 null 塌成"保持原值"，实际 ${JSON.stringify(header.delivery_date)}）`
+    ).toBeNull();
     expect(
       header.remark,
-      `回读：编辑表单不持久化 remark（prepareEdit 置空 ⇒ 请求体省略该键）→ 原值不得被洗 NULL/空串，实际 ${JSON.stringify(header.remark)}`
+      `回读：未触碰的 remark 由 prepareEdit 回显后原样回传（useSc.ts:212 把出参单数 remark 映射到表单 remarks）→ 不得被洗 NULL/空串，实际 ${JSON.stringify(header.remark)}`
     ).toBe(remarkOriginal);
     expect(header.signed_date, '回读：未触碰的 signed_date 原样').toBe('2026-09-01');
 

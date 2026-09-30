@@ -498,7 +498,11 @@ impl DashboardService {
             Some(sql) => sql,
             None => return Ok(vec![]),
         };
-        let (sql, params) = Self::append_date_filters(base_sql, start_date, end_date);
+        let (sql, date_params) = Self::append_date_filters(base_sql, start_date, end_date);
+        // 排除门取值绑定写入方权威词表（小写），$1/$2；日期过滤从 $3 起
+        let mut params: Vec<sea_orm::Value> =
+            vec![so_status::CANCELLED.into(), so_status::DRAFT.into()];
+        params.extend(date_params);
         let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, params);
         let rows = SalesByDimensionRow::find_by_statement(stmt)
             .all(self.db.as_ref())
@@ -518,7 +522,7 @@ impl DashboardService {
                     COUNT(s.id) as order_count
                 FROM sales_orders s
                 LEFT JOIN customers c ON c.id = s.customer_id
-                WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+                WHERE s.status NOT IN ($1, $2)
             "#
                 .to_string(),
             ),
@@ -530,7 +534,7 @@ impl DashboardService {
                     COUNT(DISTINCT si.order_id) as order_count
                 FROM sales_order_items si
                 INNER JOIN sales_orders s ON s.id = si.order_id
-                    AND s.status NOT IN ('CANCELLED', 'DRAFT')
+                    AND s.status NOT IN ($1, $2)
                 LEFT JOIN products p ON p.id = si.product_id
                 WHERE 1=1
             "#
@@ -544,7 +548,7 @@ impl DashboardService {
                     COUNT(s.id) as order_count
                 FROM sales_orders s
                 LEFT JOIN users u ON u.id = s.created_by
-                WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+                WHERE s.status NOT IN ($1, $2)
             "#
                 .to_string(),
             ),
@@ -553,13 +557,14 @@ impl DashboardService {
     }
 
     /// 追加日期过滤参数与分组排序
+    /// 基址为 $3：$1/$2 已被 build_dimension_sql 中的排除门状态绑定占位
     fn append_date_filters(
         mut sql: String,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
     ) -> (String, Vec<sea_orm::Value>) {
         let mut params: Vec<sea_orm::Value> = Vec::new();
-        let mut param_idx = 1usize;
+        let mut param_idx = 3usize;
 
         if let Some(start) = start_date {
             sql.push_str(&format!(" AND s.order_date >= ${} ", param_idx));
@@ -845,6 +850,9 @@ impl DashboardService {
     /// 计算库存周转率（批次 135 v9 P1 修复）
     /// 周转率 = 销售数量 / 库存数量（无量纲）；销售数量：SUM(sales_order_items.quantity) WHERE 订单状态非 CANCELLED/DRAFT；库存数量：SUM(inventory_stocks.quantity_meters) WHERE stock_status = 'active'；返回保留 4 位小数的字符串。
     async fn query_turnover_rate(&self) -> Result<String, AppError> {
+        // 排除门取值绑定写入方权威词表（小写）：$1=cancelled、$2=draft
+        let values: Vec<sea_orm::Value> =
+            vec![so_status::CANCELLED.into(), so_status::DRAFT.into()];
         let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             r#"
@@ -852,14 +860,14 @@ impl DashboardService {
                 (SELECT COALESCE(SUM(si.quantity), 0::NUMERIC)
                    FROM sales_order_items si
                    INNER JOIN sales_orders s ON s.id = si.order_id
-                     AND s.status NOT IN ('CANCELLED', 'DRAFT')
+                     AND s.status NOT IN ($1, $2)
                 ) as sold_quantity,
                 (SELECT COALESCE(SUM(quantity_meters), 0::NUMERIC)
                    FROM inventory_stocks
                    WHERE stock_status = 'active'
                 ) as stock_quantity
             "#,
-            [],
+            values,
         );
 
         let row = TurnoverRateRow::find_by_statement(stmt)
