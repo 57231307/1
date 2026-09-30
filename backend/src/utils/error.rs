@@ -198,9 +198,7 @@ impl AppError {
         match self {
             AppError::DatabaseError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "DatabaseError"),
             AppError::ValidationError(_) => (StatusCode::BAD_REQUEST, "ValidationError"),
-            AppError::ValidationErrorDisplayable(_) => {
-                (StatusCode::BAD_REQUEST, "ValidationError")
-            }
+            AppError::ValidationErrorDisplayable(_) => (StatusCode::BAD_REQUEST, "ValidationError"),
             AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NotFound"),
             AppError::BusinessError(_) => (StatusCode::BAD_REQUEST, "BusinessError"),
             AppError::BusinessErrorDisplayable(_) => (StatusCode::BAD_REQUEST, "BusinessError"),
@@ -667,10 +665,7 @@ mod displayable_message_tests {
         use axum::response::IntoResponse as _;
         let err = AppError::validation_displayable("批次号长度必须在1-50个字符之间");
         assert_eq!(err.error_code(), "VALIDATION_ERROR");
-        assert_eq!(
-            err.to_response().message,
-            "批次号长度必须在1-50个字符之间"
-        );
+        assert_eq!(err.to_response().message, "批次号长度必须在1-50个字符之间");
         assert_eq!(
             AppError::validation("x").into_response().status(),
             err.clone().into_response().status(),
@@ -707,7 +702,10 @@ mod displayable_message_tests {
         let msg = err.to_response().message;
         assert_ne!(msg, err_msg::VALIDATION_PUBLIC, "出参不得再是脱敏常量");
         assert!(msg.contains("批次号不能为空"), "实际外显: {msg}");
-        assert!(msg.contains("数量不能为负"), "两个字段的原因都必须带到: {msg}");
+        assert!(
+            msg.contains("数量不能为负"),
+            "两个字段的原因都必须带到: {msg}"
+        );
         assert!(
             !msg.contains("ValidationErrors") && !msg.contains("batch_no"),
             "不得把结构体序列化文本/内部字段名塞给出参: {msg}"
@@ -718,10 +716,7 @@ mod displayable_message_tests {
     #[test]
     fn validation_errors_without_message_still_surface_something() {
         let mut errors = validator::ValidationErrors::new();
-        errors.add(
-            "consent_type",
-            validator::ValidationError::new("length"),
-        );
+        errors.add("consent_type", validator::ValidationError::new("length"));
         let msg = AppError::from(errors).to_response().message;
         assert_eq!(msg, "consent_type: length", "实际: {msg}");
     }

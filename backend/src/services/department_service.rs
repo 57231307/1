@@ -61,7 +61,10 @@ impl DepartmentService {
     /// 校验负责人用户存在（P0 契约修复：前端负责人下拉提交 manager_id，
     /// 后端真实列为 departments.manager_id；此前无任何存在性校验，悬挂 ID 会直接落库/触发 FK 500）。
     /// manager_id 为 Option：None 表示未指派/清除负责人，不校验。
-    async fn validate_manager_exists(db: &sea_orm::DatabaseConnection, manager_id: Option<i32>) -> Result<(), AppError> {
+    async fn validate_manager_exists(
+        db: &sea_orm::DatabaseConnection,
+        manager_id: Option<i32>,
+    ) -> Result<(), AppError> {
         if let Some(mid) = manager_id {
             let exists = crate::models::user::Entity::find_by_id(mid)
                 .one(db)

@@ -75,12 +75,7 @@ async fn inject_auth(
     next.run(request).await
 }
 
-async fn call(
-    app: &Router,
-    method: Method,
-    uri: &str,
-    body: Option<Value>,
-) -> (StatusCode, Value) {
+async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
     let mut builder = Request::builder().method(method).uri(uri);
     let req = match body {
         Some(v) => {
@@ -138,7 +133,11 @@ async fn create_tables(db: &sea_orm::DatabaseConnection) {
 }
 
 /// 种一条 created_by=100 的生产订单,指定状态,返回落库 Model
-async fn seed_order(db: &sea_orm::DatabaseConnection, status: &str, order_no: &str) -> production_order::Model {
+async fn seed_order(
+    db: &sea_orm::DatabaseConnection,
+    status: &str,
+    order_no: &str,
+) -> production_order::Model {
     production_order::ActiveModel {
         order_no: Set(order_no.to_string()),
         product_id: Set(1),
@@ -177,7 +176,10 @@ fn build_app(db: sea_orm::DatabaseConnection, viewer: AuthContext) -> Router {
 }
 
 /// 返回 (Router, 独立连接句柄, 订单 id):同一 sqlite 内存库经克隆连接共享
-async fn seeded_app(status: &str, viewer: AuthContext) -> (Router, sea_orm::DatabaseConnection, i32) {
+async fn seeded_app(
+    status: &str,
+    viewer: AuthContext,
+) -> (Router, sea_orm::DatabaseConnection, i32) {
     let db = sea_orm::Database::connect("sqlite::memory:")
         .await
         .expect("sqlite::memory: 连接失败");
@@ -256,7 +258,11 @@ async fn progress_allowed_for_in_progress_and_persists() {
         Some(progress_body("42.50", Some("第一批下机"))),
     )
     .await;
-    assert_eq!(http_status, StatusCode::OK, "IN_PROGRESS 上报须 200,实际体: {v}");
+    assert_eq!(
+        http_status,
+        StatusCode::OK,
+        "IN_PROGRESS 上报须 200,实际体: {v}"
+    );
     assert_eq!(v["code"], 200);
     assert_eq!(v["data"]["actual_quantity"], "42.50");
 
@@ -356,7 +362,9 @@ async fn live_approve_owner_happy_path() {
 /// 先剔除 `\r`:Windows 工作树 CRLF 会使跨行 contains 断言漏检(先例 wave2 测试)
 fn extract_block(src: &str, anchor: &str) -> String {
     let src = src.replace('\r', "");
-    let i = src.find(anchor).unwrap_or_else(|| panic!("源码锚点丢失: {anchor}"));
+    let i = src
+        .find(anchor)
+        .unwrap_or_else(|| panic!("源码锚点丢失: {anchor}"));
     let j = src[i..]
         .find("\n}")
         .unwrap_or_else(|| panic!("块结束定位失败: {anchor}"));
@@ -374,9 +382,7 @@ fn source_scan_progress_status_gate() {
         "progress 归属预检(get_by_id + data_scope_ctx)不得回潮删除,实际块:\n{block}"
     );
     assert!(
-        block.contains(
-            "model.status != crate::models::status::production::PRODUCTION_IN_PROGRESS"
-        ),
+        block.contains("model.status != crate::models::status::production::PRODUCTION_IN_PROGRESS"),
         "状态门必须以词表常量 PRODUCTION_IN_PROGRESS 比较,不得手写第二套字符串,实际块:\n{block}"
     );
     assert!(

@@ -1227,8 +1227,12 @@ impl SalesReturnService {
         // 数量/单价任一变化：按行内税率/折扣率重算 subtotal/tax_amount/discount_amount/total_amount，
         // 与 add_return_item 使用同一 compute_return_item_amounts，保证口径一致。
         if amounts_dirty {
-            let amounts =
-                Self::compute_return_item_amounts(new_qty, new_price, discount_percent, tax_percent);
+            let amounts = Self::compute_return_item_amounts(
+                new_qty,
+                new_price,
+                discount_percent,
+                tax_percent,
+            );
             active_model.subtotal = Set(amounts.subtotal);
             active_model.discount_amount = Set(amounts.discount_amount);
             active_model.tax_amount = Set(amounts.tax_amount);

@@ -116,8 +116,10 @@ impl FinancePaymentService {
             updated_at: Set(Utc::now()),
         };
         let result = match input.payment_no.clone() {
-            Some(no) => build_active(no).insert(&txn)
-                .await.map_err(AppError::from)?,
+            Some(no) => build_active(no)
+                .insert(&txn)
+                .await
+                .map_err(AppError::from)?,
             None => DocumentNumberGenerator::insert_with_no_retry(
                 &txn,
                 PAYMENT_NO_PREFIX,
