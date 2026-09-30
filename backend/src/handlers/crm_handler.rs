@@ -39,8 +39,7 @@ pub async fn create_lead(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let res = service.create_lead(req, auth.user_id).await?;
-    let value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(res)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -53,8 +52,7 @@ pub async fn list_leads(
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
     let res = service.list_leads(query, Some(&data_scope_ctx)).await?;
-    let mut value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -270,8 +268,7 @@ pub async fn get_lead(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let res = service.get_lead(id, Some(&data_scope_ctx)).await?;
-    let mut value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -320,8 +317,7 @@ pub async fn update_lead(
     service.get_lead(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let res = service.update_lead(id, req, auth.user_id).await?;
-    let value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(res)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -363,8 +359,7 @@ pub async fn create_opportunity(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let res = service.create_opportunity(req, auth.user_id).await?;
-    let value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(res)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -379,8 +374,7 @@ pub async fn list_opportunities(
     let res = service
         .list_opportunities(query, Some(&data_scope_ctx))
         .await?;
-    let mut value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -469,8 +463,7 @@ pub async fn get_opportunity(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let res = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
-    let mut value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -507,8 +500,7 @@ pub async fn update_opportunity(
     service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let res = service.update_opportunity(id, req, auth.user_id).await?;
-    let value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(res)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -536,8 +528,7 @@ pub async fn convert_opportunity_to_order(
     let order = service
         .convert_opportunity_to_order(id, auth.user_id)
         .await?;
-    let value = serde_json::to_value(order)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(order)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -555,8 +546,7 @@ pub async fn close_opportunity_as_lost(
     let res = service
         .close_as_lost(id, req.lost_reason, auth.user_id)
         .await?;
-    let value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(res)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -567,8 +557,7 @@ pub async fn get_lead_relation(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let relation = service.get_lead_relation(lead_id).await?;
-    let value = serde_json::to_value(relation)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(relation)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -583,8 +572,7 @@ pub async fn convert_lead(
     let customer = service
         .convert_lead_to_customer(id, req, auth.user_id)
         .await?;
-    let value = serde_json::to_value(customer)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(customer)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -595,8 +583,7 @@ pub async fn get_customer_relation_summary(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let summary = service.get_customer_relation_summary(customer_id).await?;
-    let value = serde_json::to_value(summary)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(summary)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -1165,8 +1152,7 @@ pub async fn score_lead(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value = serde_json::to_value(result)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -1198,8 +1184,7 @@ pub async fn detect_duplicate_leads(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value = serde_json::to_value(result)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -1262,8 +1247,7 @@ pub async fn merge_leads(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value = serde_json::to_value(result)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -1293,7 +1277,6 @@ pub async fn lead_funnel_report(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value = serde_json::to_value(result)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)?;
     Ok(Json(ApiResponse::success(value)))
 }

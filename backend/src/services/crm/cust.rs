@@ -298,8 +298,7 @@ impl CrmService {
         .insert(&*self.db)
         .await?;
 
-        serde_json::to_value(follow_up)
-            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
+        Ok(serde_json::to_value(follow_up)?)
     }
 
     /// 计算 RFM 评分（R: 最近一次消费, F: 消费频率, M: 消费金额）

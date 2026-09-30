@@ -160,9 +160,7 @@ pub async fn get_ar_invoice(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let invoice = service.get_by_id(id, Some(&data_scope_ctx)).await?;
-    Ok(Json(ApiResponse::success(
-        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
-    )))
+    Ok(Json(ApiResponse::success(serde_json::to_value(invoice)?)))
 }
 
 /// 更新应收发票
@@ -179,7 +177,7 @@ pub async fn update_ar_invoice(
 
     let invoice = service.update(id, req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
+        serde_json::to_value(invoice)?,
         "应收发票更新成功",
     )))
 }
@@ -211,7 +209,7 @@ pub async fn approve_ar_invoice(
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
+        serde_json::to_value(invoice)?,
         "应收发票审批成功",
     )))
 }
@@ -226,7 +224,7 @@ pub async fn cancel_ar_invoice(
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.cancel(id, req.reason, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
+        serde_json::to_value(invoice)?,
         "应收发票取消成功",
     )))
 }
@@ -240,7 +238,7 @@ pub async fn mark_ar_invoice_as_paid(
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.mark_as_paid(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
+        serde_json::to_value(invoice)?,
         "应收发票已标记为已收款",
     )))
 }

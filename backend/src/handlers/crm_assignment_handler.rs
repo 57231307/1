@@ -176,8 +176,7 @@ async fn load_lead_map(
     let leads = crate::models::crm_lead::Entity::find()
         .filter(crate::models::crm_lead::Column::Id.is_in(lead_ids.iter().copied()))
         .all(db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(format!("批量查询待分配线索失败: {e}")))?;
+        .await?;
     Ok(leads.into_iter().map(|l| (l.id, l)).collect())
 }
 

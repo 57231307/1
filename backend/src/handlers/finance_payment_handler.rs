@@ -66,10 +66,9 @@ pub async fn get_payment(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
 
-    let payment = service
-        .find_by_id(id, Some(&data_scope_ctx))
-        .await
-        .map_err(|e| AppError::not_found(e.to_string()))?;
+    // service 返回的本就是 AppError（不存在=404、越权=403），透传保留真实 status/code；
+    // 原 `.map_err(|e| AppError::not_found(e.to_string()))` 会把 403/系统错误统一压成 404。
+    let payment = service.find_by_id(id, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(PaymentResponse {
         id: payment.id,
@@ -127,6 +126,7 @@ pub async fn list_payments(
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
 
+    // service 返回的本就是 AppError，透传保留真实 status/code
     let (payments, total) = service
         .list_payments(
             params.page.unwrap_or(1).clamp(1, 1000),
@@ -134,8 +134,7 @@ pub async fn list_payments(
             params.status,
             Some(&data_scope_ctx),
         )
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let payment_responses: Vec<PaymentResponse> = payments
         .into_iter()

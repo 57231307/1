@@ -116,10 +116,7 @@ pub async fn list_roles(
 ) -> Result<Json<ApiResponse<RoleListResponse>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    let roles = service
-        .list_roles()
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let roles = service.list_roles().await?;
 
     let role_responses: Vec<RoleResponse> = roles
         .into_iter()
@@ -152,10 +149,8 @@ pub async fn get_role(
 ) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    let role = service
-        .get_role_detail(id)
-        .await
-        .map_err(|e| AppError::not_found(e.to_string()))?;
+    // service 返回的本就是 AppError（角色不存在=404），直接透传保留真实 status/code
+    let role = service.get_role_detail(id).await?;
 
     let permissions = role.permission_list.map(|perms| {
         perms
@@ -265,10 +260,8 @@ pub async fn update_role(
     let service = RolePermissionService::new(state.db.clone());
 
     // P1 8-3 修复：更新前查询旧角色信息作为 before_snapshot
-    let old_role = service
-        .get_role_detail(id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    // service 已返回 AppError（不存在=404），透传保留真实 status/code
+    let old_role = service.get_role_detail(id).await?;
     let before_snapshot = serde_json::json!({
         "role_id": old_role.id,
         "name": old_role.name,
@@ -283,10 +276,7 @@ pub async fn update_role(
         is_system: payload.is_system,
     };
 
-    let role = service
-        .update_role(id, request, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let role = service.update_role(id, request, auth.user_id).await?;
 
     // 批次 103 P2-3 修复：角色更新后清理 admin 缓存，避免 is_admin_role 在 TTL 内返回旧判定
     clear_admin_role_cache(Some(id));
@@ -371,10 +361,8 @@ pub async fn delete_role(
     let service = RolePermissionService::new(state.db.clone());
 
     // P1 8-3 修复：删除前查询旧角色信息作为 before_snapshot
-    let old_role = service
-        .get_role_detail(id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    // service 已返回 AppError（不存在=404），透传保留真实 status/code
+    let old_role = service.get_role_detail(id).await?;
 
     // P1 2-3 修复（批次 64）：系统内置角色禁止删除
     // 原实现仅 require_admin_role，未检查 is_system 字段，
@@ -391,10 +379,7 @@ pub async fn delete_role(
         "is_system": old_role.is_system,
     });
 
-    service
-        .delete_role(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    service.delete_role(id, auth.user_id).await?;
 
     // 批次 103 P2-3 修复：角色删除后清理 admin 缓存
     // 原因：删除后 role_id 不再有效，但缓存中可能仍存在旧条目，
@@ -444,10 +429,7 @@ pub async fn assign_permission(
         allowed: payload.allowed,
     };
 
-    let perm = service
-        .assign_permission(request, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let perm = service.assign_permission(request, auth.user_id).await?;
 
     // P1 8-3 修复：assign_permission 改用 record_async 落库审计日志（原仅 tracing::warn）
     let event = AuditEvent {
@@ -499,10 +481,7 @@ pub async fn remove_permission(
     require_admin_role(&state, &auth).await?;
     let service = RolePermissionService::new(state.db.clone());
 
-    service
-        .remove_permission(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    service.remove_permission(id, auth.user_id).await?;
 
     // P1 8-3 修复：remove_permission 改用 record_async 落库审计日志（原仅 tracing::warn）
     let event = AuditEvent {
@@ -536,10 +515,7 @@ pub async fn get_role_permissions(
 ) -> Result<Json<ApiResponse<Vec<PermissionResponse>>>, AppError> {
     let service = RolePermissionService::new(state.db.clone());
 
-    let permissions = service
-        .get_role_permissions(role_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let permissions = service.get_role_permissions(role_id).await?;
 
     let perm_responses: Vec<PermissionResponse> = permissions
         .into_iter()
@@ -566,8 +542,7 @@ pub async fn list_permissions(
     let all_perms = crate::models::role_permission::Entity::find()
         .filter(crate::models::role_permission::Column::Allowed.eq(true))
         .all(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     // 按 (resource_type, action) 去重，resource_id 取首条记录值
     let mut seen = std::collections::HashSet::new();

@@ -54,8 +54,7 @@ impl PeriodReportSnapshotService {
         );
 
         // 计算快照哈希（SHA-256）
-        let data_str = serde_json::to_string(&req.report_data)
-            .map_err(|e| AppError::internal(format!("序列化报表数据失败: {}", e)))?;
+        let data_str = serde_json::to_string(&req.report_data)?;
         let hash = format!("{:x}", Sha256::digest(data_str.as_bytes()));
 
         let active = period_report_snapshot::ActiveModel {
@@ -112,8 +111,7 @@ impl PeriodReportSnapshotService {
     pub async fn verify_integrity(&self, id: i32) -> Result<bool, AppError> {
         let snapshot = self.get_by_id(id).await?;
 
-        let data_str = serde_json::to_string(&snapshot.report_data)
-            .map_err(|e| AppError::internal(format!("序列化报表数据失败: {}", e)))?;
+        let data_str = serde_json::to_string(&snapshot.report_data)?;
         let expected_hash = format!("{:x}", Sha256::digest(data_str.as_bytes()));
 
         Ok(snapshot.snapshot_hash == expected_hash)
