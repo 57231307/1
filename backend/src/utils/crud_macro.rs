@@ -62,7 +62,7 @@ macro_rules! define_crud_handlers {
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&params) {
-                return Err($crate::utils::error::AppError::validation(e.to_string()));
+                return Err($crate::utils::error::AppError::from(e));
             }
             let service = <$service_ty>::new(state.db.clone());
             let result = service.list(params).await?;
@@ -95,7 +95,7 @@ macro_rules! define_crud_handlers {
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&req) {
-                return Err($crate::utils::error::AppError::validation(e.to_string()));
+                return Err($crate::utils::error::AppError::from(e));
             }
             let service = <$service_ty>::new(state.db.clone());
             let item = service.create(req, auth.user_id).await?;
@@ -143,7 +143,7 @@ macro_rules! define_crud_handlers {
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&req) {
-                return Err($crate::utils::error::AppError::validation(e.to_string()));
+                return Err($crate::utils::error::AppError::from(e));
             }
             let service = <$service_ty>::new(state.db.clone());
             // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
@@ -237,7 +237,7 @@ macro_rules! define_tuple_crud_handlers {
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&req) {
-                return Err($crate::utils::error::AppError::validation(e.to_string()));
+                return Err($crate::utils::error::AppError::from(e));
             }
             let service = <$service_ty>::new(state.db.clone());
             let item = service.create(auth.user_id, req).await?;
@@ -260,7 +260,7 @@ macro_rules! define_tuple_crud_handlers {
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&req) {
-                return Err($crate::utils::error::AppError::validation(e.to_string()));
+                return Err($crate::utils::error::AppError::from(e));
             }
             let service = <$service_ty>::new(state.db.clone());
             let item = service.update(id, req).await?;

@@ -290,25 +290,25 @@ impl SalesService {
     /// 校验单个明细项
     fn validate_fabric_item(item: &FabricOrderItemRequest, idx: usize) -> Result<(), AppError> {
         if item.quantity_meters < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 quantity_meters 不能为负数",
                 idx + 1
             )));
         }
         if item.quantity_kg < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 quantity_kg 不能为负数",
                 idx + 1
             )));
         }
         if item.unit_price_meters < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 unit_price_meters 不能为负数",
                 idx + 1
             )));
         }
         if item.unit_price_meters.round_dp(2) != item.unit_price_meters {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 unit_price_meters 精度不能超过 2 位小数",
                 idx + 1
             )));
@@ -325,14 +325,14 @@ impl SalesService {
     /// 校验可选价格字段的非负与精度（货币精度 2 位小数）
     fn validate_price_precision(p: Decimal, field: &str, idx: usize) -> Result<(), AppError> {
         if p < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 {} 不能为负数",
                 idx + 1,
                 field
             )));
         }
         if p.round_dp(2) != p {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 {} 精度不能超过 2 位小数",
                 idx + 1,
                 field

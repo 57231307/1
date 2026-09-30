@@ -25,7 +25,9 @@ impl QuotationService {
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
         if existing.status == "converted" {
-            return Err(AppError::validation("当前状态不允许此操作".to_string()));
+            return Err(AppError::validation_displayable(
+                "当前状态不允许此操作".to_string(),
+            ));
         }
         if existing.status == quotation_status::CANCELLED {
             return Ok(existing);

@@ -654,7 +654,7 @@ impl SkuMappingService {
                 .await?
                 .ok_or_else(|| AppError::validation(format!("产品色号 ID {} 不存在", cid)))?;
             if pc.product_id != input.product_id {
-                return Err(AppError::validation("产品色号不属于指定的产品"));
+                return Err(AppError::validation_displayable("产品色号不属于指定的产品"));
             }
         }
 
@@ -687,7 +687,9 @@ impl SkuMappingService {
                 ))
             })?;
         if sp.supplier_id != input.supplier_id {
-            return Err(AppError::validation("供应商商品不属于指定的供应商"));
+            return Err(AppError::validation_displayable(
+                "供应商商品不属于指定的供应商",
+            ));
         }
 
         // 供应商色号（如果提供了）
@@ -697,7 +699,9 @@ impl SkuMappingService {
                 .await?
                 .ok_or_else(|| AppError::validation(format!("供应商色号 ID {} 不存在", spc_id)))?;
             if spc.supplier_product_id != input.supplier_product_id {
-                return Err(AppError::validation("供应商色号不属于指定的供应商商品"));
+                return Err(AppError::validation_displayable(
+                    "供应商色号不属于指定的供应商商品",
+                ));
             }
         }
 

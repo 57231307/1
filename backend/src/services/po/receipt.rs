@@ -96,7 +96,7 @@ impl PurchaseOrderService {
             // material_id 缺失时拒绝创建收货行项，避免脏 product_id=0 记录
             product_id: Set(req
                 .material_id
-                .ok_or_else(|| AppError::validation("收货单缺少物料ID"))?),
+                .ok_or_else(|| AppError::validation_displayable("收货单缺少物料ID"))?),
             quantity: Set(amounts.quantity_ordered),
             quantity_alt: Set(amounts.quantity_alt_ordered),
             unit_price: Set(amounts.unit_price),

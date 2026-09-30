@@ -105,11 +105,11 @@ impl ReportSubscriptionService {
 
         // 缺陷 2.2 修复：校验收件人邮箱格式（防止将敏感报表推送到非法邮箱）
         if req.recipients.is_empty() {
-            return Err(AppError::validation("收件人列表不能为空"));
+            return Err(AppError::validation_displayable("收件人列表不能为空"));
         }
         for email in &req.recipients {
             if !is_valid_email(email) {
-                return Err(AppError::validation(format!(
+                return Err(AppError::validation_displayable(format!(
                     "收件人邮箱格式无效: {}",
                     email
                 )));
@@ -121,7 +121,7 @@ impl ReportSubscriptionService {
             "DAILY" => Some(now + chrono::Duration::days(1)),
             "WEEKLY" => Some(now + chrono::Duration::weeks(1)),
             "MONTHLY" => Some(now + chrono::Duration::days(30)),
-            _ => return Err(AppError::validation("无效的订阅频率")),
+            _ => return Err(AppError::validation_displayable("无效的订阅频率")),
         };
 
         let recipients_json = serde_json::to_value(&req.recipients)

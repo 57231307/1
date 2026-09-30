@@ -623,7 +623,7 @@ impl SalesService {
         if let Some(status) = &request.status {
             // 状态列只允许写状态机内的取值：越界写入会让工作流判断与列表筛选双双失真
             if !so_status::ALL.contains(&status.as_str()) {
-                return Err(AppError::validation(format!(
+                return Err(AppError::validation_displayable(format!(
                     "订单状态 {} 不是合法取值，允许值：{}",
                     status,
                     so_status::ALL.join("/")

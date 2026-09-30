@@ -74,7 +74,7 @@ impl UserConsentService {
             | CONSENT_TYPE_PAGE_VIEW_TRACKING
             | CONSENT_TYPE_COOKIE_USAGE
             | CONSENT_TYPE_MARKETING_EMAIL => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的 consent_type: {}（应为 behavior_tracking/page_view_tracking/cookie_usage/marketing_email）",
                 t
             ))),
@@ -89,8 +89,7 @@ impl UserConsentService {
         ip_address: Option<String>,
         user_agent: Option<String>,
     ) -> Result<UserConsentModel, AppError> {
-        req.validate()
-            .map_err(|e| AppError::validation(e.to_string()))?;
+        req.validate().map_err(AppError::from)?;
         Self::validate_consent_type(&req.consent_type)?;
 
         let now = Utc::now();

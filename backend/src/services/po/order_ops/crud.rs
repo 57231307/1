@@ -346,9 +346,9 @@ impl PurchaseOrderService {
         index: usize,
         amounts: &ItemAmounts,
     ) -> Result<purchase_order_item::ActiveModel, AppError> {
-        let material_id = item
-            .material_id
-            .ok_or_else(|| AppError::validation(format!("订单行 {} 缺少物料ID", index + 1)))?;
+        let material_id = item.material_id.ok_or_else(|| {
+            AppError::validation_displayable(format!("订单行 {} 缺少物料ID", index + 1))
+        })?;
         Ok(purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),

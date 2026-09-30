@@ -65,7 +65,9 @@ impl QuotationService {
         if ![quotation_status::DRAFT, quotation_status::REJECTED]
             .contains(&existing.status.as_str())
         {
-            return Err(AppError::validation("当前状态不允许此操作".to_string()));
+            return Err(AppError::validation_displayable(
+                "当前状态不允许此操作".to_string(),
+            ));
         }
         Ok(existing)
     }
@@ -160,7 +162,9 @@ impl QuotationService {
         items: Vec<CreateQuotationItemDto>,
     ) -> Result<(), AppError> {
         if items.is_empty() {
-            return Err(AppError::validation("明细至少 1 条".to_string()));
+            return Err(AppError::validation_displayable(
+                "明细至少 1 条".to_string(),
+            ));
         }
         // 与创建同源的报价行单位一致性校验：更新明细同样必须跟随产品主数据交易单位
         Self::validate_item_units_against_products(txn, &items).await?;

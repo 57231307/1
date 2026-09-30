@@ -198,7 +198,7 @@ impl SupplierEvaluationService {
 
         // 校验得分范围
         if req.score < Decimal::ZERO || req.score > Decimal::from(indicator.max_score) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "得分 {} 超出有效范围 [0, {}]",
                 req.score, indicator.max_score
             )));
