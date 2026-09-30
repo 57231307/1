@@ -129,16 +129,31 @@ watch(
         Object.assign(formData, props.currentRow);
       } else {
         resetForm();
-        // 新建时预生成配方号（查重唯一后只读展示，防手动输入重复）
-        generateUniqueDocNo('DR', 'dye_recipe').then(no => {
-          formData.recipe_no = no;
-        });
+        // 新建时预生成配方号（查重唯一后只读展示，防手动输入重复）；
+        // fail-visible：取号抛错（查重接口异常或重试耗尽）必须用户可见，禁止静默留空
+        initRecipeNo();
       }
     }
   }
 );
 
+/** 生成唯一配方号；失败即显式报错（号码留空时 handleSubmit 阻止提交） */
+const initRecipeNo = async () => {
+  try {
+    formData.recipe_no = await generateUniqueDocNo('DR', 'dye_recipe');
+  } catch (error) {
+    const err = error as Error;
+    ElMessage.error(err.message || t('fabric.recipeFormDialog.docNoGenerateFailed'));
+    logger.error(t('fabric.recipeFormDialog.docNoGenerateFailed'), err.message);
+  }
+};
+
 const handleSubmit = async () => {
+  // 取号失败时配方号为空：阻止提交（后端 recipe_no NOT NULL，空号提交只会得到库级报错）
+  if (!formData.id && !formData.recipe_no) {
+    ElMessage.error(t('fabric.recipeFormDialog.docNoGenerateFailed'));
+    return;
+  }
   submitLoading.value = true;
   try {
     if (formData.id) {

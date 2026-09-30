@@ -140,16 +140,31 @@ watch(
         Object.assign(formData, props.currentRow);
       } else {
         resetForm();
-        // 新建时预生成缸号（查重唯一后只读展示，防手动输入重复）
-        generateUniqueDocNo('DB', 'dye_batch').then(no => {
-          formData.batch_no = no;
-        });
+        // 新建时预生成缸号（查重唯一后只读展示，防手动输入重复）；
+        // fail-visible：取号抛错（查重接口异常或重试耗尽）必须用户可见，禁止静默留空
+        initBatchNo();
       }
     }
   }
 );
 
+/** 生成唯一缸号；失败即显式报错（号码留空时 handleSubmit 阻止提交） */
+const initBatchNo = async () => {
+  try {
+    formData.batch_no = await generateUniqueDocNo('DB', 'dye_batch');
+  } catch (error) {
+    const err = error as Error;
+    ElMessage.error(err.message || t('fabric.dyeFormDialog.docNoGenerateFailed'));
+    logger.error(t('fabric.dyeFormDialog.docNoGenerateFailed'), err.message);
+  }
+};
+
 const handleSubmit = async () => {
+  // 取号失败时缸号为空：阻止提交（后端 batch_no NOT NULL，空号提交只会得到库级报错）
+  if (!formData.id && !formData.batch_no) {
+    ElMessage.error(t('fabric.dyeFormDialog.docNoGenerateFailed'));
+    return;
+  }
   submitLoading.value = true;
   try {
     if (formData.id) {
