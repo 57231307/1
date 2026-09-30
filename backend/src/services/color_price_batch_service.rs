@@ -30,6 +30,10 @@ pub enum BatchError {
     PriceNotFound(i64),
     #[error("参数校验失败: {0}")]
     Validation(String),
+    /// 审计日志写入失败：属服务端持久化缺陷（AppError 原文），非用户输入校验，
+    /// 不得走 Validation 通道出 400。
+    #[error("审计写入失败: {0}")]
+    AuditLog(String),
     #[error("数据库错误: {0}")]
     Database(#[from] sea_orm::DbErr),
 }
@@ -201,10 +205,9 @@ impl ColorPriceBatchService {
             .ok_or(BatchError::PriceNotFound(id))?;
 
         if existing.approval_status != approval::PENDING {
-            return Err(BatchError::Validation(format!(
-                "价格不处于待审批状态（当前: {}）",
-                existing.approval_status
-            )));
+            return Err(BatchError::Validation(
+                "价格不处于待审批状态，无法审批".to_string(),
+            ));
         }
 
         let new_status = match dto.decision.as_str() {
@@ -244,7 +247,7 @@ impl ColorPriceBatchService {
             Some(approved_by),
         )
         .await
-        .map_err(|e| BatchError::Validation(e.to_string()))?;
+        .map_err(|e| BatchError::AuditLog(e.to_string()))?;
 
         // 更新历史记录的 approved_by（在事务内）
         if let Some(h) = last_history.as_ref() {

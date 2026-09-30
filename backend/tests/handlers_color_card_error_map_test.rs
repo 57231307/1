@@ -1,11 +1,34 @@
 //! 色卡错误映射单元测试（批次 394 补测，V15 P0-F03 删除 borrow_err 测试）
 //!
 //! 覆盖目标：
-//! - crud_err 4 个变体的错误映射
+//! - crud_err 5 个变体的错误映射
 //! - item_err 5 个变体的错误映射
 use bingxi_backend::handlers::color_card::error_map::*;
 use bingxi_backend::services::color_card_crud_service::*;
 use bingxi_backend::services::color_card_item_service::*;
+
+/// 审计写入失败不得再冒充"用户输入不合法"：必须是 DATABASE_ERROR（500）且真实原因只进日志
+#[test]
+fn test_crud_err_audit_log_maps_to_database_not_validation() {
+    let err = crud_err(CrudError::AuditLog(
+        "update_with_audit failed: connection reset by peer".to_string(),
+    ));
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "审计写入失败属服务端持久化缺陷，族必须是 DATABASE_ERROR"
+    );
+    assert!(
+        err.to_string().contains("connection reset"),
+        "Display（日志侧）必须保留真实原因，实际={}",
+        err
+    );
+    assert_eq!(
+        err.to_response().message,
+        "数据库操作失败",
+        "出参不得把内部错误原文推给用户"
+    );
+}
 
 /// test_crud_err_not_foundys
 #[test]

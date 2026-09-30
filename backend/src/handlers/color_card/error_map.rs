@@ -12,6 +12,7 @@ pub fn crud_err(e: CrudError) -> AppError {
         CrudError::NotFound => AppError::not_found("色卡不存在"),
         CrudError::InvalidState => AppError::business("当前状态不允许此操作"),
         CrudError::Validation(msg) => AppError::validation(msg),
+        CrudError::AuditLog(msg) => AppError::database(msg),
         CrudError::Database(e) => AppError::database(e.to_string()),
     }
 }

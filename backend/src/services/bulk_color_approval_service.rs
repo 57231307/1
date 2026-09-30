@@ -58,6 +58,10 @@ pub enum BulkColorApprovalError {
     InvalidState(String),
     #[error("参数校验失败: {0}")]
     Validation(String),
+    /// 服务端内部不变量违例（如必填字段缺失、引用数据不一致），非用户输入校验，
+    /// 不得走 Validation 通道出 400。
+    #[error("内部不变量违例: {0}")]
+    Internal(String),
     #[error("数据库错误: {0}")]
     Database(#[from] sea_orm::DbErr),
 }
@@ -377,10 +381,9 @@ impl BulkColorApprovalService {
                     "关联生产订单不存在".to_string(),
                 ))?;
             if po.status != "COMPLETED" {
-                return Err(BulkColorApprovalError::Validation(format!(
-                    "生产订单状态必须为 COMPLETED，当前为 {}",
-                    po.status
-                )));
+                return Err(BulkColorApprovalError::Validation(
+                    "关联生产订单尚未完成，不能剪样".to_string(),
+                ));
             }
         }
 
@@ -390,10 +393,9 @@ impl BulkColorApprovalService {
             .await?
             .ok_or(BulkColorApprovalError::DyeBatchNotFound)?;
         if dye_batch.status.as_deref() != Some("completed") {
-            return Err(BulkColorApprovalError::Validation(format!(
-                "染色批次状态必须为 completed，当前为 {:?}",
-                dye_batch.status
-            )));
+            return Err(BulkColorApprovalError::Validation(
+                "关联染色批次尚未完成，不能剪样".to_string(),
+            ));
         }
 
         // 业务规则 3：剪样库存联动
@@ -410,10 +412,9 @@ impl BulkColorApprovalService {
 
         // 检查库存是否足够
         if stock.quantity_meters < sample_length {
-            return Err(BulkColorApprovalError::Validation(format!(
-                "库存不足，当前库存 {}m，需要 {}m",
-                stock.quantity_meters, sample_length
-            )));
+            return Err(BulkColorApprovalError::Validation(
+                "大货库存不足，无法剪样".to_string(),
+            ));
         }
 
         // 扣减大货库存
@@ -758,7 +759,7 @@ impl BulkColorApprovalService {
         use crate::services::production_order_service::ProductionOrderService;
 
         let product_id = model.product_id.ok_or_else(|| {
-            BulkColorApprovalError::Validation(
+            BulkColorApprovalError::Internal(
                 "返工创建生产订单失败：bulk_color_approval.product_id 为空，无法创建返工订单"
                     .to_string(),
             )

@@ -56,6 +56,7 @@ fn batch_err(e: BatchError) -> AppError {
     match e {
         BatchError::PriceNotFound(id) => AppError::not_found(format!("色号价格不存在: id={}", id)),
         BatchError::Validation(msg) => AppError::validation(msg),
+        BatchError::AuditLog(msg) => AppError::database(msg),
         BatchError::Database(e) => AppError::database(e.to_string()),
     }
 }
@@ -65,6 +66,7 @@ fn tier_err(e: TierError) -> AppError {
         TierError::NotFound => AppError::not_found("阶梯价不存在"),
         TierError::PriceNotFound => AppError::not_found("色号价格不存在"),
         TierError::Validation(msg) => AppError::validation(msg),
+        TierError::AuditLog(msg) => AppError::database(msg),
         TierError::Database(e) => AppError::database(e.to_string()),
     }
 }

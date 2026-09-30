@@ -242,6 +242,7 @@ pub fn bca_err(e: BulkColorApprovalError) -> AppError {
         BulkColorApprovalError::CustomerNotFound => AppError::not_found("客户不存在"),
         BulkColorApprovalError::InvalidState(msg) => AppError::business(msg),
         BulkColorApprovalError::Validation(msg) => AppError::validation(msg),
+        BulkColorApprovalError::Internal(msg) => AppError::internal(msg),
         BulkColorApprovalError::Database(e) => AppError::database(e.to_string()),
     }
 }
