@@ -2,144 +2,247 @@
   <div class="supplier-enhanced-page">
     <el-card shadow="never">
       <div class="page-header">
-        <h2>供应商 360</h2>
+        <h2>{{ t('supplier.enhanced.title') }}</h2>
         <div class="header-actions">
           <el-input-number
             v-model="supplierId"
             :min="1"
             :precision="0"
-            placeholder="供应商 ID"
+            :placeholder="t('supplier.enhanced.idPlaceholder')"
             style="width: 180px"
           />
-          <el-button type="primary" :loading="pageLoading" @click="loadAll">查询</el-button>
+          <el-button type="primary" :loading="pageLoading" @click="loadAll">
+            {{ t('supplier.enhanced.query') }}
+          </el-button>
         </div>
       </div>
 
       <el-descriptions v-if="supplier" :column="4" border class="block-gap">
-        <el-descriptions-item label="供应商编码">{{ supplier.supplier_code }}</el-descriptions-item>
-        <el-descriptions-item label="供应商名称">{{ supplier.supplier_name }}</el-descriptions-item>
-        <el-descriptions-item label="等级">{{ supplier.grade || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('supplier.enhanced.descriptions.code')">
+          {{ supplier.supplier_code }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('supplier.enhanced.descriptions.name')">
+          {{ supplier.supplier_name }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('supplier.enhanced.descriptions.grade')">
+          {{ supplier.grade || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('supplier.enhanced.descriptions.status')">
           <el-tag>{{ supplier.status }}</el-tag>
         </el-descriptions-item>
       </el-descriptions>
 
-      <el-empty v-if="!loaded" description="请输入供应商 ID 后点击查询" />
+      <el-empty v-if="!loaded" :description="t('supplier.enhanced.emptyHint')" />
 
       <el-tabs v-else v-model="activeTab">
         <!-- 页签一：联系人 -->
-        <el-tab-pane label="联系人" name="contacts">
+        <el-tab-pane :label="t('supplier.enhanced.tabs.contacts')" name="contacts">
           <div class="toolbar">
-            <el-button type="primary" @click="openContactDialog">新增联系人</el-button>
+            <el-button type="primary" @click="openContactDialog">
+              {{ t('supplier.enhanced.contact.add') }}
+            </el-button>
           </div>
           <el-table v-loading="contactsLoading" :data="contacts" border>
-            <el-table-column prop="contact_name" label="姓名" min-width="100" />
-            <el-table-column label="部门" width="110">
+            <el-table-column
+              prop="contact_name"
+              :label="t('supplier.enhanced.contact.name')"
+              min-width="100"
+            />
+            <el-table-column :label="t('supplier.enhanced.contact.department')" width="110">
               <template #default="{ row }">{{ row.department || '-' }}</template>
             </el-table-column>
-            <el-table-column label="职位" width="110">
+            <el-table-column :label="t('supplier.enhanced.contact.position')" width="110">
               <template #default="{ row }">{{ row.position || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="mobile_phone" label="手机" width="130" />
-            <el-table-column label="电话" width="130">
+            <el-table-column
+              prop="mobile_phone"
+              :label="t('supplier.enhanced.contact.mobile')"
+              width="130"
+            />
+            <el-table-column :label="t('supplier.enhanced.contact.tel')" width="130">
               <template #default="{ row }">{{ row.tel_phone || '-' }}</template>
             </el-table-column>
-            <el-table-column label="邮箱" min-width="150">
+            <el-table-column :label="t('supplier.enhanced.contact.email')" min-width="150">
               <template #default="{ row }">{{ row.email || '-' }}</template>
             </el-table-column>
-            <el-table-column label="微信" width="120">
+            <el-table-column :label="t('supplier.enhanced.contact.wechat')" width="120">
               <template #default="{ row }">{{ row.wechat || '-' }}</template>
             </el-table-column>
-            <el-table-column label="主要联系人" width="110" align="center">
+            <el-table-column
+              :label="t('supplier.enhanced.contact.primary')"
+              width="110"
+              align="center"
+            >
               <template #default="{ row }">
-                <el-tag v-if="row.is_primary" type="success" size="small">是</el-tag>
-                <span v-else>否</span>
+                <el-tag v-if="row.is_primary" type="success" size="small">{{
+                  t('common.yes')
+                }}</el-tag>
+                <span v-else>{{ t('common.no') }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="备注" min-width="140" show-overflow-tooltip>
+            <el-table-column
+              :label="t('supplier.enhanced.contact.remarks')"
+              min-width="140"
+              show-overflow-tooltip
+            >
               <template #default="{ row }">{{ row.remarks || '-' }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="120" fixed="right">
+            <el-table-column :label="t('common.action')" width="120" fixed="right">
               <template #default="{ row }">
-                <el-button link type="primary" size="small" @click="openEditContact(row)"
-                  >编辑</el-button
-                >
-                <el-button link type="danger" size="small" @click="handleDeleteContact(row)"
-                  >删除</el-button
-                >
+                <el-button link type="primary" size="small" @click="openEditContact(row)">
+                  {{ t('common.edit') }}
+                </el-button>
+                <el-button link type="danger" size="small" @click="handleDeleteContact(row)">
+                  {{ t('common.delete') }}
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
         </el-tab-pane>
 
         <!-- 页签二：资质 -->
-        <el-tab-pane label="资质" name="qualifications">
+        <el-tab-pane :label="t('supplier.enhanced.tabs.qualifications')" name="qualifications">
           <div class="toolbar">
-            <el-button type="primary" @click="openQualificationDialog">新增资质</el-button>
+            <el-button type="primary" @click="openQualificationDialog">
+              {{ t('supplier.enhanced.qualification.add') }}
+            </el-button>
           </div>
           <el-table v-loading="qualificationsLoading" :data="qualifications" border>
-            <el-table-column prop="qualification_name" label="资质名称" min-width="140" />
-            <el-table-column prop="qualification_type" label="类型" width="120" />
-            <el-table-column prop="qualification_no" label="证照编号" min-width="140" />
-            <el-table-column prop="issuing_authority" label="发证机关" min-width="140" />
-            <el-table-column prop="issue_date" label="发证日期" width="110" />
-            <el-table-column prop="valid_until" label="有效期至" width="110" />
-            <el-table-column label="年检" width="90" align="center">
-              <template #default="{ row }">{{
-                row.need_annual_check ? '需要' : '不需要'
-              }}</template>
-            </el-table-column>
-            <el-table-column label="是否过期" width="100" align="center">
+            <el-table-column
+              prop="qualification_name"
+              :label="t('supplier.enhanced.qualification.name')"
+              min-width="140"
+            />
+            <el-table-column
+              prop="qualification_type"
+              :label="t('supplier.enhanced.qualification.type')"
+              width="120"
+            />
+            <el-table-column
+              prop="qualification_no"
+              :label="t('supplier.enhanced.qualification.no')"
+              min-width="140"
+            />
+            <el-table-column
+              prop="issuing_authority"
+              :label="t('supplier.enhanced.qualification.authority')"
+              min-width="140"
+            />
+            <el-table-column
+              prop="issue_date"
+              :label="t('supplier.enhanced.qualification.issueDate')"
+              width="110"
+            />
+            <el-table-column
+              prop="valid_until"
+              :label="t('supplier.enhanced.qualification.validUntil')"
+              width="110"
+            />
+            <el-table-column
+              :label="t('supplier.enhanced.qualification.annualCheck')"
+              width="90"
+              align="center"
+            >
               <template #default="{ row }">
-                <el-tag v-if="row.is_expired" type="danger" size="small">已过期</el-tag>
-                <el-tag v-else type="success" size="small">有效</el-tag>
+                {{
+                  row.need_annual_check
+                    ? t('supplier.enhanced.qualification.annualNeed')
+                    : t('supplier.enhanced.qualification.annualNoNeed')
+                }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" fixed="right">
+            <!-- is_expired 真相源：后端写入时按 valid_until 落库、列表输出按 valid_until 重算，前端直接消费 -->
+            <el-table-column
+              :label="t('supplier.enhanced.qualification.expiredCol')"
+              width="100"
+              align="center"
+            >
               <template #default="{ row }">
-                <el-button link type="primary" size="small" @click="openEditQualification(row)"
-                  >编辑</el-button
-                >
-                <el-button link type="danger" size="small" @click="handleDeleteQualification(row)"
-                  >删除</el-button
-                >
+                <el-tag v-if="row.is_expired" type="danger" size="small">
+                  {{ t('supplier.enhanced.qualification.expired') }}
+                </el-tag>
+                <el-tag v-else type="success" size="small">
+                  {{ t('supplier.enhanced.qualification.valid') }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('common.action')" width="120" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="primary" size="small" @click="openEditQualification(row)">
+                  {{ t('common.edit') }}
+                </el-button>
+                <el-button link type="danger" size="small" @click="handleDeleteQualification(row)">
+                  {{ t('common.delete') }}
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
         </el-tab-pane>
 
         <!-- 页签三：采购历史与余额 -->
-        <el-tab-pane label="采购历史与余额" name="history">
-          <h3 class="section-title">账户余额</h3>
-          <el-empty v-if="!balance" description="暂无余额数据" :image-size="60" />
+        <el-tab-pane :label="t('supplier.enhanced.tabs.history')" name="history">
+          <h3 class="section-title">{{ t('supplier.enhanced.history.balanceTitle') }}</h3>
+          <el-empty
+            v-if="!balance"
+            :description="t('supplier.enhanced.history.balanceEmpty')"
+            :image-size="60"
+          />
           <el-descriptions v-else :column="4" border>
-            <el-descriptions-item label="订单总额">
+            <el-descriptions-item :label="t('supplier.enhanced.history.totalAmount')">
               {{ fmtAmount(balance.total_amount) }}
             </el-descriptions-item>
-            <el-descriptions-item label="已付款">
+            <el-descriptions-item :label="t('supplier.enhanced.history.paidAmount')">
               {{ fmtAmount(balance.paid_amount) }}
             </el-descriptions-item>
-            <el-descriptions-item label="余额">{{
-              fmtAmount(balance.balance)
-            }}</el-descriptions-item>
-            <el-descriptions-item label="订单数">{{ balance.order_count }}</el-descriptions-item>
+            <el-descriptions-item :label="t('supplier.enhanced.history.balance')">
+              {{ fmtAmount(balance.balance) }}
+            </el-descriptions-item>
+            <el-descriptions-item :label="t('supplier.enhanced.history.orderCount')">
+              {{ balance.order_count }}
+            </el-descriptions-item>
           </el-descriptions>
 
-          <h3 class="section-title">采购历史</h3>
+          <h3 class="section-title">{{ t('supplier.enhanced.history.purchaseTitle') }}</h3>
           <el-table v-loading="historyLoading" :data="historyRows" border>
-            <el-table-column prop="order_no" label="订单编号" min-width="160" />
-            <el-table-column prop="order_date" label="订单日期" width="120" />
-            <el-table-column label="总金额" width="140" align="right">
+            <el-table-column
+              prop="order_no"
+              :label="t('supplier.enhanced.history.orderNo')"
+              min-width="160"
+            />
+            <el-table-column
+              prop="order_date"
+              :label="t('supplier.enhanced.history.orderDate')"
+              width="120"
+            />
+            <el-table-column
+              :label="t('supplier.enhanced.history.amount')"
+              width="140"
+              align="right"
+            >
               <template #default="{ row }">{{ fmtAmount(row.total_amount) }}</template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="110" />
-            <el-table-column prop="item_count" label="商品项数" width="100" align="right" />
+            <el-table-column prop="status" :label="t('common.status')" width="110" />
+            <el-table-column
+              prop="item_count"
+              :label="t('supplier.enhanced.history.itemCount')"
+              width="100"
+              align="right"
+            />
           </el-table>
 
-          <h3 class="section-title">供应商评估</h3>
+          <h3 class="section-title">{{ t('supplier.enhanced.history.evalTitle') }}</h3>
           <div class="toolbar" style="margin-bottom: 8px">
-            <el-input-number v-model="evalForm.score" :min="0" :max="100" placeholder="评分" />
-            <el-select v-model="evalForm.rating" style="width: 120px" placeholder="评级">
+            <el-input-number
+              v-model="evalForm.score"
+              :min="0"
+              :max="100"
+              :placeholder="t('supplier.enhanced.history.scorePlaceholder')"
+            />
+            <el-select
+              v-model="evalForm.rating"
+              style="width: 120px"
+              :placeholder="t('supplier.enhanced.history.ratingPlaceholder')"
+            >
               <el-option label="A" value="A" />
               <el-option label="B" value="B" />
               <el-option label="C" value="C" />
@@ -147,24 +250,41 @@
             </el-select>
             <el-input
               v-model="evalForm.remark"
-              placeholder="评估备注（可选）"
+              :placeholder="t('supplier.enhanced.history.remarkPlaceholder')"
               style="width: 220px"
             />
             <el-button type="primary" :loading="evalSubmitting" @click="handleEvaluate">
-              提交评估
+              {{ t('supplier.enhanced.history.submitEval') }}
             </el-button>
             <el-button :loading="evalHistoryLoading" @click="loadEvaluationHistory">
-              查询评估历史
+              {{ t('supplier.enhanced.history.evalHistoryBtn') }}
             </el-button>
           </div>
           <el-table v-if="evaluationHistory.length" :data="evaluationHistory" border size="small">
             <el-table-column prop="id" label="ID" width="70" />
-            <el-table-column prop="score" label="评分" width="90" />
-            <el-table-column prop="rating" label="评级" width="90" />
-            <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip>
+            <el-table-column
+              prop="score"
+              :label="t('supplier.enhanced.history.score')"
+              width="90"
+            />
+            <el-table-column
+              prop="rating"
+              :label="t('supplier.enhanced.history.rating')"
+              width="90"
+            />
+            <el-table-column
+              prop="remark"
+              :label="t('supplier.enhanced.contact.remarks')"
+              min-width="160"
+              show-overflow-tooltip
+            >
               <template #default="{ row }">{{ row.remark || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="evaluated_at" label="评估时间" min-width="160">
+            <el-table-column
+              prop="evaluated_at"
+              :label="t('supplier.enhanced.history.evaluatedAt')"
+              min-width="160"
+            >
               <template #default="{ row }">{{
                 row.evaluated_at || row.created_at || '-'
               }}</template>
@@ -177,46 +297,67 @@
     <!-- 新增联系人弹窗 -->
     <el-dialog
       v-model="contactDialogVisible"
-      title="新增联系人"
+      :title="t('supplier.enhanced.contact.add')"
       width="520px"
       @close="resetContactForm"
     >
       <el-form ref="contactFormRef" :model="contactForm" :rules="contactRules" label-width="100px">
-        <el-form-item label="姓名" prop="contact_name">
-          <el-input v-model="contactForm.contact_name" placeholder="必填" />
+        <el-form-item :label="t('supplier.enhanced.contact.name')" prop="contact_name">
+          <el-input
+            v-model="contactForm.contact_name"
+            :placeholder="t('supplier.enhanced.form.required')"
+          />
         </el-form-item>
-        <el-form-item label="部门" prop="department">
-          <el-input v-model="contactForm.department" placeholder="选填" />
+        <el-form-item :label="t('supplier.enhanced.contact.department')" prop="department">
+          <el-input
+            v-model="contactForm.department"
+            :placeholder="t('supplier.enhanced.form.optional')"
+          />
         </el-form-item>
-        <el-form-item label="职位" prop="position">
-          <el-input v-model="contactForm.position" placeholder="选填" />
+        <el-form-item :label="t('supplier.enhanced.contact.position')" prop="position">
+          <el-input
+            v-model="contactForm.position"
+            :placeholder="t('supplier.enhanced.form.optional')"
+          />
         </el-form-item>
-        <el-form-item label="手机" prop="mobile_phone">
-          <el-input v-model="contactForm.mobile_phone" placeholder="必填" />
+        <el-form-item :label="t('supplier.enhanced.contact.mobile')" prop="mobile_phone">
+          <el-input
+            v-model="contactForm.mobile_phone"
+            :placeholder="t('supplier.enhanced.form.required')"
+          />
         </el-form-item>
-        <el-form-item label="电话" prop="tel_phone">
-          <el-input v-model="contactForm.tel_phone" placeholder="选填" />
+        <el-form-item :label="t('supplier.enhanced.contact.tel')" prop="tel_phone">
+          <el-input
+            v-model="contactForm.tel_phone"
+            :placeholder="t('supplier.enhanced.form.optional')"
+          />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="contactForm.email" placeholder="选填" />
+        <el-form-item :label="t('supplier.enhanced.contact.email')" prop="email">
+          <el-input
+            v-model="contactForm.email"
+            :placeholder="t('supplier.enhanced.form.optional')"
+          />
         </el-form-item>
-        <el-form-item label="微信" prop="wechat">
-          <el-input v-model="contactForm.wechat" placeholder="选填" />
+        <el-form-item :label="t('supplier.enhanced.contact.wechat')" prop="wechat">
+          <el-input
+            v-model="contactForm.wechat"
+            :placeholder="t('supplier.enhanced.form.optional')"
+          />
         </el-form-item>
         <el-form-item label="QQ" prop="qq">
-          <el-input v-model="contactForm.qq" placeholder="选填" />
+          <el-input v-model="contactForm.qq" :placeholder="t('supplier.enhanced.form.optional')" />
         </el-form-item>
-        <el-form-item label="主要联系人" prop="is_primary">
+        <el-form-item :label="t('supplier.enhanced.contact.primary')" prop="is_primary">
           <el-switch v-model="contactForm.is_primary" />
         </el-form-item>
-        <el-form-item label="备注" prop="remarks">
+        <el-form-item :label="t('supplier.enhanced.contact.remarks')" prop="remarks">
           <el-input v-model="contactForm.remarks" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="contactDialogVisible = false">取消</el-button>
+        <el-button @click="contactDialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="contactSubmitting" @click="submitContact">
-          确定
+          {{ t('supplier.enhanced.form.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -224,7 +365,7 @@
     <!-- 新增资质弹窗 -->
     <el-dialog
       v-model="qualificationDialogVisible"
-      title="新增资质"
+      :title="t('supplier.enhanced.qualification.add')"
       width="520px"
       @close="resetQualificationForm"
     >
@@ -234,50 +375,80 @@
         :rules="qualificationRules"
         label-width="110px"
       >
-        <el-form-item label="资质名称" prop="qualification_name">
-          <el-input v-model="qualificationForm.qualification_name" placeholder="必填" />
+        <el-form-item :label="t('supplier.enhanced.qualification.name')" prop="qualification_name">
+          <el-input
+            v-model="qualificationForm.qualification_name"
+            :placeholder="t('supplier.enhanced.form.required')"
+          />
         </el-form-item>
-        <el-form-item label="资质类型" prop="qualification_type">
-          <el-input v-model="qualificationForm.qualification_type" placeholder="必填" />
+        <el-form-item
+          :label="t('supplier.enhanced.qualification.typeLabel')"
+          prop="qualification_type"
+        >
+          <el-input
+            v-model="qualificationForm.qualification_type"
+            :placeholder="t('supplier.enhanced.form.required')"
+          />
         </el-form-item>
-        <el-form-item label="证照编号" prop="qualification_no">
-          <el-input v-model="qualificationForm.qualification_no" placeholder="必填" />
+        <el-form-item :label="t('supplier.enhanced.qualification.no')" prop="qualification_no">
+          <el-input
+            v-model="qualificationForm.qualification_no"
+            :placeholder="t('supplier.enhanced.form.required')"
+          />
         </el-form-item>
-        <el-form-item label="发证机关" prop="issuing_authority">
-          <el-input v-model="qualificationForm.issuing_authority" placeholder="必填" />
+        <el-form-item
+          :label="t('supplier.enhanced.qualification.authority')"
+          prop="issuing_authority"
+        >
+          <el-input
+            v-model="qualificationForm.issuing_authority"
+            :placeholder="t('supplier.enhanced.form.required')"
+          />
         </el-form-item>
-        <el-form-item label="发证日期" prop="issue_date">
+        <el-form-item :label="t('supplier.enhanced.qualification.issueDate')" prop="issue_date">
           <el-date-picker
             v-model="qualificationForm.issue_date"
             type="date"
             value-format="YYYY-MM-DD"
-            placeholder="必填"
+            :placeholder="t('supplier.enhanced.form.required')"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="有效期至" prop="valid_until">
+        <el-form-item :label="t('supplier.enhanced.qualification.validUntil')" prop="valid_until">
           <el-date-picker
             v-model="qualificationForm.valid_until"
             type="date"
             value-format="YYYY-MM-DD"
-            placeholder="必填"
+            :placeholder="t('supplier.enhanced.form.required')"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="附件路径" prop="attachment_path">
-          <el-input v-model="qualificationForm.attachment_path" placeholder="选填" />
+        <el-form-item
+          :label="t('supplier.enhanced.qualification.attachmentPath')"
+          prop="attachment_path"
+        >
+          <el-input
+            v-model="qualificationForm.attachment_path"
+            :placeholder="t('supplier.enhanced.form.optional')"
+          />
         </el-form-item>
-        <el-form-item label="需要年检" prop="need_annual_check">
+        <el-form-item
+          :label="t('supplier.enhanced.qualification.needAnnualCheck')"
+          prop="need_annual_check"
+        >
           <el-switch v-model="qualificationForm.need_annual_check" />
         </el-form-item>
-        <el-form-item label="年检记录" prop="annual_check_record">
+        <el-form-item
+          :label="t('supplier.enhanced.qualification.annualCheckRecord')"
+          prop="annual_check_record"
+        >
           <el-input v-model="qualificationForm.annual_check_record" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="qualificationDialogVisible = false">取消</el-button>
+        <el-button @click="qualificationDialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="qualificationSubmitting" @click="submitQualification">
-          确定
+          {{ t('supplier.enhanced.form.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -285,7 +456,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { computed, ref, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
@@ -310,6 +482,8 @@ import {
   type SupplierQualification,
   type SupplierQualificationInput,
 } from '@/api/supplier';
+
+const { t } = useI18n({ useScope: 'global' });
 
 /** 响应解包防御：兼容数组 / { items } / { history } 包装，避免 el-table "r is not iterable" */
 const unwrapList = <T,>(payload: unknown): T[] => {
@@ -345,7 +519,7 @@ const loadSupplierInfo = async () => {
     supplier.value = res.data ?? null;
   } catch {
     supplier.value = null;
-    ElMessage.error('加载供应商信息失败');
+    ElMessage.error(t('supplier.enhanced.message.loadSupplierFailed'));
   }
 };
 
@@ -357,7 +531,7 @@ const loadContacts = async () => {
     const res = await getSupplierContactList(id);
     contacts.value = unwrapList<SupplierContact>(res.data);
   } catch {
-    ElMessage.error('加载联系人失败');
+    ElMessage.error(t('supplier.enhanced.message.loadContactsFailed'));
   } finally {
     contactsLoading.value = false;
   }
@@ -371,7 +545,7 @@ const loadQualifications = async () => {
     const res = await getSupplierQualificationList(id);
     qualifications.value = unwrapList<SupplierQualification>(res.data);
   } catch {
-    ElMessage.error('加载资质失败');
+    ElMessage.error(t('supplier.enhanced.message.loadQualificationsFailed'));
   } finally {
     qualificationsLoading.value = false;
   }
@@ -385,7 +559,7 @@ const loadBalance = async () => {
     balance.value = res.data ?? null;
   } catch {
     balance.value = null;
-    ElMessage.error('加载供应商余额失败');
+    ElMessage.error(t('supplier.enhanced.message.loadBalanceFailed'));
   }
 };
 
@@ -397,7 +571,7 @@ const loadHistory = async () => {
     const res = await getSupplierPurchaseHistory(id, { limit: 50 });
     historyRows.value = unwrapList<PurchaseHistoryItem>(res.data);
   } catch {
-    ElMessage.error('加载采购历史失败');
+    ElMessage.error(t('supplier.enhanced.message.loadHistoryFailed'));
   } finally {
     historyLoading.value = false;
   }
@@ -405,7 +579,7 @@ const loadHistory = async () => {
 
 const loadAll = async () => {
   if (!supplierId.value) {
-    ElMessage.warning('请输入供应商 ID');
+    ElMessage.warning(t('supplier.enhanced.message.inputSupplierId'));
     return;
   }
   loaded.value = true;
@@ -441,20 +615,72 @@ const contactForm = reactive<SupplierContactInput>({
   remarks: '',
 });
 
-const contactRules: FormRules = {
-  contact_name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  mobile_phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
-};
+const contactRules = computed<FormRules>(() => ({
+  contact_name: [
+    { required: true, message: t('supplier.enhanced.contact.validationName'), trigger: 'blur' },
+  ],
+  mobile_phone: [
+    { required: true, message: t('supplier.enhanced.contact.validationMobile'), trigger: 'blur' },
+  ],
+}));
 
 // 资质弹窗校验规则（模板 :rules="qualificationRules" 引用，缺失会导致弹窗声明崩溃）
-const qualificationRules: FormRules = {
-  qualification_name: [{ required: true, message: '请输入资质名称', trigger: 'blur' }],
-  qualification_type: [{ required: true, message: '请输入资质类型', trigger: 'blur' }],
-  qualification_no: [{ required: true, message: '请输入证照编号', trigger: 'blur' }],
-  issuing_authority: [{ required: true, message: '请输入发证机关', trigger: 'blur' }],
-  issue_date: [{ required: true, message: '请选择发证日期', trigger: 'change' }],
-  valid_until: [{ required: true, message: '请选择有效期至', trigger: 'change' }],
-};
+const qualificationRules = computed<FormRules>(() => ({
+  qualification_name: [
+    {
+      required: true,
+      message: t('supplier.enhanced.qualification.validation.name'),
+      trigger: 'blur',
+    },
+  ],
+  qualification_type: [
+    {
+      required: true,
+      message: t('supplier.enhanced.qualification.validation.type'),
+      trigger: 'blur',
+    },
+  ],
+  qualification_no: [
+    {
+      required: true,
+      message: t('supplier.enhanced.qualification.validation.no'),
+      trigger: 'blur',
+    },
+  ],
+  issuing_authority: [
+    {
+      required: true,
+      message: t('supplier.enhanced.qualification.validation.authority'),
+      trigger: 'blur',
+    },
+  ],
+  issue_date: [
+    {
+      required: true,
+      message: t('supplier.enhanced.qualification.validation.issueDate'),
+      trigger: 'change',
+    },
+  ],
+  valid_until: [
+    {
+      required: true,
+      message: t('supplier.enhanced.qualification.validation.validUntil'),
+      trigger: 'change',
+    },
+    // 与后端 supplier_service::check_qualification_dates 同源的前置拦截：
+    // value-format=YYYY-MM-DD，字典序即日期序，有效期至不得早于发证日期。
+    {
+      validator: (_rule, value, callback) => {
+        if (value && qualificationForm.issue_date && value < qualificationForm.issue_date) {
+          callback(new Error(t('supplier.enhanced.qualification.validation.dateOrder')));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'change',
+    },
+  ],
+}));
 
 const resetContactForm = () => {
   contactForm.contact_name = '';
@@ -497,25 +723,29 @@ const handleDeleteContact = async (row: SupplierContact) => {
   const id = supplierId.value;
   if (!id) return;
   try {
-    await ElMessageBox.confirm(`确认删除联系人「${row.contact_name}」？`, '确认', {
-      type: 'warning',
-    });
+    await ElMessageBox.confirm(
+      t('supplier.enhanced.contact.deleteConfirm', { name: row.contact_name }),
+      t('common.confirm'),
+      {
+        type: 'warning',
+      }
+    );
   } catch {
     return;
   }
   try {
     await deleteSupplierContact(id, row.id);
-    ElMessage.success('联系人删除成功');
+    ElMessage.success(t('supplier.enhanced.message.contactDeleteSuccess'));
     await loadContacts();
   } catch {
-    ElMessage.error('联系人删除失败');
+    ElMessage.error(t('supplier.enhanced.message.contactDeleteFailed'));
   }
 };
 
 const submitContact = async () => {
   const id = supplierId.value;
   if (!id) {
-    ElMessage.warning('请先输入供应商 ID 并查询');
+    ElMessage.warning(t('supplier.enhanced.message.queryFirst'));
     return;
   }
   if (!contactFormRef.value) return;
@@ -523,29 +753,30 @@ const submitContact = async () => {
     if (!valid) return;
     contactSubmitting.value = true;
     try {
-      const payload = {
+      // 空则省略该键（条件展开）：后端 Option 字段收到 Some("") 会被 validator 判 422
+      const payload: SupplierContactInput = {
         contact_name: contactForm.contact_name,
-        department: contactForm.department || undefined,
-        position: contactForm.position || undefined,
+        ...(contactForm.department ? { department: contactForm.department } : {}),
+        ...(contactForm.position ? { position: contactForm.position } : {}),
         mobile_phone: contactForm.mobile_phone,
-        tel_phone: contactForm.tel_phone || undefined,
-        email: contactForm.email || undefined,
-        wechat: contactForm.wechat || undefined,
-        qq: contactForm.qq || undefined,
+        ...(contactForm.tel_phone ? { tel_phone: contactForm.tel_phone } : {}),
+        ...(contactForm.email ? { email: contactForm.email } : {}),
+        ...(contactForm.wechat ? { wechat: contactForm.wechat } : {}),
+        ...(contactForm.qq ? { qq: contactForm.qq } : {}),
         is_primary: contactForm.is_primary,
-        remarks: contactForm.remarks || undefined,
+        ...(contactForm.remarks ? { remarks: contactForm.remarks } : {}),
       };
       if (editingContactId.value) {
         await updateSupplierContact(id, editingContactId.value, payload);
-        ElMessage.success('联系人更新成功');
+        ElMessage.success(t('supplier.enhanced.message.contactUpdateSuccess'));
       } else {
         await createSupplierContact(id, payload);
-        ElMessage.success('联系人创建成功');
+        ElMessage.success(t('supplier.enhanced.message.contactCreateSuccess'));
       }
       contactDialogVisible.value = false;
       await loadContacts();
     } catch {
-      ElMessage.error('联系人保存失败');
+      ElMessage.error(t('supplier.enhanced.message.contactSaveFailed'));
     } finally {
       contactSubmitting.value = false;
     }
@@ -579,18 +810,20 @@ const handleDeleteQualification = async (row: SupplierQualification) => {
   const id = supplierId.value;
   if (!id) return;
   try {
-    await ElMessageBox.confirm(`确认删除资质「${row.qualification_name}」？`, '确认', {
-      type: 'warning',
-    });
+    await ElMessageBox.confirm(
+      t('supplier.enhanced.qualification.deleteConfirm', { name: row.qualification_name }),
+      t('common.confirm'),
+      { type: 'warning' }
+    );
   } catch {
     return;
   }
   try {
     await deleteSupplierQualification(id, row.id);
-    ElMessage.success('资质删除成功');
+    ElMessage.success(t('supplier.enhanced.message.qualDeleteSuccess'));
     await loadQualifications();
   } catch {
-    ElMessage.error('资质删除失败');
+    ElMessage.error(t('supplier.enhanced.message.qualDeleteFailed'));
   }
 };
 
@@ -627,7 +860,7 @@ const qualificationForm = reactive<SupplierQualificationInput>({
 const submitQualification = async () => {
   const id = supplierId.value;
   if (!id) {
-    ElMessage.warning('请先输入供应商 ID 并查询');
+    ElMessage.warning(t('supplier.enhanced.message.queryFirst'));
     return;
   }
   if (!qualificationFormRef.value) return;
@@ -635,28 +868,34 @@ const submitQualification = async () => {
     if (!valid) return;
     qualificationSubmitting.value = true;
     try {
-      const payload = {
+      // 空则省略该键（条件展开）：attachment_path/annual_check_record 为后端 Option 字段，
+      // 提交 Some("") 会触发校验失败 422，未填写时不携带。
+      const payload: SupplierQualificationInput = {
         qualification_name: qualificationForm.qualification_name,
         qualification_type: qualificationForm.qualification_type,
         qualification_no: qualificationForm.qualification_no,
         issuing_authority: qualificationForm.issuing_authority,
         issue_date: qualificationForm.issue_date,
         valid_until: qualificationForm.valid_until,
-        attachment_path: qualificationForm.attachment_path || undefined,
+        ...(qualificationForm.attachment_path
+          ? { attachment_path: qualificationForm.attachment_path }
+          : {}),
         need_annual_check: qualificationForm.need_annual_check,
-        annual_check_record: qualificationForm.annual_check_record || undefined,
+        ...(qualificationForm.annual_check_record
+          ? { annual_check_record: qualificationForm.annual_check_record }
+          : {}),
       };
       if (editingQualificationId.value) {
         await updateSupplierQualification(id, editingQualificationId.value, payload);
-        ElMessage.success('资质更新成功');
+        ElMessage.success(t('supplier.enhanced.message.qualUpdateSuccess'));
       } else {
         await createSupplierQualification(id, payload);
-        ElMessage.success('资质创建成功');
+        ElMessage.success(t('supplier.enhanced.message.qualCreateSuccess'));
       }
       qualificationDialogVisible.value = false;
       await loadQualifications();
     } catch {
-      ElMessage.error('资质保存失败');
+      ElMessage.error(t('supplier.enhanced.message.qualSaveFailed'));
     } finally {
       qualificationSubmitting.value = false;
     }
@@ -672,7 +911,7 @@ const evaluationHistory = ref<Array<Record<string, unknown>>>([]);
 const handleEvaluate = async () => {
   const id = supplierId.value;
   if (!id) {
-    ElMessage.warning('请先输入供应商 ID 并查询');
+    ElMessage.warning(t('supplier.enhanced.message.queryFirst'));
     return;
   }
   evalSubmitting.value = true;
@@ -680,12 +919,13 @@ const handleEvaluate = async () => {
     await evaluateSupplier(id, {
       score: evalForm.score,
       rating: evalForm.rating,
-      remark: evalForm.remark || undefined,
+      // 空则省略该键（条件展开范式）
+      ...(evalForm.remark ? { remark: evalForm.remark } : {}),
     });
-    ElMessage.success('评估已提交');
+    ElMessage.success(t('supplier.enhanced.message.evalSubmitted'));
     await loadEvaluationHistory();
   } catch {
-    ElMessage.error('评估提交失败');
+    ElMessage.error(t('supplier.enhanced.message.evalFailed'));
   } finally {
     evalSubmitting.value = false;
   }
@@ -694,7 +934,7 @@ const handleEvaluate = async () => {
 const loadEvaluationHistory = async () => {
   const id = supplierId.value;
   if (!id) {
-    ElMessage.warning('请先输入供应商 ID 并查询');
+    ElMessage.warning(t('supplier.enhanced.message.queryFirst'));
     return;
   }
   evalHistoryLoading.value = true;
@@ -702,7 +942,7 @@ const loadEvaluationHistory = async () => {
     const res = await getSupplierEvaluationHistory(id);
     evaluationHistory.value = unwrapList(res.data);
   } catch {
-    ElMessage.error('查询评估历史失败');
+    ElMessage.error(t('supplier.enhanced.message.evalHistoryFailed'));
   } finally {
     evalHistoryLoading.value = false;
   }

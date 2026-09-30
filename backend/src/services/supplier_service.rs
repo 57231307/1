@@ -169,6 +169,7 @@ impl SupplierService {
         qualifications: Vec<CreateQualificationRequest>,
     ) -> Result<(), AppError> {
         for qual_req in qualifications {
+            Self::check_qualification_dates(qual_req.issue_date, qual_req.valid_until)?;
             supplier_qualification::ActiveModel {
                 supplier_id: Set(supplier_id),
                 qualification_name: Set(qual_req.qualification_name),
@@ -180,6 +181,8 @@ impl SupplierService {
                 attachment_path: Set(qual_req.attachment_path),
                 need_annual_check: Set(qual_req.need_annual_check),
                 annual_check_record: Set(qual_req.annual_check_record),
+                // is_expired 由 valid_until 与当前日期如实派生（NOT NULL 列，写入即落真实值）
+                is_expired: Set(Self::qualification_is_expired(qual_req.valid_until)),
                 ..Default::default()
             }
             .insert(txn)
@@ -859,6 +862,27 @@ impl SupplierService {
 
     // ==================== 供应商资质管理方法 ====================
 
+    /// is_expired 的唯一派生源：valid_until（含当日）之后视为过期。
+    /// 写入时落真实值；读取输出时同样按此重算，保证列表/详情的过期语义与 valid_until 一致，
+    /// 避免出现"永不更新的僵尸布尔列"（历史存量行无需回填迁移即可输出正确语义）。
+    fn qualification_is_expired(valid_until: NaiveDate) -> bool {
+        chrono::Utc::now().date_naive() > valid_until
+    }
+
+    /// 资质日期交叉校验：有效期至不得早于发证日期（脏数据拒绝入库，文案外显）。
+    /// 使用 business_displayable：仅涉及用户自己提交的日期，满足脱敏安全边界。
+    fn check_qualification_dates(
+        issue_date: NaiveDate,
+        valid_until: NaiveDate,
+    ) -> Result<(), AppError> {
+        if valid_until < issue_date {
+            return Err(AppError::business_displayable(
+                "资质「有效期至」不能早于发证日期",
+            ));
+        }
+        Ok(())
+    }
+
     /// 获取供应商资质列表
     /// 批次 118 P2-9 修复：移除 `#[allow(dead_code)]` 标记，；handler 已真实接入（supplier_handler.rs::list_supplier_qualifications）。
     pub async fn list_supplier_qualifications(
@@ -870,7 +894,14 @@ impl SupplierService {
             .order_by(supplier_qualification::Column::ValidUntil, Order::Asc)
             .all(&*self.db)
             .await?;
-        Ok(qualifications)
+        // 读取输出按 valid_until 重算 is_expired，语义与 valid_until 保持一致
+        Ok(qualifications
+            .into_iter()
+            .map(|mut q| {
+                q.is_expired = Self::qualification_is_expired(q.valid_until);
+                q
+            })
+            .collect())
     }
 
     /// 创建供应商资质
@@ -880,6 +911,7 @@ impl SupplierService {
         req: CreateQualificationRequest,
         _user_id: i32,
     ) -> Result<supplier_qualification::Model, AppError> {
+        Self::check_qualification_dates(req.issue_date, req.valid_until)?;
         let qualification = supplier_qualification::ActiveModel {
             supplier_id: Set(supplier_id),
             qualification_name: Set(req.qualification_name),
@@ -891,6 +923,8 @@ impl SupplierService {
             attachment_path: Set(req.attachment_path),
             need_annual_check: Set(req.need_annual_check),
             annual_check_record: Set(req.annual_check_record),
+            // is_expired 由 valid_until 与当前日期如实派生，不再依赖 DB 默认 false
+            is_expired: Set(Self::qualification_is_expired(req.valid_until)),
             ..Default::default()
         }
         .insert(&*self.db)
@@ -900,17 +934,25 @@ impl SupplierService {
     }
 
     /// 更新供应商资质
+    /// 越权修复：路径 (supplier_id, qualification_id) 必须一致——资质不属于路径供应商时
+    /// 返回用户可见业务错误（business_displayable，business 会被出参脱敏），防止单键枚举改写他人资质。
     pub async fn update_supplier_qualification(
         &self,
+        supplier_id: i32,
         qualification_id: i32,
         req: CreateQualificationRequest,
     ) -> Result<supplier_qualification::Model, AppError> {
-        let mut qual: supplier_qualification::ActiveModel =
-            supplier_qualification::Entity::find_by_id(qualification_id)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?
-                .into();
+        Self::check_qualification_dates(req.issue_date, req.valid_until)?;
+        let existing = supplier_qualification::Entity::find_by_id(qualification_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?;
+        if existing.supplier_id != supplier_id {
+            return Err(AppError::business_displayable(
+                "该资质不属于此供应商，无法更新，请刷新后重试",
+            ));
+        }
+        let mut qual: supplier_qualification::ActiveModel = existing.into();
         qual.qualification_name = Set(req.qualification_name);
         qual.qualification_type = Set(req.qualification_type);
         qual.qualification_no = Set(req.qualification_no);
@@ -920,18 +962,27 @@ impl SupplierService {
         qual.attachment_path = Set(req.attachment_path);
         qual.need_annual_check = Set(req.need_annual_check);
         qual.annual_check_record = Set(req.annual_check_record);
+        // update 重算 is_expired：valid_until 变更后过期语义同步
+        qual.is_expired = Set(Self::qualification_is_expired(req.valid_until));
         Ok(qual.update(&*self.db).await?)
     }
 
     /// 删除供应商资质
+    /// 越权修复：与 update 同源，先校验资质归属再删除。
     pub async fn delete_supplier_qualification(
         &self,
+        supplier_id: i32,
         qualification_id: i32,
     ) -> Result<(), AppError> {
-        supplier_qualification::Entity::find_by_id(qualification_id)
+        let existing = supplier_qualification::Entity::find_by_id(qualification_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?;
+        if existing.supplier_id != supplier_id {
+            return Err(AppError::business_displayable(
+                "该资质不属于此供应商，无法删除，请刷新后重试",
+            ));
+        }
         supplier_qualification::Entity::delete_by_id(qualification_id)
             .exec(&*self.db)
             .await?;

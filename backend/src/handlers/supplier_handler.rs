@@ -274,11 +274,19 @@ pub async fn delete_supplier_contact(
 
 /// 获取供应商资质列表；批次 118 P2-9 修复：原 handler 返回硬编码空数组 `serde_json::json!([])`， 违反规则 0（真实实现强制）
 /// 改为真实调用 service.list_supplier_qualifications， 从 supplier_qualification 表查询并返回数据。
+/// IDOR 防护：子资源经父资源做归属门控（同 inventory_adjustment_handler 范式）——
+/// 先按 data_scope 校验路径供应商归属（与同域 list_suppliers 行级权限同源），越权 403，
+/// 避免任意 supplier_id 枚举他人资质。
 pub async fn list_supplier_qualifications(
     Path(supplier_id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<supplier_qualification::Model>>>, AppError> {
     let service = SupplierService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_supplier(supplier_id, Some(&data_scope_ctx))
+        .await?;
     let qualifications = service.list_supplier_qualifications(supplier_id).await?;
 
     Ok(Json(ApiResponse::success(qualifications)))
@@ -286,6 +294,7 @@ pub async fn list_supplier_qualifications(
 
 /// 创建供应商资质；批次 118 P2-9 修复：原 handler 返回拼接的假数据 `{"supplier_id": ..., "qualification": req}`， 违反规则
 /// 0（真实实现强制）。改为真实调用 service.create_supplier_qualification， 持久化到 supplier_qualification 表并返回真实记录。
+/// IDOR 防护：写入前经父供应商做归属门控（与 update/delete/list 同源），越权 403。
 #[axum::debug_handler]
 pub async fn create_supplier_qualification(
     Path(supplier_id): Path<i32>,
@@ -296,6 +305,10 @@ pub async fn create_supplier_qualification(
     req.validate()?;
 
     let service = SupplierService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_supplier(supplier_id, Some(&data_scope_ctx))
+        .await?;
     let qualification = service
         .create_supplier_qualification(supplier_id, req, auth.user_id)
         .await?;
@@ -307,17 +320,24 @@ pub async fn create_supplier_qualification(
 }
 
 /// 更新供应商资质
+/// IDOR 防护：路径 (supplier_id, qualification_id) 双键——先经父供应商归属门控（data_scope，
+/// 同 inventory_adjustment_handler 范式），再由 service 校验资质确属该供应商，
+/// 不匹配返回用户可见业务错误，防止以 qualification_id 单键枚举改写他人资质。
 #[axum::debug_handler]
 pub async fn update_supplier_qualification(
-    Path((_supplier_id, qualification_id)): Path<(i32, i32)>,
+    Path((supplier_id, qualification_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateQualificationRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     req.validate()?;
     let service = SupplierService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_supplier(supplier_id, Some(&data_scope_ctx))
+        .await?;
     let qualification = service
-        .update_supplier_qualification(qualification_id, req)
+        .update_supplier_qualification(supplier_id, qualification_id, req)
         .await?;
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(qualification).map_err(AppError::from)?,
@@ -326,15 +346,20 @@ pub async fn update_supplier_qualification(
 }
 
 /// 删除供应商资质
+/// IDOR 防护：与 update 同源，先父门控再归属校验，防止单键枚举删除他人资质。
 #[axum::debug_handler]
 pub async fn delete_supplier_qualification(
-    Path((_supplier_id, qualification_id)): Path<(i32, i32)>,
+    Path((supplier_id, qualification_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     service
-        .delete_supplier_qualification(qualification_id)
+        .get_supplier(supplier_id, Some(&data_scope_ctx))
+        .await?;
+    service
+        .delete_supplier_qualification(supplier_id, qualification_id)
         .await?;
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({ "deleted_id": qualification_id }),

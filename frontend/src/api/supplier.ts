@@ -190,9 +190,13 @@ export interface SupplierQualification {
   attachment_path?: string;
   need_annual_check: boolean;
   annual_check_record?: string;
-  is_expired?: boolean;
-  created_at?: string;
-  updated_at?: string;
+  /** DDL NOT NULL；后端由 valid_until 与当前日期派生（写入+读取双重保证），恒有值 */
+  is_expired: boolean;
+  /** DDL TEXT NULL（实体 remarks: Option<String>），后端恒序列化该键 */
+  remarks?: string;
+  /** DDL NOT NULL（TIMESTAMPTZ），后端 Model 直接序列化，恒有值 */
+  created_at: string;
+  updated_at: string;
 }
 
 /** 创建/更新资质请求（对应后端 supplier_service.rs::CreateQualificationRequest） */
