@@ -451,9 +451,10 @@ const onSubmitEdit = async () => {
     await updateColorPrice(priceId, {
       base_price: editForm.base_price,
       effective_from: editForm.effective_from,
-      effective_to: editForm.effective_to || null,
+      // 后端 UpdateColorPriceDto 为 Option-skip 语义（提交 null/"" 无效），空值直接省略键
+      ...(editForm.effective_to ? { effective_to: editForm.effective_to } : {}),
       priority: editForm.priority,
-      notes: editForm.notes || null,
+      ...(editForm.notes ? { notes: editForm.notes } : {}),
     });
     ElMessage.success(t('colorPrices.message.createSuccess'));
     editDialogVisible.value = false;

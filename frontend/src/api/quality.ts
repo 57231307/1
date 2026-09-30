@@ -77,8 +77,32 @@ export interface CreateQualityRecordPayload {
   dye_lot_no?: string;
 }
 
-/** 更新质检记录：后端按 Option 逐字段判空更新，只提交改动过的项 */
-export type UpdateQualityRecordPayload = Partial<CreateQualityRecordPayload>;
+/**
+ * 更新质检记录载荷：逐字段对齐后端 UpdateInspectionRecordRequest
+ * （handlers/quality_inspection_handler.rs:216-239，15 个字段全为 Option，
+ * handler 调用 req.validate() 做 length 校验后按 Some(v) 分支逐字段更新）。
+ * inspection_no / product_id / supplier_id / customer_id 不在更新契约内，禁止提交。
+ * Option<String> + length 校验的字符串字段空值时必须省略该键（Some("") 会被原样写库），
+ * 由视图提交处保证（范式见 views/system/tabs/UserTab.vue:358-359）。
+ * 后端 Decimal 字段（total_qty 等）JSON 兼容 number/string，沿用 Create 载荷的 string|number。
+ */
+export interface UpdateQualityRecordPayload {
+  inspection_type?: string;
+  batch_no?: string;
+  inspection_date?: string;
+  inspector_id?: number;
+  total_qty?: string | number;
+  inspected_qty?: string | number;
+  qualified_qty?: string | number;
+  unqualified_qty?: string | number;
+  qualification_rate?: string | number;
+  inspection_result?: string;
+  remark?: string;
+  defect_type?: string;
+  grade?: string;
+  color_no?: string;
+  dye_lot_no?: string;
+}
 
 export interface Defect {
   id: number;
@@ -121,9 +145,23 @@ export function createQualityStandard(
   return request.post('/quality-standards', data);
 }
 
+/**
+ * 更新质量标准载荷：对齐后端 UpdateQualityStandardRequest
+ * （handlers/quality_standard_handler.rs:57-68，字段 standard_name/standard_type/content/status/remark 全 Option）。
+ * 注意后端字段名是 standard_type，实体出参 QualityStandard 里才是 type；
+ * id / standard_code / version / attachments 不在更新契约内，提交会被 serde 静默丢弃，禁止放入载荷。
+ * 状态流转（审批/驳回/发布/归档）走各自端点，更新接口不提交 status。
+ */
+export interface UpdateQualityStandardPayload {
+  standard_name?: string;
+  standard_type?: string;
+  content?: string;
+  remark?: string;
+}
+
 export function updateQualityStandard(
   id: number,
-  data: Partial<QualityStandard>
+  data: UpdateQualityStandardPayload
 ): Promise<ApiResponse<QualityStandard>> {
   return request.put(`/quality-standards/${id}`, data);
 }
@@ -209,7 +247,64 @@ export function getDefectList(params?: DefectListParams): Promise<ApiResponse<De
   return request.get('/production/quality-inspection/defects', { params });
 }
 
-export function processDefect(id: number, data: { remark: string }): Promise<ApiResponse<void>> {
+/**
+ * 不合格品处理方式取值：与后端 services/quality_inspection_service.rs:45-47 常量逐字一致
+ * （downgrade_sale 降级销售 / rework 返工 / scrap 报废）。
+ * 后端会按质检记录等级校验合法组合（A 级拒绝处理，B 级必须降级销售，C 级必须返工或报废，
+ * 见 validate_handling_method_by_grade，quality_inspection_service.rs:73-），非法组合返回业务错误。
+ */
+export type DefectHandlingMethod = 'downgrade_sale' | 'rework' | 'scrap';
+
+/**
+ * 处理缺陷请求体：对齐后端 ProcessUnqualifiedRequest
+ * （services/quality_inspection_service.rs:179-186）。
+ * unqualified_qty / unqualified_reason / handling_method 为非 Option 必填，缺任一项即被 serde 反序列化拒绝（422）；
+ * remark / handling_result 为 Option<String>，空值时必须省略该键。
+ * unqualified_qty 为 rust_decimal，提交 number 或十进制字符串均可。
+ */
+export interface ProcessDefectPayload {
+  unqualified_qty: string | number;
+  unqualified_reason: string;
+  handling_method: DefectHandlingMethod;
+  remark?: string;
+  handling_result?: string;
+}
+
+/**
+ * 处理缺陷出参：后端 handlers/quality_inspection_handler.rs::process_defect 返回
+ * models/unqualified_product.rs::Model；Decimal 序列化为字符串，渲染前先 Number() 归一。
+ */
+export interface UnqualifiedProductRecord {
+  id: number;
+  unqualified_no: string;
+  inspection_id: number | null;
+  product_id: number;
+  batch_no: string | null;
+  unqualified_qty: string;
+  unqualified_reason: string;
+  handling_method: string;
+  handling_status: string;
+  handling_by: number | null;
+  handling_at: string | null;
+  remark: string | null;
+  grade: string | null;
+  handling_result: string | null;
+  created_at: string;
+  updated_at: string;
+  stock_grade_synced: boolean;
+  stock_id: number | null;
+  scrap_approval_status: string;
+  approver_id_fin: number | null;
+  approver_id_gm: number | null;
+  approved_at_fin: string | null;
+  approved_at_gm: string | null;
+  scrap_loss_amount: string | null;
+}
+
+export function processDefect(
+  id: number,
+  data: ProcessDefectPayload
+): Promise<ApiResponse<UnqualifiedProductRecord>> {
   return request.post(`/production/quality-inspection/defects/${id}/process`, data);
 }
 

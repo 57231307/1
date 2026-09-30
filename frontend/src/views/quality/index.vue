@@ -477,7 +477,13 @@ const submitStandard = async () => {
         }
       }
       if (standardForm.id) {
-        await updateQualityStandard(standardForm.id, standardForm as Partial<QualityStandard>);
+        // 批次修复：后端 UpdateQualityStandardRequest 只认 standard_name/standard_type/content/remark，
+        // 此前直传实体（type/attachments/version…）会被 serde 静默丢弃，类型修改从未落库
+        await updateQualityStandard(standardForm.id, {
+          standard_name: standardForm.standard_name,
+          standard_type: standardForm.type,
+          content: standardForm.content,
+        });
       } else {
         await createQualityStandard(standardForm as Partial<QualityStandard>);
       }
@@ -682,9 +688,8 @@ const submitRecord = async () => {
     // validate() 已拦下缺失项；这里只是让类型收敛到后端要求的非空值
     return;
   }
-  const fields = {
+  const commonFields = {
     inspection_type: recordForm.inspection_type,
-    product_id,
     inspection_date: recordForm.inspection_date,
     total_qty,
     inspected_qty,
@@ -697,9 +702,14 @@ const submitRecord = async () => {
   try {
     if (recordForm.id) {
       // 批次 94 P2-12 修复：原占位"更新功能待实现"，现接入真实更新 API
-      await updateQualityRecord(recordForm.id, fields);
+      // 后端 UpdateInspectionRecordRequest 无 product_id/inspection_no，更新载荷不提交
+      await updateQualityRecord(recordForm.id, commonFields);
     } else {
-      await createQualityRecord({ inspection_no: recordForm.inspection_no, ...fields });
+      await createQualityRecord({
+        inspection_no: recordForm.inspection_no,
+        product_id,
+        ...commonFields,
+      });
     }
     ElMessage.success(t('quality.message.operationSuccess'));
     recordDialogVisible.value = false;

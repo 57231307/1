@@ -205,6 +205,7 @@ import {
   COLOR_CARD_STATUS_COLORS,
   type ColorCardDetail,
   type ColorItemInfo,
+  type ColorItemPayload,
   type IssueRecordInfo,
 } from '@/api/color-card';
 import ColorCardGrid from '@/components/ColorCardGrid.vue';
@@ -280,6 +281,33 @@ const loadData = async () => {
   }
 };
 
+// 编辑器绑定的是采集态（Partial），提交前收敛为后端 ColorItemDto 全量必填载荷
+const buildColorItemPayload = (n: Partial<ColorItemInfo>): ColorItemPayload => {
+  const r = n.rgb_r ?? 0;
+  const g = n.rgb_g ?? 0;
+  const b = n.rgb_b ?? 0;
+  const hexFromRgb = `#${[r, g, b]
+    .map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase()}`;
+  const payload: ColorItemPayload = {
+    color_code: n.color_code ?? '',
+    color_name: n.color_name ?? '',
+    rgb_r: r,
+    rgb_g: g,
+    rgb_b: b,
+    // 后端要求 hex 恰为 #RRGGBB（validate length=7 + service 格式校验），非法/缺失时按 RGB 兜底换算
+    hex_value: n.hex_value && /^#[0-9A-Fa-f]{6}$/.test(n.hex_value) ? n.hex_value : hexFromRgb,
+  };
+  // Option 字段空值省略键（Some("") 会被后端原样写库），CMYK/Lab 省略由后端自动计算
+  if (n.pantone_code) payload.pantone_code = n.pantone_code;
+  if (n.cncs_code) payload.cncs_code = n.cncs_code;
+  if (n.custom_code) payload.custom_code = n.custom_code;
+  if (n.swatch_image_url) payload.swatch_image_url = n.swatch_image_url;
+  if (typeof n.sequence === 'number') payload.sequence = n.sequence;
+  return payload;
+};
+
 const handleAddItem = async () => {
   if (!newItem.value.color_code || !newItem.value.color_name) {
     ElMessage.warning(t('colorCards.detail.message.codeAndNameRequired'));
@@ -287,7 +315,7 @@ const handleAddItem = async () => {
   }
   adding.value = true;
   try {
-    await createColorItem(cardId.value, newItem.value);
+    await createColorItem(cardId.value, buildColorItemPayload(newItem.value));
     ElMessage.success(t('colorCards.detail.message.addItemSuccess'));
     showAddItemDialog.value = false;
     newItem.value = {

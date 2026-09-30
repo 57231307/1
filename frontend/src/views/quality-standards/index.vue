@@ -420,7 +420,13 @@ const handleSubmit = async () => {
         }
       }
       if (form.id) {
-        await updateQualityStandard(form.id, form);
+        // 后端 UpdateQualityStandardRequest 字段名为 standard_type（实体出参才是 type），
+        // 直传实体时标准类型修改会被 serde 静默丢弃，这里显式映射并只提交契约内字段
+        await updateQualityStandard(form.id, {
+          standard_name: form.standard_name,
+          standard_type: form.type,
+          content: form.content,
+        });
       } else {
         await createQualityStandard(form);
       }
