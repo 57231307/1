@@ -565,14 +565,14 @@ impl CrmService {
         Ok(lead)
     }
 
-    /// 从线索构造客户 ActiveModel（纯函数，无 IO）
+    /// 从线索构造客户 ActiveModel（纯函数，无 IO；customer_code 由调用方经统一生成器取号后传入）
     fn build_customer_active(
         lead: &crm_lead::Model,
         req: &crate::models::dto::crm_dto::ConvertLeadRequest,
         customer_name: &str,
         user_id: i32,
+        customer_code: String,
     ) -> customer::ActiveModel {
-        let customer_code = format!("C{}", chrono::Utc::now().timestamp());
         let customer_type = req
             .customer_type
             .clone()
@@ -638,14 +638,14 @@ impl CrmService {
         Ok(())
     }
 
-    /// 从线索构造初步接洽商机 ActiveModel（纯函数，无 IO）
+    /// 从线索构造初步接洽商机 ActiveModel（纯函数，无 IO；opportunity_no 由调用方经统一生成器取号后传入）
     fn build_opportunity_active(
         lead: &crm_lead::Model,
         customer_id: i32,
         customer_name: &str,
         user_id: i32,
+        opportunity_no: String,
     ) -> crm_opportunity::ActiveModel {
-        let opportunity_no = format!("OPP{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
         let opportunity_name = format!("{} - 初步接洽", customer_name);
         crm_opportunity::ActiveModel {
             id: Default::default(),
@@ -687,13 +687,46 @@ impl CrmService {
             .company_name
             .clone()
             .unwrap_or_else(|| lead.contact_name.clone());
-        let new_customer = Self::build_customer_active(&lead, &req, &customer_name, user_id)
-            .insert(&txn)
-            .await?;
+        // 客户编码：统一生成器（CUS{YYYYMMDD}{3位流水}，与 customer_ops::generate_customer_code 同源）
+        let customer_code =
+            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                "CUS",
+                customer::Entity,
+                customer::Column::CustomerCode,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "线索转换客户编码生成失败");
+                AppError::business_displayable("客户编码生成失败，请稍后重试")
+            })?;
+        let new_customer =
+            Self::build_customer_active(&lead, &req, &customer_name, user_id, customer_code)
+                .insert(&txn)
+                .await?;
         Self::mark_lead_converted(&txn, &lead, new_customer.id, user_id).await?;
-        Self::build_opportunity_active(&lead, new_customer.id, &customer_name, user_id)
-            .insert(&txn)
-            .await?;
+        // 商机编号：统一生成器（OPP{YYYYMMDD}{3位流水}，与 crm/opp::create_opportunity 同源）
+        let opportunity_no =
+            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                "OPP",
+                crm_opportunity::Entity,
+                crm_opportunity::Column::OpportunityNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "线索转换商机编号生成失败");
+                AppError::business_displayable("商机编号生成失败，请稍后重试")
+            })?;
+        Self::build_opportunity_active(
+            &lead,
+            new_customer.id,
+            &customer_name,
+            user_id,
+            opportunity_no,
+        )
+        .insert(&txn)
+        .await?;
         txn.commit().await?;
         Ok(serde_json::json!({
             "customer_id": new_customer.id,

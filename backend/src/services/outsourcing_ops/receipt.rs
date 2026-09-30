@@ -24,12 +24,15 @@ use crate::models::outsourcing_order::{
 use crate::models::outsourcing_receipt::{
     self, ActiveModel as ReceiptActiveModel, Entity as ReceiptEntity, Model as ReceiptModel,
 };
-use crate::models::outsourcing_voucher::ActiveModel as VoucherActiveModel;
+use crate::models::outsourcing_voucher::{
+    ActiveModel as VoucherActiveModel, Column as VoucherColumn, Entity as VoucherEntity,
+};
 use crate::models::status::{
     outsourcing_order_status, outsourcing_receipt_quality_status, outsourcing_receipt_status,
     outsourcing_voucher_type, quality_inspection_result, quality_inspection_type,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use crate::services::outsourcing_ops::order::{
     compute_receipt_calculation, validate_receipt_eligibility,
@@ -70,13 +73,6 @@ pub fn validate_receipt_quality_status(raw: &str) -> Result<&'static str, AppErr
 }
 
 impl OutsourcingReceiptService {
-    /// 生成委外凭证号：OV-{prefix}-YYYYMMDDHHMMSS-NNN
-    fn generate_voucher_no(prefix: &str) -> String {
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let suffix = (now.timestamp() as u32) % 1000;
-        format!("OV-{}-{}-{:03}", prefix, now.format("%Y%m%d%H%M%S"), suffix)
-    }
-
     /// 构造委外完成事件，供事务提交后发布
     pub fn build_completed_event(order: &OrderModel) -> crate::services::event_bus::BusinessEvent {
         crate::services::event_bus::BusinessEvent::OutsourcingOrderCompleted {
@@ -326,7 +322,18 @@ impl OutsourcingReceiptService {
             .await
             .map_err(|e| AppError::database(format!("委外收回单确认失败: {}", e)))?;
 
-        let receipt_voucher_no = Self::generate_voucher_no("RC");
+        // 入库凭证号（统一生成器，事务内取号：`OVRC{YYYYMMDD}{3位流水}`）
+        let receipt_voucher_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            "OVRC",
+            VoucherEntity,
+            VoucherColumn::VoucherNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "委外入库凭证号生成失败");
+            AppError::business_displayable("委外入库凭证号生成失败，请稍后重试")
+        })?;
         let receipt_voucher = VoucherActiveModel {
             id: Default::default(),
             voucher_no: Set(receipt_voucher_no.clone()),
@@ -376,6 +383,18 @@ impl OutsourcingReceiptService {
         .await?;
 
         if calc.abnormal_loss_amount > Decimal::ZERO {
+            // 损耗处理凭证号（统一生成器，事务内取号：`OVLS{YYYYMMDD}{3位流水}`）
+            let loss_voucher_no = DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                "OVLS",
+                VoucherEntity,
+                VoucherColumn::VoucherNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "委外损耗凭证号生成失败");
+                AppError::business_displayable("委外损耗凭证号生成失败，请稍后重试")
+            })?;
             let vat_rate = Decimal::new(13, 2);
             let total_cost_basis = order.material_cost + order.processing_fee + order.freight_fee;
             let processing_ratio = if total_cost_basis > Decimal::ZERO {
@@ -387,7 +406,7 @@ impl OutsourcingReceiptService {
 
             let loss_voucher = VoucherActiveModel {
                 id: Default::default(),
-                voucher_no: Set(Self::generate_voucher_no("LS")),
+                voucher_no: Set(loss_voucher_no),
                 outsourcing_order_id: Set(order.id),
                 voucher_type: Set(outsourcing_voucher_type::LOSS.to_string()),
                 debit_account: Set("营业外支出".to_string()),

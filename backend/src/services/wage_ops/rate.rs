@@ -2,7 +2,7 @@
 //!
 //! 批次 490 D10-4a 拆分：从原 `wage_service.rs` L265-587 迁移。
 //! 包含 WageRateService 的 11 个方法（new 留在 facade）：
-//! - generate_rate_no（私有，生成单号 PWR-YYYYMMDDHHMMSS-NNN）
+//! - generate_rate_no（私有，统一生成器生成单号 PWR{YYYYMMDD}{NNN}）
 //! - create / update / delete（CRUD + 业务校验）
 //! - activate / disable / transition_status（状态机 draft→active→disabled）
 //! - get_by_id / get_by_no / get_effective_by_route / list（查询）
@@ -31,12 +31,19 @@ use crate::services::wage_service::{
 };
 
 impl WageRateService {
-    /// 生成工价单号：PWR-YYYYMMDDHHMMSS-NNN
-    fn generate_rate_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("PWR-{}-{:03}", timestamp, random)
+    /// 生成工价单号（统一生成器：`PWR{YYYYMMDD}{3位流水}`，advisory lock 防并发重号）
+    async fn generate_rate_no(&self) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PWR",
+            RateEntity,
+            process_wage_rate::Column::RateNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "工价单号生成失败");
+            AppError::business_displayable("工价单号生成失败，请稍后重试")
+        })
     }
 
     /// 创建工价
@@ -67,7 +74,9 @@ impl WageRateService {
 
         let route_code = route.route_code.clone();
         let route_name = route.route_name.clone();
+        let rate_no = self.generate_rate_no().await?;
         let active = Self::build_rate_active_model(
+            rate_no,
             &req,
             &route_code,
             &route_name,
@@ -166,8 +175,9 @@ impl WageRateService {
         Ok(())
     }
 
-    /// 构建工价 ActiveModel
+    /// 构建工价 ActiveModel（rate_no 由 create 经统一生成器取号后传入）
     fn build_rate_active_model(
+        rate_no: String,
         req: &CreateWageRateRequest,
         route_code: &str,
         route_name: &str,
@@ -178,7 +188,6 @@ impl WageRateService {
         grade_b_ratio: Decimal,
         grade_c_ratio: Decimal,
     ) -> RateActiveModel {
-        let rate_no = Self::generate_rate_no();
         let now = crate::utils::date_utils::utc_now_fixed();
         RateActiveModel {
             id: Default::default(),

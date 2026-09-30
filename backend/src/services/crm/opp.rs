@@ -77,9 +77,21 @@ impl CrmService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", req.customer_id)))?;
 
-        let opportunity_no = req
-            .opportunity_no
-            .unwrap_or_else(|| format!("OPP{}", chrono::Utc::now().format("%Y%m%d%H%M%S")));
+        // 商机编号：用户提供则沿用，未提供时经统一生成器取号（OPP{YYYYMMDD}{3位流水}）
+        let opportunity_no = match req.opportunity_no {
+            Some(no) => no,
+            None => crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+                &*self.db,
+                "OPP",
+                crm_opportunity::Entity,
+                crm_opportunity::Column::OpportunityNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "商机编号生成失败");
+                AppError::business_displayable("商机编号生成失败，请稍后重试")
+            })?,
+        };
         let opportunity_name = req.opportunity_name.clone();
         let opportunity_stage = req
             .opportunity_stage
@@ -481,7 +493,20 @@ impl CrmService {
         customer_id: i32,
         user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
-        let order_no = format!("SO-TEMP-{}", chrono::Utc::now().timestamp());
+        // 商机转草稿销售订单：单号走统一生成器（SO{YYYYMMDD}{3位流水}，与销售订单
+        // 正常创建同一前缀/列，事务内取号，advisory lock 防并发重号）
+        let order_no =
+            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                txn,
+                "SO",
+                sales_order::Entity,
+                sales_order::Column::OrderNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "商机转销售订单号生成失败");
+                AppError::business_displayable("销售订单号生成失败，请稍后重试")
+            })?;
         let total_amount = opportunity
             .estimated_amount
             .unwrap_or(rust_decimal::Decimal::ZERO);

@@ -6,12 +6,11 @@
 //! - issue_order / record_processing / settle / close_order / cancel（状态机）
 //! - get_by_id / get_by_no / list（查询）
 //! - validate_receipt_eligibility / compute_receipt_calculation（共享 helper）
-//! - generate_voucher_no（私有 helper）
 //!
 //! 业务规则：
 //! - 状态机：draft → issued → processing → received → settled → closed；任意非 closed/cancelled → cancelled
 //! - 收回时计算损耗分类与单位成本（§5.4 三步分录）
-//! - 凭证号格式：OV-{prefix}-YYYYMMDDHHMMSS-NNN
+//! - 凭证号统一由 DocumentNumberGenerator 生成：OV{类型段}{YYYYMMDD}{3位流水}
 
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -22,11 +21,14 @@ use sea_orm::{
 use crate::models::outsourcing_order::{
     self, ActiveModel as OrderActiveModel, Entity as OrderEntity, Model as OrderModel,
 };
-use crate::models::outsourcing_voucher::ActiveModel as VoucherActiveModel;
+use crate::models::outsourcing_voucher::{
+    ActiveModel as VoucherActiveModel, Column as VoucherColumn, Entity as VoucherEntity,
+};
 use crate::models::status::outsourcing_loss_type;
 use crate::models::status::outsourcing_order_status;
 use crate::models::status::outsourcing_voucher_type;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use crate::services::outsourcing_ops::receipt::ReceiptCalculation;
 use crate::services::outsourcing_ops::types::{
@@ -344,10 +346,21 @@ impl OutsourcingOrderService {
         crate::services::piece_domain_service::validate_pieces_for_issue(&*self.db, &items).await?;
 
         let now = crate::utils::date_utils::utc_now_fixed();
-        // 生成发料凭证号
-        let voucher_no = Self::generate_voucher_no("IS");
 
         let txn = (*self.db).begin().await?;
+
+        // 生成发料凭证号（统一生成器，事务内取号：`OVIS{YYYYMMDD}{3位流水}`）
+        let voucher_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            "OVIS",
+            VoucherEntity,
+            VoucherColumn::VoucherNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "委外发料凭证号生成失败");
+            AppError::business_displayable("委外发料凭证号生成失败，请稍后重试")
+        })?;
 
         // 阶段 1：创建发料凭证
         let voucher_active = VoucherActiveModel {
@@ -445,9 +458,21 @@ impl OutsourcingOrderService {
         }
 
         let now = crate::utils::date_utils::utc_now_fixed();
-        let voucher_no = Self::generate_voucher_no("FE");
 
         let txn = (*self.db).begin().await?;
+
+        // 生成加工费凭证号（统一生成器，事务内取号：`OVFE{YYYYMMDD}{3位流水}`）
+        let voucher_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            "OVFE",
+            VoucherEntity,
+            VoucherColumn::VoucherNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "委外加工费凭证号生成失败");
+            AppError::business_displayable("委外加工费凭证号生成失败，请稍后重试")
+        })?;
 
         // 创建加工费凭证（§5.4 第二步分录）
         let fee_amount = model.processing_fee + model.freight_fee;
@@ -629,13 +654,5 @@ impl OutsourcingOrderService {
             .fetch_page(page - 1)
             .await?;
         Ok((items, total))
-    }
-
-    /// 生成凭证号：OV-{prefix}-YYYYMMDDHHMMSS-NNN
-    fn generate_voucher_no(prefix: &str) -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("OV-{}-{}-{:03}", prefix, timestamp, random)
     }
 }

@@ -154,7 +154,17 @@ impl CustomerTransferApprovalService {
         Self::ensure_no_pending_approval(&self.db, req.lead_id).await?;
         let is_large_customer = self.check_large_customer(&lead).await?;
         let max_level = if is_large_customer { 2 } else { 1 };
-        let approval_no = Self::generate_approval_no(req.lead_id);
+        let approval_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "TA",
+            TransferApprovalEntity,
+            customer_transfer_approval::Column::ApprovalNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "转移审批单号生成失败");
+            AppError::business_displayable("转移审批单号生成失败，请稍后重试")
+        })?;
         let approval = Self::build_approval_active(
             &req,
             &lead,
@@ -230,15 +240,6 @@ impl CustomerTransferApprovalService {
             ));
         }
         Ok(())
-    }
-
-    /// 创建审批：生成审批单号 TA + 时间戳 + lead_id
-    fn generate_approval_no(lead_id: i32) -> String {
-        format!(
-            "TA{}{:06}",
-            chrono::Utc::now().format("%Y%m%d%H%M%S"),
-            lead_id.rem_euclid(1_000_000)
-        )
     }
 
     /// 创建审批：构造审批单 ActiveModel（to_user_name 待审批通过时由 transfer_lead 填充）
