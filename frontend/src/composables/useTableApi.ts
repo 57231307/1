@@ -79,9 +79,11 @@ export function useTableApi<T = unknown>(
   const queryParams = ref<Record<string, unknown>>({ ...defaultParams });
 
   /**
-   * 从响应中探测 list 和 total 字段
+   * 从响应中取列表字段
    * - 优先匹配 options.listKey 指定字段名
-   * - 后备：list / items / data / results
+   * - 后备：list / items / data / results（本仓既有端点确实分用这几个键）
+   * 都不匹配时**必须报错**：这里返回 [] 会把"契约漂移"伪装成"这张表没有数据"，
+   * 用户看到的是空表而不是失败，缺陷永远暴露不出来。
    */
   // v11 批次 172 P2-1 修复：payload: any 改为 payload: ListResponsePayload | unknown[]
   const detectList = (payload: ListResponsePayload | unknown[]): T[] => {
@@ -95,17 +97,28 @@ export function useTableApi<T = unknown>(
     if (Array.isArray(obj?.items)) return obj.items as unknown as T[];
     if (Array.isArray(obj?.data)) return obj.data as unknown as T[];
     if (Array.isArray(obj?.results)) return obj.results as unknown as T[];
-    return [];
+    throw new Error(
+      `[useTableApi] ${url} 响应里没有可识别的列表字段：` +
+        `期望 ${listKey ?? 'list/items/data/results'}，实际键为 ${JSON.stringify(Object.keys(obj))}`
+    );
   };
 
-  const detectTotal = (payload: ListResponsePayload | unknown[]): number => {
-    const obj: ListResponsePayload = Array.isArray(payload) ? {} : payload;
+  const detectTotal = (payload: ListResponsePayload | unknown[], rawWasArray: boolean): number => {
+    if (rawWasArray) {
+      // 端点直接返回裸数组＝不分页，服务端给的就是全量，行数即总数。
+      return Array.isArray(payload) ? payload.length : 0;
+    }
+    const obj = payload as ListResponsePayload;
     if (typeof obj?.[totalKey as keyof ListResponsePayload] === 'number') {
       return obj[totalKey as keyof ListResponsePayload] as number;
     }
     if (typeof obj?.total === 'number') return obj.total;
     if (typeof obj?.count === 'number') return obj.count;
-    return 0;
+    // 分页端点漏 total 会让"共 N 条/页码"恒显 0 而把数据静默截断，必须显式失败。
+    throw new Error(
+      `[useTableApi] ${url} 的分页响应缺少总数字段：` +
+        `期望 ${totalKey ?? 'total/count'}，实际键为 ${JSON.stringify(Object.keys(obj))}`
+    );
   };
 
   /**
@@ -130,11 +143,12 @@ export function useTableApi<T = unknown>(
       const resObj = res as ListResponsePayload;
       const raw: ListResponsePayload | T[] =
         (res as { data?: unknown })?.data ?? (res as ListResponsePayload | T[]);
-      const payload: ListResponsePayload = Array.isArray(raw)
+      const rawWasArray = Array.isArray(raw);
+      const payload: ListResponsePayload = rawWasArray
         ? { data: raw, total: resObj?.total, count: resObj?.count }
         : (raw ?? {});
       data.value = detectList(payload) as T[];
-      total.value = detectTotal(payload);
+      total.value = detectTotal(payload, rawWasArray);
     } catch (err) {
       if (attempt < retryCount) {
         await new Promise(r => setTimeout(r, retryDelay));
