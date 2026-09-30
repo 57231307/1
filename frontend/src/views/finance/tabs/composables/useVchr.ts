@@ -10,7 +10,14 @@ import { ref, reactive, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { msg } from '@/utils/message';
-import { getSubjectTree, createVoucher, type AccountSubject, type Voucher } from '@/api/finance';
+import {
+  getSubjectTree,
+  createVoucher,
+  getVoucher,
+  getVoucherTypesApi,
+  type AccountSubject,
+  type Voucher,
+} from '@/api/finance';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
 import { formatMoney, getVchrStatusLabel, getVchrStatusType } from './vchrFmts';
@@ -47,12 +54,28 @@ export function useVchr() {
 
   const subjects = ref<AccountSubject[]>([]);
 
+  // 凭证类型选项（P0 三端同源：消费 GET /vouchers/types，
+  // 后端 VoucherService::available_voucher_types 词表 code=记/收/付/转；
+  // 原表单硬编码 'JZ'/'SK' 等编号前缀非类型词表值，已从前端移除）
+  const voucherTypes = ref<{ label: string; value: string }[]>([]);
+  const loadVoucherTypes = async () => {
+    try {
+      const res = await getVoucherTypesApi();
+      voucherTypes.value = (Array.isArray(res.data) ? res.data : []).map(t => ({
+        label: t.name,
+        value: t.code,
+      }));
+    } catch (error) {
+      logger.error('获取凭证类型失败', error);
+    }
+  };
+
   // 表单相关
   const voucherFormRef = ref<FormInstance>();
   const voucherSubmitLoading = ref(false);
   const voucherForm = reactive({
     voucher_date: '',
-    voucher_type: 'JZ',
+    voucher_type: '',
     entries: [
       { subject_id: undefined as number | undefined, debit: 0, credit: 0, summary: '' },
       { subject_id: undefined as number | undefined, debit: 0, credit: 0, summary: '' },
@@ -188,8 +211,21 @@ export function useVchr() {
   };
 
   // 详情查看
-  const viewVoucher = (row: Voucher) => {
-    currentVoucher.value = row;
+  // P0 修复（回源）：列表行不含 entries（后端 GET /vouchers 返回 Vec<voucher::Model>），
+  // 原实现直接把列表行塞进详情弹窗 ⇒ 分录明细恒空、合计恒 0。现改为按 id 调详情端点，
+  // 借贷合计由后端真实返回的 entries 前端求和派生（后端 vouchers 无合计列）。
+  const viewVoucher = async (row: Voucher) => {
+    try {
+      const res = await getVoucher(row.id);
+      const detail = res.data;
+      const entries = detail.entries ?? [];
+      detail.total_debit = entries.reduce((s, e) => s + Number(e.debit ?? 0), 0);
+      detail.total_credit = entries.reduce((s, e) => s + Number(e.credit ?? 0), 0);
+      currentVoucher.value = detail;
+    } catch (error) {
+      logger.error('获取凭证详情失败', error);
+      msg.error('loadDetailFailed');
+    }
   };
 
   // 使用 reactive 包装所有 ref 字段，访问 reactive 字段时 Vue 自动解包 ref，
@@ -209,6 +245,9 @@ export function useVchr() {
     subjects,
     leafSubjects,
     fetchSubjects,
+    // 凭证类型（单一真源：GET /vouchers/types）
+    voucherTypes,
+    loadVoucherTypes,
     // 表单
     voucherFormRef,
     voucherForm,

@@ -28,6 +28,7 @@
       :total="vchr.total"
       @view="onView"
       @edit="onEdit"
+      @submit="vchrProc.handleDraftSubmit"
       @approve="vchrProc.handleApprove"
       @post="vchrProc.handlePost"
       @unpost="vchrProc.handleUnpost"

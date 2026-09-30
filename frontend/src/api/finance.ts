@@ -84,31 +84,54 @@ export function deleteSubject(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/subjects/${id}`);
 }
 
+/**
+ * 凭证响应模型（P0 契约修复，本轮）：
+ * - 后端 GET /vouchers 列表返回 Vec<voucher::Model>（models/voucher.rs）：
+ *   从不返回 period_id/period_name/total_debit/total_credit/created_by_name（vouchers 表无这些列，
+ *   handlers/voucher_handler.rs list_vouchers 无 JOIN/聚合）。原类型将其标必填 = 假契约，
+ *   视图读取恒 undefined。现改为可选并注释「后端当前不返回，待迁移/聚合富化」。
+ * - entries 仅 GET /vouchers/:id 详情（VoucherDetailResponse.entries）携带，列表行无 ⇒ 可选。
+ * - 分录 debit/credit/金额类为 rust_decimal ⇒ JSON **字符串**（VoucherItemResponseDto）。
+ */
 export interface Voucher {
   id: number;
   voucher_no: string;
   voucher_date: string;
-  period_id: number;
-  period_name?: string;
   voucher_type: string;
-  entries: VoucherEntry[];
-  total_debit: number;
-  total_credit: number;
   status: string;
+  batch_no?: string | null;
+  color_no?: string | null;
   created_by: number;
-  created_by_name?: string;
+  reviewed_by?: number | null;
+  reviewed_at?: string | null;
+  posted_by?: number | null;
+  posted_at?: string | null;
   created_at: string;
   updated_at: string;
+  /** 后端当前不返回（vouchers 无该列）：历史前端自创键，保留可选仅为过渡期兼容 */
+  period_id?: number;
+  period_name?: string;
+  /** 后端列表/详情均不返回合计列；仅前端由 entries 派生后填充（见 useVchr.viewVoucher） */
+  total_debit?: number;
+  total_credit?: number;
+  created_by_name?: string;
+  /** 仅详情端点返回 */
+  entries?: VoucherEntry[];
 }
 
+/**
+ * 凭证分录出参（后端 VoucherItemResponseDto 双命名之一族，finance 规范键）。
+ * debit/credit/quantity/unit_price 为 Decimal → string；subject_id 可空（DB 列 Option）。
+ */
 export interface VoucherEntry {
   id: number;
-  subject_id: number;
+  line_no?: number;
+  subject_id: number | null;
   subject_code: string;
   subject_name: string;
-  debit: number;
-  credit: number;
-  summary: string;
+  debit: string;
+  credit: string;
+  summary: string | null;
 }
 
 // 凭证分录请求行：字段对齐后端 VoucherItemDto（handlers/voucher_handler.rs）
@@ -137,6 +160,7 @@ export interface VoucherUpdateRequest {
 // 凭证列表查询参数：字段集严格对齐后端 VoucherQuery（handlers/voucher_handler.rs）。
 // 后端无 keyword/order_by/order_dir/supplier_name/customer_name 等通用键，不要传。
 export interface VoucherListQuery {
+  voucher_no?: string;
   voucher_type?: string;
   status?: string;
   start_date?: string;
@@ -145,6 +169,17 @@ export interface VoucherListQuery {
   color_no?: string;
   page?: number;
   page_size?: number;
+}
+
+/** 后端 VoucherTypeDefinition（available_voucher_types 单一词表源：code=记/收/付/转） */
+export interface VoucherTypeDefinition {
+  code: string;
+  name: string;
+}
+
+/** GET /vouchers/types —— 凭证类型下拉选项（前端不得再硬编码第二套类型常量） */
+export function getVoucherTypesApi(): Promise<ApiResponse<VoucherTypeDefinition[]>> {
+  return request.get('/vouchers/types');
 }
 
 export function getVoucherList(params?: VoucherListQuery): Promise<ApiResponse<Voucher[]>> {

@@ -211,6 +211,9 @@ const submitDept = async () => {
     if (deptForm.id) {
       await updateDepartment(deptForm.id, {
         name: deptForm.name,
+        // 编码输入框编辑态可改（后端 UpdateDepartmentRequest.code 已支持，查重在服务层）：
+        // 不随 payload 提交则改动被 serde 静默丢弃
+        code: deptForm.code,
         sort_order: deptForm.sort_order,
         is_active: deptForm.is_active,
       });

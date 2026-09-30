@@ -23,8 +23,12 @@ export interface DepartmentCreateRequest {
   sort_order?: number;
 }
 
+// 字段集严格对齐后端 UpdateDepartmentRequest（handlers/department_handler.rs，PATCH 语义：
+// Some=覆盖，None/缺省=保持原值）。code 后端本批已支持（NOT NULL UNIQUE，查重由 service 负责），
+// 编辑对话框编码可改 ⇒ 必须随 payload 提交，否则改动静默丢失。
 export interface DepartmentUpdateRequest {
   name?: string;
+  code?: string;
   manager_id?: number;
   sort_order?: number;
   is_active?: boolean;
