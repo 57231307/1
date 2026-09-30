@@ -52,10 +52,14 @@ export interface CustomerCreditQueryParams {
   customer_id?: number;
 }
 
+/**
+ * 后端 `list_credits` 出参是 `ApiResponse<Vec<customer_credit::Model>>`
+ * （handlers/customer_credit_handler.rs:87-91），裸数组、无 items 包装；
+ * 此前声明成 `{items,total}` 会让按该形状取数的消费方拿到 undefined（恒空不报错）。
+ */
 export const getCustomerCreditList = (
   params?: CustomerCreditQueryParams
-): Promise<ApiResponse<{ items: CustomerCredit[]; total: number }>> =>
-  request.get('/crm/customer-credits', { params });
+): Promise<ApiResponse<CustomerCredit[]>> => request.get('/crm/customer-credits', { params });
 
 export const getCustomerCredit = (id: number): Promise<ApiResponse<CustomerCredit>> =>
   request.get(`/crm/customer-credits/${id}`);
