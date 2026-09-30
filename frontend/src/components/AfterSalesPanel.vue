@@ -24,6 +24,24 @@
           <el-tag>{{ getIssueTypeLabel(row.issue_type) }}</el-tag>
         </template>
       </el-table-column>
+      <!-- 后端读端已透传 customer_id（实体 NOT NULL i32）；客户名称 JOIN 富化代价大，
+           本列如实显示 id，名称富化已登记待决（见修复报告），禁止造假名 -->
+      <el-table-column :label="t('common.afterSales.formCustomer')" width="90" align="center">
+        <template #default="{ row }">
+          {{ row.customer_id }}
+        </template>
+      </el-table-column>
+      <el-table-column :label="t('common.afterSales.formReasonCategory')" width="110">
+        <template #default="{ row }">
+          {{ getReasonCategoryLabel(row.reason_category) }}
+        </template>
+      </el-table-column>
+      <el-table-column
+        prop="reason_detail"
+        :label="t('common.afterSales.formReasonDetail')"
+        min-width="140"
+        show-overflow-tooltip
+      />
       <el-table-column
         prop="description"
         :label="t('common.afterSales.colDescription')"
@@ -316,6 +334,14 @@ function getIssueTypeLabel(s: string): string {
   const known = ['complaint', 'repair', 'exchange', 'return_goods', 'refund'];
   if (!known.includes(s)) return s;
   return t(`common.afterSales.issueType.${s}`);
+}
+
+/** 原因分类标签映射：取值即 REASON_CATEGORY_KEYS 权威词表（与创建表单同源），
+ * 经 common.afterSales.reasonCategory.* i18n 显示中文；空值显 '-'，未知 token 原样回显 */
+function getReasonCategoryLabel(s?: string): string {
+  if (!s) return '-';
+  if (!(REASON_CATEGORY_KEYS as readonly string[]).includes(s)) return s;
+  return t(`common.afterSales.reasonCategory.${s}`);
 }
 
 /** 状态标签映射（响应式 t() 求值，替代导入的 AFTER_SALES_STATUS 中文常量）

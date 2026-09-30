@@ -100,6 +100,8 @@ pub struct QualityIssueInfo {
 pub struct AfterSalesInfo {
     pub id: i64,
     pub issue_type: String,
+    /// 实体 `after_sales.customer_id` 为 NOT NULL i32，出参如实非可选
+    pub customer_id: i32,
     pub description: String,
     pub status: String,
     pub opened_at: DateTime<Utc>,
@@ -108,6 +110,10 @@ pub struct AfterSalesInfo {
     pub refund_amount: Option<Decimal>,
     /// V15 P0-B12：关联质量异常 ID（trigger_quality_investigation 触发后回填）
     pub quality_issue_id: Option<i64>,
+    /// V15 P1 batch-19 缺陷 23.3.3：原因分类（quality/logistics/customer_preference/other）
+    pub reason_category: Option<String>,
+    /// V15 P1 batch-19 缺陷 23.3.3：原因明细（结构化子类）
+    pub reason_detail: Option<String>,
 }
 
 /// 工艺流程时间线（节点 + 日志合并）

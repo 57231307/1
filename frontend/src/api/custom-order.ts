@@ -187,12 +187,19 @@ export interface QualityIssueQueryParams {
 export interface AfterSales {
   id: number;
   issue_type: string;
+  /** 后端实体 after_sales.customer_id 为 NOT NULL i32，出参恒有键，不得标可选 */
+  customer_id: number;
   description: string;
   status: string;
   opened_at: string;
   closed_at?: string;
   resolution?: string;
   refund_amount?: string;
+  quality_issue_id?: number;
+  /** 原因分类（后端权威词表 quality/logistics/customer_preference/other，可空） */
+  reason_category?: string;
+  /** 原因明细（自由文本，可空） */
+  reason_detail?: string;
 }
 
 /** 创建售后工单请求（任务 #148 契约修复，逐字段对齐后端 CreateAfterSalesDto）

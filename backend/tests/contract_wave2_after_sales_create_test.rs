@@ -30,7 +30,7 @@ use axum::{
     http::{Request, StatusCode},
     middleware::{Next, from_fn_with_state},
     response::Response,
-    routing::post,
+    routing::{get, post},
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::custom_order_handler;
@@ -178,7 +178,8 @@ async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
     let app = Router::new()
         .route(
             "/custom-orders/{id}/after-sales",
-            post(custom_order_handler::create_after_sales),
+            post(custom_order_handler::create_after_sales)
+                .get(custom_order_handler::list_after_sales),
         )
         .with_state(state)
         .layer(from_fn_with_state(make_auth(100), inject_auth));
@@ -194,6 +195,27 @@ async fn post_create(app: &Router, path_id: i64, body: Value) -> (StatusCode, Va
                 .uri(format!("/custom-orders/{path_id}/after-sales"))
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
                 .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
+    (status, serde_json::from_slice(&bytes).unwrap())
+}
+
+async fn get_list(app: &Router, path_id: i64) -> (StatusCode, Value) {
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/custom-orders/{path_id}/after-sales?page=1&page_size=20"
+                ))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
@@ -335,7 +357,93 @@ async fn rejected_creations_leave_no_rows() {
 }
 
 // =========================================================
-// 3) 源码扫描防回潮锁（无 DB）
+// 3) 读端回传锁：创建时采集的 customer_id / reason_category / reason_detail
+//    必须在创建端点响应与列表端点回读中可见（防"落库了但读不回"复发——
+//    写入侧 Set(...) 早已落库，读端 AfterSalesInfo/map_after_sales 曾缺列，
+//    前端永远显示不完整内容）
+// =========================================================
+
+/// 对单个 AfterSalesInfo 出参对象断言三键齐全且值忠实
+fn assert_readback_fields(obj: &Value, expected_detail: &str) {
+    for key in ["customer_id", "reason_category", "reason_detail"] {
+        assert!(
+            obj.get(key).is_some(),
+            "响应必须包含读端补齐键 {key}（键名 = 实体 snake_case），实际: {obj}"
+        );
+    }
+    assert_eq!(obj["customer_id"], json!(7), "customer_id 必须如实透传");
+    assert_eq!(
+        obj["reason_category"],
+        json!("quality"),
+        "reason_category 必须如实透传"
+    );
+    assert_eq!(
+        obj["reason_detail"],
+        json!(expected_detail),
+        "reason_detail 必须如实透传"
+    );
+}
+
+/// 创建带 reason_category/reason_detail 的工单：
+/// POST 创建响应 + GET 列表端点都必须回读得到这三个键（sqlite 真实 handler，无 mock）
+#[tokio::test]
+async fn create_and_list_endpoints_read_back_reason_and_customer_fields() {
+    let (app, db) = seeded_app().await;
+    let mut body = frontend_real_payload();
+    body["reason_category"] = json!("quality");
+    let detail = "色差超差";
+    body["reason_detail"] = json!(detail);
+
+    let (status, v) = post_create(&app, 42, body).await;
+    assert_eq!(status, StatusCode::OK, "带原因分类创建应成功，实际体: {v}");
+    assert_readback_fields(&v["data"], detail);
+
+    // DB 落库真值反向锁（出参与实体同源，不得只在出参层自证）
+    let id = v["data"]["id"].as_i64().expect("data.id 应为数字");
+    let row = after_sales::Entity::find_by_id(id)
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("应可回读");
+    assert_eq!(row.customer_id, 7);
+    assert_eq!(row.reason_category.as_deref(), Some("quality"));
+    assert_eq!(row.reason_detail.as_deref(), Some(detail));
+
+    // 列表端点回读（定制订单详情的 after_sales 与本列表共用同一 map 链路）
+    let (status, lv) = get_list(&app, 42).await;
+    assert_eq!(status, StatusCode::OK, "列表端点应 200，实际体: {lv}");
+    assert_eq!(lv["code"], 200);
+    let items = lv["data"]["items"]
+        .as_array()
+        .expect("列表响应应为 PagedResponse{items,...}");
+    assert_eq!(items.len(), 1, "应恰有 1 条工单，实际: {lv}");
+    assert_readback_fields(&items[0], detail);
+}
+
+/// 未采集原因时读端不得吞键：Option 列缺值应显式序列化为 null 键
+/// （前端契约 reason_category?: string 可空；键整体缺失 = 又一形态的"读不回"）
+#[tokio::test]
+async fn create_response_keeps_reason_keys_as_null_when_not_provided() {
+    let (app, _db) = seeded_app().await;
+    let (status, v) = post_create(&app, 42, frontend_real_payload()).await;
+    assert_eq!(status, StatusCode::OK, "实际体: {v}");
+    let data = &v["data"];
+    assert!(
+        data.get("customer_id").is_some(),
+        "NOT NULL 列出参键必须存在: {data}"
+    );
+    assert!(
+        data.get("reason_category").is_some() && data["reason_category"].is_null(),
+        "未提供的 Option 列应出 null 键而非整键缺失: {data}"
+    );
+    assert!(
+        data.get("reason_detail").is_some() && data["reason_detail"].is_null(),
+        "未提供的 Option 列应出 null 键而非整键缺失: {data}"
+    );
+}
+
+// =========================================================
+// 4) 源码扫描防回潮锁（无 DB）
 // =========================================================
 
 /// 从源码截取一个顶层块：anchor 起，到首个 "\n}"（结构体亦以行首 } 结束）。
@@ -418,4 +526,35 @@ fn source_scan_service_dto_and_create_signature() {
         !create.contains("Set(dto.custom_order_id)"),
         "禁止回潮从 body DTO 取归属，实际块:\n{create}"
     );
+}
+
+/// 读端防回潮锁：AfterSalesInfo 必须声明三列且 map_after_sales 如实透传
+/// （本波缺陷本体：写入侧 Set(...) 落库了，读端 DTO/映射缺列导致前端永远读不回）
+#[test]
+fn source_scan_after_sales_readback_dto_and_mapping() {
+    let dto_src = include_str!("../src/models/custom_order_response_dto.rs");
+    let dto_block = extract_block(dto_src, "pub struct AfterSalesInfo");
+    for field in [
+        "pub customer_id: i32,",
+        "pub reason_category: Option<String>,",
+        "pub reason_detail: Option<String>,",
+    ] {
+        assert!(
+            dto_block.contains(field),
+            "AfterSalesInfo 缺读端字段 {field}，实际块:\n{dto_block}"
+        );
+    }
+
+    let handler_src = include_str!("../src/handlers/custom_order_handler.rs");
+    let map_block = extract_block(handler_src, "fn map_after_sales");
+    for passthrough in [
+        "customer_id: a.customer_id,",
+        "reason_category: a.reason_category,",
+        "reason_detail: a.reason_detail,",
+    ] {
+        assert!(
+            map_block.contains(passthrough),
+            "map_after_sales 未透传 {passthrough}，实际块:\n{map_block}"
+        );
+    }
 }

@@ -334,6 +334,7 @@ fn map_after_sales(list: Vec<crate::models::after_sales::Model>) -> Vec<AfterSal
         .map(|a| AfterSalesInfo {
             id: a.id,
             issue_type: a.issue_type,
+            customer_id: a.customer_id,
             description: a.description,
             status: a.status,
             opened_at: a.opened_at,
@@ -341,6 +342,8 @@ fn map_after_sales(list: Vec<crate::models::after_sales::Model>) -> Vec<AfterSal
             resolution: a.resolution,
             refund_amount: a.refund_amount,
             quality_issue_id: a.quality_issue_id,
+            reason_category: a.reason_category,
+            reason_detail: a.reason_detail,
         })
         .collect()
 }
@@ -695,6 +698,7 @@ pub async fn create_after_sales(
     Ok(Json(ApiResponse::success(AfterSalesInfo {
         id: after.id,
         issue_type: after.issue_type,
+        customer_id: after.customer_id,
         description: after.description,
         status: after.status,
         opened_at: after.opened_at,
@@ -702,6 +706,8 @@ pub async fn create_after_sales(
         resolution: after.resolution,
         refund_amount: after.refund_amount,
         quality_issue_id: after.quality_issue_id,
+        reason_category: after.reason_category,
+        reason_detail: after.reason_detail,
     })))
 }
 
@@ -725,6 +731,7 @@ pub async fn list_after_sales(
         .map(|a| AfterSalesInfo {
             id: a.id,
             issue_type: a.issue_type,
+            customer_id: a.customer_id,
             description: a.description,
             status: a.status,
             opened_at: a.opened_at,
@@ -732,6 +739,8 @@ pub async fn list_after_sales(
             resolution: a.resolution,
             refund_amount: a.refund_amount,
             quality_issue_id: a.quality_issue_id,
+            reason_category: a.reason_category,
+            reason_detail: a.reason_detail,
         })
         .collect();
 
@@ -755,6 +764,7 @@ pub async fn update_after_sales(
     Ok(Json(ApiResponse::success(AfterSalesInfo {
         id: after.id,
         issue_type: after.issue_type,
+        customer_id: after.customer_id,
         description: after.description,
         status: after.status,
         opened_at: after.opened_at,
@@ -762,6 +772,8 @@ pub async fn update_after_sales(
         resolution: after.resolution,
         refund_amount: after.refund_amount,
         quality_issue_id: after.quality_issue_id,
+        reason_category: after.reason_category,
+        reason_detail: after.reason_detail,
     })))
 }
 
