@@ -1,9 +1,13 @@
 //! 库存处理器：面料库存业务（list_stock_fabric + create_stock_fabric）
 //!
 //! 拆分自 inventory_stock_handler.rs：原 2 个面料 fn 独立成文件。
+//! 另含 `admit_stock_fabric_trace`——两条库存直建端点（/inventory/stock 与
+//! /inventory/stock/fabric）共用的白坯/染色准入收口，判定权威在
+//! services::inv::fabric_class::validate_fabric_trace。
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::services::inv::fabric_class::{self, FabricTrace};
 use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
@@ -67,9 +71,13 @@ pub async fn create_stock_fabric(
     Json(payload): Json<CreateStockFabricRequest>,
 ) -> Result<Json<ApiResponse<StockFabricResponse>>, AppError> {
     // 输入验证
-    if let Err(e) = payload.validate() {
-        return Err(AppError::validation(e.to_string()));
-    }
+    payload
+        .validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
+    // 白坯/染色追溯口径（色号/缸号/批次）准入：委托唯一权威判定，见 helper 文档
+    let trace =
+        admit_stock_fabric_trace(payload.color_no, payload.dye_lot_no, Some(payload.batch_no))?;
 
     let service = InventoryStockService::new(state.db.clone());
 
@@ -87,9 +95,9 @@ pub async fn create_stock_fabric(
         .create_stock_fabric(CreateStockFabricArgs {
             warehouse_id: payload.warehouse_id,
             product_id: payload.product_id,
-            batch_no: payload.batch_no,
-            color_no: payload.color_no,
-            dye_lot_no: payload.dye_lot_no,
+            batch_no: trace.batch_no,
+            color_no: trace.color_no,
+            dye_lot_no: trace.dye_lot_no,
             grade: payload.grade,
             quantity_meters: payload.quantity_meters,
             quantity_kg,
@@ -99,8 +107,7 @@ pub async fn create_stock_fabric(
             shelf_no: payload.shelf_no,
             layer_no: payload.layer_no,
         })
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(StockFabricResponse {
         id: stock.id,
@@ -121,4 +128,39 @@ pub async fn create_stock_fabric(
         created_at: stock.created_at,
         updated_at: stock.updated_at,
     })))
+}
+
+/// 面料库存直建（POST /inventory/stock 与 POST /inventory/stock/fabric 两条端点共用）
+/// 写入前的四维追溯准入。
+///
+/// 判定本身不在这里重写：唯一权威是 `services::inv::fabric_class::validate_fabric_trace`
+/// （色号为空=白坯免缸号、色号非空=染色布缸号+批次必填、批次任何布种必填、trim 归一、
+/// 禁止按色号文本嗅探布种），本函数只做两点端侧收口：
+/// 1. 拒绝文案外显：validate_fabric_trace 产出的校验错误只回显用户自己提交的色号与
+///    公开业务规则，满足 `business_displayable` 安全边界（见 utils::error 模块文档）；
+///    若不转则 ValidationError 出参被脱敏成"请求参数验证失败"，用户在界面上看不到原因。
+///    其余变体原样传播，不强转 500。
+/// 2. 白坯主动把缸号归一为 None：validate_fabric_trace 对白坯仅"免缸号"（不强制为空），
+///    而出库规划 `services::inventory_deduction` 对白坯只接受 `dye_lot_no IS NULL` 的行、
+///    绝不跨缸回退——若放行"白坯带缸号"入库，该行将永久提不出来。此处收口与出库同源。
+pub fn admit_stock_fabric_trace(
+    color_no: Option<String>,
+    dye_lot_no: Option<String>,
+    batch_no: Option<String>,
+) -> Result<FabricTrace, AppError> {
+    let trace = fabric_class::validate_fabric_trace(color_no, dye_lot_no, batch_no).map_err(
+        |e| match e {
+            AppError::ValidationError(msg) => AppError::business_displayable(msg),
+            other => other,
+        },
+    )?;
+    if trace.color_no.is_empty() {
+        // 白坯布：缸号归一为 None（白坯不具缸号属性，落库 dye_lot_no IS NULL 才能被出库规划命中）
+        Ok(FabricTrace {
+            dye_lot_no: None,
+            ..trace
+        })
+    } else {
+        Ok(trace)
+    }
 }

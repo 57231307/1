@@ -148,6 +148,21 @@ pub async fn create_stock(
     _auth: AuthContext,
     Json(payload): Json<CreateStockFabricRequest>,
 ) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
+    // DTO 校验补齐：此前复用 CreateStockFabricRequest 却从未 validate()，
+    // 四维字段原样落库，"有色号无缸号"的染色布脏行入库后按四维全等永远提不出来
+    payload
+        .validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
+    // 白坯/染色追溯口径（色号/缸号/批次）与 POST /inventory/stock/fabric 同一收口：
+    // 判定委托唯一权威 inv::fabric_class::validate_fabric_trace（白坯空色号合法、
+    // 染色布缺缸号返回用户可见的业务错误），本文件不另写规则
+    let trace = super::inventory_stock_handler_fabric::admit_stock_fabric_trace(
+        payload.color_no,
+        payload.dye_lot_no,
+        Some(payload.batch_no),
+    )?;
+
     let service = InventoryStockService::new(state.db.clone());
 
     let (stock_status, quality_status) = initial_stock_statuses();
@@ -155,12 +170,12 @@ pub async fn create_stock(
         .create_stock(CreateStockArgs {
             warehouse_id: payload.warehouse_id,
             product_id: payload.product_id,
-            batch_no: payload.batch_no,
-            color_no: payload.color_no,
+            batch_no: trace.batch_no,
+            color_no: trace.color_no,
             quantity_meters: payload.quantity_meters,
             quantity_kg: payload.quantity_kg.unwrap_or(Decimal::ZERO),
             grade: payload.grade,
-            dye_lot_no: payload.dye_lot_no,
+            dye_lot_no: trace.dye_lot_no,
             gram_weight: payload.gram_weight,
             width: payload.width,
             stock_status,

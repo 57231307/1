@@ -28,7 +28,8 @@ fn test_create_stock_fabric_request_deserialize() {
     assert_eq!(req.warehouse_id, 1);
     assert_eq!(req.product_id, 100);
     assert_eq!(req.batch_no, "B20240101");
-    assert_eq!(req.color_no, "C001");
+    // color_no 为 Option<String>：白坯允许为空（None/空串），染色布传值时原样解析
+    assert_eq!(req.color_no, Some("C001".to_string()));
     assert_eq!(req.quantity_meters, bingxi_backend::decs!("100.00"));
     assert_eq!(req.gram_weight, Some(bingxi_backend::decs!("180.00")));
     assert_eq!(req.width, Some(bingxi_backend::decs!("180.00")));

@@ -16,10 +16,14 @@ pub struct CreateStockFabricRequest {
     /// 批次号
     #[validate(length(min = 1, max = 50, message = "批次号长度必须在1-50个字符之间"))]
     pub batch_no: String,
-    /// 色号
-    #[validate(length(min = 1, max = 50, message = "色号长度必须在1-50个字符之间"))]
-    pub color_no: String,
-    /// 缸号
+    /// 色号。白坯布允许为空：None / 空串均按白坯处理（落库列 NOT NULL，空串表达白坯，
+    /// 与 models/inventory_stock.rs 的 `color_no: String` 口径一致）。
+    /// 「染色布（色号非空）必须带缸号」「白坯缸号归一为 None」的联动必填唯一权威是
+    /// `services::inv::fabric_class::validate_fabric_trace`（写入前由 handler 委托），
+    /// 本 DTO 不重复写判定规则，避免双权威漂移。
+    #[validate(length(max = 50, message = "色号长度不能超过50个字符"))]
+    pub color_no: Option<String>,
+    /// 缸号（是否与色号联动必填由 validate_fabric_trace 判定，此处只限格式）
     #[validate(length(max = 50, message = "缸号长度不能超过50个字符"))]
     pub dye_lot_no: Option<String>,
     /// 等级
