@@ -132,16 +132,43 @@ pub async fn cancel_verification(
     Ok(Json(ApiResponse::success(result)))
 }
 
+/// 未核销单据候选列表查询参数（typed DTO）
+///
+/// 形态与 `sales_order_handler::OrderStatisticsQuery` / `budget_management_handler::BudgetListQuery` 一致：
+/// Query 泛参曾直接是 `serde_json::Value`，urlencoded 反序列化下所有值恒为 `Value::String`，
+/// service 端 `as_i64()` 恒 `None` ⇒ customer_id 筛选静默失效（勾了客户仍返回全部单据）。
+/// typed DTO 由 serde 在反序列化边界完成字符串→整数转换（非法值直接 400，不做任何
+/// `unwrap_or` 静默回落），再按 service 既有契约键 `customer_id` 以 `Value::Number` 重建透传，
+/// 不改 service 签名、不新造键名。空串筛选由最外层 `normalize_empty_query_params`
+/// 中间件剔除后收敛为 None（不过滤），与全仓查询 DTO 边界语义一致。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct UnverifiedDocsQuery {
+    pub customer_id: Option<i64>,
+}
+
+/// 按 service 既有契约重建透传 json：仅在提供了 customer_id 时写入数字型 `customer_id` 键，
+/// 缺省返回空对象（service 侧 `query.get("customer_id")` 为 None 即不过滤）。
+fn build_unverified_docs_params(q: UnverifiedDocsQuery) -> serde_json::Value {
+    let mut params = serde_json::Map::new();
+    if let Some(v) = q.customer_id {
+        params.insert("customer_id".to_string(), serde_json::Value::from(v));
+    }
+    serde_json::Value::Object(params)
+}
+
 /// 获取未核销发票
 /// GET /api/v1/erp/ar/verifications/unverified/invoices
 pub async fn get_unverified_invoices(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Query(query): Query<serde_json::Value>,
+    Query(q): Query<UnverifiedDocsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
-    let invoices = service.get_unverified_invoices(query).await?;
+    let invoices = service
+        .get_unverified_invoices(build_unverified_docs_params(q))
+        .await?;
 
     Ok(Json(ApiResponse::success(invoices)))
 }
@@ -151,11 +178,13 @@ pub async fn get_unverified_invoices(
 pub async fn get_unverified_payments(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Query(query): Query<serde_json::Value>,
+    Query(q): Query<UnverifiedDocsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
-    let payments = service.get_unverified_payments(query).await?;
+    let payments = service
+        .get_unverified_payments(build_unverified_docs_params(q))
+        .await?;
 
     Ok(Json(ApiResponse::success(payments)))
 }
