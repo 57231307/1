@@ -21,9 +21,17 @@ use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
 /// 创建售后工单 DTO
+///
+/// 任务 #148 契约修复：`custom_order_id`（工单归属）由路由
+/// `POST /custom-orders/{orderId}/after-sales` 的 path 参数权威提供，不再属于
+/// 请求体字段。此前该字段为非 Option 必填且无 serde default，前端 payload 从不
+/// 携带它，导致反序列化层 "missing field custom_order_id" —— 创建必失败；而
+/// handler 又在反序列化成功后用 path 值覆盖 body 值，body 携带本无任何语义。
+/// 若客户端仍在 body 发送 `custom_order_id`（含伪造他人订单 ID），serde 默认忽略
+/// 未知字段，归属一律以 path 为准（越权防护不变，对齐 color_card items 先例：
+/// `handlers/color_card/items.rs::create_color_item` 的 `service.create(id, dto)`）。
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CreateAfterSalesDto {
-    pub custom_order_id: i64,
     pub customer_id: i32,
     /// 售后类型：complaint / repair / exchange / refund
     pub issue_type: String,
@@ -81,8 +89,12 @@ impl CustomOrderAfterSalesService {
     }
 
     /// 创建售后工单
+    ///
+    /// 任务 #148：`custom_order_id` 由调用方（handler）从路由 path 参数权威传入，
+    /// 不从请求体 DTO 取值，客户端 body 伪造归属被结构性排除。
     pub async fn create(
         &self,
+        custom_order_id: i64,
         dto: CreateAfterSalesDto,
     ) -> Result<after_sales::Model, AfterSalesError> {
         // 校验售后类型
@@ -109,7 +121,7 @@ impl CustomOrderAfterSalesService {
         let now = Utc::now();
         let active = ActiveModel {
             id: Default::default(),
-            custom_order_id: Set(dto.custom_order_id),
+            custom_order_id: Set(custom_order_id),
             issue_type: Set(dto.issue_type),
             customer_id: Set(dto.customer_id),
             description: Set(dto.description),
