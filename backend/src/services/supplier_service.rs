@@ -742,8 +742,12 @@ impl SupplierService {
     }
 
     /// 更新供应商联系人（P2-6 修复（v12 复审）：clear_primary_contacts + update 包入同一事务，；保证"取消旧主联系人 + 更新联系人"原子性。）
+    /// 越权修复：路径 (supplier_id, contact_id) 必须一致——联系人不属于路径供应商时
+    /// 返回用户可见业务错误（business_displayable，business 会被出参脱敏），
+    /// 防止以 contact_id 单键跨供应商改写他人联系人。
     pub async fn update_supplier_contact(
         &self,
+        supplier_id: i32,
         contact_id: i32,
         req: UpdateContactRequest,
         user_id: i32,
@@ -755,12 +759,19 @@ impl SupplierService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("联系人 {} 不存在", contact_id)))?;
 
-        let supplier_id = contact.supplier_id;
+        if contact.supplier_id != supplier_id {
+            return Err(AppError::business_displayable(
+                "该联系人不属于此供应商，无法更新，请刷新后重试",
+            ));
+        }
+
+        let owner_supplier_id = contact.supplier_id;
         let mut contact_active: supplier_contact::ActiveModel = contact.into();
 
         // 如果设置为主要联系人，先将其他联系人取消主要联系人状态
         if let Some(true) = req.is_primary {
-            self.clear_primary_contacts_txn(supplier_id, &txn).await?;
+            self.clear_primary_contacts_txn(owner_supplier_id, &txn)
+                .await?;
         }
 
         if let Some(name) = req.contact_name {
@@ -808,22 +819,30 @@ impl SupplierService {
     }
 
     /// 删除供应商联系人
-    // 批次 93 P1-6 修复：补 user_id 参数 + txn + lock_exclusive + 审计日志
+    /// 越权修复：路径 (supplier_id, contact_id) 必须一致——联系人不属于路径供应商时
+    /// 返回用户可见业务错误（business_displayable），防止以 contact_id 单键跨供应商删除他人联系人。
     pub async fn delete_supplier_contact(
         &self,
+        supplier_id: i32,
         contact_id: i32,
         user_id: i32,
     ) -> Result<(), AppError> {
-        // 批次 93 P1-6 修复：get + delete 移入同一事务，补 lock_exclusive 串行化并发
-        // 原实现 get_contact 在 self.db → delete 在 self.db，两步非原子，存在 TOCTOU 风险。
+        // get + delete 在同一事务内，lock_exclusive 串行化并发删除
         let txn = (*self.db).begin().await?;
 
-        // lock_exclusive 串行化并发删除；锁持有至 txn 提交，model 仅用于持锁与存在性校验
-        supplier_contact::Entity::find_by_id(contact_id)
+        // lock_exclusive 串行化并发删除；锁持有至 txn 提交，model 用于持锁、
+        // 存在性校验与归属校验
+        let contact = supplier_contact::Entity::find_by_id(contact_id)
             .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("联系人 {} 不存在", contact_id)))?;
+
+        if contact.supplier_id != supplier_id {
+            return Err(AppError::business_displayable(
+                "该联系人不属于此供应商，无法删除，请刷新后重试",
+            ));
+        }
 
         // 删除联系人（含审计日志）
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
