@@ -237,6 +237,7 @@ pub async fn retry_webhook(
         Err(e) => match &e {
             AppError::BusinessError(_)
             | AppError::ValidationError(_)
+            | AppError::ValidationErrorDisplayable(_)
             | AppError::NotFound(_)
             | AppError::BadRequest(_)
             | AppError::Unauthorized(_)

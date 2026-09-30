@@ -6,8 +6,21 @@
 //! （如 `AppError::business` → "业务处理失败"），真实文案只进 tracing 日志。
 //!
 //! 唯一例外：构造点显式使用 [`AppError::business_displayable`]（新变体
-//! `BusinessErrorDisplayable`）时，出参 `message` 携带真实文案。
+//! `BusinessErrorDisplayable`）或 [`AppError::validation_displayable`]（变体
+//! `ValidationErrorDisplayable`）时，出参 `message` 携带真实文案。
 //! **不存在任何全局开关/环境变量**，是否外显由每个构造点逐条显式声明。
+//!
+//! ## 输入校验文案的外显规则（`ValidationError` 族）
+//!
+//! `validator` 派生校验的文案全部由本仓库自行撰写
+//! （如「产品名称长度不能超过200个字符」「金额必须为正且不超过10亿」），描述的对象
+//! **只是用户自己刚提交的字段**，不含他人数据与内部标识，属于必须告知用户的内容。
+//! 因此 [`From<validator::ValidationErrors>`] 一律转成
+//! `ValidationErrorDisplayable` 并只提取可读文案（`HTTP 400 / code=VALIDATION_ERROR`
+//! 与脱敏形态完全一致，仅 message 从固定常量换成真实原因）。
+//! 手工构造时同理：文案只涉及请求字段就用 [`AppError::validation_displayable`]，
+//! 携带第三方库错误原文（表名/SQL/堆栈/内部路径）才保留脱敏的
+//! [`AppError::validation`]。
 //!
 //! ## 何时允许 `business_displayable`（安全边界，硬性规则）
 //!
@@ -45,6 +58,11 @@ use crate::utils::messages::err_msg;
 pub enum AppError {
     DatabaseError(String),
     ValidationError(String),
+    /// 可外显的输入校验错误：仅允许由 [`AppError::validation_displayable`] 或
+    /// [`From<validator::ValidationErrors>`] 构造。出参 `code`/`status` 与
+    /// `ValidationError` 完全一致（`VALIDATION_ERROR` / 400），唯一区别是 HTTP
+    /// 响应的 `message` 携带真实拒绝原因。使用条件见模块文档。
+    ValidationErrorDisplayable(String),
     NotFound(String),
     BusinessError(String),
     /// 可外显的业务错误：仅允许由 [`AppError::business_displayable`] 构造。
@@ -81,6 +99,14 @@ impl AppError {
     pub fn validation(msg: impl Into<String>) -> Self {
         Self::ValidationError(msg.into())
     }
+    /// 构造**可外显**的输入校验错误：HTTP 出参 `message` 携带真实拒绝原因。
+    ///
+    /// 仅当文案只描述**用户自己提交的字段**违反的公开规则（长度/范围/必填/格式）
+    /// 时使用；若文案携带第三方库错误原文（可能含表名、SQL、内部路径、堆栈），
+    /// 保留脱敏的 [`AppError::validation`]。
+    pub fn validation_displayable(msg: impl Into<String>) -> Self {
+        Self::ValidationErrorDisplayable(msg.into())
+    }
     pub fn unauthorized(msg: impl Into<String>) -> Self {
         Self::Unauthorized(msg.into())
     }
@@ -112,6 +138,9 @@ impl fmt::Display for AppError {
         match self {
             AppError::DatabaseError(msg) => write!(f, "{}{}", err_msg::DB_ERROR_PREFIX, msg),
             AppError::ValidationError(msg) => write!(f, "{}{}", err_msg::VALIDATION_PREFIX, msg),
+            AppError::ValidationErrorDisplayable(msg) => {
+                write!(f, "{}{}", err_msg::VALIDATION_PREFIX, msg)
+            }
             AppError::NotFound(msg) => write!(f, "{}{}", err_msg::NOT_FOUND_PREFIX, msg),
             AppError::BusinessError(msg) => write!(f, "{}{}", err_msg::BUSINESS_PREFIX, msg),
             AppError::BusinessErrorDisplayable(msg) => {
@@ -169,6 +198,9 @@ impl AppError {
         match self {
             AppError::DatabaseError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "DatabaseError"),
             AppError::ValidationError(_) => (StatusCode::BAD_REQUEST, "ValidationError"),
+            AppError::ValidationErrorDisplayable(_) => {
+                (StatusCode::BAD_REQUEST, "ValidationError")
+            }
             AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NotFound"),
             AppError::BusinessError(_) => (StatusCode::BAD_REQUEST, "BusinessError"),
             AppError::BusinessErrorDisplayable(_) => (StatusCode::BAD_REQUEST, "BusinessError"),
@@ -186,6 +218,7 @@ impl AppError {
         match self {
             AppError::DatabaseError(_) => ("HIGH", err_msg::ACTION_DB),
             AppError::ValidationError(_) => ("LOW", err_msg::ACTION_VALIDATION),
+            AppError::ValidationErrorDisplayable(_) => ("LOW", err_msg::ACTION_VALIDATION),
             AppError::NotFound(_) => ("MEDIUM", err_msg::ACTION_NOT_FOUND),
             AppError::BusinessError(_) => ("MEDIUM", err_msg::ACTION_BUSINESS),
             AppError::BusinessErrorDisplayable(_) => ("MEDIUM", err_msg::ACTION_BUSINESS),
@@ -203,6 +236,7 @@ impl AppError {
         match self {
             AppError::DatabaseError(m)
             | AppError::ValidationError(m)
+            | AppError::ValidationErrorDisplayable(m)
             | AppError::NotFound(m)
             | AppError::BusinessError(m)
             | AppError::BusinessErrorDisplayable(m)
@@ -245,6 +279,10 @@ impl AppError {
         match self {
             AppError::DatabaseError(_) => (err_msg::LOG_DB_ERROR, err_msg::HINT_DB.to_string()),
             AppError::ValidationError(_) => (
+                err_msg::LOG_VALIDATION,
+                err_msg::HINT_VALIDATION.to_string(),
+            ),
+            AppError::ValidationErrorDisplayable(_) => (
                 err_msg::LOG_VALIDATION,
                 err_msg::HINT_VALIDATION.to_string(),
             ),
@@ -411,8 +449,47 @@ impl From<(StatusCode, String)> for AppError {
 }
 
 impl From<validator::ValidationErrors> for AppError {
-    fn from(err: validator::ValidationErrors) -> Self {
-        AppError::validation(err.to_string())
+    fn from(errors: validator::ValidationErrors) -> Self {
+        AppError::validation_displayable(readable_validation_errors(&errors))
+    }
+}
+
+/// 把 `validator` 错误集压成可直接外显的可读文案。
+///
+/// 字段级错误只取本仓库自行撰写的 `message`（描述的是用户自己刚提交的字段，
+/// 满足模块文档的安全边界）；无 `message` 时退回规则 `code` 并冠上字段名，
+/// 避免只剩无上下文的规则标识。多条按出现顺序去重后以「；」拼接，让一次请求
+/// 就能改对所有越界字段。一条都提不出来时退回整体序列化——不吞掉拒绝原因。
+fn readable_validation_errors(errors: &validator::ValidationErrors) -> String {
+    fn collect(map: &validator::ValidationErrors, out: &mut Vec<String>) {
+        for (field, kind) in map.errors() {
+            match kind {
+                validator::ValidationErrorsKind::Field(errs) => {
+                    for e in errs {
+                        out.push(match e.message.clone() {
+                            Some(msg) => msg.into_owned(),
+                            None => format!("{field}: {}", e.code),
+                        });
+                    }
+                }
+                validator::ValidationErrorsKind::Struct(inner) => collect(inner, out),
+                validator::ValidationErrorsKind::List(items) => {
+                    for inner in items.values() {
+                        collect(inner, out);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut parts = Vec::new();
+    collect(errors, &mut parts);
+    let mut seen = std::collections::HashSet::new();
+    parts.retain(|p| seen.insert(p.clone()));
+    if parts.is_empty() {
+        errors.to_string()
+    } else {
+        parts.join("；")
     }
 }
 
@@ -472,6 +549,7 @@ impl AppError {
             AppError::Unauthorized(_) => CODE_UNAUTHORIZED,
             AppError::PermissionDenied(_) => CODE_FORBIDDEN,
             AppError::ValidationError(_) => "VALIDATION_ERROR",
+            AppError::ValidationErrorDisplayable(_) => "VALIDATION_ERROR",
             AppError::BusinessError(_) => "BUSINESS_ERROR",
             AppError::BusinessErrorDisplayable(_) => "BUSINESS_ERROR",
             AppError::DatabaseError(_) => "DATABASE_ERROR",
@@ -491,6 +569,7 @@ impl AppError {
         match self {
             AppError::DatabaseError(_) => err_msg::DB_ERROR_PUBLIC.to_string(),
             AppError::ValidationError(_) => err_msg::VALIDATION_PUBLIC.to_string(),
+            AppError::ValidationErrorDisplayable(msg) => msg.clone(),
             AppError::NotFound(_) => err_msg::NOT_FOUND_PUBLIC.to_string(),
             AppError::BusinessError(_) => err_msg::BUSINESS_PUBLIC.to_string(),
             AppError::BusinessErrorDisplayable(msg) => msg.clone(),

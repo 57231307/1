@@ -70,10 +70,10 @@ pub async fn create_stock_fabric(
     _auth: AuthContext,
     Json(payload): Json<CreateStockFabricRequest>,
 ) -> Result<Json<ApiResponse<StockFabricResponse>>, AppError> {
-    // 输入验证
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    // 输入验证：DTO 校验拒绝只回显用户自己提交的字段规则，走 From<ValidationErrors>
+    // 的可读外显链路（不得手工 AppError::validation——那会把原因压成"请求参数验证失败"，
+    // 用户看不到"批次不得为空"，也就永远到不了下方 fabric_class 的判定文案）
+    payload.validate().map_err(AppError::from)?;
 
     // 白坯/染色追溯口径（色号/缸号/批次）准入：委托唯一权威判定，见 helper 文档
     let trace =
@@ -150,7 +150,9 @@ pub fn admit_stock_fabric_trace(
 ) -> Result<FabricTrace, AppError> {
     let trace = fabric_class::validate_fabric_trace(color_no, dye_lot_no, batch_no).map_err(
         |e| match e {
-            AppError::ValidationError(msg) => AppError::business_displayable(msg),
+            AppError::ValidationError(msg) | AppError::ValidationErrorDisplayable(msg) => {
+                AppError::business_displayable(msg)
+            }
             other => other,
         },
     )?;
