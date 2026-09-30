@@ -37,7 +37,7 @@ use bingxi_backend::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbBackend,
-    EntityTrait, QuerySelect, Set, Statement, TransactionTrait,
+    EntityTrait, QueryFilter, QuerySelect, Set, Statement, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -284,6 +284,7 @@ async fn audit_waiver_rows(db: &DatabaseConnection) -> Vec<(i32, String)> {
 }
 
 /// 门控调用结果(字段扁平化,便于断言)
+#[derive(Debug)]
 struct GateRunResult {
     waived: bool,
     blocked_scope: Option<BlockingScope>,

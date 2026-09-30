@@ -103,10 +103,7 @@ fn default_width(gen_src: &str, transduce_call_marker: &str) -> usize {
     // 取参数列表右括号前的最后一个独立数字：本文件内该转调形如
     // `Self::generate_no_with_width(db, prefix, _entity, column, 3)`，
     // 参数中除末位 width 外无其它独立数字，取最后一个数字段最稳。
-    let close = idx
-        + gen_src[idx..]
-            .find(')')
-            .expect("转调调用未闭合");
+    let close = idx + gen_src[idx..].find(')').expect("转调调用未闭合");
     let mut last = None;
     let mut pos = idx;
     while pos < close && gen_src[pos..close].contains(|c: char| c.is_ascii_digit()) {
@@ -140,7 +137,10 @@ fn parse_spec(file_src: &str, fn_marker: &str, gen_src: &str) -> NoSpec {
         // 参数逗号计数（宏调用内部无嵌套括号与逗号字符串，4 逗号=4 参、5 逗号=txn 变体）
         let commas = call_text.matches(',').count();
         let width = match commas {
-            3 => default_width(gen_src, "Self::generate_no_with_width(db, prefix, _entity, column"),
+            3 => default_width(
+                gen_src,
+                "Self::generate_no_with_width(db, prefix, _entity, column",
+            ),
             4 => default_width(
                 gen_src,
                 "Self::generate_no_with_width_txn(txn, prefix, _entity, column",
@@ -157,18 +157,16 @@ fn parse_spec(file_src: &str, fn_marker: &str, gen_src: &str) -> NoSpec {
         .expect("函数体内未出现 DocumentNumberGenerator 调用");
     let name_start = marker_at + "DocumentNumberGenerator::".len();
     let (name, after_name) = read_ident(file_src, name_start);
-    let call_end = after_name
-        + file_src[after_name..]
-            .find(')')
-            .expect("调用未闭合");
+    let call_end = after_name + file_src[after_name..].find(')').expect("调用未闭合");
     let (prefix, after_lit) = first_string_lit(file_src, after_name);
     let width = if name.contains("with_width") {
         first_bare_number(&file_src[..call_end], after_lit).0
     } else {
         match name.as_str() {
-            "generate_no" => {
-                default_width(gen_src, "Self::generate_no_with_width(db, prefix, _entity, column")
-            }
+            "generate_no" => default_width(
+                gen_src,
+                "Self::generate_no_with_width(db, prefix, _entity, column",
+            ),
             "generate_no_with_txn" => default_width(
                 gen_src,
                 "Self::generate_no_with_width_txn(txn, prefix, _entity, column",
@@ -183,16 +181,16 @@ const GEN: &str = "src/utils/number_generator.rs";
 
 #[test]
 fn inventory_adjustment_display_matches_storage_authority() {
-    let gen = read(GEN);
+    let gen_src = read(GEN);
     let display = parse_spec(
         &read("src/handlers/inventory_adjustment_handler.rs"),
         "pub async fn generate_no(",
-        &gen,
+        &gen_src,
     );
     let storage = parse_spec(
         &read("src/services/inventory_adjustment_service.rs"),
         "impl_generate_no!(",
-        &gen,
+        &gen_src,
     );
     assert_eq!(
         display, storage,
@@ -202,16 +200,16 @@ fn inventory_adjustment_display_matches_storage_authority() {
 
 #[test]
 fn purchase_receipt_display_matches_storage_authority() {
-    let gen = read(GEN);
+    let gen_src = read(GEN);
     let display = parse_spec(
         &read("src/handlers/purchase_receipt_handler.rs"),
         "pub async fn generate_no(",
-        &gen,
+        &gen_src,
     );
     let storage = parse_spec(
         &read("src/services/purchase_receipt_service.rs"),
         "impl_generate_no!(",
-        &gen,
+        &gen_src,
     );
     assert_eq!(
         display, storage,
@@ -221,16 +219,16 @@ fn purchase_receipt_display_matches_storage_authority() {
 
 #[test]
 fn inventory_transfer_display_matches_storage_authority() {
-    let gen = read(GEN);
+    let gen_src = read(GEN);
     let display = parse_spec(
         &read("src/handlers/inventory_transfer_handler.rs"),
         "pub async fn generate_no(",
-        &gen,
+        &gen_src,
     );
     let storage = parse_spec(
         &read("src/services/inv/inventory_move.rs"),
         "impl_generate_no!(",
-        &gen,
+        &gen_src,
     );
     assert_eq!(
         display, storage,
@@ -240,16 +238,16 @@ fn inventory_transfer_display_matches_storage_authority() {
 
 #[test]
 fn inventory_count_display_matches_storage_authority() {
-    let gen = read(GEN);
+    let gen_src = read(GEN);
     let display = parse_spec(
         &read("src/handlers/inventory_count_handler.rs"),
         "pub async fn generate_no(",
-        &gen,
+        &gen_src,
     );
     let storage = parse_spec(
         &read("src/services/inventory_count_service.rs"),
         "DocumentNumberGenerator::generate_no_with_txn(",
-        &gen,
+        &gen_src,
     );
     assert_eq!(
         display, storage,
@@ -276,9 +274,12 @@ fn doc_no_check_handler_delegates_to_registry() {
 /// req.receipt_no；OVRC 只是入库凭证号），注册表映射必须是真实表真实列。
 #[test]
 fn registry_covers_frontend_checked_doc_types_with_real_columns() {
-    let gen = read(GEN);
+    let gen_src = read(GEN);
     let expected: &[(&str, &str)] = &[
-        ("outsourcing_receipt", "outsourcing_receipt::Column::ReceiptNo"),
+        (
+            "outsourcing_receipt",
+            "outsourcing_receipt::Column::ReceiptNo",
+        ),
         ("inventory_count", "inventory_count::Column::CountNo"),
         ("outsourcing_order", "outsourcing_order::Column::OrderNo"),
         ("dye_batch", "dye_batch::Column::BatchNo"),
