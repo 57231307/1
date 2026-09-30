@@ -26,7 +26,7 @@ export interface CreditRating {
 export interface CreditAdjustment {
   amount: number;
   reason: string;
-  type: 'increase' | 'decrease';
+  adjustment_type: 'increase' | 'decrease';
 }
 
 export interface CreditOccupation {

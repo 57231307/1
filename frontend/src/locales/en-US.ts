@@ -7010,6 +7010,7 @@ export default {
       validation: {
         adjustmentTypeRequired: 'Please select adjustment type',
         amountRequired: 'Please enter adjustment amount',
+        amountMustPositive: 'Adjustment amount must be greater than 0',
         reasonRequired: 'Please enter adjustment reason',
       },
       message: {
@@ -7223,6 +7224,8 @@ export default {
         supplierNameRequired: 'Please enter supplier name',
         contactPhoneRequired: 'Please enter contact phone',
         phoneFormat: 'Please enter a valid phone number',
+        shortNameLength: 'Supplier short name must be 2-100 characters',
+        creditCodeLength: 'Credit code must be exactly 18 characters',
       },
     },
     list: {

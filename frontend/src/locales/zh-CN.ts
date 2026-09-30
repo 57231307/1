@@ -6975,6 +6975,7 @@ export default {
       validation: {
         adjustmentTypeRequired: '请选择调整类型',
         amountRequired: '请输入调整金额',
+        amountMustPositive: '调整金额必须大于 0',
         reasonRequired: '请输入调整原因',
       },
       message: {
@@ -7187,6 +7188,8 @@ export default {
         supplierNameRequired: '请输入供应商名称',
         contactPhoneRequired: '请输入联系电话',
         phoneFormat: '请输入正确的手机号',
+        shortNameLength: '供应商简称长度需为 2-100 个字符',
+        creditCodeLength: '统一社会信用代码必须为 18 位',
       },
     },
     list: {

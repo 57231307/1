@@ -389,13 +389,16 @@ const handleSubmit = async () => {
     await formRef.value.validate();
     submitLoading.value = true;
     // 信用额度后端 DTO 为字符串类型（显式格式校验），提交前转字符串防 422
+    // 后端 Create/UpdateCustomerRequest.contact_email 为 Option<String> + #[validate(email)]，
+    // validator 框架对 Some("") 判 email 格式失败触发 422、对 None（缺省不携带该键）跳过；
+    // 仿 UserTab 条件展开范式，email 空则省略该键、非空仍提交。
+    const { contact_email, credit_limit, annual_purchase, ...rest } = formData;
     const payload = {
-      ...formData,
-      credit_limit: String(formData.credit_limit ?? '0'),
+      ...rest,
+      credit_limit: String(credit_limit ?? '0'),
       annual_purchase:
-        formData.annual_purchase === null || formData.annual_purchase === undefined
-          ? undefined
-          : formData.annual_purchase,
+        annual_purchase === null || annual_purchase === undefined ? undefined : annual_purchase,
+      ...(contact_email ? { contact_email } : {}),
     };
     if (formData.id) {
       await updateCustomer(formData.id, payload);

@@ -416,8 +416,12 @@ const handleSubmit = async () => {
       ElMessage.warning(t('sales.orderForm.addValidItem'));
       return;
     }
+    // 空白明细行（未选产品）的 product_id 为 undefined，序列化后该键缺失，而后端
+    // SalesOrderItemRequest.product_id 是非 Option 的 i32（backend/src/services/so/mod.rs:170），
+    // 缺键会导致反序列化失败并报参数错误。判空依据与提交内容必须同为 validItems。
+    // 判空已用 validItems，提交内容必须同为过滤后的有效行（与判空依据一致），杜绝空行入参。
     localData.total_amount = calculateTotal();
-    emit('submit', localData);
+    emit('submit', { ...localData, items: validItems });
   } catch (error) {
     const err = error as { message?: string };
     if (err.message) {
