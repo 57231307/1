@@ -28,6 +28,10 @@ use crate::models::status::approval;
 pub enum BatchError {
     #[error("色号价格不存在: id={0}")]
     PriceNotFound(i64),
+    /// 状态门：记录当前状态不满足操作前置（如仅待审批可审批），归业务族。
+    /// 与同域 `CrudError::InvalidState` 及 finance/quality/bad_debt 各域状态门族一致。
+    #[error("当前状态不允许此操作: {0}")]
+    InvalidState(String),
     #[error("参数校验失败: {0}")]
     Validation(String),
     /// 审计日志写入失败：属服务端持久化缺陷（AppError 原文），非用户输入校验，
@@ -205,7 +209,8 @@ impl ColorPriceBatchService {
             .ok_or(BatchError::PriceNotFound(id))?;
 
         if existing.approval_status != approval::PENDING {
-            return Err(BatchError::Validation(
+            // 状态门：价格未处于待审批，前置状态未满足，归业务族
+            return Err(BatchError::InvalidState(
                 "价格不处于待审批状态，无法审批".to_string(),
             ));
         }

@@ -332,7 +332,8 @@ impl CrmAssignService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?;
         if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
-            return Err(AppError::validation(format!(
+            // 状态门：线索已处于转化终态，前置未满足，归业务族；文案含内部线索 ID 保持脱敏
+            return Err(AppError::business(format!(
                 "线索 {} 已转化为客户，无法转移",
                 lead_id
             )));
@@ -353,7 +354,8 @@ impl CrmAssignService {
             .await?
             .ok_or_else(|| AppError::validation(format!("新归属人用户 {} 不存在", to_user_id)))?;
         if !new_owner.is_active {
-            return Err(AppError::validation(format!(
+            // 前置状态门：新归属人账号已停用，业务前置未满足，归业务族；文案含用户 ID 保持脱敏
+            return Err(AppError::business(format!(
                 "新归属人用户 {} 已停用，无法接收线索",
                 to_user_id
             )));
@@ -512,7 +514,8 @@ impl CrmAssignService {
             .await?
             .ok_or_else(|| AppError::validation(format!("认领人用户 {} 不存在", user_id)))?;
         if !claimer.is_active {
-            return Err(AppError::validation(format!(
+            // 前置状态门：认领人账号已停用，业务前置未满足，归业务族；文案含用户 ID 保持脱敏
+            return Err(AppError::business(format!(
                 "认领人用户 {} 已停用，无法认领线索",
                 user_id
             )));
@@ -547,13 +550,16 @@ impl CrmAssignService {
     /// 校验线索可被认领：状态为 new 且非自转
     fn validate_lead_for_claim(lead: &crm_lead::Model, user_id: i32) -> Result<(), AppError> {
         if lead.lead_status.as_deref() != Some(lead_status::NEW) {
-            return Err(AppError::validation(format!(
+            // 状态门：线索当前状态非 new，前置状态未满足，归业务族；
+            // 文案含内部线索 ID 与状态 token，按安全边界保持脱敏 business。
+            return Err(AppError::business(format!(
                 "线索 {} 当前状态为 {:?}，非 'new' 状态无法认领",
                 lead.id, lead.lead_status
             )));
         }
         if lead.owner_id == user_id {
-            return Err(AppError::validation_displayable(
+            // 状态门：线索当前归属人已是本人，属「已处于某态不可重复动作」，归业务族；文案可外显
+            return Err(AppError::business_displayable(
                 "认领失败：线索当前归属人已是当前用户",
             ));
         }

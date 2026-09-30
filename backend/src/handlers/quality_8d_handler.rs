@@ -127,8 +127,10 @@ pub fn eight_d_err(e: EightDError) -> AppError {
     match e {
         EightDError::NotFound => AppError::not_found("8D 报告不存在"),
         EightDError::QualityIssueNotFound => AppError::not_found("质量异常不存在"),
+        // 状态门装配点：AlreadyExists 属「已处于某态不可重复动作」，与本 handler 的
+        // InvalidState 同为业务族；文案不含内部 ID/状态 token，可外显。
         EightDError::AlreadyExists => {
-            AppError::validation_displayable("该质量异常已存在 8D 报告，不能重复启动")
+            AppError::business_displayable("该质量异常已存在 8D 报告，不能重复启动")
         }
         EightDError::InvalidState { current, expected } => AppError::business(format!(
             "当前状态 {} 不允许此操作（期望 {}）",

@@ -158,7 +158,9 @@ impl FinanceInvoiceService {
         let result = if let Some(invoice) = invoice {
             // 状态门：仅 "pending" 状态可审批，防止已审批/已核销等状态被重复审批
             if invoice.status != invoice_status::PENDING {
-                return Err(AppError::bad_request(format!(
+                // 状态门：前置状态未满足（仅待审批可审批），归业务族；
+                // 文案回显了记录内部状态 token，按 error.rs 安全边界保持脱敏 business。
+                return Err(AppError::business(format!(
                     "只能审批待审批状态的财务发票，当前状态：{}",
                     invoice.status
                 )));

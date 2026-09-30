@@ -43,7 +43,8 @@ impl VoucherService {
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         if voucher.status != crate::models::status::voucher::VOUCHER_DRAFT {
-            return Err(AppError::bad_request(
+            // 状态门：非草稿不可提交，归业务族；文案纯公开规则可外显
+            return Err(AppError::business_displayable(
                 "只有草稿状态的凭证可以提交".to_string(),
             ));
         }
@@ -87,7 +88,8 @@ impl VoucherService {
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         if voucher.status != crate::models::status::voucher::VOUCHER_SUBMITTED {
-            return Err(AppError::bad_request("只有已提交的凭证可以审核"));
+            // 状态门：前置状态未满足（仅已提交可审核），归业务族；文案纯公开规则可外显
+            return Err(AppError::business_displayable("只有已提交的凭证可以审核"));
         }
 
         // 验证借贷平衡
@@ -129,7 +131,8 @@ impl VoucherService {
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         if voucher.status != crate::models::status::voucher::VOUCHER_REVIEWED {
-            return Err(AppError::bad_request("只有已审核的凭证可以过账"));
+            // 状态门：前置状态未满足（仅已审核可过账），归业务族；文案纯公开规则可外显
+            return Err(AppError::business_displayable("只有已审核的凭证可以过账"));
         }
 
         // 检查期间锁定
@@ -200,7 +203,8 @@ impl VoucherService {
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         if voucher.status != crate::models::status::voucher::VOUCHER_POSTED {
-            return Err(AppError::bad_request("只有已过账的凭证可以反过账"));
+            // 状态门：前置状态未满足（仅已过账可反过账），归业务族；文案纯公开规则可外显
+            return Err(AppError::business_displayable("只有已过账的凭证可以反过账"));
         }
 
         // 检查期间锁定（反过账同样受会计期间锁约束）

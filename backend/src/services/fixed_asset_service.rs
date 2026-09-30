@@ -322,7 +322,8 @@ impl FixedAssetService {
             .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", asset_id)))?;
 
         if asset.status != master_data::ACTIVE {
-            return Err(AppError::validation(
+            // 状态门：资产当前非活跃，前置状态未满足，归业务族；文案纯公开规则可外显
+            return Err(AppError::business_displayable(
                 "只有活跃状态的资产才能计提折旧".to_string(),
             ));
         }
@@ -538,7 +539,8 @@ impl FixedAssetService {
 
         // 检查资产状态
         if asset.status != master_data::ACTIVE {
-            return Err(AppError::validation(
+            // 状态门：资产当前非活跃，前置状态未满足，归业务族；文案纯公开规则可外显
+            return Err(AppError::business_displayable(
                 "只有活跃状态的资产才能处置".to_string(),
             ));
         }
@@ -786,7 +788,7 @@ impl FixedAssetService {
         if asset.status != master_data::INACTIVE
             && asset.status != crate::models::status::fixed_asset::DISPOSED
         {
-            return Err(AppError::validation(
+            return Err(AppError::business_displayable(
                 "只能删除未使用或已处置状态的资产".to_string(),
             ));
         }
@@ -1372,7 +1374,10 @@ impl FixedAssetService {
             .ok_or_else(|| AppError::not_found(format!("减值测试记录不存在：{}", test_id)))?;
 
         if test.status != "pending" {
-            return Err(AppError::bad_request("只有待审批状态的记录才能审批"));
+            // 状态门：减值测试记录当前非待审批，前置状态未满足，归业务族；文案纯公开规则可外显
+            return Err(AppError::business_displayable(
+                "只有待审批状态的记录才能审批",
+            ));
         }
 
         let mut active: asset_impairment_test::ActiveModel = test.into();
@@ -1447,7 +1452,10 @@ impl FixedAssetService {
             .ok_or_else(|| AppError::not_found(format!("折旧政策变更记录不存在：{}", change_id)))?;
 
         if change.status != "pending" {
-            return Err(AppError::bad_request("只有待审批状态的记录才能审批"));
+            // 状态门：政策变更记录当前非待审批，前置状态未满足，归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
+                "只有待审批状态的记录才能审批",
+            ));
         }
 
         let mut active: depreciation_policy_change::ActiveModel = change.into();

@@ -328,7 +328,8 @@ pub async fn delete_contract(
 
     // 检查状态
     if contract.status != crate::models::status::contract::DRAFT {
-        return Err(AppError::validation(
+        // 状态门：合同非草稿，删除前置未满足，归业务族；文案纯规则可外显
+        return Err(AppError::business_displayable(
             "只有草稿状态的合同才能删除".to_string(),
         ));
     }

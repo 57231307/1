@@ -117,7 +117,8 @@ impl BpmService {
             .ok_or_else(|| AppError::not_found("Task not found"))?;
 
         if task.status.as_deref() != Some(task_status::PENDING) {
-            return Err(AppError::validation_displayable(
+            // 状态门：前置状态未满足（仅待处理可审批），归业务族
+            return Err(AppError::business_displayable(
                 "任务当前不处于待处理状态，无法执行该操作",
             ));
         }
@@ -442,7 +443,8 @@ impl BpmService {
             .ok_or_else(|| AppError::not_found("任务不存在"))?;
 
         if task.status.as_deref() != Some(task_status::PENDING) {
-            return Err(AppError::validation_displayable("只能转办待处理任务"));
+            // 状态门：前置状态未满足（仅待处理可转办），归业务族
+            return Err(AppError::business_displayable("只能转办待处理任务"));
         }
 
         let mut task_active: bpm_task::ActiveModel = task.into();
@@ -463,7 +465,8 @@ impl BpmService {
             .ok_or_else(|| AppError::not_found("任务不存在"))?;
 
         if task.status.as_deref() != Some(task_status::PENDING) {
-            return Err(AppError::validation_displayable("只能催办待处理任务"));
+            // 状态门：前置状态未满足（仅待处理可催办），归业务族
+            return Err(AppError::business_displayable("只能催办待处理任务"));
         }
 
         // 记录催办日志，可以通过事件总线发送通知

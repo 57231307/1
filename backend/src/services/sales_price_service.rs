@@ -152,7 +152,8 @@ impl SalesPriceService {
 
         // 检查状态，只有待审批状态可以批准
         if price_model.status != master_data::PENDING {
-            return Err(AppError::validation(format!(
+            // 状态门：价格当前非待审批，前置状态未满足，归业务族；文案含状态 token 保持脱敏
+            return Err(AppError::business(format!(
                 "只有待审批状态的价格可以批准，当前状态：{}",
                 price_model.status
             )));

@@ -373,7 +373,10 @@ impl BudgetManagementService {
         let children_count = 0;
 
         if children_count > 0 {
-            return Err(AppError::validation("存在子科目，无法删除".to_string()));
+            // 状态/前置门：方案仍被子科目引用，业务前置未满足，归业务族；文案无内部信息可外显
+            return Err(AppError::business_displayable(
+                "存在子科目，无法删除".to_string(),
+            ));
         }
 
         budget_management::Entity::delete_many()
@@ -482,7 +485,10 @@ impl BudgetManagementService {
         if plan.status.as_deref() != Some(budget::DRAFT)
             && plan.status.as_deref() != Some(budget::REJECTED)
         {
-            return Err(AppError::validation("预算方案状态不允许审批".to_string()));
+            // 状态门：方案当前状态不满足审批前置，归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
+                "预算方案状态不允许审批".to_string(),
+            ));
         }
 
         let mut plan_active: budget_plan::ActiveModel = plan.into();
@@ -515,7 +521,10 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", req.plan_id)))?;
 
         if plan.status.as_deref() != Some(budget::APPROVED) {
-            return Err(AppError::validation("预算方案未审批，无法执行".to_string()));
+            // 状态门：方案未审批这一前置未满足，归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
+                "预算方案未审批，无法执行".to_string(),
+            ));
         }
 
         // v11 批次 145 P1-8：在事务内创建预算执行明细
@@ -785,7 +794,8 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算调整单不存在：{}", adjustment_id)))?;
 
         if adjustment.approval_status != approval::PENDING {
-            return Err(AppError::validation(
+            // 状态门：调整单前置状态未满足（仅待审批可审批），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "预算调整单状态不允许审批（仅待审批状态可审批）".to_string(),
             ));
         }
@@ -845,7 +855,8 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算调整单不存在：{}", adjustment_id)))?;
 
         if adjustment.approval_status != approval::PENDING {
-            return Err(AppError::validation(
+            // 状态门：调整单前置状态未满足（仅待审批可驳回），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "预算调整单状态不允许驳回（仅待审批状态可驳回）".to_string(),
             ));
         }
@@ -878,7 +889,8 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", plan_id)))?;
 
         if plan.status.as_deref() != Some(budget::DRAFT) {
-            return Err(AppError::validation(
+            // 状态门：方案前置状态未满足（仅草稿可驳回），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "预算方案状态不允许驳回（仅草稿状态可驳回）".to_string(),
             ));
         }
@@ -968,7 +980,9 @@ impl BudgetManagementService {
             .get_available_plan_by_department(department_id)
             .await?
             .ok_or_else(|| {
-                AppError::validation(format!(
+                // 前置门：部门无可用预算方案，属业务流程前置未满足，归业务族；
+                // 文案含内部部门 ID，按 error.rs 安全边界保持脱敏 business。
+                AppError::business(format!(
                     "部门 {} 无可用预算方案，无法提交单据（V15 P0-B06 强制拦截）",
                     department_id
                 ))
@@ -1000,7 +1014,9 @@ impl BudgetManagementService {
                 .sum();
 
             let available_amount = issued_amount - executed_amount;
-            return Err(AppError::validation(format!(
+            // 额度门：提交量受系统记录的预算余额约束，属业务族；文案含余额数字，
+            // 按 error.rs 安全边界不得外显，保持脱敏 business。
+            return Err(AppError::business(format!(
                 "预算余额不足，无法提交单据（V15 P0-B06 强制拦截）：申请金额={}, 可用金额={}, 已下达={}, 已执行={}",
                 amount, available_amount, issued_amount, executed_amount
             )));
@@ -1030,7 +1046,10 @@ impl BudgetManagementService {
             .check_budget_available(department_id, plan_id, amount)
             .await?;
         if !available {
-            return Err(AppError::validation("预算余额不足，无法占用".to_string()));
+            // 额度门：可用预算不足，归业务族；文案不含余额数字可外显
+            return Err(AppError::business_displayable(
+                "预算余额不足，无法占用".to_string(),
+            ));
         }
 
         // 创建预算执行记录
@@ -1481,7 +1500,8 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算版本不存在：{}", version_id)))?;
 
         if version.status != "draft" {
-            return Err(AppError::bad_request("只有草稿状态的版本才能审批"));
+            // 状态门：版本前置状态未满足（仅草稿可审批），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable("只有草稿状态的版本才能审批"));
         }
 
         let mut active: budget_version::ActiveModel = version.into();

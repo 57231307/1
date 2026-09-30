@@ -197,7 +197,9 @@ impl CustomOrderAfterSalesService {
 
         // 校验：已关闭/已拒绝的售后工单不允许触发质量调查
         if existing.status == "closed" || existing.status == "rejected" {
-            return Err(AfterSalesError::Validation(format!(
+            // 状态门：工单已处于关闭/拒绝终态，前置状态未满足，归业务族（InvalidState）；
+            // 原走 Validation 通道族与本域其余状态门不一致
+            return Err(AfterSalesError::InvalidState(format!(
                 "售后工单状态为 {}，已关闭/拒绝的工单不允许触发质量调查",
                 existing.status
             )));

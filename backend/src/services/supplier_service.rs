@@ -81,7 +81,8 @@ impl SupplierService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            return Err(AppError::validation(format!(
+            // 唯一性冲突：供应商名称重复，归业务族；回显用户自己提交的名称可外显
+            return Err(AppError::business_displayable(format!(
                 "供应商名称 '{}' 已存在",
                 supplier_name
             )));

@@ -458,7 +458,8 @@ impl SalesContractService {
 
         // 检查合同状态
         if contract.status != contract::ACTIVE {
-            return Err(AppError::validation(
+            // 状态门：合同非活跃，执行前置未满足，归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "只有活跃状态的合同才能执行".to_string(),
             ));
         }

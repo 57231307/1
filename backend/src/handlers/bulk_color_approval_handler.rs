@@ -239,6 +239,9 @@ pub fn bca_err(e: BulkColorApprovalError) -> AppError {
         BulkColorApprovalError::NotFound => AppError::not_found("批色记录不存在"),
         BulkColorApprovalError::SalesOrderNotFound => AppError::not_found("销售订单不存在"),
         BulkColorApprovalError::DyeBatchNotFound => AppError::not_found("染色批次不存在"),
+        BulkColorApprovalError::ProductionOrderNotFound => {
+            AppError::not_found("关联生产订单不存在")
+        }
         BulkColorApprovalError::CustomerNotFound => AppError::not_found("客户不存在"),
         BulkColorApprovalError::InvalidState(msg) => AppError::business(msg),
         BulkColorApprovalError::Validation(msg) => AppError::validation(msg),

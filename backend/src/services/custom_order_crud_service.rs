@@ -38,6 +38,11 @@ pub enum CrudError {
     NotFound,
     #[error("当前状态不允许此操作")]
     InvalidState,
+    /// 状态门（携带可外显文案）：与 `InvalidState`（固定脱敏文案）同属业务族，
+    /// 区别仅在于本变体的文案是公开业务规则、不含记录 ID/状态 token，可安全外显。
+    /// 任务 #165：状态门语义不得借用 `Validation` 通道出 VALIDATION_ERROR。
+    #[error("当前状态不允许此操作: {0}")]
+    InvalidStateDisplayable(String),
     #[error("参数校验失败: {0}")]
     Validation(String),
     #[error("数据库错误: {0}")]
@@ -346,7 +351,9 @@ impl CustomOrderCrudService {
             .ok_or(CrudError::NotFound)?;
 
         if existing.customer_approved_at.is_some() {
-            return Err(CrudError::Validation(
+            // 状态门（已处于某态不可重复动作）：原走 Validation 通道误出 VALIDATION_ERROR，
+            // 按 #165 判据改走业务族可外显变体
+            return Err(CrudError::InvalidStateDisplayable(
                 "订单已客户签字确认，禁止重复确认".to_string(),
             ));
         }
@@ -378,7 +385,9 @@ impl CustomOrderCrudService {
             .ok_or(CrudError::NotFound)?;
 
         if existing.customer_approved_at.is_none() {
-            return Err(CrudError::Validation(
+            // 状态门（前置状态未满足）：原走 Validation 通道误出 VALIDATION_ERROR，
+            // 按 #165 判据改走业务族可外显变体
+            return Err(CrudError::InvalidStateDisplayable(
                 "未客户签字确认的订单不允许变更".to_string(),
             ));
         }

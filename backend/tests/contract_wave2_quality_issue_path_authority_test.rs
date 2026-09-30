@@ -8,8 +8,8 @@
 //!   `service.report_issue(id, dto)`：归属由路由 path 权威注入，不再"反序列化后
 //!   覆盖"（越权防护由 handler 覆盖升级为结构性排除）
 //! - `backend/src/handlers/custom_order_handler.rs::quality_err`
-//!   InvalidState/Validation → `AppError::business_displayable`（拒绝原因外显，
-//!   对齐 aftersales_err 先例）
+//!   InvalidState → `AppError::business_displayable`、Validation → `AppError::validation_displayable`
+//!   （拒绝原因均外显，族按 #165 判据拆分，对齐 aftersales_err）
 //!
 //! 覆盖策略（先例：contract_wave2_after_sales_create_test.rs，全部真实行为无 mock）：
 //! - serde 解码（无 DB）：缺 custom_order_id 键必须成功（修复前必失败）；伪造键被
@@ -224,23 +224,24 @@ async fn forged_custom_order_id_in_body_cannot_override_path_ownership() {
     );
 }
 
-/// 用户可见性锁：非法严重度 / 色牢度越界 → 400 + code=BUSINESS_ERROR + message
-/// 外显真实拒绝文案（修复前 Validation 走 AppError::validation 被脱敏为固定文案）
+/// 用户可见性锁：非法严重度 / 色牢度越界 → 400 + code=VALIDATION_ERROR + message
+/// 外显真实拒绝文案。断言跟随源码变更（任务 #165）：severity 枚举越界与色牢度等级越界
+/// 都是「用户提交字段」的输入校验，族归 VALIDATION_ERROR；validation_displayable 仍外显真实原因。
 #[tokio::test]
-async fn validation_rejections_return_displayable_business_message() {
+async fn validation_rejections_return_displayable_validation_message() {
     let (app, _db) = seeded_app().await;
     let mut body = frontend_real_payload();
     body["severity"] = json!("catastrophic");
     let (status, v) = post_issue(&app, 42, body).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["code"], "VALIDATION_ERROR");
     assert_eq!(v["message"], "非法严重度: catastrophic");
 
     let mut body = frontend_real_payload();
     body["color_fastness_grade"] = json!(9);
     let (status, v) = post_issue(&app, 42, body).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["code"], "VALIDATION_ERROR");
     assert_eq!(v["message"], "ISO 105 色牢度等级必须在 1-5 之间");
 }
 
@@ -309,19 +310,20 @@ fn source_scan_report_quality_issue_contract() {
     );
 }
 
-/// quality_err：InvalidState/Validation 必须 business_displayable（外显安全
-/// 边界同 aftersales_err，先例注释见 handler）
+/// quality_err：InvalidState 必须 business_displayable（记录状态门归业务族并外显），
+/// Validation 必须 validation_displayable（提交字段校验归校验族并外显）。
+/// 断言跟随源码变更（任务 #165）：#148 曾把两者并成 business，本轮按判据拆族。
 #[test]
 fn source_scan_quality_err_displayable_mapping() {
     let src = include_str!("../src/handlers/custom_order_handler.rs");
     let map = extract_block(src, "fn quality_err");
     assert!(
         map.contains("InvalidState(msg) => AppError::business_displayable(msg)"),
-        "InvalidState 拒绝必须外显，实际块:\n{map}"
+        "InvalidState 状态门必须外显且归 business 族，实际块:\n{map}"
     );
     assert!(
-        map.contains("Validation(msg) => AppError::business_displayable(msg)"),
-        "Validation 拒绝必须外显（修复前被脱敏为固定文案）实际块:\n{map}"
+        map.contains("Validation(msg) => AppError::validation_displayable(msg)"),
+        "Validation 输入校验必须外显且归 VALIDATION_ERROR 族，实际块:\n{map}"
     );
 }
 

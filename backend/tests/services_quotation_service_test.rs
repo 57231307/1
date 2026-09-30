@@ -5,6 +5,7 @@ use bingxi_backend::models::quotation_update_dto::UpdateQuotationDto;
 use bingxi_backend::models::status::quotation as quotation_status;
 use bingxi_backend::services::quotation_service::{QuotationService, ServiceError};
 use bingxi_backend::services::test_common::setup_test_db;
+use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use rust_decimal::Decimal;
@@ -53,6 +54,26 @@ fn sample_dto() -> CreateQuotationDto {
 // ============ ServiceError 枚举值正确性测试 ============
 
 /// test_serviceerror_display_gszq
+/// 族镜像锁（任务 #165）：报价域 `ServiceError::InvalidState` 是「前置状态未满足」状态门，
+/// handler 的 `From<ServiceError> for AppError` 装配点必须出 BUSINESS_ERROR 且外显真实文案
+/// （修复前出 VALIDATION_ERROR，前端按 code 分支时把业务拒绝当"我填错了"）。
+/// 断言跟随源码现状：`AppError::business_displayable("当前状态不允许此操作")`。
+#[test]
+fn test_serviceerror_invalidstate_maps_to_displayable_business() {
+    let err = AppError::from(ServiceError::InvalidState);
+    assert!(
+        matches!(err, AppError::BusinessErrorDisplayable(_)),
+        "状态门必须归 business 族且可外显，实际={err:?}"
+    );
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
+    assert_eq!(err.to_response().message, "当前状态不允许此操作");
+
+    // 反向对照：提交字段校验仍归校验族，证明未一刀切
+    let v = AppError::from(ServiceError::Validation("明细至少 1 条".to_string()));
+    assert!(matches!(v, AppError::ValidationErrorDisplayable(_)));
+    assert_eq!(v.error_code(), "VALIDATION_ERROR");
+}
+
 /// 验证 5 个 ServiceError 变体的 Display 实现返回中文错误信息
 #[test]
 fn test_serviceerror_display_gszq() {

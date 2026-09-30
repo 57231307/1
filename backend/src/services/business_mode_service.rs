@@ -54,7 +54,9 @@ pub fn validate_mode_code(mode_code: &str) -> Result<(), AppError> {
         business_mode_code::TOLL_PROCESSING,
     ];
     if !valid.contains(&mode_code) {
-        return Err(AppError::business(format!(
+        // 反向族校正：本处是「枚举取值非法」（用户提交字段），归校验族；
+        // 文案只回显用户自己提交的值与公开合法取值表，可外显。
+        return Err(AppError::validation_displayable(format!(
             "业务模式代码必须是 grey_trading / finished_trading / dyeing_processing / self_weave_dye / outsourcing / toll_processing，当前: {}",
             mode_code
         )));
@@ -71,7 +73,8 @@ pub fn validate_material_source(source: &str) -> Result<(), AppError> {
         business_material_source::TOLL,
     ];
     if !valid.contains(&source) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "物料来源必须是 purchase / customer_provided / self_made / toll，当前: {}",
             source
         )));
@@ -86,7 +89,8 @@ pub fn validate_settlement_method(method: &str) -> Result<(), AppError> {
         business_settlement_method::PROCESSING_FEE_SETTLEMENT,
     ];
     if !valid.contains(&method) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "结算方式必须是 sale_settlement / processing_fee_settlement，当前: {}",
             method
         )));
@@ -98,7 +102,8 @@ pub fn validate_settlement_method(method: &str) -> Result<(), AppError> {
 pub fn validate_inventory_type(inv_type: &str) -> Result<(), AppError> {
     let valid = ["grey", "finished", "both", "none"];
     if !valid.contains(&inv_type) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "库存类型必须是 grey / finished / both / none，当前: {}",
             inv_type
         )));
@@ -110,7 +115,8 @@ pub fn validate_inventory_type(inv_type: &str) -> Result<(), AppError> {
 pub fn validate_cost_method(method: &str) -> Result<(), AppError> {
     let valid = ["standard", "actual", "processing_fee"];
     if !valid.contains(&method) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "成本核算方法必须是 standard / actual / processing_fee，当前: {}",
             method
         )));
@@ -126,7 +132,8 @@ pub fn validate_rule_type(rule_type: &str) -> Result<(), AppError> {
         business_rule_type::FORBIDDEN,
     ];
     if !valid.contains(&rule_type) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "规则类型必须是 required / optional / forbidden，当前: {}",
             rule_type
         )));
@@ -138,7 +145,8 @@ pub fn validate_rule_type(rule_type: &str) -> Result<(), AppError> {
 pub fn validate_mode_category(category: &str) -> Result<(), AppError> {
     let valid = ["trading", "processing", "integrated"];
     if !valid.contains(&category) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "模式分类必须是 trading / processing / integrated，当前: {}",
             category
         )));
@@ -155,7 +163,8 @@ pub fn validate_document_type(doc_type: &str) -> Result<(), AppError> {
         "outsourcing_order",
     ];
     if !valid.contains(&doc_type) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "单据类型必须是 sales_order / purchase_order / production_order / outsourcing_order，当前: {}",
             doc_type
         )));
@@ -196,7 +205,8 @@ pub fn check_module_consistency(
         business_mode_code::SELF_WEAVE_DYE => validate_self_weave_dye(&args),
         business_mode_code::OUTSOURCING => validate_outsourcing(&args),
         business_mode_code::TOLL_PROCESSING => validate_toll_processing(&args),
-        _ => Err(AppError::business(format!(
+        // 枚举取值非法（未识别的模式代码）→ 校验族，可外显
+        _ => Err(AppError::validation_displayable(format!(
             "未知的业务模式代码: {}",
             mode_code
         ))),

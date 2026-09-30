@@ -420,11 +420,13 @@ impl PurchaseContractService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购合同不存在：{}", contract_id)))?;
         if contract.status != contract::ACTIVE {
-            return Err(AppError::validation(
+            // 状态门：合同非活跃，执行前置未满足，归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "只有活跃状态的合同才能执行".to_string(),
             ));
         }
         if req.execution_amount <= Decimal::ZERO {
+            // 输入校验：用户提交字段取值非法，保持校验族 VALIDATION_ERROR
             return Err(AppError::validation("执行金额必须大于零"));
         }
         Ok(contract)
@@ -498,7 +500,8 @@ impl PurchaseContractService {
 
         // 2. 检查状态
         if contract.status != contract::DRAFT {
-            return Err(AppError::validation(
+            // 状态门：前置状态未满足（仅草稿可审核），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "只有草稿状态的合同才能审核".to_string(),
             ));
         }
@@ -547,7 +550,8 @@ impl PurchaseContractService {
 
         // 2. 检查状态
         if contract.status != contract::ACTIVE && contract.status != contract::DRAFT {
-            return Err(AppError::validation(
+            // 状态门：前置状态未满足（仅活跃/草稿可取消），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "只能取消活跃或草稿状态的合同".to_string(),
             ));
         }

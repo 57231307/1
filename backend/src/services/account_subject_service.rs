@@ -80,7 +80,9 @@ impl AccountSubjectService {
 
         if existing.is_some() {
             warn!("科目编码已存在：{}", req.code);
-            return Err(AppError::bad_request(format!(
+            // 唯一性冲突：编码已被占用，属业务族（判据：唯一性冲突归 BUSINESS_ERROR）；
+            // 文案回显的是用户自己提交的编码，满足安全边界可外显。
+            return Err(AppError::business_displayable(format!(
                 "科目编码 {} 已存在",
                 req.code
             )));
@@ -303,7 +305,9 @@ impl AccountSubjectService {
                 "不能删除已被凭证使用的科目：{}，被引用次数：{}",
                 id, used_in_vouchers
             );
-            return Err(AppError::bad_request(format!(
+            // 前置门：科目被凭证引用这一业务前置未满足，归业务族；文案含查询所得引用条数，
+            // 按 error.rs 安全边界保持脱敏 business。
+            return Err(AppError::business(format!(
                 "科目已被 {} 张凭证使用，不能删除",
                 used_in_vouchers
             )));
@@ -317,7 +321,8 @@ impl AccountSubjectService {
 
         if balance_count > 0 {
             warn!("不能删除有余额记录的科目：{}", id);
-            return Err(AppError::bad_request(format!(
+            // 前置门：科目仍有余额记录，业务前置未满足，归业务族；文案含余额条数保持脱敏 business
+            return Err(AppError::business(format!(
                 "科目有 {} 条余额记录，不能删除",
                 balance_count
             )));

@@ -328,7 +328,11 @@ impl FundManagementService {
         let account = self.get_account_by_id(account_id).await?;
 
         if account.balance != Decimal::ZERO {
-            return Err(AppError::validation("账户余额不为零，无法删除".to_string()));
+            // 状态/额度门：账户仍有余额这一业务前置未满足，归业务族；
+            // 文案只述"不为零"这一事实、不回显余额数字，满足安全边界可外显。
+            return Err(AppError::business_displayable(
+                "账户余额不为零，无法删除".to_string(),
+            ));
         }
 
         fund_management::Entity::delete_many()
@@ -430,7 +434,8 @@ impl FundManagementService {
 
         // 只有待审批状态的记录才能审批
         if record.status.as_deref() != Some("PENDING") {
-            return Err(AppError::validation(format!(
+            // 状态门：转账记录当前非待审批，前置状态未满足，归业务族；文案含记录 ID/状态 token 保持脱敏
+            return Err(AppError::business(format!(
                 "转账记录 {} 状态为 {:?}，无法审批",
                 transfer_id, record.status
             )));
@@ -465,7 +470,8 @@ impl FundManagementService {
 
         // 只有待审批状态的记录才能拒绝
         if record.status.as_deref() != Some("PENDING") {
-            return Err(AppError::validation(format!(
+            // 状态门：转账记录当前非待审批，前置状态未满足，归业务族；文案含记录 ID/状态 token 保持脱敏
+            return Err(AppError::business(format!(
                 "转账记录 {} 状态为 {:?}，无法拒绝",
                 transfer_id, record.status
             )));

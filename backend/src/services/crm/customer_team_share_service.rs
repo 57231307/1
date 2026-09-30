@@ -185,7 +185,8 @@ impl CustomerTeamShareService {
             .await?
             .ok_or_else(|| AppError::validation(format!("用户 {} 不存在", req.user_id)))?;
         if !member_user.is_active {
-            return Err(AppError::validation(format!(
+            // 前置状态门：待加入用户已停用，业务前置未满足，归业务族；文案含用户 ID 保持脱敏
+            return Err(AppError::business(format!(
                 "用户 {} 已停用，无法加入团队",
                 req.user_id
             )));
@@ -434,7 +435,8 @@ impl CustomerTeamShareService {
                 AppError::validation(format!("被共享方用户 {} 不存在", req.shared_to_user_id))
             })?;
         if !to_user.is_active {
-            return Err(AppError::validation(format!(
+            // 前置状态门：被共享方用户已停用，业务前置未满足，归业务族；文案含用户 ID 保持脱敏
+            return Err(AppError::business(format!(
                 "被共享方用户 {} 已停用，无法共享",
                 req.shared_to_user_id
             )));

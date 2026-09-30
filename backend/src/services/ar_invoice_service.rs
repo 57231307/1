@@ -328,7 +328,8 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != crate::models::status::common::STATUS_DRAFT {
-            return Err(AppError::bad_request(
+            // 状态门：应收单当前非草稿，前置状态未满足，归业务族；文案不含状态 token/ID，可外显
+            return Err(AppError::business_displayable(
                 "非草稿状态的应收单无法修改".to_string(),
             ));
         }
@@ -384,7 +385,8 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != crate::models::status::common::STATUS_DRAFT {
-            return Err(AppError::bad_request(
+            // 状态门：应收单当前非草稿，前置状态未满足，归业务族；文案不含状态 token/ID，可外显
+            return Err(AppError::business_displayable(
                 "非草稿状态的应收单无法删除".to_string(),
             ));
         }
@@ -413,7 +415,8 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != crate::models::status::common::STATUS_DRAFT {
-            return Err(AppError::bad_request("只能审批草稿状态的应收单"));
+            // 状态门：应收单当前非草稿，前置状态未满足，归业务族；文案不含状态 token/ID，可外显
+            return Err(AppError::business_displayable("只能审批草稿状态的应收单"));
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.into();

@@ -7,8 +7,8 @@
 //! - `backend/src/handlers/custom_order_handler.rs::create_after_sales`
 //!   （`service.create(id, dto)`，body 伪造归属结构性不可能覆盖 path）
 //! - `backend/src/handlers/custom_order_handler.rs::aftersales_err`
-//!   （InvalidState/Validation → `AppError::business_displayable`：出参 message 外显
-//!   真实拒绝文案；AlreadyLinked 含内部 ID 保持脱敏 business）
+//!   （InvalidState → `AppError::business_displayable`、Validation → `AppError::validation_displayable`：
+//!   出参 message 均外显真实拒绝文案，族按 #165 判据拆分；AlreadyLinked 含内部 ID 保持脱敏 business）
 //!
 //! 修复前缺陷（客诉实证"编辑填写正常、提交保存报参数错误"）：
 //! DTO 的 `custom_order_id: i64` 非 Option 无 serde default，而前端
@@ -20,7 +20,7 @@
 //!   NOT NULL 字段缺失仍须判 Err（不得为过测试放宽）；refund_amount 字符串/数字双形态
 //! - sqlite::memory: 自建 after_sales 表 + 真实 handler 端到端（tower oneshot）：
 //!   前端真实 payload 建单成功并回读归属；伪造 body id 被 path 归属钉死；
-//!   refund 缺金额 / 非法类型的拒绝出参 code=BUSINESS_ERROR 且 message 外显原文
+//!   refund 缺金额 / 非法类型的拒绝出参 code=VALIDATION_ERROR（输入校验族）且 message 外显原文
 //! - 源码扫描防回潮锁（先例：contract_wave1_ar_payment_error_mapping_test.rs）
 
 use axum::{
@@ -319,31 +319,32 @@ async fn forged_custom_order_id_in_body_cannot_override_path_ownership() {
     );
 }
 
-/// 用户可见性锁：退款类型缺金额 → 400 + code=BUSINESS_ERROR + message 外显
-/// 真实拒绝文案（修复前 Validation 被脱敏为 "请求参数验证失败"，即用户只见
-/// "参数错误"看不到原因）；非法售后类型同样外显（只回显用户自己提交的输入）
+/// 用户可见性锁：退款类型缺金额 → 400 + code=VALIDATION_ERROR + message 外显
+/// 真实拒绝文案。断言跟随源码变更（任务 #165）：缺必填金额与非法售后类型是「用户提交
+/// 字段」的输入校验，族必须归 VALIDATION_ERROR（此前 #148 误并入 business 使前端把
+/// "我填错了"当业务提示）；validation_displayable 仍外显真实文案，不回退脱敏常量。
 #[tokio::test]
-async fn refund_without_amount_rejected_with_displayable_business_message() {
+async fn refund_without_amount_rejected_with_displayable_validation_message() {
     let (app, _db) = seeded_app().await;
     let mut body = frontend_real_payload();
     body["issue_type"] = json!("refund");
     let (status, v) = post_create(&app, 42, body).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["code"], "VALIDATION_ERROR");
     assert_eq!(
         v["message"], "退款类型工单必须填写退款金额",
-        "business_displayable 出参必须外显真实拒绝文案，不得脱敏"
+        "validation_displayable 出参必须外显真实拒绝文案，不得脱敏"
     );
 
     let mut body = frontend_real_payload();
     body["issue_type"] = json!("teleportation");
     let (status, v) = post_create(&app, 42, body).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["code"], "VALIDATION_ERROR");
     assert_eq!(v["message"], "非法售后类型: teleportation");
     assert_ne!(
         v["message"], "请求参数验证失败",
-        "不得回潮到脱敏的 VALIDATION_ERROR 信封"
+        "不得回潮到脱敏的校验信封"
     );
 }
 
@@ -501,19 +502,22 @@ fn source_scan_create_after_sales_contract() {
     );
 }
 
-/// aftersales_err：InvalidState/Validation 必须 business_displayable；
-/// AlreadyLinked 文案含内部 ID，必须保持脱敏 business
+/// aftersales_err：InvalidState 必须 business_displayable（记录状态门归业务族并外显），
+/// Validation 必须 validation_displayable（提交字段校验归校验族并外显）；
+/// AlreadyLinked 文案含内部 ID，必须保持脱敏 business。
+/// 断言跟随源码变更（任务 #165）：#148 曾把两者并成 business_displayable，导致输入校验
+/// 也出 BUSINESS_ERROR、前端按 code 分支错乱；本轮按判据拆族——状态门 business、校验 validation。
 #[test]
 fn source_scan_aftersales_err_displayable_mapping() {
     let src = include_str!("../src/handlers/custom_order_handler.rs");
     let map = extract_block(src, "fn aftersales_err");
     assert!(
         map.contains("InvalidState(msg) => AppError::business_displayable(msg)"),
-        "InvalidState 拒绝必须外显，实际块:\n{map}"
+        "InvalidState 状态门必须外显且归 business 族，实际块:\n{map}"
     );
     assert!(
-        map.contains("Validation(msg) => AppError::business_displayable(msg)"),
-        "Validation 拒绝必须外显（修复前被脱敏为『请求参数验证失败』）实际块:\n{map}"
+        map.contains("Validation(msg) => AppError::validation_displayable(msg)"),
+        "Validation 输入校验必须外显且归 VALIDATION_ERROR 族，实际块:\n{map}"
     );
     assert!(
         map.contains("AlreadyLinked(after_sales_id, qi_id) => AppError::business("),

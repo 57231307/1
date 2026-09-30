@@ -555,8 +555,11 @@ impl From<ServiceError> for AppError {
     fn from(e: ServiceError) -> Self {
         match e {
             ServiceError::NotFound => AppError::not_found("报价单不存在"),
+            // 状态门装配点：报价域 ServiceError::InvalidState 与 finance/quality/bad_debt
+            // 各域的 *::InvalidState 同属「前置状态未满足」，族必须一致归 business。
+            // 文案「当前状态不允许此操作」只述公开业务规则、不含内部状态 token/ID，可外显。
             ServiceError::InvalidState => {
-                AppError::validation_displayable("当前状态不允许此操作".to_string())
+                AppError::business_displayable("当前状态不允许此操作".to_string())
             }
             ServiceError::Validation(msg) => AppError::validation_displayable(msg),
             ServiceError::Database(db_err) => AppError::internal(db_err.to_string()),

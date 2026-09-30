@@ -98,12 +98,16 @@ fn validate_parent_piece(
     cut_length: Decimal,
 ) -> Result<(), AppError> {
     if parent.status == piece_status::SHIPPED || parent.status == piece_status::UNAVAILABLE {
-        return Err(AppError::bad_request(
+        // 状态门：母卷已处于发货/不可用态，剪裁前置未满足，归业务族；
+        // 文案只述公开规则、不含状态 token 与库存数字，可外显。
+        return Err(AppError::business_displayable(
             "当前布卷已发货或不可用，无法进行剪裁拆分".to_string(),
         ));
     }
     if parent.length < cut_length {
-        return Err(AppError::bad_request(format!(
+        // 额度门：剪裁量受母卷可用长度约束，归业务族；文案含查询所得库存长度，
+        // 按 error.rs 安全边界保持脱敏 business。
+        return Err(AppError::business(format!(
             "剪裁长度 ({}) 超过母卷可用长度 ({})",
             cut_length, parent.length
         )));
@@ -129,7 +133,8 @@ async fn update_parent_piece(
         if pw >= cw {
             active_parent.weight = Set(Some(pw - cw));
         } else {
-            return Err(AppError::bad_request(
+            // 额度门：剪裁重量受母卷总重量约束，属业务前置未满足，归业务族；文案不含数字可外显
+            return Err(AppError::business_displayable(
                 "剪裁重量不能大于母卷总重量".to_string(),
             ));
         }

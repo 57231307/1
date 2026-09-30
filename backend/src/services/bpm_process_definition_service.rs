@@ -47,7 +47,8 @@ impl BpmService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            return Err(AppError::validation_displayable(format!(
+            // 唯一性冲突：流程编码已存在，按 #165 判据归业务族；回显用户自己提交的编码可外显
+            return Err(AppError::business_displayable(format!(
                 "流程编码已存在: {}",
                 req.code
             )));
@@ -303,7 +304,8 @@ impl BpmService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            return Err(AppError::validation_displayable(format!(
+            // 唯一性冲突：流程编码已存在，按 #165 判据归业务族；回显用户自己提交的编码可外显
+            return Err(AppError::business_displayable(format!(
                 "流程编码已存在: {}",
                 req.code
             )));

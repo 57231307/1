@@ -210,13 +210,15 @@ impl CustomerTransferApprovalService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?;
         if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
-            return Err(AppError::validation(format!(
+            // 状态门：线索已处于「转为客户」终态，前置状态未满足，归业务族；文案含内部线索 ID 保持脱敏
+            return Err(AppError::business(format!(
                 "线索 {} 已转化为客户，无法转移",
                 lead_id
             )));
         }
         if lead.owner_id == to_user_id {
-            return Err(AppError::validation_displayable(
+            // 状态门：新归属人已是当前归属人，属「已处于某态不可重复动作」，归业务族；文案可外显
+            return Err(AppError::business_displayable(
                 "转移审批申请失败：新归属人已是当前归属人",
             ));
         }
@@ -237,7 +239,8 @@ impl CustomerTransferApprovalService {
             .count(db)
             .await?;
         if existing_pending > 0 {
-            return Err(AppError::validation_displayable(
+            // 状态门：该线索已存在待审批申请，属「已处于某态不可重复动作」，归业务族；文案可外显
+            return Err(AppError::business_displayable(
                 "转移审批申请失败：该线索已存在待审批的转移申请",
             ));
         }
@@ -436,7 +439,8 @@ impl CustomerTransferApprovalService {
         }
 
         if approval.approval_status != customer_transfer_approval::STATUS_PENDING {
-            return Err(AppError::validation_displayable(
+            // 状态门：审批单已进入终态，前置状态未满足不可取消，归业务族；文案可外显
+            return Err(AppError::business_displayable(
                 "取消审批失败：审批单已进入终态（approved/rejected/cancelled）",
             ));
         }
@@ -533,7 +537,8 @@ impl CustomerTransferApprovalService {
             .ok_or_else(|| AppError::not_found(format!("审批单 {} 不存在", approval_id)))?;
 
         if approval.approval_status != customer_transfer_approval::STATUS_PENDING {
-            return Err(AppError::validation(format!(
+            // 状态门：审批单当前非 pending，前置状态未满足，归业务族；文案含状态 token 保持脱敏
+            return Err(AppError::business(format!(
                 "审批失败：审批单当前状态为 {}，非 pending",
                 approval.approval_status
             )));

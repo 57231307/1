@@ -106,7 +106,8 @@ pub async fn register_device(
     Json(req): Json<RegisterDeviceRequest>,
 ) -> Result<Json<ApiResponse<DeviceConnectionInfo>>, AppError> {
     if req.device_id.trim().is_empty() {
-        return Err(AppError::business_displayable("device_id 不能为空"));
+        // 反向族校正：必填字段缺失属输入校验，归校验族（VALIDATION_ERROR）；文案只述请求字段可外显
+        return Err(AppError::validation_displayable("device_id 不能为空"));
     }
     let service = DeviceConnectionService::from_state(&state);
     let model = service.register(req).await?;

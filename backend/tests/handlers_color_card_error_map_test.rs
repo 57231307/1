@@ -6,6 +6,7 @@
 use bingxi_backend::handlers::color_card::error_map::*;
 use bingxi_backend::services::color_card_crud_service::*;
 use bingxi_backend::services::color_card_item_service::*;
+use bingxi_backend::utils::error::AppError;
 
 /// 审计写入失败不得再冒充"用户输入不合法"：必须是 DATABASE_ERROR（500）且真实原因只进日志
 #[test]
@@ -55,6 +56,9 @@ fn test_crud_err_invalid_stateys() {
 }
 
 /// test_crud_err_validationys
+/// 断言跟随源码变更（任务 #165）：`CrudError::Validation` 通道承载提交字段取值/格式/必填，
+/// 映射点已由脱敏 `validation` 改为 `validation_displayable`——族仍是 VALIDATION_ERROR，
+/// 但出参 message 外显真实原因（同域 ItemError::Validation 早已如此，此处对齐）。
 #[test]
 fn test_crud_err_validationys() {
     let err = crud_err(CrudError::Validation("字段不能为空".to_string()));
@@ -63,6 +67,16 @@ fn test_crud_err_validationys() {
         msg.contains("字段不能为空"),
         "Validation 应透传原始消息，实际：{}",
         msg
+    );
+    assert!(
+        matches!(err, AppError::ValidationErrorDisplayable(_)),
+        "提交字段校验必须归校验族且可外显，实际={err:?}"
+    );
+    assert_eq!(err.error_code(), "VALIDATION_ERROR");
+    assert_eq!(
+        err.to_response().message,
+        "字段不能为空",
+        "出参必须外显真实校验原因，不得回潮脱敏常量"
     );
 }
 

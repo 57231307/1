@@ -454,9 +454,12 @@ impl BadDebtService {
             .ok_or(BadDebtError::ArInvoiceNotFound)?;
 
         if invoice.approval_status != common::STATUS_APPROVED {
-            return Err(BadDebtError::Validation(
-                "应收单未审核通过，不能计提坏账".to_string(),
-            ));
+            // 状态门：应收单当前审批状态未达「审核通过」这一前置，归业务族（InvalidState）；
+            // 原走 Validation 通道出 VALIDATION_ERROR 与本域其余状态门（同为 BUSINESS_ERROR）族不一致
+            return Err(BadDebtError::InvalidState {
+                current: invoice.approval_status.clone(),
+                expected: common::STATUS_APPROVED,
+            });
         }
 
         if req.writeoff_amount > invoice.unpaid_amount {

@@ -65,7 +65,8 @@ impl QuotationService {
         if ![quotation_status::DRAFT, quotation_status::REJECTED]
             .contains(&existing.status.as_str())
         {
-            return Err(AppError::validation_displayable(
+            // 状态门：仅草稿/驳回可改，前置状态未满足，归业务族
+            return Err(AppError::business_displayable(
                 "当前状态不允许此操作".to_string(),
             ));
         }

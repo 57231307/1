@@ -456,7 +456,9 @@ impl CostCollectionService {
 
         // 只有草稿状态才能审核
         if collection.status != "draft" {
-            return Err(AppError::validation_displayable(
+            // 状态门：记录当前状态不满足审核前置，归业务族；文案只述公开业务规则、
+            // 不含状态 token/内部 ID，可外显。
+            return Err(AppError::business_displayable(
                 "只有草稿状态的成本归集才能审核".to_string(),
             ));
         }

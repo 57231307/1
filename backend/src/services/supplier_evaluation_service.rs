@@ -137,7 +137,8 @@ impl SupplierEvaluationService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            return Err(AppError::validation(format!(
+            // 唯一性冲突：指标编码重复，归业务族；回显用户自己提交的编码可外显
+            return Err(AppError::business_displayable(format!(
                 "评估指标编码 '{}' 已存在",
                 req.indicator_code
             )));

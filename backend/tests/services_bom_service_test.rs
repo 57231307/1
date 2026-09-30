@@ -282,19 +282,25 @@ fn test_cwxx_bombcz() {
 }
 
 /// test_cwxx_bomycyshzzt（验证 submit 方法中状态为 Pending 时拒绝重复提交的错误消息。）
+/// 断言跟随源码变更（任务 #165）：该拒绝是「已处于某态不可重复动作」的状态门，
+/// 源码由 `AppError::validation` 改为 `AppError::business_displayable`，族 = BUSINESS_ERROR。
 #[test]
 fn test_cwxx_bomycyshzzt() {
-    let err = AppError::validation("BOM已处于审核中状态");
-    assert!(matches!(err, AppError::ValidationError(_)));
-    assert_eq!(err.to_string(), "验证错误：BOM已处于审核中状态");
+    let err = AppError::business_displayable("BOM已处于审核中状态");
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
+    assert_eq!(err.to_string(), "业务错误：BOM已处于审核中状态");
 }
 
 /// test_cwxx_jshzztksp（验证 approve 方法中状态非 Pending 时拒绝审批的错误消息。）
+/// 断言跟随源码变更（任务 #165）：前置状态未满足的状态门归业务族，
+/// 源码为 `AppError::business_displayable`，出参 code=BUSINESS_ERROR 且文案外显。
 #[test]
 fn test_cwxx_jshzztksp() {
-    let err = AppError::validation("仅审核中状态的BOM可以审批");
-    assert!(matches!(err, AppError::ValidationError(_)));
-    assert_eq!(err.to_string(), "验证错误：仅审核中状态的BOM可以审批");
+    let err = AppError::business_displayable("仅审核中状态的BOM可以审批");
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
+    assert_eq!(err.to_string(), "业务错误：仅审核中状态的BOM可以审批");
 }
 
 /// test_fwslcj（验证 BomService 在 SQLite 内存数据库上能正常实例化。）

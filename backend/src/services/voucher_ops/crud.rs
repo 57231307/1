@@ -422,7 +422,9 @@ impl VoucherService {
 
         if voucher_model.status != crate::models::status::voucher::VOUCHER_DRAFT {
             warn!("只有草稿状态的凭证可以更新：{}", voucher_model.voucher_no);
-            return Err(AppError::bad_request(
+            // 状态门：凭证当前状态不满足更新前置，归业务族；出参文案只述公开规则
+            // （真实状态仅进 warn 日志），可外显。
+            return Err(AppError::business_displayable(
                 "只有草稿状态的凭证可以更新".to_string(),
             ));
         }
@@ -527,7 +529,8 @@ impl VoucherService {
         // 只有草稿状态可以删除（状态门在 txn 内，基于 lock_exclusive 读出的 model）
         if voucher.status != crate::models::status::voucher::VOUCHER_DRAFT {
             warn!("只有草稿状态的凭证可以删除：{}", voucher.voucher_no);
-            return Err(AppError::bad_request(
+            // 状态门：凭证当前状态不满足删除前置，归业务族；真实状态只进日志，出参可外显
+            return Err(AppError::business_displayable(
                 "只有草稿状态的凭证可以删除".to_string(),
             ));
         }

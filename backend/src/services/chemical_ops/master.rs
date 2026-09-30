@@ -382,7 +382,8 @@ impl ChemicalMasterService {
                 && v != chemical_status::INACTIVE
                 && v != chemical_status::DISCONTINUED
             {
-                return Err(AppError::business(format!(
+                // 枚举取值非法（提交字段）→ 校验族，可外显
+                return Err(AppError::validation_displayable(format!(
                     "染化料状态必须是 active / inactive / discontinued，当前: {}",
                     v
                 )));

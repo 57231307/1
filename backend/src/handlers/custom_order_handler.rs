@@ -66,8 +66,14 @@ fn crud_err(e: crate::services::custom_order_crud_service::CrudError) -> AppErro
     use crate::services::custom_order_crud_service::CrudError::*;
     match e {
         NotFound => AppError::not_found("定制订单不存在"),
+        // 族装配点判定：状态门一律 BUSINESS_ERROR。
+        // - `InvalidState`（无文案/含内部判定依据）→ 脱敏 business
+        // - `InvalidStateDisplayable`（公开业务规则文案）→ business_displayable 外显
+        // - `Validation`（数量/规格等提交字段校验）→ 校验族；文案只述请求字段，
+        //   按 error.rs 规则用 validation_displayable 外显真实原因
         InvalidState => AppError::business("当前状态不允许此操作"),
-        Validation(msg) => AppError::validation(msg),
+        InvalidStateDisplayable(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         App(e) => e,
@@ -101,12 +107,13 @@ fn quality_err(e: crate::services::custom_order_quality_service::QualityError) -
     use crate::services::custom_order_quality_service::QualityError::*;
     match e {
         NotFound => AppError::not_found("质量异常不存在"),
-        // 任务 #148 同构修复（见 aftersales_err 注释）：InvalidState/Validation 文案
-        // 只含用户自己提交的输入回显与本资源自身状态（公开业务规则，如非法严重度、
-        // ΔE 为负、色牢度等级越界），满足 error.rs 外显安全边界，出参 message 外显
-        // 真实拒绝原因；修复前被脱敏为固定文案，用户看不到拒绝理由。
+        // 族装配点校正：`Validation(msg)` 通道承载的是用户提交字段的取值/范围/必填
+        // 越界（非法严重度、ΔE 为负、色牢度等级越界），属输入校验族，必须出
+        // VALIDATION_ERROR；此前被误映射为 business 使前端把「我填错了」当业务提示。
+        // InvalidState（记录当前状态门）保持 business。二者族语义各自归位，混合语义已在
+        // 服务层拆分（状态门走 InvalidState、字段校验走 Validation）。
         InvalidState(msg) => AppError::business_displayable(msg),
-        Validation(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         App(e) => e,
@@ -119,12 +126,12 @@ fn aftersales_err(
     use crate::services::custom_order_aftersales_service::AfterSalesError::*;
     match e {
         NotFound => AppError::not_found("售后工单不存在"),
-        // 任务 #148：InvalidState/Validation 文案只含用户自己提交的输入回显与
-        // 本工单自身状态（公开业务规则），满足 error.rs 外显安全边界；修复前
-        // 分别被脱敏为 "业务处理失败" / "请求参数验证失败"，用户看不到拒绝原因
-        // （即 "提交时报参数错误" 的可见性根因）。
+        // 族装配点校正：`Validation(msg)` 通道承载用户提交字段的取值/范围/必填越界
+        // （非法售后类型、缺退款金额、评价分数越界、非法年月），属输入校验族 → VALIDATION_ERROR。
+        // `InvalidState(msg)` 通道才是记录当前状态门（含本工单自身状态回显，公开业务规则）
+        // → BUSINESS_ERROR。二者族语义各自归位；触发质量调查的状态门已在服务层改走 InvalidState。
         InvalidState(msg) => AppError::business_displayable(msg),
-        Validation(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         App(e) => e,

@@ -55,6 +55,9 @@ fn crud_err(e: CrudError) -> AppError {
 fn batch_err(e: BatchError) -> AppError {
     match e {
         BatchError::PriceNotFound(id) => AppError::not_found(format!("色号价格不存在: id={}", id)),
+        // 状态门装配点：与本文件 CrudError::InvalidState 及各域 *::InvalidState 同归 business 族；
+        // 服务层文案为公开业务规则、不含内部数据，可外显。
+        BatchError::InvalidState(msg) => AppError::business_displayable(msg),
         BatchError::Validation(msg) => AppError::validation(msg),
         BatchError::AuditLog(msg) => AppError::database(msg),
         BatchError::Database(e) => AppError::database(e.to_string()),

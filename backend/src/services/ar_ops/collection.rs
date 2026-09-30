@@ -327,13 +327,16 @@ impl ArService {
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<bool, AppError> {
         if invoice.status == crate::models::status::common::STATUS_CANCELLED {
-            return Err(AppError::bad_request(format!(
+            // 状态门：应收单已处于取消终态，收款关联前置未满足，归业务族；
+            // 文案含内部应收单 ID，按安全边界保持脱敏 business。
+            return Err(AppError::business(format!(
                 "应收单 {} 已取消，无法关联收款",
                 invoice.id
             )));
         }
         if invoice.customer_id != customer_id {
-            return Err(AppError::bad_request(format!(
+            // 一致性门：应收单与收款分属不同客户，属业务前置不满足，归业务族；含内部 ID 保持脱敏
+            return Err(AppError::business(format!(
                 "应收单 {} 客户与收款客户不一致",
                 invoice.id
             )));
