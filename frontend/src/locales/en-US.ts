@@ -10010,7 +10010,6 @@ export default {
       columnColor: 'Color',
       columnGreige: 'Greige Fabric',
       columnPlannedQuantity: 'Planned Quantity',
-      columnActualQuantity: 'Actual Quantity',
       columnStatus: 'Status',
       columnStartDate: 'Start Date',
       columnAction: 'Action',

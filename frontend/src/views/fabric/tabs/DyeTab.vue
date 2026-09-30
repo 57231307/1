@@ -34,12 +34,6 @@
           align="right"
         />
         <el-table-column
-          prop="actual_quantity"
-          :label="t('fabric.dyeTab.columnActualQuantity')"
-          width="100"
-          align="right"
-        />
-        <el-table-column
           prop="status"
           :label="t('fabric.dyeTab.columnStatus')"
           width="100"
@@ -51,11 +45,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="start_date"
-          :label="t('fabric.dyeTab.columnStartDate')"
-          width="120"
-        />
+        <el-table-column prop="started_at" :label="t('fabric.dyeTab.columnStartDate')" width="120">
+          <template #default="{ row }">{{
+            row.started_at ? row.started_at.slice(0, 10) : '-'
+          }}</template>
+        </el-table-column>
         <el-table-column :label="t('fabric.dyeTab.columnAction')" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="openEdit(row)">{{

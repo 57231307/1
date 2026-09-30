@@ -9965,7 +9965,6 @@ export default {
       columnColor: '颜色',
       columnGreige: '坯布',
       columnPlannedQuantity: '计划数量',
-      columnActualQuantity: '实际数量',
       columnStatus: '状态',
       columnStartDate: '开始日期',
       columnAction: '操作',
