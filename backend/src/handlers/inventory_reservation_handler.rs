@@ -62,6 +62,8 @@ pub async fn list_reservations(
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
 
+    // 铁律：service 返回的已是 AppError，直接 `?` 透传其真实 HTTP 状态与错误码，
+    // 禁止再 map_err 强转 internal 把业务拒绝/404 压成 500
     let (reservations, total) = service
         .list_reservations(
             page,
@@ -71,8 +73,7 @@ pub async fn list_reservations(
             query.status,
             Some(&data_scope_ctx),
         )
-        .await
-        .map_err(|e| AppError::internal(format!("获取预留列表失败: {}", e)))?;
+        .await?;
 
     let result = serde_json::json!({
         "list": reservations,
@@ -95,6 +96,7 @@ pub async fn create_reservation(
         state.db.clone(),
     );
 
+    // service 已返回 AppError，`?` 透传（含未来补业务校验时的 400/404 不被压成 500）
     let reservation = service
         .create_reservation(
             payload.order_id,
@@ -104,8 +106,7 @@ pub async fn create_reservation(
             Some(auth.user_id),
             payload.notes,
         )
-        .await
-        .map_err(|e| AppError::internal(format!("创建预留失败: {}", e)))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(ReservationResponse {
         id: reservation.id,
@@ -132,16 +133,12 @@ pub async fn delete_reservation(
     );
 
     // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 get_reservation + data_scope_ctx）
+    // 归属校验失败的 403/404 必须原样透传，不得强转 500 掩盖拒绝原因
     let data_scope_ctx = auth.to_data_scope_context();
-    service
-        .get_reservation(id, Some(&data_scope_ctx))
-        .await
-        .map_err(|e| AppError::internal(format!("IDOR 校验失败: {}", e)))?;
+    service.get_reservation(id, Some(&data_scope_ctx)).await?;
 
-    service
-        .delete_reservation(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("删除预留失败: {}", e)))?;
+    // 状态门拒绝（如"释放的预留不可删除"）为 400 BUSINESS_ERROR，`?` 透传
+    service.delete_reservation(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "message": "预留已删除"
@@ -159,10 +156,8 @@ pub async fn lock_reservation(
         state.db.clone(),
     );
 
-    let reservation = service
-        .lock_reservation(id)
-        .await
-        .map_err(|e| AppError::internal(format!("锁定预留失败: {}", e)))?;
+    // 状态门拒绝（400 BUSINESS_ERROR）与不存在（404）由 `?` 原样透传
+    let reservation = service.lock_reservation(id).await?;
 
     Ok(Json(ApiResponse::success(ReservationResponse {
         id: reservation.id,
@@ -188,10 +183,8 @@ pub async fn release_reservation(
         state.db.clone(),
     );
 
-    let reservation = service
-        .release_reservation(id)
-        .await
-        .map_err(|e| AppError::internal(format!("释放预留失败: {}", e)))?;
+    // 状态门拒绝（400 BUSINESS_ERROR）与不存在（404）由 `?` 原样透传
+    let reservation = service.release_reservation(id).await?;
 
     Ok(Json(ApiResponse::success(ReservationResponse {
         id: reservation.id,

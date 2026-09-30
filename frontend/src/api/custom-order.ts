@@ -159,9 +159,11 @@ export interface NodeLogCreateDto {
 }
 
 /** 上报质量异常请求（对齐后端 ReportQualityIssueDto）
- * 注意：custom_order_id 通过 URL 路径参数传递，请求体中可选 */
+ * - custom_order_id **不属于请求体**（任务 #148 同构契约修复）：异常归属由 URL
+ *   path 参数权威提供（handler `service.report_issue(id, dto)` 注入），后端 DTO
+ *   已删除该字段，body 即使携带也会被 serde 忽略（防伪造覆盖）。此前声明为
+ *   虚标可选键，掩盖了后端曾必填 422 的真实契约缺口。 */
 export interface QualityIssueCreateDto {
-  custom_order_id?: number;
   process_node_id?: number;
   issue_type: string;
   severity: string;

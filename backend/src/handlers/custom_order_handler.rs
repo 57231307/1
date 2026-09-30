@@ -101,8 +101,12 @@ fn quality_err(e: crate::services::custom_order_quality_service::QualityError) -
     use crate::services::custom_order_quality_service::QualityError::*;
     match e {
         NotFound => AppError::not_found("质量异常不存在"),
-        InvalidState(msg) => AppError::business(msg),
-        Validation(msg) => AppError::validation(msg),
+        // 任务 #148 同构修复（见 aftersales_err 注释）：InvalidState/Validation 文案
+        // 只含用户自己提交的输入回显与本资源自身状态（公开业务规则，如非法严重度、
+        // ΔE 为负、色牢度等级越界），满足 error.rs 外显安全边界，出参 message 外显
+        // 真实拒绝原因；修复前被脱敏为固定文案，用户看不到拒绝理由。
+        InvalidState(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::business_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         App(e) => e,
@@ -115,12 +119,17 @@ fn aftersales_err(
     use crate::services::custom_order_aftersales_service::AfterSalesError::*;
     match e {
         NotFound => AppError::not_found("售后工单不存在"),
-        InvalidState(msg) => AppError::business(msg),
-        Validation(msg) => AppError::validation(msg),
+        // 任务 #148：InvalidState/Validation 文案只含用户自己提交的输入回显与
+        // 本工单自身状态（公开业务规则），满足 error.rs 外显安全边界；修复前
+        // 分别被脱敏为 "业务处理失败" / "请求参数验证失败"，用户看不到拒绝原因
+        // （即 "提交时报参数错误" 的可见性根因）。
+        InvalidState(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::business_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         App(e) => e,
-        // V15 P0-B12：重复触发质量调查（已关联 quality_issue_id）
+        // V15 P0-B12：重复触发质量调查（已关联 quality_issue_id）。
+        // 文案含内部记录 ID，按 error.rs 安全边界不得外显，保持脱敏 business。
         AlreadyLinked(after_sales_id, qi_id) => AppError::business(format!(
             "售后工单 {} 已关联质量异常 {}，禁止重复触发",
             after_sales_id, qi_id
@@ -572,16 +581,18 @@ pub async fn get_timeline(
 // ----------------------------------------------------------------------
 
 /// POST /api/v1/erp/custom-orders/:id/issues - 上报异常
+///
+/// 契约修复（任务 #148 售后先例同构）：归属 `custom_order_id` 由 path 权威注入
+/// `service.report_issue(id, dto)`，body 不再携带该字段（伪造键被 serde 忽略，
+/// 越权防护为结构性排除，不再依赖"反序列化后覆盖"）
 pub async fn report_quality_issue(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Path(_id): Path<i64>,
-    Json(mut dto): Json<ReportQualityIssueDto>,
+    Path(id): Path<i64>,
+    Json(dto): Json<ReportQualityIssueDto>,
 ) -> Result<Json<ApiResponse<QualityIssueInfo>>, AppError> {
-    // URL 中的 id 与 body 中 custom_order_id 一致时，使用 URL 的 id 作为权威
-    dto.custom_order_id = _id;
     let service = CustomOrderQualityService::from_state(&state);
-    let issue = service.report_issue(dto).await.map_err(quality_err)?;
+    let issue = service.report_issue(id, dto).await.map_err(quality_err)?;
     Ok(Json(ApiResponse::success(QualityIssueInfo {
         id: issue.id,
         issue_type: issue.issue_type,
@@ -665,15 +676,22 @@ pub async fn resolve_quality_issue(
 // ----------------------------------------------------------------------
 
 /// POST /api/v1/erp/custom-orders/:id/after-sales - 创建售后工单
+///
+/// 任务 #148 契约修复：工单归属以 path 参数 `:id` 为唯一权威来源，
+/// `CreateAfterSalesDto` 不再包含 `custom_order_id` 字段——修复前 DTO 为非 Option
+/// 必填，而前端 payload 从不携带该键，反序列化层直接 "missing field" 报参数错误，
+/// 创建必失败；且旧代码 "先反序列化 body、后 dto.custom_order_id = path" 的覆盖
+/// 使 body 值本就无语义。现在客户端即使伪造发送 `custom_order_id` 也会被 serde
+/// 忽略未知字段而结构性排除，归属不可能被 body 覆盖（越权防护对齐
+/// `handlers/color_card/items.rs::create_color_item` 的 `service.create(id, dto)` 先例）。
 pub async fn create_after_sales(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Path(_id): Path<i64>,
-    Json(mut dto): Json<CreateAfterSalesDto>,
+    Path(id): Path<i64>,
+    Json(dto): Json<CreateAfterSalesDto>,
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
-    dto.custom_order_id = _id;
     let service = CustomOrderAfterSalesService::from_state(&state);
-    let after = service.create(dto).await.map_err(aftersales_err)?;
+    let after = service.create(id, dto).await.map_err(aftersales_err)?;
     Ok(Json(ApiResponse::success(AfterSalesInfo {
         id: after.id,
         issue_type: after.issue_type,

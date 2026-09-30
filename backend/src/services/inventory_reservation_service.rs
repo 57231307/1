@@ -66,7 +66,9 @@ impl InventoryReservationService {
             .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
 
         if reservation.status != reservation_status::PENDING {
-            return Err(AppError::business(format!(
+            // 文案仅含本预留自身状态 + 公开状态流转规则（对齐任务 #148 售后先例
+            // 的外显安全边界），用 business_displayable 让用户看到真实拒绝原因
+            return Err(AppError::business_displayable(format!(
                 "预留状态为{}，只有待处理状态的预留可以锁定",
                 reservation.status
             )));
@@ -105,7 +107,8 @@ impl InventoryReservationService {
         if reservation.status != reservation_status::LOCKED
             && reservation.status != reservation_status::PENDING
         {
-            return Err(AppError::business(format!(
+            // 外显安全边界同 lock（见任务 #148 售后先例），拒绝原因须对用户可见
+            return Err(AppError::business_displayable(format!(
                 "预留状态为{}，只有已锁定或待处理状态的预留可以释放",
                 reservation.status
             )));
@@ -213,7 +216,9 @@ impl InventoryReservationService {
 
         // 只有 pending 状态的预留可以删除
         if reservation.status != reservation_status::PENDING {
-            return Err(AppError::business(format!(
+            // 外显安全边界同 lock（见任务 #148 售后先例），"释放的预留不可删除"
+            // 这类拒绝原因必须对用户可见
+            return Err(AppError::business_displayable(format!(
                 "预留状态为{}，只有待处理状态的预留可以删除",
                 reservation.status
             )));
