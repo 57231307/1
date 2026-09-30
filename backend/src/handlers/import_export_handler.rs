@@ -412,9 +412,13 @@ fn import_template_store() -> &'static Mutex<Vec<ImportTemplateRecord>> {
 }
 
 fn lock_import_templates() -> Result<MutexGuard<'static, Vec<ImportTemplateRecord>>, AppError> {
-    import_template_store()
-        .lock()
-        .map_err(|_| AppError::internal("导入模板存储不可用"))
+    import_template_store().lock().map_err(|e| {
+        tracing::error!(
+            "导入模板存储互斥锁被污染（此前存在 panic 破坏内存状态）: {}",
+            e
+        );
+        AppError::internal("导入模板存储不可用")
+    })
 }
 
 fn map_import_data_type(data_type: &str) -> String {
@@ -747,7 +751,10 @@ pub async fn create_import_task_from_upload(
     let task = import_task::Entity::find_by_id(task_id)
         .one(state.db.as_ref())
         .await?
-        .ok_or_else(|| AppError::internal("导入任务记录创建后查询失败"))?;
+        .ok_or_else(|| {
+            tracing::error!("导入任务创建后按 ID 查询不到记录，task_id={}", task_id);
+            AppError::internal("导入任务记录创建后查询失败")
+        })?;
 
     info!(
         "用户 {} 创建导入任务成功：ID={}，模板={}，文件={}",

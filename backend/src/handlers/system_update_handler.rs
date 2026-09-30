@@ -154,15 +154,7 @@ pub async fn download_and_update(
                 "更新下载完成",
             )))
         }
-        Err(e) => {
-            let message = e.to_string();
-            Err(match e {
-                UpdateError::NetworkError(_) => AppError::internal(message),
-                UpdateError::VersionError(_) => AppError::bad_request(message),
-                UpdateError::AlreadyUpdating => AppError::business(message),
-                _ => AppError::internal(message),
-            })
-        }
+        Err(e) => Err(map_update_error(e)),
     }
 }
 
@@ -335,7 +327,7 @@ pub async fn rollback_version(
                 "版本回滚成功",
             )))
         }
-        Err(e) => Err(AppError::internal(e.to_string())),
+        Err(e) => Err(map_update_error(e)),
     }
 }
 
@@ -378,7 +370,7 @@ pub async fn list_local_releases() -> Result<Json<ApiResponse<LocalReleasesRespo
             count: releases.len(),
             releases,
         }))),
-        Err(e) => Err(AppError::internal(e.to_string())),
+        Err(e) => Err(map_update_error(e)),
     }
 }
 
@@ -398,9 +390,7 @@ pub async fn apply_local_update(
 
     let service = SystemUpdateService::new();
 
-    let releases = service
-        .list_local_releases()
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let releases = service.list_local_releases().map_err(map_update_error)?;
 
     let release = releases
         .into_iter()
@@ -419,22 +409,7 @@ pub async fn apply_local_update(
                 "本地更新应用成功",
             )))
         }
-        Err(e) => {
-            let message = e.to_string();
-            Err(match e {
-                // 任务 #121：完整性/校验值错误映射 internal（安全护栏判定不外泄）。
-                UpdateError::IoError(_)
-                | UpdateError::UnzipError(_)
-                | UpdateError::BackupError(_)
-                | UpdateError::NetworkError(_)
-                | UpdateError::IntegrityError(_)
-                | UpdateError::ChecksumUnavailable(_) => AppError::internal(message),
-                UpdateError::ValidationError(_) | UpdateError::VersionError(_) => {
-                    AppError::bad_request(message)
-                }
-                UpdateError::AlreadyUpdating => AppError::business(message),
-            })
-        }
+        Err(e) => Err(map_update_error(e)),
     }
 }
 

@@ -157,9 +157,10 @@ async fn resolve_audience(
             Ok(users.into_iter().map(|u| u.id).collect())
         }
         "CUSTOM" => {
-            let cfg = announcement.visible_scope_config.as_ref().ok_or_else(|| {
-                AppError::internal("visibility_scope=CUSTOM 但 visible_scope_config 为空")
-            })?;
+            let cfg = announcement
+                .visible_scope_config
+                .as_ref()
+                .ok_or_else(|| AppError::business("CUSTOM 范围公告缺少可见对象配置，无法发布"))?;
             let ids: Vec<i32> = cfg
                 .get("user_ids")
                 .and_then(|v| v.as_array())
@@ -172,9 +173,10 @@ async fn resolve_audience(
             Ok(ids)
         }
         "DEPT" => {
-            let cfg = announcement.visible_scope_config.as_ref().ok_or_else(|| {
-                AppError::internal("visibility_scope=DEPT 但 visible_scope_config 为空")
-            })?;
+            let cfg = announcement
+                .visible_scope_config
+                .as_ref()
+                .ok_or_else(|| AppError::business("DEPT 范围公告缺少可见对象配置，无法发布"))?;
             let dept_ids: Vec<i32> = cfg
                 .get("department_ids")
                 .and_then(|v| v.as_array())
@@ -195,9 +197,10 @@ async fn resolve_audience(
             Ok(users.into_iter().map(|u| u.id).collect())
         }
         "ROLE" => {
-            let cfg = announcement.visible_scope_config.as_ref().ok_or_else(|| {
-                AppError::internal("visibility_scope=ROLE 但 visible_scope_config 为空")
-            })?;
+            let cfg = announcement
+                .visible_scope_config
+                .as_ref()
+                .ok_or_else(|| AppError::business("ROLE 范围公告缺少可见对象配置，无法发布"))?;
             let role_ids: Vec<i32> = cfg
                 .get("role_ids")
                 .and_then(|v| v.as_array())

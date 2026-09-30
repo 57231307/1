@@ -21,6 +21,7 @@ use crate::services::color_card_inventory_warning_service::{
     ColorCardInventoryWarningService, WarningLevel,
 };
 use crate::services::color_card_issue_report_service::{ColorCardIssueReportService, ReportParams};
+use crate::services::color_card_issue_service::IssueError;
 use crate::services::color_card_issue_statistics_service::{
     ColorCardIssueStatisticsService, DailyStats,
 };
@@ -343,6 +344,23 @@ fn required_query_i64(params: &serde_json::Value, key: &str) -> Result<i64, AppE
     })
 }
 
+/// 将发放服务返回的 `IssueError` 翻译为带真实 HTTP status/code 的 `AppError`。
+///
+/// 这些查询端点会因客户/色卡不存在返回 404、因数据不一致返回数据库错误，
+/// 一律重包成 500 会丢失真实语义（前端只见"服务器内部错误"），故在此按族透传。
+/// 携带内部信息的文案走脱敏的 `business`/`validation`，DB 原文只进日志。
+fn map_issue_error(e: IssueError) -> AppError {
+    match e {
+        IssueError::ColorCardNotFound => AppError::not_found("色卡不存在"),
+        IssueError::CustomerNotFound => AppError::not_found("客户不存在"),
+        IssueError::RecordNotFound => AppError::not_found("发放记录不存在"),
+        IssueError::InvalidState(_) => AppError::business("色卡当前状态不允许此操作"),
+        IssueError::Validation(msg) => AppError::validation(msg),
+        IssueError::GateCheckFailed(_) => AppError::business("发放闸门校验未通过"),
+        IssueError::Database(e) => AppError::database(e.to_string()),
+    }
+}
+
 /// GET /api/v1/erp/color-cards/customer-color-cards - 客户色卡查询
 pub async fn list_customer_color_cards(
     auth: AuthContext,
@@ -356,7 +374,7 @@ pub async fn list_customer_color_cards(
     let result = svc
         .list_customer_color_cards(customer_id)
         .await
-        .map_err(|e| AppError::internal(format!("查询客户色卡失败: {}", e)))?;
+        .map_err(map_issue_error)?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "data": result
     }))))
@@ -375,7 +393,7 @@ pub async fn list_by_sales_order(
     let result = svc
         .list_by_sales_order(sales_order_id)
         .await
-        .map_err(|e| AppError::internal(format!("查询订单色卡失败: {}", e)))?;
+        .map_err(map_issue_error)?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "data": result
     }))))
@@ -394,7 +412,7 @@ pub async fn query_reorder_dye_lot(
     let result = svc
         .query_reorder_dye_lot(customer_id)
         .await
-        .map_err(|e| AppError::internal(format!("查询补染信息失败: {}", e)))?;
+        .map_err(map_issue_error)?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "data": result
     }))))
