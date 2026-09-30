@@ -9,7 +9,9 @@ import {
   ElForm,
   ElFormItem,
   ElInput,
+  ElInputNumber,
   ElSelect,
+  ElOption,
   ElDatePicker,
   ElMessageBox,
   ElMessage,
@@ -20,14 +22,17 @@ import {
 import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue';
 import {
   getArReconciliation,
-  createArReconciliation,
   updateArReconciliation,
   deleteArReconciliation,
   confirmReconciliation,
-  getReconciliationDetails,
   type ArReconciliationEntity,
-  type ReconciliationDetail,
+  type UpdateArReconciliationPayload,
 } from '@/api/ar-reconciliation';
+import {
+  generateReconciliation,
+  getReconciliationDetailItems,
+  type ReconciliationDetailItem,
+} from '@/api/ar-reconciliation-enhanced';
 import { getCustomerSelectList } from '@/api/customer';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
@@ -37,8 +42,10 @@ const fmtNum = (v: unknown): string => Number(v ?? 0).toFixed(2);
 
 const { t } = useI18n({ useScope: 'global' });
 
+// 后端 ListReconciliationsQuery 只读 status/customer_id/page/page_size/start_date/end_date，
+// 没有按客户名模糊查询的实现：客户筛选改为 customer_id 下拉（真实参数）
 const searchForm = ref({
-  customer_name: '',
+  customer_id: undefined as number | undefined,
   status: '',
   start_date: '',
   end_date: '',
@@ -63,12 +70,22 @@ const {
 });
 
 const dialogVisible = ref(false);
-const form = ref<Partial<ArReconciliationEntity>>({
-  customer_id: 0,
-  customer_name: '',
-  start_date: '',
-  end_date: '',
-  status: 'draft',
+// 新增模式采集：客户 + 对账起止（走后端 generate 汇总端点，单号/金额由服务端在事务内生成）
+// 编辑模式采集：PUT /ar-reconciliations/{id} 的 DTO 只有 opening_balance/total_invoices/
+// total_collections/notes 四个可改字段，客户与起止期间后端不支持修改，编辑态只读展示
+const form = ref<{
+  id?: number;
+  customer_id?: number;
+  period_start: string;
+  period_end: string;
+  opening_balance?: number;
+  total_invoices?: number;
+  total_collections?: number;
+  notes?: string;
+}>({
+  customer_id: undefined,
+  period_start: '',
+  period_end: '',
 });
 // 对话框标题：依据 form.id 自动切换「新增 / 编辑」，computed 保证语言切换即时生效
 const dialogTitle = computed(() =>
@@ -79,18 +96,20 @@ const dialogTitle = computed(() =>
 
 const viewDialogVisible = ref(false);
 const viewData = ref<ArReconciliationEntity | null>(null);
-const detailData = ref<ReconciliationDetail[]>([]);
+const detailData = ref<ReconciliationDetailItem[]>([]);
 
 const customerOptions = ref<{ label: string; value: number }[]>([]);
 
 // 状态下拉选项（label 走 i18n，computed 保证语言切换即时生效）
+// 词表写入方 models/status/finance.rs::ar：draft/sent/confirmed/disputed/closed/cancelled 小写
 const statusOptions = computed(() => [
   { label: t('arReconciliationModule.index.statusAll'), value: '' },
   { label: t('arReconciliationModule.index.statusDraft'), value: 'draft' },
   { label: t('arReconciliationModule.index.statusConfirmed'), value: 'confirmed' },
 ]);
 
-const getStatusLabel = (value: string) => {
+const getStatusLabel = (value: string | null | undefined) => {
+  if (!value) return '-';
   return statusOptions.value.find(s => s.value === value)?.label || value;
 };
 
@@ -101,7 +120,7 @@ const getStatusClass = (value: string) => {
 // 批次 272：同步筛选条件到 useTableApi.queryParams 并刷新
 // useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
 const syncQueryParams = () => {
-  setQueryParam('customer_name', searchForm.value.customer_name || undefined);
+  setQueryParam('customer_id', searchForm.value.customer_id);
   setQueryParam('status', searchForm.value.status || undefined);
   setQueryParam('start_date', searchForm.value.start_date || undefined);
   setQueryParam('end_date', searchForm.value.end_date || undefined);
@@ -125,7 +144,7 @@ const handleSearch = () => {
 
 const handleReset = () => {
   searchForm.value = {
-    customer_name: '',
+    customer_id: undefined,
     status: '',
     start_date: '',
     end_date: '',
@@ -147,30 +166,39 @@ const handlePageSizeChange = (val: number) => {
 
 const openAddDialog = () => {
   form.value = {
-    customer_id: 0,
-    customer_name: '',
-    start_date: '',
-    end_date: '',
-    status: 'draft',
+    customer_id: undefined,
+    period_start: '',
+    period_end: '',
   };
   dialogVisible.value = true;
 };
 
 const openEditDialog = (row: ArReconciliationEntity) => {
-  form.value = { ...row };
+  // 金额来自列表真实键（Decimal 字符串），转数值供 input-number 编辑
+  form.value = {
+    id: row.id,
+    customer_id: row.customer_id,
+    period_start: row.period_start,
+    period_end: row.period_end,
+    opening_balance: Number(row.opening_balance),
+    total_invoices: Number(row.total_invoices),
+    total_collections: Number(row.total_collections),
+    notes: '',
+  };
   dialogVisible.value = true;
 };
 
 const openViewDialog = async (row: ArReconciliationEntity) => {
   try {
-    // v11 批次 175 P2-1 修复：res: any 改为具体类型
-    const res = (await getArReconciliation(row.id!)) as { data?: ArReconciliationEntity };
+    const res = (await getArReconciliation(row.id)) as { data?: ArReconciliationEntity };
     // 安全检查：防止后端返回 data 为 null 时崩溃
     if (res.data) viewData.value = res.data;
-    const detailRes = (await getReconciliationDetails(row.id!)) as {
-      data?: ReconciliationDetail[];
+    // 对账明细端点在增强路由：GET /ar-reconciliations-enhanced/{id}/details
+    // 返回单对象 { reconciliation, details }，明细在 details 键（不是裸数组）
+    const detailRes = (await getReconciliationDetailItems(row.id)) as {
+      data?: { details?: ReconciliationDetailItem[] };
     };
-    detailData.value = detailRes.data || [];
+    detailData.value = detailRes.data?.details ?? [];
     viewDialogVisible.value = true;
   } catch (error) {
     ElMessage.error(t('arReconciliationModule.index.fetchDetailFailed'));
@@ -178,16 +206,29 @@ const openViewDialog = async (row: ArReconciliationEntity) => {
 };
 
 const handleSubmit = async () => {
-  if (!form.value.customer_id || !form.value.start_date || !form.value.end_date) {
+  if (!form.value.customer_id || !form.value.period_start || !form.value.period_end) {
     ElMessage.warning(t('arReconciliationModule.index.requiredFieldsMissing'));
     return;
   }
   try {
     if (form.value.id) {
-      await updateArReconciliation(form.value.id, form.value);
+      // UpdateReconciliationApiRequest 全部 Option：只提交界面实际修改的四个键
+      const payload: UpdateArReconciliationPayload = {
+        opening_balance: form.value.opening_balance,
+        total_invoices: form.value.total_invoices,
+        total_collections: form.value.total_collections,
+        ...(form.value.notes ? { notes: form.value.notes } : {}),
+      };
+      await updateArReconciliation(form.value.id, payload);
       ElMessage.success(t('common.message.updateSuccess'));
     } else {
-      await createArReconciliation(form.value);
+      // 新增走后端汇总端点：单号在事务内自动生成、金额按发票/收款汇总，
+      // 界面不采集也不伪造单号/金额（POST /ar-reconciliations 要求客户端提供单号与三项金额）
+      await generateReconciliation({
+        customer_id: form.value.customer_id,
+        start_date: form.value.period_start,
+        end_date: form.value.period_end,
+      });
       ElMessage.success(t('common.message.createSuccess'));
     }
     dialogVisible.value = false;
@@ -198,7 +239,7 @@ const handleSubmit = async () => {
 };
 
 const handleDelete = async (row: ArReconciliationEntity) => {
-  if (row.status === 'confirmed') {
+  if (row.reconciliation_status === 'confirmed') {
     ElMessage.warning(t('arReconciliationModule.index.cannotDeleteConfirmed'));
     return;
   }
@@ -208,7 +249,7 @@ const handleDelete = async (row: ArReconciliationEntity) => {
       t('common.message.confirmTitle'),
       { type: 'warning' }
     );
-    await deleteArReconciliation(row.id!);
+    await deleteArReconciliation(row.id);
     ElMessage.success(t('common.message.deleteSuccess'));
     loadData();
   } catch (error) {
@@ -223,7 +264,7 @@ const handleConfirm = async (row: ArReconciliationEntity) => {
       t('common.message.confirmTitle'),
       { type: 'warning' }
     );
-    await confirmReconciliation(row.id!);
+    await confirmReconciliation(row.id);
     ElMessage.success(t('arReconciliationModule.index.confirmSuccess'));
     loadData();
   } catch (error) {
@@ -240,12 +281,19 @@ loadCustomers();
     <div class="filter-container">
       <ElRow :gutter="20">
         <ElCol :span="6">
-          <ElInput
-            v-model="searchForm.customer_name"
-            :placeholder="$t('arReconciliationModule.index.customerNamePlaceholder')"
+          <ElSelect
+            v-model="searchForm.customer_id"
+            clearable
+            :placeholder="$t('arReconciliationModule.index.selectCustomerPlaceholder')"
             class="filter-item"
-            @keyup.enter="handleSearch"
-          />
+          >
+            <ElOption
+              v-for="c in customerOptions"
+              :key="c.value"
+              :label="c.label"
+              :value="c.value"
+            />
+          </ElSelect>
         </ElCol>
         <ElCol :span="6">
           <ElSelect
@@ -260,6 +308,7 @@ loadCustomers();
           <ElDatePicker
             v-model="searchForm.start_date"
             type="date"
+            value-format="YYYY-MM-DD"
             :placeholder="$t('arReconciliationModule.index.startDatePlaceholder')"
             class="filter-item"
           />
@@ -268,6 +317,7 @@ loadCustomers();
           <ElDatePicker
             v-model="searchForm.end_date"
             type="date"
+            value-format="YYYY-MM-DD"
             :placeholder="$t('arReconciliationModule.index.endDatePlaceholder')"
             class="filter-item"
           />
@@ -294,9 +344,9 @@ loadCustomers();
       :aria-label="$t('arReconciliationModule.index.listAria')"
     >
       <ElTableColumn
-        prop="customer_code"
-        :label="$t('arReconciliationModule.index.customerCode')"
-        width="120"
+        prop="reconciliation_no"
+        :label="$t('arReconciliationModule.index.reconciliationNo')"
+        width="150"
       />
       <ElTableColumn
         prop="customer_name"
@@ -304,51 +354,50 @@ loadCustomers();
         width="150"
       />
       <ElTableColumn
-        prop="start_date"
+        prop="period_start"
         :label="$t('arReconciliationModule.index.reconciliationStart')"
         width="120"
       />
       <ElTableColumn
-        prop="end_date"
+        prop="period_end"
         :label="$t('arReconciliationModule.index.reconciliationEnd')"
         width="120"
       />
       <ElTableColumn
-        prop="total_invoice"
+        prop="total_invoices"
         :label="$t('arReconciliationModule.index.invoiceAmount')"
         width="120"
         align="right"
       >
-        <template #default="scope">{{ Number(scope.row.total_invoice ?? 0).toFixed(2) }}</template>
+        <template #default="scope">{{ fmtNum(scope.row.total_invoices) }}</template>
       </ElTableColumn>
       <ElTableColumn
-        prop="total_payment"
+        prop="total_collections"
         :label="$t('arReconciliationModule.index.paymentAmount')"
         width="120"
         align="right"
       >
-        <template #default="scope">{{ Number(scope.row.total_payment ?? 0).toFixed(2) }}</template>
+        <template #default="scope">{{ fmtNum(scope.row.total_collections) }}</template>
       </ElTableColumn>
       <ElTableColumn
-        prop="balance"
+        prop="closing_balance"
         :label="$t('arReconciliationModule.index.balance')"
         width="120"
         align="right"
       >
-        <template #default="scope">{{ Number(scope.row.balance ?? 0).toFixed(2) }}</template>
+        <template #default="scope">{{ fmtNum(scope.row.closing_balance) }}</template>
       </ElTableColumn>
-      <ElTableColumn prop="status" :label="$t('arReconciliationModule.index.status')" width="100">
+      <ElTableColumn
+        prop="reconciliation_status"
+        :label="$t('arReconciliationModule.index.status')"
+        width="100"
+      >
         <template #default="scope">
-          <span :class="['status-tag', getStatusClass(scope.row.status)]">
-            {{ getStatusLabel(scope.row.status) }}
+          <span :class="['status-tag', getStatusClass(scope.row.reconciliation_status)]">
+            {{ getStatusLabel(scope.row.reconciliation_status) }}
           </span>
         </template>
       </ElTableColumn>
-      <ElTableColumn
-        prop="created_by_name"
-        :label="$t('arReconciliationModule.index.createdBy')"
-        width="100"
-      />
       <ElTableColumn prop="created_at" :label="$t('common.createTime')" width="150" />
       <ElTableColumn :label="$t('common.operation')" width="250" align="center">
         <template #default="scope">
@@ -356,7 +405,7 @@ loadCustomers();
             <View />
           </ElButton>
           <ElButton
-            v-if="scope.row.status === 'draft'"
+            v-if="scope.row.reconciliation_status === 'draft'"
             size="small"
             type="primary"
             @click="openEditDialog(scope.row as ArReconciliationEntity)"
@@ -364,7 +413,7 @@ loadCustomers();
             <Edit />
           </ElButton>
           <ElButton
-            v-if="scope.row.status === 'draft'"
+            v-if="scope.row.reconciliation_status === 'draft'"
             size="small"
             type="warning"
             @click="handleConfirm(scope.row as ArReconciliationEntity)"
@@ -372,7 +421,7 @@ loadCustomers();
             <Check /> {{ $t('arReconciliationModule.index.confirm') }}
           </ElButton>
           <ElButton
-            v-if="scope.row.status === 'draft'"
+            v-if="scope.row.reconciliation_status === 'draft'"
             size="small"
             type="danger"
             @click="handleDelete(scope.row as ArReconciliationEntity)"
@@ -411,6 +460,7 @@ loadCustomers();
         <ElFormItem :label="$t('arReconciliationModule.index.customer')" prop="customer_id">
           <ElSelect
             v-model="form.customer_id"
+            :disabled="!!form.id"
             :placeholder="$t('arReconciliationModule.index.selectCustomerPlaceholder')"
           >
             <ElOption
@@ -425,17 +475,62 @@ loadCustomers();
           <ElCol :span="12">
             <ElFormItem
               :label="$t('arReconciliationModule.index.startDateLabel')"
-              prop="start_date"
+              prop="period_start"
             >
-              <ElDatePicker v-model="form.start_date" type="date" />
+              <ElDatePicker
+                v-model="form.period_start"
+                :disabled="!!form.id"
+                type="date"
+                value-format="YYYY-MM-DD"
+              />
             </ElFormItem>
           </ElCol>
           <ElCol :span="12">
-            <ElFormItem :label="$t('arReconciliationModule.index.endDateLabel')" prop="end_date">
-              <ElDatePicker v-model="form.end_date" type="date" />
+            <ElFormItem :label="$t('arReconciliationModule.index.endDateLabel')" prop="period_end">
+              <ElDatePicker
+                v-model="form.period_end"
+                :disabled="!!form.id"
+                type="date"
+                value-format="YYYY-MM-DD"
+              />
             </ElFormItem>
           </ElCol>
         </ElRow>
+        <!-- 编辑态：PUT 端点仅支持修改期初/发票总额/回款总额/备注（closing_balance 后端自动重算） -->
+        <template v-if="form.id">
+          <ElFormItem :label="$t('arReconciliationModule.index.openingBalance')">
+            <ElInputNumber
+              v-model="form.opening_balance"
+              :precision="2"
+              :controls="false"
+              style="width: 100%"
+            />
+          </ElFormItem>
+          <ElFormItem :label="$t('arReconciliationModule.index.invoiceAmount')">
+            <ElInputNumber
+              v-model="form.total_invoices"
+              :precision="2"
+              :controls="false"
+              style="width: 100%"
+            />
+          </ElFormItem>
+          <ElFormItem :label="$t('arReconciliationModule.index.paymentAmount')">
+            <ElInputNumber
+              v-model="form.total_collections"
+              :precision="2"
+              :controls="false"
+              style="width: 100%"
+            />
+          </ElFormItem>
+          <ElFormItem :label="$t('arReconciliationModule.remark')">
+            <ElInput
+              v-model="form.notes"
+              type="textarea"
+              :rows="2"
+              :placeholder="$t('arReconciliationModule.remark')"
+            />
+          </ElFormItem>
+        </template>
       </ElForm>
       <template #footer>
         <ElButton @click="dialogVisible = false">{{ $t('common.cancel') }}</ElButton>
@@ -452,42 +547,36 @@ loadCustomers();
     >
       <div v-if="viewData">
         <ElDescriptions :column="4" border>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.customerCode')">{{
-            viewData.customer_code
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.customerName')">{{
-            viewData.customer_name
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.reconciliationStart')">{{
-            viewData.start_date
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.reconciliationEnd')">{{
-            viewData.end_date
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.invoiceAmount')">{{
-            Number(viewData.total_invoice ?? 0).toFixed(2)
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.paymentAmount')">{{
-            Number(viewData.total_payment ?? 0).toFixed(2)
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.adjustmentAmount')">{{
-            Number(viewData.total_adjustment ?? 0).toFixed(2)
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.balance')">{{
-            Number(viewData.balance ?? 0).toFixed(2)
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.status')">{{
-            getStatusLabel(viewData.status)
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.createdBy')">{{
-            viewData.created_by_name
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('common.createTime')">{{
-            viewData.created_at
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.confirmedAt')">{{
-            viewData.confirmed_at || '-'
-          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.reconciliationNo')">
+            {{ viewData.reconciliation_no }}
+          </ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.customerName')">
+            {{ viewData.customer_name || '-' }}
+          </ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.reconciliationStart')">
+            {{ viewData.period_start }}
+          </ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.reconciliationEnd')">
+            {{ viewData.period_end }}
+          </ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.openingBalance')">
+            {{ fmtNum(viewData.opening_balance) }}
+          </ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.invoiceAmount')">
+            {{ fmtNum(viewData.total_invoices) }}
+          </ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.paymentAmount')">
+            {{ fmtNum(viewData.total_collections) }}
+          </ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.balance')">
+            {{ fmtNum(viewData.closing_balance) }}
+          </ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.status')">
+            {{ getStatusLabel(viewData.reconciliation_status) }}
+          </ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('common.createTime')">
+            {{ viewData.created_at }}
+          </ElDescriptionsItem>
         </ElDescriptions>
 
         <div style="margin-top: 20px">
@@ -499,17 +588,17 @@ loadCustomers();
             :aria-label="$t('arReconciliationModule.index.detailItemsAria')"
           >
             <ElTableColumn
-              prop="type"
+              prop="item_type"
               :label="$t('arReconciliationModule.index.type')"
               width="100"
             />
             <ElTableColumn
-              prop="source_no"
+              prop="document_no"
               :label="$t('arReconciliationModule.index.sourceNo')"
               width="150"
             />
             <ElTableColumn
-              prop="source_date"
+              prop="document_date"
               :label="$t('arReconciliationModule.index.date')"
               width="120"
             />
@@ -519,25 +608,22 @@ loadCustomers();
               width="120"
               align="right"
             >
-              <template #default="scope">{{ Number(scope.row.amount ?? 0).toFixed(2) }}</template>
+              <template #default="scope">{{ fmtNum(scope.row.amount) }}</template>
             </ElTableColumn>
             <ElTableColumn
-              prop="paid_amount"
-              :label="$t('arReconciliationModule.index.paidAmount')"
+              prop="matched_amount"
+              :label="$t('arReconciliationModule.matchedAmount')"
               width="120"
               align="right"
             >
-              <template #default="scope">{{ fmtNum(scope.row.paid_amount) }}</template>
+              <template #default="scope">{{ fmtNum(scope.row.matched_amount) }}</template>
             </ElTableColumn>
             <ElTableColumn
-              prop="balance"
-              :label="$t('arReconciliationModule.index.balance')"
-              width="120"
-              align="right"
-            >
-              <template #default="scope">{{ Number(scope.row.balance ?? 0).toFixed(2) }}</template>
-            </ElTableColumn>
-            <ElTableColumn prop="remark" :label="$t('common.description')" />
+              prop="match_status"
+              :label="$t('arReconciliationModule.matchStatus')"
+              width="100"
+            />
+            <ElTableColumn prop="remarks" :label="$t('common.description')" />
           </ElTable>
         </div>
       </div>

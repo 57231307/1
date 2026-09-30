@@ -32,8 +32,9 @@ use bingxi_backend::handlers::custom_order_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::quality_issue;
 use bingxi_backend::models::quality_issue_dto::ReportQualityIssueDto;
-use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, Statement};
+use sea_orm::{ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, Statement};
 use serde_json::{Value, json};
+use tower::ServiceExt;
 
 /// 前端 QualityCheck.vue 的真实 payload 形状（本波修复后不再携带 custom_order_id）
 fn frontend_real_payload() -> Value {
