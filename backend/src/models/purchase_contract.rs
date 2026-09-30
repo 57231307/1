@@ -22,6 +22,8 @@ pub struct Model {
     pub payment_method: Option<String>,
     pub delivery_date: Option<NaiveDate>,
     pub delivery_location: Option<String>,
+    /// 备注（m0016 迁移补列，可空）
+    pub remark: Option<String>,
     pub status: String,
     pub created_by: i32,
     pub created_at: DateTime<Utc>,

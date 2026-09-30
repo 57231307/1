@@ -35,6 +35,7 @@ pub struct PurchaseContractView {
     pub payment_method: Option<String>,
     pub delivery_date: Option<chrono::NaiveDate>,
     pub delivery_location: Option<String>,
+    pub remark: Option<String>,
     pub status: String,
     pub created_by: i32,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -60,14 +61,46 @@ pub struct ContractQueryParams {
 }
 
 /// 创建采购合同请求
+///
+/// - `delivery_date` 为 Option：真实列 purchase_contracts.delivery_date 可空（m0009 DDL）。
+/// - 表头真实列 contract_type/signed_date/effective_date/expiry_date/payment_method/
+///   delivery_location 与 remark 全量落库（remark 列由 m0016 迁移补齐）。
 #[derive(Debug, Clone)]
 pub struct CreateContractRequest {
     pub contract_no: String,
     pub contract_name: String,
     pub supplier_id: i32,
     pub total_amount: Decimal,
+    pub contract_type: Option<String>,
     pub payment_terms: Option<String>,
-    pub delivery_date: NaiveDate,
+    pub delivery_date: Option<NaiveDate>,
+    pub signed_date: Option<NaiveDate>,
+    pub effective_date: Option<NaiveDate>,
+    pub expiry_date: Option<NaiveDate>,
+    pub payment_method: Option<String>,
+    pub delivery_location: Option<String>,
+    pub remark: Option<String>,
+}
+
+/// 更新采购合同请求
+///
+/// 字段语义 = PATCH 部分更新（Some=覆盖，None=保持原值）。
+/// 不含 contract_no：合同编号由系统生成（单据号禁手打口径），更新链路不允许改写；
+/// 若放开改写，改成已存在编号会直接撞 purchase_contracts.contract_no UNIQUE（无 23505→4xx
+/// 自动映射，只会裸 500），且篡改单据号本身违反编号即身份的业务规则。
+#[derive(Debug, Clone, Default)]
+pub struct UpdateContractRequest {
+    pub contract_name: Option<String>,
+    pub supplier_id: Option<i32>,
+    pub total_amount: Option<Decimal>,
+    pub contract_type: Option<String>,
+    pub payment_terms: Option<String>,
+    pub delivery_date: Option<NaiveDate>,
+    pub signed_date: Option<NaiveDate>,
+    pub effective_date: Option<NaiveDate>,
+    pub expiry_date: Option<NaiveDate>,
+    pub payment_method: Option<String>,
+    pub delivery_location: Option<String>,
     pub remark: Option<String>,
 }
 
@@ -99,14 +132,31 @@ impl PurchaseContractService {
     ) -> Result<purchase_contract::Model, AppError> {
         info!("用户 {} 正在创建采购合同：{}", user_id, req.contract_no);
 
+        // P0 契约修复：校验供应商存在并回填冗余列 supplier_name
+        //（原实现既不校验也不回填 ⇒ 悬挂 supplier_id 可入库、列表「供应商」列恒空）
+        let supplier = crate::models::supplier::Entity::find_by_id(req.supplier_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::business_displayable("创建失败：所选供应商不存在，请重新选择供应商")
+            })?;
+
         let active_contract = purchase_contract::ActiveModel {
             contract_no: Set(req.contract_no),
             contract_name: Set(req.contract_name),
+            contract_type: Set(req.contract_type),
             supplier_id: Set(req.supplier_id),
+            supplier_name: Set(Some(supplier.supplier_name)),
             total_amount: Set(Some(req.total_amount)),
             status: Set(contract::DRAFT.to_string()),
             payment_terms: Set(req.payment_terms),
-            delivery_date: Set(Some(req.delivery_date)),
+            payment_method: Set(req.payment_method),
+            delivery_date: Set(req.delivery_date),
+            delivery_location: Set(req.delivery_location),
+            signed_date: Set(req.signed_date),
+            effective_date: Set(req.effective_date),
+            expiry_date: Set(req.expiry_date),
+            remark: Set(req.remark),
             created_by: Set(user_id),
             ..Default::default()
         };
@@ -114,6 +164,104 @@ impl PurchaseContractService {
         let contract = active_contract.insert(&*self.db).await?;
         info!("采购合同创建成功：{}", contract.contract_no);
         Ok(contract)
+    }
+
+    /// 更新采购合同（表头全集，PATCH 语义：Some=覆盖、None=保持）
+    ///
+    /// P0 契约修复（本轮）：下沉 handler 内联逻辑到 service，补事务边界 +
+    /// lock_exclusive + DRAFT 状态门；原实现仅 2 字段可更新且无锁。
+    pub async fn update(
+        &self,
+        id: i32,
+        req: UpdateContractRequest,
+        user_id: i32,
+    ) -> Result<purchase_contract::Model, AppError> {
+        info!("用户 {} 正在更新采购合同 {}", user_id, id);
+
+        let txn = (*self.db).begin().await?;
+
+        let contract = purchase_contract::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购合同不存在：{}", id)))?;
+
+        if contract.status != contract::DRAFT {
+            return Err(AppError::business_displayable(
+                "只有草稿状态的采购合同才能修改",
+            ));
+        }
+
+        // 供应商变更：校验存在并同步冗余列 supplier_name
+        let supplier_name_override = match req.supplier_id {
+            Some(sid) if sid != contract.supplier_id => {
+                let s = crate::models::supplier::Entity::find_by_id(sid)
+                    .one(&txn)
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::business_displayable(
+                            "更新失败：所选供应商不存在，请重新选择供应商",
+                        )
+                    })?;
+                Some(s.supplier_name)
+            }
+            _ => None,
+        };
+
+        let mut active: purchase_contract::ActiveModel = contract.into();
+        if let Some(v) = req.contract_name {
+            active.contract_name = Set(v);
+        }
+        if let Some(v) = req.supplier_id {
+            active.supplier_id = Set(v);
+        }
+        if let Some(name) = supplier_name_override {
+            active.supplier_name = Set(Some(name));
+        }
+        if let Some(v) = req.total_amount {
+            active.total_amount = Set(Some(v));
+        }
+        if let Some(v) = req.contract_type {
+            active.contract_type = Set(Some(v));
+        }
+        if let Some(v) = req.payment_terms {
+            active.payment_terms = Set(Some(v));
+        }
+        if let Some(v) = req.payment_method {
+            active.payment_method = Set(Some(v));
+        }
+        if let Some(v) = req.delivery_date {
+            active.delivery_date = Set(Some(v));
+        }
+        if let Some(v) = req.delivery_location {
+            active.delivery_location = Set(Some(v));
+        }
+        if let Some(v) = req.signed_date {
+            active.signed_date = Set(Some(v));
+        }
+        if let Some(v) = req.effective_date {
+            active.effective_date = Set(Some(v));
+        }
+        if let Some(v) = req.expiry_date {
+            active.expiry_date = Set(Some(v));
+        }
+        if let Some(v) = req.remark {
+            active.remark = Set(Some(v));
+        }
+
+        active.updated_at = Set(chrono::Utc::now());
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+        info!("采购合同 {} 更新成功", updated.contract_no);
+        Ok(updated)
     }
 
     /// 获取合同列表（分页）

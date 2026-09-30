@@ -24,6 +24,10 @@ pub struct SalesContractQueryParams {
 }
 
 /// 创建销售合同请求
+///
+/// - `delivery_date` 为 Option：真实列 sales_contracts.delivery_date 可空（m0011 DDL）。
+/// - 表头真实列 signed_date/effective_date/expiry_date/payment_method/delivery_location
+///   与 remark 全量落库（remark 列由 m0016 迁移补齐）。
 #[derive(Debug, Clone)]
 pub struct CreateSalesContractRequest {
     pub contract_no: String,
@@ -32,9 +36,38 @@ pub struct CreateSalesContractRequest {
     pub total_amount: Decimal,
     pub contract_type: Option<String>,
     pub payment_terms: Option<String>,
-    pub delivery_date: NaiveDate,
+    pub delivery_date: Option<NaiveDate>,
+    pub signed_date: Option<NaiveDate>,
+    pub effective_date: Option<NaiveDate>,
+    pub expiry_date: Option<NaiveDate>,
+    pub payment_method: Option<String>,
+    pub delivery_location: Option<String>,
     pub remark: Option<String>,
     /// 合同明细行
+    pub items: Option<Vec<CreateContractItemRequest>>,
+}
+
+/// 更新销售合同请求
+///
+/// 字段语义 = PATCH 部分更新（Some=覆盖，None=保持原值），items=明细整表替换。
+/// 不含 contract_no：合同编号由系统生成（单据号禁手打口径），更新链路不允许改写；
+/// 若放开改写，改成已存在编号会直接撞 sales_contracts.contract_no UNIQUE（无 23505→4xx
+/// 自动映射，只会裸 500），且篡改单据号本身违反编号即身份的业务规则。
+#[derive(Debug, Clone, Default)]
+pub struct UpdateSalesContractRequest {
+    pub contract_name: Option<String>,
+    pub customer_id: Option<i32>,
+    pub total_amount: Option<Decimal>,
+    pub contract_type: Option<String>,
+    pub payment_terms: Option<String>,
+    pub delivery_date: Option<NaiveDate>,
+    pub signed_date: Option<NaiveDate>,
+    pub effective_date: Option<NaiveDate>,
+    pub expiry_date: Option<NaiveDate>,
+    pub payment_method: Option<String>,
+    pub delivery_location: Option<String>,
+    pub remark: Option<String>,
+    /// Some(items)：整表替换明细行；None：不动明细
     pub items: Option<Vec<CreateContractItemRequest>>,
 }
 
@@ -98,15 +131,32 @@ impl SalesContractService {
         // 使用事务确保合同和明细行原子创建
         let txn = self.db.begin().await?;
 
+        // P0 契约修复：校验客户存在并回填冗余列 customer_name
+        //（原实现既不校验也不回填 ⇒ 悬挂 customer_id 可入库、列表/详情客户名恒空）
+        let customer = crate::models::customer::Entity::find_by_id(req.customer_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::business_displayable("创建失败：所选客户不存在，请重新选择客户")
+            })?;
+
         let active_contract = sales_contract::ActiveModel {
             contract_no: Set(req.contract_no),
             contract_name: Set(req.contract_name),
             contract_type: Set(req.contract_type),
             customer_id: Set(req.customer_id),
+            customer_name: Set(Some(customer.customer_name)),
             total_amount: Set(Some(req.total_amount)),
             status: Set(contract::DRAFT.to_string()),
             payment_terms: Set(req.payment_terms),
-            delivery_date: Set(Some(req.delivery_date)),
+            delivery_date: Set(req.delivery_date),
+            // P0 契约修复：补齐真实列表头字段（原三处不一致中被 service 吞掉的一组）
+            signed_date: Set(req.signed_date),
+            effective_date: Set(req.effective_date),
+            expiry_date: Set(req.expiry_date),
+            payment_method: Set(req.payment_method),
+            delivery_location: Set(req.delivery_location),
+            remark: Set(req.remark),
             stamp_tax_amount: Set(stamp_tax),
             created_by: Set(user_id),
             ..Default::default()
@@ -115,31 +165,166 @@ impl SalesContractService {
         let contract = active_contract.insert(&txn).await?;
 
         // 创建明细行
-        if let Some(items) = req.items {
-            for (idx, item) in items.iter().enumerate() {
-                let amount = item.quantity * item.unit_price;
-                let active_item = sales_contract_item::ActiveModel {
-                    contract_id: Set(contract.id),
-                    product_id: Set(item.product_id),
-                    product_name: Set(item.product_name.clone()),
-                    product_spec: Set(item.product_spec.clone()),
-                    unit: Set(item.unit.clone()),
-                    quantity: Set(item.quantity),
-                    quantity_tolerance_pct: Set(item.quantity_tolerance_pct),
-                    unit_price: Set(item.unit_price),
-                    amount: Set(amount),
-                    delivery_date: Set(item.delivery_date),
-                    remarks: Set(item.remarks.clone()),
-                    sort_order: Set(idx as i32),
-                    ..Default::default()
-                };
-                active_item.insert(&txn).await?;
-            }
+        if let Some(items) = &req.items {
+            Self::insert_items_txn(&txn, contract.id, items).await?;
         }
 
         txn.commit().await?;
         info!("销售合同创建成功：{}（含明细行）", contract.contract_no);
         Ok(contract)
+    }
+
+    /// 事务内批量插入合同明细行（create 与 update 共用，金额=数量×单价同源）
+    async fn insert_items_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        contract_id: i32,
+        items: &[CreateContractItemRequest],
+    ) -> Result<(), AppError> {
+        for (idx, item) in items.iter().enumerate() {
+            let amount = item.quantity * item.unit_price;
+            let active_item = sales_contract_item::ActiveModel {
+                contract_id: Set(contract_id),
+                product_id: Set(item.product_id),
+                product_name: Set(item.product_name.clone()),
+                product_spec: Set(item.product_spec.clone()),
+                unit: Set(item.unit.clone()),
+                quantity: Set(item.quantity),
+                quantity_tolerance_pct: Set(item.quantity_tolerance_pct),
+                unit_price: Set(item.unit_price),
+                amount: Set(amount),
+                delivery_date: Set(item.delivery_date),
+                remarks: Set(item.remarks.clone()),
+                sort_order: Set(idx as i32),
+                ..Default::default()
+            };
+            active_item.insert(txn).await?;
+        }
+        Ok(())
+    }
+
+    /// 更新销售合同（表头 + 明细整表替换）
+    ///
+    /// P0 契约修复（本轮）：原 handler 内联实现只接受 contract_name/payment_terms，
+    /// 且 get_by_id 裸查询 + update 无事务边界。现改为：
+    /// begin txn + lock_exclusive + DRAFT 状态门 + 表头字段 Some=覆盖 + items 整表替换 + commit。
+    pub async fn update(
+        &self,
+        id: i32,
+        req: UpdateSalesContractRequest,
+        user_id: i32,
+    ) -> Result<sales_contract::Model, AppError> {
+        info!("用户 {} 正在更新销售合同 {}", user_id, id);
+
+        let txn = (*self.db).begin().await?;
+
+        let contract = sales_contract::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售合同不存在：{}", id)))?;
+
+        if contract.status != contract::DRAFT {
+            return Err(AppError::business_displayable(
+                "只有草稿状态的销售合同才能修改",
+            ));
+        }
+
+        // 客户变更：校验存在并同步冗余列 customer_name
+        let customer_name_override = match req.customer_id {
+            Some(cid) if cid != contract.customer_id => {
+                let c = crate::models::customer::Entity::find_by_id(cid)
+                    .one(&txn)
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::business_displayable("更新失败：所选客户不存在，请重新选择客户")
+                    })?;
+                Some(c.customer_name)
+            }
+            _ => None,
+        };
+
+        // 印花税生效值（在 contract 被 move 前捕获）：类型或金额任一变化即重算
+        let stamp_tax_recalc_needed = req.contract_type.is_some() || req.total_amount.is_some();
+        let effective_contract_type = req
+            .contract_type
+            .clone()
+            .or_else(|| contract.contract_type.clone());
+        let effective_total_amount = req
+            .total_amount
+            .unwrap_or(contract.total_amount.unwrap_or(Decimal::ZERO));
+
+        let mut active: sales_contract::ActiveModel = contract.into();
+        if let Some(v) = req.contract_name {
+            active.contract_name = Set(v);
+        }
+        if let Some(v) = req.customer_id {
+            active.customer_id = Set(v);
+        }
+        if let Some(name) = customer_name_override {
+            active.customer_name = Set(Some(name));
+        }
+        if let Some(v) = req.contract_type {
+            active.contract_type = Set(Some(v));
+        }
+        if let Some(v) = req.total_amount {
+            active.total_amount = Set(Some(v));
+        }
+        if let Some(v) = req.payment_terms {
+            active.payment_terms = Set(Some(v));
+        }
+        if let Some(v) = req.delivery_date {
+            active.delivery_date = Set(Some(v));
+        }
+        if let Some(v) = req.signed_date {
+            active.signed_date = Set(Some(v));
+        }
+        if let Some(v) = req.effective_date {
+            active.effective_date = Set(Some(v));
+        }
+        if let Some(v) = req.expiry_date {
+            active.expiry_date = Set(Some(v));
+        }
+        if let Some(v) = req.payment_method {
+            active.payment_method = Set(Some(v));
+        }
+        if let Some(v) = req.delivery_location {
+            active.delivery_location = Set(Some(v));
+        }
+        if let Some(v) = req.remark {
+            active.remark = Set(Some(v));
+        }
+
+        // 印花税：合同类型或金额变化时按创建同口径重算（与 calculate_stamp_tax 单一真源）
+        if stamp_tax_recalc_needed {
+            let stamp_tax = Self::calculate_stamp_tax(
+                effective_contract_type.as_deref(),
+                effective_total_amount,
+            );
+            active.stamp_tax_amount = Set(stamp_tax);
+        }
+
+        active.updated_at = Set(chrono::Utc::now());
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+
+        // 明细整表替换（Some 才动；None 保持原明细）
+        if let Some(items) = &req.items {
+            sales_contract_item::Entity::delete_many()
+                .filter(sales_contract_item::Column::ContractId.eq(id))
+                .exec(&txn)
+                .await?;
+            Self::insert_items_txn(&txn, id, items).await?;
+        }
+
+        txn.commit().await?;
+        info!("销售合同 {} 更新成功", updated.contract_no);
+        Ok(updated)
     }
 
     /// 获取合同列表（分页）

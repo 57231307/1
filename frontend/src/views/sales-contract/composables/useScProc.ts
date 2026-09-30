@@ -126,7 +126,6 @@ export function useScProc(refresh: RefreshCallbacks) {
         <p><strong>付款方式：</strong>${row.payment_method || '-'}</p>
         <p><strong>交货日期：</strong>${row.delivery_date || '-'}</p>
         <p><strong>交货地点：</strong>${row.delivery_location || '-'}</p>
-        <p><strong>备注：</strong>${row.remarks || '-'}</p>
       </div>`,
       '合同详情',
       { dangerouslyUseHTMLString: true, confirmButtonText: '关闭' }

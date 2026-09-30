@@ -76,7 +76,8 @@ export function usePc() {
   });
 
   // 表单验证规则
-  // delivery_date: 后端 CreateContractRequestDto 中为 chrono::NaiveDate（非 Option），必填
+  // delivery_date: 后端 DTO 已对齐真实列可空性（purchase_contracts.delivery_date 可空 → Option），
+  // 但采购录入产品口径要求必填交货日期 ⇒ 前端保留 required 规则（严于 DB 可空性允许）
   const formRules = {
     contract_no: [
       {
@@ -169,20 +170,33 @@ export function usePc() {
 
   /**
    * 提交表单
-   * 新建：构造 CreatePurchaseContractPayload（对齐后端 CreateContractRequestDto），
-   *       delivery_date 为后端必填字段（NaiveDate），表单已校验；remark 键名为单数（非 remarks）
-   *       contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location
-   *       是真实列但不在 CreateContractRequestDto 内（schema gap，发送后被 Axum 丢弃）
-   * 编辑：构造 UpdatePurchaseContractPayload（对齐后端 UpdateContractDto），
-   *       仅可更新 contract_name/payment_terms；其余为 schema gap
+   * P0 契约修复（本轮）：
+   * - 新建：CreatePurchaseContractPayload 补齐真实列表头字段
+   *   contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location
+   *   （原「DTO 不收、service 不写、表单有输入框」⇒ 创建即丢数据；现后端三端已对齐）。
+   *   remark 键名单数（非 remarks）；该字段后端暂无对应列（迁移中），先按 DTO 原样提交。
+   * - 编辑：UpdatePurchaseContractPayload 由「只发 contract_name/payment_terms」改为
+   *   表头全量 PATCH（后端 UpdateContractDto 已扩展），修复「保存后再编辑内容不完整」。
+   *   delivery_date 表单仍按产品口径必填（后端已对齐真实列可空性为 Option）。
    */
   const handleSubmitForm = async (): Promise<boolean> => {
     try {
       await formRef.value?.validate();
       if (formData.id) {
         const updatePayload: UpdatePurchaseContractPayload = {
+          contract_no: formData.contract_no,
           contract_name: formData.contract_name,
+          supplier_id: formData.supplier_id,
+          total_amount: formData.total_amount,
+          contract_type: formData.contract_type || undefined,
           payment_terms: formData.payment_terms || undefined,
+          delivery_date: formData.delivery_date || undefined,
+          signed_date: formData.signed_date || undefined,
+          effective_date: formData.effective_date || undefined,
+          expiry_date: formData.expiry_date || undefined,
+          payment_method: formData.payment_method || undefined,
+          delivery_location: formData.delivery_location || undefined,
+          remark: formData.remarks || undefined,
         };
         await updatePurchaseContract(formData.id, updatePayload);
       } else {
@@ -191,8 +205,14 @@ export function usePc() {
           contract_name: formData.contract_name,
           supplier_id: formData.supplier_id as number,
           total_amount: formData.total_amount,
+          contract_type: formData.contract_type || undefined,
           payment_terms: formData.payment_terms || undefined,
           delivery_date: formData.delivery_date,
+          signed_date: formData.signed_date || undefined,
+          effective_date: formData.effective_date || undefined,
+          expiry_date: formData.expiry_date || undefined,
+          payment_method: formData.payment_method || undefined,
+          delivery_location: formData.delivery_location || undefined,
           remark: formData.remarks || undefined,
         };
         await createPurchaseContract(createPayload);

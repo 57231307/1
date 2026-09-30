@@ -60,31 +60,50 @@ export interface PurchaseContractQuery {
 
 /**
  * 创建采购合同请求（严格对齐 backend CreateContractRequestDto，
- * handlers/purchase_contract_handler.rs:31）。
- * 注意：后端字段是 remark（单数），前端历史用 remarks（复数）⇒ 键名不对齐导致 remark 恒为 None。
- * contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location
- * 为真实 DB 列但不在 CreateContractRequestDto 内（schema gap）。
+ * handlers/purchase_contract_handler.rs）。
+ * P0 契约修复（本轮）：
+ * - 后端 delivery_date 改 Option（真实列 purchase_contracts.delivery_date 可空）；
+ *   前端表单口径保持必填（产品要求录入交货日期），类型上可选不冲突。
+ * - 补齐真实列 contract_type/signed_date/effective_date/expiry_date/payment_method/
+ *   delivery_location（此前「DTO 不收、service 不写、表单有输入框」⇒ 创建即丢数据）。
+ * - 后端字段是 remark（单数），非 remarks。remark 已被 DTO 接收但 purchase_contracts
+ *   无对应列（迁移需求已上报），落库前不生效。
  */
 export interface CreatePurchaseContractPayload {
   contract_no: string;
   contract_name: string;
   supplier_id: number;
   total_amount: number;
+  contract_type?: string;
   payment_terms?: string;
-  /** 后端为 chrono::NaiveDate（必填），格式 YYYY-MM-DD */
-  delivery_date: string;
+  delivery_date?: string;
+  signed_date?: string;
+  effective_date?: string;
+  expiry_date?: string;
+  payment_method?: string;
+  delivery_location?: string;
   /** 后端字段名为 remark（单数），非 remarks */
   remark?: string;
 }
 
 /**
- * 更新采购合同请求（严格对齐 backend UpdateContractDto，
- * handlers/purchase_contract_handler.rs:45）。
- * 仅 contract_name/payment_terms 可更新；其余字段为 schema gap。
+ * 更新采购合同请求（严格对齐 backend UpdateContractDto，PATCH 语义：Some=覆盖、缺省=保持。
+ * P0 契约修复（本轮）：原仅 contract_name/payment_terms，其余表头编辑被静默丢弃。
  */
 export interface UpdatePurchaseContractPayload {
+  contract_no?: string;
   contract_name?: string;
+  supplier_id?: number;
+  total_amount?: number;
+  contract_type?: string;
   payment_terms?: string;
+  delivery_date?: string;
+  signed_date?: string;
+  effective_date?: string;
+  expiry_date?: string;
+  payment_method?: string;
+  delivery_location?: string;
+  remark?: string;
 }
 
 export function getPurchaseContractList(

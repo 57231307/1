@@ -32,6 +32,9 @@ pub struct ContractQuery {
 }
 
 /// 创建采购合同请求 DTO
+///
+/// P0 契约修复（本轮）：delivery_date 改 Option（真实列可空）；补齐真实列
+/// contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location。
 #[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateContractRequestDto {
@@ -39,21 +42,39 @@ pub struct CreateContractRequestDto {
     pub contract_name: String,
     pub supplier_id: i32,
     pub total_amount: rust_decimal::Decimal,
+    pub contract_type: Option<String>,
     pub payment_terms: Option<String>,
-    pub delivery_date: chrono::NaiveDate,
+    pub delivery_date: Option<chrono::NaiveDate>,
+    pub signed_date: Option<chrono::NaiveDate>,
+    pub effective_date: Option<chrono::NaiveDate>,
+    pub expiry_date: Option<chrono::NaiveDate>,
+    pub payment_method: Option<String>,
+    pub delivery_location: Option<String>,
     pub remark: Option<String>,
 }
 
 /// P1-2m 修复（批次 81 v1 复审）：更新采购合同请求 DTO
-/// 替代 update_contract 中的 Json<serde_json::Value>，提供强类型校验
+/// 字段语义 = PATCH 部分更新（Some=覆盖、None=保持）。
+/// 不含 contract_no：合同编号属系统生成单据号（前端预生成 + /document-no/check 查重，
+/// 数据库 UNIQUE 兜底），编辑链路不接受改写；请求里携带的 contract_no 一律忽略。
 #[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateContractDto {
     /// 合同名称：可选
     #[validate(length(max = 200, message = "合同名称长度不能超过200字符"))]
     pub contract_name: Option<String>,
+    pub supplier_id: Option<i32>,
+    pub total_amount: Option<rust_decimal::Decimal>,
+    pub contract_type: Option<String>,
     /// 付款条款：可选
     pub payment_terms: Option<String>,
+    pub delivery_date: Option<chrono::NaiveDate>,
+    pub signed_date: Option<chrono::NaiveDate>,
+    pub effective_date: Option<chrono::NaiveDate>,
+    pub expiry_date: Option<chrono::NaiveDate>,
+    pub payment_method: Option<String>,
+    pub delivery_location: Option<String>,
+    pub remark: Option<String>,
 }
 
 /// 合同执行请求 DTO
@@ -132,8 +153,14 @@ pub async fn create_contract(
         contract_name: req.contract_name,
         supplier_id: req.supplier_id,
         total_amount: req.total_amount,
+        contract_type: req.contract_type,
         payment_terms: req.payment_terms,
         delivery_date: req.delivery_date,
+        signed_date: req.signed_date,
+        effective_date: req.effective_date,
+        expiry_date: req.expiry_date,
+        payment_method: req.payment_method,
+        delivery_location: req.delivery_location,
         remark: req.remark,
     };
 
@@ -220,32 +247,24 @@ pub async fn update_contract(
     req.validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
+    // P0 契约修复（本轮）：下沉 service.update（txn + lock_exclusive + DRAFT 状态门 + 表头全集）
     let service = PurchaseContractService::new(state.db.clone());
+    let update_req = crate::services::purchase_contract_service::UpdateContractRequest {
+        contract_name: req.contract_name,
+        supplier_id: req.supplier_id,
+        total_amount: req.total_amount,
+        contract_type: req.contract_type,
+        payment_terms: req.payment_terms,
+        delivery_date: req.delivery_date,
+        signed_date: req.signed_date,
+        effective_date: req.effective_date,
+        expiry_date: req.expiry_date,
+        payment_method: req.payment_method,
+        delivery_location: req.delivery_location,
+        remark: req.remark,
+    };
 
-    // 获取现有合同
-    let mut contract = service.get_by_id(id).await?;
-
-    // 检查状态
-    if contract.status != crate::models::status::contract::DRAFT {
-        return Err(AppError::validation(
-            "只有草稿状态的合同才能修改".to_string(),
-        ));
-    }
-
-    // 更新字段
-    if let Some(name) = req.contract_name {
-        contract.contract_name = name;
-    }
-    if let Some(terms) = req.payment_terms {
-        contract.payment_terms = Some(terms);
-    }
-
-    // 保存更新
-    use sea_orm::ActiveModelTrait;
-    let mut active_model: crate::models::purchase_contract::ActiveModel = contract.into();
-    active_model.updated_at = sea_orm::Set(chrono::Utc::now());
-
-    let updated = active_model.update(&*state.db).await?;
+    let updated = service.update(id, update_req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(updated)?,
