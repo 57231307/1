@@ -111,13 +111,16 @@ fn validate_excel_data(data: &[Vec<String>]) -> Result<(), AppError> {
             )));
         }
         for (col_idx, cell) in row.iter().enumerate() {
-            if cell.len() > MAX_CELL_LEN {
+            // 文案承诺的是「字符」上限，故按字符计数；cell.len() 是 UTF-8 字节数，
+            // 会让中文单元格内容的实际上限被隐性收紧约 3 倍。
+            let cell_chars = cell.chars().count();
+            if cell_chars > MAX_CELL_LEN {
                 return Err(AppError::validation_displayable(format!(
                     "Excel 第 {} 行第 {} 列单元格超过 {} 字符上限：当前 {} 字符",
                     row_idx + 1,
                     col_idx + 1,
                     MAX_CELL_LEN,
-                    cell.len()
+                    cell_chars
                 )));
             }
         }

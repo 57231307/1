@@ -78,14 +78,18 @@ pub async fn create_process_optimization(
     Json(body): Json<CreateProcessOptDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // V15 P2 14-4.5：输入校验（color_no / fabric_type 长度 + dye_type 枚举）
-    if body.request.color_no.trim().is_empty() || body.request.color_no.len() > 64 {
+    // 长度单位 = 字符数：DB 列 ai_process_optimizations.color_no / .fabric_type 均为
+    // VARCHAR(64)，PG 按字符计数；String::len() 返回 UTF-8 字节数，中文色号/布类会被误拒。
+    let color_no_chars = body.request.color_no.chars().count();
+    if body.request.color_no.trim().is_empty() || color_no_chars > 64 {
         return Err(AppError::validation_displayable(
-            "color_no 长度须在 1-64 之间",
+            "color_no 长度须在 1-64 个字符之间",
         ));
     }
-    if body.request.fabric_type.trim().is_empty() || body.request.fabric_type.len() > 64 {
+    let fabric_type_chars = body.request.fabric_type.chars().count();
+    if body.request.fabric_type.trim().is_empty() || fabric_type_chars > 64 {
         return Err(AppError::validation_displayable(
-            "fabric_type 长度须在 1-64 之间",
+            "fabric_type 长度须在 1-64 个字符之间",
         ));
     }
     if let Some(ref dye) = body.request.dye_type {

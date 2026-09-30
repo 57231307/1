@@ -584,24 +584,27 @@ pub async fn record_print_event(
     auth: AuthContext,
     Json(req): Json<RecordPrintEventRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    // 字段长度校验
-    if req.resource_type.is_empty() || req.resource_type.len() > 64 {
+    // 字段长度校验（上限单位 = 字符数，与 PG VARCHAR(n) 计数口径一致；
+    // 用 String::len() 会按 UTF-8 字节计，中文标题 1 字按 3 计导致上限被隐性收紧 3 倍）
+    let resource_type_chars = req.resource_type.chars().count();
+    if resource_type_chars == 0 || resource_type_chars > 64 {
         return Err(AppError::validation_displayable(
-            "resource_type 长度必须在 1-64 之间",
+            "resource_type 长度必须在 1-64 个字符之间",
         ));
     }
-    if req.title.is_empty() || req.title.len() > 200 {
+    let title_chars = req.title.chars().count();
+    if title_chars == 0 || title_chars > 200 {
         return Err(AppError::validation_displayable(
-            "title 长度必须在 1-200 之间",
+            "title 长度必须在 1-200 个字符之间",
         ));
     }
     if req.record_count < 0 {
         return Err(AppError::validation_displayable("record_count 不能为负数"));
     }
     if let Some(ref rid) = req.resource_id {
-        if rid.len() > 64 {
+        if rid.chars().count() > 64 {
             return Err(AppError::validation_displayable(
-                "resource_id 长度不能超过 64",
+                "resource_id 长度不能超过 64 个字符",
             ));
         }
     }

@@ -118,7 +118,7 @@ pub async fn batch_assign(
     let history_service = AssignmentHistoryService::new(state.db.clone());
 
     // v16 批次 44 修复：循环外批量查询所有 lead，避免循环内逐个 get_lead（N+1 查询）
-    let lead_map = load_lead_map(&state.db, &req.lead_ids).await;
+    let lead_map = load_lead_map(&state.db, &req.lead_ids).await?;
 
     let ctx = LeadAssignCtx {
         crm_service: &crm_service,
@@ -160,24 +160,25 @@ struct LeadAssignCtx<'a> {
 }
 
 /// 批量查询 lead 列表，返回以 id 为键的 map（空 ids 返回空 map）
+/// 查询失败必须显式上抛：原 `unwrap_or_default()` 会把 DB 错误吞成空 map，
+/// 于是每条线索都被当成"不存在"写进 success 信封的 errors 里，调用方无法区分
+/// "查询失败"与"这些 lead 确实不存在"。
 async fn load_lead_map(
     db: &std::sync::Arc<sea_orm::DatabaseConnection>,
     lead_ids: &[i32],
-) -> std::collections::HashMap<i32, crate::models::crm_lead::Model> {
+) -> Result<std::collections::HashMap<i32, crate::models::crm_lead::Model>, AppError> {
     if lead_ids.is_empty() {
-        return std::collections::HashMap::new();
+        return Ok(std::collections::HashMap::new());
     }
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    // is_in 需要 IntoIterator<Item = T> where T: Into<Value>，&i32 不满足，需 copied 到 i32
     // ConnectionTrait 为 DatabaseConnection 实现，需 db.as_ref() 解引用 Arc
-    // is_in 需要 IntoIterator<Item = T> where T: Into<Value>，&i32 不满足，需 cloned 到 i32
-    crate::models::crm_lead::Entity::find()
+    let leads = crate::models::crm_lead::Entity::find()
         .filter(crate::models::crm_lead::Column::Id.is_in(lead_ids.iter().copied()))
         .all(db.as_ref())
         .await
-        .unwrap_or_default()
-        .into_iter()
-        .map(|l| (l.id, l))
-        .collect()
+        .map_err(|e| AppError::internal(format!("批量查询待分配线索失败: {e}")))?;
+    Ok(leads.into_iter().map(|l| (l.id, l)).collect())
 }
 
 /// 执行批量分配循环，返回 (成功数, 失败数, 错误列表)
@@ -356,15 +357,32 @@ pub async fn list_workload(
     _auth: AuthContext,
     Query(query): Query<WorkloadQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 逗号分隔列表逐个显式校验：任一元素非法即整体拒绝。
+    // 原实现 filter_map + parse().ok() 会无声丢弃非法项（如 ?user_ids=1,abc 只剩 1），
+    // 调用方误以为查询/分配覆盖了全部提交的 ID。
+    if query.user_ids.trim().is_empty() {
+        return Err(AppError::validation_displayable("user_ids 参数不能为空"));
+    }
     let user_ids: Vec<i32> = query
         .user_ids
         .split(',')
-        .filter_map(|s| s.trim().parse::<i32>().ok())
-        .collect();
-
-    if user_ids.is_empty() {
-        return Err(AppError::validation_displayable("user_ids 参数不能为空"));
-    }
+        .enumerate()
+        .map(|(idx, raw)| {
+            let token = raw.trim();
+            if token.is_empty() {
+                return Err(AppError::validation_displayable(format!(
+                    "user_ids 第 {} 项为空，逗号分隔列表中不允许空项",
+                    idx + 1
+                )));
+            }
+            token.parse::<i32>().map_err(|_| {
+                AppError::validation_displayable(format!(
+                    "user_ids 第 {} 项「{token}」不是合法整数，列表中每一项都必须是整数",
+                    idx + 1
+                ))
+            })
+        })
+        .collect::<Result<Vec<i32>, AppError>>()?;
 
     let service = CrmAssignService::new(state.db.clone());
     let workload = service.list_assignee_workload(&user_ids).await?;

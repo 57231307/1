@@ -1210,17 +1210,39 @@ pub async fn merge_leads(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let primary_id =
-        req.get("primary_id")
-            .and_then(|v| v.as_i64())
-            .ok_or_else(|| AppError::validation_displayable("primary_id 必填"))? as i32;
-    let duplicate_ids: Vec<i32> = req
+    // 请求体是 JSON（带类型），故不做字符串→数字兼容：键缺失与值类型不符分别报不同文案，
+    // 避免用户明明提交了值却被告知「必填」。回显的只是用户自己提交的原始值，不含服务端查得的数据。
+    let raw_primary_id = req
+        .get("primary_id")
+        .ok_or_else(|| AppError::validation_displayable("缺少 primary_id 参数"))?;
+    let primary_id = raw_primary_id.as_i64().ok_or_else(|| {
+        AppError::validation_displayable(format!(
+            "primary_id 必须为整数，当前提交值：{raw_primary_id}"
+        ))
+    })? as i32;
+    let raw_duplicate_ids = req
         .get("duplicate_ids")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| AppError::validation_displayable("duplicate_ids 必填"))?
+        .ok_or_else(|| AppError::validation_displayable("缺少 duplicate_ids 参数"))?;
+    let duplicate_id_items = raw_duplicate_ids.as_array().ok_or_else(|| {
+        AppError::validation_displayable(format!(
+            "duplicate_ids 必须为整数数组，当前提交值：{raw_duplicate_ids}"
+        ))
+    })?;
+    // 逐元素显式校验：任一元素非整数即整体拒绝，禁止 filter_map 静默丢弃（否则用户以为已合并）
+    let duplicate_ids: Vec<i32> = duplicate_id_items
         .iter()
-        .filter_map(|v| v.as_i64().map(|id| id as i32))
-        .collect();
+        .enumerate()
+        .map(|(idx, item)| {
+            item.as_i64()
+                .ok_or_else(|| {
+                    AppError::validation_displayable(format!(
+                        "duplicate_ids 第 {} 项必须为整数，当前提交值：{item}",
+                        idx + 1
+                    ))
+                })
+                .map(|id| id as i32)
+        })
+        .collect::<Result<Vec<i32>, AppError>>()?;
     let result = service
         .merge_leads(primary_id, duplicate_ids.clone(), auth.user_id)
         .await?;

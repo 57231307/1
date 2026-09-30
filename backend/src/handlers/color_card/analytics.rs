@@ -319,6 +319,30 @@ pub async fn generate_daily_stats(
     Ok(Json(ApiResponse::success(stats)))
 }
 
+/// 从 `Query<serde_json::Value>` 形态的查询串中读取一个必填整数参数。
+///
+/// 拆分两种互相独立的拒绝原因，避免把「类型/格式错」误报成「必填」：
+/// - 键不存在 → `缺少 {key} 参数`；
+/// - 键存在但不是整数 → `{key} 必须为整数`（附用户自己提交的原始值，可外显；
+///   绝不回显服务端查询到的数据）。
+///
+/// 为什么必须做字符串兼容：`Query<serde_json::Value>` 走 urlencoded 反序列化，
+/// 所有值都是 `Value::String`（`serde_json::Value` 是无类型的，不会自动转成数字），
+/// 直接 `as_i64()` 会对任何请求恒失败。故数字字面量与数字字符串两种形态都要接受。
+fn required_query_i64(params: &serde_json::Value, key: &str) -> Result<i64, AppError> {
+    let Some(raw) = params.get(key) else {
+        return Err(AppError::validation_displayable(format!("缺少 {key} 参数")));
+    };
+    let parsed = match raw {
+        serde_json::Value::Number(n) => n.as_i64(),
+        serde_json::Value::String(s) => s.trim().parse::<i64>().ok(),
+        _ => None,
+    };
+    parsed.ok_or_else(|| {
+        AppError::validation_displayable(format!("{key} 必须为整数，当前提交值：{raw}"))
+    })
+}
+
 /// GET /api/v1/erp/color-cards/customer-color-cards - 客户色卡查询
 pub async fn list_customer_color_cards(
     auth: AuthContext,
@@ -326,10 +350,7 @@ pub async fn list_customer_color_cards(
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     require_issue_permission(&state, &auth, "read").await?;
-    let customer_id = params
-        .get("customer_id")
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation_displayable("customer_id 必填"))?;
+    let customer_id = required_query_i64(&params, "customer_id")?;
     let svc =
         crate::services::color_card_issue_service::ColorCardIssueService::new(state.db.clone());
     let result = svc
@@ -348,10 +369,7 @@ pub async fn list_by_sales_order(
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     require_issue_permission(&state, &auth, "read").await?;
-    let sales_order_id = params
-        .get("sales_order_id")
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation_displayable("sales_order_id 必填"))?;
+    let sales_order_id = required_query_i64(&params, "sales_order_id")?;
     let svc =
         crate::services::color_card_issue_service::ColorCardIssueService::new(state.db.clone());
     let result = svc
@@ -370,10 +388,7 @@ pub async fn query_reorder_dye_lot(
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     require_issue_permission(&state, &auth, "read").await?;
-    let customer_id = params
-        .get("customer_id")
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation_displayable("customer_id 必填"))?;
+    let customer_id = required_query_i64(&params, "customer_id")?;
     let svc =
         crate::services::color_card_issue_service::ColorCardIssueService::new(state.db.clone());
     let result = svc
