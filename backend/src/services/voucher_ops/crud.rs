@@ -53,11 +53,7 @@ impl VoucherService {
             .await?;
 
         // 3. 开启事务
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         // 4. 创建凭证主表
         let active_model = voucher::ActiveModel {
@@ -75,10 +71,7 @@ impl VoucherService {
             ..Default::default()
         };
 
-        let voucher = active_model
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+        let voucher = active_model.insert(&txn).await?;
         info!("凭证创建成功：no={}", voucher.voucher_no);
 
         // 5. 批量校验科目是否存在
@@ -88,9 +81,7 @@ impl VoucherService {
         Self::insert_voucher_items_txn(voucher.id, &req.items, &txn).await?;
 
         // 7. 提交事务
-        txn.commit()
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+        txn.commit().await?;
 
         info!("凭证分录创建成功，共 {} 条", req.items.len());
 
@@ -186,11 +177,7 @@ impl VoucherService {
                 )
                 .filter(account_subject::Column::Status.eq(master_data::ACTIVE))
                 .all(txn)
-                .await
-                .map_err(|e| {
-                    tracing::error!("批量查询科目失败: {}", e);
-                    AppError::internal(format!("批量查询科目失败: {}", e))
-                })?;
+                .await?;
             existing_codes = existing.iter().map(|s| s.code.clone()).collect();
             existing_ids.extend(existing.iter().map(|s| s.id));
         }
@@ -203,11 +190,7 @@ impl VoucherService {
                 )
                 .filter(account_subject::Column::Status.eq(master_data::ACTIVE))
                 .all(txn)
-                .await
-                .map_err(|e| {
-                    tracing::error!("批量查询科目失败: {}", e);
-                    AppError::internal(format!("批量查询科目失败: {}", e))
-                })?;
+                .await?;
             existing_ids.extend(existing.iter().map(|s| s.id));
             existing_codes.extend(existing.iter().map(|s| s.code.clone()));
         }
@@ -242,8 +225,7 @@ impl VoucherService {
         let subjects = account_subject::Entity::find()
             .filter(account_subject::Column::Id.is_in(subject_ids.to_vec()))
             .all(txn)
-            .await
-            .map_err(|e| AppError::internal(format!("批量查询科目失败: {}", e)))?;
+            .await?;
         Ok(subjects
             .into_iter()
             .map(|s| (s.id, (s.code, s.name)))
@@ -291,10 +273,7 @@ impl VoucherService {
                 ..Default::default()
             };
 
-            item_active_model
-                .insert(txn)
-                .await
-                .map_err(|e| AppError::internal(e.to_string()))?;
+            item_active_model.insert(txn).await?;
         }
         Ok(())
     }
@@ -371,11 +350,7 @@ impl VoucherService {
     ) -> Result<voucher::Model, AppError> {
         info!("更新凭证 ID: {}, 操作用户: {}", id, user_id);
 
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         let voucher_model = Self::load_voucher_for_update(id, &txn).await?;
         let mut active_model: voucher::ActiveModel = voucher_model.into_active_model();
@@ -400,9 +375,7 @@ impl VoucherService {
             Self::replace_voucher_items(id, &items, &txn).await?;
         }
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+        txn.commit().await?;
 
         info!("凭证更新成功：no={}", updated_voucher.voucher_no);
         Ok(updated_voucher)
@@ -416,8 +389,7 @@ impl VoucherService {
         let voucher_model = voucher::Entity::find_by_id(id)
             .lock_exclusive()
             .one(txn)
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         if voucher_model.status != crate::models::status::voucher::VOUCHER_DRAFT {
@@ -442,8 +414,7 @@ impl VoucherService {
         vi::Entity::delete_many()
             .filter(vi::Column::VoucherId.eq(voucher_id))
             .exec(txn)
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+            .await?;
 
         Self::insert_voucher_items_for_update(voucher_id, items, txn).await
     }
@@ -502,10 +473,7 @@ impl VoucherService {
                 unit_price: sea_orm::Set(item_req.unit_price),
                 created_at: sea_orm::Set(chrono::Utc::now()),
             };
-            item_active
-                .insert(txn)
-                .await
-                .map_err(|e| AppError::internal(e.to_string()))?;
+            item_active.insert(txn).await?;
         }
         Ok(())
     }

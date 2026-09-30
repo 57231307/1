@@ -157,8 +157,7 @@ pub(crate) async fn require_issue_permission(
     let svc = RolePermissionService::new(state.db.clone());
     let allowed = svc
         .check_permission(role_id, "color_card_issue", action, None)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
     if !allowed {
         return Err(AppError::permission_denied(format!(
             "没有 color_card_issue:{} 权限",

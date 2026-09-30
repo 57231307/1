@@ -109,8 +109,7 @@ impl ApReportService {
                 main_sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("应付统计报表主聚合查询失败: {}", e)))?;
+            .await?;
         let row =
             row.ok_or_else(|| AppError::internal("应付统计报表主聚合查询无结果".to_string()))?;
 
@@ -163,8 +162,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("按状态聚合查询失败: {}", e)))?;
+            .await?;
         Ok(rows
             .into_iter()
             .map(|r| StatusStatistics {
@@ -211,8 +209,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("按类型聚合查询失败: {}", e)))?;
+            .await?;
         Ok(rows
             .into_iter()
             .map(|r| TypeStatistics {
@@ -269,12 +266,7 @@ impl ApReportService {
             sf = supplier_filter
         );
         let row = self
-            .fetch_daily_aggregate_row(
-                &sql,
-                params,
-                "应付日报新增聚合查询失败",
-                "应付日报新增聚合查询无结果",
-            )
+            .fetch_daily_aggregate_row(&sql, params, "应付日报新增聚合查询无结果")
             .await?;
         let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
         let amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
@@ -298,12 +290,7 @@ impl ApReportService {
             sf = supplier_filter
         );
         let row = self
-            .fetch_daily_aggregate_row(
-                &sql,
-                params,
-                "应付日报到期聚合查询失败",
-                "应付日报到期聚合查询无结果",
-            )
+            .fetch_daily_aggregate_row(&sql, params, "应付日报到期聚合查询无结果")
             .await?;
         let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
         let amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
@@ -327,12 +314,7 @@ impl ApReportService {
             sf = supplier_filter
         );
         let row = self
-            .fetch_daily_aggregate_row(
-                &sql,
-                params,
-                "应付日报付款聚合查询失败",
-                "应付日报付款聚合查询无结果",
-            )
+            .fetch_daily_aggregate_row(&sql, params, "应付日报付款聚合查询无结果")
             .await?;
         let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
         let amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
@@ -352,12 +334,12 @@ impl ApReportService {
             .unwrap_or_default()
     }
 
-    /// 执行日报聚合 SQL 并返回单行结果（统一错误处理）
+    /// 执行日报聚合 SQL 并返回单行结果（查询失败经 From<DbErr> 归 DATABASE_ERROR，
+    /// 原始 SQL 错误只进 tracing ERROR、不进 HTTP 出参）
     async fn fetch_daily_aggregate_row(
         &self,
         sql: &str,
         params: Vec<sea_orm::Value>,
-        err_msg: &str,
         empty_msg: &str,
     ) -> Result<sea_orm::QueryResult, AppError> {
         use sea_orm::ConnectionTrait;
@@ -368,8 +350,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("{}: {}", err_msg, e)))?;
+            .await?;
         row.ok_or_else(|| AppError::internal(empty_msg.to_string()))
     }
 
@@ -451,8 +432,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("{}余额聚合查询失败: {}", label, e)))?;
+            .await?;
         let row = row.ok_or_else(|| AppError::internal(format!("{}余额聚合查询无结果", label)))?;
         Ok(row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO))
     }
@@ -533,8 +513,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("应付账龄报表聚合查询失败: {}", e)))?;
+            .await?;
         let row =
             row.ok_or_else(|| AppError::internal("应付账龄报表聚合查询无结果".to_string()))?;
 
@@ -587,8 +566,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("未到期聚合查询失败: {}", e)))?;
+            .await?;
         let row = row.ok_or_else(|| AppError::internal("未到期聚合查询无结果".to_string()))?;
         Ok(AgingNotDueAggregate {
             amount: row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO),

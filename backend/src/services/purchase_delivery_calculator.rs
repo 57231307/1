@@ -127,8 +127,7 @@ impl PurchaseDeliveryCalculator {
                     purchase_order::PARTIAL_RECEIVED.into(),
                 ],
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("查询供应商交货周期失败: {}", e)))?;
+            .await?;
 
         if let Some(row) = result {
             let avg_days: Option<i32> = row.try_get_by_index::<i32>(0).ok();

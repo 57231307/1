@@ -879,8 +879,7 @@ impl FinanceReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("术语月报聚合查询失败: {}", e)))?;
+            .await?;
 
         let mut raw_rows: Vec<(String, i64, Decimal, Decimal, Decimal, Decimal)> =
             Vec::with_capacity(rows.len());
