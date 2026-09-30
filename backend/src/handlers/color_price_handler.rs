@@ -45,7 +45,7 @@ fn crud_err(e: CrudError) -> AppError {
     match e {
         CrudError::NotFound => AppError::not_found("色号价格不存在"),
         CrudError::InvalidState => AppError::business("当前状态不允许此操作"),
-        CrudError::Validation(msg) => AppError::validation(msg),
+        CrudError::Validation(msg) => AppError::validation_displayable(msg),
         CrudError::Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         CrudError::App(e) => e,
@@ -72,7 +72,7 @@ fn tier_err(e: TierError) -> AppError {
 fn seasonal_err(e: SeasonalError) -> AppError {
     match e {
         SeasonalError::NotFound => AppError::not_found("季节规则不存在"),
-        SeasonalError::Validation(msg) => AppError::validation(msg),
+        SeasonalError::Validation(msg) => AppError::validation_displayable(msg),
         SeasonalError::Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         SeasonalError::App(e) => e,
@@ -299,7 +299,7 @@ pub async fn calculate_color_price(
         customer_id: req.customer_id,
         customer_level: req.customer_level,
         quantity: Decimal::from_str(&req.quantity)
-            .map_err(|_| AppError::validation("无效的数量".to_string()))?,
+            .map_err(|_| AppError::validation_displayable("无效的数量".to_string()))?,
         season: req.season,
         product_category_id: req.product_category_id,
         currency: req

@@ -307,7 +307,7 @@ pub async fn create_pool_rule(
         req.rule_type.as_str(),
         "protection_period" | "claim_limit" | "max_holdings"
     ) {
-        return Err(AppError::validation(
+        return Err(AppError::validation_displayable(
             "规则类型必须为 protection_period / claim_limit / max_holdings",
         ));
     }
@@ -315,12 +315,12 @@ pub async fn create_pool_rule(
         req.customer_type.as_str(),
         "all" | "wholesale" | "retail" | "vip"
     ) {
-        return Err(AppError::validation(
+        return Err(AppError::validation_displayable(
             "客户类型必须为 all / wholesale / retail / vip",
         ));
     }
     if req.rule_value < 0 {
-        return Err(AppError::validation("规则数值不能为负数"));
+        return Err(AppError::validation_displayable("规则数值不能为负数"));
     }
 
     let service = PoolRuleService::new(state.db.clone());

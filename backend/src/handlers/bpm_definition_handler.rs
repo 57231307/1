@@ -138,7 +138,9 @@ pub async fn create_version(
     // 此处补齐"必填即非空"校验，失败映射为 4xx 业务校验错误，不裸 500、不改 DB 列类型。
     let version = req.version.trim().to_string();
     if version.is_empty() {
-        return Err(AppError::validation("流程版本号不能为空".to_string()));
+        return Err(AppError::validation_displayable(
+            "流程版本号不能为空".to_string(),
+        ));
     }
 
     // 构造新定义：同 code，新 version，若 req.config 为空则继承原 config

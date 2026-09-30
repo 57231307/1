@@ -586,17 +586,23 @@ pub async fn record_print_event(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // 字段长度校验
     if req.resource_type.is_empty() || req.resource_type.len() > 64 {
-        return Err(AppError::validation("resource_type 长度必须在 1-64 之间"));
+        return Err(AppError::validation_displayable(
+            "resource_type 长度必须在 1-64 之间",
+        ));
     }
     if req.title.is_empty() || req.title.len() > 200 {
-        return Err(AppError::validation("title 长度必须在 1-200 之间"));
+        return Err(AppError::validation_displayable(
+            "title 长度必须在 1-200 之间",
+        ));
     }
     if req.record_count < 0 {
-        return Err(AppError::validation("record_count 不能为负数"));
+        return Err(AppError::validation_displayable("record_count 不能为负数"));
     }
     if let Some(ref rid) = req.resource_id {
         if rid.len() > 64 {
-            return Err(AppError::validation("resource_id 长度不能超过 64"));
+            return Err(AppError::validation_displayable(
+                "resource_id 长度不能超过 64",
+            ));
         }
     }
 

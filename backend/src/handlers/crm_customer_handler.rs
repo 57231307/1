@@ -190,8 +190,7 @@ pub async fn add_tags(
     Json(req): Json<AddTagsDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2h 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = CrmService::new(state.db.clone());
 
@@ -226,8 +225,7 @@ pub async fn create_contact(
     Path(customer_id): Path<i32>,
     Json(req): Json<CreateCustomerContactRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contact = service
@@ -248,8 +246,7 @@ pub async fn update_contact(
     auth: AuthContext,
     Json(req): Json<UpdateCustomerContactRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contact = service
@@ -293,8 +290,7 @@ pub async fn create_tag(
     auth: AuthContext,
     Json(req): Json<CreateTagDto>,
 ) -> Result<Json<ApiResponse<crm_tag::Model>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let new_tag = crm_tag::ActiveModel {
         name: Set(req.name),

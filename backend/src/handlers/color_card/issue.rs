@@ -136,7 +136,7 @@ pub fn issue_err(e: IssueError) -> AppError {
         IssueError::CustomerNotFound => AppError::not_found("客户不存在"),
         IssueError::RecordNotFound => AppError::not_found("发放记录不存在"),
         IssueError::InvalidState(msg) => AppError::business(msg),
-        IssueError::Validation(msg) => AppError::validation(msg),
+        IssueError::Validation(msg) => AppError::validation_displayable(msg),
         IssueError::GateCheckFailed(msg) => AppError::business(msg),
         IssueError::Database(e) => AppError::database(e.to_string()),
     }

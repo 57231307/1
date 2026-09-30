@@ -79,10 +79,14 @@ pub async fn create_process_optimization(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // V15 P2 14-4.5：输入校验（color_no / fabric_type 长度 + dye_type 枚举）
     if body.request.color_no.trim().is_empty() || body.request.color_no.len() > 64 {
-        return Err(AppError::validation("color_no 长度须在 1-64 之间"));
+        return Err(AppError::validation_displayable(
+            "color_no 长度须在 1-64 之间",
+        ));
     }
     if body.request.fabric_type.trim().is_empty() || body.request.fabric_type.len() > 64 {
-        return Err(AppError::validation("fabric_type 长度须在 1-64 之间"));
+        return Err(AppError::validation_displayable(
+            "fabric_type 长度须在 1-64 之间",
+        ));
     }
     if let Some(ref dye) = body.request.dye_type {
         let valid_dyes = [
@@ -102,7 +106,7 @@ pub async fn create_process_optimization(
             "硫化",
         ];
         if !dye.trim().is_empty() && !valid_dyes.contains(&dye.as_str()) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "dye_type 不合法，允许值：{}",
                 valid_dyes.join("/")
             )));
@@ -394,10 +398,10 @@ pub async fn batch_create_process_optimizations(
     Json(body): Json<BatchProcessOptDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     if body.requests.is_empty() {
-        return Err(AppError::validation("批量请求不能为空"));
+        return Err(AppError::validation_displayable("批量请求不能为空"));
     }
     if body.requests.len() > 20 {
-        return Err(AppError::validation("批量请求数不得超过 20"));
+        return Err(AppError::validation_displayable("批量请求数不得超过 20"));
     }
     let svc = AiExtendService::new(state.db);
     let mut results = Vec::new();
@@ -463,7 +467,7 @@ pub async fn batch_create_quality_predictions(
     Json(body): Json<BatchQualityPredDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     if body.requests.len() > 20 {
-        return Err(AppError::validation("批量请求数不得超过 20"));
+        return Err(AppError::validation_displayable("批量请求数不得超过 20"));
     }
     let svc = AiExtendService::new(state.db);
     let mut results = Vec::new();

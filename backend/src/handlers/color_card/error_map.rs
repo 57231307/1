@@ -22,7 +22,7 @@ pub fn item_err(e: ItemError) -> AppError {
         ItemError::ColorCardNotFound => AppError::not_found("色卡不存在"),
         ItemError::ItemNotFound => AppError::not_found("色号不存在"),
         ItemError::InvalidState => AppError::business("当前色卡状态不允许此操作"),
-        ItemError::Validation(msg) => AppError::validation(msg),
+        ItemError::Validation(msg) => AppError::validation_displayable(msg),
         ItemError::Database(e) => AppError::database(e.to_string()),
     }
 }

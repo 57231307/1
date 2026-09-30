@@ -110,7 +110,7 @@ pub struct UpdateApiKeyGwRequest {
 fn validate_rate_limit(v: Option<i32>) -> Result<Option<i32>, AppError> {
     if let Some(rl) = v {
         if !(0..=10000).contains(&rl) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "rate_limit 必须在 0-10000 之间，当前: {}",
                 rl
             )));
@@ -289,10 +289,10 @@ pub async fn create_api_endpoint(
     let rate_limit = validate_rate_limit(req.rate_limit)?;
     let path = req
         .path
-        .ok_or_else(|| AppError::validation("path 为必填项"))?;
+        .ok_or_else(|| AppError::validation_displayable("path 为必填项"))?;
     let method = req
         .method
-        .ok_or_else(|| AppError::validation("method 为必填项"))?;
+        .ok_or_else(|| AppError::validation_displayable("method 为必填项"))?;
 
     // 唯一性检查（path + method）
     // 批次 95 P3-10 修复：显式检查仅作友好提示；并发场景下 TOCTOU 由数据库唯一约束

@@ -329,7 +329,7 @@ pub async fn list_customer_color_cards(
     let customer_id = params
         .get("customer_id")
         .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation("customer_id 必填"))?;
+        .ok_or_else(|| AppError::validation_displayable("customer_id 必填"))?;
     let svc =
         crate::services::color_card_issue_service::ColorCardIssueService::new(state.db.clone());
     let result = svc
@@ -351,7 +351,7 @@ pub async fn list_by_sales_order(
     let sales_order_id = params
         .get("sales_order_id")
         .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation("sales_order_id 必填"))?;
+        .ok_or_else(|| AppError::validation_displayable("sales_order_id 必填"))?;
     let svc =
         crate::services::color_card_issue_service::ColorCardIssueService::new(state.db.clone());
     let result = svc
@@ -373,7 +373,7 @@ pub async fn query_reorder_dye_lot(
     let customer_id = params
         .get("customer_id")
         .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation("customer_id 必填"))?;
+        .ok_or_else(|| AppError::validation_displayable("customer_id 必填"))?;
     let svc =
         crate::services::color_card_issue_service::ColorCardIssueService::new(state.db.clone());
     let result = svc

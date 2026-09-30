@@ -346,9 +346,7 @@ pub async fn update_lead_status(
     Json(payload): Json<UpdateLeadStatusDto>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     // P1-2g 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
 
     let service = CrmService::new(state.db.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
@@ -1212,14 +1210,14 @@ pub async fn merge_leads(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let primary_id = req
-        .get("primary_id")
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation("primary_id 必填"))? as i32;
+    let primary_id =
+        req.get("primary_id")
+            .and_then(|v| v.as_i64())
+            .ok_or_else(|| AppError::validation_displayable("primary_id 必填"))? as i32;
     let duplicate_ids: Vec<i32> = req
         .get("duplicate_ids")
         .and_then(|v| v.as_array())
-        .ok_or_else(|| AppError::validation("duplicate_ids 必填"))?
+        .ok_or_else(|| AppError::validation_displayable("duplicate_ids 必填"))?
         .iter()
         .filter_map(|v| v.as_i64().map(|id| id as i32))
         .collect();

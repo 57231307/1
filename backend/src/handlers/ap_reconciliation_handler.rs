@@ -102,7 +102,7 @@ pub async fn generate_reconciliation(
 
     req.validate().map_err(|e| {
         warn!("用户 {} 生成对账单验证失败：{}", auth.username, e);
-        AppError::validation(e.to_string())
+        AppError::from(e)
     })?;
 
     let service = ApReconciliationService::new(state.db.clone());

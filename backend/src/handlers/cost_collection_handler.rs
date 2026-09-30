@@ -100,7 +100,7 @@ pub async fn create_collection(
 
     let collection_date = req.collection_date.parse().map_err(|e| {
         warn!("用户 {} 成本日期格式错误：{}", auth.username, e);
-        AppError::validation("成本日期格式错误")
+        AppError::validation_displayable("成本日期格式错误")
     })?;
 
     let create_req = CreateCostCollectionRequest {

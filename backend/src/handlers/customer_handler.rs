@@ -268,7 +268,7 @@ pub async fn create_customer(
     // 用户输入非法值时无任何提示，改为显式校验报错
     let credit_limit = match payload.credit_limit.as_deref() {
         Some(s) if !s.is_empty() => s.parse::<rust_decimal::Decimal>().map_err(|e| {
-            AppError::validation(format!("信用额度格式错误：{}（请输入有效数字）", e))
+            AppError::validation_displayable(format!("信用额度格式错误：{}（请输入有效数字）", e))
         })?,
         _ => rust_decimal::Decimal::ZERO,
     };
@@ -346,7 +346,7 @@ pub async fn update_customer(
     // 用户输入非法值时信用额度不更新且无提示，改为显式校验报错
     let credit_limit = match payload.credit_limit.as_deref() {
         Some(s) if !s.is_empty() => Some(s.parse::<rust_decimal::Decimal>().map_err(|e| {
-            AppError::validation(format!("信用额度格式错误：{}（请输入有效数字）", e))
+            AppError::validation_displayable(format!("信用额度格式错误：{}（请输入有效数字）", e))
         })?),
         _ => None,
     };

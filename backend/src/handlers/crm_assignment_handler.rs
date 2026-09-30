@@ -363,7 +363,7 @@ pub async fn list_workload(
         .collect();
 
     if user_ids.is_empty() {
-        return Err(AppError::validation("user_ids 参数不能为空"));
+        return Err(AppError::validation_displayable("user_ids 参数不能为空"));
     }
 
     let service = CrmAssignService::new(state.db.clone());

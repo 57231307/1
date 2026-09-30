@@ -337,7 +337,7 @@ pub async fn create_plan(
                 // 部门 ID 缺失时返回 4xx 错误，避免脏 department_id=0 记录
                 department_id: req
                     .department_id
-                    .ok_or_else(|| AppError::validation("预算编制请求缺少部门ID"))?,
+                    .ok_or_else(|| AppError::validation_displayable("预算编制请求缺少部门ID"))?,
                 total_amount: req.total_amount.unwrap_or(Decimal::ZERO),
                 remark: req.remark,
             },
@@ -393,7 +393,7 @@ pub async fn execute_plan(
     info!("用户 {} 正在执行预算方案：{}", auth.username, id);
 
     let expense_date = NaiveDate::parse_from_str(&req.expense_date, "%Y-%m-%d")
-        .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?;
 
     let service = BudgetManagementService::new(state.db.clone());
     service
@@ -457,7 +457,7 @@ pub async fn create_execution(
     );
 
     let expense_date = NaiveDate::parse_from_str(&req.expense_date, "%Y-%m-%d")
-        .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?;
 
     let service = BudgetManagementService::new(state.db.clone());
     // 批次 329 v10 复审 P3 修复：使用参数对象替代多参数
@@ -555,8 +555,7 @@ pub async fn create_budget(
     info!("用户 {} 创建预算", auth.username);
 
     // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = BudgetManagementService::new(state.db.clone());
 
@@ -591,8 +590,7 @@ pub async fn update_budget(
     info!("用户 {} 更新预算: ID={}", auth.username, id);
 
     // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = BudgetManagementService::new(state.db.clone());
 
@@ -652,8 +650,7 @@ pub async fn approve_budget(
     info!("用户 {} 审批预算: ID={}", auth.username, id);
 
     // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = BudgetManagementService::new(state.db.clone());
 

@@ -104,7 +104,7 @@ pub async fn create_ar_invoice(
         .map(|d| {
             d.parse().map_err(|e| {
                 warn!("用户 {} 应收单日期格式错误：{}", auth.username, e);
-                AppError::validation("应收单日期格式错误")
+                AppError::validation_displayable("应收单日期格式错误")
             })
         })
         .transpose()?;
@@ -114,7 +114,7 @@ pub async fn create_ar_invoice(
         .map(|d| {
             d.parse().map_err(|e| {
                 warn!("用户 {} 到期日格式错误：{}", auth.username, e);
-                AppError::validation("到期日格式错误")
+                AppError::validation_displayable("到期日格式错误")
             })
         })
         .transpose()?;
