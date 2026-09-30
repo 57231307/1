@@ -37,6 +37,11 @@ export interface InventoryStock {
   quality_status: string;
   quantity_meters: string;
   quantity_kg: string;
+  /**
+   * 乐观锁版本号（NOT NULL 列 inventory_stocks.version，StockResponse 直映输出）——
+   * PUT /inventory/stock/{id} 必带的 version 唯一合法来源，缺它编辑链路不可达，禁止假值。
+   */
+  version: number;
   // ===== 主数据名称（后端按 ID 批量带出）=====
   product_code?: string | null;
   product_name?: string | null;
@@ -270,8 +275,8 @@ export interface StockAlert {
  * （handlers/inventory_stock_handler_dto.rs；update_stock handler 按此反序列化并做乐观锁比对）。
  * 该端点只接受数量/阈值/库位的纠偏字段——批次/色号/缸号/等级/仓库/产品等四维与归属列
  * 不可经 PUT 修改（四维改动须走红冲黑退的调整/出入库流程）。
- * version 必填：取自 GET 出参的库存行版本；后端 StockResponse 目前未输出 version 列，
- * 前端拿不到真实值（缺口已列后端待串行清单），禁止以 0 之类假值蒙混乐观锁。
+ * version 必填：取自 GET 出参库存行的 version 列（StockResponse.version 直映
+ * inventory_stocks.version 真实列），禁止以 0 之类假值蒙混乐观锁。
  * 数量类为 Decimal 入参：传字符串；Option 字段空值省略该键。
  */
 export interface UpdateStockRequest {
@@ -320,8 +325,9 @@ export const getReservationList = (params?: InventoryQueryParams) =>
   );
 
 // D14 Batch 5b：原 inventoryApi.createReservation 转为风格 B 函数
-export const createReservation = (data: ReservationData) =>
-  request.post<ApiResponse<InventoryReservation>>('/inventory/reservations', data);
+// 入参 = 后端 CreateReservationRequest，出参 = 后端 ReservationResponse（见上方两个接口注释）
+export const createReservation = (data: CreateReservationPayload) =>
+  request.post<ApiResponse<ReservationMutationResponse>>('/inventory/reservations', data);
 
 // D14 Batch 5b：原 inventoryApi.cancelReservation 转为风格 B 函数
 export const cancelReservation = (id: number) =>
@@ -355,11 +361,32 @@ export const getStockAlertList = (params?: {
   page_size?: number;
   warehouse_id?: number;
   product_id?: number;
-}) => request.get<ApiResponse<Paginated<StockAlert>>>('/inventory/stock/alerts', { params });
+}) =>
+  request.get<ApiResponse<PaginatedResponse<StockAlert>>>('/inventory/stock/alerts', { params });
+
+/**
+ * 库存汇总行：与后端 `InventorySummaryItem`（handlers/inventory_stock_handler_dto.rs，
+ * 由 services/inventory_stock_query.rs::get_inventory_summary 按 产品+仓库+批次+色号+等级
+ * GROUP BY 聚合产出）一一对应。
+ * total_quantity_* 是 SUM(Decimal) 的字符串序列化（rust_decimal 出参口径，展示前 Number() 归一）；
+ * product_name/warehouse_name 来自 INNER JOIN 主数据列、batch_no/color_no/grade 为 GROUP BY 列，
+ * 后端均非 Option → 全部必填，不标可选。
+ */
+export interface InventorySummaryRow {
+  product_id: number;
+  product_name: string;
+  batch_no: string;
+  color_no: string;
+  grade: string;
+  total_quantity_meters: string;
+  total_quantity_kg: string;
+  warehouse_name: string;
+}
 
 // D14 Batch 5b：原 inventoryApi.getInventoryReport 转为风格 B 函数
-export const getInventoryReport = (params: InventoryReportParams) =>
-  request.get<ApiResponse<Paginated<InventorySummaryRow>>>('/inventory/stock/summary', {
+/** 汇总端点入参 = 后端 ListStockFabricParams（与 InventorySummaryQueryParams 同构） */
+export const getInventoryReport = (params: InventorySummaryQueryParams) =>
+  request.get<ApiResponse<PaginatedResponse<InventorySummaryRow>>>('/inventory/stock/summary', {
     params,
   });
 

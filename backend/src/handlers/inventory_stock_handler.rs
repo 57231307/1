@@ -314,6 +314,9 @@ fn to_stock_response(stock: InventoryStock) -> StockResponse {
         product_code: None,
         product_name: None,
         warehouse_name: None,
+        // 乐观锁版本号：真实列直映（PUT /stock/{id} 的 UpdateStockWithVersionRequest.version
+        // 必填，前端只能从这里取真值；写假值会让任何编辑都必然冲突）
+        version: stock.version,
         created_at: stock.created_at,
         updated_at: stock.updated_at,
     }

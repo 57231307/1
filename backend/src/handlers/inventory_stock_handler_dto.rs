@@ -90,6 +90,10 @@ pub struct StockResponse {
     pub product_name: Option<String>,
     /// 仓库名称
     pub warehouse_name: Option<String>,
+    /// 乐观锁版本号（`inventory_stocks.version` 真实列直映，见 models/inventory_stock.rs）——
+    /// `UpdateStockWithVersionRequest.version` 必填，本字段是该版本号在前端的唯一合法来源；
+    /// 缺它则编辑链路只能在 serde/乐观锁比对处失败，禁止以 0 之类假值替代。
+    pub version: i32,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }

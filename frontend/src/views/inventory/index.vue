@@ -95,11 +95,28 @@
       width="520px"
     >
       <el-form :model="stockForm" label-width="110px">
+        <!-- 编辑走 PUT /inventory/stock/{id}：该端点只接收数量纠偏与库位，
+             产品/仓库/批次/色号提交也不会被后端读取——置灰并在表单内如实说明，
+             不做"改了会被静默丢弃"的假可编辑。四维/归属变更走库存调整/出入库流程 -->
+        <el-alert
+          v-if="stockEditingId"
+          type="info"
+          :closable="false"
+          :title="t('inventory.stockDialog.editReadonlyHint')"
+          class="stock-edit-hint"
+        />
+        <el-alert
+          v-if="!stockEditingId"
+          type="info"
+          :closable="false"
+          :title="t('inventory.stockDialog.createLocationHint')"
+          class="stock-edit-hint"
+        />
         <el-form-item :label="t('inventory.stockTab.colProductCode')">
-          <el-input-number v-model="stockForm.product_id" :min="1" />
+          <el-input-number v-model="stockForm.product_id" :min="1" :disabled="!!stockEditingId" />
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.colWarehouse')">
-          <el-select v-model="stockForm.warehouse_id" filterable>
+          <el-select v-model="stockForm.warehouse_id" filterable :disabled="!!stockEditingId">
             <el-option
               v-for="wh in warehouses"
               :key="wh.id"
@@ -109,13 +126,25 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.colBatchNo')">
-          <el-input v-model="stockForm.batch_no" />
+          <el-input v-model="stockForm.batch_no" :disabled="!!stockEditingId" />
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.colColorCode')">
-          <el-input v-model="stockForm.color_code" />
+          <el-input v-model="stockForm.color_code" :disabled="!!stockEditingId" />
+        </el-form-item>
+        <!-- 等级词表唯一来源 constants/stock-grade.ts（一等品/二等品/等外品）；
+             PUT 不接收 grade → 编辑态禁用；提交值本身、label 走 i18n 键 -->
+        <el-form-item :label="t('inventory.stockTab.colGrade')">
+          <el-select v-model="stockForm.grade" :disabled="!!stockEditingId">
+            <el-option
+              v-for="g in STOCK_GRADE_VALUES"
+              :key="g"
+              :label="t(STOCK_GRADE_LABEL_KEY[g])"
+              :value="g"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.colLocation')">
-          <el-input v-model="stockForm.location" />
+          <el-input v-model="stockForm.location" :disabled="!stockEditingId" />
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.colQuantity')">
           <el-input-number v-model="stockForm.quantity" :min="0" :precision="2" />
@@ -154,6 +183,7 @@ import FabricStockTab from './tabs/FabricStockTab.vue';
 import StatCards from './components/StatCards.vue';
 import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDialog.vue';
 import { PERMISSIONS } from '@/constants/permissions';
+import { STOCK_GRADE, STOCK_GRADE_VALUES, STOCK_GRADE_LABEL_KEY } from '@/constants/stock-grade';
 import { formatNumber, getStockStatusLabel } from './composables/invFmts';
 import { logger } from '@/utils/logger';
 
@@ -346,23 +376,31 @@ const goToTransferPage = () => {
 const stockDialogVisible = ref(false);
 const stockEditingId = ref<number | null>(null);
 const stockSubmitLoading = ref(false);
+// 编辑整行引用：version（乐观锁）等只读上下文取自 GET 出参真实列，禁止假值
+const stockEditingRow = ref<InventoryStock | null>(null);
 const stockForm = reactive({
   product_id: undefined as number | undefined,
   warehouse_id: undefined as number | undefined,
   batch_no: '',
   color_code: '',
+  // 等级取值域唯一来源 constants/stock-grade.ts（NOT NULL 列，新建必须显式给值）
+  grade: STOCK_GRADE.first as string,
   location: '',
   quantity: 0,
 });
 
 const openStockDialog = (row?: InventoryStock) => {
   stockEditingId.value = row ? row.id : null;
+  stockEditingRow.value = row ?? null;
   stockForm.product_id = row?.product_id;
   stockForm.warehouse_id = row?.warehouse_id;
   stockForm.batch_no = row?.batch_no || '';
   stockForm.color_code = row?.color_no || '';
+  stockForm.grade = row?.grade || STOCK_GRADE.first;
   stockForm.location = row?.bin_location || '';
-  stockForm.quantity = Number(row?.quantity_meters ?? 0);
+  // 新建的「数量」按 POST 契约进主计量 quantity_meters；编辑按 PUT 纠偏口径读写在库量
+  // quantity_on_hand（该端点不接收 quantity_meters，两列在后端各自独立，不混写）
+  stockForm.quantity = row ? Number(row.quantity_on_hand) : 0;
   stockDialogVisible.value = true;
 };
 
@@ -373,20 +411,38 @@ const submitStock = async () => {
   }
   stockSubmitLoading.value = true;
   try {
-    if (stockEditingId.value) {
+    if (stockEditingRow.value) {
+      // 后端 PUT /inventory/stock/{id}（update_stock, handlers/inventory_stock_handler.rs）
+      // 走乐观锁：UpdateStockWithVersionRequest.version 必填，真值取自该行 GET 出参的
+      // version 列（StockResponse.version 直映 inventory_stocks.version）。
+      // 若后端出参缺失 version（旧部署），row.version 为 undefined → JSON 键被丢弃 →
+      // serde 必填校验在请求边界拒绝并显式报错，绝不以 0 等假值蒙混乐观锁。
+      // 产品/仓库/批次/色号不在该端点入参内（编辑态已禁用），四维/归属变更走调整/出入库。
       const { updateStock } = await import('@/api/inventory');
-      await updateStock(stockEditingId.value, stockForm);
-    } else {
-      const { createStock } = await import('@/api/inventory');
-      await createStock({
-        warehouse_id: stockForm.warehouse_id,
-        product_id: stockForm.product_id,
-        batch_no: stockForm.batch_no,
-        color_no: stockForm.color_code,
-        grade: 'A',
-        quantity_meters: stockForm.quantity,
+      await updateStock(stockEditingRow.value.id, {
+        quantity_on_hand: String(stockForm.quantity),
+        // bin_location 为 Option 入参：后端只在 Some 时写入，空串即用户「清空库位」的
+        // 显式意图（null/省略键都无法表达清除），原样提交表单当前值
+        bin_location: stockForm.location,
+        version: stockEditingRow.value.version,
       });
+      ElMessage.success(t('common.success'));
+      stockDialogVisible.value = false;
+      fetchData();
+      return;
     }
+    const { createStock } = await import('@/api/inventory');
+    // POST /inventory/stock（CreateStockFabricRequest）不接收 bin_location——
+    // 库位只能在保存后经编辑 PUT 写入（表单已在创建态禁用该输入并提示）；
+    // grade 取 constants/stock-grade.ts 词表值（此前硬编码 'A' 落在取值域之外）
+    await createStock({
+      warehouse_id: stockForm.warehouse_id,
+      product_id: stockForm.product_id,
+      batch_no: stockForm.batch_no,
+      color_no: stockForm.color_code,
+      grade: stockForm.grade,
+      quantity_meters: stockForm.quantity,
+    });
     ElMessage.success(t('common.success'));
     stockDialogVisible.value = false;
     fetchData();
@@ -548,6 +604,10 @@ onMounted(() => {
   font-weight: 600;
   color: #303133;
   margin: 0 0 12px 0;
+}
+
+.stock-edit-hint {
+  margin-bottom: 16px;
 }
 
 .header-actions {
