@@ -45,16 +45,47 @@ pub struct CreateProductionOrderPayload {
     pub remarks: Option<String>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 形态与 handlers/department_handler.rs 中同名私有适配器一致（跨域合并到共享工具需动 utils，超本波授权范围）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新生产订单请求
+///
+/// 字段三态语义（对齐 handlers/department_handler.rs::UpdateDepartmentRequest）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（planned_quantity/priority，m0007 DDL）显式 null 由 service 入口拒绝。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateProductionOrderPayload {
-    pub planned_quantity: Option<Decimal>,
-    pub planned_start_date: Option<chrono::NaiveDate>,
-    pub planned_end_date: Option<chrono::NaiveDate>,
-    pub priority: Option<i32>,
-    pub work_center_id: Option<i32>,
-    pub remarks: Option<String>,
+    /// 计划数量：NOT NULL（m0007:78）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub planned_quantity: Option<Option<Decimal>>,
+    /// 计划开始日期：DB 可空（m0007:80）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub planned_start_date: Option<Option<chrono::NaiveDate>>,
+    /// 计划结束日期：DB 可空（m0007:81）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub planned_end_date: Option<Option<chrono::NaiveDate>>,
+    /// 优先级：NOT NULL DEFAULT 5（m0007:84）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub priority: Option<Option<i32>>,
+    /// 工作中心 ID：DB 可空（m0007:85）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub work_center_id: Option<Option<i32>>,
+    /// 备注：DB 可空 TEXT（m0007:86）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub remarks: Option<Option<String>>,
 }
 
 /// P1-2f 修复（批次 81 v1 复审）：更新生产订单状态请求 DTO 替代 update_production_order_status
@@ -356,11 +387,17 @@ pub async fn delete_production_order(
 }
 
 /// 更新生产进度请求
+///
+/// 三态语义（RFC 7386）：actual_quantity/remarks 均为 DB 可空列
+/// （m0007:79 actual_quantity、m0007:86 remarks）——
+/// 键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateProgressRequest {
-    pub actual_quantity: Option<Decimal>,
-    pub remarks: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub actual_quantity: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub remarks: Option<Option<String>>,
 }
 
 /// 更新生产订单进度
@@ -398,11 +435,12 @@ pub async fn update_production_progress(
     }
 
     let mut active_model: crate::models::production_order::ActiveModel = model.into();
+    // 三态写入（可空列）：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖、None=不 Set
     if let Some(qty) = payload.actual_quantity {
-        active_model.actual_quantity = Set(Some(qty));
+        active_model.actual_quantity = Set(qty);
     }
     if let Some(remarks) = payload.remarks {
-        active_model.remarks = Set(Some(remarks));
+        active_model.remarks = Set(remarks);
     }
     active_model.updated_at = Set(Utc::now());
 

@@ -77,31 +77,29 @@ export interface CreateQualityRecordPayload {
   dye_lot_no?: string;
 }
 
-/**
- * 更新质检记录载荷：逐字段对齐后端 UpdateInspectionRecordRequest
- * （handlers/quality_inspection_handler.rs:216-239，15 个字段全为 Option，
- * handler 调用 req.validate() 做 length 校验后按 Some(v) 分支逐字段更新）。
- * inspection_no / product_id / supplier_id / customer_id 不在更新契约内，禁止提交。
- * Option<String> + length 校验的字符串字段空值时必须省略该键（Some("") 会被原样写库），
- * 由视图提交处保证（范式见 views/system/tabs/UserTab.vue:358-359）。
- * 后端 Decimal 字段（total_qty 等）JSON 兼容 number/string，沿用 Create 载荷的 string|number。
- */
+// 质检记录更新载荷 —— 对齐后端 UpdateInspectionRecordRequest（handlers/quality_inspection_handler.rs，
+// 三态语义 RFC 7386）：键缺席=保持原值、显式 null=清空为 NULL（仅下列可空列）、有值=覆盖。
+// 可空列依据 m0005/system 域 DDL（batch_no m0005:162、inspector_id :167、qualified_qty :169、
+// unqualified_qty :170 及 system/mod.rs:183-195 补列 color_no/defect_type/dye_lot_no/grade/
+// qualification_rate/remark）。
+// NOT NULL/模型非 Option 列（inspection_type/inspection_date/total_qty/inspected_qty/
+// inspection_result）不声明 null——显式 null 会被后端 business_displayable 拒绝。
 export interface UpdateQualityRecordPayload {
   inspection_type?: string;
-  batch_no?: string;
+  batch_no?: string | null;
   inspection_date?: string;
-  inspector_id?: number;
+  inspector_id?: number | null;
   total_qty?: string | number;
   inspected_qty?: string | number;
-  qualified_qty?: string | number;
-  unqualified_qty?: string | number;
-  qualification_rate?: string | number;
+  qualified_qty?: string | number | null;
+  unqualified_qty?: string | number | null;
+  qualification_rate?: string | number | null;
   inspection_result?: string;
-  remark?: string;
-  defect_type?: string;
-  grade?: string;
-  color_no?: string;
-  dye_lot_no?: string;
+  remark?: string | null;
+  defect_type?: string | null;
+  grade?: string | null;
+  color_no?: string | null;
+  dye_lot_no?: string | null;
 }
 
 export interface Defect {

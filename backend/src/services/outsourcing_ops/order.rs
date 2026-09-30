@@ -231,11 +231,47 @@ impl OutsourcingOrderService {
     }
 
     /// 更新委外订单（仅 draft 状态可更新）
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set、Some(None)=Set(None) 置 NULL（仅 DB 可空列）、Some(Some(v))=Set(v) 覆盖；
+    /// NOT NULL 列（order_type/supplier_id/issue_date/issue_quantity/issue_unit/material_cost，
+    /// v15 outsourcing_order DDL）的显式 null 在任何 DB 访问前拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
         req: UpdateOutsourcingOrderRequest,
     ) -> Result<OrderModel, AppError> {
+        if matches!(req.order_type, Some(None)) {
+            return Err(AppError::business_displayable(
+                "委外类型不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.supplier_id, Some(None)) {
+            return Err(AppError::business_displayable(
+                "委外加工厂不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.issue_date, Some(None)) {
+            return Err(AppError::business_displayable(
+                "发料日期不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.issue_quantity, Some(None)) {
+            return Err(AppError::business_displayable(
+                "发出数量不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.issue_unit, Some(None)) {
+            return Err(AppError::business_displayable(
+                "发出单位不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.material_cost, Some(None)) {
+            return Err(AppError::business_displayable(
+                "发出材料成本不能清空：该字段为必填项",
+            ));
+        }
+
         let model = self.get_by_id(id).await?;
         if model.status != outsourcing_order_status::DRAFT {
             return Err(AppError::business(format!(
@@ -246,11 +282,12 @@ impl OutsourcingOrderService {
 
         let mut active: OrderActiveModel = model.into();
 
-        if let Some(v) = req.order_type {
+        // NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.order_type.flatten() {
             validate_order_type(&v)?;
             active.order_type = Set(v);
         }
-        if let Some(v) = req.supplier_id {
+        if let Some(v) = req.supplier_id.flatten() {
             // 校验委外加工厂存在
             if crate::models::supplier::Entity::find_by_id(v)
                 .one(&*self.db)
@@ -261,46 +298,47 @@ impl OutsourcingOrderService {
             }
             active.supplier_id = Set(v);
         }
-        if let Some(v) = req.production_order_id {
-            active.production_order_id = Set(Some(v));
-        }
-        if let Some(v) = req.dye_batch_id {
-            active.dye_batch_id = Set(Some(v));
-        }
-        if let Some(v) = req.color_no {
-            active.color_no = Set(Some(v));
-        }
-        if let Some(v) = req.dye_lot_no {
-            active.dye_lot_no = Set(Some(v));
-        }
-        if let Some(v) = req.issue_date {
+        if let Some(v) = req.issue_date.flatten() {
             active.issue_date = Set(v);
         }
-        if let Some(v) = req.expected_return_date {
-            active.expected_return_date = Set(Some(v));
-        }
-        if let Some(v) = req.issue_quantity {
+        if let Some(v) = req.issue_quantity.flatten() {
             if v < Decimal::ZERO {
                 return Err(AppError::business("发出数量不能为负"));
             }
             active.issue_quantity = Set(v);
         }
-        if let Some(v) = req.issue_unit {
+        if let Some(v) = req.issue_unit.flatten() {
             active.issue_unit = Set(v);
         }
-        if let Some(v) = req.material_cost {
+        // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
+        if let Some(v) = req.production_order_id {
+            active.production_order_id = Set(v);
+        }
+        if let Some(v) = req.dye_batch_id {
+            active.dye_batch_id = Set(v);
+        }
+        if let Some(v) = req.color_no {
+            active.color_no = Set(v);
+        }
+        if let Some(v) = req.dye_lot_no {
+            active.dye_lot_no = Set(v);
+        }
+        if let Some(v) = req.expected_return_date {
+            active.expected_return_date = Set(v);
+        }
+        if let Some(v) = req.standard_loss_rate {
+            active.standard_loss_rate = Set(v);
+        }
+        if let Some(v) = req.remarks {
+            active.remarks = Set(v);
+        }
+        // material_cost：NOT NULL 列——覆盖时联动重算总成本（无加工费/运费/非正常损耗阶段）
+        if let Some(v) = req.material_cost.flatten() {
             if v < Decimal::ZERO {
                 return Err(AppError::business("发出材料成本不能为负"));
             }
             active.material_cost = Set(v);
-            // 重新计算总成本（无加工费/运费/非正常损耗阶段）
             active.total_cost = Set(v);
-        }
-        if let Some(v) = req.standard_loss_rate {
-            active.standard_loss_rate = Set(Some(v));
-        }
-        if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
         }
 
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());

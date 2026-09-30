@@ -94,9 +94,37 @@ export function createLabDipRequest(
   return request.post('/production/lab-dip/requests', data);
 }
 
+/**
+ * 打样通知单更新载荷 —— 逐字段对齐后端 UpdateLabDipRequestRequest
+ * （services/lab_dip_ops/types.rs，三态语义 RFC 7386 JSON Merge Patch）：
+ * 键缺席=保持原值、显式 null=清空为 NULL（仅声明 `| null` 的 DB 可空列）、有值=覆盖。
+ * NOT NULL 列（light_source/sample_versions/required_date，v15 lab_dip_request DDL）
+ * 不声明 null——显式 null 会被后端 business_displayable 拒绝。
+ * 此前用 Partial<CreateLabDipRequestPayload> 冒充：light_source 在类型层是必填 string，
+ * 与后端"更新请求可缺省"矛盾，且可空列无法表达显式 null。
+ */
+export interface UpdateLabDipRequestPayload {
+  customer_id?: number | null;
+  customer_color_no?: string | null;
+  customer_color_name?: string | null;
+  sample_type?: string | null;
+  fabric_spec?: string | null;
+  fabric_component?: string | null;
+  sample_size?: string | null;
+  light_source?: string;
+  secondary_light_source?: string | null;
+  color_fastness_req?: string | null;
+  eco_requirement?: string | null;
+  sample_versions?: number;
+  dye_category?: string | null;
+  required_date?: string;
+  expected_days?: number | null;
+  remarks?: string | null;
+}
+
 export function updateLabDipRequest(
   id: number,
-  data: Partial<CreateLabDipRequestPayload>
+  data: UpdateLabDipRequestPayload
 ): Promise<ApiResponse<LabDipRequest>> {
   return request.put(`/production/lab-dip/requests/${id}`, data);
 }

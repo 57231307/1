@@ -211,31 +211,75 @@ pub async fn get_record(
 }
 
 /// 更新质检记录请求（对应前端 api/quality.ts updateQualityRecord 传 Partial<QualityRecord>，全字段可选）
+///
+/// JSON 三态反序列化适配器与字段语义见 handlers/department_handler.rs 同名实现/注释：
+/// 键缺席=保持原值、显式 null=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL/模型非 Option 列（inspection_type/inspection_date：m0005:164/166 建表 NOT NULL；
+/// total_qty/inspected_qty/inspection_result：system/mod.rs:197/190/191 ALTER 补列虽可空，
+/// 但实体 Model 列为非 Option Decimal/String，置 NULL 该行按模型不可读）显式 null 一律拒绝。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateInspectionRecordRequest {
+    /// 检验类型：DB NOT NULL（m0005:164）——显式 null 被拒绝
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 50, message = "检验类型长度不得超过 50 字符"))]
-    pub inspection_type: Option<String>,
+    pub inspection_type: Option<Option<String>>,
+    /// 批次号：DB 可空 VARCHAR（m0005:162）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 100, message = "批次号长度不得超过 100 字符"))]
-    pub batch_no: Option<String>,
-    pub inspection_date: Option<chrono::NaiveDate>,
-    pub inspector_id: Option<i32>,
-    pub total_qty: Option<rust_decimal::Decimal>,
-    pub inspected_qty: Option<rust_decimal::Decimal>,
-    pub qualified_qty: Option<rust_decimal::Decimal>,
-    pub unqualified_qty: Option<rust_decimal::Decimal>,
-    pub qualification_rate: Option<rust_decimal::Decimal>,
+    pub batch_no: Option<Option<String>>,
+    /// 检验日期：DB NOT NULL（m0005:166）——显式 null 被拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub inspection_date: Option<Option<chrono::NaiveDate>>,
+    /// 检验员 ID：DB 可空 INTEGER（m0005:167）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub inspector_id: Option<Option<i32>>,
+    /// 送检总数：实体 Model 非 Option Decimal（system/mod.rs:197 补列）——显式 null 被拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub total_qty: Option<Option<rust_decimal::Decimal>>,
+    /// 已检数：实体 Model 非 Option Decimal（system/mod.rs:190 补列）——显式 null 被拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub inspected_qty: Option<Option<rust_decimal::Decimal>>,
+    /// 合格数：DB 可空 DECIMAL（m0005:169）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub qualified_qty: Option<Option<rust_decimal::Decimal>>,
+    /// 不合格数：DB 可空 DECIMAL（m0005:170）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub unqualified_qty: Option<Option<rust_decimal::Decimal>>,
+    /// 合格率：DB 可空 DECIMAL（system/mod.rs:192 补列）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub qualification_rate: Option<Option<rust_decimal::Decimal>>,
+    /// 检验结论：实体 Model 非 Option String（system/mod.rs:191 补列；词表 quality_inspection_result）——显式 null 被拒绝
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 20, message = "检验结果长度不得超过 20 字符"))]
-    pub inspection_result: Option<String>,
-    pub remark: Option<String>,
+    pub inspection_result: Option<Option<String>>,
+    /// 备注：DB 可空 VARCHAR（system/mod.rs:195 补列）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub remark: Option<Option<String>>,
+    /// 缺陷类型：DB 可空 VARCHAR（system/mod.rs:185 补列）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 50, message = "缺陷类型长度不得超过 50 字符"))]
-    pub defect_type: Option<String>,
+    pub defect_type: Option<Option<String>>,
+    /// 等级：DB 可空 VARCHAR（system/mod.rs:189 补列）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 10, message = "等级长度不得超过 10 字符"))]
-    pub grade: Option<String>,
+    pub grade: Option<Option<String>>,
+    /// 色号：DB 可空 VARCHAR（system/mod.rs:183 补列）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 100, message = "色号长度不得超过 100 字符"))]
-    pub color_no: Option<String>,
+    pub color_no: Option<Option<String>>,
+    /// 缸号：DB 可空 VARCHAR（system/mod.rs:186 补列）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 100, message = "缸号长度不得超过 100 字符"))]
-    pub dye_lot_no: Option<String>,
+    pub dye_lot_no: Option<Option<String>>,
 }
 
 /// PUT /api/v1/erp/production/quality-inspection/records/{id} - 编辑质检记录
@@ -250,7 +294,36 @@ pub async fn update_record(
 
     info!("用户 {} 正在更新质量检验记录，ID: {}", auth.user_id, id);
     req.validate().map_err(AppError::from)?;
-    if let Some(v) = &req.inspection_result {
+
+    // NOT NULL/模型非 Option 列门控（在任何 DB 访问之前拒绝，外显不脱敏）：
+    if matches!(req.inspection_type, Some(None)) {
+        return Err(AppError::business_displayable(
+            "检验类型不能清空：该字段为必填项",
+        ));
+    }
+    if matches!(req.inspection_date, Some(None)) {
+        return Err(AppError::business_displayable(
+            "检验日期不能清空：该字段为必填项",
+        ));
+    }
+    if matches!(req.total_qty, Some(None)) {
+        return Err(AppError::business_displayable(
+            "送检总数不能清空：该字段为必填项",
+        ));
+    }
+    if matches!(req.inspected_qty, Some(None)) {
+        return Err(AppError::business_displayable(
+            "已检数不能清空：该字段为必填项",
+        ));
+    }
+    if matches!(req.inspection_result, Some(None)) {
+        return Err(AppError::business_displayable(
+            "检验结论不能清空：该字段为必填项",
+        ));
+    }
+
+    // 词表校验仅对覆盖值执行（借用检查，不移动字段——后续写入仍需消费 req）
+    if let Some(Some(v)) = req.inspection_result.as_ref() {
         validate_inspection_result(v)?;
     }
 
@@ -260,50 +333,52 @@ pub async fn update_record(
         .ok_or_else(|| AppError::not_found(format!("质量检验记录不存在：{}", id)))?;
 
     let mut active: quality_inspection_record::ActiveModel = existing.into();
-    if let Some(v) = req.inspection_type {
+    // NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+    if let Some(v) = req.inspection_type.flatten() {
         active.inspection_type = Set(v);
     }
-    if let Some(v) = req.batch_no {
-        active.batch_no = Set(Some(v));
-    }
-    if let Some(v) = req.inspection_date {
+    if let Some(v) = req.inspection_date.flatten() {
         active.inspection_date = Set(v);
     }
-    if let Some(v) = req.inspector_id {
-        active.inspector_id = Set(Some(v));
-    }
-    if let Some(v) = req.total_qty {
+    if let Some(v) = req.total_qty.flatten() {
         active.total_qty = Set(v);
     }
-    if let Some(v) = req.inspected_qty {
+    if let Some(v) = req.inspected_qty.flatten() {
         active.inspected_qty = Set(v);
     }
-    if let Some(v) = req.qualified_qty {
-        active.qualified_qty = Set(Some(v));
-    }
-    if let Some(v) = req.unqualified_qty {
-        active.unqualified_qty = Set(Some(v));
-    }
-    if let Some(v) = req.qualification_rate {
-        active.qualification_rate = Set(Some(v));
-    }
-    if let Some(v) = req.inspection_result {
+    if let Some(v) = req.inspection_result.flatten() {
         active.inspection_result = Set(v);
     }
+    // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖、None=不 Set
+    if let Some(v) = req.batch_no {
+        active.batch_no = Set(v);
+    }
+    if let Some(v) = req.inspector_id {
+        active.inspector_id = Set(v);
+    }
+    if let Some(v) = req.qualified_qty {
+        active.qualified_qty = Set(v);
+    }
+    if let Some(v) = req.unqualified_qty {
+        active.unqualified_qty = Set(v);
+    }
+    if let Some(v) = req.qualification_rate {
+        active.qualification_rate = Set(v);
+    }
     if let Some(v) = req.remark {
-        active.remark = Set(Some(v));
+        active.remark = Set(v);
     }
     if let Some(v) = req.defect_type {
-        active.defect_type = Set(Some(v));
+        active.defect_type = Set(v);
     }
     if let Some(v) = req.grade {
-        active.grade = Set(Some(v));
+        active.grade = Set(v);
     }
     if let Some(v) = req.color_no {
-        active.color_no = Set(Some(v));
+        active.color_no = Set(v);
     }
     if let Some(v) = req.dye_lot_no {
-        active.dye_lot_no = Set(Some(v));
+        active.dye_lot_no = Set(v);
     }
     active.updated_at = Set(chrono::Utc::now());
 

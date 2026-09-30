@@ -79,6 +79,7 @@ import {
   createProductionOrder,
   updateProductionOrder,
   type ProductionOrder,
+  type UpdateProductionOrderPayload,
 } from '@/api/production';
 import { usePrd } from './composables/usePrd';
 import { usePrdProc } from './composables/usePrdProc';
@@ -147,7 +148,19 @@ const onSubmitForm = async () => {
       await createProductionOrder(payload);
       ElMessage.success(t('production.index.messageCreateSuccess'));
     } else {
-      await updateProductionOrder(prd.orderForm.id, prd.orderForm as Partial<ProductionOrder>);
+      // 三态语义（后端 UpdateProductionOrderPayload DoubleOption）：
+      // 编辑对话框已回显原值；可空列（planned_start_date/planned_end_date/work_center_id/remarks）
+      // UI 清空 ⇒ 送显式 null（=清空为 NULL），未改动 ⇒ 原值回传；
+      // NOT NULL 列 planned_quantity/priority 恒送值（送 null 会被后端拒绝）
+      const payload: UpdateProductionOrderPayload = {
+        planned_quantity: prd.orderForm.planned_quantity,
+        priority: prd.orderForm.priority,
+        planned_start_date: prd.orderForm.planned_start_date || null,
+        planned_end_date: prd.orderForm.planned_end_date || null,
+        work_center_id: prd.orderForm.work_center_id ?? null,
+        remarks: prd.orderForm.remarks || null,
+      };
+      await updateProductionOrder(prd.orderForm.id, payload);
       ElMessage.success(t('production.index.messageUpdateSuccess'));
     }
     dialogVisible.value = false;

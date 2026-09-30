@@ -200,11 +200,37 @@ impl OutsourcingReceiptService {
     }
 
     /// 更新委外收回入库单（仅 draft 状态可更新）
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set、Some(None)=Set(None) 置 NULL（仅 DB 可空列）、Some(Some(v))=Set(v) 覆盖；
+    /// NOT NULL 列（receipt_date/product_id/return_quantity/loss_quantity，
+    /// v15 outsourcing_receipt DDL）的显式 null 在任何 DB 访问前拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
         req: UpdateOutsourcingReceiptRequest,
     ) -> Result<ReceiptModel, AppError> {
+        if matches!(req.receipt_date, Some(None)) {
+            return Err(AppError::business_displayable(
+                "收回日期不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.product_id, Some(None)) {
+            return Err(AppError::business_displayable(
+                "成品不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.return_quantity, Some(None)) {
+            return Err(AppError::business_displayable(
+                "收回数量不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.loss_quantity, Some(None)) {
+            return Err(AppError::business_displayable(
+                "损耗数量不能清空：该字段为必填项",
+            ));
+        }
+
         let model = self.get_by_id(id).await?;
         if model.status != outsourcing_receipt_status::DRAFT {
             return Err(AppError::business(format!(
@@ -215,42 +241,48 @@ impl OutsourcingReceiptService {
 
         let mut active: ReceiptActiveModel = model.into();
 
-        if let Some(v) = req.receipt_date {
+        // NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.receipt_date.flatten() {
             active.receipt_date = Set(v);
         }
-        if let Some(v) = req.product_id {
+        if let Some(v) = req.product_id.flatten() {
             active.product_id = Set(v);
         }
-        if let Some(v) = req.color_no {
-            active.color_no = Set(Some(v));
-        }
-        if let Some(v) = req.dye_lot_no {
-            active.dye_lot_no = Set(Some(v));
-        }
-        if let Some(v) = req.batch_no {
-            active.batch_no = Set(Some(v));
-        }
-        if let Some(v) = req.warehouse_id {
-            active.warehouse_id = Set(Some(v));
-        }
-        if let Some(v) = req.return_quantity {
+        if let Some(v) = req.return_quantity.flatten() {
             if v < Decimal::ZERO {
                 return Err(AppError::business("收回数量不能为负"));
             }
             active.return_quantity = Set(v);
         }
-        if let Some(v) = req.loss_quantity {
+        if let Some(v) = req.loss_quantity.flatten() {
             active.loss_quantity = Set(v);
         }
+        // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
+        if let Some(v) = req.color_no {
+            active.color_no = Set(v);
+        }
+        if let Some(v) = req.dye_lot_no {
+            active.dye_lot_no = Set(v);
+        }
+        if let Some(v) = req.batch_no {
+            active.batch_no = Set(v);
+        }
+        if let Some(v) = req.warehouse_id {
+            active.warehouse_id = Set(v);
+        }
+        // quality_status：DB 可空列（v15:707）——Some(None)=Set(None) 清空回"未检"，
+        // Some(Some(v)) 覆盖前校验词表（词表 outsourcing_receipt_quality_status）
         if let Some(v) = req.quality_status {
-            validate_receipt_quality_status(&v)?;
-            active.quality_status = Set(Some(v));
+            if let Some(v) = v.as_ref() {
+                validate_receipt_quality_status(v)?;
+            }
+            active.quality_status = Set(v);
         }
         if let Some(v) = req.grade {
-            active.grade = Set(Some(v));
+            active.grade = Set(v);
         }
         if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
+            active.remarks = Set(v);
         }
 
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());

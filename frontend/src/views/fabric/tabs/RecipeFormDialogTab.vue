@@ -74,7 +74,12 @@ import { ref, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance } from 'element-plus';
-import { createDyeRecipe, updateDyeRecipe, type DyeRecipe } from '@/api/dye-recipe';
+import {
+  createDyeRecipe,
+  updateDyeRecipe,
+  type DyeRecipe,
+  type DyeRecipeUpdatePayload,
+} from '@/api/dye-recipe';
 import { generateUniqueDocNo } from '@/utils/document-no';
 import { logger } from '@/utils/logger';
 
@@ -157,7 +162,18 @@ const handleSubmit = async () => {
   submitLoading.value = true;
   try {
     if (formData.id) {
-      await updateDyeRecipe(formData.id, formData as unknown as Partial<DyeRecipe>);
+      // 三态语义（后端 UpdateDyeRecipeRequest DoubleOption，RFC 7386）：
+      // 对话框已回显原值；可空列（color_name/fabric_type/chemical_formula/status）
+      // UI 清空 ⇒ 送显式 null（=清空为 NULL）、未改动 ⇒ 原值回传；
+      // recipe_no/recipe_name/version 不在后端更新契约内（update DTO 无这些键），不提交——
+      // 配方号/配方名改动只在 create 路径生效，此为后端更新 DTO 的既有能力边界
+      const updatePayload: DyeRecipeUpdatePayload = {
+        color_name: formData.color_name || null,
+        fabric_type: formData.fabric_type || null,
+        chemical_formula: formData.chemical_formula || null,
+        status: formData.status,
+      };
+      await updateDyeRecipe(formData.id, updatePayload);
     } else {
       await createDyeRecipe(formData as unknown as Partial<DyeRecipe>);
     }

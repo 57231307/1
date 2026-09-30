@@ -217,7 +217,12 @@ impl ProductionOrderService {
                     .one(&*self.db)
                     .await?;
                 if existing.is_some() {
-                    return Err(AppError::validation(format!("订单号 {} 已存在", no)));
+                    // 唯一性冲突：用户提交的订单号已被占用，按 #165 判据归业务族；
+                    // 回显的是用户自己提交的订单号，可外显。
+                    return Err(AppError::business_displayable(format!(
+                        "订单号 {} 已存在",
+                        no
+                    )));
                 }
                 Ok(no.to_string())
             }
@@ -259,7 +264,8 @@ impl ProductionOrderService {
         active.insert(&*self.db).await.map_err(|e| {
             let err_str = e.to_string();
             if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                AppError::validation("订单号已存在，请稍后重试")
+                // 唯一性冲突（DB 约束兜底）：归业务族；文案已剔除 SQL/约束原文，只述业务事实可外显
+                AppError::business_displayable("订单号已存在，请稍后重试")
             } else {
                 AppError::database(e.to_string())
             }
@@ -342,7 +348,8 @@ impl ProductionOrderService {
         let model = active_model.insert(&*self.db).await.map_err(|e| {
             let err_str = e.to_string();
             if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                AppError::validation("返工订单号已存在，请稍后重试")
+                // 唯一性冲突（返工单号 DB 约束兜底）：归业务族；文案不含 SQL/表名可外显
+                AppError::business_displayable("返工订单号已存在，请稍后重试")
             } else {
                 AppError::database(e.to_string())
             }
@@ -476,11 +483,28 @@ impl ProductionOrderService {
     }
 
     /// 更新生产订单
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set（列不进 UPDATE，原值不动）；Some(None)=Set(None) 置 NULL（仅 DB 可空列）；
+    /// Some(Some(v))=Set(v) 覆盖。NOT NULL 列（planned_quantity/priority）的显式 null
+    /// 在任何 DB 访问前以业务错误拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
         req: UpdateProductionOrderRequest,
     ) -> Result<ProductionOrderModel, AppError> {
+        // NOT NULL 列门控（planned_quantity NOT NULL m0007:78、priority NOT NULL m0007:84）：
+        if matches!(req.planned_quantity, Some(None)) {
+            return Err(AppError::business_displayable(
+                "计划数量不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.priority, Some(None)) {
+            return Err(AppError::business_displayable(
+                "优先级不能清空：该字段为必填项",
+            ));
+        }
+
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -500,23 +524,25 @@ impl ProductionOrderService {
 
         let mut active_model: ActiveModel = model.into();
 
-        if let Some(planned_quantity) = req.planned_quantity {
-            active_model.planned_quantity = Set(planned_quantity);
+        // planned_quantity/priority 为 NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.planned_quantity.flatten() {
+            active_model.planned_quantity = Set(v);
         }
-        if let Some(planned_start_date) = req.planned_start_date {
-            active_model.planned_start_date = Set(Some(planned_start_date));
+        if let Some(v) = req.priority.flatten() {
+            active_model.priority = Set(v);
         }
-        if let Some(planned_end_date) = req.planned_end_date {
-            active_model.planned_end_date = Set(Some(planned_end_date));
+        // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
+        if let Some(v) = req.planned_start_date {
+            active_model.planned_start_date = Set(v);
         }
-        if let Some(priority) = req.priority {
-            active_model.priority = Set(priority);
+        if let Some(v) = req.planned_end_date {
+            active_model.planned_end_date = Set(v);
         }
-        if let Some(work_center_id) = req.work_center_id {
-            active_model.work_center_id = Set(Some(work_center_id));
+        if let Some(v) = req.work_center_id {
+            active_model.work_center_id = Set(v);
         }
-        if let Some(remarks) = req.remarks {
-            active_model.remarks = Set(Some(remarks));
+        if let Some(v) = req.remarks {
+            active_model.remarks = Set(v);
         }
 
         active_model.updated_at = Set(Utc::now());

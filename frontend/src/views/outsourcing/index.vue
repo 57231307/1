@@ -483,7 +483,9 @@ const onSave = async () => {
         order_type: form.order_type,
         supplier_id: form.supplier_id,
         issue_date: form.issue_date,
-        expected_return_date: form.expected_return_date || undefined,
+        // expected_return_date 为 DB 可空列（三态）：对话框已回显原值，
+        // UI 清空 ⇒ 送显式 null（=清空），未改动 ⇒ 原值回传；其余未采集键省略=保持原值
+        expected_return_date: form.expected_return_date || null,
         issue_quantity: form.issue_quantity,
         issue_unit: form.issue_unit || undefined,
         material_cost: form.material_cost,

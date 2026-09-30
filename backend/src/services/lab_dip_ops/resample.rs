@@ -275,12 +275,17 @@ impl LabDipResampleService {
             let liquor_ratio_decimal = adjusted_liquor_ratio
                 .as_deref()
                 .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
+            // UpdateDyeRecipeRequest 为三态 DTO（Option<Option<T>>）：复样调整值存在=Some(Some(v)) 覆盖，
+            // 缺席=键 None 保持原值（内部回写不产生"显式 null 清空"语义）
             let update_req = crate::services::dye_recipe_service::UpdateDyeRecipeRequest {
-                chemical_formula: adjusted_formula,
-                temperature: adjusted_temperature,
-                time_minutes: adjusted_time_minutes,
-                liquor_ratio: liquor_ratio_decimal,
-                remarks: Some(format!("复样通过自动回写（复样单号: {}）", resample_no)),
+                chemical_formula: adjusted_formula.map(Some),
+                temperature: adjusted_temperature.map(Some),
+                time_minutes: adjusted_time_minutes.map(Some),
+                liquor_ratio: liquor_ratio_decimal.map(Some),
+                remarks: Some(Some(format!(
+                    "复样通过自动回写（复样单号: {}）",
+                    resample_no
+                ))),
                 ..Default::default()
             };
             match recipe_service.update(recipe_id, update_req).await {

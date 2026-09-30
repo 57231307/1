@@ -129,69 +129,92 @@ impl LabDipRequestService {
     }
 
     /// 更新打样通知单（仅 pending/sampling 状态可更新）
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set、Some(None)=Set(None) 置 NULL（仅 DB 可空列）、Some(Some(v))=Set(v) 覆盖；
+    /// NOT NULL 列（light_source/sample_versions/required_date，v15 lab_dip_request DDL）
+    /// 的显式 null 在任何 DB 访问前拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
         req: UpdateLabDipRequestRequest,
     ) -> Result<RequestModel, AppError> {
+        if matches!(req.light_source, Some(None)) {
+            return Err(AppError::business_displayable(
+                "主对色光源不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.sample_versions, Some(None)) {
+            return Err(AppError::business_displayable(
+                "打样版数不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.required_date, Some(None)) {
+            return Err(AppError::business_displayable(
+                "客户要求交期不能清空：该字段为必填项",
+            ));
+        }
+
         let model = self.get_by_id(id).await?;
         Self::validate_can_update(&model.status)?;
 
         let mut active: RequestActiveModel = model.into();
 
+        // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
         if let Some(v) = req.customer_id {
-            active.customer_id = Set(Some(v));
+            active.customer_id = Set(v);
         }
         if let Some(v) = req.customer_color_no {
-            active.customer_color_no = Set(Some(v));
+            active.customer_color_no = Set(v);
         }
         if let Some(v) = req.customer_color_name {
-            active.customer_color_name = Set(Some(v));
+            active.customer_color_name = Set(v);
         }
         if let Some(v) = req.sample_type {
-            active.sample_type = Set(Some(v));
+            active.sample_type = Set(v);
         }
         if let Some(v) = req.fabric_spec {
-            active.fabric_spec = Set(Some(v));
+            active.fabric_spec = Set(v);
         }
         if let Some(v) = req.fabric_component {
-            active.fabric_component = Set(Some(v));
+            active.fabric_component = Set(v);
         }
         if let Some(v) = req.sample_size {
-            active.sample_size = Set(Some(v));
+            active.sample_size = Set(v);
         }
-        if let Some(v) = req.light_source {
+        if let Some(v) = req.secondary_light_source {
+            active.secondary_light_source = Set(v);
+        }
+        if let Some(v) = req.color_fastness_req {
+            active.color_fastness_req = Set(v);
+        }
+        if let Some(v) = req.eco_requirement {
+            active.eco_requirement = Set(v);
+        }
+        if let Some(v) = req.dye_category {
+            active.dye_category = Set(v);
+        }
+        if let Some(v) = req.expected_days {
+            active.expected_days = Set(v);
+        }
+        if let Some(v) = req.remarks {
+            active.remarks = Set(v);
+        }
+        // NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.light_source.flatten() {
             if v.trim().is_empty() {
                 return Err(AppError::business("对色光源不能为空"));
             }
             active.light_source = Set(v);
         }
-        if let Some(v) = req.secondary_light_source {
-            active.secondary_light_source = Set(Some(v));
-        }
-        if let Some(v) = req.color_fastness_req {
-            active.color_fastness_req = Set(Some(v));
-        }
-        if let Some(v) = req.eco_requirement {
-            active.eco_requirement = Set(Some(v));
-        }
-        if let Some(v) = req.sample_versions {
+        if let Some(v) = req.sample_versions.flatten() {
             if !(1..=10).contains(&v) {
                 return Err(AppError::business("打样版数范围 1-10"));
             }
             active.sample_versions = Set(v);
         }
-        if let Some(v) = req.dye_category {
-            active.dye_category = Set(Some(v));
-        }
-        if let Some(v) = req.required_date {
+        if let Some(v) = req.required_date.flatten() {
             active.required_date = Set(v);
-        }
-        if let Some(v) = req.expected_days {
-            active.expected_days = Set(Some(v));
-        }
-        if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
         }
 
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());

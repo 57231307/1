@@ -66,20 +66,25 @@ pub struct CreateProductionOrderRequest {
 }
 
 /// 更新生产订单请求
+///
+/// 字段三态语义（RFC 7386 JSON Merge Patch，形态对齐 handlers/department_handler.rs）：
+/// 键缺席=保持原值、显式 null=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（planned_quantity/priority，m0007 DDL）同样双层表示，
+/// 显式 null 由 service 入口在任何 DB 访问前判业务错误拒绝。
 #[derive(Debug, Clone)]
 pub struct UpdateProductionOrderRequest {
-    /// 计划数量
-    pub planned_quantity: Option<Decimal>,
-    /// 计划开始日期
-    pub planned_start_date: Option<chrono::NaiveDate>,
-    /// 计划结束日期
-    pub planned_end_date: Option<chrono::NaiveDate>,
-    /// 优先级
-    pub priority: Option<i32>,
-    /// 工作中心 ID
-    pub work_center_id: Option<i32>,
-    /// 备注
-    pub remarks: Option<String>,
+    /// 计划数量：NOT NULL DECIMAL（m0007:78）——显式 null 被 service 拒绝
+    pub planned_quantity: Option<Option<Decimal>>,
+    /// 计划开始日期：DB 可空 DATE（m0007:80）——显式 null 清空
+    pub planned_start_date: Option<Option<chrono::NaiveDate>>,
+    /// 计划结束日期：DB 可空 DATE（m0007:81）——显式 null 清空
+    pub planned_end_date: Option<Option<chrono::NaiveDate>>,
+    /// 优先级：NOT NULL INTEGER DEFAULT 5（m0007:84）——显式 null 被 service 拒绝
+    pub priority: Option<Option<i32>>,
+    /// 工作中心 ID：DB 可空 INTEGER（m0007:85）——显式 null 清空
+    pub work_center_id: Option<Option<i32>>,
+    /// 备注：DB 可空 TEXT（m0007:86）——显式 null 清空
+    pub remarks: Option<Option<String>>,
 }
 
 /// 生产订单查询参数

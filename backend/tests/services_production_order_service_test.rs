@@ -449,7 +449,11 @@ fn test_cwxx_gzzxbczbhid() {
 #[test]
 fn test_cwxx_ddhyczbhddh() {
     let order_no = "PO-20260709000000-0001";
-    let err = AppError::validation(format!("订单号 {} 已存在", order_no));
+    // 跟随装配点 crud.rs::ensure_order_no_available —— 唯一性冲突属业务族，
+    // 且回显用户自己提交的单号，用可外显变型。
+    let err = AppError::business_displayable(format!("订单号 {} 已存在", order_no));
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
     let msg = err.to_string();
     assert!(msg.contains(order_no), "错误消息应包含订单号");
 }
@@ -581,16 +585,17 @@ fn test_qqjg_cjddqqkgz() {
 /// test_qqjg_gxddqqkgz
 #[test]
 fn test_qqjg_gxddqqkgz() {
+    // 三态 DTO（Option<Option<T>>）：Some(Some(v))=覆盖；本用例锁"有值覆盖"形态
     let req = UpdateProductionOrderRequest {
-        planned_quantity: Some(decs!("200")),
-        planned_start_date: Some(ymd!(2026, 8, 1)),
-        planned_end_date: Some(ymd!(2026, 8, 31)),
-        priority: Some(8),
-        work_center_id: Some(2),
-        remarks: Some("更新后备注".to_string()),
+        planned_quantity: Some(Some(decs!("200"))),
+        planned_start_date: Some(Some(ymd!(2026, 8, 1))),
+        planned_end_date: Some(Some(ymd!(2026, 8, 31))),
+        priority: Some(Some(8)),
+        work_center_id: Some(Some(2)),
+        remarks: Some(Some("更新后备注".to_string())),
     };
-    assert_eq!(req.planned_quantity, Some(decs!("200")));
-    assert_eq!(req.priority, Some(8));
+    assert_eq!(req.planned_quantity, Some(Some(decs!("200"))));
+    assert_eq!(req.priority, Some(Some(8)));
 }
 
 /// test_cxcs_fycskgz

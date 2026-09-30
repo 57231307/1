@@ -702,8 +702,21 @@ const submitRecord = async () => {
   try {
     if (recordForm.id) {
       // 批次 94 P2-12 修复：原占位"更新功能待实现"，现接入真实更新 API
-      // 后端 UpdateInspectionRecordRequest 无 product_id/inspection_no，更新载荷不提交
-      await updateQualityRecord(recordForm.id, commonFields);
+      // 后端 UpdateInspectionRecordRequest 无 product_id/inspection_no，更新载荷不提交。
+      // 三态语义（RFC 7386）：对话框已回显原值；可空列 batch_no/inspector_id/remark
+      // UI 清空 ⇒ 送显式 null（=清空为 NULL），未改动 ⇒ 原值回传；
+      // NOT NULL/模型非 Option 列（inspection_type/inspection_date/total_qty/
+      // inspected_qty/inspection_result）恒送值——送 null 会被后端拒绝。
+      await updateQualityRecord(recordForm.id, {
+        inspection_type: recordForm.inspection_type,
+        inspection_date: recordForm.inspection_date,
+        total_qty,
+        inspected_qty,
+        inspection_result: recordForm.inspection_result,
+        batch_no: recordForm.batch_no || null,
+        inspector_id: recordForm.inspector_id ?? null,
+        remark: recordForm.remark || null,
+      });
     } else {
       await createQualityRecord({
         inspection_no: recordForm.inspection_no,
