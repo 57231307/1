@@ -14,11 +14,15 @@
 //! - 仅 pending/sampling 可更新，仅 pending 可删除
 //! - 送客户确认前必须至少有 1 个小样；OK 样确认需选中属于该通知单的小样
 //!
-//! 纯函数（generate_request_no / validate_status_transition / validate_can_update
-//! / validate_can_delete）与 struct 定义、new 构造函数保留在 facade `lab_dip_service`。
+//! 打样通知单号在 create 的事务内经 DocumentNumberGenerator 取号
+//!（前缀常量 lab_dip_service::LAB_DIP_REQUEST_NO_PREFIX）；facade 中的
+//! generate_request_no 仅保留给存量单测验证历史格式，本模块不再调用。
+//! 其余纯函数（validate_status_transition / validate_can_update / validate_can_delete）
+//! 与 struct 定义、new 构造函数保留在 facade `lab_dip_service`。
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 
 use crate::models::lab_dip_request::{
@@ -29,7 +33,9 @@ use crate::models::lab_dip_sample::{
 };
 use crate::models::status::lab_dip_request as req_status;
 use crate::models::status::lab_dip_sample as sample_status;
+use crate::services::lab_dip_service::LAB_DIP_REQUEST_NO_PREFIX;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use crate::services::lab_dip_ops::types::{
     CreateLabDipRequestRequest, LabDipRequestQuery, UpdateLabDipRequestRequest,
@@ -61,7 +67,27 @@ impl LabDipRequestService {
             return Err(AppError::business("客户要求交期不能早于今天"));
         }
 
-        let request_no = Self::generate_request_no();
+        // 打样通知单号取号与 INSERT 同事务：lab_dip_request.request_no NOT NULL
+        // 无 UNIQUE（migration/src/domain/v15/mod.rs:2986），旧手写
+        // "LD-{14位时间戳}-{3位随机}" 同秒并发碰撞概率非零；改为按
+        // LAB_DIP_REQUEST_NO_PREFIX 经生成器在事务内取号（pg_advisory_xact_lock
+        // 持有到提交，参照 services/quotation_ops/lifecycle.rs:54）。
+        let txn = (*self.db).begin().await?;
+        let request_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            LAB_DIP_REQUEST_NO_PREFIX,
+            RequestEntity,
+            lab_dip_request::Column::RequestNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = LAB_DIP_REQUEST_NO_PREFIX,
+                "打样通知单号取号失败（lab_dip_ops/request.create）"
+            );
+            AppError::business_displayable("打样通知单号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = RequestActiveModel {
@@ -95,9 +121,10 @@ impl LabDipRequestService {
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("打样通知单创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 

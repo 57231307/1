@@ -36,6 +36,11 @@ impl ProcessRouteService {
 // 流转卡 Service struct 定义（impl 块在 flow_card_ops/card_crud、card_state 子模块）
 // ============================================================================
 
+/// 流转卡号（production_flow_card.card_no）自动编码前缀：沿用原手写格式
+/// "FC-{时间戳}-{随机}" 的业务前缀 FC，新格式统一为 {FC}{YYYYMMDD}{3位流水}
+///（前缀集中定义于此，ops 子模块只引用常量，不散落字面量）。
+pub const FLOW_CARD_NO_PREFIX: &str = "FC";
+
 /// 流转卡 Service
 pub struct FlowCardService {
     pub(crate) db: Arc<DatabaseConnection>,
@@ -46,7 +51,11 @@ impl FlowCardService {
         Self { db }
     }
 
-    /// 生成流转卡号：FC-YYYYMMDDHHMMSS-NNN
+    /// 生成流转卡号：FC-YYYYMMDDHHMMSS-NNN（历史手写格式）。
+    /// 注意：写入路径（flow_card_ops/card_crud.rs::create）已改为事务内经
+    /// DocumentNumberGenerator 按 FLOW_CARD_NO_PREFIX 取号，条码也改为与卡号同体；
+    /// 本函数仅保留给存量单测（backend/tests/services_flow_card_service_test.rs）
+    /// 验证历史格式，新代码不得再调用拼号。
     pub fn generate_card_no() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
@@ -54,7 +63,9 @@ impl FlowCardService {
         format!("FC-{}-{:03}", timestamp, random)
     }
 
-    /// 生成条码：FC + 14位时间戳 + 6位随机数
+    /// 生成条码：FC + 14位时间戳 + 6位随机数（历史手写格式）。
+    /// 注意：同 generate_card_no，写入路径已改为条码=卡号同体（见 card_crud::create），
+    /// 本函数仅保留给存量单测验证历史格式。
     pub fn generate_barcode() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
@@ -121,6 +132,11 @@ impl StepRecordService {
 // 工序质量反馈单 Service struct 定义（impl 块在 flow_card_ops/feedback 子模块）
 // ============================================================================
 
+/// 质量反馈单号（process_quality_feedback.feedback_no）自动编码前缀：
+/// 沿用原手写格式 "QF-{时间戳}-{随机}" 的业务前缀 QF，
+/// 新格式统一为 {QF}{YYYYMMDD}{3位流水}。
+pub const QUALITY_FEEDBACK_NO_PREFIX: &str = "QF";
+
 /// 质量反馈单 Service
 pub struct QualityFeedbackService {
     pub(crate) db: Arc<DatabaseConnection>,
@@ -131,7 +147,10 @@ impl QualityFeedbackService {
         Self { db }
     }
 
-    /// 生成反馈单号：QF-YYYYMMDDHHMMSS-NNN
+    /// 生成反馈单号：QF-YYYYMMDDHHMMSS-NNN（历史手写格式）。
+    /// 注意：写入路径（flow_card_ops/feedback.rs::create）已改为事务内经
+    /// DocumentNumberGenerator 按 QUALITY_FEEDBACK_NO_PREFIX 取号，本函数仅保留给
+    /// 存量单测（backend/tests/services_flow_card_service_test.rs）验证历史格式。
     pub fn generate_feedback_no() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");

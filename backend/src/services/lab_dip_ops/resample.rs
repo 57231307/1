@@ -11,16 +11,20 @@
 //! 业务规则：
 //! - 复样需通知单处于 approved 状态，源样为 selected（OK 样）
 //! - 车间半制品布批号必填（复样必须用车间半制品布，不可用化验室存布）
-//! - 复样单号格式：RS-YYYYMMDDHHMMSS-NNN
+//! - 复样单号格式：{RS}{YYYYMMDD}{3位流水}（事务内经 DocumentNumberGenerator 取号，
+//!   前缀常量 lab_dip_service::LAB_DIP_RESAMPLE_NO_PREFIX）
 //! - 复样结果：色差 4-5 级为 passed（可投产），<4 级为 failed（不可投产）
 //! - 染色技术卡仅复样通过可开（研发组长开卡），不可重复开卡
 //!
-//! 纯函数 generate_resample_no 与 struct 定义、new 构造函数保留在 facade `lab_dip_service`。
+//! facade 的 generate_resample_no 仅保留给存量单测验证历史格式，本模块取号
+//! 走 DocumentNumberGenerator（前缀常量 lab_dip_service::LAB_DIP_RESAMPLE_NO_PREFIX）；
+//! struct 定义与 new 构造函数保留在 facade `lab_dip_service`。
 
 use std::sync::Arc;
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
 };
 
 use crate::models::lab_dip_request::{self, Entity as RequestEntity};
@@ -33,7 +37,9 @@ use crate::models::lab_dip_sample::{
 use crate::models::status::lab_dip_request as req_status;
 use crate::models::status::lab_dip_resample as resample_status;
 use crate::models::status::lab_dip_sample as sample_status;
+use crate::services::lab_dip_service::LAB_DIP_RESAMPLE_NO_PREFIX;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use crate::services::lab_dip_ops::types::{
     CreateResampleRequest, IssueTechCardRequest, RecordResampleResultRequest,
@@ -48,14 +54,36 @@ impl LabDipResampleService {
             Self::validate_resample_source_sample(&self.db, req.request_id, req.source_sample_id)
                 .await?;
         Self::validate_workshop_fabric_batch(&req.workshop_fabric_batch)?;
-        let resample_no = Self::generate_resample_no();
+        // 复样单号取号、复样 INSERT 与源样状态回写收口到同一写入事务：
+        // lab_dip_resample.resample_no NOT NULL 无 UNIQUE
+        //（migration/src/domain/v15/mod.rs:3019），旧手写
+        // "RS-{14位时间戳}-{3位随机}" 同秒并发碰撞概率非零；改为按
+        // LAB_DIP_RESAMPLE_NO_PREFIX 经生成器在事务内取号（advisory 锁持有到提交，
+        // 参照 services/quotation_ops/lifecycle.rs:54）。
+        let txn = (*self.db).begin().await?;
+        let resample_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            LAB_DIP_RESAMPLE_NO_PREFIX,
+            ResampleEntity,
+            lab_dip_resample::Column::ResampleNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = LAB_DIP_RESAMPLE_NO_PREFIX,
+                "复样单号取号失败（lab_dip_ops/resample.create）"
+            );
+            AppError::business_displayable("复样单号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
         let active = Self::build_resample_active_model(req, resample_no, now);
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("复样记录创建失败: {}", e)))?;
-        Self::mark_source_sample_resampling(&self.db, source_sample, now).await?;
+        Self::mark_source_sample_resampling(&txn, source_sample, now).await?;
+        txn.commit().await?;
         Ok(result)
     }
 
@@ -149,9 +177,10 @@ impl LabDipResampleService {
         }
     }
 
-    /// 更新源样复样状态为 resampling
-    async fn mark_source_sample_resampling(
-        db: &DatabaseConnection,
+    /// 更新源样复样状态为 resampling（与复样 INSERT 同事务调用，故连接类型为泛型：
+    /// DatabaseConnection / DatabaseTransaction 均实现 ConnectionTrait）
+    async fn mark_source_sample_resampling<C: ConnectionTrait>(
+        db: &C,
         source_sample: SampleModel,
         now: chrono::DateTime<chrono::FixedOffset>,
     ) -> Result<(), AppError> {

@@ -12,7 +12,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, DatabaseConnection, EntityTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -22,6 +22,11 @@ use crate::models::dye_recipe::{
 };
 use crate::models::status::dye_recipe as recipe_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
+
+/// 配方编号（dye_recipe.recipe_no）自动编码前缀：沿用原手写格式
+/// "DR-{时间戳}-{随机}" 的业务前缀 DR，新格式统一为 {DR}{YYYYMMDD}{3位流水}。
+pub const DYE_RECIPE_NO_PREFIX: &str = "DR";
 
 /// 创建染色配方请求
 #[derive(Debug, Clone, Deserialize)]
@@ -86,8 +91,12 @@ impl DyeRecipeService {
         Self { db }
     }
 
-    /// 生成配方编号（格式：DR-{时间戳}-{4位随机}）
-    /// 若调用方提供了非空编号则直接使用
+    /// 生成配方编号（历史手写格式 DR-{时间戳}-{4位随机}，仅"传入非空则原样使用"
+    /// 的语义仍有效）。
+    /// 注意：写入路径（create）已改为在事务内经 DocumentNumberGenerator 按
+    /// {DR}{YYYYMMDD}{3位流水} 取号（见 DYE_RECIPE_NO_PREFIX），本函数只保留给
+    /// 存量单测（backend/tests/services_dye_recipe_service_test.rs）验证历史格式，
+    /// 新代码不得再调用本函数拼号——时间戳+随机在同一秒并发下有真实碰撞概率。
     pub fn generate_recipe_no(provided: Option<&str>) -> String {
         if let Some(no) = provided {
             if !no.is_empty() {
@@ -178,7 +187,39 @@ impl DyeRecipeService {
 
     /// 创建染色配方
     pub async fn create(&self, req: CreateDyeRecipeRequest) -> Result<DyeRecipeModel, AppError> {
-        let recipe_no = Self::generate_recipe_no(req.recipe_no.as_deref());
+        // 取号与 INSERT 同事务：调用方显式提供非空编号时尊重手工值（既有契约，
+        // 与 generate_recipe_no 的 provided 分支同语义）；否则经通用生成器在事务内
+        // 取 {DR}{YYYYMMDD}{3位流水}。
+        // 为什么不再用旧的 "DR-{14位时间戳}-{4位随机}"：同秒并发碰撞概率非零，且
+        // recipe_no 是配方业务识别与检索键（list 按前缀 contains 过滤、版本号按
+        // "{recipe_no}-V{n}" 派生）。DDL 事实：recipe_no 为
+        // migration/src/domain/system/mod.rs:126 ALTER 追加的 VARCHAR(255) 列、
+        // 无 UNIQUE 约束，唯一性由生成器 advisory 锁 + 事务内取号 + 占用探测保证
+        //（参照 services/quotation_ops/lifecycle.rs:54 的事务内取号路径）。
+        let provided_no = req
+            .recipe_no
+            .clone()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let txn = (*self.db).begin().await?;
+        let recipe_no = match provided_no {
+            Some(no) => no,
+            None => DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                DYE_RECIPE_NO_PREFIX,
+                DyeRecipeEntity,
+                dye_recipe::Column::RecipeNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    prefix = DYE_RECIPE_NO_PREFIX,
+                    "配方号取号失败（dye_recipe_service.create）"
+                );
+                AppError::business_displayable("配方号生成失败，请稍后重试")
+            })?,
+        };
 
         let active = ActiveModel {
             id: Default::default(),
@@ -219,9 +260,10 @@ impl DyeRecipeService {
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("配方创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 

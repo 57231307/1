@@ -8,7 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, FromQueryResult, JoinType,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 
@@ -20,11 +20,16 @@ use crate::models::dye_batch;
 use crate::models::greige_fabric;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use std::sync::Arc;
 
 use crate::services::dye_batch_state_machine_validation;
+
+/// 缸号（dye_batch.batch_no）自动编码前缀：沿用原手写格式 "DB-{时间戳}-{随机}"
+/// 的业务前缀 DB，新格式统一为 {DB}{YYYYMMDD}{3位流水}（前缀集中定义，禁止散落）。
+pub const DYE_BATCH_NO_PREFIX: &str = "DB";
 
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -160,13 +165,6 @@ pub async fn create_dye_batch(
         None => Some("pending_schedule".to_string()),
     };
 
-    // 自动生成缸号
-    let batch_no = req.batch_no.unwrap_or_else(|| {
-        let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_4_digit();
-        format!("DB-{}-{:04}", timestamp, random)
-    });
-
     // V15 P0-F01：dye_lot_no 默认 'DEFAULT'，新接口允许调用方传入实际染色批号
     // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
     let dye_lot_no = req.dye_lot_no.unwrap_or_else(|| "DEFAULT".to_string());
@@ -181,7 +179,9 @@ pub async fn create_dye_batch(
             .with_timezone(&crate::utils::date_utils::utc_offset())
     });
 
-    let batch = dye_batch::ActiveModel {
+    // 缸号落库形态集中构建：手工传入与自动生成两条插入路径共用同一 ActiveModel 组装，
+    // 避免两条路径字段漂移。
+    let build_active = |batch_no: String| dye_batch::ActiveModel {
         id: NotSet,
         batch_no: Set(batch_no),
         greige_fabric_id: Set(req.greige_fabric_id),
@@ -190,31 +190,57 @@ pub async fn create_dye_batch(
             .color_no
             .clone()
             .unwrap_or_else(|| "测试色号".to_string())),
-        color_no: Set(req.color_no),
-        dye_lot_no: Set(dye_lot_no),
+        color_no: Set(req.color_no.clone()),
+        dye_lot_no: Set(dye_lot_no.clone()),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),
-        status: Set(status),
+        status: Set(status.clone()),
         started_at: Set(started_at),
         completed_at: Set(None),
-        remarks: Set(req.remarks),
+        remarks: Set(req.remarks.clone()),
         is_deleted: Set(Some(false)),
         created_at: Set(crate::utils::date_utils::utc_now_fixed()),
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
-    // 使用 insert 获取返回的 Model
-    dye_batch::Entity::insert(batch)
-        .exec_without_returning(&*state.db)
-        .await?;
-
-    // 重新查询获取创建的记录
-    // 批次 407 修复：DB 回查错误不能吞，返回空模型但消息说"创建成功"会误导用户，改为返回错误
-    let created = dye_batch::Entity::find()
-        .order_by_desc(dye_batch::Column::Id)
-        .one(&*state.db)
+    // 自动生成缸号：取号与主表 INSERT 收口到同一写入事务。
+    // 为什么：dye_batch.batch_no 带 UNIQUE 约束（migration/src/domain/system/
+    // m0003_add_dye_tables.rs:12 `"batch_no" VARCHAR(50) NOT NULL UNIQUE`），
+    // 旧手写 "DB-{14位时间戳}-{4位随机}" 同秒并发碰撞概率非零，撞约束即 500。
+    // 现走 DocumentNumberGenerator::insert_with_no_retry：pg_advisory_xact_lock
+    // 事务内取号 + INSERT 撞 23505 时在保存点内重新取号重试
+    //（用法参照 services/so/order_crud.rs:125）。
+    let txn = (*state.db).begin().await?;
+    let provided_no = req
+        .batch_no
+        .clone()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let created = match provided_no {
+        // 调用方显式传入非空缸号时尊重手工值（既有契约不变）；若与存量重复，
+        // UNIQUE 违规经 AppError 的 DbErr 映射显式上抛，不静默改写、不兜底。
+        Some(batch_no) => build_active(batch_no).insert(&txn).await?,
+        None => DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            DYE_BATCH_NO_PREFIX,
+            dye_batch::Entity,
+            dye_batch::Column::BatchNo,
+            build_active,
+        )
         .await
-        .map_err(|e| AppError::internal(format!("缸号创建后回查失败: {}", e)))?
-        .ok_or_else(|| AppError::internal("缸号创建后回查未找到记录"))?;
+        .map_err(|e| {
+            // fail-visible：记录根因。生成器取号类失败自带 business_displayable
+            // 出参；INSERT 的非唯一约束 SQL 错误（如 FK 缺行）责任在数据/引用参数，
+            // 原样上抛避免被"缸号生成失败"误导。
+            tracing::error!(
+                error = %e,
+                prefix = DYE_BATCH_NO_PREFIX,
+                "缸号取号或插入失败（create_dye_batch）"
+            );
+            e
+        })?,
+    };
+    txn.commit().await?;
+
     Ok(Json(ApiResponse::success_with_message(
         created,
         "缸号创建成功",
