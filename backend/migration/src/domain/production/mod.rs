@@ -35,6 +35,7 @@ pub(crate) mod m0058_add_delivery_tolerance;
 mod m0059_add_product_piece_roll_conversion;
 mod m0060_add_so_item_tolerance;
 mod m0061_custom_order_status_add_lab_dip_quotation;
+mod m0062_add_dye_batch_actual_output;
 
 pub struct Migration;
 
@@ -162,6 +163,10 @@ impl MigrationTrait for Migration {
         m0060_add_so_item_tolerance::Migration.up(manager).await?;
         // 定制订单状态 CHECK 补齐 lab_dip/quotation（与状态机 as_str() 同源），须在建表后执行
         m0061_custom_order_status_add_lab_dip_quotation::Migration
+            .up(manager)
+            .await?;
+        // 缸号完工实际产出三列（dye_batch 表由 system 域 m0003 建表，早于 production 域执行）
+        m0062_add_dye_batch_actual_output::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
@@ -465,6 +470,9 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        m0062_add_dye_batch_actual_output::Migration
+            .down(manager)
+            .await?;
         m0061_custom_order_status_add_lab_dip_quotation::Migration
             .down(manager)
             .await?;

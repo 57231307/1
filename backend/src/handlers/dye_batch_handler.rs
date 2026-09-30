@@ -12,6 +12,7 @@ use sea_orm::{
     Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
@@ -73,6 +74,24 @@ pub struct UpdateDyeBatchRequest {
     pub remarks: Option<String>,
 }
 
+/// 完工登记请求（任务 #168）：完工时强制登记实际产出三值，粒度 kg + 米 + 坯布投料量。
+/// 依据：fabric-industry-research.md:149-158 缸号承载"最终落布重量"；印染完工申报必登记
+/// 实际产量（单位成本/单位能耗均以产量为分母）。三值必填、为正、≤10 亿、最多 2 位小数
+/// （DECIMAL(12,2) 列精度），复用全仓统一范围校验 `utils::validator::validate_amount_range`
+/// （先例：ar_payment_handler.rs:33）。产出/投料比不做拒绝门：仓内唯一权威失重率口径是
+/// 委外域"正常/异常损耗"核算分类标准（outsourcing_service.rs:76-97 染色 5%，§5.7 行业中值），
+/// 语义为损耗分类而非完工拒绝边界，硬套会误伤真实发生的异常损耗完工；
+/// 完工拒绝阈值待产品给口径（见交付报告登记项）。
+#[derive(Debug, Deserialize, Validate)]
+pub struct CompleteDyeBatchRequest {
+    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
+    pub actual_output_kg: Decimal,
+    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
+    pub actual_output_m: Decimal,
+    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
+    pub greige_input_kg: Decimal,
+}
+
 /// 缸号列表出参 DTO：实体 `dye_batch::Model` 全字段 + 经 LEFT JOIN 富化的坯布名称。
 /// 严格对齐前端 `api/dye-batch.ts::DyeBatch` 键集；可空列以 `Option` 表达，NOT NULL 列不用 `Option`。
 /// 唯一富化方式：`column_as(greige_fabric.fabric_name, "greige_fabric_name")` + `LeftJoin`
@@ -87,6 +106,9 @@ pub struct DyeBatchDto {
     pub color_no: Option<String>,
     pub dye_lot_no: String,
     pub planned_quantity: Option<Decimal>,
+    pub actual_output_kg: Option<Decimal>,
+    pub actual_output_m: Option<Decimal>,
+    pub greige_input_kg: Option<Decimal>,
     pub status: Option<String>,
     pub started_at: Option<DateTimeWithTimeZone>,
     pub completed_at: Option<DateTimeWithTimeZone>,
@@ -278,6 +300,10 @@ pub async fn create_dye_batch(
         color_no: Set(identity.color_no.clone()),
         dye_lot_no: Set(identity.dye_lot_no.clone()),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),
+        // 完工实际产出三列仅由 complete 端点登记，新建时为 NULL（真实空值，不占位）
+        actual_output_kg: Set(None),
+        actual_output_m: Set(None),
+        greige_input_kg: Set(None),
         status: Set(status.clone()),
         started_at: Set(started_at),
         completed_at: Set(None),
@@ -443,11 +469,21 @@ pub async fn delete_dye_batch(
     Ok(Json(ApiResponse::success_with_message((), "缸号删除成功")))
 }
 
+/// 完工登记：强制采集实际产出三值（kg/米/坯布投料量）→ 落库三列 → 走既有 14 态状态机
+/// 流转至 stored。校验顺序：先输入校验（validate_amount_range，失败 400 且不推进状态），
+/// 再状态机门控（沿用本 handler 既有 business 族，不改错误族选择）。
+/// 落库后的实际产量是成本归集/能耗分摊分母的唯一来源
+/// （services/dye_batch_cost_bridge_service.rs 回填 cost_collection.output_quantity_*）。
 pub async fn complete_dye_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     _auth: AuthContext,
+    Json(req): Json<CompleteDyeBatchRequest>,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
+    // 输入校验先于状态推进：非法产出值一律 validation_displayable（只回显用户提交数值），
+    // 绝不静默推进状态。From<ValidationErrors> 已统一映射为可外显 400（utils/error.rs:449）。
+    req.validate().map_err(AppError::from)?;
+
     let model = dye_batch::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
@@ -457,6 +493,8 @@ pub async fn complete_dye_batch(
         .status
         .clone()
         .unwrap_or_else(|| "pending_schedule".to_string());
+    let greige_input_kg = req.greige_input_kg;
+    let actual_output_kg = req.actual_output_kg;
     let mut batch: dye_batch::ActiveModel = model.into();
 
     // 检查当前状态是否允许完成（流转到 stored 终态前态）
@@ -469,11 +507,35 @@ pub async fn complete_dye_batch(
 
     // 染色完成时发布 DyeBatchCompleted 业务事件，供质检单生成、染缸产能统计、
     // 成本结转、BI 生产报表等下游被动感知
+    batch.actual_output_kg = Set(Some(actual_output_kg));
+    batch.actual_output_m = Set(Some(req.actual_output_m));
+    batch.greige_input_kg = Set(Some(greige_input_kg));
     batch.status = Set(Some("stored".to_string()));
     batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
     batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = batch.update(&*state.db).await?;
+
+    // 失重率参考日志（非拒绝门）：仓内权威染色损耗标准 5%（§5.7 行业中值，
+    // outsourcing_service.rs::compute_standard_loss_rate，与委外域同源）。超过标准仅
+    // fail-visible 记 warn 供追查，不阻断完工——完工拒绝阈值待产品给口径（见交付报告）。
+    let standard_loss = crate::services::outsourcing_service::compute_standard_loss_rate(
+        crate::models::status::wage_energy_chemical_business::outsourcing_order_type::DYEING,
+    );
+    if actual_output_kg <= greige_input_kg {
+        let loss_rate = (greige_input_kg - actual_output_kg) / greige_input_kg;
+        if loss_rate > standard_loss {
+            tracing::warn!(
+                batch_id = updated.id,
+                batch_no = %updated.batch_no,
+                actual_output_kg = %actual_output_kg,
+                greige_input_kg = %greige_input_kg,
+                loss_rate = %loss_rate.round_dp(4),
+                standard_loss_rate = %standard_loss,
+                "完工失重率超过染色标准损耗率（仅记录不拒绝；完工阈值待产品口径）"
+            );
+        }
+    }
 
     // 落库成功后发布 DyeBatchCompleted 事件
     crate::services::event_bus::EVENT_BUS.publish(
@@ -489,7 +551,10 @@ pub async fn complete_dye_batch(
     tracing::info!(
         batch_id = updated.id,
         batch_no = %updated.batch_no,
-        "染色完成，已发布 DyeBatchCompleted 事件"
+        actual_output_kg = %updated.actual_output_kg.unwrap_or(rust_decimal::Decimal::ZERO),
+        actual_output_m = %updated.actual_output_m.unwrap_or(rust_decimal::Decimal::ZERO),
+        greige_input_kg = %updated.greige_input_kg.unwrap_or(rust_decimal::Decimal::ZERO),
+        "染色完成，实际产出已登记，已发布 DyeBatchCompleted 事件"
     );
 
     Ok(Json(ApiResponse::success_with_message(

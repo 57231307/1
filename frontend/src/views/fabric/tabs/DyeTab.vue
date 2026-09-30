@@ -33,6 +33,32 @@
           width="100"
           align="right"
         />
+        <!-- 完工登记实际产出三列（真实列名对齐后端 models/dye_batch.rs；Decimal 字符串
+             Number() 归一后格式化，NULL 显 '-'，不做兜底掩盖） -->
+        <el-table-column
+          prop="actual_output_kg"
+          :label="t('fabric.dyeTab.columnActualOutputKg')"
+          width="130"
+          align="right"
+        >
+          <template #default="{ row }">{{ formatDecimal(row.actual_output_kg) }}</template>
+        </el-table-column>
+        <el-table-column
+          prop="actual_output_m"
+          :label="t('fabric.dyeTab.columnActualOutputM')"
+          width="130"
+          align="right"
+        >
+          <template #default="{ row }">{{ formatDecimal(row.actual_output_m) }}</template>
+        </el-table-column>
+        <el-table-column
+          prop="greige_input_kg"
+          :label="t('fabric.dyeTab.columnGreigeInputKg')"
+          width="130"
+          align="right"
+        >
+          <template #default="{ row }">{{ formatDecimal(row.greige_input_kg) }}</template>
+        </el-table-column>
         <el-table-column
           prop="status"
           :label="t('fabric.dyeTab.columnStatus')"
@@ -77,15 +103,22 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- 完工登记对话框：强制采集实际产出三值（后端 CompleteDyeBatchRequest 必填契约） -->
+    <CompleteDyeBatchDialog
+      v-model="completeDialogVisible"
+      :batch="completingBatch"
+      @success="fetchBatches"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { completeDyeBatch, type DyeBatch } from '@/api/dye-batch';
+import type { DyeBatch } from '@/api/dye-batch';
+import CompleteDyeBatchDialog from '@/components/CompleteDyeBatchDialog.vue';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -157,23 +190,20 @@ const fetchBatches = async () => {
 const openCreate = () => emit('openDialog', null);
 const openEdit = (row: DyeBatch) => emit('openDialog', row);
 
-const handleComplete = async (row: DyeBatch) => {
-  try {
-    await ElMessageBox.confirm(
-      t('fabric.dyeTab.confirmCompleteContent'),
-      t('fabric.common.confirmTitle'),
-      { type: 'info' }
-    );
-    await completeDyeBatch(row.id);
-    ElMessage.success(t('fabric.common.success'));
-    fetchBatches();
-  } catch (error) {
-    if (error !== 'cancel') {
-      const err = error as Error;
-      ElMessage.error(err.message || t('fabric.common.failed'));
-    }
-  }
+// 完成：后端 complete 端点强制采集实际产出三值（CompleteDyeBatchRequest），
+// 原"确认框即提交"形态已废弃——无产出登记的完工会让成本/能耗分母重新断链。
+const completeDialogVisible = ref(false);
+const completingBatch = ref<DyeBatch | null>(null);
+
+const handleComplete = (row: DyeBatch) => {
+  completingBatch.value = row;
+  completeDialogVisible.value = true;
 };
+
+// Decimal 出参为字符串（rust_decimal serde），Number() 归一后按列精度(12,2)格式化；
+// null（未完工/历史行）显 '-'，不做假值兜底
+const formatDecimal = (value: string | null | undefined): string =>
+  value === null || value === undefined ? '-' : Number(value).toFixed(2);
 
 onMounted(() => fetchBatches());
 

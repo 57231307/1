@@ -134,6 +134,32 @@
           width="100"
           align="right"
         />
+        <!-- 完工登记实际产出三列（真实列名对齐后端 models/dye_batch.rs；Decimal 字符串
+             Number() 归一后格式化，NULL 显 '-'，不做任何兜底掩盖） -->
+        <el-table-column
+          prop="actual_output_kg"
+          :label="t('dyeBatch.index.colActualOutputKg')"
+          width="130"
+          align="right"
+        >
+          <template #default="{ row }">{{ formatDecimal(row.actual_output_kg) }}</template>
+        </el-table-column>
+        <el-table-column
+          prop="actual_output_m"
+          :label="t('dyeBatch.index.colActualOutputM')"
+          width="130"
+          align="right"
+        >
+          <template #default="{ row }">{{ formatDecimal(row.actual_output_m) }}</template>
+        </el-table-column>
+        <el-table-column
+          prop="greige_input_kg"
+          :label="t('dyeBatch.index.colGreigeInputKg')"
+          width="130"
+          align="right"
+        >
+          <template #default="{ row }">{{ formatDecimal(row.greige_input_kg) }}</template>
+        </el-table-column>
         <el-table-column
           prop="status"
           :label="t('dyeBatch.index.colStatus')"
@@ -308,6 +334,13 @@
         }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 完工登记对话框：强制采集实际产出三值（后端 CompleteDyeBatchRequest 必填契约） -->
+    <CompleteDyeBatchDialog
+      v-model="completeDialogVisible"
+      :batch="completingBatch"
+      @success="handleCompleteSuccess"
+    />
   </div>
 </template>
 
@@ -317,14 +350,9 @@ import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue';
-import {
-  createDyeBatch,
-  updateDyeBatch,
-  deleteDyeBatch,
-  completeDyeBatch,
-  exportDyeBatches,
-} from '@/api/dye-batch';
+import { createDyeBatch, updateDyeBatch, deleteDyeBatch, exportDyeBatches } from '@/api/dye-batch';
 import type { CreateDyeBatchPayload, DyeBatch, UpdateDyeBatchPayload } from '@/api/dye-batch';
+import CompleteDyeBatchDialog from '@/components/CompleteDyeBatchDialog.vue';
 import {
   DYE_BATCH_LIFECYCLE_STATUS,
   DYE_BATCH_LIFECYCLE_STATUSES,
@@ -494,20 +522,19 @@ const handleEdit = (row: DyeBatch) => {
   dialogVisible.value = true;
 };
 
-// 完成
-const handleComplete = async (row: DyeBatch) => {
-  try {
-    await ElMessageBox.confirm(
-      t('dyeBatch.index.messageConfirmComplete'),
-      t('dyeBatch.index.titlePrompt'),
-      { type: 'warning' }
-    );
-    await completeDyeBatch(row.id);
-    ElMessage.success(t('dyeBatch.index.messageOperationSuccess'));
-    refresh();
-  } catch (error) {
-    logger.error(t('dyeBatch.index.messageOperationFailed'), error);
-  }
+// 完成：后端 complete 端点强制采集实际产出三值（CompleteDyeBatchRequest），
+// 原"确认框即提交"形态已废弃——无产出登记的完工会让成本/能耗分母重新断链。
+// 打开受控对话框采集，提交由 CompleteDyeBatchDialog 完成并回调刷新。
+const completeDialogVisible = ref(false);
+const completingBatch = ref<DyeBatch | null>(null);
+
+const handleComplete = (row: DyeBatch) => {
+  completingBatch.value = row;
+  completeDialogVisible.value = true;
+};
+
+const handleCompleteSuccess = () => {
+  refresh();
 };
 
 // 删除
@@ -614,6 +641,11 @@ const canComplete = (row: DyeBatch): boolean =>
 
 // started_at 为时间戳列，列表仅展示日期部分
 const formatDate = (value: string | null): string => (value ? value.slice(0, 10) : '');
+
+// Decimal 出参为字符串（rust_decimal serde），Number() 归一后按列精度(12,2)格式化；
+// null（未完工/历史行）显 '-'，不做假值兜底
+const formatDecimal = (value: string | null): string =>
+  value === null || value === undefined ? '-' : Number(value).toFixed(2);
 
 const hasLoaded = createLazyLoader();
 
