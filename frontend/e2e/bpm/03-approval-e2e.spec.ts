@@ -13,6 +13,7 @@ import {
   apiCallRaw,
   apiCallExpectFail,
   failureCode,
+  APP_ERROR_CODES,
   genCode,
   tryCleanup,
 } from '../flow/helpers';
@@ -170,7 +171,9 @@ test.describe('03 审批端到端（通过/驳回）', () => {
     const { taskId } = await seedPendingTask(page);
     const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
 
-    // action='invalid' 不在 {approve, reject} 词表中
+    // action='invalid' 不在 {approve, reject} 词表中：属提交字段取值/枚举白名单校验，
+    // 源码装配点 services/bpm_ops/task.rs:56 `AppError::validation_displayable`
+    // → 400 + VALIDATION_ERROR（可外显真实文案），错误族归一后仍为 validation 族，保持。
     const fail = await apiCallExpectFail(page, 'POST', '/bpm/tasks/approve', {
       task_id: taskId,
       handler_id: me.id,
@@ -178,7 +181,7 @@ test.describe('03 审批端到端（通过/驳回）', () => {
       action: 'invalid_action',
     });
     expect(fail.status).toBe(400);
-    expect(failureCode(fail)).toBe('VALIDATION_ERROR');
+    expect(failureCode(fail)).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
   });
 
   test('03-04 重复审批已完成的任务被拒绝', async ({ page }) => {
@@ -200,9 +203,11 @@ test.describe('03 审批端到端（通过/驳回）', () => {
       handler_name: `e2e_user_${me.id}`,
       action: 'approve',
     });
-    // load_approve_context 检查 status != "pending" → validation error
+    // 状态门：load_approve_context 检查 status != pending（task.rs:121）
+    // 错误族归一（763c7ab9）后走 AppError::business_displayable「任务当前不处于待处理状态…」
+    // → 400 + BUSINESS_ERROR
     expect(fail.status).toBe(400);
-    expect(failureCode(fail)).toBe('VALIDATION_ERROR');
+    expect(failureCode(fail)).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
   test('03-05 流程定义不存在时发起流程返回 404', async ({ page }) => {

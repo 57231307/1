@@ -4,10 +4,11 @@
 //   路由 backend/src/routes/finance.rs:43-61（/invoices CRUD + /{id}/approve + /{id}/verify，
 //   经 mod.rs nest 至 /api/v1/erp/finance → 调用路径 /finance/invoices*）；
 //   状态词表 backend/src/models/status/finance.rs:87-93：pending → approved → verified（全小写），
-//   approve 状态门仅 pending（finance_invoice_service.rs:158-165），
+//   approve 状态门仅 pending（finance_invoice_service.rs:158-167），
 //   verify 写入 status="verified" 并落 paid_date（finance_invoice_service.rs:189-226）。
-// 全链每步「写后必 GET 回读」，含一个重复审批门控负例（断真实 400+BAD_REQUEST 机器码
-// 与状态不漂移；BadRequest 出参 message 被统一脱敏，不断原文），
+// 全链每步「写后必 GET 回读」，含一个重复审批门控负例（错误族归一 763c7ab9 后该状态门走
+//   脱敏 AppError::business → 断真实 400+BUSINESS_ERROR 机器码与状态不漂移；
+//   文案回显内部状态 token 不外显，不断 message 原文），
 // 最后到 /invoice-details 页面做 UI 级真值回读（表格行状态文案来自 GET 列表实数据，非 mock）。
 import { test, expect } from '../diagnose-fixture';
 import {
@@ -89,15 +90,17 @@ test.describe('12 发票管理建→审批→核销全链回读', () => {
     expect(g2.paid_date, '核销后 paid_date 应已写入（非空字符串）').not.toBeNull();
     expect(String(g2.paid_date).length, 'paid_date 应为真实时间文本').toBeGreaterThan(0);
 
-    // ⑤ 门控负例：verified 再 approve 被拒（状态门仅 pending，service:159-165）。
-    // 断真实 400 + BAD_REQUEST 机器码，且状态不漂移；不断脱敏后的 message 原文。
+    // ⑤ 门控负例：verified 再 approve 被拒（状态门仅 pending，service:159-167）。
+    // 装配点 finance_invoice_service.rs:163 错误族归一（763c7ab9）由 bad_request 改
+    // AppError::business（脱敏，文案含内部状态 token）→ 400 + BUSINESS_ERROR；
+    // 断真实 400 + 机器码，且状态不漂移；不断脱敏后的 message 原文。
     const fail = await apiCallExpectFail(page, 'POST', `/finance/invoices/${id}/approve`);
     expect(
       fail.status,
       `verified 后重复 approve 应 400，实际=${fail.status} code=${fail.code}`
     ).toBe(400);
-    expect(failureCode(fail), '重复 approve 机器码应为 BAD_REQUEST').toBe(
-      APP_ERROR_CODES.BAD_REQUEST
+    expect(failureCode(fail), '重复 approve 机器码应为 BUSINESS_ERROR').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
     );
     const g3 = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/finance/invoices/${id}`);
     expect(String(g3.status), '被拒后状态不得漂移').toBe('verified');
