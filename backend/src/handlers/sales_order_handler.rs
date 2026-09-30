@@ -771,15 +771,39 @@ pub struct CancelDeliveryRequest {
 
 /// 获取订单统计
 /// GET /api/v1/erp/sales/orders/statistics
+///
+/// `Query<serde_json::Value>` 透传给 service 时，service 用 `as_i64()` 读 `customer_id`，而
+/// urlencoded 下该值恒为 `Value::String` ⇒ `customer_id` 筛选静默失效（统计恒为全量）。
+/// 改 typed DTO 定型解析（非法值 400），再把 `customer_id` 以 `Value::Number` 重建，令既有
+/// service 查询契约真正生效；`start_date`/`end_date` 按原键名以字符串透传，保持 service 兼容。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct OrderStatisticsQuery {
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub customer_id: Option<i64>,
+}
+
 pub async fn get_order_statistics(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Query(query): Query<serde_json::Value>,
+    Query(q): Query<OrderStatisticsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
+    let mut params = serde_json::Map::new();
+    if let Some(v) = q.start_date {
+        params.insert("start_date".to_string(), serde_json::Value::String(v));
+    }
+    if let Some(v) = q.end_date {
+        params.insert("end_date".to_string(), serde_json::Value::String(v));
+    }
+    if let Some(v) = q.customer_id {
+        params.insert("customer_id".to_string(), serde_json::Value::from(v));
+    }
+
     let statistics = sales_service
-        .get_order_statistics(query)
+        .get_order_statistics(serde_json::Value::Object(params))
         .await
         .map_err(|e| AppError::internal(format!("获取订单统计失败: {}", e)))?;
 

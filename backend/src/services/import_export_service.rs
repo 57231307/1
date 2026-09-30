@@ -322,12 +322,16 @@ impl ImportExportService {
                 )));
             }
             for (col_idx, cell) in row.iter().enumerate() {
-                if cell.len() > MAX_CELL_LEN {
+                // 统一为「字符」口径：handler 层已按 `chars().count()` 校验，service 层若用
+                // `cell.len()`（UTF-8 字节数）判「最大字符数限制」，中文单元格会出现
+                // 「过了 handler 却被 service 按字节拒」的双标。故此处按字符计数。
+                let cell_chars = cell.chars().count();
+                if cell_chars > MAX_CELL_LEN {
                     return Err(AppError::validation_displayable(format!(
                         "第 {} 行第 {} 列单元格长度超过最大字符数限制：当前 {} 字符，上限 {} 字符",
                         row_idx + 1,
                         col_idx + 1,
-                        cell.len(),
+                        cell_chars,
                         MAX_CELL_LEN
                     )));
                 }

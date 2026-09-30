@@ -433,11 +433,21 @@ pub async fn get_assist_balance(
 }
 
 /// GET /api/v1/erp/assist-accounting/check-balance - 辅助核算余额核对
+///
+/// 原 `Query<serde_json::Value>` + `as_str().unwrap_or("")`：urlencoded 下 as_str 虽能取到值，
+/// 但 `period` 缺失时静默传空串给 service（核对空期间，结果错误且不报错）。改 typed 必填 DTO，
+/// 缺参由 serde 直接 400，与同文件 `AssistBalanceQueryParams` 口径一致。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct CheckBalanceQuery {
+    pub period: String,
+}
+
 pub async fn check_assist_vs_general_balance(
     State(state): State<AppState>,
-    Query(params): Query<serde_json::Value>,
+    Query(params): Query<CheckBalanceQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let period = params.get("period").and_then(|v| v.as_str()).unwrap_or("");
+    let period = &params.period;
 
     info!("执行辅助核算余额核对: 期间={}", period);
 

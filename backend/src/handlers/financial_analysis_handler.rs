@@ -262,25 +262,26 @@ pub async fn create_trend(
 }
 
 /// GET /api/v1/erp/financial-analysis/reports - 财务分析报告列表
+///
+/// `Query<serde_json::Value>` + `as_i64()` 对 urlencoded 的 `?page=3` 恒失败并静默回落第 1 页。
+/// 改 typed DTO：serde 完成字符串→整数转换，非法值 400，分页真正生效。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct ListReportsQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
 pub async fn list_reports(
     State(state): State<AppState>,
     _auth: AuthContext,
-    Query(params): Query<serde_json::Value>,
+    Query(params): Query<ListReportsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FinancialAnalysisService::new(state.db.clone());
 
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let page = params
-        .get("page")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(1)
-        .clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-
-    let page_size = params
-        .get("page_size")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(20)
-        .clamp(1, 100); // v11 批次 36 修复：防止 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v11 批次 36 修复：防止 DoS
 
     let query_params = IndicatorQueryParams {
         page: page.saturating_sub(1),

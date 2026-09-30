@@ -729,16 +729,23 @@ pub async fn complete_count_plan(
 }
 
 /// GET /api/v1/erp/fixed-assets/count-plans - 查询盘点计划
+///
+/// `Query<serde_json::Value>` + `as_i64()` 对 urlencoded 的 `?page=2` 恒失败并静默回落第 1 页。
+/// 改 typed DTO：serde 完成字符串→整数转换，非法值 400（范围 clamp 由 service 既有实现负责）。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct ListCountPlansQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
 pub async fn list_count_plans(
     State(state): State<AppState>,
-    Query(params): Query<serde_json::Value>,
+    Query(params): Query<ListCountPlansQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
-    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
-    let page_size = params
-        .get("page_size")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(20);
+    let page = params.page.unwrap_or(1);
+    let page_size = params.page_size.unwrap_or(20);
     let result = service.list_count_plans(page, page_size).await?;
     Ok(Json(serde_json::json!({
         "code": 200,
