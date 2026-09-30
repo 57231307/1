@@ -97,12 +97,3 @@ export function createOutsourcingReceipt(data: Record<string, unknown>) {
 export function confirmOutsourcingReceipt(id: number) {
   return request.post(`/production/outsourcing-receipts/${id}/confirm`);
 }
-
-export const OUTSOURCING_STATUS_LABEL: Record<string, string> = {
-  draft: '草稿',
-  issued: '已发出',
-  processing: '加工中',
-  settled: '已结算',
-  closed: '已关闭',
-  cancelled: '已取消',
-};

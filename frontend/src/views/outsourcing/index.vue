@@ -11,8 +11,8 @@
             <el-table-column prop="order_type" label="类型" width="100" />
             <el-table-column label="状态" width="110">
               <template #default="{ row }">
-                <el-tag :type="statusTag(row.status)">{{
-                  OUTSOURCING_STATUS_LABEL[row.status] ?? row.status
+                <el-tag :type="outsourcingStatusTagType(row.status)">{{
+                  $t(outsourcingStatusLabelKey(row.status))
                 }}</el-tag>
               </template>
             </el-table-column>
@@ -41,7 +41,7 @@
                   >加工中</el-button
                 >
                 <el-button
-                  v-if="row.status === 'processing'"
+                  v-if="row.status === 'received'"
                   size="small"
                   type="success"
                   @click="onSettle(row)"
@@ -184,7 +184,7 @@
         <el-descriptions-item label="委外单号">{{ detailOrder.order_no }}</el-descriptions-item>
         <el-descriptions-item label="类型">{{ detailOrder.order_type }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{
-          OUTSOURCING_STATUS_LABEL[detailOrder.status] ?? detailOrder.status
+          $t(outsourcingStatusLabelKey(detailOrder.status))
         }}</el-descriptions-item>
         <el-descriptions-item label="供应商ID">{{ detailOrder.supplier_id }}</el-descriptions-item>
         <el-descriptions-item label="发出日期">{{ detailOrder.issue_date }}</el-descriptions-item>
@@ -334,6 +334,8 @@ import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
 import { logger } from '@/utils/logger';
+import { outsourcingStatusLabelKey, outsourcingStatusTagType } from '@/utils/outsourcing-status';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 import {
   OUTSOURCING_QUALITY_FORM_VALUES,
   OUTSOURCING_QUALITY_STATUS,
@@ -357,7 +359,6 @@ import {
   getOutsourcingReceiptList,
   createOutsourcingReceipt,
   confirmOutsourcingReceipt,
-  OUTSOURCING_STATUS_LABEL,
   type OutsourcingOrder,
 } from '@/api/outsourcing';
 
@@ -409,16 +410,6 @@ const form = reactive({
 
 const unwrapList = (p: unknown): OutsourcingOrder[] =>
   (p as { data: { items: OutsourcingOrder[] } }).data.items;
-
-const statusTag = (s: string) =>
-  ({
-    draft: 'info',
-    issued: 'primary',
-    processing: 'warning',
-    settled: 'success',
-    closed: 'info',
-    cancelled: 'danger',
-  })[s] ?? 'info';
 
 async function load() {
   loading.value = true;
@@ -550,10 +541,11 @@ const openDetail = async (row: OutsourcingOrder) => {
   detailVisible.value = true;
   itemLoading.value = true;
   try {
+    // 后端 outsourcing_handler.rs::list_outsourcing_items 出参 ApiResponse<Vec<Model>>：
+    // 成功信封载荷在 res.data（明细数组本身），非 res.items。旧代码读 res.items 恒 undefined，
+    // 明细表恒空且不报错（静默失败）。此处按单一信封形状取键，不做 items/data 双形状探测。
     const res = await getOutsourcingItems(row.id);
-    orderItems.value = Array.isArray(res)
-      ? res
-      : ((res as { items?: Array<Record<string, unknown>> })?.items ?? []);
+    orderItems.value = (res as ApiResponse<Array<Record<string, unknown>>>).data ?? [];
   } finally {
     itemLoading.value = false;
   }
@@ -608,10 +600,12 @@ const receiptForm = reactive({
 async function loadReceipts() {
   receiptLoading.value = true;
   try {
+    // 后端 outsourcing_handler.rs::list_outsourcing_receipts 出参 ApiResponse<PaginatedResponse>：
+    // 分页列表唯一形状是 {items,total,page,page_size}，载荷在 res.data.items，非 res.items。
+    // 旧代码读 res.items 恒 undefined → 收回单表恒空且不报错。此处按单一形状取键。
     const res = await getOutsourcingReceiptList();
-    receipts.value = Array.isArray(res)
-      ? res
-      : ((res as { items?: Array<Record<string, unknown>> })?.items ?? []);
+    receipts.value =
+      (res as ApiResponse<PaginatedResponse<Record<string, unknown>>>).data.items ?? [];
   } finally {
     receiptLoading.value = false;
   }
