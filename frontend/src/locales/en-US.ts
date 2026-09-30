@@ -10043,7 +10043,7 @@ export default {
       labelColor: 'Color',
       labelGreige: 'Greige Fabric',
       labelPlannedQuantity: 'Planned Quantity',
-      labelActualQuantity: 'Actual Quantity',
+      labelDyeLotNo: 'Dye Lot No.',
       labelStartDate: 'Start Date',
       saveFailed: 'Failed to save dye batch',
       docNoGenerateFailed: 'Failed to generate batch no., please reopen the dialog and retry',

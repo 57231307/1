@@ -7,8 +7,9 @@ use axum::{
 use rust_decimal::Decimal;
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, FromQueryResult, JoinType,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, ConnectionTrait, EntityTrait,
+    FromQueryResult, JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
+    Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +17,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
+use crate::models::color_card_item;
 use crate::models::dye_batch;
 use crate::models::greige_fabric;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
@@ -47,7 +49,9 @@ pub struct DyeBatchListQuery {
 pub struct CreateDyeBatchRequest {
     pub batch_no: Option<String>,
     pub greige_fabric_id: Option<i32>,
+    // 色号：空（None/空白）= 白坯；非空 = 染色布，必须能在色卡档案反查到。
     pub color_no: Option<String>,
+    // 染色批号：染色布（color_no 非空）必填，缺失显式拒绝；白坯归一为空串。禁止占位假值。
     pub dye_lot_no: Option<String>,
     pub planned_quantity: Option<f64>,
     pub status: Option<String>,
@@ -149,6 +153,83 @@ pub async fn get_dye_batch(
     Ok(Json(ApiResponse::success(batch)))
 }
 
+/// 缸号染色身份解析结果（color_no / color_code / color_name / dye_lot_no 四列的唯一落库来源）。
+#[derive(Debug, Clone)]
+pub struct ResolvedDyeIdentity {
+    pub color_no: Option<String>,
+    pub color_code: String,
+    pub color_name: String,
+    pub dye_lot_no: String,
+}
+
+/// 新建链路白坯/染色身份归一（唯一入口，禁止任何造假默认值：值只能来自用户提交或主数据派生）。
+///
+/// 口径与 `services/inv/fabric_class.rs:25-65`（白坯/染色判定全仓唯一实现）同型：
+/// - `color_no` 为空（None/纯空白，trim 归一）⇒ 白坯：色号的真实表示就是"没有颜色"，
+///   `color_code`/`color_name` 为 NOT NULL 列，白坯以空串落库表达（同源收口先例：
+///   `handlers/inventory_stock_handler_dto.rs:19` "白坯空值以空串表达，落库列 NOT NULL"、
+///   `services/purchase_return_service.rs` 三维归一空串口径）；白坯免缸号 ⇒ `dye_lot_no`
+///   归一为空串（`handlers/inventory_stock_handler_fabric.rs:137-160`：白坯携带染缸料将
+///   永久提不出，故主动归一，不得回填占位值）。
+/// - `color_no` 非空 ⇒ 染色布：`dye_lot_no` 必填，缺失即显式 400（fabric_class:54-58 同文案
+///   "染色布必须提供缸号"）；`color_code`/`color_name` 由色号主数据派生——按 color_code
+///   全局反查色卡明细（查询形态同 `services/color_card_scan_service.rs:71-82`，本仓唯一
+///   不带 product_id 的色号→名称权威查找；`product_colors` 是产品维度档案，dye_batch 无
+///   product_id，不可用作反查源）。档案无此色 ⇒ 显式 400（文案只回显用户提交的色号）；
+///   同色号多条记录无法唯一定位 ⇒ 显式业务错，不任选不兜底（四维歧义报业务错同源口径）。
+pub async fn resolve_dye_color_identity<C: ConnectionTrait>(
+    db: &C,
+    color_no: Option<String>,
+    dye_lot_no: Option<String>,
+) -> Result<ResolvedDyeIdentity, AppError> {
+    let color_no = color_no
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let dye_lot_no = dye_lot_no
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    let Some(color_no) = color_no else {
+        return Ok(ResolvedDyeIdentity {
+            color_no: None,
+            color_code: String::new(),
+            color_name: String::new(),
+            dye_lot_no: String::new(),
+        });
+    };
+
+    let dye_lot_no = dye_lot_no.ok_or_else(|| {
+        AppError::validation_displayable(format!(
+            "染色布必须提供缸号（color_no={color_no} 但 dye_lot_no 为空）"
+        ))
+    })?;
+
+    let items = color_card_item::Entity::find()
+        .filter(color_card_item::Column::ColorCode.eq(&color_no))
+        .all(db)
+        .await?;
+    let item = match items.as_slice() {
+        [] => {
+            return Err(AppError::validation_displayable(format!(
+                "色号 {color_no} 在色卡档案中不存在"
+            )));
+        }
+        [only] => only.clone(),
+        _ => {
+            return Err(AppError::business_displayable(format!(
+                "色号 {color_no} 在色卡档案中存在多条记录，无法唯一定位名称"
+            )));
+        }
+    };
+
+    Ok(ResolvedDyeIdentity {
+        color_no: Some(color_no),
+        color_code: item.color_code,
+        color_name: item.color_name,
+        dye_lot_no,
+    })
+}
+
 pub async fn create_dye_batch(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -165,9 +246,16 @@ pub async fn create_dye_batch(
         None => Some("pending_schedule".to_string()),
     };
 
-    // V15 P0-F01：dye_lot_no 默认 'DEFAULT'，新接口允许调用方传入实际染色批号
-    // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
-    let dye_lot_no = req.dye_lot_no.unwrap_or_else(|| "DEFAULT".to_string());
+    // 染色身份归一：值只能来自用户提交或主数据派生，禁止造假默认值。旧形态在色号缺失时
+    // 把 color_code/color_name/dye_lot_no 回退为占位假值（测试用字面量与写死的假色名），
+    // 假数据会出现在列表、打印单据与成本归集四维标识
+    //（services/dye_batch_cost_bridge_service.rs:129-175）上。
+    // 术语：dye_lot_no（染色批号）与 batch_no（缸号）是两个概念、非同一值
+    //（models/dye_batch.rs:20-21 与 dye_batch_cost_bridge_service.rs:142 术语注释），
+    // 故新建时染色批号由表单真实采集，缺失即显式拒绝，不从 batch_no 派生、不写占位值。
+    let identity =
+        resolve_dye_color_identity(&*state.db, req.color_no.clone(), req.dye_lot_no.clone())
+            .await?;
 
     // 染色日期：新建表单采集的 dye_date 落库映射到既有 started_at 时间戳列（00:00:00 UTC）。
     // 说明：dye_batch 无独立的"染色日期"DATE 列，此处按实体既有语义写入 started_at；
@@ -185,13 +273,10 @@ pub async fn create_dye_batch(
         id: NotSet,
         batch_no: Set(batch_no),
         greige_fabric_id: Set(req.greige_fabric_id),
-        color_code: Set(req.color_no.clone().unwrap_or_else(|| "TEST".to_string())),
-        color_name: Set(req
-            .color_no
-            .clone()
-            .unwrap_or_else(|| "测试色号".to_string())),
-        color_no: Set(req.color_no.clone()),
-        dye_lot_no: Set(dye_lot_no.clone()),
+        color_code: Set(identity.color_code.clone()),
+        color_name: Set(identity.color_name.clone()),
+        color_no: Set(identity.color_no.clone()),
+        dye_lot_no: Set(identity.dye_lot_no.clone()),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),
         status: Set(status.clone()),
         started_at: Set(started_at),

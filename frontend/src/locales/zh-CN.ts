@@ -9998,7 +9998,7 @@ export default {
       labelColor: '颜色',
       labelGreige: '坯布',
       labelPlannedQuantity: '计划数量',
-      labelActualQuantity: '实际数量',
+      labelDyeLotNo: '染色批号',
       labelStartDate: '开始日期',
       saveFailed: '染色批次保存失败',
       docNoGenerateFailed: '缸号生成失败，请重新打开对话框重试',
