@@ -53,7 +53,7 @@ pub fn validate_approve_action(action: &str) -> Result<(), AppError> {
     if ALL_APPROVE_ACTIONS.contains(&action) {
         Ok(())
     } else {
-        Err(AppError::validation(format!(
+        Err(AppError::validation_displayable(format!(
             "审批动作非法：{action}，允许取值为 {}",
             ALL_APPROVE_ACTIONS.join(" / ")
         )))
@@ -117,7 +117,9 @@ impl BpmService {
             .ok_or_else(|| AppError::not_found("Task not found"))?;
 
         if task.status.as_deref() != Some(task_status::PENDING) {
-            return Err(AppError::validation("Task is not pending"));
+            return Err(AppError::validation_displayable(
+                "任务当前不处于待处理状态，无法执行该操作",
+            ));
         }
 
         let process_instance_id = task.instance_id;
@@ -440,7 +442,7 @@ impl BpmService {
             .ok_or_else(|| AppError::not_found("任务不存在"))?;
 
         if task.status.as_deref() != Some(task_status::PENDING) {
-            return Err(AppError::validation("只能转办待处理任务"));
+            return Err(AppError::validation_displayable("只能转办待处理任务"));
         }
 
         let mut task_active: bpm_task::ActiveModel = task.into();
@@ -461,7 +463,7 @@ impl BpmService {
             .ok_or_else(|| AppError::not_found("任务不存在"))?;
 
         if task.status.as_deref() != Some(task_status::PENDING) {
-            return Err(AppError::validation("只能催办待处理任务"));
+            return Err(AppError::validation_displayable("只能催办待处理任务"));
         }
 
         // 记录催办日志，可以通过事件总线发送通知

@@ -162,7 +162,7 @@ pub fn validate_dye_fabric_compatibility(
 ) -> Result<(), AppError> {
     if let Some(dye) = dye_type {
         if !dye.trim().is_empty() && !is_dye_fabric_compatible(dye, fabric_type) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "染料[{}]与布类[{}]不配伍，请检查配方输入",
                 dye, fabric_type
             )));

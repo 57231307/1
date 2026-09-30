@@ -30,7 +30,10 @@ impl BiAnalysisService {
     ) -> Result<serde_json::Value, AppError> {
         let valid_dims = ["time", "customer", "product", "region", "category"];
         if !valid_dims.contains(&dimension) {
-            return Err(AppError::validation(format!("不支持的维度: {}", dimension)));
+            return Err(AppError::validation_displayable(format!(
+                "不支持的维度: {}",
+                dimension
+            )));
         }
 
         let result = match dimension {
@@ -88,7 +91,7 @@ impl BiAnalysisService {
     ) -> Result<serde_json::Value, AppError> {
         let valid_levels = ["day", "week", "month", "quarter", "year"];
         if !valid_levels.contains(&from_level) || !valid_levels.contains(&to_level) {
-            return Err(AppError::validation("无效的粒度级别"));
+            return Err(AppError::validation_displayable("无效的粒度级别"));
         }
 
         let end = chrono::Local::now().date_naive();
@@ -110,18 +113,27 @@ impl BiAnalysisService {
     fn validate_pivot_params(row_dim: &str, col_dim: &str, measure: &str) -> Result<(), AppError> {
         let valid_dims = ["customer", "product", "region", "category", "time"];
         if !valid_dims.contains(&row_dim) {
-            return Err(AppError::validation(format!("不支持的行维度: {}", row_dim)));
+            return Err(AppError::validation_displayable(format!(
+                "不支持的行维度: {}",
+                row_dim
+            )));
         }
         if !valid_dims.contains(&col_dim) {
-            return Err(AppError::validation(format!("不支持的列维度: {}", col_dim)));
+            return Err(AppError::validation_displayable(format!(
+                "不支持的列维度: {}",
+                col_dim
+            )));
         }
         if row_dim == col_dim {
-            return Err(AppError::validation("行维度与列维度不能相同"));
+            return Err(AppError::validation_displayable("行维度与列维度不能相同"));
         }
 
         let valid_measures = ["total_amount", "order_count", "quantity", "profit_amount"];
         if !valid_measures.contains(&measure) {
-            return Err(AppError::validation(format!("不支持的度量: {}", measure)));
+            return Err(AppError::validation_displayable(format!(
+                "不支持的度量: {}",
+                measure
+            )));
         }
         Ok(())
     }

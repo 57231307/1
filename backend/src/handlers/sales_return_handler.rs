@@ -227,7 +227,7 @@ pub async fn create_return_item(
         if let Some(v) = pct
             && !(v >= rust_decimal::Decimal::ZERO && v <= rust_decimal::Decimal::from(100))
         {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "{} 必须在 0 到 100 之间（百分比），当前值：{}",
                 name, v
             )));

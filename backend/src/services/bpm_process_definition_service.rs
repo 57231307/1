@@ -47,7 +47,7 @@ impl BpmService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "流程编码已存在: {}",
                 req.code
             )));
@@ -289,7 +289,7 @@ impl BpmService {
 
         // 校验：源记录必须是模板
         if template.category.as_deref() != Some(TEMPLATE_CATEGORY) {
-            return Err(AppError::validation("指定的记录不是模板"));
+            return Err(AppError::validation_displayable("指定的记录不是模板"));
         }
 
         // 校验新 code 唯一性（与 create_process_definition 一致）
@@ -303,7 +303,7 @@ impl BpmService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "流程编码已存在: {}",
                 req.code
             )));

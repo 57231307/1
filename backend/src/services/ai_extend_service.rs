@@ -372,7 +372,9 @@ impl AiExtendService {
         active.applied_by = Set(dto.operator_id);
         if let Some(score) = dto.feedback_score {
             if !(1..=5).contains(&score) {
-                return Err(AppError::validation("feedback_score 必须在 1-5 范围内"));
+                return Err(AppError::validation_displayable(
+                    "feedback_score 必须在 1-5 范围内",
+                ));
             }
             active.feedback_score = Set(Some(score));
         }

@@ -99,8 +99,7 @@ pub async fn track_page_view(
     Json(req): Json<PageViewRequest>,
 ) -> Result<Json<ApiResponse<PageViewResponse>>, AppError> {
     // v14 中风险安全修复：输入长度校验，防止超大字段触发 DoS
-    req.validate()
-        .map_err(|e| AppError::validation(format!("参数校验失败: {}", e)))?;
+    req.validate().map_err(AppError::from)?;
 
     // 缺陷 7.3 修复：未同意 page_view_tracking 时静默跳过持久化
     if !is_tracking_allowed(&state, auth.user_id, CONSENT_TYPE_PAGE_VIEW_TRACKING).await? {
@@ -178,8 +177,7 @@ pub async fn record_behavior(
     Json(req): Json<BehaviorRequest>,
 ) -> Result<Json<ApiResponse<PageViewResponse>>, AppError> {
     // v14 中风险安全修复：输入长度校验，防止超大字段触发 DoS
-    req.validate()
-        .map_err(|e| AppError::validation(format!("参数校验失败: {}", e)))?;
+    req.validate().map_err(AppError::from)?;
 
     // 缺陷 7.3 修复：未同意 behavior_tracking 时静默跳过持久化
     if !is_tracking_allowed(&state, auth.user_id, CONSENT_TYPE_BEHAVIOR_TRACKING).await? {

@@ -32,7 +32,7 @@ impl BiAnalysisService {
         granularity: &str,
     ) -> Result<Vec<TimeSeriesPoint>, AppError> {
         if end_date < start_date {
-            return Err(AppError::validation("结束日期不能早于开始日期"));
+            return Err(AppError::validation_displayable("结束日期不能早于开始日期"));
         }
 
         // 缺陷 3.1 修复：先查缓存，命中则直接返回

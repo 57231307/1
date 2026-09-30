@@ -170,7 +170,7 @@ impl ArService {
                 amount = %amount,
                 "AR 收款金额校验失败：金额必须大于零"
             );
-            return Err(AppError::validation("收款金额必须大于零"));
+            return Err(AppError::validation_displayable("收款金额必须大于零"));
         }
         if amount.round_dp(2) != amount {
             warn!(
@@ -180,7 +180,9 @@ impl ArService {
                 amount = %amount,
                 "AR 收款金额校验失败：精度超过 2 位小数"
             );
-            return Err(AppError::validation("收款金额精度不能超过 2 位小数"));
+            return Err(AppError::validation_displayable(
+                "收款金额精度不能超过 2 位小数",
+            ));
         }
         Ok(())
     }

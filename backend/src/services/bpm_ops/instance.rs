@@ -187,7 +187,7 @@ impl BpmService {
             || cur_status == instance_status::TERMINATED
             || cur_status == instance_status::CANCELLED
         {
-            return Err(AppError::validation("流程已结束，无法撤回"));
+            return Err(AppError::validation_displayable("流程已结束，无法撤回"));
         }
 
         // 先捕获事件所需字段，避免后续 instance 被 move 后无法引用

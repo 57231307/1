@@ -240,7 +240,7 @@ pub async fn upload_avatar(
             .unwrap_or_else(|| "png".to_string());
         // 仅接受常见图片格式
         if !matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp") {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "头像仅支持 png/jpg/jpeg/gif/webp 格式",
             ));
         }
@@ -250,7 +250,7 @@ pub async fn upload_avatar(
             .map_err(|e| AppError::validation(format!("头像文件读取失败：{}", e)))?;
         // 2MB 上限（与前端上传前校验一致，双保险）
         if data.len() > 2 * 1024 * 1024 {
-            return Err(AppError::validation("头像文件不能超过 2MB"));
+            return Err(AppError::validation_displayable("头像文件不能超过 2MB"));
         }
         let dir = std::path::Path::new("uploads/avatars");
         tokio::fs::create_dir_all(dir)
@@ -270,7 +270,8 @@ pub async fn upload_avatar(
         break;
     }
 
-    let url = avatar_url.ok_or_else(|| AppError::validation("请求中未找到 avatar 文件字段"))?;
+    let url = avatar_url
+        .ok_or_else(|| AppError::validation_displayable("请求中未找到 avatar 文件字段"))?;
 
     let user_service = UserService::new(state.db.clone());
     user_service.update_avatar(auth.user_id, &url).await?;

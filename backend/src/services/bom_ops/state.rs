@@ -34,7 +34,7 @@ impl BomService {
 
         // 仅允许从草稿/失效状态提交
         if bom.status == BomStatus::Pending.to_string() {
-            return Err(AppError::validation("BOM已处于审核中状态"));
+            return Err(AppError::validation_displayable("BOM已处于审核中状态"));
         }
 
         let mut active: ActiveModel = bom.into();
@@ -75,7 +75,9 @@ impl BomService {
             .ok_or_else(|| AppError::not_found("BOM不存在"))?;
 
         if bom.status != BomStatus::Pending.to_string() {
-            return Err(AppError::validation("仅审核中状态的BOM可以审批"));
+            return Err(AppError::validation_displayable(
+                "仅审核中状态的BOM可以审批",
+            ));
         }
 
         let mut active: ActiveModel = bom.into();

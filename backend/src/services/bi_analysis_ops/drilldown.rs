@@ -30,7 +30,7 @@ impl BiAnalysisService {
         year: i32,
     ) -> Result<Vec<TimeSeriesPoint>, AppError> {
         if !(1900..=2999).contains(&year) {
-            return Err(AppError::validation("年份无效"));
+            return Err(AppError::validation_displayable("年份无效"));
         }
         let rows = Self::query_year_month_rows(&self.db, &self.data_scope, year).await?;
         Ok(Self::fill_year_month_points(rows, year))
@@ -116,7 +116,7 @@ impl BiAnalysisService {
         month: u32,
     ) -> Result<Vec<TimeSeriesPoint>, AppError> {
         if !(1..=12).contains(&month) {
-            return Err(AppError::validation("月份无效"));
+            return Err(AppError::validation_displayable("月份无效"));
         }
         // V15 P0-B10：注入数据范围过滤（sales_orders 无别名，已有 $1/$2 参数）
         let (scope_sql, scope_values) = self.scope_sql("", 3);
@@ -226,7 +226,7 @@ impl BiAnalysisService {
         customer_id: i64,
     ) -> Result<serde_json::Value, AppError> {
         if customer_id <= 0 {
-            return Err(AppError::validation("客户 ID 无效"));
+            return Err(AppError::validation_displayable("客户 ID 无效"));
         }
 
         // V15 P0-B10：注入数据范围过滤（sales_orders 无别名，已有 $1 参数）
@@ -279,7 +279,7 @@ impl BiAnalysisService {
         product_id: i64,
     ) -> Result<serde_json::Value, AppError> {
         if product_id <= 0 {
-            return Err(AppError::validation("产品 ID 无效"));
+            return Err(AppError::validation_displayable("产品 ID 无效"));
         }
 
         // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s，已有 $1 参数）

@@ -85,7 +85,7 @@ impl ArReconciliationService {
             .unwrap_or("all")
             .to_lowercase();
         if !matches!(strategy.as_str(), "exact" | "date_order" | "all") {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "无效的匹配策略: {}（支持 exact / date_order / all）",
                 strategy
             )));

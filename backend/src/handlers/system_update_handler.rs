@@ -561,8 +561,7 @@ pub async fn create_backup_task(
     auth: AuthContext,
     Json(req): Json<CreateBackupRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     use sea_orm::{ActiveModelTrait, Set};
     let now = chrono::Utc::now();

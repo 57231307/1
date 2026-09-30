@@ -109,7 +109,7 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：金额必须大于零"
             );
-            return Err(AppError::validation("核销金额必须大于零"));
+            return Err(AppError::validation_displayable("核销金额必须大于零"));
         }
         if amount.round_dp(2) != amount {
             // 批次 389 P2-2：精度校验失败记录 warn 日志
@@ -122,7 +122,9 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：精度超过 2 位小数"
             );
-            return Err(AppError::validation("核销金额精度不能超过 2 位小数"));
+            return Err(AppError::validation_displayable(
+                "核销金额精度不能超过 2 位小数",
+            ));
         }
         Ok(())
     }
