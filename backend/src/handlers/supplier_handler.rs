@@ -201,17 +201,26 @@ pub struct ToggleStatusRequest {
 // ==================== 供应商联系人管理 Handler ====================
 
 /// 获取供应商联系人列表
+/// IDOR 防护：子资源经父资源做归属门控（与同文件资质四端点、inventory_adjustment_handler
+/// 同源范式）——先按 data_scope 校验路径供应商归属（与同域 list_suppliers 行级权限同源），
+/// 越权 403，避免任意 supplier_id 枚举他人联系人手机号/邮箱。
 pub async fn list_supplier_contacts(
     Path(supplier_id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<supplier_contact::Model>>>, AppError> {
     let service = SupplierService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_supplier(supplier_id, Some(&data_scope_ctx))
+        .await?;
     let contacts = service.list_supplier_contacts(supplier_id).await?;
 
     Ok(Json(ApiResponse::success(contacts)))
 }
 
 /// 创建供应商联系人
+/// IDOR 防护：写入前经父供应商做归属门控（与 list/update/delete 同源），越权 403。
 #[axum::debug_handler]
 pub async fn create_supplier_contact(
     Path(supplier_id): Path<i32>,
@@ -222,6 +231,10 @@ pub async fn create_supplier_contact(
     req.validate()?;
 
     let service = SupplierService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_supplier(supplier_id, Some(&data_scope_ctx))
+        .await?;
 
     let contact = service
         .create_supplier_contact(supplier_id, req, auth.user_id)
@@ -234,17 +247,24 @@ pub async fn create_supplier_contact(
 }
 
 /// 更新供应商联系人
+/// IDOR 防护：路径 (supplier_id, contact_id) 双键——先经父供应商归属门控（data_scope），
+/// 再由 service 校验联系人确属该供应商，不匹配返回用户可见业务错误，
+/// 防止以 contact_id 单键跨供应商改写他人联系人。
 #[axum::debug_handler]
 pub async fn update_supplier_contact(
-    Path((_supplier_id, contact_id)): Path<(i32, i32)>,
+    Path((supplier_id, contact_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateContactRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_supplier(supplier_id, Some(&data_scope_ctx))
+        .await?;
 
     let contact = service
-        .update_supplier_contact(contact_id, req, auth.user_id)
+        .update_supplier_contact(supplier_id, contact_id, req, auth.user_id)
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -254,14 +274,19 @@ pub async fn update_supplier_contact(
 }
 
 /// 删除供应商联系人
+/// IDOR 防护：与 update 同源，先父门控再归属校验，防止单键枚举删除他人联系人。
 pub async fn delete_supplier_contact(
-    Path((_supplier_id, contact_id)): Path<(i32, i32)>,
+    Path((supplier_id, contact_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SupplierService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     service
-        .delete_supplier_contact(contact_id, auth.user_id)
+        .get_supplier(supplier_id, Some(&data_scope_ctx))
+        .await?;
+    service
+        .delete_supplier_contact(supplier_id, contact_id, auth.user_id)
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(
