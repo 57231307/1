@@ -3738,6 +3738,7 @@ export default {
       colActions: 'Actions',
       colColorNo: 'Color No.',
       colColorName: 'Color Name',
+      colColorExtraCost: 'Color Extra Cost',
       colOperation: 'Action',
       buttonColors: 'Colors',
       buttonAdd: 'Add',

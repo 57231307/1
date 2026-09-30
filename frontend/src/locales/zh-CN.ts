@@ -3709,6 +3709,7 @@ export default {
       colActions: '操作',
       colColorNo: '色号',
       colColorName: '颜色名称',
+      colColorExtraCost: '颜色附加成本',
       colOperation: '操作',
       buttonColors: '色号',
       buttonAdd: '添加',
