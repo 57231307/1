@@ -120,17 +120,6 @@
             />
           </el-form-item>
         </el-col>
-        <el-col :span="12">
-          <el-form-item :label="t('crmOpportunityForm.owner')" prop="owner_id">
-            <el-select
-              v-model="formData.owner_id"
-              :placeholder="t('crmOpportunityForm.ownerPlaceholder')"
-              filterable
-            >
-              <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
-            </el-select>
-          </el-form-item>
-        </el-col>
       </el-row>
       <el-form-item :label="t('crmOpportunityForm.productDesc')" prop="product_desc">
         <el-input
@@ -138,14 +127,6 @@
           type="textarea"
           :rows="3"
           :placeholder="t('crmOpportunityForm.productDescPlaceholder')"
-        />
-      </el-form-item>
-      <el-form-item :label="t('crmOpportunityForm.remarks')" prop="remarks">
-        <el-input
-          v-model="formData.remarks"
-          type="textarea"
-          :rows="2"
-          :placeholder="t('crmOpportunityForm.remarksPlaceholder')"
         />
       </el-form-item>
     </el-form>
@@ -164,8 +145,12 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { Opportunity } from '@/api/crm';
-import { createOpportunity, updateOpportunity } from '@/api/crm';
-import type { User } from '@/api/user';
+import {
+  createOpportunity,
+  updateOpportunity,
+  type OpportunityCreateInput,
+  type OpportunityUpdateInput,
+} from '@/api/crm';
 import type { Customer } from '@/api/customer';
 import { OPPORTUNITY_STAGE } from '@/utils/crm-status';
 import { logger } from '@/utils/logger';
@@ -176,7 +161,6 @@ interface Props {
   modelValue: boolean;
   title: string;
   rowData: Partial<Opportunity> | null;
-  users: User[];
   customers: Customer[];
 }
 
@@ -201,9 +185,7 @@ const formData = reactive({
   estimated_amount: 0,
   win_probability: 50,
   expected_close_date: '',
-  owner_id: '' as string | number,
   product_desc: '',
-  remarks: '',
 });
 
 const formRules: FormRules = {
@@ -256,9 +238,7 @@ const resetForm = () => {
   formData.estimated_amount = 0;
   formData.win_probability = 50;
   formData.expected_close_date = '';
-  formData.owner_id = '';
   formData.product_desc = '';
-  formData.remarks = '';
 };
 
 const handleSubmit = async () => {
@@ -266,22 +246,25 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
-    // 后端契约：customer_id/owner_id 为整数，opportunity_stage 为大写枚举，提交前归一化；id 空值转为 undefined。
+    // 载荷 = 后端 CreateOpportunityRequest/UpdateOpportunityRequest 真实键集（crm_dto.rs:50-69/146-164）。
+    // 负责人不在本表单落库范围：services/crm/opp.rs:101 创建时以登录用户为 owner，DTO 无 owner_id/remarks 键。
     // expected_close_date 为 el-date-picker（后端 Option<NaiveDate>）：手输/未选时 v-model 为空串，
-    // 空串会被后端 serde 反序列化成非法 NaiveDate → 整单 400。选填日期缺失应等价于「不填」，故空串归一为 undefined 省略该字段。
-    const payload = {
-      ...formData,
-      id: formData.id ?? undefined,
+    // 空串会被后端 serde 反序列化成非法 NaiveDate → 整单 400，故空串省略该字段。
+    const fields = {
+      opportunity_name: formData.opportunity_name,
       customer_id: Number(formData.customer_id),
-      owner_id: formData.owner_id === '' ? undefined : Number(formData.owner_id),
-      expected_close_date: formData.expected_close_date || undefined,
       opportunity_type: formData.opportunity_type || undefined,
-      opportunity_stage: (formData.opportunity_stage ||
-        undefined) as Opportunity['opportunity_stage'],
+      opportunity_stage: formData.opportunity_stage || undefined,
+      estimated_amount: formData.estimated_amount,
+      win_probability: formData.win_probability,
+      expected_close_date: formData.expected_close_date || undefined,
+      product_desc: formData.product_desc || undefined,
     };
     if (formData.id) {
+      const payload: OpportunityUpdateInput = { ...fields };
       await updateOpportunity(formData.id, payload);
     } else {
+      const payload: OpportunityCreateInput = { ...fields };
       await createOpportunity(payload);
     }
     ElMessage.success(t('crmOpportunityForm.message.saveSuccess'));

@@ -252,7 +252,6 @@
       v-model="formDialogVisible"
       :title="formDialogTitle"
       :row-data="currentRow"
-      :users="users"
       :customers="customers"
       @submitted="handleFormSubmitted"
     />
@@ -342,7 +341,6 @@ import {
   getStageDuration,
   type Opportunity,
 } from '@/api/crm';
-import { getUserList, type User } from '@/api/user';
 import { getCustomerList, type Customer } from '@/api/customer';
 import { formatCurrency } from '@/utils';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
@@ -392,7 +390,6 @@ const {
   onError: (e: unknown) => logger.warn(t('crmOpportunities.message.loadFailed'), String(e)),
 });
 
-const users = ref<User[]>([]);
 const customers = ref<Customer[]>([]);
 
 const formDialogVisible = ref(false);
@@ -404,16 +401,6 @@ const currentFollowId = ref<number | null>(null);
 // 查看详情对话框状态（批次 95 P3-19 修复）
 const viewDialogVisible = ref(false);
 const viewData = ref<OpportunityRow | null>(null);
-
-const fetchUsers = async () => {
-  try {
-    const res = await getUserList();
-    users.value = res.data.users;
-  } catch (error) {
-    logAuxLoadFailure(t('crmOpportunities.message.loadUsersFailed'), error);
-    users.value = [];
-  }
-};
 
 const fetchCustomers = async () => {
   try {
@@ -614,8 +601,7 @@ const getStageLabel = (stage: string) => {
 };
 
 onMounted(() => {
-  // useTableApi 已自动初始加载，此处仅懒加载用户/客户下拉数据
-  loadIfNot('users', fetchUsers, hasLoaded);
+  // useTableApi 已自动初始加载，此处仅懒加载客户下拉数据
   loadIfNot('customers', fetchCustomers, hasLoaded);
 });
 </script>

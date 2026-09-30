@@ -272,14 +272,13 @@
       v-model="formDialogVisible"
       :title="formDialogTitle"
       :row-data="currentRow"
-      :users="users"
       @submitted="handleFormSubmitted"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Upload, Download, Search, Refresh } from '@element-plus/icons-vue';
@@ -292,9 +291,8 @@ import {
   scoreLead,
   type Lead,
 } from '@/api/crm';
-import { getUserList, type User } from '@/api/user';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger, logAuxLoadFailure } from '@/utils/logger';
+import { logger } from '@/utils/logger';
 import { LEAD_STATUS, leadStatusLabelKey, leadStatusTagType } from '@/utils/crm-status';
 import LeadFormTab from './tabs/LeadFormTab.vue';
 
@@ -338,21 +336,9 @@ const {
   onError: (e: unknown) => logger.warn(t('crmLeads.message.loadListFailed'), String(e)),
 });
 
-const users = ref<User[]>([]);
-
 const formDialogVisible = ref(false);
 const formDialogTitle = ref(t('crmLeads.dialog.createTitle'));
 const currentRow = ref<LeadRow | null>(null);
-
-const fetchUsers = async () => {
-  try {
-    const res = await getUserList();
-    users.value = res.data.users;
-  } catch (error) {
-    logAuxLoadFailure(t('crmLeads.message.loadUsersFailed'), error);
-    users.value = [];
-  }
-};
 
 const handleQuery = () => {
   // 同步筛选条件到 useTableApi（键名与后端 LeadQuery 对齐；owner_id/priority 后端不读，控件已移除）
@@ -616,10 +602,6 @@ const getPriorityLabel = (priority: string) => {
   };
   return labelMap[priority] || priority;
 };
-
-onMounted(() => {
-  fetchUsers();
-});
 </script>
 
 <style scoped>

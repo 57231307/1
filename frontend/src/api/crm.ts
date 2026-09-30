@@ -108,11 +108,69 @@ export function getLead(id: number): Promise<ApiResponse<Lead>> {
   return request.get(`/crm/leads/${id}`);
 }
 
-export function createLead(data: Partial<Lead>): Promise<ApiResponse<Lead>> {
+/**
+ * POST /crm/leads 请求体，对齐后端 models/dto/crm_dto.rs::CreateLeadRequest（第 26-47 行，
+ * Deserialize 无 rename_all → snake_case，全部 Option；lead_no/lead_status 缺省时后端服务层
+ * 自动生成/默认，owner 由登录态注入、表单不采集，故类型不含 owner_id）。
+ * 不得把 Partial<Lead> 当载荷：Lead 的 name/phone/company/status/remarks/owner_id 等键
+ * 后端 DTO 没有（serde 静默丢弃），会造成填了没存 yet 界面以为成功。
+ */
+export interface LeadCreateInput {
+  lead_no?: string;
+  lead_source?: string;
+  lead_status?: string;
+  company_name?: string;
+  contact_name?: string;
+  contact_title?: string;
+  mobile_phone?: string;
+  tel_phone?: string;
+  email?: string;
+  wechat?: string;
+  qq?: string;
+  address?: string;
+  product_interest?: string;
+  estimated_quantity?: number;
+  estimated_amount?: number;
+  /** 后端 Option<NaiveDate>，格式 YYYY-MM-DD，未填省略 */
+  expected_delivery_date?: string;
+  requirement_desc?: string;
+  priority?: string;
+  rating?: number;
+  tags?: string[];
+}
+
+/**
+ * PUT /crm/leads/{id} 请求体，对齐后端 crm_dto.rs::UpdateLeadRequest（第 121-143 行，
+ * 全部 Option 部分更新；无 owner_id/remarks 键——改派走 /crm/assignments 域端点）。
+ * custom_fields（后端 Option<serde_json::Value>）表单未采集，类型暂不声明。
+ */
+export interface LeadUpdateInput {
+  lead_source?: string;
+  lead_status?: string;
+  company_name?: string;
+  contact_name?: string;
+  contact_title?: string;
+  mobile_phone?: string;
+  tel_phone?: string;
+  email?: string;
+  wechat?: string;
+  qq?: string;
+  address?: string;
+  product_interest?: string;
+  estimated_quantity?: number;
+  estimated_amount?: number;
+  expected_delivery_date?: string;
+  requirement_desc?: string;
+  priority?: string;
+  rating?: number;
+  tags?: string[];
+}
+
+export function createLead(data: LeadCreateInput): Promise<ApiResponse<Lead>> {
   return request.post('/crm/leads', data);
 }
 
-export function updateLead(id: number, data: Partial<Lead>): Promise<ApiResponse<Lead>> {
+export function updateLead(id: number, data: LeadUpdateInput): Promise<ApiResponse<Lead>> {
   return request.put(`/crm/leads/${id}`, data);
 }
 
@@ -157,13 +215,65 @@ export function getOpportunity(id: number): Promise<ApiResponse<Opportunity>> {
   return request.get(`/crm/opportunities/${id}`);
 }
 
-export function createOpportunity(data: Partial<Opportunity>): Promise<ApiResponse<Opportunity>> {
+/**
+ * POST /crm/opportunities 请求体，对齐后端 models/dto/crm_dto.rs::CreateOpportunityRequest
+ * （第 50-69 行，Deserialize 无 rename_all）。opportunity_name/customer_id 非 Option 必填；
+ * 其余 Option。owner_id/remarks 不是该 DTO 字段（负责人由登录态注入 services/crm/opp.rs:101
+ * `let owner_id = user_id;`），多发会被 serde 静默丢弃，不得混入载荷类型。
+ */
+export interface OpportunityCreateInput {
+  opportunity_no?: string;
+  opportunity_name: string;
+  customer_id: number;
+  lead_id?: number;
+  opportunity_type?: string;
+  /** 后端 Option<NaiveDate>，格式 YYYY-MM-DD，未填省略 */
+  expected_close_date?: string;
+  actual_close_date?: string;
+  opportunity_stage?: string;
+  win_probability?: number;
+  estimated_amount?: number;
+  actual_amount?: number;
+  currency?: string;
+  product_ids?: number[];
+  product_names?: string[];
+  product_desc?: string;
+  priority?: string;
+  rating?: number;
+  tags?: string[];
+}
+
+/**
+ * PUT /crm/opportunities/{id} 请求体，对齐后端 crm_dto.rs::UpdateOpportunityRequest
+ * （第 146-164 行，全部 Option 部分更新；无 owner_id/remarks/opportunity_no 键；id 走路径）。
+ */
+export interface OpportunityUpdateInput {
+  opportunity_name?: string;
+  customer_id?: number;
+  lead_id?: number;
+  opportunity_type?: string;
+  opportunity_stage?: string;
+  win_probability?: number;
+  estimated_amount?: number;
+  actual_amount?: number;
+  currency?: string;
+  expected_close_date?: string;
+  actual_close_date?: string;
+  product_ids?: number[];
+  product_names?: string[];
+  product_desc?: string;
+  priority?: string;
+  rating?: number;
+  tags?: string[];
+}
+
+export function createOpportunity(data: OpportunityCreateInput): Promise<ApiResponse<Opportunity>> {
   return request.post('/crm/opportunities', data);
 }
 
 export function updateOpportunity(
   id: number,
-  data: Partial<Opportunity>
+  data: OpportunityUpdateInput
 ): Promise<ApiResponse<Opportunity>> {
   return request.put(`/crm/opportunities/${id}`, data);
 }

@@ -127,13 +127,16 @@
         <el-form-item label="客户ID" required
           ><el-input-number v-model="shareForm.customer_id" :min="1" class="w-full"
         /></el-form-item>
-        <el-form-item label="目标用户ID" required
-          ><el-input-number v-model="shareForm.target_user_id" :min="1" class="w-full"
+        <el-form-item :label="t('crmCustomerShare.sharedToUserId')" required
+          ><el-input-number v-model="shareForm.shared_to_user_id" :min="1" class="w-full"
         /></el-form-item>
         <el-form-item label="权限" required>
+          <!-- 后端词表唯一真相：customer_share.rs SHARE_PERMISSION_VIEW/EDIT/FULL = view/edit/full，
+               服务层 validate_share_permission_type 强校验（旧值 read/write 必 422） -->
           <el-select v-model="shareForm.permission" class="w-full">
-            <el-option label="只读" value="read" />
-            <el-option label="读写" value="write" />
+            <el-option :label="t('crmCustomerShare.permissionView')" value="view" />
+            <el-option :label="t('crmCustomerShare.permissionEdit')" value="edit" />
+            <el-option :label="t('crmCustomerShare.permissionFull')" value="full" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -165,6 +168,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   addTeamMember,
@@ -184,6 +188,8 @@ import {
   signContract,
   verifySignature,
 } from '@/api/customer-share';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const activeTab = ref('signature');
 const unwrapList = <T,>(p: unknown): T[] => (p as { data: T[] }).data;

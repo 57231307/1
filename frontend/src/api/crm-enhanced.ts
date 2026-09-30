@@ -95,12 +95,17 @@ export interface AssignmentRecord {
   created_at: string;
 }
 
+/**
+ * GET /crm/sales-users 响应项，对齐后端 handlers/missing_handlers.rs::SalesUser
+ * （Serialize，无 rename_all，snake_case）。real_name 为 Option<String> 且后端当前恒置
+ * None（用户模型无真实姓名写入通道），需要人名展示/取值时用 username 兜底。
+ */
 export interface SalesUser {
   id: number;
-  name: string;
-  department: string;
-  customer_count: number;
-  active: boolean;
+  username: string;
+  real_name: string | null;
+  email: string | null;
+  phone: string | null;
 }
 
 export interface RfmScore {
@@ -310,11 +315,32 @@ export const getRecycleRuleList = () =>
   request.get<ApiResponse<RecycleRule[]>>('/crm/recycle-rules');
 
 // D14 Batch 5b：原 crmEnhancedApi.createRecycleRule 转为风格 B 函数
-export const createRecycleRule = (data: Partial<RecycleRule>) =>
+/**
+ * POST /crm/recycle-rules 请求体，对齐后端 services/crm/recycle_rule.rs::CreateRecycleRulePayload
+ * （name/days 非 Option 必填且经 #[validate]（name 1-100、days 1-365）+ handler 调用 payload.validate()；
+ * is_enabled 为 Option，缺省时后端默认 true）。
+ */
+export interface CreateRecycleRuleInput {
+  name: string;
+  days: number;
+  is_enabled?: boolean;
+}
+
+export const createRecycleRule = (data: CreateRecycleRuleInput) =>
   request.post<ApiResponse<RecycleRule>>('/crm/recycle-rules', data);
 
 // D14 Batch 5b：原 crmEnhancedApi.updateRecycleRule 转为风格 B 函数
-export const updateRecycleRule = (id: number, data: Partial<RecycleRule>) =>
+/**
+ * PUT /crm/recycle-rules/{id} 请求体，对齐后端 recycle_rule.rs::UpdateRecycleRulePayload
+ * （三字段均 Option 部分更新；id 走路径，不入 body）。
+ */
+export interface UpdateRecycleRuleInput {
+  name?: string;
+  days?: number;
+  is_enabled?: boolean;
+}
+
+export const updateRecycleRule = (id: number, data: UpdateRecycleRuleInput) =>
   request.put<ApiResponse<RecycleRule>>(`/crm/recycle-rules/${id}`, data);
 
 // D14 Batch 5b：原 crmEnhancedApi.deleteRecycleRule 转为风格 B 函数
@@ -322,17 +348,38 @@ export const deleteRecycleRule = (id: number) =>
   request.delete<ApiResponse<void>>(`/crm/recycle-rules/${id}`);
 
 // 客户分配
+/**
+ * POST /crm/assignments 请求体，对齐后端 handlers/crm_assignment_handler.rs::AssignCustomerRequest
+ * （Deserialize，无 rename_all；lead_id/assignee_id/assignee_name 非 Option 必填，notes 为 Option）。
+ * 分配对象是线索（crm_lead）——公海池/可分配客户列表行的 id 即 lead id。
+ * assignee_name 后端必填且无校验来源，前端由所选销售用户 real_name || username 真实推导。
+ */
+export interface AssignCustomerInput {
+  lead_id: number;
+  assignee_id: number;
+  assignee_name: string;
+  notes?: string;
+}
+
 // D14 Batch 5b：原 crmEnhancedApi.assignCustomer 转为风格 B 函数
-export const assignCustomer = (data: {
-  customer_ids: number[];
-  assign_to: number;
-  reason?: string;
-}) => request.post<ApiResponse<void>>('/crm/assignments', data);
+export const assignCustomer = (data: AssignCustomerInput) =>
+  request.post<ApiResponse<void>>('/crm/assignments', data);
+
+/**
+ * POST /crm/assignments/batch 请求体，对齐后端 crm_assignment_handler.rs::BatchAssignRequest：
+ * 批量 = 多条线索分配给同一负责人（lead_ids 数组 + 单 assignee），并非逐条自定义负责人；
+ * lead_ids/assignee_id/assignee_name 非 Option 必填，notes 为 Option。
+ */
+export interface BatchAssignCustomersInput {
+  lead_ids: number[];
+  assignee_id: number;
+  assignee_name: string;
+  notes?: string;
+}
 
 // D14 Batch 5b：原 crmEnhancedApi.batchAssign 转为风格 B 函数
-export const batchAssignCustomers = (data: {
-  assignments: { customer_id: number; assign_to: number }[];
-}) => request.post<ApiResponse<void>>('/crm/assignments/batch', data);
+export const batchAssignCustomers = (data: BatchAssignCustomersInput) =>
+  request.post<ApiResponse<void>>('/crm/assignments/batch', data);
 
 // D14 Batch 5b：原 crmEnhancedApi.getAssignmentHistory 转为风格 B 函数
 export const getCustomerAssignmentHistory = (params?: AssignmentQueryParams) =>
@@ -404,8 +451,17 @@ export const getCustomerRfmDistribution = () =>
   request.get<ApiResponse<Record<string, number>>>('/crm/rfm/distribution');
 
 // 释放客户到公海池（P1-5 补齐，与后端 /pool/recycle 对应）
+/**
+ * POST /crm/pool/recycle 请求体，对齐后端 handlers/crm_pool_handler.rs::RecycleRequest：
+ * 单条回收（lead_id 非 Option 必填；reason 为 Option，空值省略该键），后端无批量形状。
+ */
+export interface RecycleCustomerInput {
+  lead_id: number;
+  reason?: string;
+}
+
 // D14 Batch 5b：原 crmEnhancedApi.recycleToPool 转为风格 B 函数
-export const recycleCustomerToPool = (data: { customer_ids: number[]; reason?: string }) =>
+export const recycleCustomerToPool = (data: RecycleCustomerInput) =>
   request.post<ApiResponse<void>>('/crm/pool/recycle', data);
 
 // 联系人 CRUD（批次 90b P2-12：替代 detail.vue "新增联系人功能待实现" 占位符）
@@ -432,11 +488,40 @@ export const getCustomerList = (params?: CustomerListQuery) =>
   request.get<ApiResponse<CustomerPage>>('/crm/customers/enhanced', { params });
 
 // D14 Batch 5b：原 crmEnhancedApi.createCustomer 转为风格 B 函数
+/**
+ * 注意：后端 POST /crm/customers/enhanced 当前以线索域 DTO 反序列化
+ * （handlers/crm_customer_handler.rs::create_customer 接收 models/dto/crm_dto.rs::CreateLeadRequest，
+ * 落库 crm_lead），与本表单采集的客户域字段（customer_code/customer_name/tax_number/credit_limit/
+ * bank_name/bank_account/status 等）不同域，前端任何载荷映射都会丢字段或臆造语义——
+ * 属后端契约缺陷，已列入后端串行处理清单，前端不改此函数形状。
+ */
 export const createCustomer = (data: Partial<CustomerWithTags>) =>
   request.post<ApiResponse<CustomerWithTags>>('/crm/customers/enhanced', data);
 
 // D14 Batch 5b：原 crmEnhancedApi.updateCustomer 转为风格 B 函数
-export const updateCustomer = (id: number, data: Partial<CustomerWithTags>) =>
+/**
+ * PUT /crm/customers/enhanced/{id} 请求体，对齐后端
+ * crm_customer_handler.rs::UpdateEnhancedCustomerRequest（Deserialize，无 rename_all，
+ * 全部字段 Option——客户域 CustomerService.update_customer 落库；id 走路径不入 body，
+ * DTO 无 customer_code 键，多发即被 serde 静默丢弃）。
+ * 后端字段名是 contact_phone/contact_email（与客户列表实体 phone/email 不同），tax_number
+ * 原样透传（后端映射到 customer.tax_id 落库）。
+ */
+export interface EnhancedCustomerUpdateInput {
+  customer_name?: string;
+  contact_person?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  address?: string;
+  customer_type?: string;
+  tax_number?: string;
+  credit_limit?: number;
+  bank_name?: string;
+  bank_account?: string;
+  status?: string;
+}
+
+export const updateCustomer = (id: number, data: EnhancedCustomerUpdateInput) =>
   request.put<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`, data);
 
 // D14 Batch 5b：原 crmEnhancedApi.deleteCustomer 转为风格 B 函数
