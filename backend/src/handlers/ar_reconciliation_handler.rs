@@ -88,14 +88,10 @@ pub async fn create_reconciliation(
         notes: None,
     };
 
-    service
-        .create(create_req)
-        .await
-        .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
-        .map_err(|e| {
-            tracing::error!("创建对账单失败: {}", e);
-            AppError::internal(format!("创建对账单失败: {}", e))
-        })
+    let model = service.create(create_req).await?;
+    Ok(Json(ApiResponse::success(ReconciliationResponse::from(
+        model,
+    ))))
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -128,22 +124,14 @@ pub async fn list_reconciliations(
         end_date: query.end_date,
     };
 
-    service
-        .list(req)
-        .await
-        .map(|(models, total)| {
-            let responses: Vec<ReconciliationResponse> = models
-                .into_iter()
-                .map(ReconciliationResponse::from)
-                .collect();
-            Json(ApiResponse::success(PaginatedResponse::new(
-                responses, total, page, page_size,
-            )))
-        })
-        .map_err(|e| {
-            tracing::error!("获取对账单列表失败: {}", e);
-            AppError::internal(format!("获取对账单列表失败: {}", e))
-        })
+    let (models, total) = service.list(req).await?;
+    let responses: Vec<ReconciliationResponse> = models
+        .into_iter()
+        .map(ReconciliationResponse::from)
+        .collect();
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        responses, total, page, page_size,
+    ))))
 }
 
 pub async fn get_reconciliation(
@@ -155,11 +143,7 @@ pub async fn get_reconciliation(
 
     service
         .get_by_id(id)
-        .await
-        .map_err(|e| {
-            tracing::error!("获取对账单失败: {}", e);
-            AppError::internal(format!("获取对账单失败: {}", e))
-        })?
+        .await?
         .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
         .ok_or_else(|| AppError::not_found(format!("对账单 {} 不存在", id)))
 }
@@ -179,14 +163,12 @@ pub async fn update_reconciliation_status(
     let service = ArReconciliationService::new(state.db);
 
     // 批次 109 P3：update_status 新增 remark 参数，此 handler 无 remark 字段传 None
-    service
+    let model = service
         .update_status(id, &req.status, auth.user_id, None)
-        .await
-        .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
-        .map_err(|e| {
-            tracing::error!("更新对账单状态失败: {}", e);
-            AppError::internal(format!("更新对账单状态失败: {}", e))
-        })
+        .await?;
+    Ok(Json(ApiResponse::success(ReconciliationResponse::from(
+        model,
+    ))))
 }
 
 // ============================================================================
@@ -226,19 +208,11 @@ pub async fn update_reconciliation(
         notes: req.notes,
     };
 
-    service
-        .update(id, update_req, auth.user_id)
-        .await
-        .map(|model| {
-            Json(ApiResponse::success_with_message(
-                ReconciliationResponse::from(model),
-                "对账单更新成功",
-            ))
-        })
-        .map_err(|e| {
-            tracing::error!("更新对账单失败: {}", e);
-            AppError::internal(format!("更新对账单失败: {}", e))
-        })
+    let model = service.update(id, update_req, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        ReconciliationResponse::from(model),
+        "对账单更新成功",
+    )))
 }
 
 /// 删除对账单（DELETE /ar-reconciliations/:id）；仅草稿状态可删除（service 内部状态门）
@@ -251,14 +225,11 @@ pub async fn delete_reconciliation(
 
     let service = ArReconciliationService::new(state.db.clone());
 
-    service
-        .delete(id, auth.user_id)
-        .await
-        .map(|_| Json(ApiResponse::success_with_message((), "对账单删除成功")))
-        .map_err(|e| {
-            tracing::error!("删除对账单失败: {}", e);
-            AppError::internal(format!("删除对账单失败: {}", e))
-        })
+    service.delete(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "对账单删除成功",
+    )))
 }
 
 /// 发送对账单给客户（POST /ar-reconciliations/:id/send）；状态：draft → sent
@@ -271,19 +242,11 @@ pub async fn send_reconciliation(
 
     let service = ArReconciliationService::new(state.db.clone());
 
-    service
-        .send(id, auth.user_id)
-        .await
-        .map(|model| {
-            Json(ApiResponse::success_with_message(
-                ReconciliationResponse::from(model),
-                "对账单已发送给客户",
-            ))
-        })
-        .map_err(|e| {
-            tracing::error!("发送对账单失败: {}", e);
-            AppError::internal(format!("发送对账单失败: {}", e))
-        })
+    let model = service.send(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        ReconciliationResponse::from(model),
+        "对账单已发送给客户",
+    )))
 }
 
 // 客户确认对账单（POST /ar-reconciliations/:id/confirm）
@@ -304,19 +267,11 @@ pub async fn close_reconciliation(
 
     let service = ArReconciliationService::new(state.db.clone());
 
-    service
-        .close(id, auth.user_id)
-        .await
-        .map(|model| {
-            Json(ApiResponse::success_with_message(
-                ReconciliationResponse::from(model),
-                "对账单已关闭",
-            ))
-        })
-        .map_err(|e| {
-            tracing::error!("关闭对账单失败: {}", e);
-            AppError::internal(format!("关闭对账单失败: {}", e))
-        })
+    let model = service.close(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        ReconciliationResponse::from(model),
+        "对账单已关闭",
+    )))
 }
 
 // ============================================================================

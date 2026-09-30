@@ -232,8 +232,7 @@ pub async fn list_waybills(
     // 非管理员对运单列表司机手机号脱敏
     let mut items = Vec::with_capacity(waybills.len());
     for waybill in &waybills {
-        let mut value = serde_json::to_value(waybill)
-            .map_err(|e| AppError::internal(format!("运单序列化失败: {}", e)))?;
+        let mut value = serde_json::to_value(waybill)?;
         match order_no_map.get(&waybill.order_id) {
             Some(order_no) => {
                 value["order_no"] = serde_json::Value::String(order_no.clone());
@@ -491,8 +490,7 @@ pub async fn get_waybill(
         .ok_or_else(|| AppError::not_found("运单不存在"))?;
 
     // 非管理员对运单详情司机手机号脱敏；关联销售订单号由 order_id 回查补齐
-    let mut value = serde_json::to_value(&waybill)
-        .map_err(|e| AppError::internal(format!("运单序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(&waybill)?;
     let order_no_map = fetch_order_no_map(&*state.db, std::slice::from_ref(&waybill)).await?;
     match order_no_map.get(&waybill.order_id) {
         Some(order_no) => value["order_no"] = serde_json::Value::String(order_no.clone()),

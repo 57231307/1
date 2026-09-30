@@ -295,14 +295,14 @@ fn build_select_fields(include_sensitive: bool) -> String {
 // 读取可选字符串字段，失败时返回带字段名的错误
 fn get_opt_string(row: &sea_orm::QueryResult, field: &str) -> Result<String, AppError> {
     row.try_get::<Option<String>>("", field)
-        .map_err(|e| AppError::internal(format!("审计日志读取 {} 失败: {}", field, e)))
+        .map_err(|e| AppError::database(format!("审计日志读取 {field} 失败: {e}")))
         .map(|v| v.unwrap_or_default())
 }
 
 // 读取可选整数字段，失败时返回带字段名的错误
 fn get_opt_int(row: &sea_orm::QueryResult, field: &str) -> Result<i32, AppError> {
     row.try_get::<Option<i32>>("", field)
-        .map_err(|e| AppError::internal(format!("审计日志读取 {} 失败: {}", field, e)))
+        .map_err(|e| AppError::database(format!("审计日志读取 {field} 失败: {e}")))
         .map(|v| v.unwrap_or(0))
 }
 
@@ -313,13 +313,13 @@ fn row_to_json(
 ) -> Result<serde_json::Value, AppError> {
     let id = row
         .try_get_by_index::<i64>(0)
-        .map_err(|e| AppError::internal(format!("审计日志读取 id 失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("审计日志读取 id 失败: {e}")))?;
     let module = row
         .try_get::<String>("", "module")
-        .map_err(|e| AppError::internal(format!("审计日志读取 module 失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("审计日志读取 module 失败: {e}")))?;
     let action = row
         .try_get::<String>("", "action")
-        .map_err(|e| AppError::internal(format!("审计日志读取 action 失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("审计日志读取 action 失败: {e}")))?;
     // created_at 列为 TIMESTAMP（m0005 建表，后续 ADD COLUMN IF NOT EXISTS 为无操作），
     // 原样 try_get::<String> 与数据库原生类型不匹配会报错 → 接口 500；
     // 先按 NaiveDateTime 读取再序列化，失败时回退 TIMESTAMPTZ 读取（防御迁移变更）
@@ -328,7 +328,7 @@ fn row_to_json(
         Err(_) => row
             .try_get::<chrono::DateTime<chrono::FixedOffset>>("", "created_at")
             .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-            .map_err(|e| AppError::internal(format!("审计日志读取 created_at 失败: {}", e)))?,
+            .map_err(|e| AppError::database(format!("审计日志读取 created_at 失败: {e}")))?,
     };
     let mut item = serde_json::json!({
         "id": id,

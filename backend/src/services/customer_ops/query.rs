@@ -44,10 +44,7 @@ impl CustomerService {
         let items: Vec<serde_json::Value> = paged
             .items
             .into_iter()
-            .map(|c| {
-                serde_json::to_value(c)
-                    .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
-            })
+            .map(|c| serde_json::to_value(c).map_err(AppError::from))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Some(PaginatedResponse::new(
             items,
@@ -124,10 +121,7 @@ impl CustomerService {
             .await?;
         let json_rows: Vec<serde_json::Value> = rows
             .into_iter()
-            .map(|c| {
-                serde_json::to_value(c)
-                    .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
-            })
+            .map(|c| serde_json::to_value(c).map_err(AppError::from))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(json_rows)
     }
@@ -196,8 +190,7 @@ impl CustomerService {
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?
         } else {
-            serde_json::to_value(model)
-                .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?
+            serde_json::to_value(model)?
         };
 
         Ok(customer)

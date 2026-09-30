@@ -624,8 +624,7 @@ pub async fn export_products(
     // T1: 直接获取结构化数据，去除 CSV 中转
     let (headers, rows) = product_service
         .export_products_to_xlsx(query.category_id, query.status, query.search)
-        .await
-        .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;
+        .await?;
 
     let row_count = rows.len();
     let table = XlsxTable {
@@ -703,7 +702,7 @@ pub async fn import_products(
             file_bytes = field
                 .bytes()
                 .await
-                .map_err(|e| AppError::internal(format!("读取文件内容失败: {}", e)))?
+                .map_err(|e| AppError::bad_request(format!("读取文件内容失败: {}", e)))?
                 .to_vec();
         }
     }
@@ -739,8 +738,7 @@ pub async fn get_product_import_template(
     _auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
     // T1: 直接获取结构化数据，去除 CSV 中转
-    let (headers, rows) = ProductService::generate_product_import_template_xlsx()
-        .map_err(|e| AppError::internal(format!("模板生成失败: {}", e)))?;
+    let (headers, rows) = ProductService::generate_product_import_template_xlsx()?;
 
     let table = XlsxTable {
         sheet_name: "产品导入模板".to_string(),

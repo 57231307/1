@@ -61,8 +61,7 @@ pub async fn list_reconciliations(
         total,
         params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         params.page_size.unwrap_or(20).clamp(1, 100),
-    ))
-    .map_err(|e| AppError::internal(e.to_string()))?;
+    ))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
