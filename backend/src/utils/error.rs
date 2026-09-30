@@ -930,7 +930,6 @@ mod displayable_message_tests {
 mod trace_id_tests {
     use super::*;
     use crate::middleware::trace_context::X_TRACE_ID_HEADER;
-    use axum::response::IntoResponse as _;
     use std::sync::{Arc, Mutex};
 
     /// 把 tracing 输出捕获到内存缓冲（断言「回退不是静默」用）。
@@ -1004,15 +1003,16 @@ mod trace_id_tests {
             .await;
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let json = body_json(resp.clone()).await;
+        // Body 不实现 Clone：先取响应头（同源断言的另一半），再消费响应体
+        let hdr = header_value(&resp);
+        let json = body_json(resp).await;
         assert_eq!(
             json["trace_id"].as_str().expect("trace_id 应是字符串"),
             expected,
             "响应体 trace_id 必须是被绑定的请求 trace，不能再现造"
         );
         assert_eq!(
-            header_value(&resp),
-            expected,
+            hdr, expected,
             "响应头 X-Trace-Id 必须与响应体 trace_id 同源同值"
         );
         assert_eq!(json["code"], "BUSINESS_ERROR");
@@ -1026,7 +1026,8 @@ mod trace_id_tests {
         let resp = TRACE_ID
             .scope(bound, async { AppError::not_found("x").into_response() })
             .await;
-        let json = body_json(resp.clone()).await;
+        let hdr = header_value(&resp);
+        let json = body_json(resp).await;
         let trace_id = json["trace_id"].as_str().unwrap();
         assert_eq!(
             trace_id.len(),
@@ -1035,7 +1036,7 @@ mod trace_id_tests {
         );
         assert!(!trace_id.contains('-'), "不应带 `-`: {trace_id}");
         assert_eq!(trace_id, bound.simple().to_string());
-        assert_eq!(header_value(&resp), trace_id);
+        assert_eq!(hdr, trace_id);
     }
 
     /// ③ 未绑定路径（CLI / 后台任务）：回退值仍非空，且**必须留下 WARN 记录**，不静默
@@ -1064,15 +1065,12 @@ mod trace_id_tests {
     async fn unscoped_response_still_carries_header_matching_body() {
         let logs = capture_logs();
         let resp = AppError::internal("后台任务失败").into_response();
-        let json = body_json(resp.clone()).await;
+        let hdr = header_value(&resp);
+        let json = body_json(resp).await;
         let body_trace = json["trace_id"].as_str().unwrap();
 
         assert!(!body_trace.is_empty(), "回退路径的 trace_id 仍必须非空");
-        assert_eq!(
-            header_value(&resp),
-            body_trace,
-            "回退路径同样要保证响应头与响应体同源"
-        );
+        assert_eq!(hdr, body_trace, "回退路径同样要保证响应头与响应体同源");
         let text = logs.text();
         assert!(
             text.contains("trace.id_fallback_generated"),

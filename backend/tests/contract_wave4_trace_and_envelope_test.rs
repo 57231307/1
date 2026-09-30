@@ -175,7 +175,7 @@ async fn short_timeout_middleware(request: Request<Body>, next: Next) -> Respons
 /// 洋葱顺序与生产一致：trace_context（外）→ catch_panic（内）→ handler
 #[tokio::test]
 async fn panic_in_handler_returns_full_app_error_envelope() {
-    let app = Router_with_layers();
+    let app = router_with_layers();
 
     let logs = capture_logs();
     let resp = app
@@ -188,13 +188,14 @@ async fn panic_in_handler_returns_full_app_error_envelope() {
         StatusCode::INTERNAL_SERVER_ERROR,
         "panic 必须返回 500 信封"
     );
-    let json = read_json(resp.clone()).await;
+    // Body 不实现 Clone：先取响应头维度的断言材料，再消费响应体
+    let ct = content_type(&resp);
+    let json = read_json(resp).await;
     assert_envelope_keys(&json);
     assert_eq!(json["code"], "INTERNAL_ERROR");
     assert!(
-        content_type(&resp).contains("application/json"),
-        "panic 出参必须是 JSON 信封而不是裸文本，实际: {}",
-        content_type(&resp)
+        ct.contains("application/json"),
+        "panic 出参必须是 JSON 信封而不是裸文本，实际: {ct}"
     );
 
     let text = logs.text();
@@ -215,23 +216,23 @@ async fn panic_in_handler_returns_full_app_error_envelope() {
 /// panic 路径上 X-Trace-Id 响应头与响应体 trace_id 同源，且等于请求 traceparent 的 trace
 #[tokio::test]
 async fn panic_response_trace_header_and_body_are_same_source() {
-    let app = Router_with_layers();
+    let app = router_with_layers();
 
     let resp = app
         .oneshot(request_with_trace("/contract-wave4/panic-2"))
         .await
         .expect("测试夹具：请求应被服务");
 
-    let json = read_json(resp.clone()).await;
+    let hdr = trace_header(&resp);
+    let json = read_json(resp).await;
     let body_trace = json["trace_id"].as_str().unwrap().to_string();
     assert_eq!(
         body_trace, REQUEST_TRACE_ID,
         "panic 出参的 trace_id 必须是被绑定的请求 trace，不能现造"
     );
-    assert_eq!(trace_header(&resp), REQUEST_TRACE_ID);
+    assert_eq!(hdr, REQUEST_TRACE_ID);
     assert_eq!(
-        trace_header(&resp),
-        body_trace,
+        hdr, body_trace,
         "响应头 X-Trace-Id 与响应体 trace_id 必须逐字符相同"
     );
 }
@@ -239,7 +240,7 @@ async fn panic_response_trace_header_and_body_are_same_source() {
 /// 正常路径不受 panic 层影响（状态码/响应体原样透传，trace 头仍在）
 #[tokio::test]
 async fn panic_layer_does_not_alter_normal_path() {
-    let app = Router_with_layers();
+    let app = router_with_layers();
 
     let resp = app
         .oneshot(request_with_trace("/contract-wave4/ok"))
@@ -260,7 +261,7 @@ fn panic_capturing_router(path: &str, handler: axum::routing::MethodRouter) -> R
         .layer(from_fn(trace_context_middleware))
 }
 
-fn Router_with_layers() -> axum::Router {
+fn router_with_layers() -> axum::Router {
     panic_capturing_router("/contract-wave4/panic-1", get(always_panic))
 }
 
@@ -286,7 +287,8 @@ async fn ordinary_error_body_trace_id_matches_request_trace() {
         .expect("测试夹具：请求应被服务");
 
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-    let json = read_json(resp.clone()).await;
+    let hdr = trace_header(&resp);
+    let json = read_json(resp).await;
     assert_envelope_keys(&json);
     assert_eq!(json["code"], "BUSINESS_ERROR");
     assert_eq!(
@@ -295,7 +297,7 @@ async fn ordinary_error_body_trace_id_matches_request_trace() {
         "脱敏分层不能被本波次改动，真实文案只进日志"
     );
     assert_eq!(json["trace_id"], REQUEST_TRACE_ID);
-    assert_eq!(trace_header(&resp), REQUEST_TRACE_ID);
+    assert_eq!(hdr, REQUEST_TRACE_ID);
 }
 
 // ---------------------------------------------------------------------------
@@ -316,7 +318,9 @@ async fn timeout_returns_app_error_envelope_not_bare_body() {
         .expect("测试夹具：请求应被服务");
 
     assert_eq!(resp.status(), StatusCode::REQUEST_TIMEOUT);
-    let json = read_json(resp.clone()).await;
+    let hdr = trace_header(&resp);
+    let ct = content_type(&resp);
+    let json = read_json(resp).await;
     assert_envelope_keys(&json);
     assert_eq!(json["code"], "TIMEOUT");
     use bingxi_backend::utils::error::gateway_msg;
@@ -326,11 +330,10 @@ async fn timeout_returns_app_error_envelope_not_bare_body() {
         "出参必须是固定脱敏文案，内部详情（path/method/阈值）只进日志"
     );
     assert_eq!(json["trace_id"], REQUEST_TRACE_ID);
-    assert_eq!(trace_header(&resp), REQUEST_TRACE_ID);
+    assert_eq!(hdr, REQUEST_TRACE_ID);
     assert!(
-        content_type(&resp).contains("application/json"),
-        "超时出参应是 JSON 信封，实际: {}",
-        content_type(&resp)
+        ct.contains("application/json"),
+        "超时出参应是 JSON 信封，实际: {ct}"
     );
 
     let text = logs.text();
@@ -397,7 +400,9 @@ async fn circuit_breaker_open_returns_envelope_and_logs_once() {
         .await
         .expect("测试夹具：请求应被服务");
     assert_eq!(rejected.status(), StatusCode::SERVICE_UNAVAILABLE);
-    let json = read_json(rejected.clone()).await;
+    let hdr = trace_header(&rejected);
+    let ct = content_type(&rejected);
+    let json = read_json(rejected).await;
     assert_envelope_keys(&json);
     assert_eq!(json["code"], "SERVICE_UNAVAILABLE");
     use bingxi_backend::utils::error::gateway_msg;
@@ -410,11 +415,10 @@ async fn circuit_breaker_open_returns_envelope_and_logs_once() {
         json["trace_id"], REQUEST_TRACE_ID,
         "熔断 503 也必须带同源 trace_id"
     );
-    assert_eq!(trace_header(&rejected), REQUEST_TRACE_ID);
+    assert_eq!(hdr, REQUEST_TRACE_ID);
     assert!(
-        content_type(&rejected).contains("application/json"),
-        "熔断出参应是 JSON 信封，实际: {}",
-        content_type(&rejected)
+        ct.contains("application/json"),
+        "熔断出参应是 JSON 信封，实际: {ct}"
     );
 
     // 3) 同周期内再打 3 个被拒请求，观察是否刷屏
