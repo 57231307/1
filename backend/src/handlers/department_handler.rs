@@ -41,8 +41,13 @@ pub struct CreateDepartmentRequest {
 pub struct UpdateDepartmentRequest {
     #[validate(length(min = 1, max = 100, message = "部门名称不能为空且最长100字符"))]
     pub name: Option<String>,
+    /// 部门编码（P0 契约修复：前端编辑对话框可改 code，后端原缺该字段 ⇒ 静默丢失。
+    /// 真实列 departments.code NOT NULL UNIQUE）
+    #[validate(length(min = 1, max = 50, message = "部门编码不能为空且最长50字符"))]
+    pub code: Option<String>,
     pub description: Option<String>,
     pub parent_id: Option<i32>,
+    /// 负责人用户 ID（真实列 departments.manager_id；manager_name 为后端回填的展示字段，前端不得提交）
     pub manager_id: Option<i32>,
     /// 排序号（契约对齐：前端 DepartmentUpdateRequest.sort_order）
     pub sort_order: Option<i32>,

@@ -58,6 +58,25 @@ impl DepartmentService {
         }
     }
 
+    /// 校验负责人用户存在（P0 契约修复：前端负责人下拉提交 manager_id，
+    /// 后端真实列为 departments.manager_id；此前无任何存在性校验，悬挂 ID 会直接落库/触发 FK 500）。
+    /// manager_id 为 Option：None 表示未指派/清除负责人，不校验。
+    async fn validate_manager_exists(db: &sea_orm::DatabaseConnection, manager_id: Option<i32>) -> Result<(), AppError> {
+        if let Some(mid) = manager_id {
+            let exists = crate::models::user::Entity::find_by_id(mid)
+                .one(db)
+                .await?
+                .is_some();
+            if !exists {
+                return Err(AppError::business_displayable(format!(
+                    "负责人用户不存在（manager_id={}）",
+                    mid
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// 获取部门列表（支持分页和过滤）
     pub async fn list(
         &self,
@@ -144,6 +163,9 @@ impl DepartmentService {
                 .ok_or_else(|| AppError::not_found(format!("父部门 ID {} 不存在", pid)))?;
         }
 
+        // P0 契约修复：负责人按 manager_id 校验用户存在（前端负责人下拉提交真实键 manager_id）
+        Self::validate_manager_exists(&self.db, req.manager_id).await?;
+
         let active_model = department::ActiveModel {
             id: NotSet,
             // 契约对齐：前端 DepartmentCreateRequest.code 优先；不传/为空时自动生成
@@ -212,9 +234,32 @@ impl DepartmentService {
                 .await?;
 
             if existing.is_some() {
-                return Err(AppError::business(format!("部门名称 '{}' 已存在", n)));
+                return Err(AppError::business_displayable(format!(
+                    "部门名称 '{}' 已存在",
+                    n
+                )));
             }
             dept.name = Set(n);
+        }
+
+        // P0 契约修复：code 原不在 UpdateDepartmentRequest 内，前端编辑编码被静默丢弃
+        // （真实列 departments.code NOT NULL UNIQUE，非空变更时查重排除自身）
+        if let Some(c) = req.code {
+            let c = c.trim().to_string();
+            if !c.is_empty() {
+                let existing = DepartmentEntity::find()
+                    .filter(department::Column::Code.eq(&c))
+                    .filter(department::Column::Id.ne(id))
+                    .one(&*self.db)
+                    .await?;
+                if existing.is_some() {
+                    return Err(AppError::business_displayable(format!(
+                        "部门编码 '{}' 已存在",
+                        c
+                    )));
+                }
+                dept.code = Set(c);
+            }
         }
 
         if let Some(d) = req.description {
@@ -231,6 +276,8 @@ impl DepartmentService {
         }
 
         if req.manager_id.is_some() {
+            // P0 契约修复：负责人按 manager_id 校验用户存在后再落库
+            Self::validate_manager_exists(&self.db, req.manager_id).await?;
             dept.manager_id = Set(req.manager_id);
         }
 
