@@ -367,12 +367,21 @@ impl DashboardService {
     }
 
     /// 按日期范围查询每日销售金额聚合
+    /// 排除门口径（与 BI/利润分析及本文件分维、周转率排除门同源）：剔除
+    /// draft/cancelled，pending 等中间态仍计入；取值引用写入方权威词表 so_status
+    /// 小写常量，经 SeaORM 参数绑定（落为 Value::String 占位符）下推 SQL，
+    /// 禁止字符串拼接状态字面量。
     async fn query_daily_sales_amounts(
         &self,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
     ) -> Result<Vec<(chrono::NaiveDate, Option<Decimal>)>, AppError> {
         let mut query = sales_order::Entity::find();
+        // 金额与其所在日分桶由同一谓词门控：draft/cancelled 行在聚合前即被剔除，
+        // SUM(total_amount) 与按日行数计数天然同口径，不存在"只滤金额不滤单数"。
+        query = query.filter(
+            sales_order::Column::Status.is_not_in([so_status::CANCELLED, so_status::DRAFT]),
+        );
         if let Some(start) = start_date {
             query = query.filter(sales_order::Column::OrderDate.gte(start.date_naive()));
         }
