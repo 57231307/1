@@ -52,18 +52,30 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('fabric.greigeFormDialog.labelWidth')" prop="width">
-            <el-input-number v-model="formData.width" :min="0" style="width: 100%" />
+            <!-- 后端 UpdateGreigeFabricRequest 无 width/gram_weight 键：编辑态不可改 -->
+            <el-input-number
+              v-model="formData.width"
+              :min="0"
+              :disabled="!!formData.id"
+              style="width: 100%"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('fabric.greigeFormDialog.labelWeight')" prop="weight">
-            <el-input-number v-model="formData.weight" :min="0" style="width: 100%" />
+          <el-form-item :label="t('fabric.greigeFormDialog.labelWeight')" prop="gram_weight">
+            <el-input-number
+              v-model="formData.gram_weight"
+              :min="0"
+              :disabled="!!formData.id"
+              style="width: 100%"
+            />
           </el-form-item>
         </el-col>
       </el-row>
       <el-form-item :label="t('fabric.greigeFormDialog.labelComposition')" prop="composition">
         <el-input
           v-model="formData.composition"
+          :disabled="!!formData.id"
           :placeholder="t('fabric.greigeFormDialog.placeholderComposition')"
         />
       </el-form-item>
@@ -90,6 +102,8 @@ import {
   GREIGE_STATUS,
   type GreigeFabric,
   type GreigeStatusValue,
+  type CreateGreigeFabricPayload,
+  type UpdateGreigeFabricPayload,
 } from '@/api/greige-fabric';
 import type { Supplier } from '@/api/supplier';
 import { logger } from '@/utils/logger';
@@ -120,7 +134,8 @@ const formData = reactive({
   fabric_type: '',
   supplier_id: undefined as number | undefined,
   width: 0,
-  weight: 0,
+  // 后端坯布 Model 无 weight 列：克重真实落库键为 gram_weight（g/m²，greige_fabric.rs）
+  gram_weight: 0,
   composition: '',
   status: GREIGE_STATUS.IN_STOCK as GreigeStatusValue,
 });
@@ -148,7 +163,7 @@ const resetForm = () => {
   formData.fabric_type = '';
   formData.supplier_id = undefined;
   formData.width = 0;
-  formData.weight = 0;
+  formData.gram_weight = 0;
   formData.composition = '';
   formData.status = GREIGE_STATUS.IN_STOCK;
 };
@@ -158,7 +173,18 @@ watch(
   val => {
     if (val) {
       if (props.currentRow) {
-        Object.assign(formData, props.currentRow);
+        const row = props.currentRow;
+        formData.id = row.id;
+        formData.fabric_no = row.fabric_no ?? '';
+        formData.fabric_name = row.fabric_name ?? '';
+        formData.fabric_type = row.fabric_type ?? '';
+        formData.supplier_id = row.supplier_id ?? undefined;
+        // 后端 Decimal 出参为字符串，回填输入框前 Number() 归一
+        formData.width = row.width != null ? Number(row.width) : 0;
+        formData.gram_weight = row.gram_weight != null ? Number(row.gram_weight) : 0;
+        formData.composition = row.composition ?? '';
+        // 后端状态列只会是 GREIGE_STATUS 中文 token；词表外取值属脏数据，不静默改写
+        formData.status = (row.status as GreigeStatusValue) ?? GREIGE_STATUS.IN_STOCK;
       } else {
         resetForm();
       }
@@ -172,9 +198,28 @@ const handleSubmit = async () => {
   submitLoading.value = true;
   try {
     if (formData.id) {
-      await updateGreigeFabric(formData.id, formData as Partial<GreigeFabric>);
+      // 后端 UpdateGreigeFabricRequest 不含 width/composition（创建后不可改），
+      // 编辑态只提交该 DTO 真实接收的键；对应输入框已在模板中禁用
+      const payload: UpdateGreigeFabricPayload = {
+        fabric_name: formData.fabric_name || undefined,
+        fabric_type: formData.fabric_type,
+        supplier_id: formData.supplier_id,
+        status: formData.status,
+      };
+      await updateGreigeFabric(formData.id, payload);
     } else {
-      await createGreigeFabric(formData as Partial<GreigeFabric>);
+      const payload: CreateGreigeFabricPayload = {
+        // 白坯四维口径：编号留空整键省略，由后端自动生成
+        fabric_no: formData.fabric_no || undefined,
+        fabric_name: formData.fabric_name || undefined,
+        fabric_type: formData.fabric_type,
+        supplier_id: formData.supplier_id,
+        width: formData.width || undefined,
+        gram_weight: formData.gram_weight || undefined,
+        composition: formData.composition || undefined,
+        status: formData.status,
+      };
+      await createGreigeFabric(payload);
     }
     ElMessage.success(t('fabric.common.success'));
     emit('update:modelValue', false);

@@ -953,6 +953,12 @@ export default {
       productWarehouseRequired: 'Product and warehouse are required',
       deleteStockConfirm: 'Deleted stock cannot be recovered. Continue?',
     },
+    stockDialog: {
+      editReadonlyHint:
+        'Editing only supports on-hand quantity correction and bin location changes; product/warehouse/batch/color/grade are ownership dimensions this update endpoint does not accept — use stock adjustment or in/out-of-stock flows to change them',
+      createLocationHint:
+        'The create endpoint does not accept a bin location; set it via Edit Stock after saving',
+    },
     statCards: {
       totalQuantity: 'Total Stock',
       alert: 'Stock Alerts',
@@ -7406,6 +7412,14 @@ export default {
         annualNoNeed: 'Not Required',
         needAnnualCheck: 'Need Annual Check',
         attachmentPath: 'Attachment Path',
+        attachment: 'Attachment',
+        uploadBtn: 'Upload Attachment',
+        uploadTip:
+          'Only pdf/jpg/jpeg/png are supported, max 5MB per file, content must match the extension',
+        uploadAfterSave:
+          'The attachment is uploaded after the qualification is saved; for a new qualification, save it first and then upload via Edit',
+        view: 'View Attachment',
+        notUploaded: 'Not uploaded',
         annualCheckRecord: 'Annual Check Record',
         expiredCol: 'Expired',
         expired: 'Expired',
@@ -7461,6 +7475,13 @@ export default {
         qualUpdateSuccess: 'Qualification updated',
         qualCreateSuccess: 'Qualification created',
         qualSaveFailed: 'Failed to save qualification',
+        attachmentUploadSuccess: 'Qualification attachment uploaded',
+        attachmentUploadFailed: 'Failed to upload qualification attachment: {reason}',
+        attachmentViewFailed: 'Failed to view qualification attachment: {reason}',
+        attachmentTypeRejected: 'Qualification attachments only support pdf/jpg/jpeg/png',
+        attachmentSizeRejected: 'Qualification attachment cannot exceed 5MB',
+        qualSavedButAttachmentFailed:
+          'The qualification was saved, but the attachment failed to upload; please re-upload it via Edit',
         evalSubmitted: 'Evaluation submitted',
         evalFailed: 'Failed to submit evaluation',
         evalHistoryFailed: 'Failed to query evaluation history',
@@ -11533,6 +11554,7 @@ export default {
       filterBatchNo: 'Batch No.',
       filterDyeLotNo: 'Dye Lot No.',
       placeholderDyeLotNo: 'Enter dye lot no.',
+      colDyeLotNo: 'Dye Lot No.',
       colIndex: 'Index',
       colBatchNo: 'Batch No.',
       colProduct: 'Product',
@@ -11568,6 +11590,7 @@ export default {
       ruleBatchNoRequired: 'Please enter batch no.',
       ruleProductRequired: 'Please select product',
       ruleColorNoRequired: 'Please enter color no.',
+      ruleDyeLotNoRequired: 'Dye lot no. is required for dyed fabric',
       ruleDyeDateRequired: 'Please select dye date',
       ruleQuantityRequired: 'Please enter quantity',
       messageConfirmComplete: 'Are you sure to complete this batch?',
