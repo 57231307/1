@@ -38,8 +38,7 @@ pub async fn list_inspections(
         )
         .await?;
 
-    let result = serde_json::to_value(PaginatedResponse::new(inspections, total, page, page_size))
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let result = serde_json::to_value(PaginatedResponse::new(inspections, total, page, page_size))?;
 
     Ok(Json(ApiResponse::success(result)))
 }

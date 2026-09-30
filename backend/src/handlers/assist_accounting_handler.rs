@@ -134,8 +134,7 @@ pub async fn query_assist_records(
             page,
             page_size,
         )
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let record_responses: Vec<AssistRecordResponse> = records
         .into_iter()
@@ -184,8 +183,7 @@ pub async fn get_assist_records_by_business(
 
     let records = service
         .find_by_business(&params.business_type, &params.business_no)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let record_responses: Vec<AssistRecordResponse> = records
         .into_iter()
@@ -235,10 +233,7 @@ pub async fn get_assist_records_by_five_dimension(
 ) -> Result<Json<ApiResponse<Vec<AssistRecordResponse>>>, AppError> {
     let service = AssistAccountingService::new(state.db.clone());
 
-    let records = service
-        .find_by_five_dimension(&five_dimension_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let records = service.find_by_five_dimension(&five_dimension_id).await?;
 
     let record_responses: Vec<AssistRecordResponse> = records
         .into_iter()
@@ -292,8 +287,7 @@ pub async fn get_assist_summary(
     } else {
         service
             .find_summary_by_period_and_dimension(&params.accounting_period, dimension_code)
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?
+            .await?
             .into_iter()
             .map(|s| AssistSummaryResponse {
                 id: s.id,
@@ -356,8 +350,7 @@ pub async fn drill_down_to_assist(
             page,
             page_size,
         )
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let record_responses: Vec<AssistRecordResponse> = records
         .into_iter()
@@ -426,8 +419,7 @@ pub async fn get_assist_balance(
             &params.dimension_code,
             params.dimension_value_id,
         )
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(balance)))
 }

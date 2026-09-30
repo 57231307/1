@@ -11,8 +11,8 @@ use serde::Serialize;
 use std::sync::Arc;
 
 use crate::models::{
-    product, product_color, product_supplier_mapping, supplier, supplier_product,
-    supplier_product_color,
+    product, product_color, product_supplier_mapping, purchase_order_item, supplier,
+    supplier_product, supplier_product_color,
 };
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -301,7 +301,37 @@ impl SkuMappingService {
     }
 
     /// 删除对照
+    ///
+    /// 删除前做引用预检：转采购/调拨单据落库时把映射解析出的 supplier_product_code
+    /// 快照写进 purchase_order_items（po/order_ops/crud.rs 权威快照列）。硬删被引用
+    /// 的映射会让存量单据的 SKU 翻译悬空，并在 DB 层以 23503 裸落 DATABASE_ERROR(500)。
+    /// 被引用 → `business_displayable` 公开规则文案拒绝（不含约束名/内部标识）；
+    /// 真正的 DbErr 经 `?`（From<DbErr>）归 DATABASE_ERROR 并走 ERROR 日志。
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+        let mapping = product_supplier_mapping::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("SKU 对照记录 {}", id)))?;
+
+        let supplier_product_code =
+            supplier_product::Entity::find_by_id(mapping.supplier_product_id)
+                .one(&*self.db)
+                .await?
+                .map(|sp| sp.product_code);
+
+        if let Some(code) = supplier_product_code {
+            let referencing = purchase_order_item::Entity::find()
+                .filter(purchase_order_item::Column::ProductId.eq(mapping.product_id))
+                .filter(purchase_order_item::Column::SupplierProductCode.eq(code.as_str()))
+                .count(&*self.db)
+                .await?;
+            if referencing > 0 {
+                return Err(AppError::business_displayable(
+                    "该映射已被采购/调拨单据引用，无法删除",
+                ));
+            }
+        }
+
         let result = product_supplier_mapping::Entity::delete_by_id(id)
             .exec(&*self.db)
             .await?;

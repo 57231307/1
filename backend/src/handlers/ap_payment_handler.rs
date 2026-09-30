@@ -65,8 +65,7 @@ pub async fn list_payments(
 
     info!("用户 {} 查询付款成功，共 {} 条记录", auth.username, total);
 
-    let result = serde_json::to_value(PaginatedResponse::new(payments, total, page, page_size))
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let result = serde_json::to_value(PaginatedResponse::new(payments, total, page, page_size))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
