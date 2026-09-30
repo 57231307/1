@@ -1507,6 +1507,10 @@ export default {
     pleaseSelectFile: 'Please select a file',
     onlyOneFile: 'Only one file can be uploaded',
     invalidJsonFormat: 'Invalid column configuration JSON format',
+    invalidColumnDefinition:
+      'Invalid column definition: each column must contain key/label/type/required',
+    createTemplateUnsupported:
+      'Backend does not provide an import-template creation endpoint; creating templates is unavailable (backend gap registered)',
     formNotReady: 'Form component is not ready',
     requiredFieldsMissing: 'Please fill in required fields',
     entriesUnbalanced: 'Debits and credits are unbalanced, please check entry amounts',
@@ -6557,6 +6561,9 @@ export default {
     permissionView: 'View Only',
     permissionEdit: 'Edit',
     permissionFull: 'Full Access',
+    fillCustomerAndUser: 'Please fill in the customer and shared user',
+    invalidPermission: 'Invalid share permission (only view/edit/full are supported)',
+    shared: 'Shared successfully',
   },
   crmRfm: {
     title: 'Customer Grading (RFM)',
@@ -8354,6 +8361,22 @@ export default {
         step3: 'Verify and Enable',
         step4: 'Finish',
       },
+    },
+  },
+  systemGovernance: {
+    delegation: {
+      fillDelegateePermission: 'Please fill in the delegatee and permission code',
+      fillTimeRange: 'Please fill in both delegation start and end time (required)',
+      invalidTimeFormat: 'Invalid time format',
+      endBeforeStart: 'End time must be later than start time',
+      noCurrentUser: 'Current logged-in user not found, please sign in again',
+      created: 'Delegation created',
+    },
+    roleChange: {
+      fillTargetRoleCode: 'Please fill in the target role code',
+      invalidChangeType:
+        'Invalid change type (only assign_role/assign_permission/remove_permission are supported)',
+      created: 'Approval request created',
     },
   },
   system: {
@@ -13068,6 +13091,67 @@ export default {
       settled: 'Settled',
       closed: 'Closed',
       cancelled: 'Cancelled',
+    },
+  },
+  occupationalHealth: {
+    examType: {
+      pre_employment: 'Pre-employment',
+      in_service: 'On-the-job',
+      resignation: 'Upon Resignation',
+    },
+    examResult: {
+      normal: 'Normal',
+      abnormal: 'Abnormal',
+      contraindication: 'Contraindication',
+    },
+    hazardType: {
+      chemical: 'Chemical',
+      physical: 'Physical',
+      dust: 'Dust',
+      biological: 'Biological',
+    },
+    ppeType: {
+      mask: 'Mask',
+      gloves: 'Gloves',
+      goggles: 'Goggles',
+      earplug: 'Earplug',
+      respirator: 'Respirator',
+      suit: 'Protective Suit',
+    },
+    message: {
+      loadFailed: 'Failed to load the list',
+      warningsScanFailed: 'Failed to scan exam expiry warnings',
+      examRequired: 'Please fill in employee ID, exam type, exam date and exam result',
+      examInServiceNextDateRequired:
+        'On-the-job exams require a next exam date (Occupational Disease Prevention Law, Art. 35)',
+      examNextDateAfter: 'The next exam date must be later than this exam date',
+      examCreated: 'Health exam record created',
+      examCreateFailed: 'Failed to create health exam record',
+      hazardRequired:
+        'Please fill in hazard type, hazard name, monitoring point, measured value, limit value, unit and monitoring date',
+      hazardLimitPositive: 'The limit value must be greater than 0',
+      hazardCreated: 'Monitoring record created',
+      hazardCreateFailed: 'Failed to create monitoring record',
+      ppeRequired: 'Please fill in employee ID, PPE name, PPE type, distribution date and quantity',
+      ppeExpiryAfterDistribution: 'The expiry date must be later than the distribution date',
+      ppeCreated: 'PPE distribution record created',
+      ppeCreateFailed: 'Failed to create PPE distribution record',
+      ppeScanDone: 'Expired scan completed: {count} record(s) marked as expired',
+      ppeScanFailed: 'Failed to scan expired PPE',
+    },
+  },
+  environmentalTax: {
+    dischargeType: {
+      wastewater: 'Wastewater',
+      exhaust: 'Exhaust Gas',
+      solid_waste: 'Solid Waste',
+    },
+    message: {
+      loadFailed: 'Failed to load discharge records',
+      required: 'Please fill in discharge type, pollutant name, discharge amount and period',
+      created: 'Discharge record saved',
+      createFailed: 'Failed to save discharge record',
+      declarationFailed: 'Failed to generate tax declaration',
     },
   },
 };

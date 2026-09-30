@@ -214,6 +214,9 @@ const submitDept = async () => {
         // 编码输入框编辑态可改（后端 UpdateDepartmentRequest.code 已支持，查重在服务层）：
         // 不随 payload 提交则改动被 serde 静默丢弃
         code: deptForm.code,
+        // 上级下拉可改可清空：三态语义下清空须送显式 null（=脱离父级成顶级），
+        // undefined（tree-select 清空态）归一为 null；原实现漏送 parent_id ⇒ 改父静默丢失
+        parent_id: deptForm.parent_id ?? null,
         sort_order: deptForm.sort_order,
         is_active: deptForm.is_active,
       });

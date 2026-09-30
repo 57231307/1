@@ -167,10 +167,14 @@ export interface SalesDeliveryQueryParams {
   delivery_date_to?: string;
 }
 
+/**
+ * GET /sales/orders/statistics 查询参数（唯一真相：
+ * handlers/sales_order_handler.rs:781 OrderStatisticsQuery{start_date,end_date,customer_id}，
+ * 全 Option；原键 date_from/date_to/group_by 后端不存在，被 Axum 静默丢弃=假筛选，删除）。
+ */
 export interface SalesStatisticsParams {
-  date_from?: string;
-  date_to?: string;
-  group_by?: 'day' | 'week' | 'month';
+  start_date?: string;
+  end_date?: string;
   customer_id?: number;
 }
 

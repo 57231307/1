@@ -135,6 +135,8 @@ import {
   deleteDepartment,
   getDepartmentTree,
   type Department,
+  type DepartmentCreateRequest,
+  type DepartmentUpdateRequest,
 } from '@/api/department';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -153,7 +155,9 @@ interface DeptFormData {
   id: number | null;
   name: string;
   code: string;
-  parent_id: number | undefined;
+  // 可空外键：el-tree-select clearable 清空后回写 undefined；
+  // 提交时归一化为显式 null（后端三态：null=清空父级，键缺席=保持原值）
+  parent_id: number | null | undefined;
   manager_name: string;
   sort_order: number;
   is_active: boolean;
@@ -262,10 +266,29 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     try {
       if (dialogMode.value === 'create') {
-        await createDepartment(formData);
+        // 载荷按 DepartmentCreateRequest 键集显式构造：id/manager_name/is_active 非创建 DTO
+        // 字段，整表单直传只会被 serde 静默丢弃（manager_name 为后端回填展示字段，禁提交）
+        const payload: DepartmentCreateRequest = {
+          name: formData.name,
+          code: formData.code,
+          sort_order: formData.sort_order,
+        };
+        if (formData.parent_id != null) payload.parent_id = formData.parent_id;
+        await createDepartment(payload);
         ElMessage.success(t('departments.index.messageCreateSuccess'));
       } else {
-        await updateDepartment(formData.id!, formData);
+        // 三态语义（后端 UpdateDepartmentRequest DoubleOption）：
+        // parent_id 清空须送显式 null（=脱离父级），undefined（tree-select 清空态）归一为 null；
+        // NOT NULL 列 name/code/sort_order/is_active 恒覆盖；description/manager_id
+        // 对话框未采集 → 省略键=保持原值
+        const payload: DepartmentUpdateRequest = {
+          name: formData.name,
+          code: formData.code,
+          parent_id: formData.parent_id ?? null,
+          sort_order: formData.sort_order,
+          is_active: formData.is_active,
+        };
+        await updateDepartment(formData.id!, payload);
         ElMessage.success(t('departments.index.messageUpdateSuccess'));
       }
       dialogVisible.value = false;
