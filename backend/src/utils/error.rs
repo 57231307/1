@@ -46,14 +46,97 @@
 
 use axum::{
     Json,
-    http::StatusCode,
+    http::{HeaderName, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
 };
 use serde::Serialize;
 use std::fmt;
+use uuid::Uuid;
 
+use crate::middleware::trace_context::X_TRACE_ID_HEADER;
 use crate::utils::messages::err_msg;
 
+/// 请求级 trace id（task-local，全站唯一来源）。
+///
+/// 生命周期：由 `middleware::trace_context::trace_context_middleware` 在解析 / 生成
+/// `TraceContext` 之后用 `TRACE_ID.scope(id, next.run(req)).await` 绑定，覆盖整个请求
+/// future（含其内部所有 await 点与被轮询的下层中间件 / handler）。
+///
+/// 出参侧：[`AppError::into_response`] 通过 [`current_trace_id`] 读取同一个值，
+/// 因此**响应头 `X-Trace-Id` 与响应体 `trace_id` 严格同源**（同一 128-bit hex 串），
+/// 用户报障给出的 trace 号可以直接在日志里检索到。
+///
+/// 形态约定：一律用 `Uuid::simple()`（32 位小写 hex，无 `-`），与 W3C `traceparent`
+/// 的 trace-id 以及 `X-Trace-Id` 响应头逐字符一致，避免同一 trace 出现两种写法。
+tokio::task_local! {
+    pub static TRACE_ID: Uuid;
+}
+
+/// [`current_trace_id`] 的取值来源标记（可观测，不静默）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TraceIdSource {
+    /// 命中 [`TRACE_ID`] task-local：与本次请求的 `X-Trace-Id` 同源
+    RequestScope,
+    /// task-local 未绑定：非 HTTP 请求路径（CLI / 后台任务 / `spawn` 旁路）或位于
+    /// `trace_context` 中间件外层。此时**显式记一次 WARN** 再现造 id，
+    /// 绝不静默——日志里会留下「该 trace 不对应任何请求上下文」的说明。
+    GeneratedFallback,
+}
+
+/// 取当前 trace id：优先读 [`TRACE_ID`] task-local，读不到才现造并显式 WARN。
+///
+/// 返回 `(32 位小写 hex 字符串, 来源标记)`。来源标记同时用于单测断言
+/// 「回退路径确实走了 WARN」，避免把可观测性依赖在不可观测的日志文本上。
+pub fn current_trace_id() -> (String, TraceIdSource) {
+    match TRACE_ID.try_with(|id| *id) {
+        Ok(id) => (id.simple().to_string(), TraceIdSource::RequestScope),
+        Err(_) => {
+            let id = Uuid::new_v4();
+            let simple = id.simple().to_string();
+            tracing::warn!(
+                trace_id = %simple,
+                "trace.id_fallback_generated：当前 task 未绑定 TRACE_ID task-local（非 HTTP 请求路径，\
+                 或调用点位于 trace_context 中间件外层），本次出参的 trace_id 现造于此处，\
+                 不对应任何请求头，排查时请按本条日志的 trace_id 定位"
+            );
+            (simple, TraceIdSource::GeneratedFallback)
+        }
+    }
+}
+
+/// 网关级错误的出参/日志文案常量。
+///
+/// 与 [`crate::utils::messages::err_msg`] 同一职责（集中管理出参脱敏文案与日志标签）。
+/// `err_msg` 目前**没有**超时 / 熔断对应的条目，而 `messages.rs` 不在本次改动范围内
+/// （6 路并行专家的写入区），因此先就近放在 error.rs；后续文案收口任务应把这几项并入
+/// `err_msg`，此处不重复造第二套取值。
+pub mod gateway_msg {
+    /// 超时出参脱敏文案（HTTP 408 / code=TIMEOUT）
+    pub const TIMEOUT_PUBLIC: &str = "请求处理超时，请稍后重试";
+    /// 熔断短路出参脱敏文案（HTTP 503 / code=SERVICE_UNAVAILABLE）
+    pub const SERVICE_UNAVAILABLE_PUBLIC: &str = "服务暂时不可用，请稍后重试";
+    /// 超时日志标签
+    pub const LOG_TIMEOUT: &str = "请求超时";
+    /// 熔断短路日志标签
+    pub const LOG_SERVICE_UNAVAILABLE: &str = "服务熔断短路";
+    /// 超时处置建议
+    pub const HINT_TIMEOUT: &str = "检查下游处理耗时、数据库慢查询与超时阈值配置";
+    /// 熔断处置建议
+    pub const HINT_SERVICE_UNAVAILABLE: &str =
+        "检查被熔断路由的后端失败原因与失败率窗口，恢复后自动放行";
+    /// 超时 / 熔断共用的处置动作（detail JSON 的 action_required；语义就是「稍后再试」，
+    /// 与 err_msg::ACTION_TOO_MANY_REQUESTS 同值，此处独立命名避免借用语义不符的常量）
+    pub const ACTION_RETRY_LATER: &str = "稍后重试";
+}
+
+/// 统一错误类型：全站失败响应的**唯一**形状来源（HTTP 出参见 [`AppError::into_response`]，
+/// 固定四键 `code / message / trace_id / timestamp`）。
+///
+/// trace_id 一律经 [`current_trace_id`] 取自 [`TRACE_ID`] task-local，
+/// 与 `X-Trace-Id` 响应头同源。
+///
+/// 新增变体只允许「加族」不允许「改族」：既有变体的 `code` / 状态码映射
+/// （BUSINESS_ERROR→400、VALIDATION_ERROR→400、脱敏分层等）已定稿，不得调整。
 #[derive(Debug, Clone, Serialize)]
 pub enum AppError {
     DatabaseError(String),
@@ -79,6 +162,17 @@ pub enum AppError {
         retry_after: Option<u64>,
         message: String,
     },
+    /// 请求处理超时（HTTP 408 / code=`TIMEOUT`）。
+    ///
+    /// 由 `middleware::timeout` 在 `tokio::time::timeout` 到点时构造——超时不是业务失败，
+    /// 但仍必须走统一 AppError 信封出参（不允许裸 `Response::builder()` 造体）。
+    /// `String` 是**只进日志**的内部详情（方法 / 路径 / 阈值），出参 `message` 恒为脱敏常量。
+    Timeout(String),
+    /// 网关熔断短路（HTTP 503 / code=`SERVICE_UNAVAILABLE`）。
+    ///
+    /// 由 `middleware::circuit_breaker` 在 open / half-open 探测位耗尽时构造。
+    /// `String` 同样是只进日志的详情（路由 key、窗口失败率、冷却剩余）。
+    ServiceUnavailable(String),
 }
 
 impl AppError {
@@ -131,6 +225,18 @@ impl AppError {
             message: msg.into(),
         }
     }
+    /// 构造超时错误（HTTP 408 / code=`TIMEOUT`）。
+    ///
+    /// `detail` 只进 tracing 日志，出参 `message` 恒为 `gateway_msg::TIMEOUT_PUBLIC`。
+    pub fn timeout(detail: impl Into<String>) -> Self {
+        Self::Timeout(detail.into())
+    }
+    /// 构造熔断短路错误（HTTP 503 / code=`SERVICE_UNAVAILABLE`）。
+    ///
+    /// `detail` 只进 tracing 日志，出参 `message` 恒为 `gateway_msg::SERVICE_UNAVAILABLE_PUBLIC`。
+    pub fn service_unavailable(detail: impl Into<String>) -> Self {
+        Self::ServiceUnavailable(detail.into())
+    }
 }
 
 impl fmt::Display for AppError {
@@ -154,6 +260,10 @@ impl fmt::Display for AppError {
                 write!(f, "{}{}", err_msg::NOT_IMPLEMENTED_PREFIX, msg)
             }
             AppError::TooManyRequests { message, .. } => write!(f, "{}", message),
+            // 网关族（Timeout / ServiceUnavailable）沿用 TooManyRequests 的先例：
+            // 详情本身即完整句子（含方法/路径/阈值等只进日志的信息），不加 Display 前缀。
+            AppError::Timeout(message) => write!(f, "{}", message),
+            AppError::ServiceUnavailable(message) => write!(f, "{}", message),
         }
     }
 }
@@ -162,12 +272,31 @@ impl std::error::Error for AppError {}
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        self.respond(true)
+    }
+}
+
+impl AppError {
+    /// 统一 HTTP 出参构造（`IntoResponse` 与 [`AppError::into_response_rate_limited`] 共用，
+    /// 保证失败响应**只有一种形状**：`code / message / trace_id / timestamp`）。
+    ///
+    /// `log_root_cause = true`：常规路径，按错误族记 WARN / ERROR（见 [`Self::log_error`]）。
+    /// `log_root_cause = false`：网关按周期限流的短路（当前唯一使用者是熔断中间件的 503 ——
+    /// 根因已在熔断状态跃变时记过 WARN），出参完全不变，本请求仅降级为 DEBUG 行。
+    /// **不是静默**：仍逐条留痕（含 trace_id），只是级别降到 DEBUG，可由日志配置打开。
+    fn respond(&self, log_root_cause: bool) -> Response {
         // 漏洞 #4/#8/#12 修复：detail 仅用于 tracing 日志，HTTP 响应仅含脱敏 code/message
         let (status, error_type) = self.error_status_and_type();
         let (severity, action_required) = self.error_severity_and_action();
         let detail = self.build_detail(error_type, severity, action_required);
-        self.log_error(&detail);
-        let trace_id = uuid::Uuid::new_v4().to_string();
+        if log_root_cause {
+            self.log_error(&detail);
+        } else {
+            self.log_debug(&detail);
+        }
+        // trace_id 唯一来源：`TRACE_ID` task-local（由 trace_context 中间件绑定）。
+        // 读不到时（CLI / 后台任务 / 中间件外层）才现造，并由 current_trace_id 显式记 WARN。
+        let (trace_id, trace_source) = current_trace_id();
         let timestamp = chrono::Utc::now().timestamp();
         let body = serde_json::json!({
             "code": self.error_code(),
@@ -188,7 +317,34 @@ impl IntoResponse for AppError {
                 .insert("Retry-After", seconds.to_string().parse().unwrap());
         }
 
+        // 出参自证：响应头 `X-Trace-Id` 与上面的响应体 `trace_id` 必须逐字符相同。
+        // trace_context 中间件已写入时保持不动（同值）；未写入时（本错误产生于中间件外层，
+        // 或不在 HTTP 路径上）用同一 trace_id 补齐响应头，保证用户报障给出的 trace 号
+        // 与日志（含 current_trace_id 的 WARN 回退记录）可互相对上。
+        match HeaderValue::from_str(&trace_id) {
+            Ok(v) => {
+                response
+                    .headers_mut()
+                    .entry(HeaderName::from_static(X_TRACE_ID_HEADER))
+                    .or_insert(v);
+            }
+            // trace_id 由 Uuid 生成，必为合法 ASCII；不可达仍需显式记录，不静默。
+            Err(e) => tracing::error!(
+                trace_id = %trace_id,
+                error = %e,
+                source = ?trace_source,
+                "X-Trace-Id 响应头写入失败（trace_id 不是合法 header 值）"
+            ),
+        }
+
         response
+    }
+
+    /// 与 [`IntoResponse::into_response`] **同一构造路径**的限流变体：
+    /// 响应状态码、错误信封四键、`X-Trace-Id` 响应头全部一致，
+    /// 差别仅是本请求的根因日志降级为 DEBUG（责任中间件已按状态跃变记过 WARN）。
+    pub fn into_response_rate_limited(self) -> Response {
+        self.respond(false)
     }
 }
 
@@ -208,6 +364,10 @@ impl AppError {
             AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "BadRequest"),
             AppError::NotImplemented(_) => (StatusCode::NOT_IMPLEMENTED, "NotImplemented"),
             AppError::TooManyRequests { .. } => (StatusCode::TOO_MANY_REQUESTS, "TooManyRequests"),
+            AppError::Timeout(_) => (StatusCode::REQUEST_TIMEOUT, "Timeout"),
+            AppError::ServiceUnavailable(_) => {
+                (StatusCode::SERVICE_UNAVAILABLE, "ServiceUnavailable")
+            }
         }
     }
 
@@ -226,6 +386,9 @@ impl AppError {
             AppError::BadRequest(_) => ("LOW", err_msg::ACTION_BAD_REQUEST),
             AppError::NotImplemented(_) => ("MEDIUM", err_msg::ACTION_NOT_IMPLEMENTED),
             AppError::TooManyRequests { .. } => ("MEDIUM", err_msg::ACTION_TOO_MANY_REQUESTS),
+            // 网关族：超时/熔断都是「服务端处理能力」问题，不是用户可修正的参数问题
+            AppError::Timeout(_) => ("MEDIUM", gateway_msg::ACTION_RETRY_LATER),
+            AppError::ServiceUnavailable(_) => ("HIGH", gateway_msg::ACTION_RETRY_LATER),
         }
     }
 
@@ -244,6 +407,7 @@ impl AppError {
             | AppError::PermissionDenied(m)
             | AppError::NotImplemented(m) => m,
             AppError::TooManyRequests { message, .. } => message,
+            AppError::Timeout(m) | AppError::ServiceUnavailable(m) => m,
         }
     }
 
@@ -319,6 +483,14 @@ impl AppError {
                     err_msg::RETRY_HINT_SUFFIX
                 ),
             ),
+            AppError::Timeout(_) => (
+                gateway_msg::LOG_TIMEOUT,
+                gateway_msg::HINT_TIMEOUT.to_string(),
+            ),
+            AppError::ServiceUnavailable(_) => (
+                gateway_msg::LOG_SERVICE_UNAVAILABLE,
+                gateway_msg::HINT_SERVICE_UNAVAILABLE.to_string(),
+            ),
         }
     }
 
@@ -351,6 +523,24 @@ impl AppError {
                 suggestion = suggestion
             );
         }
+    }
+
+    /// 限流变体：同 [`Self::log_error`] 的字段与格式，级别统一降为 DEBUG。
+    ///
+    /// 用于「根因已由责任模块按状态跃变记过 WARN」的网关短路（熔断 503），
+    /// 逐请求仍留痕（含同一 detail），不静默。
+    fn log_debug(&self, detail: &serde_json::Value) {
+        let (label, suggestion) = self.log_meta();
+        let msg = self.message_str();
+        tracing::debug!(
+            "【{label}】{msg} | {detail_word}: {detail} | {suggestion_word}: {suggestion}",
+            label = label,
+            msg = msg,
+            detail_word = err_msg::LOG_DETAIL,
+            detail = detail,
+            suggestion_word = err_msg::LOG_SUGGESTION,
+            suggestion = suggestion
+        );
     }
 }
 
@@ -499,7 +689,6 @@ fn readable_validation_errors(errors: &validator::ValidationErrors) -> String {
 // ============================================================================
 
 use chrono::Utc;
-use uuid::Uuid;
 
 /// 对外暴露的统一错误响应体
 #[derive(Debug, Clone, Serialize)]
@@ -520,8 +709,11 @@ pub const CODE_FORBIDDEN: &str = "FORBIDDEN";
 /// 为已有 `AppError` 追加响应序列化能力（不修改任何现有方法）
 impl AppError {
     /// 转换为对外统一的 [`ErrorResponse`]
+    ///
+    /// trace_id 与 [`AppError::into_response`] 同源（[`current_trace_id`]），
+    /// 保证同一错误的两条出参链路给出同一个 trace 号。
     pub fn to_response(&self) -> ErrorResponse {
-        let trace_id = Uuid::new_v4().to_string();
+        let (trace_id, _trace_source) = current_trace_id();
         let timestamp = Utc::now().timestamp();
 
         // 漏洞 #4 / #8 修复：to_response 与 IntoResponse 保持一致，
@@ -554,6 +746,8 @@ impl AppError {
             AppError::InternalError(_) => "INTERNAL_ERROR",
             AppError::NotImplemented(_) => "NOT_IMPLEMENTED",
             AppError::TooManyRequests { .. } => "TOO_MANY_REQUESTS",
+            AppError::Timeout(_) => "TIMEOUT",
+            AppError::ServiceUnavailable(_) => "SERVICE_UNAVAILABLE",
         }
         .to_string()
     }
@@ -577,6 +771,9 @@ impl AppError {
             AppError::PermissionDenied(_) => err_msg::PERMISSION_PUBLIC.to_string(),
             AppError::NotImplemented(_) => err_msg::NOT_IMPLEMENTED_PUBLIC.to_string(),
             AppError::TooManyRequests { .. } => err_msg::TOO_MANY_REQUESTS_PUBLIC.to_string(),
+            // 网关族同样默认脱敏：详情（方法/路径/阈值/失败率）只进日志，出参给固定文案。
+            AppError::Timeout(_) => gateway_msg::TIMEOUT_PUBLIC.to_string(),
+            AppError::ServiceUnavailable(_) => gateway_msg::SERVICE_UNAVAILABLE_PUBLIC.to_string(),
         }
     }
 }
@@ -719,5 +916,187 @@ mod displayable_message_tests {
         errors.add("consent_type", validator::ValidationError::new("length"));
         let msg = AppError::from(errors).to_response().message;
         assert_eq!(msg, "consent_type: length", "实际: {msg}");
+    }
+}
+
+// ============================================================================
+// trace_id 同源（TRACE_ID task-local）契约单测
+// ----------------------------------------------------------------------------
+// 对应缺陷：错误响应体里的 trace_id 曾是每次现造的 UUID，与请求的 X-Trace-Id 无关，
+// 用户报障给出的 trace 号在日志里查不到。
+// ============================================================================
+
+#[cfg(test)]
+mod trace_id_tests {
+    use super::*;
+    use crate::middleware::trace_context::X_TRACE_ID_HEADER;
+    use axum::response::IntoResponse as _;
+    use std::sync::{Arc, Mutex};
+
+    /// 把 tracing 输出捕获到内存缓冲（断言「回退不是静默」用）。
+    ///
+    /// 用 `set_default`（线程局部 guard）而不是 `set_global_default`：
+    /// 单测并发跑在不同线程，全局默认会和其他测试抢注册顺序。
+    struct CapturedLogs {
+        buf: Arc<Mutex<Vec<u8>>>,
+        _guard: tracing::subscriber::DefaultGuard,
+    }
+
+    /// `io::Write` 适配器：每次 `make_writer` 拿一份共享缓冲
+    #[derive(Clone)]
+    struct SharedBuf(Arc<Mutex<Vec<u8>>>);
+
+    impl std::io::Write for SharedBuf {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            let mut guard = self.0.lock().unwrap_or_else(|e| e.into_inner());
+            guard.extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn capture_logs() -> CapturedLogs {
+        let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+        let writer_buf = buf.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_max_level(tracing::Level::TRACE)
+            .with_writer(move || SharedBuf(writer_buf.clone()))
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+        CapturedLogs { buf, _guard }
+    }
+
+    impl CapturedLogs {
+        fn text(&self) -> String {
+            String::from_utf8_lossy(&self.buf.lock().expect("日志缓冲锁不应中毒")).to_string()
+        }
+    }
+
+    async fn body_json(resp: Response) -> serde_json::Value {
+        let bytes = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .expect("错误信封应可读出 body");
+        serde_json::from_slice(&bytes).expect("错误信封应是合法 JSON")
+    }
+
+    fn header_value(resp: &Response) -> String {
+        resp.headers()
+            .get(X_TRACE_ID_HEADER)
+            .unwrap_or_else(|| panic!("失败响应应带 {} 响应头", X_TRACE_ID_HEADER))
+            .to_str()
+            .expect("X-Trace-Id 应是合法 ASCII")
+            .to_string()
+    }
+
+    /// ① 绑定 TRACE_ID 后：响应体 trace_id == 绑定的请求 trace，且与响应头严格一致
+    #[tokio::test]
+    async fn scoped_trace_id_is_used_by_body_and_header() {
+        let bound = Uuid::new_v4();
+        let expected = bound.simple().to_string();
+
+        let resp = TRACE_ID
+            .scope(bound, async {
+                AppError::business("内部原因XYZ").into_response()
+            })
+            .await;
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let json = body_json(resp.clone()).await;
+        assert_eq!(
+            json["trace_id"].as_str().expect("trace_id 应是字符串"),
+            expected,
+            "响应体 trace_id 必须是被绑定的请求 trace，不能再现造"
+        );
+        assert_eq!(
+            header_value(&resp),
+            expected,
+            "响应头 X-Trace-Id 必须与响应体 trace_id 同源同值"
+        );
+        assert_eq!(json["code"], "BUSINESS_ERROR");
+    }
+
+    /// ② 同源值可被上游 traceparent 形态复用：绑定任意 Uuid 都输出 32 位小写 hex，
+    /// 与 `X-Trace-Id` 响应头写法一致（不出现带 `-` 的第二种形态）
+    #[tokio::test]
+    async fn scoped_trace_id_uses_simple_hex_form() {
+        let bound = Uuid::new_v4();
+        let resp = TRACE_ID
+            .scope(bound, async { AppError::not_found("x").into_response() })
+            .await;
+        let json = body_json(resp.clone()).await;
+        let trace_id = json["trace_id"].as_str().unwrap();
+        assert_eq!(
+            trace_id.len(),
+            32,
+            "应为 32 位 hex（simple 形态）: {trace_id}"
+        );
+        assert!(!trace_id.contains('-'), "不应带 `-`: {trace_id}");
+        assert_eq!(trace_id, bound.simple().to_string());
+        assert_eq!(header_value(&resp), trace_id);
+    }
+
+    /// ③ 未绑定路径（CLI / 后台任务）：回退值仍非空，且**必须留下 WARN 记录**，不静默
+    #[tokio::test]
+    async fn unscoped_fallback_is_non_empty_and_warned() {
+        let logs = capture_logs();
+        let (trace_id, source) = current_trace_id();
+        let text = logs.text();
+
+        assert_eq!(
+            source,
+            TraceIdSource::GeneratedFallback,
+            "未绑定时必须走回退分支"
+        );
+        assert!(!trace_id.is_empty(), "回退 trace_id 不能为空");
+        assert_eq!(trace_id.len(), 32);
+        assert!(
+            text.contains("WARN") && text.contains("trace.id_fallback_generated"),
+            "回退必须显式记 WARN（不静默），实际日志: {text}"
+        );
+    }
+
+    /// ④ 未绑定路径的完整出参：响应体 trace_id 非空、响应头补齐同一个值，
+    /// 保证即使不在 HTTP 中间件链内，用户拿到的 trace 号也能在日志里查到
+    #[tokio::test]
+    async fn unscoped_response_still_carries_header_matching_body() {
+        let logs = capture_logs();
+        let resp = AppError::internal("后台任务失败").into_response();
+        let json = body_json(resp.clone()).await;
+        let body_trace = json["trace_id"].as_str().unwrap();
+
+        assert!(!body_trace.is_empty(), "回退路径的 trace_id 仍必须非空");
+        assert_eq!(
+            header_value(&resp),
+            body_trace,
+            "回退路径同样要保证响应头与响应体同源"
+        );
+        let text = logs.text();
+        assert!(
+            text.contains("trace.id_fallback_generated"),
+            "回退应有 WARN 说明该 trace 不来自请求上下文，实际: {text}"
+        );
+    }
+
+    /// ⑤ `to_response()` 与 `IntoResponse` 两条链路共用同一来源（同一作用域内取值一致），
+    /// 不出现「序列化对象与 HTTP 响应两个 trace 号」
+    #[tokio::test]
+    async fn to_response_and_into_response_share_scoped_trace_id() {
+        let bound = Uuid::new_v4();
+        let (from_to_response, from_http) = TRACE_ID
+            .scope(bound, async {
+                let err = AppError::bad_request("x");
+                let json = body_json(err.clone().into_response()).await;
+                (
+                    err.to_response().trace_id,
+                    json["trace_id"].as_str().unwrap().to_string(),
+                )
+            })
+            .await;
+
+        assert_eq!(from_to_response, from_http);
+        assert_eq!(from_to_response, bound.simple().to_string());
     }
 }

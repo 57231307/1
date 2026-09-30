@@ -22,6 +22,7 @@ use crate::middleware::permission::permission_middleware;
 use crate::middleware::rate_limit::rate_limit_by_ip;
 use crate::middleware::request_validator::request_logging_middleware;
 use crate::middleware::rls_context::rls_context_middleware;
+use crate::middleware::trace_context::{catch_panic_middleware, trace_context_middleware};
 use crate::routes::create_router;
 
 // ============================================================================
@@ -67,9 +68,15 @@ pub fn build_cors_layer(allowed_origins: Vec<String>) -> CorsLayer {
 }
 
 /// 为完整模式路由应用全部中间件链。
-/// 执行顺序（外→内）：timeout → security_headers → rate_limiting → dynamic_router
-/// → circuit_breaker → auth → omni_audit → csrf → permission → request_logging
-/// → rls → cors → http_trace → metrics → trace_ctx → audit_ctx → body_limit → handler。
+/// 执行顺序（外→内）：trace_ctx → catch_panic → normalize_query → timeout →
+/// security_headers → rate_limiting → dynamic_router → circuit_breaker → auth →
+/// omni_audit → csrf → permission → request_logging → rls → cors → http_trace →
+/// metrics → audit_ctx → body_limit → handler。
+///
+/// trace_ctx 必须位于最外层（且 catch_panic 紧贴其内层），原因见
+/// [`apply_trace_and_panic_capture`]：只有这样，超时 408 / 熔断 503 / 鉴权 401 / 权限 403 /
+/// handler panic 等**所有**短路路径才都处在 `TRACE_ID` task-local 作用域内，
+/// 失败响应体的 `trace_id` 才与 `X-Trace-Id` 响应头严格同源。
 pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     let s_auth = app_state.clone();
     let s_permission = app_state.clone();
@@ -82,7 +89,7 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     let s_rls = app_state.clone();
 
     let router = create_router(app_state);
-    let router = apply_body_limit_and_context(router);
+    let router = apply_body_limit_and_audit(router);
     let router = apply_metrics_layer(router, s_metrics);
     let router = apply_http_trace_layer(router);
     // A.21.2：RLS 行级安全上下文（auth 之后执行 SET LOCAL app.user_id，激活 PostgreSQL RLS）。
@@ -116,31 +123,57 @@ pub fn apply_full_mode_layers(app_state: AppState, cors: CorsLayer) -> Router {
     ));
     let router = apply_rate_limiting(router, s_rate_limit);
     let router = apply_security_headers(router);
-    // 查询参数边界归一化（最外层，先于 timeout 执行）：在 handler 反序列化 Query 之前剔除
+    // 查询参数边界归一化（先于 timeout 执行）：在 handler 反序列化 Query 之前剔除
     // 只含空值的筛选项 query 键，使缺失键与空串统一收敛为 None，一次性根治「空串被当成有效
     // 过滤值 → WHERE col = '' 恒 0 行」这一类缺陷，覆盖全部查询 DTO 且对新增字段零漂移。
+    // （本层与 timeout 的相对位置和改动前一致：normalize 注册在后 = 更外层；
+    //   只有 trace + catch_panic 被提到了它们两者之外。）
     let router = router.layer(axum::middleware::from_fn(
         crate::middleware::timeout::timeout_middleware,
     ));
-    router.layer(axum::middleware::from_fn(
+    let router = router.layer(axum::middleware::from_fn(
         crate::utils::query_params::normalize_empty_query_params,
-    ))
+    ));
+    // 最外层：trace（绑定 TRACE_ID task-local）→ catch_panic（把整条内链的 panic 转成
+    // AppError 信封）。注册在最后 = 洋葱最外，因此超时 408 / 熔断 503 / 限流 429 /
+    // 鉴权 401 / 权限 403 / handler panic 全部落在 trace 作用域内，失败响应体的 trace_id
+    // 与 X-Trace-Id 响应头严格同源。
+    apply_trace_and_panic_capture(router)
 }
 
-/// 应用 body_limit + audit_context + trace_context（最内层，先注册）。
-fn apply_body_limit_and_context(router: Router) -> Router {
+/// 应用 body_limit + audit_context（最内层，先注册）。
+///
+/// `trace_context` 不在这里挂载：它必须在整条链的**最外层**才能保证
+/// 所有短路响应都在 `TRACE_ID` task-local 作用域内（见
+/// [`apply_trace_and_panic_capture`]），原先挂在这里时 auth/permission/circuit_breaker/
+/// timeout 的失败响应完全拿不到 trace 上下文，正是「后台报错定位不了」的根因之一。
+fn apply_body_limit_and_audit(router: Router) -> Router {
     // 安全漏洞 #8 修复：全局 HTTP 请求体大小限制（12MB），防止 OOM DoS。
-    // 必须在 cors/trace/metrics 等 layer 之内（先注册），在解析之前拒绝超限请求。
+    // 必须在 cors/metrics 等 layer 之内（先注册），在解析之前拒绝超限请求。
     router
         .layer(DefaultBodyLimit::max(MAX_HTTP_BODY_BYTES))
-        // P3.2：审计上下文（在 trace_context 之内层挂载，请求先经 trace_context 注入 trace_id）
+        // P3.2：审计上下文（读取 trace_context 注入到 extensions 的 TraceContext）
         .layer(axum::middleware::from_fn(
             crate::middleware::audit_context::audit_context_middleware,
         ))
-        // P3.3：分布式追踪上下文（最外层，确保下游都能拿到 trace_id）
-        .layer(axum::middleware::from_fn(
-            crate::middleware::trace_context::trace_context_middleware,
-        ))
+}
+
+/// 应用最外层的 trace + panic 捕获两层。
+///
+/// 洋葱顺序（外→内）：`trace_context_middleware` → `catch_panic_middleware` → 其余全部层。
+/// 这个先后是**语义要求**，不是风格选择：
+/// - trace 在外：先解析/生成 traceparent、把 trace_id 绑定进 `TRACE_ID` task-local，
+///   并在 `next.run` 返回后回写 `X-Trace-Id` 响应头；
+/// - panic 捕获在内：内层任意位置（auth / permission / csrf / handler / service）panic 时，
+///   由它转成 500 + code + trace_id 的 AppError 信封后**正常返回**，因此
+///   ① 客户端不会再看到被拆掉的连接，② trace 层之后的「回写 X-Trace-Id」代码仍能执行，
+///   ③ 信封里的 trace_id 与被绑定的请求 trace 同源。
+/// 若 panic 发生在 trace 层自身（仅解析 header / 构造 span 的极薄代码），则无人捕获，
+/// 由 hyper 关闭连接 —— 不存在静默兜底，Rust 默认 panic hook 仍会打印堆栈。
+fn apply_trace_and_panic_capture(router: Router) -> Router {
+    router
+        .layer(axum::middleware::from_fn(catch_panic_middleware))
+        .layer(axum::middleware::from_fn(trace_context_middleware))
 }
 
 /// 应用 Prometheus 指标中间件（记录 method/route/status/耗时）。
@@ -266,15 +299,15 @@ fn apply_security_headers(router: Router) -> Router {
         ))
 }
 
-/// 为 Setup 模式应用基础中间件链（TraceLayer + CORS + 安全头）。
+/// 为 Setup 模式应用基础中间件链（trace + panic 捕获 + TraceLayer + CORS + 安全头）。
 /// Setup 模式仅暴露 /init/* 接口，无需认证/权限/CSRF 等业务中间件。
 pub fn apply_init_mode_layers(router: Router, cors: CorsLayer) -> Router {
     // audit_context 中间件必须挂载：init handler 的 validate_internal_ip 从
     // Extension<AuditContext> 提取 client_ip 做内网白名单校验。缺省时
     // audit_ctx=None → client_ip="unknown" → is_internal_ip=false →
     // /init/test-database 一律 403，Setup 向导在第 2 步必然卡死（自审发现）
-    let router = apply_body_limit_and_context(router);
-    router
+    let router = apply_body_limit_and_audit(router);
+    let router = router
         .layer(
             TraceLayer::new_for_http()
                 .on_request(|request: &Request<_>, _span: &Span| {
@@ -321,10 +354,13 @@ pub fn apply_init_mode_layers(router: Router, cors: CorsLayer) -> Router {
             axum::http::header::HeaderName::from_static("permissions-policy"),
             HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
         ))
-        // 查询参数边界归一化（最外层）：与完整模式一致，剔除只含空值的筛选项 query 键。
+        // 查询参数边界归一化：与完整模式一致，剔除只含空值的筛选项 query 键。
         .layer(axum::middleware::from_fn(
             crate::utils::query_params::normalize_empty_query_params,
-        ))
+        ));
+    // Setup 模式同样需要 trace + panic 捕获（外→内：trace → catch_panic → 上面的全部层），
+    // 否则 /init/* 的任何 panic 都会直接拆连接、失败响应也拿不到可关联的 trace_id。
+    apply_trace_and_panic_capture(router)
 }
 
 /// P3 7-14 修复：HSTS 头仅在 production 环境注入。
