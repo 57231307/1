@@ -245,7 +245,7 @@ pub async fn create_order(
     // 输入验证
     use validator::Validate;
     if let Err(e) = request.validate() {
-        return Err(AppError::validation(e.to_string()));
+        return Err(AppError::from(e));
     }
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
@@ -287,7 +287,7 @@ pub async fn update_order(
     {
         use validator::Validate;
         if let Err(e) = request.validate() {
-            return Err(AppError::validation(e.to_string()));
+            return Err(AppError::from(e));
         }
     }
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
@@ -716,16 +716,14 @@ pub async fn create_delivery(
     Json(payload): Json<CreateDeliveryDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2d 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     // 批次 407 修复：warehouse_id 缺失时不可默认为 0，否则发货可能落到非法仓库
     let warehouse_id = payload
         .warehouse_id
-        .ok_or_else(|| AppError::validation("发货必须指定仓库 ID"))?;
+        .ok_or_else(|| AppError::validation_displayable("发货必须指定仓库 ID"))?;
 
     let delivery = sales_service
         .create_delivery(id, warehouse_id, auth.user_id)
@@ -744,8 +742,7 @@ pub async fn cancel_delivery(
     Path((_order_id, delivery_id)): Path<(i32, i32)>,
     Json(req): Json<CancelDeliveryRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 

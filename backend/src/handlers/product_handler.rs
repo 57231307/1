@@ -351,7 +351,7 @@ pub async fn create_product(
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
     // 输入验证
     if let Err(e) = req.validate() {
-        return Err(AppError::validation(e.to_string()));
+        return Err(AppError::from(e));
     }
 
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
@@ -412,7 +412,7 @@ pub async fn update_product(
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
     // 输入验证
     if let Err(e) = req.validate() {
-        return Err(AppError::validation(e.to_string()));
+        return Err(AppError::from(e));
     }
 
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());

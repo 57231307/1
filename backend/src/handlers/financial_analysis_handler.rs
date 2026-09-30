@@ -137,8 +137,7 @@ pub async fn create_indicator(
     Json(req): Json<CreateIndicatorDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2c 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = FinancialAnalysisService::new(state.db.clone());
 
@@ -181,7 +180,7 @@ pub async fn get_trends(
     // 指标 ID 缺失时返回 4xx 错误，避免脏 indicator_id=0 污染
     let indicator_id: i32 = params
         .indicator_id
-        .ok_or_else(|| AppError::validation("财务分析请求缺少指标ID"))?;
+        .ok_or_else(|| AppError::validation_displayable("财务分析请求缺少指标ID"))?;
     let limit = params.page_size.unwrap_or(50).clamp(1, 100);
 
     let trends = service
@@ -213,7 +212,7 @@ pub async fn get_trend_analysis(
 
     let indicator_id: i32 = params
         .indicator_id
-        .ok_or_else(|| AppError::validation("财务分析请求缺少指标ID"))?;
+        .ok_or_else(|| AppError::validation_displayable("财务分析请求缺少指标ID"))?;
 
     let analysis = service
         .get_trend_analysis(
@@ -235,8 +234,7 @@ pub async fn create_trend(
     Json(req): Json<CreateTrendDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2c 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = FinancialAnalysisService::new(state.db.clone());
 
@@ -412,8 +410,7 @@ pub async fn update_report(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let existing = financial_analysis::Entity::find_by_id(id)
         .one(state.db.as_ref())

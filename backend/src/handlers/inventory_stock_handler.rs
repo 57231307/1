@@ -65,7 +65,7 @@ pub fn validate_stock_status_param(raw: Option<&str>) -> Result<(), AppError> {
     if inventory_stock_status::ALL.contains(&value) {
         return Ok(());
     }
-    Err(AppError::validation(format!(
+    Err(AppError::validation_displayable(format!(
         "无效的库存台账状态：{}（允许值：{}）",
         value,
         inventory_stock_status::ALL.join("/")
@@ -150,9 +150,7 @@ pub async fn create_stock(
 ) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
     // DTO 校验补齐：此前复用 CreateStockFabricRequest 却从未 validate()，
     // 四维字段原样落库，"有色号无缸号"的染色布脏行入库后按四维全等永远提不出来
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
 
     // 白坯/染色追溯口径（色号/缸号/批次）与 POST /inventory/stock/fabric 同一收口：
     // 判定委托唯一权威 inv::fabric_class::validate_fabric_trace（白坯空色号合法、
@@ -263,9 +261,7 @@ pub async fn list_stock(
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
-    params
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    params.validate().map_err(AppError::from)?;
     validate_stock_status_param(params.stock_status.as_deref())?;
 
     let service = InventoryStockService::new(state.db.clone());
@@ -639,9 +635,7 @@ pub async fn export_stock(
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<axum::response::Response, AppError> {
-    params
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    params.validate().map_err(AppError::from)?;
     // 导出与列表同一口径，含越界台账状态一律拒绝
     validate_stock_status_param(params.stock_status.as_deref())?;
 

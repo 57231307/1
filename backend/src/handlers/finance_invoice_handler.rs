@@ -139,9 +139,7 @@ pub async fn create_finance_invoice(
     Json(payload): Json<CreateFinanceInvoiceDto>,
 ) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
     // 强类型校验：替代原先无校验的 serde_json::Value
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
 
     // P1-5 修复（批次 81 v1 复审）：金额非负校验 + round_dp(2) 精度归一化
     // Decimal 不支持 validator::range，因此非负校验在 handler 内显式执行
@@ -149,7 +147,9 @@ pub async fn create_finance_invoice(
         || payload.tax_amount.is_sign_negative()
         || payload.total_amount.is_sign_negative()
     {
-        return Err(AppError::validation("发票金额/税额/价税合计不能为负"));
+        return Err(AppError::validation_displayable(
+            "发票金额/税额/价税合计不能为负",
+        ));
     }
     let amount = payload.amount.round_dp(2);
     let tax_amount = payload.tax_amount.round_dp(2);
@@ -189,9 +189,7 @@ pub async fn update_finance_invoice(
     Json(payload): Json<UpdateFinanceInvoiceDto>,
 ) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
     // 强类型校验：替代原先无校验的 serde_json::Value
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
 
     let service = FinanceInvoiceService::new(state.db.clone());
 

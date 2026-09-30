@@ -207,7 +207,7 @@ pub async fn create_count(
     let count_date: DateTime<Utc> = payload
         .count_date
         .parse::<DateTime<Utc>>()
-        .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?;
 
     let req = CreateCountRequest {
         warehouse_id: payload.warehouse_id,
@@ -300,7 +300,7 @@ pub async fn update_count(
         .count_date
         .map(|s| {
             s.parse::<DateTime<Utc>>()
-                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))
+                .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))
         })
         .transpose()?;
     let req = UpdateCountRequest {
@@ -348,7 +348,7 @@ pub async fn record_count_items(
         let qty = it
             .quantity_actual
             .parse::<Decimal>()
-            .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
+            .map_err(|e| AppError::validation_displayable(format!("数量格式错误：{}", e)))?;
         inputs.push(CountItemInput {
             stock_id: it.stock_id,
             quantity_actual: qty,

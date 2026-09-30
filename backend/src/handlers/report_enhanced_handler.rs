@@ -209,7 +209,7 @@ pub async fn export_pdf(
     let template_id: i32 = req
         .template_id
         .parse()
-        .map_err(|_| AppError::validation("无效的模板ID"))?;
+        .map_err(|_| AppError::validation_displayable("无效的模板ID"))?;
 
     // 执行报表获取数据
     let (headers, data, _total) = service
@@ -281,7 +281,7 @@ pub async fn export_excel(
     let template_id: i32 = req
         .template_id
         .parse()
-        .map_err(|_| AppError::validation("无效的模板ID"))?;
+        .map_err(|_| AppError::validation_displayable("无效的模板ID"))?;
 
     // 执行报表获取数据
     let (headers, data, _total) = service
@@ -365,8 +365,7 @@ pub async fn toggle_subscription(
     Json(req): Json<ToggleSubscriptionDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2n 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = ReportSubscriptionService::new(state.db.clone());
 

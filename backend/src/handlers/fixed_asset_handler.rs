@@ -263,8 +263,7 @@ pub async fn update_asset(
     info!("用户 {} 更新固定资产: ID={}", auth.username, id);
 
     // P1-2j 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = FixedAssetService::new(state.db.clone());
 

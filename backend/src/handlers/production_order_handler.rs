@@ -175,9 +175,7 @@ pub async fn create_production_order(
     auth: AuthContext,
     Json(payload): Json<CreateProductionOrderPayload>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
 
     let service = ProductionOrderService::new(state.db.clone());
 
@@ -450,9 +448,7 @@ pub async fn update_production_order_status(
     Json(payload): Json<UpdateProductionOrderStatusDto>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     // P1-2f 修复（批次 81 v1 复审）：强类型 DTO + validator + 状态白名单 替代 Json<Value>
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
 
     let service = ProductionOrderService::new(state.db.clone());
     // IDOR 防护：状态改写前先按当前用户数据范围校验资源归属（与 update/delete 的

@@ -109,14 +109,14 @@ pub async fn create_adjustment(
     let adjustment_date: DateTime<Utc> = payload
         .adjustment_date
         .parse::<DateTime<Utc>>()
-        .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?;
 
     let mut items = Vec::with_capacity(payload.items.len());
     for item in payload.items {
         let quantity = item
             .quantity
             .parse::<Decimal>()
-            .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
+            .map_err(|e| AppError::validation_displayable(format!("数量格式错误：{}", e)))?;
 
         items.push(AdjustmentItemRequest {
             stock_id: item.stock_id,
@@ -400,7 +400,7 @@ pub async fn update_adjustment(
     let adjustment_date = match payload.adjustment_date {
         Some(s) => Some(
             s.parse::<DateTime<Utc>>()
-                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?,
+                .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?,
         ),
         None => None,
     };
@@ -510,7 +510,7 @@ pub async fn add_item(
     let quantity = payload
         .quantity
         .parse::<Decimal>()
-        .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("数量格式错误：{}", e)))?;
     let req = AdjustmentItemRequest {
         stock_id: payload.stock_id,
         quantity,
@@ -549,7 +549,7 @@ pub async fn update_item(
     let quantity = payload
         .quantity
         .parse::<Decimal>()
-        .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("数量格式错误：{}", e)))?;
     let req = AdjustmentItemRequest {
         stock_id: payload.stock_id,
         quantity,

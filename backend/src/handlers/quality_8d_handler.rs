@@ -128,7 +128,7 @@ pub fn eight_d_err(e: EightDError) -> AppError {
         EightDError::NotFound => AppError::not_found("8D 报告不存在"),
         EightDError::QualityIssueNotFound => AppError::not_found("质量异常不存在"),
         EightDError::AlreadyExists => {
-            AppError::validation("该质量异常已存在 8D 报告（一对一约束）")
+            AppError::validation_displayable("该质量异常已存在 8D 报告，不能重复启动")
         }
         EightDError::InvalidState { current, expected } => AppError::business(format!(
             "当前状态 {} 不允许此操作（期望 {}）",

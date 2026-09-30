@@ -59,15 +59,14 @@ pub async fn track_event(
     Json(req): Json<TrackEventRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // P3 8-19 修复：字段长度校验
-    req.validate()
-        .map_err(|e| AppError::validation(format!("埋点事件字段校验失败: {}", e)))?;
+    req.validate().map_err(AppError::from)?;
     // P3 8-19 修复：payload 上限 10KB
     if let Some(ref payload) = req.payload {
         let payload_size = serde_json::to_string(payload)
             .map(|s| s.len())
             .unwrap_or(usize::MAX);
         if payload_size > 10_240 {
-            return Err(AppError::validation("payload 超过 10KB 上限"));
+            return Err(AppError::validation_displayable("payload 超过 10KB 上限"));
         }
     }
 

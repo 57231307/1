@@ -33,7 +33,7 @@ pub fn validate_inspection_result(raw: &str) -> Result<(), AppError> {
     if quality_inspection_result::ALL.contains(&raw) {
         Ok(())
     } else {
-        Err(AppError::validation(format!(
+        Err(AppError::validation_displayable(format!(
             "检验结果 {raw} 不是合法取值，允许值：{}",
             quality_inspection_result::ALL.join("/")
         )))
@@ -52,7 +52,7 @@ pub fn validate_inspection_type(raw: &str) -> Result<(), AppError> {
             return Ok(());
         }
     }
-    Err(AppError::validation(format!(
+    Err(AppError::validation_displayable(format!(
         "检验类型 {raw} 不是合法取值，允许值：{}",
         quality_inspection_type::ALL.join("/")
     )))
@@ -249,8 +249,7 @@ pub async fn update_record(
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
     info!("用户 {} 正在更新质量检验记录，ID: {}", auth.user_id, id);
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
     if let Some(v) = &req.inspection_result {
         validate_inspection_result(v)?;
     }

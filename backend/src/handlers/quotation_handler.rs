@@ -178,7 +178,7 @@ pub async fn create_quotation(
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
     use validator::Validate;
     if let Err(e) = dto.validate() {
-        return Err(AppError::validation(e.to_string()));
+        return Err(AppError::from(e));
     }
 
     let service = QuotationService::from_state(&state);
@@ -200,7 +200,7 @@ pub async fn update_quotation(
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
     use validator::Validate;
     if let Err(e) = dto.validate() {
-        return Err(AppError::validation(e.to_string()));
+        return Err(AppError::from(e));
     }
 
     let service = QuotationService::from_state(&state);
@@ -251,7 +251,9 @@ pub async fn reject_quotation(
     Json(body): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
     if body.reason.trim().is_empty() {
-        return Err(AppError::validation("拒绝原因不能为空".to_string()));
+        return Err(AppError::validation_displayable(
+            "拒绝原因不能为空".to_string(),
+        ));
     }
     let service = QuotationApprovalService::from_state(&state);
     let model = service.reject(id, auth.user_id, body.reason).await?;
@@ -553,8 +555,10 @@ impl From<ServiceError> for AppError {
     fn from(e: ServiceError) -> Self {
         match e {
             ServiceError::NotFound => AppError::not_found("报价单不存在"),
-            ServiceError::InvalidState => AppError::validation("当前状态不允许此操作".to_string()),
-            ServiceError::Validation(msg) => AppError::validation(msg),
+            ServiceError::InvalidState => {
+                AppError::validation_displayable("当前状态不允许此操作".to_string())
+            }
+            ServiceError::Validation(msg) => AppError::validation_displayable(msg),
             ServiceError::Database(db_err) => AppError::internal(db_err.to_string()),
             // 批次 265：paginate_with_total 返回的 AppError 直接透传
             ServiceError::App(e) => e,

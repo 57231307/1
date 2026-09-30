@@ -95,7 +95,7 @@ fn validate_excel_data(data: &[Vec<String>]) -> Result<(), AppError> {
     use crate::services::import_export_service::{MAX_CELL_LEN, MAX_EXCEL_COLS, MAX_EXCEL_ROWS};
 
     if data.len() > MAX_EXCEL_ROWS {
-        return Err(AppError::validation(format!(
+        return Err(AppError::validation_displayable(format!(
             "Excel 数据超过 {} 行上限：当前 {} 行",
             MAX_EXCEL_ROWS,
             data.len()
@@ -103,7 +103,7 @@ fn validate_excel_data(data: &[Vec<String>]) -> Result<(), AppError> {
     }
     for (row_idx, row) in data.iter().enumerate() {
         if row.len() > MAX_EXCEL_COLS {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "Excel 第 {} 行列数超过 {} 列上限：当前 {} 列",
                 row_idx + 1,
                 MAX_EXCEL_COLS,
@@ -112,7 +112,7 @@ fn validate_excel_data(data: &[Vec<String>]) -> Result<(), AppError> {
         }
         for (col_idx, cell) in row.iter().enumerate() {
             if cell.len() > MAX_CELL_LEN {
-                return Err(AppError::validation(format!(
+                return Err(AppError::validation_displayable(format!(
                     "Excel 第 {} 行第 {} 列单元格超过 {} 字符上限：当前 {} 字符",
                     row_idx + 1,
                     col_idx + 1,
