@@ -55,7 +55,9 @@ impl MrpEngineService {
                 .ok_or_else(|| AppError::not_found(format!("MRP结果 {} 不存在", id)))?;
 
             if result.status != mrp_status::PLANNED {
-                return Err(AppError::validation(format!(
+                // 状态门：MRP 结果当前状态不满足转换前置，归业务族；
+                // 文案含内部记录 ID 与状态 token，按安全边界保持脱敏 business。
+                return Err(AppError::business(format!(
                     "MRP结果 {} 状态不是PLANNED，无法转换",
                     id
                 )));
