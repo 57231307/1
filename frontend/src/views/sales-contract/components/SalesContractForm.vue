@@ -283,16 +283,18 @@ interface ScFormData {
   contract_no: string;
   contract_name: string;
   customer_id: number | undefined;
-  contract_type: string;
+  // DB 可空列如实声明 string | null：编辑回显承接后端真实 NULL（ElInput/ElSelect/
+  // ElDatePicker 的 modelValue 类型均含 null），提交时由 useSc 的 explicitToNull 显式回传。
+  contract_type: string | null;
   total_amount: number;
-  signed_date: string;
-  effective_date: string;
-  expiry_date: string;
-  payment_terms: string;
-  payment_method: string;
-  delivery_date: string;
-  delivery_location: string;
-  remarks: string;
+  signed_date: string | null;
+  effective_date: string | null;
+  expiry_date: string | null;
+  payment_terms: string | null;
+  payment_method: string | null;
+  delivery_date: string | null;
+  delivery_location: string | null;
+  remarks: string | null;
   items: ContractItemForm[];
 }
 

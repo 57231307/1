@@ -30,6 +30,8 @@ export interface SalesContract {
   payment_method: string | null;
   delivery_date: string | null;
   delivery_location: string | null;
+  /** 真实列 remark（m0016 迁移补列，可空）；后端出参键为单数 remark，非 remarks */
+  remark: string | null;
   status: 'draft' | 'active' | 'cancelled';
   created_by: number;
   /** list_contracts handler 富化键（users.real_name 批量查询），get_contract 详情不带 */
@@ -144,24 +146,35 @@ export interface CreateSalesContractPayload {
 }
 
 /**
- * 更新销售合同入参（对齐后端 UpdateSalesContractDto，PATCH 语义：
- * Some=覆盖、None/缺省=保持原值；items 传数组=明细整表替换，不传=不动明细）。
- * P0 契约修复（本轮）：原后端仅 contract_name/payment_terms，其余表头编辑被静默丢弃。
+ * 更新销售合同入参（对齐后端 UpdateSalesContractDto）。
+ * 字段语义 = 显式三态（RFC 7386 JSON Merge Patch）：
+ * 键缺席=保持原值、显式 null=清空该列为 NULL、有值=覆盖；
+ * items 传数组=明细整表替换，不传=不动明细（数组字段不开放 null 清空，清空须送 []）。
+ * - contract_name/customer_id 为 NOT NULL 列：不开 null 清空，空则应省略键（保持原值），
+ *   发送显式 null 会被后端判业务错误（400 + 外显文案）。
+ * - 其余可空列（total_amount/contract_type/payment_terms/delivery_date/signed_date/
+ *   effective_date/expiry_date/payment_method/delivery_location/remark，逐字段对
+ *   m0011 DDL + m0016 补列核实）类型如实声明 `T | null`：清空须送 null，
+ *   禁止改回 `|| undefined` 省略键——省略=保持原值，正是本轮消灭的静默丢弃。
+ * - 不含 contract_no：后端 UpdateSalesContractDto 无该字段（编号系统生成、编辑链路忽略），
+ *   前端发送它只会构成"后端不读"的死键（check-api-request 判负）。
  */
 export interface UpdateSalesContractPayload {
-  contract_no?: string;
+  /** NOT NULL 列：空则省略键，禁止显式 null */
   contract_name?: string;
+  /** NOT NULL 列：空则省略键，禁止显式 null */
   customer_id?: number;
-  total_amount?: number;
-  contract_type?: string;
-  payment_terms?: string;
-  delivery_date?: string;
-  signed_date?: string;
-  effective_date?: string;
-  expiry_date?: string;
-  payment_method?: string;
-  delivery_location?: string;
-  remark?: string;
+  /** 以下均为 DB 可空列：有值=覆盖、null=清空、键缺席=保持原值 */
+  total_amount?: number | null;
+  contract_type?: string | null;
+  payment_terms?: string | null;
+  delivery_date?: string | null;
+  signed_date?: string | null;
+  effective_date?: string | null;
+  expiry_date?: string | null;
+  payment_method?: string | null;
+  delivery_location?: string | null;
+  remark?: string | null;
   items?: CreateContractItemInput[];
 }
 

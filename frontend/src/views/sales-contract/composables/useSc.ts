@@ -31,6 +31,16 @@ import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 /**
+ * DB 可空列入参归一（三态语义，对齐后端 RFC 7386 显式 null 清空）：
+ * ''/null/undefined → null（显式清空该列），非空 → 原值（覆盖）。
+ * 禁止塌成 `|| undefined`：省略键在后端语义是「保持原值」，
+ * 用户清空交货日期/备注后保存会被静默丢弃——本轮要消灭的形态。
+ * （与 usePc.ts 同名助手形状一致；共享 utils 文件超出本批授权范围，暂各自私有。）
+ */
+const explicitToNull = (v: string | null | undefined): string | null =>
+  v === null || v === undefined || v === '' ? null : v;
+
+/**
  * 销售合同 composable
  * 集中管理列表、表单、客户、对话框的业务状态
  * 对话框可见性由父组件本地 ref 管理
@@ -73,21 +83,23 @@ export function useSc() {
   const dialogTitle = ref('');
 
   // 表单数据
+  // 可空列字段如实声明 string | null：编辑回显直接承接后端真实 NULL（出参键值），
+  // 提交时经 explicitToNull 显式回传 null（清空语义），不再用 '' 掩盖空值状态。
   const formData = reactive({
     id: undefined as number | undefined,
     contract_no: '',
     contract_name: '',
     customer_id: undefined as number | undefined,
-    contract_type: '',
+    contract_type: '' as string | null,
     total_amount: 0,
-    signed_date: '',
-    effective_date: '',
-    expiry_date: '',
-    payment_terms: '',
-    payment_method: '',
-    delivery_date: '',
-    delivery_location: '',
-    remarks: '',
+    signed_date: '' as string | null,
+    effective_date: '' as string | null,
+    expiry_date: '' as string | null,
+    payment_terms: '' as string | null,
+    payment_method: '' as string | null,
+    delivery_date: '' as string | null,
+    delivery_location: '' as string | null,
+    remarks: '' as string | null,
     items: [] as Array<{
       product_name: string;
       unit: string;
@@ -179,22 +191,25 @@ export function useSc() {
    */
   const prepareEdit = async (row: SalesContract) => {
     dialogTitle.value = '编辑销售合同';
+    // 可空列出参为真实 null 时原样承接（不再 `?? ''` 洗成空串）：
+    // 回显忠实是「显式 null 清空」三态语义的前提——未动的 NULL 行提交同一 NULL 即幂等。
     Object.assign(formData, {
       id: row.id,
       contract_no: row.contract_no,
       contract_name: row.contract_name,
       customer_id: row.customer_id,
-      contract_type: row.contract_type ?? '',
+      contract_type: row.contract_type,
       total_amount: Number(row.total_amount ?? 0),
-      signed_date: row.signed_date ?? '',
-      effective_date: row.effective_date ?? '',
-      expiry_date: row.expiry_date ?? '',
-      payment_terms: row.payment_terms ?? '',
-      payment_method: row.payment_method ?? '',
-      delivery_date: row.delivery_date ?? '',
-      delivery_location: row.delivery_location ?? '',
-      // 后端无 remarks 列（remark 迁移落库前该输入不持久化，见汇报「迁移需求」）
-      remarks: '',
+      signed_date: row.signed_date,
+      effective_date: row.effective_date,
+      expiry_date: row.expiry_date,
+      payment_terms: row.payment_terms,
+      payment_method: row.payment_method,
+      delivery_date: row.delivery_date,
+      delivery_location: row.delivery_location,
+      // 后端真实列/出参键为 remark（单数），表单键为 remarks：回显必须显式映射。
+      // 不回显则 update payload 会以「表单为空」把已存在的 remark 送 null 洗掉。
+      remarks: row.remark,
     });
     try {
       const res = await getSalesContractItems(row.id);
@@ -248,21 +263,25 @@ export function useSc() {
   const handleSubmitForm = async () => {
     try {
       if (formData.id) {
-        // P0 修复：update 由「只发 contract_name/payment_terms」改为表头全量 PATCH + 明细整表替换
+        // 表头全量提交 + 三态语义（对齐后端 RFC 7386 显式 null 清空）：
+        // 可空列空值经 explicitToNull 显式送 null（清空该列）；NOT NULL 列
+        // （contract_name/customer_id）空则省略键（=保持原值，送显式 null 被后端业务错误拒绝）。
+        // 明细整表替换：items 必须随表头一起回传（product_id/product_spec/delivery_date/remarks
+        // 四列真实值原样保留，防重插洗 NULL 的既有修复不得回退）。
         const updatePayload: UpdateSalesContractPayload = {
-          contract_no: formData.contract_no,
-          contract_name: formData.contract_name,
+          // 不发送 contract_no：后端 UpdateSalesContractDto 无该字段（编号系统生成，编辑链路忽略）
+          contract_name: formData.contract_name || undefined,
           customer_id: formData.customer_id,
           total_amount: formData.total_amount,
-          contract_type: formData.contract_type || undefined,
-          payment_terms: formData.payment_terms || undefined,
-          delivery_date: formData.delivery_date || undefined,
-          signed_date: formData.signed_date || undefined,
-          effective_date: formData.effective_date || undefined,
-          expiry_date: formData.expiry_date || undefined,
-          payment_method: formData.payment_method || undefined,
-          delivery_location: formData.delivery_location || undefined,
-          remark: formData.remarks || undefined,
+          contract_type: explicitToNull(formData.contract_type),
+          payment_terms: explicitToNull(formData.payment_terms),
+          delivery_date: explicitToNull(formData.delivery_date),
+          signed_date: explicitToNull(formData.signed_date),
+          effective_date: explicitToNull(formData.effective_date),
+          expiry_date: explicitToNull(formData.expiry_date),
+          payment_method: explicitToNull(formData.payment_method),
+          delivery_location: explicitToNull(formData.delivery_location),
+          remark: explicitToNull(formData.remarks),
           items: buildItemsPayload(),
         };
         await updateSalesContract(formData.id, updatePayload);

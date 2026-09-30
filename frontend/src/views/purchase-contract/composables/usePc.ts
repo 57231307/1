@@ -22,6 +22,15 @@ import { useTableApi } from '@/composables/useTableApi';
 import { i18n } from '@/i18n';
 
 /**
+ * DB 可空列入参归一（三态语义，对齐后端 RFC 7386 显式 null 清空）：
+ * ''/null/undefined → null（显式清空该列），非空 → 原值（覆盖）。
+ * 禁止塌成 `|| undefined`：省略键在后端语义是「保持原值」，
+ * 用户清空交货日期/备注后保存会被静默丢弃——本轮要消灭的形态。
+ */
+const explicitToNull = (v: string | null | undefined): string | null =>
+  v === null || v === undefined || v === '' ? null : v;
+
+/**
  * 采购合同 composable
  * 集中管理列表、表单、供应商、对话框的业务状态
  * 对话框可见性由父组件本地 ref 管理
@@ -58,21 +67,23 @@ export function usePc() {
   const formRef = ref<FormInstance>();
 
   // 表单数据
+  // 可空列字段如实声明 string | null：编辑回显直接承接后端真实 NULL（出参键值），
+  // 提交时经 explicitToNull 显式回传 null（清空语义），不再用 '' 掩盖空值状态。
   const formData = reactive({
     id: undefined as number | undefined,
     contract_no: '',
     contract_name: '',
     supplier_id: undefined as number | undefined,
-    contract_type: '',
+    contract_type: '' as string | null,
     total_amount: 0,
-    signed_date: '',
-    effective_date: '',
-    expiry_date: '',
-    payment_terms: '',
-    payment_method: '',
-    delivery_date: '',
-    delivery_location: '',
-    remarks: '',
+    signed_date: '' as string | null,
+    effective_date: '' as string | null,
+    expiry_date: '' as string | null,
+    payment_terms: '' as string | null,
+    payment_method: '' as string | null,
+    delivery_date: '' as string | null,
+    delivery_location: '' as string | null,
+    remarks: '' as string | null,
   });
 
   // 表单验证规则
@@ -165,38 +176,41 @@ export function usePc() {
   const prepareEdit = (row: PurchaseContract) => {
     dialogTitle.value = i18n.global.t('purchaseContract.form.dialogEditTitle');
     Object.assign(formData, row);
+    // 后端真实列/出参键为 remark（单数），表单键为 remarks：回显必须显式映射。
+    // 不回显则 update payload 会以「表单为空」把已存在的 remark 送 null 洗掉。
+    formData.remarks = row.remark;
     formData.total_amount = Number(row.total_amount ?? 0);
   };
 
   /**
    * 提交表单
-   * P0 契约修复（本轮）：
-   * - 新建：CreatePurchaseContractPayload 补齐真实列表头字段
-   *   contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location
-   *   （原「DTO 不收、service 不写、表单有输入框」⇒ 创建即丢数据；现后端三端已对齐）。
-   *   remark 键名单数（非 remarks）；该字段后端暂无对应列（迁移中），先按 DTO 原样提交。
-   * - 编辑：UpdatePurchaseContractPayload 由「只发 contract_name/payment_terms」改为
-   *   表头全量 PATCH（后端 UpdateContractDto 已扩展），修复「保存后再编辑内容不完整」。
-   *   delivery_date 表单仍按产品口径必填（后端已对齐真实列可空性为 Option）。
+   * 三态清空语义（对齐后端 RFC 7386 显式 null）：
+   * - 编辑：可空列空值经 explicitToNull 显式送 null（清空该列）；NOT NULL 列
+   *   （contract_name/supplier_id）空则省略键（=保持原值，送显式 null 会被后端业务错误拒绝）。
+   * - 新建：Create DTO 的 Option 字段未填时省略键即可（创建无"保持原值"问题）。
+   * delivery_date 表单仍按产品口径必填（DB 列可空，后端已开放三态）。
    */
   const handleSubmitForm = async (): Promise<boolean> => {
     try {
       await formRef.value?.validate();
       if (formData.id) {
         const updatePayload: UpdatePurchaseContractPayload = {
-          contract_no: formData.contract_no,
-          contract_name: formData.contract_name,
+          // 不发送 contract_no：后端 UpdateContractDto 无该字段（编号系统生成，编辑链路忽略）
+          // NOT NULL 列：空则省略键（保持原值），禁止塌成显式 null
+          contract_name: formData.contract_name || undefined,
           supplier_id: formData.supplier_id,
+          // DB 可空列：有值=覆盖、空=显式 null 清空（省略键=保持原值不是本表单意图，
+          // 编辑表单已回显真实值，未动的值原样覆盖回去）
           total_amount: formData.total_amount,
-          contract_type: formData.contract_type || undefined,
-          payment_terms: formData.payment_terms || undefined,
-          delivery_date: formData.delivery_date || undefined,
-          signed_date: formData.signed_date || undefined,
-          effective_date: formData.effective_date || undefined,
-          expiry_date: formData.expiry_date || undefined,
-          payment_method: formData.payment_method || undefined,
-          delivery_location: formData.delivery_location || undefined,
-          remark: formData.remarks || undefined,
+          contract_type: explicitToNull(formData.contract_type),
+          payment_terms: explicitToNull(formData.payment_terms),
+          delivery_date: explicitToNull(formData.delivery_date),
+          signed_date: explicitToNull(formData.signed_date),
+          effective_date: explicitToNull(formData.effective_date),
+          expiry_date: explicitToNull(formData.expiry_date),
+          payment_method: explicitToNull(formData.payment_method),
+          delivery_location: explicitToNull(formData.delivery_location),
+          remark: explicitToNull(formData.remarks),
         };
         await updatePurchaseContract(formData.id, updatePayload);
       } else {
@@ -207,7 +221,8 @@ export function usePc() {
           total_amount: formData.total_amount,
           contract_type: formData.contract_type || undefined,
           payment_terms: formData.payment_terms || undefined,
-          delivery_date: formData.delivery_date,
+          // 新建无"保持原值"问题：未填省略键（Create DTO Option → NULL）
+          delivery_date: formData.delivery_date || undefined,
           signed_date: formData.signed_date || undefined,
           effective_date: formData.effective_date || undefined,
           expiry_date: formData.expiry_date || undefined,

@@ -21,6 +21,14 @@ import { escapeHtml } from '@/utils/print';
 import { exportFromBackend } from '@/utils/export';
 
 /**
+ * 合同金额出参归一：后端 sales_contract.rs:17 total_amount=Option<Decimal> → JSON 字符串（或 null），
+ * 前端类型如实声明 string | null（api/sales-contract.ts:12,25）；formatCurrency 只接受 number，
+ * 故消费处 Number() 归一，null 透传（由 formatCurrency 的 ?? 0 统一显示），禁止对字符串直接 .toFixed。
+ */
+const fmtContractAmount = (amount: string | null) =>
+  formatCurrency(amount == null ? null : Number(amount));
+
+/**
  * 刷新回调
  *
  * V15 P0-S12 修复（Batch 475d）：新增 getQueryParams，用于导出时传递列表筛选条件
@@ -118,7 +126,7 @@ export function useScProc(refresh: RefreshCallbacks) {
         <p><strong>合同编号：</strong>${row.contract_no}</p>
         <p><strong>合同名称：</strong>${row.contract_name}</p>
         <p><strong>客户：</strong>${row.customer_name || '-'}</p>
-        <p><strong>合同金额：</strong>${formatCurrency(row.total_amount)}</p>
+        <p><strong>合同金额：</strong>${fmtContractAmount(row.total_amount)}</p>
         <p><strong>签订日期：</strong>${row.signed_date || '-'}</p>
         <p><strong>生效日期：</strong>${row.effective_date || '-'}</p>
         <p><strong>到期日期：</strong>${row.expiry_date || '-'}</p>
@@ -148,7 +156,7 @@ export function useScProc(refresh: RefreshCallbacks) {
         <td>${escapeHtml(item.contract_no)}</td>
         <td>${escapeHtml(item.contract_name)}</td>
         <td>${escapeHtml(item.customer_name)}</td>
-        <td style="text-align:right">${formatCurrency(item.total_amount)}</td>
+        <td style="text-align:right">${fmtContractAmount(item.total_amount)}</td>
         <td>${escapeHtml(item.signed_date || '-')}</td>
         <td>${escapeHtml(getStatusLabel(item.status))}</td>
       </tr>
