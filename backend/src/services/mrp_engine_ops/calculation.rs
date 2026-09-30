@@ -7,12 +7,16 @@
 
 use chrono::{Duration, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, Set};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set, TransactionTrait};
 
-use crate::models::mrp_result::{ActiveModel as MrpResultActiveModel, Model as MrpResultModel};
+use crate::models::mrp_result::{
+    ActiveModel as MrpResultActiveModel, Column as MrpResultColumn, Entity as MrpResultEntity,
+    Model as MrpResultModel,
+};
 // 批次 235 v13 P1-1：MRP 结果状态常量接入（规则 0）
 use crate::models::status::mrp as mrp_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use super::types::{
     MaterialRequirement, MrpCalculationQuery, MrpCalculationRequest, MrpCalculationSummary,
@@ -20,21 +24,57 @@ use super::types::{
 };
 use crate::services::mrp_engine_service::MrpEngineService;
 
+/// MRP 计算编号前缀（落库列 mrp_results.calculation_no，
+/// DDL 证据 UNIQUE：migration/src/domain/business/m0007_add_mrp_production_bom.rs:105
+/// `"calculation_no" VARCHAR(50) NOT NULL UNIQUE`）：
+/// - `MRP`：单次计算主行号，即整次计算的单据号（BOM 子行为 `{行号}-{子行序}`）；
+/// - `MRPB`：批量计算批次号，批次内行号为 `{批次号}-{行序}`（BOM 子行再追加 `-{子行序}`）。
+/// 旧手写格式 `MRP{13位毫秒时间戳}` / `MRPB{13位毫秒时间戳}`（同毫秒并发即重号，
+/// 直撞上述 UNIQUE 列 500），新格式统一 `{前缀}{YYYYMMDD}{3位流水}`
+/// （前缀常量集中定义，对齐 chemical_ops/requisition.rs 风格）。
+pub const MRP_LINE_NO_PREFIX: &str = "MRP";
+pub const MRP_BATCH_NO_PREFIX: &str = "MRPB";
+
 impl MrpEngineService {
     /// 执行MRP计算并保存结果（批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `MrpCalculationQuery`，；消除 `clippy::too_many_arguments` 警告。）
     ///
-    /// 单产品入口：行号前缀由本函数自生成（`MRP{毫秒时间戳}`），保持销售订单审批
-    /// （`services/so/order_workflow.rs`）与生产订单创建（`services/production_order_ops/crud.rs`）
-    /// 两处调用方的历史行为不变。批量场景请走 `run_mrp_calculation_for_line`，由批次调用方统一决定编号。
+    /// 单产品入口：行号即本次计算的单据号（mrp_results.calculation_no UNIQUE 列），
+    /// 经 `generate_no_with_txn` 在事务内取号，主行与 BOM 子行的 INSERT 全部落在
+    /// 同一事务、advisory lock 持有到提交（对齐 services/inventory_count_service.rs
+    /// 在 count_no UNIQUE 列上的同型形态；一次取号覆盖整单主行+派生子行，
+    /// 子行号 `{行号}-{序}` 非独立生成号，不适用逐行 insert_with_no_retry）。
+    /// 保持销售订单审批（`services/so/order_workflow.rs`）与生产订单创建
+    /// （`services/production_order_ops/crud.rs`）两处调用方的行为不变。
+    /// 批量场景请走 `run_mrp_calculation_for_line`，由批次调用方统一决定编号。
     pub async fn run_mrp_calculation(
         &self,
         query: MrpCalculationQuery,
     ) -> Result<Vec<MrpResultModel>, AppError> {
-        let line_no = format!("MRP{}", Utc::now().timestamp_millis());
-        self.run_mrp_calculation_for_line(query, &line_no).await
+        let txn = (*self.db).begin().await?;
+        let line_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            MRP_LINE_NO_PREFIX,
+            MrpResultEntity,
+            MrpResultColumn::CalculationNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = MRP_LINE_NO_PREFIX,
+                "MRP计算行号取号失败（mrp_engine_ops/calculation.run_mrp_calculation）"
+            );
+            AppError::business_displayable("MRP计算单号生成失败，请稍后重试")
+        })?;
+        let results = self
+            .run_mrp_calculation_for_line(&txn, query, &line_no)
+            .await?;
+        txn.commit().await?;
+        Ok(results)
     }
 
-    /// 以给定行号前缀执行一次（单产品）MRP 计算并落库。
+    /// 以给定行号前缀执行一次（单产品）MRP 计算并落库（INSERT 全部走调用方事务 `txn`，
+    /// 与批次号/行号的取号同事务，禁止改回 `&*self.db` 裸连接提交）。
     ///
     /// `line_no` 即本次计算主物料行的 `calculation_no`，其 BOM 子行为 `{line_no}-{子行序}`；
     /// 由 batch_calculate 统一编号为 `{批次号}-{行序}`，使同一批次内主行/子行互不相同、
@@ -42,6 +82,7 @@ impl MrpEngineService {
     /// 同时让整批行都能以批次号作前缀被检索出来。
     pub(crate) async fn run_mrp_calculation_for_line(
         &self,
+        txn: &DatabaseTransaction,
         query: MrpCalculationQuery,
         line_no: &str,
     ) -> Result<Vec<MrpResultModel>, AppError> {
@@ -61,9 +102,9 @@ impl MrpEngineService {
             })
             .await?;
 
-        // 构建并保存主物料结果
+        // 构建并保存主物料结果（与取号同事务）
         let main_active_model = Self::build_main_result_active_model(line_no, &main_req);
-        let main_result = main_active_model.insert(&*self.db).await?;
+        let main_result = main_active_model.insert(txn).await?;
         results.push(main_result);
 
         // 展开 BOM 获取子物料需求
@@ -82,7 +123,7 @@ impl MrpEngineService {
         // 遍历构建并保存子物料结果
         for (idx, req) in sub_requirements.iter().enumerate() {
             let sub_active_model = Self::build_sub_result_active_model(line_no, idx, req);
-            let sub_result = sub_active_model.insert(&*self.db).await?;
+            let sub_result = sub_active_model.insert(txn).await?;
             results.push(sub_result);
         }
 
@@ -149,7 +190,25 @@ impl MrpEngineService {
     ) -> Result<MrpCalculationSummary, AppError> {
         // 一次批量计算 = 一个批次：批次号既作为响应返回，也作为批内所有行号的前缀，
         // 使 /mrp/results?calculation_no=<批次号> 能按前缀检索到整批行。
-        let calculation_no = format!("MRPB{}", Utc::now().timestamp_millis());
+        // 批次号经生成器在事务内取号（advisory lock 持有到提交），批内全部行
+        // INSERT 同事务——原「MRPB{毫秒时间戳}」直撞 calculation_no UNIQUE
+        // （DDL 见文件头前缀常量注释）的写法废除，禁止退化回时间戳。
+        let txn = (*self.db).begin().await?;
+        let calculation_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            MRP_BATCH_NO_PREFIX,
+            MrpResultEntity,
+            MrpResultColumn::CalculationNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = MRP_BATCH_NO_PREFIX,
+                "MRP计算批次号取号失败（mrp_engine_ops/calculation.batch_calculate）"
+            );
+            AppError::business_displayable("MRP计算批次号生成失败，请稍后重试")
+        })?;
         let mut all_results = Vec::new();
         let mut all_requirements = Vec::new();
 
@@ -161,6 +220,7 @@ impl MrpEngineService {
         for (line_idx, item) in request.items.iter().enumerate() {
             let results = self
                 .run_mrp_calculation_for_line(
+                    &txn,
                     MrpCalculationQuery {
                         product_id: item.product_id,
                         required_quantity: item.required_quantity,
@@ -208,6 +268,9 @@ impl MrpEngineService {
             .iter()
             .filter(|r| r.shortage_quantity > Decimal::ZERO)
             .count() as i32;
+
+        // 批次号取号与整批行 INSERT 同事务，提交时释放 advisory lock
+        txn.commit().await?;
 
         Ok(MrpCalculationSummary {
             calculation_no,

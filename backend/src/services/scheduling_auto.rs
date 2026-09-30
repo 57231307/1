@@ -16,15 +16,29 @@ use crate::models::dto::scheduling_dto::{
 use crate::models::production_order::{
     Entity as ProductionOrderEntity, Model as ProductionOrderModel,
 };
-use crate::models::scheduling_result::ActiveModel as SchedulingActiveModel;
+use crate::models::scheduling_result::{
+    ActiveModel as SchedulingActiveModel, Column as SchedulingResultColumn,
+    Entity as SchedulingResultEntity,
+};
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 use std::collections::HashMap;
+
+/// 排程批次号（scheduling_result.batch_no）自动编码前缀：旧手写格式
+/// `SCH-{YYYYMMDDHHMMSS}{6位随机}`（同秒并发仅靠随机数兜底，碰撞概率非零，
+/// 且该列无 UNIQUE 可拦截——DDL 证据
+/// migration/src/domain/business/m0007_add_mrp_production_bom.rs:129
+/// `"batch_no" VARCHAR(50) NOT NULL`（无 UNIQUE）、:148 仅普通索引
+/// `idx_scheduling_result_batch`），新格式统一 `{SCH}{YYYYMMDD}{3位流水}`
+/// （前缀常量集中定义，对齐 chemical_ops/requisition.rs 风格）。
+pub const SCHEDULE_BATCH_NO_PREFIX: &str = "SCH";
 
 /// P9-2 标记：自动排程子模块路径
 pub const P92_AUTO_MODULE: &str = "scheduling_auto";
@@ -659,11 +673,25 @@ impl SchedulingService {
         remarks: Option<String>,
     ) -> Result<crate::models::scheduling_result::Model, AppError> {
         let now = Utc::now();
-        let batch_no = format!(
-            "SCH-{}-{}",
-            now.format("%Y%m%d%H%M%S"),
-            crate::utils::random::random_6_digit()
-        );
+        // 排程批次号取号与 INSERT 同一事务：无 UNIQUE 约束的列走事务内
+        // generate_no_with_txn（advisory lock 持有到提交，见 SCHEDULE_BATCH_NO_PREFIX
+        // 注释中的 DDL 证据），从机制上串行化同日前缀取号，不再依赖时间戳+随机数。
+        let txn = (*self.db).begin().await?;
+        let batch_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            SCHEDULE_BATCH_NO_PREFIX,
+            SchedulingResultEntity,
+            SchedulingResultColumn::BatchNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = SCHEDULE_BATCH_NO_PREFIX,
+                "排程批次号取号失败（scheduling_auto.save_schedule_result）"
+            );
+            AppError::business_displayable("排程批次号生成失败，请稍后重试")
+        })?;
 
         // 计算日期范围
         // P3 维度 3 修复（批次 87）：消除 unwrap，改用 if let 显式模式匹配
@@ -721,7 +749,10 @@ impl SchedulingService {
             updated_at: Set(now),
         };
 
-        let model = active_model.insert(&*self.db).await?;
+        let model = active_model.insert(&txn).await?;
+
+        // 取号事务提交（advisory lock 随提交释放）
+        txn.commit().await?;
 
         Ok(model)
     }

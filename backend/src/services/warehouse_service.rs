@@ -2,16 +2,26 @@ use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 
 use crate::models::warehouse::{self, Entity as WarehouseEntity};
 // 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::sql_escape::safe_like_pattern;
 
 crate::define_service!(WarehouseService);
+
+/// 仓库编码（warehouses.warehouse_code）自动编码前缀：旧手写格式
+/// `WH{13位毫秒时间戳}{4位随机}`（同毫秒并发即重号，直撞 UNIQUE——DDL 证据
+/// migration/src/domain/system/m0001_initial_schema.rs:281
+/// `"warehouse_code" VARCHAR(50) NOT NULL UNIQUE`），
+/// 新格式统一 `{WH}{YYYYMMDD}{3位流水}`（前缀常量集中定义，
+/// 对齐 chemical_ops/requisition.rs 风格；人工传入码原样保留，
+/// 对齐 fixed_asset_service / quality_standard_service 分支形态）。
+pub const WAREHOUSE_CODE_NO_PREFIX: &str = "WH";
 
 impl WarehouseService {
     /// 获取仓库列表（支持分页和过滤）
@@ -74,18 +84,13 @@ impl WarehouseService {
         req: crate::handlers::warehouse_handler::CreateWarehouseRequest,
         _user_id: i32,
     ) -> Result<warehouse::Model, AppError> {
-        // 自动生成仓库编码
-        let code = match req.code {
-            Some(c) if !c.is_empty() => c,
-            _ => {
-                let timestamp = Utc::now().timestamp_millis();
-                let random_suffix = crate::utils::random::random_4_digit();
-                format!("WH{:013}{:04}", timestamp, random_suffix)
-            }
-        };
+        // 仓库编码：人工传入原样保留；缺省时由生成器取号（格式契约见
+        // WAREHOUSE_CODE_NO_PREFIX 注释）。取号与 INSERT 同事务。
+        let manual_code = req.code.clone().filter(|c| !c.is_empty());
 
-        // 批次 93 P1 扩展：接入 manager（解析为 manager_id，与 update 方法对齐）
-        let manager_id = match req.manager {
+        // 批次 93 P1 扩展：接入 manager（解析为 manager_id，与 update 方法对齐）；
+        // 按引用匹配：req 后续还被取号闭包整体借用，不能部分移出字段
+        let manager_id = match &req.manager {
             Some(m) if !m.is_empty() => match m.parse::<i32>() {
                 Ok(parsed) => Some(parsed),
                 Err(e) => {
@@ -96,35 +101,33 @@ impl WarehouseService {
             _ => None,
         };
 
-        let active_model = warehouse::ActiveModel {
-            id: NotSet,
-            warehouse_code: Set(code),
-            name: Set(req
-                .name
-                .unwrap_or_else(|| format!("仓库_{}", Utc::now().timestamp()))),
-            address: Set(req.address),
-            city: Set(None),
-            province: Set(None),
-            country: Set(None),
-            postal_code: Set(None),
-            phone: Set(req.phone),
-            // 契约对齐：前端创建表单 contact_person / is_default
-            contact_person: Set(req.contact_person),
-            is_default: Set(req.is_default.unwrap_or(false)),
-            email: Set(None),
-            manager_id: Set(manager_id),
-            is_active: Set(true),
-            // description 写入 notes 列
-            notes: Set(req.description),
-            // 仓库类型（greige=胚布仓/finished=成品仓/NULL 不校验），匹号领域规则使用
-            warehouse_type: Set(req.warehouse_type.clone()),
-            // 批次 158 v11 真实接入：capacity 字段持久化（原 #[allow(dead_code)] 移除）
-            capacity: Set(req.capacity),
-            created_at: Set(Utc::now()),
-            updated_at: Set(Utc::now()),
+        let txn = (*self.db).begin().await?;
+        let result = match manual_code {
+            // 人工指定码直插：撞 warehouses.warehouse_code UNIQUE(23505) 时
+            // 原样显式上抛，禁止重新取号覆盖用户指定的编码
+            Some(code) => {
+                Self::build_warehouse_active_model(code, &req, manager_id)
+                    .insert(&txn)
+                    .await?
+            }
+            None => DocumentNumberGenerator::insert_with_no_retry(
+                &txn,
+                WAREHOUSE_CODE_NO_PREFIX,
+                WarehouseEntity,
+                warehouse::Column::WarehouseCode,
+                |code| Self::build_warehouse_active_model(code, &req, manager_id),
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    prefix = WAREHOUSE_CODE_NO_PREFIX,
+                    "仓库编码取号/插入失败（warehouse_service.create）"
+                );
+                AppError::business_displayable("仓库编码生成失败，请稍后重试")
+            })?,
         };
-
-        let result = active_model.insert(&*self.db).await?;
+        txn.commit().await?;
 
         // 默认仓库全局唯一：新仓库为默认时，清除其他仓库的默认标志
         if result.is_default {
@@ -132,6 +135,43 @@ impl WarehouseService {
         }
 
         Ok(result)
+    }
+
+    /// 构建仓库 ActiveModel（人工码与自动取号两条路径共用字段装配，仅编码来源不同；
+    /// `insert_with_no_retry` 的重试闭包要求可按候选号重复构建）
+    fn build_warehouse_active_model(
+        code: String,
+        req: &crate::handlers::warehouse_handler::CreateWarehouseRequest,
+        manager_id: Option<i32>,
+    ) -> warehouse::ActiveModel {
+        warehouse::ActiveModel {
+            id: NotSet,
+            warehouse_code: Set(code),
+            name: Set(req
+                .name
+                .clone()
+                .unwrap_or_else(|| format!("仓库_{}", Utc::now().timestamp()))),
+            address: Set(req.address.clone()),
+            city: Set(None),
+            province: Set(None),
+            country: Set(None),
+            postal_code: Set(None),
+            phone: Set(req.phone.clone()),
+            // 契约对齐：前端创建表单 contact_person / is_default
+            contact_person: Set(req.contact_person.clone()),
+            is_default: Set(req.is_default.unwrap_or(false)),
+            email: Set(None),
+            manager_id: Set(manager_id),
+            is_active: Set(true),
+            // description 写入 notes 列
+            notes: Set(req.description.clone()),
+            // 仓库类型（greige=胚布仓/finished=成品仓/NULL 不校验），匹号领域规则使用
+            warehouse_type: Set(req.warehouse_type.clone()),
+            // 批次 158 v11 真实接入：capacity 字段持久化（原 #[allow(dead_code)] 移除）
+            capacity: Set(req.capacity),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        }
     }
 
     /// 保证默认仓库全局唯一：将除 `keep_id` 外的仓库 is_default 置为 false

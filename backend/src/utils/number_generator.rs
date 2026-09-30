@@ -314,9 +314,9 @@ pub async fn is_document_no_taken<C: ConnectionTrait>(
         ap_invoice, ap_payment, ap_payment_request, ap_reconciliation, ap_verification,
         ar_collection, ar_invoice, ar_reconciliation, bpm_process_instance, bpm_task,
         cost_collection, crm_lead, customer, inventory_adjustment, inventory_count,
-        inventory_transfer, outsourcing_order, outsourcing_receipt, product, purchase_inspection,
-        purchase_order, purchase_receipt, purchase_return, sales_delivery, sales_order,
-        sales_quotation, sales_return, supplier, voucher,
+        inventory_transfer, mrp_result, outsourcing_order, outsourcing_receipt, product,
+        purchase_inspection, purchase_order, purchase_receipt, purchase_return, sales_delivery,
+        sales_order, sales_quotation, sales_return, supplier, voucher, warehouse,
     };
 
     let taken = match doc_type {
@@ -468,6 +468,23 @@ pub async fn is_document_no_taken<C: ConnectionTrait>(
             .is_some(),
         "product" => product::Entity::find()
             .filter(product::Column::Code.eq(no))
+            .one(db)
+            .await?
+            .is_some(),
+        // —— 任务 #158 残余收口新增自动取号点（两列均带 UNIQUE，必须登记）——
+        // MRP 计算单号（mrp_results.calculation_no UNIQUE：
+        // migration/src/domain/business/m0007_add_mrp_production_bom.rs:105；
+        // 取号方 services/mrp_engine_ops/calculation.rs）
+        "mrp_result" => mrp_result::Entity::find()
+            .filter(mrp_result::Column::CalculationNo.eq(no))
+            .one(db)
+            .await?
+            .is_some(),
+        // 仓库编码（warehouses.warehouse_code UNIQUE：
+        // migration/src/domain/system/m0001_initial_schema.rs:281；
+        // 取号方 services/warehouse_service.rs，人工传入码原样保留）
+        "warehouse" => warehouse::Entity::find()
+            .filter(warehouse::Column::WarehouseCode.eq(no))
             .one(db)
             .await?
             .is_some(),
