@@ -88,6 +88,24 @@ impl ExportRefundService {
         Self { db }
     }
 
+    /// 单证核验状态唯一判定 token（models/export_customs_declaration.rs:39、
+    /// models/foreign_exchange_verification.rs:36 词表中的 verified 项）。
+    /// 核验端点（verify_documents_completeness）、documents_complete
+    /// （orders_documents_complete）与退税申报金额聚合
+    /// （verified_export_sales_amount）三者共用此常量，禁止任何一处另写第二套状态规则。
+    const VERIFIED_STATUS: &'static str = "verified";
+
+    /// 退税申报基数聚合：只计入 status=verified 报关单的人民币口径金额
+    /// （total_amount × exchange_rate 逐单求和）。pending/cancelled 等非已核验
+    /// 状态的行不进申报基数——与 [`Self::orders_documents_complete`] 的核验口径同源。
+    pub fn verified_export_sales_amount(customs_list: &[CustomsModel]) -> Decimal {
+        customs_list
+            .iter()
+            .filter(|c| c.status == Self::VERIFIED_STATUS)
+            .map(|c| c.total_amount * c.exchange_rate)
+            .sum()
+    }
+
     /// 创建出口报关单
     pub async fn create_customs_declaration(
         &self,
@@ -166,7 +184,7 @@ impl ExportRefundService {
                 export_customs_declaration::Column::SalesOrderId
                     .is_in(sales_order_ids.iter().copied()),
             )
-            .filter(export_customs_declaration::Column::Status.eq("verified"))
+            .filter(export_customs_declaration::Column::Status.eq(Self::VERIFIED_STATUS))
             .select_only()
             .column(export_customs_declaration::Column::SalesOrderId)
             .into_tuple::<Option<i32>>()
@@ -181,7 +199,7 @@ impl ExportRefundService {
                 foreign_exchange_verification::Column::SalesOrderId
                     .is_in(sales_order_ids.iter().copied()),
             )
-            .filter(foreign_exchange_verification::Column::Status.eq("verified"))
+            .filter(foreign_exchange_verification::Column::Status.eq(Self::VERIFIED_STATUS))
             .select_only()
             .column(foreign_exchange_verification::Column::SalesOrderId)
             .into_tuple::<Option<i32>>()
@@ -270,10 +288,10 @@ impl ExportRefundService {
             .all(&*self.db)
             .await?;
 
-        let export_sales_amount: Decimal = customs_list
-            .iter()
-            .map(|c| c.total_amount * c.exchange_rate)
-            .sum();
+        // 申报基数只计入 status=verified 的报关单（核验口径同源，见
+        // [`Self::verified_export_sales_amount`]）；customs_list 保留全期间数据仅用于
+        // documents_complete 的当期存在性/归属判定，未核验行不进金额基数。
+        let export_sales_amount = Self::verified_export_sales_amount(&customs_list);
 
         let calc_input = RefundCalculationInput {
             export_sales_amount,

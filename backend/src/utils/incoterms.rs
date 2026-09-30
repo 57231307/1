@@ -103,11 +103,15 @@ impl Incoterms2020 {
         )
     }
 
-    /// 是否包含运费（EXW / FCA / FAS 不含主运费，其他术语均含）
+    /// 是否包含主运费（EXW / FCA / FAS / FOB 不含主运费，其他术语均含）
+    ///
+    /// FOB 口径依据 ICC Incoterms 2020：FOB 与 FCA/FAS 同族，卖方承担装船前费用与风险，
+    /// 主运费（海运段）由买方订立并承担；本仓 `description()` 对 FOB 的
+    /// 「卖方承担装船前费用」描述与此同源。
     pub fn includes_freight(&self) -> bool {
         !matches!(
             self,
-            Incoterms2020::Exw | Incoterms2020::Fca | Incoterms2020::Fas
+            Incoterms2020::Exw | Incoterms2020::Fca | Incoterms2020::Fas | Incoterms2020::Fob
         )
     }
 
@@ -165,7 +169,10 @@ impl Incoterms2020 {
     }
 
     /// 主费用承担方（结构化，V15 P2 23.5 缺陷3 修复）
-    /// 规则：EXW=买方；DAP/DPU/DDP=卖方；FCA/FAS/FOB/CPT/CIP/CFR/CIF=共担（卖方承担装运/主运费，买方承担后续费用）
+    /// 规则（ICC Incoterms 2020）：
+    /// - EXW=买方；DAP/DPU/DDP=卖方；
+    /// - FCA/FAS/FOB=共担：卖方仅承担交货/装船前费用，主运费由买方订立并承担；
+    /// - CPT/CIP/CFR/CIF=共担：卖方承担主运费（至命名地点），买方承担卸货后及进口环节费用。
     pub fn cost_bearer(&self) -> CostBearer {
         match self {
             Incoterms2020::Exw => CostBearer::Buyer,

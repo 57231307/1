@@ -118,7 +118,7 @@ impl IncotermsService {
         insurance_cost: Option<Decimal>,
         duty_cost: Option<Decimal>,
     ) -> (Decimal, Option<Decimal>, Option<Decimal>, Option<Decimal>) {
-        // EXW/FCA/FAS 不含运费
+        // EXW/FCA/FAS/FOB 不含主运费（FOB 主运费由买方订立，ICC Incoterms 2020）
         let freight = if incoterm.includes_freight() {
             freight_cost
         } else {

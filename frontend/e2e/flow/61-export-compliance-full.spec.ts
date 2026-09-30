@@ -34,10 +34,12 @@ import { fillFieldByLabel, formItemByExactLabel } from './ui-helpers';
  * 隔离策略（防串扰、用例自建自流转）：
  * - 环保税 GET/申报按 period_year+period_month **精确等值**过滤（service.rs list_by_period），
  *   选用远未来专属期间 2098-07（全仓 e2e grep 无其它用例在该期间造数），税额链可钉精确真值；
- * - 退税申报表聚合口径为 export_date >= 期间月初、**无上界**（export_refund_service.rs:207-215，
- *   源码缺期间上界属真实缺陷，见交付报告）；故报关单聚合选最远期间 2099-01 并依赖
- *   「全仓无任何其它用例/seed 创建 export_date>=2099-01-01 的报关单」这一 grep 事实来保证
- *   export_sales_amount=2000 的精确真值断言不被外部数据污染。
+ * - 退税申报表聚合口径为真实所属期间半开区间 [期间月初, 次月月初)，且金额基数
+ *   **只计入 status=verified 的报关单**（export_refund_service.rs VERIFIED_STATUS /
+ *   verified_export_sales_amount，与核验端点、documents_complete 共用同一判定源）；
+ *   新建报关单恒为 pending（后端暂无置 verified 的端点）→ pending 数据不进基数。
+ *   故报关单聚合仍选最远专属期间 2099-01 并依赖「全仓无任何其它用例/seed 在
+ *   export_date>=2099-01-01 造报关数据」这一 grep 事实，把聚合链精确真值钉死。
  *
  * 假绿防线：创建退税申报后必 GET /export-refunds/refund-declarations 回读落库金额链；
  * 排放记录创建后必 GET discharge-records 回读污染当量数与税额（数组信封显式断言，不用 ?? []）；
@@ -244,7 +246,9 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
   }) => {
     const ctx = getCtx();
     if (!ctx.salesOrderId) throw new Error('前置缺失：ctx.salesOrderId 未就绪');
-    // 专属远未来期间报关单：export_sales_amount 聚合 = 1000×2 = 2000（全仓无其它 2099 数据）
+    // 专属远未来期间报关单：新建即 pending，未核验数据不进申报基数
+    // （收紧口径：export_sales_amount 只计入 status=verified 报关单）→ 聚合应为 0，
+    // 全仓无其它 2099 数据，聚合链真值可精确钉死。
     await apiCall(page, 'POST', '/export-refunds/customs-declarations', {
       declaration_no: declNo(),
       sales_order_id: ctx.salesOrderId,
@@ -268,15 +272,18 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     const d = gen.data;
     const declId = Number(d?.id);
     expect(declId, `生成申报表应返回 id：${JSON.stringify(gen)}`).toBeGreaterThan(0);
-    expect(Number(d?.export_sales_amount), '汇总出口销售额应为 1000×2=2000').toBe(2000);
-    expect(Number(d?.refundable_vat_amount), '免抵退税额=2000×0.13=260').toBe(260);
-    expect(Number(d?.actual_refund_amount), '应退=min(260,600)=260').toBe(260);
-    expect(Number(d?.exempt_vat_amount), '免抵税额=260-260=0').toBe(0);
-    expect(Number(d?.carryforward_amount), '结转=600-260=340').toBe(340);
+    expect(Number(d?.export_sales_amount), 'pending 报关单不进申报基数，聚合销售额应为 0').toBe(0);
+    expect(Number(d?.refundable_vat_amount), '免抵退税额=0×0.13=0').toBe(0);
+    expect(Number(d?.actual_refund_amount), '应退=min(0,600)=0').toBe(0);
+    expect(Number(d?.exempt_vat_amount), '免抵税额=0-0=0').toBe(0);
+    expect(Number(d?.carryforward_amount), '结转=max(0,0+600-0)=600').toBe(600);
     expect(String(d?.declaration_no), '申报表号应带期间前缀 ERD-209901-').toMatch(
       /^ERD-209901-\d{5}$/
     );
-    expect(d?.documents_complete, '当期存在报关单 → 齐全标记应为 true').toBe(true);
+    expect(
+      d?.documents_complete,
+      '当期仅有 pending 报关单 → 齐全标记必须为 false（核验只认 verified）'
+    ).toBe(false);
     expect(d?.status, '新建申报表状态应为 draft').toBe('draft');
 
     // 列表回读（GET 支持期间过滤）：必须能按 id 找到这张表且金额链一致
@@ -291,8 +298,8 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     ).toBe(true);
     const row = list.find(it => Number(it.id) === declId);
     expect(row, 'GET 列表按期间过滤应命中新建申报表').toBeTruthy();
-    expect(Number(row?.export_sales_amount), '列表回读销售额应为 2000').toBe(2000);
-    expect(Number(row?.actual_refund_amount), '列表回读应退税额应为 260').toBe(260);
+    expect(Number(row?.export_sales_amount), '列表回读销售额应为 0（未核验不进基数）').toBe(0);
+    expect(Number(row?.actual_refund_amount), '列表回读应退税额应为 0').toBe(0);
     expect(row?.status, '列表回读状态应为 draft').toBe('draft');
 
     await verifyDownloadEndpointHealthy(page, `/export-refunds/${declId}/print`);
@@ -359,10 +366,10 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     expect(exw.insurance_cost, 'EXW 不含保险').toBeNull();
     expect(exw.duty_cost, 'EXW 不含关税').toBeNull();
 
-    // 契约真相（utils/incoterms.rs:107-112 includes_freight = 除 EXW/FCA/FAS 外均含）：
-    // FOB 在本仓实现中**含主运费**（返回传入的 freight_cost）。标准 Incoterms 语义下
-    // FOB 买方付主运费，此处实现口径存疑——按实现真相断言，语义问题列入交付报告，
-    // 不在测试里臆造「FOB 不含运费」的 null 断言。
+    // 定稿口径（ICC Incoterms 2020）：FOB 与 FCA/FAS 同族，卖方仅承担装船前费用与风险，
+    // 主运费由买方订立并承担；后端 utils/incoterms.rs includes_freight 已按此实现
+    // （EXW/FCA/FAS/FOB 为 false），故 /incoterms/cost-calculation 对 FOB 的
+    // freight_cost 必须返回 null，传入的运费不进 FOB 价格构成。
     const fob = await apiCallRaw<Record<string, unknown>>(
       page,
       'POST',
@@ -372,7 +379,7 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
         ...costs,
       }
     );
-    expect(Number(fob.freight_cost), 'FOB 按实现口径含主运费（includes_freight=true）').toBe(30);
+    expect(fob.freight_cost, 'FOB 不含主运费（includes_freight=false，主运费归买方）').toBeNull();
     expect(fob.insurance_cost, 'FOB 不含保险（仅 CIF/CIP/DDP 含）').toBeNull();
     expect(fob.duty_cost, 'FOB 不含关税（仅 DDP 含）').toBeNull();
 
