@@ -70,10 +70,7 @@ pub async fn list_finance_invoices(
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
 
-    let invoices = service
-        .list_invoices(Some(&data_scope_ctx))
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let invoices = service.list_invoices(Some(&data_scope_ctx)).await?;
 
     let invoice_responses: Vec<InvoiceResponse> = invoices
         .into_iter()
@@ -130,7 +127,7 @@ pub async fn get_finance_invoice(
             updated_at: invoice.updated_at,
         }))),
         Ok(None) => Err(AppError::not_found("发票不存在")),
-        Err(e) => Err(AppError::internal(e.to_string())),
+        Err(e) => Err(e),
     }
 }
 
@@ -162,8 +159,7 @@ pub async fn create_finance_invoice(
 
     let invoice = service
         .create_invoice(invoice_no, amount, tax_amount, total_amount)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(InvoiceResponse {
         id: invoice.id,
@@ -219,7 +215,7 @@ pub async fn update_finance_invoice(
             updated_at: invoice.updated_at,
         }))),
         Ok(None) => Err(AppError::not_found("发票不存在")),
-        Err(e) => Err(AppError::internal(e.to_string())),
+        Err(e) => Err(e),
     }
 }
 
@@ -235,10 +231,7 @@ pub async fn delete_finance_invoice(
     let _ = service.get_invoice(id, Some(&data_scope_ctx)).await?;
 
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-    service
-        .delete_invoice(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    service.delete_invoice(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(())))
 }
@@ -268,7 +261,7 @@ pub async fn approve_finance_invoice(
             updated_at: invoice.updated_at,
         }))),
         Ok(None) => Err(AppError::not_found("发票不存在")),
-        Err(e) => Err(AppError::internal(e.to_string())),
+        Err(e) => Err(e),
     }
 }
 
@@ -297,6 +290,6 @@ pub async fn verify_invoice(
             updated_at: invoice.updated_at,
         }))),
         Ok(None) => Err(AppError::not_found("发票不存在")),
-        Err(e) => Err(AppError::internal(e.to_string())),
+        Err(e) => Err(e),
     }
 }

@@ -467,15 +467,26 @@ impl SalesService {
     ) -> Result<serde_json::Value, AppError> {
         use sea_orm::QuerySelect;
 
-        let _start_date = query
+        // 日期区间解析：严格 YYYY-MM-DD。非法格式是用户自己提交的字段、按公开规则拒绝
+        // （可外显），不再静默套用默认值把筛选吞掉。
+        let start_date = query
             .get("start_date")
             .and_then(|v| v.as_str())
-            .unwrap_or("2020-01-01");
+            .map(|s| {
+                chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| {
+                    AppError::validation_displayable("start_date 需为 YYYY-MM-DD 格式")
+                })
+            })
+            .transpose()?;
 
-        let _end_date = query
+        let end_date = query
             .get("end_date")
             .and_then(|v| v.as_str())
-            .unwrap_or("2099-12-31");
+            .map(|s| {
+                chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                    .map_err(|_| AppError::validation_displayable("end_date 需为 YYYY-MM-DD 格式"))
+            })
+            .transpose()?;
 
         let customer_id = query
             .get("customer_id")
@@ -489,6 +500,25 @@ impl SalesService {
 
         if let Some(cid) = customer_id {
             query = query.filter(sales_order::Column::CustomerId.eq(cid));
+        }
+
+        // 日期范围下推：口径与 build_orders_query（本文件订单列表已生效实现）逐字对齐——
+        // order_date 为 timestamptz，起始取当日 00:00（含，gte），截止取次日 00:00（不含，lt），
+        // 覆盖截止日期当天全部时刻；缺省端不加界。此前 _start_date/_end_date 收下即丢，
+        // 导致统计日期筛选完全不生效。
+        if let Some(sd) = start_date {
+            let start_at = sd
+                .and_hms_opt(0, 0, 0)
+                .map(|t| t.and_utc())
+                .unwrap_or_else(chrono::Utc::now);
+            query = query.filter(sales_order::Column::OrderDate.gte(start_at));
+        }
+        if let Some(ed) = end_date {
+            let end_exclusive = (ed + chrono::Duration::days(1))
+                .and_hms_opt(0, 0, 0)
+                .map(|t| t.and_utc())
+                .unwrap_or_else(chrono::Utc::now);
+            query = query.filter(sales_order::Column::OrderDate.lt(end_exclusive));
         }
 
         let result = query

@@ -190,15 +190,11 @@ pub async fn list_audit_logs(
         .order_by_desc(audit_log::Column::CreatedAt)
         .paginate(state.db.as_ref(), page_size);
 
-    let total = paginator
-        .num_items()
-        .await
-        .map_err(|e| AppError::internal(format!("统计审计日志失败: {}", e)))?;
+    let total = paginator.num_items().await?;
     let logs = paginator
         // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
         .fetch_page(page.clamp(1, 1000).saturating_sub(1))
-        .await
-        .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?;
+        .await?;
 
     let items: Vec<AuditLogListItem> = logs.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(AuditLogListResponse {
@@ -238,8 +234,7 @@ pub async fn get_audit_log(
 
     let log = audit_log::Entity::find_by_id(id)
         .one(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?
+        .await?
         .ok_or_else(|| AppError::not_found("审计日志不存在"))?;
 
     let response = AuditLogDetailResponse {
@@ -376,8 +371,7 @@ pub async fn export_audit_logs(
         .order_by_desc(audit_log::Column::CreatedAt)
         .limit(EXPORT_LIMIT)
         .all(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?;
+        .await?;
 
     // V15 P0-S15 修复（Batch 475a）：保存 logs 数量用于水印（logs 后续被 into_iter 消费）
     let logs_count = logs.len();
@@ -526,17 +520,12 @@ pub async fn list_audit_log_export_logs(
         select = select.filter(audit_log_export_log::Column::ExporterUserId.eq(uid));
     }
 
-    let total = select
-        .clone()
-        .count(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(format!("查询导出审计记录总数失败: {}", e)))?;
+    let total = select.clone().count(state.db.as_ref()).await?;
 
     let rows = select
         .paginate(state.db.as_ref(), per_page)
         .fetch_page(page - 1)
-        .await
-        .map_err(|e| AppError::internal(format!("查询导出审计记录失败: {}", e)))?;
+        .await?;
 
     let items = rows
         .into_iter()

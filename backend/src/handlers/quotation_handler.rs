@@ -403,12 +403,19 @@ pub async fn list_expired(
     let today = Utc::now().date_naive();
 
     use crate::models::sales_quotation;
-    use sea_orm::sea_query::Expr;
+    use crate::models::status::quotation_ext;
+    use sea_orm::Condition;
+    // 状态过滤统一走 SeaORM Column 表达式 + status 词表常量绑定，
+    // 与写入侧 models::status 同源（此前手写裸 SQL 字面量绕过了唯一词表来源）。
+    // NOT IN (cancelled, expired, converted) 展开为逐列 ne 的 AND 组合。
     let items: Vec<QuotationResponseDto> = sales_quotation::Entity::find()
         .filter(sales_quotation::Column::ValidUntil.lt(today))
-        .filter(Expr::cust(
-            "status NOT IN ('cancelled', 'converted', 'expired')",
-        ))
+        .filter(
+            Condition::all()
+                .add(sales_quotation::Column::Status.ne(quotation_status::CANCELLED))
+                .add(sales_quotation::Column::Status.ne(quotation_ext::EXPIRED))
+                .add(sales_quotation::Column::Status.ne(quotation_ext::CONVERTED)),
+        )
         .all(&*state.db)
         .await?
         .into_iter()
@@ -562,7 +569,7 @@ impl From<ServiceError> for AppError {
                 AppError::business_displayable("当前状态不允许此操作".to_string())
             }
             ServiceError::Validation(msg) => AppError::validation_displayable(msg),
-            ServiceError::Database(db_err) => AppError::internal(db_err.to_string()),
+            ServiceError::Database(db_err) => AppError::database(db_err.to_string()),
             // 批次 265：paginate_with_total 返回的 AppError 直接透传
             ServiceError::App(e) => e,
         }

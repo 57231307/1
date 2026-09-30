@@ -559,8 +559,7 @@ pub async fn export_orders(
             start_date: query.start_date,
             end_date: query.end_date,
         })
-        .await
-        .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;
+        .await?;
 
     let row_count = rows.len();
 
@@ -654,10 +653,11 @@ pub async fn reject_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
+    // service 直接返回 AppError（状态机拒绝 business / 404 not_found 等 4xx），
+    // 透传保留其 status/code/文案；此前 map_err(internal) 会把业务拒绝压成 500。
     sales_service
         .reject_order(id, req.reason, _auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("拒绝订单失败: {}", e)))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "message": "订单已拒绝"
@@ -673,10 +673,7 @@ pub async fn cancel_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
-    let _order = sales_service
-        .cancel_order(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("取消订单失败: {}", e)))?;
+    let _order = sales_service.cancel_order(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "message": "订单已取消"
@@ -694,10 +691,7 @@ pub async fn get_order_deliveries(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
-    let deliveries = sales_service
-        .get_order_deliveries(id)
-        .await
-        .map_err(|e| AppError::internal(format!("获取发货记录失败: {}", e)))?;
+    let deliveries = sales_service.get_order_deliveries(id).await?;
 
     let result = serde_json::json!({
         "list": deliveries,
@@ -727,8 +721,7 @@ pub async fn create_delivery(
 
     let delivery = sales_service
         .create_delivery(id, warehouse_id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("创建发货失败: {}", e)))?;
+        .await?;
 
     let delivery_json = serde_json::to_value(delivery)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
@@ -748,8 +741,7 @@ pub async fn cancel_delivery(
 
     let delivery = sales_service
         .cancel_delivery(delivery_id, req.reason.clone(), auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("取消发货单失败: {}", e)))?;
+        .await?;
 
     let delivery_json = serde_json::to_value(delivery)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
@@ -804,8 +796,7 @@ pub async fn get_order_statistics(
 
     let statistics = sales_service
         .get_order_statistics(serde_json::Value::Object(params))
-        .await
-        .map_err(|e| AppError::internal(format!("获取订单统计失败: {}", e)))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(statistics)))
 }
