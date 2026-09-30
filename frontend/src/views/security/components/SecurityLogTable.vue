@@ -35,16 +35,8 @@
               <el-option :label="t('security.logTable.status.FAILED')" value="FAILED" />
             </el-select>
           </el-form-item>
-          <el-form-item :label="t('security.logTable.filter.dateRange')">
-            <el-date-picker
-              v-model="localQuery.date_range"
-              type="daterange"
-              :range-separator="t('security.logTable.placeholder.rangeSeparator')"
-              :start-placeholder="t('security.logTable.placeholder.startDate')"
-              :end-placeholder="t('security.logTable.placeholder.endDate')"
-              @change="handleSearch"
-            />
-          </el-form-item>
+          <!-- 日期区间筛选已移除：后端 LoginLogQuery 无日期字段，date_range 发送即被
+               Axum 静默丢弃=假筛选（时间范围过滤属后端缺口，已登记串行清单，补齐后恢复） -->
           <el-form-item>
             <el-button type="primary" @click="handleSearch">
               <el-icon><Search /></el-icon>
@@ -161,15 +153,13 @@ const emit = defineEmits<{
   'update:queryParams': [value: Record<string, unknown>];
 }>();
 
-// 本地查询条件（筛选字段，不含分页参数）
+// 本地查询条件（筛选字段，不含分页参数；date_range 已随后端契约核实移除）
 const localQuery = reactive<{
   username: string;
   status: string;
-  date_range: string[];
 }>({
   username: (props.queryParams.username as string) ?? '',
   status: (props.queryParams.status as string) ?? '',
-  date_range: (props.queryParams.date_range as string[]) ?? [],
 });
 
 // 登录类型/状态码 → 本地化标签（动态 t() 调用确保语言切换响应）

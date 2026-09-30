@@ -14,8 +14,25 @@ import {
   deleteApiKey,
   regenerateApiKey,
   type ApiKey,
+  type CreateApiKeyRequest,
+  type UpdateApiKeyRequest,
 } from '@/api/api-gateway';
 import { useTableApi } from '@/composables/useTableApi';
+
+/**
+ * 密钥表单模型（UI 状态；提交时按后端 create/update DTO 键集显式构造载荷，
+ * 禁止整表单当载荷——api_key/id/created_at/created_by 等响应键非 DTO字段，
+ * 发出去只会被 serde 静默丢弃；创建 DTO 无 description/status，属后端缺口已登记串行清单）。
+ */
+interface ApiKeyFormModel {
+  id?: number;
+  key_name: string;
+  description: string;
+  permissions: string[];
+  rate_limit: number;
+  expires_at: string;
+  status: ApiKey['status'];
+}
 
 /**
  * 密钥管理 composable
@@ -44,7 +61,7 @@ export function useApiKey() {
   const keyFormRef = ref<FormInstance>();
   const keySubmitLoading = ref(false);
   const permissionsText = ref('');
-  const keyForm = reactive<Partial<ApiKey>>({
+  const keyForm = reactive<ApiKeyFormModel>({
     id: undefined,
     key_name: '',
     description: '',
@@ -91,10 +108,26 @@ export function useApiKey() {
         keyForm.permissions = permissionsText.value
           ? permissionsText.value.split(',').map((s: string) => s.trim())
           : [];
+        // expires_at 空串必须省略该键：后端 update 把解析失败映射为"清空白名单语义"(Some(None))、
+        // create 则按空串跳过——均非"保持原值"意图（范式见 views/system/UserTab.vue Option<String> 空值省略键）
         if (keyForm.id) {
-          await updateApiKey(keyForm.id, keyForm);
+          const payload: UpdateApiKeyRequest = {
+            key_name: keyForm.key_name,
+            permissions: keyForm.permissions,
+            rate_limit: keyForm.rate_limit,
+            status: keyForm.status,
+          };
+          if (keyForm.description) payload.description = keyForm.description;
+          if (keyForm.expires_at) payload.expires_at = keyForm.expires_at;
+          await updateApiKey(keyForm.id, payload);
         } else {
-          await createApiKey(keyForm);
+          const payload: CreateApiKeyRequest = {
+            key_name: keyForm.key_name,
+            permissions: keyForm.permissions,
+            rate_limit: keyForm.rate_limit,
+          };
+          if (keyForm.expires_at) payload.expires_at = keyForm.expires_at;
+          await createApiKey(payload);
         }
         msg.success('operationSuccess');
         keyDialogVisible.value = false;

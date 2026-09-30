@@ -13,6 +13,7 @@ import {
   updateApiEndpoint,
   deleteApiEndpoint,
   type ApiEndpoint,
+  type CreateApiEndpointRequest,
 } from '@/api/api-gateway';
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -118,10 +119,26 @@ export function useApiEp() {
             return;
           }
         }
+        // 载荷按后端 UpsertApiEndpointRequest 键集显式构造：
+        // 禁止把表单整体当载荷（id/created_at/updated_at/version/deprecated_at 等非 DTO 管理键
+        // 会被 serde 静默丢弃，形成假提交）。version/deprecation 字段表单未维护 → 省略（后端保持原值）。
+        const payload: CreateApiEndpointRequest = {
+          path: endpointForm.path ?? '',
+          method: endpointForm.method ?? 'GET',
+          description: endpointForm.description ?? '',
+          module: endpointForm.module ?? '',
+          status: endpointForm.status ?? 'active',
+          rate_limit: endpointForm.rate_limit ?? 0,
+          timeout: endpointForm.timeout ?? 30000,
+          authentication: endpointForm.authentication ?? true,
+          authorization: endpointForm.authorization ?? [],
+          request_schema: endpointForm.request_schema ?? {},
+          response_schema: endpointForm.response_schema ?? {},
+        };
         if (endpointForm.id) {
-          await updateApiEndpoint(endpointForm.id, endpointForm);
+          await updateApiEndpoint(endpointForm.id, payload);
         } else {
-          await createApiEndpoint(endpointForm);
+          await createApiEndpoint(payload);
         }
         msg.success('operationSuccess');
         endpointDialogVisible.value = false;

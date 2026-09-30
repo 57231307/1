@@ -3,6 +3,10 @@ import type { ApiResponse } from '@/types/api';
 
 export interface ProcessDefinition {
   id: number;
+  // 实体真源键（model_to_frontend_json 恒定回传 code/name；process_key/process_name 为
+  // 同值别名键，读取处两者均可，建载荷一律用 name/code）
+  code: string;
+  name: string;
   process_key: string;
   process_name: string;
   description?: string;
@@ -41,16 +45,40 @@ export interface ProcessVersion {
   created_by?: string;
 }
 
-export interface ProcessTemplate {
-  id: number;
-  template_key: string;
-  template_name: string;
+/**
+ * 流程模板行（GET /bpm/templates 真实形状，唯一真相：bpm_definition_handler.rs
+ * page_to_frontend_json → model_to_frontend_json：模板即 category='__TEMPLATE__' 的
+ * bpm_process_definition 记录，行列与流程定义完全同构）。
+ * 后端不返回 template_key/template_name/icon/usage_count/process_definition（此前为臆造键，
+ * 读取处恒 undefined；usage_count 统计为后端缺口，已登记串行清单）。
+ */
+export type ProcessTemplate = ProcessDefinition;
+
+/**
+ * POST /bpm/definitions 载荷（唯一真相：models/dto/bpm_dto.rs CreateProcessDefinitionRequest）。
+ * name/code 为非 Option 必填（缺失 → serde 400/422，禁止用 Partial<ProcessDefinition> 掩盖）；
+ * 流程节点必须包在 config.nodes（后端从 config 提取，顶层 nodes 非 DTO 字段）。
+ */
+export interface CreateProcessDefinitionPayload {
+  name: string;
+  code: string;
   description?: string;
-  category: string;
-  icon?: string;
-  process_definition?: ProcessDefinition;
-  usage_count: number;
-  created_at: string;
+  category?: string;
+  version?: string;
+  config?: { nodes?: ProcessNode[] } & Record<string, unknown>;
+  status?: ProcessDefinition['status'];
+}
+
+/**
+ * PUT /bpm/definitions/{id} 载荷（唯一真相：UpdateProcessDefinitionRequest）。
+ * 全字段 Option；后端无 code 字段——流程编码创建后不可改。
+ */
+export interface UpdateProcessDefinitionPayload {
+  name?: string;
+  description?: string;
+  category?: string;
+  config?: { nodes?: ProcessNode[] } & Record<string, unknown>;
+  status?: ProcessDefinition['status'];
 }
 
 /**
@@ -157,11 +185,13 @@ export interface ApprovalTaskPage {
 }
 
 // D14 Batch 5b：原 bpmEnhancedApi.listDefinitions 转为风格 B 函数
+// 查询键唯一真相：bpm_dto.rs ProcessDefinitionQuery{category,status,page,page_size}；
+// 后端无 keyword 参数（名称模糊搜索为后端缺口，登记串行清单），前端不得声明被静默丢弃的键。
 export const getBpmDefinitionList = (params?: {
   page?: number;
   page_size?: number;
   category?: string;
-  keyword?: string;
+  status?: string;
 }) => request.get<ApiResponse<ProcessDefinitionPage>>('/bpm/definitions', { params });
 
 // D14 Batch 5b：原 bpmEnhancedApi.getDefinition 转为风格 B 函数
@@ -169,11 +199,12 @@ export const getBpmDefinitionById = (id: number) =>
   request.get<ApiResponse<ProcessDefinition>>(`/bpm/definitions/${id}`);
 
 // D14 Batch 5b：原 bpmEnhancedApi.createDefinition 转为风格 B 函数
-export const createBpmDefinition = (data: Partial<ProcessDefinition>) =>
+// 载荷 name/code 必填见 CreateProcessDefinitionPayload（后端 DTO 非 Option，禁止 Partial 掩盖）
+export const createBpmDefinition = (data: CreateProcessDefinitionPayload) =>
   request.post<ApiResponse<ProcessDefinition>>('/bpm/definitions', data);
 
 // D14 Batch 5b：原 bpmEnhancedApi.updateDefinition 转为风格 B 函数
-export const updateBpmDefinition = (id: number, data: Partial<ProcessDefinition>) =>
+export const updateBpmDefinition = (id: number, data: UpdateProcessDefinitionPayload) =>
   request.put<ApiResponse<ProcessDefinition>>(`/bpm/definitions/${id}`, data);
 
 // D14 Batch 5b：原 bpmEnhancedApi.deleteDefinition 转为风格 B 函数
@@ -199,18 +230,20 @@ export const saveBpmAsTemplate = (
 ) => request.post<ApiResponse<ProcessTemplate>>(`/bpm/definitions/${definitionId}/template`, data);
 
 // D14 Batch 5b：原 bpmEnhancedApi.listTemplates 转为风格 B 函数
-export const getBpmTemplateList = (params?: {
-  page?: number;
-  page_size?: number;
-  category?: string;
-}) => request.get<ApiResponse<ProcessTemplatePage>>('/bpm/templates', { params });
+// 查询键唯一真相：bpm_dto.rs TemplateQuery{page,page_size}；后端不读 category
+// （模板分类与 usage_count 统计为后端缺口，登记串行清单），前端不得声明被静默丢弃的键。
+export const getBpmTemplateList = (params?: { page?: number; page_size?: number }) =>
+  request.get<ApiResponse<ProcessTemplatePage>>('/bpm/templates', { params });
 
 // D14 Batch 5b：原 bpmEnhancedApi.getTemplate 转为风格 B 函数
 export const getBpmTemplateById = (id: number) =>
   request.get<ApiResponse<ProcessTemplate>>(`/bpm/templates/${id}`);
 
 // D14 Batch 5b：原 bpmEnhancedApi.createFromTemplate 转为风格 B 函数
-export const createBpmFromTemplate = (templateId: number, data?: { process_name?: string }) =>
+// 后端 create_from_template(template_id, Json<CreateProcessDefinitionRequest>)：name/code 必填
+// （批次 199 P1-6 后请求体真实生效，客户端字段优先、缺省回退模板值），
+// 未提供 config 时继承模板 config.nodes，故载荷必带新流程的 name+code。
+export const createBpmFromTemplate = (templateId: number, data: CreateProcessDefinitionPayload) =>
   request.post<ApiResponse<ProcessDefinition>>(`/bpm/templates/${templateId}/create`, data);
 
 // D14 Batch 5b：原 bpmEnhancedApi.deleteTemplate 转为风格 B 函数

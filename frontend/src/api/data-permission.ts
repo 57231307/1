@@ -10,24 +10,18 @@ export type AllowedFields = string[];
 // 隐藏字段类型
 export type HiddenFields = string[];
 
-export interface DataPermission {
-  id?: number;
-  user_id: number;
-  resource_type: string;
-  resource_id?: number;
-  department_id?: number;
-  permissions: string[];
-}
-
+// GET /data-permissions 出参唯一真相：data_permission_handler::DataPermissionResponse
+// （id/role_id/resource_type/scope_type/is_enabled 后端非 Option 必填，不得标 ?；
+// custom_condition/allowed_fields/hidden_fields 为 Option → 可为 null）。
 export interface DataPermissionRole {
-  id?: number;
-  role_id?: number;
-  resource_type?: string;
-  scope_type?: string;
-  custom_condition?: CustomCondition;
-  allowed_fields?: AllowedFields;
-  hidden_fields?: HiddenFields;
-  is_enabled?: boolean;
+  id: number;
+  role_id: number;
+  resource_type: string;
+  scope_type: string;
+  custom_condition: CustomCondition | null;
+  allowed_fields: AllowedFields | null;
+  hidden_fields: HiddenFields | null;
+  is_enabled: boolean;
 }
 
 export type DataPermissionRow = DataPermissionRole;
@@ -48,19 +42,19 @@ export interface ScopeType {
 }
 
 // GET /data-permissions：后端 handlers/data_permission_handler.rs::list_data_permissions
-// 仅带 State + AuthContext 提取器，无 Query<T>，不读取任何查询参数（此前
-// DataPermissionQueryParams 的 user_id/resource_type/department_id 全被 Axum 静默丢弃）。
+// 仅带 State + AuthContext 提取器，无 Query<T>，不读取任何查询参数（规则 0：不声明参数）。
 export const getDataPermissionList = () =>
-  request.get<ApiResponse<DataPermission[]>>('/data-permissions');
+  request.get<ApiResponse<DataPermissionRole[]>>('/data-permissions');
 
+// GET /data-permissions/{id}：后端 get_data_permission 经可见性过滤后可能返回 null
+// （仅 is_enabled=true 或 admin 可见），读取处必须判 null。
 export const getDataPermission = (id: number) =>
-  request.get<ApiResponse<DataPermission>>(`/data-permissions/${id}`);
-
-export const createDataPermission = (data: Partial<DataPermission>) =>
-  request.post<ApiResponse<DataPermission>>('/data-permissions', data);
+  request.get<ApiResponse<DataPermissionRole | null>>(`/data-permissions/${id}`);
 
 // 数据权限 upsert 走 set_data_permission（POST /，按 role_id+resource_type 幂等），
-// 后端无 PUT /{id} 路由，故不提供 update 封装（规则 0：禁止指向不存在端点的封装）。
+// 后端 POST /data-permissions 的 DTO 为 SetDataPermissionRequest{role_id,resource_type,scope_type,...}，
+// 不存在按 user_id/resource_id/permissions 建档的独立"创建"契约
+// （原 createDataPermission + DataPermission 为臆造载荷、零调用点，已删除，统一走 setDataPermission）。
 
 export const deleteDataPermission = (id: number) =>
   request.delete<ApiResponse<void>>(`/data-permissions/${id}`);

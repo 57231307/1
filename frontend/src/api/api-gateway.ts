@@ -14,8 +14,59 @@ export interface ApiEndpoint {
   authorization: string[];
   request_schema: Record<string, unknown>;
   response_schema: Record<string, unknown>;
+  // 后端 endpoint_to_json 恒定回传（api_gateway_handler.rs:129-151）：version 缺省 "v1"，
+  // deprecated_at/sunset_at 为可空，deprecation_note 缺省空串
+  version: string;
+  deprecated_at: string | null;
+  sunset_at: string | null;
+  deprecation_note: string;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * POST /api-gateway/endpoints 载荷（唯一真相：api_gateway_handler::UpsertApiEndpointRequest）。
+ * path/method 后端 handler 显式必填（缺任一 → 400 validation），其余可选；
+ * rate_limit 后端校验 0-10000（越界 400）。
+ */
+export interface CreateApiEndpointRequest {
+  path: string;
+  method: ApiEndpoint['method'];
+  description?: string;
+  module?: string;
+  status?: ApiEndpoint['status'];
+  rate_limit?: number;
+  timeout?: number;
+  authentication?: boolean;
+  authorization?: string[];
+  request_schema?: Record<string, unknown>;
+  response_schema?: Record<string, unknown>;
+  version?: string;
+  deprecated_at?: string;
+  sunset_at?: string;
+  deprecation_note?: string;
+}
+
+/**
+ * PUT /api-gateway/endpoints/{id} 载荷：与创建共用 Upsert DTO，全部可选，
+ * 未提供的键后端保持原值（逐键 if let Some 更新）。
+ */
+export interface UpdateApiEndpointRequest {
+  path?: string;
+  method?: ApiEndpoint['method'];
+  description?: string;
+  module?: string;
+  status?: ApiEndpoint['status'];
+  rate_limit?: number;
+  timeout?: number;
+  authentication?: boolean;
+  authorization?: string[];
+  request_schema?: Record<string, unknown>;
+  response_schema?: Record<string, unknown>;
+  version?: string;
+  deprecated_at?: string;
+  sunset_at?: string;
+  deprecation_note?: string;
 }
 
 export interface ApiLog {
@@ -71,13 +122,15 @@ export function getApiEndpoint(id: number): Promise<ApiResponse<ApiEndpoint>> {
   return request.get(`/api-gateway/endpoints/${id}`);
 }
 
-export function createApiEndpoint(data: Partial<ApiEndpoint>): Promise<ApiResponse<ApiEndpoint>> {
+export function createApiEndpoint(
+  data: CreateApiEndpointRequest
+): Promise<ApiResponse<ApiEndpoint>> {
   return request.post('/api-gateway/endpoints', data);
 }
 
 export function updateApiEndpoint(
   id: number,
-  data: Partial<ApiEndpoint>
+  data: UpdateApiEndpointRequest
 ): Promise<ApiResponse<ApiEndpoint>> {
   return request.put(`/api-gateway/endpoints/${id}`, data);
 }
@@ -102,11 +155,37 @@ export function getApiKey(id: number): Promise<ApiResponse<ApiKey>> {
   return request.get(`/api-gateway/keys/${id}`);
 }
 
-export function createApiKey(data: Partial<ApiKey>): Promise<ApiResponse<ApiKey>> {
+/**
+ * POST /api-gateway/keys 载荷（唯一真相：api_gateway_handler::CreateApiKeyGwRequest）。
+ * key_name 为非 Option 必填（缺失 serde 422）；后端创建 DTO 无 description/status 字段
+ * （description 仅更新 DTO 有，创建传了会被静默丢弃——后端缺口已登记串行清单）。
+ * expires_at 为 ISO 8601 字符串；空值必须省略该键（后端按解析失败处理会清掉有效期语义）。
+ */
+export interface CreateApiKeyRequest {
+  key_name: string;
+  permissions?: string[];
+  rate_limit?: number;
+  expires_at?: string;
+}
+
+/**
+ * PUT /api-gateway/keys/{id} 载荷（唯一真相：UpdateApiKeyGwRequest，全字段 Option）；
+ * status 后端仅识别 'active'（其余值 → inactive）。
+ */
+export interface UpdateApiKeyRequest {
+  key_name?: string;
+  description?: string;
+  permissions?: string[];
+  rate_limit?: number;
+  expires_at?: string;
+  status?: ApiKey['status'];
+}
+
+export function createApiKey(data: CreateApiKeyRequest): Promise<ApiResponse<ApiKey>> {
   return request.post('/api-gateway/keys', data);
 }
 
-export function updateApiKey(id: number, data: Partial<ApiKey>): Promise<ApiResponse<ApiKey>> {
+export function updateApiKey(id: number, data: UpdateApiKeyRequest): Promise<ApiResponse<ApiKey>> {
   return request.put(`/api-gateway/keys/${id}`, data);
 }
 

@@ -365,6 +365,8 @@ import {
   copyPrintTemplate,
   printTemplate,
   type PrintTemplate,
+  type CreatePrintTemplateRequest,
+  type UpdatePrintTemplateRequest,
 } from '@/api/print-templates';
 // 批次 277：接入 useTableApi，消除手写 list/total/listLoading/fetchData 重复
 import { useTableApi } from '@/composables/useTableApi';
@@ -525,9 +527,42 @@ const handleSubmit = async () => {
         }
       }
       if (form.id) {
-        await updatePrintTemplate(form.id, form);
+        // 载荷按后端 UpdatePrintTemplateRequest 键集显式构造：
+        // id/created_by/created_by_name/created_at/updated_at 非 DTO 字段（整表单直传=被静默丢弃的假提交）；
+        // template_name 带 length(min=1) 校验，空串省略该键（发送 "" 直接 422）。
+        const payload: UpdatePrintTemplateRequest = {
+          template_code: form.template_code,
+          module: form.module,
+          type: form.type,
+          paper_size: form.paper_size,
+          orientation: form.orientation,
+          content: form.content,
+          css_styles: form.css_styles,
+          variables: form.variables,
+          is_default: form.is_default,
+          status: form.status,
+        };
+        if (form.template_name) payload.template_name = form.template_name;
+        if (form.description) payload.description = form.description;
+        await updatePrintTemplate(form.id, payload);
       } else {
-        await createPrintTemplate(form);
+        // CreatePrintTemplateRequest：template_name 必填非 Option（表单 rules 已保证非空）
+        const payload: CreatePrintTemplateRequest = {
+          template_name: form.template_name ?? '',
+          template_code: form.template_code,
+          module: form.module,
+          type: form.type,
+          paper_size: form.paper_size,
+          orientation: form.orientation,
+          content: form.content,
+          css_styles: form.css_styles,
+          variables: form.variables,
+          is_default: form.is_default,
+          status: form.status,
+        };
+        // Option<String> 描述空值省略该键，不落库空串（范式见 views/system UserTab）
+        if (form.description) payload.description = form.description;
+        await createPrintTemplate(payload);
       }
       ElMessage.success(t('printTemplates.message.operationSuccess'));
       dialogVisible.value = false;
