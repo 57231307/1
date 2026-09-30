@@ -109,7 +109,7 @@ impl CrmAssignService {
         operator_name: &str,
     ) -> Result<AutoAssignResult, AppError> {
         if req.assignee_user_ids.is_empty() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "自动分配失败：参与轮询的销售用户列表不能为空",
             ));
         }
@@ -119,7 +119,7 @@ impl CrmAssignService {
         let assignees = Self::fetch_active_assignees(&self.db, &req.assignee_user_ids).await?;
 
         if assignees.is_empty() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "自动分配失败：指定的销售用户均不存在或已停用",
             ));
         }
@@ -278,7 +278,9 @@ impl CrmAssignService {
         operator_name: &str,
     ) -> Result<TransferLeadResult, AppError> {
         if req.reason.trim().is_empty() {
-            return Err(AppError::validation("转移分配失败：转移原因不能为空"));
+            return Err(AppError::validation_displayable(
+                "转移分配失败：转移原因不能为空",
+            ));
         }
         let lead = self
             .fetch_lead_for_transfer(req.lead_id, req.to_user_id)
@@ -551,7 +553,9 @@ impl CrmAssignService {
             )));
         }
         if lead.owner_id == user_id {
-            return Err(AppError::validation("认领失败：线索当前归属人已是当前用户"));
+            return Err(AppError::validation_displayable(
+                "认领失败：线索当前归属人已是当前用户",
+            ));
         }
         Ok(())
     }

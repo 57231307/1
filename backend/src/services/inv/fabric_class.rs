@@ -46,11 +46,13 @@ pub fn validate_fabric_trace(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .ok_or_else(|| {
-            AppError::validation("明细缺少批号：出入库按款号+色号+缸号+批次四维追溯，批次不得为空")
+            AppError::validation_displayable(
+                "明细缺少批号：出入库按款号+色号+缸号+批次四维追溯，批次不得为空",
+            )
         })?;
     // 色号为空 = 白坯布免缸号；色号非空 = 染色布缸号必填（仅以是否为空判定，不看名称）。
     if !color_no.is_empty() && dye_lot_no.is_none() {
-        return Err(AppError::validation(format!(
+        return Err(AppError::validation_displayable(format!(
             "染色布必须提供缸号（color_no={} 但 dye_lot_no 为空）",
             color_no
         )));

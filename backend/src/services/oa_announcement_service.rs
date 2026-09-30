@@ -98,7 +98,7 @@ impl OaAnnouncementService {
     fn validate_announcement_type(t: &str) -> Result<(), AppError> {
         match t {
             "NOTICE" | "ANNOUNCEMENT" | "NEWS" => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的公告类型: {}（应为 NOTICE/ANNOUNCEMENT/NEWS）",
                 t
             ))),
@@ -109,7 +109,7 @@ impl OaAnnouncementService {
     fn validate_visibility_scope(s: &str) -> Result<(), AppError> {
         match s {
             "ALL" | "DEPT" | "ROLE" | "CUSTOM" => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的可见性范围: {}（应为 ALL/DEPT/ROLE/CUSTOM）",
                 s
             ))),
@@ -125,14 +125,14 @@ impl OaAnnouncementService {
             return Ok(());
         }
         let cfg = config.as_ref().ok_or_else(|| {
-            AppError::validation(format!(
+            AppError::validation_displayable(format!(
                 "visibility_scope={} 必须提供 visible_scope_config JSON",
                 scope
             ))
         })?;
-        let obj = cfg
-            .as_object()
-            .ok_or_else(|| AppError::validation("visible_scope_config 必须为 JSON 对象"))?;
+        let obj = cfg.as_object().ok_or_else(|| {
+            AppError::validation_displayable("visible_scope_config 必须为 JSON 对象")
+        })?;
         let required_key = match scope {
             "DEPT" => "department_ids",
             "ROLE" => "role_ids",
@@ -140,13 +140,13 @@ impl OaAnnouncementService {
             _ => return Ok(()),
         };
         let arr = obj.get(required_key).ok_or_else(|| {
-            AppError::validation(format!(
+            AppError::validation_displayable(format!(
                 "visibility_scope={} 时 visible_scope_config 必须包含 {} 字段",
                 scope, required_key
             ))
         })?;
         if !arr.is_array() {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "visible_scope_config.{} 必须为 JSON 数组",
                 required_key
             )));
@@ -158,7 +158,7 @@ impl OaAnnouncementService {
     fn validate_status(s: &str) -> Result<(), AppError> {
         match s {
             "DRAFT" | "PUBLISHED" | "ARCHIVED" => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的公告状态: {}（应为 DRAFT/PUBLISHED/ARCHIVED）",
                 s
             ))),
@@ -176,11 +176,11 @@ impl OaAnnouncementService {
         Self::validate_visibility_config(&req.visibility_scope, &req.visible_scope_config)?;
 
         if req.effective_date < req.publish_date {
-            return Err(AppError::validation("生效日期不能早于发布日期"));
+            return Err(AppError::validation_displayable("生效日期不能早于发布日期"));
         }
         if let Some(expiry) = req.expiry_date {
             if expiry < req.effective_date {
-                return Err(AppError::validation("失效日期不能早于生效日期"));
+                return Err(AppError::validation_displayable("失效日期不能早于生效日期"));
             }
         }
 
@@ -283,7 +283,7 @@ impl OaAnnouncementService {
                 active_model.visible_scope_config = Set(Some(config));
             }
         } else if req.visible_scope_config.is_some() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "更新 visible_scope_config 必须同时提供 visibility_scope",
             ));
         }

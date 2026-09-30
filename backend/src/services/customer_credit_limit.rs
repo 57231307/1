@@ -101,7 +101,7 @@ impl CustomerCreditService {
 
         if credit.status != master_data::ACTIVE {
             txn.rollback().await?;
-            return Err(AppError::validation("客户信用状态非活跃"));
+            return Err(AppError::validation_displayable("客户信用状态非活跃"));
         }
 
         if amount > credit.available_credit {
@@ -151,7 +151,9 @@ impl CustomerCreditService {
 
         if amount > credit.used_credit {
             txn.rollback().await?;
-            return Err(AppError::validation("释放额度超过已占用额度".to_string()));
+            return Err(AppError::validation_displayable(
+                "释放额度超过已占用额度".to_string(),
+            ));
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
@@ -199,7 +201,7 @@ impl CustomerCreditService {
                 // 确保降低后的额度不低于已使用额度
                 if decreased < credit.used_credit {
                     txn.rollback().await?;
-                    return Err(AppError::validation(
+                    return Err(AppError::validation_displayable(
                         "降低后的额度不能低于已使用额度".to_string(),
                     ));
                 }
@@ -207,7 +209,7 @@ impl CustomerCreditService {
             }
             _ => {
                 txn.rollback().await?;
-                return Err(AppError::validation("无效的额度调整类型"));
+                return Err(AppError::validation_displayable("无效的额度调整类型"));
             }
         };
 
@@ -314,7 +316,7 @@ impl CustomerCreditService {
             .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         if credit.used_credit > rust_decimal::Decimal::ZERO {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "客户仍有占用额度，无法停用".to_string(),
             ));
         }

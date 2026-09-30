@@ -456,7 +456,7 @@ impl CostCollectionService {
 
         // 只有草稿状态才能审核
         if collection.status != "draft" {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "只有草稿状态的成本归集才能审核".to_string(),
             ));
         }

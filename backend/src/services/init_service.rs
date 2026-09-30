@@ -269,7 +269,9 @@ impl From<InitError> for AppError {
             InitError::DatabaseError(e) => AppError::database(e),
             InitError::UserNotFound => AppError::not_found("用户不存在"),
             InitError::ConfigError(e) => AppError::bad_request(format!("配置错误: {}", e)),
-            InitError::ValidationError(e) => AppError::validation(format!("参数校验失败: {}", e)),
+            InitError::ValidationError(e) => {
+                AppError::validation_displayable(format!("参数校验失败: {}", e))
+            }
         }
     }
 }

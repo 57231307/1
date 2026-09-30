@@ -223,7 +223,7 @@ impl InventoryFinanceBridgeService {
     ) -> Result<(), AppError> {
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证
         if args.quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -389,7 +389,7 @@ impl InventoryFinanceBridgeService {
 
     fn validate_quantity_meters(&self, quantity_meters: Decimal) -> Result<(), AppError> {
         if quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -530,7 +530,7 @@ impl InventoryFinanceBridgeService {
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
         // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
         if quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -711,7 +711,7 @@ impl InventoryFinanceBridgeService {
     ) -> Result<(), AppError> {
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证
         if args.quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -813,7 +813,7 @@ impl InventoryFinanceBridgeService {
         args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
         if args.quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -916,7 +916,7 @@ impl InventoryFinanceBridgeService {
         args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
         if args.quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }

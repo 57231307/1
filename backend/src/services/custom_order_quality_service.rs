@@ -124,7 +124,7 @@ impl CustomOrderQualityService {
         detail: serde_json::Value,
     ) -> Result<quality_issue::Model, AppError> {
         if !["5why", "fishbone", "other"].contains(&method) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "根因分析方法必须是 5why/fishbone/other，当前: {}",
                 method
             )));

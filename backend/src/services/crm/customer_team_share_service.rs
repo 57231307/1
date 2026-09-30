@@ -359,7 +359,7 @@ impl CustomerTeamShareService {
             team_model::TEAM_ROLE_PRIMARY
             | team_model::TEAM_ROLE_MEMBER
             | team_model::TEAM_ROLE_ASSISTANT => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的团队角色：{}，必须是 primary/member/assistant",
                 role
             ))),
@@ -442,7 +442,7 @@ impl CustomerTeamShareService {
 
         // 3. 不能共享给自己
         if req.shared_to_user_id == operator_id {
-            return Err(AppError::validation("共享失败：不能共享给自己"));
+            return Err(AppError::validation_displayable("共享失败：不能共享给自己"));
         }
 
         // 4. 校验操作人权限
@@ -679,7 +679,7 @@ impl CustomerTeamShareService {
             share_model::SHARE_PERMISSION_VIEW
             | share_model::SHARE_PERMISSION_EDIT
             | share_model::SHARE_PERMISSION_FULL => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的共享权限：{}，必须是 view/edit/full",
                 permission
             ))),

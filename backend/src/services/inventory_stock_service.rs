@@ -298,11 +298,11 @@ impl InventoryStockService {
         let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::validation(format!("仓库不存在: {}", warehouse_id)))?;
+            .ok_or_else(|| AppError::validation_displayable("仓库不存在"))?;
         let _product = product::Entity::find_by_id(product_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::validation(format!("产品不存在: {}", product_id)))?;
+            .ok_or_else(|| AppError::validation_displayable("产品不存在"))?;
 
         let active_stock = inventory_stock::ActiveModel {
             id: Default::default(),
@@ -619,11 +619,11 @@ impl InventoryStockService {
         let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
             .one(db)
             .await?
-            .ok_or_else(|| AppError::validation(format!("仓库不存在: {}", warehouse_id)))?;
+            .ok_or_else(|| AppError::validation_displayable("仓库不存在"))?;
         let _product = product::Entity::find_by_id(product_id)
             .one(db)
             .await?
-            .ok_or_else(|| AppError::validation(format!("产品不存在: {}", product_id)))?;
+            .ok_or_else(|| AppError::validation_displayable("产品不存在"))?;
         Ok(())
     }
 
@@ -694,7 +694,7 @@ impl InventoryStockService {
     ) -> Result<inventory_stock::Model, AppError> {
         // 校验 new_grade 合法值（与 inventory_stock.rs Model.grade 注释一致）
         if !inventory_stock_grade::ALL.contains(&new_grade.as_str()) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "非法等级值 {}，仅允许 一等品/二等品/等外品",
                 new_grade
             )));

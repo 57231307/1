@@ -36,7 +36,7 @@ impl MrpEngineService {
         let new_status = match order_type.as_str() {
             "PURCHASE" => mrp_status::CONFIRMED,
             "PRODUCTION" => mrp_status::RELEASED,
-            _ => return Err(AppError::validation("无效的订单类型")),
+            _ => return Err(AppError::validation_displayable("无效的订单类型")),
         };
 
         // v11 批次 38 修复：批量查询所有 MRP 结果，避免循环内逐个 find_by_id（N+1 查询）

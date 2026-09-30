@@ -55,7 +55,7 @@ fn default_win_probability_by_stage(stage: &str) -> Option<Decimal> {
 /// update_opportunity 阶段流转共用。
 fn ensure_valid_opportunity_stage(stage: &str) -> Result<(), AppError> {
     if !opp_status::ALL_STAGES.contains(&stage) {
-        return Err(AppError::validation(format!(
+        return Err(AppError::validation_displayable(format!(
             "非法商机阶段 '{}'，合法取值为：{}",
             stage,
             opp_status::ALL_STAGES.join("/")
@@ -595,10 +595,12 @@ impl CrmService {
         // 流失原因必填校验（非空字符串）
         let lost_reason_trimmed = lost_reason.trim().to_string();
         if lost_reason_trimmed.is_empty() {
-            return Err(AppError::validation("输单原因不能为空"));
+            return Err(AppError::validation_displayable("输单原因不能为空"));
         }
         if lost_reason_trimmed.chars().count() > 500 {
-            return Err(AppError::validation("输单原因长度不能超过 500 字符"));
+            return Err(AppError::validation_displayable(
+                "输单原因长度不能超过 500 字符",
+            ));
         }
 
         let opportunity = self.get_opportunity(opportunity_id, None).await?;
@@ -642,7 +644,7 @@ impl CrmService {
         use chrono::NaiveDate;
 
         let month_start = NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or_else(|| AppError::validation("无效的年月参数"))?;
+            .ok_or_else(|| AppError::validation_displayable("无效的年月参数"))?;
         let month_end = if month == 12 {
             NaiveDate::from_ymd_opt(year + 1, 1, 1)
         } else {

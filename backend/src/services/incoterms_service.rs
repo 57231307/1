@@ -146,13 +146,13 @@ impl IncotermsService {
         month: u32,
     ) -> Result<IncotermsMonthlyReport, AppError> {
         let start_date = NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or_else(|| AppError::validation("无效的年月".to_string()))?;
+            .ok_or_else(|| AppError::validation_displayable("无效的年月".to_string()))?;
         let next_month = if month == 12 {
             NaiveDate::from_ymd_opt(year + 1, 1, 1)
         } else {
             NaiveDate::from_ymd_opt(year, month + 1, 1)
         }
-        .ok_or_else(|| AppError::validation("无效的年月".to_string()))?;
+        .ok_or_else(|| AppError::validation_displayable("无效的年月".to_string()))?;
 
         let sql = r#"
             SELECT

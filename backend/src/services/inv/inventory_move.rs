@@ -317,7 +317,7 @@ impl InventoryTransferService {
                 product_id: sea_orm::ActiveValue::Set(
                     item_req
                         .product_id
-                        .ok_or_else(|| AppError::validation("调拨明细缺少物料ID"))?,
+                        .ok_or_else(|| AppError::validation_displayable("调拨明细缺少物料ID"))?,
                 ),
                 quantity: sea_orm::ActiveValue::Set(quantity),
                 shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -377,10 +377,10 @@ impl InventoryTransferService {
         Self::validate_transfer_no_uniqueness(&txn, &transfer_no).await?;
         let from_warehouse_id = request
             .from_warehouse_id
-            .ok_or_else(|| AppError::validation("调拨单缺少调出仓库ID"))?;
+            .ok_or_else(|| AppError::validation_displayable("调拨单缺少调出仓库ID"))?;
         let to_warehouse_id = request
             .to_warehouse_id
-            .ok_or_else(|| AppError::validation("调拨单缺少调入仓库ID"))?;
+            .ok_or_else(|| AppError::validation_displayable("调拨单缺少调入仓库ID"))?;
         let items = request.items.unwrap_or_default();
         let transfer = Self::build_transfer_active_model(
             transfer_no,
@@ -484,7 +484,7 @@ impl InventoryTransferService {
                 product_id: sea_orm::ActiveValue::Set(
                     item_req
                         .product_id
-                        .ok_or_else(|| AppError::validation("调拨明细缺少物料ID"))?,
+                        .ok_or_else(|| AppError::validation_displayable("调拨明细缺少物料ID"))?,
                 ),
                 quantity: sea_orm::ActiveValue::Set(quantity),
                 shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),

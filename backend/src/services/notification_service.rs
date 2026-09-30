@@ -107,7 +107,7 @@ impl NotificationService {
         // 缺陷 5.2 修复：dedup_key 存在时先查 5 分钟窗口，命中则跳过创建
         if let Some(key) = req.dedup_key.as_deref() {
             if self.check_dedup(req.user_id, key).await? {
-                return Err(AppError::validation(
+                return Err(AppError::validation_displayable(
                     "通知去重：5 分钟窗口内已存在相同 dedup_key",
                 ));
             }
@@ -161,7 +161,7 @@ impl NotificationService {
                 .check_dedup_window(req.user_id, key, window_secs)
                 .await?
             {
-                return Err(AppError::validation(format!(
+                return Err(AppError::validation_displayable(format!(
                     "通知去重：{} 秒窗口内已存在相同 dedup_key",
                     window_secs
                 )));

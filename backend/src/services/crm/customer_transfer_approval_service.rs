@@ -192,7 +192,9 @@ impl CustomerTransferApprovalService {
     /// 创建审批：校验申请原因非空
     fn validate_create_request(req: &CreateTransferApprovalRequest) -> Result<(), AppError> {
         if req.reason.trim().is_empty() {
-            return Err(AppError::validation("转移审批申请失败：申请原因不能为空"));
+            return Err(AppError::validation_displayable(
+                "转移审批申请失败：申请原因不能为空",
+            ));
         }
         Ok(())
     }
@@ -214,7 +216,7 @@ impl CustomerTransferApprovalService {
             )));
         }
         if lead.owner_id == to_user_id {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "转移审批申请失败：新归属人已是当前归属人",
             ));
         }
@@ -235,7 +237,7 @@ impl CustomerTransferApprovalService {
             .count(db)
             .await?;
         if existing_pending > 0 {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "转移审批申请失败：该线索已存在待审批的转移申请",
             ));
         }
@@ -434,7 +436,7 @@ impl CustomerTransferApprovalService {
         }
 
         if approval.approval_status != customer_transfer_approval::STATUS_PENDING {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "取消审批失败：审批单已进入终态（approved/rejected/cancelled）",
             ));
         }

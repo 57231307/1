@@ -398,10 +398,7 @@ impl InventoryCountService {
             // 实盘数量非负校验：允许为 0（表示实际盘点数量为零），仅拒绝严格负数。
             // 位于任何写库之前，且整个录入在一个事务内，负值直接返回错误使事务回滚，不产生半写。
             if input.quantity_actual.is_sign_negative() {
-                return Err(AppError::validation(format!(
-                    "实盘数量不能为负：库存 {}（产品 {}）实盘数量为 {}",
-                    input.stock_id, item_model.product_id, input.quantity_actual
-                )));
+                return Err(AppError::validation_displayable("实盘数量不能为负"));
             }
             let difference = input.quantity_actual - item_model.quantity_before;
             let mut active: inventory_count_item::ActiveModel = item_model.clone().into();
@@ -658,10 +655,7 @@ impl InventoryCountService {
             // 与批量录入保持一致：实盘数量非负（允许 0，仅拒严格负数），
             // 校验位于任何写库之前，负值返回错误使整个事务回滚，不产生半写。
             if q.is_sign_negative() {
-                return Err(AppError::validation(format!(
-                    "实盘数量不能为负：库存 {}（产品 {}）实盘数量为 {}",
-                    item.stock_id, item.product_id, q
-                )));
+                return Err(AppError::validation_displayable("实盘数量不能为负"));
             }
             active.quantity_actual = Set(q);
             active.quantity_difference = Set(q - item.quantity_before);

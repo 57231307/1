@@ -1144,7 +1144,7 @@ impl InventoryTransferService {
         // 物料 ID 缺失时拒绝创建批次库存，避免脏 product_id=0 记录
         let product_id = req
             .product_id
-            .ok_or_else(|| AppError::validation("批次缺少物料ID"))?;
+            .ok_or_else(|| AppError::validation_displayable("批次缺少物料ID"))?;
         let quantity = req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
 
         // 四维追溯字段（款号由 product_id 承载 + 色号 + 缸号 + 批次）如实校验并落库，

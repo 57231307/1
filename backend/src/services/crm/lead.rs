@@ -516,7 +516,7 @@ impl CrmService {
     /// create_lead / update_lead / update_lead_status 三个写入口共用。
     fn ensure_valid_lead_status(status: &str) -> Result<(), AppError> {
         if !lead_status::ALL.contains(&status) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "非法线索状态 '{}'，合法取值为：{}",
                 status,
                 lead_status::ALL.join("/")
