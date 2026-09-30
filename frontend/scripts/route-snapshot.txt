@@ -1,4 +1,4 @@
-# layers=8 endpoints=1758
+# layers=8 endpoints=1761
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -837,6 +837,7 @@ GET	/api/v1/erp/purchase/suppliers/*/contacts	supplier_handler::list_supplier_co
 GET	/api/v1/erp/purchase/suppliers/*/evaluations	supplier_evaluation_handler::list_evaluation_records	purchase
 GET	/api/v1/erp/purchase/suppliers/*/purchase-history	supplier_handler::get_supplier_purchase_history	purchase
 GET	/api/v1/erp/purchase/suppliers/*/qualifications	supplier_handler::list_supplier_qualifications	purchase
+GET	/api/v1/erp/purchase/suppliers/*/qualifications/*/attachment	supplier_handler::get_supplier_qualification_attachment	purchase
 GET	/api/v1/erp/purchase/suppliers/abnormal-orders	supplier_handler::detect_abnormal_orders	purchase
 GET	/api/v1/erp/purchase/suppliers/export	supplier_handler::export_suppliers	purchase
 GET	/api/v1/erp/purchase/suppliers/select	supplier_handler::list_suppliers	purchase
@@ -1502,6 +1503,7 @@ POST	/api/v1/erp/purchase/suppliers	supplier_handler::create_supplier	purchase
 POST	/api/v1/erp/purchase/suppliers/*/contacts	supplier_handler::create_supplier_contact	purchase
 POST	/api/v1/erp/purchase/suppliers/*/evaluate	supplier_evaluation_handler::create_evaluation_record	purchase
 POST	/api/v1/erp/purchase/suppliers/*/qualifications	supplier_handler::create_supplier_qualification	purchase
+POST	/api/v1/erp/purchase/suppliers/*/qualifications/*/attachment	supplier_handler::upload_supplier_qualification_attachment	purchase
 POST	/api/v1/erp/purchase/suppliers/*/status	supplier_handler::toggle_supplier_status	purchase
 POST	/api/v1/erp/quality-8d-reports	quality_8d_handler::start_8d	quality_8d
 POST	/api/v1/erp/quality-8d-reports/*/advance	quality_8d_handler::advance	quality_8d
@@ -1572,6 +1574,7 @@ POST	/api/v1/erp/social-insurance/*/cancel	social_insurance_handler::cancel	soci
 POST	/api/v1/erp/social-insurance/*/mark-paid	social_insurance_handler::mark_paid	social_insurance
 POST	/api/v1/erp/subjects	account_subject_handler::create_subject	finance
 POST	/api/v1/erp/subjects/*/refresh-balance	account_subject_handler::refresh_subject_balance	finance
+POST	/api/v1/erp/supplier-qualifications/scan-expiry-warnings	supplier_qualification_gate_handler::scan_expiry_warnings	supplier_qualification_gate
 POST	/api/v1/erp/system-update/backups	system_update_handler::create_backup_task	mod
 POST	/api/v1/erp/system-update/local-update	system_update_handler::apply_local_update	system
 POST	/api/v1/erp/system-update/rollback	system_update_handler::rollback_version	system
