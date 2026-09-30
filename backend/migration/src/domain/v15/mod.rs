@@ -4589,10 +4589,21 @@ COMMENT ON COLUMN "purchase_order_item"."supplier_color_no" IS '供应商色号�
         crate::domain::production::m0058_add_delivery_tolerance::Migration
             .up(manager)
             .await?;
+        // m0063 单据号列 UNIQUE 兜底：9 张目标表中 outsourcing_order /
+        // outsourcing_receipt / finance_invoices 在本域内建表（business 六张更早），
+        // 且该迁移带 fail-visible 存量重号检测（发现重复即 RAISE EXCEPTION 中止），
+        // 必须晚于全部建表/回填语句，故照 m0058 先例后置到本域 up 末尾调用。
+        crate::domain::production::m0063_add_document_no_unique_constraints::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 与 up 对称：m0063 最后应用故最先回滚（仅 DROP INDEX IF EXISTS，不触碰数据行）。
+        crate::domain::production::m0063_add_document_no_unique_constraints::Migration
+            .down(manager)
+            .await?;
         // 回滚 SKU 映射唯一约束、索引和 purchase_order_item 快照列
         let rollback_sql = r#"
 ALTER TABLE "purchase_order_item" DROP COLUMN IF EXISTS "supplier_color_no";

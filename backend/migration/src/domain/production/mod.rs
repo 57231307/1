@@ -36,6 +36,12 @@ mod m0059_add_product_piece_roll_conversion;
 mod m0060_add_so_item_tolerance;
 mod m0061_custom_order_status_add_lab_dip_quotation;
 mod m0062_add_dye_batch_actual_output;
+// m0063 为 9 张单据表补单号列 UNIQUE 兜底：其中 outsourcing_order /
+// outsourcing_receipt / finance_invoices 在 v15 域内建表，而 production 域
+// 早于 v15 执行，直接注册本域会因 "relation ... does not exist" 中断迁移链。
+// 照 m0058 先例（见上方注释与 domain/v15/mod.rs），up/down 由 v15 域在
+// 全部建表完成后调用，此处仅保留定义，提升可见性为 pub(crate)。
+pub(crate) mod m0063_add_document_no_unique_constraints;
 
 pub struct Migration;
 

@@ -2,8 +2,8 @@ use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelBehavior, ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend,
-    DatabaseTransaction, EntityTrait, FromQueryResult, IntoActiveModel, PaginatorTrait,
-    QueryFilter, SqlErr, Statement, TransactionSession, TransactionTrait,
+    DatabaseTransaction, EntityTrait, FromQueryResult, IntoActiveModel, QueryFilter, QuerySelect,
+    SqlErr, Statement, TransactionSession, TransactionTrait,
 };
 
 /// 通用单号生成器
@@ -11,11 +11,15 @@ use sea_orm::{
 /// 标准格式：`{前缀}{YYYYMMDD}{左补零流水号}`（默认 3 位，可指定位数）。
 ///
 /// ## 并发与唯一性约定（与调用方共同遵守）
-/// - 取号前先取 `pg_advisory_xact_lock(prefix+date)` 会话级事务咨询锁，
+/// - 取号前先取 `pg_advisory_xact_lock(prefix+date)` 事务咨询锁，
 ///   同前缀同日的并发取号在锁上串行化，锁持有到最外层事务结束。
-/// - 候选号从 `count+1` 起逐位探测占用（`column.eq(candidate)`），
-///   对硬删除造成的序号空洞不产生 23505 冲突；同事务内自己的未提交插入
-///   对本连接可见，因此 `取号→插入→取号→插入` 的多次取号是安全的。
+/// - 候选号基数与真实号段同源：`max(当日已有单号后缀流水) + 1` 起逐位
+///   探测占用（非 `count + 1`：行数会把软删/旁路行计入基数导致跳号）。
+///   软删行仍占用号段，基数与探测都按全表真实单号计算；同事务内自己的
+///   未提交插入对本连接可见，因此 `取号→插入→取号→插入` 的多次取号是安全的。
+/// - 号段之外的旁路写入/人工输入重复号，最终由单据号列的数据库 UNIQUE
+///   索引兜底（migration m0063 为 9 张无约束表补齐；更早建表的列自带 UNIQUE），
+///   INSERT 撞唯一约束即 SQLSTATE 23505，由 `insert_with_no_retry` 捕获重试。
 /// - `*_with_txn` 变体把锁、探测与调用方 INSERT 放在同一事务：锁持有到
 ///   调用方提交，其他走本生成器的会话拿不到锁就不会并发取同号。
 /// - `generate_no`（自开事务）变体在提交后即释放锁，返回的号码只保证
@@ -67,10 +71,14 @@ impl DocumentNumberGenerator {
         let today = Utc::now().format("%Y%m%d").to_string();
         let date_prefix = format!("{}{}", prefix, today);
 
+        // 事务/保存点生命周期失败是真正的 DbErr：按语义归口 AppError::database
+        // （分类与日志口径同 utils/error.rs 的 From<DbErr> 映射），不再降级成 internal；
+        // 已返回 AppError 的调用（lock_prefix/allocate_no/insert）一律 `?`/原样透传，
+        // 任何取号失败都必须显式上抛，不存在"回落成时间戳拼号"的路径。
         let txn = db
             .begin()
             .await
-            .map_err(|e| AppError::internal(format!("开始事务失败: {:?}", e)))?;
+            .map_err(|e| AppError::database(format!("取号事务开启失败: {e}")))?;
 
         Self::lock_prefix(&txn, prefix, &today).await?;
 
@@ -81,13 +89,13 @@ impl DocumentNumberGenerator {
             Ok(no) => {
                 txn.commit()
                     .await
-                    .map_err(|e| AppError::internal(format!("提交事务失败: {:?}", e)))?;
+                    .map_err(|e| AppError::database(format!("取号事务提交失败: {e}")))?;
                 Ok(no)
             }
             Err(e) => {
                 txn.rollback()
                     .await
-                    .map_err(|re| AppError::internal(format!("回滚取号事务失败: {:?}", re)))?;
+                    .map_err(|re| AppError::database(format!("取号事务回滚失败: {re}")))?;
                 Err(e)
             }
         }
@@ -162,7 +170,7 @@ impl DocumentNumberGenerator {
             let sp = txn
                 .begin()
                 .await
-                .map_err(|e| AppError::internal(format!("创建取号保存点失败: {:?}", e)))?;
+                .map_err(|e| AppError::database(format!("创建取号保存点失败: {e}")))?;
 
             let candidate = match Self::generate_no_with_width_txn(
                 &sp,
@@ -175,9 +183,15 @@ impl DocumentNumberGenerator {
             {
                 Ok(no) => no,
                 Err(e) => {
-                    sp.rollback().await.map_err(|re| {
-                        AppError::internal(format!("回滚取号保存点失败: {:?}", re))
-                    })?;
+                    // 取号失败的原始 AppError 必须原样透传；保存点回滚失败是
+                    // 另一笔 DbErr，单独显式记录（归口 database），不得顶替真实原因。
+                    if let Err(re) = sp.rollback().await {
+                        tracing::error!(
+                            error = %re,
+                            original_error = %e,
+                            "回滚取号保存点失败（取号原始错误继续上抛）"
+                        );
+                    }
                     return Err(e);
                 }
             };
@@ -186,15 +200,22 @@ impl DocumentNumberGenerator {
                 Ok(model) => {
                     sp.commit()
                         .await
-                        .map_err(|e| AppError::internal(format!("释放取号保存点失败: {:?}", e)))?;
+                        .map_err(|e| AppError::database(format!("释放取号保存点失败: {e}")))?;
                     return Ok(model);
                 }
                 Err(err) => {
                     let unique_conflict =
                         matches!(err.sql_err(), Some(SqlErr::UniqueConstraintViolation(_)));
-                    sp.rollback().await.map_err(|re| {
-                        AppError::internal(format!("回滚取号保存点失败: {:?}", re))
-                    })?;
+                    // 尝试已失败，必须先回滚保存点才能在同一事务里继续；
+                    // 回滚本身失败属 DbErr（连接级异常），归口 database 显式上抛。
+                    if let Err(re) = sp.rollback().await {
+                        tracing::error!(
+                            error = %re,
+                            insert_error = %err,
+                            "回滚取号保存点失败，中止本次取号重试"
+                        );
+                        return Err(AppError::database(format!("回滚取号保存点失败: {re}")));
+                    }
                     if !unique_conflict {
                         // 与取号无关的 SQL 错误（FK/CHECK/类型）重试无意义，直接暴露真实错误
                         tracing::error!(
@@ -248,8 +269,16 @@ impl DocumentNumberGenerator {
         Ok(())
     }
 
-    /// 在持有咨询锁的同一连接/事务内分配一个未被占用的候选号：
-    /// 基数 = 当日已有号数 + 1，逐个探测占用直至空闲。
+    /// 在持有咨询锁的同一连接/事务内分配一个未被占用的候选号。
+    ///
+    /// 基数与真实号段同源：投影当日单号列（`select_only + into_tuple`，不读整行），
+    /// 从已有单号里解析后缀流水取 `max(seq) + 1` 起探测。
+    /// 刻意**不用** `count + 1`：行数把软删行/旁路写入的非常规行也计入，
+    /// 既会跳过实际空闲的号位，也可能从低于号段末尾处起探测。
+    /// 软删行**参与**基数是刻意为之：软删行仍占用该号，且单据号列带 UNIQUE
+    /// 索引（migration m0063），复用旧号会直接撞 23505——探测可见、索引兜底，
+    /// 二者口径一致才叫"与真实号段同源"。
+    /// 非数字后缀（旁路/人工输入的单号）不参与 max，但逐条 warn 显式暴露。
     /// 探测能看见本事务未提交的插入，因此事务内「取号→插入→取号」序列安全。
     async fn allocate_no<E, C>(
         conn: &impl ConnectionTrait,
@@ -263,13 +292,41 @@ impl DocumentNumberGenerator {
         E::Model: Sync + Send + FromQueryResult,
         C: ColumnTrait,
     {
-        let count = E::find()
+        // DbErr 经 `?` 走 utils/error.rs 的 From<DbErr> 分类映射（database 系），
+        // 查询失败显式中止取号，不回落。
+        let existing_numbers: Vec<(String,)> = E::find()
+            .select_only()
+            .column(column)
             .filter(column.starts_with(date_prefix))
-            .count(conn)
+            .into_tuple::<(String,)>()
+            .all(conn)
             .await?;
 
+        let mut max_seq: Option<u64> = None;
+        for (no,) in existing_numbers {
+            let Some(suffix) = no.strip_prefix(date_prefix) else {
+                tracing::warn!(
+                    date_prefix,
+                    doc_no = %no,
+                    "单号无法剥离当日前缀（旁路写入格式异常），不参与序号基数"
+                );
+                continue;
+            };
+            match suffix.parse::<u64>() {
+                Ok(seq) => max_seq = Some(max_seq.map_or(seq, |m| std::cmp::max(m, seq))),
+                Err(_) => tracing::warn!(
+                    date_prefix,
+                    doc_no = %no,
+                    suffix,
+                    "单号后缀不是纯数字流水（旁路/人工输入），不参与序号基数"
+                ),
+            }
+        }
+
         let width = std::cmp::Ord::max(width, 1);
-        let mut seq = count + 1;
+        // saturating：后缀恰为 u64::MAX 的病态存量号不得让取号算术溢出 panic，
+        // 探测循环与 23505 重试仍会把冲突显式暴露（探测到号位占用即失败可见）。
+        let mut seq = max_seq.map_or(1, |m| m.saturating_add(1));
         for probe in 0..NO_PROBE_MAX {
             let candidate = format!("{}{:0width$}", date_prefix, seq, width = width);
             let taken = E::find()
@@ -283,12 +340,15 @@ impl DocumentNumberGenerator {
                         date_prefix,
                         skipped = probe,
                         doc_no = %candidate,
-                        "单号探测跳过已占用号位（存量序号空洞或并发占用）"
+                        "单号探测跳过已占用号位（号段内软删占用或并发占用）"
                     );
                 }
                 return Ok(candidate);
             }
-            seq += 1;
+            // 与基数处的 saturating 同理：基数逼近 u64::MAX 的病态号段下，
+            // 逐位探测的推进也不得溢出 panic（debug CI 会直接炸在这行），
+            // 饱和后同一候选位被重复探测 100 次，最终走显式报错路径失败可见。
+            seq = seq.saturating_add(1);
         }
         tracing::error!(date_prefix, "单号连续 {} 个候选位均被占用", NO_PROBE_MAX);
         Err(AppError::business_displayable(format!(
@@ -527,6 +587,18 @@ pub async fn is_document_no_taken<C: ConnectionTrait>(
     Ok(taken)
 }
 
+/// 计算 `prefix+date` 的 `pg_advisory_xact_lock` key。
+///
+/// **前提显式声明（不许删锁、不许改成不安全近似）**：本函数用
+/// `DefaultHasher`（SipHash），其取值仅保证**同一已编译二进制内稳定**——
+/// 跨进程（不同构建产物的实例混跑）或未来 Rust std 变更 Hasher 实现后，
+/// 同一 `(prefix, date)` 输入不保证得到同一 key，届时新旧进程可能各自
+/// 持有"不同 key"而对同一号段失去互斥。因此本锁的定位是**同版本多会话间
+/// 的取号串行化加速器**；跨进程/跨版本的最终正确性保证是单据号列的
+/// 数据库 UNIQUE 索引 + `insert_with_no_retry` 对 23505 的保存点重试
+/// （m0063 补齐 9 表约束）。key 漂移的最坏后果退化为"偶发撞号→重试"，
+/// 不会落库重号，故维持现状并在此声明前提，供后续维护者评估是否升级为
+/// 跨版本稳定的显式 key 方案。
 fn compute_advisory_lock_key(prefix: &str, date: &str) -> i64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
