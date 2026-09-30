@@ -75,21 +75,20 @@ impl PurchaseOrderService {
         Ok(())
     }
 
-    /// 构建并插入订单明细行（金额计算 round_dp(2) 精度归一化）
+    /// 构建并插入订单明细行（添加明细路径）
+    ///
+    /// 金额派生列一律走创建路径同一权威函数 `calculate_item_amounts`
+    /// （order_ops/crud.rs），禁止在本处内联第二套公式；色号写 `color_code`
+    /// 列与创建路径（`build_order_item_active_model` 的 `color_code:
+    /// Set(item.color_no)`）同口径——本函数消费同一 `CreateOrderItemRequest`，
+    /// 若在此丢弃 `color_no` 即为「提交了但落不了库」的同类缺陷，禁止。
+    /// 本路径不是转采购链路（无来源销售订单上下文），供应商保密快照列留 DB 默认。
     async fn build_order_item_active(
         order_id: i32,
         req: CreateOrderItemRequest,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<purchase_order_item::Model, AppError> {
-        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
-        let quantity_ordered = req.quantity_ordered.unwrap_or(Decimal::ZERO);
-        let unit_price = req.unit_price.unwrap_or(Decimal::ZERO);
-        let amount = (quantity_ordered * unit_price).round_dp(2);
-        let tax_percent = req.tax_rate.unwrap_or(Decimal::new(13, 2));
-        let tax_amount = (amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
-        let discount_percent = req.discount_percent.unwrap_or(Decimal::ZERO);
-        let discount_amount = (amount * discount_percent / Decimal::new(100, 0)).round_dp(2);
-        let quantity_alt_ordered = req.quantity_alt_ordered.unwrap_or(Decimal::ZERO);
+        let amounts = Self::calculate_item_amounts(&req);
         let item = purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),
@@ -98,24 +97,24 @@ impl PurchaseOrderService {
             product_id: Set(req
                 .material_id
                 .ok_or_else(|| AppError::validation("收货单缺少物料ID"))?),
-            quantity: Set(quantity_ordered),
-            quantity_alt: Set(quantity_alt_ordered),
-            unit_price: Set(unit_price),
-            unit_price_foreign: Set(unit_price),
-            discount_percent: Set(discount_percent),
-            tax_percent: Set(tax_percent),
-            subtotal: Set(amount),
-            tax_amount: Set(tax_amount),
-            discount_amount: Set(discount_amount),
-            total_amount: Set(amount + tax_amount - discount_amount),
+            quantity: Set(amounts.quantity_ordered),
+            quantity_alt: Set(amounts.quantity_alt_ordered),
+            unit_price: Set(amounts.unit_price),
+            unit_price_foreign: Set(amounts.unit_price),
+            discount_percent: Set(amounts.discount_percent),
+            tax_percent: Set(amounts.tax_percent),
+            subtotal: Set(amounts.amount),
+            tax_amount: Set(amounts.tax_amount),
+            discount_amount: Set(amounts.discount_amount),
+            total_amount: Set(amounts.amount + amounts.tax_amount - amounts.discount_amount),
             received_quantity: Set(Decimal::ZERO),
             received_quantity_alt: Set(Decimal::ZERO),
             quantity_tolerance_pct: Set(req.quantity_tolerance_pct),
             notes: Set(req.notes),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-            // v14 批次 417：面料行业追溯字段（D-P1-6），使用 NotSet 让 DB 默认值处理
-            color_code: sea_orm::ActiveValue::NotSet,
+            // v14 批次 417：面料行业追溯字段（D-P1-6），色号如实落库，其余留 DB 默认
+            color_code: Set(req.color_no),
             lot_no: sea_orm::ActiveValue::NotSet,
             batch_no: sea_orm::ActiveValue::NotSet,
             // 供应商商品编码/色号快照列：此处非转采购路径，NotSet 留 DB 默认
@@ -168,22 +167,88 @@ impl PurchaseOrderService {
         }
 
         // 5. 更新明细（update_with_audit 传 &txn 纳入事务，保证原子性）
+        //
+        // 「缺省即不改」：Option::None 字段保持原值；生效值 = req 提交值 ?? 现值。
+        // 主数量/单价/税率/折扣率/辅量与派生金额列（subtotal/tax_amount/
+        // discount_amount/total_amount）一律经创建路径同一权威函数
+        // `calculate_item_amounts` 按生效值重算后整列写入，写侧与读侧金额口径
+        // 单点同源，禁止在更新链路另算一套。
+        let current = item.clone();
+        let effective_product_id = req.material_id.unwrap_or(current.product_id);
+        let merged = CreateOrderItemRequest {
+            line_no: Some(current.line_no),
+            material_id: Some(effective_product_id),
+            unit_price: Some(req.unit_price.unwrap_or(current.unit_price)),
+            quantity_ordered: Some(req.quantity_ordered.unwrap_or(current.quantity)),
+            quantity_alt_ordered: Some(req.quantity_alt_ordered.unwrap_or(current.quantity_alt)),
+            tax_rate: Some(req.tax_rate.unwrap_or(current.tax_percent)),
+            discount_percent: Some(req.discount_percent.unwrap_or(current.discount_percent)),
+            quantity_tolerance_pct: req.quantity_tolerance_pct,
+            color_no: Some(
+                req.color_no
+                    .clone()
+                    .unwrap_or_else(|| current.color_code.clone().unwrap_or_default()),
+            ),
+            notes: req.notes.clone(),
+        };
+        // 未提交色号且原值也为空时，merged.color_no 会是空串占位；快照解析仅由
+        // req.color_no 是否显式提交触发（见下），此处只为金额权威函数提供生效值。
+        let amounts = Self::calculate_item_amounts(&merged);
+
         let mut item_active: purchase_order_item::ActiveModel = item.into();
 
         if let Some(material_id) = req.material_id {
             item_active.product_id = Set(material_id);
         }
-        if let Some(unit_price) = req.unit_price {
-            item_active.unit_price = Set(unit_price);
-        }
-        if let Some(quantity) = req.quantity_ordered {
-            item_active.quantity = Set(quantity);
-        }
-        if let Some(tax_rate) = req.tax_rate {
-            item_active.tax_percent = Set(tax_rate);
-        }
         if let Some(notes) = req.notes {
             item_active.notes = Set(Some(notes));
+        }
+        item_active.quantity = Set(amounts.quantity_ordered);
+        item_active.quantity_alt = Set(amounts.quantity_alt_ordered);
+        item_active.unit_price = Set(amounts.unit_price);
+        item_active.tax_percent = Set(amounts.tax_percent);
+        item_active.discount_percent = Set(amounts.discount_percent);
+        item_active.subtotal = Set(amounts.amount);
+        item_active.tax_amount = Set(amounts.tax_amount);
+        item_active.discount_amount = Set(amounts.discount_amount);
+        item_active.total_amount =
+            Set(amounts.amount + amounts.tax_amount - amounts.discount_amount);
+
+        // 行级交货允差：Some = 行级覆盖（范围校验已在 handler 层复用
+        // validate_quantity_tolerance_pct 权威函数完成）；None = 保持原值
+        if let Some(tolerance_pct) = req.quantity_tolerance_pct {
+            item_active.quantity_tolerance_pct = Set(Some(tolerance_pct));
+        }
+
+        // 色号：color_code 列如实落库——与创建路径普通单口径一致（直写列、不反查）。
+        // 保密快照列刷新仅对转采购行执行：创建路径只有请求携带 source_sales_order_id
+        // 时才建 SkuMappingService 反查并恒写 supplier_product_code 快照
+        // （order_ops/crud.rs::create_order_items），该行级快照列即「转采购行」的
+        // 持久化标记。普通采购单行若也强制反查，会把创建路径的转采购门控错误
+        // （「无该色号，无法转采购」）套到普通编辑上——普通单改色号会被无对照的
+        // SKU 映射误拒，属语义漂移，禁止。反查/解析本体是创建与更新共用的唯一
+        // 权威函数 resolve_supplier_sku_snapshot，快照值只来自服务端解析，
+        // 前端不可直写 supplier_* 列（写侧 DTO 结构上不含该两列）。
+        if let Some(color_no) = &req.color_no {
+            item_active.color_code = Set(Some(color_no.clone()));
+            if current.supplier_product_code.is_some() {
+                let sku_service =
+                    crate::services::sku_mapping_service::SkuMappingService::new(self.db.clone());
+                let resolved = Self::resolve_supplier_sku_snapshot(
+                    &txn,
+                    Some(&sku_service),
+                    effective_product_id,
+                    &Some(color_no.clone()),
+                    order.supplier_id,
+                    current.line_no.max(1) as usize,
+                )
+                .await?;
+                if let Some(resolved) = &resolved {
+                    item_active.supplier_product_code =
+                        Set(Some(resolved.supplier_product_code.clone()));
+                    item_active.supplier_color_no = Set(resolved.supplier_color_no.clone());
+                }
+            }
         }
 
         let item = crate::services::audit_log_service::AuditLogService::update_with_audit(

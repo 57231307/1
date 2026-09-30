@@ -184,7 +184,35 @@ export interface CreatePurchaseOrderPayload {
   payment_terms?: string;
   shipping_terms?: string;
   notes?: string;
+  /** 后端 CreatePurchaseOrderRequest.attachment_urls（Option<Vec<String>>） */
+  attachment_urls?: string[];
+  /** 转采购来源销售订单 ID（后端据此触发 SKU 对照翻译，services/po/mod.rs:73） */
+  source_sales_order_id?: number;
+  /** 资质例外放行原因（后端 Option<String>，validator 保证传入即非空白，mod.rs:75-85） */
+  qualification_waiver_reason?: string;
   items: CreatePurchaseOrderItemPayload[];
+}
+
+// 更新明细请求体：逐字段对齐后端 UpdateOrderItemRequest
+// （backend/src/services/po/mod.rs:154-179，写侧字段已与 CreateOrderItemRequest 补齐同源）。
+// 「缺省即不改」语义：省略的键保持库中原值（Option::None）；
+// 色号写侧键名 color_no、回读键为 DB 列 color_code（与创建口径一致）；
+// supplier_* 保密快照列**不在**本请求字段中——普通行直写 color_code 不反查
+// （与创建路径普通单同口径），仅转采购行由后端按 color_no 走与创建路径同一套
+// 映射反查权威逻辑刷新快照，前端禁止直写、伪造该两键只会被 serde 忽略。
+// 数值键提交 number（后端 rust_decimal 双形态接受）；回读出参 Decimal 为字符串，
+// 展示处须 Number() 归一后再格式化。
+export interface UpdatePurchaseOrderItemPayload {
+  material_id?: number;
+  unit_price?: number;
+  quantity_ordered?: number;
+  quantity_alt_ordered?: number;
+  tax_rate?: number;
+  discount_percent?: number;
+  /** 行级交货允差 %：后端复用 validate_quantity_tolerance_pct 校验 0~100，越界以 BUSINESS_ERROR 外显拒绝 */
+  quantity_tolerance_pct?: number;
+  color_no?: string;
+  notes?: string;
 }
 
 // D14 Batch 5b：原 purchaseApi.createOrder 转为风格 B 函数
@@ -194,6 +222,17 @@ export const createPurchaseOrder = (data: CreatePurchaseOrderPayload) =>
 // D14 Batch 5b：原 purchaseApi.updateOrder 转为风格 B 函数
 export const updatePurchaseOrder = (id: number, data: Partial<PurchaseOrder>) =>
   request.put<ApiResponse<PurchaseOrder>>(`/purchase/orders/${id}`, data);
+
+// 更新单行采购明细：PUT /purchase/orders/{orderId}/items/{itemId}
+// （routes/purchase.rs:76-80 → handlers/purchase_order_handler.rs::update_order_item，
+// 仅 DRAFT 订单且创建人本人可改；出参为 purchase_order_item::Model 序列化，
+// Decimal 键为字符串，消费处 Number() 归一）
+export const updatePurchaseOrderItem = (
+  orderId: number,
+  itemId: number,
+  data: UpdatePurchaseOrderItemPayload
+) =>
+  request.put<ApiResponse<PurchaseOrderItem>>(`/purchase/orders/${orderId}/items/${itemId}`, data);
 
 // D14 Batch 5b：原 purchaseApi.deleteOrder 转为风格 B 函数
 export const deletePurchaseOrder = (id: number) =>

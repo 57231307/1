@@ -416,6 +416,11 @@ pub async fn update_order_item(
     State(state): State<AppState>,
     Json(req): Json<UpdateOrderItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行级允差等写侧校验：复用创建路径同一 validate_quantity_tolerance_pct，
+    // 拒绝文案（只涉及用户自己提交的数值与公开范围规则）经 validate_write
+    // 以 business_displayable 如实外显，不走脱敏的 VALIDATION_ERROR 信封
+    req.validate_write()?;
+
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
 
