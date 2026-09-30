@@ -1185,6 +1185,12 @@ impl SalesReturnService {
     }
 
     /// 更新退货单明细
+    /// P0 修复（本轮）：原实现对「已存在 Model 转成的 ActiveModel」调用 insert()，
+    /// SeaORM insert 恒发 INSERT（主键被忽略/重生成），每次编辑明细都会插入一条新行，
+    /// 旧行仍在 ⇒ 用户感知「同一行被插成新行 / 重复行」。改为事务内 lock_exclusive
+    /// 读取 + ActiveModel update()（UPDATE 语义），并在数量/单价变化时按行内既有
+    /// discount_percent / tax_percent 用同源算法重算金额四元组，防止 total_amount 失真。
+    /// 注意：不改 create 路径（add_return_item）的 quantity_alt 既有实现。
     pub async fn update_return_item(
         &self,
         item_id: i32,
@@ -1193,12 +1199,20 @@ impl SalesReturnService {
         reason: Option<String>,
         user_id: i32,
     ) -> Result<sales_return_item::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
         let item = sales_return_item::Entity::find_by_id(item_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("退货明细 {}", item_id)))?;
 
-        let txn = (*self.db).begin().await?;
+        // 重算所需原值在 into ActiveModel 之前捕获（Move 语义）
+        let new_qty = quantity.unwrap_or(item.quantity);
+        let new_price = unit_price.unwrap_or(item.unit_price);
+        let discount_percent = item.discount_percent;
+        let tax_percent = item.tax_percent;
+        let amounts_dirty = quantity.is_some() || unit_price.is_some();
 
         let mut active_model: sales_return_item::ActiveModel = item.into();
         if let Some(qty) = quantity {
@@ -1210,9 +1224,20 @@ impl SalesReturnService {
         if let Some(r) = reason {
             active_model.notes = Set(Some(r));
         }
+        // 数量/单价任一变化：按行内税率/折扣率重算 subtotal/tax_amount/discount_amount/total_amount，
+        // 与 add_return_item 使用同一 compute_return_item_amounts，保证口径一致。
+        if amounts_dirty {
+            let amounts =
+                Self::compute_return_item_amounts(new_qty, new_price, discount_percent, tax_percent);
+            active_model.subtotal = Set(amounts.subtotal);
+            active_model.discount_amount = Set(amounts.discount_amount);
+            active_model.tax_amount = Set(amounts.tax_amount);
+            active_model.total_amount = Set(amounts.total_amount);
+        }
         active_model.updated_at = Set(Utc::now());
 
-        let item = active_model.insert(&txn).await?;
+        // 关键修复：update 而非 insert（原 insert 造成重复行）
+        let item = active_model.update(&txn).await?;
 
         // 更新退货单总金额
         // 批次 94 P2-10：透传 user_id 用于审计日志
