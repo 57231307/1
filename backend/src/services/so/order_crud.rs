@@ -26,6 +26,7 @@ use crate::models::{
 use crate::search::{SalesOrderDoc, SalesOrderItemDoc};
 use crate::services::so::{CreateSalesOrderRequest, SalesOrderDetail, UpdateSalesOrderRequest};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
 };
@@ -118,10 +119,17 @@ impl SalesService {
         let order_amount = Self::calculate_order_amount(&request);
         self.check_credit_available(customer_id, &txn, order_amount)
             .await?;
-        let order_no = self.generate_unique_order_no(&txn).await?;
-        let order_entity = self
-            .create_order_main_record(&request, required_date, order_no, user_id, &txn)
-            .await?;
+        // 取号与主表 INSERT 统一收口到生成器：pg_advisory_xact_lock 事务内取号
+        // + 候选占用探测，INSERT 撞 23505（旁路重复号/人工输入号）时在保存点内
+        // 重新取号重试，其余 SQL 错误显式上抛（utils/number_generator.rs::insert_with_no_retry）。
+        let order_entity = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            "SO",
+            SalesOrderEntity,
+            sales_order::Column::OrderNo,
+            |order_no| Self::build_order_active_model(&request, required_date, order_no, user_id),
+        )
+        .await?;
         Self::validate_products_exist(&request, &txn).await?;
         let totals = self
             .create_order_items_and_calculate_totals(request.items, order_entity.id, &txn)
@@ -234,35 +242,21 @@ impl SalesService {
         Ok(())
     }
 
-    /// 生成订单号并校验唯一性（防并发冲突）
-    async fn generate_unique_order_no(
-        &self,
-        txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<String, AppError> {
-        // 生成订单号并检查唯一性
-        let order_no = self.generate_order_no().await?;
-        // 再次检查订单号是否已存在（防止并发冲突）
-        let existing_order = SalesOrderEntity::find()
-            .filter(sales_order::Column::OrderNo.eq(&order_no))
-            .one(txn)
-            .await?;
-        if existing_order.is_some() {
-            tracing::error!("Transaction rolled back: 订单号 {} 已存在", order_no);
-            return Err(AppError::business("订单号已存在，请重试"));
-        }
-        Ok(order_no)
-    }
-
-    /// 创建订单主表（初始金额为 0，后续由 update_order_totals 更新）
-    async fn create_order_main_record(
-        &self,
+    /// 构建订单主表 ActiveModel（初始金额为 0，后续由 update_order_totals 更新）。
+    ///
+    /// 单号格式 `SO` + `YYYYMMDD` + 3 位当日流水（SO20260315001），由
+    /// `DocumentNumberGenerator::insert_with_no_retry` 在 create_order 的写入事务内
+    /// 取号并插入：`pg_advisory_xact_lock` 串行化并发「取号→插入」，候选号探测占用，
+    /// INSERT 撞 23505 在保存点内重新取号重试（utils/number_generator.rs）。
+    /// 禁止事务外取号后拼号/复查（复查读不到对方未提交的行，给不出并发保证），
+    /// 禁止时间戳/随机数拼号（绕过 order_no UNIQUE 语义、制造脏数据）。
+    fn build_order_active_model(
         request: &CreateSalesOrderRequest,
         required_date: chrono::DateTime<chrono::Utc>,
         order_no: String,
         user_id: i32,
-        txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<sales_order::Model, AppError> {
-        let order = sales_order::ActiveModel {
+    ) -> sales_order::ActiveModel {
+        sales_order::ActiveModel {
             id: Default::default(),
             order_no: sea_orm::ActiveValue::Set(order_no),
             customer_id: sea_orm::ActiveValue::Set(request.customer_id),
@@ -313,8 +307,7 @@ impl SalesService {
             approved_at: sea_orm::ActiveValue::NotSet,
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-        };
-        Ok(order.insert(txn).await?)
+        }
     }
 
     /// 产品存在性批量校验（防订单明细引用不存在的产品）
