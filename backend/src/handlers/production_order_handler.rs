@@ -321,6 +321,14 @@ pub async fn approve_production_order(
     Json(req): Json<ApprovalRequest>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
+    // IDOR 防护（任务 #153 缺陷2）：审批前先按当前用户数据范围校验资源归属（与同域
+    // update/delete/submit_for_approval 的 get_by_id(Some(&data_scope_ctx)) 同源范式），
+    // 越权由 get_by_id 内部归属校验返回 403（permission_denied）。
+    // approve_order 服务侧仅 find_by_id+lock_exclusive+状态门，无归属校验，
+    // 此前本端点是同域唯一缺归属预检的写端点（任意登录用户可对他人订单执行审批）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+
     let model = service
         .approve_order(id, auth.user_id, &auth.username, req.approved, req.opinion)
         .await?;
@@ -376,6 +384,20 @@ pub async fn update_production_progress(
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+
+    // 状态门（任务 #153 缺陷1）：actual_quantity/remarks 是成本归集与审计口径的写入口，
+    // 必须参与写入方状态机（services/production_order_ops/crud.rs::validate_status_transition
+    // + models/status/* 词表）：仅 IN_PROGRESS 允许上报进度。此前"只有 IN_PROGRESS 能报进度"
+    // 只存在于前端 ProductionTable.vue 的按钮门控，属 UI 约束而非安全边界——DRAFT/
+    // SCHEDULED/PENDING_APPROVAL/APPROVED/REJECTED/COMPLETED/CANCELLED 任意状态可直连
+    // POST /{id}/progress 覆写产量。状态值来自用户已可见的订单数据，无内部 ID/敏感量，
+    // 用 business_displayable 外显真实拒绝文案（AppError::business 出参会被脱敏）。
+    if model.status != crate::models::status::production::PRODUCTION_IN_PROGRESS {
+        return Err(AppError::business_displayable(format!(
+            "订单当前状态为 {}，仅生产中（IN_PROGRESS）的订单可上报生产进度",
+            model.status
+        )));
+    }
 
     let mut active_model: crate::models::production_order::ActiveModel = model.into();
     if let Some(qty) = payload.actual_quantity {

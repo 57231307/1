@@ -44,7 +44,7 @@ impl ProductionRecipeAdditionService {
             )));
         }
 
-        let addition_no = Self::generate_addition_no();
+        let addition_no = self.generate_addition_no().await?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = AdditionActiveModel {

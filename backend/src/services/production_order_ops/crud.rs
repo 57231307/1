@@ -11,7 +11,7 @@
 //!
 //! 业务规则：
 //! - 创建订单后触发 MRP 物料需求计算（失败 warn 不阻塞）
-//! - 返工订单使用 RW- 前缀，不触发 MRP
+//! - 返工订单使用 RW 前缀，不触发 MRP
 //! - 状态转换校验基于状态机白名单（validate_status_transition）
 //! - COMPLETED 状态走 complete_production_order 专用路径（completion 子模块）
 //! - 排产状态变更走 check_capacity_for_scheduling 产能校验（completion 子模块）
@@ -87,27 +87,19 @@ impl ProductionOrderService {
         Ok(())
     }
 
-    /// 生成唯一订单号（带重试机制）
+    /// 生成生产订单号（统一生成器：`PO{YYYYMMDD}{3位流水}`，advisory lock 防并发重号）
     async fn generate_unique_order_no(&self) -> Result<String, AppError> {
-        let max_retries = 5;
-        for _ in 0..max_retries {
-            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = crate::utils::random::random_4_digit();
-            let order_no = format!("PO-{}-{:04}", timestamp, random);
-
-            // 检查订单号是否已存在
-            let existing = ProductionOrderEntity::find()
-                .filter(crate::models::production_order::Column::OrderNo.eq(&order_no))
-                .one(&*self.db)
-                .await?;
-
-            if existing.is_none() {
-                return Ok(order_no);
-            }
-        }
-        Err(AppError::internal(
-            "无法生成唯一订单号，请稍后重试".to_string(),
-        ))
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PO",
+            ProductionOrderEntity,
+            crate::models::production_order::Column::OrderNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "生产订单号生成失败");
+            AppError::business_displayable("生产订单号生成失败，请稍后重试")
+        })
     }
 
     /// 验证状态转换是否合法（`pub(crate)` 可见性：测试模块（facade）与 approval 子模块跨 impl 块调用。）
@@ -306,7 +298,7 @@ impl ProductionOrderService {
     }
 
     /// V15 Batch 479 P0-F21：创建返工生产订单
-    /// 业务背景：bulk_color_approval customer_rework 触发，返工必须走生产订单流程；（审计报告 P0-F21：返工无工单跟踪，返工成本无法归集到原缸号）；与普通 create() 的差异：order_type = 'rework'（标记为返工订单）；original_batch_id 指向原 dye_batch（返工成本归集锚点）；不触发 MRP 物料需求计算（返工使用已有物料，不产生新采购计划）；自动生成订单号 RW-YYYYMMDD-NNN
+    /// 业务背景：bulk_color_approval customer_rework 触发，返工必须走生产订单流程；（审计报告 P0-F21：返工无工单跟踪，返工成本无法归集到原缸号）；与普通 create() 的差异：order_type = 'rework'（标记为返工订单）；original_batch_id 指向原 dye_batch（返工成本归集锚点）；不触发 MRP 物料需求计算（返工使用已有物料，不产生新采购计划）；自动生成订单号 RW{YYYYMMDD}{NNN}
     pub async fn create_rework_order(
         &self,
         product_id: i32,
@@ -323,7 +315,7 @@ impl ProductionOrderService {
             self.validate_sales_order_exists(sales_order_id).await?;
         }
 
-        // 生成返工订单号 RW-YYYYMMDD-NNN
+        // 生成返工订单号 RW{YYYYMMDD}{NNN}（统一生成器）
         let order_no = self.generate_rework_order_no().await?;
 
         let now = Utc::now();
@@ -362,33 +354,20 @@ impl ProductionOrderService {
         Ok(model)
     }
 
-    /// 生成唯一返工订单号 RW-YYYYMMDD-NNN（与 generate_unique_order_no 区别：使用 RW- 前缀标识返工订单）
+    /// 生成返工订单号（统一生成器：`RW{YYYYMMDD}{3位流水}`，与 PO 前缀区分返工订单；
+    /// RW 与 PO 同表同列，前缀不同、流水互不侵占）
     async fn generate_rework_order_no(&self) -> Result<String, AppError> {
-        let date_str = chrono::Utc::now().format("%Y%m%d").to_string();
-        for attempt in 0..10 {
-            let seq = if attempt == 0 {
-                // 首次尝试基于当前秒数生成，减少 DB 查询
-                let secs = chrono::Utc::now().timestamp() % 1000;
-                format!("{:03}", secs)
-            } else {
-                format!("{:03}", 100 + attempt)
-            };
-            let order_no = format!("RW-{}-{}", date_str, seq);
-            let exists = ProductionOrderEntity::find()
-                .filter(crate::models::production_order::Column::OrderNo.eq(&order_no))
-                .one(&*self.db)
-                .await?
-                .is_some();
-            if !exists {
-                return Ok(order_no);
-            }
-        }
-        // 兜底：使用 UUID 片段
-        Ok(format!(
-            "RW-{}-{}",
-            date_str,
-            chrono::Utc::now().timestamp_millis() % 10000
-        ))
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "RW",
+            ProductionOrderEntity,
+            crate::models::production_order::Column::OrderNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "返工订单号生成失败");
+            AppError::business_displayable("返工订单号生成失败，请稍后重试")
+        })
     }
 
     /// 根据ID获取生产订单

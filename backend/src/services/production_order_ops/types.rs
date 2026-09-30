@@ -42,7 +42,8 @@ pub const AUDIT_RESOURCE_TYPE: &str = "production_order";
 /// 创建生产订单请求
 #[derive(Debug, Clone)]
 pub struct CreateProductionOrderRequest {
-    /// 订单编号（None 时自动生成 PO-时间戳-随机数）
+    /// 订单编号（None 时由统一生成器 utils/number_generator.rs 取号 `PO{YYYYMMDD}{3位流水}`；
+    /// 单据号系统生成禁手打，前端创建路径不传该字段——任务 #153）
     pub order_no: Option<String>,
     /// 关联销售订单 ID（可选）
     pub sales_order_id: Option<i32>,
