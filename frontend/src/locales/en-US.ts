@@ -1159,6 +1159,12 @@ export default {
       colSubtotal: 'Amount',
       colReceived: 'Received',
       colRemark: 'Remark',
+      colColor: 'Color',
+      colAltQty: 'Alt. Qty',
+      colDiscount: 'Discount %',
+      colOperation: 'Action',
+      saveItem: 'Save Item',
+      colorPlaceholder: 'Color no., empty keeps current',
     },
     createDlg: {
       title: 'New Purchase Order',
@@ -1465,6 +1471,8 @@ export default {
     exportSuccess: 'Exported successfully',
     exportFailed: 'Export failed',
     exportFailedReason: 'Export failed: {reason}',
+    docNoGenerateFailed:
+      'Failed to generate document no. (prefix {prefix} collided {maxRetry} times), please retry or contact the administrator',
     networkError: 'Network error',
     permissionDenied: 'Permission denied',
     sessionExpired: 'Session expired, please login again',
@@ -1529,6 +1537,10 @@ export default {
     pleaseAddPurchaseDetail: 'Please add at least one valid purchase detail',
     purchaseOrderCreated: 'Purchase order created successfully',
     purchaseOrderApproved: 'Purchase order {orderNo} approved successfully',
+    purchaseOrderUpdated: 'Purchase order {orderNo} updated',
+    purchaseOrderItemUpdated: 'Purchase item of order {orderNo} updated',
+    purchaseItemFieldKeepHint:
+      'Clearing color/tolerance is not supported on item update (empty keeps the stored value); enter an explicit value to change it',
     receiveSuccess: 'Receipt successful',
     receiveBatchRequired: 'Enter a batch number for each receipt line',
     shipSuccess: 'Shipment successful',
@@ -4944,6 +4956,11 @@ export default {
       ariaLabel: 'Account Subject Form',
       parentSubject: 'Parent Subject',
       parentPlaceholder: 'Select Parent Subject',
+      assistCustomer: 'Customer Sub-accounting',
+      assistSupplier: 'Supplier Sub-accounting',
+      assistBatch: 'Batch Sub-accounting',
+      assistColorNo: 'Color No Sub-accounting',
+      dualUnit: 'Dual Unit of Measure',
       enable: 'Enable',
       description: 'Description',
       cancel: 'Cancel',
@@ -4964,6 +4981,7 @@ export default {
       deleteConfirmTitle: 'Delete Confirmation',
       deleteSuccess: 'Delete successful',
       deleteFailed: 'Delete failed',
+      parentNotFound: 'Selected parent subject does not exist; refresh the subject list and retry',
     },
     exportFile: {
       filename: 'Account Subject Table',
@@ -4995,6 +5013,8 @@ export default {
       pending: 'Not Enabled',
       active: 'Active',
       closed: 'Closed',
+      open: 'Open',
+      closing: 'Closing',
     },
     table: {
       ariaLabel: 'Accounting Period List',
@@ -5050,6 +5070,10 @@ export default {
       reopenConfirm: 'Are you sure to reopen period "{name}"?',
       reopenConfirmTitle: 'Reopen Confirmation',
       reopenedSuccess: 'Reopened',
+      reopenReasonPrompt:
+        'Enter the reason to reopen period "{name}" (required by backend for audit)',
+      reopenReasonPlaceholder: 'Reopen reason',
+      reopenReasonRequired: 'Reopen reason is required',
       deleteConfirm: 'Are you sure to delete period "{name}"?',
       deleteConfirmTitle: 'Delete Confirmation',
       deleteSuccess: 'Delete successful',
@@ -5541,6 +5565,9 @@ export default {
     disputeAmount: 'Dispute Amount',
     disputeDescription: 'Dispute Description',
     disputeDescriptionPlaceholder: 'Please enter dispute description',
+    disputeTargetRequired:
+      'Please select a reconciliation record to dispute from the result list first',
+    reconciliationPeriod: 'Reconciliation Period',
     submitDispute: 'Submit Dispute',
     disputeRecords: 'Dispute Records',
     disputeRecordsAria: 'Dispute Records List',
@@ -5618,6 +5645,8 @@ export default {
       listAria: 'Reconciliation List',
       customerCode: 'Customer Code',
       customerName: 'Customer Name',
+      reconciliationNo: 'Reconciliation No.',
+      openingBalance: 'Opening Balance',
       reconciliationStart: 'Reconciliation Start',
       reconciliationEnd: 'Reconciliation End',
       invoiceAmount: 'Invoice Amount',
@@ -6503,6 +6532,12 @@ export default {
       success: 'Claimed successfully',
       failed: 'Failed to claim',
     },
+  },
+  crmCustomerShare: {
+    sharedToUserId: 'Shared User ID',
+    permissionView: 'View Only',
+    permissionEdit: 'Edit',
+    permissionFull: 'Full Access',
   },
   crmRfm: {
     title: 'Customer Grading (RFM)',
@@ -9954,6 +9989,7 @@ export default {
       labelActualQuantity: 'Actual Quantity',
       labelStartDate: 'Start Date',
       saveFailed: 'Failed to save dye batch',
+      docNoGenerateFailed: 'Failed to generate batch no., please reopen the dialog and retry',
     },
     greigeTab: {
       title: 'Greige Fabric Management',
@@ -10033,6 +10069,7 @@ export default {
       labelContent: 'Recipe Details',
       placeholderContent: 'Please enter recipe details',
       saveFailed: 'Failed to save recipe',
+      docNoGenerateFailed: 'Failed to generate recipe no., please reopen the dialog and retry',
     },
   },
   systemUpdate: {
@@ -10849,9 +10886,12 @@ export default {
       columnApprovedBy: 'Approved By',
       columnPostedBy: 'Posted By',
       columnAction: 'Action',
+      buttonSubmit: 'Submit',
       buttonApprove: 'Approve',
       buttonPost: 'Post',
       buttonUnpost: 'Unpost',
+      submitConfirmContent:
+        'Are you sure to submit this voucher? Submitted vouchers can be reviewed',
       statusDraft: 'Draft',
       statusApproved: 'Approved',
       // P0 三端同源：后端凭证状态机 draft→submitted→reviewed→posted（status::finance::voucher）
