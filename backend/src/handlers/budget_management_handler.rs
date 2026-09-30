@@ -107,6 +107,10 @@ pub struct CreateBudgetItemRequest {
 }
 
 /// 更新预算科目请求 DTO
+///
+/// `account_subject_id` 是可空列，三态语义（键缺席=保持、显式 null=解除映射、有值=覆盖）
+/// 依赖 `deserialize_with = "double_option"`：serde_json 会把显式 `null` 折叠成外层
+/// `None`，不挂适配器则"解除映射"永远发不出去（范式同 `department_handler`）。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
@@ -119,7 +123,16 @@ pub struct UpdateBudgetItemRequest {
     pub status: Option<String>,
     pub remark: Option<String>,
     /// P2-14：预算科目-会计科目映射
+    #[serde(default, deserialize_with = "double_option")]
     pub account_subject_id: Option<Option<i32>>,
+}
+
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
 }
 
 /// 创建预算方案请求 DTO
