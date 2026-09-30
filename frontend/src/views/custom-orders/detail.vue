@@ -141,9 +141,11 @@
 
         <!-- 售后 -->
         <el-tab-pane :label="tabAfterSalesLabel" name="aftersales">
+          <!-- 任务 #148 缺陷 C：quality_issues 下传面板，供创建工单可选关联 quality_issue_id -->
           <AfterSalesPanel
             :order-id="order.id"
             :after-sales="order.after_sales || []"
+            :quality-issues="order.quality_issues || []"
             @refresh="loadData"
           />
         </el-tab-pane>

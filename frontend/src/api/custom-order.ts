@@ -65,10 +65,14 @@ export const AFTER_SALES_TYPE: Record<string, string> = {
   refund: '退款',
 };
 
+// 任务 #148 缺陷 B：词表对齐后端写入方（custom_order_aftersales_service.rs
+// is_valid_transition + accept/evaluate 方法实际写入的状态全集），补齐 accepted/evaluated
 export const AFTER_SALES_STATUS: Record<string, string> = {
   opened: '已开',
+  accepted: '已受理',
   processing: '处理中',
   resolved: '已解决',
+  evaluated: '已评价',
   closed: '已关闭',
   rejected: '已拒绝',
 };
@@ -174,7 +178,10 @@ export interface QualityIssueQueryParams {
   severity?: string;
 }
 
-/** 售后工单信息（对齐后端 AfterSalesInfo） */
+/** 售后工单信息（对齐后端 AfterSalesInfo）
+ * 注意：refund_amount 后端为 rust_decimal::Decimal，JSON 出参序列化为**字符串**
+ *（如 "1200.50"），消费处不得按 number 直接做算术 / .toFixed，
+ *  展示统一走 utils/formatCurrency 的 Number() 归一（任务 #148 缺陷 D）。 */
 export interface AfterSales {
   id: number;
   issue_type: string;
@@ -183,24 +190,32 @@ export interface AfterSales {
   opened_at: string;
   closed_at?: string;
   resolution?: string;
-  refund_amount?: number;
+  refund_amount?: string;
 }
 
-/** 创建售后工单请求（对齐后端 CreateAfterSalesDto）
- * 注意：custom_order_id 通过 URL 路径参数传递，请求体中可选 */
+/** 创建售后工单请求（任务 #148 契约修复，逐字段对齐后端 CreateAfterSalesDto）
+ * - custom_order_id **不属于请求体**：工单归属由 URL path 参数权威提供，
+ *   body 即使携带也会被后端忽略（防伪造覆盖）。
+ * - issue_type / customer_id / description 对应后端 NOT NULL 必填列，不得标可选；
+ * - refund_amount 后端为 Option<Decimal>，serde 同时接受 number 与 string，
+ *   refund 类型时后端业务校验必填；
+ * - quality_issue_id / reason_category / reason_detail 为后端可选字段，如实声明。 */
 export interface AfterSalesCreateDto {
-  custom_order_id?: number;
-  customer_id?: number;
+  customer_id: number;
   issue_type: string;
   description: string;
-  refund_amount?: number;
+  refund_amount?: string | number;
+  quality_issue_id?: number;
+  reason_category?: string;
+  reason_detail?: string;
 }
 
-/** 更新售后工单请求（对齐后端 UpdateAfterSalesDto） */
+/** 更新售后工单请求（对齐后端 UpdateAfterSalesDto，全部可选；
+ * refund_amount 为 Option<Decimal>，入参接受 string | number） */
 export interface AfterSalesUpdateDto {
   status?: string;
   resolution?: string;
-  refund_amount?: number;
+  refund_amount?: string | number;
 }
 
 /** 售后列表查询参数 */
