@@ -293,7 +293,7 @@ test.describe.serial('62 染化料台账→批次→领用→消耗/追溯链路
     const id = Number(mk.data?.id);
     const no = String(mk.data?.requisition_no);
     expect(id, `领用单创建应返回 id：${JSON.stringify(mk)}`).toBeGreaterThan(0);
-    expect(no, '领用单号应服务端生成为 CR- 前缀').toMatch(/^CR-\d{14}-\d{3}$/);
+    expect(no, '领用单号应服务端生成为 CR 前缀').toMatch(/^CR\d{8}\d{3}$/);
     expect(mk.data?.status, '新建领用单应为 draft').toBe('draft');
     expect(Number(mk.data?.dye_batch_id), '领用单应绑定自建缸号').toBe(dyeBatchId);
 
