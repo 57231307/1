@@ -53,28 +53,69 @@ pub struct CreateContractRequestDto {
     pub remark: Option<String>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 utils/query_params.rs 的 empty_str_as_none 同属 serde 输入整形，非业务常量；
+/// 本批授权文件仅限合同/部门，故各域 handler 内私有定义，后续可上收为共享工具。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// P1-2m 修复（批次 81 v1 复审）：更新采购合同请求 DTO
-/// 字段语义 = PATCH 部分更新（Some=覆盖、None=保持）。
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
+/// NOT NULL 列（contract_name/supplier_id，m0009 DDL）同样保持三态可辨，但显式 null
+/// 由 service 层判为业务错误拒绝——不开 null 清空语义。
 /// 不含 contract_no：合同编号属系统生成单据号（前端预生成 + /document-no/check 查重，
 /// 数据库 UNIQUE 兜底），编辑链路不接受改写；请求里携带的 contract_no 一律忽略。
 #[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateContractDto {
-    /// 合同名称：可选
+    /// 合同名称：NOT NULL 列——显式 null 被 service 拒绝（业务错误，非脱敏）
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 200, message = "合同名称长度不能超过200字符"))]
-    pub contract_name: Option<String>,
-    pub supplier_id: Option<i32>,
-    pub total_amount: Option<rust_decimal::Decimal>,
-    pub contract_type: Option<String>,
-    /// 付款条款：可选
-    pub payment_terms: Option<String>,
-    pub delivery_date: Option<chrono::NaiveDate>,
-    pub signed_date: Option<chrono::NaiveDate>,
-    pub effective_date: Option<chrono::NaiveDate>,
-    pub expiry_date: Option<chrono::NaiveDate>,
-    pub payment_method: Option<String>,
-    pub delivery_location: Option<String>,
-    pub remark: Option<String>,
+    pub contract_name: Option<Option<String>>,
+    /// 供应商ID：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub supplier_id: Option<Option<i32>>,
+    /// 合同金额：DB 可空列 total_amount DECIMAL(15,2)（m0009 DDL 核实）
+    #[serde(default, deserialize_with = "double_option")]
+    pub total_amount: Option<Option<rust_decimal::Decimal>>,
+    /// 合同类型：DB 可空列 contract_type VARCHAR(50)（m0009）
+    #[serde(default, deserialize_with = "double_option")]
+    pub contract_type: Option<Option<String>>,
+    /// 付款条款：DB 可空列 payment_terms TEXT（m0009）
+    #[serde(default, deserialize_with = "double_option")]
+    pub payment_terms: Option<Option<String>>,
+    /// 交货日期：DB 可空列 delivery_date DATE（m0009）
+    #[serde(default, deserialize_with = "double_option")]
+    pub delivery_date: Option<Option<chrono::NaiveDate>>,
+    /// 签订日期：DB 可空列 signed_date DATE（m0009）
+    #[serde(default, deserialize_with = "double_option")]
+    pub signed_date: Option<Option<chrono::NaiveDate>>,
+    /// 生效日期：DB 可空列 effective_date DATE（m0009）
+    #[serde(default, deserialize_with = "double_option")]
+    pub effective_date: Option<Option<chrono::NaiveDate>>,
+    /// 到期日期：DB 可空列 expiry_date DATE（m0009）
+    #[serde(default, deserialize_with = "double_option")]
+    pub expiry_date: Option<Option<chrono::NaiveDate>>,
+    /// 付款方式：DB 可空列 payment_method VARCHAR(50)（m0009）
+    #[serde(default, deserialize_with = "double_option")]
+    pub payment_method: Option<Option<String>>,
+    /// 交货地点：DB 可空列 delivery_location VARCHAR(200)（m0009）
+    #[serde(default, deserialize_with = "double_option")]
+    pub delivery_location: Option<Option<String>>,
+    /// 备注：DB 可空列 remark TEXT（m0016 补列）
+    #[serde(default, deserialize_with = "double_option")]
+    pub remark: Option<Option<String>>,
 }
 
 /// 合同执行请求 DTO

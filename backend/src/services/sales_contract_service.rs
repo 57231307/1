@@ -49,24 +49,33 @@ pub struct CreateSalesContractRequest {
 
 /// 更新销售合同请求
 ///
-/// 字段语义 = PATCH 部分更新（Some=覆盖，None=保持原值），items=明细整表替换。
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// - `None`（键缺席）＝保持原值；
+/// - `Some(None)`（显式 null）＝该列清空为 NULL（仅对 DB 可空列开放）；
+/// - `Some(Some(v))`（有值）＝覆盖。
+/// 可空性逐字段按 m0011 DDL + m0016 补列核实：total_amount/contract_type/payment_terms/
+/// delivery_date/signed_date/effective_date/expiry_date/payment_method/delivery_location/
+/// remark 为 NULLable 列；contract_name/customer_id 为 NOT NULL 列，不开 null 清空，
+/// update() 在任何 DB 访问前将 Some(None) 判为业务错误拒绝。
+/// 不得塌成单层 Option<T>：塌层后"显式 null"与"键缺席"同物，清空即被静默丢弃。
+/// items 为数组字段：整表替换（Some=替换、None=不动），清空明细须传空数组，不开放 Some(None) 语义。
 /// 不含 contract_no：合同编号由系统生成（单据号禁手打口径），更新链路不允许改写；
 /// 若放开改写，改成已存在编号会直接撞 sales_contracts.contract_no UNIQUE（无 23505→4xx
 /// 自动映射，只会裸 500），且篡改单据号本身违反编号即身份的业务规则。
 #[derive(Debug, Clone, Default)]
 pub struct UpdateSalesContractRequest {
-    pub contract_name: Option<String>,
-    pub customer_id: Option<i32>,
-    pub total_amount: Option<Decimal>,
-    pub contract_type: Option<String>,
-    pub payment_terms: Option<String>,
-    pub delivery_date: Option<NaiveDate>,
-    pub signed_date: Option<NaiveDate>,
-    pub effective_date: Option<NaiveDate>,
-    pub expiry_date: Option<NaiveDate>,
-    pub payment_method: Option<String>,
-    pub delivery_location: Option<String>,
-    pub remark: Option<String>,
+    pub contract_name: Option<Option<String>>,
+    pub customer_id: Option<Option<i32>>,
+    pub total_amount: Option<Option<Decimal>>,
+    pub contract_type: Option<Option<String>>,
+    pub payment_terms: Option<Option<String>>,
+    pub delivery_date: Option<Option<NaiveDate>>,
+    pub signed_date: Option<Option<NaiveDate>>,
+    pub effective_date: Option<Option<NaiveDate>>,
+    pub expiry_date: Option<Option<NaiveDate>>,
+    pub payment_method: Option<Option<String>>,
+    pub delivery_location: Option<Option<String>>,
+    pub remark: Option<Option<String>>,
     /// Some(items)：整表替换明细行；None：不动明细
     pub items: Option<Vec<CreateContractItemRequest>>,
 }
@@ -202,7 +211,7 @@ impl SalesContractService {
         Ok(())
     }
 
-    /// 更新销售合同（表头 + 明细整表替换）
+    /// 更新销售合同（表头 + 明细整表替换；表头三态字段语义：None=保持、Some(None)=置 NULL、Some(Some)=覆盖）
     ///
     /// P0 契约修复（本轮）：原 handler 内联实现只接受 contract_name/payment_terms，
     /// 且 get_by_id 裸查询 + update 无事务边界。现改为：
@@ -214,6 +223,20 @@ impl SalesContractService {
         user_id: i32,
     ) -> Result<sales_contract::Model, AppError> {
         info!("用户 {} 正在更新销售合同 {}", user_id, id);
+
+        // NOT NULL 列门控（sales_contracts.contract_name / customer_id 均 NOT NULL，
+        // m0011 DDL 核实）：显式 null 是调用方错误，不是"保持原值"；
+        // 在任何 DB 访问之前拒绝，错误外显不脱敏。
+        if matches!(req.contract_name, Some(None)) {
+            return Err(AppError::business_displayable(
+                "合同名称不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.customer_id, Some(None)) {
+            return Err(AppError::business_displayable(
+                "客户不能清空：请选择有效客户",
+            ));
+        }
 
         let txn = (*self.db).begin().await?;
 
@@ -230,7 +253,7 @@ impl SalesContractService {
         }
 
         // 客户变更：校验存在并同步冗余列 customer_name
-        let customer_name_override = match req.customer_id {
+        let customer_name_override = match req.customer_id.flatten() {
             Some(cid) if cid != contract.customer_id => {
                 let c = crate::models::customer::Entity::find_by_id(cid)
                     .one(&txn)
@@ -243,58 +266,70 @@ impl SalesContractService {
             _ => None,
         };
 
-        // 印花税生效值（在 contract 被 move 前捕获）：类型或金额任一变化即重算
+        // 印花税生效值（在 contract 被 move 前捕获）：类型或金额任一键出现（含显式 null 清空）即重算。
+        // 键缺席 → 生效值取 DB 原值；显式 null（Some(None)）→ 生效值即 NULL（三态不得塌层）；
+        // 金额按既有口径：NULL 参与印花税计算记为 0（与历史 NULL 行的原实现处理一致）。
         let stamp_tax_recalc_needed = req.contract_type.is_some() || req.total_amount.is_some();
-        let effective_contract_type = req
-            .contract_type
-            .clone()
-            .or_else(|| contract.contract_type.clone());
-        let effective_total_amount = req
-            .total_amount
-            .unwrap_or(contract.total_amount.unwrap_or(Decimal::ZERO));
+        let effective_contract_type = match &req.contract_type {
+            Some(v) => v.clone(),
+            None => contract.contract_type.clone(),
+        };
+        let effective_total_amount = match req.total_amount {
+            Some(v) => v,
+            None => contract.total_amount,
+        }
+        .unwrap_or(Decimal::ZERO);
 
         let mut active: sales_contract::ActiveModel = contract.into();
-        if let Some(v) = req.contract_name {
+        // 三态写入规则（对齐 RFC 7386 JSON Merge Patch，字段类型 Option<Option<T>>）：
+        //   None          = 键缺席 → 不 Set 该列（保持 Unset，UPDATE 语句不含该列，原值不动）
+        //   Some(None)    = 显式 null → Set(None) → 该列写入 NULL
+        //   Some(Some(v)) = 有值 → Set(v)/Set(Some(v)) → 覆盖
+        // 三者不可塌成两层：塌成单层 Option<T> 后"清空"与"保持"共用同一表示，
+        // 可空列将永远无法置 NULL，用户删掉交货日期/备注保存即被静默丢弃——本轮要消灭的形态。
+        // contract_name/customer_id 为 NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.contract_name.flatten() {
             active.contract_name = Set(v);
         }
-        if let Some(v) = req.customer_id {
+        if let Some(v) = req.customer_id.flatten() {
             active.customer_id = Set(v);
         }
         if let Some(name) = customer_name_override {
             active.customer_name = Set(Some(name));
         }
+        // 以下均为 DB 可空列（m0011 DDL + m0016 补列逐字段核实）：开放 null 清空
         if let Some(v) = req.contract_type {
-            active.contract_type = Set(Some(v));
+            active.contract_type = Set(v);
         }
         if let Some(v) = req.total_amount {
-            active.total_amount = Set(Some(v));
+            active.total_amount = Set(v);
         }
         if let Some(v) = req.payment_terms {
-            active.payment_terms = Set(Some(v));
+            active.payment_terms = Set(v);
         }
         if let Some(v) = req.delivery_date {
-            active.delivery_date = Set(Some(v));
+            active.delivery_date = Set(v);
         }
         if let Some(v) = req.signed_date {
-            active.signed_date = Set(Some(v));
+            active.signed_date = Set(v);
         }
         if let Some(v) = req.effective_date {
-            active.effective_date = Set(Some(v));
+            active.effective_date = Set(v);
         }
         if let Some(v) = req.expiry_date {
-            active.expiry_date = Set(Some(v));
+            active.expiry_date = Set(v);
         }
         if let Some(v) = req.payment_method {
-            active.payment_method = Set(Some(v));
+            active.payment_method = Set(v);
         }
         if let Some(v) = req.delivery_location {
-            active.delivery_location = Set(Some(v));
+            active.delivery_location = Set(v);
         }
         if let Some(v) = req.remark {
-            active.remark = Set(Some(v));
+            active.remark = Set(v);
         }
 
-        // 印花税：合同类型或金额变化时按创建同口径重算（与 calculate_stamp_tax 单一真源）
+        // 印花税：合同类型或金额键任一出现（覆盖或显式清空）时按创建同口径重算（calculate_stamp_tax 单一真源）
         if stamp_tax_recalc_needed {
             let stamp_tax = Self::calculate_stamp_tax(
                 effective_contract_type.as_deref(),
@@ -305,6 +340,8 @@ impl SalesContractService {
 
         active.updated_at = Set(chrono::Utc::now());
 
+        // 审计：update_with_audit 以更新后回读的 Model 生成 after_snapshot，
+        // Set(None) 的列在 UPDATE 真实落 NULL 后进入快照——审计反映变更后真实值，不留假旧值。
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
