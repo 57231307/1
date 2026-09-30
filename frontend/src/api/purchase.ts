@@ -80,6 +80,19 @@ export interface PurchaseOrderItem {
    * 消费点：详情展示 PurchaseViewDialog 需 Number() 归一。
    */
   quantity_tolerance_pct: number | string | null;
+  /**
+   * 折扣率（百分比）：后端 PurchaseOrderItemDto.discount_percent 为 rust_decimal::Decimal
+   * 非 Option（services/po/order.rs），JSON 序列化为字符串；消费处须 Number() 归一。
+   */
+  discount_percent: string;
+  /** 折扣金额（本位币）：同上，DTO 非 Option Decimal → 字符串。 */
+  discount_amount: string;
+  /**
+   * 色号：DB 列 purchase_order_item.color_code（可空）。
+   * 注意创建入参侧键名是 color_no（CreateOrderItemRequest，services/po/mod.rs:125），
+   * 服务层落库时写入 color_code（order_ops/crud.rs:317），读写键名不同属既有口径。
+   */
+  color_code: string | null;
   /** 后端 purchase_order_item.notes（备注） */
   notes?: string | null;
 }

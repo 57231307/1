@@ -29,11 +29,14 @@ export interface CreditAdjustment {
   adjustment_type: 'increase' | 'decrease';
 }
 
+/**
+ * 信用占用/释放入参：严格对齐后端 `CreditAmountRequest`
+ * （backend/src/handlers/customer_credit_handler.rs:82-84，仅一个 `amount` 字段，
+ * 且绑定 validate_amount_range → 必须 >0）。后端不接收 business_type/business_id，
+ * 多传只会造成"前端以为记了、后端没落库"的契约谎言，故不声明。
+ */
 export interface CreditOccupation {
   amount: number;
-  business_type: string;
-  business_id: number;
-  remarks?: string;
 }
 
 export interface CreditEvaluationRequest {
@@ -77,8 +80,14 @@ export const setCreditRating = (
 export const occupyCredit = (id: number, data: CreditOccupation): Promise<ApiResponse<void>> =>
   request.post(`/crm/customer-credits/${id}/occupy`, data);
 
-export const releaseCredit = (id: number, occupation_id: number): Promise<ApiResponse<void>> =>
-  request.post(`/crm/customer-credits/${id}/release`, { occupation_id });
+/**
+ * 释放信用额度：后端 `release_credit` 收 `CreditAmountRequest`
+ * （backend/src/handlers/customer_credit_handler.rs:192-208，字段只有 `amount`），
+ * 服务层按 amount 递减 used_credit，不存在"占用记录 ID"这一入参；
+ * 此前声明成 occupation_id 会让请求体缺 `amount` → serde 反序列化失败报参数错误。
+ */
+export const releaseCredit = (id: number, data: CreditOccupation): Promise<ApiResponse<void>> =>
+  request.post(`/crm/customer-credits/${id}/release`, data);
 
 export const adjustCreditLimit = (
   id: number,
