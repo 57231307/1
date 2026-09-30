@@ -408,17 +408,19 @@ pub async fn reject_count(
     Ok(Json(ApiResponse::success(resp)))
 }
 
-/// 生成库存盘点单号 GET /api/v1/erp/inventory/counts/generate-no；单据号格式：`IC{yyyyMMdd}{4 位流水}`
+/// 生成库存盘点单号 GET /api/v1/erp/inventory/counts/generate-no；单据号格式：`IC{yyyyMMdd}{3 位流水}`
+/// 流水位数与落库权威 `InventoryCountService::create_count` 内
+/// `generate_no_with_txn("IC")`（默认 3 位）对齐；任务 #154 修复同前缀不同位数
+/// 导致列表与库内单号长度不一致（原展示 4 位）。
 /// 对应前端 api/inventory-count.ts 的 generateInventoryCountNo。
 pub async fn generate_no(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let count_no = DocumentNumberGenerator::generate_no_with_width(
+    let count_no = DocumentNumberGenerator::generate_no(
         &*state.db,
         "IC",
         inventory_count::Entity,
         inventory_count::Column::CountNo,
-        4,
     )
     .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
