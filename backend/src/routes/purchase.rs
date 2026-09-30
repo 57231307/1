@@ -361,6 +361,14 @@ pub fn suppliers() -> Router<AppState> {
             put(supplier_handler::update_supplier_qualification)
                 .delete(supplier_handler::delete_supplier_qualification),
         )
+        // 资质附件真上传（POST multipart）+ 受鉴权读取（GET，fail-closed：
+        // uploads/qualifications 目录不挂任何匿名静态路由，字节只能经本鉴权端点读出；
+        // 权限键由 URL 段推导为 suppliers:create / suppliers:read，与既有资质端点同源）
+        .route(
+            "/suppliers/{id}/qualifications/{qualification_id}/attachment",
+            get(supplier_handler::get_supplier_qualification_attachment)
+                .post(supplier_handler::upload_supplier_qualification_attachment),
+        )
         .route(
             "/suppliers/{id}/evaluate",
             post(supplier_evaluation_handler::create_evaluation_record),

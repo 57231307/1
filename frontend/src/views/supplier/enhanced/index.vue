@@ -138,6 +138,25 @@
               :label="t('supplier.enhanced.qualification.validUntil')"
               width="110"
             />
+            <!-- 附件查看入口：经鉴权端点取回字节后本地预览（列表行 attachment_path 仅作有无判定） -->
+            <el-table-column
+              :label="t('supplier.enhanced.qualification.attachment')"
+              width="110"
+              align="center"
+            >
+              <template #default="{ row }">
+                <el-button
+                  v-if="row.attachment_path"
+                  link
+                  type="primary"
+                  size="small"
+                  @click="viewQualificationAttachment(row.supplier_id, row.id)"
+                >
+                  {{ t('supplier.enhanced.qualification.view') }}
+                </el-button>
+                <span v-else>{{ t('supplier.enhanced.qualification.notUploaded') }}</span>
+              </template>
+            </el-table-column>
             <el-table-column
               :label="t('supplier.enhanced.qualification.annualCheck')"
               width="90"
@@ -423,14 +442,38 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item
-          :label="t('supplier.enhanced.qualification.attachmentPath')"
-          prop="attachment_path"
-        >
-          <el-input
-            v-model="qualificationForm.attachment_path"
-            :placeholder="t('supplier.enhanced.form.optional')"
-          />
+        <el-form-item :label="t('supplier.enhanced.qualification.attachment')">
+          <div class="qualification-attachment">
+            <el-upload
+              :auto-upload="false"
+              :show-file-list="false"
+              accept=".pdf,.jpg,.jpeg,.png"
+              :disabled="!editingQualificationId"
+              :on-change="handleQualificationAttachmentChange"
+            >
+              <el-button link type="primary" :disabled="!editingQualificationId">
+                {{
+                  pendingAttachment
+                    ? pendingAttachment.name
+                    : t('supplier.enhanced.qualification.uploadBtn')
+                }}
+              </el-button>
+            </el-upload>
+            <div class="attachment-tip">{{ t('supplier.enhanced.qualification.uploadTip') }}</div>
+            <div v-if="!editingQualificationId" class="attachment-tip">
+              {{ t('supplier.enhanced.qualification.uploadAfterSave') }}
+            </div>
+            <div v-if="editingQualificationId && qualificationForm.attachment_path">
+              <el-button
+                link
+                type="primary"
+                size="small"
+                @click="viewQualificationAttachment(supplierId, editingQualificationId)"
+              >
+                {{ t('supplier.enhanced.qualification.view') }}
+              </el-button>
+            </div>
+          </div>
         </el-form-item>
         <el-form-item
           :label="t('supplier.enhanced.qualification.needAnnualCheck')"
@@ -459,7 +502,7 @@
 import { computed, ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import type { FormInstance, FormRules } from 'element-plus';
+import type { FormInstance, FormRules, UploadFile } from 'element-plus';
 import {
   createSupplierContact,
   createSupplierQualification,
@@ -474,6 +517,8 @@ import {
   getSupplierContactList,
   getSupplierPurchaseHistory,
   getSupplierQualificationList,
+  getSupplierQualificationAttachment,
+  uploadSupplierQualificationAttachment,
   type PurchaseHistoryItem,
   type Supplier,
   type SupplierBalance,
@@ -792,6 +837,7 @@ const openQualificationDialog = () => {
 
 const openEditQualification = (row: SupplierQualification) => {
   editingQualificationId.value = row.id;
+  pendingAttachment.value = null;
   Object.assign(qualificationForm, {
     qualification_name: row.qualification_name,
     qualification_type: row.qualification_type,
@@ -837,6 +883,7 @@ const resetQualificationForm = () => {
   qualificationForm.attachment_path = '';
   qualificationForm.need_annual_check = false;
   qualificationForm.annual_check_record = '';
+  pendingAttachment.value = null;
   qualificationFormRef.value?.resetFields();
 };
 
@@ -868,8 +915,10 @@ const submitQualification = async () => {
     if (!valid) return;
     qualificationSubmitting.value = true;
     try {
-      // 空则省略该键（条件展开）：attachment_path/annual_check_record 为后端 Option 字段，
+      // 空则省略该键（条件展开）：annual_check_record 为后端 Option 字段，
       // 提交 Some("") 会触发校验失败 422，未填写时不携带。
+      // attachment_path 不再由手敲文本提交：编辑时回传既有受控 URL 防 PUT 清空，
+      // 新附件走专用上传端点（保存成功后真实上传）。
       const payload: SupplierQualificationInput = {
         qualification_name: qualificationForm.qualification_name,
         qualification_type: qualificationForm.qualification_type,
@@ -885,21 +934,120 @@ const submitQualification = async () => {
           ? { annual_check_record: qualificationForm.annual_check_record }
           : {}),
       };
+      let savedQualificationId: number | null = null;
       if (editingQualificationId.value) {
         await updateSupplierQualification(id, editingQualificationId.value, payload);
+        savedQualificationId = editingQualificationId.value;
         ElMessage.success(t('supplier.enhanced.message.qualUpdateSuccess'));
       } else {
-        await createSupplierQualification(id, payload);
+        const res = await createSupplierQualification(id, payload);
+        savedQualificationId = res.data.id;
         ElMessage.success(t('supplier.enhanced.message.qualCreateSuccess'));
       }
       qualificationDialogVisible.value = false;
       await loadQualifications();
+      // 待上传附件（本地暂存，随保存动作真实提交到新端点）；
+      // 失败原因外显后端真实 message（见 uploadQualificationAttachment），不吞错
+      const pending = pendingAttachment.value;
+      pendingAttachment.value = null;
+      if (pending && savedQualificationId !== null) {
+        const uploaded = await uploadQualificationAttachment(id, savedQualificationId, pending);
+        if (!uploaded) {
+          ElMessage.warning(t('supplier.enhanced.message.qualSavedButAttachmentFailed'));
+          await loadQualifications();
+        }
+      }
     } catch {
+      // 拦截器已按后端失败信封外显真实 message（business_displayable 时为原文），
+      // 此处再给一条归属明确的兜底文案，指明失败发生在资质保存环节
       ElMessage.error(t('supplier.enhanced.message.qualSaveFailed'));
     } finally {
       qualificationSubmitting.value = false;
     }
   });
+};
+
+// ============== 资质附件上传/查看（真上传，非手敲路径） ==============
+
+/** 与后端 supplier_handler.rs 白名单/大小上限同源同值（双端校验） */
+const ATTACHMENT_ALLOWED_EXTS = ['pdf', 'jpg', 'jpeg', 'png'];
+const ATTACHMENT_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+
+/** 本地待上传文件（点「确定」保存资质成功后真实提交；仅编辑态可选，新增态 disabled） */
+const pendingAttachment = ref<File | null>(null);
+
+/**
+ * 从失败响应提取后端真实 message：
+ * - JSON 错误信封（上传失败）直接取 data.message；
+ * - blob 响应（附件读取 responseType:'blob'）需先解文本再取 message。
+ * 提取不到才回退 Error.message，保证失败原因不静默。
+ */
+const extractBackendErrorReason = async (error: unknown): Promise<string> => {
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
+  let message: unknown;
+  if (data instanceof Blob) {
+    try {
+      message = JSON.parse(await data.text())?.message;
+    } catch {
+      message = undefined;
+    }
+  } else if (data && typeof data === 'object') {
+    message = (data as { message?: unknown }).message;
+  }
+  if (typeof message === 'string' && message.trim() !== '') return message;
+  return error instanceof Error ? error.message : String(error);
+};
+
+/** el-upload on-change（auto-upload=false）：本地校验后缀/大小并暂存，提交发生在资质保存后 */
+const handleQualificationAttachmentChange = (uploadFile: UploadFile) => {
+  const raw = uploadFile.raw;
+  if (!raw) return;
+  const ext = raw.name.includes('.') ? (raw.name.split('.').pop()?.toLowerCase() ?? '') : '';
+  if (!ATTACHMENT_ALLOWED_EXTS.includes(ext)) {
+    pendingAttachment.value = null;
+    ElMessage.error(t('supplier.enhanced.message.attachmentTypeRejected'));
+    return;
+  }
+  if (raw.size > ATTACHMENT_MAX_SIZE_BYTES) {
+    pendingAttachment.value = null;
+    ElMessage.error(t('supplier.enhanced.message.attachmentSizeRejected'));
+    return;
+  }
+  pendingAttachment.value = raw;
+};
+
+/** 真实调用上传端点；成功/失败均给用户可见反馈（失败=后端真实 message） */
+const uploadQualificationAttachment = async (
+  supplierId: number,
+  qualificationId: number,
+  file: File
+): Promise<boolean> => {
+  try {
+    await uploadSupplierQualificationAttachment(supplierId, qualificationId, file);
+    ElMessage.success(t('supplier.enhanced.message.attachmentUploadSuccess'));
+    return true;
+  } catch (error: unknown) {
+    const reason = await extractBackendErrorReason(error);
+    ElMessage.error(t('supplier.enhanced.message.attachmentUploadFailed', { reason }));
+    return false;
+  }
+};
+
+/** 经鉴权端点取回附件字节并本地预览（blob + object URL；失败外显后端真实 message） */
+const viewQualificationAttachment = async (supplier?: number, qualificationId?: number | null) => {
+  if (!supplier || !qualificationId) {
+    ElMessage.warning(t('supplier.enhanced.message.queryFirst'));
+    return;
+  }
+  try {
+    const blob = await getSupplierQualificationAttachment(supplier, qualificationId);
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error: unknown) {
+    const reason = await extractBackendErrorReason(error);
+    ElMessage.error(t('supplier.enhanced.message.attachmentViewFailed', { reason }));
+  }
 };
 
 // ============== 供应商评估 ==============

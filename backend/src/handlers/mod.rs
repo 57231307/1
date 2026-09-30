@@ -47,6 +47,8 @@ pub mod warehouse_handler;
 // 供应商管理模块
 pub mod supplier_handler;
 pub mod supplier_blacklist_handler;
+// 供应商资质到期预警扫描 handler（门控本体在 services::supplier_qualification_gate）
+pub mod supplier_qualification_gate_handler;
 // 采购管理模块
 pub mod purchase_inspection_handler;
 pub mod purchase_order_handler;

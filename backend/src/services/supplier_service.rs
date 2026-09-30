@@ -884,7 +884,9 @@ impl SupplierService {
     /// is_expired 的唯一派生源：valid_until（含当日）之后视为过期。
     /// 写入时落真实值；读取输出时同样按此重算，保证列表/详情的过期语义与 valid_until 一致，
     /// 避免出现"永不更新的僵尸布尔列"（历史存量行无需回填迁移即可输出正确语义）。
-    fn qualification_is_expired(valid_until: NaiveDate) -> bool {
+    /// pub(crate)：资质过期门控（services/supplier_qualification_gate.rs）必须复用同一派生源，
+    /// 不允许在别处再写第二套日期比较。
+    pub(crate) fn qualification_is_expired(valid_until: NaiveDate) -> bool {
         chrono::Utc::now().date_naive() > valid_until
     }
 
@@ -1006,6 +1008,53 @@ impl SupplierService {
             .exec(&*self.db)
             .await?;
         Ok(())
+    }
+
+    /// attachment_path 列宽上限（DDL VARCHAR(500)）：落库前必须应用层显式拒绝越界，
+    /// 不允许把越界留给 DB 层报裸 500。
+    pub const MAX_ATTACHMENT_PATH_LEN: usize = 500;
+
+    /// 按路径 (supplier_id, qualification_id) 双键读取资质。
+    /// 与 update/delete 同源的归属校验：错配返回用户可见业务错误（business 会被出参脱敏），
+    /// 防止以 qualification_id 单键跨供应商上传/读取他人证照附件。供附件上传/下载 handler 复用。
+    pub async fn get_supplier_qualification(
+        &self,
+        supplier_id: i32,
+        qualification_id: i32,
+    ) -> Result<supplier_qualification::Model, AppError> {
+        let existing = supplier_qualification::Entity::find_by_id(qualification_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?;
+        if existing.supplier_id != supplier_id {
+            return Err(AppError::business_displayable(
+                "该资质不属于此供应商，无法操作附件，请刷新后重试",
+            ));
+        }
+        Ok(existing)
+    }
+
+    /// 附件上传成功后仅回写 attachment_path（服务端生成的受控 URL），
+    /// 不做全字段覆盖，避免上传动作把资质其他字段意外重置。
+    /// 列宽 VARCHAR(500)：越界在应用层显式拒绝（business_displayable 外显真实原因，不裸 500）。
+    pub async fn update_supplier_qualification_attachment_path(
+        &self,
+        qualification_id: i32,
+        attachment_url: &str,
+    ) -> Result<supplier_qualification::Model, AppError> {
+        if attachment_url.len() > Self::MAX_ATTACHMENT_PATH_LEN {
+            return Err(AppError::business_displayable(format!(
+                "生成的附件访问地址超过 {} 字符上限，请联系管理员检查部署配置",
+                Self::MAX_ATTACHMENT_PATH_LEN
+            )));
+        }
+        let existing = supplier_qualification::Entity::find_by_id(qualification_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?;
+        let mut qual: supplier_qualification::ActiveModel = existing.into();
+        qual.attachment_path = Set(Some(attachment_url.to_string()));
+        Ok(qual.update(&*self.db).await?)
     }
 }
 

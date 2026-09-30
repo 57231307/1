@@ -84,6 +84,8 @@ pub mod occupational_health;
 pub mod permission_delegation;
 pub mod pollution_monitoring;
 pub mod pollution_permit;
+// 供应商资质到期预警扫描路由（分层对齐 labor_contract；例外放行无独立端点，随建单请求同事务处理）
+pub mod supplier_qualification_gate;
 pub mod role_relation;
 pub mod social_insurance;
 // V15 P2 B05-P2-7：PDA/工控终端连接资源管理路由
@@ -491,6 +493,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp", export_refund::routes())
         .nest("/api/v1/erp", incoterms::routes())
         .nest("/api/v1/erp", labor_contract::routes())
+        // 供应商资质到期预警扫描（路径 /supplier-qualifications/scan-expiry-warnings）
+        .nest("/api/v1/erp", supplier_qualification_gate::routes())
         .nest("/api/v1/erp", logistics_tracking::routes())
         .nest("/api/v1/erp", occupational_health::routes())
         .nest("/api/v1/erp", permission_delegation::routes())

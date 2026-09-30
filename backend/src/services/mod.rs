@@ -103,6 +103,8 @@ pub mod incoterms_service;
 pub mod supplier_evaluation_service;
 pub mod supplier_blacklist_service;
 pub mod supplier_service;
+// 供应商资质过期采购门控 + 到期预警扫描（采购侧，2026-09 决策分级实现）
+pub mod supplier_qualification_gate;
 // 采购管理模块
 pub mod po;
 pub mod purchase_inspection_service;
