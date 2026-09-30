@@ -40,6 +40,7 @@ use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::inventory_reservation;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbBackend, Set, Statement};
 use serde_json::Value;
+use tower::ServiceExt;
 
 // =========================================================
 // 1) 真实 delete handler 端到端（sqlite::memory:，透传 404/403）
