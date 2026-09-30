@@ -22,8 +22,14 @@ use crate::models::custom_order_create_dto::{
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
 use crate::models::status::custom_order as co_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::process_state_machine::default_process_nodes;
+
+/// 定制订单号前缀（存量真实数据形如 `CO202609200001`，前缀 + 4 位流水均保留，
+/// 仅把「事务外 count+1」换成生成器事务内取号；列 UNIQUE 证据：
+/// migration/src/domain/production/m0044_integrate_unreferenced_migrations.rs:101）
+const ORDER_NO_PREFIX: &str = "CO";
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -68,25 +74,41 @@ impl CustomOrderCrudService {
         // 1. 业务校验
         self.validate_create(&dto)?;
 
-        // 2. 生成 order_no（CO + YYYYMMDD + 4 位序号）
-        let order_no = self.generate_order_no().await?;
-
-        // 3. 开始事务
+        // 2-4. 取号 + 主表插入收进同一事务：原 `generate_order_no` 在事务外
+        // count+1 拼号，并发建单读到同一当日计数生成相同 CO 号，撞
+        // custom_orders.order_no UNIQUE（DDL：production/m0044:101
+        // `"order_no" VARCHAR(50) UNIQUE NOT NULL`）直接 500。
+        // 生成器在事务内 advisory lock 串行化取号，保留存量真实格式
+        // `CO{YYYYMMDD}{4位流水}`（宽度 4 与既有数据一致）。
         let txn = self.db.begin().await?;
+        let order_no = DocumentNumberGenerator::generate_no_with_width_txn(
+            &txn,
+            ORDER_NO_PREFIX,
+            CustomOrderEntity,
+            custom_order::Column::OrderNo,
+            4,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "定制订单号生成失败");
+            CrudError::App(AppError::business_displayable(
+                "定制订单号生成失败，请稍后重试",
+            ))
+        })?;
 
-        // 4. 插入主表
+        // 5. 插入主表
         let now = Utc::now();
         let active = Self::build_custom_order_active(order_no, dto, user_id, now);
         let result = active.insert(&txn).await?;
 
-        // 5. 自动生成 5 阶段工艺节点
+        // 6. 自动生成 5 阶段工艺节点
         for (node_type, node_name, sequence) in default_process_nodes() {
             let node =
                 Self::build_process_node_active(result.id, node_type, node_name, sequence, now);
             node.insert(&txn).await?;
         }
 
-        // 6. 提交事务
+        // 7. 提交事务
         txn.commit().await?;
         Ok(result)
     }
@@ -432,16 +454,6 @@ impl CustomOrderCrudService {
     // ----------------------------------------------------------------------
     // 私有辅助
     // ----------------------------------------------------------------------
-
-    async fn generate_order_no(&self) -> Result<String, CrudError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let pattern = format!("CO{}%", today);
-        let count = CustomOrderEntity::find()
-            .filter(custom_order::Column::OrderNo.like(pattern))
-            .count(&*self.db)
-            .await?;
-        Ok(format!("CO{}{:04}", today, count + 1))
-    }
 
     fn validate_create(&self, dto: &CreateCustomOrderDto) -> Result<(), CrudError> {
         if dto.quantity <= rust_decimal::Decimal::ZERO {

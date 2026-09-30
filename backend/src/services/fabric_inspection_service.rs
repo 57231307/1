@@ -17,6 +17,7 @@ use rust_decimal::prelude::ToPrimitive;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -40,6 +41,12 @@ use crate::models::status::fabric_scoring;
 use crate::models::status::inventory_piece as piece_status;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
+
+/// 验布单号自动编码前缀（存量数据以 "FIR-" 开头；列无 DB UNIQUE——
+/// DDL 证据 migration/src/domain/v15/mod.rs:596 `"inspection_no" VARCHAR(32) NOT NULL`，
+/// 故取号必须与 INSERT 同事务，靠 advisory lock 串行化并发）
+const INSPECTION_NO_PREFIX: &str = "FIR-";
 
 // ============================================================================
 // 评分计算纯函数（四分制 / 十分制）
@@ -215,14 +222,6 @@ impl FabricInspectionService {
         Self { db }
     }
 
-    /// 生成验布单号：FIR-YYYYMMDDHHMMSS-NNN
-    fn generate_inspection_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("FIR-{}-{:03}", timestamp, random)
-    }
-
     /// 创建验布记录
     pub async fn create(&self, req: CreateInspectionRequest) -> Result<InspectionModel, AppError> {
         // 业务校验：评分制式合法
@@ -246,7 +245,22 @@ impl FabricInspectionService {
             }
         }
 
-        let inspection_no = Self::generate_inspection_no();
+        // 取号与 INSERT 同事务：原实现「秒级时间戳+3位随机」同秒并发直接产生
+        // 重复验布单号（inspection_no 无 UNIQUE 兜底，重复无法被发现）；
+        // advisory lock 持到提交，串行化同日并发的取号+插入。
+        let txn = (*self.db).begin().await?;
+        let inspection_no = DocumentNumberGenerator::generate_no_with_width_txn(
+            &txn,
+            INSPECTION_NO_PREFIX,
+            InspectionEntity,
+            fabric_inspection_record::Column::InspectionNo,
+            3,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "验布单号生成失败");
+            AppError::business_displayable("验布单号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = InspectionActiveModel {
@@ -281,9 +295,10 @@ impl FabricInspectionService {
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("验布记录创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 

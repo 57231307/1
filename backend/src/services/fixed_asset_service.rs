@@ -8,6 +8,7 @@ use crate::models::{asset_impairment_test, depreciation_policy_change};
 // 批次 208 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
@@ -20,6 +21,18 @@ use sea_orm::{
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, info};
+
+/// 资产域自动编码前缀（集中定义；与存量数据前缀保持一致，避免换前缀导致
+/// 业务侧识别/检索断裂。各列唯一性证据见括号内 DDL 位置）
+mod no_prefix {
+    /// 资产编号（fixed_assets.asset_no，DDL 无 UNIQUE：
+    /// m0012_add_ap_ar_finance_analysis.rs:518）
+    pub const ASSET_NO: &str = "FA-";
+    /// 处置单号（fixed_asset_disposals.disposal_no UNIQUE：同文件 :551）
+    pub const DISPOSAL_NO: &str = "D";
+    /// 盘点计划号（fixed_asset_counts.count_no UNIQUE：v15/mod.rs:1562 uk_fac_count_no）
+    pub const COUNT_NO: &str = "FAC";
+}
 
 /// 固定资产查询参数
 #[derive(Debug, Clone, Default)]
@@ -100,12 +113,26 @@ impl FixedAssetService {
         req: CreateAssetRequest,
         user_id: i32,
     ) -> Result<fixed_asset::Model, AppError> {
-        // 自动生成资产编号
-        let asset_no = req.asset_no.unwrap_or_else(|| {
-            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = crate::utils::random::random_4_digit();
-            format!("FA-{}-{:04}", timestamp, random)
-        });
+        // 自动生成资产编号：用户显式传入则原样使用；缺省时在写入事务内走生成器
+        // （原「秒级时间戳+4位随机」同秒并发重号，且 fixed_assets.asset_no 无 UNIQUE
+        // 兜底——DDL 证据 migration/src/domain/business/m0012_add_ap_ar_finance_analysis.rs:518）
+        let manual_asset_no = req.asset_no.clone();
+        let txn = (*self.db).begin().await?;
+        let asset_no = match manual_asset_no {
+            Some(no) => no,
+            None => DocumentNumberGenerator::generate_no_with_width_txn(
+                &txn,
+                no_prefix::ASSET_NO,
+                fixed_asset::Entity,
+                fixed_asset::Column::AssetNo,
+                3,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "固定资产编号生成失败");
+                AppError::business_displayable("固定资产编号生成失败，请稍后重试")
+            })?,
+        };
 
         info!("用户 {} 正在创建固定资产：{}", user_id, asset_no);
 
@@ -137,7 +164,8 @@ impl FixedAssetService {
             ..Default::default()
         };
 
-        let asset = active_asset.insert(&*self.db).await?;
+        let asset = active_asset.insert(&txn).await?;
+        txn.commit().await?;
         info!("固定资产创建成功：{}", asset.asset_no);
         Ok(asset)
     }
@@ -515,9 +543,6 @@ impl FixedAssetService {
             ));
         }
 
-        // 生成处置单号
-        let disposal_no = format!("D{}{}", chrono::Local::now().format("%Y%m%d"), asset_id);
-
         // 计算处置损益
         let net_book_value = asset.net_value.unwrap_or(Decimal::ZERO);
         let accumulated_depreciation = asset.accumulated_depreciation;
@@ -525,26 +550,38 @@ impl FixedAssetService {
         // 批次 88 PH-3 占位符实现：计算结果持久化到 fixed_asset_disposals.gain_loss 列
         let disposal_gain_loss = req.disposal_value - net_book_value;
 
-        // 创建处置记录
-        // v3 P1-1 修复：id: Set(0) 会覆盖 SERIAL 默认值导致第二次插入主键冲突，改为 Default::default()
-        let disposal = crate::models::fixed_asset_disposal::ActiveModel {
-            id: Default::default(),
-            disposal_no: Set(disposal_no.clone()),
-            asset_id: Set(asset_id),
-            disposal_type: Set(req.disposal_type.clone()),
-            disposal_date: Set(req.disposal_date),
-            disposal_amount: Set(req.disposal_value), // 使用 disposal_amount
-            gain_loss: Set(Some(disposal_gain_loss)), // 批次 88 PH-3：持久化处置损益
-            disposal_reason: Set(req.reason.clone()), // 使用 disposal_reason
-            quantity: Set(1),                         // 处置数量默认为1
-            status: Set("COMPLETED".to_string()),
-            remarks: Set(req.buyer_info.clone()), // 使用 remarks 存储买家信息
-            created_by: Set(user_id),
-            created_at: Set(chrono::Utc::now()),
-            updated_at: Set(chrono::Utc::now()),
-        };
-
-        let inserted_disposal = disposal.insert(&txn).await?;
+        // 创建处置记录。
+        // 取号收口到生成器：原 "D"+Local日期+asset_id 拼接，同一资产同日第二次处置
+        // 必产生相同处置单号，撞 disposal_no UNIQUE（DDL：
+        // m0012_add_ap_ar_finance_analysis.rs:551 `"disposal_no" VARCHAR(50) NOT NULL UNIQUE`）
+        // 直接 500。id 保持 Default（v3 P1-1：Set(0) 会覆盖 SERIAL 导致主键冲突）。
+        let inserted_disposal = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            no_prefix::DISPOSAL_NO,
+            crate::models::fixed_asset_disposal::Entity,
+            crate::models::fixed_asset_disposal::Column::DisposalNo,
+            |disposal_no| crate::models::fixed_asset_disposal::ActiveModel {
+                id: Default::default(),
+                disposal_no: Set(disposal_no),
+                asset_id: Set(asset_id),
+                disposal_type: Set(req.disposal_type.clone()),
+                disposal_date: Set(req.disposal_date),
+                disposal_amount: Set(req.disposal_value), // 使用 disposal_amount
+                gain_loss: Set(Some(disposal_gain_loss)), // 批次 88 PH-3：持久化处置损益
+                disposal_reason: Set(req.reason.clone()), // 使用 disposal_reason
+                quantity: Set(1),                         // 处置数量默认为1
+                status: Set("COMPLETED".to_string()),
+                remarks: Set(req.buyer_info.clone()), // 使用 remarks 存储买家信息
+                created_by: Set(user_id),
+                created_at: Set(chrono::Utc::now()),
+                updated_at: Set(chrono::Utc::now()),
+            },
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, asset_id, "资产处置单号生成/插入失败");
+            AppError::business_displayable("资产处置单号生成失败，请稍后重试")
+        })?;
 
         // V15 P1 17.8-D3：生成处置损益凭证
         Self::generate_disposal_voucher_txn(
@@ -969,33 +1006,36 @@ impl FixedAssetService {
 
         let txn = (*self.db).begin().await?;
 
-        let count_no = format!(
-            "FAC{}{:06}",
-            chrono::Utc::now().format("%Y%m%d"),
-            crate::utils::random::random_4_digit()
-        );
-
-        let count_date = req
-            .count_date
-            .unwrap_or_else(|| chrono::Utc::now().date_naive());
-
-        let plan = fixed_asset_count::ActiveModel {
-            count_no: Set(count_no.clone()),
-            plan_name: Set(req.plan_name.clone()),
-            count_date: Set(count_date),
-            asset_category: Set(req.asset_category.clone()),
-            use_location: Set(req.use_location.clone()),
-            status: Set("DRAFT".to_string()),
-            total_items: Set(0),
-            counted_items: Set(0),
-            surplus_items: Set(0),
-            shortage_items: Set(0),
-            notes: Set(req.notes.clone()),
-            created_by: Set(user_id),
-            ..Default::default()
-        }
-        .insert(&txn)
-        .await?;
+        // 盘点计划号收口到生成器（原 "FAC"+UTC日期+4位随机 同日并发靠运气，
+        // count_no 有表级 UNIQUE：v15/mod.rs:1562 CONSTRAINT "uk_fac_count_no"）
+        let plan = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            no_prefix::COUNT_NO,
+            fixed_asset_count::Entity,
+            fixed_asset_count::Column::CountNo,
+            |count_no| fixed_asset_count::ActiveModel {
+                count_no: Set(count_no),
+                plan_name: Set(req.plan_name.clone()),
+                count_date: Set(req
+                    .count_date
+                    .unwrap_or_else(|| chrono::Utc::now().date_naive())),
+                asset_category: Set(req.asset_category.clone()),
+                use_location: Set(req.use_location.clone()),
+                status: Set("DRAFT".to_string()),
+                total_items: Set(0),
+                counted_items: Set(0),
+                surplus_items: Set(0),
+                shortage_items: Set(0),
+                notes: Set(req.notes.clone()),
+                created_by: Set(user_id),
+                ..Default::default()
+            },
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "资产盘点计划单号生成/插入失败");
+            AppError::business_displayable("资产盘点计划单号生成失败，请稍后重试")
+        })?;
 
         // 按筛选条件拉取资产并生成盘点明细
         let mut query =
@@ -1038,9 +1078,10 @@ impl FixedAssetService {
         let plan_final = plan_update.update(&txn).await?;
 
         txn.commit().await?;
+        // 单号来源已改为生成器返回值，从落库后的 plan 读取（原局部变量 count_no 已不存在）
         info!(
             "资产盘点计划创建成功：{}，明细 {} 项",
-            count_no, total_items
+            plan.count_no, total_items
         );
         Ok(plan_final)
     }

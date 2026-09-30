@@ -2,6 +2,7 @@ use crate::models::quality_standard;
 use crate::models::status::master_data;
 use crate::models::status::quality_dyeing::quality_standard as qs_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::NaiveDate;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -9,6 +10,12 @@ use sea_orm::{
 };
 use std::sync::Arc;
 use tracing::info;
+
+/// 质量标准代码自动编码前缀（存量数据以 "QS-" 开头，见原 create_standard
+/// `format!("QS-{ts}-{4}")`；列 UNIQUE 证据：
+/// migration/src/domain/system/m0005_add_basic_data_and_system_tables.rs:110
+/// `"standard_code" VARCHAR(50) NOT NULL UNIQUE`）
+const STANDARD_CODE_PREFIX: &str = "QS-";
 
 /// 质量标准查询参数
 #[derive(Debug, Clone, Default)]
@@ -103,21 +110,20 @@ impl QualityStandardService {
         req: CreateQualityStandardRequest,
         user_id: i32,
     ) -> Result<quality_standard::Model, AppError> {
-        // 自动生成标准代码
-        let standard_code = req.standard_code.unwrap_or_else(|| {
-            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = crate::utils::random::random_4_digit();
-            format!("QS-{}-{:04}", timestamp, random)
-        });
+        // 自动生成标准代码收口到生成器（原「秒级时间戳+4位随机」同秒并发撞
+        // standard_code UNIQUE 直接 500，见 STANDARD_CODE_PREFIX 注释 DDL 证据）
+        let auto_code = req.standard_code.is_none();
+        let manual_code = req.standard_code.clone().unwrap_or_default();
 
-        info!("用户 {} 正在创建质量标准：{}", user_id, standard_code);
-
-        let active_standard = quality_standard::ActiveModel {
+        let build_active = |standard_code: String| quality_standard::ActiveModel {
             standard_code: Set(standard_code),
-            standard_name: Set(req.standard_name),
-            standard_type: Set(req.standard_type.unwrap_or_else(|| "general".to_string())),
-            version: Set(req.version.unwrap_or_else(|| "1.0".to_string())),
-            content: Set(req.content.unwrap_or_default()),
+            standard_name: Set(req.standard_name.clone()),
+            standard_type: Set(req
+                .standard_type
+                .clone()
+                .unwrap_or_else(|| "general".to_string())),
+            version: Set(req.version.clone().unwrap_or_else(|| "1.0".to_string())),
+            content: Set(req.content.clone().unwrap_or_default()),
             status: Set(qs_status::DRAFT.to_string()),
             effective_date: Set(req
                 .effective_date
@@ -126,8 +132,28 @@ impl QualityStandardService {
             ..Default::default()
         };
 
-        let standard = active_standard.insert(&*self.db).await?;
-        info!("质量标准创建成功：{}", standard.standard_code);
+        let txn = (*self.db).begin().await?;
+        let standard = if auto_code {
+            DocumentNumberGenerator::insert_with_no_retry(
+                &txn,
+                STANDARD_CODE_PREFIX,
+                quality_standard::Entity,
+                quality_standard::Column::StandardCode,
+                build_active,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "质量标准代码生成失败");
+                AppError::business_displayable("质量标准代码生成失败，请稍后重试")
+            })?
+        } else {
+            build_active(manual_code).insert(&txn).await?
+        };
+        txn.commit().await?;
+        info!(
+            "用户 {} 创建质量标准成功：{}",
+            user_id, standard.standard_code
+        );
         Ok(standard)
     }
 

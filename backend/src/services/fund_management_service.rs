@@ -3,15 +3,21 @@ use crate::models::fund_transfer_record;
 // 批次 210 P2-5 修复（v12 复审）：资金账户状态字符串替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
 use chrono::{Duration, Local, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
+
+/// 资金转账单号前缀（存量数据以 "TR" 开头，见原 create_transfer_record
+/// `format!("TR{ts}")`；列无 UNIQUE，DDL 证据
+/// m0012_add_ap_ar_finance_analysis.rs:591）
+const FUND_TRANSFER_NO_PREFIX: &str = "TR";
 
 /// V15 P1 17.6-D3：资金账户类型常量（不同账户类型对账方式与风控规则不同，需差异化处理。）
 pub mod account_type {
@@ -368,7 +374,23 @@ impl FundManagementService {
         user_id: i32,
         status: &str,
     ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
-        let transfer_no = format!("TR{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+        // 转账单号收口到生成器：原 "TR"+Local 秒级时间戳，同秒两笔转账产生
+        // 重复单号且 fund_transfers.transfer_no 无 UNIQUE 兜底（DDL：
+        // m0012_add_ap_ar_finance_analysis.rs:591），错误无法被发现。
+        // 列无唯一约束 → 用「写入事务内取号」路径（advisory lock 持到提交）。
+        let txn = self.db.begin().await?;
+        let transfer_no = DocumentNumberGenerator::generate_no_with_width_txn(
+            &txn,
+            FUND_TRANSFER_NO_PREFIX,
+            crate::models::fund_transfer_record::Entity,
+            crate::models::fund_transfer_record::Column::TransferNo,
+            3,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "资金转账单号生成失败");
+            AppError::business_displayable("资金转账单号生成失败，请稍后重试")
+        })?;
         let record = crate::models::fund_transfer_record::ActiveModel {
             transfer_no: sea_orm::Set(transfer_no),
             from_account_id: sea_orm::Set(Some(req.from_account_id)),
@@ -381,8 +403,9 @@ impl FundManagementService {
             applied_by: sea_orm::Set(Some(user_id)),
             ..Default::default()
         }
-        .insert(&*self.db)
+        .insert(&txn)
         .await?;
+        txn.commit().await?;
         Ok(record)
     }
 
