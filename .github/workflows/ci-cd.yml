@@ -438,6 +438,15 @@ jobs:
         working-directory: frontend
         run: node scripts/check-api-envelope.mjs
 
+      # 解析器防回归自测（fixture，纯 Node，毫秒级）：四类历史盲区——(a)箭头函数签名
+      # (b)Partial<T> (c)交叉类型 A&B (d)叶子类型(Value/any/Record/索引签名/不可解析
+      # config)——若哪天解析器被改回「静默跳过」，本步骤先于请求门禁变红并点名是哪一类失明。
+      - name: 请求契约解析器 fixture 自测（四类盲区防回归）
+        working-directory: frontend
+        run: node scripts/check-api-request-fixture-selftest.mjs
+
+      # 存量 147 条漂移已登记 scripts/api-request-baseline.json（过渡机制：只列示不判负，
+      # 只准缩短）；不在基线内的新失配仍立即红。清零后删除基线文件恢复全量阻断。
       - name: 请求体与查询参数对齐（前端实参 ↔ 后端 Json/Query 字段集）
         working-directory: frontend
         run: node scripts/check-api-request.mjs
