@@ -17,6 +17,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrde
 
 use crate::models::ar_aging_analysis;
 use crate::models::ar_invoice;
+use crate::models::status::common;
 use crate::utils::error::AppError;
 
 use super::super::{AgingBucket, AgingReport, ArReconciliationService, CustomerAgingSummary};
@@ -55,7 +56,12 @@ impl ArReconciliationService {
         salesperson_id: Option<i32>,
     ) -> Result<Vec<ar_invoice::Model>, AppError> {
         let mut query = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne("CANCELLED"))
+            // 统计口径与 AR 报表/BI/仪表盘同源：草稿与取消都不计入应收
+            // （AR 发票创建即写入 common::STATUS_DRAFT），取值引用写入方词表常量。
+            .filter(ar_invoice::Column::Status.is_not_in([
+                common::STATUS_CANCELLED,
+                common::STATUS_DRAFT,
+            ]))
             .filter(ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO));
         if let Some(cid) = customer_id {
             query = query.filter(ar_invoice::Column::CustomerId.eq(cid));

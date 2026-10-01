@@ -11,6 +11,10 @@
 //! - 统计/账龄报表使用 SQL 层聚合（v14 P0-2 修复，避免全表加载到内存）
 //! - 规则 12 合规：全部参数使用参数化绑定，禁止字符串拼接
 //! - 账龄分桶：0-30 / 31-60 / 61-90 / 90+，按 due_date 与 CURRENT_DATE 计算
+//! - 统计口径：DRAFT 与 CANCELLED 一律不计入（AR 发票创建即写入 DRAFT，草稿不是
+//!   既成应收），与 BI 聚合、仪表盘排除门同口径；状态取值唯一来源
+//!   `crate::models::status::common::{STATUS_DRAFT, STATUS_CANCELLED}`，SQL 中一律
+//!   `status NOT IN ($k, $k+1)` 参数化绑定常量，禁止裸字面量。
 
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -66,16 +70,22 @@ impl ArService {
         ))
     }
 
-    /// 构建统计报表 SQL 与参数（参数化绑定 where 条件 + today 逾期占位）
-    fn build_statistics_sql_and_params(
+    /// 构建统计报表 SQL 与参数（排除门 NOT IN 绑定 common 词表常量 $1/$2，
+    /// 其余条件按 params.len()+1 顺延，today 恒为最后一个占位）
+    pub fn build_statistics_sql_and_params(
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
         customer_id: Option<i32>,
         today: NaiveDate,
     ) -> (String, Vec<sea_orm::Value>) {
         let mut params: Vec<sea_orm::Value> = vec![];
-        let mut where_clauses = vec![format!("status <> ${}", params.len() + 1)];
+        let mut where_clauses = vec![format!(
+            "status NOT IN (${}, ${})",
+            params.len() + 1,
+            params.len() + 2
+        )];
         params.push(crate::models::status::common::STATUS_CANCELLED.into());
+        params.push(crate::models::status::common::STATUS_DRAFT.into());
 
         if let Some(cid) = customer_id {
             where_clauses.push(format!("customer_id = ${}", params.len() + 1));
@@ -146,39 +156,8 @@ impl ArService {
         end_date: Option<NaiveDate>,
         customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
-        // 规则 12 合规：全部参数使用参数化绑定
-        let mut params: Vec<sea_orm::Value> = vec![];
-        let mut where_clauses = vec![format!("status <> ${}", params.len() + 1)];
-        params.push(crate::models::status::common::STATUS_CANCELLED.into());
-
-        if let Some(cid) = customer_id {
-            where_clauses.push(format!("customer_id = ${}", params.len() + 1));
-            params.push(cid.into());
-        }
-        if let Some(sd) = start_date {
-            where_clauses.push(format!("invoice_date >= ${}", params.len() + 1));
-            params.push(sd.into());
-        }
-        if let Some(ed) = end_date {
-            where_clauses.push(format!("invoice_date <= ${}", params.len() + 1));
-            params.push(ed.into());
-        }
-
-        let sql = format!(
-            r#"
-            SELECT
-                invoice_date,
-                COUNT(*) AS invoice_count,
-                COALESCE(SUM(invoice_amount), 0) AS invoice_amount,
-                COALESCE(SUM(received_amount), 0) AS paid_amount,
-                COALESCE(SUM(unpaid_amount), 0) AS unpaid_amount
-            FROM ar_invoices
-            WHERE {where}
-            GROUP BY invoice_date
-            ORDER BY invoice_date ASC
-            "#,
-            where = where_clauses.join(" AND ")
-        );
+        // 规则 12 合规：全部参数使用参数化绑定（排除门 NOT IN $1/$2，条件按占位顺延）
+        let (sql, params) = Self::build_daily_sql_and_params(start_date, end_date, customer_id);
 
         let rows: Vec<sea_orm::QueryResult> = self
             .db
@@ -212,18 +191,21 @@ impl ArService {
         Ok(json!(result))
     }
 
-    /// 获取月报表
-    /// v14 中风险性能修复（批次 244）：SQL GROUP BY to_char 月份聚合，避免全量加载到内存
-    pub async fn get_monthly_report(
-        &self,
+    /// 构建日报表 SQL 与参数（排除门 NOT IN 绑定 common 词表常量 $1/$2，
+    /// customer/日期条件按 params.len()+1 顺延）
+    pub fn build_daily_sql_and_params(
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
         customer_id: Option<i32>,
-    ) -> Result<serde_json::Value, AppError> {
-        // 规则 12 合规：全部参数使用参数化绑定
+    ) -> (String, Vec<sea_orm::Value>) {
         let mut params: Vec<sea_orm::Value> = vec![];
-        let mut where_clauses = vec![format!("status <> ${}", params.len() + 1)];
+        let mut where_clauses = vec![format!(
+            "status NOT IN (${}, ${})",
+            params.len() + 1,
+            params.len() + 2
+        )];
         params.push(crate::models::status::common::STATUS_CANCELLED.into());
+        params.push(crate::models::status::common::STATUS_DRAFT.into());
 
         if let Some(cid) = customer_id {
             where_clauses.push(format!("customer_id = ${}", params.len() + 1));
@@ -241,18 +223,31 @@ impl ArService {
         let sql = format!(
             r#"
             SELECT
-                to_char(invoice_date, 'YYYY-MM') AS month,
+                invoice_date,
                 COUNT(*) AS invoice_count,
                 COALESCE(SUM(invoice_amount), 0) AS invoice_amount,
                 COALESCE(SUM(received_amount), 0) AS paid_amount,
                 COALESCE(SUM(unpaid_amount), 0) AS unpaid_amount
             FROM ar_invoices
             WHERE {where}
-            GROUP BY to_char(invoice_date, 'YYYY-MM')
-            ORDER BY to_char(invoice_date, 'YYYY-MM') ASC
+            GROUP BY invoice_date
+            ORDER BY invoice_date ASC
             "#,
             where = where_clauses.join(" AND ")
         );
+        (sql, params)
+    }
+
+    /// 获取月报表
+    /// v14 中风险性能修复（批次 244）：SQL GROUP BY to_char 月份聚合，避免全量加载到内存
+    pub async fn get_monthly_report(
+        &self,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+        customer_id: Option<i32>,
+    ) -> Result<serde_json::Value, AppError> {
+        // 规则 12 合规：全部参数使用参数化绑定（排除门 NOT IN $1/$2，条件按占位顺延）
+        let (sql, params) = Self::build_monthly_sql_and_params(start_date, end_date, customer_id);
 
         let rows: Vec<sea_orm::QueryResult> = self
             .db
@@ -284,6 +279,53 @@ impl ArService {
             .collect::<Result<Vec<_>, AppError>>()?;
 
         Ok(json!(result))
+    }
+
+    /// 构建月报表 SQL 与参数（排除门 NOT IN 绑定 common 词表常量 $1/$2，
+    /// customer/日期条件按 params.len()+1 顺延；to_char 月份聚合为 PG 语义）
+    pub fn build_monthly_sql_and_params(
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+        customer_id: Option<i32>,
+    ) -> (String, Vec<sea_orm::Value>) {
+        let mut params: Vec<sea_orm::Value> = vec![];
+        let mut where_clauses = vec![format!(
+            "status NOT IN (${}, ${})",
+            params.len() + 1,
+            params.len() + 2
+        )];
+        params.push(crate::models::status::common::STATUS_CANCELLED.into());
+        params.push(crate::models::status::common::STATUS_DRAFT.into());
+
+        if let Some(cid) = customer_id {
+            where_clauses.push(format!("customer_id = ${}", params.len() + 1));
+            params.push(cid.into());
+        }
+        if let Some(sd) = start_date {
+            where_clauses.push(format!("invoice_date >= ${}", params.len() + 1));
+            params.push(sd.into());
+        }
+        if let Some(ed) = end_date {
+            where_clauses.push(format!("invoice_date <= ${}", params.len() + 1));
+            params.push(ed.into());
+        }
+
+        let sql = format!(
+            r#"
+            SELECT
+                to_char(invoice_date, 'YYYY-MM') AS month,
+                COUNT(*) AS invoice_count,
+                COALESCE(SUM(invoice_amount), 0) AS invoice_amount,
+                COALESCE(SUM(received_amount), 0) AS paid_amount,
+                COALESCE(SUM(unpaid_amount), 0) AS unpaid_amount
+            FROM ar_invoices
+            WHERE {where}
+            GROUP BY to_char(invoice_date, 'YYYY-MM')
+            ORDER BY to_char(invoice_date, 'YYYY-MM') ASC
+            "#,
+            where = where_clauses.join(" AND ")
+        );
+        (sql, params)
     }
 
     /// 获取账龄报表（v14 P0-2 修复：SQL 层聚合，避免全表数据加载到应用层）
@@ -327,8 +369,9 @@ impl ArService {
         ))
     }
 
-    /// 构建账龄报表 SQL 与参数（按 customer_id / salesperson_id 是否存在分支）
-    fn build_aging_sql_and_params(
+    /// 构建账龄报表 SQL 与参数（按 customer_id / salesperson_id 是否存在分支；
+    /// $1=today，排除门 NOT IN 绑定 common 词表常量 $2/$3，其余条件从 $4 顺延）
+    pub fn build_aging_sql_and_params(
         customer_id: Option<i32>,
         today: NaiveDate,
         salesperson_id: Option<i32>,
@@ -345,14 +388,15 @@ impl ArService {
                     COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                     COUNT(*) AS invoice_count
                 FROM ar_invoices
-                WHERE status <> $2
+                WHERE status NOT IN ($2, $3)
                   AND unpaid_amount > 0
-                  AND customer_id = $3
-                  AND salesperson_id = $4
+                  AND customer_id = $4
+                  AND salesperson_id = $5
                 "#,
                 vec![
                     today.into(),
                     crate::models::status::common::STATUS_CANCELLED.into(),
+                    crate::models::status::common::STATUS_DRAFT.into(),
                     cid.into(),
                     sid.into(),
                 ],
@@ -367,13 +411,14 @@ impl ArService {
                     COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                     COUNT(*) AS invoice_count
                 FROM ar_invoices
-                WHERE status <> $2
+                WHERE status NOT IN ($2, $3)
                   AND unpaid_amount > 0
-                  AND customer_id = $3
+                  AND customer_id = $4
                 "#,
                 vec![
                     today.into(),
                     crate::models::status::common::STATUS_CANCELLED.into(),
+                    crate::models::status::common::STATUS_DRAFT.into(),
                     cid.into(),
                 ],
             ),
@@ -387,13 +432,14 @@ impl ArService {
                     COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                     COUNT(*) AS invoice_count
                 FROM ar_invoices
-                WHERE status <> $2
+                WHERE status NOT IN ($2, $3)
                   AND unpaid_amount > 0
-                  AND salesperson_id = $3
+                  AND salesperson_id = $4
                 "#,
                 vec![
                     today.into(),
                     crate::models::status::common::STATUS_CANCELLED.into(),
+                    crate::models::status::common::STATUS_DRAFT.into(),
                     sid.into(),
                 ],
             ),
@@ -407,12 +453,13 @@ impl ArService {
                     COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                     COUNT(*) AS invoice_count
                 FROM ar_invoices
-                WHERE status <> $2
+                WHERE status NOT IN ($2, $3)
                   AND unpaid_amount > 0
                 "#,
                 vec![
                     today.into(),
                     crate::models::status::common::STATUS_CANCELLED.into(),
+                    crate::models::status::common::STATUS_DRAFT.into(),
                 ],
             ),
         }
@@ -477,7 +524,7 @@ impl ArService {
                 COALESCE(SUM(CASE WHEN ($1 - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                 COUNT(*) AS invoice_count
             FROM ar_invoices
-            WHERE status <> $2
+            WHERE status NOT IN ($2, $3)
               AND unpaid_amount > 0
               AND salesperson_id IS NOT NULL
             GROUP BY salesperson_id
@@ -487,6 +534,7 @@ impl ArService {
         let params: Vec<sea_orm::Value> = vec![
             today.into(),
             crate::models::status::common::STATUS_CANCELLED.into(),
+            crate::models::status::common::STATUS_DRAFT.into(),
         ];
 
         let rows: Vec<sea_orm::QueryResult> = self

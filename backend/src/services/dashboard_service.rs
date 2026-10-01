@@ -715,6 +715,8 @@ impl DashboardService {
             warehouses.into_iter().map(|w| (w.id, w)).collect();
 
         // 批次 135：按仓库分组查询库存价值（quantity_meters * cost_price）
+        // 库存门绑定中文词表常量 inventory_stock_status::NORMAL（$1）：本列权威取值为
+        // 正常/报废/已删除，PG 比较区分大小写且中英不同，旧英文小写裸字面量恒零命中。
         let warehouse_value_stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             r#"
@@ -723,10 +725,10 @@ impl DashboardService {
                 COALESCE(SUM(s.quantity_meters * COALESCE(p.cost_price, 0)), 0) as value
             FROM inventory_stocks s
             LEFT JOIN products p ON p.id = s.product_id
-            WHERE s.stock_status = 'active'
+            WHERE s.stock_status = $1
             GROUP BY s.warehouse_id
             "#,
-            [],
+            vec![inventory_stock_status::NORMAL.into()],
         );
         let warehouse_value_rows: Vec<WarehouseValueRow> =
             WarehouseValueRow::find_by_statement(warehouse_value_stmt)
@@ -757,6 +759,7 @@ impl DashboardService {
 
     /// 按品类分组聚合库存（批次 135 v9 P1 修复）（raw SQL 关联 products + product_categories 表，按品类名分组聚合数量与价值。）
     async fn query_inventory_by_category(&self) -> Result<Vec<InventoryByCategory>, AppError> {
+        // 库存门绑定中文词表常量 inventory_stock_status::NORMAL（$1），禁止裸英文/中文字面量
         let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             r#"
@@ -767,11 +770,11 @@ impl DashboardService {
             FROM inventory_stocks s
             LEFT JOIN products p ON p.id = s.product_id
             LEFT JOIN product_categories pc ON pc.id = p.category_id
-            WHERE s.stock_status = 'active'
+            WHERE s.stock_status = $1
             GROUP BY category_name
             ORDER BY quantity DESC
             "#,
-            [],
+            vec![inventory_stock_status::NORMAL.into()],
         );
 
         let rows = InventoryByCategoryRow::find_by_statement(stmt)
@@ -793,6 +796,7 @@ impl DashboardService {
     /// 库存账龄分析（批次 135 v9 P1 修复）
     /// 按 last_movement_date（NULL 时回退 created_at）计算账龄区间：0-30天；31-60天；61-90天；90天以上；返回每个区间的数量与百分比。
     async fn query_inventory_aging(&self) -> Result<Vec<AgingData>, AppError> {
+        // 库存门绑定中文词表常量 inventory_stock_status::NORMAL（$1），禁止裸英文/中文字面量
         let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             r#"
@@ -809,7 +813,7 @@ impl DashboardService {
                     END as age_range,
                     s.quantity_meters as quantity
                 FROM inventory_stocks s
-                WHERE s.stock_status = 'active'
+                WHERE s.stock_status = $1
             )
             SELECT
                 age_range,
@@ -817,7 +821,7 @@ impl DashboardService {
             FROM aging
             GROUP BY age_range
             "#,
-            [],
+            vec![inventory_stock_status::NORMAL.into()],
         );
 
         let rows = InventoryAgingRow::find_by_statement(stmt)
@@ -857,11 +861,15 @@ impl DashboardService {
     }
 
     /// 计算库存周转率（批次 135 v9 P1 修复）
-    /// 周转率 = 销售数量 / 库存数量（无量纲）；销售数量：SUM(sales_order_items.quantity) WHERE 订单状态非 CANCELLED/DRAFT；库存数量：SUM(inventory_stocks.quantity_meters) WHERE stock_status = 'active'；返回保留 4 位小数的字符串。
+    /// 周转率 = 销售数量 / 库存数量（无量纲）；销售数量：SUM(sales_order_items.quantity) WHERE 订单状态非 CANCELLED/DRAFT；库存数量：SUM(inventory_stocks.quantity_meters) WHERE stock_status = 中文词表 inventory_stock_status::NORMAL（正常）；返回保留 4 位小数的字符串。
     async fn query_turnover_rate(&self) -> Result<String, AppError> {
-        // 排除门取值绑定写入方权威词表（小写）：$1=cancelled、$2=draft
-        let values: Vec<sea_orm::Value> =
-            vec![so_status::CANCELLED.into(), so_status::DRAFT.into()];
+        // 排除门取值绑定写入方权威词表（小写）：$1=cancelled、$2=draft；
+        // 库存门绑定中文词表常量：$3=正常（基址避让 $1/$2，防占位撞号）
+        let values: Vec<sea_orm::Value> = vec![
+            so_status::CANCELLED.into(),
+            so_status::DRAFT.into(),
+            inventory_stock_status::NORMAL.into(),
+        ];
         let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             r#"
@@ -873,7 +881,7 @@ impl DashboardService {
                 ) as sold_quantity,
                 (SELECT COALESCE(SUM(quantity_meters), 0::NUMERIC)
                    FROM inventory_stocks
-                   WHERE stock_status = 'active'
+                   WHERE stock_status = $3
                 ) as stock_quantity
             "#,
             values,

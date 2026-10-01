@@ -639,9 +639,13 @@ impl FundManagementService {
             .await?;
         let opening_balance: Decimal = accounts.iter().map(|a| a.available_balance).sum();
 
-        // 应收流入：未核销应收发票（未取消，未付金额>0，到期日在 [today, horizon]）
+        // 应收流入：未核销应收发票（未付金额>0，到期日在 [today, horizon]）；
+        // 统计口径与 AR 报表/BI/仪表盘同源：草稿与取消都不计入（取值引用写入方词表常量）
         let ar_invoices = crate::models::ar_invoice::Entity::find()
-            .filter(crate::models::ar_invoice::Column::Status.ne("CANCELLED"))
+            .filter(crate::models::ar_invoice::Column::Status.is_not_in([
+                crate::models::status::common::STATUS_CANCELLED,
+                crate::models::status::common::STATUS_DRAFT,
+            ]))
             .filter(crate::models::ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .filter(crate::models::ar_invoice::Column::DueDate.gte(today))
             .filter(crate::models::ar_invoice::Column::DueDate.lte(horizon))
