@@ -48,9 +48,9 @@
             :placeholder="$t('quality.standardDialog.standardNamePlaceholder')"
           />
         </el-form-item>
-        <el-form-item :label="$t('quality.standardDialog.type')" prop="type">
+        <el-form-item :label="$t('quality.standardDialog.type')" prop="standard_type">
           <el-select
-            v-model="standardForm.type"
+            v-model="standardForm.standard_type"
             :placeholder="$t('quality.standardDialog.typePlaceholder')"
             style="width: 100%"
           >
@@ -70,13 +70,6 @@
             type="textarea"
             :rows="6"
             :placeholder="$t('quality.standardDialog.contentPlaceholder')"
-          />
-        </el-form-item>
-        <el-form-item :label="$t('quality.standardDialog.attachments')" prop="attachments">
-          <el-input
-            v-model="attachmentsText"
-            type="textarea"
-            :placeholder="$t('quality.standardDialog.attachmentsPlaceholder')"
           />
         </el-form-item>
       </el-form>
@@ -394,11 +387,15 @@ const fetchDefects = async () => {
   }
 };
 
+// 取值集合＝后端实际写入值（quality_standard_service.rs：draft:128 / approved:314 /
+// rejected:351 / archived:384 / active:417，active 走 master_data::ACTIVE，general.rs:52）。
+// 后端从不写 'published'（handler 文档注释过时），故本映射不含它；词表外存量值原样直出不猜。
 const getStandardStatusLabel = (status: string) => {
   const map: Record<string, string> = {
     draft: t('quality.standardStatus.draft'),
     approved: t('quality.standardStatus.approved'),
-    published: t('quality.standardStatus.published'),
+    active: t('quality.standardStatus.active'),
+    archived: t('quality.standardStatus.archived'),
     rejected: t('quality.standardStatus.rejected'),
   };
   return map[status] || status;
@@ -409,7 +406,8 @@ const getStandardStatusType = (status: string): TagType => {
   const map: Record<string, TagType> = {
     draft: 'info',
     approved: 'warning',
-    published: 'success',
+    active: 'success',
+    archived: 'info',
     rejected: 'danger',
   };
   return map[status] || 'info';
@@ -418,16 +416,15 @@ const getStandardStatusType = (status: string): TagType => {
 const standardDialogVisible = ref(false);
 const standardFormRef = ref<FormInstance>();
 const standardSubmitLoading = ref(false);
-const attachmentsText = ref('');
 const standardForm = reactive({
   id: 0,
   standard_code: '',
   standard_name: '',
   version: '1.0',
-  type: 'product' as const,
+  // 键名与后端出入参一致（models/quality_standard.rs:13）；取值词表见 api/quality.ts::QualityStandard 注释
+  standard_type: 'product' as string,
   status: 'draft' as const,
   content: '',
-  attachments: [] as string[],
 });
 const standardFormRules: FormRules = {
   standard_code: [
@@ -436,7 +433,9 @@ const standardFormRules: FormRules = {
   standard_name: [
     { required: true, message: t('quality.validation.standardNameRequired'), trigger: 'blur' },
   ],
-  type: [{ required: true, message: t('quality.validation.typeRequired'), trigger: 'change' }],
+  standard_type: [
+    { required: true, message: t('quality.validation.typeRequired'), trigger: 'change' },
+  ],
   version: [{ required: true, message: t('quality.validation.versionRequired'), trigger: 'blur' }],
   content: [{ required: true, message: t('quality.validation.contentRequired'), trigger: 'blur' }],
 };
@@ -444,19 +443,16 @@ const standardFormRules: FormRules = {
 const openStandardDialog = (row?: QualityStandard) => {
   if (row) {
     Object.assign(standardForm, row);
-    attachmentsText.value = JSON.stringify(row.attachments || [], null, 2);
   } else {
     Object.assign(standardForm, {
       id: 0,
       standard_code: '',
       standard_name: '',
       version: '1.0',
-      type: 'product',
+      standard_type: 'product',
       status: 'draft',
       content: '',
-      attachments: [],
     });
-    attachmentsText.value = '';
   }
   standardDialogVisible.value = true;
 };
@@ -468,24 +464,26 @@ const submitStandard = async () => {
 
     standardSubmitLoading.value = true;
     try {
-      if (attachmentsText.value) {
-        try {
-          standardForm.attachments = JSON.parse(attachmentsText.value);
-        } catch (e) {
-          ElMessage.error(t('quality.message.attachmentsFormatError'));
-          return;
-        }
-      }
       if (standardForm.id) {
-        // 批次修复：后端 UpdateQualityStandardRequest 只认 standard_name/standard_type/content/remark，
-        // 此前直传实体（type/attachments/version…）会被 serde 静默丢弃，类型修改从未落库
+        // 后端 UpdateQualityStandardRequest 只认 standard_name/standard_type/content/status/remark，
+        // 直传实体（standard_code/version/attachments…）会被 serde 静默丢弃
         await updateQualityStandard(standardForm.id, {
           standard_name: standardForm.standard_name,
-          standard_type: standardForm.type,
+          standard_type: standardForm.standard_type,
           content: standardForm.content,
         });
       } else {
-        await createQualityStandard(standardForm as Partial<QualityStandard>);
+        // 创建载荷按 CreateQualityStandardPayload 逐键构造：后端 create DTO 的类型键为
+        // standard_type（quality_standard_handler.rs:41），实体上不存在的键（status/attachments 等）
+        // 提交即被 serde 静默丢弃。standard_code 空串必须省略键——服务层按 is_none() 区分
+        // 自动生成/手工码（quality_standard_service.rs:116-117），空串会落手工分支存成空码。
+        await createQualityStandard({
+          standard_code: standardForm.standard_code || undefined,
+          standard_name: standardForm.standard_name,
+          standard_type: standardForm.standard_type,
+          version: standardForm.version,
+          content: standardForm.content,
+        });
       }
       ElMessage.success(t('quality.message.operationSuccess'));
       standardDialogVisible.value = false;

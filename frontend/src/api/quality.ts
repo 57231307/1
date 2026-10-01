@@ -6,10 +6,40 @@ export interface QualityStandard {
   standard_code: string;
   standard_name: string;
   version: string;
-  type: 'product' | 'process';
-  status: 'draft' | 'approved' | 'published';
+  /**
+   * 类型列真实键名为 standard_type（models/quality_standard.rs:13；
+   * DDL standard_type VARCHAR(50) NOT NULL、无 CHECK——migration/src/domain/system/
+   * m0005_add_basic_data_and_system_tables.rs:111，故必填、非字面量联合）。
+   * 取值词表：写入方文档口径 product/process（quality_standard_handler.rs:40-41）；
+   * 服务层缺省落 "general"（quality_standard_service.rs:122-125），存量行可能为该值；
+   * 数据库无 CHECK 约束，界面下拉仅 product/process 两项，回填词表外值时原样展示不猜。
+   */
+  standard_type: string;
+  /**
+   * 状态列：后端 Model 为 String（models/quality_standard.rs:25），DDL
+   * "status" VARCHAR(20) DEFAULT 'draft' 无 CHECK
+   * （migration/src/domain/system/m0005_add_basic_data_and_system_tables.rs:122，
+   * v15 域尾亦未对该列补 CHECK），且 update_standard 对传入 status 原样落库、
+   * 不做词表校验（quality_standard_service.rs:181-183）——故非闭合字面量联合，
+   * 类型如实为 string（与同文件 standard_type :11-16 同一判定法）。
+   * 权威取值集合（状态流转端点代码实际写入，均出自词表常量）：
+   * draft（创建，service:128）、approved（approve，service:314）、
+   * rejected（reject，service:351）、active（publish，service:417 落
+   * master_data::ACTIVE="active"，models/status/general.rs:52）、
+   * archived（archive，service:384 落 master_data::ARCHIVED，general.rs:73）；
+   * quality_standard 专属常量见 models/status/quality_dyeing.rs:11-20
+   * （draft/approved/rejected）。
+   * ⚠ "published" 为幽灵值：handler 文档注释（quality_standard_handler.rs:64）
+   * 口径过时，后端全仓源码无任何写入 "published" 的路径（发布落 active），
+   * 旧前端以 published 判定发布行导致归档按钮恒不出现——已按代码真相纠正。
+   * 词表外存量值（经无校验 update 端点可被写入任意串）界面原样展示、不猜默认
+   * （views/quality-standards/index.vue getStatusLabel `|| status` 直出）。
+   */
+  status: string;
   content: string;
-  attachments: string[];
+  // 幽灵键 attachments 已删：后端实体无此列（models/quality_standard.rs:8-31 全列核对）、
+  // create/update DTO 均不接收（quality_standard_handler.rs:35-52/57-68），
+  // 读取恒 undefined、提交被 serde 静默丢弃，属纯假字段（红线：不保留假字段）。
   created_by: number;
   created_by_name: string;
   approved_by: number;
@@ -137,8 +167,28 @@ export function getQualityStandard(id: number): Promise<ApiResponse<QualityStand
   return request.get(`/quality-standards/${id}`);
 }
 
+/**
+ * 创建质量标准载荷：逐键对齐后端 CreateQualityStandardRequest
+ * （handlers/quality_standard_handler.rs:35-52）。类型键名为 standard_type——此前直传实体
+ * （键 type）会被 serde 静默丢弃，服务层落缺省 "general"（quality_standard_service.rs:122-125），
+ * 用户所选类型从未入库。id/status/attachments 不在创建 DTO 内，禁止入载荷。
+ * standard_code 为 Option：服务层按 is_none() 区分自动生成/手工码（service:116-117），
+ * 空字符串会走手工分支落空码，未填时必须省略该键而非传 ""。
+ */
+export interface CreateQualityStandardPayload {
+  standard_code?: string;
+  standard_name: string;
+  standard_type?: string;
+  version?: string;
+  content?: string;
+  /** 格式 YYYY-MM-DD（handler:46-48），省略时服务端取当天 */
+  effective_date?: string;
+  expiry_date?: string;
+  remark?: string;
+}
+
 export function createQualityStandard(
-  data: Partial<QualityStandard>
+  data: CreateQualityStandardPayload
 ): Promise<ApiResponse<QualityStandard>> {
   return request.post('/quality-standards', data);
 }
@@ -146,7 +196,7 @@ export function createQualityStandard(
 /**
  * 更新质量标准载荷：对齐后端 UpdateQualityStandardRequest
  * （handlers/quality_standard_handler.rs:57-68，字段 standard_name/standard_type/content/status/remark 全 Option）。
- * 注意后端字段名是 standard_type，实体出参 QualityStandard 里才是 type；
+ * 入参与实体出参的该列键名一致，都是 standard_type（models/quality_standard.rs:13）；
  * id / standard_code / version / attachments 不在更新契约内，提交会被 serde 静默丢弃，禁止放入载荷。
  * 状态流转（审批/驳回/发布/归档）走各自端点，更新接口不提交 status。
  */
