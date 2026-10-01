@@ -2608,8 +2608,9 @@ export interface EndpointHealthOptions {
  * - 403            → 失败，除非显式 `allowForbidden: true`（权限外探测的正常拒绝）。
  * - 其它 4xx       → 失败（请求契约破坏，如非法参数命中该端点）。
  *
- * 真正「可选、允许缺失」的端点请改用 `verifyOptionalEndpointHealthy`，不要用本函数
- * 兜底 404/403——否则会把路由/权限回归伪装成健康。
+ * 本仓不存在「允许缺失、可用 404/403 装作健康」的端点类别：未注册端点必须补注册
+ * 或登记进 scripts/check-api-paths.mjs 显式缺口清单，禁止以任何宽松探测把 404/403
+ * 伪装成健康（系统性假绿源，此类可选探测 helper 已删除）。
  */
 export async function verifyEndpointHealthy(
   page: Page,
@@ -2638,7 +2639,7 @@ export async function verifyEndpointHealthy(
       return; // 显式权限外探测：403 属预期，健康
     }
     throw new Error(
-      `GET ${path} 返回 403：鉴权拒绝。若这是权限外探测端点，请显式传 { allowForbidden: true } 或改用 verifyOptionalEndpointHealthy；否则视为权限/路由回归判红`
+      `GET ${path} 返回 403：鉴权拒绝。若这是权限外探测端点，请显式传 { allowForbidden: true }；否则视为权限/路由回归判红（不存在可吞 403 的宽松健康探测函数，见本文件 strict 口径注释）`
     );
   }
   if (status >= 400) {
@@ -2646,26 +2647,6 @@ export async function verifyEndpointHealthy(
   }
   // status === 0：网络层错误（apiCall 已抛非数字状态）
   throw new Error(`GET ${path} 请求异常（status=${status}）`);
-}
-
-/**
- * 验证「真正可选」的端点健康（可选端点扫描专用，宽松模式）。
- *
- * 与历史 verifyEndpointHealthy 的行为等价：仅 5xx 判红，404/403/其它 4xx 均放过。
- * 仅用于「端点允许缺失/未实现」的报表·统计类可选接口健康扫描。迁移调用点时必须
- * 先判责：若该端点其实应当存在却返回 404，应保留在严格 verifyEndpointHealthy 下让它红，
- * 不得用本函数把回归伪装成健康。
- */
-export async function verifyOptionalEndpointHealthy(page: Page, path: string): Promise<void> {
-  try {
-    await apiCallRaw(page, 'GET', path);
-  } catch (e) {
-    const err = e as { status?: number };
-    if (err.status && err.status >= 500) {
-      throw new Error(`GET ${path} 返回 ${err.status}（服务器内部错误）`);
-    }
-    // 可选端点：404/403/其它 4xx 均可接受（端点允许缺失或未授权）
-  }
 }
 
 /**

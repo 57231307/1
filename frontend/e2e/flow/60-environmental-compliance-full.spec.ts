@@ -32,7 +32,8 @@ import { fillFieldByLabel, formItemByExactLabel, pickSelectIn } from './ui-helpe
  * 真实响应模型完成（本 spec 如此处理），不给未注册端点写 strict 断言。
  *
  * 假绿防线：
- * - 已注册端点全部走 verifyEndpointHealthy（404/403 判红），不用 verifyOptionalEndpointHealthy；
+ * - 已注册端点全部走 verifyEndpointHealthy（404/403 判红）；吞 404/403 的宽松「可选端点」
+ *   健康探测类别不存在，此类 helper 已删除，不得复活；
  * - docx 打印走 verifyDownloadEndpointHealthy（JSON helper 会对 200 的二进制做 JSON.parse 假红）；
  * - 每个创建/撤销动作之后都按 id / permit_no / monitoring_point 从 GET 端点回读
  *   真实落库字段值（类型、许可量、状态、超标判定、自动过期回写），toast 只作过程信号。
