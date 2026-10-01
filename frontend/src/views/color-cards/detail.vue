@@ -23,12 +23,30 @@
             <el-button :icon="Download" @click="handleExport">{{
               $t('colorCards.detail.exportExcel')
             }}</el-button>
-            <el-button type="primary" :icon="Plus" @click="showAddItemDialog = true">{{
-              $t('colorCards.detail.addItem')
-            }}</el-button>
-            <el-button :icon="Box" @click="showImportDialog = true">{{
-              $t('colorCards.detail.batchImport')
-            }}</el-button>
+            <!-- 色号维护入口按卡状态门控（后端 98f3bb0b：色号创建只允许草稿态色卡）。
+                 判据与 color-cards/list.vue:138 归档按钮同源（status === draft，
+                 token 由 COLOR_CARD_STATUS 权威表锁定）；非草稿态禁用入口并给出
+                 有解释的 tooltip，消除“按钮永远可点、点了必失败”的假可用 -->
+            <el-tooltip :disabled="isDraftCard" :content="addItemDisabledTip" placement="top">
+              <span>
+                <el-button
+                  type="primary"
+                  :icon="Plus"
+                  :disabled="!isDraftCard"
+                  @click="showAddItemDialog = true"
+                >
+                  {{ $t('colorCards.detail.addItem') }}
+                </el-button>
+              </span>
+            </el-tooltip>
+            <!-- 批量导入入口与单条添加同源门控：批量端点同样落色号创建 -->
+            <el-tooltip :disabled="isDraftCard" :content="batchImportDisabledTip" placement="top">
+              <span>
+                <el-button :icon="Box" :disabled="!isDraftCard" @click="showImportDialog = true">
+                  {{ $t('colorCards.detail.batchImport') }}
+                </el-button>
+              </span>
+            </el-tooltip>
           </div>
         </div>
       </template>
@@ -202,6 +220,7 @@ import {
   batchImportItems,
   scanColorCode,
   exportColorCardUrl,
+  COLOR_CARD_STATUS,
   COLOR_CARD_STATUS_COLORS,
   type ColorCardDetail,
   type ColorItemInfo,
@@ -244,6 +263,25 @@ const card = ref<ColorCardDetail | null>(null);
 const items = ref<ColorItemInfo[]>([]);
 const issueRecords = ref<IssueRecordInfo[]>([]);
 const activeTab = ref('info');
+
+// ===== 色号维护入口的草稿态门控 =====
+// 色卡状态 token 锁定在 api/color-card.ts 权威表 COLOR_CARD_STATUS 的键上
+//（键 = 后端 chk_color_card_status 全集 token，值为标签）——'draft' 字面量
+// 经 keyof 编译期校验，不新引入第二套词表，拼错即红。
+type ColorCardStatusToken = keyof typeof COLOR_CARD_STATUS;
+const DRAFT: ColorCardStatusToken = 'draft';
+// 判据与 color-cards/list.vue 归档按钮（row.status === 'draft'）同源
+const isDraftCard = computed(() => card.value?.status === DRAFT);
+
+// 非草稿态禁用解释文案：全部由既有条目词表动态组装（卡状态标签、入口名），不硬编码文案。
+const draftOnlyTip = (actionLabel: string) =>
+  t('colorCards.detail.draftOnlyTip', {
+    draft: getStatusLabel(DRAFT),
+    action: actionLabel,
+    current: card.value ? getStatusLabel(card.value.status) : '',
+  });
+const addItemDisabledTip = computed(() => draftOnlyTip(t('colorCards.detail.addItem')));
+const batchImportDisabledTip = computed(() => draftOnlyTip(t('colorCards.detail.batchImport')));
 
 const showAddItemDialog = ref(false);
 const adding = ref(false);
@@ -309,6 +347,13 @@ const buildColorItemPayload = (n: Partial<ColorItemInfo>): ColorItemPayload => {
 };
 
 const handleAddItem = async () => {
+  // 双保险：入口按钮已由 isDraftCard 禁用，提交路径再校验一次（防对话框
+  // 已打开时卡状态变化后的竞态提交）；非草稿态显式拒绝并解释，
+  // 不是“点了必失败”地放行给后端 98f3bb0b 的 400
+  if (!isDraftCard.value) {
+    ElMessage.warning(addItemDisabledTip.value);
+    return;
+  }
   if (!newItem.value.color_code || !newItem.value.color_name) {
     ElMessage.warning(t('colorCards.detail.message.codeAndNameRequired'));
     return;
@@ -365,6 +410,11 @@ const handleScanItem = async (item: ColorItemInfo) => {
 };
 
 const handleBatchImport = async () => {
+  // 与单条添加同源门控：批量端点同样落色号创建，非草稿态拒绝提交
+  if (!isDraftCard.value) {
+    ElMessage.warning(batchImportDisabledTip.value);
+    return;
+  }
   if (!importText.value.trim()) {
     ElMessage.warning(t('colorCards.detail.message.importEmpty'));
     return;

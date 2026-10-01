@@ -4390,6 +4390,8 @@ export default {
       exportExcel: 'Export Excel',
       addItem: 'Add Color',
       batchImport: 'Batch Import',
+      draftOnlyTip:
+        'Only "{draft}" color cards support "{action}". Current card status: "{current}".',
       tab: {
         info: 'Basic Info',
         items: 'Colors ({count})',

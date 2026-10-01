@@ -4355,6 +4355,7 @@ export default {
       exportExcel: '导出 Excel',
       addItem: '新增色号',
       batchImport: '批量导入',
+      draftOnlyTip: '仅「{draft}」状态的色卡支持「{action}」，当前色卡状态为「{current}」。',
       tab: {
         info: '基本信息',
         items: '色号列表（{count}）',
