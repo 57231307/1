@@ -288,6 +288,65 @@ export interface ApPaymentRequestQueryParams {
   page_size?: number;
 }
 
+/**
+ * 付款申请明细行入参：逐字段对齐后端 `ApPaymentRequestItemDto`
+ * （backend/src/services/ap_payment_request_service.rs:660-670）。
+ * apply_amount 为 rust_decimal：请求侧以十进制字符串下发（后端 Deserialize 接受字符串，
+ * 且字符串可避免 number 浮点表示误差落进金额字段）。
+ */
+export interface ApPaymentRequestItemInput {
+  invoice_id: number;
+  apply_amount: string;
+  notes?: string;
+}
+
+/**
+ * 创建付款申请入参：逐字段对齐后端 `CreateApPaymentRequest`
+ * （backend/src/services/ap_payment_request_service.rs:599-657）。
+ * items 为 Option<Vec<...>>（:655-656 #[serde(default)]）：创建可缺省明细，
+ * 但 submit 门控强制「至少一条真实已审批应付单明细」（同文件 :330-339），
+ * 无明细的申请不可提交审批。
+ */
+export interface CreateApPaymentRequestInput {
+  supplier_id: number;
+  /** NaiveDate：YYYY-MM-DD */
+  request_date: string;
+  payment_type: string;
+  payment_method: string;
+  /** rust_decimal：十进制字符串 */
+  request_amount: string;
+  currency?: string;
+  /** rust_decimal：十进制字符串；后端校验 >0 且 ≠0.01（validate_exchange_rate_payment :685-696） */
+  exchange_rate?: string;
+  expected_payment_date?: string;
+  bank_name?: string;
+  bank_account?: string;
+  bank_account_name?: string;
+  notes?: string;
+  attachment_urls?: string[];
+  items?: ApPaymentRequestItemInput[];
+}
+
+/**
+ * 更新付款申请入参：逐字段对齐后端 `UpdateApPaymentRequest`
+ * （backend/src/services/ap_payment_request_service.rs:699-730）。
+ * 注意：更新契约**不含 items 与 supplier_id**——明细只能在创建时录入，
+ * 后端无付款申请明细的行级端点（routes/finance.rs:708-746 仅表头 CRUD + submit/approve/reject）。
+ */
+export interface UpdateApPaymentRequestInput {
+  request_date?: string;
+  payment_type?: string;
+  payment_method?: string;
+  /** rust_decimal：十进制字符串 */
+  request_amount?: string;
+  expected_payment_date?: string;
+  bank_name?: string;
+  bank_account?: string;
+  bank_account_name?: string;
+  notes?: string;
+  attachment_urls?: string[];
+}
+
 export function getAPPaymentRequestList(
   params?: ApPaymentRequestQueryParams
 ): Promise<ApiResponse<PaginatedResponse<APPaymentRequest>>> {
@@ -299,14 +358,14 @@ export function getAPPaymentRequest(id: number): Promise<ApiResponse<APPaymentRe
 }
 
 export function createAPPaymentRequest(
-  data: Partial<APPaymentRequest>
+  data: CreateApPaymentRequestInput
 ): Promise<ApiResponse<APPaymentRequest>> {
   return request.post('/ap/payment-requests', data);
 }
 
 export function updateAPPaymentRequest(
   id: number,
-  data: Partial<APPaymentRequest>
+  data: UpdateApPaymentRequestInput
 ): Promise<ApiResponse<APPaymentRequest>> {
   return request.put(`/ap/payment-requests/${id}`, data);
 }
