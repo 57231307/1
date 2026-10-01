@@ -31,12 +31,12 @@
 //     付款申请 APPROVING/APPROVED/REJECTED）——与 fullflow/10-ap 同源
 //   付款申请 submit 需明细  services/ap_payment_request_service.rs:336-338（10-ap 头注释同源）
 //   付款金额取申请额       services/ap_payment_service.rs:752-766；确认 REGISTERED→CONFIRMED :223-226
-// 诚实标注：PurchaseReceiveDialog 只采集批次号（e2e/purchase/03 头注释；usePurchRcv
-//   buildReceiptPayload），色号/缸号/等级留默认——收货对话框**无法录入**完整四维，
+// 诚实标注：PurchaseReceiveDialog 采集批次号 + 辅助数量（usePurchRcv buildReceiptPayload；
+//   e2e/purchase/03 头注释），色号/缸号/等级留默认——收货对话框**无法录入**完整四维，
 //   四维全量入库已由 purchase/13-01 以 API+UI 审核组合覆盖；本文件按对话框真实能力
 //   收货，并断言由此产生的库存行四维默认口径（color/lot 空串、grade 一等品，
-//   purchase_receipt_private.rs receipt_item_stock_key）。辅量缺口（对话框无 alt 数量输入
-//   ⇒ 收货后 received_quantity_alt 恒 0）列入交付报告的后端/产品缺口清单。
+//   purchase_receipt_private.rs receipt_item_stock_key）。辅量已接入真实采集：
+//   20-01 逐批录入非零辅量并回读 received_quantity_alt 累加，20-02 录显式 0（合法实收值）。
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -211,13 +211,15 @@ async function locatePoRow(page: Page, orderNo: string) {
 }
 
 /**
- * UI 收货（PurchaseReceiveDialog 真实能力：仓库下拉 + 本次收货数量 + 批次号）。
+ * UI 收货（PurchaseReceiveDialog 真实能力：仓库下拉 + 本次收货数量 + 辅助数量 + 批次号）。
+ * 辅量是创建契约必填键，留空会被对话框提交拦截，必须随每批录入实测值（0 为合法实收值）。
  * 捕获 POST /purchase/receipts 响应取本例入库单 id（禁靠列表顺序猜行）。
  */
 async function receiveViaUI(
   page: Page,
   orderNo: string,
   qty: string,
+  altQty: string,
   batchNo: string
 ): Promise<number> {
   const row = await locatePoRow(page, orderNo);
@@ -226,6 +228,7 @@ async function receiveViaUI(
   await expect(dialog).toBeVisible({ timeout: 30000 });
   await pickSelectIn(dialog, page, '仓库');
   await dialog.getByRole('spinbutton').first().fill(qty);
+  await dialog.locator('input[placeholder="请输入辅助数量，无辅量填0"]').first().fill(altQty);
   await dialog.locator('input[placeholder="收货批次号"]').first().fill(batchNo);
   const createdResp = page
     .waitForResponse(
@@ -253,9 +256,9 @@ test.describe('20 采购到付款全流程契约链', () => {
   }) => {
     const { id: poId, order_no: orderNo } = await seedPo(page, 'APPROVED');
 
-    // ── UI 收货 8 件（对话框仅能送批次维度）──
+    // ── UI 收货 8 件 / 辅量 80（对话框送批次 + 辅量两维）──
     const batch1 = `E2E-B1${genCode('RCV')}`;
-    const rcptId = await receiveViaUI(page, orderNo, '8', batch1);
+    const rcptId = await receiveViaUI(page, orderNo, '8', '80', batch1);
 
     // 入库单回读：收货登记只建 DRAFT（purchase_receipt_service.rs build_receipt_active_model
     // 写 status::purchase_receipt::DRAFT，state.rs 头注释）
@@ -267,6 +270,7 @@ test.describe('20 采购到付款全流程契约链', () => {
     expectKeyValue(rcpt1, 'order_id', poId, '入库单1（应关联本例 PO）');
     expectKeyValue(rcpt1, 'receipt_status', 'DRAFT', '入库单1初始');
     expectDecimal(rcpt1, 'total_quantity', 8, '入库单1数量=本次收货 8');
+    expectDecimal(rcpt1, 'total_quantity_alt', 80, '入库单1辅量合计=对话框实录 80');
     CLEANUP.push({ path: `/purchase/receipts/${rcptId}`, label: `purchase_receipt#${rcptId}` });
 
     // 明细回读：对话框录入的批次号原样落库（purchase_receipt_item 模型键）
@@ -281,6 +285,7 @@ test.describe('20 采购到付款全流程契约链', () => {
       `入库明细应带回收货录入的批次号 ${batch1}，实际=${JSON.stringify(lines1)}`
     ).toBeTruthy();
     expectDecimal(line1!, 'quantity', 8, '入库明细数量');
+    expectDecimal(line1!, 'quantity_alt', 80, '入库明细辅量=对话框实录 80（十进制出参归一）');
 
     // 门控前置：整单质检 complete(pass) 并回读 PASSED（helpers.seedInspectionPass）。
     // 确认事务内会连带触发应付自动生成，此时收货单已是 PASSED，应付侧同一门控
@@ -305,7 +310,7 @@ test.describe('20 采购到付款全流程契约链', () => {
       'confirm 直达 COMPLETED（state.rs:53-59）'
     );
 
-    // ②进度回写靶心：订单行 received_quantity=8；辅量对话框未采集 ⇒ received_quantity_alt 仍 0
+    // ②进度回写靶心：订单行 received_quantity=8、received_quantity_alt=80（对话框实录辅量累加）
     const poAfter1 = await apiCallRaw<Record<string, unknown>>(
       page,
       'GET',
@@ -320,8 +325,8 @@ test.describe('20 采购到付款全流程契约链', () => {
     expectDecimal(
       poItems1[0],
       'received_quantity_alt',
-      0,
-      'PO行已收辅量（对话框无 alt 输入→恒 0，缺口见交付报告）'
+      80,
+      'PO行已收辅量=对话框实录 80（辅量断链靶心：收货采集→订单行累加）'
     );
     expectKeyValue(
       poAfter1,
@@ -382,9 +387,9 @@ test.describe('20 采购到付款全流程契约链', () => {
     expectKeyValue(apInv1!, 'invoice_status', 'DRAFT', '自动应付初始 DRAFT');
     const apInvId1 = requireNum(apInv1!.id, '自动应付单 id');
 
-    // ── UI 收货 12 件（收满 20）+ 确认 → 全收 COMPLETED ──
+    // ── UI 收货 12 件 / 辅量 120（收满 20）+ 确认 → 全收 COMPLETED ──
     const batch2 = `E2E-B2${genCode('RCV')}`;
-    const rcptId2 = await receiveViaUI(page, orderNo, '12', batch2);
+    const rcptId2 = await receiveViaUI(page, orderNo, '12', '120', batch2);
     CLEANUP.push({ path: `/purchase/receipts/${rcptId2}`, label: `purchase_receipt#${rcptId2}` });
     await seedInspectionPass(page, {
       receiptId: rcptId2,
@@ -403,6 +408,12 @@ test.describe('20 采购到付款全流程契约链', () => {
       `PO ${poId} 收满后明细`
     );
     expectDecimal(poItems2[0], 'received_quantity', 20, '全收后已收主量=20');
+    expectDecimal(
+      poItems2[0],
+      'received_quantity_alt',
+      200,
+      '全收后已收辅量=80+120，与订购辅量 200（quantity_alt_ordered）逐值对齐'
+    );
     expectKeyValue(
       poAfter2,
       'status',
@@ -505,7 +516,8 @@ test.describe('20 采购到付款全流程契约链', () => {
   }) => {
     const { id: poId, order_no: orderNo } = await seedPo(page, 'APPROVED');
     const batch = `E2E-BX${genCode('RCV')}`;
-    const rcptId = await receiveViaUI(page, orderNo, '5', batch);
+    // 辅量录显式 0：合法实收值（本批仅按主单位计量），同时锁 0 不被后续门控误伤
+    const rcptId = await receiveViaUI(page, orderNo, '5', '0', batch);
     // 门控前置：先质检合格，首次确认才会成功；否则下面的"重复确认被 DRAFT 状态门拒"
     // 会被质检门代劳，两条断言形状相同 → 因错误的原因通过。
     await seedInspectionPass(page, {

@@ -5,7 +5,8 @@
 //
 // 后端事实来源（写入方为准）：
 // - 收货登记：PurchaseReceiveDialog → POST /purchase/receipts 建 DRAFT 入库单（purchase_receipt_service.rs:75
-//   写 status::purchase_receipt::DRAFT），对话框仅采集批次号（usePurchRcv.ts buildReceiptPayload），色号/缸号留空。
+//   写 status::purchase_receipt::DRAFT），对话框采集批次号+辅助数量（usePurchRcv.ts buildReceiptPayload），
+//   色号/缸号留空（白坯口径，后端仅无条件强制批次）。
 // - 确认入库：POST /purchase/receipts/{id}/confirm（purchase_receipt_ops/state.rs::confirm_receipt）
 //   同事务内 ① 累加采购订单行 received_quantity 并推进订单状态（PARTIAL_RECEIVED/COMPLETED），
 //   ② 写库存四维行（product+batch+color+lot）：新行 quantity_on_hand=quantity_meters
@@ -17,7 +18,7 @@
 // 覆盖三条真实回写：
 //  13-01 UI 列表「审核」确认带全四维的入库单 → GET /inventory/stock 按 款号+色号+缸号+批次 回读 quantity_on_hand 增加；
 //       并回读订单行 received_quantity 增加、订单状态离开 APPROVED、入库单转 COMPLETED。
-//  13-02 纯 UI「收货」对话框（批次维度）建单 + 确认 → 按 款号+批次 回读 quantity_on_hand 增加（白坯空色号/缸号合法）。
+//  13-02 纯 UI「收货」对话框（批次+辅量维度）建单 + 确认 → 按 款号+批次 回读 quantity_on_hand 增加（白坯空色号/缸号合法）。
 //  13-02b 确认入库幂等防御：重复 confirm 被业务拒（4xx），库存 quantity_on_hand 不被二次累加（边界/非法值）。
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
@@ -246,7 +247,7 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     ).toContain(afterPo.status);
   });
 
-  test('13-02 纯 UI 收货对话框（批次维度）收货+确认 → 回读 quantity_on_hand 增加', async ({
+  test('13-02 纯 UI 收货对话框（批次+辅量维度）收货+确认 → 回读 quantity_on_hand 增加', async ({
     page,
   }) => {
     const ctx = getCtx();
@@ -256,7 +257,7 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
 
     const po = await seedApprovedPO(page, '20');
 
-    // UI 收货：/purchase 列表按唯一订单号筛本例行 → 点「收货」→ 选仓库/填数量/批次 → 确定收货
+    // UI 收货：/purchase 列表按唯一订单号筛本例行 → 点「收货」→ 选仓库/填数量/辅量/批次 → 确定收货
     await page.goto('/purchase');
     await page.getByPlaceholder('订单号/供应商名').fill(po.order_no);
     await page.getByRole('button', { name: '查询', exact: true }).click();
@@ -267,6 +268,8 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     await expect(dialog).toBeVisible();
     await pickSelectIn(dialog, page, '仓库');
     await dialog.getByRole('spinbutton').first().fill('5');
+    // 辅量为创建契约必填输入：本批按主单位计量，显式录 0（合法的实收零值，区别于未填被拦）
+    await dialog.locator('input[placeholder="请输入辅助数量，无辅量填0"]').first().fill('0');
     await dialog.locator('input[placeholder="收货批次号"]').first().fill(batchNo);
     await dialog.getByRole('button', { name: '确定收货' }).click();
     await expect(page.getByText('收货成功')).toBeVisible({ timeout: 30000 });
@@ -293,7 +296,7 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
       context: `13-02 入库单#${draft!.id}`,
     });
 
-    // 确认入库（同 confirm 端点；UI 收货对话框仅采批次，色号/缸号合法留空——白坯口径）
+    // 确认入库（同 confirm 端点；UI 收货对话框仅采批次+辅量，色号/缸号合法留空——白坯口径）
     await apiCall(page, 'POST', `/purchase/receipts/${draft!.id}/confirm`);
 
     // 回读：按 款号+批次 取行，quantity_on_hand 增加至 5（收货量）

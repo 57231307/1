@@ -16,11 +16,14 @@
 //   （backend/src/handlers/purchase_order_handler.rs:100-127）。
 // - PurchaseReceiveDialog（aria-label purchase.index.receiveDlgAriaLabel = '收货对话框'，标题 '采购收货'）：
 //   只读采购单号/供应商；收货日期(默认今日 date)；仓库 el-select(label '仓库')；
-//   明细 el-table 列 产品/订购数量/已收货/本次收货(el-input-number)/单价/批次号/备注；底部 '取消' / '确定收货'。
-//   本次收货 el-input-number :max = 订购数量 - 已收货（PurchaseReceiveDialog.vue 第 82 行），超限输入被钳制。
+//   明细 el-table 列 产品/订购数量/已收货/本次收货(el-input-number)/辅助数量(el-input-number)/
+//   单价/批次号/备注；底部 '取消' / '确定收货'。
+//   本次收货 el-input-number :max = 订购数量 - 已收货，超限输入被钳制。
 // - 校验（submitReceive）：未选仓库 → msg.warning('pleaseSelectWarehouse') = '请选择收货仓库'；
 //   全部本次收货为 0 → msg.warning('pleaseFillItem') = '请填写至少一项收货数量'；
-//   批次号为空 → msg.warning('receiveBatchRequired') = '请为每行收货录入批次号'。
+//   批次号为空 → msg.warning('receiveBatchRequired') = '请为每行收货录入批次号'；
+//   辅助数量未录入（创建契约必填键，显式 0 才是合法实收值）
+//   → msg.warning('receiptItemAltQtyRequired') = '第 {line} 行未录入辅助数量…'。
 // - 成功：createPurchaseReceipt → msg.success('receiveSuccess') = '收货成功'。
 
 import { test, expect, type Page } from '@playwright/test';
@@ -45,20 +48,23 @@ interface PurchaseOrderLite {
 
 /**
  * PurchaseReceiptDto（services/purchase_receipt_dto.rs:16）中本用例用到的字段。
- * total_quantity 是 DECIMAL，经 JSON 序列化为字符串（如 "5.0000"），断言前 Number() 归一。
+ * total_quantity/total_quantity_alt 是 DECIMAL，经 JSON 序列化为字符串（如 "5.0000"），
+ * 断言前 Number() 归一。
  */
 interface PurchaseReceiptLite {
   id: number;
   order_id: number | null;
   receipt_status: string;
   total_quantity: number | string;
+  total_quantity_alt: number | string;
 }
 
-/** GET /purchase/receipts/{id}/items 明细行 = purchase_receipt_item::Model 原键 */
+/** GET /purchase/receipts/{id}/items 明细行 = purchase_receipt_item::Model 原键（十进制列为字符串） */
 interface ReceiptItemLite {
   id: number;
   batch_no: string | null;
   quantity: number | string;
+  quantity_alt: number | string;
 }
 
 /** 本 spec 内所有用例创建的专属订单 id，afterEach 尽力清理（已流转的删除失败仅告警属预期） */
@@ -158,7 +164,7 @@ test.describe('03 采购收货', () => {
     await expect(dialog).toBeVisible();
     // 不选仓库，先填数量以绕过"请填写至少一项收货数量"校验，再直接提交
     await dialog.getByRole('spinbutton').first().fill('1');
-    // 批次号也是必填，填上绕过该校验
+    // 批次号也是必填，填上绕过该校验；辅量留空不影响本例——仓库校验先于辅量拦截
     await dialog.locator('input[placeholder="收货批次号"]').first().fill('BATCH-NO-WH');
     await dialog.getByRole('button', { name: '确定收货' }).click();
     // 真实校验 message.pleaseSelectWarehouse = '请选择收货仓库'
@@ -190,7 +196,9 @@ test.describe('03 采购收货', () => {
     await pickSelectIn(dialog, page, '仓库');
     // 填收货数量
     await dialog.getByRole('spinbutton').first().fill('5');
-    // 批次号：placeholder='收货批次号'（PurchaseReceiveDialog.vue 第 98 行）
+    // 辅助数量（创建契约必填，placeholder='请输入辅助数量，无辅量填0'）：实录 10
+    await dialog.locator('input[placeholder="请输入辅助数量，无辅量填0"]').first().fill('10');
+    // 批次号：placeholder='收货批次号'
     const batchNo = `E2E-${genCode('RCV')}`;
     await dialog.locator('input[placeholder="收货批次号"]').first().fill(batchNo);
     await dialog.getByRole('button', { name: '确定收货' }).click();
@@ -217,6 +225,7 @@ test.describe('03 采购收货', () => {
     const receipt = mine!;
     expect(receipt.receipt_status, '入库单初始状态应为写入方原值 DRAFT').toBe('DRAFT');
     expect(Number(receipt.total_quantity), '入库单主表数量应等于本次收货 5').toBe(5);
+    expect(Number(receipt.total_quantity_alt), '入库单辅量合计应等于对话框实录 10').toBe(10);
 
     // 明细回源：GET /purchase/receipts/{id}/items 的 data 是裸数组
     // （handlers/purchase_receipt_handler.rs list_receipt_items）
@@ -228,6 +237,7 @@ test.describe('03 采购收货', () => {
     const line = lines.find(l => l.batch_no === batchNo);
     expect(line, `入库明细应带回收货时录入的批次号 ${batchNo}`).toBeTruthy();
     expect(Number(line!.quantity), '入库明细数量应等于本次收货 5').toBe(5);
+    expect(Number(line!.quantity_alt), '入库明细辅量应等于对话框实录 10').toBe(10);
 
     // 采购订单进度与库存/应付都在「确认入库」里同事务落账
     // （purchase_receipt_ops/state.rs:43-49 update_order_received_quantity + update_inventory_txn），
