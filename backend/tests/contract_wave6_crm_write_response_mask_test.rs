@@ -44,9 +44,7 @@ use bingxi_backend::models::customer;
 use bingxi_backend::services::crm::cust::CrmService;
 use bingxi_backend::services::data_permission_service::DataPermissionService;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, Statement,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, Statement};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -299,7 +297,10 @@ async fn put_json(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) {
     (
         status,
         serde_json::from_slice(&bytes).unwrap_or_else(|e| {
-            panic!("响应非 JSON（{uri}）: {e}; body={}", String::from_utf8_lossy(&bytes))
+            panic!(
+                "响应非 JSON（{uri}）: {e}; body={}",
+                String::from_utf8_lossy(&bytes)
+            )
         }),
     )
 }
@@ -324,7 +325,10 @@ async fn post_json(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) 
     (
         status,
         serde_json::from_slice(&bytes).unwrap_or_else(|e| {
-            panic!("响应非 JSON（{uri}）: {e}; body={}", String::from_utf8_lossy(&bytes))
+            panic!(
+                "响应非 JSON（{uri}）: {e}; body={}",
+                String::from_utf8_lossy(&bytes)
+            )
         }),
     )
 }
@@ -332,24 +336,55 @@ async fn post_json(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) 
 /// 默认脱敏四件套断言（复用读路径同一实现的效果锁）：mobile_phone/tel_phone/email 掩码 +
 /// address 整键移除；出参任何字符串值都不得含原文 PII。
 fn assert_default_masked(lead: &Value, where_label: &str) {
-    assert_eq!(lead["mobile_phone"], json!(MASKED_PHONE), "{where_label}：mobile_phone 未掩码");
-    assert_eq!(lead["tel_phone"], json!(MASKED_TEL), "{where_label}：tel_phone 未掩码");
-    assert_eq!(lead["email"], json!(MASKED_EMAIL), "{where_label}：email 未掩码");
+    assert_eq!(
+        lead["mobile_phone"],
+        json!(MASKED_PHONE),
+        "{where_label}：mobile_phone 未掩码"
+    );
+    assert_eq!(
+        lead["tel_phone"],
+        json!(MASKED_TEL),
+        "{where_label}：tel_phone 未掩码"
+    );
+    assert_eq!(
+        lead["email"],
+        json!(MASKED_EMAIL),
+        "{where_label}：email 未掩码"
+    );
     assert!(
         lead.get("address").is_none(),
         "{where_label}：address 应被整键移除: {lead}"
     );
     let raw = lead.to_string();
     for banned in [A_PHONE, A_TEL, A_EMAIL, A_ADDRESS] {
-        assert!(!raw.contains(banned), "{where_label}：出参含未脱敏个人信息 {banned}");
+        assert!(
+            !raw.contains(banned),
+            "{where_label}：出参含未脱敏个人信息 {banned}"
+        );
     }
 }
 
 fn assert_raw_lead(lead: &Value, where_label: &str) {
-    assert_eq!(lead["mobile_phone"], json!(A_PHONE), "{where_label}：admin 原值契约");
-    assert_eq!(lead["tel_phone"], json!(A_TEL), "{where_label}：admin 原值契约");
-    assert_eq!(lead["email"], json!(A_EMAIL), "{where_label}：admin 原值契约");
-    assert_eq!(lead["address"], json!(A_ADDRESS), "{where_label}：admin 原值契约（address 不得移除）");
+    assert_eq!(
+        lead["mobile_phone"],
+        json!(A_PHONE),
+        "{where_label}：admin 原值契约"
+    );
+    assert_eq!(
+        lead["tel_phone"],
+        json!(A_TEL),
+        "{where_label}：admin 原值契约"
+    );
+    assert_eq!(
+        lead["email"],
+        json!(A_EMAIL),
+        "{where_label}：admin 原值契约"
+    );
+    assert_eq!(
+        lead["address"],
+        json!(A_ADDRESS),
+        "{where_label}：admin 原值契约（address 不得移除）"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -364,8 +399,16 @@ async fn dept_user_update_lead_response_is_masked_not_raw_pii() {
     );
     // Dept 更新者非归属人（owner=USER_A=50），但可合法更新同部门他人行（check_resource_owner Dept 通过）
     let (status, v) = put_json(&app, "/erp/crm/leads/1", json!({"contact_name": "张三改"})).await;
-    assert_eq!(status, StatusCode::OK, "Dept 用户更新同部门他人线索应成功: {v}");
-    assert_eq!(v["data"]["contact_name"], json!("张三改"), "更新生效（非只回原文）");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "Dept 用户更新同部门他人线索应成功: {v}"
+    );
+    assert_eq!(
+        v["data"]["contact_name"],
+        json!("张三改"),
+        "更新生效（非只回原文）"
+    );
     assert_eq!(v["data"]["owner_id"], json!(USER_A), "更新他人行不改归属人");
     assert_default_masked(&v["data"], "PUT /crm/leads/:id 写响应（Dept 更新他人行）");
 }
@@ -376,7 +419,12 @@ async fn admin_update_lead_response_keeps_raw_pii() {
         base_state(None).await,
         make_auth(USER_ADMIN, "admin_user", 1, "all"),
     );
-    let (status, v) = put_json(&app, "/erp/crm/leads/1", json!({"contact_name": "张三admin改"})).await;
+    let (status, v) = put_json(
+        &app,
+        "/erp/crm/leads/1",
+        json!({"contact_name": "张三admin改"}),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "admin 更新应成功: {v}");
     assert_raw_lead(&v["data"], "admin PUT /crm/leads/:id 写响应");
 }
@@ -440,9 +488,17 @@ async fn opp_update_response_honors_hidden_fields_shared_with_read_exits() {
         make_auth(USER_A, "sales_a", 2, "self"),
     );
     // 归属校验（self：owner==user）通过，更新生效
-    let (status, detail) =
-        put_json(&app, "/erp/crm/opportunities/1", json!({"priority": "medium"})).await;
-    assert_eq!(status, StatusCode::OK, "self 用户更新自己商机应成功: {detail}");
+    let (status, detail) = put_json(
+        &app,
+        "/erp/crm/opportunities/1",
+        json!({"priority": "medium"}),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "self 用户更新自己商机应成功: {detail}"
+    );
     assert_eq!(detail["data"]["priority"], json!("medium"), "更新应生效");
     assert!(
         detail["data"].get("estimated_amount").is_none(),
@@ -463,11 +519,24 @@ async fn admin_opp_update_response_keeps_amounts() {
         base_state(None).await,
         make_auth(USER_ADMIN, "admin_user", 1, "all"),
     );
-    let (status, v) = put_json(&app, "/erp/crm/opportunities/1", json!({"priority": "high"})).await;
+    let (status, v) = put_json(
+        &app,
+        "/erp/crm/opportunities/1",
+        json!({"priority": "high"}),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "admin 更新商机应成功: {v}");
     // admin（无 hidden 配置）→ filter_fields_batch 空操作 → 金额原值保留（既有原值契约不伤）
-    assert_eq!(v["data"]["estimated_amount"], json!("111111"), "admin 金额原值契约");
-    assert_eq!(v["data"]["actual_amount"], json!("222222"), "admin 金额原值契约");
+    assert_eq!(
+        v["data"]["estimated_amount"],
+        json!("111111"),
+        "admin 金额原值契约"
+    );
+    assert_eq!(
+        v["data"]["actual_amount"],
+        json!("222222"),
+        "admin 金额原值契约"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -524,7 +593,10 @@ async fn create_opportunity_owner_name_is_real_login() {
         )
         .await
         .expect("create_opportunity 应成功（显式商机号跳过取号锁）");
-    assert_eq!(opp.owner_name, CREATOR_LOGIN, "商机 owner_name 应等于传入的真实登录名");
+    assert_eq!(
+        opp.owner_name, CREATOR_LOGIN,
+        "商机 owner_name 应等于传入的真实登录名"
+    );
     assert!(
         !opp.owner_name.starts_with("用户"),
         "B 负向锁：owner_name 不得为 format! 造出的展示名，实际: {}",
@@ -535,7 +607,10 @@ async fn create_opportunity_owner_name_is_real_login() {
 // ---------------------------------------------------------------------------
 // C · 源码扫描棘轮（shrink-only）：
 //   1. 五个写/读出口不得再退回整行原文直出，必须过对应字段级唯一实现；
-//   2. services/crm 下 format!("用户{}" 与 _operator_name 零命中（不再造展示名/不再忽略形参）。
+//   2. 造展示名零命中集合按**显式文件清单**判定（lead.rs / opp.rs / pool.rs /
+//      customer_team_share_service.rs 四份，见函数内注释），不再笼统称"services/crm 下"——
+//      该目录中 `customer_transfer_approval_service.rs` 的两处 `to_user_name` 属**第三方姓名**
+//      语义、待用户裁定，未纳入本集合，原因写在该函数注释里（不为让锁通过而假装改掉）。
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -571,7 +646,8 @@ fn crm_handler_write_and_read_exits_all_route_through_field_permission() {
             "回潮棘轮：{name} 成功响应未走线索字段级权限唯一实现（整行原文回传 PII 旁路）"
         );
         assert!(
-            !body.contains("serde_json::to_value(res)?;\n    Ok(Json(ApiResponse::success(value)))"),
+            !body
+                .contains("serde_json::to_value(res)?;\n    Ok(Json(ApiResponse::success(value)))"),
             "回潮棘轮：{name} 又出现 to_value(res) 后直接原文返回"
         );
     }
@@ -596,11 +672,14 @@ fn services_crm_must_not_fabricate_owner_name_or_ignore_operator_param() {
     let lead_service = include_str!("../src/services/crm/lead.rs");
     let opp_service = include_str!("../src/services/crm/opp.rs");
     let pool_service = include_str!("../src/services/crm/pool.rs");
+    // 看板 #212-B 纳入同一零命中集合：共享落库展示名改由调用方传真实登录名
+    let share_service = include_str!("../src/services/crm/customer_team_share_service.rs");
 
     for (name, src) in [
         ("lead.rs", lead_service),
         ("opp.rs", opp_service),
         ("pool.rs", pool_service),
+        ("customer_team_share_service.rs", share_service),
     ] {
         assert!(
             !src.contains("format!(\"用户{}"),
@@ -620,4 +699,11 @@ fn services_crm_must_not_fabricate_owner_name_or_ignore_operator_param() {
         opp_service.contains("let owner_name = operator_name.to_string();"),
         "create_opportunity 的 owner_name 必须来自 operator_name 形参"
     );
+    // 【未纳入本集合的点 · 非遗漏】`services/crm/customer_transfer_approval_service.rs`
+    // （manager_approve / director_approve 各一处 `to_user_name = format!("用户{to_user_id}")`）
+    // 刻意不加入上面的零命中循环：该列语义是**被转移人（第三方）**的展示名，不是操作人本人，
+    // 用 auth.username/审批人姓名顶替属另一种造假；换成真值需额外查一次 users 或改审批行写入次序
+    // （均非行为等价），待用户拍板。清单与原因另见
+    // contract_wave6_crm_customer_write_response_mask_test.rs::
+    // customer_team_share_must_not_fabricate_operator_name 与源文件同位置注释。
 }

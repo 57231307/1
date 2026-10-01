@@ -316,6 +316,18 @@ impl CustomerTransferApprovalService {
                 active.approval_status =
                     Set(customer_transfer_approval::STATUS_APPROVED.to_string());
                 active.completed_at = Set(Some(now));
+                // 【待用户裁定 · 不静默】`to_user_name` 语义是**被转移人（第三方 to_user_id）**
+                // 的展示名，不是审批人本人，因此本轮不能用 manager_name/auth.username 顶替
+                // （顶替就是造假）。真实来源：`users.username`（models/user.rs），且该值在
+                // execute_transfer → CrmAssignService::transfer_lead 的
+                // fetch_and_validate_new_owner(to_user_id) 里已经查得一次（同处把
+                // new_owner.username 写进 crm_lead.owner_name 与转移历史，见
+                // assign.rs::build_transfer_result 的 to_user_name 赋值）。
+                // 换成真值只有两条路，且都**不是**行为等价改动：
+                // A) 审批前先查一次 users —— 本请求 +1 次查询，与 transfer_lead 内部那次重复；
+                // B) 改由 execute_transfer 成功后回写审批行 —— +1 次 UPDATE，并新增
+                //    「approved 但姓名为空」的中间窗口（当前写序是先置 approved 再转移）。
+                // 由主编排拍板选路后再改，本行保留现状（另见 director_approve 同款标注）。
                 active.to_user_name = Set(Some(format!("用户{}", to_user_id)));
                 active.updated_at = Set(now);
 
@@ -393,6 +405,9 @@ impl CustomerTransferApprovalService {
             // 总监通过：执行转移
             active.approval_status = Set(customer_transfer_approval::STATUS_APPROVED.to_string());
             active.completed_at = Set(Some(now));
+            // 【待用户裁定 · 与 manager_approve 同一处口径】to_user_name 是被转移人（第三方）
+            // 的展示名，不以 director_name/auth.username 顶替；取值与写序的两条备选路径及代价
+            // 见 manager_approve 内同位置注释，本行保留现状待拍板。
             active.to_user_name = Set(Some(format!("用户{}", to_user_id)));
             active.updated_at = Set(now);
 

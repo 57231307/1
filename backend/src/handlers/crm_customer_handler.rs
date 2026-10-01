@@ -58,6 +58,58 @@ pub struct CreateTagDto {
     pub category: Option<String>,
 }
 
+/// 客户域**字段级**数据权限的唯一实现（形态与线索侧
+/// `crm_handler::apply_lead_field_permission` 逐项同构，不复用其函数体是因为判定源按
+/// resource_type 分行；本文件不改 `crm_handler.rs`，只引用其线索出口函数处理线索形状的行）：
+/// - 判定源 = `data_permission_service.get_role_data_permission(role_id, "customer")`
+///   —— `resource_type` 取值 `customer` 不是自造键：与既有客户域读出口
+///   `customer_handler.rs:154/:177/:222/:239` 用的同一个真实取值一致；
+/// - 配了权限行 → 与线索/导出同一个 `filter_fields_batch`（allowed 白名单 / hidden 移除，
+///   不叠加默认处理；admin 由 `get_role_data_permission` 返回
+///   `Ok(Some{allowed:None,hidden:None})` → 空操作，保持原值契约）；
+/// - 无权限行 / 权限查询 `Err` / `role_id` 缺失 → `CrmService::mask_customer_pii_defaults`
+///   fail-closed 默认脱敏（列集合取自 `utils/field_mask` 权威定义，本文件不重写列名清单）。
+///
+/// 本函数只处理出参：不改状态码、不外显任何拒绝原因（权限拒绝仍走
+/// `AppError::permission_denied` 的固定脱敏信封 + `FORBIDDEN` 码，真实原因只进日志）。
+pub(crate) async fn apply_customer_field_permission(
+    state: &AppState,
+    role_id: Option<i32>,
+    rows: &mut [serde_json::Value],
+) {
+    if let Some(rid) = role_id {
+        match state
+            .data_permission_service
+            .get_role_data_permission(rid, "customer")
+            .await
+        {
+            Ok(Some(permission)) => {
+                state.data_permission_service.filter_fields_batch(
+                    rows,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+                return;
+            }
+            // Ok(None)：无权限行 → 落到下方默认脱敏（admin 由 mask_customer_pii_defaults 自身放行原文）
+            Ok(None) => {}
+            // 查询失败必须显式记 warn（不静默），并按无权限行 fail-closed 走默认脱敏
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    role_id = rid,
+                    resource_type = "customer",
+                    "角色数据权限查询失败，客户域出参按无权限行 fail-closed 走默认脱敏"
+                );
+            }
+        }
+    }
+
+    for row in rows.iter_mut() {
+        *row = CrmService::mask_customer_pii_defaults(std::mem::take(row), role_id);
+    }
+}
+
 /// POST /api/v1/erp/crm/customers - 创建客户（通过线索）
 pub async fn create_customer(
     State(state): State<AppState>,
@@ -65,8 +117,20 @@ pub async fn create_customer(
     Json(req): Json<CreateLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let lead = service.create_lead(req, auth.user_id, &auth.username).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
+    let lead = service
+        .create_lead(req, auth.user_id, &auth.username)
+        .await?;
+    // 本端点落的是线索域行（create_lead → crm_lead::Model，含 mobile_phone/tel_phone/email/
+    // address），写响应因此复用**线索侧**同一个字段级权限唯一实现（与 crm_handler 的
+    // create_lead/update_lead 写响应同源），不再整行原文直出。
+    let mut value = serde_json::to_value(lead)?;
+    crate::handlers::crm_handler::apply_lead_field_permission(
+        &state,
+        auth.role_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// GET /api/v1/erp/crm/customers - 获取客户列表（线索列表）
@@ -165,7 +229,10 @@ pub async fn update_customer(
         })
         .await?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(customer)?)))
+    // 写响应不得整行原文回传（contact_phone/contact_email/address 明文），与读出口同源收口
+    let mut value = serde_json::to_value(customer)?;
+    apply_customer_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// DELETE /api/v1/erp/crm/customers/:id - 删除客户
@@ -201,7 +268,15 @@ pub async fn add_tags(
 
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let lead = service.update_lead(id, update_req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
+    // 出参形状是线索行（crm_lead::Model），写响应复用线索侧同一字段级权限唯一实现
+    let mut value = serde_json::to_value(lead)?;
+    crate::handlers::crm_handler::apply_lead_field_permission(
+        &state,
+        auth.role_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// GET /api/v1/erp/crm/customers/:id/contacts - 获取联系人列表；批次 90b
@@ -232,8 +307,11 @@ pub async fn create_contact(
         .create_customer_contact(customer_id, req, auth.user_id)
         .await?;
 
+    // 联系人行的 phone/email 属同一权威 PII 列集合，写响应不得整行原文直出
+    let mut value = serde_json::to_value(contact)?;
+    apply_customer_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(contact)?,
+        value,
         "联系人创建成功",
     )))
 }
@@ -253,8 +331,11 @@ pub async fn update_contact(
         .update_customer_contact(contact_id, req, auth.user_id)
         .await?;
 
+    // 同 create_contact：联系人写响应走客户域字段级权限唯一实现，不整行原文回传
+    let mut value = serde_json::to_value(contact)?;
+    apply_customer_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(contact)?,
+        value,
         "联系人更新成功",
     )))
 }

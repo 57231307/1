@@ -416,10 +416,21 @@ impl CustomerTeamShareService {
 
     /// 共享客户给其他用户（带时效和权限）
     /// 业务规则：1. 客户必须存在；2. 被共享方用户必须存在且活跃；3. 不能共享给自己；4. 操作人必须是客户 owner / primary / full 共享权限；5. 同一客户不能对同一用户重复共享（active 状态）；6. duration_days 为 None 时永久共享（建议设置时效）
+    ///
+    /// `operator_name`：操作人（当前登录人）落库展示名 `shared_by_user_name` 的唯一合法来源，
+    /// 由调用方从 `AuthContext.username` 传入（与 `services/crm/{pool,lead,opp}.rs` 同一口径：
+    /// `AuthContext` 只有 username 一个身份展示字段，无真实姓名，见
+    /// `middleware/auth_context.rs:58-83`）。修复前此处为取操作人姓名**额外**查一次
+    /// `users`（find_by_id(operator_id)），查不到时 `format!("用户{operator_id}")` 造假名落库；
+    /// 现该次查询整体删除（本方法不再为取名查库），真实登录名由入参带入。
+    /// 注意：`shared_to_user_name` 取的是**被共享方**（第三方）的 `username`，来源是同方法内
+    /// 既有"被共享方必须存在且活跃"校验那次查询（`user::Entity::find_by_id(req.shared_to_user_id)`）
+    /// 的真实结果，不是操作人姓名，本轮不动、也不得以 `operator_name` 顶替。
     pub async fn share_customer(
         &self,
         req: ShareCustomerRequest,
         operator_id: i32,
+        operator_name: &str,
     ) -> Result<CustomerShareDto, AppError> {
         // 1. 校验客户存在
         let customer = customer::Entity::find_by_id(req.customer_id)
@@ -477,17 +488,16 @@ impl CustomerTeamShareService {
             .duration_days
             .map(|days| now + Duration::days(days as i64));
 
-        // 8. 查询操作人姓名
-        let operator = user::Entity::find_by_id(operator_id).one(&*self.db).await?;
-        let operator_name = operator
-            .map(|u| u.username)
-            .unwrap_or_else(|| format!("用户{}", operator_id));
+        // 8. 操作人展示名：直接取调用方传入的真实登录名（`AuthContext.username`）。
+        //    修复前此处为取名额外查一次 users，查不到即 format! 造「用户{id}」落库；
+        //    现在既不额外查库，也不留任何造名兜底分支。
+        let shared_by_user_name = operator_name.to_string();
 
         let share = customer_share::ActiveModel {
             id: Default::default(),
             customer_id: Set(req.customer_id),
             shared_by_user_id: Set(operator_id),
-            shared_by_user_name: Set(Some(operator_name)),
+            shared_by_user_name: Set(Some(shared_by_user_name)),
             shared_to_user_id: Set(req.shared_to_user_id),
             shared_to_user_name: Set(Some(to_user.username.clone())),
             permission: Set(permission),

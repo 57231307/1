@@ -73,6 +73,41 @@ impl CrmService {
         Self { db }
     }
 
+    /// 客户域（`customers` 主数据行 + `customer_contacts` 联系人子资源行）默认字段脱敏的
+    /// **唯一实现**，形态与线索侧 `CrmService::mask_lead_pii_defaults` 逐项一致：
+    /// "无角色数据权限行 / 权限查询 Err / role_id 缺失"（fail-closed）分支下调用。
+    ///
+    /// 掩码列集合**不在本函数重写**：直接复用本仓 PII 列集合的权威定义
+    /// `utils::field_mask::mask_contact_fields_for_role`。客户域真实列与该函数键集的对应关系：
+    /// - `customers.contact_phone` / `customers.contact_email`（`models/customer.rs:25/:28`）
+    ///   → 命中权威电话键 `contact_phone` 与邮箱键 `contact_email`；
+    /// - `customer_contacts.phone` / `customer_contacts.email`（`models/customer_contact.rs`）
+    ///   → 命中权威电话键 `phone` 与邮箱键 `email`；
+    /// - `crm_lead.mobile_phone` / `tel_phone` / `email`（客户增强建档实际落线索域，
+    ///   见 `crm_customer_handler::create_customer` → `create_lead`）→ 同样被该键集覆盖。
+    ///
+    /// 与线索版同一口径地补 `address` 整键移除（`customers.address` 为详情级地址，
+    /// 非 admin 不外显）；本函数不新增任何列名，也不为 `city/province/postal_code/
+    /// bank_account/tax_id` 等列另造清单——那些列的隐藏口径属待裁定项，不在本轮收口范围。
+    ///
+    /// admin（`role_id == Some(1)`）由 `mask_contact_fields_for_role` 自身放行原文
+    /// （含 `address`），既有原值契约不变，故此处不重复判定角色。
+    /// 角色数据权限"有权限行 → `filter_fields_batch`"这一层不在此函数内：判定源仍是
+    /// `data_permission_service.get_role_data_permission(role_id, "customer")`，
+    /// 见 `crm_customer_handler::apply_customer_field_permission`。
+    pub fn mask_customer_pii_defaults(
+        value: serde_json::Value,
+        role_id: Option<i32>,
+    ) -> serde_json::Value {
+        let mut masked = crate::utils::field_mask::mask_contact_fields_for_role(value, role_id);
+        if role_id != Some(1) {
+            if let Some(obj) = masked.as_object_mut() {
+                obj.remove("address");
+            }
+        }
+        masked
+    }
+
     /// 获取线索关联信息
     pub async fn get_lead_relation(
         &self,
