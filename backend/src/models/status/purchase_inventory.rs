@@ -173,8 +173,15 @@ pub mod purchase_receipt_inspection {
     pub const PASSED: &str = "PASSED";
 
     /// 质检不合格：不得入库/结算，唯一下游处置出口是按不合格质检生成采购退货。
-    /// 本列不存在「让步接收/复检改判」通道——让步接收属质检分级域
-    /// （quality_grade=B，降级销售，见 services/quality_inspection_service.rs），不改写本列。
+    /// 复检改判：本列**没有独立通道/端点/审批**——事实上的改判是对同一收货单再建
+    /// 一张质检单并 complete（回写段无条件 Set 覆写本列，services/
+    /// purchase_inspection_service.rs 完成链路），pass 可把本列由 REJECTED 翻回
+    /// PASSED；无历史留痕，本列只存最终 token，历次结论仅存在于
+    /// purchase_inspection 各行自身的 inspection_result（契约测试
+    /// tests/contract_wave6_inspection_rejudge_override_test.rs 钉死此现状）。
+    /// 让步接收（不合格特采/降级接收）：本列**没有对应 token、未实现**——词表恒为
+    /// PENDING/PASSED/REJECTED 三态；质检分级域的降级销售（quality_grade=B，见
+    /// services/quality_inspection_service.rs）不改写本列。
     pub const REJECTED: &str = "REJECTED";
 
     /// 本列全部合法取值
