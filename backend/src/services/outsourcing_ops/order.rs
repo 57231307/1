@@ -35,8 +35,8 @@ use crate::services::outsourcing_ops::types::{
     CreateOutsourcingOrderRequest, OutsourcingOrderQuery, UpdateOutsourcingOrderRequest,
 };
 use crate::services::outsourcing_service::{
-    classify_loss, compute_abnormal_loss_amount, compute_loss_rate, compute_standard_loss_rate,
-    compute_total_cost, compute_unit_cost, validate_order_type, OutsourcingOrderService,
+    OutsourcingOrderService, classify_loss, compute_abnormal_loss_amount, compute_loss_rate,
+    compute_standard_loss_rate, compute_total_cost, compute_unit_cost, validate_order_type,
 };
 
 /// 校验收回前置条件：订单状态与收回数量
@@ -241,11 +241,17 @@ impl OutsourcingOrderService {
     pub async fn create(&self, req: CreateOutsourcingOrderRequest) -> Result<OrderModel, AppError> {
         self.validate_create_request(&req).await?;
         let now = crate::utils::date_utils::utc_now_fixed();
+        // 业务上下文（订单号）留日志侧供按单排查；active 构造会移动 req，先取值
+        let order_no_for_log = req.order_no.clone();
         let active = Self::build_order_active_model(req, now);
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("委外订单创建失败: {}", e)))?;
+        // DbErr 一律经 `?`（From<DbErr>）统一分类：归 DATABASE_ERROR、真实原因（含
+        // 约束名/列名的 DbErr 原文）只进 tracing::error，出参脱敏「数据库错误」。
+        // 修复前此处 map_err 自造 DatabaseError 并把 DbErr 原文（{e}）拼进文案，
+        // 既绕开统一分类又泄露内部错误信息。
+        let result = active.insert(&*self.db).await.map_err(|e| {
+            tracing::error!(order_no = %order_no_for_log, "委外订单创建落库失败");
+            AppError::from(e)
+        })?;
         Ok(result)
     }
 
@@ -501,20 +507,26 @@ impl OutsourcingOrderService {
             created_at: Set(now),
             updated_at: Set(now),
         };
-        voucher_active
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::database(format!("发料凭证创建失败: {}", e)))?;
+        voucher_active.insert(&txn).await.map_err(|e| {
+            // 真实原因只进 From<DbErr> 的 tracing::error（DATABASE_ERROR/500、出参脱敏）；
+            // 订单号+凭证号作为业务上下文留在本条 ERROR 日志，不进错误体。
+            tracing::error!(
+                order_id = id,
+                voucher_no = %voucher_no,
+                "委外发料凭证落库失败"
+            );
+            AppError::from(e)
+        })?;
 
         // 阶段 2：更新订单主单
         let mut active: OrderActiveModel = model.into();
         active.status = Set(outsourcing_order_status::ISSUED.to_string());
         active.voucher_no_issue = Set(Some(voucher_no.clone()));
         active.updated_at = Set(now);
-        let updated = active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::database(format!("委外订单状态更新失败: {}", e)))?;
+        let updated = active.update(&txn).await.map_err(|e| {
+            tracing::error!(order_id = id, voucher_no = %voucher_no, "委外发料后订单状态落库失败");
+            AppError::from(e)
+        })?;
 
         txn.commit().await?;
 
@@ -614,10 +626,16 @@ impl OutsourcingOrderService {
             created_at: Set(now),
             updated_at: Set(now),
         };
-        voucher_active
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::database(format!("加工费凭证创建失败: {}", e)))?;
+        voucher_active.insert(&txn).await.map_err(|e| {
+            // 同发料路径：DbErr 走 From<DbErr> 统一分类（DATABASE_ERROR/500、出参脱敏），
+            // 订单号/凭证号业务上下文只进 ERROR 日志，不拼错误原文。
+            tracing::error!(
+                order_id = id,
+                voucher_no = %voucher_no,
+                "委外加工费凭证落库失败"
+            );
+            AppError::from(e)
+        })?;
 
         // 更新订单总成本与状态
         let total_cost = compute_total_cost(

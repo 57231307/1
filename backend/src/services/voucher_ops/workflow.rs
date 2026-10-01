@@ -17,7 +17,7 @@ use chrono::Datelike;
 use sea_orm::{
     ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect, TransactionTrait,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::models::{voucher, voucher_item};
 use crate::utils::error::AppError;
@@ -252,6 +252,11 @@ impl VoucherService {
     }
 
     /// 验证凭证（借贷平衡）
+    ///
+    /// 拒绝装配复用 crud.rs 的**唯一**装配点 `balance_error`（VALIDATION 族 + 脱敏），
+    /// 与 create/update 路径同族同措辞——同一语义在两文件出不同 code 会让前端按
+    /// code 分支必然不一致；真实金额只进 WARN 日志（Display 侧仍含"借贷不平衡"），
+    /// 出参恒为脱敏常量「请求参数验证失败」。
     async fn validate_voucher(&self, id: i32) -> Result<(), AppError> {
         let items = voucher_item::Entity::find()
             .filter(voucher_item::Column::VoucherId.eq(id))
@@ -262,16 +267,17 @@ impl VoucherService {
         let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
 
         if total_debit != total_credit {
-            return Err(AppError::bad_request(format!(
-                "凭证借贷不平衡：借方 {} != 贷方 {}",
-                total_debit, total_credit
-            )));
+            warn!("凭证借贷不平衡：借={}, 贷={}", total_debit, total_credit);
+            return Err(Self::balance_error(total_debit, total_credit));
         }
 
         Ok(())
     }
 
     /// 验证凭证（事务内）
+    ///
+    /// 族口径同 [`Self::validate_voucher`]：复用 `balance_error` 唯一装配点，
+    /// 金额明细只进 WARN 日志，出参脱敏。
     async fn validate_voucher_in_transaction(
         &self,
         id: i32,
@@ -286,7 +292,11 @@ impl VoucherService {
         let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
 
         if total_debit != total_credit {
-            return Err(AppError::bad_request("凭证借贷不平衡"));
+            warn!(
+                "凭证借贷不平衡（事务内校验）：借={}, 贷={}",
+                total_debit, total_credit
+            );
+            return Err(Self::balance_error(total_debit, total_credit));
         }
 
         Ok(())

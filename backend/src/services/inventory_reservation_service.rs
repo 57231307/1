@@ -7,6 +7,8 @@ use std::sync::Arc;
 
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
 use crate::models::status::inventory_reservation as reservation_status;
+use crate::models::status::master_data;
+use crate::models::{product, sales_order, warehouse};
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
@@ -31,6 +33,42 @@ impl InventoryReservationService {
         created_by: Option<i32>,
         notes: Option<String>,
     ) -> Result<inventory_reservation::Model, AppError> {
+        // 引用存在性预检先于任何写库动作（范式照搬 purchase_inspection_service.rs 的
+        // receipt_id 预检 / sku_mapping_service.rs 的 validate_refs）：三个外键引用任一
+        // 缺失时显式 404（含 ID 的真实原因走脱敏 not_found，出参恒「资源未找到」），
+        // 不把坏引用交给 DB 外键兜底——外键违约经 From<DbErr> 的 Exec 分支会裸落
+        // DATABASE_ERROR(500)，用户只看到"数据库错误"、原因不明。
+        // 「已软删/停用视同不存在」的判定依据（逐列对照 models/）：
+        // - sales_orders：模型无 is_deleted / 停用列（models/sales_order.rs 全列核对），
+        //   故存在性 = 行存在；已取消/已拒绝是终态而非"不存在"，状态门不并入本预检；
+        // - products：is_deleted = true（软删标记列）或 status != master_data::ACTIVE
+        //   （models/product.rs 注释：active-启用 / inactive-停用）视同不存在；
+        // - warehouses：无软删列，is_active = false（停用）视同不存在。
+        sales_order::Entity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {order_id} 不存在")))?;
+
+        let product_row = product::Entity::find_by_id(product_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("产品 {product_id} 不存在")))?;
+        if product_row.is_deleted || product_row.status != master_data::ACTIVE {
+            return Err(AppError::not_found(format!(
+                "产品 {product_id} 不可引用（已软删或已停用，视同不存在）"
+            )));
+        }
+
+        let warehouse_row = warehouse::Entity::find_by_id(warehouse_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("仓库 {warehouse_id} 不存在")))?;
+        if !warehouse_row.is_active {
+            return Err(AppError::not_found(format!(
+                "仓库 {warehouse_id} 不可引用（已停用，视同不存在）"
+            )));
+        }
+
         let reservation = inventory_reservation::ActiveModel {
             id: Default::default(),
             order_id: sea_orm::ActiveValue::Set(order_id),

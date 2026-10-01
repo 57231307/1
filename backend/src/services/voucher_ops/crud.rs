@@ -140,14 +140,15 @@ impl VoucherService {
         Ok(())
     }
 
-    /// 借贷不平衡的**唯一**错误装配点（create / update 两条路径共用）。
+    /// 借贷不平衡的**唯一**错误装配点（create / update / workflow submit/review/post
+    /// 全部路径共用；workflow.rs 经 `pub(super)` 在 voucher_ops 模块树内共享，禁止另起炉灶）。
     ///
     /// 判族：借贷是否平衡完全由提交进来的分录金额决定，属「提交数据一致性校验」，
     /// 归 **VALIDATION 族**（不是状态门，也不是 BAD_REQUEST 兜底族）。
     /// 保密分层：文案携带借/贷合计金额数字，按 `utils/error.rs` 安全边界走**脱敏**
     /// `AppError::validation`（出参 message 恒为常量「请求参数验证失败」），
     /// 真实金额只进 tracing 日志，不外显。
-    fn balance_error(total_debit: Decimal, total_credit: Decimal) -> AppError {
+    pub(super) fn balance_error(total_debit: Decimal, total_credit: Decimal) -> AppError {
         AppError::validation(format!(
             "凭证借贷不平衡：借方 {} != 贷方 {}",
             total_debit, total_credit
