@@ -21,6 +21,7 @@ use sea_orm::{
 use crate::models::outsourcing_order::{
     self, ActiveModel as OrderActiveModel, Entity as OrderEntity, Model as OrderModel,
 };
+use crate::models::outsourcing_order_item::{self, Entity as ItemEntity, Model as ItemModel};
 use crate::models::outsourcing_receipt::{
     self, ActiveModel as ReceiptActiveModel, Entity as ReceiptEntity, Model as ReceiptModel,
 };
@@ -428,6 +429,22 @@ impl OutsourcingReceiptService {
                     updated_receipt.receipt_no, order.order_no
                 ),
             },
+        )
+        .await?;
+
+        // 占用闭环转出：确认收回时，发料时被占用（RESERVED）的原胚布匹实物已转到
+        // 委外商处并已由上方生成新染色匹回仓，原匹 CAS（RESERVED→SHIPPED）标记已转出。
+        // 历史数据（占用闭环上线前发料、匹从未 RESERVED）CAS 不命中时由域服务
+        // 逐匹 tracing::warn! 留痕后跳过——不静默，也不因此硬失败收回确认。
+        // 明细读取同样在本事务内（读取顺序与 order.rs 发料/取消路径同源）。
+        let issue_items: Vec<ItemModel> = ItemEntity::find()
+            .filter(outsourcing_order_item::Column::OutsourcingOrderId.eq(order.id))
+            .order_by_desc(outsourcing_order_item::Column::Id)
+            .all(&txn)
+            .await?;
+        crate::services::piece_domain_service::mark_reserved_pieces_shipped_on_receipt(
+            &txn,
+            &issue_items,
         )
         .await?;
 

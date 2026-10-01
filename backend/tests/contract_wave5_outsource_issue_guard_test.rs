@@ -49,6 +49,7 @@ use bingxi_backend::models::status::outsourcing_order_type;
 use bingxi_backend::models::status::outsourcing_voucher_type;
 use bingxi_backend::models::status::purchase_inventory::inventory_piece as piece_status;
 use bingxi_backend::services::outsourcing_service::OutsourcingOrderService;
+use bingxi_backend::services::piece_domain_service;
 use bingxi_backend::services::piece_domain_service::PIECE_TYPE_GREIGE;
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::utils::messages::err_msg;
@@ -490,7 +491,7 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
 
     let tag = unique_tag();
     let piece_no = format!("PW5G-{}-001", tag);
-    seed_piece(
+    let piece = seed_piece(
         &db,
         &piece_no,
         piece_status::AVAILABLE,
@@ -498,6 +499,7 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
         warehouse_id,
     )
     .await;
+    let piece_id = piece.id;
     let order = seed_draft_order(&db).await;
     seed_item(&db, order.id, Some(piece_no.as_str())).await;
 
@@ -539,6 +541,21 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
     assert_eq!(
         persisted.voucher_no_issue.as_deref(),
         Some(voucher_no.as_str())
+    );
+
+    // 占用闭环（#194）：发料事务提交后，被引用匹必须已被 CAS 置 RESERVED。
+    // 发料成功路径必经 generate_no_with_txn 的 pg_advisory_xact_lock（见本用例
+    // #[ignore] 说明），故"发料成功→RESERVED"整链只能活库真跑；CAS 占用本身
+    // （不需要行锁）由下方 sqlite 段 D1 直接真跑域服务覆盖。
+    let reserved = inventory_piece::Entity::find_by_id(piece_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("占用闭环：发料后必须能回查被引用匹");
+    assert_eq!(
+        reserved.status,
+        piece_status::RESERVED,
+        "正向对照：发料成功后 inventory_piece.status 必须为 RESERVED（占用闭环）"
     );
 }
 
@@ -633,7 +650,7 @@ async fn settle_with_zero_fee_is_rejected_with_displayable_message_and_no_empty_
         "前置未满足属业务族，实际={body}"
     );
     assert_eq!(
-        body["message"], "加工费与运费均为 0，无法结算；请先补录委外加工成本",
+        body["message"], "加工费与运费合计需大于 0 才能结算，请先补录委外加工成本",
         "公开业务规则必须外显真实原因（不是脱敏常量），实际={body}"
     );
 
@@ -738,5 +755,268 @@ async fn receipt_zero_quantity_gates_are_wired_in_all_three_paths() {
     assert!(
         !confirm_head.contains("return_quantity < Decimal::ZERO"),
         "confirm 不得残留「只拦负数」的旧口径"
+    );
+}
+
+// =========================================================
+// D) 任务 #194：委外发料匹状态占用与释放闭环（CAS 条件更新）
+//
+// 可测性边界（不假装全绿）：
+// - CAS 占用/释放不需要行锁，sqlite 可真实跑：D1 直接真跑域服务
+//   reserve_pieces_for_issue（AVAILABLE→RESERVED 落库回查），
+//   D2/D3 走完整 issue_order 服务路径（拒绝分支全部发生在凭证取号
+//   pg_advisory_xact_lock 之前，可在 sqlite 真跑到拒绝与回滚）；
+//   D4 cancel 释放路径无行锁/无取号，sqlite 真跑整链。
+// - "发料成功后 RESERVED" 的端到端正向必经 OVIS 取号（advisory lock，
+//   sqlite 不支持），由上方 #[ignore] 活库用例 C 覆盖；
+// - confirm 收回转 SHIPPED 位于 lock_exclusive 之后（sqlite 不支持），
+//   与既有 0 量门同策：以源码扫描锁钉住"事务内、commit 前"的接线，
+//   活库真跑留给 CI --ignored 与后续批次（测试专家补点）。
+// =========================================================
+
+/// D1 正向（sqlite 真跑）：域服务 CAS 占用把明细引用的 AVAILABLE 匹置 RESERVED
+#[tokio::test]
+async fn reserve_pieces_for_issue_marks_piece_reserved_on_sqlite() {
+    let db = sqlite_db().await;
+    seed_issue_domain_tables(&db).await;
+    let order = seed_draft_order(&db).await;
+    seed_piece(&db, "PX-OCCUPY-D1", piece_status::AVAILABLE, 9001, 9001).await;
+    let item = seed_item(&db, order.id, Some("PX-OCCUPY-D1")).await;
+
+    piece_domain_service::reserve_pieces_for_issue(&db, std::slice::from_ref(&item))
+        .await
+        .expect("可用匹的 CAS 占用必须成功（AVAILABLE→RESERVED）");
+
+    let after = inventory_piece::Entity::find()
+        .filter(inventory_piece::Column::PieceNo.eq("PX-OCCUPY-D1"))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("占用后必须能回查该匹");
+    assert_eq!(
+        after.status,
+        piece_status::RESERVED,
+        "发料占用闭环：reserve 成功后 inventory_piece.status 必须为 RESERVED"
+    );
+}
+
+/// D2 负例（跨单互斥）：第一张单已占用 RESERVED 后，第二张 draft 单引用同匹发料
+/// → HTTP 400 BUSINESS_ERROR + 第二张单零漂移 + 匹仍归第一张单的占用。
+#[tokio::test]
+async fn issue_second_order_referencing_reserved_piece_rejected_with_zero_drift() {
+    let db = sqlite_db().await;
+    seed_issue_domain_tables(&db).await;
+    // 第一张单：走域服务真实 CAS 占用（等价于其发料事务提交的库存效果）
+    let first = seed_draft_order(&db).await;
+    seed_piece(&db, "PX-DOUBLE-D2", piece_status::AVAILABLE, 9001, 9001).await;
+    let first_item = seed_item(&db, first.id, Some("PX-DOUBLE-D2")).await;
+    piece_domain_service::reserve_pieces_for_issue(&db, std::slice::from_ref(&first_item))
+        .await
+        .expect("夹具：第一张单占用必须成功");
+    let mut first_active: outsourcing_order::ActiveModel = first.clone().into();
+    first_active.status = Set(outsourcing_order_status::ISSUED.to_string());
+    first_active
+        .update(&db)
+        .await
+        .expect("夹具：第一张单推进 issued 失败");
+
+    // 第二张单：同一匹号发料，HTTP 全链必须被拒
+    let second = seed_draft_order(&db).await;
+    seed_item(&db, second.id, Some("PX-DOUBLE-D2")).await;
+    let app = issue_router(db.clone());
+    let (status, body) = post_issue(&app, second.id).await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "跨单重复发料必须 400，实际 body={body}"
+    );
+    assert_eq!(body["code"], "BUSINESS_ERROR", "实际响应: {body}");
+    assert_eq!(
+        body["message"],
+        serde_json::json!(err_msg::BUSINESS_PUBLIC),
+        "文案含匹号/状态等查询所得实体值，出参必须保持脱敏常量"
+    );
+    assert_zero_drift(&db, &second).await;
+
+    // 占用不漂移：匹仍是第一张单的 RESERVED（拒绝不得部分改写库存）
+    let piece = inventory_piece::Entity::find()
+        .filter(inventory_piece::Column::PieceNo.eq("PX-DOUBLE-D2"))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("回查占用匹");
+    assert_eq!(
+        piece.status,
+        piece_status::RESERVED,
+        "第二张单被拒不得改变第一张单的 RESERVED 占用"
+    );
+
+    // service 级归因（日志侧真实文案可检索）
+    let service = OutsourcingOrderService::new(Arc::new(db.clone()));
+    let err = service
+        .issue_order(second.id)
+        .await
+        .expect_err("已预留匹跨单重复发料必须被拒绝");
+    assert!(
+        matches!(&err, AppError::BusinessError(m) if m.contains("非可用")),
+        "应为脱敏 business 且内部文案含归因，实际: {err:?}"
+    );
+}
+
+/// D3 负例（同单重复引用）：同一订单两条明细引用同一 AVAILABLE 匹 → 显式拒绝。
+/// 修复前 validate 的批量 map 双双放行，CAS 循环会把第二条误判为自占用；
+/// 拒绝必须整单零副作用（匹不得被部分占用）。
+#[tokio::test]
+async fn issue_same_order_duplicate_piece_no_rejected_with_zero_drift() {
+    let db = sqlite_db().await;
+    seed_issue_domain_tables(&db).await;
+    let order = seed_draft_order(&db).await;
+    seed_piece(&db, "PX-SAMEDUP-D3", piece_status::AVAILABLE, 9001, 9001).await;
+    seed_item(&db, order.id, Some("PX-SAMEDUP-D3")).await;
+    seed_item(&db, order.id, Some("PX-SAMEDUP-D3")).await;
+
+    let service = OutsourcingOrderService::new(Arc::new(db.clone()));
+    let err = service
+        .issue_order(order.id)
+        .await
+        .expect_err("同单两条明细引用同一匹必须被拒绝");
+    assert!(
+        matches!(&err, AppError::BusinessError(m) if m.contains("重复引用生产匹")),
+        "应为脱敏 business（文案含匹号）且归因为同单重复引用，实际: {err:?}"
+    );
+    assert_zero_drift(&db, &order).await;
+
+    let piece = inventory_piece::Entity::find()
+        .filter(inventory_piece::Column::PieceNo.eq("PX-SAMEDUP-D3"))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("回查被引用匹");
+    assert_eq!(
+        piece.status,
+        piece_status::AVAILABLE,
+        "整单拒绝不得留下部分占用（该匹必须仍为 AVAILABLE）"
+    );
+}
+
+/// D4 释放闭环（sqlite 真跑整链）：issued 单取消后，被占用匹 CAS 回 AVAILABLE。
+#[tokio::test]
+async fn cancel_issued_order_releases_reserved_piece_to_available() {
+    let db = sqlite_db().await;
+    seed_issue_domain_tables(&db).await;
+    let order = seed_draft_order(&db).await;
+    seed_piece(&db, "PX-RELEASE-D4", piece_status::AVAILABLE, 9001, 9001).await;
+    let item = seed_item(&db, order.id, Some("PX-RELEASE-D4")).await;
+    piece_domain_service::reserve_pieces_for_issue(&db, std::slice::from_ref(&item))
+        .await
+        .expect("夹具：占用必须成功");
+    let mut issued: outsourcing_order::ActiveModel = order.clone().into();
+    issued.status = Set(outsourcing_order_status::ISSUED.to_string());
+    let issued = issued.update(&db).await.expect("夹具：推进 issued 失败");
+
+    let service = OutsourcingOrderService::new(Arc::new(db.clone()));
+    let cancelled = service
+        .cancel(issued.id)
+        .await
+        .expect("issued 单取消必须成功（释放路径不得硬失败）");
+    assert_eq!(
+        cancelled.status,
+        outsourcing_order_status::CANCELLED,
+        "取消后订单状态必须为 cancelled"
+    );
+
+    let piece = inventory_piece::Entity::find()
+        .filter(inventory_piece::Column::PieceNo.eq("PX-RELEASE-D4"))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("回查释放匹");
+    assert_eq!(
+        piece.status,
+        piece_status::AVAILABLE,
+        "取消闭环：issued 单取消后 RESERVED 匹必须 CAS 回 AVAILABLE"
+    );
+}
+
+/// D5 源码扫描锁：占用/释放/转出的调用点必须位于各自事务 begin() 之后、
+/// commit() 之前（顺序即原子性契约，勿匹配 message 文案）。
+/// sqlite 无法真跑 issue 成功链与 confirm 链（advisory lock / lock_exclusive），
+/// 本锁是这两条"事务内接线"的防漂移手段。
+#[tokio::test]
+async fn piece_occupancy_calls_are_wired_inside_their_transactions() {
+    // issue_order：begin < reserve_pieces_for_issue(&txn..) < commit，
+    // 且不得残留事务外 validate（TOCTOU 窗口源头）
+    let order_src = include_str!("../src/services/outsourcing_ops/order.rs").replace('\r', "");
+    let issue_at = order_src
+        .find("pub async fn issue_order(")
+        .expect("order.rs 必须有 issue_order 入口");
+    let issue_end = order_src[issue_at..]
+        .find("pub async fn record_processing(")
+        .map(|o| issue_at + o)
+        .expect("issue_order 与 record_processing 之间即其函数体");
+    let issue_body = &order_src[issue_at..issue_end];
+    let begin = issue_body
+        .find("(*self.db).begin()")
+        .expect("issue_order 必须开启事务");
+    let reserve = issue_body
+        .find("reserve_pieces_for_issue(&txn")
+        .expect("占用调用必须传发料事务（&txn），不得传 &self.db");
+    let commit = issue_body
+        .find("txn.commit()")
+        .expect("issue_order 必须有显式提交");
+    assert!(
+        begin < reserve && reserve < commit,
+        "占用必须位于 begin() 之后、commit() 之前（任一行失败整体回滚）"
+    );
+    assert!(
+        !issue_body.contains("validate_pieces_for_issue(&*self.db"),
+        "发料校验/占用不得回到事务外（TOCTOU 重复发料窗口）"
+    );
+
+    // cancel：占用释放分支的释放调用位于其事务内
+    let cancel_at = order_src
+        .find("pub async fn cancel(")
+        .expect("order.rs 必须有 cancel 入口");
+    let cancel_end = order_src[cancel_at..]
+        .find("pub async fn get_by_id(")
+        .map(|o| cancel_at + o)
+        .expect("cancel 与 get_by_id 之间即其函数体");
+    let cancel_body = &order_src[cancel_at..cancel_end];
+    let cancel_begin = cancel_body
+        .find("(*self.db).begin()")
+        .expect("cancel 的占用释放分支必须在事务内执行");
+    let release = cancel_body
+        .find("release_reserved_pieces_on_cancel(")
+        .expect("cancel 必须接线 RESERVED→AVAILABLE 释放");
+    let cancel_commit = cancel_body
+        .find("txn.commit()")
+        .expect("cancel 释放分支必须显式提交");
+    assert!(
+        cancel_begin < release && release < cancel_commit,
+        "释放必须位于 begin() 之后、commit() 之前（与主单状态推进原子提交）"
+    );
+
+    // confirm：转出调用位于其事务内（confirm 首步即 begin）
+    let receipt_src = include_str!("../src/services/outsourcing_ops/receipt.rs").replace('\r', "");
+    let confirm_at = receipt_src
+        .find("pub async fn confirm(")
+        .expect("receipt.rs 必须有 confirm 入口");
+    let confirm_end = receipt_src[confirm_at..]
+        .find("async fn trigger_quality_inspection(")
+        .map(|o| confirm_at + o)
+        .expect("confirm 与 trigger_quality_inspection 之间即其函数体");
+    let confirm_body = &receipt_src[confirm_at..confirm_end];
+    let confirm_begin = confirm_body
+        .find("(*self.db).begin()")
+        .expect("confirm 首步即开事务");
+    let shipped = confirm_body
+        .find("mark_reserved_pieces_shipped_on_receipt(")
+        .expect("confirm 必须接线 RESERVED→SHIPPED 转出");
+    let confirm_commit = confirm_body
+        .find("txn.commit()")
+        .expect("confirm 必须有显式提交");
+    assert!(
+        confirm_begin < shipped && shipped < confirm_commit,
+        "收回转出必须位于事务内（与收回单/凭证/订单原子提交）"
     );
 }

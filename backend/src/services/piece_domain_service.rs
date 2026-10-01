@@ -205,6 +205,192 @@ pub async fn validate_pieces_for_issue<C: ConnectionTrait>(
     Ok(())
 }
 
+/// 提取明细引用到的去重匹号（保持首次出现顺序；NULL/空串不入列——
+/// 二者的拒绝归因由 `validate_pieces_for_issue` 逐条负责，本函数只做占用面收敛）
+fn distinct_referenced_piece_nos(
+    items: &[crate::models::outsourcing_order_item::Model],
+) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for it in items {
+        if let Some(pn) = it.piece_no.as_deref().filter(|s| !s.is_empty()) {
+            if !out.iter().any(|s| s == pn) {
+                out.push(pn.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// 对单个匹号执行「当前值 == from」前提下的比较并交换（CAS）条件更新。
+/// 返回 rows_affected（0 = CAS 未命中，由调用方归因，绝不静默）。
+async fn cas_piece_status<C: ConnectionTrait>(
+    conn: &C,
+    piece_no: &str,
+    from: &str,
+    to: &str,
+) -> Result<u64, AppError> {
+    use sea_orm::EntityTrait;
+    let result = inventory_piece::Entity::update_many()
+        .filter(inventory_piece::Column::PieceNo.eq(piece_no))
+        .filter(inventory_piece::Column::Status.eq(from))
+        .set(inventory_piece::ActiveModel {
+            status: Set(to.to_string()),
+            // inventory_piece.updated_at 列型为 DateTime<Utc>（models/inventory_piece.rs），
+            // 与本域既有写入点（create_greige_pieces_from_report）同一时钟口径
+            updated_at: Set(chrono::Utc::now()),
+            ..Default::default()
+        })
+        .exec(conn)
+        .await?;
+    Ok(result.rows_affected)
+}
+
+/// CAS 未命中后的归因文案：重读该匹（不存在 vs 当前状态非预期）。
+/// 文案携带查询所得匹号/状态，按 `utils/error.rs` 保密分层走脱敏 `business`，
+/// 与本文件 `validate_pieces_for_issue` 既有逐条拒绝分支同族。
+async fn cas_miss_attribution<C: ConnectionTrait>(
+    conn: &C,
+    piece_no: &str,
+    expected_from: &str,
+) -> Result<AppError, AppError> {
+    use sea_orm::EntityTrait;
+    let current = inventory_piece::Entity::find()
+        .filter(inventory_piece::Column::PieceNo.eq(piece_no))
+        .one(conn)
+        .await?;
+    Ok(match current {
+        None => AppError::business(format!(
+            "外发明细引用的生产匹 {piece_no} 不存在，请核对匹号"
+        )),
+        Some(p) => AppError::business(format!(
+            "生产匹 {piece_no} 当前状态为 {}（非 {}），占用/释放 CAS 未命中",
+            p.status, expected_from
+        )),
+    })
+}
+
+/// CAS 未命中且**不阻断主流程**（取消释放/收回转出）时的归因留痕：
+/// 回读该匹现状写入 WARN（只进日志、不出 HTTP）。回读本身的 DB 错误原样上抛——
+/// 跳过未命中是业务决定，连接/查询失败是另一回事，不混为一谈也不吞。
+async fn warn_cas_miss<C: ConnectionTrait>(
+    conn: &C,
+    piece_no: &str,
+    transition: &str,
+) -> Result<(), AppError> {
+    use sea_orm::EntityTrait;
+    let current = inventory_piece::Entity::find()
+        .filter(inventory_piece::Column::PieceNo.eq(piece_no))
+        .one(conn)
+        .await?;
+    match current {
+        Some(p) => tracing::warn!(
+            piece_no = %piece_no,
+            current_status = %p.status,
+            "委外{transition}：生产匹 CAS 未命中（当前状态非 RESERVED），跳过该匹；历史数据或未走占用闭环"
+        ),
+        None => tracing::warn!(
+            piece_no = %piece_no,
+            "委外{transition}：生产匹 CAS 未命中且回读无此行，跳过该匹；明细引用与库存存在完整性异常需人工核查"
+        ),
+    }
+    Ok(())
+}
+
+/// 委外发料占用：把明细引用的生产匹以 CAS（AVAILABLE→RESERVED）逐匹置为已预留。
+///
+/// 词表依据：`inventory_piece::RESERVED` 词表语义即「已为订单预留」
+/// （models/status/purchase_inventory.rs::inventory_piece），发料占用与之吻合，
+/// 不新增词表值。
+///
+/// 原子性契约：**必须在发料事务内调用**（caller: outsourcing_ops/order.rs::issue_order）。
+/// CAS 用「UPDATE ... WHERE status = AVAILABLE」把校验与写入压进同一条语句：
+/// - 消除「事务外只读校验 → 事务内提交」的 TOCTOU 窗口；
+/// - 不依赖行锁（本仓 sqlite 夹具不支持 lock_exclusive，PG 生产真跑同一套 SQL——
+///   条件更新在两种方言下都真实生效，可测性与正确性同源）；
+/// - 同一事务内任一行 CAS 未命中即整单拒绝，已占用的行随调用方事务回滚，
+///   不允许出现部分匹被占用。
+pub async fn reserve_pieces_for_issue<C: ConnectionTrait>(
+    conn: &C,
+    items: &[crate::models::outsourcing_order_item::Model],
+) -> Result<(), AppError> {
+    // 纯读校验复用既有门控（空明细拒绝/缺匹号/匹不存在/非可用），归因文案不变
+    validate_pieces_for_issue(conn, items).await?;
+
+    // 同单内匹号重复必须显式拒绝：validate 的批量 map 会让两条引用同一 AVAILABLE
+    // 匹的明细双双放行；若不拦，CAS 循环会把第二条误判成「被前一条自己占用」，
+    // 归因失真。文案含匹号（查询所得实体值）→ 脱敏 business。
+    let piece_nos = distinct_referenced_piece_nos(items);
+    if piece_nos.len() != items.len() {
+        let mut seen: Vec<&str> = Vec::new();
+        for it in items {
+            if let Some(pn) = it.piece_no.as_deref().filter(|s| !s.is_empty()) {
+                if seen.contains(&pn) {
+                    return Err(AppError::business(format!(
+                        "同一委外订单的发料明细重复引用生产匹 {pn}，发料必须一匹一条明细"
+                    )));
+                }
+                seen.push(pn);
+            }
+        }
+    }
+
+    for pn in &piece_nos {
+        let rows =
+            cas_piece_status(conn, pn, piece_status::AVAILABLE, piece_status::RESERVED).await?;
+        if rows == 0 {
+            // 校验刚通过而 CAS 未命中：并发事务已占用该匹（读校验与写占用之间的
+            // 真实竞争在条件更新下收敛到这里），重读归因后整单拒绝
+            return Err(cas_miss_attribution(conn, pn, piece_status::AVAILABLE).await?);
+        }
+    }
+    tracing::info!(
+        piece_count = piece_nos.len(),
+        "委外发料匹占用完成（AVAILABLE→RESERVED，随发料事务提交）"
+    );
+    Ok(())
+}
+
+/// 委外取消释放：把明细引用的、当前仍 RESERVED 的匹 CAS 回 AVAILABLE。
+///
+/// 仅在 issued/processing 订单的取消路径调用（draft 从未占用；received/settled
+/// 的匹已在收回确认时转 SHIPPED，不得由取消回退）。
+/// CAS 未命中（历史数据从未被占用/状态已被其他链路改写）不阻断取消——
+/// 取消本身是业务事实，但必须逐匹 tracing::warn! 留痕归因，不静默。
+pub async fn release_reserved_pieces_on_cancel<C: ConnectionTrait>(
+    conn: &C,
+    items: &[crate::models::outsourcing_order_item::Model],
+) -> Result<(), AppError> {
+    for pn in distinct_referenced_piece_nos(items) {
+        let rows =
+            cas_piece_status(conn, &pn, piece_status::RESERVED, piece_status::AVAILABLE).await?;
+        if rows == 0 {
+            warn_cas_miss(conn, &pn, "取消释放").await?;
+        }
+    }
+    tracing::info!("委外取消释放完成（CAS RESERVED→AVAILABLE，未命中匹已逐条 WARN）");
+    Ok(())
+}
+
+/// 委外收回确认转出：把明细引用的、当前仍 RESERVED 的匹 CAS 置 SHIPPED
+/// （胚布已实物转出到委外商，收回产生的是新建染色匹，原匹不再在库可用）。
+///
+/// CAS 未命中即跳过并 tracing::warn! 留痕（历史数据在占用闭环上线前发料、
+/// 匹从未被置 RESERVED），不静默、也不硬失败收回确认。
+pub async fn mark_reserved_pieces_shipped_on_receipt<C: ConnectionTrait>(
+    conn: &C,
+    items: &[crate::models::outsourcing_order_item::Model],
+) -> Result<(), AppError> {
+    for pn in distinct_referenced_piece_nos(items) {
+        let rows =
+            cas_piece_status(conn, &pn, piece_status::RESERVED, piece_status::SHIPPED).await?;
+        if rows == 0 {
+            warn_cas_miss(conn, &pn, "收回确认转出").await?;
+        }
+    }
+    tracing::info!("委外收回确认转出完成（CAS RESERVED→SHIPPED，未命中匹已逐条 WARN）");
+    Ok(())
+}
+
 /// 委外回仓生成匹记录的上下文参数（聚合 9 个业务字段，替代 10 参数函数签名
 /// 以满足 clippy::too_many_arguments 上限；db 连接保持独立参数）
 pub struct OutsourcingReceiptPieceContext<'a> {

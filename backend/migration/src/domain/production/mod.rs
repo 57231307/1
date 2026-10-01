@@ -46,6 +46,12 @@ pub(crate) mod m0063_add_document_no_unique_constraints;
 // （+ change_pending）；目标表 custom_orders 由本域 m0044 建表（早于本迁移执行），
 // 直接注册本域 up 末尾即可。
 mod m0064_custom_order_status_add_change_pending;
+// m0065 委外发料匹占用存量回填：目标表 outsourcing_order / outsourcing_order_item
+// 在 v15 域内建表（v15/mod.rs:3227/:671），而 production 域早于 v15 执行，直接注册
+// 本域会因 "relation ... does not exist" 中断迁移链。照 m0058/m0063 先例，
+// up/down 由 domain/v15/mod.rs 在全部建表完成后调用，此处仅保留定义，
+// 提升可见性为 pub(crate)。
+pub(crate) mod m0065_backfill_outsourcing_reserved_pieces;
 
 pub struct Migration;
 

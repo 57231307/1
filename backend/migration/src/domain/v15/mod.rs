@@ -4596,11 +4596,23 @@ COMMENT ON COLUMN "purchase_order_item"."supplier_color_no" IS '供应商色号�
         crate::domain::production::m0063_add_document_no_unique_constraints::Migration
             .up(manager)
             .await?;
+        // m0065 委外发料匹占用存量回填：目标表 outsourcing_order /
+        // outsourcing_order_item 均在本域内建表（:3227/:671），且带 fail-visible
+        // 存量异常检测（交叉占用/匹号多行/悬空引用命中即 RAISE EXCEPTION），
+        // 照 m0058/m0063 先例后置到本域 up 末尾（晚于 m0063，回填不依赖其约束）。
+        crate::domain::production::m0065_backfill_outsourcing_reserved_pieces::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // 与 up 对称：m0063 最后应用故最先回滚（仅 DROP INDEX IF EXISTS，不触碰数据行）。
+        // 与 up 对称：m0065 最后应用故最先回滚（回填 RESERVED 与运行时占用不可
+        // 区分，其 down 显式不做任何写操作，见迁移文件内注释）。
+        crate::domain::production::m0065_backfill_outsourcing_reserved_pieces::Migration
+            .down(manager)
+            .await?;
+        // 与 up 对称：m0063 先于 m0065 回滚（仅 DROP INDEX IF EXISTS，不触碰数据行）。
         crate::domain::production::m0063_add_document_no_unique_constraints::Migration
             .down(manager)
             .await?;

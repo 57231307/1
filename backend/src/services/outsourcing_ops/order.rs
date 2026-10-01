@@ -21,6 +21,7 @@ use sea_orm::{
 use crate::models::outsourcing_order::{
     self, ActiveModel as OrderActiveModel, Entity as OrderEntity, Model as OrderModel,
 };
+use crate::models::outsourcing_order_item::{self, Entity as ItemEntity, Model as ItemModel};
 use crate::models::outsourcing_voucher::{
     ActiveModel as VoucherActiveModel, Column as VoucherColumn, Entity as VoucherEntity,
 };
@@ -314,11 +315,38 @@ impl OutsourcingOrderService {
         }
 
         let model = self.get_by_id(id).await?;
+        // 更新权限分态：draft 全量可改；received 仅允许补录/更正成本四项
+        // （material_cost / processing_fee / freight_fee / tax_amount）。
+        // 依据：本批把「零费用不得结算」落成硬拒并外显「请先补录委外加工成本」，而委外加工费
+        // 在行业惯例里通常于收回/对账时才最终确定（先加工后计价）；若 received 态完全锁死，
+        // 0 费用订单既补不了成本也结不了算＝无出口死单。其余业务字段（供应商/数量/缸号/日期等）
+        // 收回后再改会让已生成的发料与成本凭证同事实脱节，故仍锁 draft。
+        let has_cost_fields = req.material_cost.is_some()
+            || req.processing_fee.is_some()
+            || req.freight_fee.is_some()
+            || req.tax_amount.is_some();
+        let has_non_cost_fields = req.order_type.is_some()
+            || req.supplier_id.is_some()
+            || req.production_order_id.is_some()
+            || req.dye_batch_id.is_some()
+            || req.color_no.is_some()
+            || req.dye_lot_no.is_some()
+            || req.issue_date.is_some()
+            || req.expected_return_date.is_some()
+            || req.issue_quantity.is_some()
+            || req.issue_unit.is_some()
+            || req.standard_loss_rate.is_some()
+            || req.remarks.is_some();
         if model.status != outsourcing_order_status::DRAFT {
-            return Err(AppError::business(format!(
-                "仅草稿(draft)状态可更新，当前状态: {}",
-                model.status
-            )));
+            let cost_correction_allowed = model.status == outsourcing_order_status::RECEIVED
+                && has_cost_fields
+                && !has_non_cost_fields;
+            if !cost_correction_allowed {
+                return Err(AppError::business(format!(
+                    "仅草稿(draft)状态可更新，当前状态: {}",
+                    model.status
+                )));
+            }
         }
 
         // 成本链生效值快照（model 随后被 move 进 active）：材料成本/加工费/运费任一
@@ -455,6 +483,11 @@ impl OutsourcingOrderService {
     /// V15 主线审计 P0 修复：原实现顺序执行 3 步（凭证创建 / 主单更新 / 事件发布），
     /// 任一步失败都会留下半成品数据。把凭证创建和主单更新放进同一数据库事务，
     /// 事件发布在事务 commit 后执行（事件发布失败不影响业务数据一致性）。
+    ///
+    /// 匹状态占用闭环：明细读取与 CAS 占用（AVAILABLE→RESERVED）都在本事务内、
+    /// 凭证取号之前执行——占用与凭证/状态推进原子提交，任一行 CAS 不命中整单
+    /// 回滚（不允许部分匹被占用），并消除原「事务外只读校验→事务内提交」的
+    /// TOCTOU 重复发料窗口。
     pub async fn issue_order(&self, id: i32) -> Result<OrderModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != outsourcing_order_status::DRAFT {
@@ -464,16 +497,19 @@ impl OutsourcingOrderService {
             )));
         }
 
-        // 匹号领域二期：发料前校验明细匹号——染色/印花外发必须精确到生产匹，
-        // 且匹存在、状态可用（防止虚构匹号/不可用匹外发导致回仓对账断裂）
-        let item_svc =
-            crate::services::outsourcing_service::OutsourcingOrderItemService::new(self.db.clone());
-        let items = item_svc.list_by_order(id).await?;
-        crate::services::piece_domain_service::validate_pieces_for_issue(&*self.db, &items).await?;
-
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let txn = (*self.db).begin().await?;
+
+        // 匹号领域二期：明细读取与占用全部在事务内——染色/印花外发必须精确到生产匹，
+        // 且匹存在、状态可用；占用以 CAS 条件更新落库（归因文案由域服务统一）。
+        // 读取顺序与 OutsourcingOrderItemService::list_by_order 同源（按 id 倒序）。
+        let items: Vec<ItemModel> = ItemEntity::find()
+            .filter(outsourcing_order_item::Column::OutsourcingOrderId.eq(id))
+            .order_by_desc(outsourcing_order_item::Column::Id)
+            .all(&txn)
+            .await?;
+        crate::services::piece_domain_service::reserve_pieces_for_issue(&txn, &items).await?;
 
         // 生成发料凭证号（统一生成器，事务内取号：`OVIS{YYYYMMDD}{3位流水}`）
         let voucher_no = DocumentNumberGenerator::generate_no_with_txn(
@@ -595,10 +631,14 @@ impl OutsourcingOrderService {
         // 还会污染以金额为导向的审计抽样——零金额凭证是 SAP/金蝶等同类系统的典型审计问题。
         // 口径取"拒绝结算"而非"允许结算不出凭证"：后者会让 settled 名不副实。
         // 放在取号与 begin() 之前，拒绝时零副作用（也使其可在 sqlite 真实跑全链）。
+        // 守卫取 `<= 0` 而非 `== 0`：负值虽已被 create/update 的「不能为负」挡在写入侧
+        // （本文件 :415-444），但结算读的是库中既有行——legacy/手工改库可能带负，
+        // 负金额凭证比空壳凭证更坏，故此处 fail-closed。文案因此按「合计需大于 0」陈述，
+        // 与守卫逐字符对应，不写成只描述 0 的「均为 0」（复审 G4）。
         let fee_amount = model.processing_fee + model.freight_fee;
         if fee_amount <= Decimal::ZERO {
             return Err(AppError::business_displayable(
-                "加工费与运费均为 0，无法结算；请先补录委外加工成本",
+                "加工费与运费合计需大于 0 才能结算，请先补录委外加工成本",
             ));
         }
 
@@ -721,6 +761,11 @@ impl OutsourcingOrderService {
     }
 
     /// 取消：任意非 closed 状态 → cancelled
+    ///
+    /// 占用闭环释放：issued/processing 单的取消必须把发料时 CAS 占用（RESERVED）的
+    /// 生产匹释放回 AVAILABLE，且与主单状态推进同事务原子提交（明细读取也在事务内）。
+    /// draft 单从未占用匹；received/settled 单的匹已在收回确认时转 SHIPPED，
+    /// 取消不得把它们回退成 AVAILABLE——这两类路径维持原有单行更新，不触碰库存。
     pub async fn cancel(&self, id: i32) -> Result<OrderModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status == outsourcing_order_status::CLOSED {
@@ -729,9 +774,31 @@ impl OutsourcingOrderService {
         if model.status == outsourcing_order_status::CANCELLED {
             return Err(AppError::business("已取消状态不可重复取消"));
         }
+        let holds_reserved_pieces = model.status == outsourcing_order_status::ISSUED
+            || model.status == outsourcing_order_status::PROCESSING;
+        let now = crate::utils::date_utils::utc_now_fixed();
+
+        if holds_reserved_pieces {
+            let txn = (*self.db).begin().await?;
+            let items: Vec<ItemModel> = ItemEntity::find()
+                .filter(outsourcing_order_item::Column::OutsourcingOrderId.eq(id))
+                .order_by_desc(outsourcing_order_item::Column::Id)
+                .all(&txn)
+                .await?;
+            crate::services::piece_domain_service::release_reserved_pieces_on_cancel(&txn, &items)
+                .await?;
+            let mut active: OrderActiveModel = model.into();
+            active.status = Set(outsourcing_order_status::CANCELLED.to_string());
+            active.updated_at = Set(now);
+            let updated = active.update(&txn).await?;
+            txn.commit().await?;
+            tracing::info!(order_id = updated.id, "委外订单取消，匹占用释放事务已提交");
+            return Ok(updated);
+        }
+
         let mut active: OrderActiveModel = model.into();
         active.status = Set(outsourcing_order_status::CANCELLED.to_string());
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
+        active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;
         Ok(updated)
     }
