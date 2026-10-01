@@ -887,6 +887,75 @@ async function ensureGlobalBusinessSeed(
     }
   };
 
+  // 种子失败硬账：区别于 reportSeedWrite 的"打印后继续"，这里收的是**导致某类种子行
+  // 根本产不出来**的失败（缺数据会让下游整簇用例转红且根因难查，是本仓历史最大的隐性红）。
+  // run 结尾统一汇总打印，任何一项都不许只留在循环体里。
+  const SEED_FAILURES: string[] = [];
+  const recordSeedFailure = (label: string, detail: string): void => {
+    SEED_FAILURES.push(`${label}｜${detail}`);
+    console.error(`[globalSeed] ❌ 种子失败（计入汇总）：${label} ${detail}`);
+  };
+
+  // 「质检合格方可入库/结算」门控（backend/src/services/purchase_receipt_service.rs
+  // ::ensure_receipt_inspection_allows_flow，commit 48aa4395）：
+  // 收货单 inspection_status 不是 PASSED 时，POST /purchase/receipts/{id}/confirm 与
+  // POST /ap/invoices/auto-generate 一律 400 BUSINESS_ERROR；新建收货单恒为 PENDING
+  // （列 NOT NULL DEFAULT 'PENDING'）。PASSED 的唯一业务写入口是质检完成回写
+  // （purchase_inspection_service.rs::complete_inspection → to_receipt_inspection_status）。
+  // 因此凡需要把收货单确认落库存的种子，都必须先跑完这条真实质检链——不存在也不允许
+  // 任何直改状态的旁路。返回 false 表示该单无法确认，调用方必须跳过并计入种子失败汇总。
+  const seedInspectionPass = async (
+    receiptId: number,
+    supplierId: number,
+    passQuantity: string,
+    label: string
+  ): Promise<boolean> => {
+    const inspectionDate = new Date().toISOString().slice(0, 10);
+    const insResp = await seedPost(`${API_PREFIX}/purchase/inspections`, {
+      receipt_id: receiptId,
+      supplier_id: supplierId,
+      inspection_date: inspectionDate,
+      notes: `E2E-SEED-INSPECT-${receiptId}`,
+    });
+    const insBody = await safeJson(insResp);
+    const insId = (insBody?.data as Record<string, unknown>)?.id as number;
+    if (!insResp.ok() || !insId) {
+      const text = JSON.stringify(await insResp.json().catch(() => null));
+      recordSeedFailure(
+        `${label} 建质检单`,
+        `HTTP ${insResp.status()} rcv=${receiptId} body=${text.slice(0, 300)}`
+      );
+      return false;
+    }
+    const doneResp = await seedPost(`${API_PREFIX}/purchase/inspections/${insId}/complete`, {
+      pass_quantity: passQuantity,
+      reject_quantity: '0',
+      inspection_result: 'pass',
+    });
+    if (!doneResp.ok()) {
+      const text = JSON.stringify(await doneResp.json().catch(() => null));
+      recordSeedFailure(
+        `${label} 完成质检(pass)`,
+        `HTTP ${doneResp.status()} insp=${insId} body=${text.slice(0, 300)}`
+      );
+      return false;
+    }
+    // 必须回读真读到 PASSED：读不到说明回写链断了，此时"确认"必然 400，
+    // 显式失败而不是继续盲调 confirm 再把失败伪装成"确认接口有问题"。
+    const readResp = await ctx.get(`${API_PREFIX}/purchase/receipts/${receiptId}`, { headers });
+    const readBody = await safeJson(readResp);
+    const inspectionStatus = (readBody?.data as Record<string, unknown>)?.inspection_status as
+      string | undefined;
+    if (inspectionStatus !== 'PASSED') {
+      recordSeedFailure(
+        `${label} 质检状态回写`,
+        `rcv=${receiptId} insp=${insId} 回读 inspection_status=${String(inspectionStatus)}（期望 PASSED）`
+      );
+      return false;
+    }
+    return true;
+  };
+
   // 辅助：取一个真实仓库 id（与前端发货/收货下拉、步骤15 同口径 GET /warehouses）。
   // 后端 validate_order_request（services/po/order_ops/crud.rs:137）对采购订单
   // warehouse_id 强校验非空，缺失即稳定 400「仓库 ID 不能为空」（SYS-4）。
@@ -1732,8 +1801,9 @@ async function ensureGlobalBusinessSeed(
           const poId = (poBody?.data as Record<string, unknown>)?.id as number;
           if (!poResp.ok() || !poId) {
             const errText = JSON.stringify(await poResp.json().catch(() => null));
-            console.error(
-              `[globalSeed] ⚠️ 库存种子建采购订单失败 HTTP ${poResp.status()} warehouse=${wh.id} body=${errText.slice(0, 300)}${poResp.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
+            recordSeedFailure(
+              '库存种子建采购订单',
+              `HTTP ${poResp.status()} warehouse=${wh.id} body=${errText.slice(0, 300)}`
             );
             continue;
           }
@@ -1742,8 +1812,9 @@ async function ensureGlobalBusinessSeed(
           const poApprove = await seedPost(`${API_PREFIX}/purchase/orders/${poId}/approve`, {});
           if (!poApprove.ok()) {
             const errText = JSON.stringify(await poApprove.json().catch(() => null));
-            console.error(
-              `[globalSeed] ⚠️ 库存种子采购订单审批失败 HTTP ${poApprove.status()} po=${poId} body=${errText.slice(0, 300)}${poApprove.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
+            recordSeedFailure(
+              '库存种子采购订单审批',
+              `HTTP ${poApprove.status()} po=${poId} body=${errText.slice(0, 300)}`
             );
             continue;
           }
@@ -1774,12 +1845,18 @@ async function ensureGlobalBusinessSeed(
           const rcvId = (rcvBody?.data as Record<string, unknown>)?.id as number;
           if (!rcvResp.ok() || !rcvId) {
             const errText = JSON.stringify(await rcvResp.json().catch(() => null));
-            console.error(
-              `[globalSeed] ⚠️ 库存种子建入库单失败 HTTP ${rcvResp.status()} po=${poId} warehouse=${wh.id} body=${errText.slice(0, 300)}${rcvResp.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
+            recordSeedFailure(
+              '库存种子建入库单',
+              `HTTP ${rcvResp.status()} po=${poId} warehouse=${wh.id} body=${errText.slice(0, 300)}`
             );
             continue;
           }
-          // 4) 确认入库 → update_inventory_txn 自动落 inventory_stocks
+          // 4) 质检完成回写 pass → 收货单转 PASSED（门控前置，见 seedInspectionPass）
+          // 5) 确认入库 → update_inventory_txn 自动落 inventory_stocks
+          const inspected = await seedInspectionPass(rcvId, stockSupplierId, '10000', '库存种子');
+          if (!inspected) {
+            continue;
+          }
           const confirmResp = await seedPost(
             `${API_PREFIX}/purchase/receipts/${rcvId}/confirm`,
             {}
@@ -1790,26 +1867,31 @@ async function ensureGlobalBusinessSeed(
             );
           } else {
             const errText = JSON.stringify(await confirmResp.json().catch(() => null));
-            console.error(
-              `[globalSeed] ⚠️ 库存种子「确认入库」失败 HTTP ${confirmResp.status()} rcv=${rcvId} warehouse=${wh.id} body=${errText.slice(0, 300)}${confirmResp.status() >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''}`
+            recordSeedFailure(
+              '库存种子「确认入库」',
+              `HTTP ${confirmResp.status()} rcv=${rcvId} warehouse=${wh.id} body=${errText.slice(0, 300)}`
             );
           }
         }
       }
     } catch (e) {
-      console.error('[globalSeed] 库存种子异常:', (e as Error).message);
+      recordSeedFailure('库存种子异常', (e as Error).message);
     }
   }
 
   // ---- 16. 采购入库单 + 质检单种子（族B 采购后链：purchase/04 待质检 + 收货入口）----
-  // purchase/04 期望 /purchase-receipt 页有已确认入库行，/purchase-inspection 页有 pending 态质检行。
-  // 端点链：
-  //   建入库单 POST /purchase/receipts → 确认 POST /purchase/receipts/{id}/confirm →
-  //   建质检单 POST /purchase/inspections (receipt_id 关联)。
-  // 质检单创建后 inspection_status 默认 pending（purchase_inspection_service.rs:107）。
-  // 确认入库单后 receipt 的 inspection_status 保持 PENDING（模型默认值，state.rs 不改此字段）。
-  // 入库单确认需 supplier_id/warehouse_id/receipt_date + 明细(batch_no 必填, color_code 非空时 lot_no 必填)。
-  // 幂等：先查 pending 态质检数量，不足则补建。
+  // 本步要两种数据，且在新门控下它们**不是同一条链的先后两步**，故拆成两条独立种子：
+  //   (a) pending 质检行（/purchase-inspection 页、purchase/04 待质检用例）：
+  //       建单 → 建质检单。质检单创建只校验收货单存在性
+  //       （purchase_inspection_service.rs:88-96），不要求收货单已确认，因此这条链
+  //       故意**不确认**收货单——确认在门控下本来就必须先质检合格，而 complete(pass) 会把
+  //       收货单推成 PASSED，pending 质检行就没了。
+  //   (b) 已确认入库行（/purchase-receipt 页、purchase/04「已确认单可再建检验单」）：
+  //       建单 → 质检 complete(pass) 回写 PASSED → confirm（见 seedInspectionPass）。
+  // 旧注释曾写「确认入库单后 receipt 的 inspection_status 保持 PENDING(state.rs 不改此字段)」——
+  // 该事实已被 commit 48aa4395 的入库质检门控推翻（PENDING 现在使确认必然 400）。
+  // 入库单字段要求：supplier_id/warehouse_id/receipt_date + 明细(batch_no 必填, color_code 非空时 lot_no 必填)。
+  // 幂等：先查 pending 态质检数量，不足才补建。
   if (productId && currentUserId) {
     try {
       const INSPECTION_MIN_PENDING = 3;
@@ -1848,20 +1930,28 @@ async function ensureGlobalBusinessSeed(
 
         if (insSupplierId && insWarehouseId) {
           const today = new Date().toISOString().slice(0, 10);
+          const seedSupplierId = insSupplierId;
+          const seedWarehouseId = insWarehouseId;
           const need = INSPECTION_MIN_PENDING - pendingInsCount;
-          for (let i = 0; i < need; i++) {
-            const ts = `${Date.now().toString().slice(-8)}i${i}s${SHARD_INDEX || 'x'}`;
-            // 1) 建专属采购订单 + 提交 + 审批（入库需关联已审批订单）
+
+          // 公共前置：建一张"已审批采购订单 + 未确认收货单"。
+          // 任一步失败都计入种子失败汇总并返回 null，调用方必须跳过本项而不是继续往下走
+          // （历史上这里只 console.error 后 continue，导致"种子行根本没建"变成下游整簇红的隐性根因）。
+          const seedApprovedReceipt = async (
+            label: string,
+            ts: string,
+            quantity: string
+          ): Promise<{ poId: number; rcvId: number } | null> => {
             const poResp = await seedPost(`${API_PREFIX}/purchase/orders`, {
-              supplier_id: insSupplierId,
+              supplier_id: seedSupplierId,
               order_date: today,
-              warehouse_id: insWarehouseId,
+              warehouse_id: seedWarehouseId,
               department_id: insDeptId,
               notes: `E2E-SEED-INSP-${ts}`,
               items: [
                 {
                   material_id: productId,
-                  quantity_ordered: '500',
+                  quantity_ordered: quantity,
                   unit_price: '15.00',
                 },
               ],
@@ -1869,22 +1959,26 @@ async function ensureGlobalBusinessSeed(
             const poData = await safeJson(poResp);
             const poId = (poData?.data as Record<string, unknown>)?.id as number;
             if (!poResp.ok() || !poId) {
-              await reportSeedWrite(poResp, `质检前置采购订单创建 i=${i}`);
-              continue;
+              recordSeedFailure(
+                `${label} 采购订单`,
+                `HTTP ${poResp.status()} body=${(await poResp.text().catch(() => '')).slice(0, 300)}`
+              );
+              return null;
             }
             await seedPost(`${API_PREFIX}/purchase/orders/${poId}/submit`, {});
             const poApprove = await seedPost(`${API_PREFIX}/purchase/orders/${poId}/approve`, {});
             if (!poApprove.ok()) {
-              await reportSeedWrite(poApprove, `质检前置采购订单审批 po=${poId}`);
-              continue;
+              recordSeedFailure(
+                `${label} 采购订单审批`,
+                `HTTP ${poApprove.status()} po=${poId} body=${(await poApprove.text().catch(() => '')).slice(0, 300)}`
+              );
+              return null;
             }
-
-            // 2) 建入库单（染色布四维齐全：batch_no/color_code/lot_no 均非空）
             const rcvResp = await seedPost(`${API_PREFIX}/purchase/receipts`, {
-              supplier_id: insSupplierId,
+              supplier_id: seedSupplierId,
               order_id: poId,
               receipt_date: today,
-              warehouse_id: insWarehouseId,
+              warehouse_id: seedWarehouseId,
               department_id: insDeptId,
               notes: `E2E-SEED-INSP-RCV-${ts}`,
               items: [
@@ -1897,7 +1991,7 @@ async function ensureGlobalBusinessSeed(
                   color_code: 'E2E-INSP-COLOR',
                   lot_no: `E2E-IL${ts}`,
                   grade: '一等品',
-                  quantity: '500',
+                  quantity: quantity,
                   quantity_alt: '0',
                   unit_master: insUnit,
                   unit_price: '15.00',
@@ -1907,21 +2001,27 @@ async function ensureGlobalBusinessSeed(
             const rcvData = await safeJson(rcvResp);
             const rcvId = (rcvData?.data as Record<string, unknown>)?.id as number;
             if (!rcvResp.ok() || !rcvId) {
-              await reportSeedWrite(rcvResp, `质检前置入库单创建 i=${i}`);
+              recordSeedFailure(
+                `${label} 入库单`,
+                `HTTP ${rcvResp.status()} po=${poId} body=${(await rcvResp.text().catch(() => '')).slice(0, 300)}`
+              );
+              return null;
+            }
+            return { poId, rcvId };
+          };
+          for (let i = 0; i < need; i++) {
+            const ts = `${Date.now().toString().slice(-8)}i${i}s${SHARD_INDEX || 'x'}`;
+            // 1) 建专属已审批采购订单 + 入库单（染色布四维齐全：batch_no/color_code/lot_no 均非空）
+            const created = await seedApprovedReceipt(`质检种子 i=${i}`, ts, '500');
+            if (!created) {
               continue;
             }
+            const { poId, rcvId } = created;
 
-            // 3) 确认入库（receipt_status→COMPLETED, inventory落库, 自动生成AP）
-            const confirmResp = await seedPost(
-              `${API_PREFIX}/purchase/receipts/${rcvId}/confirm`,
-              {}
-            );
-            if (!confirmResp.ok()) {
-              await reportSeedWrite(confirmResp, `质检前置入库单确认 rcv=${rcvId}`);
-              continue;
-            }
-
-            // 4) 建质检单（POST /purchase/inspections），关联入库单
+            // 2) 建 pending 质检单（POST /purchase/inspections），关联该收货单。
+            //    质检单创建只校验收货单存在性（purchase_inspection_service.rs:88-96），
+            //    不要求其已确认入库；本步的被测对象就是"待质检"这一态，故**故意不确认收货单**
+            //    ——一旦 complete(pass) 就会把它推进成 PASSED 并由门控允许确认，pending 行就没了。
             const insCreateResp = await seedPost(`${API_PREFIX}/purchase/inspections`, {
               receipt_id: rcvId,
               order_id: poId,
@@ -1936,7 +2036,44 @@ async function ensureGlobalBusinessSeed(
                 `[globalSeed] 创建采购质检单(pending) id=${insId} receipt=${rcvId} po=${poId}`
               );
             } else {
-              await reportSeedWrite(insCreateResp, `采购质检单创建(关联 rcv=${rcvId})`);
+              recordSeedFailure(
+                `采购质检单创建(关联 rcv=${rcvId})`,
+                `HTTP ${insCreateResp.status()} body=${(await insCreateResp.text().catch(() => '')).slice(0, 300)}`
+              );
+            }
+          }
+
+          // 种子(b)：已确认入库行（COMPLETED）。必须走"质检 complete(pass) 回写 PASSED → confirm"
+          // 全链，否则门控 400 拒绝、页面无已确认行，purchase/04 与收货入口用例会以
+          // "查不到数据"的形式红掉，根因难查。
+          const confirmedTs = `${Date.now().toString().slice(-8)}c${SHARD_INDEX || 'x'}`;
+          const confirmedReceipt = await seedApprovedReceipt(
+            `已确认入库行种子`,
+            confirmedTs,
+            '1000'
+          );
+          if (confirmedReceipt) {
+            const passed = await seedInspectionPass(
+              confirmedReceipt.rcvId,
+              seedSupplierId,
+              '1000',
+              '已确认入库行种子'
+            );
+            if (passed) {
+              const confirmResp = await seedPost(
+                `${API_PREFIX}/purchase/receipts/${confirmedReceipt.rcvId}/confirm`,
+                {}
+              );
+              if (confirmResp.ok()) {
+                console.log(
+                  `[globalSeed] 已确认入库行种子成功 rcv=${confirmedReceipt.rcvId} po=${confirmedReceipt.poId}`
+                );
+              } else {
+                recordSeedFailure(
+                  '已确认入库行种子「确认入库」',
+                  `HTTP ${confirmResp.status()} rcv=${confirmedReceipt.rcvId} body=${(await confirmResp.text().catch(() => '')).slice(0, 300)}`
+                );
+              }
             }
           }
         } else {
@@ -1948,7 +2085,7 @@ async function ensureGlobalBusinessSeed(
         console.log(`[globalSeed] 采购质检单 pending 已有 ${pendingInsCount}，满足需求`);
       }
     } catch (e) {
-      console.warn('[globalSeed] 采购入库+质检种子异常:', (e as Error).message);
+      recordSeedFailure('采购入库+质检种子异常', (e as Error).message);
     }
   }
 
@@ -2281,6 +2418,19 @@ async function ensureGlobalBusinessSeed(
     } catch (e) {
       console.warn('[globalSeed] 对照表种子异常:', (e as Error).message);
     }
+  }
+
+  // 种子失败汇总：缺行不让它隐身——下游用例的红要先看这里，再判用例本身。
+  if (SEED_FAILURES.length > 0) {
+    console.error(
+      `[globalSeed] ❌ 种子失败汇总 ${SEED_FAILURES.length} 项` +
+        `（对应种子行没建出来，下游用例会以"查不到数据/按钮不可达"的形式红）:`
+    );
+    SEED_FAILURES.forEach((f, idx) => {
+      console.error(`  ${idx + 1}. ${f}`);
+    });
+  } else {
+    console.log('[globalSeed] 种子失败汇总：0 项');
   }
 
   console.log('[globalSeed] 全局业务实体种子完成');
