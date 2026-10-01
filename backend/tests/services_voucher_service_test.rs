@@ -120,7 +120,9 @@ fn calc_ending_balance(
     period_debit: Decimal,
     period_credit: Decimal,
 ) -> (Decimal, Decimal) {
-    if balance_direction == "借" {
+    // 写入方权威词表＝models/status/finance.rs 的 account_subject 常量（#198）：方向值英文 debit/credit，
+    // 本夹具复刻源码比较逻辑，须与英文权威值对齐，禁再按中文「借」比较。
+    if balance_direction == "debit" {
         let ending_balance = initial_debit + period_debit - period_credit;
         if ending_balance >= Decimal::ZERO {
             (ending_balance, Decimal::ZERO)
@@ -309,7 +311,7 @@ fn test_pzbhqz_wzlxmr() {
 #[test]
 fn test_kmyejs_jfkmzc() {
     let (ending_debit, ending_credit) = calc_ending_balance(
-        "借",
+        "debit",
         decs!("1000"),
         Decimal::ZERO,
         decs!("500"),
@@ -324,7 +326,7 @@ fn test_kmyejs_jfkmzc() {
 #[test]
 fn test_kmyejs_dfkmzc() {
     let (ending_debit, ending_credit) = calc_ending_balance(
-        "贷",
+        "credit",
         Decimal::ZERO,
         decs!("2000"),
         decs!("300"),
@@ -339,7 +341,7 @@ fn test_kmyejs_dfkmzc() {
 #[test]
 fn test_kmyejs_jfkmcxdfye() {
     let (ending_debit, ending_credit) = calc_ending_balance(
-        "借",
+        "debit",
         decs!("100"),
         Decimal::ZERO,
         decs!("200"),
@@ -354,7 +356,7 @@ fn test_kmyejs_jfkmcxdfye() {
 #[test]
 fn test_kmyejs_dfkmcxjfye() {
     let (ending_debit, ending_credit) = calc_ending_balance(
-        "贷",
+        "credit",
         Decimal::ZERO,
         decs!("100"),
         decs!("500"),

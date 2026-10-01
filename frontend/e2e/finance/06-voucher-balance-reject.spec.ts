@@ -29,10 +29,11 @@ test.afterEach(async ({ page }) => {
 /** 校验族脱敏站点的固定出参文案（utils/messages.rs:41 VALIDATION_PUBLIC） */
 const SANITIZED_VALIDATION = '请求参数验证失败';
 
-/** 建一枚真实叶子科目（凭证分录科目为外键，须存在），返回 { id, code }。 */
+/** 建一枚真实叶子科目（凭证分录科目为外键，须存在），返回 { id, code }。
+ *  balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit），#198 起禁灌中文。 */
 async function seedLeafSubject(
   page: import('@playwright/test').Page,
-  direction: '借' | '贷'
+  direction: 'debit' | 'credit'
 ): Promise<{ id: number; code: string }> {
   const code = genCode('E2E-VBS');
   const created = await apiCall<{ id?: number }>(page, 'POST', '/subjects', {
@@ -58,8 +59,8 @@ test.describe('06 借贷不平衡凭证被拒', () => {
   test('06-01 借 != 贷 的凭证被拒 400 + VALIDATION_ERROR + 脱敏常量文案（非 500）', async ({
     page,
   }) => {
-    const { id: debitSubject } = await seedLeafSubject(page, '借');
-    const { id: creditSubject } = await seedLeafSubject(page, '贷');
+    const { id: debitSubject } = await seedLeafSubject(page, 'debit');
+    const { id: creditSubject } = await seedLeafSubject(page, 'credit');
     const today = new Date().toISOString().slice(0, 10);
 
     // 借 100 / 贷 99：故意不平 1 元。
@@ -83,8 +84,8 @@ test.describe('06 借贷不平衡凭证被拒', () => {
   test('06-02 借贷相等的凭证应能创建（对照，证明 06-01 的拒绝确由不平衡触发）', async ({
     page,
   }) => {
-    const { id: debitSubject } = await seedLeafSubject(page, '借');
-    const { id: creditSubject } = await seedLeafSubject(page, '贷');
+    const { id: debitSubject } = await seedLeafSubject(page, 'debit');
+    const { id: creditSubject } = await seedLeafSubject(page, 'credit');
     const today = new Date().toISOString().slice(0, 10);
 
     const ok = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {

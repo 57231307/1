@@ -81,14 +81,15 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** 自建两枚一级科目（借/贷），返回 [借科目, 贷科目]。DTO 全集见 account_subject_handler.rs:35-53。 */
+/** 自建两枚一级科目（debit/credit），返回 [借科目, 贷科目]。DTO 全集见 account_subject_handler.rs:35-53。
+ *  balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit），#198 起禁灌中文。 */
 async function seedSubjects(
   page: import('@playwright/test').Page,
   tag: string
 ): Promise<[Record<string, unknown>, Record<string, unknown>]> {
   const out: Record<string, unknown>[] = [];
-  for (const dir of ['借', '贷']) {
-    const code = genCode(`S${dir === '借' ? 'D' : 'C'}`);
+  for (const dir of ['debit', 'credit']) {
+    const code = genCode(`S${dir === 'debit' ? 'D' : 'C'}`);
     const s = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/subjects', {
       code,
       name: `E2E${tag}科目${code}`,
@@ -353,7 +354,7 @@ test.describe('12 凭证/科目/期间全流程契约链', () => {
       code,
       name: 'E2E-科目-原名',
       level: 1,
-      balance_direction: '借',
+      balance_direction: 'debit',
       assist_customer: true,
       assist_supplier: false,
       assist_batch: true,
@@ -366,7 +367,7 @@ test.describe('12 凭证/科目/期间全流程契约链', () => {
     expectKeyValue(detail, 'code', code, '科目详情');
     expectKeyValue(detail, 'name', 'E2E-科目-原名', '科目详情');
     expectKeyValue(detail, 'level', 1, '科目详情');
-    expectKeyValue(detail, 'balance_direction', '借', '科目详情');
+    expectKeyValue(detail, 'balance_direction', 'debit', '科目详情');
     expectKeyValue(detail, 'assist_customer', true, '科目详情');
     expectKeyValue(detail, 'assist_supplier', false, '科目详情');
     expectKeyValue(detail, 'assist_batch', true, '科目详情');
@@ -405,7 +406,7 @@ test.describe('12 凭证/科目/期间全流程契约链', () => {
     });
     const d2 = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/subjects/${id}`);
     expectKeyValue(d2, 'name', 'E2E-科目-改后', '科目 PUT');
-    expectKeyValue(d2, 'balance_direction', '借', '科目 PUT(单层 Option 省略/null 应保持)');
+    expectKeyValue(d2, 'balance_direction', 'debit', '科目 PUT(单层 Option 省略/null 应保持)');
     expectKeyValue(d2, 'status', 'inactive', '科目 PUT 停用持久化');
     expectKeyValue(d2, 'assist_batch', true, '科目 PUT(未碰保持)');
   });

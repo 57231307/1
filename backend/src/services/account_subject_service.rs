@@ -11,6 +11,7 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use crate::models::{account_balance, account_subject, voucher, voucher_item};
+use crate::models::status::account_subject as subject_status;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use rust_decimal::Decimal;
@@ -64,6 +65,23 @@ impl AccountSubjectService {
         Self { db }
     }
 
+    /// 余额方向写入白名单（任务 #198）：仅接受 `status::account_subject::ALL`
+    /// （debit/credit，与前端两处提交值、m0006 DDL 默认值、迁移种子同源）的精确匹配；
+    /// 其余 token（含历史中文「借/贷」、大小写变体）一律拒绝，不做 trim/大小写归一——禁止静默改写用户输入。
+    ///
+    /// 错误族：字段取值非法 = `VALIDATION_ERROR`(400)；文案只复述用户自己提交的字段值
+    /// 与公开取值规则，不含内部标识/他人数据/SQL 细节，满足 error.rs 安全边界 → `validation_displayable`。
+    fn validate_balance_direction(direction: &str) -> Result<(), AppError> {
+        if subject_status::ALL.contains(&direction) {
+            return Ok(());
+        }
+        Err(AppError::validation_displayable(format!(
+            "余额方向取值非法：{}，仅支持 {}",
+            direction,
+            subject_status::ALL.join(" / ")
+        )))
+    }
+
     /// 创建会计科目
     pub async fn create(
         &self,
@@ -71,6 +89,11 @@ impl AccountSubjectService {
         _user_id: i32,
     ) -> Result<account_subject::Model, AppError> {
         info!("创建会计科目：code={}, name={}", req.code, req.name);
+
+        // 任务 #198：写入白名单在任何触库前拒收非法方向（校验先行，不带病触库）
+        if let Some(direction) = req.balance_direction.as_deref() {
+            Self::validate_balance_direction(direction)?;
+        }
 
         // 检查科目编码是否已存在
         let existing = account_subject::Entity::find()
@@ -240,6 +263,11 @@ impl AccountSubjectService {
     ) -> Result<account_subject::Model, AppError> {
         info!("更新会计科目 ID: {}", id);
 
+        // 任务 #198：写入白名单在任何触库前拒收非法方向（校验先行，不带病触库）
+        if let Some(direction) = req.balance_direction.as_deref() {
+            Self::validate_balance_direction(direction)?;
+        }
+
         let subject = self.get_by_id(id).await?;
 
         let mut active_model: account_subject::ActiveModel = subject.into_active_model();
@@ -348,7 +376,11 @@ impl AccountSubjectService {
         let (current_period_debit, current_period_credit) = self
             .query_voucher_sums(&subject.code, start_date, end_date)
             .await?;
-        let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
+        // 任务 #198：词表与写入方同源，缺失方向按 DDL 默认值 debit 处理（原中文默认串为反号根因之一）
+        let balance_direction = subject
+            .balance_direction
+            .as_deref()
+            .unwrap_or(subject_status::DIRECTION_DEBIT);
         let (ending_balance_debit, ending_balance_credit) = Self::compute_ending_balance(
             balance_direction,
             subject.initial_balance_debit,
@@ -443,7 +475,7 @@ impl AccountSubjectService {
         ))
     }
 
-    /// 根据余额方向计算期末余额（借/贷方）
+    /// 根据余额方向计算期末余额（debit/credit，常量来自 status::account_subject）
     fn compute_ending_balance(
         balance_direction: &str,
         initial_debit: Decimal,
@@ -451,7 +483,7 @@ impl AccountSubjectService {
         current_debit: Decimal,
         current_credit: Decimal,
     ) -> (Decimal, Decimal) {
-        if balance_direction == "借" {
+        if balance_direction == subject_status::DIRECTION_DEBIT {
             // 借方科目：期末余额 = 期初借方 + 本期借方 - 本期贷方
             let ending_balance = initial_debit + current_debit - current_credit;
             if ending_balance >= Decimal::ZERO {

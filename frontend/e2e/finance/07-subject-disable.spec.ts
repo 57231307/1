@@ -41,9 +41,10 @@ const SANITIZED_NOT_FOUND = '资源未找到';
 /** error.rs `AppError::error_code()` 中 NotFound 的机器码（helpers.APP_ERROR_CODES 未收录该族） */
 const CODE_NOT_FOUND = 'NOT_FOUND';
 
+// balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit），#198 起禁灌中文。
 async function seedSubject(
   page: import('@playwright/test').Page,
-  direction: '借' | '贷'
+  direction: 'debit' | 'credit'
 ): Promise<number> {
   const code = genCode('E2E-SUBJ');
   const created = await apiCall<{ id?: number }>(page, 'POST', '/subjects', {
@@ -98,7 +99,7 @@ test.describe('07 科目停用持久化与引用防护', () => {
   });
 
   test('07-01 停用/启用状态持久化：API 写入后 GET 回读真实落库状态', async ({ page }) => {
-    const id = await seedSubject(page, '借');
+    const id = await seedSubject(page, 'debit');
     expect(await getSubjectStatus(page, id), '新建科目默认应为 active').toBe('active');
 
     await setSubjectStatus(page, id, 'inactive');
@@ -111,8 +112,8 @@ test.describe('07 科目停用持久化与引用防护', () => {
   test('07-02 停用科目被凭证分录引用被拒（400 BUSINESS_ERROR + 脱敏常量文案）', async ({
     page,
   }) => {
-    const disabledId = await seedSubject(page, '借');
-    const activeId = await seedSubject(page, '贷');
+    const disabledId = await seedSubject(page, 'debit');
+    const activeId = await seedSubject(page, 'credit');
     await setSubjectStatus(page, disabledId, 'inactive');
     expect(await getSubjectStatus(page, disabledId), '前置：该科目已停用').toBe('inactive');
 
@@ -139,8 +140,8 @@ test.describe('07 科目停用持久化与引用防护', () => {
   test('07-03 对照：同一科目启用后同一凭证可建（证明 07-02 拒绝确由停用触发）', async ({
     page,
   }) => {
-    const subjectId = await seedSubject(page, '借');
-    const creditId = await seedSubject(page, '贷');
+    const subjectId = await seedSubject(page, 'debit');
+    const creditId = await seedSubject(page, 'credit');
     const today = new Date().toISOString().slice(0, 10);
 
     const ok = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
@@ -158,7 +159,7 @@ test.describe('07 科目停用持久化与引用防护', () => {
   test('07-04 引用不存在的科目建凭证被拒（404 NOT_FOUND，与 07-02 业务族可分辨）', async ({
     page,
   }) => {
-    const activeId = await seedSubject(page, '贷');
+    const activeId = await seedSubject(page, 'credit');
     // 不存在的科目 ID：预检读不到任何记录 → 引用存在性缺失族（NOT_FOUND）。
     // 与「记录存在但已停用」的业务族必须落到不同 status + 不同 code 上，
     // 否则两者仍被压成一族，前端无法区分「编码写错」与「科目被停用」。

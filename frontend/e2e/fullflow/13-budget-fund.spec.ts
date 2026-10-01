@@ -235,7 +235,8 @@ test.describe('13 预算+资金全流程契约链', () => {
       code: subjCode,
       name: `E2E13映射科目${subjCode}`,
       level: 1,
-      balance_direction: '借',
+      // balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（#198）
+      balance_direction: 'debit',
       assist_customer: false,
       assist_supplier: false,
       assist_batch: false,

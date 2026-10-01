@@ -11,6 +11,8 @@ mod m0003_add_dye_tables;
 mod m0004_add_field_permissions;
 mod m0005_add_basic_data_and_system_tables;
 mod m0006_add_general_ledger_and_finance_base;
+// 任务 #198 存量归一迁移；pub：集成测试需直接引用其 SQL 常量在 sqlite 上真跑验证
+pub mod m0007_normalize_account_subject_balance_direction;
 
 pub struct Migration;
 
@@ -34,6 +36,10 @@ impl MigrationTrait for Migration {
             .up(manager)
             .await?;
         m0006_add_general_ledger_and_finance_base::Migration
+            .up(manager)
+            .await?;
+        // 任务 #198：balance_direction 中文存量归一为英文权威词表（幂等，可精确回退）
+        m0007_normalize_account_subject_balance_direction::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "accounting_periods" ADD COLUMN IF NOT EXISTS "close_ip" VARCHAR(255);
@@ -483,6 +489,10 @@ ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "warehouse_code" VARCHAR(255);
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // 任务 #198：逆序首位——按备份表精确还原 balance_direction
+        m0007_normalize_account_subject_balance_direction::Migration
+            .down(manager)
+            .await?;
         m0006_add_general_ledger_and_finance_base::Migration
             .down(manager)
             .await?;

@@ -46,9 +46,10 @@ interface ReportItem {
   amount: unknown;
 }
 
+// balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit），#198 起禁灌中文。
 async function seedLeafSubject(
   page: import('@playwright/test').Page,
-  direction: '借' | '贷'
+  direction: 'debit' | 'credit'
 ): Promise<{ id: number; code: string }> {
   const code = genCode('E2E-RPT');
   const created = await apiCall<{ id?: number }>(page, 'POST', '/subjects', {
@@ -113,8 +114,8 @@ test.describe('10 财务报表与导出', () => {
   test('10-01 试算平衡：seed 过账凭证后断全局借贷差<0.01 且被 seed 科目金额精确入表', async ({
     page,
   }) => {
-    const { id: debitId, code: debitCode } = await seedLeafSubject(page, '借');
-    const { id: creditId, code: creditCode } = await seedLeafSubject(page, '贷');
+    const { id: debitId, code: debitCode } = await seedLeafSubject(page, 'debit');
+    const { id: creditId, code: creditCode } = await seedLeafSubject(page, 'credit');
     const period = currentPeriodStr();
     const today = new Date().toISOString().slice(0, 10);
 

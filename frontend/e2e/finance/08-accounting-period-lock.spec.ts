@@ -69,9 +69,10 @@ async function ensurePeriodClosed(
   return found!.id;
 }
 
+// balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit），#198 起禁灌中文。
 async function seedLeafSubject(
   page: import('@playwright/test').Page,
-  direction: '借' | '贷'
+  direction: 'debit' | 'credit'
 ): Promise<number> {
   const code = genCode('E2E-PLK');
   const created = await apiCall<{ id?: number }>(page, 'POST', '/subjects', {
@@ -98,8 +99,8 @@ test.describe('08 会计期间锁定', () => {
     const periodId = await ensurePeriodClosed(page, 2031, 6);
 
     // 建平衡凭证（dev 下创建不检锁），逐级推进到 reviewed。
-    const debit = await seedLeafSubject(page, '借');
-    const credit = await seedLeafSubject(page, '贷');
+    const debit = await seedLeafSubject(page, 'debit');
+    const credit = await seedLeafSubject(page, 'credit');
     const created = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', {
       voucher_type: '记',
       voucher_date: '2031-06-15',
