@@ -109,8 +109,11 @@ fn test_crud_err_databaseys() {
 }
 
 /// test_item_errsybtys
-/// 逐变体钉「族 + 出参文案」：NotFound 类 → NOT_FOUND（脱敏）；状态门 → BUSINESS_ERROR（脱敏）；
-/// 提交字段校验 → VALIDATION_ERROR 且**外显**真实原因（error_map.rs:24-32 用 validation_displayable）。
+/// 逐变体钉「族 + 出参文案」：NotFound 类 → NOT_FOUND（脱敏）；
+/// 色号维护状态门（ItemError::InvalidState）→ BUSINESS_ERROR 且**外显**公开业务规则
+/// 「只有草稿态色卡可以维护色号」（纯规则、不含内部状态 token/记录 ID，满足
+/// business_displayable 安全边界，error_map.rs）；
+/// 提交字段校验 → VALIDATION_ERROR 且**外显**真实原因（error_map.rs 用 validation_displayable）。
 #[test]
 fn test_item_errsybtys() {
     let not_found = item_err(ItemError::ColorCardNotFound);
@@ -132,14 +135,24 @@ fn test_item_errsybtys() {
     let state = item_err(ItemError::InvalidState);
     let msg = state.to_string();
     assert!(
-        msg.contains("当前色卡状态不允许此操作"),
+        msg.contains("只有草稿态色卡可以维护色号"),
         "InvalidState 映射错误：{}",
         msg
     );
-    assert!(matches!(state, AppError::BusinessError(_)));
+    assert!(
+        matches!(state, AppError::BusinessErrorDisplayable(_)),
+        "色号维护状态门是公开业务规则，必须归 business 族且可外显，实际={state:?}"
+    );
     assert_eq!(state.error_code(), "BUSINESS_ERROR");
-    // 脱敏 business：真实判定依据不得随出参外显
-    assert_eq!(state.to_response().message, "业务处理失败");
+    // 状态门拒绝原因必须随出参外显（不得回潮成脱敏常量"业务处理失败"）
+    assert_eq!(state.to_response().message, "只有草稿态色卡可以维护色号");
+    // 外显文案不得泄露内部状态 token（'draft' 等小写词表值不得出现在出参 message）
+    assert!(
+        !state.to_response().message.contains("draft")
+            && !state.to_response().message.contains("active"),
+        "出参文案只描述公开规则，不得回显内部状态 token：{}",
+        state.to_response().message
+    );
 
     let validation = item_err(ItemError::Validation("色号重复".to_string()));
     let msg = validation.to_string();
