@@ -10,7 +10,7 @@
 
 use sea_orm::sea_query::{Condition, Expr, Query, SelectStatement};
 use sea_orm::{
-    ColumnTrait, EntityTrait, JoinType, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    ColumnTrait, EntityTrait, ExprTrait, JoinType, Order, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, RelationTrait,
 };
 
