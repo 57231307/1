@@ -50,7 +50,7 @@ pub struct RecycleRequest {
 /// GET /api/v1/erp/crm/pool - 获取公海客户列表
 pub async fn list_pool(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<PoolQueryParams>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
@@ -70,7 +70,11 @@ pub async fn list_pool(
         page_size: Some(page_size),
     };
 
-    let result = service.list_leads(query, None).await?;
+    // 行级数据权限按正常列表入口（crm_handler::list_leads）同口径接入：
+    // scope 上下文缺省会整体跳过服务层 apply_department_scope_with_pool 行级过滤
+    // （services/crm/lead.rs:143-151）——公海入口跨行泄露根因，禁止再省略该实参。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let result = service.list_leads(query, Some(&data_scope_ctx)).await?;
 
     // 转换分页结果为列表
     let data = result
@@ -83,7 +87,7 @@ pub async fn list_pool(
         .unwrap_or_default();
 
     // 转换为响应格式
-    let items: Vec<serde_json::Value> = data
+    let mut items: Vec<serde_json::Value> = data
         .as_array()
         .cloned()
         .unwrap_or_default()
@@ -117,6 +121,45 @@ pub async fn list_pool(
             })
         })
         .collect();
+
+    // 字段级数据权限：判定分支与 crm_handler::list_leads 同构，复用同一判定源
+    // （data_permission_service.get_role_data_permission，admin 依据 roles.code='admin'，
+    // admin_checker.rs:87）与同一掩码实现（utils/field_mask::mask_phone/mask_email），
+    // 公海侧不另造更松的规则：
+    // - 配置了数据权限行 → filter_fields_batch（hidden/allowed 优先，不叠加默认打码）；
+    // - 无权限行且 role_id != 1 → phone/email 掩码（查询 Err 同走此分支，fail-closed）。
+    if let Some(role_id) = auth.role_id {
+        if let Ok(Some(permission)) = state
+            .data_permission_service
+            .get_role_data_permission(role_id, "crm_lead")
+            .await
+        {
+            state.data_permission_service.filter_fields_batch(
+                &mut items,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+        } else if role_id != 1 {
+            for lead in items.iter_mut() {
+                if let Some(obj) = lead.as_object_mut() {
+                    // 输出键为 crm_lead 真实列 mobile_phone（models/crm_lead.rs:40）；
+                    // 本入口出参由上方按挑选字段构造，不含 address 键，无需再移除。
+                    if let Some(phone) = obj.get("mobile_phone").and_then(|v| v.as_str()) {
+                        obj.insert(
+                            "mobile_phone".to_string(),
+                            serde_json::Value::String(crate::utils::field_mask::mask_phone(phone)),
+                        );
+                    }
+                    if let Some(email) = obj.get("email").and_then(|v| v.as_str()) {
+                        obj.insert(
+                            "email".to_string(),
+                            serde_json::Value::String(crate::utils::field_mask::mask_email(email)),
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
