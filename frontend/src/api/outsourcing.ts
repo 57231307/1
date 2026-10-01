@@ -1,11 +1,48 @@
 import { request } from './request';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
+/**
+ * 委外订单出参（GET 列表/详情/状态机迁移响应 data 载荷）——键名/可空性逐字段对齐后端
+ * backend/src/models/outsourcing_order.rs Model（DeriveEntityModel+Serialize，无 rename，
+ * 出参即 snake_case）。NOT NULL 列不标可选；rust_decimal 列出参为字符串（如 "100.0000"），
+ * 参与运算/回显数值输入前必须 Number() 归一；Date 列出参为 "YYYY-MM-DD" 字符串。
+ * 状态词值域见 utils/outsourcing-status.ts（权威：models/status/wage_energy_chemical_business.rs::outsourcing_order_status）。
+ */
 export interface OutsourcingOrder {
   id: number;
   order_no: string;
   order_type: string;
+  supplier_id: number;
+  production_order_id: number | null;
+  dye_batch_id: number | null;
+  color_no: string | null;
+  dye_lot_no: string | null;
+  issue_date: string;
+  expected_return_date: string | null;
+  actual_return_date: string | null;
+  issue_quantity: string;
+  issue_unit: string;
+  return_quantity: string;
+  loss_quantity: string;
+  loss_type: string | null;
+  loss_rate: string | null;
+  standard_loss_rate: string | null;
+  material_cost: string;
+  processing_fee: string;
+  freight_fee: string;
+  tax_amount: string;
+  abnormal_loss_amount: string;
+  total_cost: string;
+  unit_cost: string;
   status: string;
-  [key: string]: unknown;
+  voucher_no_issue: string | null;
+  voucher_no_fee: string | null;
+  voucher_no_receipt: string | null;
+  remarks: string | null;
+  is_deleted: boolean;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CreateOutsourcingOrderPayload {
@@ -36,20 +73,35 @@ export interface CreateOutsourcingOrderPayload {
   tax_amount?: number;
 }
 
-export function getOutsourcingOrderList(params?: Record<string, unknown>) {
-  return request.get('/production/outsourcing-orders', { params });
+/**
+ * 列表端点出参逐端点定型（禁止调用侧再写 data.list / items / 裸数组 双形状探测）：
+ * GET /production/outsourcing-orders → ApiResponse<PaginatedResponse>
+ * （handlers/outsourcing_handler.rs:113-137 返回类型直书，分页唯一形状 {items,total,page,page_size}，
+ * utils/response.rs:38-43）。
+ */
+export function getOutsourcingOrderList(
+  params?: Record<string, unknown>
+): Promise<ApiResponse<PaginatedResponse<OutsourcingOrder>>> {
+  return request.get<ApiResponse<PaginatedResponse<OutsourcingOrder>>>(
+    '/production/outsourcing-orders',
+    {
+      params,
+    }
+  );
 }
 
-export function createOutsourcingOrder(data: CreateOutsourcingOrderPayload) {
-  return request.post('/production/outsourcing-orders', data);
+export function createOutsourcingOrder(
+  data: CreateOutsourcingOrderPayload
+): Promise<ApiResponse<OutsourcingOrder>> {
+  return request.post<ApiResponse<OutsourcingOrder>>('/production/outsourcing-orders', data);
 }
 
-export function getOutsourcingOrderByNo(no: string) {
-  return request.get(`/production/outsourcing-orders/by-no/${no}`);
+export function getOutsourcingOrderByNo(no: string): Promise<ApiResponse<OutsourcingOrder>> {
+  return request.get<ApiResponse<OutsourcingOrder>>(`/production/outsourcing-orders/by-no/${no}`);
 }
 
-export function getOutsourcingOrderDetail(id: number) {
-  return request.get(`/production/outsourcing-orders/${id}`);
+export function getOutsourcingOrderDetail(id: number): Promise<ApiResponse<OutsourcingOrder>> {
+  return request.get<ApiResponse<OutsourcingOrder>>(`/production/outsourcing-orders/${id}`);
 }
 
 /**
@@ -86,40 +138,79 @@ export interface UpdateOutsourcingOrderPayload {
   remarks?: string | null;
 }
 
-export function updateOutsourcingOrder(id: number, data: UpdateOutsourcingOrderPayload) {
-  return request.put(`/production/outsourcing-orders/${id}`, data);
+export function updateOutsourcingOrder(
+  id: number,
+  data: UpdateOutsourcingOrderPayload
+): Promise<ApiResponse<OutsourcingOrder>> {
+  return request.put<ApiResponse<OutsourcingOrder>>(`/production/outsourcing-orders/${id}`, data);
 }
 
-export function deleteOutsourcingOrder(id: number) {
-  return request.delete(`/production/outsourcing-orders/${id}`);
+export function deleteOutsourcingOrder(id: number): Promise<ApiResponse<null>> {
+  return request.delete<ApiResponse<null>>(`/production/outsourcing-orders/${id}`);
 }
 
-// 后端 issue/processing/settle handler 仅 Path(id) + State，无 Json<T> 提取器（状态机迁移，
+// 后端 issue/processing/settle/close/cancel handler 仅 Path(id) + State，无 Json<T> 提取器（状态机迁移，
 // 载荷不参与业务），此前前端发送 `data ?? {}` 空体属多余请求体（被 axum 丢弃但契约占位）——
-// 状态词表小写 received/settled/processing（models/status/wage_energy_chemical_business.rs:261），
-// 前端比较值须逐字符一致。三端点均不带请求体调用。
-export function issueOutsourcingOrder(id: number) {
-  return request.post(`/production/outsourcing-orders/${id}/issue`);
+// 状态词表小写 received/settled/processing（models/status/wage_energy_chemical_business.rs:262-277），
+// 前端比较值须逐字符一致（门控值与标签一律引 utils/outsourcing-status.ts，同源于本词表）。
+// 三端点均不带请求体调用；出参 data = 迁移后的 outsourcing_order 行（outsourcing_handler.rs:185-226）。
+export function issueOutsourcingOrder(id: number): Promise<ApiResponse<OutsourcingOrder>> {
+  return request.post<ApiResponse<OutsourcingOrder>>(`/production/outsourcing-orders/${id}/issue`);
 }
 
-export function processOutsourcingOrder(id: number) {
-  return request.post(`/production/outsourcing-orders/${id}/processing`);
+export function processOutsourcingOrder(id: number): Promise<ApiResponse<OutsourcingOrder>> {
+  return request.post<ApiResponse<OutsourcingOrder>>(
+    `/production/outsourcing-orders/${id}/processing`
+  );
 }
 
-export function settleOutsourcingOrder(id: number) {
-  return request.post(`/production/outsourcing-orders/${id}/settle`);
+/**
+ * 结算：received → settled。后端两条硬拒（均 400，调用前界面须同口径门控，不可点了才吃 400）：
+ * 状态门 order.rs:594-599（仅 received）；费用门 order.rs:607-611（processing_fee + freight_fee <= 0 拒）。
+ */
+export function settleOutsourcingOrder(id: number): Promise<ApiResponse<OutsourcingOrder>> {
+  return request.post<ApiResponse<OutsourcingOrder>>(`/production/outsourcing-orders/${id}/settle`);
 }
 
-export function closeOutsourcingOrder(id: number) {
-  return request.post(`/production/outsourcing-orders/${id}/close`);
+export function closeOutsourcingOrder(id: number): Promise<ApiResponse<OutsourcingOrder>> {
+  return request.post<ApiResponse<OutsourcingOrder>>(`/production/outsourcing-orders/${id}/close`);
 }
 
-export function cancelOutsourcingOrder(id: number) {
-  return request.post(`/production/outsourcing-orders/${id}/cancel`);
+export function cancelOutsourcingOrder(id: number): Promise<ApiResponse<OutsourcingOrder>> {
+  return request.post<ApiResponse<OutsourcingOrder>>(`/production/outsourcing-orders/${id}/cancel`);
 }
 
-export function getOutsourcingItems(orderId: number) {
-  return request.get(`/production/outsourcing-orders/items/by-order/${orderId}`);
+/**
+ * 委外发料明细出参 —— 键对齐 backend/src/models/outsourcing_order_item.rs Model；
+ * GET .../items/by-order/{id} 的 data 是**裸数组**（outsourcing_handler.rs:234-240
+ * ApiResponse<Vec<Model>>），不是 {items}，读取处直接取 res.data。
+ */
+export interface OutsourcingOrderItem {
+  id: number;
+  outsourcing_order_id: number;
+  product_id: number;
+  color_no: string | null;
+  dye_lot_no: string | null;
+  batch_no: string | null;
+  warehouse_id: number | null;
+  quantity: string;
+  unit: string;
+  unit_cost: string;
+  total_cost: string;
+  processing_fee: string;
+  freight_fee: string;
+  inventory_transaction_id: number | null;
+  greige_fabric_id: number | null;
+  piece_no: string | null;
+  remarks: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getOutsourcingItems(orderId: number): Promise<ApiResponse<OutsourcingOrderItem[]>> {
+  return request.get<ApiResponse<OutsourcingOrderItem[]>>(
+    `/production/outsourcing-orders/items/by-order/${orderId}`
+  );
 }
 
 export function createOutsourcingItem(orderId: number, data: Record<string, unknown>) {
@@ -129,20 +220,68 @@ export function createOutsourcingItem(orderId: number, data: Record<string, unkn
   });
 }
 
+/**
+ * 收回单出参 —— 键对齐 backend/src/models/outsourcing_receipt.rs Model（snake_case）。
+ * 状态词值域 draft/confirmed/cancelled（权威 outsourcing_receipt_status，
+ * wage_energy_chemical_business.rs:288-295；utils/outsourcing-status.ts 目前**只收录订单态**，
+ * 收回态映射缺失已交回编排者，见任务 #149 报告）。
+ */
 export interface OutsourcingReceipt {
   id: number;
+  receipt_no: string;
+  outsourcing_order_id: number;
+  receipt_date: string;
+  product_id: number;
+  color_no: string | null;
+  dye_lot_no: string | null;
+  batch_no: string | null;
+  warehouse_id: number | null;
+  return_quantity: string;
+  loss_quantity: string;
+  loss_type: string | null;
+  loss_rate: string | null;
+  is_loss_normal: boolean;
+  unit_cost: string;
+  total_cost: string;
+  abnormal_loss_amount: string;
+  quality_status: string | null;
+  grade: string | null;
+  inventory_transaction_id: number | null;
+  inspection_id: number | null;
   status: string;
-  [key: string]: unknown;
+  remarks: string | null;
+  is_deleted: boolean;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
-export function getOutsourcingReceiptList(params?: Record<string, unknown>) {
-  return request.get('/production/outsourcing-receipts', { params });
+/**
+ * GET /production/outsourcing-receipts → ApiResponse<PaginatedResponse>
+ * （outsourcing_handler.rs:275-295），列表唯一读法 = res.data.items。
+ */
+export function getOutsourcingReceiptList(
+  params?: Record<string, unknown>
+): Promise<ApiResponse<PaginatedResponse<OutsourcingReceipt>>> {
+  return request.get<ApiResponse<PaginatedResponse<OutsourcingReceipt>>>(
+    '/production/outsourcing-receipts',
+    {
+      params,
+    }
+  );
 }
 
 export function createOutsourcingReceipt(data: Record<string, unknown>) {
   return request.post('/production/outsourcing-receipts', data);
 }
 
-export function confirmOutsourcingReceipt(id: number) {
-  return request.post(`/production/outsourcing-receipts/${id}/confirm`);
+/**
+ * 确认收回单：draft → confirmed，并把关联委外订单推进 received（receipt.rs:510）。
+ * 后端两条硬拒（400）：状态门 receipt.rs:326-331（仅 draft）；数量门 receipt.rs:338-342
+ * （return_quantity <= 0 拒，存量 0 量草稿同样拦住）。
+ */
+export function confirmOutsourcingReceipt(id: number): Promise<ApiResponse<OutsourcingReceipt>> {
+  return request.post<ApiResponse<OutsourcingReceipt>>(
+    `/production/outsourcing-receipts/${id}/confirm`
+  );
 }

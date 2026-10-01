@@ -23,32 +23,47 @@
             <el-table-column label="操作" width="340" fixed="right">
               <template #default="{ row }">
                 <el-button size="small" @click="openDetail(row)">详情</el-button>
-                <el-button v-if="row.status === 'draft'" size="small" @click="openEdit(row)"
+                <el-button
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
+                  size="small"
+                  @click="openEdit(row)"
                   >编辑</el-button
                 >
                 <el-button
-                  v-if="row.status === 'draft'"
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
                   size="small"
                   type="primary"
                   @click="onIssue(row)"
                   >发出</el-button
                 >
                 <el-button
-                  v-if="row.status === 'issued'"
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.issued"
                   size="small"
                   type="primary"
                   @click="onProcess(row)"
                   >加工中</el-button
                 >
-                <el-button
-                  v-if="row.status === 'received'"
-                  size="small"
-                  type="success"
-                  @click="onSettle(row)"
-                  >结算</el-button
+                <!-- 结算入口与后端 settle 两道硬拒同口径（提前提示，不替代后端校验，
+                     后端拒绝原因仍由失败信封正常外显）：状态门 order.rs:594-597 仅 received；
+                     费用门 order.rs:607-611 processing_fee+freight_fee<=0 拒 400 -->
+                <el-tooltip
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.received"
+                  :content="$t('outsourcing.gate.zeroFeeSettleTip')"
+                  placement="top"
+                  :disabled="!isZeroFeeOrder(row)"
                 >
+                  <span>
+                    <el-button
+                      size="small"
+                      type="success"
+                      :disabled="isZeroFeeOrder(row)"
+                      @click="onSettle(row)"
+                      >结算</el-button
+                    >
+                  </span>
+                </el-tooltip>
                 <el-button
-                  v-if="row.status === 'settled'"
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.settled"
                   size="small"
                   type="success"
                   plain
@@ -56,7 +71,7 @@
                   >关闭</el-button
                 >
                 <el-button
-                  v-if="row.status === 'draft'"
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
                   size="small"
                   type="danger"
                   plain
@@ -64,7 +79,7 @@
                   >取消</el-button
                 >
                 <el-button
-                  v-if="row.status === 'draft'"
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
                   size="small"
                   type="danger"
                   @click="onDelete(row)"
@@ -105,13 +120,25 @@
             </el-table-column>
             <el-table-column label="操作" width="100" fixed="right">
               <template #default="{ row }">
-                <el-button
+                <!-- 确认入口与后端 confirm 两道硬拒同口径（提前提示，不替代后端校验）：
+                     状态门 receipt.rs:326-331 仅 draft；数量门 receipt.rs:338-342
+                     return_quantity<=0 拒 400（存量 0 量草稿同样拦） -->
+                <el-tooltip
                   v-if="row.status === 'draft'"
-                  size="small"
-                  type="success"
-                  @click="onConfirmReceipt(row)"
-                  >确认</el-button
+                  :content="$t('outsourcing.gate.zeroQtyConfirmTip')"
+                  placement="top"
+                  :disabled="!isZeroQtyReceipt(row)"
                 >
+                  <span>
+                    <el-button
+                      size="small"
+                      type="success"
+                      :disabled="isZeroQtyReceipt(row)"
+                      @click="onConfirmReceipt(row)"
+                      >确认</el-button
+                    >
+                  </span>
+                </el-tooltip>
               </template>
             </el-table-column>
           </el-table>
@@ -227,28 +254,20 @@
           detailOrder.issue_unit || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('outsourcing.form.materialCost')">{{
-          detailOrder.material_cost ?? '-'
+          detailOrder.material_cost
         }}</el-descriptions-item>
-        <!-- 三费与成本链回显（后端 outsourcing_order 真实列，Decimal 出参为字符串） -->
-        <el-descriptions-item label="加工费">{{
-          detailOrder.processing_fee ?? '-'
-        }}</el-descriptions-item>
-        <el-descriptions-item label="运费">{{
-          detailOrder.freight_fee ?? '-'
-        }}</el-descriptions-item>
-        <el-descriptions-item label="税额">{{
-          detailOrder.tax_amount ?? '-'
-        }}</el-descriptions-item>
-        <el-descriptions-item label="总成本">{{
-          detailOrder.total_cost ?? '-'
-        }}</el-descriptions-item>
+        <!-- 三费与成本链回显（后端 outsourcing_order 真实 NOT NULL 列，键恒在，Decimal 出参为字符串） -->
+        <el-descriptions-item label="加工费">{{ detailOrder.processing_fee }}</el-descriptions-item>
+        <el-descriptions-item label="运费">{{ detailOrder.freight_fee }}</el-descriptions-item>
+        <el-descriptions-item label="税额">{{ detailOrder.tax_amount }}</el-descriptions-item>
+        <el-descriptions-item label="总成本">{{ detailOrder.total_cost }}</el-descriptions-item>
       </el-descriptions>
 
       <div class="items-section">
         <div class="items-toolbar">
           <span class="items-title">发料明细</span>
           <el-button
-            v-if="detailOrder && detailOrder.status === 'draft'"
+            v-if="detailOrder && detailOrder.status === OUTSOURCING_ORDER_STATUS.draft"
             type="primary"
             size="small"
             @click="itemDialogVisible = true"
@@ -376,8 +395,11 @@ import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
 import { logger } from '@/utils/logger';
-import { outsourcingStatusLabelKey, outsourcingStatusTagType } from '@/utils/outsourcing-status';
-import type { ApiResponse, PaginatedResponse } from '@/types/api';
+import {
+  OUTSOURCING_ORDER_STATUS,
+  outsourcingStatusLabelKey,
+  outsourcingStatusTagType,
+} from '@/utils/outsourcing-status';
 import {
   OUTSOURCING_QUALITY_FORM_VALUES,
   OUTSOURCING_QUALITY_STATUS,
@@ -402,6 +424,8 @@ import {
   createOutsourcingReceipt,
   confirmOutsourcingReceipt,
   type OutsourcingOrder,
+  type OutsourcingOrderItem,
+  type OutsourcingReceipt,
 } from '@/api/outsourcing';
 
 /**
@@ -459,13 +483,14 @@ const form = reactive({
   tax_amount: undefined as number | undefined,
 });
 
-const unwrapList = (p: unknown): OutsourcingOrder[] =>
-  (p as { data: { items: OutsourcingOrder[] } }).data.items;
-
 async function load() {
   loading.value = true;
   try {
-    orders.value = unwrapList(await getOutsourcingOrderList());
+    // GET /production/outsourcing-orders 出参 = ApiResponse<PaginatedResponse>
+    // （handlers/outsourcing_handler.rs:113-137）：分页唯一形状 {items,total,page,page_size}
+    // （utils/response.rs:38-43），读取键固定 data.items，不做形状探测、不做 ?? 兜底。
+    const res = await getOutsourcingOrderList();
+    orders.value = res.data.items;
   } finally {
     loading.value = false;
   }
@@ -524,14 +549,14 @@ const openEdit = (row: OutsourcingOrder) => {
     supplier_id: row.supplier_id,
     issue_date: row.issue_date || '',
     expected_return_date: row.expected_return_date || '',
-    issue_quantity: row.issue_quantity,
+    // 后端 Decimal 列出参为字符串（如 "100.0000"），el-input-number 绑定必须 Number() 归一
+    // （NOT NULL 列键恒在，无需 ?? 兜底缺键）
+    issue_quantity: Number(row.issue_quantity),
     issue_unit: row.issue_unit || '',
-    material_cost: row.material_cost as number | undefined,
-    // 三费回显：后端 Model 出参 Decimal 为字符串（如 "100.0000"），
-    // el-input-number 绑定必须 Number() 归一（禁止对字符串直接参与运算）
-    processing_fee: Number(row.processing_fee ?? 0),
-    freight_fee: Number(row.freight_fee ?? 0),
-    tax_amount: Number(row.tax_amount ?? 0),
+    material_cost: Number(row.material_cost),
+    processing_fee: Number(row.processing_fee),
+    freight_fee: Number(row.freight_fee),
+    tax_amount: Number(row.tax_amount),
   });
   dialogVisible.value = true;
 };
@@ -593,7 +618,7 @@ const onDelete = async (row: OutsourcingOrder) => {
 // 详情 + 发料明细
 const detailVisible = ref(false);
 const detailOrder = ref<OutsourcingOrder | null>(null);
-const orderItems = ref<Array<Record<string, unknown>>>([]);
+const orderItems = ref<OutsourcingOrderItem[]>([]);
 const itemLoading = ref(false);
 const itemDialogVisible = ref(false);
 const itemSaving = ref(false);
@@ -615,10 +640,10 @@ const openDetail = async (row: OutsourcingOrder) => {
   itemLoading.value = true;
   try {
     // 后端 outsourcing_handler.rs::list_outsourcing_items 出参 ApiResponse<Vec<Model>>：
-    // 成功信封载荷在 res.data（明细数组本身），非 res.items。旧代码读 res.items 恒 undefined，
-    // 明细表恒空且不报错（静默失败）。此处按单一信封形状取键，不做 items/data 双形状探测。
+    // 成功信封载荷在 res.data（明细数组本身），非 res.items。按端点定型读取单一键，
+    // 不做 items/data 双形状探测、不做 ?? [] 兜底（缺键属契约失配，须暴露不得掩盖）。
     const res = await getOutsourcingItems(row.id);
-    orderItems.value = (res as ApiResponse<Array<Record<string, unknown>>>).data ?? [];
+    orderItems.value = res.data;
   } finally {
     itemLoading.value = false;
   }
@@ -652,7 +677,7 @@ const onSaveItem = async () => {
 };
 
 // 收回单
-const receipts = ref<Array<Record<string, unknown>>>([]);
+const receipts = ref<OutsourcingReceipt[]>([]);
 const receiptLoading = ref(false);
 const receiptDialogVisible = ref(false);
 const receiptSaving = ref(false);
@@ -674,11 +699,10 @@ async function loadReceipts() {
   receiptLoading.value = true;
   try {
     // 后端 outsourcing_handler.rs::list_outsourcing_receipts 出参 ApiResponse<PaginatedResponse>：
-    // 分页列表唯一形状是 {items,total,page,page_size}，载荷在 res.data.items，非 res.items。
-    // 旧代码读 res.items 恒 undefined → 收回单表恒空且不报错。此处按单一形状取键。
+    // 分页唯一形状 {items,total,page,page_size}（utils/response.rs:38-43），载荷在 res.data.items，
+    // 非 res.items。按单一形状取键，不做 ?? 兜底。
     const res = await getOutsourcingReceiptList();
-    receipts.value =
-      (res as ApiResponse<PaginatedResponse<Record<string, unknown>>>).data.items ?? [];
+    receipts.value = res.data.items;
   } finally {
     receiptLoading.value = false;
   }
@@ -723,16 +747,31 @@ const onSaveReceipt = async () => {
   }
 };
 
-const onConfirmReceipt = async (row: Record<string, unknown>) => {
+/**
+ * 结算前端门（与后端 settle 费用门 order.rs:607-611 同口径 `processing_fee + freight_fee <= 0`，
+ * 提前提示不可结算，不替代后端校验——后端拒绝仍走失败信封正常外显）。
+ * 两列为 NOT NULL DECIMAL（v15/mod.rs:3247-3248），出参恒为字符串键，Number() 归一求和，无缺键兜底。
+ */
+const isZeroFeeOrder = (row: OutsourcingOrder) =>
+  Number(row.processing_fee) + Number(row.freight_fee) <= 0;
+
+/**
+ * 收回确认前端门（与后端 confirm 数量门 receipt.rs:338-342 同口径 `return_quantity <= 0`；
+ * 存量 0 量草稿由本门先拦，点击路径不可达，后端仍会硬拒兜底）。
+ */
+const isZeroQtyReceipt = (row: OutsourcingReceipt) => Number(row.return_quantity) <= 0;
+
+const onConfirmReceipt = async (row: OutsourcingReceipt) => {
   try {
     await ElMessageBox.confirm(`确认收回单 #${row.id}？确认后触发入库与质检。`, '确认');
   } catch {
     return;
   }
   try {
-    await confirmOutsourcingReceipt(row.id as number);
+    await confirmOutsourcingReceipt(row.id);
     ElMessage.success('收回单已确认');
     await loadReceipts();
+    await load();
   } catch (e) {
     ElMessage.error((e as Error).message || '确认失败');
   }
