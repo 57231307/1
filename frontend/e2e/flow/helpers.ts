@@ -85,6 +85,10 @@ export const APP_ERROR_CODES = {
   BUSINESS_ERROR: 'BUSINESS_ERROR',
   /** error.rs:464 AppError::BadRequest */
   BAD_REQUEST: 'BAD_REQUEST',
+  /** utils/error.rs:709 `CODE_FORBIDDEN`；中间件与 AppError::PermissionDenied 同码 */
+  FORBIDDEN: 'FORBIDDEN',
+  /** utils/error.rs:739 AppError::NotFound 分支的机器码 */
+  NOT_FOUND: 'NOT_FOUND',
 } as const;
 
 /**
