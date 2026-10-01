@@ -134,7 +134,6 @@ async function seedConfirmedReceipt(
   await seedInspectionPass(page, {
     receiptId: rcvId,
     supplierId: ctx.supplierId!,
-    passQuantity: dims.qty,
     context: `14 入库单#${rcvId}`,
   });
   await apiCall(page, 'POST', `/purchase/receipts/${rcvId}/confirm`);

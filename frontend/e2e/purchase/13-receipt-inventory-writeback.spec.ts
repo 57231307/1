@@ -202,7 +202,6 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     await seedInspectionPass(page, {
       receiptId: receipt.id,
       supplierId: ctx.supplierId!,
-      passQuantity: dims.qty,
       context: `13-01 入库单#${receipt.id}`,
     });
 
@@ -291,7 +290,6 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     await seedInspectionPass(page, {
       receiptId: draft!.id,
       supplierId: ctx.supplierId!,
-      passQuantity: '5',
       context: `13-02 入库单#${draft!.id}`,
     });
 
@@ -319,7 +317,6 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     await seedInspectionPass(page, {
       receiptId: receipt.id,
       supplierId: ctx.supplierId!,
-      passQuantity: dims.qty,
       context: `13-02b 入库单#${receipt.id}`,
     });
 

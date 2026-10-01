@@ -150,7 +150,6 @@ async function seedConfirmedReceipt(page: import('@playwright/test').Page): Prom
   await seedInspectionPass(page, {
     receiptId: rcvId as number,
     supplierId,
-    passQuantity: '500',
     context: 'purchase/04 种子入库单',
   });
   await apiCall(page, 'POST', `/purchase/receipts/${rcvId}/confirm`, {});
