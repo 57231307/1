@@ -21,6 +21,7 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::models::color_card_item;
 use crate::models::dye_batch;
 use crate::models::greige_fabric;
+use crate::models::status::quality_dyeing::dye_batch_lifecycle_status as batch_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -265,7 +266,7 @@ pub async fn create_dye_batch(
             }
             Some(s)
         }
-        None => Some("pending_schedule".to_string()),
+        None => Some(batch_status::PENDING_SCHEDULE.to_string()),
     };
 
     // 染色身份归一：值只能来自用户提交或主数据派生，禁止造假默认值。旧形态在色号缺失时
@@ -373,7 +374,7 @@ pub async fn update_dye_batch(
     let current_status = model
         .status
         .clone()
-        .unwrap_or_else(|| "pending_schedule".to_string());
+        .unwrap_or_else(|| batch_status::PENDING_SCHEDULE.to_string());
     let mut batch: dye_batch::ActiveModel = model.into();
 
     if let Some(greige_fabric_id) = req.greige_fabric_id {
@@ -410,7 +411,13 @@ pub async fn update_dye_batch(
         // 自动设置时间戳：染色中及之后工序记录开始时间
         let in_production = matches!(
             status.as_str(),
-            "preparing" | "dyeing" | "washing" | "fixing" | "dehydrating" | "drying" | "inspecting"
+            batch_status::PREPARING
+                | batch_status::DYEING
+                | batch_status::WASHING
+                | batch_status::FIXING
+                | batch_status::DEHYDRATING
+                | batch_status::DRYING
+                | batch_status::INSPECTING
         );
         if in_production {
             let needs_start_time = batch.started_at.as_ref().is_none();
@@ -419,7 +426,10 @@ pub async fn update_dye_batch(
             }
         }
         // 入库及之后状态记录完成时间
-        let is_finished = matches!(status.as_str(), "stored" | "shipped");
+        let is_finished = matches!(
+            status.as_str(),
+            batch_status::STORED | batch_status::SHIPPED
+        );
         if is_finished {
             batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
         }
@@ -447,13 +457,13 @@ pub async fn delete_dye_batch(
 
     if matches!(
         batch.status.as_deref(),
-        Some("preparing")
-            | Some("dyeing")
-            | Some("washing")
-            | Some("fixing")
-            | Some("dehydrating")
-            | Some("drying")
-            | Some("inspecting")
+        Some(batch_status::PREPARING)
+            | Some(batch_status::DYEING)
+            | Some(batch_status::WASHING)
+            | Some(batch_status::FIXING)
+            | Some(batch_status::DEHYDRATING)
+            | Some(batch_status::DRYING)
+            | Some(batch_status::INSPECTING)
     ) {
         return Err(AppError::business_displayable(
             "生产中的缸号不允许删除，请先取消或完成",
@@ -492,16 +502,20 @@ pub async fn complete_dye_batch(
     let current_status = model
         .status
         .clone()
-        .unwrap_or_else(|| "pending_schedule".to_string());
+        .unwrap_or_else(|| batch_status::PENDING_SCHEDULE.to_string());
     let greige_input_kg = req.greige_input_kg;
     let actual_output_kg = req.actual_output_kg;
     let mut batch: dye_batch::ActiveModel = model.into();
 
     // 检查当前状态是否允许完成（流转到 stored 终态前态）
-    if !dye_batch_state_machine_validation::is_valid_status_transition(&current_status, "stored") {
+    if !dye_batch_state_machine_validation::is_valid_status_transition(
+        &current_status,
+        batch_status::STORED,
+    ) {
         return Err(AppError::business(format!(
-            "状态流转不合法：{} -> stored",
-            current_status
+            "状态流转不合法：{} -> {}",
+            current_status,
+            batch_status::STORED
         )));
     }
 
@@ -510,7 +524,7 @@ pub async fn complete_dye_batch(
     batch.actual_output_kg = Set(Some(actual_output_kg));
     batch.actual_output_m = Set(Some(req.actual_output_m));
     batch.greige_input_kg = Set(Some(greige_input_kg));
-    batch.status = Set(Some("stored".to_string()));
+    batch.status = Set(Some(batch_status::STORED.to_string()));
     batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
     batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 

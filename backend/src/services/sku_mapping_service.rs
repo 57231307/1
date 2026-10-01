@@ -11,8 +11,8 @@ use serde::Serialize;
 use std::sync::Arc;
 
 use crate::models::{
-    product, product_color, product_supplier_mapping, purchase_order_item, supplier,
-    supplier_product, supplier_product_color,
+    product, product_color, product_supplier_mapping, purchase_order, purchase_order_item,
+    supplier, supplier_product, supplier_product_color,
 };
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -307,28 +307,67 @@ impl SkuMappingService {
     /// 的映射会让存量单据的 SKU 翻译悬空，并在 DB 层以 23503 裸落 DATABASE_ERROR(500)。
     /// 被引用 → `business_displayable` 公开规则文案拒绝（不含约束名/内部标识）；
     /// 真正的 DbErr 经 `?`（From<DbErr>）归 DATABASE_ERROR 并走 ERROR 日志。
+    ///
+    /// 快照取不到（mapping 指向的 supplier_product 行已不存在）时**不做静默跳过**：
+    /// 见下方 `None` 分支，先记 WARN 留痕，再退化为按 mapping 自身列继续查引用。
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let mapping = product_supplier_mapping::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("SKU 对照记录 {}", id)))?;
 
-        let supplier_product_code =
-            supplier_product::Entity::find_by_id(mapping.supplier_product_id)
-                .one(&*self.db)
-                .await?
-                .map(|sp| sp.product_code);
+        let supplier_product = supplier_product::Entity::find_by_id(mapping.supplier_product_id)
+            .one(&*self.db)
+            .await?;
 
-        if let Some(code) = supplier_product_code {
-            let referencing = purchase_order_item::Entity::find()
-                .filter(purchase_order_item::Column::ProductId.eq(mapping.product_id))
-                .filter(purchase_order_item::Column::SupplierProductCode.eq(code.as_str()))
-                .count(&*self.db)
-                .await?;
-            if referencing > 0 {
-                return Err(AppError::business_displayable(
-                    "该映射已被采购/调拨单据引用，无法删除",
-                ));
+        match supplier_product {
+            // 常规路径：按权威快照列（product_id + supplier_product_code）精确判引用
+            Some(sp) => {
+                let referencing = purchase_order_item::Entity::find()
+                    .filter(purchase_order_item::Column::ProductId.eq(mapping.product_id))
+                    .filter(
+                        purchase_order_item::Column::SupplierProductCode
+                            .eq(sp.product_code.as_str()),
+                    )
+                    .count(&*self.db)
+                    .await?;
+                if referencing > 0 {
+                    return Err(AppError::business_displayable(
+                        "该映射已被采购/调拨单据引用，无法删除",
+                    ));
+                }
+            }
+            // 快照列取不到：`supplier_products` 行缺失（悬挂引用），无法用
+            // supplier_product_code 精确匹配历史单据。此时**不能**把「查不了」当成「没引用」
+            // 直接放行硬删，也不能一刀切拒绝（会误伤本就无人引用的脏 mapping）。
+            // 判定依据（与写入方一致）：单据侧唯一持有该映射语义的列组合是
+            // `purchase_order_item.product_id` + 其所属 `purchase_order.supplier_id`
+            // （映射本身即 (product_id, product_color_id, supplier_id) 三元组，见 resolve_supplier_sku），
+            // 因此退化为按 mapping 自身列 product_id + supplier_id 联表查采购明细：
+            // 命中 → 至少存在一张同供应商同产品的采购单，快照列无法证伪其引用关系，拒绝删除；
+            // 未命中 → 全库没有任何按此 (供应商, 产品) 落过的采购明细，确认无引用依据，放行删除。
+            None => {
+                tracing::warn!(
+                    mapping_id = mapping.id,
+                    supplier_product_id = mapping.supplier_product_id,
+                    product_id = mapping.product_id,
+                    supplier_id = mapping.supplier_id,
+                    "SKU 映射删除预检：关联 supplier_products 行缺失（悬挂引用），\
+                     无法按 supplier_product_code 快照精确判引用；\
+                     已退化为按 mapping 自身列 (product_id, supplier_id) 联表查 purchase_order_item，\
+                     该 mapping 的供应商商品外键指向不存在的行，属数据完整性问题，请另行核查"
+                );
+                let referencing = purchase_order_item::Entity::find()
+                    .inner_join(purchase_order::Entity)
+                    .filter(purchase_order_item::Column::ProductId.eq(mapping.product_id))
+                    .filter(purchase_order::Column::SupplierId.eq(mapping.supplier_id))
+                    .count(&*self.db)
+                    .await?;
+                if referencing > 0 {
+                    return Err(AppError::business_displayable(
+                        "该映射所在供应商+产品组合已被采购/调拨单据引用，无法删除",
+                    ));
+                }
             }
         }
 

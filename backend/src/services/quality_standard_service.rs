@@ -1,3 +1,4 @@
+use crate::models::custom_order;
 use crate::models::quality_standard;
 use crate::models::status::master_data;
 use crate::models::status::quality_dyeing::quality_standard as qs_status;
@@ -188,23 +189,47 @@ impl QualityStandardService {
     }
 
     /// 删除质量标准
+    ///
+    /// 引用预检（真实计数，不是占位）：
+    /// 1. `custom_orders.quality_standard_id`——客户专属质量标准（写入方
+    ///    `services/custom_order_crud_service.rs:368`；列由
+    ///    `migration/src/domain/sales_crm/mod.rs:498` ADD COLUMN 添加且**无 FK**，
+    ///    所以删除后不会被数据库拦住，只会让存量定制品单的质检标准悬空）；
+    /// 2. `quality_standards.previous_version_id`——版本链自引用（写入方本服务
+    ///    `create_version_history`，指向被升级的旧版本行；删掉旧行会让新版本失去前驱）。
+    /// 任一命中 → `business_displayable` 公开规则文案拒绝（不含表名/列名/约束名）；
+    /// 均无引用才执行删除。
     pub async fn delete_standard(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在删除质量标准：{}", user_id, id);
 
         let _standard = self.get_standard_by_id(id).await?;
 
-        // 检查是否有引用
-        // 说明: 当前业务模型暂时无需树状结构，跳过 ParentId 检查
-        let referenced_count = 0;
+        let referenced_by_custom_orders = custom_order::Entity::find()
+            .filter(custom_order::Column::QualityStandardId.eq(id))
+            .count(&*self.db)
+            .await?;
+        let referenced_by_version_chain = quality_standard::Entity::find()
+            .filter(quality_standard::Column::PreviousVersionId.eq(id))
+            .count(&*self.db)
+            .await?;
+        info!(
+            "质量标准删除预检：id={}, 定制品单引用 {} 条, 版本链后继引用 {} 条",
+            id, referenced_by_custom_orders, referenced_by_version_chain
+        );
 
-        if referenced_count > 0 {
-            return Err(AppError::validation("质量标准被引用，无法删除".to_string()));
+        if referenced_by_custom_orders > 0 || referenced_by_version_chain > 0 {
+            return Err(AppError::business_displayable(
+                "该质量标准已被定制品单或后续版本引用，无法删除",
+            ));
         }
 
-        quality_standard::Entity::delete_many()
+        let result = quality_standard::Entity::delete_many()
             .filter(quality_standard::Column::Id.eq(id))
             .exec(&*self.db)
             .await?;
+        if result.rows_affected == 0 {
+            return Err(AppError::not_found(format!("质量标准不存在：{}", id)));
+        }
 
         info!("质量标准删除成功：{}", id);
         Ok(())
