@@ -172,7 +172,9 @@ pub mod purchase_receipt_inspection {
     /// 质检合格：允许后续入库/结算流转
     pub const PASSED: &str = "PASSED";
 
-    /// 质检不合格：走让步接收或退货流程
+    /// 质检不合格：不得入库/结算，唯一下游处置出口是按不合格质检生成采购退货。
+    /// 本列不存在「让步接收/复检改判」通道——让步接收属质检分级域
+    /// （quality_grade=B，降级销售，见 services/quality_inspection_service.rs），不改写本列。
     pub const REJECTED: &str = "REJECTED";
 
     /// 本列全部合法取值
@@ -211,10 +213,10 @@ pub mod purchase_inspection_result {
     /// 合格：整批通过
     pub const PASS: &str = "pass";
 
-    /// 不合格：整批不通过，走让步接收或退货流程
+    /// 不合格：整批不通过，回写入库单 REJECTED，下游只能退货
     pub const FAIL: &str = "fail";
 
-    /// 部分合格：整批存在不合格部分，不合格部分走让步接收或退货流程
+    /// 部分合格：整批存在不合格部分，整单按不合格对待（回写 REJECTED），下游只能退货
     pub const PARTIAL: &str = "partial";
 
     /// 本列全部合法取值：完成质检白名单强校验的唯一取值来源
@@ -231,11 +233,11 @@ pub mod purchase_inspection_result {
     ///
     /// partial 的映射裁定依据（入库词表只有 PENDING/PASSED/REJECTED 三态）：
     /// - pass → PASSED：语义即「质检合格：允许后续入库/结算流转」；
-    /// - fail → REJECTED：语义即「质检不合格：走让步接收或退货流程」；
+    /// - fail → REJECTED：语义即「质检不合格：唯一下游处置出口是采购退货」；
     /// - partial → REJECTED：部分合格≠整批合格，不能按 PASSED 放行（那会打开
     ///   「合格方可入库/结算」的门，属兜底放行）；PENDING 语义是「待检验」，
     ///   与"已完成检验"不符；不合格部分要走的下游路径与 fail 完全相同——
-    ///   REJECTED 的定义文案「走让步接收或退货流程」，且前端「生成退货」门控
+    ///   REJECTED 的定义文案（唯一下游处置出口是采购退货），且前端「生成退货」门控
     ///   对 fail/partial 同示（views/purchase-inspection/components/
     ///   PurchaseInspectionTable.vue 的 RETURN_ELIGIBLE_RESULTS）。
     ///   精确结论（partial）无损保留在 purchase_inspection.inspection_result 本列。

@@ -20,11 +20,11 @@
 //!
 //! 回写映射裁定（入库词表 purchase_receipt_inspection 只有大写三态）：
 //! - pass → PASSED（「质检合格：允许后续入库/结算流转」）；
-//! - fail → REJECTED（「质检不合格：走让步接收或退货流程」）；
+//! - fail → REJECTED（「质检不合格：不得入库/结算，唯一下游处置出口是采购退货」）；
 //! - partial → REJECTED：部分合格≠整批合格，按 PASSED 放行即兜底开门；PENDING 语义为
 //!   「待检验」与已完成检验不符；partial 的前端下游门控与 fail 完全同路径
 //!   （「生成退货」仅 result∈{fail,partial} 显示，PurchaseInspectionTable.vue），
-//!   落入 REJECTED 的「让步接收或退货」处置通道；精确结论 partial 无损保留在本列。
+//!   落入 REJECTED 后本域唯一处置通道是采购退货（无让步接收改判端点）；精确结论 partial 无损保留在本列。
 //!   依据原文见 `purchase_inspection_result::to_receipt_inspection_status` 文档注释。
 //!
 //! 其余根因锁（前批坐实、形态保留）：
