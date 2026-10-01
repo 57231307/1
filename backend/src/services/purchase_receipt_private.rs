@@ -190,7 +190,7 @@ impl PurchaseReceiptService {
             return Ok(());
         }
         let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
-        active_order.actual_delivery_date = Set(target);
+        active_order.actual_delivery_date = Set(Some(target));
         active_order.updated_at = Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
