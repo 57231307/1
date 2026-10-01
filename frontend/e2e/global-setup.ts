@@ -2429,6 +2429,34 @@ async function ensureGlobalBusinessSeed(
     SEED_FAILURES.forEach((f, idx) => {
       console.error(`  ${idx + 1}. ${f}`);
     });
+    // 判责取证落盘：种子失败历来只能靠人翻各分片 stdout，而 Playwright 的 --shard
+    // 按用例 hash 分配、与 spec 文件无关（ci-cd.yml 分片注释），红的那片往往不是
+    // 缺数据的那片。这里把清单落成随产物上传的 JSON + GitHub 注解，让"先看种子"
+    // 不再依赖人的记忆。**仍然不 throw**：任一片 setup 硬失败会无差别杀掉该片全部
+    // 用例（36 片各自跑一次 setup），把可定位的缺数据放大成整轮零信号；
+    // 是否升级为按关键/装饰性种子分级的硬失败属 CI 判责边界，待用户拍板。
+    const shardTag = SHARD_INDEX || 'local';
+    try {
+      mkdirSync('reports', { recursive: true });
+      writeFileSync(
+        `reports/seed-failures-shard${shardTag}.json`,
+        JSON.stringify(
+          { shard: shardTag, count: SEED_FAILURES.length, failures: SEED_FAILURES },
+          null,
+          2
+        )
+      );
+    } catch (e) {
+      // 落盘失败不能让种子失败本身隐身：降级为显式打印，仍不 throw。
+      console.error(`[globalSeed] ❌ 种子失败清单落盘失败: ${(e as Error).message}`);
+    }
+    SEED_FAILURES.forEach(f => {
+      // 用 warn（本仓 no-console 只放行 warn/error；runner 对 stderr 同样解析
+      // workflow 命令），注解打到 PR checks 面板上，判责时不必再翻各片 stdout。
+      console.warn(
+        `::warning file=frontend/e2e/global-setup.ts::[globalSeed shard=${shardTag}] ${f}`
+      );
+    });
   } else {
     console.log('[globalSeed] 种子失败汇总：0 项');
   }
