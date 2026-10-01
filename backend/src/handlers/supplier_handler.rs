@@ -688,11 +688,20 @@ async fn scan_qualification_attachment_for_viruses(data: &[u8]) -> Result<(), Ap
         return Ok(());
     }
 
-    let clamav_url = std::env::var("CLAMAV_URL")
-        .map_err(|_| AppError::internal("CLAMAV_ENABLED 已启用但 CLAMAV_URL 未配置".to_string()))?;
-    if clamav_url.is_empty() {
-        return Err(AppError::internal(
-            "CLAMAV_ENABLED 已启用但 CLAMAV_URL 为空".to_string(),
+    // 决策定案 #4：扫描依赖故障族（未配置/不可达/非 2xx/响应读取失败）不是
+    // 「我方服务器坏了」（500 InternalError），而是外部扫描依赖不可用——统一走
+    // AppError::service_unavailable（HTTP 503 / code=SERVICE_UNAVAILABLE / 公网脱敏文案）。
+    // 真实原因只进 tracing::warn（CLAMAV_SCAN_UNAVAILABLE 事件标签），不外泄 URL/端口/配置键名；
+    // fail-closed 不动摇：以下每一条故障路径都在落盘（步骤 8）之前 return Err。
+    let clamav_url = std::env::var("CLAMAV_URL").unwrap_or_default();
+    if clamav_url.trim().is_empty() {
+        tracing::warn!(
+            target: "security_audit",
+            event = "CLAMAV_SCAN_UNAVAILABLE",
+            "CLAMAV_ENABLED 已启用但扫描服务地址未配置或为空，资质附件上传已拒绝（fail-closed，未落盘）"
+        );
+        return Err(AppError::service_unavailable(
+            "病毒扫描依赖不可用：扫描服务地址未配置（资质附件上传），根因见 CLAMAV_SCAN_UNAVAILABLE 事件日志",
         ));
     }
 
@@ -706,19 +715,41 @@ async fn scan_qualification_attachment_for_viruses(data: &[u8]) -> Result<(), Ap
         .body(data.to_vec())
         .send()
         .await
-        .map_err(|e| AppError::internal(format!("ClamAV 病毒扫描请求失败: {}", e)))?;
+        .map_err(|e| {
+            tracing::warn!(
+                target: "security_audit",
+                event = "CLAMAV_SCAN_UNAVAILABLE",
+                error = %e,
+                "病毒扫描服务不可达（连接失败/超时），资质附件上传已拒绝（fail-closed，未落盘）"
+            );
+            AppError::service_unavailable(
+                "病毒扫描依赖不可用：扫描服务不可达（资质附件上传），根因见 CLAMAV_SCAN_UNAVAILABLE 事件日志",
+            )
+        })?;
 
     if !response.status().is_success() {
-        return Err(AppError::internal(format!(
-            "ClamAV 返回非 2xx 状态: {}",
-            response.status()
-        )));
+        tracing::warn!(
+            target: "security_audit",
+            event = "CLAMAV_SCAN_UNAVAILABLE",
+            upstream_status = %response.status(),
+            "病毒扫描服务返回非 2xx，资质附件上传已拒绝（fail-closed，未落盘）"
+        );
+        return Err(AppError::service_unavailable(
+            "病毒扫描依赖不可用：扫描服务返回非 2xx（资质附件上传），根因见 CLAMAV_SCAN_UNAVAILABLE 事件日志",
+        ));
     }
 
-    let body = response
-        .text()
-        .await
-        .map_err(|e| AppError::internal(format!("读取 ClamAV 响应失败: {}", e)))?;
+    let body = response.text().await.map_err(|e| {
+        tracing::warn!(
+            target: "security_audit",
+            event = "CLAMAV_SCAN_UNAVAILABLE",
+            error = %e,
+            "读取病毒扫描响应失败，资质附件上传已拒绝（fail-closed，未落盘）"
+        );
+        AppError::service_unavailable(
+            "病毒扫描依赖不可用：扫描响应读取失败（资质附件上传），根因见 CLAMAV_SCAN_UNAVAILABLE 事件日志",
+        )
+    })?;
 
     // ClamAV REST 返回 "stream: OK" 表示无病毒
     if body.contains("OK") {
