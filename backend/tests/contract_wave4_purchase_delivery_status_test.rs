@@ -23,6 +23,9 @@
 //! 2. 缺陷实证对照：复现修复前的字面量谓词 → 仅 COMPLETED 命中（PARTIAL_RECEIVED 漏样）。
 //! 3. 词表同源锁：常量字面值逐字符核对（防第二套手写常量/拼写漂移）。
 //! 4. 防回潮源码扫描：calculator 须引用词表常量并以 $N 绑定，不得再出现引号状态字面量。
+//! 5. 决策定案 #7 接入锁：`actual_delivery_date` 由收货确认回写后，原被
+//!    `IS NOT NULL` 整批排除的单据必须进入平均交期样本（回写本体断言见
+//!    `contract_wave5_purchase_actual_delivery_writeback_test.rs`）。
 
 use bingxi_backend::models::status::purchase_order;
 use sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
@@ -199,6 +202,39 @@ async fn old_literal_predicate_drops_partial_received_defect_proof() {
         ids,
         vec![1],
         "旧谓词只命中 COMPLETED；'RECEIVED'/'PARTIALLY_RECEIVED' 非词表值恒不命中（原缺陷实证），实际 {ids:?}"
+    );
+}
+
+/// 决策定案 #7 接入断言：`actual_delivery_date` 由收货确认回写后，原本被
+/// `actual_delivery_date IS NOT NULL` 整批排除的单据应进入平均交期样本。
+/// 种子行 id3（COMPLETED + 到货日 NULL，即回写落地前的恒空现状）在被写入
+/// 与其同形态的确认回写 UPDATE 后必须命中谓词——锁定「回写 → 样本非空」链路，
+/// 防止列再次退化为永不为真的幽灵字段。回写本体（含取最大日期语义）由
+/// `contract_wave5_purchase_actual_delivery_writeback_test.rs` 真实调用服务断言。
+#[tokio::test]
+async fn write_back_after_confirm_bring_po_into_lead_time_sample() {
+    let db = setup_db().await;
+    // 回写前：NULL 到货日的 COMPLETED 行被排除（现状=该列从无写入点）
+    let before = matched_ids_bound_constants(&db).await;
+    assert_eq!(
+        before,
+        vec![1, 2],
+        "未回写时 id3 必须被 actual_delivery_date IS NOT NULL 排除，实际 {before:?}"
+    );
+    // 模拟生产回写事务内的落库形态（purchase_receipt_private.rs::
+    // write_back_actual_delivery_date：SET actual_delivery_date = 已确认收货最大 receipt_date）
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        "UPDATE purchase_orders SET actual_delivery_date = $2 WHERE id = $1",
+        vec![3i64.into(), "2026-03-08".into()],
+    ))
+    .await
+    .expect("回写形态 UPDATE 执行失败");
+    let after = matched_ids_bound_constants(&db).await;
+    assert_eq!(
+        after,
+        vec![1, 2, 3],
+        "回写到货日后该单必须进入平均交期样本（数值真实化），实际 {after:?}"
     );
 }
 
