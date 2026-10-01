@@ -210,14 +210,18 @@ impl PurchaseReturnService {
 
         let mut return_active: purchase_return::ActiveModel = return_order.into();
 
+        // 三态写入规则：None=不 Set（UPDATE 不含该列，原值不动）；
+        // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖。
+        // reason_type/reason_detail/notes 均为 DB 可空列（m0009 DDL）：
+        // Some(inner)=Set(inner)，显式 null 直落 NULL，不得塌成"保持原值"
         if let Some(reason_type) = req.reason_type {
-            return_active.reason_type = Set(Some(reason_type));
+            return_active.reason_type = Set(reason_type);
         }
         if let Some(reason_detail) = req.reason_detail {
-            return_active.reason_detail = Set(Some(reason_detail));
+            return_active.reason_detail = Set(reason_detail);
         }
         if let Some(notes) = req.notes {
-            return_active.notes = Set(Some(notes));
+            return_active.notes = Set(notes);
         }
         return_active.updated_at = Set(Utc::now());
 
@@ -951,12 +955,39 @@ pub struct CreatePurchaseReturnRequest {
     pub notes: Option<String>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围；本文件 DTO 为 wire 直连，适配器落位服务侧同文件）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新采购退货单请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
+/// reason_type/reason_detail/notes 均为 DB 可空列（purchase_return，m0009 DDL）——
+/// 三列都开显式 null 清空，本请求无 NOT NULL 列。
 #[derive(Debug, Default, Deserialize)]
 pub struct UpdatePurchaseReturnRequest {
-    pub reason_type: Option<String>,
-    pub reason_detail: Option<String>,
-    pub notes: Option<String>,
+    /// DB 可空列 reason_type（m0009 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason_type: Option<Option<String>>,
+    /// DB 可空列 reason_detail（m0009 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason_detail: Option<Option<String>>,
+    /// DB 可空列 notes（m0009 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -976,18 +1007,46 @@ pub struct CreateReturnItemRequest {
     pub batch_no: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// 更新采购退货明细请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（purchase_return_item.line_no/product_id/quantity/unit_price/
+/// tax_percent/discount_percent 与追溯列 color_no/dye_lot_no/batch_no——后三者经
+/// migration 补 DEFAULT '' + NOT NULL，见 models/purchase_return_item.rs 头注）
+/// 不开 null 清空，显式 null 由 service 拒绝；notes 为 DB 可空列，显式 null 清空。
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UpdateReturnItemRequest {
-    pub line_no: Option<i32>,
-    pub material_id: Option<i32>,
-    pub quantity_returned: Option<Decimal>,
-    pub unit_price: Option<Decimal>,
-    pub tax_rate: Option<Decimal>,
-    pub discount_percent: Option<Decimal>,
-    pub notes: Option<String>,
-    pub color_no: Option<String>,
-    pub dye_lot_no: Option<String>,
-    pub batch_no: Option<String>,
+    /// NOT NULL 列 line_no——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub line_no: Option<Option<i32>>,
+    /// NOT NULL 列 product_id——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub material_id: Option<Option<i32>>,
+    /// NOT NULL 列 quantity——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity_returned: Option<Option<Decimal>>,
+    /// NOT NULL 列 unit_price——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub unit_price: Option<Option<Decimal>>,
+    /// NOT NULL 列 tax_percent——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub tax_rate: Option<Option<Decimal>>,
+    /// NOT NULL 列 discount_percent——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub discount_percent: Option<Option<Decimal>>,
+    /// DB 可空列 notes——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
+    /// NOT NULL 追溯列 color_no（DEFAULT ''）——显式 null 被拒绝；"改回白坯"须提交空串
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_no: Option<Option<String>>,
+    /// NOT NULL 追溯列 dye_lot_no（DEFAULT ''）——显式 null 被拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub dye_lot_no: Option<Option<String>>,
+    /// NOT NULL 追溯列 batch_no（DEFAULT ''）——显式 null 被拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub batch_no: Option<Option<String>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sea_orm::FromQueryResult)]
@@ -1110,6 +1169,27 @@ impl PurchaseReturnService {
         req: UpdateReturnItemRequest,
         user_id: i32,
     ) -> Result<purchase_return_item::Model, AppError> {
+        // NOT NULL 列门控（purchase_return_item 的 line_no/product_id/quantity/unit_price/
+        // tax_percent/discount_percent 与追溯列 color_no/dye_lot_no/batch_no）：
+        // 显式 null 在任何 DB 访问前拒绝，错误外显不脱敏，不得塌成"保持原值"
+        for (field, cleared) in [
+            ("行号", matches!(req.line_no, Some(None))),
+            ("物料", matches!(req.material_id, Some(None))),
+            ("退货数量", matches!(req.quantity_returned, Some(None))),
+            ("单价", matches!(req.unit_price, Some(None))),
+            ("税率", matches!(req.tax_rate, Some(None))),
+            ("折扣率", matches!(req.discount_percent, Some(None))),
+            ("色号", matches!(req.color_no, Some(None))),
+            ("缸号", matches!(req.dye_lot_no, Some(None))),
+            ("批次", matches!(req.batch_no, Some(None))),
+        ] {
+            if cleared {
+                return Err(AppError::business_displayable(format!(
+                    "{field}不能清空：该字段为必填项"
+                )));
+            }
+        }
+
         let txn = self.db.begin().await?;
 
         let item = purchase_return_item::Entity::find_by_id(item_id)
@@ -1168,15 +1248,19 @@ impl PurchaseReturnService {
         Ok(())
     }
 
-    /// 解析请求中的明细参数，未提供则使用原值（返回 (quantity, unit_price, discount_percent, tax_percent)）
+    /// 解析请求中的明细参数：NOT NULL 列的显式 null 已在 update_item 入口拒绝，
+    /// flatten 后仅剩 覆盖/保持 两态（保持=用原值参与重算，不落库为 0 假值）
     fn resolve_item_params(
         req: &UpdateReturnItemRequest,
         item: &purchase_return_item::Model,
     ) -> (Decimal, Decimal, Decimal, Decimal) {
-        let quantity = req.quantity_returned.unwrap_or(item.quantity);
-        let unit_price = req.unit_price.unwrap_or(item.unit_price);
-        let discount_percent = req.discount_percent.unwrap_or(item.discount_percent);
-        let tax_percent = req.tax_rate.unwrap_or(item.tax_percent);
+        let quantity = req.quantity_returned.flatten().unwrap_or(item.quantity);
+        let unit_price = req.unit_price.flatten().unwrap_or(item.unit_price);
+        let discount_percent = req
+            .discount_percent
+            .flatten()
+            .unwrap_or(item.discount_percent);
+        let tax_percent = req.tax_rate.flatten().unwrap_or(item.tax_percent);
         (quantity, unit_price, discount_percent, tax_percent)
     }
 
@@ -1212,10 +1296,14 @@ impl PurchaseReturnService {
     ) -> purchase_return_item::ActiveModel {
         let mut active_item: purchase_return_item::ActiveModel = item.clone().into();
 
-        if let Some(line_no) = req.line_no {
+        // 三态写入规则：None=不 Set（UPDATE 不含该列，原值不动）；
+        // Some(None)=Set(None) 置 NULL（仅 DB 可空列）；Some(Some(v))=Set(v) 覆盖。
+        // line_no/product_id 为 NOT NULL 列（Some(None) 已在 update_item 入口拒绝）：
+        // 仅覆盖/保持
+        if let Some(line_no) = req.line_no.flatten() {
             active_item.line_no = Set(line_no);
         }
-        if let Some(material_id) = req.material_id {
+        if let Some(material_id) = req.material_id.flatten() {
             active_item.product_id = Set(material_id);
         }
 
@@ -1230,17 +1318,21 @@ impl PurchaseReturnService {
         active_item.tax_amount = Set(amounts.tax_amount);
         active_item.total_amount = Set(amounts.total_amount);
 
+        // notes 为 DB 可空列：Some(inner)=Set(inner)，显式 null 直落 NULL
         if let Some(notes) = req.notes {
-            active_item.notes = Set(Some(notes));
+            active_item.notes = Set(notes);
         }
 
-        if let Some(color_no) = req.color_no {
+        // 追溯三列（color_no/dye_lot_no/batch_no）为 NOT NULL DEFAULT '' 列
+        // （models/purchase_return_item.rs 头注：后补列经迁移补 DEFAULT '' + NOT NULL）：
+        // Some(None) 已入口拒绝，仅覆盖/保持；"改回白坯空值"由前端提交空串表达
+        if let Some(color_no) = req.color_no.flatten() {
             active_item.color_no = Set(color_no);
         }
-        if let Some(dye_lot_no) = req.dye_lot_no {
+        if let Some(dye_lot_no) = req.dye_lot_no.flatten() {
             active_item.dye_lot_no = Set(dye_lot_no);
         }
-        if let Some(batch_no) = req.batch_no {
+        if let Some(batch_no) = req.batch_no.flatten() {
             active_item.batch_no = Set(batch_no);
         }
 

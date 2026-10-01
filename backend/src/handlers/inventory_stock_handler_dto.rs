@@ -98,17 +98,54 @@ pub struct StockResponse {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围，各域 handler 内私有定义）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
+/// 更新库存请求（乐观锁）
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（quantity_on_hand/quantity_available/quantity_reserved/reorder_point/
+/// max_stock_point/reorder_quantity，inventory_stocks 模型为非 Option Decimal 列）
+/// 不开 null 清空，显式 null 在 handler 写库前被拒绝。version 保持必填裸值（非更新列，
+/// 是乐观锁比对键）。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateStockWithVersionRequest {
-    pub quantity_on_hand: Option<Decimal>,
-    pub quantity_available: Option<Decimal>,
-    pub quantity_reserved: Option<Decimal>,
-    pub reorder_point: Option<Decimal>,
-    /// 库存上限（v11 批次 144 P1-4：新增，支持 OverStock 告警阈值配置）
-    pub max_stock_point: Option<Decimal>,
-    pub reorder_quantity: Option<Decimal>,
-    pub bin_location: Option<String>,
+    /// NOT NULL 列——显式 null 被 handler 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity_on_hand: Option<Option<Decimal>>,
+    /// NOT NULL 列——显式 null 被 handler 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity_available: Option<Option<Decimal>>,
+    /// NOT NULL 列——显式 null 被 handler 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity_reserved: Option<Option<Decimal>>,
+    /// NOT NULL 列——显式 null 被 handler 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub reorder_point: Option<Option<Decimal>>,
+    /// NOT NULL 列——显式 null 被 handler 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub max_stock_point: Option<Option<Decimal>>,
+    /// NOT NULL 列——显式 null 被 handler 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub reorder_quantity: Option<Option<Decimal>>,
+    /// 货位：DB 可空列 bin_location（inventory_stocks 模型 Option<String>）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub bin_location: Option<Option<String>>,
     pub version: i32,
 }
 

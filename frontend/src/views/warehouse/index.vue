@@ -609,14 +609,18 @@ const handleSubmit = async () => {
     try {
       if (isEdit.value) {
         // 更新契约字段名是 name（无 warehouse_name 别名）；warehouse_code/description 不在更新契约。
-        // 空串可选键一律省略，避免 Some("") 触发 length(min=1) 校验 422（同 UserTab 范式）。
+        // 三态语义（后端 UpdateWarehouseRequest DoubleOption，RFC 7386）：
+        // NOT NULL 列 name/is_default/status 恒送值（送 null 被后端 400「XX不能清空」拒绝）；
+        // DB 可空列 address/phone/contact_person/warehouse_type/capacity UI 清空 ⇒
+        // 送显式 null（=清空为 NULL）——此前"空串键省略"塌成保持原值，清空保存不生效；
+        // manager 不在本表单采集范围 ⇒ 不提交该键（缺席=保持原经理）。
         await updateWarehouse(formData.id!, {
           name: formData.warehouse_name,
-          ...(formData.address ? { address: formData.address } : {}),
-          ...(formData.phone ? { phone: formData.phone } : {}),
-          ...(formData.contact_person ? { contact_person: formData.contact_person } : {}),
-          ...(formData.warehouse_type ? { warehouse_type: formData.warehouse_type } : {}),
-          ...(formData.capacity !== undefined ? { capacity: formData.capacity } : {}),
+          address: formData.address || null,
+          phone: formData.phone || null,
+          contact_person: formData.contact_person || null,
+          warehouse_type: formData.warehouse_type || null,
+          capacity: formData.capacity ?? null,
           is_default: formData.is_default,
           status: formData.status,
         });

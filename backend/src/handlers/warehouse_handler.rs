@@ -63,26 +63,61 @@ pub struct CreateWarehouseRequest {
     pub warehouse_type: Option<String>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围，各域 handler 内私有定义）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新仓库请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（warehouses.name，m0001 DDL；is_default/is_active→status 实体模型
+/// 为非 Option bool）不开 null 清空，显式 null 由 service 拒绝。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateWarehouseRequest {
+    /// 仓库名称：NOT NULL 列（m0001 DDL）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(min = 1, max = 100, message = "仓库名称不能为空"))]
-    pub name: Option<String>,
-    pub address: Option<String>,
-    pub manager: Option<String>,
-    pub phone: Option<String>,
-    /// 联系人（契约对齐：前端编辑表单 contact_person）
+    pub name: Option<Option<String>>,
+    /// DB 可空列 address（warehouses.address，m0001 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub address: Option<Option<String>>,
+    /// DB 可空列 manager_id（字符串形态的仓库经理 ID）——显式 null 清除经理
+    #[serde(default, deserialize_with = "double_option")]
+    pub manager: Option<Option<String>>,
+    /// DB 可空列 phone——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub phone: Option<Option<String>>,
+    /// DB 可空列 contact_person——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 100, message = "联系人最长100字符"))]
-    pub contact_person: Option<String>,
-    /// 默认仓库标志（契约对齐：前端编辑表单 is_default 开关）
-    pub is_default: Option<bool>,
-    /// 仓库容量（批次 158 v11 真实接入：扩展 schema 持久化，原 #[allow(dead_code)] 移除）
-    pub capacity: Option<i32>,
-    pub status: Option<String>,
-    /// 仓库类型：greige=胚布仓；finished=成品仓；NULL=不校验
+    pub contact_person: Option<Option<String>>,
+    /// 默认仓库标志：非 Option bool 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub is_default: Option<Option<bool>>,
+    /// DB 可空列 capacity——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub capacity: Option<Option<i32>>,
+    /// 启用状态（映射非 Option 列 is_active）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub status: Option<Option<String>>,
+    /// DB 可空列 warehouse_type——显式 null 清空（=不校验仓型）
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 20, message = "仓库类型长度不能超过20个字符"))]
-    pub warehouse_type: Option<String>,
+    pub warehouse_type: Option<Option<String>>,
 }
 
 crate::define_crud_handlers!(
@@ -117,23 +152,33 @@ pub struct CreateLocationRequest {
 }
 
 /// 更新库位请求（字段对齐 warehouse_locations 表结构）
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列 location_code（m0010 DDL）不开 null 清空，显式 null 在入口拒绝。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateLocationRequest {
-    /// 库位编码
+    /// 库位编码：NOT NULL 列（m0010 DDL）——显式 null 被入口拒绝
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(min = 1, max = 50, message = "库位编码不能为空且最长50字符"))]
-    pub location_code: Option<String>,
-    /// 库位类型
+    pub location_code: Option<Option<String>>,
+    /// 库位类型：DB 可空列 location_type——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 20, message = "库位类型最长20字符"))]
-    pub location_type: Option<String>,
-    /// 最大承重
-    pub max_weight: Option<f64>,
-    /// 最大高度
-    pub max_height: Option<f64>,
-    /// 是否启用批次管理
-    pub is_batch_managed: Option<bool>,
-    /// 是否启用色号管理
-    pub is_color_managed: Option<bool>,
+    pub location_type: Option<Option<String>>,
+    /// 最大承重：DB 可空列 max_weight——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub max_weight: Option<Option<f64>>,
+    /// 最大高度：DB 可空列 max_height——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub max_height: Option<Option<f64>>,
+    /// 是否启用批次管理：DB 可空列 is_batch_managed——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub is_batch_managed: Option<Option<bool>>,
+    /// 是否启用色号管理：DB 可空列 is_color_managed——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub is_color_managed: Option<Option<bool>>,
 }
 
 /// 获取库位列表
@@ -160,9 +205,7 @@ pub async fn list_locations(
 
     let locations_json: Vec<serde_json::Value> = locations
         .into_iter()
-        .map(|l| {
-            serde_json::to_value(l).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
-        })
+        .map(serde_json::to_value)
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
@@ -201,8 +244,7 @@ pub async fn create_location(
     };
 
     let location = active_location.insert(&*state.db).await?;
-    let location_json = serde_json::to_value(location)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let location_json = serde_json::to_value(location)?;
     Ok(Json(ApiResponse::success_with_message(
         location_json,
         "库位创建成功",
@@ -219,8 +261,7 @@ pub async fn get_location(
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found("库位不存在"))?;
-    let location_json = serde_json::to_value(location)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let location_json = serde_json::to_value(location)?;
     Ok(Json(ApiResponse::success(location_json)))
 }
 
@@ -231,6 +272,13 @@ pub async fn update_location(
     Path(id): Path<i32>,
     Json(req): Json<UpdateLocationRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // NOT NULL 列门控（location_code，m0010 DDL）：显式 null 在任何 DB 访问与
+    // 通用校验之前拒绝（错误外显不脱敏，不得塌成"保持原值"）
+    if matches!(req.location_code, Some(None)) {
+        return Err(AppError::business_displayable(
+            "库位编码不能清空：该字段为必填项",
+        ));
+    }
     req.validate()?;
     let location = LocationEntity::find_by_id(id)
         .one(&*state.db)
@@ -238,29 +286,44 @@ pub async fn update_location(
         .ok_or_else(|| AppError::not_found("库位不存在"))?;
     let mut active: location_model::ActiveModel = location.into();
 
-    if let Some(c) = req.location_code {
+    // 三态写入规则：None=不 Set（UPDATE 不含该列，原值不动）；
+    // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖
+    if let Some(c) = req.location_code.flatten() {
         active.location_code = sea_orm::ActiveValue::Set(c);
     }
     if let Some(t) = req.location_type {
-        active.location_type = sea_orm::ActiveValue::Set(Some(t));
+        active.location_type = sea_orm::ActiveValue::Set(t);
     }
     if let Some(w) = req.max_weight {
-        active.max_weight = sea_orm::ActiveValue::Set(rust_decimal::Decimal::from_f64_retain(w));
+        active.max_weight = sea_orm::ActiveValue::Set(match w {
+            Some(x) => Some(rust_decimal::Decimal::from_f64_retain(x).ok_or_else(|| {
+                AppError::validation_displayable(format!(
+                    "最大承重数值无法转换（NaN/Inf/溢出）：{x}"
+                ))
+            })?),
+            None => None,
+        });
     }
     if let Some(h) = req.max_height {
-        active.max_height = sea_orm::ActiveValue::Set(rust_decimal::Decimal::from_f64_retain(h));
+        active.max_height = sea_orm::ActiveValue::Set(match h {
+            Some(x) => Some(rust_decimal::Decimal::from_f64_retain(x).ok_or_else(|| {
+                AppError::validation_displayable(format!(
+                    "最大高度数值无法转换（NaN/Inf/溢出）：{x}"
+                ))
+            })?),
+            None => None,
+        });
     }
     if let Some(b) = req.is_batch_managed {
-        active.is_batch_managed = sea_orm::ActiveValue::Set(Some(b));
+        active.is_batch_managed = sea_orm::ActiveValue::Set(b);
     }
     if let Some(c) = req.is_color_managed {
-        active.is_color_managed = sea_orm::ActiveValue::Set(Some(c));
+        active.is_color_managed = sea_orm::ActiveValue::Set(c);
     }
     active.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
     let updated = active.update(&*state.db).await?;
-    let location_json = serde_json::to_value(updated)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let location_json = serde_json::to_value(updated)?;
     Ok(Json(ApiResponse::success_with_message(
         location_json,
         "库位更新成功",

@@ -487,12 +487,15 @@ export function usePrRtn() {
     batch_no: it.batchNo,
   });
 
-  /** 构造更新明细请求体（对齐 UpdateReturnItemRequest，仅发可变字段） */
+  /** 构造更新明细请求体（对齐 UpdateReturnItemRequest 三态契约，RFC 7386）：
+   *  表单已回显原值、恒送当前值=覆盖；NOT NULL 列（含追溯三列 NOT NULL DEFAULT ''）
+   *  禁止送 null——"改回白坯/空值"送空串；notes 为 DB 可空列，UI 清空 ⇒ 送显式 null
+   * （=清空为 NULL），塌成 `|| undefined` 省略会"改了不生效"。 */
   const buildUpdateItemPayload = (it: ReturnFormItem): UpdatePurchaseReturnItemPayload => ({
     quantity_returned: it.quantity ?? 0,
     unit_price: it.unitPrice ?? 0,
-    notes: it.reason || undefined,
-    // 维度：undefined 不下发（后端 if let Some 才更新，保留原值）；有值则显式设定（含空串=白坯）。
+    notes: it.reason || null,
+    // 追溯维度为 NOT NULL DEFAULT '' 列：恒送当前值（空串=白坯合法值），不得送 null
     color_no: it.colorNo,
     dye_lot_no: it.dyeLotNo,
     batch_no: it.batchNo,
@@ -512,10 +515,13 @@ export function usePrRtn() {
         return false;
       }
       if (isEdit && formData.id) {
+        // 三态语义（后端 UpdatePurchaseReturnRequest DoubleOption，RFC 7386）：
+        // reason_type/reason_detail/notes 均为 DB 可空列，UI 清空 ⇒ 送显式 null（=清空为 NULL）；
+        // reason_type/reason_detail 表单恒回显选择值，未清空时按当前值覆盖。
         await updatePurchaseReturn(formData.id, {
           reason_type: formData.reasonType,
-          reason_detail: formData.reason,
-          notes: formData.remarks || undefined,
+          reason_detail: formData.reason || null,
+          notes: formData.remarks || null,
         });
         let idx = 0;
         for (const it of validItems) {

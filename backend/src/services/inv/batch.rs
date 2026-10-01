@@ -31,7 +31,7 @@ use crate::utils::error::AppError;
 use super::fabric_class::{self, FabricTrace};
 use super::{
     InventoryTransferDetail, InventoryTransferItemDetail, InventoryTransferItemRequest,
-    InventoryTransferService,
+    InventoryTransferService, UpdateInventoryTransferItemRequest,
 };
 
 /// 调拨明细面料行业追溯字段的校验与归一化委托给全仓唯一实现
@@ -1211,12 +1211,33 @@ impl InventoryTransferService {
         })
     }
 
-    /// 更新调拨单明细
+    /// 更新调拨单明细（三态语义，对齐 RFC 7386 JSON Merge Patch）：
+    /// None（键缺席）=保持原值、Some(None)（显式 null）=置 NULL（仅 DB 可空列）、
+    /// Some(Some(v))=覆盖。NOT NULL 列（product_id/quantity/color_no/batch_no，
+    /// models/inventory_transfer_item.rs 模型为非 Option 列）的显式 null 在任何 DB
+    /// 访问前被拒绝。请求声明的可空列（unit_cost/dye_lot_no/notes）逐项如实落库，
+    /// 不得静默丢弃（原实现只应用 product_id/quantity/notes，unit_cost 与追溯字段
+    /// 改了库里没变，即"假保存"缺陷形态）。
     pub async fn update_item(
         &self,
         item_id: i32,
-        req: InventoryTransferItemRequest,
+        req: UpdateInventoryTransferItemRequest,
     ) -> Result<InventoryTransferItemDetail, AppError> {
+        // NOT NULL 列门控：显式 null 是调用方错误，不是"保持原值"；在任何 DB 访问
+        // 之前拒绝，错误外显不脱敏（色号"改回白坯"提交空串、批次无合法空值语义）
+        for (field, cleared) in [
+            ("产品", matches!(req.product_id, Some(None))),
+            ("调拨数量", matches!(req.quantity, Some(None))),
+            ("色号", matches!(req.color_no, Some(None))),
+            ("批次", matches!(req.batch_no, Some(None))),
+        ] {
+            if cleared {
+                return Err(AppError::business_displayable(format!(
+                    "{field}不能清空：该字段为必填项"
+                )));
+            }
+        }
+
         let item_model = InventoryTransferItemEntity::find_by_id(item_id)
             .one(&*self.db)
             .await?
@@ -1236,15 +1257,51 @@ impl InventoryTransferService {
             )));
         }
 
+        // 追溯三列的"生效值"= 请求覆盖值（有值/显式 null 清空后为空）与原值合并；
+        // 任一追溯键被提交（含 null 清空）时按生效组合走全仓唯一校验
+        // validate_fabric_trace（染色布缸号必填的不变量由此守住，不另起第二套判定）
+        let trace_touched =
+            req.color_no.is_some() || req.dye_lot_no.is_some() || req.batch_no.is_some();
+        let eff_trace_inputs = trace_touched.then(|| {
+            let eff_color = req
+                .color_no
+                .clone()
+                .flatten()
+                .or(Some(item_model.color_no.clone()));
+            let eff_batch = req
+                .batch_no
+                .clone()
+                .flatten()
+                .or(Some(item_model.batch_no.clone()));
+            let eff_dye = match req.dye_lot_no.clone() {
+                Some(inner) => inner,
+                None => item_model.dye_lot_no.clone(),
+            };
+            (eff_color, eff_dye, eff_batch)
+        });
+
         let mut active: inventory_transfer_item::ActiveModel = item_model.into_active_model();
-        if let Some(product_id) = req.product_id {
+        // 三态写入规则：None=不 Set（UPDATE 不含该列，原值不动）；
+        // Some(None)=Set(None) 置 NULL（仅 DB 可空列）；Some(Some(v))=Set(v) 覆盖。
+        // product_id/quantity 为 NOT NULL 列（Some(None) 已入口拒绝）：仅覆盖/保持
+        if let Some(product_id) = req.product_id.flatten() {
             active.product_id = sea_orm::ActiveValue::Set(product_id);
         }
-        if let Some(quantity) = req.quantity {
+        if let Some(quantity) = req.quantity.flatten() {
             active.quantity = sea_orm::ActiveValue::Set(quantity);
         }
+        // notes/unit_cost 为 DB 可空列：Some(inner)=Set(inner)，显式 null 直落 NULL
         if let Some(notes) = req.notes {
-            active.notes = sea_orm::ActiveValue::Set(Some(notes));
+            active.notes = sea_orm::ActiveValue::Set(notes);
+        }
+        if let Some(unit_cost) = req.unit_cost {
+            active.unit_cost = sea_orm::ActiveValue::Set(unit_cost);
+        }
+        if let Some((eff_color, eff_dye, eff_batch)) = eff_trace_inputs {
+            let trace = Self::validate_trace_fields(eff_color, eff_dye, eff_batch)?;
+            active.color_no = sea_orm::ActiveValue::Set(trace.color_no);
+            active.dye_lot_no = sea_orm::ActiveValue::Set(trace.dye_lot_no);
+            active.batch_no = sea_orm::ActiveValue::Set(trace.batch_no);
         }
         active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         let updated = active.update(&*self.db).await?;

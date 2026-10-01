@@ -74,8 +74,7 @@ pub async fn list_receipts(
         total,
         params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         params.page_size.unwrap_or(20).clamp(1, 100),
-    ))
-    .map_err(|e| AppError::internal(e.to_string()))?;
+    ))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -88,8 +87,7 @@ pub async fn get_receipt(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let receipt = service.get_receipt(id).await?;
-    let mut receipt_json = serde_json::to_value(receipt)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut receipt_json = serde_json::to_value(receipt)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -243,8 +241,7 @@ pub async fn list_receipt_items(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let items = service.list_receipt_items(receipt_id).await?;
-    let mut items_json = serde_json::to_value(items)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut items_json = serde_json::to_value(items)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {

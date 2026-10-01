@@ -421,9 +421,11 @@ const submitStock = async () => {
       const { updateStock } = await import('@/api/inventory');
       await updateStock(stockEditingRow.value.id, {
         quantity_on_hand: String(stockForm.quantity),
-        // bin_location 为 Option 入参：后端只在 Some 时写入，空串即用户「清空库位」的
-        // 显式意图（null/省略键都无法表达清除），原样提交表单当前值
-        bin_location: stockForm.location,
+        // 三态语义（后端 UpdateStockWithVersionRequest DoubleOption，RFC 7386）：
+        // bin_location 为 DB 可空列，UI 清空 ⇒ 送显式 null（=清空为 NULL）——
+        // 空串是"占位假值"不是清空，塌成省略则保持原值（正是本轮消灭的静默丢弃形态）；
+        // 数量/阈值各列均 NOT NULL：只提交表单实际采集的 quantity_on_hand，其余不送=保持。
+        bin_location: stockForm.location || null,
         version: stockEditingRow.value.version,
       });
       ElMessage.success(t('common.success'));

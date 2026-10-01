@@ -138,12 +138,73 @@ pub struct InventoryTransferItemRequest {
     pub unit_cost: Option<rust_decimal::Decimal>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围；本 DTO 为 wire 直连，适配器落位服务侧同文件）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新库存调拨请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// status 对应实体 Model 非 Option 列（置 NULL 该行按模型不可读）：显式 null 由 service 拒绝。
+/// items 为明细整表替换数组：不开放"显式 null 清全表"，清空明细须传空数组 `[]`
+/// （与销售合同 UpdateSalesContractDto.items 同口径）。
 #[derive(Debug, Deserialize)]
 pub struct UpdateInventoryTransferRequest {
-    pub status: Option<String>,
-    pub notes: Option<String>,
+    /// 状态（映射非 Option 列 status）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub status: Option<Option<String>>,
+    /// 备注：DB 可空列 notes TEXT（m0001 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
     pub items: Option<Vec<InventoryTransferItemRequest>>,
+}
+
+/// 更新调拨单明细请求（PUT /inventory/transfers/items/{item_id}）
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// 与创建口径的 [`InventoryTransferItemRequest`]（单 Option，缺席=未提供）分型：
+/// 更新端点必须能区分"没送"与"送了 null"，故独立 DTO。
+/// NOT NULL 列（inventory_transfer_item.product_id/quantity/color_no/batch_no，
+/// models/inventory_transfer_item.rs 模型为非 Option 列）不开 null 清空，
+/// 显式 null 由 service 在任何 DB 访问前拒绝；可空列 notes/unit_cost/dye_lot_no 开放清空。
+#[derive(Debug, Deserialize)]
+pub struct UpdateInventoryTransferItemRequest {
+    /// 产品 ID：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub product_id: Option<Option<i32>>,
+    /// 数量：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity: Option<Option<rust_decimal::Decimal>>,
+    /// 备注：DB 可空列 notes——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
+    /// 单位成本：DB 可空列 unit_cost——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub unit_cost: Option<Option<rust_decimal::Decimal>>,
+    /// 色号：NOT NULL 列（空串=白坯合法值）——显式 null 被 service 拒绝，"改回白坯"提交空串
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_no: Option<Option<String>>,
+    /// 缸号：DB 可空列 dye_lot_no（白坯布为合法 NULL）——显式 null 清空；
+    /// 染色布（生效色号非空）行清空缸号违反四维追溯不变量，由 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub dye_lot_no: Option<Option<String>>,
+    /// 批次：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub batch_no: Option<Option<String>>,
 }
 
 // =====================================================

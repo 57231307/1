@@ -101,13 +101,15 @@ export interface CreatePurchaseReturnPayload {
 
 /**
  * 更新采购退货单请求（严格对齐 backend UpdatePurchaseReturnRequest，
- * services/purchase_return_service.rs:601）。
- * 仅 reason_type/reason_detail/notes 三字段可更新。
+ * services/purchase_return_service.rs）。仅 reason_type/reason_detail/notes 三字段可更新，
+ * 且三者均为 DB 可空列（purchase_return，m0009 DDL）。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖
+ * ——清空须显式送 null，禁止塌成 `|| undefined`（省略=保持原值）。
  */
 export interface UpdatePurchaseReturnPayload {
-  reason_type?: string;
-  reason_detail?: string;
-  notes?: string;
+  reason_type?: string | null;
+  reason_detail?: string | null;
+  notes?: string | null;
 }
 
 /**
@@ -131,7 +133,13 @@ export interface CreatePurchaseReturnItemPayload {
 
 /**
  * 更新退货明细请求（严格对齐 backend UpdateReturnItemRequest，
- * services/purchase_return_service.rs:620）。所有字段均为 Option。
+ * services/purchase_return_service.rs）。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空、有值=覆盖。
+ * - line_no/material_id/quantity_returned/unit_price/tax_rate/discount_percent 及追溯列
+ *   color_no/dye_lot_no/batch_no（NOT NULL DEFAULT ''，见 models/purchase_return_item.rs 头注）
+ *   均为 NOT NULL：禁止送 null（后端 400「XX不能清空：该字段为必填项」）；
+ *   "追溯维度改回白坯/空值"提交空串而非 null；
+ * - notes 为 DB 可空列：清空须显式送 null。
  */
 export interface UpdatePurchaseReturnItemPayload {
   line_no?: number;
@@ -140,8 +148,7 @@ export interface UpdatePurchaseReturnItemPayload {
   unit_price?: number;
   tax_rate?: number;
   discount_percent?: number;
-  notes?: string;
-  /** 面料追溯维度；undefined=本次不改动该维度（后端 if let Some 才更新），string=显式设定（含空串=白坯） */
+  notes?: string | null;
   color_no?: string;
   dye_lot_no?: string;
   batch_no?: string;

@@ -272,11 +272,38 @@ pub async fn delete_return_item(
     Ok(Json(ApiResponse::success(())))
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围，各域 handler 内私有定义）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新退货明细请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（quantity/unit_price，sales_return_item，m0011 DDL）不开 null 清空，
+/// 显式 null 由 service 拒绝；reason 映射 DB 可空列 notes，显式 null 清空。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateReturnItemRequest {
-    pub quantity: Option<rust_decimal::Decimal>,
-    pub unit_price: Option<rust_decimal::Decimal>,
-    pub reason: Option<String>,
+    /// 数量：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity: Option<Option<rust_decimal::Decimal>>,
+    /// 单价：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub unit_price: Option<Option<rust_decimal::Decimal>>,
+    /// 退货原因（落 notes 列，可空）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason: Option<Option<String>>,
 }

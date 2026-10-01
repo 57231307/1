@@ -89,7 +89,8 @@ fn update_request_version_is_required_at_serde_boundary() {
     }))
     .expect("带 version 的请求体必须可解码");
     assert_eq!(ok.version, 3);
-    assert_eq!(ok.quantity_on_hand, Some(dec("88.00")));
+    // 三态契约（RFC 7386）：有值键解码为 Some(Some(v))；键缺席=None（保持原值）
+    assert_eq!(ok.quantity_on_hand, Some(Some(dec("88.00"))));
 
     let err = serde_json::from_value::<UpdateStockWithVersionRequest>(json!({
         "quantity_on_hand": "88.00",

@@ -121,7 +121,16 @@ pub async fn create_adjustment(
         items.push(AdjustmentItemRequest {
             stock_id: item.stock_id,
             quantity,
-            unit_cost: item.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
+            // unit_cost 非法字符串如实报校验错误：原 and_then(parse.ok()) 把
+            // "abc" 静默塌成 None（=清空成本），与"未提供"不可区分，属吞异常兜底
+            unit_cost: item
+                .unit_cost
+                .map(|s| {
+                    s.parse::<Decimal>().map_err(|e| {
+                        AppError::validation_displayable(format!("成本格式错误：{}", e))
+                    })
+                })
+                .transpose()?,
             notes: item.notes,
         });
     }
@@ -372,16 +381,49 @@ pub async fn get_adjustment(
     })))
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围，各域 handler 内私有定义）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新调整单请求 DTO
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（warehouse_id/adjustment_date/adjustment_type/reason_type，
+/// m0010_add_inventory_extensions DDL）不开 null 清空，显式 null 由 service 拒绝。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateAdjustmentRequestPayload {
-    pub warehouse_id: Option<i32>,
-    pub adjustment_date: Option<String>,
-    pub adjustment_type: Option<String>,
-    pub reason_type: Option<String>,
-    pub reason_description: Option<String>,
-    pub notes: Option<String>,
+    /// 仓库 ID：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub warehouse_id: Option<Option<i32>>,
+    /// 调整日期：NOT NULL 列——显式 null 被 service 拒绝（格式非法在入口显式报错）
+    #[serde(default, deserialize_with = "double_option")]
+    pub adjustment_date: Option<Option<String>>,
+    /// 调整类型：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub adjustment_type: Option<Option<String>>,
+    /// 原因类型：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason_type: Option<Option<String>>,
+    /// 原因说明：DB 可空列 reason_description TEXT（m0010 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason_description: Option<Option<String>>,
+    /// 备注：DB 可空列 notes TEXT（m0010 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 /// 更新调整单
@@ -397,11 +439,13 @@ pub async fn update_adjustment(
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_adjustment(id, Some(&data_scope_ctx)).await?;
 
+    // adjustment_date 三态透传：有值解析为时间戳（格式错误在入口显式报错）、
+    // 显式 null 保持 Some(None) 交 service 判 NOT NULL 列清空拒绝、缺席 None 保持原值
     let adjustment_date = match payload.adjustment_date {
-        Some(s) => Some(
-            s.parse::<DateTime<Utc>>()
-                .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?,
-        ),
+        Some(Some(s)) => Some(Some(s.parse::<DateTime<Utc>>().map_err(|e| {
+            AppError::validation_displayable(format!("日期格式错误：{}", e))
+        })?)),
+        Some(None) => Some(None),
         None => None,
     };
 
@@ -514,7 +558,14 @@ pub async fn add_item(
     let req = AdjustmentItemRequest {
         stock_id: payload.stock_id,
         quantity,
-        unit_cost: payload.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
+        // unit_cost 非法字符串如实报校验错误（不静默塌成 None=清空成本）
+        unit_cost: payload
+            .unit_cost
+            .map(|s| {
+                s.parse::<Decimal>()
+                    .map_err(|e| AppError::validation_displayable(format!("成本格式错误：{}", e)))
+            })
+            .transpose()?,
         notes: payload.notes,
     };
     let item = service.add_item(id, req).await?;
@@ -553,7 +604,14 @@ pub async fn update_item(
     let req = AdjustmentItemRequest {
         stock_id: payload.stock_id,
         quantity,
-        unit_cost: payload.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
+        // unit_cost 非法字符串如实报校验错误（不静默塌成 None=清空成本）
+        unit_cost: payload
+            .unit_cost
+            .map(|s| {
+                s.parse::<Decimal>()
+                    .map_err(|e| AppError::validation_displayable(format!("成本格式错误：{}", e)))
+            })
+            .transpose()?,
         notes: payload.notes,
     };
     let item: inventory_adjustment_item::Model = service.update_item(item_id, req).await?;

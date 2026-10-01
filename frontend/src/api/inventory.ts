@@ -278,6 +278,10 @@ export interface StockAlert {
  * version 必填：取自 GET 出参库存行的 version 列（StockResponse.version 直映
  * inventory_stocks.version 真实列），禁止以 0 之类假值蒙混乐观锁。
  * 数量类为 Decimal 入参：传字符串；Option 字段空值省略该键。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空、有值=覆盖。
+ * - 六个数量/阈值列均为 NOT NULL（inventory_stocks 模型非 Option Decimal）：
+ *   禁止送 null（后端 400「XX不能清空：该字段为必填项」）——不改即省略键；
+ * - bin_location 为 DB 可空列：清空须显式送 null，禁止塌成省略。
  */
 export interface UpdateStockRequest {
   quantity_on_hand?: string;
@@ -286,7 +290,7 @@ export interface UpdateStockRequest {
   reorder_point?: string;
   max_stock_point?: string;
   reorder_quantity?: string;
-  bin_location?: string;
+  bin_location?: string | null;
   version: number;
 }
 

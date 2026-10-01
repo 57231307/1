@@ -421,16 +421,20 @@ impl InventoryTransferService {
     async fn apply_transfer_main_update(
         txn: &DatabaseTransaction,
         transfer: inventory_transfer::Model,
-        status: Option<String>,
-        notes: Option<String>,
+        status: Option<Option<String>>,
+        notes: Option<Option<String>>,
         user_id: i32,
     ) -> Result<(), AppError> {
         let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
-        if let Some(status) = status {
+        // 三态写入：None=不 Set、Some(None)=Set(None) 置 NULL、Some(Some(v))=Set(v) 覆盖。
+        // status 对应实体 Model 非 Option 列（Some(None) 已在 update_transfer 入口拒绝）：
+        // 仅覆盖/保持
+        if let Some(status) = status.flatten() {
             transfer_update.status = sea_orm::ActiveValue::Set(status);
         }
+        // notes 为 DB 可空列：Some(inner)=Set(inner)，显式 null 直落 NULL
         if let Some(notes) = notes {
-            transfer_update.notes = sea_orm::ActiveValue::Set(Some(notes));
+            transfer_update.notes = sea_orm::ActiveValue::Set(notes);
         }
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -543,6 +547,13 @@ impl InventoryTransferService {
         request: UpdateInventoryTransferRequest,
         user_id: i32,
     ) -> Result<InventoryTransferDetail, AppError> {
+        // NOT NULL 列门控（status 对应实体 Model 非 Option 列）：显式 null 是调用方错误
+        // 而非"保持原值"，在任何 DB 访问前拒绝，错误外显不脱敏
+        if matches!(request.status, Some(None)) {
+            return Err(AppError::business_displayable(
+                "调拨状态不能清空：该字段为必填项",
+            ));
+        }
         let transfer = self.load_transfer_for_update(transfer_id).await?;
         let txn = (*self.db).begin().await?;
         Self::apply_transfer_main_update(

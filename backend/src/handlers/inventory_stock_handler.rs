@@ -192,6 +192,24 @@ pub async fn update_stock(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateStockWithVersionRequest>,
 ) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
+    // NOT NULL 列门控（quantity_on_hand/quantity_available/quantity_reserved/
+    // reorder_point/max_stock_point/reorder_quantity，inventory_stocks 模型为非 Option 列）：
+    // 显式 null 是调用方错误，不是"保持原值"；在任何 DB 访问之前拒绝，错误外显不脱敏。
+    for (field, value) in [
+        ("在库数量", &payload.quantity_on_hand),
+        ("可用数量", &payload.quantity_available),
+        ("预留数量", &payload.quantity_reserved),
+        ("订货点", &payload.reorder_point),
+        ("库存上限", &payload.max_stock_point),
+        ("补货量", &payload.reorder_quantity),
+    ] {
+        if matches!(value, Some(None)) {
+            return Err(AppError::business_displayable(format!(
+                "{field}不能清空：该字段为必填项"
+            )));
+        }
+    }
+
     let service = InventoryStockService::new(state.db.clone());
 
     // P2-1 修复（批次 388 v13 复审）：原 map_err 将所有错误映射为 not_found，改为 ? 透传
@@ -207,26 +225,30 @@ pub async fn update_stock(
     use sea_orm::{ActiveModelTrait, Set};
     let mut active_model: crate::models::inventory_stock::ActiveModel = stock.into();
 
-    if let Some(qoh) = payload.quantity_on_hand {
+    // 三态写入规则：None=不 Set（列保持 Unset，UPDATE 不含该列，原值不动）；
+    // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖。
+    // NOT NULL 列的 Some(None) 已在入口拒绝：仅覆盖/保持
+    if let Some(qoh) = payload.quantity_on_hand.flatten() {
         active_model.quantity_on_hand = Set(qoh);
     }
-    if let Some(qavail) = payload.quantity_available {
+    if let Some(qavail) = payload.quantity_available.flatten() {
         active_model.quantity_available = Set(qavail);
     }
-    if let Some(qres) = payload.quantity_reserved {
+    if let Some(qres) = payload.quantity_reserved.flatten() {
         active_model.quantity_reserved = Set(qres);
     }
-    if let Some(rop) = payload.reorder_point {
+    if let Some(rop) = payload.reorder_point.flatten() {
         active_model.reorder_point = Set(rop);
     }
-    if let Some(msp) = payload.max_stock_point {
+    if let Some(msp) = payload.max_stock_point.flatten() {
         active_model.max_stock_point = Set(msp);
     }
-    if let Some(roq) = payload.reorder_quantity {
+    if let Some(roq) = payload.reorder_quantity.flatten() {
         active_model.reorder_quantity = Set(roq);
     }
+    // bin_location 为 DB 可空列：Some(inner)=Set(inner)，显式 null 直落 NULL
     if let Some(bl) = payload.bin_location {
-        active_model.bin_location = Set(Some(bl));
+        active_model.bin_location = Set(bl);
     }
     active_model.version = Set(payload.version + 1);
     active_model.updated_at = Set(Utc::now());

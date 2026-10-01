@@ -1,0 +1,1681 @@
+//! 任务 #169 第 1 波（库存/仓储/收货/退货域）：更新端点可空列三态清空语义收口
+//! （对齐 RFC 7386 JSON Merge Patch，先例 `contract_wave2_explicit_null_clear_test.rs`）
+//!
+//! 锁定的真实行为（对应本轮修复）：
+//! 1. 三态语义：键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
+//!    - DTO 层：`Option<Option<T>>` + `double_option` 适配器区分缺席与显式 null；
+//!    - service 层：Some(None) → `Set(None)` 真实落 NULL；None 不 Set（列不进 UPDATE）；
+//!    - NOT NULL 列不开 null 清空：显式 null 在任何 DB 访问前被
+//!      `AppError::business_displayable` 拒绝（400 + 外显文案，不脱敏、无副作用）。
+//! 2. 覆盖端点与可空列（DDL 证据见各 `backend/src/models/*.rs` 与 migration 行号，
+//!    详见 PR 描述普查表）：
+//!    - PUT /inventory/adjustments/{id}（reason_description/notes 可空）
+//!    - PUT /inventory/batches/{id}（dye_lot_no/gram_weight/width/expiry_date 可空）
+//!    - PUT /inventory/stock/{id}（bin_location 可空）
+//!    - PUT /warehouses/{id}（address/manager/phone/contact_person/capacity/warehouse_type 可空）
+//!    - PUT /warehouse/locations/{id}（location_type/max_weight/max_height/is_batch_managed/is_color_managed 可空）
+//!    - PUT /inventory/counts/{id}（notes 可空）
+//!    - PUT /inventory/counts/items/{item_id}（notes 可空；quantity_actual NOT NULL 拒清）
+//!    - PUT /inventory/transfers/{id}（notes 可空）
+//!    - PUT /inventory/transfers/items/{item_id}（notes/unit_cost/dye_lot_no 可空）
+//!    - PUT /sales/returns/{id}（order_id/notes 可空；reason_detail 虚拟入参）
+//!    - PUT /sales/returns/{id}/items/{item_id}（reason→notes 可空）
+//!    - PUT /purchase/receipts/{id}（department_id/inspector_id/notes/attachment_urls 可空）
+//!    - PUT /purchase/receipts/{id}/items/{item_id}（batch_no/color_code/lot_no/grade/gram_weight/width/quantity_alt/unit_price/location_code/notes/piece_no 可空）
+//!    - PUT /purchase/returns/{id}（reason_type/reason_detail/notes 全部可空）
+//!    - PUT /purchase/returns/{id}/items/{item_id}（notes 可空）
+//!
+//! 覆盖策略（对齐 wave2 / po_item_update_fields 先例，无 mock）：
+//! - 纯 serde：DTO 三态形状锁（缺席=None / null=Some(None) / 有值=Some(Some(v))）；
+//! - 非活库（sqlite::memory:）：NOT NULL 显式 null 的 service 级拒绝（拒绝在任何 DB
+//!   访问前返回，空表也得到业务错误）、handler 400 信封与文案外显、
+//!   **自建表 + 真实 service/handler 的三态回环**（库存 update_batch_fields、
+//!   仓储 update_location、退货 update_return——三者均不触行锁，sqlite 可跑）；
+//! - `#[ignore]` 活库（TEST_DATABASE_URL→PG，由 ci-test-rust-ignored 执行）：
+//!   收货 update_receipt 全链（服务链对 purchase_receipt 加 `lock_exclusive()`，
+//!   sqlite 方言不支持行锁——先例原话，不得伪装成 sqlite 用例）。
+
+mod test_common;
+
+use axum::{
+    Router,
+    body::Body,
+    extract::State,
+    http::{Method, Request, StatusCode},
+    middleware::{Next, from_fn_with_state},
+    response::Response,
+};
+use bingxi_backend::container::AppState;
+use bingxi_backend::handlers::{
+    inventory_batch_handler, inventory_count_handler, inventory_stock_handler,
+    inventory_stock_handler_dto, sales_return_handler, warehouse_handler,
+};
+use bingxi_backend::middleware::auth_context::AuthContext;
+use bingxi_backend::models::audit_log;
+use bingxi_backend::models::inventory_stock;
+use bingxi_backend::models::inventory_transfer;
+use bingxi_backend::models::inventory_transfer_item;
+use bingxi_backend::models::location;
+use bingxi_backend::models::purchase_return;
+use bingxi_backend::models::status::purchase_inventory::inventory_stock_quality_status;
+use bingxi_backend::models::status::purchase_inventory::{
+    inventory_stock_status, inventory_transfer as transfer_status,
+    purchase_receipt as receipt_status, purchase_return as pr_status,
+};
+use bingxi_backend::services::inv::{
+    InventoryTransferService, UpdateInventoryTransferItemRequest, UpdateInventoryTransferRequest,
+};
+use bingxi_backend::services::inventory_adjustment_service::{
+    InventoryAdjustmentService, UpdateAdjustmentRequest,
+};
+use bingxi_backend::services::inventory_count_service::{
+    InventoryCountService, UpdateCountRequest,
+};
+use bingxi_backend::services::inventory_stock_service::InventoryStockService;
+use bingxi_backend::services::purchase_receipt_dto;
+use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
+use bingxi_backend::services::purchase_return_service::{
+    PurchaseReturnService, UpdatePurchaseReturnRequest, UpdateReturnItemRequest,
+};
+use bingxi_backend::services::sales_return_service::{
+    SalesReturnService, UpdateSalesReturnRequest,
+};
+use bingxi_backend::services::warehouse_service::WarehouseService;
+use bingxi_backend::utils::error::AppError;
+use chrono::{TimeZone, Utc};
+use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
+    Order, Set, Statement,
+};
+use serde_json::{Value, json};
+use std::str::FromStr;
+use std::sync::Arc;
+use tower::ServiceExt;
+
+// =========================================================
+// 公共夹具
+// =========================================================
+
+fn dec(s: &str) -> Decimal {
+    Decimal::from_str(s).unwrap()
+}
+
+fn make_scope_auth(user_id: i32) -> AuthContext {
+    AuthContext {
+        user_id,
+        username: format!("e2e_user_{user_id}"),
+        role_id: None,
+        department_id: Some(1),
+        data_scope: Some("all".to_string()),
+        dept_ids: None,
+        dept_member_user_ids: None,
+    }
+}
+
+async fn inject_auth(
+    State(auth): State<AuthContext>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    request.extensions_mut().insert(auth);
+    next.run(request).await
+}
+
+async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
+    let mut builder = Request::builder().method(method).uri(uri);
+    let req = match body {
+        Some(v) => {
+            builder = builder.header("content-type", "application/json");
+            builder.body(Body::from(v.to_string())).unwrap()
+        }
+        None => builder.body(Body::empty()).unwrap(),
+    };
+    let resp = app.clone().oneshot(req).await.unwrap();
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
+    (status, serde_json::from_slice(&bytes).unwrap())
+}
+
+async fn sqlite_db() -> DatabaseConnection {
+    sea_orm::Database::connect("sqlite::memory:")
+        .await
+        .expect("sqlite::memory: 连接失败")
+}
+
+async fn exec(db: &DatabaseConnection, sql: &str) {
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        sql,
+        Vec::<sea_orm::Value>::new(),
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
+}
+
+fn batch_service_router(db: DatabaseConnection) -> Router {
+    let mut state = AppState::default();
+    state.db = Arc::new(db);
+    Router::new()
+        .route(
+            "/inventory/batches/{id}",
+            axum::routing::put(inventory_batch_handler::update_batch),
+        )
+        .with_state(state)
+        .layer(from_fn_with_state(make_scope_auth(9101), inject_auth))
+}
+
+fn stock_router(db: DatabaseConnection) -> Router {
+    let mut state = AppState::default();
+    state.db = Arc::new(db);
+    Router::new()
+        .route(
+            "/inventory/stock/{id}",
+            axum::routing::put(inventory_stock_handler::update_stock),
+        )
+        .with_state(state)
+        .layer(from_fn_with_state(make_scope_auth(9101), inject_auth))
+}
+
+fn location_router(db: DatabaseConnection) -> Router {
+    let mut state = AppState::default();
+    state.db = Arc::new(db);
+    Router::new()
+        .route(
+            "/warehouse/locations/{id}",
+            axum::routing::put(warehouse_handler::update_location),
+        )
+        .with_state(state)
+        .layer(from_fn_with_state(make_scope_auth(9101), inject_auth))
+}
+
+// =========================================================
+// A) DTO 三态形状锁（纯 serde，无 DB）：
+//    缺席=None（保持）、null=Some(None)（清空）、有值=Some(Some(v))（覆盖）
+// =========================================================
+
+#[test]
+fn adjustment_dto_distinguishes_absent_null_and_value() {
+    let req: bingxi_backend::handlers::inventory_adjustment_handler::UpdateAdjustmentRequestPayload =
+        serde_json::from_value(json!({
+            "reason_description": null,
+            "notes": "新说明",
+            "warehouse_id": null,
+        }))
+        .expect("调整单 update DTO 三态反序列化失败");
+    assert!(
+        matches!(req.reason_description, Some(None)),
+        "显式 null 的 reason_description 必须反序列化为 Some(None)（清空），不得与缺席塌同"
+    );
+    assert!(matches!(&req.notes, Some(Some(v)) if v == "新说明"));
+    assert!(
+        matches!(req.warehouse_id, Some(None)),
+        "NOT NULL 列的显式 null 也必须可辨，才能交 service 判业务错误拒绝"
+    );
+    assert!(
+        req.adjustment_date.is_none(),
+        "缺席键必须是 None（保持原值）"
+    );
+    assert!(req.adjustment_type.is_none());
+    assert!(req.reason_type.is_none());
+}
+
+#[test]
+fn batch_dto_distinguishes_absent_null_and_value() {
+    let req: inventory_batch_handler::UpdateBatchRequest = serde_json::from_value(json!({
+        "dye_lot_no": null,
+        "gram_weight": 210.5,
+        "color_no": null,
+    }))
+    .expect("批次 update DTO 三态反序列化失败");
+    assert!(matches!(req.dye_lot_no, Some(None)));
+    assert!(matches!(req.gram_weight, Some(Some(v)) if (v - 210.5).abs() < f64::EPSILON));
+    assert!(
+        matches!(req.color_no, Some(None)),
+        "NOT NULL 列显式 null 可辨"
+    );
+    assert!(req.width.is_none(), "缺席键必须是 None（保持原值）");
+    assert!(req.expiry_date.is_none());
+    assert!(req.quality_status.is_none());
+}
+
+#[test]
+fn stock_dto_distinguishes_absent_null_and_value() {
+    let req: inventory_stock_handler_dto::UpdateStockWithVersionRequest =
+        serde_json::from_value(json!({
+            "bin_location": null,
+            "reorder_point": "20.00",
+            "quantity_on_hand": null,
+            "version": 3,
+        }))
+        .expect("库存 update DTO 三态反序列化失败");
+    assert!(matches!(req.bin_location, Some(None)));
+    assert!(matches!(&req.reorder_point, Some(Some(v)) if *v == dec("20.00")));
+    assert!(
+        matches!(req.quantity_on_hand, Some(None)),
+        "NOT NULL 列显式 null 可辨，不得塌成缺席"
+    );
+    assert!(req.quantity_available.is_none());
+    assert!(req.max_stock_point.is_none());
+    assert_eq!(req.version, 3, "version 保持必填裸值（乐观锁比对键）");
+}
+
+#[test]
+fn warehouse_and_location_dto_distinguish_absent_null_and_value() {
+    let wh: warehouse_handler::UpdateWarehouseRequest = serde_json::from_value(json!({
+        "address": null,
+        "manager": null,
+        "capacity": 120,
+        "name": null,
+    }))
+    .expect("仓库 update DTO 三态反序列化失败");
+    assert!(matches!(wh.address, Some(None)));
+    assert!(
+        matches!(wh.manager, Some(None)),
+        "manager→manager_id 可空列，显式 null=清除经理"
+    );
+    assert!(matches!(wh.capacity, Some(Some(120))));
+    assert!(matches!(wh.name, Some(None)), "NOT NULL 列显式 null 可辨");
+    assert!(wh.phone.is_none());
+    assert!(wh.is_default.is_none());
+
+    let loc: warehouse_handler::UpdateLocationRequest = serde_json::from_value(json!({
+        "location_type": null,
+        "max_weight": 500.5,
+        "location_code": null,
+    }))
+    .expect("库位 update DTO 三态反序列化失败");
+    assert!(matches!(loc.location_type, Some(None)));
+    assert!(matches!(loc.max_weight, Some(Some(v)) if (v - 500.5).abs() < f64::EPSILON));
+    assert!(
+        matches!(loc.location_code, Some(None)),
+        "NOT NULL 列 location_code 显式 null 可辨"
+    );
+    assert!(loc.max_height.is_none());
+    assert!(loc.is_batch_managed.is_none());
+}
+
+#[test]
+fn count_and_transfer_dto_distinguish_absent_null_and_value() {
+    let count: inventory_count_handler::UpdateCountPayload = serde_json::from_value(json!({
+        "notes": null,
+        "count_date": null,
+    }))
+    .expect("盘点 update DTO 三态反序列化失败");
+    assert!(matches!(count.notes, Some(None)));
+    assert!(
+        matches!(count.count_date, Some(None)),
+        "NOT NULL 列 count_date 显式 null 可辨"
+    );
+
+    let transfer: UpdateInventoryTransferRequest = serde_json::from_value(json!({
+        "notes": null,
+        "status": null,
+    }))
+    .expect("调拨 update DTO 三态反序列化失败");
+    assert!(matches!(transfer.notes, Some(None)));
+    assert!(
+        matches!(transfer.status, Some(None)),
+        "status（非 Option 模型列）显式 null 可辨并被入口拒绝，不得塌成保持"
+    );
+    assert!(transfer.items.is_none(), "items 缺席=不动明细");
+
+    // 盘点明细（PUT /inventory/counts/items/{item_id}）：前端 api 出参已声明
+    // notes?: string | null，后端 DTO 必须挂适配器兑现 null=清空，否则清空静默失效
+    let count_item: inventory_count_handler::UpdateCountItemPayload =
+        serde_json::from_value(json!({
+            "notes": null,
+            "quantity_actual": null,
+        }))
+        .expect("盘点明细 update DTO 三态反序列化失败");
+    assert!(
+        matches!(count_item.notes, Some(None)),
+        "可空列 notes 显式 null=Some(None)（清空），不得与缺席塌同"
+    );
+    assert!(
+        matches!(count_item.quantity_actual, Some(None)),
+        "NOT NULL 列 quantity_actual 显式 null 可辨，交 service 拒绝"
+    );
+    let count_item_absent: inventory_count_handler::UpdateCountItemPayload =
+        serde_json::from_value(json!({ "notes": "补录" }))
+            .expect("盘点明细 update DTO 三态反序列化失败");
+    assert!(
+        count_item_absent.quantity_actual.is_none(),
+        "缺席键必须是 None（保持原值）"
+    );
+    assert!(matches!(
+        &count_item_absent.notes,
+        Some(Some(v)) if v == "补录"
+    ));
+}
+
+#[test]
+fn transfer_item_dto_distinguishes_absent_null_and_value() {
+    let item: UpdateInventoryTransferItemRequest = serde_json::from_value(json!({
+        "notes": null,
+        "unit_cost": null,
+        "dye_lot_no": null,
+        "quantity": null,
+        "color_no": "RED-7",
+    }))
+    .expect("调拨明细 update DTO 三态反序列化失败");
+    assert!(
+        matches!(item.notes, Some(None)),
+        "可空列 notes 显式 null=清空"
+    );
+    assert!(
+        matches!(item.unit_cost, Some(None)),
+        "可空列 unit_cost 显式 null=清空（旧单 Option 形态会塌成保持）"
+    );
+    assert!(matches!(item.dye_lot_no, Some(None)));
+    assert!(
+        matches!(item.quantity, Some(None)),
+        "NOT NULL 列 quantity 显式 null 可辨，交 service 拒绝"
+    );
+    assert!(matches!(&item.color_no, Some(Some(v)) if v == "RED-7"));
+    assert!(item.product_id.is_none(), "缺席键必须是 None（保持原值）");
+    assert!(item.batch_no.is_none());
+}
+
+#[test]
+fn sales_return_and_item_dto_distinguish_absent_null_and_value() {
+    let req: UpdateSalesReturnRequest = serde_json::from_value(json!({
+        "order_id": null,
+        "notes": "补录备注",
+        "customer_id": null,
+        "reason_detail": null,
+    }))
+    .expect("销售退货 update DTO 三态反序列化失败");
+    assert!(
+        matches!(req.order_id, Some(None)),
+        "sales_order_id 可空列显式 null=解除关联"
+    );
+    assert!(matches!(&req.notes, Some(Some(v)) if v == "补录备注"));
+    assert!(
+        matches!(req.customer_id, Some(None)),
+        "NOT NULL 列显式 null 可辨"
+    );
+    assert!(matches!(req.reason_detail, Some(None)));
+    assert!(req.return_date.is_none());
+    assert!(req.warehouse_id.is_none());
+    assert!(req.reason_type.is_none());
+
+    let item: sales_return_handler::UpdateReturnItemRequest = serde_json::from_value(json!({
+        "reason": null,
+        "quantity": null,
+    }))
+    .expect("销售退货明细 update DTO 三态反序列化失败");
+    assert!(
+        matches!(item.reason, Some(None)),
+        "reason→notes 可空列显式 null 清空"
+    );
+    assert!(
+        matches!(item.quantity, Some(None)),
+        "NOT NULL 列显式 null 可辨"
+    );
+    assert!(item.unit_price.is_none());
+}
+
+#[test]
+fn receipt_and_purchase_return_dto_distinguish_absent_null_and_value() {
+    let header: purchase_receipt_dto::UpdatePurchaseReceiptRequest =
+        serde_json::from_value(json!({
+            "notes": null,
+            "attachment_urls": null,
+            "inspector_id": null,
+            "supplier_id": null,
+        }))
+        .expect("入库单头 update DTO 三态反序列化失败");
+    assert!(matches!(header.notes, Some(None)));
+    assert!(matches!(header.attachment_urls, Some(None)));
+    assert!(matches!(header.inspector_id, Some(None)));
+    assert!(
+        matches!(header.supplier_id, Some(None)),
+        "NOT NULL 列 supplier_id 显式 null 可辨"
+    );
+    assert!(header.receipt_date.is_none());
+    assert!(header.department_id.is_none());
+
+    let item: purchase_receipt_dto::UpdateReceiptItemRequest = serde_json::from_value(json!({
+        "batch_no": null,
+        "unit_price": null,
+        "quantity": null,
+        "color_code": "RED-01",
+    }))
+    .expect("入库明细 update DTO 三态反序列化失败");
+    assert!(matches!(item.batch_no, Some(None)));
+    assert!(matches!(item.unit_price, Some(None)));
+    assert!(
+        matches!(item.quantity, Some(None)),
+        "NOT NULL 列显式 null 可辨"
+    );
+    assert!(matches!(&item.color_code, Some(Some(v)) if v == "RED-01"));
+    assert!(item.line_no.is_none());
+
+    let pr: UpdatePurchaseReturnRequest = serde_json::from_value(json!({
+        "reason_type": null,
+        "reason_detail": null,
+        "notes": null,
+    }))
+    .expect("采购退货 update DTO 三态反序列化失败");
+    assert!(matches!(pr.reason_type, Some(None)));
+    assert!(matches!(pr.reason_detail, Some(None)));
+    assert!(matches!(pr.notes, Some(None)));
+
+    let pr_item: UpdateReturnItemRequest = serde_json::from_value(json!({
+        "notes": null,
+        "color_no": null,
+    }))
+    .expect("采购退货明细 update DTO 三态反序列化失败");
+    assert!(
+        matches!(pr_item.notes, Some(None)),
+        "notes 可空列显式 null 清空"
+    );
+    assert!(
+        matches!(pr_item.color_no, Some(None)),
+        "追溯列 color_no 为 NOT NULL DEFAULT ''——显式 null 可辨并被拒绝（改回白坯须提交空串）"
+    );
+    assert!(pr_item.line_no.is_none());
+    assert!(pr_item.quantity_returned.is_none());
+}
+
+// =========================================================
+// B) service 层 NOT NULL 显式 null 拒绝（sqlite 空库即可：拒绝在任何 DB 访问前返回）
+// =========================================================
+
+fn expect_cleared_business_error(err: AppError, keyword: &str, field: &str) {
+    assert!(
+        matches!(&err, AppError::BusinessErrorDisplayable(m) if m.contains(keyword)),
+        "字段 {field} 显式 null 应被业务错误拒绝且文案含「{keyword}」，实际: {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn adjustment_explicit_null_on_not_null_columns_rejected_before_db() {
+    let db = sqlite_db().await;
+    let service = InventoryAdjustmentService::new(Arc::new(db));
+    let cases = [
+        (
+            "warehouse_id",
+            UpdateAdjustmentRequest {
+                warehouse_id: Some(None),
+                ..Default::default()
+            },
+            "仓库不能清空",
+        ),
+        (
+            "adjustment_date",
+            UpdateAdjustmentRequest {
+                adjustment_date: Some(None),
+                ..Default::default()
+            },
+            "调整日期不能清空",
+        ),
+        (
+            "adjustment_type",
+            UpdateAdjustmentRequest {
+                adjustment_type: Some(None),
+                ..Default::default()
+            },
+            "调整类型不能清空",
+        ),
+        (
+            "reason_type",
+            UpdateAdjustmentRequest {
+                reason_type: Some(None),
+                ..Default::default()
+            },
+            "原因类型不能清空",
+        ),
+    ];
+    for (field, req, keyword) in cases {
+        let err = service
+            .update_adjustment(999_999, req)
+            .await
+            .expect_err("NOT NULL 列显式 null 必须被拒绝");
+        expect_cleared_business_error(err, keyword, field);
+    }
+}
+
+#[tokio::test]
+async fn batch_explicit_null_on_not_null_columns_rejected_before_db() {
+    let db = sqlite_db().await;
+    let service = InventoryStockService::new(Arc::new(db));
+    let err = service
+        .update_batch_fields(
+            999_999,
+            Some(None),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect_err("NOT NULL 列 color_no 显式 null 必须被拒绝");
+    expect_cleared_business_error(err, "色号不能清空", "color_no");
+
+    let err2 = service
+        .update_batch_fields(
+            999_999,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(None),
+            Some(None),
+        )
+        .await
+        .expect_err("NOT NULL 列 stock_status/quality_status 显式 null 必须被拒绝");
+    expect_cleared_business_error(err2, "库存状态不能清空", "stock_status");
+}
+
+#[tokio::test]
+async fn stock_handler_explicit_null_on_not_null_columns_rejected_before_db() {
+    let app = stock_router(sqlite_db().await);
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        "/inventory/stock/999999",
+        Some(json!({ "quantity_on_hand": null, "version": 1 })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "实际: {v}");
+    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["message"], "在库数量不能清空：该字段为必填项");
+    assert_ne!(
+        v["message"], "业务处理失败",
+        "business_displayable 不得被脱敏"
+    );
+}
+
+#[tokio::test]
+async fn warehouse_explicit_null_on_not_null_columns_rejected_before_db() {
+    let db = sqlite_db().await;
+    let service = WarehouseService::new(Arc::new(db));
+    let mk = |name, is_default, status| warehouse_handler::UpdateWarehouseRequest {
+        name,
+        address: None,
+        manager: None,
+        phone: None,
+        contact_person: None,
+        is_default,
+        capacity: None,
+        status,
+        warehouse_type: None,
+    };
+    let cases = [
+        (mk(Some(None), None, None), "仓库名称不能清空", "name"),
+        (
+            mk(None, Some(None), None),
+            "默认仓库标志不能清空",
+            "is_default",
+        ),
+        (mk(None, None, Some(None)), "启用状态不能清空", "status"),
+    ];
+    for (req, keyword, field) in cases {
+        let err = service
+            .update(999_999, 9101, req)
+            .await
+            .expect_err("NOT NULL 列显式 null 必须被拒绝");
+        expect_cleared_business_error(err, keyword, field);
+    }
+}
+
+#[tokio::test]
+async fn location_handler_explicit_null_on_not_null_columns_rejected_before_db() {
+    let app = location_router(sqlite_db().await);
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        "/warehouse/locations/999999",
+        Some(json!({ "location_code": null })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "实际: {v}");
+    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["message"], "库位编码不能清空：该字段为必填项");
+}
+
+#[tokio::test]
+async fn count_and_transfer_explicit_null_on_not_null_columns_rejected_before_db() {
+    let db = sqlite_db().await;
+    let count_service = InventoryCountService::new(Arc::new(db.clone()));
+    let err = count_service
+        .update_count(
+            999_999,
+            UpdateCountRequest {
+                count_date: Some(None),
+                notes: None,
+            },
+            Some(9101),
+        )
+        .await
+        .expect_err("NOT NULL 列 count_date 显式 null 必须被拒绝");
+    expect_cleared_business_error(err, "盘点日期不能清空", "count_date");
+
+    let transfer_service = InventoryTransferService::new(Arc::new(db));
+    let err2 = transfer_service
+        .update_transfer(
+            999_999,
+            UpdateInventoryTransferRequest {
+                status: Some(None),
+                notes: None,
+                items: None,
+            },
+            9101,
+        )
+        .await
+        .expect_err("status（非 Option 模型列）显式 null 必须被拒绝");
+    expect_cleared_business_error(err2, "调拨状态不能清空", "status");
+}
+
+#[tokio::test]
+async fn count_item_explicit_null_on_not_null_quantity_rejected_before_db() {
+    // 盘点明细 quantity_actual 为 NOT NULL 列（inventory_count_item 模型非 Option Decimal）：
+    // 显式 null 必须在任何 DB 访问前（含 begin 事务）被拒——空表 sqlite 亦得业务错误
+    let db = sqlite_db().await;
+    let service = InventoryCountService::new(Arc::new(db));
+    let err = service
+        .update_count_item(999_999, Some(None), None)
+        .await
+        .expect_err("NOT NULL 列 quantity_actual 显式 null 必须被拒绝");
+    expect_cleared_business_error(err, "实盘数量不能清空", "quantity_actual");
+}
+
+#[tokio::test]
+async fn sales_return_header_and_item_explicit_null_rejected_before_db() {
+    let db = sqlite_db().await;
+    let service = SalesReturnService::new(Arc::new(db));
+    let mk = |customer_id, return_date, warehouse_id, reason_type| UpdateSalesReturnRequest {
+        order_id: None,
+        customer_id,
+        return_date,
+        warehouse_id,
+        reason_type,
+        reason_detail: None,
+        notes: None,
+    };
+    let cases = [
+        (
+            mk(Some(None), None, None, None),
+            "客户不能清空",
+            "customer_id",
+        ),
+        (
+            mk(None, Some(None), None, None),
+            "退货日期不能清空",
+            "return_date",
+        ),
+        (
+            mk(None, None, Some(None), None),
+            "仓库不能清空",
+            "warehouse_id",
+        ),
+        (
+            mk(None, None, None, Some(None)),
+            "退货原因类型不能清空",
+            "reason_type",
+        ),
+    ];
+    for (req, keyword, field) in cases {
+        let err = service
+            .update_return(999_999, req, 9101)
+            .await
+            .expect_err("NOT NULL 列显式 null 必须被拒绝");
+        expect_cleared_business_error(err, keyword, field);
+    }
+
+    // reason_detail 是虚拟入参：脱离 reason_type 的单独清空显式拒绝（不静默忽略）
+    let err = service
+        .update_return(
+            999_999,
+            UpdateSalesReturnRequest {
+                order_id: None,
+                customer_id: None,
+                return_date: None,
+                warehouse_id: None,
+                reason_type: None,
+                reason_detail: Some(None),
+                notes: None,
+            },
+            9101,
+        )
+        .await
+        .expect_err("reason_detail 单独显式 null 必须被显式拒绝");
+    expect_cleared_business_error(err, "退货原因详情不能单独清空", "reason_detail");
+
+    let err2 = service
+        .update_return_item(999_999, Some(None), None, None, 9101)
+        .await
+        .expect_err("NOT NULL 列 quantity 显式 null 必须被拒绝");
+    expect_cleared_business_error(err2, "退货数量不能清空", "quantity");
+    let err3 = service
+        .update_return_item(999_999, None, Some(None), None, 9101)
+        .await
+        .expect_err("NOT NULL 列 unit_price 显式 null 必须被拒绝");
+    expect_cleared_business_error(err3, "退货单价不能清空", "unit_price");
+}
+
+#[tokio::test]
+async fn receipt_header_and_item_explicit_null_rejected_before_db() {
+    let db = sqlite_db().await;
+    let service = PurchaseReceiptService::new(Arc::new(db));
+    let err = service
+        .update_receipt(
+            999_999,
+            purchase_receipt_dto::UpdatePurchaseReceiptRequest {
+                supplier_id: Some(None),
+                ..Default::default()
+            },
+            9101,
+        )
+        .await
+        .expect_err("NOT NULL 列 supplier_id 显式 null 必须被拒绝");
+    expect_cleared_business_error(err, "供应商不能清空", "supplier_id");
+    let err2 = service
+        .update_receipt(
+            999_999,
+            purchase_receipt_dto::UpdatePurchaseReceiptRequest {
+                receipt_date: Some(None),
+                ..Default::default()
+            },
+            9101,
+        )
+        .await
+        .expect_err("NOT NULL 列 receipt_date 显式 null 必须被拒绝");
+    expect_cleared_business_error(err2, "入库日期不能清空", "receipt_date");
+
+    let err3 = service
+        .update_receipt_item(
+            999_999,
+            purchase_receipt_dto::UpdateReceiptItemRequest {
+                quantity: Some(None),
+                ..Default::default()
+            },
+            9101,
+        )
+        .await
+        .expect_err("NOT NULL 列 quantity 显式 null 必须被拒绝");
+    expect_cleared_business_error(err3, "入库数量不能清空", "quantity");
+    let err4 = service
+        .update_receipt_item(
+            999_999,
+            purchase_receipt_dto::UpdateReceiptItemRequest {
+                material_code: Some(None),
+                ..Default::default()
+            },
+            9101,
+        )
+        .await
+        .expect_err("NOT NULL 列 material_code 显式 null 必须被拒绝");
+    expect_cleared_business_error(err4, "物料编码不能清空", "material_code");
+}
+
+#[tokio::test]
+async fn purchase_return_item_explicit_null_on_not_null_columns_rejected_before_db() {
+    let db = sqlite_db().await;
+    let service = PurchaseReturnService::new(Arc::new(db));
+    let mk = |line_no,
+              material_id,
+              quantity_returned,
+              unit_price,
+              tax_rate,
+              discount_percent,
+              color_no,
+              dye_lot_no,
+              batch_no| UpdateReturnItemRequest {
+        line_no,
+        material_id,
+        quantity_returned,
+        unit_price,
+        tax_rate,
+        discount_percent,
+        notes: None,
+        color_no,
+        dye_lot_no,
+        batch_no,
+    };
+    let cases = [
+        (
+            "line_no",
+            mk(Some(None), None, None, None, None, None, None, None, None),
+            "行号不能清空",
+        ),
+        (
+            "material_id",
+            mk(None, Some(None), None, None, None, None, None, None, None),
+            "物料不能清空",
+        ),
+        (
+            "quantity_returned",
+            mk(None, None, Some(None), None, None, None, None, None, None),
+            "退货数量不能清空",
+        ),
+        (
+            "unit_price",
+            mk(None, None, None, Some(None), None, None, None, None, None),
+            "单价不能清空",
+        ),
+        (
+            "tax_rate",
+            mk(None, None, None, None, Some(None), None, None, None, None),
+            "税率不能清空",
+        ),
+        (
+            "discount_percent",
+            mk(None, None, None, None, None, Some(None), None, None, None),
+            "折扣率不能清空",
+        ),
+        (
+            "color_no",
+            mk(None, None, None, None, None, None, Some(None), None, None),
+            "色号不能清空",
+        ),
+        (
+            "dye_lot_no",
+            mk(None, None, None, None, None, None, None, Some(None), None),
+            "缸号不能清空",
+        ),
+        (
+            "batch_no",
+            mk(None, None, None, None, None, None, None, None, Some(None)),
+            "批次不能清空",
+        ),
+    ];
+    for (field, req, keyword) in cases {
+        let err = service
+            .update_item(999_999, req, 9101)
+            .await
+            .expect_err("NOT NULL 列显式 null 必须被拒绝（任何 DB 访问前）");
+        expect_cleared_business_error(err, keyword, field);
+    }
+}
+
+#[tokio::test]
+async fn batch_handler_put_null_color_no_400_visible_message() {
+    let app = batch_service_router(sqlite_db().await);
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        "/inventory/batches/999999",
+        Some(json!({ "color_no": null })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "实际: {v}");
+    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["message"], "色号不能清空：该字段为必填项");
+    assert_ne!(
+        v["message"], "业务处理失败",
+        "business_displayable 不得被脱敏"
+    );
+}
+
+#[tokio::test]
+async fn transfer_item_explicit_null_on_not_null_columns_rejected_before_db() {
+    let db = sqlite_db().await;
+    let service = InventoryTransferService::new(Arc::new(db));
+    let mk = |product_id, quantity, color_no, batch_no| UpdateInventoryTransferItemRequest {
+        product_id,
+        quantity,
+        notes: None,
+        unit_cost: None,
+        color_no,
+        dye_lot_no: None,
+        batch_no,
+    };
+    let cases = [
+        (
+            "product_id",
+            mk(Some(None), None, None, None),
+            "产品不能清空",
+        ),
+        (
+            "quantity",
+            mk(None, Some(None), None, None),
+            "调拨数量不能清空",
+        ),
+        ("color_no", mk(None, None, Some(None), None), "色号不能清空"),
+        ("batch_no", mk(None, None, None, Some(None)), "批次不能清空"),
+    ];
+    for (field, req, keyword) in cases {
+        let err = service
+            .update_item(999_999, req)
+            .await
+            .expect_err("NOT NULL 列显式 null 必须被拒绝（任何 DB 访问前）");
+        expect_cleared_business_error(err, keyword, field);
+    }
+}
+
+// =========================================================
+// C) sqlite::memory: 自建表 + 真实 service/handler 的三态回环
+//    （同一列三态各一断言：省略=保持 / null=落 NULL / 有值=覆盖）
+// =========================================================
+
+/// inventory_stocks 全列最小 DDL（列与 `models/inventory_stock.rs::Model` 逐列对应，
+/// Decimal 列用 TEXT、bool 用 INTEGER——先例形态）
+const INVENTORY_STOCKS_DDL: &str = r#"CREATE TABLE inventory_stocks (
+    id INTEGER PRIMARY KEY,
+    warehouse_id INTEGER, product_id INTEGER,
+    quantity_on_hand TEXT, quantity_available TEXT, quantity_reserved TEXT,
+    quantity_shipped TEXT, quantity_incoming TEXT,
+    reorder_point TEXT, max_stock_point TEXT, reorder_quantity TEXT,
+    bin_location TEXT, last_count_date TEXT, last_movement_date TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    batch_no TEXT, color_no TEXT, dye_lot_no TEXT, grade TEXT,
+    production_date TEXT, expiry_date TEXT,
+    quantity_meters TEXT, quantity_kg TEXT, gram_weight TEXT, width TEXT,
+    location_id INTEGER, shelf_no TEXT, layer_no TEXT,
+    stock_status TEXT, quality_status TEXT,
+    version INTEGER, replenishment_strategy TEXT
+)"#;
+
+async fn seed_stock(db: &DatabaseConnection) -> inventory_stock::Model {
+    inventory_stock::ActiveModel {
+        warehouse_id: Set(1),
+        product_id: Set(2),
+        quantity_on_hand: Set(dec("100.00")),
+        quantity_available: Set(dec("90.00")),
+        quantity_reserved: Set(dec("10.00")),
+        quantity_shipped: Set(Decimal::ZERO),
+        quantity_incoming: Set(Decimal::ZERO),
+        reorder_point: Set(dec("20.00")),
+        max_stock_point: Set(dec("500.00")),
+        reorder_quantity: Set(dec("50.00")),
+        bin_location: Set(Some("A-01-01".to_string())),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        batch_no: Set("B-W3-001".to_string()),
+        color_no: Set("C001".to_string()),
+        dye_lot_no: Set(Some("DL001".to_string())),
+        grade: Set("一等品".to_string()),
+        expiry_date: Set(Some(Utc.with_ymd_and_hms(2026, 12, 31, 0, 0, 0).unwrap())),
+        quantity_meters: Set(dec("100.00")),
+        quantity_kg: Set(dec("50.00")),
+        gram_weight: Set(Some(dec("180.00"))),
+        stock_status: Set(inventory_stock_status::NORMAL.to_string()),
+        quality_status: Set(inventory_stock_quality_status::PASS.to_string()),
+        version: Set(0),
+        replenishment_strategy: Set("reorder_point".to_string()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap()
+}
+
+/// 库存域（批次编辑）：dye_lot_no 同一列三态各一断言 + gram_weight/expiry_date 覆盖与清空
+#[tokio::test]
+async fn inventory_batch_update_tri_state_roundtrip_on_sqlite() {
+    let db = sqlite_db().await;
+    exec(&db, INVENTORY_STOCKS_DDL).await;
+    let stock = seed_stock(&db).await;
+    let service = InventoryStockService::new(Arc::new(db.clone()));
+
+    // 1) 键缺席=保持：只覆盖 gram_weight，其余参数 None → 对应列不进 UPDATE
+    let after = service
+        .update_batch_fields(
+            stock.id,
+            None,
+            None,
+            None,
+            Some(Some(210.5)),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(after.gram_weight, Some(dec("210.5")), "有值=覆盖");
+    assert_eq!(
+        after.dye_lot_no.as_deref(),
+        Some("DL001"),
+        "缺席键必须保持原值"
+    );
+    assert_eq!(after.color_no, "C001");
+
+    // 2) 显式 null=落 NULL：dye_lot_no Some(None) / expiry_date Some(None)
+    let after = service
+        .update_batch_fields(
+            stock.id,
+            None,
+            Some(None),
+            None,
+            None,
+            None,
+            Some(None),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert!(
+        after.dye_lot_no.is_none(),
+        "发 null 后 dye_lot_no 必须为 NULL"
+    );
+    assert!(
+        after.expiry_date.is_none(),
+        "发 null 后 expiry_date 必须为 NULL"
+    );
+    assert_eq!(
+        after.gram_weight,
+        Some(dec("210.5")),
+        "未再提交的 gram_weight 保持上一次结果"
+    );
+
+    // 3) 有值=覆盖：dye_lot_no 重新给值（同一列三态闭环），color_no 保持
+    let after = service
+        .update_batch_fields(
+            stock.id,
+            None,
+            Some(Some("DL009".to_string())),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(after.dye_lot_no.as_deref(), Some("DL009"), "有值=覆盖");
+    let reread = inventory_stock::Entity::find_by_id(stock.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(reread.dye_lot_no.as_deref(), Some("DL009"));
+    assert_eq!(reread.color_no, "C001", "缺席的 NOT NULL 列全程未动");
+}
+
+/// warehouse_locations 全列（列与 `models/location.rs::Model` 逐列对应）
+const WAREHOUSE_LOCATIONS_DDL: &str = r#"CREATE TABLE warehouse_locations (
+    id INTEGER PRIMARY KEY,
+    warehouse_id INTEGER NOT NULL, location_code TEXT NOT NULL,
+    location_type TEXT, max_weight TEXT, max_height TEXT,
+    is_batch_managed INTEGER, is_color_managed INTEGER,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+)"#;
+
+async fn seed_location(db: &DatabaseConnection) -> location::Model {
+    location::ActiveModel {
+        warehouse_id: Set(1),
+        location_code: Set("LOC-A01".to_string()),
+        location_type: Set(Some("货架".to_string())),
+        max_weight: Set(Some(dec("300.00"))),
+        max_height: Set(Some(dec("250.00"))),
+        is_batch_managed: Set(Some(true)),
+        is_color_managed: Set(Some(false)),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap()
+}
+
+/// 仓储域（库位编辑）：location_type 同一列三态各一断言（真实 handler PUT）
+#[tokio::test]
+async fn warehouse_location_update_tri_state_roundtrip_on_sqlite() {
+    let db = sqlite_db().await;
+    exec(&db, WAREHOUSE_LOCATIONS_DDL).await;
+    let created = seed_location(&db).await;
+    let id = created.id;
+    let app = location_router(db.clone());
+    let uri = format!("/warehouse/locations/{id}");
+
+    // 1) 键缺席=保持：只提交 max_weight 覆盖，location_type/location_code 缺席不动
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        &uri,
+        Some(json!({ "max_weight": 500.5 })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "库位三态 update 失败: {v}");
+    let row = location::Entity::find_by_id(id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.max_weight, Some(dec("500.5")), "有值=覆盖");
+    assert_eq!(
+        row.location_type.as_deref(),
+        Some("货架"),
+        "缺席键必须保持原值"
+    );
+    assert_eq!(row.location_code, "LOC-A01");
+    assert_eq!(row.max_height, Some(dec("250.00")));
+
+    // 2) 显式 null=落 NULL：location_type/is_color_managed 清空
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        &uri,
+        Some(json!({ "location_type": null, "is_color_managed": null })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "库位清空 update 失败: {v}");
+    let row = location::Entity::find_by_id(id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        row.location_type.is_none(),
+        "发 null 后 location_type 必须为 NULL"
+    );
+    assert!(
+        row.is_color_managed.is_none(),
+        "发 null 后 is_color_managed 必须为 NULL"
+    );
+    assert_eq!(row.is_batch_managed, Some(true), "缺席键保持");
+
+    // 3) 有值=覆盖：location_type 重新给值（同一列三态闭环）
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        &uri,
+        Some(json!({ "location_type": "地面堆垛" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "库位覆盖 update 失败: {v}");
+    let row = location::Entity::find_by_id(id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.location_type.as_deref(), Some("地面堆垛"), "有值=覆盖");
+}
+
+/// 退货域（采购退货单头）：reason_detail 同一列三态各一断言（真实 service 调用；
+/// update_return 不加行锁，sqlite 可跑全链）
+#[tokio::test]
+async fn purchase_return_header_update_tri_state_roundtrip_on_sqlite() {
+    let db = sqlite_db().await;
+    exec(
+        &db,
+        r#"CREATE TABLE purchase_return (
+            id INTEGER PRIMARY KEY,
+            return_no TEXT NOT NULL, receipt_id INTEGER, order_id INTEGER,
+            supplier_id INTEGER NOT NULL, return_date TEXT NOT NULL,
+            warehouse_id INTEGER, department_id INTEGER,
+            reason_type TEXT, reason_detail TEXT, return_status TEXT,
+            total_quantity TEXT, total_quantity_alt TEXT, total_amount TEXT,
+            notes TEXT, created_by INTEGER, created_at TEXT NOT NULL,
+            updated_by INTEGER, updated_at TEXT NOT NULL,
+            approved_by INTEGER, approved_at TEXT, rejected_reason TEXT
+        )"#,
+    )
+    .await;
+    // update_with_audit 依赖 users（fetch_username）与 audit_logs（落审计行）——
+    // 列集与先例 contract_wave2_po_item_update_fields_test.rs 逐列一致
+    exec(
+        &db,
+        r#"CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            username TEXT NOT NULL, password_hash TEXT NOT NULL,
+            real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
+            role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
+            totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
+            last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+            gender TEXT, birth_date TEXT
+        )"#,
+    )
+    .await;
+    exec(
+        &db,
+        r#"CREATE TABLE audit_logs (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER, username TEXT, action TEXT NOT NULL,
+            resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
+            ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
+            request_body TEXT, response_status INTEGER, duration_ms INTEGER,
+            old_value TEXT, new_value TEXT, created_at TEXT,
+            operation_type TEXT, severity TEXT, request_id TEXT,
+            before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
+            export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
+            export_approval_token TEXT, export_watermark_user TEXT
+        )"#,
+    )
+    .await;
+    let created = purchase_return::ActiveModel {
+        return_no: Set("PR-W3-001".to_string()),
+        supplier_id: Set(1),
+        return_date: Set(chrono::NaiveDate::from_ymd_opt(2026, 9, 1).unwrap()),
+        reason_type: Set(Some("QUALITY".to_string())),
+        reason_detail: Set(Some("染色疵点".to_string())),
+        return_status: Set(Some(pr_status::DRAFT.to_string())),
+        notes: Set(Some("原备注".to_string())),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let id = created.id;
+    let service = PurchaseReturnService::new(Arc::new(db.clone()));
+
+    // 1) 键缺席=保持：全 None 提交，三列原值不动
+    let after = service
+        .update_return(id, UpdatePurchaseReturnRequest::default(), 9101)
+        .await
+        .unwrap();
+    assert_eq!(after.reason_detail.as_deref(), Some("染色疵点"));
+    assert_eq!(after.reason_type.as_deref(), Some("QUALITY"));
+    assert_eq!(after.notes.as_deref(), Some("原备注"));
+
+    // 2) 有值=覆盖
+    let after = service
+        .update_return(
+            id,
+            UpdatePurchaseReturnRequest {
+                reason_type: None,
+                reason_detail: Some(Some("缩水超标".to_string())),
+                notes: None,
+            },
+            9101,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        after.reason_detail.as_deref(),
+        Some("缩水超标"),
+        "有值=覆盖"
+    );
+
+    // 3) 显式 null=落 NULL（同一列三态闭环）；notes 缺席保持
+    let after = service
+        .update_return(
+            id,
+            UpdatePurchaseReturnRequest {
+                reason_type: None,
+                reason_detail: Some(None),
+                notes: None,
+            },
+            9101,
+        )
+        .await
+        .unwrap();
+    assert!(
+        after.reason_detail.is_none(),
+        "发 null 后 reason_detail 列必须为 NULL"
+    );
+    assert_eq!(after.reason_type.as_deref(), Some("QUALITY"), "缺席键保持");
+    assert_eq!(after.notes.as_deref(), Some("原备注"), "缺席键保持");
+
+    let reread = purchase_return::Entity::find_by_id(id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(reread.reason_detail.is_none(), "DB 回读必须为 NULL");
+
+    // 审计：after_snapshot 反映清空后的真实 NULL（不留假旧值）
+    let log = audit_log::Entity::find()
+        .filter(audit_log::Column::ResourceType.eq("auto_audit"))
+        .filter(audit_log::Column::ResourceId.eq(id.to_string()))
+        .order_by(audit_log::Column::Id, Order::Desc)
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("update_with_audit 必须落审计行");
+    let after_snapshot = log
+        .after_snapshot
+        .as_ref()
+        .expect("after_snapshot 必须存在");
+    assert!(
+        after_snapshot
+            .0
+            .get("reason_detail")
+            .map(|x| x.is_null())
+            .unwrap_or(false),
+        "审计 after_snapshot 必须反映清空后的真实 NULL: {}",
+        after_snapshot.0
+    );
+}
+
+// =========================================================
+// C2) 拒清必须"零部分副作用"：同请求其他字段不得先落库
+// =========================================================
+
+/// NOT NULL 列显式 null 被拒时，同一请求里其他可空/有值字段必须一律不落库
+/// （拒绝发生在任何 DB 访问前；若实现只挡列不改请求，就会出现"改了一半"的脏写）
+#[tokio::test]
+async fn explicit_null_on_not_null_rejected_and_sibling_fields_not_persisted() {
+    // 批次编辑（service 直调）：color_no(null) + gram_weight(999.0) 同请求 → 整体拒绝
+    let db = sqlite_db().await;
+    exec(&db, INVENTORY_STOCKS_DDL).await;
+    let stock = seed_stock(&db).await;
+    let service = InventoryStockService::new(Arc::new(db.clone()));
+    let err = service
+        .update_batch_fields(
+            stock.id,
+            Some(None),
+            None,
+            None,
+            Some(Some(999.0)),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect_err("NOT NULL 列 color_no 显式 null 必须被拒绝");
+    expect_cleared_business_error(err, "色号不能清空", "color_no");
+    let reread = inventory_stock::Entity::find_by_id(stock.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        reread.gram_weight,
+        Some(dec("180.00")),
+        "同请求的 gram_weight 不得部分落库"
+    );
+    assert_eq!(reread.color_no, "C001");
+
+    // 库位编辑（真实 handler PUT）：location_code(null) + location_type 同请求 → 400 且不动列
+    let db2 = sqlite_db().await;
+    exec(&db2, WAREHOUSE_LOCATIONS_DDL).await;
+    let row = seed_location(&db2).await;
+    let app = location_router(db2.clone());
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        &format!("/warehouse/locations/{}", row.id),
+        Some(json!({ "location_code": null, "location_type": "不应落库" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "实际: {v}");
+    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["message"], "库位编码不能清空：该字段为必填项");
+    let after = location::Entity::find_by_id(row.id)
+        .one(&db2)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        after.location_type.as_deref(),
+        Some("货架"),
+        "同请求的 location_type 不得落库"
+    );
+    assert_eq!(after.location_code, "LOC-A01");
+}
+
+// =========================================================
+// C3) 调拨明细（PUT /inventory/transfers/items/{item_id}）三态回环
+// =========================================================
+
+const INVENTORY_TRANSFERS_DDL: &str = r#"CREATE TABLE inventory_transfers (
+    id INTEGER PRIMARY KEY,
+    transfer_no TEXT NOT NULL, from_warehouse_id INTEGER NOT NULL,
+    to_warehouse_id INTEGER NOT NULL, transfer_date TEXT NOT NULL,
+    status TEXT NOT NULL, total_quantity TEXT, notes TEXT,
+    created_by INTEGER, approved_by INTEGER, approved_at TEXT,
+    shipped_at TEXT, received_at TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    approval_level TEXT, approved_by_role TEXT, total_amount TEXT
+)"#;
+
+const INVENTORY_TRANSFER_ITEMS_DDL: &str = r#"CREATE TABLE inventory_transfer_items (
+    id INTEGER PRIMARY KEY, transfer_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
+    quantity TEXT NOT NULL, shipped_quantity TEXT, received_quantity TEXT,
+    unit_cost TEXT, notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    color_no TEXT NOT NULL, dye_lot_no TEXT, batch_no TEXT NOT NULL
+)"#;
+
+/// 染色布调拨单 + 一条明细（notes/unit_cost/dye_lot_no 均预置非 NULL 值）
+async fn seed_transfer_with_item(
+    db: &DatabaseConnection,
+) -> (inventory_transfer::Model, inventory_transfer_item::Model) {
+    let transfer = inventory_transfer::ActiveModel {
+        transfer_no: Set("TR-W3-001".to_string()),
+        from_warehouse_id: Set(1),
+        to_warehouse_id: Set(2),
+        transfer_date: Set(Utc.with_ymd_and_hms(2026, 9, 1, 0, 0, 0).unwrap()),
+        status: Set(transfer_status::PENDING.to_string()),
+        total_quantity: Set(dec("10.00")),
+        notes: Set(None),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        total_amount: Set(Decimal::ZERO),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+    let item = inventory_transfer_item::ActiveModel {
+        transfer_id: Set(transfer.id),
+        product_id: Set(5),
+        quantity: Set(dec("10.00")),
+        shipped_quantity: Set(Decimal::ZERO),
+        received_quantity: Set(Decimal::ZERO),
+        unit_cost: Set(Some(dec("3.50"))),
+        notes: Set(Some("原备注".to_string())),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        color_no: Set("C001".to_string()),
+        dye_lot_no: Set(Some("DL001".to_string())),
+        batch_no: Set("B7".to_string()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+    (transfer, item)
+}
+
+/// 调拨明细 update 三态回环：可空列（notes/unit_cost/dye_lot_no）缺席保持 / null 清空 /
+/// 有值覆盖全部经真实 service + sqlite 回读；染色布行的缸号清空受四维追溯不变量拒绝
+/// 且不产生部分写（DTO 声明的 unit_cost/追溯列在旧实现里被整体丢弃，属"假保存"缺陷）
+#[tokio::test]
+async fn transfer_item_update_tri_state_roundtrip_on_sqlite() {
+    let db = sqlite_db().await;
+    exec(&db, INVENTORY_TRANSFERS_DDL).await;
+    exec(&db, INVENTORY_TRANSFER_ITEMS_DDL).await;
+    let (_, seeded) = seed_transfer_with_item(&db).await;
+    let item_id = seeded.id;
+    let service = InventoryTransferService::new(Arc::new(db.clone()));
+    let reload = || {
+        let db = db.clone();
+        async move {
+            inventory_transfer_item::Entity::find_by_id(item_id)
+                .one(&db)
+                .await
+                .unwrap()
+                .unwrap()
+        }
+    };
+
+    // 1) 键缺席=保持：只改 notes，unit_cost/dye_lot_no 原值不动
+    service
+        .update_item(
+            item_id,
+            UpdateInventoryTransferItemRequest {
+                product_id: None,
+                quantity: None,
+                notes: Some(Some("三态新备注".to_string())),
+                unit_cost: None,
+                color_no: None,
+                dye_lot_no: None,
+                batch_no: None,
+            },
+        )
+        .await
+        .unwrap();
+    let row = reload().await;
+    assert_eq!(row.notes.as_deref(), Some("三态新备注"), "有值=覆盖");
+    assert_eq!(row.unit_cost, Some(dec("3.50")), "缺席键必须保持原值");
+    assert_eq!(row.dye_lot_no.as_deref(), Some("DL001"));
+
+    // 2) 显式 null=清空：notes/unit_cost 同请求置 NULL，追溯列缺席不动
+    service
+        .update_item(
+            item_id,
+            UpdateInventoryTransferItemRequest {
+                product_id: None,
+                quantity: None,
+                notes: Some(None),
+                unit_cost: Some(None),
+                color_no: None,
+                dye_lot_no: None,
+                batch_no: None,
+            },
+        )
+        .await
+        .unwrap();
+    let row = reload().await;
+    assert!(row.notes.is_none(), "发 null 后 notes 必须为 NULL");
+    assert!(row.unit_cost.is_none(), "发 null 后 unit_cost 必须为 NULL");
+    assert_eq!(row.dye_lot_no.as_deref(), Some("DL001"), "缺席键保持");
+
+    // 3) 有值=覆盖：dye_lot_no 换缸号（同一可空列三态闭环）
+    service
+        .update_item(
+            item_id,
+            UpdateInventoryTransferItemRequest {
+                product_id: None,
+                quantity: None,
+                notes: None,
+                unit_cost: None,
+                color_no: None,
+                dye_lot_no: Some(Some("DL009".to_string())),
+                batch_no: None,
+            },
+        )
+        .await
+        .unwrap();
+    let row = reload().await;
+    assert_eq!(row.dye_lot_no.as_deref(), Some("DL009"), "有值=覆盖");
+
+    // 4) 染色布（生效色号非空）清空缸号：违反四维追溯不变量，如实拒绝且明细零写
+    let err = service
+        .update_item(
+            item_id,
+            UpdateInventoryTransferItemRequest {
+                product_id: None,
+                quantity: None,
+                notes: Some(Some("不该落库".to_string())),
+                unit_cost: None,
+                color_no: None,
+                dye_lot_no: Some(None),
+                batch_no: None,
+            },
+        )
+        .await
+        .expect_err("染色布行清空缸号必须被拒绝（不是静默放行也不是塌成保持）");
+    assert!(
+        matches!(&err, AppError::ValidationErrorDisplayable(m) if m.contains("染色布必须提供缸号")),
+        "应为四维追溯校验错误且外显真实原因，实际: {err:?}"
+    );
+    let row = reload().await;
+    assert_eq!(row.dye_lot_no.as_deref(), Some("DL009"), "拒绝后缸号保持");
+    assert!(row.notes.is_none(), "同请求的 notes 不得部分落库");
+}
+
+// =========================================================
+// D) 活库（PG）：收货链路三态全链（update_receipt 服务链 lock_exclusive，
+//    sqlite 方言不支持行锁——不得伪装成 sqlite 用例）
+// =========================================================
+
+/// 活库用例的 PG 硬断言：TEST_DATABASE_URL 缺失时 setup_test_db 回退 sqlite，
+/// 必须显式炸红（条件跳过/静默 pass 是本仓定性的假绿根因）。
+async fn require_postgres(db: &DatabaseConnection) {
+    assert_eq!(
+        db.get_database_backend(),
+        DbBackend::Postgres,
+        "本用例必须跑在已迁移的 PostgreSQL（TEST_DATABASE_URL）上，由 ci-test-rust-ignored 执行；禁止 sqlite 回退假绿"
+    );
+}
+
+#[tokio::test]
+#[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（update_receipt 走 lock_exclusive + update_with_audit）"]
+async fn live_receipt_update_null_clears_nullable_and_absent_keeps() {
+    use bingxi_backend::models::purchase_receipt;
+    let db = test_common::setup_test_db().await;
+    require_postgres(&db).await;
+    let suffix = Utc::now().timestamp_nanos_opt().unwrap();
+
+    let created = purchase_receipt::ActiveModel {
+        receipt_no: Set(format!("GR-W3-{suffix}")),
+        supplier_id: Set(1),
+        receipt_date: Set(chrono::NaiveDate::from_ymd_opt(2026, 9, 1).unwrap()),
+        warehouse_id: Set(1),
+        department_id: Set(Some(1)),
+        inspector_id: Set(Some(2)),
+        inspection_status: Set("PENDING".to_string()),
+        receipt_status: Set(receipt_status::DRAFT.to_string()),
+        total_quantity: Set(Decimal::ZERO),
+        total_quantity_alt: Set(Decimal::ZERO),
+        total_amount: Set(Decimal::ZERO),
+        notes: Set(Some("待清空的备注".to_string())),
+        attachment_urls: Set(Some(vec!["a.pdf".to_string()])),
+        created_by: Set(9101),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+
+    let service = PurchaseReceiptService::new(Arc::new(db.clone()));
+    // 三态：notes/inspector_id/attachment_urls 显式 null 清空；receipt_date/supplier_id/
+    // department_id 键缺席保持
+    let after = service
+        .update_receipt(
+            created.id,
+            purchase_receipt_dto::UpdatePurchaseReceiptRequest {
+                notes: Some(None),
+                inspector_id: Some(None),
+                attachment_urls: Some(None),
+                ..Default::default()
+            },
+            9101,
+        )
+        .await
+        .expect("入库单三态 update 失败");
+    assert!(after.notes.is_none(), "发 null 后 notes 必须为 NULL");
+    assert!(
+        after.inspector_id.is_none(),
+        "发 null 后 inspector_id 必须为 NULL"
+    );
+    assert!(
+        after.attachment_urls.is_none(),
+        "发 null 后 attachment_urls 必须为 NULL"
+    );
+    assert_eq!(after.department_id, Some(1), "缺席键必须保持原值");
+
+    let reread = purchase_receipt::Entity::find_by_id(created.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(reread.notes.is_none(), "DB 回读 notes 必须为 NULL");
+    assert_eq!(reread.supplier_id, 1);
+
+    // 同一列再覆盖：notes 有值=覆盖
+    let after = service
+        .update_receipt(
+            created.id,
+            purchase_receipt_dto::UpdatePurchaseReceiptRequest {
+                notes: Some(Some("三态回环新备注".to_string())),
+                ..Default::default()
+            },
+            9101,
+        )
+        .await
+        .unwrap();
+    assert_eq!(after.notes.as_deref(), Some("三态回环新备注"), "有值=覆盖");
+}

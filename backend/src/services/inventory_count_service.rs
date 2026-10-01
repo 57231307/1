@@ -65,10 +65,16 @@ pub struct CreateCountRequest {
 }
 
 /// 更新盘点单请求
+///
+/// 字段三态语义（对齐 RFC 7386 JSON Merge Patch，与 handlers::inventory_count_handler
+/// 的 UpdateCountPayload 同源）：
+/// None（键缺席）=保持原值、Some(None)（显式 null）=置 NULL（仅 DB 可空列）、Some(Some(v))=覆盖。
 #[derive(Debug, Clone, Default)]
 pub struct UpdateCountRequest {
-    pub count_date: Option<DateTime<Utc>>,
-    pub notes: Option<String>,
+    /// NOT NULL 列 count_date（m0001 DDL）——显式 null 由 update_count 拒绝
+    pub count_date: Option<Option<DateTime<Utc>>>,
+    /// DB 可空列 notes TEXT（m0001 DDL）——显式 null 清空
+    pub notes: Option<Option<String>>,
 }
 
 /// 盘点明细录入请求
@@ -309,6 +315,13 @@ impl InventoryCountService {
         req: UpdateCountRequest,
         user_id: Option<i32>,
     ) -> Result<inventory_count::Model, AppError> {
+        // NOT NULL 列门控（count_date，m0001 DDL）：显式 null 是调用方错误而非"保持原值"，
+        // 在任何 DB 访问前拒绝，错误外显不脱敏
+        if matches!(req.count_date, Some(None)) {
+            return Err(AppError::business_displayable(
+                "盘点日期不能清空：该字段为必填项",
+            ));
+        }
         let txn = (*self.db).begin().await?;
         let count_model = inventory_count::Entity::find_by_id(count_id)
             .one(&txn)
@@ -320,11 +333,14 @@ impl InventoryCountService {
             ));
         }
         let mut active: inventory_count::ActiveModel = count_model.into();
-        if let Some(d) = req.count_date {
+        // 三态写入：None=不 Set、Some(None)=Set(None) 置 NULL、Some(Some(v))=Set(v) 覆盖。
+        // count_date 为 NOT NULL 列（Some(None) 已入口拒绝）：仅覆盖/保持
+        if let Some(d) = req.count_date.flatten() {
             active.count_date = Set(d);
         }
+        // notes 为 DB 可空列：显式 null 直落 NULL
         if let Some(n) = req.notes {
-            active.notes = Set(Some(n));
+            active.notes = Set(n);
         }
         active.updated_at = Set(Utc::now());
         let updated = AuditLogService::update_with_audit::<
@@ -628,12 +644,23 @@ impl InventoryCountService {
     }
 
     /// 更新单条盘点明细（实盘数量/备注；仅待盘点状态可改）
+    /// 更新单条盘点明细（三态语义，对齐 RFC 7386 JSON Merge Patch）：
+    /// None（键缺席）=保持原值、Some(None)（显式 null）=置 NULL（仅 DB 可空列）、
+    /// Some(Some(v))=覆盖。NOT NULL 列（quantity_actual，inventory_count_item 模型为
+    /// 非 Option Decimal 列）的显式 null 在任何 DB 访问前被拒绝。
     pub async fn update_count_item(
         &self,
         item_id: i32,
-        quantity_actual: Option<Decimal>,
-        notes: Option<String>,
+        quantity_actual: Option<Option<Decimal>>,
+        notes: Option<Option<String>>,
     ) -> Result<inventory_count_item::Model, AppError> {
+        // NOT NULL 列门控（quantity_actual）：显式 null 是调用方错误而非"保持原值"，
+        // 在任何 DB 访问（含 begin 事务）之前拒绝，错误外显不脱敏
+        if matches!(quantity_actual, Some(None)) {
+            return Err(AppError::business_displayable(
+                "实盘数量不能清空：该字段为必填项",
+            ));
+        }
         let txn = (*self.db).begin().await?;
         let item = inventory_count_item::Entity::find_by_id(item_id)
             .one(&txn)
@@ -651,7 +678,9 @@ impl InventoryCountService {
         }
 
         let mut active: inventory_count_item::ActiveModel = item.clone().into();
-        if let Some(q) = quantity_actual {
+        // 三态写入：None=不 Set、Some(Some(q))=Set(q) 覆盖（quantity_actual 为 NOT NULL
+        // 列，Some(None) 已入口拒绝）
+        if let Some(q) = quantity_actual.flatten() {
             // 与批量录入保持一致：实盘数量非负（允许 0，仅拒严格负数），
             // 校验位于任何写库之前，负值返回错误使整个事务回滚，不产生半写。
             if q.is_sign_negative() {
@@ -660,8 +689,9 @@ impl InventoryCountService {
             active.quantity_actual = Set(q);
             active.quantity_difference = Set(q - item.quantity_before);
         }
+        // notes 为 DB 可空列：Some(inner)=Set(inner)，显式 null 直落 NULL（清空）
         if let Some(n) = notes {
-            active.notes = Set(Some(n));
+            active.notes = Set(n);
         }
         active.updated_at = Set(Utc::now());
         let updated = active.update(&txn).await?;

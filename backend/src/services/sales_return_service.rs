@@ -38,16 +38,54 @@ pub struct CreateSalesReturnRequest {
     pub notes: Option<String>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围；本 DTO 为 wire 直连，适配器落位服务侧同文件）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新销售退货请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（sales_return.customer_id/return_date/warehouse_id/reason_type 映射的
+/// reason 复合列，m0011 DDL）不开 null 清空，显式 null 由 service 拒绝；
+/// order_id（sales_order_id）与 notes（remarks）为 DB 可空列，显式 null 清空。
+/// reason_detail 是虚拟入参（reason 列为 "type: detail" 复合形态，无独立列）：
+/// 仅在与 reason_type 同提交时参与合成；单独提交显式 null 无落库目标，显式拒绝。
 #[derive(Deserialize)]
 pub struct UpdateSalesReturnRequest {
-    pub order_id: Option<i32>,
-    pub customer_id: Option<i32>,
-    pub return_date: Option<chrono::NaiveDate>,
-    pub warehouse_id: Option<i32>,
-    pub reason_type: Option<String>,
-    pub reason_detail: Option<String>,
-    pub notes: Option<String>,
+    /// DB 可空列 sales_order_id（m0011 DDL）——显式 null 清空（解除来源订单关联）
+    #[serde(default, deserialize_with = "double_option")]
+    pub order_id: Option<Option<i32>>,
+    /// NOT NULL 列 customer_id——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub customer_id: Option<Option<i32>>,
+    /// NOT NULL 列 return_date——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub return_date: Option<Option<chrono::NaiveDate>>,
+    /// NOT NULL 列 warehouse_id——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub warehouse_id: Option<Option<i32>>,
+    /// NOT NULL 列 reason（type 部分）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason_type: Option<Option<String>>,
+    /// 虚拟入参（reason 列的 detail 部分）——见类型级注释
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason_detail: Option<Option<String>>,
+    /// DB 可空列 remarks（m0011 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 /// 添加退货明细项请求
@@ -514,6 +552,37 @@ impl SalesReturnService {
         req: UpdateSalesReturnRequest,
         user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
+        // NOT NULL 列门控（sales_return.customer_id/return_date/warehouse_id，m0011 DDL；
+        // reason_type 映射复合 NOT NULL 列 reason）：显式 null 在任何 DB 访问前拒绝，
+        // 错误外显不脱敏，不得塌成"保持原值"
+        if matches!(req.customer_id, Some(None)) {
+            return Err(AppError::business_displayable(
+                "客户不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.return_date, Some(None)) {
+            return Err(AppError::business_displayable(
+                "退货日期不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.warehouse_id, Some(None)) {
+            return Err(AppError::business_displayable(
+                "仓库不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.reason_type, Some(None)) {
+            return Err(AppError::business_displayable(
+                "退货原因类型不能清空：该字段为必填项",
+            ));
+        }
+        // reason_detail 是虚拟入参：reason 列无独立 detail 目标，
+        // 脱离 reason_type 的单独清空请求如实拒绝（不静默忽略）
+        if matches!(req.reason_detail, Some(None)) && !matches!(req.reason_type, Some(Some(_))) {
+            return Err(AppError::business_displayable(
+                "退货原因详情不能单独清空：请连同退货原因类型一并提交",
+            ));
+        }
+
         // P1-7 修复（批次 79 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
         // 原实现状态门用 self.db 裸查询、update_with_audit 也用 self.db，无事务边界，
         // 并发场景下可能在状态检查通过后、update 之前发生状态变更导致已审批单被篡改。
@@ -534,28 +603,35 @@ impl SalesReturnService {
 
         let mut active_model: sales_return::ActiveModel = return_order.into();
 
+        // 三态写入规则：None=不 Set（UPDATE 不含该列，原值不动）；
+        // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖。
+        // order_id 为 DB 可空列：Some(inner)=Set(inner)，显式 null 直落 NULL
         if let Some(order_id) = req.order_id {
-            active_model.sales_order_id = Set(Some(order_id));
+            active_model.sales_order_id = Set(order_id);
         }
-        if let Some(customer_id) = req.customer_id {
+        // customer_id/return_date/warehouse_id 为 NOT NULL 列（Some(None) 已入口拒绝）：仅覆盖/保持
+        if let Some(customer_id) = req.customer_id.flatten() {
             active_model.customer_id = Set(customer_id);
         }
-        if let Some(return_date) = req.return_date {
+        if let Some(return_date) = req.return_date.flatten() {
             active_model.return_date = Set(return_date);
         }
-        if let Some(warehouse_id) = req.warehouse_id {
+        if let Some(warehouse_id) = req.warehouse_id.flatten() {
             active_model.warehouse_id = Set(warehouse_id);
         }
-        if let Some(reason_type) = req.reason_type {
-            let reason = if let Some(detail) = req.reason_detail {
+        // reason_type 驱动 reason 复合列重写：detail 有值则拼 "type: detail"，
+        // 缺席或显式 null 均只落 type（reason 列 NOT NULL，不存在"只清 detail"的独立列目标）
+        if let Some(reason_type) = req.reason_type.flatten() {
+            let reason = if let Some(Some(detail)) = req.reason_detail {
                 format!("{}: {}", reason_type, detail)
             } else {
                 reason_type
             };
             active_model.reason = Set(reason);
         }
+        // notes 映射 DB 可空列 remarks：显式 null 直落 NULL
         if let Some(notes) = req.notes {
-            active_model.remarks = Set(Some(notes));
+            active_model.remarks = Set(notes);
         }
 
         active_model.updated_at = Set(Utc::now());
@@ -1194,11 +1270,24 @@ impl SalesReturnService {
     pub async fn update_return_item(
         &self,
         item_id: i32,
-        quantity: Option<Decimal>,
-        unit_price: Option<Decimal>,
-        reason: Option<String>,
+        quantity: Option<Option<Decimal>>,
+        unit_price: Option<Option<Decimal>>,
+        reason: Option<Option<String>>,
         user_id: i32,
     ) -> Result<sales_return_item::Model, AppError> {
+        // NOT NULL 列门控（sales_return_item.quantity/unit_price，m0011 DDL）：
+        // 显式 null 在任何 DB 访问前拒绝，错误外显不脱敏，不得塌成"保持原值"
+        if matches!(quantity, Some(None)) {
+            return Err(AppError::business_displayable(
+                "退货数量不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(unit_price, Some(None)) {
+            return Err(AppError::business_displayable(
+                "退货单价不能清空：该字段为必填项",
+            ));
+        }
+
         let txn = (*self.db).begin().await?;
 
         let item = sales_return_item::Entity::find_by_id(item_id)
@@ -1207,22 +1296,26 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("退货明细 {}", item_id)))?;
 
-        // 重算所需原值在 into ActiveModel 之前捕获（Move 语义）
-        let new_qty = quantity.unwrap_or(item.quantity);
-        let new_price = unit_price.unwrap_or(item.unit_price);
+        // 重算所需原值在 into ActiveModel 之前捕获（Move 语义）。
+        // NOT NULL 列的 Some(None) 已入口拒绝，flatten 后仅剩 覆盖/保持 两态
+        let new_qty = quantity.flatten().unwrap_or(item.quantity);
+        let new_price = unit_price.flatten().unwrap_or(item.unit_price);
         let discount_percent = item.discount_percent;
         let tax_percent = item.tax_percent;
-        let amounts_dirty = quantity.is_some() || unit_price.is_some();
+        let amounts_dirty =
+            matches!(quantity, Some(Some(_))) || matches!(unit_price, Some(Some(_)));
 
         let mut active_model: sales_return_item::ActiveModel = item.into();
-        if let Some(qty) = quantity {
+        if let Some(qty) = quantity.flatten() {
             active_model.quantity = Set(qty);
         }
-        if let Some(price) = unit_price {
+        if let Some(price) = unit_price.flatten() {
             active_model.unit_price = Set(price);
         }
+        // reason 映射 DB 可空列 notes（sales_return_item.notes，m0011 DDL）：
+        // Some(inner)=Set(inner)，显式 null 直落 NULL
         if let Some(r) = reason {
-            active_model.notes = Set(Some(r));
+            active_model.notes = Set(r);
         }
         // 数量/单价任一变化：按行内税率/折扣率重算 subtotal/tax_amount/discount_amount/total_amount，
         // 与 add_return_item 使用同一 compute_return_item_amounts，保证口径一致。

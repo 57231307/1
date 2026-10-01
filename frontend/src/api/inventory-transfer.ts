@@ -108,13 +108,36 @@ export interface InventoryTransferItemPayload {
 }
 
 /**
- * 更新入参：与后端 `services/inv/mod.rs:100 UpdateInventoryTransferRequest` 对齐——
+ * 更新入参：与后端 `services/inv/mod.rs UpdateInventoryTransferRequest` 对齐——
  * 只有 status/notes/items 三字段，表单里改动的仓库与调拨日期不会被该端点接收。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空、有值=覆盖。
+ * - status 映射非 Option 模型列：禁止送 null（后端 400「调拨状态不能清空」）；
+ * - notes 为 DB 可空列（m0001 DDL）：清空须显式送 null；
+ * - items 为明细整表替换数组：清空明细须传空数组 `[]`，不支持 `null` 清全表。
  */
 export interface UpdateInventoryTransferPayload {
   status?: string;
-  notes?: string;
+  notes?: string | null;
   items?: InventoryTransferItemPayload[];
+}
+
+/**
+ * 更新调拨明细入参：与后端 `services/inv/mod.rs UpdateInventoryTransferItemRequest` 对齐
+ * （PUT /inventory/transfers/items/{item_id}）。三态语义：键缺席=保持、显式 null=清空
+ * （仅 DB 可空列）、有值=覆盖。
+ * - product_id/quantity/color_no/batch_no 映射 NOT NULL 列：禁止送 null
+ *   （后端 400「XX不能清空：该字段为必填项」）；"色号改回白坯"提交空串而非 null；
+ * - notes/unit_cost/dye_lot_no 为 DB 可空列：清空须显式送 null；
+ *   染色布行（生效色号非空）清空缸号按四维追溯不变量被拒。
+ */
+export interface UpdateTransferItemPayload {
+  product_id?: number;
+  quantity?: string;
+  notes?: string | null;
+  unit_cost?: string | null;
+  color_no?: string;
+  dye_lot_no?: string | null;
+  batch_no?: string;
 }
 
 // 列表查询参数键与后端 `handlers/inventory_transfer_handler.rs:23 InventoryTransferQuery`
@@ -157,7 +180,7 @@ export function createTransferItem(id: number, data: InventoryTransferItemPayloa
   return request.post(`/inventory/transfers/${id}/items`, data);
 }
 
-export function updateTransferItem(itemId: number, data: InventoryTransferItemPayload) {
+export function updateTransferItem(itemId: number, data: UpdateTransferItemPayload) {
   return request.put(`/inventory/transfers/items/${itemId}`, data);
 }
 

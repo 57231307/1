@@ -166,12 +166,23 @@ pub struct ListCountsParams {
     pub count_no: Option<String>,
 }
 
-/// 录入实盘数量请求体
+/// 录入实盘数量请求体（PUT /inventory/counts/items/{item_id}）
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（quantity_actual，inventory_count_item 模型为非 Option Decimal 列）
+/// 不开 null 清空，显式 null 由 service 拒绝。前端 api/inventory-count.ts 的
+/// `updateCountItem` 出参已声明 `notes?: string | null`——后端必须兑现该 null=清空契约，
+/// 否则清空静默失效（单 Option 无适配器会把显式 null 塌成"未提供"）。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateCountItemPayload {
-    pub quantity_actual: Option<rust_decimal::Decimal>,
-    pub notes: Option<String>,
+    /// 实盘数量：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity_actual: Option<Option<rust_decimal::Decimal>>,
+    /// 备注：DB 可空列 notes（inventory_count_item 模型 Option<String>）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -189,12 +200,36 @@ pub struct RecordItemInput {
     pub notes: Option<String>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围，各域 handler 内私有定义）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新盘点单请求体
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（count_date，m0001 DDL）不开 null 清空，显式 null 由 service 拒绝。
 #[derive(Debug, Deserialize)]
 #[allow(dead_code, reason = "反序列化输入字段")]
 pub struct UpdateCountPayload {
-    pub count_date: Option<String>,
-    pub notes: Option<String>,
+    /// 盘点日期：NOT NULL 列——显式 null 被 service 拒绝（格式非法在入口显式报错）
+    #[serde(default, deserialize_with = "double_option")]
+    pub count_date: Option<Option<String>>,
+    /// 备注：DB 可空列 notes TEXT（m0001 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 /// 创建盘点单
@@ -296,13 +331,15 @@ pub async fn update_count(
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_count(id, Some(&data_scope_ctx)).await?;
 
-    let count_date = payload
-        .count_date
-        .map(|s| {
-            s.parse::<DateTime<Utc>>()
-                .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))
-        })
-        .transpose()?;
+    // count_date 三态透传：有值解析为时间戳（格式错误在入口显式报错）、
+    // 显式 null 保持 Some(None) 交 service 判 NOT NULL 列清空拒绝、缺席 None 保持原值
+    let count_date = match payload.count_date {
+        Some(Some(s)) => Some(Some(s.parse::<DateTime<Utc>>().map_err(|e| {
+            AppError::validation_displayable(format!("日期格式错误：{}", e))
+        })?)),
+        Some(None) => Some(None),
+        None => None,
+    };
     let req = UpdateCountRequest {
         count_date,
         notes: payload.notes,

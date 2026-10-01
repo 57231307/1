@@ -194,53 +194,83 @@ impl WarehouseService {
     }
 
     /// 更新仓库（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证审计日志能追溯实际更新人。）
+    ///
+    /// 字段三态语义（对齐 RFC 7386 JSON Merge Patch）：
+    /// None（键缺席）=保持原值、Some(None)（显式 null）=置 NULL（仅 DB 可空列）、Some(Some(v))=覆盖。
     pub async fn update(
         &self,
         id: i32,
         user_id: i32,
         req: crate::handlers::warehouse_handler::UpdateWarehouseRequest,
     ) -> Result<warehouse::Model, AppError> {
+        // NOT NULL 列门控（warehouses.name，m0001 DDL；is_default/is_active（status 映射）
+        // 实体 Model 为非 Option bool，置 NULL 后该行按模型不可读）：
+        // 显式 null 是调用方错误，不是"保持原值"；在任何 DB 访问之前拒绝，错误外显不脱敏。
+        if matches!(req.name, Some(None)) {
+            return Err(AppError::business_displayable(
+                "仓库名称不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.is_default, Some(None)) {
+            return Err(AppError::business_displayable(
+                "默认仓库标志不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.status, Some(None)) {
+            return Err(AppError::business_displayable(
+                "启用状态不能清空：该字段为必填项",
+            ));
+        }
+
         let mut wh: warehouse::ActiveModel = WarehouseEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("仓库 ID {} 不存在", id)))?
             .into();
 
-        if let Some(n) = req.name {
+        // 三态写入规则：None=不 Set（UPDATE 不含该列，原值不动）；
+        // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖
+        // name/is_default/status 为 NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(n) = req.name.flatten() {
             wh.name = Set(n);
         }
+        // address/warehouse_type/manager_id/phone/contact_person/capacity 为 DB 可空列：
+        // Some(inner)=Set(inner)，显式 null 直落 NULL，不得塌成"保持原值"
         if let Some(a) = req.address {
-            wh.address = Set(Some(a));
+            wh.address = Set(a);
         }
         if let Some(wt) = req.warehouse_type {
-            wh.warehouse_type = Set(Some(wt));
+            wh.warehouse_type = Set(wt);
         }
         if let Some(m) = req.manager {
-            // 仓库经理 ID 解析失败时记录 warn 并跳过更新，避免脏数据
-            match m.parse::<i32>() {
-                Ok(parsed) => wh.manager_id = Set(Some(parsed)),
-                Err(e) => {
-                    tracing::warn!("仓库经理ID解析失败: {} ({})", m, e);
-                    return Err(AppError::bad_request(format!("仓库经理ID格式错误：{}", m)));
-                }
+            match m {
+                // 仓库经理 ID 解析失败时如实报错（记录 warn），不吞不兜底
+                Some(m) => match m.parse::<i32>() {
+                    Ok(parsed) => wh.manager_id = Set(Some(parsed)),
+                    Err(e) => {
+                        tracing::warn!("仓库经理ID解析失败: {} ({})", m, e);
+                        return Err(AppError::bad_request(format!("仓库经理ID格式错误：{}", m)));
+                    }
+                },
+                None => wh.manager_id = Set(None),
             }
         }
         if let Some(p) = req.phone {
-            wh.phone = Set(Some(p));
+            wh.phone = Set(p);
         }
         // 契约对齐：前端编辑表单 contact_person / is_default
         if let Some(cp) = req.contact_person {
-            wh.contact_person = Set(Some(cp));
+            wh.contact_person = Set(cp);
         }
-        if let Some(def) = req.is_default {
+        if let Some(def) = req.is_default.flatten() {
             wh.is_default = Set(def);
         }
-        if let Some(s) = req.status {
+        if let Some(s) = req.status.flatten() {
             wh.is_active = Set(s == master_data::ACTIVE);
         }
         // 批次 158 v11 真实接入：capacity 字段持久化（原 #[allow(dead_code)] 移除）
         if let Some(c) = req.capacity {
-            wh.capacity = Set(Some(c));
+            wh.capacity = Set(c);
         }
 
         wh.updated_at = Set(Utc::now());

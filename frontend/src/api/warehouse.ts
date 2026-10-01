@@ -7,27 +7,27 @@ export interface Warehouse {
   warehouse_code: string;
   /** warehouses.name 列，出参经后端 #[serde(rename = "warehouse_name")] 键为 warehouse_name（NOT NULL） */
   warehouse_name: string;
-  /** warehouses.warehouse_type（Option，NULL=不校验仓型） */
-  warehouse_type?: string;
-  address?: string;
-  city?: string;
-  province?: string;
-  country?: string;
-  postal_code?: string;
-  phone?: string;
-  email?: string;
+  /** warehouses.warehouse_type（Option，出参键恒存在，NULL 序列化为 null） */
+  warehouse_type?: string | null;
+  address?: string | null;
+  city?: string | null;
+  province?: string | null;
+  country?: string | null;
+  postal_code?: string | null;
+  phone?: string | null;
+  email?: string | null;
   /** warehouses.contact_person（Option，联系人） */
-  contact_person?: string;
-  /** warehouses.manager_id（Option<i32>） */
-  manager_id?: number;
-  /** warehouses.capacity（Option<i32>） */
-  capacity?: number;
+  contact_person?: string | null;
+  /** warehouses.manager_id（Option<i32>，NULL→null） */
+  manager_id?: number | null;
+  /** warehouses.capacity（Option<i32>，NULL→null） */
+  capacity?: number | null;
   /** warehouses.is_default（NOT NULL，全局唯一默认仓由后端保证） */
   is_default: boolean;
   /** warehouses.is_active（NOT NULL bool）：启用状态读侧以此为准 */
   is_active: boolean;
   /** warehouses.notes（Option，备注） */
-  notes?: string;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -76,19 +76,25 @@ export interface CreateWarehousePayload {
 
 /**
  * 更新仓库载荷 —— 逐字段对齐 handlers/warehouse_handler.rs::UpdateWarehouseRequest。
- * 更新侧 name 无 alias（此前视图整表回传 warehouse_name ⇒ serde 不识别 ⇒ 仓库改名永远不生效）；
- * code/notes 不在更新契约（编码不可改、描述仅建单落 notes）；status(active/inactive) 映射 is_active。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+ * - name/is_default/status 映射 NOT NULL 列（warehouses.name m0001:280；is_default/is_active
+ *   实体 Model 非 Option bool）：不开 null 清空——空须省略键（保持原值），送显式 null 后端
+ *   判业务错误 400（"XX不能清空：该字段为必填项"）；
+ * - address/manager/phone/contact_person/capacity/warehouse_type 为 DB 可空列：清空须送 null，
+ *   禁止塌成 `|| undefined`（省略=保持原值，正是本轮消灭的静默丢弃形态）。
+ *   manager 为字符串形态的 manager_id（后端 parse::<i32>），送 null=清除经理；
+ *   code/notes 不在更新契约（编码不可改、描述仅建单落 notes）。
  */
 export interface UpdateWarehousePayload {
   name?: string;
-  address?: string;
-  manager?: string;
-  phone?: string;
-  contact_person?: string;
+  address?: string | null;
+  manager?: string | null;
+  phone?: string | null;
+  contact_person?: string | null;
   is_default?: boolean;
-  capacity?: number;
+  capacity?: number | null;
   status?: string;
-  warehouse_type?: string;
+  warehouse_type?: string | null;
 }
 
 /**

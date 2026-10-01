@@ -105,8 +105,13 @@ export interface CreateReceiptItemRequest {
 
 /**
  * 更新入库明细请求 —— 与后端 DTO 逐字段对齐
- * backend/src/services/purchase_receipt_dto.rs:123 UpdateReceiptItemRequest
- * PUT /{id}/items/{itemId} 端点消费此结构，全部字段 Option（仅应用的字段落库）；
+ * backend/src/services/purchase_receipt_dto.rs UpdateReceiptItemRequest
+ * PUT /{id}/items/{itemId} 端点消费此结构。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+ * - line_no/material_id/material_code/material_name/quantity 映射 NOT NULL 列（m0009 DDL）：
+ *   禁止送 null（后端 400「XX不能清空：该字段为必填项」）——不改即省略键；
+ * - batch_no/color_code/lot_no/grade/gram_weight/width/quantity_alt/unit_price/
+ *   location_code/notes/piece_no 为 DB 可空列（m0009 DDL）：清空须显式送 null。
  * 键名 snake_case，禁止用旧 Partial<ReceiptItem>（含 product_id/amount 等响应模型键）
  * 冒充请求契约——那会让 batch_no/缸号等维度在类型层缺席、编译期无从校验。
  */
@@ -115,18 +120,18 @@ export interface UpdateReceiptItemRequest {
   material_id?: number;
   material_code?: string;
   material_name?: string;
-  batch_no?: string;
-  color_code?: string;
-  lot_no?: string;
-  grade?: string;
-  gram_weight?: number;
-  width?: number;
+  batch_no?: string | null;
+  color_code?: string | null;
+  lot_no?: string | null;
+  grade?: string | null;
+  gram_weight?: number | null;
+  width?: number | null;
   quantity?: number;
-  quantity_alt?: number;
-  unit_price?: number;
-  location_code?: string;
-  notes?: string;
-  piece_no?: string;
+  quantity_alt?: number | null;
+  unit_price?: number | null;
+  location_code?: string | null;
+  notes?: string | null;
+  piece_no?: string | null;
 }
 
 /**
@@ -151,20 +156,24 @@ export interface CreatePurchaseReceiptRequest {
 
 /**
  * 更新入库单表头请求 —— 与后端 DTO 逐字段对齐
- * backend/src/services/purchase_receipt_dto.rs:83 UpdatePurchaseReceiptRequest（全部 Option）。
+ * backend/src/services/purchase_receipt_dto.rs UpdatePurchaseReceiptRequest。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+ * - supplier_id/receipt_date 映射 NOT NULL 列（m0009 DDL）：禁止送 null
+ *   （后端 400「供应商/入库日期不能清空：该字段为必填项」）——不改即省略键；
+ * - department_id/inspector_id/notes/attachment_urls 为 DB 可空列（m0009 DDL）：
+ *   清空须显式送 null，禁止塌成 `|| undefined`（省略=保持原值）。
  * PUT 仅接受这 6 个表头字段：receipt_no/receipt_status/warehouse_id/total_amount/items 等均不在
- * 更新契约（单号与状态走专用端点、仓库不可改、明细走 item 级端点）——此前用
- * Partial<PurchaseReceiptEntity> 整表强转提交，多余键被 serde 静默丢弃、notes 键名错位，
- * 属"传了后端不读"假保存形态。备注的真实键名是 notes（响应模型无 remark 列）。
+ * 更新契约（单号与状态走专用端点、仓库不可改、明细走 item 级端点）。
+ * 备注的真实键名是 notes（响应模型无 remark 列）。
  */
 export interface UpdatePurchaseReceiptPayload {
   supplier_id?: number;
   /** receipt_date 后端为 NaiveDate，格式 YYYY-MM-DD */
   receipt_date?: string;
-  department_id?: number;
-  inspector_id?: number;
-  notes?: string;
-  attachment_urls?: string[];
+  department_id?: number | null;
+  inspector_id?: number | null;
+  notes?: string | null;
+  attachment_urls?: string[] | null;
 }
 
 export function getPurchaseReceiptList(params?: PurchaseReceiptQueryParams) {

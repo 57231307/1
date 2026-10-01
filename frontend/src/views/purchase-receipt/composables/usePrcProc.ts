@@ -29,6 +29,7 @@ import {
   type ReceiptItem,
   type CreatePurchaseReceiptRequest,
   type CreateReceiptItemRequest,
+  type UpdateReceiptItemRequest,
 } from '@/api/purchase-receipt';
 import type { PrcForm } from './usePrc';
 
@@ -228,6 +229,25 @@ export function usePrcProc(cb: PrcCallbacks) {
       unit_price: it.unit_price || undefined,
     });
 
+    // 更新明细映射到后端 UpdateReceiptItemRequest 三态契约（RFC 7386）：
+    // NOT NULL 列 line_no/material_id/material_code/material_name/quantity 恒送值
+    //（送 null 被后端 400「XX不能清空」拒绝）；DB 可空列 batch_no/color_code/lot_no/
+    // grade/unit_price UI 清空 ⇒ 送显式 null（=清空为 NULL）——沿用 mapItem 的
+    // `|| undefined` 会把"清空维度"塌成"保持原值"，正是本轮消灭的静默丢弃形态。
+    const mapItemUpdate = (it: ReceiptItem, idx: number): UpdateReceiptItemRequest => ({
+      line_no: idx + 1,
+      material_id: it.product_id,
+      material_code: it.material_code!,
+      material_name: it.material_name!,
+      batch_no: it.batch_no!.trim() || null,
+      color_code: it.color_code?.trim() || null,
+      lot_no: it.lot_no?.trim() || null,
+      grade: it.grade?.trim() || null,
+      quantity: it.quantity,
+      quantity_alt: it.quantity_alt ?? null,
+      unit_price: it.unit_price ?? null,
+    });
+
     try {
       if (cb.form.id) {
         // 编辑：表头 PUT 仅提交 UpdatePurchaseReceiptRequest 契约内的字段（此前把整个 cb.form
@@ -241,7 +261,7 @@ export function usePrcProc(cb: PrcCallbacks) {
         let idx = 0;
         for (const it of validItems) {
           if (it.id) {
-            await updateReceiptItem(cb.form.id, it.id, mapItem(it, idx));
+            await updateReceiptItem(cb.form.id, it.id, mapItemUpdate(it, idx));
           } else {
             await createReceiptItem(cb.form.id, mapItem(it, idx));
           }
