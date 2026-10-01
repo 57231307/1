@@ -926,6 +926,9 @@ impl BudgetManagementService {
         // 验证部门匹配
         if let Some(plan_dept_id) = plan.department_id {
             if plan_dept_id != department_id {
+                // 判族：两个引用（方案 / 部门）互相不一致，属「提交字段取值合法性」→ 校验族
+                // （不是状态门，也不是唯一性冲突）。保持脱敏 `validation`：该分支在现有调用链里
+                // 是由服务端反查出的方案与部门对照，真实 ID 对照细节只进日志，不外显。
                 return Err(AppError::validation("预算方案与部门不匹配".to_string()));
             }
         }
@@ -934,7 +937,11 @@ impl BudgetManagementService {
         if plan.status.as_deref() != Some(budget::APPROVED)
             && plan.status.as_deref() != Some(budget::ACTIVE)
         {
-            return Err(AppError::validation("预算方案未审批或未激活".to_string()));
+            // 前置状态门：方案当前状态不满足占用前置，归业务族（不是提交字段格式问题）；
+            // 文案是纯公开规则、不含状态 token / 记录 ID / 金额，可外显。
+            return Err(AppError::business_displayable(
+                "预算方案未审批或未激活，无法占用".to_string(),
+            ));
         }
 
         // 计算已执行金额

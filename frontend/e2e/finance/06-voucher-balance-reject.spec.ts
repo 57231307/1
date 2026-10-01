@@ -1,9 +1,13 @@
 // 财务管理 E2E 套件 — 06 借贷不平衡凭证被拒
 //
-// 任务 #942 缺口 3：提交借贷不平的分录应被拒为 400 + 业务码（BAD_REQUEST），绝非 500。
+// 判族（#942 族口径）：借贷是否平衡完全由提交进来的分录金额决定，属「提交数据一致性校验」
+// → **校验族**（VALIDATION_ERROR），绝不是 BAD_REQUEST 兜底族，也不是状态门。
 // 后端 voucher_ops/crud.rs::validate_voucher_create_req 在 dev/prod 两分支都做
-// total_debit != total_credit → AppError::bad_request("凭证借贷不平衡：借方 X != 贷方 Y")，
-// 该检查先于科目预检与期间锁，故对任意合法科目同样生效。断真实状态码 + 机器码 + 文案。
+// total_debit != total_credit → `Self::balance_error(...)` = 脱敏 `AppError::validation(
+// "凭证借贷不平衡：借方 X != 贷方 Y")`；文案含借/贷合计金额数字，按 utils/error.rs 安全边界
+// **不外显**，出参 message 恒为常量「请求参数验证失败」（utils/messages.rs:41）。
+// 该检查先于科目预检与期间锁，故对任意合法科目同样生效。
+// 断真实 status(400) + 真实 code(VALIDATION_ERROR) + 脱敏常量（不是 /不平衡/ 原文）。
 import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
@@ -21,6 +25,9 @@ test.afterEach(async ({ page }) => {
   for (const c of CLEANUP.slice().reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
   CLEANUP.length = 0;
 });
+
+/** 校验族脱敏站点的固定出参文案（utils/messages.rs:41 VALIDATION_PUBLIC） */
+const SANITIZED_VALIDATION = '请求参数验证失败';
 
 /** 建一枚真实叶子科目（凭证分录科目为外键，须存在），返回 { id, code }。 */
 async function seedLeafSubject(
@@ -48,7 +55,7 @@ test.describe('06 借贷不平衡凭证被拒', () => {
     );
   });
 
-  test('06-01 借 != 贷 的凭证被拒 400 + BAD_REQUEST + 真实不平衡文案（非 500）', async ({
+  test('06-01 借 != 贷 的凭证被拒 400 + VALIDATION_ERROR + 脱敏常量文案（非 500）', async ({
     page,
   }) => {
     const { id: debitSubject } = await seedLeafSubject(page, '借');
@@ -66,10 +73,11 @@ test.describe('06 借贷不平衡凭证被拒', () => {
     });
 
     expect(fail.status, `不平衡应 400，实际 status=${fail.status}`).toBe(400);
-    expect(failureCode(fail), `机器码应为 BAD_REQUEST，实际=${fail.code}`).toBe(
-      APP_ERROR_CODES.BAD_REQUEST
+    expect(failureCode(fail), `机器码应为 VALIDATION_ERROR，实际=${fail.code}`).toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
     );
-    expect(fail.message ?? '', '文案应指明借贷不平衡').toMatch(/借贷不平衡|不平衡/);
+    // 后端该站点是脱敏 validation：真实金额只进日志，出参必须是固定常量（锁常量而非 /不平衡/ 原文）。
+    expect(fail.message, '脱敏站点 message 应为固定验证失败常量').toBe(SANITIZED_VALIDATION);
   });
 
   test('06-02 借贷相等的凭证应能创建（对照，证明 06-01 的拒绝确由不平衡触发）', async ({
