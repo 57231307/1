@@ -340,6 +340,7 @@ async fn live_pg_lead_conversion_then_delete_rejected() {
             }))
             .unwrap(),
             100,
+            "wave1_operator",
         )
         .await
         .expect("create_lead 应成功（单号自动生成）");
@@ -358,6 +359,7 @@ async fn live_pg_lead_conversion_then_delete_rejected() {
             }))
             .unwrap(),
             100,
+            "wave1_operator",
         )
         .await
         .expect("create_opportunity 引用线索应成功");
@@ -381,6 +383,7 @@ async fn live_pg_lead_conversion_then_delete_rejected() {
             }))
             .unwrap(),
             100,
+            "wave1_operator",
         )
         .await
         .unwrap();

@@ -66,10 +66,17 @@ fn ensure_valid_opportunity_stage(stage: &str) -> Result<(), AppError> {
 
 impl CrmService {
     /// 创建商机
+    ///
+    /// `operator_name`：真实操作人展示名，由调用方从 `AuthContext.username` 传入
+    /// （与 `services/crm/lead.rs::create_lead`、`services/crm/pool.rs` 同一口径：
+    /// `AuthContext` 只有 username 一个身份展示字段，取 `users.real_name` 需新增跨模块查库）。
+    /// 本参数是 `owner_name` 的唯一合法取值来源——修复前它由 `format!("用户{user_id}")`
+    /// 拼出，属本仓硬规则禁止的造假展示名。
     pub async fn create_opportunity(
         &self,
         req: crate::models::dto::crm_dto::CreateOpportunityRequest,
         user_id: i32,
+        operator_name: &str,
     ) -> Result<crm_opportunity::Model, AppError> {
         // 验证客户存在（批次 98 P2-C 修复 v5 复审：去掉冗余 let _ = ，明确父级校验已通过 ? 传播错误）
         customer::Entity::find_by_id(req.customer_id)
@@ -99,7 +106,7 @@ impl CrmService {
             .unwrap_or_else(|| opp_status::QUALIFICATION.to_string());
         ensure_valid_opportunity_stage(&opportunity_stage)?;
         let owner_id = user_id;
-        let owner_name = format!("用户{}", user_id);
+        let owner_name = operator_name.to_string();
         let now = chrono::Utc::now();
 
         // V15 P0-B08：赢率自动计算

@@ -27,10 +27,18 @@ use super::cust::CrmService;
 
 impl CrmService {
     /// 创建线索
+    ///
+    /// `operator_name`：真实操作人展示名，由调用方从 `AuthContext.username` 传入
+    /// （与 `services/crm/pool.rs::claim_pool_customers` 同一口径：`AuthContext` 只有
+    /// username 一个身份展示字段，无真实姓名，取 `users.real_name` 需新增跨模块查库）。
+    /// 本参数是 `owner_name` 的唯一合法取值来源——修复前它由 `format!("用户{user_id}")`
+    /// 拼出，属本仓硬规则禁止的造假展示名（既不可读也不可回查）。批量导入 `import_leads`
+    /// 按行调用本方法，展示名同样由入口一次性传入，禁止为取名字在此逐行查库（N+1）。
     pub async fn create_lead(
         &self,
         req: crate::models::dto::crm_dto::CreateLeadRequest,
         user_id: i32,
+        operator_name: &str,
     ) -> Result<crm_lead::Model, AppError> {
         // P1 3-13 修复（批次 60）：包裹事务，确保单号生成的 advisory_xact_lock
         // 与 INSERT 在同一事务内，锁覆盖完整临界区
@@ -51,7 +59,7 @@ impl CrmService {
         };
         let lead_source = req.lead_source.unwrap_or_else(|| "OTHER".to_string());
         let owner_id = user_id;
-        let owner_name = format!("用户{}", user_id);
+        let owner_name = operator_name.to_string();
         let contact_name = req.contact_name.unwrap_or_else(|| {
             req.company_name
                 .clone()
@@ -414,10 +422,14 @@ impl CrmService {
 
     /// 批量导入线索（v11 批次 157d-4 新增）：解析 xlsx 字节并逐行创建线索
     /// xlsx 列顺序与 export_leads 一致：线索编号/公司名称/联系人/职位/手机号/座机/邮箱/线索来源/线索状态/负责人/优先级/创建时间；失败行不影响其他行，最终返回成功/失败统计与错误详情
+    ///
+    /// `operator_name`：真实操作人登录名，由入口 handler 传 `&auth.username`，一次性
+    /// 透传给每一行 `create_lead` 落 `owner_name`——禁止为取名字在 `create_lead` 内逐行查库。
     pub async fn import_leads(
         &self,
         file_bytes: Vec<u8>,
         user_id: i32,
+        operator_name: &str,
     ) -> Result<crate::models::dto::crm_dto::ImportLeadsResult, AppError> {
         let data_rows = Self::read_xlsx_rows(file_bytes).await?;
         let total = data_rows.len() as u32;
@@ -427,7 +439,7 @@ impl CrmService {
         for (idx, row) in data_rows.iter().enumerate() {
             let row_no = (idx + 2) as u32; // 行号从 2 开始（1 为表头）
             let req = Self::build_lead_request_from_row(row);
-            match self.create_lead(req, user_id).await {
+            match self.create_lead(req, user_id, operator_name).await {
                 Ok(_) => success_count += 1,
                 Err(e) => errors.push(crate::models::dto::crm_dto::ImportLeadError {
                     row: row_no,

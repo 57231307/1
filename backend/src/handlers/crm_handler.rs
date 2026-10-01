@@ -120,14 +120,66 @@ fn paginated_list_array_mut(value: &mut serde_json::Value) -> Option<&mut Vec<se
     list
 }
 
+/// #209：商机**字段级**数据权限的唯一实现，四个出口共用（本文件 `list_opportunities`
+/// 列表、`get_opportunity` 详情、`create_opportunity` 建单、`update_opportunity`/
+/// `close_opportunity_as_lost` 写响应）。与线索侧 `apply_lead_field_permission` 同形态：
+/// - 配了角色数据权限行 → 与导出同一个 `filter_fields_batch`（allowed 白名单 / hidden 移除，
+///   不叠加默认处理；admin 由 `get_role_data_permission` 返回
+///   `Ok(Some{allowed:None,hidden:None})` → 空操作，保持原值契约）；
+/// - 无权限行且非 admin → 默认隐藏（本函数保留改造前的**逐键等价行为**，见下）。
+///
+/// 【等价性说明 / 待用户裁定项】改造前 `list_opportunities`/`get_opportunity` 的默认分支
+/// 写的是 `obj.remove("amount")`，而 `crm_opportunity` 出参根本没有 `amount` 键（真实金额列是
+/// `estimated_amount`/`actual_amount`，见 `EXPORT_AMOUNT_COLUMNS`）——即这处"移除"当前恒不
+/// 生效，商机金额对非 admin 实际仍是原文。是否连带收紧列表/详情/写响应的金额默认隐藏属
+/// **待用户拍板**的口径（隐藏范围是否含本人行），本轮决策结论为"仅非本人行剔除、且需用户
+/// 拍板"，故本函数**只做等价重构**：把同一份既有逻辑（含这处恒不生效的 `remove("amount")`）
+/// 收敛为一个函数并被四个出口共用，不改实际生效范围。该恒不生效分支现保留在本函数的默认
+/// 分支中等待裁定（导出侧 `drop_export_amount_columns` 按真实列名剔除，是更严的一侧，本轮不动）。
+pub(crate) async fn apply_opportunity_field_permission(
+    state: &AppState,
+    role_id: Option<i32>,
+    opportunities: &mut [serde_json::Value],
+) {
+    // 与改造前 `if let Some(role_id) = auth.role_id { ... }` 逐键一致：role_id 缺失时
+    // 本函数对出参不做任何处理（保持既有商机的实际行为；线索侧 None 走默认脱敏是另一条
+    // 已裁定口径，不在此处对齐——本轮只收敛商机，不改变其生效范围）。
+    if let Some(rid) = role_id {
+        if let Some(permission) =
+            resolve_role_data_permission(state, rid, "crm_opportunity").await
+        {
+            state.data_permission_service.filter_fields_batch(
+                opportunities,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+            return;
+        }
+        if rid != 1 {
+            // 无权限行且非 admin（查询 Err 亦在此，已在 resolve 内记 warn）：
+            // 保留改造前的默认隐藏写法（现恒不生效，见函数文档"待用户裁定"）。
+            for opportunity in opportunities.iter_mut() {
+                if let Some(obj) = opportunity.as_object_mut() {
+                    obj.remove("amount");
+                }
+            }
+        }
+    }
+}
+
 pub async fn create_lead(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.create_lead(req, auth.user_id).await?;
-    let value = serde_json::to_value(res)?;
+    // 归属人展示名取 `auth.username`（真实登录名，见 services/crm/lead.rs::create_lead 文档）
+    let res = service.create_lead(req, auth.user_id, &auth.username).await?;
+    let mut value = serde_json::to_value(res)?;
+    // #209：建单成功响应不再整行原文回传——整行 crm_lead::Model 含 mobile_phone/
+    // tel_phone/email/address 明文，与 GET 详情被打码形成"读打码、写原文"旁路。
+    // 复用读路径唯一实现（公海写响应同款），本处不再内联掩码分支。
+    apply_lead_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -465,7 +517,9 @@ pub async fn import_leads(
     // B03-P2-10 修复：xlsx 文件病毒扫描检查点（CLAMAV_ENABLED 控制开关，生产环境应启用）
     scan_leads_for_viruses(&bytes).await?;
     let service = CrmService::new(state.db.clone());
-    let result = service.import_leads(bytes, auth.user_id).await?;
+    let result = service
+        .import_leads(bytes, auth.user_id, &auth.username)
+        .await?;
     Ok(Json(ApiResponse::success(result)))
 }
 
@@ -596,7 +650,12 @@ pub async fn update_lead(
     service.get_lead(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let res = service.update_lead(id, req, auth.user_id).await?;
-    let value = serde_json::to_value(res)?;
+    let mut value = serde_json::to_value(res)?;
+    // #209：更新成功响应不再整行原文回传。update_lead 受行级 check_resource_owner 约束，
+    // 但 Dept 数据范围用户可合法更新他人名下的行，其响应会把他人手机号/邮箱/地址原文
+    // 送出——而同一个人 GET /crm/leads/:id 拿到的是打码值，即"读打码、写原文"旁路。
+    // 复用读路径唯一实现（apply_lead_field_permission），与列表/详情/公海写响应同源。
+    apply_lead_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -637,8 +696,15 @@ pub async fn create_opportunity(
     Json(req): Json<CreateOpportunityRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.create_opportunity(req, auth.user_id).await?;
-    let value = serde_json::to_value(res)?;
+    // 归属人展示名取 `auth.username`（真实登录名，见 services/crm/opp.rs::create_opportunity 文档）
+    let res = service
+        .create_opportunity(req, auth.user_id, &auth.username)
+        .await?;
+    let mut value = serde_json::to_value(res)?;
+    // #209：建单成功响应走商机字段级出参唯一实现（与列表/详情/更新同源），
+    // 不再整行原文直出。本函数默认分支的等价性说明见 apply_opportunity_field_permission。
+    apply_opportunity_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value))
+        .await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -655,38 +721,11 @@ pub async fn list_opportunities(
         .await?;
     let mut value = serde_json::to_value(res)?;
 
-    // 数据权限控制：获取角色数据权限并应用字段过滤
-    if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
-            .data_permission_service
-            .get_role_data_permission(role_id, "crm_opportunity")
-            .await
-        {
-            let mut list_opt = value.get_mut("list");
-            if list_opt.is_none() {
-                list_opt = value.get_mut("data");
-            }
-            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                state.data_permission_service.filter_fields_batch(
-                    list,
-                    &permission.allowed_fields,
-                    &permission.hidden_fields,
-                );
-            }
-        } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            let mut list_opt = value.get_mut("list");
-            if list_opt.is_none() {
-                list_opt = value.get_mut("data");
-            }
-            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                for opportunity in list {
-                    if let Some(obj) = opportunity.as_object_mut() {
-                        obj.remove("amount");
-                    }
-                }
-            }
-        }
+    // 字段级数据权限：与 get_opportunity / 建单 / 更新收敛到同一个实现
+    // （apply_opportunity_field_permission），本处不再内联分支——内联分支正是"写响应回原文"
+    // 旁路的成因。列表定位 list/data 数组后批量处理（详见该函数文档的等价性/待裁定说明）。
+    if let Some(list) = paginated_list_array_mut(&mut value) {
+        apply_opportunity_field_permission(&state, auth.role_id, list).await;
     }
 
     Ok(Json(ApiResponse::success(value)))
@@ -792,25 +831,9 @@ pub async fn get_opportunity(
     let res = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     let mut value = serde_json::to_value(res)?;
 
-    // 数据权限控制：获取角色数据权限并应用字段过滤
-    if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
-            .data_permission_service
-            .get_role_data_permission(role_id, "crm_opportunity")
-            .await
-        {
-            state.data_permission_service.filter_fields(
-                &mut value,
-                &permission.allowed_fields,
-                &permission.hidden_fields,
-            );
-        } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            if let Some(obj) = value.as_object_mut() {
-                obj.remove("amount");
-            }
-        }
-    }
+    // 字段级数据权限：与列表/建单/更新同一实现（单元素切片复用批量函数，判定与处理只有一份代码）
+    apply_opportunity_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value))
+        .await;
 
     Ok(Json(ApiResponse::success(value)))
 }
@@ -827,7 +850,10 @@ pub async fn update_opportunity(
     service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let res = service.update_opportunity(id, req, auth.user_id).await?;
-    let value = serde_json::to_value(res)?;
+    let mut value = serde_json::to_value(res)?;
+    // #209：更新成功响应走商机字段级出参唯一实现（与列表/详情/建单同源），不再整行原文直出。
+    apply_opportunity_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value))
+        .await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -873,7 +899,11 @@ pub async fn close_opportunity_as_lost(
     let res = service
         .close_as_lost(id, req.lost_reason, auth.user_id)
         .await?;
-    let value = serde_json::to_value(res)?;
+    let mut value = serde_json::to_value(res)?;
+    // #209：关单（输单）同样是整行 crm_opportunity::Model 写响应，走商机字段级出参唯一实现，
+    // 与列表/详情/建单/更新同源，不再整行原文直出。
+    apply_opportunity_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value))
+        .await;
     Ok(Json(ApiResponse::success(value)))
 }
 

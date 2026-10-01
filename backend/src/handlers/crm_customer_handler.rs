@@ -65,7 +65,7 @@ pub async fn create_customer(
     Json(req): Json<CreateLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let lead = service.create_lead(req, auth.user_id).await?;
+    let lead = service.create_lead(req, auth.user_id, &auth.username).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
 }
 
