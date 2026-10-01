@@ -19,6 +19,14 @@ export interface PurchaseReceiptEntity {
   receipt_status: string;
   /** 质检状态：后端 purchase_receipt.inspection_status（大写 PENDING/PASSED/REJECTED），同样随 Model 返回 */
   inspection_status: string;
+  /**
+   * 入库数量合计/辅助数量合计：后端 services/purchase_receipt_dto.rs:27-28 PurchaseReceiptDto
+   * total_quantity/total_quantity_alt 为 rust_decimal —— serde 默认输出**十进制字符串**
+   * （见 Cargo.toml rust_decimal features=["serde"]），前端类型必须 string，写成 number
+   * 会在 .toFixed 等 number 方法处运行期崩。
+   */
+  total_quantity: string;
+  total_quantity_alt: string;
   total_amount: number;
   remark?: string;
   created_at?: string;
@@ -33,7 +41,12 @@ export interface PurchaseReceiptEntity {
 /**
  * 入库明细行：字段名与后端 purchase_receipt_item Model /
  * CreateReceiptItemRequest 对齐（material_code/material_name/unit_master/
- * quantity_alt/unit_price/notes）；编辑回显直接消费后端返回，不再另起别名
+ * quantity_alt/unit_price/notes）；编辑回显直接消费后端返回，不再另起别名。
+ * ⚠️ 出参十进制列（quantity/quantity_alt/unit_price/amount/gram_weight/width）
+ * 为 rust_decimal 序列化的**十进制字符串**（可空列无值时为 null）；本接口把表单
+ * 模型声明为 number（历史沿用，usePi 等跨域消费方依赖），加载边界必须显式解析
+ * （见 views/purchase-receipt/composables/usePrcProc.ts 的 normalizeReceiptItemForForm），
+ * 禁止把未解析的字符串直接绑进 el-input-number 或调 .toFixed。
  */
 export interface ReceiptItem {
   id?: number;
