@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-02
+
+| PR | 一句话总结 |
+|----|-----------|
+| PR #942 | CRM 权限与隐私族总收口（承 10-01 读错列名根修）——公海回收/领取原先 `get_lead(id, None)` 让 `check_resource_owner` 整块跳过，任意用户可把他人私海线索回收、借"领取"改写他人行，改为与读路径同口径注入 `to_data_scope_context()`；线索导出与商机导出此前都不吃行级数据权限（self/dept 点一次导出即拿到全库，且手机号/邮箱/金额全原文），改为复用列表同一判定源与同一掩码实现；把"列表打码、写响应原文"这条旁路彻底封掉——领取/回收、建单、更新、商机关单的成功响应不再整行回传 `mobile_phone/tel_phone/email/address`（Dept 范围用户可合法改他人行，旧代码即从写响应拿原文），四读四写出口收敛为 `apply_lead_field_permission`/`apply_opportunity_field_permission` 唯一实现并补上内联分支漏掉的 `tel_phone`；单条领取改为真转移归属（复用批量路径的 `build_claimed_active`，修复"领取后线索仍挂原归属人名下、在自己 self 列表看不到"），`owner_name` 不再 `format!("用户{id}")` 造展示名改落真实登录名（禁为取名逐行查库）；配套 sqlite 真实 HTTP 越权/掩码锁（calamine 回读 xlsx 单元格原文）与源码扫描棘轮。 |
+| PR #942 | 门禁与编译断点——入库单列表补 keyword/仓库/日期区间筛选（UI 有筛选而后端不接收）后残留两处编译击穿：EXISTS 相关子查询缺 `ExprTrait` 作用域、`list_receipts` 加 4 参后两处旧 5 参测试调用点未同步，本地 `cargo check --all-targets` 抓到并修；导出列定义抽为单一事实来源表（列名/表头/取值/掩码集合同源），删除"按位置猜列"的魔法下标。 |
+
 ## 2026-10-01
 
 | PR | 一句话总结 |
