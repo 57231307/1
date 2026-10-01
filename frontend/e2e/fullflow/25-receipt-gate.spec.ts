@@ -59,6 +59,27 @@ function requireNum(v: unknown, label: string): number {
   return n;
 }
 
+/**
+ * 分页响应取 items（严格单形状）。
+ *
+ * 后端 `/ap/invoices` 恒出 PaginatedResponse{items,total,page,page_size}
+ * （handlers/ap_invoice_handler.rs:67）。旧写法 `(x.items ?? x)` 再配
+ * `Array.isArray(...) ? ... : []` 是双形状探测：真漂移时静默得到空列表，
+ * 会让"不应生成应付"（空列表=通过）与"应生成应付"（空列表=找不到）两类
+ * 断言同时失真——前者假绿、后者假红，且都看不出是信封问题。现直接红。
+ */
+function paginatedItems(list: unknown, context: string): Record<string, unknown>[] {
+  const items = (list as { items?: unknown } | null | undefined)?.items;
+  if (!Array.isArray(items)) {
+    throw new Error(
+      `[${context}] 分页响应 items 非数组（期望 PaginatedResponse，实际信封=${JSON.stringify(
+        list
+      )?.slice(0, 300)}）`
+    );
+  }
+  return items as Record<string, unknown>[];
+}
+
 /** 建 PO（提交+审批）并按四维口径挂一张 DRAFT 收货单，返回锚点 id */
 async function seedReceipt(
   page: Page,
@@ -317,8 +338,7 @@ test.describe('25 收货入库质检门控契约链', () => {
         'GET',
         `/ap/invoices?supplier_id=${seed.supplierId}&page=1&page_size=100`
       );
-      const itemsRaw = (list as { items?: unknown }).items ?? list;
-      const items = Array.isArray(itemsRaw) ? (itemsRaw as Record<string, unknown>[]) : [];
+      const items = paginatedItems(list, `25-04 零应付复证 receipt#${seed.rcvId}`);
       const polluted = items.find(
         it => it.source_type === 'PURCHASE_RECEIPT' && Number(it.source_id) === seed.rcvId
       );
@@ -337,13 +357,15 @@ test.describe('25 收货入库质检门控契约链', () => {
       'GET',
       `/ap/invoices?supplier_id=${passed.supplierId}&page=1&page_size=100`
     );
-    const afterRaw = (afterList as { items?: unknown }).items ?? afterList;
-    const generated = (Array.isArray(afterRaw) ? (afterRaw as Record<string, unknown>[]) : []).find(
+    const afterItems = paginatedItems(afterList, '25-04 正向 PASSED 应付列表');
+    const generated = afterItems.find(
       it => it.source_type === 'PURCHASE_RECEIPT' && Number(it.source_id) === passed.rcvId
     );
     expect(
       generated,
-      `PASSED 收货单 ${passed.rcvId} 应经 auto-generate 生成应付单，实际列表=${JSON.stringify(afterRaw)?.slice(0, 300)}`
+      `PASSED 收货单 ${passed.rcvId} 应经 auto-generate 生成应付单，实际列表=${JSON.stringify(
+        afterItems
+      )?.slice(0, 300)}`
     ).toBeTruthy();
     CLEANUP.push({
       path: `/ap/invoices/${requireNum(generated!.id, '自动生成的应付单 id')}`,
@@ -365,8 +387,7 @@ test.describe('25 收货入库质检门控契约链', () => {
       'GET',
       `/ap/invoices?supplier_id=${seed.supplierId}&page=1&page_size=100`
     );
-    const itemsRaw = (list as { items?: unknown }).items ?? list;
-    const items = Array.isArray(itemsRaw) ? (itemsRaw as Record<string, unknown>[]) : [];
+    const items = paginatedItems(list, '25-05 确认入库后应付列表');
     const generated = items.find(
       it => it.source_type === 'PURCHASE_RECEIPT' && Number(it.source_id) === seed.rcvId
     );
