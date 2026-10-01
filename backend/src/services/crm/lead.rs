@@ -168,11 +168,81 @@ impl CrmService {
         }))
     }
 
+    /// 线索导出列定义：`(crm_lead 列名, 中文表头)`，**列序/表头/取值的唯一事实来源**。
+    ///
+    /// 列名逐字取 `models/crm_lead.rs` 的字段名（= list_leads/get_lead 出参键），
+    /// 因此 handler 侧可直接用同一份 `allowed_fields`/`hidden_fields`（按列名配置）
+    /// 与同一份 `filter_fields` 判定，不为导出另造第二套字段权限规则（#207）；
+    /// handler 需掩码/剔除某列时按列名经 `export_column_index` 定位，不重复硬编码下标。
+    ///
+    /// 顺序同时是 `import_leads` 的解析口径（`build_lead_request_from_row` 按下标取值），
+    /// 调整本表必须同步调整导入，二者不得各写一套。
+    pub const EXPORT_LEAD_COLUMNS: &[(&str, &str)] = &[
+        ("lead_no", "线索编号"),
+        ("company_name", "公司名称"),
+        ("contact_name", "联系人"),
+        ("contact_title", "职位"),
+        ("mobile_phone", "手机号"),
+        ("tel_phone", "座机"),
+        ("email", "邮箱"),
+        ("lead_source", "线索来源"),
+        ("lead_status", "线索状态"),
+        ("owner_name", "负责人"),
+        ("priority", "优先级"),
+        ("created_at", "创建时间"),
+    ];
+
+    /// 含个人信息（PII）的导出列：手机号/座机走 `field_mask::mask_phone`，
+    /// 邮箱走 `field_mask::mask_email` —— 与列表/详情默认脱敏同一列集合、同一实现。
+    pub const EXPORT_PII_PHONE_COLUMNS: &'static [&'static str] = &["mobile_phone", "tel_phone"];
+    pub const EXPORT_PII_EMAIL_COLUMNS: &'static [&'static str] = &["email"];
+
+    /// 按 crm_lead 列名定位导出列下标（供 handler 以列名而非魔法下标操作导出表）
+    pub fn export_column_index(field: &str) -> Option<usize> {
+        Self::EXPORT_LEAD_COLUMNS
+            .iter()
+            .position(|(name, _)| *name == field)
+    }
+
+    /// 取单个导出单元格的原文（列名未命中定义表属编程错误，不静默放空值：
+    /// 记录 error 日志后返回空串，调用方按列名取值前应已用 export_column_index 校验）
+    fn export_cell(lead: &crm_lead::Model, field: &str) -> String {
+        match field {
+            "lead_no" => lead.lead_no.clone(),
+            "company_name" => lead.company_name.clone().unwrap_or_default(),
+            "contact_name" => lead.contact_name.clone(),
+            "contact_title" => lead.contact_title.clone().unwrap_or_default(),
+            "mobile_phone" => lead.mobile_phone.clone().unwrap_or_default(),
+            "tel_phone" => lead.tel_phone.clone().unwrap_or_default(),
+            "email" => lead.email.clone().unwrap_or_default(),
+            "lead_source" => lead.lead_source.clone(),
+            "lead_status" => lead.lead_status.clone().unwrap_or_default(),
+            "owner_name" => lead.owner_name.clone(),
+            "priority" => lead.priority.clone().unwrap_or_default(),
+            "created_at" => lead.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
+            other => {
+                tracing::error!(
+                    field = %other,
+                    "导出列定义 EXPORT_LEAD_COLUMNS 与 export_cell 取值分支不一致"
+                );
+                String::new()
+            }
+        }
+    }
+
     /// 导出线索为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
-    /// v11 批次 141 新增：前端 exportLeads API 真实接入。；v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。；查询所有匹配条件（不分页）的线索，生成 XlsxTable。；导出字段：线索编号/公司名称/联系人/职位/手机号/座机/邮箱/线索来源/线索状态/负责人/优先级/创建时间
+    /// v11 批次 141 新增：前端 exportLeads API 真实接入。；v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。；查询所有匹配条件（不分页）的线索，生成 XlsxTable。；导出字段见 `EXPORT_LEAD_COLUMNS`
+    ///
+    /// #207 行级数据权限：`data_scope` 与 `list_leads` 同语义 —— 传入 ctx 时套用同一个
+    /// `apply_department_scope_with_pool`（含公海放行分支），使导出的行集合与该用户
+    /// 列表可见集严格一致；传 None 则整体跳过行级过滤（修复前 export 恒为此路径，
+    /// self/dept 用户可一次导出全库线索，属越权读 + 个人信息外泄）。
+    /// 字段级掩码不在此处做：判定源（角色数据权限 + admin 例外）在 handler，
+    /// 与列表/详情共用同一函数，见 `crm_handler::export_leads`。
     pub async fn export_leads(
         &self,
         query: crate::models::dto::crm_dto::LeadQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<XlsxTable, AppError> {
         let mut q = crm_lead::Entity::find();
 
@@ -192,6 +262,22 @@ impl CrmService {
                     .add(crm_lead::Column::Email.like(&pattern)),
             );
         }
+        // 与 list_leads（本文件 :136-139）同口径的 industry 过滤：修复前导出漏接该
+        // 条件，用户按行业筛选后导出得到的行集与列表不一致（多导出行 = 可见集漂移）
+        if let Some(industry) = query.industry {
+            q = q.filter(crm_lead::Column::Industry.eq(industry));
+        }
+
+        // 行级数据权限过滤：与 list_leads(:143-151) 完全同一函数、同一公海条件
+        if let Some(ctx) = data_scope {
+            q = apply_department_scope_with_pool(
+                q,
+                ctx,
+                crm_lead::Column::OwnerId,
+                crm_lead::Column::DepartmentId,
+                crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+            );
+        }
 
         // 限制导出最大 10000 条，防止 DoS
         let leads: Vec<crm_lead::Model> = q
@@ -200,38 +286,18 @@ impl CrmService {
             .all(&*self.db)
             .await?;
 
-        let headers = vec![
-            "线索编号".to_string(),
-            "公司名称".to_string(),
-            "联系人".to_string(),
-            "职位".to_string(),
-            "手机号".to_string(),
-            "座机".to_string(),
-            "邮箱".to_string(),
-            "线索来源".to_string(),
-            "线索状态".to_string(),
-            "负责人".to_string(),
-            "优先级".to_string(),
-            "创建时间".to_string(),
-        ];
+        let headers = Self::EXPORT_LEAD_COLUMNS
+            .iter()
+            .map(|(_, label)| label.to_string())
+            .collect::<Vec<String>>();
 
         let rows: Vec<Vec<String>> = leads
             .iter()
             .map(|lead| {
-                vec![
-                    lead.lead_no.clone(),
-                    lead.company_name.clone().unwrap_or_default(),
-                    lead.contact_name.clone(),
-                    lead.contact_title.clone().unwrap_or_default(),
-                    lead.mobile_phone.clone().unwrap_or_default(),
-                    lead.tel_phone.clone().unwrap_or_default(),
-                    lead.email.clone().unwrap_or_default(),
-                    lead.lead_source.clone(),
-                    lead.lead_status.clone().unwrap_or_default(),
-                    lead.owner_name.clone(),
-                    lead.priority.clone().unwrap_or_default(),
-                    lead.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
-                ]
+                Self::EXPORT_LEAD_COLUMNS
+                    .iter()
+                    .map(|(field, _)| Self::export_cell(lead, field))
+                    .collect::<Vec<String>>()
             })
             .collect();
 

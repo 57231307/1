@@ -8,6 +8,8 @@ use crate::models::dto::crm_dto::{
 };
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
+// #207：导出需复用列表同一判定源/同一字段过滤函数（filter_fields_batch）
+use crate::services::data_permission_service::DataPermissionService;
 use crate::utils::error::AppError;
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;
@@ -111,6 +113,14 @@ pub async fn list_leads(
 
 /// GET /api/v1/erp/crm/leads/export - 导出线索为 xlsx；v11 批次 141 新增：前端 exportLeads API 真实接入。 v11 批次 142 升级
 /// 导出格式从 CSV 升级为 xlsx（规则 3 强制要求）。 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+///
+/// 数据权限（#207）：导出必须与本文件的 list_leads/get_lead 走同一条权限链——
+/// 行级：`auth.to_data_scope_context()` 注入 service，套用同一个
+/// `apply_department_scope_with_pool`（services/crm/lead.rs），使导出的行集合与
+/// 该用户列表可见集严格一致；字段级：同一个判定源
+/// （`data_permission_service.get_role_data_permission`，admin 依据 roles.code='admin'）
+/// 与同一掩码实现（`utils/field_mask::mask_phone/mask_email`）。
+/// 省略任一层都会形成"列表打码、导出原文"的旁路，故两层均为强制，不按查询参数开关。
 pub async fn export_leads(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -120,7 +130,39 @@ pub async fn export_leads(
     let _guard = ExportConcurrencyGuard::acquire()?;
 
     let service = CrmService::new(state.db.clone());
-    let table = service.export_leads(query).await?;
+    // 行级数据权限：与 list_leads（本文件 :53-54）同法构造并注入 ctx；
+    // 省略 ctx 会让 service 层整体跳过行级过滤，self/dept 用户可一次拿到全库线索。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let mut table = service.export_leads(query, Some(&data_scope_ctx)).await?;
+
+    // 字段级数据权限：见上面 doc 注释的判定源；导出为二维表，按
+    // `CrmService::EXPORT_LEAD_COLUMNS` 的列名（= crm_lead 出参键）定位需保留/剔除/
+    // 掩码的列，不新造权限键、不重复列下标。
+    match auth.role_id {
+        Some(role_id) => {
+            if let Ok(Some(permission)) = state
+                .data_permission_service
+                .get_role_data_permission(role_id, "crm_lead")
+                .await
+            {
+                // 配置了数据权限行：与列表分支同一函数 filter_fields_batch
+                // （allowed_fields 白名单保留、hidden_fields 移除，不叠加默认打码）
+                apply_export_field_permission(
+                    &state.data_permission_service,
+                    &mut table,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            } else if role_id != 1 {
+                // 无权限行且非 admin（查询 Err 亦走此分支，fail-closed）：默认掩码
+                mask_export_pii_columns(&mut table)?;
+            }
+        }
+        // fail-closed：role_id 缺失（权限中间件正常已在更早处 403，此处仅防"无角色=原文放行"
+        // 的旁路）——按非 admin 处理走默认掩码，而不是像列表那样不处理。
+        None => mask_export_pii_columns(&mut table)?,
+    }
+
     let row_count = table.rows.len();
 
     // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
@@ -148,6 +190,117 @@ pub async fn export_leads(
     svc.record_async(event, None);
 
     crate::utils::xlsx_export::build_xlsx_response(&table, "crm_leads_export")
+}
+
+/// #207：把导出表的某一列按 `CrmService::EXPORT_LEAD_COLUMNS` 的列名读出来（供
+/// 复用列表同一判定函数 filter_fields 时构造行对象）。
+/// 行长度与列定义不一致属编程错误：记录 error 后按空值继续，绝不静默跳过整列
+/// （跳过 = 该列原文直通）。
+fn export_row_cells(table: &crate::utils::xlsx_export::XlsxTable) -> Vec<serde_json::Value> {
+    table
+        .rows
+        .iter()
+        .map(|row| {
+            let mut obj = serde_json::Map::new();
+            for (idx, (field, _)) in CrmService::EXPORT_LEAD_COLUMNS.iter().enumerate() {
+                let cell = match row.get(idx) {
+                    Some(v) => v.clone(),
+                    None => {
+                        tracing::error!(
+                            field = %field,
+                            row_len = row.len(),
+                            "导出行长度与 EXPORT_LEAD_COLUMNS 列数不一致，该列按空值处理"
+                        );
+                        String::new()
+                    }
+                };
+                obj.insert((*field).to_string(), serde_json::Value::String(cell));
+            }
+            serde_json::Value::Object(obj)
+        })
+        .collect()
+}
+
+/// #207：导出文件的字段级数据权限（有配置数据权限行的分支）。
+///
+/// 复用列表/详情完全相同的判定实现 `filter_fields_batch`（allowed_fields 为白名单：
+/// 未列入的列取值被剔除；hidden_fields 再移除），因此"配了 allowed_fields 的角色"
+/// 天然就是放行原文的受控通道，无需为导出新增权限键。被剔除的列在 xlsx 中落成
+/// 空单元格（表头保留，避免同一角色不同入口的列结构漂移）。
+fn apply_export_field_permission(
+    dsp: &DataPermissionService,
+    table: &mut crate::utils::xlsx_export::XlsxTable,
+    allowed_fields: &Option<Vec<String>>,
+    hidden_fields: &Option<Vec<String>>,
+) {
+    let mut rows_json = export_row_cells(table);
+    dsp.filter_fields_batch(&mut rows_json, allowed_fields, hidden_fields);
+    for (row_idx, row) in table.rows.iter_mut().enumerate() {
+        let Some(obj) = rows_json.get(row_idx).and_then(|v| v.as_object()) else {
+            tracing::error!(row_idx, "导出行掩码回写时找不到对应行对象，跳过该行");
+            continue;
+        };
+        for (col_idx, (field, _)) in CrmService::EXPORT_LEAD_COLUMNS.iter().enumerate() {
+            let value = obj
+                .get(*field)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            match row.get_mut(col_idx) {
+                Some(slot) => *slot = value,
+                None => row.push(value),
+            }
+        }
+    }
+}
+
+/// #207：导出文件的默认脱敏分支（无数据权限行且非 admin，与 list_leads/get_lead
+/// 的 P1-08-5 分支同函数同参数：`field_mask::mask_phone` / `mask_email`）。
+/// 空单元格不掩码（否则空值会变成 `*`，与列表"无值"表现不一致）。
+/// 列名在导出定义中找不到时返回错误 fail-closed：宁可不出文件，不放行原文。
+#[derive(Clone, Copy)]
+enum ExportPiiKind {
+    Phone,
+    Email,
+}
+
+fn mask_export_pii_columns(
+    table: &mut crate::utils::xlsx_export::XlsxTable,
+) -> Result<(), AppError> {
+    let mut targets: Vec<(usize, ExportPiiKind)> = Vec::new();
+    for (fields, kind) in [
+        (CrmService::EXPORT_PII_PHONE_COLUMNS, ExportPiiKind::Phone),
+        (CrmService::EXPORT_PII_EMAIL_COLUMNS, ExportPiiKind::Email),
+    ] {
+        for field in fields {
+            let col = CrmService::export_column_index(*field).ok_or_else(|| {
+                AppError::internal(format!("导出列定义缺少 PII 列 {field}，拒绝导出原文"))
+            })?;
+            targets.push((col, kind));
+        }
+    }
+
+    for row in table.rows.iter_mut() {
+        for (col_idx, kind) in &targets {
+            let Some(cell) = row.get_mut(*col_idx) else {
+                tracing::error!(
+                    col_idx = %col_idx,
+                    row_len = row.len(),
+                    "导出行长度不足，PII 列未参与掩码（列定义与行构造不一致，需修服务层）"
+                );
+                continue;
+            };
+            if cell.is_empty() {
+                continue;
+            }
+            let masked = match kind {
+                ExportPiiKind::Phone => crate::utils::field_mask::mask_phone(cell.as_str()),
+                ExportPiiKind::Email => crate::utils::field_mask::mask_email(cell.as_str()),
+            };
+            *cell = masked;
+        }
+    }
+    Ok(())
 }
 
 /// POST /api/v1/erp/crm/leads/import - 批量导入线索（xlsx）；v11 批次 157d-4 新增：接收
