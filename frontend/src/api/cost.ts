@@ -47,8 +47,34 @@ export const auditCollection = (id: number, approved: boolean, comment?: string)
 export const getCostCollectionList = (params?: CostCollectionQueryParams) =>
   request.get('/production/cost-collections', { params });
 
+// 创建成本归集入参：对齐后端 handlers/cost_collection_handler.rs:45-62 CreateCostCollectionRequestDto。
+// collection_date 与 direct_material/direct_labor/manufacturing_overhead/processing_fee/dyeing_fee
+// 五项金额为后端非 Option 必填（models/cost_collection.rs:25-28 NOT NULL 列，服务层
+// cost_collection_service.rs:82-86 用五者求和落 total_cost）——缺 processing_fee/dyeing_fee
+// 会被 serde 反序列化直接 400。此前以实体出参形状 Partial<CostCollection> 兼作入参：
+// id/collection_no/total_cost/status/type/period/department_id/remark/warehouse_id/notes
+// 等键后端不读（serde 静默丢弃），真正必填的两项费用反而从未提交。
+export interface CreateCostCollectionInput {
+  collection_date: string;
+  cost_object_type?: string;
+  cost_object_id?: number;
+  cost_object_no?: string;
+  batch_no?: string;
+  color_no?: string;
+  /** v14 批次 422 T-P1-6：按缸号核算 */
+  dye_lot_no?: string;
+  workshop?: string;
+  direct_material: number;
+  direct_labor: number;
+  manufacturing_overhead: number;
+  processing_fee: number;
+  dyeing_fee: number;
+  output_quantity_meters?: number;
+  output_quantity_kg?: number;
+}
+
 // 创建成本归集（重命名自 createCollection）
-export const createCostCollection = (data: Partial<CostCollection>) =>
+export const createCostCollection = (data: CreateCostCollectionInput) =>
   request.post('/production/cost-collections', data);
 
 // 更新成本归集（重命名自 updateCollection）

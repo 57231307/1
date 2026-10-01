@@ -230,8 +230,18 @@ async function onReassign(row: CollectionTask) {
 }
 
 async function onCancelTask(row: CollectionTask) {
-  await ElMessageBox.confirm('确认取消该催收任务？', '取消确认');
-  await cancelCollectionTask(row.id);
+  // 后端 CancelTaskRequest.cancel_reason 必填且服务层校验 trim 非空
+  // （api/bad-debt.ts::CancelCollectionTaskInput），确认框升级为输入框采集原因；
+  // 复用发票/核销/合同取消共用的 actionForm.cancelReason* 既有键，不新增 locale 键。
+  const { value } = await ElMessageBox.prompt(
+    t('actionForm.cancelReasonTip'),
+    t('actionForm.cancelReasonTitle'),
+    {
+      inputValidator: (v: string) => v.trim().length > 0 || t('actionForm.cancelReasonRequired'),
+      inputPlaceholder: t('actionForm.cancelReasonPlaceholder'),
+    }
+  );
+  await cancelCollectionTask(row.id, { cancel_reason: value.trim() });
   ElMessage.success('已取消');
   await load();
 }
