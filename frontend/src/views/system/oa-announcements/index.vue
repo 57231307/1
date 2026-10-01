@@ -273,6 +273,7 @@ import {
 import { getUserList, type User } from '@/api/user';
 import { getRoleList, type Role } from '@/api/role';
 import { request } from '@/api/request';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -480,13 +481,14 @@ const fetchOptions = async () => {
     logAuxLoadFailure(t('system.oaAnnouncement.message.loadRolesFailed'), error);
   }
   try {
-    const dres = await request.get<{ items?: { id: number; name: string }[] }>('/departments', {
-      params: { page: 1, page_size: 200 },
-    });
-    const raw = dres as unknown as {
-      data?: { items?: { id: number; name: string }[]; list?: { id: number; name: string }[] };
-    };
-    deptOptions.value = raw.data?.items || raw.data?.list || [];
+    const dres = await request.get<ApiResponse<PaginatedResponse<{ id: number; name: string }>>>(
+      '/departments',
+      {
+        params: { page: 1, page_size: 200 },
+      }
+    );
+    // /departments 走 define_crud_handlers! list → ApiResponse<PaginatedResponse>，数组在 data.items
+    deptOptions.value = dres.data.items;
   } catch (error) {
     logAuxLoadFailure(t('system.oaAnnouncement.message.loadDeptsFailed'), error);
   }
