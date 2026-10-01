@@ -2,8 +2,8 @@
 // 覆盖范围（补齐现有 spec 仅 toast 断言的缺口）：
 //   - 建线索 → PUT status 变更 → GET 回读 lead_status 字段实际变
 //   - 建商机 → PUT 修改 opportunity_stage → GET 回读 opportunity_stage 字段变
-//   - 非法 lead_status → 400 VALIDATION_ERROR（负例）
-//   - 非法商机阶段 → 400（负例）
+//   - 非法 lead_status → 400 VALIDATION_ERROR（取值域校验，displayable 外显真实原因；负例）
+//   - 非法商机阶段流转 → 400 BUSINESS_ERROR（阶段流转门，脱敏出参「业务处理失败」；负例）
 // 真实后端 + 回读，不依赖 UI toast。
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
@@ -128,12 +128,18 @@ test.describe('04 线索/商机状态流转回读', () => {
   test('04-03 非法线索状态 PUT 返回 400 VALIDATION_ERROR', async ({ page }) => {
     const { id } = await seedLead(page, 'new');
 
-    // 'invalid_status_xyz' 不在 lead_status::ALL 中
+    // 'invalid_status_xyz' 不在 lead_status::ALL 中：拒绝点 services/crm/lead.rs:517-525
+    // `AppError::validation_displayable("非法线索状态 '{}'，合法取值为：…")`
+    // —— 提交字段取值校验归 VALIDATION_ERROR 族且外显真实原因（回显值为用户自己提交）。
     const fail = await apiCallExpectFail(page, 'PUT', `/crm/leads/${id}/status`, {
       status: 'invalid_status_xyz',
     });
     expect(fail.status, `非法状态应返回 400，实际 ${fail.status}`).toBe(400);
     expect(failureCode(fail)).toBe('VALIDATION_ERROR');
+    expect(
+      String(fail.message ?? ''),
+      `validation_displayable 出参必须外显真实校验原因（含回显的非法值），实际 message=${fail.message}`
+    ).toContain("非法线索状态 'invalid_status_xyz'");
 
     // 回读确认状态未被篡改
     const current = await apiCallRaw<{ lead_status: string }>(page, 'GET', `/crm/leads/${id}`);
@@ -169,17 +175,34 @@ test.describe('04 线索/商机状态流转回读', () => {
     ).toBe('PROPOSAL');
   });
 
-  test('04-05 非法商机阶段 PUT 返回 400 或 422', async ({ page }) => {
+  test('04-05 非法商机阶段 PUT 返回 400 BUSINESS_ERROR（阶段流转门，脱敏出参）', async ({
+    page,
+  }) => {
     const { id } = await seedOpportunity(page, 'QUALIFICATION');
 
-    // 'INVALID_STAGE_XYZ' 不在 crm_opportunity::ALL_STAGES 中，
-    // DB CHECK 或 service 校验层应拒绝
+    // 'INVALID_STAGE_XYZ' 不在 QUALIFICATION 的合法后继集内：拒绝点在
+    // services/crm/opp.rs:298-303 `AppError::business("商机阶段不允许从 {} 流转到 {}")`
+    // —— 状态门/前置未满足归 BUSINESS_ERROR 族（本轮错误族归一口径），
+    // 且文案含状态 token，按 utils/error.rs 安全边界保持脱敏，出参 message 恒为
+    // err_msg::BUSINESS_PUBLIC（utils/messages.rs:43）。
+    // 创建入口的取值域校验是另一条口径：crm/opp.rs:56-61 非法阶段 → VALIDATION_ERROR。
     const fail = await apiCallExpectFail(page, 'PUT', `/crm/opportunities/${id}`, {
       opportunity_stage: 'INVALID_STAGE_XYZ',
     });
-    // 后端可能在 handler 校验（400）或 DB 约束层（500/422）拒绝
-    expect(fail.status, `非法阶段应被拒绝（400-500）`).toBeGreaterThanOrEqual(400);
-    expect(fail.status).toBeLessThan(500);
+    expect(fail.status, `非法阶段流转应恰为 400，实际 ${fail.status}`).toBe(400);
+    expect(failureCode(fail), `应 BUSINESS_ERROR，实际 code=${fail.code}`).toBe('BUSINESS_ERROR');
+    expect(
+      String(fail.message ?? ''),
+      `business（非 displayable）出参必须脱敏，实际 message=${fail.message}`
+    ).toBe('业务处理失败');
+
+    // 被拒后阶段不得被改写（回读钉原值）
+    const after = await apiCallRaw<{ opportunity_stage: string }>(
+      page,
+      'GET',
+      `/crm/opportunities/${id}`
+    );
+    expect(after.opportunity_stage, '非法流转被拒后阶段应保持 QUALIFICATION').toBe('QUALIFICATION');
   });
 
   test('04-06 创建线索时传入非法状态返回 400', async ({ page }) => {
@@ -191,7 +214,13 @@ test.describe('04 线索/商机状态流转回读', () => {
       lead_source: 'WEBSITE',
       priority: 'MEDIUM',
     });
+    // create_lead 写入口同口径（services/crm/lead.rs:64 → ensure_valid_lead_status:517
+    // validation_displayable）：400 + VALIDATION_ERROR + 外显真实原因。
     expect(fail.status).toBe(400);
     expect(failureCode(fail)).toBe('VALIDATION_ERROR');
+    expect(
+      String(fail.message ?? ''),
+      `validation_displayable 出参必须外显真实校验原因（含回显的非法值），实际 message=${fail.message}`
+    ).toContain("非法线索状态 'not_a_valid_status'");
   });
 });

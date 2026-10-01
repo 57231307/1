@@ -381,23 +381,35 @@ fn test_ddlxzh_sclxzt() {
     assert_eq!(new_status, MRP_STATUS_RELEASED);
 }
 
-/// test_ddlxzh_wxlxjj（验证 convert_to_orders 中非 PURCHASE/PRODUCTION 类型返回校验错误）
+/// test_ddlxzh_wxlxjj（复现 convert_to_orders 中非 PURCHASE/PRODUCTION 订单类型的拒绝）
+///
+/// 装配点 `services/mrp_engine_ops/order.rs:34-39`：提交的 order_type 枚举取值非法属
+/// **字段取值校验**，本轮错误族归一后走 `validation_displayable` →
+/// HTTP 400 / code=VALIDATION_ERROR，且只回显用户自己提交的字段、出参文案外显。
 #[test]
 fn test_ddlxzh_wxlxjj() {
     let order_type = "INVALID";
     let result: Result<&str, AppError> = match order_type {
         "PURCHASE" => Ok(MRP_STATUS_CONFIRMED),
         "PRODUCTION" => Ok(MRP_STATUS_RELEASED),
-        _ => Err(AppError::validation("无效的订单类型")),
+        _ => Err(AppError::validation_displayable("无效的订单类型")),
     };
     assert!(result.is_err());
-    match result {
-        Err(e) => assert!(matches!(e, AppError::ValidationError(_))),
-        _ => panic!("应返回错误"),
-    }
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, AppError::ValidationErrorDisplayable(_)),
+        "无效订单类型必须是可外显校验族，实际: {err:?}"
+    );
+    assert_eq!(err.error_code(), "VALIDATION_ERROR");
+    assert_eq!(err.to_response().message, "无效的订单类型");
 }
 
-/// test_ddlxzh_fplannedztjj（验证 convert_to_orders 中 status != PLANNED 时返回校验错误）
+/// test_ddlxzh_fplannedztjj（复现 convert_to_orders 中 status != PLANNED 的状态门拒绝）
+///
+/// 装配点 `services/mrp_engine_ops/order.rs:57-64`：状态前置未满足归**业务族**，
+/// 且文案含内部记录 ID 与状态 token ⇒ 保持脱敏 `AppError::business`
+/// （出参 message 恒为 err_msg::BUSINESS_PUBLIC「业务处理失败」，真实原因只进日志）。
+/// 旧写法用 `AppError::validation` 与本波归一口径相反（状态门≠字段校验），已跟随源码。
 #[test]
 fn test_ddlxzh_fplannedztjj() {
     // 模拟已确认状态的结果，不应允许再次转换
@@ -405,8 +417,12 @@ fn test_ddlxzh_fplannedztjj() {
     let should_reject = current_status != MRP_STATUS_PLANNED;
     assert!(should_reject);
 
-    let err = AppError::validation(format!("MRP结果 {} 状态不是PLANNED，无法转换", 1));
-    assert!(matches!(err, AppError::ValidationError(_)));
+    let err = AppError::business(format!("MRP结果 {} 状态不是PLANNED，无法转换", 1));
+    assert!(matches!(err, AppError::BusinessError(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
+    // Display（日志面）保留真实原因，HTTP 出参必须脱敏
+    assert!(err.to_string().contains("状态不是PLANNED"));
+    assert_eq!(err.to_response().message, "业务处理失败");
 
     // PLANNED 状态应允许转换（不拒绝）
     let planned_status = MRP_STATUS_PLANNED;

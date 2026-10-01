@@ -1,6 +1,17 @@
 // 库存管理 E2E 套件 — 02 库存调整（盘盈/盘亏）
 // 覆盖范围：库存调整对话框（increase/decrease）、表单填写、提交；
 //          调整单 item 级 IDOR 回归钉（非 owner 经 item_id 直访 403，owner 本人 2xx + 回读）
+//
+// 403 分层口径（本轮错误族归一后跟随源码事实，与 enhanced/role-idor-sales-and-customers.spec.ts:17-18 同范式）：
+//   IDOR 拒绝的装配点是 inventory_adjustment_service.rs:510-516
+//   `AppError::permission_denied("无权访问调整单 {id}（数据范围限制）")`；
+//   PermissionDenied 的 HTTP 出参 message 恒为脱敏常量「无权限」
+//   （utils/error.rs:771 public_message + utils/messages.rs:47 PERMISSION_PUBLIC），
+//   含记录 ID 的真实文案只进服务端日志——2026-10-01 拍板：权限文案永久脱敏，不许翻案。
+//   RBAC 中间件层的 403 则是 forbidden_response 直出体（middleware/permission.rs:130,158
+//   → message=「权限不足，无法访问该资源」）。⇒ 断 message === '无权限' 仍能钉住
+//   "已过 RBAC、拒于 handler 行级数据范围层"，且与本例 owner 同路径 2xx 正向对照互证。
+//   旧写法 `.toContain('数据范围限制')` 断的是被脱敏掉、根本不出参的内部文案（必然红），已跟随源码改。
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -8,6 +19,7 @@ import {
   apiCall,
   apiCallRaw,
   apiCallExpectFail,
+  failureCode,
   seedFourDimStockIn,
   getCtx,
   getRoleCredential,
@@ -116,7 +128,8 @@ test.describe('库存管理 - 02 库存调整', () => {
   // 调整单 item 级 IDOR 回归钉（越权防护：handlers/inventory_adjustment_handler.rs
   // update_item/delete_item/list_items 先反查父调整单再走 get_adjustment(Some(&data_scope_ctx))，
   // 归属校验 utils/data_scope.rs::check_resource_owner 拒 → AppError::permission_denied → HTTP 403
-  // code=FORBIDDEN，message 透传「无权访问调整单 {id}（数据范围限制）」）。
+  // code=FORBIDDEN；出参 message 恒为脱敏常量「无权限」（utils/error.rs:771 + messages.rs:47），
+  // 「无权访问调整单 {id}（数据范围限制）」只进服务端日志，见文件头 403 分层口径）。
   //
   // 第二用户（B）如何取得——不新建共享 helper，复用既有 global-setup 账号体系：
   //   getRoleCredential('inventory_manager') 读 role-credentials.json 中由
@@ -127,7 +140,8 @@ test.describe('库存管理 - 02 库存调整', () => {
   //   请求真实到达 handler 内的数据范围归属校验——这样 403 才钉的是本波修复的
   //   item 级 IDOR 守卫本身，而非"根本没权限碰这个资源"的 RBAC 拦截（那是另一种 403，
   //   message=「权限不足，无法访问该资源」，middleware/permission.rs:130）。
-  //   故断言精确钉：status===403 且 message 含「数据范围限制」——若哪天 403 变成
+  //   故断言精确钉：status===403 且 code=FORBIDDEN 且 message === 「无权限」（权限族脱敏常量，
+  //   与 RBAC 直出的「权限不足，无法访问该资源」互斥）——若哪天 403 变成
   //   RBAC 来源（角色权限漂移）或用例路径写错，本断言会红并给出真实 message，不放宽。
   //   inventory_manager 角色 data_scope=dept（init role.rs:168-171），非本人创建的
   //   调整行必然过不了 check_resource_owner（资源无 department 列，dept 对 None 拒绝）。
@@ -208,7 +222,7 @@ test.describe('库存管理 - 02 库存调整', () => {
     }
     const sessionB = await loginInIsolatedContext(browser, credB.username, credB.password);
     try {
-      // B 经父单 id 读他人调整单明细 → 403 且钉"数据范围限制"来源（handler list_items 的父单归属校验）
+      // B 经父单 id 读他人调整单明细 → 403，并以脱敏常量钉 403 的来源层
       const bGet = await apiCallExpectFail(
         sessionB.page,
         'GET',
@@ -221,9 +235,15 @@ test.describe('库存管理 - 02 库存调整', () => {
         403
       );
       expect(
+        failureCode(bGet),
+        `PermissionDenied 族机器码应为 FORBIDDEN（utils/error.rs:740 CODE_FORBIDDEN）；实际 code=${bGet.code}`
+      ).toBe('FORBIDDEN');
+      expect(
         String(bGet.message ?? ''),
-        `B GET items 的 403 必须来自 handler 内数据范围归属校验（证明 RBAC 已过、IDOR 守卫生效），而非 RBAC 拦截；实际 message=${bGet.message}`
-      ).toContain('数据范围限制');
+        `B GET items 的 403 必须来自 handler 内数据范围归属校验（证明 RBAC 已过、IDOR 守卫生效），而非 RBAC 拦截；` +
+          `权限族出参恒为脱敏常量「无权限」（utils/error.rs:771、messages.rs:47），RBAC 层则直出` +
+          `「权限不足，无法访问该资源」（middleware/permission.rs:158）——实际 message=${bGet.message}`
+      ).toBe('无权限');
 
       // B 经 item_id 直改（PUT /adjustments/items/{item_id}）→ 403（本波 8eac10bb 修复点：
       // 先 get_adjustment_id_by_item 反查父单再校验归属）
@@ -237,10 +257,11 @@ test.describe('库存管理 - 02 库存调整', () => {
         `[调整单IDOR] B PUT item: status=${bPut.status} code=${bPut.code} message=${bPut.message}`
       );
       expect(bPut.status, `B PUT 他人调整明细 ${itemId} 应精确 403`).toBe(403);
+      expect(failureCode(bPut), 'B PUT item 机器码应为 FORBIDDEN').toBe('FORBIDDEN');
       expect(
         String(bPut.message ?? ''),
-        `B PUT item 的 403 应来自反查父单后的数据范围归属校验；实际 message=${bPut.message}`
-      ).toContain('数据范围限制');
+        `B PUT item 的 403 应来自反查父单后的数据范围归属校验（脱敏常量「无权限」，见文件头 403 分层口径）；实际 message=${bPut.message}`
+      ).toBe('无权限');
 
       // B 经 item_id 直删（DELETE /adjustments/items/{item_id}）→ 403
       const bDel = await apiCallExpectFail(
@@ -252,10 +273,11 @@ test.describe('库存管理 - 02 库存调整', () => {
         `[调整单IDOR] B DELETE item: status=${bDel.status} code=${bDel.code} message=${bDel.message}`
       );
       expect(bDel.status, `B DELETE 他人调整明细 ${itemId} 应精确 403`).toBe(403);
+      expect(failureCode(bDel), 'B DELETE item 机器码应为 FORBIDDEN').toBe('FORBIDDEN');
       expect(
         String(bDel.message ?? ''),
-        `B DELETE item 的 403 应来自反查父单后的数据范围归属校验；实际 message=${bDel.message}`
-      ).toContain('数据范围限制');
+        `B DELETE item 的 403 应来自反查父单后的数据范围归属校验（脱敏常量「无权限」）；实际 message=${bDel.message}`
+      ).toBe('无权限');
 
       // B 经 item_id 篡改父单直访（GET /adjustments/{id} 详情）同样 403——覆盖"绕过 items 子路由"变体
       const bGetAdj = await apiCallExpectFail(
@@ -264,9 +286,11 @@ test.describe('库存管理 - 02 库存调整', () => {
         `/inventory/adjustments/${adjId}`
       );
       expect(bGetAdj.status, `B GET 他人调整单详情应精确 403`).toBe(403);
-      expect(String(bGetAdj.message ?? ''), 'B GET 详情的 403 应同源数据范围校验').toContain(
-        '数据范围限制'
-      );
+      expect(failureCode(bGetAdj), 'B GET 详情机器码应为 FORBIDDEN').toBe('FORBIDDEN');
+      expect(
+        String(bGetAdj.message ?? ''),
+        `B GET 详情的 403 应与 items/PUT/DELETE 同源（service.rs:512 数据范围校验，出参脱敏「无权限」）；实际 message=${bGetAdj.message}`
+      ).toBe('无权限');
     } finally {
       await sessionB.close();
     }
