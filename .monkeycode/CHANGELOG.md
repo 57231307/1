@@ -15,6 +15,8 @@
 | PR #942 | 越权读写最后两处——线索查重 `detect_duplicate_leads` 不吃行级数据权限（用一个手机号即可枚举他人名下线索编号与公司名）接入与 `list_leads` 同一个 `apply_department_scope_with_pool`；线索合并 `merge_leads` 原本 `find_by_id` 取行后无归属校验（合并不可逆）改为主行与每条重复行**先判后写**、任一行不可见即整笔 403（固定脱敏 + `FORBIDDEN`），禁"跳过不可见行继续合并其余"的静默降级。审批转移单的 `to_user_name`（被转移人展示名）不再 `format!("用户{id}")` 造名，透传 `transfer_lead` 已解析的真实用户名（零额外查询）。 |
 | PR #942 | 数据一致性迁移——5 表冗余 `department_id` 由 `BEFORE UPDATE OF owner_id` 触发器反查 `users` 维护，但 `users.department_id` 本身可运行期变更且无任何重算出口（归属人调部门后存量行滞留旧部门：旧部门越界可见、新部门该看看不到）。新迁移 `m_rls_dept_user_sync` 补 `AFTER UPDATE OF department_id ON users` 触发器同事务对 5 表各一条 `UPDATE...FROM` 重算 + 幂等存量回填 + `sales_orders.created_by` 索引，`down()` 走备份表精确回退；已发布迁移 `m_rls_dept_domain` 的 down 是空实现却注释声称恢复原策略——不改写历史，勘误固化于新迁移头。触发器语义此前**零活体验证**（集成测试全跑 sqlite），补只在真库 job 执行的三条断言（换部门 5 表跟随、跨部门领取 owner/dept 同步跟随、回填重入偏离恒 0）。 |
 
+| PR #942 | 自审收口（推送前）——本地复刻 CI 的 clippy 基线算法实测出 29 条"基线外新增警告"（CI 只拦新增即红），逐条定性后清零：删除本批取号器改造后遗留的死代码（各域旧 `generate_*_no`/`random_6_digit`/熔断纯委托 wrapper，不留 `#[allow(dead_code)]`、不改 `_` 前缀），修未用导入与 14 处 `timestamp_nanos`→`timestamp_nanos_opt`，顺带查出并修掉 5 处 seed 未 `await` 的集成假绿；`QualificationGateOutcome` 四个生产零读者镜像字段按证据删除（阻断/审计/预警三条权威出口独立存在），契约断言改指权威源并加"恰一条""回滚零残留"反向断言，强度不降。全树最终 `_CARGO_CHECK_OK_`+clippy+fmt 绿、前端 `G1..G15` 全 0、基线外新增仅剩 1 条 Windows 独有的 `std::fs` 误报（Linux CI 不出现）。 |
+
 ## 2026-10-01
 
 | PR | 一句话总结 |
