@@ -1,21 +1,31 @@
-//! 任务 #144：`DocumentNumberGenerator::allocate_no`（逐位占用探测）真实行为契约测试
+//! 任务 #144：`DocumentNumberGenerator::allocate_no`（基数与真实号段同源 + 占用探测）
+//! 真实行为契约测试
 //!
 //! 覆盖 `backend/src/utils/number_generator.rs` 中取号核心 `allocate_no` 的公开入口
 //! （`generate_no` / `generate_no_with_txn`），全部打**真实 PostgreSQL 真实表**
 //! （`customers.customer_code`，UNIQUE），不 mock、不用 sqlite 假绿：
-//! 1. 号段有空洞（存量硬删除）：基数 `count+1` 落到被占用号位时逐位探测跳过，
-//!    不产生 23505、不返回重复号；
-//! 2. 同事务内「取号→插入→取号→插入」得到连续且不冲突的号（探测可见本事务
-//!    未提交插入）；
-//! 3. 号段被连续占满 `NO_PROBE_MAX=100` 个候选位：显式报错
-//!    （`BusinessErrorDisplayable`，真实文案可外显），不静默跳过、不无界循环；
-//! 4. 宽度上限（3 位流水到 999 后溢出）：如实记录**当前实现**行为——直接产出
+//! 1. 基数与真实号段同源（提交 4517b1de 起，基数 = `max(当日真实单号后缀流水)+1`，
+//!    **不再是** `count+1`）：空洞存量（001/003，002 硬删）下起点落在号段末尾后
+//!    的空闲位 004，不回填空洞（NGA1）；
+//! 2. 同事务内「取号→插入→取号→插入」得到连续且不冲突的号（投影与探测均可见
+//!    本事务未提交插入）（NGA2）；
+//! 3. 并发抢占候选号：起点 201 被他会话先落库后，下一次取号必须递增到 202
+//!    成功，绝不静默返回已被占用的号，表内无重号（NGA3）；
+//! 4. 探测被占到达上限 `NO_PROBE_MAX=100`：显式报错
+//!    （`BusinessErrorDisplayable`，真实文案可外显），不静默跳过、不无界循环。
+//!    新基数语义下"静态占满 101..200 从 101 探测"已不可达（起点恒为空闲位），
+//!    上限路径的确定性构造改为病态饱和号段（后缀 = u64::MAX，见 NGA5）；
+//! 5. 宽度上限（3 位流水到 999 后溢出）：如实记录**当前实现**行为——直接产出
 //!    超宽的 4 位流水号（`1000`），既不报错也不自动扩宽。期望（待修复讨论）：
 //!    应在溢出边界显式报错或按约定扩展位数，而不是静默改变单号总长度——
 //!    下游按定长解析单号的逻辑会踩坑。此断言锁定现状，行为变更时本测试应
-//!    同步改并留下痕迹。
+//!    同步改并留下痕迹（NGA4）。
 //!
-//! 全部用例需要已迁移 PG（`pg_advisory_xact_lock` 为 PG 专属），故整体
+//! 另有一条**不依赖数据库、不 #[ignore]** 的源码扫描锁
+//! （`number_cardinal_must_not_regress_to_count_based`）：禁止基数实现回潮为
+//! 按行数 `count+1` 起探测，随常规 CI 分片 job 常跑，不等活库 job。
+//!
+//! 数据库用例需要已迁移 PG（`pg_advisory_xact_lock` 为 PG 专属），故逐条
 //! `#[ignore]`，由 CI 专用 job（`--run-ignored only`，先 `bingxi migrate run`）执行；
 //! 依赖环境变量 `TEST_DATABASE_URL`。缺失即显式 panic，不静默回退 sqlite。
 //!
@@ -85,12 +95,13 @@ async fn cleanup(db: &DatabaseConnection, pfx: &str) {
         .unwrap_or_else(|e| panic!("清理前缀 {pfx} 失败: {e}"));
 }
 
-/// 号段有空洞（001、003 存在，002 被硬删除）：
-/// 基数 count(=2)+1 = 3 落到被占用的 003，逐位探测应跳过并给出 004，
-/// 而不是返回 003 撞 23505、也不是回填 002（当前实现基数语义：不回填）。
+/// 空洞存量（001、003 存在，002 被硬删除）：基数取真实号段末尾
+/// max(001,003)+1 = 004，直接落在空闲位且**不回填** 002 空洞。
+/// （旧 count+1 语义下为 2+1=3 撞占用后探测到 004，结果相同但成因不同；
+/// 本断言在新旧语义下同值，保留用于锁"空洞不回填"这条不变契约。）
 #[tokio::test]
 #[ignore = "需已迁移 PG（pg_advisory_xact_lock），由专用 job（--run-ignored only）执行"]
-async fn allocate_skips_occupied_seq_over_deleted_hole() {
+async fn allocate_starts_after_max_seq_and_never_backfills_hole() {
     let pfx = "NGA1";
     let db = live_db().await;
     cleanup(&db, pfx).await;
@@ -104,18 +115,19 @@ async fn allocate_skips_occupied_seq_over_deleted_hole() {
         customer::Column::CustomerCode,
     )
     .await
-    .expect("空洞形态取号必须成功（探测跳过被占用位），不得 23505/报错");
+    .expect("空洞形态取号必须成功（基数落在号段末尾后的空闲位），不得 23505/报错");
     assert_eq!(
         no,
         code(pfx, 4),
-        "001/003 存在时（002 硬删除空洞），期望探测跳过被占用的 003 得到 004，实际 {no}"
+        "001/003 存在（002 硬删空洞）时，基数应为 max+1=004 且不回填 002，实际 {no}"
     );
 
     cleanup(&db, pfx).await;
 }
 
-/// 同一事务内「取号→插入」连续三轮：探测查询与插入在同一连接同一事务，
-/// 未提交行对本事务可见，三轮必须得到连续的 004/005/006，互不撞号。
+/// 同一事务内「取号→插入」连续三轮：基数投影与占用探测均在本事务连接上，
+/// 未提交行对自身可见（软删/本事务插入都参与号段基数，与真实号段同源），
+/// 三轮必须得到连续的 004/005/006，互不撞号。
 /// 最后整体回滚（回滚后不残留数据；开头 cleanup 已兜住历史残留）。
 #[tokio::test]
 #[ignore = "需已迁移 PG（advisory lock + 事务内可见性），由专用 job（--run-ignored only）执行"]
@@ -153,18 +165,106 @@ async fn allocate_is_consecutive_for_repeated_generate_insert_in_one_txn() {
     cleanup(&db, pfx).await;
 }
 
-/// 号段被占满：存量 100 行占据 101..200，基数 count(=100)+1 = 101 起
-/// 连续 100 个候选位全部被占用 → 探测到 `NO_PROBE_MAX` 上限后**显式报错**
-/// （BusinessErrorDisplayable，出参携带真实文案），绝不静默跳到 201 或裸 500。
+/// 并发抢占候选号（原 NGA3"号段占满显式报错"在新基数语义下的等价守卫）：
+/// 存量 101..=200 占满低段 → 基数必须取自真实号段末尾 max(200)+1 = 201，
+/// 首轮直接得到 201（若回潮旧 count+1=101 基数，将从 101 起连探 100 个
+/// 全占位并落入显式报错，本断言即红——本用例同时锁死新基数行为）；
+/// 随后模拟他会话抢先把候选 201 落库（等价于并发窗口内的旁路提交），
+/// 第二轮取号必须递增到 202 成功返回，**绝不静默返回已被占用的 201**；
+/// 202 真实 INSERT 落库不撞 23505，且表内 101..=202 全部唯一无重号。
 #[tokio::test]
-#[ignore = "需已迁移 PG（advisory lock），由专用 job（--run-ignored only）执行"]
-async fn allocate_errors_explicitly_when_segment_fully_occupied() {
+#[ignore = "需已迁移 PG（advisory lock + customer_code 真实 UNIQUE），由专用 job（--run-ignored only）执行"]
+async fn allocate_advances_past_preempted_candidate_without_duplicate() {
     let pfx = "NGA3";
     let db = live_db().await;
     cleanup(&db, pfx).await;
 
     let codes: Vec<String> = (101..=200).map(|n| code(pfx, n)).collect();
     seed(&db, &codes);
+
+    let first = DocumentNumberGenerator::generate_no(
+        &db,
+        pfx,
+        customer::Entity,
+        customer::Column::CustomerCode,
+    )
+    .await
+    .expect("基数与号段同源时 101..=200 占满低段、起点应为空闲位 201，取号必须成功");
+    assert_eq!(
+        first,
+        code(pfx, 201),
+        "基数必须是 max(当日真实单号后缀流水)+1=201；若回潮 count+1=101 起探测将连撞占位并报错，此处应红"
+    );
+
+    // 模拟并发抢占：他会话在本会话第二轮取号前把候选 201 真实提交落库
+    make_active(first.clone())
+        .insert(&db)
+        .await
+        .unwrap_or_else(|e| panic!("夹具：模拟抢占插入 {first} 失败: {e}"));
+
+    let second = DocumentNumberGenerator::generate_no(
+        &db,
+        pfx,
+        customer::Entity,
+        customer::Column::CustomerCode,
+    )
+    .await
+    .expect("候选 201 被抢占后必须递增到 202 成功，不得报错");
+    assert_eq!(
+        second,
+        code(pfx, 202),
+        "被占候选必须递增避让，得 202，实际 {second}"
+    );
+    assert_ne!(
+        second, first,
+        "两次取号结果不得相同——绝不静默产出已被占用（UNIQUE 挡住）的号"
+    );
+    // 返回的 202 真实落库：若生成器产出了被占号，这一步会撞 23505 显式失败
+    make_active(second.clone())
+        .insert(&db)
+        .await
+        .unwrap_or_else(|e| panic!("夹具：落库本轮返回号 {second} 失败（疑似产出重复号）: {e}"));
+
+    let mut in_table: Vec<String> = customer::Entity::find()
+        .filter(customer::Column::CustomerCode.starts_with(pfx))
+        .all(&db)
+        .await
+        .expect("查询 NGA3 号段存量失败")
+        .into_iter()
+        .map(|m| m.customer_code)
+        .collect();
+    assert_eq!(
+        in_table.len(),
+        102,
+        "表内应为种子 101..=200 共 100 行 + 抢占行 201 + 本轮落库 202"
+    );
+    in_table.sort();
+    in_table.dedup();
+    assert_eq!(
+        in_table.len(),
+        102,
+        "表内出现重号：生成器在并发抢占下不得产出重复号（UNIQUE 兜底之外的主动避让契约）"
+    );
+
+    cleanup(&db, pfx).await;
+}
+
+/// 探测被占到达上限 → **显式报错**（原 NGA3 意图"占满不得静默跳号/不得无界
+/// 循环"的独立保留守卫）。新基数语义下起点恒等于 max+1（空闲位），静态占满
+/// 101..=200 无法再触发探测上限；确定性可达路径是源码注释明说的病态饱和号段：
+/// 存量含后缀恰为 `u64::MAX` 的单号 → 基数 `saturating_add(1)` 饱和停在
+/// u64::MAX → 同一候选位被连探 `NO_PROBE_MAX=100` 次 → 显式
+/// `BusinessErrorDisplayable`（真实文案可外显），绝不无界循环、绝不静默产号。
+#[tokio::test]
+#[ignore = "需已迁移 PG（advisory lock），由专用 job（--run-ignored only）执行"]
+async fn allocate_errors_explicitly_when_probe_cap_exhausted() {
+    let pfx = "NGA5";
+    let db = live_db().await;
+    cleanup(&db, pfx).await;
+
+    // 后缀 20 位数字（u64::MAX 字面量），整号 4+8+20=32 字符，列宽 VARCHAR(50) 可容纳
+    let saturated = format!("{}{}{}", pfx, today(), u64::MAX);
+    seed(&db, &[saturated]);
 
     let err = DocumentNumberGenerator::generate_no(
         &db,
@@ -173,7 +273,9 @@ async fn allocate_errors_explicitly_when_segment_fully_occupied() {
         customer::Column::CustomerCode,
     )
     .await
-    .expect_err("连续 100 个候选位全被占用时必须显式报错（防止无界循环/静默跳号）");
+    .expect_err(
+        "候选位连续被占用达 NO_PROBE_MAX=100 上限时必须显式报错（防止无界循环/静默产错号）",
+    );
     match &err {
         // 注意：必须是 business_displayable（真实文案可外显）；若是 business
         // （出参脱敏成"业务处理失败"）此处会变红，如实暴露变体误用。
@@ -194,8 +296,34 @@ async fn allocate_errors_explicitly_when_segment_fully_occupied() {
     cleanup(&db, pfx).await;
 }
 
+/// 禁回潮静态锁（**不依赖数据库、不 #[ignore]**，随常规 CI 分片 job 常跑）：
+/// `allocate_no` 的候选基数禁止回潮为按行数 `count + 1` 起探测——行数把软删行
+/// 与旁路写入计入，起点既错又跳号（旧语义，已由与真实号段同源的 max+1 取代）。
+/// 行为锁见 NGA3；此处源码扫描是第二道闸，基数实现一被改回 count 形态，
+/// 不等活库 job 就在常规编译期/运行期红。
+#[test]
+fn number_cardinal_must_not_regress_to_count_based() {
+    let src = include_str!("../src/utils/number_generator.rs");
+    let start = src
+        .find("async fn allocate_no")
+        .expect("allocate_no 被重命名/删除：禁回潮锁需与新结构同步更新，禁止直接删本用例");
+    let end_rel = src[start..]
+        .find("is_document_no_taken")
+        .expect("allocate_no 到登记函数的边界消失：需人工核对基数实现后同步本锁");
+    let body = &src[start..start + end_rel];
+    assert!(
+        !body.contains(".count(") && !body.contains("count()"),
+        "allocate_no 内检测到 count 调用：基数禁止回潮为 count+1（软删/旁路行计入行数导致起点错且跳号），必须与真实号段同源取 max+1"
+    );
+    assert!(
+        body.contains("max_seq") && body.contains("saturating_add(1)"),
+        "allocate_no 必须保持『基数 = max(当日真实单号后缀流水).saturating_add(1)』形态；max_seq/saturating_add 缺失说明基数实现被改动，需同步复核本锁与 NGA3"
+    );
+}
+
 /// 宽度上限（3 位流水 999 溢出）——如实记录当前实现结果：
-/// 存量 001..999，count+1 = 1000，`{:03}` 只补齐不截断，
+/// 存量 001..999，基数 max(999)+1 = 1000（旧 count+1 亦得 1000，结果同值），
+/// `{:03}` 只补齐不截断，
 /// 当前实现**静默产出超宽 4 位流水号** `{pfx}{date}1000`，不报错、不自动扩宽约定。
 /// 期望（写进汇报的缺陷候选）：溢出应有显式行为（报错或声明式扩容），
 /// 定长单号消费方（打印/对账解析）会被这种号打穿。行为若被修复，本断言
