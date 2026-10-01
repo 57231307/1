@@ -23,7 +23,10 @@
 // 2) 收货单未质检（PENDING）直接确认 → 400 BUSINESS_ERROR + PENDING 文案（回读仍 DRAFT）；
 // 3) 质检建单+完成（fail）→ 回读收货单 inspection_status=REJECTED；
 //    再确认 → 400 + REJECTED 逐字符文案；回读状态/确认时间零漂移；
-// 4) 对照组：另一张收货单质检 pass → 确认成功 200 → 回读 receipt_status=COMPLETED。
+// 4) 对照组：另一张收货单质检 pass → 确认成功 200 → 回读 receipt_status=COMPLETED；
+// 5) 结算入口 POST /ap/invoices/auto-generate 同受门控（PENDING/REJECTED 拒且零应付行、
+//    PASSED 真能生成）——该入口可绕过 confirm 直连，与 confirm 共用同一判定；
+// 6) 正向镜像：质检合格 → 确认成功 → 应付单确由本收货单派生落库（source_id 回读）。
 // afterEach 尽力清理（被拒收货单仍 DRAFT 可删；已确认单删除会失败，属既有 DRAFT-only 门，忽略）。
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
@@ -60,7 +63,14 @@ function requireNum(v: unknown, label: string): number {
 async function seedReceipt(
   page: Page,
   tag: string
-): Promise<{ rcvId: number; inspPayloadBase: { receipt_id: number; supplier_id: number } }> {
+): Promise<{
+  rcvId: number;
+  poId: number;
+  productId: number;
+  warehouseId: number;
+  supplierId: number;
+  inspPayloadBase: { receipt_id: number; supplier_id: number };
+}> {
   const ctx = getCtx();
   if (!ctx.supplierId) throw new Error('前置缺失：ctx.supplierId 未就绪');
   if (!ctx.productIds[0]) throw new Error('前置缺失：ctx.productIds[0] 未就绪');
@@ -111,7 +121,14 @@ async function seedReceipt(
   });
   const rcvId = requireNum(rcv.id, '建收货单');
   CLEANUP.push({ path: `/purchase/receipts/${rcvId}`, label: `purchase_receipt#${rcvId}` });
-  return { rcvId, inspPayloadBase: { receipt_id: rcvId, supplier_id: ctx.supplierId } };
+  return {
+    rcvId,
+    poId,
+    productId,
+    warehouseId: ctx.warehouseIds[0],
+    supplierId: ctx.supplierId,
+    inspPayloadBase: { receipt_id: rcvId, supplier_id: ctx.supplierId },
+  };
 }
 
 /** API 建质检单（关联收货单）并完成（结论 token 走权威词表 pass/fail/partial） */
@@ -146,7 +163,7 @@ test.describe('25 收货入库质检门控契约链', () => {
   test('25-01 未质检（PENDING）直接确认 → 400 BUSINESS_ERROR+可行动文案，状态零漂移', async ({
     page,
   }) => {
-    const { rcvId } = await seedReceipt(page, 'F25P');
+    const { rcvId, poId } = await seedReceipt(page, 'F25P');
 
     const fail = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${rcvId}/confirm`);
     expect(
@@ -167,6 +184,23 @@ test.describe('25 收货入库质检门控契约链', () => {
     expect(after.receipt_status, '被拒后收货单必须仍为 DRAFT').toBe('DRAFT');
     expect(after.confirmed_at ?? null, '被拒后确认时间必须为 NULL（零漂移）').toBeNull();
     expect(after.inspection_status, '未质检事实保持 PENDING（门控不改数据）').toBe('PENDING');
+
+    // 门控时序复证（后端有源码扫描锁，e2e 侧要真实回证）：判定必须先于
+    // update_order_received_quantity / update_inventory_txn，因此被拒后
+    // 采购订单明细的已收数量不得被推进。
+    const poAfter = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/purchase/orders/${poId}`
+    );
+    const poItems = Array.isArray(poAfter.items)
+      ? (poAfter.items as Record<string, unknown>[])
+      : [];
+    const item0 = poItems.find(it => Number(it.received_quantity ?? 0) > 0);
+    expect(
+      item0,
+      `被拒确认后订单 ${poId} 明细仍不应有 received_quantity>0，实际 items=${JSON.stringify(poItems)}`
+    ).toBeUndefined();
   });
 
   test('25-02 质检 fail 回写 REJECTED → 确认被拒逐字符文案 + 零漂移；pass 对照确认可成功', async ({
@@ -244,5 +278,110 @@ test.describe('25 收货入库质检门控契约链', () => {
     expect(fail.status, 'partial(REJECTED) 确认必须 400').toBe(400);
     expect(failureCode(fail), '机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
     expect(fail.message).toBe('质检不合格的收货单不能确认入库，请先处理不合格品');
+  });
+
+  test('25-04 结算入口 auto-generate 同受门控（PENDING/REJECTED 拒且零应付，PASSED 放行）', async ({
+    page,
+  }) => {
+    // POST /ap/invoices/auto-generate 可被 HTTP 直连调用、不经 confirm，
+    // 因此它是门控的第二入口（ap_invoice_ops/receipt.rs:113 复用同一判定）。
+    // 此前该入口在全部 e2e 中零覆盖——门控只测了 confirm 半边等于没测结算半边。
+    const pending = await seedReceipt(page, 'F25G');
+    const failPending = await apiCallExpectFail(page, 'POST', '/ap/invoices/auto-generate', {
+      receipt_id: pending.rcvId,
+    });
+    expect(
+      failPending.status,
+      `PENDING 收货单生成应付必须 400，实际=${failPending.status} body=${JSON.stringify(failPending)}`
+    ).toBe(400);
+    expect(failureCode(failPending), 'auto-generate 机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    expect(String(failPending.message ?? ''), 'PENDING 结算拒绝文案必须指向质检未完成').toMatch(
+      /质检尚未完成/
+    );
+
+    const rejected = await seedReceipt(page, 'F25H');
+    await inspectAndComplete(page, rejected.inspPayloadBase, 'fail');
+    const failRejected = await apiCallExpectFail(page, 'POST', '/ap/invoices/auto-generate', {
+      receipt_id: rejected.rcvId,
+    });
+    expect(failRejected.status, 'REJECTED 收货单生成应付必须 400').toBe(400);
+    expect(
+      String(failRejected.message ?? ''),
+      'REJECTED 结算拒绝必须逐字符对应"不合格"分支文案'
+    ).toBe('质检不合格的收货单不能生成应付结算，请先处理不合格品');
+
+    // 零应付复证：两张被拒的单都不能留下任何 source_type=PURCHASE_RECEIPT 的应付行
+    for (const seed of [pending, rejected]) {
+      const list = await apiCallRaw<unknown>(
+        page,
+        'GET',
+        `/ap/invoices?supplier_id=${seed.supplierId}&page=1&page_size=100`
+      );
+      const itemsRaw = (list as { items?: unknown }).items ?? list;
+      const items = Array.isArray(itemsRaw) ? (itemsRaw as Record<string, unknown>[]) : [];
+      const polluted = items.find(
+        it => it.source_type === 'PURCHASE_RECEIPT' && Number(it.source_id) === seed.rcvId
+      );
+      expect(
+        polluted,
+        `被拒收货单 ${seed.rcvId} 不应生成应付行，实际=${JSON.stringify(polluted)}`
+      ).toBeUndefined();
+    }
+
+    // 正向：PASSED 后同一入口必须真能生成（证明门控不是"一律拒绝"）
+    const passed = await seedReceipt(page, 'F25I');
+    await inspectAndComplete(page, passed.inspPayloadBase, 'pass');
+    await apiCall(page, 'POST', '/ap/invoices/auto-generate', { receipt_id: passed.rcvId });
+    const afterList = await apiCallRaw<unknown>(
+      page,
+      'GET',
+      `/ap/invoices?supplier_id=${passed.supplierId}&page=1&page_size=100`
+    );
+    const afterRaw = (afterList as { items?: unknown }).items ?? afterList;
+    const generated = (Array.isArray(afterRaw) ? (afterRaw as Record<string, unknown>[]) : []).find(
+      it => it.source_type === 'PURCHASE_RECEIPT' && Number(it.source_id) === passed.rcvId
+    );
+    expect(
+      generated,
+      `PASSED 收货单 ${passed.rcvId} 应经 auto-generate 生成应付单，实际列表=${JSON.stringify(afterRaw)?.slice(0, 300)}`
+    ).toBeTruthy();
+    CLEANUP.push({
+      path: `/ap/invoices/${requireNum(generated!.id, '自动生成的应付单 id')}`,
+      label: 'ap_invoice(auto-generate)',
+    });
+  });
+
+  test('25-05 确认入库正向链必须自动生成应付（结算门与入库门同口径的镜像复证）', async ({
+    page,
+  }) => {
+    // state.rs::confirm_receipt 在确认事务内调 auto_generate_from_receipt；
+    // 应付侧同一门控只有 PASSED 才放行，因此"质检合格→确认成功→应付落库"整链必须成立。
+    const seed = await seedReceipt(page, 'F25J');
+    await inspectAndComplete(page, seed.inspPayloadBase, 'pass');
+    await apiCall(page, 'POST', `/purchase/receipts/${seed.rcvId}/confirm`);
+
+    const list = await apiCallRaw<unknown>(
+      page,
+      'GET',
+      `/ap/invoices?supplier_id=${seed.supplierId}&page=1&page_size=100`
+    );
+    const itemsRaw = (list as { items?: unknown }).items ?? list;
+    const items = Array.isArray(itemsRaw) ? (itemsRaw as Record<string, unknown>[]) : [];
+    const generated = items.find(
+      it => it.source_type === 'PURCHASE_RECEIPT' && Number(it.source_id) === seed.rcvId
+    );
+    expect(
+      generated,
+      `确认入库后应存在由本收货单派生的应付单（source_id=${seed.rcvId}），实际=${JSON.stringify(items).slice(0, 300)}`
+    ).toBeTruthy();
+    // 与 fullflow/20-01 的既有契约一致：自动应付初始为 DRAFT（不放宽成"任一状态"）
+    expect(
+      String(generated!.invoice_status),
+      `自动生成的应付单初始应为 DRAFT，实际=${generated!.invoice_status}`
+    ).toBe('DRAFT');
+    CLEANUP.push({
+      path: `/ap/invoices/${requireNum(generated!.id, '应付单 id')}`,
+      label: 'ap_invoice(confirm 派生)',
+    });
   });
 });
