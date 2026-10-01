@@ -3150,7 +3150,9 @@ export async function seedInspectionPass(
     throw new Error(`[${tag}] 建质检单未取到 id，响应=${JSON.stringify(created)?.slice(0, 300)}`);
   }
   await apiCall(page, 'POST', `/purchase/inspections/${inspId}/complete`, {
-    pass_quantity: opts.passQuantity,
+    // 必须传局部变量：opts.passQuantity 省略时上面刚从收货单 total_quantity 推导出来，
+    // 直接回读 opts 会把 undefined 送出去（JSON.stringify 丢键 → 后端必填 400，种子步成片真红）。
+    pass_quantity: passQuantity,
     reject_quantity: 0,
     inspection_result: 'pass',
   });
