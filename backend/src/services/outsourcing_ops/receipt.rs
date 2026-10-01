@@ -90,8 +90,13 @@ impl OutsourcingReceiptService {
         &self,
         req: CreateOutsourcingReceiptRequest,
     ) -> Result<ReceiptModel, AppError> {
-        if req.return_quantity < Decimal::ZERO {
-            return Err(AppError::business("收回数量不能为负"));
+        // 收回数量的取值域门（不是负数门）：0 米/0 公斤收回在委外加工里没有业务含义
+        // ——空跑、全损耗、录入错误三者在下游会污染成本链（损耗率恒 100% 判异常、
+        // unit_cost 静默归零、OVRC 入库凭证按费用+运费+定额材料差借记成品库存、
+        // 生成 length_m=0 的匹与 total_qty=0 的质检记录）。前端 index.vue 已 :min="0.01"
+        // 拦，后端不得信任前端。字段取值域错 → VALIDATION_ERROR 族 + 可外显公开规则文案。
+        if req.return_quantity <= Decimal::ZERO {
+            return Err(AppError::validation_displayable("收回数量必须大于零"));
         }
 
         Self::validate_create_request(&self.db, &req).await?;
@@ -249,8 +254,9 @@ impl OutsourcingReceiptService {
             active.product_id = Set(v);
         }
         if let Some(v) = req.return_quantity.flatten() {
-            if v < Decimal::ZERO {
-                return Err(AppError::business("收回数量不能为负"));
+            // 与 create 同一取值域门（同一族、同一文案）：更新到 0 同样是把成本链污染成隐性问题
+            if v <= Decimal::ZERO {
+                return Err(AppError::validation_displayable("收回数量必须大于零"));
             }
             active.return_quantity = Set(v);
         }
@@ -321,6 +327,17 @@ impl OutsourcingReceiptService {
                 "仅草稿(draft)状态可确认，当前状态: {}",
                 receipt_model.status
             )));
+        }
+
+        // 收回数量取值域门（与 create/update 同族同文案）：0 量确认在下游会污染整条成本链——
+        // 损耗率恒 100% 判 abnormal、unit_cost 静默归零、OVRC 入库凭证仍按
+        // 费用+运费+定额材料差借记「库存商品」、生成 length_m=0 的匹与 total_qty=0 的质检记录。
+        // 前端 :min="0.01" 拦不住直接 POST，故本处必须自己拦；放在凭证/库存/订单任何写入之前，
+        // 被拒时事务未落一行。存量 0 量草稿（门控上线前建的）同样在此被拦住。
+        if receipt_model.return_quantity <= Decimal::ZERO {
+            return Err(AppError::business_displayable(
+                "收回数量为 0，无法确认回仓；请先录入实际收回数量",
+            ));
         }
 
         let order: OrderModel = OrderEntity::find_by_id(receipt_model.outsourcing_order_id)

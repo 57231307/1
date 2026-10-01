@@ -541,3 +541,202 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
         Some(voucher_no.as_str())
     );
 }
+
+// =========================================================
+// 结算零费用门 + 收回零数量门（决策定案：委外三条业务裁量中的第 2、3 条）
+//
+// 覆盖边界（不假装全绿）：
+// - settle 的拒绝发生在**取号与 begin() 之前**，故 sqlite 能真跑全链、真回读零漂移；
+// - 收回单 confirm 的 0 量门位于 receipt 行 lock_exclusive 之后（sqlite 不支持
+//   lock_exclusive，仓内先例见本文件 E 段/wave5 receipt_return_three_state），
+//   因此 create/update/confirm 三处门以**源码扫描锁**钉住族、文案与位置，
+//   活库真跑用例留给 CI 的 --ignored job 与后续 DDL 夹具补齐批次（挂账任务 #194）。
+// =========================================================
+
+/// 种一张已收回(received)态委外订单，费用两列由入参决定（sqlite/活库同构两用）
+async fn seed_received_order(
+    db: &DatabaseConnection,
+    processing_fee: Decimal,
+    freight_fee: Decimal,
+) -> outsourcing_order::Model {
+    let now: chrono::DateTime<chrono::FixedOffset> = Utc::now().into();
+    outsourcing_order::ActiveModel {
+        order_no: Set(format!("OW-W5S-{}", unique_tag())),
+        order_type: Set(outsourcing_order_type::DYEING.to_string()),
+        supplier_id: Set(1),
+        issue_date: Set(now.date_naive()),
+        issue_quantity: Set(dec("100.00")),
+        issue_unit: Set("米".to_string()),
+        return_quantity: Set(dec("100.00")),
+        loss_quantity: Set(Decimal::ZERO),
+        material_cost: Set(dec("1000.00")),
+        processing_fee: Set(processing_fee),
+        freight_fee: Set(freight_fee),
+        tax_amount: Set(Decimal::ZERO),
+        abnormal_loss_amount: Set(Decimal::ZERO),
+        total_cost: Set(Decimal::ZERO),
+        unit_cost: Set(Decimal::ZERO),
+        status: Set(outsourcing_order_status::RECEIVED.to_string()),
+        is_deleted: Set(false),
+        created_by: Set(Some(9101)),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 received 委外订单失败")
+}
+
+fn settle_router(db: DatabaseConnection) -> Router {
+    let mut state = AppState::default();
+    state.db = Arc::new(db);
+    Router::new()
+        .route(
+            "/outsourcing-orders/{id}/settle",
+            axum::routing::post(outsourcing_handler::settle_outsourcing_order),
+        )
+        .with_state(state)
+}
+
+async fn post_settle(app: &Router, id: i32) -> (StatusCode, Value) {
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri(format!("/outsourcing-orders/{}/settle", id))
+        .body(Body::empty())
+        .expect("构造 POST 请求失败");
+    let resp: Response = app.clone().oneshot(req).await.unwrap();
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
+    (status, serde_json::from_slice(&bytes).unwrap())
+}
+
+/// 零费用（加工费+运费<=0）结算必须被拒：400 + BUSINESS_ERROR + 可外显公开规则文案，
+/// 且订单整行零漂移、该单 outsourcing_voucher 计数为 0（不许落一张金额为 0 的空壳凭证）。
+#[tokio::test]
+async fn settle_with_zero_fee_is_rejected_with_displayable_message_and_no_empty_voucher() {
+    let db = sqlite_db().await;
+    seed_issue_domain_tables(&db).await;
+    let order = seed_received_order(&db, Decimal::ZERO, Decimal::ZERO).await;
+    let app = settle_router(db.clone());
+
+    let (status, body) = post_settle(&app, order.id).await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "零费用结算应 400，实际 body={body}"
+    );
+    assert_eq!(
+        body["code"], "BUSINESS_ERROR",
+        "前置未满足属业务族，实际={body}"
+    );
+    assert_eq!(
+        body["message"], "加工费与运费均为 0，无法结算；请先补录委外加工成本",
+        "公开业务规则必须外显真实原因（不是脱敏常量），实际={body}"
+    );
+
+    let after = outsourcing_order::Entity::find_by_id(order.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("零结算门：订单必须存在");
+    assert_eq!(
+        after.status,
+        outsourcing_order_status::RECEIVED,
+        "被拒后订单状态不得推进为 settled"
+    );
+    assert_eq!(
+        after.voucher_no_fee, None,
+        "被拒后不得回写加工费凭证号，实际={:?}",
+        after.voucher_no_fee
+    );
+    assert_eq!(
+        after.updated_at, order.updated_at,
+        "被拒后不得触碰 updated_at（零副作用）"
+    );
+    let voucher_count = outsourcing_voucher::Entity::find()
+        .filter(outsourcing_voucher::Column::OutsourcingOrderId.eq(order.id))
+        .count(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        voucher_count, 0,
+        "零费用结算被拒时不得生成任何凭证（含金额为 0 的空壳 OVFE 凭证）"
+    );
+}
+
+/// 源码扫描锁：收回单三处 0 量门（create/update/confirm）的族、文案与"先于写入"位置。
+/// 这三处走 outsourcing_receipt 表 + 行锁，sqlite 无法真跑，故以扫描锁防漂移，
+/// 并在测试文件头声明其覆盖边界（不伪装成端到端）。
+#[tokio::test]
+async fn receipt_zero_quantity_gates_are_wired_in_all_three_paths() {
+    let src = include_str!("../src/services/outsourcing_ops/receipt.rs").replace('\r', "");
+
+    // create：0/负数一律 VALIDATION_ERROR 族 + 可外显公开规则（字段取值域），
+    // 且必须是函数体第一条校验（先于 validate_create_request 与 insert）
+    let create_at = src
+        .find("pub async fn create(")
+        .expect("receipt.rs 必须有 create 入口");
+    let create_head = &src[create_at..create_at + 1200];
+    assert!(
+        create_head.contains("if req.return_quantity <= Decimal::ZERO"),
+        "create 必须把收回数量下界从「负数」收紧到「<=0」，否则 0 量单照样能建"
+    );
+    assert!(
+        create_head.contains("AppError::validation_displayable(\"收回数量必须大于零\")"),
+        "create 的 0 量拒绝必须走 VALIDATION 族且外显公开规则文案"
+    );
+    let gate_idx = create_head
+        .find("if req.return_quantity <= Decimal::ZERO")
+        .unwrap();
+    let validate_idx = create_head
+        .find("Self::validate_create_request")
+        .expect("create 应调用建单前置校验");
+    assert!(
+        gate_idx < validate_idx,
+        "数量取值域门必须先于建单前置校验与任何写入"
+    );
+
+    // update：三态分支内同一族同一文案（禁 create/update 两套口径）
+    assert_eq!(
+        src.matches("if v <= Decimal::ZERO").count(),
+        1,
+        "update 的 return_quantity 分支必须有同一 <=0 门"
+    );
+    assert_eq!(
+        src.matches("AppError::validation_displayable(\"收回数量必须大于零\")")
+            .count(),
+        2,
+        "create 与 update 两处必须同源同文案（不得一个外显一个脱敏）"
+    );
+
+    // confirm：0 量草稿（门控上线前既有数据）也必须被拦，且先于凭证/库存/订单写入
+    let confirm_at = src
+        .find("pub async fn confirm(")
+        .expect("receipt.rs 必须有 confirm 入口");
+    let confirm_head = &src[confirm_at..confirm_at + 2600];
+    assert!(
+        confirm_head.contains("if receipt_model.return_quantity <= Decimal::ZERO"),
+        "confirm 必须对存量 0 量草稿做兜底门控，否则 0 量单仍可确认并污染成本链"
+    );
+    assert!(
+        confirm_head.contains("收回数量为 0，无法确认回仓；请先录入实际收回数量"),
+        "confirm 的 0 量拒绝必须外显行动路径"
+    );
+    let confirm_gate = confirm_head
+        .find("if receipt_model.return_quantity <= Decimal::ZERO")
+        .unwrap();
+    let eligibility = confirm_head
+        .find("validate_receipt_eligibility")
+        .expect("confirm 应调用超发/资格校验");
+    assert!(
+        confirm_gate < eligibility,
+        "0 量门必须先于资格校验与任何凭证/库存写入"
+    );
+    assert!(
+        !confirm_head.contains("return_quantity < Decimal::ZERO"),
+        "confirm 不得残留「只拦负数」的旧口径"
+    );
+}

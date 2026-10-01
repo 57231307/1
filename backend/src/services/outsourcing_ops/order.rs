@@ -589,6 +589,19 @@ impl OutsourcingOrderService {
             )));
         }
 
+        // 零费用不得结算：`settled` 的词表定义即「加工费已结算，已生成加工费凭证」，
+        // 而加工费凭证金额恒 = processing_fee + freight_fee，两者皆 0 时会落一张金额为 0 的
+        // 空壳 OVFE 凭证（并把它回写 voucher_no_fee、随事件外发），与状态语义矛盾，
+        // 还会污染以金额为导向的审计抽样——零金额凭证是 SAP/金蝶等同类系统的典型审计问题。
+        // 口径取"拒绝结算"而非"允许结算不出凭证"：后者会让 settled 名不副实。
+        // 放在取号与 begin() 之前，拒绝时零副作用（也使其可在 sqlite 真实跑全链）。
+        let fee_amount = model.processing_fee + model.freight_fee;
+        if fee_amount <= Decimal::ZERO {
+            return Err(AppError::business_displayable(
+                "加工费与运费均为 0，无法结算；请先补录委外加工成本",
+            ));
+        }
+
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let txn = (*self.db).begin().await?;
@@ -607,7 +620,6 @@ impl OutsourcingOrderService {
         })?;
 
         // 创建加工费凭证（§5.4 第二步分录）
-        let fee_amount = model.processing_fee + model.freight_fee;
         let voucher_active = VoucherActiveModel {
             id: Default::default(),
             voucher_no: Set(voucher_no.clone()),
