@@ -2,8 +2,9 @@
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::pollutant_discharge_record::Model as DischargeModel;
 use crate::services::environmental_tax_service::{
-    CreateDischargeRecordRequest, EnvironmentalTaxService,
+    CreateDischargeRecordRequest, EnvironmentalTaxResult, EnvironmentalTaxService,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -45,27 +46,34 @@ pub async fn create_discharge_record(
 }
 
 /// 按期间查询污染物排放记录
+///
+/// 返回类型显式定为 `Vec<pollutant_discharge_record::Model>`（不再擦成 `serde_json::Value`）：
+/// 出参形态是门禁 `check-api-envelope` 静态比对的依据，Value 会被判"未分类"而只能靠豁免，
+/// 前端 `export-compliance.ts` 按裸数组消费，这里用真实类型把它钉死。
 pub async fn list_discharge_records(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(params): Query<PeriodQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<DischargeModel>>>, AppError> {
     let service = env_tax_service(&state);
     let list = service
         .list_by_period(params.period_year, params.period_month)
         .await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(list)?)))
+    Ok(Json(ApiResponse::success(list)))
 }
 
 /// 生成环保税申报表（按期间汇总）
+///
+/// 同 `list_discharge_records`：显式 `Vec<EnvironmentalTaxResult>` 而非 Value，
+/// 让契约门禁能静态核对前端的裸数组声明。
 pub async fn generate_tax_declaration(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(params): Query<PeriodQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<EnvironmentalTaxResult>>>, AppError> {
     let service = env_tax_service(&state);
     let result = service
         .generate_tax_declaration(params.period_year, params.period_month)
         .await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+    Ok(Json(ApiResponse::success(result)))
 }
