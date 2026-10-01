@@ -56,18 +56,20 @@ use uuid::Uuid;
 use crate::middleware::trace_context::X_TRACE_ID_HEADER;
 use crate::utils::messages::err_msg;
 
-/// 请求级 trace id（task-local，全站唯一来源）。
-///
-/// 生命周期：由 `middleware::trace_context::trace_context_middleware` 在解析 / 生成
-/// `TraceContext` 之后用 `TRACE_ID.scope(id, next.run(req)).await` 绑定，覆盖整个请求
-/// future（含其内部所有 await 点与被轮询的下层中间件 / handler）。
-///
-/// 出参侧：[`AppError::into_response`] 通过 [`current_trace_id`] 读取同一个值，
-/// 因此**响应头 `X-Trace-Id` 与响应体 `trace_id` 严格同源**（同一 128-bit hex 串），
-/// 用户报障给出的 trace 号可以直接在日志里检索到。
-///
-/// 形态约定：一律用 `Uuid::simple()`（32 位小写 hex，无 `-`），与 W3C `traceparent`
-/// 的 trace-id 以及 `X-Trace-Id` 响应头逐字符一致，避免同一 trace 出现两种写法。
+// 请求级 trace id（task-local，全站唯一来源）。
+//
+// 生命周期：由 `middleware::trace_context::trace_context_middleware` 在解析 / 生成
+// `TraceContext` 之后用 `TRACE_ID.scope(id, next.run(req)).await` 绑定，覆盖整个请求
+// future（含其内部所有 await 点与被轮询的下层中间件 / handler）。
+//
+// 出参侧：[`AppError::into_response`] 通过 [`current_trace_id`] 读取同一个值，
+// 因此**响应头 `X-Trace-Id` 与响应体 `trace_id` 严格同源**（同一 128-bit hex 串），
+// 用户报障给出的 trace 号可以直接在日志里检索到。
+//
+// 形态约定：一律用 `Uuid::simple()`（32 位小写 hex，无 `-`），与 W3C `traceparent`
+// 的 trace-id 以及 `X-Trace-Id` 响应头逐字符一致，避免同一 trace 出现两种写法。
+// （注：`tokio::task_local!` 展开不含文档项，此处必须用普通注释，`///` 会触发
+// unused_doc_comments 告警。）
 tokio::task_local! {
     pub static TRACE_ID: Uuid;
 }

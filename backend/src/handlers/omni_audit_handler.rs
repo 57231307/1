@@ -3,7 +3,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::omni_audit_query_service::{AuditQueryFilter, AuditStats};
 use crate::services::omni_audit_service::OmniAuditMessage;
 use crate::utils::admin_checker::is_admin_role;
-use crate::utils::error::AppError;
+use crate::utils::error::{AppError, current_trace_id};
 use crate::utils::response::ApiResponse;
 use crate::utils::sql_escape::safe_like_pattern;
 use axum::{
@@ -70,7 +70,9 @@ pub async fn track_event(
         }
     }
 
-    let trace_id = uuid::Uuid::new_v4().to_string();
+    // 埋点事件也归到本次请求的 trace 上：TRACE_ID task-local 由最外层 trace_context 绑定，
+    // 取到的值与 `X-Trace-Id` 响应头、失败响应体 trace_id 同源（32 位小写 hex）。
+    let trace_id = current_trace_id().0;
 
     state.omni_audit.log(OmniAuditMessage {
         trace_id,

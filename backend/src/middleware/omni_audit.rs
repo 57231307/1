@@ -52,7 +52,11 @@ pub async fn omni_audit_middleware(
     next: Next,
 ) -> Result<Response, StatusCode> {
     let start_time = Instant::now();
-    let trace_id = uuid::Uuid::new_v4().to_string();
+    // trace_id 与本次请求同源：`TRACE_ID` task-local 由最外层的 trace_context 中间件绑定，
+    // 因此审计行的 trace_id == `X-Trace-Id` 响应头 == 失败响应体的 trace_id，
+    // 用户报障给出的号码可以直接把日志与审计记录串起来。
+    // 未绑定（本层被挪到 trace 之外等装配异常）时由 current_trace_id 显式记 WARN 后回退，不静默。
+    let trace_id = crate::utils::error::current_trace_id().0;
 
     let meta = extract_request_meta(&req);
     let (user_id, username) = extract_user_context(&req);

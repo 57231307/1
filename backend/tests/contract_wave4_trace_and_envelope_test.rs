@@ -15,8 +15,8 @@ use std::time::{Duration, Instant};
 
 use axum::body::{Body, to_bytes};
 use axum::extract::Request;
-use axum::header::CONTENT_TYPE;
 use axum::http::StatusCode;
+use axum::http::header::CONTENT_TYPE;
 use axum::middleware::{Next, from_fn};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
