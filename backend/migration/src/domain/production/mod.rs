@@ -42,6 +42,10 @@ mod m0062_add_dye_batch_actual_output;
 // 照 m0058 先例（见上方注释与 domain/v15/mod.rs），up/down 由 v15 域在
 // 全部建表完成后调用，此处仅保留定义，提升可见性为 pub(crate)。
 pub(crate) mod m0063_add_document_no_unique_constraints;
+// m0064 扩 chk_custom_order_status 取值集为权威模块 custom_order::ALL 的 11 值
+// （+ change_pending）；目标表 custom_orders 由本域 m0044 建表（早于本迁移执行），
+// 直接注册本域 up 末尾即可。
+mod m0064_custom_order_status_add_change_pending;
 
 pub struct Migration;
 
@@ -173,6 +177,12 @@ impl MigrationTrait for Migration {
             .await?;
         // 缸号完工实际产出三列（dye_batch 表由 system 域 m0003 建表，早于 production 域执行）
         m0062_add_dye_batch_actual_output::Migration
+            .up(manager)
+            .await?;
+        // 定制订单状态 CHECK 扩为权威词表 11 值（+ change_pending，写入方
+        // submit_change_request），存量词表外取值 fail-visible 中止，须晚于
+        // m0044 建表与 m0061 十值重建（同域顺序执行）
+        m0064_custom_order_status_add_change_pending::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
@@ -476,6 +486,10 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // m0064 最后应用故最先回滚（带在途 change_pending 行的 fail-visible 拒滚检查）
+        m0064_custom_order_status_add_change_pending::Migration
+            .down(manager)
+            .await?;
         m0062_add_dye_batch_actual_output::Migration
             .down(manager)
             .await?;

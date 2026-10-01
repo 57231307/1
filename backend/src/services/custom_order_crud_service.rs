@@ -21,6 +21,7 @@ use crate::models::custom_order_create_dto::{
 };
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
 use crate::models::status::custom_order as co_status;
+use crate::models::status::process_node as node_status;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
@@ -175,7 +176,10 @@ impl CustomOrderCrudService {
             node_type: Set(node_type.to_string()),
             node_name: Set(node_name.to_string()),
             sequence: Set(sequence),
-            status: Set(co_status::PENDING.to_string()),
+            // process_nodes.status 的权威词表是 status::process_node（与其
+            // chk_node_status 一致）；此前跨表借用 status::custom_order::PENDING
+            // 属悬空引用——custom_orders 的取值域从未包含 pending。
+            status: Set(node_status::PENDING.to_string()),
             planned_start_date: Set(None),
             planned_end_date: Set(None),
             actual_start_date: Set(None),
@@ -400,8 +404,9 @@ impl CustomOrderCrudService {
 
         let mut active: CustomOrderActive = existing.into();
         if change_amount.abs() > Decimal::from(10000) {
-            // 金额变化>1万，进入二级审批
-            active.status = Set("change_pending".to_string());
+            // 金额变化>1万，进入二级审批（挂起态由本域权威词表 status::custom_order
+            // 提供，取值已纳入 m0064 重建后的 chk_custom_order_status）
+            active.status = Set(co_status::CHANGE_PENDING.to_string());
             // 生成简单审批实例 ID（实际应调用 BPM 服务）
             let approval_instance_id = chrono::Utc::now().timestamp_millis();
             active.approval_instance_id = Set(Some(approval_instance_id));
@@ -438,7 +443,7 @@ impl CustomOrderCrudService {
             .await?
             .ok_or(CrudError::NotFound)?;
 
-        if existing.status != "change_pending" {
+        if existing.status != co_status::CHANGE_PENDING {
             return Err(CrudError::InvalidState);
         }
 

@@ -11,7 +11,7 @@ import {
   advanceCustomOrder,
   createCustomOrder,
   getCustomOrderList,
-  CUSTOM_ORDER_STATUS,
+  CUSTOM_ORDER_STATUSES,
 } from '@/api/custom-order';
 import { listOaAnnouncements, publishOaAnnouncement } from '@/api/oa-announcement';
 import { INSPECTION_STATUS_LABEL } from '@/api/fabric-inspection';
@@ -35,8 +35,13 @@ describe('新增域状态映射', () => {
     expect(typeof getCustomOrderList).toBe('function');
     expect(typeof createCustomOrder).toBe('function');
     expect(typeof advanceCustomOrder).toBe('function');
-    expect(CUSTOM_ORDER_STATUS.draft).toBe('草稿');
-    expect(Object.keys(CUSTOM_ORDER_STATUS).length).toBeGreaterThan(4);
+    // 词表唯一来源＝后端权威模块 custom_order::ALL（11 态小写），
+    // 旧手写 8 token 中文 map 已删除；悬空 token pending 不在取值域内
+    expect(CUSTOM_ORDER_STATUSES).toHaveLength(11);
+    expect(CUSTOM_ORDER_STATUSES).toContain('lab_dip');
+    expect(CUSTOM_ORDER_STATUSES).toContain('quotation');
+    expect(CUSTOM_ORDER_STATUSES).toContain('change_pending');
+    expect(CUSTOM_ORDER_STATUSES).not.toContain('pending');
   });
 
   it('OA 公告 api 导出契约（列表/发布）', () => {

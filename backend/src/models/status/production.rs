@@ -34,14 +34,26 @@ pub mod scheduling {
     pub const CONFIRMED: &str = "CONFIRMED";
 }
 
-/// 定制订单流程节点状态（process_node.status，小写值）
+/// 定制订单流程节点状态（process_nodes.status，小写值）
 /// 批次 234 v13 真实接入：custom_order_state_service.rs 中节点状态字符串字面量统一引用此模块（规则 0）
+///
+/// 取值与建表约束 `chk_node_status`（production/m0044:164-166）逐字符一致：
+/// pending / in_progress / completed / blocked。
+/// 注意：`pending` 历史上被 custom_order CRUD 服务跨表借用
+/// `status::custom_order::PENDING` 写入本表；该悬空引用已改由本模块提供权威
+/// （custom_orders.status 的词表里不存在 pending）。
 pub mod process_node {
+    /// 待开始：节点尚未启动（建表默认值）
+    pub const PENDING: &str = "pending";
+
     /// 进行中：节点正在执行
     pub const IN_PROGRESS: &str = "in_progress";
 
     /// 已完成：节点执行完毕
     pub const COMPLETED: &str = "completed";
+
+    /// 已阻塞：节点被阻塞（advance_node block 动作写入）
+    pub const BLOCKED: &str = "blocked";
 }
 
 /// MRP 结果状态（mrp_result.status，大写值）

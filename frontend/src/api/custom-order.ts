@@ -5,29 +5,19 @@
 
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+import { CUSTOM_ORDER_STATUSES, CUSTOM_ORDER_STATUS_TAG_TYPES } from '@/utils/custom-order-status';
 
-// 状态枚举（使用显式索引签名以支持外部字符串索引）
-export const CUSTOM_ORDER_STATUS: { [key: string]: string } = {
-  draft: '草稿',
-  yarn_purchasing: '纱线采购中',
-  dyeing: '染整中',
-  finishing: '后整理中',
-  delivery: '交付中',
-  after_sales: '售后中',
-  completed: '已完成',
-  cancelled: '已取消',
-};
+// 定制订单状态词表的唯一前端权威在 utils/custom-order-status.ts
+//（与后端 models/status/sales.rs::custom_order::ALL 逐字符同源的 11 态，
+// 含 lab_dip/quotation/change_pending）。本文件不再手写第二套中文词表——
+// 旧 CUSTOM_ORDER_STATUS 硬编码 map（仅 8 token，缺三真实可达态）已删除；
+// 标签文案一律走 utils 的 labelKey + i18n，筛选选项由 CUSTOM_ORDER_STATUSES 派生。
+export { CUSTOM_ORDER_STATUSES };
 
-export const CUSTOM_ORDER_STATUS_COLORS: { [key: string]: string } = {
-  draft: 'info',
-  yarn_purchasing: 'primary',
-  dyeing: 'warning',
-  finishing: 'warning',
-  delivery: 'success',
-  after_sales: 'danger',
-  completed: 'success',
-  cancelled: 'info',
-};
+/** el-tag 配色表（由 utils 权威派生，键 = 后端 token 原值；保留历史导出名供 detail/tracking 消费） */
+export const CUSTOM_ORDER_STATUS_COLORS: { [key: string]: string } = Object.fromEntries(
+  CUSTOM_ORDER_STATUSES.map(s => [s, CUSTOM_ORDER_STATUS_TAG_TYPES[s]])
+);
 
 export const NODE_STATUS: { [key: string]: string } = {
   pending: '待开始',
