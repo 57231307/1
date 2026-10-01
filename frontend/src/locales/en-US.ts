@@ -3275,8 +3275,6 @@ export default {
       versionPlaceholder: 'e.g.: 1.0',
       content: 'Standard Content',
       contentPlaceholder: 'Please enter standard content',
-      attachments: 'Attachments',
-      attachmentsPlaceholder: 'JSON array, e.g.: ["file1.pdf", "file2.docx"]',
       cancel: 'Cancel',
       confirm: 'OK',
     },
@@ -3335,11 +3333,11 @@ export default {
     standardStatus: {
       draft: 'Draft',
       approved: 'Approved',
-      published: 'Published',
+      active: 'Active',
+      archived: 'Archived',
       rejected: 'Rejected',
     },
     message: {
-      attachmentsFormatError: 'Invalid attachments format, please check JSON',
       operationSuccess: 'Operation successful',
       operationFailed: 'Operation failed',
       approveSuccess: 'Approved successfully',
@@ -3419,7 +3417,8 @@ export default {
       buttonPublish: 'Publish',
       statusDraft: 'Draft',
       statusApproved: 'Approved',
-      statusPublished: 'Published',
+      statusActive: 'Active',
+      statusArchived: 'Archived',
       statusRejected: 'Rejected',
       typeProduct: 'Product Standard',
       typeProcess: 'Process Standard',
@@ -4053,13 +4052,12 @@ export default {
       draft: 'Draft',
       approved: 'Approved',
       published: 'Published',
+      rejected: 'Rejected',
       archived: 'Archived',
     },
     type: {
       product: 'Product Standard',
       process: 'Process Standard',
-      safety: 'Safety Standard',
-      environmental: 'Environmental Standard',
     },
     table: {
       ariaLabel: 'Quality standards list',
@@ -4095,8 +4093,6 @@ export default {
       versionPlaceholder: 'Please enter version number',
       content: 'Content',
       contentPlaceholder: 'Please enter standard content',
-      attachments: 'Attachments',
-      attachmentsPlaceholder: 'Please enter attachments as JSON array',
       cancel: 'Cancel',
       confirm: 'Confirm',
     },
@@ -4109,7 +4105,6 @@ export default {
     },
     message: {
       loadFailed: 'Failed to load quality standards',
-      attachmentsFormatError: 'Attachments format error, please enter a valid JSON array',
       operationSuccess: 'Operation succeeded',
       operationFailed: 'Operation failed',
       deleteConfirm: 'Are you sure to delete this quality standard?',
@@ -6011,6 +6006,10 @@ export default {
       requestDate: 'Request Date',
       paymentType: 'Payment Type',
       requestAmount: 'Request Amount',
+      currencyLabel: 'Currency',
+      exchangeRateLabel: 'Exchange Rate',
+      exchangeRateRequired: 'Enter the exchange rate for foreign-currency payments',
+      exchangeRateHint: 'Use the rate effective on the payment date',
       bankName: 'Beneficiary Bank',
       notes: 'Notes',
       submit: 'Submit for Approval',
@@ -8844,6 +8843,7 @@ export default {
       },
       message: {
         upToDate: 'Already up to date',
+        newVersion: 'New version available: {version}',
         checkFailed: 'Failed to check for updates',
         updateSubmitted: 'Update submitted, the service will restart',
         updateFailed: 'Update failed',
@@ -8863,7 +8863,7 @@ export default {
       },
       column: {
         name: 'Name',
-        event: 'Event',
+        platform: 'Platform',
         status: 'Status',
         action: 'Action',
       },
@@ -8880,7 +8880,7 @@ export default {
         aria: 'Webhook info form',
         label: {
           name: 'Name',
-          eventType: 'Event Type',
+          platform: 'Platform',
           secret: 'Secret',
           status: 'Status',
         },
@@ -8892,12 +8892,9 @@ export default {
           confirm: 'Confirm',
         },
       },
-      event: {
-        orderCreated: 'Order Created',
-        orderUpdated: 'Order Updated',
-        inventoryChanged: 'Inventory Changed',
-        approvalCompleted: 'Approval Completed',
-        all: 'All',
+      // 取值来源：后端 webhook_integration_handler.rs 出参 platform 恒为 "GENERIC"
+      platform: {
+        GENERIC: 'Generic',
       },
       message: {
         saveSuccess: 'Saved successfully',

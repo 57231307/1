@@ -3265,8 +3265,6 @@ export default {
       versionPlaceholder: '例如：1.0',
       content: '标准内容',
       contentPlaceholder: '请输入标准内容',
-      attachments: '附件',
-      attachmentsPlaceholder: 'JSON格式数组，例如：["附件1.pdf", "附件2.docx"]',
       cancel: '取消',
       confirm: '确定',
     },
@@ -3325,11 +3323,11 @@ export default {
     standardStatus: {
       draft: '草稿',
       approved: '已审批',
-      published: '已发布',
+      active: '生效',
+      archived: '已归档',
       rejected: '已驳回',
     },
     message: {
-      attachmentsFormatError: '附件格式错误，请检查JSON格式',
       operationSuccess: '操作成功',
       operationFailed: '操作失败',
       approveSuccess: '审批成功',
@@ -3409,7 +3407,8 @@ export default {
       buttonPublish: '发布',
       statusDraft: '草稿',
       statusApproved: '已审批',
-      statusPublished: '已发布',
+      statusActive: '生效',
+      statusArchived: '已归档',
       statusRejected: '已驳回',
       typeProduct: '产品标准',
       typeProcess: '工艺标准',
@@ -4019,13 +4018,12 @@ export default {
       draft: '草稿',
       approved: '已审批',
       published: '已发布',
+      rejected: '已驳回',
       archived: '已归档',
     },
     type: {
       product: '产品标准',
       process: '工艺标准',
-      safety: '安全标准',
-      environmental: '环保标准',
     },
     table: {
       ariaLabel: '质量标准列表',
@@ -4061,8 +4059,6 @@ export default {
       versionPlaceholder: '请输入版本号',
       content: '标准内容',
       contentPlaceholder: '请输入标准内容',
-      attachments: '附件',
-      attachmentsPlaceholder: '请输入附件 JSON 数组',
       cancel: '取消',
       confirm: '确定',
     },
@@ -4075,7 +4071,6 @@ export default {
     },
     message: {
       loadFailed: '加载质量标准失败',
-      attachmentsFormatError: '附件格式错误，请输入有效的 JSON 数组',
       operationSuccess: '操作成功',
       operationFailed: '操作失败',
       deleteConfirm: '确定删除该质量标准吗？',
@@ -5835,6 +5830,10 @@ export default {
       requestDate: '申请日期',
       paymentType: '付款类型',
       requestAmount: '申请金额',
+      currencyLabel: '币种',
+      exchangeRateLabel: '汇率',
+      exchangeRateRequired: '外币付款请填写汇率',
+      exchangeRateHint: '请按付款业务发生日的折算汇率填写',
       bankName: '收款银行',
       notes: '备注',
       detailFailed: '获取付款申请详情失败',
@@ -8794,6 +8793,7 @@ export default {
       },
       message: {
         upToDate: '已是最新版本',
+        newVersion: '发现新版本 {version}',
         checkFailed: '检查更新失败',
         updateSubmitted: '更新已提交，服务将重启',
         updateFailed: '更新失败',
@@ -8813,7 +8813,7 @@ export default {
       },
       column: {
         name: '名称',
-        event: '事件',
+        platform: '平台',
         status: '状态',
         action: '操作',
       },
@@ -8830,7 +8830,7 @@ export default {
         aria: 'Webhook 信息表单',
         label: {
           name: '名称',
-          eventType: '事件类型',
+          platform: '平台',
           secret: '密钥',
           status: '状态',
         },
@@ -8842,12 +8842,9 @@ export default {
           confirm: '确定',
         },
       },
-      event: {
-        orderCreated: '订单创建',
-        orderUpdated: '订单更新',
-        inventoryChanged: '库存变动',
-        approvalCompleted: '审批完成',
-        all: '全部',
+      // 取值来源：后端 webhook_integration_handler.rs 出参 platform 恒为 "GENERIC"
+      platform: {
+        GENERIC: '通用',
       },
       message: {
         saveSuccess: '保存成功',
