@@ -306,7 +306,7 @@ mod live_pg {
                 .unwrap_or_else(|e| panic!("主行 {line_no} 插入失败: {e}"));
             for idx in 0..2 {
                 let sub_no = format!("{line_no}-{idx}");
-                make_mrp_row(sub_no)
+                make_mrp_row(sub_no.clone())
                     .insert(&txn)
                     .await
                     .unwrap_or_else(|e| panic!("子行 {sub_no} 插入失败（撞派生号）: {e}"));

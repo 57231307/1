@@ -174,7 +174,7 @@ async fn fetch_identity_row(
     batch_no: &str,
 ) -> (Option<String>, String, String, String) {
     let row = db
-        .query_one(Statement::from_sql_and_values(
+        .query_one_raw(Statement::from_sql_and_values(
             DbBackend::Sqlite,
             "SELECT color_no, color_code, color_name, dye_lot_no FROM dye_batch \
              WHERE batch_no = $1",

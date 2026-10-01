@@ -252,7 +252,7 @@ async fn live_stock_version_roundtrip_and_conflict_rejected() {
         bin_location: Set(Some("A-01-01".to_string())),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
-        batch_no: Set(format("B-W2V-{ts}")),
+        batch_no: Set(format!("B-W2V-{ts}")),
         color_no: Set("C001".to_string()),
         dye_lot_no: Set(Some("DL001".to_string())),
         grade: Set("一等品".to_string()),

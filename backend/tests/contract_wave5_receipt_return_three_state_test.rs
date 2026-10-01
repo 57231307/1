@@ -78,8 +78,8 @@ use bingxi_backend::utils::error::AppError;
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbBackend, EntityTrait, QueryFilter, Set,
-    Statement,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
+    PaginatorTrait, QueryFilter, Set, Statement,
 };
 use serde_json::{Value, json};
 use std::str::FromStr;
@@ -1225,7 +1225,8 @@ async fn live_receipt_item_update_tri_state_on_postgres() {
         unit_master: Set("米".to_string()),
         unit_price: Set(Some(dec("8.00"))),
         created_at: Set(Some(Utc::now())),
-        updated_at: Set(Some(Utc::now())),
+        // purchase_receipt_item 实体无 updated_at 列（models/purchase_receipt_item.rs
+        // 无该字段），原字面量系臆测字段，删除不影响任何断言
         ..Default::default()
     }
     .insert(&db)

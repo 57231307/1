@@ -29,12 +29,14 @@ use bingxi_backend::models::{outsourcing_order, outsourcing_voucher, purchase_or
 use bingxi_backend::services::outsourcing_service::{
     CreateOutsourcingOrderRequest, OutsourcingOrderService, UpdateOutsourcingOrderRequest,
 };
-use bingxi_backend::services::po::order::PurchaseOrderService;
 use bingxi_backend::services::po::UpdatePurchaseOrderRequest;
+use bingxi_backend::services::po::order::PurchaseOrderService;
 use bingxi_backend::utils::error::AppError;
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, EntityTrait, QueryFilter, Set,
+};
 use serde_json::json;
 use std::sync::Arc;
 

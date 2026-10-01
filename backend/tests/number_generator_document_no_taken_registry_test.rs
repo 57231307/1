@@ -29,7 +29,7 @@ use bingxi_backend::models::{
 };
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::utils::number_generator::is_document_no_taken;
-use sea_orm::EntityTrait;
+use sea_orm::{EntityName, EntityTrait};
 
 // =========================================================
 // 静态层：注册表源码 = doc_type → 实体::Column 的白名单全集

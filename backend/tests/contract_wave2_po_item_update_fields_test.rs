@@ -63,7 +63,7 @@ use bingxi_backend::models::{
     supplier, supplier_product, supplier_product_color, warehouse,
 };
 use bingxi_backend::services::po::UpdateOrderItemRequest;
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, Statement,

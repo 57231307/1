@@ -531,7 +531,7 @@ async fn waiver_requires_permission_and_records_audit() {
         .await
         .expect_err("空白放行原因必须被拒");
     assert!(
-        matches!(err, AppError::BusinessErrorDisplayable(m) if m.contains("不能为空白")),
+        matches!(err, AppError::BusinessErrorDisplayable(ref m) if m.contains("不能为空白")),
         "实际: {err:?}"
     );
 }

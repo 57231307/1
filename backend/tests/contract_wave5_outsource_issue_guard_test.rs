@@ -56,8 +56,8 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::QueryFilter;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbBackend, EntityTrait, PaginatorTrait,
-    QuerySelect, Set, Statement,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
+    PaginatorTrait, QuerySelect, Set, Statement,
 };
 use serde_json::Value;
 use std::str::FromStr;
@@ -156,7 +156,9 @@ fn unique_tag() -> i64 {
 
 /// 种一张 draft 委外订单（全部 NOT NULL 列显式赋值，活库/ sqlite 同构两用）
 async fn seed_draft_order(db: &DatabaseConnection) -> outsourcing_order::Model {
-    let now = Utc::now();
+    // outsourcing_order 时间列为 DateTimeWithTimeZone（= DateTime<FixedOffset>），
+    // 仓内惯用 `Utc::now().into()`
+    let now: chrono::DateTime<chrono::FixedOffset> = Utc::now().into();
     outsourcing_order::ActiveModel {
         order_no: Set(format!("OW-W5G-{}", unique_tag())),
         order_type: Set(outsourcing_order_type::DYEING.to_string()),
@@ -191,7 +193,8 @@ async fn seed_item(
     order_id: i32,
     piece_no: Option<&str>,
 ) -> outsourcing_order_item::Model {
-    let now = Utc::now();
+    // outsourcing_order_item 时间列为 DateTimeWithTimeZone（= DateTime<FixedOffset>）
+    let now: chrono::DateTime<chrono::FixedOffset> = Utc::now().into();
     outsourcing_order_item::ActiveModel {
         outsourcing_order_id: Set(order_id),
         product_id: Set(9001),

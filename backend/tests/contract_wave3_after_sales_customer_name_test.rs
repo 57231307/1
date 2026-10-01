@@ -102,7 +102,9 @@ async fn create_customers_table(db: &sea_orm::DatabaseConnection) {
 }
 
 async fn seed_customer(db: &sea_orm::DatabaseConnection, id: i64, name: &str) {
-    db.execute(Statement::from_sql_and_values(
+    // 预构造 Statement 执行走 execute_raw（sea-orm 2.0.2 ConnectionTrait，同仓内
+    // 已编译写法 src/utils/number_generator.rs:263）；execute(&S: StatementBuilder) 不适用
+    db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Sqlite,
         "INSERT INTO customers (id, customer_name) VALUES (?, ?)",
         vec![id.into(), name.to_string().into()],

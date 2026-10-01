@@ -86,7 +86,7 @@ use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    Order, Set, Statement,
+    Order, QueryFilter, QueryOrder, QuerySelect, Set, Statement,
 };
 use serde_json::{Value, json};
 use std::str::FromStr;

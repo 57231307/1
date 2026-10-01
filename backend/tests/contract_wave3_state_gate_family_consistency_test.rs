@@ -53,6 +53,9 @@ async fn bom_repeat_submit_gate_is_business_error_with_real_message() {
         is_deleted: Set(false),
         created_at: Set(now),
         updated_at: Set(now),
+        // id 为自增主键（models/bom.rs:40-41 #[sea_orm(primary_key)]），插入必须 Unset，
+        // 其余字段已在上方逐一显式 Set，Default 仅兜住 id
+        ..Default::default()
     }
     .insert(&db)
     .await

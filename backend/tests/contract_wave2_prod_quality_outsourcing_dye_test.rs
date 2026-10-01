@@ -34,7 +34,8 @@ use bingxi_backend::services::production_order_service::UpdateProductionOrderReq
 use bingxi_backend::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, Database, DatabaseConnection, DbBackend, EntityTrait, Set, Statement,
+    ActiveModelTrait, ConnectionTrait, Database, DatabaseConnection, DbBackend, EntityTrait, Set,
+    Statement,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -273,7 +274,9 @@ async fn create_dye_recipe_table(db: &DatabaseConnection) {
 }
 
 async fn seed_dye_recipe(db: &DatabaseConnection, recipe_no: &str) -> dye_recipe::Model {
-    let now = chrono::Utc::now().fixed();
+    // created_at/updated_at 为 DateTimeWithTimeZone（models/dye_recipe.rs:42-43，
+    // = DateTime<FixedOffset>，仓内惯用 `Utc::now().into()`，同 import_export_handler.rs:811）
+    let now: chrono::DateTime<chrono::FixedOffset> = chrono::Utc::now().into();
     let row = dye_recipe::ActiveModel {
         recipe_no: Set(recipe_no.to_string()),
         recipe_name: Set(Some("测试配方".to_string())),

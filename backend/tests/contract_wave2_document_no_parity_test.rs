@@ -289,11 +289,11 @@ fn registry_covers_frontend_checked_doc_types_with_real_columns() {
     ];
     for (doc_type, column) in expected {
         assert!(
-            gen.contains(&format!("\"{doc_type}\" =>")),
+            gen_src.contains(&format!("\"{doc_type}\" =>")),
             "注册表缺少前端查重类型 {doc_type}"
         );
         assert!(
-            gen.contains(&format!("{column}.eq(no)")),
+            gen_src.contains(&format!("{column}.eq(no)")),
             "注册表 {doc_type} 缺少真实列匹配 {column}"
         );
     }

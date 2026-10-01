@@ -323,7 +323,7 @@ async fn description_round_trips_through_put_and_get() {
 
     // DB 列真值
     assert_eq!(
-        read_back(&db, id).description.as_deref(),
+        read_back(&db, id).await.description.as_deref(),
         Some("改过之后的描述"),
         "DB description 必须真落库"
     );
@@ -389,7 +389,7 @@ async fn explicit_null_clears_expiry_and_description_and_outputs_json_null() {
     expect_key(&detail["data"], "expires_at", Value::Null, "清空后详情");
     expect_key(&detail["data"], "description", Value::Null, "清空后详情");
 
-    let row = read_back(&db, id);
+    let row = read_back(&db, id).await;
     assert!(
         row.expires_at.is_none(),
         "DB expires_at 必须为 NULL（永不过期）"
@@ -417,7 +417,7 @@ async fn invalid_expires_at_is_rejected_and_original_expiry_untouched() {
         .as_str()
         .expect("创建出参应含 expires_at 字符串")
         .to_string();
-    let original_updated_at = read_back(&db, id).updated_at;
+    let original_updated_at = read_back(&db, id).await.updated_at;
 
     for bad in ["2026-13-45", "2026-12-31 23:59:59", "", "not-a-date"] {
         let (status, v) = call(
@@ -453,7 +453,7 @@ async fn invalid_expires_at_is_rejected_and_original_expiry_untouched() {
         json!(original_expiry),
         "非法请求后的详情",
     );
-    let row = read_back(&db, id);
+    let row = read_back(&db, id).await;
     assert_eq!(
         row.expires_at.map(|d| d.timestamp()),
         Some(parse_iso(&original_expiry).timestamp()),
@@ -506,7 +506,7 @@ async fn absent_keys_keep_original_description_and_expiry() {
         "局部更新响应",
     );
 
-    let row = read_back(&db, id);
+    let row = read_back(&db, id).await;
     assert_eq!(row.description.as_deref(), Some("缺席不该被动"));
     assert_eq!(
         row.expires_at.map(|d| d.timestamp()),

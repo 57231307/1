@@ -36,7 +36,8 @@ use bingxi_backend::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, Statement, TransactionTrait,
+    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, Statement,
+    TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -414,7 +415,11 @@ fn source_scan_write_back_inside_confirm_transaction() {
         begin < call && call < commit,
         "回写入口调用必须夹在 begin({begin}) 与 commit({commit}) 之间，实际位于 {call}"
     );
-    let call_block = &src[call..src.find(".await?;", call).unwrap() + ".await?;".len()];
+    // 从 call 起截取到其后第一个 `.await?;`（str::find 无起始偏移入参，先切片再找）
+    let call_end_rel = src[call..]
+        .find(".await?;")
+        .expect("回写入口调用必须以 .await?; 结束");
+    let call_block = &src[call..call + call_end_rel + ".await?;".len()];
     assert!(
         call_block.contains("receipt.receipt_date"),
         "确认收货必须把入库单 receipt_date 真实传入回写，禁止以确认时间/当前时间顶替，实际块:\n{call_block}"
@@ -458,7 +463,7 @@ fn source_scan_write_back_propagates_errors_via_question_mark() {
 /// （`actual_delivery_date IS NOT NULL`）的事实来源，默认值兜底会污染样本。
 #[test]
 fn source_scan_migration_column_has_no_default_and_write_point_is_unique() {
-    let mig = include_str!("../../migration/src/domain/system/mod.rs").replace('\r', "");
+    let mig = include_str!("../migration/src/domain/system/mod.rs").replace('\r', "");
     let line = mig
         .lines()
         .find(|l| l.contains("\"purchase_orders\"") && l.contains("\"actual_delivery_date\""))

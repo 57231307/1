@@ -671,7 +671,7 @@ async fn ar_four_reports_on_real_db_count_only_approved() {
     // 隔离种子：固定单号前缀，先删后插（幂等可重跑）
     let seed_prefix = "W5STATUS-UNITY-";
     let seed_pattern = format!("{seed_prefix}%");
-    db.execute(Statement::from_sql_and_values(
+    db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
         "DELETE FROM ar_invoices WHERE invoice_no LIKE $1",
         vec![seed_pattern.clone().into()],
@@ -782,7 +782,7 @@ async fn ar_four_reports_on_real_db_count_only_approved() {
     assert_eq!(dec_of(&aging, "not_due"), Decimal::ZERO);
 
     // 清理，保持幂等
-    db.execute(Statement::from_sql_and_values(
+    db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
         "DELETE FROM ar_invoices WHERE invoice_no LIKE $1",
         vec![seed_pattern.into()],

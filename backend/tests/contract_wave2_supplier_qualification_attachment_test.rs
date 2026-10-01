@@ -116,7 +116,10 @@ async fn create_tables(db: &sea_orm::DatabaseConnection) {
 /// （get_supplier 数据范围语义：共享种子记录不受行级过滤）；
 /// 资质 3 属供应商 7（valid_until 远期，避免过期派生干扰）；资质 5 属供应商 7 且无附件。
 async fn seed(db: &sea_orm::DatabaseConnection) {
-    let now = Utc::now();
+    // supplier/supplier_qualification 的 created_at/updated_at 均为
+    // DateTimeWithTimeZone（= DateTime<FixedOffset>，models/supplier.rs:78,80），
+    // 用仓内惯用的 `Utc::now().into()` 构造
+    let now: chrono::DateTime<chrono::FixedOffset> = Utc::now().into();
     for sid in [7i32, 8] {
         supplier::ActiveModel {
             id: sea_orm::ActiveValue::Set(sid),

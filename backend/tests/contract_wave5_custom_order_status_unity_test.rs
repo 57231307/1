@@ -352,7 +352,7 @@ fn custom_order_all_equals_m0064_check_token_set_bidirectional() {
     // ALL ⊆ CHECK
     for token in co_status::ALL {
         assert!(
-            migration_tokens.iter().any(|t| t.as_str() == token),
+            migration_tokens.iter().any(|t| t.as_str() == *token),
             "权威模块 token「{token}」不在 m0064 CHECK 集合内：写入方将违反约束"
         );
     }
