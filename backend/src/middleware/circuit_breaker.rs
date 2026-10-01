@@ -351,7 +351,7 @@ fn circuit_detail(route_key: &str, entry: &CircuitEntry) -> String {
 }
 
 /// 表锁获取失败的原因分类（不把两种完全不同的故障混成一条日志）
-fn describe_lock_error(e: &TryLockError) -> &'static str {
+fn describe_lock_error<T>(e: &TryLockError<T>) -> &'static str {
     match e {
         TryLockError::WouldBlock => "锁被其他请求持有（非阻塞获取失败）",
         TryLockError::Poisoned(_) => "持锁线程 panic 导致锁中毒",

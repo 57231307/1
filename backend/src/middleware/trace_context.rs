@@ -27,7 +27,7 @@ use axum::{
     extract::Request,
     http::{HeaderName, HeaderValue},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use std::any::Any;
 use std::future::Future;
@@ -261,7 +261,6 @@ pub async fn catch_panic_middleware(request: Request<Body>, next: Next) -> Respo
                 panic_reason = %reason,
                 trace_id = %trace_id,
                 trace_source = ?trace_source,
-                current_span = %tracing::Span::current(),
                 "panic.captured：请求处理链抛出 panic，已捕获并转成 AppError 信封（500 + code + trace_id），\
                  panic 点的源码行号由 Rust 默认 panic hook 输出到进程 stderr"
             );
