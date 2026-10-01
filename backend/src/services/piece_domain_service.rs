@@ -138,14 +138,11 @@ pub async fn create_greige_pieces_from_report<C: ConnectionTrait>(
     Ok(created)
 }
 
-/// 委外回仓入库生成匹记录（染色匹 + 缸号；净布工艺为无缸号的胚布匹）
-///
-/// - 染色外发（订单有 dye_lot_no/dye_batch_id）：回仓必须携带缸号，生成染色匹
-/// - 净布外发（订单无缸号信息）：生成无缸号胚布匹，允许入成品仓（净布豁免）
-#[allow(clippy::too_many_arguments)]
 /// 匹号领域二期：外发发料前匹号校验
 ///
 /// 染色/印花外发（piece_no 语义单据）发料时，明细必须引用真实存在且可用的生产匹：
+/// - 明细集合为空 → 拒绝（逐条校验对空集合 = 0 次校验，整单放行即"空单也能推进
+///   issued 并生成发料凭证"的静默数据完整性漏洞，必须在入口显式拒绝）
 /// - piece_no 为空 → 拒绝（外发发料必须精确到匹）
 /// - 匹不存在 → 拒绝（防止引用虚构匹号导致回仓对不上账）
 /// - 匹状态非可用（已预留/已发货/缺陷/不可用）→ 拒绝
@@ -155,6 +152,16 @@ pub async fn validate_pieces_for_issue<C: ConnectionTrait>(
 ) -> Result<(), AppError> {
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use std::collections::HashMap;
+
+    // 门控是逐条明细校验，空集合会完成 0 次校验直接 Ok——调用方（委外发料）
+    // 随后就会推进状态并落发料凭证。域规则"发料精确到匹"蕴含"至少存在一条
+    // 明细"，故空明细是业务规则违反，显式拒绝（公开规则文案，无内部标识，
+    // 可外显；不含记录 ID）。
+    if items.is_empty() {
+        return Err(AppError::business_displayable(
+            "委外订单没有发料明细，无法发料；发料必须精确到匹，请先登记发料明细",
+        ));
+    }
 
     let piece_nos: Vec<String> = items
         .iter()
@@ -212,6 +219,10 @@ pub struct OutsourcingReceiptPieceContext<'a> {
     pub remarks: &'a str,
 }
 
+/// 委外回仓入库生成匹记录（染色匹 + 缸号；净布工艺为无缸号的胚布匹）
+///
+/// - 染色外发（订单有 dye_lot_no/dye_batch_id）：回仓必须携带缸号，生成染色匹
+/// - 净布外发（订单无缸号信息）：生成无缸号胚布匹，允许入成品仓（净布豁免）
 pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
     db: &C,
     ctx: OutsourcingReceiptPieceContext<'_>,
