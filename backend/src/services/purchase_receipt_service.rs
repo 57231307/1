@@ -24,6 +24,7 @@ use crate::models::{purchase_receipt, purchase_receipt_item, status};
 use crate::services::purchase_receipt_dto::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest,
 };
+use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{DatabaseConnection, Set};
 use std::sync::Arc;
@@ -55,6 +56,55 @@ impl PurchaseReceiptService {
     // =====================================================
     // 纯函数（无 &self / &db 访问）：保留在 facade，`pub(crate)` 供 ops 子模块调用
     // =====================================================
+
+    /// 质检门控唯一判定入口（「合格方可入库/结算」）：采购收货单 `inspection_status`
+    /// 能否进入库存写入与结算流转，仅此一处判定；确认入库
+    /// （`purchase_receipt_ops::state::confirm_receipt`）与应付结算
+    /// （`ap_invoice_ops::receipt::find_receipt_and_check_exists`）复用本函数，不得另写第二套比较。
+    ///
+    /// 裁定：每一张收货单都必须先有质检结论回写才允许入库/结算，依据（实地取证）：
+    /// - 词表 `purchase_receipt_inspection` 全集只有三态（models/status/purchase_inventory.rs），
+    ///   且 PASSED 的定义语义就是「质检合格：允许后续入库/结算流转」，PENDING 是「待检验」；
+    /// - 生产 DDL（migration m0009）该列 `VARCHAR(20) NOT NULL DEFAULT 'PENDING'`，建单固定
+    ///   置 PENDING（`build_receipt_active_model`）——不存在"免检收货"的第四态/NULL 形态，
+    ///   全仓也不存在按品类/配置豁免质检的开关（检索 免检/需质检/inspection_required/
+    ///   need_inspection 零命中）；化料/验布等其它检验域写的是各自表的各自列，不改变本列语义；
+    /// - 本列离开 PENDING 的唯一途径是采购质检完成回写（`to_receipt_inspection_status`）
+    ///   或通用质检记录回写（`from_inspection_result`），两条回写都可按 receipt_id 关联任意收货单。
+    ///   因此 PENDING 必须拒绝——放行 PENDING 等于门控形同虚设（绝大多数新建收货单恒为 PENDING）。
+    ///
+    /// NULL 分支说明：列 NOT NULL、实体字段为 `String`（非 `Option<String>`），NULL 在类型层
+    /// 不可达；若历史/坏数据出现词表外取值，fail-closed 走脱敏 `business` 报数据完整性问题，
+    /// 绝不静默放行。错误文案按公开业务规则外显（`business_displayable`），不含单号——
+    /// 入口界面已携带单据上下文，文案保持稳定可预期。
+    ///
+    /// `action` 为业务动作文案变量（"确认入库"/"生成应付结算"），仅参与句式拼接，
+    /// 门控判定本身与动作无关。
+    pub(crate) fn ensure_receipt_inspection_allows_flow(
+        receipt: &purchase_receipt::Model,
+        action: &str,
+    ) -> Result<(), AppError> {
+        let inspection = receipt.inspection_status.as_str();
+        if inspection == status::purchase_receipt_inspection::PASSED {
+            return Ok(());
+        }
+        if inspection == status::purchase_receipt_inspection::REJECTED {
+            return Err(AppError::business_displayable(format!(
+                "质检不合格的收货单不能{action}，请先处理不合格品"
+            )));
+        }
+        if inspection == status::purchase_receipt_inspection::PENDING {
+            return Err(AppError::business_displayable(format!(
+                "收货单质检尚未完成，只有质检合格的收货单才能{action}，请先完成质检并录入结论"
+            )));
+        }
+        // 词表外取值只能来自坏数据/历史遗留：按数据完整性问题整单拒绝（脱敏族，
+        // 与既有状态门控 `lock_and_validate_receipt_txn` 的 business 口径一致），不猜测归类
+        Err(AppError::business(format!(
+            "入库单 {} 的检验状态「{inspection}」不在词表内（PENDING/PASSED/REJECTED），无法判定入库资格，需人工核查数据",
+            receipt.receipt_no
+        )))
+    }
 
     /// 构建入库单主表 ActiveModel（String 字段 clone 避免移动 req）（`pub(crate)`：crud 子模块的 `create_receipt` 调用。）
     pub(crate) fn build_receipt_active_model(
@@ -169,5 +219,117 @@ impl PurchaseReceiptService {
         active.updated_by = Set(Some(user_id));
         active.updated_at = Set(now);
         active
+    }
+}
+
+#[cfg(test)]
+mod inspection_gate_tests {
+    //! 「合格方可入库/结算」门控判定矩阵（真实生产入口
+    //! `ensure_receipt_inspection_allows_flow`，非复刻实现）。
+    //! 端到端零漂移/顺序由 backend/tests/contract_wave6_receipt_gate_test.rs 钉住。
+
+    use super::*;
+    use crate::models::status::purchase_inventory::purchase_receipt_inspection;
+    use crate::utils::error::AppError;
+
+    fn receipt_with_inspection(inspection_status: &str) -> purchase_receipt::Model {
+        let now = chrono::Utc::now();
+        purchase_receipt::Model {
+            id: 1,
+            receipt_no: "GR-GATE-TEST-001".to_string(),
+            order_id: None,
+            supplier_id: 1,
+            receipt_date: chrono::NaiveDate::from_ymd_opt(2026, 9, 1).unwrap(),
+            warehouse_id: 1,
+            department_id: None,
+            receiver_id: None,
+            inspector_id: None,
+            inspection_status: inspection_status.to_string(),
+            receipt_status: status::purchase_receipt::DRAFT.to_string(),
+            total_quantity: Decimal::ZERO,
+            total_quantity_alt: Decimal::ZERO,
+            total_amount: Decimal::ZERO,
+            notes: None,
+            attachment_urls: None,
+            created_by: 1,
+            created_at: now,
+            updated_by: None,
+            updated_at: now,
+            confirmed_at: None,
+            confirmed_by: None,
+        }
+    }
+
+    #[test]
+    fn only_passed_allows_flow() {
+        // 词表全集逐字符判定：ALL 中仅 PASSED 放行（PENDING/REJECTED 均拒）
+        for token in purchase_receipt_inspection::ALL {
+            let receipt = receipt_with_inspection(token);
+            let result =
+                PurchaseReceiptService::ensure_receipt_inspection_allows_flow(&receipt, "确认入库");
+            assert_eq!(
+                result.is_ok(),
+                *token == purchase_receipt_inspection::PASSED,
+                "词表取值 {token:?} 的放行判定必须与「仅 PASSED 放行」口径一致"
+            );
+        }
+    }
+
+    #[test]
+    fn rejected_message_is_exact_and_displayable() {
+        let receipt = receipt_with_inspection(purchase_receipt_inspection::REJECTED);
+        let err =
+            PurchaseReceiptService::ensure_receipt_inspection_allows_flow(&receipt, "确认入库")
+                .expect_err("REJECTED 必须拒绝");
+        assert!(
+            matches!(&err, AppError::BusinessErrorDisplayable(_)),
+            "公开业务规则必须外显族，实际: {err:?}"
+        );
+        let body = err.to_response();
+        assert_eq!(body.code, "BUSINESS_ERROR");
+        assert_eq!(
+            body.message, "质检不合格的收货单不能确认入库，请先处理不合格品",
+            "确认入库入口的 REJECTED 文案必须与裁定原文逐字符一致（不含单号，走 displayable）"
+        );
+    }
+
+    #[test]
+    fn pending_is_rejected_with_actionable_message() {
+        // 裁定：每单必经质检（判定依据见 ensure_receipt_inspection_allows_flow 文档注释），
+        // PENDING（质检未完成）放行等于门控形同虚设，必须拒绝且文案给出可行动路径
+        let receipt = receipt_with_inspection(purchase_receipt_inspection::PENDING);
+        let err =
+            PurchaseReceiptService::ensure_receipt_inspection_allows_flow(&receipt, "确认入库")
+                .expect_err("PENDING 必须拒绝");
+        let body = err.to_response();
+        assert_eq!(body.code, "BUSINESS_ERROR");
+        assert!(
+            body.message.contains("质检尚未完成") && body.message.contains("完成质检"),
+            "PENDING 拒绝文案必须说明原因与行动路径，实际: {}",
+            body.message
+        );
+    }
+
+    #[test]
+    fn outside_vocabulary_fails_closed_masked() {
+        // 列 NOT NULL、NULL 在类型层不可达；词表外坏值（如历史中文 token）fail-closed：
+        // 按数据完整性问题脱敏拒绝（business），绝不静默放行、也不外显坏数据原文
+        for bad in ["待检", "passed", "INSPECTING", ""] {
+            let receipt = receipt_with_inspection(bad);
+            let err =
+                PurchaseReceiptService::ensure_receipt_inspection_allows_flow(&receipt, "确认入库")
+                    .expect_err("词表外取值必须 fail-closed 拒绝");
+            assert!(
+                matches!(&err, AppError::BusinessError(_)),
+                "词表外 {bad:?} 必须走脱敏 business（数据完整性问题），实际: {err:?}"
+            );
+            let body = err.to_response();
+            assert_eq!(body.code, "BUSINESS_ERROR");
+            assert!(
+                !body.message.contains(bad) || bad.is_empty(),
+                "脱敏出参不得回显词表外原值 {bad:?}，实际: {}",
+                body.message
+            );
+        }
     }
 }
