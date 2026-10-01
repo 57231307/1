@@ -79,7 +79,7 @@ async fn bom_repeat_submit_gate_is_business_error_with_real_message() {
         "出参必须外显真实拒绝原因，不得回潮脱敏常量"
     );
     assert_eq!(
-        err.to_response().status,
+        <AppError as axum::response::IntoResponse>::into_response(err.clone()).status(),
         axum::http::StatusCode::BAD_REQUEST
     );
 }
