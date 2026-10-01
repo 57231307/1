@@ -147,7 +147,11 @@ export interface PurchaseReceiptItem {
  * ReceiptQueryParams（list_receipts :26-40 仅透传这五键），无 rename_all → snake_case。
  * keyword / warehouse_id / receipt_date_from / receipt_date_to 后端根本不接收
  * （serde 反序列化后无消费点，发出即整体丢弃，筛选恒无效）——已从前端契约摘除，
- * 不再伪装可筛；该四项属后端列表功能缺口，修复派单见交付报告，禁止用前端本地过滤假装有效。
+ * 不再伪装可筛；该四项曾属后端列表功能缺口，后端已补齐（purchase_receipt_handler.rs:397-425
+ * + purchase_receipt_ops/query.rs:64-128：keyword 模糊匹配单号与明细物料名、
+ * warehouse_id 等值、receipt_date_from/to 严格 YYYY-MM-DD 且含首尾）。
+ * 本类型暂不预先加回这四个键——当前无任何调用方使用它们（唯一消费者
+ * usePi.ts:177 只取 page/page_size），等列表筛选 UI 真正接入时再按上述语义加键。
  */
 export interface PurchaseReceiptQueryParams {
   page?: number;

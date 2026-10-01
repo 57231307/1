@@ -18,6 +18,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use chrono::NaiveDate;
 use sea_orm::EntityTrait;
 use serde::Deserialize;
 use validator::Validate;
@@ -36,6 +37,10 @@ pub async fn list_receipts(
             params.status,
             params.supplier_id,
             params.order_id,
+            params.keyword,
+            params.warehouse_id,
+            parse_receipt_date_param(params.receipt_date_from.as_deref(), "receipt_date_from")?,
+            parse_receipt_date_param(params.receipt_date_to.as_deref(), "receipt_date_to")?,
         )
         .await?;
 
@@ -370,6 +375,25 @@ pub async fn recalculate_receipt_total(
 // 请求 DTO
 // =====================================================
 
+/// 日期查询参数按 `%Y-%m-%d` 严格解析（本仓同款惯例：
+/// `budget_management_handler.rs:408-409`、`tracking_handler.rs:235-247`）。
+/// 为什么不把 DTO 字段直接写成 `Option<NaiveDate>`：`axum::Query` 的类型化反序列化
+/// 失败走 QueryRejection，出参是纯文本 400、不经过 `AppError` 信封（本仓未覆盖
+/// Rejection 响应，见 `handlers_query_param_coercion_test.rs` 对拒绝体的文本断言），
+/// 会违背「字段取值错误 = VALIDATION_ERROR 信封」裁定
+/// （先例：`contract_wave4_api_key_echo_and_expiry_test.rs` 非法日期断言
+/// `code=VALIDATION_ERROR` + 真实文案外显）。
+fn parse_receipt_date_param(raw: Option<&str>, field: &str) -> Result<Option<NaiveDate>, AppError> {
+    raw.map(|v| {
+        NaiveDate::parse_from_str(v, "%Y-%m-%d").map_err(|e| {
+            AppError::validation_displayable(format!(
+                "{field} 日期格式无效（应为 YYYY-MM-DD）：{e}"
+            ))
+        })
+    })
+    .transpose()
+}
+
 /// 采购入库单查询参数
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -379,4 +403,23 @@ pub struct ReceiptQueryParams {
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
     pub order_id: Option<i32>,
+    /// 关键字：匹配入库单号或明细物料名（purchase_receipt_item.material_name）
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
+    pub keyword: Option<String>,
+    pub warehouse_id: Option<i32>,
+    /// 入库日期区间下界（YYYY-MM-DD，含当日）
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
+    pub receipt_date_from: Option<String>,
+    /// 入库日期区间上界（YYYY-MM-DD，含当日）
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
+    pub receipt_date_to: Option<String>,
 }
