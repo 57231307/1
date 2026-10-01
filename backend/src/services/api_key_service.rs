@@ -1,8 +1,10 @@
 use crate::models::api_key::{self, ActiveModel as ApiKeyActiveModel, Entity as ApiKey};
+use crate::models::user;
 use crate::utils::cache::{AppCache, Cache};
 use crate::utils::error::AppError;
 use crate::utils::random;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
+use sea_orm::FromQueryResult;
 use sea_orm::*;
 use std::time::Duration;
 
@@ -15,12 +17,58 @@ const API_KEY_BLACKLIST_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 /// 黑名单缓存键前缀
 pub const API_KEY_BLACKLIST_PREFIX: &str = "apikey:revoked:";
 
+/// 读侧视图对象：`api_keys` 全列 + LEFT JOIN `users` 派生列 `created_by_name`。
+///
+/// 派生列声明 `Option<String>` 是因为 LEFT JOIN 在 `created_by` 为 NULL（历史数据）
+/// 或用户行缺失（删档/悬挂引用）时产 NULL——忠实反映可空性，禁止以 id、空串或
+/// "未知" 等拼装假名填充（范式来源：`services/custom_order_aftersales_service.rs`
+/// 的 `customer_name` 富化链路，提交 13f6bd09）。
+#[derive(Debug, Clone, PartialEq, FromQueryResult)]
+pub struct ApiKeyWithCreator {
+    pub id: i32,
+    pub name: String,
+    pub key_hash: String,
+    pub key_prefix: String,
+    pub permissions: Option<String>,
+    pub rate_limit_per_minute: i32,
+    pub last_used_at: Option<DateTime<Utc>>,
+    /// NULL = 永不过期（列真值，出参不得塌成空串）
+    pub expires_at: Option<DateTime<Utc>>,
+    pub is_active: bool,
+    pub created_by: Option<i32>,
+    /// NULL = 未填描述（列真值，出参不得塌成空串）
+    pub description: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    /// `users.username`：由 `select_with_creator()` 的 LEFT JOIN 提供唯一来源
+    pub created_by_name: Option<String>,
+}
+
+/// `api_keys.created_by` → `users.id` 的关联定义（就地构造）。
+///
+/// `models/api_key.rs::Relation` 是空枚举（模型文件不在本次改动范围），按本仓
+/// `services/inv/inventory_move.rs` 先例用 `Entity::belongs_to` 就地构造，不改实体。
+fn creator_relation() -> RelationDef {
+    ApiKey::belongs_to(user::Entity)
+        .from(api_key::Column::CreatedBy)
+        .to(user::Column::Id)
+        .into()
+}
+
+/// api_keys 读侧唯一富化链路：全列 + `column_as(users.username, "created_by_name")`
+/// + `JoinType::LeftJoin`。列表 / 详情 / 写后回读必须共用本函数，保证三端同源。
+pub fn select_with_creator() -> Select<api_key::Entity> {
+    ApiKey::find()
+        .column_as(user::Column::Username, "created_by_name")
+        .join(JoinType::LeftJoin, creator_relation())
+}
+
 /// 更新 API 密钥参数对象（批次 413 技术债务清理：引入参数对象消除 update_api_key 的 too_many_arguments 警告。；聚合更新 API 密钥所需的全部可选字段，避免函数签名携带 7 个参数。）
 #[derive(Debug, Clone)]
 pub struct UpdateApiKeyPayload {
     /// API 密钥 ID
     pub id: i32,
-    /// 密钥名称
+    /// 密钥名称（None=保持原值）
     pub name: Option<String>,
     /// 权限列表（JSON 字符串）
     pub permissions: Option<String>,
@@ -30,8 +78,8 @@ pub struct UpdateApiKeyPayload {
     pub expires_at: Option<Option<chrono::DateTime<chrono::Utc>>>,
     /// 是否启用
     pub is_active: Option<bool>,
-    /// 描述
-    pub description: Option<String>,
+    /// 描述（三态：None=保持原值，Some(None)=清空为 NULL，Some(Some(v))=覆盖）
+    pub description: Option<Option<String>>,
 }
 
 impl ApiKeyService {
@@ -48,19 +96,25 @@ impl ApiKeyService {
     }
 
     /// 创建 API 密钥（批次 112 P1-9：新增 created_by 参数，注入真实创建者 user_id（原表无此列，handler 传 0 占位））
+    ///
+    /// 契约收口（本轮）：
+    /// - `description` 真实落库（此前创建链路根本不接收该字段，用户填了被静默丢弃）；
+    /// - `expires_at` 改为接收 handler 精确解析后的绝对时刻（原 `expires_days` 由
+    ///   `now + days` 反算，会把用户选的精确到期时间改写成一个近似值，且解析失败
+    ///   被 `.ok()` 吞成"永不过期"）。NULL = 永不过期。
     pub async fn create_api_key(
         &self,
         name: &str,
+        description: Option<&str>,
         permissions: Option<&str>,
         rate_limit: i32,
-        expires_days: Option<i64>,
+        expires_at: Option<DateTime<Utc>>,
         created_by: i32,
     ) -> Result<(api_key::Model, String), AppError> {
         let plain_key = Self::generate_api_key();
         let key_hash = Self::hash_api_key(&plain_key);
         let key_prefix = plain_key[..8].to_string();
 
-        let expires_at = expires_days.map(|days| Utc::now() + chrono::Duration::days(days));
         let now = Utc::now();
 
         let active_model = ApiKeyActiveModel {
@@ -74,6 +128,8 @@ impl ApiKeyService {
             is_active: Set(true),
             // 批次 112 P1-9：持久化真实创建者 user_id
             created_by: Set(Some(created_by)),
+            // 契约收口：创建即写入真实描述（NULL = 用户未填）
+            description: Set(description.map(|s| s.to_string())),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -126,8 +182,25 @@ impl ApiKeyService {
             .map_err(AppError::from)
     }
 
+    /// 按 ID 回读「密钥行 + 真实创建者用户名」（`created_by_name`）。
+    ///
+    /// 列表（`select_with_creator()` 直接分页）、详情、以及 create/update/regenerate
+    /// 写后出参必须全部经本链路，`created_by_name` 只允许来自 LEFT JOIN 真值；
+    /// 用户行缺失时如实为 NULL（禁止在构造点填空串或拼装名）。
+    pub async fn get_api_key_with_creator(
+        &self,
+        id: i32,
+    ) -> Result<Option<ApiKeyWithCreator>, AppError> {
+        select_with_creator()
+            .filter(api_key::Column::Id.eq(id))
+            .into_model::<ApiKeyWithCreator>()
+            .one(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
+    }
+
     /// 更新 API 密钥（批次 91 P0-1）
-    /// 仅更新传入的字段，未传入的字段保持不变。；批次 158 v11 真实接入：新增 description 参数持久化（原 #[allow(dead_code)] 移除）；批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `UpdateApiKeyPayload`，；消除 `clippy::too_many_arguments` 警告。
+    /// 仅更新传入的字段，未传入的字段保持不变。；批次 158 v11 真实接入：新增 description 参数持久化（原 #[allow(dead_code)] 移除）；批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `UpdateApiKeyPayload`，；消除 `clippy::too_many_arguments` 警告。；本轮契约收口：`expires_at` / `description` 均为 `Option<Option<T>>` 三态——；键缺席=保持原值、显式 null=落 NULL（永不过期 / 清空描述）、有值=覆盖。
     pub async fn update_api_key(
         &self,
         payload: UpdateApiKeyPayload,
@@ -153,9 +226,10 @@ impl ApiKeyService {
         if let Some(is_active) = payload.is_active {
             active_model.is_active = Set(is_active);
         }
-        // 批次 158 v11 真实接入：description 字段持久化
-        if let Some(desc) = payload.description {
-            active_model.description = Set(Some(desc));
+        // 三态清空语义（对齐 RFC 7386 与本仓 double_option 范式）：
+        // 外层 None=键缺席不动列；Some(None)=显式 null → 落 NULL；Some(Some(v))=覆盖
+        if let Some(description) = payload.description {
+            active_model.description = Set(description);
         }
         active_model.updated_at = Set(Utc::now());
 

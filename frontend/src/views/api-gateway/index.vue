@@ -42,6 +42,7 @@
           @fetch="key.fetchKeys"
           @new-key="key.openKeyDialog()"
           @view-key="key.viewKeyDetail"
+          @edit-key="key.openKeyDialog"
           @toggle-key="key.handleToggleKey"
           @delete-key="key.handleDeleteKey"
           @update:query-params="(v: ApiKeyQuery) => Object.assign(key.keyQuery, v)"

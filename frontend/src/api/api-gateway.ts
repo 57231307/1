@@ -85,26 +85,38 @@ export interface ApiLog {
   created_at: string;
 }
 
+/**
+ * API 密钥出参（唯一真相：api_gateway_handler::key_to_json，
+ * 数据源为 services/api_key_service::ApiKeyWithCreator —— api_keys 全列 +
+ * LEFT JOIN users 派生列）。
+ *
+ * 可空列一律 `string | null`，null 是后端列真值，不是"取不到值的空白"：
+ * - `description`：api_keys.description 可空列，null = 未填/已清空；
+ * - `expires_at`：null = 永不过期（列 NULL），与脏值可区分；
+ * - `created_by_name`：读侧 `column_as(users.username) + LeftJoin` 富化的真实用户名，
+ *   创建者用户行缺失（悬挂 created_by）时为 null；
+ * - `last_used_at`：null = 从未使用。
+ */
 export interface ApiKey {
   id: number;
   key_name: string;
   api_key: string;
-  description: string;
+  description: string | null;
   permissions: string[];
   rate_limit: number;
-  expires_at: string;
+  expires_at: string | null;
   status: 'active' | 'inactive' | 'expired';
   created_by: number;
-  created_by_name: string;
+  created_by_name: string | null;
   created_at: string;
-  last_used_at: string;
+  last_used_at: string | null;
 }
 
 /**
  * API 网关三个列表端点（/api-gateway/endpoints|logs|keys GET）共用的查询参数。
  * 对应后端 api_gateway_handler::ApiGwQuery（backend/src/handlers/api_gateway_handler.rs:62），
  * 无 rename_all → snake_case，全 Option → 可选。
- * 后端不读 order_by/order_dir/supplier_name/... （原 QueryParams 键被 Axum 静默丢弃）。
+ * 后端不读 order_by/order_dir/supplier_name/... （ApiGwQuery 之外的未知键不参与反序列化，被忽略）。
  */
 export interface ApiGwQueryParams {
   page?: number;
@@ -157,27 +169,33 @@ export function getApiKey(id: number): Promise<ApiResponse<ApiKey>> {
 
 /**
  * POST /api-gateway/keys 载荷（唯一真相：api_gateway_handler::CreateApiKeyGwRequest）。
- * key_name 为非 Option 必填（缺失 serde 422）；后端创建 DTO 无 description/status 字段
- * （description 仅更新 DTO 有，创建传了会被静默丢弃——后端缺口已登记串行清单）。
- * expires_at 为 ISO 8601 字符串；空值必须省略该键（后端按解析失败处理会清掉有效期语义）。
+ * key_name 必填（缺失 serde 422）；`description` 与 `expires_at` 真实落库
+ * （description → api_keys.description 可空列；expires_at → 绝对到期时刻，不再反算天数）。
+ * 未采集时可省略该键或显式送 null（两者都落 NULL）；`expires_at` 有值但格式非法 →
+ * 400 VALIDATION_ERROR 并外显原因，不会被当成"永不过期"。
  */
 export interface CreateApiKeyRequest {
   key_name: string;
+  description?: string | null;
   permissions?: string[];
   rate_limit?: number;
-  expires_at?: string;
+  expires_at?: string | null;
 }
 
 /**
- * PUT /api-gateway/keys/{id} 载荷（唯一真相：UpdateApiKeyGwRequest，全字段 Option）；
+ * PUT /api-gateway/keys/{id} 载荷（唯一真相：UpdateApiKeyGwRequest）。
+ * `description` / `expires_at` 为显式三态（后端 double_option 适配器 + RFC 7386 口径）：
+ * - 省略该键 = 保持原值（如「启用/停用」只送 status）；
+ * - 显式 `null` = 清空：description → NULL，expires_at → 永不过期；
+ * - 有值 = 覆盖；`expires_at` 须为 ISO 8601，格式非法 → 400 VALIDATION_ERROR（外显原因）。
  * status 后端仅识别 'active'（其余值 → inactive）。
  */
 export interface UpdateApiKeyRequest {
   key_name?: string;
-  description?: string;
+  description?: string | null;
   permissions?: string[];
   rate_limit?: number;
-  expires_at?: string;
+  expires_at?: string | null;
   status?: ApiKey['status'];
 }
 

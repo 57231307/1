@@ -54,11 +54,21 @@
           >
         </template>
       </el-table-column>
-      <el-table-column
-        prop="expires_at"
-        :label="t('apiGateway.keyTab.columnExpiresAt')"
-        width="160"
-      />
+      <el-table-column :label="t('apiGateway.keyTab.columnDescription')" min-width="160">
+        <!-- description 是后端可空列真值：null 用占位符表达"未填"，不冒充空串 -->
+        <template #default="{ row }">{{ row.description ?? '-' }}</template>
+      </el-table-column>
+      <el-table-column :label="t('apiGateway.keyTab.columnCreator')" width="140">
+        <!-- created_by_name 由后端读侧 LEFT JOIN users 富化；null = 创建者用户行缺失 -->
+        <template #default="{ row }">{{ row.created_by_name ?? '-' }}</template>
+      </el-table-column>
+      <el-table-column :label="t('apiGateway.keyTab.columnExpiresAt')" width="200">
+        <template #default="{ row }">
+          <!-- expires_at === null 是列真值（永不过期），必须显式文案而非空白 -->
+          <span v-if="row.expires_at === null">{{ t('apiGateway.keyTab.neverExpires') }}</span>
+          <span v-else>{{ row.expires_at }}</span>
+        </template>
+      </el-table-column>
       <el-table-column
         prop="status"
         :label="t('apiGateway.keyTab.columnStatus')"
@@ -71,13 +81,20 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column
-        prop="last_used_at"
-        :label="t('apiGateway.keyTab.columnLastUsed')"
-        width="160"
-      />
-      <el-table-column :label="t('apiGateway.keyTab.columnOperation')" width="200" fixed="right">
+      <el-table-column :label="t('apiGateway.keyTab.columnLastUsed')" width="200">
+        <template #default="{ row }">{{ row.last_used_at ?? '-' }}</template>
+      </el-table-column>
+      <el-table-column :label="t('apiGateway.keyTab.columnOperation')" width="240" fixed="right">
         <template #default="{ row }">
+          <el-button
+            v-permission="'api_key:update'"
+            type="primary"
+            link
+            size="small"
+            @click="emit('edit-key', row)"
+          >
+            {{ t('apiGateway.keyTab.edit') }}
+          </el-button>
           <el-button
             v-permission="'api_key:update'"
             type="warning"
@@ -147,6 +164,9 @@ const emit = defineEmits<{
   'update:page-size': [value: number];
   'new-key': [];
   'view-key': [row: ApiKey];
+  // wave4：编辑入口（旧形态只有「查看/停用/删除」，编辑对话框无法被打开，
+  // description/expires_at 回显契约在 UI 上根本走不到）
+  'edit-key': [row: ApiKey];
   'toggle-key': [row: ApiKey];
   'delete-key': [row: ApiKey];
   'update:queryParams': [value: ApiKeyQuery];

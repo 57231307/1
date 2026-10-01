@@ -2,7 +2,8 @@
   KeyForm.vue - API 密钥新建/编辑对话框
   拆分自 api-gateway/index.vue（P14 批 1 B3 I-2）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
-  行为完全保持一致（仅结构重构）
+  wave4 契约收口：description / expires_at 按后端可空列真值回显（null 不冒充空串），
+  过期时间以 unix 秒承载、提交时转 ISO 8601。
 -->
 <template>
   <el-dialog
@@ -29,9 +30,11 @@
         />
       </el-form-item>
       <el-form-item :label="t('apiGateway.keyForm.description')" prop="description">
+        <!-- 后端可空列回显：null（未填/已清空）在文本域里就是空文本；提交时空文本转显式 null -->
         <el-input
           :model-value="localForm.description ?? ''"
           type="textarea"
+          :aria-label="t('apiGateway.keyForm.description')"
           :rows="3"
           :placeholder="t('apiGateway.keyForm.descriptionPlaceholder')"
           @update:model-value="(v: string) => (localForm.description = v ?? '')"
@@ -57,12 +60,18 @@
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('apiGateway.keyForm.expiresAt')" prop="expires_at">
+            <!-- value-format="X"：表单模型持 unix 秒（number），提交时转 ISO 8601 送后端；
+                 清空选择器 → null → 载荷显式送 null（后端落 NULL = 永不过期）。
+                 模型里的 null 在绑定处转 undefined（el-date-picker 的 value 类型不含 null，
+                 语义不变：输入框为空 = 未填/已清空） -->
             <el-date-picker
-              :model-value="localForm.expires_at"
+              :model-value="localForm.expires_at ?? undefined"
               type="datetime"
+              value-format="X"
+              :aria-label="t('apiGateway.keyForm.expiresAt')"
               :placeholder="t('apiGateway.keyForm.expiresAtPlaceholder')"
               style="width: 100%"
-              @update:model-value="(v: string) => (localForm.expires_at = v ?? '')"
+              @update:model-value="(v: number | null) => (localForm.expires_at = v ?? null)"
             />
           </el-form-item>
         </el-col>
@@ -83,7 +92,7 @@
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { ApiKey } from '@/api/api-gateway';
+import type { ApiKeyFormValues } from '../composables/useApiKey';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -98,8 +107,8 @@ const props = defineProps<{
   visible: boolean;
   // 表单实例（批次 281：改为可选，通过 v-model:formRef 双向同步）
   formRef?: FormInstance | undefined;
-  // 表单数据（由父组件管理，子组件通过 emit 回写）
-  form?: Partial<ApiKey>;
+  // 表单数据（由父组件管理，子组件通过 emit 回写；可空列以 null 表达"未填/已清空"）
+  form?: Partial<ApiKeyFormValues>;
   // 提交中状态
   submitLoading: boolean;
   // 校验规则
@@ -114,12 +123,12 @@ const emit = defineEmits<{
   'update:formRef': [value: FormInstance | undefined];
   'update:permissionsText': [v: string];
   // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
-  'update:form': [form: Partial<ApiKey>];
+  'update:form': [form: Partial<ApiKeyFormValues>];
   submit: [];
 }>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<Partial<ApiKey>>({ ...(props.form ?? {}) });
+const localForm = ref<Partial<ApiKeyFormValues>>({ ...(props.form ?? {}) });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false;
