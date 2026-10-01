@@ -6,10 +6,25 @@ export interface CostCollection {
   collection_date: string;
   batch_no?: string;
   color_no?: string;
-  direct_material: number;
-  direct_labor: number;
-  manufacturing_overhead: number;
-  total_cost?: number;
+  /**
+   * 六项金额列后端均为 rust_decimal::Decimal（models/cost_collection.rs:24-30，
+   * NOT NULL 无 Option），且本仓 rust_decimal 仅启用 `serde` 特性
+   * （backend/Cargo.toml:60 `features = ["serde"]`，未开 serde-with-float /
+   * serialize-bigdecimal-as-plain 之外的数值化特性）→ JSON 序列化为**十进制字符串**。
+   * 此前声明为 number 属谎报（直接 .toFixed/参与 + 运算会崩溃或变字符串拼接）。
+   * 按本仓 H1/H2/H3 先例（commit a08731f7 / 1fd1355c / 4e670fe2）定型为
+   * string | number，真实数值消费点在调用侧 Number() 归一
+   * （views/cost/tabs/CostCollectionTab.vue:93-117 列表展示、:506-520 编辑回填）。
+   * processing_fee/dyeing_fee 为后端模型 :27-28 非 Option 列（创建 DTO
+   * cost_collection_handler.rs:45-62 亦必填、服务层五项求和落 total_cost），
+   * 此前实体声明缺失，读取形状与后端真实出参不符——补入。
+   */
+  direct_material: string | number;
+  direct_labor: string | number;
+  manufacturing_overhead: string | number;
+  processing_fee: string | number;
+  dyeing_fee: string | number;
+  total_cost?: string | number;
   status: string;
   type?: string;
   period?: string;

@@ -8,7 +8,17 @@ export interface AccountSubject {
   parent_id?: number;
   level: number;
   category: string;
-  direction: string;
+  /**
+   * 余额方向真实出参键为 balance_direction（models/account_subject.rs:22，Option<String>；
+   * DDL VARCHAR(20) DEFAULT 'debit'、可空、无 CHECK——m0006_add_general_ledger_and_finance_base.rs:23）。
+   * 后端从不输出 direction 键——此前声明 direction 导致列表恒判「贷」、编辑回填恒 debit 并回写覆盖真实值。
+   * 取值现状（四值并存，展示须同源）：前端 radio 与 DB 默认写 'debit'/'credit'；
+   * 后端余额计算按中文 '借' 比较（account_subject_service.rs:351/454），e2e 直灌 '借'/'贷'。
+   * 键存在性随端点而变：GET /subjects、GET /subjects/:id 直出 Model（键恒在，值可为 null）；
+   * GET /subjects/tree（SubjectTreeNode，service:494-502）不输出该列——故声明为可选，
+   * 列表数据源已改用 GET /subjects 以拿到真实值。
+   */
+  balance_direction?: string | null;
   // 注：后端 /subjects/tree(SubjectTreeNode) 与 account_subject 模型均**不输出 is_leaf**，
   // 叶子与否由 children 是否为空派生，故此处不声明 is_leaf（声明恒缺值的字段=谎报契约）。
   // account_subjects.status 为 VARCHAR（'active'/'inactive'），非数字

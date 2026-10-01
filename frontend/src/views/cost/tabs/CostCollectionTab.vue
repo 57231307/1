@@ -460,16 +460,18 @@ const rules: FormRules = {
   ],
 };
 
-// 与后端 cost_collection_service.rs:82-86 的 total_cost 口径一致：五项费用求和
-const totalCost = computed(() => {
-  return (
-    (form.direct_material || 0) +
-    (form.direct_labor || 0) +
-    (form.manufacturing_overhead || 0) +
+// 与后端 total_cost 重算口径逐项一致：五项费用求和
+// （create：cost_collection_service.rs:82-86；update：:265-272）。
+// form 金额恒为 number（初始化/el-input-number/openDialog 归一三路保证），直接 + 求和；
+// 原先的 `|| 0` 会把字符串金额放行（"100.50"||0 仍是非空串）导致 + 变字符串拼接——归一后不再需要。
+const totalCost = computed(
+  () =>
+    form.direct_material +
+    form.direct_labor +
+    form.manufacturing_overhead +
     form.processing_fee +
     form.dyeing_fee
-  );
-});
+);
 
 const getStatusLabel = (status: string) => t(`cost.collectionList.status.${status}`);
 
@@ -500,7 +502,23 @@ const handleReset = () => {
 const openDialog = (row?: CostCollection) => {
   formRef.value?.resetFields();
   if (row) {
+    // 后端 rust_decimal 仅 serde 特性 → 金额序列化为十进制字符串（models/cost_collection.rs:24-30，
+    // 本文件列表列 :93 的 Number() 归一即佐证）。金额直灌进 form 会让 totalCost 的 + 变字符串拼接、
+    // el-input-number 收到 string，故进 form 即逐键归一为 number；
+    // 词表外脏值 Number() 得 NaN 会显式暴露，不静默吞。
+    // 提交方向：后端 Decimal 反序列化 string/number 均可（service CreateCostCollectionRequest:48-52
+    // 为非 Option Decimal 直收），按表单模型送 number。
     Object.assign(form, row);
+    const amountKeys = [
+      'direct_material',
+      'direct_labor',
+      'manufacturing_overhead',
+      'processing_fee',
+      'dyeing_fee',
+    ] as const;
+    amountKeys.forEach(key => {
+      form[key] = Number(form[key]);
+    });
   } else {
     form.id = undefined;
     form.collection_date = new Date().toISOString().split('T')[0];
@@ -524,10 +542,9 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     try {
       if (form.id) {
-        const data: Partial<CostCollection> = {
-          ...form,
-          total_cost: totalCost.value,
-        };
+        // UpdateCostCollectionRequest（cost_collection_service.rs:21-32）无 total_cost 键——
+        // total_cost 由服务端按五项求和重算（:265-272），前端不代劳、不提交将被 serde 丢弃的键值
+        const data: Partial<CostCollection> = { ...form };
         await updateCostCollection(form.id, data);
         ElMessage.success(t('message.updateSuccess'));
       } else {
