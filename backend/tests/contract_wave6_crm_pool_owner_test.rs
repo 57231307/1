@@ -1,0 +1,457 @@
+//! 契约波次 6 · 任务 #204：CRM 公海写端点行级归属门禁（越权回收/越权领取）
+//!
+//! 根因（修复前实证）：`crm_pool_handler.rs` 的 `claim_from_pool` 与 `recycle_to_pool`
+//! 均用 `service.get_lead(lead_id, None)`。`services/crm/lead.rs` 的
+//! `get_lead` 把行级归属校验 `check_resource_owner` 包在 `if let Some(ctx)` 内，
+//! 传 None 即整体跳过 —— 后果是**任意用户可把他人私海线索回收进公海**
+//! （recycle 只写 lead_status=POOL，不校验归属），领取端点同理可对任意 lead_id 落写。
+//!
+//! 修复口径与权限依据（全部为既有机制，未新增权限键、未放宽任何判定）：
+//! - RBAC 层：`/api/v1/erp/crm/pool/recycle` 与 `/pool/claim` 由 URL 段推导出
+//!   **同一个键** `pool:create`（`middleware/permission.rs:259` `extract_resource_info`；
+//!   `crm` 是模块前缀 `utils/path_utils.rs:75`，`resolve_module_prefixed_resource`
+//!   默认臂保留 `pool`；POST → action=create，`recycle`/`claim` 均不在
+//!   `PATH_ACTION_KEYWORDS`），admin 角色在 `permission.rs:536`
+//!   `admin_checker::is_admin_role`（roles.code='admin'）处整体放行。
+//!   ⇒ RBAC 区分不了 claim/recycle，"谁能写哪一行"只能由行级数据权限决定。
+//! - recycle：与 `list_leads`/`get_lead`/`update_lead`/`delete_lead` 正常路径同口径注入
+//!   `auth.to_data_scope_context()`，复用 `utils/data_scope.rs:149-171`
+//!   `check_resource_owner`：`Self_` 仅原归属人本人、`Dept` 需资源 department_id ∈
+//!   可见部门集合、`All`（admin/总经理 role.data_scope='all'）可越界；不满足 → 403。
+//! - claim：公海行的业务语义是"无归属人、对有权进公海者开放"，**不套私海归属门**
+//!   （否则 self 销售领取他人公海行会被打死，本文件用例 4 就是这条可用性锁）；
+//!   命中非公海行时才回落到同一个 `check_resource_owner`（用例 2）。
+//!
+//! 覆盖（sqlite 真跑 + 真 HTTP 装配，无硬编码 JSON 假断言；行状态一律用
+//! `crm_lead::Entity::find_by_id` 回读真库比对，证明"零漂移"）：
+//! 1. B（self）recycle A 的私海行 → 403 且该行 lead_status/owner_id 逐字段零漂移；
+//! 2. B（self）claim A 的私海行 → 403（不再是"该客户不在公海中"的 400 业务码）且零漂移；
+//! 3. B recycle 本人私海行 → 200，lead_status→pool（未被误收紧）；
+//! 4. B claim A 的公海行 → 200，lead_status→new（领取可用性未被归属门打死）；
+//! 5. admin（data_scope=all）recycle A 的私海行 → 200（既有可越界通道未收紧）；
+//! 6. 批量领取路径 `/pool/{id}/claim`（`services/crm/pool.rs:119-130`
+//!    build_claimed_active）实测**真写 owner_id** —— 与用例 4 并置即坐实两条
+//!    领取路径的归属语义分歧（#204 附带项，本批不修，见用例 7 与交付报告）；
+//! 7. `#[ignore]`：单条 claim 的目标契约（领取后 owner_id 应为领取人）；
+//! 8. 源码扫描锁（shrink-only 棘轮）：recycle 不得再省略 ctx；claim 省略 ctx 的
+//!    那一行必须紧随 `check_resource_owner` 回落，否则视为回潮。
+//!
+//! 覆盖边界（诚实声明）：
+//! - 用例 7 的 ignore 理由是**行为尚未实现且修复会改响应契约**（`UpdateLeadRequest`
+//!   无 owner 字段，统一语义需把单条领取改为返回 `{claimed:n}` 或引入公海规则校验），
+//!   不是 sqlite 能力不足；该目标契约本身在 sqlite 上可判定。
+//! - 本文件不依赖 PG 专有特性（claim/recycle 写路径无取号咨询锁、无 lock_exclusive），
+//!   故不另开活库用例；`utils/data_scope.rs` Self 分支缺公海放行（#203 待用户拍板）
+//!   已由 `contract_wave6_crm_pool_mask_test.rs` 用例 5 记录，本文件不重复。
+
+use axum::{
+    Router,
+    body::Body,
+    extract::State,
+    http::{Request, StatusCode},
+    middleware::{Next, from_fn_with_state},
+    response::Response,
+    routing::post,
+};
+use bingxi_backend::container::AppState;
+use bingxi_backend::handlers::crm_pool_handler::{
+    claim_from_pool, claim_specific, recycle_to_pool,
+};
+use bingxi_backend::middleware::auth_context::AuthContext;
+use bingxi_backend::models::crm_lead;
+use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, Statement};
+use serde_json::{Value, json};
+use std::sync::Arc;
+use tower::ServiceExt;
+
+// ---------------------------------------------------------------------------
+// 脚手架（与 contract_wave6_crm_*_mask_test.rs 同款：每用例同构种子，
+// 规避 ADMIN_ROLE_CACHE 进程级缓存在任意执行顺序下串味）
+// ---------------------------------------------------------------------------
+
+const USER_A: i32 = 50;
+const USER_B: i32 = 60;
+const USER_ADMIN: i32 = 70;
+
+fn make_auth(user_id: i32, role_id: i32, data_scope: &str) -> AuthContext {
+    AuthContext {
+        user_id,
+        username: format!("wave6_owner_user_{user_id}"),
+        role_id: Some(role_id),
+        department_id: Some(1),
+        data_scope: Some(data_scope.to_string()),
+        dept_ids: None,
+        dept_member_user_ids: None,
+    }
+}
+
+async fn inject_auth(
+    State(auth): State<AuthContext>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    request.extensions_mut().insert(auth);
+    next.run(request).await
+}
+
+async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        sql,
+        Vec::new(),
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+}
+
+/// 与 models/crm_lead.rs::Model 逐列对应（表 crm_lead）
+const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
+    id INTEGER PRIMARY KEY,
+    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
+    lead_status TEXT, company_name TEXT,
+    contact_name TEXT NOT NULL, contact_title TEXT,
+    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
+    address TEXT, product_interest TEXT,
+    estimated_quantity TEXT, estimated_amount TEXT,
+    expected_delivery_date TEXT, requirement_desc TEXT,
+    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
+    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
+    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
+    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
+)"#;
+
+/// 与 models/role.rs::Model 对应（is_admin_role 判定源，admin_checker.rs:86-87）
+const CREATE_ROLES: &str = r#"CREATE TABLE roles (
+    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
+    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
+    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+)"#;
+
+/// update_lead → AuditLogService::update_with_audit 需要 users（取操作人用户名）
+/// 与 audit_logs（审计落库）两张表存在，否则写路径在 sqlite 上直接 500（假红）。
+const CREATE_USERS: &str = r#"CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL, password_hash TEXT NOT NULL,
+    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
+    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
+    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
+    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    gender TEXT, birth_date TEXT
+)"#;
+
+const CREATE_AUDIT_LOGS: &str = r#"CREATE TABLE audit_logs (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER, username TEXT, action TEXT NOT NULL,
+    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
+    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
+    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
+    old_value TEXT, new_value TEXT, created_at TEXT,
+    operation_type TEXT, severity TEXT, request_id TEXT,
+    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
+    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
+    export_approval_token TEXT, export_watermark_user TEXT
+)"#;
+
+/// 与 models/customer_pool_rule.rs::Model 对应（表名 customer_pool_rules；
+/// 批量领取路径 claim_pool_customers 的公海规则校验读此表，空表 → 走默认值兜底）
+const CREATE_POOL_RULES: &str = r#"CREATE TABLE customer_pool_rules (
+    id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,
+    rule_type TEXT NOT NULL, rule_value INTEGER NOT NULL,
+    customer_type TEXT NOT NULL, is_enabled INTEGER NOT NULL,
+    notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+)"#;
+
+/// 种子：
+/// - id=1：A 的公海行（updated_at 远在保护期之外，批量领取路径可用）；
+/// - id=2：A 的私海行（越权目标）；
+/// - id=3：B 的私海行（合法回收目标）。
+async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
+    let db = sea_orm::Database::connect("sqlite::memory:")
+        .await
+        .expect("sqlite::memory: 连接失败");
+    for ddl in [
+        CREATE_CRM_LEAD,
+        CREATE_ROLES,
+        CREATE_USERS,
+        CREATE_AUDIT_LOGS,
+        CREATE_POOL_RULES,
+    ] {
+        exec(&db, ddl).await;
+    }
+
+    exec(
+        &db,
+        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
+         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+    )
+    .await;
+    exec(
+        &db,
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,created_at,updated_at) VALUES
+         (50,'sales_a','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (60,'sales_b','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (70,'admin_user','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+    )
+    .await;
+    exec(
+        &db,
+        "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
+         contact_name,mobile_phone,email,owner_id,owner_name,department_id,
+         created_at,updated_at) VALUES
+         (1,'LD001','website','pool','甲公司','张三','13812348888','alice@example.com',
+          50,'销售甲',1,'2026-01-01T00:00:00Z','2020-01-01T00:00:00Z'),
+         (2,'LD002','ad','new','乙公司','李四','13700001111','carol@example.com',
+          50,'销售甲',1,'2026-01-02T00:00:00Z','2020-01-01T00:00:00Z'),
+         (3,'LD003','referral','new','丙公司','王五','13711112222','bob@example.com',
+          60,'销售乙',1,'2026-01-03T00:00:00Z','2020-01-01T00:00:00Z')",
+    )
+    .await;
+
+    Arc::new(db)
+}
+
+fn build_app(db: &Arc<sea_orm::DatabaseConnection>, auth: AuthContext) -> Router {
+    let mut state = AppState::default();
+    state.db = db.clone();
+    Router::new()
+        .route("/erp/crm/pool/claim", post(claim_from_pool))
+        .route("/erp/crm/pool/recycle", post(recycle_to_pool))
+        .route("/erp/crm/pool/{customer_id}/claim", post(claim_specific))
+        .with_state(state)
+        .layer(from_fn_with_state(auth, inject_auth))
+}
+
+async fn post_json(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) {
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or_else(|e| {
+            panic!(
+                "响应非 JSON（{uri}）: {e}; body={}",
+                String::from_utf8_lossy(&bytes)
+            )
+        }),
+    )
+}
+
+/// 回读真库的 (lead_status, owner_id)——"零漂移"唯一可信证据
+async fn row_state(db: &sea_orm::DatabaseConnection, id: i32) -> (String, i32) {
+    let lead = crm_lead::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap_or_else(|| panic!("线索 {id} 不应被删除"));
+    (lead.lead_status.unwrap_or_default(), lead.owner_id)
+}
+
+// ---------------------------------------------------------------------------
+// 1) self 用户 recycle 他人私海行 → 403，且该行零漂移（#204 核心越权写）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn self_user_recycle_others_private_lead_is_403_and_row_untouched() {
+    let db = seeded_db().await;
+    let app = build_app(&db, make_auth(USER_B, 2, "self"));
+    let before = row_state(&db, 2).await;
+    assert_eq!(before, ("new".to_string(), USER_A));
+
+    let (status, v) = post_json(&app, "/erp/crm/pool/recycle", json!({"lead_id": 2})).await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "非归属人回收他人私海行必须 403（修复前为 200，越权写）: {v}"
+    );
+    assert_eq!(v["code"], "FORBIDDEN", "失败信封 code 契约: {v}");
+
+    let after = row_state(&db, 2).await;
+    assert_eq!(
+        after, before,
+        "越权回收被拒后 lead_status/owner_id 必须零漂移（不得先写再拒）"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 2) self 用户 claim 他人私海行 → 403（领取端点不得成为第二个越权写入口）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn self_user_claim_others_private_lead_is_403_not_business_400() {
+    let db = seeded_db().await;
+    let app = build_app(&db, make_auth(USER_B, 2, "self"));
+    let before = row_state(&db, 2).await;
+
+    let (status, v) = post_json(&app, "/erp/crm/pool/claim", json!({"lead_id": 2})).await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "非公海行且非归属人 → 应按行级归属判 403，而不是仅给「不在公海中」的业务 400: {v}"
+    );
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let after = row_state(&db, 2).await;
+    assert_eq!(after, before, "越权领取被拒后该行必须零漂移");
+}
+
+// ---------------------------------------------------------------------------
+// 3) self 用户回收本人私海行 → 仍可用（未被误收紧）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn self_user_recycle_own_lead_still_works() {
+    let db = seeded_db().await;
+    let app = build_app(&db, make_auth(USER_B, 2, "self"));
+
+    let (status, v) = post_json(&app, "/erp/crm/pool/recycle", json!({"lead_id": 3})).await;
+    assert_eq!(status, StatusCode::OK, "本人回收应成功: {v}");
+    let after = row_state(&db, 3).await;
+    assert_eq!(after.0, "pool", "回收后 lead_status 应为 pool");
+    // 回收只改状态不改 owner_id 是既有语义（本批不扩大范围，见交付报告）
+    assert_eq!(after.1, USER_B);
+}
+
+// ---------------------------------------------------------------------------
+// 4) self 用户领取他人公海行 → 仍可用（不得把私海归属门套到领取上）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn self_user_claim_others_pool_lead_still_works() {
+    let db = seeded_db().await;
+    let app = build_app(&db, make_auth(USER_B, 2, "self"));
+
+    let (status, v) = post_json(&app, "/erp/crm/pool/claim", json!({"lead_id": 1})).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "领取的合法主体是「有权进公海的人」，公海行不得被套私海归属门打死: {v}"
+    );
+    assert_eq!(v["data"]["lead_status"], json!("new"));
+    let after = row_state(&db, 1).await;
+    assert_eq!(after.0, "new", "领取后 lead_status 应落库为 new");
+}
+
+// ---------------------------------------------------------------------------
+// 5) admin（role.code='admin' + data_scope=all）回收他人私海行 → 仍可越界
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn admin_can_recycle_others_private_lead() {
+    let db = seeded_db().await;
+    let app = build_app(&db, make_auth(USER_ADMIN, 1, "all"));
+
+    let (status, v) = post_json(&app, "/erp/crm/pool/recycle", json!({"lead_id": 2})).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "DataScope::All（admin）的既有越界通道不得被收紧: {v}"
+    );
+    assert_eq!(row_state(&db, 2).await.0, "pool");
+}
+
+// ---------------------------------------------------------------------------
+// 6) 批量领取路径真写 owner_id —— 与用例 4 并置即坐实两条领取路径语义分歧
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn batch_claim_path_writes_owner_id_single_claim_path_does_not() {
+    let db = seeded_db().await;
+    let app = build_app(&db, make_auth(USER_B, 2, "self"));
+
+    let (status, v) = post_json(&app, "/erp/crm/pool/1/claim", json!(null)).await;
+    // claim_specific 无请求体，用空 JSON 仅作 body 占位
+    assert_eq!(status, StatusCode::OK, "批量领取路径应成功: {v}");
+
+    let after = row_state(&db, 1).await;
+    assert_eq!(after.0, "new", "批量领取后 lead_status 应为 new");
+    assert_eq!(
+        after.1, USER_B,
+        "批量领取路径真写 owner_id（services/crm/pool.rs:119-130 build_claimed_active）"
+    );
+
+    // 对照：单条领取路径（claim_from_pool）只改 lead_status，owner_id 仍是原归属人
+    let db2 = seeded_db().await;
+    let app2 = build_app(&db2, make_auth(USER_B, 2, "self"));
+    let (status, v) = post_json(&app2, "/erp/crm/pool/claim", json!({"lead_id": 1})).await;
+    assert_eq!(status, StatusCode::OK, "单条领取应成功: {v}");
+    let after2 = row_state(&db2, 1).await;
+    assert_eq!(after2.0, "new");
+    assert_eq!(
+        after2.1, USER_A,
+        "#204 附带项实证：单条 claim 不写 owner_id，线索仍挂在原归属人名下（本批不修，待拍板）"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 7) 目标契约（#[ignore]，理由是行为未实现且修复涉及响应契约变更，非 sqlite 能力）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore = "覆盖边界：#204 附带项——单条 claim 应把 owner_id/owner_name 写成领取人（与批量领取同源），修复需改 UpdateLeadRequest 或改端点响应结构，属契约变更待用户拍板；落地后取消 ignore 即成回归锁"]
+async fn single_claim_should_transfer_ownership_to_claimer() {
+    let db = seeded_db().await;
+    let app = build_app(&db, make_auth(USER_B, 2, "self"));
+    let (status, v) = post_json(&app, "/erp/crm/pool/claim", json!({"lead_id": 1})).await;
+    assert_eq!(status, StatusCode::OK, "领取应成功: {v}");
+
+    let after = row_state(&db, 1).await;
+    assert_eq!(after.0, "new");
+    assert_eq!(
+        after.1, USER_B,
+        "目标契约：领取人即归属人，单条与批量两条路径必须同语义"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 8) 源码扫描锁（shrink-only 棘轮）
+// ---------------------------------------------------------------------------
+
+#[test]
+fn pool_write_handlers_must_not_skip_data_scope() {
+    let src = include_str!("../src/handlers/crm_pool_handler.rs");
+
+    let recycle = src
+        .split("pub async fn recycle_to_pool")
+        .nth(1)
+        .expect("recycle_to_pool 定义缺失")
+        .split("pub async fn claim_specific")
+        .next()
+        .expect("recycle_to_pool 函数体边界缺失");
+    assert!(
+        !recycle.contains("get_lead(req.lead_id, None)"),
+        "回潮棘轮：回收端点再次省略行级 scope（任意用户可回收他人私海行）"
+    );
+    assert!(
+        recycle.contains("get_lead(req.lead_id, Some(&data_scope_ctx))"),
+        "回收端点必须与 get_lead/update_lead 正常路径同口径注入 ctx"
+    );
+
+    let claim = src
+        .split("pub async fn claim_from_pool")
+        .nth(1)
+        .expect("claim_from_pool 定义缺失")
+        .split("pub async fn recycle_to_pool")
+        .next()
+        .expect("claim_from_pool 函数体边界缺失");
+    assert!(
+        claim.contains("check_resource_owner(&data_scope_ctx"),
+        "领取端点缺非公海行的归属回落（可借领取改写他人私海行）"
+    );
+}

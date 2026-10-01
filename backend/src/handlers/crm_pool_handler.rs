@@ -16,6 +16,7 @@ use crate::models::status::crm_lead as lead_status;
 use crate::services::crm::cust::CrmService;
 // V15 P0-S08：公海规则服务
 use crate::services::crm::pool::PoolRuleService;
+use crate::utils::data_scope::check_resource_owner;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -170,6 +171,20 @@ pub async fn list_pool(
 }
 
 /// POST /api/v1/erp/crm/pool/claim - 从公海领取客户
+///
+/// 行级边界（#204）：领取**只能作用于公海行**。
+/// - RBAC 层：本路径 `/api/v1/erp/crm/pool/claim` 由 URL 段推导出资源 `pool`、
+///   动作 `create`（`middleware/permission.rs:259` `extract_resource_info`；`crm` 是模块
+///   前缀 `utils/path_utils.rs:75`，`resolve_module_prefixed_resource` 默认臂保留原名），
+///   admin 角色在 `check_permission`（`permission.rs:536` `admin_checker::is_admin_role`）
+///   整体放行。claim 与 recycle 推导出的是**同一个键 `pool:create`**，RBAC 无法区分二者，
+///   所以"谁能对哪一行写"只能由行级数据权限决定。
+/// - 行级层：公海行的业务语义是"无归属人、对有权进公海者开放"（`utils/data_scope.rs:212-214`
+///   RLS 公海放行注释），因此这里**不套用私海归属门**（否则 self 销售领取他人公海行会被
+///   打死——`utils/data_scope.rs` Self 分支的公海放行属 #203 待用户拍板项，本处不依赖它）；
+///   一旦命中非公海行（即他人私海），立即回落到与 `get_lead` 正常路径同一个
+///   `check_resource_owner`：`DataScope::All` 可越界、`Dept` 需资源部门在可见集合内、
+///   `Self_` 仅本人行，否则 403。
 pub async fn claim_from_pool(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -177,15 +192,28 @@ pub async fn claim_from_pool(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
 
-    // 获取线索
+    let data_scope_ctx = auth.to_data_scope_context();
+    // 先无 ctx 取行是为了区分"公海行 vs 私海行"：公海行的 owner_id 仍是回收前的
+    // 原归属人（回收只改 lead_status），直接用 ctx 取行会把公海行也判成越权。
     let lead = service.get_lead(req.lead_id, None).await?;
 
-    // 检查是否在公海中
     if lead.lead_status.as_deref() != Some(lead_status::POOL) {
+        // 非公海行：必须通过既有行级归属校验，否则 403（不给"借领取改写他人私海行"留口子）
+        if !check_resource_owner(&data_scope_ctx, Some(lead.owner_id), lead.department_id) {
+            return Err(AppError::permission_denied(format!(
+                "无权领取线索 {}（数据范围限制）",
+                req.lead_id
+            )));
+        }
         return Err(AppError::business_displayable("该客户不在公海中"));
     }
 
     // 更新线索归属人
+    // 注意（#204 附带项，本批不修，已上报）：本单条领取路径只把 lead_status 置为 NEW，
+    // 并未写 owner_id/owner_name（UpdateLeadRequest 无 owner 字段），而批量领取
+    // `services/crm/pool.rs:119-130` build_claimed_active 真写 owner_id —— 两条领取
+    // 路径归属语义不一致，单条领取后线索仍挂在原归属人名下。统一语义会改变本端点
+    // 响应结构（或引入公海规则校验），属契约变更，需用户拍板后与前端一起改。
     let update_req = crate::models::dto::crm_dto::UpdateLeadRequest {
         lead_status: Some(lead_status::NEW.to_string()),
         ..Default::default()
@@ -211,6 +239,21 @@ pub async fn claim_from_pool(
 }
 
 /// POST /api/v1/erp/crm/pool/recycle - 回收客户到公海
+///
+/// 行级边界（#204 越权写修复点）：回收写的是**私海行**，属行级归属判定范畴。
+/// 修复前用 `get_lead(lead_id, None)`，`services/crm/lead.rs:360-367` 的
+/// `check_resource_owner` 包在 `if let Some(ctx)` 内，传 None 即整体跳过 →
+/// 任意用户可把他人私海线索回收进公海。
+/// 权限依据（均为既有机制，不新增权限键、不放宽任何判定）：
+/// - RBAC：与 claim 推导出同一个键 `pool:create`（`middleware/permission.rs:259` +
+///   `utils/path_utils.rs:75/102`），admin 角色在 `permission.rs:536`
+///   `admin_checker::is_admin_role`（roles.code='admin'）处整体放行；
+/// - 行级：与 `list_leads`/`get_lead`/`update_lead`/`delete_lead` 正常路径同口径注入
+///   `auth.to_data_scope_context()` 后复用 `check_resource_owner`
+///   （`utils/data_scope.rs:149-171`）——`DataScope::All`（admin/总经理）可越界回收
+///   他人行；`Dept` 需资源 department_id ∈ 可见部门集合；`Self_` 仅原归属人本人；
+///   不满足即 403（与 update/delete 线索的越权语义完全一致，不额外收紧也不放松：
+///   例如 Dept 用户回收 department_id 为 NULL 的行同样会被拒，这是既有 get_lead 口径）。
 pub async fn recycle_to_pool(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -218,8 +261,9 @@ pub async fn recycle_to_pool(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
 
-    // 获取线索
-    let lead = service.get_lead(req.lead_id, None).await?;
+    // 获取线索（带行级数据权限：非归属人且非可越界角色 → 403，写操作不发生）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let lead = service.get_lead(req.lead_id, Some(&data_scope_ctx)).await?;
 
     // 检查状态
     if lead.lead_status.as_deref() == Some(lead_status::POOL) {
