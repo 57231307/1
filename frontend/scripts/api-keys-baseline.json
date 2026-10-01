@@ -1,5 +1,5 @@
 {
-  "total": 149,
+  "total": 148,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -328,9 +328,8 @@
       ]
     },
     "frontend/src/api/user-profile.ts": {
-      "count": 2,
+      "count": 1,
       "keys": [
-        "ChangePasswordRequest.confirm_password",
         "UserProfile.role_names"
       ]
     },
