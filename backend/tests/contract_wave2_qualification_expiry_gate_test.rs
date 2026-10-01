@@ -29,7 +29,7 @@
 
 use bingxi_backend::models::{audit_log, role, role_permission, supplier_qualification};
 use bingxi_backend::services::supplier_qualification_gate::{
-    BlockingScope, EXPIRY_WARNING_DAYS_TIERS, QualificationExpiryLevel,
+    EXPIRY_WARNING_DAYS_TIERS, QualificationExpiryLevel, QualificationExpiryWarning,
     STATUTORY_QUALIFICATION_KEYWORDS, SupplierQualificationGate, WAIVER_PERMISSION_ACTION,
     WAIVER_PERMISSION_RESOURCE,
 };
@@ -283,41 +283,27 @@ async fn audit_waiver_rows(db: &DatabaseConnection) -> Vec<(i32, String)> {
         .collect()
 }
 
-/// 门控调用结果(字段扁平化,便于断言)
-#[derive(Debug)]
-struct GateRunResult {
-    waived: bool,
-    blocked_scope: Option<BlockingScope>,
-    expired_statutory: Vec<String>,
-    expired_general: Vec<String>,
-}
-
-/// 以连接池句柄驱动门控(等价 create_order 事务外的判定形态;
-/// 事务内形态由 gate_reads_qualifications_through_caller_transaction 单独锁定)
+/// 门控调用:Ok(())=放行(含存量供应商不阻断与例外放行两类路径),Err=阻断/权限拒绝。
+/// 放行/阻断的完整语义不再由返回值携带,断言一律指向权威出口:
+/// - 过期/预警清单 → `scan_expiry_warnings`(到期预警端点背后的公开返回结构);
+/// - 例外放行事实(范围/操作人/原因/过期清单) → audit_logs 行(description + after_snapshot)。
 async fn run_gate(
     db: &DatabaseConnection,
     supplier_id: i32,
     user_id: i32,
     waiver: Option<&str>,
-) -> Result<GateRunResult, AppError> {
+) -> Result<(), AppError> {
     let gate = SupplierQualificationGate::new(Arc::new(db.clone()));
-    let outcome = gate
-        .check_purchase_order_gate(db, supplier_id, user_id, waiver)
-        .await;
-    outcome.map(|o| GateRunResult {
-        waived: o.waived,
-        blocked_scope: o.blocked_scope,
-        expired_statutory: o
-            .expired_statutory
-            .iter()
-            .map(|e| e.qualification_name.clone())
-            .collect(),
-        expired_general: o
-            .expired_general
-            .iter()
-            .map(|e| e.qualification_name.clone())
-            .collect(),
-    })
+    gate.check_purchase_order_gate(db, supplier_id, user_id, waiver)
+        .await
+}
+
+/// 到期预警扫描服务调用(预警端点 handler 背后的同一公开返回值)——过期/预警信息的权威来源
+async fn gate_scan(db: &DatabaseConnection) -> Vec<QualificationExpiryWarning> {
+    SupplierQualificationGate::new(Arc::new(db.clone()))
+        .scan_expiry_warnings()
+        .await
+        .expect("到期预警扫描失败")
 }
 
 // =========================================================
@@ -362,17 +348,17 @@ async fn general_expired_existing_supplier_passes_and_warning_visible() {
     seed_history_order(&db, 1, 102, "SUBMITTED").await;
     seed_qualification(&db, 2, 102, "营业执照", "营业执照", days_from_today(-5)).await;
 
-    let outcome = run_gate(&db, 102, 902, None)
+    run_gate(&db, 102, 902, None)
         .await
-        .expect("一般资质过期不得阻断存量供应商新建订单");
-    assert!(!outcome.waived);
-    assert!(outcome.blocked_scope.is_none());
-    assert_eq!(outcome.expired_general, vec!["营业执照".to_string()]);
-    assert!(outcome.expired_statutory.is_empty());
+        .expect("一般资质过期不得阻断存量供应商新建订单(Ok=放行且未被例外放行介入)");
+    // 该放行路径既未申请放行,也不得留下任何例外放行审计行(对应原 waived=false 语义)
+    assert!(
+        audit_waiver_rows(&db).await.is_empty(),
+        "存量供应商自然放行不得写 WAIVE 审计"
+    );
 
     // 预警可见:扫描端点背后的服务必须列出该条(过期态由唯一派生源如实转写)
-    let gate = SupplierQualificationGate::new(Arc::new(db));
-    let warnings = gate.scan_expiry_warnings().await.expect("扫描失败");
+    let warnings = gate_scan(&db).await;
     let hit = warnings
         .iter()
         .find(|w| w.supplier_id == 102 && w.qualification_name == "营业执照")
@@ -381,6 +367,22 @@ async fn general_expired_existing_supplier_passes_and_warning_visible() {
     assert_eq!(hit.category, "general");
     assert_eq!(hit.level, QualificationExpiryLevel::Expired);
     assert_eq!(hit.supplier_name.as_deref(), Some("存量一般资质供应商"));
+    // 对应原 expired_statutory 为空语义:该供应商不得有法定类过期预警项
+    assert!(
+        !warnings
+            .iter()
+            .any(|w| w.supplier_id == 102 && w.expired && w.category == "statutory"),
+        "该供应商仅一般资质过期,预警出口不得多出法定类过期项"
+    );
+    // 对应原 expired_general 恰为「营业执照」一条:已过期项数量与唯一性同锁
+    assert_eq!(
+        warnings
+            .iter()
+            .filter(|w| w.supplier_id == 102 && w.expired)
+            .count(),
+        1,
+        "已过期预警项必须恰为营业执照一条,不得多出或缺失"
+    );
 }
 
 #[tokio::test]
@@ -434,16 +436,17 @@ async fn all_qualifications_valid_passes_clean() {
     seed_qualification(&db, 4, 104, "排污许可证", "排污许可", days_from_today(365)).await;
     seed_qualification(&db, 5, 104, "营业执照", "营业执照", days_from_today(30)).await;
 
-    let outcome = run_gate(&db, 104, 904, None)
+    run_gate(&db, 104, 904, None)
         .await
         .expect("无过期资质必须放行");
-    assert!(outcome.expired_statutory.is_empty());
-    assert!(outcome.expired_general.is_empty());
-    assert!(!outcome.waived);
-    assert!(outcome.blocked_scope.is_none());
 
     let gate = SupplierQualificationGate::new(Arc::new(db.clone()));
     let warnings = gate.scan_expiry_warnings().await.unwrap();
+    // 对应原 expired_statutory/expired_general 皆空语义:该供应商在预警出口无任何「已过期」项
+    assert!(
+        !warnings.iter().any(|w| w.supplier_id == 104 && w.expired),
+        "资质齐全的供应商不得出现任何已过期预警项"
+    );
     let license = warnings
         .iter()
         .find(|w| w.qualification_name == "营业执照")
@@ -507,11 +510,9 @@ async fn waiver_requires_permission_and_records_audit() {
     seed_role(&db, 912, "purchase_manager").await;
     seed_user(&db, 912, "authorized_user", Some(912)).await;
     seed_waive_permission(&db, 1, 912).await;
-    let outcome = run_gate(&db, 105, 912, Some("停线风险经质量例会批准放行"))
+    run_gate(&db, 105, 912, Some("停线风险经质量例会批准放行"))
         .await
         .expect("授权角色携原因应放行");
-    assert!(outcome.waived);
-    assert_eq!(outcome.blocked_scope, Some(BlockingScope::Statutory));
 
     let rows = audit_waiver_rows(&db).await;
     assert_eq!(rows.len(), 1, "例外放行必须留下恰好一条审计行");
@@ -524,6 +525,24 @@ async fn waiver_requires_permission_and_records_audit() {
     assert!(
         desc.contains("法定许可类资质过期"),
         "审计须记录放行范围: {desc}"
+    );
+
+    // 放行命中的过期清单由预警扫描这一权威出口如实列出(对应原 expired_statutory/expired_general):
+    // 恰一条法定类已过期项(排污许可证),且无一般类已过期项。
+    let warnings = gate_scan(&db).await;
+    let hit = warnings
+        .iter()
+        .find(|w| w.supplier_id == 105 && w.qualification_name == "排污许可证")
+        .expect("例外放行命中的已过期法定资质必须在到期预警出口列出");
+    assert!(hit.expired);
+    assert_eq!(hit.category, "statutory");
+    assert_eq!(
+        warnings
+            .iter()
+            .filter(|w| w.supplier_id == 105 && w.expired)
+            .count(),
+        1,
+        "供应商105的已过期预警项必须恰为排污许可证一条"
     );
 
     // 5d. 携带字段但原因为空白 → 显式拒绝(不得静默当「未申请放行」)
@@ -569,10 +588,14 @@ async fn gate_reads_qualifications_through_caller_transaction() {
     txn.rollback().await.unwrap();
 
     // 回滚后资质行整体不可见:无过期资质 → 放行(证明上方阻断确由那笔未提交数据驱动)
-    let outcome = run_gate(&db, 106, 920, None)
+    run_gate(&db, 106, 920, None)
         .await
         .expect("已回滚的资质不得继续影响门控");
-    assert!(outcome.expired_statutory.is_empty() && outcome.expired_general.is_empty());
+    // 对应原 expired_statutory/expired_general 皆空语义:回滚后预警出口不得残留该供应商任何条目
+    assert!(
+        !gate_scan(&db).await.iter().any(|w| w.supplier_id == 106),
+        "已回滚的资质不得在到期预警出口残留任何条目"
+    );
 }
 
 // =========================================================

@@ -135,25 +135,13 @@ impl BlockingScope {
     }
 }
 
-/// 单条已过期资质摘要（供拒绝文案、预警出参与审计快照复用；不含内部记录 ID）
+/// 单条已过期资质摘要（供阻断拒绝文案与例外放行审计快照复用；不含内部记录 ID。
+/// 面向用户/前端的到期预警出参由 [`QualificationExpiryWarning`] 独立承载，两者不得混用）
 #[derive(Debug, Clone, Serialize)]
 pub struct ExpiredQualificationSummary {
     pub qualification_name: String,
     pub qualification_type: String,
     pub valid_until: chrono::NaiveDate,
-}
-
-/// 门控结果（Ok 分支携带预警信息，供调用方日志与测试断言；不影响响应结构）
-#[derive(Debug, Clone)]
-pub struct QualificationGateOutcome {
-    /// 是否走了例外放行（命中阻断但携原因且有权限）
-    pub waived: bool,
-    /// 命中的阻断类别（waive 或未发生时为 None）
-    pub blocked_scope: Option<BlockingScope>,
-    /// 已过期法定许可类资质（放行/未命中时也可能非空）
-    pub expired_statutory: Vec<ExpiredQualificationSummary>,
-    /// 已过期一般资质（预警来源）
-    pub expired_general: Vec<ExpiredQualificationSummary>,
 }
 
 /// 资质到期预警级别（输出侧 token，不落库；序列化口径与劳动合同预警一致）
@@ -208,13 +196,18 @@ impl SupplierQualificationGate {
     ///
     /// 命中阻断时的拒绝文案用 `AppError::business_displayable` 如实外显
     /// （只涉及该供应商资质类别/名称与公开业务规则，不含内部记录 ID/他人数据）。
+    ///
+    /// Ok(()) 即放行（含「存量供应商一般资质过期不阻断」与「例外放行」两类路径）；
+    /// 预警信息的权威出口是 [`scan_expiry_warnings`](Self::scan_expiry_warnings)，
+    /// 例外放行的范围/过期清单由同事务审计行（description + after_snapshot）与
+    /// tracing 日志显式留痕，门控本身不再返回镜像结构体。
     pub async fn check_purchase_order_gate<C: ConnectionTrait>(
         &self,
         conn: &C,
         supplier_id: i32,
         user_id: i32,
         waiver_reason: Option<&str>,
-    ) -> Result<QualificationGateOutcome, AppError> {
+    ) -> Result<(), AppError> {
         // 1. 事务内读取该供应商全部资质行（失败显式上抛，不吞、不兜底放行）
         let qualifications = supplier_qualification::Entity::find()
             .filter(supplier_qualification::Column::SupplierId.eq(supplier_id))
@@ -248,12 +241,7 @@ impl SupplierQualificationGate {
                 qualification_rows = qualifications.len(),
                 "供应商资质门控：无过期资质，放行新建采购订单"
             );
-            return Ok(QualificationGateOutcome {
-                waived: false,
-                blocked_scope: None,
-                expired_statutory,
-                expired_general,
-            });
+            return Ok(());
         }
 
         // 4. 阻断分级：法定类过期 → 阻断一切新建单；一般类过期 → 仅阻断新供应商首单，
@@ -290,12 +278,7 @@ impl SupplierQualificationGate {
                             reason,
                             "供应商资质门控：例外放行（已落审计行）"
                         );
-                        Ok(QualificationGateOutcome {
-                            waived: true,
-                            blocked_scope: Some(scope),
-                            expired_statutory,
-                            expired_general,
-                        })
+                        Ok(())
                     }
                     // 4b. 未携带放行原因（或仅空白）：拒绝。文案只说明哪一类资质过期与续期/放行路径，
                     //     不含内部记录 ID；business 会被脱敏成「业务处理失败」，必须 displayable 外显。
@@ -331,12 +314,7 @@ impl SupplierQualificationGate {
                         .collect::<Vec<_>>(),
                     "供应商资质门控：存在已过期一般资质（存量供应商，不阻断），已计入到期预警"
                 );
-                Ok(QualificationGateOutcome {
-                    waived: false,
-                    blocked_scope: None,
-                    expired_statutory,
-                    expired_general,
-                })
+                Ok(())
             }
         }
     }
