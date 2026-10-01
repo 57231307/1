@@ -430,15 +430,6 @@ const KNOWN_GAPS = new Map([
     `${BASE_URL}/system-update/backups/* GET`,
     'G: 后端 system_update 仅有 /system-update/backups 列表，无备份详情 /backups/{id}',
   ],
-  [`${BASE_URL}/system-update/backups/* DELETE`, 'G: 后端无 /system-update/backups/{id} 删除端点'],
-  [
-    `${BASE_URL}/system-update/backups/*/restore POST`,
-    'G: 后端无 /system-update/backups/{id}/restore 端点',
-  ],
-  [
-    `${BASE_URL}/system-update/backups/*/download GET`,
-    'G: 后端无 /system-update/backups/{id}/download 端点',
-  ],
   [
     `${BASE_URL}/customers/select GET`,
     'D: 客户下拉后端在 /crm/customers/select，customer.ts 走的是不存在的 /customers/select',

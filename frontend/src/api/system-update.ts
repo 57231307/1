@@ -128,20 +128,6 @@ export function createSystemBackup(
   return request.post('/system-update/backups', data);
 }
 
-export function deleteSystemBackup(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/system-update/backups/${id}`);
-}
-
-export function restoreFromBackup(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/system-update/backups/${id}/restore`);
-}
-
-export function downloadBackup(id: number): Promise<Blob> {
-  return request.get(`/system-update/backups/${id}/download`, {
-    responseType: 'blob',
-  });
-}
-
 export function getCurrentVersion(): Promise<
   ApiResponse<{ version: string; release_date: string }>
 > {

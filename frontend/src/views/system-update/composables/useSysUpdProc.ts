@@ -1,25 +1,19 @@
 /**
  * useSysUpdProc.ts - 系统更新流程操作 composable
  * 任务编号: P14 批 2 I-3 第 1 批（拆分原 system-update/index.vue）
- * 封装回滚/取消/备份删除/备份恢复/备份下载等流程性方法
- * 行为完全保持一致（仅结构重构）；版本下载/安装随版本 tab 移除一并删除
+ * 封装回滚/取消等任务流程性方法。
+ * 备份删除/恢复/下载：后端未注册 /system-update/backups/{id}（DELETE）、
+ * {id}/restore、{id}/download 端点，UI 对应按钮已置灰并注明「暂不支持」，
+ * 故本文件不再提供指向不存在端点的调用封装（restore 属真不可逆动作，
+ * 将来 HTTP 化须独立设计审计+二次确认后再补）。
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
-import {
-  cancelUpdateTask,
-  rollbackUpdate,
-  deleteSystemBackup,
-  restoreFromBackup,
-  downloadBackup,
-  type UpdateTask,
-  type SystemBackup,
-} from '@/api/system-update';
+import { cancelUpdateTask, rollbackUpdate, type UpdateTask } from '@/api/system-update';
 
 /** 刷新回调 */
 interface RefreshCallbacks {
   fetchTasks: () => Promise<void>;
-  fetchBackups: () => Promise<void>;
 }
 
 /**
@@ -61,62 +55,8 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 删除备份 */
-  const handleDeleteBackup = async (row: SystemBackup) => {
-    try {
-      await ElMessageBox.confirm('确定要删除此备份吗？', '确认删除', { type: 'warning' });
-      await deleteSystemBackup(row.id);
-      msg.success('deleteSuccess');
-      await refresh.fetchBackups();
-    } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel')
-        ElMessage.error(
-          (error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed')
-        );
-    }
-  };
-
-  /** 从备份恢复 */
-  const handleRestore = async (row: SystemBackup) => {
-    try {
-      await ElMessageBox.confirm('确定要从此备份恢复系统吗？此操作不可撤销。', '确认恢复', {
-        type: 'warning',
-      });
-      await restoreFromBackup(row.id);
-      msg.success('restoreTaskCreated');
-      await refresh.fetchTasks();
-    } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel')
-        ElMessage.error(
-          (error instanceof Error ? error.message : String(error)) || msg.translate('restoreFailed')
-        );
-    }
-  };
-
-  /** 下载备份文件 */
-  const handleDownloadBackup = async (row: SystemBackup) => {
-    try {
-      const blob = await downloadBackup(row.id);
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `backup_${row.backup_code}.zip`;
-      link.click();
-      msg.success('backupDownloaded');
-    } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error(
-        (error instanceof Error ? error.message : String(error)) || msg.translate('downloadFailed')
-      );
-    }
-  };
-
   return {
     handleCancelTask,
     handleRollback,
-    handleDeleteBackup,
-    handleRestore,
-    handleDownloadBackup,
   };
 }

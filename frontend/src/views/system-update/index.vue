@@ -53,9 +53,6 @@
           :total="upd.backupTotal"
           :backup-status-type-map="backupStatusTypeMap"
           :format-file-size="formatFileSize"
-          @download="proc.handleDownloadBackup"
-          @restore="proc.handleRestore"
-          @delete="proc.handleDeleteBackup"
           @view-detail="upd.viewBackupDetail"
         />
       </el-tab-pane>
@@ -142,10 +139,9 @@ watch(
   }
 );
 
-// 流程性方法（回滚/取消/备份删除/恢复/下载备份）
+// 流程性方法（回滚/取消；备份删除/恢复/下载后端端点不存在，按钮已置灰，不挂死调用）
 const proc = useSysUpdProc({
   fetchTasks: upd.fetchTasks,
-  fetchBackups: upd.fetchBackups,
 });
 
 // 状态类型映射（el-tag type，非文本，不需 i18n）+ 文件大小格式化（来自 sysUpdFmts 工具）

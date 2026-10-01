@@ -69,7 +69,8 @@
             t('systemUpdate.backupTab.buttonDetail')
           }}</el-button>
           <!-- 下载/恢复/删除：后端无 {id}/download|restore|delete 端点，故置灰 + 提示"暂不支持"，
-               禁假可用/假成功；保留按钮以诚实呈现功能规划边界（创建备份仍可用）。 -->
+               禁假可用/假成功；保留按钮以诚实呈现功能规划边界（创建备份仍可用）。
+               置灰按钮不挂任何点击接线（disabled 下事件永不触发，死函数与其调用点已清除）。 -->
           <el-tooltip :content="t('systemUpdate.backupTab.notSupported')" placement="top">
             <span>
               <el-button
@@ -78,7 +79,6 @@
                 link
                 size="small"
                 disabled
-                @click="emit('download', row)"
                 >{{ t('systemUpdate.backupTab.buttonDownload') }}</el-button
               >
             </span>
@@ -91,14 +91,13 @@
                 link
                 size="small"
                 disabled
-                @click="emit('restore', row)"
                 >{{ t('systemUpdate.backupTab.buttonRestore') }}</el-button
               >
             </span>
           </el-tooltip>
           <el-tooltip :content="t('systemUpdate.backupTab.notSupported')" placement="top">
             <span>
-              <el-button type="danger" link size="small" disabled @click="emit('delete', row)">{{
+              <el-button type="danger" link size="small" disabled>{{
                 t('systemUpdate.backupTab.buttonDelete')
               }}</el-button>
             </span>
@@ -139,9 +138,6 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  download: [row: SystemBackup];
-  restore: [row: SystemBackup];
-  delete: [row: SystemBackup];
   'view-detail': [row: SystemBackup];
   'update:page': [v: number];
   'update:page-size': [v: number];
