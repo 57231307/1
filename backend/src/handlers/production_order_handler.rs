@@ -30,11 +30,14 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use std::sync::Arc;
 
 /// 创建生产订单请求
+///
+/// 单号禁手输（任务 #153 缺陷3）：DTO 上**不存在** order_no 字段，单号一律服务端取号
+/// （`PO{YYYYMMDD}{3位流水}`，DocumentNumberGenerator），前端已同步不再传该字段。
+/// 旧客户端仍携带 order_no 时经 flatten 残差映射识别为非空字符串 → warn 日志（不静默、
+/// 不透传服务层）。本 handler 未采用 `Json<Value>` 全量透传形态，仅用 flatten 收集未声明键。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateProductionOrderPayload {
-    /// 订单编号：可空，缺省时由后端自动生成（防止单据号重复）
-    pub order_no: Option<String>,
     pub sales_order_id: Option<i32>,
     pub product_id: i32,
     pub planned_quantity: Decimal,
@@ -43,6 +46,10 @@ pub struct CreateProductionOrderPayload {
     pub priority: Option<i32>,
     pub work_center_id: Option<i32>,
     pub remarks: Option<String>,
+    /// 未声明键的残差收集（serde flatten）：仅用于识别被禁的 order_no 手输并 warn，
+    /// 其中任何内容都不参与建单。
+    #[serde(flatten)]
+    forwarded_unknown_fields: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
@@ -208,13 +215,28 @@ pub async fn create_production_order(
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     payload.validate().map_err(AppError::from)?;
 
+    // 单号禁手输（任务 #153 缺陷3）：DTO 无 order_no 字段、服务层请求结构无注入口，
+    // 单号一律服务端取号。旧前端仍携带非空 order_no 时经残差映射显式 warn（不静默），
+    // 该值不进建单流程——修复前它会被 resolve_order_no 原样入库，可伪造单号/撞 UNIQUE。
+    let forwarded_order_no = payload
+        .forwarded_unknown_fields
+        .get("order_no")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty());
+    if let Some(forwarded) = forwarded_order_no {
+        tracing::warn!(
+            user_id = auth.user_id,
+            forwarded_order_no = %forwarded,
+            "创建生产订单请求携带 order_no：单据号禁止手输，该值已被服务端忽略，单号由服务端统一生成"
+        );
+    }
+
     let service = ProductionOrderService::new(state.db.clone());
 
     let req = CreateProductionOrderRequest {
-        order_no: payload.order_no,
         sales_order_id: payload.sales_order_id,
         product_id: payload.product_id,
-        planned_quantity: Some(payload.planned_quantity),
+        planned_quantity: payload.planned_quantity,
         planned_start_date: payload.planned_start_date,
         planned_end_date: payload.planned_end_date,
         priority: payload.priority,

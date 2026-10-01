@@ -563,13 +563,14 @@ async fn test_fwslh_sysqlitencsjk() {
 }
 
 /// test_qqjg_cjddqqkgz（验证 CreateProductionOrderRequest 能正常构造，字段类型匹配。）
+/// 形态锁（任务 #153 缺陷3）：结构体不存在 order_no 字段（单据号禁手输、一律服务端取号），
+/// planned_quantity 为必填 Decimal（NOT NULL 列不设 Option 兜底）。
 #[test]
 fn test_qqjg_cjddqqkgz() {
     let req = CreateProductionOrderRequest {
-        order_no: Some("PO-TEST-001".to_string()),
         sales_order_id: None,
         product_id: 1,
-        planned_quantity: Some(decs!("100")),
+        planned_quantity: decs!("100"),
         planned_start_date: Some(ymd!(2026, 7, 1)),
         planned_end_date: Some(ymd!(2026, 7, 31)),
         priority: Some(5),
@@ -578,7 +579,7 @@ fn test_qqjg_cjddqqkgz() {
         created_by: 1,
     };
     assert_eq!(req.product_id, 1);
-    assert_eq!(req.planned_quantity, Some(decs!("100")));
+    assert_eq!(req.planned_quantity, decs!("100"));
     assert_eq!(req.priority, Some(5));
 }
 

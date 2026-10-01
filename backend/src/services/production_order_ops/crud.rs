@@ -1,7 +1,7 @@
 //! 生产订单-CRUD 子模块（production_order_ops/crud）
 //!
 //! 批次 488 D10-2 拆分：从原 `production_order_service.rs` L92-624 迁移。
-//! 包含 14 个 CRUD 与状态校验方法：
+//! 包含 13 个 CRUD 与状态校验方法：
 //! - validate_product_exists / validate_sales_order_exists / validate_work_center_exists（私有 &self）
 //! - generate_unique_order_no / generate_rework_order_no（私有 &self）
 //! - validate_status_transition（`pub(crate)` associated function，测试 + approval 子模块跨 impl 块调用）
@@ -20,8 +20,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, JoinType, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait, Set, TransactionTrait,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, JoinType, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 use crate::models::production_order::{
@@ -166,13 +166,17 @@ impl ProductionOrderService {
         }
     }
 
-    /// 创建生产订单（校验引用 + 解析订单号 + 写入 + 触发 MRP 计算，失败 warn 不阻塞）
+    /// 创建生产订单（校验引用 + 服务端取号 + 写入 + 触发 MRP 计算，失败 warn 不阻塞）
+    ///
+    /// 单号禁手输（任务 #153 缺陷3）：`CreateProductionOrderRequest` 类型上不存在
+    /// `order_no` 字段，任何调用方都无法注入外部编号；单号一律经
+    /// `DocumentNumberGenerator` 取号（advisory lock 串行化 + order_no UNIQUE 兜底）。
     pub async fn create(
         &self,
         req: CreateProductionOrderRequest,
     ) -> Result<ProductionOrderModel, AppError> {
         self.validate_create_references(&req).await?;
-        let order_no = self.resolve_order_no(req.order_no.as_deref()).await?;
+        let order_no = self.generate_unique_order_no().await?;
         let active_model = Self::build_create_active_model(order_no, &req);
         let model = self.insert_production_order(active_model).await?;
         self.trigger_mrp_for_order(&model, req.planned_end_date)
@@ -208,42 +212,28 @@ impl ProductionOrderService {
         Ok(())
     }
 
-    /// 解析订单号：用户提供则校验唯一，否则自动生成
-    async fn resolve_order_no(&self, order_no: Option<&str>) -> Result<String, AppError> {
-        match order_no {
-            Some(no) => {
-                let existing = ProductionOrderEntity::find()
-                    .filter(crate::models::production_order::Column::OrderNo.eq(no))
-                    .one(&*self.db)
-                    .await?;
-                if existing.is_some() {
-                    // 唯一性冲突：用户提交的订单号已被占用，按 #165 判据归业务族；
-                    // 回显的是用户自己提交的订单号，可外显。
-                    return Err(AppError::business_displayable(format!(
-                        "订单号 {} 已存在",
-                        no
-                    )));
-                }
-                Ok(no.to_string())
-            }
-            None => self.generate_unique_order_no().await,
-        }
-    }
-
-    /// 构建创建生产订单的 ActiveModel（DRAFT 状态 + 默认优先级 0）
+    /// 构建创建生产订单的 ActiveModel
+    ///
+    /// 默认值单一来源纪律（任务 #153）：
+    /// - `status` 不显式 Set：由 DB `DEFAULT 'DRAFT'`（m0007:84）生效，代码侧不再
+    ///   硬编码第二处 DRAFT 字面量（PG 下 insert 经 RETURNING 回填完整实体）；
+    /// - `priority` 为 None 时不 Set：由 DB `DEFAULT 5`（m0007:85）生效，不再
+    ///   `unwrap_or_default()` 把"未指定"塌成 0（0 会抢占最高优先级）；
+    /// - `planned_quantity` 类型上必填（NOT NULL m0007:78，无 DB 默认值可回落），
+    ///   缺键由请求 DTO 的 serde required 语义 400 拒绝，服务层不做默认。
     fn build_create_active_model(
         order_no: String,
         req: &CreateProductionOrderRequest,
     ) -> ActiveModel {
-        ActiveModel {
+        let mut active_model = ActiveModel {
             order_no: Set(order_no),
             sales_order_id: Set(req.sales_order_id),
             product_id: Set(req.product_id),
-            planned_quantity: Set(req.planned_quantity.unwrap_or_default()),
+            planned_quantity: Set(req.planned_quantity),
             planned_start_date: Set(req.planned_start_date),
             planned_end_date: Set(req.planned_end_date),
-            status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
-            priority: Set(req.priority.unwrap_or_default()),
+            status: NotSet,
+            priority: NotSet,
             // order_type 列 NOT NULL 且无 DB 默认值，普通创建固定 'normal'
             //（返工路径见 create_rework_order，Set 'rework'）；缺失会 500
             order_type: Set("normal".to_string()),
@@ -253,7 +243,11 @@ impl ProductionOrderService {
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
+        };
+        if let Some(priority) = req.priority {
+            active_model.priority = Set(priority);
         }
+        active_model
     }
 
     /// 插入生产订单（处理唯一约束冲突为 validation 错误）

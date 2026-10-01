@@ -40,22 +40,24 @@ pub struct ProductionOrderDto {
 pub const AUDIT_RESOURCE_TYPE: &str = "production_order";
 
 /// 创建生产订单请求
+///
+/// 不含 `order_no` 字段：单据号禁手输（任务 #153 缺陷3），一律由服务端
+/// `DocumentNumberGenerator` 取号（`PO{YYYYMMDD}{3位流水}`）；类型层面不提供
+/// 注入口，编译期即杜绝任何调用方旁路写号。
 #[derive(Debug, Clone)]
 pub struct CreateProductionOrderRequest {
-    /// 订单编号（None 时由统一生成器 utils/number_generator.rs 取号 `PO{YYYYMMDD}{3位流水}`；
-    /// 单据号系统生成禁手打，前端创建路径不传该字段——任务 #153）
-    pub order_no: Option<String>,
     /// 关联销售订单 ID（可选）
     pub sales_order_id: Option<i32>,
     /// 产品 ID
     pub product_id: i32,
-    /// 计划数量（None 取默认 0）
-    pub planned_quantity: Option<Decimal>,
+    /// 计划数量：NOT NULL DECIMAL（m0007:78）——类型上必填，不设 Option/默认值兜底
+    pub planned_quantity: Decimal,
     /// 计划开始日期
     pub planned_start_date: Option<chrono::NaiveDate>,
     /// 计划结束日期
     pub planned_end_date: Option<chrono::NaiveDate>,
-    /// 优先级（None 取 0）
+    /// 优先级（1-10，1 最高）：None 时该列不进 INSERT，由 DB DEFAULT 5 生效
+    ///（m0007:85；不再 unwrap_or_default 塌成 0 抢占最高优先级）
     pub priority: Option<i32>,
     /// 工作中心 ID
     pub work_center_id: Option<i32>,

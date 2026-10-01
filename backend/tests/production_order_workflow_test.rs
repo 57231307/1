@@ -21,12 +21,14 @@ use chrono::NaiveDate;
 use test_common::setup_test_db;
 
 /// 构造最小 CreateProductionOrderRequest（仅必填字段）
+///
+/// 无 order_no 字段（任务 #153 缺陷3：单据号禁手输，一律服务端取号）；
+/// planned_quantity 为必填 Decimal（NOT NULL 列，无 Option/默认值兜底）。
 fn sample_create_request() -> CreateProductionOrderRequest {
     CreateProductionOrderRequest {
-        order_no: None,
         sales_order_id: None,
         product_id: 1,
-        planned_quantity: Some(Decimal::new(1000, 0)),
+        planned_quantity: Decimal::new(1000, 0),
         planned_start_date: Some(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()),
         planned_end_date: Some(chrono::NaiveDate::from_ymd_opt(2026, 1, 31).unwrap()),
         priority: Some(1),
