@@ -12,6 +12,7 @@ import {
   genDyeLotNo,
   genPieceNo,
   ensureTestEntities,
+  seedInspectionPass,
 } from './helpers';
 
 test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () => {
@@ -153,6 +154,14 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
 
     const receiptId = receipt.data?.id;
     expect(receiptId, '入库单创建失败（响应缺 id）').toBeTruthy();
+
+    // 「质检合格方可入库」门控要求的真实前置：整单质检 complete(pass) 并回读到 PASSED
+    // （helpers.seedInspectionPass；未质检直接 confirm 会被 400 拒）
+    await seedInspectionPass(page, {
+      receiptId: receiptId as number,
+      supplierId: ctx.supplierId!,
+      context: '1-4 P2P 主链收货单',
+    });
 
     // 确认入库事务内按入库明细完成库存收货并推进订单已收数量，入库单直接进 COMPLETED；
     // 仍用轮询而非固定 sleep：断言的是终态可达，不依赖具体时序

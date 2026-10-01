@@ -3118,11 +3118,28 @@ export async function seedInspectionPass(
   opts: {
     receiptId: number;
     supplierId: number;
-    passQuantity: string | number;
+    /** 合格数量；省略时取收货单 total_quantity（即"整单全数合格"） */
+    passQuantity?: string | number;
     context?: string;
   }
 ): Promise<number> {
   const tag = opts.context ?? `receipt#${opts.receiptId}`;
+  let passQuantity = opts.passQuantity;
+  if (passQuantity === undefined) {
+    const head = await apiCall<Record<string, unknown>>(
+      page,
+      'GET',
+      `/purchase/receipts/${opts.receiptId}`
+    );
+    // 出参 total_quantity 是 rust_decimal 序列化的十进制字符串，原样透传即可
+    passQuantity = (head?.data as Record<string, unknown>)?.total_quantity as string | undefined;
+    if (!passQuantity) {
+      throw new Error(
+        `[${tag}] 收货单回读缺 total_quantity，无法按"整单全数合格"完成质检：` +
+          `${JSON.stringify(head)?.slice(0, 300)}`
+      );
+    }
+  }
   const created = await apiCall<Record<string, unknown>>(page, 'POST', '/purchase/inspections', {
     receipt_id: opts.receiptId,
     supplier_id: opts.supplierId,

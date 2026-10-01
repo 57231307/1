@@ -49,6 +49,7 @@ import {
   genCode,
   tryCleanup,
   APP_ERROR_CODES,
+  seedInspectionPass,
 } from '../flow/helpers';
 import { pickSelectIn, pickListArray } from '../flow/ui-helpers';
 
@@ -281,6 +282,15 @@ test.describe('20 采购到付款全流程契约链', () => {
     ).toBeTruthy();
     expectDecimal(line1!, 'quantity', 8, '入库明细数量');
 
+    // 门控前置：整单质检 complete(pass) 并回读 PASSED（helpers.seedInspectionPass）。
+    // 确认事务内会连带触发应付自动生成，此时收货单已是 PASSED，应付侧同一门控
+    // （ap_invoice_ops/receipt.rs）不再拦——下面那些 AP/库存/进度回读才有因果可依。
+    await seedInspectionPass(page, {
+      receiptId: rcptId,
+      supplierId: getCtx().supplierId!,
+      context: '20-01 首批收货单',
+    });
+
     // ── 确认入库（API 触发动作，回读全部后端权威字段）──
     await apiCall(page, 'POST', `/purchase/receipts/${rcptId}/confirm`);
     const rcpt1After = await apiCallRaw<Record<string, unknown>>(
@@ -376,6 +386,11 @@ test.describe('20 采购到付款全流程契约链', () => {
     const batch2 = `E2E-B2${genCode('RCV')}`;
     const rcptId2 = await receiveViaUI(page, orderNo, '12', batch2);
     CLEANUP.push({ path: `/purchase/receipts/${rcptId2}`, label: `purchase_receipt#${rcptId2}` });
+    await seedInspectionPass(page, {
+      receiptId: rcptId2,
+      supplierId: getCtx().supplierId!,
+      context: '20-01 末批收货单',
+    });
     await apiCall(page, 'POST', `/purchase/receipts/${rcptId2}/confirm`);
     const poAfter2 = await apiCallRaw<Record<string, unknown>>(
       page,
@@ -491,6 +506,13 @@ test.describe('20 采购到付款全流程契约链', () => {
     const { id: poId, order_no: orderNo } = await seedPo(page, 'APPROVED');
     const batch = `E2E-BX${genCode('RCV')}`;
     const rcptId = await receiveViaUI(page, orderNo, '5', batch);
+    // 门控前置：先质检合格，首次确认才会成功；否则下面的"重复确认被 DRAFT 状态门拒"
+    // 会被质检门代劳，两条断言形状相同 → 因错误的原因通过。
+    await seedInspectionPass(page, {
+      receiptId: rcptId,
+      supplierId: getCtx().supplierId!,
+      context: '20-02 收货单',
+    });
 
     await apiCall(page, 'POST', `/purchase/receipts/${rcptId}/confirm`);
     const rcpt = await apiCallRaw<Record<string, unknown>>(
@@ -505,6 +527,10 @@ test.describe('20 采购到付款全流程契约链', () => {
     const dup = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${rcptId}/confirm`);
     expect(dup.status, `重复确认应 400，实际=${dup.status} body=${JSON.stringify(dup)}`).toBe(400);
     expect(failureCode(dup), '重复确认机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    expect(
+      dup.message,
+      `重复确认的拒绝原因不应是质检门文案（说明首次确认未成功）：${dup.message}`
+    ).not.toMatch(/质检尚未完成|质检不合格/);
     // 无漂移：库存行与订单已收量不得被二次累加（幂等防御，purchase/13-02b 同源契约）
     const poRows = pickListArray<Record<string, unknown>>(
       {
@@ -547,6 +573,16 @@ test.describe('20 采购到付款全流程契约链', () => {
     });
     const badId = requireNum(bad.id, '建空批次入库单');
     CLEANUP.push({ path: `/purchase/receipts/${badId}`, label: `purchase_receipt#${badId}` });
+    // 空批次负例的归因前置：这张单必须"已质检合格但批次为空白"。
+    // 否则确认会先被质检门（PENDING）拒，而质检门与批次门的出参形状完全相同
+    // （400 + BUSINESS_ERROR + 仍 DRAFT），用例表面绿、实际验的已不是空批次 fail-closed
+    // （require_receipt_batch，purchase_receipt_private.rs:231-244）。
+    await seedInspectionPass(page, {
+      receiptId: badId,
+      supplierId: ctx.supplierId!,
+      context: '20-02 空批次收货单',
+    });
+
     const failConfirm = await apiCallExpectFail(
       page,
       'POST',
@@ -554,6 +590,10 @@ test.describe('20 采购到付款全流程契约链', () => {
     );
     expect(failConfirm.status, `空批次确认应 400，实际=${failConfirm.status}`).toBe(400);
     expect(failureCode(failConfirm), '空批次确认机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    expect(
+      failConfirm.message,
+      `空批次确认的拒绝原因不应是质检门文案：${failConfirm.message}`
+    ).not.toMatch(/质检尚未完成|质检不合格/);
     const badAfter = await apiCallRaw<Record<string, unknown>>(
       page,
       'GET',

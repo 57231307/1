@@ -13,6 +13,7 @@ import {
   ensureTestEntities,
   ensureStockInWarehouse,
   seedFourDimStockIn,
+  seedInspectionPass,
 } from './helpers';
 
 test.describe('库存调拨完整流程', () => {
@@ -303,6 +304,12 @@ test.describe('库存调拨完整流程', () => {
     });
     const receiptId = receipt.data?.id;
     expect(receiptId, `白坯入库单创建失败：${JSON.stringify(receipt).slice(0, 200)}`).toBeTruthy();
+    // 门控前置：白坯同样必经质检，整单 complete(pass) 回写 PASSED 后才允许确认入库
+    await seedInspectionPass(page, {
+      receiptId: receiptId as number,
+      supplierId: supplierId as number,
+      context: '12 白坯出库收货单',
+    });
     await apiCall(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
     await expect
       .poll(

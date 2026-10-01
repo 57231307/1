@@ -47,6 +47,7 @@ import {
   genCode,
   tryCleanup,
   APP_ERROR_CODES,
+  seedInspectionPass,
 } from '../flow/helpers';
 import { pickSelectIn, formItemByExactLabel, pickListArray } from '../flow/ui-helpers';
 
@@ -157,6 +158,15 @@ async function seedConfirmedReceipt(page: Page): Promise<{
   });
   const rcvId = requireNum(rcv.id, '建入库单');
   CLEANUP.push({ path: `/purchase/receipts/${rcvId}`, label: `purchase_receipt#${rcvId}` });
+  // 门控前置：门控落地后未质检的收货单确认必 400（helpers.seedInspectionPass 走
+  // 建质检单→complete(pass)→回读 PASSED 的真实回写链）。
+  // 本用例被测动作仍是随后在 UI 新建并完成的那张质检单（pass/fail 由用例决定），
+  // 种子里这次质检只是数据前置，没有替代被测动作。
+  await seedInspectionPass(page, {
+    receiptId: rcvId,
+    supplierId,
+    context: '22 种子入库单',
+  });
   await apiCall(page, 'POST', `/purchase/receipts/${rcvId}/confirm`);
   const confirmed = await apiCallRaw<Record<string, unknown>>(
     page,

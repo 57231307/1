@@ -9,6 +9,7 @@ import {
   apiCallExpectFail,
   tryCleanup,
   BASE_URL,
+  seedInspectionPass,
 } from './helpers';
 
 /**
@@ -256,6 +257,14 @@ test.describe.serial('44f 真实实体全流转链', () => {
     expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[44f-4] 收货单' });
 
+    // 门控前置：整单质检 complete(pass) 并回读 PASSED，首次确认才可能成功
+    // （helpers.seedInspectionPass——本用例测的就是"正常确认应当成功"）
+    await seedInspectionPass(page, {
+      receiptId: receiptId as number,
+      supplierId: ctx.supplierId!,
+      context: '44f-4 收货单',
+    });
+
     const c1 = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
     expect(c1.status, '首次确认应成功').toBeLessThan(300);
     // 确认事务内按入库明细完成库存收货并置 COMPLETED；轮询等待终态而非依赖同步返回体
@@ -275,6 +284,14 @@ test.describe.serial('44f 真实实体全流转链', () => {
     // 重复确认幂等拦截（po/receipt.rs:33-40）
     const c2 = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
     expect(c2.status, 'COMPLETED 后重复确认应被拒').toBeGreaterThanOrEqual(400);
+    // 归因锁：这条拒必须来自"已确认/状态门"，不能由质检门代劳
+    // （首次确认若被质检门抢拒，c1 的 <300 已先红，此处再锁 code 与文案防同形假绿）
+    expect(c2.code, `重复确认应落在 BUSINESS_ERROR 族，实际 code=${c2.code}`).toBe(
+      'BUSINESS_ERROR'
+    );
+    expect(c2.message, `重复确认的拒绝原因不应是质检门文案：${c2.message}`).not.toMatch(
+      /质检尚未完成|质检不合格/
+    );
   });
 
   test('44f-5 销售发货全链+shipped 后修改被拒', async ({ page }) => {

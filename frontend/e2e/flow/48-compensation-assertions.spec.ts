@@ -9,6 +9,7 @@ import {
   ensureTestEntities,
   ensureStockInWarehouse,
   getCtx,
+  seedInspectionPass,
 } from './helpers';
 
 /**
@@ -83,6 +84,15 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     const receiptId = receipt?.data?.id;
     expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[48-1] 收货单' });
+
+    // 门控前置：质检 complete(pass) 整单合格并回读 PASSED（helpers.seedInspectionPass）。
+    // 应付侧同一口径（ap_invoice_ops/receipt.rs 复用 ensure_receipt_inspection_allows_flow），
+    // 所以"确认成功 → AP 补偿生成"这条链本身就是门控的正向镜像。
+    await seedInspectionPass(page, {
+      receiptId: receiptId as number,
+      supplierId: ctx.supplierId!,
+      context: '48-1 收货单',
+    });
 
     // 确认入库构成收货事实：库存收货与订单已收数量在确认事务内完成，
     // AP 由确认后的 PurchaseReceiptCompleted 下游补偿生成
