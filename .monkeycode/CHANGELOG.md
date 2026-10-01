@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-10-01
+
+| PR | 一句话总结 |
+|----|-----------|
+| PR #942 | 报错族总收口——175 处 `map_err(|e| AppError::internal)` 把业务拒绝拍平成 500 全量改 `?` 透传（AR 核销/库存调整/委外 DbErr 重包等），状态门拒绝统一 BUSINESS_ERROR、字段取值统一 VALIDATION_ERROR，失败信封补 trace_id 同源与 panic/408/503 归族，9 张表单据号补 UNIQUE 且取号基数排除软删行，长度校验按字符不按字节、"必填"拆缺键与类型错，`Query<serde_json::Value>`+`as_i64` 恒失败静默回落改 typed DTO，三态显式 null 清空（`Option<Option<T>>`+`double_option`）推广到全部可空列更新端点。 |
+| PR #942 | 报表口径与业务规则同源——BI/profit/olap/dashboard/AR/AP 聚合 SQL 用大写状态字面量过滤小写写入列致草稿与取消计入金额，统一绑 `models/status` 写入方常量并参数化；色卡与 bulk-color 两处"业务永远写不出的死值"致色号创建与发放永不可达已修；环保税法定当量与地方税额分离配置化、ClamAV 故障 500 改判 503；预留引用存在性预检与凭证 workflow 族对齐。 |
+| PR #942 | 交易链门控与功能批——落地"质检合格方可入库/结算"单一门控（接确认入库与应付 auto-generate 两点）并把 11 处种子与用例改走真实的建质检→complete→回读链，质检结果词表强校验+回写收货单状态；采购收货对话框补四维与辅助数量真实录入（辅量不再恒 0）；委外三条门控（发料匹 CAS 占用/释放/转出闭环、零费用拒结算、零数量拒收回）并解锁 received 态仅成本补录避免 0 费用死单；生产工单单号禁手输（DTO 无字段 + serde flatten 残差 warn）与 status/priority 交 DB DEFAULT；染色完工强制登记实际落布量并回填成本能耗分母。 |
+| PR #942 | e2e 覆盖与假绿治理——三波契约级全流程覆盖补齐（财务核销对账/发票、库存预留与 item 级 IDOR、环保与出口合规、职业健康、CRM 分配共享、BI 聚合数值、交易域、主数据/CRM/BPM/权限/系统域 26 例）；系统性假绿机制删除（`verifyOptionalEndpointHealthy` 把未注册端点与权限拒当健康、`?? []` 与 `x.items ?? x` 双形状探测、只断 toast 不回读、skip 掩盖、`total>=0` 恒真）；`check-api-request` 补箭头签名与 Partial/Omit/交叉/联合解析使 19 条存量漂移首次进检查面并修掉 7 条（基线 56→49，缩短后门禁自身退出 0 即验证），api-keys 未知键 149→148；种子失败清单落盘为分片 JSON + PR 注解。 |
+| PR #942 | 隐私与越权族——CRM 线索默认脱敏块读错列名（读 `contact_phone` 而实体是 `mobile_phone`）致手机号完全未打码、公海列表 `list_leads(query, None)` 绕过行级数据权限且无脱敏、销售订单两处 `contact_email` 死代码，逐处按真实列名修并各补 sqlite 真跑契约测；科目 `balance_direction` 5 处比较点只认中文「借」而写入方三端全是英文 debit/credit（**种子 19 行全 debit、0 行中文，余额与试算系统性反号，且 e2e 直灌中文正好把缺陷遮在 CI 外**），改绑 `models/status` 权威常量 + 写入白名单 + m0007 存量归一（备份表可精确回退），e2e 直灌 token 同步为英文而展示层中文保持不动；AP 外币付款汇率条件必填、删除 `unwrap_or(1)` 静默兜底；匹状态流转补 `updated_by` 操作人（同一条 CAS 语句内 Set，零额外查询）。 |
+| PR #942 | 复审自审闭环——独立复审抓到并修掉三处：`seedInspectionPass` 把未推导的 `opts.passQuantity` 送进 complete 请求（undefined 被 JSON 丢键 → 后端必填 400，种子步 11 处成片真红）、零费用结算守卫是 `<= 0` 而文案只说"均为 0"（文案与守卫逐字对齐）、25 用例应付列表双形状探测把信封漂移吞成空列表（改严格单形状并当场红）；本地全树门禁逐子步核验通过（cargo check --all-targets + clippy + fmt、前端 15 步含 vitest 与 vue-tsc 全 0）。 |
+
+## 2026-09-30
+
+| PR | 一句话总结 |
+|----|-----------|
+| PR #942 | 校验拒绝文案外显族——`VALIDATION_PUBLIC` 一律回显"请求参数验证失败"让用户看不到被拒原因，新增 `ValidationErrorDisplayable` 白名单变体与 `From<ValidationErrors>` 可读提取（只放行纯公开规则），437 处显式构造点按保密边界分 5 路迁移；同时修掉 Validation 通道被当写入失败/内部不变量使用导致的 400 错报与内部原文外泄。 |
+| PR #942 | 自动编码族——15+ 处手写"时间戳+随机数"取号统一接入 `number_generator`（销售/采购/库存/生产/委外/薪酬/CRM 及残余 4 处双轨码），取号加保存点重试，售后/客诉/合同/部门"展示码≠存储码"一并修正，配套补取号与提交契约集成测。 |
+| PR #942 | 集成测试假绿根因消除——CI 起 PG 却不 migrate、harness 读 `TEST_DATABASE_URL` 而 CI 只设 `DATABASE_URL`（全部集成测试实际跑在空 sqlite 上）、约 60 个 `#[ignore]` 从无 `--run-ignored` 通道、`if-let` 条件静默跳过；改真库化 + 专用 job 执行 ignored + `require_postgres` 缺变量必须显式炸，另补 7 个契约/越权集成测试锁本批修复。 |
+| PR #942 | 覆盖补齐与前端契约修正——e2e 补财务 AP/AR 金额回读与核销闭环、库存预留链与调整单 item 级 IDOR、环保与出口合规、职业健康、CRM 分配共享合并与越权 403；前端修供应商资质有效期僵态与过期分级、联系人子资源父归属、信用额度释放与列表口径、合同编号与部门编码查重、面料白坯与染色批次幽灵列、凭证键名与部门经理字段、采购订单明细更新丢字段（折扣/允差/色号/辅量）。 |
+
+## 2026-09-29
+
+| PR | 一句话总结 |
+|----|-----------|
+| PR #942 | 系统更新真实性族——前端读后端从不返回的 `version` 用 `!==` 比较致"永远提示有更新"，改取后端权威 `has_update` 并展示 `release_notes`；版本比较恒错因 Cargo 强制三段与 tag 四段冲突，改 CI 编译期注入四段版本 + 方案感知归一比较器；更新下载补多镜像与官方 API digest/CI checksum 完整性强校验（fail-closed、MD5 仅补充）；任务/备份两 tab 补真实列表端点并正名、版本 tab 移除、进度条改诚实（只在不确定态显 indeterminate）。 |
+| PR #942 | 判责 #4668 与功能修正——库存调拨 7 红全为测试侧缺陷（未 seed 源库存/strict 选择器/隐藏 input）修复；调拨出库对染色布强制四维、legacy 调拨对话框与 tab 删除统一走 `/inventory-transfer` 并补 destroy-on-close；AP 引入 `CreateAPInvoiceRequest` DTO、AR 前端对齐 `PaginatedResponse` 去兜底、`ARInvoice.due_date` 类型收紧；采购退货明细三维端到端打通并在审批事务内回写来源 PO 已收量；库存调整单 handler 去掉 `map_err` 重包；盘点/生产/发货状态流转端点补 IDOR 与数据范围。 |
+| PR #942 | e2e 健康检查收紧——`verifyEndpointHealthy` 默认严格（不再把 404/403 当健康）、已注册端点从 optional 误吞迁 strict、`verifyOptionalEndpointHealthy` 逐步删除，flow/traversal 状态机断言收紧为精确终态、删除引用防护断具体错误码、水平越权改为真用 B 账号操作、角色矩阵无基线即判红；另落地摄像头扫码（可选 HTTPS + 桌面摄像头枚举）与采购合同真 xlsx 导出端点。 |
+
 ## 2026-09-28
 
 | PR | 一句话总结 |
