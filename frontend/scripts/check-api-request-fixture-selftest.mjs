@@ -10,18 +10,27 @@
  *   (c) 交叉类型 A & B —— 两侧键集合并参与比对（禁止半解析）；一员不可解析则整条显式盲区；
  *   (d) 叶子类型（serde_json::Value / any / Record<string, unknown> / 索引签名 / 不可解析 config）
  *       —— 必须显式返回 blind/叶子标记，绝不允许无声当作通过。
+ * 看板 #40 追加（盲区口径收紧，逐类可复验）：
+ *   (e) 形参注解尾注释剥离；(f) 联合类型逐员合并/一员失明整条盲区；
+ *   (g) 交叉类型含 Omit 成员的完整展开；(h) 跨文件同名歧义类型的本文件遮蔽还原；
+ *   (i) 同名跨文件副本调用点的补录（含幂等）。数组载荷 `T[]`↔`Json<Vec<T>>`、
+ *   `data ?? {}`、`{}` 空体均落在 [a] 段断言。
  * 任何一条断言失败 -> 退出码 1（本脚本已接入 CI ci-static-checks，防解析器回归）。
  */
 import {
   CFG_BLIND,
+  buildLocalTypeIndex,
   compareKeys,
   extractAxiosConfigValue,
+  extractorType,
   feKeysOf,
   leafTypeText,
   paramTypeOf,
   resolveTsTypeExpr,
   rustFieldsOf,
   splitTopLevelAmp,
+  stripTsComments,
+  supplementMissedCallSites,
   tsFieldsOf,
 } from './check-api-request.mjs';
 import { sigForSymbol } from './check-api-envelope.mjs';
@@ -153,6 +162,51 @@ console.log('\n[a] 箭头函数签名：sig 回填 + 形参类型解析 + 失配
     '(a5) 顶层默认值剥除后取到类型注解',
     JSON.stringify(paramTypeOf('id: number, data?: WidgetPatch = {}', 'data'))
   );
+  // 看板 #40 盲区 1+2 联合形态：async 箭头函数 + 数组类型注解载荷,违规必须能报
+  const srcArr = `export const receiveItems = async (receiptId: number, data: Partial<WidgetDto>[]): Promise<ApiResponse<null>> =>
+  request.post<ApiResponse<null>>(\`/receipts/\${receiptId}/receive\`, data);
+`;
+  const sigArr = sigForSymbol(srcArr, 0, srcArr.indexOf('request.post'));
+  ok(
+    sigArr === 'receiptId: number, data: Partial<WidgetDto>[]',
+    '(a6) async 箭头 + Promise 返回注解:sig 完整回填(含数组注解)',
+    JSON.stringify(sigArr)
+  );
+  const rArr = feKeysOf({ sig: sigArr }, 'data', tsIndex);
+  ok(
+    rArr.kind === 'keys' && rArr.keys.every(k => k.optional),
+    '(a7) `T[]` 载荷剥壳按元素类型展开（旧实现记“未处理的类型写法”整体跳过）',
+    JSON.stringify(
+      rArr.kind === 'keys' ? rArr.keys.map(k => k.name + (k.optional ? '?' : '')) : rArr
+    )
+  );
+  const cmpArr = compareKeys(
+    rArr.kind === 'keys' ? rArr.keys : [],
+    rustFieldsOf('WidgetPayload', structIndex)
+  );
+  ok(
+    cmpArr.status === 'mismatch' && cmpArr.extra.join(',') === 'ghostKey',
+    '(a8) 数组载荷的键名漂移(ghostKey 后端不读)能报——盲区补录后该类不再静默',
+    `extra=${(cmpArr.extra || []).join(',')}`
+  );
+  ok(
+    extractorType('Json(items): Json<Vec<WidgetPayload>>', 'Json') === 'WidgetPayload',
+    '(a9) 后端 Json<Vec<T>> 展开到元素类型 T（旧实现截到 Vec 后整条盲区）',
+    extractorType('Json(items): Json<Vec<WidgetPayload>>', 'Json')
+  );
+  // `data ?? {}` 兜底写法：载荷即 data,全部键置可选（看板 #40：13 处曾整体拒检）
+  const rAlt = feKeysOf({ sig: 'id: number, data: NameDto', payload: '' }, 'data ?? {}', tsIndex);
+  ok(
+    rAlt.kind === 'keys' && rAlt.keys.length === 1 && rAlt.keys[0].optional,
+    '(a10) `data ?? {}` 解析为 data 的键集且全部可选（兜底空对象时任何键都可能缺）',
+    JSON.stringify(rAlt.kind === 'keys' ? rAlt.keys : rAlt)
+  );
+  // 空对象载荷：是「确实不发键」,不是「解析不出」
+  const rEmpty = feKeysOf({ sig: 'data: NameDto' }, '{}', tsIndex);
+  ok(
+    rEmpty.kind === 'none',
+    '(a11) `{}` 空对象载荷归 none（走“后端必填 vs 前端空体”判据，不再记盲区躲检查）'
+  );
 }
 
 // ---------- (b) Partial<T> 包装 ----------
@@ -238,9 +292,31 @@ console.log('\n[c] 交叉类型：两侧键集必须合并；半解析/不可解
   ok(rba === null, '(c5) alias 含不可解析成员 => 判 null 走盲区（不返回部分结果）');
   const r3 = feKeysOf({ sig: 'data: Omit<WidgetDto, "qty">' }, 'data', tsIndex);
   ok(
-    r3.kind === 'blind' && /未处理的类型写法/.test(r3.why),
-    '(c6) 未支持写法显式盲区（带原文），绝不静默 continue',
-    r3.why
+    r3.kind === 'keys' &&
+      r3.keys
+        .map(k => k.name)
+        .sort()
+        .join(',') === 'ghostKey,name',
+    '(c6) Omit<T,K> 已支持：展开 T 后删掉 K（看板 #40 口径收紧，原“未支持=>盲区”用例）',
+    JSON.stringify(r3.kind === 'keys' ? r3.keys.map(k => k.name) : r3)
+  );
+  const r4 = feKeysOf({ sig: 'data: keyof WidgetDto' }, 'data', tsIndex);
+  ok(
+    r4.kind === 'blind' && /未处理的类型写法/.test(r4.why),
+    '(c6b) 真·未支持写法仍必须显式盲区（带原文），绝不静默 continue',
+    r4.why
+  );
+  const r5 = feKeysOf({ sig: 'data: Pick<WidgetDto, "qty">' }, 'data', tsIndex);
+  ok(
+    r5.kind === 'keys' && r5.keys.map(k => k.name).join(',') === 'qty',
+    '(c6c) Pick<T,K> 展开：只留列出的键',
+    JSON.stringify(r5.kind === 'keys' ? r5.keys.map(k => k.name) : r5)
+  );
+  const r6 = feKeysOf({ sig: 'data: Omit<WidgetDto, 42>' }, 'data', tsIndex);
+  ok(
+    r6.kind === 'blind' && /键列表非字符串字面量/.test(r6.why),
+    '(c6d) Omit 键列表非字符串字面量 => 显式盲区，不猜',
+    r6.why
   );
 }
 
@@ -295,6 +371,129 @@ console.log('\n[d] 叶子类型：可比部分照常比，不可比部分必须�
     extractAxiosConfigValue('{ params: { a }, timeout: 1 }', 'params') === '{ a }',
     '(d6d) 正常 config 解析'
   );
+}
+
+// ---------- (e) 注解尾注释剥离（看板 #40 盲区 2-带注释的类型注解） ----------
+console.log('\n[e] 形参注解后的 `//` 说明注释不得再污染类型解析');
+{
+  const sig =
+    'params?: CreateWidgetDto // 后端 handler::list(a, b) 返回 ApiResponse<Vec<Model>> ⇒ 裸数组';
+  const pt = paramTypeOf(sig, 'params');
+  ok(
+    pt && pt.typeText === 'CreateWidgetDto',
+    '(e1) 注释含逗号/括号也不会把类型文本拖进参数解析',
+    JSON.stringify(pt)
+  );
+  const r = feKeysOf({ sig }, 'params', tsIndex);
+  ok(
+    r.kind === 'keys' && r.keys.map(k => k.name).join(',') === 'name,qty',
+    '(e2) 注释污染形态的形参载荷现在能进比对',
+    JSON.stringify(r.kind === 'keys' ? r.keys.map(k => k.name) : r)
+  );
+  ok(
+    stripTsComments('A & B // 说明 /* x */').replace(/\s+/g, ' ').trim() === 'A & B',
+    '(e3) stripTsComments 基本形态'
+  );
+}
+
+// ---------- (f) 联合类型（复杂类型注解,看板 #40 盲区 2） ----------
+console.log('\n[f] 联合类型：逐员合并,一员失明整条显式盲区');
+{
+  const r = feKeysOf(
+    { sig: "data: { step: 'd1'; memo: string } | { step: 'd2'; memo: string; owner: string }" },
+    'data',
+    tsIndex
+  );
+  ok(
+    r.kind === 'keys' &&
+      r.keys
+        .map(k => k.name)
+        .sort()
+        .join(',') === 'memo,owner,step',
+    '(f1) 各成员键集并集参与比对（旧实现“未处理的类型写法”整体跳过）',
+    JSON.stringify(r.kind === 'keys' ? r.keys.map(k => k.name + (k.optional ? '?' : '')) : r)
+  );
+  const owner = r.kind === 'keys' && r.keys.find(k => k.name === 'owner');
+  ok(!!owner && owner.optional === true, '(f2) 只在部分成员出现的键必须置可选（缺它不算失配）');
+  const memo = r.kind === 'keys' && r.keys.find(k => k.name === 'memo');
+  ok(!!memo && memo.optional === false, '(f3) 全成员都必填的键保持必填（后端缺它仍会报）');
+  const rb = feKeysOf({ sig: 'data: NameDto | GhostThing' }, 'data', tsIndex);
+  ok(
+    rb.kind === 'blind' && /GhostThing/.test(rb.why),
+    '(f4) 一员解析不出 => 整条显式盲区并点名成员,禁止半解析',
+    rb.why
+  );
+}
+
+// ---------- (g) 交叉类型含 Omit 成员（交叉+复杂类型合并形态） ----------
+console.log('\n[g] 交叉类型 x Omit：成员展开后再合并');
+{
+  const r = feKeysOf({ sig: 'data: NameDto & Omit<WidgetDto, "ghostKey">' }, 'data', tsIndex);
+  ok(
+    r.kind === 'keys' &&
+      r.keys
+        .map(k => k.name)
+        .sort()
+        .join(',') === 'name,qty',
+    '(g1) `A & Omit<B,K>` 完整展开合并',
+    JSON.stringify(r.kind === 'keys' ? r.keys.map(k => k.name) : r)
+  );
+  const cmp = compareKeys(
+    r.kind === 'keys' ? r.keys : [],
+    rustFieldsOf('NameOnlyPayload', structIndex)
+  );
+  ok(
+    cmp.status === 'mismatch' && cmp.extra.join(',') === 'qty',
+    '(g2) 该交叉形态下多发的 qty（后端不读）能报——交叉违规被门禁真实抓住',
+    `extra=${(cmp.extra || []).join(',')}`
+  );
+}
+
+// ---------- (h) 跨文件同名歧义类型:本文件定义优先（看板 #40 盲区 2-多定义） ----------
+console.log('\n[h] 同名歧义类型:调用方文件自身定义优先');
+{
+  const ambIndex = new Map([['AmbDto', { kind: 'ambiguous', file: 'other' }]]);
+  const localSrc = `export interface AmbDto { own_field: string; other: number }\n`;
+  const local = buildLocalTypeIndex(localSrc, '/src/api/fixture.ts');
+  const r = feKeysOf({ sig: 'data: AmbDto' }, 'data', ambIndex, local);
+  ok(
+    r.kind === 'keys' && r.keys.map(k => k.name).join(',') === 'own_field,other',
+    '(h1) 全局索引 ambiguous 的类型,本地定义可无歧义还原（user.ts/user-profile.ts 双 ChangePasswordRequest 形态）',
+    JSON.stringify(r.kind === 'keys' ? r.keys.map(k => k.name) : r)
+  );
+  const rNoLocal = feKeysOf({ sig: 'data: AmbDto' }, 'data', ambIndex, null);
+  ok(rNoLocal.kind === 'blind', '(h2) 无本地定义时仍显式盲区,不猜别文件的同名类型');
+}
+
+// ---------- (i) 被全局去重吞掉的调用点必须补录（看板 #40 盲区 1-静默丢弃） ----------
+console.log('\n[i] 同名跨文件副本调用点补录');
+{
+  const twinSrc = `export const getList = (data: CreateWidgetDto) =>
+  request.post('/widgets', data);
+`;
+  const feFunctions = [
+    {
+      name: 'getList',
+      file: '/src/api/other.ts',
+      line: 1,
+      call: { method: 'POST', path: '/widgets', args: ["'/widgets'", 'data'] },
+      sig: 'data: CreateWidgetDto',
+    },
+  ];
+  const added = supplementMissedCallSites(feFunctions, [{ rel: '/src/api/twin.ts', src: twinSrc }]);
+  ok(
+    added === 1 && feFunctions.length === 2,
+    '(i1) 另一文件的同名同端点副本不再被吞掉',
+    `added=${added}`
+  );
+  const twin = feFunctions[1];
+  ok(
+    twin.file === '/src/api/twin.ts' && twin.sig === 'data: CreateWidgetDto',
+    '(i2) 补录条目带文件与形参签名,可正常参与载荷比对',
+    JSON.stringify({ file: twin.file, sig: twin.sig })
+  );
+  const again = supplementMissedCallSites(feFunctions, [{ rel: '/src/api/twin.ts', src: twinSrc }]);
+  ok(again === 0, '(i3) 重复执行不双计（幂等）');
 }
 
 console.log('\n---- fixture 自测结论 ----');

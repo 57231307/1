@@ -36,6 +36,17 @@
  *       顶层键名仍参与比对，但内层键集**不可比**这一事实必须进「未覆盖清单」逐条输出，
  *       不再当作无声通过；索引签名与不可解析的 axios config 同样显式入盲区。
  *
+ * 看板 #40 再补的两类（同一红线：判不出=必须显式，绝不能「该报的没报」）：
+ *   (e) 箭头函数签名的残余静默丢弃：parseFrontendApiFunctions 的判重键（函数名, path）是
+ *       **跨文件全局**的——同名同端点的跨文件副本（如 inventory.ts 与 inventory-transfer.ts
+ *       各有一个 approveInventoryTransfer）只会有一个进检查面，另一个无声消失。副本可以
+ *       各自漂移（一边修了一边没修），漏掉任何一个就是假绿。现按（文件, path, method）口径
+ *       补录（supplementMissedCallSites，实测找回 3 条）。
+ *   (f) 复杂类型注解：注解尾注释（拖脏类型文本）、`T[]`/`Array<T>` 数组载荷（含后端
+ *       `Json<Vec<T>>` 元素展开）、`Omit/Pick`、联合 `A | B`（逐员合并、必填=各员交集）、
+ *       跨文件同名歧义类型（本文件定义优先）、`data ?? {}` 兜底与 `{}` 空体（归 none 走
+ *       必填判据）——此前全部落「未处理的类型写法」盲区躲过比对，现已纳入或显式盲区。
+ *
  * 存量失配过渡机制：scripts/api-request-baseline.json 登记「当前已知、待清零」的失配项
  * （file:line + 端点为键）。命中基线只列示不判负；**不在基线内的新失配仍立即红**。
  * 这是过渡而非放宽——基线只准缩短，清零后应删除该文件恢复全量阻断。
@@ -43,17 +54,27 @@
  * 解析器复用：全部从 check-api-envelope.mjs 导入（同一套 nest 前缀还原、宏展开、pub use 转出、
  * TS 具名类型展开），两处各写一份必然漂移——这是本仓库反复栽过的根因之一。
  */
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { BASE_URL, walkBackendRoutes } from './check-api-paths.mjs';
+import {
+  BASE_URL,
+  FRONTEND,
+  constStringMap,
+  normalizePath,
+  resolveFrontendUrl,
+  walkBackendRoutes,
+} from './check-api-paths.mjs';
 import {
   buildHandlerModules,
   buildStructIndex,
   buildTsTypeIndex,
+  captureBalanced,
   loadHandlerMacroTemplates,
   parseFrontendApiFunctions,
+  readUntilStatementEnd,
   resolveHandlerSymbolPath,
+  sigForSymbol,
   splitObjFields,
   splitTopLevelRust,
 } from './check-api-envelope.mjs';
@@ -66,6 +87,20 @@ const CFG_BLIND = '\u0000__BLIND_CONFIG__\u0000';
 
 // ---------- Rust 侧：Json<T> / Query<T> 提取器与结构体字段 ----------
 function extractorType(sig, wrapper) {
+  // Json<Vec<T>> / Query<Vec<T>>：批量端点的真实形状是元素类型。必须先于泛型壳正则试——
+  // 否则外层 `([A-Za-z_][\w:]*)` 会把 `Vec` 本身当类型名截走，rustFieldsOf 查不到名为
+  // Vec 的 struct -> 整条落「后端字段不可静态解析」盲区，前端 `T[]` 载荷与后端元素字段集
+  // 的漂移因此从未被比对（看板 #40 盲区 2-数组形态）。
+  const reVec = new RegExp(
+    '\\b' +
+      wrapper +
+      '\\s*(?:\\(\\s*[A-Za-z_][\\w]*\\s*\\)\\s*:\\s*(?:[a-z_]\\w*::)*' +
+      wrapper +
+      '\\s*)?<\\s*(?:std::vec::)?(?:Vec|Box)\\s*<\\s*([A-Z][\\w:]*)\\s*>\\s*>',
+    'g'
+  );
+  const mv = reVec.exec(sig);
+  if (mv) return mv[1];
   const re = new RegExp(
     '\\b' +
       wrapper +
@@ -155,6 +190,110 @@ function rustFieldsOf(typeName, structIndex) {
 
 // ---------- TS 侧：具名类型/内联对象/Partial/交叉类型 -> 键集 ----------
 
+// 剥 `//…` 行注释与 `/*…*/` 块注释（字符串字面量内的不误伤）。
+// 看板 #40 盲区 2：本仓大量形参注解后拖着一行 `// 后端 xxx_handler::yyy` 说明注释，
+// 类型文本被注释污染后走「未处理的类型写法」盲区（fund.ts:50、purchase-price.ts:73 实锤）；
+// 更危险的是注释里含 `,`/`)` 会把参数表切歪，连累同一签名里其它可解析形参。
+function stripTsComments(s) {
+  const out = [];
+  let i = 0;
+  let q = null; // 当前字符串引号
+  while (i < s.length) {
+    const c = s[i];
+    if (q) {
+      out.push(c);
+      if (c === '\\') {
+        out.push(s[++i] || '');
+      } else if (c === q) q = null;
+      i++;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      q = c;
+      out.push(c);
+      i++;
+      continue;
+    }
+    if (c === '/' && s[i + 1] === '/') {
+      while (i < s.length && s[i] !== '\n') i++;
+      out.push(' ');
+      continue;
+    }
+    if (c === '/' && s[i + 1] === '*') {
+      i += 2;
+      while (i < s.length && !(s[i] === '*' && s[i + 1] === '/')) i++;
+      i += 2;
+      out.push(' ');
+      continue;
+    }
+    out.push(c);
+    i++;
+  }
+  return out.join('');
+}
+
+// 顶层 `|` 切分（<> {} [] () 与字符串内不切）。用于联合类型逐员展开。
+function splitTopLevelBar(s) {
+  const out = [];
+  let depth = 0;
+  let cur = '';
+  let q = null;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) {
+      cur += c;
+      if (c === q) q = null;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      q = c;
+      cur += c;
+      continue;
+    }
+    if (c === '<' || c === '{' || c === '[' || c === '(') depth++;
+    else if (c === '>' || c === '}' || c === ']' || c === ')') depth--;
+    if (c === '|' && depth === 0 && s[i + 1] !== '|' && s[i - 1] !== '|') {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim()) out.push(cur);
+  return out.map(x => x.trim()).filter(Boolean);
+}
+
+// 顶层 `,` 切分（<> {} [] () 与字符串内不切）。Omit/Pick 的「基础类型, 键列表」拆分用。
+function splitTopLevelCommas(s) {
+  const out = [];
+  let depth = 0;
+  let cur = '';
+  let q = null;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) {
+      cur += c;
+      if (c === q) q = null;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      q = c;
+      cur += c;
+      continue;
+    }
+    if (c === '<' || c === '{' || c === '[' || c === '(') depth++;
+    else if (c === '>' || c === '}' || c === ']' || c === ')') depth--;
+    if (c === ',' && depth === 0) {
+      out.push(cur.trim());
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.filter(Boolean);
+}
+
 // 顶层 `&` 切分（<> {} [] () 内不切）。返回成员列表；无 & 时即 [t]。
 function splitTopLevelAmp(s) {
   const out = [];
@@ -175,22 +314,50 @@ function splitTopLevelAmp(s) {
 }
 
 // 任意 TS 类型文本 -> {fields} 或 {blind: 原因}。
-// 覆盖：具名 interface/type、`Name<Arg>`、Partial<T>/Required<T>、A & B（交叉）、内联对象。
+// 覆盖：具名 interface/type、`Name<Arg>`、Partial<T>/Required<T>、A & B（交叉）、
+//       A | B（联合，逐员合并、必填=各员交集）、T[]/Array<T>（剥壳取元素）、
+//       Omit<T,K>/Pick<T,K>（展开基础类型后删/留键）、内联对象。
 // 原则：解析不了必须带原因返回 blind，绝不返回「部分解析的结果」冒充完整。
-function resolveTsTypeExpr(raw, tsIndex, seen = new Set()) {
-  const t = String(raw || '')
+// localIndex（看板 #40）：全局 tsIndex 把跨文件同名不同体的类型标为 ambiguous 后整条拒解；
+// 调用方所在文件自身的定义会遮蔽 import 的同名类型，故本文件定义优先。
+function resolveTsTypeExpr(raw, tsIndex, seen = new Set(), localIndex = null) {
+  const t = stripTsComments(String(raw || ''))
     .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/;+$/, '')
     .trim()
     .replace(/;+$/, '');
   if (!t) return { blind: '类型文本为空' };
   const leaf = leafTypeText(t);
   if (leaf) return { blind: `叶子类型 ${leaf}：键集不可穷举`, leaf };
+  const barParts = splitTopLevelBar(t);
+  if (barParts.length > 1) {
+    // 联合类型：全体员必须可解析；合并键集 = 各员并集，某键只在部分成员出现
+    // （或成员内本就可选）时一律置可选——前端只会发其中一个形态，缺键不判失配，
+    // 但「后端完全不认识的多余键」仍抓得住。一员解析不出 -> 显式盲区并点名成员。
+    const resolved = barParts.map(p => ({
+      p,
+      r: resolveTsTypeExpr(p, tsIndex, new Set(seen), localIndex),
+    }));
+    const unresolved = resolved.filter(x => x.r.blind).map(x => `${x.p}（${x.r.blind}）`);
+    if (unresolved.length) return { blind: '联合类型含不可解析成员: ' + unresolved.join(' | ') };
+    const merged = [];
+    for (const x of resolved)
+      for (const f of x.r.fields) if (!merged.some(m => m.name === f.name)) merged.push({ ...f });
+    if (!merged.length) return { blind: '联合类型展开后无字段' };
+    const fields = merged.map(f => {
+      const appearsInAll = resolved.every(x => x.r.fields.some(v => v.name === f.name));
+      const optInSome = resolved.some(x => x.r.fields.some(v => v.name === f.name && v.optional));
+      return { ...f, optional: f.optional || !appearsInAll || optInSome };
+    });
+    return { fields, from: t.slice(0, 60) };
+  }
   const parts = splitTopLevelAmp(t);
   if (parts.length > 1) {
     const merged = [];
     const unresolved = [];
     for (const p of parts) {
-      const r = resolveTsTypeExpr(p, tsIndex, new Set(seen));
+      const r = resolveTsTypeExpr(p, tsIndex, new Set(seen), localIndex);
       if (r.blind) {
         unresolved.push(`${p}（${r.blind}）`);
         continue;
@@ -207,7 +374,7 @@ function resolveTsTypeExpr(raw, tsIndex, seen = new Set()) {
   if ((mp = /^(Partial|Required)<([\s\S]+)>$/.exec(t))) {
     // (b) Partial<T>：T 全部键并入且置为可选（PATCH 语义，缺省不算失配）；
     //     Required<T> 反向。内部可继续是交叉/具名，递归交给同一入口。
-    const r = resolveTsTypeExpr(mp[2], tsIndex, seen);
+    const r = resolveTsTypeExpr(mp[2], tsIndex, seen, localIndex);
     if (r.blind) return r;
     const isPartial = mp[1] === 'Partial';
     return {
@@ -215,51 +382,96 @@ function resolveTsTypeExpr(raw, tsIndex, seen = new Set()) {
       from: `${mp[1]}<${mp[2]}>`.slice(0, 60),
     };
   }
+  if ((mp = /^(Omit|Pick)<([\s\S]+)>$/.exec(t))) {
+    // Omit<T, 'a' | 'b'> / Pick<T, 'a' | 'b'>：展开 T 后按字面量键删/留。
+    // 键列表里出现非字符串字面量（计算值、keyof 表达式）-> 显式盲区，不猜。
+    const inner = splitTopLevelCommas(mp[2]);
+    if (inner.length < 2) return { blind: `未处理的类型写法: ${t.slice(0, 60)}` };
+    const r = resolveTsTypeExpr(inner[0], tsIndex, seen, localIndex);
+    if (r.blind) return r;
+    const keyText = inner.slice(1).join(',');
+    const lits = [...keyText.matchAll(/(['"])((?:\\\1|(?!\1)[^\\])*)\1/g)].map(x => x[2]);
+    if (keyText.replace(/\s/g, '').length && !lits.length)
+      return { blind: `${mp[1]} 的键列表非字符串字面量，不可静态展开: ${keyText.slice(0, 40)}` };
+    const set = new Set(lits);
+    const fields =
+      mp[1] === 'Omit'
+        ? r.fields.filter(f => !set.has(f.name))
+        : r.fields.filter(f => set.has(f.name));
+    if (mp[1] === 'Pick' && set.size !== fields.length)
+      return {
+        blind: `Pick 列出的键与 ${r.from} 字段对不上（列 ${set.size} 留 ${fields.length}），不猜`,
+      };
+    return { fields, from: `${mp[1]}<${inner[0]}>`.slice(0, 60) };
+  }
+  if ((mp = /^(?:readonly\s+)?(?:Array|ReadonlyArray)<([\s\S]+)>$/.exec(t))) {
+    // 数组载荷（批量端点的 Array<T> 写法）：剥壳比对**元素**键集。
+    const r = resolveTsTypeExpr(mp[1], tsIndex, seen, localIndex);
+    if (r.blind) return r;
+    return { fields: r.fields, from: `Array<${mp[1]}>`.slice(0, 60), arrayElement: true };
+  }
+  if (/(?:<|\{|\[|\()$/.test(t)) return { blind: `未处理的类型写法: ${t.slice(0, 60)}` };
+  if ((mp = /^([\s\S]+)\[\]$/.exec(t))) {
+    // `T[]`：同上按元素比对；顶层 [] 判定在配平尾部检查之后，避免吃掉 `A[] & B` 之类
+    // 已在交叉分支处理过的写法。
+    const r = resolveTsTypeExpr(mp[1], tsIndex, seen, localIndex);
+    if (r.blind) return r;
+    return { fields: r.fields, from: `${mp[1]}[]`.slice(0, 60), arrayElement: true };
+  }
   if (/^[A-Z]\w*$/.test(t)) {
-    const f = tsFieldsOf(t, tsIndex, 0, seen);
+    const f = tsFieldsOf(t, tsIndex, 0, seen, localIndex);
     if (!f) return { blind: `${t} 无法静态展开（泛型/多定义/索引签名/父类型不可解析）` };
     return { fields: f.fields, from: t };
   }
   if (/^[A-Z]\w*<[A-Za-z_]\w*(\s*,\s*[A-Za-z_]\w*)*>$/.test(t)) {
     const bare = /^([A-Z]\w*)/.exec(t)[1];
-    const f = tsFieldsOf(bare, tsIndex, 0, seen);
+    const f = tsFieldsOf(bare, tsIndex, 0, seen, localIndex);
     if (!f) return { blind: `${bare} 无法静态展开（带类型实参）` };
     return { fields: f.fields, from: t };
   }
   if (t.startsWith('{') && t.endsWith('}')) {
-    const f = tsFieldsOfBody(t.slice(1, -1), tsIndex, 0, new Set(seen), '(内联对象类型)');
+    const f = tsFieldsOfBody(
+      t.slice(1, -1),
+      tsIndex,
+      0,
+      new Set(seen),
+      '(内联对象类型)',
+      localIndex
+    );
     if (!f) return { blind: `内联对象类型无法展开: ${t.slice(0, 40)}` };
     return { fields: f.fields, from: '内联对象类型' };
   }
   return { blind: `未处理的类型写法: ${t.slice(0, 60)}` };
 }
 
-function tsFieldsOf(name, tsIndex, depth = 0, seen = new Set()) {
+function tsFieldsOf(name, tsIndex, depth = 0, seen = new Set(), localIndex = null) {
   if (depth > 3 || seen.has(name)) return null;
-  const ent = tsIndex.get(name);
+  // 本文件定义优先：同名类型跨文件冲突时全局索引会标 ambiguous 整条拒解，
+  // 但调用方文件自己声明的那份是无歧义的（TS 的词义作用域就是它）。
+  const ent = (localIndex && localIndex.get(name)) || tsIndex.get(name);
   if (!ent || ent.kind === 'ambiguous') return null;
   const localSeen = new Set(seen);
   localSeen.add(name);
   if (ent.kind === 'alias') {
     // type X = A & B / type X = Partial<Y> / type X = {..}：统一走一个解析口，
     // 避免 alias 分支只认「{...} 或裸名」而把交叉/Partial 无声退回 null。
-    const r = resolveTsTypeExpr(ent.text, tsIndex, localSeen);
+    const r = resolveTsTypeExpr(ent.text, tsIndex, localSeen, localIndex);
     if (r.blind) return null;
     return { fields: r.fields, raw: ent.text, from: name };
   }
   if (ent.kind !== 'object') return null;
-  const self = tsFieldsOfBody(ent.body, tsIndex, depth, localSeen, name);
+  const self = tsFieldsOfBody(ent.body, tsIndex, depth, localSeen, name, localIndex);
   if (!self) return null;
   const merged = self.fields.slice();
   for (const par of ent.extends || []) {
-    const r = resolveTsTypeExpr(par, tsIndex, localSeen);
+    const r = resolveTsTypeExpr(par, tsIndex, localSeen, localIndex);
     if (r.blind) return null; // 父类型不可解析 -> 整条盲区（键集不完整就不比对）
     for (const f of r.fields) if (!merged.some(m => m.name === f.name)) merged.push(f);
   }
   return { fields: merged, raw: ent.body, from: name };
 }
 
-function tsFieldsOfBody(body, tsIndex, depth, seen, label) {
+function tsFieldsOfBody(body, tsIndex, depth, seen, label, localIndex = null) {
   const out = [];
   for (const entry of splitObjFields(body)) {
     const kv = entry.match(/^\s*([A-Za-z_]\w*)(\??)\s*:\s*([\s\S]*)$/);
@@ -301,8 +513,10 @@ function extractAxiosConfigValue(objText, wanted) {
 // 落进「形参在签名里找不到类型」。现按顶层逗号拆参数表，逐个取名/型，
 // 剥默认值；`?` 可选标记保留为 optional。取不到类型时返回 null（调用方入盲区）。
 function paramTypeOf(sig, name) {
-  const s = String(sig || '').replace(/\s+/g, ' ');
-  if (!s) return null;
+  // 先剥注释再拆参数表：形参注解后的 `// ...` 说明注释含 `,`/`(` 会把参数切歪，
+  // 连累同签名内本可解析的形参（看板 #40 盲区 2）。
+  const s = stripTsComments(String(sig || '')).replace(/\s+/g, ' ');
+  if (!s.trim()) return null;
   for (const p of splitTopLevelRust(s)) {
     const t = p.trim();
     const m = new RegExp('^' + name + '\\s*(\\??)\\s*:\\s*([\\s\\S]*)$').exec(t);
@@ -323,10 +537,18 @@ function paramTypeOf(sig, name) {
   }
   return null;
 }
-function feKeysOf(fn, payloadExpr, tsIndex) {
-  const e = (payloadExpr || '').replace(/\s+/g, ' ').trim();
-  if (!e) return { kind: 'none' };
-  if (/^(undefined|null|void)$/.test(e)) return { kind: 'none' };
+function feKeysOf(fn, payloadExpr, tsIndex, localIndex = null) {
+  const e0 = stripTsComments(String(payloadExpr || ''))
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!e0) return { kind: 'none' };
+  if (/^(undefined|null|void)$/.test(e0)) return { kind: 'none' };
+  // `data ?? {}` / `data || {}`：本仓 13 处这种「可空载荷兜底空对象」写法，旧实现按
+  // 「既非对象字面量也非单一标识符」整体拒检。语义上等价于「发 data 或什么都不发」，
+  // 因此解析 data 本身的类型，并把其全部键置可选（兜底 {} 时任何一个键都可能缺）。
+  const alt = /^([A-Za-z_]\w*)\s*(?:\?\?|\|\|)\s*\{\s*\}$/.exec(e0);
+  const e = alt ? alt[1] : e0;
+  const forceOptional = !!alt;
   if (e.startsWith('{')) {
     // 内联对象：键即字面量键（简写 `page,` 也算）
     const inner = e.replace(/^\{/, '').replace(/\}\s*$/, '');
@@ -345,7 +567,9 @@ function feKeysOf(fn, payloadExpr, tsIndex) {
         typeText: (kv[2] || '').trim(),
       });
     }
-    return keys.length ? { kind: 'keys', keys } : { kind: 'blind', why: '内联对象无键' };
+    // `{}` 空对象载荷：不是「解析不出」，而是「确实不发任何键」——按 none 走
+    // 「后端有必填却前端空体」判据（看板 #40：旧实现记盲区，5 处从未被检查）。
+    return keys.length ? { kind: 'keys', keys } : { kind: 'none' };
   }
   if (/^[A-Za-z_]\w*$/.test(e)) {
     const sig = fn.sig || '';
@@ -355,9 +579,11 @@ function feKeysOf(fn, payloadExpr, tsIndex) {
     let t = pt.typeText
       .replace(/\s*\|\s*(?:null|undefined)\s*$/, '')
       .replace(/^\s*(?:null|undefined)\s*\|\s*/, '');
-    const r = resolveTsTypeExpr(t, tsIndex);
+    const r = resolveTsTypeExpr(t, tsIndex, new Set(), localIndex);
     if (r.blind) return { kind: 'blind', why: r.blind };
-    const keys = r.fields.map(f => (pt.optionalMark ? { ...f, optional: true } : f));
+    const keys = r.fields.map(f =>
+      pt.optionalMark || forceOptional ? { ...f, optional: true } : f
+    );
     return { kind: 'keys', keys, from: r.from };
   }
   return { kind: 'blind', why: '实参既非对象字面量也非单一标识符' };
@@ -394,6 +620,110 @@ function compareKeys(feKeys, beFields) {
   };
 }
 
+// ---------- 看板 #40 盲区补录 ----------
+
+// 本文件局部类型索引：全局 buildTsTypeIndex 把「跨文件同名且体不同」的类型标 ambiguous,
+// 之后整条拒解（user.ts 与 user-profile.ts 各自定义 ChangePasswordRequest 即此形态,
+// 两处 changePassword 的载荷比对因此从未发生）。TS 的语义是本地声明遮蔽 import,
+// 所以按「调用方所在文件的定义优先」重建一份文件内索引即可无歧义还原。
+function buildLocalTypeIndex(src, rel) {
+  const index = new Map();
+  for (const m of src.matchAll(
+    /\b(?:export\s+)?interface\s+([A-Z]\w*)\s*(<[^{>]*>)?\s*(?:extends\s+([A-Za-z_][\w<>,.\s'"]*?))?\s*\{/g
+  )) {
+    const open = src.indexOf('{', m.index + m[0].length - 1);
+    const cap = open >= 0 ? captureBalanced(src, open, '{', '}') : null;
+    if (!cap) continue;
+    if (!index.has(m[1]))
+      index.set(m[1], {
+        kind: 'object',
+        body: cap[1],
+        extends: m[3] ? splitObjFields(m[3]).map(s => s.trim()) : [],
+        file: rel,
+      });
+  }
+  for (const m of src.matchAll(/\b(?:export\s+)?type\s+([A-Z]\w*)\s*(<[^=]*>)?\s*=\s*/g)) {
+    if (m[2]) continue; // 泛型 alias 不可实例化，与全局索引同口径
+    const text = readUntilStatementEnd(src, m.index + m[0].length) || '';
+    const t = text.trim().replace(/;\s*$/, '');
+    if (!t) continue;
+    if (!index.has(m[1])) index.set(m[1], { kind: 'alias', text: t, file: rel });
+  }
+  return index;
+}
+
+// 被全局去重吞掉的调用点补录：parseFrontendApiFunctions 的判重键是（函数名, path）且跨文件
+// 共享——inventory.ts / inventory-transfer.ts 各有一个 approveInventoryTransfer 打同一端点时,
+// 后扫到的那个被静默丢弃（看板 #40 实测 3 处：approveInventoryTransfer、purchase.ts 的
+// getPurchaseReceiptList/createPurchaseReceipt 与 purchase-receipt.ts 同名同路径副本）。
+// 副本之间可以各自漂移（一边修了一边没修），漏掉任何一个就是「该报的没报」。
+// 判据用（文件, path, method）：同文件同端点视为已覆盖；跨文件同名同端点必须各自进检查面。
+const API_SRCDIR = join(FRONTEND, 'src', 'api');
+function collectApiTsFiles(dir) {
+  const out = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...collectApiTsFiles(p));
+    else if (e.name.endsWith('.ts') && !e.name.endsWith('.d.ts')) out.push(p);
+  }
+  return out;
+}
+function supplementMissedCallSites(feFunctions, sources = null) {
+  const covered = new Map();
+  const mark = f => {
+    if (!f.call || !f.call.path) return;
+    if (!covered.has(f.file)) covered.set(f.file, new Set());
+    covered.get(f.file).add(f.call.path + ' ' + f.call.method);
+  };
+  feFunctions.forEach(mark);
+  let added = 0;
+  const files = sources || collectApiTsFiles(API_SRCDIR).map(p => ({ abs: p }));
+  for (const item of files) {
+    const src = item.src != null ? item.src : readFileSync(item.abs, 'utf-8');
+    const consts = constStringMap(src);
+    const rel = item.rel || item.abs.replace(FRONTEND, '').replace(/\\/g, '/');
+    let set = covered.get(rel);
+    if (!set) {
+      set = new Set();
+      covered.set(rel, set);
+    }
+    const re = /request\.(get|post|put|delete|patch)\s*[<(]/g;
+    let m;
+    while ((m = re.exec(src))) {
+      const paren = src.indexOf('(', m.index);
+      const argCap = paren >= 0 ? captureBalanced(src, paren, '(', ')') : null;
+      if (!argCap) continue;
+      const argTexts = splitTopLevelRust(argCap[1]).map(a => a.trim());
+      const url = resolveFrontendUrl((argTexts[0] || '').trim(), consts);
+      if (!url) continue; // URL 不可静态还原：路由存在性由 check-api-paths 专门判负
+      let path = url;
+      if (!path.startsWith(BASE_URL)) path = BASE_URL + (path.startsWith('/') ? path : '/' + path);
+      const call = { method: m[1].toUpperCase(), path: normalizePath(path), args: argTexts };
+      if (set.has(call.path + ' ' + call.method)) continue;
+      const head = src.slice(0, m.index);
+      const nm = [
+        ...head.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z_]\w*)/g),
+      ].pop();
+      if (!nm) continue; // 无归属符号（现仓 0 处）：不猜名字，留给后续挂账
+      const name = nm[1];
+      const line = head.split('\n').length;
+      // 响应侧信封判定不属于本门禁（且该副本的孪生条目已在 envelope 门禁面上），只补载荷侧。
+      feFunctions.push({
+        name,
+        file: rel,
+        line,
+        feShape: { kind: 'opaque', raw: '(补录条目:仅请求载荷侧参与比对)' },
+        retType: '',
+        call,
+        sig: sigForSymbol(src, nm.index, m.index),
+      });
+      set.add(call.path + ' ' + call.method);
+      added++;
+    }
+  }
+  return added;
+}
+
 // ---------- 存量失配基线（过渡机制，只准缩短，不准新增豁免理由不明的项） ----------
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BASELINE_PATH = join(HERE, 'api-request-baseline.json');
@@ -420,6 +750,21 @@ function main() {
   const tsIndex = buildTsTypeIndex();
   const { handlers } = walkBackendRoutes();
   const feFunctions = parseFrontendApiFunctions(tsIndex);
+  const supplemented = supplementMissedCallSites(feFunctions);
+  // 本文件类型索引按需构建并缓存（每个 api 文件至多解析一次）
+  const localIdxCache = new Map();
+  const localIndexOf = file => {
+    if (!localIdxCache.has(file)) {
+      let srcTxt = '';
+      try {
+        srcTxt = readFileSync(join(FRONTEND, ...String(file).split('/').filter(Boolean)), 'utf-8');
+      } catch {
+        srcTxt = '';
+      }
+      localIdxCache.set(file, srcTxt ? buildLocalTypeIndex(srcTxt, file) : new Map());
+    }
+    return localIdxCache.get(file);
+  };
 
   const buckets = {
     ok: [],
@@ -583,7 +928,7 @@ function main() {
       feExpr = pvMark;
     }
     const beFields = typeText ? rustFieldsOf(typeText, structIndex) : null;
-    const fe = feKeysOf(fn, feExpr, tsIndex);
+    const fe = feKeysOf(fn, feExpr, tsIndex, localIndexOf(fn.file));
     if (fe.kind === 'none') {
       if (typeText && beFields && beFields.some(f => !f.optional) && (isBody || isQuery))
         buckets.mismatch.push({
@@ -686,7 +1031,9 @@ function main() {
     process.exit(fresh.length ? 1 : 0);
   }
   console.log('=== check-api-request: 前端请求载荷 ↔ 后端 Json<T>/Query<T> 字段集 ===');
-  console.log(`前端 api 函数总数: ${feFunctions.length}`);
+  console.log(
+    `前端 api 函数总数: ${feFunctions.length}（其中补录被全局去重吞掉的调用点 ${supplemented} 条）`
+  );
   console.log(`  一致(ok)          : ${buckets.ok.length}`);
   console.log(`  新增失配(mismatch): ${fresh.length}`);
   console.log(`  存量失配(基线待清零): ${buckets.stock.length}`);
@@ -778,7 +1125,9 @@ if (invokedDirectly) main();
 
 export {
   CFG_BLIND,
+  buildLocalTypeIndex,
   compareKeys,
+  extractorType,
   extractAxiosConfigValue,
   feKeysOf,
   leafTypeText,
@@ -786,6 +1135,10 @@ export {
   resolveTsTypeExpr,
   rustFieldsOf,
   splitTopLevelAmp,
+  splitTopLevelBar,
+  splitTopLevelCommas,
+  stripTsComments,
+  supplementMissedCallSites,
   tsFieldsOf,
   tsFieldsOfBody,
 };
