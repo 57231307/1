@@ -355,6 +355,10 @@ fn map_issue_error(e: IssueError) -> AppError {
         IssueError::CustomerNotFound => AppError::not_found("客户不存在"),
         IssueError::RecordNotFound => AppError::not_found("发放记录不存在"),
         IssueError::InvalidState(_) => AppError::business("色卡当前状态不允许此操作"),
+        // 与 issue.rs::issue_err 同一分层策略：闸门 1 拒绝依据是纯公开业务规则
+        // （不含内部状态 token/记录 ID/库存数字）⇒ business_displayable 外显；
+        // 其余闸门含记录细节，维持脱敏 business 不变。
+        IssueError::CardNotIssuable => AppError::business_displayable("只有草稿态色卡可以发放"),
         IssueError::Validation(msg) => AppError::validation(msg),
         IssueError::GateCheckFailed(_) => AppError::business("发放闸门校验未通过"),
         IssueError::Database(e) => AppError::database(e.to_string()),
