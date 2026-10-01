@@ -3009,6 +3009,7 @@ jobs:
             frontend/reports/backend.log
             frontend/reports/frontend.log
             frontend/reports/playwright-output*.txt
+            frontend/reports/seed-failures*.json
           retention-days: 30
 
       - name: 打包失败诊断产物（仅失败片，压缩为单归档）
