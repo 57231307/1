@@ -64,6 +64,12 @@ impl ApPaymentRequestService {
         req: CreateApPaymentRequest,
         user_id: i32,
     ) -> Result<ap_payment_request::Model, AppError> {
+        // 跨字段条件必填校验先行于任何事务/取号动作：外币必录汇率（缺失即显式拒绝），
+        // 本位币由服务端短路为 1。修复前落库走 `exchange_rate.unwrap_or(1)`，
+        // 外币单汇率被静默伪造成 1，直接污染折算/核销/汇兑损益
+        // （违反红线：NOT NULL 列不得以默认值兜底掩盖缺键）。
+        let (currency, exchange_rate) = Self::resolve_currency_and_rate(&req)?;
+
         let txn = (*self.db).begin().await?;
 
         // 生成付款申请单号
@@ -74,10 +80,16 @@ impl ApPaymentRequestService {
         self.validate_invoice_items_txn(req.items.as_deref().unwrap_or(&[]), &txn)
             .await?;
 
-        // 构建并插入付款申请主表
-        let request = Self::build_payment_request_active_model(&req, request_no, user_id)
-            .insert(&txn)
-            .await?;
+        // 构建并插入付款申请主表（币种/汇率取服务端权威解析结果，非请求原值）
+        let request = Self::build_payment_request_active_model(
+            &req,
+            request_no,
+            user_id,
+            currency,
+            exchange_rate,
+        )
+        .insert(&txn)
+        .await?;
 
         // 创建付款申请明细（缺省 items 时不插入明细行，提交阶段由 submit 门控强制补真实明细）
         let item_count = req.items.as_ref().map_or(0, |v| v.len());
@@ -141,11 +153,57 @@ impl ApPaymentRequestService {
         Ok(())
     }
 
+    /// 服务端权威解析币种与汇率（创建入口唯一注入口）：
+    /// - 币种缺省按本位币（models/ap_payment_request.rs:49 列 DEFAULT 'CNY'，
+    ///   取值口径 crate::constants::DEFAULT_CURRENCY，不另立第二套词表；
+    ///   币种白名单校验在 services/currency_service.rs 既有实现，本函数不重复造）；
+    /// - 本位币（= DEFAULT_CURRENCY）：汇率恒为 1，前端即使传值也**忽略**并保持服务端权威
+    ///   （忽略而非拒绝为决策留置的待拍板口径，忽略时显式 WARN、不静默）；
+    /// - 外币（≠ 本位币）：汇率条件必填——缺失/非正一律显式拒绝，绝不兜底成 1。
+    ///
+    /// 错误族口径（沿用本仓裁定"状态门=BUSINESS、字段校验=VALIDATION"）：本拒绝是
+    /// 用户提交字段的跨字段条件必填，与同字段形状规则（validate_exchange_rate_payment
+    /// 经 validator 出的「汇率必须大于0」同族）一致，归 VALIDATION_ERROR/400。
+    /// 保密分层：文案仅涉及用户自己刚提交的字段与公开规则，不含记录 ID/他人数据/
+    /// SQL/内部字段名，允许 validation_displayable 外显真实原因。
+    pub fn resolve_currency_and_rate(
+        req: &CreateApPaymentRequest,
+    ) -> Result<(String, Decimal), AppError> {
+        let currency = req
+            .currency
+            .clone()
+            .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string());
+        if currency == crate::constants::DEFAULT_CURRENCY {
+            if let Some(passed) = req.exchange_rate {
+                tracing::warn!(
+                    currency = %currency,
+                    ignored_exchange_rate = %passed,
+                    "本位币付款申请携带汇率入参：服务端按权威值 1 短路（忽略前端传值，不静默）"
+                );
+            }
+            return Ok((currency, Decimal::ONE));
+        }
+        let rate = req
+            .exchange_rate
+            .ok_or_else(|| AppError::validation_displayable("外币付款请填写汇率"))?;
+        // 形状规则（0.01 历史缺陷值等）由 DTO validator 在同一 HTTP 路径先行裁决；
+        // 此处守住服务层直调路径的非正汇率，不吞不兜底。
+        if rate <= Decimal::ZERO {
+            return Err(AppError::validation_displayable("汇率必须大于0"));
+        }
+        Ok((currency, rate))
+    }
+
     // 构建付款申请主表 ActiveModel
-    fn build_payment_request_active_model(
+    // （currency/exchange_rate 由 resolve_currency_and_rate 服务端权威解析后传入，
+    //   本函数不再从 DTO 原值取汇率——NOT NULL 汇率列禁止 unwrap_or 兜底。
+    //   pub 仅为契约测试以真实构建路径做 sqlite 落库回读断言，不新增其他调用面。）
+    pub fn build_payment_request_active_model(
         req: &CreateApPaymentRequest,
         request_no: String,
         user_id: i32,
+        currency: String,
+        exchange_rate: Decimal,
     ) -> ap_payment_request::ActiveModel {
         ap_payment_request::ActiveModel {
             request_no: Set(request_no),
@@ -155,11 +213,8 @@ impl ApPaymentRequestService {
             payment_method: Set(req.payment_method.clone()),
             request_amount: Set(req.request_amount),
             approval_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
-            currency: Set(req
-                .currency
-                .clone()
-                .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
-            exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
+            currency: Set(currency),
+            exchange_rate: Set(exchange_rate),
             expected_payment_date: Set(req.expected_payment_date),
             bank_name: Set(req.bank_name.clone()),
             bank_account: Set(req.bank_account.clone()),
@@ -620,7 +675,9 @@ pub struct CreateApPaymentRequest {
     #[validate(length(equal = 3, message = "币种必须为 ISO 4217 三字母代码"))]
     pub currency: Option<String>,
 
-    /// 汇率（必须大于 0，防止 P0-1 历史缺陷的 0.01 汇率）
+    /// 汇率（条件必填：外币必录，缺失被创建入口 `resolve_currency_and_rate` 以
+    /// VALIDATION_ERROR 拒绝，绝不兜底 1；本位币即使传入也被服务端短路为 1。
+    /// 形状校验：必须大于 0，且防止 P0-1 历史缺陷的 0.01 汇率）
     #[validate(custom(function = "validate_exchange_rate_payment"))]
     pub exchange_rate: Option<Decimal>,
 

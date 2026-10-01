@@ -44,7 +44,11 @@
       >
         <template #default="{ row }">{{ formatMoney(row.request_amount) }}</template>
       </el-table-column>
-      <el-table-column prop="currency" label="币种" width="70" />
+      <el-table-column
+        prop="currency"
+        :label="t('apModule.paymentRequest.currencyLabel')"
+        width="70"
+      />
       <el-table-column prop="approval_status" :label="t('common.status')" width="100">
         <template #default="{ row }">
           <el-tag :type="statusTagType(row.approval_status)" size="small">{{
@@ -144,12 +148,36 @@
         <el-form-item :label="t('apModule.paymentRequest.requestAmount')" prop="request_amount">
           <el-input-number v-model="form.request_amount" :min="0.01" :precision="2" />
         </el-form-item>
-        <el-form-item label="币种" prop="currency">
+        <el-form-item :label="t('apModule.paymentRequest.currencyLabel')" prop="currency">
           <el-select v-model="form.currency" style="width: 120px">
             <el-option label="CNY" value="CNY" />
             <el-option label="USD" value="USD" />
             <el-option label="EUR" value="EUR" />
           </el-select>
+        </el-form-item>
+        <!--
+          汇率条件必填（与后端 resolve_currency_and_rate 同口径）：
+          仅非本位币显示并必填；本位币不显示、不发送该键，汇率由服务端权威短路为 1。
+          精度 6 位对齐后端 Decimal(18,6)；min>0 守形状规则，0.01 历史缺陷值等
+          精确裁决仍以后端 validator 为准（错误经响应拦截照常外显）。
+          编辑态不显示：更新契约（UpdateApPaymentRequest）不含币种/汇率，
+          编辑态维持现状不动（币种创建后不可改）。
+        -->
+        <el-form-item
+          v-if="!editId && form.currency !== BASE_CURRENCY"
+          :label="t('apModule.paymentRequest.exchangeRateLabel')"
+          prop="exchange_rate"
+        >
+          <div>
+            <el-input-number
+              v-model="form.exchange_rate"
+              :min="0.000001"
+              :precision="6"
+              controls-position="right"
+              style="width: 200px"
+            />
+            <div class="rate-hint">{{ t('apModule.paymentRequest.exchangeRateHint') }}</div>
+          </div>
         </el-form-item>
         <el-form-item :label="t('apModule.paymentRequest.bankName')">
           <el-input v-model="form.bank_name" />
@@ -379,13 +407,19 @@ const fetchRequests = async () => {
   }
 };
 
+/** 本位币：与后端 crate::constants::DEFAULT_CURRENCY / models/ap_payment_request.rs
+ *  币种列 DEFAULT 'CNY' 同源取值；非本位币即外币，汇率条件必填（服务端权威短路本位币=1） */
+const BASE_CURRENCY = 'CNY';
+
 const form = reactive({
   supplier_id: undefined as number | undefined,
   request_date: new Date().toISOString().split('T')[0],
   payment_type: 'purchase',
   payment_method: 'bank_transfer',
   request_amount: 0,
-  currency: 'CNY',
+  currency: BASE_CURRENCY,
+  /** 外币汇率：未录入=undefined，提交前显式转十进制字符串，禁止 ?? 兜底伪装成 1 */
+  exchange_rate: undefined as number | undefined,
   bank_name: '',
   notes: '',
 });
@@ -399,6 +433,23 @@ const rules: FormRules = {
   ],
   request_amount: [
     { required: true, message: t('apModule.payment.amountRequired'), trigger: 'blur' },
+  ],
+  exchange_rate: [
+    {
+      validator: (_rule: unknown, value: unknown, callback: (err?: Error) => void) => {
+        if (form.currency === BASE_CURRENCY) {
+          callback();
+          return;
+        }
+        const num = Number(value);
+        if (value === undefined || value === null || !Number.isFinite(num) || num <= 0) {
+          callback(new Error(t('apModule.paymentRequest.exchangeRateRequired')));
+          return;
+        }
+        callback();
+      },
+      trigger: ['blur', 'change'],
+    },
   ],
 };
 
@@ -453,6 +504,15 @@ watch(
 const addItemRow = () => {
   itemRows.value.push({ invoice_id: undefined, apply_amount: undefined, notes: '' });
 };
+
+// 切回本位币：清空汇率输入，防止隐藏的残值被误当作外币请求值发送
+// （本位币下服务端恒按 1 短路，前端不保留、不伪造任何汇率值）
+watch(
+  () => form.currency,
+  currency => {
+    if (currency === BASE_CURRENCY) form.exchange_rate = undefined;
+  }
+);
 
 const unpaidOf = (invoiceId: number) =>
   payableInvoices.value.find(inv => inv.id === invoiceId)?.unpaid_amount;
@@ -516,7 +576,8 @@ const resetForm = () => {
   form.payment_type = 'purchase';
   form.payment_method = 'bank_transfer';
   form.request_amount = 0;
-  form.currency = 'CNY';
+  form.currency = BASE_CURRENCY;
+  form.exchange_rate = undefined;
   form.bank_name = '';
   form.notes = '';
   itemRows.value = [];
@@ -536,7 +597,9 @@ const openEditDialog = (row: APPaymentRequest) => {
   form.payment_type = row.payment_type || '';
   form.payment_method = row.payment_method || '';
   form.request_amount = Number(row.request_amount ?? 0);
-  form.currency = row.currency || 'CNY';
+  form.currency = row.currency || BASE_CURRENCY;
+  // 编辑契约不含币种/汇率：不采集、不回填汇率（更新 payload 从不发送该键）
+  form.exchange_rate = undefined;
   form.bank_name = row.bank_name || '';
   form.notes = row.notes || '';
   dialogVisible.value = true;
@@ -552,6 +615,21 @@ const handleSubmit = async () => {
     ElMessage.warning(t('apModule.payment.amountRequired'));
     logger.warn(`[付款申请] 表头申请金额非法：${String(form.request_amount)}，拒绝提交`);
     return;
+  }
+  // 外币汇率显式前置校验（与 rules 同口径提前暴露、不留运行期崩面；
+  // 后端 resolve_currency_and_rate 仍是最终裁决：外币缺汇率 400，本位币恒短路为 1）
+  let foreignExchangeRate: string | undefined;
+  if (!editId.value && form.currency !== BASE_CURRENCY) {
+    const rate = Number(form.exchange_rate);
+    if (form.exchange_rate === undefined || !Number.isFinite(rate) || rate <= 0) {
+      ElMessage.warning(t('apModule.paymentRequest.exchangeRateRequired'));
+      logger.warn(
+        `[付款申请] 外币(${form.currency}) 创建未录入合法汇率：${String(form.exchange_rate)}，拒绝提交`
+      );
+      return;
+    }
+    // rust_decimal 请求侧用十进制字符串；6 位小数对齐后端汇率列 Decimal(18,6)
+    foreignExchangeRate = rate.toFixed(6);
   }
   // 金额出参为 rust_decimal 字符串（见 formatMoney），提交统一转两位小数十进制字符串（表头
   // request_amount 与明细 apply_amount 同口径，validate :616/677 要求正数）
@@ -587,6 +665,9 @@ const handleSubmit = async () => {
         payment_method: form.payment_method,
         request_amount: headerAmount.toFixed(2),
         currency: form.currency,
+        // 条件发送：仅外币携带 exchange_rate；本位币不发该键（不伪造请求值），
+        // 由服务端权威短路为 1（后端 create 入口 resolve_currency_and_rate）
+        ...(foreignExchangeRate !== undefined ? { exchange_rate: foreignExchangeRate } : {}),
         bank_name: form.bank_name.trim() || undefined,
         notes: form.notes.trim() || undefined,
         items,
@@ -706,6 +787,11 @@ onMounted(() => {
   margin-top: 6px;
   font-size: 12px;
   color: #e6a23c;
+}
+.rate-hint {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.5;
 }
 .items-edit-tip {
   margin-top: 4px;
