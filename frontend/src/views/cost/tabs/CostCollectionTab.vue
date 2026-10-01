@@ -290,6 +290,33 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row :gutter="20">
+          <!-- 后端创建 DTO 必填（CreateCostCollectionInput.processing_fee/dyeing_fee，
+               NOT NULL 列且参与 total_cost 求和），表单必须采集 -->
+          <el-col :span="12">
+            <el-form-item
+              :label="t('cost.collectionList.dialog.processingFee')"
+              prop="processing_fee"
+            >
+              <el-input-number
+                v-model="form.processing_fee"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('cost.collectionList.dialog.dyeingFee')" prop="dyeing_fee">
+              <el-input-number
+                v-model="form.dyeing_fee"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-form-item :label="t('cost.collectionList.dialog.remark')">
           <el-input v-model="form.remark" type="textarea" :rows="3" />
         </el-form-item>
@@ -376,7 +403,24 @@ const handleSizeChange = (_s: number) => {
   page.value = 1;
 };
 
-const form = reactive<Partial<CostCollection>>({
+// 表单模型 = 归集单编辑所需实体字段 + 创建必填的两项费用。
+// processing_fee/dyeing_fee 为后端 CreateCostCollectionRequestDto 非 Option 必填
+// （见 api/cost.ts::CreateCostCollectionInput），此前表单未采集 ⇒ 创建请求体缺键、后端 400。
+interface CollectionFormModel {
+  id?: number;
+  collection_date: string;
+  batch_no?: string;
+  color_no?: string;
+  period?: string;
+  direct_material: number;
+  direct_labor: number;
+  manufacturing_overhead: number;
+  processing_fee: number;
+  dyeing_fee: number;
+  remark?: string;
+}
+
+const form = reactive<CollectionFormModel>({
   id: undefined,
   collection_date: new Date().toISOString().split('T')[0],
   batch_no: '',
@@ -385,6 +429,8 @@ const form = reactive<Partial<CostCollection>>({
   direct_material: 0,
   direct_labor: 0,
   manufacturing_overhead: 0,
+  processing_fee: 0,
+  dyeing_fee: 0,
   remark: '',
 });
 
@@ -405,11 +451,23 @@ const rules: FormRules = {
       trigger: 'blur',
     },
   ],
+  // 后端创建 DTO 必填（CreateCostCollectionInput）
+  processing_fee: [
+    { required: true, message: t('cost.validation.processingFeeRequired'), trigger: 'blur' },
+  ],
+  dyeing_fee: [
+    { required: true, message: t('cost.validation.dyeingFeeRequired'), trigger: 'blur' },
+  ],
 };
 
+// 与后端 cost_collection_service.rs:82-86 的 total_cost 口径一致：五项费用求和
 const totalCost = computed(() => {
   return (
-    (form.direct_material || 0) + (form.direct_labor || 0) + (form.manufacturing_overhead || 0)
+    (form.direct_material || 0) +
+    (form.direct_labor || 0) +
+    (form.manufacturing_overhead || 0) +
+    form.processing_fee +
+    form.dyeing_fee
   );
 });
 
@@ -452,6 +510,8 @@ const openDialog = (row?: CostCollection) => {
     form.direct_material = 0;
     form.direct_labor = 0;
     form.manufacturing_overhead = 0;
+    form.processing_fee = 0;
+    form.dyeing_fee = 0;
     form.remark = '';
   }
   dialogVisible.value = true;
@@ -463,15 +523,27 @@ const handleSubmit = async () => {
     if (!valid) return;
     submitLoading.value = true;
     try {
-      const data: Partial<CostCollection> = {
-        ...form,
-        total_cost: totalCost.value,
-      };
       if (form.id) {
+        const data: Partial<CostCollection> = {
+          ...form,
+          total_cost: totalCost.value,
+        };
         await updateCostCollection(form.id, data);
         ElMessage.success(t('message.updateSuccess'));
       } else {
-        await createCostCollection(data);
+        // 创建载荷按后端 DTO 逐键构造（api/cost.ts::CreateCostCollectionInput）：
+        // id/period/remark/total_cost 等非 CreateCostCollectionRequestDto 键不提交，
+        // total_cost 由服务端五项求和计算（cost_collection_service.rs:82-86），前端不代劳。
+        await createCostCollection({
+          collection_date: form.collection_date,
+          batch_no: form.batch_no,
+          color_no: form.color_no,
+          direct_material: form.direct_material,
+          direct_labor: form.direct_labor,
+          manufacturing_overhead: form.manufacturing_overhead,
+          processing_fee: form.processing_fee,
+          dyeing_fee: form.dyeing_fee,
+        });
         ElMessage.success(t('message.createSuccess'));
       }
       dialogVisible.value = false;
