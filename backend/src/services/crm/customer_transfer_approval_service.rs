@@ -28,7 +28,7 @@ use crate::models::{
     customer::Entity as CustomerEntity,
     customer_transfer_approval::{self, Entity as TransferApprovalEntity},
 };
-use crate::services::crm::assign::{CrmAssignService, TransferLeadRequest};
+use crate::services::crm::assign::{CrmAssignService, TransferLeadRequest, TransferLeadResult};
 use crate::utils::error::AppError;
 
 /// 大客户信用额度阈值（默认 50 万，超过则转移需总监二次审批）
@@ -316,31 +316,27 @@ impl CustomerTransferApprovalService {
                 active.approval_status =
                     Set(customer_transfer_approval::STATUS_APPROVED.to_string());
                 active.completed_at = Set(Some(now));
-                // 【待用户裁定 · 不静默】`to_user_name` 语义是**被转移人（第三方 to_user_id）**
-                // 的展示名，不是审批人本人，因此本轮不能用 manager_name/auth.username 顶替
-                // （顶替就是造假）。真实来源：`users.username`（models/user.rs），且该值在
-                // execute_transfer → CrmAssignService::transfer_lead 的
-                // fetch_and_validate_new_owner(to_user_id) 里已经查得一次（同处把
-                // new_owner.username 写进 crm_lead.owner_name 与转移历史，见
-                // assign.rs::build_transfer_result 的 to_user_name 赋值）。
-                // 换成真值只有两条路，且都**不是**行为等价改动：
-                // A) 审批前先查一次 users —— 本请求 +1 次查询，与 transfer_lead 内部那次重复；
-                // B) 改由 execute_transfer 成功后回写审批行 —— +1 次 UPDATE，并新增
-                //    「approved 但姓名为空」的中间窗口（当前写序是先置 approved 再转移）。
-                // 由主编排拍板选路后再改，本行保留现状（另见 director_approve 同款标注）。
-                active.to_user_name = Set(Some(format!("用户{}", to_user_id)));
-                active.updated_at = Set(now);
+                // to_user_name 语义是**被转移人（第三方 to_user_id）**的展示名，唯一真实来源
+                // = transfer_lead 内部 fetch_and_validate_new_owner 已查得的 new_owner.username
+                // （assign.rs::build_transfer_result 的 to_user_name）。审批行先落状态，
+                // 转移成功后把该真实姓名透传回写（零额外查询，不造名、不落空、不顶替）。
 
                 let updated = active.update(&txn).await?;
                 // 显式 commit 审批状态变更，再执行实际转移（transfer_lead 内部会自开事务）
                 txn.commit().await?;
 
-                self.execute_transfer(lead_id, to_user_id, manager_id, manager_name, &reason)
+                let transfer_result = self
+                    .execute_transfer(lead_id, to_user_id, manager_id, manager_name, &reason)
                     .await?;
 
+                let mut named: customer_transfer_approval::ActiveModel = updated.into();
+                named.to_user_name = Set(Some(transfer_result.to_user_name));
+                named.updated_at = Set(chrono::Utc::now());
+                let updated = named.update(&*self.db).await?;
+
                 info!(
-                    "销售经理 {} 审批通过转移单 {}（普通客户，已完成转移）",
-                    manager_id, updated.approval_no
+                    "销售经理 {} 审批通过转移单 {}（普通客户，已完成转移，被转移人 {}）",
+                    manager_id, updated.approval_no, to_user_id
                 );
                 Ok(updated.into())
             } else {
@@ -405,22 +401,25 @@ impl CustomerTransferApprovalService {
             // 总监通过：执行转移
             active.approval_status = Set(customer_transfer_approval::STATUS_APPROVED.to_string());
             active.completed_at = Set(Some(now));
-            // 【待用户裁定 · 与 manager_approve 同一处口径】to_user_name 是被转移人（第三方）
-            // 的展示名，不以 director_name/auth.username 顶替；取值与写序的两条备选路径及代价
-            // 见 manager_approve 内同位置注释，本行保留现状待拍板。
-            active.to_user_name = Set(Some(format!("用户{}", to_user_id)));
-            active.updated_at = Set(now);
+            // to_user_name 与 manager_approve 同一口径：transfer_lead 已解析的真实新归属人
+            // 用户名透传回写（零额外查询），不在审批行造名。
 
             let updated = active.update(&txn).await?;
             // 显式 commit 审批状态变更，再执行实际转移
             txn.commit().await?;
 
-            self.execute_transfer(lead_id, to_user_id, director_id, director_name, &reason)
+            let transfer_result = self
+                .execute_transfer(lead_id, to_user_id, director_id, director_name, &reason)
                 .await?;
 
+            let mut named: customer_transfer_approval::ActiveModel = updated.into();
+            named.to_user_name = Set(Some(transfer_result.to_user_name));
+            named.updated_at = Set(chrono::Utc::now());
+            let updated = named.update(&*self.db).await?;
+
             info!(
-                "总监 {} 审批通过转移单 {}（大客户，已完成转移）",
-                director_id, updated.approval_no
+                "总监 {} 审批通过转移单 {}（大客户，已完成转移，被转移人 {}）",
+                director_id, updated.approval_no, to_user_id
             );
             Ok(updated.into())
         } else {
@@ -569,7 +568,10 @@ impl CustomerTransferApprovalService {
         Ok(approval)
     }
 
-    /// 执行实际转移（调用 CrmAssignService::transfer_lead）
+    /// 执行实际转移（调用 CrmAssignService::transfer_lead）。
+    /// 返回其 `TransferLeadResult`：其中 `to_user_name` 是 transfer_lead 内部
+    /// `fetch_and_validate_new_owner(to_user_id)` 已查得的真实新归属人用户名
+    /// （assign.rs::build_transfer_result），审批侧据此回写审批行，避免第二次查库。
     async fn execute_transfer(
         &self,
         lead_id: i32,
@@ -577,7 +579,7 @@ impl CustomerTransferApprovalService {
         operator_id: i32,
         operator_name: &str,
         reason: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<TransferLeadResult, AppError> {
         let req = TransferLeadRequest {
             lead_id,
             to_user_id,
@@ -587,8 +589,6 @@ impl CustomerTransferApprovalService {
 
         self.assign_service
             .transfer_lead(req, operator_id, operator_name)
-            .await?;
-
-        Ok(())
+            .await
     }
 }

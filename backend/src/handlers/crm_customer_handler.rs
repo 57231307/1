@@ -60,15 +60,36 @@ pub struct CreateTagDto {
 
 /// 客户域**字段级**数据权限的唯一实现（形态与线索侧
 /// `crm_handler::apply_lead_field_permission` 逐项同构，不复用其函数体是因为判定源按
-/// resource_type 分行；本文件不改 `crm_handler.rs`，只引用其线索出口函数处理线索形状的行）：
-/// - 判定源 = `data_permission_service.get_role_data_permission(role_id, "customer")`
-///   —— `resource_type` 取值 `customer` 不是自造键：与既有客户域读出口
-///   `customer_handler.rs:154/:177/:222/:239` 用的同一个真实取值一致；
-/// - 配了权限行 → 与线索/导出同一个 `filter_fields_batch`（allowed 白名单 / hidden 移除，
-///   不叠加默认处理；admin 由 `get_role_data_permission` 返回
-///   `Ok(Some{allowed:None,hidden:None})` → 空操作，保持原值契约）；
-/// - 无权限行 / 权限查询 `Err` / `role_id` 缺失 → `CrmService::mask_customer_pii_defaults`
-///   fail-closed 默认脱敏（列集合取自 `utils/field_mask` 权威定义，本文件不重写列名清单）。
+/// resource_type 分行）。消费面（终局口径：客户域读写出口统一权限版）：
+/// - `customer_handler.rs` 四出口：list_customers/get_customer（读）与
+///   create_customer/update_customer（写响应）——customers 形状行同一判定源；
+/// - 本文件出口：list_customers/get_customer/list_contacts（增强页读）与
+///   update_customer/create_contact/update_contact（写响应）——同页四形状一致，
+///   contacts/客户行掩码保留键（掩码非删键契约在本函数默认分支与 filter_fields_batch
+///   两侧同时成立）；
+/// - `crm_lead` 形状出口（`crm_handler.rs` 读写出口及本页 `create_customer`/`add_tags`
+///   写响应）**不**使用本函数，走线索侧 `apply_lead_field_permission`——
+///   两域权限判定语义不同不强行统一；
+/// - `sales_fabric_order_handler.rs` 属销售域，维持 `mask_contact_fields_for_role`
+///   直调（标准销售订单读出口的既有唯一掩码实现），不消费客户域权限行。
+/// 判定源 = `data_permission_service.get_role_data_permission(role_id, "customer")`，
+/// 但**两层叠加而非二选一**：
+/// 1. 先 `CrmService::mask_customer_pii_defaults`（掩码列集合 = `utils/field_mask` 权威定义
+///    `mask_contact_fields_for_role`，非 admin 另加 `address` 整键移除；admin 由该函数
+///    自身放行原文），非 admin 恒定执行；
+/// 2. 再叠加权限行的 `filter_fields_batch`（allowed 白名单保留 / hidden 移除）。
+/// 之所以不能像线索域那样"配了权限行就只按配置处理"：`filter_fields`（
+/// `services/data_permission_service.rs:202-222`）只会**删键**、不会把值还原成原文，
+/// 而本域改造前的读出口（`customer_handler.rs` 列表/详情）是**无条件掩码**的——
+/// 若走"配置即放行"，配了 `allowed_fields` 含 `contact_phone` 的非 admin 角色会从
+/// 掩码变原文，等于借本批"收敛唯一实现"顺手放松权限；同时增强入口（本文件读出口）
+/// 改造前完全不掩码，两种入口结果必须对每一种角色都一致，否则"同资源不同入口"
+/// 又成旁路。叠加后的结果对每一种角色都 ≥ 改造前。
+/// 代价与待裁定：本域 `allowed_fields` 因此**不能**作为"放行 PII 原文"的通道
+/// （线索/商机域保持其既有"配置即授权"语义不变）。若产品要让客户域也支持
+/// "显式配置即原文"，那是口径决策（需同时决定两个入口如何同步放松），交用户裁定。
+/// 权限查询 `Err` 与 `role_id` 缺失：记 warn 后仍走第 1 层默认脱敏（fail-closed）。
+/// 本文件不重写列名清单。
 ///
 /// 本函数只处理出参：不改状态码、不外显任何拒绝原因（权限拒绝仍走
 /// `AppError::permission_denied` 的固定脱敏信封 + `FORBIDDEN` 码，真实原因只进日志）。
@@ -77,6 +98,12 @@ pub(crate) async fn apply_customer_field_permission(
     role_id: Option<i32>,
     rows: &mut [serde_json::Value],
 ) {
+    // 第 1 层：默认脱敏对非 admin 恒定执行（admin 由 mask_customer_pii_defaults 自身放行原文）
+    for row in rows.iter_mut() {
+        *row = CrmService::mask_customer_pii_defaults(std::mem::take(row), role_id);
+    }
+
+    // 第 2 层：叠加权限行的 allowed/hidden（只删键，不会把第 1 层的掩码还原成原文）
     if let Some(rid) = role_id {
         match state
             .data_permission_service
@@ -89,24 +116,19 @@ pub(crate) async fn apply_customer_field_permission(
                     &permission.allowed_fields,
                     &permission.hidden_fields,
                 );
-                return;
             }
-            // Ok(None)：无权限行 → 落到下方默认脱敏（admin 由 mask_customer_pii_defaults 自身放行原文）
+            // Ok(None)：无权限行 → 只保留第 1 层默认脱敏
             Ok(None) => {}
-            // 查询失败必须显式记 warn（不静默），并按无权限行 fail-closed 走默认脱敏
+            // 查询失败必须显式记 warn（不静默），第 1 层默认脱敏已经生效即 fail-closed
             Err(error) => {
                 tracing::warn!(
                     %error,
                     role_id = rid,
                     resource_type = "customer",
-                    "角色数据权限查询失败，客户域出参按无权限行 fail-closed 走默认脱敏"
+                    "角色数据权限查询失败，客户域出参按默认脱敏处理（不叠加配置过滤）"
                 );
             }
         }
-    }
-
-    for row in rows.iter_mut() {
-        *row = CrmService::mask_customer_pii_defaults(std::mem::take(row), role_id);
     }
 }
 
@@ -155,7 +177,16 @@ pub async fn list_customers(
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
     let result = service.list_leads(query, Some(&data_scope_ctx)).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+    // 增强页列表整行原文直出 = 同一份线索行在标准入口打码、本入口出原文的旁路，
+    // 收口到本文件客户侧唯一实现（裁定口径：增强页出参一致性优先——同页
+    // GET/:id、PUT、contacts 三形状统一走 resource_type=customer 权限行 +
+    // mask_customer_pii_defaults 默认掩码，不引用线索域 crm_lead 行配置，两域
+    // 权限判定语义不同不强行统一；掩码列集合仍全仓唯一 = utils/field_mask）。
+    let mut value = serde_json::to_value(result)?;
+    if let Some(list) = crate::handlers::crm_handler::paginated_list_array_mut(&mut value) {
+        apply_customer_field_permission(&state, auth.role_id, list).await;
+    }
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// GET /api/v1/erp/crm/customers/:id - 获取客户详情
@@ -168,7 +199,12 @@ pub async fn get_customer(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let lead = service.get_lead(id, Some(&data_scope_ctx)).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
+    // 增强页详情与本页列表/更新/联系人同挂客户侧唯一实现（裁定口径见 list_customers
+    // 处注释）：mobile_phone/tel_phone/email 命中权威掩码列集合、address 整键移除，
+    // 不引用 crm_lead 行配置；整行原文直出即旁路。
+    let mut value = serde_json::to_value(lead)?;
+    apply_customer_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// CRM 增强客户更新请求 DTO：客户编辑弹窗提交字段，含状态（active/inactive）
@@ -283,13 +319,27 @@ pub async fn add_tags(
 /// P2-12：原实现从 crm_lead 拼接 JSON 伪联系人，改为查 customer_contacts 表真实数据。
 pub async fn list_contacts(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(customer_id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contacts = service.list_customer_contacts(customer_id).await?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(contacts)?)))
+    // 联系人列表读出口（终局口径：客户域读写出口统一权限版）：本文件唯一实现
+    // `apply_customer_field_permission`（默认脱敏分支=权威掩码列集合 utils/field_mask，
+    // phone/email 掩码**保留键**不删键；有权限行走同一 filter_fields_batch），与本页
+    // 写响应及标准客户入口同一判定源；整行原文直出即旁路。
+    // 形状漂移（非数组）显式报错不静默。
+    let mut value = serde_json::to_value(contacts)?;
+    match value.as_array_mut() {
+        Some(rows) => apply_customer_field_permission(&state, auth.role_id, rows).await,
+        None => {
+            tracing::error!(
+                "联系人列表出参不是数组，客户域字段级数据权限未应用（形状漂移，不静默）"
+            )
+        }
+    }
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// POST /api/v1/erp/crm/customers/:id/contacts - 创建联系人；批次 90b P2-12：实现前端 detail.vue "新增联系人" 占位符的真实后端。

@@ -608,9 +608,9 @@ async fn create_opportunity_owner_name_is_real_login() {
 // C · 源码扫描棘轮（shrink-only）：
 //   1. 五个写/读出口不得再退回整行原文直出，必须过对应字段级唯一实现；
 //   2. 造展示名零命中集合按**显式文件清单**判定（lead.rs / opp.rs / pool.rs /
-//      customer_team_share_service.rs 四份，见函数内注释），不再笼统称"services/crm 下"——
-//      该目录中 `customer_transfer_approval_service.rs` 的两处 `to_user_name` 属**第三方姓名**
-//      语义、待用户裁定，未纳入本集合，原因写在该函数注释里（不为让锁通过而假装改掉）。
+//      customer_team_share_service.rs / customer_transfer_approval_service.rs 五份，
+//      见函数内注释；最后一份随 to_user_name 透传裁定落地纳入，运行时锁见
+//      contract_wave6_crm_transfer_approval_to_user_name_test.rs）。
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -665,6 +665,25 @@ fn crm_handler_write_and_read_exits_all_route_through_field_permission() {
             "回潮棘轮：{name} 未走商机字段级权限唯一实现（建单/更新/关单旁路重新分叉）"
         );
     }
+
+    // 导出对行长形状硬校验（fail-closed）：行长 ≠ 列定义数必须拒绝出文件，
+    // 原"多余单元格不处理即出文件 / 短行按空值继续 / 回写 push 补位"三种兜底不得回潮
+    // （运行时负例见 crm_handler.rs 的 export_row_shape_guard_tests 单测模块）。
+    assert!(
+        handler.contains("fn validate_export_row_shape"),
+        "导出形状硬校验入口缺失（行长与列定义不一致必须整体拒绝）"
+    );
+    for banned in [
+        "该列按空值处理",
+        "导出行掩码回写时找不到对应行对象，跳过该行",
+        "敏感列未参与处理",
+        "None => row.push(value)",
+    ] {
+        assert!(
+            !handler.contains(banned),
+            "回潮棘轮：导出字段处理又出现兜底放行分支 → {banned}"
+        );
+    }
 }
 
 #[test]
@@ -674,16 +693,21 @@ fn services_crm_must_not_fabricate_owner_name_or_ignore_operator_param() {
     let pool_service = include_str!("../src/services/crm/pool.rs");
     // 看板 #212-B 纳入同一零命中集合：共享落库展示名改由调用方传真实登录名
     let share_service = include_str!("../src/services/crm/customer_team_share_service.rs");
+    // to_user_name 透传裁定落地后纳入：被转移人姓名由 transfer_lead 的
+    // TransferLeadResult 回传（真实 users.username，零额外查询），不再 format! 造名
+    let transfer_service =
+        include_str!("../src/services/crm/customer_transfer_approval_service.rs");
 
     for (name, src) in [
         ("lead.rs", lead_service),
         ("opp.rs", opp_service),
         ("pool.rs", pool_service),
         ("customer_team_share_service.rs", share_service),
+        ("customer_transfer_approval_service.rs", transfer_service),
     ] {
         assert!(
             !src.contains("format!(\"用户{}"),
-            "回潮棘轮：services/crm/{name} 用 format! 伪造 owner_name 展示名"
+            "回潮棘轮：services/crm/{name} 用 format! 伪造 owner_name/to_user_name 展示名"
         );
         assert!(
             !src.contains("_operator_name"),
@@ -699,11 +723,10 @@ fn services_crm_must_not_fabricate_owner_name_or_ignore_operator_param() {
         opp_service.contains("let owner_name = operator_name.to_string();"),
         "create_opportunity 的 owner_name 必须来自 operator_name 形参"
     );
-    // 【未纳入本集合的点 · 非遗漏】`services/crm/customer_transfer_approval_service.rs`
-    // （manager_approve / director_approve 各一处 `to_user_name = format!("用户{to_user_id}")`）
-    // 刻意不加入上面的零命中循环：该列语义是**被转移人（第三方）**的展示名，不是操作人本人，
-    // 用 auth.username/审批人姓名顶替属另一种造假；换成真值需额外查一次 users 或改审批行写入次序
-    // （均非行为等价），待用户拍板。清单与原因另见
-    // contract_wave6_crm_customer_write_response_mask_test.rs::
-    // customer_team_share_must_not_fabricate_operator_name 与源文件同位置注释。
+    // 正向锁：审批行 to_user_name 来自 execute_transfer 透传的 TransferLeadResult
+    // （真实姓名的单次查询来源，零额外 SELECT；转移失败显式上抛不落空）
+    assert!(
+        transfer_service.contains("Set(Some(transfer_result.to_user_name))"),
+        "回潮棘轮：customer_transfer_approval_service.rs 的 to_user_name 未挂透传来源"
+    );
 }

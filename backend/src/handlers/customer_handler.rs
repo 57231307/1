@@ -7,6 +7,7 @@ use serde::Deserialize;
 use validator::Validate;
 
 use crate::container::AppState;
+use crate::handlers::crm_customer_handler::apply_customer_field_permission;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::{CreateCustomerArgs, CustomerService, UpdateCustomerArgs};
@@ -196,11 +197,14 @@ pub async fn list_customers(
         result.items
     };
 
-    // P1-08-5：非管理员对客户列表手机号/邮箱脱敏
-    let masked_items: Vec<serde_json::Value> = items
-        .into_iter()
-        .map(|v| crate::utils::field_mask::mask_contact_fields_for_role(v, auth.role_id))
-        .collect();
+    // P1-08-5：非管理员对客户列表手机号/邮箱脱敏——收口到客户域字段级权限唯一实现
+    // `apply_customer_field_permission`（终局口径：同资源同形状同一行配置判定）。
+    // 其默认脱敏分支 `mask_customer_pii_defaults` 掩码等价原内联
+    // `mask_contact_fields_for_role`（权威列集合唯一=utils/field_mask，只掩码不删键），
+    // 另加非 admin `address` 整键移除=只更严不放松；有权限行时走同一
+    // filter_fields_batch，不再维护第二套内联分支。
+    let mut masked_items = items;
+    apply_customer_field_permission(&state, auth.role_id, &mut masked_items).await;
 
     Ok(Json(ApiResponse::success(
         crate::utils::response::PaginatedResponse::new(
@@ -247,9 +251,15 @@ pub async fn get_customer(
         }
     }
 
-    // P1-08-5：非管理员对客户详情手机号/邮箱脱敏
-    let customer_json =
-        crate::utils::field_mask::mask_contact_fields_for_role(customer_json, auth.role_id);
+    // P1-08-5：非管理员对客户详情手机号/邮箱脱敏——与列表同一收口（终局口径：
+    // 权限版 `apply_customer_field_permission`；默认脱敏掩码等价旧内联
+    // `mask_contact_fields_for_role`，只更严不放松，掩码列集合全仓唯一）
+    apply_customer_field_permission(
+        &state,
+        auth.role_id,
+        std::slice::from_mut(&mut customer_json),
+    )
+    .await;
 
     Ok(Json(ApiResponse::success(customer_json)))
 }
@@ -314,8 +324,16 @@ pub async fn create_customer(
         })
         .await?;
 
-    let customer_json = serde_json::to_value(customer)
+    // 写响应收口：客户域字段级权限唯一实现（默认脱敏分支与读侧 mask_contact_fields_for_role
+    // 同一权威列集合），不得整行原文回传 contact_phone/contact_email/address 明文
+    let mut customer_json = serde_json::to_value(customer)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    apply_customer_field_permission(
+        &state,
+        auth.role_id,
+        std::slice::from_mut(&mut customer_json),
+    )
+    .await;
     Ok(Json(ApiResponse::success_with_message(
         customer_json,
         "客户创建成功",
@@ -381,8 +399,16 @@ pub async fn update_customer(
         })
         .await?;
 
-    let customer_json = serde_json::to_value(customer)
+    // 写响应收口：与 create_customer 同一实现，更新成功响应不得整行原文回传 PII
+    // （读打码、写原文旁路在本波次已全域收口，此处是客户域标准入口的最后两个出口）
+    let mut customer_json = serde_json::to_value(customer)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    apply_customer_field_permission(
+        &state,
+        auth.role_id,
+        std::slice::from_mut(&mut customer_json),
+    )
+    .await;
     Ok(Json(ApiResponse::success_with_message(
         customer_json,
         "客户更新成功",

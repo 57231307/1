@@ -62,6 +62,15 @@ pub async fn list_fabric_orders(
             serde_json::to_value(o).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // 面料订单行与客户域 sales_order 是**同一张表同一行**（services/so/fabric_order.rs 复用
+    // sales_order::Entity），contact_phone/contact_person 为真实列（models/sales_order.rs:28-30）；
+    // 标准入口 GET /sales/orders 列表已按权威列集合打码（sales_order_handler.rs:98），
+    // 本入口整行原文即"同一份数据、不同入口不一致"的旁路，掩码实现只复用
+    // utils/field_mask::mask_contact_fields_for_role 一份，不新造列名清单。
+    let orders_json: Vec<serde_json::Value> = orders_json
+        .into_iter()
+        .map(|o| crate::utils::field_mask::mask_contact_fields_for_role(o, auth.role_id))
+        .collect();
 
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         orders_json,
@@ -74,13 +83,17 @@ pub async fn list_fabric_orders(
 /// 获取销售订单详情
 pub async fn get_fabric_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = SalesService::new(state.db.clone(), state.search_client.clone());
     let order = service.get_fabric_order(id).await?;
-    let order_json = serde_json::to_value(order)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    // 与列表/标准入口详情同一权威掩码实现（sales_order 行含 contact_phone 真实列）
+    let order_json = crate::utils::field_mask::mask_contact_fields_for_role(
+        serde_json::to_value(order)
+            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?,
+        auth.role_id,
+    );
     Ok(Json(ApiResponse::success(order_json)))
 }
 
@@ -92,8 +105,14 @@ pub async fn create_fabric_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = SalesService::new(state.db.clone(), state.search_client.clone());
     let created_order = service.create_fabric_order(req, auth.user_id).await?;
-    let order_json = serde_json::to_value(created_order)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    // 建单响应也是整行 sales_order（contact_phone/contact_person 当前由服务层恒置
+    // None，但出参形状与已打码的 list/detail 同一张表同一批列）——同一掩码实现
+    // 对齐，不靠"当前恒 None"放行原文（列一旦接入真实值即成旁路）。
+    let order_json = crate::utils::field_mask::mask_contact_fields_for_role(
+        serde_json::to_value(created_order)
+            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?,
+        auth.role_id,
+    );
     Ok(Json(ApiResponse::success_with_message(
         order_json,
         "订单创建成功",
@@ -103,14 +122,20 @@ pub async fn create_fabric_order(
 /// 更新销售订单
 pub async fn update_fabric_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateFabricOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = SalesService::new(state.db.clone(), state.search_client.clone());
     let updated = service.update_fabric_order(id, req).await?;
-    let order_json = serde_json::to_value(updated)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    // 写响应不得整行原文回传 sales_order 行的 contact_phone/contact_person 明文
+    // （标准入口详情打码、本入口原文 = 同一行出参不一致）；掩码实现只复用
+    // utils/field_mask::mask_contact_fields_for_role 一份
+    let order_json = crate::utils::field_mask::mask_contact_fields_for_role(
+        serde_json::to_value(updated)
+            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?,
+        auth.role_id,
+    );
     Ok(Json(ApiResponse::success_with_message(
         order_json,
         "订单更新成功",
@@ -131,13 +156,17 @@ pub async fn delete_fabric_order(
 /// 审核订单
 pub async fn approve_fabric_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = SalesService::new(state.db.clone(), state.search_client.clone());
     let updated = service.approve_fabric_order(id).await?;
-    let order_json = serde_json::to_value(updated)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    // 同 update_fabric_order：审核写响应走同一权威掩码实现，不整行原文回传
+    let order_json = crate::utils::field_mask::mask_contact_fields_for_role(
+        serde_json::to_value(updated)
+            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?,
+        auth.role_id,
+    );
     Ok(Json(ApiResponse::success_with_message(
         order_json,
         "订单审核成功",

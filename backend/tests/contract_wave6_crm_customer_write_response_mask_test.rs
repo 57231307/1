@@ -21,25 +21,16 @@
 //!    收口照 `services/crm/{pool,lead,opp}.rs` 的做法：操作人姓名由调用方以
 //!    `AuthContext.username`（真实登录名）作入参传入，service 内那次取名查询整体删除。
 //!
-//! 【本文件刻意没有覆盖的点 · 待用户裁定，非遗漏】
-//! `customer_transfer_approval_service.rs` 的 `manager_approve`（:319 区）与
-//! `director_approve`（:396 区）里 `to_user_name = Set(Some(format!("用户{to_user_id}")))`
-//! **本轮未改**：该列语义是**被转移人（第三方）**的展示名，不是操作人本人，按硬规则不得用
-//! `auth.username`/审批人姓名顶替（顶替即另一种造假）。换成真值需要么额外查一次
-//! `users.username`（与 `execute_transfer → transfer_lead` 内部
-//! `fetch_and_validate_new_owner` 那次查询重复），要么改写入次序（审批行先置 approved、
-//! 转移成功后再回写姓名，新增"approved 但姓名为空"窗口），二者都**不是行为等价改动**，
-//! 交主编排拍板。因此下方 B 的造名零命中棘轮**不含** `customer_transfer_approval_service.rs`
-//! （见 `customer_team_share_must_not_fabricate_operator_name` 的清单注释）。
-//!
-//! 【读出口本轮未收口 · 另有其事先，非本文件范围】
-//! 同一 `crm_customer_handler.rs` 的**读**出口 `list_customers`（GET /crm/customers/enhanced）、
-//! `get_customer`（GET /crm/customers/enhanced/:id）、`list_contacts`
-//! （GET /crm/customers/:id/contacts）此前与现在都仍是整行 `to_value` 直出（服务层
-//! `CrmService::list_leads`/`get_lead` 只施行级过滤、不打码，打码一直在 handler 层）。
-//! 本轮按指示**只收口写响应一侧**，读出口的生效范围（含 `customer_handler.rs` 那套读打码是否
-//! 要并入同一实现）属需裁定项，已写入交付报告；因此下方写出口棘轮刻意不做"整文件级"
-//! 负断言，避免误伤读出口或把未裁定的范围顺手改掉。
+//! 【同域后续收口登记（本文件写响应锁保持有效）】
+//! 1) `customer_transfer_approval_service.rs` 的 `manager_approve`/`director_approve`
+//!    `to_user_name`：该列语义是被转移人（第三方）展示名，不得 `format!` 造名也不得用
+//!    审批人姓名顶替；现由 `execute_transfer` 透传 `transfer_lead` 已解析的
+//!    `TransferLeadResult.to_user_name`（真实 `users.username`，零额外查询）在转移成功后
+//!    回写审批行，下方零命中棘轮已纳入该文件。
+//! 2) `crm_customer_handler.rs` 的**读**出口（list_customers/get_customer/list_contacts）与
+//!    `customer_handler.rs` 读写出口：整行原文直出已收口到客户域唯一实现
+//!    `apply_customer_field_permission`（判定源 resource_type=customer），运行时断言与
+//!    棘轮见 `contract_wave6_crm_customer_read_exits_mask_test.rs`。
 //!
 //! 前端消费面证据（写响应 mask 的影响面）：
 //! - `frontend/src/views/crm/tabs/CustomerListTab.vue:604/607`：`updateCustomer`/`createCustomer`
@@ -447,7 +438,7 @@ async fn missing_role_update_customer_response_is_fail_closed_masked() {
 #[tokio::test]
 async fn customer_write_response_honors_hidden_fields_of_customer_resource() {
     // 判定源真实取值 resource_type='customer'（与 customer_handler.rs 读出口同一取值）：
-    // 配了权限行 → 走同一个 filter_fields_batch（hidden 移除，不叠加默认掩码）
+    // 叠加语义 = 第 1 层默认掩码（非 admin 恒定）+ 第 2 层 filter_fields_batch（hidden 删键）
     let insert = r#"INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
         allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
         VALUES (1,2,'customer','SELF',NULL,'["contact_phone"]',1,
@@ -468,11 +459,14 @@ async fn customer_write_response_honors_hidden_fields_of_customer_resource() {
         data.get("contact_phone").is_none(),
         "客户写响应应与读出口共用同一个 filter_fields_batch 移除 hidden 列: {data}"
     );
-    // 未被 hidden 覆盖的列保持原值：证明是精准移除，而非整行清空或额外掩码
+    // 叠加语义：第 1 层默认掩码对非 admin 恒定生效，第 2 层 allowed/hidden 只在其上删键。
+    // 因此 hidden 未覆盖的 PII 列是**掩码值**而不是原文——改造前本域读出口就是无条件
+    // 掩码（customer_handler.rs），若此处放行原文即借"收敛唯一实现"放松权限；
+    // 同时保证增强入口与本入口对同一角色结果一致（否则又是"同资源不同入口"旁路）。
     assert_eq!(
         data["contact_email"],
-        json!(C_EMAIL),
-        "hidden_fields 仅移除该列，不叠加默认掩码（等价于读出口既有语义）"
+        json!(MASKED_EMAIL),
+        "默认掩码必须叠加在权限行过滤之上（hidden 只负责删键，不得还原原文）"
     );
 }
 
@@ -536,7 +530,7 @@ async fn admin_create_contact_response_keeps_raw_pii() {
 #[tokio::test]
 async fn contact_update_response_is_masked_and_shares_customer_judgement_source() {
     // 同一判定源验证：role 2 配了 resource_type='customer' 的 hidden=["phone"] 时，
-    // 联系人写响应也走同一个 filter_fields_batch（phone 整键移除、email 不叠加掩码）
+    // 联系人写响应走"第 1 层默认掩码 + 第 2 层 filter_fields_batch 删键"的叠加语义
     let insert = r#"INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
         allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
         VALUES (1,2,'customer','SELF',NULL,'["phone"]',1,
@@ -565,11 +559,12 @@ async fn contact_update_response_is_masked_and_shares_customer_judgement_source(
         "联系人写响应应与客户域读出口共用同一个 filter_fields_batch（hidden 列移除）: {}",
         v["data"]
     );
-    // 未被 hidden 覆盖的列保持原值（配了权限行 → 不叠加默认掩码，与线索/商机同一既有语义）
+    // 叠加语义：hidden 删掉 phone 键，未被覆盖的 email 仍是掩码值（本域默认掩码对
+    // 非 admin 恒定执行，配了权限行也不得把原文放回——那会比改造前的标准入口更松）
     assert_eq!(
         v["data"]["email"],
-        json!(CONTACT_EMAIL),
-        "hidden_fields 仅移除 phone，不得叠加默认掩码"
+        json!(MASKED_CONTACT_EMAIL),
+        "默认掩码叠加在权限行过滤之上：hidden 仅删键，不得还原原文"
     );
     assert_eq!(v["data"]["name"], json!("联系人甲改"), "更新须真实生效");
 }
@@ -864,26 +859,43 @@ fn customer_write_exits_all_route_through_field_permission() {
             "回潮棘轮：{name} 出参形状是线索行，却未复用线索侧同一实现（口径分叉）"
         );
     }
-    // 每个**写出口体内**都不得把整行 Model 直接塞进 ApiResponse（读打码、写原文旁路的字面形态）。
-    // 断言限定在写出口函数体：本文件的读出口（list_customers/get_customer/list_contacts）
-    // 仍是整行 to_value 直出，那属另一条待裁定口径（见本文件头"读出口未收口"），
-    // 不在本棘轮范围内，故不做整文件级负断言（做了会误伤读出口，也会掩盖真正要锁的写出口）。
+    // 三个读出口（后续批次收口）：增强页列表/详情/联系人统一挂客户域唯一实现
+    // （裁定口径：同页四形状同一 resource_type=customer 判定行，不引用 crm_lead 行配置；
+    // 默认脱敏分支掩码等价 + 非 admin 移除 address，行为只更严不放松）
+    for name in ["list_customers", "get_customer", "list_contacts"] {
+        let body = body_of(name);
+        assert!(
+            body.contains("apply_customer_field_permission("),
+            "回潮棘轮：读出口 {name} 又整行原文直出（未挂客户域唯一实现）"
+        );
+    }
+    assert!(
+        body_of("list_customers").contains("paginated_list_array_mut("),
+        "增强页列表必须复用 paginated_list_array_mut（data/list 双键兼容，定位失败显式 error）"
+    );
+    // 每个**出口体内**都不得把整行 Model 直接塞进 ApiResponse（读打码、写原文旁路的字面形态）。
+    // 本文件的读/写出口现全部挂在字段级权限唯一实现上，做逐出口负断言。
     for name in [
         "create_customer",
         "update_customer",
         "add_tags",
         "create_contact",
         "update_contact",
+        "list_customers",
+        "get_customer",
+        "list_contacts",
     ] {
         let body = body_of(name);
         for raw_exit in [
             "ApiResponse::success(serde_json::to_value(lead)?)",
             "ApiResponse::success(serde_json::to_value(customer)?)",
+            "ApiResponse::success(serde_json::to_value(result)?)",
+            "ApiResponse::success(serde_json::to_value(contacts)?)",
             "serde_json::to_value(contact)?,",
         ] {
             assert!(
                 !body.contains(raw_exit),
-                "回潮棘轮：写出口 {name} 又出现整行原文直出 → {raw_exit}"
+                "回潮棘轮：出口 {name} 又出现整行原文直出 → {raw_exit}"
             );
         }
     }
@@ -967,20 +979,24 @@ fn customer_team_share_must_not_fabricate_operator_name() {
         "shared_to_user_name 必须是被共享方 users.username（第三方），不得由操作人姓名顶替"
     );
 
-    // 【未纳入清单 · 待用户裁定，勿误读为已修】
-    // customer_transfer_approval_service.rs（manager_approve / director_approve 两处
-    // `to_user_name = Set(Some(format!("用户{to_user_id}")))`）**不在**本零命中集合内：
-    // 该列语义是被转移人（第三方）的展示名，本轮无真实来源可等价替换 ——
-    // 用审批人/操作人姓名顶替即造假，改查库或改写序均非行为等价。详见源文件同位置注释与本文件头。
+    // 【已纳入零命中集合（裁定落地）】`customer_transfer_approval_service.rs` 的
+    // to_user_name 两处 `format!("用户{to_user_id}")` 造名已改为透传
+    // `transfer_lead` 已解析的 `TransferLeadResult.to_user_name`（真实 users.username，
+    // 零额外 SELECT；转移失败沿 AppError 信封显式上抛，不静默不落空）。
+    // 运行时链路锁见 contract_wave6_crm_transfer_approval_to_user_name_test.rs。
     let transfer_service =
         include_str!("../src/services/crm/customer_transfer_approval_service.rs");
     assert!(
-        transfer_service.contains("待用户裁定"),
-        "客户转移审批的 to_user_name 造名点必须带显式待裁定标注（不得静默遗留）"
+        !transfer_service.contains("format!(\"用户{}\")"),
+        "回潮棘轮：customer_transfer_approval_service.rs 用 format! 伪造被转移人展示名"
     );
     assert!(
-        transfer_service.contains("Set(Some(format!(\"用户{}\", to_user_id)))"),
-        "本断言仅用于确认该待裁定点仍在原位置（一旦按拍板改掉，须同步删除本断言并纳入零命中集合）"
+        !transfer_service.contains("待用户裁定"),
+        "回潮棘轮：已裁定的造名点不得遗留占位标注（占位=未收口的静默）"
+    );
+    assert!(
+        transfer_service.contains("Set(Some(transfer_result.to_user_name))"),
+        "to_user_name 必须由 execute_transfer 透传的 TransferLeadResult.to_user_name 回写"
     );
 }
 

@@ -104,7 +104,11 @@ pub(crate) async fn apply_lead_field_permission(
 /// 从分页出参中定位列表数组：兼容既有两种出参键（`services/crm/lead.rs` 手搓 `json!`
 /// 用 `data`，历史列表接口用 `list`）。定位不到意味着字段级权限无处可施
 /// = 原文直通，属形状漂移而非正常分支，显式记 error 不静默。
-fn paginated_list_array_mut(value: &mut serde_json::Value) -> Option<&mut Vec<serde_json::Value>> {
+/// `pub(crate)`：客户增强入口（`crm_customer_handler::list_customers`）出参同为
+/// `list_leads` 分页形状，必须复用同一数组定位实现，不再各写一份键名分支。
+pub(crate) fn paginated_list_array_mut(
+    value: &mut serde_json::Value,
+) -> Option<&mut Vec<serde_json::Value>> {
     let key = if value.get("list").and_then(Value::as_array).is_some() {
         "list"
     } else {
@@ -145,8 +149,7 @@ pub(crate) async fn apply_opportunity_field_permission(
     // 本函数对出参不做任何处理（保持既有商机的实际行为；线索侧 None 走默认脱敏是另一条
     // 已裁定口径，不在此处对齐——本轮只收敛商机，不改变其生效范围）。
     if let Some(rid) = role_id {
-        if let Some(permission) =
-            resolve_role_data_permission(state, rid, "crm_opportunity").await
+        if let Some(permission) = resolve_role_data_permission(state, rid, "crm_opportunity").await
         {
             state.data_permission_service.filter_fields_batch(
                 opportunities,
@@ -174,7 +177,9 @@ pub async fn create_lead(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     // 归属人展示名取 `auth.username`（真实登录名，见 services/crm/lead.rs::create_lead 文档）
-    let res = service.create_lead(req, auth.user_id, &auth.username).await?;
+    let res = service
+        .create_lead(req, auth.user_id, &auth.username)
+        .await?;
     let mut value = serde_json::to_value(res)?;
     // #209：建单成功响应不再整行原文回传——整行 crm_lead::Model 含 mobile_phone/
     // tel_phone/email/address 明文，与 GET 详情被打码形成"读打码、写原文"旁路。
@@ -244,7 +249,7 @@ pub async fn export_leads(
                     CrmService::EXPORT_LEAD_COLUMNS,
                     &permission.allowed_fields,
                     &permission.hidden_fields,
-                );
+                )?;
             } else if role_id != 1 {
                 // 无权限行且非 admin（查询 Err 亦走此分支，fail-closed）：默认掩码
                 mask_export_pii_columns(&mut table)?;
@@ -284,53 +289,85 @@ pub async fn export_leads(
     crate::utils::xlsx_export::build_xlsx_response(&table, "crm_leads_export")
 }
 
+/// 导出表形状硬校验（fail-closed，字段处理各分支共用的唯一入口检查）：
+/// 每一行的单元格数必须与列定义表列数**逐行相等**。
+/// - 行长 > 列数：多出的单元格不属于任何列定义 = 不经过任何字段级权限处理即进导出文件
+///   （原文 PII 直通），且无法按列名定位，必须拒绝；
+/// - 行长 < 列数：按列下标处理会整体错位（前一列的值被当后一列掩码/剔除），同样拒绝。
+/// 宁可不生成文件，也不放行未处理列——行构造与列定义漂移属编程错误，显式报错到调用方。
+fn validate_export_row_shape(
+    table: &crate::utils::xlsx_export::XlsxTable,
+    columns: &[(&str, &str)],
+) -> Result<(), AppError> {
+    for (row_idx, row) in table.rows.iter().enumerate() {
+        if row.len() != columns.len() {
+            tracing::error!(
+                row_idx,
+                row_len = row.len(),
+                column_count = columns.len(),
+                "导出行单元格数与列定义表列数不一致，已拒绝生成导出文件（不放行未处理列）"
+            );
+            return Err(AppError::internal(format!(
+                "导出行第 {row_idx} 行单元格数({})与列定义数({})不一致，拒绝导出（列定义与行构造漂移，需修服务层）",
+                row.len(),
+                columns.len()
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// 导出表 → 行对象数组（列定义表驱动）
 ///
 /// #207：把导出表按**列定义表**转成行对象数组（键 = crm_* 列名，与列表/详情出参键同源），
 /// 供复用列表/详情同一个判定函数 filter_fields_batch。
 /// 列定义表由调用方传入（线索 `CrmService::EXPORT_LEAD_COLUMNS`、商机
 /// `CrmService::EXPORT_OPP_COLUMNS`），两张导出表共用同一份转换实现。
-/// 行长度与列定义不一致属编程错误：记录 error 后按空值继续，绝不静默跳过整列
-/// （跳过 = 该列原文直通）。
+/// 行长与列定义不一致属编程错误：入口处 `validate_export_row_shape` 整体拒绝，
+/// 不再有"按空值继续"分支（空值兜底 = 该列内容去向不明，属静默）。
 fn export_row_cells(
     table: &crate::utils::xlsx_export::XlsxTable,
     columns: &[(&str, &str)],
-) -> Vec<serde_json::Value> {
+) -> Result<Vec<serde_json::Value>, AppError> {
+    validate_export_row_shape(table, columns)?;
     table
         .rows
         .iter()
         .map(|row| {
             let mut obj = serde_json::Map::new();
             for (idx, (field, _)) in columns.iter().enumerate() {
-                let cell = match row.get(idx) {
-                    Some(v) => v.clone(),
-                    None => {
-                        tracing::error!(
-                            field = %field,
-                            row_len = row.len(),
-                            "导出行长度与列定义表列数不一致，该列按空值处理"
-                        );
-                        String::new()
-                    }
-                };
-                obj.insert((*field).to_string(), serde_json::Value::String(cell));
+                // 形状已在入口硬校验，此处取不到即校验被绕过 = 编程错误，显式失败不兜底
+                let cell = row.get(idx).ok_or_else(|| {
+                    AppError::internal(format!(
+                        "导出行形状校验后被绕过：第 {idx} 列 {field} 缺失，拒绝导出"
+                    ))
+                })?;
+                obj.insert(
+                    (*field).to_string(),
+                    serde_json::Value::String(cell.clone()),
+                );
             }
-            serde_json::Value::Object(obj)
+            Ok(serde_json::Value::Object(obj))
         })
         .collect()
 }
 
 /// #207/#208：把处理后的行对象按列定义表回写导出表（被剔除的列落成空单元格，
-/// 表头保留，避免同一角色不同入口的列结构漂移）
+/// 表头保留，避免同一角色不同入口的列结构漂移）。
+/// 行形状由 `validate_export_row_shape` 在字段处理入口保证，此处任何取不到对象的
+/// 分支都属编程错误，显式失败；历史上"记 error 后继续/按下标补位"的兜底属静默放行
+/// 未处理内容，已移除。
 fn write_back_export_rows(
     table: &mut crate::utils::xlsx_export::XlsxTable,
     columns: &[(&str, &str)],
     rows_json: &[serde_json::Value],
-) {
+) -> Result<(), AppError> {
+    validate_export_row_shape(table, columns)?;
     for (row_idx, row) in table.rows.iter_mut().enumerate() {
         let Some(obj) = rows_json.get(row_idx).and_then(|v| v.as_object()) else {
-            tracing::error!(row_idx, "导出行掩码回写时找不到对应行对象，跳过该行");
-            continue;
+            return Err(AppError::internal(format!(
+                "导出行掩码回写找不到第 {row_idx} 行对应行对象（行对象与表行一一对应被破坏），拒绝导出"
+            )));
         };
         for (col_idx, (field, _)) in columns.iter().enumerate() {
             let value = obj
@@ -340,10 +377,15 @@ fn write_back_export_rows(
                 .to_string();
             match row.get_mut(col_idx) {
                 Some(slot) => *slot = value,
-                None => row.push(value),
+                None => {
+                    return Err(AppError::internal(format!(
+                        "导出行第 {row_idx} 行列下标 {col_idx} 缺失（形状校验后被绕过），拒绝导出"
+                    )));
+                }
             }
         }
     }
+    Ok(())
 }
 
 /// #207：导出文件的字段级数据权限（有配置数据权限行的分支）。
@@ -357,10 +399,10 @@ fn apply_export_field_permission(
     columns: &[(&str, &str)],
     allowed_fields: &Option<Vec<String>>,
     hidden_fields: &Option<Vec<String>>,
-) {
-    let mut rows_json = export_row_cells(table, columns);
+) -> Result<(), AppError> {
+    let mut rows_json = export_row_cells(table, columns)?;
     dsp.filter_fields_batch(&mut rows_json, allowed_fields, hidden_fields);
-    write_back_export_rows(table, columns, &rows_json);
+    write_back_export_rows(table, columns, &rows_json)
 }
 
 /// 导出文件默认字段处理的动作类型：
@@ -401,6 +443,10 @@ fn apply_default_export_actions(
     columns: &[(&str, &str)],
     actions: &[(&[&str], ExportColumnAction)],
 ) -> Result<(), AppError> {
+    // 形状硬校验先行：行长 > 列数的多余单元格不进任何处理（原文直通），
+    // 行长 < 列数会按下标错位处理——两种漂移都必须整体拒绝生成文件，
+    // 历史分支"记 error 后让敏感列脱管"已移除。
+    validate_export_row_shape(table, columns)?;
     let mut targets: Vec<(usize, ExportColumnAction)> = Vec::new();
     for (fields, action) in actions {
         for col_idx in export_column_positions(columns, fields)? {
@@ -410,13 +456,12 @@ fn apply_default_export_actions(
 
     for row in table.rows.iter_mut() {
         for (col_idx, action) in &targets {
+            // 入口已硬校验行形状，此处取不到即校验被绕过 = 编程错误，显式失败不兜底
             let Some(cell) = row.get_mut(*col_idx) else {
-                tracing::error!(
-                    col_idx = %col_idx,
-                    row_len = row.len(),
-                    "导出行长度不足，敏感列未参与处理（列定义与行构造不一致，需修服务层）"
-                );
-                continue;
+                return Err(AppError::internal(format!(
+                    "导出行形状校验后被绕过：单元格下标 {col_idx} 缺失（行长度 {}），拒绝导出",
+                    row.len()
+                )));
             };
             match action {
                 ExportColumnAction::Drop => *cell = String::new(),
@@ -783,7 +828,7 @@ pub async fn export_opportunities(
                     CrmService::EXPORT_OPP_COLUMNS,
                     &permission.allowed_fields,
                     &permission.hidden_fields,
-                );
+                )?;
             } else if role_id != 1 {
                 drop_export_amount_columns(&mut table)?;
             }
@@ -926,6 +971,10 @@ pub async fn convert_lead(
     Json(req): Json<ConvertLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // 出参形状 = 服务层 `convert_lead_to_customer`（services/crm/lead.rs）构造的三键摘要
+    // {customer_id, customer_code, customer_name}：转化所需的稳定标识，不含
+    // contact_phone/contact_email/address 等掩码列（整行 customer 行只落库、不回传），
+    // 因此出参侧无需字段级权限处理，联系方式掩码由各读出口统一实施。
     let customer = service
         .convert_lead_to_customer(id, req, auth.user_id)
         .await?;
@@ -1636,4 +1685,73 @@ pub async fn lead_funnel_report(
     svc.record_async(event, None);
     let value = serde_json::to_value(result)?;
     Ok(Json(ApiResponse::success(value)))
+}
+
+#[cfg(test)]
+mod export_row_shape_guard_tests {
+    //! #4 负例锁：导出对行长与列定义不一致必须拒绝出文件（宁可不生成，
+    //! 也不放行未经字段处理的列）。行构造与列定义当前同源、HTTP 面不可达，
+    //! 故以内部函数负例锁定硬校验本体，防止"按空值继续/跳过/push 补位"兜底回潮。
+
+    use super::*;
+
+    fn table(rows: Vec<Vec<String>>) -> crate::utils::xlsx_export::XlsxTable {
+        crate::utils::xlsx_export::XlsxTable {
+            sheet_name: "测试".to_string(),
+            headers: vec!["列一".to_string(), "列二".to_string()],
+            rows,
+        }
+    }
+
+    const COLUMNS: [(&str, &str); 2] = [("col_a", "列一"), ("col_b", "列二")];
+
+    #[test]
+    fn longer_row_than_columns_is_rejected() {
+        let t = table(vec![vec![
+            "a".to_string(),
+            "b".to_string(),
+            "raw_pii_extra_cell".to_string(),
+        ]]);
+        validate_export_row_shape(&t, &COLUMNS)
+            .expect_err("行长>列数：多余单元格未经任何字段处理，必须拒绝");
+        // 处理函数本身也必须整体失败，而不是对多余列静默
+        let mut t2 = table(vec![vec![
+            "a".to_string(),
+            "b".to_string(),
+            "extra".to_string(),
+        ]]);
+        let pii_fields: &[&str] = &["col_a"];
+        assert!(
+            apply_default_export_actions(
+                &mut t2,
+                &COLUMNS,
+                &[(pii_fields, ExportColumnAction::Drop)]
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn shorter_row_than_columns_is_rejected() {
+        let t = table(vec![vec!["a".to_string()]]);
+        assert!(validate_export_row_shape(&t, &COLUMNS).is_err());
+    }
+
+    #[test]
+    fn mismatch_is_rejected_by_export_row_cells_and_apply_export() {
+        let t = table(vec![vec![
+            "a".to_string(),
+            "b".to_string(),
+            "extra".to_string(),
+        ]]);
+        assert!(export_row_cells(&t, &COLUMNS).is_err());
+    }
+
+    #[test]
+    fn matched_shape_still_passes_and_keeps_cells() {
+        let t = table(vec![vec!["a".to_string(), "b".to_string()]]);
+        let rows = export_row_cells(&t, &COLUMNS).expect("形状一致应通过");
+        assert_eq!(rows[0]["col_a"], serde_json::Value::String("a".to_string()));
+        assert_eq!(rows[0]["col_b"], serde_json::Value::String("b".to_string()));
+    }
 }
