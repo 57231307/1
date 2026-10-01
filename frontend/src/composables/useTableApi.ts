@@ -103,21 +103,19 @@ export function useTableApi<T = unknown>(
     );
   };
 
-  const detectTotal = (payload: ListResponsePayload | unknown[], rawWasArray: boolean): number => {
-    if (rawWasArray) {
-      // 端点直接返回裸数组＝不分页，服务端给的就是全量，行数即总数。
-      return Array.isArray(payload) ? payload.length : 0;
+  const detectTotal = (payload: ListResponsePayload, rawWasArray: boolean): number => {
+    // 顶层/嵌套 total 优先：`{code, data:[...], total:N}` 这类形态的总数在包装时已并入 payload
+    if (typeof payload?.[totalKey as keyof ListResponsePayload] === 'number') {
+      return payload[totalKey as keyof ListResponsePayload] as number;
     }
-    const obj = payload as ListResponsePayload;
-    if (typeof obj?.[totalKey as keyof ListResponsePayload] === 'number') {
-      return obj[totalKey as keyof ListResponsePayload] as number;
-    }
-    if (typeof obj?.total === 'number') return obj.total;
-    if (typeof obj?.count === 'number') return obj.count;
+    if (typeof payload?.total === 'number') return payload.total;
+    if (typeof payload?.count === 'number') return payload.count;
+    // 裸数组端点不分页：服务端给的就是全量，行数即总数
+    if (rawWasArray && Array.isArray(payload?.data)) return payload.data.length;
     // 分页端点漏 total 会让"共 N 条/页码"恒显 0 而把数据静默截断，必须显式失败。
     throw new Error(
       `[useTableApi] ${url} 的分页响应缺少总数字段：` +
-        `期望 ${totalKey ?? 'total/count'}，实际键为 ${JSON.stringify(Object.keys(obj))}`
+        `期望 ${totalKey}/count，实际键为 ${JSON.stringify(Object.keys(payload))}`
     );
   };
 
