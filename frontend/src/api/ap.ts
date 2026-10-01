@@ -42,10 +42,17 @@ export interface APPayment {
   /** 来源付款申请 ID（后端 models/ap_payment.rs:33 request_id: Option<i32>，nullable 故前端 ? ） */
   request_id?: number;
   payment_date: string;
-  payment_amount: number;
+  /**
+   * 后端 models/ap_payment.rs:41 payment_amount 为 rust_decimal（serde 序列化为**十进制字符串**），
+   * 声明成 number 会在 `.toFixed` 处运行期崩（先例 commit 83b8028b/42f67500）。
+   */
+  payment_amount: string;
   payment_method: string;
   payment_status: APPaymentStatus;
-  currency?: string;
+  /** 后端列 NOT NULL（models/ap_payment.rs:49 currency: String），缺键即契约断裂，前端不得标 `?` */
+  currency: string;
+  /** 后端 models/ap_payment.rs:53 exchange_rate 为 rust_decimal NOT NULL，出参十进制字符串 */
+  exchange_rate: string;
   bank_name?: string;
   bank_account?: string;
   transaction_no?: string;
@@ -78,12 +85,17 @@ export interface APPaymentRequest {
   id: number;
   request_no: string;
   supplier_id: number;
-  request_amount: number;
+  /** GET /ap/payment-requests 直接序列化实体 models/ap_payment_request.rs:42，
+   * request_amount 为 rust_decimal，出参是**十进制字符串**（number 声明会在 .toFixed 运行期崩） */
+  request_amount: string;
   request_date: string;
   approval_status: APPaymentRequestStatus;
-  payment_method?: string;
-  payment_type?: string;
-  currency?: string;
+  /** 以下四列后端均 NOT NULL（models/ap_payment_request.rs:30-54），响应必存在，不得标 `?` */
+  payment_method: string;
+  payment_type: string;
+  currency: string;
+  /** rust_decimal 出参十进制字符串（models/ap_payment_request.rs:54） */
+  exchange_rate: string;
   expected_payment_date?: string;
   bank_name?: string;
   bank_account?: string;

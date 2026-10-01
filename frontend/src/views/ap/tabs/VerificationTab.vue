@@ -233,8 +233,11 @@ const fetchSuppliers = async () => {
   }
 };
 
-const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+// 后端 rust_decimal（features=["serde"]）将金额序列化为字符串，number/string 双口径都要能显示
+const formatMoney = (amount: number | string | undefined) => {
+  if (amount === undefined || amount === '') return '0.00';
+  const n = Number(amount);
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 };
 
 const fetchVerifications = async () => {
