@@ -941,21 +941,38 @@ impl CrmService {
     }
 
     /// V15 P1 18.1-D2：线索去重检测（按手机号/公司名检测重复线索，返回重复组列表。；手机号完全匹配或公司名完全匹配（忽略前后空格+大小写）视为重复。）
+    ///
+    /// 行级数据权限（`data_scope`）为硬约束：出参组内含 `lead_no`/`company_names`，
+    /// 不注入 scope 时任意登录用户可用一个手机号枚举该号下**他人名下**线索的编号与公司名
+    /// （越权读）。两次查询均套用与 `list_leads` **同一个**
+    /// `apply_department_scope_with_pool`（owner=OwnerId，dept=DepartmentId，公海放行同口径），
+    /// 使可见集与列表严格一致。被过滤掉的行不进组：过滤后不足 2 条不构成重复组
+    /// （`leads.len() > 1` 判据不变）。`match_key` 回显调用方自己提交的号码，非服务端查得数据。
     pub async fn detect_duplicate_leads(
         &self,
         mobile_phone: Option<&str>,
         company_name: Option<&str>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<DuplicateLeadGroup>, AppError> {
         let mut groups: Vec<DuplicateLeadGroup> = Vec::new();
 
         // 按手机号去重
         if let Some(mobile) = mobile_phone {
             if !mobile.trim().is_empty() {
-                let leads = crm_lead::Entity::find()
+                let mut q = crm_lead::Entity::find()
                     .filter(crm_lead::Column::MobilePhone.eq(mobile))
-                    .filter(crm_lead::Column::LeadStatus.is_not_null())
-                    .all(&*self.db)
-                    .await?;
+                    .filter(crm_lead::Column::LeadStatus.is_not_null());
+                // 行级数据权限：与 list_leads（本文件）同一个 scope 函数与同一放行条件
+                if let Some(ctx) = data_scope {
+                    q = apply_department_scope_with_pool(
+                        q,
+                        ctx,
+                        crm_lead::Column::OwnerId,
+                        crm_lead::Column::DepartmentId,
+                        crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                    );
+                }
+                let leads = q.all(&*self.db).await?;
                 if leads.len() > 1 {
                     groups.push(DuplicateLeadGroup {
                         match_key: format!("mobile:{}", mobile),
@@ -976,10 +993,19 @@ impl CrmService {
         if let Some(company) = company_name {
             let company_trimmed = company.trim();
             if !company_trimmed.is_empty() {
-                let leads = crm_lead::Entity::find()
-                    .filter(Expr::col(crm_lead::Column::CompanyName).ilike(company_trimmed))
-                    .all(&*self.db)
-                    .await?;
+                let mut q = crm_lead::Entity::find()
+                    .filter(Expr::col(crm_lead::Column::CompanyName).ilike(company_trimmed));
+                // 行级数据权限：与手机号分支、list_leads 同一个 scope 函数与同一放行条件
+                if let Some(ctx) = data_scope {
+                    q = apply_department_scope_with_pool(
+                        q,
+                        ctx,
+                        crm_lead::Column::OwnerId,
+                        crm_lead::Column::DepartmentId,
+                        crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                    );
+                }
+                let leads = q.all(&*self.db).await?;
                 if leads.len() > 1 {
                     groups.push(DuplicateLeadGroup {
                         match_key: format!("company:{}", company_trimmed),
@@ -1000,11 +1026,20 @@ impl CrmService {
     }
 
     /// V15 P1 18.1-D2：合并重复线索（将多个重复线索合并到主线索（保留主线索数据，副线索标记为 lost 并记录合并原因）。）
+    ///
+    /// 行级数据权限（`data_scope`）是**写路径**硬约束：合并不可逆，不注入 scope 时
+    /// 任何用户都可把自己看不到的他人线索合并掉（越权写）。主线索与每一条重复线索
+    /// （存在行）都必须落在调用方可见集内，判定与 `get_lead` 的 IDOR 防护同一来源
+    /// （`check_resource_owner`，与 `list_leads` 的 `apply_department_scope_with_pool`
+    /// 同口径）。**任一行不可见即整笔拒绝**（403），禁止"跳过不可见行继续合并其余"
+    /// 的静默降级；预校验全部通过后才落写，保证拒绝时零漂移。真实原因只进日志
+    /// （`AppError::permission_denied` 出参恒为固定脱敏文案 + FORBIDDEN 码）。
     pub async fn merge_leads(
         &self,
         master_lead_id: i32,
         duplicate_lead_ids: Vec<i32>,
         user_id: i32,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<MergeResult, AppError> {
         let txn = self.db.begin().await?;
 
@@ -1015,9 +1050,19 @@ impl CrmService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("主线索不存在：{}", master_lead_id)))?;
 
-        let mut merged_count = 0i32;
-        let mut merged_lead_nos = Vec::new();
+        // 预校验（先判后写）：主线索必须在可见集内（与 get_lead 同一判定）
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, Some(master.owner_id), master.department_id) {
+                return Err(AppError::permission_denied(format!(
+                    "无权合并线索 {}（数据范围限制：主线索非可见行）",
+                    master_lead_id
+                )));
+            }
+        }
 
+        // 预校验每一条重复线索（存在的行）均在可见集内并收集待合并行；
+        // 任一行不可见即整笔拒绝，此时尚无任何写操作，天然零漂移
+        let mut dup_targets: Vec<crm_lead::Model> = Vec::new();
         for dup_id in &duplicate_lead_ids {
             if *dup_id == master_lead_id {
                 continue;
@@ -1027,18 +1072,33 @@ impl CrmService {
                 .one(&txn)
                 .await?;
             if let Some(dup) = dup_lead {
-                let mut dup_active: crm_lead::ActiveModel = dup.into();
-                dup_active.lead_status = Set(Some(lead_status::LOST.to_string()));
-                dup_active.lost_reason = Set(Some(format!(
-                    "合并到主线索 {} ({})",
-                    master.lead_no, master_lead_id
-                )));
-                dup_active.updated_at = Set(Some(chrono::Utc::now()));
-                dup_active.updated_by = Set(Some(user_id));
-                let updated = dup_active.update(&txn).await?;
-                merged_lead_nos.push(updated.lead_no);
-                merged_count += 1;
+                if let Some(ctx) = data_scope {
+                    if !check_resource_owner(ctx, Some(dup.owner_id), dup.department_id) {
+                        return Err(AppError::permission_denied(format!(
+                            "无权合并线索 {}（数据范围限制：重复线索非可见行）",
+                            dup_id
+                        )));
+                    }
+                }
+                dup_targets.push(dup);
             }
+        }
+
+        let mut merged_count = 0i32;
+        let mut merged_lead_nos = Vec::new();
+
+        for dup in dup_targets {
+            let mut dup_active: crm_lead::ActiveModel = dup.into();
+            dup_active.lead_status = Set(Some(lead_status::LOST.to_string()));
+            dup_active.lost_reason = Set(Some(format!(
+                "合并到主线索 {} ({})",
+                master.lead_no, master_lead_id
+            )));
+            dup_active.updated_at = Set(Some(chrono::Utc::now()));
+            dup_active.updated_by = Set(Some(user_id));
+            let updated = dup_active.update(&txn).await?;
+            merged_lead_nos.push(updated.lead_no);
+            merged_count += 1;
         }
 
         txn.commit().await?;

@@ -1571,8 +1571,11 @@ pub async fn detect_duplicate_leads(
     let service = CrmService::new(state.db.clone());
     let mobile_phone = req.get("mobile_phone").and_then(|v| v.as_str());
     let company_name = req.get("company_name").and_then(|v| v.as_str());
+    // 行级数据权限：与 list_leads（本文件）同法构造并注入 ctx——出参组内含他人行的
+    // lead_no/公司名，省略 ctx 即允许任意用户用一个手机号枚举他人名下线索（越权读）
+    let data_scope_ctx = auth.to_data_scope_context();
     let result = service
-        .detect_duplicate_leads(mobile_phone, company_name)
+        .detect_duplicate_leads(mobile_phone, company_name, Some(&data_scope_ctx))
         .await?;
     let event = AuditEvent {
         user_id: Some(auth.user_id),
@@ -1634,8 +1637,17 @@ pub async fn merge_leads(
                 .map(|id| id as i32)
         })
         .collect::<Result<Vec<i32>, AppError>>()?;
+    // 行级数据权限：与 update_lead/delete_lead 的 IDOR 预检同法构造 ctx——
+    // 合并不可逆，主/重复线索任一行不在可见集内由 service 整笔拒绝（403），
+    // 禁止"跳过不可见行继续合并其余"的静默降级
+    let data_scope_ctx = auth.to_data_scope_context();
     let result = service
-        .merge_leads(primary_id, duplicate_ids.clone(), auth.user_id)
+        .merge_leads(
+            primary_id,
+            duplicate_ids.clone(),
+            auth.user_id,
+            Some(&data_scope_ctx),
+        )
         .await?;
     let event = AuditEvent {
         user_id: Some(auth.user_id),
