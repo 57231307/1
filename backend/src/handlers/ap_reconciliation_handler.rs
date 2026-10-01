@@ -215,7 +215,10 @@ pub async fn auto_reconcile_all(
         .auto_reconcile_all(req.start_date, req.end_date, auth.user_id)
         .await?;
 
-    let success_count = results.iter().filter(|r| r.status != "FAILED").count();
+    let success_count = results
+        .iter()
+        .filter(|r| r.status != crate::models::status::general::reconcile_result::FAILED)
+        .count();
     let fail_count = results.len() - success_count;
 
     info!(

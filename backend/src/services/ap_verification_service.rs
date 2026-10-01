@@ -82,7 +82,10 @@ impl ApVerificationService {
     ) -> Result<Vec<ap_invoice::Model>, AppError> {
         Ok(ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(supplier_id))
-            .filter(ap_invoice::Column::InvoiceStatus.ne(common::STATUS_CANCELLED))
+            .filter(
+                ap_invoice::Column::InvoiceStatus
+                    .is_not_in([common::STATUS_CANCELLED, common::STATUS_DRAFT]),
+            )
             .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .order_by(ap_invoice::Column::DueDate, Order::Asc)
             .all(txn)
@@ -95,7 +98,10 @@ impl ApVerificationService {
     ) -> Result<Vec<ap_payment::Model>, AppError> {
         Ok(ap_payment::Entity::find()
             .filter(ap_payment::Column::SupplierId.eq(supplier_id))
-            .filter(ap_payment::Column::PaymentStatus.eq("CONFIRMED"))
+            .filter(
+                ap_payment::Column::PaymentStatus
+                    .eq(crate::models::status::general::payment::PAYMENT_CONFIRMED),
+            )
             .all(txn)
             .await?)
     }
@@ -273,7 +279,8 @@ impl ApVerificationService {
             invoice.invoice_status =
                 crate::models::status::general::payment::PAYMENT_PAID.to_string();
         } else {
-            invoice.invoice_status = "PARTIAL_PAID".to_string();
+            invoice.invoice_status =
+                crate::models::status::general::payment::PAYMENT_PARTIAL_PAID.to_string();
         }
 
         let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
@@ -357,7 +364,8 @@ impl ApVerificationService {
                 .get(&item.payment_id)
                 .ok_or_else(|| AppError::not_found(format!("付款单 ID: {}", item.payment_id)))?;
 
-            if payment.payment_status != "CONFIRMED" {
+            if payment.payment_status != crate::models::status::general::payment::PAYMENT_CONFIRMED
+            {
                 return Err(AppError::business(format!(
                     "付款单{}状态为{}，未确认不可核销",
                     payment.payment_no, payment.payment_status
@@ -403,7 +411,8 @@ impl ApVerificationService {
                 invoice.invoice_status =
                     crate::models::status::general::payment::PAYMENT_PAID.to_string();
             } else {
-                invoice.invoice_status = "PARTIAL_PAID".to_string();
+                invoice.invoice_status =
+                    crate::models::status::general::payment::PAYMENT_PARTIAL_PAID.to_string();
             }
 
             let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
@@ -550,9 +559,11 @@ impl ApVerificationService {
                 invoice.invoice_status =
                     crate::models::status::general::payment::PAYMENT_PAID.to_string();
             } else if invoice.paid_amount > Decimal::ZERO {
-                invoice.invoice_status = "PARTIAL_PAID".to_string();
+                invoice.invoice_status =
+                    crate::models::status::general::payment::PAYMENT_PARTIAL_PAID.to_string();
             } else {
-                invoice.invoice_status = "AUDITED".to_string();
+                invoice.invoice_status =
+                    crate::models::status::ap_invoice::INVOICE_AUDITED.to_string();
             }
             let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
             crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -640,7 +651,10 @@ impl ApVerificationService {
     ) -> Result<Vec<ap_invoice::Model>, AppError> {
         let invoices = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(supplier_id))
-            .filter(ap_invoice::Column::InvoiceStatus.ne(common::STATUS_CANCELLED))
+            .filter(
+                ap_invoice::Column::InvoiceStatus
+                    .is_not_in([common::STATUS_CANCELLED, common::STATUS_DRAFT]),
+            )
             .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .order_by(ap_invoice::Column::DueDate, Order::Asc)
             .all(&*self.db)
@@ -656,7 +670,10 @@ impl ApVerificationService {
     ) -> Result<Vec<ap_payment::Model>, AppError> {
         let payments = ap_payment::Entity::find()
             .filter(ap_payment::Column::SupplierId.eq(supplier_id))
-            .filter(ap_payment::Column::PaymentStatus.eq("CONFIRMED"))
+            .filter(
+                ap_payment::Column::PaymentStatus
+                    .eq(crate::models::status::general::payment::PAYMENT_CONFIRMED),
+            )
             .order_by(ap_payment::Column::PaymentDate, Order::Asc)
             .all(&*self.db)
             .await?;
