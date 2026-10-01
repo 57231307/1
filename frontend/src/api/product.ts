@@ -257,11 +257,13 @@ export const deleteProductColor = (productId: number, colorId: number) =>
   request.delete<ApiResponse<null>>(`/products/${productId}/colors/${colorId}`);
 
 // D14 Batch 5b：原 productApi.batchCreateColors 转为风格 B 函数
-// 后端 BatchCreateColorsRequest.colors 为 Vec<CreateProductColorRequest>，载荷与单条创建同构，
-// 故复用 CreateProductColorPayload 而非 Partial<ProductColor>（后者是响应模型，extra_cost 为字符串、
-// 且无 color_type 必填语义，冒充创建契约）。
+// 后端 body 是 Json<BatchCreateColorsRequest>（product_handler.rs:161-163），结构只有一个键
+// colors: Vec<CreateProductColorRequest>——此前发裸数组与 DTO 顶层形状不符，serde 反序列化
+// 直接失败（必 422）。这里按 DTO 包一层 { colors }；元素载荷与单条创建同构，复用
+// CreateProductColorPayload（Partial<ProductColor> 是响应模型，extra_cost 为字符串且缺
+// color_type 必填语义，不能冒充创建契约）。
 export const batchCreateProductColors = (productId: number, colors: CreateProductColorPayload[]) =>
-  request.post<ApiResponse<ProductColor[]>>(`/products/${productId}/colors/batch`, colors);
+  request.post<ApiResponse<ProductColor[]>>(`/products/${productId}/colors/batch`, { colors });
 
 // D14 Batch 5b：原 productApi.getImportTemplate 转为风格 B 函数
 export const getProductImportTemplate = () =>

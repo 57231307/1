@@ -615,7 +615,8 @@ const handleDeleteColor = async (row: ProductColor) => {
   }
 };
 
-// 批量添加色号（batchCreateProductColors：JSON 数组）
+// 批量添加色号（batchCreateProductColors：入参为色号数组，api 层按后端
+// BatchCreateColorsRequest 包成 { colors: [...] } 提交，调用点不裸发数组）
 const batchColorsText = ref('');
 const batchColorSaving = ref(false);
 

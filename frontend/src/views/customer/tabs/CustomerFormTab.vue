@@ -388,23 +388,47 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
-    // 信用额度后端 DTO 为字符串类型（显式格式校验），提交前转字符串防 422
-    // 后端 Create/UpdateCustomerRequest.contact_email 为 Option<String> + #[validate(email)]，
-    // validator 框架对 Some("") 判 email 格式失败触发 422、对 None（缺省不携带该键）跳过；
-    // 仿 UserTab 条件展开范式，email 空则省略该键、非空仍提交。
-    const { contact_email, credit_limit, annual_purchase, ...rest } = formData;
+    // 载荷键集逐键对齐后端 customer_handler.rs：CreateCustomerRequest(:23-72)/
+    // UpdateCustomerRequest(:93-139)。此前整表单 rest 展开把 id/created_at/updated_at
+    // 只读生成列（以及更新侧的 customer_code——编辑 DTO 无此键，编码建档即定）
+    // 冒充可写字段提交，后端 serde 静默丢弃=契约漂移，现按 DTO 显式逐键构造。
+    // contact_email 空则省略键（后端 #[validate(email)] 对 Some("") 判失败触发 422、
+    // 对 None 跳过校验）；credit_limit 后端 DTO 为字符串（Option<String>，number 即 422），
+    // 提交前转字符串防 422。
+    const { contact_email, credit_limit } = formData;
     const payload = {
-      ...rest,
+      customer_name: formData.customer_name,
+      contact_person: formData.contact_person,
+      contact_phone: formData.contact_phone,
+      address: formData.address,
+      city: formData.city,
+      province: formData.province,
+      postal_code: formData.postal_code,
       credit_limit: String(credit_limit ?? '0'),
-      annual_purchase:
-        annual_purchase === null || annual_purchase === undefined ? undefined : annual_purchase,
+      payment_terms: formData.payment_terms,
+      tax_id: formData.tax_id,
+      bank_name: formData.bank_name,
+      bank_account: formData.bank_account,
+      customer_type: formData.customer_type,
+      country: formData.country,
+      status: formData.status,
+      customer_industry: formData.customer_industry,
+      main_products: formData.main_products,
+      annual_purchase: formData.annual_purchase,
+      quality_requirement: formData.quality_requirement,
+      inspection_standard: formData.inspection_standard,
+      notes: formData.notes,
       ...(contact_email ? { contact_email } : {}),
     };
     if (formData.id) {
       await updateCustomer(formData.id, payload);
       ElMessage.success(t('customer.form.message.saveSuccess'));
     } else {
-      await createCustomer(payload);
+      // customer_code 仅创建 DTO 有（Option，留空则省略键、由服务端建档规则生成）
+      await createCustomer({
+        ...payload,
+        ...(formData.customer_code ? { customer_code: formData.customer_code } : {}),
+      });
       ElMessage.success(t('customer.form.message.saveSuccess'));
     }
     visible.value = false;

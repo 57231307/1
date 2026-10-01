@@ -40,7 +40,6 @@
     "/src/api/print-templates.ts updatePrintTemplate /api/v1/erp/print-templates/* PUT",
     "/src/api/production-recipe.ts updateProductionRecipe /api/v1/erp/production/production-recipes/* PUT",
     "/src/api/production.ts createProductionOrder /api/v1/erp/production/production-orders/orders POST",
-    "/src/api/purchase-receipt.ts getPurchaseReceiptList /api/v1/erp/purchase/receipts GET",
     "/src/api/purchase.ts getPurchaseOrderList /api/v1/erp/purchase/orders GET",
     "/src/api/purchase.ts updatePurchaseOrder /api/v1/erp/purchase/orders/* PUT",
     "/src/api/sales-price.ts createSalesPrice /api/v1/erp/sales/sales-prices POST",
@@ -54,5 +53,7 @@
     "/src/api/wage.ts getEffectiveWageRate /api/v1/erp/production/wage-rates/effective/* GET",
     "/src/api/wage.ts updateWageRate /api/v1/erp/production/wage-rates/* PUT"
   ],
-  "_reseeded": "2026-09-30 按 scripts/check-api-request.mjs --json 的 stockMismatches 实际命中集重排:删除已修复/已不再命中 97 条(含 93 条陈旧项与本批已修复的 bad-debt cancelCollectionTask、budget createBudget(删除死函数)、cost createCostCollection、customer-credit setCreditRating 4 条),保留仍命中 50 条;未新增任何豁免。"
+  "_reseeded": "2026-09-30 按 scripts/check-api-request.mjs --json 的 stockMismatches 实际命中集重排:删除已修复/已不再命中 97 条(含 93 条陈旧项与本批已修复的 bad-debt cancelCollectionTask、budget createBudget(删除死函数)、cost createCostCollection、customer-credit setCreditRating 4 条),保留仍命中 50 条;未新增任何豁免。",
+  "_reseeded_board40": "2026-10-01 看板#40 门禁盲区补录后新增 6 条**存量**登记(非规则放宽、非新增缺陷):(1) purchase.ts getPurchaseReceiptList/createPurchaseReceipt 与 inventory.ts approveInventoryTransfer 属解析器按(函数名,path)**跨文件全局去重**被静默丢弃的同名副本,purchase.ts 副本与 purchase-receipt.ts 孪生条目漂移不同(id/receipt_no/order_no 等后端不读),补扫描使其首次进检查面;approveInventoryTransfer 副本比对一致未登记。(2) customer.ts createCustomer/updateCustomer(extends Partial<Omit<Customer,'credit_limit'>> 此前整体解析不出)、user-profile.ts changePassword(ChangePasswordRequest 跨文件同名歧义此前拒解)、product.ts batchCreateProductColors(前端发裸数组而后端 Json<BatchCreateColorsRequest> 要 {colors:[...]} 包装,422 级)均为类型解析口径收紧后**首次暴露的既有契约漂移**,逐条对照 backend handler 签名核实非误报。业务源码修复后请同步删除对应条目(基线只准缩短)。",
+  "_shrunk_board205": "2026-10-01 看板#205 修完源码后缩短 7 条（customer.ts createCustomer/updateCustomer、product.ts batchCreateProductColors、purchase-receipt.ts 与 purchase.ts getPurchaseReceiptList、purchase.ts createPurchaseReceipt、user-profile.ts changePassword），56→49。缩短后 check-api-request 退出 0：若任一条实际未修好却删了基线，该条会立刻以『新增失配』变红，故本笔缩短本身即是被门禁验证的，不是放宽规则。残余待办：入库单列表 keyword/warehouse_id/receipt_date_from/to 四个筛选条件后端 ReceiptQueryParams 根本不接收（已判定为后端功能缺口，另立任务，不做前端本地过滤假装可用）。"
 }

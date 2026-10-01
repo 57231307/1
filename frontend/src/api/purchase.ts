@@ -1,5 +1,7 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+// 创建入库单契约与孪生实现同源（purchase-receipt.ts 已逐字段对齐后端 DTO），此处只引类型不复写。
+import type { CreatePurchaseReceiptRequest } from './purchase-receipt';
 
 // 列表/详情出参 = 后端 PurchaseOrderDto（services/po/order.rs:19，handler purchase_order_handler.rs:26）。
 // DTO 键以 snake_case 原样序列化，order_status 经 #[serde(rename="status")] 改名；
@@ -140,15 +142,19 @@ export interface PurchaseReceiptItem {
   remark?: string;
 }
 
+/**
+ * GET /purchase/receipts 查询参数 —— 逐键对齐后端 handlers/purchase_receipt_handler.rs:376-382
+ * ReceiptQueryParams（list_receipts :26-40 仅透传这五键），无 rename_all → snake_case。
+ * keyword / warehouse_id / receipt_date_from / receipt_date_to 后端根本不接收
+ * （serde 反序列化后无消费点，发出即整体丢弃，筛选恒无效）——已从前端契约摘除，
+ * 不再伪装可筛；该四项属后端列表功能缺口，修复派单见交付报告，禁止用前端本地过滤假装有效。
+ */
 export interface PurchaseReceiptQueryParams {
   page?: number;
   page_size?: number;
-  keyword?: string;
-  supplier_id?: number;
-  warehouse_id?: number;
   status?: string;
-  receipt_date_from?: string;
-  receipt_date_to?: string;
+  supplier_id?: number;
+  order_id?: number;
 }
 
 // D14 Batch 5b：原 purchaseApi.getOrderList 转为风格 B 函数
@@ -263,7 +269,15 @@ export const getPurchaseReceiptList = (params?: PurchaseReceiptQueryParams) =>
   });
 
 // D14 Batch 5b：原 purchaseApi.createReceipt 转为风格 B 函数
-export const createPurchaseReceipt = (data: Partial<PurchaseReceipt>) =>
+// 后端 body 是 Json<CreatePurchaseReceiptRequest>（purchase_receipt_handler.rs:119-123 →
+// services/purchase_receipt_dto.rs:51-79），仅读取 order_id/supplier_id/receipt_date/warehouse_id/
+// department_id/inspector_id/notes/attachment_urls/items（明细键集见 CreateReceiptItemRequest :127-193）。
+// 此前以 Partial<PurchaseReceipt>（响应模型）作入参，把 id/receipt_no/order_no/supplier_name/
+// status/created_at 等响应侧或生成列冒充为可写键提交——单据号是服务端生成、禁手输
+// （同族契约先例：backend/src/handlers/production_order_handler.rs 的 generate-no 流程），
+// 多发键被 serde 静默丢弃即契约漂移，且掩盖了明细键名不符（product_id vs material_id 等）的真缺陷。
+// 现直接引用与孪生实现（purchase-receipt.ts createPurchaseReceipt）同一份逐 DTO 对齐的请求类型。
+export const createPurchaseReceipt = (data: CreatePurchaseReceiptRequest) =>
   request.post<ApiResponse<PurchaseReceipt>>('/purchase/receipts', data);
 
 // D14 Batch 5b：原 purchaseApi.receiveItems 转为风格 B 函数

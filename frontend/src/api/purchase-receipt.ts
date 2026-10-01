@@ -76,6 +76,9 @@ export interface ReceiptItem {
 }
 
 // P2-9c 修复（批次 82 v1 复审）：PurchaseReceiptQueryParams 已在 purchase.ts 定义，此处复用避免重复导出
+// （键集逐字段对齐后端 purchase_receipt_handler.rs:376-382 ReceiptQueryParams：
+//  仅 page/page_size/status/supplier_id/order_id；keyword/warehouse_id/日期区间后端不接收，
+//  已随该类型一并摘除，勿再补回——后端缺口派单见看板 #205 修复报告）
 import type { PurchaseReceiptQueryParams } from './purchase';
 export type { PurchaseReceiptQueryParams };
 
