@@ -17,4 +17,5 @@ pub mod production;
 pub mod finance;
 pub mod v15;
 pub mod rls_dept;
+pub mod rls_dept_user_sync;
 pub mod crm_vocab_check;
