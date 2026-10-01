@@ -631,15 +631,16 @@ test.describe('20 采购到付款全流程契约链', () => {
     expectKeyValue(detail, 'payment_terms', 'NET60', 'PO 改后付款条件');
     expectKeyValue(detail, 'shipping_terms', 'CIF', 'PO 改后运输条款');
     expectKeyValue(detail, 'notes', `E2E-F20-UPD-${marker}`, 'PO 改后备注');
-    // 缺陷①靶心·预期判红：attachment_urls 创建/更新都真实落库（purchase_order.rs:87 列；
-    // 写入 services/po/order_ops/crud.rs:268 / :591-592），但详情出参走 PurchaseOrderDto
-    // （services/po/order.rs:19-50）**无该键** ⇒ 前端再次编辑永远显示不出附件。
-    // 本断言红即点名该 DTO 缺键交编排派修（补 DTO 字段或详情端点单列返回），禁止放宽为"键缺失容忍"。
+    // 缺陷①回归钉（本波源码修复后应为绿）：attachment_urls 创建/更新真实落库
+    // （purchase_order.rs:87 列；写入 services/po/order_ops/crud.rs:268 / :591-592），
+    // 出参 PurchaseOrderDto（services/po/order.rs）已补同名键（键名与模型列同源
+    // snake_case，Entity::find() 全列 SELECT 按列名直映，无二次查询）。
+    // 本断言再红即回归（DTO 丢键 ⇒ 再编辑附件显示不出来），禁止放宽为"键缺失容忍"。
     if (!Array.isArray(detail.attachment_urls)) {
       throw new Error(
-        `PO 详情缺 attachment_urls 数组（保存数据不完整/再编辑显示不出来，缺陷①）；` +
-          `backend/src/services/po/order.rs:19-50 PurchaseOrderDto 无此键，而写入侧 crud.rs:268/591-592 已落库。` +
-          `实际键=${Object.keys(detail).join(',')}`
+        `PO 详情缺 attachment_urls 数组（保存数据不完整/再编辑显示不出来，缺陷①回归）；` +
+          `根因应为 backend/src/services/po/order.rs PurchaseOrderDto 丢失 attachment_urls 键，` +
+          `而写入侧 crud.rs:268/591-592 仍落库。实际键=${Object.keys(detail).join(',')}`
       );
     }
     expectKeyValue(

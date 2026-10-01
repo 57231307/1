@@ -170,6 +170,35 @@
             class="w-full"
           />
         </el-form-item>
+        <!-- 三费录入（缺陷②修复）：outsourcing_order NOT NULL 列（后端 v15:3247-3249），
+             建单必填可填 0；结算 FEE 凭证金额=加工费+运费，不录入成本链恒 0 -->
+        <el-form-item label="加工费" required>
+          <el-input-number
+            v-model="form.processing_fee"
+            :min="0"
+            :precision="2"
+            placeholder="结算 FEE 凭证按 加工费+运费 计"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item label="运费" required>
+          <el-input-number
+            v-model="form.freight_fee"
+            :min="0"
+            :precision="2"
+            placeholder="计入总成本与 FEE 凭证"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item label="税额" required>
+          <el-input-number
+            v-model="form.tax_amount"
+            :min="0"
+            :precision="2"
+            placeholder="进项税额，结算时记入 FEE 凭证 tax_amount"
+            class="w-full"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -199,6 +228,19 @@
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('outsourcing.form.materialCost')">{{
           detailOrder.material_cost ?? '-'
+        }}</el-descriptions-item>
+        <!-- 三费与成本链回显（后端 outsourcing_order 真实列，Decimal 出参为字符串） -->
+        <el-descriptions-item label="加工费">{{
+          detailOrder.processing_fee ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="运费">{{
+          detailOrder.freight_fee ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="税额">{{
+          detailOrder.tax_amount ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="总成本">{{
+          detailOrder.total_cost ?? '-'
         }}</el-descriptions-item>
       </el-descriptions>
 
@@ -393,6 +435,10 @@ const editingId = ref<number | null>(null);
 /** 打开新建委外单：自动预生成单据号（查重唯一后只读展示，防手动输入重复） */
 const openCreate = async () => {
   editingId.value = null;
+  // 三费回到未填态（NOT NULL 列 0 为合法值，须显式填写而非沿用上次编辑回显值）
+  form.processing_fee = undefined;
+  form.freight_fee = undefined;
+  form.tax_amount = undefined;
   form.order_no = await generateUniqueDocNo('OUT', 'outsourcing_order');
   dialogVisible.value = true;
 };
@@ -406,6 +452,11 @@ const form = reactive({
   issue_quantity: undefined as number | undefined,
   issue_unit: '',
   material_cost: undefined as number | undefined,
+  // 三费：outsourcing_order NOT NULL 列（后端 v15:3247-3249），建单必填（0 为合法值，
+  // 判空用 ==null，不得用 !value 误判 0）；编辑回显经 Number() 归一（Decimal 出参是字符串）
+  processing_fee: undefined as number | undefined,
+  freight_fee: undefined as number | undefined,
+  tax_amount: undefined as number | undefined,
 });
 
 const unwrapList = (p: unknown): OutsourcingOrder[] =>
@@ -421,15 +472,18 @@ async function load() {
 }
 
 async function onCreate() {
-  // material_cost 后端允许为 0（真实成本可为 0），仅校验是否填写，不能用 !value 误判 0
+  // material_cost/三费后端允许为 0（真实成本可为 0），仅校验是否填写，不能用 !value 误判 0
   if (
     !form.order_no ||
     !form.supplier_id ||
     !form.issue_date ||
     !form.issue_quantity ||
-    form.material_cost == null
+    form.material_cost == null ||
+    form.processing_fee == null ||
+    form.freight_fee == null ||
+    form.tax_amount == null
   ) {
-    ElMessage.warning('请填写必填项：单号/供应商/日期/数量/材料成本');
+    ElMessage.warning('请填写必填项：单号/供应商/日期/数量/材料成本/加工费/运费/税额');
     return;
   }
   saving.value = true;
@@ -443,12 +497,18 @@ async function onCreate() {
       issue_quantity: form.issue_quantity,
       issue_unit: form.issue_unit || undefined,
       material_cost: form.material_cost,
+      processing_fee: form.processing_fee,
+      freight_fee: form.freight_fee,
+      tax_amount: form.tax_amount,
     });
     ElMessage.success('委外单已创建');
     dialogVisible.value = false;
     form.order_no = '';
     form.issue_quantity = undefined;
     form.material_cost = undefined;
+    form.processing_fee = undefined;
+    form.freight_fee = undefined;
+    form.tax_amount = undefined;
     await load();
   } finally {
     saving.value = false;
@@ -467,6 +527,11 @@ const openEdit = (row: OutsourcingOrder) => {
     issue_quantity: row.issue_quantity,
     issue_unit: row.issue_unit || '',
     material_cost: row.material_cost as number | undefined,
+    // 三费回显：后端 Model 出参 Decimal 为字符串（如 "100.0000"），
+    // el-input-number 绑定必须 Number() 归一（禁止对字符串直接参与运算）
+    processing_fee: Number(row.processing_fee ?? 0),
+    freight_fee: Number(row.freight_fee ?? 0),
+    tax_amount: Number(row.tax_amount ?? 0),
   });
   dialogVisible.value = true;
 };
@@ -489,6 +554,12 @@ const onSave = async () => {
         issue_quantity: form.issue_quantity,
         issue_unit: form.issue_unit || undefined,
         material_cost: form.material_cost,
+        // 三费 NOT NULL 列：编辑框已回显库中原值，UI 清空归一为 0 显式覆盖
+        //（0 为合法值；显式 null 会被后端拒"不能清空"，键缺席=保持原值，
+        // 两种写法都不如把用户看到的空如实写成 0——不留静默歧义）
+        processing_fee: form.processing_fee ?? 0,
+        freight_fee: form.freight_fee ?? 0,
+        tax_amount: form.tax_amount ?? 0,
       });
       ElMessage.success('委外单已更新');
       dialogVisible.value = false;

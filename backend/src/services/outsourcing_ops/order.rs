@@ -35,8 +35,8 @@ use crate::services::outsourcing_ops::types::{
     CreateOutsourcingOrderRequest, OutsourcingOrderQuery, UpdateOutsourcingOrderRequest,
 };
 use crate::services::outsourcing_service::{
-    OutsourcingOrderService, classify_loss, compute_abnormal_loss_amount, compute_loss_rate,
-    compute_standard_loss_rate, compute_total_cost, compute_unit_cost, validate_order_type,
+    classify_loss, compute_abnormal_loss_amount, compute_loss_rate, compute_standard_loss_rate,
+    compute_total_cost, compute_unit_cost, validate_order_type, OutsourcingOrderService,
 };
 
 /// 校验收回前置条件：订单状态与收回数量
@@ -113,6 +113,15 @@ impl OutsourcingOrderService {
         }
         if req.material_cost < Decimal::ZERO {
             return Err(AppError::business("发出材料成本不能为负"));
+        }
+        if req.processing_fee < Decimal::ZERO {
+            return Err(AppError::business("加工费不能为负"));
+        }
+        if req.freight_fee < Decimal::ZERO {
+            return Err(AppError::business("运费不能为负"));
+        }
+        if req.tax_amount < Decimal::ZERO {
+            return Err(AppError::business("税额不能为负"));
         }
         self.validate_create_references(req).await?;
         self.validate_order_no_unique(&req.order_no).await
@@ -200,11 +209,21 @@ impl OutsourcingOrderService {
             loss_rate: Set(None),
             standard_loss_rate: Set(Some(standard_loss_rate)),
             material_cost: Set(req.material_cost),
-            processing_fee: Set(Decimal::ZERO),
-            freight_fee: Set(Decimal::ZERO),
-            tax_amount: Set(Decimal::ZERO),
+            // 三费真实入参（CreateOutsourcingOrderRequest，NOT NULL 列
+            // v15/mod.rs:3247-3249）：建单缺省键经 serde(default) 为 0，与原
+            // Set(ZERO) 初始化同值；draft 期亦可经 PUT 补录（update 三态）
+            processing_fee: Set(req.processing_fee),
+            freight_fee: Set(req.freight_fee),
+            tax_amount: Set(req.tax_amount),
             abnormal_loss_amount: Set(Decimal::ZERO),
-            total_cost: Set(req.material_cost),
+            // 总成本与收回/结算同一权威公式（compute_total_cost：材料+加工费+运费-非正常损耗，
+            // 建单阶段非正常损耗为 0）
+            total_cost: Set(compute_total_cost(
+                req.material_cost,
+                req.processing_fee,
+                req.freight_fee,
+                Decimal::ZERO,
+            )),
             unit_cost: Set(Decimal::ZERO),
             status: Set(outsourcing_order_status::DRAFT.to_string()),
             voucher_no_issue: Set(None),
@@ -234,8 +253,9 @@ impl OutsourcingOrderService {
     ///
     /// 三态写入（RFC 7386，对齐 department_service::update）：
     /// None=不 Set、Some(None)=Set(None) 置 NULL（仅 DB 可空列）、Some(Some(v))=Set(v) 覆盖；
-    /// NOT NULL 列（order_type/supplier_id/issue_date/issue_quantity/issue_unit/material_cost，
-    /// v15 outsourcing_order DDL）的显式 null 在任何 DB 访问前拒绝（外显不脱敏）。
+    /// NOT NULL 列（order_type/supplier_id/issue_date/issue_quantity/issue_unit/material_cost/
+    /// processing_fee/freight_fee/tax_amount，v15 outsourcing_order DDL v15/mod.rs:3227-3262）
+    /// 的显式 null 在任何 DB 访问前拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
@@ -271,6 +291,21 @@ impl OutsourcingOrderService {
                 "发出材料成本不能清空：该字段为必填项",
             ));
         }
+        if matches!(req.processing_fee, Some(None)) {
+            return Err(AppError::business_displayable(
+                "加工费不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.freight_fee, Some(None)) {
+            return Err(AppError::business_displayable(
+                "运费不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.tax_amount, Some(None)) {
+            return Err(AppError::business_displayable(
+                "税额不能清空：该字段为必填项",
+            ));
+        }
 
         let model = self.get_by_id(id).await?;
         if model.status != outsourcing_order_status::DRAFT {
@@ -279,6 +314,15 @@ impl OutsourcingOrderService {
                 model.status
             )));
         }
+
+        // 成本链生效值快照（model 随后被 move 进 active）：材料成本/加工费/运费任一
+        // 被覆盖即联动重算 total_cost/unit_cost——与收回（compute_receipt_calculation）、
+        // 结算（settle）同一权威公式，禁止各写一套
+        let (mut material_cost, mut processing_fee, mut freight_fee) =
+            (model.material_cost, model.processing_fee, model.freight_fee);
+        let (abnormal_loss_amount, return_quantity) =
+            (model.abnormal_loss_amount, model.return_quantity);
+        let mut cost_inputs_changed = false;
 
         let mut active: OrderActiveModel = model.into();
 
@@ -332,13 +376,51 @@ impl OutsourcingOrderService {
         if let Some(v) = req.remarks {
             active.remarks = Set(v);
         }
-        // material_cost：NOT NULL 列——覆盖时联动重算总成本（无加工费/运费/非正常损耗阶段）
+        // material_cost：NOT NULL 列——覆盖时进入成本链重算（与三费同一落点）
         if let Some(v) = req.material_cost.flatten() {
             if v < Decimal::ZERO {
                 return Err(AppError::business("发出材料成本不能为负"));
             }
             active.material_cost = Set(v);
-            active.total_cost = Set(v);
+            material_cost = v;
+            cost_inputs_changed = true;
+        }
+        // 三费：NOT NULL 列（v15 outsourcing_order DDL :3247-3249，Some(None) 已在入口拒绝）
+        // ——有值覆盖、缺席保持；加工费/运费参与 total_cost 成本链，税额单独记入
+        // 结算 FEE 凭证的 tax_amount（settle 语义 order.rs:484 注释，本请求补齐后成立）
+        if let Some(v) = req.processing_fee.flatten() {
+            if v < Decimal::ZERO {
+                return Err(AppError::business("加工费不能为负"));
+            }
+            active.processing_fee = Set(v);
+            processing_fee = v;
+            cost_inputs_changed = true;
+        }
+        if let Some(v) = req.freight_fee.flatten() {
+            if v < Decimal::ZERO {
+                return Err(AppError::business("运费不能为负"));
+            }
+            active.freight_fee = Set(v);
+            freight_fee = v;
+            cost_inputs_changed = true;
+        }
+        if let Some(v) = req.tax_amount.flatten() {
+            if v < Decimal::ZERO {
+                return Err(AppError::business("税额不能为负"));
+            }
+            active.tax_amount = Set(v);
+        }
+        // 成本链联动：total_cost=材料+加工费+运费-非正常损耗；unit_cost=总成本/收回量
+        // （draft 期收回量为 0 时 compute_unit_cost 归零，与建单口径一致）
+        if cost_inputs_changed {
+            let total_cost = compute_total_cost(
+                material_cost,
+                processing_fee,
+                freight_fee,
+                abnormal_loss_amount,
+            );
+            active.total_cost = Set(total_cost);
+            active.unit_cost = Set(compute_unit_cost(total_cost, return_quantity));
         }
 
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());

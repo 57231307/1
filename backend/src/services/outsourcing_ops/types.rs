@@ -39,6 +39,22 @@ pub struct CreateOutsourcingOrderRequest {
     pub issue_quantity: Decimal,
     pub issue_unit: Option<String>,
     pub material_cost: Decimal,
+    /// 加工费：outsourcing_order.processing_fee NOT NULL DECIMAL(14,4)
+    /// （v15/mod.rs:3247，无 DB 默认值）——类型层非 Option（NOT NULL 列不标可选，
+    /// 显式 null 被 serde 按类型错误拒绝，绝不落 NULL）。
+    /// `#[serde(default)]` 仅表达「建单缺省键 = 0 起步」：与既有
+    /// build_order_active_model 的 Set(ZERO) 初始化完全同值，费用真实录入走
+    /// draft 期 PUT（order.rs:484 结算语义「需在订单更新时填入」）或建单直传。
+    #[serde(default)]
+    pub processing_fee: Decimal,
+    /// 运费：outsourcing_order.freight_fee NOT NULL DECIMAL(14,4)（v15/mod.rs:3248），
+    /// 三态口径同 processing_fee
+    #[serde(default)]
+    pub freight_fee: Decimal,
+    /// 进项税额：outsourcing_order.tax_amount NOT NULL DECIMAL(14,4)（v15/mod.rs:3249），
+    /// 三态口径同 processing_fee；结算 FEE 凭证单独记录在 voucher.tax_amount
+    #[serde(default)]
+    pub tax_amount: Decimal,
     pub standard_loss_rate: Option<Decimal>,
     pub remarks: Option<String>,
     pub created_by: Option<i32>,
@@ -48,8 +64,9 @@ pub struct CreateOutsourcingOrderRequest {
 ///
 /// 三态语义（RFC 7386，对齐 handlers/department_handler.rs 范式）：
 /// 键缺席=保持原值、显式 null=清空为 NULL（仅 DB 可空列）、有值=覆盖。
-/// NOT NULL 列（order_type/supplier_id/issue_date/issue_quantity/issue_unit/material_cost，
-/// v15 outsourcing_order DDL）显式 null 由 service 入口在任何 DB 访问前拒绝。
+/// NOT NULL 列（order_type/supplier_id/issue_date/issue_quantity/issue_unit/material_cost/
+/// processing_fee/freight_fee/tax_amount，v15 outsourcing_order DDL v15/mod.rs:3227-3262，
+/// 三费列 :3247-3249）显式 null 由 service 入口在任何 DB 访问前拒绝。
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateOutsourcingOrderRequest {
     /// 委外类型：NOT NULL——显式 null 被 service 拒绝
@@ -85,6 +102,17 @@ pub struct UpdateOutsourcingOrderRequest {
     /// 发出材料成本：NOT NULL DECIMAL——显式 null 被 service 拒绝
     #[serde(default, deserialize_with = "double_option")]
     pub material_cost: Option<Option<Decimal>>,
+    /// 加工费：NOT NULL DECIMAL(14,4)（v15/mod.rs:3247）——显式 null 被 service 拒绝，
+    /// 有值覆盖时联动重算 total_cost（settle 语义 order.rs:484：FEE 凭证=加工费+运费）
+    #[serde(default, deserialize_with = "double_option")]
+    pub processing_fee: Option<Option<Decimal>>,
+    /// 运费：NOT NULL DECIMAL(14,4)（v15/mod.rs:3248）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub freight_fee: Option<Option<Decimal>>,
+    /// 进项税额：NOT NULL DECIMAL(14,4)（v15/mod.rs:3249）——显式 null 被 service 拒绝，
+    /// 结算时单独落 FEE 凭证 tax_amount 列（order.rs:525）
+    #[serde(default, deserialize_with = "double_option")]
+    pub tax_amount: Option<Option<Decimal>>,
     /// 标准损耗率：DB 可空 DECIMAL——显式 null 清空
     #[serde(default, deserialize_with = "double_option")]
     pub standard_loss_rate: Option<Option<Decimal>>,

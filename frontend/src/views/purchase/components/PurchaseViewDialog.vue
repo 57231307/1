@@ -176,6 +176,23 @@ async function saveItem(item: PurchaseOrderItem) {
         <el-descriptions-item :label="t('purchase.viewDlg.remark')" :span="2">{{
           data.notes
         }}</el-descriptions-item>
+        <!-- 附件回显（缺陷①修复后 PurchaseOrderDto.attachment_urls 真实出参，
+             键名与 purchase_orders.attachment_urls 列同源；无附件显示 '-'，
+             禁止静默吞键。locales 冻结期标签用中文字面量（同 outsourcing 页先例） -->
+        <el-descriptions-item label="附件" :span="2">
+          <template v-if="data.attachment_urls && data.attachment_urls.length > 0">
+            <a
+              v-for="url in data.attachment_urls"
+              :key="url"
+              :href="url"
+              target="_blank"
+              rel="noopener"
+              style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+              >{{ url }}</a
+            >
+          </template>
+          <span v-else>-</span>
+        </el-descriptions-item>
       </el-descriptions>
       <div style="margin-top: 20px">
         <h4>{{ t('purchase.viewDlg.detailTitle') }}</h4>

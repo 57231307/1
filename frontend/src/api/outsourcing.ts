@@ -23,6 +23,17 @@ export interface CreateOutsourcingOrderPayload {
   // 后端 CreateOutsourcingOrderRequest.material_cost 为 rust_decimal::Decimal 必填字段，
   // 与本文件其它金额字段(issue_quantity/unit_cost 等)一致，统一以 JSON number 传参序列化。
   material_cost: number;
+  /**
+   * 加工费/运费/进项税额：outsourcing_order 表 NOT NULL DECIMAL(14,4) 真实列
+   * （backend migration/src/domain/v15/mod.rs:3247-3249）。后端 Create DTO 类型层
+   * 非 Option（NOT NULL 列不标可选，显式 null 被 serde 类型校验拒绝）；
+   * 建单缺省键=0 起步（serde(default)，与后端建单初始化同值），真实值须随单提交或
+   * draft 期经 updateOutsourcingOrder 补录——结算 FEE 凭证金额=加工费+运费，
+   * 不录入则成本链恒 0。
+   */
+  processing_fee?: number;
+  freight_fee?: number;
+  tax_amount?: number;
 }
 
 export function getOutsourcingOrderList(params?: Record<string, unknown>) {
@@ -47,10 +58,11 @@ export function getOutsourcingOrderDetail(id: number) {
  * 键缺席=保持原值、显式 null=清空为 NULL（仅下方声明 `| null` 的 DB 可空列）、有值=覆盖。
  * 可空列依据 v15 outsourcing_order DDL（production_order_id/dye_batch_id/color_no/dye_lot_no/
  * expected_return_date/standard_loss_rate/remarks）。
- * NOT NULL 列（order_type/supplier_id/issue_date/issue_quantity/issue_unit/material_cost）
- * 不声明 null——显式 null 会被后端 business_displayable 拒绝。
+ * NOT NULL 列（order_type/supplier_id/issue_date/issue_quantity/issue_unit/material_cost/
+ * processing_fee/freight_fee/tax_amount）不声明 null——显式 null 会被后端
+ * business_displayable 拒绝（"XX不能清空：该字段为必填项"）。
  * 委外单号 order_no 建单生成后不可改，后端更新结构无此字段，不得提交。
- * material_cost/issue_quantity/standard_loss_rate 为 rust_decimal 入参，以 JSON number 提交。
+ * material_cost/issue_quantity/standard_loss_rate/三费 为 rust_decimal 入参，以 JSON number 提交。
  */
 export interface UpdateOutsourcingOrderPayload {
   order_type?: string;
@@ -64,6 +76,12 @@ export interface UpdateOutsourcingOrderPayload {
   issue_quantity?: number;
   issue_unit?: string;
   material_cost?: number;
+  /** 加工费（NOT NULL 列，后端 v15:3247）：有值覆盖/键缺席保持，禁显式 null */
+  processing_fee?: number;
+  /** 运费（NOT NULL 列，后端 v15:3248）：同上 */
+  freight_fee?: number;
+  /** 进项税额（NOT NULL 列，后端 v15:3249）：同上，结算 FEE 凭证 tax_amount 来源 */
+  tax_amount?: number;
   standard_loss_rate?: number | null;
   remarks?: string | null;
 }

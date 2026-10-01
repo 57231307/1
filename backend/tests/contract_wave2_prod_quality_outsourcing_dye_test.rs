@@ -407,6 +407,12 @@ async fn outsourcing_order_not_null_explicit_null_rejected_before_any_db_access(
                 issue_quantity: None,
                 issue_unit: None,
                 material_cost: None,
+                // 契约波 5：UpdateOutsourcingOrderRequest 补齐三费键（NOT NULL 列，
+                // 显式 null 拒绝语义见 contract_wave5_trade_fields_roundtrip_test）；
+                // 本用例仅覆盖 supplier_id 拒绝路径，新键缺席=保持原值
+                processing_fee: None,
+                freight_fee: None,
+                tax_amount: None,
                 standard_loss_rate: None,
                 remarks: None,
             },

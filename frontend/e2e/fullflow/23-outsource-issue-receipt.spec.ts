@@ -30,11 +30,11 @@
 //   发料匹号门            services/piece_domain_service.rs:152-195 validate_pieces_for_issue
 //     （每条明细必须带真实存在且 AVAILABLE 的生产匹号——无明细则整单放行，见 23-02 负例）
 //   更新三态拒绝 NOT NULL 显式 null 的入口：order.rs:276-289 + types.rs:53-94
-// 诚实标注/预期判红（后端缺口，只测不修）：
-//   settle 语义要求订单携带 processing_fee/freight_fee/tax_amount（order.rs:484-486 注释：
-//   "加工费/运费/税额需在订单更新时填入"），但 UpdateOutsourcingOrderRequest（types.rs:54-93）
-//   **没有这三个键**，Create 亦无 ⇒ 加工费经 API 无处录入，FEE 凭证金额恒 0。
-//   23-01 末以显式判红钉死该缺口（同 fullflow/10-05 的付款申请明细手法）。
+// 诚实标注/回归钉（本波源码修复后应为绿）：
+//   settle 语义要求订单携带 processing_fee/freight_fee/tax_amount（order.rs:484 注释：
+//   "需在订单更新时填入"），Create/Update DTO（services/outsourcing_ops/types.rs）已补
+//   这三个真实键（NOT NULL 列 v15/mod.rs:3247-3249，Update 显式 null 拒清）⇒ 费用经
+//   API 可录入回读，FEE 凭证金额取真实值。23-03 由缺陷钉转为回归钉，再红即回归。
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -386,7 +386,7 @@ test.describe('23 委外发料→收回→结算契约链', () => {
       feeVch!,
       'amount',
       0,
-      'fee 凭证=processing_fee+freight_fee（当前均不可录入⇒0，见下方缺陷钉）'
+      'fee 凭证=processing_fee+freight_fee；本单建单未带费用键⇒0 起步（录入回读见 23-03）'
     );
 
     // ── 关闭：settled→closed ──
@@ -562,14 +562,15 @@ test.describe('23 委外发料→收回→结算契约链', () => {
     expectKeyValue(noDrift2, 'status', 'draft', '假匹号发料被拒后仍 draft');
   });
 
-  test('23-03 缺陷钉·预期判红：加工费/运费/税额无法经契约录入回读（FEE 链路数值失效，只测不修）', async ({
+  test('23-03 回归钉（本波修复后应为绿）：加工费/运费/税额经契约录入回读（FEE 链路数值生效）', async ({
     page,
   }) => {
-    // settle 语义要求订单携带 processing_fee/freight_fee/tax_amount（order.rs:484-486 注释
-    // "需在订单更新时填入"），但 Create（types.rs:29-45）与 Update（types.rs:54-93）均无此三键，
-    // PUT 携带会被 serde 静默忽略 ⇒ API 层无处录入，结算 FEE 凭证金额恒 0（23-01 已按真实值 0 钉住）。
-    // 本例以"送键即须可回读"的契约口径**预期判红**，红即点名 file:line 交编排派修；
-    // 禁止在此放宽成"键缺失容忍"——那正是用户报的缺陷①形态。
+    // settle 语义要求订单携带 processing_fee/freight_fee/tax_amount（order.rs:484 注释
+    // "需在订单更新时填入"）。本波源码修复：UpdateOutsourcingOrderRequest
+    // （services/outsourcing_ops/types.rs）补齐三键（NOT NULL 列 v15/mod.rs:3247-3249，
+    // 显式 null 拒清），PUT 送键即须可回读；结算 FEE 凭证按真实值计（后端集成测
+    // tests/contract_wave5_trade_fields_roundtrip_test.rs 同口径锁定）。
+    // 本例再红即缺陷①委外形态回归，禁止放宽成"键缺失容忍"。
     const order = await seedOutsourcingOrder(page, 'FEE');
     const orderId = requireNum(order.id, 'FEE 订单');
     await apiCall(page, 'PUT', `/production/outsourcing-orders/${orderId}`, {
@@ -582,11 +583,12 @@ test.describe('23 委外发料→收回→结算契约链', () => {
     );
     if (Number(reread.processing_fee) !== 100) {
       throw new Error(
-        `加工费无法经契约录入/回读（缺陷①委外形态）：draft 期 PUT processing_fee=100 后回读=` +
+        `加工费经契约录入回读回归（缺陷①委外形态）：draft 期 PUT processing_fee=100 后回读=` +
           JSON.stringify(reread.processing_fee) +
-          `；根因 backend/src/services/outsourcing_ops/types.rs:54-93 UpdateOutsourcingOrderRequest 缺 ` +
-          `processing_fee/freight_fee/tax_amount 键，而 backend/src/services/outsourcing_ops/order.rs:484-486 ` +
-          `结算语义声明依赖这三键 ⇒ FEE 凭证（order.rs:517-535）金额恒 0。实际键=${Object.keys(reread).join(',')}`
+          `；应查 backend/src/services/outsourcing_ops/types.rs UpdateOutsourcingOrderRequest 的 ` +
+          `processing_fee/freight_fee/tax_amount 三键与 backend/src/services/outsourcing_ops/order.rs ` +
+          `update 写入接线（settle 语义 order.rs:484 ⇒ FEE 凭证 order.rs:517-535）。` +
+          `实际键=${Object.keys(reread).join(',')}`
       );
     }
   });

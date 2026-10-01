@@ -40,6 +40,13 @@ pub struct PurchaseOrderDto {
     pub payment_terms: Option<String>,
     pub shipping_terms: Option<String>,
     pub notes: Option<String>,
+    /// 附件 URL 列表：purchase_orders.attachment_urls 真实列（TEXT[]，
+    /// models/purchase_order.rs:87，DDL migration/src/domain/system/mod.rs:326）。
+    /// 键名与模型列同源 snake_case；list_orders/get_order 走 Entity::find()
+    /// 全列 SELECT + into_model::<Dto>() 按列名直映（本仓读取富化唯一范式，
+    /// 参照 crud.rs:657 column_as+LeftJoin 链路），禁止二次查询拼 N+1。
+    /// 写入侧同源：crud.rs:268（创建）/ :591-592（更新）。
+    pub attachment_urls: Option<Vec<String>>,
     pub created_by: i32,
     /// 创建人姓名：created_by -> users.real_name（LEFT JOIN，可空）
     pub creator_name: Option<String>,

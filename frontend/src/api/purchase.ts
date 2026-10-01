@@ -28,6 +28,12 @@ export interface PurchaseOrder {
   shipping_terms: string | null;
   /** 后端 PurchaseOrderDto.notes（备注） */
   notes: string | null;
+  /**
+   * 后端 PurchaseOrderDto.attachment_urls（purchase_orders.attachment_urls TEXT[]
+   * 真实列，键名与模型列同源 snake_case）：创建/更新落库后详情/列表原样回显，
+   * 未上传附件时为 null。
+   */
+  attachment_urls: string[] | null;
   created_by: number;
   created_at: string;
   updated_at: string;
