@@ -4,8 +4,9 @@
  *
  * 状态词表/配色/文案键统一出自 utils/purchase-inspection-status（与后端
  * models/status/purchase_inventory.rs 的 purchase_inspection 原值 pending/completed 逐字一致）。
- * 检验结果（inspection_result）后端为自由文本、无状态词表，故不走 normalize，仅映射已知取值到
- * i18n 文案与配色，未映射值回显其本身（展示真实入库值，非掩盖缺键）。
+ * 检验结果（inspection_result）词表统一出自 utils/purchase-inspection-result（与后端
+ * purchase_inspection_result 原值 pass/fail/partial 逐字一致，本列完成时已被白名单强校验）；
+ * 展示层对强校验上线前的自由文本存量取值回显其本身（展示真实入库值，非掩盖缺键）。
  */
 import { i18n } from '@/i18n';
 import {
@@ -13,6 +14,10 @@ import {
   purchaseInspectionStatusTagType,
   type PurchaseInspectionTagType,
 } from '@/utils/purchase-inspection-status';
+import {
+  purchaseInspectionResultLabelKey,
+  purchaseInspectionResultTagType,
+} from '@/utils/purchase-inspection-result';
 
 /** 检验单状态 → el-tag 配色 */
 export function getStatusType(status: string | null | undefined): PurchaseInspectionTagType {
@@ -24,27 +29,13 @@ export function getStatusText(status: string | null | undefined): string {
   return i18n.global.t(purchaseInspectionStatusLabelKey(status));
 }
 
-/** 检验结果 → el-tag 配色 */
-const RESULT_TYPE_MAP: Record<string, PurchaseInspectionTagType> = {
-  pass: 'success',
-  fail: 'danger',
-  partial: 'warning',
-};
-
-/** 检验结果 → i18n 文案键 */
-const RESULT_LABEL_KEY_MAP: Record<string, string> = {
-  pass: 'purchaseInspection.filter.result.pass',
-  fail: 'purchaseInspection.filter.result.fail',
-  partial: 'purchaseInspection.filter.result.partial',
-};
-
-/** 检验结果 → el-tag 配色 */
+/** 检验结果 → el-tag 配色（词表外存量值回中性 info） */
 export function getResultType(result: string | null | undefined): PurchaseInspectionTagType {
-  return RESULT_TYPE_MAP[result ?? ''] ?? 'info';
+  return purchaseInspectionResultTagType(result);
 }
 
-/** 检验结果 → 显示文案（已知取值走 i18n，未知回显入库原值） */
+/** 检验结果 → 显示文案（词表内取值走 i18n，词表外存量回显入库原值） */
 export function getResultText(result: string | null | undefined): string {
-  const key = RESULT_LABEL_KEY_MAP[result ?? ''];
+  const key = purchaseInspectionResultLabelKey(result);
   return key ? i18n.global.t(key) : (result ?? '');
 }

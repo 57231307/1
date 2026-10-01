@@ -24,6 +24,8 @@ import { getSupplierList } from '@/api/supplier';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
 import { i18n } from '@/i18n';
+// 统计比较点取本域权威词表常量（与后端 purchase_inspection_result 逐字一致），不手写 token
+import { PURCHASE_INSPECTION_RESULT } from '@/utils/purchase-inspection-result';
 
 /**
  * 采购验货主业务 composable
@@ -73,8 +75,12 @@ export function usePi() {
     () => {
       stats.total = total.value;
       stats.pending = tableData.value.filter(i => i.inspection_status === 'pending').length;
-      stats.passed = tableData.value.filter(i => i.inspection_result === 'pass').length;
-      stats.failed = tableData.value.filter(i => i.inspection_result === 'fail').length;
+      stats.passed = tableData.value.filter(
+        i => i.inspection_result === PURCHASE_INSPECTION_RESULT.PASS
+      ).length;
+      stats.failed = tableData.value.filter(
+        i => i.inspection_result === PURCHASE_INSPECTION_RESULT.FAIL
+      ).length;
     },
     { deep: false }
   );

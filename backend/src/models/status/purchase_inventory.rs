@@ -2,7 +2,7 @@
 //! 采购库存状态常量分组
 //!
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的采购/库存状态常量子模块组。
-//! 包含：purchase_order/purchase_receipt/inventory_reservation/inventory_transfer/inventory_count/purchase_return/purchase_inspection/inventory_adjustment/inventory_piece/purchase_receipt_inspection
+//! 包含：purchase_order/purchase_receipt/inventory_reservation/inventory_transfer/inventory_count/purchase_return/purchase_inspection/purchase_inspection_result/inventory_adjustment/inventory_piece/purchase_receipt_inspection
 //!
 //! 大小写历史包袱说明：本模块下 status 字面量大小写混杂，源于历史数据库迁移遗留——
 //! 单据类（purchase_order/purchase_receipt）用大写（DRAFT/APPROVED/CLOSED），
@@ -157,9 +157,12 @@ pub mod inventory_piece {
 /// 采购收货检验状态（purchase_receipt.inspection_status，大写值）
 /// 批次 236 v13 真实接入：purchase_receipt_service.rs
 ///
-/// 本列与 `quality_inspection_records.inspection_result`（中文：待检/合格/不合格）是
-/// 两张表的两套词表：质检结论回写入库单时必须经 `from_inspection_result` 显式映射，
-/// 直接复制中文值会让本列出现没有任何读取方认识的取值。
+/// 本列有两套结论来源、各自一条显式映射，均不得直接复制结论原值：
+/// - 通用质检记录域 `quality_inspection_records.inspection_result`（中文：待检/合格/不合格）
+///   经 `from_inspection_result` 映射；
+/// - 采购质检域 `purchase_inspection.inspection_result`（英文小写码：pass/fail/partial）
+///   经本文件 `purchase_inspection_result::to_receipt_inspection_status` 映射。
+/// 直接复制任何结论原值都会让本列出现没有读取方认识的取值。
 pub mod purchase_receipt_inspection {
     use crate::models::status::quality_inspection_result;
 
@@ -184,6 +187,63 @@ pub mod purchase_receipt_inspection {
             Some(PASSED)
         } else if result == quality_inspection_result::UNQUALIFIED {
             Some(REJECTED)
+        } else {
+            None
+        }
+    }
+}
+
+/// 采购质检结论（purchase_inspection.inspection_result，英文小写码值）
+///
+/// 词表唯一来源＝真实写入方的采集入口：前端「完成」三连 prompt 的结论录入 pattern
+/// （frontend/src/views/purchase-inspection/composables/usePiProc.ts，由
+/// frontend/src/utils/purchase-inspection-result.ts 的常量构造，三端同源），
+/// 实际落库 token 为 pass / fail / partial。本列在完成质检前为 NULL（建单置 NULL），
+/// NULL 是合法初值、空串不是取值。
+///
+/// 与通用质检记录域 `quality_inspection_records.inspection_result` 的中文词表
+/// `quality_inspection_result`（待检/合格/不合格）分属两张表、两套词表：
+/// 比较点、白名单校验与回写映射一律取本模块常量，禁止英文化/中文化任何 token，
+/// 禁止跨域借用（拿中文表校验本列会把合法生产数据判成非法）。
+pub mod purchase_inspection_result {
+    use super::purchase_receipt_inspection;
+
+    /// 合格：整批通过
+    pub const PASS: &str = "pass";
+
+    /// 不合格：整批不通过，走让步接收或退货流程
+    pub const FAIL: &str = "fail";
+
+    /// 部分合格：整批存在不合格部分，不合格部分走让步接收或退货流程
+    pub const PARTIAL: &str = "partial";
+
+    /// 本列全部合法取值：完成质检白名单强校验的唯一取值来源
+    pub const ALL: &[&str] = &[PASS, FAIL, PARTIAL];
+
+    /// 白名单判定：逐字符匹配，不做大小写/中英转换，词表外（含空串/变体）一律 false
+    pub fn is_valid(result: &str) -> bool {
+        ALL.contains(&result)
+    }
+
+    /// 采购质检结论 → 入库单检验状态（purchase_receipt_inspection 大写三态）。
+    /// 词表外结论返回 `None`，由调用方报错而不是默认成某个值；取值域与 `ALL`
+    /// 完全同源（Some ⟺ is_valid），杜绝"校验一套、映射另一套"的漂移。
+    ///
+    /// partial 的映射裁定依据（入库词表只有 PENDING/PASSED/REJECTED 三态）：
+    /// - pass → PASSED：语义即「质检合格：允许后续入库/结算流转」；
+    /// - fail → REJECTED：语义即「质检不合格：走让步接收或退货流程」；
+    /// - partial → REJECTED：部分合格≠整批合格，不能按 PASSED 放行（那会打开
+    ///   「合格方可入库/结算」的门，属兜底放行）；PENDING 语义是「待检验」，
+    ///   与"已完成检验"不符；不合格部分要走的下游路径与 fail 完全相同——
+    ///   REJECTED 的定义文案「走让步接收或退货流程」，且前端「生成退货」门控
+    ///   对 fail/partial 同示（views/purchase-inspection/components/
+    ///   PurchaseInspectionTable.vue 的 RETURN_ELIGIBLE_RESULTS）。
+    ///   精确结论（partial）无损保留在 purchase_inspection.inspection_result 本列。
+    pub fn to_receipt_inspection_status(result: &str) -> Option<&'static str> {
+        if result == PASS {
+            Some(purchase_receipt_inspection::PASSED)
+        } else if result == FAIL || result == PARTIAL {
+            Some(purchase_receipt_inspection::REJECTED)
         } else {
             None
         }

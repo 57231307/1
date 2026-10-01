@@ -5,6 +5,7 @@
 use crate::models::purchase_inspection;
 use crate::models::purchase_inspection_item;
 use crate::models::status::purchase_inspection as pis_status;
+use crate::models::status::purchase_inventory::purchase_inspection_result;
 use crate::models::{purchase_receipt, supplier, user};
 use crate::utils::error::AppError;
 // 批次 258 修复：接入 paginate_with_total 统一分页逻辑
@@ -84,6 +85,16 @@ impl PurchaseInspectionService {
         req: CreatePurchaseInspectionRequest,
         _user_id: i32,
     ) -> Result<purchase_inspection::Model, AppError> {
+        // 引用存在性校验先于任何写库动作（含取号）：receipt_id 指向的入库单不存在时
+        // 显式 404（含 ID 的真实原因走脱敏 not_found），不把坏引用交给 DB 外键行为
+        // 兜底——外键违约会是裸 500 而非业务 4xx。
+        if let Some(receipt_id) = req.receipt_id {
+            purchase_receipt::Entity::find_by_id(receipt_id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
+        }
+
         let inspection_no = self.generate_inspection_no().await?;
 
         let inspection = purchase_inspection::ActiveModel {
@@ -172,6 +183,26 @@ impl PurchaseInspectionService {
         req: CompleteInspectionRequest,
         user_id: i32,
     ) -> Result<purchase_inspection::Model, AppError> {
+        // 质检结论白名单强校验先于任何写库：取值域唯一来源是本域权威表
+        // purchase_inspection_result（pass/fail/partial，英文小写码，逐字符匹配，
+        // 不做大小写/中英转换）。其写入方是前端「完成」三连 prompt 的结论录入
+        // pattern（usePiProc.ts，由 utils/purchase-inspection-result.ts 常量构造，
+        // 三端同源）；与通用质检记录域中文词表 quality_inspection_result（待检/合格/
+        // 不合格）分属两张表两套词表，禁止跨域借用——拿中文表校验本列会把合法生产
+        // 数据判成非法。校验与"结论→入库单检验状态"映射共用同一函数
+        // to_receipt_inspection_status（Some ⟺ 词表内，同一取值域单点把关），
+        // 词表外 → 400 可外显文案（取值清单由权威表 ALL join 生成，不手写第二套），
+        // 杜绝"校验一套、映射另一套"的取值域漂移。
+        let receipt_inspection_status =
+            purchase_inspection_result::to_receipt_inspection_status(&req.inspection_result)
+                .ok_or_else(|| {
+                    AppError::validation_displayable(format!(
+                        "质检结果只能是{}，提交值「{}」不在取值域内",
+                        purchase_inspection_result::ALL.join("/"),
+                        req.inspection_result
+                    ))
+                })?;
+
         let txn = (*self.db).begin().await?;
 
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
@@ -187,6 +218,9 @@ impl PurchaseInspectionService {
                 inspection.inspection_status
             )));
         }
+
+        // 回写目标入库单（receipt_id 可空：为空则本次完成没有入库单检验状态可回写）
+        let receipt_id = inspection.receipt_id;
 
         // 计算质量得分
         let quality_score = self
@@ -209,6 +243,42 @@ impl PurchaseInspectionService {
             Some(user_id),
         )
         .await?;
+
+        // 同一事务内把质检结论回写入库单检验状态（purchase_receipt.inspection_status，
+        // 大写词表 PENDING/PASSED/REJECTED），映射经权威表同源函数
+        // purchase_inspection_result::to_receipt_inspection_status（pass→PASSED，
+        // fail/partial→REJECTED，裁定依据见该函数文档注释）。回写失败一律 `?` 上抛、
+        // 事务不提交整体回滚——禁止"质检显示已完成但入库单状态未回写"的静默半成功；
+        // 关联入库单缺失同样显式报错（含 ID 的真实原因走脱敏 not_found，见 utils/error.rs 口径）。
+        match receipt_id {
+            Some(id) => {
+                let receipt = purchase_receipt::Entity::find_by_id(id)
+                    .one(&txn)
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::not_found(format!(
+                            "采购质检单 {} 关联的入库单 {} 不存在，检验状态无法回写",
+                            inspection_id, id
+                        ))
+                    })?;
+                let mut receipt_active: purchase_receipt::ActiveModel = receipt.into();
+                receipt_active.inspection_status = Set(receipt_inspection_status.to_string());
+                receipt_active.updated_at = Set(Utc::now());
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    &txn,
+                    "auto_audit",
+                    receipt_active,
+                    Some(user_id),
+                )
+                .await?;
+            }
+            None => {
+                tracing::info!(
+                    "采购质检单 {} 未关联入库单（receipt_id 为空），本次完成无检验状态可回写",
+                    inspection_id
+                );
+            }
+        }
 
         txn.commit().await?;
 
