@@ -27,6 +27,7 @@ import {
   apiCallRaw,
   tryCleanup,
   genCode,
+  seedInspectionPass,
 } from '../flow/helpers';
 import { pickListArray } from '../flow/ui-helpers';
 
@@ -128,6 +129,14 @@ async function seedConfirmedReceipt(
   const rcvId = rcv.data?.id;
   if (!rcvId) throw new Error(`建入库单未返回 id：${JSON.stringify(rcv)}`);
   CREATED_RECEIPT_IDS.push(rcvId);
+  // 「质检合格方可入库」门控前置（本链确实需要已入库库存做退货回退，故必须真确认入库；
+  // 见 helpers.seedInspectionPass —— 未质检直接 confirm 会被 400 拒）
+  await seedInspectionPass(page, {
+    receiptId: rcvId,
+    supplierId: ctx.supplierId!,
+    passQuantity: dims.qty,
+    context: `14 入库单#${rcvId}`,
+  });
   await apiCall(page, 'POST', `/purchase/receipts/${rcvId}/confirm`);
   const rows = await readStockByProduct(page, productId, warehouseId);
   const row = rows.find(r => r.batch_no === dims.batchNo);

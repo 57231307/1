@@ -29,6 +29,7 @@ import {
   apiCallExpectFail,
   tryCleanup,
   genCode,
+  seedInspectionPass,
 } from '../flow/helpers';
 import { pickSelectIn, pickListArray } from '../flow/ui-helpers';
 
@@ -195,6 +196,16 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     const po = await seedApprovedPO(page, '50');
     const receipt = await seedFourDimDraftReceipt(page, po, dims);
 
+    // 数据前置：入库质检门控要求收货单先有"合格"结论才能确认
+    // （backend ensure_receipt_inspection_allows_flow，见 helpers.seedInspectionPass）。
+    // 被测动作仍是点「审核」按钮 + ElMessageBox 确认这条 UI 链，这里只补它的前置状态。
+    await seedInspectionPass(page, {
+      receiptId: receipt.id,
+      supplierId: ctx.supplierId!,
+      passQuantity: dims.qty,
+      context: `13-01 入库单#${receipt.id}`,
+    });
+
     // UI 确认入库：/purchase-receipt 行「审核」→ ElMessageBox 确认 → 成功提示
     const row = await locateReceiptRow(page, receipt.receipt_no);
     await row.getByRole('button', { name: '审核', exact: true }).click();
@@ -276,6 +287,14 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     expect(draft!.receipt_status, '收货登记只建 DRAFT').toBe('DRAFT');
     CREATED_RECEIPT_IDS.push(draft!.id);
 
+    // 门控前置：质检合格回写（被测动作仍是上面的 UI 收货链，见 helpers.seedInspectionPass）
+    await seedInspectionPass(page, {
+      receiptId: draft!.id,
+      supplierId: ctx.supplierId!,
+      passQuantity: '5',
+      context: `13-02 入库单#${draft!.id}`,
+    });
+
     // 确认入库（同 confirm 端点；UI 收货对话框仅采批次，色号/缸号合法留空——白坯口径）
     await apiCall(page, 'POST', `/purchase/receipts/${draft!.id}/confirm`);
 
@@ -296,6 +315,14 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     const po = await seedApprovedPO(page, '30');
     const receipt = await seedFourDimDraftReceipt(page, po, dims);
 
+    // 门控前置：先质检合格（否则首次确认会被质检门 400 拒，二次确认的归因就废了）
+    await seedInspectionPass(page, {
+      receiptId: receipt.id,
+      supplierId: ctx.supplierId!,
+      passQuantity: dims.qty,
+      context: `13-02b 入库单#${receipt.id}`,
+    });
+
     // 首次确认成功
     await apiCall(page, 'POST', `/purchase/receipts/${receipt.id}/confirm`);
     const first = await readStockFourDim(page, productId, { ...dims, warehouseId });
@@ -306,6 +333,15 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     const fail = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receipt.id}/confirm`);
     expect(fail.status, `二次确认应被拒为 4xx，实际 ${fail.status}`).toBeGreaterThanOrEqual(400);
     expect(fail.status, '二次确认不应为 5xx').toBeLessThan(500);
+    // 归因锁：这条红必须来自"已确认/状态门"，不能是质检门替它通过（首次确认若没做成，
+    // 二次调用也会被质检门拒，形状完全相同 → 用例表面绿、实际没验证幂等防御）。
+    expect(fail.code, `二次确认应落在 BUSINESS_ERROR 族，实际 code=${fail.code}`).toBe(
+      'BUSINESS_ERROR'
+    );
+    expect(
+      fail.message,
+      `二次确认的拒绝原因不应是质检门文案（说明首次确认没成功）：${fail.message}`
+    ).not.toMatch(/质检尚未完成|质检不合格/);
 
     // 回读：on_hand 仍为 12（未被二次累加），证明幂等防御生效
     const after = await readStockFourDim(page, productId, { ...dims, warehouseId });

@@ -3096,6 +3096,63 @@ export function expectBusinessRejection(
 }
 
 /**
+ * 「质检合格方可入库/结算」门控（commit 48aa4395）要求的真实前置链。
+ *
+ * 后端 backend/src/services/purchase_receipt_service.rs::ensure_receipt_inspection_allows_flow
+ * 只放行 inspection_status == PASSED 的收货单；新建收货单恒为 PENDING
+ * （purchase_receipt.inspection_status 列 NOT NULL DEFAULT 'PENDING'），REJECTED 也拒。
+ * PASSED 的唯一业务写入口是采购质检完成回写（purchase_inspection_service.rs::complete_inspection
+ * → to_receipt_inspection_status），不存在任何直改状态的旁路端点。
+ *
+ * 因此凡是要 `POST /purchase/receipts/{id}/confirm`（或 `POST /ap/invoices/auto-generate`）
+ * 的用例，都必须先跑完本函数：建质检单 → complete(pass) → 回读必须真读到 PASSED。
+ * 任一步不达预期立即抛错，**不允许**继续去 confirm 撞 400 —— 那会把"回写链断了"
+ * 伪装成"确认接口故障"，正是本仓反复踩过的隐性红。
+ * 结论 token 用权威词表原值 pass/fail/partial（models/status/purchase_inventory.rs），
+ * fail/partial 都会得到 REJECTED，故本函数只用于 pass 场景。
+ *
+ * @returns 质检单 id（供用例断言待质检列表或清理用）
+ */
+export async function seedInspectionPass(
+  page: Page,
+  opts: {
+    receiptId: number;
+    supplierId: number;
+    passQuantity: string | number;
+    context?: string;
+  }
+): Promise<number> {
+  const tag = opts.context ?? `receipt#${opts.receiptId}`;
+  const created = await apiCall<Record<string, unknown>>(page, 'POST', '/purchase/inspections', {
+    receipt_id: opts.receiptId,
+    supplier_id: opts.supplierId,
+    inspection_date: new Date().toISOString().slice(0, 10),
+  });
+  const inspId = (created?.data as Record<string, unknown>)?.id as number | undefined;
+  if (!inspId) {
+    throw new Error(`[${tag}] 建质检单未取到 id，响应=${JSON.stringify(created)?.slice(0, 300)}`);
+  }
+  await apiCall(page, 'POST', `/purchase/inspections/${inspId}/complete`, {
+    pass_quantity: opts.passQuantity,
+    reject_quantity: 0,
+    inspection_result: 'pass',
+  });
+  const readBack = await apiCall<Record<string, unknown>>(
+    page,
+    'GET',
+    `/purchase/receipts/${opts.receiptId}`
+  );
+  const inspectionStatus = (readBack?.data as Record<string, unknown>)?.inspection_status;
+  if (inspectionStatus !== 'PASSED') {
+    throw new Error(
+      `[${tag}] 质检 complete(pass) 后收货单 inspection_status=${String(inspectionStatus)}，` +
+        '期望 PASSED（词表 backend models/status/purchase_inventory.rs::purchase_receipt_inspection）'
+    );
+  }
+  return inspId;
+}
+
+/**
  * 创建业务实体 → 执行回调 → finally DELETE 清理（编排级封装）
  *
  * 替代各 spec 中重复的"POST 创建 → 存 id → 测试 → finally DELETE"模式。
