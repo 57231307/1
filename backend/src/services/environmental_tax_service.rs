@@ -9,6 +9,7 @@
 //! - 计算应缴环保税额
 //! - 生成环保税申报表
 
+use crate::constants::environmental_tax::statutory_pollution_equivalent;
 use crate::models::pollutant_discharge_record::{
     self, ActiveModel as DischargeActiveModel, Entity as DischargeEntity, Model as DischargeModel,
 };
@@ -17,6 +18,7 @@ use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde::Deserialize;
 use std::sync::Arc;
+use tracing::warn;
 
 /// 创建污染物排放记录请求
 #[derive(Debug, Clone, Deserialize)]
@@ -44,11 +46,19 @@ pub struct EnvironmentalTaxResult {
 
 pub struct EnvironmentalTaxService {
     db: Arc<DatabaseConnection>,
+    /// 环保税适用税额（元/污染当量，地方在法定幅度 1.2–12 元内确定的**可变配置值**）。
+    /// 来源为部署配置 `AppSettings::env_tax_rate_per_equivalent`（handler 侧经
+    /// `config::settings::global_env_tax_rate_per_equivalent()` 注入），本服务内部
+    /// **不保留任何默认税额**：`None` = 未配置，所有计税路径显式失败。
+    env_tax_rate_per_equivalent: Option<Decimal>,
 }
 
 impl EnvironmentalTaxService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+    pub fn new(db: Arc<DatabaseConnection>, env_tax_rate_per_equivalent: Option<Decimal>) -> Self {
+        Self {
+            db,
+            env_tax_rate_per_equivalent,
+        }
     }
 
     /// 创建污染物排放记录（自动计算环保税）
@@ -68,13 +78,14 @@ impl EnvironmentalTaxService {
             return Err(AppError::bad_request("排放量不能为负"));
         }
 
-        // 计算污染当量数与税额
+        // 计算污染当量数与税额（未登记污染物/未配置适用税额时显式失败，落库前拒绝）
         let (tax_unit_equivalent, tax_amount) = Self::calculate_tax(
             &req.discharge_type,
             &req.pollutant_name,
             req.discharge_amount,
             req.concentration,
-        );
+            self.env_tax_rate_per_equivalent,
+        )?;
 
         let now = crate::utils::date_utils::utc_now_fixed();
         let active = DischargeActiveModel {
@@ -148,11 +159,17 @@ impl EnvironmentalTaxService {
         Ok(result)
     }
 
-    /// 计算环保税（纯函数）
+    /// 计算环保税（纯函数；适用税额由调用方从部署配置显式注入，内部不读任何默认值）
     ///
-    /// 业务规则（《环境保护税法》附表）：污染当量值：COD=1kg、氨氮=0.5kg、VOCs=0.5kg、污泥=1吨；
-    /// 适用税额：每污染当量 1.2 元（最低）- 12 元（最高），本服务当前取固定值 2.4 元（简化口径，
-    /// 地方税额表接入前不改计算逻辑）；污染当量数 = 排放量 ÷ 污染当量值；应缴税额 = 污染当量数 × 适用税额。
+    /// 业务规则（《环境保护税法》附表，决策定案 #6 分源口径）：
+    /// - **污染当量值＝法定不可调值**，唯一来源 [`crate::constants::environmental_tax`]
+    ///   （COD=1kg、氨氮=0.5kg、VOCs=0.5kg、污泥=1吨；排放量以 kg 口径进入公式）。
+    ///   未在该表登记的污染物一律返回校验错误显式拒绝计税，**禁止按 1kg 或任何估算值兜底**
+    ///   继续算出看似正常的税额。
+    /// - **适用税额＝地方在法定幅度内确定的可变值**（每污染当量 1.2–12 元、由省级确定），
+    ///   来自配置 `env_tax_rate_per_equivalent` / 环境变量 `ENV_TAX_RATE_PER_EQUIVALENT`；
+    ///   未配置（`None`）时记 warn 并显式返回业务错误，**不存在硬编码默认税额**。
+    /// - 污染当量数 = 排放量 ÷ 污染当量值；应缴税额 = 污染当量数 × 适用税额。
     ///
     /// `_concentration`（排放浓度）按法定口径不参与当量数计算：入参 `discharge_amount` 即已是排放量
     /// （无法直接量测时由上游按水量×浓度折算后传入），浓度本身仅随单落库登记
@@ -162,31 +179,40 @@ impl EnvironmentalTaxService {
         pollutant_name: &str,
         discharge_amount: Decimal,
         _concentration: Option<Decimal>,
-    ) -> (Decimal, Decimal) {
-        // 污染当量值（kg/吨）
-        let pollution_equivalent_value = match pollutant_name {
-            "COD" | "cod" => Decimal::new(1, 0),        // 1kg
-            "氨氮" | "NH3-N" => Decimal::new(5, 1),     // 0.5kg
-            "VOCs" | "vocs" => Decimal::new(5, 1),      // 0.5kg
-            "污泥" | "sludge" => Decimal::new(1000, 0), // 1吨=1000kg
-            _ => Decimal::new(1, 0),                    // 默认 1kg
-        };
+        tax_rate_per_equivalent: Option<Decimal>,
+    ) -> Result<(Decimal, Decimal), AppError> {
+        let _ = discharge_type; // 排放类型仅用于分类，不影响计算
 
-        // 适用税额（元/污染当量）：取中值 2.4 元
-        let tax_rate = Decimal::new(24, 1); // 2.4
+        // 污染当量值（法定不可调）：未登记 → 显式拒绝，不估、不按默认值继续算
+        let pollution_equivalent_value = statutory_pollution_equivalent(pollutant_name)
+            .ok_or_else(|| {
+                AppError::validation_displayable("该污染物暂未配置法定污染当量值，请先登记后再计税")
+            })?;
+        // 法定当量值必须为正数（登记表数值缺陷属内部错误，显式失败而非吞掉继续算）
+        if pollution_equivalent_value <= Decimal::ZERO {
+            return Err(AppError::internal(format!(
+                "污染物 {pollutant_name} 的法定污染当量值登记异常（须为正数），已拒绝计税"
+            )));
+        }
+
+        // 适用税额（地方可变值，来自配置）：未配置 → 显式失败 + warn，禁止取默认值继续算
+        let Some(tax_rate) = tax_rate_per_equivalent else {
+            warn!(
+                pollutant = %pollutant_name,
+                "环保税适用税额未配置（env_tax_rate_per_equivalent / ENV_TAX_RATE_PER_EQUIVALENT），拒绝计税"
+            );
+            return Err(AppError::business_displayable(
+                "环保税适用税额未配置，请完成部署配置后重新计税",
+            ));
+        };
 
         // 污染当量数 = 排放量 / 污染当量值
-        let tax_unit_equivalent = if pollution_equivalent_value > Decimal::ZERO {
-            discharge_amount / pollution_equivalent_value
-        } else {
-            Decimal::ZERO
-        };
+        let tax_unit_equivalent = discharge_amount / pollution_equivalent_value;
 
         // 应缴税额 = 污染当量数 × 适用税额
         let tax_amount = tax_unit_equivalent * tax_rate;
 
-        let _ = discharge_type; // 排放类型仅用于分类，不影响计算
-        (tax_unit_equivalent, tax_amount)
+        Ok((tax_unit_equivalent, tax_amount))
     }
 
     /// 校验排放类型

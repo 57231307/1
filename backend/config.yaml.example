@@ -149,6 +149,15 @@ update:
   # 下载单次读取超时（秒）
   read_timeout_secs: 180
 
+# 环保税适用税额（元/污染当量）——决策定案 #6 分源口径：
+#   污染当量值＝法定不可调值，源码唯一来源 backend/src/constants/environmental_tax.rs；
+#   适用税额＝地方可变值，即本配置项。
+# 法定幅度：每污染当量 1.2–12 元，由省级人民政府在幅度内确定（运维取值须落在 1.2–12 内）。
+# ⚠️ 无默认值：未配置本项时环保税计税端点（POST /environmental-tax/discharge-records）
+#   显式返回"环保税适用税额未配置"并记 WARN——服务正常启动，但绝不按任何默认税额计算。
+# 环境变量覆盖：ENV_TAX_RATE_PER_EQUIVALENT（优先级高于本文件）
+# env_tax_rate_per_equivalent: 2.4
+
 # 批次 398 修复：env 字段现已接入 is_production() 判定链路
 # AppSettings::new() 启动时若 APP_ENV 环境变量未设置，会将此字段同步到 APP_ENV
 # 优先级：APP_ENV 环境变量 > config.yaml env 字段

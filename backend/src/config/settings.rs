@@ -1,4 +1,5 @@
 use config::{Config, ConfigError, File};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use tracing::{error, warn};
@@ -20,6 +21,24 @@ pub fn global_update_config() -> UpdateConfig {
 fn set_global_update_config(cfg: UpdateConfig) {
     // OnceLock 进程生命周期内仅设置一次；测试/多实例场景下重复 set 静默忽略旧值即可
     let _ = GLOBAL_UPDATE_CONFIG.set(cfg);
+}
+
+/// 进程级环保税适用税额单例（决策定案 #6）：`AppSettings::new()` 解析完成后写入，
+/// 环保税计税链路（`handlers/environmental_tax_handler.rs` → `EnvironmentalTaxService`）
+/// 由此读取部署配置的地方适用税额（元/污染当量），避免在业务代码里出现第二套手写税额常量。
+///
+/// **无硬编码默认值**：未加载配置或未配置该项时返回 `None`（部署态，启动不 panic），
+/// 计税端点必须据此显式失败并记 warn，禁止按任何默认税额继续算。
+static GLOBAL_ENV_TAX_RATE: OnceLock<Option<Decimal>> = OnceLock::new();
+
+/// 读取进程级环保税适用税额（元/污染当量）；`None` = 未配置（调用方必须显式拒绝计税）。
+pub fn global_env_tax_rate_per_equivalent() -> Option<Decimal> {
+    GLOBAL_ENV_TAX_RATE.get().copied().flatten()
+}
+
+/// 将解析后的适用税额写入进程级单例（重复调用仅首次生效，幂等；仿 `set_global_update_config`）。
+fn set_global_env_tax_rate(rate: Option<Decimal>) {
+    let _ = GLOBAL_ENV_TAX_RATE.set(rate);
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -54,6 +73,14 @@ pub struct AppSettings {
     /// `use_default_mirrors`（默认 true）开关，二者均只搬 tar 字节、不作校验值信任锚。
     #[serde(default)]
     pub update: UpdateConfig,
+    /// 环保税适用税额（元/污染当量；env 覆盖键 `ENV_TAX_RATE_PER_EQUIVALENT`）——
+    /// **地方可变值**：《环境保护税法》附表规定法定幅度为每污染当量 **1.2–12 元**，
+    /// 具体适用税额由省级人民政府在本行政区域内确定（运维取值须落在该法定幅度内）。
+    /// 与之分源的法定不可调值（污染当量值）见 `crate::constants::environmental_tax`。
+    /// `Option` + `#[serde(default)]`：未配置 = `None`，属部署态而非代码缺陷，
+    /// **启动不 panic、计税端点显式失败**（禁止任何硬编码默认税额继续算）。
+    #[serde(default)]
+    pub env_tax_rate_per_equivalent: Option<Decimal>,
     pub env: String,
 }
 
@@ -358,6 +385,9 @@ impl AppSettings {
         // 校验通过后再写入进程级单例供下载链路读取，避免带病镜像进入运行期。
         Self::validate_update_mirrors(&app_settings)?;
         set_global_update_config(app_settings.update.clone());
+        // 决策定案 #6：环保税适用税额（地方可变值）写入进程级单例供计税链路读取；
+        // None（未配置）同样是合法部署态——计税端点会显式失败，不在此处报错、不 panic。
+        set_global_env_tax_rate(app_settings.env_tax_rate_per_equivalent);
         Ok(app_settings)
     }
 
@@ -738,6 +768,21 @@ impl AppSettings {
         if let Ok(v) = std::env::var("DYEBATCH_STATUS_TIMEOUT") {
             if let Ok(parsed) = v.trim().parse::<u64>() {
                 self.fabric_industry.dyebatch_status_timeout_secs = parsed;
+            }
+        }
+
+        // 决策定案 #6：环保税适用税额（元/污染当量，地方可变值）从环境变量覆盖
+        // （优先级：ENV_TAX_RATE_PER_EQUIVALENT 环境变量 > config.yaml 顶层字段 > 未配置=None）。
+        // 未配置保持 None：计税端点显式失败（**不取任何默认税额**）；
+        // 配置了但解析失败记显式 WARN 后同样保持 None——两种形态都会在计税时给出真实错误，
+        // 绝不静默按某个数值继续算。法定幅度 1.2–12 元/污染当量，由省级确定（运维取值依据）。
+        if let Ok(v) = std::env::var("ENV_TAX_RATE_PER_EQUIVALENT") {
+            match v.trim().parse::<Decimal>() {
+                Ok(parsed) => self.env_tax_rate_per_equivalent = Some(parsed),
+                Err(e) => warn!(
+                    "ENV_TAX_RATE_PER_EQUIVALENT 取值 '{}' 无法解析为税额（{}）：保持为未配置，环保税计税端点将显式报错（不采用默认值）",
+                    v, e
+                ),
             }
         }
 

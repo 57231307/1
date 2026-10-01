@@ -13,6 +13,17 @@ use axum::{
 };
 use serde::Deserialize;
 
+/// 构造环保税服务：适用税额（地方可变值）从进程级部署配置注入。
+///
+/// 未配置时 `global_env_tax_rate_per_equivalent()` 返回 `None`，计税路径会在
+/// 服务层显式失败并记 warn（启动/构造阶段不报错、不取默认值，决策定案 #6）。
+fn env_tax_service(state: &AppState) -> EnvironmentalTaxService {
+    EnvironmentalTaxService::new(
+        state.db.clone(),
+        crate::config::settings::global_env_tax_rate_per_equivalent(),
+    )
+}
+
 /// 查询参数：申报期间
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -28,7 +39,7 @@ pub async fn create_discharge_record(
     Json(mut req): Json<CreateDischargeRecordRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.created_by = Some(auth.user_id);
-    let service = EnvironmentalTaxService::new(state.db.clone());
+    let service = env_tax_service(&state);
     let model = service.create_discharge_record(req).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
@@ -39,7 +50,7 @@ pub async fn list_discharge_records(
     _auth: AuthContext,
     Query(params): Query<PeriodQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = EnvironmentalTaxService::new(state.db.clone());
+    let service = env_tax_service(&state);
     let list = service
         .list_by_period(params.period_year, params.period_month)
         .await?;
@@ -52,7 +63,7 @@ pub async fn generate_tax_declaration(
     _auth: AuthContext,
     Query(params): Query<PeriodQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = EnvironmentalTaxService::new(state.db.clone());
+    let service = env_tax_service(&state);
     let result = service
         .generate_tax_declaration(params.period_year, params.period_month)
         .await?;
