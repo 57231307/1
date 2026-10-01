@@ -1224,6 +1224,8 @@ export default {
       colUnitPrice: '单价',
       colBatch: '批次号',
       batchPlaceholder: '收货批次号',
+      colAltQty: '辅助数量',
+      altQtyPlaceholder: '请输入辅助数量，无辅量填0',
       colRemark: '备注',
       remarkPlaceholder: '备注',
       cancel: '取消',
@@ -13079,6 +13081,10 @@ export default {
   outsourcing: {
     form: {
       materialCost: '材料成本',
+    },
+    gate: {
+      zeroFeeSettleTip: '加工费与运费合计需大于 0 才能结算，请先补录委外加工成本',
+      zeroQtyConfirmTip: '收回数量为 0，无法确认回仓；请先录入实际收回数量',
     },
     formPlaceholders: {
       materialCost: '请输入发出材料成本',

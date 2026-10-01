@@ -1226,6 +1226,8 @@ export default {
       colUnitPrice: 'Unit Price',
       colBatch: 'Batch No.',
       batchPlaceholder: 'Receipt batch no.',
+      colAltQty: 'Alt Qty',
+      altQtyPlaceholder: 'Enter alt qty; use 0 if none',
       colRemark: 'Remark',
       remarkPlaceholder: 'Remark',
       cancel: 'Cancel',
@@ -13136,6 +13138,12 @@ export default {
   outsourcing: {
     form: {
       materialCost: 'Material Cost',
+    },
+    gate: {
+      zeroFeeSettleTip:
+        'Processing fee and freight must total more than 0 before settlement. Enter the outsourcing processing cost first.',
+      zeroQtyConfirmTip:
+        'Return quantity is 0; confirmation is blocked. Record the actual returned quantity first.',
     },
     formPlaceholders: {
       materialCost: 'Please enter the issued material cost',
