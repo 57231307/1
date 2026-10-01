@@ -123,44 +123,13 @@ pub async fn list_pool(
         })
         .collect();
 
-    // 字段级数据权限：判定分支与 crm_handler::list_leads 同构，复用同一判定源
-    // （data_permission_service.get_role_data_permission，admin 依据 roles.code='admin'，
-    // admin_checker.rs:87）与同一掩码实现（utils/field_mask::mask_phone/mask_email），
-    // 公海侧不另造更松的规则：
+    // 字段级数据权限：与 crm_handler::list_leads / get_lead 同一实现（同一判定源
+    // get_role_data_permission + 同一掩码实现），公海侧不另造更松的规则：
     // - 配置了数据权限行 → filter_fields_batch（hidden/allowed 优先，不叠加默认打码）；
-    // - 无权限行且 role_id != 1 → phone/email 掩码（查询 Err 同走此分支，fail-closed）。
-    if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
-            .data_permission_service
-            .get_role_data_permission(role_id, "crm_lead")
-            .await
-        {
-            state.data_permission_service.filter_fields_batch(
-                &mut items,
-                &permission.allowed_fields,
-                &permission.hidden_fields,
-            );
-        } else if role_id != 1 {
-            for lead in items.iter_mut() {
-                if let Some(obj) = lead.as_object_mut() {
-                    // 输出键为 crm_lead 真实列 mobile_phone（models/crm_lead.rs:40）；
-                    // 本入口出参由上方按挑选字段构造，不含 address 键，无需再移除。
-                    if let Some(phone) = obj.get("mobile_phone").and_then(|v| v.as_str()) {
-                        obj.insert(
-                            "mobile_phone".to_string(),
-                            serde_json::Value::String(crate::utils::field_mask::mask_phone(phone)),
-                        );
-                    }
-                    if let Some(email) = obj.get("email").and_then(|v| v.as_str()) {
-                        obj.insert(
-                            "email".to_string(),
-                            serde_json::Value::String(crate::utils::field_mask::mask_email(email)),
-                        );
-                    }
-                }
-            }
-        }
-    }
+    // - 无权限行且 role_id != 1 → 默认脱敏（查询 Err 与 role_id 缺失同走此分支，fail-closed）。
+    // 本入口出参由上方按挑选字段构造，不含 address 键；mobile_phone/email 若存在则掩码。
+    crate::handlers::crm_handler::apply_lead_field_permission(&state, auth.role_id, &mut items)
+        .await;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
@@ -168,6 +137,32 @@ pub async fn list_pool(
         "page": page,
         "page_size": page_size,
     }))))
+}
+
+/// 公海写响应（领取 / 回收）的出参处理：整行 `crm_lead::Model` 必须走与读路径
+/// **完全同一个**字段级数据权限实现
+/// （`crm_handler::apply_lead_field_permission` → 有权限行 `filter_fields_batch`，
+/// 无权限行且非 admin 走 `CrmService::mask_lead_pii_defaults`）。
+///
+/// 修复前这里是 `serde_json::to_value(updated_lead)?` 原文直出，携带
+/// `mobile_phone`/`tel_phone`/`email`/`address` 明文，而同一个非 admin 角色
+/// 走 `GET /crm/leads/:id` 或列表时是被打码的 —— 构成"列表打码、写响应原文"的旁路：
+/// 点一次"领取"即可批量换取他人联系方式原文。
+/// 本函数只处理出参：不改状态码、不外显任何拒绝原因（权限拒绝仍走
+/// `AppError::permission_denied` 的固定脱敏信封 + `FORBIDDEN` 码）。
+async fn mask_lead_write_response(
+    state: &AppState,
+    role_id: Option<i32>,
+    lead: &crate::models::crm_lead::Model,
+) -> Result<serde_json::Value, AppError> {
+    let mut value = serde_json::to_value(lead)?;
+    crate::handlers::crm_handler::apply_lead_field_permission(
+        state,
+        role_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
+    Ok(value)
 }
 
 /// POST /api/v1/erp/crm/pool/claim - 从公海领取客户
@@ -185,6 +180,8 @@ pub async fn list_pool(
 ///   一旦命中非公海行（即他人私海），立即回落到与 `get_lead` 正常路径同一个
 ///   `check_resource_owner`：`DataScope::All` 可越界、`Dept` 需资源部门在可见集合内、
 ///   `Self_` 仅本人行，否则 403。
+/// 出参边界（#204 遗留项收口）：成功响应不再整行原文回传，改走与读路径同一实现的
+/// `mask_lead_write_response`（详见该函数文档）。
 pub async fn claim_from_pool(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -208,20 +205,17 @@ pub async fn claim_from_pool(
         return Err(AppError::business_displayable("该客户不在公海中"));
     }
 
-    // 更新线索归属人
-    // 注意（#204 附带项，本批不修，已上报）：本单条领取路径只把 lead_status 置为 NEW，
-    // 并未写 owner_id/owner_name（UpdateLeadRequest 无 owner 字段），而批量领取
-    // `services/crm/pool.rs:119-130` build_claimed_active 真写 owner_id —— 两条领取
-    // 路径归属语义不一致，单条领取后线索仍挂在原归属人名下。统一语义会改变本端点
-    // 响应结构（或引入公海规则校验），属契约变更，需用户拍板后与前端一起改。
-    let update_req = crate::models::dto::crm_dto::UpdateLeadRequest {
-        lead_status: Some(lead_status::NEW.to_string()),
-        ..Default::default()
-    };
-
-    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    // 领取即转移归属（#204 附带项收口）：写 owner_id/owner_name 与 lead_status=new，
+    // 复用批量领取同一个 `services/crm/pool.rs::build_claimed_active`（单一归属实现，
+    // 消除两条领取路径的归属漂移）。修复前本路径只置 lead_status=new、不写归属，
+    // 线索仍挂在回收前的原归属人名下，领取人在自己的 self 数据范围列表里
+    // 看不到刚领取的行——功能事实性坏掉。
+    // 归属人展示名取 `auth.username`：AuthContext（middleware/auth_context.rs:58-83）
+    // 只有 username 一个身份展示字段，无真实姓名字段；users.real_name 未随令牌/权限
+    // 中间件注入上下文，取它需新增一次跨模块查库与上下文改造，故此处落真实登录名——
+    // owner_name 只允许来自真实身份字段，不得由 user_id 拼出（本仓硬规则：禁造展示名）。
     let updated_lead = service
-        .update_lead(req.lead_id, update_req, auth.user_id)
+        .claim_lead_ownership(lead, auth.user_id, &auth.username)
         .await?;
 
     // 记录领取日志
@@ -233,7 +227,7 @@ pub async fn claim_from_pool(
     );
 
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(updated_lead)?,
+        mask_lead_write_response(&state, auth.role_id, &updated_lead).await?,
         "客户领取成功",
     )))
 }
@@ -254,6 +248,9 @@ pub async fn claim_from_pool(
 ///   他人行；`Dept` 需资源 department_id ∈ 可见部门集合；`Self_` 仅原归属人本人；
 ///   不满足即 403（与 update/delete 线索的越权语义完全一致，不额外收紧也不放松：
 ///   例如 Dept 用户回收 department_id 为 NULL 的行同样会被拒，这是既有 get_lead 口径）。
+/// 出参边界（#204 遗留项收口）：成功响应不再整行原文回传，改走与读路径同一实现的
+/// `mask_lead_write_response`（详见该函数文档）——回收同样会整行返回 mobile_phone/
+/// tel_phone/email/address，修复前与领取端点是同一个旁路的两个入口。
 pub async fn recycle_to_pool(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -293,7 +290,7 @@ pub async fn recycle_to_pool(
     );
 
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(updated_lead)?,
+        mask_lead_write_response(&state, auth.role_id, &updated_lead).await?,
         "客户已回收到公海",
     )))
 }

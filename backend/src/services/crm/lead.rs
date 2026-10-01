@@ -197,11 +197,45 @@ impl CrmService {
     pub const EXPORT_PII_PHONE_COLUMNS: &'static [&'static str] = &["mobile_phone", "tel_phone"];
     pub const EXPORT_PII_EMAIL_COLUMNS: &'static [&'static str] = &["email"];
 
-    /// 按 crm_lead 列名定位导出列下标（供 handler 以列名而非魔法下标操作导出表）
-    pub fn export_column_index(field: &str) -> Option<usize> {
-        Self::EXPORT_LEAD_COLUMNS
-            .iter()
-            .position(|(name, _)| *name == field)
+    /// 线索默认字段脱敏的**唯一实现**（"无角色数据权限行且非 admin"分支，即 P1-08-5 分支），
+    /// 供四个出口共用：`crm_handler::list_leads`（列表）、`crm_handler::get_lead`（详情）、
+    /// `crm_pool_handler::list_pool`（公海列表）、`claim_from_pool`/`recycle_to_pool`（写响应）。
+    ///
+    /// 为什么必须收敛成一个函数而不是各写一份内联分支：掩码列集合一旦出现第二份手写实现
+    /// 就会漂移。本波次实证到的两处漂移即此因：
+    /// - 列表/详情漏 `tel_phone`（座机），而导出侧 `EXPORT_PII_PHONE_COLUMNS` 已含它
+    ///   → 同一角色"导出被打码、列表/详情原文"；
+    /// - 公海写响应整行原文回传（含 mobile_phone/tel_phone/email/address）
+    ///   → "列表打码、写响应原文"的旁路。
+    ///
+    /// 电话/邮箱列集合不在本函数重写：直接复用本仓 PII 列集合的权威定义
+    /// `utils::field_mask::mask_contact_fields_for_role`（电话类含 `mobile_phone` 与
+    /// `tel_phone`，邮箱类含 `email`；该函数自身对 `role_id==Some(1)` 放行原文），
+    /// 本函数只补它未覆盖的 `address` 整键移除（详情级个人信息，非 admin 不外显，
+    /// 与列表既有口径一致）。角色数据权限"有权限行 → filter_fields"这一层不在此函数内：
+    /// 判定源仍是 `data_permission_service.get_role_data_permission`，见
+    /// `crm_handler::apply_lead_field_permission`。
+    pub fn mask_lead_pii_defaults(
+        value: serde_json::Value,
+        role_id: Option<i32>,
+    ) -> serde_json::Value {
+        let mut masked = crate::utils::field_mask::mask_contact_fields_for_role(value, role_id);
+        // admin 保持原文契约（含 address）：与 mask_contact_fields_for_role 自身的
+        // role_id==Some(1) 放行判定同一口径，不在此处另判一次列集合。
+        if role_id != Some(1) {
+            if let Some(obj) = masked.as_object_mut() {
+                obj.remove("address");
+            }
+        }
+        masked
+    }
+
+    /// 在导出列定义表中按列名定位下标（供 handler 以列名而非魔法下标操作导出表）。
+    /// 列定义表由调用方传入（线索 `EXPORT_LEAD_COLUMNS`、商机
+    /// `EXPORT_OPP_COLUMNS`（定义在 `services/crm/opp.rs`）各自单一事实来源），
+    /// 使两张导出表共用同一个定位实现，不再各写一份"按位置猜列"。
+    pub fn export_column_index(columns: &[(&str, &str)], field: &str) -> Option<usize> {
+        columns.iter().position(|(name, _)| *name == field)
     }
 
     /// 取单个导出单元格的原文（列名未命中定义表属编程错误，不静默放空值：

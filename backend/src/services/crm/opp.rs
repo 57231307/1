@@ -186,16 +186,94 @@ impl CrmService {
         }))
     }
 
+    /// 商机导出列定义：`(crm_opportunity 列名, 中文表头)`，**列序/表头/取值的唯一事实来源**。
+    ///
+    /// 列名逐字取 `models/crm_opportunity.rs` 的字段名（= `list_opportunities`/
+    /// `get_opportunity` 出参键），因此 handler 侧可直接用同一份
+    /// `allowed_fields`/`hidden_fields`（按列名配置）与同一个 `filter_fields_batch`
+    /// 判定，不为导出另造第二套字段权限规则（与线索导出 `EXPORT_LEAD_COLUMNS` 同构，#208）。
+    /// 表头与列序保持改造前完全一致，前端与既有导出模板不受影响。
+    pub const EXPORT_OPP_COLUMNS: &[(&str, &str)] = &[
+        ("opportunity_no", "商机编号"),
+        ("opportunity_name", "商机名称"),
+        ("customer_id", "客户ID"),
+        ("opportunity_stage", "商机阶段"),
+        ("estimated_amount", "预估金额"),
+        ("actual_amount", "实际金额"),
+        ("expected_close_date", "预期成交日期"),
+        ("actual_close_date", "实际成交日期"),
+        ("owner_name", "负责人"),
+        ("priority", "优先级"),
+        ("created_at", "创建时间"),
+    ];
+
+    /// 商机金额列（无角色数据权限行且非 admin 时整列不外显）：列名取
+    /// `models/crm_opportunity.rs:43/:46` 的真实列，不用不存在的 `amount` 键。
+    pub const EXPORT_AMOUNT_COLUMNS: &'static [&'static str] =
+        &["estimated_amount", "actual_amount"];
+
+    /// 取单个商机导出单元格的原文（列名未命中定义表属编程错误：记录 error 后按空值
+    /// 返回，不静默整列错位；调用方按列名取值前应已用 `export_column_index` 校验）
+    fn export_opp_cell(opp: &crm_opportunity::Model, field: &str) -> String {
+        match field {
+            "opportunity_no" => opp.opportunity_no.clone(),
+            "opportunity_name" => opp.opportunity_name.clone(),
+            "customer_id" => opp.customer_id.to_string(),
+            "opportunity_stage" => opp.opportunity_stage.clone().unwrap_or_default(),
+            "estimated_amount" => opp
+                .estimated_amount
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            "actual_amount" => opp.actual_amount.map(|d| d.to_string()).unwrap_or_default(),
+            "expected_close_date" => opp
+                .expected_close_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            "actual_close_date" => opp
+                .actual_close_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            "owner_name" => opp.owner_name.clone(),
+            "priority" => opp.priority.clone().unwrap_or_default(),
+            "created_at" => opp.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
+            other => {
+                tracing::error!(
+                    field = %other,
+                    "导出列定义 EXPORT_OPP_COLUMNS 与 export_opp_cell 取值分支不一致"
+                );
+                String::new()
+            }
+        }
+    }
+
     /// 导出商机为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
-    /// v11 批次 141 新增：前端 exportOpportunities API 真实接入。；v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。；查询所有匹配条件（不分页）的商机，生成 XlsxTable。；导出字段：商机编号/商机名称/客户ID/商机阶段/预估金额/实际金额/预期成交日期/实际成交日期/负责人/优先级/创建时间
+    /// v11 批次 141 新增：前端 exportOpportunities API 真实接入。；查询所有匹配条件（不分页）的商机，生成 XlsxTable。；导出字段见 `EXPORT_OPP_COLUMNS`
+    ///
+    /// #208 行级数据权限：`data_scope` 与 `list_opportunities`（本文件 :146-169）同语义
+    /// —— 传入 ctx 时套用**同一个** `apply_department_scope`（商机无公海语义，
+    /// 故不带 pool 放行分支，与列表一致）；传 None 则整体跳过行级过滤
+    ///（修复前 export 恒为此路径，self/dept 用户可一次导出全库商机，属越权读 + 金额外泄）。
+    /// 字段级剔除不在此处做：判定源（角色数据权限 + admin 例外）在 handler，
+    /// 与列表/详情共用同一函数，见 `crm_handler::export_opportunities`。
     pub async fn export_opportunities(
         &self,
         query: crate::models::dto::crm_dto::OpportunityQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<XlsxTable, AppError> {
         let mut q = crm_opportunity::Entity::find();
 
         if let Some(s) = query.opportunity_stage {
             q = q.filter(crm_opportunity::Column::OpportunityStage.eq(s));
+        }
+
+        // 行级数据权限过滤：与 list_opportunities(:162-169) 完全同一函数、同一列
+        if let Some(ctx) = data_scope {
+            q = apply_department_scope(
+                q,
+                ctx,
+                crm_opportunity::Column::OwnerId,
+                crm_opportunity::Column::DepartmentId,
+            );
         }
 
         // 限制导出最大 10000 条，防止 DoS
@@ -205,42 +283,18 @@ impl CrmService {
             .all(&*self.db)
             .await?;
 
-        let headers = vec![
-            "商机编号".to_string(),
-            "商机名称".to_string(),
-            "客户ID".to_string(),
-            "商机阶段".to_string(),
-            "预估金额".to_string(),
-            "实际金额".to_string(),
-            "预期成交日期".to_string(),
-            "实际成交日期".to_string(),
-            "负责人".to_string(),
-            "优先级".to_string(),
-            "创建时间".to_string(),
-        ];
+        let headers = Self::EXPORT_OPP_COLUMNS
+            .iter()
+            .map(|(_, label)| label.to_string())
+            .collect::<Vec<String>>();
 
         let rows: Vec<Vec<String>> = opportunities
             .iter()
             .map(|opp| {
-                vec![
-                    opp.opportunity_no.clone(),
-                    opp.opportunity_name.clone(),
-                    opp.customer_id.to_string(),
-                    opp.opportunity_stage.clone().unwrap_or_default(),
-                    opp.estimated_amount
-                        .map(|d| d.to_string())
-                        .unwrap_or_default(),
-                    opp.actual_amount.map(|d| d.to_string()).unwrap_or_default(),
-                    opp.expected_close_date
-                        .map(|d| d.to_string())
-                        .unwrap_or_default(),
-                    opp.actual_close_date
-                        .map(|d| d.to_string())
-                        .unwrap_or_default(),
-                    opp.owner_name.clone(),
-                    opp.priority.clone().unwrap_or_default(),
-                    opp.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
-                ]
+                Self::EXPORT_OPP_COLUMNS
+                    .iter()
+                    .map(|(field, _)| Self::export_opp_cell(opp, field))
+                    .collect::<Vec<String>>()
             })
             .collect();
 

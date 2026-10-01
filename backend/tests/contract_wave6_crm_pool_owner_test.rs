@@ -29,17 +29,24 @@
 //! 3. B recycle 本人私海行 → 200，lead_status→pool（未被误收紧）；
 //! 4. B claim A 的公海行 → 200，lead_status→new（领取可用性未被归属门打死）；
 //! 5. admin（data_scope=all）recycle A 的私海行 → 200（既有可越界通道未收紧）；
-//! 6. 批量领取路径 `/pool/{id}/claim`（`services/crm/pool.rs:119-130`
-//!    build_claimed_active）实测**真写 owner_id** —— 与用例 4 并置即坐实两条
-//!    领取路径的归属语义分歧（#204 附带项，本批不修，见用例 7 与交付报告）；
-//! 7. `#[ignore]`：单条 claim 的目标契约（领取后 owner_id 应为领取人）；
+//! 6. 两条领取路径归属语义已统一（#204 附带项收口）：批量路径
+//!    `/pool/{id}/claim`（`services/crm/pool.rs` build_claimed_active）与单条路径
+//!    `/pool/claim`（claim_from_pool → `claim_lead_ownership`）都真写 owner_id=领取人，
+//!    并把 owner_name 写成**真实操作人名**（AuthContext.username），不再落
+//!    `format!("用户{id}")` 造出来的假展示名；
+//! 7. 单条 claim 转移归属的回归锁（原为 #[ignore] 的目标契约，源码已落地，
+//!    取消 ignore 后即为常跑回归：领取后 owner_id 必须是领取人，
+//!    否则 self 销售在自己的数据范围列表里看不到刚领取的行）。
 //! 8. 源码扫描锁（shrink-only 棘轮）：recycle 不得再省略 ctx；claim 省略 ctx 的
-//!    那一行必须紧随 `check_resource_owner` 回落，否则视为回潮。
+//!    那一行必须紧随 `check_resource_owner` 回落；claim 必须经统一的
+//!    `claim_lead_ownership` 落归属，不得退回"只改状态不写 owner"的旧写法。
 //!
 //! 覆盖边界（诚实声明）：
-//! - 用例 7 的 ignore 理由是**行为尚未实现且修复会改响应契约**（`UpdateLeadRequest`
-//!   无 owner 字段，统一语义需把单条领取改为返回 `{claimed:n}` 或引入公海规则校验），
-//!   不是 sqlite 能力不足；该目标契约本身在 sqlite 上可判定。
+//! - 单条领取路径**仍不经** `claim_pool_customers` 的公海规则校验（保护期/领取上限/
+//!   最大持有数）：回收后 `updated_at` 即"刚刚"，保护期（默认 7 天）会把单条领取直接
+//!   判负并打断既有业务链（回收 → `/pool/claim`，见
+//!   `frontend/e2e/fullflow/27-crm-chain.spec.ts` 27-06 用例）。"单条领取是否也该走
+//!   公海规则校验"属口径问题，本批原样保留现状并已上报待决，未顺手收紧。
 //! - 本文件不依赖 PG 专有特性（claim/recycle 写路径无取号咨询锁、无 lock_exclusive），
 //!   故不另开活库用例；`utils/data_scope.rs` Self 分支缺公海放行（#203 待用户拍板）
 //!   已由 `contract_wave6_crm_pool_mask_test.rs` 用例 5 记录，本文件不重复。
@@ -255,12 +262,26 @@ async fn post_json(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) 
 
 /// 回读真库的 (lead_status, owner_id)——"零漂移"唯一可信证据
 async fn row_state(db: &sea_orm::DatabaseConnection, id: i32) -> (String, i32) {
+    let (status, owner_id, _) = row_state_with_owner_name(db, id).await;
+    (status, owner_id)
+}
+
+/// 回读真库的 (lead_status, owner_id, owner_name)：领取路径的归属语义既要看
+/// owner_id 是否转移，也要看 owner_name 是否为真实操作人（而非 `用户{id}` 假名）
+async fn row_state_with_owner_name(
+    db: &sea_orm::DatabaseConnection,
+    id: i32,
+) -> (String, i32, String) {
     let lead = crm_lead::Entity::find_by_id(id)
         .one(db)
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("线索 {id} 不应被删除"));
-    (lead.lead_status.unwrap_or_default(), lead.owner_id)
+    (
+        lead.lead_status.unwrap_or_default(),
+        lead.owner_id,
+        lead.owner_name,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -367,54 +388,66 @@ async fn admin_can_recycle_others_private_lead() {
 }
 
 // ---------------------------------------------------------------------------
-// 6) 批量领取路径真写 owner_id —— 与用例 4 并置即坐实两条领取路径语义分歧
+// 6) 两条领取路径归属语义统一：都写 owner_id=领取人，且 owner_name 为真实操作人
+//    （收口前实证：批量路径真写 owner_id，单条路径只改 lead_status → 线索仍挂在
+//    回收前的原归属人名下，属两条路径实现漂移；本用例把"两条路径同语义"锁成等式）
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn batch_claim_path_writes_owner_id_single_claim_path_does_not() {
+async fn both_claim_paths_write_owner_id_with_real_operator_name() {
+    // 批量路径 `/pool/{id}/claim` → claim_pool_customers → build_claimed_active
     let db = seeded_db().await;
     let app = build_app(&db, make_auth(USER_B, 2, "self"));
-
     let (status, v) = post_json(&app, "/erp/crm/pool/1/claim", json!(null)).await;
     // claim_specific 无请求体，用空 JSON 仅作 body 占位
     assert_eq!(status, StatusCode::OK, "批量领取路径应成功: {v}");
-
-    let after = row_state(&db, 1).await;
-    assert_eq!(after.0, "new", "批量领取后 lead_status 应为 new");
+    let batch = row_state_with_owner_name(&db, 1).await;
+    assert_eq!(batch.0, "new", "批量领取后 lead_status 应为 new");
+    assert_eq!(batch.1, USER_B, "批量领取路径应把 owner_id 写成领取人");
     assert_eq!(
-        after.1, USER_B,
-        "批量领取路径真写 owner_id（services/crm/pool.rs:119-130 build_claimed_active）"
+        batch.2, "wave6_owner_user_60",
+        "owner_name 必须是真实操作人名（落库口径 = AuthContext.username）"
     );
 
-    // 对照：单条领取路径（claim_from_pool）只改 lead_status，owner_id 仍是原归属人
+    // 单条路径 `/pool/claim` → claim_from_pool → claim_lead_ownership
+    // → **同一个** build_claimed_active（单一归属实现）
     let db2 = seeded_db().await;
     let app2 = build_app(&db2, make_auth(USER_B, 2, "self"));
     let (status, v) = post_json(&app2, "/erp/crm/pool/claim", json!({"lead_id": 1})).await;
     assert_eq!(status, StatusCode::OK, "单条领取应成功: {v}");
-    let after2 = row_state(&db2, 1).await;
-    assert_eq!(after2.0, "new");
+    let single = row_state_with_owner_name(&db2, 1).await;
+    assert_eq!(single.0, "new", "单条领取后 lead_status 应落库为 new");
     assert_eq!(
-        after2.1, USER_A,
-        "#204 附带项实证：单条 claim 不写 owner_id，线索仍挂在原归属人名下（本批不修，待拍板）"
+        (single.0.clone(), single.1, single.2.clone()),
+        batch,
+        "两条领取路径的归属结果必须逐字段一致（单条路径回潮 = 领取人 self 列表看不到刚领取的行）"
     );
+    // 负例：禁止回退到 `format!("用户{id}")` 造假展示名（本仓硬规则）
+    assert!(
+        !single.2.starts_with("用户"),
+        "owner_name 回潮为伪造展示名（pool.rs 不得用 format! 造名）: {}",
+        single.2
+    );
+    assert_eq!(single.2, "wave6_owner_user_60");
 }
 
 // ---------------------------------------------------------------------------
-// 7) 目标契约（#[ignore]，理由是行为未实现且修复涉及响应契约变更，非 sqlite 能力）
+// 7) 单条领取转移归属的回归锁（原 #[ignore] 目标契约，源码已落地 → 常跑）
+//    修复前的 ignore 理由是"行为未实现且需改契约"；本批按"复用 build_claimed_active"
+//    落地（未引入公海规则校验，理由见文件头"覆盖边界"），故取消 ignore 成为回归锁。
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-#[ignore = "覆盖边界：#204 附带项——单条 claim 应把 owner_id/owner_name 写成领取人（与批量领取同源），修复需改 UpdateLeadRequest 或改端点响应结构，属契约变更待用户拍板；落地后取消 ignore 即成回归锁"]
 async fn single_claim_should_transfer_ownership_to_claimer() {
     let db = seeded_db().await;
     let app = build_app(&db, make_auth(USER_B, 2, "self"));
     let (status, v) = post_json(&app, "/erp/crm/pool/claim", json!({"lead_id": 1})).await;
     assert_eq!(status, StatusCode::OK, "领取应成功: {v}");
 
-    let after = row_state(&db, 1).await;
-    assert_eq!(after.0, "new");
+    let (status_after, owner_after) = row_state(&db, 1).await;
+    assert_eq!(status_after, "new");
     assert_eq!(
-        after.1, USER_B,
+        owner_after, USER_B,
         "目标契约：领取人即归属人，单条与批量两条路径必须同语义"
     );
 }
@@ -453,5 +486,52 @@ fn pool_write_handlers_must_not_skip_data_scope() {
     assert!(
         claim.contains("check_resource_owner(&data_scope_ctx"),
         "领取端点缺非公海行的归属回落（可借领取改写他人私海行）"
+    );
+    // #204 附带项收口棘轮：单条领取必须经统一的归属实现
+    assert!(
+        claim.contains("claim_lead_ownership(lead, auth.user_id, &auth.username)"),
+        "回潮棘轮：单条领取端点不再经 claim_lead_ownership 落归属（两条领取路径重新分叉）"
+    );
+    assert!(
+        !claim.contains("lead_status: Some(lead_status::NEW.to_string())"),
+        "回潮棘轮：单条领取端点退回\"只把 lead_status 置 new、不写 owner\"的旧写法"
+    );
+
+    // 写响应原文旁路棘轮：claim/recycle 的成功出参必须过统一的字段级权限实现
+    for (name, body) in [
+        ("claim_from_pool", claim),
+        (
+            "recycle_to_pool",
+            src.split("pub async fn recycle_to_pool")
+                .nth(1)
+                .expect("recycle_to_pool 定义缺失")
+                .split("pub async fn claim_specific")
+                .next()
+                .expect("recycle_to_pool 函数体边界缺失"),
+        ),
+    ] {
+        assert!(
+            body.contains("mask_lead_write_response(&state, auth.role_id, &updated_lead)"),
+            "回潮棘轮：{name} 成功响应未走 mask_lead_write_response（整行原文回传 PII）"
+        );
+        assert!(
+            !body.contains("serde_json::to_value(updated_lead)?"),
+            "回潮棘轮：{name} 再次整行原文 serde_json::to_value(updated_lead) 回传"
+        );
+    }
+
+    // 归属实现单一化棘轮：服务层不得再用 format! 造展示名
+    let pool_service = include_str!("../src/services/crm/pool.rs");
+    assert!(
+        !pool_service.contains("format!(\"用户{}\""),
+        "回潮棘轮：services/crm/pool.rs 用 format! 伪造 owner_name 展示名"
+    );
+    assert!(
+        pool_service.contains("lead_active.owner_name = Set(operator_name.to_string())"),
+        "build_claimed_active 必须落真实操作人名（claim_pool_customers 的 operator_name 形参不得再被忽略）"
+    );
+    assert!(
+        !pool_service.contains("_operator_name"),
+        "回潮棘轮：claim_pool_customers 的 operator_name 形参又被忽略"
     );
 }

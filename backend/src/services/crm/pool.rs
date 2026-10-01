@@ -28,11 +28,16 @@ use super::cust::CrmService;
 impl CrmService {
     /// 从公海领取线索
     /// 返回成功领取的数量；V15 P0-S08 修复：注入公海规则校验；1. 保护期校验：lead.owner_assigned_at + protection_period > now 则拒绝；（公海线索保护期由前一次领取时设置，落入公海后保护期内不能再被领取）；2. 领取上限校验：user_id 当天已领取数 < claim_limit；3. 最大持有数校验：user_id 当前活跃线索数 < max_holdings
+    ///
+    /// `operator_name`：真实操作人展示名，由调用方（`crm_pool_handler`）传
+    /// `&auth.username`，落库到 `crm_lead.owner_name`。
+    /// 本参数是 `owner_name` 的唯一合法取值来源：#204 附带项收口前它被忽略、
+    /// 改由 user_id 拼出展示名，属本仓硬规则禁止的造假名（既不可读也不可回查）。
     pub async fn claim_pool_customers(
         &self,
         lead_ids: Vec<i32>,
         user_id: i32,
-        _operator_name: &str,
+        operator_name: &str,
     ) -> Result<usize, AppError> {
         if lead_ids.is_empty() {
             return Ok(0);
@@ -76,7 +81,7 @@ impl CrmService {
 
             // 领取：更新状态为 new，并更新 owner_id
             // 注：update_with_audit 需逐条执行以生成审计日志，此处保留循环
-            let lead_active = Self::build_claimed_active(lead, user_id, now);
+            let lead_active = Self::build_claimed_active(lead, user_id, operator_name, now);
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &*self.db,
                 "auto_audit",
@@ -116,17 +121,52 @@ impl CrmService {
     }
 
     /// 构建领取后的 ActiveModel（status=new，更新 owner_id/owner_name/updated_at）
+    ///
+    /// **两条领取路径的唯一归属实现**（#204 附带项收口）：批量领取
+    /// `claim_pool_customers` 与单条领取 `claim_lead_ownership` 都只经此函数落
+    /// `owner_id`/`owner_name`，避免出现第二套"领取后归属"写法（修复前单条路径
+    /// 只把 lead_status 置 new、不写归属，销售领取后该线索仍挂在原归属人名下，
+    /// 在他的 self 列表里看不到自己刚领取的行）。
     fn build_claimed_active(
         lead: crm_lead::Model,
         user_id: i32,
+        operator_name: &str,
         now: chrono::DateTime<chrono::Utc>,
     ) -> crm_lead::ActiveModel {
         let mut lead_active: crm_lead::ActiveModel = lead.into();
         lead_active.lead_status = Set(Some(lead_status::NEW.to_string()));
         lead_active.owner_id = Set(user_id);
-        lead_active.owner_name = Set(format!("用户{}", user_id));
+        lead_active.owner_name = Set(operator_name.to_string());
         lead_active.updated_at = Set(Some(now));
         lead_active
+    }
+
+    /// 单条领取（`POST /api/v1/erp/crm/pool/claim`）的归属落库：与批量领取同一个
+    /// `build_claimed_active` 实现，保证两条路径的归属语义逐字段一致。
+    ///
+    /// 为什么不经 `claim_pool_customers` 复用（口径问题，非疏漏）：批量路径带
+    /// 保护期 / 每日领取上限 / 最大持有数三项校验（`validate_claim_rules`、
+    /// `is_within_protection_period`），而"刚回收的行"其 `updated_at` 就是刚刚，
+    /// 保护期（默认 7 天）会把单条领取直接判负 —— 既有业务链
+    /// （回收 → `/pool/claim` 领取）会被打断。单条领取是否也应当走公海规则校验
+    /// 属待用户拍板的口径问题，本批保持现状不收紧（见交付报告"待决点"）。
+    pub async fn claim_lead_ownership(
+        &self,
+        lead: crm_lead::Model,
+        user_id: i32,
+        operator_name: &str,
+    ) -> Result<crm_lead::Model, AppError> {
+        let now = Utc::now();
+        let lead_active = Self::build_claimed_active(lead, user_id, operator_name, now);
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            lead_active,
+            // 批次 94 P2-10：审计落真实操作人 user_id
+            Some(user_id),
+        )
+        .await?;
+        Ok(updated)
     }
 
     /// V15 P0-S08：领取前规则校验
