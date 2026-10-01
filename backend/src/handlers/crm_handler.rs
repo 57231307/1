@@ -83,9 +83,13 @@ pub async fn list_leads(
             if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
                 for lead in list {
                     if let Some(obj) = lead.as_object_mut() {
-                        if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                        // 键名必须取 crm_lead 真实列 mobile_phone（models/crm_lead.rs:40）：
+                        // 出参由 serde_json::to_value(Vec<crm_lead::Model>) 生成，
+                        // 不存在 contact_phone 键（该键属 customer/sales_order/supplier 等模型），
+                        // 读错键使本块对手机号恒不生效。
+                        if let Some(phone) = obj.get("mobile_phone").and_then(|v| v.as_str()) {
                             obj.insert(
-                                "contact_phone".to_string(),
+                                "mobile_phone".to_string(),
                                 Value::String(crate::utils::field_mask::mask_phone(phone)),
                             );
                         }
@@ -316,9 +320,11 @@ pub async fn get_lead(
         } else if role_id != 1 {
             // P1-08-5 修复：详情接口脱敏而非 remove
             if let Some(obj) = value.as_object_mut() {
-                if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                // 同列表分支：真实列名是 mobile_phone（models/crm_lead.rs:40），
+                // 出参为 crm_lead::Model 序列化，无 contact_phone 键。
+                if let Some(phone) = obj.get("mobile_phone").and_then(|v| v.as_str()) {
                     obj.insert(
-                        "contact_phone".to_string(),
+                        "mobile_phone".to_string(),
                         Value::String(crate::utils::field_mask::mask_phone(phone)),
                     );
                 }
