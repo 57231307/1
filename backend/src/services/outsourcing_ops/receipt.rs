@@ -314,7 +314,11 @@ impl OutsourcingReceiptService {
     }
 
     /// 确认收回单：draft → confirmed，收回单/凭证/订单/质检同事务提交
-    pub async fn confirm(&self, id: i32) -> Result<ReceiptModel, AppError> {
+    pub async fn confirm(
+        &self,
+        id: i32,
+        operator_id: Option<i32>,
+    ) -> Result<ReceiptModel, AppError> {
         let txn = (*self.db).begin().await?;
 
         let receipt_model: ReceiptModel = ReceiptEntity::find_by_id(id)
@@ -445,6 +449,7 @@ impl OutsourcingReceiptService {
         crate::services::piece_domain_service::mark_reserved_pieces_shipped_on_receipt(
             &txn,
             &issue_items,
+            operator_id,
         )
         .await?;
 

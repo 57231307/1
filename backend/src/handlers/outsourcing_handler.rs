@@ -16,6 +16,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::container::AppState;
+use crate::middleware::auth_context::AuthContext;
 use crate::models::status::outsourcing_order_status;
 use crate::models::{
     outsourcing_order, outsourcing_order_item, outsourcing_receipt, outsourcing_voucher,
@@ -185,8 +186,11 @@ pub async fn delete_outsourcing_order(
 pub async fn issue_outsourcing_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<outsourcing_order::Model>>, AppError> {
-    let model = order_service(&state).issue_order(id).await?;
+    let model = order_service(&state)
+        .issue_order(id, Some(auth.user_id))
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -221,8 +225,9 @@ pub async fn close_outsourcing_order(
 pub async fn cancel_outsourcing_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<outsourcing_order::Model>>, AppError> {
-    let model = order_service(&state).cancel(id).await?;
+    let model = order_service(&state).cancel(id, Some(auth.user_id)).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -316,8 +321,11 @@ pub async fn get_outsourcing_receipt_by_no(
 pub async fn confirm_outsourcing_receipt(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<outsourcing_receipt::Model>>, AppError> {
-    let model = receipt_service(&state).confirm(id).await?;
+    let model = receipt_service(&state)
+        .confirm(id, Some(auth.user_id))
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 

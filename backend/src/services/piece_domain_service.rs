@@ -223,11 +223,17 @@ fn distinct_referenced_piece_nos(
 
 /// 对单个匹号执行「当前值 == from」前提下的比较并交换（CAS）条件更新。
 /// 返回 rows_affected（0 = CAS 未命中，由调用方归因，绝不静默）。
+///
+/// `operator_id` 为审计主体（真实操作人 user_id）：与 status/updated_at 落在同一条
+/// update_many 内——CAS 的原子性与零 N+1 是本闭环的立身点，补一次 UPDATE 会引入
+/// 「状态已改、审计主体未写」的中间态与额外往返。None 时写 NULL，与迁移回填
+/// 「系统路径无操作主体、不伪造 updated_by」同口径。
 async fn cas_piece_status<C: ConnectionTrait>(
     conn: &C,
     piece_no: &str,
     from: &str,
     to: &str,
+    operator_id: Option<i32>,
 ) -> Result<u64, AppError> {
     use sea_orm::EntityTrait;
     let result = inventory_piece::Entity::update_many()
@@ -235,6 +241,7 @@ async fn cas_piece_status<C: ConnectionTrait>(
         .filter(inventory_piece::Column::Status.eq(from))
         .set(inventory_piece::ActiveModel {
             status: Set(to.to_string()),
+            updated_by: Set(operator_id),
             // inventory_piece.updated_at 列型为 DateTime<Utc>（models/inventory_piece.rs），
             // 与本域既有写入点（create_greige_pieces_from_report）同一时钟口径
             updated_at: Set(chrono::Utc::now()),
@@ -312,6 +319,7 @@ async fn warn_cas_miss<C: ConnectionTrait>(
 pub async fn reserve_pieces_for_issue<C: ConnectionTrait>(
     conn: &C,
     items: &[crate::models::outsourcing_order_item::Model],
+    operator_id: Option<i32>,
 ) -> Result<(), AppError> {
     // 纯读校验复用既有门控（空明细拒绝/缺匹号/匹不存在/非可用），归因文案不变
     validate_pieces_for_issue(conn, items).await?;
@@ -335,8 +343,14 @@ pub async fn reserve_pieces_for_issue<C: ConnectionTrait>(
     }
 
     for pn in &piece_nos {
-        let rows =
-            cas_piece_status(conn, pn, piece_status::AVAILABLE, piece_status::RESERVED).await?;
+        let rows = cas_piece_status(
+            conn,
+            pn,
+            piece_status::AVAILABLE,
+            piece_status::RESERVED,
+            operator_id,
+        )
+        .await?;
         if rows == 0 {
             // 校验刚通过而 CAS 未命中：并发事务已占用该匹（读校验与写占用之间的
             // 真实竞争在条件更新下收敛到这里），重读归因后整单拒绝
@@ -359,10 +373,17 @@ pub async fn reserve_pieces_for_issue<C: ConnectionTrait>(
 pub async fn release_reserved_pieces_on_cancel<C: ConnectionTrait>(
     conn: &C,
     items: &[crate::models::outsourcing_order_item::Model],
+    operator_id: Option<i32>,
 ) -> Result<(), AppError> {
     for pn in distinct_referenced_piece_nos(items) {
-        let rows =
-            cas_piece_status(conn, &pn, piece_status::RESERVED, piece_status::AVAILABLE).await?;
+        let rows = cas_piece_status(
+            conn,
+            &pn,
+            piece_status::RESERVED,
+            piece_status::AVAILABLE,
+            operator_id,
+        )
+        .await?;
         if rows == 0 {
             warn_cas_miss(conn, &pn, "取消释放").await?;
         }
@@ -379,10 +400,17 @@ pub async fn release_reserved_pieces_on_cancel<C: ConnectionTrait>(
 pub async fn mark_reserved_pieces_shipped_on_receipt<C: ConnectionTrait>(
     conn: &C,
     items: &[crate::models::outsourcing_order_item::Model],
+    operator_id: Option<i32>,
 ) -> Result<(), AppError> {
     for pn in distinct_referenced_piece_nos(items) {
-        let rows =
-            cas_piece_status(conn, &pn, piece_status::RESERVED, piece_status::SHIPPED).await?;
+        let rows = cas_piece_status(
+            conn,
+            &pn,
+            piece_status::RESERVED,
+            piece_status::SHIPPED,
+            operator_id,
+        )
+        .await?;
         if rows == 0 {
             warn_cas_miss(conn, &pn, "收回确认转出").await?;
         }

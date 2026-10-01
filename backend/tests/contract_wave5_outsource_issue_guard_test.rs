@@ -35,11 +35,14 @@ mod test_common;
 use axum::{
     Router,
     body::Body,
+    extract::State,
     http::{Method, Request, StatusCode},
+    middleware::{Next, from_fn_with_state},
     response::Response,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::outsourcing_handler;
+use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::inventory_piece;
 use bingxi_backend::models::outsourcing_order;
 use bingxi_backend::models::outsourcing_order_item;
@@ -269,6 +272,32 @@ async fn seed_piece(
     .expect("夹具：种生产匹失败")
 }
 
+/// 发料/取消/收回三个端点现在经 auth_middleware 注入的 AuthContext 取操作者，
+/// 匹状态流转把该 user_id 写入 inventory_piece.updated_by（审计溯源）。
+/// 测试路由不挂生产中间件，故以 inject_auth 注入固定操作者，与生产语义等价。
+const OPERATOR: i32 = 7788;
+
+fn make_auth(user_id: i32) -> AuthContext {
+    AuthContext {
+        user_id,
+        username: format!("wave5g_user_{user_id}"),
+        role_id: Some(2),
+        department_id: Some(1),
+        data_scope: Some("all".to_string()),
+        dept_ids: None,
+        dept_member_user_ids: None,
+    }
+}
+
+async fn inject_auth(
+    State(auth): State<AuthContext>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    request.extensions_mut().insert(auth);
+    next.run(request).await
+}
+
 fn issue_router(db: DatabaseConnection) -> Router {
     let mut state = AppState::default();
     state.db = Arc::new(db);
@@ -278,6 +307,7 @@ fn issue_router(db: DatabaseConnection) -> Router {
             axum::routing::post(outsourcing_handler::issue_outsourcing_order),
         )
         .with_state(state)
+        .layer(from_fn_with_state(make_auth(OPERATOR), inject_auth))
 }
 
 async fn post_issue(app: &Router, id: i32) -> (StatusCode, Value) {
@@ -340,7 +370,7 @@ async fn issue_without_items_rejected_with_displayable_error_and_zero_drift() {
 
     let service = OutsourcingOrderService::new(Arc::new(db.clone()));
     let err = service
-        .issue_order(order.id)
+        .issue_order(order.id, Some(OPERATOR))
         .await
         .expect_err("空明细发料必须被拒绝（修复前：0 条明细=0 次校验=整单放行）");
     assert!(
@@ -385,7 +415,7 @@ async fn issue_items_without_piece_no_rejected_and_zero_drift() {
 
         let service = OutsourcingOrderService::new(Arc::new(db.clone()));
         let err = service
-            .issue_order(order.id)
+            .issue_order(order.id, Some(OPERATOR))
             .await
             .expect_err(&format!("明细缺生产匹号必须被拒绝（case: {case}）"));
         assert!(
@@ -405,7 +435,7 @@ async fn issue_item_referencing_nonexistent_piece_rejected_and_zero_drift() {
 
     let service = OutsourcingOrderService::new(Arc::new(db.clone()));
     let err = service
-        .issue_order(order.id)
+        .issue_order(order.id, Some(OPERATOR))
         .await
         .expect_err("引用虚构匹号必须被拒绝");
     assert!(
@@ -438,7 +468,7 @@ async fn issue_item_referencing_unavailable_piece_rejected_and_zero_drift() {
     // service 级：内部真实文案可被日志侧检索
     let service = OutsourcingOrderService::new(Arc::new(db.clone()));
     let err = service
-        .issue_order(order.id)
+        .issue_order(order.id, Some(OPERATOR))
         .await
         .expect_err("已预留(RESERVED)匹必须被拒绝");
     assert!(
@@ -505,7 +535,7 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
 
     let service = OutsourcingOrderService::new(Arc::new(db.clone()));
     let updated = service
-        .issue_order(order.id)
+        .issue_order(order.id, Some(OPERATOR))
         .await
         .expect("合规发料（有明细+真实可用匹）必须成功——空明细拒绝不得扩大化成一刀切");
 
@@ -556,6 +586,11 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
         reserved.status,
         piece_status::RESERVED,
         "正向对照：发料成功后 inventory_piece.status 必须为 RESERVED（占用闭环）"
+    );
+    assert_eq!(
+        reserved.updated_by,
+        Some(OPERATOR),
+        "审计溯源：发料成功链（AVAILABLE→RESERVED）的 updated_by 必须为操作者，非空非伪造"
     );
 }
 
@@ -772,6 +807,12 @@ async fn receipt_zero_quantity_gates_are_wired_in_all_three_paths() {
 // - confirm 收回转 SHIPPED 位于 lock_exclusive 之后（sqlite 不支持），
 //   与既有 0 量门同策：以源码扫描锁钉住"事务内、commit 前"的接线，
 //   活库真跑留给 CI --ignored 与后续批次（测试专家补点）。
+// - 审计溯源 updated_by（#941 本批）：流转与操作者写入在同一条 CAS update_many 内，
+//   故凡能真跑 CAS 的路径都能真回读 updated_by——D1（占用 AVAILABLE→RESERVED）、
+//   D4（释放 RESERVED→AVAILABLE）在 sqlite 真断言 updated_by=操作者；
+//   "发料成功链/收回转出链"的 updated_by 分别由活库用例 C（真断言）与 D5 的
+//   cas_piece_status 源码扫描锁（updated_by 必须位于 set 与 exec 之间，且迁移回填
+//   SET 段不得含 updated_by）覆盖——sqlite 跑不到这两条链的行锁路径，不假装全绿。
 // =========================================================
 
 /// D1 正向（sqlite 真跑）：域服务 CAS 占用把明细引用的 AVAILABLE 匹置 RESERVED
@@ -783,9 +824,13 @@ async fn reserve_pieces_for_issue_marks_piece_reserved_on_sqlite() {
     seed_piece(&db, "PX-OCCUPY-D1", piece_status::AVAILABLE, 9001, 9001).await;
     let item = seed_item(&db, order.id, Some("PX-OCCUPY-D1")).await;
 
-    piece_domain_service::reserve_pieces_for_issue(&db, std::slice::from_ref(&item))
-        .await
-        .expect("可用匹的 CAS 占用必须成功（AVAILABLE→RESERVED）");
+    piece_domain_service::reserve_pieces_for_issue(
+        &db,
+        std::slice::from_ref(&item),
+        Some(OPERATOR),
+    )
+    .await
+    .expect("可用匹的 CAS 占用必须成功（AVAILABLE→RESERVED）");
 
     let after = inventory_piece::Entity::find()
         .filter(inventory_piece::Column::PieceNo.eq("PX-OCCUPY-D1"))
@@ -797,6 +842,11 @@ async fn reserve_pieces_for_issue_marks_piece_reserved_on_sqlite() {
         after.status,
         piece_status::RESERVED,
         "发料占用闭环：reserve 成功后 inventory_piece.status 必须为 RESERVED"
+    );
+    assert_eq!(
+        after.updated_by,
+        Some(OPERATOR),
+        "审计溯源：CAS 占用（AVAILABLE→RESERVED）必须与状态同条 update_many 写入操作者 updated_by"
     );
 }
 
@@ -810,9 +860,13 @@ async fn issue_second_order_referencing_reserved_piece_rejected_with_zero_drift(
     let first = seed_draft_order(&db).await;
     seed_piece(&db, "PX-DOUBLE-D2", piece_status::AVAILABLE, 9001, 9001).await;
     let first_item = seed_item(&db, first.id, Some("PX-DOUBLE-D2")).await;
-    piece_domain_service::reserve_pieces_for_issue(&db, std::slice::from_ref(&first_item))
-        .await
-        .expect("夹具：第一张单占用必须成功");
+    piece_domain_service::reserve_pieces_for_issue(
+        &db,
+        std::slice::from_ref(&first_item),
+        Some(OPERATOR),
+    )
+    .await
+    .expect("夹具：第一张单占用必须成功");
     let mut first_active: outsourcing_order::ActiveModel = first.clone().into();
     first_active.status = Set(outsourcing_order_status::ISSUED.to_string());
     first_active
@@ -854,7 +908,7 @@ async fn issue_second_order_referencing_reserved_piece_rejected_with_zero_drift(
     // service 级归因（日志侧真实文案可检索）
     let service = OutsourcingOrderService::new(Arc::new(db.clone()));
     let err = service
-        .issue_order(second.id)
+        .issue_order(second.id, Some(OPERATOR))
         .await
         .expect_err("已预留匹跨单重复发料必须被拒绝");
     assert!(
@@ -877,7 +931,7 @@ async fn issue_same_order_duplicate_piece_no_rejected_with_zero_drift() {
 
     let service = OutsourcingOrderService::new(Arc::new(db.clone()));
     let err = service
-        .issue_order(order.id)
+        .issue_order(order.id, Some(OPERATOR))
         .await
         .expect_err("同单两条明细引用同一匹必须被拒绝");
     assert!(
@@ -907,16 +961,20 @@ async fn cancel_issued_order_releases_reserved_piece_to_available() {
     let order = seed_draft_order(&db).await;
     seed_piece(&db, "PX-RELEASE-D4", piece_status::AVAILABLE, 9001, 9001).await;
     let item = seed_item(&db, order.id, Some("PX-RELEASE-D4")).await;
-    piece_domain_service::reserve_pieces_for_issue(&db, std::slice::from_ref(&item))
-        .await
-        .expect("夹具：占用必须成功");
+    piece_domain_service::reserve_pieces_for_issue(
+        &db,
+        std::slice::from_ref(&item),
+        Some(OPERATOR),
+    )
+    .await
+    .expect("夹具：占用必须成功");
     let mut issued: outsourcing_order::ActiveModel = order.clone().into();
     issued.status = Set(outsourcing_order_status::ISSUED.to_string());
     let issued = issued.update(&db).await.expect("夹具：推进 issued 失败");
 
     let service = OutsourcingOrderService::new(Arc::new(db.clone()));
     let cancelled = service
-        .cancel(issued.id)
+        .cancel(issued.id, Some(OPERATOR))
         .await
         .expect("issued 单取消必须成功（释放路径不得硬失败）");
     assert_eq!(
@@ -935,6 +993,11 @@ async fn cancel_issued_order_releases_reserved_piece_to_available() {
         piece.status,
         piece_status::AVAILABLE,
         "取消闭环：issued 单取消后 RESERVED 匹必须 CAS 回 AVAILABLE"
+    );
+    assert_eq!(
+        piece.updated_by,
+        Some(OPERATOR),
+        "审计溯源：取消释放（RESERVED→AVAILABLE）必须把操作者写入 updated_by"
     );
 }
 
@@ -1018,5 +1081,63 @@ async fn piece_occupancy_calls_are_wired_inside_their_transactions() {
     assert!(
         confirm_begin < shipped && shipped < confirm_commit,
         "收回转出必须位于事务内（与收回单/凭证/订单原子提交）"
+    );
+
+    // 审计溯源落点（源码扫描锁）：cas_piece_status 必须在**同一条 update_many 的
+    // .set(...ActiveModel) 与 .exec(...) 之间**写 updated_by——把「状态流转」与
+    // 「操作者」压进同一条条件更新，是 CAS 原子性/零 N+1 与本闭环审计溯源的立身点。
+    // 补第二次 UPDATE 会引入「状态已改、主体未写」中间态。发料成功链/收回转出链
+    // 必经 advisory lock / lock_exclusive，sqlite 无法真跑到 updated_by，故以扫描锁
+    // 钉住（真跑 updated_by 由 D1 占用、D4 释放两条 sqlite 用例覆盖）。
+    let piece_src = include_str!("../src/services/piece_domain_service.rs").replace('\r', "");
+    let cas_at = piece_src
+        .find("async fn cas_piece_status(")
+        .expect("piece_domain_service.rs 必须有 cas_piece_status");
+    let cas_body = &piece_src[cas_at
+        ..cas_at
+            + piece_src[cas_at..]
+                .find("Ok(result.rows_affected)")
+                .expect("cas_piece_status 以 rows_affected 收尾")];
+    assert!(
+        cas_body.contains("operator_id: Option<i32>"),
+        "cas_piece_status 必须显式接收操作者（Option<i32>：None=系统/回填路径写 NULL，不伪造）"
+    );
+    let set_at = cas_body
+        .find(".set(inventory_piece::ActiveModel {")
+        .expect("CAS 走 update_many 的 .set(ActiveModel)");
+    let upd_at = cas_body
+        .find("updated_by: Set(operator_id)")
+        .expect("CAS 必须在同一 ActiveModel 内 Set updated_by");
+    let exec_at = cas_body
+        .find(".exec(conn)")
+        .expect("CAS 必须单条 exec，不得拆成两次 UPDATE");
+    assert!(
+        set_at < upd_at && upd_at < exec_at,
+        "updated_by 必须位于 set(ActiveModel) 与 exec 之间（同一 update_many 原子写入）"
+    );
+
+    // 口径一致性：迁移回填路径无操作主体，不得伪造 updated_by——回填 SQL 必须只
+    // 置 status/updated_at、不含 updated_by 赋值（与运行家人工路径写真实 user_id 对照）。
+    let backfill_src = include_str!(
+        "../migration/src/domain/production/m0065_backfill_outsourcing_reserved_pieces.rs"
+    )
+    .replace('\r', "");
+    let backfill_update = backfill_src
+        .find("UPDATE \"inventory_piece\" p")
+        .expect("回填迁移必须有 inventory_piece 置 RESERVED 的 UPDATE");
+    // 只截取 SET ... 到首个 WHERE 之间的赋值段（回填的 updated_by 讨论仅在注释里，
+    // 不在此段），避免误吃后续 RAISE/子查询文本
+    let backfill_where = backfill_update
+        + backfill_src[backfill_update..]
+            .find("WHERE")
+            .expect("回填 UPDATE 必须带 WHERE 条件");
+    let backfill_set = &backfill_src[backfill_update..backfill_where];
+    assert!(
+        backfill_set.contains("\"status\" = 'RESERVED'") && backfill_set.contains("\"updated_at\""),
+        "回填 SET 段应只含 status/updated_at（口径与本文件运行时 CAS 的时间戳一致）"
+    );
+    assert!(
+        !backfill_set.contains("updated_by"),
+        "回填 UPDATE 的 SET 段不得写 updated_by：系统回填无操作主体，伪造用户 ID 属制造数据"
     );
 }

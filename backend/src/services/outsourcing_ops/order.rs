@@ -488,7 +488,11 @@ impl OutsourcingOrderService {
     /// 凭证取号之前执行——占用与凭证/状态推进原子提交，任一行 CAS 不命中整单
     /// 回滚（不允许部分匹被占用），并消除原「事务外只读校验→事务内提交」的
     /// TOCTOU 重复发料窗口。
-    pub async fn issue_order(&self, id: i32) -> Result<OrderModel, AppError> {
+    pub async fn issue_order(
+        &self,
+        id: i32,
+        operator_id: Option<i32>,
+    ) -> Result<OrderModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != outsourcing_order_status::DRAFT {
             return Err(AppError::business(format!(
@@ -509,7 +513,8 @@ impl OutsourcingOrderService {
             .order_by_desc(outsourcing_order_item::Column::Id)
             .all(&txn)
             .await?;
-        crate::services::piece_domain_service::reserve_pieces_for_issue(&txn, &items).await?;
+        crate::services::piece_domain_service::reserve_pieces_for_issue(&txn, &items, operator_id)
+            .await?;
 
         // 生成发料凭证号（统一生成器，事务内取号：`OVIS{YYYYMMDD}{3位流水}`）
         let voucher_no = DocumentNumberGenerator::generate_no_with_txn(
@@ -766,7 +771,7 @@ impl OutsourcingOrderService {
     /// 生产匹释放回 AVAILABLE，且与主单状态推进同事务原子提交（明细读取也在事务内）。
     /// draft 单从未占用匹；received/settled 单的匹已在收回确认时转 SHIPPED，
     /// 取消不得把它们回退成 AVAILABLE——这两类路径维持原有单行更新，不触碰库存。
-    pub async fn cancel(&self, id: i32) -> Result<OrderModel, AppError> {
+    pub async fn cancel(&self, id: i32, operator_id: Option<i32>) -> Result<OrderModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status == outsourcing_order_status::CLOSED {
             return Err(AppError::business("已关闭状态不可取消"));
@@ -785,8 +790,12 @@ impl OutsourcingOrderService {
                 .order_by_desc(outsourcing_order_item::Column::Id)
                 .all(&txn)
                 .await?;
-            crate::services::piece_domain_service::release_reserved_pieces_on_cancel(&txn, &items)
-                .await?;
+            crate::services::piece_domain_service::release_reserved_pieces_on_cancel(
+                &txn,
+                &items,
+                operator_id,
+            )
+            .await?;
             let mut active: OrderActiveModel = model.into();
             active.status = Set(outsourcing_order_status::CANCELLED.to_string());
             active.updated_at = Set(now);

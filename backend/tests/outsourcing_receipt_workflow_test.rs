@@ -59,7 +59,7 @@ async fn test_outsourcingreceiptservice_slhbcfdb() {
 async fn test_outsourcingreceiptservice_confirm_kdbfherr() {
     let db = setup_test_db().await;
     let svc = OutsourcingReceiptService::new(Arc::new(db));
-    let result = svc.confirm(1).await;
+    let result = svc.confirm(1, None).await;
     assert!(result.is_err(), "空 DB 上 confirm 应返回 Err");
 }
 
