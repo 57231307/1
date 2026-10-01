@@ -187,8 +187,10 @@ async fn live_stock_version_roundtrip_and_conflict_rejected() {
     }
 
     let db = Arc::new(test_common::setup_test_db().await);
-    let mut state = AppState::default();
-    state.db = db.clone();
+    let state = AppState {
+        db: db.clone(),
+        ..Default::default()
+    };
     let app = Router::new()
         .route(
             "/inventory/stock/{id}",
@@ -211,7 +213,7 @@ async fn live_stock_version_roundtrip_and_conflict_rejected() {
         ));
 
     // —— 播种主数据与库存行（version=3，前端 PUT 必须能从 GET 出参拿到它）——
-    let ts = Utc::now().timestamp_nanos();
+    let ts = Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价");
     let p = product::ActiveModel {
         name: Set("wave2版本号套件面料".to_string()),
         code: Set(format!("PRD-W2V-{ts}")),

@@ -277,12 +277,13 @@ async fn seeded_db(permissions: Option<&str>) -> Arc<sea_orm::DatabaseConnection
 }
 
 fn state_from(db: &Arc<sea_orm::DatabaseConnection>) -> AppState {
-    let mut state = AppState::default();
-    state.db = db.clone();
     // data_permission_service 内部持有独立 db 引用，必须与 state.db 同源重建，
     // 否则 get_role_data_permission 落在 Disconnected 连接上恒 Err（假绿）。
-    state.data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
-    state
+    AppState {
+        db: db.clone(),
+        data_permission_service: Arc::new(DataPermissionService::new(db.clone())),
+        ..Default::default()
+    }
 }
 
 fn build_app(db: &Arc<sea_orm::DatabaseConnection>, auth: AuthContext) -> Router {

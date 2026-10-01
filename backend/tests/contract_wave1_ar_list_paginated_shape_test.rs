@@ -214,8 +214,10 @@ async fn seeded_app(auth: AuthContext) -> Router {
     let db = sqlite_db().await;
     create_ar_invoices_table(&db).await;
     seed_25_invoices(&db).await;
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db);
+    let state = AppState {
+        db: std::sync::Arc::new(db),
+        ..Default::default()
+    };
     build_app(state, auth)
 }
 
@@ -312,8 +314,10 @@ async fn ar_invoices_list_total_respects_filter() {
 async fn ar_invoices_list_empty_table_keeps_shape() {
     let db = sqlite_db().await;
     create_ar_invoices_table(&db).await;
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db);
+    let state = AppState {
+        db: std::sync::Arc::new(db),
+        ..Default::default()
+    };
     let app = build_app(state, make_auth(100, "e2e_purchaser_100", Some("all")));
 
     let (status, v) = get_json(&app, "/ar/invoices").await;

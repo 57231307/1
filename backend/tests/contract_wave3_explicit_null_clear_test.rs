@@ -86,7 +86,7 @@ use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    Order, QueryFilter, QueryOrder, QuerySelect, Set, Statement,
+    Order, QueryFilter, QueryOrder, Set, Statement,
 };
 use serde_json::{Value, json};
 use std::str::FromStr;
@@ -156,8 +156,10 @@ async fn exec(db: &DatabaseConnection, sql: &str) {
 }
 
 fn batch_service_router(db: DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/inventory/batches/{id}",
@@ -168,8 +170,10 @@ fn batch_service_router(db: DatabaseConnection) -> Router {
 }
 
 fn stock_router(db: DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/inventory/stock/{id}",
@@ -180,8 +184,10 @@ fn stock_router(db: DatabaseConnection) -> Router {
 }
 
 fn location_router(db: DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/warehouse/locations/{id}",

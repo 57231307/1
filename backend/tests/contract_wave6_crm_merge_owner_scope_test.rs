@@ -139,8 +139,10 @@ async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
 }
 
 fn build_app(db: &Arc<sea_orm::DatabaseConnection>, auth: AuthContext) -> Router {
-    let mut state = AppState::default();
-    state.db = db.clone();
+    let state = AppState {
+        db: db.clone(),
+        ..Default::default()
+    };
     Router::new()
         .route("/erp/crm/leads/merge", post(merge_leads))
         .with_state(state)

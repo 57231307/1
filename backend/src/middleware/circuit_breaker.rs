@@ -195,13 +195,7 @@ impl CircuitEntry {
     /// 判断请求是否被熔断拒绝
     /// Closed/HalfOpen(未达探测上限) 放行；Open 或 HalfOpen 已达探测上限 拒绝
     ///
-    /// 保持原签名（既有单测直接调用）；需要状态跃变日志的调用方请用
-    /// [`CircuitEntry::should_reject_tracked`]。
-    pub fn should_reject(&mut self) -> bool {
-        self.should_reject_tracked(&mut Vec::new())
-    }
-
-    /// [`CircuitEntry::should_reject`] 的事件收集版
+    /// `events` 用于收集状态跃变日志；传空 Vec 即纯判定。
     pub fn should_reject_tracked(&mut self, events: &mut Vec<CircuitEvent>) -> bool {
         self.maybe_transition_to_half_open(events);
         match self.state {
@@ -224,13 +218,7 @@ impl CircuitEntry {
 
     /// 记录请求结果（成功 status < 500，失败 status >= 500）
     ///
-    /// 保持原签名（既有单测直接调用）；需要状态跃变日志的调用方请用
-    /// [`CircuitEntry::record_result_tracked`]。
-    pub fn record_result(&mut self, is_failure: bool) {
-        self.record_result_tracked(is_failure, &mut Vec::new());
-    }
-
-    /// [`CircuitEntry::record_result`] 的事件收集版
+    /// `events` 用于收集状态跃变日志；传空 Vec 即纯记录。
     pub fn record_result_tracked(&mut self, is_failure: bool, events: &mut Vec<CircuitEvent>) {
         // 滑动窗口：记录当前请求并移除过期记录
         self.window.push_back((Instant::now(), is_failure));
@@ -266,7 +254,7 @@ impl CircuitEntry {
                 }
             }
             CircuitState::Open => {
-                // open 状态下不应有请求到达（should_reject 已拦截），忽略
+                // open 状态下不应有请求到达（should_reject_tracked 已拦截），忽略
             }
         }
     }

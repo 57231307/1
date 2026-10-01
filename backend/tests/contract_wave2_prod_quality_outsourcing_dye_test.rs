@@ -433,7 +433,7 @@ async fn outsourcing_order_not_null_explicit_null_rejected_before_any_db_access(
 #[test]
 fn resample_internal_writeback_never_clears_columns() {
     let req = UpdateDyeRecipeRequest {
-        chemical_formula: Some("配方文本".to_string()).map(Some),
+        chemical_formula: Some(Some("配方文本".to_string())),
         temperature: None,
         remarks: Some(Some("复样通过自动回写".to_string())),
         ..Default::default()

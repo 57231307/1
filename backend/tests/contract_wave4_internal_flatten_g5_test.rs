@@ -298,7 +298,7 @@ fn extract_fn(src: &str, header: &str) -> String {
 #[test]
 fn g5_sku_mapping_delete_requires_reference_precheck() {
     let src = src_of("src/services/sku_mapping_service.rs");
-    let delete_fn = extract_fn(&src, "pub async fn delete(&self, id: i32)");
+    let delete_fn = extract_fn(src, "pub async fn delete(&self, id: i32)");
 
     // 预检必须存在：先取映射行（不存在→404），再核查采购/调拨单据快照引用
     assert!(
@@ -427,8 +427,10 @@ async fn trace_missing_id_returns_404_not_500() {
         .await
         .expect("sqlite::memory: 连接失败");
     create_business_trace_chain_table(&db).await;
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db);
+    let state = AppState {
+        db: std::sync::Arc::new(db),
+        ..Default::default()
+    };
 
     let app = Router::new()
         .route(

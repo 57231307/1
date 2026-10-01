@@ -199,8 +199,10 @@ async fn inject_auth(
 }
 
 fn item_router(db: sea_orm::DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db);
+    let state = AppState {
+        db: std::sync::Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/orders/{id}/items/{item_id}",

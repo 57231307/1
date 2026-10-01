@@ -194,8 +194,10 @@ async fn seed_adjustment(db: &sea_orm::DatabaseConnection) {
 }
 
 fn build_adjustment_app(db: sea_orm::DatabaseConnection, auth: AuthContext) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/inventory/adjustments/{id}",
@@ -402,7 +404,7 @@ async fn live_transfer_update_delete_scope_matrix() {
     .await
     .unwrap();
     let trf = inventory_transfer::ActiveModel {
-        transfer_no: Set(format!("TRF-DS-{}", Utc::now().timestamp_nanos())),
+        transfer_no: Set(format!("TRF-DS-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         from_warehouse_id: Set(wh_from.id),
         to_warehouse_id: Set(wh_to.id),
         transfer_date: Set(Utc::now()),
@@ -423,8 +425,10 @@ async fn live_transfer_update_delete_scope_matrix() {
 
     // 非 owner（salesperson/purchaser 同语义 self）→ 403
     let app = {
-        let mut state = AppState::default();
-        state.db = Arc::new(db.clone());
+        let state = AppState {
+            db: Arc::new(db.clone()),
+            ..Default::default()
+        };
         Router::new()
             .route(
                 "/inventory/transfers/{id}",
@@ -445,8 +449,10 @@ async fn live_transfer_update_delete_scope_matrix() {
 
     // owner → 2xx
     let app_owner = {
-        let mut state = AppState::default();
-        state.db = Arc::new(db.clone());
+        let state = AppState {
+            db: Arc::new(db.clone()),
+            ..Default::default()
+        };
         Router::new()
             .route(
                 "/inventory/transfers/{id}",
@@ -474,7 +480,7 @@ async fn live_production_status_update_and_logs_scope_matrix() {
     let db = test_common::setup_test_db().await;
     let p = product::ActiveModel {
         name: Set("越权套件产品".to_string()),
-        code: Set(format!("PRD-DS-{}", Utc::now().timestamp_nanos())),
+        code: Set(format!("PRD-DS-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         unit: Set("米".to_string()),
         status: Set("active".to_string()),
         is_deleted: Set(false),
@@ -487,7 +493,7 @@ async fn live_production_status_update_and_logs_scope_matrix() {
     .await
     .unwrap();
     let po = production_order::ActiveModel {
-        order_no: Set(format!("MO-DS-{}", Utc::now().timestamp_nanos())),
+        order_no: Set(format!("MO-DS-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         product_id: Set(p.id),
         planned_quantity: Set(dec("100.00")),
         status: Set("DRAFT".to_string()),
@@ -506,8 +512,10 @@ async fn live_production_status_update_and_logs_scope_matrix() {
     .unwrap();
 
     let mk_app = |viewer: i32| {
-        let mut state = AppState::default();
-        state.db = Arc::new(db.clone());
+        let state = AppState {
+            db: Arc::new(db.clone()),
+            ..Default::default()
+        };
         Router::new()
             .route(
                 "/production/orders/{id}/status",
@@ -562,7 +570,7 @@ async fn live_sales_ship_owner_gate_matrix() {
 
     let db = test_common::setup_test_db().await;
     let cust = customer::ActiveModel {
-        customer_code: Set(format!("CUS-DS-{}", Utc::now().timestamp_nanos())),
+        customer_code: Set(format!("CUS-DS-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         customer_name: Set("越权套件客户".to_string()),
         credit_limit: Set(Decimal::ZERO),
         payment_terms: Set(30),
@@ -577,7 +585,7 @@ async fn live_sales_ship_owner_gate_matrix() {
     .await
     .unwrap();
     let so = sales_order::ActiveModel {
-        order_no: Set(format!("SO-DS-{}", Utc::now().timestamp_nanos())),
+        order_no: Set(format!("SO-DS-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         customer_id: Set(cust.id),
         order_date: Set(Utc::now()),
         required_date: Set(Utc::now()),
@@ -599,8 +607,10 @@ async fn live_sales_ship_owner_gate_matrix() {
     .unwrap();
 
     let mk_app = |viewer: i32| {
-        let mut state = AppState::default();
-        state.db = Arc::new(db.clone());
+        let state = AppState {
+            db: Arc::new(db.clone()),
+            ..Default::default()
+        };
         Router::new()
             .route("/sales/orders/{id}/ship", axum::routing::post(ship_order))
             .with_state(state)

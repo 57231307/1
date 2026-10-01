@@ -29,7 +29,7 @@ use axum::{
     http::{Request, StatusCode},
     middleware::{Next, from_fn_with_state},
     response::Response,
-    routing::{get, post},
+    routing::get,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::supplier_handler;
@@ -182,8 +182,10 @@ async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
         .expect("sqlite::memory: 连接失败");
     create_tables(&db).await;
     seed(&db).await;
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db.clone());
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
     let app = Router::new()
         .route(
             "/suppliers/{id}/qualifications/{qualification_id}/attachment",

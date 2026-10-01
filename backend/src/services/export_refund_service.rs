@@ -167,7 +167,7 @@ impl ExportRefundService {
         &self,
         sales_order_id: i32,
     ) -> Result<bool, AppError> {
-        Ok(self.orders_documents_complete(&[sales_order_id]).await?)
+        self.orders_documents_complete(&[sales_order_id]).await
     }
 
     /// 单证齐全统一判定源：给定销售订单集合，要求每个订单同时存在

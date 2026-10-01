@@ -142,7 +142,7 @@ async fn cleanup_subjects(db: &DatabaseConnection, ids: &[i32]) {
         return;
     }
     let deleted = account_subject::Entity::delete_many()
-        .filter(account_subject::Column::Id.is_in(ids.iter().copied().collect::<Vec<_>>()))
+        .filter(account_subject::Column::Id.is_in(ids.to_vec()))
         .exec(db)
         .await
         .unwrap_or_else(|e| panic!("清理测试科目 {ids:?} 失败：{e}"));

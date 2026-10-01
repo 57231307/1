@@ -764,12 +764,10 @@ async fn share_customer_does_not_query_users_for_operator_name() {
     let db = state.db.clone();
     exec(
         &db,
-        &format!(
-            "INSERT INTO customers (id,customer_code,customer_name,contact_phone,contact_email,
+        "INSERT INTO customers (id,customer_code,customer_name,contact_phone,contact_email,
              credit_limit,payment_terms,status,customer_type,owner_id,created_at,updated_at)
              VALUES (2,'CUS-0002','乙客户','13711112222','b@example.com','0',30,'active',
-                     'retail',999,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
-        ),
+                     'retail',999,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
     let svc = CustomerTeamShareService::new(db.clone());

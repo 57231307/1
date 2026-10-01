@@ -205,8 +205,10 @@ async fn live_create_transfer_dyed_missing_dye_lot_400_and_rollback() {
     }
 
     let db = Arc::new(test_common::setup_test_db().await);
-    let mut state = AppState::default();
-    state.db = db.clone();
+    let state = AppState {
+        db: db.clone(),
+        ..Default::default()
+    };
     let app = Router::new()
         .route(
             "/inventory/transfers",
@@ -229,7 +231,7 @@ async fn live_create_transfer_dyed_missing_dye_lot_400_and_rollback() {
     // —— 播种：产品/两仓/白坯库存行（数量 50）——
     let p = product::ActiveModel {
         name: Set("四维套件坯布".to_string()),
-        code: Set(format!("PRD-TRF-{}", Utc::now().timestamp_nanos())),
+        code: Set(format!("PRD-TRF-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         unit: Set("米".to_string()),
         status: Set("active".to_string()),
         is_deleted: Set(false),
@@ -244,7 +246,7 @@ async fn live_create_transfer_dyed_missing_dye_lot_400_and_rollback() {
     let mut wh_ids = Vec::new();
     for (tag, name) in [("F", "调出仓"), ("T", "调入仓")] {
         let wh = warehouse::ActiveModel {
-            warehouse_code: Set(format!("WH-TRF-{tag}-{}", Utc::now().timestamp_nanos())),
+            warehouse_code: Set(format!("WH-TRF-{tag}-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
             name: Set(name.to_string()),
             is_default: Set(false),
             is_active: Set(true),

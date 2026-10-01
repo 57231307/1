@@ -225,9 +225,10 @@ async fn seeded_state() -> AppState {
             .expect("播种入库明细失败");
         }
     }
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
-    state
+    AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    }
 }
 
 fn make_auth() -> AuthContext {

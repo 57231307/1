@@ -172,8 +172,10 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
 }
 
 fn build_app(db: DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/ap/payment-requests",

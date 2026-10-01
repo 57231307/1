@@ -262,7 +262,7 @@ async fn live_pg_every_registered_doc_type_queries_real_table_and_column() {
 #[ignore = "需 TEST_DATABASE_URL 已迁移 PostgreSQL（真实插入/删除 customers），由专用 job（--run-ignored only）执行"]
 async fn live_pg_customer_registry_detects_taken_and_freed_no() {
     use bingxi_backend::models::customer;
-    use sea_orm::{ActiveModelTrait, ColumnTrait, QueryFilter, Set};
+    use sea_orm::{ActiveModelTrait, Set};
 
     let url = std::env::var("TEST_DATABASE_URL")
         .expect("活库用例必须设置 TEST_DATABASE_URL（指向已跑完迁移的 PostgreSQL）");

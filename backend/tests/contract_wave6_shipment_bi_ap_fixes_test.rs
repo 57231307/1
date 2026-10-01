@@ -153,9 +153,10 @@ async fn sqlite_state(with_table: bool) -> AppState {
         .await
         .expect("种子库存行插入失败");
     }
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
-    state
+    AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    }
 }
 
 // ===========================================================================

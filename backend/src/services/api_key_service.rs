@@ -174,14 +174,6 @@ impl ApiKeyService {
         Ok(())
     }
 
-    /// 按 ID 获取 API 密钥（批次 91 P0-1）
-    pub async fn get_api_key_by_id(&self, id: i32) -> Result<Option<api_key::Model>, AppError> {
-        ApiKey::find_by_id(id)
-            .one(self.db.as_ref())
-            .await
-            .map_err(AppError::from)
-    }
-
     /// 按 ID 回读「密钥行 + 真实创建者用户名」（`created_by_name`）。
     ///
     /// 列表（`select_with_creator()` 直接分页）、详情、以及 create/update/regenerate

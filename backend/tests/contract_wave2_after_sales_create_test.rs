@@ -30,7 +30,7 @@ use axum::{
     http::{Request, StatusCode},
     middleware::{Next, from_fn_with_state},
     response::Response,
-    routing::{get, post},
+    routing::post,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::custom_order_handler;
@@ -188,8 +188,10 @@ async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
         .expect("sqlite::memory: 连接失败");
     create_after_sales_table(&db).await;
     create_customers_table(&db).await;
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db.clone());
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
     let app = Router::new()
         .route(
             "/custom-orders/{id}/after-sales",
@@ -342,10 +344,7 @@ async fn refund_without_amount_rejected_with_displayable_validation_message() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(v["code"], "VALIDATION_ERROR");
     assert_eq!(v["message"], "非法售后类型: teleportation");
-    assert_ne!(
-        v["message"], "请求参数验证失败",
-        "不得回潮到脱敏的校验信封"
-    );
+    assert_ne!(v["message"], "请求参数验证失败", "不得回潮到脱敏的校验信封");
 }
 
 /// 拒绝路径不得留脏数据：缺金额退款与非法类型均被业务校验拒绝，after_sales 零行

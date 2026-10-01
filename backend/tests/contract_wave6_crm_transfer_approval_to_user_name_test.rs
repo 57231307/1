@@ -25,8 +25,6 @@ use bingxi_backend::services::crm::customer_transfer_approval_service::{
 use sea_orm::{ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, Statement};
 use std::sync::Arc;
 
-const OWNER: i32 = 50;
-const NEW_OWNER: i32 = 51;
 const NEW_OWNER_LOGIN: &str = "transfer_target_wangwu";
 const MANAGER: i32 = 55;
 const DIRECTOR: i32 = 56;

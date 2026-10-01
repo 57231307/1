@@ -51,18 +51,6 @@ impl LabDipRequestService {
         Self { db }
     }
 
-    /// 生成打样通知单号：LD-YYYYMMDDHHMMSS-NNN（历史手写格式）。
-    /// 注意：写入路径（lab_dip_ops/request.rs::create）已改为事务内经
-    /// DocumentNumberGenerator 按 LAB_DIP_REQUEST_NO_PREFIX 取号，本函数仅保留给
-    /// 存量单测（backend/tests/services_lab_dip_service_test.rs）验证历史格式，
-    /// 新代码不得再调用拼号。
-    pub fn generate_request_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("LD-{}-{:03}", timestamp, random)
-    }
-
     // ===== 状态流转校验（纯函数）=====
 
     /// 校验状态流转合法性
@@ -146,17 +134,6 @@ pub struct LabDipResampleService {
 impl LabDipResampleService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 生成复样单号：RS-YYYYMMDDHHMMSS-NNN（历史手写格式）。
-    /// 注意：写入路径（lab_dip_ops/resample.rs::create）已改为事务内经
-    /// DocumentNumberGenerator 按 LAB_DIP_RESAMPLE_NO_PREFIX 取号，本函数仅保留给
-    /// 存量单测（backend/tests/services_lab_dip_service_test.rs）验证历史格式。
-    pub fn generate_resample_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("RS-{}-{:03}", timestamp, random)
     }
 }
 

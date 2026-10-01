@@ -149,9 +149,10 @@ async fn base_state() -> AppState {
     )
     .await;
 
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
-    state
+    AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    }
 }
 
 /// 按真实挂载路径（routes/sales.rs）建路由

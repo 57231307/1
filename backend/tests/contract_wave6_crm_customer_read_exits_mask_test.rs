@@ -782,7 +782,7 @@ fn convert_exits_output_summary_fields_only() {
     // handler 侧：convert 两出口不挂字段权限函数（拍板口径），形状由服务层摘要保证
     let handler = include_str!("../src/handlers/crm_handler.rs");
     for name in ["convert_lead", "convert_opportunity_to_order"] {
-        let body = split_body(&handler, name);
+        let body = split_body(handler, name);
         assert!(
             !body.contains("apply_customer_field_permission(")
                 && !body.contains("apply_lead_field_permission("),

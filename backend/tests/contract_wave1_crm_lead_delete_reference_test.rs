@@ -252,8 +252,10 @@ async fn seeded_router(viewer: i32, referenced: bool) -> Router {
     if referenced {
         link_opportunity(&db, 1, 10).await;
     }
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     build_app(state, make_auth(viewer))
 }
 
@@ -315,7 +317,7 @@ async fn live_pg_lead_conversion_then_delete_rejected() {
     let cust = customer::ActiveModel {
         customer_code: Set(format!(
             "C-LEADDEL-{}",
-            chrono::Utc::now().timestamp_nanos()
+            chrono::Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价")
         )),
         customer_name: Set("引用校验客户".to_string()),
         credit_limit: Set(rust_decimal::Decimal::ZERO),

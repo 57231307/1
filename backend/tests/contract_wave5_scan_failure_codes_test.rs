@@ -184,8 +184,10 @@ async fn memory_db() -> sea_orm::DatabaseConnection {
 /// crm 侧不建任何 crm 表：扫描失败若被吞、流程若走到 import_leads，会得到
 /// DATABASE_ERROR/500 而不是 503，断言因此能自证「拒绝先于导入」。
 async fn build_app(db: &sea_orm::DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db.clone());
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/suppliers/{id}/qualifications/{qualification_id}/attachment",
@@ -316,7 +318,7 @@ fn spawn_fake_scan_server(status_line: &'static str, body: &'static str) -> u16 
             let resp = format!(
                 "HTTP/1.1 {}\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                 status_line,
-                body.as_bytes().len(),
+                body.len(),
                 body
             );
             let _ = stream.write_all(resp.as_bytes());

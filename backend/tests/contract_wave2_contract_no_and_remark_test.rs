@@ -287,8 +287,10 @@ async fn seed_contact_under_supplier_1(db: &DatabaseConnection) {
 }
 
 fn supplier_contacts_router(db: DatabaseConnection, auth: AuthContext) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/suppliers/{supplier_id}/contacts",
@@ -599,8 +601,10 @@ async fn live_sales_update_ignores_duplicate_contract_no_and_persists_remark() {
     // PUT：携带已存在的他人编号 + remark——修复前该形态要么撞 UNIQUE 裸 500，要么 remark 丢失
     let dup_no = format!("SC-W2L-B-{suffix}");
     let app = {
-        let mut state = AppState::default();
-        state.db = Arc::new(db.clone());
+        let state = AppState {
+            db: Arc::new(db.clone()),
+            ..Default::default()
+        };
         Router::new()
             .route(
                 "/sales-contracts/{id}",
@@ -715,8 +719,10 @@ async fn live_purchase_update_ignores_duplicate_contract_no_and_persists_remark(
         .unwrap();
 
     let app = {
-        let mut state = AppState::default();
-        state.db = Arc::new(db.clone());
+        let state = AppState {
+            db: Arc::new(db.clone()),
+            ..Default::default()
+        };
         Router::new()
             .route(
                 "/purchase-contracts/{id}",

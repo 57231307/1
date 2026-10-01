@@ -716,6 +716,7 @@ impl EnergyAllocationRecordService {
     /// 构建分摊记录 ActiveModel。
     /// allocation_no 由调用方在写入事务内经 DocumentNumberGenerator 取号后传入
     ///（月末批量路径与单条 create 路径共用），本函数不再自行拼号。
+    #[allow(clippy::too_many_arguments)]
     fn build_allocation_record(
         req: &MonthlyAllocationRequest,
         workshop: &str,

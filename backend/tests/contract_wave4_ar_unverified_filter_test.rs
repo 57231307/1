@@ -268,8 +268,10 @@ async fn seeded_app() -> Router {
     create_ar_reconciliation_items_table(&db).await;
     seed_invoices(&db).await;
     seed_collections(&db).await;
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db);
+    let state = AppState {
+        db: std::sync::Arc::new(db),
+        ..Default::default()
+    };
     build_app(state, make_auth(100, "e2e_ar_verifier", Some("all")))
 }
 

@@ -157,8 +157,10 @@ async fn seed_master_color(db: &sea_orm::DatabaseConnection, id: i64, code: &str
 }
 
 fn build_app(db: sea_orm::DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/production/dye-batches",

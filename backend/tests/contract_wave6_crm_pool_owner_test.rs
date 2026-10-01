@@ -222,8 +222,10 @@ async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
 }
 
 fn build_app(db: &Arc<sea_orm::DatabaseConnection>, auth: AuthContext) -> Router {
-    let mut state = AppState::default();
-    state.db = db.clone();
+    let state = AppState {
+        db: db.clone(),
+        ..Default::default()
+    };
     Router::new()
         .route("/erp/crm/pool/claim", post(claim_from_pool))
         .route("/erp/crm/pool/recycle", post(recycle_to_pool))

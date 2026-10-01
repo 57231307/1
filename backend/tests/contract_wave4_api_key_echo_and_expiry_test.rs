@@ -173,8 +173,10 @@ async fn seed_user(db: &DatabaseConnection, username: &str) -> i32 {
 }
 
 fn router(db: DatabaseConnection, user_id: i32) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/api-gateway/keys",

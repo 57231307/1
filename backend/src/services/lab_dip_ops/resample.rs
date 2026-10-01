@@ -16,7 +16,7 @@
 //! - 复样结果：色差 4-5 级为 passed（可投产），<4 级为 failed（不可投产）
 //! - 染色技术卡仅复样通过可开（研发组长开卡），不可重复开卡
 //!
-//! facade 的 generate_resample_no 仅保留给存量单测验证历史格式，本模块取号
+//! facade 不提供任何手写拼号函数，本模块取号
 //! 走 DocumentNumberGenerator（前缀常量 lab_dip_service::LAB_DIP_RESAMPLE_NO_PREFIX）；
 //! struct 定义与 new 构造函数保留在 facade `lab_dip_service`。
 

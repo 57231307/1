@@ -51,28 +51,6 @@ impl FlowCardService {
         Self { db }
     }
 
-    /// 生成流转卡号：FC-YYYYMMDDHHMMSS-NNN（历史手写格式）。
-    /// 注意：写入路径（flow_card_ops/card_crud.rs::create）已改为事务内经
-    /// DocumentNumberGenerator 按 FLOW_CARD_NO_PREFIX 取号，条码也改为与卡号同体；
-    /// 本函数仅保留给存量单测（backend/tests/services_flow_card_service_test.rs）
-    /// 验证历史格式，新代码不得再调用拼号。
-    pub fn generate_card_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("FC-{}-{:03}", timestamp, random)
-    }
-
-    /// 生成条码：FC + 14位时间戳 + 6位随机数（历史手写格式）。
-    /// 注意：同 generate_card_no，写入路径已改为条码=卡号同体（见 card_crud::create），
-    /// 本函数仅保留给存量单测验证历史格式。
-    pub fn generate_barcode() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit();
-        format!("FC{}{:06}", timestamp, random)
-    }
-
     /// 状态流转校验（缸号全生命周期状态机）
     pub fn validate_status_transition(from: &str, to: &str) -> Result<(), AppError> {
         let allowed = match from {
@@ -145,17 +123,6 @@ pub struct QualityFeedbackService {
 impl QualityFeedbackService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 生成反馈单号：QF-YYYYMMDDHHMMSS-NNN（历史手写格式）。
-    /// 注意：写入路径（flow_card_ops/feedback.rs::create）已改为事务内经
-    /// DocumentNumberGenerator 按 QUALITY_FEEDBACK_NO_PREFIX 取号，本函数仅保留给
-    /// 存量单测（backend/tests/services_flow_card_service_test.rs）验证历史格式。
-    pub fn generate_feedback_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("QF-{}-{:03}", timestamp, random)
     }
 }
 

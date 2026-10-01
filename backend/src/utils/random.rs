@@ -13,11 +13,6 @@ pub fn random_4_digit() -> u16 {
     fastrand::u16(0..10000)
 }
 
-/// 生成 6 位随机数（100000-999999）
-pub fn random_6_digit() -> u32 {
-    fastrand::u32(100000..1_000_000)
-}
-
 /// 生成指定长度的字母数字随机字符串（非密码学安全，用于验证码/编号）
 // 后续接入 SchedulerRegistry/StateMachine 时会使用（保留作非密码学场景用）
 #[allow(dead_code)]

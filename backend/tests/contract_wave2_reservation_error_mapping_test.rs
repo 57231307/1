@@ -116,8 +116,10 @@ async fn seeded_app() -> Router {
         .expect("sqlite::memory: 连接失败");
     create_reservation_table(&db).await;
     seed_reservation(&db, 7, "pending", 200).await; // 他人（200）创建的预留
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db.clone());
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/inventory/reservations/{id}",

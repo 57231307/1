@@ -368,8 +368,10 @@ async fn create_reservation_handler_returns_404_envelope_for_missing_refs() {
     }
 
     let db = seeded_db().await;
-    let mut state = AppState::default();
-    state.db = Arc::new(db.clone());
+    let state = AppState {
+        db: Arc::new(db.clone()),
+        ..Default::default()
+    };
     let app = Router::new()
         .route(
             "/inventory/reservations",

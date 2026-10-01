@@ -134,8 +134,10 @@ async fn seeded_app(viewer_user_id: i32) -> Router {
         .expect("sqlite::memory: 连接失败");
     create_ar_collections_table(&db).await;
     seed_collection_created_by(&db, 100).await;
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db);
+    let state = AppState {
+        db: std::sync::Arc::new(db),
+        ..Default::default()
+    };
     build_app(state, make_auth(viewer_user_id))
 }
 

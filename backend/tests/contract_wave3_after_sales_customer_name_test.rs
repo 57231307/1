@@ -119,8 +119,10 @@ async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
         .expect("sqlite::memory: 连接失败");
     create_after_sales_table(&db).await;
     create_customers_table(&db).await;
-    let mut state = AppState::default();
-    state.db = std::sync::Arc::new(db.clone());
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
     let app = Router::new()
         .route(
             "/custom-orders/{id}/after-sales",

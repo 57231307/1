@@ -15,11 +15,10 @@ use bingxi_backend::services::energy_ops::allocation_rule::ENERGY_ALLOCATION_RUL
 use bingxi_backend::services::energy_ops::consumption::ENERGY_CONSUMPTION_NO_PREFIX;
 use bingxi_backend::services::energy_ops::meter::ENERGY_METER_NO_PREFIX;
 use bingxi_backend::services::flow_card_service::{
-    FLOW_CARD_NO_PREFIX, FlowCardService, QUALITY_FEEDBACK_NO_PREFIX, QualityFeedbackService,
+    FLOW_CARD_NO_PREFIX, QUALITY_FEEDBACK_NO_PREFIX,
 };
 use bingxi_backend::services::lab_dip_service::{
-    LAB_DIP_REQUEST_NO_PREFIX, LAB_DIP_RESAMPLE_NO_PREFIX, LabDipRequestService,
-    LabDipResampleService,
+    LAB_DIP_REQUEST_NO_PREFIX, LAB_DIP_RESAMPLE_NO_PREFIX,
 };
 
 /// 取字符串开头的连续大写字母段（"FC-20260920-001" → "FC"，"DB20260920001" → "DB"）
@@ -68,33 +67,6 @@ fn test_prefix_constants_match_business_legacy_prefixes() {
     // EAR 为分摊规则/分摊记录两表历史共用的业务前缀（既有语义，本批只改取号方式）
     assert_eq!(ENERGY_ALLOCATION_RULE_NO_PREFIX, "EAR");
     assert_eq!(ENERGY_ALLOCATION_NO_PREFIX, "EAR");
-}
-
-/// 新旧同源：保留给存量单测的遗留手写取号函数产出的前缀字母段，
-/// 必须与新的事务内取号前缀常量完全一致（防止常量与原业务前缀漂移）。
-#[test]
-fn test_new_constants_same_origin_as_legacy_generators() {
-    let legacy_card_no = FlowCardService::generate_card_no(); // FC-{ts}-{n}
-    assert_eq!(leading_alpha(&legacy_card_no), FLOW_CARD_NO_PREFIX);
-
-    let legacy_feedback_no = QualityFeedbackService::generate_feedback_no(); // QF-{ts}-{n}
-    assert_eq!(
-        leading_alpha(&legacy_feedback_no),
-        QUALITY_FEEDBACK_NO_PREFIX
-    );
-
-    let legacy_request_no = LabDipRequestService::generate_request_no(); // LD-{ts}-{n}
-    assert_eq!(leading_alpha(&legacy_request_no), LAB_DIP_REQUEST_NO_PREFIX);
-
-    let legacy_resample_no = LabDipResampleService::generate_resample_no(); // RS-{ts}-{n}
-    assert_eq!(
-        leading_alpha(&legacy_resample_no),
-        LAB_DIP_RESAMPLE_NO_PREFIX
-    );
-
-    let legacy_recipe_no =
-        bingxi_backend::services::dye_recipe_service::DyeRecipeService::generate_recipe_no(None);
-    assert_eq!(leading_alpha(&legacy_recipe_no), DYE_RECIPE_NO_PREFIX);
 }
 
 /// 除文档化的 EAR 共用以外的前缀两两互不相同，

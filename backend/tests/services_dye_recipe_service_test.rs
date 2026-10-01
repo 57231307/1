@@ -2,32 +2,6 @@ use bingxi_backend::models::status::dye_recipe as recipe_status;
 use bingxi_backend::services::dye_recipe_service::DyeRecipeService;
 use bingxi_backend::services::period_adjustment_service::*;
 
-/// 测试配方编号自动生成格式
-#[test]
-fn test_generate_recipe_no_auto() {
-    let no = DyeRecipeService::generate_recipe_no(None);
-    assert!(no.starts_with("DR-"));
-    // 格式：DR-{14位时间戳}-{4位随机}
-    let parts: Vec<&str> = no.split('-').collect();
-    assert_eq!(parts.len(), 3);
-    assert_eq!(parts[1].len(), 14); // 时间戳 YYYYMMDDHHMMSS
-    assert_eq!(parts[2].len(), 4); // 4 位随机
-}
-
-/// 测试配方编号使用调用方提供的值
-#[test]
-fn test_generate_recipe_no_provided() {
-    let no = DyeRecipeService::generate_recipe_no(Some("CUSTOM-001"));
-    assert_eq!(no, "CUSTOM-001");
-}
-
-/// 测试配方编号空字符串时自动生成
-#[test]
-fn test_generate_recipe_no_empty() {
-    let no = DyeRecipeService::generate_recipe_no(Some(""));
-    assert!(no.starts_with("DR-"));
-}
-
 /// 测试状态流转：草稿 → 已审核（合法）
 #[test]
 fn test_status_transition_draft_to_approved() {

@@ -268,7 +268,7 @@ async fn seed_full_po_context(
 ) -> (i32, i32, i32, i32, i32, i32) {
     let p = product::ActiveModel {
         name: Set("四维测试坯布".to_string()),
-        code: Set(format!("FAB-PR-{}", Utc::now().timestamp_nanos())),
+        code: Set(format!("FAB-PR-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         unit: Set("米".to_string()),
         status: Set("active".to_string()),
         is_deleted: Set(false),
@@ -282,7 +282,7 @@ async fn seed_full_po_context(
     .unwrap();
 
     let wh = bingxi_backend::models::warehouse::ActiveModel {
-        warehouse_code: Set(format!("WH-PR-{}", Utc::now().timestamp_nanos())),
+        warehouse_code: Set(format!("WH-PR-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         name: Set("退货测试仓".to_string()),
         is_default: Set(false),
         is_active: Set(true),
@@ -297,7 +297,7 @@ async fn seed_full_po_context(
     let zero_tz = chrono::FixedOffset::east_opt(0).unwrap();
     let sup_now = zero_tz.from_utc_datetime(&Utc::now().naive_utc());
     let sup = bingxi_backend::models::supplier::ActiveModel {
-        supplier_code: Set(format!("SUP-PR-{}", Utc::now().timestamp_nanos())),
+        supplier_code: Set(format!("SUP-PR-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         supplier_name: Set("退货测试供应商".to_string()),
         supplier_short_name: Set("退供".to_string()),
         supplier_type: Set("面料供应商".to_string()),
@@ -320,7 +320,7 @@ async fn seed_full_po_context(
     .unwrap();
 
     let po = purchase_order::ActiveModel {
-        order_no: Set(format!("PO-PR-{}", Utc::now().timestamp_nanos())),
+        order_no: Set(format!("PO-PR-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         supplier_id: Set(sup.id),
         order_date: Set(NaiveDate::from_ymd_opt(2026, 1, 10).unwrap()),
         warehouse_id: Set(wh.id),

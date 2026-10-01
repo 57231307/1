@@ -299,8 +299,10 @@ async fn inject_auth(
 }
 
 fn issue_router(db: DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/outsourcing-orders/{id}/issue",
@@ -641,8 +643,10 @@ async fn seed_received_order(
 }
 
 fn settle_router(db: DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/outsourcing-orders/{id}/settle",

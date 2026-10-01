@@ -160,8 +160,10 @@ async fn seed_order(
 
 /// progress + approve 两端点都挂上,便于同一 app 分别断言
 fn build_app(db: sea_orm::DatabaseConnection, viewer: AuthContext) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/production-orders/orders/{id}/progress",

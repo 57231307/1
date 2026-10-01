@@ -241,9 +241,10 @@ async fn create_business_trace_chain_table(db: &sea_orm::DatabaseConnection) {
 }
 
 fn trace_state(db: sea_orm::DatabaseConnection) -> AppState {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
-    state
+    AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    }
 }
 
 /// 真实断言 A：不存在的 five_dimension_id 调真实 handler → 404 + NOT_FOUND + 真实原因

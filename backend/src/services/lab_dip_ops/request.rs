@@ -15,8 +15,8 @@
 //! - 送客户确认前必须至少有 1 个小样；OK 样确认需选中属于该通知单的小样
 //!
 //! 打样通知单号在 create 的事务内经 DocumentNumberGenerator 取号
-//!（前缀常量 lab_dip_service::LAB_DIP_REQUEST_NO_PREFIX）；facade 中的
-//! generate_request_no 仅保留给存量单测验证历史格式，本模块不再调用。
+//!（前缀常量 lab_dip_service::LAB_DIP_REQUEST_NO_PREFIX）；facade 不提供
+//! 任何手写拼号函数，本模块只经统一生成器取号。
 //! 其余纯函数（validate_status_transition / validate_can_update / validate_can_delete）
 //! 与 struct 定义、new 构造函数保留在 facade `lab_dip_service`。
 

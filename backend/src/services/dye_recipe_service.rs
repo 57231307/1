@@ -128,23 +128,6 @@ impl DyeRecipeService {
         Self { db }
     }
 
-    /// 生成配方编号（历史手写格式 DR-{时间戳}-{4位随机}，仅"传入非空则原样使用"
-    /// 的语义仍有效）。
-    /// 注意：写入路径（create）已改为在事务内经 DocumentNumberGenerator 按
-    /// {DR}{YYYYMMDD}{3位流水} 取号（见 DYE_RECIPE_NO_PREFIX），本函数只保留给
-    /// 存量单测（backend/tests/services_dye_recipe_service_test.rs）验证历史格式，
-    /// 新代码不得再调用本函数拼号——时间戳+随机在同一秒并发下有真实碰撞概率。
-    pub fn generate_recipe_no(provided: Option<&str>) -> String {
-        if let Some(no) = provided {
-            if !no.is_empty() {
-                return no.to_string();
-            }
-        }
-        let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_4_digit();
-        format!("DR-{}-{:04}", timestamp, random)
-    }
-
     /// 校验配方状态流转是否合法
     /// （批次 423B 引入"待审核"中间态：草稿 → 待审核 → 已审核 / 已停用；支持待审核撤回草稿；
     /// 保留草稿直审兼容路径）
@@ -224,8 +207,8 @@ impl DyeRecipeService {
 
     /// 创建染色配方
     pub async fn create(&self, req: CreateDyeRecipeRequest) -> Result<DyeRecipeModel, AppError> {
-        // 取号与 INSERT 同事务：调用方显式提供非空编号时尊重手工值（既有契约，
-        // 与 generate_recipe_no 的 provided 分支同语义）；否则经通用生成器在事务内
+        // 取号与 INSERT 同事务：调用方显式提供非空编号时尊重手工值（既有契约）；
+        // 否则经通用生成器在事务内
         // 取 {DR}{YYYYMMDD}{3位流水}。
         // 为什么不再用旧的 "DR-{14位时间戳}-{4位随机}"：同秒并发碰撞概率非零，且
         // recipe_no 是配方业务识别与检索键（list 按前缀 contains 过滤、版本号按

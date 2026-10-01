@@ -323,8 +323,10 @@ async fn seed_transfer(
 
 /// PUT /inventory/transfers/items/{item_id}：handler 无 AuthContext 入参，裸 Router 即可
 fn transfer_item_router(db: DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/inventory/transfers/items/{item_id}",

@@ -176,6 +176,7 @@ impl WageRateService {
     }
 
     /// 构建工价 ActiveModel（rate_no 由 create 经统一生成器取号后传入）
+    #[allow(clippy::too_many_arguments)]
     fn build_rate_active_model(
         rate_no: String,
         req: &CreateWageRateRequest,

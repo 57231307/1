@@ -4,8 +4,8 @@
 //!（create / update / delete / get_by_id / get_by_barcode / get_by_dye_lot / list）。
 //! 流转卡号在 create 的事务内经 DocumentNumberGenerator 取号
 //!（前缀常量 flow_card_service::FLOW_CARD_NO_PREFIX），条码与卡号同体；
-//! facade 中的 generate_card_no / generate_barcode 仅保留给存量单测验证历史格式，
-//! 本模块不再调用。状态校验纯函数仍保留在 facade，本模块通过 Self:: 调用。
+//! facade 不提供任何手写拼号函数（卡号/条码均经统一生成器取号），
+//! 状态校验纯函数仍保留在 facade，本模块通过 Self:: 调用。
 
 use rust_decimal::Decimal;
 use sea_orm::{

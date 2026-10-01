@@ -106,8 +106,10 @@ async fn sqlite_db() -> DatabaseConnection {
 }
 
 fn purchase_update_router(db: DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/purchase-contracts/{id}",
@@ -121,8 +123,10 @@ fn purchase_update_router(db: DatabaseConnection) -> Router {
 }
 
 fn sales_update_router(db: DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route(
             "/sales-contracts/{id}",

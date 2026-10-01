@@ -408,8 +408,9 @@ async fn ar_monthly_builder_binds_status_constants_with_shifted_placeholders() {
 /// 参数序列与占位一一对应（真库行为锁见 #[ignore] 用例）。
 #[tokio::test]
 async fn ar_aging_builder_all_branches_bind_constants_with_shifted_placeholders() {
+    type FilterPair = (Option<i32>, Option<i32>);
     let today = date(2096, 12, 31);
-    let cases: [(&str, (Option<i32>, Option<i32>), usize, &[&str]); 4] = [
+    let cases: [(&str, FilterPair, usize, &[&str]); 4] = [
         (
             "客户+业务员",
             (Some(77), Some(9)),

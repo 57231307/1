@@ -4,7 +4,7 @@
 //!（create / handle / close / get_by_id / list_by_flow_card）。
 //! 反馈单号在 create 的事务内经 DocumentNumberGenerator 取号
 //!（前缀常量 flow_card_service::QUALITY_FEEDBACK_NO_PREFIX）；
-//! facade 中的 generate_feedback_no 仅保留给存量单测验证历史格式，本模块不再调用。
+//! facade 不提供任何手写拼号函数，本模块只经统一生成器取号。
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait,

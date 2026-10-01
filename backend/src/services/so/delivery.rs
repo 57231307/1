@@ -105,15 +105,6 @@ pub fn validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<()
 }
 
 impl SalesService {
-    // 生成销售订单号
-    // 格式：SO + 年月日 + 三位序号（SO20260315001）
-    crate::impl_generate_no!(
-        generate_order_no,
-        "SO",
-        sales_order::Entity,
-        sales_order::Column::OrderNo
-    );
-
     /// 获取订单发货记录
     pub async fn get_order_deliveries(
         &self,

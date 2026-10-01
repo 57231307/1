@@ -106,7 +106,7 @@ async fn allocate_starts_after_max_seq_and_never_backfills_hole() {
     let db = live_db().await;
     cleanup(&db, pfx).await;
 
-    seed(&db, &[code(pfx, 1), code(pfx, 3)]);
+    seed(&db, &[code(pfx, 1), code(pfx, 3)]).await;
 
     let no = DocumentNumberGenerator::generate_no(
         &db,
@@ -136,7 +136,7 @@ async fn allocate_is_consecutive_for_repeated_generate_insert_in_one_txn() {
     let db = live_db().await;
     cleanup(&db, pfx).await;
 
-    seed(&db, &[code(pfx, 1), code(pfx, 3)]);
+    seed(&db, &[code(pfx, 1), code(pfx, 3)]).await;
 
     let txn = db.begin().await.expect("开启外层事务失败");
     let mut got: Vec<String> = Vec::new();
@@ -180,7 +180,7 @@ async fn allocate_advances_past_preempted_candidate_without_duplicate() {
     cleanup(&db, pfx).await;
 
     let codes: Vec<String> = (101..=200).map(|n| code(pfx, n)).collect();
-    seed(&db, &codes);
+    seed(&db, &codes).await;
 
     let first = DocumentNumberGenerator::generate_no(
         &db,
@@ -264,7 +264,7 @@ async fn allocate_errors_explicitly_when_probe_cap_exhausted() {
 
     // 后缀 20 位数字（u64::MAX 字面量），整号 4+8+20=32 字符，列宽 VARCHAR(50) 可容纳
     let saturated = format!("{}{}{}", pfx, today(), u64::MAX);
-    seed(&db, &[saturated]);
+    seed(&db, &[saturated]).await;
 
     let err = DocumentNumberGenerator::generate_no(
         &db,
@@ -336,7 +336,7 @@ async fn allocate_overflow_at_width_cap_current_behavior_is_silent_widening() {
     cleanup(&db, pfx).await;
 
     let codes: Vec<String> = (1..=999).map(|n| code(pfx, n)).collect();
-    seed(&db, &codes);
+    seed(&db, &codes).await;
 
     let no = DocumentNumberGenerator::generate_no(
         &db,

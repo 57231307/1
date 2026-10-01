@@ -129,8 +129,10 @@ async fn inject_auth(
 }
 
 fn build_app(db: sea_orm::DatabaseConnection) -> Router {
-    let mut state = AppState::default();
-    state.db = Arc::new(db);
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
     Router::new()
         .route("/color-cards", post(create_color_card))
         .route(
