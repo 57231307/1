@@ -325,6 +325,8 @@ impl InitService {
                     ("sales-returns", "create"),
                     ("color-cards", "read"),
                     ("sales-prices", "read"),
+                    // 发货对话框第四维匹号候选来自 GET /inventory/pieces（只读，不授打印）
+                    ("pieces", "read"),
                 ],
             ),
         ]
@@ -428,6 +430,16 @@ impl InitService {
                 &[
                     ("inventory", "*"),
                     ("stock", "*"),
+                    // 匹号领域（GET /inventory/pieces）与成品布入库标签
+                    // （GET /inventory/pieces/{id}/print）。键名 `pieces:read` / `pieces:print`
+                    // 由 URL 段推导（middleware/permission.rs::extract_resource_info 对模块前缀
+                    // inventory 取 segment4），与 `inventory:*` 不同源、不被其覆盖；
+                    // 缺码则非 admin 的库存经理整页 403（本波 #217 匹号选择器、#220 标签即此形态）。
+                    // 存量库由迁移 m0069 同口径补授，e2e 侧由 global-setup 的
+                    // SEED_ROLE_EXTRA_PERMISSIONS 同口径补授，三处清单一致性由
+                    // tests/contract_wave7_piece_permission_grant_test.rs 双向钉。
+                    ("pieces", "read"),
+                    ("pieces", "print"),
                     ("piece-split", "*"),
                     ("transfers", "*"),
                     ("adjustments", "*"),
@@ -449,6 +461,9 @@ impl InitService {
                     ("stock", "read"),
                     ("stock", "create"),
                     ("stock", "update"),
+                    // 仓管收发发货需按四维选匹（/inventory/pieces）并打印成品布入库标签
+                    ("pieces", "read"),
+                    ("pieces", "print"),
                     ("transfers", "read"),
                     ("transfers", "create"),
                     ("counts", "read"),
@@ -474,6 +489,8 @@ impl InitService {
                     ("dye-batch-reworks", "*"),
                     ("dye-batch-operations", "*"),
                     ("greige-fabrics", "read"),
+                    // 生产侧按匹跟踪（委外发料/收回、流转卡报工）需读匹号领域行
+                    ("pieces", "read"),
                     ("lab-dip", "read"),
                     ("production-recipes", "*"),
                     ("process-routes", "*"),
@@ -616,6 +633,9 @@ impl InitService {
                     ("dye-batches", "read"),
                     ("fabric-inspections", "read"),
                     ("fabric-inspections", "create"),
+                    // 验布打卷产出成品布 → 标签面板读匹行并可打印
+                    ("pieces", "read"),
+                    ("pieces", "print"),
                 ],
             ),
             (
@@ -626,6 +646,9 @@ impl InitService {
                     ("dye-batches", "read"),
                     ("products", "read"),
                     ("quality-standards", "read"),
+                    // 打卷员是本岗产出成品布的打印人（#220 成品布入库标签）
+                    ("pieces", "read"),
+                    ("pieces", "print"),
                 ],
             ),
         ]

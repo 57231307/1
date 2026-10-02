@@ -460,7 +460,16 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // 需真实通过 RBAC（/crm/leads 经 path_utils.rs:102 消歧后运行时资源段为 "leads"），
   // 缺码则建线索被 RBAC 403 拦下，self 隔离前提整体不存在（用例红且根因难查）。
   // 只授 leads 族，不越界授 purchase/supplier 码，保密面负向断言不受影响。
-  salesperson: ['orders:read', 'leads:read', 'leads:create', 'leads:update', 'leads:delete'],
+  salesperson: [
+    'orders:read',
+    'leads:read',
+    'leads:create',
+    'leads:update',
+    'leads:delete',
+    // 发货对话框第四维匹号候选来自 GET /inventory/pieces（与后端 permission.rs 的
+    // sales_rep ("pieces","read") 同口径；只读，不授打印）
+    'pieces:read',
+  ],
   // sales_manager 对齐 permission.rs：orders 只读+审批链（此处仅补读，其余 approve/reject
   // 由后端角色 init 授予，本 spec 只依赖 GET 列表/详情）。不授 purchase 侧任何码。
   sales_manager: ['orders:read'],
@@ -476,7 +485,21 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // 不授 inventory/stock 等其余码，B 若被引导访问其它资源仍会被 RBAC 拦（最小授权）。
   // 新建角色 data_scope 由后端默认 self（role_permission_service.rs:184-185），
   // 与 init 种的 dept 同为"非本人资源拒绝"，IDOR 前提两侧一致成立。
-  inventory_manager: ['adjustments:read', 'adjustments:update', 'adjustments:delete'],
+  inventory_manager: [
+    'adjustments:read',
+    'adjustments:update',
+    'adjustments:delete',
+    // 匹号领域读 + 成品布入库标签（对齐后端 permission.rs 同名角色与迁移 m0069；
+    // 上述 IDOR 断言只涉及 adjustments 资源，加这两键不改变其 403 判定层）
+    'pieces:read',
+    'pieces:print',
+  ],
+  // 仓管/仓库经理：按四维选匹（发货/调拨）+ 打印成品布入库标签的岗位，
+  // 与 permission.rs 的 warehouse_keeper 及迁移 m0069 同口径。
+  warehouse_keeper: ['pieces:read', 'pieces:print'],
+  warehouse_manager: ['pieces:read', 'pieces:print'],
+  // 质检/验布岗：验布打卷页的标签面板需读匹行并可打印（同 m0069 口径）
+  quality_inspector: ['pieces:read', 'pieces:print'],
 };
 
 // 边界测试角色

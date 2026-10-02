@@ -64,6 +64,10 @@ mod m0067_aftersales_status_add_accepted_evaluated;
 // v15 执行。照 m0058/m0063/m0065 先例，up/down 由 domain/v15/mod.rs 在建表完成后
 // 调用，此处仅保留定义，提升可见性为 pub(crate)。
 pub(crate) mod m0068_add_chemical_code_partial_unique_constraints;
+// m0069 存量库补授 pieces:read / pieces:print（匹号领域权限键自始未注册，非 admin
+// 访问 /inventory/pieces* 一律 403，详见文件头判责链）。目标表 role_permissions
+// 由 system 域 m0005 建表、roles 由 m0001 建表并种 3 角色，均早于本域执行，直接注册本域。
+mod m0069_grant_piece_read_and_print;
 
 pub struct Migration;
 
@@ -507,12 +511,21 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
+        // m0069 存量库补授 pieces:read / pieces:print（本域最后应用；依赖的
+        // role_permissions/roles 由 system 域 m0005/m0001 建表，早于本域执行）
+        m0069_grant_piece_read_and_print::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // m0067 最后应用故最先回滚（售后状态 CHECK 回原 5 值，含在途行 fail-visible 拒滚）
+        // m0069 最后应用故最先回滚（只回收本迁移按角色码授予的 pieces 键）
+        m0069_grant_piece_read_and_print::Migration
+            .down(manager)
+            .await?;
+        // m0067 次后应用（售后状态 CHECK 回原 5 值，含在途行 fail-visible 拒滚）
         m0067_aftersales_status_add_accepted_evaluated::Migration
             .down(manager)
             .await?;

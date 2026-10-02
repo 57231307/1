@@ -42,6 +42,11 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== 库存仓储域 =====
     "inventory",
     "stock",
+    // 匹号领域查询与成品布入库标签（GET /inventory/pieces、/inventory/pieces/{id}/print）。
+    // 必须在此注册：`middleware/permission.rs::extract_resource_info` 对模块前缀 inventory
+    // 取 segment4 作资源段（utils/path_utils.rs:102-117 默认分支），运行时权限键是
+    // `pieces:read` / `pieces:print`，与 `inventory:*` 不同源、不会被其覆盖。
+    "pieces",
     "piece-split",
     "transfers",
     "adjustments",
