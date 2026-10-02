@@ -421,9 +421,11 @@ jobs:
           exit $EXIT_CODE
 
       - name: 运行契约对齐检查（纯 Node，无需安装依赖）
+        if: ${{ !cancelled() }}
         run: node frontend/scripts/check-contract.mjs
 
       - name: 运行 i18n key 完整性检查（严格阻塞）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-i18n.mjs
 
@@ -431,10 +433,12 @@ jobs:
       # 只在本地手动执行，导致"0 失配"结论无法阻止回归）。判负口径统一为
       # 「解析不出即失败」，豁免必须带 文件:行号 证据。
       - name: 前后端路由路径对齐（前端调用 ↔ 后端真实路由）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-api-paths.mjs
 
       - name: 响应信封形状对齐（前端读取键 ↔ handler 出参）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-api-envelope.mjs
 
@@ -442,24 +446,29 @@ jobs:
       # (b)Partial<T> (c)交叉类型 A&B (d)叶子类型(Value/any/Record/索引签名/不可解析
       # config)——若哪天解析器被改回「静默跳过」，本步骤先于请求门禁变红并点名是哪一类失明。
       - name: 请求契约解析器 fixture 自测（四类盲区防回归）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-api-request-fixture-selftest.mjs
 
       # 存量 147 条漂移已登记 scripts/api-request-baseline.json（过渡机制：只列示不判负，
       # 只准缩短）；不在基线内的新失配仍立即红。清零后删除基线文件恢复全量阻断。
       - name: 请求体与查询参数对齐（前端实参 ↔ 后端 Json/Query 字段集）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-api-request.mjs
 
       - name: 路由挂载结构约定（相对路径 / 单一 nest 前缀 / handlers 下无 router）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-route-mount.mjs
 
       - name: 端点基线漂移（挂载重构必须让全量端点逐字节不变）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/route-snapshot.mjs --check
 
       - name: 接口键名编造棘轮（前端类型键必须存在于后端字段全集，只准降不准升）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-api-keys.mjs
 
@@ -467,6 +476,7 @@ jobs:
       # 本轮在其中发现 6 条真实类型错误（用例按后端根本不存在的键断言等），
       # 故把 tsc -p tsconfig.e2e.json 纳入阻断链并按 文件|错误码 记棘轮基线。
       - name: e2e 类型棘轮（tsconfig.e2e.json，存量 @types/node 族入基线，只准降不准升）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-e2e-types.mjs
 
@@ -3423,6 +3433,9 @@ jobs:
           echo "npm ls 顶层依赖数: $(jq '.dependencies | length' "$D/npm-ls.json" 2>/dev/null || echo N/A)"
 
       - name: 秘密泄露扫描（gitleaks）
+        # 防"前序步骤红 → 密钥扫描整轮从未执行"的零覆盖盲区（#4669 实证被跳过）：
+        # 仍保持 fail-closed——本步失败照样判负，只是不再被别人的失败遮掉。
+        if: ${{ !cancelled() }}
         uses: gacts/gitleaks@v1
         continue-on-error: false
         with:
@@ -3430,6 +3443,9 @@ jobs:
           config-path: .gitleaks.toml
 
       - name: 静态安全扫描（semgrep 社区规则）
+        # 同 gitleaks：不再被前序失败连带跳过（#4669 实证零覆盖）。
+        # 仍 continue-on-error: true —— 社区规则首轮接入只做记录，提级为阻塞需单独评估误报面。
+        if: ${{ !cancelled() }}
         uses: returntocorp/semgrep-action@v1
         continue-on-error: true
         with:
