@@ -236,8 +236,9 @@ export const getSalesDeliveryList = (orderId: number) =>
 /**
  * 销售发货出库（真实扣减库存）——与后端 ShipOrderRequest/ShipOrderItemRequest 同构
  * （backend/src/services/so/delivery.rs）。
- * 出库按"款号(product_id)+色号+缸号+批次"四维匹配扣减：三个维度必填，
+ * 出库对染色布强制四维=缸号+色号+批次+匹号（款号由 product_id 承载），四维齐才匹配扣减；
  * 指定缸号数量不足时后端才走显式跨缸回退，并把实际扣减缸号记入出库明细/流水。
+ * 白坯布（色号为空）免缸号免匹号，匹号无值时**省略该键**（不发空串/占位值）。
  */
 export interface SalesShipItem {
   product_id: number;
@@ -245,6 +246,7 @@ export interface SalesShipItem {
   color_no: string;
   dye_lot_no: string;
   batch_no: string;
+  /** 染色布必填（后端 fabric_class::normalize_outbound_piece_no 判定）；白坯省略该键 */
   piece_no?: string;
 }
 

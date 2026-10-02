@@ -22,7 +22,7 @@ import {
 import type { OrderForm, OrderItemForm } from './useOlv';
 import { logger } from '@/utils/logger';
 import { msg } from '@/utils/message';
-import type { CreateSalesOrderPayload, SalesOrderItemPayload } from '@/api/sales';
+import type { CreateSalesOrderPayload, SalesOrderItemPayload, SalesShipItem } from '@/api/sales';
 
 /** 刷新回调 */
 interface RefreshCallbacks {
@@ -38,6 +38,8 @@ interface SalesShipForm {
     color_no: string;
     dye_lot_no: string;
     batch_no: string;
+    /** 匹号：染色布必填，白坯为空串（提交时省略该键，不发空串占位） */
+    piece_no: string;
   }[];
 }
 
@@ -135,7 +137,8 @@ export function useOlvProc(refresh: RefreshCallbacks) {
 
   /**
    * 提交发货（DeliveryDialog 调用）：走真实出库端点 POST /sales/orders/{id}/ship，
-   * 后端按"款号+色号+缸号+批次"四维匹配扣减库存（指定缸不足才显式跨缸回退）。
+   * 后端按"缸号+色号+批次+匹号"四维匹配扣减库存（款号由 product_id 承载；
+   * 指定缸不足才显式跨缸回退；白坯免缸号免匹号）。
    * warehouse_code 由调用方从已选仓库带出（后端按编码查仓）。
    */
   const handleDeliverySubmit = async (
@@ -149,13 +152,25 @@ export function useOlvProc(refresh: RefreshCallbacks) {
         remarks: undefined,
         items: form.items
           .filter(i => i.deliver_quantity > 0)
-          .map(i => ({
-            product_id: i.product_id,
-            quantity: i.deliver_quantity,
-            color_no: i.color_no,
-            dye_lot_no: i.dye_lot_no,
-            batch_no: i.batch_no,
-          })),
+          .map<SalesShipItem>(i =>
+            // 白坯（色号为空）无匹号维度：省略该键而非发空串/占位值
+            i.piece_no
+              ? {
+                  product_id: i.product_id,
+                  quantity: i.deliver_quantity,
+                  color_no: i.color_no,
+                  dye_lot_no: i.dye_lot_no,
+                  batch_no: i.batch_no,
+                  piece_no: i.piece_no,
+                }
+              : {
+                  product_id: i.product_id,
+                  quantity: i.deliver_quantity,
+                  color_no: i.color_no,
+                  dye_lot_no: i.dye_lot_no,
+                  batch_no: i.batch_no,
+                }
+          ),
       });
       msg.success('shipSuccess');
       await refresh.refresh();

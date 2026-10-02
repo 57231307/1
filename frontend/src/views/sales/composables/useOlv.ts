@@ -7,28 +7,41 @@
  */
 import { ref, reactive, watch, h } from 'vue';
 import { logger } from '@/utils/logger';
-import { ElTag } from 'element-plus';
+import { ElMessage, ElTag } from 'element-plus';
+import { i18n } from '@/i18n';
 import { useTableApi } from '@/composables/useTableApi';
 import type { ColumnDef } from '@/components/V2Table/types';
 import { type SalesOrder, type SalesOrderItem } from '@/api/sales';
 import { request } from '@/api/request';
 import { getStockList, type InventoryStock } from '@/api/inventory';
+import {
+  getAvailablePieces,
+  INVENTORY_PIECE_STATUS,
+  type InventoryPieceRow,
+} from '@/api/inventory-transfer';
 import { getWarehouseList } from '@/api/warehouse';
 import { msg } from '@/utils/message';
 import type { Customer } from '@/api/customer';
 import type { Product } from '@/api/product';
 import { getStatusType, getStatusText, formatAmount } from './olvFmts';
 
-/** 销售发货明细行表单类型（出库四维扣减：色号/缸号/批次必须来自真实入库库存行） */
+/**
+ * 销售发货明细行表单类型
+ * 出库四维（用户 2026-10-02 口径）= 缸号 / 色号 / 批次 / 匹号，款号由 product_id 承载；
+ * 前三维来自真实入库库存行，第四维匹号来自该缸该批现存 AVAILABLE 真实匹（GET /inventory/pieces）。
+ * 白坯布（色号为空）免缸号免匹号。
+ */
 export interface DeliveryItemForm {
   product_id: number;
   product_name: string;
-  /** 色号（出库四维之一，必填后随库存行选择写入） */
+  /** 色号（出库四维之一，随库存行选择写入；空串=白坯布） */
   color_no: string;
-  /** 缸号（出库四维之一） */
+  /** 缸号（出库四维之一，染色布必填） */
   dye_lot_no: string;
-  /** 批次号（出库四维之一） */
+  /** 批次号（出库四维之一，任何布种必填） */
   batch_no: string;
+  /** 匹号（出库四维之一，染色布必填；白坯恒为空串且提交时省略该键） */
+  piece_no: string;
   /** 选中的库存行组合键（`${color_no}__${batch_no}__${dye_lot_no}`，前端定位选项用） */
   stock_row_key: string;
   quantity: number;
@@ -41,6 +54,13 @@ export interface DeliveryItemForm {
 /** 库存行组合键（发货明细选择器用） */
 export const stockRowKey = (row: Pick<InventoryStock, 'color_no' | 'batch_no' | 'dye_lot_no'>) =>
   `${row.color_no ?? ''}__${row.batch_no ?? ''}__${row.dye_lot_no ?? ''}`;
+
+/**
+ * 匹号候选缓存键 = 产品 + 库存行三维组合键。
+ * 由本文件单一定义，composable 与对话框组件共用，避免两处各写一份拼接规则导致缓存永 miss。
+ */
+export const deliveryPiecesKey = (item: Pick<DeliveryItemForm, 'product_id' | 'stock_row_key'>) =>
+  `${item.product_id}__${item.stock_row_key}`;
 
 /** 销售订单明细行表单类型 */
 export interface OrderItemForm {
@@ -159,8 +179,10 @@ export function useOlv() {
     warehouse_id: undefined as number | undefined,
     items: [] as DeliveryItemForm[],
   });
-  // 出库四维（款号+色号+缸号+批次）扣减：按发货仓加载的库存行，供明细行选择真实入库维度
+  // 出库四维（缸号/色号/批次/匹号，款号由 product_id 承载）扣减：按发货仓加载的库存行，
+  // 供明细行选定前三维；第四维匹号按「产品+缸+批」组合键缓存在 deliveryPieceRows
   const deliveryStockRows = ref<Record<number, InventoryStock[]>>({});
+  const deliveryPieceRows = ref<Record<string, InventoryPieceRow[]>>({});
 
   // 监听列表数据变化，重新计算统计
   watch(
@@ -391,6 +413,7 @@ export function useOlv() {
           color_no: '',
           dye_lot_no: item.dye_lot_requirement || '',
           batch_no: '',
+          piece_no: '',
           stock_row_key: '',
           quantity: item.quantity,
           delivered_quantity: item.shipped_quantity || 0,
@@ -400,14 +423,17 @@ export function useOlv() {
         })) || [],
     });
     deliveryStockRows.value = {};
+    deliveryPieceRows.value = {};
   };
 
   /**
-   * 加载发货仓的可出库库存行（出库四维扣减的候选维度组合）。
+   * 加载发货仓的可出库库存行（出库前三维 色号/缸号/批次 的候选维度组合）。
    * 后端 GET /inventory/stock 支持 product_id + warehouse_id 下推过滤，
-   * 返回行即"款号+色号+缸号+批次"四维库存行，前端不手写任何维度数据。
+   * 返回行即"产品+色号+缸号+批次"库存行，前端不手写任何维度数据。
+   * 换仓即清空匹号缓存（匹归属旧仓的缸/批，跨仓不可复用）。
    */
   const loadDeliveryStockRows = async (warehouseId?: number) => {
+    deliveryPieceRows.value = {};
     if (!warehouseId) {
       deliveryStockRows.value = {};
       return;
@@ -435,6 +461,43 @@ export function useOlv() {
       logger.error('加载发货仓库存行失败', error);
       deliveryStockRows.value = {};
       throw error;
+    }
+  };
+
+  /**
+   * 出库第四维（匹号）候选：按「发货仓 + 产品 + 缸号 + 批次 + status=AVAILABLE」全维下推
+   * 查询 GET /inventory/pieces（数据源为真实在库匹，不手写死数据、不允许自由输入）。
+   * 缓存键 = 产品 + 库存行三维组合键，跨缸/跨批互不混用；白坯（色号为空）不参与匹号维度。
+   */
+  const loadDeliveryPieces = async (item: DeliveryItemForm) => {
+    if (!item.color_no || !item.batch_no || !item.dye_lot_no || !deliveryForm.warehouse_id) {
+      return;
+    }
+    const key = deliveryPiecesKey(item);
+    if (deliveryPieceRows.value[key]) {
+      return;
+    }
+    try {
+      const res = await getAvailablePieces({
+        product_id: item.product_id,
+        warehouse_id: deliveryForm.warehouse_id,
+        batch_no: item.batch_no,
+        dye_lot_no: item.dye_lot_no,
+        status: INVENTORY_PIECE_STATUS.AVAILABLE,
+        page: 1,
+        page_size: 100,
+      });
+      // 后端 GET /inventory/pieces 返回 ApiResponse<PaginatedResponse>，列表键恒为 data.items；
+      // 缺键即抛，不用 `|| []` 把契约漂移静默成"下拉恒空"
+      const items = (res.data as { items?: InventoryPieceRow[] } | null)?.items;
+      if (!Array.isArray(items)) {
+        throw new Error(`GET /inventory/pieces 响应缺少 data.items 数组：${JSON.stringify(res)}`);
+      }
+      deliveryPieceRows.value = { ...deliveryPieceRows.value, [key]: items };
+    } catch (error) {
+      const text = i18n.global.t('sales.delivery.pieceNoLoadFailed');
+      logger.error(text, error);
+      ElMessage.error(text);
     }
   };
 
@@ -473,7 +536,9 @@ export function useOlv() {
     deliveryDialogVisible,
     deliveryForm,
     deliveryStockRows,
+    deliveryPieceRows,
     loadDeliveryStockRows,
+    loadDeliveryPieces,
     // 列定义
     columns,
     // 操作

@@ -773,6 +773,11 @@ export default {
       dialogAriaLabel: '销售发货对话框',
       formAriaLabel: '销售发货表单',
       itemsTableAriaLabel: '销售发货明细表',
+      pieceNo: '匹号',
+      pieceNoPlaceholder: '选择该缸该批可出库匹',
+      pieceNoRequired: '染色布发货必须选定匹号（缸号/色号/批次/匹号 四维齐才可出库）',
+      pieceNoLoadFailed: '加载可出库匹失败',
+      pieceLength: '匹长(米)',
     },
     filter: {
       orderNo: '订单号',

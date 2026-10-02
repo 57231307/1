@@ -775,6 +775,12 @@ export default {
       dialogAriaLabel: 'Sales Delivery Dialog',
       formAriaLabel: 'Sales Delivery Form',
       itemsTableAriaLabel: 'Sales Delivery Items Table',
+      pieceNo: 'Piece No.',
+      pieceNoPlaceholder: 'Select an available piece of this dye lot & batch',
+      pieceNoRequired:
+        'Dyed fabric delivery requires a piece no. (dye lot / color / batch / piece must all be set)',
+      pieceNoLoadFailed: 'Failed to load available pieces',
+      pieceLength: 'Length (m)',
     },
     filter: {
       orderNo: 'Order No.',
