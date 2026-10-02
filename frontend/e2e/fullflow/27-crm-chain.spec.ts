@@ -448,7 +448,10 @@ test.describe('27 CRM 线索→商机→订单契约链', () => {
     const claimed = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/crm/leads/${leadId}`);
     expect(claimed.lead_status, '领取后状态 new（bpm_crm_contract.rs:121）').toBe('new');
     // 领取事件列由唯一归属实现 build_claimed_active 落库（保护期/每日计数判据）
-    expect(claimed.last_claimed_at, '领取必须写 last_claimed_at（领取事件唯一记录点）').toBeTruthy();
+    expect(
+      claimed.last_claimed_at,
+      '领取必须写 last_claimed_at（领取事件唯一记录点）'
+    ).toBeTruthy();
     expect(
       Number(claimed.last_claimed_by),
       'last_claimed_by=领取人（原领取人本人重领豁免的依据）'
@@ -471,8 +474,14 @@ test.describe('27 CRM 线索→商机→订单契约链', () => {
       `/crm/pool/${leadId}/claim`
     );
     // apiCallRaw 解出的即 handler data 层 {claimed:n}（claim_specific 出参形状）
-    expect(Number(batchClaim.claimed), '定向领取应成功 1 条（批量路径校验+归属与单条同源）').toBe(1);
-    const reclaimed = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/crm/leads/${leadId}`);
+    expect(Number(batchClaim.claimed), '定向领取应成功 1 条（批量路径校验+归属与单条同源）').toBe(
+      1
+    );
+    const reclaimed = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/crm/leads/${leadId}`
+    );
     expect(reclaimed.lead_status, '定向领取（批量路径）后状态 new').toBe('new');
 
     // 负例 2：领取非池状态线索 → 400 BUSINESS（handler :141-143 "该客户不在公海中"）
