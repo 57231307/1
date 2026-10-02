@@ -2195,6 +2195,388 @@ export async function seedGreigeStockIn(
   return row;
 }
 
+/**
+ * 出库第四维（匹号）seed 族 —— 出库对染色布强制四维 = 缸号/色号/批次/匹号
+ * （用户 2026-10-02 拍板；后端 services/so/delivery_ops/inventory.rs 按四维 tuple 校验
+ *  + services/piece_domain_service.rs:606 outbound_piece_filter CAS 消耗匹号）。
+ *
+ * 写入方口径（唯一事实源，禁按测试偏好臆造维度）：
+ * backend/src/services/piece_domain_service.rs:518-556 —— 染色外发回仓确认生成染色匹：
+ *   piece_type='dyed'、piece_no=`{缸号}-{seq:03}`、**batch_no = 缸号（dye_lot_no 同源）**、
+ *   color_no 从回仓单/委外订单透传、status='AVAILABLE'、warehouse_id = 回仓单仓库。
+ * 因此出库可命中的染色匹 tuple 恒有 batch_no == dye_lot_no == 缸号；
+ * 历史 seedFourDimStockIn 以独立 batch 值灌的染色库存行（batch≠缸号）按该 tuple
+ * **造不出真实匹**（写入方不产出这种组合），凡要走 UI/API 出染色布的用例一律改用
+ * 本节的 seedDyedOutboundBundle（库存行 batch=缸号 + 委外真实链同维染色匹）。
+ *
+ * 链路先例：flow/07-fabric-four-dim.spec.ts（生产单→流转卡→报工逐匹→染色外发→回仓确认）
+ * 与 inventory/05-piece-split.spec.ts（写后必回读 GET /inventory/pieces，词表大写
+ * models/status/purchase_inventory.rs::inventory_piece）。
+ */
+
+/** GET /inventory/pieces 回读行（PieceResponse 中本族用到的字段） */
+export interface DyedSeedPiece {
+  id: number;
+  piece_no: string;
+  piece_type: string;
+  status: string;
+  color_no: string | null;
+  dye_lot_no: string | null;
+  batch_no: string;
+  product_id: number;
+  warehouse_id: number;
+  length: number | string;
+}
+
+/**
+ * 选一个"可承载染色匹"的仓库（piece_domain_service.rs:25-49 validate_warehouse_for_piece_type：
+ * 染色匹只允许 成品仓(finished) 或 未设类型(NULL) 仓；胚布仓(greige) 必被拒）。
+ * 返回含 warehouse_name/warehouse_code（发货对话框按名称选仓、API 出库按编码）。
+ */
+export async function pickDyeableWarehouse(
+  page: Page
+): Promise<{ id: number; name: string; code: string; warehouse_type: string | null }> {
+  const res = await apiCallRaw<{ items?: unknown }>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=200'
+  );
+  const rows = pickListArray<Record<string, unknown>>(
+    res,
+    'items',
+    '四维seed 仓库列表 /warehouses'
+  );
+  const hit = rows.find(
+    w => w.warehouse_type === null || w.warehouse_type === undefined || w.warehouse_type === ''
+  ) as Record<string, unknown> | undefined;
+  const fallback = rows.find(w => w.warehouse_type === 'finished') as
+    Record<string, unknown> | undefined;
+  const target = hit ?? fallback;
+  if (!target) {
+    throw new Error(
+      '[pickDyeableWarehouse] 仓库列表中不存在可承载染色匹的仓库（需未设类型仓或成品仓；' +
+        '胚布仓按 validate_warehouse_for_piece_type 必拒染色匹入库）——真实链造不出匹，显式判红'
+    );
+  }
+  const name = String(target.warehouse_name ?? target.name ?? '');
+  const code = String(target.warehouse_code ?? target.code ?? '');
+  if (!name || !code) {
+    throw new Error(
+      `[pickDyeableWarehouse] 仓库 ${JSON.stringify(target).slice(0, 200)} 缺 warehouse_name/warehouse_code`
+    );
+  }
+  return {
+    id: Number(target.id),
+    name,
+    code,
+    warehouse_type: (target.warehouse_type as string | null | undefined) ?? null,
+  };
+}
+
+/** 按四维回读 AVAILABLE 染色匹候选（与发货对话框 loadDeliveryPieces 同一 UI/API 查询口径） */
+export async function fetchAvailableDyedPieces(
+  page: Page,
+  dims: { productId: number; warehouseId: number; dyeLotNo: string; batchNo?: string }
+): Promise<DyedSeedPiece[]> {
+  const qs =
+    `product_id=${dims.productId}&warehouse_id=${dims.warehouseId}` +
+    `&dye_lot_no=${encodeURIComponent(dims.dyeLotNo)}` +
+    `&batch_no=${encodeURIComponent(dims.batchNo ?? dims.dyeLotNo)}` +
+    '&status=AVAILABLE&page=1&page_size=50';
+  const res = await apiCallRaw<unknown>(page, 'GET', `/inventory/pieces?${qs}`);
+  const rows = pickListArray<DyedSeedPiece>(res, 'items', '染色匹候选 /inventory/pieces');
+  return rows.filter(p => p.piece_type === 'dyed' && String(p.status) === 'AVAILABLE');
+}
+
+/** 按匹号+四维 tuple 回读单匹（消耗后状态断言用；同匹号跨缸可重复，必须带 tuple 归因） */
+export async function readDyedPieceByNo(
+  page: Page,
+  dims: {
+    productId: number;
+    warehouseId: number;
+    dyeLotNo: string;
+    batchNo: string;
+    pieceNo: string;
+  }
+): Promise<DyedSeedPiece | null> {
+  const res = await apiCallRaw<unknown>(
+    page,
+    'GET',
+    `/inventory/pieces?piece_no=${encodeURIComponent(dims.pieceNo)}&product_id=${dims.productId}` +
+      `&warehouse_id=${dims.warehouseId}&page=1&page_size=20`
+  );
+  const rows = pickListArray<DyedSeedPiece>(res, 'items', '匹号回读 /inventory/pieces');
+  return (
+    rows.find(
+      p =>
+        p.piece_no === dims.pieceNo &&
+        p.product_id === dims.productId &&
+        p.warehouse_id === dims.warehouseId &&
+        String(p.dye_lot_no) === dims.dyeLotNo &&
+        String(p.batch_no) === dims.batchNo &&
+        p.piece_type === 'dyed'
+    ) ?? null
+  );
+}
+
+/**
+ * 真实委外染色链生成 N 匹 AVAILABLE 染色匹（不造假：全程状态机 + 写后必回读）。
+ *
+ * 链：生产订单 → 流转卡（schedule→备布→完成备布）→ 工序启动 → 报工逐匹（N 匹生产匹入非成品仓）
+ *  → N 笔染色委外单（同缸号同色号；发料明细逐匹引用 AVAILABLE 生产匹——
+ *    piece_domain_service.rs:160-205 发料必须精确到匹）→ 逐笔发料 → 回仓单（入目标仓）→ 确认
+ *  → 每笔确认生成 1 匹染色匹（同缸 piece_seq 递增 → {缸号}-001/-002…，batch_no=缸号）。
+ */
+export async function seedDyedPieceChain(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    colorNo: string;
+    dyeLotNo: string;
+    pieceCount?: number;
+    lengthPerPieceMeters?: number;
+    context?: string;
+  }
+): Promise<DyedSeedPiece[]> {
+  const tag = opts.context ?? 'DYEDSEED';
+  const pieceCount = opts.pieceCount ?? 1;
+  const length = opts.lengthPerPieceMeters ?? 100;
+  const ctx = getCtx();
+  if (!ctx.supplierId) {
+    throw new Error(`[${tag}] 前置缺失：ctx.supplierId 未就绪（染色委外单必填加工厂）`);
+  }
+
+  // 仓库类型口径：染色匹回仓入 opts.warehouseId（须非胚布仓）；生产匹（胚布匹）入仓不得为成品仓。
+  const whRes = await apiCallRaw<{ items?: unknown }>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=200'
+  );
+  const whRows = pickListArray<Record<string, unknown>>(whRes, 'items', `${tag} 仓库列表`);
+  const target = whRows.find(w => Number(w.id) === opts.warehouseId);
+  if (!target) throw new Error(`[${tag}] 仓库 ${opts.warehouseId} 不在 /warehouses 列表中`);
+  if (target.warehouse_type === 'greige') {
+    throw new Error(
+      `[${tag}] 目标仓 ${opts.warehouseId} 为胚布仓（greige），validate_warehouse_for_piece_type ` +
+        '拒绝染色匹入仓——染色布出库 seed 必须选未设类型/成品仓，显式判红（勿 skip）'
+    );
+  }
+  const greigeWh =
+    target.warehouse_type !== 'finished'
+      ? opts.warehouseId
+      : Number((whRows.find(w => w.warehouse_type !== 'finished')?.id ?? 0) as number);
+  if (!greigeWh) {
+    throw new Error(`[${tag}] 无可用非成品仓存放产匹（发料前置），链断，显式判红`);
+  }
+
+  // 1. 生产订单 + 流转卡 + 备布完成（07 先例 7-2/7-3 同构载荷）
+  const productionOrderNo = genCode(`${tag}PO`);
+  const po = await apiCall<{ id?: number; order_no?: string }>(
+    page,
+    'POST',
+    '/production/production-orders/orders',
+    {
+      order_no: productionOrderNo,
+      product_id: opts.productId,
+      planned_quantity: pieceCount * length,
+    }
+  );
+  if (!po.data?.id)
+    throw new Error(`[${tag}] 生产订单创建未返回 id：${JSON.stringify(po).slice(0, 200)}`);
+  const card = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards', {
+    production_order_id: po.data.id,
+    product_id: opts.productId,
+    product_name: genName(`${tag}胚布`),
+    planned_fabric_weight: pieceCount * length,
+  });
+  const cardId = card.data?.id;
+  if (!cardId)
+    throw new Error(`[${tag}] 流转卡创建未返回 id：${JSON.stringify(card).slice(0, 200)}`);
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/schedule`, {});
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/start-preparing`);
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/complete-preparing`, {
+    actual_fabric_weight: pieceCount * length,
+  });
+
+  // 2. 工序报工逐匹：N 匹生产匹（发料必须逐匹引用，07 先例 7-4 同构载荷）
+  const step = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards/steps/start', {
+    flow_card_id: cardId,
+  });
+  const stepId = step.data?.id;
+  if (!stepId) throw new Error(`[${tag}] 工序启动未返回 id：${JSON.stringify(step).slice(0, 200)}`);
+  const greigePieceNos = Array.from(
+    { length: pieceCount },
+    (_, i) => `GR-${genCode(`${tag}P`)}-${String(i + 1).padStart(3, '0')}`
+  );
+  await apiCall(page, 'POST', `/production/flow-cards/steps/${stepId}/complete`, {
+    actual_quantity: pieceCount * length,
+    qualified_quantity: pieceCount * length,
+    pieces: greigePieceNos.map(no => ({
+      piece_no: no,
+      machine_no: 'M-E2E-DYEED-SEED',
+      machine_operator: 'E2E开机人',
+      length,
+      weight: length / 2,
+      warehouse_id: greigeWh,
+    })),
+  });
+
+  // 3. 每匹一笔染色委外（同缸同色）：订单→发料明细（逐匹）→发料→回仓（入目标仓）→确认。
+  //    一笔订单确认收回后即 received，不再接受第二张回仓单（validate_receipt_eligibility），
+  //    故 N 匹必须 N 笔独立委外单——这是真实写入方口径，不是测试绕行。
+  const issueDate = new Date().toISOString().slice(0, 10);
+  for (let i = 0; i < pieceCount; i++) {
+    const order = await apiCall<{ id?: number }>(page, 'POST', '/production/outsourcing-orders', {
+      order_no: genCode(`${tag}OS`),
+      order_type: 'dyeing',
+      supplier_id: ctx.supplierId,
+      production_order_id: po.data.id,
+      dye_lot_no: opts.dyeLotNo,
+      color_no: opts.colorNo,
+      issue_date: issueDate,
+      issue_quantity: length,
+      issue_unit: '米',
+      material_cost: 100,
+    });
+    const orderId = order.data?.id;
+    if (!orderId)
+      throw new Error(`[${tag}] 染色委外单创建未返回 id：${JSON.stringify(order).slice(0, 200)}`);
+    await apiCall(page, 'POST', '/production/outsourcing-orders/items', {
+      outsourcing_order_id: orderId,
+      product_id: opts.productId,
+      color_no: opts.colorNo,
+      dye_lot_no: opts.dyeLotNo,
+      piece_no: greigePieceNos[i],
+      quantity: length,
+      unit: '米',
+      unit_cost: 1,
+    });
+    await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
+    const receipt = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/outsourcing-receipts',
+      {
+        receipt_no: genCode(`${tag}RC`),
+        outsourcing_order_id: orderId,
+        receipt_date: issueDate,
+        product_id: opts.productId,
+        dye_lot_no: opts.dyeLotNo,
+        color_no: opts.colorNo,
+        warehouse_id: opts.warehouseId,
+        return_quantity: length,
+        quality_status: 'qualified',
+        grade: 'A',
+      }
+    );
+    const receiptId = receipt.data?.id;
+    if (!receiptId)
+      throw new Error(`[${tag}] 回仓单创建未返回 id：${JSON.stringify(receipt).slice(0, 200)}`);
+    await apiCall(page, 'POST', `/production/outsourcing-receipts/${receiptId}/confirm`);
+  }
+
+  // 4. 写后必回读：四维 tuple 下的 AVAILABLE 染色匹数量必须与 pieceCount 一致，
+  //    且逐匹字段与写入方口径一致（batch_no=缸号、piece_type=dyed、大写 AVAILABLE）。
+  const pieces = await fetchAvailableDyedPieces(page, {
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+    dyeLotNo: opts.dyeLotNo,
+    batchNo: opts.dyeLotNo,
+  });
+  if (pieces.length < pieceCount) {
+    throw new Error(
+      `[${tag}] 委外染色链回仓确认 ${pieceCount} 次后，GET /inventory/pieces 按 ` +
+        `product=${opts.productId} warehouse=${opts.warehouseId} 缸=${opts.dyeLotNo} ` +
+        `批=${opts.dyeLotNo} status=AVAILABLE 仅命中 ${pieces.length} 匹染色匹——真实链断裂` +
+        `（缸号建档/匹生成/回读口径任一断点），显式判红，勿 skip/放宽`
+    );
+  }
+  for (const p of pieces.slice(0, pieceCount)) {
+    if (p.piece_type !== 'dyed' || String(p.status) !== 'AVAILABLE') {
+      throw new Error(
+        `[${tag}] 匹 ${p.piece_no} 非 染色匹+AVAILABLE（实际 piece_type=${p.piece_type} status=${p.status}），` +
+          '词表来源 models/status/purchase_inventory.rs::inventory_piece（大写），出库 tuple 必不命中，显式判红'
+      );
+    }
+    if (String(p.batch_no) !== opts.dyeLotNo || String(p.dye_lot_no) !== opts.dyeLotNo) {
+      throw new Error(
+        `[${tag}] 匹 ${p.piece_no} 维度与写入方口径矛盾（batch=${p.batch_no} dye=${p.dye_lot_no}，应同为 ${opts.dyeLotNo}）`
+      );
+    }
+  }
+  console.log(
+    `[${tag}] 真实链染色匹就绪：缸=${opts.dyeLotNo} 色=${opts.colorNo} 批=缸 仓=${opts.warehouseId} ` +
+      `匹号=${pieces
+        .slice(0, pieceCount)
+        .map(p => p.piece_no)
+        .join(',')}`
+  );
+  return pieces.slice(0, pieceCount);
+}
+
+/**
+ * 染色布出库一体包：一行 batch=缸号 的四维库存行 + 同 tuple 真实 AVAILABLE 染色匹 N 匹。
+ * 返回的 stockRow/pieces 四维逐字段一致（色号/缸号/批次/产品/仓库），出库必真实命中。
+ */
+export async function seedDyedOutboundBundle(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    quantityMeters: string;
+    pieceCount?: number;
+    colorNo?: string;
+    context?: string;
+  }
+): Promise<{
+  dyeLotNo: string;
+  colorNo: string;
+  stockRow: Record<string, unknown>;
+  pieces: DyedSeedPiece[];
+}> {
+  const tag = opts.context ?? 'DYEDBUNDLE';
+  const pieceCount = opts.pieceCount ?? 1;
+  const dyeLotNo = genDyeLotNo();
+  const colorNo = opts.colorNo ?? `E2EC-${genCode('C')}`;
+  if (!colorNo) throw new Error(`[${tag}] 染色布 bundle 色号必须非空`);
+
+  // 库存行按写入方口径造：batch_no = 缸号（与染色匹 tuple 同源同值）
+  const stockRow = await seedFourDimStockIn(page, {
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+    colorNo,
+    dyeLotNo,
+    batchNo: dyeLotNo,
+    quantityMeters: opts.quantityMeters,
+  });
+  if (
+    String(stockRow.dye_lot_no) !== dyeLotNo ||
+    String(stockRow.batch_no) !== dyeLotNo ||
+    String(stockRow.color_no) !== colorNo
+  ) {
+    throw new Error(
+      `[${tag}] 库存行落库维度与入参矛盾：期望 色=${colorNo} 缸=批=${dyeLotNo}，` +
+        `实际=${JSON.stringify({ color_no: stockRow.color_no, dye_lot_no: stockRow.dye_lot_no, batch_no: stockRow.batch_no })}`
+    );
+  }
+
+  const total = Number(opts.quantityMeters);
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new Error(`[${tag}] quantityMeters 必须为正数米数，实际 ${opts.quantityMeters}`);
+  }
+  const pieces = await seedDyedPieceChain(page, {
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+    colorNo,
+    dyeLotNo,
+    pieceCount,
+    lengthPerPieceMeters: Math.max(1, Math.floor(total / pieceCount)),
+    context: tag,
+  });
+  return { dyeLotNo, colorNo, stockRow, pieces };
+}
+
 export async function verifyAuditLog(
   page: Page,
   action: string,

@@ -11,7 +11,9 @@ import {
   TEST_USERNAME,
   TEST_PASSWORD,
   ensureTestEntities,
-  ensureStockInWarehouse,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
   expectBadRequest,
   failureCode,
   tryCleanup,
@@ -201,22 +203,29 @@ test.describe('异常处理与边界条件', () => {
   });
 
   test('销售建单不锁库存：可用量不足仅在发货时门控（不预占 reservation）', async ({ page }) => {
+    test.setTimeout(240_000);
     const ctx = getCtx();
     const productId = ctx.productIds[0];
-    const warehouseId = ctx.warehouseIds[0];
     expect(productId, '缺产品 id，无法验证建单/发货门控').toBeTruthy();
-    expect(warehouseId, '缺仓库 id，无法验证建单/发货门控').toBeTruthy();
 
-    // 预置一行带全四维（色号+缸号+批次）的真实库存作为可用量基准，
-    // 并取真实仓库编码（ship.rs 按 warehouse_code 查仓）供发货请求使用。
-    const stockRow = await ensureStockInWarehouse(page, productId, warehouseId);
-    const wh = await apiCallRaw<{ warehouse_code?: string }>(
-      page,
-      'GET',
-      `/warehouses/${warehouseId}`
-    );
-    const warehouseCode = wh?.warehouse_code;
-    expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    // 预置一行带全四维（色号+缸号=批次+匹号）的真实库存 + 同 tuple AVAILABLE 染色匹，
+    // 并确定性选定可承载染色匹的仓库带出其编码（ship.rs 按 warehouse_code 查仓）。
+    // 出库对染色布强制四维（用户 2026-10-02 口径）：本例是"数量不足"负例，必须让
+    // 请求先通过缺维（VALIDATION）与缺匹（BUSINESS 匹未命中）两道门，才能证明拒绝
+    // 只能来自可用量门控——所以匹号必须带真实可出库匹（helpers.seedDyedOutboundBundle：
+    // batch=缸号 库存行 + 委外染色真实链造匹；旧 ensureStockInWarehouse 行 batch≠缸号，
+    // 按写入方口径造不出命中匹，负例将退化成"缺维被拒"的假绿）。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId,
+      warehouseId: target.id,
+      quantityMeters: '100',
+      pieceCount: 1,
+      context: '18-A5',
+    });
+    const stockRow = bundle.stockRow;
+    const warehouseCode = target.code;
+    expect(warehouseCode, `仓库 ${target.id} 应返回 warehouse_code`).toBeTruthy();
     expect(stockRow.batch_no, '库存行应带批次号（四维出库入参来源）').toBeTruthy();
     expect(stockRow.dye_lot_no, '库存行应带缸号（四维出库入参来源）').toBeTruthy();
 
@@ -246,13 +255,16 @@ test.describe('异常处理与边界条件', () => {
     await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
 
-    // 发货门控：按真实出库四维请求远超可用量的发货量，可用量校验（check_inventory，
-    // ship.rs:145 → inventory.rs:153 decide_item_stock）应判 Insufficient/NoStockRows 拒发。
-    // 与旧版的两处假绿不同：
+    // 发货门控：按真实出库四维（含匹号）请求远超可用量的发货量，可用量校验
+    // （check_inventory，ship.rs:145 → inventory.rs decide_item_stock/plan_deduction）
+    // 应判 Insufficient 拒发（BUSINESS 族）。与旧版的三处假绿不同：
     //  ①旧版用 if (soId) 包裹发货断言——建单未返回 id 时整段被跳过 = 空转假绿；现显式断言 soId。
     //  ②旧版 ship 传空 body → 因缺 order_id/warehouse_code/items 被 serde 判 4xx，
     //    "看似被阻断"实为请求格式错误（并非可用量门控），也是假绿；此处传结构合法请求体，
-    //    令拒绝只能来自可用量门控（status<500 且携带业务/校验机器码，非 500 崩溃、非 401/403）。
+    //    令拒绝只能来自可用量门控。
+    //  ③旧版允许 VALIDATION_ERROR 也算"门控拒绝"——四维口径下缺维（如缺匹号）也是 4xx
+    //    VALIDATION，会把"请求本身不合法"读成"可用量门控生效"。现钉死 BUSINESS_ERROR：
+    //    只有过了维度/匹号校验、真正败在可用量的拒绝才满足本用例命题。
     const ship = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
       warehouse_code: warehouseCode,
@@ -263,19 +275,31 @@ test.describe('异常处理与边界条件', () => {
           color_no: stockRow.color_no,
           batch_no: stockRow.batch_no,
           dye_lot_no: stockRow.dye_lot_no,
+          piece_no: bundle.pieces[0].piece_no,
         },
       ],
     });
     const shipReject = failureCode(ship);
-    const rejectedByGate =
-      ship.status >= 400 &&
-      ship.status < 500 &&
-      (shipReject === APP_ERROR_CODES.BUSINESS_ERROR ||
-        shipReject === APP_ERROR_CODES.VALIDATION_ERROR);
     expect(
-      rejectedByGate,
-      `发货应因可用量不足被业务门控拒绝，实际 status=${ship.status} code=${ship.code ?? ''} message=${ship.message ?? ''}`
-    ).toBeTruthy();
+      shipReject,
+      `发货应因可用量不足被 BUSINESS 族门控拒绝（非缺维 VALIDATION、非 5xx），` +
+        `实际 status=${ship.status} code=${ship.code ?? ''} message=${ship.message ?? ''}`
+    ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    expect(
+      ship.status,
+      `可用量不足拒绝应为 4xx（业务拒绝非裸崩），实际 status=${ship.status} message=${ship.message ?? ''}`
+    ).toBeGreaterThanOrEqual(400);
+    expect(ship.status, `可用量不足拒绝不得是 5xx，实际=${ship.status}`).toBeLessThan(500);
+    // 被拒的写无痕：库存未扣、匹未被消耗（仍 AVAILABLE）
+    const untouched = await readDyedPieceByNo(page, {
+      productId,
+      warehouseId: target.id,
+      dyeLotNo: bundle.dyeLotNo,
+      batchNo: bundle.dyeLotNo,
+      pieceNo: bundle.pieces[0].piece_no,
+    });
+    expect(untouched, '被拒发货不得吞掉匹记录').toBeTruthy();
+    expect(String(untouched!.status), '可用量不足被拒后匹应仍 AVAILABLE').toBe('AVAILABLE');
   });
 
   test('会计期间关闭后凭证录入应被阻断', async ({ page }) => {

@@ -23,7 +23,9 @@
 //     sales_delivery 词表 sales.rs:46-52 小写 pending/shipped/cancelled）
 //   四维出库扣减            services/so/delivery_ops/inventory.rs::reduce_inventory_four_dim
 //     （quantity_available -= 出库量、quantity_shipped += 出库量、quantity_on_hand 守恒；
-//      批次/色号/缸号缺失由 require_outbound_dimensions 业务拒）
+//      出库对染色布强制四维=缸号/色号/批次/匹号（用户 2026-10-02 口径），缺维由
+//      require_outbound_dimensions 判 VALIDATION 族且外显真实原因（fix(outbound) 后），
+//      匹号未命中真实可用匹属 BUSINESS 族）
 //   路径-载荷一致性门       handlers/sales_order_handler.rs:418-420（不一致 400 BAD_REQUEST，真实 message 外显）
 //   发货单回读形状          handlers/sales_order_handler.rs:687-702：data = {list,total}（**非** items！
 //     信封键名以 handler 出参为准，前端读取键必须同源，列入契约表）
@@ -50,7 +52,9 @@ import {
   failureCode,
   genCode,
   tryCleanup,
-  seedFourDimStockIn,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
   APP_ERROR_CODES,
 } from '../flow/helpers';
 import { pickListArray } from '../flow/ui-helpers';
@@ -229,37 +233,37 @@ test.describe('21 销售到收款全流程契约链', () => {
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
 
     // ── 四维库存备货（专用：quotationProductId + 唯一色/缸/批，本例可精确归因）──
-    if (!ctx.warehouseIds[0]) throw new Error('前置缺失：ctx.warehouseIds[0] 未就绪');
-    const dim = {
-      colorNo: `E21C${genCode('C')}`,
-      dyeLotNo: `E21D${genCode('D')}`,
-      batchNo: `E21B${genCode('B')}`,
-    };
-    await seedFourDimStockIn(page, {
+    // 出库对染色布强制四维=缸号/色号/批次/匹号（用户 2026-10-02 口径）：批次必须等于缸号
+    // ——写入方 piece_domain_service.rs:540 生成染色匹恒 batch_no=dye_lot_no=缸号，旧写法
+    // batch=`E21B…` 独立值按该 tuple 造不出真实匹。改用 helpers.seedDyedOutboundBundle：
+    // batch=缸号 库存行 40 米 + 委外染色真实链同维 2 匹 AVAILABLE（发料逐匹/回仓确认，flow/07 先例）。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
       productId: ctx.quotationProductId as number,
-      warehouseId: ctx.warehouseIds[0],
-      colorNo: dim.colorNo,
-      dyeLotNo: dim.dyeLotNo,
-      batchNo: dim.batchNo,
+      warehouseId: target.id,
       quantityMeters: '40',
+      pieceCount: 2,
+      context: 'E21-01',
     });
-    const wh = await apiCallRaw<Record<string, unknown>>(
-      page,
-      'GET',
-      `/warehouses/${ctx.warehouseIds[0]}`
-    );
-    const whCode = String(wh.warehouse_code ?? '');
-    if (!whCode)
+    if (bundle.pieces.length < 2)
       throw new Error(
-        `仓库缺 warehouse_code（models/warehouse.rs:11），实际键=${Object.keys(wh).join(',')}`
+        `[21-01] 前置失败：真实链未产出 2 匹可出库染色匹（实际 ${bundle.pieces.length}）`
       );
+    const dim = {
+      colorNo: bundle.colorNo,
+      dyeLotNo: bundle.dyeLotNo,
+      batchNo: bundle.dyeLotNo, // 写入方口径：染色匹 批次=缸号
+    };
+    const warehouseId = target.id;
+    const whCode = target.code;
+    if (!whCode) throw new Error(`仓库 ${warehouseId} 缺 warehouse_code（models/warehouse.rs:11）`);
 
     const readStock = async (): Promise<Record<string, unknown>> => {
       const rows = pickListArray<Record<string, unknown>>(
         await apiCallRaw<Record<string, unknown>>(
           page,
           'GET',
-          `/inventory/stock?product_id=${ctx.quotationProductId}&color_no=${dim.colorNo}&dye_lot_no=${dim.dyeLotNo}&batch_no=${dim.batchNo}&warehouse_id=${ctx.warehouseIds[0]}&page=1&page_size=10`
+          `/inventory/stock?product_id=${ctx.quotationProductId}&color_no=${dim.colorNo}&dye_lot_no=${dim.dyeLotNo}&batch_no=${dim.batchNo}&warehouse_id=${warehouseId}&page=1&page_size=10`
         ),
         'items',
         '四维库存行'
@@ -274,7 +278,9 @@ test.describe('21 销售到收款全流程契约链', () => {
     const before = await readStock();
     expectDecimal(before, 'quantity_available', 40, '发货前可用量');
 
-    // ── 发货两笔：15 → partial_shipped；再 25 → shipped；库存逐项回读 ──
+    // ── 发货两笔：15 → partial_shipped；再 25 → shipped；库存与匹状态逐项回读 ──
+    // 染色布出库第四维=匹号（用户 2026-10-02 口径）：两笔各带真实链产出的一匹，
+    // 出库后该匹必须 AVAILABLE→SHIPPED（piece_domain_service.rs:674 CAS 消耗）。
     await apiCall(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
       warehouse_code: whCode,
@@ -285,6 +291,7 @@ test.describe('21 销售到收款全流程契约链', () => {
           batch_no: dim.batchNo,
           color_no: dim.colorNo,
           dye_lot_no: dim.dyeLotNo,
+          piece_no: bundle.pieces[0].piece_no,
         },
       ],
     });
@@ -304,6 +311,18 @@ test.describe('21 销售到收款全流程契约链', () => {
       Number(before.quantity_on_hand),
       '现存量守恒（on_hand=available+shipped，不因出库变动）'
     );
+    const p1 = await readDyedPieceByNo(page, {
+      productId: ctx.quotationProductId as number,
+      warehouseId,
+      dyeLotNo: dim.dyeLotNo,
+      batchNo: dim.batchNo,
+      pieceNo: bundle.pieces[0].piece_no,
+    });
+    expect(p1, `第一笔发货后应回读到匹 ${bundle.pieces[0].piece_no}`).toBeTruthy();
+    expect(
+      String(p1!.status),
+      `匹 ${bundle.pieces[0].piece_no} 应被第一笔出库消耗为 SHIPPED（词表 inventory_piece 大写），实际 ${p1!.status}`
+    ).toBe('SHIPPED');
 
     // 发货单回读：信封键 = {list,total}（sales_order_handler.rs:687-702，**非** items——
     // 前端若按 items 读该端点将恒空，列入契约表）
@@ -337,6 +356,7 @@ test.describe('21 销售到收款全流程契约链', () => {
           batch_no: dim.batchNo,
           color_no: dim.colorNo,
           dye_lot_no: dim.dyeLotNo,
+          piece_no: bundle.pieces[1].piece_no,
         },
       ],
     });
@@ -345,6 +365,18 @@ test.describe('21 销售到收款全流程契约链', () => {
     const s2 = await readStock();
     expectDecimal(s2, 'quantity_available', 0, '全发后可用量归零');
     expectDecimal(s2, 'quantity_shipped', 40, '全发后已发量=40');
+    const p2 = await readDyedPieceByNo(page, {
+      productId: ctx.quotationProductId as number,
+      warehouseId,
+      dyeLotNo: dim.dyeLotNo,
+      batchNo: dim.batchNo,
+      pieceNo: bundle.pieces[1].piece_no,
+    });
+    expect(p2, `第二笔发货后应回读到匹 ${bundle.pieces[1].piece_no}`).toBeTruthy();
+    expect(
+      String(p2!.status),
+      `匹 ${bundle.pieces[1].piece_no} 应被第二笔出库消耗为 SHIPPED，实际 ${p2!.status}`
+    ).toBe('SHIPPED');
 
     // ── 开票：AR 发票（源单关联键全数回读）──
     const orderNo = String(o2.order_no);
@@ -511,30 +543,44 @@ test.describe('21 销售到收款全流程契约链', () => {
     expect(fMismatch.status, '路径/载荷不一致应 400').toBe(400);
     expect(failureCode(fMismatch), '不一致机器码 BAD_REQUEST').toBe(APP_ERROR_CODES.BAD_REQUEST);
 
-    // D) 四维缺批次发货 → 400 BUSINESS_ERROR（require_outbound_dimensions，不做兜底）
+    // D) 缺维发货 → 400 VALIDATION_ERROR 且外显真实原因（inventory_deduction.rs:242
+    //    require_outbound_dimensions → fabric_class.rs:42-58 批次必填；fix(outbound) 已把
+    //    缺维拒绝改回可外显——旧期望 BUSINESS_ERROR 是"包装层把 VALIDATION 降级"时代的口径，
+    //    新口径缺维属字段必填族 VALIDATION，状态门/充足性才是 BUSINESS；此处如实对齐口径，
+    //    并钉文案非脱敏常量）
     const fDim = await apiCallExpectFail(page, 'POST', `/sales/orders/${so.id}/ship`, {
       order_id: so.id,
       warehouse_code: whCode,
       items: [{ product_id: ctx.productIds[1] ?? ctx.productIds[0], quantity: '1' }],
     });
     expect(fDim.status, `缺四维发货应 400，实际=${fDim.status}`).toBe(400);
-    expect(failureCode(fDim), '缺四维机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    expect(
+      failureCode(fDim),
+      `缺维机器码应为 VALIDATION_ERROR（字段必填族），实际 code=${fDim.code ?? ''} message=${fDim.message ?? ''}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    const fDimMsg = String(fDim.message ?? '');
+    expect(fDimMsg, `缺维拒绝文案不得是脱敏常量，实际=${fDimMsg}`).not.toBe('请求参数验证失败');
+    expect(fDimMsg, `缺维拒绝文案应点名缺失维度（批次/批号），实际=${fDimMsg}`).toMatch(/批/);
 
-    // E) 四维行存在但数量不足（备货 3 < 发货 10）→ 400 BUSINESS_ERROR 且不得把可用量扣成负
-    const shortColor = `E21SC${genCode('S')}`;
-    const shortLot = `E21SL${genCode('S')}`;
-    const shortBatch = `E21SB${genCode('S')}`;
-    await seedFourDimStockIn(page, {
+    // E) 四维行+匹齐备但数量不足（备货 3 < 发货 10）→ 400 BUSINESS_ERROR 且不得把可用量扣成负。
+    //    出库对染色布强制四维=缸/色/批/匹（用户 2026-10-02 口径）：旧写法不带 piece_no，
+    //    拒绝会先落在"缺维 VALIDATION"上，本命题（可用量门控）根本没跑到——假绿。
+    //    现按写入方口径备货（batch=缸号 库存行 + 委外染色真实链同维 AVAILABLE 匹，
+    //    helpers.seedDyedOutboundBundle），请求带真实匹号，让拒绝只能来自数量不足。
+    const shortTarget = await pickDyeableWarehouse(page);
+    const shortBundle = await seedDyedOutboundBundle(page, {
       productId: ctx.productIds[1] as number,
-      warehouseId: ctx.warehouseIds[0],
-      colorNo: shortColor,
-      dyeLotNo: shortLot,
-      batchNo: shortBatch,
+      warehouseId: shortTarget.id,
       quantityMeters: '3',
+      pieceCount: 1,
+      context: 'E21-02E',
     });
+    const shortColor = shortBundle.colorNo;
+    const shortLot = shortBundle.dyeLotNo;
+    const shortBatch = shortBundle.dyeLotNo; // 写入方口径：染色匹 批次=缸号
     const fShort = await apiCallExpectFail(page, 'POST', `/sales/orders/${so.id}/ship`, {
       order_id: so.id,
-      warehouse_code: whCode,
+      warehouse_code: shortTarget.code,
       items: [
         {
           product_id: ctx.productIds[1],
@@ -542,16 +588,20 @@ test.describe('21 销售到收款全流程契约链', () => {
           batch_no: shortBatch,
           color_no: shortColor,
           dye_lot_no: shortLot,
+          piece_no: shortBundle.pieces[0].piece_no,
         },
       ],
     });
     expect(fShort.status, '四维合计不足发货应 400，实际响应=' + JSON.stringify(fShort)).toBe(400);
-    expect(failureCode(fShort), '四维合计不足机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    expect(
+      failureCode(fShort),
+      `四维合计不足机器码（数量门控属 BUSINESS 族，非缺维 VALIDATION），实际 code=${fShort.code ?? ''} message=${fShort.message ?? ''}`
+    ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
     const shortRows = pickListArray<Record<string, unknown>>(
       await apiCallRaw<Record<string, unknown>>(
         page,
         'GET',
-        `/inventory/stock?product_id=${ctx.productIds[1]}&color_no=${shortColor}&dye_lot_no=${shortLot}&batch_no=${shortBatch}&warehouse_id=${ctx.warehouseIds[0]}&page=1&page_size=10`
+        `/inventory/stock?product_id=${ctx.productIds[1]}&color_no=${shortColor}&dye_lot_no=${shortLot}&batch_no=${shortBatch}&warehouse_id=${shortTarget.id}&page=1&page_size=10`
       ),
       'items',
       '不足发货后的库存行'
@@ -563,6 +613,18 @@ test.describe('21 销售到收款全流程契约链', () => {
       'quantity_available',
       3,
       '发货被拒后可用量应原样为 3（fail-closed 无半扣）'
+    );
+    // 被拒的写无痕：匹未被消耗（不足拒绝发生在米数扣减规划期，匹 CAS 未执行/随事务回滚）
+    const ePiece = await readDyedPieceByNo(page, {
+      productId: ctx.productIds[1] as number,
+      warehouseId: shortTarget.id,
+      dyeLotNo: shortLot,
+      batchNo: shortBatch,
+      pieceNo: shortBundle.pieces[0].piece_no,
+    });
+    expect(ePiece, '不足发货被拒后应仍能回读到该匹').toBeTruthy();
+    expect(String(ePiece!.status), '不足发货被拒后匹应仍 AVAILABLE（消耗未发生）').toBe(
+      'AVAILABLE'
     );
     const oStill = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/sales/orders/${so.id}`);
     expectKeyValue(oStill, 'status', 'approved', '全部失败发货后订单应仍 approved（无半途漂移）');

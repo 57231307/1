@@ -9,10 +9,9 @@ import {
   verifyAuditLog,
   getCtx,
   genCode,
-  genDyeLotNo,
-  genPieceNo,
   ensureTestEntities,
-  seedFourDimStockIn,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
   BASE_URL,
 } from './helpers';
 import { pickListArray } from './ui-helpers';
@@ -30,7 +29,6 @@ const SO_STATUSES = [
 ];
 
 test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', () => {
-  const dyeLotNo = genDyeLotNo();
   /** 2-8 新建的分次收款专用应收单金额；2-9 按此金额做 50% + 50% 两笔收款并断言状态流转 */
   const AR_INVOICE_AMOUNT = 113000;
   const AR_PAYMENT_HALF = AR_INVOICE_AMOUNT / 2;
@@ -237,12 +235,10 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
   });
 
   test('2-6 发货（扫码匹号出库，双计量扣减）', async ({ page }) => {
+    test.setTimeout(240_000);
     const ctx = getCtx();
     const id = ctx.salesOrderId;
     expect(id, '2-4 未产出销售订单，发货链路无从验证').toBeTruthy();
-
-    const pieceNo1 = genPieceNo(dyeLotNo, 1);
-    const pieceNo2 = genPieceNo(dyeLotNo, 2);
 
     // warehouse_code：从仓库列表取第一个真实编码（ShipOrderRequest 传 code 而非 id）
     // 注意 warehouse 列表字段名为 warehouse_code（非 code）
@@ -263,47 +259,63 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       );
     }
 
-    // 出库四维扣减（款号+色号+缸号+批次）：先按本次出库要用的四个维度真实入库两行，
-    // 再用同四维出库；不依赖种子库存行（种子行维度与本轮生成的匹号/缸号无关）。
-    await seedFourDimStockIn(page, {
+    // 出库四维扣减（款号+色号+缸号+批次+匹号，用户 2026-10-02 口径：染色布第四维=匹号强制）：
+    // 旧写法以 genPieceNo(缸号-001/-002) 充当 batch_no 且不带 piece_no——真实写入方
+    // （piece_domain_service.rs:518-556 委外染色回仓）生成的染色匹恒为 batch_no=缸号、
+    // piece_no={缸号}-{seq:03}，旧 tuple 造不出真实匹，发货必被 VALIDATION/BUSINESS 拒。
+    // 改按写入方口径 seed：一行 batch=缸号 的四维库存行 + 同缸真实链 2 匹 AVAILABLE 染色匹
+    // （helpers.seedDyedOutboundBundle → 委外染色真实链，见 flow/07 先例），
+    // 出库两笔逐匹消耗（500→{缸}-001，300→{缸}-002）。
+    const bundle = await seedDyedOutboundBundle(page, {
       productId: ctx.productIds[0] || 1,
       warehouseId,
-      colorNo: 'RED-001',
-      dyeLotNo,
-      batchNo: pieceNo1,
-      quantityMeters: '600',
+      quantityMeters: '1000',
+      pieceCount: 2,
+      context: '2-6',
     });
-    await seedFourDimStockIn(page, {
-      productId: ctx.productIds[0] || 1,
-      warehouseId,
-      colorNo: 'RED-001',
-      dyeLotNo,
-      batchNo: pieceNo2,
-      quantityMeters: '400',
-    });
+    const pieceNo1 = bundle.pieces[0].piece_no;
+    const pieceNo2 = bundle.pieces[1].piece_no;
 
     await apiCall(page, 'POST', `/sales/orders/${id}/ship`, {
       // 后端 ShipOrderRequest 必填 order_id + warehouse_code（非 warehouse_id），
-      // items 接受 product_id/quantity/batch_no/color_no/dye_lot_no，出库按四维匹配扣减
+      // items 接受 product_id/quantity/batch_no/color_no/dye_lot_no/piece_no，出库按四维匹配扣减
       order_id: id,
       warehouse_code: warehouseCode,
       items: [
         {
           product_id: ctx.productIds[0] || 1,
           quantity: 500,
-          batch_no: pieceNo1,
-          color_no: 'RED-001',
-          dye_lot_no: dyeLotNo,
+          batch_no: bundle.dyeLotNo,
+          color_no: bundle.colorNo,
+          dye_lot_no: bundle.dyeLotNo,
+          piece_no: pieceNo1,
         },
         {
           product_id: ctx.productIds[0] || 1,
           quantity: 300,
-          batch_no: pieceNo2,
-          color_no: 'RED-001',
-          dye_lot_no: dyeLotNo,
+          batch_no: bundle.dyeLotNo,
+          color_no: bundle.colorNo,
+          dye_lot_no: bundle.dyeLotNo,
+          piece_no: pieceNo2,
         },
       ],
     });
+
+    // 第四维消耗回读（写后必回读）：两匹必须 AVAILABLE→SHIPPED
+    for (const pieceNo of [pieceNo1, pieceNo2]) {
+      const consumed = await readDyedPieceByNo(page, {
+        productId: ctx.productIds[0] || 1,
+        warehouseId,
+        dyeLotNo: bundle.dyeLotNo,
+        batchNo: bundle.dyeLotNo,
+        pieceNo,
+      });
+      expect(consumed, `发货后应能按四维 tuple 回读到匹 ${pieceNo}`).toBeTruthy();
+      expect(
+        String(consumed!.status),
+        `匹 ${pieceNo} 应被本次出库消耗为 SHIPPED（词表 inventory_piece 大写），实际 ${consumed!.status}`
+      ).toBe('SHIPPED');
+    }
 
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
     // 2-4 由报价（数量 800）转单，2-6 发货 500+300=800 已全额发出。

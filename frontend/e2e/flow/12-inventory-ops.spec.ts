@@ -11,8 +11,10 @@ import {
   verifyStockFourDim,
   verifyAuditLog,
   ensureTestEntities,
-  ensureStockInWarehouse,
   seedFourDimStockIn,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
   seedInspectionPass,
 } from './helpers';
 
@@ -28,36 +30,55 @@ test.describe('库存调拨完整流程', () => {
 
     const productId = ctx.productIds[0] || 1;
 
-    // 调出仓库必须有库存：以实际库存行为准（修 ctx.warehouseIds 漂移），
-    // 调入仓库用 ctx 的另一个仓库
-    const stockRow = await ensureStockInWarehouse(
-      page,
+    // 调出仓库必须有库存：出库对染色布强制四维=缸号/色号/批次/匹号（用户 2026-10-02 口径），
+    // 调拨同销售出库走 consume_dyed_piece_for_outbound（inv/batch.rs），且**建单期**即
+    // validate_dyed_piece_for_outbound 预检真实可用匹（batch.rs:1193-1201）。
+    // ensureStockInWarehouse 命中的历史行 batch≠缸号——写入方（piece_domain_service.rs:540）
+    // 的染色匹恒 batch_no=dye_lot_no=缸号，按该 tuple 真实链配不出可命中匹，建单即被拒。
+    // 故改用 helpers.seedDyedOutboundBundle：batch=缸号 四维库存行 + 委外染色真实链
+    // 同维 AVAILABLE 匹（flow/07 先例链），调出仓取可承载染色匹的仓库（确定性，不靠 ctx 漂移）。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
       productId,
-      ctx.warehouseIds[0],
-      ctx.colorNos[0]
-    );
-    const fromWarehouseId = Number(stockRow.warehouse_id) || ctx.warehouseIds[0];
+      warehouseId: target.id,
+      quantityMeters: '1000',
+      pieceCount: 1,
+      context: '12-T1',
+    });
+    const stockRow = bundle.stockRow;
+    const colorNo = bundle.colorNo;
+    const fromWarehouseId = target.id;
     const toWarehouseId =
       ctx.warehouseIds.find(id => id !== fromWarehouseId) || ctx.warehouseIds[1];
+    if (!toWarehouseId || toWarehouseId === fromWarehouseId) {
+      throw new Error(
+        '[12-T1] 前置缺失：找不到与调出仓不同的调入仓（ctx.warehouseIds 不足），显式判红'
+      );
+    }
 
     // 调拨前：来源仓必须已有该产品+色号的库存行
     // （原实现读不存在的 quantity/available_qty 字段算出 qtyBefore，且该值后续从未参与断言）
-    const stockBefore = await verifyStockFourDim(page, productId, ctx.colorNos[0], undefined, {
+    const stockBefore = await verifyStockFourDim(page, productId, colorNo, undefined, {
       warehouseId: fromWarehouseId,
     });
     expect(
       stockBefore,
-      `调拨前来源仓 ${fromWarehouseId} 应存在产品 ${productId} / 色号 ${ctx.colorNos[0]} 的库存行`
+      `调拨前来源仓 ${fromWarehouseId} 应存在产品 ${productId} / 色号 ${colorNo} 的库存行`
     ).toBeTruthy();
 
     // 出库按 产品+色号+缸号+批次 四维精确扣减、不回退（backend.log 明确："…批次… 在源仓库
-    // 无任何库存记录，出库被拒绝（不回退到产品+色号扣减）"）。因此调拨明细的缸号/批次必须取自
-    // ensureStockInWarehouse 实际命中的库存行（其 batch_no/dye_lot_no 由 helper 生成，非固定值），
-    // 不能硬编码——否则建单虽成功，ship 时按不存在的四维组合扣减必然被拒。
-    const transferDyeLot = String(
-      stockRow.dye_lot_no ?? ctx.dyeLotNo ?? `E2E-DL-${Date.now().toString().slice(-6)}`
-    );
-    const transferBatchNo = String(stockRow.batch_no ?? 'E2E-BATCH-12');
+    // 无任何库存记录，出库被拒绝（不回退到产品+色号扣减）"），染色布另强制第四维匹号。
+    // 明细的缸号/批次/匹号必须取自本 bundle 的真实落库值（batch=缸号；匹号=真实链产出），
+    // 不能硬编码——否则建单即被第四维预检拒，或 ship 时按不存在的 tuple 扣减必然被拒。
+    const transferDyeLot = bundle.dyeLotNo;
+    const transferBatchNo = String(stockRow.batch_no);
+    if (transferBatchNo !== transferDyeLot) {
+      throw new Error(
+        `[12-T1] 库存行批次(${transferBatchNo})与缸号(${transferDyeLot})不一致，` +
+          '与染色匹写入方口径（batch=缸号）矛盾，出库 tuple 必不命中——真实链断裂，显式判红'
+      );
+    }
+    const transferPieceNo = bundle.pieces[0].piece_no;
     const transferQty = 5;
 
     // 后端 CreateInventoryTransferRequest 真实字段
@@ -70,9 +91,10 @@ test.describe('库存调拨完整流程', () => {
         {
           product_id: productId,
           quantity: String(transferQty),
-          color_no: ctx.colorNos[0],
+          color_no: colorNo,
           dye_lot_no: transferDyeLot,
           batch_no: transferBatchNo,
+          piece_no: transferPieceNo,
         },
       ],
     };
@@ -118,6 +140,20 @@ test.describe('库存调拨完整流程', () => {
     );
     expect(shipped.status.toLowerCase()).toBe('shipped');
 
+    // 第四维消耗回读（写后必回读）：调拨出库对染色匹同事务 CAS AVAILABLE→SHIPPED
+    const shippedPiece = await readDyedPieceByNo(page, {
+      productId,
+      warehouseId: fromWarehouseId,
+      dyeLotNo: transferDyeLot,
+      batchNo: transferBatchNo,
+      pieceNo: transferPieceNo,
+    });
+    expect(shippedPiece, `出库后应能按四维 tuple 回读到匹 ${transferPieceNo}`).toBeTruthy();
+    expect(
+      String(shippedPiece!.status),
+      `调拨出库应消耗该匹为 SHIPPED（词表 inventory_piece 大写），实际 ${shippedPiece!.status}`
+    ).toBe('SHIPPED');
+
     // 验证非法操作：在途状态不能再次出库
     const illegalShip = await apiCallExpectFail(
       page,
@@ -136,7 +172,7 @@ test.describe('库存调拨完整流程', () => {
     expect(received.status.toLowerCase()).toBe('completed');
 
     // 调拨入库必须落到目标仓的四维库存行（产品+色号+缸号+批次+目标仓）
-    const stockTo = await verifyStockFourDim(page, productId, ctx.colorNos[0], transferDyeLot, {
+    const stockTo = await verifyStockFourDim(page, productId, colorNo, transferDyeLot, {
       batchNo: transferBatchNo,
       warehouseId: toWarehouseId,
     });
@@ -177,29 +213,33 @@ test.describe('库存调拨完整流程', () => {
     const ctx = getCtx();
 
     // 染色布建单为 fail-closed 校验：color_no 非白坯时必须同时提供缸号与批号，
-    // 否则 create_transfer_items_and_compute_total 直接 400（inventory_move.rs:247-258）。
-    // 维度常量提取到此处，确保 seed 与随后 POST 的调拨明细三字段逐一对应。
-    const colorNo = ctx.colorNos[0] || 'CN-001';
-    const dyeLotNo = ctx.dyeLotNo || 'DL-E2E-12';
-    const batchNo = 'E2E-BATCH-12NEG';
+    // 否则 create_transfer_items_and_compute_total 直接 400（inventory_move.rs:247-258）；
+    // 出库对染色布强制四维=缸/色/批/匹（用户 2026-10-02 口径）——建单期还要按
+    // validate_dyed_piece_for_outbound 预检真实 AVAILABLE 匹，故 seed 必须走
+    // seedDyedOutboundBundle（batch=缸号 库存行 + 真实链同维匹），否则本负例连
+    // "拿到 pending 调拨单"的前置都做不到。
+    // 维度常量取自 bundle 真实落库值，确保 seed 与随后 POST 的调拨明细逐一对应。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      quantityMeters: '1000',
+      pieceCount: 1,
+      context: '12-SM',
+    });
+    const colorNo = bundle.colorNo;
+    const dyeLotNo = bundle.dyeLotNo;
+    const batchNo = bundle.dyeLotNo; // 写入方口径：染色匹 批次=缸号
+    const pieceNo = bundle.pieces[0].piece_no;
 
     // 根因C：本负例要先建出一张 pending 调拨单（否则 transferId=undefined，
     // /transfers/undefined/receive|ship 的非法转换断言会假绿）。而 inv/stock.rs::
     // check_from_warehouse_inventory 要求调出仓对该产品有维度匹配的足量库存，
     // 原实现未造源库存 → 建单被正确拒（无匹配库存）、拿不到 id → 本用例红。
-    // 先按下方调拨明细的同一组维度（款号+色号+缸号+批次）在调出仓 seed 真实库存行，
+    // 先按下方调拨明细的同一组维度（款号+色号+缸号+批次+匹号）在调出仓 seed 真实库存行+匹，
     // 再建单（不造假库存）。
-    await seedFourDimStockIn(page, {
-      productId: ctx.productIds[0],
-      warehouseId: ctx.warehouseIds[0],
-      colorNo,
-      dyeLotNo,
-      batchNo,
-      quantityMeters: '1000',
-    });
-
     const transferData = {
-      from_warehouse_id: ctx.warehouseIds[0],
+      from_warehouse_id: target.id,
       to_warehouse_id: ctx.warehouseIds[1] || ctx.warehouseIds[0],
       transfer_date: new Date().toISOString(),
       items: [
@@ -209,6 +249,7 @@ test.describe('库存调拨完整流程', () => {
           color_no: colorNo,
           dye_lot_no: dyeLotNo,
           batch_no: batchNo,
+          piece_no: pieceNo,
         },
       ],
     };
