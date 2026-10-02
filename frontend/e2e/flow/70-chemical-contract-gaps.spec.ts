@@ -273,7 +273,12 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     await tryCleanup(page, 'DELETE', `/chemical-categories/${newChildId}`, '[70] category 重建');
     await tryCleanup(page, 'DELETE', `/chemical-categories/${rootId}`, '[70] category 根');
 
-    // 负例：词表外类型 / 父不存在 / 编码重复（均为 service 层 AppError，统一信封）
+    // 负例：词表外类型 / 父不存在（均为 service 层 AppError，统一信封）。
+    // 注意：**重复编码不在本用例断言**——判重只查未删行（category.rs:50-60，
+    // 本表既定语义"软删后同码可复用"），而本用例上文已把根分类软删（:tryCleanup），
+    // 此处对已软删的 rootCode 再断"重复应拒"与同用例的"软删可复用"断言语义互斥，
+    // 后端不可两全。"未删状态下重复必拒"由紧随的 70-01b 独立用例锁定，
+    // 其数据全程保持未删，两条用例语义各自干净。
     const badType = await apiCallExpectFail(page, 'POST', '/chemical-categories', {
       category_code: genCode('E2E70CBT'),
       category_name: '词表外类型',
@@ -287,18 +292,120 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
       parent_id: 999999999,
     });
     expectRejected(ghostParent, '父分类不存在应被拒（category.rs:38-47）');
-    const dupCode = await apiCallExpectFail(page, 'POST', '/chemical-categories', {
-      category_code: rootCode,
-      category_name: '重复编码',
-      category_type: 'dye',
-    });
-    expectRejected(dupCode, `未删记录中重复编码 ${rootCode} 应被拒`);
-    // 缺必填 category_code → 提取器 400（types.rs:121-129 必填非 Option）
+    // 缺必填 category_code → 400（types.rs:121-129 必填非 Option；提取器拒绝已被
+    // trace_context.rs normalize_extractor_rejection 收进 400+VALIDATION_ERROR 信封，
+    // 状态码判定不变）
     const missingKey = await apiCallExpectFail(page, 'POST', '/chemical-categories', {
       category_name: '缺编码键',
       category_type: 'dye',
     });
     expectExtractorReject(missingKey, '缺 category_code 必填应 400');
+  });
+
+  test('70-01b 分类编码判重：未删状态下同码 POST 必被拒（400/BUSINESS_ERROR + 真实文案外显 + 零落库无痕）', async ({
+    page,
+  }) => {
+    // 判重口径真相（category.rs:50-60）：查重**只过滤未删行**，本表族既定语义
+    // "软删后同码可复用"（70-01 childCode、70-02 chemical_code 同源钉桩）。
+    // 本用例主体记录**全程保持未删**，只锁"未删重复必拒"这半边语义，与 70-01
+    // 的"软删可复用"互不掺杂，不再出现改前 70-01 先删根、后断根码重复的自序矛盾。
+    await verifyEndpointHealthy(page, '/chemical-categories?page=1&page_size=5');
+
+    const dupCode = genCode('E2E70CRD');
+    const originName = `70判重主体${dupCode}`;
+    const origin = await apiCall<Row>(page, 'POST', '/chemical-categories', {
+      category_code: dupCode,
+      category_name: originName,
+      category_type: 'dye',
+    });
+    const originId = Number(origin.data?.id);
+    expect(originId, `判重主体分类应创建成功：${JSON.stringify(origin)}`).toBeGreaterThan(0);
+    await tryCleanup(
+      page,
+      'DELETE',
+      `/chemical-categories/${originId}`,
+      `[70] category ${dupCode}`
+    );
+
+    // 未删状态下同码再 POST → 必拒。本仓刚把该族拒绝从脱敏常量改为可外显
+    // （AppError::business_displayable），故收紧为精确判定：400 + BUSINESS_ERROR，
+    // 不放宽成"任意 4xx"。
+    const dup = await apiCallExpectFail(page, 'POST', '/chemical-categories', {
+      category_code: dupCode,
+      category_name: '重复编码应被拒',
+      category_type: 'dye',
+    });
+    expect(dup.status, `未删同码应被 400 拒绝，实际 ${JSON.stringify(dup)}`).toBe(400);
+    expect(
+      failureCode(dup),
+      `未删同码机器码应为 BUSINESS_ERROR，实际 ${failureCode(dup)}（${JSON.stringify(dup)}）`
+    ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+
+    // 真实文案外显（正向钉）：不得是脱敏常量「业务处理失败」，须含公开规则词
+    // "编码"且回显用户自己提交的编码（用户改码即可通过 ⇒ 可外显族，
+    // 判据同 wave-i 报告 §②）。
+    const dupMsg = String(dup.message ?? '');
+    expect(dupMsg, `拒绝文案应外显真实规则而非脱敏常量：${JSON.stringify(dup)}`).not.toBe(
+      '业务处理失败'
+    );
+    expect(dupMsg, `拒绝文案应含公开规则词「编码」：${dupMsg}`).toContain('编码');
+    expect(dupMsg, `拒绝文案应回显用户提交的编码 ${dupCode}：${dupMsg}`).toContain(dupCode);
+
+    // 双向钉（泄漏红线，同 contract_wave7 §⑤-1）：不得含表名/SQL/竞态错误码等
+    // 内部详情；剔除用户自己提交的编码后，文案中不应再有任何数字（内部 ID/
+    // 其他记录标识一律不外进出参）。
+    const leakBlacklist = ['chemical_category', 'insert', 'select', 'unique', '23505', 'sql'];
+    for (const leak of leakBlacklist) {
+      expect(dupMsg.toLowerCase(), `拒绝文案不得泄漏内部详情「${leak}」：${dupMsg}`).not.toContain(
+        leak
+      );
+    }
+    expect(
+      dupMsg.split(dupCode).join(''),
+      `拒绝文案剔除自身编码后不应残留数字（内部 ID 泄漏）：${dupMsg}`
+    ).not.toMatch(/\d/);
+
+    // 回读确认零落库：被拒同码在未删行中仍恰 1 条，且就是原行（id/名称未被覆盖，
+    // 无痕）。列表无编码过滤参数（types.rs:144-150），按分页信封全量翻页扫描，
+    // 上限护栏防 total 异常时死循环。
+    const activeRows: Row[] = [];
+    let pageNo = 1;
+    for (;;) {
+      const data = await apiCallRaw<{
+        items?: unknown;
+        total?: unknown;
+        page?: unknown;
+        page_size?: unknown;
+      }>(page, 'GET', `/chemical-categories?page=${pageNo}&page_size=200`);
+      expect(
+        Array.isArray(data?.items),
+        `/chemical-categories 第 ${pageNo} 页 data.items 必须为数组`
+      ).toBe(true);
+      expect(typeof data.total, `/chemical-categories 第 ${pageNo} 页 total 必须为数字`).toBe(
+        'number'
+      );
+      expect(typeof data.page, `/chemical-categories 第 ${pageNo} 页 page 必须回显`).toBe('number');
+      expect(typeof data.page_size, `/chemical-categories 第 ${pageNo} 页 page_size 必须回显`).toBe(
+        'number'
+      );
+      activeRows.push(...(data.items as Row[]));
+      if (activeRows.length >= Number(data.total)) break;
+      pageNo += 1;
+      expect(
+        pageNo,
+        '未删分类分页扫描超出护栏上限（total 与实际行数不一致？）'
+      ).toBeLessThanOrEqual(20);
+    }
+    const sameCode = activeRows.filter(it => it.category_code === dupCode);
+    expect(
+      sameCode.length,
+      `被拒重复 POST 后同码未删行应恰为 1 条（零落库），实际 ${JSON.stringify(sameCode)}`
+    ).toBe(1);
+    expect(Number(sameCode[0].id), '同码唯一未删行应是原行 id').toBe(originId);
+    expect(sameCode[0].category_name, '被拒重复不得覆盖原行名称（无痕）').toBe(originName);
+    // 原行详情仍可读（拒绝未引发任何软删/变更）
+    const originStill = await apiCallRaw<Row>(page, 'GET', `/chemical-categories/${originId}`);
+    expect(Number(originStill.id), '被拒重复后原分类应仍按 id 可读').toBe(originId);
   });
 
   test('70-02 主数据：必填对词表/状态流转/非法状态原值不变/软删三读路径 404/编码复用', async ({
