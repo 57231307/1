@@ -304,7 +304,10 @@ jobs:
             if [ '${{ github.event_name }}' = 'pull_request' ]; then
               echo "::error::PR 事件不做自动回推（merge ref 推不回目标分支）。请本地执行：cd backend && cargo fmt --all"
               echo "本次 run 已验证可修正的差异如下："
-              head -60 reports/cargo-fmt-diff.txt || true
+              # 此处已 cd 到 $GITHUB_WORKSPACE，而报告写在 backend/reports/ 下
+              # （#4669 实证：原相对路径报 `head: cannot open reports/cargo-fmt-diff.txt`，
+              #   产物 report.md 的 diff 段是空壳，判责时看不到差异内容）
+              head -60 backend/reports/cargo-fmt-diff.txt || true
               exit 1
             fi
             TARGET='${{ github.head_ref }}'
@@ -1401,6 +1404,10 @@ jobs:
       # 测试 harness（setup_test_db）读的是 TEST_DATABASE_URL；不注入则所有
       # "集成测试"实际跑 sqlite::memory: 空表（假绿）。与 DATABASE_URL 同库，先 migrate 后跑测试。
       TEST_DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      # 负前提交集（"库存在但没有业务表 ⇒ 服务必须报 DATABASE_ERROR"）专用第二只库：
+      # 夹具 connect_empty_schema_db() 连它；本 job 建库但**不跑迁移**，与已迁移库互不污染。
+      # 缺失时夹具直接 panic（禁止静默跳过/回退 sqlite）。
+      TEST_EMPTY_DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_empty
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
       # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust 智能探测写入 GITHUB_ENV（防 OOM，用满最大上限）
     steps:
@@ -1429,6 +1436,21 @@ jobs:
         with:
           name: backend-binary
           path: backend/target/release
+
+      - name: 建负前提交集专用空库（bingxi_empty，故意不跑迁移）
+        # 契约测试路线一（#4669 判责）：断言"库存在但没有业务表 ⇒ 服务报 DATABASE_ERROR"的用例
+        # 必须有真正未迁移的库可用；旧实现靠 sqlite::memory: 空库冒充，同时把全部用例拖进
+        # sqlite 方言失真。建库后硬校验它确实是 0 表，否则那族锁验证的是假前提 → 直接判红。
+        run: |
+          set -e
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "DROP DATABASE IF EXISTS bingxi_empty"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "CREATE DATABASE bingxi_empty OWNER bingxi"
+          EMPTY_TABLES=$(psql "$TEST_EMPTY_DATABASE_URL" -At -c "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")
+          echo "空库 bingxi_empty public 基表数量: $EMPTY_TABLES"
+          if [ "${EMPTY_TABLES:-1}" != "0" ]; then
+            echo "::error::TEST_EMPTY_DATABASE_URL 指向的库不是空库（$EMPTY_TABLES 张基表）→ 负前提交集将验证假前提"
+            exit 1
+          fi
 
       - name: 迁移本分片 PostgreSQL service（集成测试真跑活库的前提）
         working-directory: backend
@@ -1466,11 +1488,18 @@ jobs:
           EXIT_CODE=$?
           set -e
 
-          # 统计测试结果
-          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
-          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
-          SKIPPED=$(awk '/^ SKIP /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
-          TOTAL=$((PASSED + FAILED))
+          # 统计测试结果（权威源 = nextest 自己的 Summary 行，见 scripts/ci/nextest-summary.sh）
+          # 旧写法 `awk '/^ FAIL /'` 永不匹配 nextest 的 8 空格缩进状态行 ⇒ #4669 里
+          # 215 例真实失败被报告成"通过 0 / 失败 0"，并同时落"进程异常退出"文案。
+          read -r PASSED FAILED SKIPPED TOTAL HAS_SUMMARY < <(
+            bash "$GITHUB_WORKSPACE/scripts/ci/nextest-summary.sh" reports/nextest-output.txt
+          )
+          # 剥色后的状态行，供失败列表与详情复用（避免 ANSI 码使 grep 失配）
+          sed -e 's/\x1b\[[0-9;]*[A-Za-z]//g' reports/nextest-output.txt > reports/nextest-output.clean.txt
+          if [ "$HAS_SUMMARY" != "1" ] && [ "$EXIT_CODE" -eq "0" ]; then
+            echo "::error::nextest 退出 0 但输出里没有 Summary 行 → 计数不可信，按未验证处理"
+            exit 1
+          fi
 
           # 生成报告
           {
@@ -1483,27 +1512,28 @@ jobs:
             echo "**跳过**: $SKIPPED  "
             echo "**总计**: $TOTAL  "
             echo "**EXIT_CODE**: $EXIT_CODE  "
+            echo "**Summary 可信**: $([ "$HAS_SUMMARY" = "1" ] && echo yes || echo 'no（无 Summary 行，以下数字仅按状态行粗估）')  "
             echo ""
-            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
-              echo "## ❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            if [ "$HAS_SUMMARY" != "1" ]; then
+              echo "## ❌ 分片未产生 Summary（编译失败/进程异常退出，EXIT_CODE=$EXIT_CODE）"
               echo ""
-              { grep -E "^error\[" reports/nextest-output.txt 2>/dev/null || true; } | head -20
+              { grep -E "^error(\[|:)" reports/nextest-output.clean.txt 2>/dev/null || true; } | head -20
               echo ""
               echo "### 完整输出（最后 50 行）"
               echo ""
-              { tail -50 reports/nextest-output.txt 2>/dev/null || true; }
-            elif [ "$FAILED" -eq "0" ]; then
-              echo "## ✅ 分片 ${{ matrix.partition }} 全部通过"
-            else
+              { tail -50 reports/nextest-output.clean.txt 2>/dev/null || true; }
+            elif [ "$FAILED" -gt "0" ]; then
               echo "## ❌ 分片 ${{ matrix.partition }} 发现 $FAILED 个失败"
               echo ""
               echo "### 失败列表"
               echo ""
-              { grep -E "^ FAIL " reports/nextest-output.txt 2>/dev/null || true; } | head -30
+              { grep -E "^[[:space:]]+(EXECUTION )?FAIL " reports/nextest-output.clean.txt 2>/dev/null || true; } | head -40
               echo ""
               echo "### 失败详情"
               echo ""
-              { grep -A 10 "^ FAIL " reports/nextest-output.txt 2>/dev/null || true; } | head -60
+              { grep -A 10 -E "^[[:space:]]+FAIL " reports/nextest-output.clean.txt 2>/dev/null || true; } | head -120
+            else
+              echo "## ✅ 分片 ${{ matrix.partition }} 全部通过"
             fi
           } > reports/cargo-test-report.md
 
@@ -1511,12 +1541,12 @@ jobs:
           {
             echo "## 🧪 Rust 测试分片 ${{ matrix.partition }}/10"
             echo ""
-            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
-              echo "❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
-            elif [ "$FAILED" -eq "0" ]; then
-              echo "✅ 通过 $PASSED / $TOTAL"
+            if [ "$HAS_SUMMARY" != "1" ]; then
+              echo "❌ 无 Summary（编译失败或进程异常退出，EXIT_CODE=$EXIT_CODE）"
+            elif [ "$FAILED" -gt "0" ]; then
+              echo "❌ 失败 $FAILED / $TOTAL（通过 $PASSED）"
             else
-              echo "❌ 失败 $FAILED / $TOTAL"
+              echo "✅ 通过 $PASSED / $TOTAL"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1573,6 +1603,10 @@ jobs:
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
       TEST_DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      # 负前提交集（"库存在但没有业务表 ⇒ 服务必须报 DATABASE_ERROR"）专用第二只库：
+      # 夹具 connect_empty_schema_db() 连它；本 job 建库但**不跑迁移**，与已迁移库互不污染。
+      # 缺失时夹具直接 panic（禁止静默跳过/回退 sqlite）。
+      TEST_EMPTY_DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_empty
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
       # 部分 ignored 用例（websocket/bi e2e）会拉起 axum server，Settings::from_env
       # 需要与 e2e job 同款的 CI 专用占位密钥（非真实密钥），否则以配置错误失败
@@ -1619,6 +1653,18 @@ jobs:
           name: backend-binary
           path: backend/target/release
 
+      - name: 建负前提交集专用空库（bingxi_empty，与分片同款，故意不跑迁移）
+        run: |
+          set -e
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "DROP DATABASE IF EXISTS bingxi_empty"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "CREATE DATABASE bingxi_empty OWNER bingxi"
+          EMPTY_TABLES=$(psql "$TEST_EMPTY_DATABASE_URL" -At -c "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")
+          echo "空库 bingxi_empty public 基表数量: $EMPTY_TABLES"
+          if [ "${EMPTY_TABLES:-1}" != "0" ]; then
+            echo "::error::TEST_EMPTY_DATABASE_URL 指向的库不是空库（$EMPTY_TABLES 张基表）→ 负前提交集将验证假前提"
+            exit 1
+          fi
+
       - name: 迁移本 job PostgreSQL service（ignored 真库用例的执行前提）
         working-directory: backend
         run: |
@@ -1655,9 +1701,16 @@ jobs:
           EXIT_CODE=$?
           set -e
 
-          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/nextest-ignored-output.txt 2>/dev/null)
-          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/nextest-ignored-output.txt 2>/dev/null)
-          TOTAL=$((PASSED + FAILED))
+          # 计数与分片同款：权威源 = Summary 行（旧 `awk '/^ FAIL /'` 匹配不到 8 空格
+          # 缩进状态行，#4669 的 ignored 报告因此写"通过 0 / 失败 0 / 总计 0"却 exit 100）
+          read -r PASSED FAILED SKIPPED TOTAL HAS_SUMMARY < <(
+            bash "$GITHUB_WORKSPACE/scripts/ci/nextest-summary.sh" reports/nextest-ignored-output.txt
+          )
+          sed -e 's/\x1b\[[0-9;]*[A-Za-z]//g' reports/nextest-ignored-output.txt > reports/nextest-ignored-output.clean.txt
+          if [ "$HAS_SUMMARY" != "1" ] && [ "$EXIT_CODE" -eq "0" ]; then
+            echo "::error::nextest 退出 0 但输出里没有 Summary 行 → 计数不可信，按未验证处理"
+            exit 1
+          fi
 
           {
             echo "# Rust ignored 真库用例报告"
@@ -1665,33 +1718,35 @@ jobs:
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**通过**: $PASSED  "
             echo "**失败**: $FAILED  "
+            echo "**跳过**: $SKIPPED  "
             echo "**总计**: $TOTAL  "
             echo "**EXIT_CODE**: $EXIT_CODE  "
+            echo "**Summary 可信**: $([ "$HAS_SUMMARY" = "1" ] && echo yes || echo 'no（无 Summary 行，以下数字仅按状态行粗估）')  "
             echo ""
-            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
-              echo "## ❌ 进程异常退出（EXIT_CODE=$EXIT_CODE，含迁移库不可用/参数错误）"
+            if [ "$HAS_SUMMARY" != "1" ]; then
+              echo "## ❌ 未产生 Summary（编译失败/进程异常退出/迁移库不可用，EXIT_CODE=$EXIT_CODE）"
               echo ""
-              { tail -50 reports/nextest-ignored-output.txt 2>/dev/null || true; }
-            elif [ "$FAILED" -eq "0" ]; then
-              echo "## ✅ ignored 真库用例全部通过"
-            else
+              { tail -50 reports/nextest-ignored-output.clean.txt 2>/dev/null || true; }
+            elif [ "$FAILED" -gt "0" ]; then
               echo "## ❌ 发现 $FAILED 个失败"
               echo ""
-              { grep -E "^ FAIL " reports/nextest-ignored-output.txt 2>/dev/null || true; } | head -40
+              { grep -E "^[[:space:]]+(EXECUTION )?FAIL " reports/nextest-ignored-output.clean.txt 2>/dev/null || true; } | head -60
               echo ""
-              { grep -A 10 "^ FAIL " reports/nextest-ignored-output.txt 2>/dev/null || true; } | head -80
+              { grep -A 10 -E "^[[:space:]]+FAIL " reports/nextest-ignored-output.clean.txt 2>/dev/null || true; } | head -160
+            else
+              echo "## ✅ ignored 真库用例全部通过"
             fi
           } > reports/cargo-ignored-report.md
 
           {
             echo "## 🧪 Rust ignored 真库用例"
             echo ""
-            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
-              echo "❌ 进程异常退出（EXIT_CODE=$EXIT_CODE）"
-            elif [ "$FAILED" -eq "0" ]; then
-              echo "✅ 通过 $PASSED / $TOTAL"
+            if [ "$HAS_SUMMARY" != "1" ]; then
+              echo "❌ 无 Summary（进程异常退出/迁移失败，EXIT_CODE=$EXIT_CODE）"
+            elif [ "$FAILED" -gt "0" ]; then
+              echo "❌ 失败 $FAILED / $TOTAL（通过 $PASSED）"
             else
-              echo "❌ 失败 $FAILED / $TOTAL"
+              echo "✅ 通过 $PASSED / $TOTAL"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
