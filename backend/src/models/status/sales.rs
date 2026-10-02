@@ -190,6 +190,39 @@ pub mod custom_order_ext {
     /// 售后-已拒绝
     pub const AFTERSALES_REJECTED: &str = "rejected";
 
+    /// 售后-已受理（V15 P1 batch-19 缺陷 23.3.2：opened → accepted，写 accepted_at）
+    pub const AFTERSALES_ACCEPTED: &str = "accepted";
+
+    /// 售后-处理中（accepted → processing → resolved）
+    pub const AFTERSALES_PROCESSING: &str = "processing";
+
+    /// 售后-已解决（processing → resolved，写 closed_at 以外的结论态）
+    pub const AFTERSALES_RESOLVED: &str = "resolved";
+
+    /// 售后-已评价（V15 P1 batch-19 缺陷 23.3.2：resolved → evaluated，写评价三列）
+    pub const AFTERSALES_EVALUATED: &str = "evaluated";
+
+    /// 售后-已关闭（终态，任一非终态均可关闭；写 closed_at）
+    pub const AFTERSALES_CLOSED: &str = "closed";
+
+    /// 售后工单状态全部合法取值（写入方 `services/custom_order_aftersales_service.rs`
+    /// 状态机 `AFTERSALES_TRANSITIONS` 的节点集，与其逐 token 相等）。
+    ///
+    /// ⚠️ DB 侧 CHECK `chk_aftersales_status`（migration
+    /// `m0044_integrate_unreferenced_migrations.rs:251`）当前只覆盖
+    /// opened/processing/resolved/closed/rejected，缺 `accepted`/`evaluated`
+    /// ⇒ 写这两态必撞 CHECK 返回裸 500（CI #4669 用例 65-01）。
+    /// 迁移须把本列表补齐进 CHECK（三端同源：写入方词表 = 本列表 = CHECK 取值集）。
+    pub const AFTERSALES_ALL: &[&str] = &[
+        AFTERSALES_OPENED,
+        AFTERSALES_ACCEPTED,
+        AFTERSALES_PROCESSING,
+        AFTERSALES_RESOLVED,
+        AFTERSALES_EVALUATED,
+        AFTERSALES_CLOSED,
+        AFTERSALES_REJECTED,
+    ];
+
     /// 工序-待处理
     pub const PROCESS_PENDING: &str = "pending";
 }

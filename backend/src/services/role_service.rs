@@ -136,6 +136,12 @@ impl RoleService {
     }
 
     /// 删除角色（批次 86 v2 复审 P2-2 修复：find + 状态门 + delete 移入单一事务 + lock_exclusive 串行化）
+    ///
+    /// 引用口径与 `RolePermissionService::delete_role` 完全一致（同族先例
+    /// `services/crm/lead.rs::delete_lead`）：`users.role_id` 属外部主体引用 ⇒ 有绑定即拒；
+    /// `role_permissions`/`data_permissions`/`field_permissions` 是角色自身的授权配置行 ⇒
+    /// 同事务物理清除（`data_permissions` 的软删残留行同样会以 FK 永久阻塞删除，
+    /// CI #4669 `DELETE /roles/40` 的 500 即此）。禁止 `ON DELETE CASCADE` 静默删引用方数据。
     pub async fn delete_role(&self, role_id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
 
@@ -151,9 +157,62 @@ impl RoleService {
             return Err(AppError::business("系统角色不允许删除"));
         }
 
+        // 外部主体引用预校验：仍有用户绑定该角色（users.role_id → fk_users_role）即拒绝，
+        // 不代为改动用户数据；条数只进日志不外显
+        let bound_users = crate::models::user::Entity::find()
+            .filter(crate::models::user::Column::RoleId.eq(role_id))
+            .count(&txn)
+            .await?;
+        if bound_users > 0 {
+            tracing::warn!("角色 {} 删除被拒：仍有 {} 个用户绑定该角色", role_id, bound_users);
+            return Err(AppError::business_displayable(
+                "该角色仍有用户在使用，不可删除，请先调整这些用户的角色",
+            ));
+        }
+
+        // 角色自身授权配置行随角色一并清除（三张表均以 FK 引用 roles）
+        let removed_role_permissions = crate::models::role_permission::Entity::delete_many()
+                .filter(crate::models::role_permission::Column::RoleId.eq(role_id))
+                .exec(&txn)
+                .await?;
+        let removed_data_permissions = crate::models::data_permission::Entity::delete_many()
+            .filter(crate::models::data_permission::Column::RoleId.eq(role_id))
+            .exec(&txn)
+            .await?;
+        let removed_field_permissions = crate::models::field_permission::Entity::delete_many()
+            .filter(crate::models::field_permission::Column::RoleId.eq(role_id))
+            .exec(&txn)
+            .await?;
+        tracing::info!(
+            "角色 {} 删除：随角色清除授权配置行 role_permissions={}、data_permissions={}、field_permissions={}",
+            role_id,
+            removed_role_permissions.rows_affected,
+            removed_data_permissions.rows_affected,
+            removed_field_permissions.rows_affected
+        );
+
         let role_active: role::ActiveModel = role_model.into();
-        role_active.delete(&txn).await?;
+        let result = role_active.delete(&txn).await.map_err(AppError::from);
+        if let Err(e) = result {
+            // 并发引用兜底：FK 命中（DbErr → DatabaseError(DB_RELATION)，分类见 utils/error.rs）
+            // 降级为业务错误，事务整体回滚不留半删状态，失败信封不外泄 500
+            if matches!(
+                e,
+                AppError::DatabaseError(ref msg)
+                    if msg == crate::utils::messages::err_msg::DB_RELATION
+            ) {
+                tracing::warn!(
+                    "角色 {} 删除命中外键约束（并发引用）：整事务回滚并降级为业务错误",
+                    role_id
+                );
+                return Err(AppError::business_displayable(
+                    "该角色正被其他数据引用，删除已取消，请稍后重试或先处理关联数据",
+                ));
+            }
+            return Err(e);
+        }
         txn.commit().await?;
+        tracing::info!("角色 {} 删除成功", role_id);
 
         // P0-D03：失效角色缓存（角色已删除）
         redis_cache_del(&cache_key("role", role_id)).await;

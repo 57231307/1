@@ -283,7 +283,13 @@ impl ApVerificationService {
                 crate::models::status::general::payment::PAYMENT_PARTIAL_PAID.to_string();
         }
 
-        let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+        // sea-orm 2.0.2：From<Model> for ActiveModel 全字段 Unchanged，UPDATE 只写 Set 列；
+        // 资金三列必须显式 Set，否则自动核销的金额累加只停留在内存 map，库中 paid_amount 恒 0。
+        let mut invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+        invoice_active.paid_amount = Set(invoice.paid_amount);
+        invoice_active.unpaid_amount = Set(invoice.unpaid_amount);
+        invoice_active.invoice_status = Set(invoice.invoice_status.clone());
+        invoice_active.updated_by = Set(Some(user_id));
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
             "auto_audit",
@@ -415,7 +421,13 @@ impl ApVerificationService {
                     crate::models::status::general::payment::PAYMENT_PARTIAL_PAID.to_string();
             }
 
-            let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+            // sea-orm 2.0.2：From<Model> for ActiveModel 全字段 Unchanged，UPDATE 只写 Set 列；
+            // 手工核销的资金三列必须显式 Set，否则 paid/unpaid/状态不落库（假 200 + 金额恒 0）。
+            let mut invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+            invoice_active.paid_amount = Set(invoice.paid_amount);
+            invoice_active.unpaid_amount = Set(invoice.unpaid_amount);
+            invoice_active.invoice_status = Set(invoice.invoice_status.clone());
+            invoice_active.updated_by = Set(Some(user_id));
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 txn,
                 "auto_audit",
@@ -565,7 +577,13 @@ impl ApVerificationService {
                 invoice.invoice_status =
                     crate::models::status::ap_invoice::INVOICE_AUDITED.to_string();
             }
-            let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+            // sea-orm 2.0.2：From<Model> for ActiveModel 全字段 Unchanged，UPDATE 只写 Set 列；
+            // 回退属资金反向操作，三列必须显式 Set 落库，否则 cancel 只改核销单不回退发票金额。
+            let mut invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+            invoice_active.paid_amount = Set(invoice.paid_amount);
+            invoice_active.unpaid_amount = Set(invoice.unpaid_amount);
+            invoice_active.invoice_status = Set(invoice.invoice_status.clone());
+            invoice_active.updated_by = Set(Some(user_id));
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 txn,
                 "auto_audit",

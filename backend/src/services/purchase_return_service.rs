@@ -202,10 +202,17 @@ impl PurchaseReturnService {
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
         if return_order.return_status.as_deref() != Some(pr_status::DRAFT) {
-            return Err(AppError::business(format!(
-                "退货单状态不允许修改，当前状态：{:?}",
-                return_order.return_status
-            )));
+            // 真实状态值入日志（含 None 形态），出参只说用户该做什么：
+            // 状态门属公开业务规则族，保持 BUSINESS_ERROR，但走可外显通道
+            tracing::warn!(
+                "采购退货单 {} 修改被拒：当前状态 = {:?}，仅 {} 可修改",
+                return_id,
+                return_order.return_status,
+                pr_status::DRAFT
+            );
+            return Err(AppError::business_displayable(
+                "该退货单当前不是草稿状态，不能修改；请新建退货单或先撤回后再改",
+            ));
         }
 
         let mut return_active: purchase_return::ActiveModel = return_order.into();
@@ -256,10 +263,15 @@ impl PurchaseReturnService {
 
         // 2. 检查状态
         if return_order.return_status.as_deref() != Some(pr_status::DRAFT) {
-            return Err(AppError::business(format!(
-                "退货单状态不允许提交，当前状态：{:?}",
-                return_order.return_status
-            )));
+            tracing::warn!(
+                "采购退货单 {} 提交被拒：当前状态 = {:?}，仅 {} 可提交",
+                return_id,
+                return_order.return_status,
+                pr_status::DRAFT
+            );
+            return Err(AppError::business_displayable(
+                "该退货单当前不是草稿状态，不能提交审批；已提交或已审批的退货单无需重复提交",
+            ));
         }
 
         // 3. 更新状态 + 审计日志（事务内原子提交）
@@ -348,10 +360,15 @@ impl PurchaseReturnService {
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
         if return_order.return_status.as_deref() != Some(pr_status::SUBMITTED) {
-            return Err(AppError::business(format!(
-                "退货单状态不允许审批，当前状态：{:?}",
-                return_order.return_status
-            )));
+            tracing::warn!(
+                "采购退货单 {} 审批被拒：当前状态 = {:?}，仅 {} 可审批",
+                return_id,
+                return_order.return_status,
+                pr_status::SUBMITTED
+            );
+            return Err(AppError::business_displayable(
+                "该退货单当前不是已提交状态，不能审批；请先提交退货单后再审批",
+            ));
         }
 
         // 检查是否有退货明细
@@ -363,7 +380,10 @@ impl PurchaseReturnService {
             .await?;
 
         if item_count == 0 {
-            return Err(AppError::business("退货单至少需要一行明细".to_string()));
+            tracing::warn!("采购退货单 {} 审批被拒：没有任何退货明细行", return_id);
+            return Err(AppError::business_displayable(
+                "退货单还没有明细行，请先添加至少一行退货明细再提交审批",
+            ));
         }
 
         Ok(return_order)
@@ -478,27 +498,37 @@ impl PurchaseReturnService {
             let key = return_item_stock_key(&item);
             // 同四维键命中多条库存行（差异仅在退货明细未携带的等级维度）：无法唯一定位，显式报错。
             if stock_index.ambiguous.contains(&key) {
-                return Err(AppError::business(format!(
-                    "退货明细 {} 的四维（产品 {}+色号 {}+缸号 {}+批次 {}）在仓库 {} 命中多条库存行，退货明细未携带等级维度无法唯一定位，需人工核查（不兜底、不任选一行）",
+                // 真实定位信息（明细/产品/仓库内部 ID 与实际维度值）只进日志：
+                // 出参一旦带上内部 ID 或库存数量就违反 error.rs 的安全边界
+                tracing::warn!(
+                    "采购退货拒绝：明细 {} 的四维（产品 {}+色号 {}+缸号 {}+批次 {}）在仓库 {} 命中多条库存行，退货明细未携带等级维度无法唯一定位（不兜底、不任选一行）",
                     item.id,
                     item.product_id,
                     item.color_no,
                     item.dye_lot_no,
                     item.batch_no,
                     warehouse_id
-                )));
+                );
+                // 该拒绝是公开业务规则且用户可自行处理（把退货行的等级补上/拆行），
+                // 文案不含内部 ID 与库存数量 ⇒ 走可外显通道，不再退化成「业务处理失败」
+                return Err(AppError::business_displayable(
+                    "退货明细的色号/缸号/批次在仓库中对应多条库存行，无法唯一定位，请补充等级维度或按等级拆分成多行退货",
+                ));
             }
             // 四维精确匹配不到库存行：报业务错误并指明缺失的维度，不回退到"任意同产品行"。
             let Some(s) = stock_index.by_key.get(&key).cloned() else {
-                return Err(AppError::business(format!(
-                    "退货明细 {} 的四维（产品 {}+色号 {}+缸号 {}+批次 {}）在仓库 {} 找不到对应库存行，无法退货（缺少对应维度库存，不兜底）",
+                tracing::warn!(
+                    "采购退货拒绝：明细 {} 的四维（产品 {}+色号 {}+缸号 {}+批次 {}）在仓库 {} 找不到对应库存行（缺少对应维度库存，不兜底）",
                     item.id,
                     item.product_id,
                     item.color_no,
                     item.dye_lot_no,
                     item.batch_no,
                     warehouse_id
-                )));
+                );
+                return Err(AppError::business_displayable(
+                    "退货明细的色号/缸号/批次在仓库中没有对应的库存行，无法退货；请按实际入库的色号/缸号/批次填写退货明细，或先确认该批库存是否已出库",
+                ));
             };
 
             let event = Self::deduct_single_item_stock(&ctx, &item, &s).await?;
@@ -516,10 +546,17 @@ impl PurchaseReturnService {
         stock: &inventory_stock::Model,
     ) -> Result<Option<BusinessEvent>, AppError> {
         if stock.quantity_meters < item.quantity {
-            return Err(AppError::business(format!(
-                "产品 {} 库存不足，当前库存：{}，需要退货：{}",
-                item.product_id, stock.quantity_meters, item.quantity
-            )));
+            // 库存数量属第三方/实体数据，不得外显；真实数值只进日志
+            tracing::warn!(
+                "采购退货拒绝：产品 {} 库存不足，当前库存 {}，需要退货 {}（明细 {}）",
+                item.product_id,
+                stock.quantity_meters,
+                item.quantity,
+                item.id
+            );
+            return Err(AppError::business_displayable(
+                "该退货行的库存不足，无法过账；请先核对退货数量与该四维库存行的现存量",
+            ));
         }
 
         let new_quantity_meters = stock.quantity_meters - item.quantity;

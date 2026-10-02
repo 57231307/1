@@ -191,6 +191,11 @@ impl SalesContractService {
     ) -> Result<(), AppError> {
         for (idx, item) in items.iter().enumerate() {
             let amount = item.quantity * item.unit_price;
+            // sales_contract_items.created_at / updated_at 均为 NOT NULL 且 DDL 无默认值
+            // （`migration/src/domain/v15/mod.rs:3531`）：`..Default::default()` 会把这两列
+            // 留成 Unset → INSERT 传 NULL → 违反非空约束直接 500（CI #4669 用例
+            // 66-submit-contract-regression 的 POST /sales/sales-contracts）。
+            let now = chrono::Utc::now();
             let active_item = sales_contract_item::ActiveModel {
                 contract_id: Set(contract_id),
                 product_id: Set(item.product_id),
@@ -204,6 +209,8 @@ impl SalesContractService {
                 delivery_date: Set(item.delivery_date),
                 remarks: Set(item.remarks.clone()),
                 sort_order: Set(idx as i32),
+                created_at: Set(now),
+                updated_at: Set(now),
                 ..Default::default()
             };
             active_item.insert(txn).await?;

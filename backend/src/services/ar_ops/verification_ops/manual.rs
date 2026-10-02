@@ -491,7 +491,14 @@ impl ArService {
             invoice.unpaid_amount =
                 (invoice.invoice_amount - invoice.received_amount).max(Decimal::ZERO);
             invoice.status = Self::restored_invoice_status(invoice);
-            let inv_active: ar_invoice::ActiveModel = invoice.clone().into();
+            // sea-orm 2.0.2：From<Model> for ActiveModel 全字段 Unchanged，UPDATE 只写 Set 列；
+            // 取消核销是资金反向操作，回退的三列必须显式 Set，否则 cancel 只改核销单状态、
+            // 发票 received/unpaid 不回退。
+            let mut inv_active: ar_invoice::ActiveModel = invoice.clone().into();
+            inv_active.received_amount = Set(invoice.received_amount);
+            inv_active.unpaid_amount = Set(invoice.unpaid_amount);
+            inv_active.status = Set(invoice.status.clone());
+            inv_active.updated_at = Set(Utc::now());
             crate::services::audit_log_service::AuditLogService::update_with_audit::<
                 ar_invoice::Entity,
                 _,

@@ -307,7 +307,14 @@ impl ArService {
                 continue; // 跳过已处理的发票
             }
             if let Some(invoice) = inv_map.remove(&inv_id) {
-                let inv_active: ar_invoice::ActiveModel = invoice.into();
+                // sea-orm 2.0.2：From<Model> for ActiveModel 全字段 Unchanged，UPDATE 只写 Set 列；
+                // update_invoice_state 的累加结果必须显式 Set 回写列，否则自动核销金额不落库
+                // （paid/received 恒 0、状态不迁移，接口却返回 200——本次 CI D 族真缺陷根因）。
+                let mut inv_active: ar_invoice::ActiveModel = invoice.clone().into();
+                inv_active.received_amount = Set(invoice.received_amount);
+                inv_active.unpaid_amount = Set(invoice.unpaid_amount);
+                inv_active.status = Set(invoice.status.clone());
+                inv_active.updated_at = Set(Utc::now());
                 crate::services::audit_log_service::AuditLogService::update_with_audit::<
                     ar_invoice::Entity,
                     _,

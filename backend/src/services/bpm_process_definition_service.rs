@@ -16,7 +16,7 @@
 //! - 模板功能：通过 `category` 字段特殊值 `__TEMPLATE__` 标识模板记录，
 //!   `list_process_definitions` 过滤模板，`list_templates` 只查模板
 
-use crate::models::bpm_process_definition;
+use crate::models::{bpm_process_definition, bpm_process_instance};
 use crate::models::dto::bpm_dto::{
     CreateProcessDefinitionRequest, ProcessDefinitionQuery, TemplateQuery,
     UpdateProcessDefinitionRequest,
@@ -117,15 +117,68 @@ impl BpmService {
     }
 
     /// 删除流程定义（按 id 删除流程定义记录）
+    ///
+    /// 引用预校验：`bpm_process_instance.process_definition_id` 以 FK
+    /// （`migration/src/domain/system/m0001_initial_schema.rs:680`，无 ON DELETE 动作）
+    /// 引用 `bpm_process_definition.id`。原实现裸 `delete()` ⇒ 只要该定义起过流程，
+    /// 就命中 FK 并被 `From<DbErr>` 裸映射成 500 `DATABASE_ERROR`
+    /// （CI #4669 制品日志：`update or delete on table "bpm_process_definition" violates
+    /// foreign key constraint "bpm_process_instance_process_definition_id_fkey"`，
+    /// 用例 `DELETE /bpm/definitions/{3..11}` 共 9 例）。
+    ///
+    /// 修法照同族先例 `services/crm/lead.rs::delete_lead`：
+    /// ① 先查引用计数；② 有引用即业务拒绝（引用条数属查询所得实体值，按 error.rs
+    /// 安全边界只进日志不外显，且流程实例本身不应由删除定义的入口连带清理）；
+    /// ③ 无引用才删；④ 预校验后仍被并发写入命中 FK 时按 `DB_RELATION` 降级为业务错误。
+    /// 严禁改成 `ON DELETE CASCADE`：那会静默删掉流程实例（= 审批历史）这类引用方数据。
     pub async fn delete_process_definition(&self, id: i32) -> Result<(), AppError> {
         let existing = bpm_process_definition::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("流程定义不存在: {}", id)))?;
 
+        // 引用预校验：与 FK 同口径——存在任意一条引用该定义的流程实例即拒绝删除
+        let referencing_instances = bpm_process_instance::Entity::find()
+            .filter(bpm_process_instance::Column::ProcessDefinitionId.eq(id))
+            .count(&*self.db)
+            .await?;
+        if referencing_instances > 0 {
+            tracing::warn!(
+                "流程定义 {}（code={}）删除被拒：仍被 {} 条流程实例引用",
+                id,
+                existing.code,
+                referencing_instances
+            );
+            return Err(Self::process_definition_in_use_error());
+        }
+
         let active: bpm_process_definition::ActiveModel = existing.into();
-        active.delete(&*self.db).await?;
+        // 先归一成 AppError（DbErr → DatabaseError 的族分类在 From 实现里做），
+        // 再据 FK 分类降级，避免把裸 DbErr 往上传
+        let result = active.delete(&*self.db).await.map_err(AppError::from);
+        if let Err(e) = result {
+            // 竞态兜底：预校验通过后仍可能在删除瞬间被并发新建的实例命中 FK（500）
+            // ⇒ 降级为与预校验同口径的业务错误，失败信封不外泄 500
+            if matches!(
+                e,
+                AppError::DatabaseError(ref msg)
+                    if msg == crate::utils::messages::err_msg::DB_RELATION
+            ) {
+                tracing::warn!(
+                    "流程定义 {} 删除命中外键约束（并发新建流程实例）：降级为业务错误",
+                    id
+                );
+                return Err(Self::process_definition_in_use_error());
+            }
+            return Err(e);
+        }
+        tracing::info!("流程定义 {} 删除成功", id);
         Ok(())
+    }
+
+    /// 流程定义被实例引用时的统一拒绝（文案不含内部 ID/引用条数，真实原因见调用处日志）
+    fn process_definition_in_use_error() -> AppError {
+        AppError::business_displayable("该流程定义已存在历史流程实例，不可删除；如需停用请改为置为未启用")
     }
 
     /// 获取流程定义列表（分页）（过滤模板记录（category != __TEMPLATE__ 或 category IS NULL），支持 category 和 status 筛选）

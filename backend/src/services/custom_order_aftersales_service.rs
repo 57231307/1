@@ -1,7 +1,8 @@
 //! 定制订单售后服务
 //!
 //! 4 种售后类型：客诉 / 维修 / 换货 / 退款
-//! 状态机：opened → processing → resolved/closed/rejected
+//! 状态机（权威词表 `models/status/sales.rs::custom_order_ext::AFTERSALES_ALL`）：
+//! opened → accepted → processing → resolved → evaluated → closed；rejected/closed 为终态
 //! 创建时间: 2026-06-17
 
 use chrono::Utc;
@@ -19,8 +20,51 @@ use crate::models::after_sales::{self, ActiveModel, Entity};
 use crate::models::custom_order_response_dto::AfterSalesInfo;
 use crate::models::customer;
 use crate::models::quality_issue;
+use crate::models::status::custom_order_ext as ext;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+
+/// 售后工单状态权威词表 = `models/status/sales.rs::custom_order_ext::AFTERSALES_ALL`
+/// （本服务是唯一写入方，状态机节点集与词表逐 token 相等，见 `AFTERSALES_TRANSITIONS`）。
+///
+/// DB 侧 CHECK `chk_aftersales_status`（`migration/src/domain/production/
+/// m0044_integrate_unreferenced_migrations.rs:251`）目前缺 `accepted`/`evaluated`
+/// 两态 ⇒ 写这两态撞 CHECK 被裸映射成 500（CI #4669 用例 65-01 的
+/// `PUT /custom-orders/after-sales/{id}`）。补齐 CHECK 属迁移改动，
+/// 已随本轮报告列出取值集合与 up/down 写法交数据库专家，此处不自写迁移。
+const AFTERSALES_TRANSITIONS: &[(&str, &[&str])] = &[
+    (
+        ext::AFTERSALES_OPENED,
+        &[
+            ext::AFTERSALES_ACCEPTED,
+            ext::AFTERSALES_REJECTED,
+            ext::AFTERSALES_CLOSED,
+        ],
+    ),
+    (
+        ext::AFTERSALES_ACCEPTED,
+        &[
+            ext::AFTERSALES_PROCESSING,
+            ext::AFTERSALES_REJECTED,
+            ext::AFTERSALES_CLOSED,
+        ],
+    ),
+    (
+        ext::AFTERSALES_PROCESSING,
+        &[
+            ext::AFTERSALES_RESOLVED,
+            ext::AFTERSALES_CLOSED,
+            ext::AFTERSALES_REJECTED,
+        ],
+    ),
+    (
+        ext::AFTERSALES_RESOLVED,
+        &[ext::AFTERSALES_EVALUATED, ext::AFTERSALES_CLOSED],
+    ),
+    (ext::AFTERSALES_EVALUATED, &[ext::AFTERSALES_CLOSED]),
+    (ext::AFTERSALES_CLOSED, &[]),
+    (ext::AFTERSALES_REJECTED, &[]),
+];
 
 /// 创建售后工单 DTO
 ///
@@ -127,7 +171,7 @@ impl CustomOrderAfterSalesService {
             issue_type: Set(dto.issue_type),
             customer_id: Set(dto.customer_id),
             description: Set(dto.description),
-            status: Set("opened".to_string()),
+            status: Set(ext::AFTERSALES_OPENED.to_string()),
             opened_at: Set(now),
             closed_at: Set(None),
             resolution: Set(None),
@@ -156,9 +200,31 @@ impl CustomOrderAfterSalesService {
 
         // 校验状态转换
         if let Some(new_status) = &dto.status {
+            // 取值域先行：非词表 token（大小写漂移/中文词/自造值）属用户输入越界，
+            // 必须给出「合法取值有哪些」的可执行拒绝；否则它会一路走到状态机被判成
+            // 「非法转换」，或（词表内但 DB CHECK 未覆盖时）被 CHECK 打成裸 500。
+            if !ext::AFTERSALES_ALL.contains(&new_status.as_str()) {
+                tracing::warn!(
+                    "售后工单 {} 更新被拒：状态取值不在词表内（提交值 = {}）",
+                    id,
+                    new_status
+                );
+                return Err(AfterSalesError::Validation(format!(
+                    "非法售后状态 '{}'，合法取值为：{}",
+                    new_status,
+                    ext::AFTERSALES_ALL.join("/")
+                )));
+            }
             if !is_valid_transition(&existing.status, new_status) {
+                // 状态门回显的是本工单自身状态与用户提交值（公开业务规则）→ InvalidState
+                tracing::warn!(
+                    "售后工单 {} 状态转换被拒：{} → {}",
+                    id,
+                    existing.status,
+                    new_status
+                );
                 return Err(AfterSalesError::InvalidState(format!(
-                    "{} → {}",
+                    "售后工单当前状态 {} 不能变更为 {}，请按状态机顺序流转",
                     existing.status, new_status
                 )));
             }
@@ -168,7 +234,11 @@ impl CustomOrderAfterSalesService {
         let mut active: ActiveModel = existing.into();
         if let Some(v) = &dto.status {
             active.status = Set(v.clone());
-            if v == "closed" || v == "resolved" || v == "rejected" {
+            // 终态/结论态落关闭时间：取值一律引用词表常量，禁止字面量
+            if v == ext::AFTERSALES_CLOSED
+                || v == ext::AFTERSALES_RESOLVED
+                || v == ext::AFTERSALES_REJECTED
+            {
                 active.closed_at = Set(Some(now));
             }
         }
@@ -196,7 +266,8 @@ impl CustomOrderAfterSalesService {
             .ok_or(AfterSalesError::NotFound)?;
 
         // 校验：已关闭/已拒绝的售后工单不允许触发质量调查
-        if existing.status == "closed" || existing.status == "rejected" {
+        if existing.status == ext::AFTERSALES_CLOSED || existing.status == ext::AFTERSALES_REJECTED
+        {
             // 状态门：工单已处于关闭/拒绝终态，前置状态未满足，归业务族（InvalidState）；
             // 原走 Validation 通道族与本域其余状态门不一致
             return Err(AfterSalesError::InvalidState(format!(
@@ -305,15 +376,15 @@ impl CustomOrderAfterSalesService {
             .await?
             .ok_or(AfterSalesError::NotFound)?;
 
-        if existing.status != "opened" {
+        if existing.status != ext::AFTERSALES_OPENED {
             return Err(AfterSalesError::InvalidState(format!(
-                "当前状态 {} 不允许受理",
-                existing.status
+                "售后工单当前状态 {} 尚未受理，只有已开启（{}）的工单可以受理",
+                existing.status, ext::AFTERSALES_OPENED
             )));
         }
 
         let mut active: ActiveModel = existing.into();
-        active.status = Set("accepted".to_string());
+        active.status = Set(ext::AFTERSALES_ACCEPTED.to_string());
         active.accepted_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
         let updated = active.update(&txn).await?;
@@ -340,15 +411,15 @@ impl CustomOrderAfterSalesService {
             .await?
             .ok_or(AfterSalesError::NotFound)?;
 
-        if existing.status != "resolved" {
+        if existing.status != ext::AFTERSALES_RESOLVED {
             return Err(AfterSalesError::InvalidState(format!(
-                "当前状态 {} 不允许评价",
-                existing.status
+                "售后工单当前状态 {} 尚未解决，只有已解决（{}）的工单可以评价",
+                existing.status, ext::AFTERSALES_RESOLVED
             )));
         }
 
         let mut active: ActiveModel = existing.into();
-        active.status = Set("evaluated".to_string());
+        active.status = Set(ext::AFTERSALES_EVALUATED.to_string());
         active.evaluation_score = Set(Some(score));
         active.evaluation_comment = Set(comment);
         active.evaluated_at = Set(Some(Utc::now()));
@@ -432,17 +503,12 @@ pub struct Top5ReasonItem {
     pub count: i64,
 }
 
-/// 状态转换校验（V15 P1 batch-19 缺陷 23.3.2：补齐 accepted/evaluated 步骤）
+/// 状态转换校验：直接由 `AFTERSALES_TRANSITIONS` 表驱动（与词表同源，不再另建 HashMap 字面量）。
+/// 未知来源态（含 DB 里遗留的历史值）一律判非法，交由调用方给出可执行拒绝。
 fn is_valid_transition(from: &str, to: &str) -> bool {
-    use std::collections::HashMap;
-    let mut valid: HashMap<&str, Vec<&str>> = HashMap::new();
-    valid.insert("opened", vec!["accepted", "rejected", "closed"]);
-    valid.insert("accepted", vec!["processing", "rejected", "closed"]);
-    valid.insert("processing", vec!["resolved", "closed", "rejected"]);
-    valid.insert("resolved", vec!["evaluated", "closed"]);
-    valid.insert("evaluated", vec!["closed"]);
-    valid.insert("closed", vec![]);
-    valid.insert("rejected", vec![]);
-
-    valid.get(from).map(|v| v.contains(&to)).unwrap_or(false)
+    AFTERSALES_TRANSITIONS
+        .iter()
+        .find(|(src, _)| *src == from)
+        .map(|(_, targets)| targets.contains(&to))
+        .unwrap_or(false)
 }

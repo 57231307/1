@@ -44,6 +44,11 @@ impl InventoryWriteDownService {
     }
 
     pub async fn create(&self, data: CreateWriteDownReq) -> Result<Model, AppError> {
+        // inventory_write_down.created_at / updated_at 在 DDL 里是 NOT NULL 且无默认值
+        // （migration/src/domain/v15/mod.rs:2966）：`..Default::default()` 把这两列留成
+        // Unset ⇒ INSERT 传 NULL ⇒ not-null 违例直接 500（CI #4669 用例
+        // inventory/04-write-down 的 POST /inventory/write-downs）。
+        let now = chrono::Utc::now();
         let active = ActiveModel {
             product_id: Set(data.product_id),
             write_down_type: Set(data.write_down_type),
@@ -54,6 +59,8 @@ impl InventoryWriteDownService {
             period: Set(data.period),
             status: Set("draft".to_string()),
             created_by: Set(data.created_by),
+            created_at: Set(now),
+            updated_at: Set(now),
             ..Default::default()
         };
         let model = active.insert(&*self.db).await?;
