@@ -21,6 +21,7 @@ use sea_orm::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
+use validator::Validate;
 
 use crate::models::batch_dye_lot::{self, Entity as DyeLotEntity};
 use crate::models::fabric_defect_record::{
@@ -191,12 +192,20 @@ pub struct GradeInspectionRequest {
 }
 
 /// 打卷入库请求（graded → rolled）
-#[derive(Debug, Clone, Deserialize)]
+///
+/// #220 裁定 §3：打卷即「成品布入库」的实测采集时刻，幅宽/克重/重量为成品布标签
+/// 必填字段来源，**真实必填**（validator required，缺失/置空 → 400 VALIDATION_ERROR），
+/// 不再允许留 NULL 造成「无据标签」。必填性由 service 入口 `req.validate()` 强制，
+/// handler 侧 JSON 反序列化保持 Option 以进入 validator 族（而非 serde 裸拒绝）。
+#[derive(Debug, Clone, Deserialize, validator::Validate)]
 pub struct RollFabricRequest {
     pub warehouse_id: i32,
     pub roll_length: Decimal,
+    #[validate(required(message = "打卷入库必须填写重量(kg)，成品布标签重量取该实测值"))]
     pub roll_weight: Option<Decimal>,
+    #[validate(required(message = "打卷入库必须填写幅宽(cm)，成品布标签幅宽取该实测值"))]
     pub roll_width: Option<Decimal>,
+    #[validate(required(message = "打卷入库必须填写克重(g/m²)，成品布标签克重取该实测值"))]
     pub roll_gram_weight: Option<Decimal>,
 }
 
@@ -545,6 +554,9 @@ impl FabricInspectionService {
         id: i32,
         req: RollFabricRequest,
     ) -> Result<InspectionModel, AppError> {
+        // #220 裁定 §3：幅宽/克重/重量实测值必填（字段校验族=VALIDATION_ERROR/400，
+        // 文案经 From<validator::ValidationErrors> 可读外显，点名缺哪个提交字段）
+        req.validate()?;
         let model = self.get_by_id(id).await?;
         Self::validate_roll_preconditions(&model, &req)?;
         let dye_lot_no = model.dye_lot_no.clone().ok_or_else(|| {
@@ -566,7 +578,7 @@ impl FabricInspectionService {
         self.apply_roll_summary(model, &req).await
     }
 
-    /// 校验打卷前置条件（状态 + 长度）
+    /// 校验打卷前置条件（状态 + 长度 + 实测值范围为正）
     fn validate_roll_preconditions(
         model: &InspectionModel,
         req: &RollFabricRequest,
@@ -579,6 +591,22 @@ impl FabricInspectionService {
         }
         if req.roll_length <= Decimal::ZERO {
             return Err(AppError::business("打卷长度必须 > 0"));
+        }
+        // #220：三个实测值必填性已由 DTO validator 拦住；此处校验取值范围（字段族，
+        // 文案只描述用户自己提交的字段规则，经 validation_displayable 可读外显）
+        for (label, value) in [
+            ("重量(kg)", req.roll_weight),
+            ("幅宽(cm)", req.roll_width),
+            ("克重(g/m²)", req.roll_gram_weight),
+        ] {
+            if let Some(v) = value
+                && v <= Decimal::ZERO
+            {
+                return Err(AppError::validation_displayable(format!(
+                    "打卷入库{}必须大于 0",
+                    label
+                )));
+            }
         }
         Ok(())
     }
@@ -692,7 +720,12 @@ impl FabricInspectionService {
     ) -> Result<InspectionModel, AppError> {
         let new_total_rolls = model.total_rolls + 1;
         let new_total_length = model.total_roll_length + req.roll_length;
-        let new_total_weight = model.total_roll_weight + req.roll_weight.unwrap_or(Decimal::ZERO);
+        // #220：重量实测值必填（roll_fabric 入口已 validate）；此处仍显式拒绝而非
+        // unwrap_or(ZERO) 兜底掩盖——缺值属调用方违约，必须报错不可静默加 0
+        let roll_weight = req.roll_weight.ok_or_else(|| {
+            AppError::validation_displayable("打卷入库必须填写重量(kg)，成品布标签重量取该实测值")
+        })?;
+        let new_total_weight = model.total_roll_weight + roll_weight;
         let mut active: InspectionActiveModel = model.into();
         active.total_rolls = Set(new_total_rolls);
         active.total_roll_length = Set(new_total_length);

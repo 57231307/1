@@ -42,12 +42,18 @@ fn piece_split_routes() -> Router<AppState> {
     )
 }
 
-/// 匹号查询路由（path 前缀 /pieces）：匹号领域四维追溯查询
+/// 匹号查询路由（path 前缀 /pieces）：匹号领域四维追溯查询 + 成品布入库标签打印
 fn piece_routes() -> Router<AppState> {
-    Router::new().route(
-        "/pieces",
-        get(crate::handlers::inventory_piece_handler::list_pieces),
-    )
+    Router::new()
+        .route(
+            "/pieces",
+            get(crate::handlers::inventory_piece_handler::list_pieces),
+        )
+        // #220 成品布入库打印标签：单匹 docx 卷唛（仅 dyed 可打，缺字段 fail-closed）
+        .route(
+            "/pieces/{id}/print",
+            get(print_handler::inventory_piece_label_print_docx),
+        )
 }
 
 /// 库存基础与查询路由（path 前缀 /stock*）
