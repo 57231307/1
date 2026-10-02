@@ -55,6 +55,10 @@ pub(crate) mod m0065_backfill_outsourcing_reserved_pieces;
 // m0066 调拨出库明细补匹号列（出库四维=缸/色/批/匹，用户 2026-10-02 纠正口径）：
 // 目标表 inventory_transfer_items 由 system 域 m0001 建表，早于本域执行，直接注册本域。
 mod m0066_add_piece_no_to_transfer_items;
+// m0067 扩 chk_aftersales_status 取值集为写入方权威词表 AFTERSALES_ALL 的 7 值
+// （+ accepted/evaluated，三端同源收口 CI #4669 65-01）；目标表 after_sales 由本域
+// m0044 建表（早于本迁移执行），直接注册本域 up 末尾即可。
+mod m0067_aftersales_status_add_accepted_evaluated;
 
 pub struct Migration;
 
@@ -196,6 +200,10 @@ impl MigrationTrait for Migration {
             .await?;
         // 调拨出库明细补匹号列（出库四维=缸/色/批/匹 落库点，见文件头注释）
         m0066_add_piece_no_to_transfer_items::Migration
+            .up(manager)
+            .await?;
+        // 售后工单状态 CHECK 补齐 accepted/evaluated（三端同源，见文件头注释），须晚于 m0044 建表
+        m0067_aftersales_status_add_accepted_evaluated::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
@@ -499,7 +507,11 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // m0066 最后应用故最先回滚（调拨明细匹号列）
+        // m0067 最后应用故最先回滚（售后状态 CHECK 回原 5 值，含在途行 fail-visible 拒滚）
+        m0067_aftersales_status_add_accepted_evaluated::Migration
+            .down(manager)
+            .await?;
+        // m0066 次后应用（调拨明细匹号列）
         m0066_add_piece_no_to_transfer_items::Migration
             .down(manager)
             .await?;
