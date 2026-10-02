@@ -20,14 +20,19 @@
 //! - 收货侧不阻断(本测试同时锁死"门控不挂 receipt 链路"的落点形态)。
 //!
 //! 覆盖策略(全部真实行为,无 mock):
-//! - sqlite::memory: 自建门控真实读写的表(supplier_qualifications/purchase_orders/
-//!   users/roles/role_permissions/audit_logs/suppliers),驱动门控服务判定;
+//! - 真 PostgreSQL(TEST_DATABASE_URL + 迁移建表,夹具清空业务表)驱动门控服务判定;
+//!   suppliers/roles/role_permissions 属迁移播种参照表**不清空**——供应商用高段显式 id
+//!   自建专属行,role_permissions 不自设主键(避让迁移已发号),users 为业务表由用例自插。
 //! - 事务性:资质行在「未提交事务」内写入后必须由以该事务句柄调用的门控读到并阻断
 //!   (读到未提交=经同一事务读取;若门控旁路自开连接查库则读不到 → 放行 → 断言炸),
 //!   回滚后全局不可见;
 //! - 活库并发端到端归 #[ignore] 由 ci-test-rust-ignored 在已迁移 PG 上执行。
 
-use bingxi_backend::models::{audit_log, role, role_permission, supplier_qualification};
+mod test_common;
+
+use bingxi_backend::models::{
+    audit_log, purchase_order, role, role_permission, supplier, supplier_qualification, user,
+};
 use bingxi_backend::services::supplier_qualification_gate::{
     EXPIRY_WARNING_DAYS_TIERS, QualificationExpiryLevel, QualificationExpiryWarning,
     STATUTORY_QUALIFICATION_KEYWORDS, SupplierQualificationGate, WAIVER_PERMISSION_ACTION,
@@ -35,9 +40,10 @@ use bingxi_backend::services::supplier_qualification_gate::{
 };
 use bingxi_backend::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
+use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbBackend,
-    EntityTrait, QueryFilter, QuerySelect, Set, Statement, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -46,135 +52,37 @@ fn days_from_today(delta: i64) -> NaiveDate {
 }
 
 // =========================================================
-// 1) sqlite 自建表(列与门控真实读取的 Entity/查询列逐一对应)
+// 1) 真 PG 夹具(迁移建表;列与门控真实读取的 Entity/查询列同源)
 // =========================================================
 
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::<sea_orm::Value>::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
 async fn setup_db() -> DatabaseConnection {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    exec(
-        &db,
-        r#"CREATE TABLE supplier_qualifications (
-            id INTEGER PRIMARY KEY,
-            supplier_id INTEGER NOT NULL,
-            qualification_name TEXT NOT NULL,
-            qualification_type TEXT NOT NULL,
-            qualification_no TEXT NOT NULL,
-            issuing_authority TEXT NOT NULL,
-            issue_date TEXT NOT NULL,
-            valid_until TEXT NOT NULL,
-            attachment_path TEXT,
-            need_annual_check INTEGER NOT NULL DEFAULT 0,
-            annual_check_record TEXT,
-            is_expired INTEGER NOT NULL DEFAULT 0,
-            remarks TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )"#,
-    )
-    .await;
-    // 门控仅按 (supplier_id, order_status) count,不 SELECT 全列
-    exec(
-        &db,
-        r#"CREATE TABLE purchase_orders (
-            id INTEGER PRIMARY KEY,
-            supplier_id INTEGER NOT NULL,
-            order_status TEXT NOT NULL
-        )"#,
-    )
-    .await;
-    // users 仅被 select_only(role_id / username)读取
-    exec(
-        &db,
-        r#"CREATE TABLE users (
-            id INTEGER PRIMARY KEY,
-            username TEXT NOT NULL,
-            role_id INTEGER
-        )"#,
-    )
-    .await;
-    // roles 被 is_admin_role find_by_id 全列读取
-    exec(
-        &db,
-        r#"CREATE TABLE roles (
-            id INTEGER PRIMARY KEY,
-            name TEXT,
-            code TEXT,
-            description TEXT,
-            permissions TEXT,
-            is_system INTEGER,
-            data_scope TEXT,
-            created_at TEXT,
-            updated_at TEXT
-        )"#,
-    )
-    .await;
-    // role_permissions 被 check_permission 全列读取
-    exec(
-        &db,
-        r#"CREATE TABLE role_permissions (
-            id INTEGER PRIMARY KEY,
-            role_id INTEGER NOT NULL,
-            resource_type TEXT NOT NULL,
-            resource_id INTEGER,
-            action TEXT NOT NULL,
-            allowed INTEGER NOT NULL,
-            permission_code TEXT,
-            created_at TEXT,
-            updated_at TEXT
-        )"#,
-    )
-    .await;
-    // audit_logs 覆盖门控写入的列 + 断言读取列
-    exec(
-        &db,
-        r#"CREATE TABLE audit_logs (
-            id INTEGER PRIMARY KEY,
-            user_id INTEGER,
-            username TEXT,
-            action TEXT NOT NULL,
-            resource_type TEXT,
-            resource_id TEXT,
-            resource_name TEXT,
-            description TEXT,
-            created_at TEXT,
-            operation_type TEXT,
-            severity TEXT,
-            before_snapshot TEXT,
-            after_snapshot TEXT,
-            condition TEXT
-        )"#,
-    )
-    .await;
-    // suppliers 仅被 select_only(id, supplier_name)读取(扫描富化)
-    exec(
-        &db,
-        r#"CREATE TABLE suppliers (
-            id INTEGER PRIMARY KEY,
-            supplier_name TEXT NOT NULL
-        )"#,
-    )
-    .await;
-    db
+    test_common::setup_test_db().await
 }
 
+/// suppliers 为迁移播种参照表(不清空,m0015 已占低段 id):
+/// 用例用高段显式 id + 唯一编码自建专属行,跨用例互不碰撞。
 async fn seed_supplier(db: &DatabaseConnection, id: i32, name: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        format!("INSERT INTO suppliers (id, supplier_name) VALUES ({id}, '{name}')"),
-        vec![],
-    ))
+    supplier::ActiveModel {
+        id: Set(id),
+        supplier_code: Set(format!("SUP-QGATE-{id}")),
+        supplier_name: Set(name.to_string()),
+        supplier_short_name: Set(String::new()),
+        supplier_type: Set("面料供应商".to_string()),
+        credit_code: Set(String::new()),
+        registered_address: Set(String::new()),
+        legal_representative: Set(String::new()),
+        registered_capital: Set(Decimal::ZERO),
+        establishment_date: Set(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
+        taxpayer_type: Set("一般纳税人".to_string()),
+        bank_name: Set(String::new()),
+        bank_account: Set(String::new()),
+        contact_phone: Set(String::new()),
+        created_at: Set(Utc::now().into()),
+        updated_at: Set(Utc::now().into()),
+        is_processor: Set(false),
+        ..Default::default()
+    }
+    .insert(db)
     .await
     .unwrap_or_else(|e| panic!("seed supplier 失败: {e}"));
 }
@@ -208,30 +116,49 @@ async fn seed_qualification<C: ConnectionTrait>(
     .unwrap_or_else(|e| panic!("seed qualification 失败: {e}"));
 }
 
+/// 历史订单:门控仅按 (supplier_id, order_status) count;
+/// purchase_orders 为业务表(夹具 TRUNCATE…RESTART IDENTITY),显式 id 稳定。
+/// NOT NULL 列按真表口径补齐(先例:contract_wave2_po_item_update_fields seed_live_po)。
 async fn seed_history_order(db: &DatabaseConnection, id: i32, supplier_id: i32, status: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        format!(
-            "INSERT INTO purchase_orders (id, supplier_id, order_status) VALUES ({id}, {supplier_id}, '{status}')"
-        ),
-        vec![],
-    ))
+    purchase_order::ActiveModel {
+        id: Set(id),
+        order_no: Set(format!("PO-GATE-{id}")),
+        supplier_id: Set(supplier_id),
+        order_date: Set(days_from_today(-10)),
+        warehouse_id: Set(1),
+        department_id: Set(1),
+        purchaser_id: Set(900),
+        currency: Set("CNY".to_string()),
+        exchange_rate: Set(Decimal::ONE),
+        total_amount: Set(Decimal::ZERO),
+        total_amount_foreign: Set(Decimal::ZERO),
+        total_quantity: Set(Decimal::ZERO),
+        total_quantity_alt: Set(Decimal::ZERO),
+        order_status: Set(status.to_string()),
+        created_by: Set(900),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
     .await
     .unwrap_or_else(|e| panic!("seed purchase_order 失败: {e}"));
 }
 
+/// users 不在迁移播种参照表(夹具 TRUNCATE 后由用例自插);password_hash 真表 NOT NULL
 async fn seed_user(db: &DatabaseConnection, id: i32, username: &str, role_id: Option<i32>) {
-    let role_sql = match role_id {
-        Some(r) => r.to_string(),
-        None => "NULL".to_string(),
-    };
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        format!(
-            "INSERT INTO users (id, username, role_id) VALUES ({id}, '{username}', {role_sql})"
-        ),
-        vec![],
-    ))
+    user::ActiveModel {
+        id: Set(id),
+        username: Set(username.to_string()),
+        password_hash: Set("test-only-not-a-real-hash".to_string()),
+        role_id: Set(role_id),
+        is_active: Set(true),
+        is_totp_enabled: Set(false),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
     .await
     .unwrap_or_else(|e| panic!("seed user 失败: {e}"));
 }
@@ -252,9 +179,10 @@ async fn seed_role(db: &DatabaseConnection, id: i32, code: &str) {
     .unwrap_or_else(|e| panic!("seed role 失败: {e}"));
 }
 
-async fn seed_waive_permission(db: &DatabaseConnection, id: i32, role_id: i32) {
+/// role_permissions 属迁移播种参照表(不清空、迁移已占低段 id):
+/// 不自设主键,由 serial 发号;fk_role_permissions_role 要求 role 行已存在。
+async fn seed_waive_permission(db: &DatabaseConnection, role_id: i32) {
     role_permission::ActiveModel {
-        id: Set(id),
         role_id: Set(role_id),
         resource_type: Set(WAIVER_PERMISSION_RESOURCE.to_string()),
         action: Set(WAIVER_PERMISSION_ACTION.to_string()),
@@ -509,7 +437,7 @@ async fn waiver_requires_permission_and_records_audit() {
     // 5c. 授权角色 + 携带原因 → 放行且审计行真实落库(资源类型/操作人/原因齐全)
     seed_role(&db, 912, "purchase_manager").await;
     seed_user(&db, 912, "authorized_user", Some(912)).await;
-    seed_waive_permission(&db, 1, 912).await;
+    seed_waive_permission(&db, 912).await;
     run_gate(&db, 105, 912, Some("停线风险经质量例会批准放行"))
         .await
         .expect("授权角色携原因应放行");
@@ -602,7 +530,7 @@ async fn gate_reads_qualifications_through_caller_transaction() {
 // 7) 活库并发端到端(需已迁移 PG,由 ci-test-rust-ignored 执行)
 // =========================================================
 
-/// 活库并发矩阵(计划,sqlite 无法复现真实多连接竞争):
+/// 活库并发矩阵(计划,单连接用例无法复现真实多连接竞争):
 /// 1) 两个并发 `PurchaseOrderService::create_order` 指向同一供应商(法定资质已过期):
 ///    两条请求都必须被拒且 purchase_orders 零新增——门控在 create_order 的 txn 内、
 ///    先于 create_order_header 的事务内取号执行(与取号同事务),拒绝即整体回滚,
@@ -614,7 +542,7 @@ async fn gate_reads_qualifications_through_caller_transaction() {
 #[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL(真实多连接并发);由 ci-test-rust-ignored 执行"]
 async fn live_gate_and_numbering_share_one_transaction() {
     // 接库后按上方计划实现(先例:contract_wave2_production_progress_gate_test.rs
-    // 的 #[ignore] 活库用例形态);sqlite 侧以事务内读取锁 + 源码扫描锁兜底。
+    // 的 #[ignore] 活库用例形态);常规用例以事务内读取锁 + 源码扫描锁兜底。
 }
 
 // =========================================================

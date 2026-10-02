@@ -30,9 +30,9 @@
 //! `contract_wave2_contract_no_and_remark_test.rs` 先例，无 mock）：
 //! - serde 解码（无 DB）：四新键双形态解码、缺键 = None、supplier_* 键被忽略、
 //!   越界允差在 DTO 层即被共用校验函数拒绝且文案外显；
-//! - sqlite::memory: 自建表 + 真实 handler（tower oneshot）：仅覆盖**不触库**的
-//!   拒绝路径——越界允差在 handler 入口 `validate_write()?` 即返回 400
-//!   （BUSINESS_ERROR + 真实文案），库存零变化；
+//! - 真 PostgreSQL（TEST_DATABASE_URL + 迁移建表，夹具清空业务表）+ 真实 handler
+//!   （tower oneshot）：拒绝路径——越界允差在 handler 入口 `validate_write()?` 即返回 400
+//!   （BUSINESS_ERROR + 真实文案），回读真表明细行确认库存/列零变化；
 //! - 成功路径端到端为**已迁移 PG 的 `#[ignore]` 活库用例**（由专用 job
 //!   `ci-test-rust-ignored` 执行）：`update_order_item` 服务链对
 //!   purchase_orders 加 `lock_exclusive()`，sqlite 方言不支持行锁（先例原话），
@@ -57,7 +57,6 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::purchase_order_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::user;
 use bingxi_backend::models::{
     product, product_color, product_supplier_mapping, purchase_order, purchase_order_item,
     supplier, supplier_product, supplier_product_color, warehouse,
@@ -65,9 +64,7 @@ use bingxi_backend::models::{
 use bingxi_backend::services::po::UpdateOrderItemRequest;
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, Statement,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
 use serde_json::{Value, json};
 use std::str::FromStr;
 use tower::ServiceExt;
@@ -167,15 +164,14 @@ fn out_of_range_tolerance_rejected_by_shared_validator_with_displayable_message(
 }
 
 // =========================================================
-// 2a) 真实 handler · 不触库拒绝路径（sqlite::memory: 自建表）
+// 2a) 真实 handler · 入口拒绝路径（真 PostgreSQL 迁移表；拒绝不触库）
 // =========================================================
 //
 // `update_order_item` 服务链对 purchase_orders 使用 `lock_exclusive()`
-// （receipt.rs 行锁 + calculate_order_total_txn 重算行锁），sqlite 方言不支持
-// ——本仓先例（contract_wave1_purchase_return_dimensions /
-// contract_wave2_contract_no_and_remark）已将其成功路径全部落为 #[ignore] 活库
-// 用例。sqlite 侧只保留**校验在取连接之前**、确定不触库的拒绝路径，
-// 假绿零收益（对照先例：越界允差在 handler 入口 `validate_write()?` 即返回）。
+// （receipt.rs 行锁 + calculate_order_total_txn 重算行锁），成功路径为下方
+// `#[ignore]` 活库用例（由专用 job ci-test-rust-ignored 执行）。
+// 本段用例走真实 handler 的**入口校验**拒绝路径（validate_write 在任何 SQL 之前），
+// 但夹具仍是迁移后的真 PG：被拒后用回读真表证明零写入，杜绝"表都不存在也能绿"的假锁。
 
 fn make_auth(user_id: i32) -> AuthContext {
     AuthContext {
@@ -212,182 +208,13 @@ fn item_router(db: sea_orm::DatabaseConnection) -> Router {
         .layer(from_fn_with_state(make_auth(100), inject_auth))
 }
 
-/// 各表最小 DDL：列与 `models/*.rs::Model` 逐列对应（Decimal 列用 TEXT、bool 用
-/// INTEGER，先例 `contract_wave1_ar_payment_error_mapping_test.rs`）；种子行统一
-/// 经 SeaORM ActiveModel 写入，由类型系统保证编码正确。
-async fn create_tables(db: &sea_orm::DatabaseConnection) {
-    let ddls = [
-        r#"CREATE TABLE purchase_orders (
-            id INTEGER PRIMARY KEY,
-            order_no TEXT NOT NULL UNIQUE, supplier_id INTEGER NOT NULL,
-            order_date TEXT NOT NULL, expected_delivery_date TEXT, actual_delivery_date TEXT,
-            warehouse_id INTEGER NOT NULL, department_id INTEGER NOT NULL,
-            purchaser_id INTEGER NOT NULL, currency TEXT NOT NULL,
-            exchange_rate TEXT NOT NULL, total_amount TEXT NOT NULL,
-            total_amount_foreign TEXT NOT NULL, total_quantity TEXT NOT NULL,
-            total_quantity_alt TEXT NOT NULL, order_status TEXT NOT NULL,
-            payment_terms TEXT, shipping_terms TEXT, notes TEXT, attachment_urls TEXT,
-            created_by INTEGER NOT NULL, created_at TEXT NOT NULL,
-            updated_by INTEGER, updated_at TEXT NOT NULL,
-            approved_by INTEGER, approved_at TEXT, rejected_reason TEXT
-        )"#,
-        r#"CREATE TABLE purchase_order_item (
-            id INTEGER PRIMARY KEY,
-            order_id INTEGER NOT NULL, line_no INTEGER NOT NULL, product_id INTEGER NOT NULL,
-            quantity TEXT NOT NULL, quantity_alt TEXT NOT NULL,
-            unit_price TEXT NOT NULL, unit_price_foreign TEXT NOT NULL,
-            discount_percent TEXT NOT NULL, tax_percent TEXT NOT NULL,
-            subtotal TEXT NOT NULL, tax_amount TEXT NOT NULL,
-            discount_amount TEXT NOT NULL, total_amount TEXT NOT NULL,
-            received_quantity TEXT NOT NULL, received_quantity_alt TEXT NOT NULL,
-            quantity_tolerance_pct TEXT, notes TEXT,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-            color_code TEXT, lot_no TEXT, batch_no TEXT,
-            supplier_product_code TEXT, supplier_color_no TEXT
-        )"#,
-        r#"CREATE TABLE product_colors (
-            id INTEGER PRIMARY KEY,
-            product_id INTEGER NOT NULL, color_no TEXT NOT NULL, color_name TEXT NOT NULL,
-            pantone_code TEXT, color_type TEXT NOT NULL, dye_formula TEXT,
-            extra_cost TEXT NOT NULL, is_active INTEGER NOT NULL,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        )"#,
-        r#"CREATE TABLE supplier_products (
-            id INTEGER PRIMARY KEY,
-            supplier_id INTEGER NOT NULL, product_code TEXT NOT NULL, product_name TEXT NOT NULL,
-            product_description TEXT, unit TEXT NOT NULL, is_enabled INTEGER NOT NULL,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-            created_by INTEGER, updated_by INTEGER, remarks TEXT
-        )"#,
-        r#"CREATE TABLE supplier_product_colors (
-            id INTEGER PRIMARY KEY,
-            supplier_product_id INTEGER NOT NULL, color_no TEXT NOT NULL, color_name TEXT NOT NULL,
-            pantone_code TEXT, extra_cost TEXT NOT NULL, is_enabled INTEGER NOT NULL,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL, remarks TEXT
-        )"#,
-        r#"CREATE TABLE product_supplier_mappings (
-            id INTEGER PRIMARY KEY,
-            product_id INTEGER NOT NULL, product_color_id INTEGER, supplier_id INTEGER NOT NULL,
-            supplier_product_id INTEGER NOT NULL, supplier_product_color_id INTEGER,
-            is_primary INTEGER NOT NULL, priority INTEGER NOT NULL,
-            supplier_price TEXT, min_order_quantity TEXT, lead_time INTEGER,
-            is_enabled INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-            created_by INTEGER, updated_by INTEGER, remarks TEXT
-        )"#,
-        r#"CREATE TABLE users (
-            id INTEGER PRIMARY KEY,
-            username TEXT NOT NULL, password_hash TEXT NOT NULL,
-            real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-            role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-            totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-            last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-            gender TEXT, birth_date TEXT
-        )"#,
-        r#"CREATE TABLE audit_logs (
-            id INTEGER PRIMARY KEY,
-            user_id INTEGER, username TEXT, action TEXT NOT NULL,
-            resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-            ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-            request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-            old_value TEXT, new_value TEXT, created_at TEXT,
-            operation_type TEXT, severity TEXT, request_id TEXT,
-            before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-            export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-            export_approval_token TEXT, export_watermark_user TEXT
-        )"#,
-    ];
-    for ddl in ddls {
-        db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            ddl,
-            Vec::new(),
-        ))
-        .await
-        .unwrap_or_else(|e| panic!("DDL 执行失败: {e}"));
-    }
-}
-
-/// sqlite 种子：DRAFT 采购订单 1（created_by=100=操作人）+ 明细行 1
-/// （数量 10 × 单价 100，tax 13%，无折扣/允差/色号/辅量）。仅供不触库的
-/// 拒绝路径用例确认「被拒后库里零变化」。
-async fn seed(db: &sea_orm::DatabaseConnection) {
-    let now = Utc::now();
-    user::ActiveModel {
-        id: sea_orm::ActiveValue::Set(100),
-        username: sea_orm::ActiveValue::Set("po_item_editor".to_string()),
-        password_hash: sea_orm::ActiveValue::Set("x".to_string()),
-        is_active: sea_orm::ActiveValue::Set(true),
-        is_totp_enabled: sea_orm::ActiveValue::Set(false),
-        created_at: sea_orm::ActiveValue::Set(now),
-        updated_at: sea_orm::ActiveValue::Set(now),
-        ..Default::default()
-    }
-    .insert(db)
-    .await
-    .unwrap();
-
-    purchase_order::ActiveModel {
-        id: sea_orm::ActiveValue::Set(1),
-        order_no: sea_orm::ActiveValue::Set("PO20260920001".to_string()),
-        supplier_id: sea_orm::ActiveValue::Set(7),
-        order_date: sea_orm::ActiveValue::Set(
-            chrono::NaiveDate::from_ymd_opt(2026, 9, 20).unwrap(),
-        ),
-        warehouse_id: sea_orm::ActiveValue::Set(1),
-        department_id: sea_orm::ActiveValue::Set(1),
-        purchaser_id: sea_orm::ActiveValue::Set(100),
-        currency: sea_orm::ActiveValue::Set("CNY".to_string()),
-        exchange_rate: sea_orm::ActiveValue::Set(Decimal::new(1, 0)),
-        total_amount: sea_orm::ActiveValue::Set(dec("1130")),
-        total_amount_foreign: sea_orm::ActiveValue::Set(dec("1130")),
-        total_quantity: sea_orm::ActiveValue::Set(Decimal::new(10, 0)),
-        total_quantity_alt: sea_orm::ActiveValue::Set(Decimal::ZERO),
-        order_status: sea_orm::ActiveValue::Set(
-            bingxi_backend::models::status::purchase_inventory::purchase_order::DRAFT.to_string(),
-        ),
-        created_by: sea_orm::ActiveValue::Set(100),
-        created_at: sea_orm::ActiveValue::Set(now),
-        updated_at: sea_orm::ActiveValue::Set(now),
-        ..Default::default()
-    }
-    .insert(db)
-    .await
-    .unwrap();
-
-    purchase_order_item::ActiveModel {
-        id: sea_orm::ActiveValue::Set(1),
-        order_id: sea_orm::ActiveValue::Set(1),
-        line_no: sea_orm::ActiveValue::Set(1),
-        product_id: sea_orm::ActiveValue::Set(5),
-        quantity: sea_orm::ActiveValue::Set(Decimal::new(10, 0)),
-        quantity_alt: sea_orm::ActiveValue::Set(Decimal::ZERO),
-        unit_price: sea_orm::ActiveValue::Set(Decimal::new(100, 0)),
-        unit_price_foreign: sea_orm::ActiveValue::Set(Decimal::new(100, 0)),
-        discount_percent: sea_orm::ActiveValue::Set(Decimal::ZERO),
-        tax_percent: sea_orm::ActiveValue::Set(dec("13")),
-        subtotal: sea_orm::ActiveValue::Set(dec("1000")),
-        tax_amount: sea_orm::ActiveValue::Set(dec("130")),
-        discount_amount: sea_orm::ActiveValue::Set(Decimal::ZERO),
-        total_amount: sea_orm::ActiveValue::Set(dec("1130")),
-        received_quantity: sea_orm::ActiveValue::Set(Decimal::ZERO),
-        received_quantity_alt: sea_orm::ActiveValue::Set(Decimal::ZERO),
-        created_at: sea_orm::ActiveValue::Set(now),
-        updated_at: sea_orm::ActiveValue::Set(now),
-        ..Default::default()
-    }
-    .insert(db)
-    .await
-    .unwrap();
-}
-
-async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_tables(&db).await;
-    seed(&db).await;
-    (item_router(db.clone()), db)
+/// 真 PG 种子：DRAFT 采购订单 + 明细行 1（数量 10 × 单价 100，tax 13%，
+/// 无折扣/允差/色号/辅量），复用 2b 段 `seed_live_po`（FK 前置链与活库用例同源）。
+/// 仅供入口拒绝用例确认「被拒后真表零变化」；返回 router、连接与种子行 id。
+async fn seeded_app() -> (Router, sea_orm::DatabaseConnection, i32, i32) {
+    let db = test_common::setup_test_db().await;
+    let (order_id, item_id, _sup, _prod) = seed_live_po(&db, None).await;
+    (item_router(db.clone()), db, order_id, item_id)
 }
 
 /// PUT 更新并返回响应（ApiResponse.data = 更新后的 purchase_order_item::Model
@@ -417,17 +244,13 @@ async fn put_item(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) {
 /// 越界允差（>100 / <0）必须被业务错误拒绝，且拒绝文案以 business_displayable
 /// 外显真实原因——不是脱敏的「业务处理失败」，也不是走样的「请求参数验证失败」；
 /// 校验复用创建路径同一 validate_quantity_tolerance_pct（0~100）。
-/// handler 入口即拒绝、不触达任何 SQL（sqlite 方言限制不构成本用例障碍）。
+/// handler 入口即拒绝、不触达任何 SQL；随后回读真表确认零写入。
 #[tokio::test]
 async fn update_item_out_of_range_tolerance_rejected_with_displayable_message() {
-    let (app, db) = seeded_app().await;
+    let (app, db, order_id, item_id) = seeded_app().await;
+    let uri = format!("/orders/{order_id}/items/{item_id}");
     for bad in [json!(150), json!(-1)] {
-        let (status, v) = put_item(
-            &app,
-            "/orders/1/items/1",
-            json!({ "quantity_tolerance_pct": bad }),
-        )
-        .await;
+        let (status, v) = put_item(&app, &uri, json!({ "quantity_tolerance_pct": bad })).await;
         assert_eq!(
             status,
             StatusCode::BAD_REQUEST,
@@ -442,7 +265,7 @@ async fn update_item_out_of_range_tolerance_rejected_with_displayable_message() 
         assert_ne!(v["message"], "请求参数验证失败");
     }
     // 拒绝路径零写入：允差仍是 seed 的 NULL
-    let row = purchase_order_item::Entity::find_by_id(1)
+    let row = purchase_order_item::Entity::find_by_id(item_id)
         .one(&db)
         .await
         .unwrap()

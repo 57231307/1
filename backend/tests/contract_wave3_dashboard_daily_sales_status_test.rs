@@ -17,8 +17,8 @@
 //!   由同一 WHERE 谓词门控,不存在"只滤金额不滤单数"——本测试同时在复现 SQL 中带
 //!   COUNT(*) 锁"同一谓词对金额与行数同步生效"。
 //!
-//! 覆盖策略(全部真实 SQL 行为,无 mock;复现生产谓词形态,直连 sqlite::memory:,
-//! 不经 DashboardService 的 5min TTL 内存缓存,无陈旧缓存假绿风险):
+//! 覆盖策略(全部真实 SQL 行为,无 mock;路线一:真库 PostgreSQL,复现生产谓词
+//! 形态,不经 DashboardService 的 5min TTL 内存缓存,无陈旧缓存假绿风险):
 //! 1. 行为锁:复现修复后谓词(status NOT IN ($1,$2) 绑小写常量 + 日期过滤 $3),
 //!    断言窗内日桶仅 pending(1000/1 单)、窗外 pending(500)被 $3 日期参数剔除。
 //!    失败签名:6556.25=大小写门漏剔;1500=日期占位符撞号漏剔窗外;7056.25=双缺陷。
@@ -28,40 +28,51 @@
 //! 4. 防回潮源码扫描:query_daily_sales_amounts 函数体必须含 is_not_in 且引用
 //!    so_status 常量、不得出现任何状态字符串字面量;dashboard_service.rs 全文
 //!    不得再含大写 NOT IN 字面量。
+//!
+//! 真库口径说明:生产 total_amount 列为 DECIMAL,聚合出参显式 `::float8` 后按 f64
+//! 解码(.00/.25/.50/.75 求和均为二进制精确小数,== 精确断言不受影响);order_date
+//! 为 TIMESTAMPTZ,日期下限参数按 PG 语义 `$n::timestamptz` 绑定,谓词形态不变。
 
 use bingxi_backend::models::status::sales::sales_order;
-use sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
+use sea_orm::{ConnectionTrait, DbBackend, Decimal, Statement, Value};
+
+mod test_common;
+use test_common::setup_test_db;
 
 async fn setup_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
+    let db = setup_test_db().await;
+
+    // FK 前置:sales_orders.customer_id → customers(真表 NOT NULL)
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE sales_orders (
-            id INTEGER PRIMARY KEY,
-            order_date TEXT NOT NULL,
-            total_amount REAL NOT NULL,
-            status TEXT NOT NULL
-        )"#,
-        Vec::<Value>::new(),
+        DbBackend::Postgres,
+        "INSERT INTO customers (id, customer_code, customer_name) VALUES ($1, $2, $3)",
+        vec![
+            1i32.into(),
+            "W3D-DASH-C1".to_string().into(),
+            "日销卡片锁客户".to_string().into(),
+        ],
     ))
     .await
-    .expect("DDL 建表失败");
+    .expect("种子客户插入失败(FK 前置)");
 
     // (订单日, 金额, 状态) —— 窗口 2096-12-01 起:
     // pending 1000(窗内) / draft 2222.5 / cancelled 3333.75 / pending 500(窗外)
     for (day, amount, status) in [
-        ("2096-12-05", 1000.00_f64, sales_order::PENDING),
-        ("2096-12-06", 2222.50_f64, sales_order::DRAFT),
-        ("2096-12-07", 3333.75_f64, sales_order::CANCELLED),
-        ("2096-11-01", 500.00_f64, sales_order::PENDING),
+        ("2096-12-05", Decimal::new(100000, 2), sales_order::PENDING),
+        ("2096-12-06", Decimal::new(222250, 2), sales_order::DRAFT),
+        ("2096-12-07", Decimal::new(333375, 2), sales_order::CANCELLED),
+        ("2096-11-01", Decimal::new(50000, 2), sales_order::PENDING),
     ] {
         db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT INTO sales_orders (order_date, total_amount, status) \
-             VALUES ($1, $2, $3)",
-            vec![day.into(), amount.into(), status.into()],
+            DbBackend::Postgres,
+            r#"INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status)
+               VALUES ($1, 1, $2::timestamptz, $3, $4)"#,
+            vec![
+                format!("W3D-{day}").into(),
+                day.to_string().into(),
+                amount.into(),
+                status.into(),
+            ],
         ))
         .await
         .expect("种子订单插入失败");
@@ -96,14 +107,14 @@ async fn daily_agg_via_bound_params(db: &sea_orm::DatabaseConnection) -> (usize,
         "2096-12-01".into(),
     ];
     let stmt = Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         r#"SELECT
             s.order_date as order_day,
-            COALESCE(SUM(s.total_amount), 0) as amount,
-            COUNT(*) as cnt
+            COALESCE(SUM(s.total_amount), 0)::float8 as amount,
+            COUNT(*)::bigint as cnt
         FROM sales_orders s
         WHERE s.status NOT IN ($1, $2)
-        AND s.order_date >= $3
+        AND s.order_date >= $3::timestamptz
         GROUP BY s.order_date
         ORDER BY s.order_date ASC"#,
         values,
@@ -119,14 +130,14 @@ async fn daily_agg_via_bound_params(db: &sea_orm::DatabaseConnection) -> (usize,
 /// 日期参数 $1。与行为锁同种子数据、同断言点位,差值即大小写因果。
 async fn daily_agg_via_uppercase_literal(db: &sea_orm::DatabaseConnection) -> (usize, f64, i64) {
     let stmt = Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         r#"SELECT
             s.order_date as order_day,
-            COALESCE(SUM(s.total_amount), 0) as amount,
-            COUNT(*) as cnt
+            COALESCE(SUM(s.total_amount), 0)::float8 as amount,
+            COUNT(*)::bigint as cnt
         FROM sales_orders s
         WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
-        AND s.order_date >= $1
+        AND s.order_date >= $1::timestamptz
         GROUP BY s.order_date
         ORDER BY s.order_date ASC"#,
         vec!["2096-12-01".into()],
@@ -141,11 +152,11 @@ async fn daily_agg_via_uppercase_literal(db: &sea_orm::DatabaseConnection) -> (u
 /// 无排除门对照(修复前生产形态=全表聚合):四行全进,证明"缺谓词"本身即是缺陷。
 async fn daily_agg_via_no_predicate(db: &sea_orm::DatabaseConnection) -> (usize, f64, i64) {
     let stmt = Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         r#"SELECT
             s.order_date as order_day,
-            COALESCE(SUM(s.total_amount), 0) as amount,
-            COUNT(*) as cnt
+            COALESCE(SUM(s.total_amount), 0)::float8 as amount,
+            COUNT(*)::bigint as cnt
         FROM sales_orders s
         GROUP BY s.order_date
         ORDER BY s.order_date ASC"#,

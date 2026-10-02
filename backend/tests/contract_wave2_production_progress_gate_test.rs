@@ -19,13 +19,14 @@
 //!    任意登录用户可对他人 PENDING_APPROVAL 订单执行审批。
 //!
 //! 覆盖策略(全部真实行为,无 mock):
-//! - sqlite::memory: 自建 production_orders/products 两表 + 真实 handler 端到端
-//!   (tower oneshot):非 IN_PROGRESS 七态逐个 400 拒绝且 DB 零改动、IN_PROGRESS 正向
-//!   200 落库、progress 非 owner 403(状态门之前)、approve 非 owner 403(修复前该请求
-//!   直落服务侧;预检发生在触库锁之前,sqlite 可跑)。
-//!   注:approve owner 正向路径进服务侧 lock_exclusive,sqlite 方言不支持(先例:
-//!   contract_wave1_data_scope_idor_test.rs),正向断言归入 #[ignore] 活库用例。
+//! - 真 PostgreSQL(TEST_DATABASE_URL + 迁移建 production_orders/products,夹具清空业务表)
+//!   + 真实 handler 端到端(tower oneshot):非 IN_PROGRESS 七态逐个 400 拒绝且 DB 零改动、
+//!   IN_PROGRESS 正向 200 落库、progress 非 owner 403(状态门之前)、approve 非 owner 403
+//!   (修复前该请求直落服务侧;预检发生在触库锁之前)。
+//!   注:approve owner 正向路径进服务侧 lock_exclusive,正向断言归入 #[ignore] 活库用例。
 //! - 源码扫描防回潮锁:两个 handler 块的预检/状态门/外显映射锚点。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -42,9 +43,7 @@ use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::production_order;
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, Statement,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
 use serde_json::{Value, json};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -93,44 +92,9 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
 }
 
 // =========================================================
-// 1) sqlite 自建表(与 models/production_order.rs::Model 逐列对应;
-//    products 仅 LEFT JOIN 富化取 id/name 两列)
+// 1) 真 PG 迁移表(models/production_order.rs::Model 对应的生产表;
+//    products 仅 LEFT JOIN 富化用,夹具清空后为空不影响本组断言)
 // =========================================================
-
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-async fn create_tables(db: &sea_orm::DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE production_orders (
-            id INTEGER PRIMARY KEY,
-            order_no TEXT UNIQUE, sales_order_id INTEGER, product_id INTEGER,
-            planned_quantity TEXT, actual_quantity TEXT,
-            planned_start_date TEXT, planned_end_date TEXT,
-            actual_start_date TEXT, actual_end_date TEXT,
-            status TEXT, priority INTEGER, work_center_id INTEGER, remarks TEXT,
-            color_no TEXT, dye_lot_no TEXT, batch_no TEXT,
-            order_type TEXT, original_batch_id INTEGER, schedule_batch_key TEXT,
-            created_by INTEGER, created_at TEXT, updated_at TEXT
-        )"#,
-    )
-    .await;
-    exec(
-        db,
-        r#"CREATE TABLE products (
-            id INTEGER PRIMARY KEY, name TEXT
-        )"#,
-    )
-    .await;
-}
 
 /// 种一条 created_by=100 的生产订单,指定状态,返回落库 Model
 async fn seed_order(
@@ -177,15 +141,12 @@ fn build_app(db: sea_orm::DatabaseConnection, viewer: AuthContext) -> Router {
         .layer(from_fn_with_state(viewer, inject_auth))
 }
 
-/// 返回 (Router, 独立连接句柄, 订单 id):同一 sqlite 内存库经克隆连接共享
+/// 返回 (Router, 独立连接句柄, 订单 id):夹具清空业务表后真表为空,种子行可回读
 async fn seeded_app(
     status: &str,
     viewer: AuthContext,
 ) -> (Router, sea_orm::DatabaseConnection, i32) {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_tables(&db).await;
+    let db = test_common::setup_test_db().await;
     let order = seed_order(&db, status, &format!("PO-WAVE2-{status}")).await;
     let read_db = db.clone();
     (build_app(db, viewer), read_db, order.id)
@@ -329,7 +290,7 @@ async fn approve_non_owner_403_and_status_unchanged() {
 }
 
 /// all 范围用户不受归属预检拦截(对照组,防止把 data-scope 修成一律 403);
-/// 服务侧 lock_exclusive 在 sqlite 报错/透传均可能 → 只锁"不是 403"
+/// 本锁只钉归属层语义,服务侧状态机结果不在此断言(正向归 #[ignore] 活库用例)
 #[tokio::test]
 async fn approve_all_scope_not_blocked_by_ownership_precheck() {
     let (app, _db, id) = seeded_app("PENDING_APPROVAL", make_auth(200, Some("all"))).await;
@@ -343,16 +304,16 @@ async fn approve_all_scope_not_blocked_by_ownership_precheck() {
     assert_ne!(
         http_status,
         StatusCode::FORBIDDEN,
-        "all 范围不应被归属层拦截(后续服务侧方言错误另说): {v}"
+        "all 范围不应被归属层拦截(后续服务侧门另说): {v}"
     );
 }
 
-/// 活库:approve owner 正向(PENDING_APPROVAL → APPROVED);sqlite lock_exclusive 不支持
+/// 活库:approve owner 正向(PENDING_APPROVAL → APPROVED,服务侧 lock_exclusive 全链)
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL(approve_order 服务侧 lock_exclusive)"]
 async fn live_approve_owner_happy_path() {
     // 接库后补:owner POST approve {approved:true} → 2xx 且回读状态 APPROVED;
-    // 与上方 sqlite 的 403 负向成对,保持 ignore 直至接库
+    // 与上方真 PG 的 403 负向成对,保持 ignore 直至补全正向断言
     // (先例:contract_wave1_data_scope_idor_test.rs D 节活库矩阵)。
 }
 

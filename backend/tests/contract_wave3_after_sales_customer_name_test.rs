@@ -13,15 +13,19 @@
 //! - 前端 `frontend/src/api/custom-order.ts::AfterSales` 声明 `customer_name: string | null`，
 //!   `AfterSalesPanel.vue` 客户列显示真实客户名、null 显 '-'，禁止用 id 冒充名称
 //!
-//! Option 语义说明：`after_sales.customer_id` 实体为 NOT NULL i32 外键，但
-//! LEFT JOIN 在客户行缺失时产生 NULL，故 `customer_name` 必须为 Option——
-//! "客户行缺失" 是本测试用 sqlite 自建表实证的第二态。
+//! Option 语义说明：`after_sales.customer_id` 实体为 NOT NULL i32 外键，真库
+//! （路线一：`test_common::setup_test_db()` → 已迁移 PostgreSQL）上该列带
+//! `REFERENCES customers(id)` FK，"客户行缺失"的新行在写入层即被数据库拒绝——
+//! 建单拒绝形态由 `create_with_missing_customer_is_rejected_visibly` 锁定；
+//! DTO 的 Option 键必出形态由"客户存在"两态出参 + 源码扫描锁共同覆盖。
 //!
 //! 覆盖策略（全部真实行为，无 mock）：
-//! - sqlite::memory: 自建 after_sales + customers（真实表名/列名：
-//!   `models/customer.rs:9` table_name="customers"、`:19` pub customer_name）
+//! - 真库 PostgreSQL（迁移产出的 after_sales / customers / custom_orders / products
+//!   真实表，真实表名/列名：`models/customer.rs:9` table_name="customers"、
+//!   `:19` pub customer_name）；FK 前置链：售后→定制订单→客户/产品，用例自种子
 //! - "客户存在"态：创建响应 / 列表 / 更新响应三端 customer_name 忠实回显真实名
-//! - "客户行缺失"态（LEFT JOIN 出 NULL）：customer_name 键必存在且为 null，
+//! - "客户行缺失"态（真库 FK 实证）：建单必须被拒且出可见错误信封，
+//!   禁止静默成功/裸 panic；已存行的出参 customer_name 键必存在，
 //!   不得整键缺失、不得回退成 id 或拼装名
 //! - 源码扫描防回潮锁（extract_block 形态先例：contract_wave2_after_sales_create_test.rs）
 
@@ -41,8 +45,13 @@ use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
+mod test_common;
+use test_common::setup_test_db;
+
 const REAL_CUSTOMER_ID: i64 = 7;
 const REAL_CUSTOMER_NAME: &str = "滨海针织有限公司";
+const SECOND_CUSTOMER_ID: i64 = 8;
+const SECOND_CUSTOMER_NAME: &str = "远东纺织厂";
 const MISSING_CUSTOMER_ID: i64 = 999;
 
 fn make_auth(user_id: i32) -> AuthContext {
@@ -66,59 +75,55 @@ async fn inject_auth(
     next.run(request).await
 }
 
-/// 与 `models/after_sales.rs::Model` 逐列对应的 sqlite 最小 DDL（先例：wave2）
-async fn create_after_sales_table(db: &sea_orm::DatabaseConnection) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE after_sales (
-            id INTEGER PRIMARY KEY,
-            custom_order_id INTEGER, issue_type TEXT, customer_id INTEGER,
-            description TEXT, status TEXT,
-            opened_at TEXT, closed_at TEXT, resolution TEXT, refund_amount TEXT,
-            quality_issue_id INTEGER, accepted_at TEXT,
-            evaluation_score INTEGER, evaluation_comment TEXT, evaluated_at TEXT,
-            reason_category TEXT, reason_detail TEXT,
-            created_at TEXT, updated_at TEXT
-        )"#,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("after_sales DDL 执行失败: {e}"));
-}
-
-/// 真实表名 customers、真实名称列 customer_name（`models/customer.rs:9,19`）；
-/// 本测试只需 JOIN 富化涉及的列
-async fn create_customers_table(db: &sea_orm::DatabaseConnection) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE customers (
-            id INTEGER PRIMARY KEY,
-            customer_name TEXT
-        )"#,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("customers DDL 执行失败: {e}"));
-}
-
-async fn seed_customer(db: &sea_orm::DatabaseConnection, id: i64, name: &str) {
+/// 真库 customers（m0001 基础表：customer_code/customer_name NOT NULL）种子
+async fn seed_customer(db: &sea_orm::DatabaseConnection, id: i32, code: &str, name: &str) {
     // 预构造 Statement 执行走 execute_raw（sea-orm 2.0.2 ConnectionTrait，同仓内
     // 已编译写法 src/utils/number_generator.rs:263）；execute(&S: StatementBuilder) 不适用
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        "INSERT INTO customers (id, customer_name) VALUES (?, ?)",
-        vec![id.into(), name.to_string().into()],
+        DbBackend::Postgres,
+        "INSERT INTO customers (id, customer_code, customer_name) VALUES ($1, $2, $3)",
+        vec![id.into(), code.to_string().into(), name.to_string().into()],
     ))
     .await
     .unwrap_or_else(|e| panic!("seed 客户失败: {e}"));
 }
 
+/// FK 前置链：after_sales.custom_order_id → custom_orders → (customer_id, product_id)，
+/// 用例自种子最小合法行（列名/取值与迁移 m0044 建表逐一对应）
+async fn seed_custom_order(db: &sea_orm::DatabaseConnection, order_id: i64, customer_id: i32) {
+    const PRODUCT_ID: i32 = 5;
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO products (id, code, name) VALUES ($1, $2, $3)",
+        vec![
+            PRODUCT_ID.into(),
+            format!("W3A-PROD-{order_id}").into(),
+            "测试面料产品".to_string().into(),
+        ],
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("seed 产品失败（custom_orders FK 前置）: {e}"));
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"INSERT INTO custom_orders
+               (id, order_no, customer_id, product_id, spec, quantity)
+           VALUES ($1, $2, $3, $4, '180cm*120g', 100.00)"#,
+        vec![
+            order_id.into(),
+            format!("W3A-CO-{order_id}").into(),
+            customer_id.into(),
+            PRODUCT_ID.into(),
+        ],
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("seed 定制订单失败（after_sales FK 前置）: {e}"));
+}
+
+/// 返回 (app, db)：path id 42 对应的 custom_orders 行与真实客户 7 均已自种子
 async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_after_sales_table(&db).await;
-    create_customers_table(&db).await;
+    let db = setup_test_db().await;
+    seed_customer(&db, REAL_CUSTOMER_ID as i32, "W3A-C07", REAL_CUSTOMER_NAME).await;
+    seed_custom_order(&db, 42, REAL_CUSTOMER_ID as i32).await;
     let state = AppState {
         db: std::sync::Arc::new(db.clone()),
         ..Default::default()
@@ -243,8 +248,7 @@ fn assert_customer_name(obj: &Value, expected: Option<&str>) {
 /// （写后回读带 JOIN 链路的直接验证，修复前该键根本不存在）
 #[tokio::test]
 async fn create_response_carries_real_customer_name_from_join() {
-    let (app, db) = seeded_app().await;
-    seed_customer(&db, REAL_CUSTOMER_ID, REAL_CUSTOMER_NAME).await;
+    let (app, _db) = seeded_app().await;
     let (status, v) = post_create(&app, 42, create_payload(REAL_CUSTOMER_ID)).await;
     assert_eq!(status, StatusCode::OK, "实际体: {v}");
     assert_eq!(v["code"], 200);
@@ -253,17 +257,17 @@ async fn create_response_carries_real_customer_name_from_join() {
     assert_eq!(v["data"]["customer_id"], json!(REAL_CUSTOMER_ID));
 }
 
-/// 列表端点两态锁：同一订单下"客户存在"工单回显真实名；
-/// "客户行缺失"工单 customer_name 为显式 null 键（LEFT JOIN 语义忠实透传）
+/// 列表端点逐行锁：同一订单下两张工单各挂不同真实客户，
+/// 每行 customer_name 必须回显"本行"JOIN 到的真名（证明逐行富化、非缓存/拼装）
 #[tokio::test]
 async fn list_endpoint_echoes_real_name_and_null_for_missing_customer() {
     let (app, db) = seeded_app().await;
-    seed_customer(&db, REAL_CUSTOMER_ID, REAL_CUSTOMER_NAME).await;
+    seed_customer(&db, SECOND_CUSTOMER_ID as i32, "W3A-C08", SECOND_CUSTOMER_NAME).await;
     let (s1, c1) = post_create(&app, 42, create_payload(REAL_CUSTOMER_ID)).await;
     assert_eq!(s1, StatusCode::OK, "实际体: {c1}");
-    let (s2, c2) = post_create(&app, 42, create_payload(MISSING_CUSTOMER_ID)).await;
-    assert_eq!(s2, StatusCode::OK, "客户行缺失不得阻断建单，实际体: {c2}");
-    assert_customer_name(&c2["data"], None);
+    let (s2, c2) = post_create(&app, 42, create_payload(SECOND_CUSTOMER_ID)).await;
+    assert_eq!(s2, StatusCode::OK, "第二个真实客户建单应成功，实际体: {c2}");
+    assert_customer_name(&c2["data"], Some(SECOND_CUSTOMER_NAME));
 
     let (status, lv) = get_list(&app, 42).await;
     assert_eq!(status, StatusCode::OK, "列表应 200，实际体: {lv}");
@@ -276,20 +280,46 @@ async fn list_endpoint_echoes_real_name_and_null_for_missing_customer() {
     assert_customer_name(&named, Some(REAL_CUSTOMER_NAME));
     assert_eq!(named["customer_id"], json!(REAL_CUSTOMER_ID));
 
-    let orphan = find_item(items, c2["data"]["id"].as_i64().unwrap());
-    assert_customer_name(&orphan, None);
+    let second = find_item(items, c2["data"]["id"].as_i64().unwrap());
+    assert_customer_name(&second, Some(SECOND_CUSTOMER_NAME));
     assert_eq!(
-        orphan["customer_id"],
-        json!(MISSING_CUSTOMER_ID),
-        "外键值本身仍须如实透传，仅名称为 null"
+        second["customer_id"],
+        json!(SECOND_CUSTOMER_ID),
+        "外键值本身仍须如实透传"
+    );
+}
+
+/// 真库 FK 实证（路线一）：after_sales.customer_id 带
+/// `REFERENCES customers(id)`（迁移 m0044），"客户行缺失"的建单在写入层
+/// 必被数据库拒绝——不得静默成功、不得裸 panic，出参必须是可见错误信封。
+/// （旧 sqlite 自建表无 FK，才有"建单成功 + customer_name=null"态；
+/// 该态在生产 schema 下不可达，Option 键形态由 DTO 源码锁与前端锁继续锁定）
+#[tokio::test]
+async fn create_with_missing_customer_is_rejected_by_real_fk() {
+    let (app, _db) = seeded_app().await;
+    let (status, v) = post_create(&app, 42, create_payload(MISSING_CUSTOMER_ID)).await;
+    assert_ne!(
+        status,
+        StatusCode::OK,
+        "客户行缺失时 FK 必须拒绝建单，禁止静默成功造假工单，实际体: {v}"
+    );
+    assert!(
+        v.get("code").is_some() && v.get("message").is_some(),
+        "拒绝必须出标准错误信封（code+message 可见），禁止空体/裸 panic，实际: {v}"
     );
 }
 
 /// 更新端点出参锁：PUT 状态流转后响应仍带真实客户名（同一条回读链路）
+///
+/// 注意（真库首跑判责点）：服务状态机权威词表含 accepted/evaluated
+/// （`services/custom_order_aftersales_service.rs::is_valid_transition`），而迁移
+/// m0044 建表的 `chk_aftersales_status` CHECK 只含
+/// opened/processing/resolved/closed/rejected——若真库首跑此用例报 23514，
+/// 属「疑迁移/表结构缺口」（约束与写入方词表漂移），不是本断言错误，
+/// 禁止反向改断言或改服务迁就约束。
 #[tokio::test]
 async fn update_response_carries_real_customer_name() {
-    let (app, db) = seeded_app().await;
-    seed_customer(&db, REAL_CUSTOMER_ID, REAL_CUSTOMER_NAME).await;
+    let (app, _db) = seeded_app().await;
     let (s1, c1) = post_create(&app, 42, create_payload(REAL_CUSTOMER_ID)).await;
     assert_eq!(s1, StatusCode::OK, "实际体: {c1}");
     let id = c1["data"]["id"].as_i64().unwrap();

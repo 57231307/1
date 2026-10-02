@@ -14,8 +14,8 @@
 //! - 语义逐条核实均为"排除草稿/取消"(业务规则注释 sales.rs:10-14),未改成"只算已完成",
 //!   `pending` 仍应计入(71-03 的 1000 元单即为 pending 单)。
 //!
-//! 覆盖策略(全部真实 SQL 行为,无 mock):
-//! 1. 行为锁:sqlite::memory: 自建 sales_orders,种 pending(1000)/draft(2222.5)/
+//! 覆盖策略(全部真实 SQL 行为,无 mock;路线一:真库 PostgreSQL):
+//! 1. 行为锁:在迁移产出的真实 sales_orders 上种 pending(1000)/draft(2222.5)/
 //!    cancelled(3333.75) 三单(金额对齐 71-03),用**与生产同形态**的 `NOT IN ($1,$2)`
 //!    绑定小写词表常量聚合 → 断言仅 1 日桶、合计 1000、订单数 1;
 //!    对照组用**修复前**的大写字面量谓词聚合 → 断言 3 桶、合计 6556.25(即原缺陷实证)。
@@ -25,41 +25,52 @@
 //! 3. 防回潮源码扫描:断言 bi_analysis_ops/sales.rs、drilldown.rs 已不含大写状态 SQL 字面量,
 //!    且已改为引用 sales_order::CANCELLED / sales_order::DRAFT、参数占位符形态。
 //!
-//! 缓存纪律说明:本测试直连 sqlite、经真实谓词聚合,不经 BI service 的 5min TTL 内存缓存
+//! 真库口径说明:生产 total_amount 列为 DECIMAL,聚合出参显式 `::float8` 后按 f64
+//! 解码(.00/.25/.50/.75 求和均为二进制精确小数,== 精确断言不受影响);
+//! order_date 为 TIMESTAMPTZ,桶键即该列本身,谓词与 GROUP BY 形态与生产逐字同构。
+//! 缓存纪律说明:本测试直连真库、经真实谓词聚合,不经 BI service 的 5min TTL 内存缓存
 //! (bi_analysis_service.rs:32-48),不受陈旧缓存影响;71-03 的活体端点测试由其自身
 //! 的 2096-12 独占窗口 + 互异参数键保证,与此处单元锁互补。
 
 use bingxi_backend::models::status::sales::sales_order;
-use sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
+use sea_orm::{ConnectionTrait, DbBackend, Decimal, Statement, Value};
+
+mod test_common;
+use test_common::setup_test_db;
 
 async fn setup_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    // total_amount 用 REAL:用例金额(.00/.25/.50/.75)与求和均为二进制精确小数,
-    // REAL 聚合可安全做 == 精确断言,杜绝伪误差;status 存小写实际落库值。
+    let db = setup_test_db().await;
+
+    // FK 前置:sales_orders.customer_id → customers(真表 NOT NULL)
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE sales_orders (
-            id INTEGER PRIMARY KEY,
-            order_date TEXT NOT NULL,
-            total_amount REAL NOT NULL,
-            status TEXT NOT NULL
-        )"#,
-        Vec::<Value>::new(),
+        DbBackend::Postgres,
+        "INSERT INTO customers (id, customer_code, customer_name) VALUES ($1, $2, $3)",
+        vec![
+            1i32.into(),
+            "W3C-BI-C1".to_string().into(),
+            "BI词表锁客户".to_string().into(),
+        ],
     ))
     .await
-    .expect("DDL 建表失败");
+    .expect("种子客户插入失败(FK 前置)");
 
     for (day, amount, status) in [
-        ("2096-12-05", 1000.00_f64, sales_order::PENDING),
-        ("2096-12-06", 2222.50_f64, sales_order::DRAFT),
-        ("2096-12-07", 3333.75_f64, sales_order::CANCELLED),
+        ("2096-12-05", Decimal::new(100000, 2), sales_order::PENDING),
+        ("2096-12-06", Decimal::new(222250, 2), sales_order::DRAFT),
+        ("2096-12-07", Decimal::new(333375, 2), sales_order::CANCELLED),
     ] {
+        // order_date 真列为 TIMESTAMPTZ:测试常量日期以 ::timestamptz 字面量落库;
+        // status 存小写实际落库值(写入方词表权威形态)
         db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT INTO sales_orders (order_date, total_amount, status) VALUES ($1, $2, $3)",
-            vec![day.into(), amount.into(), status.into()],
+            DbBackend::Postgres,
+            r#"INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status)
+              VALUES ($1, 1, $2::timestamptz, $3, $4)"#,
+            vec![
+                format!("W3C-{day}").into(),
+                day.to_string().into(),
+                amount.into(),
+                status.into(),
+            ],
         ))
         .await
         .expect("种子订单插入失败");
@@ -89,10 +100,10 @@ fn unpack(rows: Vec<sea_orm::QueryResult>) -> (usize, f64, i64) {
 async fn agg_excluding_via_params(db: &sea_orm::DatabaseConnection) -> (usize, f64, i64) {
     let values: Vec<Value> = vec![sales_order::CANCELLED.into(), sales_order::DRAFT.into()];
     let stmt = Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         r#"SELECT order_date AS period,
-                  COALESCE(SUM(total_amount), 0.0) AS total,
-                  COUNT(*) AS cnt
+                  COALESCE(SUM(total_amount), 0)::float8 AS total,
+                  COUNT(*)::bigint AS cnt
            FROM sales_orders
            WHERE status NOT IN ($1, $2)
            GROUP BY period
@@ -108,10 +119,10 @@ async fn agg_excluding_via_uppercase_literal(
     db: &sea_orm::DatabaseConnection,
 ) -> (usize, f64, i64) {
     let stmt = Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         r#"SELECT order_date AS period,
-                  COALESCE(SUM(total_amount), 0.0) AS total,
-                  COUNT(*) AS cnt
+                  COALESCE(SUM(total_amount), 0)::float8 AS total,
+                  COUNT(*)::bigint AS cnt
            FROM sales_orders
            WHERE status NOT IN ('CANCELLED', 'DRAFT')
            GROUP BY period

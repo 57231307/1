@@ -44,6 +44,9 @@ use sea_orm::{
 use serde_json::Value;
 use tower::ServiceExt;
 
+mod test_common;
+use test_common::setup_test_db;
+
 fn make_auth(user_id: i32, username: &str, data_scope: Option<&str>) -> AuthContext {
     AuthContext {
         user_id,
@@ -98,71 +101,31 @@ async fn get_status_and_json(app: &Router, uri: &str) -> (StatusCode, Value) {
     (status, body)
 }
 
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
+async fn exec_pg(db: &DatabaseConnection, sql: &str) {
+    db.execute_raw(Statement::from_string(DbBackend::Postgres, sql.to_string()))
         .await
-        .expect("sqlite::memory: 连接失败")
+        .unwrap_or_else(|e| panic!("真库种子执行失败: {e}\nSQL: {sql}"));
 }
 
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::<sea_orm::Value>::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-/// 与 `models/ar_invoice.rs::Model` 全列对应（形态对齐 contract_wave1_ar_list_paginated_shape_test）
-async fn create_ar_invoices_table(db: &DatabaseConnection) {
-    exec(
+/// FK 前置种子（真库路线一，表由迁移产出、不自建 DDL）：
+/// - customers 1/2：ar_invoices.customer_id 带 REFERENCES customers(id) FK（m0012）
+/// - ar_reconciliations id=1：ar_reconciliation_items.reconciliation_id 带 FK（m0012）
+async fn seed_fk_prerequisites(db: &DatabaseConnection) {
+    exec_pg(
         db,
-        r#"CREATE TABLE ar_invoices (
-            id INTEGER PRIMARY KEY,
-            invoice_no TEXT, invoice_date TEXT, due_date TEXT,
-            customer_id INTEGER, customer_name TEXT, customer_code TEXT,
-            source_type TEXT, source_module TEXT, source_bill_id INTEGER, source_bill_no TEXT,
-            batch_no TEXT, color_no TEXT, dye_lot_no TEXT, sales_order_no TEXT,
-            invoice_amount TEXT, received_amount TEXT, unpaid_amount TEXT, tax_amount TEXT,
-            quantity_meters TEXT, quantity_kg TEXT, unit_price TEXT,
-            status TEXT, approval_status TEXT,
-            salesperson_id INTEGER, created_by INTEGER, reviewed_by INTEGER, reviewed_at TEXT,
-            created_at TEXT, updated_at TEXT
-        )"#,
+        r#"INSERT INTO customers (id, customer_code, customer_name) VALUES
+           (1, 'W4AR-C1', 'AR过滤锁客户一'),
+           (2, 'W4AR-C2', 'AR过滤锁客户二')"#,
     )
     .await;
-}
-
-/// 与 `models/ar_collection.rs::Model` 全列对应
-async fn create_ar_collections_table(db: &DatabaseConnection) {
-    exec(
+    exec_pg(
         db,
-        r#"CREATE TABLE ar_collections (
-            id INTEGER PRIMARY KEY,
-            collection_no TEXT, collection_date TEXT,
-            customer_id INTEGER, customer_name TEXT,
-            collection_amount TEXT, collection_method TEXT, bank_account TEXT, check_no TEXT,
-            request_id INTEGER, request_no TEXT,
-            status TEXT, confirmed_by INTEGER, confirmed_at TEXT,
-            created_by INTEGER, created_at TEXT, updated_at TEXT
-        )"#,
-    )
-    .await;
-}
-
-/// 与 `models/ar_reconciliation_item.rs::Model` 全列对应
-async fn create_ar_reconciliation_items_table(db: &DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE ar_reconciliation_items (
-            id INTEGER PRIMARY KEY,
-            piece_no TEXT, batch_no TEXT, color_no TEXT, dye_lot_no TEXT,
-            reconciliation_id INTEGER, item_type TEXT, document_type TEXT,
-            document_id INTEGER, document_no TEXT, document_date TEXT,
-            amount TEXT, matched_amount TEXT, match_status TEXT, matched_item_id INTEGER,
-            remarks TEXT, created_at TEXT, updated_at TEXT
-        )"#,
+        r#"INSERT INTO ar_reconciliations
+               (id, reconciliation_no, reconciliation_date, period_start, period_end,
+                customer_id, opening_balance, total_invoices, total_collections, closing_balance)
+           VALUES
+               (1, 'W4AR-RECON-1', '2026-01-01', '2026-01-01', '2026-01-31',
+                1, 0, 0, 0, 0)"#,
     )
     .await;
 }
@@ -262,10 +225,9 @@ async fn seed_collections(db: &DatabaseConnection) -> (i32, i32, i32) {
 }
 
 async fn seeded_app() -> Router {
-    let db = sqlite_db().await;
-    create_ar_invoices_table(&db).await;
-    create_ar_collections_table(&db).await;
-    create_ar_reconciliation_items_table(&db).await;
+    // 路线一：真库 PostgreSQL（迁移产出真实表），不再自建 sqlite 同构 DDL
+    let db = setup_test_db().await;
+    seed_fk_prerequisites(&db).await;
     seed_invoices(&db).await;
     seed_collections(&db).await;
     let state = AppState {

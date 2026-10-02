@@ -12,19 +12,29 @@
 //! - 状态取值改为 `NOT IN ($k, $k+1)` 占位符,值绑定 `sales_order::CANCELLED`/
 //!   `sales_order::DRAFT`(小写);新增 2 个占位后 data-scope 谓词基址逐处后移。
 //! - yoy 双子查询间状态值复用同一占位符 $4/$5(mom 复用 $5/$6),PG 协议允许
-//!   $N 重复引用;该编号形态依赖 PG 行为,sqlite 驱动不保证等价,故仅以源码
-//!   扫描锁定、不做 sqlite 执行,执行锁只覆盖单谓词形态。
+//!   $N 重复引用;该编号形态依赖 PG 行为,由源码扫描锁定(真库通道下语义与
+//!   生产一致),执行锁只覆盖单谓词形态。
 //! - yoy 原有 scope 基址 $3/$4 与 last_year($3) 撞号(Self/Dept 范围下会把
 //!   created_by/department_id 绑上年份字符串),修复时已一并移正($6/$7)。
 //!
 //! 语义逐条核实:7 处均为"排除草稿/取消"(pending 仍计入),与 sales.rs 已修处
 //! 一致,非"只算已完成",未改成第二套条件。
 //!
-//! 缓存纪律说明:本测试直连 sqlite、经真实谓词聚合,不经 BI service 的 5min TTL
+//! 缓存纪律说明:本测试直连真库 PostgreSQL(路线一:`test_common::setup_test_db()`，
+//! 已迁移库)、经真实谓词聚合,不经 BI service 的 5min TTL
 //! 内存缓存(bi_analysis_service.rs:32-48),不受陈旧缓存影响,参数键无需互异避让。
+//!
+//! 真库口径说明:生产列为 DECIMAL/NUMERIC,聚合出参在 SELECT 侧显式
+//! `::float8` 后按 f64 解码(与旧 sqlite REAL 通道等价的精确二进制小数,
+//! .00/.50/.75 均可 == 精确断言);日期/状态绑定按 PG 原生类型
+//! (`::timestamptz` 字面量、varchar 词表常量)。大小写敏感比较正是 PG 的
+//! 生产行为,sqlite 上"缺陷实证"与"修复形态"两锁在 PG 上语义不变。
 
 use bingxi_backend::models::status::sales::sales_order;
-use sea_orm::{ConnectionTrait, DbBackend, FromQueryResult, Statement, Value};
+use sea_orm::{ConnectionTrait, DbBackend, Decimal, FromQueryResult, Statement, Value};
+
+mod test_common;
+use test_common::setup_test_db;
 
 #[derive(Debug, FromQueryResult)]
 struct ProfitShapeRow {
@@ -33,42 +43,44 @@ struct ProfitShapeRow {
     order_count: Option<i64>,
 }
 
-async fn setup_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    // 金额/成本用 REAL:用例金额(.00/.50/.75)与求和均为二进制精确小数,可 == 精确断言。
-    for ddl in [
-        r#"CREATE TABLE sales_orders (
-            id INTEGER PRIMARY KEY,
-            order_date TEXT NOT NULL,
-            total_amount REAL NOT NULL,
-            status TEXT NOT NULL
-        )"#,
-        r#"CREATE TABLE products (
-            id INTEGER PRIMARY KEY,
-            cost_price REAL NOT NULL
-        )"#,
-        r#"CREATE TABLE sales_order_items (
-            id INTEGER PRIMARY KEY,
-            order_id INTEGER NOT NULL,
-            quantity REAL NOT NULL,
-            product_id INTEGER NOT NULL
-        )"#,
-    ] {
-        db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            ddl,
-            Vec::<Value>::new(),
-        ))
-        .await
-        .expect("DDL 建表失败");
-    }
+/// 谓词复现查询的 SELECT 列(真库列型为 NUMERIC,统一 ::float8 后按 f64 解码)
+const SHAPE_SELECT: &str = r#"SELECT
+            COALESCE(SUM(s.total_amount), 0)::float8 as total_revenue,
+            COALESCE(SUM((
+                SELECT SUM(si.quantity * COALESCE(p.cost_price, 0))
+                FROM sales_order_items si
+                LEFT JOIN products p ON p.id = si.product_id
+                WHERE si.order_id = s.id
+            )), 0)::float8 as total_cost,
+            COUNT(*)::bigint as order_count
+        FROM sales_orders s"#;
 
+async fn setup_db() -> sea_orm::DatabaseConnection {
+    let db = setup_test_db().await;
+
+    // FK 前置:sales_orders.customer_id → customers(真表 NOT NULL)
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        "INSERT INTO products (id, cost_price) VALUES ($1, $2)",
-        vec![1i64.into(), 5.0_f64.into()],
+        DbBackend::Postgres,
+        "INSERT INTO customers (id, customer_code, customer_name) VALUES ($1, $2, $3)",
+        vec![
+            1i32.into(),
+            "W3B-PROD-C1".to_string().into(),
+            "利润口径锁客户".to_string().into(),
+        ],
+    ))
+    .await
+    .expect("种子客户插入失败(FK 前置)");
+
+    // 成本用 Decimal(真列 DECIMAL(12,2)):用例金额(.00/.50/.75)均为十进制精确值
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO products (id, code, name, cost_price) VALUES ($1, $2, $3, $4)",
+        vec![
+            1i32.into(),
+            "W3B-PROD-1".to_string().into(),
+            "利润口径锁产品".to_string().into(),
+            Decimal::new(500, 2).into(),
+        ],
     ))
     .await
     .expect("种子产品插入失败");
@@ -76,22 +88,34 @@ async fn setup_db() -> sea_orm::DatabaseConnection {
     // (订单日, 销售额, 状态, 明细数量) —— 成本 = 数量*5:
     // pending 1000(成本50) / draft 2222.5(成本500) / cancelled 3333.75(成本1000)
     for (day, amount, status, qty) in [
-        ("2096-12-05", 1000.00_f64, sales_order::PENDING, 10.0_f64),
-        ("2096-12-06", 2222.50_f64, sales_order::DRAFT, 100.0_f64),
-        ("2096-12-07", 3333.75_f64, sales_order::CANCELLED, 200.0_f64),
+        ("2096-12-05", Decimal::new(100000, 2), sales_order::PENDING, Decimal::new(1000, 2)),
+        ("2096-12-06", Decimal::new(222250, 2), sales_order::DRAFT, Decimal::new(10000, 2)),
+        (
+            "2096-12-07",
+            Decimal::new(333375, 2),
+            sales_order::CANCELLED,
+            Decimal::new(20000, 2),
+        ),
     ] {
+        // order_date 真列为 TIMESTAMPTZ:测试常量日期以 ::timestamptz 字面量落库
         db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT INTO sales_orders (order_date, total_amount, status) VALUES ($1, $2, $3)",
-            vec![day.into(), amount.into(), status.into()],
+            DbBackend::Postgres,
+            r#"INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status)
+              VALUES ($1, 1, $2::timestamptz, $3, $4)"#,
+            vec![
+                format!("W3B-{day}").into(),
+                day.to_string().into(),
+                amount.into(),
+                status.into(),
+            ],
         ))
         .await
         .expect("种子订单插入失败");
         db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT INTO sales_order_items (order_id, quantity, product_id) \
-             SELECT id, $1, 1 FROM sales_orders WHERE order_date = $2",
-            vec![qty.into(), day.into()],
+            DbBackend::Postgres,
+            r#"INSERT INTO sales_order_items (order_id, quantity, product_id, unit_price, subtotal)
+              SELECT id, $1, 1, 0, 0 FROM sales_orders WHERE order_no = $2"#,
+            vec![qty.into(), format!("W3B-{day}").into()],
         ))
         .await
         .expect("种子明细插入失败");
@@ -106,18 +130,8 @@ async fn setup_db() -> sea_orm::DatabaseConnection {
 async fn profit_shape_excludes_draft_and_cancelled_via_bound_lowercase_status() {
     let db = setup_db().await;
     let stmt = Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"SELECT
-            COALESCE(SUM(s.total_amount), 0) as total_revenue,
-            COALESCE(SUM((
-                SELECT SUM(si.quantity * COALESCE(p.cost_price, 0))
-                FROM sales_order_items si
-                LEFT JOIN products p ON p.id = si.product_id
-                WHERE si.order_id = s.id
-            )), 0) as total_cost,
-            COUNT(*) as order_count
-        FROM sales_orders s
-        WHERE s.status NOT IN ($1, $2)"#,
+        DbBackend::Postgres,
+        &format!("{SHAPE_SELECT} WHERE s.status NOT IN ($1, $2)"),
         vec![sales_order::CANCELLED.into(), sales_order::DRAFT.into()],
     );
     let row: ProfitShapeRow = ProfitShapeRow::find_by_statement(stmt)
@@ -149,18 +163,8 @@ async fn profit_shape_excludes_draft_and_cancelled_via_bound_lowercase_status() 
 async fn uppercase_literal_predicate_wrongly_includes_all_orders_defect_proof() {
     let db = setup_db().await;
     let stmt = Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"SELECT
-            COALESCE(SUM(s.total_amount), 0) as total_revenue,
-            COALESCE(SUM((
-                SELECT SUM(si.quantity * COALESCE(p.cost_price, 0))
-                FROM sales_order_items si
-                LEFT JOIN products p ON p.id = si.product_id
-                WHERE si.order_id = s.id
-            )), 0) as total_cost,
-            COUNT(*) as order_count
-        FROM sales_orders s
-        WHERE s.status NOT IN ('CANCELLED', 'DRAFT')"#,
+        DbBackend::Postgres,
+        &format!("{SHAPE_SELECT} WHERE s.status NOT IN ('CANCELLED', 'DRAFT')"),
         Vec::<Value>::new(),
     );
     let row: ProfitShapeRow = ProfitShapeRow::find_by_statement(stmt)

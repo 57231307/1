@@ -1,4 +1,7 @@
-//! 出库四维（缸/色/批/匹）真实 sqlite 契约锁：调拨发运消耗染色匹（用户 2026-10-02 纠正口径）
+//! 出库四维（缸/色/批/匹）真实 PostgreSQL 契约锁：调拨发运消耗染色匹（用户 2026-10-02 纠正口径）
+//!
+//! 表结构唯一来源 = backend/migration（路线一，#4669 判责）：本文件不再自建任何 DDL，
+//! 全部读写打真实迁移表（正确的 DECIMAL/CHECK/触发器/索引由迁移提供）。
 //!
 //! 锁定行为（判定唯一来源 `services/inv/fabric_class.rs`，出库包装
 //! `services/inventory_deduction.rs::require_outbound_dimensions`）：
@@ -10,17 +13,15 @@
 //!    且匹级数据被**真实扣减**：inventory_piece 经事务内 CAS AVAILABLE→SHIPPED、
 //!    调出仓库存真实扣 10、调入仓 quantity_incoming 加 10、TRANSFER_OUT 流水落库。
 //!
-//! 为什么此链能在 sqlite 真跑（对照 contract_wave1_transfer_dims 建单链不可 sqlite 化）：
-//! `POST /transfers/{id}/ship` → `inv::batch::ship_transfer` 全链为 SeaORM 单表
-//! 查询/条件更新（乐观锁 version CAS、匹 CAS），无 pg_advisory 取号、无 Postgres
-//! 方言原生 SQL；`lock_exclusive()` 子句在 sea-query SqliteQueryBuilder 中按方言
-//! 静默跳过（sea-query-1.0.2 backend/sqlite/query.rs "SQLite doesn't supports row
-//! locking"），CAS 语义本身由 UPDATE ... WHERE status=AVAILABLE 在 sqlite 真实保证。
+//! 第四维口径（当前权威，`services/inv/fabric_class.rs` 与 `models/status/*` 核对）：
+//! 出库四维 = 缸号(dye_lot_no) / 色号(color_no) / 批次(batch_no) / 匹号(piece_no)，
+//! 款号由 product_id 承载；幅宽(width)/旧四维写法不参与四维判定。
 //!
-//! 脚手架沿用 contract_wave6_crm_merge_owner_scope_test.rs：seeded_db（sqlite::memory:
-//! + 与 models/*.rs 逐列对应的同构 DDL，Decimal→TEXT、DateTime→TEXT、bool→INTEGER，
-//! 先例 contract_wave5/wave6 同形态）+ build_app + 注入 auth + 真发 HTTP 请求；
+//! 脚手架：`test_common::setup_test_db()`（已迁移 PG + TRUNCATE RESTART IDENTITY，
+//! 显式 id 断言稳定）+ build_app + 注入 auth + 真发 HTTP 请求；
 //! 行状态一律回读真库比对。状态字面量全部引自 models::status 词表，不手写第二套。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -35,9 +36,13 @@ use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::inventory_piece;
 use bingxi_backend::models::inventory_stock;
 use bingxi_backend::models::inventory_transaction;
+use bingxi_backend::models::inventory_transfer;
+use bingxi_backend::models::inventory_transfer_item;
+use bingxi_backend::models::product;
 use bingxi_backend::models::status::inventory_transfer as transfer_status;
 use bingxi_backend::models::status::purchase_inventory::inventory_piece as piece_status;
-use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, Statement};
+use bingxi_backend::models::warehouse;
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
 use serde_json::Value;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -47,8 +52,12 @@ fn dec(s: &str) -> rust_decimal::Decimal {
     rust_decimal::Decimal::from_str(s).unwrap()
 }
 
+fn now() -> chrono::DateTime<chrono::Utc> {
+    chrono::Utc::now()
+}
+
 // ---------------------------------------------------------------------------
-// 脚手架（wave6 同款）
+// 脚手架
 // ---------------------------------------------------------------------------
 
 fn make_auth() -> AuthContext {
@@ -72,203 +81,166 @@ async fn inject_auth(
     next.run(request).await
 }
 
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
-}
-
-/// 与 models/inventory_transfer.rs::Model 逐列对应
-const DDL_TRANSFERS: &str = r#"CREATE TABLE inventory_transfers (
-    id INTEGER PRIMARY KEY,
-    transfer_no TEXT NOT NULL, from_warehouse_id INTEGER NOT NULL,
-    to_warehouse_id INTEGER NOT NULL, transfer_date TEXT NOT NULL,
-    status TEXT NOT NULL, total_quantity TEXT NOT NULL, notes TEXT,
-    created_by INTEGER, approved_by INTEGER, approved_at TEXT,
-    shipped_at TEXT, received_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    approval_level TEXT, approved_by_role TEXT, total_amount TEXT NOT NULL
-)"#;
-
-/// 与 models/inventory_transfer_item.rs::Model 逐列对应（piece_no 为 m0066 补列）
-const DDL_TRANSFER_ITEMS: &str = r#"CREATE TABLE inventory_transfer_items (
-    id INTEGER PRIMARY KEY, transfer_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-    quantity TEXT NOT NULL, shipped_quantity TEXT NOT NULL, received_quantity TEXT NOT NULL,
-    unit_cost TEXT, notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    color_no TEXT NOT NULL, dye_lot_no TEXT, batch_no TEXT NOT NULL, piece_no TEXT
-)"#;
-
-/// 与 models/inventory_stock.rs::Model 逐列对应
-const DDL_STOCKS: &str = r#"CREATE TABLE inventory_stocks (
-    id INTEGER PRIMARY KEY,
-    warehouse_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-    quantity_on_hand TEXT NOT NULL, quantity_available TEXT NOT NULL,
-    quantity_reserved TEXT NOT NULL, quantity_shipped TEXT NOT NULL,
-    quantity_incoming TEXT NOT NULL, reorder_point TEXT NOT NULL,
-    max_stock_point TEXT NOT NULL, reorder_quantity TEXT NOT NULL,
-    bin_location TEXT, last_count_date TEXT, last_movement_date TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    batch_no TEXT NOT NULL, color_no TEXT NOT NULL, dye_lot_no TEXT, grade TEXT NOT NULL,
-    production_date TEXT, expiry_date TEXT,
-    quantity_meters TEXT NOT NULL, quantity_kg TEXT NOT NULL,
-    gram_weight TEXT, width TEXT, location_id INTEGER, shelf_no TEXT, layer_no TEXT,
-    stock_status TEXT NOT NULL, quality_status TEXT NOT NULL,
-    version INTEGER NOT NULL, replenishment_strategy TEXT NOT NULL
-)"#;
-
-/// 与 models/inventory_piece.rs::Model 逐列对应（先例 contract_wave5_outsource_issue_guard）
-const DDL_PIECE: &str = r#"CREATE TABLE inventory_piece (
-    id INTEGER PRIMARY KEY,
-    piece_no TEXT NOT NULL, piece_type TEXT NOT NULL, dye_lot_id INTEGER,
-    machine_no TEXT, machine_operator TEXT, warehouse_in_at TEXT, supplier_piece_no TEXT,
-    length TEXT NOT NULL, weight TEXT, width TEXT, gram_weight TEXT,
-    position_no TEXT, package_no TEXT, production_date TEXT, shelf_life INTEGER,
-    quality_status TEXT, inventory_status TEXT, warehouse_id INTEGER NOT NULL,
-    remarks TEXT, barcode TEXT, product_id INTEGER NOT NULL, batch_no TEXT NOT NULL,
-    color_no TEXT NOT NULL, dye_lot_no TEXT NOT NULL,
-    parent_piece_id INTEGER, inspection_id INTEGER, piece_seq INTEGER,
-    location_id INTEGER, scan_type TEXT, status TEXT NOT NULL,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, original_length TEXT, original_weight TEXT
-)"#;
-
-/// 与 models/inventory_transaction.rs::Model 逐列对应（发运写 TRANSFER_OUT 流水）
-const DDL_TRANSACTIONS: &str = r#"CREATE TABLE inventory_transactions (
-    id INTEGER PRIMARY KEY,
-    transaction_type TEXT NOT NULL,
-    product_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL,
-    batch_no TEXT NOT NULL, color_no TEXT NOT NULL, dye_lot_no TEXT, grade TEXT NOT NULL,
-    quantity_meters TEXT NOT NULL, quantity_kg TEXT NOT NULL,
-    source_bill_type TEXT, source_bill_no TEXT, source_bill_id INTEGER,
-    quantity_before_meters TEXT, quantity_before_kg TEXT,
-    quantity_after_meters TEXT, quantity_after_kg TEXT,
-    notes TEXT, created_by INTEGER, created_at TEXT NOT NULL
-)"#;
-
-/// 与 models/user.rs::Model 逐列对应（ship 链 fetch_username + 详情 JOIN real_name）
-const DDL_USERS: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL, password_hash TEXT NOT NULL,
-    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    gender TEXT, birth_date TEXT
-)"#;
-
-/// 与 models/audit_log.rs::Model 对应（AuditLogService::update_with_audit 落审计）
-const DDL_AUDIT_LOGS: &str = r#"CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER, username TEXT, action TEXT NOT NULL,
-    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-    old_value TEXT, new_value TEXT, created_at TEXT,
-    operation_type TEXT, severity TEXT, request_id TEXT,
-    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-    export_approval_token TEXT, export_watermark_user TEXT
-)"#;
-
-/// JOIN 富化仅需被引用列（详情查询 expr_as/column_as 触及的列）
-const DDL_WAREHOUSES: &str = "CREATE TABLE warehouses (id INTEGER PRIMARY KEY, name TEXT NOT NULL)";
-const DDL_PRODUCTS: &str = r#"CREATE TABLE products (
-    id INTEGER PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL,
-    unit TEXT NOT NULL, product_grade TEXT
-)"#;
-
-/// 种子布局：
+/// 种子布局（真表逐列按 models/*.rs + backend/migration 迁移核对；夹具 TRUNCATE 后
+/// 显式 id 稳定）：
 /// - 调拨单 1（approved，item piece_no='P-9' 指向真实可用染色匹）→ 发运成功组；
 /// - 调拨单 2（approved，item piece_no IS NULL 的染色布存量行）→ 缺匹号拒绝组；
 /// - 调出仓(1)库存 50、调入仓(2)库存 0；染色匹 P-9 AVAILABLE。
+/// FK 父行自种子（裁定 R1）：warehouses(1,2) / products(5)。
 async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [
-        DDL_TRANSFERS,
-        DDL_TRANSFER_ITEMS,
-        DDL_STOCKS,
-        DDL_PIECE,
-        DDL_TRANSACTIONS,
-        DDL_USERS,
-        DDL_AUDIT_LOGS,
-        DDL_WAREHOUSES,
-        DDL_PRODUCTS,
+    let db = Arc::new(test_common::setup_test_db().await);
+    for (wid, name, code) in [
+        (1i32, "胚布成品调出仓", "WH-P4D-1"),
+        (2i32, "分仓", "WH-P4D-2"),
     ] {
-        exec(&db, ddl).await;
+        warehouse::ActiveModel {
+            id: Set(wid),
+            warehouse_code: Set(code.to_string()),
+            name: Set(name.to_string()),
+            is_default: Set(false),
+            is_active: Set(true),
+            created_at: Set(now()),
+            updated_at: Set(now()),
+            ..Default::default()
+        }
+        .insert(&*db)
+        .await
+        .unwrap_or_else(|e| panic!("种子仓库 {wid} 插入失败: {e}"));
     }
-    exec(
-        &db,
-        "INSERT INTO warehouses (id,name) VALUES (1,'胚布成品调出仓'),(2,'分仓')",
-    )
-    .await;
-    exec(
-        &db,
-        "INSERT INTO products (id,code,name,unit,product_grade)
-         VALUES (5,'FAB-RED','红色染色布','米','一等品')",
-    )
-    .await;
-    exec(
-        &db,
-        &format!(
-            "INSERT INTO inventory_transfers
-             (id,transfer_no,from_warehouse_id,to_warehouse_id,transfer_date,status,
-              total_quantity,created_by,created_at,updated_at,total_amount) VALUES
-             (1,'TRF-P4D-001',1,2,'2026-01-01T00:00:00Z','{}','10.00',NULL,
-              '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z','0.00'),
-             (2,'TRF-P4D-002',1,2,'2026-01-01T00:00:00Z','{}','10.00',NULL,
-              '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z','0.00')",
-            transfer_status::APPROVED,
-            transfer_status::APPROVED
-        ),
-    )
-    .await;
-    exec(
-        &db,
-        "INSERT INTO inventory_transfer_items
-         (id,transfer_id,product_id,quantity,shipped_quantity,received_quantity,
-          created_at,updated_at,color_no,dye_lot_no,batch_no,piece_no) VALUES
-         (1,1,5,'10.00','0','0','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',
-          'RED','DL-A','B1','P-9'),
-         (2,2,5,'10.00','0','0','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',
-          'RED','DL-A','B1',NULL)",
-    )
-    .await;
-    exec(
-        &db,
-        "INSERT INTO inventory_stocks
-         (id,warehouse_id,product_id,quantity_on_hand,quantity_available,
-          quantity_reserved,quantity_shipped,quantity_incoming,reorder_point,
-          max_stock_point,reorder_quantity,created_at,updated_at,batch_no,color_no,
-          dye_lot_no,grade,quantity_meters,quantity_kg,stock_status,quality_status,
-          version,replenishment_strategy) VALUES
-         (1,1,5,'50.00','50.00','0','0','0','0','0','0',
-          '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z','B1','RED','DL-A',
-          '一等品','50.00','10.00','正常','合格',0,'reorder_point'),
-         (2,2,5,'0.00','0.00','0','0','0','0','0','0',
-          '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z','B1','RED','DL-A',
-          '一等品','0.00','0.00','正常','合格',0,'reorder_point')",
-    )
-    .await;
-    exec(
-        &db,
-        &format!(
-            "INSERT INTO inventory_piece
-             (id,piece_no,piece_type,warehouse_id,product_id,batch_no,color_no,
-              dye_lot_no,length,status,created_at,updated_at) VALUES
-             (1,'P-9','dyed',1,5,'B1','RED','DL-A','30.00','{}',
-              '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
-            piece_status::AVAILABLE
-        ),
-    )
-    .await;
-    Arc::new(db)
+    product::ActiveModel {
+        id: Set(5),
+        code: Set("FAB-RED".to_string()),
+        name: Set("红色染色布".to_string()),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        product_grade: Set(Some("一等品".to_string())),
+        created_at: Set(now()),
+        updated_at: Set(now()),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .expect("种子产品 5 插入失败");
+
+    for tid in [1i32, 2] {
+        inventory_transfer::ActiveModel {
+            id: Set(tid),
+            transfer_no: Set(format!("TRF-P4D-{tid:03}")),
+            from_warehouse_id: Set(1),
+            to_warehouse_id: Set(2),
+            transfer_date: Set(now()),
+            status: Set(transfer_status::APPROVED.to_string()),
+            total_quantity: Set(dec("10.00")),
+            total_amount: Set(rust_decimal::Decimal::ZERO),
+            created_at: Set(now()),
+            updated_at: Set(now()),
+            ..Default::default()
+        }
+        .insert(&*db)
+        .await
+        .unwrap_or_else(|e| panic!("种子调拨单 {tid} 插入失败: {e}"));
+    }
+
+    // item1：四维齐全（缸号 DL-A/色号 RED/批次 B1/匹号 P-9）；item2：染色布缺匹号（存量 NULL 行）
+    inventory_transfer_item::ActiveModel {
+        id: Set(1),
+        transfer_id: Set(1),
+        product_id: Set(5),
+        quantity: Set(dec("10.00")),
+        shipped_quantity: Set(rust_decimal::Decimal::ZERO),
+        received_quantity: Set(rust_decimal::Decimal::ZERO),
+        created_at: Set(now()),
+        updated_at: Set(now()),
+        color_no: Set("RED".to_string()),
+        dye_lot_no: Set(Some("DL-A".to_string())),
+        batch_no: Set("B1".to_string()),
+        piece_no: Set(Some("P-9".to_string())),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .expect("种子调拨明细 1 插入失败");
+    inventory_transfer_item::ActiveModel {
+        id: Set(2),
+        transfer_id: Set(2),
+        product_id: Set(5),
+        quantity: Set(dec("10.00")),
+        shipped_quantity: Set(rust_decimal::Decimal::ZERO),
+        received_quantity: Set(rust_decimal::Decimal::ZERO),
+        created_at: Set(now()),
+        updated_at: Set(now()),
+        color_no: Set("RED".to_string()),
+        dye_lot_no: Set(Some("DL-A".to_string())),
+        batch_no: Set("B1".to_string()),
+        piece_no: Set(None),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .expect("种子调拨明细 2 插入失败");
+
+    for (sid, wh) in [(1i32, 1i32), (2, 2)] {
+        let on_hand = if sid == 1 {
+            dec("50.00")
+        } else {
+            rust_decimal::Decimal::ZERO
+        };
+        inventory_stock::ActiveModel {
+            id: Set(sid),
+            warehouse_id: Set(wh),
+            product_id: Set(5),
+            quantity_on_hand: Set(on_hand),
+            quantity_available: Set(on_hand),
+            quantity_reserved: Set(rust_decimal::Decimal::ZERO),
+            quantity_shipped: Set(rust_decimal::Decimal::ZERO),
+            quantity_incoming: Set(rust_decimal::Decimal::ZERO),
+            reorder_point: Set(rust_decimal::Decimal::ZERO),
+            max_stock_point: Set(rust_decimal::Decimal::ZERO),
+            reorder_quantity: Set(rust_decimal::Decimal::ZERO),
+            created_at: Set(now()),
+            updated_at: Set(now()),
+            batch_no: Set("B1".to_string()),
+            color_no: Set("RED".to_string()),
+            dye_lot_no: Set(Some("DL-A".to_string())),
+            grade: Set("一等品".to_string()),
+            quantity_meters: Set(on_hand),
+            quantity_kg: Set(if sid == 1 {
+                dec("10.00")
+            } else {
+                rust_decimal::Decimal::ZERO
+            }),
+            stock_status: Set("正常".to_string()),
+            quality_status: Set("合格".to_string()),
+            version: Set(0),
+            replenishment_strategy: Set("reorder_point".to_string()),
+            ..Default::default()
+        }
+        .insert(&*db)
+        .await
+        .unwrap_or_else(|e| panic!("种子库存行 {sid} 插入失败: {e}"));
+    }
+
+    inventory_piece::ActiveModel {
+        id: Set(1),
+        piece_no: Set("P-9".to_string()),
+        piece_type: Set("dyed".to_string()),
+        warehouse_id: Set(1),
+        product_id: Set(5),
+        batch_no: Set("B1".to_string()),
+        color_no: Set("RED".to_string()),
+        dye_lot_no: Set("DL-A".to_string()),
+        length: Set(dec("30.00")),
+        status: Set(piece_status::AVAILABLE.to_string()),
+        created_at: Set(now()),
+        updated_at: Set(now()),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .expect("种子染色匹 P-9 插入失败");
+    db
 }
 
 fn build_app(db: &Arc<sea_orm::DatabaseConnection>, auth: AuthContext) -> Router {

@@ -33,14 +33,16 @@
 //! - 建单在任何写库动作（含取号）之前显式校验 receipt_id 指向的入库单存在，
 //!   不存在 → not_found（含 ID 的真实原因按 utils/error.rs 口径走脱敏族），不让外键裸 500 兜底。
 //!
-//! 覆盖策略（无 mock、真实 service 调用）：
-//! - sqlite::memory: 自建同构表（列与 models 实体逐列对应）：非法结论拒绝（回查质检行
-//!   与 count 无痕）、合法 token 不被词表判非法（词表校验在任何事务/行锁之前，sqlite
-//!   可跑到该判定位）、坏引用建单 404（先于取号，不触 PG 专有 advisory lock）；
-//! - 完成成功链路含 `lock_exclusive()`（sqlite 方言不支持行锁，先例：
-//!   contract_wave1_ap_payment_request_items_test.rs）→ 三 token 完整接受、回写与
+//! 覆盖策略（无 mock、真实 service 调用；路线一 #4669 判责：
+//! 表结构唯一来源 = backend/migration，不再自建 sqlite 同构表）：
+//! - 真 PostgreSQL（test_common::setup_test_db，连接已迁移库并清空业务表）：
+//!   非法结论拒绝（回查质检行与 count 无痕）、合法 token 不被词表判非法、
+//!   坏引用建单 404（先于取号）；purchase_receipt 的 FK 父行
+//!   （suppliers/warehouses，裁定 R1）由夹具自种子，不指望环境已有数据；
+//! - 完成成功链路含 `lock_exclusive()`（先例：
+//!   contract_wave1_ap_payment_error_mapping_test.rs 同口径行锁）→ 三 token 完整接受、回写与
 //!   回滚行为用 `#[ignore]` 活库用例（TEST_DATABASE_URL→已迁移 PG，ci-test-rust-ignored
-//!   执行；本地无变量时 require_postgres 断言**显式失败并说明**，禁止条件跳过假绿）。
+//!   执行；夹具缺 TEST_DATABASE_URL 直接 panic，禁止条件跳过假绿）。
 //! - 防回潮源码扫描（include_str!）：白名单校验必须先于任何 Set/begin；回写必须在同一
 //!   txn 且先于 commit；建单校验必须先于 generate_inspection_no 与 receipt_id 落库；
 //!   采购质检服务不得出现通用域词表标识（quality_dyeing / from_inspection_result）。
@@ -56,6 +58,7 @@ use bingxi_backend::models::status::purchase_inventory::{
     purchase_receipt as receipt_status, purchase_receipt_inspection,
 };
 use bingxi_backend::models::status::quality_dyeing::quality_inspection_result;
+use bingxi_backend::models::{supplier, warehouse};
 use bingxi_backend::services::purchase_inspection_service::{
     CompleteInspectionRequest, CreatePurchaseInspectionRequest, PurchaseInspectionService,
 };
@@ -63,87 +66,71 @@ use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, PaginatorTrait,
-    Set, Statement,
+    Set,
 };
 use std::str::FromStr;
 use std::sync::Arc;
+use test_common::setup_test_db;
 
 fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()
 }
 
 // =========================================================
-// sqlite 同构表（列与 models/purchase_inspection.rs、models/purchase_receipt.rs 逐列对应）
+// 真库夹具：表结构由迁移提供；FK 父行自种子（R1）
 // =========================================================
-
-const PURCHASE_INSPECTION_DDL: &str = r#"CREATE TABLE purchase_inspection (
-    id INTEGER PRIMARY KEY,
-    inspection_no TEXT NOT NULL,
-    receipt_id INTEGER,
-    order_id INTEGER,
-    supplier_id INTEGER NOT NULL,
-    inspection_date TEXT NOT NULL,
-    inspector_id INTEGER,
-    inspection_type TEXT,
-    sample_size TEXT,
-    defect_count INTEGER,
-    pass_quantity TEXT,
-    reject_quantity TEXT,
-    inspection_status TEXT,
-    inspection_result TEXT,
-    quality_score TEXT,
-    defect_description TEXT,
-    attachment_urls TEXT,
-    notes TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    completed_at TEXT,
-    completed_by INTEGER
-)"#;
-
-const PURCHASE_RECEIPT_DDL: &str = r#"CREATE TABLE purchase_receipt (
-    id INTEGER PRIMARY KEY,
-    receipt_no TEXT NOT NULL UNIQUE,
-    order_id INTEGER,
-    supplier_id INTEGER NOT NULL,
-    receipt_date TEXT NOT NULL,
-    warehouse_id INTEGER NOT NULL,
-    department_id INTEGER,
-    receiver_id INTEGER,
-    inspector_id INTEGER,
-    inspection_status TEXT NOT NULL,
-    receipt_status TEXT NOT NULL,
-    total_quantity TEXT NOT NULL,
-    total_quantity_alt TEXT NOT NULL,
-    total_amount TEXT NOT NULL,
-    notes TEXT,
-    attachment_urls TEXT,
-    created_by INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_by INTEGER,
-    updated_at TEXT NOT NULL,
-    confirmed_at TEXT,
-    confirmed_by INTEGER
-)"#;
-
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::<sea_orm::Value>::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
 
 fn unique_suffix() -> i64 {
     Utc::now().timestamp_nanos_opt().unwrap()
+}
+
+/// FK 前置自种子：purchase_receipt.supplier_id → suppliers、warehouse_id →
+/// warehouses（两者均会被清空且不播种）。列按真表 NOT NULL 逐列补全
+/// （CI 实证 `Missing value for column 'supplier_short_name'`），给业务合法真值。
+async fn seed_receipt_referents(db: &DatabaseConnection) -> (i32, i32) {
+    let suffix = unique_suffix();
+    let now = Utc::now();
+
+    let wh = warehouse::ActiveModel {
+        warehouse_code: Set(format!("WH-W5IA-{suffix}")),
+        name: Set("质检契约测试仓".to_string()),
+        is_default: Set(false),
+        is_active: Set(true),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 warehouses 父行失败");
+
+    // supplier 时间列为 DateTimeWithTimeZone，按仓内惯用 FixedOffset 时钟口径
+    let zero_tz = chrono::FixedOffset::east_opt(0).unwrap();
+    let sup_now = zero_tz.from_utc_datetime(&now.naive_utc());
+    let sup = supplier::ActiveModel {
+        supplier_code: Set(format!("SUP-W5IA-{suffix}")),
+        supplier_name: Set(format!("质检契约测试供应商-{suffix}")),
+        supplier_short_name: Set("质供".to_string()),
+        supplier_type: Set("面料供应商".to_string()),
+        credit_code: Set("91330000W5IA00001X".to_string()),
+        registered_address: Set("契约测试注册地址".to_string()),
+        legal_representative: Set("契约法人".to_string()),
+        registered_capital: Set(Decimal::ZERO),
+        establishment_date: Set(chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
+        taxpayer_type: Set("一般纳税人".to_string()),
+        bank_name: Set("契约测试银行".to_string()),
+        bank_account: Set("6222000000000001".to_string()),
+        contact_phone: Set("13800000001".to_string()),
+        is_processor: Set(false),
+        created_at: Set(sup_now),
+        updated_at: Set(sup_now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 suppliers 父行失败");
+
+    (sup.id, wh.id)
 }
 
 async fn seed_pending_inspection(
@@ -169,14 +156,15 @@ async fn seed_pending_inspection(
 }
 
 async fn seed_receipt(db: &DatabaseConnection) -> purchase_receipt::Model {
+    let (supplier_id, warehouse_id) = seed_receipt_referents(db).await;
     purchase_receipt::ActiveModel {
         receipt_no: Set(format!("GR-W5-{suffix}", suffix = unique_suffix())),
-        supplier_id: Set(1),
+        supplier_id: Set(supplier_id),
         receipt_date: Set(Utc
             .with_ymd_and_hms(2026, 9, 1, 0, 0, 0)
             .unwrap()
             .date_naive()),
-        warehouse_id: Set(1),
+        warehouse_id: Set(warehouse_id),
         // 词表同源：入库单检验状态初始值取权威常量（大写 PENDING）
         inspection_status: Set(purchase_receipt_inspection::PENDING.to_string()),
         receipt_status: Set(receipt_status::DRAFT.to_string()),
@@ -201,19 +189,17 @@ async fn inspection_count(db: &DatabaseConnection) -> u64 {
 }
 
 // =========================================================
-// ① 合法 token 必须被词表接受（正向锁，防"判错过严"再犯）——sqlite 段
+// ① 合法 token 必须被词表接受（正向锁，防"判错过严"再犯）——真 PG 段
 //
-// 白名单校验发生在任何事务/行锁之前（防回潮扫描另锁顺序），因此 sqlite 环境下
-// 合法 token 的失败点只可能出现在后续方言受限处（lock_exclusive/审计表），
-// 绝不允许是 400 VALIDATION_ERROR——出现即"把合法生产数据判成非法"的再犯实锤。
-// 完整成功链路（落库+回写）由 ④ 活库用例承担。
+// 白名单校验发生在任何事务/行锁之前（防回潮扫描另锁顺序）。在真 PG 上完成链路
+// 可整跑：合法 token 要么成功、要么失败于非词表原因，但绝不允许是
+// 400 VALIDATION_ERROR——出现即"把合法生产数据判成非法"的再犯实锤。
+// 回写等完整行为由 ④ 活库用例进一步锁定。
 // =========================================================
 
 #[tokio::test]
 async fn domain_tokens_are_never_rejected_by_vocabulary_check() {
-    let db = sqlite_db().await;
-    exec(&db, PURCHASE_INSPECTION_DDL).await;
-    exec(&db, PURCHASE_RECEIPT_DDL).await;
+    let db = setup_test_db().await;
     let svc = PurchaseInspectionService::new(Arc::new(db.clone()));
 
     for token in purchase_inspection_result::ALL {
@@ -257,9 +243,7 @@ async fn domain_tokens_are_never_rejected_by_vocabulary_check() {
 
 #[tokio::test]
 async fn complete_with_outside_domain_result_rejected_and_leaves_no_trace() {
-    let db = sqlite_db().await;
-    exec(&db, PURCHASE_INSPECTION_DDL).await;
-    exec(&db, PURCHASE_RECEIPT_DDL).await;
+    let db = setup_test_db().await;
     let seeded = seed_pending_inspection(&db, None).await;
     let svc = PurchaseInspectionService::new(Arc::new(db.clone()));
 
@@ -332,9 +316,7 @@ async fn complete_with_outside_domain_result_rejected_and_leaves_no_trace() {
 
 #[tokio::test]
 async fn create_with_missing_receipt_rejected_404_before_any_write() {
-    let db = sqlite_db().await;
-    exec(&db, PURCHASE_INSPECTION_DDL).await;
-    exec(&db, PURCHASE_RECEIPT_DDL).await;
+    let db = setup_test_db().await;
     let svc = PurchaseInspectionService::new(Arc::new(db.clone()));
 
     // 999999 不存在：必须在应用层显式 404，而不是交给 DB 外键/取号路径出 500
@@ -394,7 +376,8 @@ async fn require_postgres(db: &DatabaseConnection) {
     assert_eq!(
         db.get_database_backend(),
         DbBackend::Postgres,
-        "夹具解析出的后端不是 PostgreSQL，活库锁不可信（setup_test_db 无变量时静默回退 sqlite）"
+        "夹具解析出的后端不是 PostgreSQL，活库锁不可信（setup_test_db 缺 TEST_DATABASE_URL \
+         或指向 sqlite 时已直接 panic，绝不会静默回退）"
     );
 }
 

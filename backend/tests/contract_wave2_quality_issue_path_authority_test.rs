@@ -14,9 +14,13 @@
 //! 覆盖策略（先例：contract_wave2_after_sales_create_test.rs，全部真实行为无 mock）：
 //! - serde 解码（无 DB）：缺 custom_order_id 键必须成功（修复前必失败）；伪造键被
 //!   忽略；NOT NULL 必填字段缺失仍须判 Err（不得为过测试放宽）
-//! - sqlite::memory: 自建 quality_issues 表 + 真实 handler 端到端（tower oneshot）：
-//!   不带/伪造归属键都能落库且归属以 path 为准；业务校验拒绝 400 外显真实文案
+//! - 真 PostgreSQL（TEST_DATABASE_URL + 迁移建表，夹具清空业务表）+ 真实 handler
+//!   端到端（tower oneshot）：先播种 quality_issues.custom_order_id→custom_orders(id=42)、
+//!   custom_orders→products/customers 的 FK 前置链；不带/伪造归属键都能落库且归属以
+//!   path 为准；业务校验拒绝 400 外显真实文案
 //! - 源码扫描防回潮锁
+
+mod test_common;
 
 use axum::{
     Router,
@@ -30,9 +34,10 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::custom_order_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::quality_issue;
+use bingxi_backend::models::{custom_order, customer, product, quality_issue};
 use bingxi_backend::models::quality_issue_dto::ReportQualityIssueDto;
-use sea_orm::{ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, Statement};
+use chrono::Utc;
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 

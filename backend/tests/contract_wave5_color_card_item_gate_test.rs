@@ -14,12 +14,18 @@
 //! - 拒绝文案按保密分层：'只有草稿态色卡可以维护色号' 是纯公开业务规则（不含内部状态 token /
 //!   记录 ID）→ `AppError::business_displayable`（HTTP 400 / code=BUSINESS_ERROR + 真实文案外显）。
 //!
-//! 覆盖策略（sqlite::memory: 同构可跑，无需 TEST_DATABASE_URL、不 #[ignore]）：
+//! 覆盖策略（路线一，#4669 判责：表结构唯一来源 = backend/migration）：
 //! - 正向：真实 draft 卡 → POST items 成功、色号回读等值（建卡→加色号链首次跑通）；批量导入同链成功；
-//! - 反向：终态（archived）/ 已发放（issued）/ legacy 死值（active）→ 400 + code=BUSINESS_ERROR
+//! - 反向：终态（archived）/ 已发放（issued）→ 400 + code=BUSINESS_ERROR
 //!   + 外显文案；被拒时零色号落库；
+//! - legacy 死值 active 双层锁（裁定 R2）：活库层断言"把色卡状态写成 active 必须被
+//!   DB CHECK chk_color_card_status 拒绝且零漂移"；应用层由源码扫描锁继续断言
+//!   "代码不得把 active 当可编辑态"（真 PG 下该状态根本播种不出来，旧"插 active 再撞门"
+//!   形态不复存在）；
 //! - 源码扫描（include_str!）：门控比较的每个 token 必须来自色卡词表且在 `color_card::ALL` 内，
 //!   服务不得再引用 `master_data::ACTIVE` 或裸 "active"。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -35,6 +41,7 @@ use bingxi_backend::handlers::color_card::{
     batch_import_items, create_color_card, create_color_item, list_color_items,
 };
 use bingxi_backend::middleware::auth_context::AuthContext;
+use bingxi_backend::models::color_card::{Column as CardColumn, Entity as CardEntity};
 use bingxi_backend::models::color_card_item::{Column as ItemColumn, Entity as ItemEntity};
 use bingxi_backend::models::status::color_card as card_status;
 use sea_orm::{
@@ -43,68 +50,16 @@ use sea_orm::{
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
+use test_common::setup_test_db;
 
 // =========================================================
-// 夹具：sqlite 自建表（列与 models/color_card.rs、models/color_card_item.rs 一一对应）
+// 夹具：真 PostgreSQL（表结构唯一来源 = backend/migration，路线一 #4669 判责）
+// 列与 models/color_card.rs、models/color_card_item.rs 一一对应由迁移保证，
+// 本文件不再自建 CREATE TABLE（sqlite 方言把 DECIMAL 写成 TEXT 是 #4669 解码红根因）。
 // =========================================================
-
-const COLOR_CARDS_DDL: &str = r#"CREATE TABLE color_cards (
-    id INTEGER PRIMARY KEY,
-    card_no TEXT NOT NULL,
-    card_name TEXT NOT NULL,
-    card_type TEXT NOT NULL,
-    season TEXT,
-    brand TEXT,
-    total_colors INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'draft',
-    description TEXT,
-    cover_image_url TEXT,
-    stock_quantity INTEGER NOT NULL DEFAULT 0,
-    issued_quantity INTEGER NOT NULL DEFAULT 0,
-    dyeing_capability TEXT,
-    printing_capability TEXT,
-    color_fastness_grade TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)"#;
-
-const COLOR_CARD_ITEMS_DDL: &str = r#"CREATE TABLE color_card_items (
-    id INTEGER PRIMARY KEY,
-    color_card_id INTEGER NOT NULL,
-    color_code TEXT NOT NULL,
-    color_name TEXT NOT NULL,
-    rgb_r INTEGER NOT NULL,
-    rgb_g INTEGER NOT NULL,
-    rgb_b INTEGER NOT NULL,
-    cmyk_c TEXT, cmyk_m TEXT, cmyk_y TEXT, cmyk_k TEXT,
-    lab_l TEXT, lab_a TEXT, lab_b TEXT,
-    pantone_code TEXT, cncs_code TEXT, custom_code TEXT,
-    hex_value TEXT NOT NULL,
-    dye_recipe_id INTEGER,
-    product_color_price_id INTEGER,
-    swatch_image_url TEXT,
-    sequence INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)"#;
-
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
 
 async fn fresh_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    exec(&db, COLOR_CARDS_DDL).await;
-    exec(&db, COLOR_CARD_ITEMS_DDL).await;
-    db
+    setup_test_db().await
 }
 
 fn make_auth(user_id: i32) -> AuthContext {
@@ -199,14 +154,36 @@ fn valid_item_payload(code: &str) -> Value {
     })
 }
 
-async fn set_card_status(db: &sea_orm::DatabaseConnection, id: i64, status: &str) {
+/// 直接 UPDATE 色卡状态（真 PG 走 chk_color_card_status 约束）。
+/// 返回 DbErr 供 R2 双层锁用例断言"写 legacy 死值必须被数据库拒绝"。
+async fn try_set_card_status(
+    db: &sea_orm::DatabaseConnection,
+    id: i64,
+    status: &str,
+) -> Result<(), sea_orm::DbErr> {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         "UPDATE color_cards SET status = $1 WHERE id = $2",
         vec![status.to_string().into(), id.into()],
     ))
     .await
-    .expect("改色卡状态失败");
+    .map(|_| ())
+}
+
+async fn set_card_status(db: &sea_orm::DatabaseConnection, id: i64, status: &str) {
+    try_set_card_status(db, id, status)
+        .await
+        .expect("改色卡状态失败");
+}
+
+async fn reload_card_status(db: &sea_orm::DatabaseConnection, id: i64) -> String {
+    CardEntity::find()
+        .filter(CardColumn::Id.eq(id))
+        .one(db)
+        .await
+        .unwrap()
+        .expect("色卡行应存在")
+        .status
 }
 
 async fn count_items(db: &sea_orm::DatabaseConnection, card_id: i64) -> u64 {
@@ -309,8 +286,9 @@ async fn batch_import_on_real_draft_card_succeeds() {
 // 3) 反向：终态/不可编辑态 → 400 + code=BUSINESS_ERROR + 外显分层文案 + 零落库
 // =========================================================
 
-/// 非可编辑态集合：终态 archived / 已发放 issued，以及 legacy 死值 active
-/// （'active' 修复前会被误当放行值；新门控下它不在可编辑态集合，必须被拒）。
+/// 非可编辑态拒绝断言：终态 archived / 已发放 issued（真 PG 下可达的非可编辑态）。
+/// legacy 死值 active 不再走本函数——它在活库层就被 CHECK 拒绝（见 R2 双层锁用例
+/// create_item_rejected_on_legacy_active_value_not_whitelisted_anymore）。
 async fn assert_gate_rejects(app: &Router, card_id: i64, label: &str) {
     let (status, v) = send(
         app,
@@ -362,11 +340,41 @@ async fn create_item_rejected_on_issued_card() {
 
 #[tokio::test]
 async fn create_item_rejected_on_legacy_active_value_not_whitelisted_anymore() {
-    // 修复前正是比这个死值才"看似"放行；迁移后 'active' 不可能出现，新门控也不应再把它当可编辑态。
+    // R2 双层锁之"活库层"：'active' 是 legacy 死值，最终 chk_color_card_status 不含它，
+    // 真 PG 下把色卡状态写成 active 这一步前置就 23514 被数据库拒绝、整笔不落库（零漂移），
+    // 从而证明门控比的那套"可发放/可编辑态"里绝不可能出现 active。
+    // 应用层锁见 source_scan_item_gate_tokens_are_all_in_color_card_word_list
+    // （继续钉死 EDITABLE_CARD_STATUSES 不含 active、服务不得引用裸 "active"）。
     let (app, raw_db, card_id) = create_real_draft_card().await;
-    set_card_status(&raw_db, card_id, "active").await;
-    assert_gate_rejects(&app, card_id, "legacy active(死值)").await;
-    assert_eq!(count_items(&raw_db, card_id).await, 0, "拒绝后应零落库");
+
+    let err = try_set_card_status(&raw_db, card_id, "active")
+        .await
+        .expect_err("legacy 死值 active 必须被 chk_color_card_status 数据库拒绝（不得静默落库）");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("chk_color_card_status") || msg.contains("23514"),
+        "拒绝原因必须是 CHECK 约束违例（chk_color_card_status / SQLSTATE 23514），实际: {msg}"
+    );
+
+    // 回读确认零漂移：状态仍是 draft（写 active 整笔不落库）
+    assert_eq!(
+        reload_card_status(&raw_db, card_id).await,
+        card_status::DRAFT,
+        "被数据库拒绝后色卡状态必须保持 draft，不得半落 active"
+    );
+    // draft 是可编辑态，此时门控不应拒绝——反向证明"死值 active 永不出现在门控面"
+    let (status, _v) = send(
+        &app,
+        Method::POST,
+        &format!("/color-cards/{card_id}/items"),
+        Some(valid_item_payload("W5-REJ")),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "回读仍为 draft（可编辑态），旧 active 未落库"
+    );
 }
 
 // =========================================================
@@ -406,11 +414,17 @@ fn source_scan_item_gate_tokens_are_all_in_color_card_word_list() {
         "色号增删/批量导入必须统一经可编辑态集合门控"
     );
 
-    // (c) 抽取集合初始化式，逐项必须是色卡词表常量引用（不得是字符串字面量）
+    // (c) 抽取集合初始化式，逐项必须是色卡词表常量引用（不得是字符串字面量）。
+    // 锚点必须带 `= &[`（初始化式），不能只锚 `&[`——否则先命中类型注解
+    // `const EDITABLE_CARD_STATUSES: &[&str]` 里的 `&[&str]`，把 `&str` 当 token 误报。
     let marker = "const EDITABLE_CARD_STATUSES";
     let i = src.find(marker).expect("可编辑态集合常量缺失");
     let rest = &src[i..];
-    let open = rest.find("&[").expect("集合初始化式缺失 &[") + 2;
+    let init_marker = "= &[";
+    let open = rest
+        .find(init_marker)
+        .unwrap_or_else(|| panic!("集合初始化式缺失 \"{init_marker}\"，实际片段: {rest}"))
+        + init_marker.len();
     let close = open + rest[open..].find(']').expect("集合初始化未闭合 ]");
     let inner = &rest[open..close];
 

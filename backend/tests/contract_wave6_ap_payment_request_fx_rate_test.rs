@@ -8,23 +8,26 @@
 //! 外币（USD/EUR）付款申请未录汇率时被静默伪造成 1，直接污染折算/核销/汇兑损益；
 //! 且前端创建表单根本没有汇率输入项，缺陷必然触发。
 //!
-//! 本文件锁定的四条契约（全部 sqlite 真跑，无 #[ignore]）：
+//! 本文件锁定的四条契约（全部真 PostgreSQL 活库执行，无 #[ignore]；
+//! 表结构唯一来源 = backend/migration，路线一 #4669 判责）：
 //! 1) 外币缺汇率 → 400 VALIDATION_ERROR（字段校验族，非状态门 BUSINESS 族），
 //!    出参 message 外显真实文案「外币付款请填写汇率」，非脱敏常量「请求参数验证失败」，
 //!    且主表零写入（校验先行于事务/取号/明细动作）；
-//! 2) 外币带汇率 → 经服务端解析 + 真实 builder 落库，sqlite 回读断言汇率为请求真实值
+//! 2) 外币带汇率 → 经服务端解析 + 真实 builder 落库，真库回读断言汇率为请求真实值
 //!    （不是只看 HTTP status）；
 //! 3) 本位币（CNY / 币种缺省）即使携带汇率 → 落库汇率恒 1（服务端权威短路；
 //!    「忽略而非拒绝」为决策留置待用户拍板口径，见修复报告）；
 //! 4) 源码扫描防回潮锁：`exchange_rate` 落库行 unwrap_or 命中数恒 0（绝对锁），
 //!    全文件 `.unwrap_or(` 计数为只减不增 ratchet（基线 = 本次修复后剩余合法值）。
 //!
-//! 覆盖边界声明：create 的**单号生成**走 pg_advisory_xact_lock（sqlite 方言不支持，
-//! 先例 contract_wave6_production_order_no_guard_test.rs /
-//! contract_wave1_ap_payment_request_items_test.rs），因此 1) 的 HTTP 端到端只可能
-//! 也只需要跑到拒绝点（校验先行于取号，sqlite 可全程真跑）；2)/3) 的落库值契约与
-//! 取号无关，以「服务端权威解析 + 生产 builder + sqlite 真实 INSERT/回读」锁定，
-//! 不 mock、不复制构建逻辑。全链路含取号的活库回归由既有 e2e/CI 承担。
+//! 覆盖边界声明（真库化后更新，路线一 #4669 判责）：create 的**单号生成**走
+//! pg_advisory_xact_lock——真 PG 下取号可全程真跑，HTTP 端到端不再停在拒绝点；
+//! 1) 仍只到校验先行即返回（外币缺汇率不触库），2)/3) 的落库值契约以
+//! 「服务端权威解析 + 生产 builder + 真实 INSERT/回读」锁定，不 mock、不复制构建逻辑。
+//! 种子供应商引用迁移播种的参照表 suppliers（m0015 演示供应商，supplier_id=1 稳定可依赖；
+//! suppliers 不在业务表清空名单内，不会被用例清掉）。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -43,9 +46,7 @@ use bingxi_backend::services::ap_payment_request_service::{
     ApPaymentRequestService, CreateApPaymentRequest,
 };
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, EntityTrait, Statement,
-};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait};
 use serde_json::{Value, json};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -55,7 +56,9 @@ fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).expect("测试基准汇率/金额必须可解码为 Decimal")
 }
 
-/// 表头合法的基础请求体（与前端 createAPPaymentRequest 真实形状一致：从不发 items）
+/// 表头合法的基础请求体（与前端 createAPPaymentRequest 真实形状一致：从不发 items）。
+/// supplier_id=1 引用迁移播种的演示供应商（m0015；suppliers 为不被清空的参照表，
+/// 真库下 fk_ap_payment_request_supplier 外键可满足）
 fn base_body() -> Value {
     json!({
         "supplier_id": 1,
@@ -67,66 +70,19 @@ fn base_body() -> Value {
 }
 
 // =========================================================
-// sqlite 基建：表结构与 models/ap_payment_request.rs 逐列对应
+// 真库基建：表结构唯一来源 = backend/migration（路线一，#4669 判责）
+// ap_payment_request 的 DECIMAL/DEFAULT 口径由迁移提供（m0012 + v15 时区列转换），
+// 不再由测试自建 sqlite 同构表（currency/exchange_rate 的 DEFAULT 见
+// models/ap_payment_request.rs:49-54 与 m0012:65-66，测试只引用、不重述）
 // =========================================================
 
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-async fn exec_ddl(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DatabaseBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-/// 与 entity 列一一对应；currency/exchange_rate 的 DEFAULT 复刻迁移口径
-/// （models/ap_payment_request.rs:49-54），用于零写入/落库回读断言
-async fn create_request_table(db: &DatabaseConnection) {
-    exec_ddl(
-        db,
-        r#"CREATE TABLE ap_payment_request (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            request_no TEXT UNIQUE NOT NULL,
-            request_date TEXT NOT NULL,
-            supplier_id INTEGER NOT NULL,
-            payment_type TEXT NOT NULL,
-            payment_method TEXT NOT NULL,
-            request_amount TEXT NOT NULL,
-            approval_status TEXT NOT NULL DEFAULT 'DRAFT',
-            currency TEXT NOT NULL DEFAULT 'CNY',
-            exchange_rate TEXT NOT NULL DEFAULT '1.000000',
-            request_amount_foreign TEXT,
-            expected_payment_date TEXT,
-            bank_name TEXT,
-            bank_account TEXT,
-            bank_account_name TEXT,
-            notes TEXT,
-            attachment_urls TEXT,
-            created_by INTEGER NOT NULL,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_by INTEGER,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            submitted_by INTEGER,
-            submitted_at TEXT,
-            approved_by INTEGER,
-            approved_at TEXT,
-            rejected_by INTEGER,
-            rejected_at TEXT,
-            rejected_reason TEXT
-        )"#,
-    )
-    .await;
+/// 与 entity 列一一对应的真实表已由迁移建好；此处仅取已迁移并清空业务表的连接
+async fn live_db() -> DatabaseConnection {
+    test_common::setup_test_db().await
 }
 
 // =========================================================
-// HTTP 端到端基建（sqlite 可跑完拒绝路径：校验先行于取号）
+// HTTP 端到端基建（真库：校验拒绝点与取号全链路都可真跑）
 // =========================================================
 
 fn make_auth(user_id: i32, scope: Option<&str>) -> AuthContext {
@@ -186,8 +142,7 @@ fn build_app(db: DatabaseConnection) -> Router {
 }
 
 async fn seeded_http_app() -> (Router, DatabaseConnection) {
-    let db = sqlite_db().await;
-    create_request_table(&db).await;
+    let db = live_db().await;
     let read_db = db.clone();
     (build_app(db), read_db)
 }
@@ -226,8 +181,9 @@ async fn foreign_currency_without_rate_rejected_400_validation_displayable() {
     );
 }
 
-/// 反方向防误杀：外币带汇率的请求体在**本拒绝点**不得被误拒（拒绝仅由"缺汇率"触发）。
-/// sqlite 下该请求会走到取号才因 PG 专有咨询锁失败——失败点必须已越过汇率门。
+/// 反方向防误杀：外币带汇率的请求体在**汇率门**不得被误拒（拒绝仅由"缺汇率"触发）。
+/// 真库下该请求会越过汇率门、经 pg_advisory_xact_lock 取号并真实落库（成功 2xx），
+/// 无论如何都不得再回到 VALIDATION 汇率文案。
 #[tokio::test]
 async fn foreign_currency_with_rate_passes_fx_gate() {
     let (app, _db) = seeded_http_app().await;
@@ -241,8 +197,7 @@ async fn foreign_currency_with_rate_passes_fx_gate() {
         "外币付款请填写汇率",
         "已携汇率的外币请求绝不能再落入缺汇率拒绝分支: {v}"
     );
-    // sqlite 方言不支持 pg_advisory_xact_lock → 允许在取号处显式失败（先例
-    // production_order_no_guard_test），但不得是 VALIDATION 汇率文案
+    // 越门后的任何失败（真库下不应发生）都不得伪装成字段校验族的汇率文案
     assert!(
         v["code"] != "VALIDATION_ERROR",
         "越门后的失败不得再伪装成字段校验族: {v}"
@@ -257,8 +212,7 @@ async fn resolve_and_insert(json_body: Value) -> ap_payment_request::Model {
     let req: CreateApPaymentRequest = serde_json::from_value(json_body).unwrap();
     let (currency, rate) =
         ApPaymentRequestService::resolve_currency_and_rate(&req).expect("服务端权威解析不得失败");
-    let db = sqlite_db().await;
-    create_request_table(&db).await;
+    let db = live_db().await;
     let am = ApPaymentRequestService::build_payment_request_active_model(
         &req,
         format!("PRQ20260115{:03}", rand_suffix()),
@@ -390,13 +344,20 @@ fn source_scan_exchange_rate_zero_unwrap_or_absolute_lock() {
     );
 }
 
-/// ratchet（只减不增）：全文件 `.unwrap_or(` 命中数锁基线 ≤1——
+/// ratchet（只减不增）：全文件**可执行代码**的 `.unwrap_or(` 命中数锁基线 ≤1——
 /// 现存的唯一一处是 items 缺省按空切片处理（create 内既有定案口径），
 /// 任何新增兜底（尤其汇率/金额类 NOT NULL 列）都会顶破基线判红。
+/// 计数先剔除整行注释：`exchange_rate.unwrap_or(1)` 以反引号形态存在于修复说明
+/// 注释里，把它计入命中数是对"兜底计数"锁的误报（测试自身解析缺陷，裁定 R4
+/// 直接修；注释行不产生运行期兜底，剔除后锁的对象恰是真实代码路径，不放松）。
 #[test]
 fn source_scan_unwrap_or_ratchet_shrink_only() {
     let src = include_str!("../src/services/ap_payment_request_service.rs").replace('\r', "");
-    let count = src.matches(".unwrap_or(").count();
+    let count = src
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .flat_map(|l| l.match_indices(".unwrap_or("))
+        .count();
     const BASELINE: usize = 1;
     assert!(
         count <= BASELINE,

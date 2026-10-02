@@ -20,11 +20,13 @@
 //!    等于「日期写错就把密钥改成永不过期」且无任何报错。
 //! 4. 创建链路补 `description` 真实落库（此前 CreateApiKeyGwRequest 无该字段，传了被静默丢弃）。
 //!
-//! 覆盖策略（全部真实 handler/service 行为，无 mock、无静默 skip）：
+//! 覆盖策略（全部真实 handler/service 行为，无 mock、无静默 skip；路线一：
+//! 统一真库 PostgreSQL）：
 //! - 纯 serde：update DTO 三态形状锁（缺席=None / null=Some(None) / 有值=Some(Some(v))）；
-//! - `test_common::setup_test_db()`：有 `TEST_DATABASE_URL` 走已迁移 PostgreSQL 真库；
-//!   无则回退 sqlite::memory: 并按 `models/api_key.rs::Model` 逐列自建同构表，
-//!   两条路径都真正执行断言（方言不受支持直接 panic，不条件跳过）；
+//! - `test_common::setup_test_db()`：必须 `TEST_DATABASE_URL` → 已迁移 PostgreSQL，
+//!   api_keys/users 表由 migration（m0005/m0001 + m0039(created_by) + m0044(description)）
+//!   产出，用例不自建 DDL；缺变量/指 sqlite 由夹具 panic（sqlite 自建同构表是
+//!   CI #4669 方言失真红的根因形态，已彻底移除回退路径）；
 //! - 源码扫描防回潮锁：禁空串字面量出参、禁 `unwrap_or_default()` 出参、
 //!   禁富化链路旁路（into_tuple / 手工拼装 created_by_name）、禁前端把 null 掩盖成空串。
 
@@ -47,9 +49,7 @@ use bingxi_backend::models::api_key;
 use bingxi_backend::models::user;
 use bingxi_backend::services::api_key_service::ApiKeyService;
 use chrono::{DateTime, Utc};
-use sea_orm::{
-    ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, Set, Statement,
-};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -84,73 +84,12 @@ async fn inject_auth(
     next.run(request).await
 }
 
-/// api_keys 同构最小 DDL：列与 `backend/src/models/api_key.rs::Model` 逐列对应
-/// （sqlite 回退路径专用；PG 路径由 migration 建表，列名同源）
-const API_KEYS_DDL: &str = r#"CREATE TABLE api_keys (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    key_hash TEXT NOT NULL,
-    key_prefix TEXT NOT NULL,
-    permissions TEXT,
-    rate_limit_per_minute INTEGER NOT NULL DEFAULT 60,
-    last_used_at TEXT,
-    expires_at TEXT,
-    is_active INTEGER NOT NULL DEFAULT 1,
-    created_by INTEGER,
-    description TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)"#;
-
-/// users 同构最小 DDL（LEFT JOIN 只需 id/username，其余按实体列补齐以便 ActiveModel 插入）
-const USERS_DDL: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    real_name TEXT,
-    avatar TEXT,
-    email TEXT,
-    phone TEXT,
-    role_id INTEGER,
-    department_id INTEGER,
-    is_active INTEGER NOT NULL DEFAULT 1,
-    totp_secret TEXT,
-    is_totp_enabled INTEGER NOT NULL DEFAULT 0,
-    totp_recovery_codes TEXT,
-    last_login_at TEXT,
-    password_changed_at TEXT,
-    agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    gender TEXT,
-    birth_date TEXT,
-    is_deleted INTEGER NOT NULL DEFAULT 0
-)"#;
-
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    let backend = db.get_database_backend();
-    db.execute_raw(Statement::from_string(backend, sql.to_owned()))
-        .await
-        .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-/// 夹具：TEST_DATABASE_URL 有则真库（表由 migration 建好），否则 sqlite 内存库自建同构表。
-/// 两条路径都执行同一套断言；不支持的方言直接炸红，绝不条件跳过。
+/// 夹具：已迁移 PostgreSQL 真库（路线一，无 sqlite 回退）。
+/// api_keys/users 由 m0005/m0001 + m0039(created_by) + m0044(description) 建好，
+/// 用例不再自建同构 DDL；`created_by` 悬挂值合法（该列无 FK，LEFT JOIN NULL 态
+/// 在真库可复现），正是本契约锁第二态的真实形态。
 async fn prepare_db() -> DatabaseConnection {
-    let db = test_common::setup_test_db().await;
-    match db.get_database_backend() {
-        DbBackend::Sqlite => {
-            exec(&db, API_KEYS_DDL).await;
-            exec(&db, USERS_DDL).await;
-        }
-        DbBackend::Postgres => {
-            // 已迁移真库：api_keys/users 由 m0005/m0001 + m0039(created_by) + m0044(description) 建好
-        }
-        other => panic!(
-            "本契约锁只支持 sqlite 回退与 PostgreSQL 真库，实际方言: {other:?}（禁止静默跳过）"
-        ),
-    }
-    db
+    test_common::setup_test_db().await
 }
 
 /// 种子创建者用户（username 唯一，避免 PG 上撞唯一索引）
@@ -209,7 +148,7 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
-/// 夹具：同构库 + 种子创建者 + 真实 handler 路由
+/// 夹具：已迁移 PostgreSQL 真库 + 种子创建者 + 真实 handler 路由
 async fn seeded_app() -> (Router, DatabaseConnection, i32) {
     let db = prepare_db().await;
     let suffix = Utc::now().timestamp_nanos_opt().unwrap();

@@ -15,14 +15,14 @@
 //! - `number_generator.rs` 取号基数为 max(seq)+1（into_tuple 投影真实单号），
 //!   不再出现 `count + 1`；`AppError::internal` 收口为 0 处（DbErr→database，
 //!   AppError 原样透传）；advisory lock 仍在且前提已注释声明。
-//! - **真实行为断言（sqlite 内存库同构表）**：按 m0063 同款唯一索引建
-//!   `purchase_inspection` 同构表，走真实实体 `ActiveModel::insert` 写入同一单号，
-//!   第二次必须被数据库拒绝，且错误经 `sql_err()` 分类为
+//! - **真实行为断言（路线一：已迁移 PostgreSQL 真表）**：在迁移 m0009 建出的真实
+//!   `purchase_inspection` 表上（唯一索引 `uq_purchase_inspection_inspection_no`
+//!   由 m0063 落库，不自建任何 DDL），走真实实体 `ActiveModel::insert` 写入同一单号，
+//!   第二次必须被**数据库本身**拒绝，且错误经 `sql_err()` 分类为
 //!   `SqlErr::UniqueConstraintViolation`——这正是 `insert_with_no_retry`
-//!   「23505→保存点重试」的匹配分支（PostgreSQL 生产环境该分支由 SQLSTATE 23505
-//!   触发；sea-orm 对 sqlite 的 "UNIQUE constraint failed" 做同变体映射，
-//!   advisory lock 为 PG 专有、sqlite 无法整链跑锁路径，故本测试锁到
-//!   「约束真实生效 + 冲突可被识别分类」这一层，即重试机制的触发端）。
+//!   「23505→保存点重试」的匹配分支（PG 上由 SQLSTATE 23505 直接进入该变体，
+//!   与生产链路完全同语义；旧 sqlite 同构表方案仅验证了 sea-orm 的字面量映射，
+//!   无法证明真库约束真实存在，路线一改造后此风险点由本用例直接覆盖）。
 //!   同时用真实注册表函数 `is_document_no_taken` 验证同列查重从 false 翻转为 true。
 
 use std::path::PathBuf;
@@ -30,10 +30,10 @@ use std::path::PathBuf;
 use bingxi_backend::models::purchase_inspection;
 use bingxi_backend::utils::number_generator::is_document_no_taken;
 use chrono::{NaiveDate, Utc};
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait,
-    SqlErr, Statement,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, PaginatorTrait, SqlErr};
+
+mod test_common;
+use test_common::setup_test_db;
 
 fn read(rel: &str) -> String {
     let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -305,40 +305,6 @@ fn number_generator_base_is_segment_aligned_and_errors_are_classified() {
     );
 }
 
-async fn sqlite_db() -> sea_orm::DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-/// purchase_inspection 同构表（列与 `models/purchase_inspection.rs::Model` 一一对应；
-/// 生产类型 VARCHAR/DECIMAL/TIMESTAMP 按仓内 sqlite 测试惯例映射为 TEXT）
-const INSPECTION_DDL: &str = r#"CREATE TABLE purchase_inspection (
-    id INTEGER PRIMARY KEY, inspection_no TEXT NOT NULL, receipt_id INTEGER, order_id INTEGER,
-    supplier_id INTEGER NOT NULL, inspection_date TEXT NOT NULL, inspector_id INTEGER,
-    inspection_type TEXT, sample_size TEXT, defect_count INTEGER, pass_quantity TEXT,
-    reject_quantity TEXT, inspection_status TEXT, inspection_result TEXT, quality_score TEXT,
-    defect_description TEXT, attachment_urls TEXT, notes TEXT, created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL, completed_at TEXT, completed_by INTEGER
-)"#;
-
-/// m0063 为 purchase_inspection 建的唯一索引——同构表上使用**逐字相同**的语句，
-/// 行为测试测的就是这条约束本身。
-const M0063_UNIQUE_INDEX_DDL: &str = concat!(
-    r#"CREATE UNIQUE INDEX IF NOT EXISTS "uq_purchase_inspection_inspection_no" "#,
-    r#"ON "purchase_inspection" ("inspection_no")"#,
-);
-
 fn inspection_with(id: i32, inspection_no: &str) -> purchase_inspection::ActiveModel {
     purchase_inspection::ActiveModel {
         id: Set(id),
@@ -351,19 +317,16 @@ fn inspection_with(id: i32, inspection_no: &str) -> purchase_inspection::ActiveM
     }
 }
 
-/// 真实行为断言：带 m0063 同款唯一索引的同构表上，同一单据号的第二次写入
-/// **必须被拒绝**，且错误可被 `sql_err()` 分类为 UniqueConstraintViolation——
-/// 即 `insert_with_no_retry` 「23505→保存点重试」的触发端（PG 生产环境由
-/// SQLSTATE 23505 进入同一 `SqlErr::UniqueConstraintViolation` 变体；
-/// `pg_advisory_xact_lock` 为 PG 专有，sqlite 无法驱动完整加锁-重试链，
-/// 故本测试锁到冲突识别这一层并如上说明）。
+/// 真实行为断言（真库）：迁移 m0009 建表 + m0063 唯一索引的**生产同构真表**上，
+/// 同一单据号的第二次写入必须被数据库拒绝，且错误可被 `sql_err()` 分类为
+/// SqlErr::UniqueConstraintViolation（= PG SQLSTATE 23505，`insert_with_no_retry`
+/// 保存点重试的触发端）。若本用例在真库上报「不拒绝」或分类不符，说明 m0063 的
+/// 唯一索引在真实库上缺失/未生效——属「疑迁移/表结构缺口」，判红交回，不放行。
 /// 并用真实取号注册表 `is_document_no_taken`（number_generator 本体，非复刻）
 /// 验证同列查重状态随写入翻转。
 #[tokio::test]
 async fn second_write_of_same_document_no_is_rejected_on_unique_column() {
-    let db = sqlite_db().await;
-    exec(&db, INSPECTION_DDL).await;
-    exec(&db, M0063_UNIQUE_INDEX_DDL).await;
+    let db = setup_test_db().await;
 
     let dup_no = "PI20261001001";
     assert!(
@@ -376,7 +339,7 @@ async fn second_write_of_same_document_no_is_rejected_on_unique_column() {
     inspection_with(1, dup_no)
         .insert(&db)
         .await
-        .expect("首条记录写入应成功");
+        .expect("首条记录写入应成功（真表 purchase_inspection）");
     assert!(
         is_document_no_taken(&db, "purchase_inspection", dup_no)
             .await
@@ -387,7 +350,7 @@ async fn second_write_of_same_document_no_is_rejected_on_unique_column() {
     let err = inspection_with(2, dup_no)
         .insert(&db)
         .await
-        .expect_err("重复单号第二次写入必须被带 UNIQUE 的同构表拒绝");
+        .expect_err("重复单号第二次写入必须被真库上 m0063 的唯一索引拒绝");
     assert!(
         matches!(err.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))),
         "第二次写入的错误必须分类为 SqlErr::UniqueConstraintViolation（insert_with_no_retry 的 23505 重试触发端），实得: {err}"
@@ -399,6 +362,6 @@ async fn second_write_of_same_document_no_is_rejected_on_unique_column() {
         .expect("计数查询失败");
     assert_eq!(
         rows, 1,
-        "重号确未落库：表内仍只有一行（对照无约束现状的静默双落库）"
+        "重号确未落库：真表内仍只有一行（对照无约束现状的静默双落库）"
     );
 }

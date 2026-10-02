@@ -12,16 +12,21 @@
 //!      （判定依据逐列对照 models/product.rs、models/warehouse.rs；sales_orders 无软删/停用列，
 //!      存在性=行存在，cancelled/rejected 是终态而非"不存在"，不并入本预检）；
 //!    - 拒绝必须零脏行；正向合法引用创建成功并可回读。
-//!    sqlite::memory: 不建外键约束，本用例恰好锁的是"应用层预检"本身：修复前该形态
-//!    在 sqlite 上是脏行 + 200（真库上是 500），修复后 404 + 零脏行。
+//!    真库化（路线一，#4669 判责）后表结构唯一来源 = backend/migration，
+//!    inventory_reservations 的三个真外键（fk_inventory_reservations_order/product/
+//!    warehouse，m0010:63-65）同样存在：本用例锁的仍是「应用层预检先行」——
+//!    坏引用在触库前即被 404 拒绝（若预检被删，才会以 23503 FK 落 DATABASE_ERROR/500）；
+//!    修复前后形态对照语义不变（404 + 零脏行）。
 //! 2. `voucher_ops/workflow.rs` 借贷不平衡拒绝复用 `crud.rs` 的唯一装配点
 //!    `balance_error`（VALIDATION 族 + 脱敏出参「请求参数验证失败」），修复前是
 //!    AppError::bad_request（BAD_REQUEST 码）——与 crud.rs create/update 同语义不同族，
-//!    前端按 code 分支必然不一致。workflow 状态门带 lock_exclusive（sqlite 方言不支持），
-//!    活库行为用例 #[ignore]；族一致性用源码扫描锁双保险。
+//!    前端按 code 分支必然不一致。workflow 状态门带 lock_exclusive（PG 行锁），
+//!    真库化后活库行为用例**转正真跑**（路线一）；族一致性另配源码扫描锁双保险。
 //! 3. `outsourcing_ops/order.rs` 不得再把 SeaORM DbErr 重包装成 DatabaseError 并拼
 //!    错误原文（{e} 含约束名/列名）——一律经 From<DbErr> 统一分类，真实原因只进
 //!    tracing::error，出参脱敏。源码扫描锁固化。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -35,96 +40,57 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::inventory_reservation_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::{product, sales_order, warehouse};
+use bingxi_backend::models::{customer, product, sales_order, user, warehouse};
 use bingxi_backend::services::inventory_reservation_service::InventoryReservationService;
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::utils::messages::err_msg;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait, Set, Statement,
-};
+use sea_orm::{ActiveModelTrait, EntityTrait, PaginatorTrait, Set};
 use serde_json::Value;
 use std::sync::Arc;
 use tower::ServiceExt;
 
 // =========================================================
-// 1) 库存预留引用预检（sqlite::memory: 行为锁）
+// 1) 库存预留引用预检（真 PG 行为锁；表结构唯一来源 = backend/migration）
 // =========================================================
 
-/// 与各 Model 逐列对应的 sqlite 最小 DDL（Decimal→TEXT，DateTime→TEXT，bool→INTEGER）。
-/// 必须建**全部** Model 列：service 预检用 find_by_id 整行解码，缺列会在 SELECT 即炸。
-async fn ddl(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
+/// 真库 FK 父行自插（裁定 R1）：`sales_orders.customer_id NOT NULL` 有
+/// fk_sales_orders_customer→customers、fk_sales_orders_created_by→users（m0001:632-633），
+/// 而 customers/users 属会被清空且不播种的业务表 ⇒ 用例必须自带合法父行，
+/// 不指望环境已有数据。链：users(7) → customers(1) → sales_orders(1)。
+async fn seed_users_and_customer(db: &sea_orm::DatabaseConnection) {
+    let now = Utc::now();
+    user::ActiveModel {
+        id: Set(7),
+        username: Set("w5_precheck_user".to_string()),
+        password_hash: Set("test-only-not-a-real-hash".to_string()),
+        real_name: Set(Some("波5预检夹具用户".to_string())),
+        is_active: Set(true),
+        is_totp_enabled: Set(false),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}"));
-}
-
-async fn create_tables(db: &sea_orm::DatabaseConnection) {
-    ddl(
-        db,
-        r#"CREATE TABLE inventory_reservations (
-            id INTEGER PRIMARY KEY,
-            order_id INTEGER, product_id INTEGER, warehouse_id INTEGER,
-            quantity TEXT, status TEXT,
-            reserved_at TEXT, released_at TEXT, notes TEXT, created_by INTEGER,
-            created_at TEXT, updated_at TEXT
-        )"#,
-    )
-    .await;
-    ddl(
-        db,
-        r#"CREATE TABLE sales_orders (
-            id INTEGER PRIMARY KEY,
-            order_no TEXT NOT NULL, customer_id INTEGER NOT NULL,
-            opportunity_id INTEGER,
-            order_date TEXT NOT NULL, required_date TEXT NOT NULL, ship_date TEXT,
-            status TEXT NOT NULL,
-            subtotal TEXT NOT NULL, tax_amount TEXT NOT NULL, discount_amount TEXT NOT NULL,
-            shipping_cost TEXT NOT NULL, total_amount TEXT NOT NULL,
-            paid_amount TEXT NOT NULL, balance_amount TEXT NOT NULL,
-            shipping_address TEXT, contact_person TEXT, contact_phone TEXT, billing_address TEXT,
-            notes TEXT, batch_no TEXT, color_no TEXT, dye_lot_no TEXT, grade TEXT,
-            packaging_requirement TEXT, quality_standard TEXT,
-            created_by INTEGER, department_id INTEGER, approved_by INTEGER, approved_at TEXT,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        )"#,
-    )
-    .await;
-    ddl(
-        db,
-        r#"CREATE TABLE products (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL, code TEXT NOT NULL, barcode TEXT, category_id INTEGER,
-            specification TEXT, unit TEXT NOT NULL, standard_price TEXT, cost_price TEXT,
-            description TEXT, status TEXT NOT NULL, is_deleted INTEGER NOT NULL,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-            product_type TEXT NOT NULL, fabric_composition TEXT, yarn_count TEXT, density TEXT,
-            width TEXT, gram_weight TEXT, structure TEXT, finish TEXT,
-            min_order_quantity TEXT, lead_time INTEGER, meters_per_piece TEXT, meters_per_roll TEXT,
-            supplier_product_code TEXT, supplier_id INTEGER, is_batch_managed INTEGER,
-            batch_level TEXT, execution_standard TEXT, factory_name TEXT, factory_address TEXT,
-            product_grade TEXT
-        )"#,
-    )
-    .await;
-    ddl(
-        db,
-        r#"CREATE TABLE warehouses (
-            id INTEGER PRIMARY KEY,
-            warehouse_code TEXT NOT NULL, name TEXT NOT NULL,
-            address TEXT, city TEXT, province TEXT, country TEXT, postal_code TEXT,
-            phone TEXT, contact_person TEXT,
-            is_default INTEGER NOT NULL, email TEXT, manager_id INTEGER,
-            is_active INTEGER NOT NULL, notes TEXT, warehouse_type TEXT, capacity INTEGER,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        )"#,
-    )
-    .await;
+    .expect("seed 归属用户失败（users 无迁移播种，必须自插）");
+    customer::ActiveModel {
+        id: Set(1),
+        customer_code: Set("W5C-0001".to_string()),
+        customer_name: Set("波5预检夹具客户".to_string()),
+        credit_limit: Set(Decimal::ZERO),
+        payment_terms: Set(30),
+        status: Set("active".to_string()),
+        customer_type: Set("retail".to_string()),
+        owner_id: Set(7),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("seed 客户失败（customers 无迁移播种，必须自插）");
 }
 
 async fn seed_order(db: &sea_orm::DatabaseConnection, id: i32) {
@@ -132,6 +98,7 @@ async fn seed_order(db: &sea_orm::DatabaseConnection, id: i32) {
     sales_order::ActiveModel {
         id: Set(id),
         order_no: Set(format!("SO-W5-{id}")),
+        // 真实父行：customers.id=1 / users.id=7（见 seed_users_and_customer）
         customer_id: Set(1),
         order_date: Set(now),
         required_date: Set(now),
@@ -143,6 +110,7 @@ async fn seed_order(db: &sea_orm::DatabaseConnection, id: i32) {
         total_amount: Set(Decimal::ZERO),
         paid_amount: Set(Decimal::ZERO),
         balance_amount: Set(Decimal::ZERO),
+        created_by: Set(Some(7)),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -188,12 +156,10 @@ async fn seed_warehouse(db: &sea_orm::DatabaseConnection, id: i32, is_active: bo
     .expect("seed 仓库失败");
 }
 
-/// 全合法引用底：order=1 / product=2(active,未删) / warehouse=3(active)
+/// 全合法引用底：users(7)/customers(1)/order=1 / product=2(active,未删) / warehouse=3(active)
 async fn seeded_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_tables(&db).await;
+    let db = test_common::setup_test_db().await;
+    seed_users_and_customer(&db).await;
     seed_order(&db, 1).await;
     seed_product(&db, 2, "active", false).await;
     seed_warehouse(&db, 3, true).await;
@@ -344,7 +310,7 @@ async fn create_reservation_with_valid_refs_succeeds_and_readable() {
 }
 
 /// handler 级端到端（POST 真实 JSON 出参）：坏 order 引用 → 404 NOT_FOUND，
-/// 修复前真库形态为 500 "数据库错误"、sqlite 形态为脏行 200
+/// 修复前形态为直达 FK 的 500 "数据库错误"（23503 经 From<DbErr> 裸落 DATABASE_ERROR）
 #[tokio::test]
 async fn create_reservation_handler_returns_404_envelope_for_missing_refs() {
     fn make_auth(user_id: i32) -> AuthContext {
@@ -415,7 +381,7 @@ async fn create_reservation_handler_returns_404_envelope_for_missing_refs() {
 }
 
 // =========================================================
-// 2) 凭证 workflow 借贷不平衡：VALIDATION 族 + 脱敏（活库 #[ignore]）
+// 2) 凭证 workflow 借贷不平衡：VALIDATION 族 + 脱敏（真库转正真跑，路线一）
 // =========================================================
 
 /// 借贷不平衡凭证种子（draft 或指定状态；分录借 100 / 贷 99，绕开 create 校验直插）
@@ -520,17 +486,12 @@ fn assert_balance_validation_family(err: AppError) {
     );
 }
 
-/// 活库：draft 借贷不平凭证 submit → 400 VALIDATION_ERROR + 脱敏出参。
-/// #[ignore]：workflow 状态门在 lock_exclusive 之后，sqlite 方言不支持
-/// （先例注释 contract_wave2_reservation_error_mapping_test.rs:20-23）
+/// 真库：draft 借贷不平凭证 submit → 400 VALIDATION_ERROR + 脱敏出参。
+/// 路线一真库化：workflow 状态门 lock_exclusive 是 PG 行锁，真库可真跑 ⇒ 转正执行，
+/// 不再 #[ignore]；连接走公共夹具 setup_test_db()（清业务表后自插种子，无环境耦合）。
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL（workflow submit/review 使用 lock_exclusive，sqlite 不支持）"]
 async fn voucher_submit_unbalanced_is_validation_error_redacted() {
-    let url = std::env::var("TEST_DATABASE_URL")
-        .expect("活库用例必须显式提供 TEST_DATABASE_URL，禁止静默回退");
-    let db = sea_orm::Database::connect(&url)
-        .await
-        .expect("活库连接失败");
+    let db = test_common::setup_test_db().await;
     let svc = bingxi_backend::services::voucher_service::VoucherService::new(Arc::new(db.clone()));
     let (id, items) = seed_unbalanced_voucher(&db, "draft").await;
     let err = svc
@@ -541,15 +502,10 @@ async fn voucher_submit_unbalanced_is_validation_error_redacted() {
     cleanup_voucher(&db, id, &items).await;
 }
 
-/// 活库：submitted 借贷不平凭证 review → 同上族/出参口径（submit 与 review 两站点同锁）
+/// 真库：submitted 借贷不平凭证 review → 同上族/出参口径（submit 与 review 两站点同锁）
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL（workflow submit/review 使用 lock_exclusive，sqlite 不支持）"]
 async fn voucher_review_unbalanced_is_validation_error_redacted() {
-    let url = std::env::var("TEST_DATABASE_URL")
-        .expect("活库用例必须显式提供 TEST_DATABASE_URL，禁止静默回退");
-    let db = sea_orm::Database::connect(&url)
-        .await
-        .expect("活库连接失败");
+    let db = test_common::setup_test_db().await;
     let svc = bingxi_backend::services::voucher_service::VoucherService::new(Arc::new(db.clone()));
     let (id, items) = seed_unbalanced_voucher(&db, "submitted").await;
     let err = svc

@@ -18,10 +18,15 @@
 //! 覆盖策略（全部真实行为，无 mock）：
 //! - serde 解码（无 DB）：缺 custom_order_id 键必须成功（修复前必失败）；伪造键被忽略；
 //!   NOT NULL 字段缺失仍须判 Err（不得为过测试放宽）；refund_amount 字符串/数字双形态
-//! - sqlite::memory: 自建 after_sales 表 + 真实 handler 端到端（tower oneshot）：
+//! - 真 PostgreSQL（TEST_DATABASE_URL + 迁移建表，夹具清空业务表）走真实 handler 端到端
+//!   （tower oneshot）：先播种 customers/product/custom_orders 满足真表 FK
+//!   （after_sales.custom_order_id→custom_orders、customer_id→customers；
+//!   custom_orders.product_id→products、customer_id→customers），
 //!   前端真实 payload 建单成功并回读归属；伪造 body id 被 path 归属钉死；
 //!   refund 缺金额 / 非法类型的拒绝出参 code=VALIDATION_ERROR（输入校验族）且 message 外显原文
 //! - 源码扫描防回潮锁（先例：contract_wave1_ar_payment_error_mapping_test.rs）
+
+mod test_common;
 
 use axum::{
     Router,
@@ -35,10 +40,11 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::custom_order_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::after_sales;
+use bingxi_backend::models::{after_sales, custom_order, customer, product};
 use bingxi_backend::services::custom_order_aftersales_service::CreateAfterSalesDto;
+use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, Statement};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{Value, json};
 use std::str::FromStr;
 use tower::ServiceExt;
@@ -121,7 +127,7 @@ fn decode_refund_amount_accepts_string_and_number() {
 }
 
 // =========================================================
-// 2) 真实 handler 端到端（sqlite::memory: 自建表，无活库依赖）
+// 2) 真实 handler 端到端（真 PostgreSQL，迁移建表 + FK 前置播种）
 // =========================================================
 
 fn make_auth(user_id: i32) -> AuthContext {
@@ -145,49 +151,60 @@ async fn inject_auth(
     next.run(request).await
 }
 
-/// 与 `models/after_sales.rs::Model` 逐列对应的 sqlite 最小 DDL
-/// （先例：contract_wave1_ar_payment_error_mapping_test.rs；Decimal 列用 TEXT）
-async fn create_after_sales_table(db: &sea_orm::DatabaseConnection) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE after_sales (
-            id INTEGER PRIMARY KEY,
-            custom_order_id INTEGER, issue_type TEXT, customer_id INTEGER,
-            description TEXT, status TEXT,
-            opened_at TEXT, closed_at TEXT, resolution TEXT, refund_amount TEXT,
-            quality_issue_id INTEGER, accepted_at TEXT,
-            evaluation_score INTEGER, evaluation_comment TEXT, evaluated_at TEXT,
-            reason_category TEXT, reason_detail TEXT,
-            created_at TEXT, updated_at TEXT
-        )"#,
-        Vec::new(),
-    ))
+/// FK 前置播种（真表外键链）：
+/// after_sales.customer_id→customers(id=7)、after_sales.custom_order_id→custom_orders(id=42)、
+/// custom_orders.product_id→products、custom_orders.customer_id→customers。
+/// 夹具 TRUNCATE…RESTART IDENTITY 后显式 id 稳定；custom_orders.quantity 有 CHECK >0。
+async fn seed_fk_prereq(db: &sea_orm::DatabaseConnection) {
+    product::ActiveModel {
+        id: Set(1),
+        name: Set("售后套件产品".to_string()),
+        code: Set("PRD-AS-0001".to_string()),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}"));
-}
-
-/// 读侧富化链路（list_by_order / find_dto_by_id）带 `LEFT JOIN customers`，
-/// 建表必须与查询同波到位；表名 `customers`、名称列 `customer_name` 取真实实体
-/// （`models/customer.rs:9,19`），测试仅建 JOIN 用到的列
-async fn create_customers_table(db: &sea_orm::DatabaseConnection) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE customers (
-            id INTEGER PRIMARY KEY,
-            customer_name TEXT
-        )"#,
-        Vec::new(),
-    ))
+    .unwrap();
+    customer::ActiveModel {
+        id: Set(7),
+        customer_code: Set("CUS-AS-0007".to_string()),
+        customer_name: Set("售后套件客户".to_string()),
+        credit_limit: Set(Decimal::ZERO),
+        payment_terms: Set(30),
+        status: Set("active".to_string()),
+        customer_type: Set("retail".to_string()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
     .await
-    .unwrap_or_else(|e| panic!("customers DDL 执行失败: {e}"));
+    .unwrap();
+    custom_order::ActiveModel {
+        id: Set(42),
+        order_no: Set("CO-AS-0042".to_string()),
+        customer_id: Set(7),
+        product_id: Set(1),
+        spec: Set("180gsm 全棉".to_string()),
+        quantity: Set(dec("10.00")),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
 }
 
 async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_after_sales_table(&db).await;
-    create_customers_table(&db).await;
+    let db = test_common::setup_test_db().await;
+    seed_fk_prereq(&db).await;
     let state = AppState {
         db: std::sync::Arc::new(db.clone()),
         ..Default::default()
@@ -400,7 +417,7 @@ fn assert_readback_fields(obj: &Value, expected_detail: &str) {
 }
 
 /// 创建带 reason_category/reason_detail 的工单：
-/// POST 创建响应 + GET 列表端点都必须回读得到这三个键（sqlite 真实 handler，无 mock）
+/// POST 创建响应 + GET 列表端点都必须回读得到这三个键（真 PG 真实 handler，无 mock）
 #[tokio::test]
 async fn create_and_list_endpoints_read_back_reason_and_customer_fields() {
     let (app, db) = seeded_app().await;

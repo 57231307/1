@@ -12,13 +12,14 @@
 //! 2. 拍平指纹零命中：`AppError::internal(e.to_string())`（把未知/已带族的错误强行
 //!    降级成 500 的写法）在本组任何文件不得出现；多行 `map_err(|e| { … AppError::internal }`
 //!    块同样禁止（voucher 批量查询旧写法形态）。
-//! 3. 真实断言（非纯源码锁）：
-//!    - sqlite 自建空表，真实调用业务追溯 handler：不存在的 five_dimension_id →
+//! 3. 真实断言（非纯源码锁；路线一：统一真库 PostgreSQL）：
+//!    - 已迁移真库上的空 business_trace_chain（夹具 TRUNCATE，不自建 DDL），
+//!      真实调用业务追溯 handler：不存在的 five_dimension_id →
 //!      404 NOT_FOUND 且真实原因「未找到追溯链」随 Display/日志外达，不得再是被拍平的 500；
 //!      不存在的 trace_chain_id 建快照 → 服务层 not_found「追溯链不存在」原样透传出 404
 //!      （修复前该 404 被 handler `map_err(internal)` 压成 500——本测即该站点的回归锁）。
-//!    - 活库（#[ignore]，CI 的 nextest --run-ignored 作业以已迁移 PostgreSQL 执行）：
-//!      付款申请非草稿状态的修改状态门 → 400 BUSINESS_ERROR 而非 500。
+//!    - 付款申请非草稿状态的修改状态门 → 400 BUSINESS_ERROR 而非 500
+//!      （update 事务内 lock_exclusive 在生产方言 PostgreSQL 上真跑）。
 //!
 //! 保留 internal 的站点与理由见 PR 描述（IO/reqwest/env 配置/serde 序列化/聚合"无结果"
 //! 不变量等不可归类场景，按判据 (b)(c)(e) 保留，出参仍走脱敏）。
@@ -31,7 +32,6 @@ use axum::response::IntoResponse;
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::business_trace_handler;
 use bingxi_backend::utils::error::AppError;
-use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use std::sync::Arc;
 
 // =========================================================
@@ -209,36 +209,8 @@ fn g6_trace_handler_passthrough_and_service_not_found_semantics() {
 }
 
 // =========================================================
-// 3. 真实断言（sqlite 自建空表，直连真实 handler）
+// 3. 真实断言（真库 PostgreSQL 空追溯表，直连真实 handler）
 // =========================================================
-
-async fn sqlite_db() -> sea_orm::DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-/// 与 models/business_trace_chain.rs::Model 列逐一对应的 sqlite 建表（空表即"单据不存在"场景）
-async fn create_business_trace_chain_table(db: &sea_orm::DatabaseConnection) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE business_trace_chain (
-            id INTEGER PRIMARY KEY,
-            trace_chain_id TEXT, five_dimension_id TEXT,
-            product_id INTEGER, batch_no TEXT, color_no TEXT,
-            dye_lot_no TEXT, grade TEXT,
-            current_stage TEXT, current_bill_type TEXT, current_bill_no TEXT,
-            current_bill_id INTEGER, previous_trace_id INTEGER, next_trace_id INTEGER,
-            quantity_meters TEXT, quantity_kg TEXT,
-            warehouse_id INTEGER, supplier_id INTEGER, customer_id INTEGER, workshop_id INTEGER,
-            trace_status TEXT, remarks TEXT,
-            created_at TEXT, created_by INTEGER
-        )"#,
-        Vec::<sea_orm::Value>::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("business_trace_chain 建表失败: {e}"));
-}
 
 fn trace_state(db: sea_orm::DatabaseConnection) -> AppState {
     AppState {
@@ -252,8 +224,8 @@ fn trace_state(db: sea_orm::DatabaseConnection) -> AppState {
 /// create_snapshot 的 404——都会被 `.map_err(|e| AppError::internal(e.to_string()))` 拍成 500）
 #[tokio::test]
 async fn missing_five_dimension_trace_returns_404_not_flattened_500() {
-    let db = sqlite_db().await;
-    create_business_trace_chain_table(&db).await;
+    // 真库空 business_trace_chain（迁移建表 + 夹具 TRUNCATE）即"单据不存在"场景
+    let db = test_common::setup_test_db().await;
     let state = trace_state(db);
 
     let err = business_trace_handler::get_trace_by_five_dimension(
@@ -291,8 +263,8 @@ async fn missing_five_dimension_trace_returns_404_not_flattened_500() {
 /// 正是普查点名的"单据不存在被拍平"站点）。
 #[tokio::test]
 async fn missing_trace_chain_snapshot_returns_404_with_real_reason() {
-    let db = sqlite_db().await;
-    create_business_trace_chain_table(&db).await;
+    // 真库空 business_trace_chain（迁移建表 + 夹具 TRUNCATE）即"链不存在"场景
+    let db = test_common::setup_test_db().await;
     let state = trace_state(db);
 
     let err = business_trace_handler::create_trace_snapshot(
@@ -316,13 +288,12 @@ async fn missing_trace_chain_snapshot_returns_404_with_real_reason() {
 }
 
 // =========================================================
-// 3'. 真实断言 C（活库 #[ignore]，CI nextest --run-ignored 作业执行）
+// 3'. 真实断言 C（路线一：与 3 同通道，真库分片 job 直接执行，不再 #[ignore]）
 // =========================================================
 
 /// 付款申请状态门：非草稿（APPROVING）修改必须 400 BUSINESS_ERROR 而非 500。
-/// update 走事务内 lock_exclusive，sqlite 方言不支持，需 TEST_DATABASE_URL 指向已迁移 PG。
+/// update 走事务内 lock_exclusive——生产方言 PostgreSQL 上真跑（夹具保证已迁移库）。
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL：update 状态门在事务内 lock_exclusive，sqlite 不支持"]
 async fn ap_payment_request_state_gate_is_business_400_not_flattened_500() {
     use bingxi_backend::models::ap_payment_request;
     use bingxi_backend::models::status::{ap_payment_request as approval, common};

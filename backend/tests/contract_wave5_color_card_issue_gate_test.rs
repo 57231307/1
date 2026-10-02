@@ -16,20 +16,23 @@
 //!   外显"只有草稿态色卡可以发放"）；含库存数字/超期条数/客户状态 token 的其余闸门
 //!   维持脱敏 `business`。
 //!
-//! 覆盖策略：
-//! - sqlite::memory:（无需 TEST_DATABASE_URL、不 #[ignore]）：
-//!   反向 issued/archived/legacy-active 卡 → CardNotIssuable + 400 契约 + 零落库；
-//!   issue_err 分层纯函数断言；两路源码扫描锁（色卡死值 / 工艺节点裸字面量形态）。
-//! - 正向全链走 `issue()` 含 `lock_exclusive()` 事务——sqlite 方言不支持行锁，
-//!   按仓内先例（contract_wave5_receipt_return_three_state_test.rs E 段）放
-//!   `#[ignore]` 活库（TEST_DATABASE_URL→PG），不伪装成 sqlite 用例。
+//! 覆盖策略（路线一，#4669 判责；表结构唯一来源 = backend/migration，不自建 DDL）：
+//! - 全部数据用例走 `test_common::setup_test_db()`（已迁移 PG + 清空业务表）：
+//!   反向 issued/archived 卡 → CardNotIssuable + 400 契约 + 零落库；
+//!   legacy `active` 死值按裁定 R2 做**双层锁**（真 PG 的 `chk_color_card_status`
+//!   不含 active（backend/migration/src/domain/v15/mod.rs:4493-4498），"库里存在
+//!   active 脏行"这一前置在真库不可能成立——改为活库层断"写死值被 DB 拒且零漂移"，
+//!   应用层继续由词表/源码扫描锁固化"代码不得把 active 当可发放态"，两层都在本文件）。
+//! - issue_err 分层纯函数断言（无 DB）；两路源码扫描锁（色卡死值 / 工艺节点裸字面量形态）。
+//! - 正向全链走 `issue()` 含 `lock_exclusive()` 事务，放 `#[ignore]` 活库通道
+//!   （ci-test-rust-ignored，TEST_DATABASE_URL→已迁移 PG），不伪装成其他形态。
 
 mod test_common;
 
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait,
-    QueryFilter, Set, Statement,
+    QueryFilter, Set,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -47,70 +50,17 @@ use bingxi_backend::services::color_card_issue_service::{
 use bingxi_backend::utils::error::AppError;
 
 // =========================================================
-// 夹具：sqlite 自建表（列与 models/color_card.rs、models/color_card_issue.rs 一一对应）
+// 夹具：真迁移表（color_cards / color_card_issues 列形态由 backend/migration 保证）
 // =========================================================
 
-const COLOR_CARDS_DDL: &str = r#"CREATE TABLE color_cards (
-    id INTEGER PRIMARY KEY,
-    card_no TEXT NOT NULL,
-    card_name TEXT NOT NULL,
-    card_type TEXT NOT NULL,
-    season TEXT,
-    brand TEXT,
-    total_colors INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'draft',
-    description TEXT,
-    cover_image_url TEXT,
-    stock_quantity INTEGER NOT NULL DEFAULT 0,
-    issued_quantity INTEGER NOT NULL DEFAULT 0,
-    dyeing_capability TEXT,
-    printing_capability TEXT,
-    color_fastness_grade TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)"#;
-
-const COLOR_CARD_ISSUES_DDL: &str = r#"CREATE TABLE color_card_issues (
-    id INTEGER PRIMARY KEY,
-    color_card_id INTEGER NOT NULL,
-    customer_id INTEGER NOT NULL,
-    issue_qty INTEGER NOT NULL,
-    issued_by INTEGER NOT NULL,
-    issued_at TEXT NOT NULL,
-    expected_return_date TEXT,
-    actual_return_date TEXT,
-    status TEXT NOT NULL,
-    purpose TEXT,
-    remark TEXT,
-    compensation_amount TEXT,
-    returned_by INTEGER,
-    dye_lot_no TEXT,
-    sales_order_id INTEGER,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    is_deleted INTEGER NOT NULL DEFAULT 0
-)"#;
-
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
 async fn fresh_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    exec(&db, COLOR_CARDS_DDL).await;
-    exec(&db, COLOR_CARD_ISSUES_DDL).await;
-    db
+    test_common::setup_test_db().await
 }
 
 /// 按指定状态播种一张色卡（stock=10, issued=0），返回 id。
+/// status 只允许词表真实值：真表 CHECK（chk_color_card_status）以迁移全集
+/// draft/issued/received/used/expired/archived/lost 为准，legacy active 必被拒
+/// （这正是 R2 活库层锁的用例点）。
 async fn seed_card(db: &sea_orm::DatabaseConnection, status: &str) -> i64 {
     let now = chrono::Utc::now();
     let card = CardActive {
@@ -126,7 +76,7 @@ async fn seed_card(db: &sea_orm::DatabaseConnection, status: &str) -> i64 {
     }
     .insert(db)
     .await
-    .expect("播种色卡失败");
+    .unwrap_or_else(|e| panic!("播种 {status} 色卡失败: {e}"));
     card.id
 }
 
@@ -222,20 +172,83 @@ async fn issue_rejected_on_archived_card() {
 
 #[tokio::test]
 async fn issue_rejected_on_legacy_active_dead_value() {
-    // 'active' 不在 card_status::ALL / DB CHECK 内（迁移已回填为 draft），
-    // 修复前正是拿它当放行依据；新门控不得再把它供回去——即使库中存在脏数据也必须拒绝。
+    // 'active' 不在 card_status::ALL / DB CHECK 内（迁移已回填为 draft）。
+    // 裁定 R2（#4669 判责）：真 PG 下"库里存在 active 脏行"这一前置**不可能成立**
+    // （chk_color_card_status 23514 直接拒写），故本用例做双层锁，缺一层即回归：
+    //
+    // ── 活库层：把 legacy 死值写进色卡状态列，必须被数据库拒绝且整笔零落库/零漂移 ──
     let db = fresh_db().await;
-    let card_id = seed_card(&db, "active").await;
-    let svc = ColorCardIssueService::new(Arc::new(db.clone()));
-    let err = svc
-        .issue(issue_params(card_id))
+    let card_id = seed_card(&db, card_status::DRAFT).await;
+
+    // (1) UPDATE 已发放门控的 draft 卡状态写死值 active → DB 拒绝
+    let card = ColorCardEntity::find_by_id(card_id)
+        .one(&db)
         .await
-        .expect_err("legacy active 死值不得进入放行集合");
+        .unwrap()
+        .unwrap();
+    let mut dirty: CardActive = card.into();
+    dirty.status = Set("active".to_string());
+    let err = dirty
+        .update(&db)
+        .await
+        .expect_err("真库 CHECK 必须拒绝 legacy active 死值回写（不得静默落库）");
+    let msg = err.to_string();
     assert!(
-        matches!(err, IssueError::CardNotIssuable),
-        "active 脏数据同样命中闸门 1 拒绝，实际={err:?}"
+        msg.contains("chk_color_card_status") || msg.contains("23514"),
+        "写死值必须被 chk_color_card_status（23514）拒绝，实际错误: {msg}"
     );
-    assert_eq!(count_issues(&db).await, 0, "拒绝后发放记录必须零落库");
+
+    // (2) INSERT 新行直接带 active → 同样被拒，色卡行数零增长
+    let now = chrono::Utc::now();
+    let insert_res = CardActive {
+        card_no: Set("W5-ISSUE-DEAD-ACTIVE".to_string()),
+        card_name: Set("死值直插对照卡".to_string()),
+        card_type: Set("PANTONE".to_string()),
+        status: Set("active".to_string()),
+        stock_quantity: Set(10),
+        issued_quantity: Set(0),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await;
+    let insert_err = insert_res.expect_err("active 新行不得落库（CHECK 必须拒绝）");
+    let insert_msg = insert_err.to_string();
+    assert!(
+        insert_msg.contains("chk_color_card_status") || insert_msg.contains("23514"),
+        "直插死值必须撞 chk_color_card_status，实际错误: {insert_msg}"
+    );
+    assert_eq!(
+        ColorCardEntity::find().count(&db).await.unwrap(),
+        1,
+        "两次死值写入后库内只能有原本那一张 draft 卡（零落库）"
+    );
+
+    // (3) 回读零漂移：原卡状态逐字符仍为词表 DRAFT，发放记录零落库
+    let card_after = ColorCardEntity::find_by_id(card_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        card_after.status,
+        card_status::DRAFT,
+        "被拒的死值回写不得留下任何状态漂移"
+    );
+    assert_eq!(count_issues(&db).await, 0, "拒绝路径不得产生发放记录");
+
+    // ── 应用层：代码词表不得把 legacy active 当可发放态 ──
+    // (a) 权威词表全集不含 active（本文件常量断言）；
+    // (b) 源码防线 = 同文件 source_scan_issue_gate_no_dead_active_and_tokens_from_word_list
+    //     （锁 ISSUABLE_CARD_STATUSES 只引 card_status 词表常量、放行集合断言 != "active"）；
+    // (c) 门控对词表内不可发放态（issued/archived）继续外显公开文案拒绝，
+    //     见 issue_rejected_on_issued_card / issue_rejected_on_archived_card。
+    assert!(
+        !card_status::ALL.contains(&"active"),
+        "color_card::ALL 不得重新收录 legacy active 死值: {:?}",
+        card_status::ALL
+    );
 }
 
 // =========================================================

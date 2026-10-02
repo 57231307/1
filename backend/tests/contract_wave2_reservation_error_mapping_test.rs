@@ -1,5 +1,8 @@
 //! 库存预留四端点错误映射契约锁（本波修复"业务拒绝/404/403 被压成 500"）
 //!
+//! 表结构唯一来源 = backend/migration（路线一，#4669 判责）：本文件不自建 DDL，
+//! 全部用例经 `test_common::setup_test_db()` 打已迁移 PostgreSQL。
+//!
 //! 锁定的 file:line 契约（修复后形态）：
 //! - `backend/src/handlers/inventory_reservation_handler.rs`
 //!   list/create/delete/lock/release 对 service 返回的 AppError 一律 `?` 透传，
@@ -12,16 +15,15 @@
 //!   的外显安全边界），出参 message 外显真实拒绝文案；修复前 business 变体
 //!   会被脱敏成固定"业务处理失败"
 //!
-//! 覆盖策略（先例：contract_wave1_ap_payment_request_items_test.rs /
-//! contract_wave1_data_scope_idor_test.rs，全部真实行为无 mock）：
-//! - sqlite::memory: 自建 inventory_reservations 表 + 真实 delete handler 端到端
-//!   （tower oneshot）：delete 的 IDOR 预检走 get_reservation（无 lock_exclusive），
-//!   404/403 透传可在 sqlite 实跑——修复前这两形态均被强转 500
-//!   注：lock/release/delete 的状态门位于服务侧 lock_exclusive 之后，sqlite 方言
-//!   不支持（先例注释见 contract_wave1_data_scope_idor_test.rs:24 与
-//!   contract_wave1_ap_payment_request_items_test.rs:19），400 外显形态以
-//!   #[ignore] 活库用例 + 源码扫描锁双保险固化
-//! - 源码扫描防回潮锁
+//! 覆盖策略（执行手册第 5 条：TEST_SEED_* 环境变量依赖一律自种子化消除）：
+//! - `inventory_reservations` 真表三个 FK（order→sales_orders、product→products、
+//!   warehouse→warehouses，m0010_add_inventory_extensions）全部由用例自种子合法父行
+//!   （users→customers→sales_orders + products/warehouses，裁定 R1），目标预留行
+//!   状态直接写词表终值（released / consumed），拿真实 ID 喂被测服务；
+//! - delete 的 IDOR 预检（get_reservation，无 lock_exclusive）与 lock/release/delete
+//!   状态门（服务侧 lock_exclusive——真 PG 原生支持）统一在同一通道真跑，
+//!   原先因 sqlite 方言拆出的 #[ignore]+TEST_SEED_* 形态已删除，进常跑分片；
+//! - 源码扫描防回潮锁（无 DB）。
 
 mod test_common;
 
@@ -37,14 +39,139 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::inventory_reservation_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::inventory_reservation;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, DbBackend, Set, Statement};
+use bingxi_backend::models::status::inventory_reservation as reservation_status;
+use bingxi_backend::models::status::master_data;
+use bingxi_backend::models::status::sales_order as so_status;
+use bingxi_backend::models::{
+    customer, inventory_reservation, product, sales_order, user, warehouse,
+};
+use chrono::{TimeZone, Utc};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set};
 use serde_json::Value;
+use std::sync::Arc;
 use tower::ServiceExt;
 
 // =========================================================
-// 1) 真实 delete handler 端到端（sqlite::memory:，透传 404/403）
+// 自种子夹具（FK 父行按真表 NOT NULL 与外键逐一补齐；不依赖任何外部播种）
 // =========================================================
+
+fn fixed_time() -> chrono::DateTime<Utc> {
+    Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap()
+}
+
+/// 种子布局（夹具 TRUNCATE…RESTART IDENTITY 后显式 id 稳定）：
+/// users 100（本人）/200（他人）→ customers 1（owner=100）→ sales_orders 1 →
+/// products 1 / warehouses 1 → inventory_reservations（id 由调用方指定）。
+async fn seed_reservation_chain(
+    db: &sea_orm::DatabaseConnection,
+    reservation_id: i32,
+    status: &str,
+    created_by: i32,
+) {
+    for uid in [100i32, 200] {
+        user::ActiveModel {
+            id: Set(uid),
+            username: Set(format!("w2-resv-user-{uid}")),
+            password_hash: Set("x".repeat(60)),
+            is_active: Set(true),
+            is_totp_enabled: Set(false),
+            created_at: Set(fixed_time()),
+            updated_at: Set(fixed_time()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap_or_else(|e| panic!("种子用户 {uid} 插入失败: {e}"));
+    }
+    customer::ActiveModel {
+        id: Set(1),
+        customer_code: Set("C-RESV-0001".to_string()),
+        customer_name: Set("预留链路客户".to_string()),
+        credit_limit: Set(rust_decimal::Decimal::ZERO),
+        payment_terms: Set(30),
+        status: Set(master_data::ACTIVE.to_string()),
+        customer_type: Set("retail".to_string()),
+        owner_id: Set(100),
+        created_by: Set(Some(100)),
+        created_at: Set(fixed_time()),
+        updated_at: Set(fixed_time()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("种子客户插入失败（真表 customers）");
+
+    sales_order::ActiveModel {
+        id: Set(1),
+        order_no: Set("SO-RESV-0001".to_string()),
+        customer_id: Set(1),
+        order_date: Set(fixed_time()),
+        required_date: Set(fixed_time()),
+        status: Set(so_status::PENDING.to_string()),
+        subtotal: Set(rust_decimal::Decimal::new(100, 0)),
+        tax_amount: Set(rust_decimal::Decimal::ZERO),
+        discount_amount: Set(rust_decimal::Decimal::ZERO),
+        shipping_cost: Set(rust_decimal::Decimal::ZERO),
+        total_amount: Set(rust_decimal::Decimal::new(100, 0)),
+        paid_amount: Set(rust_decimal::Decimal::ZERO),
+        balance_amount: Set(rust_decimal::Decimal::new(100, 0)),
+        created_by: Set(Some(100)),
+        created_at: Set(fixed_time()),
+        updated_at: Set(fixed_time()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("种子销售订单插入失败（真表 sales_orders，customer/created_by 双 FK）");
+
+    product::ActiveModel {
+        id: Set(1),
+        code: Set("PRD-RESV-0001".to_string()),
+        name: Set("预留链路产品".to_string()),
+        unit: Set("米".to_string()),
+        status: Set(master_data::ACTIVE.to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        created_at: Set(fixed_time()),
+        updated_at: Set(fixed_time()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("种子产品插入失败（真表 products）");
+
+    warehouse::ActiveModel {
+        id: Set(1),
+        warehouse_code: Set("WH-RESV-01".to_string()),
+        name: Set("预留链路仓库".to_string()),
+        is_default: Set(false),
+        is_active: Set(true),
+        created_at: Set(fixed_time()),
+        updated_at: Set(fixed_time()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("种子仓库插入失败（真表 warehouses）");
+
+    inventory_reservation::ActiveModel {
+        id: Set(reservation_id),
+        order_id: Set(1),
+        product_id: Set(1),
+        warehouse_id: Set(1),
+        quantity: Set(rust_decimal::Decimal::ONE),
+        status: Set(status.to_string()),
+        reserved_at: Set(fixed_time()),
+        released_at: Set(None),
+        notes: Set(None),
+        created_by: Set(Some(created_by)),
+        created_at: Set(fixed_time()),
+        updated_at: Set(fixed_time()),
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("seed 预留行 {reservation_id}（{status}）失败: {e}"));
+}
 
 fn make_auth(user_id: i32) -> AuthContext {
     AuthContext {
@@ -68,56 +195,12 @@ async fn inject_auth(
     next.run(request).await
 }
 
-/// 与 `models/inventory_reservation.rs::Model` 逐列对应的 sqlite 最小 DDL
-/// （Decimal 列用 TEXT，DateTime 用 ISO 字符串）
-async fn create_reservation_table(db: &sea_orm::DatabaseConnection) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE inventory_reservations (
-            id INTEGER PRIMARY KEY,
-            order_id INTEGER, product_id INTEGER, warehouse_id INTEGER,
-            quantity TEXT, status TEXT,
-            reserved_at TEXT, released_at TEXT, notes TEXT, created_by INTEGER,
-            created_at TEXT, updated_at TEXT
-        )"#,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}"));
-}
-
-async fn seed_reservation(
-    db: &sea_orm::DatabaseConnection,
-    id: i32,
-    status: &str,
-    created_by: i32,
-) {
-    let now = chrono::Utc::now();
-    let active = inventory_reservation::ActiveModel {
-        id: Set(id),
-        order_id: Set(1),
-        product_id: Set(1),
-        warehouse_id: Set(1),
-        quantity: Set(rust_decimal::Decimal::ONE),
-        status: Set(status.to_string()),
-        reserved_at: Set(now),
-        released_at: Set(None),
-        notes: Set(None),
-        created_by: Set(Some(created_by)),
-        created_at: Set(now),
-        updated_at: Set(now),
-    };
-    active.insert(db).await.expect("seed 预留行失败");
-}
-
 async fn seeded_app() -> Router {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_reservation_table(&db).await;
-    seed_reservation(&db, 7, "pending", 200).await; // 他人（200）创建的预留
+    let db = test_common::setup_test_db().await;
+    // 他人（created_by=200）的 pending 预留：404 用例查 999，403 用例查 7
+    seed_reservation_chain(&db, 7, reservation_status::PENDING, 200).await;
     let state = AppState {
-        db: std::sync::Arc::new(db.clone()),
+        db: Arc::new(db),
         ..Default::default()
     };
     Router::new()
@@ -179,29 +262,25 @@ async fn delete_foreign_reservation_returns_403_not_500() {
 }
 
 // =========================================================
-// 2) 活库（PostgreSQL）用例：#[ignore]（状态门在服务侧 lock_exclusive
-//    之后，sqlite 方言不支持；先例：contract_wave1_ap_payment_request_items_test.rs）
+// 2) 状态门用例（真 PG 常跑）：lock_exclusive 在 PostgreSQL 真实加锁，
+//    目标预留行由用例自种子（状态直接写终值），断言原文与错误码逐字不变。
 // =========================================================
 
-/// 活库：锁定已释放预留 → 400 BUSINESS_ERROR 且 message 外显真实拒绝文案
+/// 锁定已释放预留 → 400 BUSINESS_ERROR 且 message 外显真实拒绝文案
 /// （构造点契约：business_displayable，不得脱敏成"业务处理失败"、不得 500）
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL + TEST_SEED_RELEASED_RESERVATION_ID（状态门在 lock_exclusive 之后，sqlite 方言不支持）"]
 async fn lock_released_reservation_service_error_is_displayable_400() {
     use axum::response::IntoResponse;
     use bingxi_backend::utils::error::AppError;
 
     let db = test_common::setup_test_db().await;
+    seed_reservation_chain(&db, 7, reservation_status::RELEASED, 100).await;
     let svc =
         bingxi_backend::services::inventory_reservation_service::InventoryReservationService::new(
-            std::sync::Arc::new(db),
+            Arc::new(db),
         );
-    let released_id: i32 = std::env::var("TEST_SEED_RELEASED_RESERVATION_ID")
-        .expect("活库用例须提供 TEST_SEED_RELEASED_RESERVATION_ID")
-        .parse()
-        .unwrap();
     let err = svc
-        .lock_reservation(released_id)
+        .lock_reservation(7)
         .await
         .expect_err("已释放预留不可锁定，必须被状态门拒绝");
     match &err {
@@ -222,24 +301,20 @@ async fn lock_released_reservation_service_error_is_displayable_400() {
     );
 }
 
-/// 活库：删除已释放预留 → 400 外显"释放的预留不可删除"语义原文
+/// 删除已释放预留 → 400 外显"释放的预留不可删除"语义原文
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL + TEST_SEED_RELEASED_RESERVATION_ID（状态门在 lock_exclusive 之后，sqlite 方言不支持）"]
 async fn delete_released_reservation_service_error_is_displayable_400() {
     use axum::response::IntoResponse;
     use bingxi_backend::utils::error::AppError;
 
     let db = test_common::setup_test_db().await;
+    seed_reservation_chain(&db, 7, reservation_status::RELEASED, 100).await;
     let svc =
         bingxi_backend::services::inventory_reservation_service::InventoryReservationService::new(
-            std::sync::Arc::new(db),
+            Arc::new(db),
         );
-    let released_id: i32 = std::env::var("TEST_SEED_RELEASED_RESERVATION_ID")
-        .expect("活库用例须提供 TEST_SEED_RELEASED_RESERVATION_ID")
-        .parse()
-        .unwrap();
     let err = svc
-        .delete_reservation(released_id, 1)
+        .delete_reservation(7, 1)
         .await
         .expect_err("已释放预留不可删除，必须被状态门拒绝");
     match &err {
@@ -259,25 +334,23 @@ async fn delete_released_reservation_service_error_is_displayable_400() {
     );
 }
 
-/// 活库：释放已使用预留 → 400 外显
+/// 释放已终结（consumed，旧 TEST_SEED_USED_RESERVATION_ID 的"used"终态语义，
+/// 按权威词表 models/status/purchase_inventory.rs::inventory_reservation 以
+/// consumed 落库）预留 → 400 外显
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL + TEST_SEED_USED_RESERVATION_ID（状态门在 lock_exclusive 之后，sqlite 方言不支持）"]
 async fn release_used_reservation_service_error_is_displayable_400() {
     use bingxi_backend::utils::error::AppError;
 
     let db = test_common::setup_test_db().await;
+    seed_reservation_chain(&db, 7, reservation_status::CONSUMED, 100).await;
     let svc =
         bingxi_backend::services::inventory_reservation_service::InventoryReservationService::new(
-            std::sync::Arc::new(db),
+            Arc::new(db),
         );
-    let used_id: i32 = std::env::var("TEST_SEED_USED_RESERVATION_ID")
-        .expect("活库用例须提供 TEST_SEED_USED_RESERVATION_ID")
-        .parse()
-        .unwrap();
     let err = svc
-        .release_reservation(used_id)
+        .release_reservation(7)
         .await
-        .expect_err("已使用预留不可释放，必须被状态门拒绝");
+        .expect_err("已终结预留不可释放，必须被状态门拒绝");
     match &err {
         AppError::BusinessErrorDisplayable(_) => {}
         other => panic!("状态门拒绝必须为 business_displayable，实际: {other:?}"),

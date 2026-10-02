@@ -16,19 +16,24 @@
 //! 既有逐条拒绝分支（未填匹号/匹不存在/非可用）文案携带查询所得缸号，
 //! 按 `utils/error.rs` 模块文档保持脱敏 `business` 形态不变。
 //!
-//! 覆盖策略（无 mock、真实 service/handler 路径）：
+//! 覆盖策略（无 mock、真实 service/handler 路径；路线一 #4669 判责：
+//! 表结构唯一来源 = backend/migration，不再自建 sqlite 同构表——
+//! `issue_quantity TEXT NOT NULL` 自建 DDL 与模型 Decimal(14,4) 的方言矛盾即
+//! 本文件约 10 例连坐红（ColumnDecode）的根因）：
 //! - 两条拒绝路径均发生在 `issue_order` 开启事务/取号**之前**
-//!   （validate 在 order.rs L384，begin 在 L388），因此 sqlite::memory:
-//!   同构表即可真实跑通 handler→service→domain 全链；
+//!   （validate 在 order.rs，begin 在其后），真 PG（test_common::setup_test_db，
+//!   连接已迁移库并清空业务表）上 handler→service→domain 全链真实跑通；
 //! - 零漂移不只看错误码：拒绝后回查订单**整行逐列相等**（Model PartialEq）、
 //!   该订单凭证行数=0、OVIS 前缀凭证数=0；
+//! - FK 前置自种子（裁定 R1）：inventory_piece.product_id → products、
+//!   warehouse_id → warehouses 均为真表外键，会被清空且不播种——夹具自种父行，
+//!   不指望环境已有数据；
 //! - 正向对照（合规明细发料成功）必经 `generate_no_with_txn`
-//!   （`utils/number_generator.rs::lock_prefix` L257-270 为
-//!   `pg_advisory_xact_lock`，sqlite 方言不支持，不得伪装成 sqlite 用例——
-//!   先例 contract_wave1/wave5 同口径）：`#[ignore]` 活库
-//!   （TEST_DATABASE_URL→已迁移 PG，CI `ci-test-rust-ignored` 以 --include-ignored 执行；
-//!   本地未设变量时 setup_test_db 回退 sqlite，用例行首的方言断言将其**显式失败并说明**，
-//!   非条件跳过）。
+//!   （`utils/number_generator.rs::lock_prefix` 为 `pg_advisory_xact_lock`，
+//!   PG 专有能力，只能在活库真跑——先例 contract_wave1/wave5 同口径）：
+//!   `#[ignore]` 活库（TEST_DATABASE_URL→已迁移 PG，CI `ci-test-rust-ignored`
+//!   以 --include-ignored 执行；夹具缺 TEST_DATABASE_URL 或指向 sqlite 直接 panic，
+//!   不存在静默回退）。
 
 mod test_common;
 
@@ -61,7 +66,7 @@ use rust_decimal::Decimal;
 use sea_orm::QueryFilter;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    PaginatorTrait, QuerySelect, Set, Statement,
+    PaginatorTrait, Set,
 };
 use serde_json::Value;
 use std::str::FromStr;
@@ -69,87 +74,17 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 // =========================================================
-// 公共夹具（sqlite::memory: 同构表，列集与 models/*.rs 逐列对应；
-// Decimal→TEXT、DateTime→TEXT、bool→INTEGER，先例 contract_wave5
-// receipt/transfer 同形态）
+// 公共夹具（真 PostgreSQL，表结构唯一来源 = backend/migration；
+// outsourcing_order/outsourcing_order_item/outsourcing_voucher/inventory_piece
+// 由迁移建齐，本文件不再自建 CREATE TABLE）
 // =========================================================
 
 fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()
 }
 
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::<sea_orm::Value>::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-const OUTSOURCING_ORDER_DDL: &str = r#"CREATE TABLE outsourcing_order (
-    id INTEGER PRIMARY KEY,
-    order_no TEXT NOT NULL, order_type TEXT NOT NULL, supplier_id INTEGER NOT NULL,
-    production_order_id INTEGER, dye_batch_id INTEGER, color_no TEXT, dye_lot_no TEXT,
-    issue_date TEXT NOT NULL, expected_return_date TEXT, actual_return_date TEXT,
-    issue_quantity TEXT NOT NULL, issue_unit TEXT NOT NULL, return_quantity TEXT NOT NULL,
-    loss_quantity TEXT NOT NULL, loss_type TEXT, loss_rate TEXT, standard_loss_rate TEXT,
-    material_cost TEXT NOT NULL, processing_fee TEXT NOT NULL, freight_fee TEXT NOT NULL,
-    tax_amount TEXT NOT NULL, abnormal_loss_amount TEXT NOT NULL, total_cost TEXT NOT NULL,
-    unit_cost TEXT NOT NULL, status TEXT NOT NULL,
-    voucher_no_issue TEXT, voucher_no_fee TEXT, voucher_no_receipt TEXT,
-    remarks TEXT, is_deleted INTEGER NOT NULL,
-    created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const OUTSOURCING_ORDER_ITEM_DDL: &str = r#"CREATE TABLE outsourcing_order_item (
-    id INTEGER PRIMARY KEY,
-    outsourcing_order_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-    color_no TEXT, dye_lot_no TEXT, batch_no TEXT, warehouse_id INTEGER,
-    quantity TEXT NOT NULL, unit TEXT NOT NULL,
-    unit_cost TEXT NOT NULL, total_cost TEXT NOT NULL,
-    processing_fee TEXT NOT NULL, freight_fee TEXT NOT NULL,
-    inventory_transaction_id INTEGER, greige_fabric_id INTEGER,
-    piece_no TEXT, remarks TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const OUTSOURCING_VOUCHER_DDL: &str = r#"CREATE TABLE outsourcing_voucher (
-    id INTEGER PRIMARY KEY,
-    voucher_no TEXT NOT NULL, outsourcing_order_id INTEGER NOT NULL,
-    voucher_type TEXT NOT NULL, debit_account TEXT NOT NULL, credit_account TEXT NOT NULL,
-    amount TEXT NOT NULL, tax_amount TEXT NOT NULL, tax_transfer_amount TEXT NOT NULL,
-    voucher_date TEXT NOT NULL, is_posted INTEGER NOT NULL, posted_at TEXT,
-    remarks TEXT, created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const INVENTORY_PIECE_DDL: &str = r#"CREATE TABLE inventory_piece (
-    id INTEGER PRIMARY KEY,
-    piece_no TEXT NOT NULL, piece_type TEXT NOT NULL, dye_lot_id INTEGER,
-    machine_no TEXT, machine_operator TEXT, warehouse_in_at TEXT, supplier_piece_no TEXT,
-    length TEXT NOT NULL, weight TEXT, width TEXT, gram_weight TEXT,
-    position_no TEXT, package_no TEXT, production_date TEXT, shelf_life INTEGER,
-    quality_status TEXT, inventory_status TEXT, warehouse_id INTEGER NOT NULL,
-    remarks TEXT, barcode TEXT, product_id INTEGER NOT NULL, batch_no TEXT NOT NULL,
-    color_no TEXT NOT NULL, dye_lot_no TEXT NOT NULL,
-    parent_piece_id INTEGER, inspection_id INTEGER, piece_seq INTEGER,
-    location_id INTEGER, scan_type TEXT, status TEXT NOT NULL,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, original_length TEXT, original_weight TEXT
-)"#;
-
-async fn seed_issue_domain_tables(db: &DatabaseConnection) {
-    exec(db, OUTSOURCING_ORDER_DDL).await;
-    exec(db, OUTSOURCING_ORDER_ITEM_DDL).await;
-    exec(db, OUTSOURCING_VOUCHER_DDL).await;
-    exec(db, INVENTORY_PIECE_DDL).await;
+async fn live_db() -> DatabaseConnection {
+    test_common::setup_test_db().await
 }
 
 fn unique_tag() -> i64 {
@@ -158,7 +93,44 @@ fn unique_tag() -> i64 {
         .expect("测试环境时间戳必须可用")
 }
 
-/// 种一张 draft 委外订单（全部 NOT NULL 列显式赋值，活库/ sqlite 同构两用）
+/// FK 前置自种子（裁定 R1）：inventory_piece.product_id → products、
+/// warehouse_id → warehouses 为真表外键（business/m0010），两表会被清空且不播种，
+/// 缺父行就造父行。返回 (product_id, warehouse_id)。
+async fn seed_piece_parents(db: &DatabaseConnection) -> (i32, i32) {
+    let now = Utc::now();
+    let suffix = unique_tag();
+    let p = bingxi_backend::models::product::ActiveModel {
+        name: Set(format!("委外发料契约坯布-{suffix}")),
+        code: Set(format!("FAB-W5G-{suffix}")),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 products 父行失败");
+    let wh = bingxi_backend::models::warehouse::ActiveModel {
+        warehouse_code: Set(format!("WH-W5G-{suffix}")),
+        name: Set("委外发料契约仓".to_string()),
+        is_default: Set(false),
+        is_active: Set(true),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 warehouses 父行失败");
+    (p.id, wh.id)
+}
+
+/// 种一张 draft 委外订单（全部 NOT NULL 列显式赋值；outsourcing_order 无 DB 外键，
+/// supplier_id 为业务引用值。发料主单量口径=issue_quantity DECIMAL(14,4)，
+/// 与模型 src/models/outsourcing_order.rs 逐列同源）
 async fn seed_draft_order(db: &DatabaseConnection) -> outsourcing_order::Model {
     // outsourcing_order 时间列为 DateTimeWithTimeZone（= DateTime<FixedOffset>），
     // 仓内惯用 `Utc::now().into()`
@@ -191,7 +163,8 @@ async fn seed_draft_order(db: &DatabaseConnection) -> outsourcing_order::Model {
     .expect("夹具：种 draft 委外订单失败")
 }
 
-/// 种一条发料明细（piece_no 三态由入参决定：None=未填、Some("")=空串、Some(值)=引用）
+/// 种一条发料明细（piece_no 三态由入参决定：None=未填、Some("")=空串、Some(值)=引用；
+/// outsourcing_order_item.product_id 真表无外键约束，沿用业务引用值即可）
 async fn seed_item(
     db: &DatabaseConnection,
     order_id: i32,
@@ -366,8 +339,7 @@ const EMPTY_ITEMS_REJECT_MSG: &str =
 
 #[tokio::test]
 async fn issue_without_items_rejected_with_displayable_error_and_zero_drift() {
-    let db = sqlite_db().await;
-    seed_issue_domain_tables(&db).await;
+    let db = live_db().await;
     let order = seed_draft_order(&db).await;
 
     let service = OutsourcingOrderService::new(Arc::new(db.clone()));
@@ -384,8 +356,7 @@ async fn issue_without_items_rejected_with_displayable_error_and_zero_drift() {
 
 #[tokio::test]
 async fn issue_without_items_http_envelope_400_business_error_real_msg() {
-    let db = sqlite_db().await;
-    seed_issue_domain_tables(&db).await;
+    let db = live_db().await;
     let order = seed_draft_order(&db).await;
     let app = issue_router(db.clone());
 
@@ -410,8 +381,7 @@ async fn issue_without_items_http_envelope_400_business_error_real_msg() {
 #[tokio::test]
 async fn issue_items_without_piece_no_rejected_and_zero_drift() {
     for (case, piece_no) in [("未填（NULL）", None), ("空串", Some(""))] {
-        let db = sqlite_db().await;
-        seed_issue_domain_tables(&db).await;
+        let db = live_db().await;
         let order = seed_draft_order(&db).await;
         seed_item(&db, order.id, piece_no).await;
 
@@ -430,8 +400,7 @@ async fn issue_items_without_piece_no_rejected_and_zero_drift() {
 
 #[tokio::test]
 async fn issue_item_referencing_nonexistent_piece_rejected_and_zero_drift() {
-    let db = sqlite_db().await;
-    seed_issue_domain_tables(&db).await;
+    let db = live_db().await;
     let order = seed_draft_order(&db).await;
     seed_item(&db, order.id, Some("PX-GHOST-W5G")).await;
 
@@ -449,10 +418,10 @@ async fn issue_item_referencing_nonexistent_piece_rejected_and_zero_drift() {
 
 #[tokio::test]
 async fn issue_item_referencing_unavailable_piece_rejected_and_zero_drift() {
-    let db = sqlite_db().await;
-    seed_issue_domain_tables(&db).await;
+    let db = live_db().await;
     let order = seed_draft_order(&db).await;
-    seed_piece(&db, "PX-RESV-W5G", piece_status::RESERVED, 9001, 9001).await;
+    let (pid, wid) = seed_piece_parents(&db).await;
+    seed_piece(&db, "PX-RESV-W5G", piece_status::RESERVED, pid, wid).await;
     seed_item(&db, order.id, Some("PX-RESV-W5G")).await;
 
     // HTTP 全链：脱敏 business 的出参形态（400 + BUSINESS_ERROR + 固定脱敏常量）
@@ -484,42 +453,25 @@ async fn issue_item_referencing_unavailable_piece_rejected_and_zero_drift() {
 // C) 正向对照（活库，防"一刀切拒绝"）：合规明细 + 可用匹 → 发料成功、
 //    状态推进 issued、OVIS 发料凭证恰生成 1 张。
 //    issue 成功路径必经 generate_no_with_txn 的 pg_advisory_xact_lock
-//    （number_generator.rs L257-270），sqlite 方言不支持，不得伪装成
-//    sqlite 用例（先例 wave1/wave5 同口径）；本地无 TEST_DATABASE_URL 时
-//    setup_test_db 回退 sqlite，用例行首方言断言显式失败并说明，
+//    （number_generator.rs，PG 专有的事务级咨询锁），只能在活库真跑；
+//    夹具缺 TEST_DATABASE_URL 或指向 sqlite 直接 panic，绝不静默回退。
 //    CI 由 ci-test-rust-ignored 以 --include-ignored 真实执行。
 // =========================================================
 
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 指向已迁移 PostgreSQL：发料成功路径的单号生成用 pg_advisory_xact_lock，sqlite 方言不支持，无法非活库化"]
+#[ignore = "需要 TEST_DATABASE_URL 指向已迁移 PostgreSQL：发料成功路径的单号生成用 pg_advisory_xact_lock（PG 专有），无法在非活库通道执行"]
 async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
     let db = test_common::setup_test_db().await;
     assert_eq!(
         db.get_database_backend(),
         DbBackend::Postgres,
         "本用例必须跑在 TEST_DATABASE_URL 指向的已迁移 PostgreSQL 上；\
-         本地未设置该变量时 setup_test_db 回退 sqlite，此处显式失败（非跳过）"
+         夹具缺该变量或指向 sqlite 时 setup_test_db 已直接 panic（非跳过）"
     );
 
-    // 活库基准引用数据：显式取真实存在的物料/仓库 ID，缺失即显式失败（不做静默兜底）
-    let product_id: i32 = bingxi_backend::models::product::Entity::find()
-        .select_only()
-        .column(bingxi_backend::models::product::Column::Id)
-        .into_tuple::<(i32,)>()
-        .one(&db)
-        .await
-        .unwrap()
-        .map(|(id,)| id)
-        .expect("活库夹具：products 表无任何记录，正向对照无法执行（需 seed 基准数据）");
-    let warehouse_id: i32 = bingxi_backend::models::warehouse::Entity::find()
-        .select_only()
-        .column(bingxi_backend::models::warehouse::Column::Id)
-        .into_tuple::<(i32,)>()
-        .one(&db)
-        .await
-        .unwrap()
-        .map(|(id,)| id)
-        .expect("活库夹具：warehouses 表无任何记录，正向对照无法执行（需 seed 基准数据）");
+    // FK 前置自种子（R1）：products/warehouses 会被清空且不播种，本用例自造父行，
+    // 不指望环境已有数据（旧实现直接 find().one() 取环境首行，活库清空后必 panic）。
+    let (product_id, warehouse_id) = seed_piece_parents(&db).await;
 
     let tag = unique_tag();
     let piece_no = format!("PW5G-{}-001", tag);
@@ -578,7 +530,7 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
     // 占用闭环（#194）：发料事务提交后，被引用匹必须已被 CAS 置 RESERVED。
     // 发料成功路径必经 generate_no_with_txn 的 pg_advisory_xact_lock（见本用例
     // #[ignore] 说明），故"发料成功→RESERVED"整链只能活库真跑；CAS 占用本身
-    // （不需要行锁）由下方 sqlite 段 D1 直接真跑域服务覆盖。
+    // （不需要行锁）由下方 D1 用例直接真跑域服务覆盖。
     let reserved = inventory_piece::Entity::find_by_id(piece_id)
         .one(&db)
         .await
@@ -600,14 +552,13 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
 // 结算零费用门 + 收回零数量门（决策定案：委外三条业务裁量中的第 2、3 条）
 //
 // 覆盖边界（不假装全绿）：
-// - settle 的拒绝发生在**取号与 begin() 之前**，故 sqlite 能真跑全链、真回读零漂移；
-// - 收回单 confirm 的 0 量门位于 receipt 行 lock_exclusive 之后（sqlite 不支持
-//   lock_exclusive，仓内先例见本文件 E 段/wave5 receipt_return_three_state），
+// - settle 的拒绝发生在**取号与 begin() 之前**，故真 PG 常规分片即可真跑全链、真回读零漂移；
+// - 收回单 confirm 的 0 量门位于 receipt 行 lock_exclusive 之后（锁路径本批不端到端真跑），
 //   因此 create/update/confirm 三处门以**源码扫描锁**钉住族、文案与位置，
-//   活库真跑用例留给 CI 的 --ignored job 与后续 DDL 夹具补齐批次（挂账任务 #194）。
+//   活库端到端真跑留给后续批次（挂账任务 #194）。
 // =========================================================
 
-/// 种一张已收回(received)态委外订单，费用两列由入参决定（sqlite/活库同构两用）
+/// 种一张已收回(received)态委外订单，费用两列由入参决定
 async fn seed_received_order(
     db: &DatabaseConnection,
     processing_fee: Decimal,
@@ -673,8 +624,7 @@ async fn post_settle(app: &Router, id: i32) -> (StatusCode, Value) {
 /// 且订单整行零漂移、该单 outsourcing_voucher 计数为 0（不许落一张金额为 0 的空壳凭证）。
 #[tokio::test]
 async fn settle_with_zero_fee_is_rejected_with_displayable_message_and_no_empty_voucher() {
-    let db = sqlite_db().await;
-    seed_issue_domain_tables(&db).await;
+    let db = live_db().await;
     let order = seed_received_order(&db, Decimal::ZERO, Decimal::ZERO).await;
     let app = settle_router(db.clone());
 
@@ -800,32 +750,31 @@ async fn receipt_zero_quantity_gates_are_wired_in_all_three_paths() {
 // =========================================================
 // D) 任务 #194：委外发料匹状态占用与释放闭环（CAS 条件更新）
 //
-// 可测性边界（不假装全绿）：
-// - CAS 占用/释放不需要行锁，sqlite 可真实跑：D1 直接真跑域服务
-//   reserve_pieces_for_issue（AVAILABLE→RESERVED 落库回查），
-//   D2/D3 走完整 issue_order 服务路径（拒绝分支全部发生在凭证取号
-//   pg_advisory_xact_lock 之前，可在 sqlite 真跑到拒绝与回滚）；
-//   D4 cancel 释放路径无行锁/无取号，sqlite 真跑整链。
-// - "发料成功后 RESERVED" 的端到端正向必经 OVIS 取号（advisory lock，
-//   sqlite 不支持），由上方 #[ignore] 活库用例 C 覆盖；
-// - confirm 收回转 SHIPPED 位于 lock_exclusive 之后（sqlite 不支持），
-//   与既有 0 量门同策：以源码扫描锁钉住"事务内、commit 前"的接线，
-//   活库真跑留给 CI --ignored 与后续批次（测试专家补点）。
+// 可测性边界（不假装全绿；路线一后统一真 PG）：
+// - CAS 占用/释放不需要行锁/取号：D1 直接真跑域服务 reserve_pieces_for_issue
+//   （AVAILABLE→RESERVED 落库回查），D2/D3 走完整 issue_order 服务路径
+//   （拒绝分支全部发生在凭证取号 pg_advisory_xact_lock 之前，真跑归因与零漂移）；
+//   D4 cancel 释放路径无行锁/无取号，真跑整链。
+// - "发料成功后 RESERVED" 的端到端正向必经 OVIS 取号（pg_advisory_xact_lock），
+//   由上方 #[ignore] 活库用例 C 覆盖（走 ci-test-rust-ignored 通道）；
+// - confirm 收回转 SHIPPED 位于 lock_exclusive 之后，本批仍以源码扫描锁
+//   钉住"事务内、commit 前"的接线，活库真跑留给后续批次（测试专家补点）。
 // - 审计溯源 updated_by（#941 本批）：流转与操作者写入在同一条 CAS update_many 内，
 //   故凡能真跑 CAS 的路径都能真回读 updated_by——D1（占用 AVAILABLE→RESERVED）、
-//   D4（释放 RESERVED→AVAILABLE）在 sqlite 真断言 updated_by=操作者；
+//   D4（释放 RESERVED→AVAILABLE）真断言 updated_by=操作者；
 //   "发料成功链/收回转出链"的 updated_by 分别由活库用例 C（真断言）与 D5 的
 //   cas_piece_status 源码扫描锁（updated_by 必须位于 set 与 exec 之间，且迁移回填
-//   SET 段不得含 updated_by）覆盖——sqlite 跑不到这两条链的行锁路径，不假装全绿。
+//   SET 段不得含 updated_by）覆盖——D5 两条链的行锁路径本批不真跑，不假装全绿。
 // =========================================================
 
-/// D1 正向（sqlite 真跑）：域服务 CAS 占用把明细引用的 AVAILABLE 匹置 RESERVED
+/// D1 正向（真 PG CAS 占用，无需行锁/取号，可在常规分片真跑）：域服务 CAS
+/// 占用把明细引用的 AVAILABLE 匹置 RESERVED
 #[tokio::test]
-async fn reserve_pieces_for_issue_marks_piece_reserved_on_sqlite() {
-    let db = sqlite_db().await;
-    seed_issue_domain_tables(&db).await;
+async fn reserve_pieces_for_issue_marks_piece_reserved_on_postgres() {
+    let db = live_db().await;
+    let (pid, wid) = seed_piece_parents(&db).await;
     let order = seed_draft_order(&db).await;
-    seed_piece(&db, "PX-OCCUPY-D1", piece_status::AVAILABLE, 9001, 9001).await;
+    seed_piece(&db, "PX-OCCUPY-D1", piece_status::AVAILABLE, pid, wid).await;
     let item = seed_item(&db, order.id, Some("PX-OCCUPY-D1")).await;
 
     piece_domain_service::reserve_pieces_for_issue(
@@ -858,11 +807,11 @@ async fn reserve_pieces_for_issue_marks_piece_reserved_on_sqlite() {
 /// → HTTP 400 BUSINESS_ERROR + 第二张单零漂移 + 匹仍归第一张单的占用。
 #[tokio::test]
 async fn issue_second_order_referencing_reserved_piece_rejected_with_zero_drift() {
-    let db = sqlite_db().await;
-    seed_issue_domain_tables(&db).await;
+    let db = live_db().await;
+    let (pid, wid) = seed_piece_parents(&db).await;
     // 第一张单：走域服务真实 CAS 占用（等价于其发料事务提交的库存效果）
     let first = seed_draft_order(&db).await;
-    seed_piece(&db, "PX-DOUBLE-D2", piece_status::AVAILABLE, 9001, 9001).await;
+    seed_piece(&db, "PX-DOUBLE-D2", piece_status::AVAILABLE, pid, wid).await;
     let first_item = seed_item(&db, first.id, Some("PX-DOUBLE-D2")).await;
     piece_domain_service::reserve_pieces_for_issue(
         &db,
@@ -926,10 +875,10 @@ async fn issue_second_order_referencing_reserved_piece_rejected_with_zero_drift(
 /// 拒绝必须整单零副作用（匹不得被部分占用）。
 #[tokio::test]
 async fn issue_same_order_duplicate_piece_no_rejected_with_zero_drift() {
-    let db = sqlite_db().await;
-    seed_issue_domain_tables(&db).await;
+    let db = live_db().await;
+    let (pid, wid) = seed_piece_parents(&db).await;
     let order = seed_draft_order(&db).await;
-    seed_piece(&db, "PX-SAMEDUP-D3", piece_status::AVAILABLE, 9001, 9001).await;
+    seed_piece(&db, "PX-SAMEDUP-D3", piece_status::AVAILABLE, pid, wid).await;
     seed_item(&db, order.id, Some("PX-SAMEDUP-D3")).await;
     seed_item(&db, order.id, Some("PX-SAMEDUP-D3")).await;
 
@@ -957,13 +906,13 @@ async fn issue_same_order_duplicate_piece_no_rejected_with_zero_drift() {
     );
 }
 
-/// D4 释放闭环（sqlite 真跑整链）：issued 单取消后，被占用匹 CAS 回 AVAILABLE。
+/// D4 释放闭环（真 PG 整链，取消无行锁/取号）：issued 单取消后，被占用匹 CAS 回 AVAILABLE。
 #[tokio::test]
 async fn cancel_issued_order_releases_reserved_piece_to_available() {
-    let db = sqlite_db().await;
-    seed_issue_domain_tables(&db).await;
+    let db = live_db().await;
+    let (pid, wid) = seed_piece_parents(&db).await;
     let order = seed_draft_order(&db).await;
-    seed_piece(&db, "PX-RELEASE-D4", piece_status::AVAILABLE, 9001, 9001).await;
+    seed_piece(&db, "PX-RELEASE-D4", piece_status::AVAILABLE, pid, wid).await;
     let item = seed_item(&db, order.id, Some("PX-RELEASE-D4")).await;
     piece_domain_service::reserve_pieces_for_issue(
         &db,
@@ -1091,8 +1040,8 @@ async fn piece_occupancy_calls_are_wired_inside_their_transactions() {
     // .set(...ActiveModel) 与 .exec(...) 之间**写 updated_by——把「状态流转」与
     // 「操作者」压进同一条条件更新，是 CAS 原子性/零 N+1 与本闭环审计溯源的立身点。
     // 补第二次 UPDATE 会引入「状态已改、主体未写」中间态。发料成功链/收回转出链
-    // 必经 advisory lock / lock_exclusive，sqlite 无法真跑到 updated_by，故以扫描锁
-    // 钉住（真跑 updated_by 由 D1 占用、D4 释放两条 sqlite 用例覆盖）。
+    // 必经 advisory lock / lock_exclusive，端到端只能由活库用例覆盖，故以扫描锁
+    // 钉住（真跑 updated_by 由 D1 占用、D4 释放两条真 PG 用例覆盖）。
     let piece_src = include_str!("../src/services/piece_domain_service.rs").replace('\r', "");
     let cas_at = piece_src
         .find("async fn cas_piece_status(")

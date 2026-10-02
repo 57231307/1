@@ -1,7 +1,8 @@
 //! 任务 #165 跨域状态门族一致性契约测（先例形态：contract_wave2_reservation_error_mapping_test.rs）
 //!
 //! 锁三例 + 一道防回潮源码扫描：
-//! 1. BOM 重复提交审核（记录已处于「审核中」）——真实 `BomService::submit` 打 sqlite::memory:，
+//! 1. BOM 重复提交审核（记录已处于「审核中」）——真实 `BomService::submit` 打
+//!    真库 PostgreSQL（路线一：`test_common::setup_test_db()`，已迁移库），
 //!    断言出参 `code=BUSINESS_ERROR` + 真实文案外显「BOM已处于审核中状态」。
 //!    修复前：该拒绝走 `AppError::validation_displayable` 出 VALIDATION_ERROR，
 //!    前端按 code 分支时把「当前状态不能重复动作」当"我填错了"，族错配。
@@ -28,19 +29,17 @@ use chrono::{TimeZone, Utc};
 use sea_orm::{ActiveModelTrait, Set};
 use std::sync::Arc;
 
+mod test_common;
+use test_common::setup_test_db;
+
 /// 例 1：BOM 已处于审核中 → 真实服务状态门必须 BUSINESS_ERROR 且外显真实文案
 #[tokio::test]
 async fn bom_repeat_submit_gate_is_business_error_with_real_message() {
     use bingxi_backend::models::bom;
 
-    // 真库化夹具：CI 走 TEST_DATABASE_URL（已 migrate），本地无该变量时回退 sqlite::memory:
-    let db = sea_orm::Database::connect(
-        std::env::var("TEST_DATABASE_URL")
-            .as_deref()
-            .unwrap_or("sqlite::memory:"),
-    )
-    .await
-    .expect("测试夹具：数据库连接失败");
+    // 真库夹具（路线一）：必须 TEST_DATABASE_URL → 已迁移 PostgreSQL，
+    // 缺变量/指 sqlite 由夹具直接 panic，禁止静默回退
+    let db = setup_test_db().await;
 
     let now = Utc.with_ymd_and_hms(2026, 10, 1, 0, 0, 0).unwrap();
     let inserted = bom::ActiveModel {

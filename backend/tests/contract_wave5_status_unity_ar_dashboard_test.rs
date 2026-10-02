@@ -16,31 +16,35 @@
 //!    中英不同 ⇒ 在库价值/品类价值/库龄/周转率分母恒空。修复形态：4 处改绑定
 //!    `inventory_stock_status::NORMAL` 常量（周转率处基址避让 $1/$2 用 $3）。
 //!
-//! 覆盖策略：
-//! - sqlite 行为锁：调用**生产同源 builder** 得到 (sql, params) 后在同构表上执行——
-//!   统计/日报表逐值断言只含 APPROVED（含全过滤参数形态，锁 $N 基址位移不撞号）；
-//!   修复前旧谓词（只排 CANCELLED）作缺陷实证对照（草稿被误计入 3222.50）。
-//! - 仪表盘库存门 sqlite 行为锁：绑定中文常量命中「正常」行；旧英文小写字面量
+//! 覆盖策略（路线一真库化，#4669 判责；表结构唯一来源 = backend/migration）：
+//! - 真 PG 行为锁：调用**生产同源 builder** 得到 (sql, params) 后在真实 ar_invoices /
+//!   inventory_stocks 表上执行——统计/日报表逐值断言只含 APPROVED（含全过滤参数形态，
+//!   锁 $N 基址位移不撞号）；修复前旧谓词（只排 CANCELLED）作缺陷实证对照（草稿被误计入）。
+//!   金额列按真表 DECIMAL 以 Decimal 解码逐值断言（sqlite TEXT 亲和失真通道已废除）。
+//! - 仪表盘库存门真库行为锁：绑定中文常量命中「正常」行；旧英文小写字面量
 //!   谓词恒零命中作缺陷实证对照。
 //! - $N 占位一致性锁：月报表/账龄报表（to_char、CURRENT_DATE 减法为 PG 语义，
-//!   sqlite 不可执行）逐分支断言 SQL 占位符与参数序列一一对应且状态常量落在正确槽位。
+//!   行为锁在末尾真库用例真跑，本组先锁 builder 纯函数形态）逐分支断言 SQL 占位符与
+//!   参数序列一一对应且状态常量落在正确槽位。
 //! - 禁回潮源码扫描（include_str!）：report.rs / dashboard_service.rs 不得再出现
 //!   `'active'`、`'CANCELLED'`、`'DRAFT'`、`"CANCELLED"`、`"DRAFT"` 裸状态字面量；
 //!   同族收口点（vfy aging / fund）锁常量引用形态不回退。
 //! - 中文词表保护：dashboard 库存门必须引用 `inventory_stock_status::NORMAL`，
 //!   词表值必须保持中文，不得被「顺手英文化」。
-//! - `#[ignore]` 真库锁：四类报表（统计/日/月/账龄）在真实 PG 同库种
-//!   DRAFT/APPROVED/CANCELLED 三张发票，逐值断言全部只含 APPROVED；
-//!   缺 `TEST_DATABASE_URL` 时 expect 显式失败，绝不条件跳过。
+//! - 四类报表真库锁（原 #[ignore]，路线一转正真跑）：在真实 PG 种
+//!   DRAFT/APPROVED/CANCELLED 三张发票（父行 customers 按裁定 R1 自插），
+//!   逐值断言全部只含 APPROVED。
+
+mod test_common;
 
 use std::str::FromStr;
 use std::sync::Arc;
 
-use bingxi_backend::models::ar_invoice;
+use bingxi_backend::models::{ar_invoice, customer, product, warehouse};
 use bingxi_backend::models::status::common::{STATUS_APPROVED, STATUS_CANCELLED, STATUS_DRAFT};
 use bingxi_backend::models::status::purchase_inventory::inventory_stock_status;
 use bingxi_backend::services::ar_service::ArService;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sea_orm::{
@@ -55,84 +59,61 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(y, m, d).expect("测试基准日期必须合法")
 }
 
-async fn sqlite_db() -> sea_orm::DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
+async fn live_db() -> sea_orm::DatabaseConnection {
+    test_common::setup_test_db().await
 }
 
-async fn exec_ddl(db: &sea_orm::DatabaseConnection, sql: &'static str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::<Value>::new(),
-    ))
+/// ar_invoices.customer_id 有真外键 fk_ar_invoices_customer→customers（m0012:238），
+/// customers 属被清空且不播种的业务表 ⇒ 按裁定 R1 自插合法父行。
+/// 显式 ID=77：与本文件既有 builder 过滤参数 Some(77) 对齐（TRUNCATE RESTART IDENTITY
+/// 后真表为空，显式 ID 不与任何种子冲突）。
+async fn seed_customer_77(db: &sea_orm::DatabaseConnection) {
+    let now = Utc::now();
+    customer::ActiveModel {
+        id: Set(77),
+        customer_code: Set("W5-DU-CUS77".to_string()),
+        customer_name: Set("波5口径统一夹具客户".to_string()),
+        credit_limit: Set(Decimal::ZERO),
+        payment_terms: Set(30),
+        status: Set("active".to_string()),
+        customer_type: Set("retail".to_string()),
+        owner_id: Set(0), // customers.owner_id 无外键（DEFAULT 0=未分配），非本用例锁面对
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
+    .expect("自插 customers 父行失败（裁定 R1）");
 }
 
-/// 与 `models/ar_invoice.rs::Model` 报表相关列同构（金额为 REAL 保证 f64 精确断言；
-/// status 存写入方实际落库的大写值）
+/// 真表种子：同一客户 77、三个不同开票日：DRAFT 2222.50 / APPROVED 1000.00 / CANCELLED 3333.75，
+/// 到期日均早于基准日 2096-12-31（逾期口径三张同构，差异只在状态）。
+/// 金额按真表 DECIMAL 列以 Decimal 绑定（sqlite TEXT 亲和失真族即本用例集的 #4669 根因）。
 async fn setup_ar_invoices(db: &sea_orm::DatabaseConnection) {
-    exec_ddl(
-        db,
-        r#"CREATE TABLE ar_invoices (
-            id INTEGER PRIMARY KEY,
-            invoice_no TEXT NOT NULL,
-            invoice_date TEXT NOT NULL,
-            due_date TEXT NOT NULL,
-            customer_id INTEGER NOT NULL,
-            invoice_amount REAL NOT NULL,
-            received_amount REAL NOT NULL,
-            unpaid_amount REAL NOT NULL,
-            status TEXT NOT NULL,
-            salesperson_id INTEGER
-        )"#,
-    )
-    .await;
-    // 同一客户 77、三个不同开票日：DRAFT 2222.50 / APPROVED 1000.00 / CANCELLED 3333.75，
-    // 到期日均早于基准日 2096-12-31（逾期口径三张同构，差异只在状态）
-    for (no, inv_day, due_day, amount, status) in [
-        (
-            "W5-D",
-            "2096-12-05",
-            "2096-11-05",
-            2222.50_f64,
-            STATUS_DRAFT,
-        ),
-        (
-            "W5-A",
-            "2096-12-06",
-            "2096-11-06",
-            1000.00_f64,
-            STATUS_APPROVED,
-        ),
-        (
-            "W5-C",
-            "2096-12-07",
-            "2096-11-07",
-            3333.75_f64,
-            STATUS_CANCELLED,
-        ),
+    seed_customer_77(db).await;
+    for (id, no, inv_day, amount, status) in [
+        (1i32, "W5-D", 5, dec!(2222.50), STATUS_DRAFT),
+        (2, "W5-A", 6, dec!(1000.00), STATUS_APPROVED),
+        (3, "W5-C", 7, dec!(3333.75), STATUS_CANCELLED),
     ] {
-        db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT INTO ar_invoices (invoice_no, invoice_date, due_date, customer_id, \
-             invoice_amount, received_amount, unpaid_amount, status) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-            vec![
-                no.into(),
-                inv_day.into(),
-                due_day.into(),
-                77i32.into(),
-                amount.into(),
-                0.0_f64.into(),
-                amount.into(),
-                status.into(),
-            ],
-        ))
+        ar_invoice::ActiveModel {
+            id: Set(id),
+            invoice_no: Set(no.to_string()),
+            invoice_date: Set(date(2096, 12, inv_day)),
+            due_date: Set(date(2096, 11, inv_day)),
+            customer_id: Set(77),
+            invoice_amount: Set(amount),
+            received_amount: Set(Decimal::ZERO),
+            unpaid_amount: Set(amount),
+            status: Set(status.to_string()),
+            approval_status: Set(STATUS_APPROVED.to_string()),
+            created_by: Set(1), // ar_invoices.created_by 无库级外键（m0012 仅 supplier/customer FK）
+            ..Default::default()
+        }
+        .insert(db)
         .await
-        .expect("种子 AR 发票插入失败");
+        .unwrap_or_else(|e| panic!("种子 AR 发票 {no} 插入失败: {e}"));
     }
 }
 
@@ -142,12 +123,12 @@ async fn run_all(
     params: Vec<Value>,
 ) -> Vec<QueryResult> {
     db.query_all_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
         params,
     ))
     .await
-    .expect("sqlite 真实 SQL 执行失败")
+    .expect("真库 PG SQL 执行失败")
 }
 
 fn col_i64(row: &QueryResult, idx: usize) -> i64 {
@@ -156,15 +137,18 @@ fn col_i64(row: &QueryResult, idx: usize) -> i64 {
         .unwrap_or_else(|| panic!("第 {idx} 列聚合结果不应为 NULL"))
 }
 
-fn col_f64(row: &QueryResult, idx: usize) -> f64 {
-    row.try_get_by_index::<Option<f64>>(idx)
-        .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 f64: {e}"))
+/// 真表金额列为 DECIMAL：聚合结果按 Decimal 解码逐值断言
+/// （原 f64 解码是 sqlite REAL 同构表时代的形态，真库下必 ColumnDecode——#4669 判责原文
+/// 「第 0 列应可解码为 f64: mismatched types DECIMAL」即此族）
+fn col_decimal(row: &QueryResult, idx: usize) -> Decimal {
+    row.try_get_by_index::<Option<Decimal>>(idx)
+        .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 Decimal: {e}"))
         .unwrap_or_else(|| panic!("第 {idx} 列聚合结果不应为 NULL"))
 }
 
-fn col_str(row: &QueryResult, idx: usize) -> String {
-    row.try_get_by_index::<String>(idx)
-        .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 String: {e}"))
+fn col_date(row: &QueryResult, idx: usize) -> NaiveDate {
+    row.try_get_by_index::<NaiveDate>(idx)
+        .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 DATE: {e}"))
 }
 
 /// 提取 SQL 中全部 `$N` 数字占位符
@@ -225,15 +209,15 @@ fn expect_status_value(v: &Value, want: &str, ctx: &str) {
 }
 
 // ===========================================================================
-// 1) AR 报表 sqlite 行为锁（任务 1：草稿与取消都不计入）
+// 1) AR 报表真库行为锁（任务 1：草稿与取消都不计入）
 // ===========================================================================
 
 /// 统计报表：调用生产 builder `build_statistics_sql_and_params`，返回的 (sql, params)
-/// 原样在 sqlite 同构表执行 → 六项聚合值必须只含 APPROVED。
+/// 原样在真实 PG 表上执行 → 六项聚合值必须只含 APPROVED。
 /// （today 参数绑定 NaiveDate、`$N` 顺延由 builder 内部 `params.len()+1` 保证。）
 #[tokio::test]
 async fn ar_statistics_via_production_builder_counts_only_approved() {
-    let db = sqlite_db().await;
+    let db = live_db().await;
     setup_ar_invoices(&db).await;
 
     let (sql, params) =
@@ -255,15 +239,23 @@ async fn ar_statistics_via_production_builder_counts_only_approved() {
         1,
         "total_invoices 必须=1（=2 即草稿被计入=修复前口径，=3 即取消也被计入）"
     );
-    assert_eq!(col_f64(row, 1), 1000.00, "total_amount 只含 APPROVED");
-    assert_eq!(col_f64(row, 2), 0.00, "paid_amount 只含 APPROVED");
-    assert_eq!(col_f64(row, 3), 1000.00, "unpaid_amount 只含 APPROVED");
+    assert_eq!(col_decimal(row, 1), dec!(1000.00), "total_amount 只含 APPROVED");
+    assert_eq!(col_decimal(row, 2), Decimal::ZERO, "paid_amount 只含 APPROVED");
+    assert_eq!(
+        col_decimal(row, 3),
+        dec!(1000.00),
+        "unpaid_amount 只含 APPROVED"
+    );
     assert_eq!(
         col_i64(row, 4),
         1,
         "overdue_count 只含 APPROVED（另两张同为逾期但状态门外）"
     );
-    assert_eq!(col_f64(row, 5), 1000.00, "overdue_amount 只含 APPROVED");
+    assert_eq!(
+        col_decimal(row, 5),
+        dec!(1000.00),
+        "overdue_amount 只含 APPROVED"
+    );
 }
 
 /// 统计报表（customer_id + 起止日期全过滤）：锁排除门占位 $1/$2 与后续参数的基址顺延。
@@ -271,7 +263,7 @@ async fn ar_statistics_via_production_builder_counts_only_approved() {
 /// （如 NOT IN 用了 $4/$5 而日期用了 $1/$2），金额/条数必然偏离逐值断言。
 #[tokio::test]
 async fn ar_statistics_full_filter_placeholders_and_values_are_approved_only() {
-    let db = sqlite_db().await;
+    let db = live_db().await;
     setup_ar_invoices(&db).await;
 
     let (sql, params) = ArService::build_statistics_sql_and_params(
@@ -304,11 +296,15 @@ async fn ar_statistics_full_filter_placeholders_and_values_are_approved_only() {
         1,
         "窗内 DRAFT 必须被状态门剔除，仅剩 APPROVED"
     );
-    assert_eq!(col_f64(row, 1), 1000.00, "窗内 total_amount 只含 APPROVED");
+    assert_eq!(
+        col_decimal(row, 1),
+        dec!(1000.00),
+        "窗内 total_amount 只含 APPROVED"
+    );
     assert_eq!(col_i64(row, 4), 1, "窗内 overdue_count 只含 APPROVED");
     assert_eq!(
-        col_f64(row, 5),
-        1000.00,
+        col_decimal(row, 5),
+        dec!(1000.00),
         "窗内 overdue_amount 只含 APPROVED"
     );
 }
@@ -317,7 +313,7 @@ async fn ar_statistics_full_filter_placeholders_and_values_are_approved_only() {
 /// （total_invoices=2、total=3222.50）——锁「旧门必错」的因果，防有人回退判定。
 #[tokio::test]
 async fn ar_legacy_cancelled_only_gate_wrongly_counts_draft_defect_proof() {
-    let db = sqlite_db().await;
+    let db = live_db().await;
     setup_ar_invoices(&db).await;
 
     let values: Vec<Value> = vec![STATUS_CANCELLED.into()];
@@ -330,28 +326,36 @@ async fn ar_legacy_cancelled_only_gate_wrongly_counts_draft_defect_proof() {
     )
     .await;
     assert_eq!(col_i64(&rows[0], 0), 2, "旧门应把 DRAFT+APPROVED 一起计入");
-    assert_eq!(col_f64(&rows[0], 1), 3222.50, "旧门合计=2222.50+1000.00");
+    assert_eq!(
+        col_decimal(&rows[0], 1),
+        dec!(3222.50),
+        "旧门合计=2222.50+1000.00"
+    );
 }
 
 /// 日报表：生产 builder `build_daily_sql_and_params`（无过滤 + 全过滤两形态）
-/// 在 sqlite 执行 → 只出 APPROVED 一个日桶，条数/金额逐值断言。
+/// 在真实 PG 执行 → 只出 APPROVED 一个日桶，条数/金额逐值断言。
 #[tokio::test]
 async fn ar_daily_via_production_builder_buckets_only_approved() {
-    let db = sqlite_db().await;
+    let db = live_db().await;
     setup_ar_invoices(&db).await;
 
     let (sql, params) = ArService::build_daily_sql_and_params(None, None, None);
     assert_placeholders_match_params(&sql, &params, "日报表（无过滤）");
     let rows = run_all(&db, sql, params).await;
     assert_eq!(rows.len(), 1, "日桶必须只有 APPROVED 的 2096-12-06 一个");
-    assert_eq!(col_str(&rows[0], 0), "2096-12-06");
+    assert_eq!(col_date(&rows[0], 0), date(2096, 12, 6));
     assert_eq!(col_i64(&rows[0], 1), 1, "invoice_count 只含 APPROVED");
     assert_eq!(
-        col_f64(&rows[0], 2),
-        1000.00,
+        col_decimal(&rows[0], 2),
+        dec!(1000.00),
         "invoice_amount 只含 APPROVED"
     );
-    assert_eq!(col_f64(&rows[0], 4), 1000.00, "unpaid_amount 只含 APPROVED");
+    assert_eq!(
+        col_decimal(&rows[0], 4),
+        dec!(1000.00),
+        "unpaid_amount 只含 APPROVED"
+    );
 
     // 全过滤形态：窗口盖住 DRAFT+APPROVED 两日 + customer_id → 桶仍只剩 APPROVED
     let (sql, params) = ArService::build_daily_sql_and_params(
@@ -373,12 +377,12 @@ async fn ar_daily_via_production_builder_buckets_only_approved() {
         1,
         "窗内 DRAFT 日被状态门剔除，只剩 APPROVED 日桶"
     );
-    assert_eq!(col_str(&rows[0], 0), "2096-12-06");
-    assert_eq!(col_f64(&rows[0], 2), 1000.00);
+    assert_eq!(col_date(&rows[0], 0), date(2096, 12, 6));
+    assert_eq!(col_decimal(&rows[0], 2), dec!(1000.00));
 }
 
-/// 月报表：`to_char` 为 PG 语义 sqlite 不可执行 → 锁生产 builder 的占位基址与
-/// 常量绑定槽位（真库行为锁见本文件末尾 #[ignore] 用例）。
+/// 月报表：`to_char` 为 PG 语义（真库行为锁见本文件末尾转正用例）→
+/// 此处锁生产 builder 的占位基址与常量绑定槽位。
 #[tokio::test]
 async fn ar_monthly_builder_binds_status_constants_with_shifted_placeholders() {
     let (sql, params) = ArService::build_monthly_sql_and_params(
@@ -403,9 +407,9 @@ async fn ar_monthly_builder_binds_status_constants_with_shifted_placeholders() {
     );
 }
 
-/// 账龄报表：`CURRENT_DATE - due_date` 为 PG 日期算术 sqlite 不可执行 → 对生产
-/// builder 四个分支逐一锁：$1=today、$2/$3=排除门常量、$4/$5=客户/业务员，
-/// 参数序列与占位一一对应（真库行为锁见 #[ignore] 用例）。
+/// 账龄报表：`CURRENT_DATE - due_date` 为 PG 日期算术（真库行为锁见文件末尾转正用例）
+/// → 对生产 builder 四个分支逐一锁：$1=today、$2/$3=排除门常量、$4/$5=客户/业务员，
+/// 参数序列与占位一一对应。
 #[tokio::test]
 async fn ar_aging_builder_all_branches_bind_constants_with_shifted_placeholders() {
     type FilterPair = (Option<i32>, Option<i32>);
@@ -441,42 +445,71 @@ async fn ar_aging_builder_all_branches_bind_constants_with_shifted_placeholders(
 }
 
 // ===========================================================================
-// 2) 仪表盘库存门 sqlite 行为锁（任务 2：中文词表列上的恒 0 门）
+// 2) 仪表盘库存门真库行为锁（任务 2：中文词表列上的恒 0 门）
 // ===========================================================================
 
+/// 真表 inventory_stocks 的 product_id/warehouse_id 有真外键（fk_inventory_product/
+/// fk_inventory_warehouse，m0001:630-631）⇒ 按裁定 R1 自插合法父行（products/warehouses
+/// 属被清空的业务表），库存行本身按真表列直插（quantity_meters DECIMAL、
+/// stock_status VARCHAR 存中文权威词表值）。
 async fn setup_inventory_stocks(db: &sea_orm::DatabaseConnection) {
-    exec_ddl(
-        db,
-        r#"CREATE TABLE inventory_stocks (
-            id INTEGER PRIMARY KEY,
-            warehouse_id INTEGER,
-            product_id INTEGER,
-            quantity_meters REAL NOT NULL,
-            stock_status TEXT NOT NULL
-        )"#,
-    )
-    .await;
+    let now = Utc::now();
+    product::ActiveModel {
+        id: Set(1),
+        name: Set("波5口径统一夹具产品".to_string()),
+        code: Set("W5DUP1".to_string()),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("成品布".to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("自插 products 父行失败（裁定 R1）");
+    warehouse::ActiveModel {
+        id: Set(1),
+        warehouse_code: Set("W5DUWH1".to_string()),
+        name: Set("波5口径统一夹具仓库".to_string()),
+        is_default: Set(false),
+        is_active: Set(true),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("自插 warehouses 父行失败（裁定 R1）");
+
     // 三种中文权威取值各一行——正常 100 / 报废 500 / 已删除 700
     for (qty, status) in [
-        (100.0_f64, inventory_stock_status::NORMAL),
-        (500.0_f64, inventory_stock_status::SCRAPPED),
-        (700.0_f64, inventory_stock_status::DELETED),
+        (dec!(100), inventory_stock_status::NORMAL),
+        (dec!(500), inventory_stock_status::SCRAPPED),
+        (dec!(700), inventory_stock_status::DELETED),
     ] {
         db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT INTO inventory_stocks (warehouse_id, product_id, quantity_meters, stock_status) \
-             VALUES ($1, $2, $3, $4)",
-            vec![1i32.into(), 1i32.into(), qty.into(), status.into()],
+            DbBackend::Postgres,
+            "INSERT INTO inventory_stocks (product_id, warehouse_id, quantity, \
+             quantity_meters, stock_status) VALUES ($1, $2, $3, $4, $5)",
+            vec![
+                1i32.into(),
+                1i32.into(),
+                Value::Decimal(Some(Decimal::ZERO)),
+                Value::Decimal(Some(qty)),
+                status.into(),
+            ],
         ))
         .await
-        .expect("种子库存行插入失败");
+        .unwrap_or_else(|e| panic!("种子库存行插入失败: {e}"));
     }
 }
 
 /// 行为锁：修复后形态 `WHERE s.stock_status = $1` 绑定中文常量 → 聚合只含「正常」行。
 #[tokio::test]
 async fn dashboard_inventory_gate_bound_chinese_constant_hits_normal_rows() {
-    let db = sqlite_db().await;
+    let db = live_db().await;
     setup_inventory_stocks(&db).await;
 
     let values: Vec<Value> = vec![inventory_stock_status::NORMAL.into()];
@@ -489,8 +522,8 @@ async fn dashboard_inventory_gate_bound_chinese_constant_hits_normal_rows() {
     )
     .await;
     assert_eq!(
-        col_f64(&rows[0], 0),
-        100.0,
+        col_decimal(&rows[0], 0),
+        dec!(100),
         "库存门绑定 inventory_stock_status::NORMAL 后必须命中「正常」行（0 即中英错配恒空）"
     );
 }
@@ -498,7 +531,7 @@ async fn dashboard_inventory_gate_bound_chinese_constant_hits_normal_rows() {
 /// 缺陷实证对照：修复前英文小写裸字面量谓词对中文落库值恒零命中 → 聚合恒空。
 #[tokio::test]
 async fn dashboard_legacy_english_literal_gate_returns_zero_defect_proof() {
-    let db = sqlite_db().await;
+    let db = live_db().await;
     setup_inventory_stocks(&db).await;
 
     let rows = run_all(
@@ -510,8 +543,8 @@ async fn dashboard_legacy_english_literal_gate_returns_zero_defect_proof() {
     )
     .await;
     assert_eq!(
-        col_f64(&rows[0], 0),
-        0.0,
+        col_decimal(&rows[0], 0),
+        Decimal::ZERO,
         "旧英文小写字面量对中文词表列必须恒零命中（此处 0 即「页面看起来就是没数据」的根因实证）"
     );
 }
@@ -545,7 +578,7 @@ fn source_scan_ar_report_and_dashboard_have_no_bare_status_literals() {
     }
 
     // report.rs：8 处排除门全部为参数化 NOT IN 形态。
-    // 统计/日/月三个 builder 经 format! 模板生成（运行期形态由 sqlite 行为锁断言），
+    // 统计/日/月三个 builder 经 format! 模板生成（运行期形态由真库行为锁断言），
     // 源码形态 = "status NOT IN (${}, ${})"；账龄四分支 + 业务员账龄为静态 SQL = ($2, $3)。
     assert_eq!(
         report.matches("status NOT IN (${}, ${})").count(),
@@ -640,7 +673,7 @@ fn source_scan_dashboard_inventory_gate_protects_chinese_vocabulary() {
 }
 
 // ===========================================================================
-// 4) 真库（PG）行为锁：四类报表同库三态发票逐值断言
+// 4) 真库（PG）行为锁：四类报表同库三态发票逐值断言（路线一转正真跑，原 #[ignore]）
 // ===========================================================================
 
 fn dec_of(v: &serde_json::Value, key: &str) -> Decimal {
@@ -650,45 +683,21 @@ fn dec_of(v: &serde_json::Value, key: &str) -> Decimal {
     Decimal::from_str(raw).unwrap_or_else(|e| panic!("键 `{key}` 金额 {raw:?} 无法解析: {e}"))
 }
 
-/// 需要真实 Postgres（`TEST_DATABASE_URL`，已迁移库）：同库种 DRAFT/APPROVED/CANCELLED
-/// 三张 AR 发票 → 统计/日/月/账龄四类结果金额与条数**都只含 APPROVED**（逐值断言）。
+/// 真库（公共夹具 setup_test_db：已迁移 PostgreSQL + 清空业务表）：
+/// 自插 customers 父行（裁定 R1，原「查既有客户」依赖已被 TRUNCATE 废除）后种
+/// DRAFT/APPROVED/CANCELLED 三张 AR 发票 → 统计/日/月/账龄四类结果金额与条数
+/// **都只含 APPROVED**（逐值断言）。
 ///
-/// 隔离策略：开票日固定在远未来 2096-12 窗口 + 既有客户 + 哨兵 salesperson_id；
-/// 种子行按固定 invoice_no 先删后插，幂等可重跑。
-///
-/// 运行：`cargo test --test contract_wave5_status_unity_ar_dashboard_test -- --ignored --nocapture`
+/// 隔离策略：开票日固定在远未来 2096-12 窗口 + 自插客户 77 + 哨兵 salesperson_id；
+/// 业务表每次清空 ⇒ 用例互不串库，无需按单号先删后插。
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 指向已迁移的真实 Postgres（to_char/CURRENT_DATE 日期算术/PG 占位语义）"]
 async fn ar_four_reports_on_real_db_count_only_approved() {
-    let url = std::env::var("TEST_DATABASE_URL")
-        .expect("TEST_DATABASE_URL 未设置——真库行为锁必须显式失败，禁止条件跳过假绿");
-    let db = Arc::new(
-        sea_orm::Database::connect(&url)
-            .await
-            .expect("连接 TEST_DATABASE_URL 失败"),
-    );
+    let db = Arc::new(test_common::setup_test_db().await);
     let svc = ArService::new(db.clone());
 
-    // 隔离种子：固定单号前缀，先删后插（幂等可重跑）
-    let seed_prefix = "W5STATUS-UNITY-";
-    let seed_pattern = format!("{seed_prefix}%");
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Postgres,
-        "DELETE FROM ar_invoices WHERE invoice_no LIKE $1",
-        vec![seed_pattern.clone().into()],
-    ))
-    .await
-    .expect("清理残留种子失败");
-
-    let cust_row = db
-        .query_one_raw(Statement::from_string(
-            DbBackend::Postgres,
-            "SELECT id FROM customers ORDER BY id LIMIT 1".to_string(),
-        ))
-        .await
-        .expect("查询 customers 失败")
-        .expect("已迁移库应存在至少一个客户（m0015 seed）");
-    let customer_id: i32 = cust_row.try_get_by_index(0).expect("customer id 应为 i32");
+    // 裁定 R1：ar_invoices.customer_id → customers 真外键，父行自插（ID=77）
+    seed_customer_77(&db).await;
+    let customer_id = 77;
     // 哨兵业务员 id（salesperson_id 列为无 FK 的裸 INTEGER，见 m0012 + business/mod.rs:51）：
     // 取远超真实用户量级的固定值，账龄端按它隔离，不受库内既有数据污染
     let sid: i32 = 2_096_120_001;
@@ -701,7 +710,7 @@ async fn ar_four_reports_on_real_db_count_only_approved() {
     ];
     for (suffix, status, amount) in seeds {
         ar_invoice::ActiveModel {
-            invoice_no: Set(format!("{seed_prefix}{suffix}")),
+            invoice_no: Set(format!("W5STATUS-UNITY-{suffix}")),
             invoice_date: Set(date(2096, 12, 6)),
             due_date: Set(date(2000, 1, 31)), // 远超 90 天 → 账龄必入 90+ 桶（确定性分桶）
             customer_id: Set(customer_id),
@@ -753,7 +762,7 @@ async fn ar_four_reports_on_real_db_count_only_approved() {
     assert_eq!(daily_rows[0]["invoice_count"].as_i64(), Some(1));
     assert_eq!(dec_of(&daily_rows[0], "invoice_amount"), approved_amt);
 
-    // 3) 月报表（to_char——PG 专属语义，sqlite 锁不到的正是这里）
+    // 3) 月报表（to_char——PG 专属语义，sqlite 时代锁不到的正是这里，真库直接真跑）
     let monthly = svc
         .get_monthly_report(
             Some(date(2096, 12, 1)),
@@ -781,13 +790,4 @@ async fn ar_four_reports_on_real_db_count_only_approved() {
     assert_eq!(dec_of(&aging, "bucket_90_plus"), approved_amt);
     assert_eq!(dec_of(&aging, "total_overdue"), approved_amt);
     assert_eq!(dec_of(&aging, "not_due"), Decimal::ZERO);
-
-    // 清理，保持幂等
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Postgres,
-        "DELETE FROM ar_invoices WHERE invoice_no LIKE $1",
-        vec![seed_pattern.into()],
-    ))
-    .await
-    .expect("清理种子失败");
 }

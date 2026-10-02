@@ -16,11 +16,15 @@
 //! 见 `purchase_receipt_ops/crud.rs` 的 `update_receipt` 门控）；部分到货也回写；
 //! 完成判定/状态谓词不动；回写失败 `?` 上抛整单回滚，严禁 `let _ =`/`.ok()` 半成功。
 //!
-//! 覆盖策略（对齐 `contract_wave2_po_item_update_fields_test.rs` 先例，无 mock）：
-//! 1. sqlite::memory: 自建表 + **真实调用** `update_order_received_quantity`
-//!    （confirm_receipt 事务内的同一入口，链路无 lock_exclusive，sqlite 可承载）：
-//!    首次确认 → 列 == 该收货单 receipt_date 且进度/状态同步；更晚收货 → 覆盖为
-//!    更大日期；更早补录收货 → 保持最大值不回退；未确认收货的 PO 恒 NULL；
+//! 覆盖策略（对齐 `contract_wave2_po_item_update_fields_test.rs` 先例，无 mock；
+//! 路线一 #4669 判责：表结构唯一来源 = backend/migration，不再自建 sqlite 同构表
+//! ——exchange_rate 等 DECIMAL 列被写成 TEXT 即本文件 5 例连坐红的根因）：
+//! 1. 真 PostgreSQL（test_common::setup_test_db）+ **真实调用**
+//!    `update_order_received_quantity`（confirm_receipt 事务内的同一入口，
+//!    链路无 lock_exclusive）：首次确认 → 列 == 该收货单 receipt_date 且进度/状态同步；
+//!    更晚收货 → 覆盖为更大日期；更早补录收货 → 保持最大值不回退；未确认收货的 PO 恒 NULL；
+//!    FK 父行自种子（裁定 R1）：suppliers/warehouses/products/users 及 purchase_receipt
+//!    （purchase_receipt_item.receipt_id 为真表外键，旧 sqlite 表根本没有该父行）；
 //! 2. 失败实证：PO 不存在时回写入口如实报错上抛，事务不 commit 回滚后
 //!    已收进度零残留（锁死「不允许进度写了、到货日没写」的半成功形态）；
 //! 3. 防回潮源码扫描：回写调用点必须带 `?` 且夹在 confirm 的 begin/commit 之间；
@@ -29,116 +33,124 @@
 //! 口径影响声明：本列修复前有值恒空 ⇒ 平均交期样本恒空集、页面数字无意义；
 //! 修复后样本随真实收货累积，属**数值真实化**，不是回归。
 
+mod test_common;
+
 use bingxi_backend::models::status::purchase_order as po_status;
-use bingxi_backend::models::{purchase_order, purchase_order_item, purchase_receipt_item, user};
+use bingxi_backend::models::{
+    product, purchase_order, purchase_order_item, purchase_receipt, purchase_receipt_item, supplier,
+    user, warehouse,
+};
 use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
 use bingxi_backend::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, Statement,
-    TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, EntityTrait, TransactionTrait};
 use std::sync::Arc;
 
 fn date(y: i32, m: u32, d: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(y, m, d).unwrap()
 }
 
-/// 最小 DDL：列与 models/*.rs::Model 逐列对应（Decimal→TEXT、数组/JSON→TEXT，
-/// 先例 contract_wave2_po_item_update_fields_test.rs）。
-/// purchase_orders.actual_delivery_date 刻意**无 DEFAULT**，与生产迁移同形。
-async fn create_tables(db: &sea_orm::DatabaseConnection) {
-    let ddls = [
-        r#"CREATE TABLE purchase_orders (
-            id INTEGER PRIMARY KEY,
-            order_no TEXT NOT NULL UNIQUE, supplier_id INTEGER NOT NULL,
-            order_date TEXT NOT NULL, expected_delivery_date TEXT, actual_delivery_date TEXT,
-            warehouse_id INTEGER NOT NULL, department_id INTEGER NOT NULL,
-            purchaser_id INTEGER NOT NULL, currency TEXT NOT NULL,
-            exchange_rate TEXT NOT NULL, total_amount TEXT NOT NULL,
-            total_amount_foreign TEXT NOT NULL, total_quantity TEXT NOT NULL,
-            total_quantity_alt TEXT NOT NULL, order_status TEXT NOT NULL,
-            payment_terms TEXT, shipping_terms TEXT, notes TEXT, attachment_urls TEXT,
-            created_by INTEGER NOT NULL, created_at TEXT NOT NULL,
-            updated_by INTEGER, updated_at TEXT NOT NULL,
-            approved_by INTEGER, approved_at TEXT, rejected_reason TEXT
-        )"#,
-        r#"CREATE TABLE purchase_order_item (
-            id INTEGER PRIMARY KEY,
-            order_id INTEGER NOT NULL, line_no INTEGER NOT NULL, product_id INTEGER NOT NULL,
-            quantity TEXT NOT NULL, quantity_alt TEXT NOT NULL,
-            unit_price TEXT NOT NULL, unit_price_foreign TEXT NOT NULL,
-            discount_percent TEXT NOT NULL, tax_percent TEXT NOT NULL,
-            subtotal TEXT NOT NULL, tax_amount TEXT NOT NULL,
-            discount_amount TEXT NOT NULL, total_amount TEXT NOT NULL,
-            received_quantity TEXT NOT NULL, received_quantity_alt TEXT NOT NULL,
-            quantity_tolerance_pct TEXT, notes TEXT,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-            color_code TEXT, lot_no TEXT, batch_no TEXT,
-            supplier_product_code TEXT, supplier_color_no TEXT
-        )"#,
-        r#"CREATE TABLE purchase_receipt_item (
-            id INTEGER PRIMARY KEY,
-            receipt_id INTEGER NOT NULL, order_item_id INTEGER,
-            line_no INTEGER NOT NULL, product_id INTEGER NOT NULL,
-            material_code TEXT NOT NULL, material_name TEXT NOT NULL,
-            batch_no TEXT, color_code TEXT, lot_no TEXT, grade TEXT,
-            gram_weight TEXT, width TEXT,
-            quantity TEXT NOT NULL, quantity_alt TEXT,
-            unit_master TEXT NOT NULL, unit_alt TEXT,
-            unit_price TEXT, amount TEXT, location_code TEXT,
-            piece_no TEXT, package_no TEXT, production_date TEXT,
-            shelf_life INTEGER, notes TEXT, created_at TEXT,
-            internal_dye_lot_id INTEGER, internal_dye_lot_no TEXT,
-            internal_piece_ids TEXT, internal_piece_nos TEXT,
-            supplier_dye_lot_no TEXT, supplier_piece_nos TEXT,
-            batch_conversion_log_id INTEGER
-        )"#,
-        r#"CREATE TABLE users (
-            id INTEGER PRIMARY KEY,
-            username TEXT NOT NULL, password_hash TEXT NOT NULL,
-            real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-            role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-            totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-            last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-            gender TEXT, birth_date TEXT
-        )"#,
-        r#"CREATE TABLE audit_logs (
-            id INTEGER PRIMARY KEY,
-            user_id INTEGER, username TEXT, action TEXT NOT NULL,
-            resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-            ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-            request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-            old_value TEXT, new_value TEXT, created_at TEXT,
-            operation_type TEXT, severity TEXT, request_id TEXT,
-            before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-            export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-            export_approval_token TEXT, export_watermark_user TEXT
-        )"#,
-    ];
-    for ddl in ddls {
-        db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            ddl,
-            Vec::new(),
-        ))
-        .await
-        .unwrap_or_else(|e| panic!("DDL 执行失败: {e}"));
-    }
+/// 本夹具的真实行 ID（真 PG 下自增 ID 由库分配，不再手工挑 id=7/999——
+/// purchase_receipt_item.receipt_id / product_id / supplier_id 都是真表外键，
+/// 必须引用夹具自己种出的行）。
+struct Seeds {
+    operator: i32,
+    po_a: i32,
+    item_a: i32,
+    po_b: i32,
+    item_b: i32,
+    po_c: i32,
+    /// 4 张入库单（各含 1 行明细）：r1/r2 → po_a 明细，r3/r4 → po_b 明细
+    r1: i32,
+    r2: i32,
+    r3: i32,
+    r4: i32,
 }
 
-async fn seed_po(db: &sea_orm::DatabaseConnection, id: i32, order_no: &str, order_date: NaiveDate) {
+async fn seed_supplier(db: &sea_orm::DatabaseConnection) -> i32 {
     let now = Utc::now();
-    purchase_order::ActiveModel {
-        id: Set(id),
+    // supplier 时间列为 DateTimeWithTimeZone（FixedOffset 时钟口径，仓内先例同款）
+    let zero_tz = chrono::FixedOffset::east_opt(0).unwrap();
+    let sup_now = zero_tz.from_utc_datetime(&now.naive_utc());
+    let suffix = now.timestamp_nanos_opt().unwrap();
+    let sup = supplier::ActiveModel {
+        supplier_code: Set(format!("SUP-WB-{suffix}")),
+        supplier_name: Set(format!("回写契约测试供应商-{suffix}")),
+        supplier_short_name: Set("回供".to_string()),
+        supplier_type: Set("面料供应商".to_string()),
+        credit_code: Set("91330000WB0000001X".to_string()),
+        registered_address: Set("契约测试注册地址".to_string()),
+        legal_representative: Set("契约法人".to_string()),
+        registered_capital: Set(Decimal::ZERO),
+        establishment_date: Set(date(2020, 1, 1)),
+        taxpayer_type: Set("一般纳税人".to_string()),
+        bank_name: Set("契约测试银行".to_string()),
+        bank_account: Set("6222000000000002".to_string()),
+        contact_phone: Set("13800000002".to_string()),
+        is_processor: Set(false),
+        created_at: Set(sup_now),
+        updated_at: Set(sup_now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 suppliers 父行失败");
+    sup.id
+}
+
+async fn seed_warehouse(db: &sea_orm::DatabaseConnection) -> i32 {
+    let now = Utc::now();
+    let wh = warehouse::ActiveModel {
+        warehouse_code: Set(format!("WH-WB-{}", now.timestamp_nanos_opt().unwrap())),
+        name: Set("回写契约测试仓".to_string()),
+        is_default: Set(false),
+        is_active: Set(true),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 warehouses 父行失败");
+    wh.id
+}
+
+async fn seed_product(db: &sea_orm::DatabaseConnection) -> i32 {
+    let now = Utc::now();
+    let p = product::ActiveModel {
+        name: Set(format!("回写契约测试坯布-{}", now.timestamp_nanos_opt().unwrap())),
+        code: Set(format!("FAB-WB-{}", now.timestamp_nanos_opt().unwrap())),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 products 父行失败");
+    p.id
+}
+
+async fn seed_po(
+    db: &sea_orm::DatabaseConnection,
+    order_no: &str,
+    order_date: NaiveDate,
+    supplier_id: i32,
+    warehouse_id: i32,
+    operator: i32,
+) -> i32 {
+    let now = Utc::now();
+    let po = purchase_order::ActiveModel {
         order_no: Set(order_no.to_string()),
-        supplier_id: Set(7),
+        supplier_id: Set(supplier_id),
         order_date: Set(order_date),
-        warehouse_id: Set(1),
+        warehouse_id: Set(warehouse_id),
         department_id: Set(1),
-        purchaser_id: Set(100),
+        purchaser_id: Set(operator),
         currency: Set("CNY".to_string()),
         exchange_rate: Set(Decimal::ONE),
         total_amount: Set(Decimal::ZERO),
@@ -146,7 +158,7 @@ async fn seed_po(db: &sea_orm::DatabaseConnection, id: i32, order_no: &str, orde
         total_quantity: Set(Decimal::ZERO),
         total_quantity_alt: Set(Decimal::ZERO),
         order_status: Set(po_status::APPROVED.to_string()),
-        created_by: Set(100),
+        created_by: Set(operator),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -154,20 +166,20 @@ async fn seed_po(db: &sea_orm::DatabaseConnection, id: i32, order_no: &str, orde
     .insert(db)
     .await
     .unwrap();
+    po.id
 }
 
 async fn seed_order_item(
     db: &sea_orm::DatabaseConnection,
-    id: i32,
     order_id: i32,
+    product_id: i32,
     quantity: Decimal,
-) {
+) -> i32 {
     let now = Utc::now();
-    purchase_order_item::ActiveModel {
-        id: Set(id),
+    let item = purchase_order_item::ActiveModel {
         order_id: Set(order_id),
         line_no: Set(1),
-        product_id: Set(5),
+        product_id: Set(product_id),
         quantity: Set(quantity),
         quantity_alt: Set(Decimal::ZERO),
         unit_price: Set(Decimal::ONE),
@@ -187,21 +199,44 @@ async fn seed_order_item(
     .insert(db)
     .await
     .unwrap();
+    item.id
 }
 
-async fn seed_receipt_item(
+/// 种一张入库单（DRAFT/PENDING 初态，词表常量同源）+ 一行收货明细，返回入库单 ID。
+/// purchase_receipt_item.receipt_id → purchase_receipt、product_id → products 均为
+/// 真表外键（business/m0009），父行必须自种子。
+#[allow(clippy::too_many_arguments)]
+async fn seed_receipt_with_item(
     db: &sea_orm::DatabaseConnection,
-    id: i32,
-    receipt_id: i32,
+    receipt_no: &str,
+    order_id: i32,
+    supplier_id: i32,
+    warehouse_id: i32,
+    product_id: i32,
     order_item_id: i32,
     quantity: Decimal,
-) {
+    operator: i32,
+) -> i32 {
+    let now = Utc::now();
+    let receipt = purchase_receipt::ActiveModel {
+        receipt_no: Set(receipt_no.to_string()),
+        order_id: Set(Some(order_id)),
+        supplier_id: Set(supplier_id),
+        receipt_date: Set(date(2026, 3, 1)),
+        warehouse_id: Set(warehouse_id),
+        created_by: Set(operator),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 purchase_receipt 父行失败");
     purchase_receipt_item::ActiveModel {
-        id: Set(id),
-        receipt_id: Set(receipt_id),
+        receipt_id: Set(receipt.id),
         order_item_id: Set(Some(order_item_id)),
         line_no: Set(1),
-        product_id: Set(5),
+        product_id: Set(product_id),
         material_code: Set("FAB-WB".to_string()),
         material_name: Set("回写契约测试坯布".to_string()),
         quantity: Set(quantity),
@@ -210,21 +245,19 @@ async fn seed_receipt_item(
     }
     .insert(db)
     .await
-    .unwrap();
+    .expect("夹具：种收货明细失败");
+    receipt.id
 }
 
-/// 种子：操作人 100；PO1(明细 11，订 10)、PO2(明细 21，订 5)、PO3(明细 31，订 7，
-/// 永不收货对照)；入库明细 101(4m)/102(6m)→明细11，201(5m)/202(1m)→明细21。
-async fn setup_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_tables(&db).await;
+/// 种子（全部外键父行自种子，R1）：操作人 users 行；供应商/仓库/物料各 1 行；
+/// PO-A(明细订 10)、PO-B(明细订 5)、PO-C(明细订 7，永不收货对照)；
+/// 入库单 r1(4m)/r2(6m)→A 明细，r3(5m)/r4(1m)→B 明细。
+async fn setup_db() -> (sea_orm::DatabaseConnection, Seeds) {
+    let db = test_common::setup_test_db().await;
     let now = Utc::now();
-    user::ActiveModel {
-        id: Set(100),
-        username: Set("wb_tester".to_string()),
-        password_hash: Set("x".to_string()),
+    let op = user::ActiveModel {
+        username: Set(format!("wb_tester_{}", now.timestamp_nanos_opt().unwrap())),
+        password_hash: Set("x".repeat(60)),
         is_active: Set(true),
         is_totp_enabled: Set(false),
         created_at: Set(now),
@@ -233,32 +266,62 @@ async fn setup_db() -> sea_orm::DatabaseConnection {
     }
     .insert(&db)
     .await
-    .unwrap();
+    .expect("夹具：种操作人失败");
+    let operator = op.id;
 
-    seed_po(&db, 1, "PO-WB-A", date(2026, 3, 1)).await;
-    seed_po(&db, 2, "PO-WB-B", date(2026, 4, 1)).await;
-    seed_po(&db, 3, "PO-WB-C", date(2026, 5, 1)).await;
-    seed_order_item(&db, 11, 1, Decimal::from(10)).await;
-    seed_order_item(&db, 21, 2, Decimal::from(5)).await;
-    seed_order_item(&db, 31, 3, Decimal::from(7)).await;
-    seed_receipt_item(&db, 101, 101, 11, Decimal::from(4)).await;
-    seed_receipt_item(&db, 102, 102, 11, Decimal::from(6)).await;
-    seed_receipt_item(&db, 201, 201, 21, Decimal::from(5)).await;
-    seed_receipt_item(&db, 202, 202, 21, Decimal::from(1)).await;
-    db
+    let supplier_id = seed_supplier(&db).await;
+    let warehouse_id = seed_warehouse(&db).await;
+    let product_id = seed_product(&db).await;
+
+    let po_a = seed_po(&db, "PO-WB-A", date(2026, 3, 1), supplier_id, warehouse_id, operator).await;
+    let po_b = seed_po(&db, "PO-WB-B", date(2026, 4, 1), supplier_id, warehouse_id, operator).await;
+    let po_c = seed_po(&db, "PO-WB-C", date(2026, 5, 1), supplier_id, warehouse_id, operator).await;
+    let item_a = seed_order_item(&db, po_a, product_id, Decimal::from(10)).await;
+    let item_b = seed_order_item(&db, po_b, product_id, Decimal::from(5)).await;
+    let _item_c = seed_order_item(&db, po_c, product_id, Decimal::from(7)).await;
+
+    let r1 =
+        seed_receipt_with_item(&db, "GR-WB-1", po_a, supplier_id, warehouse_id, product_id, item_a, Decimal::from(4), operator)
+            .await;
+    let r2 =
+        seed_receipt_with_item(&db, "GR-WB-2", po_a, supplier_id, warehouse_id, product_id, item_a, Decimal::from(6), operator)
+            .await;
+    let r3 =
+        seed_receipt_with_item(&db, "GR-WB-3", po_b, supplier_id, warehouse_id, product_id, item_b, Decimal::from(5), operator)
+            .await;
+    let r4 =
+        seed_receipt_with_item(&db, "GR-WB-4", po_b, supplier_id, warehouse_id, product_id, item_b, Decimal::from(1), operator)
+            .await;
+
+    (
+        db,
+        Seeds {
+            operator,
+            po_a,
+            item_a,
+            po_b,
+            item_b,
+            po_c,
+            r1,
+            r2,
+            r3,
+            r4,
+        },
+    )
 }
 
 /// 真实调用 confirm_receipt 事务内的同一入口（本链路无 lock_exclusive，
-/// sqlite 方言可承载；confirm 外层锁由源码扫描锁 3 锁定）
+/// 真 PG 可承载；confirm 外层锁由源码扫描锁 3 锁定）
 async fn confirm(
     db: &sea_orm::DatabaseConnection,
     order_id: i32,
     receipt_id: i32,
     receipt_date: NaiveDate,
+    operator: i32,
 ) {
     let svc = PurchaseReceiptService::new(Arc::new(db.clone()));
     let txn = db.begin().await.unwrap();
-    svc.update_order_received_quantity(order_id, receipt_id, receipt_date, &txn, 100)
+    svc.update_order_received_quantity(order_id, receipt_id, receipt_date, &txn, operator)
         .await
         .expect("确认收货回写链路必须成功");
     txn.commit().await.unwrap();
@@ -276,10 +339,10 @@ async fn load_po(db: &sea_orm::DatabaseConnection, id: i32) -> purchase_order::M
 /// 进度/状态（PARTIAL_RECEIVED，词表常量）同步，完成判定逻辑不受扰动。
 #[tokio::test]
 async fn confirm_partial_receipt_writes_back_receipt_date() {
-    let db = setup_db().await;
-    confirm(&db, 1, 101, date(2026, 3, 8)).await;
+    let (db, s) = setup_db().await;
+    confirm(&db, s.po_a, s.r1, date(2026, 3, 8), s.operator).await;
 
-    let po = load_po(&db, 1).await;
+    let po = load_po(&db, s.po_a).await;
     assert_eq!(
         po.actual_delivery_date,
         Some(date(2026, 3, 8)),
@@ -287,7 +350,7 @@ async fn confirm_partial_receipt_writes_back_receipt_date() {
     );
     assert_eq!(po.order_status, po_status::PARTIAL_RECEIVED);
 
-    let item = purchase_order_item::Entity::find_by_id(11)
+    let item = purchase_order_item::Entity::find_by_id(s.item_a)
         .one(&db)
         .await
         .unwrap()
@@ -303,18 +366,18 @@ async fn confirm_partial_receipt_writes_back_receipt_date() {
 /// determine_order_receipt_status（COMPLETED 由进度推得，本回写不越权改状态机）。
 #[tokio::test]
 async fn later_receipt_overwrites_with_greater_date() {
-    let db = setup_db().await;
-    confirm(&db, 1, 101, date(2026, 3, 8)).await;
-    confirm(&db, 1, 102, date(2026, 3, 20)).await;
+    let (db, s) = setup_db().await;
+    confirm(&db, s.po_a, s.r1, date(2026, 3, 8), s.operator).await;
+    confirm(&db, s.po_a, s.r2, date(2026, 3, 20), s.operator).await;
 
-    let po = load_po(&db, 1).await;
+    let po = load_po(&db, s.po_a).await;
     assert_eq!(
         po.actual_delivery_date,
         Some(date(2026, 3, 20)),
         "更晚收货必须覆盖为更大日期（最后一次确认入库口径）"
     );
     assert_eq!(po.order_status, po_status::COMPLETED);
-    let item = purchase_order_item::Entity::find_by_id(11)
+    let item = purchase_order_item::Entity::find_by_id(s.item_a)
         .one(&db)
         .await
         .unwrap()
@@ -325,11 +388,11 @@ async fn later_receipt_overwrites_with_greater_date() {
 /// 锁 1c：**更早**日期的补录收货 → 保持已确认收货中的最大值，不回退。
 #[tokio::test]
 async fn earlier_backfilled_receipt_never_rolls_back_max_date() {
-    let db = setup_db().await;
-    confirm(&db, 2, 201, date(2026, 4, 15)).await;
-    confirm(&db, 2, 202, date(2026, 4, 5)).await;
+    let (db, s) = setup_db().await;
+    confirm(&db, s.po_b, s.r3, date(2026, 4, 15), s.operator).await;
+    confirm(&db, s.po_b, s.r4, date(2026, 4, 5), s.operator).await;
 
-    let po = load_po(&db, 2).await;
+    let po = load_po(&db, s.po_b).await;
     assert_eq!(
         po.actual_delivery_date,
         Some(date(2026, 4, 15)),
@@ -340,9 +403,9 @@ async fn earlier_backfilled_receipt_never_rolls_back_max_date() {
 /// 锁 1d：未确认收货的 PO 该列恒 NULL（种子即 APPROVED 未收货，行为对照）。
 #[tokio::test]
 async fn po_without_confirmed_receipt_keeps_null() {
-    let db = setup_db().await;
-    confirm(&db, 1, 101, date(2026, 3, 8)).await;
-    let po = load_po(&db, 3).await;
+    let (db, s) = setup_db().await;
+    confirm(&db, s.po_a, s.r1, date(2026, 3, 8), s.operator).await;
+    let po = load_po(&db, s.po_c).await;
     assert_eq!(
         po.actual_delivery_date, None,
         "未确认收货的订单不得被写入到货日（NULL 即事实，禁止默认值兜底）"
@@ -354,11 +417,12 @@ async fn po_without_confirmed_receipt_keeps_null() {
 /// 在原子性上不可能发生（生产 confirm_receipt 由 `?` 传播进同一 txn）。
 #[tokio::test]
 async fn write_back_failure_rolls_back_progress_no_half_success() {
-    let db = setup_db().await;
+    let (db, s) = setup_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db.clone()));
     let txn = db.begin().await.unwrap();
+    let missing_order = 999_999;
     let err = svc
-        .update_order_received_quantity(999, 101, date(2026, 3, 8), &txn, 100)
+        .update_order_received_quantity(missing_order, s.r1, date(2026, 3, 8), &txn, s.operator)
         .await
         .expect_err("PO 不存在时必须整单失败上抛，不得吞错继续");
     assert!(
@@ -366,13 +430,13 @@ async fn write_back_failure_rolls_back_progress_no_half_success() {
         "错误形态必须是 NotFound，实际 {err:?}"
     );
     assert!(
-        err.to_string().contains("采购订单 999"),
+        err.to_string().contains(&format!("采购订单 {missing_order}")),
         "错误必须外显真实定位信息，实际 {err}"
     );
     // 失败路径与生产一致：不 commit，drop 即回滚
     drop(txn);
 
-    let item = purchase_order_item::Entity::find_by_id(11)
+    let item = purchase_order_item::Entity::find_by_id(s.item_a)
         .one(&db)
         .await
         .unwrap()

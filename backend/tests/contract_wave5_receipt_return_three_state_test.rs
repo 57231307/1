@@ -25,16 +25,23 @@
 //! - PUT /sales/returns/{id}/items/{item_id}：reason→notes 可空；quantity/unit_price 拒清
 //! - PUT /inventory/transfers/{id}、items/{item_id}：notes/unit_cost/dye_lot_no 可空
 //!
-//! 覆盖策略（无 mock）：
+//! 覆盖策略（无 mock；路线一 #4669 判责：表结构唯一来源 = backend/migration，
+//! 不再自建 sqlite 同构表——quantity/total_quantity 等 DECIMAL 列被写成 TEXT
+//! 即本文件连坐解码红的根因）：
 //! - 纯 serde：DTO 三态形状锁（缺席=None / null=Some(None) / 有值=Some(Some(v))），
 //!   并反向锁 serde_json 默认行为（裸双层 Option 会把显式 null 折成外层 None——
 //!   "只声明双层 Option 不挂适配器 = 清空静默失效"的根因形状）；
-//! - sqlite::memory: 自建同构表 + 真实 service/handler 回环：
+//! - 真 PostgreSQL（test_common::setup_test_db）+ 真实 service/handler 回环：
 //!   仓储 update、采购退货单头/明细、调拨明细 handler 信封
-//!   （以上链路均不加行锁，sqlite 可跑真实写读）；
+//!   （以上链路均不加行锁，常规分片可跑真实写读）；
+//!   FK 父行自种子（裁定 R1）：purchase_return_item.product_id → products、
+//!   inventory_transfers.from/to_warehouse_id → warehouses、
+//!   sales_return.customer_id → customers（customers.owner_id → users）、
+//!   purchase_receipt.supplier_id → suppliers / warehouse_id → warehouses、
+//!   明细 product_id → products；users/audit_logs 由真表提供，不再自建。
 //! - `#[ignore]` 活库（TEST_DATABASE_URL→PG，ci-test-rust-ignored 执行）：
-//!   销退明细与收货明细（服务链 `lock_exclusive()`，sqlite 方言不支持行锁——
-//!   不得伪装成 sqlite 用例）。
+//!   销退明细与收货明细（服务链 `lock_exclusive()`，端到端真跑只在已迁移 PG，
+//!   夹具缺变量/指向 sqlite 直接 panic，无静默回退）。
 
 mod test_common;
 

@@ -19,9 +19,12 @@
 //! - 染色布缺缸号用例：旧实现静默把 dye_lot_no 写成占位串返回 200，断言 400+零落库必红；
 //! - 源码扫描：旧源码含三处假值字面量与类型断言/幽灵字段，任何一条都会命中。
 //!
-//! 覆盖策略（无 mock）：sqlite::memory: 自建 dye_batch + color_card_items 最小列 +
-//! 真实 handler 端到端（tower oneshot，同 contract_wave2 先例）。新建一律显式传 batch_no，
-//! 避开自动生成路径的 pg advisory lock（sqlite 不支持，先例同左）。
+//! 覆盖策略（路线一，#4669 判责；无 mock）：表结构唯一来源 = backend/migration ——
+//! `test_common::setup_test_db()`（已迁移 PostgreSQL，TRUNCATE 业务表 + RESTART IDENTITY，
+//! 显式种子 id 稳定）+ 真实 handler 端到端（tower oneshot，同 contract_wave2 先例）。
+//! 新建一律显式传 batch_no，避开自动生成路径的 pg advisory lock 并发取号噪声。
+//! 色卡档案（color_card_items）FK 指向 color_cards，按裁定 R1 自种子父卡行；
+//! 同色号歧义组用两张不同卡（真表 UNIQUE (color_card_id, color_code) 不允许同卡重复）。
 
 use axum::{
     Router,
@@ -35,12 +38,16 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::dye_batch_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
+use bingxi_backend::models::color_card;
+use bingxi_backend::models::color_card_item;
 use bingxi_backend::models::dye_batch;
 use bingxi_backend::utils::error::AppError;
-use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait, Statement};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, EntityTrait, PaginatorTrait};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
+
+mod test_common;
 
 fn make_auth(user_id: i32) -> AuthContext {
     AuthContext {
@@ -79,81 +86,52 @@ async fn call_create(app: &Router, body: Value) -> (StatusCode, Value) {
 }
 
 // =========================================================
-// sqlite 自建表（列与 models/dye_batch.rs、models/color_card_item.rs 一一对应）
+// 真库夹具（列形态由迁移保证；种子按 models/*.rs 逐列核对）
 // =========================================================
 
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-const DYE_BATCH_DDL: &str = r#"CREATE TABLE dye_batch (
-    id INTEGER PRIMARY KEY,
-    batch_no TEXT NOT NULL UNIQUE,
-    greige_fabric_id INTEGER,
-    color_code TEXT NOT NULL,
-    color_name TEXT NOT NULL,
-    color_no TEXT,
-    dye_lot_no TEXT,
-    planned_quantity TEXT,
-    actual_output_kg TEXT,
-    actual_output_m TEXT,
-    greige_input_kg TEXT,
-    status TEXT,
-    started_at TEXT,
-    completed_at TEXT,
-    remarks TEXT,
-    is_deleted INTEGER,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)"#;
-
-const COLOR_CARD_ITEMS_DDL: &str = r#"CREATE TABLE color_card_items (
-    id INTEGER PRIMARY KEY,
-    color_card_id INTEGER NOT NULL,
-    color_code TEXT NOT NULL,
-    color_name TEXT NOT NULL,
-    rgb_r INTEGER NOT NULL,
-    rgb_g INTEGER NOT NULL,
-    rgb_b INTEGER NOT NULL,
-    cmyk_c TEXT, cmyk_m TEXT, cmyk_y TEXT, cmyk_k TEXT,
-    lab_l TEXT, lab_a TEXT, lab_b TEXT,
-    pantone_code TEXT, cncs_code TEXT, custom_code TEXT,
-    hex_value TEXT NOT NULL,
-    dye_recipe_id INTEGER,
-    product_color_price_id INTEGER,
-    swatch_image_url TEXT,
-    sequence INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)"#;
-
 async fn fresh_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    exec(&db, DYE_BATCH_DDL).await;
-    exec(&db, COLOR_CARD_ITEMS_DDL).await;
-    db
+    test_common::setup_test_db().await
 }
 
-/// 色卡档案播种一条真实色号（id 唯一自增）
-async fn seed_master_color(db: &sea_orm::DatabaseConnection, id: i64, code: &str, name: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        "INSERT INTO color_card_items (id, color_card_id, color_code, color_name, rgb_r, rgb_g, \
-         rgb_b, hex_value, sequence, created_at, updated_at) \
-         VALUES ($1, 1, $2, $3, 200, 30, 40, '#C81E28', 0, '2026-01-01T00:00:00Z', \
-         '2026-01-01T00:00:00Z')",
-        vec![id.into(), code.to_string().into(), name.to_string().into()],
-    ))
+/// 色卡父行（color_card_items.color_card_id 的 FK 前置，裁定 R1）；
+/// status 写词表真实值 draft（chk_color_card_status 只认词表全集，v15:4493-4498）。
+async fn seed_color_card(db: &sea_orm::DatabaseConnection, card_id: i64, card_no: &str) {
+    let now = chrono::Utc::now();
+    color_card::ActiveModel {
+        id: Set(card_id),
+        card_no: Set(card_no.to_string()),
+        card_name: Set(format!("契约档案母卡 {card_no}")),
+        card_type: Set("PANTONE".to_string()),
+        status: Set(bingxi_backend::models::status::color_card::DRAFT.to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
     .await
-    .expect("色卡档案种子插入失败");
+    .unwrap_or_else(|e| panic!("色卡父行 {card_id} 插入失败: {e}"));
+}
+
+/// 色卡档案播种一条真实色号（同卡内 UNIQUE(color_card_id, color_code)，
+/// 歧义组必须落在两张不同卡上）
+async fn seed_master_color(db: &sea_orm::DatabaseConnection, card_id: i64, code: &str, name: &str) {
+    let now = chrono::Utc::now();
+    color_card_item::ActiveModel {
+        color_card_id: Set(card_id),
+        color_code: Set(code.to_string()),
+        color_name: Set(name.to_string()),
+        rgb_r: Set(200),
+        rgb_g: Set(30),
+        rgb_b: Set(40),
+        hex_value: Set("#C81E28".to_string()),
+        sequence: Set(0),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("色卡档案种子（卡 {card_id} 色号 {code}）插入失败: {e}"));
 }
 
 fn build_app(db: sea_orm::DatabaseConnection) -> Router {
@@ -170,14 +148,14 @@ fn build_app(db: sea_orm::DatabaseConnection) -> Router {
         .layer(from_fn_with_state(make_auth(100), inject_auth))
 }
 
-/// 从落库行直读四列（raw SELECT，不整行解码实体）
+/// 从落库行直读四列（raw SELECT，不整行解码实体；Postgres 方言 $1 绑定）
 async fn fetch_identity_row(
     db: &sea_orm::DatabaseConnection,
     batch_no: &str,
 ) -> (Option<String>, String, String, String) {
     let row = db
-        .query_one_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
+        .query_one_raw(sea_orm::Statement::from_sql_and_values(
+            sea_orm::DbBackend::Postgres,
             "SELECT color_no, color_code, color_name, dye_lot_no FROM dye_batch \
              WHERE batch_no = $1",
             vec![batch_no.to_string().into()],
@@ -265,6 +243,7 @@ async fn create_with_blank_color_is_greige_via_trim_normalization() {
 #[tokio::test]
 async fn create_with_master_color_derives_code_and_name_from_archive() {
     let db = fresh_db().await;
+    seed_color_card(&db, 1, "W4-CARD-001").await;
     seed_master_color(&db, 1, "C001", "活性红3BS").await;
     let read_db = db.clone();
     let app = build_app(db);
@@ -306,6 +285,7 @@ async fn create_with_master_color_derives_code_and_name_from_archive() {
 #[tokio::test]
 async fn create_with_unknown_color_rejected_400_and_nothing_persisted() {
     let db = fresh_db().await;
+    seed_color_card(&db, 1, "W4-CARD-001").await;
     seed_master_color(&db, 1, "C001", "活性红3BS").await; // 档案非空，只是没有 ZZZ9
     let read_db = db.clone();
     let app = build_app(db);
@@ -339,6 +319,7 @@ async fn create_with_unknown_color_rejected_400_and_nothing_persisted() {
 #[tokio::test]
 async fn create_dyed_without_dye_lot_rejected_400() {
     let db = fresh_db().await;
+    seed_color_card(&db, 1, "W4-CARD-001").await;
     seed_master_color(&db, 1, "C001", "活性红3BS").await;
     let read_db = db.clone();
     let app = build_app(db);
@@ -369,6 +350,9 @@ async fn create_dyed_without_dye_lot_rejected_400() {
 #[tokio::test]
 async fn ambiguous_master_rows_rejected_not_arbitrarily_picked() {
     let db = fresh_db().await;
+    // 真表 UNIQUE(color_card_id, color_code)：歧义=同色号存在于两张卡（父行自种子）
+    seed_color_card(&db, 1, "W4-CARD-001").await;
+    seed_color_card(&db, 2, "W4-CARD-002").await;
     seed_master_color(&db, 1, "C001", "活性红3BS").await;
     seed_master_color(&db, 2, "C001", "活性红3BS-副本卡").await;
     let err = dye_batch_handler::resolve_dye_color_identity(

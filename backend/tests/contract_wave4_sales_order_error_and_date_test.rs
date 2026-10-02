@@ -12,15 +12,19 @@
 //!    修复后按 `build_orders_query`（本文件已生效实现，order_query.rs:173-185）同源口径
 //!    下推：`OrderDate >= start(当日 00:00 含) AND OrderDate < end(次日 00:00 不含)`。
 //!
-//! 覆盖策略（沿用先例 contract_wave2_reservation_error_mapping_test.rs：真实行为 + 源码扫描双保险）：
-//! - 日期下推：sqlite::memory: 两条不同日期单据，调用真实 service，传区间只回窗口内那条，
-//!   金额与计数精确断言（不许只断 200）；无区间回全量；非法日期 400 VALIDATION_ERROR。
-//! - 状态门拒绝：lock_exclusive 在 sqlite 方言不支持，400 透传形态以 #[ignore] 活库用例固化，
+//! 覆盖策略（沿用先例 contract_wave2_reservation_error_mapping_test.rs：真实行为 + 源码扫描双保险；
+//! 路线一：统一真库 PostgreSQL）：
+//! - 日期下推：真实 sales_orders（迁移产出表）种两条不同日期单据+明细，调用真实 service，
+//!   传区间只回窗口内那条，金额与计数精确断言（不许只断 200）；无区间回全量；
+//!   非法日期 400 VALIDATION_ERROR。
+//! - 状态门拒绝：reject/cancel 状态门在事务内 lock_exclusive 之后——真库通道上真实执行；
+//!   订单由**用例自种子**（自己插销售订单+明细，用真实 ID 喂服务），不再依赖任何
+//!   CI 播种的 TEST_SEED_* 环境变量（#4669 实证：分片 job 只迁移不播种，env 恒 NotPresent）。
 //!   经真实 handler（含 `?` 映射）返回，断言 4xx + code=BUSINESS_ERROR + 底层拒绝原因非“服务器内部错误”。
 //! - 源码扫描防回潮锁（CI 必跑）：A3 六站点 + 导出站点的 internal 强转文案零命中；
 //!   AppError::internal 仅收缩棘轮；报价词表同源锁（禁 Expr::cust 手写状态字面量）。
 //!
-//! 活库用例的 TEST_DATABASE_URL 缺失时明确 panic（不静默 skip）。
+//! TEST_DATABASE_URL 缺失/指 sqlite 时 setup_test_db 夹具直接 panic（不静默 skip、不回退）。
 
 use axum::Json;
 use axum::extract::{Path, State};
@@ -32,9 +36,12 @@ use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::search::{ElasticClient, SearchClient};
 use bingxi_backend::services::so::order::SalesService;
 use bingxi_backend::utils::error::AppError;
-use sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
+use sea_orm::{ConnectionTrait, DbBackend, Decimal, Statement};
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
+
+mod test_common;
+use test_common::setup_test_db;
 
 // =========================================================
 // 通用工具
@@ -79,42 +86,82 @@ fn make_auth(user_id: i32) -> AuthContext {
 }
 
 // =========================================================
-// 1) 统计日期区间真实下推（sqlite::memory:，CI 必跑，无 mock）
+// 1) 统计日期区间真实下推（真库 sales_orders，CI 必跑，无 mock）
 // =========================================================
 
-/// 与统计查询引用列逐一对应的 sqlite 最小 DDL。
-/// get_order_statistics 的 SeaORM 查询只 SELECT COUNT(id) / SUM(total_amount)，
-/// WHERE 只引用 order_date、customer_id，故仅建这些列即可。
-async fn setup_stats_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
+/// FK 前置：customers(10)/products(9)——sales_orders.customer_id 与
+/// sales_order_items.product_id 在真表上都带 FK（迁移 m0001），必须用例自种
+async fn seed_fk_prerequisites(db: &sea_orm::DatabaseConnection) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE sales_orders (
-            id INTEGER PRIMARY KEY,
-            customer_id INTEGER,
-            order_date TEXT NOT NULL,
-            total_amount REAL NOT NULL
-        )"#,
-        Vec::<Value>::new(),
+        DbBackend::Postgres,
+        "INSERT INTO customers (id, customer_code, customer_name) VALUES ($1, $2, $3)",
+        vec![
+            10i32.into(),
+            "W4SO-C10".to_string().into(),
+            "统计锁客户".to_string().into(),
+        ],
     ))
     .await
-    .expect("DDL 建 sales_orders 表失败");
+    .expect("种子客户插入失败（sales_orders FK 前置）");
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO products (id, code, name) VALUES ($1, $2, $3)",
+        vec![
+            9i32.into(),
+            "W4SO-P9".to_string().into(),
+            "统计锁产品".to_string().into(),
+        ],
+    ))
+    .await
+    .expect("种子产品插入失败（sales_order_items FK 前置）");
+}
 
-    // 两条不同日期单据：Jan 10 → 100.0（目标窗口内）；Jun 20 → 200.0（窗口外）。
-    // order_date 存 ISO 日期串，与 SeaORM 绑定的 DateTime 前缀逐位比较在“日/月”位即分胜负，
-    // 不受时间/时区后缀格式差异影响。
-    for (id, day, amount) in [(1_i64, "2026-01-10", 100.0_f64), (2, "2026-06-20", 200.0)] {
-        db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT INTO sales_orders (id, customer_id, order_date, total_amount) \
-             VALUES ($1, $2, $3, $4)",
-            vec![id.into(), Value::Int(Some(10)), day.into(), amount.into()],
+/// 在真实 sales_orders 上种一张单 + 一条同额明细，RETURNING 真实主键 id。
+/// order_date 为 TIMESTAMPTZ：常量日期以 ::timestamptz 文本参数落库；
+/// 明细列（quantity/unit_price/subtotal）NOT NULL，按单据金额给足。
+async fn seed_order(
+    db: &sea_orm::DatabaseConnection,
+    order_no: &str,
+    day: &str,
+    amount: Decimal,
+    status: &str,
+) -> i32 {
+    let row = db
+        .query_one_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status)
+               VALUES ($1, 10, $2::timestamptz, $3, $4) RETURNING id"#,
+            vec![
+                order_no.to_string().into(),
+                day.to_string().into(),
+                amount.into(),
+                status.into(),
+            ],
         ))
         .await
-        .expect("种子销售订单插入失败");
-    }
+        .unwrap_or_else(|e| panic!("种子销售订单 {order_no} 插入失败: {e}"));
+    let id: i32 = row
+        .try_get_by_index(0)
+        .expect("RETURNING id 应可解码为 i32");
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"INSERT INTO sales_order_items (order_id, product_id, quantity, unit_price, subtotal)
+           VALUES ($1, 9, 1, $2, $2)"#,
+        vec![id.into(), amount.into()],
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("种子销售订单 {order_no} 明细插入失败: {e}"));
+    id
+}
+
+/// 统计夹具：真库 + 两条不同日期单据（Jan 10 → 100.0 目标窗口内；Jun 20 → 200.0 窗口外）。
+/// get_order_statistics 的 SeaORM 查询只 SELECT COUNT(id) / SUM(total_amount)，
+/// WHERE 引用 order_date、customer_id——全部走迁移产出的真实列型。
+async fn setup_stats_db() -> sea_orm::DatabaseConnection {
+    let db = setup_test_db().await;
+    seed_fk_prerequisites(&db).await;
+    seed_order(&db, "W4SO-STAT-1", "2026-01-10", Decimal::new(10000, 2), "pending").await;
+    seed_order(&db, "W4SO-STAT-2", "2026-06-20", Decimal::new(20000, 2), "pending").await;
     db
 }
 
@@ -183,34 +230,33 @@ async fn order_statistics_invalid_date_returns_validation_error_not_500() {
 }
 
 // =========================================================
-// 2) 活库（PostgreSQL）状态门 400 透传（lock_exclusive，sqlite 不支持 → #[ignore]）
+// 2) 真库状态门 400 透传（reject/cancel 状态门在事务内 lock_exclusive 之后，
+//    路线一真库通道真实执行；订单用例自种子，不依赖 TEST_SEED_* 播种）
 // =========================================================
 
-async fn live_db() -> sea_orm::DatabaseConnection {
-    let url = std::env::var("TEST_DATABASE_URL").expect(
-        "活库用例须设置 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL（缺失即失败，不静默 skip）",
-    );
-    sea_orm::Database::connect(&url)
-        .await
-        .expect("活库连接失败：TEST_DATABASE_URL 无法建立连接")
+async fn live_state() -> AppState {
+    let db = setup_test_db().await;
+    seed_fk_prerequisites(&db).await;
+    AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    }
 }
 
-fn live_state() -> AppState {
-    AppState::default()
-}
-
-/// 活库：对不处于 pending 的订单经真实 handler 调 reject → 4xx + code=BUSINESS_ERROR，
-/// 底层拒绝原因文案非“服务器内部错误”（修复前被 map_err(internal) 压成 500）。
+/// 对不处于 pending 的订单（本用例自种子 completed 单）经真实 handler 调 reject →
+/// 4xx + code=BUSINESS_ERROR，底层拒绝原因文案非“服务器内部错误”
+/// （修复前被 map_err(internal) 压成 500）。
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL + TEST_SEED_SO_NOT_PENDING_ID（reject 状态门在 lock_exclusive 之后，sqlite 不支持）"]
 async fn reject_order_handler_maps_state_gate_to_4xx_business_not_500() {
-    let id: i32 = std::env::var("TEST_SEED_SO_NOT_PENDING_ID")
-        .expect("须提供指向非 pending 状态且客户存在的销售订单 ID")
-        .parse()
-        .unwrap();
-
-    let mut state = live_state();
-    state.db = Arc::new(live_db().await);
+    let state = live_state().await;
+    let id = seed_order(
+        state.db.as_ref(),
+        "W4SO-REJECT-GATE",
+        "2026-02-01",
+        Decimal::new(10000, 2),
+        "completed",
+    )
+    .await;
 
     let result = sales_order_handler::reject_order(
         make_auth(1),
@@ -255,17 +301,19 @@ async fn reject_order_handler_maps_state_gate_to_4xx_business_not_500() {
     );
 }
 
-/// 活库：对不可取消状态订单经真实 handler 调 cancel → 4xx + code=BUSINESS_ERROR。
+/// 真库：对不可取消状态订单（本用例自种子 completed 单）经真实 handler 调 cancel →
+/// 4xx + code=BUSINESS_ERROR。
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL + TEST_SEED_SO_NOT_CANCELABLE_ID（cancel 状态门在 lock_exclusive 之后，sqlite 不支持）"]
 async fn cancel_order_handler_maps_state_gate_to_4xx_business_not_500() {
-    let id: i32 = std::env::var("TEST_SEED_SO_NOT_CANCELABLE_ID")
-        .expect("须提供指向不可取消状态（如 completed）的销售订单 ID")
-        .parse()
-        .unwrap();
-
-    let mut state = live_state();
-    state.db = Arc::new(live_db().await);
+    let state = live_state().await;
+    let id = seed_order(
+        state.db.as_ref(),
+        "W4SO-CANCEL-GATE",
+        "2026-02-02",
+        Decimal::new(10000, 2),
+        "completed",
+    )
+    .await;
 
     let result = sales_order_handler::cancel_order(make_auth(1), State(state), Path(id)).await;
     let err = match result {

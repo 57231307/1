@@ -8,17 +8,23 @@
 //! ②命中病毒 → 4xx（BUSINESS_ERROR + 用户可见拒绝文案，business_displayable 形态）；
 //! ③扫描通过 → 200 正常落盘（证明 503 改造没有把可用路径也拦死）。
 //!
-//! 覆盖策略（对齐 `contract_wave2_supplier_qualification_attachment_test.rs` 先例）：
-//! - supplier 侧：sqlite::memory: 自建 suppliers/supplier_qualifications 表 + 真实 handler
-//!   端到端（tower oneshot + AuthContext 注入），断 HTTP 状态 + 信封 code/message
-//!   + DB 回读 attachment_path + 磁盘文件存在性。
-//! - crm 侧：真实 import_leads handler 端到端，DB 用**空库（不建任何 crm 表）**——
-//!   若扫描失败后仍进入 service.import_leads，会得到 DATABASE_ERROR/500 而不是
-//!   503+SERVICE_UNAVAILABLE，因此该断言本身就证明「拒绝先于导入」。
+//! 覆盖策略（对齐 `contract_wave2_supplier_qualification_attachment_test.rs` 先例；
+//! 表结构唯一来源 = backend/migration，路线一 #4669 判责，裁定 R3 双连接）：
+//! - supplier 侧：`setup_test_db()` 真 PG（已迁移+清业务表）+ 真实 handler 端到端
+//!   （tower oneshot + AuthContext 注入），断 HTTP 状态 + 信封 code/message
+//!   + DB 回读 attachment_path + 磁盘文件存在性。供应商父行不自建：
+//!   suppliers 属迁移播种且不清空的参照表（m0015 演示供应商，按 supplier_code
+//!   稳定标识查取），资质行由用例自建（supplier_qualifications 属业务表，每次清空）。
+//! - crm 侧：真实 import_leads handler 端到端，DB 用 `connect_empty_schema_db()`
+//!   连的**已建库但未跑迁移**空库（无任何 crm 表）——若扫描失败后仍进入
+//!   service.import_leads，会得到 DATABASE_ERROR/500 而不是 503+SERVICE_UNAVAILABLE，
+//!   因此该断言本身就证明「拒绝先于导入」。
 //! - 「不可达」用 loopback 上「刚 bind 过随即 close」的死端口（连接必被拒），
 //!   「命中病毒 / 非 2xx / 扫描通过」用测试进程内的最小 TCP HTTP 假响应器充当扫描服务
 //!   ——这是在**提供外部依赖的应答**（其契约面就是 HTTP 状态 + 响应体），不是 mock
 //!   业务逻辑。夹具无条件跳过：环境异常（端口/线程失败）直接 panic 显式失败。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -35,15 +41,9 @@ use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::{supplier, supplier_qualification};
 use bingxi_backend::utils::error::gateway_msg;
 use chrono::Utc;
-use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, DbBackend, EntityTrait, Statement};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde_json::Value;
-use std::str::FromStr;
 use tower::ServiceExt;
-
-fn dec(s: &str) -> Decimal {
-    Decimal::from_str(s).unwrap()
-}
 
 fn make_auth(user_id: i32) -> AuthContext {
     AuthContext {
@@ -66,88 +66,29 @@ async fn inject_auth(
     next.run(request).await
 }
 
-/// 表 DDL 与种子逐列对齐 wave2 先例（供应商 7/8；资质 3..7 均属供应商 7）
-async fn create_tables(db: &sea_orm::DatabaseConnection) {
-    let ddls = [
-        r#"CREATE TABLE suppliers (
-            id INTEGER PRIMARY KEY,
-            supplier_code TEXT NOT NULL, supplier_name TEXT NOT NULL,
-            supplier_short_name TEXT NOT NULL, supplier_type TEXT NOT NULL,
-            credit_code TEXT NOT NULL, registered_address TEXT NOT NULL,
-            business_address TEXT, legal_representative TEXT NOT NULL,
-            registered_capital TEXT NOT NULL, establishment_date TEXT NOT NULL,
-            business_term TEXT, business_scope TEXT,
-            taxpayer_type TEXT NOT NULL, bank_name TEXT NOT NULL, bank_account TEXT NOT NULL,
-            contact_person TEXT, contact_phone TEXT NOT NULL, fax TEXT, website TEXT,
-            contact_email TEXT, main_business TEXT, main_market TEXT,
-            employee_count INTEGER, annual_revenue TEXT, grade TEXT, grade_score TEXT,
-            last_evaluation_date TEXT, status TEXT, is_enabled INTEGER,
-            assist_batch INTEGER, assist_supplier INTEGER,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-            created_by INTEGER, department_id INTEGER, updated_by INTEGER,
-            remarks TEXT, category_id INTEGER,
-            is_processor INTEGER NOT NULL, processor_type TEXT
-        )"#,
-        r#"CREATE TABLE supplier_qualifications (
-            id INTEGER PRIMARY KEY,
-            supplier_id INTEGER NOT NULL,
-            qualification_name TEXT NOT NULL, qualification_type TEXT NOT NULL,
-            qualification_no TEXT NOT NULL, issuing_authority TEXT NOT NULL,
-            issue_date TEXT NOT NULL, valid_until TEXT NOT NULL,
-            attachment_path TEXT, need_annual_check INTEGER NOT NULL,
-            annual_check_record TEXT, is_expired INTEGER NOT NULL,
-            remarks TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        )"#,
-    ];
-    for ddl in ddls {
-        db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            ddl,
-            Vec::new(),
-        ))
+/// 取迁移播种且不清空的参照供应商（m0015 演示供应商，按稳定标识 supplier_code 查取），
+/// 并自建其下 5 条资质行（supplier_qualifications 属业务表，每次 setup_test_db 清空，
+/// 显式 ID 911..915 稳定可断言）。
+///
+/// 资质 ID 段 911..915 专用：与 wave2 附件测试的落盘名错开，两个测试二进制并行时
+/// 互不踩踏 uploads/qualifications 下的文件。
+async fn seed_qualifications(db: &DatabaseConnection) -> i32 {
+    let parent = supplier::Entity::find()
+        .filter(supplier::Column::SupplierCode.eq("SUP-DEMO-FAB-01"))
+        .one(db)
         .await
-        .unwrap_or_else(|e| panic!("DDL 执行失败: {e}"));
-    }
-}
+        .expect("夹具：查询迁移播种参照供应商失败")
+        .expect("夹具：m0015 演示供应商 SUP-DEMO-FAB-01 应存在（suppliers 为不清空的参照表）");
+    let sid = parent.id;
 
-async fn seed(db: &sea_orm::DatabaseConnection) {
     // created_at/updated_at 列为 DateTimeWithTimeZone（= DateTime<FixedOffset>），
     // 仓内惯用 `Utc::now().into()`（同 src/handlers/import_export_handler.rs:811）
     let now: chrono::DateTime<chrono::FixedOffset> = Utc::now().into();
-    supplier::ActiveModel {
-        id: sea_orm::ActiveValue::Set(91),
-        supplier_code: sea_orm::ActiveValue::Set("SUP-91".to_string()),
-        supplier_name: sea_orm::ActiveValue::Set("扫描故障测试供应商".to_string()),
-        supplier_short_name: sea_orm::ActiveValue::Set("测试".to_string()),
-        supplier_type: sea_orm::ActiveValue::Set("面料".to_string()),
-        credit_code: sea_orm::ActiveValue::Set("CODE91".to_string()),
-        registered_address: sea_orm::ActiveValue::Set("测试地址".to_string()),
-        legal_representative: sea_orm::ActiveValue::Set("张三".to_string()),
-        registered_capital: sea_orm::ActiveValue::Set(dec("100")),
-        establishment_date: sea_orm::ActiveValue::Set(
-            chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
-        ),
-        taxpayer_type: sea_orm::ActiveValue::Set("一般纳税人".to_string()),
-        bank_name: sea_orm::ActiveValue::Set("测试银行".to_string()),
-        bank_account: sea_orm::ActiveValue::Set("6222000000".to_string()),
-        contact_phone: sea_orm::ActiveValue::Set("13800000000".to_string()),
-        created_at: sea_orm::ActiveValue::Set(now),
-        updated_at: sea_orm::ActiveValue::Set(now),
-        created_by: sea_orm::ActiveValue::Set(None),
-        is_processor: sea_orm::ActiveValue::Set(false),
-        ..Default::default()
-    }
-    .insert(db)
-    .await
-    .unwrap();
-
     let far = chrono::NaiveDate::from_ymd_opt(2030, 12, 31).unwrap();
-    // 专用 ID 段 911..915（供应商 91）：与 wave2 附件测试的 7_3/7_4/7_5 落盘名错开，
-    // 两个测试二进制并行时互不踩踏 uploads/qualifications 下的文件。
     for qid in [911i32, 912, 913, 914, 915] {
         supplier_qualification::ActiveModel {
             id: sea_orm::ActiveValue::Set(qid),
-            supplier_id: sea_orm::ActiveValue::Set(91),
+            supplier_id: sea_orm::ActiveValue::Set(sid),
             qualification_name: sea_orm::ActiveValue::Set(format!("营业执照{qid}")),
             qualification_type: sea_orm::ActiveValue::Set("证照".to_string()),
             qualification_no: sea_orm::ActiveValue::Set(format!("NO-{qid}")),
@@ -166,24 +107,13 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         }
         .insert(db)
         .await
-        .unwrap();
+        .unwrap_or_else(|e| panic!("夹具：资质 {qid} 种子写入失败: {e}"));
     }
+    sid
 }
 
-async fn memory_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    // 只建 supplier 侧表；crm 侧不建任何表（见 build_app 注释）
-    create_tables(&db).await;
-    seed(&db).await;
-    db
-}
-
-/// supplier 资质附件端点 + crm 线索导入端点挂在同一个 app 上（两条真实 handler 端到端）。
-/// crm 侧不建任何 crm 表：扫描失败若被吞、流程若走到 import_leads，会得到
-/// DATABASE_ERROR/500 而不是 503，断言因此能自证「拒绝先于导入」。
-async fn build_app(db: &sea_orm::DatabaseConnection) -> Router {
+/// supplier 资质附件端点挂在真库（已迁移+清业务表）app 上（真实 handler 端到端）。
+fn build_supplier_app(db: &DatabaseConnection) -> Router {
     let state = AppState {
         db: std::sync::Arc::new(db.clone()),
         ..Default::default()
@@ -193,6 +123,19 @@ async fn build_app(db: &sea_orm::DatabaseConnection) -> Router {
             "/suppliers/{id}/qualifications/{qualification_id}/attachment",
             post(supplier_handler::upload_supplier_qualification_attachment),
         )
+        .with_state(state)
+        .layer(from_fn_with_state(make_auth(100), inject_auth))
+}
+
+/// crm 线索导入端点挂在**空 schema 库**（裁定 R3 双连接，`connect_empty_schema_db`）：
+/// 库里没有任何 crm 业务表——扫描失败若被吞、流程若走到 import_leads，会得到
+/// DATABASE_ERROR/500 而不是 503，断言因此能自证「拒绝先于导入」。
+fn build_crm_app(db: &DatabaseConnection) -> Router {
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
+    Router::new()
         .route("/crm/leads/import", post(crm_handler::import_leads))
         .with_state(state)
         .layer(from_fn_with_state(make_auth(100), inject_auth))
@@ -255,7 +198,7 @@ async fn post_multipart(
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
-async fn attachment_path_of(db: &sea_orm::DatabaseConnection, qid: i32) -> Option<String> {
+async fn attachment_path_of(db: &DatabaseConnection, qid: i32) -> Option<String> {
     supplier_qualification::Entity::find_by_id(qid)
         .one(db)
         .await
@@ -264,8 +207,8 @@ async fn attachment_path_of(db: &sea_orm::DatabaseConnection, qid: i32) -> Optio
         .attachment_path
 }
 
-fn disk_path_of(qid: i32) -> std::path::PathBuf {
-    std::path::Path::new("uploads/qualifications").join(format!("91_{qid}.pdf"))
+fn disk_path_of(sid: i32, qid: i32) -> std::path::PathBuf {
+    std::path::Path::new("uploads/qualifications").join(format!("{sid}_{qid}.pdf"))
 }
 
 /// 503 故障族的统一断言：状态 503、code=SERVICE_UNAVAILABLE、公网脱敏文案，
@@ -333,8 +276,13 @@ fn spawn_fake_scan_server(status_line: &'static str, body: &'static str) -> u16 
 /// 读写环境变量的都是主线程（假扫描器线程不触碰 env），unsafe set_var 的前提成立。
 #[tokio::test]
 async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
-    let db = memory_db().await;
-    let app = build_app(&db).await;
+    // 裁定 R3 双连接：supplier 侧要建资质种子 → 真 PG 已迁移库（setup_test_db）；
+    // crm 侧要"库里没有业务表"这一负前提 → 已建库未跑迁移的空 schema 库。
+    let db = test_common::setup_test_db().await;
+    let sid = seed_qualifications(&db).await;
+    let app = build_supplier_app(&db);
+    let crm_db = test_common::connect_empty_schema_db().await;
+    let crm_app = build_crm_app(&crm_db);
     let clean_pdf = b"%PDF-1.7 scan-failure-fixture";
 
     // ---------- ①a 扫描服务不可达 → 503 + 文件未落盘 ----------
@@ -346,7 +294,7 @@ async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
     }
     let (status, v) = post_multipart(
         &app,
-        "/suppliers/91/qualifications/911/attachment",
+        &format!("/suppliers/{sid}/qualifications/911/attachment"),
         "file",
         "license.pdf",
         clean_pdf,
@@ -369,18 +317,25 @@ async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
         "503 拒绝不得写 attachment_path"
     );
     assert!(
-        !disk_path_of(911).exists(),
+        !disk_path_of(sid, 911).exists(),
         "503 拒绝不得落盘（拒绝必须先于写盘）"
     );
 
-    // crm 侧同故障：空库无表 + 503/SERVICE_UNAVAILABLE ⇒ 拒绝先于 import_leads（未落库）
+    // crm 侧同故障：空 schema 库无任何 crm 表 + 503/SERVICE_UNAVAILABLE
+    // ⇒ 拒绝先于 import_leads（未落库）
     let xlsx_bytes = {
         let mut d = vec![0x50u8, 0x4B, 0x03, 0x04];
         d.extend_from_slice(b"fake-zip-leads-payload");
         d
     };
-    let (status, v) =
-        post_multipart(&app, "/crm/leads/import", "file", "leads.xlsx", &xlsx_bytes).await;
+    let (status, v) = post_multipart(
+        &crm_app,
+        "/crm/leads/import",
+        "file",
+        "leads.xlsx",
+        &xlsx_bytes,
+    )
+    .await;
     assert_eq!(
         status,
         StatusCode::SERVICE_UNAVAILABLE,
@@ -392,7 +347,7 @@ async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
     unsafe { std::env::remove_var("CLAMAV_URL") }
     let (status, v) = post_multipart(
         &app,
-        "/suppliers/91/qualifications/912/attachment",
+        &format!("/suppliers/{sid}/qualifications/912/attachment"),
         "file",
         "license.pdf",
         clean_pdf,
@@ -410,11 +365,17 @@ async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
     );
     assert_service_unavailable_envelope(&v, "扫描服务未配置(supplier)");
     assert_eq!(attachment_path_of(&db, 912).await, None);
-    assert!(!disk_path_of(912).exists(), "未配置拒绝不得落盘");
+    assert!(!disk_path_of(sid, 912).exists(), "未配置拒绝不得落盘");
 
     unsafe { std::env::set_var("CLAMAV_URL", "") }
-    let (status, v) =
-        post_multipart(&app, "/crm/leads/import", "file", "leads.xlsx", &xlsx_bytes).await;
+    let (status, v) = post_multipart(
+        &crm_app,
+        "/crm/leads/import",
+        "file",
+        "leads.xlsx",
+        &xlsx_bytes,
+    )
+    .await;
     assert_eq!(
         status,
         StatusCode::SERVICE_UNAVAILABLE,
@@ -427,7 +388,7 @@ async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
     unsafe { std::env::set_var("CLAMAV_URL", format!("http://127.0.0.1:{down_port}")) }
     let (status, v) = post_multipart(
         &app,
-        "/suppliers/91/qualifications/914/attachment",
+        &format!("/suppliers/{sid}/qualifications/914/attachment"),
         "file",
         "license.pdf",
         clean_pdf,
@@ -440,14 +401,17 @@ async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
     );
     assert_service_unavailable_envelope(&v, "扫描服务非 2xx(supplier)");
     assert_eq!(attachment_path_of(&db, 914).await, None);
-    assert!(!disk_path_of(914).exists(), "非 2xx 拒绝不得落盘");
+    assert!(
+        !disk_path_of(sid, 914).exists(),
+        "非 2xx 拒绝不得落盘"
+    );
 
     // ---------- ② 命中病毒 → 4xx + 外显拒绝文案（不是 503/500） ----------
     let virus_port = spawn_fake_scan_server("200 OK", "stream: Win.Test.EICAR_HDB-1 FOUND");
     unsafe { std::env::set_var("CLAMAV_URL", format!("http://127.0.0.1:{virus_port}")) }
     let (status, v) = post_multipart(
         &app,
-        "/suppliers/91/qualifications/913/attachment",
+        &format!("/suppliers/{sid}/qualifications/913/attachment"),
         "file",
         "license.pdf",
         clean_pdf,
@@ -470,14 +434,14 @@ async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
         None,
         "命中病毒不得写 attachment_path"
     );
-    assert!(!disk_path_of(913).exists(), "命中病毒不得落盘");
+    assert!(!disk_path_of(sid, 913).exists(), "命中病毒不得落盘");
 
     // ---------- ③ 扫描通过 → 200 正常落盘（503 改造不得误伤可用路径） ----------
     let ok_port = spawn_fake_scan_server("200 OK", "stream: OK");
     unsafe { std::env::set_var("CLAMAV_URL", format!("http://127.0.0.1:{ok_port}")) }
     let (status, v) = post_multipart(
         &app,
-        "/suppliers/91/qualifications/915/attachment",
+        &format!("/suppliers/{sid}/qualifications/915/attachment"),
         "file",
         "license.pdf",
         clean_pdf,
@@ -486,12 +450,12 @@ async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
     assert_eq!(status, StatusCode::OK, "扫描通过必须 200，实际体 {v}");
     assert_eq!(
         attachment_path_of(&db, 915).await.as_deref(),
-        Some("/uploads/qualifications/91_915.pdf"),
+        Some(format!("/uploads/qualifications/{sid}_915.pdf").as_str()),
         "扫描通过应正常落库"
     );
 
     // 清理：成功用例的真实落盘文件 + 本测试设置的环境变量（失败显式打印，不静默）
-    if let Err(e) = std::fs::remove_file(disk_path_of(915)) {
+    if let Err(e) = std::fs::remove_file(disk_path_of(sid, 915)) {
         eprintln!("测试清理落盘文件失败（不影响断言结论）: {e}");
     }
     unsafe {

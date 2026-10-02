@@ -13,17 +13,25 @@
 //!    满足 error.rs 保密分层 → 可外显）。
 //! 3. **存量中文数据**：m0007 归一迁移（借→debit、贷→credit），备份表精确回退，幂等。
 //!
-//! 覆盖策略（分层，全部 sqlite 真跑，无硬编码 JSON 假装断言）：
+//! 覆盖策略（分层，路线一真库化：全部真实 PostgreSQL 执行，无 #[ignore]；
+//! 表结构唯一来源 = backend/migration，#4669 判责）：
 //! - 生产服务行为锁：`AccountSubjectService::refresh_balance` 在真表上按 debit/credit
 //!   两条方向各自验证期末余额符号落位（正向断言）；NULL 方向默认 debit 语义保持。
 //! - 纯函数行为锁：`VoucherService::compute_ending_balance`（#198 起 pub，仅作测试缝）
 //!   借贷两条 + 负值翻向 + 中文 token 不再命中借方分支的反例锁。
-//! - 白名单行为锁：中文「借」create 被 400/VALIDATION_ERROR 拒且零写入；「贷」update
+//! - 白名单行为锁：中文「借」create 被 400/VALIDATION_ERROR 拒且零新增写入；「贷」update
 //!   被拒且存量行不变；大小写变体同样拒（不做静默归一）；"debit" 正常落库。
-//! - 迁移 CASE 行为锁：直接引用 m0007 的 SQL 常量在 sqlite 同构表上执行，逐值断言
-//!   映射、NULL 不动、重放幂等、down 精确还原。SQL 为双方言标准语法，无需 #[ignore]。
+//!   account_subjects 属迁移播种且不清空的参照表（m0006 种子 28 行），故种子一律用
+//!   W6DIR/W6M198 前缀自建行 + 按自建行断言，"零写入"以**行数增量**表达，
+//!   不声称全表为空。
+//! - 迁移归一行为锁（真库转正）：直接引用 m0007 的 SQL 常量在真实 account_subjects 上
+//!   对本用例自建行执行，逐值断言映射、NULL 不动、重放幂等、down 按备份表精确回退；
+//!   备份表工件先删后建自清洁，与活库层 rls_dept_user_sync_live_test 的备份回退同型先例。
+//!   （原「sqlite 可真跑」前提随路线一作废：真库化后不存在 sqlite 可验性要求。）
 //! - 禁回潮源码扫描（include_str!）：比较点不得再出现带引号中文「借/贷」字面量，必须
 //!   引用 status::account_subject 常量；词表唯一来源仍在 models/status/finance.rs。
+
+mod test_common;
 
 use std::sync::Arc;
 
@@ -41,28 +49,28 @@ use migration::domain::system::m0007_normalize_account_subject_balance_direction
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, QueryResult,
-    Statement, Value,
+    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait,
+    QueryResult, Statement, Value,
 };
 
 // ===========================================================================
 // 公共辅助
 // ===========================================================================
 
-async fn sqlite_db() -> sea_orm::DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
+/// 真库连接：已迁移 + 清业务表；account_subjects/vouchers/voucher_items 的真表列
+/// （DECIMAL/DEFAULT/FK）全部由迁移提供，测试不再自建 sqlite 同构表。
+async fn live_db() -> sea_orm::DatabaseConnection {
+    test_common::setup_test_db().await
 }
 
-async fn exec_ddl(db: &sea_orm::DatabaseConnection, sql: &str) {
+async fn exec_sql(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql.to_string(),
         Vec::<Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/迁移语句执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("迁移语句执行失败: {e}\nSQL: {sql}"));
 }
 
 fn col_str_opt(row: &QueryResult, idx: usize) -> Option<String> {
@@ -70,111 +78,19 @@ fn col_str_opt(row: &QueryResult, idx: usize) -> Option<String> {
         .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 Option<String>: {e}"))
 }
 
-fn col_i64(row: &QueryResult, idx: usize) -> i64 {
-    row.try_get_by_index::<i64>(idx)
-        .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 i64: {e}"))
+fn col_i32(row: &QueryResult, idx: usize) -> i32 {
+    row.try_get_by_index::<i32>(idx)
+        .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 i32（真库 INTEGER 列）: {e}"))
 }
-
-/// 与 `models/account_subject.rs` 全列同构的 sqlite 表（Entity 全列解码需要，
-/// 默认值对齐 m0006 DDL：balance_direction DEFAULT 'debit'、status DEFAULT 'active'）
-const DDL_ACCOUNT_SUBJECTS_FULL: &str = r#"CREATE TABLE "account_subjects" (
-    "id" INTEGER PRIMARY KEY,
-    "code" TEXT NOT NULL UNIQUE,
-    "name" TEXT NOT NULL,
-    "level" INTEGER NOT NULL DEFAULT 1,
-    "parent_id" INTEGER,
-    "full_code" TEXT,
-    "balance_direction" TEXT DEFAULT 'debit',
-    "initial_balance_debit" NUMERIC NOT NULL DEFAULT 0,
-    "initial_balance_credit" NUMERIC NOT NULL DEFAULT 0,
-    "current_period_debit" NUMERIC NOT NULL DEFAULT 0,
-    "current_period_credit" NUMERIC NOT NULL DEFAULT 0,
-    "ending_balance_debit" NUMERIC NOT NULL DEFAULT 0,
-    "ending_balance_credit" NUMERIC NOT NULL DEFAULT 0,
-    "assist_customer" INTEGER NOT NULL DEFAULT 0,
-    "assist_supplier" INTEGER NOT NULL DEFAULT 0,
-    "assist_department" INTEGER NOT NULL DEFAULT 0,
-    "assist_employee" INTEGER NOT NULL DEFAULT 0,
-    "assist_project" INTEGER NOT NULL DEFAULT 0,
-    "assist_batch" INTEGER NOT NULL DEFAULT 0,
-    "assist_color_no" INTEGER NOT NULL DEFAULT 0,
-    "assist_dye_lot" INTEGER NOT NULL DEFAULT 0,
-    "assist_grade" INTEGER NOT NULL DEFAULT 0,
-    "assist_workshop" INTEGER NOT NULL DEFAULT 0,
-    "enable_dual_unit" INTEGER NOT NULL DEFAULT 0,
-    "primary_unit" TEXT,
-    "secondary_unit" TEXT,
-    "is_cash_account" INTEGER NOT NULL DEFAULT 0,
-    "is_bank_account" INTEGER NOT NULL DEFAULT 0,
-    "allow_manual_entry" INTEGER NOT NULL DEFAULT 1,
-    "require_summary" INTEGER NOT NULL DEFAULT 0,
-    "status" TEXT NOT NULL DEFAULT 'active',
-    "created_at" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-)"#;
-
-/// 与 `models/voucher.rs` / `models/voucher_item.rs` 全列同构（refresh_balance 的
-/// select_only 聚合只触达下列列，但建全列保证与生产 schema 漂移时测试可感知）
-const DDL_VOUCHERS_FULL: &str = r#"CREATE TABLE "vouchers" (
-    "id" INTEGER PRIMARY KEY,
-    "voucher_no" TEXT NOT NULL,
-    "voucher_type" TEXT NOT NULL,
-    "voucher_date" TEXT NOT NULL,
-    "source_type" TEXT,
-    "source_module" TEXT,
-    "source_bill_id" INTEGER,
-    "source_bill_no" TEXT,
-    "batch_no" TEXT,
-    "color_no" TEXT,
-    "dye_lot_no" TEXT,
-    "workshop" TEXT,
-    "production_order_no" TEXT,
-    "quantity_meters" NUMERIC,
-    "quantity_kg" NUMERIC,
-    "gram_weight" NUMERIC,
-    "status" TEXT NOT NULL,
-    "attachment_count" INTEGER NOT NULL DEFAULT 0,
-    "created_by" INTEGER NOT NULL,
-    "reviewed_by" INTEGER,
-    "reviewed_at" TEXT,
-    "posted_by" INTEGER,
-    "posted_at" TEXT,
-    "created_at" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-)"#;
-
-const DDL_VOUCHER_ITEMS_FULL: &str = r#"CREATE TABLE "voucher_items" (
-    "id" INTEGER PRIMARY KEY,
-    "voucher_id" INTEGER NOT NULL,
-    "line_no" INTEGER NOT NULL DEFAULT 1,
-    "subject_id" INTEGER,
-    "subject_code" TEXT NOT NULL,
-    "subject_name" TEXT NOT NULL DEFAULT '',
-    "debit" NUMERIC NOT NULL DEFAULT 0,
-    "credit" NUMERIC NOT NULL DEFAULT 0,
-    "summary" TEXT,
-    "assist_customer_id" INTEGER,
-    "assist_supplier_id" INTEGER,
-    "assist_department_id" INTEGER,
-    "assist_employee_id" INTEGER,
-    "assist_project_id" INTEGER,
-    "assist_batch_id" INTEGER,
-    "assist_color_no_id" INTEGER,
-    "assist_dye_lot_id" INTEGER,
-    "assist_grade" TEXT,
-    "assist_workshop_id" INTEGER,
-    "quantity_meters" NUMERIC,
-    "quantity_kg" NUMERIC,
-    "unit_price" NUMERIC,
-    "created_at" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-)"#;
 
 fn now() -> chrono::DateTime<Utc> {
     Utc::now()
 }
 
-/// 种子科目：全字段 ActiveModel 插入（与 wave6 seed_invoice 同构写法，
-/// Decimal/时间戳由 SeaORM 原生编码，避免手拼 raw SQL 的类型漂移风险）
+/// 种子科目：全字段 ActiveModel 插入（Decimal/时间戳由 SeaORM 原生编码，
+/// 不手拼 raw SQL）。code 必须带 W6DIR 前缀——account_subjects 是迁移播种
+/// （m0006 种子 28 行，code UNIQUE）且不清空的参照表，真码 1001/2202/1403 已存在，
+/// 直接复用会撞 UNIQUE（这正是 #4669 判责里该族种子失败的下一形态）。
 async fn seed_subject(
     db: &sea_orm::DatabaseConnection,
     code: &str,
@@ -183,10 +99,10 @@ async fn seed_subject(
     initial_credit: Decimal,
 ) -> i32 {
     let inserted = account_subject::ActiveModel {
-        code: Set(code.to_string()),
+        code: Set(format!("W6DIR{code}")),
         name: Set(format!("科目-{code}")),
         level: Set(1),
-        full_code: Set(Some(code.to_string())),
+        full_code: Set(Some(format!("W6DIR{code}"))),
         balance_direction: Set(direction.map(|s| s.to_string())),
         initial_balance_debit: Set(initial_debit),
         initial_balance_credit: Set(initial_credit),
@@ -201,7 +117,8 @@ async fn seed_subject(
     inserted.id
 }
 
-/// 种子已过账凭证 + 单分录（期间 2096-12，与 refresh_balance 入参对齐）
+/// 种子已过账凭证 + 单分录（期间 2096-12，与 refresh_balance 入参对齐；
+/// subject_code 传 seed_subject 的**完整真 code**（含 W6DIR 前缀））
 async fn seed_posted_voucher_item(
     db: &sea_orm::DatabaseConnection,
     subject_code: &str,
@@ -213,7 +130,7 @@ async fn seed_posted_voucher_item(
         voucher_type: Set("记".to_string()),
         voucher_date: Set(NaiveDate::from_ymd_opt(2096, 12, 5).expect("测试日期必须合法")),
         status: Set(voucher_status::VOUCHER_POSTED.to_string()),
-        created_by: Set(1),
+        created_by: Set(1), // vouchers.created_by 无库级外键（m0006:120 仅列声明）
         created_at: Set(now()),
         updated_at: Set(now()),
         ..Default::default()
@@ -236,12 +153,6 @@ async fn seed_posted_voucher_item(
     .expect("种子凭证分录插入失败");
 }
 
-async fn setup_ledger_tables(db: &sea_orm::DatabaseConnection) {
-    exec_ddl(db, DDL_ACCOUNT_SUBJECTS_FULL).await;
-    exec_ddl(db, DDL_VOUCHERS_FULL).await;
-    exec_ddl(db, DDL_VOUCHER_ITEMS_FULL).await;
-}
-
 // ===========================================================================
 // 1) 生产服务行为锁：refresh_balance 按 debit/credit 方向计算期末余额（正向断言）
 // ===========================================================================
@@ -250,8 +161,7 @@ async fn setup_ledger_tables(db: &sea_orm::DatabaseConnection) {
 /// 期初借 100 + 借 30 - 贷 10 会被算成负差反向挂账。修复后必须 (120, 0)。
 #[tokio::test]
 async fn refresh_balance_debit_subject_ends_on_debit_side() {
-    let db = Arc::new(sqlite_db().await);
-    setup_ledger_tables(&db).await;
+    let db = Arc::new(live_db().await);
     let id = seed_subject(
         &db,
         "1001",
@@ -260,13 +170,13 @@ async fn refresh_balance_debit_subject_ends_on_debit_side() {
         Decimal::ZERO,
     )
     .await;
-    seed_posted_voucher_item(&db, "1001", dec!(30), dec!(10)).await;
+    seed_posted_voucher_item(&db, "W6DIR1001", dec!(30), dec!(10)).await;
 
     let svc = AccountSubjectService::new(db.clone());
     let updated = svc
         .refresh_balance(id, "2096-12")
         .await
-        .expect("refresh_balance sqlite 真跑失败");
+        .expect("refresh_balance 真库执行失败");
 
     assert_eq!(
         updated.current_period_debit,
@@ -293,8 +203,7 @@ async fn refresh_balance_debit_subject_ends_on_debit_side() {
 /// credit 科目：期初贷 50 + 本期贷 20 → 期末 (0, 70)
 #[tokio::test]
 async fn refresh_balance_credit_subject_ends_on_credit_side() {
-    let db = Arc::new(sqlite_db().await);
-    setup_ledger_tables(&db).await;
+    let db = Arc::new(live_db().await);
     let id = seed_subject(
         &db,
         "2202",
@@ -303,13 +212,13 @@ async fn refresh_balance_credit_subject_ends_on_credit_side() {
         dec!(50),
     )
     .await;
-    seed_posted_voucher_item(&db, "2202", Decimal::ZERO, dec!(20)).await;
+    seed_posted_voucher_item(&db, "W6DIR2202", Decimal::ZERO, dec!(20)).await;
 
     let svc = AccountSubjectService::new(db.clone());
     let updated = svc
         .refresh_balance(id, "2096-12")
         .await
-        .expect("refresh_balance sqlite 真跑失败");
+        .expect("refresh_balance 真库执行失败");
 
     assert_eq!(
         updated.ending_balance_credit,
@@ -322,16 +231,15 @@ async fn refresh_balance_credit_subject_ends_on_credit_side() {
 /// 方向缺失（NULL）默认按 debit 处理——换常量后原「借」默认值语义保持不漂移
 #[tokio::test]
 async fn refresh_balance_null_direction_defaults_to_debit() {
-    let db = Arc::new(sqlite_db().await);
-    setup_ledger_tables(&db).await;
+    let db = Arc::new(live_db().await);
     let id = seed_subject(&db, "1403", None, dec!(100), Decimal::ZERO).await;
-    seed_posted_voucher_item(&db, "1403", dec!(30), dec!(10)).await;
+    seed_posted_voucher_item(&db, "W6DIR1403", dec!(30), dec!(10)).await;
 
     let svc = AccountSubjectService::new(db.clone());
     let updated = svc
         .refresh_balance(id, "2096-12")
         .await
-        .expect("refresh_balance sqlite 真跑失败");
+        .expect("refresh_balance 真库执行失败");
     assert_eq!(
         updated.ending_balance_debit,
         dec!(120),
@@ -395,9 +303,9 @@ fn voucher_compute_ending_balance_binds_english_vocabulary() {
 // 3) 写入白名单行为锁：非词表 token 被 400 VALIDATION_ERROR 拒且零写入
 // ===========================================================================
 
-fn create_req(direction: Option<&str>) -> CreateSubjectRequest {
+fn create_req(code: &str, direction: Option<&str>) -> CreateSubjectRequest {
     CreateSubjectRequest {
-        code: "1001".to_string(),
+        code: code.to_string(),
         name: "库存现金".to_string(),
         level: 1,
         parent_id: None,
@@ -425,13 +333,18 @@ fn update_req(direction: Option<&str>) -> UpdateSubjectRequest {
 
 #[tokio::test]
 async fn create_rejects_illegal_direction_validation_error_and_zero_write() {
-    let db = Arc::new(sqlite_db().await);
-    exec_ddl(&db, DDL_ACCOUNT_SUBJECTS_FULL).await;
+    let db = Arc::new(live_db().await);
     let svc = AccountSubjectService::new(db.clone());
+    // account_subjects 是迁移播种且不清空的参照表（种子 28 行基线）——
+    // 「零写入」在真库上以**行数增量=0**表达，语义与原「全表零行」等价且更严
+    let baseline = account_subject::Entity::find()
+        .count(&*db)
+        .await
+        .expect("统计基线行数失败");
 
     for bad in ["借", "贷", "DEBIT", "Debit", "借借", " "] {
         let err = svc
-            .create(create_req(Some(bad)), 1)
+            .create(create_req(&format!("W6DIRBAD-{bad}"), Some(bad)), 1)
             .await
             .unwrap_err_or_panic(&format!("非法方向 {bad:?} 必须被拒"));
         assert_eq!(
@@ -446,15 +359,21 @@ async fn create_rejects_illegal_direction_validation_error_and_zero_write() {
     }
 
     // 零写入：校验先行，非法请求一律不带病触库
-    let rows = account_subject::Entity::find()
-        .all(&*db)
+    let after = account_subject::Entity::find()
+        .count(&*db)
         .await
         .expect("回读失败");
-    assert_eq!(rows.len(), 0, "白名单拒收后科目表必须保持零行");
+    assert_eq!(
+        after, baseline,
+        "白名单拒收后科目表行数增量必须为 0（不允许任何一条非法方向带病落库）"
+    );
 
     // 正向对照：合法英文值可落库且逐字保存
     let created = svc
-        .create(create_req(Some(subject_status::DIRECTION_DEBIT)), 1)
+        .create(
+            create_req("W6DIROK", Some(subject_status::DIRECTION_DEBIT)),
+            1,
+        )
         .await
         .expect("合法 debit 应创建成功");
     assert_eq!(

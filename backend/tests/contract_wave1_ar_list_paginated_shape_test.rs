@@ -11,9 +11,12 @@
 //!
 //! 覆盖策略：
 //! - 无需活库的纯形状断言（serde 层，锁 data 键集合恰为四键、防止回退裸 Vec / 加杂键）
-//! - `sqlite::memory:` 自建 ar_invoices 表 + ActiveModel 播种后走真实 handler 的
-//!   HTTP 形状/total/截断/clamp 断言（**不需要活 PostgreSQL**，走测试专用内存库；
-//!   读路径 get_list 仅 SELECT，无 advisory lock，sqlite 方言足够保真）
+//! - 真 PostgreSQL（TEST_DATABASE_URL，夹具清空业务表后由迁移保证 schema）：
+//!   ActiveModel 播种 customers（ar_invoices.customer_id 有真 FK）+ ar_invoices 25 行后
+//!   走真实 handler 的 HTTP 形状/total/截断/clamp 断言
+//!   （读路径 get_list 仅 SELECT，无 advisory lock）
+
+mod test_common;
 
 use std::str::FromStr;
 
@@ -29,13 +32,11 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::ar_invoice_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::ar_invoice;
+use bingxi_backend::models::{ar_invoice, customer};
 use bingxi_backend::utils::response::{ApiResponse, PaginatedResponse};
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DatabaseConnection, DbBackend, Statement,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection};
 use serde_json::Value;
 use tower::ServiceExt;
 
@@ -94,41 +95,26 @@ async fn get_json(app: &Router, uri: &str) -> (StatusCode, Value) {
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
+/// 播种 FK 前置：真表 ar_invoices.customer_id REFERENCES customers(id)。
+/// 夹具已 TRUNCATE … RESTART IDENTITY，业务表从空库起步，显式 id=1/2 稳定可断言。
+async fn seed_customers_1_2(db: &DatabaseConnection) {
+    for cid in [1i32, 2] {
+        customer::ActiveModel {
+            id: Set(cid),
+            customer_code: Set(format!("CUST-ARSHAPE-{cid:02}")),
+            customer_name: Set(format!("AR形状锁客户{cid}")),
+            credit_limit: Set(Decimal::from_str("0.00").unwrap()),
+            payment_terms: Set(30),
+            status: Set("active".to_string()),
+            customer_type: Set("retail".to_string()),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            ..Default::default()
+        }
+        .insert(db)
         .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::<sea_orm::Value>::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-/// 与 `models/ar_invoice.rs::Model` 列逐一对应的 sqlite 建表（全列，非空按 Option 与否标注；
-/// Decimal/DateTime 以 TEXT 存储，由 SeaORM/sqlx 自身编码保证 round-trip）
-async fn create_ar_invoices_table(db: &DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE ar_invoices (
-            id INTEGER PRIMARY KEY,
-            invoice_no TEXT, invoice_date TEXT, due_date TEXT,
-            customer_id INTEGER, customer_name TEXT, customer_code TEXT,
-            source_type TEXT, source_module TEXT, source_bill_id INTEGER, source_bill_no TEXT,
-            batch_no TEXT, color_no TEXT, dye_lot_no TEXT, sales_order_no TEXT,
-            invoice_amount TEXT, received_amount TEXT, unpaid_amount TEXT, tax_amount TEXT,
-            quantity_meters TEXT, quantity_kg TEXT, unit_price TEXT,
-            status TEXT, approval_status TEXT,
-            salesperson_id INTEGER, created_by INTEGER, reviewed_by INTEGER, reviewed_at TEXT,
-            created_at TEXT, updated_at TEXT
-        )"#,
-    )
-    .await;
+        .unwrap();
+    }
 }
 
 /// 播种 25 行：customer_id 交替 1/2（13 行客户 1、12 行客户 2），invoice_date 逐日递增
@@ -207,12 +193,12 @@ fn paginated_new_and_default_field_values() {
 }
 
 // =========================================================
-// HTTP 层真实行为（sqlite::memory 自建表，无需活 PG）
+// HTTP 层真实行为（真 PostgreSQL，迁移建表，无需自建 DDL）
 // =========================================================
 
 async fn seeded_app(auth: AuthContext) -> Router {
-    let db = sqlite_db().await;
-    create_ar_invoices_table(&db).await;
+    let db = test_common::setup_test_db().await;
+    seed_customers_1_2(&db).await;
     seed_25_invoices(&db).await;
     let state = AppState {
         db: std::sync::Arc::new(db),
@@ -312,8 +298,8 @@ async fn ar_invoices_list_total_respects_filter() {
 /// 空表时形状不变：data 仍是四键对象（items 空、total 0），不得回退 null/裸数组
 #[tokio::test]
 async fn ar_invoices_list_empty_table_keeps_shape() {
-    let db = sqlite_db().await;
-    create_ar_invoices_table(&db).await;
+    // 夹具 TRUNCATE 后 ar_invoices 为空真表，不播种
+    let db = test_common::setup_test_db().await;
     let state = AppState {
         db: std::sync::Arc::new(db),
         ..Default::default()

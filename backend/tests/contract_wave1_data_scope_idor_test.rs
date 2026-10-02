@@ -17,12 +17,12 @@
 //! - `backend/src/middleware/auth_context.rs:103-134`（data_scope=None 缺省 → Self_ 最小权限）
 //!
 //! 覆盖策略：
-//! - 非活库：sqlite 自建 inventory_adjustments/inventory_adjustment_items 两表走真实 handler
+//! - 真 PostgreSQL（TEST_DATABASE_URL，夹具清空业务表 + RESTART IDENTITY）：
+//!   调整单两表（inventory_adjustments/inventory_adjustment_items，含 warehouses/
+//!   products/inventory_stocks FK 前置）走真实 handler，
 //!   锁 purchaser/non-owner 403、owner 与 all 200、不存在 404、item 反查 404；
 //!   ship 双 id 不一致在触库前 400（AppState::default 即可，零 DB）；
 //!   data_scope None→Self_ 纯函数锁。
-//!   注：owner 的写路径（delete_item 等）服务侧用 lock_exclusive，sqlite 方言不支持，
-//!   owner-写正向断言归入下方活库用例。
 //! - `#[ignore]` 活库（TEST_DATABASE_URL→PG）：transfer update/delete、production update_status/
 //!   logs、sales ship 的 非owner 403 / owner 2xx（或至少非 403、非 500）全矩阵。
 
@@ -41,11 +41,13 @@ use bingxi_backend::handlers::{
     inventory_adjustment_handler, production_order_handler, sales_order_handler,
 };
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::{inventory_adjustment, inventory_adjustment_item};
+use bingxi_backend::models::{
+    inventory_adjustment, inventory_adjustment_item, inventory_stock, product, warehouse,
+};
 use bingxi_backend::utils::data_scope::DataScope;
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, Statement};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set};
 use serde_json::{Value, json};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -115,46 +117,67 @@ fn auth_scope_none_defaults_to_self_min_privilege() {
 }
 
 // =========================================================
-// B) 调整单（含 item 级反查）——sqlite 自建两表，无需活 PG（读路径/403 路径）
+// B) 调整单（含 item 级反查）——真 PG 迁移表 + FK 前置，读路径/403 路径
 // =========================================================
 
-async fn sqlite_db() -> sea_orm::DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
+/// 真表 FK 前置链：adjustments.warehouse_id→warehouses、items.stock_id→inventory_stocks
+/// （stocks 又 FK 到 products）。夹具 TRUNCATE…RESTART IDENTITY 后显式 id 稳定。
+async fn seed_adjustment_prereq(db: &sea_orm::DatabaseConnection) {
+    product::ActiveModel {
+        id: Set(1),
+        name: Set("越权套件产品".to_string()),
+        code: Set("PRD-DS-0001".to_string()),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-async fn create_adjustment_tables(db: &sea_orm::DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE inventory_adjustments (
-            id INTEGER PRIMARY KEY, adjustment_no TEXT, warehouse_id INTEGER,
-            adjustment_date TEXT, adjustment_type TEXT, reason_type TEXT,
-            reason_description TEXT, total_quantity TEXT, notes TEXT,
-            created_by INTEGER, approved_by INTEGER, approved_at TEXT,
-            status TEXT, created_at TEXT, updated_at TEXT
-        )"#,
-    )
-    .await;
-    exec(
-        db,
-        r#"CREATE TABLE inventory_adjustment_items (
-            id INTEGER PRIMARY KEY, adjustment_id INTEGER, stock_id INTEGER,
-            quantity TEXT, quantity_before TEXT, quantity_after TEXT,
-            unit_cost TEXT, amount TEXT, notes TEXT, created_at TEXT, updated_at TEXT
-        )"#,
-    )
-    .await;
+    .unwrap();
+    warehouse::ActiveModel {
+        id: Set(10),
+        warehouse_code: Set("WH-DS-10".to_string()),
+        name: Set("越权套件-调整仓".to_string()),
+        is_active: Set(true),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+    inventory_stock::ActiveModel {
+        id: Set(66),
+        warehouse_id: Set(10),
+        product_id: Set(1),
+        quantity_on_hand: Set(dec("10.00")),
+        quantity_available: Set(dec("10.00")),
+        quantity_reserved: Set(Decimal::ZERO),
+        quantity_shipped: Set(Decimal::ZERO),
+        quantity_incoming: Set(Decimal::ZERO),
+        reorder_point: Set(Decimal::ZERO),
+        max_stock_point: Set(Decimal::ZERO),
+        reorder_quantity: Set(Decimal::ZERO),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        batch_no: Set("B-DS-0001".to_string()),
+        color_no: Set("C-DS-0001".to_string()),
+        grade: Set("一等品".to_string()),
+        quantity_meters: Set(dec("10.00")),
+        quantity_kg: Set(dec("1.00")),
+        stock_status: Set("正常".to_string()),
+        quality_status: Set("合格".to_string()),
+        version: Set(0),
+        replenishment_strategy: Set("reorder_point".to_string()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
 }
 
 /// 调整单 id=1 created_by=100（owner），明细 item id=1 属该单
@@ -217,8 +240,8 @@ fn build_adjustment_app(db: sea_orm::DatabaseConnection, auth: AuthContext) -> R
 }
 
 async fn seeded_adjustment_app(auth: AuthContext) -> Router {
-    let db = sqlite_db().await;
-    create_adjustment_tables(&db).await;
+    let db = test_common::setup_test_db().await;
+    seed_adjustment_prereq(&db).await;
     seed_adjustment(&db).await;
     build_adjustment_app(db, auth)
 }
@@ -566,9 +589,25 @@ async fn live_production_status_update_and_logs_scope_matrix() {
 #[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（sales_orders JOIN customers/audit 链）"]
 async fn live_sales_ship_owner_gate_matrix() {
     use bingxi_backend::handlers::sales_order_handler::ship_order;
-    use bingxi_backend::models::{customer, sales_order};
+    use bingxi_backend::models::{customer, sales_order, user};
 
     let db = test_common::setup_test_db().await;
+    // 真表 FK：sales_orders.created_by REFERENCES users(id)（fk_sales_orders_created_by），
+    // users 不在迁移播种参照表内，夹具 TRUNCATE 后必须由用例自插 owner 行。
+    user::ActiveModel {
+        id: Set(9401),
+        username: Set("e2e_user_9401".to_string()),
+        password_hash: Set("test-only-not-a-real-hash".to_string()),
+        real_name: Set(Some("越权套件owner".to_string())),
+        is_active: Set(true),
+        is_totp_enabled: Set(false),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
     let cust = customer::ActiveModel {
         customer_code: Set(format!("CUS-DS-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         customer_name: Set("越权套件客户".to_string()),

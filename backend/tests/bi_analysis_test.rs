@@ -4,24 +4,24 @@
 //! - 原 16 个测试使用过时的静态方法调用 `BiAnalysisService::method(args)`
 //!   但 v9 批次 130 重构后所有方法改为实例方法 `&self`
 //! - 本批次修复为 `BiAnalysisService::new(db).method(args)` 实例调用
-//! - 参数校验类测试（无效输入返回 Err）使用 sqlite::memory: 连接，
-//!   校验在 DB 查询前返回，不依赖真实 PostgreSQL
-//! - 需要真实 PostgreSQL 的测试标记 #[ignore]，避免 CI 无 DB 环境失败
+//! - 参数校验类测试（无效输入返回 Err）连真实 PostgreSQL（只连接不触库），
+//!   校验在 DB 查询前返回
+//! - 需要真实数据的测试标记 #[ignore]，由 CI ignored job 在已迁移库上执行
+
+mod test_common;
 
 use std::sync::Arc;
 
 use bingxi_backend::services::bi_analysis_service::BiAnalysisService;
 use chrono::NaiveDate;
-use sea_orm::{Database, DatabaseConnection};
+use sea_orm::DatabaseConnection;
 
-/// 构造测试用 BiAnalysisService（sqlite::memory: 连接）
+/// 构造测试用 BiAnalysisService（真实 PostgreSQL，只连接不清空）
 ///
-/// 仅用于参数校验测试：方法在执行 DB 查询前校验参数并返回 Err。
-/// 不可用于需要真实 PostgreSQL 的测试（Postgres to_char / EXTRACT 语法不兼容 sqlite）。
+/// 校验类用例只取连接对象，方法在执行 DB 查询前校验参数并返回 Err；
+/// 活库用例由 ignored job 在已迁移的 `TEST_DATABASE_URL` 库上真跑。
 async fn make_service() -> BiAnalysisService {
-    let database: DatabaseConnection = Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite 内存数据库连接失败");
+    let database: DatabaseConnection = test_common::connect_live_db().await;
     BiAnalysisService::new(Arc::new(database))
 }
 
@@ -123,11 +123,13 @@ async fn test_kpi_summary_returns_valid() {
     assert!(kpi.avg_order_value > 0.0, "avg_order_value 应大于 0");
 }
 
-/// 单元测试：kpi_summary 无真实 DB 时返回 Err（不标记 ignore，验证非崩溃）
+/// 单元测试：kpi_summary 无业务 schema 时返回 Err（不标记 ignore，验证非崩溃）
 #[tokio::test]
 async fn test_kpi_summary_returns_err_without_db() {
-    let service = make_service().await;
-    // sqlite 连接无 sales_orders 表，查询应返回 Err（非 panic）
+    // 负前提交集：连 CI 里不跑迁移的第二只空 schema 库（指错库夹具直接判红）。
+    // 库里没有 sales_orders 表，查询应返回 Err（非 panic）。
+    let database: DatabaseConnection = test_common::connect_empty_schema_db().await;
+    let service = BiAnalysisService::new(Arc::new(database));
     let result = service.kpi_summary().await;
     assert!(result.is_err(), "无真实 DB 时 kpi_summary 应返回 Err");
 }

@@ -27,12 +27,16 @@
 //! - ④：源码扫描——旧桥接含 `output_quantity_kg: None`、旧 handler complete 块不含
 //!   `Json(req): Json<CompleteDyeBatchRequest>`，m0062 文件不存在（include_str! 编译即红）。
 //!
-//! 覆盖策略（无 mock）：sqlite::memory: 自建 dye_batch 表（列与 models/dye_batch.rs
-//! 一一对应，先例 contract_wave4 同域形态）+ tower oneshot 真实路由。成本 draft 整链
-//! 无法 sqlite 化（cost_collection 取号走 pg_advisory_xact_lock，
+//! 覆盖策略（无 mock；路线一 #4669 判责：表结构唯一来源 = backend/migration）：
+//! 真 PostgreSQL（test_common::setup_test_db，连接已迁移库并清空业务表）跑
+//! dye_batch 真实模型读写 + tower oneshot 真实路由。不再自建 sqlite 同构表
+//! ——#4669 里 DECIMAL 写成 TEXT 的解码红（planned_quantity ColumnDecode）根除。
+//! 成本 draft 整链无法夹具化（cost_collection 取号走 pg_advisory_xact_lock，
 //! utils/crud_macro.rs::impl_generate_no → number_generator::lock_prefix），故对
 //! "行真值→draft 请求分母"映射用纯函数 build_draft_cost_request 直接断言 + 源码扫描锁
 //! 桥接调用点，不造假数据、不 mock。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -50,13 +54,12 @@ use bingxi_backend::models::dye_batch;
 use bingxi_backend::services::dye_batch_cost_bridge_service::DyeBatchCostBridgeServiceInternal;
 use rust_decimal::Decimal;
 use sea_orm::prelude::DateTimeWithTimeZone;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, Statement,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
 use serde_json::{Value, json};
 use std::str::FromStr;
 use std::sync::Arc;
 use tower::ServiceExt;
+use test_common::setup_test_db;
 
 fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()
@@ -84,46 +87,11 @@ async fn inject_auth(
 }
 
 // =========================================================
-// sqlite 自建表（列与 models/dye_batch.rs 一一对应，含 #168 三列）
+// 真库夹具：表结构由迁移提供（列与 models/dye_batch.rs 一一对应，含 #168 三列）
 // =========================================================
 
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-const DYE_BATCH_DDL: &str = r#"CREATE TABLE dye_batch (
-    id INTEGER PRIMARY KEY,
-    batch_no TEXT NOT NULL UNIQUE,
-    greige_fabric_id INTEGER,
-    color_code TEXT NOT NULL,
-    color_name TEXT NOT NULL,
-    color_no TEXT,
-    dye_lot_no TEXT,
-    planned_quantity TEXT,
-    actual_output_kg TEXT,
-    actual_output_m TEXT,
-    greige_input_kg TEXT,
-    status TEXT,
-    started_at TEXT,
-    completed_at TEXT,
-    remarks TEXT,
-    is_deleted INTEGER,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)"#;
-
 async fn fresh_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    exec(&db, DYE_BATCH_DDL).await;
-    db
+    setup_test_db().await
 }
 
 fn now_ts() -> DateTimeWithTimeZone {

@@ -14,8 +14,13 @@
 //!    - PUT /lab-dip/requests/{id} / /lab-dip/samples/{id}
 //!    - PUT /dye-recipes/{id}（含复样回写内部构造点 resample.rs 的键缺席=保持语义）
 //!    - PUT /quality-inspection/records/{id}（UpdateInspectionRecordRequest）
-//! 3. 活库并发类用例本波无需（纯 DTO serde + sqlite::memory: 自建表即覆盖真实写入路径）；
-//!    跨方言差异（如 PG 的 JSONB CHECK）不在锁定范围，如需真库回归由 ci-test-rust-ignored 补充。
+//! 3. 路线一（#4669 判责）：表结构唯一来源 = backend/migration。本文件不再自建 DDL：
+//!    真实写入路径全部打 `test_common::setup_test_db()`（已迁移 PostgreSQL + 清空业务表）；
+//!    "显式 null 拒绝必须先于任何 DB 访问"的负例改用 `connect_empty_schema_db()`
+//!    （已建库但未跑迁移的空 schema PG——若代码真的碰了 DB 会立刻报 DATABASE_ERROR，
+//!    前提比空 sqlite 表更硬）。跨方言差异（如 PG 的 JSONB CHECK）由真库天然覆盖。
+
+mod test_common;
 
 use bingxi_backend::handlers::{
     production_order_handler::{UpdateProductionOrderPayload, UpdateProgressRequest},
@@ -33,10 +38,7 @@ use bingxi_backend::services::outsourcing_service::{
 use bingxi_backend::services::production_order_service::UpdateProductionOrderRequest;
 use bingxi_backend::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ConnectionTrait, Database, DatabaseConnection, DbBackend, EntityTrait, Set,
-    Statement,
-};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
 use serde_json::json;
 use std::sync::Arc;
 
@@ -226,53 +228,16 @@ fn production_order_service_request_is_double_option_shaped() {
 }
 
 // =========================================================
-// B) 真实 service + sqlite::memory: 自建表：同一可空列三态各一断言 + NOT NULL 拒绝无痕
+// B) 真实 service + 已迁移 PostgreSQL 真表：同一可空列三态各一断言 + NOT NULL 拒绝无痕
 // =========================================================
 
-async fn sqlite_db() -> DatabaseConnection {
-    Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
+async fn live_db() -> DatabaseConnection {
+    test_common::setup_test_db().await
 }
 
-/// 自建 dye_recipe 表：列集严格对齐 models/dye_recipe.rs 的 Model 字段（实体全部列必须存在，
-/// 否则 find_by_id 的 SELECT 会因缺列报错）。自建表不加 PG 侧 CHECK/NOT NULL——
-/// 本测锁定的是代码层的三态与拒绝顺序，不是数据库约束本身。
-async fn create_dye_recipe_table(db: &DatabaseConnection) {
-    let stmt = Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE "dye_recipe" (
-            "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-            "recipe_no" TEXT NOT NULL,
-            "recipe_name" TEXT,
-            "color_no" TEXT,
-            "formula" TEXT,
-            "temperature" NUMERIC,
-            "time_minutes" INTEGER,
-            "status" TEXT,
-            "is_deleted" INTEGER,
-            "created_at" TEXT NOT NULL,
-            "updated_at" TEXT NOT NULL,
-            "color_code" TEXT,
-            "color_name" TEXT,
-            "fabric_type" TEXT,
-            "dye_type" TEXT,
-            "chemical_formula" TEXT,
-            "ph_value" NUMERIC,
-            "liquor_ratio" NUMERIC,
-            "auxiliaries" TEXT,
-            "version" INTEGER,
-            "parent_recipe_id" INTEGER,
-            "approved_by" INTEGER,
-            "approved_at" TEXT,
-            "remarks" TEXT,
-            "created_by" INTEGER
-        )"#,
-        Vec::<sea_orm::Value>::new(),
-    );
-    db.execute_raw(stmt).await.expect("自建 dye_recipe 表失败");
-}
-
+/// dye_recipe 种子行：列值严格满足真表约束（chk_dye_recipe_status 只认
+/// draft/pending_approval/approved/disabled，v15/mod.rs:4514-4523；
+/// recipe_name/color_code 为建表即 NOT NULL，m0003:27-35）。
 async fn seed_dye_recipe(db: &DatabaseConnection, recipe_no: &str) -> dye_recipe::Model {
     // created_at/updated_at 为 DateTimeWithTimeZone（models/dye_recipe.rs:42-43，
     // = DateTime<FixedOffset>，仓内惯用 `Utc::now().into()`，同 import_export_handler.rs:811）
@@ -292,8 +257,7 @@ async fn seed_dye_recipe(db: &DatabaseConnection, recipe_no: &str) -> dye_recipe
 
 #[tokio::test]
 async fn dye_recipe_remarks_full_tristate_on_same_nullable_column() {
-    let db = sqlite_db().await;
-    create_dye_recipe_table(&db).await;
+    let db = live_db().await;
     let seed = seed_dye_recipe(&db, "DR-TRISTATE-1").await;
     let service = DyeRecipeService::new(Arc::new(db.clone()));
 
@@ -347,8 +311,7 @@ async fn dye_recipe_remarks_full_tristate_on_same_nullable_column() {
 
 #[tokio::test]
 async fn dye_recipe_explicit_null_on_not_null_color_code_rejected_without_trace() {
-    let db = sqlite_db().await;
-    create_dye_recipe_table(&db).await;
+    let db = live_db().await;
     let seed = seed_dye_recipe(&db, "DR-REJECT-1").await;
     // 先给 remarks 落一个原值，验证拒绝发生在任何 DB 访问之前（同请求里的其他变更也不得生效）
     let service = DyeRecipeService::new(Arc::new(db.clone()));
@@ -391,8 +354,9 @@ async fn dye_recipe_explicit_null_on_not_null_color_code_rejected_without_trace(
 
 #[tokio::test]
 async fn outsourcing_order_not_null_explicit_null_rejected_before_any_db_access() {
-    // 空 sqlite 库（未建任何表）：若拒绝发生在 DB 访问之前，则得到业务错误而非数据库报错
-    let db = sqlite_db().await;
+    // 空 schema PG（已建库未跑迁移，无任何业务表）：若拒绝发生在 DB 访问之前，
+    // 则得到业务错误而非 DATABASE_ERROR——负前提交集见执行手册第 4 条（裁定 R3）。
+    let db = test_common::connect_empty_schema_db().await;
     let service = OutsourcingOrderService::new(Arc::new(db));
 
     let err = service

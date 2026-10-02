@@ -15,8 +15,9 @@
 //! 2. 审计：update_with_audit 以更新后回读模型生成 after_snapshot，清空列的快照为真实 NULL。
 //!
 //! 覆盖策略（对齐 contract_wave2_contract_no_and_remark_test.rs 范式）：
-//! - 非活库（sqlite::memory: / 纯 serde）：DTO 三态形状锁、NOT NULL 显式 null 的
-//!   service 级拒绝（拒绝在任何 DB 访问前返回，sqlite 可达）、handler 400 信封与文案外显。
+//! - 真 PostgreSQL 连接（connect_live_db，只连接不清空）/ 纯 serde：DTO 三态形状锁、
+//!   NOT NULL 显式 null 的 service 级拒绝（拒绝在任何 DB 访问前返回，连接对象仅构造
+//!   service 用）、handler 400 信封与文案外显。
 //! - `#[ignore]` 活库（TEST_DATABASE_URL→PG，CI job ci-test-rust-ignored 执行）：
 //!   update 全链路（lock_exclusive + update_with_audit 仅 PG 方言可跑）——
 //!   发 null 后 DB 回读为 NULL、不发键原值保持、审计快照反映真实值。
@@ -99,10 +100,11 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
+/// B/C 段拒绝路径在任何 DB 访问前返回，夹具仍必须给真 PostgreSQL 连接
+/// （本仓集成测试禁止 sqlite::memory: 回退——方言失真即假绿根）。
+/// 只连接不清空：用例不读写任何表。
+async fn live_db() -> DatabaseConnection {
+    test_common::connect_live_db().await
 }
 
 fn purchase_update_router(db: DatabaseConnection) -> Router {
@@ -224,12 +226,12 @@ fn department_update_dto_distinguishes_absent_null_and_value() {
 }
 
 // =========================================================
-// B) service 层 NOT NULL 显式 null 拒绝（sqlite 即可：拒绝在任何 DB 访问前返回）
+// B) service 层 NOT NULL 显式 null 拒绝（真 PG 连接但不触库：拒绝在任何 DB 访问前返回）
 // =========================================================
 
 #[tokio::test]
 async fn purchase_update_explicit_null_on_not_null_columns_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = live_db().await;
     let service = PurchaseContractService::new(Arc::new(db));
 
     let err = service
@@ -267,7 +269,7 @@ async fn purchase_update_explicit_null_on_not_null_columns_rejected_before_db() 
 
 #[tokio::test]
 async fn sales_update_explicit_null_on_not_null_columns_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = live_db().await;
     let service = SalesContractService::new(Arc::new(db));
 
     let err = service
@@ -305,7 +307,7 @@ async fn sales_update_explicit_null_on_not_null_columns_rejected_before_db() {
 
 #[tokio::test]
 async fn department_update_explicit_null_on_not_null_columns_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = live_db().await;
     let service = DepartmentService::new(Arc::new(db));
 
     for (field_desc, req) in [
@@ -358,7 +360,7 @@ async fn department_update_explicit_null_on_not_null_columns_rejected_before_db(
             },
         ),
     ] {
-        // 拒绝必须发生在任何 DB 访问前（sqlite 内存库无 departments 表也能得到业务错误，
+        // 拒绝必须发生在任何 DB 访问前（连接指向有完整 schema 的真 PG 也只会得到业务错误，
         // 若返回的不是 BusinessErrorDisplayable 而是 404/500 形态，即说明拒绝点放错了位置）
         let err = match service.update(999_999, 9101, req).await {
             Err(e) => e,
@@ -377,7 +379,7 @@ async fn department_update_explicit_null_on_not_null_columns_rejected_before_db(
 
 #[tokio::test]
 async fn purchase_put_null_contract_name_400_visible_message() {
-    let app = purchase_update_router(sqlite_db().await);
+    let app = purchase_update_router(live_db().await);
     let (status, v) = call(
         &app,
         Method::PUT,
@@ -396,7 +398,7 @@ async fn purchase_put_null_contract_name_400_visible_message() {
 
 #[tokio::test]
 async fn sales_put_null_customer_id_400_visible_message() {
-    let app = sales_update_router(sqlite_db().await);
+    let app = sales_update_router(live_db().await);
     let (status, v) = call(
         &app,
         Method::PUT,
@@ -417,8 +419,8 @@ async fn sales_put_null_customer_id_400_visible_message() {
 // D) 活库（PG）：三态全链路——发 null 后列回读为 NULL、不发键原值保持、审计反映真实值
 // =========================================================
 
-/// 活库用例的 PG 硬断言：TEST_DATABASE_URL 缺失时 setup_test_db 回退 sqlite，
-/// 必须显式炸红（条件跳过/静默 pass 是本仓定性的假绿根因）。
+/// 活库用例的 PG 硬断言：夹具已禁止 sqlite 回退（缺 TEST_DATABASE_URL 直接 panic），
+/// 此处再钉一次后端方言，条件跳过/静默 pass 是本仓定性的假绿根。
 async fn require_postgres(db: &DatabaseConnection) {
     assert_eq!(
         db.get_database_backend(),

@@ -17,10 +17,13 @@
 //!          update/delete_supplier_contact。
 //!
 //! 覆盖策略（对齐 contract_wave1_data_scope_idor_test.rs 范式）：
-//! - 非活库（sqlite::memory: 自建表）：DTO 形状锁、create remark 落库回读、
-//!   联系人门控 403/错配 400（mismatch 路径在 lock/audit 之前返回，sqlite 可达）。
+//! - 真 PostgreSQL（TEST_DATABASE_URL + 迁移建表，夹具清空业务表）：DTO 形状锁（serde 无 DB）、
+//!   create remark 落库回读、联系人门控 403/错配 400（mismatch 路径在 lock/audit 之前返回）。
+//!   suppliers 属迁移播种参照表**不清空**（m0015 已占 id 1/2），用例自建专属供应商行
+//!   （serial 发号 + 唯一编码）并按返回 id 断言；supplier_contacts 为业务表，TRUNCATE
+//!   RESTART IDENTITY 后显式 id=10 稳定。
 //! - `#[ignore]` 活库（TEST_DATABASE_URL→PG，CI job ci-test-rust-ignored 执行）：
-//!   update 全链路（lock_exclusive + update_with_audit 仅 PG 方言可跑）——
+//!   update 全链路（lock_exclusive + update_with_audit）——
 //!   编号重复请求被忽略且零 500、remark update 覆写回读、联系人删除错配 400/owner 200。
 
 mod test_common;
@@ -51,10 +54,7 @@ use bingxi_backend::services::supplier_service::{
 use bingxi_backend::utils::error::AppError;
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DatabaseConnection, DbBackend,
-    EntityTrait, Statement,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -101,119 +101,8 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-/// suppliers 表：列集合与 `models/supplier.rs` 的 Model 字段一一对应
-/// （SeaORM find_by_id 按实体列清单 SELECT，缺列即 no such column）
-async fn create_suppliers_table(db: &DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE suppliers (
-            id INTEGER PRIMARY KEY, supplier_code TEXT, supplier_name TEXT,
-            supplier_short_name TEXT, supplier_type TEXT, credit_code TEXT,
-            registered_address TEXT, business_address TEXT, legal_representative TEXT,
-            registered_capital TEXT, establishment_date TEXT, business_term TEXT,
-            business_scope TEXT, taxpayer_type TEXT, bank_name TEXT, bank_account TEXT,
-            contact_person TEXT, contact_phone TEXT, fax TEXT, website TEXT,
-            contact_email TEXT, main_business TEXT, main_market TEXT,
-            employee_count INTEGER, annual_revenue TEXT, grade TEXT, grade_score TEXT,
-            last_evaluation_date TEXT, status TEXT, is_enabled INTEGER,
-            assist_batch INTEGER, assist_supplier INTEGER, created_at TEXT, updated_at TEXT,
-            created_by INTEGER, department_id INTEGER, updated_by INTEGER,
-            remarks TEXT, category_id INTEGER, is_processor INTEGER, processor_type TEXT
-        )"#,
-    )
-    .await;
-}
-
-/// supplier_contacts 表：列与 `models/supplier_contact.rs` 对齐
-async fn create_supplier_contacts_table(db: &DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE supplier_contacts (
-            id INTEGER PRIMARY KEY, supplier_id INTEGER, contact_name TEXT,
-            department TEXT, position TEXT, mobile_phone TEXT, tel_phone TEXT,
-            email TEXT, wechat TEXT, qq TEXT, is_primary INTEGER, remarks TEXT,
-            created_at TEXT, updated_at TEXT
-        )"#,
-    )
-    .await;
-}
-
-/// sales_contracts 表：列与 `models/sales_contract.rs` 对齐，
-/// remark 列镜像 m0016 迁移补列（表里没有该列时 create 的 INSERT 即报错——
-/// 这正是"模型列 ↔ 迁移列"漂移的本体测试）
-async fn create_sales_contracts_table(db: &DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE sales_contracts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, contract_no TEXT NOT NULL UNIQUE,
-            contract_name TEXT, contract_type TEXT, customer_id INTEGER,
-            customer_name TEXT, total_amount TEXT, signed_date TEXT,
-            effective_date TEXT, expiry_date TEXT, payment_terms TEXT,
-            payment_method TEXT, delivery_date TEXT, delivery_location TEXT,
-            remark TEXT, status TEXT NOT NULL DEFAULT 'draft', created_by INTEGER,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            signed_at TEXT, signed_by_user_id INTEGER, signature_hash TEXT,
-            signature_image_url TEXT, signature_certificate TEXT, quality_terms TEXT,
-            breach_liability TEXT, dispute_resolution TEXT, performance_period TEXT,
-            stamp_tax_amount TEXT
-        )"#,
-    )
-    .await;
-}
-
-/// purchase_contracts 表：列与 `models/purchase_contract.rs` 对齐（含 m0016 的 remark）
-async fn create_purchase_contracts_table(db: &DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE purchase_contracts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, contract_no TEXT NOT NULL UNIQUE,
-            contract_name TEXT, contract_type TEXT, supplier_id INTEGER,
-            supplier_name TEXT, total_amount TEXT, signed_date TEXT,
-            effective_date TEXT, expiry_date TEXT, payment_terms TEXT,
-            payment_method TEXT, delivery_date TEXT, delivery_location TEXT,
-            remark TEXT, status TEXT NOT NULL DEFAULT 'draft', created_by INTEGER,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )"#,
-    )
-    .await;
-}
-
-/// customers 表：列与 `models/customer.rs` 对齐（sales create 校验客户存在）
-async fn create_customers_table(db: &DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE customers (
-            id INTEGER PRIMARY KEY, customer_code TEXT, customer_name TEXT,
-            contact_person TEXT, contact_phone TEXT, contact_email TEXT,
-            address TEXT, city TEXT, province TEXT, country TEXT, postal_code TEXT,
-            credit_limit TEXT, payment_terms INTEGER, tax_id TEXT, bank_name TEXT,
-            bank_account TEXT, status TEXT, customer_type TEXT, notes TEXT,
-            created_by INTEGER, created_at TEXT, updated_at TEXT,
-            customer_industry TEXT, main_products TEXT, annual_purchase TEXT,
-            quality_requirement TEXT, inspection_standard TEXT, owner_id INTEGER,
-            department_id INTEGER, owner_assigned_at TEXT, special_process TEXT,
-            source TEXT, pool_recycle_reason TEXT
-        )"#,
-    )
-    .await;
+async fn seeded_db() -> DatabaseConnection {
+    test_common::setup_test_db().await
 }
 
 async fn seed_customer(db: &DatabaseConnection) -> i32 {
@@ -235,13 +124,18 @@ async fn seed_customer(db: &DatabaseConnection) -> i32 {
     c.id
 }
 
-/// seed 供应商 id=1 created_by=9101（owner）、id=2 created_by=9102（另一 owner）
-async fn seed_two_suppliers(db: &DatabaseConnection) {
-    for (sid, owner) in [(1i32, 9101i32), (2, 9102)] {
-        supplier::ActiveModel {
-            id: Set(sid),
-            supplier_code: Set(format!("SUP-W2-{sid:03}")),
-            supplier_name: Set(format!("合同波次供应商{sid}")),
+/// suppliers 为迁移播种参照表（不清空、m0015 已占 id 1/2）：用例自建专属行，
+/// 编码带纳秒后缀避开 supplier_code UNIQUE 与存量/其他用例冲突。
+/// 返回 (owner=9101 的供应商 id, owner=9102 的供应商 id)
+async fn seed_two_suppliers(db: &DatabaseConnection) -> (i32, i32) {
+    let suffix = Utc::now().timestamp_nanos_opt().expect(
+        "测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达",
+    );
+    let mut ids = Vec::new();
+    for (n, owner) in [(1i32, 9101i32), (2, 9102)] {
+        let s = supplier::ActiveModel {
+            supplier_code: Set(format!("SUP-W2-{suffix}-{n}")),
+            supplier_name: Set(format!("合同波次供应商{suffix}-{n}")),
             supplier_short_name: Set(String::new()),
             supplier_type: Set("普通供应商".to_string()),
             credit_code: Set(String::new()),
@@ -265,15 +159,18 @@ async fn seed_two_suppliers(db: &DatabaseConnection) {
         .insert(db)
         .await
         .unwrap();
+        ids.push(s.id);
     }
+    (ids[0], ids[1])
 }
 
-/// seed 联系人 id=10，归属供应商 1
-async fn seed_contact_under_supplier_1(db: &DatabaseConnection) {
+/// seed 联系人 id=10（supplier_contacts 是业务表，TRUNCATE RESTART IDENTITY 后显式 id 稳定），
+/// 归属指定供应商
+async fn seed_contact_under_supplier(db: &DatabaseConnection, supplier_id: i32) {
     let now = Utc::now();
     supplier_contact::ActiveModel {
         id: Set(10),
-        supplier_id: Set(1),
+        supplier_id: Set(supplier_id),
         contact_name: Set("主联系人".to_string()),
         mobile_phone: Set("13800000000".to_string()),
         is_primary: Set(true),
@@ -364,21 +261,19 @@ fn create_dtos_still_carry_contract_no_and_remark() {
 }
 
 // =========================================================
-// B) sqlite：create 的 remark 真实落库并回读非 NULL
+// B) 真 PG：create 的 remark 真实落库并回读非 NULL
 // =========================================================
 
 #[tokio::test]
 async fn sales_create_persists_remark_and_reads_back() {
-    let db = sqlite_db().await;
-    create_customers_table(&db).await;
-    create_sales_contracts_table(&db).await;
+    let db = seeded_db().await;
     let cid = seed_customer(&db).await;
 
     let service = SalesContractService::new(Arc::new(db.clone()));
     let created = service
         .create(
             CreateSalesContractRequest {
-                contract_no: "SC-W2-SQLITE-001".to_string(),
+                contract_no: "SC-W2-PG-001".to_string(),
                 contract_name: "备注落库验证".to_string(),
                 customer_id: cid,
                 total_amount: Decimal::from(100),
@@ -410,18 +305,16 @@ async fn sales_create_persists_remark_and_reads_back() {
 
 #[tokio::test]
 async fn purchase_create_persists_remark_and_reads_back() {
-    let db = sqlite_db().await;
-    create_suppliers_table(&db).await;
-    create_purchase_contracts_table(&db).await;
-    seed_two_suppliers(&db).await;
+    let db = seeded_db().await;
+    let (sup1, _sup2) = seed_two_suppliers(&db).await;
 
     let service = PurchaseContractService::new(Arc::new(db.clone()));
     let created = service
         .create(
             CreateContractRequest {
-                contract_no: "PC-W2-SQLITE-001".to_string(),
+                contract_no: "PC-W2-PG-001".to_string(),
                 contract_name: "采购备注落库验证".to_string(),
-                supplier_id: 1,
+                supplier_id: sup1,
                 total_amount: Decimal::from(200),
                 contract_type: None,
                 payment_terms: None,
@@ -448,23 +341,33 @@ async fn purchase_create_persists_remark_and_reads_back() {
 }
 
 // =========================================================
-// C) sqlite：供应商联系人门控（父归属 403 + 双键错配可见业务错误）
+// C) 真 PG：供应商联系人门控（父归属 403 + 双键错配可见业务错误）
 // =========================================================
 
-async fn seeded_contacts_app(viewer: i32) -> Router {
-    let db = sqlite_db().await;
-    create_suppliers_table(&db).await;
-    create_supplier_contacts_table(&db).await;
-    seed_two_suppliers(&db).await;
-    seed_contact_under_supplier_1(&db).await;
-    supplier_contacts_router(db, make_scope_auth(viewer, Some("self")))
+/// 播种并组装联系人路由；返回 (router, 供应商1[owner 9101], 供应商2[owner 9102])，
+/// 供应商 id 来自真表发号（suppliers 参照表不清空，不能假设固定 id）
+async fn seeded_contacts_app(viewer: i32) -> (Router, i32, i32) {
+    let db = seeded_db().await;
+    let (sup1, sup2) = seed_two_suppliers(&db).await;
+    seed_contact_under_supplier(&db, sup1).await;
+    (
+        supplier_contacts_router(db, make_scope_auth(viewer, Some("self"))),
+        sup1,
+        sup2,
+    )
 }
 
 /// 非父供应商 owner（self 范围）列他人联系人 → 403（修复前：无 AuthContext，任意枚举）
 #[tokio::test]
 async fn contacts_list_non_owner_403() {
-    let app = seeded_contacts_app(9102).await;
-    let (status, v) = call(&app, Method::GET, "/suppliers/1/contacts", None).await;
+    let (app, sup1, _sup2) = seeded_contacts_app(9102).await;
+    let (status, v) = call(
+        &app,
+        Method::GET,
+        &format!("/suppliers/{sup1}/contacts"),
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "实际: {v}");
     assert_eq!(v["code"], "FORBIDDEN");
 }
@@ -472,8 +375,14 @@ async fn contacts_list_non_owner_403() {
 /// owner 列自家联系人 → 200 且真实返回行（防止把门控修成一律 403）
 #[tokio::test]
 async fn contacts_list_owner_200_real_rows() {
-    let app = seeded_contacts_app(9101).await;
-    let (status, v) = call(&app, Method::GET, "/suppliers/1/contacts", None).await;
+    let (app, sup1, _sup2) = seeded_contacts_app(9101).await;
+    let (status, v) = call(
+        &app,
+        Method::GET,
+        &format!("/suppliers/{sup1}/contacts"),
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "实际: {v}");
     assert_eq!(v["data"].as_array().unwrap().len(), 1);
     assert_eq!(v["data"][0]["id"], 10);
@@ -482,7 +391,7 @@ async fn contacts_list_owner_200_real_rows() {
 /// 父供应商不存在 → 404（门控经 get_supplier 如实上抛）
 #[tokio::test]
 async fn contacts_list_missing_supplier_404() {
-    let app = seeded_contacts_app(9101).await;
+    let (app, _sup1, _sup2) = seeded_contacts_app(9101).await;
     let (status, v) = call(&app, Method::GET, "/suppliers/999/contacts", None).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "实际: {v}");
     assert_eq!(v["code"], "NOT_FOUND");
@@ -492,11 +401,11 @@ async fn contacts_list_missing_supplier_404() {
 /// 父门控通过、service 归属校验拒绝，400 + 用户可见文案（不得脱敏成"业务处理失败"、不得 500）
 #[tokio::test]
 async fn contacts_update_mismatched_pair_400_visible_message() {
-    let app = seeded_contacts_app(9102).await;
+    let (app, _sup1, sup2) = seeded_contacts_app(9102).await;
     let (status, v) = call(
         &app,
         Method::PUT,
-        "/suppliers/2/contacts/10",
+        &format!("/suppliers/{sup2}/contacts/10"),
         Some(json!({ "contact_name": "越权改名" })),
     )
     .await;
@@ -515,14 +424,14 @@ async fn contacts_update_mismatched_pair_400_visible_message() {
 /// service 单键直调也必须拒绝错配（门控在 handler 之外的第二道防线）
 #[tokio::test]
 async fn contact_update_service_level_mismatch_rejected() {
-    let db = sqlite_db().await;
-    create_supplier_contacts_table(&db).await;
-    seed_contact_under_supplier_1(&db).await;
+    let db = seeded_db().await;
+    let (sup1, sup2) = seed_two_suppliers(&db).await;
+    seed_contact_under_supplier(&db, sup1).await;
 
     let service = SupplierService::new(Arc::new(db.clone()));
     let err = service
         .update_supplier_contact(
-            2,
+            sup2,
             10,
             UpdateContactRequest {
                 contact_name: Some("越权改名".to_string()),

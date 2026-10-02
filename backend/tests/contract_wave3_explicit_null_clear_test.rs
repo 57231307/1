@@ -25,17 +25,21 @@
 //!    - PUT /purchase/returns/{id}（reason_type/reason_detail/notes 全部可空）
 //!    - PUT /purchase/returns/{id}/items/{item_id}（notes 可空）
 //!
-//! 覆盖策略（对齐 wave2 / po_item_update_fields 先例，无 mock）：
+//! 覆盖策略（路线一：统一真库 PostgreSQL，对齐 wave2 / po_item_update_fields 先例，无 mock）：
 //! - 纯 serde：DTO 三态形状锁（缺席=None / null=Some(None) / 有值=Some(Some(v))）；
-//! - 非活库（sqlite::memory:）：NOT NULL 显式 null 的 service 级拒绝（拒绝在任何 DB
-//!   访问前返回，空表也得到业务错误）、handler 400 信封与文案外显、
-//!   **自建表 + 真实 service/handler 的三态回环**（库存 update_batch_fields、
-//!   仓储 update_location、退货 update_return——三者均不触行锁，sqlite 可跑）；
-//! - `#[ignore]` 活库（TEST_DATABASE_URL→PG，由 ci-test-rust-ignored 执行）：
-//!   收货 update_receipt 全链（服务链对 purchase_receipt 加 `lock_exclusive()`，
-//!   sqlite 方言不支持行锁——先例原话，不得伪装成 sqlite 用例）。
+//! - 已迁移真库（`test_common::setup_test_db()`，业务表 TRUNCATE 后为空）：
+//!   NOT NULL 显式 null 的 service 级拒绝（拒绝在任何 DB 访问前返回，空表也得到业务错误）、
+//!   handler 400 信封与文案外显、**真实表 + 真实 service/handler 的三态回环**
+//!   （库存 update_batch_fields、仓储 update_location、退货 update_return、
+//!   调拨明细 update_item——FK 前置由用例自种子 warehouses/products 提供，
+//!   不再自建 sqlite 同构 DDL——同构 DDL 与真表列型漂移正是 CI #4669 约 130 例
+//!   ColumnDecode 红的根因）；
+//! - 收货 update_receipt 全链（服务链对 purchase_receipt 加 `lock_exclusive()`）
+//!   与其余回环同通道执行：真库即生产方言，行锁/审计链全部真实触发，
+//!   不再需要 `#[ignore]` 活库分桶。
 
 mod test_common;
+use test_common::setup_test_db;
 
 use axum::{
     Router,
@@ -139,20 +143,30 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
+async fn exec_pg(db: &DatabaseConnection, sql: &str) {
+    db.execute_raw(Statement::from_string(DbBackend::Postgres, sql.to_string()))
         .await
-        .expect("sqlite::memory: 连接失败")
+        .unwrap_or_else(|e| panic!("真库种子执行失败: {e}\nSQL: {sql}"));
 }
 
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::<sea_orm::Value>::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
+/// FK 前置种子：warehouses（inventory_stocks/inventory_transfers/warehouse_locations/
+/// purchase_receipt 多条真表 FK 的指向表）与 products（inventory_stocks FK）。
+/// warehouses/products 都是业务表、夹具 TRUNCATE 后为空，必须用例自建。
+async fn seed_warehouses_and_products(db: &DatabaseConnection) {
+    exec_pg(
+        db,
+        r#"INSERT INTO warehouses (id, name, warehouse_code, is_active)
+           VALUES (1, '波3三态锁主仓', 'W3-EPC-W1', true),
+                  (2, '波3三态锁目标仓', 'W3-EPC-W2', true)"#,
+    )
+    .await;
+    exec_pg(
+        db,
+        r#"INSERT INTO products (id, code, name)
+           VALUES (2, 'W3-EPC-P2', '波3三态锁库存产品'),
+                  (5, 'W3-EPC-P5', '波3三态锁调拨产品')"#,
+    )
+    .await;
 }
 
 fn batch_service_router(db: DatabaseConnection) -> Router {
@@ -488,7 +502,7 @@ fn receipt_and_purchase_return_dto_distinguish_absent_null_and_value() {
 }
 
 // =========================================================
-// B) service 层 NOT NULL 显式 null 拒绝（sqlite 空库即可：拒绝在任何 DB 访问前返回）
+// B) service 层 NOT NULL 显式 null 拒绝（真库空业务表即可：拒绝在任何 DB 访问前返回）
 // =========================================================
 
 fn expect_cleared_business_error(err: AppError, keyword: &str, field: &str) {
@@ -500,7 +514,7 @@ fn expect_cleared_business_error(err: AppError, keyword: &str, field: &str) {
 
 #[tokio::test]
 async fn adjustment_explicit_null_on_not_null_columns_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = setup_test_db().await;
     let service = InventoryAdjustmentService::new(Arc::new(db));
     let cases = [
         (
@@ -547,7 +561,7 @@ async fn adjustment_explicit_null_on_not_null_columns_rejected_before_db() {
 
 #[tokio::test]
 async fn batch_explicit_null_on_not_null_columns_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = setup_test_db().await;
     let service = InventoryStockService::new(Arc::new(db));
     let err = service
         .update_batch_fields(
@@ -584,7 +598,7 @@ async fn batch_explicit_null_on_not_null_columns_rejected_before_db() {
 
 #[tokio::test]
 async fn stock_handler_explicit_null_on_not_null_columns_rejected_before_db() {
-    let app = stock_router(sqlite_db().await);
+    let app = stock_router(setup_test_db().await);
     let (status, v) = call(
         &app,
         Method::PUT,
@@ -603,7 +617,7 @@ async fn stock_handler_explicit_null_on_not_null_columns_rejected_before_db() {
 
 #[tokio::test]
 async fn warehouse_explicit_null_on_not_null_columns_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = setup_test_db().await;
     let service = WarehouseService::new(Arc::new(db));
     let mk = |name, is_default, status| warehouse_handler::UpdateWarehouseRequest {
         name,
@@ -636,7 +650,7 @@ async fn warehouse_explicit_null_on_not_null_columns_rejected_before_db() {
 
 #[tokio::test]
 async fn location_handler_explicit_null_on_not_null_columns_rejected_before_db() {
-    let app = location_router(sqlite_db().await);
+    let app = location_router(setup_test_db().await);
     let (status, v) = call(
         &app,
         Method::PUT,
@@ -651,7 +665,7 @@ async fn location_handler_explicit_null_on_not_null_columns_rejected_before_db()
 
 #[tokio::test]
 async fn count_and_transfer_explicit_null_on_not_null_columns_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = setup_test_db().await;
     let count_service = InventoryCountService::new(Arc::new(db.clone()));
     let err = count_service
         .update_count(
@@ -685,8 +699,8 @@ async fn count_and_transfer_explicit_null_on_not_null_columns_rejected_before_db
 #[tokio::test]
 async fn count_item_explicit_null_on_not_null_quantity_rejected_before_db() {
     // 盘点明细 quantity_actual 为 NOT NULL 列（inventory_count_item 模型非 Option Decimal）：
-    // 显式 null 必须在任何 DB 访问前（含 begin 事务）被拒——空表 sqlite 亦得业务错误
-    let db = sqlite_db().await;
+    // 显式 null 必须在任何 DB 访问前（含 begin 事务）被拒——空业务表亦得业务错误
+    let db = setup_test_db().await;
     let service = InventoryCountService::new(Arc::new(db));
     let err = service
         .update_count_item(999_999, Some(None), None)
@@ -697,7 +711,7 @@ async fn count_item_explicit_null_on_not_null_quantity_rejected_before_db() {
 
 #[tokio::test]
 async fn sales_return_header_and_item_explicit_null_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = setup_test_db().await;
     let service = SalesReturnService::new(Arc::new(db));
     let mk = |customer_id, return_date, warehouse_id, reason_type| UpdateSalesReturnRequest {
         order_id: None,
@@ -771,7 +785,7 @@ async fn sales_return_header_and_item_explicit_null_rejected_before_db() {
 
 #[tokio::test]
 async fn receipt_header_and_item_explicit_null_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = setup_test_db().await;
     let service = PurchaseReceiptService::new(Arc::new(db));
     let err = service
         .update_receipt(
@@ -826,7 +840,7 @@ async fn receipt_header_and_item_explicit_null_rejected_before_db() {
 
 #[tokio::test]
 async fn purchase_return_item_explicit_null_on_not_null_columns_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = setup_test_db().await;
     let service = PurchaseReturnService::new(Arc::new(db));
     let mk = |line_no,
               material_id,
@@ -906,7 +920,7 @@ async fn purchase_return_item_explicit_null_on_not_null_columns_rejected_before_
 
 #[tokio::test]
 async fn batch_handler_put_null_color_no_400_visible_message() {
-    let app = batch_service_router(sqlite_db().await);
+    let app = batch_service_router(setup_test_db().await);
     let (status, v) = call(
         &app,
         Method::PUT,
@@ -925,7 +939,7 @@ async fn batch_handler_put_null_color_no_400_visible_message() {
 
 #[tokio::test]
 async fn transfer_item_explicit_null_on_not_null_columns_rejected_before_db() {
-    let db = sqlite_db().await;
+    let db = setup_test_db().await;
     let service = InventoryTransferService::new(Arc::new(db));
     let mk = |product_id, quantity, color_no, batch_no| UpdateInventoryTransferItemRequest {
         product_id,
@@ -960,27 +974,9 @@ async fn transfer_item_explicit_null_on_not_null_columns_rejected_before_db() {
 }
 
 // =========================================================
-// C) sqlite::memory: 自建表 + 真实 service/handler 的三态回环
+// C) 真库真实表 + 真实 service/handler 的三态回环
 //    （同一列三态各一断言：省略=保持 / null=落 NULL / 有值=覆盖）
 // =========================================================
-
-/// inventory_stocks 全列最小 DDL（列与 `models/inventory_stock.rs::Model` 逐列对应，
-/// Decimal 列用 TEXT、bool 用 INTEGER——先例形态）
-const INVENTORY_STOCKS_DDL: &str = r#"CREATE TABLE inventory_stocks (
-    id INTEGER PRIMARY KEY,
-    warehouse_id INTEGER, product_id INTEGER,
-    quantity_on_hand TEXT, quantity_available TEXT, quantity_reserved TEXT,
-    quantity_shipped TEXT, quantity_incoming TEXT,
-    reorder_point TEXT, max_stock_point TEXT, reorder_quantity TEXT,
-    bin_location TEXT, last_count_date TEXT, last_movement_date TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    batch_no TEXT, color_no TEXT, dye_lot_no TEXT, grade TEXT,
-    production_date TEXT, expiry_date TEXT,
-    quantity_meters TEXT, quantity_kg TEXT, gram_weight TEXT, width TEXT,
-    location_id INTEGER, shelf_no TEXT, layer_no TEXT,
-    stock_status TEXT, quality_status TEXT,
-    version INTEGER, replenishment_strategy TEXT
-)"#;
 
 async fn seed_stock(db: &DatabaseConnection) -> inventory_stock::Model {
     inventory_stock::ActiveModel {
@@ -1018,9 +1014,9 @@ async fn seed_stock(db: &DatabaseConnection) -> inventory_stock::Model {
 
 /// 库存域（批次编辑）：dye_lot_no 同一列三态各一断言 + gram_weight/expiry_date 覆盖与清空
 #[tokio::test]
-async fn inventory_batch_update_tri_state_roundtrip_on_sqlite() {
-    let db = sqlite_db().await;
-    exec(&db, INVENTORY_STOCKS_DDL).await;
+async fn inventory_batch_update_tri_state_roundtrip_on_postgres() {
+    let db = setup_test_db().await;
+    seed_warehouses_and_products(&db).await;
     let stock = seed_stock(&db).await;
     let service = InventoryStockService::new(Arc::new(db.clone()));
 
@@ -1101,15 +1097,7 @@ async fn inventory_batch_update_tri_state_roundtrip_on_sqlite() {
     assert_eq!(reread.color_no, "C001", "缺席的 NOT NULL 列全程未动");
 }
 
-/// warehouse_locations 全列（列与 `models/location.rs::Model` 逐列对应）
-const WAREHOUSE_LOCATIONS_DDL: &str = r#"CREATE TABLE warehouse_locations (
-    id INTEGER PRIMARY KEY,
-    warehouse_id INTEGER NOT NULL, location_code TEXT NOT NULL,
-    location_type TEXT, max_weight TEXT, max_height TEXT,
-    is_batch_managed INTEGER, is_color_managed INTEGER,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
+/// warehouse_locations 由迁移 m0010 建表（FK→warehouses），不再自建 DDL
 async fn seed_location(db: &DatabaseConnection) -> location::Model {
     location::ActiveModel {
         warehouse_id: Set(1),
@@ -1130,9 +1118,9 @@ async fn seed_location(db: &DatabaseConnection) -> location::Model {
 
 /// 仓储域（库位编辑）：location_type 同一列三态各一断言（真实 handler PUT）
 #[tokio::test]
-async fn warehouse_location_update_tri_state_roundtrip_on_sqlite() {
-    let db = sqlite_db().await;
-    exec(&db, WAREHOUSE_LOCATIONS_DDL).await;
+async fn warehouse_location_update_tri_state_roundtrip_on_postgres() {
+    let db = setup_test_db().await;
+    seed_warehouses_and_products(&db).await;
     let created = seed_location(&db).await;
     let id = created.id;
     let app = location_router(db.clone());
@@ -1203,57 +1191,12 @@ async fn warehouse_location_update_tri_state_roundtrip_on_sqlite() {
 }
 
 /// 退货域（采购退货单头）：reason_detail 同一列三态各一断言（真实 service 调用；
-/// update_return 不加行锁，sqlite 可跑全链）
+/// update_return 不加行锁，真库全链可跑）
 #[tokio::test]
-async fn purchase_return_header_update_tri_state_roundtrip_on_sqlite() {
-    let db = sqlite_db().await;
-    exec(
-        &db,
-        r#"CREATE TABLE purchase_return (
-            id INTEGER PRIMARY KEY,
-            return_no TEXT NOT NULL, receipt_id INTEGER, order_id INTEGER,
-            supplier_id INTEGER NOT NULL, return_date TEXT NOT NULL,
-            warehouse_id INTEGER, department_id INTEGER,
-            reason_type TEXT, reason_detail TEXT, return_status TEXT,
-            total_quantity TEXT, total_quantity_alt TEXT, total_amount TEXT,
-            notes TEXT, created_by INTEGER, created_at TEXT NOT NULL,
-            updated_by INTEGER, updated_at TEXT NOT NULL,
-            approved_by INTEGER, approved_at TEXT, rejected_reason TEXT
-        )"#,
-    )
-    .await;
-    // update_with_audit 依赖 users（fetch_username）与 audit_logs（落审计行）——
-    // 列集与先例 contract_wave2_po_item_update_fields_test.rs 逐列一致
-    exec(
-        &db,
-        r#"CREATE TABLE users (
-            id INTEGER PRIMARY KEY,
-            username TEXT NOT NULL, password_hash TEXT NOT NULL,
-            real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-            role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-            totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-            last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-            gender TEXT, birth_date TEXT
-        )"#,
-    )
-    .await;
-    exec(
-        &db,
-        r#"CREATE TABLE audit_logs (
-            id INTEGER PRIMARY KEY,
-            user_id INTEGER, username TEXT, action TEXT NOT NULL,
-            resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-            ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-            request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-            old_value TEXT, new_value TEXT, created_at TEXT,
-            operation_type TEXT, severity TEXT, request_id TEXT,
-            before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-            export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-            export_approval_token TEXT, export_watermark_user TEXT
-        )"#,
-    )
-    .await;
+async fn purchase_return_header_update_tri_state_roundtrip_on_postgres() {
+    let db = setup_test_db().await;
+    // purchase_return / users / audit_logs 均为迁移产出的真表（update_with_audit 依赖
+    // users（fetch_username）与 audit_logs（落审计行），夹具 TRUNCATE 后为空表即可）
     let created = purchase_return::ActiveModel {
         return_no: Set("PR-W3-001".to_string()),
         supplier_id: Set(1),
@@ -1360,8 +1303,8 @@ async fn purchase_return_header_update_tri_state_roundtrip_on_sqlite() {
 #[tokio::test]
 async fn explicit_null_on_not_null_rejected_and_sibling_fields_not_persisted() {
     // 批次编辑（service 直调）：color_no(null) + gram_weight(999.0) 同请求 → 整体拒绝
-    let db = sqlite_db().await;
-    exec(&db, INVENTORY_STOCKS_DDL).await;
+    let db = setup_test_db().await;
+    seed_warehouses_and_products(&db).await;
     let stock = seed_stock(&db).await;
     let service = InventoryStockService::new(Arc::new(db.clone()));
     let err = service
@@ -1392,8 +1335,8 @@ async fn explicit_null_on_not_null_rejected_and_sibling_fields_not_persisted() {
     assert_eq!(reread.color_no, "C001");
 
     // 库位编辑（真实 handler PUT）：location_code(null) + location_type 同请求 → 400 且不动列
-    let db2 = sqlite_db().await;
-    exec(&db2, WAREHOUSE_LOCATIONS_DDL).await;
+    let db2 = setup_test_db().await;
+    seed_warehouses_and_products(&db2).await;
     let row = seed_location(&db2).await;
     let app = location_router(db2.clone());
     let (status, v) = call(
@@ -1423,25 +1366,8 @@ async fn explicit_null_on_not_null_rejected_and_sibling_fields_not_persisted() {
 // C3) 调拨明细（PUT /inventory/transfers/items/{item_id}）三态回环
 // =========================================================
 
-const INVENTORY_TRANSFERS_DDL: &str = r#"CREATE TABLE inventory_transfers (
-    id INTEGER PRIMARY KEY,
-    transfer_no TEXT NOT NULL, from_warehouse_id INTEGER NOT NULL,
-    to_warehouse_id INTEGER NOT NULL, transfer_date TEXT NOT NULL,
-    status TEXT NOT NULL, total_quantity TEXT, notes TEXT,
-    created_by INTEGER, approved_by INTEGER, approved_at TEXT,
-    shipped_at TEXT, received_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    approval_level TEXT, approved_by_role TEXT, total_amount TEXT
-)"#;
-
-const INVENTORY_TRANSFER_ITEMS_DDL: &str = r#"CREATE TABLE inventory_transfer_items (
-    id INTEGER PRIMARY KEY, transfer_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-    quantity TEXT NOT NULL, shipped_quantity TEXT, received_quantity TEXT,
-    unit_cost TEXT, notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    color_no TEXT NOT NULL, dye_lot_no TEXT, batch_no TEXT NOT NULL
-)"#;
-
-/// 染色布调拨单 + 一条明细（notes/unit_cost/dye_lot_no 均预置非 NULL 值）
+/// inventory_transfers / inventory_transfer_items 由迁移 m0001 建表
+/// （FK：from/to_warehouse→warehouses；items→transfers），不再自建 DDL。
 async fn seed_transfer_with_item(
     db: &DatabaseConnection,
 ) -> (inventory_transfer::Model, inventory_transfer_item::Model) {
@@ -1483,13 +1409,12 @@ async fn seed_transfer_with_item(
 }
 
 /// 调拨明细 update 三态回环：可空列（notes/unit_cost/dye_lot_no）缺席保持 / null 清空 /
-/// 有值覆盖全部经真实 service + sqlite 回读；染色布行的缸号清空受四维追溯不变量拒绝
+/// 有值覆盖全部经真实 service + 真库回读；染色布行的缸号清空受四维追溯不变量拒绝
 /// 且不产生部分写（DTO 声明的 unit_cost/追溯列在旧实现里被整体丢弃，属"假保存"缺陷）
 #[tokio::test]
-async fn transfer_item_update_tri_state_roundtrip_on_sqlite() {
-    let db = sqlite_db().await;
-    exec(&db, INVENTORY_TRANSFERS_DDL).await;
-    exec(&db, INVENTORY_TRANSFER_ITEMS_DDL).await;
+async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
+    let db = setup_test_db().await;
+    seed_warehouses_and_products(&db).await;
     let (_, seeded) = seed_transfer_with_item(&db).await;
     let item_id = seeded.id;
     let service = InventoryTransferService::new(Arc::new(db.clone()));
@@ -1591,26 +1516,29 @@ async fn transfer_item_update_tri_state_roundtrip_on_sqlite() {
 }
 
 // =========================================================
-// D) 活库（PG）：收货链路三态全链（update_receipt 服务链 lock_exclusive，
-//    sqlite 方言不支持行锁——不得伪装成 sqlite 用例）
+// D) 收货链路三态全链（update_receipt 服务链 lock_exclusive + update_with_audit，
+//    路线一真库通道上与其余回环同桶执行，生产方言真实触发）
 // =========================================================
 
-/// 活库用例的 PG 硬断言：TEST_DATABASE_URL 缺失时 setup_test_db 回退 sqlite，
-/// 必须显式炸红（条件跳过/静默 pass 是本仓定性的假绿根因）。
+/// 真库硬前提自检：夹具契约要求 TEST_DATABASE_URL → 已迁移 PostgreSQL，
+/// 缺变量/指 sqlite 由 setup_test_db 直接 panic；此处再显式锁一次方言，
+/// 防止未来有人把夹具改回静默回退（条件跳过/静默 pass 是本仓定性的假绿根因）。
 async fn require_postgres(db: &DatabaseConnection) {
     assert_eq!(
         db.get_database_backend(),
         DbBackend::Postgres,
-        "本用例必须跑在已迁移的 PostgreSQL（TEST_DATABASE_URL）上，由 ci-test-rust-ignored 执行；禁止 sqlite 回退假绿"
+        "本用例必须跑在已迁移的 PostgreSQL（TEST_DATABASE_URL）上；禁止 sqlite 回退假绿"
     );
 }
 
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（update_receipt 走 lock_exclusive + update_with_audit）"]
 async fn live_receipt_update_null_clears_nullable_and_absent_keeps() {
     use bingxi_backend::models::purchase_receipt;
     let db = test_common::setup_test_db().await;
     require_postgres(&db).await;
+    // FK 前置：purchase_receipt.warehouse_id → warehouses（业务表，TRUNCATE 后需自种）；
+    // supplier_id=1 由迁移 m0015 播种（sealed 参照表，不清空）
+    seed_warehouses_and_products(&db).await;
     let suffix = Utc::now().timestamp_nanos_opt().unwrap();
 
     let created = purchase_receipt::ActiveModel {

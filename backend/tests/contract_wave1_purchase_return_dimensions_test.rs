@@ -13,12 +13,13 @@
 //! 覆盖策略：
 //! - serde 纯函数断言（**无需任何 DB**）：DTO 三维往返、Decimal 序列化=字符串/反序列化字符串、
 //!   Create/Update 请求三维 Option 语义
-//! - `sqlite::memory:` 自建 purchase_return_item + products 最小列，走真实 `list_items`
-//!   查询（只读全列 SELECT+JOIN+into_model，无 advisory lock / lock_exclusive，
-//!   **不需要活 PG**）——三维原样回读 + Decimal 解码在真实 DB 编解码路径上锁死
+//! - 真 PostgreSQL（TEST_DATABASE_URL，夹具清空业务表）：迁移建的 purchase_return /
+//!   purchase_return_item / products 真表 + FK 前置播种，走真实 `list_items`
+//!   查询（只读全列 SELECT+JOIN+into_model，无 advisory lock / lock_exclusive）
+//!   ——三维原样回读 + Decimal 解码在真实 DB 编解码路径上锁死
 //! - `#[ignore]` 活库全链：建退货单→带维度明细→submit→approve：四维唯一命中扣库存、
 //!   回写来源 PO received_quantity、归零回退 APPROVED、同四维多行歧义报业务错
-//!   （approve/writeback 用 lock_exclusive + 单号 advisory_xact_lock，sqlite 不支持）
+//!   （approve/writeback 用 lock_exclusive + 单号 advisory_xact_lock）
 
 mod test_common;
 
@@ -27,7 +28,8 @@ use serde_json::json;
 use std::str::FromStr;
 
 use bingxi_backend::models::{
-    inventory_stock, product, purchase_order, purchase_order_item, purchase_return_item,
+    inventory_stock, product, purchase_order, purchase_order_item, purchase_return,
+    purchase_return_item,
 };
 use bingxi_backend::services::purchase_return_service::{
     CreatePurchaseReturnRequest, CreateReturnItemRequest, PurchaseReturnItemDto,
@@ -35,9 +37,7 @@ use bingxi_backend::services::purchase_return_service::{
 };
 use bingxi_backend::utils::error::AppError;
 use chrono::{NaiveDate, TimeZone, Utc};
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, Statement,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
 
 fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()
@@ -138,37 +138,40 @@ fn update_return_item_request_all_optional() {
 }
 
 // =========================================================
-// sqlite 自建表走真实 list_items（无需活 PG）
+// 真 PG 迁移表走真实 list_items（读路径）
 // =========================================================
 
-async fn sqlite_db() -> sea_orm::DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
+/// FK 前置：purchase_return_item.return_id→purchase_return、product_id→products。
+/// 夹具 TRUNCATE…RESTART IDENTITY 后显式 id=5/101 稳定可断言。
+async fn seed_return_header_and_product(db: &sea_orm::DatabaseConnection) {
+    product::ActiveModel {
+        id: Set(5),
+        name: Set("测试坯布甲".to_string()),
+        code: Set("FAB-01".to_string()),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
+    .unwrap();
+    purchase_return::ActiveModel {
+        id: Set(101),
+        return_no: Set("PR-DIMS-0101".to_string()),
+        supplier_id: Set(1),
+        return_date: Set(NaiveDate::from_ymd_opt(2026, 1, 15).unwrap()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
 }
-
-/// purchase_return_item 全列（与 `models/purchase_return_item.rs::Model` 逐一对应）
-const PR_ITEM_DDL: &str = r#"CREATE TABLE purchase_return_item (
-    id INTEGER PRIMARY KEY, return_id INTEGER, line_no INTEGER, product_id INTEGER,
-    quantity TEXT, quantity_alt TEXT, unit_price TEXT, unit_price_foreign TEXT,
-    discount_percent TEXT, tax_percent TEXT, subtotal TEXT, tax_amount TEXT,
-    discount_amount TEXT, total_amount TEXT, notes TEXT, created_at TEXT, updated_at TEXT,
-    color_no TEXT, dye_lot_no TEXT, batch_no TEXT
-)"#;
-
-/// list_items 的 JOIN 只投影 products.id/code/name（column_as 别名），无需全列
-const PRODUCT_MIN_DDL: &str =
-    "CREATE TABLE products (id INTEGER PRIMARY KEY, code TEXT, name TEXT)";
 
 async fn insert_pr_item(
     db: &sea_orm::DatabaseConnection,
@@ -210,14 +213,8 @@ async fn insert_pr_item(
 /// 原样回读，且 Decimal 在解码层不 500。这是 63f55c39（DTO 补三维）的端到端行为锁。
 #[tokio::test]
 async fn list_items_reads_back_three_dimensions_from_db() {
-    let db = sqlite_db().await;
-    exec(&db, PR_ITEM_DDL).await;
-    exec(&db, PRODUCT_MIN_DDL).await;
-    exec(
-        &db,
-        "INSERT INTO products (id, code, name) VALUES (5, 'FAB-01', '测试坯布甲')",
-    )
-    .await;
+    let db = test_common::setup_test_db().await;
+    seed_return_header_and_product(&db).await;
     insert_pr_item(&db, 1, 1, "COL-A", "DYE-9", "B7", "30.0000").await;
     insert_pr_item(&db, 2, 2, "", "", "B7", "12.5000").await; // 白坯行：三维按归一空串落库
 
@@ -246,9 +243,8 @@ async fn list_items_reads_back_three_dimensions_from_db() {
 /// 空明细 return_id 查询返回空集合而非 500
 #[tokio::test]
 async fn list_items_empty_return_returns_empty_vec() {
-    let db = sqlite_db().await;
-    exec(&db, PR_ITEM_DDL).await;
-    exec(&db, PRODUCT_MIN_DDL).await;
+    // 夹具清空业务表后真表为空，直接按不存在的 return_id 查
+    let db = test_common::setup_test_db().await;
     let svc = PurchaseReturnService::new(std::sync::Arc::new(db));
     let items = svc.list_items(999).await.unwrap();
     assert!(items.is_empty());

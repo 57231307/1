@@ -13,12 +13,14 @@
 //! 3. sku_mapping_service 删除路径：必须存在采购/调拨单据引用预检（purchase_order_items
 //!    转采购快照列匹配），被引用走 `business_displayable` 公开规则文案（不含约束名/23503），
 //!    delete 函数体内禁止 `AppError::internal`；真正 DbErr 经 `?`（From<DbErr>→DATABASE_ERROR）。
-//! 4. 真实断言（sqlite::memory / 纯校验前置，无需活 PG）：
+//! 4. 真实断言（路线一：真库 PostgreSQL / 纯校验前置）：
 //!    - 辅助核算余额查询非法期间：service 的 `validation_displayable("月份必须在1-12之间")`
 //!      经 handler 原样传播 → 400 + 真实原因外显（修复前是 500"服务器内部错误"）。
-//!    - 业务追溯不存在五维 ID → 404 NOT_FOUND（修复前 service 侧任何 4xx 都被拍平成 500），
-//!      且出参 message 不得是"服务器内部错误"；NotFound 出参按 `utils/error.rs` 白名单
-//!      口径脱敏为固定常量"资源未找到"（真实原因进 tracing，语义由 status/code 承载）。
+//!    - 业务追溯不存在五维 ID（已迁移真库的空 business_trace_chain，夹具 TRUNCATE，
+//!      不再自建 sqlite 同构表）→ 真实调用 handler → 404 NOT_FOUND（修复前 service 侧
+//!      任何 4xx 都被拍平成 500），且出参 message 不得是"服务器内部错误"；
+//!      NotFound 出参按 `utils/error.rs` 白名单口径脱敏为固定常量"资源未找到"
+//!      （真实原因进 tracing，语义由 status/code 承载）。
 
 use axum::{
     Router,
@@ -28,9 +30,11 @@ use axum::{
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::{assist_accounting_handler, business_trace_handler};
-use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use serde_json::Value;
 use tower::ServiceExt;
+
+mod test_common;
+use test_common::setup_test_db;
 
 // =========================================================
 // 0) 本组 15 文件编译期载入 + ratchet 数据（基线=修复前处数，cap=修复后水位）
@@ -382,51 +386,14 @@ async fn assist_balance_invalid_period_surfaces_real_reason_400() {
     );
 }
 
-/// 与 `models/business_trace_chain.rs::Model` 逐列对应的 sqlite 表（空表=五维 ID 不存在）
-async fn create_business_trace_chain_table(db: &sea_orm::DatabaseConnection) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE business_trace_chain (
-            id INTEGER PRIMARY KEY,
-            trace_chain_id TEXT NOT NULL,
-            five_dimension_id TEXT NOT NULL,
-            product_id INTEGER NOT NULL,
-            batch_no TEXT NOT NULL,
-            color_no TEXT NOT NULL,
-            dye_lot_no TEXT,
-            grade TEXT NOT NULL,
-            current_stage TEXT NOT NULL,
-            current_bill_type TEXT NOT NULL,
-            current_bill_no TEXT NOT NULL,
-            current_bill_id INTEGER NOT NULL,
-            previous_trace_id INTEGER,
-            next_trace_id INTEGER,
-            quantity_meters TEXT NOT NULL,
-            quantity_kg TEXT NOT NULL,
-            warehouse_id INTEGER NOT NULL,
-            supplier_id INTEGER,
-            customer_id INTEGER,
-            workshop_id INTEGER,
-            trace_status TEXT NOT NULL,
-            remarks TEXT,
-            created_at TEXT NOT NULL,
-            created_by INTEGER
-        )"#,
-        Vec::new(),
-    ))
-    .await
-    .expect("business_trace_chain DDL 执行失败");
-}
-
 /// 业务追溯：不存在的五维 ID 经真实 handler → 404 NOT_FOUND（不再是 500 INTERNAL_ERROR）。
+/// 夹具为已迁移真库（路线一）：business_trace_chain 由迁移 m0013 建表、夹具 TRUNCATE
+/// 后为空表——"五维 ID 不存在"即生产语义本身，不再自建 sqlite 同构表。
 /// 出参 message 按 `utils/error.rs` 白名单脱敏口径为固定常量"资源未找到"，
 /// 语义由 status/code 承载；修复前 service 侧 4xx 全被拍平成 500。
 #[tokio::test]
 async fn trace_missing_id_returns_404_not_500() {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_business_trace_chain_table(&db).await;
+    let db = setup_test_db().await;
     let state = AppState {
         db: std::sync::Arc::new(db),
         ..Default::default()

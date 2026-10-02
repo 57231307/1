@@ -21,8 +21,11 @@
 //!    `Decimal::from_parts(` 裸字面量（含旧硬编码税额 `Decimal::new(24, 1)` 与 `_ => 1kg`
 //!    兜底残留），且必须引用常量模块；常量模块内法定值逐项在场（防"删常量当迁移"）。
 //!
-//! 覆盖策略：纯函数注入 + sqlite::memory: 同构表跑真实 service 全链路
-//! （同 wave5 先例 contract_wave5_inspection_result_authority_test.rs，无 mock）。
+//! 覆盖策略：纯函数注入 + 真 PostgreSQL（test_common::setup_test_db，路线一
+//! #4669 判责：表结构唯一来源 = backend/migration，不再自建 sqlite 同构表）
+//! 跑真实 service 全链路（无 mock）。
+
+mod test_common;
 
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -35,54 +38,13 @@ use bingxi_backend::services::environmental_tax_service::{
 };
 use bingxi_backend::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryFilter,
-    Statement,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::str::FromStr;
 use std::sync::Arc;
+use test_common::setup_test_db;
 
 fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()
-}
-
-// =========================================================
-// sqlite 同构表（列与 models/pollutant_discharge_record.rs 逐列对应，表名同实体）
-// =========================================================
-
-const POLLUTANT_DISCHARGE_RECORDS_DDL: &str = r#"CREATE TABLE pollutant_discharge_records (
-    id INTEGER PRIMARY KEY,
-    discharge_type TEXT NOT NULL,
-    pollutant_name TEXT NOT NULL,
-    discharge_amount TEXT NOT NULL,
-    discharge_unit TEXT NOT NULL,
-    concentration TEXT,
-    concentration_unit TEXT,
-    tax_unit_equivalent TEXT,
-    tax_amount TEXT NOT NULL,
-    period_year INTEGER NOT NULL,
-    period_month INTEGER NOT NULL,
-    monitoring_point TEXT,
-    remarks TEXT,
-    created_by INTEGER,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)"#;
-
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::<sea_orm::Value>::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
 }
 
 async fn record_count(db: &DatabaseConnection) -> usize {
@@ -115,8 +77,7 @@ fn discharge_req(pollutant_name: &str, discharge_amount: Decimal) -> CreateDisch
 
 #[tokio::test]
 async fn unregistered_pollutant_rejected_4xx_no_default_equivalent() {
-    let db = sqlite_db().await;
-    exec(&db, POLLUTANT_DISCHARGE_RECORDS_DDL).await;
+    let db = setup_test_db().await;
     // 税额已配置：确保拒绝原因只可能是"污染物未登记"，而非配置缺失
     let svc = EnvironmentalTaxService::new(Arc::new(db.clone()), Some(dec("2.4")));
 
@@ -212,8 +173,7 @@ fn statutory_equivalents_match_legal_values_item_by_item() {
 
 #[tokio::test]
 async fn missing_tax_rate_fails_explicitly_before_any_write() {
-    let db = sqlite_db().await;
-    exec(&db, POLLUTANT_DISCHARGE_RECORDS_DDL).await;
+    let db = setup_test_db().await;
     // 未配置税额（部署态）：COD 虽已登记，计税也必须显式失败，不得按任何默认值算
     let svc = EnvironmentalTaxService::new(Arc::new(db.clone()), None);
 
@@ -276,8 +236,7 @@ fn injected_tax_rate_multiplies_equivalent_exactly() {
 
 #[tokio::test]
 async fn create_discharge_record_with_injected_rate_persists_configured_amount() {
-    let db = sqlite_db().await;
-    exec(&db, POLLUTANT_DISCHARGE_RECORDS_DDL).await;
+    let db = setup_test_db().await;
     let svc = EnvironmentalTaxService::new(Arc::new(db.clone()), Some(dec("1.2")));
 
     let model = svc

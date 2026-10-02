@@ -1,15 +1,18 @@
 //! 定制订单状态词表三源合一契约锁（change_pending 收口批次）
 //!
+//! 路线一（#4669 判责）：表结构唯一来源 = backend/migration，本文件连真 PostgreSQL
+//! （test_common::setup_test_db），不再自建 sqlite 同构 CHECK 表——
+//! "词表 token 是否违反约束"改由真表 chk_custom_order_status 亲自裁决。
+//!
 //! 锁定三条（对应判责证据的五方对齐表）：
 //! ① 大额变更挂起回读 == change_pending：
-//!    - sqlite CHECK 同构：按 m0064 重建后的 11 值集合建同构约束，权威模块
-//!      `custom_order::ALL` 全部 token 逐一写入成功（旧 10 值 CHECK 下
-//!      change_pending 必违反约束冒 500，本用例即"不再违反 CHECK"的证明）；
-//!      词表外 token 必须被同构 CHECK 显式拒绝（约束不是摆设）；
+//!    - 真表 CHECK：权威模块 `custom_order::ALL` 全部 token 逐一写入真表成功
+//!      （旧 10 值 CHECK 下 change_pending 必违反约束冒 500，本用例即
+//!      "m0064 重建后的 CHECK 不再违反"的证明）；
+//!      词表外 token 必须被真表 CHECK 显式拒绝（约束不是摆设）；
 //!    - 活库（PG，#[ignore]，ci-test-rust-ignored 执行）：真实 service 链
-//!      `submit_change_request`（金额变化>1万 → lock_exclusive 事务写入，
-//!      sqlite 方言不支持行锁，不得伪装成 sqlite 用例）挂起后回读，
-//!      再 `approve_change` 回 draft 双向闭环。
+//!      `submit_change_request`（金额变化>1万 → lock_exclusive 事务写入）
+//!      挂起后回读，再 `approve_change` 回 draft 双向闭环。
 //! ② 源码扫描锁：`custom_order_crud_service.rs` 状态写入/比较行不得出现
 //!    `Set("…")` / `!= "…"` 裸字面量，`change_pending` 字面量整文件禁现
 //!    （写入方与比较点必须逐字符取自权威模块常量）。
@@ -21,12 +24,13 @@ mod test_common;
 use bingxi_backend::models::custom_order;
 use bingxi_backend::models::custom_order_create_dto::UpdateCustomOrderDto;
 use bingxi_backend::models::status::custom_order as co_status;
+use bingxi_backend::models::{customer, product, user};
 use bingxi_backend::services::custom_order_crud_service::CustomOrderCrudService;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    QueryFilter, Statement, TransactionTrait,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait,
+    QueryFilter, TransactionTrait,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -35,76 +39,79 @@ fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()
 }
 
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::<sea_orm::Value>::new(),
-    ))
+/// FK 前置自种子（裁定 R1）：custom_orders.customer_id → customers、product_id →
+/// products（均非迁移种子参照表、会被清空且不播种），customers.owner_id 归属人 →
+/// users。缺父行就造父行，不指望环境已有数据。返回 (users.id, customers.id, products.id)。
+async fn seed_order_parents(db: &sea_orm::DatabaseConnection) -> (i32, i64, i64) {
+    let now = Utc::now();
+    let u = user::ActiveModel {
+        username: Set(format!("w5u_owner_{now:}")),
+        password_hash: Set("x".repeat(60)),
+        is_active: Set(true),
+        is_totp_enabled: Set(false),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
+    .expect("夹具：种 users 归属人失败");
+
+    let c = customer::ActiveModel {
+        customer_code: Set(format!("CUST-W5U-{now:}")),
+        customer_name: Set("波5状态合一契约客户".to_string()),
+        credit_limit: Set(Decimal::ZERO),
+        payment_terms: Set(30),
+        status: Set("active".to_string()),
+        customer_type: Set("company".to_string()),
+        owner_id: Set(u.id),
+        created_by: Set(Some(u.id)),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 customers 父行失败");
+
+    let p = product::ActiveModel {
+        name: Set(format!("波5状态合一契约产品-{now:}")),
+        code: Set(format!("PRD-W5U-{now:}")),
+        unit: Set("m".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：种 products 父行失败");
+
+    (u.id, c.id as i64, p.id as i64)
 }
 
-/// custom_orders 全列最小 DDL（列与 `models/custom_order.rs::Model` 逐列对应，
-/// bool→INTEGER / DateTime→TEXT / Decimal→TEXT，照 wave5 先例形态），
-/// CHECK 取值集合与迁移 m0064 重建后的 `chk_custom_order_status` 逐字符同构。
-const CUSTOM_ORDERS_CHECK_ISO_DDL: &str = r#"CREATE TABLE custom_orders (
-    id INTEGER PRIMARY KEY,
-    order_no TEXT NOT NULL UNIQUE,
-    customer_id INTEGER NOT NULL,
-    product_id INTEGER NOT NULL,
-    color_id INTEGER,
-    spec TEXT NOT NULL,
-    quantity TEXT NOT NULL,
-    unit TEXT NOT NULL,
-    custom_requirements TEXT NOT NULL,
-    yarn_spec TEXT,
-    dye_method TEXT,
-    finishing_method TEXT,
-    status TEXT NOT NULL,
-    expected_delivery_date TEXT,
-    actual_delivery_date TEXT,
-    sales_order_id INTEGER,
-    total_amount TEXT,
-    currency TEXT NOT NULL,
-    created_by INTEGER,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    notes TEXT,
-    lab_dip_request_id INTEGER,
-    quotation_id INTEGER,
-    customer_approved_at TEXT,
-    customer_approval_comment TEXT,
-    quality_standard_id INTEGER,
-    approval_instance_id INTEGER,
-    approved_by INTEGER,
-    approved_at TEXT,
-    rejection_reason TEXT,
-    CHECK (status IN ('draft', 'lab_dip', 'quotation', 'yarn_purchasing',
-        'dyeing', 'finishing', 'delivery', 'after_sales', 'change_pending',
-        'completed', 'cancelled'))
-)"#;
-
-async fn seed_order(db: &DatabaseConnection, order_no: &str, status: &str) -> custom_order::Model {
+async fn seed_order(
+    db: &sea_orm::DatabaseConnection,
+    order_no: &str,
+    status: &str,
+    customer_id: i64,
+    product_id: i64,
+) -> custom_order::Model {
     let now = Utc::now();
     custom_order::ActiveModel {
-        order_no: sea_orm::Set(order_no.to_string()),
-        customer_id: sea_orm::Set(1),
-        product_id: sea_orm::Set(1),
-        spec: sea_orm::Set("测试规格".to_string()),
-        quantity: sea_orm::Set(dec("10.00")),
-        unit: sea_orm::Set("m".to_string()),
-        custom_requirements: sea_orm::Set(serde_json::json!({})),
-        status: sea_orm::Set(status.to_string()),
-        currency: sea_orm::Set("CNY".to_string()),
-        created_at: sea_orm::Set(now),
-        updated_at: sea_orm::Set(now),
+        order_no: Set(order_no.to_string()),
+        customer_id: Set(customer_id),
+        product_id: Set(product_id),
+        spec: Set("测试规格".to_string()),
+        quantity: Set(dec("10.00")),
+        unit: Set("m".to_string()),
+        custom_requirements: Set(serde_json::json!({})),
+        status: Set(status.to_string()),
+        currency: Set("CNY".to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
         ..Default::default()
     }
     .insert(db)
@@ -113,41 +120,43 @@ async fn seed_order(db: &DatabaseConnection, order_no: &str, status: &str) -> cu
 }
 
 // =========================================================
-// ①-a sqlite CHECK 同构：权威模块全集逐 token 写入通过 + 词表外拒绝
+// ①-a 真表 CHECK：权威模块全集逐 token 写入通过 + 词表外拒绝
 // =========================================================
 
 #[tokio::test]
 async fn change_pending_passes_check_iso_and_all_tokens_are_writable() {
-    let db = sqlite_db().await;
-    exec(&db, CUSTOM_ORDERS_CHECK_ISO_DDL).await;
+    let db = test_common::setup_test_db().await;
+    let (_owner_id, customer_id, product_id) = seed_order_parents(&db).await;
 
-    // 权威模块 ALL 的每个 token 都必须能通过与 m0064 同构的 CHECK——
+    // 权威模块 ALL 的每个 token 都必须能写入真表 chk_custom_order_status——
     // 任何一个被拒即"模块与约束漂移"，本用例失败
     for token in co_status::ALL {
         let inserted = custom_order::ActiveModel {
-            order_no: sea_orm::Set(format!("CO-W5U-{}", token)),
-            customer_id: sea_orm::Set(1),
-            product_id: sea_orm::Set(1),
-            spec: sea_orm::Set("测试规格".to_string()),
-            quantity: sea_orm::Set(dec("10.00")),
-            unit: sea_orm::Set("m".to_string()),
-            custom_requirements: sea_orm::Set(serde_json::json!({})),
-            status: sea_orm::Set(token.to_string()),
-            currency: sea_orm::Set("CNY".to_string()),
-            created_at: sea_orm::Set(Utc::now()),
-            updated_at: sea_orm::Set(Utc::now()),
+            order_no: Set(format!("CO-W5U-{}", token)),
+            customer_id: Set(customer_id),
+            product_id: Set(product_id),
+            spec: Set("测试规格".to_string()),
+            quantity: Set(dec("10.00")),
+            unit: Set("m".to_string()),
+            custom_requirements: Set(serde_json::json!({})),
+            status: Set(token.to_string()),
+            currency: Set("CNY".to_string()),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
             ..Default::default()
         }
         .insert(&db)
         .await;
         assert!(
             inserted.is_ok(),
-            "权威词表 token「{token}」违反与 m0064 同构的 CHECK——模块与约束漂移"
+            "权威词表 token「{token}」违反真表 chk_custom_order_status——模块与约束漂移"
         );
     }
 
-    // 大额变更挂起回读 == change_pending（同构 CHECK 下写入不再违反约束）
-    let seeded = seed_order(&db, "CO-W5U-CHANGE", co_status::CHANGE_PENDING).await;
+    // 大额变更挂起回读 == change_pending（真表 CHECK 下写入不再违反约束）
+    let seeded =
+        seed_order(&db, "CO-W5U-CHANGE", co_status::CHANGE_PENDING, customer_id, product_id)
+            .await;
     let row = custom_order::Entity::find_by_id(seeded.id)
         .one(&db)
         .await
@@ -159,26 +168,26 @@ async fn change_pending_passes_check_iso_and_all_tokens_are_writable() {
         "挂起后回读状态必须逐字符等于权威模块 CHANGE_PENDING"
     );
 
-    // 反向锁：词表外 token 必须被同构 CHECK 显式拒绝（约束真实生效，不是摆设）
+    // 反向锁：词表外 token 必须被真表 CHECK 显式拒绝（约束真实生效，不是摆设）
     let bogus = custom_order::ActiveModel {
-        order_no: sea_orm::Set("CO-W5U-BOGUS".to_string()),
-        customer_id: sea_orm::Set(1),
-        product_id: sea_orm::Set(1),
-        spec: sea_orm::Set("测试规格".to_string()),
-        quantity: sea_orm::Set(dec("10.00")),
-        unit: sea_orm::Set("m".to_string()),
-        custom_requirements: sea_orm::Set(serde_json::json!({})),
-        status: sea_orm::Set("pending".to_string()),
-        currency: sea_orm::Set("CNY".to_string()),
-        created_at: sea_orm::Set(Utc::now()),
-        updated_at: sea_orm::Set(Utc::now()),
+        order_no: Set("CO-W5U-BOGUS".to_string()),
+        customer_id: Set(customer_id),
+        product_id: Set(product_id),
+        spec: Set("测试规格".to_string()),
+        quantity: Set(dec("10.00")),
+        unit: Set("m".to_string()),
+        custom_requirements: Set(serde_json::json!({})),
+        status: Set("pending".to_string()),
+        currency: Set("CNY".to_string()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
         ..Default::default()
     }
     .insert(&db)
     .await;
     assert!(
         bogus.is_err(),
-        "悬空 token「pending」（历史 custom_order 模块自创、从未进任何 CHECK）必须被拒绝"
+        "悬空 token「pending」（历史 custom_order 模块自创、从未进任何 CHECK）必须被真表拒绝"
     );
 }
 
@@ -197,12 +206,14 @@ async fn live_submit_change_request_roundtrip_on_postgres() {
         "本用例必须跑在已迁移的 PostgreSQL（TEST_DATABASE_URL）上；禁止 sqlite 回退假绿"
     );
     let suffix = Utc::now().timestamp_nanos_opt().unwrap();
+    // FK 前置自种子（R1）：customers/products/users 父行，approver 用真实 owner id
+    let (owner_id, customer_id, product_id) = seed_order_parents(&db).await;
 
     // seed：已客户签字确认的订单（submit_change_request 前置门）
     let seeded = custom_order::ActiveModel {
         order_no: sea_orm::Set(format!("CO-W5U-LIVE-{suffix}")),
-        customer_id: sea_orm::Set(1),
-        product_id: sea_orm::Set(1),
+        customer_id: sea_orm::Set(customer_id),
+        product_id: sea_orm::Set(product_id),
         spec: sea_orm::Set("活库契约订单".to_string()),
         quantity: sea_orm::Set(dec("10.00")),
         unit: sea_orm::Set("m".to_string()),
@@ -248,7 +259,7 @@ async fn live_submit_change_request_roundtrip_on_postgres() {
 
     // 审批通过：change_pending → draft 回写闭环（比较点同源常量）
     service
-        .approve_change(seeded.id, 1, true, None)
+        .approve_change(seeded.id, owner_id as i64, true, None)
         .await
         .expect("approve_change 状态门按 CHANGE_PENDING 常量比较，必须放行");
     let row = custom_order::Entity::find_by_id(seeded.id)

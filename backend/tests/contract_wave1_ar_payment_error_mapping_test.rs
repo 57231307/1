@@ -21,8 +21,11 @@
 //! - 失败信封矩阵：纯 `IntoResponse`，无需任何 DB
 //! - 源码扫描锁：ar_payment_handler.rs 全文件 0 处 `map_err` / `AppError::internal`
 //!   （本波修复的静态形态锁，防止重包回潮；先例：quotation_status_word_list_test 的源码扫描）
-//! - sqlite::memory 自建 ar_collections 表走真实 handler：404 / 403 / 200（**无需活 PG**）
+//! - 真 PostgreSQL（TEST_DATABASE_URL + 迁移建表，夹具清空业务表）走真实 handler：
+//!   404 / 403 / 200
 //! - POST 校验 400（validator 先于 DB，AppState::default 即够）
+
+mod test_common;
 
 use axum::{
     Router,
@@ -40,8 +43,7 @@ use bingxi_backend::models::ar_collection;
 use bingxi_backend::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::ConnectionTrait;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, DbBackend, Statement};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set};
 use serde_json::Value;
 use std::str::FromStr;
 use tower::ServiceExt;
@@ -84,33 +86,6 @@ async fn request_json(app: &Router, req: Request<Body>) -> (StatusCode, Value) {
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-/// 与 `models/ar_collection.rs::Model`（表 ar_collections）逐列对应
-async fn create_ar_collections_table(db: &sea_orm::DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE ar_collections (
-            id INTEGER PRIMARY KEY,
-            collection_no TEXT, collection_date TEXT,
-            customer_id INTEGER, customer_name TEXT,
-            collection_amount TEXT, collection_method TEXT, bank_account TEXT, check_no TEXT,
-            request_id INTEGER, request_no TEXT,
-            status TEXT, confirmed_by INTEGER, confirmed_at TEXT,
-            created_by INTEGER, created_at TEXT, updated_at TEXT
-        )"#,
-    )
-    .await;
-}
-
 async fn seed_collection_created_by(db: &sea_orm::DatabaseConnection, created_by: i32) {
     ar_collection::ActiveModel {
         collection_no: Set("COL-TEST-0007".to_string()),
@@ -129,10 +104,9 @@ async fn seed_collection_created_by(db: &sea_orm::DatabaseConnection, created_by
 }
 
 async fn seeded_app(viewer_user_id: i32) -> Router {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_ar_collections_table(&db).await;
+    // 真 PG：夹具清空业务表后 ar_collections 由迁移建表，自增 id 从 1 起，
+    // 用例内 URI 直引 /ar/payments/1 稳定可断言。
+    let db = test_common::setup_test_db().await;
     seed_collection_created_by(&db, 100).await;
     let state = AppState {
         db: std::sync::Arc::new(db),
@@ -220,7 +194,7 @@ fn ar_payment_handler_source_has_no_error_rewrapping() {
 }
 
 // =========================================================
-// 3) HTTP 真实映射（sqlite 自建表，无需活 PG）
+// 3) HTTP 真实映射（真 PostgreSQL，迁移建表）
 // =========================================================
 
 /// 收款单不存在 → 404 NOT_FOUND（修复前被强转 500 INTERNAL_ERROR，即本波红案的直接回归锁）
