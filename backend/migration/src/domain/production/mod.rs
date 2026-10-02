@@ -59,6 +59,11 @@ mod m0066_add_piece_no_to_transfer_items;
 // （+ accepted/evaluated，三端同源收口 CI #4669 65-01）；目标表 after_sales 由本域
 // m0044 建表（早于本迁移执行），直接注册本域 up 末尾即可。
 mod m0067_aftersales_status_add_accepted_evaluated;
+// m0068 化学品三表编码列部分唯一索引：目标表 chemical_category/chemical_master/
+// chemical_lot 均在 v15 域内建表（v15/mod.rs:2457/:2499/:2472），production 域早于
+// v15 执行。照 m0058/m0063/m0065 先例，up/down 由 domain/v15/mod.rs 在建表完成后
+// 调用，此处仅保留定义，提升可见性为 pub(crate)。
+pub(crate) mod m0068_add_chemical_code_partial_unique_constraints;
 
 pub struct Migration;
 

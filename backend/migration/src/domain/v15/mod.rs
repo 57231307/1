@@ -4603,10 +4603,20 @@ COMMENT ON COLUMN "purchase_order_item"."supplier_color_no" IS '供应商色号�
         crate::domain::production::m0065_backfill_outsourcing_reserved_pieces::Migration
             .up(manager)
             .await?;
+        // m0068 化学品三表编码列部分唯一索引：目标表均在本域内建表（:2457/:2499/:2472），
+        // 且带 fail-closed 存量重复探测（命中即 RAISE 中止，绝不洗数据），
+        // 照 m0058/m0063/m0065 先例后置到本域 up 末尾（晚于 m0065）。
+        crate::domain::production::m0068_add_chemical_code_partial_unique_constraints::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 与 up 对称：m0068 最后应用故最先回滚（仅 DROP INDEX IF EXISTS，不触碰数据行）。
+        crate::domain::production::m0068_add_chemical_code_partial_unique_constraints::Migration
+            .down(manager)
+            .await?;
         // 与 up 对称：m0065 最后应用故最先回滚（回填 RESERVED 与运行时占用不可
         // 区分，其 down 显式不做任何写操作，见迁移文件内注释）。
         crate::domain::production::m0065_backfill_outsourcing_reserved_pieces::Migration
