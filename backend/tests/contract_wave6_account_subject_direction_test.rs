@@ -269,15 +269,18 @@ async fn refresh_balance_debit_subject_ends_on_debit_side() {
         .expect("refresh_balance sqlite 真跑失败");
 
     assert_eq!(
-        updated.current_period_debit, dec!(30),
+        updated.current_period_debit,
+        dec!(30),
         "本期借方发生额应聚合 30"
     );
     assert_eq!(
-        updated.current_period_credit, dec!(10),
+        updated.current_period_credit,
+        dec!(10),
         "本期贷方发生额应聚合 10"
     );
     assert_eq!(
-        updated.ending_balance_debit, dec!(120),
+        updated.ending_balance_debit,
+        dec!(120),
         "debit 科目期末=期初借100+借30-贷10=120，必须挂借方（=0 即修复前反号形态）"
     );
     assert_eq!(
@@ -309,7 +312,8 @@ async fn refresh_balance_credit_subject_ends_on_credit_side() {
         .expect("refresh_balance sqlite 真跑失败");
 
     assert_eq!(
-        updated.ending_balance_credit, dec!(70),
+        updated.ending_balance_credit,
+        dec!(70),
         "credit 科目期末=期初贷50+贷20=70，必须挂贷方"
     );
     assert_eq!(updated.ending_balance_debit, Decimal::ZERO);
@@ -329,7 +333,8 @@ async fn refresh_balance_null_direction_defaults_to_debit() {
         .await
         .expect("refresh_balance sqlite 真跑失败");
     assert_eq!(
-        updated.ending_balance_debit, dec!(120),
+        updated.ending_balance_debit,
+        dec!(120),
         "NULL 方向必须与 DIRECTION_DEBIT 同分支"
     );
     assert_eq!(updated.ending_balance_credit, Decimal::ZERO);
@@ -369,7 +374,11 @@ fn voucher_compute_ending_balance_binds_english_vocabulary() {
         dec!(10),
         dec!(70),
     );
-    assert_eq!((d, c), (Decimal::ZERO, dec!(60)), "debit 方向负余额应翻挂贷方");
+    assert_eq!(
+        (d, c),
+        (Decimal::ZERO, dec!(60)),
+        "debit 方向负余额应翻挂贷方"
+    );
 
     // 反例锁：中文 token 不再是借方分支依据（比较点若回潮中文，本断言即失败）
     let (d, _c) = VoucherService::compute_ending_balance(
@@ -545,7 +554,13 @@ async fn m198_normalize_case_mapping_idempotent_and_reversible_on_sqlite() {
         r#"CREATE TABLE "account_subjects" ("id" INTEGER PRIMARY KEY, "balance_direction" TEXT)"#,
     )
     .await;
-    for (id, dir) in [(1i64, "借"), (2, "贷"), (3, "debit"), (4, "credit"), (5, "")] {
+    for (id, dir) in [
+        (1i64, "借"),
+        (2, "贷"),
+        (3, "debit"),
+        (4, "credit"),
+        (5, ""),
+    ] {
         let value = if dir.is_empty() {
             Value::String(None)
         } else {
