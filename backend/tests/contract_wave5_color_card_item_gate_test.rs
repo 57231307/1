@@ -135,11 +135,13 @@ fn build_app(db: sea_orm::DatabaseConnection) -> Router {
     };
     Router::new()
         .route("/color-cards", post(create_color_card))
+        // axum 0.8 起路径参数语法为 {id}；写 :id 会在 build 时 panic
+        // "Path segments must not start with ':'"（CI #4669 5 例连坐）
         .route(
-            "/color-cards/:id/items",
+            "/color-cards/{id}/items",
             get(list_color_items).post(create_color_item),
         )
-        .route("/color-cards/:id/items/batch", post(batch_import_items))
+        .route("/color-cards/{id}/items/batch", post(batch_import_items))
         .with_state(state)
         .layer(from_fn_with_state(make_auth(100), inject_auth))
 }
