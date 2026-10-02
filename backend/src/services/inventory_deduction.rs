@@ -237,7 +237,8 @@ pub struct OutboundDimensions {
 /// 匹号是否命中该缸该批的真实可用库存匹，由各出库出口调用
 /// `crate::services::piece_domain_service` 的存在性校验 / CAS 消耗负责（DB 族，不在本纯函数内）。
 ///
-/// `bill_label` 用于指明是销售发货明细还是调拨出库明细，`product_id` 用于定位款号。
+/// 拒绝文案经 [`outbound_dimension_denied`] 包装：出参携带真实缺维原因（字段必填族可外显），
+/// `product_id` 只进日志。`bill_label` 用于指明是销售发货明细还是调拨出库明细。
 pub fn require_outbound_dimensions(
     bill_label: &str,
     product_id: i32,
@@ -251,22 +252,28 @@ pub fn require_outbound_dimensions(
         dye_lot_no.map(str::to_string),
         batch_no.map(str::to_string),
     )
-    .map_err(|e| {
-        // 字段必填族 = VALIDATION；包装文案携带内部产品 ID，走脱敏变体（真实文案只进日志）
-        AppError::validation(format!("{}（款号产品 {}）：{}", bill_label, product_id, e))
-    })?;
+    .map_err(|e| outbound_dimension_denied(bill_label, product_id, e))?;
     let piece_no =
         fabric_class::normalize_outbound_piece_no(&trace.color_no, piece_no.map(str::to_string))
-            .map_err(|e| {
-                // 同上：匹号必填属字段校验族，含 ID 文案脱敏外显
-                AppError::validation(format!("{}（款号产品 {}）：{}", bill_label, product_id, e))
-            })?;
+            .map_err(|e| outbound_dimension_denied(bill_label, product_id, e))?;
     Ok(OutboundDimensions {
         color_no: trace.color_no,
         dye_lot_no: trace.dye_lot_no,
         batch_no: trace.batch_no,
         piece_no,
     })
+}
+
+/// 缺维拒绝的统一包装：出参只回显用户自己提交的维度字段（公开规则 + 用户填入的色号），
+/// 内部 `product_id` 不进 HTTP 出参、只写日志；族别仍是字段必填族 VALIDATION。
+fn outbound_dimension_denied(bill_label: &str, product_id: i32, e: AppError) -> AppError {
+    tracing::warn!(
+        "出库维度校验拒绝（{}，款号产品 {}）：{}",
+        bill_label,
+        product_id,
+        e
+    );
+    AppError::validation_displayable(format!("{}：{}", bill_label, e))
 }
 
 // =====================================================
@@ -523,8 +530,9 @@ mod tests {
             require_outbound_dimensions("销售发货", 7, Some("RED"), Some("DL-A"), Some("B1"), None)
                 .expect_err("染色布缺匹号必须拒绝");
         assert!(err.to_string().contains("匹号"), "实际: {err}");
-        // 字段必填族 = VALIDATION_ERROR（本仓错误码边界，包装不改族）
-        assert!(matches!(err, AppError::ValidationError(_)));
+        // 字段必填族 = VALIDATION_ERROR（本仓错误码边界，包装不改族）；
+        // 缺维原因必须对用户可见，故用可外显变体（用户 2026-10-02 口径）
+        assert!(matches!(err, AppError::ValidationErrorDisplayable(_)));
 
         // 全空格匹号等价缺失（仅以是否为空判定）
         let err2 = require_outbound_dimensions(

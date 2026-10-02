@@ -3,8 +3,8 @@
 //! 锁定的符号契约（行号随重构漂移，以符号为准）：
 //! - `backend/src/services/inventory_deduction.rs`（`OutboundDimensions` 四维结构 +
 //!   `require_outbound_dimensions`：维度**必填/取值**校验失败属字段族，统一包成
-//!   `AppError::validation("{单据}（款号产品 {id}）：{原因}")` —— 400/VALIDATION_ERROR 族；
-//!   包装文案含内部产品 ID，按本仓边界走脱敏变体（真实原因只进日志））
+//!   `AppError::validation_displayable("{单据}：{原因}")` —— 400/VALIDATION_ERROR 族且
+//!   出参携带真实缺维原因；内部产品 ID 不进 HTTP 出参，只写日志）
 //! - `backend/src/services/inv/fabric_class.rs`（唯一判定来源：批次必填；
 //!   色号非空=染色布 → 缸号必填 + `normalize_outbound_piece_no` 匹号必填，
 //!   仅按空串判定不看名称；trim 归一；白坯免缸号免匹号既有口径不动）
@@ -44,7 +44,7 @@ fn dec(s: &str) -> Decimal {
 // A) require_outbound_dimensions 纯函数矩阵（无 DB）
 // =========================================================
 
-/// 染色布（色号非空）缺缸号 → validation 族错（字段必填族）；Display 携带单据标签+产品+权威原因文案
+/// 染色布（色号非空）缺缸号 → validation 族错（字段必填族）；Display 携带单据标签+权威原因文案
 /// （2026-10-02 口径补第四维匹号：本用例匹号给足，隔离锁定缸号维度）
 #[test]
 fn dyed_fabric_missing_dye_lot_returns_validation_error() {
@@ -52,12 +52,13 @@ fn dyed_fabric_missing_dye_lot_returns_validation_error() {
         require_outbound_dimensions("调拨出库", 7, Some("COL-A"), None, Some("B7"), Some("P-7"))
             .expect_err("染色布缺缸号必须拒绝（本波四维口径，修复前仅 product_id 单维放行）");
     match &err {
-        AppError::ValidationError(_) => {}
-        other => panic!("必须是 validation（字段必填族，400 映射），实际: {other:?}"),
+        AppError::ValidationErrorDisplayable(_) => {}
+        other => panic!("必须是可外显 validation（字段必填族，400 映射），实际: {other:?}"),
     }
     assert_eq!(err.error_code(), "VALIDATION_ERROR");
     let disp = err.to_string();
-    assert!(disp.contains("调拨出库（款号产品 7）"), "实际: {disp}");
+    assert!(disp.contains("调拨出库"), "实际: {disp}");
+    assert!(!disp.contains("款号产品"), "内部产品 ID 不得进拒绝文案，实际: {disp}");
     assert!(disp.contains("染色布必须提供缸号"), "实际: {disp}");
     assert!(
         disp.contains("COL-A"),
@@ -72,7 +73,7 @@ fn missing_batch_returns_validation_error() {
         .expect_err("批次必填");
     let disp = err.to_string();
     assert!(disp.contains("批次不得为空"), "实际: {disp}");
-    assert!(matches!(err, AppError::ValidationError(_)));
+    assert!(matches!(err, AppError::ValidationErrorDisplayable(_)));
 
     // trim 后为空串等价缺失（不允许空格蒙混）
     let err2 = require_outbound_dimensions("调拨出库", 9, None, None, Some("   "), None)
@@ -145,13 +146,16 @@ fn dyed_fabric_missing_piece_no_returns_validation_error() {
         None,
     )
     .expect_err("染色布缺匹号必须拒绝");
-    assert!(matches!(err, AppError::ValidationError(_)));
+    assert!(matches!(
+        err,
+        AppError::ValidationErrorDisplayable(_)
+    ));
     assert_eq!(err.error_code(), "VALIDATION_ERROR");
     assert!(err.to_string().contains("匹号"), "实际: {err}");
 }
 
-/// 缺缸号错误的 HTTP 信封：400 + VALIDATION_ERROR + 脱敏常量（包装文案含内部产品 ID，
-/// 按本仓边界不外显真实原因）
+/// 缺缸号错误的 HTTP 信封：400 + VALIDATION_ERROR + **真实缺维原因**（用户 2026-10-02 口径：
+/// 提交被拒必须能看到缺哪一维；内部产品 ID 不外显，只进日志）
 #[tokio::test]
 async fn dim_error_http_envelope_is_400_not_500() {
     use axum::response::IntoResponse;
@@ -166,10 +170,16 @@ async fn dim_error_http_envelope_is_400_not_500() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(v["code"], "VALIDATION_ERROR");
-    assert_eq!(
-        v["message"], "请求参数验证失败",
-        "validation 脱敏族常量（真实文案只进日志）"
+    let message = v["message"].as_str().unwrap_or_default();
+    assert_ne!(
+        message, "请求参数验证失败",
+        "缺维拒绝不得再被脱敏成固定常量（用户看不到缺哪一维）"
     );
+    assert!(
+        message.contains("缸号"),
+        "出参 message 须携带真实缺维原因，实际: {message}"
+    );
+    assert!(!message.contains("款号产品"), "实际: {message}");
     assert_ne!(v["code"], "INTERNAL_ERROR");
     assert_ne!(v["code"], "DATABASE_ERROR");
 }
