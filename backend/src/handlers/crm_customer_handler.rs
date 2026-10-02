@@ -244,9 +244,20 @@ pub async fn update_customer(
     // "跳过不可见行继续写"的降级。admin 的 `DataScope::All` 通道按
     // `check_resource_owner` 既有语义原样通过，本门只把"完全没有门"变成"与其它入口同门"。
     let data_scope_ctx = auth.to_data_scope_context();
-    customer_service
+    let existing = customer_service
         .get_customer(id, Some(&data_scope_ctx))
         .await?;
+    // 方案 A（用户 2026-10-02 裁定）：可见 ≠ 可改。跨 owner 写另需 crm/cross_owner_write 键，
+    // 放行时代操作事实进结构化日志（各写出口本身已落 update_with_audit 审计行）。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        existing.created_by,
+        existing.department_id,
+        "客户更新（增强入口）",
+    )
+    .await?;
 
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let customer = customer_service

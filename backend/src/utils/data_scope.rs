@@ -176,6 +176,43 @@ pub fn check_resource_owner(
     }
 }
 
+/// 写侧归属门（用户 2026-10-02 裁定**方案 A**：读可 All，写须 owner 或显式
+/// 「管理员代操作」权限键 + 留痕）。
+///
+/// 为什么读侧和写侧必须分家：`DataScope::All` 的本职是"能看全库"（报表/审计/主管
+/// 复核），把它同时当成"能改任何人的行"就把可见性升级成了可变更权——水平越权缺陷
+/// 正是从这里长出来的。ERP 惯例（超管/审计角色可读全域，代他人操作须显式授权并
+/// 留痕）也按此分家。
+///
+/// 判定：
+/// - **本人行恒可写**（三种 scope 都一样，own row 不需要代操作键）；
+/// - `All`：跨 owner 写只有 `behalf_granted`（持有 `crm_data/cross_owner_write` 键）
+///   才放行；未授予即 403（出参仍是固定脱敏常量，权限文案永久脱敏是硬令）；
+/// - `Dept`：资源部门 ∈ 可见部门集合（部门经理代管本部门是 dept 的本职，不需额外键）；
+/// - `Self_`：仅本人行。
+///
+/// 留痕：走 `behalf_granted` 的跨 owner 写由调用方（handler）在写前打
+/// `crm 代操作写` 结构化日志（含 actor/role/resource/owner），且各写入口本身都经
+/// `AuditLogService::update_with_audit` 落审计行，actor 即操作人，可回溯。
+pub fn check_resource_write_owner(
+    ctx: &DataScopeContext,
+    resource_owner_id: Option<i32>,
+    resource_dept_id: Option<i32>,
+    behalf_granted: bool,
+) -> bool {
+    if resource_owner_id.is_some_and(|owner| owner == ctx.user_id) {
+        return true;
+    }
+    match ctx.scope {
+        DataScope::All => behalf_granted,
+        DataScope::Dept => match resource_dept_id {
+            Some(dept_id) => ctx.dept_ids.contains(&dept_id),
+            None => false,
+        },
+        DataScope::Self_ => false,
+    }
+}
+
 /// 公海行可见性组合方式（`apply_department_scope_with_pool` 的显式口径参数）。
 ///
 /// 存在意义：公海放行与 DB 层 RLS 的组合形态必须逐表拍板，不能靠函数隐含。

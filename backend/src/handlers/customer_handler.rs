@@ -356,9 +356,21 @@ pub async fn update_customer(
     // 的「先 get_X(Some(&data_scope_ctx))」写法同源——self 仅本人、dept 限可见部门集合、
     // all 放行；越权返回 403（permission_denied），不静默放行。
     let data_scope_ctx = auth.to_data_scope_context();
-    customer_service
+    let existing = customer_service
         .get_customer(id, Some(&data_scope_ctx))
         .await?;
+    // 方案 A（用户 2026-10-02 裁定）：读可 All、写须 owner 或显式「管理员代操作」键 + 留痕。
+    // 上面的 get_customer 只保证"看得见"（All 看得见全库），看不见才 403；跨 owner 的
+    // **写**另由本门判定，未授予 crm/cross_owner_write 的角色改他人客户即 403。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        existing.created_by,
+        existing.department_id,
+        "客户更新",
+    )
+    .await?;
 
     // P2-1 修复（批次 388 v13 复审）：原 parse().ok() 静默吞错，
     // 用户输入非法值时信用额度不更新且无提示，改为显式校验报错
@@ -427,9 +439,19 @@ pub async fn delete_customer(
     // 复用 get_customer 内部 check_resource_owner，与 update_supplier/delete_supplier/delete_order
     // 的「先 get_X(Some(&data_scope_ctx))」写法同源；越权返回 403（permission_denied），不静默放行。
     let data_scope_ctx = auth.to_data_scope_context();
-    customer_service
+    let existing = customer_service
         .get_customer(id, Some(&data_scope_ctx))
         .await?;
+    // 方案 A：删除是跨 owner 写的最强形态，须 owner 本人或持有代操作键（All 范围）
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        existing.created_by,
+        existing.department_id,
+        "客户删除",
+    )
+    .await?;
 
     // 批次 101 v6 复审 P2-2：透传操作人 user_id 用于审计日志
     customer_service.delete_customer(id, auth.user_id).await?;
