@@ -1,30 +1,17 @@
-//! 集成测试公共夹具模块（P0-D11）
+//! 集成测试公共夹具（tests/ 侧入口）
 //!
-//! 抽取自 3 个集成测试文件（tests/）中重复定义的 setup_test_db 函数。
-//! 支持 TEST_DATABASE_URL 环境变量指定数据库，默认回退到 sqlite::memory:。
-//! 集成测试使用方式：`mod common; use common::setup_test_db;`
+//! 实现只有一份：`bingxi_backend::services::test_common`（本仓 20 处 src 内单测
+//! 也直接用它，避免"tests/ 与 src/ 两套夹具、只有一套被改"的漂移）。本模块只做
+//! 再导出，让 `mod test_common; use test_common::setup_test_db;` 的既有写法继续成立。
+//!
+//! 语义要点（详见实现文件头注释）：
+//! - `setup_test_db()` 必须连已迁移的 PostgreSQL，缺 `TEST_DATABASE_URL` 或指向
+//!   sqlite 直接 panic —— 静默回退 sqlite::memory: 是 CI #4669 约 130 例方言解码
+//!   红的根因，已彻底禁止。
+//! - 每次调用先 `TRUNCATE` 业务表（保留迁移种子参照表），用例之间互不串库。
+//! - 需要"空 schema"负前提交集用 `connect_empty_schema_db()`（`TEST_EMPTY_DATABASE_URL`）。
 
-use sea_orm::DatabaseConnection;
-
-/// 创建测试用数据库连接
-///
-/// 优先使用 TEST_DATABASE_URL 环境变量（用于真实数据库测试），
-/// 默认回退到 sqlite::memory:（快速单元测试）。
-///
-/// A.23 修复：sqlite 与生产 PostgreSQL 方言有保真度差距（JSONB/部分索引/DO 块/RLS）。
-/// 回退到 sqlite 时输出警告，提示开发者设置 TEST_DATABASE_URL 指向本地 PG
-/// （如 `postgres://user:pass@localhost:5432/bingxi_test`）以获得与 CI 一致的保真度。
-/// CI 已通过 service container 用 PostgreSQL 16 运行测试，本地 sqlite 仅用于快速迭代。
-pub async fn setup_test_db() -> DatabaseConnection {
-    let db_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
-        eprintln!(
-            "⚠️  测试使用 sqlite::memory: 回退，与生产 PostgreSQL 方言有差距（JSONB/部分索引/DO 块/RLS）。\n\
-             设置 TEST_DATABASE_URL 环境变量指向本地 PostgreSQL 以获得与 CI 一致的保真度：\n\
-             export TEST_DATABASE_URL=postgres://user:pass@localhost:5432/bingxi_test"
-        );
-        "sqlite::memory:".to_string()
-    });
-    sea_orm::Database::connect(&db_url)
-        .await
-        .expect("测试夹具：数据库连接失败")
-}
+pub use bingxi_backend::services::test_common::{
+    SEALED_REFERENCE_TABLES, connect_empty_schema_db, connect_live_db, reset_business_tables,
+    setup_test_db,
+};
