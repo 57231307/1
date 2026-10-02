@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, BASE_URL, getCtx, ensureTestEntities } from './helpers';
+import { loginViaUI, apiCall, BASE_URL, ensureTestEntities } from './helpers';
 import { findTableRow, pickSelect, fillFieldByLabel } from './ui-helpers';
 
 /**
@@ -217,8 +217,15 @@ test.describe.serial('新域业务流转链', () => {
     await dateInput.fill(today);
     await page.keyboard.press('Enter');
     await dialog.locator('.el-input-number input').nth(1).fill('100'); // 发出数量
-    // 材料成本为后端 DTO 必填(>=0)且前端已加提交守卫,须真实填写否则前端拦下不发 POST。
+    // 材料成本 + 三费均为后端 outsourcing_order NOT NULL 列（v15:3247-3249）对应的建单必填，
+    // 前端 onCreate 守卫（views/outsourcing/index.vue:499-513）对 材料成本/加工费/运费/税额
+    // 逐项 ==null 判空，缺任一项即 warning 拦截、不发 POST——判责 #4669 J-4：
+    // CI 的 waitForResponse(/outsourcing-orders POST) 15s 超时根因是请求根本没发出
+    // （测试漏填三费触发正当前端守卫），非响应慢、也非 reactive 断链类前端缺陷。
     await fillFieldByLabel(dialog, page, '材料成本', '500');
+    await fillFieldByLabel(dialog, page, '加工费', '80');
+    await fillFieldByLabel(dialog, page, '运费', '20');
+    await fillFieldByLabel(dialog, page, '税额', '13');
 
     // 等待创建响应获取真实单号（readonly 自动生成的值通过 POST 回传到服务端确认）
     const [respPromise] = await Promise.all([

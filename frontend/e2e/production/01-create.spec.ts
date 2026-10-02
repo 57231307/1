@@ -88,7 +88,15 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
     // 产品ID/计划数量/优先级均为 el-input-number：fillFieldByLabel 填入后按 Tab 失焦提交 v-model，
     // 否则 modelValue 不更新 → 必填校验拦下 → 不发请求 → 成功 toast 永不出现（既往红根因）。
     const dlg = page.locator('.el-dialog:visible').last();
-    await fillFieldByLabel(dlg, page, '订单编号', `E2E-${Date.now()}`);
+    // 判责 #4669 K-2（测试操作错误，非选择器噪声）：新建对话框「订单编号」是系统自动
+    // 取号字段——DOM 事实（CI call log 原文）：input 带 disabled 且
+    // placeholder=「单据号由系统自动生成，无需填写」；fillFieldByLabel 对 disabled input
+    // 恒 "element is not enabled" 重试到 10s 超时（历史教训同型：fabric/02 批次号 readonly）。
+    // 真实契约＝自动填充不可手填：此处只断言该字段存在且为禁用自动态，不再 fill。
+    const orderNoInput = dlg.getByLabel(/订单编号/);
+    await expect(orderNoInput, '订单编号应为系统自动取号的禁用态输入').toBeDisabled({
+      timeout: 10000,
+    });
     await fillFieldByLabel(dlg, page, '产品ID', String(ctx.productIds[0]));
     await page.keyboard.press('Tab');
     await fillFieldByLabel(dlg, page, '计划数量', '100');

@@ -10,6 +10,8 @@ import {
   apiCallRaw,
   ensureTestEntities,
   getCtx,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
   seedFourDimStockIn,
   seedGreigeStockIn,
 } from '../flow/helpers';
@@ -21,15 +23,23 @@ interface TransferSeed {
   fromWarehouseId: number;
   fromWarehouseName: string;
   toWarehouseName: string;
-  /** 本用例刚 seed 的四维库存行色号：正规页库存行下拉须据此选中它自己的行（而非盲选 index 0）。 */
+  /** 本批 seed 的四维库存行色号：正规页库存行下拉须据此选中它自己的行（而非盲选 index 0）。 */
   seedColorNo: string;
+  /** 同 tuple（产品+调出仓+缸=批+色号）的真实 AVAILABLE 染色匹——UI 匹号下拉的唯一合法选项源 */
+  seedPieceNos: string[];
 }
 
 // 调拨出库要求「调出仓库对该产品有足量库存」（inventory_move::check_from_warehouse_inventory），
-// 且正规页 TransferFormDialogTab 的出库维度（色号+缸号+批次）经「调出仓+产品的真实库存行」下拉
+// 且正规页 TransferFormDialogTab 的出库四维经「调出仓+产品的真实库存行」下拉
 // （GET /inventory/stock）选定——若该产品在调出仓无库存行，则明细的下拉为空、无法建单。
-// 因此先取真实存在的「仓库/产品」首行（与对话框两个下拉 index 0 命中同一数据源），为其造一行足量
-// 四维库存，使正规页能选到真实库存行完成建单。
+// 批次 5a82561a 补匹号选择器后的新契约（判责 #4669 J-2）：
+// - 染色布（色号非空）第四维匹号必选（TransferFormDialogTab.vue:110-126/614-622，
+//   与后端 services/inv/fabric_class.rs 唯一判定同口径；不许为过用例放松）；
+// - 可命中的真实染色匹只由写入方链产出：piece_domain_service.rs:518-556 委外染色回仓确认
+//   生成的匹恒 batch_no == dye_lot_no == 缸号，且染色匹只允许成品仓/未设类型仓
+//   （validate_warehouse_for_piece_type）——故 seed 必须用 helpers.seedDyedOutboundBundle
+//   （库存行 batch=缸号 + 真实链 N 匹），调出仓必须经 pickDyeableWarehouse 选定；
+//   旧 seedFourDimStockIn 以独立 batch 值灌行，按该 tuple 造不出匹，UI 第四步必死锁。
 async function seedTransferSource(page: Page): Promise<TransferSeed> {
   await ensureTestEntities(page);
   const wh = await apiCallRaw<{ items: { id: number; warehouse_name: string }[] }>(
@@ -42,29 +52,35 @@ async function seedTransferSource(page: Page): Promise<TransferSeed> {
     'GET',
     '/products?page=1&page_size=100'
   );
-  const fromWarehouse = wh.items?.[0];
-  const toWarehouse = wh.items?.[1];
   const product = pr.items?.[0];
-  expect(fromWarehouse?.id, '前置：调拨需至少一个调出仓库').toBeTruthy();
-  expect(toWarehouse?.id, '前置：调拨需至少两个仓库（调出/调入不可同仓）').toBeTruthy();
   expect(product?.id, '前置：调拨需至少一个产品').toBeTruthy();
+  // 调出仓 = 可承载染色匹的真实仓库（未设类型仓优先，其次成品仓；胚布仓建匹必被后端拒绝）
+  const fromWarehouse = await pickDyeableWarehouse(page);
+  // 调入仓 = 与调出仓不同的另一个仓库（建单期仅记录维度归属，不校验仓库类型）
+  const toWarehouse = wh.items?.find(w => w.id !== fromWarehouse.id);
+  expect(toWarehouse?.id, '前置：调拨需至少两个仓库（调出/调入不可同仓）').toBeTruthy();
   const tag = Date.now().toString().slice(-6);
   const seedColorNo = `E2E-TRF-C${tag}`;
-  await seedFourDimStockIn(page, {
+  const bundle = await seedDyedOutboundBundle(page, {
     productId: product!.id,
-    warehouseId: fromWarehouse!.id,
+    warehouseId: fromWarehouse.id,
     colorNo: seedColorNo,
-    dyeLotNo: `E2E-TRF-D${tag}`,
-    batchNo: `E2E-TRF-B${tag}`,
     quantityMeters: '5000',
+    pieceCount: 2,
+    context: `TRF${tag}`,
   });
+  expect(
+    bundle.pieces.length,
+    `前置：seed 应产出 ≥1 匹 AVAILABLE 染色匹，实际=${bundle.pieces.length}`
+  ).toBeGreaterThanOrEqual(1);
   return {
     productId: product!.id,
     productCode: product!.product_code,
-    fromWarehouseId: fromWarehouse!.id,
-    fromWarehouseName: fromWarehouse!.warehouse_name,
+    fromWarehouseId: fromWarehouse.id,
+    fromWarehouseName: fromWarehouse.name,
     toWarehouseName: toWarehouse!.warehouse_name,
     seedColorNo,
+    seedPieceNos: bundle.pieces.map(p => p.piece_no),
   };
 }
 
@@ -110,7 +126,8 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
       timeout: 30_000,
     });
 
-    // 明细行：对话框内 el-select 顺序为 [调出仓库, 调入仓库, 产品, 库存行]。
+    // 明细行：选定调出/调入仓后，对话框内 el-select 顺序为
+    // [调出仓库, 调入仓库, 产品, 库存行, 匹号(色号非空后才渲染)]。
     // 产品下拉（nth 2，无 form-item label，filterable）：按真实款号（label 前缀 code - name）锚定。
     await pickSelect(
       page,
@@ -118,33 +135,31 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
       new RegExp(`^${escRe(seed.productCode)} `),
       { timeout: 30_000 }
     );
-    // 选定产品后 TransferFormDialogTab 触发 loadStockRows（GET /inventory/stock 按调出仓+产品下推）；
-    // 等待该回源完成，再打开库存行下拉（nth 3），确保下拉命中真实库存行而非空列表。
-    await page
-      .waitForResponse(
-        r => r.url().includes('/inventory/stock') && r.request().method() === 'GET',
-        { timeout: 15_000 }
-      )
-      .catch(() => {});
-    // 库存行下拉：选项为该调出仓+产品下的真实四维行。
-    // 根因C 指引：并发下产品/仓库可能存有其它 E2E-SEED 行，盲选 index 0 会命中「非本用例 seed」
-    // 的行（甚至被他人扣减到可用量不足）。改为按本用例刚 seed 的色号（seedColorNo，唯一 tag）
-    // 精确锚定它自己造的那行（TransferFormDialogTab.stockRowLabel 含 `色号: <color_no>` 文本），
-    // 确保选中的行与随后建单扣减的维度一致、且可用量充足。
+    // 产品 change 即 await loadStockRows（TransferFormDialogTab.vue:404-411），无需另等
+    // GET /inventory/stock 响应——原用例的 waitForResponse 注册在响应之后必然落空，且曾以
+    // `.catch(() => {})` 静默吞错（成功失败无痕，违反显式日志红线），此处直接删除；
+    // 库存行下拉（nth 3）内 pickSelect 自身等待选项可见，即等价于等待回源完成。
+    // 库存行下拉：选项为该调出仓+产品下的真实四维行，按本用例 seed 的色号（唯一 tag）
+    // 精确锚定它自己造的那行（stockRowLabel 含 `色号: <color_no>` 文本），
+    // 确保选中的行与随后建单扣减的维度一致、且可用量充足（并发下不盲选 index 0）。
     await pickSelect(page, dialog.locator('.el-select').nth(3), seed.seedColorNo, {
       timeout: 30_000,
     });
+    // 第四维匹号（5a82561a 新契约）：库存行选定后 item.color_no 非空 → 匹号下拉渲染为
+    // nth(4)，选项只能来自 GET /inventory/pieces 的真实 AVAILABLE 匹；不选定则前端
+    // pieceNoRequired 拦截、永不发请求。按本批 seed 产出的匹号精确锚定第一匹。
+    expect(seed.seedPieceNos.length, '前置：seed 匹号候选非空').toBeGreaterThan(0);
+    await pickSelect(page, dialog.locator('.el-select').nth(4), seed.seedPieceNos[0], {
+      timeout: 30_000,
+    });
 
-    // 数量：明细行 el-input-number 的内层 <input>（Element Plus 运行时对其 setAttribute role=spinbutton，
-    // 可及名回落到 placeholder「数量」——见 node_modules/element-plus/es/components/input-number/
-    // src/input-number...mjs:202/264/271，本组件未传 aria-label 故名称=placeholder）。
-    // 根因B：`dialog.locator('.el-input-number input').first()` 在本对话框内解析到一个
-    // 同 placeholder=「数量」但 hidden 的输入（CI 取证：resolved to hidden ×24 → 10s 超时），
-    // 而真正可见的 spinbutton「数量」存在（快照可见）。正解：按可及名精确锚定 spinbutton 并用
-    // visible=true 过滤到可见项——无可见数量输入时自然超时抛真实红，绝不改成「填不进就跳过」。
-    const qtyInput = dialog
-      .getByRole('spinbutton', { name: '数量', exact: true })
-      .locator('visible=true');
+    // 数量：明细行第一个 el-input-number 的内层 <input>，placeholder 直传原生 input
+    // （EP input-number → el-input → input[placeholder]，本地 node_modules 源码核实）。
+    // CI #4669 判红根因：getByRole('spinbutton', {name:'数量'}) 按可及名计算 0 命中
+    // （role 由 EP onMounted setAttribute、名称回落 placeholder 的链条在真实浏览器不可靠），
+    // 正解为按 DOM 属性直查并以 :visible 过滤到可见项——找不到即自然超时抛真实红，
+    // 绝不改成「填不进就跳过」。
+    const qtyInput = dialog.locator('input[placeholder="数量"]:visible').first();
     await expect(qtyInput, '明细数量输入应可见且可填').toBeVisible({ timeout: 10000 });
     await qtyInput.click({ clickCount: 3 });
     await qtyInput.fill('5');

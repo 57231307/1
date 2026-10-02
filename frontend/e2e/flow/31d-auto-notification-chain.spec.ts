@@ -5,7 +5,9 @@ import {
   apiCallRaw,
   tryCleanup,
   ensureTestEntities,
-  ensureStockInWarehouse,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
   getCtx,
   listNotifications,
 } from './helpers';
@@ -215,23 +217,28 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     const before = await listNotifications(page);
 
     // ship.rs:135 按 warehouse::Column::WarehouseCode 查仓，原实现硬编码 'WH001'
-    // 在 CI 空库中不存在 → 发货接口回 NOT_FOUND。改为按 ctx 真实仓库反查其编码，
-    // 并保障该仓库有可发出库存。
-    // 出库四维扣减（款号+色号+缸号+批次）：发货明细必须携带与真实入库库存行一致的维度。
-    const warehouseId = ctx.warehouseIds[0];
-    const stockRow = await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
-    const wh = await apiCallRaw<{ warehouse_code?: string }>(
-      page,
-      'GET',
-      `/warehouses/${warehouseId}`
-    );
-    expect(wh?.warehouse_code, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    // 在 CI 空库中不存在 → 发货接口回 NOT_FOUND。改为确定性选定可承载染色匹的仓库并带出其编码。
+    // 出库四维扣减（款号+色号+缸号+批次+匹号，用户 2026-10-02 口径：染色布第四维=匹号强制）：
+    // 发货明细必须携带与真实库存行一致的维度并消耗同 tuple 真实匹。
+    // ensureStockInWarehouse 命中的库存行 batch≠缸号，按写入方口径（piece_domain_service.rs:540
+    // 染色匹 batch_no=缸号）造不出可命中匹，故改用 seedDyedOutboundBundle：
+    // batch=缸号 库存行 + 委外染色真实链同维 AVAILABLE 匹。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      quantityMeters: '100',
+      pieceCount: 1,
+      context: '31d-C',
+    });
+    const stockRow = bundle.stockRow;
+    expect(target.code, `仓库 ${target.id} 应返回 warehouse_code`).toBeTruthy();
     expect(stockRow.batch_no, '发货前库存行应带批次号（四维出库入参来源）').toBeTruthy();
     expect(stockRow.dye_lot_no, '发货前库存行应带缸号（四维出库入参来源）').toBeTruthy();
 
     await apiCall(page, 'POST', `/sales/orders/${orderId}/ship`, {
       order_id: orderId,
-      warehouse_code: wh.warehouse_code,
+      warehouse_code: target.code,
       items: [
         {
           product_id: ctx.productIds[0],
@@ -239,10 +246,25 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
           color_no: stockRow.color_no,
           batch_no: stockRow.batch_no,
           dye_lot_no: stockRow.dye_lot_no,
+          piece_no: bundle.pieces[0].piece_no,
         },
       ],
     });
-    console.warn(`[31d-C] 订单发货成功（仓库编码 ${wh.warehouse_code}）`);
+    console.warn(`[31d-C] 订单发货成功（仓库编码 ${target.code}）`);
+
+    // 第四维消耗回读（写后必回读，不靠通知/日志反推）：匹必须 AVAILABLE→SHIPPED
+    const shippedPiece = await readDyedPieceByNo(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      dyeLotNo: bundle.dyeLotNo,
+      batchNo: bundle.dyeLotNo,
+      pieceNo: bundle.pieces[0].piece_no,
+    });
+    expect(shippedPiece, '发货后应能按四维 tuple 回读到被消耗匹').toBeTruthy();
+    expect(
+      String(shippedPiece!.status),
+      `匹状态应为 SHIPPED（词表 inventory_piece 大写），实际 ${shippedPiece!.status}`
+    ).toBe('SHIPPED');
 
     await page.waitForTimeout(NOTIF_SETTLE_MS);
     const after = await listNotifications(page);

@@ -135,14 +135,28 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
     });
 
     // Step5: GET 退货单明细 → 验证 quantity_returned 精确等于 unqualified_quantity
-    const returnItems = await apiCallRaw<{
-      items?: Array<{ material_id: number; quantity_returned: string | number }>;
-    }>(page, 'GET', `/purchase/returns/${returnId}/items`);
+    // 判责 #4669 K-3（测试缺陷，信封口径）：GET /purchase/returns/:id/items 是「子表明细
+    // 全量列表」（无 page/page_size 查询参），后端 handler 出参 = ApiResponse<Vec<
+    // PurchaseReturnItemDto>>（handlers/purchase_return_handler.rs:225-236），前端契约
+    // 早已按同一单形状声明 ApiResponse<PurchaseReturnItem[]>
+    //（api/purchase-return.ts:192-193），check-api-envelope 分类映射中
+    // 「Vec<T> ↔ 前端裸数组」为合法配对。PaginatedResponse{items,total,page,page_size}
+    //（utils/response.rs:34）唯一约束的是**分页列表**，不覆盖本端点。
+    // 原用例把分页信封强加于此 → 恒取 .items undefined 判红。此处对齐权威单形状：
+    // 只接受数组载荷，出现其他形状即真实判红（禁双形状探测兼容）。
+    const returnItems = await apiCallRaw<
+      Array<{
+        material_id: number;
+        quantity_returned: string | number;
+      }>
+    >(page, 'GET', `/purchase/returns/${returnId}/items`);
     expect(
-      Array.isArray(returnItems.items),
-      `退货明细应返回 items 数组，实际: ${JSON.stringify(returnItems).slice(0, 200)}`
+      Array.isArray(returnItems),
+      `退货明细应为载荷数组（与该端点前后端一致的裸数组契约），实际: ${JSON.stringify(
+        returnItems
+      ).slice(0, 200)}`
     ).toBe(true);
-    const rItem = returnItems.items!.find(i => i.material_id === productId);
+    const rItem = returnItems.find(i => i.material_id === productId);
     expect(rItem, `退货明细应包含 material_id=${productId} 的行`).toBeDefined();
     expect(
       Number(rItem!.quantity_returned),
@@ -207,11 +221,19 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
     });
 
     // 回读退货明细 → 两行各自 quantity_returned 正确
-    const resp = await apiCallRaw<{
-      items: Array<{ material_id: number; quantity_returned: string | number }>;
-    }>(page, 'GET', `/purchase/returns/${returnId}/items`);
-    const row1 = resp.items?.find(i => i.material_id === product1);
-    const row2 = resp.items?.find(i => i.material_id === product2);
+    //（同 04-02 Step5 判责：本端点权威单形状＝载荷数组，非 items 包裹）
+    const resp = await apiCallRaw<
+      Array<{
+        material_id: number;
+        quantity_returned: string | number;
+      }>
+    >(page, 'GET', `/purchase/returns/${returnId}/items`);
+    expect(
+      Array.isArray(resp),
+      `退货明细应为载荷数组（裸数组契约），实际: ${JSON.stringify(resp).slice(0, 200)}`
+    ).toBe(true);
+    const row1 = resp.find(i => i.material_id === product1);
+    const row2 = resp.find(i => i.material_id === product2);
     expect(row1, `退货明细应含 material=${product1}`).toBeDefined();
     expect(row2, `退货明细应含 material=${product2}`).toBeDefined();
     expect(Number(row1!.quantity_returned), `第1行退货数量应为 ${qty1}`).toBe(qty1);

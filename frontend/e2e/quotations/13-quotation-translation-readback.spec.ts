@@ -208,7 +208,14 @@ test.describe('13 报价翻译回读', () => {
     await expect(row, `列表应能筛出本例自建单 ${source.quotation_no}`).toBeVisible({
       timeout: 30000,
     });
-    await row.getByRole('button', { name: '复制为新单' }).click();
+    // 判责 #4669 K-1（测试定位器错写，功能实已接出）：「复制为新单」入口真实存在——
+    // list.vue:124-126 goCopy 按钮恒渲染（可见性与"查看"一致），文案键
+    // quotations.list.copy 的 zh 值为「复制」（zh-CN.ts:7853），非「复制为新单」；
+    // getByRole name 按子串匹配，「复制为新单」永远不包含于「复制」→ CI 30s click 超时。
+    // 正解＝锚定真实可及名「复制」（exact 防误命中未来含"复制"子串的其他按钮），
+    // 复制→预填→另存新单的断言意图一字不删；若需把按钮文案改为拍板用语
+    // 「复制为新单」，locale 枢纽归主编排维护，已在交付报告列出中英键值。
+    await row.getByRole('button', { name: '复制', exact: true }).click();
 
     // 复制态跳新建页（list.vue:333 push /quotations/new?copyFrom=<id>），create.vue loadForCopy 预填
     await expect(page).toHaveURL(/\/quotations\/new\?copyFrom=\d+$/, { timeout: 30000 });
