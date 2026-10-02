@@ -111,6 +111,18 @@ pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> 
         ("sales", "returns") => "sales-returns".to_string(),
         ("sales", "contracts") => "sales-contracts".to_string(),
         ("sales", "prices") => "sales-prices".to_string(),
+        // ===== 生产域：`/erp/production/production-orders/orders*` 的资源段消歧 =====
+        // 该路由是双层模块前缀（seg3=production、seg4=production-orders 均在
+        // is_module_prefix 表内），extract_resource_info（middleware/permission.rs:274-279）
+        // 取 seg5="orders" 走默认分支 ⇒ 派生成销售订单的 `orders:*` 码。后果双向都错：
+        // ① 持有 ("orders","read") 的销售角色（种子 permission.rs:285 等）能通过
+        //    中间件读到**生产工单**列表与详情（跨域越权面，行级 scope 只是部分缓解）；
+        // ② 生产侧自己的 ("production-orders","*")（:484/:526，注册表
+        //    init_service.rs 亦登记 production-orders）对本域列表/详情是**死码**，
+        //    生产岗访问自己的生产工单反而 403。
+        // 消歧到注册表权威名 production-orders，同时关掉越权面并复活死授权；
+        // 纯收窄，不新增任何"角色×资源×动作"。
+        ("production", "orders") => "production-orders".to_string(),
         // ===== 其他情况：保留 resource 原名 =====
         _ => resource.to_string(),
     }
