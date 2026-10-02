@@ -25,7 +25,7 @@
 use axum::{
     body::Body,
     extract::Request,
-    http::{HeaderName, HeaderValue},
+    http::{HeaderName, HeaderValue, StatusCode, header::CONTENT_TYPE},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -228,6 +228,86 @@ async fn catch_unwind_in_poll<F: Future>(fut: F) -> Result<F::Output, Box<dyn An
     .await
 }
 
+/// 提取器拒绝响应体读取上限：axum rejection 正文是短文案（含 serde 错误一行），
+/// 超限说明响应异常，显式记 ERROR 后仍转统一信封，不放行超大 body、不静默。
+const MAX_REJECTION_BODY_BYTES: usize = 64 * 1024;
+
+/// H 族收口（CI #4669）：把**提取器拒绝**的纯文本响应归一为统一 `AppError` 失败信封。
+///
+/// 背景：`Json<T>` 解码失败 → axum 默认 422 纯文本、`Query<T>`/`Path<T>`/`Form<T>`
+/// 解码失败 → 400 纯文本、缺 `Content-Type: application/json` → 415 纯文本；
+/// 三者都不带 `code/trace_id/timestamp`，违反本仓「失败只有 `AppError` 一种形状」
+/// 硬规则（`utils/error.rs` 模块文档）。
+///
+/// 识别判据（精确锁定 extractor rejection，绝不外溢到鉴权面）：
+/// - 状态 ∈ {400, 415, 422}：axum/axum-core 全部「请求解码拒绝」族状态
+///   （`JsonDataError`/`FailedToDeserializeFormBody`=422，`JsonSyntaxError`/
+///   `FailedToDeserializeQueryString`/`FailedToDeserializePathParams`=400，
+///   `MissingJsonContentType`/`InvalidFormContentType`=415；422 在本仓既有
+///   AppError 体系中**不存在任何构造点**，纯文本 422 必为 extractor 拒绝）；
+/// - `content-type` 以 `text/plain` 开头：这是 axum rejection 的固定出参形态。
+///   `AppError` 信封、auth 401 / permission 403（`utils/response.rs` JSON 构造）
+///   全是 `application/json`，被本判据整体隔离——**鉴权拒绝出参零变化**。
+/// - 404/405（未注册路由 / 方法不匹配）与 413（body 超限）不在本轮映射范围
+///   （见 wave-f 报告第四节的待拍板语义；413 属独立网关族，不得并入 VALIDATION）。
+///
+/// 处置：serde 原文只进 `tracing::warn`（含 method/path/query 定位上下文），
+/// 出参替换为 [`AppError::request_decoding_failed`]（400 + `code=VALIDATION_ERROR`
+/// + 固定公开规则文案 [`crate::utils::error::REQUEST_DECODING_PUBLIC`]），
+/// trace_id/timestamp 复用 `AppError::into_response` 的既有同源路径。
+/// 响应体读取失败（断链等）时不静默放行残破响应：记 ERROR 后同样转信封。
+async fn normalize_extractor_rejection(
+    response: Response,
+    method: &str,
+    path: &str,
+    query: &str,
+) -> Response {
+    let status = response.status();
+    let is_decoding_rejection_status = matches!(
+        status,
+        StatusCode::BAD_REQUEST
+            | StatusCode::UNSUPPORTED_MEDIA_TYPE
+            | StatusCode::UNPROCESSABLE_ENTITY
+    );
+    if !is_decoding_rejection_status {
+        return response;
+    }
+    let is_plain_text = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ct| ct.to_ascii_lowercase().starts_with("text/plain"));
+    if !is_plain_text {
+        // JSON 信封（AppError / 鉴权拒绝等）原样放行，绝不触碰。
+        return response;
+    }
+
+    let (_parts, body) = response.into_parts();
+    let raw = match axum::body::to_bytes(body, MAX_REJECTION_BODY_BYTES).await {
+        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+        Err(e) => {
+            tracing::error!(
+                method = %method,
+                path = %path,
+                error = %e,
+                "extractor.rejection_body_unreadable：纯文本解码拒绝响应体读取失败，仍转统一信封（不静默放行残破响应）"
+            );
+            String::from("<响应体读取失败>")
+        }
+    };
+    // 不吞原因：serde 原文逐条进日志（warn 级，属客户端可修正的 LOW 族），
+    // 只不外进 HTTP 出参——原文可能含结构体名/类型路径/行列号，属内部详情。
+    tracing::warn!(
+        method = %method,
+        path = %path,
+        query = %query,
+        original_status = %status,
+        raw_rejection = %raw,
+        "extractor.rejection_normalized：axum 提取器拒绝（纯文本、无机器码）已转统一 AppError 信封（400 + code=VALIDATION_ERROR），serde 原文只进本日志不外显"
+    );
+    AppError::request_decoding_failed().into_response()
+}
+
 /// panic 捕获层：把请求处理链任意内层抛出的 panic 转成**完整的 `AppError` 信封**。
 ///
 /// 修复前：洋葱链没有 catch-panic 层，handler panic 会直接 unwind 穿到 hyper，
@@ -239,7 +319,17 @@ async fn catch_unwind_in_poll<F: Future>(fut: F) -> Result<F::Output, Box<dyn An
 ///   因为本层注册在 `trace_context_middleware` **内层**，`TRACE_ID` task-local 已绑定）；
 /// - 以 **ERROR** 级别记录 panic 的位置（HTTP method + 请求路径 + 当前 tracing span）
 ///   与原因（panic payload）；
-/// - 正常路径（无 panic）只是多一次 `poll` 转发，不引入阻塞、不改变响应。
+/// - 正常路径（无 panic）只是多一次 `poll` 转发，不引入阻塞；响应侧另做一次
+///   O(1) 状态/content-type 判据检查，仅命中「提取器拒绝纯文本」时才改写信封
+///   （见 [`normalize_extractor_rejection`]，这是本层除 panic 外的第二个
+///   **失败形状收口**职责：422/400/415 纯文本 → 400 + `VALIDATION_ERROR` 信封）。
+///
+/// 为什么收口在本层（洋葱顺序证据，`bootstrap/middleware_bootstrap.rs:71-74`）：
+/// 提取器拒绝发生在 handler 调用点——比全部中间件层都靠内，因此任何响应回廊
+/// 都必然穿过本层；而本层紧贴 `trace_context` 内侧，`TRACE_ID` task-local 已绑定，
+/// 构造的信封 trace_id 与请求 trace 严格同源。同时本层由
+/// `apply_trace_and_panic_capture` 在完整模式与 Setup 模式**两条链共用**
+/// （middleware_bootstrap.rs:173-177, 363），单点改动即全站生效，无需碰 routes/handlers。
 ///
 /// 挂载位置见 `bootstrap::middleware_bootstrap::apply_trace_and_panic_capture`。
 pub async fn catch_panic_middleware(request: Request<Body>, next: Next) -> Response {
@@ -248,7 +338,9 @@ pub async fn catch_panic_middleware(request: Request<Body>, next: Next) -> Respo
     let query = request.uri().query().unwrap_or("").to_string();
 
     match catch_unwind_in_poll(next.run(request)).await {
-        Ok(response) => response,
+        Ok(response) => {
+            normalize_extractor_rejection(response, method.as_str(), &path, &query).await
+        }
         Err(payload) => {
             let reason = panic_payload_reason(&*payload);
             // task-local 已绑定（本层在 trace_context 内层）→ 复用同一 trace_id；

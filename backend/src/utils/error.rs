@@ -780,6 +780,40 @@ impl AppError {
     }
 }
 
+// ============================================================================
+// H 族收口：提取器请求解码拒绝的统一信封映射（只新增构造/映射，
+// 不改动任何既有变体的 code / 状态码映射）
+// ----------------------------------------------------------------------------
+// axum `Json`/`Query`/`Path`/`Form` 提取器的 rejection 默认出参是**纯文本**
+// （Json 解码失败 422、Query 解码失败 400），不带 code/trace_id，违反本仓
+// 「失败只有 AppError 一种形状」硬规则。映射点位于
+// `middleware::trace_context::normalize_extractor_rejection`（catch_panic 层的
+// 响应侧收口，覆盖完整模式与 Setup 模式两条洋葱链），本处只提供构造入口。
+// ============================================================================
+
+/// 请求解码失败的**可外显公开规则文案**（出参恒定，不含任何 serde 原文特征）。
+///
+/// 只描述用户自己刚提交的请求违背的公开格式规则（必填缺失/字段类型错误/
+/// content-type 错误），满足模块文档的可外显安全边界；serde 原文可能含结构体名、
+/// 类型路径、行列号、内部字段标识，属内部详情，**严禁**进入本常量或由本通道出参。
+pub const REQUEST_DECODING_PUBLIC: &str =
+    "请求格式不正确：请求体或查询参数存在缺失的必填字段、字段类型错误或内容类型错误，请修正后重试";
+
+impl AppError {
+    /// 构造「提取器请求解码拒绝」的统一信封：HTTP 400 + `code=VALIDATION_ERROR`。
+    ///
+    /// 族别纪律：请求解码/字段类型问题属 VALIDATION 族，与 `Query` 失败同口径，
+    /// 不许映射为 BUSINESS/INTERNAL，也不保留 axum 默认的 422。
+    /// 走 `ValidationErrorDisplayable` 是为了让信封携带上述**固定公开规则**文案
+    /// （用户需要知道是请求格式问题，而不是"参数验证失败"这类无从下手的常量）；
+    /// trace_id / timestamp / `X-Trace-Id` 响应头与其余 AppError 完全同源
+    /// （同一 [`AppError::into_response`] 路径，不另造错误体）。
+    /// serde 原始拒绝详情由映射点记 `tracing::warn`，只进日志不外显。
+    pub fn request_decoding_failed() -> Self {
+        Self::ValidationErrorDisplayable(REQUEST_DECODING_PUBLIC.to_string())
+    }
+}
+
 #[cfg(test)]
 mod displayable_message_tests {
     use super::*;
