@@ -10018,6 +10018,41 @@ export default {
       detail: 'Detail',
     },
   },
+  // 成品布入库（验布打卷）：#220 标签打印与打卷实测值必填口径的用户可见文案
+  fabricInspections: {
+    roll: {
+      warehouseRequired: 'Roll stock-in requires selecting a warehouse',
+      lengthRequired: 'Roll stock-in requires roll length',
+      lengthPositive: 'Roll length must be greater than 0',
+      weightRequired: 'Roll stock-in requires weight (kg)',
+      weightPositive: 'Roll weight (kg) must be greater than 0',
+      widthRequired: 'Roll stock-in requires width (cm)',
+      widthPositive: 'Roll width (cm) must be greater than 0',
+      gramWeightRequired: 'Roll stock-in requires gram weight (g/m²)',
+      gramWeightPositive: 'Roll gram weight (g/m²) must be greater than 0',
+      formIncomplete:
+        'Required roll stock-in fields are incomplete; please fill them in before submitting',
+      validateFailed: 'Roll dialog validation failed',
+    },
+    label: {
+      button: 'Print label',
+      dialogTitle: 'Finished fabric stock-in label',
+      scope:
+        'Dyed pieces under dye lot {dyeLotNo} (pieces rolled from this inspection are listed here)',
+      empty: 'No dyed pieces under this dye lot',
+      pieceNo: 'Piece no.',
+      colorNo: 'Color no.',
+      length: 'Length (m)',
+      weight: 'Weight (kg)',
+      warehouseInAt: 'Stock-in time',
+      action: 'Actions',
+      noDyeLot: 'This inspection has no dye lot number; cannot locate dyed pieces',
+      loadFailed: 'Failed to load dyed pieces of this dye lot',
+      printSuccess: 'Label file download started',
+      printBusinessRejected: 'This piece is not allowed to print a stock-in label',
+      printFailed: 'Failed to print the stock-in label',
+    },
+  },
   fabric: {
     common: {
       cancel: 'Cancel',

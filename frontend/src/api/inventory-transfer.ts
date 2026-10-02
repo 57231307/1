@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse, PaginatedResponse } from '@/types/api';
+import type { ApiResponse, ErrorResponse, PaginatedResponse } from '@/types/api';
 import type { ApproveTransferPayload } from './inventory';
 
 /**
@@ -228,6 +228,19 @@ export const INVENTORY_PIECE_STATUS = {
 } as const;
 
 /**
+ * 匹类型词表（#220 成品布标签打印入口的 dyed 过滤维度）。唯一事实来源 = 后端
+ * `services/piece_domain_service.rs:18-19`（PIECE_TYPE_GREIGE/PIECE_TYPE_DYED，
+ * 小写 token），与 `handlers/inventory_piece_handler.rs` ListPieceParams.piece_type
+ * 的取值逐字符相同。类型语义由后端权威判定，前端只透传词表值、不推断。
+ */
+export const PIECE_TYPE = {
+  /** 生产匹（白坯） */
+  GREIGE: 'greige',
+  /** 染色匹（验布打卷/委外收回产出，成品布标签唯一允许的类型） */
+  DYED: 'dyed',
+} as const;
+
+/**
  * 可出库匹行：与后端 `handlers/inventory_piece_handler.rs:45 PieceResponse` 逐字段对齐
  * （GET /inventory/pieces -> PaginatedResponse<PieceResponse>）。
  * length/weight 是 rust_decimal `Decimal`，序列化为字符串，展示前 Number() 归一，禁 .toFixed 造数。
@@ -282,4 +295,62 @@ export function getAvailablePieces(params: InventoryPieceQueryParams) {
   return request.get<ApiResponse<PaginatedResponse<InventoryPieceRow>>>('/inventory/pieces', {
     params,
   });
+}
+
+/**
+ * GET /inventory/pieces 的通用过滤查询（四维追溯/类型过滤）。
+ * 与 getAvailablePieces 同端点同契约，区别仅在调用场景命名：本函数供标签打印入口
+ * 按 piece_type=dyed 下推、不筛 status（已出库匹仍需补打标签，是否允许打印由后端门控判定）。
+ */
+export function listInventoryPieces(params: InventoryPieceQueryParams) {
+  return request.get<ApiResponse<PaginatedResponse<InventoryPieceRow>>>('/inventory/pieces', {
+    params,
+  });
+}
+
+/**
+ * 从下载类端点（responseType:'blob'）的失败响应提取 AppError 失败信封
+ * （ErrorResponse：全站唯一失败形状，types/api-response.ts:39-44，
+ * 对应 backend/src/utils/error.rs:303-308 固定四键 code/message/trace_id/timestamp）。
+ * blob 语义下失败体也会被 axios 包成 Blob，须先 await blob.text() 再 JSON.parse
+ * （先例 views/supplier/enhanced/index.vue extractBackendErrorReason）。
+ * 四键校验不过（非 JSON/形状异常）返回 null——调用方必须继续显式报错并留
+ * status/原始错误日志，禁止把"解析失败"当成功或静默吞掉。
+ */
+export async function extractAppErrorEnvelope(error: unknown): Promise<ErrorResponse | null> {
+  const data = (error as { response?: { data?: unknown } } | undefined)?.response?.data;
+  let body: unknown = data;
+  if (data instanceof Blob) {
+    try {
+      body = JSON.parse(await data.text());
+    } catch {
+      return null;
+    }
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const { code, message, trace_id, timestamp } = body as Record<string, unknown>;
+  if (
+    typeof code !== 'string' ||
+    typeof message !== 'string' ||
+    typeof trace_id !== 'string' ||
+    typeof timestamp !== 'number'
+  ) {
+    return null;
+  }
+  return { code, message, trace_id, timestamp };
+}
+
+/**
+ * #220 成品布入库打印标签：后端 GET /inventory/pieces/{id}/print
+ * （routes/inventory.rs:46-56 piece_routes → print_handler::inventory_piece_label_print_docx）
+ * 成功 = docx 二进制（Content-Disposition attachment），失败 = 非 2xx + AppError 信封。
+ * responseType:'blob' 先例照 api/ap.ts:279-283 printAPPaymentDocx；
+ * 成功响应非 Blob 属契约异状，显式抛错不掩盖（不兜底、不"解析失败当成功"）。
+ */
+export async function printInventoryPieceLabelDocx(id: number): Promise<Blob> {
+  const res = await request.get<Blob>(`/inventory/pieces/${id}/print`, { responseType: 'blob' });
+  if (res instanceof Blob) return res;
+  const payload = (res as unknown as { data?: unknown }).data;
+  if (payload instanceof Blob) return payload;
+  throw new Error(`GET /inventory/pieces/${id}/print 成功响应不是 Blob（契约异状）: ${typeof res}`);
 }
