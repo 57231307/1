@@ -154,9 +154,14 @@ async fn change_pending_passes_check_iso_and_all_tokens_are_writable() {
     }
 
     // 大额变更挂起回读 == change_pending（真表 CHECK 下写入不再违反约束）
-    let seeded =
-        seed_order(&db, "CO-W5U-CHANGE", co_status::CHANGE_PENDING, customer_id, product_id)
-            .await;
+    let seeded = seed_order(
+        &db,
+        "CO-W5U-CHANGE",
+        co_status::CHANGE_PENDING,
+        customer_id,
+        product_id,
+    )
+    .await;
     let row = custom_order::Entity::find_by_id(seeded.id)
         .one(&db)
         .await

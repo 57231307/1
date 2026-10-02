@@ -3,7 +3,7 @@ use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（find_by_id 读穿透 + 写失效）
 use crate::utils::redis_cache::{
-    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, DEFAULT_CACHE_TTL_SECS,
+    DEFAULT_CACHE_TTL_SECS, cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json,
 };
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
@@ -164,7 +164,11 @@ impl RoleService {
             .count(&txn)
             .await?;
         if bound_users > 0 {
-            tracing::warn!("角色 {} 删除被拒：仍有 {} 个用户绑定该角色", role_id, bound_users);
+            tracing::warn!(
+                "角色 {} 删除被拒：仍有 {} 个用户绑定该角色",
+                role_id,
+                bound_users
+            );
             return Err(AppError::business_displayable(
                 "该角色仍有用户在使用，不可删除，请先调整这些用户的角色",
             ));
@@ -172,9 +176,9 @@ impl RoleService {
 
         // 角色自身授权配置行随角色一并清除（三张表均以 FK 引用 roles）
         let removed_role_permissions = crate::models::role_permission::Entity::delete_many()
-                .filter(crate::models::role_permission::Column::RoleId.eq(role_id))
-                .exec(&txn)
-                .await?;
+            .filter(crate::models::role_permission::Column::RoleId.eq(role_id))
+            .exec(&txn)
+            .await?;
         let removed_data_permissions = crate::models::data_permission::Entity::delete_many()
             .filter(crate::models::data_permission::Column::RoleId.eq(role_id))
             .exec(&txn)

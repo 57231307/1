@@ -379,7 +379,8 @@ impl CustomOrderAfterSalesService {
         if existing.status != ext::AFTERSALES_OPENED {
             return Err(AfterSalesError::InvalidState(format!(
                 "售后工单当前状态 {} 尚未受理，只有已开启（{}）的工单可以受理",
-                existing.status, ext::AFTERSALES_OPENED
+                existing.status,
+                ext::AFTERSALES_OPENED
             )));
         }
 
@@ -414,7 +415,8 @@ impl CustomOrderAfterSalesService {
         if existing.status != ext::AFTERSALES_RESOLVED {
             return Err(AfterSalesError::InvalidState(format!(
                 "售后工单当前状态 {} 尚未解决，只有已解决（{}）的工单可以评价",
-                existing.status, ext::AFTERSALES_RESOLVED
+                existing.status,
+                ext::AFTERSALES_RESOLVED
             )));
         }
 

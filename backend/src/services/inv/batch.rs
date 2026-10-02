@@ -245,10 +245,8 @@ impl InventoryTransferService {
                 batch_no: &dims.batch_no,
                 piece_no,
             };
-            crate::services::piece_domain_service::consume_dyed_piece_for_outbound(
-                txn, &ctx, None,
-            )
-            .await?;
+            crate::services::piece_domain_service::consume_dyed_piece_for_outbound(txn, &ctx, None)
+                .await?;
         }
         Self::update_item_shipped_quantity(txn, item).await
     }
@@ -1199,8 +1197,7 @@ impl InventoryTransferService {
                 piece_no,
             };
             crate::services::piece_domain_service::validate_dyed_piece_for_outbound(
-                &*self.db,
-                &ctx,
+                &*self.db, &ctx,
             )
             .await?;
         }
@@ -1537,8 +1534,8 @@ mod tests {
 
     #[test]
     fn values_are_trimmed() {
-        let f = validate_with_piece(Some(" C001 "), Some(" D9 "), Some(" B1 "), Some(" P-3 "))
-            .unwrap();
+        let f =
+            validate_with_piece(Some(" C001 "), Some(" D9 "), Some(" B1 "), Some(" P-3 ")).unwrap();
         assert_eq!(f.color_no, "C001");
         assert_eq!(f.dye_lot_no.as_deref(), Some("D9"));
         assert_eq!(f.batch_no, "B1");

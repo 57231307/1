@@ -37,8 +37,8 @@ mod test_common;
 
 use bingxi_backend::models::status::purchase_order as po_status;
 use bingxi_backend::models::{
-    product, purchase_order, purchase_order_item, purchase_receipt, purchase_receipt_item, supplier,
-    user, warehouse,
+    product, purchase_order, purchase_order_item, purchase_receipt, purchase_receipt_item,
+    supplier, user, warehouse,
 };
 use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
 use bingxi_backend::utils::error::AppError;
@@ -119,7 +119,10 @@ async fn seed_warehouse(db: &sea_orm::DatabaseConnection) -> i32 {
 async fn seed_product(db: &sea_orm::DatabaseConnection) -> i32 {
     let now = Utc::now();
     let p = product::ActiveModel {
-        name: Set(format!("回写契约测试坯布-{}", now.timestamp_nanos_opt().unwrap())),
+        name: Set(format!(
+            "回写契约测试坯布-{}",
+            now.timestamp_nanos_opt().unwrap()
+        )),
         code: Set(format!("FAB-WB-{}", now.timestamp_nanos_opt().unwrap())),
         unit: Set("米".to_string()),
         status: Set("active".to_string()),
@@ -273,25 +276,85 @@ async fn setup_db() -> (sea_orm::DatabaseConnection, Seeds) {
     let warehouse_id = seed_warehouse(&db).await;
     let product_id = seed_product(&db).await;
 
-    let po_a = seed_po(&db, "PO-WB-A", date(2026, 3, 1), supplier_id, warehouse_id, operator).await;
-    let po_b = seed_po(&db, "PO-WB-B", date(2026, 4, 1), supplier_id, warehouse_id, operator).await;
-    let po_c = seed_po(&db, "PO-WB-C", date(2026, 5, 1), supplier_id, warehouse_id, operator).await;
+    let po_a = seed_po(
+        &db,
+        "PO-WB-A",
+        date(2026, 3, 1),
+        supplier_id,
+        warehouse_id,
+        operator,
+    )
+    .await;
+    let po_b = seed_po(
+        &db,
+        "PO-WB-B",
+        date(2026, 4, 1),
+        supplier_id,
+        warehouse_id,
+        operator,
+    )
+    .await;
+    let po_c = seed_po(
+        &db,
+        "PO-WB-C",
+        date(2026, 5, 1),
+        supplier_id,
+        warehouse_id,
+        operator,
+    )
+    .await;
     let item_a = seed_order_item(&db, po_a, product_id, Decimal::from(10)).await;
     let item_b = seed_order_item(&db, po_b, product_id, Decimal::from(5)).await;
     let _item_c = seed_order_item(&db, po_c, product_id, Decimal::from(7)).await;
 
-    let r1 =
-        seed_receipt_with_item(&db, "GR-WB-1", po_a, supplier_id, warehouse_id, product_id, item_a, Decimal::from(4), operator)
-            .await;
-    let r2 =
-        seed_receipt_with_item(&db, "GR-WB-2", po_a, supplier_id, warehouse_id, product_id, item_a, Decimal::from(6), operator)
-            .await;
-    let r3 =
-        seed_receipt_with_item(&db, "GR-WB-3", po_b, supplier_id, warehouse_id, product_id, item_b, Decimal::from(5), operator)
-            .await;
-    let r4 =
-        seed_receipt_with_item(&db, "GR-WB-4", po_b, supplier_id, warehouse_id, product_id, item_b, Decimal::from(1), operator)
-            .await;
+    let r1 = seed_receipt_with_item(
+        &db,
+        "GR-WB-1",
+        po_a,
+        supplier_id,
+        warehouse_id,
+        product_id,
+        item_a,
+        Decimal::from(4),
+        operator,
+    )
+    .await;
+    let r2 = seed_receipt_with_item(
+        &db,
+        "GR-WB-2",
+        po_a,
+        supplier_id,
+        warehouse_id,
+        product_id,
+        item_a,
+        Decimal::from(6),
+        operator,
+    )
+    .await;
+    let r3 = seed_receipt_with_item(
+        &db,
+        "GR-WB-3",
+        po_b,
+        supplier_id,
+        warehouse_id,
+        product_id,
+        item_b,
+        Decimal::from(5),
+        operator,
+    )
+    .await;
+    let r4 = seed_receipt_with_item(
+        &db,
+        "GR-WB-4",
+        po_b,
+        supplier_id,
+        warehouse_id,
+        product_id,
+        item_b,
+        Decimal::from(1),
+        operator,
+    )
+    .await;
 
     (
         db,
@@ -430,7 +493,8 @@ async fn write_back_failure_rolls_back_progress_no_half_success() {
         "错误形态必须是 NotFound，实际 {err:?}"
     );
     assert!(
-        err.to_string().contains(&format!("采购订单 {missing_order}")),
+        err.to_string()
+            .contains(&format!("采购订单 {missing_order}")),
         "错误必须外显真实定位信息，实际 {err}"
     );
     // 失败路径与生产一致：不 commit，drop 即回滚

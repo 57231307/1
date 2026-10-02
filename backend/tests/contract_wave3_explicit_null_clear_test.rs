@@ -1656,7 +1656,10 @@ async fn transfer_item_update_greige_dye_lot_lands_empty_string_on_postgres() {
         Some(""),
         "改回白坯后缸号必须清空为 ''，不得残留 DL77"
     );
-    assert!(row.piece_no.is_none(), "匹号是 m0066 可空列，显式 null 落 NULL");
+    assert!(
+        row.piece_no.is_none(),
+        "匹号是 m0066 可空列，显式 null 落 NULL"
+    );
     assert_eq!(row.batch_no, "B8", "缺席键保持原批次");
 }
 

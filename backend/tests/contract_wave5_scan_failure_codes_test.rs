@@ -401,10 +401,7 @@ async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
     );
     assert_service_unavailable_envelope(&v, "扫描服务非 2xx(supplier)");
     assert_eq!(attachment_path_of(&db, 914).await, None);
-    assert!(
-        !disk_path_of(sid, 914).exists(),
-        "非 2xx 拒绝不得落盘"
-    );
+    assert!(!disk_path_of(sid, 914).exists(), "非 2xx 拒绝不得落盘");
 
     // ---------- ② 命中病毒 → 4xx + 外显拒绝文案（不是 503/500） ----------
     let virus_port = spawn_fake_scan_server("200 OK", "stream: Win.Test.EICAR_HDB-1 FOUND");

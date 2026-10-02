@@ -172,7 +172,9 @@ fn migration_is_registered_in_production_domain_chain() {
     );
     // 逆序对称：down 里 m0069 必须先于 m0067（后应用者先回滚）
     let i69 = down.find("m0069_grant_piece_read_and_print").unwrap();
-    let i67 = down.find("m0067_aftersales_status_add_accepted_evaluated").unwrap();
+    let i67 = down
+        .find("m0067_aftersales_status_add_accepted_evaluated")
+        .unwrap();
     assert!(i69 < i67, "down 顺序必须与 up 逆序对称");
 }
 

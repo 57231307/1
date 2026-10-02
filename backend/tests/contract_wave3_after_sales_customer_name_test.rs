@@ -262,7 +262,13 @@ async fn create_response_carries_real_customer_name_from_join() {
 #[tokio::test]
 async fn list_endpoint_echoes_real_name_and_null_for_missing_customer() {
     let (app, db) = seeded_app().await;
-    seed_customer(&db, SECOND_CUSTOMER_ID as i32, "W3A-C08", SECOND_CUSTOMER_NAME).await;
+    seed_customer(
+        &db,
+        SECOND_CUSTOMER_ID as i32,
+        "W3A-C08",
+        SECOND_CUSTOMER_NAME,
+    )
+    .await;
     let (s1, c1) = post_create(&app, 42, create_payload(REAL_CUSTOMER_ID)).await;
     assert_eq!(s1, StatusCode::OK, "实际体: {c1}");
     let (s2, c2) = post_create(&app, 42, create_payload(SECOND_CUSTOMER_ID)).await;

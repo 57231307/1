@@ -49,8 +49,8 @@ use sea_orm::{
 };
 use serde_json::{Value, json};
 use std::sync::Arc;
-use tower::ServiceExt;
 use test_common::setup_test_db;
+use tower::ServiceExt;
 
 // =========================================================
 // 夹具：真 PostgreSQL（表结构唯一来源 = backend/migration，路线一 #4669 判责）

@@ -58,8 +58,8 @@ use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
 use serde_json::{Value, json};
 use std::str::FromStr;
 use std::sync::Arc;
-use tower::ServiceExt;
 use test_common::setup_test_db;
+use tower::ServiceExt;
 
 fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()

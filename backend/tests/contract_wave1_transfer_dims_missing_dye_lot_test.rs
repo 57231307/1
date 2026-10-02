@@ -58,7 +58,10 @@ fn dyed_fabric_missing_dye_lot_returns_validation_error() {
     assert_eq!(err.error_code(), "VALIDATION_ERROR");
     let disp = err.to_string();
     assert!(disp.contains("调拨出库"), "实际: {disp}");
-    assert!(!disp.contains("款号产品"), "内部产品 ID 不得进拒绝文案，实际: {disp}");
+    assert!(
+        !disp.contains("款号产品"),
+        "内部产品 ID 不得进拒绝文案，实际: {disp}"
+    );
     assert!(disp.contains("染色布必须提供缸号"), "实际: {disp}");
     assert!(
         disp.contains("COL-A"),
@@ -146,10 +149,7 @@ fn dyed_fabric_missing_piece_no_returns_validation_error() {
         None,
     )
     .expect_err("染色布缺匹号必须拒绝");
-    assert!(matches!(
-        err,
-        AppError::ValidationErrorDisplayable(_)
-    ));
+    assert!(matches!(err, AppError::ValidationErrorDisplayable(_)));
     assert_eq!(err.error_code(), "VALIDATION_ERROR");
     assert!(err.to_string().contains("匹号"), "实际: {err}");
 }

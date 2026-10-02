@@ -61,7 +61,11 @@ async fn setup_db() -> sea_orm::DatabaseConnection {
     for (day, amount, status) in [
         ("2096-12-05", Decimal::new(100000, 2), sales_order::PENDING),
         ("2096-12-06", Decimal::new(222250, 2), sales_order::DRAFT),
-        ("2096-12-07", Decimal::new(333375, 2), sales_order::CANCELLED),
+        (
+            "2096-12-07",
+            Decimal::new(333375, 2),
+            sales_order::CANCELLED,
+        ),
         ("2096-11-01", Decimal::new(50000, 2), sales_order::PENDING),
     ] {
         let values: Vec<Value> = vec![

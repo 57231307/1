@@ -16,11 +16,11 @@
 //! - 模板功能：通过 `category` 字段特殊值 `__TEMPLATE__` 标识模板记录，
 //!   `list_process_definitions` 过滤模板，`list_templates` 只查模板
 
-use crate::models::{bpm_process_definition, bpm_process_instance};
 use crate::models::dto::bpm_dto::{
     CreateProcessDefinitionRequest, ProcessDefinitionQuery, TemplateQuery,
     UpdateProcessDefinitionRequest,
 };
+use crate::models::{bpm_process_definition, bpm_process_instance};
 use crate::utils::error::AppError;
 use crate::utils::response::PaginatedResponse;
 
@@ -178,7 +178,9 @@ impl BpmService {
 
     /// 流程定义被实例引用时的统一拒绝（文案不含内部 ID/引用条数，真实原因见调用处日志）
     fn process_definition_in_use_error() -> AppError {
-        AppError::business_displayable("该流程定义已存在历史流程实例，不可删除；如需停用请改为置为未启用")
+        AppError::business_displayable(
+            "该流程定义已存在历史流程实例，不可删除；如需停用请改为置为未启用",
+        )
     }
 
     /// 获取流程定义列表（分页）（过滤模板记录（category != __TEMPLATE__ 或 category IS NULL），支持 category 和 status 筛选）

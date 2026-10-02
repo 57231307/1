@@ -40,9 +40,9 @@ mod test_common;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use bingxi_backend::models::{ar_invoice, customer, product, warehouse};
 use bingxi_backend::models::status::common::{STATUS_APPROVED, STATUS_CANCELLED, STATUS_DRAFT};
 use bingxi_backend::models::status::purchase_inventory::inventory_stock_status;
+use bingxi_backend::models::{ar_invoice, customer, product, warehouse};
 use bingxi_backend::services::ar_service::ArService;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -239,8 +239,16 @@ async fn ar_statistics_via_production_builder_counts_only_approved() {
         1,
         "total_invoices 必须=1（=2 即草稿被计入=修复前口径，=3 即取消也被计入）"
     );
-    assert_eq!(col_decimal(row, 1), dec!(1000.00), "total_amount 只含 APPROVED");
-    assert_eq!(col_decimal(row, 2), Decimal::ZERO, "paid_amount 只含 APPROVED");
+    assert_eq!(
+        col_decimal(row, 1),
+        dec!(1000.00),
+        "total_amount 只含 APPROVED"
+    );
+    assert_eq!(
+        col_decimal(row, 2),
+        Decimal::ZERO,
+        "paid_amount 只含 APPROVED"
+    );
     assert_eq!(
         col_decimal(row, 3),
         dec!(1000.00),

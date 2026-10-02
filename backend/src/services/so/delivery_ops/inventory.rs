@@ -201,10 +201,8 @@ impl SalesService {
                     batch_no: &dims.batch_no,
                     piece_no,
                 };
-                crate::services::piece_domain_service::validate_dyed_piece_for_outbound(
-                    txn, &ctx,
-                )
-                .await?;
+                crate::services::piece_domain_service::validate_dyed_piece_for_outbound(txn, &ctx)
+                    .await?;
             }
 
             // 预留分支不再短路 continue：产品级预留只保证锁定数量，四维口径校验必须与

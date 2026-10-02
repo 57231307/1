@@ -113,11 +113,7 @@ impl SalesService {
     ) -> Result<(), AppError> {
         let mut out_of_order: Vec<i32> = items
             .iter()
-            .filter(|it| {
-                !order_items
-                    .iter()
-                    .any(|oi| oi.product_id == it.product_id)
-            })
+            .filter(|it| !order_items.iter().any(|oi| oi.product_id == it.product_id))
             .map(|it| it.product_id)
             .collect();
         if out_of_order.is_empty() {
@@ -261,13 +257,7 @@ impl SalesService {
         for item in &request.items {
             let (unit_price, tax_percent) = Self::lookup_line_price(&order_item_map, item);
             let reductions = self
-                .reduce_inventory_four_dim(
-                    item,
-                    ctx.warehouse.id,
-                    request.order_id,
-                    user_id,
-                    txn,
-                )
+                .reduce_inventory_four_dim(item, ctx.warehouse.id, request.order_id, user_id, txn)
                 .await?;
             for reduction in reductions {
                 let line_amount = (reduction.quantity * unit_price).round_dp(2);
