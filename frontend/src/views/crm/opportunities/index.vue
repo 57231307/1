@@ -125,7 +125,7 @@
           align="right"
         >
           <template #default="{ row }">
-            {{ formatCurrency(row.estimated_amount) }}
+            {{ displayEstimatedAmount(row) }}
           </template>
         </el-table-column>
         <el-table-column
@@ -283,7 +283,7 @@
           viewData.owner_name || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('crmOpportunities.viewDialog.estimatedAmount')">{{
-          formatCurrency(viewData.estimated_amount)
+          displayEstimatedAmount(viewData)
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('crmOpportunities.viewDialog.winProbability')"
           >{{ viewData.win_probability ?? viewData.probability ?? 0 }}%</el-descriptions-item
@@ -598,6 +598,17 @@ const getStageType = (stage: string) => {
 
 const getStageLabel = (stage: string) => {
   return t(opportunityStageLabelKey(stage));
+};
+
+// 金额列展示（2026-10-02 裁定：字段级权限对"仅非本人行"移除真实金额列）：
+// - 键缺失 = 本入口不外显金额 → 中性占位（只说结论，不显示任何判定原因）；
+// - null/undefined（键在但库中无值）→ '-' 无值占位，不伪装成 ¥0.00；
+// - Decimal 出参为 JSON 字符串，须经 formatCurrency 归一，禁止 .toFixed()。
+const displayEstimatedAmount = (row: OpportunityRow): string => {
+  if (!('estimated_amount' in row)) return t('crmOpportunities.table.amountHidden');
+  const value = row.estimated_amount;
+  if (value === null || value === undefined) return '-';
+  return formatCurrency(value);
 };
 
 onMounted(() => {

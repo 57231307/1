@@ -214,8 +214,9 @@ impl CrmService {
         ("created_at", "创建时间"),
     ];
 
-    /// 商机金额列（无角色数据权限行且非 admin 时整列不外显）：列名取
-    /// `models/crm_opportunity.rs:43/:46` 的真实列，不用不存在的 `amount` 键。
+    /// 商机金额列（"仅非本人行"默认处理的剔除列集合，2026-10-02 裁定 #2/#4：
+    /// 列表/详情/写响应与导出共用）：列名取 `models/crm_opportunity.rs:43/:46` 的
+    /// 真实列，不用不存在的 `amount` 键。
     pub const EXPORT_AMOUNT_COLUMNS: &'static [&'static str] =
         &["estimated_amount", "actual_amount"];
 
@@ -260,13 +261,15 @@ impl CrmService {
     /// —— 传入 ctx 时套用**同一个** `apply_department_scope`（商机无公海语义，
     /// 故不带 pool 放行分支，与列表一致）；传 None 则整体跳过行级过滤
     ///（修复前 export 恒为此路径，self/dept 用户可一次导出全库商机，属越权读 + 金额外泄）。
-    /// 字段级剔除不在此处做：判定源（角色数据权限 + admin 例外）在 handler，
-    /// 与列表/详情共用同一函数，见 `crm_handler::export_opportunities`。
+    /// 字段级处理不在此处做：判定与掩码在 handler 侧与列表/详情**同一个**
+    /// `crm_handler::apply_opportunity_field_permission`（2026-10-02 裁定 #4：入口一致），
+    /// 本函数按行序回传 `owner_id` 供其定位"仅非本人行"（导出列定义不含 owner_id，
+    /// 该列表格回写时不落盘、不进文件，见 crm_handler 导出注释）。
     pub async fn export_opportunities(
         &self,
         query: crate::models::dto::crm_dto::OpportunityQuery,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<XlsxTable, AppError> {
+    ) -> Result<(XlsxTable, Vec<i32>), AppError> {
         let mut q = crm_opportunity::Entity::find();
 
         if let Some(s) = query.opportunity_stage {
@@ -305,11 +308,15 @@ impl CrmService {
             })
             .collect();
 
-        Ok(XlsxTable {
-            sheet_name: "商机列表".to_string(),
-            headers,
-            rows,
-        })
+        Ok((
+            XlsxTable {
+                sheet_name: "商机列表".to_string(),
+                headers,
+                rows,
+            },
+            // 与数据行同序的归属人 ID（"仅非本人行"判定的行归属来源，见函数文档）
+            opportunities.iter().map(|opp| opp.owner_id).collect(),
+        ))
     }
 
     /// 获取商机详情
@@ -788,18 +795,27 @@ impl CrmService {
         let mut details: Vec<WeightedForecastItem> = Vec::new();
 
         for opp in &opps {
-            let estimated = opp.estimated_amount.unwrap_or(Decimal::ZERO);
+            // 2026-10-02 裁定附带项：金额列按真实可空语义出参——estimated_amount 为
+            // Option<Decimal> 原样透传，不再用 unwrap_or(ZERO) 把"无金额"伪造成 0.00
+            // （前端预测列据此显示无值占位，见 enhanced/index.vue::fmtAmount）。
             let win_prob = opp.win_probability.unwrap_or(Decimal::ZERO);
-            // 加权金额 = 金额 × 赢率 / 100
-            let weighted = estimated * win_prob / Decimal::from(100);
-            total_estimated += estimated;
-            total_weighted += weighted;
+            // 加权金额 = 金额 × 赢率 / 100；金额无值则加权无值（不可计算，不伪造 0）
+            let weighted = opp
+                .estimated_amount
+                .map(|estimated| estimated * win_prob / Decimal::from(100));
+            // 汇总口径：无金额的行不贡献合计（数学上与加 0 等价，合计值不变）
+            if let Some(estimated) = opp.estimated_amount {
+                total_estimated += estimated;
+            }
+            if let Some(weighted) = weighted {
+                total_weighted += weighted;
+            }
             details.push(WeightedForecastItem {
                 opportunity_id: opp.id,
                 opportunity_no: opp.opportunity_no.clone(),
                 opportunity_name: opp.opportunity_name.clone(),
                 stage: opp.opportunity_stage.clone().unwrap_or_default(),
-                estimated_amount: estimated,
+                estimated_amount: opp.estimated_amount,
                 win_probability: win_prob,
                 weighted_amount: weighted,
                 expected_close_date: opp.expected_close_date,
@@ -1308,15 +1324,18 @@ pub struct WeightedForecastResult {
 }
 
 /// V15 P2 18.2-D5: 加权预测项
+///
+/// 金额列按 crm_opportunity 真实可空语义出参（Option，无值即 null，不伪造 0）；
+/// Decimal 经 serde 序列化为 JSON 字符串，前端格式化须经 Number 归一，不得 .toFixed()。
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct WeightedForecastItem {
     pub opportunity_id: i32,
     pub opportunity_no: String,
     pub opportunity_name: String,
     pub stage: String,
-    pub estimated_amount: rust_decimal::Decimal,
+    pub estimated_amount: Option<rust_decimal::Decimal>,
     pub win_probability: rust_decimal::Decimal,
-    pub weighted_amount: rust_decimal::Decimal,
+    pub weighted_amount: Option<rust_decimal::Decimal>,
     pub expected_close_date: Option<chrono::NaiveDate>,
 }
 

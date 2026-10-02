@@ -124,33 +124,38 @@ pub(crate) fn paginated_list_array_mut(
     list
 }
 
-/// #209：商机**字段级**数据权限的唯一实现，四个出口共用（本文件 `list_opportunities`
+/// #209：商机**字段级**数据权限的唯一实现，五个出口共用（本文件 `list_opportunities`
 /// 列表、`get_opportunity` 详情、`create_opportunity` 建单、`update_opportunity`/
-/// `close_opportunity_as_lost` 写响应）。与线索侧 `apply_lead_field_permission` 同形态：
+/// `close_opportunity_as_lost` 写响应；`export_opportunities` 亦经行对象转换后走本函数）。
+/// 与线索侧 `apply_lead_field_permission` 同形态：
 /// - 配了角色数据权限行 → 与导出同一个 `filter_fields_batch`（allowed 白名单 / hidden 移除，
 ///   不叠加默认处理；admin 由 `get_role_data_permission` 返回
 ///   `Ok(Some{allowed:None,hidden:None})` → 空操作，保持原值契约）；
-/// - 无权限行且非 admin → 默认隐藏（本函数保留改造前的**逐键等价行为**，见下）。
+/// - 无权限行且非 admin → 默认隐藏，范围 = **仅非本人行**（用户 2026-10-02 拍板 #2：
+///   行 `owner_id` ≠ 当前登录用户时按真实列 `estimated_amount`/`actual_amount` 移除金额；
+///   本人名下商机金额必须可见，否则销售日常功能被做没）。
 ///
-/// 【等价性说明 / 待用户裁定项】改造前 `list_opportunities`/`get_opportunity` 的默认分支
-/// 写的是 `obj.remove("amount")`，而 `crm_opportunity` 出参根本没有 `amount` 键（真实金额列是
-/// `estimated_amount`/`actual_amount`，见 `EXPORT_AMOUNT_COLUMNS`）——即这处"移除"当前恒不
-/// 生效，商机金额对非 admin 实际仍是原文。是否连带收紧列表/详情/写响应的金额默认隐藏属
-/// **待用户拍板**的口径（隐藏范围是否含本人行），本轮决策结论为"仅非本人行剔除、且需用户
-/// 拍板"，故本函数**只做等价重构**：把同一份既有逻辑（含这处恒不生效的 `remove("amount")`）
-/// 收敛为一个函数并被四个出口共用，不改实际生效范围。该恒不生效分支现保留在本函数的默认
-/// 分支中等待裁定（导出侧 `drop_export_amount_columns` 按真实列名剔除，是更严的一侧，本轮不动）。
+/// 【本轮裁定落地的两处修正】
+/// 1. 原默认分支按不存在的 `amount` 单键做移除（源码扫描棘轮锁其字面量不得回潮），而
+///    `crm_opportunity` 出参根本没有该键（真实金额列是 `estimated_amount`/`actual_amount`，
+///    见 `EXPORT_AMOUNT_COLUMNS`）——该"移除"恒不生效，属"读不存在键"根因，
+///    已改为剔真实列（源码扫描棘轮锁其不回潮）；
+/// 2. fail-closed 收紧（用户 2026-10-02 裁定后的收紧，与线索/客户域同口径）：
+///    `role_id` 缺失不再"对出参不做任何处理"，而是按无权限行走默认处理。
+/// 行 `owner_id` 缺失或非数值时同样按"非本人行"处理（宁缺勿泄，不做原文放行兜底）。
+/// 本函数只处理出参，不改状态码、不外显任何拒绝原因（权限拒绝仍走
+/// `AppError::permission_denied` 的固定脱敏信封）。
 pub(crate) async fn apply_opportunity_field_permission(
     state: &AppState,
     role_id: Option<i32>,
+    current_user_id: i32,
     opportunities: &mut [serde_json::Value],
 ) {
-    // 与改造前 `if let Some(role_id) = auth.role_id { ... }` 逐键一致：role_id 缺失时
-    // 本函数对出参不做任何处理（保持既有商机的实际行为；线索侧 None 走默认脱敏是另一条
-    // 已裁定口径，不在此处对齐——本轮只收敛商机，不改变其生效范围）。
     if let Some(rid) = role_id {
         if let Some(permission) = resolve_role_data_permission(state, rid, "crm_opportunity").await
         {
+            // 裁定 #3：配了角色数据权限行的角色保持既有契约（只走配置，不叠加默认隐藏；
+            // admin 命中 Ok(Some{None,None}) → 空操作原值契约不变）
             state.data_permission_service.filter_fields_batch(
                 opportunities,
                 &permission.allowed_fields,
@@ -158,13 +163,27 @@ pub(crate) async fn apply_opportunity_field_permission(
             );
             return;
         }
-        if rid != 1 {
-            // 无权限行且非 admin（查询 Err 亦在此，已在 resolve 内记 warn）：
-            // 保留改造前的默认隐藏写法（现恒不生效，见函数文档"待用户裁定"）。
-            for opportunity in opportunities.iter_mut() {
-                if let Some(obj) = opportunity.as_object_mut() {
-                    obj.remove("amount");
-                }
+        // 裁定 #3：admin（role_id==1）无权限行时保持既有原值契约，不进默认处理
+        //（查询 Err 已在 resolve 内记 warn；admin 例外与线索侧 mask_lead_pii_defaults 自放行同构）
+        if rid == 1 {
+            return;
+        }
+    }
+
+    // 无权限行且非 admin，或 role_id 缺失（fail-closed 收紧，见函数文档 #2）：
+    // 默认处理 = 仅剔"非本人行"的真实金额列。
+    for opportunity in opportunities.iter_mut() {
+        let is_own_row = opportunity
+            .get("owner_id")
+            .and_then(Value::as_i64)
+            .is_some_and(|oid| oid == current_user_id as i64);
+        if is_own_row {
+            continue;
+        }
+        if let Some(obj) = opportunity.as_object_mut() {
+            // 列名取 crm_opportunity 真实列（与导出 EXPORT_AMOUNT_COLUMNS 同一单源集合）
+            for column in CrmService::EXPORT_AMOUNT_COLUMNS {
+                obj.remove(*column);
             }
         }
     }
@@ -507,19 +526,6 @@ fn mask_export_pii_columns(
     )
 }
 
-/// #208：商机导出的默认剔除分支（无数据权限行且非 admin）：金额列整列不外显，
-/// 与 `list_opportunities` / `get_opportunity` 的"移除 amount 列"同一列集合口径
-/// （列名取 crm_opportunity 真实列 `estimated_amount` / `actual_amount`）。
-fn drop_export_amount_columns(
-    table: &mut crate::utils::xlsx_export::XlsxTable,
-) -> Result<(), AppError> {
-    apply_default_export_actions(
-        table,
-        CrmService::EXPORT_OPP_COLUMNS,
-        &[(CrmService::EXPORT_AMOUNT_COLUMNS, ExportColumnAction::Drop)],
-    )
-}
-
 /// POST /api/v1/erp/crm/leads/import - 批量导入线索（xlsx）；v11 批次 157d-4 新增：接收
 /// Multipart xlsx 文件，后端用 calamine 解析并批量创建线索。 文件大小限制 10MB，列顺序与 export_leads 一致。
 pub async fn import_leads(
@@ -748,8 +754,13 @@ pub async fn create_opportunity(
     let mut value = serde_json::to_value(res)?;
     // #209：建单成功响应走商机字段级出参唯一实现（与列表/详情/更新同源），
     // 不再整行原文直出。本函数默认分支的等价性说明见 apply_opportunity_field_permission。
-    apply_opportunity_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value))
-        .await;
+    apply_opportunity_field_permission(
+        &state,
+        auth.role_id,
+        auth.user_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -766,11 +777,12 @@ pub async fn list_opportunities(
         .await?;
     let mut value = serde_json::to_value(res)?;
 
-    // 字段级数据权限：与 get_opportunity / 建单 / 更新收敛到同一个实现
+    // 字段级数据权限：与 get_opportunity / 建单 / 更新 / 导出收敛到同一个实现
     // （apply_opportunity_field_permission），本处不再内联分支——内联分支正是"写响应回原文"
-    // 旁路的成因。列表定位 list/data 数组后批量处理（详见该函数文档的等价性/待裁定说明）。
+    // 旁路的成因。列表定位 list/data 数组后批量处理（口径详见该函数文档，2026-10-02 裁定：
+    // 无权限行且非 admin 时仅剔"非本人行"的真实金额列）。
     if let Some(list) = paginated_list_array_mut(&mut value) {
-        apply_opportunity_field_permission(&state, auth.role_id, list).await;
+        apply_opportunity_field_permission(&state, auth.role_id, auth.user_id, list).await;
     }
 
     Ok(Json(ApiResponse::success(value)))
@@ -779,21 +791,17 @@ pub async fn list_opportunities(
 /// GET /api/v1/erp/crm/opportunities/export - 导出商机为 xlsx；v11 批次 141 新增：前端 exportOpportunities API 真实接入。 v11 批次
 /// 142 升级：导出格式从 CSV 升级为 xlsx（规则 3 强制要求）。 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 ///
-/// 数据权限（#208 遗留项收口，修法与上面 `export_leads`（#207）完全同构）：商机导出必须与
+/// 数据权限（#208 遗留项收口，行级修法与 `export_leads`（#207）同构）：商机导出必须与
 /// 本文件 `list_opportunities` / `get_opportunity` 走同一条权限链——
 /// 行级：`auth.to_data_scope_context()` 注入 service，套用与列表**同一个**
-/// `apply_department_scope`（`services/crm/opp.rs:162`；商机无公海语义，
+/// `apply_department_scope`（`services/crm/opp.rs`；商机无公海语义，
 /// **不可**误用带 pool 放行的 `apply_department_scope_with_pool`），使导出的行集合与
 /// 该用户列表可见集严格一致；
-/// 字段级：同一个判定源（`data_permission_service.get_role_data_permission(role_id,
-/// "crm_opportunity")`，admin 依据 roles.code='admin'）+ 同一个
-/// `filter_fields_batch`；无权限行且非 admin 时按 `EXPORT_AMOUNT_COLUMNS`
-/// （`estimated_amount`/`actual_amount`，出参真实列名）整列剔除金额，与列表/详情
-/// 默认隐藏分支的意图一致。
-/// 注：`list_opportunities`/`get_opportunity` 的该分支写的是 `obj.remove("amount")`，
-/// 而 `crm_opportunity` 出参并无 `amount` 键（真实列是上面两列）——即列表侧那处
-/// "移除"当前恒不生效，属同类的读错键缺陷，是否连带收紧列表出参（影响前端金额列展示）
-/// 需用户拍板，本批不动（见交付报告"待决点"）。导出侧按真实列名剔除，是更严的一侧。
+/// 字段级（用户 2026-10-02 裁定 #4：入口一致）：行对象转换后与列表/详情/写响应共用**同一个**
+/// `apply_opportunity_field_permission`——配置角色走同一个 `filter_fields_batch`、
+/// admin 原值、无权限行且非 admin 时仅剔"非本人行"的 `EXPORT_AMOUNT_COLUMNS`
+/// （`estimated_amount`/`actual_amount` 真实列名）。导出不再保留独立的"整列剔除"分支：
+/// 两套判定并存正是"列表打码、导出原文"这类同资源不同入口旁路的成因（本族已收口四轮）。
 /// 修复前两层都没有：service 侧只按 `opportunity_stage` 过滤（不吃行级 ctx）、
 /// handler 也不查角色字段权限
 /// ⇒ self/dept 用户点一次"导出"即拿到全库商机含金额，属越权读 + 商业秘密外泄。
@@ -810,31 +818,31 @@ pub async fn export_opportunities(
     // 行级数据权限：与 list_opportunities（本文件 :562-566）同法构造并注入 ctx；
     // 省略 ctx 会让 service 层整体跳过行级过滤，self/dept 用户可一次拿到全库商机。
     let data_scope_ctx = auth.to_data_scope_context();
-    let mut table = service
+    // row_owner_ids：导出列定义不含 owner_id（列结构改造前后一致、不多出可见列），
+    // 由服务层按行序回传归属人 ID，供"仅非本人行"统一判定定位行归属；
+    // write_back_export_rows 只按列定义表回写，该键不会进入导出文件。
+    let (mut table, row_owner_ids) = service
         .export_opportunities(query, Some(&data_scope_ctx))
         .await?;
 
-    // 字段级数据权限：判定分支与 list_opportunities/get_opportunity 同构，
-    // 取数与线索导出、列表/详情共用同一函数 resolve_role_data_permission
-    // （fail-closed 口径一致：role_id 缺失按非 admin 处理）
-    match auth.role_id {
-        Some(role_id) => {
-            if let Some(permission) =
-                resolve_role_data_permission(&state, role_id, "crm_opportunity").await
-            {
-                apply_export_field_permission(
-                    &state.data_permission_service,
-                    &mut table,
-                    CrmService::EXPORT_OPP_COLUMNS,
-                    &permission.allowed_fields,
-                    &permission.hidden_fields,
-                )?;
-            } else if role_id != 1 {
-                drop_export_amount_columns(&mut table)?;
-            }
-        }
-        None => drop_export_amount_columns(&mut table)?,
+    // 字段级数据权限（用户 2026-10-02 裁定 #4：导出与列表/详情统一到同一条规则，
+    // 同样"仅非本人行"）：行对象转换后走与列表/详情/写响应**同一个**
+    // apply_opportunity_field_permission——配置角色走 filter_fields_batch、
+    // admin 原值、无权限行且非 admin 仅剔他人行的真实金额列。
+    // 原独立的"金额整列剔除"导出分支已收敛进该函数（源码扫描棘轮锁其不得回潮）：
+    // 两套分支并存正是"同资源不同入口口径漂移"的成因（本族已收口四轮）。
+    let mut rows_json = export_row_cells(&table, CrmService::EXPORT_OPP_COLUMNS)?;
+    for (row_obj, owner_id) in rows_json.iter_mut().zip(row_owner_ids) {
+        // 行对象由 export_row_cells 构造，必为 object；取不到属形状漂移，显式失败不兜底
+        let Some(obj) = row_obj.as_object_mut() else {
+            return Err(AppError::internal(
+                "导出行对象构造后非 object（列定义与行构造漂移），拒绝导出".to_string(),
+            ));
+        };
+        obj.insert("owner_id".to_string(), Value::from(owner_id));
     }
+    apply_opportunity_field_permission(&state, auth.role_id, auth.user_id, &mut rows_json).await;
+    write_back_export_rows(&mut table, CrmService::EXPORT_OPP_COLUMNS, &rows_json)?;
 
     let row_count = table.rows.len();
 
@@ -877,8 +885,13 @@ pub async fn get_opportunity(
     let mut value = serde_json::to_value(res)?;
 
     // 字段级数据权限：与列表/建单/更新同一实现（单元素切片复用批量函数，判定与处理只有一份代码）
-    apply_opportunity_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value))
-        .await;
+    apply_opportunity_field_permission(
+        &state,
+        auth.role_id,
+        auth.user_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
 
     Ok(Json(ApiResponse::success(value)))
 }
@@ -897,8 +910,13 @@ pub async fn update_opportunity(
     let res = service.update_opportunity(id, req, auth.user_id).await?;
     let mut value = serde_json::to_value(res)?;
     // #209：更新成功响应走商机字段级出参唯一实现（与列表/详情/建单同源），不再整行原文直出。
-    apply_opportunity_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value))
-        .await;
+    apply_opportunity_field_permission(
+        &state,
+        auth.role_id,
+        auth.user_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -947,8 +965,13 @@ pub async fn close_opportunity_as_lost(
     let mut value = serde_json::to_value(res)?;
     // #209：关单（输单）同样是整行 crm_opportunity::Model 写响应，走商机字段级出参唯一实现，
     // 与列表/详情/建单/更新同源，不再整行原文直出。
-    apply_opportunity_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value))
-        .await;
+    apply_opportunity_field_permission(
+        &state,
+        auth.role_id,
+        auth.user_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
     Ok(Json(ApiResponse::success(value)))
 }
 

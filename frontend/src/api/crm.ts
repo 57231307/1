@@ -68,7 +68,10 @@ export interface Opportunity {
   opportunity_stage?: OpportunityStage;
   /** @deprecated 向后兼容字段，新代码应使用 opportunity_stage */
   stage?: OpportunityStage;
-  estimated_amount: number;
+  /** 预估金额：crm_opportunity 真实列 estimated_amount（旧代码曾绑不存在的 `amount` 键）。
+   * 后端 Decimal 序列化为 JSON 字符串；null = 库中无值；
+   * 字段级数据权限（仅非本人行）下该键会被**整键移除**，消费方须用 `'estimated_amount' in row` 区分"不外显"与"无值"。 */
+  estimated_amount?: string | number | null;
   probability: number;
   expected_close_date: string;
   description: string;
@@ -343,23 +346,25 @@ export interface SalesFunnelReport {
   order_to_collection_rate: number;
 }
 
-/** 加权预测项（对应后端 WeightedForecastItem） */
+/** 加权预测项（对应后端 WeightedForecastItem）
+ * 金额列为 crm_opportunity 真实可空语义（无值 = null，后端不再伪造 0）；
+ * Decimal 序列化为 JSON 字符串，格式化须经 Number 归一 */
 export interface WeightedForecastItem {
   opportunity_id: number;
   opportunity_no: string;
   opportunity_name: string;
   stage: string;
-  estimated_amount: number;
+  estimated_amount: string | null;
   win_probability: number;
-  weighted_amount: number;
+  weighted_amount: string | null;
   expected_close_date?: string;
 }
 
-/** 加权预测结果（对应后端 WeightedForecastResult） */
+/** 加权预测结果（对应后端 WeightedForecastResult；合计为 Decimal → JSON 字符串） */
 export interface WeightedForecastResult {
   total_opportunities: number;
-  total_estimated_amount: number;
-  total_weighted_amount: number;
+  total_estimated_amount: string;
+  total_weighted_amount: string;
   details: WeightedForecastItem[];
 }
 

@@ -10,27 +10,31 @@
 //! ⇒ self/dept 用户点一次"导出"即拿到全库商机（limit 10000）含金额，
 //!   形成"列表隐藏金额、导出原文外显"的双层旁路（越权读 + 商业秘密外泄）。
 //!
-//! 修复口径（与 #207 线索导出严格同构，不新造权限模型、不新增权限键）：
+//! 修复口径（与 #207 线索导出严格同构，不新造权限模型、不新增权限键；
+//! 2026-10-02 用户裁定 #4 后字段级分支已与列表/详情合并为同一个
+//! `crm_handler::apply_opportunity_field_permission`）：
 //! - 行级：handler 与 `list_opportunities` 同法构造 ctx 注入 service，service 内套用
-//!   与列表**同一个** `apply_department_scope`（opp.rs:162 口径）。
-//!   **商机没有公海语义**（`models/crm_opportunity.rs:69-73`：RLS 策略无 pool 分支，
+//!   与列表**同一个** `apply_department_scope`（opp.rs 口径）。
+//!   **商机没有公海语义**（`models/crm_opportunity.rs`：RLS 策略无 pool 分支，
 //!   公海机制仅存在于 `crm_lead.lead_status`），故不得误用
 //!   `apply_department_scope_with_pool` —— 用错即凭空放行一整类行；
-//! - 字段级：同一判定源 + 同一 `filter_fields_batch`（有权限行分支），
-//!   无权限行且非 admin 走 `EXPORT_AMOUNT_COLUMNS`（`estimated_amount`/`actual_amount`
-//!   真实列名）整列剔除；列名未命中导出列定义表 ⇒ fail-closed 报错不出文件；
+//! - 字段级：行对象转换后走列表/详情**同一个** `apply_opportunity_field_permission`
+//!   （配置角色 → `filter_fields_batch`；无权限行且非 admin → 按 `EXPORT_AMOUNT_COLUMNS`
+//!   真实列名剔**非本人行**金额，本人行金额真实外显——2026-10-02 裁定 #2）；
+//!   列名未命中导出列定义表 ⇒ fail-closed 报错不出文件；
 //! - 导出列序/表头/取值由 `CrmService::EXPORT_OPP_COLUMNS` 单源定义（列名 =
-//!   crm_opportunity 出参键），改造前后表头逐列一致，前端与既有模板不受影响。
+//!   crm_opportunity 出参键），改造前后表头逐列一致，前端与既有模板不受影响
+//!   （行归属 owner_id 不在列定义中，由服务层按行序回传，仅供判定、不写入文件）。
 //!
 //! 一致性证明方式：断言"导出解析出的数据行数与 `商机编号` 集合 == 同一用户同一查询
 //! 条件下 `GET /erp/crm/opportunities` 的行集"（等式而非写死数字），xlsx 用 calamine
 //! 解析回读单元格原文判定，不看 200 就收工。
 //!
 //! 覆盖边界（诚实声明）：
-//! - `list_opportunities`/`get_opportunity` 的默认分支写的是 `obj.remove("amount")`，
-//!   而 `crm_opportunity` 出参不存在 `amount` 键（真实列是上面两列）——即列表侧那处
-//!   "移除"当前恒不生效，属同类读错键缺陷；连带收紧列表出参会影响前端金额列展示，
-//!   需用户拍板，本批不动（见交付报告"待决点"）。本文件只锁导出侧（更严的一侧）。
+//! - `list_opportunities`/`get_opportunity` 默认分支原写的 `obj.remove("amount")`
+//!   （读不存在的键、恒不生效）已于 2026-10-02 裁定后改为剔真实列且范围 = 仅非本人行，
+//!   运行时锁见 `contract_wave7_crm_opp_amount_scope_test.rs`。本文件锁导出入口与
+//!   该统一口径的一致性。
 //! - 导出审计事件（V15 P0-S11 `record_async`）为 best-effort 异步落库，时序不可判定，
 //!   本文件不断言。
 
@@ -434,11 +438,12 @@ fn assert_amount_columns_blank(headers: &[String], rows: &[Vec<String>], who: &s
 }
 
 // ---------------------------------------------------------------------------
-// 1) self 用户：导出行集 == 列表可见集，且金额列整列不外显（两层旁路同时锁）
+// 1) self 用户：导出行集 == 列表可见集；行集仅本人行，且本人行金额真实外显
+//    （2026-10-02 裁定 #2：隐藏范围 = 仅非本人行，本人行金额必须可见）
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn self_user_opp_export_rows_equal_list_visible_and_amounts_dropped() {
+async fn self_user_opp_export_rows_equal_list_visible_and_own_amounts_kept() {
     let db = seeded_db(None).await;
     let app = build_app(&db, make_auth(USER_B, 2, "self"));
 
@@ -461,29 +466,39 @@ async fn self_user_opp_export_rows_equal_list_visible_and_amounts_dropped() {
         );
     }
 
-    assert_amount_columns_blank(&headers, &rows, "self 用户（无数据权限行分支）");
-    // 反证：金额原文数字也不得以任何形式外显（含 Decimal.to_string 的变体）
+    // 本人行金额原文外显（裁定 #2：否则销售日常功能被做没）
+    let own = row_of(&headers, &rows, "OPPB003");
+    assert_eq!(
+        cell(own, column(&headers, "预估金额")),
+        amount_text(B_EST_1),
+        "self 用户导出本人行的预估金额必须真实外显"
+    );
+    assert_eq!(
+        cell(own, column(&headers, "实际金额")),
+        amount_text(B_ACT_1),
+        "self 用户导出本人行的实际金额必须真实外显"
+    );
+    // 反证：他人（A）行金额原文不得以任何形式外显
     for banned_amount in [
         amount_text(A_EST_1),
         amount_text(A_ACT_1),
-        amount_text(B_EST_1),
-        amount_text(B_ACT_1),
+        amount_text(A_EST_2),
     ] {
         assert!(
             !all_cells.iter().any(|c| c.as_str() == banned_amount),
-            "self 用户导出含金额原文 {banned_amount}"
+            "self 用户导出含他人行金额原文 {banned_amount}"
         );
     }
 
-    // 其余列不受影响（证明"剔除"是精准的，不是把整行清空冒充合规）
-    let own = row_of(&headers, &rows, "OPPB003");
+    // 其余列不受影响（证明金额处理是精准的，不是把整行清空冒充合规）
     assert_eq!(cell(own, column(&headers, "商机阶段")), "QUALIFICATION");
     assert_eq!(cell(own, column(&headers, "负责人")), "销售乙");
     assert_eq!(cell(own, column(&headers, "优先级")), "high");
 }
 
 // ---------------------------------------------------------------------------
-// 2) dept 用户：行级口径与列表同源（apply_department_scope，不含任何 pool 放行）
+// 2) dept 用户：行级口径与列表同源（apply_department_scope，不含任何 pool 放行）；
+//    字段级"仅非本人行"——55 号用户不持有任何行，导出全部行金额不外显
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -498,7 +513,12 @@ async fn dept_user_opp_export_rows_equal_list_visible() {
     assert_eq!(list.0, 4, "dept 用户列表可见集基线: {:?}", list.1);
     let (headers, rows) = export_table(&app).await;
     assert_same_visible_set(&list, &headers, &rows);
-    assert_amount_columns_blank(&headers, &rows, "dept 用户（无数据权限行分支）");
+    // 55 非任何行归属人 ⇒ 全部按"非本人行"剔金额
+    assert_amount_columns_blank(
+        &headers,
+        &rows,
+        "dept 用户（无数据权限行分支，全为非本人行）",
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -607,8 +627,21 @@ fn opp_export_handler_and_service_must_inject_data_scope_and_drop_amounts() {
         "回潮棘轮：crm_handler.rs 出现省略 ctx 的 export_opportunities(query) 调用"
     );
     assert!(
-        handler.contains("drop_export_amount_columns(&mut table)"),
-        "商机导出缺默认金额列剔除分支（无数据权限行且非 admin 时不得外显金额）"
+        handler.contains(
+            "apply_opportunity_field_permission(&state, auth.role_id, auth.user_id, &mut rows_json)"
+        ),
+        "商机导出字段级处理必须走列表/详情同一个 apply_opportunity_field_permission（2026-10-02 裁定 #4：同资源同口径）"
+    );
+    let export_body = handler
+        .split("pub async fn export_opportunities")
+        .nth(1)
+        .expect("export_opportunities 定义缺失")
+        .split("pub async fn get_opportunity")
+        .next()
+        .expect("export_opportunities 函数体边界缺失");
+    assert!(
+        !export_body.contains("drop_export_amount_columns"),
+        "回潮棘轮：商机导出又出现独立的整列剔除分支（与列表口径分叉 = 同资源不同入口旁路）"
     );
 
     let service = include_str!("../src/services/crm/opp.rs");
