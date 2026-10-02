@@ -271,8 +271,16 @@ loadStats();
           <ElTableColumn prop="username" :label="t('omniAudit.index.colUser')" width="100" />
           <ElTableColumn prop="module" :label="t('omniAudit.index.colEventType')" width="120" />
           <ElTableColumn prop="action" :label="t('omniAudit.index.colAction')" width="100" />
-          <ElTableColumn prop="resource_name" :label="t('omniAudit.index.colResource')" width="120" />
-          <ElTableColumn prop="description" :label="t('omniAudit.index.colEventName')" width="150" />
+          <ElTableColumn
+            prop="resource_name"
+            :label="t('omniAudit.index.colResource')"
+            width="120"
+          />
+          <ElTableColumn
+            prop="description"
+            :label="t('omniAudit.index.colEventName')"
+            width="150"
+          />
           <ElTableColumn prop="response_status" :label="t('omniAudit.index.colStatus')" width="100">
             <template #default="scope">
               <span :class="['status-tag', getResponseStatusClass(scope.row.response_status)]">
