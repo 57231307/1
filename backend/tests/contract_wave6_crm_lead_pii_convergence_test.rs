@@ -27,6 +27,13 @@
 //! - 权限拒绝文案不在本文件断言原文（只断 `status` + 信封 `code`）；
 //! - 公海写响应新增的掩码分支不影响状态码：越权仍由行级 `check_resource_owner` 判 403，
 //!   该锁在 `contract_wave6_crm_pool_owner_test.rs` 用例 1/2。
+//!
+//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。领取/回收
+//! 写路径经 AuditLogService::update_with_audit 落真实 audit_logs 表（迁移提供），
+//! 操作人 users 行按裁定 R1 自种子。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -86,102 +93,31 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
-
-/// 与 models/crm_lead.rs::Model 逐列对应（表 crm_lead，含 department_id）
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-/// 与 models/role.rs::Model 对应（is_admin_role 判定源，admin_checker.rs:86-87）
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_DATA_PERMISSIONS: &str = r#"CREATE TABLE data_permissions (
-    id INTEGER PRIMARY KEY, role_id INTEGER NOT NULL,
-    resource_type TEXT NOT NULL, scope_type TEXT NOT NULL,
-    custom_condition TEXT, allowed_fields TEXT, hidden_fields TEXT,
-    is_enabled INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-/// 领取/回收写路径经 AuditLogService::update_with_audit，需 users + audit_logs 存在
-const CREATE_USERS: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL, password_hash TEXT NOT NULL,
-    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    gender TEXT, birth_date TEXT
-)"#;
-
-const CREATE_AUDIT_LOGS: &str = r#"CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER, username TEXT, action TEXT NOT NULL,
-    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-    old_value TEXT, new_value TEXT, created_at TEXT,
-    operation_type TEXT, severity TEXT, request_id TEXT,
-    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-    export_approval_token TEXT, export_watermark_user TEXT
-)"#;
 
 /// 种子（owner 全为 USER_A，self 用户即归属人本人，四个出口都能命中同一行）：
 /// - id=1：pool 行（单条领取目标）；
 /// - id=2：new 行（回收目标）。
 /// 两行都携带原始手机号/座机/邮箱/地址。
+/// users 50/70 为自种子父行（裁定 R1：领取/回收写路径经
+/// AuditLogService::update_with_audit 取操作人用户名，且 trg_crm_lead_dept
+/// 触发器按 owner 的 users.department_id 回填冗余列）。roles 不再插：
+/// id=1 code='admin'（is_admin_role 判定源）与 id=2（data_permissions 外键父行）
+/// 均为迁移种子参照行，不参与清空。
 async fn seeded_state(permissions: Option<&str>) -> AppState {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [
-        CREATE_CRM_LEAD,
-        CREATE_ROLES,
-        CREATE_DATA_PERMISSIONS,
-        CREATE_USERS,
-        CREATE_AUDIT_LOGS,
-    ] {
-        exec(&db, ddl).await;
-    }
+    let db = test_common::setup_test_db().await;
 
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
-    )
-    .await;
-    exec(
-        &db,
-        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,created_at,updated_at) VALUES
-         (50,'sales_a','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (70,'admin_user','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (70,'admin_user','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
     exec(
@@ -189,11 +125,11 @@ async fn seeded_state(permissions: Option<&str>) -> AppState {
         &format!(
             "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
              contact_name,mobile_phone,tel_phone,email,address,owner_id,owner_name,
-             department_id,priority,created_at,updated_at) VALUES
+             priority,created_at,updated_at) VALUES
              (1,'LD001','website','pool','甲公司','张三','{A_PHONE}','{A_TEL}','{A_EMAIL}',
-              '{A_ADDRESS}',{USER_A},'销售甲',1,'low','2026-01-01T00:00:00Z','2020-01-01T00:00:00Z'),
+              '{A_ADDRESS}',{USER_A},'销售甲','low','2026-01-01T00:00:00Z','2020-01-01T00:00:00Z'),
              (2,'LD002','ad','new','乙公司','李四','13700001111','01088886666','carol@example.com',
-              '地址乙',{USER_A},'销售甲',1,'high','2026-01-02T00:00:00Z','2020-01-01T00:00:00Z')"
+              '地址乙',{USER_A},'销售甲','high','2026-01-02T00:00:00Z','2020-01-01T00:00:00Z')"
         ),
     )
     .await;
@@ -411,7 +347,7 @@ async fn admin_keeps_raw_pii_on_read_and_write_responses() {
 async fn claim_response_with_hidden_fields_removes_that_key_only() {
     let insert = r#"INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
         allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
-        VALUES (1,2,'crm_lead','SELF',NULL,'["tel_phone"]',1,
+        VALUES (1,2,'crm_lead','SELF',NULL,'["tel_phone"]',TRUE,
         '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#;
     let app = build_app(
         seeded_state(Some(insert)).await,
@@ -437,7 +373,7 @@ async fn list_with_allowed_fields_keeps_tel_phone_raw() {
     let insert = format!(
         "INSERT INTO data_permissions (id,role_id,resource_type,scope_type,\
          allowed_fields,hidden_fields,is_enabled,created_at,updated_at) \
-         VALUES (1,2,'crm_lead','SELF','{allowed}',NULL,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
+         VALUES (1,2,'crm_lead','SELF','{allowed}',NULL,TRUE,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
     );
     let app = build_app(
         seeded_state(Some(&insert)).await,

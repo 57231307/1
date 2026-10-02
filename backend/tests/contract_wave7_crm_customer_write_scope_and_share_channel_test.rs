@@ -19,6 +19,15 @@
 //!   `uk_cs_customer_to_user_active`，SQLSTATE 23505）按同语义归类 `BUSINESS_ERROR`，
 //!   不再可能落 `DATABASE_ERROR`；非约束类 DbErr 原样上报（不吞不改道）。
 //!   本文件同时是源码扫描棘轮：PK 宽度对齐与"共享写路径 insert 不得裸重包"锁死。
+//!
+//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL
+//! （customer_shares 的 BIGSERIAL 主键、唯一约束 uk_cs_customer_to_user_active、
+//! customers/crm_lead 的触发器与 FK 全部取真表）。users/customers/crm_lead
+//! 按裁定 R1 自种子；roles 为迁移种子参照表不再插。跨 owner 写守卫
+//! （crm_write_guard / check_resource_write_owner）的断言逐条保持原文，只换连接。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -46,8 +55,8 @@ const ADMIN: i32 = 70;
 const SHARED_TO: i32 = 51;
 
 // ---------------------------------------------------------------------------
-// 夹具（sqlite 真发 HTTP，DDL 与 contract_wave6_crm_customer_write_response_mask_test
-// 同一套逐列口径；customers 种子显式落 created_by=OWNER——行级归属判定源字段）
+// 夹具（真 PostgreSQL 真发 HTTP；表结构唯一来源 = backend/migration。
+// customers 种子显式落 created_by=OWNER——行级归属判定源字段）
 // ---------------------------------------------------------------------------
 
 fn make_auth(user_id: i32, username: &str, role_id: Option<i32>, data_scope: &str) -> AuthContext {
@@ -73,191 +82,69 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
+/// 回读辅助：v1 对齐真表 INT4 列（customers.id/crm_lead.id/shared_to_user_id），
+/// v2 对齐文本列；断言只消费行数，列宽以真表为准不做隐式放宽。
 async fn query_names(db: &sea_orm::DatabaseConnection, sql: &str) -> Vec<Value> {
     let rows = db
         .query_all_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
+            DbBackend::Postgres,
             sql,
-            Vec::new(),
+            Vec::<sea_orm::Value>::new(),
         ))
         .await
         .unwrap_or_else(|e| panic!("回读失败: {e}\nSQL: {sql}"));
     rows.iter()
         .map(|r| {
             json!({
-                "v1": r.try_get::<Option<i64>>("", "v1").ok().flatten(),
+                "v1": r.try_get::<Option<i32>>("", "v1").ok().flatten(),
                 "v2": r.try_get::<Option<String>>("", "v2").ok().flatten(),
             })
         })
         .collect()
 }
 
-const CREATE_CUSTOMERS: &str = r#"CREATE TABLE customers (
-    id INTEGER PRIMARY KEY,
-    customer_code TEXT, customer_name TEXT,
-    contact_person TEXT, contact_phone TEXT, contact_email TEXT,
-    address TEXT, city TEXT, province TEXT, country TEXT, postal_code TEXT,
-    credit_limit TEXT, payment_terms INTEGER, tax_id TEXT,
-    bank_name TEXT, bank_account TEXT, status TEXT, customer_type TEXT,
-    notes TEXT, created_by INTEGER, created_at TEXT, updated_at TEXT,
-    customer_industry TEXT, main_products TEXT, annual_purchase TEXT,
-    quality_requirement TEXT, inspection_standard TEXT,
-    owner_id INTEGER, department_id INTEGER, owner_assigned_at TEXT,
-    special_process TEXT, source TEXT, pool_recycle_reason TEXT
-)"#;
-
-const CREATE_USERS: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL, password_hash TEXT NOT NULL,
-    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    gender TEXT, birth_date TEXT
-)"#;
-
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_DATA_PERMISSIONS: &str = r#"CREATE TABLE data_permissions (
-    id INTEGER PRIMARY KEY, role_id INTEGER NOT NULL,
-    resource_type TEXT NOT NULL, scope_type TEXT NOT NULL,
-    custom_condition TEXT, allowed_fields TEXT, hidden_fields TEXT,
-    is_enabled INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_AUDIT_LOGS: &str = r#"CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER, username TEXT, action TEXT NOT NULL,
-    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-    old_value TEXT, new_value TEXT, created_at TEXT,
-    operation_type TEXT, severity TEXT, request_id TEXT,
-    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-    export_approval_token TEXT, export_watermark_user TEXT
-)"#;
-
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-/// 删除预检（`delete_lead`）引用校验所需最小表（与 models/crm_opportunity.rs 同表名/同列名）
-const CREATE_CRM_OPPORTUNITY: &str = r#"CREATE TABLE crm_opportunity (
-    id INTEGER PRIMARY KEY,
-    lead_id INTEGER
-)"#;
-
-/// 与 models/customer_share.rs::Model 逐列对应；唯一约束照 PG DDL
-/// `uk_cs_customer_to_user_active` 同名同列（并发竞态分类通道的前提）
-const CREATE_CUSTOMER_SHARES: &str = r#"CREATE TABLE customer_shares (
-    id INTEGER PRIMARY KEY,
-    customer_id INTEGER NOT NULL,
-    shared_by_user_id INTEGER NOT NULL, shared_by_user_name TEXT,
-    shared_to_user_id INTEGER NOT NULL, shared_to_user_name TEXT,
-    permission TEXT NOT NULL, status TEXT NOT NULL,
-    shared_at TEXT NOT NULL, expire_at TEXT, revoked_at TEXT,
-    revoked_by INTEGER, revoke_reason TEXT, share_reason TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    UNIQUE (customer_id, shared_to_user_id, status)
-)"#;
-
-/// 与 models/customer_team_member.rs::Model 逐列对应（共享写入口权限预检会回读本表行）
-const CREATE_CUSTOMER_TEAM_MEMBERS: &str = r#"CREATE TABLE customer_team_members (
-    id INTEGER PRIMARY KEY,
-    customer_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    user_name TEXT,
-    team_role TEXT NOT NULL,
-    is_active INTEGER NOT NULL,
-    joined_at TEXT NOT NULL,
-    left_at TEXT,
-    notes TEXT,
-    created_by INTEGER,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)"#;
-
 async fn base_state() -> AppState {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [
-        CREATE_CUSTOMERS,
-        CREATE_USERS,
-        CREATE_ROLES,
-        CREATE_DATA_PERMISSIONS,
-        CREATE_AUDIT_LOGS,
-        CREATE_CRM_LEAD,
-        CREATE_CRM_OPPORTUNITY,
-        CREATE_CUSTOMER_SHARES,
-        CREATE_CUSTOMER_TEAM_MEMBERS,
-    ] {
-        exec(&db, ddl).await;
-    }
+    let db = test_common::setup_test_db().await;
+    // roles 不插：迁移种子参照表（id=1 code='admin'、id=2 为非 admin 角色）。
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
-    )
-    .await;
-    exec(
-        &db,
-        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,created_at,updated_at) VALUES
-         (50,'sales_a','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (51,'shared_to_wangwu','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (60,'sales_b','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (70,'admin_user','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (51,'shared_to_wangwu','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (60,'sales_b','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (70,'admin_user','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
     // customers 行：归属判定源字段 created_by=OWNER（get_customer 的 owner 列），
-    // owner_id=OWNER（共享/团队入口 validate_share_permission 的 owner 列，两列语义各表各的既有口径）
+    // owner_id=OWNER（共享/团队入口 validate_share_permission 的 owner 列，两列语义各表各的既有口径）；
+    // department_id 由 trg_customers_dept 按 owner 的 users.department_id 回填。
     exec(
         &db,
         "INSERT INTO customers (id,customer_code,customer_name,contact_person,
              contact_phone,contact_email,address,credit_limit,payment_terms,status,
-             customer_type,owner_id,department_id,created_by,created_at,updated_at) VALUES
+             customer_type,owner_id,created_by,created_at,updated_at) VALUES
              (1,'CUS-0001','甲客户','张三','13812348888','alice@example.com',
-              '河北省邢台市某某路 1 号','0',30,'active','retail',50,1,50,
+              '河北省邢台市某某路 1 号',0,30,'active','retail',50,50,
               '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
-    // crm_lead 行：增强页 DELETE 的落点（owner_id=OWNER）
+    // crm_lead 行：增强页 DELETE 的落点（owner_id=OWNER；department_id 由
+    // trg_crm_lead_dept 回填）
     exec(
         &db,
         "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
-             contact_name,mobile_phone,owner_id,owner_name,department_id,
+             contact_name,mobile_phone,owner_id,owner_name,
              created_at,updated_at) VALUES
              (1,'LD001','website','new','甲公司','张三','13812348888',
-              50,'销售甲',1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+              50,'销售甲','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
 
@@ -464,7 +351,7 @@ async fn enhanced_delete_owner_self_scope_and_admin_all_scope_both_pass() {
 }
 
 // ---------------------------------------------------------------------------
-// #225 · POST /customer-shares 错误通道锁（真实 sqlite 发 HTTP）
+// #225 · POST /customer-shares 错误通道锁（真 PostgreSQL 发 HTTP）
 // ---------------------------------------------------------------------------
 
 fn share_body(shared_to: i32) -> Value {
@@ -576,8 +463,8 @@ async fn share_to_inactive_user_is_business_error_not_database_error() {
     let db = state.db.clone();
     exec(
         &db,
-        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,created_at,updated_at)
-         VALUES (98,'frozen_user','x',0,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at)
+         VALUES (98,'frozen_user','x',FALSE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
     let app = build_app(state, make_auth(OWNER, "sales_a", Some(2), "all"));

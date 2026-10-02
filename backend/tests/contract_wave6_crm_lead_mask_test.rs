@@ -7,7 +7,7 @@
 //! （只存在于 customer / customer_address / sales_order / supplier 模型）——
 //! 手机号脱敏恒不生效，非 admin 拿到完全未打码的手机号；同块的 email/address 是生效的。
 //!
-//! 覆盖（全部 sqlite 真跑 + 真 HTTP 装配，无伪装断言）：
+//! 覆盖（全部真 PostgreSQL 真跑 + 真 HTTP 装配，无伪装断言）：
 //! 1. 无数据权限行的非 admin（role_id=2）→ 列表与详情的 `mobile_phone` 为
 //!    mask_phone 形态（前 3 后 4，不含原文中段数字）、`email` 掩码、`address` 移除；
 //! 2. 有数据权限行（hidden_fields）→ hidden_fields 生效、不走默认打码（既有语义不回归）；
@@ -18,6 +18,12 @@
 //!    「权威 PII 列集合覆盖 crm_lead 真实电话列 mobile_phone/tel_phone」与
 //!    「四个出口只调用共用函数、不再有内联掩码分支」；`get("contact_phone")`
 //!    这一读错键写法仍被禁止（回潮即红）。
+//!
+//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL；roles 为
+//! 迁移种子参照表（id=1 code='admin' 即 is_admin_role 判定源），不再插种子。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -68,65 +74,27 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-/// 与 models/crm_lead.rs::Model 逐列对应（表 crm_lead）
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-/// 与 models/role.rs::Model 对应（is_admin_role 判定源，admin_checker.rs:86）
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-/// 与 models/data_permission.rs::Model 对应（表 data_permissions）
-const CREATE_DATA_PERMISSIONS: &str = r#"CREATE TABLE data_permissions (
-    id INTEGER PRIMARY KEY, role_id INTEGER NOT NULL,
-    resource_type TEXT NOT NULL, scope_type TEXT NOT NULL,
-    custom_condition TEXT, allowed_fields TEXT, hidden_fields TEXT,
-    is_enabled INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-/// 建表 + 种子：
-/// - roles：1=admin（契约 3 的判定源）、2=sales（非 admin）——每个用例同构种子，
-///   保证 admin_checker 全局缓存（ADMIN_ROLE_CACHE，按 role_id 缓存）在任何执行顺序下取值一致；
+/// 种子：
+/// - users：owner_id=50 的归属人父行（裁定 R1 自种子；trg_crm_lead_dept 触发器
+///   按其 users.department_id 回填线索冗余部门列）；
 /// - crm_lead：一条 owner_id=50 的线索，携带原始手机号/邮箱/地址。
+/// roles 不再插：属迁移种子参照表，id=1 code='admin'（is_admin_role 判定源，
+/// admin_checker.rs:86）与 id=2（data_permissions 外键父行）已由迁移播种。
 async fn seeded_state(hidden_fields: Option<&[&str]>) -> AppState {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    exec(&db, CREATE_CRM_LEAD).await;
-    exec(&db, CREATE_ROLES).await;
-    exec(&db, CREATE_DATA_PERMISSIONS).await;
+    let db = test_common::setup_test_db().await;
 
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
 
@@ -148,7 +116,7 @@ async fn seeded_state(hidden_fields: Option<&[&str]>) -> AppState {
             &format!(
                 "INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
                  allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
-                 VALUES (1,2,'crm_lead','SELF',NULL,'{hidden_json}',1,
+                 VALUES (1,2,'crm_lead','SELF',NULL,'{hidden_json}',TRUE,
                  '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
             ),
         )

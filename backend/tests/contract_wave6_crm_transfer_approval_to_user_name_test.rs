@@ -11,12 +11,18 @@
 //! 回写审批行（+0 次 SELECT，审批行多 1 次 UPDATE——单行操作，非 N+1）。
 //! 转移失败则 `?` 沿 `AppError` 信封显式上抛（不静默、不落空串、不造名）。
 //!
-//! 本文件为服务层 sqlite 真实链路锁（审批动作非"出参掩码出口"，不走 HTTP 信封断言）：
+//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
+//! 转移审批链路涉及的 crm_lead / users / customer_transfer_approvals /
+//! assignment_histories 全部取真表（BOOLEAN 列用 TRUE/FALSE，TIMESTAMPTZ 用
+//! ISO 字面量；FK 父行 users 按裁定 R1 自种子）。
 //! 1. manager_approve（普通客户）：审批行 to_user_name == 新归属人 users.username 真实值；
 //! 2. director_approve（大客户）：同上；
 //! 3. 同源一致性：审批行 to_user_name 与 crm_lead.owner_name、assignment_histories
 //!    .to_user_name 三处落库值逐字相同（同一个 new_owner.username 单次查询来源）；
 //! 4. 造名零命中棘轮：源文件不得再出现 `format!("用户{}")` 与"待用户裁定"占位。
+
+mod test_common;
 
 use bingxi_backend::models::{assignment_history, crm_lead, customer_transfer_approval};
 use bingxi_backend::services::crm::customer_transfer_approval_service::{
@@ -31,111 +37,51 @@ const DIRECTOR: i32 = 56;
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-const CREATE_USERS: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL, password_hash TEXT NOT NULL,
-    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    gender TEXT, birth_date TEXT
-)"#;
-
-/// 与 models/customer_transfer_approval.rs::Model 逐列对应
-const CREATE_TRANSFER_APPROVALS: &str = r#"CREATE TABLE customer_transfer_approvals (
-    id INTEGER PRIMARY KEY,
-    approval_no TEXT NOT NULL UNIQUE, lead_id INTEGER NOT NULL,
-    company_name TEXT,
-    from_user_id INTEGER NOT NULL, from_user_name TEXT,
-    to_user_id INTEGER NOT NULL, to_user_name TEXT,
-    applicant_id INTEGER NOT NULL, reason TEXT NOT NULL,
-    is_large_customer INTEGER NOT NULL, approval_status TEXT NOT NULL,
-    current_level INTEGER NOT NULL, max_level INTEGER NOT NULL,
-    manager_approver_id INTEGER, manager_comment TEXT, manager_approved_at TEXT,
-    director_approver_id INTEGER, director_comment TEXT, director_approved_at TEXT,
-    completed_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-/// 与 models/assignment_history.rs::Model 逐列对应
-const CREATE_ASSIGNMENT_HISTORIES: &str = r#"CREATE TABLE assignment_histories (
-    id INTEGER PRIMARY KEY,
-    lead_id INTEGER NOT NULL, lead_no TEXT NOT NULL, company_name TEXT,
-    from_user_id INTEGER, from_user_name TEXT,
-    to_user_id INTEGER, to_user_name TEXT,
-    action TEXT NOT NULL, reason TEXT, notes TEXT,
-    operated_by INTEGER NOT NULL, operated_by_name TEXT NOT NULL,
-    created_at TEXT NOT NULL
-)"#;
-
+/// 种子（真 PostgreSQL，表结构唯一来源 = backend/migration）：
+/// - users：4 个业务用户父行（裁定 R1 自种子；原归属人 50 / 新归属人 51 /
+///   经理 55 / 总监 56，username 即本锁断言的真实姓名来源）；
+/// - crm_lead：两条未转化线索（分别服务普通/大客户审批用例），归属 50；
+///   department_id 不显式给——由 trg_crm_lead_dept 触发器按 users.department_id 回填；
+/// - customer_transfer_approvals：两条 pending 审批行（to_user_name 建档即为
+///   NULL，等待转移成功后回写真实姓名）。
 async fn seed_db() -> sea_orm::DatabaseConnection {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [
-        CREATE_CRM_LEAD,
-        CREATE_USERS,
-        CREATE_TRANSFER_APPROVALS,
-        CREATE_ASSIGNMENT_HISTORIES,
-    ] {
-        exec(&db, ddl).await;
-    }
+    let db = test_common::setup_test_db().await;
     exec(
         &db,
-        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,created_at,updated_at) VALUES
-         (50,'sales_a','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (51,'transfer_target_wangwu','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (55,'manager_li','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (56,'director_zhao','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (51,'transfer_target_wangwu','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (55,'manager_li','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (56,'director_zhao','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
-    // 两条未转化线索（分别服务普通/大客户审批用例），归属 OWNER
     exec(
         &db,
         "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
-         contact_name,owner_id,owner_name,department_id,created_at,updated_at) VALUES
-         (1,'LD001','website','new','甲公司','张三',50,'sales_a',1,
+         contact_name,owner_id,owner_name,created_at,updated_at) VALUES
+         (1,'LD001','website','new','甲公司','张三',50,'sales_a',
           '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'LD002','website','new','乙公司','李四',50,'sales_a',1,
+         (2,'LD002','website','new','乙公司','李四',50,'sales_a',
           '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
-    // 两条 pending 审批行（to_user_name 建档即为 NULL，等待转移成功后回写真实姓名）
     exec(
         &db,
         "INSERT INTO customer_transfer_approvals (id,approval_no,lead_id,company_name,
          from_user_id,from_user_name,to_user_id,to_user_name,applicant_id,reason,
          is_large_customer,approval_status,current_level,max_level,created_at,updated_at) VALUES
          (1,'TA001',1,'甲公司',50,'sales_a',51,NULL,50,'客户跟进职责调整',
-          0,'pending',1,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+          FALSE,'pending',1,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
          (2,'TA002',2,'乙公司',50,'sales_a',51,NULL,50,'大客户转移',
-          1,'pending',2,2,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+          TRUE,'pending',2,2,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
     db

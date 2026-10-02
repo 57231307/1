@@ -19,15 +19,18 @@
 //!    （先例 contract_wave4_api_key_echo_and_expiry_test.rs 的裁定口径）。
 //!
 //! 覆盖策略（无 mock、真实 handler/service 调用）：
-//! - sqlite::memory: 真跑（同构表 DDL 先例逐列摘自 contract_wave6_receipt_gate_test /
-//!   contract_wave5_receipt_return_three_state_test / contract_wave2_contract_no_and_remark_test）：
-//!   经真实 handler `list_receipts`（Query DTO → service → 分页信封）断言各筛选项命中集合、
-//!   total 过滤后语义、EXISTS 防行倍增、空串归一（axum Query oneshot 抽取器真路径，
-//!   先例 handlers_query_param_coercion_test.rs）、非法日期 VALIDATION_ERROR 信封；
-//! - `#[ignore]` 活库用例（TEST_DATABASE_URL→已迁移 PG，缺变量显式失败禁止回退假绿）：
-//!   仅 PG 专有语义部分——LIKE 大小写敏感（sqlite 的 LIKE 对 ASCII 恒不区分大小写，
-//!   且 sea-query 的 sqlite 构建器不支持 ILIKE 会直接 panic，见 query.rs 注释），
-//!   小写关键字在 PG 上不得命中大写单号；日期含首尾用 2099 未来日播种隔离活库干扰数据。
+//! - 真 PostgreSQL 真跑（路线一，#4669 判责；表结构唯一来源 = `backend/migration`，
+//!   本文件不再自建同构 DDL）：经真实 handler `list_receipts`（Query DTO → service →
+//!   分页信封）断言各筛选项命中集合、total 过滤后语义、EXISTS 防行倍增、空串归一
+//!   （axum Query oneshot 抽取器真路径，先例 handlers_query_param_coercion_test.rs）、
+//!   非法日期 VALIDATION_ERROR 信封；
+//! - `#[ignore]` 活库用例（`test_common::setup_test_db()` → 已迁移 PG，缺变量由夹具
+//!   直接 panic，禁止回退假绿）：仅 PG 专有语义部分——LIKE 大小写敏感（sqlite 的 LIKE
+//!   对 ASCII 恒不区分大小写，且 sea-query 的 sqlite 构建器不支持 ILIKE 会直接 panic，
+//!   见 query.rs 注释），小写关键字在 PG 上不得命中大写单号；日期含首尾用 2099 未来日
+//!   播种隔离活库干扰数据。
+//! - 外键父行按裁定 R1 自建（见 `seeded_state`）：`warehouses` 用显式主键 1/2 与筛选
+//!   参数同源，`products` 自建取真实 id，`suppliers` 取迁移种子参照表的真实 id。
 //! - 数据权限字段过滤（handler 内 data_permission 分支）与本契约正交，用例以
 //!   role_id=None 的 AuthContext 走直通路径，不在此重复锁定。
 
@@ -44,14 +47,14 @@ use bingxi_backend::handlers::purchase_receipt_handler::{self, ReceiptQueryParam
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::status::purchase_inventory::purchase_receipt_inspection;
 use bingxi_backend::models::status::purchase_receipt as receipt_status;
-use bingxi_backend::models::{purchase_receipt, purchase_receipt_item};
+use bingxi_backend::models::{product, purchase_receipt, purchase_receipt_item};
 use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
 use bingxi_backend::utils::error::AppError;
 use chrono::{NaiveDate, TimeZone, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    QueryFilter, Set, Statement,
+    QueryFilter, Set,
 };
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
@@ -62,122 +65,75 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
 }
 
 // =========================================================
-// sqlite 同构表（列与 models/*.rs::Model 逐列对应；DDL 形态先例见文件头）
+// 真库种子（列与 models/*.rs + backend/migration 建表语句逐列对齐）
 // =========================================================
 
-const TABLE_DDLS: &[&str] = &[
-    r#"CREATE TABLE purchase_receipt (
-        id INTEGER PRIMARY KEY,
-        receipt_no TEXT NOT NULL UNIQUE,
-        order_id INTEGER,
-        supplier_id INTEGER NOT NULL,
-        receipt_date TEXT NOT NULL,
-        warehouse_id INTEGER NOT NULL,
-        department_id INTEGER,
-        receiver_id INTEGER,
-        inspector_id INTEGER,
-        inspection_status TEXT NOT NULL,
-        receipt_status TEXT NOT NULL,
-        total_quantity TEXT NOT NULL,
-        total_quantity_alt TEXT NOT NULL,
-        total_amount TEXT NOT NULL,
-        notes TEXT,
-        attachment_urls TEXT,
-        created_by INTEGER NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_by INTEGER,
-        updated_at TEXT NOT NULL,
-        confirmed_at TEXT,
-        confirmed_by INTEGER
-    )"#,
-    r#"CREATE TABLE purchase_receipt_item (
-        id INTEGER PRIMARY KEY,
-        receipt_id INTEGER NOT NULL, order_item_id INTEGER,
-        line_no INTEGER NOT NULL, product_id INTEGER NOT NULL,
-        material_code TEXT NOT NULL, material_name TEXT NOT NULL,
-        batch_no TEXT, color_code TEXT, lot_no TEXT, grade TEXT,
-        gram_weight TEXT, width TEXT,
-        quantity TEXT NOT NULL, quantity_alt TEXT,
-        unit_master TEXT NOT NULL, unit_alt TEXT,
-        unit_price TEXT, amount TEXT, location_code TEXT,
-        piece_no TEXT, package_no TEXT, production_date TEXT,
-        shelf_life INTEGER, notes TEXT, created_at TEXT,
-        internal_dye_lot_id INTEGER, internal_dye_lot_no TEXT,
-        internal_piece_ids TEXT, internal_piece_nos TEXT,
-        supplier_dye_lot_no TEXT, supplier_piece_nos TEXT,
-        batch_conversion_log_id INTEGER
-    )"#,
-    r#"CREATE TABLE purchase_orders (
-        id INTEGER PRIMARY KEY,
-        order_no TEXT NOT NULL UNIQUE, supplier_id INTEGER NOT NULL,
-        order_date TEXT NOT NULL, expected_delivery_date TEXT, actual_delivery_date TEXT,
-        warehouse_id INTEGER NOT NULL, department_id INTEGER NOT NULL,
-        purchaser_id INTEGER NOT NULL, currency TEXT NOT NULL,
-        exchange_rate TEXT NOT NULL, total_amount TEXT NOT NULL,
-        total_amount_foreign TEXT NOT NULL, total_quantity TEXT NOT NULL,
-        total_quantity_alt TEXT NOT NULL, order_status TEXT NOT NULL,
-        payment_terms TEXT, shipping_terms TEXT, notes TEXT, attachment_urls TEXT,
-        created_by INTEGER NOT NULL, created_at TEXT NOT NULL,
-        updated_by INTEGER, updated_at TEXT NOT NULL,
-        approved_by INTEGER, approved_at TEXT, rejected_reason TEXT
-    )"#,
-    r#"CREATE TABLE suppliers (
-        id INTEGER PRIMARY KEY, supplier_code TEXT, supplier_name TEXT,
-        supplier_short_name TEXT, supplier_type TEXT, credit_code TEXT,
-        registered_address TEXT, business_address TEXT, legal_representative TEXT,
-        registered_capital TEXT, establishment_date TEXT, business_term TEXT,
-        business_scope TEXT, taxpayer_type TEXT, bank_name TEXT, bank_account TEXT,
-        contact_person TEXT, contact_phone TEXT, fax TEXT, website TEXT,
-        contact_email TEXT, main_business TEXT, main_market TEXT,
-        employee_count INTEGER, annual_revenue TEXT, grade TEXT, grade_score TEXT,
-        last_evaluation_date TEXT, status TEXT, is_enabled INTEGER,
-        assist_batch INTEGER, assist_supplier INTEGER, created_at TEXT, updated_at TEXT,
-        created_by INTEGER, department_id INTEGER, updated_by INTEGER,
-        remarks TEXT, category_id INTEGER, is_processor INTEGER, processor_type TEXT
-    )"#,
-    r#"CREATE TABLE warehouses (
-        id INTEGER PRIMARY KEY,
-        warehouse_code TEXT NOT NULL, name TEXT NOT NULL,
-        address TEXT, city TEXT, province TEXT, country TEXT, postal_code TEXT,
-        phone TEXT, contact_person TEXT,
-        is_default INTEGER NOT NULL, email TEXT, manager_id INTEGER,
-        is_active INTEGER NOT NULL, notes TEXT, warehouse_type TEXT, capacity INTEGER,
-        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-    )"#,
-    r#"CREATE TABLE users (
-        id INTEGER PRIMARY KEY,
-        username TEXT NOT NULL, password_hash TEXT NOT NULL,
-        real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-        role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-        totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-        last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-        gender TEXT, birth_date TEXT
-    )"#,
-];
-
-async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
+/// 外键父行 `warehouses`：显式主键 1/2。
+///
+/// 为什么用显式主键而不是取序列返回值：用例的筛选参数与断言逐值锁定 1/2
+/// （`warehouse_id=1` 命中两张、`=2` 命中一张、`=99` 必须零行），夹具与断言必须同源；
+/// `setup_test_db()` 每次 `TRUNCATE … RESTART IDENTITY` 清空业务表，本用例随后只插
+/// 入库单/明细（各走自己的序列），不会再有第三方仓库行与本主键相撞。
+async fn seed_warehouses(db: &DatabaseConnection) {
+    db.execute_raw(sea_orm::Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO warehouses (id, warehouse_code, name, is_active, is_default, created_at, updated_at) \
+         VALUES (1,'WH-W6F-A','波次六入库筛选仓甲',TRUE,FALSE,NOW(),NOW()),\
+                (2,'WH-W6F-B','波次六入库筛选仓乙',TRUE,FALSE,NOW(),NOW())",
         Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
+    .expect("夹具：外键父行 warehouses(1,2) 写入失败");
 }
 
-/// 播种夹具：3 张入库单（fixture 内每测试独立 sqlite::memory:，单号固定便于关键字断言）
+/// 外键父行 `suppliers`：迁移种子参照表（m0015 播种、`setup_test_db` 不清空、不删其数据），
+/// 取其真实首个 id 作 `purchase_receipt.supplier_id` 的父行，不硬编码常量。
+async fn first_seeded_supplier_id(db: &DatabaseConnection) -> i32 {
+    let row = db
+        .query_one_raw(sea_orm::Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT id FROM suppliers ORDER BY id LIMIT 1".to_string(),
+        ))
+        .await
+        .expect("夹具：读取 suppliers 参照表失败")
+        .unwrap_or_else(|| panic!("夹具：迁移未播种 suppliers 参照表（m0015），FK 父行缺失"));
+    row.try_get_by_index::<i32>(0)
+        .expect("夹具：suppliers.id 应可解码为 i32")
+}
+
+/// 外键父行 `products`：`purchase_receipt_item.product_id` 有 FK，业务表会被清空 ⇒ 自建。
+async fn seed_product(db: &DatabaseConnection) -> i32 {
+    product::ActiveModel {
+        code: Set(format!(
+            "PRD-W6F-{}",
+            Utc::now().timestamp_nanos_opt().unwrap()
+        )),
+        name: Set("波次六入库筛选契约产品".to_string()),
+        unit: Set("米".to_string()),
+        // 状态 token 与写入方词表同源（models::status::master_data::ACTIVE = "active"）
+        status: Set(bingxi_backend::models::status::master_data::ACTIVE.to_string()),
+        product_type: Set("fabric".to_string()),
+        is_deleted: Set(false),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("夹具：外键父行 products 写入失败")
+    .id
+}
+
+/// 播种夹具：3 张入库单（每次进夹具即真空库，单号固定便于关键字断言）
 /// - PRW6FLAG001：仓库 1，2026-08-10，明细「棉平纹坯布」
 /// - PRW6FLAG002：仓库 2，2026-09-15，明细「灯芯绒面料」
 /// - PRW6FLAG003：仓库 1，2026-09-30，明细「涤纶塔丝隆」「涤纶里布」两行同含「涤纶」
 ///   （专防 EXISTS→LEFT JOIN 退化导致的行倍增与 total 污染）
 async fn seeded_state() -> AppState {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in TABLE_DDLS {
-        exec(&db, ddl).await;
-    }
+    let db = test_common::setup_test_db().await;
+    seed_warehouses(&db).await;
+    let supplier_id = first_seeded_supplier_id(&db).await;
+    let product_id = seed_product(&db).await;
     let mut offset = 0i64;
     for (no, wh, d, materials) in [
         ("PRW6FLAG001", 1, date(2026, 8, 10), vec!["棉平纹坯布"]),
@@ -192,7 +148,7 @@ async fn seeded_state() -> AppState {
         offset += 60;
         let r = purchase_receipt::ActiveModel {
             receipt_no: Set(no.to_string()),
-            supplier_id: Set(1),
+            supplier_id: Set(supplier_id),
             receipt_date: Set(d),
             warehouse_id: Set(wh),
             // 状态 token 与写入方词表同源，不手写第二套常量
@@ -201,6 +157,8 @@ async fn seeded_state() -> AppState {
             total_quantity: Set(Decimal::ZERO),
             total_quantity_alt: Set(Decimal::ZERO),
             total_amount: Set(Decimal::ZERO),
+            // created_by 在真库里无 FK 约束（仅 sales_orders.created_by 有），
+            // 与 AuthContext 的 user_id 同一操作人，本契约不依赖 users 行
             created_by: Set(1),
             created_at: Set(Utc.timestamp_opt(1_700_000_000 + offset, 0).unwrap()),
             updated_at: Set(Utc.timestamp_opt(1_700_000_000 + offset, 0).unwrap()),
@@ -213,7 +171,7 @@ async fn seeded_state() -> AppState {
             purchase_receipt_item::ActiveModel {
                 receipt_id: Set(r.id),
                 line_no: Set(i as i32 + 1),
-                product_id: Set(1),
+                product_id: Set(product_id),
                 material_code: Set("FAB-W6F".to_string()),
                 material_name: Set(m.to_string()),
                 quantity: Set(Decimal::ONE),
@@ -564,10 +522,14 @@ async fn require_postgres(db: &DatabaseConnection) {
 }
 
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（PG 专有 LIKE 大小写语义；前置主数据 supplier/warehouse/user id=1 由 CI 种子提供）"]
+#[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（PG 专有 LIKE 大小写语义）；FK 父行（warehouses/products/suppliers）由本用例自建，不依赖环境已有主数据"]
 async fn live_postgres_keyword_case_sensitivity_and_inclusive_range() {
     let db = test_common::setup_test_db().await;
     require_postgres(&db).await;
+    // 外键父行自建（裁定 R1）：仓库/产品按夹具同款方式落库，供应商取迁移种子参照表真实 id
+    seed_warehouses(&db).await;
+    let supplier_id = first_seeded_supplier_id(&db).await;
+    let product_id = seed_product(&db).await;
     let suffix = Utc::now().timestamp_nanos_opt().unwrap();
     let no_a = format!("PRW6L{suffix}A");
     let no_b = format!("PRW6L{suffix}B");
@@ -579,9 +541,9 @@ async fn live_postgres_keyword_case_sensitivity_and_inclusive_range() {
     .into_iter()
     .enumerate()
     {
-        purchase_receipt::ActiveModel {
+        let r = purchase_receipt::ActiveModel {
             receipt_no: Set(no.to_string()),
-            supplier_id: Set(1),
+            supplier_id: Set(supplier_id),
             receipt_date: Set(d),
             warehouse_id: Set(1),
             inspection_status: Set(purchase_receipt_inspection::PENDING.to_string()),
@@ -598,19 +560,11 @@ async fn live_postgres_keyword_case_sensitivity_and_inclusive_range() {
         .await
         .unwrap_or_else(|e| panic!("活库播种入库单失败: {e}"));
         purchase_receipt_item::ActiveModel {
-            // id 显式给大值避免与活库序列冲突的写法在此不适用（PG 序列自有 id），
+            // PG 下 insert 经 RETURNING 直接带回真实 id，无需回读；
             // 明细仅关键字命中用，物料名带唯一后缀
-            receipt_id: Set({
-                let r = purchase_receipt::Entity::find()
-                    .filter(purchase_receipt::Column::ReceiptNo.eq(no))
-                    .one(&db)
-                    .await
-                    .unwrap()
-                    .expect("刚播种的入库单应可回读");
-                r.id
-            }),
+            receipt_id: Set(r.id),
             line_no: Set(i as i32 + 1),
-            product_id: Set(1),
+            product_id: Set(product_id),
             material_code: Set("FAB-W6L".to_string()),
             material_name: Set(format!("活库关键字坯布{suffix}")),
             quantity: Set(Decimal::ONE),
@@ -624,7 +578,7 @@ async fn live_postgres_keyword_case_sensitivity_and_inclusive_range() {
 
     let svc = PurchaseReceiptService::new(Arc::new(db.clone()));
 
-    // 日期含首尾（活库 DATE 列语义与 sqlite 同构断言的交叉验证）
+    // 日期含首尾（活库 DATE 列语义与真库筛选用例的交叉验证）
     let (_, t) = svc
         .list_receipts(
             1,

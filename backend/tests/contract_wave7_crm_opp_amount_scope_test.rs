@@ -13,6 +13,17 @@
 //!
 //! 本文件断言口径：只断 HTTP `status` + 信封 `code`，不断案文案原文（权限拒绝出参
 //! 永久脱敏，见 utils/error.rs 固定信封）；金额可见性按"键是否存在/单元格是否空"断。
+//!
+//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
+//! roles/data_permissions 语义不变（roles 为迁移种子参照表不再插）；
+//! users（归属人父行，trg_crm_opportunity_dept 触发器按其 department_id 回填行部门）
+//! 与 customers（crm_opportunity.customer_id 真 FK 父行，裁定 R1）自种子。
+//! 金额外显形状按真列定标：crm_opportunity.estimated_amount/actual_amount 为
+//! DECIMAL(15,2)，真库回读经 Decimal 序列化为带列标度的字符串（如 "111111.00"），
+//! amount_text 即该口径（sqlite 时代 TEXT 列的裸整数文本正是 #4669 的失真源）。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -59,8 +70,11 @@ fn amount(raw: i64) -> Decimal {
     Decimal::from(raw)
 }
 
+/// 金额的外显形状：真列 DECIMAL(15,2) 回读经 Decimal 序列化为带列标度的字符串
+/// （"111111.00"），列表 JSON 与导出单元格共用该口径（与 wave1 真库测试
+/// 断 "100.00"/"5.00" 同源先例）。
 fn amount_text(raw: i64) -> String {
-    amount(raw).to_string()
+    format!("{:.2}", amount(raw))
 }
 
 fn make_auth(user_id: i32, role_id: Option<i32>, data_scope: &str) -> AuthContext {
@@ -86,41 +100,13 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
-
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_DATA_PERMISSIONS: &str = r#"CREATE TABLE data_permissions (
-    id INTEGER PRIMARY KEY, role_id INTEGER NOT NULL,
-    resource_type TEXT NOT NULL, scope_type TEXT NOT NULL,
-    custom_condition TEXT, allowed_fields TEXT, hidden_fields TEXT,
-    is_enabled INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_CRM_OPPORTUNITY: &str = r#"CREATE TABLE crm_opportunity (
-    id INTEGER PRIMARY KEY,
-    opportunity_no TEXT NOT NULL UNIQUE, opportunity_name TEXT NOT NULL,
-    customer_id INTEGER NOT NULL, lead_id INTEGER, opportunity_type TEXT,
-    opportunity_stage TEXT, win_probability TEXT,
-    estimated_amount TEXT, actual_amount TEXT, currency TEXT,
-    expected_close_date TEXT, actual_close_date TEXT,
-    product_ids TEXT, product_names TEXT, product_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    competitor_names TEXT, competitive_advantage TEXT, opportunity_status TEXT,
-    won_reason TEXT, lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT,
-    created_at TEXT, updated_at TEXT, created_by INTEGER, updated_by INTEGER
-)"#;
 
 fn ts(y: i32, m: u32, d: u32) -> DateTime<Utc> {
     NaiveDate::from_ymd_opt(y, m, d)
@@ -146,7 +132,9 @@ async fn insert_opp(
             a = if owner_id == USER_A { "A" } else { "B" }
         )),
         opportunity_name: Set(format!("商机标题-{id}")),
-        customer_id: Set(id),
+        // 真 FK fk_crm_opportunity_customer：4 行商机统一挂同一 customers 父行
+        //（seeded_db 自种子，裁定 R1；本文件不校验 customer 维度）
+        customer_id: Set(1),
         lead_id: Set(None),
         opportunity_type: Set(Some("NEW".to_string())),
         opportunity_stage: Set(Some("QUALIFICATION".to_string())),
@@ -184,21 +172,25 @@ async fn insert_opp(
 }
 
 async fn seeded_db(permissions: Option<&str>) -> Arc<sea_orm::DatabaseConnection> {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [
-        CREATE_CRM_OPPORTUNITY,
-        CREATE_ROLES,
-        CREATE_DATA_PERMISSIONS,
-    ] {
-        exec(&db, ddl).await;
-    }
+    let db = test_common::setup_test_db().await;
+    // roles 不插：迁移种子参照表（id=1 code='admin' = is_admin_role 判定源，
+    // id=2 为 data_permissions.role_id 外键父行）。
+    // users：归属人父行（裁定 R1）——trg_crm_opportunity_dept 按 owner 的
+    // department_id 回填行部门列，dept 可见集依赖其为 1。
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (60,'sales_b','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+    )
+    .await;
+    // customers 父行（裁定 R1）：crm_opportunity.customer_id NOT NULL + 真 FK
+    exec(
+        &db,
+        "INSERT INTO customers (id,customer_code,customer_name,credit_limit,payment_terms,
+         status,customer_type,owner_id,created_at,updated_at) VALUES
+         (1,'CUS-0001','契约客户',0,30,'active','retail',50,
+         '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
     insert_opp(
@@ -533,7 +525,7 @@ async fn admin_sees_all_amounts_on_all_rows() {
 async fn configured_role_uses_config_only_without_default_overlay() {
     let insert = r#"INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
         allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
-        VALUES (1,2,'crm_opportunity','SELF',NULL,'["estimated_amount"]',1,
+        VALUES (1,2,'crm_opportunity','SELF',NULL,'["estimated_amount"]',TRUE,
         '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#;
     let db = seeded_db(Some(insert)).await;
     let app = build_app(&db, make_auth(USER_OUTSIDER, Some(2), "dept"));

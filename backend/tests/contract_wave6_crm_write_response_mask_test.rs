@@ -27,6 +27,16 @@
 //! OpportunityFormTab.vue / opportunities/index.vue）与 `frontend/e2e/crm/**` 均只 `await`
 //! 写响应后靠 `getList()`/GET 重新拉取，**不读取写响应体的 address/mobile_phone/tel_phone/email**
 //! （e2e 仅取 `created.data.id`）→ 写响应 mask/移除 address 不破坏任何前端流程。
+//!
+//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
+//! roles 为迁移种子参照表（id=1 code='admin'、id=2 为 data_permissions 外键父行），
+//! 不再插种子；users/customers 属会被清空的业务表，按裁定 R1 自种子
+//! （crm_opportunity.customer_id 有真 FK，须先插 customers 父行）；
+//! crm_lead/crm_opportunity 的 department_id 由 trg_*_dept 触发器按归属人回填，
+//! 种子不显式给。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -40,11 +50,9 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::crm_handler::{create_lead, update_lead, update_opportunity};
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::customer;
 use bingxi_backend::services::crm::cust::CrmService;
 use bingxi_backend::services::data_permission_service::DataPermissionService;
-use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, Statement};
+use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -97,154 +105,75 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_DATA_PERMISSIONS: &str = r#"CREATE TABLE data_permissions (
-    id INTEGER PRIMARY KEY, role_id INTEGER NOT NULL,
-    resource_type TEXT NOT NULL, scope_type TEXT NOT NULL,
-    custom_condition TEXT, allowed_fields TEXT, hidden_fields TEXT,
-    is_enabled INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_USERS: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL, password_hash TEXT NOT NULL,
-    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    gender TEXT, birth_date TEXT
-)"#;
-
-const CREATE_AUDIT_LOGS: &str = r#"CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER, username TEXT, action TEXT NOT NULL,
-    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-    old_value TEXT, new_value TEXT, created_at TEXT,
-    operation_type TEXT, severity TEXT, request_id TEXT,
-    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-    export_approval_token TEXT, export_watermark_user TEXT
-)"#;
-
-/// 与 models/crm_opportunity.rs::Model 逐列对应（同 contract_wave6_crm_opp_export_scope_test.rs）
-const CREATE_CRM_OPPORTUNITY: &str = r#"CREATE TABLE crm_opportunity (
-    id INTEGER PRIMARY KEY,
-    opportunity_no TEXT NOT NULL UNIQUE, opportunity_name TEXT NOT NULL,
-    customer_id INTEGER NOT NULL, lead_id INTEGER, opportunity_type TEXT,
-    opportunity_stage TEXT, win_probability TEXT,
-    estimated_amount TEXT, actual_amount TEXT, currency TEXT,
-    expected_close_date TEXT, actual_close_date TEXT,
-    product_ids TEXT, product_names TEXT, product_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    competitor_names TEXT, competitive_advantage TEXT, opportunity_status TEXT,
-    won_reason TEXT, lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT,
-    created_at TEXT, updated_at TEXT, created_by INTEGER, updated_by INTEGER
-)"#;
-
-/// 与 models/customer.rs::Model 逐列对应（表名 customers）。
-/// 全部列允许 NULL：create_opportunity 只做 `find_by_id().one()` 存在性校验，
-/// 种子经 SeaORM ActiveModel 写入（Decimal/DateTime 走其自身编解码，避免手写字符串口径漂移）。
-const CREATE_CUSTOMERS: &str = r#"CREATE TABLE customers (
-    id INTEGER PRIMARY KEY,
-    customer_code TEXT, customer_name TEXT,
-    contact_person TEXT, contact_phone TEXT, contact_email TEXT,
-    address TEXT, city TEXT, province TEXT, country TEXT, postal_code TEXT,
-    credit_limit TEXT, payment_terms INTEGER, tax_id TEXT,
-    bank_name TEXT, bank_account TEXT, status TEXT, customer_type TEXT,
-    notes TEXT, created_by INTEGER, created_at TEXT, updated_at TEXT,
-    customer_industry TEXT, main_products TEXT, annual_purchase TEXT,
-    quality_requirement TEXT, inspection_standard TEXT,
-    owner_id INTEGER, department_id INTEGER, owner_assigned_at TEXT,
-    special_process TEXT, source TEXT, pool_recycle_reason TEXT
-)"#;
-
 async fn base_state(permissions: Option<&str>) -> AppState {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [
-        CREATE_CRM_LEAD,
-        CREATE_CRM_OPPORTUNITY,
-        CREATE_CUSTOMERS,
-        CREATE_ROLES,
-        CREATE_DATA_PERMISSIONS,
-        CREATE_USERS,
-        CREATE_AUDIT_LOGS,
-    ] {
-        exec(&db, ddl).await;
-    }
+    let db = test_common::setup_test_db().await;
+    // roles 不插：迁移种子参照表（id=1 code='admin' = is_admin_role 判定源，
+    // id=2 为 data_permissions.role_id 外键父行）。
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (55,'dept_sales_zhangsan','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (70,'admin_user','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
+    // customers 父行（裁定 R1）：crm_opportunity.customer_id NOT NULL + 真 FK
+    // fk_crm_opportunity_customer 指向 customers(1)；create_opportunity 的存在性
+    // 校验同样复用该行。credit_limit/payment_terms 为业务合法值（额度 0、30 天账期）。
     exec(
         &db,
-        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,created_at,updated_at) VALUES
-         (50,'sales_a','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (55,'dept_sales_zhangsan','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (70,'admin_user','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO customers (id,customer_code,customer_name,contact_person,
+         credit_limit,payment_terms,status,customer_type,owner_id,created_at,updated_at)
+         VALUES (1,'CUS-0001','契约客户','张三',0,30,'active','retail',50,
+         '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
-    // 一条归属 USER_A、department_id=1 的线索，携带原始手机号/座机/邮箱/地址。
-    // updated_at 早于保护期不影响本用例（不走领取）。
+    // 一条归属 USER_A 的线索，携带原始手机号/座机/邮箱/地址。
+    // updated_at 早于保护期不影响本用例（不走领取）；department_id 由
+    // trg_crm_lead_dept 按 users.department_id 回填。
     exec(
         &db,
         &format!(
             "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
              contact_name,mobile_phone,tel_phone,email,address,owner_id,owner_name,
-             department_id,priority,created_at,updated_at) VALUES
+             priority,created_at,updated_at) VALUES
              (1,'LD001','website','new','甲公司','张三','{A_PHONE}','{A_TEL}','{A_EMAIL}',
-              '{A_ADDRESS}',{USER_A},'销售甲',1,'low','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
+              '{A_ADDRESS}',{USER_A},'销售甲','low','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
         ),
     )
     .await;
-    // 一条归属 USER_A、department_id=1 的商机（金额非空可判定），供商机写响应锁使用。
+    // 一条归属 USER_A 的商机（金额非空可判定），供商机写响应锁使用。
+    // estimated_amount/actual_amount 为真表 DECIMAL 列，直接给数值字面量；
+    // department_id 由 trg_crm_opportunity_dept 回填。
     exec(
         &db,
         "INSERT INTO crm_opportunity (id,opportunity_no,opportunity_name,customer_id,
          opportunity_stage,estimated_amount,actual_amount,currency,owner_id,owner_name,
-         department_id,opportunity_status,priority,created_at,updated_at) VALUES
-         (1,'OPP001','商机甲',1,'QUALIFICATION','111111','222222','CNY',50,'销售甲',
-          1,'OPEN','high','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+         opportunity_status,priority,created_at,updated_at) VALUES
+         (1,'OPP001','商机甲',1,'QUALIFICATION',111111,222222,'CNY',50,'销售甲',
+          'OPEN','high','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+    )
+    .await;
+
+    // 真库 SERIAL 序列对齐：上面按裁定 R1 显式给了 id=1 种子行，而 TRUNCATE
+    // RESTART IDENTITY 已把序列归 1；建单用例经服务写入时不带 id，不归位会撞
+    // PK。把 crm_lead / crm_opportunity 序列推过种子值。
+    exec(
+        &db,
+        "SELECT setval(pg_get_serial_sequence('crm_lead','id'), 1000, false)",
+    )
+    .await;
+    exec(
+        &db,
+        "SELECT setval(pg_get_serial_sequence('crm_opportunity','id'), 1000, false)",
     )
     .await;
 
@@ -441,7 +370,8 @@ async fn create_lead_response_is_masked_and_owner_name_is_real_login() {
         base_state(None).await,
         make_auth(USER_A, CREATOR_LOGIN, 2, "self"),
     );
-    // 提供 lead_no 以跳过 PG advisory_xact_lock 取号（sqlite 无该函数），其余走真实建单链
+    // 显式提供 lead_no 走确定性建单链（真库下 advisory_xact_lock 取号可用，但
+    // 编号来自序列与并发无关的锁语义，用例不验证取号，固定编号避免断言漂移）
     let (status, v) = post_json(
         &app,
         "/erp/crm/leads",
@@ -483,7 +413,7 @@ async fn create_lead_response_is_masked_and_owner_name_is_real_login() {
 async fn opp_update_response_honors_hidden_fields_shared_with_read_exits() {
     let insert = r#"INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
         allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
-        VALUES (1,2,'crm_opportunity','SELF',NULL,'["estimated_amount"]',1,
+        VALUES (1,2,'crm_opportunity','SELF',NULL,'["estimated_amount"]',TRUE,
         '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#;
     let app = build_opp_app(
         base_state(Some(insert)).await,
@@ -507,10 +437,12 @@ async fn opp_update_response_honors_hidden_fields_shared_with_read_exits() {
         "商机更新写响应应与详情/列表走同一个 filter_fields_batch 移除 hidden 列（修复前整行原文直出）: {}",
         detail["data"]
     );
-    // 其余金额列（未列入 hidden）保持原值，证明是精准移除而非清空整行
+    // 其余金额列（未列入 hidden）保持原值，证明是精准移除而非清空整行。
+    // 真表 estimated_amount/actual_amount 为 DECIMAL(15,2)，真库回读经 Decimal
+    // 序列化为带列标度的字符串（与库列定义逐字对应，非 sqlite 时代的裸文本）。
     assert_eq!(
         detail["data"]["actual_amount"],
-        json!("222222"),
+        json!("222222.00"),
         "hidden_fields 仅移除该列，不叠加默认处理（等价于列表既有语义）"
     );
 }
@@ -528,15 +460,16 @@ async fn admin_opp_update_response_keeps_amounts() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "admin 更新商机应成功: {v}");
-    // admin（无 hidden 配置）→ filter_fields_batch 空操作 → 金额原值保留（既有原值契约不伤）
+    // admin（无 hidden 配置）→ filter_fields_batch 空操作 → 金额原值保留（既有原值契约不伤；
+    // DECIMAL(15,2) 真库回读序列化为带标度字符串）
     assert_eq!(
         v["data"]["estimated_amount"],
-        json!("111111"),
+        json!("111111.00"),
         "admin 金额原值契约"
     );
     assert_eq!(
         v["data"]["actual_amount"],
-        json!("222222"),
+        json!("222222.00"),
         "admin 金额原值契约"
     );
 }
@@ -549,24 +482,9 @@ async fn admin_opp_update_response_keeps_amounts() {
 async fn create_opportunity_owner_name_is_real_login() {
     let state = base_state(None).await;
     let db = state.db.clone();
-    // 建一条客户行（create_opportunity 会 find_by_id 校验其存在）
-    customer::ActiveModel {
-        id: Set(1),
-        customer_code: Set("CUS-0001".to_string()),
-        customer_name: Set("契约客户".to_string()),
-        credit_limit: Set(Decimal::ZERO),
-        payment_terms: Set(30),
-        status: Set("active".to_string()),
-        customer_type: Set("retail".to_string()),
-        owner_id: Set(USER_A),
-        created_at: Set(chrono::Utc::now()),
-        updated_at: Set(chrono::Utc::now()),
-        ..Default::default()
-    }
-    .insert(&*db)
-    .await
-    .expect("customers 种子插入失败");
-
+    // customers 父行 id=1 已由 base_state 自种子（真 FK fk_crm_opportunity_customer
+    // 要求 crm_opportunity.customer_id 指向存在的客户行；create_opportunity 对其做
+    // find_by_id 存在性校验）
     let svc = CrmService::new(db.clone());
     let opp = svc
         .create_opportunity(

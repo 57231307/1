@@ -15,13 +15,16 @@
 //! - 出参 403 走 AppError::permission_denied 固定脱敏文案 + `FORBIDDEN` 码，
 //!   真实原因只进日志；本文件只断 status 与信封 code，不断案文案原文。
 //!
-//! 覆盖（sqlite 真跑 + 真 HTTP 装配；行状态一律 `crm_lead::Entity::find_by_id`
-//! 回读真库比对，证明"零漂移"）：
+//! 覆盖（真 PostgreSQL 真跑 + 真 HTTP 装配；行状态一律 `crm_lead::Entity::find_by_id`
+//! 回读真库比对，证明"零漂移"。通道为路线一：`test_common::setup_test_db()`，
+//! 表结构唯一来源 = backend/migration，不再自建 DDL；users 归属人行按裁定 R1 自种子）：
 //! 1. B（self）合并 A 名下两条 → 403 + code=FORBIDDEN，两行 lead_status/lost_reason 零漂移；
 //! 2. B 合并自己名下两条重复 → 200 且真生效（dup→lost、master 不动）；
 //! 3. B 混合提交（自有 master + 自有 dup + 他人 dup）→ 403 整笔拒绝，
 //!    自有 dup 也**不得**被先行合并（静默降级回潮锁）；
 //! 4. admin（data_scope=all）合并 A 名下两条 → 200（既有越界通道未收紧）。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -71,69 +74,42 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
-
-/// 与 models/crm_lead.rs::Model 逐列对应（表 crm_lead）
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-/// 审计落库（handler record_async 写 audit_logs，缺表即 500 假红）
-const CREATE_AUDIT_LOGS: &str = r#"CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER, username TEXT, action TEXT NOT NULL,
-    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-    old_value TEXT, new_value TEXT, created_at TEXT,
-    operation_type TEXT, severity TEXT, request_id TEXT,
-    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-    export_approval_token TEXT, export_watermark_user TEXT
-)"#;
 
 /// 种子（两条独立重复对，全部私海 new 行）：
 /// - id=1/2：A（owner=50）名下重复对（越权目标）；
 /// - id=3/4：B（owner=60）名下重复对（合法合并目标）。
+/// users 50/60 为自种子父行（裁定 R1：trg_crm_lead_dept 触发器按 owner 的
+/// users.department_id 回填冗余列；handler record_async 审计写真实 audit_logs 表，
+/// 该表由迁移提供，无需再建）。
 async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    exec(&db, CREATE_CRM_LEAD).await;
-    exec(&db, CREATE_AUDIT_LOGS).await;
+    let db = test_common::setup_test_db().await;
+    exec(
+        &db,
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (60,'sales_b','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+    )
+    .await;
     exec(
         &db,
         "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
-         contact_name,mobile_phone,email,owner_id,owner_name,department_id,
+         contact_name,mobile_phone,email,owner_id,owner_name,
          created_at,updated_at) VALUES
          (1,'LD-A-001','website','new','甲公司','张三A','13900000001','a1@example.com',
-          50,'销售甲',1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+          50,'销售甲','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
          (2,'LD-A-002','ad','new','甲公司','李四A','13900000002','a2@example.com',
-          50,'销售甲',1,'2026-01-02T00:00:00Z','2026-01-02T00:00:00Z'),
+          50,'销售甲','2026-01-02T00:00:00Z','2026-01-02T00:00:00Z'),
          (3,'LD-B-001','referral','new','乙公司','王五B','13800000001','b1@example.com',
-          60,'销售乙',1,'2026-01-03T00:00:00Z','2026-01-03T00:00:00Z'),
+          60,'销售乙','2026-01-03T00:00:00Z','2026-01-03T00:00:00Z'),
          (4,'LD-B-002','website','new','乙公司分部','赵六B','13800000002','b2@example.com',
-          60,'销售乙',1,'2026-01-04T00:00:00Z','2026-01-04T00:00:00Z')",
+          60,'销售乙','2026-01-04T00:00:00Z','2026-01-04T00:00:00Z')",
     )
     .await;
     Arc::new(db)

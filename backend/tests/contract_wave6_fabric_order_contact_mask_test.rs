@@ -17,6 +17,14 @@
 //! 统一掩码防"列一旦接入真实值即成旁路"，且与其余出口口径一致。
 //!
 //! 掩码契约=掩码**保留键**（`138****8888`），非整键移除（与标准读出口既有语义一致）。
+//!
+//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
+//! sales_orders 的 DECIMAL 金额列、TIMESTAMPTZ 日期列取真表类型；
+//! users/customers 按裁定 R1 自种子（sales_orders.customer_id 有真 FK，
+//! roles 为迁移种子参照表不再插）。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -69,72 +77,37 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-/// 与 models/sales_order.rs::Model 逐列对应（表名 sales_orders）
-const CREATE_SALES_ORDERS: &str = r#"CREATE TABLE sales_orders (
-    id INTEGER PRIMARY KEY,
-    order_no TEXT NOT NULL UNIQUE, customer_id INTEGER NOT NULL,
-    opportunity_id INTEGER,
-    order_date TEXT NOT NULL, required_date TEXT NOT NULL, ship_date TEXT,
-    status TEXT NOT NULL,
-    subtotal TEXT NOT NULL, tax_amount TEXT NOT NULL, discount_amount TEXT NOT NULL,
-    shipping_cost TEXT NOT NULL, total_amount TEXT NOT NULL,
-    paid_amount TEXT NOT NULL, balance_amount TEXT NOT NULL,
-    shipping_address TEXT, contact_person TEXT, contact_phone TEXT,
-    billing_address TEXT, notes TEXT,
-    batch_no TEXT, color_no TEXT, dye_lot_no TEXT, grade TEXT,
-    packaging_requirement TEXT, quality_standard TEXT,
-    created_by INTEGER, department_id INTEGER,
-    approved_by INTEGER, approved_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_USERS: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL, password_hash TEXT NOT NULL,
-    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    gender TEXT, birth_date TEXT
-)"#;
-
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
 async fn base_state() -> AppState {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [CREATE_SALES_ORDERS, CREATE_USERS, CREATE_ROLES] {
-        exec(&db, ddl).await;
-    }
+    let db = test_common::setup_test_db().await;
+    // roles 不插：迁移种子参照表（id=1 code='admin' = is_admin_role 判定源）。
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (70,'admin_user','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
+    // customers 父行（裁定 R1）：sales_orders.customer_id NOT NULL + 真 FK
+    // fk_sales_orders_customer；status/customer_type 为迁移既有词表合法值。
     exec(
         &db,
-        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,created_at,updated_at) VALUES
-         (50,'sales_a','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (70,'admin_user','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO customers (id,customer_code,customer_name,contact_person,contact_phone,
+         credit_limit,payment_terms,status,customer_type,owner_id,created_at,updated_at)
+         VALUES (1,'CUS-0001','甲客户','张三','13711112222',0,30,'active','retail',50,
+         '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
-    // 一条**标准渠道建档**的销售订单（带真实联系方式）——面料入口按 id 操作同一行
+    // 一条**标准渠道建档**的销售订单（带真实联系方式）——面料入口按 id 操作同一行。
+    // 金额列为真表 DECIMAL，直接给数值字面量；subtotal+tax-discount+shipping 口径
+    // 与 total_amount 自洽（1000+0-0+0=1000，已付 0、余款=总额）。
     exec(
         &db,
         &format!(
@@ -143,7 +116,7 @@ async fn base_state() -> AppState {
              paid_amount,balance_amount,contact_person,contact_phone,
              created_at,updated_at) VALUES
              (1,'SO001',1,'2026-01-01T00:00:00Z','2026-02-01T00:00:00Z',
-              'pending','1000.00','0','0','0','1000.00','0','1000.00',
+              'pending',1000,0,0,0,1000,0,1000,
               '{O_PERSON}','{O_PHONE}','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
         ),
     )

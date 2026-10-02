@@ -116,60 +116,64 @@ async fn call_put(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) {
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
 async fn exec(db: &DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
         Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-/// update_with_audit 依赖 users（fetch_username）与 audit_logs（落审计行）——
-/// 列集与先例 contract_wave3_explicit_null_clear_test.rs 逐列一致
-const USERS_DDL: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL, password_hash TEXT NOT NULL,
-    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    gender TEXT, birth_date TEXT
-)"#;
-
-const AUDIT_LOGS_DDL: &str = r#"CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER, username TEXT, action TEXT NOT NULL,
-    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-    old_value TEXT, new_value TEXT, created_at TEXT,
-    operation_type TEXT, severity TEXT, request_id TEXT,
-    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-    export_approval_token TEXT, export_watermark_user TEXT
-)"#;
-
-/// warehouses 全列最小 DDL（列与 `models/warehouse.rs::Model` 逐列对应，
-/// bool 用 INTEGER、DateTime 用 TEXT——先例形态；
-/// NOT NULL：warehouse_code/name/is_default/is_active/created_at/updated_at）
-const WAREHOUSES_DDL: &str = r#"CREATE TABLE warehouses (
-    id INTEGER PRIMARY KEY,
-    warehouse_code TEXT NOT NULL, name TEXT NOT NULL,
-    address TEXT, city TEXT, province TEXT, country TEXT, postal_code TEXT,
-    phone TEXT, contact_person TEXT,
-    is_default INTEGER NOT NULL, email TEXT, manager_id INTEGER,
-    is_active INTEGER NOT NULL, notes TEXT, warehouse_type TEXT, capacity INTEGER,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
+/// 已迁移真库 + 本文件各子域 FK 父行自种子（裁定 R1，一次配齐）：
+/// - users(9101)：update_with_audit 的 fetch_username 与操作人引用；
+/// - warehouses(1/2)：purchase_receipt.warehouse_id、inventory_transfers.from/to_warehouse_id、
+///   sales_return.warehouse_id 的真 FK；
+/// - products(1/5/9)：purchase_return_item / purchase_receipt_item /
+///   sales_return_item.product_id 真 FK（各子域用例分别取用）；
+/// - customers(1)：sales_return.customer_id 真 FK；
+/// - suppliers 不插：迁移种子参照表（id=1 恒在）；audit_logs 真表自带，不再自建。
+async fn seeded_db() -> DatabaseConnection {
+    let db = test_common::setup_test_db().await;
+    exec(
+        &db,
+        r#"INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+             (9101,'w5_tri_state_op','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#,
+    )
+    .await;
+    exec(
+        &db,
+        r#"INSERT INTO warehouses (id, name, warehouse_code, is_active) VALUES
+             (1, '波5三态锁主仓', 'W5TS-W1', true),
+             (2, '波5三态锁目标仓', 'W5TS-W2', true)"#,
+    )
+    .await;
+    exec(
+        &db,
+        r#"INSERT INTO products (id, code, name) VALUES
+             (1, 'W5TS-P1', '三态锁收货测试面料'),
+             (5, 'W5TS-P5', '三态锁调拨测试面料'),
+             (9, 'W5TS-P9', '三态锁退货测试面料')"#,
+    )
+    .await;
+    exec(
+        &db,
+        r#"INSERT INTO customers (id,customer_code,customer_name,credit_limit,payment_terms,
+                 status,customer_type,owner_id,created_at,updated_at) VALUES
+             (1,'W5TS-CUS-1','三态锁退货客户',0,30,'active','retail',9101,
+              '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#,
+    )
+    .await;
+    // 仓储子域用例经服务在 warehouses 上追加建档行（走序列）：显式种子占了 id=1/2，
+    // 序列必须推过种子值，否则撞 PK。
+    exec(
+        &db,
+        "SELECT setval(pg_get_serial_sequence('warehouses','id'), 1000, false)",
+    )
+    .await;
+    db
+}
 
 async fn seed_warehouse(db: &DatabaseConnection) -> warehouse::Model {
     warehouse::ActiveModel {
@@ -192,32 +196,6 @@ async fn seed_warehouse(db: &DatabaseConnection) -> warehouse::Model {
     .await
     .unwrap()
 }
-
-/// purchase_return DDL 与 wave3 逐列一致；purchase_return_item 列与
-/// `models/purchase_return_item.rs::Model` 逐列对应（追溯三列 NOT NULL，见模型头注）
-const PURCHASE_RETURN_DDL: &str = r#"CREATE TABLE purchase_return (
-    id INTEGER PRIMARY KEY,
-    return_no TEXT NOT NULL, receipt_id INTEGER, order_id INTEGER,
-    supplier_id INTEGER NOT NULL, return_date TEXT NOT NULL,
-    warehouse_id INTEGER, department_id INTEGER,
-    reason_type TEXT, reason_detail TEXT, return_status TEXT,
-    total_quantity TEXT, total_quantity_alt TEXT, total_amount TEXT,
-    notes TEXT, created_by INTEGER, created_at TEXT NOT NULL,
-    updated_by INTEGER, updated_at TEXT NOT NULL,
-    approved_by INTEGER, approved_at TEXT, rejected_reason TEXT
-)"#;
-
-const PURCHASE_RETURN_ITEM_DDL: &str = r#"CREATE TABLE purchase_return_item (
-    id INTEGER PRIMARY KEY,
-    return_id INTEGER NOT NULL, line_no INTEGER NOT NULL, product_id INTEGER NOT NULL,
-    quantity TEXT NOT NULL, quantity_alt TEXT NOT NULL,
-    unit_price TEXT NOT NULL, unit_price_foreign TEXT NOT NULL,
-    discount_percent TEXT NOT NULL, tax_percent TEXT NOT NULL,
-    subtotal TEXT NOT NULL, tax_amount TEXT NOT NULL,
-    discount_amount TEXT NOT NULL, total_amount TEXT NOT NULL,
-    notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    color_no TEXT NOT NULL, dye_lot_no TEXT NOT NULL, batch_no TEXT NOT NULL
-)"#;
 
 async fn seed_purchase_return_with_item(
     db: &DatabaseConnection,
@@ -265,24 +243,6 @@ async fn seed_purchase_return_with_item(
     .unwrap();
     (r, item)
 }
-
-const INVENTORY_TRANSFERS_DDL: &str = r#"CREATE TABLE inventory_transfers (
-    id INTEGER PRIMARY KEY,
-    transfer_no TEXT NOT NULL, from_warehouse_id INTEGER NOT NULL,
-    to_warehouse_id INTEGER NOT NULL, transfer_date TEXT NOT NULL,
-    status TEXT NOT NULL, total_quantity TEXT, notes TEXT,
-    created_by INTEGER, approved_by INTEGER, approved_at TEXT,
-    shipped_at TEXT, received_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    approval_level TEXT, approved_by_role TEXT, total_amount TEXT
-)"#;
-
-const INVENTORY_TRANSFER_ITEMS_DDL: &str = r#"CREATE TABLE inventory_transfer_items (
-    id INTEGER PRIMARY KEY, transfer_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-    quantity TEXT NOT NULL, shipped_quantity TEXT, received_quantity TEXT,
-    unit_cost TEXT, notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    color_no TEXT NOT NULL, dye_lot_no TEXT, batch_no TEXT NOT NULL
-)"#;
 
 async fn seed_transfer(
     db: &DatabaseConnection,
@@ -617,10 +577,7 @@ fn transfer_header_and_item_dto_shape_lock() {
 
 #[tokio::test]
 async fn warehouse_update_tri_state_roundtrip_on_sqlite() {
-    let db = sqlite_db().await;
-    exec(&db, WAREHOUSES_DDL).await;
-    exec(&db, USERS_DDL).await;
-    exec(&db, AUDIT_LOGS_DDL).await;
+    let db = seeded_db().await;
     let seeded = seed_warehouse(&db).await;
     let id = seeded.id;
     let service = WarehouseService::new(Arc::new(db.clone()));
@@ -732,10 +689,7 @@ async fn warehouse_update_tri_state_roundtrip_on_sqlite() {
 
 #[tokio::test]
 async fn warehouse_not_null_reject_has_no_partial_side_effect() {
-    let db = sqlite_db().await;
-    exec(&db, WAREHOUSES_DDL).await;
-    exec(&db, USERS_DDL).await;
-    exec(&db, AUDIT_LOGS_DDL).await;
+    let db = seeded_db().await;
     let seeded = seed_warehouse(&db).await;
     let service = WarehouseService::new(Arc::new(db.clone()));
 
@@ -838,11 +792,7 @@ async fn warehouse_not_null_reject_has_no_partial_side_effect() {
 
 #[tokio::test]
 async fn purchase_return_item_update_tri_state_roundtrip_on_sqlite() {
-    let db = sqlite_db().await;
-    exec(&db, PURCHASE_RETURN_DDL).await;
-    exec(&db, PURCHASE_RETURN_ITEM_DDL).await;
-    exec(&db, USERS_DDL).await;
-    exec(&db, AUDIT_LOGS_DDL).await;
+    let db = seeded_db().await;
     let (r, seeded) = seed_purchase_return_with_item(&db).await;
     let item_id = seeded.id;
     let service = PurchaseReturnService::new(Arc::new(db.clone()));
@@ -947,11 +897,7 @@ async fn purchase_return_item_update_tri_state_roundtrip_on_sqlite() {
 
 #[tokio::test]
 async fn purchase_return_not_null_reject_has_no_partial_side_effect() {
-    let db = sqlite_db().await;
-    exec(&db, PURCHASE_RETURN_DDL).await;
-    exec(&db, PURCHASE_RETURN_ITEM_DDL).await;
-    exec(&db, USERS_DDL).await;
-    exec(&db, AUDIT_LOGS_DDL).await;
+    let db = seeded_db().await;
     let (_, seeded) = seed_purchase_return_with_item(&db).await;
     let item_id = seeded.id;
     let service = PurchaseReturnService::new(Arc::new(db.clone()));
@@ -1017,7 +963,7 @@ async fn purchase_return_not_null_reject_has_no_partial_side_effect() {
 
 #[tokio::test]
 async fn transfer_item_update_not_found_propagates_404_not_flattened() {
-    let app = transfer_item_router(sqlite_db().await);
+    let app = transfer_item_router(seeded_db().await);
     // 明细不存在：service 返回 AppError::not_found —— 原实现 map_err(bad_request)
     // 会拍平成 400，`?` 透传后必须是 404 + NOT_FOUND
     let (status, v) = call_put(
@@ -1037,9 +983,7 @@ async fn transfer_item_update_not_found_propagates_404_not_flattened() {
 
 #[tokio::test]
 async fn transfer_item_update_business_gate_not_500_not_flattened() {
-    let db = sqlite_db().await;
-    exec(&db, INVENTORY_TRANSFERS_DDL).await;
-    exec(&db, INVENTORY_TRANSFER_ITEMS_DDL).await;
+    let db = seeded_db().await;
     let (_, item) = seed_transfer(&db, transfer_status::SHIPPED).await;
     let app = transfer_item_router(db.clone());
     let uri = format!("/inventory/transfers/items/{}", item.id);

@@ -7,7 +7,7 @@
 //!    伪装成 500 且把错误原文拼进出参文案；该端点 `GET /inventory/stock/product/{id}`
 //!    正是销售发货建单弹窗取可发库存的前置调用）。修复 = `?` 透传（同 AR 收款
 //!    ar_payment_handler 先例）。防线：调用名 × map_err(internal) 零命中 + shrink-only ratchet
-//!    + sqlite 真跑 HTTP 映射（200 形状 / 缺表归 DATABASE_ERROR 而非 INTERNAL_ERROR、不外泄原文）。
+//!    + 真库真跑 HTTP 映射（200 形状 / 缺表归 DATABASE_ERROR 而非 INTERNAL_ERROR、不外泄原文）。
 //! 2. **BI DELETE 403 判责取证锁**：权限键由 URL 段推导（middleware/permission.rs:259
 //!    extract_resource_info + method_to_action），`/api/v1/erp/bi/**` 的 seg4（sales/dashboards/...）
 //!    直接成为资源键名，DELETE 动作推导出 `sales:delete` / `dashboards:delete` 等键——
@@ -18,6 +18,16 @@
 //!    由 serde 真跑锁死；Decimal 出参（payment_amount/request_amount/exchange_rate/currency）
 //!    在前端 ap.ts 必须是 `string`（rust_decimal 序列化为十进制字符串，先例 commit
 //!    83b8028b/42f67500），NOT NULL 列不得标 `?` —— 源码扫描锁防回潮。
+//!
+//! 通道（路线一，#4669 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
+//! - 正向 200 形状用例 → `test_common::setup_test_db()`（已迁移 PG + 清空业务表），
+//!   `inventory_stocks` 的 FK 父行（warehouses/products）按裁定 R1 自建，产品 ID 由夹具
+//!   返回真实值后再拼 URI（不再假设 id=7 这类环境预置行）。
+//! - 「缺表必须归 DATABASE_ERROR、不外泄 SQL 原文」用例 →
+//!   `test_common::connect_empty_schema_db()`（`TEST_EMPTY_DATABASE_URL` → 已建库未跑迁移）；
+//!   同一文件两种连接并存属裁定 R3。原文外泄检查同时覆盖 sqlite 与 PG 两代措辞。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -35,10 +45,16 @@ use bingxi_backend::middleware::permission::{
     extract_action_from_query, extract_resource_info, method_to_action,
 };
 use bingxi_backend::models::inventory_stock;
+use bingxi_backend::models::product;
+use bingxi_backend::models::status::purchase_inventory::{
+    inventory_stock_quality_status, inventory_stock_status,
+};
 use bingxi_backend::services::ap_payment_service::CreateApPaymentRequest;
 use bingxi_backend::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, Statement};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DatabaseConnection, DbBackend, Statement,
+};
 use serde_json::{Value, json};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -90,69 +106,95 @@ async fn request_json(app: &Router, req: Request<Body>) -> (StatusCode, Value) {
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
+async fn exec_pg(db: &DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-/// 与 models/inventory_stock.rs::Model（表 inventory_stocks）逐列对应
-const CREATE_INVENTORY_STOCKS: &str = r#"CREATE TABLE inventory_stocks (
-    id INTEGER PRIMARY KEY,
-    warehouse_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-    quantity_on_hand TEXT NOT NULL, quantity_available TEXT NOT NULL,
-    quantity_reserved TEXT NOT NULL, quantity_shipped TEXT NOT NULL,
-    quantity_incoming TEXT NOT NULL, reorder_point TEXT NOT NULL,
-    max_stock_point TEXT, reorder_quantity TEXT,
-    bin_location TEXT, last_count_date TEXT, last_movement_date TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    batch_no TEXT NOT NULL, color_no TEXT NOT NULL, dye_lot_no TEXT,
-    grade TEXT NOT NULL, production_date TEXT, expiry_date TEXT,
-    quantity_meters TEXT NOT NULL, quantity_kg TEXT NOT NULL,
-    gram_weight TEXT, width TEXT, location_id INTEGER,
-    shelf_no TEXT, layer_no TEXT,
-    stock_status TEXT NOT NULL, quality_status TEXT NOT NULL,
-    version INTEGER NOT NULL, replenishment_strategy TEXT NOT NULL
-)"#;
-
-async fn sqlite_state(with_table: bool) -> AppState {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    if with_table {
-        exec(&db, CREATE_INVENTORY_STOCKS).await;
-        inventory_stock::ActiveModel {
-            warehouse_id: Set(1),
-            product_id: Set(7),
-            quantity_on_hand: Set(Decimal::from_str("100.50").unwrap()),
-            quantity_available: Set(Decimal::from_str("80.25").unwrap()),
-            quantity_reserved: Set(Decimal::ZERO),
-            quantity_shipped: Set(Decimal::ZERO),
-            quantity_incoming: Set(Decimal::ZERO),
-            reorder_point: Set(Decimal::ZERO),
-            reorder_quantity: Set(Decimal::ZERO),
-            batch_no: Set("B1".to_string()),
-            color_no: Set("RED".to_string()),
-            dye_lot_no: Set(Some("DL-A".to_string())),
-            grade: Set("一等品".to_string()),
-            quantity_meters: Set(Decimal::from_str("80.25").unwrap()),
-            quantity_kg: Set(Decimal::ZERO),
-            stock_status: Set("normal".to_string()),
-            quality_status: Set("待检".to_string()),
-            version: Set(0),
-            replenishment_strategy: Set("reorder_point".to_string()),
-            created_at: Set(chrono::Utc::now()),
-            updated_at: Set(chrono::Utc::now()),
-            ..Default::default()
-        }
-        .insert(&db)
-        .await
-        .expect("种子库存行插入失败");
+/// 正向夹具（真库通道）：FK 父行自建 + 一条 `inventory_stocks` 行。
+///
+/// 列取值逐列对齐 `models/inventory_stock.rs::Model` + `backend/migration` 建表语句：
+/// - `warehouse_id`/`product_id` 有外键（`fk_inventory_warehouse`/`fk_inventory_product`），
+///   业务表被夹具清空 ⇒ 自建父行（裁定 R1），仓库用显式主键 1、产品取序列真实 id；
+/// - `stock_status`/`quality_status` 按写入方权威词表
+///   （`status::purchase_inventory::inventory_stock_status::NORMAL` = 正常、
+///   `inventory_stock_quality_status::PENDING` = 待检）逐字符取值，
+///   原 sqlite 夹具写的 `"normal"` 不属该列取值域（真库上等于自造 token）；
+/// - `max_stock_point` 为 NOT NULL 列，DB DEFAULT 0 生效（模型侧 non-Option 但迁移有默认值），
+///   其余可空列不 Set。
+async fn seeded_state() -> (AppState, i32) {
+    let db = test_common::setup_test_db().await;
+    exec_pg(
+        &db,
+        "INSERT INTO warehouses (id, warehouse_code, name, is_active, is_default, created_at, updated_at) \
+         VALUES (1,'WH-BIA-1','波次六发货链契约仓',TRUE,FALSE,NOW(),NOW())",
+    )
+    .await;
+    let product_id = product::ActiveModel {
+        code: Set(format!(
+            "PRD-BIA-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap()
+        )),
+        name: Set("波次六发货链契约产品".to_string()),
+        unit: Set("米".to_string()),
+        status: Set(bingxi_backend::models::status::master_data::ACTIVE.to_string()),
+        product_type: Set("fabric".to_string()),
+        is_deleted: Set(false),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+        ..Default::default()
     }
+    .insert(&db)
+    .await
+    .expect("夹具：外键父行 products 写入失败")
+    .id;
+
+    inventory_stock::ActiveModel {
+        warehouse_id: Set(1),
+        product_id: Set(product_id),
+        quantity_on_hand: Set(Decimal::from_str("100.50").unwrap()),
+        quantity_available: Set(Decimal::from_str("80.25").unwrap()),
+        quantity_reserved: Set(Decimal::ZERO),
+        quantity_shipped: Set(Decimal::ZERO),
+        quantity_incoming: Set(Decimal::ZERO),
+        reorder_point: Set(Decimal::ZERO),
+        reorder_quantity: Set(Decimal::ZERO),
+        batch_no: Set("B1".to_string()),
+        color_no: Set("RED".to_string()),
+        dye_lot_no: Set(Some("DL-A".to_string())),
+        grade: Set("一等品".to_string()),
+        quantity_meters: Set(Decimal::from_str("80.25").unwrap()),
+        quantity_kg: Set(Decimal::ZERO),
+        stock_status: Set(inventory_stock_status::NORMAL.to_string()),
+        quality_status: Set(inventory_stock_quality_status::PENDING.to_string()),
+        version: Set(0),
+        replenishment_strategy: Set("reorder_point".to_string()),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .expect("种子库存行插入失败");
+
+    (
+        AppState {
+            db: Arc::new(db),
+            ..Default::default()
+        },
+        product_id,
+    )
+}
+
+/// 负前提交集夹具：已建库但未跑迁移 ⇒ `inventory_stocks` 不存在，
+/// DbErr 必须按族归口 DATABASE_ERROR（原用例靠 sqlite 空表制造这一前提）。
+async fn empty_schema_state() -> AppState {
+    let db = test_common::connect_empty_schema_db().await;
     AppState {
         db: Arc::new(db),
         ..Default::default()
@@ -312,17 +354,20 @@ fn get_stock_by_product_handler_passes_errors_through() {
 }
 
 // ---------------------------------------------------------------------------
-// sqlite 真跑：透传后的真实 HTTP 映射
+// 真库真跑：透传后的真实 HTTP 映射
 // ---------------------------------------------------------------------------
 
 /// 正常路径：种子库存行 → 200 且形状 {list,total,page,page_size}（Decimal 出参字符串）
 #[tokio::test]
 async fn stock_by_product_success_returns_200_shape() {
-    let app = build_stock_app(sqlite_state(true).await, make_auth(100));
+    let (state, product_id) = seeded_state().await;
+    let app = build_stock_app(state, make_auth(100));
     let (status, v) = request_json(
         &app,
         Request::builder()
-            .uri("/inventory/stock/product/7?page=1&page_size=10")
+            .uri(&format!(
+                "/inventory/stock/product/{product_id}?page=1&page_size=10"
+            ))
             .body(Body::empty())
             .unwrap(),
     )
@@ -337,10 +382,10 @@ async fn stock_by_product_success_returns_200_shape() {
 }
 
 /// 失败路径：表不存在 → DbErr 经 From<DbErr> 归 DATABASE_ERROR 族，
-/// 不再是修复前的 INTERNAL_ERROR 伪装；且 SQL 原文（no such table）不得外泄。
+/// 不再是修复前的 INTERNAL_ERROR 伪装；且 SQL 原文不得外泄。
 #[tokio::test]
 async fn stock_by_product_db_error_maps_to_database_error_not_internal() {
-    let app = build_stock_app(sqlite_state(false).await, make_auth(100));
+    let app = build_stock_app(empty_schema_state().await, make_auth(100));
     let (status, v) = request_json(
         &app,
         Request::builder()
@@ -358,6 +403,12 @@ async fn stock_by_product_db_error_maps_to_database_error_not_internal() {
     assert!(
         !body.contains("no such table"),
         "SQL 错误原文外泄到响应：{body}"
+    );
+    // 路线一后该前提在 PostgreSQL 上成立，原文措辞随之换成 PG 版；
+    // 两代措辞都锁，避免换成 PG 通道后这条"不外泄"检查变成恒真的空断言。
+    assert!(
+        !body.contains("does not exist") && !body.contains("inventory_stocks"),
+        "PG 侧 SQL 错误原文/表名外泄到响应：{body}"
     );
     assert_ne!(v["message"], "服务器内部错误");
     let _ = status; // DATABASE_ERROR 族的具体 status 由 utils/error.rs 映射表锁定（g1 已有信封矩阵）

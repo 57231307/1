@@ -22,8 +22,10 @@
 //!   （否则 self 销售领取他人公海行会被打死，本文件用例 4 就是这条可用性锁）；
 //!   命中非公海行时才回落到同一个 `check_resource_owner`（用例 2）。
 //!
-//! 覆盖（sqlite 真跑 + 真 HTTP 装配，无硬编码 JSON 假断言；行状态一律用
-//! `crm_lead::Entity::find_by_id` 回读真库比对，证明"零漂移"）：
+//! 覆盖（真 PostgreSQL 真跑 + 真 HTTP 装配，无硬编码 JSON 假断言；行状态一律用
+//! `crm_lead::Entity::find_by_id` 回读真库比对，证明"零漂移"。通道为路线一：
+//! `test_common::setup_test_db()`，表结构唯一来源 = backend/migration，
+//! 不再自建 DDL）：
 //! 1. B（self）recycle A 的私海行 → 403 且该行 lead_status/owner_id 逐字段零漂移；
 //! 2. B（self）claim A 的私海行 → 403（不再是"该客户不在公海中"的 400 业务码）且零漂移；
 //! 3. B recycle 本人私海行 → 200，lead_status→pool（未被误收紧）；
@@ -52,6 +54,8 @@
 //!   故不另开活库用例；`utils/data_scope.rs` Self/Dept 分支的公海放行
 //!   （`PoolVisibility::Open`，拍板 ②）已由 `contract_wave6_crm_pool_mask_test.rs`
 //!   用例 5/6 常跑锁定，本文件不重复。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -105,119 +109,48 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
-
-/// 与 models/crm_lead.rs::Model 逐列对应（表 crm_lead）
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-/// 与 models/role.rs::Model 对应（is_admin_role 判定源，admin_checker.rs:86-87）
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-/// update_lead → AuditLogService::update_with_audit 需要 users（取操作人用户名）
-/// 与 audit_logs（审计落库）两张表存在，否则写路径在 sqlite 上直接 500（假红）。
-const CREATE_USERS: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL, password_hash TEXT NOT NULL,
-    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    gender TEXT, birth_date TEXT
-)"#;
-
-const CREATE_AUDIT_LOGS: &str = r#"CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER, username TEXT, action TEXT NOT NULL,
-    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-    old_value TEXT, new_value TEXT, created_at TEXT,
-    operation_type TEXT, severity TEXT, request_id TEXT,
-    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-    export_approval_token TEXT, export_watermark_user TEXT
-)"#;
-
-/// 与 models/customer_pool_rule.rs::Model 对应（表名 customer_pool_rules；
-/// 批量领取路径 claim_pool_customers 的公海规则校验读此表，空表 → 走默认值兜底）
-const CREATE_POOL_RULES: &str = r#"CREATE TABLE customer_pool_rules (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,
-    rule_type TEXT NOT NULL, rule_value INTEGER NOT NULL,
-    customer_type TEXT NOT NULL, is_enabled INTEGER NOT NULL,
-    notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
 
 /// 种子：
 /// - id=1：A 的公海行（updated_at 远在保护期之外，批量领取路径可用）；
 /// - id=2：A 的私海行（越权目标）；
 /// - id=3：B 的私海行（合法回收目标）。
+/// users 50/60/70 为自种子父行（裁定 R1：update_lead →
+/// AuditLogService::update_with_audit 取操作人用户名需真实 users/audit_logs 表，
+/// 二者均由迁移提供；trg_crm_lead_dept 触发器按 owner 的 users.department_id
+/// 回填冗余部门列，布尔列按 PG 写 TRUE/FALSE）。
+/// roles 不再插：id=1 code='admin'（is_admin_role 判定源，admin_checker.rs:86-87）
+/// 为迁移种子参照行。customer_pool_rules 为迁移真实表（v15 建表），批量领取路径
+/// 的规则校验读到空表 → 走默认值兜底，无需建表也无需播种。
+/// department_id 不手写：由触发器维护。
 async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [
-        CREATE_CRM_LEAD,
-        CREATE_ROLES,
-        CREATE_USERS,
-        CREATE_AUDIT_LOGS,
-        CREATE_POOL_RULES,
-    ] {
-        exec(&db, ddl).await;
-    }
+    let db = test_common::setup_test_db().await;
 
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
-    )
-    .await;
-    exec(
-        &db,
-        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,created_at,updated_at) VALUES
-         (50,'sales_a','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (60,'sales_b','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (70,'admin_user','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (60,'sales_b','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (70,'admin_user','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
     exec(
         &db,
         "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
-         contact_name,mobile_phone,email,owner_id,owner_name,department_id,
+         contact_name,mobile_phone,email,owner_id,owner_name,
          created_at,updated_at) VALUES
          (1,'LD001','website','pool','甲公司','张三','13812348888','alice@example.com',
-          50,'销售甲',1,'2026-01-01T00:00:00Z','2020-01-01T00:00:00Z'),
+          50,'销售甲','2026-01-01T00:00:00Z','2020-01-01T00:00:00Z'),
          (2,'LD002','ad','new','乙公司','李四','13700001111','carol@example.com',
-          50,'销售甲',1,'2026-01-02T00:00:00Z','2020-01-01T00:00:00Z'),
+          50,'销售甲','2026-01-02T00:00:00Z','2020-01-01T00:00:00Z'),
          (3,'LD003','referral','new','丙公司','王五','13711112222','bob@example.com',
-          60,'销售乙',1,'2026-01-03T00:00:00Z','2020-01-01T00:00:00Z')",
+          60,'销售乙','2026-01-03T00:00:00Z','2020-01-01T00:00:00Z')",
     )
     .await;
 

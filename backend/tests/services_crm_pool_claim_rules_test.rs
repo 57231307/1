@@ -12,7 +12,7 @@
 //! 3. 每日领取上限旧判据 `owner_id + updated_at ≥ 今日`，把"今天被动过的
 //!    存量线索"计入领取量，计数虚高误拒。
 //!
-//! 本文件锁（sqlite 真跑服务层，无 HTTP 伪装）：
+//! 本文件锁（真 PostgreSQL 真跑服务层，无 HTTP 伪装；路线一，#4669 判责）：
 //! A. 保护期判据 = last_claimed_at：A 领取 → 回收（updated_at 变"刚刚"）→
 //!    B 立即领取被拒（单条显式报错 / 批量 claimed=0，两路径同判据）；
 //! B. 原领取人本人重领豁免（last_claimed_by 判定，保护期本义防他人抢单）；
@@ -22,6 +22,12 @@
 //!    真实领取达 claim_limit（默认 5）后拒领；
 //! E. 最大持有数（默认 50）与领取入口无关：达上限后两路径都拒；
 //! F. 单条/批量两条路径校验结果一致性（同判据同函数，不存在单条旁路）。
+//!
+//! 表结构唯一来源 = backend/migration（不再自建 DDL）；customer_pool_rules 真表
+//! 无迁移播种、setup_test_db 清空后为空 → get_rule_value 走代码默认值，与
+//! "空规则表"前置一致。任何规则断言（保护期/上限/豁免/两路径一致）不软化。
+
+mod test_common;
 
 use bingxi_backend::models::crm_lead;
 use bingxi_backend::models::status::crm_lead as lead_status;
@@ -37,91 +43,39 @@ const USER_B: i32 = 60;
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-/// 与 models/crm_lead.rs::Model 逐列对应（含领取事件两列）
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-/// AuditLogService::update_with_audit 需要 users/audit_logs 两表存在
-const CREATE_USERS: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL, password_hash TEXT NOT NULL,
-    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    gender TEXT, birth_date TEXT
-)"#;
-
-const CREATE_AUDIT_LOGS: &str = r#"CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER, username TEXT, action TEXT NOT NULL,
-    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-    old_value TEXT, new_value TEXT, created_at TEXT,
-    operation_type TEXT, severity TEXT, request_id TEXT,
-    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-    export_approval_token TEXT, export_watermark_user TEXT
-)"#;
-
-/// 空规则表 → get_rule_value 走代码默认值（protection_period=7,
-/// claim_limit=5, max_holdings=50，pool.rs::get_rule_value 的兜底分支）
-const CREATE_POOL_RULES: &str = r#"CREATE TABLE customer_pool_rules (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,
-    rule_type TEXT NOT NULL, rule_value INTEGER NOT NULL,
-    customer_type TEXT NOT NULL, is_enabled INTEGER NOT NULL,
-    notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
+/// 种子：
+/// - users：两个销售父行（裁定 R1；AuditLogService::update_with_audit 回读
+///   users 取操作人，真表真 FK 语义下必须存在）；
+/// - crm_lead：id 1..=6 的公海行（存量形态：last_claimed_at/last_claimed_by
+///   NULL、updated_at 早于今日），A/B/C/D/E/F 各用例的领取对象。
+/// roles/data_permissions 不再建不再插（本文件用例不依赖）。
 async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [
-        CREATE_CRM_LEAD,
-        CREATE_USERS,
-        CREATE_AUDIT_LOGS,
-        CREATE_POOL_RULES,
-    ] {
-        exec(&db, ddl).await;
-    }
+    let db = test_common::setup_test_db().await;
     exec(
         &db,
-        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,created_at,updated_at) VALUES
-         (50,'sales_a','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (60,'sales_b','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (60,'sales_b','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
+    // 领取对象：id 1..=6 公海存量行（前置条件显式自种子，不依赖环境已有数据）
+    for id in 1..=6 {
+        seed_pool_lead(&db, id, USER_A, "2026-01-01T00:00:00Z", None, None).await;
+    }
     Arc::new(db)
 }
 
 /// 种一条公海行（lead_status='pool'，owner 为回收前原归属人——回收只改状态的
 /// 既有语义）。updated_at/last_claimed_at 由调用方决定。
+/// department_id 不显式给：真表由 trg_crm_lead_dept 触发器按归属人回填。
 async fn seed_pool_lead(
     db: &sea_orm::DatabaseConnection,
     id: i32,
@@ -142,10 +96,10 @@ async fn seed_pool_lead(
         db,
         &format!(
             "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
-             contact_name,owner_id,owner_name,department_id,
+             contact_name,owner_id,owner_name,
              last_claimed_at,last_claimed_by,created_at,updated_at) VALUES
              ({id},'LD{id:04}','website','pool','公司{id}','联系人{id}',
-              {owner},'归属人{owner}',1,
+              {owner},'归属人{owner}',
               {claimed_sql},{by_sql},'2026-01-01T00:00:00Z','{updated_at}')"
         ),
     )
@@ -341,15 +295,16 @@ async fn max_holdings_blocks_claim_once_at_limit() {
     let service = CrmService::new(db.clone());
     let now = Utc::now().to_rfc3339();
 
-    // B 先攒 50 条活跃持有（new 状态、owner=B；不含 converted/lost/pool）
+    // B 先攒 50 条活跃持有（new 状态、owner=B；不含 converted/lost/pool）。
+    // department_id 由 trg_crm_lead_dept 按归属人回填，不显式给。
     for id in 30..80 {
         exec(
             &db,
             &format!(
                 "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
-                 contact_name,owner_id,owner_name,department_id,created_at,updated_at) VALUES
+                 contact_name,owner_id,owner_name,created_at,updated_at) VALUES
                  ({id},'LD{id:04}','ad','new','持有{id}','联系人{id}',
-                  {USER_B},'销售乙',1,'2026-01-01T00:00:00Z','{now}')"
+                  {USER_B},'销售乙','2026-01-01T00:00:00Z','{now}')"
             ),
         )
         .await;

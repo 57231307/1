@@ -13,12 +13,19 @@
 //! - `match_key` 回显调用方自己提交的号码（非服务端查得的他人数据），保持不动；
 //! - 过滤后不足 2 条不成组（既有 `leads.len() > 1` 判据不变）。
 //!
-//! 覆盖（sqlite 真跑 + 真 HTTP 装配，无硬编码 JSON 假断言）：
+//! 覆盖（真 PostgreSQL 真跑 + 真 HTTP 装配，无硬编码 JSON 假断言）：
 //! 1. B（self）用**他人**手机号查重复 → 组为空，响应体不含他人 lead_no（LD-A-*）；
 //! 2. B 用**自己**手机号查重复 → 组只含 B 自己的两行（LD-B-001/LD-B-002）；
 //! 3. B 用他人公司名（自己名下仅 1 行同名）查重复 → 可见行不足 2 条不成组，
 //!    响应体不含他人 lead_no（同时锁"过滤后不成组"与"公司名分支也套 scope"）；
 //! 4. admin（data_scope=all）用他人手机号查重复 → 可见全部，组含 LD-A-001/LD-A-002。
+//!
+//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
+//! crm_lead.owner_id 无外键，但迁移触发器 trg_crm_lead_dept 按 owner 的
+//! users.department_id 回填冗余列，故按裁定 R1 自种子归属人 users 父行（50/60）。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -67,72 +74,44 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(sea_orm::Statement::from_sql_and_values(
-        sea_orm::DbBackend::Sqlite,
+        sea_orm::DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
-
-/// 与 models/crm_lead.rs::Model 逐列对应（表 crm_lead）
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-/// 审计落库（handler record_async 写 audit_logs，缺表即 500 假红）
-const CREATE_AUDIT_LOGS: &str = r#"CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER, username TEXT, action TEXT NOT NULL,
-    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-    old_value TEXT, new_value TEXT, created_at TEXT,
-    operation_type TEXT, severity TEXT, request_id TEXT,
-    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-    export_approval_token TEXT, export_watermark_user TEXT
-)"#;
 
 /// 种子（全部私海行，排除公海放行分支对断言的干扰）：
 /// - id=1/2：A（owner=50）同手机号 13900000000 的两条重复，公司名均为「甲公司」；
 /// - id=3/4：B（owner=60）同手机号 13800000000 的两条重复；
 /// - id=5：B 名下第三条「甲公司」行（公司名分支：B 可见同名行仅 1 条 → 不成组）。
+/// department_id 不手写：迁移触发器按 owner 的 users.department_id 自动维护，
+/// 故先自种子 users（裁定 R1；users 属会被清空的业务表）。
 async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    exec(&db, CREATE_CRM_LEAD).await;
-    exec(&db, CREATE_AUDIT_LOGS).await;
+    let db = test_common::setup_test_db().await;
+    exec(
+        &db,
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (60,'sales_b','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+    )
+    .await;
     exec(
         &db,
         "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
-         contact_name,mobile_phone,email,owner_id,owner_name,department_id,
+         contact_name,mobile_phone,email,owner_id,owner_name,
          created_at,updated_at) VALUES
          (1,'LD-A-001','website','new','甲公司','张三A','13900000000','a1@example.com',
-          50,'销售甲',1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+          50,'销售甲','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
          (2,'LD-A-002','ad','new','甲公司','李四A','13900000000','a2@example.com',
-          50,'销售甲',1,'2026-01-02T00:00:00Z','2026-01-02T00:00:00Z'),
+          50,'销售甲','2026-01-02T00:00:00Z','2026-01-02T00:00:00Z'),
          (3,'LD-B-001','referral','new','乙公司','王五B','13800000000','b1@example.com',
-          60,'销售乙',1,'2026-01-03T00:00:00Z','2026-01-03T00:00:00Z'),
+          60,'销售乙','2026-01-03T00:00:00Z','2026-01-03T00:00:00Z'),
          (4,'LD-B-002','website','new','乙公司分部','赵六B','13800000000','b2@example.com',
-          60,'销售乙',1,'2026-01-04T00:00:00Z','2026-01-04T00:00:00Z'),
+          60,'销售乙','2026-01-04T00:00:00Z','2026-01-04T00:00:00Z'),
          (5,'LD-B-003','ad','new','甲公司','钱七B','13777777777','b3@example.com',
-          60,'销售乙',1,'2026-01-05T00:00:00Z','2026-01-05T00:00:00Z')",
+          60,'销售乙','2026-01-05T00:00:00Z','2026-01-05T00:00:00Z')",
     )
     .await;
     Arc::new(db)

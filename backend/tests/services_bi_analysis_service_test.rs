@@ -1,3 +1,11 @@
+//! 通道（路线一，#4669 判责）：夹具经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL，表结构唯一来源 = `backend/migration`；缺 `TEST_DATABASE_URL` 或指向
+//! sqlite 时夹具直接 panic。原写法在变量缺失时**静默回退 sqlite::memory:**，
+//! 那正是本批假绿的根（"没连上真库也算通过"），回退分支已彻底删除。
+//! 本文件用例锁的是"非法参数在触库前必须被拒"，因此断言与后端方言无关，
+//! 但在真库通道上跑才有意义：若未来有人把校验挪到 SQL 之后，用例会显式变红。
+mod test_common;
+
 use bingxi_backend::database::*;
 use bingxi_backend::handlers::bi_handler::*;
 use bingxi_backend::services::bi_analysis_service::*;
@@ -7,16 +15,12 @@ use std::sync::Arc;
 /// 测试辅助：构造连到测试库的 service 实例（参数校验测试仅调用 DB 查询前的校验路径）。
 ///
 /// 原实现返回 `Option` 并在 `DATABASE_URL` 缺失/连接失败时让调用方 `if let Some`
-/// 整体跳过断言 = "没跑也算 PASS" 的假绿守卫。现改为与仓库 harness 一致：
-/// 读 `TEST_DATABASE_URL`，缺省回退 `sqlite::memory:`（参数校验在 SQL 触库前返回，
-/// 两种后端下断言语义相同），连接失败显式 panic，断言无条件执行。
+/// 整体跳过断言 = "没跑也算 PASS" 的假绿守卫；随后一版改为读 `TEST_DATABASE_URL`
+/// 并回退 `sqlite::memory:` —— 回退同样是假绿（从未验证生产方言却显示通过）。
+/// 现统一走路线一夹具：连接失败或环境缺失即 panic，断言无条件执行。
 async fn make_service() -> BiAnalysisService {
-    let db_url =
-        std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = sea_orm::Database::connect(&db_url)
-        .await
-        .expect("参数校验测试需要可连接的测试库（TEST_DATABASE_URL 或 sqlite::memory: 回退）");
-    BiAnalysisService::new(std::sync::Arc::new(db))
+    let db = test_common::setup_test_db().await;
+    BiAnalysisService::new(Arc::new(db))
 }
 
 #[tokio::test]

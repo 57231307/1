@@ -105,7 +105,9 @@ fn decode_missing_required_fields_still_fails() {
 }
 
 // =========================================================
-// 2) 真实 handler 端到端（sqlite::memory: 自建表，无活库依赖）
+// 2) 真实 handler 端到端（真 PostgreSQL；表结构唯一来源 = backend/migration，
+//    路线一 #4669 判责。FK 父行按裁定 R1 自种子：
+//    quality_issues.custom_order_id → custom_orders(42) → customers/products）
 // =========================================================
 
 fn make_auth(user_id: i32) -> AuthContext {
@@ -129,31 +131,37 @@ async fn inject_auth(
     next.run(request).await
 }
 
-/// 与 `models/quality_issue.rs::Model` 逐列对应的 sqlite 最小 DDL
-async fn create_quality_issue_table(db: &sea_orm::DatabaseConnection) {
+/// FK 前置链自种子（逐列对真表）：customers(1) → products(1) →
+/// custom_orders(42)（quantity>0 CHECK、status 取词表合法值 dyeing）。
+async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
+    let db = test_common::setup_test_db().await;
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        r#"CREATE TABLE quality_issues (
-            id INTEGER PRIMARY KEY,
-            custom_order_id INTEGER, process_node_id INTEGER,
-            issue_type TEXT, severity TEXT, description TEXT,
-            discovered_at TEXT, resolved_at TEXT, resolution TEXT, status TEXT,
-            created_at TEXT, updated_at TEXT,
-            root_cause_method TEXT, root_cause_detail TEXT,
-            permanent_action_owner INTEGER, permanent_action_due_date TEXT,
-            permanent_action_completed_at TEXT
-        )"#,
+        DbBackend::Postgres,
+        r#"INSERT INTO customers (id,customer_code,customer_name,credit_limit,payment_terms,
+                 status,customer_type,owner_id,created_at,updated_at) VALUES
+                 (1,'W2QI-CUS-1','质检上报客户',0,30,'active','retail',100,
+                  '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#,
         Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}"));
-}
-
-async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_quality_issue_table(&db).await;
+    .unwrap_or_else(|e| panic!("customers 种子失败: {e}"));
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO products (id,code,name) VALUES (1,'W2QI-P1','全消光涤纶面料')",
+        Vec::<sea_orm::Value>::new(),
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("products 种子失败: {e}"));
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"INSERT INTO custom_orders (id,order_no,customer_id,product_id,spec,quantity,
+                 status,created_at,updated_at) VALUES
+                 (42,'W2QI-CO-42',1,1,'150D/48F 平纹 160cm',1000,
+                  'dyeing','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#,
+        Vec::<sea_orm::Value>::new(),
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("custom_orders 种子失败: {e}"));
     let state = AppState {
         db: std::sync::Arc::new(db.clone()),
         ..Default::default()

@@ -20,6 +20,16 @@
 //! `src/models/inventory_*.rs` 的 transfer_no/adjustment_no/count_no）；
 //! 库存流水/预占/跌价准备/匹等表无自有单号列，故"库存类"以这三张为准逐一断言，
 //! 第四个库存单据若未来引入单号列，必须同步登记注册表并加入本清单。
+//!
+//! 通道（路线一，#4669 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
+//! - 需要可连接库的行为用例走 `test_common::setup_test_db()`（已迁移 PostgreSQL + 清空
+//!   业务表）；未知 doc_type 那条虽然按代码路径在触库前就返回 Err，同样不得再用
+//!   `sqlite::memory:` 当"随便连一下都算跑过"的通道——夹具缺变量/指 sqlite 直接 panic。
+//! - 活库用例（#[ignore]）走 `test_common::connect_live_db()`：只连已迁移 PG、不清空，
+//!   因为这两条用例自带"插入探针→按主键删除"的清理闭环，清空反而会打断同 job 内
+//!   其它活库用例；env 缺失由夹具显式 panic（比原 `expect` 更严：指 sqlite 也 panic）。
+
+mod test_common;
 
 use bingxi_backend::models::{
     crm_opportunity, customer, customer_transfer_approval, inventory_adjustment, inventory_count,
@@ -203,15 +213,14 @@ fn entities_map_to_expected_real_tables() {
 }
 
 // =========================================================
-// 行为层（无需 PG）：未知 doc_type 的误判防复发
-// （该路径在触达任何表之前就返回 Err，用 sqlite::memory: 连接即可真实执行）
+// 行为层：未知 doc_type 的误判防复发
+// （该路径在触达任何表之前就返回 Err；连接仍走路线一真库夹具，
+//   这样一旦有人把兜底挪到查询之后，用例会在真库上显式变红而不是继续"看起来通过"）
 // =========================================================
 
 #[tokio::test]
 async fn unknown_doc_type_returns_distinguishable_error_not_available() {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
+    let db = test_common::setup_test_db().await;
 
     let err = is_document_no_taken(&db, "totally_unregistered_doc", "SO20260101001")
         .await
@@ -239,9 +248,7 @@ async fn unknown_doc_type_returns_distinguishable_error_not_available() {
 #[tokio::test]
 #[ignore = "需 TEST_DATABASE_URL 已迁移 PostgreSQL（真实表真实列 SELECT），由专用 job（--run-ignored only）执行"]
 async fn live_pg_every_registered_doc_type_queries_real_table_and_column() {
-    let url = std::env::var("TEST_DATABASE_URL")
-        .expect("活库用例必须设置 TEST_DATABASE_URL（指向已跑完迁移的 PostgreSQL）");
-    let db = sea_orm::Database::connect(&url).await.unwrap();
+    let db = test_common::connect_live_db().await;
 
     let nanos = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
     for (doc_type, _col_expr) in REQUIRED_REGISTRY {
@@ -264,9 +271,7 @@ async fn live_pg_customer_registry_detects_taken_and_freed_no() {
     use bingxi_backend::models::customer;
     use sea_orm::{ActiveModelTrait, Set};
 
-    let url = std::env::var("TEST_DATABASE_URL")
-        .expect("活库用例必须设置 TEST_DATABASE_URL（指向已跑完迁移的 PostgreSQL）");
-    let db = sea_orm::Database::connect(&url).await.unwrap();
+    let db = test_common::connect_live_db().await;
 
     let nanos = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
     let code = format!("NGRCT-{nanos}");
@@ -274,11 +279,16 @@ async fn live_pg_customer_registry_detects_taken_and_freed_no() {
     let row = customer::ActiveModel {
         customer_code: Set(code.clone()),
         customer_name: Set(format!("注册表探针客户 {code}")),
-        credit_limit: Set(rust_decimal::Decimal::ZERO),
+        // 逐列对齐真表：credit_limit/payment_terms 为 NOT NULL 列，给业务合法值
+        // （探针客户不需要额度语义，但不得塞 0 当占位）
+        credit_limit: Set(rust_decimal::Decimal::new(50_000, 0)),
         payment_terms: Set(30),
-        status: Set("active".to_string()),
+        // 状态 token 与写入方词表同源（models::status::master_data::ACTIVE）
+        status: Set(bingxi_backend::models::status::master_data::ACTIVE.to_string()),
         customer_type: Set("retail".to_string()),
-        owner_id: Set(100),
+        // customers.owner_id 无外键约束，0 = 公海客户（迁移 finance/mod.rs:110 列注释原文），
+        // 属业务合法取值而非占位假值，因此不需要自种 users 父行
+        owner_id: Set(0),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()

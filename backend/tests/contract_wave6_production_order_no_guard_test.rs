@@ -17,13 +17,19 @@
 //! 可撞 order_no UNIQUE 约束(m0007:75)导致裸 500、旁路取号器号段。
 //!
 //! 覆盖策略(全部分层,无 mock):
-//! - sqlite 端到端(真实行为):携带伪造单号的创建请求走完 DTO 反序列化 +
-//!   服务链后,取号环节(sqlite 方言不支持 pg_advisory_xact_lock)显式失败,
-//!   订单行零写入——证明"取号先于写入、客户号永不可达 INSERT";
+//! - 真库端到端(路线一,#4669 判责;表结构唯一来源 = `backend/migration`,本文件不自建
+//!   同构 DDL):携带伪造单号的创建请求走完 DTO 反序列化 + 服务链后,在**服务端取号**环节
+//!   显式失败,订单行零写入——证明"取号先于写入、客户号永不可达 INSERT"。
+//!   该失败分支在真库上的前置由夹具自建:一枚把当日 PO 号段基数顶到 u64::MAX 且自身
+//!   仍占用候选位的旁路病态号,命中 `utils/number_generator.rs:326-352` 的显式报错路径
+//!   (源码注释自称"病态号段…最终走显式报错路径失败可见")。原 sqlite 通道是靠方言缺失
+//!   函数(pg_advisory_xact_lock 在 sqlite 不存在)偶然失败,属被废弃的 sqlite 可验性假设。
 //!   planned_quantity 缺键在 DTO 反序列化层即 400(required 语义)。
-//! - `#[ignore]` 活库(TEST_DATABASE_URL→PG,ci-test-rust-ignored 执行):
+//! - `#[ignore]` 活库(`test_common::setup_test_db()`→PG,ci-test-rust-ignored 执行):
 //!   伪造单号被忽略、响应单号为服务端 PO 序列、status/priority 由 DB 默认生效。
 //! - 源码扫描防回潮锁:payload/service DTO 字段、create 时序、NotSet 默认值纪律。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -39,9 +45,10 @@ use bingxi_backend::handlers::production_order_handler::{self, CreateProductionO
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::{product, production_order};
 use chrono::Utc;
+use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait,
-    PaginatorTrait, QueryFilter, Statement,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter,
 };
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -91,68 +98,12 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
 }
 
 // =========================================================
-// 1) sqlite 自建表(products/boms 列与 models::Entity 逐列对应,
+// 1) 真库种子(products 列与 models::product + backend/migration 逐列对应;
 //    production_orders 用于零写入回读)
 // =========================================================
 
-async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-async fn create_tables(db: &sea_orm::DatabaseConnection) {
-    exec(
-        db,
-        r#"CREATE TABLE production_orders (
-            id INTEGER PRIMARY KEY,
-            order_no TEXT UNIQUE, sales_order_id INTEGER, product_id INTEGER,
-            planned_quantity TEXT, actual_quantity TEXT,
-            planned_start_date TEXT, planned_end_date TEXT,
-            actual_start_date TEXT, actual_end_date TEXT,
-            status TEXT, priority INTEGER, work_center_id INTEGER, remarks TEXT,
-            color_no TEXT, dye_lot_no TEXT, batch_no TEXT,
-            order_type TEXT, original_batch_id INTEGER, schedule_batch_key TEXT,
-            created_by INTEGER, created_at TEXT, updated_at TEXT
-        )"#,
-    )
-    .await;
-    exec(
-        db,
-        r#"CREATE TABLE products (
-            id INTEGER PRIMARY KEY, name TEXT, code TEXT, barcode TEXT,
-            category_id INTEGER, specification TEXT, unit TEXT,
-            standard_price TEXT, cost_price TEXT, description TEXT,
-            status TEXT, is_deleted INTEGER, created_at TEXT, updated_at TEXT,
-            product_type TEXT, fabric_composition TEXT, yarn_count TEXT,
-            density TEXT, width TEXT, gram_weight TEXT, structure TEXT,
-            finish TEXT, min_order_quantity TEXT, lead_time INTEGER,
-            meters_per_piece TEXT, meters_per_roll TEXT,
-            supplier_product_code TEXT, supplier_id INTEGER,
-            is_batch_managed INTEGER, batch_level TEXT,
-            execution_standard TEXT, factory_name TEXT, factory_address TEXT,
-            product_grade TEXT
-        )"#,
-    )
-    .await;
-    exec(
-        db,
-        r#"CREATE TABLE boms (
-            id INTEGER PRIMARY KEY, product_id INTEGER, version INTEGER,
-            is_default INTEGER, status TEXT, remarks TEXT,
-            created_by INTEGER, is_deleted INTEGER,
-            created_at TEXT, updated_at TEXT
-        )"#,
-    )
-    .await;
-}
-
 /// 种一条可用产品(create 服务链 validate_product_exists 要求真实行)
-async fn seed_product(db: &sea_orm::DatabaseConnection) -> i32 {
+async fn seed_product(db: &DatabaseConnection) -> i32 {
     product::ActiveModel {
         name: Set("波次六产品".to_string()),
         code: Set(format!(
@@ -160,7 +111,8 @@ async fn seed_product(db: &sea_orm::DatabaseConnection) -> i32 {
             Utc::now().timestamp_nanos_opt().unwrap()
         )),
         unit: Set("米".to_string()),
-        status: Set("active".to_string()),
+        // 状态 token 与写入方词表同源(models::status::master_data::ACTIVE)
+        status: Set(bingxi_backend::models::status::master_data::ACTIVE.to_string()),
         is_deleted: Set(false),
         product_type: Set("fabric".to_string()),
         created_at: Set(Utc::now()),
@@ -173,7 +125,37 @@ async fn seed_product(db: &sea_orm::DatabaseConnection) -> i32 {
     .id
 }
 
-fn build_app(db: sea_orm::DatabaseConnection) -> Router {
+/// 取号失败分支的真库前置:种一枚"当日 PO 号段基数顶到 u64::MAX 且候选位仍被占用"的
+/// 旁路病态号,让 `DocumentNumberGenerator::allocate_no` 在 100 次探测后走**显式报错**
+/// 路径(number_generator.rs:326-352),从而在生产方言上稳定复现
+/// "取号失败→400 业务族→订单零写入"这一被锁的分支。
+///
+/// 为什么不用"号段内连排 100 个已占用号"造前置:`allocate_no` 的基数取
+/// `max(后缀流水)+1`,候选位恒高于既有最大值,连排占用只会把基数一起推高,
+/// 无法在真库上穷尽——这正是源码注释所说的"病态号段"形态。
+///
+/// 除 order_no(探针本体)外的列一律照写入方 `build_create_active_model` 的口径:
+/// order_type='normal'(NOT NULL+CHECK 词表)、status/priority 不 Set(由 DB DEFAULT 生效)、
+/// planned_quantity 给合法数量 1(该列 NOT NULL 且无 DB 默认值,不塞 0 假值)。
+async fn seed_exhausted_number_segment(db: &DatabaseConnection, product_id: i32) -> String {
+    let probe_no = format!("PO{}{}", Utc::now().format("%Y%m%d"), u64::MAX);
+    production_order::ActiveModel {
+        order_no: Set(probe_no.clone()),
+        product_id: Set(product_id),
+        planned_quantity: Set(Decimal::ONE),
+        order_type: Set("normal".to_string()),
+        created_by: Set(100),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("取号前置探针({probe_no})写入失败: {e}"));
+    probe_no
+}
+
+fn build_app(db: DatabaseConnection) -> Router {
     let state = AppState {
         db: Arc::new(db),
         ..Default::default()
@@ -187,27 +169,25 @@ fn build_app(db: sea_orm::DatabaseConnection) -> Router {
         .layer(from_fn_with_state(make_auth(100, Some("all")), inject_auth))
 }
 
-async fn seeded_app() -> (Router, sea_orm::DatabaseConnection, i32) {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    create_tables(&db).await;
+async fn seeded_app() -> (Router, DatabaseConnection, i32) {
+    let db = test_common::setup_test_db().await;
     let product_id = seed_product(&db).await;
     let read_db = db.clone();
     (build_app(db), read_db, product_id)
 }
 
 // =========================================================
-// 2) sqlite 端到端:伪造单号不可达 INSERT、缺键 400
+// 2) 真库端到端:伪造单号不可达 INSERT、缺键 400
 // =========================================================
 
 /// 携带伪造 order_no 的创建请求:DTO 无该字段(serde 残差吸收,请求体不报错),
-/// 服务链走到服务端取号为止——sqlite 方言不支持 pg_advisory_xact_lock,取号显式
-/// 失败并返回 BUSINESS_ERROR;关键断言是 production_orders **零行**:
-/// 修复前该请求会以 "FORGED-9999" 直接落库(伪造单号成功)。
+/// 服务链走到服务端取号为止——当日号段基数被前置探针顶到饱和、100 个候选位全部占用,
+/// 取号显式失败并返回 BUSINESS_ERROR;关键断言是除该前置探针行外 production_orders
+/// **零行**:修复前该请求会以 "FORGED-9999" 直接落库(伪造单号成功)。
 #[tokio::test]
 async fn forged_order_no_never_reaches_insert_zero_rows_written() {
     let (app, db, product_id) = seeded_app().await;
+    let probe_no = seed_exhausted_number_segment(&db, product_id).await;
     let (status, v) = call(
         &app,
         Method::POST,
@@ -227,10 +207,12 @@ async fn forged_order_no_never_reaches_insert_zero_rows_written() {
     assert_eq!(v["code"], "BUSINESS_ERROR", "取号失败归业务族: {v}");
     assert_eq!(
         v["message"], "生产订单号生成失败，请稍后重试",
-        "sqlite 不支持 PG 咨询锁 → 取号失败即为预期拒绝点;真实落库断言见活库用例"
+        "取号分支失败(号段候选位穷尽)即为预期拒绝点,真实落库断言见活库用例"
     );
 
+    // 回读排除夹具自建的前置探针行本身:被锁语义是"这笔被拒的请求零写入"
     let rows = production_order::Entity::find()
+        .filter(production_order::Column::OrderNo.ne(&probe_no))
         .all(&db)
         .await
         .expect("回读不得失败");
@@ -283,29 +265,23 @@ fn payload_accepts_order_no_key_without_writable_field() {
 }
 
 // =========================================================
-// 3) 活库(#[ignore],TEST_DATABASE_URL→PG):全链路正向
+// 3) 活库(#[ignore],test_common::setup_test_db()→已迁移 PG):全链路正向
 // =========================================================
-
-/// 活库用例缺 TEST_DATABASE_URL 时显式 panic(禁止条件跳过假绿)
-fn live_pg_url() -> String {
-    std::env::var("TEST_DATABASE_URL")
-        .expect("本用例必须跑在已迁移 PostgreSQL(TEST_DATABASE_URL)上,由 ci-test-rust-ignored 执行;禁止 sqlite 回退假绿")
-}
 
 /// 活库端到端:伪造单号被服务端忽略,真实落库单号为 PO 序列;
 /// status/priority 不进 INSERT 列、由 DB DEFAULT DRAFT/5 生效(默认值单一来源)。
+/// 缺 `TEST_DATABASE_URL` 或指向 sqlite 时由夹具直接 panic(禁止条件跳过假绿)。
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL(create 取号走 pg_advisory_xact_lock,sqlite 方言不支持)"]
+#[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL(create 取号走 pg_advisory_xact_lock + 唯一约束兜底)"]
 async fn live_create_ignores_forged_no_and_defaults_come_from_db() {
-    let db = sea_orm::Database::connect(live_pg_url())
-        .await
-        .expect("活库连接失败");
+    let db = test_common::setup_test_db().await;
     let suffix = Utc::now().timestamp_nanos_opt().unwrap();
     let p = product::ActiveModel {
         name: Set(format!("波次六活库产品{suffix}")),
         code: Set(format!("PRD-W6L-{suffix}")),
         unit: Set("米".to_string()),
-        status: Set("active".to_string()),
+        // 状态 token 与写入方词表同源(models::status::master_data::ACTIVE)
+        status: Set(bingxi_backend::models::status::master_data::ACTIVE.to_string()),
         is_deleted: Set(false),
         product_type: Set("fabric".to_string()),
         created_at: Set(Utc::now()),

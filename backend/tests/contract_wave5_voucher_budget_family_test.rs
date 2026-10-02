@@ -21,11 +21,21 @@
 //!
 //! 覆盖形态（无 mock、走真实 service 方法）：
 //! - 借贷不平衡的拒绝发生在 `create()` 触库之前（非生产分支只做纯金额求和），
-//!   故该用例不需要任何表结构，`sqlite::memory:` 空连接即可真实跑到被锁分支；
-//! - 科目两分支的拒绝要先插入凭证主表再预检，需已迁移真库（`TEST_DATABASE_URL` → PostgreSQL，
-//!   CI `ci-test-rust-*` 两个 job 均已注入）。本文件**不做条件跳过、也不回退 sqlite 空表**：
-//!   变量缺失即在该用例行首显式失败并说明原因。
+//!   本用例不需要任何表结构即可跑到被锁分支；但连接仍走路线一真库夹具
+//!   （`test_common::setup_test_db()`）——若未来有人把平衡校验挪到取号/落库之后，
+//!   `expect_err("借贷不平衡必须被拒，绝不能落库成功")` 会因创建成功而显式变红，
+//!   不会静默（原写法靠 `sqlite::memory:` 空表把这类挪动伪装成 DATABASE_ERROR，
+//!   真库通道上"能连上、有表"才是诚实前置）；
+//! - 科目两分支的拒绝要先插入凭证主表再预检，需已迁移真库；本文件经
+//!   `test_common::setup_test_db()` 连 CI 注入的 `TEST_DATABASE_URL`（PostgreSQL），
+//!   **不做条件跳过、也不回退 sqlite 空表**：变量缺失或指向 sqlite 时夹具直接 panic。
 //! - 源码扫描锁（`include_str!`）：防 `bad_request("科目…")` / `bad_request("借…")` 回潮。
+//!
+//! 通道（路线一，#4669 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
+//! `account_subjects` 属迁移种子参照表（不参与清空），故用例自建科目后必须按 ID 清理
+//! （见 `cleanup_subjects`），凭证/分录属业务表、每次进夹具即被清空。
+
+mod test_common;
 
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -95,24 +105,15 @@ fn create_req(items: Vec<VoucherItemRequest>) -> CreateVoucherRequest {
     }
 }
 
-/// 活库连接（已迁移 PostgreSQL）。
+/// 活库连接（已迁移 PostgreSQL + 清空业务表）。
 ///
-/// 缺失 `TEST_DATABASE_URL` 时**显式失败并说明原因**：科目两分支的用例必经 `create()`
-/// 写真实 `vouchers` 主表（并走 PG 方言的凭证号生成），回退 `sqlite::memory:` 空表只会
-/// 得到 `DATABASE_ERROR`，那是假绿/假红而不是覆盖。
+/// 缺失 `TEST_DATABASE_URL` 或指向 sqlite 时由夹具**直接 panic** 并说明原因：科目两分支
+/// 的用例必经 `create()` 写真实 `vouchers` 主表（并走 PG 方言的凭证号生成），回退
+/// `sqlite::memory:` 空表只会得到 `DATABASE_ERROR`，那是假绿/假红而不是覆盖。
+/// 清空范围不含迁移种子参照表（见 `test_common::SEALED_REFERENCE_TABLES`），
+/// `account_subjects` 因此保留其种子行，用例自建科目一律按 ID 显式清理。
 async fn live_pg_db() -> DatabaseConnection {
-    let url = std::env::var("TEST_DATABASE_URL").expect(
-        "本用例需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL（CI 的 ci-test-rust-* job \
-         已注入）。缺失该变量时不回退 sqlite、也不跳过——按 #942 要求显式失败：\
-         本地请 export TEST_DATABASE_URL=postgres://user:pass@localhost:5432/bingxi_test",
-    );
-    assert!(
-        url.starts_with("postgres"),
-        "本用例写真实 vouchers 并用 PG 方言取号，TEST_DATABASE_URL 必须是 PostgreSQL，实际={url}"
-    );
-    sea_orm::Database::connect(&url)
-        .await
-        .expect("活库用例：TEST_DATABASE_URL 连接失败")
+    test_common::setup_test_db().await
 }
 
 /// 建一枚指定状态的科目（数值/布尔列全走 DDL 默认值，只 Set 用例关心的 code/name/status）
@@ -199,8 +200,9 @@ fn assert_envelope(err: &AppError, status: StatusCode, code: &str, message: &str
 
 /// 借贷不平衡被拒：400 + VALIDATION_ERROR + 出参常量「请求参数验证失败」。
 ///
-/// 该拒绝在 `create()` 触库之前发生，故空 sqlite 连接即可真实跑到被锁分支；
-/// 若未来有人把平衡校验挪到取号/落库之后，本用例会以 `DATABASE_ERROR` 显式变红而非静默。
+/// 该拒绝在 `create()` 触库之前发生（非生产分支只做纯金额求和），故无需任何种子即可
+/// 跑到被锁分支；连接仍走路线一真库夹具（见文件头），若未来有人把平衡校验挪到
+/// 取号/落库之后，本用例会在真库上以"竟然创建成功"显式变红而非静默。
 #[tokio::test]
 async fn unbalanced_voucher_is_sanitized_validation_error() {
     assert!(
@@ -210,9 +212,7 @@ async fn unbalanced_voucher_is_sanitized_validation_error() {
         std::env::var("APP_ENV").ok()
     );
 
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
+    let db = live_pg_db().await;
     let svc = VoucherService::new(Arc::new(db));
 
     // 借 100 / 贷 99：故意不平 1 元。

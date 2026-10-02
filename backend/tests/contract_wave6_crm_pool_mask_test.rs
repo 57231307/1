@@ -11,7 +11,7 @@
 //! （`auth.to_data_scope_context()` + get_role_data_permission 判定源 +
 //! utils/field_mask::mask_phone/mask_email），公海侧不另造更松的规则。
 //!
-//! 覆盖（sqlite 真跑 + 真 HTTP 装配，无伪装断言）：
+//! 覆盖（真 PostgreSQL 真跑 + 真 HTTP 装配，无伪装断言）：
 //! 1. 非 admin（role_id=2、无数据权限行）取公海列表 → mobile_phone 为
 //!    mask_phone 形态（前 3 后 4、不含原文中段数字）、email 为 mask_email 形态；
 //! 2. 行级 scope 生效：B（user 60，self）看不到 A（owner 50）的公海/私海线索
@@ -30,6 +30,13 @@
 //! self 销售在公海列表看不到他人公海线索。用例 1/2 按新语义断言可见集，
 //! 用例 5（原 #[ignore] 记录该边界的目标契约）已取消 ignore 成为常跑回归锁；
 //! 私海行（lead_status≠'pool'）仍严格受行级 scope 约束（用例 2 锁）。
+//!
+//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
+//! users 50/60 为自种子父行（trg_crm_lead_dept 触发器按 owner 回填冗余部门列，
+//! Dept 用例的 department_id=1 覆盖由此成立）；roles 为迁移种子参照表，不再插。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -79,69 +86,33 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-/// 与 models/crm_lead.rs::Model 逐列对应（表 crm_lead，含 department_id）
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-/// 与 models/role.rs::Model 对应（is_admin_role 判定源，admin_checker.rs:86-87）
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-/// 与 models/data_permission.rs::Model 对应（表 data_permissions；
-/// 公海掩码用例不配置权限行——判定走 get_role_data_permission → Ok(None) 分支）
-const CREATE_DATA_PERMISSIONS: &str = r#"CREATE TABLE data_permissions (
-    id INTEGER PRIMARY KEY, role_id INTEGER NOT NULL,
-    resource_type TEXT NOT NULL, scope_type TEXT NOT NULL,
-    custom_condition TEXT, allowed_fields TEXT, hidden_fields TEXT,
-    is_enabled INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-/// 建表 + 种子：
-/// - roles：1=admin、2=sales——每个用例同构种子，保证 admin_checker 全局缓存
-///   （ADMIN_ROLE_CACHE 按 role_id 进程级缓存）在任何执行顺序下取值一致；
+/// 种子：
+/// - users 50/60：两个归属人父行（裁定 R1 自种子；布尔列按 PG 写 TRUE/FALSE）；
 /// - crm_lead：
 ///   id=1 A（owner 50）的公海线索，携带原始手机号/邮箱/地址；
 ///   id=2 A（owner 50）的私海线索（status='new'）；
 ///   id=3 B（owner 60）的公海线索。
+/// roles 不再插：id=1 code='admin'（is_admin_role 判定源，admin_checker.rs:86-87）
+/// 与 id=2 均为迁移种子参照行，不参与清空；每个用例重建同构线索种子即可保证
+/// ADMIN_ROLE_CACHE（按 role_id 进程级缓存）在任何执行顺序下取值一致。
+/// department_id 不手写：迁移触发器 trg_crm_lead_dept 按 owner 的
+/// users.department_id 自动维护。
 async fn seeded_state() -> AppState {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    exec(&db, CREATE_CRM_LEAD).await;
-    exec(&db, CREATE_ROLES).await;
-    exec(&db, CREATE_DATA_PERMISSIONS).await;
+    let db = test_common::setup_test_db().await;
 
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (60,'sales_b','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
 
@@ -149,14 +120,14 @@ async fn seeded_state() -> AppState {
         &db,
         &format!(
             "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
-             contact_name,mobile_phone,email,address,owner_id,owner_name,department_id,
+             contact_name,mobile_phone,email,address,owner_id,owner_name,
              created_at,updated_at) VALUES
              (1,'LD001','website','pool','甲公司','张三','{RAW_PHONE}','{RAW_EMAIL}',
-              '河北省邢台市某某路 1 号',50,'销售甲',1,'2026-09-01T00:00:00Z','2026-09-01T00:00:00Z'),
+              '河北省邢台市某某路 1 号',50,'销售甲','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z'),
              (2,'LD002','ad','new','乙公司','李四','13711112222','carol@example.com',
-              '地址乙',50,'销售甲',1,'2026-09-01T00:00:00Z','2026-09-01T00:00:00Z'),
+              '地址乙',50,'销售甲','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z'),
              (3,'LD003','referral','pool','丙公司','王五','13998887777','bob@example.com',
-              '地址丙',60,'销售乙',1,'2026-09-02T00:00:00Z','2026-09-02T00:00:00Z')"
+              '地址丙',60,'销售乙','2026-09-02T00:00:00Z','2026-09-02T00:00:00Z')"
         ),
     )
     .await;

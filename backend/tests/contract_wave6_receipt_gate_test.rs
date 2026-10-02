@@ -27,19 +27,21 @@
 //! - **禁止"配置未开即放行"旁路**：源码扫描锁④钉死门控链路上不存在任何 config/feature/
 //!   setting 判定分支。
 //!
-//! 覆盖策略（无 mock、真实 service 调用）：
-//! - sqlite 同构：结算入口（auto_generate_from_receipt，链路无 lock_exclusive，sqlite 可承载）
-//!   对 REJECTED/PENDING/词表外/ PASSED 四向判定与错误信封（400+BUSINESS_ERROR+真实文案；
-//!   本 fixture **不建 ap_invoice 表**——若门控被移除/后移，请求将直达重复生成检查触发
-//!   DATABASE_ERROR，PASSED 用例正是以此证明"合格数据不被门控误伤"）；
-//! - sqlite 同构正向推进：真实调用 confirm_receipt 事务内的两个写入口
+//! 覆盖策略（路线一，#4669 判责；无 mock、真实 service 调用，全部跑真 PostgreSQL）：
+//! - 表结构唯一来源 = backend/migration（不再自建 DDL）。结算入口
+//!   （auto_generate_from_receipt）对 REJECTED/PENDING/词表外/PASSED 四向判定与错误信封
+//!   （400+BUSINESS_ERROR+真实文案）；PASSED 正向不再用"sqlite 缺表旁证"——真库
+//!   ap_invoice 表存在，门控放行的证明升级为**应付单真实生成并回读**（更强断言，
+//!   sqlite 可验性假设已随路线一废弃）；
+//! - 正向推进：真实调用 confirm_receipt 事务内的两个写入口
 //!   （update_order_received_quantity + update_inventory_txn，先例
 //!   contract_wave5_purchase_actual_delivery_writeback_test.rs），回读 PO 进度/库存行/流水
 //!   真实落库（不只断调用成功）；
-//! - `#[ignore]` 活库用例（TEST_DATABASE_URL→已迁移 PG，ci-test-rust-ignored 执行；缺变量时
-//!   require_postgres **显式失败**，禁止条件跳过假绿）：完整 confirm 链路（含 lock_exclusive）
-//!   PASSED 正向 COMPLETED+库存回读、REJECTED/PENDING 反向零漂移（状态未推进、库存行数与
-//!   数量不变、无应付/流水落库）；
+//! - 完整 confirm 链路（含 lock_exclusive）PASSED 正向 COMPLETED+库存回读、
+//!   REJECTED/PENDING 反向零漂移（状态未推进、库存行数与数量不变、无应付/流水落库）
+//!   不再 `#[ignore]`：路线一后所有用例都在已迁移 PG 上跑（缺 TEST_DATABASE_URL 由夹具
+//!   显式 panic），FK 父行 users/warehouses/products 按裁定 R1 自种子（suppliers 为
+//!   迁移种子参照表，id=1 恒在、不得删改）。
 //! - 判定矩阵与文案逐字符锁在
 //!   `services/purchase_receipt_service.rs::inspection_gate_tests` 内联单测（真实门控函数）。
 
@@ -80,157 +82,41 @@ fn unique_suffix() -> i64 {
 }
 
 // =========================================================
-// sqlite 同构表（列与 models/*.rs::Model 逐列对应；DDL 形态先例：
-// purchase_receipt/purchase_receipt_item 取 contract_wave5_inspection_result_authority_test.rs
-// 与 contract_wave5_purchase_actual_delivery_writeback_test.rs，inventory_stocks 取
-// contract_wave3_explicit_null_clear_test.rs，inventory_transactions 按
-// models/inventory_transaction.rs 全列）
+// 真库夹具（表结构唯一来源 = backend/migration；FK 父行自种子，裁定 R1：
+// purchase_receipt.supplier_id → suppliers（迁移种子参照表，id=1 恒在），
+// warehouse_id → warehouses（会被清空，须自建）；purchase_receipt_item.product_id
+// → products（须自建）；操作人 users(id) 供审计/created_by 回读，须自建）
 // =========================================================
-
-const TABLE_DDLS: &[&str] = &[
-    r#"CREATE TABLE purchase_receipt (
-        id INTEGER PRIMARY KEY,
-        receipt_no TEXT NOT NULL UNIQUE,
-        order_id INTEGER,
-        supplier_id INTEGER NOT NULL,
-        receipt_date TEXT NOT NULL,
-        warehouse_id INTEGER NOT NULL,
-        department_id INTEGER,
-        receiver_id INTEGER,
-        inspector_id INTEGER,
-        inspection_status TEXT NOT NULL,
-        receipt_status TEXT NOT NULL,
-        total_quantity TEXT NOT NULL,
-        total_quantity_alt TEXT NOT NULL,
-        total_amount TEXT NOT NULL,
-        notes TEXT,
-        attachment_urls TEXT,
-        created_by INTEGER NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_by INTEGER,
-        updated_at TEXT NOT NULL,
-        confirmed_at TEXT,
-        confirmed_by INTEGER
-    )"#,
-    r#"CREATE TABLE purchase_receipt_item (
-        id INTEGER PRIMARY KEY,
-        receipt_id INTEGER NOT NULL, order_item_id INTEGER,
-        line_no INTEGER NOT NULL, product_id INTEGER NOT NULL,
-        material_code TEXT NOT NULL, material_name TEXT NOT NULL,
-        batch_no TEXT, color_code TEXT, lot_no TEXT, grade TEXT,
-        gram_weight TEXT, width TEXT,
-        quantity TEXT NOT NULL, quantity_alt TEXT,
-        unit_master TEXT NOT NULL, unit_alt TEXT,
-        unit_price TEXT, amount TEXT, location_code TEXT,
-        piece_no TEXT, package_no TEXT, production_date TEXT,
-        shelf_life INTEGER, notes TEXT, created_at TEXT,
-        internal_dye_lot_id INTEGER, internal_dye_lot_no TEXT,
-        internal_piece_ids TEXT, internal_piece_nos TEXT,
-        supplier_dye_lot_no TEXT, supplier_piece_nos TEXT,
-        batch_conversion_log_id INTEGER
-    )"#,
-    r#"CREATE TABLE purchase_orders (
-        id INTEGER PRIMARY KEY,
-        order_no TEXT NOT NULL UNIQUE, supplier_id INTEGER NOT NULL,
-        order_date TEXT NOT NULL, expected_delivery_date TEXT, actual_delivery_date TEXT,
-        warehouse_id INTEGER NOT NULL, department_id INTEGER NOT NULL,
-        purchaser_id INTEGER NOT NULL, currency TEXT NOT NULL,
-        exchange_rate TEXT NOT NULL, total_amount TEXT NOT NULL,
-        total_amount_foreign TEXT NOT NULL, total_quantity TEXT NOT NULL,
-        total_quantity_alt TEXT NOT NULL, order_status TEXT NOT NULL,
-        payment_terms TEXT, shipping_terms TEXT, notes TEXT, attachment_urls TEXT,
-        created_by INTEGER NOT NULL, created_at TEXT NOT NULL,
-        updated_by INTEGER, updated_at TEXT NOT NULL,
-        approved_by INTEGER, approved_at TEXT, rejected_reason TEXT
-    )"#,
-    r#"CREATE TABLE purchase_order_item (
-        id INTEGER PRIMARY KEY,
-        order_id INTEGER NOT NULL, line_no INTEGER NOT NULL, product_id INTEGER NOT NULL,
-        quantity TEXT NOT NULL, quantity_alt TEXT NOT NULL,
-        unit_price TEXT NOT NULL, unit_price_foreign TEXT NOT NULL,
-        discount_percent TEXT NOT NULL, tax_percent TEXT NOT NULL,
-        subtotal TEXT NOT NULL, tax_amount TEXT NOT NULL,
-        discount_amount TEXT NOT NULL, total_amount TEXT NOT NULL,
-        received_quantity TEXT NOT NULL, received_quantity_alt TEXT NOT NULL,
-        quantity_tolerance_pct TEXT, notes TEXT,
-        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-        color_code TEXT, lot_no TEXT, batch_no TEXT,
-        supplier_product_code TEXT, supplier_color_no TEXT
-    )"#,
-    r#"CREATE TABLE inventory_stocks (
-        id INTEGER PRIMARY KEY,
-        warehouse_id INTEGER, product_id INTEGER,
-        quantity_on_hand TEXT, quantity_available TEXT, quantity_reserved TEXT,
-        quantity_shipped TEXT, quantity_incoming TEXT,
-        reorder_point TEXT, max_stock_point TEXT, reorder_quantity TEXT,
-        bin_location TEXT, last_count_date TEXT, last_movement_date TEXT,
-        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-        batch_no TEXT, color_no TEXT, dye_lot_no TEXT, grade TEXT,
-        production_date TEXT, expiry_date TEXT,
-        quantity_meters TEXT, quantity_kg TEXT, gram_weight TEXT, width TEXT,
-        location_id INTEGER, shelf_no TEXT, layer_no TEXT,
-        stock_status TEXT, quality_status TEXT,
-        version INTEGER, replenishment_strategy TEXT
-    )"#,
-    r#"CREATE TABLE inventory_transactions (
-        id INTEGER PRIMARY KEY,
-        transaction_type TEXT NOT NULL,
-        product_id INTEGER NOT NULL, warehouse_id INTEGER NOT NULL,
-        batch_no TEXT NOT NULL, color_no TEXT NOT NULL, dye_lot_no TEXT, grade TEXT NOT NULL,
-        quantity_meters TEXT NOT NULL, quantity_kg TEXT NOT NULL,
-        source_bill_type TEXT, source_bill_no TEXT, source_bill_id INTEGER,
-        quantity_before_meters TEXT, quantity_before_kg TEXT,
-        quantity_after_meters TEXT, quantity_after_kg TEXT,
-        notes TEXT, created_by INTEGER, created_at TEXT NOT NULL
-    )"#,
-    r#"CREATE TABLE users (
-        id INTEGER PRIMARY KEY,
-        username TEXT NOT NULL, password_hash TEXT NOT NULL,
-        real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-        role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-        totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-        last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-        gender TEXT, birth_date TEXT
-    )"#,
-    r#"CREATE TABLE audit_logs (
-        id INTEGER PRIMARY KEY,
-        user_id INTEGER, username TEXT, action TEXT NOT NULL,
-        resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-        ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-        request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-        old_value TEXT, new_value TEXT, created_at TEXT,
-        operation_type TEXT, severity TEXT, request_id TEXT,
-        before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-        export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-        export_approval_token TEXT, export_watermark_user TEXT
-    )"#,
-];
 
 async fn exec(db: &DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
         Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
-
-/// 刻意**只建除 ap_invoice 外**的表：门控若失位，auto_generate 会直达重复生成检查
-/// 命中缺失的 ap_invoice 表报 DATABASE_ERROR——PASSED 用例正是以"错误不再是门控的
-/// BUSINESS_ERROR"证明合格数据不被误伤（见测试 1）。
-async fn sqlite_without_ap_invoice() -> DatabaseConnection {
-    let db = sqlite_db().await;
-    for ddl in TABLE_DDLS {
-        exec(&db, ddl).await;
-    }
+/// 已迁移真库 + 本域 FK 父行主数据（users 1 / warehouses 1 / products 1）。
+async fn seeded_db() -> DatabaseConnection {
+    let db = test_common::setup_test_db().await;
+    exec(
+        &db,
+        r#"INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+             (1,'w6_operator','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#,
+    )
+    .await;
+    exec(
+        &db,
+        "INSERT INTO warehouses (id, name, warehouse_code, is_active) VALUES (1, '波6门控主仓', 'W6GATE-W1', true)",
+    )
+    .await;
+    exec(
+        &db,
+        "INSERT INTO products (id, code, name) VALUES (1, 'W6GATE-P1', '门控契约测试坯布面料')",
+    )
+    .await;
     db
 }
 
@@ -282,12 +168,12 @@ async fn seed_receipt_item(
 }
 
 // =========================================================
-// 测试 1（sqlite）：结算入口四向判定 = 门控同一口径（真实调用 auto_generate_from_receipt）
+// 测试 1（真库）：结算入口四向判定 = 门控同一口径（真实调用 auto_generate_from_receipt）
 // =========================================================
 
 #[tokio::test]
-async fn ap_entry_applies_same_inspection_gate_on_sqlite() {
-    let db = sqlite_without_ap_invoice().await;
+async fn ap_entry_applies_same_inspection_gate() {
+    let db = seeded_db().await;
     let svc = ApInvoiceService::new(Arc::new(db.clone()));
 
     // ① REJECTED → 400 + BUSINESS_ERROR + 真实外显文案（displayable，规则可外显、不含单号）
@@ -341,19 +227,17 @@ async fn ap_entry_applies_same_inspection_gate_on_sqlite() {
         body.message
     );
 
-    // ④ PASSED → 门控必须放行：若门控被移除/后移到重复生成检查之后，请求会因本 fixture
-    //    刻意缺失的 ap_invoice 表报 DATABASE_ERROR——此处断"不是门控 BUSINESS_ERROR"，
-    //    即合格数据没有被门控误伤（正向对照，防判错过严）
+    // ④ PASSED → 门控必须放行：真库 ap_invoice 表存在，放行的证明从 sqlite 时代的
+    //    "缺表 DATABASE_ERROR 旁证"升级为**应付单真实生成并回读**（合格数据不被门控
+    //    误伤，且落的是真行；路线一废弃缺表旁证）
     let passed = seed_receipt(&db, purchase_receipt_inspection::PASSED).await;
-    let err = svc
+    let invoice = svc
         .auto_generate_from_receipt(passed.id, 1)
         .await
-        .expect_err("PASSED 之后的链路在缺表 fixture 上必然失败（用于证明门控已放行）");
-    let body = err.to_response();
-    assert_ne!(
-        body.code, "BUSINESS_ERROR",
-        "PASSED 收货单不得被门控拒绝（放行后应继续走后续链路），实际: {body:?}"
-    );
+        .expect("PASSED 收货单必须放行并真实生成应付（门控失位/过严都会在此炸）");
+    assert_eq!(invoice.source_type.as_deref(), Some("PURCHASE_RECEIPT"));
+    assert_eq!(invoice.source_id, Some(passed.id));
+    assert_eq!(invoice.amount, Decimal::ZERO, "应付金额取收货单总额");
 
     // 无痕：四条路径都没有推进任何收货单状态（被拒/放行后未落终态）
     for id in [rejected.id, pending.id, bad.id, passed.id] {
@@ -372,15 +256,15 @@ async fn ap_entry_applies_same_inspection_gate_on_sqlite() {
 }
 
 // =========================================================
-// 测试 2（sqlite）：门控放行后的真实写入口链——PO 进度与库存/流水真实落库（回读断言）
+// 测试 2（真库）：门控放行后的真实写入口链——PO 进度与库存/流水真实落库（回读断言）
 // =========================================================
 
 /// 真实调用 confirm_receipt 事务内的两个写入口（update_order_received_quantity +
-/// update_inventory_txn，链路无 lock_exclusive，sqlite 可承载；confirm 对它们的调用
-/// 顺序与"门控先于二者"由源码扫描锁①钉住；完整 confirm 链路由活库用例承担）
+/// update_inventory_txn；confirm 对它们的调用顺序与"门控先于二者"由源码扫描锁①钉住；
+/// 完整 confirm 链路由测试 3 承载）
 #[tokio::test]
 async fn passed_receipt_advances_po_progress_and_stock_via_confirm_write_entries() {
-    let db = sqlite_without_ap_invoice().await;
+    let db = seeded_db().await;
     let now = Utc::now();
     user::ActiveModel {
         id: Set(100),
@@ -388,6 +272,7 @@ async fn passed_receipt_advances_po_progress_and_stock_via_confirm_write_entries
         password_hash: Set("x".to_string()),
         is_active: Set(true),
         is_totp_enabled: Set(false),
+        department_id: Set(Some(1)),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -509,33 +394,26 @@ async fn passed_receipt_advances_po_progress_and_stock_via_confirm_write_entries
 }
 
 // =========================================================
-// 活库夹具：TEST_DATABASE_URL→已迁移 PG；缺变量时显式失败，禁止条件跳过
+// PostgreSQL 夹具守卫：路线一下所有用例都跑已迁移 PG（setup_test_db 缺
+// TEST_DATABASE_URL 即显式 panic，禁止条件跳过假绿）；本守卫把"后端确实是
+// PostgreSQL"再钉一遍，防夹具被换回 sqlite。
 // =========================================================
 
 async fn require_postgres(db: &DatabaseConnection) {
-    let url = std::env::var("TEST_DATABASE_URL");
-    assert!(
-        matches!(&url, Ok(u) if u.starts_with("postgres")),
-        "本用例覆盖 confirm_receipt 完整链路（lock_exclusive 为 sqlite 不支持的行锁方言），\
-         必须跑在 TEST_DATABASE_URL 指向的已迁移 PostgreSQL 上（ci-test-rust-ignored 注入）；\
-         本地直接跑需显式 export TEST_DATABASE_URL=postgres://...，禁止 sqlite 回退假绿。\
-         当前 TEST_DATABASE_URL={url:?}"
-    );
     assert_eq!(
         db.get_database_backend(),
         DbBackend::Postgres,
-        "夹具解析出的后端不是 PostgreSQL，活库锁不可信（setup_test_db 无变量时静默回退 sqlite）"
+        "夹具解析出的后端不是 PostgreSQL，门控锁不可信（路线一要求已迁移 PG）"
     );
 }
 
 // =========================================================
-// 测试 3（活库）：PASSED → confirm 成功，库存/PO 关联与状态真实推进（回读）
+// 测试 3（真库）：PASSED → confirm 成功，库存/PO 关联与状态真实推进（回读）
 // =========================================================
 
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（confirm_receipt 走 lock_exclusive + 黑名单表 + 审计；前置主数据 supplier/warehouse/product/user id=1 由 CI 种子提供）"]
 async fn live_confirm_passed_completes_receipt_and_writes_stock() {
-    let db = test_common::setup_test_db().await;
+    let db = seeded_db().await;
     require_postgres(&db).await;
     let batch = format!("W6LB{}", unique_suffix());
     let receipt = seed_receipt(&db, purchase_receipt_inspection::PASSED).await;
@@ -603,13 +481,12 @@ async fn live_confirm_passed_completes_receipt_and_writes_stock() {
 }
 
 // =========================================================
-// 测试 4（活库）：REJECTED → 400+BUSINESS_ERROR+真实文案，且零漂移
+// 测试 4（真库）：REJECTED → 400+BUSINESS_ERROR+真实文案，且零漂移
 // =========================================================
 
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（confirm_receipt 走 lock_exclusive）"]
 async fn live_confirm_rejected_is_refused_with_zero_drift() {
-    let db = test_common::setup_test_db().await;
+    let db = seeded_db().await;
     require_postgres(&db).await;
     let batch = format!("W6LR{}", unique_suffix());
     let receipt = seed_receipt(&db, purchase_receipt_inspection::REJECTED).await;
@@ -684,13 +561,12 @@ async fn live_confirm_rejected_is_refused_with_zero_drift() {
 }
 
 // =========================================================
-// 测试 5（活库）：PENDING（每单必经质检裁定 → 拒绝）
+// 测试 5（真库）：PENDING（每单必经质检裁定 → 拒绝）
 // =========================================================
 
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（confirm_receipt 走 lock_exclusive）"]
 async fn live_confirm_pending_is_refused_and_stays_draft() {
-    let db = test_common::setup_test_db().await;
+    let db = seeded_db().await;
     require_postgres(&db).await;
     let batch = format!("W6LP{}", unique_suffix());
     let receipt = seed_receipt(&db, purchase_receipt_inspection::PENDING).await;

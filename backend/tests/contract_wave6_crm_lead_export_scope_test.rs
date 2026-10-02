@@ -27,9 +27,11 @@
 //! 行级过滤函数与公海放行条件与列表同源，故 Dept 用户（含公海放行）也纳入等式。
 //!
 //! 覆盖边界（诚实声明）：
-//! - 本文件所有断言均可在 sqlite 完成，不依赖 PG 专有特性（导出路径无取号咨询锁、
-//!   无 lock_exclusive），因此没有需要 #[ignore] 的活库用例；
-//!   `create_lead` 的 LD 取号（advisory_xact_lock）不在导出链上，种子一律走 raw SQL。
+//! - 本文件用例经 `test_common::setup_test_db()` 连已迁移 PostgreSQL 真跑（路线一，
+//!   #4669 判责：表结构唯一来源 = backend/migration，不再自建 DDL；sqlite 可验性
+//!   假设已废弃）。导出路径无取号咨询锁、无 lock_exclusive，因此没有需要
+//!   #[ignore] 的活库用例；`create_lead` 的 LD 取号（advisory_xact_lock）不在导出
+//!   链上，种子一律走 raw SQL。
 //! - `export_opportunities`（商机导出）是同一模式的另一处旁路，属 #207 描述之外的
 //!   独立端点，本批未改、未断言（见交付报告"未覆盖项"）。
 //! - 掩码列由 `CrmService::EXPORT_LEAD_COLUMNS` 的列名定位（与列表出参键同源）；
@@ -59,6 +61,8 @@ use tower::ServiceExt;
 // 脚手架（与 contract_wave6_crm_lead_mask_test.rs / _pool_mask_test.rs 同款：
 // 每个用例同构种子，规避 ADMIN_ROLE_CACHE 进程级缓存在任意执行顺序下的串味）
 // ---------------------------------------------------------------------------
+
+mod test_common;
 
 const A_PHONE: &str = "13812348888";
 const A_EMAIL: &str = "alice@example.com";
@@ -99,65 +103,30 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-/// 与 models/crm_lead.rs::Model 逐列对应（表 crm_lead，含 department_id）
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-/// 与 models/role.rs::Model 对应（is_admin_role 判定源，admin_checker.rs:86-87）
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_DATA_PERMISSIONS: &str = r#"CREATE TABLE data_permissions (
-    id INTEGER PRIMARY KEY, role_id INTEGER NOT NULL,
-    resource_type TEXT NOT NULL, scope_type TEXT NOT NULL,
-    custom_condition TEXT, allowed_fields TEXT, hidden_fields TEXT,
-    is_enabled INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-/// 建表 + 种子数据（4 条线索，两个归属人 + 一条公海行）：
+/// 种子数据（4 条线索，两个归属人 + 一条公海行）：
 /// - id=1 A（owner 50）公海行，携带 A 的原始手机号/邮箱；
 /// - id=2 A（owner 50）私海行；
 /// - id=3 B（owner 60）私海行，携带 B 的手机号/座机/邮箱（用于默认掩码断言）；
 /// - id=4 B（owner 60）公海行（Dept 用户的公海放行与列表同口径，参与行数等式）。
+/// users 50/60 为自种子父行（裁定 R1：迁移触发器 trg_crm_lead_dept 按 owner 的
+/// users.department_id 回填冗余列，Dept 分支断言的 department_id=1 覆盖 4 行由此成立）。
+/// roles 不再插：迁移种子参照表（id=1 code='admin' 为 is_admin_role 判定源，
+/// admin_checker.rs:86-87；id=2 manager 供 data_permissions FK 引用）。
 async fn seeded_db(permissions: Option<&str>) -> Arc<sea_orm::DatabaseConnection> {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    exec(&db, CREATE_CRM_LEAD).await;
-    exec(&db, CREATE_ROLES).await;
-    exec(&db, CREATE_DATA_PERMISSIONS).await;
-
+    let db = test_common::setup_test_db().await;
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (60,'sales_b','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
 
@@ -166,15 +135,15 @@ async fn seeded_db(permissions: Option<&str>) -> Arc<sea_orm::DatabaseConnection
         &format!(
             "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
              contact_name,mobile_phone,tel_phone,email,address,owner_id,owner_name,
-             department_id,priority,industry,created_at,updated_at) VALUES
+             priority,industry,created_at,updated_at) VALUES
              (1,'LD001','website','pool','甲公司','张三','{A_PHONE}',NULL,'{A_EMAIL}',
-              '地址甲',50,'销售甲',1,'low','针织','2026-01-01T00:00:00Z','2020-01-01T00:00:00Z'),
+              '地址甲',50,'销售甲','low','针织','2026-01-01T00:00:00Z','2020-01-01T00:00:00Z'),
              (2,'LD002','ad','new','乙公司','李四','13700001111','01088886666','carol@example.com',
-              '地址乙',50,'销售甲',1,'high','梭织','2026-01-02T00:00:00Z','2020-01-01T00:00:00Z'),
+              '地址乙',50,'销售甲','high','梭织','2026-01-02T00:00:00Z','2020-01-01T00:00:00Z'),
              (3,'LD003','referral','new','丙公司','王五','{B_PHONE}','{B_TEL}','{B_EMAIL}',
-              '地址丙',60,'销售乙',1,'medium','针织','2026-01-03T00:00:00Z','2020-01-01T00:00:00Z'),
+              '地址丙',60,'销售乙','medium','针织','2026-01-03T00:00:00Z','2020-01-01T00:00:00Z'),
              (4,'LD004','website','pool','丁公司','赵六','13600002222',NULL,'dave@example.com',
-              '地址丁',60,'销售乙',1,'urgent','针织','2026-01-04T00:00:00Z','2020-01-01T00:00:00Z')"
+              '地址丁',60,'销售乙','urgent','针织','2026-01-04T00:00:00Z','2020-01-01T00:00:00Z')"
         ),
     )
     .await;
@@ -432,7 +401,7 @@ async fn role_with_allowed_fields_exports_raw_pii_and_drops_unlisted_column() {
     let allowed = r#"["lead_no","company_name","contact_name","contact_title","mobile_phone","tel_phone","email","lead_source","lead_status","owner_name","created_at"]"#;
     let insert = format!(
         "INSERT INTO data_permissions (id,role_id,resource_type,scope_type,allowed_fields,hidden_fields,is_enabled,created_at,updated_at) \
-         VALUES (1,2,'crm_lead','SELF','{allowed}',NULL,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
+         VALUES (1,2,'crm_lead','SELF','{allowed}',NULL,TRUE,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
     );
     let db = seeded_db(Some(&insert)).await;
     let app = build_app(&db, make_auth(60, 2, "self"));
@@ -465,7 +434,7 @@ async fn role_with_hidden_fields_blanks_that_column_only() {
     let hidden = r#"["mobile_phone"]"#;
     let insert = format!(
         "INSERT INTO data_permissions (id,role_id,resource_type,scope_type,allowed_fields,hidden_fields,is_enabled,created_at,updated_at) \
-         VALUES (1,2,'crm_lead','SELF',NULL,'{hidden}',1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
+         VALUES (1,2,'crm_lead','SELF',NULL,'{hidden}',TRUE,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
     );
     let db = seeded_db(Some(&insert)).await;
     let app = build_app(&db, make_auth(60, 2, "self"));

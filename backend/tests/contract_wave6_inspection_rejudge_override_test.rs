@@ -18,33 +18,31 @@
 //! （ap_invoice_ops/receipt.rs:113）。改判覆写成 PASSED 后两入口随之放行——这是现状
 //! 契约（风险：任何人对 REJECTED 收货单再建一单质检并 pass 即可完成改判，绕过审批）。
 //!
-//! 覆盖策略（无 mock、真实 service 调用，禁止硬编码 JSON 假装断言）：
-//! - sqlite::memory: 同构表（列与 models 实体逐列对应，先例
-//!   contract_wave5_inspection_result_authority_test.rs /
-//!   contract_wave6_receipt_gate_test.rs）：
+//! 覆盖策略（无 mock、真实 service 调用，禁止硬编码 JSON 假装断言；
+//! 路线一 #4669 判责：全部用例经 `test_common::setup_test_db()` 跑已迁移
+//! PostgreSQL，表结构唯一来源 = backend/migration，不再自建同构 DDL；
+//! FK 父行 users/warehouses/products 按裁定 R1 自种子，suppliers id=1 为
+//! 迁移种子参照表恒在）：
 //!   T1 结算入口对 REJECTED 列值的真实拒绝（BUSINESS_ERROR+逐字符文案+信封四键）与
 //!     被拒零副作用回读；再把列翻成 PASSED（**列写入本身由 C1 活链路与 S3 无条件覆写锁
-//!     负责，此处只钉"门控判定完全由列终值驱动"**），断言 auto-generate 不再被门控拒绝
-//!     （本 fixture 刻意不建 ap_invoice 表——与 wave6 测试1同法：放行后必然在重复生成
-//!     检查处触 DATABASE_ERROR，非 BUSINESS_ERROR 即证明门控已放行）；
+//!     负责，此处只钉"门控判定完全由列终值驱动"**）——真库 ap_invoice 表存在，
+//!     放行证明从 sqlite 时代"缺表 DATABASE_ERROR 旁证"升级为**应付单真实生成**
+//!     （更强断言；sqlite 可验性假设已随路线一废弃）；
 //!   T2 建单入口对"已有 COMPLETED 质检单的同收货单"不拒（真实调用 create_inspection；
-//!     sqlite 下失败点只可能是取号 pg_advisory_xact_lock 方言限制=DATABASE_ERROR 族，
+//!     真库下取号 pg_advisory_xact_lock 是正常路径，Ok 分支即当前契约主证据；
 //!     绝不允许出现 BUSINESS/VALIDATION 形态的"重复质检"拒绝，出现即改判通道被关闭
 //!     的实锤，需同步修订本锁与词表注释）；
 //!   S1-S4 纯源码/词表防回潮锁（任何环境可跑）。
-//! - `#[ignore]` 活库用例（TEST_DATABASE_URL→已迁移 PG，ci-test-rust-ignored 执行；
-//!   缺变量时 require_postgres **显式失败**，禁止条件跳过假绿）：
-//!   C1 完整业务链路——真实 create_inspection + complete_inspection(fail) 回写 REJECTED
+//!   C1 完整业务链路（不再 #[ignore]：路线一后所有用例同跑已迁移 PG——complete/create/
+//!   confirm 走 lock_exclusive 与 pg_advisory_xact_lock 取号在 PG 上是原生路径，
+//!   缺 TEST_DATABASE_URL 由夹具显式 panic，禁止条件跳过假绿）——
+//!   真实 create_inspection + complete_inspection(fail) 回写 REJECTED
 //!   → confirm_receipt 被拒（400/BUSINESS_ERROR/逐字符文案/零漂移：列、状态、确认时间、
 //!   库存、应付全不变）→ 旧单重复 complete 被状态门拒（BUSINESS_ERROR，改判只能走新单）
 //!   → 真实 create_inspection 第二单成功（无唯一性前置的服务级实证）→ complete(pass)
 //!   把列从 REJECTED **覆写**为 PASSED（改判核心断言）→ 此后 auto_generate_from_receipt
 //!   真实生成应付成功、confirm_receipt 真实推进 COMPLETED+库存回读；旧质检行结论无损
 //!   （留痕在质检行、不在收货列）。
-//!   整链路必须活库的原因：complete_inspection 走 lock_exclusive（sqlite 方言不支持
-//!   行锁，先例 wave5 头部声明），create_inspection/取号走 pg_advisory_xact_lock
-//!   （utils/number_generator.rs lock_prefix，PG 专语句），confirm_receipt 走
-//!   lock_exclusive——sqlite 均无法承载成功路径。
 
 mod test_common;
 
@@ -87,74 +85,41 @@ fn unique_suffix() -> i64 {
 }
 
 // =========================================================
-// sqlite 同构表（列与 models/purchase_receipt.rs、models/purchase_inspection.rs
-// 逐列对应；DDL 形态先例 contract_wave5_inspection_result_authority_test.rs）
+// 真库夹具：表结构唯一来源 = backend/migration。本域 FK 父行自种子（裁定 R1）：
+// purchase_receipt.supplier_id → suppliers（迁移种子参照表 id=1 恒在）、
+// warehouse_id → warehouses（自建 id=1）；purchase_receipt_item.product_id →
+// products（自建 id=1）；操作人/审计引用 users(id)（自建 id=1）。
 // =========================================================
-
-const PURCHASE_RECEIPT_DDL: &str = r#"CREATE TABLE purchase_receipt (
-    id INTEGER PRIMARY KEY,
-    receipt_no TEXT NOT NULL UNIQUE,
-    order_id INTEGER,
-    supplier_id INTEGER NOT NULL,
-    receipt_date TEXT NOT NULL,
-    warehouse_id INTEGER NOT NULL,
-    department_id INTEGER,
-    receiver_id INTEGER,
-    inspector_id INTEGER,
-    inspection_status TEXT NOT NULL,
-    receipt_status TEXT NOT NULL,
-    total_quantity TEXT NOT NULL,
-    total_quantity_alt TEXT NOT NULL,
-    total_amount TEXT NOT NULL,
-    notes TEXT,
-    attachment_urls TEXT,
-    created_by INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_by INTEGER,
-    updated_at TEXT NOT NULL,
-    confirmed_at TEXT,
-    confirmed_by INTEGER
-)"#;
-
-const PURCHASE_INSPECTION_DDL: &str = r#"CREATE TABLE purchase_inspection (
-    id INTEGER PRIMARY KEY,
-    inspection_no TEXT NOT NULL,
-    receipt_id INTEGER,
-    order_id INTEGER,
-    supplier_id INTEGER NOT NULL,
-    inspection_date TEXT NOT NULL,
-    inspector_id INTEGER,
-    inspection_type TEXT,
-    sample_size TEXT,
-    defect_count INTEGER,
-    pass_quantity TEXT,
-    reject_quantity TEXT,
-    inspection_status TEXT,
-    inspection_result TEXT,
-    quality_score TEXT,
-    defect_description TEXT,
-    attachment_urls TEXT,
-    notes TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    completed_at TEXT,
-    completed_by INTEGER
-)"#;
-
-async fn sqlite_db() -> DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败")
-}
 
 async fn exec(db: &DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
         Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
+}
+
+async fn seeded_db() -> DatabaseConnection {
+    let db = test_common::setup_test_db().await;
+    exec(
+        &db,
+        r#"INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+             (1,'w6_rejudge_op','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#,
+    )
+    .await;
+    exec(
+        &db,
+        "INSERT INTO warehouses (id, name, warehouse_code, is_active) VALUES (1, '波6改判主仓', 'W6RJ-W1', true)",
+    )
+    .await;
+    exec(
+        &db,
+        "INSERT INTO products (id, code, name) VALUES (1, 'W6RJ-P1', '复检改判契约测试坯布面料')",
+    )
+    .await;
+    db
 }
 
 async fn seed_receipt(
@@ -206,17 +171,15 @@ async fn seed_completed_fail_inspection(
 }
 
 // =========================================================
-// T1（sqlite）：结算入口门控完全由列终值驱动——REJECTED 真拒+零副作用；
-// 列被翻成 PASSED 后同一入口立即放行（改判覆写的下游效果，wave6 测试1同法）
+// T1（真库）：结算入口门控完全由列终值驱动——REJECTED 真拒+零副作用；
+// 列被翻成 PASSED 后同一入口立即放行并真实生成应付（改判覆写的下游效果）
 // =========================================================
 
 #[tokio::test]
 async fn ap_entry_rejects_rejected_column_then_passes_after_column_flipped_to_passed() {
-    // 刻意不建 ap_invoice 表：门控放行后请求必然在重复生成检查处触 DATABASE_ERROR，
-    // "错误不再是门控的 BUSINESS_ERROR"就是放行证明（先例 contract_wave6_receipt_gate_test
-    // 测试1技术④；完整"真实生成应付成功"由 C1 活链路承担，此处不招魂）
-    let db = sqlite_db().await;
-    exec(&db, PURCHASE_RECEIPT_DDL).await;
+    // 真库 ap_invoice 表存在：放行证明＝应付单真实生成（sqlite 时代"缺表旁证"
+    // 随路线一废弃，见文件头覆盖策略）
+    let db = seeded_db().await;
     let svc = ApInvoiceService::new(Arc::new(db.clone()));
 
     let receipt = seed_receipt(&db, purchase_receipt_inspection::REJECTED, dec("100.00")).await;
@@ -268,19 +231,13 @@ async fn ap_entry_rejects_rejected_column_then_passes_after_column_flipped_to_pa
     flip.inspection_status = Set(purchase_receipt_inspection::PASSED.to_string());
     flip.update(&db).await.expect("夹具翻转列失败");
 
-    let err = svc
+    let invoice = svc
         .auto_generate_from_receipt(receipt.id, 1)
         .await
-        .expect_err("放行后在刻意缺表的 fixture 上必然失败（用于证明门控已放行）");
-    let body = err.to_response();
-    assert_ne!(
-        body.code, "BUSINESS_ERROR",
-        "列已 PASSED 的收货单不得再被门控拒绝（放行后应继续走后续链路），实际: {body:?}"
-    );
-    assert_ne!(
-        body.code, "VALIDATION_ERROR",
-        "放行失败点不得是取值域拒绝，实际: {body:?}"
-    );
+        .expect("列已 PASSED 的收货单门控必须放行并真实生成应付（真库全表，无缺表旁证）");
+    assert_eq!(invoice.source_type.as_deref(), Some("PURCHASE_RECEIPT"));
+    assert_eq!(invoice.source_id, Some(receipt.id));
+    assert_eq!(invoice.amount, dec("100.00"), "应付金额取收货单总额");
 
     let final_row = purchase_receipt::Entity::find_by_id(receipt.id)
         .one(&db)
@@ -296,15 +253,13 @@ async fn ap_entry_rejects_rejected_column_then_passes_after_column_flipped_to_pa
 }
 
 // =========================================================
-// T2（sqlite）：改判通道的入口实证——对"已有 COMPLETED 质检单"的同一收货单再建质检单，
-// 建单入口不以任何业务理由拒绝（唯一可能的失败是取号 pg_advisory_xact_lock 方言限制）
+// T2（真库）：改判通道的入口实证——对"已有 COMPLETED 质检单"的同一收货单再建质检单，
+// 建单入口不以任何业务理由拒绝（真库下取号是正常路径，Ok 分支即主证据）
 // =========================================================
 
 #[tokio::test]
 async fn create_second_inspection_for_same_receipt_is_not_business_rejected() {
-    let db = sqlite_db().await;
-    exec(&db, PURCHASE_RECEIPT_DDL).await;
-    exec(&db, PURCHASE_INSPECTION_DDL).await;
+    let db = seeded_db().await;
     let svc = PurchaseInspectionService::new(Arc::new(db.clone()));
 
     let receipt = seed_receipt(&db, purchase_receipt_inspection::REJECTED, dec("100.00")).await;
@@ -321,8 +276,8 @@ async fn create_second_inspection_for_same_receipt_is_not_business_rejected() {
         notes: None,
     };
     match svc.create_inspection(req, 1).await {
-        // sqlite 下不可能到这（取号触 PG 专锁），但若取号方言被可移植化，第二单必须
-        // 真实建成、恒 pending、挂同一收货单——"无同 receipt 唯一/已有质检则拒"的前置
+        // 真库下的正常路径：第二单真实建成、恒 pending、挂同一收货单——
+        // "无同 receipt 唯一/已有质检则拒"的前置（改判通道入口敞开的主证据）
         Ok(created) => {
             assert_eq!(created.receipt_id, Some(receipt.id));
             assert_ne!(created.inspection_no, old.inspection_no, "两单号必须不同");
@@ -346,10 +301,11 @@ async fn create_second_inspection_for_same_receipt_is_not_business_rejected() {
                 body.code, "NOT_FOUND",
                 "receipt 存在性前置已满足，不得再以引用缺失拒绝，实际: {body:?}"
             );
-            // 真实失败点只允许是 sqlite 方言承载不了 PG 专取号（pg_advisory_xact_lock）
+            // 真库下若仍失败，只可能是取号路径触真数据库故障（DATABASE_ERROR 族）——
+            // 业务/校验/引用缺失三类拒绝任何一种出现都意味着改判通道被关闭
             assert_eq!(
                 body.code, "DATABASE_ERROR",
-                "sqlite 下唯一合法失败是取号触 pg_advisory_xact_lock 方言限制，实际: {body:?}"
+                "真库下建单失败只允许是真数据库故障（改判通道入口必须敞开），实际: {body:?}"
             );
         }
     }
@@ -383,34 +339,25 @@ async fn create_second_inspection_for_same_receipt_is_not_business_rejected() {
 }
 
 // =========================================================
-// 活库夹具：TEST_DATABASE_URL→已迁移 PG；缺变量时显式失败，禁止条件跳过假绿
+// PostgreSQL 夹具守卫：路线一下所有用例都跑已迁移 PG（setup_test_db 缺
+// TEST_DATABASE_URL 即显式 panic）；本守卫再钉一遍后端形状，防夹具回退。
 // =========================================================
 
 async fn require_postgres(db: &DatabaseConnection) {
-    let url = std::env::var("TEST_DATABASE_URL");
-    assert!(
-        matches!(&url, Ok(u) if u.starts_with("postgres")),
-        "本用例覆盖复检改判完整业务链路（complete/create/confirm 走 lock_exclusive 与 \
-         pg_advisory_xact_lock 取号，sqlite 方言均不支持），必须跑在 TEST_DATABASE_URL \
-         指向的已迁移 PostgreSQL 上（ci-test-rust-ignored 注入）；本地直接跑需显式 \
-         export TEST_DATABASE_URL=postgres://...，禁止 sqlite 回退假绿。当前 \
-         TEST_DATABASE_URL={url:?}"
-    );
     assert_eq!(
         db.get_database_backend(),
         DbBackend::Postgres,
-        "夹具解析出的后端不是 PostgreSQL，活库锁不可信（setup_test_db 无变量时静默回退 sqlite）"
+        "夹具解析出的后端不是 PostgreSQL，改判全链路锁不可信（路线一要求已迁移 PG）"
     );
 }
 
 // =========================================================
-// C1（活库，#[ignore]）：改判覆写全链路契约（本文件的根因主证据）
+// C1（真库）：改判覆写全链路契约（本文件的根因主证据）
 // =========================================================
 
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（complete_inspection/create_inspection/confirm_receipt 走 lock_exclusive + pg_advisory_xact_lock 取号 + 审计；前置主数据 supplier/warehouse/product/user id=1 由 CI 种子提供）"]
 async fn live_rejudge_override_full_chain() {
-    let db = test_common::setup_test_db().await;
+    let db = seeded_db().await;
     require_postgres(&db).await;
     let pi_svc = PurchaseInspectionService::new(Arc::new(db.clone()));
     let rc_svc = PurchaseReceiptService::new(Arc::new(db.clone()));

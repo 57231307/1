@@ -26,6 +26,14 @@
 //!   键，不断言电话/邮箱原文；
 //! - `frontend/e2e/flow/22-crm-full.spec.ts:199`：GET /crm/customers/enhanced 仅健康探针。
 //! → 非 admin 在增强页开始看到掩码值，不破坏任何流程；本仓亦不以"让断言过"放行原文。
+//!
+//! 通道（路线一，#4669 判责）：全部用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；**表结构唯一来源 = backend/migration**，本文件不再自建任何 DDL。
+//! 种子按真表逐列对齐：users/customers/crm_lead/customer_contacts 属会被清空的业务
+//! 表（裁定 R1 自种子合法父行）；roles 属迁移种子参照表（id=1 code='admin'、
+//! id=2 manager 已由迁移播种），不得再插。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -90,154 +98,76 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
-    id INTEGER PRIMARY KEY,
-    lead_no TEXT NOT NULL UNIQUE, lead_source TEXT NOT NULL,
-    lead_status TEXT, company_name TEXT,
-    contact_name TEXT NOT NULL, contact_title TEXT,
-    mobile_phone TEXT, tel_phone TEXT, email TEXT, wechat TEXT, qq TEXT,
-    address TEXT, product_interest TEXT,
-    estimated_quantity TEXT, estimated_amount TEXT,
-    expected_delivery_date TEXT, requirement_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_claimed_at TEXT, last_claimed_by INTEGER,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
-    lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    created_by INTEGER, updated_by INTEGER, custom_fields TEXT
-)"#;
-
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_DATA_PERMISSIONS: &str = r#"CREATE TABLE data_permissions (
-    id INTEGER PRIMARY KEY, role_id INTEGER NOT NULL,
-    resource_type TEXT NOT NULL, scope_type TEXT NOT NULL,
-    custom_condition TEXT, allowed_fields TEXT, hidden_fields TEXT,
-    is_enabled INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_USERS: &str = r#"CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL, password_hash TEXT NOT NULL,
-    real_name TEXT, avatar TEXT, email TEXT, phone TEXT,
-    role_id INTEGER, department_id INTEGER, is_active INTEGER NOT NULL,
-    totp_secret TEXT, is_totp_enabled INTEGER NOT NULL, totp_recovery_codes TEXT,
-    last_login_at TEXT, password_changed_at TEXT, agreed_to_terms_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    gender TEXT, birth_date TEXT
-)"#;
-
-const CREATE_AUDIT_LOGS: &str = r#"CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER, username TEXT, action TEXT NOT NULL,
-    resource_type TEXT, resource_id TEXT, resource_name TEXT, description TEXT,
-    ip_address TEXT, user_agent TEXT, request_method TEXT, request_path TEXT,
-    request_body TEXT, response_status INTEGER, duration_ms INTEGER,
-    old_value TEXT, new_value TEXT, created_at TEXT,
-    operation_type TEXT, severity TEXT, request_id TEXT,
-    before_snapshot TEXT, after_snapshot TEXT, condition TEXT,
-    export_record_count INTEGER, export_query_filter TEXT, export_file_format TEXT,
-    export_approval_token TEXT, export_watermark_user TEXT
-)"#;
-
-const CREATE_CUSTOMERS: &str = r#"CREATE TABLE customers (
-    id INTEGER PRIMARY KEY,
-    customer_code TEXT, customer_name TEXT,
-    contact_person TEXT, contact_phone TEXT, contact_email TEXT,
-    address TEXT, city TEXT, province TEXT, country TEXT, postal_code TEXT,
-    credit_limit TEXT, payment_terms INTEGER, tax_id TEXT,
-    bank_name TEXT, bank_account TEXT, status TEXT, customer_type TEXT,
-    notes TEXT, created_by INTEGER, created_at TEXT, updated_at TEXT,
-    customer_industry TEXT, main_products TEXT, annual_purchase TEXT,
-    quality_requirement TEXT, inspection_standard TEXT,
-    owner_id INTEGER, department_id INTEGER, owner_assigned_at TEXT,
-    special_process TEXT, source TEXT, pool_recycle_reason TEXT
-)"#;
-
-const CREATE_CUSTOMER_CONTACTS: &str = r#"CREATE TABLE customer_contacts (
-    id INTEGER PRIMARY KEY,
-    customer_id INTEGER NOT NULL, name TEXT NOT NULL, title TEXT,
-    phone TEXT NOT NULL, email TEXT, is_primary INTEGER NOT NULL,
-    remarks TEXT, created_by INTEGER,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
 async fn base_state(permissions: Option<&str>) -> AppState {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [
-        CREATE_CRM_LEAD,
-        CREATE_CUSTOMERS,
-        CREATE_CUSTOMER_CONTACTS,
-        CREATE_ROLES,
-        CREATE_DATA_PERMISSIONS,
-        CREATE_USERS,
-        CREATE_AUDIT_LOGS,
-    ] {
-        exec(&db, ddl).await;
-    }
+    // 路线一：连已迁移 PostgreSQL 并清空业务表（TRUNCATE … RESTART IDENTITY，
+    // 自增 ID 从 1 起）；表结构唯一来源 = backend/migration，本文件不再自建 DDL。
+    let db = test_common::setup_test_db().await;
+    // users：归属人/admin 父行（裁定 R1 自种子；department_id=1 对齐迁移种子部门，
+    // 供 trg_*_dept 触发器回填冗余列）。布尔列按 PG 真类型写 TRUE/FALSE
+    // （sqlite 时代的 1/0 在 PG 上是类型错误）。roles 不再插：属迁移种子参照表
+    // （id=1 code='admin'、id=2 manager 已由 m0001 播种且不参与清空）。
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (70,'admin_user','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
-    exec(
-        &db,
-        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,created_at,updated_at) VALUES
-         (50,'sales_a','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (70,'admin_user','x',1,0,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
-    )
-    .await;
-    // 归属 OWNER 的线索行（增强页列表/详情出参行），携带四列明文 PII
+    // 归属 OWNER 的线索行（增强页列表/详情出参行），携带四列明文 PII。
+    // department_id 不手写：迁移触发器 trg_crm_lead_dept 按 owner 的
+    // users.department_id 自动维护（种子/应用侧写入会被覆盖）。
     exec(
         &db,
         &format!(
             "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
              contact_name,mobile_phone,tel_phone,email,address,owner_id,owner_name,
-             department_id,priority,created_at,updated_at) VALUES
+             priority,created_at,updated_at) VALUES
              (1,'LD001','website','new','甲公司','张三','{C_PHONE}','{C_TEL}',
-              '{C_EMAIL}','{C_ADDRESS}',{OWNER},'销售甲',1,'low',
+              '{C_EMAIL}','{C_ADDRESS}',{OWNER},'销售甲','low',
               '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
         ),
     )
     .await;
-    // 归属 OWNER 的客户主数据行（标准客户入口出参行）
+    // 归属 OWNER 的客户主数据行（标准客户入口出参行）。逐列对齐真表：
+    // credit_limit 为 DECIMAL(12,2)（sqlite 时代误写成 TEXT '0'）、payment_terms
+    // 为 INTEGER（模型非 Option，必须给值）、status/customer_type 为权威词表 token。
     exec(
         &db,
         &format!(
             "INSERT INTO customers (id,customer_code,customer_name,contact_person,
              contact_phone,contact_email,address,credit_limit,payment_terms,status,
-             customer_type,owner_id,department_id,created_at,updated_at) VALUES
+             customer_type,owner_id,created_at,updated_at) VALUES
              (1,'CUS-0001','甲客户','张三','{C_PHONE}','{C_EMAIL}','{C_ADDRESS}',
-              '0',30,'active','retail',{OWNER},1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
+              0,30,'active','retail',{OWNER},
+              '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
         ),
     )
     .await;
-    // 客户 1 的联系人行（联系人列表出参行）
+    // 客户 1 的联系人行（联系人列表出参行；is_primary 为 BOOLEAN）
     exec(
         &db,
         &format!(
             "INSERT INTO customer_contacts (id,customer_id,name,phone,email,is_primary,
              created_at,updated_at) VALUES
-             (1,1,'联系人甲','{CONTACT_PHONE}','{CONTACT_EMAIL}',1,
+             (1,1,'联系人甲','{CONTACT_PHONE}','{CONTACT_EMAIL}',TRUE,
               '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
         ),
+    )
+    .await;
+    // 显式 id 种子后对齐自增序列：本文件 POST /crm/customers 经 SERIAL 建行，
+    // RESTART IDENTITY 已把序列复位到 1，不对齐会撞上种子行 id=1（PK 冲突假红）。
+    exec(
+        &db,
+        "SELECT setval(pg_get_serial_sequence('customers','id'),
+                       (SELECT COALESCE(MAX(id),1) FROM customers))",
     )
     .await;
 
@@ -465,7 +395,7 @@ async fn enhanced_reads_are_driven_by_customer_rows_not_crm_lead_rows() {
     // mobile_phone 应保持"掩码保留键"的默认脱敏形态（若被整键移除即判定源漂移回潮）
     let lead_row = r#"INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
         allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
-        VALUES (1,2,'crm_lead','SELF',NULL,'["mobile_phone"]',1,
+        VALUES (1,2,'crm_lead','SELF',NULL,'["mobile_phone"]',TRUE,
         '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#;
     let app = build_enhanced_read_app(
         base_state(Some(lead_row)).await,
@@ -482,7 +412,7 @@ async fn enhanced_reads_are_driven_by_customer_rows_not_crm_lead_rows() {
     // 配 customer 行（hidden=phone）：联系人读出口整键移除 phone（同一 filter_fields_batch）
     let customer_row = r#"INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
         allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
-        VALUES (2,2,'customer','SELF',NULL,'["phone"]',1,
+        VALUES (2,2,'customer','SELF',NULL,'["phone"]',TRUE,
         '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#;
     let app2 = build_enhanced_read_app(
         base_state(Some(customer_row)).await,

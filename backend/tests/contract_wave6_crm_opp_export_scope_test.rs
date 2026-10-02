@@ -37,6 +37,14 @@
 //!   该统一口径的一致性。
 //! - 导出审计事件（V15 P0-S11 `record_async`）为 best-effort 异步落库，时序不可判定，
 //!   本文件不断言。
+//!
+//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
+//! `crm_opportunity.customer_id` 有真外键 `fk_crm_opportunity_customer`（裁定 R1
+//! 自种子合法 customers 父行）；`owner_id` 冗余部门列由 trg_crm_opportunity_dept
+//! 触发器按 owner 的 users.department_id 维护，故 users 也须先自种子。
+
+mod test_common;
 
 use axum::{
     Router,
@@ -82,8 +90,10 @@ const B_EST_2: i64 = 55_555;
 /// rust_decimal 的 `Decimal::from` / `Decimal::new` 均非 const fn（见 opp.rs 顶部
 /// 同一结论），故金额在运行期构造；期望单元格文本 = 同一个 Decimal 的 to_string，
 /// 与导出侧 `opp.rs::export_opp_cell` 的取值口径逐字符一致。
+/// 真表金额列为 DECIMAL(15,2)，PG numeric 按 scale=2 存储（种子 88888 回读为
+/// 88888.00），故种子按同 scale 构造——逐列对齐真表精度，非迁就源码。
 fn amount(raw: i64) -> Decimal {
-    Decimal::from(raw)
+    Decimal::new(raw * 100, 2)
 }
 
 fn amount_text(raw: i64) -> String {
@@ -123,46 +133,13 @@ async fn inject_auth(
 
 async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
     db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
-        Vec::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
-    .unwrap_or_else(|e| panic!("DDL/种子 执行失败: {e}\nSQL: {sql}"));
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
-
-/// 与 models/role.rs::Model 对应（is_admin_role 判定源，admin_checker.rs:86-87）
-const CREATE_ROLES: &str = r#"CREATE TABLE roles (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
-    description TEXT, permissions TEXT, is_system INTEGER NOT NULL,
-    data_scope TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-const CREATE_DATA_PERMISSIONS: &str = r#"CREATE TABLE data_permissions (
-    id INTEGER PRIMARY KEY, role_id INTEGER NOT NULL,
-    resource_type TEXT NOT NULL, scope_type TEXT NOT NULL,
-    custom_condition TEXT, allowed_fields TEXT, hidden_fields TEXT,
-    is_enabled INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-)"#;
-
-/// 与 models/crm_opportunity.rs::Model 逐列对应（表 crm_opportunity，含 department_id）。
-/// Decimal / NaiveDate / DateTime 一律按本仓 sqlite 既有用例（如
-/// contract_wave1_ar_list_paginated_shape_test.rs）的 TEXT 口径建表，种子走 SeaORM
-/// ActiveModel 写入，避免手写字符串与 sqlx 解码口径不一致造成的假绿/假红。
-const CREATE_CRM_OPPORTUNITY: &str = r#"CREATE TABLE crm_opportunity (
-    id INTEGER PRIMARY KEY,
-    opportunity_no TEXT NOT NULL UNIQUE, opportunity_name TEXT NOT NULL,
-    customer_id INTEGER NOT NULL, lead_id INTEGER, opportunity_type TEXT,
-    opportunity_stage TEXT, win_probability TEXT,
-    estimated_amount TEXT, actual_amount TEXT, currency TEXT,
-    expected_close_date TEXT, actual_close_date TEXT,
-    product_ids TEXT, product_names TEXT, product_desc TEXT,
-    owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
-    last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
-    competitor_names TEXT, competitive_advantage TEXT, opportunity_status TEXT,
-    won_reason TEXT, lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT,
-    created_at TEXT, updated_at TEXT, created_by INTEGER, updated_by INTEGER
-)"#;
 
 fn ts(y: i32, m: u32, d: u32) -> DateTime<Utc> {
     NaiveDate::from_ymd_opt(y, m, d)
@@ -172,8 +149,9 @@ fn ts(y: i32, m: u32, d: u32) -> DateTime<Utc> {
         .and_utc()
 }
 
-/// 插入一条商机（列取自 models/crm_opportunity.rs；金额走 Decimal，
-/// 与导出的 `d.to_string()` 单元格原文一一对应）
+/// 插入一条商机（列取自 models/crm_opportunity.rs，经 SeaORM ActiveModel 写真实
+/// PG 表；金额走 Decimal（DECIMAL(15,2) 真列型，sqlite 时代误建 TEXT），与导出的
+/// `d.to_string()` 单元格原文一一对应）。customer_id 有真外键，父行见 seeded_db。
 async fn insert_opp(
     db: &sea_orm::DatabaseConnection,
     id: i32,
@@ -227,26 +205,31 @@ async fn insert_opp(
     .unwrap_or_else(|e| panic!("商机种子插入失败 id={id}: {e}"));
 }
 
-/// 建表 + 种子数据（4 条商机，两个归属人各两行，金额均非空可判定）：
+/// 种子数据（4 条商机，两个归属人各两行，金额均非空可判定）：
 /// - id=1/2：owner A（USER_A）——OPP A 前缀；
 /// - id=3/4：owner B（USER_B）——OPP B 前缀。
+/// 前置父行（裁定 R1）：users 50/60（部门触发器 + 归属语义）、customers 1..4
+/// （crm_opportunity.customer_id 真外键 fk_crm_opportunity_customer）。
+/// roles 不再插：id=1 code='admin' 为 is_admin_role 判定源（admin_checker.rs:86-87），
+/// id=2 为 data_permissions 外键父行——均为迁移种子参照表行。
 async fn seeded_db(permissions: Option<&str>) -> Arc<sea_orm::DatabaseConnection> {
-    let db = sea_orm::Database::connect("sqlite::memory:")
-        .await
-        .expect("sqlite::memory: 连接失败");
-    for ddl in [
-        CREATE_CRM_OPPORTUNITY,
-        CREATE_ROLES,
-        CREATE_DATA_PERMISSIONS,
-    ] {
-        exec(&db, ddl).await;
-    }
+    let db = test_common::setup_test_db().await;
 
     exec(
         &db,
-        "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (1,'系统管理员','admin',1,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (2,'销售专员','sales',0,'self','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (60,'sales_b','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+    )
+    .await;
+    exec(
+        &db,
+        "INSERT INTO customers (id,customer_code,customer_name,credit_limit,payment_terms,
+             status,customer_type,owner_id,created_at,updated_at) VALUES
+         (1,'CUS-OPP-0001','商机导出客户一',0,30,'active','retail',50,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (2,'CUS-OPP-0002','商机导出客户二',0,30,'active','retail',50,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (3,'CUS-OPP-0003','商机导出客户三',0,30,'active','retail',60,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (4,'CUS-OPP-0004','商机导出客户四',0,30,'active','retail',60,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
 
@@ -559,7 +542,7 @@ async fn admin_opp_export_keeps_amounts_and_all_rows() {
 async fn role_with_hidden_amount_field_blanks_that_column_only() {
     let insert = r#"INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
         allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
-        VALUES (1,2,'crm_opportunity','SELF',NULL,'["actual_amount"]',1,
+        VALUES (1,2,'crm_opportunity','SELF',NULL,'["actual_amount"]',TRUE,
         '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#;
     let db = seeded_db(Some(insert)).await;
     let app = build_app(&db, make_auth(USER_B, 2, "self"));
@@ -590,7 +573,7 @@ async fn role_with_allowed_fields_keeps_amounts_and_drops_unlisted_column() {
     let insert = format!(
         "INSERT INTO data_permissions (id,role_id,resource_type,scope_type,\
          allowed_fields,hidden_fields,is_enabled,created_at,updated_at) \
-         VALUES (1,2,'crm_opportunity','SELF','{allowed}',NULL,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
+         VALUES (1,2,'crm_opportunity','SELF','{allowed}',NULL,TRUE,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
     );
     let db = seeded_db(Some(&insert)).await;
     let app = build_app(&db, make_auth(USER_B, 2, "self"));

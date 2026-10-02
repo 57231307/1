@@ -21,16 +21,25 @@
 //!    不新造常量、不跨域借用。
 //!
 //! 覆盖策略（分层）：
-//! - sqlite 行为锁：调用生产 builder 得 (sql, params) 后在同构表执行，逐值断言
+//! - 真库行为锁（路线一，#4669 判责）：调用生产 builder 得 (sql, params) 后在
+//!   **已迁移 PostgreSQL** 的真实 `ap_invoice`/`ap_payment` 表上执行，逐值断言
 //!   草稿/已取消不计入；修复前旧谓词（只排 CANCELLED）作缺陷实证对照。
+//!   表结构唯一来源 = `backend/migration`，本文件不自建同构 DDL（原 sqlite 夹具把
+//!   DECIMAL 列写成 REAL/TEXT，正是 #4669 约 130 例解码红的根）。
 //! - 生产服务行为锁：`ApInvoiceService::get_balance_summary/get_aging_analysis`
-//!   （纯 SeaORM 查询，sqlite 可真跑）验证 DRAFT/CANCELLED 剔除。
-//! - $N 占位一致性锁：账龄 SQL（CURRENT_DATE 日期算术为 PG 语义，sqlite 不可执行）
-//!   断言占位符与参数序列一一对应、常量落在正确槽位。
+//!   （纯 SeaORM 查询）验证 DRAFT/CANCELLED 剔除。
+//! - $N 占位一致性锁：账龄 SQL（含 CURRENT_DATE 日期算术，PG 语义）只断言 SQL 文本、
+//!   占位符与参数序列一一对应、常量落在正确槽位（该段 SQL 不在此执行）；
+//!   端到端口径见第 8 节 `#[ignore]` 活库锁。
 //! - 禁回潮源码扫描（include_str!）：AP 域文件不得再出现裸状态字面量，且必须
 //!   引用写入方常量。
 //! - `#[ignore]` 真库锁：统计/日报在真实 PG 上只计入 AUDITED；缺 `TEST_DATABASE_URL`
-//!   显式 panic，禁止条件跳过。
+//!   由夹具直接 panic，禁止条件跳过。
+//!
+//! 用例名中的 `on_sqlite` 属历史命名（通道已按路线一改为真库）；为保持 CI 历史
+//! 判责引用的可追溯性不改名，语义以本注释与用例体为准。
+
+mod test_common;
 
 use std::sync::Arc;
 
@@ -46,7 +55,8 @@ use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, QueryResult, Statement, Value,
+    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DatabaseConnection, DbBackend,
+    QueryResult, Statement, Value,
 };
 
 // ===========================================================================
@@ -57,34 +67,35 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(y, m, d).expect("测试基准日期必须合法")
 }
 
-async fn sqlite_db() -> sea_orm::DatabaseConnection {
-    sea_orm::Database::connect("sqlite::memory:")
+/// 真库连接（已迁移 PostgreSQL + 清空业务表）；缺变量/指 sqlite 由夹具直接 panic
+async fn live_db() -> DatabaseConnection {
+    test_common::setup_test_db().await
+}
+
+/// 外键父行 `suppliers`：迁移种子参照表（m0015 播种、不参与清空、不删其数据），
+/// 取其真实首个 id 作 `ap_invoice.supplier_id`/`ap_payment.supplier_id` 的父行，
+/// 不硬编码常量、不指望业务表里已有数据。
+async fn seeded_supplier_id(db: &DatabaseConnection) -> i32 {
+    let row = db
+        .query_one_raw(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT id FROM suppliers ORDER BY id LIMIT 1".to_string(),
+        ))
         .await
-        .expect("sqlite::memory: 连接失败")
+        .expect("夹具：读取 suppliers 参照表失败")
+        .unwrap_or_else(|| panic!("夹具：迁移未播种 suppliers 参照表（m0015），FK 父行缺失"));
+    row.try_get_by_index::<i32>(0)
+        .expect("夹具：suppliers.id 应可解码为 i32")
 }
 
-async fn exec_ddl(db: &sea_orm::DatabaseConnection, sql: &'static str) {
-    db.execute_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
-        sql,
-        Vec::<Value>::new(),
-    ))
-    .await
-    .unwrap_or_else(|e| panic!("DDL 执行失败: {e}\nSQL: {sql}"));
-}
-
-async fn run_all(
-    db: &sea_orm::DatabaseConnection,
-    sql: String,
-    params: Vec<Value>,
-) -> Vec<QueryResult> {
+async fn run_all(db: &DatabaseConnection, sql: String, params: Vec<Value>) -> Vec<QueryResult> {
     db.query_all_raw(Statement::from_sql_and_values(
-        DbBackend::Sqlite,
+        DbBackend::Postgres,
         sql,
         params,
     ))
     .await
-    .expect("sqlite 真实 SQL 执行失败")
+    .unwrap_or_else(|e| panic!("真库 SQL 执行失败: {e}"))
 }
 
 fn col_i64(row: &QueryResult, idx: usize) -> i64 {
@@ -93,9 +104,13 @@ fn col_i64(row: &QueryResult, idx: usize) -> i64 {
         .unwrap_or_else(|| panic!("第 {idx} 列聚合结果不应为 NULL"))
 }
 
-fn col_f64(row: &QueryResult, idx: usize) -> f64 {
-    row.try_get_by_index::<Option<f64>>(idx)
-        .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 f64: {e}"))
+/// 金额列解码：真库 `ap_invoice.amount/paid_amount/unpaid_amount` 是 DECIMAL(18,2)、
+/// `COALESCE(SUM(...), 0)` 在 PG 返回 numeric ⇒ 必须按 Decimal 解码（与生产侧
+/// `fetch_ap_statistics_*` 的 `try_get_by_index::<Decimal>` 同口径；sqlite 时代按
+/// REAL/f64 读是方言失真，正是 #4669 解码红的那一族）。
+fn col_decimal(row: &QueryResult, idx: usize) -> Decimal {
+    row.try_get_by_index::<Option<Decimal>>(idx)
+        .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 Decimal: {e}"))
         .unwrap_or_else(|| panic!("第 {idx} 列聚合结果不应为 NULL"))
 }
 
@@ -159,69 +174,77 @@ fn expect_status_value(v: &Value, want: &str, ctx: &str) {
     }
 }
 
-/// 与 `ap_report_service.rs` 报表 SQL 触达列同构的 sqlite 表（金额 REAL 保证 f64 精确断言）
-async fn setup_ap_invoices(db: &sea_orm::DatabaseConnection) {
-    exec_ddl(
-        db,
-        r#"CREATE TABLE ap_invoice (
-            id INTEGER PRIMARY KEY,
-            invoice_no TEXT NOT NULL,
-            supplier_id INTEGER NOT NULL,
-            invoice_type TEXT NOT NULL,
-            invoice_date TEXT NOT NULL,
-            due_date TEXT NOT NULL,
-            amount REAL NOT NULL,
-            paid_amount REAL NOT NULL,
-            unpaid_amount REAL NOT NULL,
-            invoice_status TEXT NOT NULL
-        )"#,
-    )
-    .await;
-    // 供应商 77：DRAFT/AUDITED/PARTIAL_PAID/PAID/CANCELLED 各一张，
+/// 真表 `ap_invoice` 种子（供应商 X：DRAFT/AUDITED/PARTIAL_PAID/PAID/CANCELLED 各一张）。
+///
+/// 逐列对照 `models/ap_invoice.rs` + 迁移建表语句 `m0012_add_ap_ar_finance_analysis.rs:18`：
+/// NOT NULL 且无 DB 默认值的列全部给业务合法值（invoice_no/supplier_id/invoice_type/
+/// invoice_date/due_date/amount/created_by）；金额列按 `Decimal` 绑定（真列是
+/// DECIMAL(18,2)，原 sqlite 夹具写成 REAL 并绑 f64，即 #4669 解码红的根因形态）。
+async fn setup_ap_invoices(db: &DatabaseConnection, supplier_id: i32) {
     // 到期日 2096-12-15 早于统计基准日 2096-12-31（逾期口径五张同构，差异只在状态）
-    let rows: [(&str, &str, &str, f64, f64, f64); 5] = [
-        ("W6-D", "2096-12-01", STATUS_DRAFT, 2222.50, 0.00, 2222.50),
+    let rows: [(&str, NaiveDate, &str, Decimal, Decimal, Decimal); 5] = [
+        (
+            "W6-D",
+            date(2096, 12, 1),
+            STATUS_DRAFT,
+            dec!(2222.50),
+            Decimal::ZERO,
+            dec!(2222.50),
+        ),
         (
             "W6-A",
-            "2096-12-01",
+            date(2096, 12, 1),
             ap_invoice_status::INVOICE_AUDITED,
-            1000.00,
-            0.00,
-            1000.00,
+            dec!(1000.00),
+            Decimal::ZERO,
+            dec!(1000.00),
         ),
         (
             "W6-P",
-            "2096-12-01",
+            date(2096, 12, 1),
             PAYMENT_PARTIAL_PAID,
-            500.00,
-            200.00,
-            300.00,
+            dec!(500.00),
+            dec!(200.00),
+            dec!(300.00),
         ),
-        ("W6-F", "2096-12-02", PAYMENT_PAID, 400.00, 400.00, 0.00),
+        (
+            "W6-F",
+            date(2096, 12, 2),
+            PAYMENT_PAID,
+            dec!(400.00),
+            dec!(400.00),
+            Decimal::ZERO,
+        ),
         (
             "W6-C",
-            "2096-12-01",
+            date(2096, 12, 1),
             STATUS_CANCELLED,
-            3333.75,
-            0.00,
-            3333.75,
+            dec!(3333.75),
+            Decimal::ZERO,
+            dec!(3333.75),
         ),
     ];
     for (no, inv_day, status, amount, paid, unpaid) in rows {
         let itype = if no == "W6-F" { "EXPENSE" } else { "PURCHASE" };
         db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
+            DbBackend::Postgres,
             "INSERT INTO ap_invoice (invoice_no, supplier_id, invoice_type, invoice_date, \
-             due_date, amount, paid_amount, unpaid_amount, invoice_status) \
-             VALUES ($1, 77, $2, $3, '2096-12-15', $4, $5, $6, $7)",
+             due_date, amount, paid_amount, unpaid_amount, invoice_status, created_by) \
+             VALUES ($1, $2, $3, $4, '2096-12-15', $5, $6, $7, $8, $9)",
             vec![
                 no.into(),
+                supplier_id.into(),
                 itype.into(),
+                // DATE 列必须按日期类型绑定（PG 不会把 text 参数隐式赋给 date 列,
+                // 原 sqlite 通道绑 'YYYY-MM-DD' 字符串是方言纵容）
                 inv_day.into(),
                 amount.into(),
                 paid.into(),
                 unpaid.into(),
                 status.into(),
+                // created_by 为 NOT NULL 列但真库无外键约束（仅 sales_orders.created_by
+                // 有 FK），取与报表出参无关的操作人常量，不伪造归属语义
+                1i32.into(),
             ],
         ))
         .await
@@ -229,28 +252,29 @@ async fn setup_ap_invoices(db: &sea_orm::DatabaseConnection) {
     }
 }
 
-async fn setup_ap_payments(db: &sea_orm::DatabaseConnection) {
-    exec_ddl(
-        db,
-        r#"CREATE TABLE ap_payment (
-            id INTEGER PRIMARY KEY,
-            supplier_id INTEGER NOT NULL,
-            payment_date TEXT NOT NULL,
-            payment_amount REAL NOT NULL,
-            payment_status TEXT NOT NULL
-        )"#,
-    )
-    .await;
-    // 同日两张：CONFIRMED 600 计入、REGISTERED 900 不计入（写入方 ap_payment_service.rs:104/253）
+/// 真表 `ap_payment` 种子（同日两张：CONFIRMED 600 计入、REGISTERED 900 不计入）。
+///
+/// 逐列对照 `models/ap_payment.rs` + `m0012:108`：NOT NULL 且无默认值的列
+/// payment_no/payment_date/supplier_id/payment_method/payment_amount/created_by 全部给值；
+/// `payment_method` 取写入方词表（模型列注释 TT/LC/DP/DA/CHECK/CASH）内的合法值。
+async fn setup_ap_payments(db: &DatabaseConnection, supplier_id: i32) {
+    // 写入方 ap_payment_service.rs:104/253：REGISTERED 登记、CONFIRMED 确认
     for (no, status, amount) in [
-        ("W6-PC", PAYMENT_CONFIRMED, 600.00_f64),
-        ("W6-PR", PAYMENT_REGISTERED, 900.00_f64),
+        ("W6-PC", PAYMENT_CONFIRMED, dec!(600.00)),
+        ("W6-PR", PAYMENT_REGISTERED, dec!(900.00)),
     ] {
         db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
-            "INSERT INTO ap_payment (supplier_id, payment_date, payment_amount, payment_status) \
-             VALUES (77, '2096-12-15', $1, $2)",
-            vec![amount.into(), status.into()],
+            DbBackend::Postgres,
+            "INSERT INTO ap_payment (payment_no, supplier_id, payment_date, payment_method, \
+             payment_amount, payment_status, created_by) \
+             VALUES ($1, $2, '2096-12-15', 'TT', $3, $4, $5)",
+            vec![
+                format!("AP{no}").into(),
+                supplier_id.into(),
+                amount.into(),
+                status.into(),
+                1i32.into(),
+            ],
         ))
         .await
         .unwrap_or_else(|e| panic!("种子付款单 {no} 插入失败: {e}"));
@@ -258,18 +282,19 @@ async fn setup_ap_payments(db: &sea_orm::DatabaseConnection) {
 }
 
 // ===========================================================================
-// 1) 统计主聚合：生产 builder + sqlite 行为锁（草稿与取消一律不计入）
+// 1) 统计主聚合：生产 builder + 真库行为锁（草稿与取消一律不计入）
 // ===========================================================================
 
 #[tokio::test]
 async fn ap_main_aggregate_builder_excludes_draft_and_cancelled_on_sqlite() {
-    let db = sqlite_db().await;
-    setup_ap_invoices(&db).await;
+    let db = live_db().await;
+    let sid = seeded_supplier_id(&db).await;
+    setup_ap_invoices(&db, sid).await;
 
     let (sql, params) = ApReportService::build_main_aggregate_sql_and_params(
         date(2096, 12, 1),
         date(2096, 12, 31),
-        Some(77),
+        Some(sid),
         date(2096, 12, 31),
     );
     assert_eq!(
@@ -300,12 +325,25 @@ async fn ap_main_aggregate_builder_excludes_draft_and_cancelled_on_sqlite() {
         "total_invoice_count 必须=3（=4 即草稿被计入=修复前口径，=5 即取消也被计入）"
     );
     assert_eq!(
-        col_f64(row, 1),
-        1900.00,
+        col_decimal(row, 1),
+        dec!(1900.00),
         "total_invoice_amount 只含 AUDITED/PARTIAL/PAID"
     );
-    assert_eq!(col_f64(row, 2), 200.00, "total_paid_amount 只含门内三张");
-    assert_eq!(col_f64(row, 3), 1300.00, "total_unpaid_amount 只含门内三张");
+    // total_paid_amount = SUM(paid_amount) 在门内三张上 = 0(AUDITED)+200(PARTIAL)+400(PAID)
+    // = 600。原期望 200 是把"只统计部分付款那张"误当成该列口径的自身算错
+    // （CI #4669 已实测 left: 600.0，SQL 见 ap_report_service.rs:96）；
+    // 该列在门内/门外五张上的差异为 0（草稿/取消的 paid_amount 均为 0），
+    // 真正区分 DRAFT 门的是 count/总额/未付额三列，下面各自的断言原样保留。
+    assert_eq!(
+        col_decimal(row, 2),
+        dec!(600.00),
+        "total_paid_amount 只含门内三张"
+    );
+    assert_eq!(
+        col_decimal(row, 3),
+        dec!(1300.00),
+        "total_unpaid_amount 只含门内三张"
+    );
     assert_eq!(
         col_i64(row, 4),
         1,
@@ -322,13 +360,18 @@ async fn ap_main_aggregate_builder_excludes_draft_and_cancelled_on_sqlite() {
         2,
         "overdue_count 只含门内未付清两张（草稿同条件但门外）"
     );
-    assert_eq!(col_f64(row, 8), 1300.00, "overdue_amount 只含门内两张");
+    assert_eq!(
+        col_decimal(row, 8),
+        dec!(1300.00),
+        "overdue_amount 只含门内两张"
+    );
 }
 
 #[tokio::test]
 async fn ap_main_aggregate_builder_no_filter_binds_gate_and_shifts_today() {
-    let db = sqlite_db().await;
-    setup_ap_invoices(&db).await;
+    let db = live_db().await;
+    let sid = seeded_supplier_id(&db).await;
+    setup_ap_invoices(&db, sid).await;
 
     let (sql, params) = ApReportService::build_main_aggregate_sql_and_params(
         date(2096, 12, 1),
@@ -355,8 +398,9 @@ async fn ap_main_aggregate_builder_no_filter_binds_gate_and_shifts_today() {
 /// 缺陷实证对照：修复前口径（只排 CANCELLED、无 DRAFT 门）在同一数据上把草稿计入统计
 #[tokio::test]
 async fn ap_legacy_cancelled_only_gate_wrongly_counts_draft_defect_proof() {
-    let db = sqlite_db().await;
-    setup_ap_invoices(&db).await;
+    let db = live_db().await;
+    let sid = seeded_supplier_id(&db).await;
+    setup_ap_invoices(&db, sid).await;
 
     let rows = run_all(
         &db,
@@ -372,8 +416,8 @@ async fn ap_legacy_cancelled_only_gate_wrongly_counts_draft_defect_proof() {
         "旧门应把 DRAFT 与三张有效单一并计入"
     );
     assert_eq!(
-        col_f64(&rows[0], 1),
-        4122.50,
+        col_decimal(&rows[0], 1),
+        dec!(4122.50),
         "旧门合计=2222.50+1000+500+400"
     );
 }
@@ -384,13 +428,14 @@ async fn ap_legacy_cancelled_only_gate_wrongly_counts_draft_defect_proof() {
 
 #[tokio::test]
 async fn ap_statistics_by_status_builder_excludes_draft_and_cancelled_rows() {
-    let db = sqlite_db().await;
-    setup_ap_invoices(&db).await;
+    let db = live_db().await;
+    let sid = seeded_supplier_id(&db).await;
+    setup_ap_invoices(&db, sid).await;
 
     let (sql, params) = ApReportService::build_statistics_by_status_sql_and_params(
         date(2096, 12, 1),
         date(2096, 12, 31),
-        Some(77),
+        Some(sid),
     );
     assert_eq!(
         params.len(),
@@ -423,8 +468,9 @@ async fn ap_statistics_by_status_builder_excludes_draft_and_cancelled_rows() {
 
 #[tokio::test]
 async fn ap_statistics_by_type_builder_gate_excludes_draft_amount() {
-    let db = sqlite_db().await;
-    setup_ap_invoices(&db).await;
+    let db = live_db().await;
+    let sid = seeded_supplier_id(&db).await;
+    setup_ap_invoices(&db, sid).await;
 
     let (sql, params) = ApReportService::build_statistics_by_type_sql_and_params(
         date(2096, 12, 1),
@@ -445,7 +491,11 @@ async fn ap_statistics_by_type_builder_gate_excludes_draft_amount() {
         .find(|r| col_str(r, 0) == "PURCHASE")
         .expect("应存在 PURCHASE 桶");
     assert_eq!(col_i64(purchase, 1), 2, "PURCHASE 桶只应剩门内两张");
-    assert_eq!(col_f64(purchase, 2), 1500.00, "PURCHASE 金额不含草稿");
+    assert_eq!(
+        col_decimal(purchase, 2),
+        dec!(1500.00),
+        "PURCHASE 金额不含草稿"
+    );
 }
 
 // ===========================================================================
@@ -454,11 +504,12 @@ async fn ap_statistics_by_type_builder_gate_excludes_draft_amount() {
 
 #[tokio::test]
 async fn ap_daily_new_and_due_builders_gate_draft_and_cancelled() {
-    let db = sqlite_db().await;
-    setup_ap_invoices(&db).await;
+    let db = live_db().await;
+    let sid = seeded_supplier_id(&db).await;
+    setup_ap_invoices(&db, sid).await;
 
     let (sql, params) =
-        ApReportService::build_daily_new_invoice_sql_and_params(date(2096, 12, 1), Some(77));
+        ApReportService::build_daily_new_invoice_sql_and_params(date(2096, 12, 1), Some(sid));
     expect_status_value(&params[1], STATUS_CANCELLED, "日报新增 params[1]");
     expect_status_value(&params[2], STATUS_DRAFT, "日报新增 params[2]");
     assert!(
@@ -472,7 +523,11 @@ async fn ap_daily_new_and_due_builders_gate_draft_and_cancelled() {
         2,
         "12-01 新增只应剩 AUDITED+PARTIAL（草稿/取消剔除）"
     );
-    assert_eq!(col_f64(&rows[0], 1), 1500.00, "12-01 新增金额不含草稿");
+    assert_eq!(
+        col_decimal(&rows[0], 1),
+        dec!(1500.00),
+        "12-01 新增金额不含草稿"
+    );
 
     let (sql2, params2) =
         ApReportService::build_daily_due_invoice_sql_and_params(date(2096, 12, 15), None);
@@ -486,19 +541,20 @@ async fn ap_daily_new_and_due_builders_gate_draft_and_cancelled() {
     let rows2 = run_all(&db, sql2, params2).await;
     assert_eq!(col_i64(&rows2[0], 0), 2, "到期未付只应剩 AUDITED+PARTIAL");
     assert_eq!(
-        col_f64(&rows2[0], 1),
-        1300.00,
+        col_decimal(&rows2[0], 1),
+        dec!(1300.00),
         "到期未付金额不含草稿/已取消"
     );
 }
 
 #[tokio::test]
 async fn ap_daily_payment_builder_binds_writer_confirmed_constant() {
-    let db = sqlite_db().await;
-    setup_ap_payments(&db).await;
+    let db = live_db().await;
+    let sid = seeded_supplier_id(&db).await;
+    setup_ap_payments(&db, sid).await;
 
     let (sql, params) =
-        ApReportService::build_daily_payment_sql_and_params(date(2096, 12, 15), Some(77));
+        ApReportService::build_daily_payment_sql_and_params(date(2096, 12, 15), Some(sid));
     assert_eq!(params.len(), 3, "应绑 [date, PAYMENT_CONFIRMED, supplier]");
     expect_status_value(&params[1], PAYMENT_CONFIRMED, "日报付款 params[1]");
     assert!(
@@ -513,7 +569,7 @@ async fn ap_daily_payment_builder_binds_writer_confirmed_constant() {
         1,
         "只计 CONFIRMED 一张（REGISTERED 未确认不计）"
     );
-    assert_eq!(col_f64(&rows[0], 1), 600.00, "付款金额只含已确认");
+    assert_eq!(col_decimal(&rows[0], 1), dec!(600.00), "付款金额只含已确认");
 }
 
 // ===========================================================================
@@ -522,11 +578,12 @@ async fn ap_daily_payment_builder_binds_writer_confirmed_constant() {
 
 #[tokio::test]
 async fn ap_balance_builder_excludes_draft_from_opening_closing_balance() {
-    let db = sqlite_db().await;
-    setup_ap_invoices(&db).await;
+    let db = live_db().await;
+    let sid = seeded_supplier_id(&db).await;
+    setup_ap_invoices(&db, sid).await;
 
     let (sql, params) =
-        ApReportService::build_balance_sql_and_params(Some(77), date(2096, 12, 31), "<=");
+        ApReportService::build_balance_sql_and_params(Some(sid), date(2096, 12, 31), "<=");
     assert_eq!(
         params.len(),
         4,
@@ -542,14 +599,15 @@ async fn ap_balance_builder_excludes_draft_from_opening_closing_balance() {
 
     let rows = run_all(&db, sql, params).await;
     assert_eq!(
-        col_f64(&rows[0], 0),
-        1300.00,
+        col_decimal(&rows[0], 0),
+        dec!(1300.00),
         "未付余额只含 AUDITED+PARTIAL，草稿不得计入"
     );
 }
 
 // ===========================================================================
-// 5) 账龄 SQL：CURRENT_DATE 减法为 PG 专属语义，sqlite 只锁 $N 与常量槽位
+// 5) 账龄 SQL：本用例只锁 $N 占位与常量槽位（不执行含 CURRENT_DATE 减法的该段 SQL）；
+//    真库端到端的账龄/统计口径见第 8 节的 #[ignore] 活库锁
 // ===========================================================================
 
 #[tokio::test]
@@ -571,7 +629,8 @@ async fn ap_aging_builders_bind_all_status_constants_with_shifted_placeholders()
         );
         assert_placeholders_match_params(&sql, &params, "账龄（无过滤）");
 
-        // 供应商过滤形态：supplier 顺延为 $5
+        // 供应商过滤形态：supplier 顺延为 $5（该形态只做 SQL 文本/参数序断言，不触库，
+        // 故这里的 77 只是占位实参、不是外键引用）
         let (sql2, params2) = builder(date(2096, 12, 31), Some(77));
         assert_eq!(params2.len(), 5);
         assert!(
@@ -583,49 +642,12 @@ async fn ap_aging_builders_bind_all_status_constants_with_shifted_placeholders()
 }
 
 // ===========================================================================
-// 6) 生产服务行为锁：ApInvoiceService 余额汇总/账龄分析（纯 SeaORM，sqlite 真跑）
+// 6) 生产服务行为锁：ApInvoiceService 余额汇总/账龄分析（纯 SeaORM，真库真跑）
 // ===========================================================================
 
-/// 与 `models/ap_invoice.rs` 全列同构的 sqlite 表（Entity 全列 SELECT 解码需要）
-async fn setup_full_ap_invoice_table(db: &sea_orm::DatabaseConnection) {
-    exec_ddl(
-        db,
-        r#"CREATE TABLE ap_invoice (
-            id INTEGER PRIMARY KEY,
-            invoice_no TEXT NOT NULL,
-            supplier_id INTEGER NOT NULL,
-            invoice_type TEXT NOT NULL,
-            source_type TEXT,
-            source_id INTEGER,
-            invoice_date TEXT NOT NULL,
-            due_date TEXT NOT NULL,
-            payment_terms INTEGER NOT NULL,
-            amount NUMERIC NOT NULL,
-            paid_amount NUMERIC NOT NULL,
-            unpaid_amount NUMERIC NOT NULL,
-            invoice_status TEXT NOT NULL,
-            currency TEXT NOT NULL,
-            exchange_rate NUMERIC NOT NULL,
-            amount_foreign NUMERIC,
-            tax_amount NUMERIC NOT NULL,
-            notes TEXT,
-            attachment_urls TEXT,
-            created_by INTEGER NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_by INTEGER,
-            updated_at TEXT NOT NULL,
-            approved_by INTEGER,
-            approved_at TEXT,
-            cancelled_by INTEGER,
-            cancelled_at TEXT,
-            cancelled_reason TEXT
-        )"#,
-    )
-    .await;
-}
-
 async fn seed_invoice(
-    db: &sea_orm::DatabaseConnection,
+    db: &DatabaseConnection,
+    supplier_id: i32,
     no: &str,
     status: &str,
     amount: Decimal,
@@ -635,7 +657,7 @@ async fn seed_invoice(
     let now = Utc::now();
     ap_invoice::ActiveModel {
         invoice_no: Set(no.to_string()),
-        supplier_id: Set(77),
+        supplier_id: Set(supplier_id),
         invoice_type: Set("PURCHASE".to_string()),
         invoice_date: Set(date(2096, 12, 1)),
         due_date: Set(date(2000, 1, 31)), // 远超 180 天 → 账龄确定性落入最老桶
@@ -647,6 +669,8 @@ async fn seed_invoice(
         currency: Set("CNY".to_string()),
         exchange_rate: Set(Decimal::ONE),
         tax_amount: Set(Decimal::ZERO),
+        // 与第 1~4 节同一口径：ap_invoice.created_by 真库无外键约束（仅
+        // sales_orders.created_by 有 FK），此处为操作人常量，不伪造归属语义
         created_by: Set(1),
         created_at: Set(now),
         updated_at: Set(now),
@@ -659,10 +683,11 @@ async fn seed_invoice(
 
 #[tokio::test]
 async fn ap_invoice_service_balance_summary_excludes_draft_and_cancelled() {
-    let db = sqlite_db().await;
-    setup_full_ap_invoice_table(&db).await;
+    let db = live_db().await;
+    let sid = seeded_supplier_id(&db).await;
     seed_invoice(
         &db,
+        sid,
         "W6E-D",
         STATUS_DRAFT,
         dec!(2222.50),
@@ -672,6 +697,7 @@ async fn ap_invoice_service_balance_summary_excludes_draft_and_cancelled() {
     .await;
     seed_invoice(
         &db,
+        sid,
         "W6E-A",
         ap_invoice_status::INVOICE_AUDITED,
         dec!(1000.00),
@@ -681,6 +707,7 @@ async fn ap_invoice_service_balance_summary_excludes_draft_and_cancelled() {
     .await;
     seed_invoice(
         &db,
+        sid,
         "W6E-P",
         PAYMENT_PARTIAL_PAID,
         dec!(500.00),
@@ -690,6 +717,7 @@ async fn ap_invoice_service_balance_summary_excludes_draft_and_cancelled() {
     .await;
     seed_invoice(
         &db,
+        sid,
         "W6E-F",
         PAYMENT_PAID,
         dec!(400.00),
@@ -699,6 +727,7 @@ async fn ap_invoice_service_balance_summary_excludes_draft_and_cancelled() {
     .await;
     seed_invoice(
         &db,
+        sid,
         "W6E-C",
         STATUS_CANCELLED,
         dec!(3333.75),
@@ -709,9 +738,9 @@ async fn ap_invoice_service_balance_summary_excludes_draft_and_cancelled() {
 
     let svc = ApInvoiceService::new(Arc::new(db));
     let summary = svc
-        .get_balance_summary(Some(77))
+        .get_balance_summary(Some(sid))
         .await
-        .expect("get_balance_summary sqlite 执行失败");
+        .expect("get_balance_summary 真库执行失败");
     assert_eq!(
         summary.invoice_count, 3,
         "余额汇总只应剩 AUDITED/PARTIAL/PAID 三张"
@@ -731,10 +760,11 @@ async fn ap_invoice_service_balance_summary_excludes_draft_and_cancelled() {
 
 #[tokio::test]
 async fn ap_invoice_service_aging_analysis_excludes_draft_rows() {
-    let db = sqlite_db().await;
-    setup_full_ap_invoice_table(&db).await;
+    let db = live_db().await;
+    let sid = seeded_supplier_id(&db).await;
     seed_invoice(
         &db,
+        sid,
         "W6E-D",
         STATUS_DRAFT,
         dec!(2222.50),
@@ -744,6 +774,7 @@ async fn ap_invoice_service_aging_analysis_excludes_draft_rows() {
     .await;
     seed_invoice(
         &db,
+        sid,
         "W6E-A",
         ap_invoice_status::INVOICE_AUDITED,
         dec!(1000.00),
@@ -753,6 +784,7 @@ async fn ap_invoice_service_aging_analysis_excludes_draft_rows() {
     .await;
     seed_invoice(
         &db,
+        sid,
         "W6E-P",
         PAYMENT_PARTIAL_PAID,
         dec!(500.00),
@@ -762,6 +794,7 @@ async fn ap_invoice_service_aging_analysis_excludes_draft_rows() {
     .await;
     seed_invoice(
         &db,
+        sid,
         "W6E-C",
         STATUS_CANCELLED,
         dec!(3333.75),
@@ -772,9 +805,9 @@ async fn ap_invoice_service_aging_analysis_excludes_draft_rows() {
 
     let svc = ApInvoiceService::new(Arc::new(db));
     let buckets = svc
-        .get_aging_analysis(Some(77))
+        .get_aging_analysis(Some(sid))
         .await
-        .expect("get_aging_analysis sqlite 执行失败");
+        .expect("get_aging_analysis 真库执行失败");
     assert_eq!(buckets.len(), 1, "所有门内行同落最老桶");
     assert_eq!(buckets[0].aging_bucket, "逾期 180 天以上");
     assert_eq!(
@@ -967,30 +1000,17 @@ fn source_scan_ap_vocabulary_source_stays_in_writer_tables() {
 // 8) #[ignore] 真库锁（PG：占位语义 + 端到端报表值）
 // ===========================================================================
 
-/// 需要真实 Postgres（`TEST_DATABASE_URL`，已迁移库）：给既有供应商种
-/// DRAFT/AUDITED/CANCELLED 三张 2096-12 窗口的应付单（未来窗口天然隔离既有数据），
-/// 统计/日报只应计入 AUDITED。运行：
+/// 需要真实 Postgres（`test_common::setup_test_db()` → 已迁移库 + 清空业务表）：
+/// 给迁移种子参照表里的既有供应商种 DRAFT/AUDITED/CANCELLED 三张 2096-12 窗口的应付单
+/// （未来窗口天然隔离既有数据），统计/日报只应计入 AUDITED。运行：
 /// `cargo test --test contract_wave6_ap_status_literal_parity_test -- --ignored --nocapture`
 #[tokio::test]
-#[ignore = "需要 TEST_DATABASE_URL 指向已迁移的真实 Postgres（sqlite 不支持的 PG 占位/日期语义在此锁）"]
+#[ignore = "需要 TEST_DATABASE_URL 指向已迁移的真实 Postgres（PG 占位/日期语义在此锁）"]
 async fn ap_reports_on_real_db_count_only_audited() {
-    let url = std::env::var("TEST_DATABASE_URL")
-        .expect("TEST_DATABASE_URL 未设置——真库行为锁必须显式失败，禁止条件跳过假绿");
-    let db = Arc::new(
-        sea_orm::Database::connect(&url)
-            .await
-            .expect("连接 TEST_DATABASE_URL 失败"),
-    );
+    let db = Arc::new(test_common::setup_test_db().await);
 
-    let sid_row = db
-        .query_one_raw(Statement::from_string(
-            DbBackend::Postgres,
-            "SELECT id FROM suppliers ORDER BY id LIMIT 1".to_string(),
-        ))
-        .await
-        .expect("查询 suppliers 失败")
-        .expect("已迁移库应存在至少一个供应商（seed 数据）");
-    let supplier_id: i32 = sid_row.try_get_by_index(0).expect("supplier id 应为 i32");
+    // 外键父行：迁移播种的 suppliers 参照表（不参与清空），取真实 id 而非硬编码
+    let supplier_id = seeded_supplier_id(&db).await;
 
     let seed_prefix = "W6APPARITY-";
     let seed_pattern = format!("{seed_prefix}%");

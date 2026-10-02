@@ -4,6 +4,17 @@
 //! - calculate_quantity_kg 双计量单位换算 4 个分支（齐全/缺失/转换失败/None 回退）
 //! - 库存硬编码状态字符串常量值正确性
 //! - InventoryStockService 实例化
+//!
+//! 通道（路线一，#4669 判责）：
+//! - 需要可连接真库的用例经 `test_common::setup_test_db()` 连已迁移 PostgreSQL，
+//!   表结构唯一来源 = `backend/migration`；原写法 `TEST_DATABASE_URL` 缺失时
+//!   **静默回退 sqlite::memory:**，正是本批假绿的根（缺变量也"通过"），夹具现在
+//!   缺变量/指 sqlite 一律 panic，不存在回退分支。
+//! - 「无 schema 必须报数据库错误」一族走负前提交集
+//!   `test_common::connect_empty_schema_db()`（`TEST_EMPTY_DATABASE_URL` →
+//!   已建库但未跑迁移的 PostgreSQL），断言原文不动；同一文件两种连接并存属裁定 R3。
+mod test_common;
+
 use bingxi_backend::database::*;
 use bingxi_backend::handlers::inventory_stock_handler::*;
 use bingxi_backend::models::permission_delegation::*;
@@ -13,7 +24,6 @@ use bingxi_backend::utils::dual_unit_converter::*;
 use bingxi_backend::utils::error::*;
 
 use rust_decimal::Decimal;
-use sea_orm::Database;
 use std::sync::Arc;
 
 /// 复现 calculate_quantity_kg 调用 DualUnitConverter::meters_to_kg 的换算逻辑
@@ -118,24 +128,24 @@ fn test_kcybmztzfcclzzqx() {
     assert_ne!("合格", "ACTIVE");
 }
 
-/// test_fwslh_sqlitencsjk（验证 InventoryStockService 能在 SQLite 内存数据库上实例化，；不依赖真实 schema（new 不触发任何 DB 操作）。）
+/// test_fwslh_sqlitencsjk（验证 InventoryStockService 能在测试库上实例化，；不依赖真实
+/// schema（new 不触发任何 DB 操作）。函数名中的 sqlite 为历史命名；通道已按路线一改为
+/// `test_common::setup_test_db()` 连已迁移 PostgreSQL。）
 #[tokio::test]
 async fn test_fwslh_sqlitencsjk() {
-    let db_url =
-        std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&db_url)
-        .await
-        .expect("测试夹具：数据库连接失败");
-    let service = InventoryStockService::new(std::sync::Arc::new(db));
+    let db = test_common::setup_test_db().await;
+    let service = InventoryStockService::new(Arc::new(db));
     // 仅验证实例化成功，不触发实际 DB 查询
     let _ = service;
 }
 
 // ============ 核心 CRUD 方法测试（批次 488 P1 补测）============
 //
-// 无 schema 的 SQLite 内存数据库无法执行真实表查询，
-// 但可通过 #[ignore] 标注需真实 DB 的测试，
-// 同时保留参数对象/构造逻辑/双单位换算的纯逻辑测试。
+// 「无 schema 必须显式报错」一族的前提交集由负前提交集夹具提供：
+// `connect_empty_schema_db()` 连的是 CI 里**故意不跑迁移**的第二只 PostgreSQL
+// （TEST_EMPTY_DATABASE_URL），真表缺失 → 服务必须把 DbErr 归口 DATABASE_ERROR 上抛；
+// 缺该变量时夹具直接 panic，不允许回退 sqlite 或静默跳过（那会把这条锁变成假绿）。
+// 纯参数/换算逻辑的用例不落在此类前置上，仍为无 DB 依赖的普通单测。
 
 /// test_createstockargs_csdxgz（验证 CreateStockArgs 能完整携带 12 个字段，无字段遗漏。）
 #[test]
@@ -189,26 +199,24 @@ fn test_createstockfabricargs_csdxgz() {
     assert_eq!(args.layer_no.as_deref(), Some("L1"));
 }
 
-/// test_find_by_id_wschemafhcw（验证 find_by_id 在无 schema 时返回 Err（业务 DB 错误传播）。；标注 #[ignore] 避免污染 CI 测试统计。）
+/// test_find_by_id_wschemafhcw（验证 find_by_id 在无 schema 时返回 Err（业务 DB 错误传播）。；
+/// 前置走负前提交集夹具（已建库未跑迁移的 PostgreSQL），断言原文不动。）
 #[tokio::test]
-#[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
+#[ignore = "需要『已建库但未跑迁移』的第二只 PostgreSQL（TEST_EMPTY_DATABASE_URL），由 ci-test-rust-ignored 执行"]
 async fn test_find_by_id_wschemafhcw() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("DB 连接失败");
-    let service = InventoryStockService::new(std::sync::Arc::new(db));
+    let db = test_common::connect_empty_schema_db().await;
+    let service = InventoryStockService::new(Arc::new(db));
     let result = service.find_by_id(99999).await;
     assert!(result.is_err(), "无 schema 时应返回数据库错误");
 }
 
-/// test_create_stock_jyckczx（验证 create_stock 在仓库不存在时返回 validation 错误。；标注 #[ignore] 因校验在 DB 查询阶段，需表 schema。）
+/// test_create_stock_jyckczx（验证 create_stock 在仓库不存在时返回 validation 错误。；
+/// 前置走负前提交集夹具：仓库引用列在表缺失时即由 DbErr 显式上抛，同样必须 Err。）
 #[tokio::test]
-#[ignore = "需要 warehouses/products 表 schema（真实 DB）"]
+#[ignore = "需要『已建库但未跑迁移』的第二只 PostgreSQL（TEST_EMPTY_DATABASE_URL），由 ci-test-rust-ignored 执行"]
 async fn test_create_stock_jyckczx() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("DB 连接失败");
-    let service = InventoryStockService::new(std::sync::Arc::new(db));
+    let db = test_common::connect_empty_schema_db().await;
+    let service = InventoryStockService::new(Arc::new(db));
     let args = CreateStockArgs {
         warehouse_id: 99999,
         product_id: 1,
@@ -229,12 +237,10 @@ async fn test_create_stock_jyckczx() {
 
 /// test_list_stock_wschemafhcw（验证 list_stock 在无 schema 时返回 Err。）
 #[tokio::test]
-#[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
+#[ignore = "需要『已建库但未跑迁移』的第二只 PostgreSQL（TEST_EMPTY_DATABASE_URL），由 ci-test-rust-ignored 执行"]
 async fn test_list_stock_wschemafhcw() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("DB 连接失败");
-    let service = InventoryStockService::new(std::sync::Arc::new(db));
+    let db = test_common::connect_empty_schema_db().await;
+    let service = InventoryStockService::new(Arc::new(db));
     let filter = StockListFilter {
         page: 1,
         page_size: 10,
@@ -246,36 +252,32 @@ async fn test_list_stock_wschemafhcw() {
 
 /// test_delete_stock_wschemafhcw（验证 delete_stock 在无 schema 时返回 Err（找不到记录）。）
 #[tokio::test]
-#[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
+#[ignore = "需要『已建库但未跑迁移』的第二只 PostgreSQL（TEST_EMPTY_DATABASE_URL），由 ci-test-rust-ignored 执行"]
 async fn test_delete_stock_wschemafhcw() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("DB 连接失败");
-    let service = InventoryStockService::new(std::sync::Arc::new(db));
+    let db = test_common::connect_empty_schema_db().await;
+    let service = InventoryStockService::new(Arc::new(db));
     let result = service.delete_stock(99999, None).await;
     assert!(result.is_err(), "无 schema 时应返回数据库错误");
 }
 
 /// test_find_by_batch_and_color_wschemafhcw（验证 find_by_batch_and_color 在无 schema 时返回 Err。）
 #[tokio::test]
-#[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
+#[ignore = "需要『已建库但未跑迁移』的第二只 PostgreSQL（TEST_EMPTY_DATABASE_URL），由 ci-test-rust-ignored 执行"]
 async fn test_find_by_batch_and_color_wschemafhcw() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("DB 连接失败");
-    let service = InventoryStockService::new(std::sync::Arc::new(db));
+    let db = test_common::connect_empty_schema_db().await;
+    let service = InventoryStockService::new(Arc::new(db));
     let result = service.find_by_batch_and_color("B001", "C001", None).await;
     assert!(result.is_err(), "无 schema 时应返回数据库错误");
 }
 
 /// test_update_stock_grade_ffdjz
-/// 验证 update_stock_grade 在等级值非法时立即返回 validation 错误（不触发 DB 查询）。；此测试不需 schema，校验在 DB 查询前返回。
+/// 验证 update_stock_grade 在等级值非法时立即返回 validation 错误（不触发 DB 查询）。；
+/// 校验在 SQL 触库前返回，连接经路线一夹具取得（真库通道，不回退 sqlite）；
+/// 若未来有人把等级校验挪到查询之后，本用例在真库上会以"合法等级被放行"显式变红而非静默。
 #[tokio::test]
 async fn test_update_stock_grade_ffdjz() {
-    let db = Database::connect("sqlite::memory:")
-        .await
-        .expect("DB 连接失败");
-    let service = InventoryStockService::new(std::sync::Arc::new(db));
+    let db = test_common::setup_test_db().await;
+    let service = InventoryStockService::new(Arc::new(db));
     // 非法等级值（仅允许 一等品/二等品/等外品）
     let result = service
         .update_stock_grade(1, "三等品".to_string(), None)
