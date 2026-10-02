@@ -261,7 +261,13 @@ fn is_misc_direct_resource(part: &str) -> bool {
         | "audit"
         | "business-modes"
         | "business-mode-links"
-        | "consents"
+        // ===== 隐私同意域（与真实挂载对齐）=====
+        // 实际挂载 = /api/v1/erp/privacy/{consents,opt-in-all,opt-out-all}（routes/analytics.rs
+        // `.nest("/privacy", privacy())`），seg3=privacy。曾在此登记 "consents"（seg4 误登记为
+        // seg3 的挂载漂移），导致端点对外不可达、admin 也被白名单层 403（未知的资源路径）。
+        // 第四段是同一资源下的动作/查询面（consents/opt-in-all），与上方 dashboard/notifications
+        // 判据同型，故按直接资源登记 privacy（权限资源名=privacy），不得改登记 seg4 伪资源名。
+        | "privacy"
         | "customers"
         | "dye-batches"
         | "dye-batch-lifecycle-logs"
