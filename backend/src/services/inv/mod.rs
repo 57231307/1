@@ -186,7 +186,10 @@ pub struct UpdateInventoryTransferRequest {
 /// 更新端点必须能区分"没送"与"送了 null"，故独立 DTO。
 /// NOT NULL 列（inventory_transfer_item.product_id/quantity/color_no/batch_no，
 /// models/inventory_transfer_item.rs 模型为非 Option 列）不开 null 清空，
-/// 显式 null 由 service 在任何 DB 访问前拒绝；可空列 notes/unit_cost/dye_lot_no 开放清空。
+/// 显式 null 由 service 在任何 DB 访问前拒绝；可空列 notes/unit_cost 开放置 NULL。
+/// `dye_lot_no` 模型虽是 Option，但列 DDL 是 `NOT NULL DEFAULT ''`
+/// （migration/src/domain/system/mod.rs:292，同迁移已把历史 NULL 回填 ''），
+/// 故它的"清空"落空串（DB 里"无缸号"的合法表示即 ''），绝不能落 NULL。
 #[derive(Debug, Deserialize)]
 pub struct UpdateInventoryTransferItemRequest {
     /// 产品 ID：NOT NULL 列——显式 null 被 service 拒绝

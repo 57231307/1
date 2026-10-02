@@ -283,7 +283,8 @@ pub async fn add_item(
 /// 更新调拨单明细
 ///
 /// 载荷为三态 DTO（UpdateInventoryTransferItemRequest，服务侧 inv/mod.rs 定义）：
-/// 键缺席=保持、显式 null=清空（仅 DB 可空列 notes/unit_cost/dye_lot_no）、有值=覆盖；
+/// 键缺席=保持、显式 null=清空（可空列 notes/unit_cost/piece_no 置 NULL；缸号列
+/// DDL 为 NOT NULL DEFAULT ''，其"清空"落空串）、有值=覆盖；
 /// NOT NULL 列显式 null 由 service 在任何 DB 访问前拒绝。
 pub async fn update_item(
     State(state): State<AppState>,

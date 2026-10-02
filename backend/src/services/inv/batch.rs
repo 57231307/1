@@ -1273,9 +1273,10 @@ impl InventoryTransferService {
     /// None（键缺席）=保持原值、Some(None)（显式 null）=置 NULL（仅 DB 可空列）、
     /// Some(Some(v))=覆盖。NOT NULL 列（product_id/quantity/color_no/batch_no，
     /// models/inventory_transfer_item.rs 模型为非 Option 列）的显式 null 在任何 DB
-    /// 访问前被拒绝。请求声明的可空列（unit_cost/dye_lot_no/notes）逐项如实落库，
+    /// 访问前被拒绝。请求声明的可空列（unit_cost/notes）逐项如实落库，
     /// 不得静默丢弃（原实现只应用 product_id/quantity/notes，unit_cost 与追溯字段
-    /// 改了库里没变，即"假保存"缺陷形态）。
+    /// 改了库里没变，即"假保存"缺陷形态）。缸号列模型虽是 Option，DDL 却是
+    /// `NOT NULL DEFAULT ''`，其"清空"落空串（见下方 active.dye_lot_no 注释）。
     pub async fn update_item(
         &self,
         item_id: i32,
@@ -1348,7 +1349,8 @@ impl InventoryTransferService {
         let item_product_id = item_model.product_id;
         let mut active: inventory_transfer_item::ActiveModel = item_model.into_active_model();
         // 三态写入规则：None=不 Set（UPDATE 不含该列，原值不动）；
-        // Some(None)=Set(None) 置 NULL（仅 DB 可空列）；Some(Some(v))=Set(v) 覆盖。
+        // Some(None)=Set(None) 置 NULL（仅 DB 可空列 notes/unit_cost/piece_no）；
+        // Some(Some(v))=Set(v) 覆盖。
         // product_id/quantity 为 NOT NULL 列（Some(None) 已入口拒绝）：仅覆盖/保持
         if let Some(product_id) = req.product_id.flatten() {
             active.product_id = sea_orm::ActiveValue::Set(product_id);
@@ -1366,10 +1368,22 @@ impl InventoryTransferService {
         if let Some((eff_color, eff_dye, eff_batch, eff_piece)) = eff_trace_inputs {
             // 款号维度取生效值（请求覆盖后以原行归属兜底），与三态写入 active.product_id 的口径一致
             let eff_product_id = req.product_id.flatten().unwrap_or(item_product_id);
-            let dims =
-                Self::validate_trace_fields(eff_product_id, eff_color, eff_dye, eff_batch, eff_piece)?;
+            let dims = Self::validate_trace_fields(
+                eff_product_id,
+                eff_color,
+                eff_dye,
+                eff_batch,
+                eff_piece,
+            )?;
             active.color_no = sea_orm::ActiveValue::Set(dims.color_no);
-            active.dye_lot_no = sea_orm::ActiveValue::Set(dims.dye_lot_no);
+            // 缸号列 DDL 是 NOT NULL DEFAULT ''（system/mod.rs:292，且同迁移把历史 NULL
+            // 回填成 ''），所以 DB 里"无缸号"的合法表示是空串而不是 NULL：白坯归一为 None
+            // 时必须落 ''。此处若 Set(None) 会生成 `SET dye_lot_no = NULL` 撞 23502，
+            // 被拍平成脱敏 DATABASE_ERROR 500（同批建单路径 batch.rs:1225 / inventory_move.rs:339
+            // 用 NotSet 让 DEFAULT '' 生效，update 路径不能照抄——NotSet 会让"染色改白坯"
+            // 残留旧缸号，同样是数据说谎）。
+            active.dye_lot_no =
+                sea_orm::ActiveValue::Set(Some(dims.dye_lot_no.unwrap_or_default()));
             active.batch_no = sea_orm::ActiveValue::Set(dims.batch_no);
             // 匹号为 DB 可空列（m0066）：染色布必填值 / 白坯归一 None 均如实落库
             active.piece_no = sea_orm::ActiveValue::Set(dims.piece_no);

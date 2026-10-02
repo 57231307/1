@@ -17,7 +17,8 @@
 //!    - PUT /inventory/counts/{id}（notes 可空）
 //!    - PUT /inventory/counts/items/{item_id}（notes 可空；quantity_actual NOT NULL 拒清）
 //!    - PUT /inventory/transfers/{id}（notes 可空）
-//!    - PUT /inventory/transfers/items/{item_id}（notes/unit_cost/dye_lot_no 可空）
+//!    - PUT /inventory/transfers/items/{item_id}（notes/unit_cost/piece_no 可空置 NULL；
+//!      dye_lot_no 模型虽为 Option 但列 DDL 是 NOT NULL DEFAULT ''，"清空"落 ''）
 //!    - PUT /sales/returns/{id}（order_id/notes 可空；reason_detail 虚拟入参）
 //!    - PUT /sales/returns/{id}/items/{item_id}（reason→notes 可空）
 //!    - PUT /purchase/receipts/{id}（department_id/inspector_id/notes/attachment_urls 可空）
@@ -1519,6 +1520,144 @@ async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
     let row = reload().await;
     assert_eq!(row.dye_lot_no.as_deref(), Some("DL009"), "拒绝后缸号保持");
     assert!(row.notes.is_none(), "同请求的 notes 不得部分落库");
+}
+
+/// 白坯调拨明细（色号空串）更新的真库回读锁（复审 #4669 阻断项 B-1 的回归锁）。
+///
+/// 缸号列 DDL 是 `NOT NULL DEFAULT ''`（migration/src/domain/system/mod.rs:292，同迁移
+/// 已把历史 NULL 回填 ''），所以 DB 里"无缸号"的合法表示是空串。原 update 实现
+/// `active.dye_lot_no = Set(dims.dye_lot_no)` 在白坯归一为 None 时生成
+/// `SET dye_lot_no = NULL` → PG 23502 → 被拍平成脱敏 DATABASE_ERROR 500，
+/// 即"白坯明细只改个批次也必 500"（本文件 C3 只播染色布行，抓不到这条路径）。
+/// 建单路径用 NotSet 让 DEFAULT '' 生效，update 路径不能照抄——NotSet 会让
+/// "染色改回白坯"残留旧缸号（步骤 3 钉死），故正确写法是显式落 ''。
+#[tokio::test]
+async fn transfer_item_update_greige_dye_lot_lands_empty_string_on_postgres() {
+    let db = setup_test_db().await;
+    seed_warehouses_and_products(&db).await;
+    let transfer = inventory_transfer::ActiveModel {
+        transfer_no: Set("TR-W3-GREIGE".to_string()),
+        from_warehouse_id: Set(1),
+        to_warehouse_id: Set(2),
+        transfer_date: Set(Utc.with_ymd_and_hms(2026, 9, 2, 0, 0, 0).unwrap()),
+        status: Set(transfer_status::PENDING.to_string()),
+        total_quantity: Set(dec("8.00")),
+        notes: Set(None),
+        total_amount: Set(Decimal::ZERO),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    // 白坯行的真实形态：色号空串 + 缸号空串（建单路径 NotSet 让 DEFAULT '' 生效）
+    let item = inventory_transfer_item::ActiveModel {
+        transfer_id: Set(transfer.id),
+        product_id: Set(5),
+        quantity: Set(dec("8.00")),
+        shipped_quantity: Set(Decimal::ZERO),
+        received_quantity: Set(Decimal::ZERO),
+        unit_cost: Set(None),
+        notes: Set(None),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        color_no: Set(String::new()),
+        dye_lot_no: Set(Some(String::new())),
+        batch_no: Set("B7".to_string()),
+        piece_no: Set(None),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let item_id = item.id;
+    let service = InventoryTransferService::new(Arc::new(db.clone()));
+    let reload = || {
+        let db = db.clone();
+        async move {
+            inventory_transfer_item::Entity::find_by_id(item_id)
+                .one(&db)
+                .await
+                .unwrap()
+                .unwrap()
+        }
+    };
+
+    // 1) 白坯行只改批次（追溯键被提交 → 进四维判定，缸号归一 None）：必须成功且落 ''
+    service
+        .update_item(
+            item_id,
+            UpdateInventoryTransferItemRequest {
+                product_id: None,
+                quantity: None,
+                notes: None,
+                unit_cost: None,
+                color_no: None,
+                dye_lot_no: None,
+                batch_no: Some(Some("B8".to_string())),
+                piece_no: None,
+            },
+        )
+        .await
+        .expect("白坯明细改批次必须成功（修复前此处 500：SET dye_lot_no = NULL 撞 NOT NULL）");
+    let row = reload().await;
+    assert_eq!(row.batch_no, "B8", "有值=覆盖");
+    assert_eq!(
+        row.dye_lot_no.as_deref(),
+        Some(""),
+        "白坯缸号必须落空串（DB 的\"无缸号\"表示），既不得为 NULL 也不得报错"
+    );
+
+    // 2) 白坯改染色：四维（色/缸/批/匹）齐全如实覆盖
+    service
+        .update_item(
+            item_id,
+            UpdateInventoryTransferItemRequest {
+                product_id: None,
+                quantity: None,
+                notes: None,
+                unit_cost: None,
+                color_no: Some(Some("C77".to_string())),
+                dye_lot_no: Some(Some("DL77".to_string())),
+                batch_no: Some(Some("B8".to_string())),
+                piece_no: Some(Some("P-77".to_string())),
+            },
+        )
+        .await
+        .expect("染色布四维齐全必须放行");
+    let row = reload().await;
+    assert_eq!(row.color_no, "C77");
+    assert_eq!(row.dye_lot_no.as_deref(), Some("DL77"));
+    assert_eq!(row.piece_no.as_deref(), Some("P-77"));
+
+    // 3) 染色改回白坯（显式清空缸号+匹号、色号清空）：缸号必须真的变成 ''，
+    //    不得像建单路径那样靠 NotSet 保持——残留 DL77 就是数据说谎
+    service
+        .update_item(
+            item_id,
+            UpdateInventoryTransferItemRequest {
+                product_id: None,
+                quantity: None,
+                notes: None,
+                unit_cost: None,
+                color_no: Some(Some(String::new())),
+                dye_lot_no: Some(None),
+                batch_no: None,
+                piece_no: Some(None),
+            },
+        )
+        .await
+        .expect("色号清空为白坯后清空缸号/匹号必须放行");
+    let row = reload().await;
+    assert_eq!(row.color_no, "", "色号清空落库");
+    assert_eq!(
+        row.dye_lot_no.as_deref(),
+        Some(""),
+        "改回白坯后缸号必须清空为 ''，不得残留 DL77"
+    );
+    assert!(row.piece_no.is_none(), "匹号是 m0066 可空列，显式 null 落 NULL");
+    assert_eq!(row.batch_no, "B8", "缺席键保持原批次");
 }
 
 // =========================================================
