@@ -22,6 +22,13 @@
 //!   （否则 self 销售领取他人公海行会被打死，本文件用例 4 就是这条可用性锁）；
 //!   命中非公海行时才回落到同一个 `check_resource_owner`（用例 2）。
 //!
+//! 与 2026-10-02 用户裁定**方案 A**（读可 All、写须 owner 或显式 `crm/cross_owner_write`
+//! 代表键+留痕）的关系：领取/回收属**公海分支**，维持现状不套跨 owner 写门
+//! （`utils/data_scope.rs::check_resource_owner` 文档与 `crm_write_guard` 同口径）；
+//! 本文件用例 5 的 admin 回收 200 依据是 admin 既有通道，非"凡 All 皆可代写"
+//! （私海行的跨 owner 代写门见 `contract_wave7_crm_read_vs_write_gate_test.rs`
+//! 与合并/分配族各测）。
+//!
 //! 覆盖（真 PostgreSQL 真跑 + 真 HTTP 装配，无硬编码 JSON 假断言；行状态一律用
 //! `crm_lead::Entity::find_by_id` 回读真库比对，证明"零漂移"。通道为路线一：
 //! `test_common::setup_test_db()`，表结构唯一来源 = backend/migration，

@@ -310,7 +310,20 @@ pub async fn delete_customer(
     // 真实原因只进服务端日志），杜绝仅凭 RBAC 键按 id 删他人行。
     // admin 的 `DataScope::All` 通道按既有语义原样通过，未收紧。
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_lead(id, Some(&data_scope_ctx)).await?;
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    // 方案 A（用户 2026-10-02 裁定）：可见 ≠ 可删。增强入口删除落的是 crm_lead 行，
+    // 跨 owner 写须 owner 本人或持有 crm/cross_owner_write 代表键（放行即 tracing::info
+    // 留痕）；无键 403 出参恒为固定脱敏常量。门后 service.delete_lead 的 FK 引用预校验
+    // 与并发兜底（G-221 收口，被引用线索删 400 不裸 500）逐字保留。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "客户删除（增强入口，落线索行）",
+    )
+    .await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service.delete_lead(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(
@@ -329,6 +342,21 @@ pub async fn add_tags(
     req.validate().map_err(AppError::from)?;
 
     let service = CrmService::new(state.db.clone());
+
+    // 方案 A（用户 2026-10-02 裁定）：挂标签落的是 crm_lead 行的 tags 列，同属**线索更新**。
+    // 修复前本入口无任何归属校验（service.update_lead 内不注入 ctx），任意用户可按 id
+    // 改他人线索标签；现先按 ctx 读行（与其它写入口同判定源）再过跨 owner 写门。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索标签更新",
+    )
+    .await?;
 
     let update_req = UpdateLeadRequest {
         tags: Some(req.tags),

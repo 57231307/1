@@ -6,8 +6,11 @@
 //!   `get_lead(id, Some(&ctx))`（owner=owner_id）预检，判定源
 //!   `utils/data_scope.rs::check_resource_owner` 零新造。任一行不可见即整笔 403
 //!   （固定脱敏文案 + FORBIDDEN 码，真实原因只进服务端日志），且**零写入**（先判后写，
-//!   不落"部分成功"）。admin 的 `DataScope::All` 既有通道未收紧——是否豁免另线裁定，
-//!   本锁只固定"与其它入口同门"这一事实。
+//!   不落"部分成功"）。2026-10-02 用户裁定**方案 A** 已落定 All 豁免问题：读可 All、
+//!   写须 owner 本人或显式 `crm/cross_owner_write` 代表键 + 留痕（admin 靠 is_admin_role
+//!   放行路径不变）——本文件据此在既有断言之上**只收紧不放宽**地补齐两侧：
+//!   非 admin 的 all 范围无键跨 owner 写 403（用例 #223-C）、带键 2xx + 审计行
+//!   actor=操作人（#223-D）；admin 通道用例保持 200。
 //! - #225 `POST /customer-shares` 裸 500（CI run #4669 e2e
 //!   `frontend/e2e/crm/05-assign-share-merge.spec.ts:341`，backend.log 真因：
 //!   `error occurred while decoding column "id": mismatched types; Rust type
@@ -271,8 +274,9 @@ async fn enhanced_update_self_scope_owner_row_passes_same_gate() {
 
 #[tokio::test]
 async fn enhanced_update_admin_all_scope_channel_not_tightened() {
-    // admin 的 DataScope::All 既有通道原样通过（check_resource_owner All=true）——
-    // 本项只把"完全没有门"变成"与其它入口同门"，是否豁免 All 另线裁定，此处锁"未收紧"
+    // 裁定方案 A（2026-10-02）：admin 靠 check_permission 内置 is_admin_role 放行，
+    // "放行路径不变"——本 200 的依据是 admin 身份（role_id=1，code='admin'），
+    // 不是"凡 data_scope=all 皆可代写"（该侧由 #223-C/D 用非 admin 角色双向锁定）
     let state = base_state().await;
     let app = build_app(state, make_auth(ADMIN, "admin_user", Some(1), "all"));
     let (status, v) = send(
@@ -283,6 +287,103 @@ async fn enhanced_update_admin_all_scope_channel_not_tightened() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "All 通道不得被本门收紧: {v}");
+}
+
+// ---------------------------------------------------------------------------
+// #223-C · 裁定方案 A 改判侧：非 admin 的 data_scope=all 角色**无代表键**跨 owner 写
+//         → 403 + FORBIDDEN + 零写入。旧口径"可见即可改（All=200）"即水平越权成因，
+//         裁定"读门不得复用为写门"后本侧必须为 403；只断 status/code/固定脱敏常量。
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn all_scope_non_admin_without_key_cross_owner_update_is_403_zero_write() {
+    let state = base_state().await;
+    let db = state.db.clone();
+    // OTHER(user 60) + role_id=2（非 admin）+ data_scope=all，未授予任何代表键
+    let app = build_app(state, make_auth(OTHER, "sales_b", Some(2), "all"));
+    let (status, v) = send(
+        &app,
+        Method::PUT,
+        "/erp/crm/customers/enhanced/1",
+        json!({"customer_name": "代操作改名"}),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "All 范围非 admin 无代表键改他人行必须 403（读门不得复用为写门）: {v}"
+    );
+    assert_eq!(v["code"], "FORBIDDEN");
+    assert_eq!(v["message"], err_msg::PERMISSION_PUBLIC);
+    assert_error_envelope_shape(&v);
+    let rows = query_names(
+        &db,
+        "SELECT customer_name AS v2 FROM customers WHERE id=1 AND customer_name='甲客户'",
+    )
+    .await;
+    assert_eq!(rows.len(), 1, "被拒后必须零写入: {rows:?}");
+}
+
+// ---------------------------------------------------------------------------
+// #223-D · 裁定方案 A 放行侧：同一非 admin all 角色**显式授予** crm/cross_owner_write
+//         代表键后跨 owner 写 → 2xx + 真生效 + 审计行 actor=操作人（audit_logs 可查
+//         证据；放行同时 crm_write_guard 打 tracing::info! 结构化留痕，其存在由
+//         contract_wave7_crm_read_vs_write_gate_test.rs 源码棘轮锁定）。
+//         键仅在本用例内授予——迁移不为任何角色播种（棘轮同锁）。
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn all_scope_non_admin_with_behalf_key_update_succeeds_and_leaves_audit() {
+    let state = base_state().await;
+    let db = state.db.clone();
+    exec(
+        &db,
+        "INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+         VALUES (2,'crm','cross_owner_write',TRUE,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+    )
+    .await;
+    let app = build_app(state, make_auth(OTHER, "sales_b", Some(2), "all"));
+    let (status, v) = send(
+        &app,
+        Method::PUT,
+        "/erp/crm/customers/enhanced/1",
+        json!({"customer_name": "代操作改名"}),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "持代表键的 All 范围代他人写按裁定应 2xx: {v}"
+    );
+    let rows = query_names(
+        &db,
+        "SELECT customer_name AS v2 FROM customers WHERE id=1 AND customer_name='代操作改名'",
+    )
+    .await;
+    assert_eq!(rows.len(), 1, "更新须真实生效: {rows:?}");
+
+    // 审计留痕可查证：update_with_audit 落 actor=操作人（非归属人）的审计行
+    let audits = query_names(
+        &db,
+        "SELECT user_id AS v1 FROM audit_logs WHERE resource_type='customer' \
+         AND resource_id='1' AND user_id=60",
+    )
+    .await;
+    assert!(
+        !audits.is_empty(),
+        "代操作写必须有 actor=操作人(60) 的 audit_logs 行（双轨留痕：审计行 + tracing 日志）: {audits:?}"
+    );
+}
+
+/// 硬约束棘轮："该键不播种给任何角色"——迁移内不得出现任何 cross_owner_write 播种；
+/// admin 的放行只来自 check_permission 的 is_admin_role，而非权限行。
+#[test]
+fn source_scan_cross_owner_write_key_is_never_seeded_in_migration() {
+    let ddl = read_src("migration/src/domain/v15/mod.rs");
+    assert!(
+        !ddl.contains("cross_owner_write"),
+        "回潮棘轮：迁移给角色播种了 crm/cross_owner_write（裁定：该键不播种，须运维显式授予）"
+    );
 }
 
 // ---------------------------------------------------------------------------

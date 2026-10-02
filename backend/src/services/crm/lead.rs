@@ -12,7 +12,8 @@ use crate::models::status::crm_lead as lead_status;
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{
-    DataScopeContext, PoolVisibility, apply_department_scope_with_pool, check_resource_owner,
+    DataScope, DataScopeContext, PoolVisibility, apply_department_scope_with_pool,
+    check_resource_owner, check_resource_write_owner,
 };
 use crate::utils::error::AppError;
 use crate::utils::messages::err_msg;
@@ -1033,17 +1034,23 @@ impl CrmService {
     ///
     /// 行级数据权限（`data_scope`）是**写路径**硬约束：合并不可逆，不注入 scope 时
     /// 任何用户都可把自己看不到的他人线索合并掉（越权写）。主线索与每一条重复线索
-    /// （存在行）都必须落在调用方可见集内，判定与 `get_lead` 的 IDOR 防护同一来源
-    /// （`check_resource_owner`，与 `list_leads` 的 `apply_department_scope_with_pool`
-    /// 同口径）。**任一行不可见即整笔拒绝**（403），禁止"跳过不可见行继续合并其余"
-    /// 的静默降级；预校验全部通过后才落写，保证拒绝时零漂移。真实原因只进日志
+    /// （存在行）都必须通过**写侧归属门**——方案 A（用户 2026-10-02 裁定）：读可 All、
+    /// 写须 owner 本人或持有 `crm/cross_owner_write` 代表键（`behalf_granted`，由 handler
+    /// 经 `crm_write_guard::cross_owner_write_behalf_granted` 查得，N 行只查一次键），
+    /// 判定源 = `utils::data_scope::check_resource_write_owner`（Dept 代管本职无需键、
+    /// Self_ 仅本人行；**读门 `check_resource_owner` 不得复用为写门**——那正是本缺陷成因）。
+    /// **任一行未过写门即整笔拒绝**（403），禁止"跳过不可见行继续合并其余"的静默降级；
+    /// 预校验全部通过后才落写，保证拒绝时零漂移。真实原因只进日志
     /// （`AppError::permission_denied` 出参恒为固定脱敏文案 + FORBIDDEN 码）。
+    /// 代他人合并（All + 键 + 非本人行）逐行打 `tracing::info!` 留痕，与单行写入口
+    /// `ensure_cross_owner_write_allowed` 同构口径。
     pub async fn merge_leads(
         &self,
         master_lead_id: i32,
         duplicate_lead_ids: Vec<i32>,
         user_id: i32,
         data_scope: Option<&DataScopeContext>,
+        behalf_granted: bool,
     ) -> Result<MergeResult, AppError> {
         let txn = self.db.begin().await?;
 
@@ -1054,18 +1061,37 @@ impl CrmService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("主线索不存在：{}", master_lead_id)))?;
 
-        // 预校验（先判后写）：主线索必须在可见集内（与 get_lead 同一判定）
+        // 预校验（先判后写）：主线索必须过**写侧**归属门（方案 A）
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(master.owner_id), master.department_id) {
+            if !check_resource_write_owner(
+                ctx,
+                Some(master.owner_id),
+                master.department_id,
+                behalf_granted,
+            ) {
+                tracing::warn!(
+                    actor = ctx.user_id,
+                    lead_id = master_lead_id,
+                    resource_owner = master.owner_id,
+                    "合并主线索未过跨 owner 写门，整笔拒绝（原因不外显）"
+                );
                 return Err(AppError::permission_denied(format!(
-                    "无权合并线索 {}（数据范围限制：主线索非可见行）",
+                    "无权合并线索 {}（数据范围限制：主线索非本人行且未持代操作授权）",
                     master_lead_id
                 )));
             }
+            if behalf_granted && master.owner_id != ctx.user_id && ctx.scope == DataScope::All {
+                tracing::info!(
+                    actor = ctx.user_id,
+                    resource = "线索合并（主线索）",
+                    resource_owner = master.owner_id,
+                    "代操作写放行（方案 A：All 范围 + 显式 cross_owner_write 键，合并入口）"
+                );
+            }
         }
 
-        // 预校验每一条重复线索（存在的行）均在可见集内并收集待合并行；
-        // 任一行不可见即整笔拒绝，此时尚无任何写操作，天然零漂移
+        // 预校验每一条重复线索（存在的行）均过写侧归属门并收集待合并行；
+        // 任一行被拒即整笔拒绝，此时尚无任何写操作，天然零漂移
         let mut dup_targets: Vec<crm_lead::Model> = Vec::new();
         for dup_id in &duplicate_lead_ids {
             if *dup_id == master_lead_id {
@@ -1077,11 +1103,31 @@ impl CrmService {
                 .await?;
             if let Some(dup) = dup_lead {
                 if let Some(ctx) = data_scope {
-                    if !check_resource_owner(ctx, Some(dup.owner_id), dup.department_id) {
+                    if !check_resource_write_owner(
+                        ctx,
+                        Some(dup.owner_id),
+                        dup.department_id,
+                        behalf_granted,
+                    ) {
+                        tracing::warn!(
+                            actor = ctx.user_id,
+                            lead_id = *dup_id,
+                            resource_owner = dup.owner_id,
+                            "合并重复线索未过跨 owner 写门，整笔拒绝（原因不外显）"
+                        );
                         return Err(AppError::permission_denied(format!(
-                            "无权合并线索 {}（数据范围限制：重复线索非可见行）",
+                            "无权合并线索 {}（数据范围限制：重复线索非本人行且未持代操作授权）",
                             dup_id
                         )));
+                    }
+                    if behalf_granted && dup.owner_id != ctx.user_id && ctx.scope == DataScope::All
+                    {
+                        tracing::info!(
+                            actor = ctx.user_id,
+                            resource = "线索合并（重复线索）",
+                            resource_owner = dup.owner_id,
+                            "代操作写放行（方案 A：All 范围 + 显式 cross_owner_write 键，合并入口）"
+                        );
                     }
                 }
                 dup_targets.push(dup);

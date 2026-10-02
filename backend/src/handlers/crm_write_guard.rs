@@ -50,8 +50,12 @@ pub async fn ensure_cross_owner_write_allowed(
 
     if ctx.scope != DataScope::All {
         // Dept / Self：沿用原归属判定语义（可见部门 / 仅本人），不引入新键
-        if crate::utils::data_scope::check_resource_write_owner(ctx, resource_owner_id, resource_dept_id, false)
-        {
+        if crate::utils::data_scope::check_resource_write_owner(
+            ctx,
+            resource_owner_id,
+            resource_dept_id,
+            false,
+        ) {
             return Ok(());
         }
         return Err(AppError::permission_denied(format!(
@@ -104,4 +108,76 @@ pub async fn ensure_cross_owner_write_allowed(
         "代操作写放行（方案 A：All 范围 + 显式 cross_owner_write 键）"
     );
     Ok(())
+}
+
+/// 批量/合并族入口的代操作键查询（**N 行只查一次键**，行级判定仍回落
+/// `utils::data_scope::check_resource_write_owner` 单一判定源）——这类入口待写行
+/// 集合由 service 在事务内确定，handler 无法逐行预调
+/// [`ensure_cross_owner_write_allowed`]（那会 N 次查键），故拆出本函数只回答
+/// "操作人是否持有代表键"这一事实。
+///
+/// 语义与 [`ensure_cross_owner_write_allowed`] 完全一致：
+/// - admin 角色由 `check_permission` 内置放行（`is_admin_role`），此处等价 granted=true；
+/// - `Dept`/`Self_` 范围返回 false——其行的放行与否由 `check_resource_write_owner`
+///   的部门/本人分支决定，`behalf_granted` 参数本就不参与该分支判定；
+/// - role_id 缺失或权限查询失败：fail-closed 返回 false（不静默放行），
+///   原因只进日志，绝不进任何出参。
+pub async fn cross_owner_write_behalf_granted(
+    state_db: Arc<sea_orm::DatabaseConnection>,
+    auth: &AuthContext,
+    ctx: &DataScopeContext,
+) -> bool {
+    if ctx.scope != DataScope::All {
+        return false;
+    }
+    let role_id = match auth.role_id {
+        Some(id) => id,
+        None => {
+            tracing::warn!(
+                actor = auth.user_id,
+                "代操作键查询：角色未加载，按 fail-closed 视为未授予"
+            );
+            return false;
+        }
+    };
+    match RolePermissionService::new(state_db)
+        .check_permission(
+            role_id,
+            CROSS_OWNER_WRITE_KEY.0,
+            CROSS_OWNER_WRITE_KEY.1,
+            None,
+        )
+        .await
+    {
+        Ok(granted) => granted,
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                actor = auth.user_id,
+                role = role_id,
+                "代操作键查询失败，按未授予处理（fail-closed，不静默放行）"
+            );
+            false
+        }
+    }
+}
+
+/// 代操作写放行留痕（批量/合并族）：一行确实"代他人写了"（All 范围、非本人行、
+/// 凭代表键放行）时打与 [`ensure_cross_owner_write_allowed`] 同构的结构化 info 日志，
+/// 保证两条接入形态的留痕口径一致、可按 actor/resource_owner 审计回溯。
+pub fn trace_behalf_write_granted(
+    auth: &AuthContext,
+    ctx: &DataScopeContext,
+    owner_id: i32,
+    resource_label: &str,
+) {
+    if ctx.scope == DataScope::All && owner_id != ctx.user_id {
+        tracing::info!(
+            actor = auth.user_id,
+            role = ?auth.role_id,
+            resource = resource_label,
+            resource_owner = owner_id,
+            "代操作写放行（方案 A：All 范围 + 显式 cross_owner_write 键，批量入口）"
+        );
+    }
 }

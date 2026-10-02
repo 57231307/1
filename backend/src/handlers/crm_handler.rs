@@ -698,7 +698,20 @@ pub async fn update_lead(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_lead + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_lead(id, Some(&data_scope_ctx)).await?;
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    // 方案 A（用户 2026-10-02 裁定）：读可 All、写须 owner 或显式「管理员代操作」键 + 留痕。
+    // 上面的 get_lead 只保证"看得见"（All 看得见全库）；跨 owner 的**写**另由本门判定
+    // （owner=crm_lead.owner_id、dept=department_id），未授予 crm/cross_owner_write 的
+    // All 范围角色改他人线索即 403（固定脱敏文案，原因只进日志）。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索更新",
+    )
+    .await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let res = service.update_lead(id, req, auth.user_id).await?;
     let mut value = serde_json::to_value(res)?;
@@ -718,7 +731,19 @@ pub async fn delete_lead(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_lead + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_lead(id, Some(&data_scope_ctx)).await?;
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    // 方案 A：删除是跨 owner 写的最强形态，须 owner 本人或持有代操作键（All 范围）。
+    // 门后 service.delete_lead 的 FK 引用预校验/并发兜底（G-221 收口）逐字保留——
+    // 本门只拒"无权删他人行"，不改"被引用线索删除失败 400 而非裸 500"的既有语义。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索删除",
+    )
+    .await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service.delete_lead(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
@@ -734,6 +759,21 @@ pub async fn update_lead_status(
     payload.validate().map_err(AppError::from)?;
 
     let service = CrmService::new(state.db.clone());
+    // 方案 A（用户 2026-10-02 裁定）：状态变更同属跨 owner 写。修复前本入口**没有任何**
+    // 归属校验（service 内 get_lead(lead_id, None) 整体跳过行级判定），任意用户可按 id
+    // 改他人线索状态；现先按 ctx 读行（owner=owner_id、dept=department_id）再过写门，
+    // 之后 service 的状态词表强校验（ensure_valid_lead_status）逐字保留。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索状态变更",
+    )
+    .await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service
         .update_lead_status(id, &payload.status, auth.user_id)
@@ -905,7 +945,19 @@ pub async fn update_opportunity(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_opportunity + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    // 方案 A（用户 2026-10-02 裁定）：读可 All、写须 owner 或显式代操作键 + 留痕。
+    // get_opportunity 只保证"看得见"；跨 owner 写另由本门判定（owner=owner_id、
+    // dept=department_id），无 crm/cross_owner_write 键的 All 范围角色改他人商机即 403。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机更新",
+    )
+    .await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let res = service.update_opportunity(id, req, auth.user_id).await?;
     let mut value = serde_json::to_value(res)?;
@@ -928,7 +980,18 @@ pub async fn delete_opportunity(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_opportunity + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    // 方案 A（商机同族不留缺口）：删除是跨 owner 写的最强形态，与 update 同门判定
+    // （owner=owner_id、dept=department_id）；service 侧既有引用/FK 语义不受影响。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机删除",
+    )
+    .await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service.delete_opportunity(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
@@ -958,7 +1021,18 @@ pub async fn close_opportunity_as_lost(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S02：IDOR 防护 — 关单操作前先校验资源归属
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    // 方案 A：输单关单改他人商机主行同属跨 owner 写，与 update/delete 同门；
+    // service 侧"已赢单/已输单不可重复关单"的业务状态门逐字保留。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机输单关单",
+    )
+    .await?;
     let res = service
         .close_as_lost(id, req.lost_reason, auth.user_id)
         .await?;
@@ -1153,10 +1227,24 @@ pub async fn create_allocation_rule(
 pub async fn auto_assign_lead(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<AutoAssignRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // 方案 A（用户 2026-10-02 裁定）⑤：本端点按指定 id 改写线索 owner_id，属分配族。
+    // 修复前**完全无归属校验**（_auth 未用、service 内 get_lead(id, None) 跳过行级判定），
+    // 任意用户可按 id 把他人线索改挂到规则匹配的用户名下。先按 ctx 读行再过跨 owner 写门。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索自动分配",
+    )
+    .await?;
     let assigned_user = service
         .auto_assign_lead(id, &req.source, req.industry.as_deref())
         .await?;
@@ -1564,6 +1652,20 @@ pub async fn score_lead(
     Path(lead_id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // 方案 A（用户 2026-10-02 裁定）：评分回写落 crm_lead 行（rating 列），属线索写。
+    // 修复前无任何归属校验，任意用户可按 id 改写他人线索的评分字段；现与其它
+    // 线索写入口同门（先按 ctx 读行，再过跨 owner 写门）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_lead(lead_id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索评分",
+    )
+    .await?;
     let result = service.score_lead(lead_id).await?;
     let event = AuditEvent {
         user_id: Some(auth.user_id),
@@ -1661,15 +1763,25 @@ pub async fn merge_leads(
         })
         .collect::<Result<Vec<i32>, AppError>>()?;
     // 行级数据权限：与 update_lead/delete_lead 的 IDOR 预检同法构造 ctx——
-    // 合并不可逆，主/重复线索任一行不在可见集内由 service 整笔拒绝（403），
-    // 禁止"跳过不可见行继续合并其余"的静默降级
+    // 合并不可逆，主/重复线索任一行未过写门即整笔拒绝（403），
+    // 禁止"跳过不可见行继续合并其余"的静默降级。
+    // 方案 A（用户 2026-10-02 裁定）：合并写他人行须持有 crm/cross_owner_write 代表键——
+    // 待写行集合由 service 在事务内（锁下）确定，故键只在 handler 查一次（N 行共用），
+    // 行级判定回落 service 内唯一判定源 check_resource_write_owner；代操作放行逐行留痕。
     let data_scope_ctx = auth.to_data_scope_context();
+    let behalf_granted = crate::handlers::crm_write_guard::cross_owner_write_behalf_granted(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+    )
+    .await;
     let result = service
         .merge_leads(
             primary_id,
             duplicate_ids.clone(),
             auth.user_id,
             Some(&data_scope_ctx),
+            behalf_granted,
         )
         .await?;
     let event = AuditEvent {
