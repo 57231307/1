@@ -192,9 +192,10 @@ impl SalesService {
 
     /// 循环处理发货明细：四维扣减库存 + 生成库存流水 + 累加金额 + 批量 INSERT
     ///
-    /// 出库四维规则（款号+色号+缸号+批次）：一笔发货明细可能拆成多笔实际扣减
+    /// 出库四维规则（用户 2026-10-02 纠正口径：染色布强制 缸号/色号/批次/匹号，
+    /// 款号由 product_id 承载；白坯免缸号免匹号）：一笔发货明细可能拆成多笔实际扣减
     /// （指定缸不足时显式跨缸回退），每一笔实际扣减单独生成一行出库明细与一条库存流水，
-    /// 如实记录实际扣到的缸号/批次与该行前后数量。
+    /// 如实记录实际扣到的缸号/批次与该行前后数量；染色布指定匹在同一事务内 CAS 消耗。
     async fn process_shipment_items(
         &self,
         request: &ShipOrderRequest,
@@ -218,7 +219,13 @@ impl SalesService {
         for item in &request.items {
             let (unit_price, tax_percent) = Self::lookup_line_price(&order_item_map, item);
             let reductions = self
-                .reduce_inventory_four_dim(item, ctx.warehouse.id, request.order_id, txn)
+                .reduce_inventory_four_dim(
+                    item,
+                    ctx.warehouse.id,
+                    request.order_id,
+                    user_id,
+                    txn,
+                )
                 .await?;
             for reduction in reductions {
                 let line_amount = (reduction.quantity * unit_price).round_dp(2);

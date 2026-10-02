@@ -18,9 +18,12 @@ impl InventoryTransferService {
     /// 检查调出仓库库存是否充足（在调拨单创建事务中调用，确保所有调拨明细在源仓库有足够库存。；采用批量查询优化 N+1：先一次性查出所有相关 product 的库存记录，；再用内存匹配按追溯维度定位命中行。）
     ///
     /// 维度口径与出库真实扣减（`inv::batch::apply_ship_item_deduction`）对齐，判定唯一来源为
-    /// 全仓实现 [`fabric_class::validate_fabric_trace`]（经 [`require_outbound_dimensions`] 包装）：
-    /// 染色布（色号非空）缺缸号在此即返回明确业务错误（4xx，禁裸 500）；白坯（色号为空）维持宽松、
-    /// 仅按款号 + 批次匹配、不强制缸号，保持既有放行行为避免回归。
+    /// 全仓实现 [`fabric_class`]（经 [`require_outbound_dimensions`] 包装）：
+    /// 染色布（色号非空）缺缸号/匹号在此即返回明确校验错误（VALIDATION 族，4xx，禁裸 500）；白坯（色号为空）维持宽松、
+    /// 仅按款号 + 批次匹配、不强制缸号/匹号，保持既有放行行为避免回归。
+    /// 匹号在此只做存在性预检（只读、不占用，`piece_domain_service::validate_dyed_piece_for_outbound`）：
+    /// 指定匹必须真实存在于调出仓该缸该批且为可用态，"假匹号"在建单期即拒；
+    /// 真实消耗（CAS AVAILABLE→SHIPPED）发生在发运事务内，消除 TOCTOU。
     pub(crate) async fn check_from_warehouse_inventory(
         &self,
         from_warehouse_id: &i32,
@@ -44,14 +47,28 @@ impl InventoryTransferService {
             let quantity = item.quantity.unwrap_or(Decimal::ZERO);
 
             // 复用 fabric_class 唯一判定（经出库侧包装为带单据措辞的业务错误）：
-            // 白坯布归一为空色号 + 无缸号；染色布缺缸号在此返回与 fabric_class 同口径的明确 4xx 错误。
+            // 白坯布归一为空色号 + 无缸号；染色布缺缸号/匹号在此返回与 fabric_class 同口径的明确 4xx 错误。
             let dims = require_outbound_dimensions(
                 "调拨出库",
                 product_id,
                 item.color_no.as_deref(),
                 item.dye_lot_no.as_deref(),
                 item.batch_no.as_deref(),
+                item.piece_no.as_deref(),
             )?;
+
+            // 染色布匹号存在性预检（与扣减同 tuple 口径；白坯 dims.piece_no 为 None 跳过）
+            if let Some(piece_no) = dims.piece_no.as_deref() {
+                let ctx = crate::services::piece_domain_service::OutboundPieceContext {
+                    product_id,
+                    warehouse_id: *from_warehouse_id,
+                    dye_lot_no: dims.dye_lot_no.as_deref().unwrap_or_default(),
+                    batch_no: &dims.batch_no,
+                    piece_no,
+                };
+                crate::services::piece_domain_service::validate_dyed_piece_for_outbound(txn, &ctx)
+                    .await?;
+            }
 
             // 按归一维度在调出仓库存行中精确匹配并校验数量
             match_single_item_against_stocks(product_id, &dims, quantity, &stocks)?;
@@ -137,6 +154,9 @@ mod tests {
             color_no: color.map(str::to_string),
             dye_lot_no: dye.map(str::to_string),
             batch_no: batch.map(str::to_string),
+            // 测试默认补一个匹号：染色布出库四维（缸/色/批/匹）中匹号必填，
+            // 缺匹号行为由 dyed_fabric_missing_piece_no_rejected 单独锁定
+            piece_no: color.map(|_| "P-1".to_string()),
             unit_cost: None,
         }
     }
@@ -197,6 +217,7 @@ mod tests {
             it.color_no.as_deref(),
             it.dye_lot_no.as_deref(),
             it.batch_no.as_deref(),
+            it.piece_no.as_deref(),
         )?;
         match_single_item_against_stocks(
             product_id,
@@ -255,5 +276,20 @@ mod tests {
         let stocks = vec![stock(1, "RED", Some("DL-A"), "B1", "100")];
         let err = run_check(&it, &stocks).expect_err("数量不足应被拒");
         assert!(err.to_string().contains("库存不足"), "实际：{}", err);
+    }
+
+    #[test]
+    fn dyed_fabric_missing_piece_no_rejected() {
+        // 用户 2026-10-02 口径：出库对染色布强制四维=缸/色/批/匹，缺匹号建单期即拒
+        let mut it = item(1, "50", Some("RED"), Some("DL-A"), Some("B1"));
+        it.piece_no = None;
+        let stocks = vec![stock(1, "RED", Some("DL-A"), "B1", "100")];
+        let err = run_check(&it, &stocks).expect_err("染色布缺匹号必须被拒");
+        assert!(err.to_string().contains("匹号"), "实际：{}", err);
+
+        // 白坯布免匹号：色号为空时匹号缺失不报错（既有免缸号口径同步豁免匹号）
+        let mut white = item(1, "50", None, None, Some("B1"));
+        white.piece_no = None;
+        run_check(&white, &[stock(1, "", None, "B1", "100")]).expect("白坯缺匹号应放行（不强制）");
     }
 }

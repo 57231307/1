@@ -28,17 +28,19 @@ use crate::services::inventory_deduction::{
 };
 use crate::utils::error::AppError;
 
-use super::fabric_class::{self, FabricTrace};
 use super::{
     InventoryTransferDetail, InventoryTransferItemDetail, InventoryTransferItemRequest,
     InventoryTransferService, UpdateInventoryTransferItemRequest,
 };
 
-/// 调拨明细面料行业追溯字段的校验与归一化委托给全仓唯一实现
-/// [`fabric_class::validate_fabric_trace`]（款号由 product_id 承载，此处含色号/缸号/批次）。
+/// 调拨明细面料行业追溯字段（出库四维 = 缸号/色号/批次/匹号，款号由 product_id 承载）的
+/// 校验归一结果类型：复用出库侧唯一结构
+/// [`crate::services::inventory_deduction::OutboundDimensions`]，判定实现见
+/// `fabric_class`（三维 `validate_fabric_trace` + 第四维 `normalize_outbound_piece_no`）。
 ///
-/// 三字段与 `inventory_transfer_item::ActiveModel` 对应列一一对应，供 `add_item` 落库与单元测试断言共用。
-type TransferTraceFields = FabricTrace;
+/// 四字段与 `inventory_transfer_item::ActiveModel` 对应列一一对应，供 `add_item`/`update_item`
+/// 落库与单元测试断言共用。
+type TransferTraceFields = crate::services::inventory_deduction::OutboundDimensions;
 
 /// 库存四维定位键：款号(product_id) + 色号(color_no) + 缸号(dye_lot_no) + 批次(batch_no)。
 /// 与出库侧 `require_outbound_dimensions` 的精确扣减口径对称——调拨入库定位/新建目标库存行
@@ -142,6 +144,7 @@ impl InventoryTransferService {
             Some(item.color_no.as_str()),
             item.dye_lot_no.as_deref(),
             Some(item.batch_no.as_str()),
+            item.piece_no.as_deref(),
         )?;
         // 四维候选：源仓 + 款号 + 色号 + 批次（缸号不过滤——跨缸回退允许扣其他缸，
         // 缸号维度取舍由 plan_deduction 统一负责）；FOR UPDATE 行锁防并发超扣
@@ -229,6 +232,23 @@ impl InventoryTransferService {
             )
             .await?;
             pending_events.push(Self::build_inventory_transaction_created_event(&inserted));
+        }
+
+        // 出库四维之匹号消耗（用户 2026-10-02 口径：染色布出库强制缸/色/批/匹）：
+        // 指定匹必须真实存在于调出仓该缸该批且可用，事务内 CAS（AVAILABLE→SHIPPED），
+        // 未命中即整单拒绝、随发运事务回滚——不占用即不扣减，绝不静默放行假匹号/并发重复匹号。
+        if let Some(piece_no) = dims.piece_no.as_deref() {
+            let ctx = crate::services::piece_domain_service::OutboundPieceContext {
+                product_id: item.product_id,
+                warehouse_id: transfer.from_warehouse_id,
+                dye_lot_no: dims.dye_lot_no.as_deref().unwrap_or_default(),
+                batch_no: &dims.batch_no,
+                piece_no,
+            };
+            crate::services::piece_domain_service::consume_dyed_piece_for_outbound(
+                txn, &ctx, None,
+            )
+            .await?;
         }
         Self::update_item_shipped_quantity(txn, item).await
     }
@@ -1104,19 +1124,30 @@ impl InventoryTransferService {
         Ok(items)
     }
 
-    /// 校验并归一化调拨明细的面料行业追溯字段（款号由 product_id 承载，此处含色号/缸号/批次）。
+    /// 校验并归一化调拨明细的面料行业追溯字段（款号由 product_id 承载，此处含色号/缸号/批次/匹号）。
     ///
-    /// 白坯/染色判定与缸号/批次必填口径的唯一实现是
-    /// [`fabric_class::validate_fabric_trace`]，本方法仅委托之，避免多处判定漂移：
-    /// - 色号为空 → 白坯布：免缸号（归一为 None），批次仍必填；
-    /// - 色号非空 → 染色布：缸号、批次都必填，缺一返回明确业务错误；
+    /// 调拨单明细是出库方向单据，判定唯一来源为 [`fabric_class`]（三维
+    /// `validate_fabric_trace` + 出库第四维 `normalize_outbound_piece_no`，
+    /// 经 [`require_outbound_dimensions`] 统一包装），本方法仅委托之，避免多处判定漂移：
+    /// - 色号为空 → 白坯布：免缸号免匹号（归一为 None），批次仍必填；
+    /// - 色号非空 → 染色布：缸号、批次、匹号都必填，缺一返回明确业务错误
+    ///   （用户 2026-10-02 纠正口径：出库对染色布强制四维 = 缸号/色号/批次/匹号）；
     /// - 不以色号文本内容判定布种（带"白"字的色号是染色白色布）。
     fn validate_trace_fields(
+        product_id: i32,
         color_no: Option<String>,
         dye_lot_no: Option<String>,
         batch_no: Option<String>,
+        piece_no: Option<String>,
     ) -> Result<TransferTraceFields, AppError> {
-        fabric_class::validate_fabric_trace(color_no, dye_lot_no, batch_no)
+        require_outbound_dimensions(
+            "调拨出库明细",
+            product_id,
+            color_no.as_deref(),
+            dye_lot_no.as_deref(),
+            batch_no.as_deref(),
+            piece_no.as_deref(),
+        )
     }
 
     /// 向调拨单添加明细
@@ -1147,13 +1178,32 @@ impl InventoryTransferService {
             .ok_or_else(|| AppError::validation_displayable("批次缺少物料ID"))?;
         let quantity = req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
 
-        // 四维追溯字段（款号由 product_id 承载 + 色号 + 缸号 + 批次）如实校验并落库，
+        // 四维追溯字段（款号由 product_id 承载 + 色号 + 缸号 + 批次 + 匹号）如实校验并落库，
         // 禁止用 NotSet 丢弃入参（历史缺陷：本方法曾把三列写 NotSet → 落空值，调拨链路断链）。
-        let trace = Self::validate_trace_fields(
+        let dims = Self::validate_trace_fields(
+            product_id,
             req.color_no.clone(),
             req.dye_lot_no.clone(),
             req.batch_no.clone(),
+            req.piece_no.clone(),
         )?;
+
+        // 染色布匹号存在性预检（加明细也是出库单写入口，与建单 check 同 tuple 口径；
+        // 拒绝假匹号进入单据，事务前执行，真实消耗仍在发运事务内 CAS）
+        if let Some(piece_no) = dims.piece_no.as_deref() {
+            let ctx = crate::services::piece_domain_service::OutboundPieceContext {
+                product_id,
+                warehouse_id: transfer.from_warehouse_id,
+                dye_lot_no: dims.dye_lot_no.as_deref().unwrap_or_default(),
+                batch_no: &dims.batch_no,
+                piece_no,
+            };
+            crate::services::piece_domain_service::validate_dyed_piece_for_outbound(
+                &*self.db,
+                &ctx,
+            )
+            .await?;
+        }
 
         let item = inventory_transfer_item::ActiveModel {
             id: Default::default(),
@@ -1168,10 +1218,17 @@ impl InventoryTransferService {
             notes: sea_orm::ActiveValue::Set(req.notes),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-            // v14 批次 417：面料行业追溯字段（T-P0-1），真实写入入参值（白坯布缸号为合法 NULL）
-            color_no: sea_orm::ActiveValue::Set(trace.color_no),
-            dye_lot_no: sea_orm::ActiveValue::Set(trace.dye_lot_no),
-            batch_no: sea_orm::ActiveValue::Set(trace.batch_no),
+            // v14 批次 417：面料行业追溯字段（T-P0-1），真实写入入参值
+            color_no: sea_orm::ActiveValue::Set(dims.color_no),
+            // 白坯布缸号：列 DDL NOT NULL DEFAULT ''（system/mod.rs:292），Set(None) 会触发
+            // NOT NULL 违例，白坯合法缺省走 NotSet 让 DEFAULT '' 生效（与建单路径同法）
+            dye_lot_no: dims
+                .dye_lot_no
+                .map(|v| sea_orm::ActiveValue::Set(Some(v)))
+                .unwrap_or(sea_orm::ActiveValue::NotSet),
+            batch_no: sea_orm::ActiveValue::Set(dims.batch_no),
+            // 匹号列为 m0066 补的可空列：染色布如实写入，白坯 Set(None) 落 NULL
+            piece_no: sea_orm::ActiveValue::Set(dims.piece_no),
         };
         let item_model = item.insert(&txn).await?;
 
@@ -1203,6 +1260,7 @@ impl InventoryTransferService {
             color_no: item_model.color_no,
             dye_lot_no: item_model.dye_lot_no,
             batch_no: item_model.batch_no,
+            piece_no: item_model.piece_no,
             // 单品写入回显路径不做 products JOIN，产品名/编码/等级/单位如实回传为 None
             product_code: None,
             product_name: None,
@@ -1257,11 +1315,13 @@ impl InventoryTransferService {
             )));
         }
 
-        // 追溯三列的"生效值"= 请求覆盖值（有值/显式 null 清空后为空）与原值合并；
+        // 追溯四维的"生效值"= 请求覆盖值（有值/显式 null 清空后为空）与原值合并；
         // 任一追溯键被提交（含 null 清空）时按生效组合走全仓唯一校验
-        // validate_fabric_trace（染色布缸号必填的不变量由此守住，不另起第二套判定）
-        let trace_touched =
-            req.color_no.is_some() || req.dye_lot_no.is_some() || req.batch_no.is_some();
+        // fabric_class（染色布缸号/匹号必填的出库四维不变量由此守住，不另起第二套判定）
+        let trace_touched = req.color_no.is_some()
+            || req.dye_lot_no.is_some()
+            || req.batch_no.is_some()
+            || req.piece_no.is_some();
         let eff_trace_inputs = trace_touched.then(|| {
             let eff_color = req
                 .color_no
@@ -1277,9 +1337,15 @@ impl InventoryTransferService {
                 Some(inner) => inner,
                 None => item_model.dye_lot_no.clone(),
             };
-            (eff_color, eff_dye, eff_batch)
+            let eff_piece = match req.piece_no.clone() {
+                Some(inner) => inner,
+                None => item_model.piece_no.clone(),
+            };
+            (eff_color, eff_dye, eff_batch, eff_piece)
         });
 
+        // item_model 即将被 into_active_model 消耗，先留存款号维度供四维校验取生效值
+        let item_product_id = item_model.product_id;
         let mut active: inventory_transfer_item::ActiveModel = item_model.into_active_model();
         // 三态写入规则：None=不 Set（UPDATE 不含该列，原值不动）；
         // Some(None)=Set(None) 置 NULL（仅 DB 可空列）；Some(Some(v))=Set(v) 覆盖。
@@ -1297,11 +1363,16 @@ impl InventoryTransferService {
         if let Some(unit_cost) = req.unit_cost {
             active.unit_cost = sea_orm::ActiveValue::Set(unit_cost);
         }
-        if let Some((eff_color, eff_dye, eff_batch)) = eff_trace_inputs {
-            let trace = Self::validate_trace_fields(eff_color, eff_dye, eff_batch)?;
-            active.color_no = sea_orm::ActiveValue::Set(trace.color_no);
-            active.dye_lot_no = sea_orm::ActiveValue::Set(trace.dye_lot_no);
-            active.batch_no = sea_orm::ActiveValue::Set(trace.batch_no);
+        if let Some((eff_color, eff_dye, eff_batch, eff_piece)) = eff_trace_inputs {
+            // 款号维度取生效值（请求覆盖后以原行归属兜底），与三态写入 active.product_id 的口径一致
+            let eff_product_id = req.product_id.flatten().unwrap_or(item_product_id);
+            let dims =
+                Self::validate_trace_fields(eff_product_id, eff_color, eff_dye, eff_batch, eff_piece)?;
+            active.color_no = sea_orm::ActiveValue::Set(dims.color_no);
+            active.dye_lot_no = sea_orm::ActiveValue::Set(dims.dye_lot_no);
+            active.batch_no = sea_orm::ActiveValue::Set(dims.batch_no);
+            // 匹号为 DB 可空列（m0066）：染色布必填值 / 白坯归一 None 均如实落库
+            active.piece_no = sea_orm::ActiveValue::Set(dims.piece_no);
         }
         active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         let updated = active.update(&*self.db).await?;
@@ -1332,6 +1403,7 @@ impl InventoryTransferService {
             color_no: updated.color_no,
             dye_lot_no: updated.dye_lot_no,
             batch_no: updated.batch_no,
+            piece_no: updated.piece_no,
             // 单品写入回显路径不做 products JOIN，产品名/编码/等级/单位如实回传为 None
             product_code: None,
             product_name: None,
@@ -1388,15 +1460,38 @@ mod tests {
     use crate::utils::error::AppError;
     use sea_orm::ActiveValue;
 
+    /// 测试默认匹号：染色布（色号非空）出库四维=缸/色/批/匹，匹号必填；
+    /// 缺匹号行为由 dyed_fabric_missing_piece_no_rejected 单独锁定。
+    fn piece_for(color: Option<&str>) -> Option<&'static str> {
+        color.map(|_| "P-9")
+    }
+
     fn validate(
         color: Option<&str>,
         dye: Option<&str>,
         batch: Option<&str>,
     ) -> Result<TransferTraceFields, AppError> {
         InventoryTransferService::validate_trace_fields(
+            1,
             color.map(str::to_string),
             dye.map(str::to_string),
             batch.map(str::to_string),
+            piece_for(color).map(str::to_string),
+        )
+    }
+
+    fn validate_with_piece(
+        color: Option<&str>,
+        dye: Option<&str>,
+        batch: Option<&str>,
+        piece: Option<&str>,
+    ) -> Result<TransferTraceFields, AppError> {
+        InventoryTransferService::validate_trace_fields(
+            1,
+            color.map(str::to_string),
+            dye.map(str::to_string),
+            batch.map(str::to_string),
+            piece.map(str::to_string),
         )
     }
 
@@ -1406,38 +1501,44 @@ mod tests {
         assert_eq!(f.color_no, "C001");
         assert_eq!(f.batch_no, "B2026");
         assert_eq!(f.dye_lot_no.as_deref(), Some("D9"));
+        assert_eq!(f.piece_no.as_deref(), Some("P-9"));
     }
 
     #[test]
     fn validated_fields_map_into_active_model_as_set() {
-        // 复现 add_item 落库映射：三列必须是 Set(入参)，不得是 NotSet（历史丢列缺陷）
+        // 复现 add_item 落库映射：追溯列必须是 Set(入参)，不得是 NotSet（历史丢列缺陷）
         let f = validate(Some("C001"), Some("D9"), Some("B2026")).unwrap();
         let am = inventory_transfer_item::ActiveModel {
             color_no: ActiveValue::Set(f.color_no.clone()),
             dye_lot_no: ActiveValue::Set(f.dye_lot_no.clone()),
             batch_no: ActiveValue::Set(f.batch_no.clone()),
+            piece_no: ActiveValue::Set(f.piece_no.clone()),
             ..Default::default()
         };
         assert_eq!(am.color_no.unwrap(), "C001");
         assert_eq!(am.batch_no.unwrap(), "B2026");
         assert_eq!(am.dye_lot_no.unwrap(), Some("D9".to_string()));
+        assert_eq!(am.piece_no.unwrap(), Some("P-9".to_string()));
     }
 
     #[test]
     fn values_are_trimmed() {
-        let f = validate(Some(" C001 "), Some(" D9 "), Some(" B1 ")).unwrap();
+        let f = validate_with_piece(Some(" C001 "), Some(" D9 "), Some(" B1 "), Some(" P-3 "))
+            .unwrap();
         assert_eq!(f.color_no, "C001");
         assert_eq!(f.dye_lot_no.as_deref(), Some("D9"));
         assert_eq!(f.batch_no, "B1");
+        assert_eq!(f.piece_no.as_deref(), Some("P-3"));
     }
 
     #[test]
     fn empty_color_no_is_greige_allows_null_dye_lot() {
-        // 新口径：色号为空 = 白坯布，免缸号但批次必填（委托 fabric_class 单一实现）
+        // 新口径：色号为空 = 白坯布，免缸号免匹号但批次必填（委托 fabric_class 单一实现）
         let f = validate(Some("   "), None, Some("B1")).expect("空色号应视为白坯布并允许免缸号");
         assert_eq!(f.color_no, "");
         assert_eq!(f.dye_lot_no, None);
         assert_eq!(f.batch_no, "B1");
+        assert_eq!(f.piece_no, None, "白坯匹号免填归一为 None");
     }
 
     #[test]
@@ -1458,6 +1559,19 @@ mod tests {
         // 非空色号（染色布）缺缸号必须报明确业务错误，不得静默落空
         let err = validate(Some("C001"), None, Some("B1")).expect_err("染色布缺缸号必须报错");
         assert!(err.to_string().contains("缸号"), "实际: {}", err);
+    }
+
+    #[test]
+    fn dyed_fabric_missing_piece_no_rejected() {
+        // 用户 2026-10-02 纠正口径：出库对染色布强制第四维匹号，缺匹号必须拒绝
+        let err = validate_with_piece(Some("C001"), Some("D9"), Some("B1"), None)
+            .expect_err("染色布缺匹号必须报错");
+        assert!(err.to_string().contains("匹号"), "实际: {}", err);
+
+        // 全空格匹号等价缺失（仅以是否为空判定，不看内容）
+        let err2 = validate_with_piece(Some("C001"), Some("D9"), Some("B1"), Some("  "))
+            .expect_err("空白匹号必须报错");
+        assert!(err2.to_string().contains("匹号"), "实际: {}", err2);
     }
 
     #[test]

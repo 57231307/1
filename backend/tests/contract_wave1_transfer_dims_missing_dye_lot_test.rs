@@ -1,11 +1,13 @@
-//! 调拨出库四维口径锁：染色布缺缸号 → 4xx 业务错（非裸 500/非放行）
+//! 调拨出库四维口径锁：染色布缺缸号/缺匹号 → 4xx 业务错（非裸 500/非放行）
 //!
-//! 锁定的 file:line 契约：
-//! - `backend/src/services/inventory_deduction.rs:211-235`（`OutboundDimensions = FabricTrace`
-//!   别名 + `require_outbound_dimensions`：任何维度校验失败统一包成
-//!   `AppError::business("{单据}（款号产品 {id}）：{原因}")` —— 400/BUSINESS_ERROR 族）
-//! - `backend/src/services/inv/fabric_class.rs:36-63`（唯一判定来源：批次必填；
-//!   色号非空=染色布 → 缸号必填，仅按空串判定不看名称；trim 归一）
+//! 锁定的符号契约（行号随重构漂移，以符号为准）：
+//! - `backend/src/services/inventory_deduction.rs`（`OutboundDimensions` 四维结构 +
+//!   `require_outbound_dimensions`：维度**必填/取值**校验失败属字段族，统一包成
+//!   `AppError::validation("{单据}（款号产品 {id}）：{原因}")` —— 400/VALIDATION_ERROR 族；
+//!   包装文案含内部产品 ID，按本仓边界走脱敏变体（真实原因只进日志））
+//! - `backend/src/services/inv/fabric_class.rs`（唯一判定来源：批次必填；
+//!   色号非空=染色布 → 缸号必填 + `normalize_outbound_piece_no` 匹号必填，
+//!   仅按空串判定不看名称；trim 归一；白坯免缸号免匹号既有口径不动）
 //! - `backend/src/services/inv/stock.rs:24-60,71-114`（check_from_warehouse_inventory：
 //!   调拨建单事务内按四维精确匹配调出仓库存；同产品多批次必须传维度定位；
 //!   白坯维持宽松不强制缸号——两分支都在此锁死，防止回归改回单维 product_id）
@@ -18,7 +20,7 @@
 //! - require_outbound_dimensions 与调拨 DTO 为纯函数/serde 断言（**无需任何 DB**）：
 //!   含错误族别、错误码、Display 原文与 400 信封映射
 //! - `#[ignore]` 活库用例：走真实 handler 在已迁移 PG 上建调拨单——
-//!   染色布缺缸号 → 400 BUSINESS_ERROR 且调拨单不残留、库存不动（事务回滚）；
+//!   染色布缺缸号 → 400 VALIDATION_ERROR 且调拨单不残留、库存不动（事务回滚）；
 //!   白坯四维宽松 → 200（对照防过度收紧）。
 //!   注：调拨 create 链路含 advisory_xact_lock 单号生成 + 频率检查用 Postgres 方言
 //!   原生 SQL（handler L113-134），**sqlite 无法非活库化此链**（该 PG 方言硬编码本身
@@ -42,16 +44,18 @@ fn dec(s: &str) -> Decimal {
 // A) require_outbound_dimensions 纯函数矩阵（无 DB）
 // =========================================================
 
-/// 染色布（色号非空）缺缸号 → business 族错；Display 携带单据标签+产品+权威原因文案
+/// 染色布（色号非空）缺缸号 → validation 族错（字段必填族）；Display 携带单据标签+产品+权威原因文案
+/// （2026-10-02 口径补第四维匹号：本用例匹号给足，隔离锁定缸号维度）
 #[test]
-fn dyed_fabric_missing_dye_lot_returns_business_error() {
-    let err = require_outbound_dimensions("调拨出库", 7, Some("COL-A"), None, Some("B7"))
-        .expect_err("染色布缺缸号必须拒绝（本波四维口径，修复前仅 product_id 单维放行）");
+fn dyed_fabric_missing_dye_lot_returns_validation_error() {
+    let err =
+        require_outbound_dimensions("调拨出库", 7, Some("COL-A"), None, Some("B7"), Some("P-7"))
+            .expect_err("染色布缺缸号必须拒绝（本波四维口径，修复前仅 product_id 单维放行）");
     match &err {
-        AppError::BusinessError(_) => {}
-        other => panic!("必须是 business（400 映射族），实际: {other:?}"),
+        AppError::ValidationError(_) => {}
+        other => panic!("必须是 validation（字段必填族，400 映射），实际: {other:?}"),
     }
-    assert_eq!(err.error_code(), "BUSINESS_ERROR");
+    assert_eq!(err.error_code(), "VALIDATION_ERROR");
     let disp = err.to_string();
     assert!(disp.contains("调拨出库（款号产品 7）"), "实际: {disp}");
     assert!(disp.contains("染色布必须提供缸号"), "实际: {disp}");
@@ -63,71 +67,108 @@ fn dyed_fabric_missing_dye_lot_returns_business_error() {
 
 /// 批次（batch_no）任何布种必填：缺失报"批次不得为空"族错
 #[test]
-fn missing_batch_returns_business_error() {
-    let err = require_outbound_dimensions("调拨出库", 9, Some(""), Some("DYE-1"), None)
+fn missing_batch_returns_validation_error() {
+    let err = require_outbound_dimensions("调拨出库", 9, Some(""), Some("DYE-1"), None, None)
         .expect_err("批次必填");
     let disp = err.to_string();
     assert!(disp.contains("批次不得为空"), "实际: {disp}");
-    assert!(matches!(err, AppError::BusinessError(_)));
+    assert!(matches!(err, AppError::ValidationError(_)));
 
     // trim 后为空串等价缺失（不允许空格蒙混）
-    let err2 = require_outbound_dimensions("调拨出库", 9, None, None, Some("   "))
+    let err2 = require_outbound_dimensions("调拨出库", 9, None, None, Some("   "), None)
         .expect_err("空白批次必须拒绝");
     assert!(err2.to_string().contains("批次不得为空"));
 }
 
-/// 白坯布（色号为空/缺失）：不强制缸号，维持宽松放行；三维归一值精确断言
+/// 白坯布（色号为空/缺失）：不强制缸号也不强制匹号，维持宽松放行；维度归一值精确断言
 #[test]
 fn white_fabric_passes_without_dye_lot_and_normalizes() {
-    let dims = require_outbound_dimensions("调拨出库", 3, None, None, Some(" B7 "))
-        .expect("白坯免缸号（回归锁：不得把白坯也强制四维）");
+    let dims = require_outbound_dimensions("调拨出库", 3, None, None, Some(" B7 "), None)
+        .expect("白坯免缸号免匹号（回归锁：不得把白坯也强制四维）");
     assert_eq!(dims.color_no, "", "白坯归一为空串");
     assert_eq!(dims.dye_lot_no, None);
+    assert_eq!(dims.piece_no, None, "白坯匹号免填归一 None");
     assert_eq!(dims.batch_no, "B7", "trim 归一后落库/匹配");
 
-    // 纯空白色号按白坯处理（fabric_class.rs:51 注释：仅按空判定，不看名称）
-    let dims2 = require_outbound_dimensions("调拨出库", 3, Some("  "), None, Some("B7"))
+    // 纯空白色号按白坯处理（fabric_class.rs 注释：仅按空判定，不看名称）
+    let dims2 = require_outbound_dimensions("调拨出库", 3, Some("  "), None, Some("B7"), None)
         .expect("空白色号=白坯");
     assert_eq!(dims2.color_no, "");
 
-    // 白坯给了缸号也不报错（维度多给不排除匹配宽松性）
-    let dims3 = require_outbound_dimensions("调拨出库", 3, None, Some("DYE-9"), Some("B7"))
-        .expect("白坯带缸号仍放行");
+    // 白坯给了缸号/匹号也不报错（维度多给不排除匹配宽松性；匹号 trim 保留不丢弃）
+    let dims3 = require_outbound_dimensions(
+        "调拨出库",
+        3,
+        None,
+        Some("DYE-9"),
+        Some("B7"),
+        Some(" P-3 "),
+    )
+    .expect("白坯带缸号/匹号仍放行");
     assert_eq!(dims3.dye_lot_no.as_deref(), Some("DYE-9"));
+    assert_eq!(dims3.piece_no.as_deref(), Some("P-3"));
 }
 
-/// 染色布四维齐全 → 放行且四维原值归一
+/// 染色布四维齐全（缸/色/批/匹，用户 2026-10-02 纠正口径）→ 放行且四维原值归一
 #[test]
 fn dyed_fabric_with_all_four_dims_passes() {
-    let dims = require_outbound_dimensions("调拨出库", 4, Some("COL-A"), Some("DYE-9"), Some("B7"))
-        .expect("四维齐全必须放行");
+    let dims = require_outbound_dimensions(
+        "调拨出库",
+        4,
+        Some("COL-A"),
+        Some("DYE-9"),
+        Some("B7"),
+        Some(" P-4 "),
+    )
+    .expect("四维齐全必须放行");
     assert_eq!(
         (
             dims.color_no.as_str(),
             dims.dye_lot_no.as_deref(),
-            dims.batch_no.as_str()
+            dims.batch_no.as_str(),
+            dims.piece_no.as_deref(),
         ),
-        ("COL-A", Some("DYE-9"), "B7")
+        ("COL-A", Some("DYE-9"), "B7", Some("P-4"))
     );
 }
 
-/// 缺缸号错误的 HTTP 信封：400 + BUSINESS_ERROR + 脱敏常量（业务族默认不外显内部 id）
+/// 染色布缺第四维匹号 → 同样 400 VALIDATION_ERROR 族（字段必填=VALIDATION 边界，
+/// 2026-10-02 口径补强锁）
+#[test]
+fn dyed_fabric_missing_piece_no_returns_validation_error() {
+    let err = require_outbound_dimensions(
+        "调拨出库",
+        7,
+        Some("COL-A"),
+        Some("DYE-9"),
+        Some("B7"),
+        None,
+    )
+    .expect_err("染色布缺匹号必须拒绝");
+    assert!(matches!(err, AppError::ValidationError(_)));
+    assert_eq!(err.error_code(), "VALIDATION_ERROR");
+    assert!(err.to_string().contains("匹号"), "实际: {err}");
+}
+
+/// 缺缸号错误的 HTTP 信封：400 + VALIDATION_ERROR + 脱敏常量（包装文案含内部产品 ID，
+/// 按本仓边界不外显真实原因）
 #[tokio::test]
 async fn dim_error_http_envelope_is_400_not_500() {
     use axum::response::IntoResponse;
 
     let err =
-        require_outbound_dimensions("调拨出库", 7, Some("COL-A"), None, Some("B7")).unwrap_err();
+        require_outbound_dimensions("调拨出库", 7, Some("COL-A"), None, Some("B7"), Some("P-7"))
+            .unwrap_err();
     let resp = err.into_response();
     assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
     let bytes = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["code"], "VALIDATION_ERROR");
     assert_eq!(
-        v["message"], "业务处理失败",
-        "business 族脱敏常量（真实文案只进日志）"
+        v["message"], "请求参数验证失败",
+        "validation 脱敏族常量（真实文案只进日志）"
     );
     assert_ne!(v["code"], "INTERNAL_ERROR");
     assert_ne!(v["code"], "DATABASE_ERROR");
@@ -170,7 +211,7 @@ fn transfer_item_request_dims_optional() {
 // =========================================================
 
 /// 已迁移 PG 上走真实 handler：
-/// ① 染色布缺缸号建单 → 400 BUSINESS_ERROR，且调拨单事务整体回滚（不残留单据、库存不动）；
+/// ① 染色布缺缸号建单 → 400 VALIDATION_ERROR，且调拨单事务整体回滚（不残留单据、库存不动）；
 /// ② 同料白坯（免缸号宽松）→ 200 且单据落库 status=pending。
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL：单号生成 advisory_xact_lock + 频率检查 Postgres 方言原生 SQL"]
@@ -294,7 +335,7 @@ async fn live_create_transfer_dyed_missing_dye_lot_400_and_rollback() {
         .await
         .unwrap();
 
-    // —— ① 染色布缺缸号：期望 400 BUSINESS_ERROR ——
+    // —— ① 染色布缺缸号：期望 400 VALIDATION_ERROR ——
     let dyed_missing = json!({
         "from_warehouse_id": wh_ids[0],
         "to_warehouse_id": wh_ids[1],
@@ -322,7 +363,7 @@ async fn live_create_transfer_dyed_missing_dye_lot_400_and_rollback() {
         StatusCode::BAD_REQUEST,
         "染色布缺缸号必须 400，实际 {status}: {v}"
     );
-    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["code"], "VALIDATION_ERROR");
     assert_ne!(v["code"], "INTERNAL_ERROR");
 
     // 事务回滚：单据零残留

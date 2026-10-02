@@ -27,7 +27,8 @@ use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resourc
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
-use super::fabric_class;
+use crate::services::inventory_deduction::require_outbound_dimensions;
+
 use super::{
     CreateInventoryTransferRequest, InventoryTransferDetail, InventoryTransferItemDetail,
     InventoryTransferItemRequest, InventoryTransferService, InventoryTransferView,
@@ -298,11 +299,19 @@ impl InventoryTransferService {
         let mut total_quantity = rust_decimal::Decimal::ZERO;
         let mut total_amount = rust_decimal::Decimal::ZERO;
         for item_req in items {
-            // 白坯/染色判定与缸号/批次必填：统一走 fabric_class 单一实现（仅以色号是否为空判定，不看名称）
-            let trace = fabric_class::validate_fabric_trace(
-                item_req.color_no.clone(),
-                item_req.dye_lot_no.clone(),
-                item_req.batch_no.clone(),
+            // 调拨单明细即出库方向：白坯/染色判定与缸号/批次/匹号必填统一走 fabric_class
+            // 单一实现（经 require_outbound_dimensions 包装，用户 2026-10-02 口径：
+            // 出库对染色布强制四维=缸号/色号/批次/匹号；仅以是否为空判定，不看名称）。
+            let product_id = item_req
+                .product_id
+                .ok_or_else(|| AppError::validation_displayable("调拨明细缺少物料ID"))?;
+            let dims = require_outbound_dimensions(
+                "调拨出库明细",
+                product_id,
+                item_req.color_no.as_deref(),
+                item_req.dye_lot_no.as_deref(),
+                item_req.batch_no.as_deref(),
+                item_req.piece_no.as_deref(),
             )?;
 
             let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
@@ -314,11 +323,7 @@ impl InventoryTransferService {
             let item = inventory_transfer_item::ActiveModel {
                 id: Default::default(),
                 transfer_id: sea_orm::ActiveValue::Set(transfer_id),
-                product_id: sea_orm::ActiveValue::Set(
-                    item_req
-                        .product_id
-                        .ok_or_else(|| AppError::validation_displayable("调拨明细缺少物料ID"))?,
-                ),
+                product_id: sea_orm::ActiveValue::Set(product_id),
                 quantity: sea_orm::ActiveValue::Set(quantity),
                 shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -327,14 +332,17 @@ impl InventoryTransferService {
                 notes: sea_orm::ActiveValue::Set(item_req.notes),
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                // 面料追溯字段：白坯/染色校验归一后如实写入
-                color_no: sea_orm::ActiveValue::Set(trace.color_no),
-                // 白坯布（色号为空）缸号合法缺省，用 NotSet 让 DB DEFAULT '' 生效
-                dye_lot_no: trace
+                // 面料追溯字段：白坯/染色校验归一后如实写入（禁止 NotSet 丢弃入参值）
+                color_no: sea_orm::ActiveValue::Set(dims.color_no),
+                // 列 DDL 为 NOT NULL DEFAULT ''（system/mod.rs:292）：白坯布缸号合法缺省，
+                // 用 NotSet 让 DB DEFAULT '' 生效，Set(None) 会触发 NOT NULL 违例
+                dye_lot_no: dims
                     .dye_lot_no
                     .map(|v| sea_orm::ActiveValue::Set(Some(v)))
                     .unwrap_or(sea_orm::ActiveValue::NotSet),
-                batch_no: sea_orm::ActiveValue::Set(trace.batch_no),
+                batch_no: sea_orm::ActiveValue::Set(dims.batch_no),
+                // 匹号列为 m0066 补的可空列（DB 默认 NULL）：白坯 Set(None) 如实落 NULL
+                piece_no: sea_orm::ActiveValue::Set(dims.piece_no),
             };
             item.insert(txn).await?;
         }
@@ -469,11 +477,19 @@ impl InventoryTransferService {
         let mut total_quantity = rust_decimal::Decimal::ZERO;
         let mut total_amount = rust_decimal::Decimal::ZERO;
         for item_req in items {
-            // 白坯/染色判定与缸号/批次必填：统一走 fabric_class 单一实现（仅以色号是否为空判定，不看名称）
-            let trace = fabric_class::validate_fabric_trace(
-                item_req.color_no.clone(),
-                item_req.dye_lot_no.clone(),
-                item_req.batch_no.clone(),
+            // 调拨单明细即出库方向（重建路径与建单路径同口径，防"改一处未推广"）：
+            // 判定唯一来源 fabric_class 经 require_outbound_dimensions 包装——
+            // 用户 2026-10-02 口径：出库对染色布强制四维=缸号/色号/批次/匹号。
+            let product_id = item_req
+                .product_id
+                .ok_or_else(|| AppError::validation_displayable("调拨明细缺少物料ID"))?;
+            let dims = require_outbound_dimensions(
+                "调拨出库明细",
+                product_id,
+                item_req.color_no.as_deref(),
+                item_req.dye_lot_no.as_deref(),
+                item_req.batch_no.as_deref(),
+                item_req.piece_no.as_deref(),
             )?;
 
             let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
@@ -485,11 +501,7 @@ impl InventoryTransferService {
             let item = inventory_transfer_item::ActiveModel {
                 id: Default::default(),
                 transfer_id: sea_orm::ActiveValue::Set(transfer_id),
-                product_id: sea_orm::ActiveValue::Set(
-                    item_req
-                        .product_id
-                        .ok_or_else(|| AppError::validation_displayable("调拨明细缺少物料ID"))?,
-                ),
+                product_id: sea_orm::ActiveValue::Set(product_id),
                 quantity: sea_orm::ActiveValue::Set(quantity),
                 shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -498,14 +510,16 @@ impl InventoryTransferService {
                 notes: sea_orm::ActiveValue::Set(item_req.notes),
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                // 面料追溯字段：白坯/染色校验归一后如实写入
-                color_no: sea_orm::ActiveValue::Set(trace.color_no),
-                // 白坯布（色号为空）缸号合法缺省，用 NotSet 让 DB DEFAULT '' 生效
-                dye_lot_no: trace
+                // 面料追溯字段：白坯/染色校验归一后如实写入（禁止 NotSet 丢弃入参值）
+                color_no: sea_orm::ActiveValue::Set(dims.color_no),
+                // 列 DDL 为 NOT NULL DEFAULT ''（system/mod.rs:292）：白坯缸号用 NotSet 落 DEFAULT ''
+                dye_lot_no: dims
                     .dye_lot_no
                     .map(|v| sea_orm::ActiveValue::Set(Some(v)))
                     .unwrap_or(sea_orm::ActiveValue::NotSet),
-                batch_no: sea_orm::ActiveValue::Set(trace.batch_no),
+                batch_no: sea_orm::ActiveValue::Set(dims.batch_no),
+                // 匹号列为 m0066 补的可空列：白坯 Set(None) 如实落 NULL
+                piece_no: sea_orm::ActiveValue::Set(dims.piece_no),
             };
             item.insert(txn).await?;
         }

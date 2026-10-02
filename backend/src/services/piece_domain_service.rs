@@ -584,3 +584,173 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
     };
     Ok(Some(active.insert(db).await?))
 }
+
+// =====================================================
+// 染色布出库匹号维度（用户 2026-10-02 拍板：出库强制四维 = 缸号/色号/批次/匹号）
+// =====================================================
+
+/// 出库匹号定位上下文（一次出库明细的匹号命中口径：款号 + 出库仓 + 缸 + 批 + 匹，
+/// 聚合参数以满足 clippy::too_many_arguments 上限；染色匹按 (dye_lot_id, piece_no) 唯一，
+/// 匹号跨缸可重复，因此命中必须带缸号/批次/仓库/产品全tuple，不得只按匹号裸匹配）。
+#[derive(Debug, Clone, Copy)]
+pub struct OutboundPieceContext<'a> {
+    pub product_id: i32,
+    pub warehouse_id: i32,
+    pub dye_lot_no: &'a str,
+    pub batch_no: &'a str,
+    pub piece_no: &'a str,
+}
+
+/// 按出库四维全 tuple 过滤匹记录（染色匹 + 可用态之外不预筛状态：
+/// 归因需要区分「匹不存在」/「tuple 不符」/「状态非可用」三种情形）。
+fn outbound_piece_filter(ctx: &OutboundPieceContext<'_>) -> sea_orm::Condition {
+    use sea_orm::Condition;
+    Condition::all()
+        .add(inventory_piece::Column::PieceNo.eq(ctx.piece_no))
+        .add(inventory_piece::Column::ProductId.eq(ctx.product_id))
+        .add(inventory_piece::Column::WarehouseId.eq(ctx.warehouse_id))
+        .add(inventory_piece::Column::DyeLotNo.eq(ctx.dye_lot_no))
+        .add(inventory_piece::Column::BatchNo.eq(ctx.batch_no))
+        .add(inventory_piece::Column::PieceType.eq(PIECE_TYPE_DYED))
+}
+
+/// 匹号未命中出库口径时的归因（脱敏 business：文案携带 DB 查询所得状态/ID，不外显）。
+///
+/// 边界：字段必填在 `fabric_class::normalize_outbound_piece_no` 已拒（VALIDATION 族）；
+/// 走到这里说明匹号已填但未命中真实可用库存匹，属"状态门/前置未满足"= BUSINESS 族。
+async fn attribute_outbound_piece_miss<C: ConnectionTrait>(
+    conn: &C,
+    ctx: &OutboundPieceContext<'_>,
+) -> Result<AppError, AppError> {
+    use sea_orm::EntityTrait;
+    let any_with_no = inventory_piece::Entity::find()
+        .filter(inventory_piece::Column::PieceNo.eq(ctx.piece_no))
+        .one(conn)
+        .await?;
+    Ok(match any_with_no {
+        None => AppError::business(format!(
+            "出库明细引用的匹号 {} 不存在（产品 {} / 仓 {} / 缸 {} / 批 {} 口径下未命中任何匹记录）",
+            ctx.piece_no, ctx.product_id, ctx.warehouse_id, ctx.dye_lot_no, ctx.batch_no
+        )),
+        Some(p) if p.status != piece_status::AVAILABLE => AppError::business(format!(
+            "匹号 {} 当前状态为 {}（非可用），不可出库",
+            ctx.piece_no, p.status
+        )),
+        Some(_) => AppError::business(format!(
+            "匹号 {} 不属于出库口径（产品 {}/仓 {}/缸 {}/批 {} 不匹配，或该匹非染色匹），不可出库",
+            ctx.piece_no, ctx.product_id, ctx.warehouse_id, ctx.dye_lot_no, ctx.batch_no
+        )),
+    })
+}
+
+/// 出库建单/预检阶段：校验染色匹真实存在且可用（只读、不占用）。
+///
+/// 与 [`consume_dyed_piece_for_outbound`] 同一 tuple 口径，用于调拨建单预检
+/// （`inv::stock::check_from_warehouse_inventory`）与销售发货充足性校验
+/// （`so::delivery_ops::inventory::check_inventory`），把"假匹号"拦在建单期；
+/// 真实消耗仍必须在出库事务内 CAS（消除 TOCTOU，与委外占用闭环同设计）。
+pub async fn validate_dyed_piece_for_outbound<C: ConnectionTrait>(
+    conn: &C,
+    ctx: &OutboundPieceContext<'_>,
+) -> Result<(), AppError> {
+    use sea_orm::EntityTrait;
+    let hit = inventory_piece::Entity::find()
+        .filter(outbound_piece_filter(ctx))
+        .filter(inventory_piece::Column::Status.eq(piece_status::AVAILABLE))
+        .one(conn)
+        .await?;
+    match hit {
+        Some(_) => Ok(()),
+        None => Err(attribute_outbound_piece_miss(conn, ctx).await?),
+    }
+}
+
+/// 出库事务内消耗染色匹：按四维全 tuple CAS（AVAILABLE→SHIPPED），未命中即整单拒绝。
+///
+/// 原子性契约：必须在出库事务内调用（调用方：调拨发运 `inv::batch::apply_ship_item_deduction`、
+/// 销售发货 `so::delivery_ops::inventory::reduce_inventory_four_dim`）。条件更新把校验与写入
+/// 压进同一条语句：同一匹被并发/重复引用时第二次 CAS 必不命中，随调用方事务整体回滚，
+/// 绝不静默放行（sqlite 夹具与 PG 生产同一套 SQL 真实生效，同 `reserve_pieces_for_issue` 先例）。
+pub async fn consume_dyed_piece_for_outbound<C: ConnectionTrait>(
+    conn: &C,
+    ctx: &OutboundPieceContext<'_>,
+    operator_id: Option<i32>,
+) -> Result<(), AppError> {
+    use sea_orm::EntityTrait;
+    let result = inventory_piece::Entity::update_many()
+        .filter(outbound_piece_filter(ctx))
+        .filter(inventory_piece::Column::Status.eq(piece_status::AVAILABLE))
+        .set(inventory_piece::ActiveModel {
+            status: Set(piece_status::SHIPPED.to_string()),
+            updated_by: Set(operator_id),
+            updated_at: Set(chrono::Utc::now()),
+            ..Default::default()
+        })
+        .exec(conn)
+        .await?;
+    if result.rows_affected == 0 {
+        // 建单校验通过而消耗未命中：并发出库已消耗该匹（或匹 tuple 在建单后被改写），
+        // 重读归因后整单拒绝，事务回滚。
+        return Err(attribute_outbound_piece_miss(conn, ctx).await?);
+    }
+    Ok(())
+}
+
+/// 销售发货取消：把该出库明细引用的染色匹回退（SHIPPED→AVAILABLE，与库存回加对称反向）。
+///
+/// 按匹号 + 产品 + 仓库 + 批次 tuple 找到当前确为 SHIPPED 的匹行后逐行按主键 CAS，
+/// 防止同匹号跨缸歧义（染色匹 (dye_lot_id, piece_no) 唯一，匹号本身全局可重复）。
+/// 未命中（历史数据出库时未走匹号闭环 / 已被扫码链路改写）不阻断取消——取消本身是业务事实，
+/// 但必须逐匹 tracing::warn! 留痕归因，不静默（同 `release_reserved_pieces_on_cancel` 先例）。
+pub async fn restore_pieces_on_delivery_cancel<C: ConnectionTrait>(
+    conn: &C,
+    product_id: i32,
+    warehouse_id: i32,
+    batch_no: &str,
+    piece_no: &str,
+    operator_id: Option<i32>,
+) -> Result<(), AppError> {
+    use sea_orm::EntityTrait;
+    let candidates = inventory_piece::Entity::find()
+        .filter(
+            sea_orm::Condition::all()
+                .add(inventory_piece::Column::PieceNo.eq(piece_no))
+                .add(inventory_piece::Column::ProductId.eq(product_id))
+                .add(inventory_piece::Column::WarehouseId.eq(warehouse_id))
+                .add(inventory_piece::Column::BatchNo.eq(batch_no))
+                .add(inventory_piece::Column::PieceType.eq(PIECE_TYPE_DYED))
+                .add(inventory_piece::Column::Status.eq(piece_status::SHIPPED)),
+        )
+        .all(conn)
+        .await?;
+    if candidates.is_empty() {
+        tracing::warn!(
+            piece_no = %piece_no,
+            product_id,
+            warehouse_id,
+            "发货取消回退：未找到该出库明细引用、且当前仍为 SHIPPED 的染色匹（历史数据未走匹号闭环或状态已被改写），跳过该匹回退"
+        );
+        return Ok(());
+    }
+    for p in candidates {
+        let result = inventory_piece::Entity::update_many()
+            .filter(inventory_piece::Column::Id.eq(p.id))
+            .filter(inventory_piece::Column::Status.eq(piece_status::SHIPPED))
+            .set(inventory_piece::ActiveModel {
+                status: Set(piece_status::AVAILABLE.to_string()),
+                updated_by: Set(operator_id),
+                updated_at: Set(chrono::Utc::now()),
+                ..Default::default()
+            })
+            .exec(conn)
+            .await?;
+        if result.rows_affected == 0 {
+            tracing::warn!(
+                piece_no = %piece_no,
+                piece_id = p.id,
+                "发货取消回退：匹行 CAS（SHIPPED→AVAILABLE）未命中（并发状态改写），跳过该匹，需人工核查账实一致性"
+            );
+        }
+    }
+    Ok(())
+}

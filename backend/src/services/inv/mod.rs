@@ -106,6 +106,8 @@ pub struct InventoryTransferItemDetail {
     pub color_no: String,
     pub dye_lot_no: Option<String>,
     pub batch_no: String,
+    /// 匹号（出库四维第四维，用户 2026-10-02 纠正口径；白坯布合法为 NULL，m0066 补列）
+    pub piece_no: Option<String>,
     // 由 LEFT JOIN products 富化（实体仅存 product_id）；JOIN 派生列一律 Option<String>
     pub product_code: Option<String>,
     pub product_name: Option<String>,
@@ -135,6 +137,10 @@ pub struct InventoryTransferItemRequest {
     pub color_no: Option<String>,
     pub dye_lot_no: Option<String>,
     pub batch_no: Option<String>,
+    // 出库四维补强（用户 2026-10-02 纠正口径：染色布出库强制 缸号/色号/批次/匹号）：
+    // 匹号为第四维，染色布必填（fabric_class::normalize_outbound_piece_no 唯一判定），
+    // 白坯布免填归一 NULL；是否命中真实可用库存匹由 piece_domain_service 校验（BUSINESS 族）
+    pub piece_no: Option<String>,
     pub unit_cost: Option<rust_decimal::Decimal>,
 }
 
@@ -205,6 +211,10 @@ pub struct UpdateInventoryTransferItemRequest {
     /// 批次：NOT NULL 列——显式 null 被 service 拒绝
     #[serde(default, deserialize_with = "double_option")]
     pub batch_no: Option<Option<String>>,
+    /// 匹号：DB 可空列 piece_no（白坯布为合法 NULL，m0066）——显式 null 清空仅对白坯行合法；
+    /// 染色布（生效色号非空）行清空匹号违反出库四维不变量，由 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub piece_no: Option<Option<String>>,
 }
 
 // =====================================================

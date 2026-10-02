@@ -52,6 +52,9 @@ mod m0064_custom_order_status_add_change_pending;
 // up/down 由 domain/v15/mod.rs 在全部建表完成后调用，此处仅保留定义，
 // 提升可见性为 pub(crate)。
 pub(crate) mod m0065_backfill_outsourcing_reserved_pieces;
+// m0066 调拨出库明细补匹号列（出库四维=缸/色/批/匹，用户 2026-10-02 纠正口径）：
+// 目标表 inventory_transfer_items 由 system 域 m0001 建表，早于本域执行，直接注册本域。
+mod m0066_add_piece_no_to_transfer_items;
 
 pub struct Migration;
 
@@ -189,6 +192,10 @@ impl MigrationTrait for Migration {
         // submit_change_request），存量词表外取值 fail-visible 中止，须晚于
         // m0044 建表与 m0061 十值重建（同域顺序执行）
         m0064_custom_order_status_add_change_pending::Migration
+            .up(manager)
+            .await?;
+        // 调拨出库明细补匹号列（出库四维=缸/色/批/匹 落库点，见文件头注释）
+        m0066_add_piece_no_to_transfer_items::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
@@ -492,7 +499,11 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // m0064 最后应用故最先回滚（带在途 change_pending 行的 fail-visible 拒滚检查）
+        // m0066 最后应用故最先回滚（调拨明细匹号列）
+        m0066_add_piece_no_to_transfer_items::Migration
+            .down(manager)
+            .await?;
+        // m0064 次后应用（带在途 change_pending 行的 fail-visible 拒滚检查）
         m0064_custom_order_status_add_change_pending::Migration
             .down(manager)
             .await?;

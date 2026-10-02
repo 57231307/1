@@ -1,10 +1,11 @@
-//! 出库扣减规划与追溯维度校验（产品 + 色号 + 缸号 + 批次）
+//! 出库扣减规划与追溯维度校验（产品 + 色号 + 缸号 + 批次 + 匹号）
 //!
 //! 白坯/染色判定不在本文件重复实现，唯一来源是 [`crate::services::inv::fabric_class`]
-//! （空色号⇒白坯免缸号、批次必填；非空⇒染色布、缸号+批次必填）；本文件仅委托它做维度校验。
+//! （空色号⇒白坯免缸号免匹号、批次必填；非空⇒染色布、缸号+批次+匹号必填）；
+//! 本文件仅委托它做出库方向四维（缸/色/批/匹）校验——匹号维度用户 2026-10-02 拍板补强。
 //!
-//! 业务规则（用户拍板）：
-//! - **染色布**出库按"色号非空 ⇒ 色号 + 缸号 + 批次"匹配扣减：
+//! 业务规则（用户拍板；2026-10-02 纠正：出库强制四维 = 缸号/色号/批次/匹号，此前误写的"幅宽"作废）：
+//! - **染色布**出库按"色号非空 ⇒ 色号 + 缸号 + 批次 + 匹号"四维强制；数量匹配扣减仍走：
 //!   1. 先扣指定缸号（精确命中）的库存行，按入库时间（created_at）升序、库存行 ID 升序；
 //!   2. 不足部分按【缸号字典序升序（无缸号的行排最后）→ 入库时间升序 → 库存行 ID 升序】
 //!      依次回退到其他缸；
@@ -12,13 +13,14 @@
 //! - **白坯布**（色号为空）出库按"色号空 + 批次"匹配、**免缸号**：只接受库里无缸号
 //!   （`dye_lot_no IS NULL`）的库存行，**不存在跨缸概念、绝不回退到带缸号行**（白坯没颜色、
 //!   自然没有染缸，跨缸回退到染缸行会把染缸料当白坯扣走，破坏追溯）。
-//! - 不做兜底：染色布缺色号/缸号/批次、白坯布缺批次，或组合口径无可用库存时，
-//!   返回明确业务错误，禁止回退到"产品+色号"式随意扣减。
+//! - 不做兜底：染色布缺色号/缸号/批次/匹号任一维、白坯布缺批次，或组合口径无可用库存时，
+//!   返回明确业务错误，禁止回退到"产品+色号"式随意扣减；匹号是否命中真实可用库存匹由
+//!   `crate::services::piece_domain_service` 在出库事务内以 CAS 消耗校验（不命中即拒）。
 //!
 //! 本文件只承载**纯规划逻辑**（可单测、无 DB 依赖）；SELECT/UPDATE 与流水记录
 //! 由各出库路径（销售发货 `so::delivery_ops`、调拨出库 `inv::batch`）执行。
 
-use crate::services::inv::fabric_class::{self, FabricTrace};
+use crate::services::inv::fabric_class;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
@@ -204,19 +206,36 @@ fn dye_lot_order_key(dye_lot_no: &Option<String>) -> (u8, &str) {
     }
 }
 
-/// 出库单三维入参（色号 + 缸号 + 批次，trim 后 owned 值）。
+/// 出库单四维入参（色号 + 缸号 + 批次 + 匹号，trim 后 owned 值）。
 ///
-/// 与入库侧 [`fabric_class`] 的判定结果 [`FabricTrace`] 同源同型：白坯布 `color_no` 为空串、
-/// `dye_lot_no` 为 None；染色布二者皆非空。用类型别名而非另立结构，杜绝出库/入库两份口径漂移。
-pub type OutboundDimensions = FabricTrace;
+/// 前三维与入库侧 [`fabric_class`] 的判定结果 [`FabricTrace`] 同源归一（`validate_fabric_trace`），
+/// 第四维匹号由 [`fabric_class::normalize_outbound_piece_no`] 归一（仅出库强制，白坯为 None）。
+/// 白坯布 `color_no` 为空串、`dye_lot_no`/`piece_no` 为 None；染色布四维皆非空。
+/// 独立成结构而非别名 `FabricTrace`：匹号是出库专属维度，入库方向不携带。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutboundDimensions {
+    /// trim 后的色号；白坯布为空串
+    pub color_no: String,
+    /// 染色布为非空缸号；白坯布归一为 None
+    pub dye_lot_no: Option<String>,
+    /// trim 后的批次（任何布种都必填）
+    pub batch_no: String,
+    /// trim 后的匹号；染色布必填（用户 2026-10-02 口径：出库四维=缸/色/批/匹），白坯为 None
+    pub piece_no: Option<String>,
+}
 
-/// 校验并归一化出库明细的追溯维度（款号由 product_id 承载，此处含色号 / 缸号 / 批次）。
+/// 校验并归一化出库明细的追溯维度（款号由 product_id 承载，此处含色号 / 缸号 / 批次 / 匹号）。
 ///
-/// 判定委托全仓唯一实现 [`fabric_class::validate_fabric_trace`]，出库 / 入库同源，
+/// 判定委托全仓唯一实现 [`fabric_class`]（三维 [`fabric_class::validate_fabric_trace`] +
+/// 出库第四维 [`fabric_class::normalize_outbound_piece_no`]），出库 / 入库同源，
 /// 不在出库侧再写第二份规则（业务铁律：白坯布 = 没有颜色的布）：
-/// - 白坯布（色号为空 / 空白）：免缸号，`dye_lot_no` 归一为 None，批次仍必填；
-/// - 染色布（色号非空）：缸号、批次都必填，缺一返回明确业务错误（不做兜底）；
-/// - 不以色号名称嗅探白坯（"本白""WHITE" 是已染色的白色布，必须带缸号追溯）。
+/// - 白坯布（色号为空 / 空白）：免缸号免匹号，`dye_lot_no`/`piece_no` 归一为 None，批次仍必填；
+/// - 染色布（色号非空）：缸号、批次、匹号都必填，缺一返回明确校验错误（VALIDATION 族；
+///   维度命中/库存充足性属状态门族 BUSINESS。不做兜底）；
+/// - 不以色号名称嗅探白坯（"本白""WHITE" 是已染色的白色布，必须带缸号+匹号追溯）。
+///
+/// 匹号是否命中该缸该批的真实可用库存匹，由各出库出口调用
+/// `crate::services::piece_domain_service` 的存在性校验 / CAS 消耗负责（DB 族，不在本纯函数内）。
 ///
 /// `bill_label` 用于指明是销售发货明细还是调拨出库明细，`product_id` 用于定位款号。
 pub fn require_outbound_dimensions(
@@ -225,13 +244,29 @@ pub fn require_outbound_dimensions(
     color_no: Option<&str>,
     dye_lot_no: Option<&str>,
     batch_no: Option<&str>,
+    piece_no: Option<&str>,
 ) -> Result<OutboundDimensions, AppError> {
-    fabric_class::validate_fabric_trace(
+    let trace = fabric_class::validate_fabric_trace(
         color_no.map(str::to_string),
         dye_lot_no.map(str::to_string),
         batch_no.map(str::to_string),
     )
-    .map_err(|e| AppError::business(format!("{}（款号产品 {}）：{}", bill_label, product_id, e)))
+    .map_err(|e| {
+        // 字段必填族 = VALIDATION；包装文案携带内部产品 ID，走脱敏变体（真实文案只进日志）
+        AppError::validation(format!("{}（款号产品 {}）：{}", bill_label, product_id, e))
+    })?;
+    let piece_no =
+        fabric_class::normalize_outbound_piece_no(&trace.color_no, piece_no.map(str::to_string))
+            .map_err(|e| {
+                // 同上：匹号必填属字段校验族，含 ID 文案脱敏外显
+                AppError::validation(format!("{}（款号产品 {}）：{}", bill_label, product_id, e))
+            })?;
+    Ok(OutboundDimensions {
+        color_no: trace.color_no,
+        dye_lot_no: trace.dye_lot_no,
+        batch_no: trace.batch_no,
+        piece_no,
+    })
 }
 
 // =====================================================
@@ -434,50 +469,95 @@ mod tests {
     #[test]
     fn require_outbound_dimensions_dyed_requires_dye_lot_and_batch() {
         // 染色布（色号非空）缺缸号/缺批次都报业务错误，且指明缺哪个维度
-        let missing_dye =
-            require_outbound_dimensions("销售发货", 7, Some("RED"), Some("  "), Some("B1"))
-                .unwrap_err();
+        // （匹号维度用例单独锁定，见 dyed_requires_piece_no 系列）
+        let missing_dye = require_outbound_dimensions(
+            "销售发货",
+            7,
+            Some("RED"),
+            Some("  "),
+            Some("B1"),
+            Some("P-7"),
+        )
+        .unwrap_err();
         assert!(
             missing_dye.to_string().contains("缸号"),
             "实际: {}",
             missing_dye
         );
 
-        let missing_batch =
-            require_outbound_dimensions("调拨出库", 7, Some("RED"), Some("DL-A"), None)
-                .unwrap_err();
+        let missing_batch = require_outbound_dimensions(
+            "调拨出库",
+            7,
+            Some("RED"),
+            Some("DL-A"),
+            None,
+            Some("P-7"),
+        )
+        .unwrap_err();
         assert!(
             missing_batch.to_string().contains("批"),
             "实际: {}",
             missing_batch
         );
 
-        // 染色布四维齐（色号+缸号+批次）通过并 trim
-        let ok =
-            require_outbound_dimensions("销售发货", 7, Some(" RED "), Some("DL-A"), Some("B1"))
-                .unwrap();
+        // 染色布四维齐（色号+缸号+批次+匹号）通过并 trim
+        let ok = require_outbound_dimensions(
+            "销售发货",
+            7,
+            Some(" RED "),
+            Some("DL-A"),
+            Some("B1"),
+            Some(" P-7 "),
+        )
+        .unwrap();
         assert_eq!(ok.color_no, "RED");
         assert_eq!(ok.dye_lot_no.as_deref(), Some("DL-A"));
         assert_eq!(ok.batch_no, "B1");
+        assert_eq!(ok.piece_no.as_deref(), Some("P-7"));
+    }
+
+    #[test]
+    fn dyed_requires_piece_no_on_outbound() {
+        // 用户 2026-10-02 口径：出库对染色布强制四维=缸/色/批/匹，缺匹号即拒（不兜底）
+        let err =
+            require_outbound_dimensions("销售发货", 7, Some("RED"), Some("DL-A"), Some("B1"), None)
+                .expect_err("染色布缺匹号必须拒绝");
+        assert!(err.to_string().contains("匹号"), "实际: {err}");
+        // 字段必填族 = VALIDATION_ERROR（本仓错误码边界，包装不改族）
+        assert!(matches!(err, AppError::ValidationError(_)));
+
+        // 全空格匹号等价缺失（仅以是否为空判定）
+        let err2 = require_outbound_dimensions(
+            "调拨出库",
+            7,
+            Some("RED"),
+            Some("DL-A"),
+            Some("B1"),
+            Some("   "),
+        )
+        .expect_err("空白匹号必须拒绝");
+        assert!(err2.to_string().contains("匹号"), "实际: {err2}");
     }
 
     #[test]
     fn require_outbound_dimensions_white_greige_allows_empty_color_no_dye_lot() {
-        // 白坯布（色号为空 / 空白 / None）免缸号，批次仍必填；缸号归一为 None
+        // 白坯布（色号为空 / 空白 / None）免缸号免匹号，批次仍必填；缸号归一为 None
         let none_color =
-            require_outbound_dimensions("销售发货", 7, None, None, Some("B1")).unwrap();
+            require_outbound_dimensions("销售发货", 7, None, None, Some("B1"), None).unwrap();
         assert_eq!(none_color.color_no, "");
         assert_eq!(none_color.dye_lot_no, None);
+        assert_eq!(none_color.piece_no, None, "白坯匹号免填归一为 None");
         assert_eq!(none_color.batch_no, "B1");
 
         let blank_color =
-            require_outbound_dimensions("调拨出库", 7, Some("   "), Some("  "), Some("B2"))
+            require_outbound_dimensions("调拨出库", 7, Some("   "), Some("  "), Some("B2"), None)
                 .unwrap();
         assert_eq!(blank_color.color_no, "");
         assert_eq!(blank_color.dye_lot_no, None);
 
         // 白坯缺批次仍拒（批次与是否染色无关，必填）
-        let err = require_outbound_dimensions("销售发货", 7, Some(""), None, None).unwrap_err();
+        let err =
+            require_outbound_dimensions("销售发货", 7, Some(""), None, None, None).unwrap_err();
         assert!(err.to_string().contains("批"), "实际: {}", err);
     }
 
@@ -485,24 +565,32 @@ mod tests {
     fn white_named_color_is_dyed_and_requires_dye_lot_on_outbound() {
         // 名字带"白"/WHITE 的色号是染色白色布，出库缺缸号必须被拒（不按名称豁免）
         let err =
-            require_outbound_dimensions("销售发货", 7, Some("本白"), None, Some("B1")).unwrap_err();
+            require_outbound_dimensions("销售发货", 7, Some("本白"), None, Some("B1"), Some("P-1"))
+                .unwrap_err();
         assert!(err.to_string().contains("缸号"), "实际: {}", err);
     }
 
     #[test]
     fn outbound_and_inbound_determination_share_single_source() {
-        // 出库 require_outbound_dimensions 与入库 validate_fabric_trace 判定同源：
-        // 同一组（色号/缸号/批次）在两个方向必须得到完全一致的归一化结果。
-        let cases: [(&str, &str, &str); 4] = [
-            ("", "", "B1"),         // 白坯：免缸号
-            ("  ", "  ", "B2"),     // 白坯（空白）
-            ("RED", "DL-A", "B3"),  // 染色：四维齐
-            ("本白", "DL-W", "B4"), // 白色号是染色布
+        // 出库 require_outbound_dimensions 与入库 validate_fabric_trace 前三维判定同源：
+        // 同一组（色号/缸号/批次）在两个方向必须得到完全一致的归一化结果；
+        // 第四维匹号仅出库存在（白坯 None / 染色 Some(trim 值)）。
+        let cases: [(&str, &str, &str, Option<&str>); 4] = [
+            ("", "", "B1", None),                // 白坯：免缸号免匹号
+            ("  ", "  ", "B2", Some(" P-0 ")),   // 白坯（空白）主动给匹号：保留 trim 值
+            ("RED", "DL-A", "B3", Some("P-3")),  // 染色：四维齐
+            ("本白", "DL-W", "B4", Some("P-4")), // 白色号是染色布
         ];
-        for (color, dye, batch) in cases {
-            let outbound =
-                require_outbound_dimensions("销售发货", 1, Some(color), Some(dye), Some(batch))
-                    .expect("有效维度应通过");
+        for (color, dye, batch, piece) in cases {
+            let outbound = require_outbound_dimensions(
+                "销售发货",
+                1,
+                Some(color),
+                Some(dye),
+                Some(batch),
+                piece,
+            )
+            .expect("有效维度应通过");
             let inbound = validate_fabric_trace(
                 Some(color.to_string()),
                 Some(dye.to_string()),
@@ -510,13 +598,22 @@ mod tests {
             )
             .expect("有效维度应通过");
             assert_eq!(
-                outbound, inbound,
-                "同一入参出库/入库判定必须一致: {color:?}/{dye:?}"
+                outbound.color_no, inbound.color_no,
+                "色号判定必须同源: {color:?}"
+            );
+            assert_eq!(
+                outbound.dye_lot_no, inbound.dye_lot_no,
+                "同一入参出库/入库缸号归一必须一致: {color:?}/{dye:?}"
+            );
+            assert_eq!(
+                outbound.batch_no, inbound.batch_no,
+                "批次判定必须同源: {batch:?}"
             );
         }
 
         // 染色布缺缸号：两方向都必须拒绝
-        let ob = require_outbound_dimensions("销售发货", 1, Some("RED"), None, Some("B5"));
+        let ob =
+            require_outbound_dimensions("销售发货", 1, Some("RED"), None, Some("B5"), Some("P-5"));
         let ib = validate_fabric_trace(Some("RED".to_string()), None, Some("B5".to_string()));
         assert!(ob.is_err());
         assert!(ib.is_err());
