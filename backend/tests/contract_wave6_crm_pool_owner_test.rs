@@ -41,15 +41,17 @@
 //!    那一行必须紧随 `check_resource_owner` 回落；claim 必须经统一的
 //!    `claim_lead_ownership` 落归属，不得退回"只改状态不写 owner"的旧写法。
 //!
-//! 覆盖边界（诚实声明）：
-//! - 单条领取路径**仍不经** `claim_pool_customers` 的公海规则校验（保护期/领取上限/
-//!   最大持有数）：回收后 `updated_at` 即"刚刚"，保护期（默认 7 天）会把单条领取直接
-//!   判负并打断既有业务链（回收 → `/pool/claim`，见
-//!   `frontend/e2e/fullflow/27-crm-chain.spec.ts` 27-06 用例）。"单条领取是否也该走
-//!   公海规则校验"属口径问题，本批原样保留现状并已上报待决，未顺手收紧。
+//! 覆盖边界（诚实声明，按 2026-10-02 拍板后口径更新）：
+//! - 单条领取路径**已经与批量路径同一套公海规则校验**（保护期/领取上限/最大持有数，
+//!   判据 = 领取事件列 `last_claimed_at`/`last_claimed_by`，见
+//!   `services/crm/pool.rs` 文件头与 `tests/services_crm_pool_claim_rules_test.rs`）。
+//!   本文件种子行的 `last_claimed_at` 均为 NULL（存量语义=无保护期），
+//!   且领取次数远低于默认上限（5/日、50 持有），既有断言不受校验收紧影响——
+//!   校验行为本身不在本文件重复断言。
 //! - 本文件不依赖 PG 专有特性（claim/recycle 写路径无取号咨询锁、无 lock_exclusive），
-//!   故不另开活库用例；`utils/data_scope.rs` Self 分支缺公海放行（#203 待用户拍板）
-//!   已由 `contract_wave6_crm_pool_mask_test.rs` 用例 5 记录，本文件不重复。
+//!   故不另开活库用例；`utils/data_scope.rs` Self/Dept 分支的公海放行
+//!   （`PoolVisibility::Open`，拍板 ②）已由 `contract_wave6_crm_pool_mask_test.rs`
+//!   用例 5/6 常跑锁定，本文件不重复。
 
 use axum::{
     Router,
@@ -122,6 +124,7 @@ const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
     estimated_quantity TEXT, estimated_amount TEXT,
     expected_delivery_date TEXT, requirement_desc TEXT,
     owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
+    last_claimed_at TEXT, last_claimed_by INTEGER,
     last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
     converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
     lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,

@@ -12,7 +12,7 @@ use crate::models::status::crm_lead as lead_status;
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{
-    DataScopeContext, apply_department_scope_with_pool, check_resource_owner,
+    DataScopeContext, PoolVisibility, apply_department_scope_with_pool, check_resource_owner,
 };
 use crate::utils::error::AppError;
 use crate::utils::messages::err_msg;
@@ -155,6 +155,7 @@ impl CrmService {
                 crm_lead::Column::OwnerId,
                 crm_lead::Column::DepartmentId,
                 crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                PoolVisibility::Open,
             );
         }
 
@@ -318,6 +319,7 @@ impl CrmService {
                 crm_lead::Column::OwnerId,
                 crm_lead::Column::DepartmentId,
                 crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                PoolVisibility::Open,
             );
         }
 
@@ -970,6 +972,7 @@ impl CrmService {
                         crm_lead::Column::OwnerId,
                         crm_lead::Column::DepartmentId,
                         crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                        PoolVisibility::Open,
                     );
                 }
                 let leads = q.all(&*self.db).await?;
@@ -1003,6 +1006,7 @@ impl CrmService {
                         crm_lead::Column::OwnerId,
                         crm_lead::Column::DepartmentId,
                         crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                        PoolVisibility::Open,
                     );
                 }
                 let leads = q.all(&*self.db).await?;

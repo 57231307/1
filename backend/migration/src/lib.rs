@@ -1,12 +1,12 @@
 //! 数据库迁移模块
 //!
-//! 按业务域聚合，每个域 1 个迁移文件，共 9 个：
+//! 按业务域聚合，每个域 1 个迁移文件，共 10 个：
 //! system → business → sales_crm → production → finance → v15 → rls_dept
-//!   → rls_dept_user_sync → crm_vocab_check
+//!   → rls_dept_user_sync → crm_lead_claim_record → crm_vocab_check
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
-//!         m_rls_dept_user_sync / m_crm_vocab_check
+//!         m_rls_dept_user_sync / m_crm_lead_claim_record / m_crm_vocab_check
 //!
 //! 顺序说明：
 //! 1. system: 核心表（含 customers.owner_id/suppliers.created_by 补列）
@@ -18,6 +18,8 @@
 //! 7. rls_dept: RLS dept 语义扩展（依赖 finance 的 5 表 RLS 策略，重写为 dept 级）
 //! 7.5 rls_dept_user_sync: users 换部门 → 同事务重算 5 表冗余 department_id
 //!     （依赖 rls_dept 的补列/触发器，故紧随其后；含一次性存量回填与备份表精确回退）
+//! 7.6 crm_lead_claim_record: crm_lead 领取事件列 last_claimed_at/last_claimed_by
+//!     （依赖 business 建的 crm_lead；补列类迁移先于 CHECK 词表迁移收尾，故置于其前）
 //! 8. crm_vocab_check: CRM 状态词表 CHECK（依赖 business 建的 crm_lead/crm_opportunity，
 //!    排最后确保全部建表/回填类迁移（含 m0044 fix_fk_types）先行完成）
 
@@ -39,6 +41,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::v15::Migration),
             Box::new(domain::rls_dept::Migration),
             Box::new(domain::rls_dept_user_sync::Migration),
+            Box::new(domain::crm_lead_claim_record::Migration),
             Box::new(domain::crm_vocab_check::Migration),
         ]
     }

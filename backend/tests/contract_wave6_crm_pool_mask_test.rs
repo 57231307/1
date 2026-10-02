@@ -22,14 +22,14 @@
 //! 4. 源码扫描锁（shrink-only 棘轮）：crm_pool_handler.rs 中
 //!    `list_leads(query, None` 命中数必须为 0。
 //!
-//! 覆盖边界（声明）：服务层/utils 在本任务禁改清单内。
-//! `apply_department_scope_with_pool`（utils/data_scope.rs:218-236）的公海放行
-//! 仅对 Dept 分支生效（pool 条件 AND 进 dept 条件；公海入口自带
-//! lead_status='pool' 谓词，故 Dept 用例结果集不受影响），而 Self 分支无任何
-//! 公海放行——self 销售在公海列表只能看到自己回收进公海的线索，看不到他人
-//! 公海线索，与 RLS 策略"公海行放行"意图（data_scope.rs:212-214 注释）不一致。
-//! 该口径需改 utils/data_scope.rs 方能量化落地，用例 5 以 #[ignore] 记录目标
-//! 契约，不伪装成已通过端到端。
+//! 覆盖边界（已落地，用户 2026-10-02 拍板 ②）：
+//! `apply_department_scope_with_pool`（utils/data_scope.rs）对 crm_lead 采用
+//! `PoolVisibility::Open`——公海行可见性与归属条件相互独立（OR），与 DB 层
+//! RLS USING 的独立公海 OR 支（rls_dept/mod.rs:195-207）同形态。
+//! 修复前 Dept 分支为 `(self ∪ dept) AND 公海条件`、Self 分支无公海放行，
+//! self 销售在公海列表看不到他人公海线索。用例 1/2 按新语义断言可见集，
+//! 用例 5（原 #[ignore] 记录该边界的目标契约）已取消 ignore 成为常跑回归锁；
+//! 私海行（lead_status≠'pool'）仍严格受行级 scope 约束（用例 2 锁）。
 
 use axum::{
     Router,
@@ -98,6 +98,7 @@ const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
     estimated_quantity TEXT, estimated_amount TEXT,
     expected_delivery_date TEXT, requirement_desc TEXT,
     owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
+    last_claimed_at TEXT, last_claimed_by INTEGER,
     last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
     converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
     lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
@@ -227,9 +228,17 @@ async fn non_admin_pool_list_masks_mobile_phone_and_email() {
     let (status, v) = get_json(&app, "/erp/crm/pool?page=1&page_size=20").await;
     assert_eq!(status, StatusCode::OK, "公海列表 200 契约: {v}");
     let items = pool_items(&v);
-    assert_eq!(items.len(), 1, "self 范围应仅命中本人公海线索: {v}");
-    let lead = &items[0];
-    assert_eq!(lead["id"], json!(1));
+    // PoolVisibility::Open：公海行对所有有权进公海者放行（RLS 同口径），
+    // self 用户 A 在公海页看到全部 2 条公海行（本人 id=1 + 他人 id=3）
+    assert_eq!(items.len(), 2, "公海入口应见全部公海行: {v}");
+    // 断言不依赖 created_at DESC 排序（可见集是集合语义）
+    let mut got = ids_of(items.as_slice());
+    got.sort();
+    assert_eq!(got, vec![1, 3], "公海可见集漂移: {v}");
+    let lead = items
+        .iter()
+        .find(|i| i["id"] == json!(1))
+        .expect("id=1 应在公海列表");
 
     // 核心回归点：修复前公海入口无任何掩码分支 → 原值直通
     assert_eq!(
@@ -245,10 +254,22 @@ async fn non_admin_pool_list_masks_mobile_phone_and_email() {
         json!("a***@example.com"),
         "mask_email（首字母+***，utils/field_mask.rs:16）未生效"
     );
+    // Open 放行的是"行可见性"，不是"字段原文"：他人公海行（id=3）同样必须掩码
+    let lead_other = items
+        .iter()
+        .find(|i| i["id"] == json!(3))
+        .expect("id=3 应在公海列表");
+    assert_eq!(
+        lead_other["mobile_phone"],
+        json!("139****7777"),
+        "公海放行不得连带放宽字段级掩码（他人行原文外泄）"
+    );
 }
 
 // ---------------------------------------------------------------------------
-// 2) 行级 scope 生效：B 不得看到 A 的任何线索（公海入口曾传 None 绕过过滤）
+// 2) 行级 scope 对**私海行**仍生效：B 不得看到 A 的私海线索（公海入口曾传
+//    None 绕过过滤）。公海行按 PoolVisibility::Open 全量放行属拍板语义（用例 5），
+//    本用例锁"放开仅限公海行、私海行不渗"。
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -258,20 +279,23 @@ async fn pool_list_honors_row_level_scope_against_other_owner_leads() {
     assert_eq!(status, StatusCode::OK, "公海列表 200 契约: {v}");
     let ids = ids_of(pool_items(&v));
 
-    // 修复前实证泄露点：list_leads(…, None) 跳过行级过滤，A 的公海线索 id=1 可见
-    assert!(
-        !ids.contains(&1),
-        "行级 scope 未接入：B 看到了 A 的公海线索: {v}"
-    );
-    // 私海线索（status='new'）不得出现在公海入口（谓词+scope 双保险）
+    // 私海线索（status='new'）不得出现在公海入口（状态谓词 + scope 双保险）——
+    // 修复前 list_leads(…, None) 绕过行级过滤时 id=2 同样不可见（谓词挡住），
+    // 本断言与用例 5 一起把"公海入口只可能出公海行"钉死
     assert!(!ids.contains(&2), "A 的私海线索出现在公海列表: {v}");
+    // Open 语义：本人公海行 id=3 与他人公海行 id=1 均可见
     assert!(ids.contains(&3), "B 本人公海线索应可见: {v}");
-    assert_eq!(ids.len(), 1, "self 范围公海列表应仅含本人行: {v}");
+    assert_eq!(ids.len(), 2, "公海入口可见集应恰为两条公海行: {v}");
 
-    // B 的行同样被掩码（掩码判定与行级过滤双缺陷同源入口，各自独立锁）
-    let lead_b = &pool_items(&v)[0];
-    assert_eq!(lead_b["mobile_phone"], json!("139****7777"));
-    assert_eq!(lead_b["email"], json!("b***@example.com"));
+    // 全部可见行都被掩码（掩码判定与行级过滤双缺陷同源入口，各自独立锁）
+    for lead in pool_items(&v) {
+        let phone = lead["mobile_phone"].as_str().unwrap_or_default();
+        let email = lead["email"].as_str().unwrap_or_default();
+        assert!(
+            phone.contains("****") && email.contains("***@"),
+            "公海列表存在未掩码行: {lead}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -322,16 +346,13 @@ fn pool_handler_never_calls_list_leads_without_scope() {
 }
 
 // ---------------------------------------------------------------------------
-// 5) 覆盖边界（#[ignore]）：Self 分支的公海放行需 utils/data_scope.rs 配合
-//    现状：build_department_scope_condition 的 Self 分支仅 owner_id=user_id，
-//    无「lead_status='pool' 放行」OR 支（utils/data_scope.rs:140-141）；
-//    与 RLS 策略意图（data_scope.rs:212-214 注释）不一致——self 销售在公海页
-//    看不到他人公海线索，"领取"业务受损。本用例记录目标契约（修复后取消
-//    ignore 即成为回归锁），当前不通过，不伪装成端到端。
+// 5) 常跑回归锁（原 #[ignore] 目标契约，用户 2026-10-02 拍板 ② 落地）：
+//    Self 分支的公海放行——公海行可见性与归属条件相互独立（OR），
+//    self 销售在公海页能看到他人公海线索，与 RLS USING 的独立公海 OR 支
+//    （rls_dept/mod.rs:195-207）同口径；私海行仍被行级 scope + 状态谓词挡住。
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-#[ignore = "覆盖边界：Self 分支公海放行需先改 utils/data_scope.rs（本任务禁改清单），落地后取消 ignore"]
 async fn self_scope_user_should_see_others_pool_leads() {
     let app = build_app(seeded_state().await, make_auth(60, 2, "self"));
     let (_, v) = get_json(&app, "/erp/crm/pool?page=1&page_size=20").await;
@@ -344,4 +365,36 @@ async fn self_scope_user_should_see_others_pool_leads() {
         !ids.contains(&2),
         "私海线索仍必须被行级 scope + 状态谓词挡住: {v}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// 6) Dept 档可见集（拍板 ② 的另一半）：Dept 用户公海页见全部公海行；
+//    修复前 Dept 为 `(self ∪ dept) AND pool`——他人部门/无部门公海行被遮蔽，
+//    且**领取动作把 lead_status 从 pool 改回 new 后该行反而跌出领取人可见集**
+//    （复审实证）。OR 组合下两类漂移同时消除。
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn dept_scope_user_sees_all_pool_leads_on_pool_page() {
+    let auth = AuthContext {
+        user_id: 55,
+        username: "wave6_pool_dept_55".to_string(),
+        role_id: Some(2),
+        department_id: Some(1),
+        data_scope: Some("dept".to_string()),
+        // dept_ids=可见部门集合；dept_member_user_ids=部门成员（与 RLS 同口径）
+        dept_ids: Some(std::sync::Arc::new("1".to_string())),
+        dept_member_user_ids: Some(std::sync::Arc::new("50,60".to_string())),
+    };
+    let app = build_app(seeded_state().await, auth);
+    let (status, v) = get_json(&app, "/erp/crm/pool?page=1&page_size=20").await;
+    assert_eq!(status, StatusCode::OK, "dept 公海列表 200 契约: {v}");
+    let ids = ids_of(pool_items(&v));
+    assert_eq!(
+        ids.len(),
+        2,
+        "Dept 用户在公海入口应见全部公海行（id=1,3），不多不少: {v}"
+    );
+    assert!(ids.contains(&1) && ids.contains(&3), "公海可见集漂移: {v}");
+    assert!(!ids.contains(&2), "私海行不得进入公海入口: {v}");
 }

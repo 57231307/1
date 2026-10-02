@@ -118,6 +118,7 @@ const CREATE_CRM_LEAD: &str = r#"CREATE TABLE crm_lead (
     estimated_quantity TEXT, estimated_amount TEXT,
     expected_delivery_date TEXT, requirement_desc TEXT,
     owner_id INTEGER NOT NULL, department_id INTEGER, owner_name TEXT NOT NULL,
+    last_claimed_at TEXT, last_claimed_by INTEGER,
     last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
     converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
     lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,
@@ -338,10 +339,13 @@ async fn self_user_export_rows_equal_list_visible_and_pii_masked() {
     let app = build_app(&db, make_auth(60, 2, "self"));
 
     let list = list_visible(&app).await;
-    // 基线自检：self 用户列表可见集 = 本人 owner 的两行（id=3 私海 + id=4 自己回收前
-    // 遗留的公海行仍按 owner_id=60 命中 Self 分支；他人公海行 id=1 不可见，
-    // utils/data_scope.rs 的 Self 分支公海放行属 #203 待拍板项，本文件不依赖）
-    assert_eq!(list.0, 2, "self 用户列表可见集基线: {:?}", list.1);
+    // 基线自检（用户 2026-10-02 拍板 ② 后口径）：crm_lead 走
+    // `PoolVisibility::Open`，公海行可见性与归属条件相互独立（OR，与 RLS
+    // USING 同形态）——self 用户 B 可见 = 本人 owner 两行（id=3 私海 +
+    // id=4 自己名下公海行）+ 他人公海行 id=1 = 3 行；私海他人行 id=2 不可见。
+    // （修复前 Self 分支无公海放行、Dept 分支 `(self∪dept) AND pool`，
+    // 基线分别为 2 与 4 中的公海子集——该遮蔽属应用层缺陷，DB 层 RLS 本就放行。）
+    assert_eq!(list.0, 3, "self 用户列表可见集基线: {:?}", list.1);
 
     let (headers, rows) = export_table(&app).await;
     assert_same_visible_set(&list, &headers, &rows);

@@ -174,12 +174,16 @@ async fn mask_lead_write_response(
 ///   admin 角色在 `check_permission`（`permission.rs:536` `admin_checker::is_admin_role`）
 ///   整体放行。claim 与 recycle 推导出的是**同一个键 `pool:create`**，RBAC 无法区分二者，
 ///   所以"谁能对哪一行写"只能由行级数据权限决定。
-/// - 行级层：公海行的业务语义是"无归属人、对有权进公海者开放"（`utils/data_scope.rs:212-214`
-///   RLS 公海放行注释），因此这里**不套用私海归属门**（否则 self 销售领取他人公海行会被
-///   打死——`utils/data_scope.rs` Self 分支的公海放行属 #203 待用户拍板项，本处不依赖它）；
-///   一旦命中非公海行（即他人私海），立即回落到与 `get_lead` 正常路径同一个
-///   `check_resource_owner`：`DataScope::All` 可越界、`Dept` 需资源部门在可见集合内、
-///   `Self_` 仅本人行，否则 403。
+/// - 行级层：公海行的业务语义是"无归属人、对有权进公海者开放"（`utils/data_scope.rs`
+///   `PoolVisibility::Open` 注释——读侧公海行可见性与归属条件相互独立，与 DB 层
+///   RLS 的独立公海 OR 支同源），因此这里**不套用私海归属门**（否则 self 销售领取
+///   他人公海行会被打死）；一旦命中非公海行（即他人私海），立即回落到与 `get_lead`
+///   正常路径同一个 `check_resource_owner`：`DataScope::All` 可越界、`Dept` 需资源
+///   部门在可见集合内、`Self_` 仅本人行，否则 403。写侧越权门未随读侧放开做任何放松。
+/// 校验边界（公海规则统一，批量/单条同一套）：本路径经 `claim_lead_ownership`
+/// 走与 `POST /crm/pool/:id/claim` 相同的每日领取上限 / 最大持有数 /
+/// 保护期校验（判据 `last_claimed_at`，原领取人本人重领豁免），见
+/// `services/crm/pool.rs` 文件头。
 /// 出参边界（#204 遗留项收口）：成功响应不再整行原文回传，改走与读路径同一实现的
 /// `mask_lead_write_response`（详见该函数文档）。
 pub async fn claim_from_pool(

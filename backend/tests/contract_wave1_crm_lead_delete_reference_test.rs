@@ -74,6 +74,7 @@ async fn create_tables(db: &sea_orm::DatabaseConnection) {
             email TEXT, wechat TEXT, qq TEXT, address TEXT, product_interest TEXT,
             estimated_quantity TEXT, estimated_amount TEXT, expected_delivery_date TEXT,
             requirement_desc TEXT, owner_id INTEGER, department_id INTEGER, owner_name TEXT,
+            last_claimed_at TEXT, last_claimed_by INTEGER,
             last_follow_up_date TEXT, next_follow_up_date TEXT, follow_up_plan TEXT,
             converted_at TEXT, converted_customer_id INTEGER, converted_opportunity_id INTEGER,
             lost_reason TEXT, priority TEXT, rating INTEGER, tags TEXT, industry TEXT,

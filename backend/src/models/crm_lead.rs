@@ -81,6 +81,17 @@ pub struct Model {
     /// 负责人姓名
     pub owner_name: String,
 
+    /// 最近一次被领取的时间（领取事件唯一记录点，由 `services/crm/pool.rs::
+    /// build_claimed_active` 写入）。公海保护期判据：`updated_at` 会被回收/跟进
+    /// 一并刷新，不能充当"上次领取时间"（回收→立即领取的合法链会被 7 天保护期
+    /// 误判）。NULL = 迁移前存量/从未领取，视为"无保护期"（列语义见迁移
+    /// m_crm_lead_claim_record 头注释）。
+    pub last_claimed_at: Option<DateTime<Utc>>,
+
+    /// 最近一次领取人用户 ID（与 `last_claimed_at` 同源写入）。
+    /// 保护期本义是防他人抢单——原领取人本人重领据此豁免。
+    pub last_claimed_by: Option<i32>,
+
     /// 最近跟进日期
     pub last_follow_up_date: Option<NaiveDate>,
 

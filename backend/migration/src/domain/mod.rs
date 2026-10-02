@@ -8,6 +8,7 @@
 //! - finance: 合规/权限/RLS/色卡/坏账/8D
 //! - v15: V15 各批次（core/batch18/batch19/extensions/final 合并）
 //! - rls_dept: RLS dept 数据范围语义扩展（5 表冗余 department_id + 触发器 + 策略重写）
+//! - crm_lead_claim_record: crm_lead 领取事件列（last_claimed_at/by，公海保护期与每日计数的唯一可靠判据）
 //! - crm_vocab_check: CRM 状态词表 DB CHECK 约束（crm_lead/crm_opportunity，依赖 business 建表）
 
 pub mod system;
@@ -18,4 +19,5 @@ pub mod finance;
 pub mod v15;
 pub mod rls_dept;
 pub mod rls_dept_user_sync;
+pub mod crm_lead_claim_record;
 pub mod crm_vocab_check;

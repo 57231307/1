@@ -222,3 +222,128 @@ fn test_department_scope_condition_or_combination() {
         "RLS 表 Dept 分支应为 self OR department_id IN 集合，实际: {sql}"
     );
 }
+
+// ===== apply_department_scope_with_pool 组合形态（拍板 ②：crm_lead=Open，customers=Scoped）=====
+
+use bingxi_backend::models::crm_lead;
+use bingxi_backend::utils::data_scope::build_department_scope_with_pool_condition;
+
+fn dept_ctx() -> DataScopeContext {
+    DataScopeContext {
+        scope: DataScope::Dept,
+        user_id: 55,
+        department_id: Some(1),
+        dept_ids: vec![10, 11],
+        dept_member_user_ids: vec![1, 7],
+    }
+}
+
+fn self_ctx() -> DataScopeContext {
+    DataScopeContext {
+        scope: DataScope::Self_,
+        user_id: 60,
+        department_id: Some(1),
+        dept_ids: vec![],
+        dept_member_user_ids: vec![60],
+    }
+}
+
+/// Open（crm_lead）：归属条件与公海条件 **OR** 组合——Dept 档形如
+/// `(self/成员过滤) OR lead_status='pool'`，公海行可见性与归属条件相互独立
+#[test]
+fn test_open_pool_visibility_or_combines_dept() {
+    let pool = crm_lead::Column::LeadStatus.eq("pool");
+    let cond = build_department_scope_with_pool_condition(
+        &dept_ctx(),
+        crm_lead::Column::OwnerId,
+        crm_lead::Column::DepartmentId,
+        pool,
+        PoolVisibility::Open,
+    );
+    let sql = condition_sql(&cond);
+    assert!(
+        sql.contains("lead_status") && sql.contains("'pool'"),
+        "Open 组合必须携带公海条件，实际: {sql}"
+    );
+    // 顶层谓词必须是 OR（公海条件独立成支），绝不允许 AND 遮蔽
+    let top_is_or = sql.trim_start_matches('(').contains(" OR ")
+        && !sql.contains(" AND lead_status")
+        && !sql.contains(" AND (lead_status");
+    assert!(
+        top_is_or,
+        "Open 组合的公海条件必须与归属条件 OR（与 RLS USING 同形态），实际: {sql}"
+    );
+}
+
+/// Open · Self 档：`owner_id=本人 OR lead_status='pool'`（修复前 Self 分支无
+/// 公海放行，公海页 self 用户 0 行——拍板 ② 的纠偏点）
+#[test]
+fn test_open_pool_visibility_allows_self_branch_pool() {
+    let pool = crm_lead::Column::LeadStatus.eq("pool");
+    let cond = build_department_scope_with_pool_condition(
+        &self_ctx(),
+        crm_lead::Column::OwnerId,
+        crm_lead::Column::DepartmentId,
+        pool,
+        PoolVisibility::Open,
+    );
+    let sql = condition_sql(&cond);
+    assert!(
+        sql.contains("= 60") && sql.contains("'pool'") && sql.contains(" OR "),
+        "Self 档 Open 应为 本人行 OR 公海行，实际: {sql}"
+    );
+}
+
+/// Open · All 档：行级不过滤（空 Condition），公海放行无从也不需要
+#[test]
+fn test_open_pool_visibility_all_unfiltered() {
+    let ctx = DataScopeContext {
+        scope: DataScope::All,
+        user_id: 70,
+        department_id: None,
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    };
+    let pool = crm_lead::Column::LeadStatus.eq("pool");
+    let cond = build_department_scope_with_pool_condition(
+        &ctx,
+        crm_lead::Column::OwnerId,
+        crm_lead::Column::DepartmentId,
+        pool,
+        PoolVisibility::Open,
+    );
+    let sql = condition_sql(&cond);
+    assert!(
+        !sql.contains("owner_id") && !sql.contains("lead_status"),
+        "All 档不应有任何行级过滤，实际: {sql}"
+    );
+}
+
+/// Scoped（customers 本轮口径）：**逐字符保持历史组合**——公海条件仅 Dept 档
+/// AND 进归属条件；Self/All 无公海分支。客户公海是否改 Open 另待拍板。
+#[test]
+fn test_scoped_pool_visibility_preserves_historical_shape() {
+    let pool = customer::Column::OwnerId.eq(0);
+    let dept_sql = condition_sql(&build_department_scope_with_pool_condition(
+        &dept_ctx(),
+        customer::Column::OwnerId,
+        customer::Column::DepartmentId,
+        customer::Column::OwnerId.eq(0),
+        PoolVisibility::Scoped,
+    ));
+    assert!(
+        dept_sql.contains(" AND ") && dept_sql.contains("owner_id") && dept_sql.contains("= 0"),
+        "Scoped·Dept 应维持 归属条件 AND 公海条件 的历史形态，实际: {dept_sql}"
+    );
+    let self_sql = condition_sql(&build_department_scope_with_pool_condition(
+        &self_ctx(),
+        customer::Column::OwnerId,
+        customer::Column::DepartmentId,
+        pool,
+        PoolVisibility::Scoped,
+    ));
+    assert!(
+        !self_sql.contains("= 0"),
+        "Scoped·Self 不应出现公海放行（可见面零变化），实际: {self_sql}"
+    );
+}

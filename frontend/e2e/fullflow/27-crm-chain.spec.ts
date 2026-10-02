@@ -26,11 +26,14 @@
 //      赢单商机不可删除 400 BUSINESS（opp.rs:437-438）。
 //   6) 公海状态机（handlers/crm_pool_handler.rs:170-212/:130-168）：回收→lead_status=pool
 //      并出现在 /crm/pool 列表；领取→回到 new；重复回收/领非公海 400 BUSINESS。
+//      公海规则（每日领取上限/最大持有数/保护期）对**两条领取入口统一生效**
+//      （services/crm/pool.rs，用户 2026-10-02 拍板 ①）：保护期判据为领取事件列
+//      last_claimed_at（回收刷新 updated_at 不再误伤"回收→立即领取"合法链），
+//      原领取人本人重领豁免（last_claimed_by 判定，保护期本义防他人抢单）。
 //
 // CI 测不到（显式声明）：
-//   - /crm/pool/{id}/claim 定向领取：受 customer_pool_rule 保护期规则影响
-//     （services/crm/pool.rs:72-76，默认保护 7 天，刚回收的线索会被静默跳过→claimed=0），
-//     结果依赖库中规则配置，本链只走无保护期分支的 /pool/claim；
+//   - 他人（不同用户）在保护期内抢领他人公海行的负例：本链为单账号会话，
+//     无第二领取人上下文，由后端契约测试覆盖（services_crm_pool_claim_rules_test.rs A 组）；
 //   - 线索评分/RFM/CLV/漏斗等只读分析端点（纯聚合，无落库流转可钉）；
 //   - 商机阶段停留记录 stage-change（独立表追加写，与主状态机正交）。
 import { test, expect, type Page } from '@playwright/test';
@@ -420,6 +423,7 @@ test.describe('27 CRM 线索→商机→订单契约链', () => {
   test('27-06 公海回收/领取状态机：pool 列表真实入池出池 + 重复回收与领取非公海线索被拒', async ({
     page,
   }) => {
+    const ctx = getCtx();
     const { id: leadId } = await seedLead(page, 'F27J');
 
     // 回收 → lead_status=pool（词表 bpm_crm_contract.rs:136；写入点 crm_pool_handler.rs:186-195）
@@ -437,10 +441,18 @@ test.describe('27 CRM 线索→商机→订单契约链', () => {
     expect(inPool, `线索 ${leadId} 应出现在 /crm/pool 列表`).toBeTruthy();
     expect(String(inPool!.lead_no ?? ''), '公海行携带真实线索号').toBe(String(recycled.lead_no));
 
-    // 领取（/pool/claim 无保护期分支，走 update_lead→new，crm_pool_handler.rs:129-168）
+    // 领取（两条入口统一公海规则校验后，/pool/claim 与 /pool/{id}/claim 同判据；
+    // 本链"回收→立即领取"合法的依据：存量/领取事件列 last_claimed_at 判保护期，
+    // 回收刷新的 updated_at 不再参与判定——services/crm/pool.rs 头注释）
     await apiCall(page, 'POST', '/crm/pool/claim', { lead_id: leadId });
     const claimed = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/crm/leads/${leadId}`);
     expect(claimed.lead_status, '领取后状态 new（bpm_crm_contract.rs:121）').toBe('new');
+    // 领取事件列由唯一归属实现 build_claimed_active 落库（保护期/每日计数判据）
+    expect(claimed.last_claimed_at, '领取必须写 last_claimed_at（领取事件唯一记录点）').toBeTruthy();
+    expect(
+      Number(claimed.last_claimed_by),
+      'last_claimed_by=领取人（原领取人本人重领豁免的依据）'
+    ).toBe(ctx.userIds[0]);
 
     // 负例 1：线索回到 new 后再回收合法（200），随后重复回收撞"已在公海"门 → BUSINESS
     const recycleAgain = await apiCall(page, 'POST', '/crm/pool/recycle', { lead_id: leadId });
@@ -449,8 +461,19 @@ test.describe('27 CRM 线索→商机→订单契约链', () => {
     expect(dup.status, '重复回收应 400').toBe(400);
     expect(failureCode(dup), '重复回收机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
 
-    // 出池恢复现场，供负例 2 使用
-    await apiCall(page, 'POST', '/crm/pool/claim', { lead_id: leadId });
+    // 出池恢复现场：改用**批量定向入口** `/pool/{id}/claim`（与 /pool/claim 同一套
+    // 校验+同一归属实现）。刚回收的行 updated_at=刚刚，旧判据下此步必被 7 天保护期
+    // 静默判负（claimed=0→400）；新判据下成立——本会话就是原领取人（last_claimed_by
+    // 命中，本人重领豁免），两条路径语义统一在此钉死。
+    const batchClaim = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'POST',
+      `/crm/pool/${leadId}/claim`
+    );
+    // apiCallRaw 解出的即 handler data 层 {claimed:n}（claim_specific 出参形状）
+    expect(Number(batchClaim.claimed), '定向领取应成功 1 条（批量路径校验+归属与单条同源）').toBe(1);
+    const reclaimed = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/crm/leads/${leadId}`);
+    expect(reclaimed.lead_status, '定向领取（批量路径）后状态 new').toBe('new');
 
     // 负例 2：领取非池状态线索 → 400 BUSINESS（handler :141-143 "该客户不在公海中"）
     const notInPool = await apiCallExpectFail(page, 'POST', '/crm/pool/claim', { lead_id: leadId });

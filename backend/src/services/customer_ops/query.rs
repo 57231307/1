@@ -19,7 +19,9 @@ use crate::services::customer_ops::types::build_select_only_query;
 use crate::services::customer_service::CustomerService;
 use crate::utils::PaginatedResponse;
 use crate::utils::data_permission::DataPermissionFilter;
-use crate::utils::data_scope::{DataScopeContext, apply_department_scope_with_pool};
+use crate::utils::data_scope::{
+    DataScopeContext, PoolVisibility, apply_department_scope_with_pool,
+};
 use crate::utils::error::AppError;
 
 impl CustomerService {
@@ -69,6 +71,8 @@ impl CustomerService {
                 customer::Column::OwnerId,
                 customer::Column::DepartmentId,
                 customer::Column::OwnerId.eq(0),
+                // 客户公海（owner_id=0）可见面本轮零变化（同上，Open 与否另待拍板）
+                PoolVisibility::Scoped,
             );
         }
         if let Some(status) = status {

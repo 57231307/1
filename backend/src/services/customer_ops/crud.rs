@@ -19,7 +19,7 @@ use crate::models::status::master_data;
 use crate::services::customer_ops::types::CreateCustomerArgs;
 use crate::services::customer_service::CustomerService;
 use crate::utils::data_scope::{
-    DataScopeContext, apply_department_scope_with_pool, check_resource_owner,
+    DataScopeContext, PoolVisibility, apply_department_scope_with_pool, check_resource_owner,
 };
 use crate::utils::error::AppError;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（get_customer 读穿透 + 写失效）
@@ -117,6 +117,9 @@ impl CustomerService {
                 customer::Column::OwnerId,
                 customer::Column::DepartmentId,
                 customer::Column::OwnerId.eq(0),
+                // 客户公海（owner_id=0）可见面本轮零变化：保持历史 Scoped 组合口径，
+                // 是否同步放开（Open）另待拍板（crm_lead 的 Open 不适用于此表）
+                PoolVisibility::Scoped,
             );
         }
 
