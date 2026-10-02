@@ -2,7 +2,7 @@ use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, SqlErr, TransactionTrait,
 };
 
 use crate::models::warehouse::{self, Entity as WarehouseEntity};
@@ -82,7 +82,7 @@ impl WarehouseService {
     pub async fn create(
         &self,
         req: crate::handlers::warehouse_handler::CreateWarehouseRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<warehouse::Model, AppError> {
         // 仓库编码：人工传入原样保留；缺省时由生成器取号（格式契约见
         // WAREHOUSE_CODE_NO_PREFIX 注释）。取号与 INSERT 同事务。
@@ -103,12 +103,53 @@ impl WarehouseService {
 
         let txn = (*self.db).begin().await?;
         let result = match manual_code {
-            // 人工指定码直插：撞 warehouses.warehouse_code UNIQUE(23505) 时
-            // 原样显式上抛，禁止重新取号覆盖用户指定的编码
+            // 人工指定码：先在同事务内预校验，编码已存在 → 可外显业务拒绝
+            //（"改一个码再提交"属可执行公开规则，先例：chemical_ops/category.rs、
+            // supplier 名称、#165 流程编码 = business_displayable 族）；文案只回显
+            // 用户自己提交的编码，禁止撞 warehouses.warehouse_code UNIQUE(23505)
+            // 经 From<DbErr> 拍平成 500 DATABASE_ERROR 裸抛，也禁止重新取号覆盖用户码。
             Some(code) => {
+                if WarehouseEntity::find()
+                    .filter(warehouse::Column::WarehouseCode.eq(&code))
+                    .one(&txn)
+                    .await?
+                    .is_some()
+                {
+                    tracing::warn!(
+                        "创建仓库被拒：人工指定编码 {} 已存在（操作人 {}）",
+                        code,
+                        user_id
+                    );
+                    return Err(AppError::business_displayable(format!(
+                        "仓库编码 {} 已存在，请更换编码后重试",
+                        code
+                    )));
+                }
+                // 竞态兜底（照 role_permission/chemical_ops「预校验 + 23505 归类」范式）：
+                // 预校验通过与 INSERT 之间并发请求可能已落同码，撞该表真实存在的
+                // warehouse_code UNIQUE 时降级为与预校验同口径的业务拒绝——
+                // 单语句 INSERT 原子失败、整事务回滚、不留半行。
+                // 非唯一类 DbErr 走统一分类路径上抛，不吞不改道。
+                let code_for_race = code.clone();
                 Self::build_warehouse_active_model(code, &req, manager_id)
                     .insert(&txn)
-                    .await?
+                    .await
+                    .map_err(|e| {
+                        if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                            tracing::error!(
+                                "仓库创建撞编码唯一约束（并发同码，warehouse_code={}，操作人 {}）：行未写入、整事务回滚，底层错误={}",
+                                code_for_race,
+                                user_id,
+                                e
+                            );
+                            AppError::business_displayable(format!(
+                                "仓库编码 {} 已存在，请更换编码后重试",
+                                code_for_race
+                            ))
+                        } else {
+                            AppError::from(e)
+                        }
+                    })?
             }
             None => DocumentNumberGenerator::insert_with_no_retry(
                 &txn,

@@ -15,7 +15,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set, TransactionTrait,
+    Set, SqlErr, TransactionTrait,
 };
 
 use crate::models::outsourcing_order::{
@@ -128,7 +128,9 @@ impl OutsourcingOrderService {
         self.validate_order_no_unique(&req.order_no).await
     }
 
-    /// 校验关联引用存在性（加工厂/生产订单/缸号）
+    /// 校验关联引用存在性（加工厂/生产订单/缸号）——"缺前置"拒绝按可外显业务族
+    /// 出参（回显的都是用户自己提交的 ID，先例：chemical_ops 前置校验族），
+    /// 禁止被脱敏常量「业务处理失败」吞掉真因；真因同步落 WARN，不静默
     async fn validate_create_references(
         &self,
         req: &CreateOutsourcingOrderRequest,
@@ -138,8 +140,12 @@ impl OutsourcingOrderService {
             .await?
             .is_none()
         {
-            return Err(AppError::business(format!(
-                "委外加工厂 {} 不存在",
+            tracing::warn!(
+                "创建委外订单被拒：加工厂 supplier_id={} 不存在",
+                req.supplier_id
+            );
+            return Err(AppError::business_displayable(format!(
+                "委外加工厂 {} 不存在，请重新选择加工厂",
                 req.supplier_id
             )));
         }
@@ -149,7 +155,11 @@ impl OutsourcingOrderService {
                 .await?
                 .is_none()
             {
-                return Err(AppError::business(format!("生产订单 {} 不存在", order_id)));
+                tracing::warn!("创建委外订单被拒：生产订单 production_order_id={order_id} 不存在");
+                return Err(AppError::business_displayable(format!(
+                    "生产订单 {} 不存在，请重新选择生产订单",
+                    order_id
+                )));
             }
         }
         if let Some(dye_batch_id) = req.dye_batch_id {
@@ -158,13 +168,19 @@ impl OutsourcingOrderService {
                 .await?
                 .is_none()
             {
-                return Err(AppError::business(format!("缸号 {} 不存在", dye_batch_id)));
+                tracing::warn!("创建委外订单被拒：缸号 dye_batch_id={dye_batch_id} 不存在");
+                return Err(AppError::business_displayable(format!(
+                    "缸号 {} 不存在，请重新选择缸号",
+                    dye_batch_id
+                )));
             }
         }
         Ok(())
     }
 
-    /// 校验委外订单号唯一性
+    /// 校验委外订单号唯一性 —— "你填的单号已存在，换一个再提交"属可执行公开规则，
+    /// 归 business_displayable 族（先例：#165 流程编码、chemical_ops 编码族）；
+    /// 文案只回显用户自己提交的单号，不含表名/约束名/其它单据；真因落 WARN
     async fn validate_order_no_unique(&self, order_no: &str) -> Result<(), AppError> {
         if OrderEntity::find()
             .filter(outsourcing_order::Column::OrderNo.eq(order_no))
@@ -173,8 +189,9 @@ impl OutsourcingOrderService {
             .await?
             .is_some()
         {
-            return Err(AppError::business(format!(
-                "委外订单号 {} 已存在",
+            tracing::warn!("创建委外订单被拒：订单号 {order_no} 在未删除行中已存在");
+            return Err(AppError::business_displayable(format!(
+                "委外订单号 {} 已存在，请更换单号后重试",
                 order_no
             )));
         }
@@ -245,13 +262,29 @@ impl OutsourcingOrderService {
         // 业务上下文（订单号）留日志侧供按单排查；active 构造会移动 req，先取值
         let order_no_for_log = req.order_no.clone();
         let active = Self::build_order_active_model(req, now);
-        // DbErr 一律经 `?`（From<DbErr>）统一分类：归 DATABASE_ERROR、真实原因（含
-        // 约束名/列名的 DbErr 原文）只进 tracing::error，出参脱敏「数据库错误」。
-        // 修复前此处 map_err 自造 DatabaseError 并把 DbErr 原文（{e}）拼进文案，
-        // 既绕开统一分类又泄露内部错误信息。
+        // DbErr 非唯一类一律经 `?`/AppError::from（From<DbErr>）统一分类归
+        // DATABASE_ERROR、真实原因只进 tracing::error，出参脱敏「数据库错误」；
+        // 唯一类(23505)按竞态兜底降级为与预校验同口径的业务拒绝（见下）。
         let result = active.insert(&*self.db).await.map_err(|e| {
-            tracing::error!(order_no = %order_no_for_log, "委外订单创建落库失败");
-            AppError::from(e)
+            // 竞态兜底（照 role_permission/chemical_ops「预校验 + 23505 归类」范式）：
+            // 上方 order_no 查重通过后、INSERT 落库前，并发请求可能已插入同码未删行。
+            // 本表当前 order_no 仅 NOT NULL 无 DB UNIQUE（v15/mod.rs:3229，待数据库
+            // 专家补部分唯一索引）；索引就位后此处将以 23505 显式拒绝——单语句
+            // INSERT 原子失败、不留半行，归类必须与预检同口径，禁止拍平 500 吞真因。
+            if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                tracing::error!(
+                    "委外订单创建撞单号唯一约束（并发同码，order_no={}）：行未写入，整语句回滚，底层错误={}",
+                    order_no_for_log,
+                    e
+                );
+                AppError::business_displayable(format!(
+                    "委外订单号 {} 已存在，请更换单号后重试",
+                    order_no_for_log
+                ))
+            } else {
+                tracing::error!(order_no = %order_no_for_log, "委外订单创建落库失败");
+                AppError::from(e)
+            }
         })?;
         Ok(result)
     }

@@ -1,4 +1,4 @@
-# layers=8 endpoints=1761
+# layers=8 endpoints=1764
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -562,6 +562,7 @@ GET	/api/v1/erp/inventory/counts/generate-no	inventory_count_handler::generate_n
 GET	/api/v1/erp/inventory/logistics	logistics_handler::list_waybills	inventory
 GET	/api/v1/erp/inventory/logistics/*	logistics_handler::get_waybill	inventory
 GET	/api/v1/erp/inventory/pieces	crate::handlers::inventory_piece_handler::list_pieces	inventory
+GET	/api/v1/erp/inventory/pieces/*/print	print_handler::inventory_piece_label_print_docx	inventory
 GET	/api/v1/erp/inventory/reservations	inventory_reservation_handler::list_reservations	inventory
 GET	/api/v1/erp/inventory/stock	inventory_stock_handler::list_stock	inventory
 GET	/api/v1/erp/inventory/stock/*	inventory_stock_handler::get_stock	inventory
@@ -1447,6 +1448,8 @@ POST	/api/v1/erp/production/production-recipes/additions/*/close	production_reci
 POST	/api/v1/erp/production/production-recipes/calculate	production_recipe_handler::calculate	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/handle	quality_inspection_handler::process_defect	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/process	quality_inspection_handler::process_defect	production
+POST	/api/v1/erp/production/quality-inspection/defects/*/scrap-approval/financial	quality_inspection_handler::approve_scrap_financial	production
+POST	/api/v1/erp/production/quality-inspection/defects/*/scrap-approval/gm	quality_inspection_handler::approve_scrap_gm	production
 POST	/api/v1/erp/production/quality-inspection/records	quality_inspection_handler::create_record	production
 POST	/api/v1/erp/production/quality-inspection/standards	quality_inspection_handler::create_standard	production
 POST	/api/v1/erp/production/wage-rates	wage_handler::create_wage_rate	production

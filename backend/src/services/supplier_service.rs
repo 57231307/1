@@ -32,21 +32,18 @@ pub struct SupplierService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 供应商编码（suppliers.supplier_code）前缀常量：取号格式契约集中定义
+/// （对齐 WAREHOUSE_CODE_NO_PREFIX 形态）；DDL 证据
+/// migration/src/domain/system/m0001_initial_schema.rs:303
+/// `"supplier_code" VARCHAR(50) NOT NULL UNIQUE` —— 取号与 INSERT 之间的并发
+/// 撞号由 DocumentNumberGenerator::insert_with_no_retry 保存点重试兜底（见
+/// create_supplier），禁止第二处手写取号+直插。
+pub const SUPPLIER_CODE_NO_PREFIX: &str = "SUP";
+
 impl SupplierService {
     /// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 生成供应商编码
-    pub async fn generate_supplier_code(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "SUP",
-            supplier::Entity,
-            supplier::Column::SupplierCode,
-        )
-        .await
     }
 
     /// 创建供应商（含联系人和资质，事务保证三表原子写入）
@@ -58,10 +55,26 @@ impl SupplierService {
         self.check_supplier_name_unique(&req.supplier_name).await?;
 
         let txn = (*self.db).begin().await?;
-        let supplier_code = self.generate_supplier_code().await?;
-        let supplier = Self::build_supplier_active_model(&req, supplier_code, user_id)
-            .insert(&txn)
-            .await?;
+        // 编码取号 + 判重 + INSERT 收敛到 DocumentNumberGenerator::insert_with_no_retry
+        // 唯一实现（同 warehouse_service::create 自动码路径）：撞 suppliers.supplier_code
+        // UNIQUE(23505) 时保存点重试重新取号，不让 From<DbErr> 把并发撞号拍平成
+        // 500 DATABASE_ERROR 裸抛；失败整事务回滚，联系人/资质不落半行。
+        let supplier = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            SUPPLIER_CODE_NO_PREFIX,
+            supplier::Entity,
+            supplier::Column::SupplierCode,
+            |code| Self::build_supplier_active_model(&req, code, user_id),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = SUPPLIER_CODE_NO_PREFIX,
+                "供应商编码取号/插入失败（supplier_service.create_supplier）"
+            );
+            AppError::business_displayable("供应商编码生成失败，请稍后重试")
+        })?;
 
         if let Some(contacts) = req.contacts {
             Self::insert_supplier_contacts(&txn, supplier.id, contacts).await?;
@@ -370,6 +383,16 @@ impl SupplierService {
     ) -> Result<supplier::Model, AppError> {
         // V15 P0-S01：内部调用传 None（权限校验已由 update_supplier 的 handler 入口完成）
         let supplier = self.get_supplier(id, None).await?;
+        // 改名判重收敛到 check_supplier_name_unique 唯一实现（与 create_supplier 同
+        // 口径，禁止两份规则）：改到其它既有供应商的名称 → 可外显业务拒绝；
+        // 与自身当前名相同（幂等 PUT）放行，防过度收紧打错既有行为。
+        // 本列无 DB UNIQUE（竞态窗需数据库专家补约束，见 wave 报告 §④），
+        // 应用层预校验为当前唯一防线。
+        if let Some(new_name) = req.supplier_name.as_ref() {
+            if new_name != &supplier.supplier_name {
+                self.check_supplier_name_unique(new_name).await?;
+            }
+        }
         let mut supplier_active: supplier::ActiveModel = supplier.into();
         let mut req = req;
         // 更新字段（分组应用，每组 ≤50 行；使用 .take() 从 &mut req 移出字段值）
