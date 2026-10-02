@@ -51,8 +51,18 @@ async function createUserAndSeedLead(
     );
   }
 
-  const context = await browser.newContext({ baseURL: BASE_URL });
-  await applyAuthMocks(context, { username: cred.username });
+  // storageState 显式置空：browser.newContext 会继承 testInfo.project.use 的
+  // storageState（playwright.config.ts:66 = 分片主账号 e2e_admin_s{n} 的 cookie），
+  // 不置空则本 context 实际带着 admin 身份，"不同用户隔离"前提被伪造成同一身份。
+  // password 必须取 cred.password：角色账号初始密码是 ensureRoleUsers 的
+  // DEFAULT_ROLE_PASSWORD，而非分片主账号 TEST_PASSWORD——
+  // 只传 username 时 applyAuthMocks 用主账号密码登录，#4669 里整片 401
+  // （backend.log rs31:17482 reason="无效的密码: 密码错误"）。
+  const context = await browser.newContext({
+    baseURL: BASE_URL,
+    storageState: { cookies: [], origins: [] },
+  });
+  await applyAuthMocks(context, { username: cred.username, password: cred.password });
   const page = await context.newPage();
 
   // 获取该用户 ID
@@ -138,8 +148,13 @@ test.describe('数据范围行级隔离（self scope）', () => {
         'customer_service 角色凭证不存在——global-setup ensureRoleUsers 未正确执行，属 setup 缺陷判红'
       );
     }
-    const contextB = await browser.newContext({ baseURL: BASE_URL });
-    await applyAuthMocks(contextB, { username: credB.username });
+    // 独立空 storageState：不置空则 newContext 继承 use.storageState 的 admin cookie，
+    // B 的请求会以 admin(all scope) 身份发出，越权 403 断言将被伪造成 200 假绿
+    const contextB = await browser.newContext({
+      baseURL: BASE_URL,
+      storageState: { cookies: [], origins: [] },
+    });
+    await applyAuthMocks(contextB, { username: credB.username, password: credB.password });
     const pageB = await contextB.newPage();
 
     try {
@@ -193,7 +208,15 @@ test.describe('数据范围行级隔离（self scope）', () => {
     browser,
   }) => {
     // 创建一个未认证的裸请求，访问线索列表 → 应被 auth 中间件 401 拦截
-    const anonymousContext = await browser.newContext({ baseURL: BASE_URL });
+    // #4669 假绿前兆实证：本行原写法 newContext 不指定 storageState 时，会继承
+    // playwright.config.ts:66 的 use.storageState（分片主账号 cookie），"匿名"请求
+    // 实际带着 e2e_admin_s31 的 access_token 到达后端（backend.log rs31 22:58:14
+    // "从 access_token Cookie 获取Token … 认证成功 user_id=2 username=e2e_admin_s31"）
+    // ⇒ 返回 200 而非 401。断言本身正确且必须保持精确 401，修的是"匿名"这个前置。
+    const anonymousContext = await browser.newContext({
+      baseURL: BASE_URL,
+      storageState: { cookies: [], origins: [] },
+    });
     const anonPage = await anonymousContext.newPage();
 
     try {

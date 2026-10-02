@@ -9,8 +9,12 @@ import {
 } from '../flow/helpers';
 import { TRAVERSAL_MODULES } from './modules.config';
 import {
-  ROUTE_PERMISSIONS,
+  assertRoutePermissionsInSync,
+  currentReachableRoutes,
   deriveReachableRoutes,
+  fetchSelfPermissions,
+  loadRouterPermissions,
+  resolveRoleBaseline,
   type RoleAccessMap,
   type RoleAccessEntry,
 } from './permission-model';
@@ -18,15 +22,27 @@ import {
 /**
  * P5.14 全角色权限全量矩阵
  *
+ * 派生侧（期望集）= 角色真实权限码（GET /auth/me，守卫的同一输入源）
+ *                 × 路由 meta.permission（src/router/index.ts 实时解析，真实来源）。
+ * 旧实现用侧边栏 `<a href>` 锚点嗅探当派生，而菜单实际渲染为 <el-menu-item role="menuitem">
+ * （MainLayout.vue:24 起），根本没有锚点——期望集恒空、98/99 项恒"派生 denied"，
+ * 属测量伪影（CI #4669 R-角色矩阵判责报告），锚点嗅探已整体移除。
+ * 权限码一律来自后端真实数据，禁止在测试里手写期望表当派生、禁止给角色种子伪造权限码。
+ *
  * 每角色测试流：
  * 1. 真实 UI 登录 → Dashboard 可达
- * 2. 菜单收敛断言：侧边栏菜单项与该角色预期路由集合比对
- * 3. 全模块遍历三分支断言：
- *    - 推导可达 → 页面正常渲染（白屏/pageerror/5xx）
- *    - 推导不可达 → 菜单无此项 + 直接输 URL 被拦截
+ * 2. 防漂移门禁：ROUTE_PERMISSIONS 人工评审快照 vs router 现值逐项核对（分叉即判红）
+ * 3. 全模块三分支断言（实测面 = 前端路由守卫，端点级鉴权由 37/39/41 + matrix-probe 负责）：
+ *    - 派生可达 → 页面正常渲染（白屏/pageerror/5xx 健康断言）
+ *    - 派生不可达 → 直接输 URL 被拦截（跳 /login、/403、/404）
  *    - 实际行为 ∈ 预期分支（"该拒却可达"或"该达却被拒"均 fail）
  * 4. 界面显示健康：无未翻译 key / NaN / undefined 抽样
- * 5. access-map 报告写入 artifacts（黄金基线对比在 CI 侧执行）
+ * 5. access-map + 首轮基线候选写入 artifacts（e2e/.auth/access-map，CI 已上传该目录）
+ * 6. 基线对比（统一 RoleBaseline schema，每角色一个文件）：
+ *    - 现场 drift 必须为 0（派生 vs 守卫实测一致性）；
+ *    - 有基线：实际可达集合必须与基线全等（防权限种子/路由门控回归）；
+ *    - 首轮无基线：写候选、加 annotation 后**判红**——"无基线不算通过"，
+ *      人工审阅候选并移入 e2e/traversal/access-map-baseline/ 提交后方可转绿。
  *
  * 角色分片：CI role-permission-matrix job 按角色分组并行
  */
@@ -51,16 +67,35 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
 
     await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 });
 
-    // 读取侧边栏菜单项（路由 href 集合）
-    const menuHrefs = await page.evaluate(() => {
-      const links = Array.from(
-        document.querySelectorAll('.el-menu a[href], aside a[href], nav a[href]')
-      );
-      return links.map(a => (a as HTMLAnchorElement).getAttribute('href') ?? '');
-    });
+    // ---- 派生侧权威输入（两个真实来源，均非测试内手写）----
+    // 1) 该角色当前真实持有的权限码（后端由 role_permission 表构建，守卫消费的同一份数据）
+    const userPermissions = await fetchSelfPermissions(page);
+    // 2) 路由 meta.permission：对 router 源文件实时解析
+    const routePerms = await loadRouterPermissions();
+    // 防漂移门禁：人工评审快照表必须与 router 现值一致，分叉即判红交人工
+    assertRoutePermissionsInSync(routePerms);
 
-    // 拉取角色权限做推导（从 storageState cookie 登录态调 API）
-    const derived = await deriveFromMenu(menuHrefs);
+    const derived = deriveReachableRoutes(userPermissions, routePerms);
+
+    // 配置与实现分叉信号：模块已登记但 router 无该路由（全角色 404）。
+    // 可达性上与"人人被拒"一致、不混入权限漂移；作为独立缺陷清单外显（P1，交编排判责），
+    // 待用户拍板"补路由 or 删登记"后可升级为判红项。
+    const routerMissingRoutes = TRAVERSAL_MODULES.filter(mod => !(mod.route in routePerms)).map(
+      mod => `${mod.id} ${mod.route}`
+    );
+    if (routerMissingRoutes.length > 0) {
+      console.error(
+        `[44-role-matrix] TRAVERSAL_MODULES 已登记但 router 不存在的路由（全角色不可达）：${routerMissingRoutes.join(
+          '; '
+        )}`
+      );
+      test.info().annotations.push({
+        type: 'router-missing-route',
+        description: `模块登记与 router 实现分叉：${routerMissingRoutes.join(
+          '; '
+        )}——待人工拍板补路由或删除登记（CI #4669 判责 P1）。`,
+      });
+    }
 
     const entries: RoleAccessEntry[] = [];
     const fs = await import('fs');
@@ -93,7 +128,7 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
           match: actual === 'reachable',
         });
       } else {
-        // 应被拒 → 直接输 URL 应被拦截（403 页/跳转登录/菜单无此项）
+        // 应被拒 → 直接输 URL 应被守卫拦截（跳 /login、/403 或 /404）
         await page.goto(mod.route);
         await page.waitForLoadState('networkidle', { timeout: 10000 });
 
@@ -103,12 +138,14 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
           currentPath.includes('/403') ||
           currentPath.includes('/404');
 
-        const menuHasIt = menuHrefs.some(h => h.startsWith(mod.route));
+        // 旧此分支还要求"菜单无此项"（基于 <a href> 锚点嗅探）；锚点在真实 DOM 中恒不存在，
+        // 该条件恒真、从未断到任何东西，随锚点嗅探一并移除。菜单可见性收敛与守卫同源
+        // （MainLayout.canAccessMenu 同样走 hasRoutePermission），由守卫实测面覆盖。
         entries.push({
           route: mod.route,
           derived: 'denied',
           actual: blocked ? 'denied' : 'reachable',
-          match: blocked && !menuHasIt,
+          match: blocked,
         });
       }
     }
@@ -123,6 +160,7 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
       role,
       entries,
       menuDiff: { unexpected: [], missing: [] },
+      routerMissingRoutes,
       summary: {
         total: entries.length,
         match: entries.filter(e => e.match).length,
@@ -130,78 +168,78 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
       },
     };
 
-    // access-map 报告写入 artifacts
+    // access-map 报告写入 artifacts（CI 已上传 e2e/.auth/access-map/）
     fs.mkdirSync('e2e/.auth/access-map', { recursive: true });
     fs.writeFileSync(
       `e2e/.auth/access-map/${role}.json`,
       JSON.stringify(
-        { ...accessMap, untranslatedKeys: untranslatedKeys.slice(0, 10), renderedNaN },
+        {
+          ...accessMap,
+          // 本轮报告出处（provenance）：权限码与实测分别取自该 API_BASE 与 BASE_URL 会话
+          apiBase: API_BASE,
+          // 只记录权限码数量，不在制品里整表外显权限码清单
+          permissionCount: userPermissions.length,
+          untranslatedKeys: untranslatedKeys.slice(0, 10),
+          renderedNaN,
+        },
         null,
         2
       )
     );
 
-    // 矩阵断言（收紧假绿）：
-    // - 有基线：漂移即 fail（权限回归防护，保持）。
-    // - 无基线（首轮）：旧实现只 console.warn + 加 annotation，测试"通过"——等于"根本没比对
-    //   就报绿"的假绿。现改为：首轮自动生成/固化基线文件供人工审阅，但本用例判红，
-    //   明确要求"人工核对 access-map 无误并提交基线后再复跑"，无基线不算通过。
-    const fs2 = fs;
-    const baselinePath = 'e2e/traversal/access-map-baseline.json';
-    if (fs2.existsSync(baselinePath)) {
-      const raw = fs2.readFileSync(baselinePath, 'utf-8');
-      const baseline = JSON.parse(raw) as {
-        roles?: Record<string, Array<{ route: string; derived: string; actual: string }>>;
-      };
-      const prior = baseline.roles?.[role];
-      if (!prior) {
-        throw new Error(
-          `基线文件存在但无角色 ${role} 的条目（access-map-baseline.json.roles 缺该键）——需人工为该角色固化基线后再复跑，无基线不算通过。`
-        );
-      }
-      const priorDrift = prior.filter(
-        e => !(e.derived === e.actual || (e.derived === 'denied' && e.actual === 'denied'))
-      ).length;
-      expect(
-        accessMap.summary.drift,
-        `角色 ${role} 相对基线存在权限漂移（当前 ${accessMap.summary.drift} 项漂移，基线记录 ${priorDrift} 项）: ${entries
-          .filter(e => !e.match)
-          .map(e => `${e.route}(期望${e.derived}/实际${e.actual})`)
-          .join('; ')}`
-      ).toBe(0);
-    } else {
-      // 首轮无基线：写出本次快照，初始化基线文件（人工审阅后提交），并判红强制人工确认。
-      const baselineFile = {
-        roles: {
-          [role]: entries.map(e => ({ route: e.route, derived: e.derived, actual: e.actual })),
-        },
-      };
-      fs2.mkdirSync('e2e/traversal', { recursive: true });
-      fs2.writeFileSync(baselinePath, JSON.stringify(baselineFile, null, 2));
+    // ---- 矩阵断言（收紧假绿）----
+    // 一致性主断言：派生（权限码×路由 meta）与守卫实测必须逐项一致，任何分支都执行。
+    expect(
+      accessMap.summary.drift,
+      `角色 ${role} 派生/实测存在权限漂移（${accessMap.summary.drift}/${
+        accessMap.summary.total
+      } 项不一致）: ${entries
+        .filter(e => !e.match)
+        .map(e => `${e.route}(期望${e.derived}/实际${e.actual})`)
+        .join('; ')}`
+    ).toBe(0);
+
+    // 基线轨（统一 RoleBaseline schema，每角色一个文件，33 分片并发互不覆写）：
+    const baseline = await resolveRoleBaseline(accessMap);
+    if (baseline.mode === 'missing') {
       test.info().annotations.push({
-        type: 'baseline-initializing',
-        description: `角色 ${role} 首轮：已初始化基线 ${baselinePath}（${accessMap.summary.drift} 项漂移待人工核对），本用例判红要求确认。`,
+        type: 'baseline-missing',
+        description: `角色 ${role} 首轮：候选基线已写到 ${
+          baseline.candidatePath
+        }（现场派生/实测漂移=${accessMap.summary.drift}，一致性主断言已通过），待人工审阅后移入 ${
+          baseline.baselinePath
+        } 提交。`,
       });
       throw new Error(
-        `角色 ${role} 无权限矩阵基线，本轮已初始化 ${baselinePath}（含 ${accessMap.summary.total} 项，其中 ${accessMap.summary.drift} 项派生/实际不一致）。` +
-          `请人工审阅 access-map 无误后提交该基线文件并重跑，"无基线"不算通过。`
+        `角色 ${role} 无权限矩阵基线（"无基线"不算通过）。本轮派生/实测漂移 ${
+          accessMap.summary.drift
+        } 项；候选基线已写入 ${baseline.candidatePath}（${
+          currentReachableRoutes(accessMap).length
+        } 条可达路由）。请人工核对候选与权限策略一致后，将其提交为 ${
+          baseline.baselinePath
+        } 再复跑；禁止把当轮自动生成结果未经评审直接入库换绿。`
       );
     }
+
+    const currentReachable = currentReachableRoutes(accessMap);
+    const baselineRoutes = [...baseline.baseline.reachableRoutes].sort();
+    const baseSet = new Set(baselineRoutes);
+    const curSet = new Set(currentReachable);
+    const newlyReachable = currentReachable.filter(r => !baseSet.has(r));
+    const newlyDenied = baselineRoutes.filter(r => !curSet.has(r));
+    expect(
+      newlyReachable,
+      `角色 ${role} 相对已评审基线（${baseline.baselinePath}）新增可达 ${
+        newlyReachable.length
+      } 项：${newlyReachable.join(', ')}——权限种子/路由门控疑似回归，判红`
+    ).toEqual([]);
+    expect(
+      newlyDenied,
+      `角色 ${role} 相对已评审基线失去可达 ${newlyDenied.length} 项：${newlyDenied.join(
+        ', '
+      )}——权限种子/路由门控疑似回归，判红`
+    ).toEqual([]);
 
     // 未翻译 key 与 NaN 渲染不阻塞但记录在报告中
   });
 });
-
-/**
- * 从侧边栏菜单推导可达集合（动态菜单即角色真实权限的 UI 投影）
- * 菜单含 route = 可达；不含 = 不可达
- */
-async function deriveFromMenu(menuHrefs: string[]): Promise<Map<string, boolean>> {
-  const result = new Map<string, boolean>();
-  for (const mod of TRAVERSAL_MODULES) {
-    // 菜单 href 精确或前缀匹配模块路由
-    const inMenu = menuHrefs.some(h => h === mod.route || h.startsWith(`${mod.route}/`));
-    result.set(mod.id, inMenu);
-  }
-  return result;
-}
