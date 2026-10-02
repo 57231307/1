@@ -235,6 +235,19 @@ pub async fn update_customer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
+    // 行级数据权限门（与其它写入口同判定源，非新增机制）：增强页 PUT 落的是 customers 表行，
+    // 故先走本域既有 `get_customer(id, Some(&ctx))` 预检——owner=created_by、
+    // dept=department_id，判定源与标准入口（`customer_handler.rs` 写出口）及
+    // `utils/data_scope.rs::check_resource_owner` 逐字同源（同 `merge_leads`/
+    // `claim_from_pool` 的"先判后写"收口形态）。行不可见即整笔由 `permission_denied`
+    // 出 403（固定脱敏文案 + FORBIDDEN 码，真实原因只进服务端日志），不存在
+    // "跳过不可见行继续写"的降级。admin 的 `DataScope::All` 通道按
+    // `check_resource_owner` 既有语义原样通过，本门只把"完全没有门"变成"与其它入口同门"。
+    let data_scope_ctx = auth.to_data_scope_context();
+    customer_service
+        .get_customer(id, Some(&data_scope_ctx))
+        .await?;
+
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let customer = customer_service
         .update_customer(UpdateCustomerArgs {
@@ -278,6 +291,15 @@ pub async fn delete_customer(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // 行级数据权限门（与其它写入口同判定源，非新增机制）：本删除落点是 crm_lead 行
+    // （与本页详情出口 `get_lead(id, Some(&ctx))` 同一张表），故先用 ctx 走
+    // `get_lead` 预检——判定源即 `utils/data_scope.rs::check_resource_owner`
+    // （owner=owner_id、dept=department_id，与 `crm_handler.rs` update_lead 同一收口形态）。
+    // 行不可见即整笔 403（`permission_denied` 固定脱敏文案 + FORBIDDEN 码，
+    // 真实原因只进服务端日志），杜绝仅凭 RBAC 键按 id 删他人行。
+    // admin 的 `DataScope::All` 通道按既有语义原样通过，未收紧。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_lead(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service.delete_lead(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(

@@ -28,8 +28,14 @@ pub const TEAM_ROLE_ASSISTANT: &str = "assistant";
 #[sea_orm(table_name = "customer_team_members")]
 pub struct Model {
     /// 关联 ID（主键）
+    ///
+    /// 宽度对齐建表 DDL 权威源 `migration/src/domain/v15/mod.rs::customer_team_members`
+    /// 的 `"id" BIGSERIAL PRIMARY KEY`（PG 侧 SQL 类型 INT8），与姊妹表
+    /// `customer_shares.id` 同批同型修复：本表的行会被共享写入口
+    /// `validate_share_permission` 回读解码，i32 声明在 PG 下必然
+    /// `mismatched types` 失败并拍平成 500 `DATABASE_ERROR`。
     #[sea_orm(primary_key)]
-    pub id: i32,
+    pub id: i64,
 
     /// 客户 ID（外键 customers.id）
     pub customer_id: i32,
