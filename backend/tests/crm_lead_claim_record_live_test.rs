@@ -21,7 +21,7 @@ mod m_claim_record_sql;
 mod test_common;
 
 use chrono::Utc;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Row, Statement};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, QueryResult, Statement};
 
 async fn require_postgres(db: &DatabaseConnection) {
     let url = std::env::var("TEST_DATABASE_URL");
@@ -40,7 +40,7 @@ async fn require_postgres(db: &DatabaseConnection) {
 }
 
 async fn exec(db: &DatabaseConnection, sql: &str) {
-    db.execute(Statement::from_string(
+    db.execute_raw(Statement::from_string(
         db.get_database_backend(),
         sql.to_string(),
     ))
@@ -50,7 +50,7 @@ async fn exec(db: &DatabaseConnection, sql: &str) {
 
 async fn scalar_count(db: &DatabaseConnection, sql: &str) -> i64 {
     let stmt = Statement::from_string(db.get_database_backend(), sql.to_string());
-    let row: Option<Row> = db.query_one(stmt).await.ok().flatten();
+    let row: Option<QueryResult> = db.query_one_raw(stmt).await.ok().flatten();
     row.and_then(|r| r.try_get_by_index::<i64>(0).ok())
         .unwrap_or(0)
 }
@@ -146,7 +146,7 @@ async fn crm_lead_claim_record_migration_live_pg() {
     // TIMESTAMPTZ），防方言/类型漂移导致 validate_claim_rules 的过滤在 PG 上失效
     let bind_sql = "SELECT 1 FROM crm_lead WHERE last_claimed_by = $1 \
                     AND last_claimed_at >= $2 LIMIT 1";
-    db.query_one(Statement::from_sql_and_values(
+    db.query_one_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
         bind_sql,
         [

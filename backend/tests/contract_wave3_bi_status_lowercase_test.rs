@@ -33,7 +33,8 @@
 //! 的 2096-12 独占窗口 + 互异参数键保证,与此处单元锁互补。
 
 use bingxi_backend::models::status::sales::sales_order;
-use sea_orm::{ConnectionTrait, DbBackend, Decimal, Statement, Value};
+use rust_decimal::Decimal;
+use sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
 
 mod test_common;
 use test_common::setup_test_db;
@@ -61,16 +62,18 @@ async fn setup_db() -> sea_orm::DatabaseConnection {
     ] {
         // order_date 真列为 TIMESTAMPTZ:测试常量日期以 ::timestamptz 字面量落库;
         // status 存小写实际落库值(写入方词表权威形态)
+        // 绑定值必须显式标注 Vec<Value>：裸 vec![.. .into()] 在 Postgres 参数位上推不出类型
+        let values: Vec<Value> = vec![
+            format!("W3C-{day}").into(),
+            day.to_string().into(),
+            amount.into(),
+            status.into(),
+        ];
         db.execute_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
             r#"INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status)
               VALUES ($1, 1, $2::timestamptz, $3, $4)"#,
-            vec![
-                format!("W3C-{day}").into(),
-                day.to_string().into(),
-                amount.into(),
-                status.into(),
-            ],
+            values,
         ))
         .await
         .expect("种子订单插入失败");

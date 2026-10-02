@@ -34,7 +34,8 @@
 //! 为 TIMESTAMPTZ,日期下限参数按 PG 语义 `$n::timestamptz` 绑定,谓词形态不变。
 
 use bingxi_backend::models::status::sales::sales_order;
-use sea_orm::{ConnectionTrait, DbBackend, Decimal, Statement, Value};
+use rust_decimal::Decimal;
+use sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
 
 mod test_common;
 use test_common::setup_test_db;
@@ -63,16 +64,17 @@ async fn setup_db() -> sea_orm::DatabaseConnection {
         ("2096-12-07", Decimal::new(333375, 2), sales_order::CANCELLED),
         ("2096-11-01", Decimal::new(50000, 2), sales_order::PENDING),
     ] {
+        let values: Vec<Value> = vec![
+            format!("W3D-{day}").into(),
+            day.to_string().into(),
+            amount.into(),
+            status.into(),
+        ];
         db.execute_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
             r#"INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status)
                VALUES ($1, 1, $2::timestamptz, $3, $4)"#,
-            vec![
-                format!("W3D-{day}").into(),
-                day.to_string().into(),
-                amount.into(),
-                status.into(),
-            ],
+            values,
         ))
         .await
         .expect("种子订单插入失败");

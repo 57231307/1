@@ -135,6 +135,8 @@ async fn seed(db: &sea_orm::DatabaseConnection) -> SeedIds {
     let mut qual_ids = Vec::new();
     for n in [1i32, 2, 3] {
         let qid = supplier_qualification::ActiveModel {
+            // 自增主键：NotSet 交给序列发号（真表 id 是 SERIAL，禁手工塞值撞号）
+            id: Default::default(),
             supplier_id: Set(supplier_a),
             qualification_name: Set(format!("营业执照{suffix}-{n}")),
             qualification_type: Set("证照".to_string()),

@@ -1,5 +1,7 @@
 use bingxi_backend::utils::data_scope::DataScope;
 use bingxi_backend::utils::data_scope::*;
+// Condition 里对 Column 调 .eq()/.contains() 需要 ColumnTrait 在作用域（sea-orm 2.x 不再预导出）
+use sea_orm::ColumnTrait;
 
 // ===== DataScope::parse_scope 测试 =====
 

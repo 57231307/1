@@ -33,7 +33,8 @@
 //! (dashboard_cache_key 走 AppCache),无陈旧缓存假绿风险。
 
 use bingxi_backend::models::status::sales::sales_order;
-use sea_orm::{ConnectionTrait, DbBackend, Decimal, Statement, Value};
+use rust_decimal::Decimal;
+use sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
 
 mod test_common;
 use test_common::setup_test_db;
@@ -97,25 +98,27 @@ async fn setup_db() -> sea_orm::DatabaseConnection {
             Decimal::new(500, 2),
         ),
     ] {
+        let values: Vec<Value> = vec![
+            format!("W3E-{day}").into(),
+            cust.into(),
+            day.to_string().into(),
+            amount.into(),
+            status.into(),
+        ];
         db.execute_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
             r#"INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status)
                VALUES ($1, $2, $3::timestamptz, $4, $5)"#,
-            vec![
-                format!("W3E-{day}").into(),
-                cust.into(),
-                day.to_string().into(),
-                amount.into(),
-                status.into(),
-            ],
+            values,
         ))
         .await
         .expect("种子订单插入失败");
+        let item_values: Vec<Value> = vec![qty.into(), format!("W3E-{day}").into()];
         db.execute_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
             r#"INSERT INTO sales_order_items (order_id, product_id, quantity, unit_price, subtotal)
                SELECT id, 1, $1, 0, 0 FROM sales_orders WHERE order_no = $2"#,
-            vec![qty.into(), format!("W3E-{day}").into()],
+            item_values,
         ))
         .await
         .expect("种子明细插入失败");
