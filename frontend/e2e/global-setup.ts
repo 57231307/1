@@ -420,6 +420,12 @@ const SEED_ROLES = [
   'ar_accountant',
   'fixed_assets_accountant',
   'budget_analyst',
+  // inventory_manager：02-adjustment.spec.ts IDOR 用例的第二用户 B（getRoleCredential
+  // ('inventory_manager')）。CI 实测本库 init 只种 3 角色（#4669 out/rs32:257
+  // "[globalSetup] 后端现有角色 3 个"），后端 role.rs:168 的业务角色不保证存在，
+  // 必须由 ensureRoleUsers 补建——缺此码时凭证文件 37 键无 inventory_manager
+  // （out/rs32:55865 getRoleCredential 诊断），用例 setup 缺陷判红（#4669 :149）。
+  'inventory_manager',
 ];
 
 // 应用外壳权限码：与后端 init_service_ops/permission.rs 的 SHELL_PERMISSIONS 一致——
@@ -450,10 +456,27 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // salesperson 对齐 permission.rs 的 sales_rep 权限集：可读销售订单（保密扫描用例
   // "响应体不含 supplier_ 键"要求 200 才有效），但绝不授任何 purchase/supplier 侧权限，
   // 保证 sku-mappings/supplier-products/supplier-product-colors 三端点 403 负向真实成立。
-  salesperson: ['orders:read'],
+  // leads:* —— enhanced/data-scope-isolation.spec.ts 的 User A：POST/GET/DELETE /crm/leads
+  // 需真实通过 RBAC（/crm/leads 经 path_utils.rs:102 消歧后运行时资源段为 "leads"），
+  // 缺码则建线索被 RBAC 403 拦下，self 隔离前提整体不存在（用例红且根因难查）。
+  // 只授 leads 族，不越界授 purchase/supplier 码，保密面负向断言不受影响。
+  salesperson: ['orders:read', 'leads:read', 'leads:create', 'leads:update', 'leads:delete'],
   // sales_manager 对齐 permission.rs：orders 只读+审批链（此处仅补读，其余 approve/reject
   // 由后端角色 init 授予，本 spec 只依赖 GET 列表/详情）。不授 purchase 侧任何码。
   sales_manager: ['orders:read'],
+  // customer_service —— data-scope-isolation 的 User B：需要 leads 读/建/删才能把
+  // "B 列表看不到 A 私有行 / B 按 ID GET A 的行 → 403 来自 check_resource_owner"
+  // 钉在数据范围层；若缺 leads:read，B 的 403 将来自 RBAC（message=「权限不足，无法
+  // 访问该资源」）而非行级隔离（message=「无权限」），安全断言被层错位伪造。
+  customer_service: ['leads:read', 'leads:create', 'leads:update', 'leads:delete'],
+  // inventory_manager —— 02-adjustment.spec.ts IDOR 钉的第二用户 B。刻意对齐后端
+  // init permission.rs:427-441 同名角色的 ("adjustments","*")：本 spec 仅经
+  // GET/PUT/DELETE /inventory/adjustments/... 四类调用，逐动作授 read/update/delete
+  // 即够其通过 RBAC、真实到达 handler 内数据范围归属校验层（403 message=「无权限」）；
+  // 不授 inventory/stock 等其余码，B 若被引导访问其它资源仍会被 RBAC 拦（最小授权）。
+  // 新建角色 data_scope 由后端默认 self（role_permission_service.rs:184-185），
+  // 与 init 种的 dept 同为"非本人资源拒绝"，IDOR 前提两侧一致成立。
+  inventory_manager: ['adjustments:read', 'adjustments:update', 'adjustments:delete'],
 };
 
 // 边界测试角色
@@ -525,14 +548,18 @@ async function requestWithCsrfRecovery(
 /**
  * 为角色分配权限码（POST /roles/{id}/permissions 单条模式，幂等）
  * 权限码格式 'product:print' → { resource_type: 'product', action: 'print', allowed: true }
- * 单条失败仅告警不中断（黑名单断言对无权限码场景仍成立，只是失去"持码仍拒"精度）
+ * 单条失败返回收集项由调用方分级处置：
+ * - SHELL/装饰性授码失败 → 告警不中断（黑名单断言对无权限码场景仍成立，只是失去"持码仍拒"精度）
+ * - SEED_ROLE_EXTRA_PERMISSIONS（spec 前提性授码）失败 → 调用方必须判红：
+ *   缺码会让负向 403 断言的拒绝来源层错位（RBAC 拦 ≠ 数据范围拒），安全用例被静默伪造。
  */
 async function assignPermissionList(
   ctx: CsrfCapableRequestContext,
   roleId: number,
   permissionCodes: string[],
   headers: Record<string, string>
-): Promise<void> {
+): Promise<string[]> {
+  const failures: string[] = [];
   for (const code of permissionCodes) {
     const [resourceType, action] = code.split(':');
     if (!resourceType || !action) {
@@ -548,12 +575,16 @@ async function assignPermissionList(
         { resource_type: resourceType, action, allowed: true }
       );
       if (!resp.ok() && resp.status() !== 400 && resp.status() !== 409) {
+        const body = await resp.text().catch(() => '');
+        failures.push(`${code} HTTP ${resp.status()} ${body.slice(0, 200)}`);
         console.warn(`[globalSetup] 权限 ${code} 分配失败 HTTP ${resp.status()}`);
       }
     } catch (e) {
+      failures.push(`${code} 异常 ${(e as Error).message}`);
       console.warn(`[globalSetup] 权限 ${code} 分配异常:`, (e as Error).message);
     }
   }
+  return failures;
 }
 
 /**
@@ -724,15 +755,23 @@ export async function ensureRoleUsers(): Promise<void> {
   // assignPermissionList），也要保证本 spec 依赖的业务权限码落库——POST /roles/:id/permissions
   // 由后端处理为 upsert，重复授同码安全。此步保证 purchaser/salesperson/sales_manager 三
   // 角色对 purchase/sku-mapping.spec.ts 的读写/403 断言前提稳定成立。
+  // 授码失败 = spec 前提缺失（如缺 adjustments:read 时 02-adjustment 的 B 会被 RBAC 拦、
+  // 403 拒绝来源层从数据范围校验漂移为 RBAC），必须响亮判红，不允许 warn 后继续假绿。
   for (const [code, extras] of Object.entries(SEED_ROLE_EXTRA_PERMISSIONS)) {
     const roleId = roleCodeToId.get(code);
     if (!roleId) {
-      console.warn(
-        `[globalSetup] SEED_ROLE_EXTRA_PERMISSIONS 角色 ${code} 未在 roleCodeToId 中，跳过补授`
+      throw new Error(
+        `ensureRoleUsers: SEED_ROLE_EXTRA_PERMISSIONS 角色 ${code} 不在 roleCodeToId（` +
+          `角色既未存在于后端也未补建成功），其 spec 前提无法成立——属 setup 缺陷判红`
       );
-      continue;
     }
-    await assignPermissionList(loginCtx, roleId, extras, headers);
+    const failures = await assignPermissionList(loginCtx, roleId, extras, headers);
+    if (failures.length > 0) {
+      throw new Error(
+        `ensureRoleUsers: 角色 ${code} 前提性权限授码失败 ${failures.length}/${extras.length} 项：` +
+          `${failures.join(' | ')}（缺码会使 spec 的 403/200 断言层错位，禁止静默继续）`
+      );
+    }
     console.log(`[globalSetup] 角色 ${code} 业务权限码补授完成（${extras.length} 项）`);
   }
 
@@ -755,9 +794,49 @@ export async function ensureRoleUsers(): Promise<void> {
     } else if (createResp.status() === 400 || createResp.status() === 409) {
       // 已存在
     } else {
-      console.warn(`[globalSetup] 角色账号 ${username} 创建失败 HTTP ${createResp.status()}`);
+      // 原写法 console.warn 后继续：凭证照样写入、账号实际不存在/未建，
+      // 下游 spec 登录 401 且根因埋在几分钟前的 setup 日志里（#4669 E 族的放大器）。
+      // 准备失败必须在这里判红，不许带病写出凭证。
+      const body = await createResp.text().catch(() => '');
+      throw new Error(
+        `ensureRoleUsers: 角色账号 ${username} 创建失败 HTTP ${createResp.status()} ` +
+          `body=${body.slice(0, 300)}——属 setup 缺陷判红（禁止 warn 后继续写凭证伪造就绪）`
+      );
     }
     credentials[code] = { username, password };
+  }
+
+  // 4.5 终验登录：spec 直接消费的角色账号必须"真能登进去"。
+  // 400/409"已存在"分支不重置密码，历史轮次密码漂移只会表现为下游 401（#4669 中
+  // e2e_salesperson 即"账号在、helper 用错密码"形态，排查成本高）。这里用凭证文件里
+  // 的密码做一次真实登录收口：成功→凭证可信；失败→立即判红并带后端原始响应。
+  const SPEC_CONSUMED_ROLES = ['salesperson', 'customer_service', 'inventory_manager'];
+  for (const code of SPEC_CONSUMED_ROLES) {
+    const cred = credentials[code];
+    if (!cred) {
+      throw new Error(
+        `ensureRoleUsers: 角色 ${code} 凭证缺失（roleCodeToId 无此码），` +
+          `data-scope-isolation / 02-adjustment 的前提账号不存在——属 setup 缺陷判红`
+      );
+    }
+    const verifyCtx = await request.newContext({
+      baseURL: API_BASE,
+      extraHTTPHeaders: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    const verifyResp = await loginWithRetry(verifyCtx, cred.username, cred.password);
+    await verifyCtx.dispose();
+    if (!verifyResp.ok()) {
+      const body = await verifyResp.text().catch(() => '');
+      throw new Error(
+        `ensureRoleUsers: 角色账号 ${cred.username} 终验登录失败 HTTP ${verifyResp.status()} ` +
+          `body=${body.slice(0, 300)}——凭证写出的密码与账号真实密码不符，` +
+          `下游角色用例将成片 401（#4669 E 族形态），属 setup 缺陷判红`
+      );
+    }
+    console.log(`[globalSetup] 角色账号 ${cred.username} 终验登录通过`);
   }
 
   await loginCtx.dispose();
@@ -831,12 +910,30 @@ export async function ensureRoleUsers(): Promise<void> {
 async function ensureGlobalBusinessSeed(
   ctx: Awaited<ReturnType<typeof request.newContext>>
 ): Promise<void> {
+  // 种子失败硬账（CI #4669 判责 §⑤/§6.3 收口：静默失败必须响亮化）：
+  // 收集**本分片种子阶段的全部失败**——既包括「导致种子行根本产不出来」的硬失败，
+  // 也包括 ⚠️ 软失败（reportSeedWrite 的 4xx/5xx，历史上只打印不进台账，造成
+  // 「⚠️ 打了、汇总仍写 0 项」的自相矛盾，下游大片红查不到根因）。
+  // 函数结束前若非空 → 打印清单 + 落盘 + GitHub 注解后**显式 throw 判红**：
+  // setup 失败会终止本分片全部用例，这正是目的——种子没就绪的运行结果不可信，
+  // 宁可整片红并带着清单判责，也不要「绿一半红一半、根因隐身」。（本仓纪律）
+  // 声明必须位于函数最前：后续所有分支（含 csrf 缺失早退）都要能记账。
+  const SEED_FAILURES: string[] = [];
+  const recordSeedFailure = (label: string, detail: string): void => {
+    SEED_FAILURES.push(`${label}｜${detail}`);
+    console.error(`[globalSeed] ❌ 种子失败（计入汇总）：${label} ${detail}`);
+  };
+
   // 获取 csrf_token（写操作需要）
   const cookies = (await ctx.storageState()).cookies;
   const csrfCookie = cookies.find(c => c.name === 'csrf_token');
   if (!csrfCookie) {
-    console.warn('[globalSeed] 无 csrf_token cookie，跳过业务种子（后续写请求将 403）');
-    return;
+    // 无 CSRF 会话 = 种子阶段整体报废，旧口径 warn+return 属静默失败，判红：
+    console.error('[globalSeed] ❌ 无 csrf_token cookie，业务种子无法执行（判红，不再静默跳过）');
+    throw new Error(
+      '[globalSeed] 种子前置失败：登录会话缺 csrf_token cookie，全部业务种子未执行——' +
+        '根因在 globalSetup 登录/CSRF 链路（E 族同族），不是下游用例缺陷。'
+    );
   }
   const headers: Record<string, string> = {
     'X-CSRF-Token': csrfCookie.value,
@@ -873,8 +970,8 @@ async function ensureGlobalBusinessSeed(
   };
 
   // 辅助：种子写请求失败暴露（消 SYS-4「≥500 才告警、4xx 静默」的伪装）。
-  // 非 2xx 一律 `[globalSeed] ⚠️` 显式打印 HTTP + 原始响应体，绝不静默；
-  // 但仍不 throw——保持既有软失败策略，仅把「≥500 才打」扩到「≥400 全打」。
+  // 非 2xx 一律 `[globalSeed] ⚠️` 显式打印 HTTP + 原始响应体，**并同步计入 SEED_FAILURES**
+  // （#4669 §6.3：⚠️ 分支过去不进台账，导致「种子失败汇总：0 项」与 ⚠️ 同屏自相矛盾）。
   const reportSeedWrite = async (resp: SetupApiResponse, label: string): Promise<void> => {
     const status = resp.status();
     if (status >= 400) {
@@ -884,16 +981,8 @@ async function ensureGlobalBusinessSeed(
           status >= 500 ? '（疑似后端潜伏缺陷，不吞掉）' : ''
         }`
       );
+      recordSeedFailure(`${label} 写请求`, `HTTP ${status} body=${body.slice(0, 200)}`);
     }
-  };
-
-  // 种子失败硬账：区别于 reportSeedWrite 的"打印后继续"，这里收的是**导致某类种子行
-  // 根本产不出来**的失败（缺数据会让下游整簇用例转红且根因难查，是本仓历史最大的隐性红）。
-  // run 结尾统一汇总打印，任何一项都不许只留在循环体里。
-  const SEED_FAILURES: string[] = [];
-  const recordSeedFailure = (label: string, detail: string): void => {
-    SEED_FAILURES.push(`${label}｜${detail}`);
-    console.error(`[globalSeed] ❌ 种子失败（计入汇总）：${label} ${detail}`);
   };
 
   // 「质检合格方可入库/结算」门控（backend/src/services/purchase_receipt_service.rs
@@ -965,7 +1054,7 @@ async function ensureGlobalBusinessSeed(
       const body = await safeJson(resp);
       return extractItems<{ id: number }>(body)[0]?.id;
     } catch (e) {
-      console.warn('[globalSeed] 仓库 id 查询异常:', (e as Error).message);
+      recordSeedFailure('仓库 id 查询', (e as Error).message);
       return undefined;
     }
   };
@@ -993,7 +1082,7 @@ async function ensureGlobalBusinessSeed(
       const created = await safeJson(createResp);
       return (created?.data as Record<string, unknown>)?.id as number | undefined;
     } catch (e) {
-      console.warn('[globalSeed] 部门 id 查询/创建异常:', (e as Error).message);
+      recordSeedFailure('部门 id 查询/创建', (e as Error).message);
       return undefined;
     }
   };
@@ -1005,10 +1094,13 @@ async function ensureGlobalBusinessSeed(
     const meBody = await safeJson(meResp);
     currentUserId = ((meBody?.data as Record<string, unknown>)?.id as number) ?? 0;
     if (!currentUserId) {
-      console.error('[globalSeed] /auth/me 未返回 id，后续需要 user_id 的实体将跳过');
+      recordSeedFailure(
+        '/auth/me 取当前用户 id',
+        '响应缺 id——需要 user_id 的种子（报价单/销售订单/AR 等）全部不可用'
+      );
     }
   } catch (e) {
-    console.error('[globalSeed] /auth/me 查询异常:', (e as Error).message);
+    recordSeedFailure('/auth/me 查询', (e as Error).message);
   }
 
   // ---- 1. 产品分类 "面料" ----
@@ -1032,7 +1124,7 @@ async function ensureGlobalBusinessSeed(
       console.log(`[globalSeed] 创建产品分类"面料" id=${fabricCategoryId}`);
     }
   } catch (e) {
-    console.warn('[globalSeed] 产品分类检查异常:', (e as Error).message);
+    recordSeedFailure('产品分类检查/创建', (e as Error).message);
   }
 
   // ---- 2. 产品（带克重/幅宽/每匹米数/每卷米数）----
@@ -1098,7 +1190,7 @@ async function ensureGlobalBusinessSeed(
       }
     }
   } catch (e) {
-    console.warn('[globalSeed] 产品检查/创建异常:', (e as Error).message);
+    recordSeedFailure('产品检查/创建', (e as Error).message);
   }
 
   // ---- 3. 供应商 ----
@@ -1110,15 +1202,17 @@ async function ensureGlobalBusinessSeed(
     const sups = extractItems<{ id: number }>(supBody);
     if (sups.length === 0) {
       const ts = Date.now().toString().slice(-6);
-      await seedPost(`${API_PREFIX}/purchase/suppliers`, {
+      const supCreate = await seedPost(`${API_PREFIX}/purchase/suppliers`, {
         supplier_name: `E2E全局供应商${ts}`,
         supplier_short_name: 'E2EG',
         contact_phone: '13800000099',
       });
-      console.log('[globalSeed] 创建全局供应商');
+      // 写响应必须过账（原 `await seedPost(...)` 丢弃响应 = 静默失败盲区）
+      if (!supCreate.ok()) await reportSeedWrite(supCreate, '全局供应商创建');
+      else console.log('[globalSeed] 创建全局供应商');
     }
   } catch (e) {
-    console.warn('[globalSeed] 供应商检查异常:', (e as Error).message);
+    recordSeedFailure('供应商检查/创建', (e as Error).message);
   }
 
   // ---- 4. 客户 ----
@@ -1128,14 +1222,15 @@ async function ensureGlobalBusinessSeed(
     const cuss = extractItems<{ id: number }>(cusBody);
     if (cuss.length === 0) {
       const ts = Date.now().toString().slice(-6);
-      await seedPost(`${API_PREFIX}/crm/customers`, {
+      const cusCreate = await seedPost(`${API_PREFIX}/crm/customers`, {
         customer_name: `E2E全局客户${ts}`,
         contact_phone: '13900000099',
       });
-      console.log('[globalSeed] 创建全局客户');
+      if (!cusCreate.ok()) await reportSeedWrite(cusCreate, '全局客户创建');
+      else console.log('[globalSeed] 创建全局客户');
     }
   } catch (e) {
-    console.warn('[globalSeed] 客户检查异常:', (e as Error).message);
+    recordSeedFailure('客户检查/创建', (e as Error).message);
   }
 
   // ---- 5. 仓库 ----
@@ -1146,15 +1241,16 @@ async function ensureGlobalBusinessSeed(
     if (whs.length < 2) {
       for (let i = whs.length; i < 2; i++) {
         const ts = Date.now().toString().slice(-6);
-        await seedPost(`${API_PREFIX}/warehouses`, {
+        const whCreate = await seedPost(`${API_PREFIX}/warehouses`, {
           name: `E2E全局仓库${ts}${i}`,
           code: `E2E-GW${ts}${i}`,
         });
+        if (!whCreate.ok()) await reportSeedWrite(whCreate, `全局仓库创建 i=${i}`);
       }
       console.log('[globalSeed] 创建全局仓库');
     }
   } catch (e) {
-    console.warn('[globalSeed] 仓库检查异常:', (e as Error).message);
+    recordSeedFailure('仓库检查/创建', (e as Error).message);
   }
 
   // ---- 6. 色卡 ----
@@ -1164,15 +1260,16 @@ async function ensureGlobalBusinessSeed(
     const ccs = extractItems<{ id: number }>(ccBody);
     if (ccs.length === 0) {
       const ts = Date.now().toString().slice(-6);
-      await seedPost(`${API_PREFIX}/color-cards`, {
+      const ccCreate = await seedPost(`${API_PREFIX}/color-cards`, {
         card_no: `E2E-GCC${ts}`,
         card_name: `E2E全局色卡${ts}`,
         card_type: 'PANTONE',
       });
-      console.log('[globalSeed] 创建全局色卡');
+      if (!ccCreate.ok()) await reportSeedWrite(ccCreate, '全局色卡创建');
+      else console.log('[globalSeed] 创建全局色卡');
     }
   } catch (e) {
-    console.warn('[globalSeed] 色卡检查异常:', (e as Error).message);
+    recordSeedFailure('色卡检查/创建', (e as Error).message);
   }
 
   // ---- 7. 色号定价 ----
@@ -1182,17 +1279,18 @@ async function ensureGlobalBusinessSeed(
       const cpBody = await safeJson(cpResp);
       const cps = extractItems<{ id: number }>(cpBody);
       if (cps.length === 0) {
-        await seedPost(`${API_PREFIX}/color-prices`, {
+        const cpCreate = await seedPost(`${API_PREFIX}/color-prices`, {
           product_id: productId,
           color_id: productColorId,
           currency: 'CNY',
           base_price: '15.00',
           effective_from: new Date().toISOString().slice(0, 10),
         });
-        console.log('[globalSeed] 创建全局色号定价');
+        if (!cpCreate.ok()) await reportSeedWrite(cpCreate, '全局色号定价创建');
+        else console.log('[globalSeed] 创建全局色号定价');
       }
     } catch (e) {
-      console.warn('[globalSeed] 色号定价检查异常:', (e as Error).message);
+      recordSeedFailure('色号定价检查/创建', (e as Error).message);
     }
   }
 
@@ -1273,7 +1371,7 @@ async function ensureGlobalBusinessSeed(
         }
       }
     } catch (e) {
-      console.warn('[globalSeed] 报价单检查异常:', (e as Error).message);
+      recordSeedFailure('报价单检查/创建', (e as Error).message);
     }
   }
 
@@ -1287,7 +1385,7 @@ async function ensureGlobalBusinessSeed(
     const fiBody = await safeJson(fiResp);
     const fis = extractItems<{ id: number }>(fiBody);
     if (fis.length === 0 && productId) {
-      await seedPost(`${API_PREFIX}/production/fabric-inspections`, {
+      const fiCreate = await seedPost(`${API_PREFIX}/production/fabric-inspections`, {
         inspection_date: new Date().toISOString().slice(0, 10),
         product_id: productId,
         color_no: 'E2E-GC',
@@ -1295,10 +1393,11 @@ async function ensureGlobalBusinessSeed(
         fabric_width_inches: 60,
         inspector_name: 'E2E全局验布员',
       });
-      console.log('[globalSeed] 创建全局验布记录（含 fabric_width_inches=60）');
+      if (!fiCreate.ok()) await reportSeedWrite(fiCreate, '全局验布记录创建');
+      else console.log('[globalSeed] 创建全局验布记录（含 fabric_width_inches=60）');
     }
   } catch (e) {
-    console.warn('[globalSeed] 验布记录检查异常:', (e as Error).message);
+    recordSeedFailure('验布记录检查/创建', (e as Error).message);
   }
 
   // ---- 10. BPM 流程定义（幂等：先查后建）----
@@ -1308,7 +1407,7 @@ async function ensureGlobalBusinessSeed(
     const bpms = extractItems<{ code?: string }>(bpmBody);
     if (!bpms.some(d => d.code === 'sales_order_approval')) {
       const approverId = currentUserId;
-      await seedPost(`${API_PREFIX}/bpm/definitions`, {
+      const bpmCreate = await seedPost(`${API_PREFIX}/bpm/definitions`, {
         name: '销售订单审批流程',
         code: 'sales_order_approval',
         description: 'E2E 测试用销售订单审批流程定义',
@@ -1332,10 +1431,11 @@ async function ensureGlobalBusinessSeed(
         },
         status: 'ACTIVE',
       });
-      console.log('[globalSeed] 创建 BPM sales_order_approval');
+      if (!bpmCreate.ok()) await reportSeedWrite(bpmCreate, 'BPM 定义创建 sales_order_approval');
+      else console.log('[globalSeed] 创建 BPM sales_order_approval');
     }
   } catch (e) {
-    console.warn('[globalSeed] BPM 定义检查异常:', (e as Error).message);
+    recordSeedFailure('BPM 定义检查/创建', (e as Error).message);
   }
 
   // ---- 11. 销售订单多状态种子（覆盖 sales/03 draft+pending, sales/04 approved）----
@@ -1567,13 +1667,14 @@ async function ensureGlobalBusinessSeed(
         }
       }
     } else if (supplierId && productId) {
-      // 缺真实仓库/部门前置：显式告警不再静默跳过（否则重蹈 SYS-4「无声不建单」覆辙）。
-      console.warn(
-        `[globalSeed] ⚠️ 采购订单种子缺前置(warehouse=${poWarehouseId} department=${poDepartmentId})，跳过步骤12`
+      // 缺真实仓库/部门前置：种子行根本产不出来 → 计入台账判红（不再只 ⚠️ 后隐身）。
+      recordSeedFailure(
+        '采购订单种子缺前置',
+        `warehouse=${poWarehouseId} department=${poDepartmentId}（步骤12 全部未建）`
       );
     }
   } catch (e) {
-    console.warn('[globalSeed] 采购订单种子异常:', (e as Error).message);
+    recordSeedFailure('采购订单种子', (e as Error).message);
   }
 
   // ---- 13. AR 应收发票种子（覆盖 sales/05 列表 + sales/06 收款按钮需已审核态）----
@@ -1639,7 +1740,7 @@ async function ensureGlobalBusinessSeed(
         console.log(`[globalSeed] AR 发票 APPROVED 已有 ${approvedArCount}，满足需求`);
       }
     } catch (e) {
-      console.warn('[globalSeed] AR 发票种子异常:', (e as Error).message);
+      recordSeedFailure('AR 发票种子', (e as Error).message);
     }
   }
 
@@ -1704,7 +1805,7 @@ async function ensureGlobalBusinessSeed(
         console.log(`[globalSeed] AP 发票 AUDITED 已有 ${auditedApCount}，满足需求`);
       }
     } catch (e) {
-      console.warn('[globalSeed] AP 发票种子异常:', (e as Error).message);
+      recordSeedFailure('AP 发票种子', (e as Error).message);
     }
   }
 
@@ -1756,8 +1857,9 @@ async function ensureGlobalBusinessSeed(
       const stockWarehouses = extractItems<{ id: number }>(whListBody);
 
       if (!stockSupplierId || !materialCode || stockWarehouses.length === 0) {
-        console.warn(
-          `[globalSeed] 库存种子前置不足（supplier=${stockSupplierId} code=${materialCode} warehouses=${stockWarehouses.length}），跳过库存种子`
+        recordSeedFailure(
+          '库存种子前置不足',
+          `supplier=${stockSupplierId} code=${materialCode} warehouses=${stockWarehouses.length}（库存行未建）`
         );
       } else {
         const today = new Date().toISOString().slice(0, 10);
@@ -2077,8 +2179,9 @@ async function ensureGlobalBusinessSeed(
             }
           }
         } else {
-          console.warn(
-            `[globalSeed] ⚠️ 质检种子缺前置(supplier=${insSupplierId} warehouse=${insWarehouseId})，跳过步骤16`
+          recordSeedFailure(
+            '采购质检种子缺前置',
+            `supplier=${insSupplierId} warehouse=${insWarehouseId}（步骤16 质检/收货链未建）`
           );
         }
       } else {
@@ -2203,53 +2306,57 @@ async function ensureGlobalBusinessSeed(
             }
           }
         } else if (paySupplierId && !linkedApInvoiceId) {
-          console.warn(
-            '[globalSeed] ⚠️ AP 付款申请缺已审核应付单(items 必填 invoice_id)，跳过步骤17'
+          recordSeedFailure(
+            'AP 付款申请缺已审核应付单',
+            `supplier=${paySupplierId}（items 必填 invoice_id，步骤17 付款链未建）`
           );
         }
       } else {
         console.log(`[globalSeed] AP 付款单已有 ${existingPayments}，满足需求`);
       }
     } catch (e) {
-      console.warn('[globalSeed] AP 付款种子异常:', (e as Error).message);
+      recordSeedFailure('AP 付款种子', (e as Error).message);
     }
   }
 
   // ---- 17.5 确保覆盖当前日期的会计期间存在（AR 收款/凭证的期间校验前置）----
   // 后端 check_date_locked_txn（accounting_period_service.rs:645）按 payment_date 查询
-  // accounting_periods 表 start_date<=date AND end_date>=date，不存在则报
-  // 「日期 xxx 不在任何已设置的会计期间内」（HTTP 500/BusinessError）。
+  // accounting_periods 表 start_date<=date AND end_date>=date，不存在则拒绝。
   // 端点：POST /api/v1/erp/finance/accounting-periods（routes/finance.rs:70-73，missing_handlers.rs:110）
   // Payload：{ year, period }（period=1-12），后端自动计算当月首日至末日为 start/end_date。
-  // 幂等：已存在时后端返回 BusinessError「xxx 年 xx 月的会计期间已存在」，HTTP 400，视为成功。
+  // 幂等口径改造（CI #4669 §⑤ 铁证）：原实现靠「400 body 文案含"已存在"」判幂等，但后端
+  // missing_handlers.rs:125 走 AppError::business（出参永久脱敏为「业务处理失败」），文案匹配
+  // 永不成立 → 每个后续分片都 ⚠️「会计期间创建失败 HTTP 400」而实际期间早已存在。
+  // 正解=用**读端点做存在性前置**（GET /finance/accounting-periods 返回 Vec<Dto>，
+  // missing_handlers.rs:72-83，含 year/period 列）：已存在即跳过写；不存在才 POST；
+  // POST 仍失败 = 真实缺陷，经 reportSeedWrite 计入汇总判红（禁止反向放松）。
   {
     const now = new Date();
     const periodYear = now.getFullYear();
     const periodMonth = now.getMonth() + 1;
+    const periodLabel = `会计期间 ${periodYear}-${String(periodMonth).padStart(2, '0')}`;
     try {
-      const periodResp = await seedPost(`${API_PREFIX}/finance/accounting-periods`, {
-        year: periodYear,
-        period: periodMonth,
-      });
-      if (periodResp.ok()) {
-        console.log(
-          `[globalSeed] 创建会计期间 ${periodYear}-${String(periodMonth).padStart(2, '0')} 成功`
-        );
-      } else if (periodResp.status() === 400) {
-        // 已存在（后端 missing_handlers.rs:125 返回 BusinessError「已存在」），幂等跳过
-        const body = await periodResp.text().catch(() => '');
-        if (body.includes('已存在')) {
-          console.log(
-            `[globalSeed] 会计期间 ${periodYear}-${String(periodMonth).padStart(2, '0')} 已存在，跳过`
-          );
-        } else {
-          await reportSeedWrite(periodResp, `会计期间创建 ${periodYear}-${periodMonth}`);
-        }
+      const listResp = await ctx.get(`${API_PREFIX}/finance/accounting-periods`, { headers });
+      const listBody = await safeJson(listResp);
+      const periods =
+        (listBody?.data as Array<{ year?: number; period?: number }> | undefined) ?? null;
+      if (!listResp.ok() || !Array.isArray(periods)) {
+        await reportSeedWrite(listResp, `${periodLabel} 存在性回读`);
+      } else if (periods.some(p => p.year === periodYear && p.period === periodMonth)) {
+        console.log(`[globalSeed] ${periodLabel} 已存在（读端点确认），跳过创建`);
       } else {
-        await reportSeedWrite(periodResp, `会计期间创建 ${periodYear}-${periodMonth}`);
+        const periodResp = await seedPost(`${API_PREFIX}/finance/accounting-periods`, {
+          year: periodYear,
+          period: periodMonth,
+        });
+        if (periodResp.ok()) {
+          console.log(`[globalSeed] 创建${periodLabel} 成功`);
+        } else {
+          await reportSeedWrite(periodResp, `${periodLabel} 创建`);
+        }
       }
     } catch (e) {
-      console.warn('[globalSeed] 会计期间创建异常:', (e as Error).message);
+      recordSeedFailure(`${periodLabel} 检查/创建异常`, (e as Error).message);
     }
   }
 
@@ -2324,7 +2431,7 @@ async function ensureGlobalBusinessSeed(
         console.log(`[globalSeed] AR 收款单已有 ${existingArPayments}，满足需求`);
       }
     } catch (e) {
-      console.warn('[globalSeed] AR 收款种子异常:', (e as Error).message);
+      recordSeedFailure('AR 收款种子', (e as Error).message);
     }
   }
 
@@ -2348,8 +2455,9 @@ async function ensureGlobalBusinessSeed(
         s => s.supplier_code === 'SUP-DEMO-FAB-01'
       );
       if (!demoSup?.id) {
-        console.warn(
-          '[globalSeed] ⚠️ 未找到演示供应商 SUP-DEMO-FAB-01（m0015 未生效？），跳过对照表种子'
+        recordSeedFailure(
+          '对照表种子缺演示供应商',
+          '未找到 SUP-DEMO-FAB-01（m0015 未生效？），对照表种子未建'
         );
       } else {
         // 2) 定位其商品 FAB-P001（按 product_code 精确匹配）
@@ -2375,8 +2483,9 @@ async function ensureGlobalBusinessSeed(
           demoColorId = demoColor?.id;
         }
         if (!demoProduct?.id || !demoColorId) {
-          console.warn(
-            `[globalSeed] ⚠️ 演示供应商商品/色号缺失（product=${demoProduct?.id} color=${demoColorId}），跳过对照表种子`
+          recordSeedFailure(
+            '对照表种子缺演示商品/色号',
+            `product=${demoProduct?.id} color=${demoColorId}（FAB-P001/PC-A01 未定位到，对照表未建）`
           );
         } else {
           // 4) 幂等检查：该 (我方产品, 我方色号, 演示供应商) 组合是否已有对照
@@ -2416,15 +2525,17 @@ async function ensureGlobalBusinessSeed(
         }
       }
     } catch (e) {
-      console.warn('[globalSeed] 对照表种子异常:', (e as Error).message);
+      recordSeedFailure('对照表种子', (e as Error).message);
     }
   }
 
-  // 种子失败汇总：缺行不让它隐身——下游用例的红要先看这里，再判用例本身。
+  // 种子失败汇总：缺行/软失败都不让它隐身——下游用例的红要先看这里，再判用例本身。
+  // CI #4669 §6.3 收口：本清单非空时**显式 throw 判红**（旧口径"打印后继续"把
+  // 「种子没就绪」放大成下游成片红且根因隐身；本仓纪律=静默失败必须响亮化）。
   if (SEED_FAILURES.length > 0) {
     console.error(
       `[globalSeed] ❌ 种子失败汇总 ${SEED_FAILURES.length} 项` +
-        `（对应种子行没建出来，下游用例会以"查不到数据/按钮不可达"的形式红）:`
+        `（对应种子行没建出来/写请求被拒，下游用例会以"查不到数据/按钮不可达"的形式红）:`
     );
     SEED_FAILURES.forEach((f, idx) => {
       console.error(`  ${idx + 1}. ${f}`);
@@ -2432,9 +2543,7 @@ async function ensureGlobalBusinessSeed(
     // 判责取证落盘：种子失败历来只能靠人翻各分片 stdout，而 Playwright 的 --shard
     // 按用例 hash 分配、与 spec 文件无关（ci-cd.yml 分片注释），红的那片往往不是
     // 缺数据的那片。这里把清单落成随产物上传的 JSON + GitHub 注解，让"先看种子"
-    // 不再依赖人的记忆。**仍然不 throw**：任一片 setup 硬失败会无差别杀掉该片全部
-    // 用例（36 片各自跑一次 setup），把可定位的缺数据放大成整轮零信号；
-    // 是否升级为按关键/装饰性种子分级的硬失败属 CI 判责边界，待用户拍板。
+    // 不再依赖人的记忆；打印/落盘/注解都完成后才 throw，判红不吞取证。
     const shardTag = SHARD_INDEX || 'local';
     try {
       mkdirSync('reports', { recursive: true });
@@ -2447,7 +2556,7 @@ async function ensureGlobalBusinessSeed(
         )
       );
     } catch (e) {
-      // 落盘失败不能让种子失败本身隐身：降级为显式打印，仍不 throw。
+      // 落盘失败不阻断判红本身：降级为显式打印后仍 throw。
       console.error(`[globalSeed] ❌ 种子失败清单落盘失败: ${(e as Error).message}`);
     }
     SEED_FAILURES.forEach(f => {
@@ -2457,6 +2566,12 @@ async function ensureGlobalBusinessSeed(
         `::warning file=frontend/e2e/global-setup.ts::[globalSeed shard=${shardTag}] ${f}`
       );
     });
+    // 判红（响亮化）：setup 抛错 → 本分片以真实根因终止，而不是带着空台账继续跑出成片假红。
+    throw new Error(
+      `[globalSeed] 种子阶段失败 ${SEED_FAILURES.length} 项（清单已打印并落盘 ` +
+        `reports/seed-failures-shard${shardTag}.json），按本仓"静默失败必须响亮化"纪律判红；` +
+        '请先修种子根因（多为后端契约/前置数据缺陷），再判下游用例。'
+    );
   } else {
     console.log('[globalSeed] 种子失败汇总：0 项');
   }

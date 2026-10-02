@@ -1,4 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
+import type { Page } from '@playwright/test';
 import {
   loginViaUI,
   apiCall,
@@ -8,8 +9,11 @@ import {
   tryCleanup,
   ensureTestEntities,
   getCtx,
+  genCode,
   seedFourDimStockIn,
   seedGreigeStockIn,
+  failureCode,
+  APP_ERROR_CODES,
 } from './helpers';
 
 /**
@@ -18,6 +22,42 @@ import {
  * 覆盖：流转卡/销售订单/采购收货/库存调拨/染色配方/打样通知/
  * 报废审批/转账记录/大货处方 的状态门与删除约束负例。
  */
+
+/**
+ * 44e-7 专用：不合格品（报废审批对象）出参行（= unqualified_product::Model 的序列化键，
+ * handlers/quality_inspection_handler.rs:520/557 写响应与 defects 列表同源返回完整 model）。
+ * Decimal 列（scrap_loss_amount）经 serde 序列化为十进制字符串，断言用 Number() 归一。
+ */
+interface ScrapDefectRow {
+  id?: number;
+  handling_status?: string;
+  scrap_approval_status?: string | null;
+  approver_id_fin?: number | null;
+  approver_id_gm?: number | null;
+  approved_at_fin?: string | null;
+  approved_at_gm?: string | null;
+  scrap_loss_amount?: string | number | null;
+}
+
+/**
+ * 44e-7 专用：按缺陷 id 从 defects 列表回读落库真值行。
+ * 端点 GET /production/quality-inspection/defects（handler :396-414）data 为**裸数组**
+ * （Vec<Model>，K 族信封口径待决前按当前真实契约钉死，不用两端兼容），列表 id 倒序
+ * （service get_defects_list :744-764），新建缺陷恒在首页。
+ */
+async function findScrapDefectRow(page: Page, id: number): Promise<ScrapDefectRow | undefined> {
+  const res = await apiCallRaw<ScrapDefectRow[] | { items?: ScrapDefectRow[] }>(
+    page,
+    'GET',
+    '/production/quality-inspection/defects?page=1&page_size=100'
+  );
+  expect(
+    Array.isArray(res),
+    `defects 列表端点 data 当前契约为裸数组，实际：${JSON.stringify(res).slice(0, 200)}`
+  ).toBe(true);
+  const arr = res as ScrapDefectRow[];
+  return arr.find(d => d.id === id);
+}
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -179,18 +219,164 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     expect(r.status, `不存在打样单删除应 404 not found，实际=${r.status}`).toBe(404);
   });
 
-  test('44e-7 报废审批：跳级拦截（quality_inspection_service.rs:656-661 总经理前必须财务）', async ({
+  test('44e-7 报废两级审批：真实端点全链路（财务→GM）+ 跳级/非报废/终态复批被拒 + 被拒零残留回读', async ({
     page,
   }) => {
-    // 直接对不存在的检验单发起总经理级报废审批，验证路由与状态门
-    const r = await apiCallExpectFail(
+    // CI #4669 判责 §3-F 族收口：原用例打臆造路径（/quality/inspections/.../scrap-approval/gm、
+    // /production/scrap-approval/gm），权限中间件按 URL 段推导资源键，段3 不在白名单 →
+    // 403「未知的资源路径」。真实端点（backend/src/routes/production.rs:544-551，F-be 注册）：
+    //   POST /production/quality-inspection/defects/{id}/scrap-approval/{financial|gm}
+    // 其中 {id}=unqualified_products.id；审批人只取会话（handlers/quality_inspection_handler.rs
+    // :433-596，契约无 approver 字段）；跳级/非报废/终态复批 = BUSINESS_ERROR 族且**出参脱敏**
+    // ——按硬约束只断 status 与信封 code（expectBusinessRejection/显式 code），禁止断言原因文案。
+    await ensureTestEntities(page);
+    const ctx = getCtx();
+
+    // 前置①：C 级质检记录（rate=0 → determine_quality_grade 自动判 C，service :61-69；
+    // C 级允许 scrap/rework，validate_handling_method_by_grade :95-104）。
+    const rec = await apiCall<{ id?: number }>(
       page,
       'POST',
-      '/quality/inspections/99999999/scrap-approval/gm'
+      '/production/quality-inspection/records',
+      {
+        inspection_no: genCode('E2E44E7'),
+        inspection_type: 'finished',
+        product_id: ctx.productIds[0],
+        inspection_date: new Date().toISOString().slice(0, 10),
+        total_qty: '100',
+        inspected_qty: '100',
+        qualified_qty: '0',
+        unqualified_qty: '100',
+        qualification_rate: '0',
+        inspection_result: '不合格',
+      }
     );
-    if (r.status !== 404) {
-      expectBusinessRejection(r, '报废 GM 级审批应要求先财务审批');
-    }
+    const recordId = rec?.data?.id;
+    expect(
+      recordId,
+      `质检记录建单响应未返回 id（后端建单响应回 id 是契约，缺失判红）：${JSON.stringify(rec).slice(0, 200)}`
+    ).toBeTruthy();
+
+    const defectBase = (id: number) => `/production/quality-inspection/defects/${id}`;
+    const processDefect = async (handlingMethod: string) => {
+      const d = await apiCall<ScrapDefectRow>(page, 'POST', `${defectBase(recordId!)}/process`, {
+        unqualified_qty: '100',
+        unqualified_reason: 'E2E44e-7 报废审批前置',
+        handling_method: handlingMethod,
+      });
+      const id = d?.data?.id;
+      expect(
+        id,
+        `不合格品处理记录(${handlingMethod})建单响应未返回 id：${JSON.stringify(d).slice(0, 200)}`
+      ).toBeTruthy();
+      return { id: id as number, created: d.data as ScrapDefectRow };
+    };
+    // 前置②：报废缺陷（初始态 pending_fin，service :471-475）；前置③：对照 rework 缺陷
+    //（not_required，供「非报废拒入审批链」负例）。
+    const scrap = await processDefect('scrap');
+    const rework = await processDefect('rework');
+    expect(
+      scrap.created.scrap_approval_status,
+      '报废缺陷初始态应为 pending_fin（财务一级待审）'
+    ).toBe('pending_fin');
+    expect(
+      rework.created.scrap_approval_status,
+      '非报废（rework）处理不得进入报废审批链，应为 not_required'
+    ).toBe('not_required');
+
+    // —— 负例① 跳级：未完成财务直接 GM → 400 BUSINESS 族（service :714-718）
+    const skipGm = await apiCallExpectFail(
+      page,
+      'POST',
+      `${defectBase(scrap.id)}/scrap-approval/gm`,
+      { approved: true, scrap_loss_amount: '123.45' }
+    );
+    expectBusinessRejection(skipGm, 'GM 审批先于财务完成（跳级）应被拒（400 + 业务机器码）');
+    // —— 被拒零残留回读：状态不推进、GM 审批人/时间/损失金额均未写入
+    const afterSkip = await findScrapDefectRow(page, scrap.id);
+    expect(afterSkip, '报废缺陷应能从 defects 列表（id 倒序首页）回读').toBeTruthy();
+    expect(afterSkip!.scrap_approval_status, '跳级被拒后审批状态不得推进').toBe('pending_fin');
+    expect(afterSkip!.approver_id_gm, '跳级被拒后不得写 GM 审批人').toBeNull();
+    expect(afterSkip!.approved_at_gm, '跳级被拒后不得写 GM 审批时间').toBeNull();
+    expect(afterSkip!.scrap_loss_amount, '跳级被拒后不得写损失金额').toBeNull();
+
+    // —— 负例② 非报废拒入报废审批链（service :671-672）
+    const nonScrap = await apiCallExpectFail(
+      page,
+      'POST',
+      `${defectBase(rework.id)}/scrap-approval/financial`,
+      { approved: true }
+    );
+    expectBusinessRejection(nonScrap, '非报废处理不可走报废审批（400 + 业务机器码）');
+
+    // —— 负例③ GM 入参值门：拒绝携带金额 / 负数金额 → 400 VALIDATION_ERROR
+    //（handler :558-569，属用户自提字段公开规则族；按硬约束仍只断 status+code）
+    const rejectWithAmount = await apiCallExpectFail(
+      page,
+      'POST',
+      `${defectBase(scrap.id)}/scrap-approval/gm`,
+      { approved: false, scrap_loss_amount: '10' }
+    );
+    expect(rejectWithAmount.status, 'GM 拒绝携带损失金额应 400').toBe(400);
+    expect(
+      failureCode(rejectWithAmount),
+      `GM 拒绝携带损失金额机器码应为 ${APP_ERROR_CODES.VALIDATION_ERROR}，实际=${JSON.stringify(rejectWithAmount.code)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    const negativeAmount = await apiCallExpectFail(
+      page,
+      'POST',
+      `${defectBase(scrap.id)}/scrap-approval/gm`,
+      { approved: true, scrap_loss_amount: '-1' }
+    );
+    expect(negativeAmount.status, '负数报废损失金额应 400').toBe(400);
+    expect(
+      failureCode(negativeAmount),
+      `负数金额机器码应为 ${APP_ERROR_CODES.VALIDATION_ERROR}，实际=${JSON.stringify(negativeAmount.code)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    // 入参值门均先于任何 DB 写入（handler 注释），状态仍应为 pending_fin
+    const afterValueGate = await findScrapDefectRow(page, scrap.id);
+    expect(afterValueGate!.scrap_approval_status, '入参值门拒绝后状态不得推进').toBe('pending_fin');
+
+    // —— 正向① 财务一级通过 → pending_gm + 会话审批人落库（写响应回完整 model）
+    const fin = await apiCall<ScrapDefectRow>(
+      page,
+      'POST',
+      `${defectBase(scrap.id)}/scrap-approval/financial`,
+      { approved: true }
+    );
+    expect(fin?.data?.scrap_approval_status, '财务通过后应流转 pending_gm').toBe('pending_gm');
+    expect(fin?.data?.approver_id_fin, '财务审批人应取会话并落库').toBeTruthy();
+
+    // —— 正向② GM 二级通过 + 损失金额入账 → approved（最终态，handling_status 同步）
+    const gm = await apiCall<ScrapDefectRow>(
+      page,
+      'POST',
+      `${defectBase(scrap.id)}/scrap-approval/gm`,
+      {
+        approved: true,
+        scrap_loss_amount: '123.45',
+      }
+    );
+    expect(gm?.data?.scrap_approval_status, 'GM 通过后终态应为 approved').toBe('approved');
+    expect(Number(gm?.data?.scrap_loss_amount), 'GM 通过的损失金额应落库 123.45').toBe(123.45);
+    expect(gm?.data?.handling_status, 'GM 通过后处理状态应同步 approved').toBe('approved');
+    // 列表回读与写响应一致（最终态真实落库，非响应假值）
+    const finalRow = await findScrapDefectRow(page, scrap.id);
+    expect(finalRow!.scrap_approval_status, '列表回读终态应为 approved').toBe('approved');
+    expect(Number(finalRow!.scrap_loss_amount), '列表回读损失金额应为 123.45').toBe(123.45);
+
+    // —— 负例④ 终态复批：approved 后再财务审批 → 400 BUSINESS 族（service :674-678）
+    const reApprove = await apiCallExpectFail(
+      page,
+      'POST',
+      `${defectBase(scrap.id)}/scrap-approval/financial`,
+      { approved: false }
+    );
+    expectBusinessRejection(reApprove, 'approved 终态再次财务审批应被拒（400 + 业务机器码）');
+    // 终态复批被拒后金额/状态不得变化（零残留二次确认）
+    const afterReApprove = await findScrapDefectRow(page, scrap.id);
+    expect(afterReApprove!.scrap_approval_status, '终态复批被拒后状态不变').toBe('approved');
+    expect(Number(afterReApprove!.scrap_loss_amount), '终态复批被拒后损失金额不变').toBe(123.45);
   });
 
   test('44e-8 转账记录：REJECTED 后再审批被拒（fund_management_service.rs:408-448 仅 PENDING）', async ({

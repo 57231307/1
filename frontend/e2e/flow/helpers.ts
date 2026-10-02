@@ -3616,3 +3616,74 @@ export async function withEntity(
     await tryCleanup(page, 'DELETE', delPath, label);
   }
 }
+
+/**
+ * 【新增函数（CI #4669 I 族收口）】为「染色批次/缸号」建一条真实的色卡档案前置。
+ *
+ * 后端强校验（正当，不得放松）：dye_batch_handler.rs::resolve_dye_identity 归一
+ * （backend/src/handlers/dye_batch_handler.rs:203-254）要求 color_no 非空即染色布，且该色号
+ * 必须在全仓唯一的色卡明细档案 `color_card_items.color_code` 上**恰好命中一条**：
+ * - 档案无此色 → 400 VALIDATION「色号 XXX 在色卡档案中不存在」（CI #4669 红 03-production:87、
+ *   21d:237 的原文，即本函数消灭的前置缺失）；
+ * - 同色号多条 → 显式业务错「无法唯一定位」，故色号取 genCode（时间戳+随机）保证全局唯一。
+ *
+ * 前置链全部走真实端点（与 fabric/02-dye.spec.ts 既有 seedColorCardItem 先例同型，本函数是
+ * 其 helpers 版收口，供 flow 族多文件复用；不改动任何既有函数）：
+ * 1. POST /color-cards（handlers/color_card/crud.rs:78-101，创建即 draft——色卡主体词表
+ *    color_card::DRAFT；出参 ColorCardListItem 含 id）；
+ * 2. POST /color-cards/{id}/items（handlers/color_card/items.rs:48-58；服务门控
+ *    EDITABLE_CARD_STATUSES=[draft]（color_card_item_service.rs:65），新建卡恒可挂色号；
+ *    出参 ColorItemInfo 含 id/color_code）。
+ *
+ * 色卡档案不做清理：DELETE 端点是**归档**语义（crud.rs archive，非物理删除），物理删档会
+ * 破坏历史染色批次的派生链；每次运行新建专属卡+唯一色号，跨分片互不干扰。
+ *
+ * @returns cardId 专属色卡 id；colorCode 已入档的唯一色号（喂给 dye-batch 的 color_no）；itemId 色号明细 id
+ */
+export async function seedColorCardArchive(
+  page: Page,
+  opts?: { context?: string }
+): Promise<{ cardId: number; colorCode: string; itemId: number }> {
+  const tag = opts?.context ?? 'seedColorCardArchive';
+  const colorCode = genCode('E2E-ARCH');
+  const card = await apiCall<{ id?: number; card_no?: string }>(page, 'POST', '/color-cards', {
+    card_no: genCode('E2E-ARCHCC'),
+    card_name: `E2E 档案前置色卡 ${colorCode}`,
+    card_type: 'CUSTOM',
+  });
+  const cardId = card?.data?.id;
+  if (!cardId) {
+    throw new Error(
+      `[${tag}] 前置色卡创建未返回 id（后端契约：ColorCardListItem 必含 id）：${JSON.stringify(card)}`
+    );
+  }
+  // 载荷对照 ColorItemDto（backend/src/models/color_card_item_dto.rs:12-66）：
+  // color_code/color_name/rgb_r/g/b 必填，hex_value 必填且长度恰为 7（#RRGGBB）。
+  const item = await apiCall<{ id?: number; color_code?: string }>(
+    page,
+    'POST',
+    `/color-cards/${cardId}/items`,
+    {
+      color_code: colorCode,
+      color_name: 'E2E 档案前置色号',
+      rgb_r: 220,
+      rgb_g: 20,
+      rgb_b: 60,
+      hex_value: '#DC143C',
+    }
+  );
+  const itemId = item?.data?.id;
+  if (!itemId) {
+    throw new Error(
+      `[${tag}] 色号明细创建未返回 id（后端契约：ColorItemInfo 必含 id）：${JSON.stringify(item)}`
+    );
+  }
+  if (item.data.color_code !== colorCode) {
+    throw new Error(
+      `[${tag}] 色号明细回显与提交不一致（期望 ${colorCode}，实际 ${JSON.stringify(item)}）` +
+        '——色卡状态门控或端点契约漂移属后端问题，不得在此放宽'
+    );
+  }
+  console.log(`[${tag}] 色卡档案前置就绪：card=${cardId} item=${itemId} color_code=${colorCode}`);
+  return { cardId, colorCode, itemId };
+}

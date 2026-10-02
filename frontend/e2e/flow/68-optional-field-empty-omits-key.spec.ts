@@ -185,13 +185,44 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     const supplierId = Number(created.data?.id);
     expect(supplierId, `[68-02] 预置供应商应回 id：${JSON.stringify(created)}`).toBeGreaterThan(0);
 
+    // 「回读 vs 掩码」口径取证（CI #4669 §②/§③ 本族收口，先核源码真实出参再断言）：
+    // 供应商读出口（handlers/supplier_handler.rs:24-110）的打码列集合 = utils/field_mask.rs
+    // 权威定义 `mask_contact_fields_for_role` —— **仅手机号/邮箱键集**（138****8888 形态，
+    // 且 role_id=1 放行原文）；本用例三列 supplier_short_name / credit_code / remarks
+    // 不在掩码键集内，真实契约就是原文回读。另经数据权限行 allowed/hidden 的 filter_fields
+    // 是**删键**而非打值（supplier_handler.rs:94-107）。故 UI 前置钉桩之前，先走详情
+    // （允许放行的原文入口）把「落库真值 + 键存在性」钉死：
+    // - 本步红 → 后端建单未持久化 / 字段权限剥键（源码/配置缺陷，判红交后端，禁止改弱）；
+    // - 本步绿而下方 UI 回填红 → 前端编辑回填链路缺陷（属前端，不属本用例放宽范围）。
+    const seeded = await apiCallRaw<Row>(page, 'GET', `/purchase/suppliers/${supplierId}`);
+    for (const key of ['supplier_short_name', 'credit_code', 'remarks'] as const) {
+      expect(
+        Object.prototype.hasOwnProperty.call(seeded, key),
+        `[68-02] 详情回读必须含 ${key} 键（缺键=数据权限剥掉原文列，掩码集合真值见 utils/field_mask.rs）：${JSON.stringify(seeded).slice(0, 300)}`
+      ).toBe(true);
+    }
+    expect(
+      seeded.supplier_short_name,
+      `[68-02] 建单落库回读：简称非掩码列，应逐字原文（实际 ${JSON.stringify(seeded.supplier_short_name)}）`
+    ).toBe(shortOriginal);
+    expect(
+      seeded.credit_code,
+      `[68-02] 建单落库回读：信用代码非掩码列，应逐字原文（实际 ${JSON.stringify(seeded.credit_code)}）`
+    ).toBe(creditOriginal);
+    expect(
+      seeded.remarks,
+      `[68-02] 建单落库回读：备注非掩码列，应逐字原文（实际 ${JSON.stringify(seeded.remarks)}）`
+    ).toBe(remarksOriginal);
+
     await safeGoto(page, '/supplier');
     const row = await findTableRow(page, supplierName, 1, supplierName);
     expect(row, `[68-02] 列表应定位到自建供应商 ${supplierName}`).toBeTruthy();
     await row!.getByRole('button', { name: '编辑' }).first().click();
     const dlg = await waitForDialog(page);
 
-    // 前置钉桩：编辑弹窗确实回填了落库值（否则"清空后省略键"无从谈起）
+    // 前置钉桩：编辑弹窗确实回填了落库值（否则"清空后省略键"无从谈起）。
+    // 若此处红而上方 API 回读绿，定性为前端回填缺陷（回填源=列表行 vs 详情出参的口径差），
+    // 保持红并交前端，禁止把断言降级成 != undefined 之类弱判据。
     await expect
       .poll(() => inputOf(dlg, '供应商简称').inputValue(), { timeout: 10_000 })
       .toBe(shortOriginal);
