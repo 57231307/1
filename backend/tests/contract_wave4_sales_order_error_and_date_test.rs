@@ -36,7 +36,8 @@ use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::search::{ElasticClient, SearchClient};
 use bingxi_backend::services::so::order::SalesService;
 use bingxi_backend::utils::error::AppError;
-use sea_orm::{ConnectionTrait, DbBackend, Decimal, Statement};
+use rust_decimal::Decimal;
+use sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
 
@@ -139,7 +140,8 @@ async fn seed_order(
             ],
         ))
         .await
-        .unwrap_or_else(|e| panic!("种子销售订单 {order_no} 插入失败: {e}"));
+        .unwrap_or_else(|e| panic!("种子销售订单 {order_no} 插入失败: {e}"))
+        .unwrap_or_else(|| panic!("种子销售订单 {order_no} 的 RETURNING id 未回一行"));
     let id: i32 = row
         .try_get_by_index(0)
         .expect("RETURNING id 应可解码为 i32");
@@ -160,8 +162,22 @@ async fn seed_order(
 async fn setup_stats_db() -> sea_orm::DatabaseConnection {
     let db = setup_test_db().await;
     seed_fk_prerequisites(&db).await;
-    seed_order(&db, "W4SO-STAT-1", "2026-01-10", Decimal::new(10000, 2), "pending").await;
-    seed_order(&db, "W4SO-STAT-2", "2026-06-20", Decimal::new(20000, 2), "pending").await;
+    seed_order(
+        &db,
+        "W4SO-STAT-1",
+        "2026-01-10",
+        Decimal::new(10000, 2),
+        "pending",
+    )
+    .await;
+    seed_order(
+        &db,
+        "W4SO-STAT-2",
+        "2026-06-20",
+        Decimal::new(20000, 2),
+        "pending",
+    )
+    .await;
     db
 }
 

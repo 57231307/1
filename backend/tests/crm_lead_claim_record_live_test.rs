@@ -151,9 +151,9 @@ async fn crm_lead_claim_record_migration_live_pg() {
         bind_sql,
         [
             sea_orm::Value::Int(Some(1)),
-            sea_orm::Value::DateTimeWithTimeZone(Some(Box::new(chrono::DateTime::<
-                chrono::FixedOffset,
-            >::from(Utc::now())))),
+            sea_orm::Value::ChronoDateTimeWithTimeZone(Some(
+                chrono::DateTime::<chrono::FixedOffset>::from(Utc::now()),
+            )),
         ],
     ))
     .await

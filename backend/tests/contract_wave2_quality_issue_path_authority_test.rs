@@ -34,12 +34,15 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::custom_order_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::{custom_order, customer, product, quality_issue};
 use bingxi_backend::models::quality_issue_dto::ReportQualityIssueDto;
+use bingxi_backend::models::{custom_order, customer, product, quality_issue};
 use chrono::Utc;
+// 注意：本文件大量使用 serde_json::Value（响应体断言），故 sea-orm 的绑定值类型
+// 一律写作 sea_orm::Value，不并入上面的导入（并入会触发 E0252 重名并把
+// as_object_mut/索引等 serde 用法全带崩）。
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait,
-    QueryFilter, Statement, Value,
+    QueryFilter, Statement,
 };
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -140,7 +143,7 @@ async fn create_quality_issue_table(db: &sea_orm::DatabaseConnection) {
             permanent_action_owner INTEGER, permanent_action_due_date TEXT,
             permanent_action_completed_at TEXT
         )"#,
-        Vec::<Value>::new(),
+        Vec::<sea_orm::Value>::new(),
     ))
     .await
     .unwrap_or_else(|e| panic!("DDL 执行失败: {e}"));

@@ -83,6 +83,22 @@ fn col_i32(row: &QueryResult, idx: usize) -> i32 {
         .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 i32（真库 INTEGER 列）: {e}"))
 }
 
+/// 隔离沙箱库：CI 里"已建库但没跑迁移"的第二只 PostgreSQL（TEST_EMPTY_DATABASE_URL）。
+/// 本节锁的是 m0007 三条 SQL 常量的 **语义**（CASE 映射 / NOT EXISTS 幂等 /
+/// 备份表精确回退），只触达 id 与 balance_direction 两列；在沙箱库里建一张只含
+/// 这两列的表是"给定输入验证变换"，不是拿假表冒充生产 schema（真表形状由
+/// live_db() 那批用例覆盖）。用沙箱库而非已迁移库的原因有两个：① account_subjects
+/// 是迁移播种且不清空的参照表，跑归一/回退会污染同分片后续用例的科目种子；
+/// ② 沙箱库不属公共迁移库，天然与并发用例隔离。
+async fn sandbox_db() -> sea_orm::DatabaseConnection {
+    test_common::connect_empty_schema_db().await
+}
+
+fn col_i64(row: &QueryResult, idx: usize) -> i64 {
+    row.try_get_by_index::<i64>(idx)
+        .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 i64（COUNT/BIGINT 列）: {e}"))
+}
+
 fn now() -> chrono::DateTime<Utc> {
     Utc::now()
 }
@@ -390,8 +406,9 @@ async fn create_rejects_illegal_direction_validation_error_and_zero_write() {
 
 #[tokio::test]
 async fn update_rejects_chinese_direction_and_keeps_stored_english() {
-    let db = Arc::new(sqlite_db().await);
-    exec_ddl(&db, DDL_ACCOUNT_SUBJECTS_FULL).await;
+    // 路线一：表结构唯一来源是 backend/migration（本文件其余用例同口径），
+    // 不再自建 account_subjects DDL。
+    let db = Arc::new(live_db().await);
     let id = seed_subject(
         &db,
         "2202",
@@ -441,13 +458,13 @@ impl<T: std::fmt::Debug> UnwrapErrOrPanic<T> for Result<T, AppError> {
 }
 
 // ===========================================================================
-// 4) 迁移归一 CASE 行为锁：直接执行 m0007 的 SQL 常量（双方言标准语法，sqlite 可真跑）
+// 4) 迁移归一 CASE 行为锁：直接执行 m0007 的 SQL 常量（在"未跑迁移的沙箱库"里跑 PG）
 // ===========================================================================
 
 async fn select_directions(db: &sea_orm::DatabaseConnection) -> Vec<(i64, Option<String>)> {
     let rows = db
         .query_all_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
+            DbBackend::Postgres,
             "SELECT id, balance_direction FROM account_subjects ORDER BY id".to_string(),
             Vec::<Value>::new(),
         ))
@@ -459,18 +476,19 @@ async fn select_directions(db: &sea_orm::DatabaseConnection) -> Vec<(i64, Option
 }
 
 async fn run_m198_up(db: &sea_orm::DatabaseConnection) {
-    exec_ddl(db, m198::CREATE_BACKUP_TABLE_SQL).await;
-    exec_ddl(db, m198::BACKUP_LEGACY_ROWS_SQL).await;
-    exec_ddl(db, m198::NORMALIZE_TO_ENGLISH_SQL).await;
+    exec_sql(db, m198::CREATE_BACKUP_TABLE_SQL).await;
+    exec_sql(db, m198::BACKUP_LEGACY_ROWS_SQL).await;
+    exec_sql(db, m198::NORMALIZE_TO_ENGLISH_SQL).await;
 }
 
 #[tokio::test]
-async fn m198_normalize_case_mapping_idempotent_and_reversible_on_sqlite() {
-    let db = sqlite_db().await;
+async fn m198_normalize_case_mapping_idempotent_and_reversible_in_isolated_sandbox() {
+    let db = sandbox_db().await;
     // 同构最小表：归一三条语句只触达 id / balance_direction
-    exec_ddl(
+    exec_sql(&db, r#"DROP TABLE IF EXISTS "account_subjects""#).await;
+    exec_sql(
         &db,
-        r#"CREATE TABLE "account_subjects" ("id" INTEGER PRIMARY KEY, "balance_direction" TEXT)"#,
+        r#"CREATE TABLE "account_subjects" ("id" BIGINT PRIMARY KEY, "balance_direction" TEXT)"#,
     )
     .await;
     for (id, dir) in [
@@ -486,7 +504,7 @@ async fn m198_normalize_case_mapping_idempotent_and_reversible_on_sqlite() {
             Value::String(Some(dir.to_string()))
         };
         db.execute_raw(Statement::from_sql_and_values(
-            DbBackend::Sqlite,
+            DbBackend::Postgres,
             "INSERT INTO account_subjects (id, balance_direction) VALUES ($1, $2)".to_string(),
             vec![id.into(), value],
         ))
@@ -509,7 +527,7 @@ async fn m198_normalize_case_mapping_idempotent_and_reversible_on_sqlite() {
     );
     let backup = db
         .query_all_raw(Statement::from_string(
-            DbBackend::Sqlite,
+            DbBackend::Postgres,
             "SELECT subject_id, old_balance_direction FROM mig198_account_subject_direction_backup ORDER BY subject_id"
                 .to_string(),
         ))
@@ -535,7 +553,7 @@ async fn m198_normalize_case_mapping_idempotent_and_reversible_on_sqlite() {
     );
     let backup_count = db
         .query_all_raw(Statement::from_string(
-            DbBackend::Sqlite,
+            DbBackend::Postgres,
             "SELECT COUNT(*) FROM mig198_account_subject_direction_backup".to_string(),
         ))
         .await
@@ -547,8 +565,8 @@ async fn m198_normalize_case_mapping_idempotent_and_reversible_on_sqlite() {
     );
 
     // —— down：按备份精确还原（合法英文行不被腐蚀），并清理备份表
-    exec_ddl(&db, m198::RESTORE_FROM_BACKUP_SQL).await;
-    exec_ddl(&db, m198::DROP_BACKUP_TABLE_SQL).await;
+    exec_sql(&db, m198::RESTORE_FROM_BACKUP_SQL).await;
+    exec_sql(&db, m198::DROP_BACKUP_TABLE_SQL).await;
     assert_eq!(
         select_directions(&db).await,
         vec![
@@ -562,8 +580,8 @@ async fn m198_normalize_case_mapping_idempotent_and_reversible_on_sqlite() {
     );
     let remaining = db
         .query_all_raw(Statement::from_string(
-            DbBackend::Sqlite,
-            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'mig198_account_subject_direction_backup'"
+            DbBackend::Postgres,
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'mig198_account_subject_direction_backup'"
                 .to_string(),
         ))
         .await

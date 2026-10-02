@@ -31,7 +31,8 @@
 //! 生产行为,sqlite 上"缺陷实证"与"修复形态"两锁在 PG 上语义不变。
 
 use bingxi_backend::models::status::sales::sales_order;
-use sea_orm::{ConnectionTrait, DbBackend, Decimal, FromQueryResult, Statement, Value};
+use rust_decimal::Decimal;
+use sea_orm::{ConnectionTrait, DbBackend, FromQueryResult, Statement, Value};
 
 mod test_common;
 use test_common::setup_test_db;
@@ -88,8 +89,18 @@ async fn setup_db() -> sea_orm::DatabaseConnection {
     // (订单日, 销售额, 状态, 明细数量) —— 成本 = 数量*5:
     // pending 1000(成本50) / draft 2222.5(成本500) / cancelled 3333.75(成本1000)
     for (day, amount, status, qty) in [
-        ("2096-12-05", Decimal::new(100000, 2), sales_order::PENDING, Decimal::new(1000, 2)),
-        ("2096-12-06", Decimal::new(222250, 2), sales_order::DRAFT, Decimal::new(10000, 2)),
+        (
+            "2096-12-05",
+            Decimal::new(100000, 2),
+            sales_order::PENDING,
+            Decimal::new(1000, 2),
+        ),
+        (
+            "2096-12-06",
+            Decimal::new(222250, 2),
+            sales_order::DRAFT,
+            Decimal::new(10000, 2),
+        ),
         (
             "2096-12-07",
             Decimal::new(333375, 2),
@@ -98,24 +109,26 @@ async fn setup_db() -> sea_orm::DatabaseConnection {
         ),
     ] {
         // order_date 真列为 TIMESTAMPTZ:测试常量日期以 ::timestamptz 字面量落库
+        let order_values: Vec<Value> = vec![
+            format!("W3B-{day}").into(),
+            day.to_string().into(),
+            amount.into(),
+            status.into(),
+        ];
         db.execute_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
             r#"INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status)
               VALUES ($1, 1, $2::timestamptz, $3, $4)"#,
-            vec![
-                format!("W3B-{day}").into(),
-                day.to_string().into(),
-                amount.into(),
-                status.into(),
-            ],
+            order_values,
         ))
         .await
         .expect("种子订单插入失败");
+        let item_values: Vec<Value> = vec![qty.into(), format!("W3B-{day}").into()];
         db.execute_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
             r#"INSERT INTO sales_order_items (order_id, quantity, product_id, unit_price, subtotal)
               SELECT id, $1, 1, 0, 0 FROM sales_orders WHERE order_no = $2"#,
-            vec![qty.into(), format!("W3B-{day}").into()],
+            item_values,
         ))
         .await
         .expect("种子明细插入失败");

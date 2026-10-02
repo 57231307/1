@@ -97,10 +97,7 @@ pub async fn connect_live_db() -> DatabaseConnection {
 fn is_safe_ident(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 63
-        && name
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_lowercase())
+        && name.chars().next().is_some_and(|c| c.is_ascii_lowercase())
         && name
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
@@ -173,12 +170,23 @@ pub async fn connect_empty_schema_db() -> DatabaseConnection {
     let db = Database::connect(empty_database_url())
         .await
         .expect("测试夹具：空 schema PostgreSQL 连接失败（TEST_EMPTY_DATABASE_URL）");
-    let tables = business_tables(&db).await;
-    if !tables.is_empty() {
+    // 判据是"迁移从未在此库跑过"，而不是"库里一张表都没有"：本库正是给负前提交集与
+    // 迁移 SQL 语义锁当沙箱用的，用例会在其中建自己的临时表；用"0 表"当断言会让
+    // 同库的第二个沙箱用例必然 panic（顺序耦合的假红）。sales_orders 是迁移建的表，
+    // 它不存在 == 迁移没跑过，这才是本库存在的意义。
+    let migrated = db
+        .query_one_raw(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT to_regclass('public.sales_orders')::text AS t".to_string(),
+        ))
+        .await
+        .ok()
+        .flatten()
+        .and_then(|r| r.try_get::<Option<String>>("", "t").ok().flatten());
+    if migrated.is_some() {
         panic!(
-            "TEST_EMPTY_DATABASE_URL 指向的库里已有 {} 张业务表（首张 {}）——该库必须是不跑迁移的空库",
-            tables.len(),
-            tables[0]
+            "TEST_EMPTY_DATABASE_URL 指向的库里已存在 sales_orders（{migrated:?}）——\
+             该库必须是不跑迁移的库，否则\"无 schema 应报 DATABASE_ERROR\"与迁移 SQL 语义锁验证的是假前提"
         );
     }
     db

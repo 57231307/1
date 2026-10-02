@@ -158,10 +158,11 @@ async fn setup_db() -> (sea_orm::DatabaseConnection, i32, i32) {
     ];
     for (idx, (no, supplier, order_date, actual, status)) in rows.iter().enumerate() {
         let n = idx as i32 + 1; // SERIAL 从 1 起（夹具 RESTART IDENTITY），id 即种子序
-        // 日期列 None → 显式 NULL（Value::Date(None)），DATE 真列不靠字符串亲和
-        let od = Value::Date(Some(date(order_date)));
-        let ad = Value::Date(actual.map(date));
-        let values = vec![
+        // DATE 真列按类型绑定：sea-query 1.0.2 的变体名是 ChronoDate(Option<NaiveDate>)
+        // （未装箱），写 `Value::Date(..)` 会 E0599；None 即显式 NULL，不靠文本亲和。
+        let od = Value::ChronoDate(Some(date(order_date)));
+        let ad = Value::ChronoDate(actual.map(date));
+        let values: Vec<Value> = vec![
             n.into(),
             no.to_string().into(),
             (*supplier).into(),
@@ -273,7 +274,7 @@ async fn write_back_after_confirm_bring_po_into_lead_time_sample() {
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
         "UPDATE purchase_orders SET actual_delivery_date = $2 WHERE id = $1",
-        vec![3i32.into(), Value::Date(Some(date("2026-03-08")))],
+        vec![3i32.into(), Value::ChronoDate(Some(date("2026-03-08")))],
     ))
     .await
     .expect("回写形态 UPDATE 执行失败");

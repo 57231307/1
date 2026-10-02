@@ -949,6 +949,8 @@ async fn transfer_item_explicit_null_on_not_null_columns_rejected_before_db() {
         color_no,
         dye_lot_no: None,
         batch_no,
+        // 匹号缺席=保持原值；匹号的三态（白坯可清空/染色布清空被拒）另需专列用例覆盖
+        piece_no: None,
     };
     let cases = [
         (
@@ -1441,6 +1443,7 @@ async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
                 color_no: None,
                 dye_lot_no: None,
                 batch_no: None,
+                piece_no: None,
             },
         )
         .await
@@ -1462,6 +1465,7 @@ async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
                 color_no: None,
                 dye_lot_no: None,
                 batch_no: None,
+                piece_no: None,
             },
         )
         .await
@@ -1483,6 +1487,7 @@ async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
                 color_no: None,
                 dye_lot_no: Some(Some("DL009".to_string())),
                 batch_no: None,
+                piece_no: None,
             },
         )
         .await
@@ -1502,6 +1507,7 @@ async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
                 color_no: None,
                 dye_lot_no: Some(None),
                 batch_no: None,
+                piece_no: None,
             },
         )
         .await
