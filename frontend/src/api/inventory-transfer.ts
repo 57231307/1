@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 import type { ApproveTransferPayload } from './inventory';
 
 /**
@@ -49,8 +49,8 @@ export interface InventoryTransferEntity {
 }
 
 /**
- * 调拨明细行出参：与后端 `backend/src/services/inv/mod.rs:57 InventoryTransferItemDetail`
- * 逐字段对齐。面料四维（色号/缸号/批次）后端全部回传，
+ * 调拨明细行出参：与后端 `backend/src/services/inv/mod.rs InventoryTransferItemDetail`
+ * 逐字段对齐。面料四维（色号/缸号/批次/匹号）后端全部回传，
  * 产品主数据名称（code/name/等级/单位）不在该结构里。
  */
 export interface TransferItem {
@@ -65,6 +65,11 @@ export interface TransferItem {
   color_no: string;
   dye_lot_no: string | null;
   batch_no: string;
+  /**
+   * 匹号（出库第四维）：DB 可空列 inventory_transfer_items.piece_no（m0066）——
+   * 白坯行为合法 NULL；染色布建单已强制必填，回显恒有值（mod.rs:110 Option<String>）。
+   */
+  piece_no: string | null;
   created_at: string;
   updated_at: string;
   /** 需后端 JOIN：`inventory_transfer_items.product_id` → products.product_code */
@@ -94,8 +99,12 @@ export interface CreateInventoryTransferPayload {
 }
 
 /**
- * 明细行入参：与后端 `services/inv/mod.rs:87 InventoryTransferItemRequest` 对齐。
+ * 明细行入参：与后端 `services/inv/mod.rs InventoryTransferItemRequest` 对齐。
  * quantity/unit_cost 是 `Option<Decimal>`，按 e2e 造数口径以字符串提交避免精度丢失。
+ * piece_no（出库第四维）：染色布（色号非空）必填——后端 fabric_class::normalize_outbound_piece_no
+ * 强制，缺失回 400 VALIDATION_ERROR，且建单期 piece_domain_service::validate_dyed_piece_for_outbound
+ * 按 产品+调出仓+缸号+批次+匹号 全 tuple 校验须命中真实 AVAILABLE 匹（BUSINESS 族）；
+ * 白坯免填——无值时**省略该键**（禁发 null/空串占位），取值仅允许来自 GET /inventory/pieces。
  */
 export interface InventoryTransferItemPayload {
   product_id?: number;
@@ -105,6 +114,7 @@ export interface InventoryTransferItemPayload {
   dye_lot_no?: string;
   batch_no?: string;
   unit_cost?: string;
+  piece_no?: string;
 }
 
 /**
@@ -129,6 +139,8 @@ export interface UpdateInventoryTransferPayload {
  *   （后端 400「XX不能清空：该字段为必填项」）；"色号改回白坯"提交空串而非 null；
  * - notes/unit_cost/dye_lot_no 为 DB 可空列：清空须显式送 null；
  *   染色布行（生效色号非空）清空缸号按四维追溯不变量被拒。
+ * - piece_no 为 DB 可空列（Option<Option<String>>，mod.rs:217）：清空仅对白坯行合法，
+ *   染色布行清空/缺匹号按四维追溯不变量被拒（400）。
  */
 export interface UpdateTransferItemPayload {
   product_id?: number;
@@ -138,6 +150,7 @@ export interface UpdateTransferItemPayload {
   color_no?: string;
   dye_lot_no?: string | null;
   batch_no?: string;
+  piece_no?: string | null;
 }
 
 // 列表查询参数键与后端 `handlers/inventory_transfer_handler.rs:23 InventoryTransferQuery`
@@ -197,3 +210,76 @@ export function deleteTransferItem(itemId: number) {
  */
 export const generateInventoryTransferNo = (): Promise<ApiResponse<{ transfer_no: string }>> =>
   request.get('/inventory/transfers/generate-no');
+
+/**
+ * 匹状态词表（出库第四维选择器用到的取值）。唯一事实来源 = 后端写入方
+ * `models/status/purchase_inventory.rs::inventory_piece`（大写 token，与
+ * `handlers/inventory_piece_handler.rs` 的 PIECE_STATUS_DOMAIN 逐字符相同）。
+ * 出库/调拨选择器只透传 AVAILABLE（现存可出库匹），状态集合语义由后端权威判定，
+ * 前端不推断、不改写。
+ */
+export const INVENTORY_PIECE_STATUS = {
+  AVAILABLE: 'AVAILABLE',
+  RESERVED: 'RESERVED',
+  SHIPPED: 'SHIPPED',
+  DEFECT: 'DEFECT',
+  UNAVAILABLE: 'UNAVAILABLE',
+  SAMPLE: 'SAMPLE',
+} as const;
+
+/**
+ * 可出库匹行：与后端 `handlers/inventory_piece_handler.rs:45 PieceResponse` 逐字段对齐
+ * （GET /inventory/pieces -> PaginatedResponse<PieceResponse>）。
+ * length/weight 是 rust_decimal `Decimal`，序列化为字符串，展示前 Number() 归一，禁 .toFixed 造数。
+ * dye_lot_no/color_no 后端包 Some(...) 但类型 Option<String>，故 `string | null`。
+ */
+export interface InventoryPieceRow {
+  id: number;
+  piece_no: string;
+  /** greige=生产匹 / dyed=染色匹 */
+  piece_type: string;
+  dye_lot_id: number | null;
+  dye_lot_no: string | null;
+  machine_no: string | null;
+  machine_operator: string | null;
+  warehouse_in_at: string | null;
+  /** 匹长（Decimal 串） */
+  length: string;
+  /** 匹重（Decimal 串，可空） */
+  weight: string | null;
+  batch_no: string;
+  color_no: string | null;
+  product_id: number;
+  warehouse_id: number;
+  warehouse_name: string | null;
+  warehouse_type: string | null;
+  parent_piece_id: number | null;
+  piece_seq: number | null;
+  status: string;
+  quality_status: string | null;
+  created_at: string;
+}
+
+/** GET /inventory/pieces 查询参数（键与后端 ListPieceParams 同名，inventory_piece_handler.rs:22） */
+export interface InventoryPieceQueryParams {
+  page?: number;
+  page_size?: number;
+  piece_no?: string;
+  piece_type?: string;
+  product_id?: number;
+  warehouse_id?: number;
+  batch_no?: string;
+  dye_lot_no?: string;
+  /** 取值域 = INVENTORY_PIECE_STATUS；词表外后端 400 拒绝 */
+  status?: string;
+}
+
+/**
+ * 查询「该调出仓 + 该产品 + 该缸 + 该批」现存可出库真实匹（出库第四维数据源）。
+ * status=AVAILABLE 由调用方下推——匹是否可出库是后端权威语义，此处只透传不判定。
+ */
+export function getAvailablePieces(params: InventoryPieceQueryParams) {
+  return request.get<ApiResponse<PaginatedResponse<InventoryPieceRow>>>('/inventory/pieces', {
+    params,
+  });
+}
