@@ -26,8 +26,9 @@ use bingxi_backend::utils::error::AppError;
 /// (相对 backend/ 的源文件, 修复后真实 `AppError::internal(` 命中数基线)
 ///
 /// 基线来源（修复后逐一 grep 坐实）——非零条目的保留理由：
-/// - crm_handler.rs=5：ClamAV 配置缺失/URL 为空/扫描请求失败/非 2xx/响应读取失败，
-///   均为外部依赖故障（reqwest/env 配置），属真系统错误。
+/// - crm_handler.rs=1：原 7 处"导出行/列形状漂移 = 编程错误"的报错构造点已收敛为
+///   `export_shape_drift()` 唯一 helper（同语义重复站点，非 7 类不同故障），文件内只剩
+///   helper 里那一处真实构造。收敛前计数 7 > 本基线 5 是判责指出的棘轮恶化面。
 /// - ai_extend_service.rs=2：AI 返回未知趋势/风险标签（与词表取值域不符，
 ///   拒绝按错值落库），系统内部一致性错误。
 /// - system_update_service.rs=6：`From<UpdateError> for AppError` 的 IO/解压/
@@ -42,7 +43,7 @@ const INTERNAL_RATCHET: &[(&str, &str, usize)] = &[
     (
         "src/handlers/crm_handler.rs",
         include_str!("../src/handlers/crm_handler.rs"),
-        5,
+        1,
     ),
     (
         "src/handlers/role_handler.rs",

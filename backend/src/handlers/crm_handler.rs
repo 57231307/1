@@ -308,6 +308,15 @@ pub async fn export_leads(
     crate::utils::xlsx_export::build_xlsx_response(&table, "crm_leads_export")
 }
 
+/// 导出链路"行/列形状漂移 = 编程错误"的**唯一**报错构造点。
+/// 入口 `validate_export_row_shape` 已整体拒绝，此后任何取不到都说明校验被绕过：
+/// 必须显式失败、绝不"按空值继续/按下标补位"（那等于放行未经字段处理的列）。
+/// 收敛成单点也让 `AppError::internal` 站点计数只随真实新增变化
+/// （棘轮锁见 `tests/contract_wave4_internal_flatten_g{1,5}_test.rs`）。
+fn export_shape_drift(context: impl std::fmt::Display) -> AppError {
+    AppError::internal(format!("导出链路形状漂移（{context}），拒绝导出"))
+}
+
 /// 导出表形状硬校验（fail-closed，字段处理各分支共用的唯一入口检查）：
 /// 每一行的单元格数必须与列定义表列数**逐行相等**。
 /// - 行长 > 列数：多出的单元格不属于任何列定义 = 不经过任何字段级权限处理即进导出文件
@@ -326,8 +335,8 @@ fn validate_export_row_shape(
                 column_count = columns.len(),
                 "导出行单元格数与列定义表列数不一致，已拒绝生成导出文件（不放行未处理列）"
             );
-            return Err(AppError::internal(format!(
-                "导出行第 {row_idx} 行单元格数({})与列定义数({})不一致，拒绝导出（列定义与行构造漂移，需修服务层）",
+            return Err(export_shape_drift(format!(
+                "第 {row_idx} 行单元格数({})与列定义数({})不一致，需修服务层",
                 row.len(),
                 columns.len()
             )));
@@ -356,11 +365,9 @@ fn export_row_cells(
             let mut obj = serde_json::Map::new();
             for (idx, (field, _)) in columns.iter().enumerate() {
                 // 形状已在入口硬校验，此处取不到即校验被绕过 = 编程错误，显式失败不兜底
-                let cell = row.get(idx).ok_or_else(|| {
-                    AppError::internal(format!(
-                        "导出行形状校验后被绕过：第 {idx} 列 {field} 缺失，拒绝导出"
-                    ))
-                })?;
+                let cell = row
+                    .get(idx)
+                    .ok_or_else(|| export_shape_drift(format!("第 {idx} 列 {field} 缺失")))?;
                 obj.insert(
                     (*field).to_string(),
                     serde_json::Value::String(cell.clone()),
@@ -384,8 +391,8 @@ fn write_back_export_rows(
     validate_export_row_shape(table, columns)?;
     for (row_idx, row) in table.rows.iter_mut().enumerate() {
         let Some(obj) = rows_json.get(row_idx).and_then(|v| v.as_object()) else {
-            return Err(AppError::internal(format!(
-                "导出行掩码回写找不到第 {row_idx} 行对应行对象（行对象与表行一一对应被破坏），拒绝导出"
+            return Err(export_shape_drift(format!(
+                "掩码回写找不到第 {row_idx} 行的行对象（行对象与表行一一对应被破坏）"
             )));
         };
         for (col_idx, (field, _)) in columns.iter().enumerate() {
@@ -397,8 +404,8 @@ fn write_back_export_rows(
             match row.get_mut(col_idx) {
                 Some(slot) => *slot = value,
                 None => {
-                    return Err(AppError::internal(format!(
-                        "导出行第 {row_idx} 行列下标 {col_idx} 缺失（形状校验后被绕过），拒绝导出"
+                    return Err(export_shape_drift(format!(
+                        "第 {row_idx} 行缺少列下标 {col_idx}"
                     )));
                 }
             }
@@ -448,7 +455,7 @@ fn export_column_positions(
         .iter()
         .map(|field| {
             CrmService::export_column_index(columns, field).ok_or_else(|| {
-                AppError::internal(format!("导出列定义缺少敏感列 {field}，拒绝导出原文"))
+                export_shape_drift(format!("列定义缺少敏感列 {field}，无法按列掩码"))
             })
         })
         .collect()
@@ -477,8 +484,8 @@ fn apply_default_export_actions(
         for (col_idx, action) in &targets {
             // 入口已硬校验行形状，此处取不到即校验被绕过 = 编程错误，显式失败不兜底
             let Some(cell) = row.get_mut(*col_idx) else {
-                return Err(AppError::internal(format!(
-                    "导出行形状校验后被绕过：单元格下标 {col_idx} 缺失（行长度 {}），拒绝导出",
+                return Err(export_shape_drift(format!(
+                    "单元格下标 {col_idx} 缺失（行长度 {}）",
                     row.len()
                 )));
             };
@@ -875,9 +882,7 @@ pub async fn export_opportunities(
     for (row_obj, owner_id) in rows_json.iter_mut().zip(row_owner_ids) {
         // 行对象由 export_row_cells 构造，必为 object；取不到属形状漂移，显式失败不兜底
         let Some(obj) = row_obj.as_object_mut() else {
-            return Err(AppError::internal(
-                "导出行对象构造后非 object（列定义与行构造漂移），拒绝导出".to_string(),
-            ));
+            return Err(export_shape_drift("行对象构造后非 object"));
         };
         obj.insert("owner_id".to_string(), Value::from(owner_id));
     }
