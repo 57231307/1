@@ -321,7 +321,7 @@ fn parse_service_type_whitelist() -> BTreeSet<String> {
         cursor = &cursor[open + 1..];
         let close = cursor.find('"').expect("双引号未闭合");
         let t = &cursor[..close];
-        if t.is_ascii_lowercase() && t.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
+        if !t.is_empty() && t.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
             tokens.insert(t.to_string());
         }
         cursor = &cursor[close + 1..];

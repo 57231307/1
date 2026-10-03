@@ -280,7 +280,7 @@ fn sorted_refs(v: &[String]) -> Vec<&str> {
     v.iter().map(String::as_str).collect()
 }
 
-fn adjudicated_sorted(list: &[&str]) -> Vec<&str> {
+fn adjudicated_sorted<'a>(list: &'a [&'a str]) -> Vec<&'a str> {
     let mut v = list.to_vec();
     v.sort_unstable();
     v
