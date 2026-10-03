@@ -635,7 +635,31 @@ mod download_candidate_tests {
         let dup_candidate = format!("{}/{}", dup.trim_end_matches('/'), OFFICIAL);
         let dup_count = got.iter().filter(|u| **u == dup_candidate).count();
         assert_eq!(dup_count, 1, "重叠镜像候选必须去重，实得 {dup_count} 次");
-        assert_eq!(*got.last().unwrap(), OFFICIAL, "OfficialFirst 时官方仍兜底");
+        // 排序口径改判依据（判责 ci4671-triage.md :138）：OfficialFirst 的成文契约是
+        // **官方优先首位、镜像兜底**（github.rs:320 文档 + :357-360 实现 push(official)
+        // 后 extend(mirrors)）。原 `got.last()==OFFICIAL` 把"末位兜底"错安到
+        // OfficialFirst 档——末位兜底是 **MirrorFirst** 分支的口径，已由
+        // mirror_first_places_official_last_as_fallback 正确钉住（两条同批均 PASS/红
+        // 互证：改期望值反而打红正确钉）。本条改断 got[0]==OFFICIAL，并按裁定
+        // **保留"官方必在候选"判据 + 数量正形约束**（强度只增不减）。
+        assert_eq!(
+            *got.first().unwrap(),
+            OFFICIAL,
+            "OfficialFirst 时官方必须排首位（镜像作兜底列其后）"
+        );
+        assert!(
+            got.iter().any(|u| u == OFFICIAL),
+            "官方永远必须列入候选（任何档位不得剔除）"
+        );
+        // 数量正形：官方 1 + 去重后镜像集合（运维 dup 已被默认吸收、ops-only 净增 1，
+        // 加其余内置默认）= DEFAULT_RELEASE_MIRRORS.len() + 2
+        assert_eq!(
+            got.len(),
+            DEFAULT_RELEASE_MIRRORS.len() + 2,
+            "候选总数=官方1+去重镜像(内置{dm}去1重+运维净增1)，实得 {}（去重回潮或清单丢失都会在这里显形）",
+            got.len(),
+            dm = DEFAULT_RELEASE_MIRRORS.len()
+        );
     }
 
     #[test]
