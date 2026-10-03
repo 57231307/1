@@ -48,14 +48,20 @@ import {
  * - ppe_type ∈ mask/gloves/goggles/earplug/respirator/suit（:587-594）；
  * - PPE 状态 distributed → returned（:479-497）/ scan 侧 distributed→expired（:499-523）。
  *
- * 已知前端缺陷（本 spec 不修、不掩盖，API 层复刻其请求体作为可回归的判红证据，详见交付报告）：
- * frontend/src/views/occupational-health/index.vue
- * ① 体检弹窗 exam_type 选项 ['pre_job','periodic','offline','emergency']（:70）全部不在后端词表 → UI 新建体检恒 400；
- *    exam_result 为自由中文输入（"正常/异常/复查"，:95）同样恒 400；
- * ② 危害监测弹窗提交 {hazard_factor, monitor_value, monitor_point}（:110-121），后端必填
- *    hazard_type/hazard_name/measured_value/unit/limit_value/monitoring_date（service :32-48）→ 恒 400；
- * ③ "过期扫描"按钮 onScanPpeExpired（:281-284）**只弹 toast 不调用** POST /ppe-distributions/scan-expired——
- *    典型"仅断 toast"假绿源，本 spec 改在 API 层真实调用并回读落库回写。
+ * 前端源码现状与缺陷（以 frontend/src/views/occupational-health/index.vue 当前实现为准）：
+ * ① 体检/危害/PPE 三个弹窗的候选值已是后端词表的同源常量（EXAM_TYPES/EXAM_RESULTS/
+ *    HAZARD_TYPES/PPE_TYPES），提交体带齐必填；本 spec 仍保留「复刻缺必填的请求体 → 400」
+ *    的负例（69-02 内）——它钉的是**后端 DTO 契约**，与 UI 当前是否犯这个错无关，
+ *    日志里那条 422→400 `missing field hazard_type`
+ *    （backend.log xr19:11850/11853/11854）正是这条负例的预期拒绝，不是建单失败；
+ * ② 「过期扫描」按钮真实调用 POST /ppe-distributions/scan-expired；
+ * ③ **曾有缺陷（#4671 69-02 判红，本批已在源码侧修复）**：危害监测/PPE 表格列曾由 index.vue
+ *    `colsOf(rows, ['id'], 6)` 采样——取 JSON 键序前 6 个非对象键，而 serde_json 序列化
+ *    Model 时键按字母序排 ⇒ 实际渲染 created_at/created_by/exceeding_ratio/hazard_name/
+ *    hazard_type/is_exceeding，**监测点位 monitoring_point 永不渲染**（#4671 69-02 失败现场
+ *    ARIA 快照实证）。用户看不到危害监测的核心维度，属功能缺陷；现视图显式声明列
+ *    （HAZARD_COLUMNS / PPE_COLUMNS，prop 逐一对齐后端 Model），本 spec 的表头断言 +
+ *    行内容断言即该修复的活体回归锁，禁止反过来删断言换绿。
  *
  * 假绿防线：
  * - 已注册 GET 端点全部严格 verifyEndpointHealthy（404/403 判红）；本域端点均已注册，无 optional 场景；
@@ -96,10 +102,17 @@ function expectRejected(r: ApiFailureResult, what: string): void {
   ).toContain(failureCode(r));
 }
 
-/** axum 提取器拒绝（缺必填 JSON 字段）走默认纯文本 400，**不是**统一 JSON 信封——
- *  只断真实 status，不假造机器码断言（对照 61-09 缺参判例的既有口径）。 */
+/** axum 提取器拒绝（缺必填 JSON 字段）：原文只进日志，出参由 trace_context 归一成
+ *  统一 AppError 信封（HTTP 400 + code=VALIDATION_ERROR，serde 原文不外显）。
+ *  实证 xr19/backend.log:11850（rejecting 422 missing field `hazard_type`）→ :11854
+ *  （extractor.rejection_normalized：已转统一 AppError 信封 400 + code=VALIDATION_ERROR）。
+ *  判据 = 真实 status 400 **且** 机器码 VALIDATION_ERROR（两者都是后端成文契约，缺一即漂移）。 */
 function expectExtractorReject(r: ApiFailureResult, what: string): void {
   expect(r.status, `${what}：应被 400 拒绝（提取器层），实际 ${JSON.stringify(r)}`).toBe(400);
+  expect(
+    failureCode(r),
+    `${what}：提取器拒绝归一后的机器码应为 VALIDATION_ERROR（不得是 FORBIDDEN/CSRF_* 等权限面），实际 ${JSON.stringify(r)}`
+  ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
 }
 
 /** 列表信封钉桩：本域三个列表端点 data={list,total}（handler :36/:60/:94），非 items 形状 */
@@ -290,9 +303,47 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
       `UI 复刻被拒后不得落库监测点 ${driftPoint}`
     ).toBe(false);
 
-    // UI 列表回读：页面 mount 即 GET 三列表（unwrapList 读 data.list），表格行应含自建监测点
+    // UI 列表回读：页面 mount 即 GET 三列表（unwrapList 读 data.list）
     await page.goto(`${BASE_URL}/occupational-health`);
     await page.getByRole('tab', { name: '危害因素监测', exact: true }).click();
+
+    // 先用表内唯一锚点（首列 ID = 本用例自建行）定位，再断**该行渲染出来的单元格内容**：
+    // 危害类型必须逐字等于我提交的 chemical、危害名称等于「苯」——不止"有一行看得见"。
+    const ownRow = page
+      .locator('.el-table__row')
+      .filter({ has: page.locator(`td:first-child:text-is("${id}")`) })
+      .first();
+    await expect(ownRow, `危害监测表格应存在本用例自建行 id=${id}`).toBeVisible({
+      timeout: 15_000,
+    });
+    const ownRowText = await ownRow.innerText();
+    expect(
+      ownRowText,
+      `UI 行应逐字回读提交的 hazard_type=chemical，实际行文本=${JSON.stringify(ownRowText)}`
+    ).toContain('chemical');
+    expect(
+      ownRowText,
+      `UI 行应回读 hazard_name=苯，实际行文本=${JSON.stringify(ownRowText)}`
+    ).toContain('苯');
+
+    // —— 列渲染回归锁（#4671 69-02 真红根因，已在源码侧修复，此断言防回潮）——
+    // 该用例当时失败的原因既不是"没提交 hazard_type"（该键自始随 POST 提交，并已在上面 API
+    // 回读处逐字段断过落库=chemical），也不是时序：失败现场 ARIA 快照实证表头渲染为
+    // created at | created by | exceeding ratio | hazard name | hazard type | is exceeding
+    // ——**监测点位根本没进表格**，于是"行内含唯一监测点"在 UI 层恒不可达（等 15s 后 not found）。
+    // 根因 frontend/src/views/occupational-health/index.vue 旧 hazardCols = colsOf(rows, ['id'], 6)
+    // 取的是「JSON 键序的前 6 个非对象键」，而 handler 用 serde_json 序列化 Model 时对象键按
+    // **字母序**落 map（未开 preserve_order）⇒ 前 6 恒为那六个键，monitoring_point 排在其后、
+    // 永不渲染，用户看不到危害监测的核心追溯维度。现视图改为显式声明列（HAZARD_COLUMNS/
+    // PPE_COLUMNS，prop 逐一对齐后端 Model），以下两条即该修复的活体锁：谁把列声明改回按键序
+    // 采样、或删掉监测点位列，用例立刻打红。禁止反过来删断言/放宽换绿。
+    const headerTexts = (await page.locator('.el-table__header th').allInnerTexts())
+      .map(s => s.trim())
+      .filter(Boolean);
+    expect(
+      headerTexts,
+      `危害监测表格必须渲染「监测点位」列（i18n 键 occupationalHealth.columns.monitoringPoint），实际表头=${JSON.stringify(headerTexts)}`
+    ).toContain('监测点位');
     const row = page.locator('.el-table__row').filter({ hasText: exceedPoint }).first();
     await expect(row, `危害监测表格应回读 ${exceedPoint}`).toBeVisible({ timeout: 15_000 });
 

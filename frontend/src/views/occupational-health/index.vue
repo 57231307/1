@@ -37,10 +37,10 @@
         </div>
         <el-table v-loading="loadingHazard" :data="hazards" border>
           <el-table-column prop="id" label="ID" width="70" />
-          <template v-for="col in hazardCols" :key="col">
+          <template v-for="col in HAZARD_COLUMNS" :key="col.prop">
             <el-table-column
-              :prop="col"
-              :label="col.replace(/_/g, ' ')"
+              :prop="col.prop"
+              :label="t(col.labelKey)"
               min-width="140"
               show-overflow-tooltip
             />
@@ -55,10 +55,10 @@
         </div>
         <el-table v-loading="loadingPpe" :data="ppe" border>
           <el-table-column prop="id" label="ID" width="70" />
-          <template v-for="col in ppeCols" :key="col">
+          <template v-for="col in PPE_COLUMNS" :key="col.prop">
             <el-table-column
-              :prop="col"
-              :label="col.replace(/_/g, ' ')"
+              :prop="col.prop"
+              :label="t(col.labelKey)"
               min-width="140"
               show-overflow-tooltip
             />
@@ -259,6 +259,45 @@ const EXAM_RESULTS = ['normal', 'abnormal', 'contraindication'];
 const HAZARD_TYPES = ['chemical', 'physical', 'dust', 'biological'];
 const PPE_TYPES = ['mask', 'gloves', 'goggles', 'earplug', 'respirator', 'suit'];
 
+/**
+ * 表格列显式声明：prop 必须是后端 Model 真实输出的键
+ * （models/occupational_hazard_monitoring.rs:16-47、models/ppe_distribution_record.rs:15-37），
+ * 顺序按业务阅读顺序排列，而不是跟着 JSON 键序走。
+ * 旧实现用 `Object.keys(rows[0]).slice(0, 6)` 采样列，而 serde_json 序列化 Model 时对象键按
+ * 字母序落 map ⇒ 前 6 恒为 created_at/created_by/exceeding_ratio/hazard_name/hazard_type/
+ * is_exceeding，监测点位等核心追溯维度永不渲染（#4671 69-02 判红根因）。
+ */
+type TableColumn = { prop: string; labelKey: string };
+
+const HAZARD_COLUMNS: TableColumn[] = [
+  { prop: 'hazard_type', labelKey: 'occupationalHealth.columns.hazardType' },
+  { prop: 'hazard_name', labelKey: 'occupationalHealth.columns.hazardName' },
+  { prop: 'monitoring_point', labelKey: 'occupationalHealth.columns.monitoringPoint' },
+  { prop: 'measured_value', labelKey: 'occupationalHealth.columns.measuredValue' },
+  { prop: 'unit', labelKey: 'occupationalHealth.columns.unit' },
+  { prop: 'limit_value', labelKey: 'occupationalHealth.columns.limitValue' },
+  { prop: 'exceeding_ratio', labelKey: 'occupationalHealth.columns.exceedingRatio' },
+  { prop: 'is_exceeding', labelKey: 'occupationalHealth.columns.isExceeding' },
+  { prop: 'monitoring_date', labelKey: 'occupationalHealth.columns.monitoringDate' },
+  {
+    prop: 'monitoring_organization',
+    labelKey: 'occupationalHealth.columns.monitoringOrganization',
+  },
+  { prop: 'monitoring_method', labelKey: 'occupationalHealth.columns.monitoringMethod' },
+];
+
+const PPE_COLUMNS: TableColumn[] = [
+  { prop: 'worker_id', labelKey: 'occupationalHealth.columns.workerId' },
+  { prop: 'ppe_name', labelKey: 'occupationalHealth.columns.ppeName' },
+  { prop: 'ppe_type', labelKey: 'occupationalHealth.columns.ppeType' },
+  { prop: 'specification', labelKey: 'occupationalHealth.columns.specification' },
+  { prop: 'quantity', labelKey: 'occupationalHealth.columns.quantity' },
+  { prop: 'distribution_date', labelKey: 'occupationalHealth.columns.distributionDate' },
+  { prop: 'expiry_date', labelKey: 'occupationalHealth.columns.expiryDate' },
+  { prop: 'hazard_type', labelKey: 'occupationalHealth.columns.hazardTypeForPpe' },
+  { prop: 'status', labelKey: 'occupationalHealth.columns.status' },
+];
+
 const today = (): string => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -352,7 +391,6 @@ async function onCreateExam() {
 
 // 危害监测
 const hazards = ref<Array<Record<string, unknown>>>([]);
-const hazardCols = ref<string[]>([]);
 const loadingHazard = ref(false);
 const hazardDialogVisible = ref(false);
 const savingHazard = ref(false);
@@ -373,7 +411,6 @@ async function loadHazards() {
   loadingHazard.value = true;
   try {
     hazards.value = (await getHazardMonitoringList()).data.list;
-    hazardCols.value = colsOf(hazards.value, ['id'], 6);
   } catch (error: unknown) {
     ElMessage.error(errorText(error, 'occupationalHealth.message.loadFailed'));
   } finally {
@@ -425,7 +462,6 @@ async function onCreateHazard() {
 
 // 劳保用品
 const ppe = ref<Array<Record<string, unknown>>>([]);
-const ppeCols = ref<string[]>([]);
 const loadingPpe = ref(false);
 const scanningPpe = ref(false);
 const ppeDialogVisible = ref(false);
@@ -443,19 +479,10 @@ const ppeForm = reactive({
   remarks: '',
 });
 
-function colsOf(rows: Array<Record<string, unknown>>, skip: string[], n: number): string[] {
-  return rows.length
-    ? Object.keys(rows[0])
-        .filter(k => !skip.includes(k) && typeof rows[0][k] !== 'object')
-        .slice(0, n)
-    : [];
-}
-
 async function loadPpe() {
   loadingPpe.value = true;
   try {
     ppe.value = (await getPpeDistributionList()).data.list;
-    ppeCols.value = colsOf(ppe.value, ['id'], 6);
   } catch (error: unknown) {
     ElMessage.error(errorText(error, 'occupationalHealth.message.loadFailed'));
   } finally {
