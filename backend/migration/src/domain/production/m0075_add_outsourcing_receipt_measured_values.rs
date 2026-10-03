@@ -211,25 +211,28 @@ DECLARE
 BEGIN
     SELECT EXISTS (SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'outsourcing_receipt') INTO has_table;
+
     IF NOT has_table THEN
-        RAISE NOTICE 'm0075 down：表 outsourcing_receipt 不存在 ⇒ 本迁移从未在本库生效，无列可撤（显式跳过行数点名，非静默）。';
-        RETURN;
-    END IF;
+        RAISE NOTICE 'm0075 down：表 outsourcing_receipt 不存在 ⇒ 本迁移从未在本库生效，无列可撤、无实测值将被丢弃（显式留痕，非静默）。';
+    ELSE
+        SELECT COUNT(*) INTO col_count FROM information_schema.columns
+          WHERE table_name = 'outsourcing_receipt'
+            AND column_name IN ('weight', 'width', 'gram_weight');
 
-    SELECT COUNT(*) INTO col_count FROM information_schema.columns
-      WHERE table_name = 'outsourcing_receipt'
-        AND column_name IN ('weight', 'width', 'gram_weight');
-    IF col_count = 0 THEN
-        RAISE NOTICE 'm0075 down：三列实测值均不存在（up 未执行）⇒ 本迁移无可回退数据，无实测值将被丢弃。';
-        RETURN;
+        IF col_count = 0 THEN
+            RAISE NOTICE 'm0075 down：三列实测值均不存在（本迁移的 up 未在本库执行）⇒ 无列可撤、无实测值将被丢弃。';
+        ELSE
+            IF col_count <> 3 THEN
+                RAISE NOTICE 'm0075 down：三列实测值仅 % 列就位（up 曾中途失败）⇒ 按 DROP ... IF EXISTS 逐列撤销，不做完整形态假设。', col_count;
+            ELSE
+                -- 仅三列齐备时才统计：不齐时的裸 WHERE 会抛 "column does not exist"，
+                -- 那是回滚工具自身失效，不是"拦住了一条坏回滚"。
+                SELECT COUNT(*) INTO measured_rows FROM "outsourcing_receipt"
+                  WHERE "weight" IS NOT NULL OR "width" IS NOT NULL OR "gram_weight" IS NOT NULL;
+                RAISE NOTICE 'm0075 down：即将删除 outsourcing_receipt 的 weight/width/gram_weight 三列，% 行已补录的实测值将随之丢弃（回滚为操作者显式意图）。这些列删除后，由其产匹的标签依据同时消失。', measured_rows;
+            END IF;
+        END IF;
     END IF;
-    IF col_count <> 3 THEN
-        RAISE NOTICE 'm0075 down：三列实测值仅 % 列就位（up 曾中途失败）⇒ 按 IF EXISTS 逐列撤销，行数点名跳过缺列形态。', col_count;
-    END IF;
-
-    SELECT COUNT(*) INTO measured_rows FROM "outsourcing_receipt"
-      WHERE "weight" IS NOT NULL OR "width" IS NOT NULL OR "gram_weight" IS NOT NULL;
-    RAISE NOTICE 'm0075 down：即将删除 outsourcing_receipt 的 weight/width/gram_weight 三列，% 行已补录的实测值将随之丢弃（回滚为操作者显式意图）。这些列删除后，由其产匹的标签依据同时消失。', measured_rows;
 END
 $$;
 "#;
@@ -255,29 +258,29 @@ DECLARE
 BEGIN
     SELECT EXISTS (SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'outsourcing_receipt') INTO has_table;
+
     IF NOT has_table THEN
-        RAISE NOTICE 'm0075 down：表不存在，回滚为空操作，跳过回读复核。';
-        RETURN;
-    END IF;
+        RAISE NOTICE 'm0075 down：表不存在 ⇒ 回滚为空操作，跳过回读复核（与点名语句同一判定，两处不互相假设）。';
+    ELSE
+        SELECT COUNT(*) INTO col_count FROM information_schema.columns
+          WHERE table_name = 'outsourcing_receipt'
+            AND column_name IN ('weight', 'width', 'gram_weight');
+        IF col_count <> 0 THEN
+            RAISE EXCEPTION 'm0075 down：回滚后仍有 % 列实测值残留（期望 0，DROP COLUMN IF EXISTS 未真实生效），中止。', col_count;
+        END IF;
 
-    SELECT COUNT(*) INTO col_count FROM information_schema.columns
-      WHERE table_name = 'outsourcing_receipt'
-        AND column_name IN ('weight', 'width', 'gram_weight');
-    IF col_count <> 0 THEN
-        RAISE EXCEPTION 'm0075 down：回滚后仍有 % 列实测值残留（期望 0，DROP COLUMN IF EXISTS 未真实生效），中止。', col_count;
-    END IF;
+        SELECT COUNT(*) INTO chk_count FROM pg_constraint
+          WHERE conrelid = '"outsourcing_receipt"'::regclass
+            AND contype = 'c'
+            AND conname IN ('chk_outsourcing_receipt_weight_positive',
+                            'chk_outsourcing_receipt_width_positive',
+                            'chk_outsourcing_receipt_gram_weight_positive');
+        IF chk_count <> 0 THEN
+            RAISE EXCEPTION 'm0075 down：回滚后仍有 % 条值域 CHECK 残留（期望 0，DROP CONSTRAINT IF EXISTS 未真实生效），中止。', chk_count;
+        END IF;
 
-    SELECT COUNT(*) INTO chk_count FROM pg_constraint
-      WHERE conrelid = '"outsourcing_receipt"'::regclass
-        AND contype = 'c'
-        AND conname IN ('chk_outsourcing_receipt_weight_positive',
-                        'chk_outsourcing_receipt_width_positive',
-                        'chk_outsourcing_receipt_gram_weight_positive');
-    IF chk_count <> 0 THEN
-        RAISE EXCEPTION 'm0075 down：回滚后仍有 % 条值域 CHECK 残留（期望 0，DROP CONSTRAINT IF EXISTS 未真实生效），中止。', chk_count;
+        RAISE NOTICE 'm0075 down：已回退至本迁移前形态（三列与三条 CHECK 均不存在，经 information_schema/pg_constraint 回读证明）。';
     END IF;
-
-    RAISE NOTICE 'm0075 down：已回退至本迁移前形态（三列与三条 CHECK 均不存在，经 information_schema/pg_constraint 回读证明）。';
 END
 $$;
 "#;
