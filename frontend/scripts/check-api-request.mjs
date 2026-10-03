@@ -888,13 +888,25 @@ function main() {
         continue;
       }
       if (isEmptyish) continue;
-      if (/MultipartForm|multipart|Bytes|Extension</.test(sym.sig || '')) {
+      // multipart/字节流端点的证据不一定落在参数位：本仓存在 `request: Request` +
+      // 函数体内 `<Multipart as FromRequest<_>>::from_request(...)` 的形态
+      // （supplier_handler.rs:795/:805，为把"请求形态非法"的拒绝收进 AppError 信封、
+      // 并按全局同值覆写请求体上限）。原先只扫签名 ⇒ 该形态被误判成"前端载荷被整体忽略"
+      // 的失配；现两侧都看，且把证据位置写进盲区条目，便于复核而非吞掉。
+      const beMultipart = /MultipartForm|[Mm]ultipart|Bytes|Extension</.test(sym.sig || '')
+        ? '参数签名'
+        : /\bMultipart\b[\s\S]{0,120}from_request|from_request[\s\S]{0,120}\bMultipart\b/.test(
+              sym.body || ''
+            )
+          ? '函数体内的 FromRequest 构造'
+          : '';
+      if (beMultipart) {
         buckets.blind.push({
           fn,
           key,
           handler: h.handler,
           beType: '(非 Json/Query 提取器)',
-          why: '后端走 MultipartForm/Bytes 等提取器，键集比对不适用',
+          why: `后端走 MultipartForm/Bytes 等提取器（multipart 证据：${beMultipart}），键集比对不适用`,
         });
         continue;
       }
