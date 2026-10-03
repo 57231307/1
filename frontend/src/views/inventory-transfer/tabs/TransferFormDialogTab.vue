@@ -11,7 +11,7 @@
         ? $t('inventoryTransfer.transferForm.editTitle')
         : $t('inventoryTransfer.transferForm.createTitle')
     "
-    width="800px"
+    width="1000px"
     destroy-on-close
     :aria-label="
       mode === 'view'
@@ -72,15 +72,11 @@
       <el-divider content-position="left">{{
         $t('inventoryTransfer.transferForm.detailDivider')
       }}</el-divider>
-      <div
-        v-for="(item, index) in formData.items"
-        :key="index"
-        style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center"
-      >
+      <div v-for="(item, index) in formData.items" :key="index" class="transfer-item-row">
         <el-select
           v-model="item.product_id"
           :placeholder="$t('inventoryTransfer.transferForm.productPlaceholder')"
-          style="flex: 2"
+          class="item-product"
           filterable
           @change="() => void onItemProductChange(item)"
         >
@@ -91,22 +87,30 @@
             :value="p.id"
           />
         </el-select>
-        <!-- 出库四维库存行选择（色号+批次+缸号一次选定），数据来自调出仓真实库存行 -->
-        <el-select
-          v-model="item.stock_row_key"
-          :placeholder="$t('inventoryTransfer.transferForm.stockRowPlaceholder')"
-          :disabled="!formData.from_warehouse_id || !item.product_id"
-          style="flex: 3"
-          @visible-change="(v: boolean) => v && void onStockRowDropdownOpen(item)"
-          @change="(v: string) => void onStockRowChange(item, v)"
+        <!-- 出库四维库存行选择（色号+批次+缸号一次选定），数据来自调出仓真实库存行。
+             长标签（色号·批次·缸号·可用量）在窄列内由 EP 自带 ellipsis 截断，
+             全长内容经 tooltip 悬停可见，不依赖截断后的残段 -->
+        <el-tooltip
+          :content="selectedStockRowLabel(item)"
+          :disabled="!selectedStockRowLabel(item)"
+          placement="top"
         >
-          <el-option
-            v-for="s in stockRowsMap[item.product_id] || []"
-            :key="stockRowKey(s)"
-            :label="stockRowLabel(s)"
-            :value="stockRowKey(s)"
-          />
-        </el-select>
+          <el-select
+            v-model="item.stock_row_key"
+            :placeholder="$t('inventoryTransfer.transferForm.stockRowPlaceholder')"
+            :disabled="!formData.from_warehouse_id || !item.product_id"
+            class="item-stock"
+            @visible-change="(v: boolean) => v && void onStockRowDropdownOpen(item)"
+            @change="(v: string) => void onStockRowChange(item, v)"
+          >
+            <el-option
+              v-for="s in stockRowsMap[item.product_id] || []"
+              :key="stockRowKey(s)"
+              :label="stockRowLabel(s)"
+              :value="stockRowKey(s)"
+            />
+          </el-select>
+        </el-tooltip>
         <!-- 出库第四维（染色布=色号非空强制）：匹号只能从调出仓该缸该批真实 AVAILABLE 匹
              （GET /inventory/pieces 下推查询）中选定；白坯不参与匹号维度，不渲染本控件 -->
         <el-select
@@ -114,7 +118,7 @@
           v-model="item.piece_no"
           :placeholder="$t('inventoryTransfer.transferForm.pieceNoPlaceholder')"
           :disabled="!item.batch_no || !item.dye_lot_no"
-          style="flex: 1.5"
+          class="item-piece"
           @visible-change="(v: boolean) => v && void loadAvailablePieces(item)"
         >
           <el-option
@@ -128,24 +132,25 @@
           v-model="item.quantity"
           :min="1"
           :placeholder="$t('inventoryTransfer.transferForm.quantityPlaceholder')"
-          style="flex: 1"
+          class="item-number"
         />
         <el-input-number
           v-model="item.cost_price"
           :min="0"
           :precision="2"
           :placeholder="$t('inventoryTransfer.transferForm.pricePlaceholder')"
-          style="flex: 1"
+          class="item-number"
         />
         <el-input
           v-model="item.remark"
           :placeholder="$t('inventoryTransfer.transferForm.remarkPlaceholder')"
-          style="flex: 1.5"
+          class="item-remark"
         />
         <el-button
           type="danger"
           :icon="Delete"
           circle
+          class="item-remove"
           :disabled="formData.items.length <= 1"
           @click="removeItem(index)"
         />
@@ -338,6 +343,15 @@ const stockRowKey = (row: Pick<InventoryStock, 'color_no' | 'batch_no' | 'dye_lo
 
 const stockRowLabel = (s: InventoryStock) =>
   `${t('inventoryTransfer.transferForm.colColorNo')}: ${s.color_no} · ${t('inventoryTransfer.transferForm.colBatchNo')}: ${s.batch_no} · ${t('inventoryTransfer.transferForm.colDyeLotNo')}: ${s.dye_lot_no || '-'} · ${t('inventoryTransfer.transferForm.availableQty')}: ${s.quantity_available}`;
+
+/** 已选库存行的全长标签（下拉窄列内被 ellipsis 截断的部分经行上 tooltip 悬停展示）；未选定为空串=tooltip 禁用 */
+const selectedStockRowLabel = (item: TransferItemForm): string => {
+  if (!item.stock_row_key) return '';
+  const stock = (stockRowsMap.value[item.product_id] || []).find(
+    s => stockRowKey(s) === item.stock_row_key
+  );
+  return stock ? stockRowLabel(stock) : '';
+};
 
 const loadStockRows = async (productId: number) => {
   if (!formData.from_warehouse_id || !productId) return;
@@ -647,3 +661,51 @@ const handleSubmit = async () => {
   }
 };
 </script>
+
+<style scoped>
+/*
+  明细行布局约束（数量/单价 stepper 可用宽度不变式）：
+  EP 2.14.4 `.el-input-number .el-input__wrapper{padding-left:42px;padding-right:42px}`
+  为左右 −/+ 步进按钮预留 84px；内层数字 input 的计算宽度 = stepper 盒宽 − 84px，
+  stepper 盒宽必须严格大于 84px 数字区才存在（否则 input 宽 0、不可填也不可聚焦）。
+  `flex: N` 速记会把 flex-basis 归零、宽度纯按比例分配且无 min-width 保底，
+  因此这里给两个 stepper 显式 flex-basis=150px 且 flex-shrink:0（150 = 84 + 约 64px
+  数字区，可容 "99999.99" 精度的单价），select/备注给足 basis + 允许收缩 + min-width
+  下限（EP `.el-select__selection` 自带 min-width:0 + ellipsis，长标签截断不撑破行），
+  行容器超宽时 flex-wrap 换行兜底——换行后每行重新分配，stepper 仍不低于 150px。
+*/
+.transfer-item-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.transfer-item-row .item-product {
+  flex: 2 1 160px;
+  min-width: 120px;
+}
+.transfer-item-row .item-stock {
+  flex: 3 1 180px;
+  min-width: 140px;
+}
+.transfer-item-row .item-piece {
+  flex: 1.5 1 120px;
+  min-width: 100px;
+}
+.transfer-item-row .item-number {
+  flex: 1 0 150px;
+  min-width: 150px;
+}
+.transfer-item-row .item-number {
+  flex: 1 0 150px;
+  min-width: 150px;
+}
+.transfer-item-row .item-remark {
+  flex: 1.5 1 120px;
+  min-width: 100px;
+}
+.transfer-item-row .item-remove {
+  flex: none;
+}
+</style>
