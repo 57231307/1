@@ -15,9 +15,28 @@
 //! ③ e2e 角色补建 `frontend/e2e/global-setup.ts` 的 SEED_ROLE_EXTRA_PERMISSIONS
 //! 并在 ①的注册表 `backend/src/services/init_service.rs` 里钉 `pieces` 资源已登记。
 //!
+//! 锁的强度（本锁存在的意义就是检出通道间漂移，纯"在场"断言钉不住"一边缺一边多"）：
+//! - ①↔②：对 `pieces:print` **双向集合相等**；对 `pieces:read` 在剔除
+//!   m0069 文件头登记在册的唯一部署别名码（`salesperson`，CI/部署库建它而不建
+//!   sales_rep）后双向集合相等，并单独钉别名码确实在 ② 在场——防别名豁免名单
+//!   吞掉真实漂移。
+//! - ③：只断言 e2e SEED 的 pieces 角色集是 ①∩② 的**子集**，③ 是 CI 补建面的
+//!   子集而非全等通道（fabric_inspector 覆盖缺口见
+//!   `e2e_seed_pieces_roles_are_subset_of_backend_channels` 文档注释，如实挂账）。
+//!
 //! 质量红线口径：本锁不许被"放宽集合"用来变绿——集合扩/缩都必须同时改三处并在此改判，
 //! 且 `("pieces", "*")` / update / delete / create 一律禁止（最小授权：库里只有 read、
 //! print 两个 pieces 端点，见 `routes/inventory.rs::piece_routes`）。
+//!
+//! print 首授集合 = 5 岗（计数改判记录）：`inventory_manager / warehouse_keeper /
+//! warehouse_manager / quality_inspector / fabric_inspector`。
+//! 口径出处：通道② 建档提交 69972b26（"fix(rbac): 注册并授予 pieces:read/pieces:print"）
+//! 的 PRINT_ROLE_CODES 即含 warehouse_manager（5 角），同一提交在通道① 矩阵只落了
+//! 4 角——建档即不对称，此后矩阵计数钉 4 只是把①的缺漏固化成"预期"。本批由用户裁定
+//! 确认 5 岗口径（依据：本岗产出人 + 行业惯例——打卷/验布/仓储打签；salesperson /
+//! sales_rep / production_manager 只给 read 不给 print，销售可读列表/选匹发货，实物
+//! 标签不由他打，重打由仓管代做、工作流不阻塞），据此补齐通道① 的 warehouse_manager
+//! 分组，矩阵计数断言由 read 6 / print 4 改为 read 7 / print 5。
 
 /// 应被授 `pieces:read` 的角色码（矩阵码 + 部署/e2e 别名码，见 m0069 文件头口径）
 const READ_ROLES: &[&str] = &[
@@ -59,7 +78,7 @@ fn e2e_seed_src() -> String {
 
 /// 只保留"代码 + 字符串字面量"：整行注释（`//`/`///`/`//!`，TS 侧同样是 `//`）逐行剔除。
 /// 三通道锁里有**禁项**（不得出现 `("pieces", "*")` / `ON CONFLICT` / `CREATE UNIQUE INDEX`）
-/// 与**计数**（read 恰 6 处、print 恰 4 处）两类判据，二者都必须只针对执行体：
+/// 与**计数**（read 恰 7 处、print 恰 5 处，口径改判见文件头）两类判据，二者都必须只针对执行体：
 /// 说明性注释（"禁止写 pieces:*"、"为何不用 ON CONFLICT"）不是授予，计入即假判。
 /// 按行处理而不做字符级扫描：迁移里跨行 raw string（SQL）的引号成对但行数多，
 /// 单行配平会把 SQL 文本当代码/注释误判；宁少剥（行尾尾注释、块注释不动）不可错吃代码。
@@ -106,19 +125,185 @@ fn down_execution(code_src: &str) -> String {
     code_src[start..].to_string()
 }
 
+/// m0069 里 `const NAME: &[&str] = &[...]` 的引号 token 清单（剔注释后的执行体解析）。
+/// 取**常量清单本身**而非测试文件里手抄的口径集，是为了让"只改一条通道"的漂移
+/// 无法靠同步改本测试常量来掩盖——①② 谁真的在场，以源文件解析结果为准。
+fn migration_role_codes(mig_code: &str, const_name: &str) -> Vec<String> {
+    let anchor = mig_code
+        .find(&format!("const {const_name}"))
+        .unwrap_or_else(|| panic!("m0069 必须存在 const {const_name}（通道② 集合判据的定位符）"));
+    let rest = &mig_code[anchor..];
+    let open = rest.find("&[").expect("m0069 常量应为 &[&str] 形态");
+    let close = rest[open..].find("];").expect("m0069 常量清单未闭合");
+    let mut codes = quoted_tokens(&rest[open..open + close]);
+    codes.sort();
+    codes.dedup();
+    codes
+}
+
+/// 区间内全部成对双引号 token（矩阵角色码行 / 迁移常量项均无未配对引号）。
+fn quoted_tokens(seg: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut chars = seg.chars();
+    while let Some(c) = chars.next() {
+        if c == '"' {
+            let mut tok = String::new();
+            for n in chars.by_ref() {
+                if n == '"' {
+                    break;
+                }
+                tok.push(n);
+            }
+            out.push(tok);
+        }
+    }
+    out
+}
+
+/// 通道① 矩阵各角色分组：分组起始签名 =「`"role_code",` 行 + 紧随的 `&[` 行」，
+/// 分组体 = 本角色码行之后到下一分组起始之前。权限元组只出现在所属分组体内，
+/// 故按体内是否含目标 `("pieces", action)` 归户即得"哪个角色被授了什么"。
+fn matrix_role_groups(matrix_code: &str) -> Vec<(String, String)> {
+    let lines: Vec<&str> = matrix_code.lines().collect();
+    let is_role_code_line = |l: &str| -> bool {
+        let t = l.trim();
+        t.len() > 3
+            && t.starts_with('"')
+            && t.ends_with("\",")
+            && t[1..t.len() - 2]
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c == '_')
+    };
+    let mut groups = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        if lines[i].trim() == "&[" && i > 0 && is_role_code_line(lines[i - 1]) {
+            let code = lines[i - 1].trim().trim_end_matches(',').trim_matches('"');
+            let mut end = lines.len();
+            let mut j = i + 1;
+            while j < lines.len() {
+                if lines[j].trim() == "&[" && is_role_code_line(lines[j - 1]) {
+                    end = j - 1;
+                    break;
+                }
+                j += 1;
+            }
+            groups.push((code.to_string(), lines[i..end].join("\n")));
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
+    groups
+}
+
+/// 通道① 矩阵中持有该 pieces 动作的角色码集合（排序去重，可直接做相等比较）。
+fn matrix_roles_with(matrix_code: &str, action: &str) -> Vec<String> {
+    let needle = format!(r#"("pieces", "{action}")"#);
+    let mut codes: Vec<String> = matrix_role_groups(matrix_code)
+        .into_iter()
+        .filter(|(_, body)| body.contains(&needle))
+        .map(|(code, _)| code)
+        .collect();
+    codes.sort();
+    codes.dedup();
+    codes
+}
+
+/// m0069 read 面登记在册的**唯一**部署/e2e 别名码。
+/// 依据 m0069 文件头「角色码同时覆盖后端矩阵码与 e2e/部署侧别名码（salesperson/
+/// warehouse_manager）」：CI/部署库由 SEED_ROLES 建 `salesperson` 而非矩阵码
+/// sales_rep，故 ② 的 read 面比 ① 多这一个码属在册口径。文件头同句把
+/// warehouse_manager 也称为"别名码"，但它实为 init 播种的真角色（role.rs:179-184，
+/// is_system=true），本批已按裁定进矩阵，不再享受别名豁免。
+/// 别名码是否继续承载 read、`warehouse`/`qc_manager` 等其余别名是否给重打权，
+/// 均属待用户裁定项——本测只钉现状（② 在场且 ① 不双写），不预先放宽也不预先收紧。
+const REGISTERED_READ_ALIAS_CODES: &[&str] = &["salesperson"];
+
+/// 通道③：解析 e2e SEED_ROLE_EXTRA_PERMISSIONS 中承载指定权限码的角色码集合。
+/// 分组形态 = `裸标识符: [ ... ]`（单行或跨行数组体）。
+fn e2e_seed_roles_with(perm: &str) -> Vec<String> {
+    let src = code_only(&e2e_seed_src());
+    let anchor = src
+        .find("const SEED_ROLE_EXTRA_PERMISSIONS")
+        .expect("global-setup 必须存在 SEED_ROLE_EXTRA_PERMISSIONS");
+    let rest = &src[anchor..];
+    let open = rest
+        .find('{')
+        .expect("SEED_ROLE_EXTRA_PERMISSIONS 对象字面量未开启");
+    let close = rest
+        .find("\n};")
+        .expect("SEED_ROLE_EXTRA_PERMISSIONS 对象字面量未闭合");
+    let body = &rest[open..close];
+    let mut roles = Vec::new();
+    let mut current: Option<(String, String)> = None;
+    for line in body.lines() {
+        let t = line.trim();
+        if t.is_empty() {
+            continue;
+        }
+        let colon = t.find(':');
+        let starts_entry = match colon {
+            Some(c) => {
+                c > 0
+                    && t[..c].starts_with(|ch: char| ch.is_ascii_lowercase())
+                    && t[..c]
+                        .chars()
+                        .all(|ch| ch.is_ascii_lowercase() || ch == '_')
+                    && t[c + 1..].trim_start().starts_with('[')
+            }
+            None => false,
+        };
+        if starts_entry {
+            if let Some((code, acc)) = current.take() {
+                if acc.contains(perm) {
+                    roles.push(code);
+                }
+            }
+            let c = colon.expect("starts_entry 已含冒号位");
+            current = Some((t[..c].to_string(), t[c + 1..].to_string()));
+        } else if let Some((_, acc)) = current.as_mut() {
+            acc.push('\n');
+            acc.push_str(t);
+        }
+    }
+    if let Some((code, acc)) = current {
+        if acc.contains(perm) {
+            roles.push(code);
+        }
+    }
+    roles.sort();
+    roles
+}
+
+fn sorted_refs(v: &[String]) -> Vec<&str> {
+    v.iter().map(String::as_str).collect()
+}
+
+fn adjudicated_sorted(list: &[&str]) -> Vec<&str> {
+    let mut v = list.to_vec();
+    v.sort_unstable();
+    v
+}
+
 /// 通道 ①：矩阵里 pieces 的授予集合必须恰为口径集（数量+最小授权禁项）
 #[test]
 fn role_matrix_grants_exactly_read_and_print_for_pieces() {
     let src = code_only(&matrix_src());
+    // 计数改判（read 6→7、print 4→5）：warehouse_manager 分组系本批按用户裁定
+    // 补建（原通道① 整组缺失，新装库仓库经理打签 403；口径自 69972b26 的 m0069
+    // 建档即 5 角 print），文件头「print 首授集合 = 5 岗（计数改判记录）」载明依据。
+    // 计数只是双保险，通道间**集合相等**判据见
+    // matrix_and_migration_print_role_sets_are_equal。
     assert_eq!(
         src.matches(r#"("pieces", "read")"#).count(),
-        6,
-        "pieces:read 在角色矩阵中应恰为 6 处（库存经理/仓管/销售代表/生产经理/质检员/验布员）"
+        7,
+        "pieces:read 在角色矩阵中应恰为 7 处（库存经理/仓管/仓库经理/销售代表/生产经理/质检员/验布员）"
     );
     assert_eq!(
         src.matches(r#"("pieces", "print")"#).count(),
-        4,
-        "pieces:print 在角色矩阵中应恰为 4 处（库存经理/仓管/质检员/验布员）"
+        5,
+        "pieces:print 在角色矩阵中应恰为 5 处（库存经理/仓管/仓库经理/质检员/验布员）"
     );
     // 最小授权：库里 pieces 只有 GET /pieces 与 GET /pieces/{id}/print 两个端点
     for banned in [
@@ -131,6 +316,87 @@ fn role_matrix_grants_exactly_read_and_print_for_pieces() {
         assert!(
             !src.contains(banned),
             "禁止超范围授予 pieces 键（越权面放大）: {banned}"
+        );
+    }
+}
+
+/// 通道 ①↔②：pieces:print 的角色集合**双向相等**——本判据才是检出漂移的那条锁。
+/// 上一版只钉"①计数恰 4 + ②逐码在场"，通道① 整组缺 warehouse_manager 依然全绿
+/// （三通道互不回流的事故族形态），"在场"钉法对"一边缺一边多"是盲的。
+/// 漂移必红示例：删 permission.rs warehouse_manager 分组里的 ("pieces","print")
+/// ⇒ ① 少一元素，本断言红（计数 print 4≠5 也红）；只给 m0069 的 PRINT_ROLE_CODES
+/// 新增一个角色 ⇒ ② 多一元素，本断言同样红。
+#[test]
+fn matrix_and_migration_print_role_sets_are_equal() {
+    let matrix = matrix_roles_with(&code_only(&matrix_src()), "print");
+    let mig = migration_role_codes(&code_only(&migration_src()), "PRINT_ROLE_CODES");
+    assert_eq!(
+        sorted_refs(&matrix),
+        sorted_refs(&mig),
+        "通道① 矩阵与通道② m0069 对 pieces:print 的授予集合必须双向相等（同源契约：改一处必须同步改另一处并在此改判）"
+    );
+    // 与裁定口径集（本文件头）三方一致：防 ①② 同漂时双双躲过两两相等
+    assert_eq!(
+        sorted_refs(&matrix),
+        adjudicated_sorted(PRINT_ROLES),
+        "pieces:print 集合须等于裁定口径 5 岗（inventory_manager/warehouse_keeper/warehouse_manager/quality_inspector/fabric_inspector）"
+    );
+    // 通道内自洽：print ⊆ read（先能看匹，才谈得上打印）
+    let matrix_read = matrix_roles_with(&code_only(&matrix_src()), "read");
+    for code in &matrix {
+        assert!(
+            matrix_read.contains(code),
+            "矩阵 pieces:print 角色 {code} 必须同时持有 pieces:read"
+        );
+    }
+    let mig_read = migration_role_codes(&code_only(&migration_src()), "READ_ROLE_CODES");
+    for code in &mig {
+        assert!(
+            mig_read.contains(code),
+            "m0069 pieces:print 角色 {code} 必须同时持有 pieces:read"
+        );
+    }
+}
+
+/// 通道 ①↔②：pieces:read 在**剔除在册别名码后**双向集合相等。
+/// read 面 ② 比 ① 多 `salesperson`（CI/部署库建它不建 sales_rep，见
+/// REGISTERED_READ_ALIAS_CODES 注释）——这是在册口径差，不是漂移；除此之外
+/// 任何一边多/少一个角色码都必红。别名码单独钉"② 在场且 ① 不双写"，
+/// 防豁免名单吞掉真实漂移或矩阵双写两套销售码。
+#[test]
+fn matrix_and_migration_read_role_sets_are_equal_modulo_registered_aliases() {
+    let matrix_read = matrix_roles_with(&code_only(&matrix_src()), "read");
+    let mig_read = migration_role_codes(&code_only(&migration_src()), "READ_ROLE_CODES");
+    let mig_without_alias: Vec<&str> = mig_read
+        .iter()
+        .map(String::as_str)
+        .filter(|c| !REGISTERED_READ_ALIAS_CODES.contains(c))
+        .collect();
+    assert_eq!(
+        sorted_refs(&matrix_read),
+        mig_without_alias,
+        "通道① 与通道② 对 pieces:read 的集合须在剔除在册别名码 {:?} 后双向相等",
+        REGISTERED_READ_ALIAS_CODES
+    );
+    // 与裁定口径集三方一致（矩阵面 = READ_ROLES 全集剔别名；销售面矩阵用规范码 sales_rep）
+    let adjudicated_read: Vec<&str> = adjudicated_sorted(READ_ROLES)
+        .iter()
+        .copied()
+        .filter(|c| !REGISTERED_READ_ALIAS_CODES.contains(c))
+        .collect();
+    assert_eq!(
+        sorted_refs(&matrix_read),
+        adjudicated_read,
+        "pieces:read 矩阵集合须等于裁定口径集（salesperson 为 ② 侧在册别名，不在矩阵）"
+    );
+    for alias in REGISTERED_READ_ALIAS_CODES {
+        assert!(
+            mig_read.iter().any(|c| c == alias),
+            "在册别名码 {alias} 必须在 m0069 read 面在场（CI/部署库的真实受授面）"
+        );
+        assert!(
+            !matrix_read.iter().any(|c| c == alias),
+            "矩阵不得双写别名码 {alias}（销售面矩阵只认规范码 sales_rep）"
         );
     }
 }
@@ -238,20 +504,62 @@ fn migration_is_registered_in_production_domain_chain() {
     assert!(i69 < i67, "down 顺序必须与 up 逆序对称");
 }
 
-/// 通道 ③：e2e 补建角色的权限码集合与后端同口径（否则 CI 角色账号仍是 403 假绿）
+/// 通道 ③：e2e SEED 的 pieces 授予面必须是 ①∩②（read 面再并上在册别名码）的**子集**。
+///
+/// 现状如实挂账（不许为凑三通道相等写一条现在必然红的断言，也不许为让断言成立删人）：
+/// `fabric_inspector` 在通道①② 两条后端通道均持有 pieces:read/pieces:print，但
+/// e2e 的 `SEED_ROLES`（global-setup.ts:391-429）**根本不建该角色码**，
+/// ensureRoleUsers 无从补建 ⇒ 验布打卷岗在 CI 无任何运行期覆盖，属已知待决项
+/// （是否将 fabric_inspector 纳入 SEED_ROLES 由用户裁定——新增角色会改变角色
+/// 矩阵分片集合与既有基线，不在本批处理；见任务看板）。因此本测只钉子集关系，
+/// 不钉 ③=①∩② 全等（全等当下必红），也不因该缺口放宽 ①↔② 的全等锁。
+///
+/// 反向保护：③ 若授予 ①② 都不认的角色码（如手滑给 sales_rep 的 CI 别名面写错），
+/// 子集断言红；解析签名为空亦红（空集会让子集恒真——假绿通道）。
 #[test]
-fn e2e_role_seed_permissions_carry_pieces_keys() {
-    let src = code_only(&e2e_seed_src());
+fn e2e_seed_pieces_roles_are_subset_of_backend_channels() {
+    let matrix_code = code_only(&matrix_src());
+    let mig_code = code_only(&migration_src());
+    for action in ["read", "print"] {
+        let const_name = if action == "read" {
+            "READ_ROLE_CODES"
+        } else {
+            "PRINT_ROLE_CODES"
+        };
+        let matrix_roles = matrix_roles_with(&matrix_code, action);
+        let mig_roles = migration_role_codes(&mig_code, const_name);
+        // ①∩②：两条后端通道都认的规范受授面（①=② 由上方全等锁保证，交集为防御性写法）
+        let mut allowed: Vec<String> = mig_roles
+            .iter()
+            .filter(|c| matrix_roles.contains(c))
+            .cloned()
+            .collect();
+        if action == "read" {
+            // read 面 ② 的在册别名码允许出现在 ③（CI 库建 salesperson 不建 sales_rep）
+            for alias in REGISTERED_READ_ALIAS_CODES {
+                if mig_roles.iter().any(|c| c == alias) {
+                    allowed.push(alias.to_string());
+                }
+            }
+        }
+        let seeded = e2e_seed_roles_with(&format!("'pieces:{action}'"));
+        assert!(
+            !seeded.is_empty(),
+            "e2e SEED 未解析出任何 'pieces:{action}' 授予角色——要么授予被删（CI 角色将回到 403 假绿），\
+             要么 SEED_ROLE_EXTRA_PERMISSIONS 分组签名变了导致解析空转；空集会令子集断言恒真，拒绝放行"
+        );
+        for role in &seeded {
+            assert!(
+                allowed.contains(role),
+                "通道③ e2e SEED 给 {role} 授 'pieces:{action}'，但该码不在通道①② 的规范受授面\
+                 （∪在册别名）内：①={matrix_roles:?} ②={mig_roles:?}"
+            );
+        }
+    }
+    // ③ 的最小授权禁项与后端两通道一致
+    let seed_src = code_only(&e2e_seed_src());
     assert!(
-        src.contains("'pieces:read'"),
-        "e2e SEED_ROLE_EXTRA_PERMISSIONS 必须授 pieces:read（发货匹号选择器/标签面板）"
-    );
-    assert!(
-        src.contains("'pieces:print'"),
-        "e2e SEED_ROLE_EXTRA_PERMISSIONS 必须授 pieces:print（仓管/质检侧标签打印）"
-    );
-    assert!(
-        !src.contains("'pieces:*'") && !src.contains("'pieces:update'"),
+        !seed_src.contains("'pieces:*'") && !seed_src.contains("'pieces:update'"),
         "e2e 侧同样禁止超范围授 pieces 键"
     );
 }

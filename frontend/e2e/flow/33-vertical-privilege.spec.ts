@@ -217,7 +217,18 @@ const PIECES_LIST = '/inventory/pieces?page=1&page_size=5';
 const PIECES_PRINT = '/inventory/pieces/1/print';
 
 test.describe('pieces:read / pieces:print 运行期授权（依据 R-7、R-13）', () => {
-  for (const role of ['warehouse_keeper', 'inventory_manager']) {
+  // 正向面覆盖 = 裁定口径 5 岗中 e2e 已建号的 4 岗（warehouse_keeper/inventory_manager/
+  // warehouse_manager/quality_inspector 均在 SEED_ROLES；fabric_inspector 未被
+  // SEED_ROLES 建出，该岗在 CI 无运行期覆盖——已知待决项，见任务看板与
+  // contract_wave7_piece_permission_grant_test.rs 通道③ 挂账注释，不在此掩盖）。
+  // 仓库经理岗的授权通道是三通道锁（init 矩阵/m0069/e2e 补授），任一分组缺失都会让
+  // 新装库该岗打签 403——检出面只能由真实 token 直连端点给出。
+  for (const role of [
+    'warehouse_keeper',
+    'inventory_manager',
+    'warehouse_manager',
+    'quality_inspector',
+  ]) {
     test(`${role} GET /inventory/pieces → 非 403（pieces:read 真实进库）`, async ({ page }) => {
       await loginAsRole(page, role);
       const res = await getRaw(page, PIECES_LIST);

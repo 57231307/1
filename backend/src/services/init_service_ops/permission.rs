@@ -430,7 +430,8 @@ impl InitService {
         ]
     }
 
-    /// 库存仓储域角色权限定义（inventory_manager 库存经理 / warehouse_keeper 仓管员）。
+    /// 库存仓储域角色权限定义（inventory_manager 库存经理 / warehouse_keeper 仓管员 /
+    /// warehouse_manager 仓库经理）。
     fn inventory_role_resources() -> RoleResourceSlice {
         &[
             (
@@ -478,6 +479,21 @@ impl InitService {
                     ("counts", "create"),
                     ("products", "read"),
                     ("warehouses", "read"),
+                ],
+            ),
+            (
+                "warehouse_manager",
+                &[
+                    // 仓库经理按四维选匹（GET /inventory/pieces）并打印成品布入库标签
+                    // （GET /inventory/pieces/{id}/print）。pieces 键由 URL 段推导、不被
+                    // inventory:* 覆盖（同 inventory_manager 分组内注释），三通道同口径：
+                    // 本分组与迁移 m0069 的 PRINT_ROLE_CODES/READ_ROLE_CODES、e2e 的
+                    // SEED_ROLE_EXTRA_PERMISSIONS 集合一致性由
+                    // tests/contract_wave7_piece_permission_grant_test.rs 双向钉。
+                    // 此处仅授 pieces 两键——仓库经理其余库存/仓储操作权的矩阵面
+                    // 维持现状（别岗权限不顺手扩）。
+                    ("pieces", "read"),
+                    ("pieces", "print"),
                 ],
             ),
         ]
