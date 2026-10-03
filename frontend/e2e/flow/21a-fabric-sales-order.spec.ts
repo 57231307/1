@@ -284,8 +284,13 @@ test.describe('面料单据专用字段全链路验证', () => {
     console.log('[21a] 已填数量=100 单价=25.5');
 
     // 提交：捕获真实 POST /sales/orders 的请求体与响应（不 mock）
+    // 只绑 200：CSRF token 一次性消费下 UI 首个 POST 可能 403（csrf.rs:110/:216-224，
+    // 前端 axios 用恢复头静默重放，request.ts:197-223）；不过滤状态码就会命中 403 中间态，
+    // 下方 resp.ok() 变成本可用例的"真红假象"（同 11-03/purchase/09 族）。重放体与首试体
+    // 同一 payload，故 postData() 读到的仍是真实提交内容。
     const responsePromise = page.waitForResponse(
-      r => r.request().method() === 'POST' && r.url().endsWith('/sales/orders')
+      r =>
+        r.request().method() === 'POST' && r.url().endsWith('/sales/orders') && r.status() === 200
     );
     await dialog.locator('.el-dialog__footer button').filter({ hasText: '确定' }).first().click();
     const resp = await responsePromise;
@@ -433,17 +438,16 @@ test.describe('面料单据专用字段全链路验证', () => {
       '[21a-tol] 明细表应含"容差"列（FE 表单项已渲染）'
     ).toBeVisible({ timeout: 5000 });
     // 容差输入框在明细行的对应单元格内；列索引由"容差"表头位置确定
-    const toleranceInput = dialog
-      .locator('.el-table__body td .el-input-number input')
-      .last(); // 容差列是最后一个 number 列
+    const toleranceInput = dialog.locator('.el-table__body td .el-input-number input').last(); // 容差列是最后一个 number 列
     await toleranceInput.waitFor({ state: 'visible', timeout: 5000 });
     await toleranceInput.fill(String(toleranceValue));
     await toleranceInput.press('Tab');
     console.log(`[21a-tol] 容差值已填入 ${toleranceValue}%`);
 
-    // 提交订单
+    // 提交订单（只绑 200：避开 CSRF 一次性消费的 403 中间态，见本文件 21a 首处同注释）
     const responsePromise = page.waitForResponse(
-      r => r.request().method() === 'POST' && r.url().endsWith('/sales/orders'),
+      r =>
+        r.request().method() === 'POST' && r.url().endsWith('/sales/orders') && r.status() === 200,
       { timeout: 30000 }
     );
     await dialog.locator('.el-dialog__footer button').filter({ hasText: '确定' }).first().click();
@@ -496,7 +500,11 @@ test.describe('面料单据专用字段全链路验证', () => {
         toleranceText?.includes(String(toleranceValue)) || toleranceText?.includes('8.5'),
         `[21a-tol] UI 详情应显示容差值 ${toleranceValue}%，实际弹窗文本片段=${(toleranceText || '').slice(0, 300)}`
       ).toBe(true);
-      await page.locator('.el-dialog__headerbtn, .el-drawer__close-btn').first().click().catch(() => {});
+      await page
+        .locator('.el-dialog__headerbtn, .el-drawer__close-btn')
+        .first()
+        .click()
+        .catch(() => {});
     }
 
     // 清理

@@ -474,9 +474,14 @@ test.describe('面料单据专用字段全链路验证', () => {
     await typeInput.waitFor({ state: 'visible', timeout: 10000 });
     await typeInput.fill(fabricType);
 
-    // 捕获 POST 请求提交
+    // 捕获 POST 请求提交（只绑 200：CSRF token 一次性消费下首个 POST 可能 403，
+    // 前端 axios 静默重放后才是业务响应，见 csrf.rs:110/:216-224 + request.ts:197-223；
+    // 不过滤就会把 403 中间态当命中，下方 resp.ok() 变真红假象）
     const responsePromise = page.waitForResponse(
-      r => r.request().method() === 'POST' && r.url().includes('/production/greige-fabrics'),
+      r =>
+        r.request().method() === 'POST' &&
+        r.url().includes('/production/greige-fabrics') &&
+        r.status() === 200,
       { timeout: 30000 }
     );
 

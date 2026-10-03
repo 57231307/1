@@ -230,9 +230,16 @@ async function receiveViaUI(
   await dialog.getByRole('spinbutton').first().fill(qty);
   await dialog.locator('input[placeholder="请输入辅助数量，无辅量填0"]').first().fill(altQty);
   await dialog.locator('input[placeholder="收货批次号"]').first().fill(batchNo);
+  // 只绑 200：CSRF token 一次性消费下 UI「确定收货」首个 POST 可能 403（csrf.rs:110 consume
+  // + :216-224 轮换，前端 axios 用恢复头静默重放，request.ts:197-223）。不过滤状态码时
+  // waitForResponse 命中 data=null 的 403 中间态，"收货响应入库单 id"落空即真红假象
+  //（同 purchase/11-03 族）；toast「收货成功」已先断，真被拒时本行与 toast 双判红，不放宽。
   const createdResp = page
     .waitForResponse(
-      r => r.request().method() === 'POST' && /\/purchase\/receipts(\?|$)/.test(r.url()),
+      r =>
+        r.request().method() === 'POST' &&
+        /\/purchase\/receipts(\?|$)/.test(r.url()) &&
+        r.status() === 200,
       { timeout: 30000 }
     )
     .catch(() => null);

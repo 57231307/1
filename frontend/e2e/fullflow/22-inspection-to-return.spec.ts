@@ -209,12 +209,16 @@ async function createInspectionViaUI(
   await dateInput.fill(todayStr());
   await dateInput.press('Enter');
 
+  // 只绑 200：CSRF token 一次性消费下 UI 首个 POST 可能 403（csrf.rs:110 consume +
+  // :216-224 轮换，前端 axios 用恢复头静默重放，request.ts:197-223）；不过滤状态码就会
+  // 命中 data=null 的 403 中间态，"质检单创建响应 id"落空即真红假象（同 11-03 族）。
   const createdResp = page
     .waitForResponse(
       r =>
         r.request().method() === 'POST' &&
         /\/purchase\/inspections(\?|$)/.test(r.url()) &&
-        !/\/items/.test(r.url()),
+        !/\/items/.test(r.url()) &&
+        r.status() === 200,
       { timeout: 30_000 }
     )
     .catch(() => null);
@@ -390,12 +394,14 @@ test.describe('22 质检到退货全流程契约链', () => {
       .locator('textarea')
       .first()
       .fill('E2E-F22 质检不合格自动生成');
+    // 只绑 200，避开 CSRF 一次性消费的 403 中间态（成因见本文件 ② 建质检单处同注释）
     const createdResp = page
       .waitForResponse(
         r =>
           r.request().method() === 'POST' &&
           /\/purchase\/returns(\?|$)/.test(r.url()) &&
-          !/\/items/.test(r.url()),
+          !/\/items/.test(r.url()) &&
+          r.status() === 200,
         { timeout: 30_000 }
       )
       .catch(() => null);

@@ -75,9 +75,16 @@ test.describe('09 采购价格', () => {
     await effInput.fill('2026-08-01');
     await page.keyboard.press('Enter');
 
+    // 只绑 200：CSRF token 一次性消费下 UI 首个 POST 可能 403（csrf.rs:110 consume +
+    // :216-224 轮换，前端 axios 拦截器静默重放，request.ts:197-223）。不过滤状态码就会命中
+    // 那个 data=null 的 403 中间态，"建单响应未返回 id"成为真红假象（同 11-03 族）。
+    // 真被业务拒绝时既无 200 也无 toast，两处断言都判红——不放宽，只收紧。
     const createdResp = page
       .waitForResponse(
-        res => res.url().includes('/purchase/purchase-prices') && res.request().method() === 'POST',
+        res =>
+          res.url().includes('/purchase/purchase-prices') &&
+          res.request().method() === 'POST' &&
+          res.status() === 200,
         { timeout: 30000 }
       )
       .catch(() => null);
