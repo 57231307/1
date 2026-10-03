@@ -62,33 +62,41 @@
                   customer.contact_person
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.phone')">{{
-                  customer.phone
+                  customer.contact_phone || '-'
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.email')" :span="2">{{
-                  customer.email
+                  customer.contact_email || '-'
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.address')" :span="2">{{
-                  customer.address
+                  customer.address || '-'
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.customerType')">
                   <el-tag :type="getTypeTag(customer.customer_type)" size="small">
                     {{ getTypeLabel(customer.customer_type) }}
                   </el-tag>
                 </el-descriptions-item>
+                <!-- 负责人姓名与最后下单日期：360 出参当前无真实来源键
+                     （owner 仅有 owner_id 内部 ID；订单聚合无 last_order_at；
+                     summary.last_interaction_at 是最后跟进时间，语义不同不可代用），
+                     如实呈现为既有"无数据"占位，待后端出参补齐后恢复 -->
                 <el-descriptions-item :label="t('crmDetail.field.owner')">{{
-                  customer.owner_name
+                  '-'
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.creditLimit')">
                   {{ customer.credit_limit ? formatCurrency(customer.credit_limit) : '-' }}
                 </el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.totalOrders')">{{
-                  customer.total_orders
+                  summary?.total_orders
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.totalAmount')">
-                  {{ customer.total_amount ? formatCurrency(customer.total_amount) : '-' }}
+                  {{
+                    summary && summary.total_order_amount
+                      ? formatCurrency(summary.total_order_amount)
+                      : '-'
+                  }}
                 </el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.lastOrder')">{{
-                  customer.last_order_date || '-'
+                  '-'
                 }}</el-descriptions-item>
               </el-descriptions>
             </el-card>
@@ -102,7 +110,7 @@
 
               <el-descriptions :column="2" border>
                 <el-descriptions-item :label="t('crmDetail.field.taxNumber')" :span="2">{{
-                  customer.tax_number || '-'
+                  customer.tax_id || '-'
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.bankName')">{{
                   customer.bank_name || '-'
@@ -324,6 +332,7 @@ import {
   updateCustomerContact,
   type Contact,
   type CustomerEntity,
+  type Customer360Summary,
   type CustomerTag,
   type ShippingAddress,
   type RfmScore,
@@ -339,6 +348,7 @@ const router = useRouter();
 
 const loading = ref(false);
 const customer = ref<CustomerEntity | null>(null);
+const summary = ref<Customer360Summary | null>(null);
 const tags = ref<CustomerTag[]>([]);
 const shippingAddresses = ref<ShippingAddress[]>([]);
 const rfmScore = ref<RfmScore | null>(null);
@@ -388,6 +398,7 @@ const fetchCustomer360 = async () => {
     const res = await getCustomer360(customerId);
     const d = res.data;
     customer.value = d.customer;
+    summary.value = d.summary;
     tags.value = d.tags;
     shippingAddresses.value = d.shipping_addresses;
     rfmScore.value = d.summary?.rfm_score ?? null;

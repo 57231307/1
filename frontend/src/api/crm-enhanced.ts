@@ -127,30 +127,65 @@ export interface FollowUpRecord {
   created_at: string;
 }
 
-/** 客户实体（从 360 视图 data.customer 字段取得） */
+/**
+ * 客户实体（360 视图 data.customer 整行投影）。
+ * 键集 = backend/src/models/customer.rs 的 serde snake_case 字段名，
+ * 可空列（Option）如实为 `| null`；非 admin 会话经 handler 两层字段门
+ * （crm_handler.rs:1166-1178 → crm/cust.rs::mask_customer_pii_defaults）：
+ * contact_phone/contact_email 为已掩码字符串（键保留），address 整键移除（故可选）。
+ * 后端出参不含 owner_name / total_orders / total_amount / last_order_date
+ * （订单聚合在 summary，负责人姓名当前无任何出口提供）。
+ */
 export interface CustomerEntity {
   id: number;
   customer_code: string;
   customer_name: string;
-  contact_person: string;
-  phone: string;
-  email: string;
-  address: string;
-  customer_type: string;
-  status: string;
-  tax_number: string;
-  bank_name: string;
-  bank_account: string;
+  contact_person: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  address?: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  postal_code: string | null;
   credit_limit: number;
-  owner_name: string;
-  total_orders: number;
-  total_amount: number;
-  last_order_date: string;
+  payment_terms: number;
+  tax_id: string | null;
+  bank_name: string | null;
+  bank_account: string | null;
+  status: string;
+  customer_type: string;
+  notes: string | null;
+  created_by: number | null;
   created_at: string;
+  updated_at: string;
+  customer_industry: string | null;
+  main_products: string | null;
+  annual_purchase: number | null;
+  quality_requirement: string | null;
+  inspection_standard: string | null;
+  owner_id: number;
+  department_id: number | null;
+  owner_assigned_at: string | null;
+  special_process: string | null;
+  source: string | null;
+  pool_recycle_reason: string | null;
 }
 
-/** 360 视图 summary 载荷（包含聚合统计与 RFM 评分） */
+/**
+ * 360 视图 summary 载荷 = backend services/crm/mod.rs::CustomerRelationSummary
+ * 的真实序列化键（total_order_amount 为 Option<Decimal> → number | null）。
+ * 注意：后端该结构体并无 rfm_score 键 —— 下方 rfm_score 声明是已登记的契约谎言
+ * （RFM 卡因此恒渲染空态），修复口径待产品裁定后另行收口，不在本批顺手改。
+ */
 export interface Customer360Summary {
+  customer_id: number;
+  total_leads: number;
+  total_opportunities: number;
+  total_orders: number;
+  total_order_amount: number | null;
+  last_interaction_at: string | null;
+  follow_up_count: number;
   rfm_score: RfmScore;
   [key: string]: unknown;
 }
