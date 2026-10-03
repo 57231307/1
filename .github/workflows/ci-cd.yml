@@ -11,14 +11,14 @@
 #              ci-test-fe, security-vulnerability-scan（依赖漏洞+秘密+依赖图，合并原
 #              ci-audit/ci-deps）, ci-perf-bench, ci-build-rust, ci-build-fe]
 #            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust(10分片)],
-#                         [ci-e2e（36 分片并行端到端）],
+#                         [ci-e2e（40 分片并行端到端）],
 #                         [ci-dead-code-audit（Clippy 通过后跑，步骤见 actions/dead-code-audit）]
 #            → [package-release] → [github-release]
 #            → [ci-cleanup-retry]（收尾：needs 列出全部 job，动态扫描 toJSON(needs) 汇总判定）
 #
 # 发布门禁：E2E + Rust 测试 + 死代码审计在 PR 时验证，合并即视为通过。
 #   主线 push 不重复跑测试（已在 PR 阶段验证），只做构建/格式/审计/发布。
-#   所有 job timeout 统一 360 分钟（6 小时），E2E 36 分片并行加速。
+#   所有 job timeout 统一 360 分钟（6 小时），E2E 40 分片并行加速。
 #   注：任何新增 job 必须同时加入 ci-cleanup-retry.needs，否则不参与门禁。
 # ==============================================================================
 
@@ -488,7 +488,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-fmt-report
-          path: reports/
+          # 报告实际写在 frontend/reports/（各步骤 working-directory: frontend），
+          # upload-artifact 不认 working-directory，写 `reports/` 指向仓库根 = 传空
+          path: frontend/reports/
           retention-days: 90
 
 # ==============================================================================
@@ -1296,7 +1298,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-type-check-report
-          path: reports/
+          # 同 frontend-fmt-report：vue-tsc 输出写在 frontend/reports/，
+          # 根级 `reports/` 不存在 → 制品一直是空的，判责时无从取证
+          path: frontend/reports/
           retention-days: 90
 
 # ==============================================================================
@@ -1525,13 +1529,30 @@ jobs:
             elif [ "$FAILED" -gt "0" ]; then
               echo "## ❌ 分片 ${{ matrix.partition }} 发现 $FAILED 个失败"
               echo ""
+              # 旧写法 `grep "^[[:space:]]+(EXECUTION )?FAIL "` 会同时命中进度区与
+              # Summary 区的同一行状态（每例两条），叠加"失败详情"的 -A10 后同一条
+              # 用例在报告里渲染 3 遍；判责时按清单行数统计会数出 2 倍于真实值的失败。
+              # 失败清单：取 Summary 区（nextest 自己的权威失败枚举，每 target 一行）
               echo "### 失败列表"
               echo ""
-              { grep -E "^[[:space:]]+(EXECUTION )?FAIL " reports/nextest-output.clean.txt 2>/dev/null || true; } | head -40
+              { sed -n '/^ *Summary \[/,$p' reports/nextest-output.clean.txt | grep -E "^[[:space:]]+FAIL \[" | head -40 || true; }
               echo ""
-              echo "### 失败详情"
+              echo "### 失败详情（进度区 inline stdout，每例一处）"
               echo ""
-              { grep -A 10 -E "^[[:space:]]+FAIL " reports/nextest-output.clean.txt 2>/dev/null || true; } | head -120
+              { sed -n '1,/^ *Summary \[/p' reports/nextest-output.clean.txt | grep -A 10 -E "^[[:space:]]+FAIL \[" | head -120 || true; }
+              echo ""
+              # lib/bin 双计观察（仅展示，门禁判定仍用 Summary 原始数）：backend/src
+              # 的同一单测会同时编译进 `bingxi-backend`(lib) 与 `bingxi-backend::bin/
+              # server`(bin) 两个测试单元，nextest 按 target+name 计数 ⇒ FAILED 是
+              # "target 计次"而非唯一用例数（run #4671 p1 报 8 实 7）。消除双计的根修
+              # 在把 src 单测移出 bin 编译单元（backend 侧），报告只负责如实点名。
+              DUP_EXTRA=$(sed -n '/^ *Summary \[/,$p' reports/nextest-output.clean.txt | grep -E "^[[:space:]]+FAIL \[" \
+                | awk '{line=$0; sub(/^.*\) /,"",line); idx=index(line," "); name=(idx>0 ? substr(line,idx+1) : line); c[name]++} END{e=0; for(k in c) if(c[k]>1) e+=c[k]-1; print e+0}')
+              if [ "${DUP_EXTRA:-0}" -gt "0" ]; then
+                echo "## ⚠️ 双计观察（展示性，不改判定）：$FAILED 个 target 计次中有 $DUP_EXTRA 次为同名用例在 lib/bin 双 target 重复计数，唯一用例失败数约 $((FAILED - DUP_EXTRA))"
+              else
+                echo "## ℹ️ 无双 target 重复计数（$FAILED 即唯一用例失败数）"
+              fi
             else
               echo "## ✅ 分片 ${{ matrix.partition }} 全部通过"
             fi
@@ -1730,9 +1751,17 @@ jobs:
             elif [ "$FAILED" -gt "0" ]; then
               echo "## ❌ 发现 $FAILED 个失败"
               echo ""
-              { grep -E "^[[:space:]]+(EXECUTION )?FAIL " reports/nextest-ignored-output.clean.txt 2>/dev/null || true; } | head -60
+              # 锚点与分片报告同款：清单取 Summary 区（每例一行），
+              # 详情取进度区 inline stdout，避免同一状态行被双重匹配渲染 3 遍。
+              { sed -n '/^ *Summary \[/,$p' reports/nextest-ignored-output.clean.txt | grep -E "^[[:space:]]+FAIL \[" | head -60 || true; }
               echo ""
-              { grep -A 10 -E "^[[:space:]]+FAIL " reports/nextest-ignored-output.clean.txt 2>/dev/null || true; } | head -160
+              { sed -n '1,/^ *Summary \[/p' reports/nextest-ignored-output.clean.txt | grep -A 10 -E "^[[:space:]]+FAIL \[" | head -160 || true; }
+              echo ""
+              DUP_EXTRA=$(sed -n '/^ *Summary \[/,$p' reports/nextest-ignored-output.clean.txt | grep -E "^[[:space:]]+FAIL \[" \
+                | awk '{line=$0; sub(/^.*\) /,"",line); idx=index(line," "); name=(idx>0 ? substr(line,idx+1) : line); c[name]++} END{e=0; for(k in c) if(c[k]>1) e+=c[k]-1; print e+0}')
+              if [ "${DUP_EXTRA:-0}" -gt "0" ]; then
+                echo "**双计观察（展示性，不改判定）**：$FAILED 个 target 计次中 $DUP_EXTRA 次为同名用例在 lib/bin 双 target 重复计数，唯一用例失败数约 $((FAILED - DUP_EXTRA))"
+              fi
             else
               echo "## ✅ ignored 真库用例全部通过"
             fi
@@ -2650,8 +2679,9 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        # 36 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
-        #            / 30-35 extras（6 片，见下方 extras 分支的原因说明）
+        # 40 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
+        #            / 30-39 extras（10 片，按目录域重排，见下方 extras 分支说明。
+        #            原 6 片在 run #4671 把 1800s 窗口撞穿、13 条用例根本没跑）
         # label 只标"跑的是哪个目录的第几片"：Playwright --shard 按用例 hash 分配，
         # 分片与 spec 文件之间没有对应关系。原先按 spec 号段命名（如
         # "flow: 11~22-returns/inventory/crm"）是错的——run 35722450943 该分片实际
@@ -2721,17 +2751,25 @@ jobs:
           - shard: 29
             label: "traversal: e2e/traversal(5/5)"
           - shard: 30
-            label: "extras: e2e/testMatch 内未执行目录(1/6)"
+            label: "extras: purchase 1/2（--shard hash 分片）"
           - shard: 31
-            label: "extras: e2e/testMatch 内未执行目录(2/6)"
+            label: "extras: purchase 2/2（--shard hash 分片）"
           - shard: 32
-            label: "extras: e2e/testMatch 内未执行目录(3/6)"
+            label: "extras: finance 1/2（--shard hash 分片）"
           - shard: 33
-            label: "extras: e2e/testMatch 内未执行目录(4/6)"
+            label: "extras: finance 2/2（--shard hash 分片）"
           - shard: 34
-            label: "extras: e2e/testMatch 内未执行目录(5/6)"
+            label: "extras: sales+quality"
           - shard: 35
-            label: "extras: e2e/testMatch 内未执行目录(6/6)"
+            label: "extras: crm+inventory"
+          - shard: 36
+            label: "extras: enhanced+production"
+          - shard: 37
+            label: "extras: bpm+fabric+mrp"
+          - shard: 38
+            label: "extras: ai+quotations+system"
+          - shard: 39
+            label: "extras: dashboard+e2e 根级 3 spec"
     services:
       postgres:
         image: postgres:16-alpine
@@ -2920,10 +2958,10 @@ jobs:
             SHARD_NO=$((SHARD - 24))
             SHARD_LIMIT=1800
           else
-            # 分片 30-35: testMatch 内、但分片命令从不传的全部目录 ——
-            # enhanced/purchase/sales/quality/finance/crm/bpm（119 用例）
-            # + e2e/ 根级 3 spec（12）+ ai/dashboard/fabric/inventory/mrp/production/
-            # quotations/system（71）= 实测用例数见本分片实跑结果。
+            # 分片 30-39: testMatch 内、但分片命令从不传的全部目录 ——
+            # enhanced/purchase/sales/quality/finance/crm/bpm
+            # + e2e/ 根级 3 spec + ai/dashboard/fabric/inventory/mrp/production/
+            # quotations/system。
             # 这批此前在 CI 里从未执行过：playwright.config.ts 的 chromium testMatch
             # 早早就把它们纳入（注释写着"去 mock 后全部进主 CI testMatch"），
             # 但分片矩阵只跑 e2e/flow、e2e/smoke、e2e/traversal 三个目录，
@@ -2931,12 +2969,35 @@ jobs:
             # 这些目录全部无 page.route()/route.fulfill()/vi.mock()（e2e 真实性门禁
             # 本地复跑 260 个 spec 命中 0、豁免 0）；`applyAuthMocks` 是 2026-09-09
             # 去 mock 时保留的旧函数名，函数体已是真实 API 登录，不构成 mock 依赖。
-            # 切 6 片的依据：按 4 片每片约 50 用例，会逼近 flow 分片曾暴露的时长上限
-            # （run 35722450943 有 7 个分片撞满 1500s），6 片约 34 用例/片。
-            SPEC_TARGETS="e2e/enhanced/ e2e/purchase/ e2e/sales/ e2e/quality/ e2e/finance/ e2e/crm/ e2e/bpm/ e2e/ai/ e2e/dashboard/ e2e/fabric/ e2e/inventory/ e2e/mrp/ e2e/production/ e2e/quotations/ e2e/system/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"
-            SHARD_TOTAL=6
-            SHARD_NO=$((SHARD - 29))
-            SHARD_LIMIT=1800
+            # ——run #4671 判责后的重排（原 6 片方案两处错）：
+            # ①分片依据"202÷6≈34"是均值估算，实测 `npx playwright test --list`
+            #   全集共 327 条 / 85 文件（purchase 60、finance 39、sales 30、crm 25、
+            #   inventory 23、enhanced 21、production 20、bpm 19、fabric 17、
+            #   quality 15、ai 15、root 3 spec 11、quotations 11、system 9、
+            #   dashboard 8、mrp 4），hash 分片 4/6 片实际分到 55 条；
+            # ②extras SHARD_LIMIT=1800 只有 flow 的一半，而 :2906 注释自己写着
+            #   "收紧上限只会把真实性能回归伪装成超时"——18:25:25 起跑 1800s 整被
+            #   kill（exit 124），兜底传导正确，但 13 条用例根本没跑（覆盖丢失）。
+            # 正解：按域显式分组切 10 片，慢域（purchase/finance）各自 2 片，
+            # 其余按实测条数配平到 ≤48 条/片；上限对齐 flow 基线 3600；并行度
+            # 对齐 flow 取 3。禁止用减用例/拆断言/跳慢用例的方式凑窗口。
+            SHARD_LIMIT=3600
+            SHARD_WORKERS=3
+            case "$SHARD" in
+              30) SPEC_TARGETS="e2e/purchase/"; SHARD_NO=1; SHARD_TOTAL=2 ;;
+              31) SPEC_TARGETS="e2e/purchase/"; SHARD_NO=2; SHARD_TOTAL=2 ;;
+              32) SPEC_TARGETS="e2e/finance/"; SHARD_NO=1; SHARD_TOTAL=2 ;;
+              33) SPEC_TARGETS="e2e/finance/"; SHARD_NO=2; SHARD_TOTAL=2 ;;
+              34) SPEC_TARGETS="e2e/sales/ e2e/quality/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              35) SPEC_TARGETS="e2e/crm/ e2e/inventory/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              36) SPEC_TARGETS="e2e/enhanced/ e2e/production/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              37) SPEC_TARGETS="e2e/bpm/ e2e/fabric/ e2e/mrp/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              38) SPEC_TARGETS="e2e/ai/ e2e/quotations/ e2e/system/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              39) SPEC_TARGETS="e2e/dashboard/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              # 矩阵 extras 段与这里的 case 是同一份切分的两处表达，必须同步演进；
+              # 漏同步时宁可整步红，不能静默少跑目录。
+              *) echo "::error::extras 分片 $SHARD 未在按域重排清单中登记（应为 30-39），拒绝以空目标集静默通过"; exit 1 ;;
+            esac
           fi
           if [ -n "$SPEC_TARGETS" ]; then
             # 挂起治理：Playwright 进程存活但输出停滞时，watchdog 每 30s 检查输出
@@ -3898,6 +3959,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [ci-e2e, ci-e2e-setup-wizard, role-permission-matrix]
+    # !cancelled()：默认 success() 语义让本 job 在上游 E2E 红的轮次整体 skip，
+    # 而"防伪全绿"的门禁恰恰最需要在上游红时执行（run #4671 实证盲区；同型修复
+    # 先例 571878e7 给前端静态门禁子步加 !cancelled()）。语义不放宽：动态步对
+    # 上游非 success 依旧自行 exit 1 点名，只是不再被 skip 吞掉。
+    if: ${{ !cancelled() }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -3910,9 +3976,12 @@ jobs:
               exit 1
             fi
           done
-          echo "✅ 全部 E2E job（ci-e2e 36 分片 / setup-wizard / role-permission-matrix）真实执行成功"
+          echo "✅ 全部 E2E job（ci-e2e 40 分片 / setup-wizard / role-permission-matrix）真实执行成功"
 
       - name: 静态校验——E2E 源码禁止 mock 拦截
+        # 步骤级兜底：动态步在上游红时 exit 1，步骤默认 success() 会让本步又被吞——
+        # 恰是同一盲区的步骤级形态。静态扫描与上游结果无关，必须每轮真跑。
+        if: ${{ !cancelled() }}
         run: |
           python3 << 'PYEOF'
           import glob, re, sys
