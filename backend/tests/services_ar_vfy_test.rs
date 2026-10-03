@@ -28,11 +28,16 @@ fn aging_bucket_idx(overdue_days: i64) -> usize {
 }
 
 /// 复现 vfy_ops/match.rs auto_match 开头的匹配策略校验逻辑（纯算法，DB 调用之前）
-/// 错误消息与 auto_match 校验段保持一致："无效的匹配策略: {strategy}（支持 exact / date_order / all）"
+/// 错误消息与构造族与真实实现逐字符同源：`src/services/ar/vfy_ops/match.rs:88-91`
+/// 用 `AppError::validation_displayable`（可外显校验族，出参 message=真实拒绝原因），
+/// 影子实现却写成 `AppError::validation`（脱敏族）——本文件 :360 的
+/// `matches!(err, AppError::ValidationErrorDisplayable(_))` 因此被影子实现自己的
+/// 族漂移打红（CI #4672 §A.1 p1 `test_ppcljy_wxclcwxx`）。这是测试侧复现失真，
+/// 不是源码吞校验：按真实函数体把族改对，断言一字不放宽。
 fn validate_match_strategy(raw: Option<&str>) -> Result<String, AppError> {
     let strategy = raw.unwrap_or("all").to_lowercase();
     if !matches!(strategy.as_str(), "exact" | "date_order" | "all") {
-        return Err(AppError::validation(format!(
+        return Err(AppError::validation_displayable(format!(
             "无效的匹配策略: {}（支持 exact / date_order / all）",
             strategy
         )));
