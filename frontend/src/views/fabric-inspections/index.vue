@@ -286,6 +286,18 @@
             row.weight === null ? '-' : Number(row.weight)
           }}</template>
         </el-table-column>
+        <el-table-column :label="t('fabricInspections.label.width')" min-width="110">
+          <template #default="{ row }">{{
+            row.width == null ? t('fabricInspections.label.notRecorded') : Number(row.width)
+          }}</template>
+        </el-table-column>
+        <el-table-column :label="t('fabricInspections.label.gramWeight')" min-width="120">
+          <template #default="{ row }">{{
+            row.gram_weight == null
+              ? t('fabricInspections.label.notRecorded')
+              : Number(row.gram_weight)
+          }}</template>
+        </el-table-column>
         <el-table-column :label="t('fabricInspections.label.warehouseInAt')" min-width="170">
           <template #default="{ row }">{{ row.warehouse_in_at || '-' }}</template>
         </el-table-column>

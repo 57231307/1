@@ -54,7 +54,9 @@ pub struct PieceResponse {
     pub length: rust_decimal::Decimal,
     pub weight: Option<rust_decimal::Decimal>,
     /// 幅宽（cm，实测值；DB 可空列 inventory_piece.width）——#220 标签 fail-closed 的
-    /// 点名列之一，回读口必须与后端真实输出同源，前端据此判断"该匹能否打标签"。
+    /// 点名列之一。职责划分按本仓锁定口径：前端标签选择对话框只**如实回显**该列
+    /// （未录入显示"未补录"），能否打印的**判定权在服务端**
+    /// （`print_service.rs:4999-5009` 逐列 `is_none` 即 400 点名，不做前端灰化替代校验）。
     pub width: Option<rust_decimal::Decimal>,
     /// 克重（g/m²，实测值；DB 可空列 inventory_piece.gram_weight）
     pub gram_weight: Option<rust_decimal::Decimal>,
