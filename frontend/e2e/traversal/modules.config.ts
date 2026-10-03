@@ -106,7 +106,11 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
     tier: 'A',
     // 真实注册路径在 /purchase 组下（route-snapshot.txt:820，且 src/api/supplier-evaluation.ts
     // 的 13 处调用全部带前缀）；不带前缀会被权限中间件的白名单层
-    // （middleware/permission.rs:122 validate_route_whitelist）判 403，与角色授权无关。
+    // （middleware/permission.rs:121 validate_route_whitelist）判 403——该层早于
+    // check_permission 内的 admin 短路（同文件 :497/:544），且 seg3 白名单是
+    // utils/path_utils.rs:12 is_module_prefix + :177 is_direct_resource 两个词表
+    // （:284-299 的枚举里有 suppliers 而无 supplier-evaluations），词表里没登记的
+    // 模块连 admin 也一样 403 ⇒ 与角色授权无关，补权限播种解不了这条红。
     listApi: '/purchase/supplier-evaluations',
   },
 
