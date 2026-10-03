@@ -5,7 +5,7 @@ use bingxi_backend::services::purchase_receipt_dto::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
     UpdateReceiptItemRequest,
 };
-use bingxi_backend::services::test_common::setup_test_db;
+use bingxi_backend::services::test_common::{connect_empty_schema_db, setup_test_db};
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
@@ -115,66 +115,130 @@ async fn test_purchasereceiptservice_new_zqcysjklj() {
         .expect("数据库连接应可用");
 }
 
-/// test_purchasereceiptservice_get_receipt_ksjkfherr
-/// 业务规则：get_receipt 查询 purchase_receipts 表，SQLite 内存数据库无 schema 应返回 Err。；验证错误处理路径健壮性（不会因 DB 错误 panic）。
+/// test_purchasereceiptservice_get_receipt_ksjkfherr —— CI #4672 §A.1 收紧族：
+/// "schema 缺失必须报 Err"的负前提交集改绑 `connect_empty_schema_db()`
+/// （不跑迁移的 `bingxi_empty` 库）。原写法把 `setup_test_db()`（现语义 = 已迁移
+/// PG + TRUNCATE）当"无表 SQLite"用，前提已过期：已建表空库上 get_receipt(9999)
+/// 的真实契约是 Err(NOT_FOUND)（`purchase_receipt_ops/query.rs:163`），与本条要钉的
+/// "缺表报错"是两件事（后者已由 purchase_receipt_workflow 的空表族钉 NOT_FOUND）。
+/// 断言由裸 `is_err()` 收紧为钉 DATABASE_ERROR 机器码。
+///
+/// 真实契约依据（读函数体）：`purchase_receipt_ops/query.rs:141-166` find_by_id
+/// LEFT JOIN `one(&*self.db).await?`；缺表 ⇒ DbErr::Query ⇒ `utils/error.rs:562-565`
+/// AppError::database ⇒ error_code "DATABASE_ERROR"（error.rs:747）。
 #[tokio::test]
 async fn test_purchasereceiptservice_get_receipt_ksjkfherr() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
-    let result = svc.get_receipt(9999).await;
-    // SQLite 内存数据库无 purchase_receipts 表，应返回 Err（DbErr 转 AppError）
-    assert!(result.is_err());
+    let err = svc
+        .get_receipt(9999)
+        .await
+        .expect_err("schema 缺失（无 purchase_receipts 表）时必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（query.rs:161 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_purchasereceiptservice_list_receipts_ksjkfherr
-/// 业务规则：list_receipts 查询 purchase_receipts 表，SQLite 内存数据库无 schema 应返回 Err。；验证错误处理路径健壮性（不会因 DB 错误 panic）。
+/// test_purchasereceiptservice_list_receipts_ksjkfherr —— 同族收紧：改绑
+/// `connect_empty_schema_db()`，裸 `is_err()` 收紧为钉 DATABASE_ERROR。
+///
+/// 真实契约依据（读函数体）：`purchase_receipt_ops/query.rs:64-138` list_receipts
+/// 经 `paginate_with_total` 对 purchase_receipts LEFT JOIN 取页/计数，`?` 透传
+/// DbErr；缺表 ⇒ DbErr::Query ⇒ "DATABASE_ERROR"（error.rs:562-565,747）。
+/// 已建表空库上真实契约是 `Ok(([], 0))`——该正向形态由 workflow 文件
+/// `test_purchasereceiptservice_list_receipts_kdbfherr` 在真库钉死，本条只锁缺表。
 #[tokio::test]
 async fn test_purchasereceiptservice_list_receipts_ksjkfherr() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
     // 后 4 个 None = status/supplier_id/order_id 之外新增的 keyword/仓库/日期区间筛选全不传
-    let result = svc
+    let err = svc
         .list_receipts(1, 20, None, None, None, None, None, None, None)
-        .await;
-    // SQLite 内存数据库无 purchase_receipts 表，应返回 Err
-    assert!(result.is_err());
+        .await
+        .expect_err("schema 缺失（无 purchase_receipts 表）时必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（query.rs:135 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_purchasereceiptservice_list_receipt_items_ksjkfherr
-/// 业务规则：list_receipt_items 查询 purchase_receipt_items 表，SQLite 内存数据库无 schema 应返回 Err。；验证错误处理路径健壮性（不会因 DB 错误 panic）。
+/// test_purchasereceiptservice_list_receipt_items_ksjkfherr —— 同族收紧：改绑
+/// `connect_empty_schema_db()`，裸 `is_err()` 收紧为钉 DATABASE_ERROR。
+///
+/// 真实契约依据（读函数体）：`purchase_receipt_ops/query.rs:169-180`
+/// purchase_receipt_items find `.all(&*self.db).await?`；缺表 ⇒ DbErr::Query ⇒
+/// "DATABASE_ERROR"（error.rs:562-565,747）。注意：已建表空库上本函数对不存在
+/// 单据返回 `Ok(vec![])`（无 not_found 门）——"吞空集"是否算缺陷不在本条职责内，
+/// 本条只锁"缺表绝不静默吞成 Ok"。
 #[tokio::test]
 async fn test_purchasereceiptservice_list_receipt_items_ksjkfherr() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
-    let result = svc.list_receipt_items(9999).await;
-    // SQLite 内存数据库无 purchase_receipt_items 表，应返回 Err
-    assert!(result.is_err());
+    let err = svc
+        .list_receipt_items(9999)
+        .await
+        .expect_err("schema 缺失（无 purchase_receipt_items 表）时必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（query.rs:176 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
 // ============ create_receipt 业务校验测试 ============
 
-/// test_purchasereceiptservice_create_receipt_kmxfherr
-/// 业务规则：CreatePurchaseReceiptRequest.items 至少 1 条（DTO 上 #[validate(length(min = 1))]）。；service 层未显式调用 Validate::validate，空明细会进入 generate_receipt_no 查询表，；SQLite 内存数据库无表应返回 Err（非 panic）。
+/// test_purchasereceiptservice_create_receipt_kmxfherr —— 同族收紧：原注释自陈
+/// 前提为"SQLite 内存数据库无表应返回 Err（非 panic）"，`setup_test_db()` 真库化后
+/// 该前提过期，改绑 `connect_empty_schema_db()`，裸 `is_err()` 收紧为钉 DATABASE_ERROR。
+///
+/// 真实契约依据（读函数体）：`purchase_receipt_ops/crud.rs:31-51` create_receipt 对
+/// items 只做 `validate_receipt_item_dimensions`（四维准入，空集合平凡通过；service
+/// 层不调 DTO 的 `#[validate(length(min=1))]`，"空明细必填"由 handler 边界 validate
+/// 负责，不属本条职责），首个 DB 步为事务 begin（:43，连库正常）后的黑名单查询
+/// （:46-48，`supplier_blacklist_service.rs:238-242` `?` 透传 DbErr）；
+/// 缺表 ⇒ "DATABASE_ERROR"（error.rs:562-565,747）。
 #[tokio::test]
 async fn test_purchasereceiptservice_create_receipt_kmxfherr() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
     let mut req = sample_request();
     req.items.clear();
-    let result = svc.create_receipt(req, 1).await;
-    assert!(result.is_err());
+    let err = svc.create_receipt(req, 1).await.expect_err(
+        "schema 缺失（无 supplier_blacklist/purchase_receipts 表）时必须返回 Err 而非 panic",
+    );
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（crud.rs:46-48 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_purchasereceiptservice_create_receipt_bczbfherr
-/// 业务规则：create_receipt 依赖 purchase_receipt 表存在。；SQLite 内存数据库无 schema，应返回 DbErr（非 panic）。；这验证了错误处理路径的健壮性（不会因 DB 错误 panic）。
+/// test_purchasereceiptservice_create_receipt_bczbfherr —— 同族收紧：钉"缺表报错、
+/// 绝不静默吞"（原注释即"无 schema 应返回 DbErr 非 panic"），改绑
+/// `connect_empty_schema_db()`，裸 `is_err()` 收紧为钉 DATABASE_ERROR。
+/// 已建库空表上"引用不存在前置单据 ⇒ Err"的形态由 workflow 文件
+/// `test_purchasereceiptservice_create_receipt_kdbfherr` 负责，本条只锁缺表。
 #[tokio::test]
 async fn test_purchasereceiptservice_create_receipt_bczbfherr() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
     let req = sample_request();
-    let result = svc.create_receipt(req, 1).await;
-    // SQLite 内存数据库无表，应返回 Err（DbErr 或 AppError）
-    assert!(result.is_err());
+    let err = svc.create_receipt(req, 1).await.expect_err(
+        "schema 缺失（无 supplier_blacklist/purchase_receipts 表）时必须返回 Err 而非 panic",
+    );
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（crud.rs:46-48 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
 // ============ update_receipt 状态机校验测试 ============

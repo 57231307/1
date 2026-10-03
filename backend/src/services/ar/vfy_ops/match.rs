@@ -79,20 +79,25 @@ impl ArReconciliationService {
     /// 解析并校验匹配策略，返回 (run_exact, run_date_order) 开关
     fn parse_match_strategy(req: &AutoMatchRequest) -> Result<(bool, bool), AppError> {
         // match_strategy 控制：exact=仅策略1 / date_order=策略1+2 / all=全策略（默认）
-        let strategy = req
-            .match_strategy
-            .as_deref()
-            .unwrap_or("all")
-            .to_lowercase();
+        let strategy = Self::normalize_match_strategy(req.match_strategy.as_deref())?;
+        let run_exact = matches!(strategy.as_str(), "exact" | "date_order" | "all");
+        let run_date_order = matches!(strategy.as_str(), "date_order" | "all");
+        Ok((run_exact, run_date_order))
+    }
+
+    /// 归一并校验匹配策略字符串（auto_match 在任何 DB 调用之前的纯算法段，生产与
+    /// 集成测试同源调用，禁止测试侧另写复现）。缺省取 "all"，大小写不敏感；
+    /// 非法策略返回可外显校验族 `AppError::validation_displayable`——策略词表是
+    /// 用户可自助修正的公开规则，拒绝原因必须外显而非脱敏。
+    pub fn normalize_match_strategy(raw: Option<&str>) -> Result<String, AppError> {
+        let strategy = raw.unwrap_or("all").to_lowercase();
         if !matches!(strategy.as_str(), "exact" | "date_order" | "all") {
             return Err(AppError::validation_displayable(format!(
                 "无效的匹配策略: {}（支持 exact / date_order / all）",
                 strategy
             )));
         }
-        let run_exact = matches!(strategy.as_str(), "exact" | "date_order" | "all");
-        let run_date_order = matches!(strategy.as_str(), "date_order" | "all");
-        Ok((run_exact, run_date_order))
+        Ok(strategy)
     }
 
     /// 加载参与匹配的客户列表（指定 ID 或全量 LIMIT 兜底）

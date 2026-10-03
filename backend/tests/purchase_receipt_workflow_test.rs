@@ -168,8 +168,10 @@ async fn test_purchasereceiptservice_get_receipt_kdbfherr() {
 /// 分页返回 `Ok(([], 0))`；原断 `is_err()` 属"把真库化夹具当空 SQLite"的过期前提
 /// （判责原文 ci4671-triage.md :141 明确该条 p3 签名在过期族内）。改判据**不是**
 /// 掩盖源码缺陷：空表返回空集正是列表端点的生产契约，schema 缺失报错形态不在此
-/// 用例职责内（该负前提交集由本文件 get_receipt/confirm 族与 ap_payment 空 schema
-/// 用例在 `bingxi_empty` 上统一钉死）。
+/// 用例职责内（该负前提交集由 services_purchase_receipt_service_test.rs 的
+/// ksjkfherr/bczbfherr 族五条用例在 `bingxi_empty` 上钉 DATABASE_ERROR，
+/// CI #4672 §A.1 收紧后可达；本文件 get_receipt/confirm 族在真库钉的是空表
+/// NOT_FOUND，与缺表是两件事）。
 #[tokio::test]
 async fn test_purchasereceiptservice_list_receipts_kdbfherr() {
     let db = setup_test_db().await;

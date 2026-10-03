@@ -1,7 +1,6 @@
 use bingxi_backend::services::ar::AutoMatchRequest;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
-use bingxi_backend::models::status::ar as ar_status;
 use bingxi_backend::models::status::{ar, common};
 use bingxi_backend::services::test_common::{connect_empty_schema_db, setup_test_db};
 use bingxi_backend::utils::error::AppError;
@@ -25,50 +24,6 @@ fn aging_bucket_idx(overdue_days: i64) -> usize {
     } else {
         4
     }
-}
-
-/// 复现 vfy_ops/match.rs auto_match 开头的匹配策略校验逻辑（纯算法，DB 调用之前）
-/// 错误消息与构造族与真实实现逐字符同源：`src/services/ar/vfy_ops/match.rs:88-91`
-/// 用 `AppError::validation_displayable`（可外显校验族，出参 message=真实拒绝原因），
-/// 影子实现却写成 `AppError::validation`（脱敏族）——本文件 :360 的
-/// `matches!(err, AppError::ValidationErrorDisplayable(_))` 因此被影子实现自己的
-/// 族漂移打红（CI #4672 §A.1 p1 `test_ppcljy_wxclcwxx`）。这是测试侧复现失真，
-/// 不是源码吞校验：按真实函数体把族改对，断言一字不放宽。
-fn validate_match_strategy(raw: Option<&str>) -> Result<String, AppError> {
-    let strategy = raw.unwrap_or("all").to_lowercase();
-    if !matches!(strategy.as_str(), "exact" | "date_order" | "all") {
-        return Err(AppError::validation_displayable(format!(
-            "无效的匹配策略: {}（支持 exact / date_order / all）",
-            strategy
-        )));
-    }
-    Ok(strategy)
-}
-
-/// 复现 vfy_ops/confirm.rs customer_confirm 中的状态校验逻辑（纯算法，DB 调用之前）
-/// 返回 Err 时错误消息与 customer_confirm 状态门保持一致："confirmed" → "对账单已确认，不可重复确认"；"disputed"  → "对账单存在争议，请先解决争议后再确认"
-fn validate_customer_confirm(status: &str) -> Result<&'static str, AppError> {
-    if status == ar_status::RECONCILIATION_CONFIRMED {
-        return Err(AppError::business("对账单已确认，不可重复确认".to_string()));
-    }
-    if status == ar_status::RECONCILIATION_DISPUTED {
-        return Err(AppError::business(
-            "对账单存在争议，请先解决争议后再确认".to_string(),
-        ));
-    }
-    Ok(ar_status::RECONCILIATION_CONFIRMED)
-}
-
-/// 复现 vfy_ops/confirm.rs customer_dispute 中的状态校验逻辑（纯算法，DB 调用之前）
-/// 返回 Err 时错误消息与 customer_dispute 状态门保持一致："confirmed" → "对账单已确认，不可提出争议"；"closed"    → "对账单已关闭，不可提出争议"
-fn validate_customer_dispute(status: &str) -> Result<&'static str, AppError> {
-    if status == ar_status::RECONCILIATION_CONFIRMED {
-        return Err(AppError::business("对账单已确认，不可提出争议".to_string()));
-    }
-    if status == ar_status::RECONCILIATION_CLOSED {
-        return Err(AppError::business("对账单已关闭，不可提出争议".to_string()));
-    }
-    Ok(ar_status::RECONCILIATION_DISPUTED)
 }
 
 // =====================================================
@@ -286,14 +241,15 @@ fn test_zlft_90tys() {
 }
 
 // =====================================================
-// 7. 状态机转换合法性（customer_confirm / customer_dispute 纯算法）
+// 7. 状态机转换合法性（直接调用生产状态门 `check_customer_confirm_status` /
+//    `check_customer_dispute_status`，customer_confirm/customer_dispute 本体即调用这两函数）
 // =====================================================
 
 /// test_khqrztj_yqrjj
-/// 验证 customer_confirm 中 status == ar_status::RECONCILIATION_CONFIRMED 时应拒绝（不可重复确认），；返回 BusinessError 且消息包含 "对账单已确认，不可重复确认"。
+/// 验证 customer_confirm 状态门中 status == confirmed 时应拒绝（不可重复确认），；返回 BusinessError 且消息包含 "对账单已确认，不可重复确认"。
 #[test]
 fn test_khqrztj_yqrjj() {
-    let result = validate_customer_confirm("confirmed");
+    let result = ArReconciliationService::check_customer_confirm_status("confirmed");
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(matches!(err, AppError::BusinessError(_)));
@@ -301,30 +257,30 @@ fn test_khqrztj_yqrjj() {
 }
 
 /// test_khqrztj_zyzjj
-/// 验证 customer_confirm 中 status == ar_status::RECONCILIATION_DISPUTED 时应拒绝（需先解决争议），；返回 BusinessError 且消息包含 "对账单存在争议"。
+/// 验证 customer_confirm 状态门中 status == disputed 时应拒绝（需先解决争议），；返回 BusinessError 且消息包含 "对账单存在争议"。
 #[test]
 fn test_khqrztj_zyzjj() {
-    let result = validate_customer_confirm("disputed");
+    let result = ArReconciliationService::check_customer_confirm_status("disputed");
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(matches!(err, AppError::BusinessError(_)));
     assert!(format!("{err}").contains("对账单存在争议"));
 }
 
-/// test_khqrztj_qtztkzh（验证 customer_confirm 中 status 为 "draft" 等非终态时应允许转换到 "confirmed"。）
+/// test_khqrztj_qtztkzh（验证 customer_confirm 状态门中 status 为 "draft" 等非终态时应允许转换到 "confirmed"。）
 #[test]
 fn test_khqrztj_qtztkzh() {
     // draft → confirmed：应允许
-    let result = validate_customer_confirm("draft");
+    let result = ArReconciliationService::check_customer_confirm_status("draft");
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "confirmed");
 }
 
 /// test_khzyztj_yqrjj
-/// 验证 customer_dispute 中 status == ar_status::RECONCILIATION_CONFIRMED 时应拒绝（已确认不可提争议），；返回 BusinessError 且消息包含 "对账单已确认，不可提出争议"。
+/// 验证 customer_dispute 状态门中 status == confirmed 时应拒绝（已确认不可提争议），；返回 BusinessError 且消息包含 "对账单已确认，不可提出争议"。
 #[test]
 fn test_khzyztj_yqrjj() {
-    let result = validate_customer_dispute("confirmed");
+    let result = ArReconciliationService::check_customer_dispute_status("confirmed");
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(matches!(err, AppError::BusinessError(_)));
@@ -332,26 +288,26 @@ fn test_khzyztj_yqrjj() {
 }
 
 /// test_khzyztj_ygbjj
-/// 验证 customer_dispute 中 status == ar_status::RECONCILIATION_CLOSED 时应拒绝（已关闭不可提争议），；返回 BusinessError 且消息包含 "对账单已关闭，不可提出争议"。
+/// 验证 customer_dispute 状态门中 status == closed 时应拒绝（已关闭不可提争议），；返回 BusinessError 且消息包含 "对账单已关闭，不可提出争议"。
 #[test]
 fn test_khzyztj_ygbjj() {
-    let result = validate_customer_dispute("closed");
+    let result = ArReconciliationService::check_customer_dispute_status("closed");
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(matches!(err, AppError::BusinessError(_)));
     assert!(format!("{err}").contains("对账单已关闭，不可提出争议"));
 }
 
-/// test_khzyztj_cgkzh（验证 customer_dispute 中 status 为 "draft" 时应允许转换到 "disputed"。）
+/// test_khzyztj_cgkzh（验证 customer_dispute 状态门中 status 为 "draft" 时应允许转换到 "disputed"。）
 #[test]
 fn test_khzyztj_cgkzh() {
-    let result = validate_customer_dispute("draft");
+    let result = ArReconciliationService::check_customer_dispute_status("draft");
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "disputed");
 }
 
 // =====================================================
-// 8. 匹配策略校验（auto_match 开头纯算法）
+// 8. 匹配策略校验（直接调用生产纯函数 `normalize_match_strategy`，；auto_match 的 parse_match_strategy 即调用它）
 // =====================================================
 
 /// test_ppcljy_wxclcwxx
@@ -359,7 +315,7 @@ fn test_khzyztj_cgkzh() {
 /// 修正的公开规则），；错误消息格式："无效的匹配策略: {strategy}（支持 exact / date_order / all）"
 #[test]
 fn test_ppcljy_wxclcwxx() {
-    let result = validate_match_strategy(Some("invalid"));
+    let result = ArReconciliationService::normalize_match_strategy(Some("invalid"));
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(matches!(err, AppError::ValidationErrorDisplayable(_)));
@@ -371,16 +327,28 @@ fn test_ppcljy_wxclcwxx() {
 /// test_ppcljy_hfcltg（验证 auto_match 中三种合法策略（exact/date_order/all）均通过校验，；且 None 默认为 "all"，大小写不敏感（自动转小写）。）
 #[test]
 fn test_ppcljy_hfcltg() {
-    assert_eq!(validate_match_strategy(Some("exact")).unwrap(), "exact");
     assert_eq!(
-        validate_match_strategy(Some("date_order")).unwrap(),
+        ArReconciliationService::normalize_match_strategy(Some("exact")).unwrap(),
+        "exact"
+    );
+    assert_eq!(
+        ArReconciliationService::normalize_match_strategy(Some("date_order")).unwrap(),
         "date_order"
     );
-    assert_eq!(validate_match_strategy(Some("all")).unwrap(), "all");
+    assert_eq!(
+        ArReconciliationService::normalize_match_strategy(Some("all")).unwrap(),
+        "all"
+    );
     // None 默认 "all"
-    assert_eq!(validate_match_strategy(None).unwrap(), "all");
+    assert_eq!(
+        ArReconciliationService::normalize_match_strategy(None).unwrap(),
+        "all"
+    );
     // 大写自动转小写
-    assert_eq!(validate_match_strategy(Some("EXACT")).unwrap(), "exact");
+    assert_eq!(
+        ArReconciliationService::normalize_match_strategy(Some("EXACT")).unwrap(),
+        "exact"
+    );
 }
 
 // =====================================================
@@ -434,8 +402,9 @@ async fn test_fwslh_xsjk() {
 /// `connect_empty_schema_db()`（不跑迁移的 `bingxi_empty` 库）。
 ///
 /// 真实契约依据（读函数体，非读注释）：`src/services/ar/vfy_ops/match.rs:22-63`
-/// auto_match 先 `parse_match_strategy`（match.rs:80-96，"all" 合法 ⇒ Ok），随后
-/// `begin` + `load_match_customers`（match.rs:99-114 `customer::Entity::find`）；
+/// auto_match 先 `parse_match_strategy`（match.rs:80-90，委托 `normalize_match_strategy`
+/// :92-102，"all" 合法 ⇒ Ok），随后
+/// `begin` + `load_match_customers`（match.rs:104-119 `customer::Entity::find`）；
 /// 缺表 ⇒ DbErr::Query ⇒ `utils/error.rs:562-565` AppError::database ⇒
 /// error_code "DATABASE_ERROR"（error.rs:747）。
 /// 为什么不能再留在 `setup_test_db()` 上断 Err：该夹具现语义 = 已迁移 PG +

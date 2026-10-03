@@ -35,18 +35,10 @@ impl ArReconciliationService {
             .reconciliation_status
             .as_deref()
             .unwrap_or(ar_status::RECONCILIATION_DRAFT);
-        if status == ar_status::RECONCILIATION_CONFIRMED {
-            return Err(AppError::business("对账单已确认，不可重复确认".to_string()));
-        }
-        if status == ar_status::RECONCILIATION_DISPUTED {
-            return Err(AppError::business(
-                "对账单存在争议，请先解决争议后再确认".to_string(),
-            ));
-        }
+        let target_status = Self::check_customer_confirm_status(status)?;
 
         let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status =
-            Set(Some(ar_status::RECONCILIATION_CONFIRMED.to_string()));
+        active_model.reconciliation_status = Set(Some(target_status.to_string()));
         active_model.confirmed_by_customer = Set(Some(true));
         active_model.confirmed_by = Set(Some(user_id));
         active_model.confirmed_at = Set(Some(Utc::now()));
@@ -86,16 +78,10 @@ impl ArReconciliationService {
             .reconciliation_status
             .as_deref()
             .unwrap_or(ar_status::RECONCILIATION_DRAFT);
-        if status == ar_status::RECONCILIATION_CONFIRMED {
-            return Err(AppError::business("对账单已确认，不可提出争议".to_string()));
-        }
-        if status == ar_status::RECONCILIATION_CLOSED {
-            return Err(AppError::business("对账单已关闭，不可提出争议".to_string()));
-        }
+        let target_status = Self::check_customer_dispute_status(status)?;
 
         let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status =
-            Set(Some(ar_status::RECONCILIATION_DISPUTED.to_string()));
+        active_model.reconciliation_status = Set(Some(target_status.to_string()));
         active_model.dispute_reason = Set(Some(reason.clone()));
         active_model.updated_at = Set(Utc::now());
 
@@ -111,5 +97,33 @@ impl ArReconciliationService {
 
         info!("客户对账单提出争议：id={}, reason={}", id, reason);
         Ok(updated)
+    }
+
+    /// 客户确认状态门（纯状态判定，不触 DB，生产与集成测试同源调用）：
+    /// confirmed 拒绝重复确认，disputed 需先解决争议；其余状态放行并返回目标状态常量
+    /// RECONCILIATION_CONFIRMED。拒绝族别为 `AppError::business`（脱敏业务错误）。
+    pub fn check_customer_confirm_status(status: &str) -> Result<&'static str, AppError> {
+        if status == ar_status::RECONCILIATION_CONFIRMED {
+            return Err(AppError::business("对账单已确认，不可重复确认".to_string()));
+        }
+        if status == ar_status::RECONCILIATION_DISPUTED {
+            return Err(AppError::business(
+                "对账单存在争议，请先解决争议后再确认".to_string(),
+            ));
+        }
+        Ok(ar_status::RECONCILIATION_CONFIRMED)
+    }
+
+    /// 客户争议状态门（纯状态判定，不触 DB，生产与集成测试同源调用）：
+    /// confirmed 不可提争议，closed 不可提争议；其余状态放行并返回目标状态常量
+    /// RECONCILIATION_DISPUTED。拒绝族别为 `AppError::business`（脱敏业务错误）。
+    pub fn check_customer_dispute_status(status: &str) -> Result<&'static str, AppError> {
+        if status == ar_status::RECONCILIATION_CONFIRMED {
+            return Err(AppError::business("对账单已确认，不可提出争议".to_string()));
+        }
+        if status == ar_status::RECONCILIATION_CLOSED {
+            return Err(AppError::business("对账单已关闭，不可提出争议".to_string()));
+        }
+        Ok(ar_status::RECONCILIATION_DISPUTED)
     }
 }
