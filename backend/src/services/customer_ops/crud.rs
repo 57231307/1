@@ -82,11 +82,17 @@ impl CustomerService {
             model
         };
 
-        // 行级数据权限校验（IDOR 防护）：owner=created_by，dept=customer.department_id
-        //（m_rls_dept_domain，与 RLS 策略口径一致）
+        // 行级数据权限校验（IDOR 防护）：customers 的归属列是 **owner_id**，不是 created_by
+        //（权威口径 `migration/src/domain/rls_dept/mod.rs:74`「customers/crm_lead/
+        // crm_opportunity 以 owner_id 为归属列，suppliers/sales_orders 以 created_by」；
+        // `models/customer.rs` 亦注明 created_by 只是可空审计列）。与本文件
+        // `list_customers` 的行级过滤（`customer::Column::OwnerId`）、DB 层 RLS 策略
+        // （`owner_id = app.user_id`）三处同源；曾经按 created_by 判定会让"已转让给他人
+        // 创建的行"其归属人读不到、创建人越权读，且 created_by 为 NULL 的历史/公海行
+        // 对本人也恒不可见（Self 分支 None ⇒ false）。
         // P0-D03：缓存命中的 model 同样需要校验权限，防止越权读取缓存
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, customer.created_by, customer.department_id) {
+            if !check_resource_owner(ctx, Some(customer.owner_id), customer.department_id) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问客户 {}（数据范围限制）",
                     customer_id

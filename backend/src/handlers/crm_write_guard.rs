@@ -14,6 +14,17 @@
 //!   所以默认形态＝"只有超管能代操作，其他 all 范围角色须被显式授予该键"，
 //!   比原来"凡 data_scope=all 都能改任何人"严格，且不夺走超管的运维能力。
 //!
+//! ## 归属列（owner）的取列口径（调用方必须遵守）
+//! `resource_owner_id` 由调用方按**该表在 DB 层的 RLS 归属列**传入，权威原文见
+//! `migration/src/domain/rls_dept/mod.rs:74`：
+//! - `customers` / `crm_lead` / `crm_opportunity` → **`owner_id`**（0 = 未分配/公海）；
+//! - `suppliers` / `sales_orders` → `created_by`。
+//!
+//! 两类列不可混用：`customers.created_by` 只是可空审计列（`models/customer.rs`），
+//! 按它判归属会同时坏两个方向——本人名下但 `created_by` 为 NULL 或"由他人创建后转给
+//! 本人"的行被误判跨 owner（合法归属人被 403），而"本人创建后已转让他人"的行反而放行
+//! 给创建人（跨 owner 漏写）。行级读门（`check_resource_owner`）与本写门必须取同一列。
+//!
 //! ## 留痕
 //! 代操作写成功放行时打结构化 warn 日志（actor/role/resource/owner），且各写入口
 //! 本身都经 `AuditLogService::update_with_audit` 落审计行（actor=操作人），可按

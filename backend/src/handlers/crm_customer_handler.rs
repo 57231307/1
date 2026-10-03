@@ -236,7 +236,9 @@ pub async fn update_customer(
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
     // 行级数据权限门（与其它写入口同判定源，非新增机制）：增强页 PUT 落的是 customers 表行，
-    // 故先走本域既有 `get_customer(id, Some(&ctx))` 预检——owner=created_by、
+    // 故先走本域既有 `get_customer(id, Some(&ctx))` 预检——customers 的归属列是
+    // **owner_id**（`migration/src/domain/rls_dept/mod.rs:74`「customers/crm_lead/
+    // crm_opportunity 以 owner_id 为归属列，suppliers/sales_orders 以 created_by」），
     // dept=department_id，判定源与标准入口（`customer_handler.rs` 写出口）及
     // `utils/data_scope.rs::check_resource_owner` 逐字同源（同 `merge_leads`/
     // `claim_from_pool` 的"先判后写"收口形态）。行不可见即整笔由 `permission_denied`
@@ -249,11 +251,12 @@ pub async fn update_customer(
         .await?;
     // 方案 A（用户 2026-10-02 裁定）：可见 ≠ 可改。跨 owner 写另需 crm/cross_owner_write 键，
     // 放行时代操作事实进结构化日志（各写出口本身已落 update_with_audit 审计行）。
+    // 归属列与上方读门逐字同源（owner_id），不取可空审计列 created_by。
     crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
         state.db.clone(),
         &auth,
         &data_scope_ctx,
-        existing.created_by,
+        Some(existing.owner_id),
         existing.department_id,
         "客户更新（增强入口）",
     )

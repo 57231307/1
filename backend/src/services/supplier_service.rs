@@ -144,6 +144,9 @@ impl SupplierService {
             category_id: Set(req.category_id),
             is_processor: Set(req.is_processor.unwrap_or(false)),
             processor_type: Set(req.processor_type.clone()),
+            // 备注与更新路径同源写入（更新分支见 `apply_supplier_business_fields`）：
+            // 建单时用户填的备注必须落库，入参省略则该可空列保持 NULL（不造默认值）。
+            remarks: Set(req.remarks.clone()),
             created_by: Set(Some(user_id)),
             ..Default::default()
         }
@@ -1113,6 +1116,9 @@ pub struct CreateSupplierRequest {
     pub category_id: Option<i32>,
     pub is_processor: Option<bool>,
     pub processor_type: Option<String>,
+    /// 备注（DDL TEXT NULL）。与 `UpdateSupplierRequest.remarks` 同名同类型：
+    /// 创建与更新的字段集合必须对称，否则前端建档弹窗填的备注会在建单时被静默丢弃。
+    pub remarks: Option<String>,
     #[validate(nested)]
     pub contacts: Option<Vec<CreateContactRequest>>,
     #[validate(nested)]

@@ -352,7 +352,8 @@ pub async fn update_customer(
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
     // 行级数据权限（IDOR）防护：复用 get_customer 内部的 check_resource_owner
-    // （owner=created_by、dept=department_id），与 update_supplier/delete_supplier/delete_order
+    // （customers 归属列 = owner_id，dept=department_id；权威口径见
+    // `migration/src/domain/rls_dept/mod.rs:74`），与 update_supplier/delete_supplier/delete_order
     // 的「先 get_X(Some(&data_scope_ctx))」写法同源——self 仅本人、dept 限可见部门集合、
     // all 放行；越权返回 403（permission_denied），不静默放行。
     let data_scope_ctx = auth.to_data_scope_context();
@@ -362,11 +363,14 @@ pub async fn update_customer(
     // 方案 A（用户 2026-10-02 裁定）：读可 All、写须 owner 或显式「管理员代操作」键 + 留痕。
     // 上面的 get_customer 只保证"看得见"（All 看得见全库），看不见才 403；跨 owner 的
     // **写**另由本门判定，未授予 crm/cross_owner_write 的角色改他人客户即 403。
+    // 归属列与读门逐字同源（owner_id）：created_by 只是可空审计列，按它判定会把
+    // "本人名下但 created_by 为 NULL/由他人创建后转给我"的行误判为跨 owner（合法
+    // 归属人被拒），同时把"我创建后已转让他人"的行放行给创建人（越权写）。
     crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
         state.db.clone(),
         &auth,
         &data_scope_ctx,
-        existing.created_by,
+        Some(existing.owner_id),
         existing.department_id,
         "客户更新",
     )
@@ -436,18 +440,20 @@ pub async fn delete_customer(
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
     // V15 P0-S01/P0-S02：行级数据权限（IDOR）防护——删除前先按当前用户数据范围校验资源归属，
-    // 复用 get_customer 内部 check_resource_owner，与 update_supplier/delete_supplier/delete_order
+    // 复用 get_customer 内部 check_resource_owner（customers 归属列 = owner_id），
+    // 与 update_supplier/delete_supplier/delete_order
     // 的「先 get_X(Some(&data_scope_ctx))」写法同源；越权返回 403（permission_denied），不静默放行。
     let data_scope_ctx = auth.to_data_scope_context();
     let existing = customer_service
         .get_customer(id, Some(&data_scope_ctx))
         .await?;
-    // 方案 A：删除是跨 owner 写的最强形态，须 owner 本人或持有代操作键（All 范围）
+    // 方案 A：删除是跨 owner 写的最强形态，须 owner 本人或持有代操作键（All 范围）；
+    // 归属列与上方读门逐字同源（owner_id，非可空审计列 created_by）。
     crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
         state.db.clone(),
         &auth,
         &data_scope_ctx,
-        existing.created_by,
+        Some(existing.owner_id),
         existing.department_id,
         "客户删除",
     )

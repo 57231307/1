@@ -373,10 +373,11 @@ pub async fn is_document_no_taken<C: ConnectionTrait>(
     use crate::models::{
         ap_invoice, ap_payment, ap_payment_request, ap_reconciliation, ap_verification,
         ar_collection, ar_invoice, ar_reconciliation, bpm_process_instance, bpm_task,
-        cost_collection, crm_lead, customer, inventory_adjustment, inventory_count,
-        inventory_transfer, mrp_result, outsourcing_order, outsourcing_receipt, product,
-        purchase_inspection, purchase_order, purchase_receipt, purchase_return, sales_delivery,
-        sales_order, sales_quotation, sales_return, supplier, voucher, warehouse,
+        cost_collection, crm_lead, crm_opportunity, customer, customer_transfer_approval,
+        inventory_adjustment, inventory_count, inventory_transfer, mrp_result, outsourcing_order,
+        outsourcing_receipt, outsourcing_voucher, process_wage_rate, product, purchase_inspection,
+        purchase_order, purchase_receipt, purchase_return, sales_delivery, sales_order,
+        sales_quotation, sales_return, supplier, voucher, wage_record, warehouse,
     };
 
     let taken = match doc_type {
@@ -430,6 +431,26 @@ pub async fn is_document_no_taken<C: ConnectionTrait>(
             .is_some(),
         "outsourcing_receipt" => outsourcing_receipt::Entity::find()
             .filter(outsourcing_receipt::Column::ReceiptNo.eq(no))
+            .one(db)
+            .await?
+            .is_some(),
+        // 委外加工凭证：四类前缀 OVIS/OVFE/OVRC/OVLS 同落 outsourcing_voucher.voucher_no
+        // （取号/查重方 services/outsourcing_ops/voucher.rs），未登记时
+        // /document-no/check 对该单据 400 ⇒ 前端预生成号无法查重。
+        "outsourcing_voucher" => outsourcing_voucher::Entity::find()
+            .filter(outsourcing_voucher::Column::VoucherNo.eq(no))
+            .one(db)
+            .await?
+            .is_some(),
+        // —— 薪酬域（WR→wage_record.record_no、PWR→process_wage_rate.rate_no，
+        //    取号方 services/wage_ops/{record,rate}.rs）——
+        "wage_record" => wage_record::Entity::find()
+            .filter(wage_record::Column::RecordNo.eq(no))
+            .one(db)
+            .await?
+            .is_some(),
+        "process_wage_rate" => process_wage_rate::Entity::find()
+            .filter(process_wage_rate::Column::RateNo.eq(no))
             .one(db)
             .await?
             .is_some(),
@@ -516,8 +537,22 @@ pub async fn is_document_no_taken<C: ConnectionTrait>(
             .one(db)
             .await?
             .is_some(),
+        // 商机编号（OPP{YYYYMMDD}{3位流水}，取号方 services/crm/opp.rs）
+        "crm_opportunity" => crm_opportunity::Entity::find()
+            .filter(crm_opportunity::Column::OpportunityNo.eq(no))
+            .one(db)
+            .await?
+            .is_some(),
         "customer" => customer::Entity::find()
             .filter(customer::Column::CustomerCode.eq(no))
+            .one(db)
+            .await?
+            .is_some(),
+        // 客户转移审批单号（TA{YYYYMMDD}{3位流水}，取号方
+        // services/crm/customer_transfer_approval_service.rs；实体名单数、真实表
+        // customer_transfer_approvals）
+        "customer_transfer_approval" => customer_transfer_approval::Entity::find()
+            .filter(customer_transfer_approval::Column::ApprovalNo.eq(no))
             .one(db)
             .await?
             .is_some(),

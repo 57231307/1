@@ -98,9 +98,54 @@ pub fn is_known_resource_segment(part: &str) -> bool {
     is_direct_resource(part)
 }
 
+/// 真·双层模块前缀组合（seg3 与 seg4 **都**在 [`is_module_prefix`] 表内，且 seg4 确实是
+/// seg3 挂载下的子模块，资源名落在 seg5）。
+///
+/// 为什么需要这张表：`extract_resource_info` 的"两段都是模块前缀就跳段取 seg5"判据
+/// 只看词面，不看挂载关系。同一个词在别的挂载点下是子模块、在本挂载点下却是**资源名**，
+/// 跳段就会把查询维度/动作段当成权限资源名，派生出 `by-time:read`、`kpi:read` 这类
+/// 注册表里根本没有、任何角色都无法被授予的伪键（fail-closed ⇒ 除通配 admin 外全员 403，
+/// 且本域已登记的授权键成为死码）。
+///
+/// 表内容 = 全量挂载逐条实证（`frontend/scripts/route-snapshot.txt` 中 seg3/seg4 同时
+/// 命中模块前缀的全部组合）：未列出的组合一律**不跳段**，资源名取 seg4。
+/// 新增子模块挂载时必须同时在此登记，否则该挂载的资源键会漂到 seg5 的维度名上。
+pub fn is_nested_module_prefix(module_prefix: &str, sub_prefix: &str) -> bool {
+    matches!(
+        (module_prefix, sub_prefix),
+        // advanced 域下挂 ai / reports 两个子模块（资源名在 seg5：
+        // anomaly-detection、recipe-optimization、templates、execute…）
+        ("advanced", "ai")
+            | ("advanced", "reports")
+            // 应付/应收各自的报表子模块（aging/daily/monthly/statistics）
+            | ("ap", "reports")
+            | ("ar", "reports")
+            // 色卡域下的报表子模块（customer-ledger/issue-detail/…）
+            | ("color-cards", "reports")
+            // 财务域下的报表子模块（balance-sheet/cash-flow/…）
+            | ("finance", "reports")
+            // 生产域下的生产工单子模块（f059841b 消歧的那一族，资源名在 seg5="orders"）
+            | ("production", "production-orders")
+            // purchase 挂载下的 purchase 子模块（inspections/returns）
+            | ("purchase", "purchase")
+    )
+}
+
 /// V15 P1-14.4-C：模块前缀资源消歧映射表（同资源段跨模块时对齐权限定义；sales 域 orders 保留原名其余加 sales- 前缀，purchase 域全部加 purchase- 前缀）
 pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> String {
     match (module_prefix, resource) {
+        // ===== BI 分析域：`/erp/bi/sales/*` 的资源段消歧 =====
+        // seg4="sales" 同时是销售域的模块前缀词（`is_module_prefix` 命中），历史上被
+        // 双层前缀规则跳段取了 seg5（by-time/by-customer/trend/kpi/pivot…），而这些是
+        // **查询维度/动作段**、不是资源；派生出的 `by-time:read` 等键在注册表
+        // （`init_service.rs` 资源清单）与角色种子中都不存在 ⇒ BI 销售分析对持
+        // `bi-analysis:read` 授权的角色也恒 403（已登记的键成死码）。
+        // 消歧到注册表权威名 bi-analysis（与同域 `sales-analysis` 的登记方式同构），
+        // 且必须与 `is_nested_module_prefix` 的"bi/sales 不是子模块"判定同时成立才生效。
+        // 方向为纯收窄：BI 端点只认 BI 自己的键，不因 URL 里出现 "sales" 一词
+        // 就让任何持有销售域键的角色顺带读到 BI 面（与 production-orders 那一刀同理，
+        // 不新增任何"角色 × 资源 × 动作"授权）。
+        ("bi", "sales") => "bi-analysis".to_string(),
         // ===== 采购域：权限定义使用 purchase- 前缀 =====
         ("purchase", "orders") => "purchase-orders".to_string(),
         ("purchase", "returns") => "purchase-returns".to_string(),
