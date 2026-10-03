@@ -12,7 +12,7 @@ use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_
 use axum::{
     Json,
     body::Body,
-    extract::{Multipart, Path, Query, State},
+    extract::{DefaultBodyLimit, FromRequest, Multipart, Path, Query, Request, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
@@ -632,7 +632,8 @@ pub async fn get_supplier_purchase_history(
 const QUALIFICATION_ATTACHMENT_ALLOWED_EXTS: &[&str] = &["pdf", "jpg", "jpeg", "png"];
 
 /// 资质附件大小上限（5MB）：双端校验（前端上传前 + 后端，与头像上传同一"双保险"口径）；
-/// 必须小于全局请求体上限（bootstrap/middleware_bootstrap.rs MAX_HTTP_BODY_BYTES = 12MB），
+/// 必须小于全局请求体上限（constants.rs MAX_HTTP_BODY_BYTES = 12MB，全局 DefaultBodyLimit
+/// 层与本 handler 单点覆写同源引用），
 /// 为 multipart 边界开销留足余量，避免超限请求先被全局 body limit 掐断成不可解释的失败。
 const MAX_QUALIFICATION_ATTACHMENT_SIZE: usize = 5 * 1024 * 1024;
 
@@ -791,8 +792,31 @@ pub async fn upload_supplier_qualification_attachment(
     Path((supplier_id, qualification_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     auth: AuthContext,
-    mut multipart: Multipart,
+    request: Request,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    // 通道前提：axum Multipart 提取器自带 2MB 默认请求体上限，若不覆写，超限文件在
+    // `Field::bytes()` 处即被 LengthLimitError 掐断——下方第 4) 步的 5MB 显式大小校验
+    // 根本执行不到，"体积超限"这一输入校验族的拒绝会畸形成流读取失败的 BUSINESS_ERROR
+    // （族别错判）。在此单点把上限覆写为全局 HTTP 请求体上限（复用权威常量
+    // crate::constants::MAX_HTTP_BODY_BYTES，与全局中间件层同源，不造第二套上限值）：
+    // 该范围内字节流可完整读入，"超过 5MB"的业务判定唯一落点即第 4) 步显式校验。
+    let mut request = request;
+    DefaultBodyLimit::max(crate::constants::MAX_HTTP_BODY_BYTES).apply(&mut request);
+    let mut multipart = <Multipart as FromRequest<_>>::from_request(request, &())
+        .await
+        .map_err(|e| {
+            tracing::warn!(
+                user_id = auth.user_id,
+                supplier_id,
+                qualification_id,
+                error = %e,
+                "资质附件上传请求不是合法 multipart（Content-Type 缺失或无 boundary）"
+            );
+            // 请求形态非法属输入格式校验族（VALIDATION），文案只述请求形态事实
+            AppError::validation_displayable(
+                "上传请求必须是合法的 multipart/form-data（需包含 boundary）",
+            )
+        })?;
     let service = SupplierService::new(state.db.clone());
     let data_scope_ctx = auth.to_data_scope_context();
     // 1) 父资源归属门控 + 行级数据权限（与 list/create/update/delete 资质端点同源）
@@ -919,7 +943,10 @@ pub async fn upload_supplier_qualification_attachment(
     tokio::fs::create_dir_all(dir)
         .await
         .map_err(|e| AppError::internal(format!("创建资质附件目录失败：{}", e)))?;
-    let generated_name = format!("{}.{}.{}", supplier_id, qualification_id, ext);
+    // 受控文件名单点号形态 `{supplier_id}_{qualification_id}.{ext}`（与上方文档清单第 7 条、
+    // 读取端 `{}_{}.` 前缀校验同一权威口径）：`{sid}.{qid}.{ext}` 双点号会使
+    // `Path::extension()` 定位、后缀白名单与读取端前缀校验全部漂移，禁止回潮。
+    let generated_name = format!("{}_{}.{}", supplier_id, qualification_id, ext);
     let attachment_url = format!("{}{}", QUALIFICATION_ATTACHMENT_URL_PREFIX, generated_name);
     // VARCHAR(500) 列宽防线：在落盘前先显式拒绝超长生成形态，避免磁盘与库不一致
     if attachment_url.len() > SupplierService::MAX_ATTACHMENT_PATH_LEN {
@@ -943,7 +970,7 @@ pub async fn upload_supplier_qualification_attachment(
             continue;
         }
         let stale = dir.join(format!(
-            "{}.{}.{}",
+            "{}_{}.{}",
             supplier_id, qualification_id, stale_ext
         ));
         match tokio::fs::remove_file(&stale).await {

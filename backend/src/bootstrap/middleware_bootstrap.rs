@@ -28,9 +28,9 @@ use crate::routes::create_router;
 // ============================================================================
 // 安全漏洞 #8 修复：HTTP 请求体大小限制常量
 // ============================================================================
-// 12MB 全局请求体上限（CSV 导入 10MB + 2MB JSON 编码/头部余量）
-/// 全局 HTTP 请求体大小上限：12 MB
-pub const MAX_HTTP_BODY_BYTES: usize = 12 * 1024 * 1024;
+// 数值唯一事实源在 constants.rs（lib/bin 双 crate 树共享同一源文件），此处仅做
+// 同源再导出，保持 `middleware_bootstrap::MAX_HTTP_BODY_BYTES` 既有引用路径不变。
+pub use crate::constants::MAX_HTTP_BODY_BYTES;
 
 /// 构建 CORS 中间件层，基于配置白名单动态校验 Origin。
 pub fn build_cors_layer(allowed_origins: Vec<String>) -> CorsLayer {

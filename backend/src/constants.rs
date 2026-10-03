@@ -36,3 +36,10 @@ pub const DEFAULT_DEPARTMENT_ID: i32 = 1;
 /// 用于 purchaser_id 字段的默认值。当前系统仅配置了一个采购员（ID=1）。
 /// 应由当前登录用户的采购员身份决定。
 pub const DEFAULT_PURCHASER_ID: i32 = 1;
+
+/// 全局 HTTP 请求体大小上限：12 MB（安全漏洞 #8 既定值：CSV 导入 10MB + 2MB 编码/头部余量）。
+///
+/// 唯一事实源：`bootstrap/middleware_bootstrap.rs` 的全局 `DefaultBodyLimit` 层与任何
+/// handler 内单点覆写提取上限（如供应商资质附件上传须让业务侧 5MB 显式校验先于
+/// axum Multipart 的 2MB 默认截断生效）都引用本常量，禁止在业务代码里另写第二份数值。
+pub const MAX_HTTP_BODY_BYTES: usize = 12 * 1024 * 1024;
