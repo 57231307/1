@@ -498,7 +498,11 @@ fn bi_delete_permission_key_derivation_is_locked() {
     // (路径, 期望资源键, 期望动作)
     let cases: Vec<(&str, &str, &str)> = vec![
         // 真实挂载的 /bi/sales/* 族：消歧后统一派生 bi-analysis
-        ("/api/v1/erp/bi/sales/by-time", "bi-analysis", delete.as_str()),
+        (
+            "/api/v1/erp/bi/sales/by-time",
+            "bi-analysis",
+            delete.as_str(),
+        ),
         // 以下三条路径未注册（幽灵），仅锁推导形态，见函数头 ⚠️ 段
         ("/api/v1/erp/bi/dashboards/1", "dashboards", "delete"),
         ("/api/v1/erp/bi/charts/2", "charts", "delete"),
