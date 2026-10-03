@@ -10,7 +10,8 @@ import {
   ensureTestEntities,
   getCtx,
   genCode,
-  seedFourDimStockIn,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
   seedGreigeStockIn,
   failureCode,
   APP_ERROR_CODES,
@@ -123,28 +124,32 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
   }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    // 根因C：建调拨单前，调出仓须对该产品有「维度匹配」的足量库存，否则
-    // inv/stock.rs::check_from_warehouse_inventory 正确返回 BUSINESS_ERROR（无匹配库存）、
-    // 拿不到 data.id → 后续 URL 退化为 /undefined、ship 负例断言假绿。
-    // 本用例目标是「pending 直接 ship 应被状态门拒绝」，与白坯/染色无关；又因
-    // /inventory/stock/fabric 对 color_no 强制 length(min=1)（inventory_stock_handler_dto.rs:20），
-    // 白坯空色号无法经该端点播种，故采用染色口径：先 seed 一行与本用例调拨明细
-    // 逐一对应（款号+色号+缸号+批次）的真实库存，再建单（不造假库存）。
-    const tag = Date.now().toString().slice(-6);
-    const colorNo = `E2E-TF-C${tag}`;
-    const dyeLotNo = `E2E-TF-D${tag}`;
-    const batchNo = `E2E-TF-B${tag}`;
-    await seedFourDimStockIn(page, {
+    // 根因C + 用户 2026-10-02 口径（出库四维第四维=匹号）：建调拨单前，调出仓须对该产品
+    // 有「维度匹配」的足量库存行，且染色布（color_no 非空）明细在建单期即强制
+    // 缸号+色号+批次+匹号四维（inv/fabric_class.rs::normalize_outbound_piece_no，
+    // CI #4671 原文「染色布必须提供匹号…四维强制」在本用例建单 POST 就抛，导致
+    // 下方 ship 状态机负例根本没执行——非词表/CHECK 问题；反证：44e-4b 白坯 color_no=""
+    // 本轮通过，白坯免填放行正确）。
+    // 本用例目标是「pending 直接 ship 应被状态门拒绝」，与白坯/染色无关；旧
+    // seedFourDimStockIn 灌的 batch≠缸号 库存行按写入方口径（piece_domain_service.rs:518-556
+    // 染色匹恒 batch=缸号）配不出真实匹，四维预检必拒 ⇒ 改用匹感知 seed 先例
+    // （flow/07 委外染色真实链、flow/12 同法）：真实 AVAILABLE 染色匹 + 同维库存行，
+    // 明细维度逐一对应真实落库值，不造假、不绕门控。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
       productId: ctx.productIds[0],
-      warehouseId: ctx.warehouseIds[0],
-      colorNo,
-      dyeLotNo,
-      batchNo,
+      warehouseId: target.id,
       quantityMeters: '1000',
+      pieceCount: 1,
+      context: '44e-4',
     });
+    const colorNo = bundle.colorNo;
+    const dyeLotNo = bundle.dyeLotNo;
+    const batchNo = bundle.dyeLotNo; // 写入方口径：染色匹 批次=缸号
+    const pieceNo = bundle.pieces[0].piece_no;
     const tf = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
-      from_warehouse_id: ctx.warehouseIds[0],
-      to_warehouse_id: ctx.warehouseIds[1],
+      from_warehouse_id: target.id,
+      to_warehouse_id: ctx.warehouseIds.find(id => id !== target.id) || ctx.warehouseIds[1],
       items: [
         {
           product_id: ctx.productIds[0],
@@ -152,6 +157,7 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
           color_no: colorNo,
           dye_lot_no: dyeLotNo,
           batch_no: batchNo,
+          piece_no: pieceNo,
         },
       ],
     });

@@ -54,13 +54,40 @@ test.describe('采购退货完整流程', () => {
     ).toBeTruthy();
 
     // 添加退货明细（后端需要独立端点添加 items）
-    // 明细缺失会导致 approve 撞"退货单至少需要一行明细"，失败必须暴露
+    // 明细缺失会导致 approve 撞"退货单至少需要一行明细"，失败必须暴露。
+    // 审批扣库存门控（purchase_return_service.rs::return_item_stock_key :109-124 +
+    // apply 校验 :498-530）：退货明细按 产品+色号+缸号+批次 四维**精确匹配**库存行，
+    // 不兜底、不回退到"任意同产品行"（CI #4671 原文「退货明细的色号/缸号/批次在仓库中
+    // 没有对应的库存行」；backend.log 明示"不兜底"）。旧明细不带维度 ⇒ 落库空串 ⇒
+    // 审批必被正当拒绝。正解=把上面真实库存行的维度逐字段回填进退货明细（采购退货
+    // 定位键无第四维匹号，与出库/调拨四维口径不同，以写入方 StockDimKey 为准）。
+    const stockColorNo = String(stockRow.color_no ?? '');
+    const stockDyeLotNo = String(stockRow.dye_lot_no ?? '');
+    const stockBatchNo = String(stockRow.batch_no ?? '');
     await apiCall(page, 'POST', `/purchase/returns/${returnId}/items`, {
       line_no: 1,
       material_id: Number(stockRow.product_id) || ctx.productIds[0] || 1,
       quantity_returned: '10',
       unit_price: '15.50',
+      color_no: stockColorNo,
+      dye_lot_no: stockDyeLotNo,
+      batch_no: stockBatchNo,
     });
+
+    // 写后必回读：明细落库维度必须等于所引用库存行的真实维度（不是响应假值）
+    const returnItems = await apiCallRaw<Array<Record<string, unknown>>>(
+      page,
+      'GET',
+      `/purchase/returns/${returnId}/items`
+    );
+    expect(Array.isArray(returnItems) && returnItems.length, '退货明细应至少一行').toBeGreaterThan(
+      0
+    );
+    expect(String(returnItems[0].color_no), '退货明细色号应等于库存行色号').toBe(stockColorNo);
+    expect(String(returnItems[0].dye_lot_no ?? ''), '退货明细缸号应等于库存行缸号').toBe(
+      stockDyeLotNo
+    );
+    expect(String(returnItems[0].batch_no), '退货明细批次应等于库存行批次').toBe(stockBatchNo);
 
     // 验证退货单状态
     const created = await apiCallRaw<{ return_status?: string; supplier_id: number }>(

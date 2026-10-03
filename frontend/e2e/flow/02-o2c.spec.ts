@@ -240,6 +240,26 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const id = ctx.salesOrderId;
     expect(id, '2-4 未产出销售订单，发货链路无从验证').toBeTruthy();
 
+    // 发货明细产品必须属于该订单行（#4669「订单外产品被静默按 0 单价/0 发货量」的
+    // 收口门控，so/delivery_ops/ship.rs::ensure_ship_items_belong_to_order，不许回退）：
+    // 本订单由 2-4 报价单 convert 而来，订单行产品=报价行产品 ctx.quotationProductId。
+    // 旧写法发 ctx.productIds[0]||1（订单外产品）被门控正当拒绝（CI #4671 原文
+    // 「发货明细中存在该销售订单未包含的产品」）⇒ 正解是先回读订单明细、按订单行产品发货，
+    // 并钉住「转单后订单行含报价行产品」这一契约，而不是放宽发货入参接受任意产品。
+    const orderDetail = await apiCallRaw<{ items?: Array<{ product_id: number }> }>(
+      page,
+      'GET',
+      `/sales/orders/${id}`
+    );
+    const lineProductIds = (orderDetail.items ?? []).map(l => Number(l.product_id));
+    const shipProductId = lineProductIds.find(p => p === Number(ctx.quotationProductId));
+    expect(
+      shipProductId,
+      `2-4 转单订单 ${id} 的明细行应包含报价行产品 ${ctx.quotationProductId}` +
+        `（实际订单行产品集合=${JSON.stringify(lineProductIds)}）；发货必须按订单行产品`
+    ).toBeTruthy();
+    const productId = Number(shipProductId);
+
     // warehouse_code：从仓库列表取第一个真实编码（ShipOrderRequest 传 code 而非 id）
     // 注意 warehouse 列表字段名为 warehouse_code（非 code）
     let warehouseCode = 'WH001';
@@ -267,7 +287,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     // （helpers.seedDyedOutboundBundle → 委外染色真实链，见 flow/07 先例），
     // 出库两笔逐匹消耗（500→{缸}-001，300→{缸}-002）。
     const bundle = await seedDyedOutboundBundle(page, {
-      productId: ctx.productIds[0] || 1,
+      productId,
       warehouseId,
       quantityMeters: '1000',
       pieceCount: 2,
@@ -283,7 +303,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       warehouse_code: warehouseCode,
       items: [
         {
-          product_id: ctx.productIds[0] || 1,
+          product_id: productId,
           quantity: 500,
           batch_no: bundle.dyeLotNo,
           color_no: bundle.colorNo,
@@ -291,7 +311,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
           piece_no: pieceNo1,
         },
         {
-          product_id: ctx.productIds[0] || 1,
+          product_id: productId,
           quantity: 300,
           batch_no: bundle.dyeLotNo,
           color_no: bundle.colorNo,
@@ -304,7 +324,7 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     // 第四维消耗回读（写后必回读）：两匹必须 AVAILABLE→SHIPPED
     for (const pieceNo of [pieceNo1, pieceNo2]) {
       const consumed = await readDyedPieceByNo(page, {
-        productId: ctx.productIds[0] || 1,
+        productId,
         warehouseId,
         dyeLotNo: bundle.dyeLotNo,
         batchNo: bundle.dyeLotNo,
@@ -330,7 +350,11 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
   test('2-7 验证库存扣减（四维查询）', async ({ page }) => {
     const ctx = getCtx();
-    const productId = ctx.productIds[0] || 1;
+    // 2-6 已按订单行产品（=报价行产品）发货，出库量必然落在该产品库存行上；
+    // 旧写法查 ctx.productIds[0]（订单外产品）与 2-6 发货产品不是同一个，
+    // 与「发货明细必须属订单行」门控（ship.rs::ensure_ship_items_belong_to_order）矛盾。
+    const productId = ctx.quotationProductId;
+    expect(productId, '前置失败：报价专用产品未就绪').toBeTruthy();
 
     // 2-6 发货 500+300，出库量必须落到该产品的库存行上。
     // 注意：发货选行只按（产品 + 仓库），不校验订单行的色号/缸号
