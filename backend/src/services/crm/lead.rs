@@ -220,19 +220,19 @@ impl CrmService {
     ///
     /// 电话/邮箱列集合不在本函数重写：直接复用本仓 PII 列集合的权威定义
     /// `utils::field_mask::mask_contact_fields_for_role`（电话类含 `mobile_phone` 与
-    /// `tel_phone`，邮箱类含 `email`；该函数自身对 `role_id==Some(1)` 放行原文），
+    /// `tel_phone`，邮箱类含 `email`；该函数对权威源判定入参 `is_admin=true` 放行原文），
     /// 本函数只补它未覆盖的 `address` 整键移除（详情级个人信息，非 admin 不外显，
     /// 与列表既有口径一致）。角色数据权限"有权限行 → filter_fields"这一层不在此函数内：
     /// 判定源仍是 `data_permission_service.get_role_data_permission`，见
     /// `crm_handler::apply_lead_field_permission`。
-    pub fn mask_lead_pii_defaults(
-        value: serde_json::Value,
-        role_id: Option<i32>,
-    ) -> serde_json::Value {
-        let mut masked = crate::utils::field_mask::mask_contact_fields_for_role(value, role_id);
-        // admin 保持原文契约（含 address）：与 mask_contact_fields_for_role 自身的
-        // role_id==Some(1) 放行判定同一口径，不在此处另判一次列集合。
-        if role_id != Some(1) {
+    pub fn mask_lead_pii_defaults(value: serde_json::Value, is_admin: bool) -> serde_json::Value {
+        let mut masked = crate::utils::field_mask::mask_contact_fields_for_role(value, is_admin);
+        // admin 保持原文契约（含 address）：`is_admin` 由 async 调用方经本仓唯一权威源
+        // `utils/admin_checker::is_admin_role`（roles.code='admin'，角色缺失/查询失败
+        // fail-closed=false）算出后传入，与 `mask_contact_fields_for_role` 自身的放行
+        // 判定同一入参同源，不在此处另判一次列集合，更不判定角色主键字面量
+        // （播种漂移时字面量判定会静默剔权/静默扩权）。
+        if !is_admin {
             if let Some(obj) = masked.as_object_mut() {
                 obj.remove("address");
             }

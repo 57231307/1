@@ -18,6 +18,7 @@ use crate::services::crm::cust::CrmService;
 use crate::services::customer_service::{
     CreateCustomerContactRequest, CustomerService, UpdateCustomerArgs, UpdateCustomerContactRequest,
 };
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -75,8 +76,9 @@ pub struct CreateTagDto {
 /// 判定源 = `data_permission_service.get_role_data_permission(role_id, "customer")`，
 /// 但**两层叠加而非二选一**：
 /// 1. 先 `CrmService::mask_customer_pii_defaults`（掩码列集合 = `utils/field_mask` 权威定义
-///    `mask_contact_fields_for_role`，非 admin 另加 `address` 整键移除；admin 由该函数
-///    自身放行原文），非 admin 恒定执行；
+///    `mask_contact_fields_for_role`，非 admin 另加 `address` 整键移除；admin 放行原文
+///    依据入参 `is_admin`，由本函数经唯一权威源 `admin_checker::is_admin_role` 算出），
+///    非 admin 恒定执行；
 /// 2. 再叠加权限行的 `filter_fields_batch`（allowed 白名单保留 / hidden 移除）。
 /// 之所以不能像线索域那样"配了权限行就只按配置处理"：`filter_fields`（
 /// `services/data_permission_service.rs:202-222`）只会**删键**、不会把值还原成原文，
@@ -98,9 +100,17 @@ pub(crate) async fn apply_customer_field_permission(
     role_id: Option<i32>,
     rows: &mut [serde_json::Value],
 ) {
-    // 第 1 层：默认脱敏对非 admin 恒定执行（admin 由 mask_customer_pii_defaults 自身放行原文）
+    // admin 判定唯一权威源（D-4 收口口径）：`admin_checker::is_admin_role`
+    // （roles.code='admin'；role_id 缺失或查询失败 fail-closed=false，与原字面量判定下
+    // "无角色必脱敏"同一 fail-closed 方向）。每请求在循环外算一次并复用，
+    // 禁止下放进逐行循环（admin_checker 内部带 5 分钟缓存 + DashMap 自死锁修复史）。
+    let is_admin = match role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
+    // 第 1 层：默认脱敏对非 admin 恒定执行（admin 按上方权威源判定放行原文）
     for row in rows.iter_mut() {
-        *row = CrmService::mask_customer_pii_defaults(std::mem::take(row), role_id);
+        *row = CrmService::mask_customer_pii_defaults(std::mem::take(row), is_admin);
     }
 
     // 第 2 层：叠加权限行的 allowed/hidden（只删键，不会把第 1 层的掩码还原成原文）

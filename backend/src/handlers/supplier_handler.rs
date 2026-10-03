@@ -5,6 +5,7 @@ use crate::services::supplier_service::{
     CreateContactRequest, CreateQualificationRequest, CreateSupplierRequest, SupplierQueryParams,
     SupplierService, UpdateContactRequest, UpdateSupplierRequest,
 };
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 // V15 P0-S15/P0-S12 补齐（Batch 474）：导出端点使用水印版 xlsx 工具
@@ -34,18 +35,21 @@ pub async fn list_suppliers(
         .await?;
 
     let mut value = serde_json::to_value(result).map_err(AppError::from)?;
-    // P1-08-5：非管理员对供应商列表手机号/邮箱脱敏（含 contacts 子数组）
-    value =
-        crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "list");
-    value =
-        crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "items");
-    value =
-        crate::utils::field_mask::mask_contact_fields_batch_for_role(value, auth.role_id, "data");
+    // P1-08-5：非管理员对供应商列表手机号/邮箱脱敏（含 contacts 子数组）。
+    // admin 判定走本仓唯一权威源 admin_checker::is_admin_role（roles.code='admin'，
+    // role_id 缺失/查询失败 fail-closed=false，与原字面量判定下"无角色必脱敏"同方向），
+    // 每请求在循环外算一次并复用，禁止下放进逐行循环（admin_checker 带 5 分钟缓存）。
+    let is_admin = match auth.role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
+    value = crate::utils::field_mask::mask_contact_fields_batch_for_role(value, is_admin, "list");
+    value = crate::utils::field_mask::mask_contact_fields_batch_for_role(value, is_admin, "items");
+    value = crate::utils::field_mask::mask_contact_fields_batch_for_role(value, is_admin, "data");
     // 顶层若为数组也脱敏
     if let Some(arr) = value.as_array_mut() {
         for item in arr.iter_mut() {
-            *item =
-                crate::utils::field_mask::mask_contact_fields_for_role(item.clone(), auth.role_id);
+            *item = crate::utils::field_mask::mask_contact_fields_for_role(item.clone(), is_admin);
         }
     }
 
@@ -88,8 +92,13 @@ pub async fn get_supplier(
     let supplier = service.get_supplier(id, Some(&data_scope_ctx)).await?;
 
     let mut value = serde_json::to_value(supplier).map_err(AppError::from)?;
-    // P1-08-5：非管理员对供应商详情手机号/邮箱脱敏
-    value = crate::utils::field_mask::mask_contact_fields_for_role(value, auth.role_id);
+    // P1-08-5：非管理员对供应商详情手机号/邮箱脱敏；
+    // admin 判定走唯一权威源 admin_checker::is_admin_role（口径同 list_suppliers）。
+    let is_admin = match auth.role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
+    value = crate::utils::field_mask::mask_contact_fields_for_role(value, is_admin);
 
     // B12-P2-2：字段级权限过滤
     if let Some(role_id) = auth.role_id {

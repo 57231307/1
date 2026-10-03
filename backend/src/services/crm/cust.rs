@@ -90,17 +90,19 @@ impl CrmService {
     /// 非 admin 不外显）；本函数不新增任何列名，也不为 `city/province/postal_code/
     /// bank_account/tax_id` 等列另造清单——那些列的隐藏口径属待裁定项，不在本轮收口范围。
     ///
-    /// admin（`role_id == Some(1)`）由 `mask_contact_fields_for_role` 自身放行原文
-    /// （含 `address`），既有原值契约不变，故此处不重复判定角色。
+    /// admin（由 async 调用方经本仓唯一权威源 `utils/admin_checker::is_admin_role`
+    /// （roles.code='admin'，角色缺失/查询失败 fail-closed=false）算出的 `is_admin` 入参）
+    /// 放行原文（含 `address`），既有原值契约不变，故此处不重复判定角色，
+    /// 更不判定角色主键字面量（播种漂移时字面量判定会静默剔权/静默扩权）。
     /// 角色数据权限"有权限行 → `filter_fields_batch`"这一层不在此函数内：判定源仍是
     /// `data_permission_service.get_role_data_permission(role_id, "customer")`，
     /// 见 `crm_customer_handler::apply_customer_field_permission`。
     pub fn mask_customer_pii_defaults(
         value: serde_json::Value,
-        role_id: Option<i32>,
+        is_admin: bool,
     ) -> serde_json::Value {
-        let mut masked = crate::utils::field_mask::mask_contact_fields_for_role(value, role_id);
-        if role_id != Some(1) {
+        let mut masked = crate::utils::field_mask::mask_contact_fields_for_role(value, is_admin);
+        if !is_admin {
             if let Some(obj) = masked.as_object_mut() {
                 obj.remove("address");
             }

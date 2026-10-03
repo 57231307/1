@@ -14,6 +14,7 @@ use crate::models::product_color;
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -271,12 +272,20 @@ pub async fn list_products(
         )
         .await?;
 
-    // Serialize each product model to Value and mask sensitive fields
+    // Serialize each product model to Value and mask sensitive fields.
+    // admin 判定走本仓唯一权威源 admin_checker::is_admin_role（roles.code='admin'，
+    // role_id 缺失/查询失败 fail-closed=false，与本改造前"无角色必脱敏"的 fail-closed
+    // 方向一致），每请求在循环外算一次并复用，
+    // 禁止下放进逐行 map 闭包（admin_checker 带 5 分钟缓存 + DashMap 自死锁修复史）。
+    let is_admin = match auth.role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
     let mut masked_products: Vec<serde_json::Value> = products
         .into_iter()
         .map(|p| {
             serde_json::to_value(p)
-                .map(|val| mask_sensitive_fields(val, &auth))
+                .map(|val| mask_sensitive_fields(val, is_admin))
                 .unwrap_or_else(|e| {
                     tracing::error!("Product serialization failed: {:?}", e);
                     serde_json::Value::Null

@@ -43,7 +43,9 @@ pub struct UpdateLeadStatusDto {
 /// 返回 `None` 表示"无权限行"或"查询失败"——查询失败必须显式记 warn（不静默），
 /// 并按无权限行让调用方走各自的默认处理（fail-closed）。
 /// admin 例外（放行原文）由各默认处理实现自身保留：读路径
-/// `CrmService::mask_lead_pii_defaults` 对 `role_id == Some(1)` 原样返回，
+/// `CrmService::mask_lead_pii_defaults` 对权威源判定入参 `is_admin=true` 原样返回
+/// （`is_admin` 由本文件 `apply_lead_field_permission` 经 `admin_checker::is_admin_role`
+/// 在每请求循环外算出，角色缺失/查询失败 fail-closed=false），
 /// 导出路径由调用方经 `admin_checker::is_admin_role`（D-4 收口，单一权威源）门控，
 /// 二者都不因本函数而改变既有原值契约。
 async fn resolve_role_data_permission(
@@ -96,11 +98,19 @@ pub(crate) async fn apply_lead_field_permission(
             return;
         }
         // Ok(None) / 查询 Err（已在 resolve 内记 warn）：落到下方默认脱敏；
-        // admin 由 mask_lead_pii_defaults 自身放行原文，原值契约不变。
+        // admin 经下方 is_admin 权威源判定放行原文，原值契约不变。
     }
 
+    // admin 判定唯一权威源（D-4 收口口径）：`admin_checker::is_admin_role`
+    // （roles.code='admin'；role_id 缺失或查询失败 fail-closed=false，与原字面量判定下
+    // "无角色必脱敏"同一 fail-closed 方向）。每请求在循环外算一次并复用，
+    // 禁止下放进逐行循环（admin_checker 内部带 5 分钟缓存 + DashMap 自死锁修复史）。
+    let is_admin = match role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
     for lead in leads.iter_mut() {
-        *lead = CrmService::mask_lead_pii_defaults(std::mem::take(lead), role_id);
+        *lead = CrmService::mask_lead_pii_defaults(std::mem::take(lead), is_admin);
     }
 }
 

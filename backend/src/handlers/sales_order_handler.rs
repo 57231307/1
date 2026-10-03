@@ -110,11 +110,18 @@ pub async fn list_orders(
                     &permission.allowed_fields,
                     &permission.hidden_fields,
                 );
-                // P1-08-5：非管理员对销售订单列表手机号/邮箱脱敏
+                // P1-08-5：非管理员对销售订单列表手机号/邮箱脱敏。
+                // D-4 收口（PR #942 波次）：PII 放行判据与下方金额/成本列隐藏同走
+                // 本仓唯一权威源 `admin_checker::is_admin_role`（roles.code='admin'，
+                // 查询失败 fail-closed=false），禁止角色主键字面量判定——此前同一请求
+                // 里金额列走权威源、手机号走字面量，播种漂移时一半字段口径分裂。
+                // 判定在循环外、每请求至多一次（admin_checker 内部带 5 分钟缓存，
+                // 同 crm_handler 既有范式）。
+                let is_admin = admin_checker::is_admin_role(&state.db, role_id).await;
                 for order in list.iter_mut() {
                     *order = crate::utils::field_mask::mask_contact_fields_for_role(
                         order.clone(),
-                        Some(role_id),
+                        is_admin,
                     );
                 }
             }
@@ -209,6 +216,10 @@ pub async fn get_order(
             }
         };
         if let Some(permission) = permission {
+            // D-4 收口（PR #942 波次）：PII 放行判据与下方默认字段隐藏同走唯一权威源
+            // `admin_checker::is_admin_role`，判定每请求一次、置于逐字段处理之外
+            // （与 list_orders 同款，禁止角色主键字面量判定）。
+            let is_admin = admin_checker::is_admin_role(&state.db, role_id).await;
             state.data_permission_service.filter_fields(
                 &mut order_json,
                 &permission.allowed_fields,
@@ -216,7 +227,7 @@ pub async fn get_order(
             );
             // P1-08-5：非管理员对销售订单详情手机号/邮箱脱敏
             order_json =
-                crate::utils::field_mask::mask_contact_fields_for_role(order_json, Some(role_id));
+                crate::utils::field_mask::mask_contact_fields_for_role(order_json, is_admin);
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
             // 与列表同一单源判定（见 list_orders 内 D-4 收口注释），每请求至多一次
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
