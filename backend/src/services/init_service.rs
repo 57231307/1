@@ -33,6 +33,11 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== 产品目录域 =====
     "products",
     "categories",
+    // 产品分类路由别名段的运行时权限键（`/product-categories*` ⇒ `product-categories:*`，
+    // 见 routes/mod.rs:368-391 与 middleware/permission.rs 的资源段取自路径段）。
+    // 与 "categories" 是两条不同资源码，`categories:*` 不覆盖它 ⇒ 采购岗读分类树
+    // 必须授此键（CI #4671 矩阵 purchaser 真缺口，裁定 R-6）。
+    "product-categories",
     "warehouses",
     "boms",
     "chemicals",

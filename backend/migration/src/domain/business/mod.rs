@@ -20,6 +20,9 @@ mod m0016_add_contract_remark;
 // 本域 m0009/m0012/m0013 建表，必须晚于建表；production 域对 crm_lead.tags 的
 // JSONB ADD IF NOT EXISTS 恒 no-op、不构成生效定义（依据与存量探测策略见文件头注释）。
 mod m0071_normalize_array_columns;
+// run #4671 R-6：product-categories:read 存量库补授（roles/role_permissions 属 system 域、
+// 早于本域，故可直接注册在 business 域 up 链尾/down 链首）
+mod m0072_grant_product_categories_read;
 
 pub struct Migration;
 
@@ -211,11 +214,20 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         // m0009/m0012/m0013 建表（含 attachment_urls/tags/product_* /internal_piece_*
         // 的生效 TEXT 定义），归一必须晚于建表、且早于任何读写这些列的后续域。
         m0071_normalize_array_columns::Migration.up(manager).await?;
+        // run #4671 R-6：采购岗补 product-categories:read，注册在本域 up 链尾（角色表与
+        // 权限表均由 system 域先建）
+        m0072_grant_product_categories_read::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // run #4671 R-6：最后应用者最先回滚（只回收本迁移按角色码授予的 read 键）
+        m0072_grant_product_categories_read::Migration
+            .down(manager)
+            .await?;
         // run #4671 W1：逆序首位——数组列回退 TEXT（多元素行存在时拒滚，见 m0071 文件头）
         m0071_normalize_array_columns::Migration
             .down(manager)

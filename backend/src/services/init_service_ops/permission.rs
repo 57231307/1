@@ -369,6 +369,10 @@ impl InitService {
                     ("inventory", "read"),
                     // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
                     ("products", "read"),
+                    // 产品分类树（同为我方内部主数据；对照表维护页挂载即拉
+                    // GET /product-categories/tree，缺码该页对采购岗恒 403 —— CI #4671
+                    // 矩阵 purchaser 真缺口，裁定 R-6：补真实种子而非前端降级隐藏）
+                    ("product-categories", "read"),
                     ("reports", "read"),
                 ],
             ),
@@ -395,6 +399,8 @@ impl InitService {
                     ("supplier-product-colors", "update"),
                     // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
                     ("products", "read"),
+                    // 产品分类树：同 purchase_manager 口径（R-6）
+                    ("product-categories", "read"),
                 ],
             ),
             (
@@ -417,6 +423,8 @@ impl InitService {
                     ("supplier-product-colors", "update"),
                     // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
                     ("products", "read"),
+                    // 产品分类树：同 purchase_manager 口径（R-6）
+                    ("product-categories", "read"),
                 ],
             ),
         ]
