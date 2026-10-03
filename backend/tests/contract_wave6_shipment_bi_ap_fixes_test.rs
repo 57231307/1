@@ -125,8 +125,14 @@ async fn exec_pg(db: &DatabaseConnection, sql: &str) {
 ///   （`status::purchase_inventory::inventory_stock_status::NORMAL` = 正常、
 ///   `inventory_stock_quality_status::PENDING` = 待检）逐字符取值，
 ///   原 sqlite 夹具写的 `"normal"` 不属该列取值域（真库上等于自造 token）；
-/// - `max_stock_point` 为 NOT NULL 列，DB DEFAULT 0 生效（模型侧 non-Option 但迁移有默认值），
-///   其余可空列不 Set。
+/// - `max_stock_point`（库存上限）在模型侧为非 Option `Decimal`
+///   （`models/inventory_stock.rs:25`），SeaORM insert 要求显式 Set——
+///   CI #4672 实证省略即 `Type("Missing value for column 'max_stock_point'")`
+///   （"靠 DB DEFAULT 0 生效"的旧假设不成立，本仓活库范式如
+///   `contract_piece_four_dim_outbound_ship_test.rs:200` 一律显式给值）；
+///   取 0 = 未设置上限（DDL 依据 `m0044_integrate_unreferenced_migrations.rs:1231`
+///   列注释「高于此值触发 OverStock 告警，0 表示未设置」，0 不触发告警门
+///   `inventory_stock_query.rs:43`）；其余可空列不 Set。
 async fn seeded_state() -> (AppState, i32) {
     let db = test_common::setup_test_db().await;
     exec_pg(
@@ -164,6 +170,8 @@ async fn seeded_state() -> (AppState, i32) {
         quantity_incoming: Set(Decimal::ZERO),
         reorder_point: Set(Decimal::ZERO),
         reorder_quantity: Set(Decimal::ZERO),
+        // 0 = 未设置库存上限（见 seeded_state 文档注释；模型非 Option 列必须显式 Set）
+        max_stock_point: Set(Decimal::ZERO),
         batch_no: Set("B1".to_string()),
         color_no: Set("RED".to_string()),
         dye_lot_no: Set(Some("DL-A".to_string())),

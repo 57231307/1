@@ -12,9 +12,11 @@ mod test_common;
 
 use std::sync::Arc;
 
+use bingxi_backend::models::status::sales::sales_order;
 use bingxi_backend::services::bi_analysis_service::BiAnalysisService;
 use chrono::NaiveDate;
-use sea_orm::DatabaseConnection;
+use rust_decimal::Decimal;
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 
 /// 构造测试用 BiAnalysisService（真实 PostgreSQL，只连接不清空）
 ///
@@ -23,6 +25,75 @@ use sea_orm::DatabaseConnection;
 async fn make_service() -> BiAnalysisService {
     let database: DatabaseConnection = test_common::connect_live_db().await;
     BiAnalysisService::new(Arc::new(database))
+}
+
+/// 活库真数据夹具（CI #4672 §A.2 "BI 无 seed" 族）：
+/// `setup_test_db()`（已迁移 PG + TRUNCATE 业务表）后种**真实**父行与一张有效销售订单
+/// 及其明细，手法逐列照抄本仓 BI 真库种子范式
+/// `contract_wave3_bi_profit_status_lowercase_test.rs:59-137`：
+/// - customers/products 为 FK 父行（`m0001_initial_schema.rs:631-634`：
+///   sales_orders.customer_id → customers、sales_order_items.product_id → products）；
+/// - 订单状态取写入方权威小写词表 `sales_order::PENDING`（models/status/sales.rs；
+///   profit.rs:53 / :138 排除门仅拒 cancelled/draft，pending 如实计入）；
+/// - 收入 1000 > 成本 10×60=600 ⇒ gross_margin=40%>0（成本口径 profit.rs:9
+///   "SUM(sales_order_items.quantity * products.cost_price)"）；
+/// - order_date 真列 TIMESTAMPTZ，按范式以 ::timestamptz 字面量落库。
+async fn make_seeded_service() -> BiAnalysisService {
+    let db = test_common::setup_test_db().await;
+    exec_seed(&db).await;
+    BiAnalysisService::new(Arc::new(db))
+}
+
+async fn exec_seed(db: &DatabaseConnection) {
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO customers (id, customer_code, customer_name) VALUES ($1, $2, $3)",
+        vec![
+            1i32.into(),
+            "BI-SEED-C1".to_string().into(),
+            "BI 种子客户".to_string().into(),
+        ],
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("BI 种子 customers 执行失败: {e}"));
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO products (id, code, name, cost_price) VALUES ($1, $2, $3, $4)",
+        vec![
+            1i32.into(),
+            "BI-SEED-P1".to_string().into(),
+            "BI 种子产品".to_string().into(),
+            Decimal::new(6000, 2).into(),
+        ],
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("BI 种子 products 执行失败: {e}"));
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status)
+           VALUES ($1, 1, $2::timestamptz, $3, $4)"#,
+        vec![
+            "BI-SEED-O1".to_string().into(),
+            "2026-06-15".to_string().into(),
+            Decimal::new(100000, 2).into(),
+            sales_order::PENDING.into(),
+        ],
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("BI 种子 sales_orders 执行失败: {e}"));
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"INSERT INTO sales_order_items (order_id, quantity, product_id, unit_price, subtotal)
+           SELECT id, $1, 1, $2, $3 FROM sales_orders WHERE order_no = $4"#,
+        vec![
+            Decimal::new(1000, 2).into(),
+            Decimal::new(10000, 2).into(),
+            Decimal::new(100000, 2).into(),
+            "BI-SEED-O1".to_string().into(),
+        ],
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("BI 种子 sales_order_items 执行失败: {e}"));
 }
 
 /// 单元测试：drilldown_year_to_month 无效年份返回 Err（参数校验，不依赖 DB）
@@ -102,21 +173,54 @@ async fn test_sales_by_time_invalid_dates() {
 }
 
 /// 单元测试：pivot（需要真实 DB，标记 ignore）
+///
+/// 度量名按后端权威词表改判（CI #4672 §A.2 定性）：合法度量只有
+/// `["total_amount", "order_count", "quantity", "profit_amount"]`
+/// （`bi_analysis_ops/olap.rs:135`，聚合表达式实现 `bi_analysis_service.rs:82-102`
+/// 逐词列举、无 "amount" 分支），原用例传的 `"amount"` 是**不存在的度量名**，
+/// 服务如实返回 ValidationErrorDisplayable("不支持的度量: amount")（olap.rs:136-141）
+/// ——这是词表契约锁的正解，不是源码缺陷。断言键同源词表用例的真实出参形状
+/// （build_pivot_matrix 出参键为 row_dim/col_dim/measure，olap.rs:255-262；
+/// 原断言的 "row"/"col" 键在服务出参里根本不存在）。
 #[tokio::test]
 #[ignore = "需要 PostgreSQL 测试数据库"]
 async fn test_pivot() {
     let service = make_service().await;
-    let result = service.pivot("time", "product", "amount").await.unwrap();
-    assert_eq!(result["row"], "time");
-    assert_eq!(result["col"], "product");
-    assert_eq!(result["measure"], "amount");
+    let result = service
+        .pivot("time", "product", "total_amount")
+        .await
+        .unwrap();
+    assert_eq!(result["row_dim"], "time");
+    assert_eq!(result["col_dim"], "product");
+    assert_eq!(result["measure"], "total_amount");
+}
+
+/// kpi/利润/透视族的数据前提锁（#4672 反证另一半）：非法度量名 `amount` **不在**
+/// 后端权威词表（olap.rs:135），pivot 必须在触库前就返回可外显的校验错误；
+/// 防止有人为洗绿在词表里补一个 "amount" 同义分支、把词表契约改成第二套口径。
+#[tokio::test]
+async fn test_pivot_invalid_measure_rejected_before_db() {
+    let service = make_service().await;
+    let err = service
+        .pivot("time", "product", "amount")
+        .await
+        .expect_err("词表外度量名必须返回 Err，不得静默换聚合口径");
+    assert!(
+        matches!(&err, bingxi_backend::utils::error::AppError::ValidationErrorDisplayable(m)
+            if m.contains("不支持的度量")),
+        "必须命中 validate_pivot_params 的度量词表拒绝（olap.rs:136-141），实际: {err:?}"
+    );
 }
 
 /// 单元测试：kpi_summary（需要真实 DB，标记 ignore）
+///
+/// 真值断言走 `make_seeded_service()`：#4672 判责 §A.2 定性为"BI 无 seed"——
+/// fetch_current_kpi（bi_analysis_ops/profit.rs:128-165）对 TRUNCATE 后的空
+/// sales_orders 聚合恒得 0，断 >0 必红；本仓裁定是**种真实数据**而非放宽断言。
 #[tokio::test]
 #[ignore = "需要 PostgreSQL 测试数据库"]
 async fn test_kpi_summary_returns_valid() {
-    let service = make_service().await;
+    let service = make_seeded_service().await;
     let kpi = service.kpi_summary().await.unwrap();
     assert!(kpi.total_sales > 0.0, "total_sales 应大于 0");
     assert!(kpi.order_count > 0, "order_count 应大于 0");
@@ -162,10 +266,14 @@ async fn test_drilldown_month_to_day() {
 }
 
 /// 单元测试：profit_analysis（需要真实 DB，标记 ignore）
+///
+/// 同 test_kpi_summary_returns_valid：真值断言必须种真实数据。种子形态保证
+/// 收入(1000) > 成本(明细 10 × cost_price 60 = 600) ⇒ gross_margin=40>0
+/// （profit.rs:72-80 的派生口径，成本公式见本文件头 exec_seed 注释）。
 #[tokio::test]
 #[ignore = "需要 PostgreSQL 测试数据库"]
 async fn test_profit_analysis() {
-    let service = make_service().await;
+    let service = make_seeded_service().await;
     let p = service.profit_analysis().await.unwrap();
     assert!(p.total_revenue > 0.0);
     assert!(p.gross_margin > 0.0);

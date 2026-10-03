@@ -12,7 +12,7 @@ use std::sync::Arc;
 use bingxi_backend::models::status::purchase_receipt;
 use bingxi_backend::services::purchase_receipt_dto::CreatePurchaseReceiptRequest;
 use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
-use sea_orm::Database;
+use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use test_common::setup_test_db;
 
 /// 构造最小 CreatePurchaseReceiptRequest（仅必填字段）
@@ -191,8 +191,24 @@ async fn test_purchasereceiptservice_list_receipts_kdbfherr() {
 
 /// 集成测试：采购收货全流程 create(PENDING 质检) → 门控拒确认 → 质检合格回写 → confirm(COMPLETED)
 ///
-/// 需要 PostgreSQL 测试数据库 + 前置采购订单/产品/仓库数据。
-/// 门控口径（models/status/purchase_inventory.rs::purchase_receipt_inspection）：
+/// 真库化前提补齐（CI #4672 §A.2 种子族，只补剩下这条前提，600e5640 已提交的
+/// 判据用例不动）：`sample_request()` 引用 order_id=1 / warehouse_id=1 /
+/// material_id=1 / order_item_id=1，读函数体
+/// `purchase_receipt_ops/crud.rs::create_receipt` 与 DDL 逐一对应——
+/// - purchase_receipt.warehouse_id FK NOT NULL（m0009_add_purchase_extensions.rs:72/:90
+///   `fk_purchase_receipt_warehouse`），warehouses 空表 ⇒ 23503 ⇒ 本轮 CI 红原文
+///   `DatabaseError("数据库查询错误")`；
+/// - purchase_receipt_item.product_id FK（m0009:135），products 须有父行；
+/// - 明细 order_item_id=Some(1) 走 `link_receipt_items_to_order_items` fail-closed：
+///   该 id 必须是 order 1 的 purchase_order_items 行、且 product_id 与入库明细一致、
+///   入库量 ≤ 订单量×(1+容差)（crud.rs:160-253），故种 PO 主表(1)+明细(1) 各一行，
+///   订单量 200 ≥ 入库 100；supplier_id=1 由迁移种子参照表 m0015 恒在（不清空）。
+/// 列形态按 m0001_initial_schema.rs:451-487（NOT NULL：order_no/supplier_id/order_date；
+/// 明细 order_id/product_id/quantity/unit_price/subtotal）。
+/// 走 `setup_test_db()`（TRUNCATE + RESTART IDENTITY）使显式 id=1 对齐引用；
+/// ignored lane `--test-threads=1` 串行无竞态。
+///
+/// 门控口径（models/status/purchase_inventory.rs::purchase_receipt_inspection，不变）：
 /// 新建收货单检验状态恒为 PENDING，质检合格（PASSED）前确认入库必须被业务拒绝。
 #[tokio::test]
 #[ignore = "需要 PostgreSQL 测试数据库 + 前置采购订单/产品/仓库数据"]
@@ -202,8 +218,36 @@ async fn test_cgshqlc_cjdqr() {
     use bingxi_backend::utils::error::AppError;
     use sea_orm::{ActiveModelTrait, Set};
 
-    let db_url = std::env::var("TEST_DATABASE_URL").expect("需设置 TEST_DATABASE_URL 环境变量");
-    let db = Database::connect(&db_url).await.expect("DB 连接失败");
+    let db = setup_test_db().await;
+    for (sql, what) in [
+        (
+            "INSERT INTO warehouses (id, name, warehouse_code, is_active) VALUES \
+             (1, '收货全流程测试仓', 'WF-W1', true)",
+            "warehouses 父行",
+        ),
+        (
+            "INSERT INTO products (id, code, name) VALUES (1, 'PT-WF-R1', '收货全流程测试面料')",
+            "products 父行",
+        ),
+        (
+            "INSERT INTO purchase_orders (id, order_no, supplier_id, order_date, status) \
+             VALUES (1, 'WF-PO-0001', 1, '2026-01-01', 'confirmed')",
+            "purchase_orders 父行",
+        ),
+        (
+            "INSERT INTO purchase_order_items (id, order_id, product_id, quantity, unit_price, \
+             subtotal, received_quantity) VALUES (1, 1, 1, 200.0000, 10.00, 2000.00, 0.0000)",
+            "purchase_order_items 父行",
+        ),
+    ] {
+        db.execute_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            sql,
+            Vec::<sea_orm::Value>::new(),
+        ))
+        .await
+        .unwrap_or_else(|e| panic!("种子 {what} 写入失败: {e}\nSQL: {sql}"));
+    }
     let svc = PurchaseReceiptService::new(Arc::new(db.clone()));
 
     // 1. 创建（DRAFT，检验状态 PENDING）

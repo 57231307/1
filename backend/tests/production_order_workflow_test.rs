@@ -14,11 +14,11 @@ use bingxi_backend::services::production_order_service::{
     CreateProductionOrderRequest, ProductionOrderQuery, ProductionOrderService,
 };
 use rust_decimal::Decimal;
-use sea_orm::Database;
 // 批次 490 D10-3b 修复：使用 super:: 限定本地 mod common，避免被 status::common 遮蔽
 use bingxi_backend::models::status::common::STATUS_COMPLETED;
 use bingxi_backend::models::status::common::STATUS_DRAFT;
 use chrono::NaiveDate;
+use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use test_common::setup_test_db;
 
 /// 构造最小 CreateProductionOrderRequest（仅必填字段）
@@ -218,13 +218,43 @@ async fn test_productionorderservice_approve_order_kdbfherr() {
 
 /// 集成测试：生产订单全流程 create → submit → approve → schedule → in_progress → complete
 ///
-/// 需要 PostgreSQL 测试数据库（表结构 + 产品/工作中心/销售订单前置数据）。
-/// 设置 TEST_DATABASE_URL=postgres://... 环境变量后运行：cargo test -- --ignored
+/// 真库化前提补齐（CI #4672 §A.2 种子族，只补剩下这条前提，600e5640 已提交的
+/// 判据用例不动）：create 的第一步是引用校验（读函数体
+/// `production_order_ops/crud.rs`：`validate_create_references` →
+/// `validate_product_exists`（:48-56，products 空表 ⇒ ValidationError("产品ID 1 不存在")
+/// = 本轮 CI 红因原文）→ `validate_work_center_exists`（:76-88，work_centers 空表
+/// ⇒ ValidationError("工作中心ID 1 不存在")），故必须种 **products(1) 与
+/// work_centers(1)** 两父行。列形态按真表 DDL：products(code/name NOT NULL，
+/// 范式同 contract_wave5_receipt_return_three_state_test.rs:154）、
+/// work_centers(code UNIQUE NOT NULL / name NOT NULL，
+/// migration/src/domain/business/m0007_add_mrp_production_bom.rs:56-66）。
+/// 走 `setup_test_db()`（已迁移 PG + TRUNCATE + RESTART IDENTITY）使显式 id=1 与
+/// `sample_create_request()` 的引用恒对齐；ignored lane `--test-threads=1` 串行，
+/// 无同库竞态。
 #[tokio::test]
 #[ignore = "需要 PostgreSQL 测试数据库 + 前置产品/工作中心数据"]
 async fn test_scddqlc_cjdwc() {
-    let db_url = std::env::var("TEST_DATABASE_URL").expect("需设置 TEST_DATABASE_URL 环境变量");
-    let db = Database::connect(&db_url).await.expect("DB 连接失败");
+    let db = setup_test_db().await;
+    for (sql, what) in [
+        (
+            "INSERT INTO products (id, code, name) VALUES \
+             (1, 'PT-WF-P1', '生产全流程测试面料')",
+            "products 父行",
+        ),
+        (
+            "INSERT INTO work_centers (id, code, name) VALUES \
+             (1, 'WC-WF-1', '生产全流程测试工作中心')",
+            "work_centers 父行",
+        ),
+    ] {
+        db.execute_raw(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            sql,
+            Vec::<sea_orm::Value>::new(),
+        ))
+        .await
+        .unwrap_or_else(|e| panic!("种子 {what} 写入失败: {e}\nSQL: {sql}"));
+    }
     let svc = ProductionOrderService::new(Arc::new(db));
 
     // 1. 创建（DRAFT）

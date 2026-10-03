@@ -58,11 +58,32 @@ fn uniq_tag() -> String {
 }
 
 /// 种一个最小真实供应商（PO 表对 suppliers 有 FK：m0001_initial_schema.rs:636；
-/// 委外 service 创建校验 supplier::Entity::find_by_id 真实存在）
+/// 委外 service 创建校验 supplier::Entity::find_by_id 真实存在）。
+/// 列齐性依据：`models/supplier.rs` 的 supplier_short_name/supplier_type/credit_code/
+/// registered_address/legal_representative/registered_capital/establishment_date/
+/// taxpayer_type/bank_name/bank_account/contact_phone/is_processor 均为非 Option 字段，
+/// SeaORM insert 必须逐列显式 Set——CI #4672 实证只给 code/name 即
+/// `Type("Missing value for column 'supplier_short_name'")`；取值口径照抄本仓活库
+/// 范式 `contract_wave5_inspection_result_authority_test.rs:107-128`（同为供应商 FK 父行种子）。
 async fn seed_supplier(db: &DatabaseConnection, tag: &str) -> i32 {
+    let sup_now: chrono::DateTime<chrono::FixedOffset> = Utc::now().into();
     let s = supplier::ActiveModel {
         supplier_code: Set(format!("W5S{tag}")),
         supplier_name: Set(format!("波5契约供应商{tag}")),
+        supplier_short_name: Set(format!("契供{tag}")),
+        supplier_type: Set("面料供应商".to_string()),
+        credit_code: Set(format!("91330000W5{tag}X")),
+        registered_address: Set("波5契约注册地址".to_string()),
+        legal_representative: Set("契约法人".to_string()),
+        registered_capital: Set(Decimal::ZERO),
+        establishment_date: Set(chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
+        taxpayer_type: Set("一般纳税人".to_string()),
+        bank_name: Set("波5契约银行".to_string()),
+        bank_account: Set(format!("6222000000{tag}")),
+        contact_phone: Set("13800000001".to_string()),
+        is_processor: Set(false),
+        created_at: Set(sup_now),
+        updated_at: Set(sup_now),
         ..Default::default()
     }
     .insert(db)

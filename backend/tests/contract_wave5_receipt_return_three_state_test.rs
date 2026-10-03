@@ -1028,7 +1028,10 @@ async fn require_postgres(db: &DatabaseConnection) {
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（update_return_item 走 lock_exclusive + 事务）"]
 async fn live_sales_return_item_update_tri_state_on_postgres() {
-    let db = test_common::setup_test_db().await;
+    // FK 父行走本文件既有 seeded_db() 裁定 R1 自种子（CI #4672 实证裸 setup_test_db
+    // 直连时 sales_return.customer_id=1 / warehouse_id=1 无父行 ⇒ 23503）；
+    // ignored lane 以 --test-threads=1 串行执行，TRUNCATE+重种无同库竞态。
+    let db = seeded_db().await;
     require_postgres(&db).await;
     let suffix = Utc::now().timestamp_nanos_opt().unwrap();
 
@@ -1140,7 +1143,11 @@ async fn live_sales_return_item_update_tri_state_on_postgres() {
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（update_receipt_item 走 lock_exclusive）"]
 async fn live_receipt_item_update_tri_state_on_postgres() {
-    let db = test_common::setup_test_db().await;
+    // 同 live_sales_return_item_update_tri_state_on_postgres：purchase_receipt 的
+    // warehouse_id=1（fk_purchase_receipt_warehouse）与明细 product_id=1
+    // （fk_purchase_receipt_item_product）需要父行，走 seeded_db() 自种子；
+    // supplier_id=1 由迁移种子参照表（m0015，SEALED 不清空）恒在。
+    let db = seeded_db().await;
     require_postgres(&db).await;
     let suffix = Utc::now().timestamp_nanos_opt().unwrap();
 
