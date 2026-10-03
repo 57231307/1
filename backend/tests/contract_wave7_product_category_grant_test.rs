@@ -19,7 +19,8 @@
 //! 非采购岗（销售/仓管/生产/财务/CRM）一律不得出现在授予集合里。
 
 /// 通道 ① 矩阵里应授 `product-categories:read` 的角色码（后端权威码）
-const MATRIX_PURCHASE_ROLES: &[&str] = &["purchase_manager", "purchase_clerk", "sourcing_specialist"];
+const MATRIX_PURCHASE_ROLES: &[&str] =
+    &["purchase_manager", "purchase_clerk", "sourcing_specialist"];
 
 /// 通道 ② 迁移的目标角色码 = 矩阵码 + e2e/部署侧别名码（库中不存在的码由迁移自然跳过）
 const MIGRATION_ALIAS_ROLES: &[&str] = &["purchaser"];
@@ -69,6 +70,7 @@ fn canon(src: &str) -> String {
         }
         out = next;
     }
+    out
 }
 
 /// m0072 的 up 执行体（符号定位，不含文件头/函数头文档注释）

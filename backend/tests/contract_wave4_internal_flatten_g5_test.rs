@@ -268,6 +268,7 @@ fn canon(src: &str) -> String {
         }
         out = next;
     }
+    out
 }
 
 /// 取 `callee(...)` 的**第一个字符串字面量实参**（= 面向用户的出参文案构造点）。

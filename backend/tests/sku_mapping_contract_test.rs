@@ -411,6 +411,7 @@ fn canon(src: &str) -> String {
         }
         out = next;
     }
+    out
 }
 
 /// 正向必备项判据：`canon(被扫源码).contains(canon(needle))`，排版（折行/缩进/

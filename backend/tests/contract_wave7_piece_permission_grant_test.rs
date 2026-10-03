@@ -82,6 +82,7 @@ fn canon(src: &str) -> String {
         }
         out = next;
     }
+    out
 }
 
 /// m0069 的 up 执行体：符号定位（`async fn up(` → `async fn down(`），
@@ -207,7 +208,8 @@ fn migration_grants_same_role_set_and_is_idempotent_without_on_conflict() {
 /// 通道 ②：注册在场且顺序正确（本域 up 链尾应用 / down 链首回滚）
 #[test]
 fn migration_is_registered_in_production_domain_chain() {
-    let src = code_only(&include_str!("../migration/src/domain/production/mod.rs").replace('\r', ""));
+    let src =
+        code_only(&include_str!("../migration/src/domain/production/mod.rs").replace('\r', ""));
     assert!(
         src.contains("mod m0069_grant_piece_read_and_print;"),
         "m0069 未在 production 域声明"
@@ -217,12 +219,15 @@ fn migration_is_registered_in_production_domain_chain() {
     // 链式调用被 rustfmt 拆行是常态（原 needle 把"换行 + 12 空格缩进"写进字面量，
     // 排版一变就假失败）⇒ 正向存在性判定走 canon，只锁"确实调了 up/down"，不锁排版。
     assert!(
-        canon(up).contains(&canon("m0069_grant_piece_read_and_print::Migration.up(manager)")),
+        canon(up).contains(&canon(
+            "m0069_grant_piece_read_and_print::Migration.up(manager)"
+        )),
         "m0069 未接入 production 域 up 链"
     );
     assert!(
-        canon(down)
-            .contains(&canon("m0069_grant_piece_read_and_print::Migration.down(manager)")),
+        canon(down).contains(&canon(
+            "m0069_grant_piece_read_and_print::Migration.down(manager)"
+        )),
         "m0069 未接入 production 域 down 链（回滚缺口）"
     );
     // 逆序对称：down 里 m0069 必须先于 m0067（后应用者先回滚）

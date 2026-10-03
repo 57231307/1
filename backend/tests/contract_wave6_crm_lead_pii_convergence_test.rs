@@ -420,6 +420,7 @@ fn canon(src: &str) -> String {
         }
         out = next;
     }
+    out
 }
 
 /// 符号定位取函数体：起点是被锁符号（在 `code_only` 文本上找，注释里的同名词不算），
