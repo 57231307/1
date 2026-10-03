@@ -31,7 +31,13 @@ impl ArReconciliationService {
         &self,
         req: CreateReconciliationRequest,
     ) -> Result<ReconciliationModel, AppError> {
-        let closing_balance = req.opening_balance + req.total_invoices - req.total_collections;
+        // 期末余额判据统一走权威纯函数（vfy_ops/match.rs::compute_closing_balance），
+        // 禁止本模块再留内联副本。
+        let closing_balance = Self::compute_closing_balance(
+            req.opening_balance,
+            req.total_invoices,
+            req.total_collections,
+        );
 
         let active_model = ActiveModel {
             id: Default::default(),

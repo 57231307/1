@@ -452,14 +452,14 @@ impl ArReconciliationService {
                     rec_id,
                     inv,
                     Some(inv.invoice_amount),
-                    "MATCHED",
+                    ar_status::MATCH_MATCHED,
                     Some(coll.id),
                 ));
                 all_items.push(Self::make_collection_recon_item(
                     rec_id,
                     coll,
                     Some(coll.collection_amount),
-                    "MATCHED",
+                    ar_status::MATCH_MATCHED,
                     Some(inv.id),
                 ));
                 matched_count += 1;
