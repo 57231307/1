@@ -102,13 +102,15 @@ async fn test_bomxqsljs_yzjdwshl() {
     assert_eq!(requirements[0].required_quantity, decs!("20"));
 }
 
-/// test_bomxqsljs_yzjdyshl（验证 collect_requirements 对叶子节点（损耗率 10%）的计算：损耗乘数 = 1 + 10/100 = 1.1；实际需求量 = 需求量 * 1.1。）
+/// test_bomxqsljs_yzjdyshl（验证 collect_requirements 对叶子节点（损耗率 10%）的计算：
+/// 节点 scrap_rate 为存储口径 0–1 比率（DECIMAL(5,4)，API 百分比在 bom_handler 写边界
+/// 已换算），10% ⇒ 存储 0.1，损耗乘数 = 1 + 0.1 = 1.1；实际需求量 = 需求量 * 1.1。）
 #[tokio::test]
 async fn test_bomxqsljs_yzjdyshl() {
     let db = setup_test_db().await;
     let service = BomService::new(Arc::new(db));
 
-    let leaf = make_bom_tree_node(101, decs!("2"), Some(decs!("10")), vec![]);
+    let leaf = make_bom_tree_node(101, decs!("2"), Some(decs!("0.1")), vec![]);
     let root = make_bom_tree_node(100, Decimal::ONE, None, vec![leaf]);
 
     let mut requirements = Vec::new();
@@ -160,7 +162,7 @@ async fn test_bomxqsljs_dgdcj() {
     let db = setup_test_db().await;
     let service = BomService::new(Arc::new(db));
 
-    let child1 = make_bom_tree_node(201, decs!("2"), Some(decs!("10")), vec![]);
+    let child1 = make_bom_tree_node(201, decs!("2"), Some(decs!("0.1")), vec![]);
     let child2 = make_bom_tree_node(202, decs!("3"), None, vec![]);
     let root = make_bom_tree_node(100, Decimal::ONE, None, vec![child1, child2]);
 
@@ -327,7 +329,8 @@ async fn test_cjbom_xyzssjk() {
             material_id: 101,
             quantity: decs!("2"),
             unit: Some("个".to_string()),
-            scrap_rate: Some(decs!("10")),
+            // CreateBomItemRequest 为存储口径 0–1 比率（API 百分比在 handler 写边界换算）
+            scrap_rate: Some(decs!("0.1")),
             sort_order: None,
         }],
     };

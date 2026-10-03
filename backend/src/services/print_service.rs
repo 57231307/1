@@ -3152,9 +3152,17 @@ impl PrintService {
                 serde_json::json!(item.quantity.to_string()),
             );
             row.insert("unit".to_string(), serde_json::json!(item.unit.clone()));
+            // 打印出参口径 = API 百分比数值（与 bom_handler 读边界同源，
+            // 经 scrap_ratio_to_percent 换算；禁止直出 DECIMAL(5,4) 存储比率）
             row.insert(
                 "scrap_rate".to_string(),
-                serde_json::json!(item.scrap_rate.map(|v| v.to_string()).unwrap_or_default()),
+                serde_json::json!(
+                    crate::services::bom_service::BomService::scrap_ratio_to_percent(
+                        item.scrap_rate
+                    )
+                    .map(|v| v.to_string())
+                    .unwrap_or_default()
+                ),
             );
             item_list.push(row);
         }

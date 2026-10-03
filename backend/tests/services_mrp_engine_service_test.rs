@@ -261,16 +261,21 @@ fn test_bomsljs_jcslwsh() {
 }
 
 /// test_bomsljs_hshl
-/// 验证 explode_bom_recursive 中含损耗率的数量计算：quantity_with_scrap = base * (1 + scrap_rate/100)，再 round_dp(4)
+/// 验证 explode_bom_recursive 中含损耗率的数量计算口径（与
+/// `services/mrp_engine_ops/bom.rs::calculate_quantity_with_scrap` 同源）：
+/// 节点 scrap_rate 为存储口径 0–1 比率（API 百分比入参已在 bom_handler 写边界经
+/// BomService::scrap_percent_to_ratio 换算落库，10% ⇒ 存储 0.1），
+/// quantity_with_scrap = base * (1 + scrap_rate)，再 round_dp(4)。
+/// （旧期望 base * (1 + 百分比值/100) 属"同一字段两种口径"缺陷族的测试侧残留，
+/// 依据 e2e `frontend/e2e/mrp/01-calculation.spec.ts:95` 写入口径改判。）
 #[test]
 fn test_bomsljs_hshl() {
     let parent = decs!("100");
     let item_qty = decs!("2");
-    let scrap_rate = decs!("10"); // 10% 损耗
+    let scrap_rate = decs!("0.1"); // 10% 损耗的存储口径（DECIMAL(5,4)）
 
     let base_quantity = (parent * item_qty).round_dp(4);
-    let quantity_with_scrap =
-        (base_quantity * (Decimal::ONE + (scrap_rate / Decimal::from(100)))).round_dp(4);
+    let quantity_with_scrap = (base_quantity * (Decimal::ONE + scrap_rate)).round_dp(4);
 
     assert_eq!(base_quantity, decs!("200"));
     assert_eq!(quantity_with_scrap, decs!("220"));

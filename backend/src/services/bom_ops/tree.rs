@@ -141,10 +141,13 @@ impl BomService {
         parent_quantity: Decimal,
         requirements: &mut Vec<BomRequirement>,
     ) {
-        // 批次 97 P1-8 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移（BOM 数量保留 4 位小数）
+        // 数量计算补 round_dp(4) 防止精度漂移（BOM 数量保留 4 位小数）
         let required_quantity = (parent_quantity * node.quantity).round_dp(4);
+        // 损耗率口径 = 0–1 十进制比率（bom_items.scrap_rate DECIMAL(5,4) 存储口径，
+        // API 百分比入参已在 bom_handler 写边界经
+        // BomService::scrap_percent_to_ratio 换算落库），此处直接 (1 + rate) 放大
         let scrap_multiplier = match node.scrap_rate {
-            Some(rate) if rate > Decimal::ZERO => Decimal::ONE + (rate / Decimal::from(100)),
+            Some(rate) if rate > Decimal::ZERO => Decimal::ONE + rate,
             _ => Decimal::ONE,
         };
         let actual_quantity = (required_quantity * scrap_multiplier).round_dp(4);

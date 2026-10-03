@@ -30,7 +30,7 @@ pub struct CreateBomPayload {
     pub version: Option<i32>,
     pub is_default: Option<bool>,
     pub remarks: Option<String>,
-    #[validate(length(min = 1, message = "BOM明细不能为空"))]
+    #[validate(length(min = 1, message = "BOM明细不能为空"), nested)]
     pub items: Vec<CreateBomItemPayload>,
 }
 
@@ -40,18 +40,29 @@ pub struct CreateBomPayload {
 pub struct CreateBomItemPayload {
     pub material_id: i32,
     pub quantity: Decimal,
+    /// 单位长度上限对齐真实 DDL：`bom_items.unit VARCHAR(20)`
+    /// （`migration/src/domain/business/m0007_add_mrp_production_bom.rs:40`）。
+    /// 原 DTO 无长度约束，超长值过校验后直撞列宽报 PG 长度错误冒 500；
+    /// 收进 DTO 校验后转 400 `VALIDATION_ERROR`（可外显）。
+    #[validate(length(
+        max = 20,
+        message = "BOM明细的单位长度不能超过 20 个字符，请缩短或选择标准单位名"
+    ))]
     pub unit: Option<String>,
+    /// 损耗率（API 口径：百分比数值，10 = 10%；边界经
+    /// BomService::scrap_percent_to_ratio 换算为 0–1 存储比率后落库）
     pub scrap_rate: Option<Decimal>,
     pub sort_order: Option<i32>,
 }
 
 /// 更新BOM请求
 #[allow(dead_code, reason = "序列化/反序列化字段")]
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate)]
 pub struct UpdateBomPayload {
     pub is_default: Option<bool>,
     pub status: Option<String>,
     pub remarks: Option<String>,
+    #[validate(nested)]
     pub items: Option<Vec<CreateBomItemPayload>>,
 }
 
@@ -79,6 +90,8 @@ pub struct BomItemResponse {
     pub material_id: i32,
     pub quantity: Decimal,
     pub unit: Option<String>,
+    /// 损耗率（API 口径：百分比数值，与入参同口径；存储比率经
+    /// BomService::scrap_ratio_to_percent 读边界换算后回显）
     pub scrap_rate: Option<Decimal>,
     pub sort_order: Option<i32>,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -114,17 +127,21 @@ pub async fn create_bom(
 
     let service = BomService::new(state.db.clone());
 
+    // 损耗率写边界换算：API 百分比数值 → 存储口径 0–1 比率
+    // （bom_items.scrap_rate DECIMAL(5,4)，直插百分比会触发 PG numeric field overflow）
     let items: Vec<CreateBomItemRequest> = payload
         .items
         .iter()
-        .map(|item| CreateBomItemRequest {
-            material_id: item.material_id,
-            quantity: item.quantity,
-            unit: item.unit.clone(),
-            scrap_rate: item.scrap_rate,
-            sort_order: item.sort_order,
+        .map(|item| {
+            Ok::<CreateBomItemRequest, AppError>(CreateBomItemRequest {
+                material_id: item.material_id,
+                quantity: item.quantity,
+                unit: item.unit.clone(),
+                scrap_rate: BomService::scrap_percent_to_ratio(item.scrap_rate)?,
+                sort_order: item.sort_order,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<CreateBomItemRequest>, AppError>>()?;
 
     let req = CreateBomRequest {
         product_id: payload.product_id,
@@ -158,7 +175,7 @@ pub async fn create_bom(
                 material_id: item.material_id,
                 quantity: item.quantity,
                 unit: item.unit.clone(),
-                scrap_rate: item.scrap_rate,
+                scrap_rate: BomService::scrap_ratio_to_percent(item.scrap_rate),
                 sort_order: item.sort_order,
                 created_at: item.created_at,
                 updated_at: item.updated_at,
@@ -200,7 +217,7 @@ pub async fn get_bom(
                 material_id: item.material_id,
                 quantity: item.quantity,
                 unit: item.unit.clone(),
-                scrap_rate: item.scrap_rate,
+                scrap_rate: BomService::scrap_ratio_to_percent(item.scrap_rate),
                 sort_order: item.sort_order,
                 created_at: item.created_at,
                 updated_at: item.updated_at,
@@ -255,20 +272,31 @@ pub async fn update_bom(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateBomPayload>,
 ) -> Result<Json<ApiResponse<BomDetailResponse>>, AppError> {
+    // DTO 声明的约束必须在进入服务事务前真正执行（与 create_bom 同口径）；
+    // 校验拒绝经 From<ValidationErrors> 原样转 400 VALIDATION_ERROR 外显，
+    // 禁止 map_err(internal) 拍平成 500
+    payload.validate().map_err(AppError::from)?;
+
     let service = BomService::new(state.db.clone());
 
-    let items = payload.items.map(|items| {
-        items
-            .iter()
-            .map(|item| CreateBomItemRequest {
-                material_id: item.material_id,
-                quantity: item.quantity,
-                unit: item.unit.clone(),
-                scrap_rate: item.scrap_rate,
-                sort_order: item.sort_order,
-            })
-            .collect()
-    });
+    // 损耗率写边界换算：与 create_bom 同口径（百分比数值 → 0–1 存储比率）
+    let items = payload
+        .items
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| {
+                    Ok::<CreateBomItemRequest, AppError>(CreateBomItemRequest {
+                        material_id: item.material_id,
+                        quantity: item.quantity,
+                        unit: item.unit.clone(),
+                        scrap_rate: BomService::scrap_percent_to_ratio(item.scrap_rate)?,
+                        sort_order: item.sort_order,
+                    })
+                })
+                .collect::<Result<Vec<CreateBomItemRequest>, AppError>>()
+        })
+        .transpose()?;
 
     let req = UpdateBomRequest {
         is_default: payload.is_default,
@@ -300,7 +328,7 @@ pub async fn update_bom(
                 material_id: item.material_id,
                 quantity: item.quantity,
                 unit: item.unit.clone(),
-                scrap_rate: item.scrap_rate,
+                scrap_rate: BomService::scrap_ratio_to_percent(item.scrap_rate),
                 sort_order: item.sort_order,
                 created_at: item.created_at,
                 updated_at: item.updated_at,
@@ -379,7 +407,7 @@ pub async fn copy_bom(
                 material_id: item.material_id,
                 quantity: item.quantity,
                 unit: item.unit.clone(),
-                scrap_rate: item.scrap_rate,
+                scrap_rate: BomService::scrap_ratio_to_percent(item.scrap_rate),
                 sort_order: item.sort_order,
                 created_at: item.created_at,
                 updated_at: item.updated_at,
