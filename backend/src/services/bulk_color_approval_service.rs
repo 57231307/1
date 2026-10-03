@@ -446,6 +446,22 @@ impl BulkColorApprovalService {
 
         // 创建样布 inventory_piece 记录
         let now = Utc::now();
+        // 样布匹行的幅宽/克重取自大货库存行（此处无独立录入），而这三列是成品布入库标签的
+        // 直读源 ⇒ 与 m0076 CHECK / 打卷门 fabric_inspection_service.rs:601-617 /
+        // 收回门 outsourcing_ops/receipt.rs:65-87 同口径（非空必须正值）。
+        // 库存行里存在 0/负数属**上游数据问题**：点名要求按实更正库存实测值，
+        // 绝不静默跳过、也不"顺手"改写成 NULL 把责任洗掉（那等于替伪实测值圆场）。
+        if let Err(e) = crate::services::piece_domain_service::validate_piece_measured_triple(
+            "剪大货样",
+            Some(sample_piece_no.as_str()),
+            None,
+            stock.width,
+            stock.gram_weight,
+        ) {
+            // 本域错误类型独立于 AppError（批色有自己的映射链），值域越界按校验族归位；
+            // 取公开消息（只含用户可见单号与列名，不含内部 ID/库存数字）
+            return Err(BulkColorApprovalError::Validation(e.to_response().message));
+        }
         let sample_piece = inventory_piece::ActiveModel {
             id: Default::default(),
             piece_no: Set(sample_piece_no),

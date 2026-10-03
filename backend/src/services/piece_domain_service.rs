@@ -18,6 +18,63 @@ use crate::utils::error::AppError;
 pub const PIECE_TYPE_GREIGE: &str = "greige";
 pub const PIECE_TYPE_DYED: &str = "dyed";
 
+// =====================================================
+// 匹行三列打卷实测值的取值域门（weight / width / gram_weight）
+// =====================================================
+
+/// 单列取值域门：`inventory_piece` 的实测值列**非空时必须是正值**。
+///
+/// 为什么要有这道门（不是重复劳动）：这三列是成品布入库标签的直读源
+/// （`services/print_service.rs:4991-5011` 逐列判空后原样印出），标签只判 NULL 不判取值，
+/// 所以 0 与负数在这里等同"已实测"会被直接印上实物标签 —— 那是伪造实测档案。
+///
+/// 同一取值域在本仓有四处彼此指认的实现，取值口径必须逐字符一致（`IS NULL OR > 0`）：
+/// - DB CHECK（并发/旁路写入的兜底）：`weight/width/gram_weight` 三条
+///   `chk_inventory_piece_*_positive`（migration `m0076`）、收回单同名列
+///   `chk_outsourcing_receipt_*_positive`（migration `m0075`）；
+/// - 打卷入库存口：`services/fabric_inspection_service.rs:601-617`
+///   （文案「打卷入库{列}必须大于 0」）；
+/// - 委外收回口：`services/outsourcing_ops/receipt.rs:65-87`；
+/// - 本函数：匹行落库前（生产报工建匹 / 收回透传建匹 / 拆匹剪裁 / 剪大货样建匹）。
+///
+/// 拒绝归校验族（值域越界是"我填错了"），与上面两处的既有口径同族同码；
+/// 留空（None）不在此门内 —— NULL 是"未补录"的合法形态，由标签 fail-closed 点名。
+pub fn validate_piece_measured_value(
+    subject: &str,
+    label: &str,
+    piece_no: Option<&str>,
+    value: Option<rust_decimal::Decimal>,
+) -> Result<(), AppError> {
+    if let Some(v) = value {
+        if v <= rust_decimal::Decimal::ZERO {
+            let who = piece_no.map(|p| format!("匹 {p} 的")).unwrap_or_default();
+            return Err(AppError::validation_displayable(format!(
+                "{subject}{who}{label}必须大于 0（填 0 或负数属伪造实测值，会被直接印上成品布入库标签；暂无实测数据请留空，标签会在补录前按缺值拒绝打印）"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// 三列成组校验（列名与标签 fail-closed 点名的列名逐字符一致：重量(weight) /
+/// 幅宽(width) / 克重(gram_weight)，让用户在表单、错误文案与标签之间对得上号）。
+pub fn validate_piece_measured_triple(
+    subject: &str,
+    piece_no: Option<&str>,
+    weight: Option<rust_decimal::Decimal>,
+    width: Option<rust_decimal::Decimal>,
+    gram_weight: Option<rust_decimal::Decimal>,
+) -> Result<(), AppError> {
+    for (label, value) in [
+        ("重量(weight)", weight),
+        ("幅宽(width)", width),
+        ("克重(gram_weight)", gram_weight),
+    ] {
+        validate_piece_measured_value(subject, label, piece_no, value)?;
+    }
+    Ok(())
+}
+
 /// 仓库类型与匹类型的兼容校验
 /// - 胚布仓（greige）：只能存放未染色/未做工艺的胚布（greige 匹）
 /// - 成品仓（finished）：只能存放染色/工艺后的成品（dyed 匹）
@@ -86,6 +143,18 @@ pub async fn create_greige_pieces_from_report<C: ConnectionTrait>(
     operator_id: Option<i32>,
     pieces: &[ReportPieceInput],
 ) -> Result<Vec<inventory_piece::Model>, AppError> {
+    // 实测值取值域门在任何 DB 访问前逐匹预检（含 DB 读）：三列任一为 0/负数即整批拒，
+    // 不给"前几匹已落库、第三匹才失败"的部分写入留窗口（同口径门见
+    // `validate_piece_measured_value` 的四处指认；DB 兜底 = m0076 CHECK）。
+    for piece in pieces {
+        validate_piece_measured_triple(
+            "生产报工",
+            Some(piece.piece_no.as_str()),
+            piece.weight,
+            piece.width,
+            piece.gram_weight,
+        )?;
+    }
     let mut created = Vec::with_capacity(pieces.len());
     for piece in pieces {
         validate_warehouse_for_piece_type(db, piece.warehouse_id, PIECE_TYPE_GREIGE, false).await?;
@@ -466,6 +535,10 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         grade,
         remarks,
     } = ctx;
+    // 透传落库前的取值域门：收回单侧已有同口径门（outsourcing_ops/receipt.rs:65-87 +
+    // m0075 CHECK），这里再判一次不是重复劳动而是防"收回单行被旁路改成 0 后继续产匹"——
+    // 匹行是标签直读源，门必须落在标签源本身这一侧的写入点（DB 兜底 = m0076 CHECK）。
+    validate_piece_measured_triple("委外收回产匹", None, weight, width, gram_weight)?;
     let Some(warehouse_id) = warehouse_id else {
         return Err(AppError::business(
             "委外回仓单未指定入库仓库，无法生成匹记录",

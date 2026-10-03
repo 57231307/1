@@ -83,6 +83,14 @@ mod m0074_aftersales_type_add_missing_values;
 // 照 m0058/m0063/m0065/m0068 先例，up/down 由 domain/v15/mod.rs 在全部建表完成后调用，
 // 此处仅保留定义，提升可见性为 pub(crate)。
 pub(crate) mod m0075_add_outsourcing_receipt_measured_values;
+// m0076 给 inventory_piece 的 weight/width/gram_weight 三列补值域 CHECK
+// （`IS NULL OR > 0`，任务板 #246）：这三列是成品布入库标签（#220）的**直读源**，
+// 服务层已有 >0 门（`outsourcing_ops/receipt.rs`、`inv/batch.rs`），CHECK 是并发/旁路
+// 写入的兜底——否则 0 或负值可落库并被**印上标签**（0 属伪造实测值）。
+// 注册链与 m0075 不同：目标表由 **business 域 m0010_add_inventory_extensions.rs:126** 建表，
+// 而 lib.rs 域顺序为 system→business→sales_crm→**production**（business 早于本域执行），
+// 故直接注册本域即可，无需像 m0075 那样挂到 v15 之后。
+mod m0076_add_inventory_piece_measured_checks;
 
 pub struct Migration;
 
@@ -540,11 +548,20 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
         m0074_aftersales_type_add_missing_values::Migration
             .up(manager)
             .await?;
+        // m0076 匹表三列实测值补 >0 CHECK（本域最后应用，故 down 最先回滚）
+        m0076_add_inventory_piece_measured_checks::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // m0076 最后应用故最先回滚（撤三条值域 CHECK + 丢弃三列，带在途实测值时
+        // fail-visible 拒滚，见该文件 down 注释）
+        m0076_add_inventory_piece_measured_checks::Migration
+            .down(manager)
+            .await?;
         // m0074 最后应用故最先回滚（售后类型 CHECK 回 m0044 原 4 值，
         // 含 return_goods 在途行 fail-visible 拒滚）
         m0074_aftersales_type_add_missing_values::Migration

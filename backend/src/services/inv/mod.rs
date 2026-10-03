@@ -123,6 +123,10 @@ pub struct CreateInventoryTransferRequest {
     pub from_warehouse_id: Option<i32>,
     pub to_warehouse_id: Option<i32>,
     pub transfer_date: Option<chrono::DateTime<chrono::Utc>>,
+    /// 状态：只接受权威词表内的**初始状态** pending（键缺席由服务落缺省 pending）。
+    /// 其它词表内取值（含 approved/shipped/completed）在建单口一律 400 拒绝——
+    /// 状态推进归审批/发货/收货三个权威操作，见
+    /// `inventory_move.rs::validate_transfer_initial_status`。
     pub status: Option<String>,
     pub notes: Option<String>,
     pub items: Option<Vec<InventoryTransferItemRequest>>,
@@ -165,11 +169,16 @@ where
 /// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
 /// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
 /// status 对应实体 Model 非 Option 列（置 NULL 该行按模型不可读）：显式 null 由 service 拒绝。
+/// 且 status 是**状态机位不是可编辑字段**：本端点的合法流转集合为空——只有与当前状态
+/// 逐字符相同的幂等写入放行，任何异值（词表内或词表外）都 400 BUSINESS_ERROR
+/// （`inventory_move.rs::validate_transfer_status_write`：审批/发货/收货各自还要落
+/// 审批人、扣减库存、写流水与事件，只改一列状态会造出账实分裂）。
 /// items 为明细整表替换数组：不开放"显式 null 清全表"，清空明细须传空数组 `[]`
 /// （与销售合同 UpdateSalesContractDto.items 同口径）。
 #[derive(Debug, Deserialize)]
 pub struct UpdateInventoryTransferRequest {
-    /// 状态（映射非 Option 列 status）——显式 null 被 service 拒绝
+    /// 状态（映射非 Option 列 status）——显式 null 被 service 拒绝；
+    /// 异值（=试图经编辑口流转状态）同样被拒绝，只放行与当前值的幂等写入
     #[serde(default, deserialize_with = "double_option")]
     pub status: Option<Option<String>>,
     /// 备注：DB 可空列 notes TEXT（m0001 DDL）——显式 null 清空

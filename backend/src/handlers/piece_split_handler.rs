@@ -44,7 +44,7 @@ pub async fn split_fabric_piece(
         .await?
         .ok_or_else(|| AppError::not_found("未找到母卷(原始布卷)"))?;
 
-    validate_parent_piece(&parent, req.cut_length)?;
+    validate_parent_piece(&parent, req.cut_length, req.cut_weight)?;
 
     // V15 P2 缺陷 3.2：确定原始长度（首次拆分时记录，后续复用）
     // original_length 为空即该匹从未拆过（生产报工建匹即为 None），拆分前母卷长度就是全长：
@@ -92,10 +92,11 @@ pub async fn split_fabric_piece(
     })))
 }
 
-/// 校验母卷状态和剪裁长度
+/// 校验母卷状态、剪裁长度与剪裁重量额度
 fn validate_parent_piece(
     parent: &inventory_piece::Model,
     cut_length: Decimal,
+    cut_weight: Option<Decimal>,
 ) -> Result<(), AppError> {
     if parent.status == piece_status::SHIPPED || parent.status == piece_status::UNAVAILABLE {
         // 状态门：母卷已处于发货/不可用态，剪裁前置未满足，归业务族；
@@ -111,6 +112,28 @@ fn validate_parent_piece(
             "剪裁长度 ({}) 超过母卷可用长度 ({})",
             cut_length, parent.length
         )));
+    }
+    // 实测重量取值域门（与 migration m0076 的 chk_inventory_piece_weight_positive、
+    // 打卷门 fabric_inspection_service.rs:601-617、收回门 outsourcing_ops/receipt.rs:65-87
+    // 逐字符同口径 "IS NULL OR > 0"）：0/负数属伪造实测值，落库后会被原样印上标签。
+    crate::services::piece_domain_service::validate_piece_measured_value(
+        "剪裁",
+        "重量(weight)",
+        Some(parent.piece_no.as_str()),
+        cut_weight,
+    )?;
+    if let (Some(pw), Some(cw)) = (parent.weight, cut_weight)
+        && cw >= pw
+    {
+        // 额度门（自 `update_parent_piece` 上提到入口，同一规则只此一处判定）：
+        // 剪裁重量必须**小于**母卷实测重量。相等意味着母卷剩余实测重量被写成 0——
+        // 那不是"称出来的 0 公斤"，而是"整卷拆尽后仍留一行布卷记录"的空壳形态，
+        // 正是 m0076 值域要拦的伪实测值（且长度同理会留下 0 米母卷）。
+        // 整卷流转应直接对母卷发货/出库，不需要先拆一条等量子卷再留一条空壳。
+        // 文案不含查询所得公斤数（按 error.rs 安全边界不外显）。
+        return Err(AppError::business_displayable(
+            "剪裁重量必须小于该布卷的实测重量：整卷无需拆分，请直接按原卷出库或发货",
+        ));
     }
     Ok(())
 }
@@ -128,16 +151,12 @@ async fn update_parent_piece(
     let remaining_length = parent.length - cut_length;
     active_parent.length = Set(remaining_length);
 
-    // 如果母卷原本有重量，且输入了剪裁重量，则按比例或直接扣减
+    // 母卷剩余实测重量 = 原值 - 本次剪裁值。额度与取值域已由 `validate_parent_piece`
+    // 在任何写入前判定（含"剪裁重量必须小于母卷实测重量"，故此处差值必为正值，
+    // 不会写出被 m0076 值域禁止的 0/负数）；本函数只负责如实落值，不再重复判规则。
+    // 母卷无实测重量（None）或本次未提交剪裁重量时保持原值不动（不猜、不塞 0）。
     if let (Some(pw), Some(cw)) = (parent.weight, cut_weight) {
-        if pw >= cw {
-            active_parent.weight = Set(Some(pw - cw));
-        } else {
-            // 额度门：剪裁重量受母卷总重量约束，属业务前置未满足，归业务族；文案不含数字可外显
-            return Err(AppError::business_displayable(
-                "剪裁重量不能大于母卷总重量".to_string(),
-            ));
-        }
+        active_parent.weight = Set(Some(pw - cw));
     }
     // V15 P2 缺陷 3.2：记录原始长度/重量（首次拆分时写入）
     active_parent.original_length = Set(Some(original_length));

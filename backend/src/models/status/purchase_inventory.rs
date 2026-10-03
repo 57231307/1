@@ -75,6 +75,20 @@ pub mod inventory_transfer {
 
     /// 已完成：调拨流程完结
     pub const COMPLETED: &str = "completed";
+
+    /// 本列全部合法取值（取值域闭合集合）。
+    ///
+    /// 存在理由：写入方的取值域校验必须有可枚举的单一来源，否则"合法取值"只能在
+    /// 各调用点的字符串比较里各自复述一遍（本仓 `chk_*_status` 迁移与
+    /// `purchase_receipt_inspection::ALL` 同型）。取值逐条就是上方五个常量本身，
+    /// 不引入任何新 token；历史界面上出现过的 `draft`/`executed`/`cancelled`
+    /// 不在本表内（见 frontend/src/utils/inventory-transfer-status.ts 同口径注释）。
+    ///
+    /// ⚠️ 本常量是**取值域**，不是**流转集合**：某取值能否从当前状态被写入，
+    /// 由该状态的权威操作函数决定（见 services/inv/inventory_move.rs 的
+    /// `validate_transfer_status_write` 与其列出的四个写入落点），不得拿本表当
+    /// "任意取值都可写"的通行证。
+    pub const ALL: &[&str] = &[PENDING, APPROVED, REJECTED, SHIPPED, COMPLETED];
 }
 
 /// 库存盘点状态（inventory_count.status，小写值）

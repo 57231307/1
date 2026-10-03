@@ -108,6 +108,13 @@ impl InventoryTransferService {
     }
 
     /// 锁定调拨单并校验状态为 approved（串行化并发状态变更）。
+    ///
+    /// 本函数与 `update_transfer_to_shipped` 合起来是 `approved → shipped` 这条流转边的
+    /// **唯一权威落点**（除改状态外还要扣库存、写 TRANSFER_OUT 流水、更新明细发出量、
+    /// 落 shipped_at 并发布事件），故 `pending → approved → shipped` 不允许经普通编辑
+    /// 保存口写入（门见 `inventory_move.rs::validate_transfer_status_write`）。
+    /// 前置状态值取权威词表常量，不用裸字面量（词表单一来源，见
+    /// `models/status/purchase_inventory.rs::inventory_transfer`）。
     async fn lock_and_validate_transfer_for_ship(
         txn: &sea_orm::DatabaseTransaction,
         transfer_id: i32,
@@ -117,7 +124,7 @@ impl InventoryTransferService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
-        if transfer.status != "approved" {
+        if transfer.status != transfer_status::APPROVED {
             return Err(AppError::business(
                 "只有已审核状态的调拨单可以发出".to_string(),
             ));
@@ -596,6 +603,11 @@ impl InventoryTransferService {
     }
 
     /// 锁定调拨单并校验状态为 shipped（串行化并发状态变更）。
+    ///
+    /// 本函数与 `update_transfer_to_completed` 合起来是 `shipped → completed` 这条流转边的
+    /// **唯一权威落点**（除改状态外还要做调入仓入库、明细收货量、received_at 与事件发布），
+    /// 故不得经普通编辑保存口写入（门见 `inventory_move.rs::validate_transfer_status_write`）。
+    /// 前置状态值取权威词表常量，不用裸字面量。
     async fn lock_and_validate_transfer_for_receive(
         txn: &sea_orm::DatabaseTransaction,
         transfer_id: i32,
@@ -605,7 +617,7 @@ impl InventoryTransferService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
-        if transfer.status != "shipped" {
+        if transfer.status != transfer_status::SHIPPED {
             return Err(AppError::business(
                 "只有已发出状态的调拨单可以接收".to_string(),
             ));

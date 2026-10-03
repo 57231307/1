@@ -233,6 +233,91 @@ impl InventoryTransferService {
         })
     }
 
+    /// 校验调拨主单状态取值是否落在权威词表内（`status::inventory_transfer::ALL`）。
+    ///
+    /// 词表唯一来源是写入方常量模块（本仓口径：`models/status/purchase_inventory.rs`），
+    /// 本函数只做"取值域"判定，不判定流转是否合法（那由 `validate_transfer_status_write`
+    /// 与本文件/`batch.rs` 列出的权威落点负责）。越界值一律拒绝，绝不"识别不了就保持原值"
+    /// 或"识别不了就写进去"：静默吞掉是脏数据的入口（前端 `normalizeInventoryTransferStatus`
+    /// 对同一取值域是抛错口径，两端必须一致）。
+    fn validate_transfer_status_token(raw: &str) -> Result<(), AppError> {
+        if !transfer_status::ALL.contains(&raw) {
+            // 越界原值只进日志（可能含任意用户输入），响应文案只给公开取值域
+            tracing::warn!(
+                target: "inventory_transfer",
+                rule = "status_token_domain",
+                raw_status = raw,
+                "调拨状态取值不在权威词表内，拒绝写入"
+            );
+            return Err(AppError::business_displayable(format!(
+                "调拨状态取值无效（允许的调拨状态：{}）",
+                transfer_status::ALL.join("、")
+            )));
+        }
+        Ok(())
+    }
+
+    /// 建单口的状态门：新建调拨单的初始状态唯一 = 待审批。
+    ///
+    /// 依据（同树三处，全部是"写入方即权威"的事实而非注释）：
+    /// - `build_transfer_active_model` 的缺省值就是 `transfer_status::PENDING`；
+    /// - DB 列默认值同为 pending（migration `domain/v15/mod.rs:4381`
+    ///   `ALTER COLUMN "status" SET DEFAULT 'pending'`）；
+    /// - 审批/发货/收货各自的前置状态比较（本文件 `approve_transfer` 只接受 pending、
+    ///   `batch.rs:120` 只接受 approved、`batch.rs:608` 只接受 shipped）意味着
+    ///   一条以其它状态"出生"的单据会永久卡在流程外：既进不了审批，也进不了发货/收货，
+    ///   却能被库存操作误读——所以建单不接受任何非初始状态。
+    ///
+    /// 状态推进的唯一途径是下面的权威操作函数，不是建单参数。
+    fn validate_transfer_initial_status(target: &str) -> Result<(), AppError> {
+        Self::validate_transfer_status_token(target)?;
+        if target != transfer_status::PENDING {
+            tracing::warn!(
+                target: "inventory_transfer",
+                rule = "initial_status_only_pending",
+                requested_status = target,
+                "建单请求要求以非初始状态落库，拒绝"
+            );
+            return Err(AppError::business_displayable(
+                "新建调拨单的初始状态只能是待审批，建单后请通过审批、发货、收货操作推进状态",
+            ));
+        }
+        Ok(())
+    }
+
+    /// 编辑保存口（PUT）的状态门：状态是状态机位，不是可编辑字段。
+    ///
+    /// 本入口的合法流转集合为空——不是"忘了配白名单"，而是本表全部真流转都绑在
+    /// 带副作用的权威操作上，只写一列状态无法履行它们：
+    /// - `pending → approved / rejected`：`approve_transfer`（本文件）额外做分级审批
+    ///   角色校验（`inventory_transfer::can_approve_at_level`）并落
+    ///   approved_by/approved_at/approval_level/approved_by_role；
+    /// - `approved → shipped`：`ship_transfer`（`batch.rs:86`）额外扣减调出仓库存、
+    ///   写出库流水、维护在途与 shipped_at 并发布事件；
+    /// - `shipped → completed`：`receive_transfer`（`batch.rs:544`）额外做调入仓入库、
+    ///   明细收货量与 received_at 并发布事件。
+    ///
+    /// 因此绕过这些函数改状态必然造成"状态说已发货、库存一分没动"的账实分裂
+    /// （或让低权限角色借普通编辑拿到审批结果）。异值一律拒绝；与当前状态逐字符相同
+    /// 的幂等写入放行（那才是"没改状态"），键缺席同样不改（见 `apply_transfer_main_update`
+    /// 的三态写入）。
+    fn validate_transfer_status_write(current: &str, target: &str) -> Result<(), AppError> {
+        Self::validate_transfer_status_token(target)?;
+        if target != current {
+            tracing::warn!(
+                target: "inventory_transfer",
+                rule = "status_transition_authority_only",
+                current_status = current,
+                target_status = target,
+                "编辑保存口试图驱动状态流转，拒绝（流转走审批/发货/收货权威操作）"
+            );
+            return Err(AppError::business_displayable(
+                "调拨单状态只能通过审批、发货、收货操作变更，编辑保存不改变状态",
+            ));
+        }
+        Ok(())
+    }
+
     /// 校验调拨单号唯一性，冲突时回滚事务
     async fn validate_transfer_no_uniqueness(
         txn: &DatabaseTransaction,
@@ -380,6 +465,11 @@ impl InventoryTransferService {
         // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
         user_id: i32,
     ) -> Result<InventoryTransferDetail, AppError> {
+        // 建单状态门在任何 DB 访问前：status 键缺席时由
+        // `build_transfer_active_model` 落缺省 pending（合法），送来显式值才判。
+        if let Some(raw) = request.status.as_deref() {
+            Self::validate_transfer_initial_status(raw)?;
+        }
         let txn = (*self.db).begin().await?;
         let transfer_no = self.generate_transfer_no().await?;
         Self::validate_transfer_no_uniqueness(&txn, &transfer_no).await?;
@@ -426,6 +516,9 @@ impl InventoryTransferService {
     }
 
     /// 应用主表字段更新（status/notes/updated_at）并写审计日志
+    ///
+    /// status 分支是**编辑保存口的唯一状态写落点**，故状态门落在这里而不是只落调用方：
+    /// 新增调用方无法绕过（见 `validate_transfer_status_write` 的权威落点清单）。
     async fn apply_transfer_main_update(
         txn: &DatabaseTransaction,
         transfer: inventory_transfer::Model,
@@ -433,10 +526,21 @@ impl InventoryTransferService {
         notes: Option<Option<String>>,
         user_id: i32,
     ) -> Result<(), AppError> {
-        let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
         // 三态写入：None=不 Set、Some(None)=Set(None) 置 NULL、Some(Some(v))=Set(v) 覆盖。
         // status 对应实体 Model 非 Option 列（Some(None) 已在 update_transfer 入口拒绝）：
-        // 仅覆盖/保持
+        // 仅覆盖/保持，且"覆盖"只允许覆盖成同一值——真流转归权威操作函数。
+        if let Some(target) = status.as_ref().and_then(|inner| inner.as_deref()) {
+            // 门必须打在**事务内加锁读到的当前值**上：入参 model 来自事务外的快照读，
+            // 该行可能已被审批/发货/收货推进（那三个函数都用 lock_exclusive 串行化）。
+            // 若拿过期快照判"同值幂等"，就会把已被推进的行改写回旧状态——等价于绕过状态机。
+            let locked = InventoryTransferEntity::find_by_id(transfer.id)
+                .lock_exclusive()
+                .one(txn)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer.id)))?;
+            Self::validate_transfer_status_write(&locked.status, target)?;
+        }
+        let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
         if let Some(status) = status.flatten() {
             transfer_update.status = sea_orm::ActiveValue::Set(status);
         }
@@ -569,6 +673,9 @@ impl InventoryTransferService {
             ));
         }
         let transfer = self.load_transfer_for_update(transfer_id).await?;
+        // 状态门（词表域 + "编辑保存不驱动流转"）落在 `apply_transfer_main_update`
+        // ——本入口唯一的状态写落点，随状态一起进入事务：门不过 ⇒ 事务回滚，
+        // notes/items 也不会出现"改了一半"。
         let txn = (*self.db).begin().await?;
         Self::apply_transfer_main_update(
             &txn,
