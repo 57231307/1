@@ -133,9 +133,11 @@ async function fetchLabelDocXml(page: Page, pieceId: number): Promise<string> {
 }
 
 /**
- * GET /inventory/pieces 出参行（PieceResponse，inventory_piece_handler.rs:45-67）中
- * 本套件用到的列。注意该响应不含 width/gram_weight/barcode（已列入报告疑点）——
- * 落库回读仅能核到 weight/length 维，幅宽/克重由用例 2 标签正文逐值断言钉。
+ * GET /inventory/pieces 出参行（PieceResponse，inventory_piece_handler.rs:45-74）中
+ * 本套件用到的列。后端现已在该响应回传 width/gram_weight/barcode（:58,60,62，
+ * 前端 InventoryPieceRow 同步补齐消费）；本 PieceRow 仅声明本套断言用到的子集，
+ * 落库回读只核到 weight/length 两维，幅宽/克重仍以用例 2 标签正文逐值断言为准
+ * （属套件组织选择，不再是"响应缺列"）。
  * length/weight 为 Decimal（number 或尾零 string 两种序列化形态均如实归一比较）。
  */
 interface PieceRow {
@@ -297,9 +299,9 @@ test.describe('05 成品布入库标签打印（#220 内容级）', () => {
     // 列表响应 length/weight 为 Decimal（序列化 number 或尾零字符串均可能，如 "50.25"/"50.2500"
     // ——DB 列标度是存储格式不是值差异），按数值精确等值核对种子；尾零归一后与后端标签
     // 装配 fmt_dec=Decimal::normalize（print_service.rs:5030）同形，作为用例 2 正文断言基准。
-    // 另：width/gram_weight 不在 GET /inventory/pieces 出参（PieceResponse，
-    // backend/src/handlers/inventory_piece_handler.rs:45-67 无该两列）——e2e 无法从列表回读
-    // 这两列落库值，改由用例 2 的标签正文逐值断言覆盖（该缺口已按「疑点」上报，不隐瞒）。
+    // 另：后端 GET /inventory/pieces 现已回传 width/gram_weight（inventory_piece_handler.rs:58,60，
+    // 前端 InventoryPieceRow 已补齐消费）；本用例落库回读仍只逐列核对 length/weight 两维，
+    // 幅宽/克重由用例 2 标签正文逐值断言覆盖（属本套件组织选择，非"响应缺列"）。
     const lengthNorm = normDec(rolled.length);
     const weightNorm = normDec(rolled.weight);
     expect(lengthNorm, `落库米数应等于打卷提交实测值 ${ROLL_LENGTH_M}`).toBe(

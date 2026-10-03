@@ -243,8 +243,11 @@ export const PIECE_TYPE = {
 /**
  * 可出库匹行：与后端 `handlers/inventory_piece_handler.rs:45 PieceResponse` 逐字段对齐
  * （GET /inventory/pieces -> PaginatedResponse<PieceResponse>）。
- * length/weight 是 rust_decimal `Decimal`，序列化为字符串，展示前 Number() 归一，禁 .toFixed 造数。
+ * length/weight/width/gram_weight 是 rust_decimal `Decimal`，序列化为字符串，
+ * 展示前 Number() 归一，禁 .toFixed 造数；可空三者 null=未补录（#220 标签缺值点名列）。
  * dye_lot_no/color_no 后端包 Some(...) 但类型 Option<String>，故 `string | null`。
+ * width/gram_weight/barcode 为 #220 后端已发、本行现补齐的前端消费键（原声明缺此三键，
+ * 令"前端据此判断该匹能否打标签"的注释失去数据落点）。
  */
 export interface InventoryPieceRow {
   id: number;
@@ -260,6 +263,16 @@ export interface InventoryPieceRow {
   length: string;
   /** 匹重（Decimal 串，可空） */
   weight: string | null;
+  /**
+   * 幅宽 cm（实测值，#220 标签 fail-closed 点名列之一）。
+   * 后端 inventory_piece_handler.rs:58 `pub width: Option<Decimal>` ⇒ JSON 串（可空），
+   * null = 未补录（打卷必填，委外收回产匹该列可为 NULL）；非后端回落主数据。
+   */
+  width: string | null;
+  /** 克重 g/m²（实测值；后端 :60 `pub gram_weight: Option<Decimal>` ⇒ 串，可空，null=未补录） */
+  gram_weight: string | null;
+  /** 条码（后端 :62 `pub barcode: Option<String>`；null=未生成 ⇒ 标签按缺列拒绝，非回落） */
+  barcode: string | null;
   batch_no: string;
   color_no: string | null;
   product_id: number;

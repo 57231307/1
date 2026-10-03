@@ -338,14 +338,17 @@ const formData = reactive({
   status: 'draft' as 'draft' | 'active' | 'archived',
   remark: '',
   // 行对象键名对齐后端 BomItemResponse（api/bom.ts::BomItem）：
-  // handleEdit 灌入 GET /boms/:id 的 items，同名键才能接住回显
+  // handleEdit 灌入 GET /boms/:id 的 items，同名键才能接住回显。
+  // quantity/scrap_rate 后端 Decimal 序列化为字符串（Cargo.toml:60 未启 serde-float），
+  // 类型如实写 string / string|null；el-input-number 需 number 的归一发生在
+  // BillOfMaterialsForm 控件绑定边界，此处（数据回显层）不伪造为 number。
   items: [] as Array<{
     id?: number;
     bom_id?: number;
     material_id?: number;
-    quantity: number;
+    quantity: string;
     unit: string | null;
-    scrap_rate: number | null;
+    scrap_rate: string | null;
     sort_order?: number | null;
   }>,
 });

@@ -593,7 +593,10 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
           material_id: shared.prodId,
           quantity: '5',
           unit: '个',
-          scrap_rate: '0.02',
+          // 损耗率 API 口径 = 百分比数值（10 表示 10%，见 bom.ts BomItem.scrap_rate 注释），
+          // '2' 即 2%。原 '0.02' 系按比率口径写的历史值，在 2ed1fff5 改为百分比口径后
+          // 语义变成 0.02%，虽本用例不断该值（仅核 quantity/unit），但会误导后人，按真实口径更正。
+          scrap_rate: '2',
           sort_order: 1,
         },
       ],

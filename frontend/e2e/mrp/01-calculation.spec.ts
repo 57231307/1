@@ -94,9 +94,12 @@ test.describe('MRP 计算', () => {
     // 创建 BOM：父产品含 2 个物料，数量/损耗率明确可推算
     // material1: quantity=3, scrap_rate=10 → 有效用量 = 3 * (1 + 10/100) = 3.3
     // material2: quantity=5, scrap_rate=0  → 有效用量 = 5
+    // 出参泛型如实按后端响应定型：quantity/scrap_rate 是 rust_decimal Decimal，
+    // 序列化为 JSON 字符串（"3.0000"/"10.0000"），非 number（Cargo.toml:60 未启 serde-float）。
+    // 入参体同理以字符串提交，rust_decimal 反序列化接受 number/string 两形态。
     const bomResult = await apiCall<{
       bom?: { id: number; product_id: number };
-      items?: Array<{ material_id: number; quantity: number; scrap_rate: number | null }>;
+      items?: Array<{ material_id: number; quantity: string; scrap_rate: string | null }>;
     }>(page, 'POST', '/boms', {
       product_id: parentProductId,
       version: 1,

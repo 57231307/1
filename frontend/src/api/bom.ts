@@ -17,24 +17,34 @@ export interface Bom {
 }
 
 /**
- * BOM 明细行，键名对齐后端 handlers/bom_handler.rs::BomItemResponse
+ * BOM 明细行出参，键名对齐后端 handlers/bom_handler.rs::BomItemResponse
  * （id/bom_id/material_id/quantity/unit/scrap_rate/sort_order，snake_case 原样输出）。
  * 原声明的 material_name/loss_rate 后端从不存在：material_name 无出参键（恒空），
  * loss_rate 键名错位导致提交被 serde 忽略、损耗率静默丢失——按真实契约纠正。
+ *
+ * 类型如实：quantity/scrap_rate 后端为 rust_decimal Decimal（bom_handler.rs:91,95），
+ * Cargo.toml:60 仅启 serde、未启 serde-float ⇒ JSON 线上是**字符串**（"10.00"），
+ * 非 number。声明 number 会让 .toFixed/算术在运行期崩或得 NaN，属类型谎言。
+ * 表单 el-input-number 需 number，归一只发生在「回显灌入控件」边界（见
+ * BillOfMaterialsForm.vue），不在数据层伪造类型。
+ * 入参侧（POST/PUT items）同名字段 rust_decimal 反序列化同时接受 number/string，
+ * 表单层以 number 提交，与出参 string 的不对称是序列化/反序列化口径差异，非谎报。
  */
 export interface BomItem {
   id?: number;
   bom_id?: number;
   material_id: number;
-  quantity: number;
+  /** 用量（后端 Decimal 序列化为字符串） */
+  quantity: string;
   /** DDL bom_items.unit VARCHAR(20)（m0007:40），后端 DTO 已同步 max=20 校验 */
   unit: string | null;
   /**
    * 损耗率（API 百分比数值口径：10 = 10%）。提交与回显同字段同口径：
    * 后端写/读边界经 BomService::scrap_percent_to_ratio / scrap_ratio_to_percent
    * 与 DECIMAL(5,4) 存储比率（0–1）换算，前端不再二次乘除。
+   * 后端返回 Decimal ⇒ 字符串，可空（null = 未设损耗率，合法 0 须以 `== null` 区分）。
    */
-  scrap_rate: number | null;
+  scrap_rate: string | null;
   sort_order?: number | null;
 }
 
