@@ -196,3 +196,64 @@ test.describe('跨域越权成对矩阵: 生产工单 production-orders', () => 
     expect(Array.isArray(json.data?.items), '销售订单列表 data.items 应为数组').toBe(true);
   });
 });
+
+// ==================== pieces 权限键的运行期活体证明（依据 R-7） ====================
+
+/**
+ * 匹号领域的运行时权限键是 `pieces:read` / `pieces:print`（URL 段推导，
+ * path_utils.rs:102-117 默认分支取 segment4；matches_permission 按资源段精确匹配，
+ * `inventory:*` 不覆盖）。三通道授予（init 矩阵 / m0069 迁移 / e2e 补授）此前只有
+ * 文本级双向钉，**没有任何"真实 token 访问端点不被 RBAC 拒"的端到端证据**——
+ * 而本 spec 的其余用例都用 admin（`*:*` 掩盖一切缺授），CI 永远测不到该缺口。
+ * 依据 R-7：迁移在 CI 分片库对后建角色必然 0 命中，运行期证据只能由真实 token 直连给出。
+ *
+ * 判据只打状态码层（权限拒绝文案永久脱敏，不断 message 原文）：
+ * - 正向面：`not.toBe(403)`。403 只可能来自 RBAC 拒绝；200/404/400 都说明请求已过
+ *   权限门、失败发生在业务层（id 是否存在、该匹是否 dyed/实测值是否齐备与本证无关）。
+ * - 负向面：salesperson 打 print 必 403（依据 R-13：print 只给库存/仓管/质检/验布岗，不给销售）。
+ */
+const PIECES_LIST = '/inventory/pieces?page=1&page_size=5';
+/** 详情段 id 是否存在无关——RBAC 中间件先于 handler，越权必在权限层被拦 */
+const PIECES_PRINT = '/inventory/pieces/1/print';
+
+test.describe('pieces:read / pieces:print 运行期授权（依据 R-7、R-13）', () => {
+  for (const role of ['warehouse_keeper', 'inventory_manager']) {
+    test(`${role} GET /inventory/pieces → 非 403（pieces:read 真实进库）`, async ({ page }) => {
+      await loginAsRole(page, role);
+      const res = await getRaw(page, PIECES_LIST);
+      expect(
+        res.status,
+        `${role} 读匹号列表被 RBAC 拒（403）= pieces:read 未真实授予该岗；响应体前 300 字符：${res.text.slice(0, 300)}`
+      ).not.toBe(403);
+    });
+
+    test(`${role} GET /inventory/pieces/{id}/print → 非 403（pieces:print 真实进库）`, async ({
+      page,
+    }) => {
+      await loginAsRole(page, role);
+      const res = await getRaw(page, PIECES_PRINT);
+      expect(
+        res.status,
+        `${role} 打成品布标签被 RBAC 拒（403）= pieces:print 未真实授予该岗；响应体前 300 字符：${res.text.slice(0, 300)}`
+      ).not.toBe(403);
+    });
+  }
+
+  test('salesperson GET /inventory/pieces → 非 403（R-13 只授 read）', async ({ page }) => {
+    await loginAsRole(page, 'salesperson');
+    const res = await getRaw(page, PIECES_LIST);
+    expect(
+      res.status,
+      `销售岗应能按四维筛在库匹（发货选匹依赖），实际 ${res.status}；响应体前 300 字符：${res.text.slice(0, 300)}`
+    ).not.toBe(403);
+  });
+
+  test('salesperson GET /inventory/pieces/{id}/print → 403（print 不给销售）', async ({ page }) => {
+    await loginAsRole(page, 'salesperson');
+    const res = await getRaw(page, PIECES_PRINT);
+    expect(
+      res.status,
+      `salesperson 越权打标签必须被权限门拦成 403（R-13 最小授权），实际 ${res.status}`
+    ).toBe(403);
+  });
+});
