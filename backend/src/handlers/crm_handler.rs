@@ -10,6 +10,8 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
 // #207/#208：导出需复用列表同一判定源/同一字段过滤函数（filter_fields_batch）
 use crate::services::data_permission_service::{DataPermissionResult, DataPermissionService};
+// D-4（PR #942 收口）：admin 判定收敛到本仓唯一权威源（roles.code='admin'）
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;
@@ -42,7 +44,8 @@ pub struct UpdateLeadStatusDto {
 /// 并按无权限行让调用方走各自的默认处理（fail-closed）。
 /// admin 例外（放行原文）由各默认处理实现自身保留：读路径
 /// `CrmService::mask_lead_pii_defaults` 对 `role_id == Some(1)` 原样返回，
-/// 导出路径由调用方的 `role_id != 1` 门控，二者都不因本函数而改变既有原值契约。
+/// 导出路径由调用方经 `admin_checker::is_admin_role`（D-4 收口，单一权威源）门控，
+/// 二者都不因本函数而改变既有原值契约。
 async fn resolve_role_data_permission(
     state: &AppState,
     role_id: i32,
@@ -163,9 +166,13 @@ pub(crate) async fn apply_opportunity_field_permission(
             );
             return;
         }
-        // 裁定 #3：admin（role_id==1）无权限行时保持既有原值契约，不进默认处理
-        //（查询 Err 已在 resolve 内记 warn；admin 例外与线索侧 mask_lead_pii_defaults 自放行同构）
-        if rid == 1 {
+        // 裁定 #3：admin 无权限行时保持既有原值契约，不进默认处理
+        //（查询 Err 已在 resolve 内记 warn；admin 例外与线索侧 mask_lead_pii_defaults 自放行同构）。
+        // D-4 收口（PR #942）：admin 判定统一走本仓唯一权威源
+        // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
+        // 禁止角色主键字面量判定——播种漂移时字面量判定要么静默失效（admin 被当
+        // 普通用户剔字段）要么静默扩权（其他角色恰好命中字面量），两头都是缺陷。
+        if admin_checker::is_admin_role(&state.db, rid).await {
             return;
         }
     }
@@ -269,8 +276,10 @@ pub async fn export_leads(
                     &permission.allowed_fields,
                     &permission.hidden_fields,
                 )?;
-            } else if role_id != 1 {
-                // 无权限行且非 admin（查询 Err 亦走此分支，fail-closed）：默认掩码
+            } else if !admin_checker::is_admin_role(&state.db, role_id).await {
+                // 无权限行且非 admin（查询 Err 亦走此分支，fail-closed）：默认掩码。
+                // D-4 收口：admin 判定与读路径同源 `admin_checker::is_admin_role`
+                //（roles.code='admin'），不再使用角色主键字面量。
                 mask_export_pii_columns(&mut table)?;
             }
         }
@@ -1001,12 +1010,35 @@ pub async fn delete_opportunity(
 }
 
 /// 将商机转化为销售订单
+///
+/// D-3（跨主写通道收口，PR #942）：转化是**派生落库对象**的写入口（草稿销售订单 +
+/// 商机赢单翻转，订单还携带对方 `estimated_amount`）。修复前 handler 直通
+/// `service.convert_opportunity_to_order(id, ..)`，其内部 `get_opportunity(id, None)`
+/// 不带 data_scope/归属过滤、整体跳过行级判定（同型缺陷修复范式见
+/// `crm_pool_handler::recycle_to_pool` 文档与 `update_lead_status`），任何够得到本端点
+/// RBAC 的人都能把**他人**商机转成订单。现与 update/delete/close 完全同门：
+/// 先 `get_opportunity(id, Some(&ctx))` 行级读门，再 `ensure_cross_owner_write_allowed`
+/// 写门（owner=`owner_id`、dept=`department_id`，跨主放行只走既有
+/// `crm/cross_owner_write` 显式键通道）；service 侧"商机已赢单不可重复转化"的
+/// 业务状态门逐字保留。拒绝出参走 `permission_denied` 固定脱敏信封（403 + FORBIDDEN），
+/// 不外显资源归属信息，原因只进日志。
 pub async fn convert_opportunity_to_order(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机转销售订单",
+    )
+    .await?;
     let order = service
         .convert_opportunity_to_order(id, auth.user_id)
         .await?;
@@ -1104,6 +1136,14 @@ pub struct FollowUpQuery {
 }
 
 /// GET /api/v1/erp/crm/customers/:id/360 - 客户 360 全景视图
+///
+/// D-1（读侧旁路收口，PR #942）：360 返回体内嵌的"商机简报"（opportunities 子集）
+/// 过去**不走**商机字段级出参门——列表端点隐藏的 `estimated_amount`/`actual_amount`，
+/// 换一个出口整份可读。现与 `list_opportunities`/`get_opportunity`/写响应共用同一个
+/// `apply_opportunity_field_permission`（不复制逻辑、不造第二口径）；owner 判据同源：
+/// 简报行对象携带 `owner_id`（投影自 `crm_opportunity.owner_id`，见
+/// `services/crm/mod.rs::OpportunityBrief`），默认分支"仅剔非本人行金额"与 admin
+/// 例外的判定输入与列表端点逐字一致。
 pub async fn get_customer_360(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -1112,7 +1152,17 @@ pub async fn get_customer_360(
     let service = CrmService::new(state.db.clone());
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
-    let value = service.get_customer_360(id, Some(&data_scope_ctx)).await?;
+    let mut value = service.get_customer_360(id, Some(&data_scope_ctx)).await?;
+    // 商机子集挂与列表同一个字段级门；定位不到数组 = 门无处可施 = 原文直通，
+    // 属形状漂移而非正常分支，显式记 error 不静默（与 paginated_list_array_mut 同口径）。
+    if let Some(opps) = value.get_mut("opportunities").and_then(Value::as_array_mut) {
+        apply_opportunity_field_permission(&state, auth.role_id, auth.user_id, opps).await;
+    } else {
+        tracing::error!(
+            customer_id = id,
+            "客户 360 出参未定位到 opportunities 数组，商机字段级数据权限未应用"
+        );
+    }
     Ok(Json(ApiResponse::success(value)))
 }
 

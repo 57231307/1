@@ -56,6 +56,12 @@ pub struct OpportunityBrief {
     pub actual_amount: Option<rust_decimal::Decimal>,
     pub expected_close_date: Option<chrono::NaiveDate>,
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 行归属列（D-1 收口，PR #942 加列）：投影自 `crm_opportunity.owner_id` 权威归属列
+    /// （models/crm_opportunity.rs:67，0=未分配）。360 内嵌商机子集要与列表端点共用同一个
+    /// `crm_handler::apply_opportunity_field_permission`（"仅剔非本人行金额"），owner 判据
+    /// 必须随行可得；缺该列的行会被门按"非本人行"fail-closed 剔金额（会误伤本人行），
+    /// 故简报投影必须携带。对既有消费方为**增量键**，不改变原键序。
+    pub owner_id: i32,
 }
 
 /// 客户标签简报（customer_tag JOIN crm_tag 单次查询结果，嵌入客户 360 / 列表端点）。
