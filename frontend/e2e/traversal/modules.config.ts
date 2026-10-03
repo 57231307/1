@@ -99,7 +99,16 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'purchase-price', route: '/purchase-price', domain: 'purchase', tier: 'A', listApi: '/purchase-prices' },
   { id: 'purchase-inspection', route: '/purchase-inspection', domain: 'purchase', tier: 'B', listApi: '/purchase/inspections' },
   { id: 'purchase-return', route: '/purchase-return', domain: 'purchase', tier: 'B', listApi: '/purchase/returns' },
-  { id: 'supplier-evaluation', route: '/supplier-evaluation', domain: 'purchase', tier: 'A', listApi: '/supplier-evaluations' },
+  {
+    id: 'supplier-evaluation',
+    route: '/supplier-evaluation',
+    domain: 'purchase',
+    tier: 'A',
+    // 真实注册路径在 /purchase 组下（route-snapshot.txt:820，且 src/api/supplier-evaluation.ts
+    // 的 13 处调用全部带前缀）；不带前缀会被权限中间件的白名单层
+    // （middleware/permission.rs:122 validate_route_whitelist）判 403，与角色授权无关。
+    listApi: '/purchase/supplier-evaluations',
+  },
 
   // ===== crm 域 =====
   { id: 'crm', route: '/crm', domain: 'crm', tier: 'C', noCreate: true },

@@ -34,7 +34,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     // 供应商完整
     await verifyEndpointHealthy(page, '/purchase/suppliers?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/purchase/suppliers/abnormal-orders');
-    await verifyEndpointHealthy(page, '/supplier-evaluations?page=1&page_size=5');
+    await verifyEndpointHealthy(page, '/purchase/supplier-evaluations?page=1&page_size=5');
     const supList = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
