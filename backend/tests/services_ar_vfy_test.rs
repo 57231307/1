@@ -3,7 +3,7 @@ use bingxi_backend::services::ar::AutoMatchRequest;
 use bingxi_backend::decs;
 use bingxi_backend::models::status::ar as ar_status;
 use bingxi_backend::models::status::{ar, common};
-use bingxi_backend::services::test_common::setup_test_db;
+use bingxi_backend::services::test_common::{connect_empty_schema_db, setup_test_db};
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
@@ -423,12 +423,23 @@ async fn test_fwslh_xsjk() {
     assert!(Arc::strong_count(&svc.db) >= 1);
 }
 
-/// test_zddzwzlc_xsjk
-/// 验证 auto_match 端到端调用路径不 panic（需完整 schema + 测试数据）。；标注 #[ignore]：依赖真实 DB schema，CI 默认不跑，需 `cargo test -- --ignored`。；无 schema 时预期返回数据库错误而非 panic。
+/// test_zddzwzlc_xsjk —— 依据裁决 R-9 拆前提（#4672 判责 §A.1 pI 族 :441）：
+/// 钉"schema 缺失（customers 表根本不存在）时 auto_match 返回 DATABASE_ERROR
+/// 机器码而非 panic"，本意不变，前提是负前提交集 ⇒ 改绑
+/// `connect_empty_schema_db()`（不跑迁移的 `bingxi_empty` 库）。
+///
+/// 真实契约依据（读函数体，非读注释）：`src/services/ar/vfy_ops/match.rs:22-63`
+/// auto_match 先 `parse_match_strategy`（match.rs:80-96，"all" 合法 ⇒ Ok），随后
+/// `begin` + `load_match_customers`（match.rs:99-114 `customer::Entity::find`）；
+/// 缺表 ⇒ DbErr::Query ⇒ `utils/error.rs:562-565` AppError::database ⇒
+/// error_code "DATABASE_ERROR"（error.rs:747）。
+/// 为什么不能再留在 `setup_test_db()` 上断 Err：该夹具现语义 = 已迁移 PG +
+/// TRUNCATE 业务表，空表 ⇒ customers=[] ⇒ 循环体不执行 ⇒ `Ok(vec![])` 才是
+/// 真实契约（match.rs:29-62），旧 `is_err()` 在真库化夹具上必红（#4672 即此）。
 #[tokio::test]
 #[ignore]
 async fn test_zddzwzlc_xsjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let svc = ArReconciliationService::new(Arc::new(db));
     let req = AutoMatchRequest {
         customer_id: None,
@@ -436,19 +447,40 @@ async fn test_zddzwzlc_xsjk() {
         end_date: ymd!(2026, 3, 31),
         match_strategy: Some("all".to_string()),
     };
-    // 无 schema 时预期返回数据库错误而非 panic
-    let result = svc.auto_match(req, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .auto_match(req, 1)
+        .await
+        .expect_err("schema 缺失（无 customers 表）时 auto_match 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（match.rs:29 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_zlbgwzlc_xsjk
-/// 验证 get_aging_report 端到端调用路径不 panic（需完整 schema + 测试数据）。；标注 #[ignore]：依赖真实 DB schema，CI 默认不跑，需 `cargo test -- --ignored`。；无 schema 时预期返回数据库错误而非 panic。
+/// test_zlbgwzlc_xsjk —— 同族（#4672 判责 §A.1 pI :453）：按 R-9 改绑
+/// `connect_empty_schema_db()`，钉"schema 缺失时 get_aging_report 返回
+/// DATABASE_ERROR 而非 panic"。
+///
+/// 真实契约依据：`src/services/ar/vfy_ops/aging.rs:30-51` get_aging_report 首步
+/// `load_unpaid_invoices`（aging.rs:53-73 `ar_invoice::Entity::find().all()`）；
+/// 缺表 ⇒ DbErr::Query ⇒ DATABASE_ERROR（error.rs:562-565,747）。
+/// 空表（真库化夹具）上则恒 `Ok`：invoices=[] ⇒ 五桶全零、total_receivable=0 的
+/// 报告（aging.rs:41-50），⇒ 旧 `is_err()` 前提过期，红因与上一条同型。
 #[tokio::test]
 #[ignore]
 async fn test_zlbgwzlc_xsjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let svc = ArReconciliationService::new(Arc::new(db));
-    // 无 schema 时预期返回数据库错误而非 panic
-    let result = svc.get_aging_report(None, None, None).await;
-    assert!(result.is_err());
+    let err = svc
+        .get_aging_report(None, None, None)
+        .await
+        .expect_err("schema 缺失（无 ar_invoices 表）时 get_aging_report 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（aging.rs:37 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }

@@ -2,7 +2,7 @@ use bingxi_backend::models::customer_credit;
 use bingxi_backend::models::status::master_data;
 use bingxi_backend::services::customer_credit_service::CreditRatingRequest;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
-use bingxi_backend::services::test_common::setup_test_db;
+use bingxi_backend::services::test_common::{connect_empty_schema_db, setup_test_db};
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use chrono::Utc;
 // 批次 415：测试中使用 Arc::new(db)，需导入（文件顶部在批次 357 移除了 unused Arc 导入）
@@ -360,47 +360,81 @@ async fn test_fwslcj() {
     assert!(Arc::strong_count(&service.db) >= 1);
 }
 
-/// test_zyxyed_xypjbcz
-/// 需要 customer_credit_ratings 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；有 schema 但无记录时返回 NotFound。
+/// test_zyxyed_xypjbcz —— 真库化夹具前提校准 + 收紧为机器码（#4672 判责 §A.1
+/// 同族；范本见 600e5640 ap_payment confirm 条）：钉"已建库空表上 occupy_credit
+/// 无信用评级记录 ⇒ NOT_FOUND 机器码，而非 panic"。
+///
+/// 真实契约依据（读函数体）：`src/services/customer_credit_limit.rs:81-131`
+/// begin（:93，连库正常）后对 customer_credit_ratings find + FOR UPDATE（:95-99），
+/// 空表 ⇒ None ⇒ `AppError::not_found`（:100）；状态门/额度门（:102-116 ⇒
+/// BUSINESS）只有记录存在才可达。裸 `is_err()` 会把夹具退化（DATABASE_ERROR）
+/// 混进来 ⇒ 钉死机器码。缺表报错形态不属本条职责（本文件 check_credit_warning
+/// 条已按 R-9 改绑 `bingxi_empty` 钉死同型防线）。
 #[tokio::test]
 #[ignore]
 async fn test_zyxyed_xypjbcz() {
     let db = setup_test_db().await;
     let service = CustomerCreditService::new(Arc::new(db));
 
-    let result = service.occupy_credit(99999, decs!("100"), 1).await;
-
-    // 无 schema 时返回数据库错误；有 schema 但无记录时返回 NotFound
-    assert!(result.is_err());
+    let err = service
+        .occupy_credit(99999, decs!("100"), 1)
+        .await
+        .expect_err("已建库空表上 occupy_credit 无评级记录必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 occupy 必须命中 not_found（customer_credit_limit.rs:100），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_jcxyyj_xyzssjk（需要 customer_credit_ratings 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic；无记录时返回 Ok(None)。）
+/// test_jcxyyj_xyzssjk —— 依据裁决 R-9 拆前提（#4672 §A.1 pI credit:387）：
+/// 本条断言消息自陈钉"**无 schema** 时应返回数据库错误"，而 `setup_test_db()`
+/// 现语义 = 已建表 + TRUNCATE，空表上 get_by_customer_id ⇒ None ⇒ 恒
+/// `Ok(None)`（customer_credit_limit.rs:277-281 + customer_credit_service.rs:81-85），
+/// 旧 `is_err()` 必红 ⇒ 前提改绑 `connect_empty_schema_db()`，并把裸 `is_err()`
+/// **收紧**为钉 DATABASE_ERROR。缺表首触库点 = get_by_customer_id 的
+/// `customer_credit::Entity::find().one()`（customer_credit_service.rs:81-83）⇒
+/// DbErr::Query ⇒ `utils/error.rs:562-565` ⇒ "DATABASE_ERROR"（error.rs:747）。
 #[tokio::test]
 #[ignore]
 async fn test_jcxyyj_xyzssjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = CustomerCreditService::new(Arc::new(db));
 
-    // L-19 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    // 无 schema 时返回数据库错误；有 schema 无记录时返回 Ok(None)
-    let result = service.check_credit_warning(99999).await;
-    assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    let err = service
+        .check_credit_warning(99999)
+        .await
+        .expect_err("schema 缺失（无 customer_credit_ratings 表）时必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（customer_credit_service.rs:81 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_jcxykyx_xyzssjk
-/// 需要 customer_credit_ratings 表 schema，标注 #[ignore] 仅在本地手动运行。；验证无信用评级记录时 check_credit_available 应返回 Ok(true)（允许下单）。
+/// test_jcxykyx_xyzssjk —— 文档自陈契约："无信用评级记录时应返回 Ok(true)
+/// （允许下单）"。真实契约依据（读函数体）：
+/// `src/services/customer_credit_limit.rs:239-254` check_credit_available 对
+/// get_by_customer_id 得 None 的记录**显式早返回 `Ok(true)`**（:244-247）；
+/// 真库化空表正是"无记录"提交集。旧写法 `if let Ok(available) = result` 把
+/// Err 静默放过 = 无条件断言（假绿形态），**收紧**为无条件 expect Ok + 断 true
+/// （是收紧不是放宽：夹具退化报 Err 时本条将显形为红）。
 #[tokio::test]
 #[ignore]
 async fn test_jcxykyx_xyzssjk() {
     let db = setup_test_db().await;
     let service = CustomerCreditService::new(Arc::new(db));
 
-    // 无信用评级记录时，业务上视为无额度限制，应返回 Ok(true)
-    let result = service.check_credit_available(99999, decs!("1000")).await;
-    // 无 schema 时为 Err；有 schema 无记录时为 Ok(true)
-    if let Ok(available) = result {
-        assert!(available);
-    }
+    let available = service
+        .check_credit_available(99999, decs!("1000"))
+        .await
+        .expect("已建库空表上无评级记录应返回 Ok(true)（customer_credit_limit.rs:246），而非 Err");
+    assert!(
+        available,
+        "无信用评级记录视为不受额度约束，check_credit_available 必须为 true"
+    );
 }
 
 // ========== 批次 414：credit_limit Option<Decimal> 语义测试 ==========

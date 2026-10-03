@@ -3,7 +3,7 @@ use bingxi_backend::services::ap_reconciliation_ops::types::GenerateReconciliati
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
 use bingxi_backend::models::status::{common, payment};
-use bingxi_backend::services::test_common::setup_test_db;
+use bingxi_backend::services::test_common::{connect_empty_schema_db, setup_test_db};
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
@@ -377,12 +377,21 @@ async fn test_fwslcj() {
 // 九、DB 交互测试（依赖 schema，标注 #[ignore]）
 // =====================================================
 
-/// test_scdzd_xyzssjk
-/// 依赖 ap_reconciliation / ap_invoice / ap_payment 表 schema，；标注 #[ignore] 仅在本地手动运行。无 schema 时返回数据库错误。
+/// test_scdzd_xyzssjk —— 依据裁决 R-9 拆前提（#4672 判责 §A.1 pI 族 ap_recon 条）：
+/// 本条文档自陈钉的是"**无 schema** 时返回数据库错误"，而 `setup_test_db()` 现语义 =
+/// 已迁移 PG + TRUNCATE 业务表（`src/services/test_common.rs` 头注释），前提与判据
+/// 错位 ⇒ 改绑 `connect_empty_schema_db()`（不跑迁移的 `bingxi_empty` 库），并把裸
+/// `is_err()` **收紧**为钉 DATABASE_ERROR 机器码。
+///
+/// 真实契约依据（读函数体）：`src/services/ap_reconciliation_ops/crud.rs:29-104`
+/// generate_reconciliation 在 begin（:34，连库正常）后首步 `generate_reconciliation_no()`
+/// （:37，`impl_generate_no!` 宏按 ap_reconciliation 表计数取号）；缺表 ⇒ DbErr::Query
+/// ⇒ `utils/error.rs:562-565` AppError::database ⇒ error_code "DATABASE_ERROR"
+/// （error.rs:747）。即便退到后续查询（:40 ap_invoice find）同样缺表同族错。
 #[tokio::test]
 #[ignore]
 async fn test_scdzd_xyzssjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = ApReconciliationService::new(Arc::new(db));
 
     let req = GenerateReconciliationRequest {
@@ -392,36 +401,70 @@ async fn test_scdzd_xyzssjk() {
         notes: Some("测试对账单".to_string()),
     };
 
-    let result = service.generate_reconciliation(req, 1).await;
-    // L-17 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    // 无 schema 时返回数据库错误；有 schema 时可能成功或返回约束错误
-    assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    let err = service
+        .generate_reconciliation(req, 1)
+        .await
+        .expect_err("schema 缺失（无 ap_reconciliation 表）时必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（crud.rs:37 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_qrdzd_xyzssjk
-/// 依赖 ap_reconciliation 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；有 schema 但无记录时返回 NotFound。
+/// test_qrdzd_xyzssjk —— 真库化夹具前提校准 + 收紧为机器码（#4672 §A.1 同族；
+/// 范本见 600e5640 ap_payment confirm 条）：钉"已建库空表上 confirm 不存在的
+/// 对账单 ⇒ NOT_FOUND 机器码，而非 panic"。
+///
+/// 真实契约依据（读函数体）：`src/services/ap_reconciliation_ops/confirm.rs:100-111`
+/// begin 后 find_by_id + lock_exclusive，空表 ⇒ None ⇒ `AppError::not_found`（:111）；
+/// 状态门（非 PENDING ⇒ BUSINESS，:113-118）只有记录存在才可达，本条夹具下必先在
+/// not_found 处返回。裸 `is_err()` 会把状态门或夹具退化混进来 ⇒ 钉死机器码。
+/// "缺表报错"那半件事由本文件 test_scdzd 在 `bingxi_empty` 上钉死，不在此重复。
 #[tokio::test]
 #[ignore]
 async fn test_qrdzd_xyzssjk() {
     let db = setup_test_db().await;
     let service = ApReconciliationService::new(Arc::new(db));
 
-    let result = service.confirm_reconciliation(99999, 1).await;
-    // 无 schema 时返回数据库错误；有 schema 但无记录时返回 NotFound
-    assert!(result.is_err());
+    let err = service
+        .confirm_reconciliation(99999, 1)
+        .await
+        .expect_err("已建库空表上 confirm 不存在的对账单必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 confirm 必须命中 not_found（confirm.rs:111），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_hqdzdlb_xyzssjk（依赖 ap_reconciliation 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic，分页参数 1-indexed 转换正确。）
+/// test_hqdzdlb_xyzssjk —— 依据裁决 R-9 拆前提后钉另一件事：已建库、业务表已
+/// 清空 ⇒ `get_list` 不 panic 且返回**空集**（total=0）。
+///
+/// 真实契约依据（读函数体）：`src/services/ap_reconciliation_ops/crud.rs:117-149`
+/// get_list 对空表走 `paginate_with_total`（`utils/pagination.rs:17-23`
+/// fetch_page=[] / num_items=0）⇒ `Ok(([], 0))`；本条旧注释自己就写了
+/// "有 schema 无记录时为 Ok((vec![], 0))"——现夹具正是该前提交集，旧 `is_err()`
+/// 锁的是另一半（缺表报错，已由 test_scdzd 改绑空 schema 库钉死），二者拆开、
+/// 各钉各的，判据不放宽。
 #[tokio::test]
 #[ignore]
 async fn test_hqdzdlb_xyzssjk() {
     let db = setup_test_db().await;
     let service = ApReconciliationService::new(Arc::new(db));
 
-    let result = service.get_list(None, None, None, None, 1, 10).await;
-    // L-17 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    // 无 schema 时为 Err；有 schema 无记录时为 Ok((vec![], 0))
-    assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    let (items, total) = service
+        .get_list(None, None, None, None, 1, 10)
+        .await
+        .expect("已建库空表上 get_list 应返回 Ok 空集，而非 Err/panic");
+    assert!(
+        items.is_empty(),
+        "夹具已 TRUNCATE 业务表，列表必须是空集，实得 {} 行",
+        items.len()
+    );
+    assert_eq!(total, 0, "空表的 total 计数应为 0，实得 {total}");
 }
 
 // =====================================================

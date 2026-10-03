@@ -9,6 +9,7 @@ use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use rust_decimal::Decimal;
+use sea_orm::ConnectionTrait;
 use std::sync::Arc;
 
 /// 构造合法的 CreateQuotationItemDto（单条明细）
@@ -291,43 +292,105 @@ async fn test_quotationservice_new_zqcysjklj() {
         .expect("数据库连接应可用");
 }
 
-/// test_quotationservice_get_by_id_ksjkfherr
+/// test_quotationservice_get_by_id_ksjkfherr —— 真库化夹具前提校准
+/// （#4672 判责 §A.1；手法照抄 600e5640 的 confirm/get_receipt 收紧范本）：
+/// 钉"已建库空表上 get_by_id 不存在记录 ⇒ Err(NotFound)，而非 panic"。
+///
+/// 真实契约依据（读函数体）：`src/services/quotation_ops/crud.rs:317-322`
+/// find_by_id().one() 空表 ⇒ None ⇒ `.ok_or(ServiceError::NotFound)` ⇒ Err 方向
+/// 成立；但裸 `is_err()` 会把夹具退化成 Query Err 也放过 ⇒ 收紧为钉变体，并顺带
+/// 锁装配点机器码（`handlers/quotation_handler.rs:564` NotFound ⇒ NOT_FOUND）。
 #[tokio::test]
 async fn test_quotationservice_get_by_id_ksjkfherr() {
     let db = setup_test_db().await;
     let svc = QuotationService::new(Arc::new(db));
-    let result = svc.get_by_id(9999).await;
-    assert!(result.is_err());
+    let err = svc
+        .get_by_id(9999)
+        .await
+        .expect_err("已建库空表上 get_by_id 不存在记录必须返回 Err 而非 panic");
+    assert!(
+        matches!(err, ServiceError::NotFound),
+        "空表 get_by_id 必须命中 NotFound 变体（crud.rs:321），实得 {err:?}"
+    );
+    assert_eq!(
+        AppError::from(err).error_code(),
+        "NOT_FOUND",
+        "NotFound 装配点必须出 NOT_FOUND 机器码（quotation_handler.rs:564）"
+    );
 }
 
-/// test_quotationservice_list_ksjkfherr
+/// test_quotationservice_list_ksjkfherr —— 依据裁决 R-9 拆前提后钉另一件事：
+/// 已建库、业务表已清空 ⇒ `list` 不 panic 且返回**空集**（total=0）。
+///
+/// 真实契约依据（读函数体）：`src/services/quotation_ops/crud.rs:227-263` 对空表
+/// 走 `paginate_with_total`（`utils/pagination.rs:17-23` fetch_page=[] /
+/// num_items=0）⇒ `Ok(([], 0))`；`attach_names` 对空入参早退 Ok
+/// （crud.rs:274-276）。原断 `is_err()` 是把真库化夹具当"空 SQLite 无 schema"的
+/// 过期前提（#4672 判责 §A.1 点名本行 p3 红签名 `assertion failed:
+/// result.is_err()`）。schema 缺失的报错形态不属本条职责（本文件无该防线需求，
+/// 负前提交集已由 ap_payment/production_order 族在 `bingxi_empty` 上统一钉死）。
 #[tokio::test]
 async fn test_quotationservice_list_ksjkfherr() {
     let db = setup_test_db().await;
     let svc = QuotationService::new(Arc::new(db));
-    let result = svc.list(1, 20, None, None, None, None).await;
-    assert!(result.is_err());
+    let (items, total) = svc
+        .list(1, 20, None, None, None, None)
+        .await
+        .expect("已建库空表上 list 应返回 Ok 空集，而非 Err/panic");
+    assert!(
+        items.is_empty(),
+        "夹具已 TRUNCATE 业务表，列表必须是空集，实得 {} 行",
+        items.len()
+    );
+    assert_eq!(total, 0, "空表的 total 计数应为 0，实得 {total}");
 }
 
-/// test_quotationservice_cancel_bczfhapperror
+/// test_quotationservice_cancel_bczfhapperror —— 真库化前提校准 + 收紧为机器码
+/// （#4672 判责 §A.1 同族；范本见 600e5640 ap_payment confirm 条）：
+/// 钉"已建库空表上 cancel 不存在的单 ⇒ NOT_FOUND 机器码，而非 panic"。
+///
+/// 真实契约依据：`src/services/quotation_ops/lifecycle.rs:20-26` begin 后
+/// find_by_id + lock_exclusive，空表 ⇒ None ⇒ `AppError::not_found`；
+/// 裸 `is_err()` 会把 converted 状态门（BUSINESS，lifecycle.rs:27-32）或夹具
+/// 退化（DATABASE）混进来，本条锁的是"记录不存在"这一件事 ⇒ 钉死机器码。
 #[tokio::test]
 async fn test_quotationservice_cancel_bczfhapperror() {
     let db = setup_test_db().await;
     let svc = QuotationService::new(Arc::new(db));
-    let result = svc.cancel(9999, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .cancel(9999, 1)
+        .await
+        .expect_err("已建库空表上 cancel 不存在的报价单必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 cancel 必须命中 not_found（lifecycle.rs:26），实得 {}",
+        err.error_code()
+    );
 }
 
 // ============ update 状态机校验测试 ============
 
-/// test_quotationservice_update_bczfhapperror
-use sea_orm::ConnectionTrait;
-use std::collections::HashSet;
+/// test_quotationservice_update_bczfhapperror —— 同族收紧：钉"已建库空表上
+/// update 不存在的单 ⇒ NOT_FOUND 机器码，而非 panic"。
+///
+/// 真实契约依据：`src/services/quotation_ops/update.rs:27-34` begin 后先
+/// `load_for_update`（update.rs:56-74 find_by_id + lock_exclusive，None ⇒
+/// `AppError::not_found` :64）；状态门（仅 draft/rejected 可改 ⇒ BUSINESS）在
+/// 记录存在时才可达，本条夹具下必先在 not_found 处返回。
 #[tokio::test]
 async fn test_quotationservice_update_bczfhapperror() {
     let db = setup_test_db().await;
     let svc = QuotationService::new(Arc::new(db));
     let dto = UpdateQuotationDto::default();
-    let result = svc.update(9999, dto, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .update(9999, dto, 1)
+        .await
+        .expect_err("已建库空表上 update 不存在的报价单必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 update 必须命中 not_found（update.rs:64），实得 {}",
+        err.error_code()
+    );
 }

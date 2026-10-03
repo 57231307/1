@@ -3,7 +3,7 @@ use bingxi_backend::services::voucher_service::VoucherQueryParams;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
 use bingxi_backend::models::status::voucher as voucher_status;
-use bingxi_backend::services::test_common::setup_test_db;
+use bingxi_backend::services::test_common::{connect_empty_schema_db, setup_test_db};
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
@@ -498,11 +498,22 @@ async fn test_fwslcj() {
 
 // ============ 数据库交互测试（标注 #[ignore]）============
 
-/// test_cjpz_xyzssjk（需要 vouchers/voucher_items/account_subjects 表 schema，；标注 #[ignore] 仅在本地手动运行。无 schema 时返回数据库错误。）
+/// test_cjpz_xyzssjk —— 依据裁决 R-9 拆前提（#4672 判责 §A.1 pI 族 voucher:524）：
+/// 本条文档自陈钉"**无 schema** 时返回数据库错误"，而 `setup_test_db()` 现语义 =
+/// 已迁移 PG + TRUNCATE 业务表，空表上 create 借贷平衡 ⇒ 科目 1001 命中迁移种子 ⇒
+/// **Ok(凭证)** 才是真实契约（#4672 该条红的签名正是"is_err 失败"）⇒ 前提改绑
+/// `connect_empty_schema_db()`，并把裸 `is_err()` **收紧**为钉 DATABASE_ERROR。
+///
+/// 真实契约依据（读函数体）：`src/services/voucher_ops/crud.rs:42-94` create 首个
+/// 落库动作在 `validate_voucher_create_req`（:48，非生产环境只查平衡不落库，
+/// :113-124）后 `generate_voucher_no`（:56-58，DocumentNumberGenerator 按 vouchers
+/// 表计数取号）⇒ 缺表 DbErr::Query ⇒ `utils/error.rs:562-565` DATABASE_ERROR
+/// （error.rs:747）；即便环境被判为生产，:129 check_date_locked 同样首发缺表错，
+/// 两分支族一致。
 #[tokio::test]
 #[ignore]
 async fn test_cjpz_xyzssjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = VoucherService::new(Arc::new(db));
 
     let req = CreateVoucherRequest {
@@ -519,16 +530,30 @@ async fn test_cjpz_xyzssjk() {
             make_voucher_item_request(Decimal::ZERO, decs!("1000")),
         ],
     };
-    let result = service.create(req, 1).await;
-    // 无 schema 时为 Err
-    assert!(result.is_err());
+    let err = service
+        .create(req, 1)
+        .await
+        .expect_err("schema 缺失（无 vouchers 表）时 create 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（crud.rs:57 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_cxpzlb_xyzssjk（需要 vouchers 表 schema，标注 #[ignore] 仅在本地手动运行。）
+/// test_cxpzlb_xyzssjk —— 同族按 R-9 改绑空 schema 库（#4672 §A.1 voucher:548），
+/// 钉 DATABASE_ERROR。旧注释自己写了"有 schema 时为 Ok"——那半件事（真库化空表 ⇒
+/// `Ok(([], 0))`，crud.rs:349-360 count=0/all=[]）由 contract_wave5 凭证族与
+/// handlers_voucher 用例在真库上覆盖，本条只锁缺表报错，拆开各钉各的。
+///
+/// 真实契约依据：`src/services/voucher_ops/crud.rs:319-361` get_list 首个落库动作
+/// `query.clone().count()`（:349）打在 vouchers 表；缺表 ⇒ DATABASE_ERROR
+/// （error.rs:562-565,747）。
 #[tokio::test]
 #[ignore]
 async fn test_cxpzlb_xyzssjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = VoucherService::new(Arc::new(db));
 
     let params = VoucherQueryParams {
@@ -542,22 +567,43 @@ async fn test_cxpzlb_xyzssjk() {
         page: None,
         page_size: None,
     };
-    let result = service.get_list(params).await;
-    // L-17 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    // 无 schema 时为 Err；有 schema 时为 Ok
-    assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    let err = service
+        .get_list(params)
+        .await
+        .expect_err("schema 缺失（无 vouchers 表）时 get_list 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（crud.rs:349 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_pzgz_xyzssjk（需要 vouchers/voucher_items/account_balances/account_subjects 表 schema，；标注 #[ignore] 仅在本地手动运行。）
+/// test_pzgz_xyzssjk —— 真库化夹具前提校准 + 收紧为机器码（#4672 §A.1 同族收口；
+/// 范本见 600e5640 ap_payment confirm 条）：钉"已建库空表上 post 不存在的凭证
+/// ⇒ NOT_FOUND 机器码，而非 panic"。
+///
+/// 真实契约依据（读函数体）：`src/services/voucher_ops/workflow.rs:120-131`
+/// begin 后 find_by_id + lock_exclusive，空表 ⇒ None ⇒ `AppError::not_found`
+/// （:131）；状态门"只有已审核的凭证可以过账"（:133-136 ⇒ BUSINESS）只有记录
+/// 存在才可达。旧注释"无 schema 时为 Err"那半件事已由本文件 test_cjpz 在
+/// `bingxi_empty` 上钉死，本条按现夹具真实契约钉 NOT_FOUND，不放宽也不重复。
 #[tokio::test]
 #[ignore]
 async fn test_pzgz_xyzssjk() {
     let db = setup_test_db().await;
     let service = VoucherService::new(Arc::new(db));
 
-    let result = service.post(99999, 1).await;
-    // 无 schema 时为 Err
-    assert!(result.is_err());
+    let err = service
+        .post(99999, 1)
+        .await
+        .expect_err("已建库空表上 post 不存在的凭证必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 post 必须命中 not_found（workflow.rs:131），实得 {}",
+        err.error_code()
+    );
 }
 
 // ============ 批次 393 补测：凭证类型定义与辅助核算五维 ============

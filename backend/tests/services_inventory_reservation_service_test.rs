@@ -2,7 +2,7 @@
 use bingxi_backend::models::inventory_reservation;
 use bingxi_backend::models::status::inventory_reservation as reservation_status;
 use bingxi_backend::services::inventory_reservation_service::InventoryReservationService;
-use bingxi_backend::services::test_common::setup_test_db;
+use bingxi_backend::services::test_common::{connect_empty_schema_db, setup_test_db};
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::decs;
 use bingxi_backend::utils::error::AppError;
@@ -227,43 +227,76 @@ async fn test_fwslcj() {
     // 验证服务内部 db 引用计数 >= 1
 }
 
-/// test_sdyl_wbjgfhcw
-/// 需要 inventory_reservations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时 lock_reservation 应返回数据库错误。
+/// test_sdyl_wbjgfhcw —— 族名自陈钉"**无表结构**返回错误"，按裁决 R-9 改绑
+/// `connect_empty_schema_db()`（`setup_test_db()` 现语义 = 已迁移 PG + TRUNCATE，
+/// 缺表前提在它身上不成立），并把裸 `is_err()` **收紧**为钉 DATABASE_ERROR。
+///
+/// 真实契约依据（读函数体）：`src/services/inventory_reservation_service.rs:91-104`
+/// lock_reservation begin（:98，连库正常）后 `find_by_id + lock_exclusive`
+/// （:100-102）打在 inventory_reservations 表；缺表 ⇒ DbErr::Query ⇒
+/// `utils/error.rs:562-565` ⇒ "DATABASE_ERROR"（error.rs:747）。
+/// （注：真库化空表上本函数另有正向契约 Err(NOT_FOUND, :104)，该形态已由
+/// contract_wave2_reservation_error_mapping 族在真库钉死，本条不重复、只锁缺表。）
 #[tokio::test]
 #[ignore]
 async fn test_sdyl_wbjgfhcw() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = InventoryReservationService::new(Arc::new(db));
 
-    // 无 inventory_reservations 表 schema，应返回数据库错误
-    let result = service.lock_reservation(99999).await;
-    assert!(result.is_err());
+    let err = service
+        .lock_reservation(99999)
+        .await
+        .expect_err("schema 缺失（无 inventory_reservations 表）时锁定必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（inventory_reservation_service.rs:100 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_sfyl_wbjgfhcw
-/// 需要 inventory_reservations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时 release_reservation 应返回数据库错误。
+/// test_sfyl_wbjgfhcw —— 同族按 R-9 改绑空 schema 库，钉 DATABASE_ERROR。
+///
+/// 真实契约依据（读函数体）：`src/services/inventory_reservation_service.rs:130-143`
+/// release_reservation begin（:137）后 `find_by_id + lock_exclusive`（:139-141）；
+/// 缺表 ⇒ DbErr::Query ⇒ DATABASE_ERROR（error.rs:562-565,747）。
 #[tokio::test]
 #[ignore]
 async fn test_sfyl_wbjgfhcw() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = InventoryReservationService::new(Arc::new(db));
 
-    // 无 inventory_reservations 表 schema，应返回数据库错误
-    let result = service.release_reservation(99999).await;
-    assert!(result.is_err());
+    let err = service
+        .release_reservation(99999)
+        .await
+        .expect_err("schema 缺失（无 inventory_reservations 表）时释放必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（inventory_reservation_service.rs:139 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_cxyllb_wbjgfhcw
-/// 需要 inventory_reservations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时 list_reservations 应返回数据库错误。
+/// test_cxyllb_wbjgfhcw —— 同族按 R-9 改绑空 schema 库（#4672 §A.1 pI
+/// reservation:268 红点即本条旧 `is_err()`：真库化空表上分页返回 `Ok(([], 0))`
+/// 才是契约，见 inventory_reservation_service.rs:207-210 +
+/// `utils/pagination.rs:17-23`，谎称 Err 的过期前提已失效）。
+/// 本条只锁"缺表必须报错、绝不静默吞成空集/panic"⇒ 钉 DATABASE_ERROR。
 #[tokio::test]
 #[ignore]
 async fn test_cxyllb_wbjgfhcw() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = InventoryReservationService::new(Arc::new(db));
 
-    // 无 inventory_reservations 表 schema，分页查询应返回数据库错误
-    let result = service
+    let err = service
         .list_reservations(0, 10, None, None, None, None)
-        .await;
-    assert!(result.is_err());
+        .await
+        .expect_err("schema 缺失（无 inventory_reservations 表）时列表必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（inventory_reservation_service.rs:207 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }

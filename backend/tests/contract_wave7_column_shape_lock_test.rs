@@ -383,9 +383,13 @@ async fn crm_lead_tags_roundtrip_as_text_array() {
         ))
         .await
         .expect("原生回读失败");
+    // PG `array_length()` 返回 INT4（integer），按 Option<i64>（INT8）解码会撞
+    // 运行期 ColumnDecode "mismatched types; Rust type Option<i64> (as SQL type
+    // INT8) is not compatible with SQL type INT4"（#4672 §A.3 绿转红根因，
+    // b7e33b52 引入本段时写错解码类型；被测 tags 往返功能本身无涉）。
     assert_eq!(
         empty[0]
-            .try_get_by_index::<Option<i64>>(0)
+            .try_get_by_index::<Option<i32>>(0)
             .expect("array_length 解码失败"),
         Some(3),
         "库内实际就是 3 元素 PG 数组（非把 JSON 文本塞进标量列的假数组）"
