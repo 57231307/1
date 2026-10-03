@@ -1403,6 +1403,11 @@ async fn seed_transfer_with_item(
         color_no: Set("C001".to_string()),
         dye_lot_no: Set(Some("DL001".to_string())),
         batch_no: Set("B7".to_string()),
+        // 染色布行必须四维齐全（2026-10-02 裁定：出库第四维=匹号）：
+        // 缺匹号的行在建 service 更新（追溯列进判定）时被正当拒绝
+        // （#4671 p1 实证 "染色布必须提供匹号（color_no=C001 但 piece_no 为空）"），
+        // 三态回环根本跑不到。正解是补齐夹具第四维，不是放宽源码门控或删步骤。
+        piece_no: Set(Some("P001".to_string())),
         ..Default::default()
     }
     .insert(db)
@@ -1413,7 +1418,9 @@ async fn seed_transfer_with_item(
 
 /// 调拨明细 update 三态回环：可空列（notes/unit_cost/dye_lot_no）缺席保持 / null 清空 /
 /// 有值覆盖全部经真实 service + 真库回读；染色布行的缸号清空受四维追溯不变量拒绝
-/// 且不产生部分写（DTO 声明的 unit_cost/追溯列在旧实现里被整体丢弃，属"假保存"缺陷）
+/// 且不产生部分写（DTO 声明的 unit_cost/追溯列在旧实现里被整体丢弃，属"假保存"缺陷）。
+/// 种子染色布行自带匹号 P001（第四维，2026-10-02 裁定）：否则任何追溯列更新都会被
+/// "染色布必须提供匹号"正当拒绝、三态回环不可达（#4671 p1 判责：夹具缺维非语义错）。
 #[tokio::test]
 async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
     let db = setup_test_db().await;
@@ -1453,6 +1460,11 @@ async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
     assert_eq!(row.notes.as_deref(), Some("三态新备注"), "有值=覆盖");
     assert_eq!(row.unit_cost, Some(dec("3.50")), "缺席键必须保持原值");
     assert_eq!(row.dye_lot_no.as_deref(), Some("DL001"));
+    assert_eq!(
+        row.piece_no.as_deref(),
+        Some("P001"),
+        "匹号（第四维）缺席键同样必须保持，不得被隐式清空"
+    );
 
     // 2) 显式 null=清空：notes/unit_cost 同请求置 NULL，追溯列缺席不动
     service
@@ -1495,6 +1507,11 @@ async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
         .unwrap();
     let row = reload().await;
     assert_eq!(row.dye_lot_no.as_deref(), Some("DL009"), "有值=覆盖");
+    assert_eq!(
+        row.piece_no.as_deref(),
+        Some("P001"),
+        "改缸号时匹号缺席必须保持（四维逐列独立三态，不得连带清空）"
+    );
 
     // 4) 染色布（生效色号非空）清空缸号：违反四维追溯不变量，如实拒绝且明细零写
     let err = service

@@ -192,7 +192,20 @@ fn status_word_table_is_lowercase_single_source() {
     );
 }
 
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
+/// #4671 B1① 判责：禁词扫描命中"修复前这里是 NOT IN ('CANCELLED'…)"这类说明
+/// 注释即假判违例；必备项扫描命中注释则是假绿。双向都必须在剥注释文本上判定。
+/// 按行而非按字符/引号配平的先例与理由同 `contract_wave5_outsource_issue_guard_test.rs`
+/// （被扫源码大量跨行 raw string SQL，字符级配平会吃掉真代码）。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// 防回潮源码扫描:BI 聚合/钻取 SQL 不得再出现大写状态字面量,且须引用词表常量绑定。
+/// 全部判据在剥注释文本上执行（正向必备项同样剥——防"只在注释里引用常量"的假绿）。
 #[test]
 fn source_scan_bi_sql_uses_bound_constants_not_uppercase_literals() {
     let sales = include_str!("../src/services/bi_analysis_ops/sales.rs").replace('\r', "");
@@ -202,16 +215,20 @@ fn source_scan_bi_sql_uses_bound_constants_not_uppercase_literals() {
         ("bi_analysis_ops/sales.rs", &sales),
         ("drilldown.rs", &drill),
     ] {
+        let code = code_only(src);
         assert!(
-            !src.contains("NOT IN ('CANCELLED'") && !src.contains("NOT IN ('DRAFT'"),
+            !code.contains("NOT IN ('CANCELLED'") && !code.contains("NOT IN ('DRAFT'"),
             "{name}: SQL 不得再含大写状态字面量,应改绑定参数"
         );
         assert!(
-            src.contains("sales_order::CANCELLED") && src.contains("sales_order::DRAFT"),
+            code.contains("sales_order::CANCELLED") && code.contains("sales_order::DRAFT"),
             "{name}: 排除门须引用词表常量 sales_order::CANCELLED / sales_order::DRAFT"
         );
+        // 绑定形态判据去空白后比对：SQL 文本在 raw string 内不被 rustfmt 折行，
+        // 但 `NOT IN ($` 与参数编号之间可能因排版换行/对齐而含空白，排版不参与判定。
+        let flat: String = code.chars().filter(|c| !c.is_whitespace()).collect();
         assert!(
-            src.contains("NOT IN ($"),
+            flat.contains("NOTIN($"),
             "{name}: 状态谓词须为 $N 绑定参数形态(顺带收掉注入面)"
         );
     }

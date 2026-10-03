@@ -673,76 +673,164 @@ async fn settle_with_zero_fee_is_rejected_with_displayable_message_and_no_empty_
     );
 }
 
+// =========================================================
+// 源码扫描锁公共工具（本文件两把扫描锁共用）
+//
+// 为什么需要这三件套（#4671 判责 B1 三形态，全部是"测的写法脆"而非源码脆）：
+// 1. `&src[at..at + 1200]` 这类**固定字节窗**在含中文的源码里会在多字节字符中间
+//    劈开 → `byte index is not a char boundary` panic（本批 `c1902082` 给
+//    `outsourcing_ops/receipt.rs` 加了约 25 行中文注释、整体移动字节偏移即为此）。
+//    正解：窗的边界一律由**符号**定位（`fn_body`），不做任何硬字节长度假设。
+// 2. 单行字面 needle 会因 rustfmt 折行/尾逗号假失败（`cas_piece_status` 已泛型化为
+//    `async fn cas_piece_status<C: ConnectionTrait>(`）。正解：正向 contains 之前
+//    双侧同一套 `canon` 规范化（剔空白 + 消尾逗号），排版与判定解耦。
+// 3. 禁词/needle 命中源码里的**说明性注释**（"这里以前是 X，现已改为 Y"）属假判。
+//    正解：禁项只看执行体 —— 先 `code_only` 剥整行注释，再判。
+// =========================================================
+
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
+/// 按行而非按字符扫描的理由：被锁源码大量使用**跨行 raw string**（SQL），单行做
+/// 引号配平会把字符串里的 `"` 当成字符串起止、进而把真代码文本当注释吃掉；
+/// 宁少剥（块注释与行尾尾注释不处理）不可错剥——误吃代码会让"必备项"断言假失败，
+/// 而漏吃注释只会让"禁项"断言偏保守，两者中后者才是可接受的偏差方向。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 规范形（**仅用于正向 contains**）：在 `code_only` 文本上剔除全部空白，并消掉闭合
+/// 定界符前的尾逗号（rustfmt 把 `f(a, b)` 拆成多行后末实参必带 `,`，是折行的必然
+/// 产物而非语义）。负向 `!contains` 一律只用 `code_only`，不套本函数——去空白会
+/// 扩大匹配面（与本文件既有 `strip_ws` 纪律、`sku_mapping_contract_test.rs:138` 同口径）。
+fn canon(src: &str) -> String {
+    let mut out: String = code_only(src)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    loop {
+        let next = out
+            .replace(",)", ")")
+            .replace(",]", "]")
+            .replace(",}", "}");
+        if next == out {
+            break;
+        }
+        out = next;
+    }
+    out
+}
+
+/// 符号定位取函数体：从 `signature`（**跳过注释里的同名词**，只在 `code_only` 文本上找）
+/// 起，到下一个函数/条目符号之前为止。替代"行号常量"与"符号 + 固定字节窗"两种脆写法：
+/// 本仓重构会移动行号与字节偏移，而符号名是测试与被锁源码之间唯一稳定的锚点
+/// （文件头与 `contract_wave5_delete_precheck_and_status_literal_lock_test.rs:23` 同式先例）。
+fn fn_body(code_src: &str, signature: &str) -> String {
+    let anchor = code_src.find(signature).unwrap_or_else(|| {
+        panic!("待锁符号不存在: {signature}（若该符号确已被改名/删除，请连同本锁一起更新判据）")
+    });
+    let tail = &code_src[anchor..];
+    let next = [
+        "\npub async fn ",
+        "\npub(crate) async fn ",
+        "\npub fn ",
+        "\npub(crate) fn ",
+        "\nasync fn ",
+        "\nfn ",
+        "\n    pub async fn ",
+        "\n    pub(crate) async fn ",
+        "\n    pub fn ",
+        "\n    pub(crate) fn ",
+        "\n    async fn ",
+        "\n    fn ",
+    ]
+    .iter()
+    .filter_map(|marker| tail.find(marker))
+    .min()
+    .unwrap_or(tail.len());
+    tail[..next].to_string()
+}
+
 /// 源码扫描锁：收回单三处 0 量门（create/update/confirm）的族、文案与"先于写入"位置。
 /// 这三处走 outsourcing_receipt 表 + 行锁，sqlite 无法真跑，故以扫描锁防漂移，
 /// 并在测试文件头声明其覆盖边界（不伪装成端到端）。
 #[tokio::test]
 async fn receipt_zero_quantity_gates_are_wired_in_all_three_paths() {
     let src = include_str!("../src/services/outsourcing_ops/receipt.rs").replace('\r', "");
+    // 禁项与"必备项"都只在剥注释后的文本上判定：源码里的说明注释（"旧口径是只拦负数，
+    // 现改为 <=0"之类）不是执行体，命中它既可能假判违例、也可能假判已接线。
+    let code = code_only(&src);
+    // 正向 needle 走 canon（rustfmt 折行/尾逗号不参与判定）
+    let flat = canon(&src);
 
     // create：0/负数一律 VALIDATION_ERROR 族 + 可外显公开规则（字段取值域），
     // 且必须是函数体第一条校验（先于 validate_create_request 与 insert）
-    let create_at = src
-        .find("pub async fn create(")
-        .expect("receipt.rs 必须有 create 入口");
-    let create_head = &src[create_at..create_at + 1200];
+    let create_body = fn_body(&code, "pub async fn create(");
     assert!(
-        create_head.contains("if req.return_quantity <= Decimal::ZERO"),
+        canon(&create_body).contains(&canon("if req.return_quantity <= Decimal::ZERO")),
         "create 必须把收回数量下界从「负数」收紧到「<=0」，否则 0 量单照样能建"
     );
     assert!(
-        create_head.contains("AppError::validation_displayable(\"收回数量必须大于零\")"),
+        flat.contains(&canon(
+            "AppError::validation_displayable(\"收回数量必须大于零\")"
+        )),
         "create 的 0 量拒绝必须走 VALIDATION 族且外显公开规则文案"
     );
-    let gate_idx = create_head
-        .find("if req.return_quantity <= Decimal::ZERO")
+    let create_flat = canon(&create_body);
+    let gate_idx = create_flat
+        .find(&canon("if req.return_quantity <= Decimal::ZERO"))
         .unwrap();
-    let validate_idx = create_head
-        .find("Self::validate_create_request")
+    let validate_idx = create_flat
+        .find(&canon("Self::validate_create_request"))
         .expect("create 应调用建单前置校验");
+    let insert_idx = create_flat
+        .find(&canon(".insert(&*self.db)"))
+        .expect("create 的落库点必须在函数体内");
     assert!(
-        gate_idx < validate_idx,
+        gate_idx < validate_idx && gate_idx < insert_idx,
         "数量取值域门必须先于建单前置校验与任何写入"
     );
 
     // update：三态分支内同一族同一文案（禁 create/update 两套口径）
     assert_eq!(
-        src.matches("if v <= Decimal::ZERO").count(),
+        code.matches("if v <= Decimal::ZERO").count(),
         1,
         "update 的 return_quantity 分支必须有同一 <=0 门"
     );
     assert_eq!(
-        src.matches("AppError::validation_displayable(\"收回数量必须大于零\")")
+        flat.matches(&canon("AppError::validation_displayable(\"收回数量必须大于零\")"))
             .count(),
         2,
         "create 与 update 两处必须同源同文案（不得一个外显一个脱敏）"
     );
 
     // confirm：0 量草稿（门控上线前既有数据）也必须被拦，且先于凭证/库存/订单写入
-    let confirm_at = src
-        .find("pub async fn confirm(")
-        .expect("receipt.rs 必须有 confirm 入口");
-    let confirm_head = &src[confirm_at..confirm_at + 2600];
+    let confirm_body = fn_body(&code, "pub async fn confirm(");
+    let confirm_flat = canon(&confirm_body);
     assert!(
-        confirm_head.contains("if receipt_model.return_quantity <= Decimal::ZERO"),
+        confirm_flat.contains(&canon("if receipt_model.return_quantity <= Decimal::ZERO")),
         "confirm 必须对存量 0 量草稿做兜底门控，否则 0 量单仍可确认并污染成本链"
     );
     assert!(
-        confirm_head.contains("收回数量为 0，无法确认回仓；请先录入实际收回数量"),
+        confirm_flat.contains(&canon("收回数量为 0，无法确认回仓；请先录入实际收回数量")),
         "confirm 的 0 量拒绝必须外显行动路径"
     );
-    let confirm_gate = confirm_head
-        .find("if receipt_model.return_quantity <= Decimal::ZERO")
+    let confirm_gate = confirm_flat
+        .find(&canon("if receipt_model.return_quantity <= Decimal::ZERO"))
         .unwrap();
-    let eligibility = confirm_head
-        .find("validate_receipt_eligibility")
+    let eligibility = confirm_flat
+        .find(&canon("validate_receipt_eligibility"))
         .expect("confirm 应调用超发/资格校验");
+    let first_write = confirm_flat
+        .find(&canon(".insert(&txn)"))
+        .expect("confirm 的事务内写入点必须在函数体内");
     assert!(
-        confirm_gate < eligibility,
+        confirm_gate < eligibility && confirm_gate < first_write,
         "0 量门必须先于资格校验与任何凭证/库存写入"
     );
     assert!(
-        !confirm_head.contains("return_quantity < Decimal::ZERO"),
+        !confirm_body.contains("return_quantity < Decimal::ZERO"),
         "confirm 不得残留「只拦负数」的旧口径"
     );
 }
@@ -962,23 +1050,20 @@ async fn cancel_issued_order_releases_reserved_piece_to_available() {
 async fn piece_occupancy_calls_are_wired_inside_their_transactions() {
     // issue_order：begin < reserve_pieces_for_issue(&txn..) < commit，
     // 且不得残留事务外 validate（TOCTOU 窗口源头）
+    // 边界一律由符号定位（fn_body），不再用"本函数符号 + 下一个函数符号的行号/字节偏移"
+    // 这种随重构漂移的写法；顺序判定在 canon 文本上做，rustfmt 折行不参与判定。
     let order_src = include_str!("../src/services/outsourcing_ops/order.rs").replace('\r', "");
-    let issue_at = order_src
-        .find("pub async fn issue_order(")
-        .expect("order.rs 必须有 issue_order 入口");
-    let issue_end = order_src[issue_at..]
-        .find("pub async fn record_processing(")
-        .map(|o| issue_at + o)
-        .expect("issue_order 与 record_processing 之间即其函数体");
-    let issue_body = &order_src[issue_at..issue_end];
-    let begin = issue_body
-        .find("(*self.db).begin()")
+    let order_code = code_only(&order_src);
+    let issue_body = fn_body(&order_code, "pub async fn issue_order(");
+    let issue_flat = canon(&issue_body);
+    let begin = issue_flat
+        .find(&canon("(*self.db).begin()"))
         .expect("issue_order 必须开启事务");
-    let reserve = issue_body
-        .find("reserve_pieces_for_issue(&txn")
+    let reserve = issue_flat
+        .find(&canon("reserve_pieces_for_issue(&txn"))
         .expect("占用调用必须传发料事务（&txn），不得传 &self.db");
-    let commit = issue_body
-        .find("txn.commit()")
+    let commit = issue_flat
+        .find(&canon("txn.commit()"))
         .expect("issue_order 必须有显式提交");
     assert!(
         begin < reserve && reserve < commit,
@@ -990,22 +1075,16 @@ async fn piece_occupancy_calls_are_wired_inside_their_transactions() {
     );
 
     // cancel：占用释放分支的释放调用位于其事务内
-    let cancel_at = order_src
-        .find("pub async fn cancel(")
-        .expect("order.rs 必须有 cancel 入口");
-    let cancel_end = order_src[cancel_at..]
-        .find("pub async fn get_by_id(")
-        .map(|o| cancel_at + o)
-        .expect("cancel 与 get_by_id 之间即其函数体");
-    let cancel_body = &order_src[cancel_at..cancel_end];
-    let cancel_begin = cancel_body
-        .find("(*self.db).begin()")
+    let cancel_body = fn_body(&order_code, "pub async fn cancel(");
+    let cancel_flat = canon(&cancel_body);
+    let cancel_begin = cancel_flat
+        .find(&canon("(*self.db).begin()"))
         .expect("cancel 的占用释放分支必须在事务内执行");
-    let release = cancel_body
-        .find("release_reserved_pieces_on_cancel(")
+    let release = cancel_flat
+        .find(&canon("release_reserved_pieces_on_cancel("))
         .expect("cancel 必须接线 RESERVED→AVAILABLE 释放");
-    let cancel_commit = cancel_body
-        .find("txn.commit()")
+    let cancel_commit = cancel_flat
+        .find(&canon("txn.commit()"))
         .expect("cancel 释放分支必须显式提交");
     assert!(
         cancel_begin < release && release < cancel_commit,
@@ -1014,22 +1093,17 @@ async fn piece_occupancy_calls_are_wired_inside_their_transactions() {
 
     // confirm：转出调用位于其事务内（confirm 首步即 begin）
     let receipt_src = include_str!("../src/services/outsourcing_ops/receipt.rs").replace('\r', "");
-    let confirm_at = receipt_src
-        .find("pub async fn confirm(")
-        .expect("receipt.rs 必须有 confirm 入口");
-    let confirm_end = receipt_src[confirm_at..]
-        .find("async fn trigger_quality_inspection(")
-        .map(|o| confirm_at + o)
-        .expect("confirm 与 trigger_quality_inspection 之间即其函数体");
-    let confirm_body = &receipt_src[confirm_at..confirm_end];
-    let confirm_begin = confirm_body
-        .find("(*self.db).begin()")
+    let receipt_code = code_only(&receipt_src);
+    let confirm_body = fn_body(&receipt_code, "pub async fn confirm(");
+    let confirm_flat = canon(&confirm_body);
+    let confirm_begin = confirm_flat
+        .find(&canon("(*self.db).begin()"))
         .expect("confirm 首步即开事务");
-    let shipped = confirm_body
-        .find("mark_reserved_pieces_shipped_on_receipt(")
+    let shipped = confirm_flat
+        .find(&canon("mark_reserved_pieces_shipped_on_receipt("))
         .expect("confirm 必须接线 RESERVED→SHIPPED 转出");
-    let confirm_commit = confirm_body
-        .find("txn.commit()")
+    let confirm_commit = confirm_flat
+        .find(&canon("txn.commit()"))
         .expect("confirm 必须有显式提交");
     assert!(
         confirm_begin < shipped && shipped < confirm_commit,
@@ -1043,31 +1117,58 @@ async fn piece_occupancy_calls_are_wired_inside_their_transactions() {
     // 必经 advisory lock / lock_exclusive，端到端只能由活库用例覆盖，故以扫描锁
     // 钉住（真跑 updated_by 由 D1 占用、D4 释放两条真 PG 用例覆盖）。
     let piece_src = include_str!("../src/services/piece_domain_service.rs").replace('\r', "");
-    let cas_at = piece_src
-        .find("async fn cas_piece_status(")
-        .expect("piece_domain_service.rs 必须有 cas_piece_status");
-    let cas_body = &piece_src[cas_at
-        ..cas_at
-            + piece_src[cas_at..]
-                .find("Ok(result.rows_affected)")
-                .expect("cas_piece_status 以 rows_affected 收尾")];
+    let piece_code = code_only(&piece_src);
+    // 符号只锚到函数名（不带 `(`）：该函数已泛型化为
+    // `async fn cas_piece_status<C: ConnectionTrait>(`，把泛型参数写进 needle 会随
+    // 签名排版漂移而假失败（#4671 判责 B1②）。
+    let cas_body = fn_body(&piece_code, "async fn cas_piece_status");
+    let cas_flat = canon(&cas_body);
     assert!(
-        cas_body.contains("operator_id: Option<i32>"),
+        cas_flat.contains(&canon("Ok(result.rows_affected)")),
+        "cas_piece_status 必须以 rows_affected 收尾（0 命中交调用方归因，绝不静默）"
+    );
+    assert!(
+        cas_flat.contains(&canon("operator_id: Option<i32>")),
         "cas_piece_status 必须显式接收操作者（Option<i32>：None=系统/回填路径写 NULL，不伪造）"
     );
-    let set_at = cas_body
-        .find(".set(inventory_piece::ActiveModel {")
+    let set_at = cas_flat
+        .find(&canon(".set(inventory_piece::ActiveModel {"))
         .expect("CAS 走 update_many 的 .set(ActiveModel)");
-    let upd_at = cas_body
-        .find("updated_by: Set(operator_id)")
+    let upd_at = cas_flat
+        .find(&canon("updated_by: Set(operator_id)"))
         .expect("CAS 必须在同一 ActiveModel 内 Set updated_by");
-    let exec_at = cas_body
-        .find(".exec(conn)")
+    let exec_at = cas_flat
+        .find(&canon(".exec(conn)"))
         .expect("CAS 必须单条 exec，不得拆成两次 UPDATE");
     assert!(
         set_at < upd_at && upd_at < exec_at,
         "updated_by 必须位于 set(ActiveModel) 与 exec 之间（同一 update_many 原子写入）"
     );
+    // 三处调用点必须真的接线，且逐点钉死「用自身收到的连接 + 权威状态词表 +
+    // 把操作者透传给 CAS」三件事：只锁定义存在等于没锁（丢 operator_id = 审计断链、
+    // 改状态词表 = 越出写入方权威表、改回 &self.db = 脱离调用方事务）。
+    // needle 用 canon 比对：泛型化 + rustfmt 拆行后调用点是跨行形态。
+    for (caller, wired_call) in [
+        (
+            "reserve_pieces_for_issue",
+            "cas_piece_status(conn, pn, piece_status::AVAILABLE, piece_status::RESERVED, operator_id)",
+        ),
+        (
+            "release_reserved_pieces_on_cancel",
+            "cas_piece_status(conn, &pn, piece_status::RESERVED, piece_status::AVAILABLE, operator_id)",
+        ),
+        (
+            "mark_reserved_pieces_shipped_on_receipt",
+            "cas_piece_status(conn, &pn, piece_status::RESERVED, piece_status::SHIPPED, operator_id)",
+        ),
+    ] {
+        let body = fn_body(&piece_code, &format!("async fn {caller}"));
+        assert!(
+            canon(&body).contains(&canon(wired_call)),
+            "{caller} 的 CAS 接线形态缺失或被改动（应为 `{wired_call}`）：\
+             占用/释放/转出三处任一处丢连接、丢操作者或换状态词表都属回潮"
+        );
+    }
 
     // 口径一致性：迁移回填路径无操作主体，不得伪造 updated_by——回填 SQL 必须只
     // 置 status/updated_at、不含 updated_by 赋值（与运行家人工路径写真实 user_id 对照）。

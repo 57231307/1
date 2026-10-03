@@ -233,20 +233,52 @@ fn status_word_table_is_lowercase_single_source_daily_card_gate() {
     );
 }
 
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
+/// #4671 B1①：禁词/必备项都不得被说明性注释命中（"这里以前是 draft 字面量"之类）；
+/// 按行剥的理由同 `contract_wave5_outsource_issue_guard_test.rs::code_only` 先例。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 符号定位取函数体：从签名的**代码**（剥注释后）出现处起，到下一个任意缩进的
+/// fn 符号之前为止。替代"紧邻下家函数名"这一边界 needle——同文件重构/改名/调序
+/// 会移动边界甚至吞进相邻函数（#4671 B1 判责：窗边界必须锚在被锁符号自身上）。
+/// 全部偏移在按行拼接文本上产生，find 返回的字节索引天然落在 char boundary，
+/// 杜绝多字节字符劈窗 panic（B1③）。
+fn fn_body(code_src: &str, signature: &str) -> String {
+    let anchor = code_src.find(signature).unwrap_or_else(|| {
+        panic!("待锁符号不存在: {signature}（若确已改名/删除，请连同本锁一起更新判据）")
+    });
+    let tail = &code_src[anchor..];
+    let next = [
+        "\npub async fn ",
+        "\npub fn ",
+        "\nasync fn ",
+        "\nfn ",
+        "\n    pub async fn ",
+        "\n    pub fn ",
+        "\n    async fn ",
+        "\n    fn ",
+    ]
+    .iter()
+    .filter_map(|marker| tail.find(marker))
+    .min()
+    .unwrap_or(tail.len());
+    tail[..next].to_string()
+}
+
 /// 防回潮源码扫描:query_daily_sales_amounts 函数体必须挂上 is_not_in 排除门,
 /// 且引用 so_status 词表常量、不含任何状态字符串字面量;dashboard_service.rs 全文
 /// 不得出现大写 NOT IN 状态字面量(含修复前"零谓词"形态的回潮会被此锁直接拦下)。
+/// 判据全部落在剥注释文本上；函数窗由 `query_daily_sales_amounts` 符号定位。
 #[test]
 fn source_scan_daily_sales_gate_uses_bound_constants() {
     let dash = include_str!("../src/services/dashboard_service.rs").replace('\r', "");
-    let fn_start = dash
-        .find("async fn query_daily_sales_amounts")
-        .expect("dashboard_service.rs 必须存在 query_daily_sales_amounts");
-    let rest = &dash[fn_start..];
-    let fn_end = rest
-        .find("fn aggregate_sales_by_periods")
-        .expect("query_daily_sales_amounts 与 aggregate_sales_by_periods 相邻,须能找到函数边界");
-    let daily_fn = &rest[..fn_end];
+    let code = code_only(&dash);
+    let daily_fn = fn_body(&code, "async fn query_daily_sales_amounts");
 
     assert_eq!(
         daily_fn.matches("is_not_in").count(),
@@ -264,7 +296,7 @@ fn source_scan_daily_sales_gate_uses_bound_constants() {
         );
     }
     assert!(
-        !dash.contains("NOT IN ('CANCELLED'") && !dash.contains("NOT IN ('DRAFT'"),
+        !code.contains("NOT IN ('CANCELLED'") && !code.contains("NOT IN ('DRAFT'"),
         "dashboard_service.rs 全文 SQL 不得含大写 NOT IN 状态字面量"
     );
 }

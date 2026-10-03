@@ -396,23 +396,98 @@ async fn list_with_allowed_fields_keeps_tel_phone_raw() {
 // 5) 源码扫描锁（shrink-only 棘轮）：四出口不得再退回内联掩码 / 原文直出
 // ---------------------------------------------------------------------------
 
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`/`///`/`//!`）逐行剔除。
+/// 本节禁词是"原文直出的整行 to_value"，而 `crm_pool_handler.rs:147` 的**文档注释**
+/// 正在描述"修复前这里是 serde_json::to_value(updated_lead)? 原文直出"——不剥注释
+/// 就把整改说明判成旁路复活（#4671 判责 B1①）。
+/// 按行处理而不做字符级扫描：被锁 handler 里 JSON/SQL 字符串成对出现的引号会让
+/// 单行配平失真，宁少剥（行尾尾注释、块注释不动）不可错吃代码文本。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 规范形（**仅用于正向 contains**）：剔全部空白并消掉闭合定界符前的尾逗号，
+/// 使"同一构造被 rustfmt 拆成多行"不改变判定。负向断言一律用 `code_only` 原文。
+fn canon(src: &str) -> String {
+    let mut out: String = src.chars().filter(|c| !c.is_whitespace()).collect();
+    loop {
+        let next = out.replace(",)", ")").replace(",]", "]").replace(",}", "}");
+        if next == out {
+            break;
+        }
+        out = next;
+    }
+}
+
+/// 符号定位取函数体：起点是被锁符号（在 `code_only` 文本上找，注释里的同名词不算），
+/// 终点是下一个 `pub async fn`/`fn`/类型声明。取代 `split(下一函数签名)` 的窗口写法：
+/// 那种切法会把下一出口的文档注释整段吞进上一个出口。
+fn fn_body(code_src: &str, signature: &str) -> String {
+    let anchor = code_src
+        .find(signature)
+        .unwrap_or_else(|| panic!("待锁符号不存在: {signature}"));
+    let tail = &code_src[anchor..];
+    let next = [
+        "\npub async fn ",
+        "\npub fn ",
+        "\npub(crate) async fn ",
+        "\nasync fn ",
+        "\nfn ",
+        "\n    pub async fn ",
+        "\n    pub fn ",
+        "\n    async fn ",
+        "\n    fn ",
+        "\npub struct ",
+        "\npub enum ",
+        "\npub const ",
+    ]
+    .iter()
+    .filter_map(|marker| tail.find(marker))
+    .min()
+    .unwrap_or(tail.len());
+    tail[..next].to_string()
+}
+
 #[test]
 fn all_lead_pii_exits_share_one_masking_implementation() {
-    let pool_handler = include_str!("../src/handlers/crm_pool_handler.rs");
-    let handler = include_str!("../src/handlers/crm_handler.rs");
+    let pool_handler =
+        code_only(&include_str!("../src/handlers/crm_pool_handler.rs").replace('\r', ""));
+    let handler = code_only(&include_str!("../src/handlers/crm_handler.rs").replace('\r', ""));
 
-    // 公海写响应：领取与回收都必须过共用实现，且不再出现"整行原文 to_value"
+    // 公海写响应：领取与回收都必须过共用实现；禁项扫描对象是**出参构造点**
+    // （各自的函数体），不是整文件原文——`crm_pool_handler.rs:147` 的文档注释里
+    // 正当写着"修复前这里是 `serde_json::to_value(updated_lead)?` 原文直出"，
+    // 按整文件计数会把这段说明判成旁路复活（#4671 判责 B1①）。
     for name in ["claim_from_pool", "recycle_to_pool"] {
-        let body = pool_handler
-            .split(&format!("pub async fn {name}"))
-            .nth(1)
-            .unwrap_or_else(|| panic!("{name} 定义缺失"))
-            .split("pub async fn ")
-            .next()
-            .unwrap_or_else(|| panic!("{name} 函数体边界缺失"));
+        let body = fn_body(&pool_handler, &format!("pub async fn {name}"));
         assert!(
             body.contains("mask_lead_write_response("),
             "回潮棘轮：{name} 成功响应未走统一字段级权限实现"
+        );
+        // 出参构造点逐点钉：函数体内不得再出现任何**不经掩码的整行 to_value**
+        // （原禁词只锁 `to_value(updated_lead)?` 一个变量名，换个变量名即绕过）
+        assert!(
+            !body.contains("serde_json::to_value("),
+            "回潮棘轮：{name} 的出参直接 serde_json::to_value(整行 Model) 原文回传\
+             （PII 写响应旁路：必须经 mask_lead_write_response）"
+        );
+        // 掩码结果必须是**成功信封的第一实参**（嵌套关系就是"先掩码再出参"的机制本体；
+        // 比文本先后顺序无效——`ApiResponse::success(mask_lead_write_response(..)?)` 里
+        // success 的文本位置本就在前）。两种 success 构造器都允许，但实参必须是掩码。
+        let canon_body = canon(&body);
+        let masked_exit = [
+            "ApiResponse::success(mask_lead_write_response(",
+            "ApiResponse::success_with_message(mask_lead_write_response(",
+        ]
+        .iter()
+        .any(|shape| canon_body.contains(shape));
+        assert!(
+            masked_exit,
+            "回潮棘轮：{name} 的成功出参第一实参不是 mask_lead_write_response 的结果\
+             （原文先进信封=写响应旁路）"
         );
     }
     assert_eq!(

@@ -553,6 +553,18 @@ async fn w7s_outsourcing_receipt_voucher_duplicate_and_missing_prereq_400_displa
 // 源码扫描锁：本族「预校验/外显 + 23505 归类」范式不得回潮（纯源码、无 DB）
 // =========================================================
 
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
+/// 本族的禁词/必备文案在源码里**同时存在于说明注释**（"旧口径是脱敏 business，
+/// 现升为 business_displayable"这类），按原文判会把注释当执行体（#4671 判责 B1①）。
+/// 按行而非按字符扫描：被锁文件里的跨行 raw string/多行 format 参数使单行引号配平
+/// 不可靠，宁少剥（行尾尾注释、块注释不动）不可错吃代码文本。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn w7s_source_scan_displayable_and_race_fallback_locked() {
     let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/services");
@@ -583,17 +595,25 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
         let path = manifest.join(rel);
         let src =
             std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {path:?} 失败: {e}"));
-        let flat: String = src.chars().filter(|c| !c.is_whitespace()).collect();
+        // 判据文本 = 剥掉整行注释后再去空白：
+        // ① needle 里的 `{}` 与中文标点两侧本就没有空白，而源码里的文案字面量是
+        //    `"仓库编码 {} 已存在…"`（`{}` 两侧有空格，rustfmt/可读性所需），
+        //    原写法把去空白后的 needle 拿去 `src.contains` 比对**原文**，对 4 条 case
+        //    全不成立（#4671 判责 B1②：单行字面量 needle 假失败，改一处会连报三处）；
+        // ② 说明性注释（"旧口径是脱敏 business，现升为 business_displayable"）不是
+        //    执行体，禁项/必备项都只看代码文本。
+        let flat: String = code_only(&src).chars().filter(|c| !c.is_whitespace()).collect();
+        let key_flat: String = key.chars().filter(|c| !c.is_whitespace()).collect();
         assert!(
-            src.contains(key),
+            flat.contains(&key_flat),
             "{rel} 缺少公开规则文案「{key}」（重复单号/编码拒绝必须可外显）"
         );
-        let displayable = format!("AppError::business_displayable(format!(\"{key}");
+        let displayable = format!("AppError::business_displayable(format!(\"{key_flat}");
         assert!(
             flat.contains(&displayable),
             "{rel} 判重拒绝「{key}」必须走 business_displayable（可外显业务族，先例 #165）"
         );
-        let masked = format!("AppError::business(format!(\"{key}");
+        let masked = format!("AppError::business(format!(\"{key_flat}");
         assert!(
             !flat.contains(&masked),
             "{rel} 判重文案「{key}」回潮为脱敏的 AppError::business：真因将被出参吞掉"
@@ -618,7 +638,7 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
         ),
     ] {
         let src = std::fs::read_to_string(manifest.join(rel)).unwrap();
-        let flat: String = src.chars().filter(|c| !c.is_whitespace()).collect();
+        let flat: String = code_only(&src).chars().filter(|c| !c.is_whitespace()).collect();
         assert!(
             !flat.contains(&dead_shape),
             "{rel} 回潮 map_err 自造 DatabaseError 形态：会把 23505 与其他 DbErr 一并拍平成裸 500"
@@ -627,7 +647,7 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
 
     // supplier：取号+判重+INSERT 唯一实现收口；旧的「generate → 直插 ?」旁路不得回潮
     let sup = std::fs::read_to_string(manifest.join("supplier_service.rs")).unwrap();
-    let sup_flat: String = sup.chars().filter(|c| !c.is_whitespace()).collect();
+    let sup_flat: String = code_only(&sup).chars().filter(|c| !c.is_whitespace()).collect();
     assert!(
         sup_flat.contains("DocumentNumberGenerator::insert_with_no_retry("),
         "supplier_service create 必须走 insert_with_no_retry 唯一取号+撞号重试实现"
@@ -647,7 +667,7 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
 
     // warehouse：人工码分支的旧裸 `?` 直插形态不得回潮
     let wh = std::fs::read_to_string(manifest.join("warehouse_service.rs")).unwrap();
-    let wh_flat: String = wh.chars().filter(|c| !c.is_whitespace()).collect();
+    let wh_flat: String = code_only(&wh).chars().filter(|c| !c.is_whitespace()).collect();
     assert!(
         !wh_flat.contains("build_warehouse_active_model(code,&req,manager_id).insert(&txn).await?"),
         "warehouse 人工码分支回潮裸 `?` 直插：撞 UNIQUE(23505) 将再次成为 500 DATABASE_ERROR"

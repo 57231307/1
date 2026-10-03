@@ -423,6 +423,24 @@ async fn confirm_partial_receipt_writes_back_receipt_date() {
         Decimal::from(4),
         "进度须与到货日同事务落库"
     );
+
+    // 双单对照的隔离侧（#4671 判责 2.2：item_b 建了从不回读=隔离侧从未被验证）：
+    // 回写以 order_id 精确定位，po_b 的明细与到货日不得被 po_a 的确认污染。
+    let item_b = purchase_order_item::Entity::find_by_id(s.item_b)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        item_b.received_quantity,
+        Decimal::ZERO,
+        "确认 po_a 不得波及 po_b 明细进度（回写目标串单=交叉污染）"
+    );
+    let po_b = load_po(&db, s.po_b).await;
+    assert_eq!(
+        po_b.actual_delivery_date, None,
+        "确认 po_a 不得给未收货的 po_b 写入到货日"
+    );
 }
 
 /// 锁 1b：二次**更晚**收货确认 → 覆盖为更大日期；全部收货判定仍归
@@ -460,6 +478,18 @@ async fn earlier_backfilled_receipt_never_rolls_back_max_date() {
         po.actual_delivery_date,
         Some(date(2026, 4, 15)),
         "到货日语义=该单已确认收货的最大 receipt_date，更早补录不得回退"
+    );
+    // 明细进度侧同步回读（隔离侧实证：本用例只确认 po_b 的 r3/r4，
+    // 累加值 5+1=6 与 po_a 的 r1/r2 无任何交集；累加算术由 1b 同入口行为证明）
+    let item_b = purchase_order_item::Entity::find_by_id(s.item_b)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        item_b.received_quantity,
+        Decimal::from(6),
+        "r3(5m)+r4(1m) 两次确认的进度必须逐单累加到 po_b 明细"
     );
 }
 
@@ -513,6 +543,9 @@ async fn write_back_failure_rolls_back_progress_no_half_success() {
 }
 
 /// 从源码截取 impl 块内方法（4 空格收口，先例 contract_wave2 同式；剔 \r 防 CRLF 漏检）
+///
+/// 调用方必须先 `code_only` 剥整行注释再传入：锚点若只在注释里出现（"旧实现曾有
+/// `async fn xxx`"之类自述），按原文 find 会把窗起点定在注释上（#4671 B1① 同型事故）。
 fn extract_impl_method(src: &str, anchor: &str) -> String {
     let src = src.replace('\r', "");
     let i = src
@@ -524,19 +557,58 @@ fn extract_impl_method(src: &str, anchor: &str) -> String {
     src[i..i + j + 6].to_string()
 }
 
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
+/// 禁项断言（"源码不该出现 X"）必须先过此函数——本批 `c1902082` 族事故即
+/// 说明性注释/字节偏移移动把通过态打红；按行而非按字符扫描的理由与
+/// `contract_wave5_outsource_issue_guard_test.rs` 同式先例一致（跨行 raw string
+/// 里的引号会让字符级配平把真代码当字符串起止吃掉）。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 规范形（**仅用于正向 contains / 定位**）：`code_only` 后剔全部空白并消闭合
+/// 定界符前的尾逗号（rustfmt 把多行调用的末实参必带 `,`，是折行产物非语义）。
+/// 负向 `!contains` 一律只用 `code_only` 原文，不套本函数——去空白扩大匹配面，
+/// 只适用于"必含"判定（同 `sku_mapping_contract_test.rs::strip_ws` 纪律）。
+/// 全部切片在规范形（纯 ASCII 词元边界不要求，但 find 返回的偏移恒为
+/// char boundary，杜绝 `byte index is not a char boundary` panic——#4671 B1③ 正解）。
+fn canon(src: &str) -> String {
+    let mut out: String = code_only(src)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    loop {
+        let next = out.replace(",)", ")").replace(",]", "]").replace(",}", "}");
+        if next == out {
+            break;
+        }
+        out = next;
+    }
+    out
+}
+
 /// 锁 3a：回写必须在 confirm 的事务内——`confirm_receipt` 中
 /// `update_order_received_quantity`（携 receipt_date）调用点必须位于
 /// begin 与 commit 之间，且错误以 `?` 上抛、无吞错形态。
 #[test]
 fn source_scan_write_back_inside_confirm_transaction() {
-    let src = include_str!("../src/services/purchase_receipt_ops/state.rs").replace('\r', "");
-    let begin = src
+    let raw = include_str!("../src/services/purchase_receipt_ops/state.rs");
+    // 判据全部落在剥注释的 confirm_receipt 函数体上：
+    // - 禁词不再被同文件说明注释命中（#4671 B1①）；
+    // - 窗边界由符号定位（不再依赖"begin/commit 首次出现在本函数"这一顺序假设）；
+    // - canon 规范形上的 find 偏移天然是 char boundary，杜绝字节窗 panic（B1③）。
+    let body = extract_impl_method(&code_only(raw), "pub async fn confirm_receipt");
+    let flat = canon(&body);
+    let begin = flat
         .find(".begin().await?")
         .expect("confirm_receipt 必须有显式事务 begin");
-    let commit = src
+    let commit = flat
         .find("txn.commit().await?")
         .expect("confirm_receipt 必须有显式事务 commit");
-    let call = src
+    let call = flat
         .find("self.update_order_received_quantity(")
         .expect("confirm_receipt 必须调用 update_order_received_quantity");
     assert!(
@@ -544,16 +616,18 @@ fn source_scan_write_back_inside_confirm_transaction() {
         "回写入口调用必须夹在 begin({begin}) 与 commit({commit}) 之间，实际位于 {call}"
     );
     // 从 call 起截取到其后第一个 `.await?;`（str::find 无起始偏移入参，先切片再找）
-    let call_end_rel = src[call..]
+    let call_end_rel = flat[call..]
         .find(".await?;")
         .expect("回写入口调用必须以 .await?; 结束");
-    let call_block = &src[call..call + call_end_rel + ".await?;".len()];
+    let call_block = &flat[call..call + call_end_rel + ".await?;".len()];
     assert!(
         call_block.contains("receipt.receipt_date"),
         "确认收货必须把入库单 receipt_date 真实传入回写，禁止以确认时间/当前时间顶替，实际块:\n{call_block}"
     );
+    // 整文件禁吞错形态同样只看执行体（注释里"严禁 let _ ="自述不是违例）
+    let code = code_only(raw);
     assert!(
-        !src.contains("let _ = ") && !src.contains(".ok();"),
+        !code.contains("let _ = ") && !code.contains(".ok();"),
         "confirm 链路不得吞错（let _ = / .ok() 会造成进度与到货日半成功）"
     );
 }
@@ -562,21 +636,26 @@ fn source_scan_write_back_inside_confirm_transaction() {
 /// 状态判定（determine/save）调用序列不得被扰动（完成判定逻辑不动）。
 #[test]
 fn source_scan_write_back_propagates_errors_via_question_mark() {
-    let src = include_str!("../src/services/purchase_receipt_private.rs");
-    let entry = extract_impl_method(src, "pub async fn update_order_received_quantity");
+    let raw = include_str!("../src/services/purchase_receipt_private.rs");
+    // 注释剥离先行：write_back 方法上方的文档注释自述"严禁 `let _ =` / `.ok()`"
+    // （:170），若窗起点被注释里的同名符号骗到或禁词扫吞进注释，即 B1① 假判违例。
+    let code = code_only(raw);
+    let entry = extract_impl_method(&code, "pub async fn update_order_received_quantity");
+    let entry_flat = canon(&entry);
     assert!(
-        entry.contains(
+        entry_flat.contains(&canon(
             "Self::write_back_actual_delivery_date(txn, order_id, receipt_date, user_id).await?;"
-        ),
+        )),
         "回写必须在同事务入口以 ? 传播且先于状态判定，实际块:\n{entry}"
     );
-    let back = extract_impl_method(src, "async fn write_back_actual_delivery_date");
+    let back = extract_impl_method(&code, "async fn write_back_actual_delivery_date");
+    let back_flat = canon(&back);
     assert!(
-        back.contains("AuditLogService::update_with_audit") && back.contains(".await?;"),
+        back_flat.contains("AuditLogService::update_with_audit") && back_flat.contains(".await?;"),
         "回写必须经审计服务在 txn 连接上落库并以 ? 上抛，实际块:\n{back}"
     );
     assert!(
-        back.contains(".max(receipt_date)"),
+        back_flat.contains(&canon(".max(receipt_date)")),
         "必须取已确认收货中的最大 receipt_date，实际块:\n{back}"
     );
     for forbidden in ["let _ =", ".ok()"] {
@@ -591,7 +670,9 @@ fn source_scan_write_back_propagates_errors_via_question_mark() {
 /// （`actual_delivery_date IS NOT NULL`）的事实来源，默认值兜底会污染样本。
 #[test]
 fn source_scan_migration_column_has_no_default_and_write_point_is_unique() {
-    let mig = include_str!("../migration/src/domain/system/mod.rs").replace('\r', "");
+    // code_only 先行：迁移文件说明注释若引用该列 DDL 文本（"曾有 DEFAULT 后移除"
+    // 之类），按原文逐行匹配会把注释行误当 DDL 行判定（B1①）。
+    let mig = code_only(include_str!("../migration/src/domain/system/mod.rs"));
     let line = mig
         .lines()
         .find(|l| l.contains("\"purchase_orders\"") && l.contains("\"actual_delivery_date\""))

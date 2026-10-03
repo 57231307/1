@@ -49,8 +49,8 @@ use migration::domain::system::m0007_normalize_account_subject_balance_direction
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait,
-    QueryResult, Statement, Value,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryResult, Statement, Value,
 };
 
 // ===========================================================================
@@ -78,9 +78,18 @@ fn col_str_opt(row: &QueryResult, idx: usize) -> Option<String> {
         .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 Option<String>: {e}"))
 }
 
-fn col_i32(row: &QueryResult, idx: usize) -> i32 {
-    row.try_get_by_index::<i32>(idx)
-        .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 i32（真库 INTEGER 列）: {e}"))
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
+/// 供本文件末尾的禁回潮源码扫描使用——禁项/必备项都必须只看执行体：
+/// 被锁文件里的**说明性注释**（"不用 DO $$ 等 PG 专有形态"这类自我约束声明、
+/// 或"历史中文「借/贷」一律拒绝"这类口径复述）不是代码，按原文判会假判违例，
+/// 反过来也可能把注释里复述的实现当成"已接线"而假判通过。
+/// 按行处理而不做字符级扫描：迁移 SQL 是跨行 raw string，单行引号配平会把 SQL 里的
+/// 引号当字符串起止、进而吃掉真代码文本；宁少剥（行尾尾注释/块注释不动）不可错剥。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// 隔离沙箱库：CI 里"已建库但没跑迁移"的第二只 PostgreSQL（TEST_EMPTY_DATABASE_URL）。
@@ -131,6 +140,25 @@ async fn seed_subject(
     .await
     .unwrap_or_else(|e| panic!("种子科目 {code} 插入失败: {e}"));
     inserted.id
+}
+
+/// 本用例专属 code 后缀（参照表不清空且 code UNIQUE，跨用例共用固定码会在同一
+/// CI 分片里互相撞约束——分片是逐用例散列分配的，不能假设"另一条用例不在这片"）。
+fn unique_suffix() -> i64 {
+    Utc::now()
+        .timestamp_nanos_opt()
+        .expect("测试环境时间戳必须可用")
+}
+
+/// 按 code 精确计数——"零新增行"判据的唯一可靠口径：参照表基数由迁移播种决定，
+/// 断全表行数等于某个数字（无论 1 还是当前实际值）都会把真实的新增行缺陷或环境差异
+/// 混进判定（见本文件头 §覆盖策略与 test_common.rs:26-28 的参照表说明）。
+async fn count_rows_by_code(db: &sea_orm::DatabaseConnection, code: &str) -> u64 {
+    account_subject::Entity::find()
+        .filter(account_subject::Column::Code.eq(code))
+        .count(db)
+        .await
+        .unwrap_or_else(|e| panic!("按 code {code} 计数失败: {e}"))
 }
 
 /// 种子已过账凭证 + 单分录（期间 2096-12，与 refresh_balance 入参对齐；
@@ -409,9 +437,18 @@ async fn update_rejects_chinese_direction_and_keeps_stored_english() {
     // 路线一：表结构唯一来源是 backend/migration（本文件其余用例同口径），
     // 不再自建 account_subjects DDL。
     let db = Arc::new(live_db().await);
+    // account_subjects 是迁移播种且**不得清空**的参照表（test_common.rs:36
+    // SEALED_REFERENCE_TABLES 首项，m0006 建表时 code UNIQUE），因此本用例种一行
+    // 带纳秒后缀的专属 code，零写入判据按这行专属 code 计数（文件头 §覆盖策略口径：
+    // "零写入以行数增量表达，不声称全表为空"）。
+    // 反例1：断"全表行数 == 1" —— 把参照表当空表，种子一在场就恒红。
+    // 反例2：把期望改成"全表行数 == 当前实际值(30)" —— 会把"非法更新真的新增了一行"
+    //        这一原缺陷永久吞掉，属放宽断言。
+    let my_code = format!("9961{}", unique_suffix());
+    let my_full_code = format!("W6DIR{my_code}");
     let id = seed_subject(
         &db,
-        "2202",
+        &my_code,
         Some(subject_status::DIRECTION_CREDIT),
         Decimal::ZERO,
         dec!(50),
@@ -436,11 +473,32 @@ async fn update_rejects_chinese_direction_and_keeps_stored_english() {
         Some(subject_status::DIRECTION_CREDIT),
         "拒收后存量值必须保持 credit 原值，零写入"
     );
-    let total = account_subject::Entity::find()
-        .all(&*db)
+    // 零新增：本用例专属 code 的行数在第二次非法更新前后不变，且恒只有自己 1 行
+    let before = count_rows_by_code(&db, &my_full_code).await;
+    let err2 = svc
+        .update(id, update_req(Some("借")), 1)
         .await
-        .expect("回读失败");
-    assert_eq!(total.len(), 1, "非法更新不得新增任何行");
+        .unwrap_err_or_panic("中文「借」更新必须被白名单拒收");
+    assert_eq!(err2.error_code(), "VALIDATION_ERROR");
+    assert!(matches!(err2, AppError::ValidationErrorDisplayable(_)));
+    let after = count_rows_by_code(&db, &my_full_code).await;
+    assert_eq!(
+        (before, after),
+        (1, 1),
+        "非法更新不得新增任何行：按本用例专属 code 计数必须前后都是那 1 行存量科目\
+         （before={before}, after={after}）"
+    );
+    // 存量值仍不得被改动（新增与改写是两种不同的带病写入形态，各自钉死）
+    let stored_after = account_subject::Entity::find_by_id(id)
+        .one(&*db)
+        .await
+        .expect("回读失败")
+        .expect("第二次拒收后存量科目应仍在");
+    assert_eq!(
+        stored_after.balance_direction.as_deref(),
+        Some(subject_status::DIRECTION_CREDIT),
+        "两次非法更新都不得触碰存量值"
+    );
 }
 
 /// Result 扩展：稳定 panic 信息（不依赖 Debug 可得性）
@@ -599,7 +657,7 @@ async fn m198_normalize_case_mapping_idempotent_and_reversible_in_isolated_sandb
 
 #[test]
 fn source_scan_status_vocabulary_is_single_source_in_english() {
-    let src = include_str!("../src/models/status/finance.rs").replace('\r', "");
+    let src = code_only(&include_str!("../src/models/status/finance.rs").replace('\r', ""));
     for needle in [
         "pub mod account_subject {",
         "pub const DIRECTION_DEBIT: &str = \"debit\";",
@@ -615,11 +673,11 @@ fn source_scan_comparison_points_no_longer_match_chinese_literal() {
     for (file, src) in [
         (
             "account_subject_service.rs",
-            include_str!("../src/services/account_subject_service.rs").replace('\r', ""),
+            code_only(&include_str!("../src/services/account_subject_service.rs").replace('\r', "")),
         ),
         (
             "voucher_ops/balance.rs",
-            include_str!("../src/services/voucher_ops/balance.rs").replace('\r', ""),
+            code_only(&include_str!("../src/services/voucher_ops/balance.rs").replace('\r', "")),
         ),
     ] {
         for banned in [r#""借""#, r#""贷""#, r#"'借'"#, r#"'贷'"#] {
@@ -634,7 +692,7 @@ fn source_scan_comparison_points_no_longer_match_chinese_literal() {
         );
     }
 
-    let svc = include_str!("../src/services/account_subject_service.rs").replace('\r', "");
+    let svc = code_only(&include_str!("../src/services/account_subject_service.rs").replace('\r', ""));
     for needle in [
         "fn validate_balance_direction",
         "subject_status::ALL.contains(&direction)",
@@ -657,6 +715,10 @@ fn source_scan_m198_migration_shape_locked() {
         "../migration/src/domain/system/m0007_normalize_account_subject_balance_direction.rs"
     )
     .replace('\r', "");
+    // 禁项只看执行体：m0007 文件头 §设计 里正当出现"不用 UPDATE...FROM、DO $$ 等 PG
+    // 专有形态"这句**说明文字**，按原文判禁词会把自我约束声明当成违例（#4671 判责 B1①
+    // 同一形态）。必备项同理只在剥注释后的文本上查——注释里复述 SQL 片段不算实现。
+    let code = code_only(&src);
     for needle in [
         "WHEN '借' THEN 'debit'",
         "WHEN '贷' THEN 'credit'",
@@ -665,12 +727,12 @@ fn source_scan_m198_migration_shape_locked() {
         "NOT EXISTS",
         "DROP TABLE IF EXISTS",
     ] {
-        assert!(src.contains(needle), "m0007 迁移语句形态缺失: {needle}");
+        assert!(code.contains(needle), "m0007 迁移语句形态缺失: {needle}");
     }
     // 双方言守护：不得引入 PG 专有 UPDATE...FROM / DO $$（会破坏 sqlite 可真跑性）
     for banned in ["DO $$", "TIMESTAMPTZ"] {
         assert!(
-            !src.contains(banned),
+            !code.contains(banned),
             "m0007 引入 PG 专有形态将破坏 sqlite 可验性: {banned}"
         );
     }

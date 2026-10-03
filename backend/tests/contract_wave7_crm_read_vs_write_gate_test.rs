@@ -331,17 +331,71 @@ async fn all_scope_non_admin_with_behalf_key_write_succeeds_with_audit_trace() {
 // 棘轮 1：读门/写门两函数禁止合并（判定源分离是裁定的机制本体）
 // ---------------------------------------------------------------------------
 
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`/`///`/`//!`）逐行剔除。
+/// 本节是**禁词棘轮**（"读门不得出现 behalf_granted"），而两扇门之间的文档注释正是
+/// 在解释 behalf_granted 的判定规则——不剥注释就把说明当违例。
+/// 按行处理而不做字符级扫描：被锁文件含跨行字符串时单行引号配平不可靠，
+/// 宁少剥（行尾尾注释、块注释不动）不可错吃代码文本。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 规范形（**仅用于正向 contains**）：剔全部空白并消掉闭合定界符前的尾逗号
+/// ——rustfmt 把多参数签名拆成一行一个时，末位必有尾逗号，单行字面 needle 会假失败。
+fn canon(src: &str) -> String {
+    let mut out: String = src.chars().filter(|c| !c.is_whitespace()).collect();
+    loop {
+        let next = out.replace(",)", ")").replace(",]", "]").replace(",}", "}");
+        if next == out {
+            break;
+        }
+        out = next;
+    }
+}
+
+/// 符号定位取函数体：起点是被锁符号（在 `code_only` 文本上找，注释里的同名词不算），
+/// 终点是下一个函数/条目符号。替代 `split(下一个签名)` 那种把两扇门的**文档注释**
+/// 一起吞进上一扇门窗口的写法；也不做任何"符号 + 固定字节长"假设（源码含中文，
+/// 固定字节窗会在多字节字符中间劈开）。
+fn fn_body(code_src: &str, signature: &str) -> String {
+    let anchor = code_src
+        .find(signature)
+        .unwrap_or_else(|| panic!("待锁符号不存在: {signature}"));
+    let tail = &code_src[anchor..];
+    let next = [
+        "\npub async fn ",
+        "\npub fn ",
+        "\npub(crate) fn ",
+        "\nasync fn ",
+        "\nfn ",
+        "\n    pub async fn ",
+        "\n    pub fn ",
+        "\n    pub(crate) fn ",
+        "\n    async fn ",
+        "\n    fn ",
+        "\npub enum ",
+        "\npub struct ",
+        "\npub const ",
+    ]
+    .iter()
+    .filter_map(|marker| tail.find(marker))
+    .min()
+    .unwrap_or(tail.len());
+    tail[..next].to_string()
+}
+
 #[test]
 fn read_gate_and_write_gate_must_stay_separate_functions() {
-    let src = include_str!("../src/utils/data_scope.rs");
-
-    let read_gate = src
-        .split("pub fn check_resource_owner(")
-        .nth(1)
-        .expect("读门 check_resource_owner 缺失")
-        .split("pub fn check_resource_write_owner(")
-        .next()
-        .expect("读门函数边界缺失");
+    let src = include_str!("../src/utils/data_scope.rs").replace('\r', "");
+    // 两扇门的边界用**符号定位 + 大括号配平**取，不用 `split(下一扇门签名)`：
+    // 后者会把写门的整段文档注释（`data_scope.rs:180-193` 解释"为什么读侧和写侧必须
+    // 分家"、并逐条列出 `behalf_granted` 判定规则）吞进读门窗口，于是"读门不得掺入
+    // 代操作键"这条棘轮被**文档**判红（#4671 判责 B1①）。注释先剥，再按符号切片。
+    let code = code_only(&src);
+    let read_gate = fn_body(&code, "pub fn check_resource_owner(");
     assert!(
         read_gate.contains("DataScope::All => true"),
         "回潮棘轮：读门 All 分支被改（裁定要求读侧 All 跨 owner 保持不变）"
@@ -350,14 +404,15 @@ fn read_gate_and_write_gate_must_stay_separate_functions() {
         !read_gate.contains("behalf_granted"),
         "回潮棘轮：读门被掺入代操作键参数（两判定源必须物理分离，防再被当同一门复用）"
     );
+    // 读门签名本身也不得出现第四个参数（把写门的键参数并进读门 = 同扇门复用）
+    assert!(
+        canon(&read_gate).contains(&canon(
+            "pub fn check_resource_owner(ctx: &DataScopeContext, resource_owner_id: Option<i32>, resource_dept_id: Option<i32>) -> bool"
+        )),
+        "回潮棘轮：读门签名形态被改（判定源分离是裁定的机制本体）"
+    );
 
-    let write_gate = src
-        .split("pub fn check_resource_write_owner(")
-        .nth(1)
-        .expect("写门 check_resource_write_owner 缺失")
-        .split("pub enum PoolVisibility")
-        .next()
-        .expect("写门函数边界缺失");
+    let write_gate = fn_body(&code, "pub fn check_resource_write_owner(");
     assert!(
         write_gate.contains("DataScope::All => behalf_granted"),
         "回潮棘轮：写门 All 分支不再回落代表键（＝读门语义渗入写侧，水平越权回潮）"
@@ -365,6 +420,17 @@ fn read_gate_and_write_gate_must_stay_separate_functions() {
     assert!(
         write_gate.contains("DataScope::Self_ => false"),
         "回潮棘轮：Self_ 跨 owner 写不再是无条件拒绝"
+    );
+    // 两扇门必须是两个独立函数体（同一实现里既判读又判写 = 本锁要防的合并形态）
+    assert!(
+        canon(&write_gate).contains(&canon(
+            "pub fn check_resource_write_owner(ctx: &DataScopeContext, resource_owner_id: Option<i32>, resource_dept_id: Option<i32>, behalf_granted: bool) -> bool"
+        )),
+        "回潮棘轮：写门签名少了 behalf_granted 参数（代操作授权无处判定）"
+    );
+    assert!(
+        !read_gate.contains("cross_owner_write") && !read_gate.contains("behalf"),
+        "回潮棘轮：读门出现代操作授权字样（读侧不得复用写门判定）"
     );
 }
 

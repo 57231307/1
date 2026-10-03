@@ -236,29 +236,114 @@ fn g5_no_map_err_internal_over_apperror_returning_calls() {
     }
 }
 
+// =========================================================
+// 源码扫描锁公共工具（禁回潮锁专用）
+//
+// 三种脆断形态的正解（#4671 判责 B1）：
+// ① 禁词/必备项只看执行体 → `code_only` 先剥整行注释（`//`/`///`/`//!`）；
+//    被锁源码里的说明注释（"非自己账户需要 user:delete 权限"这类对权限键的**描述**）
+//    不是代码，按原文判禁词等于把文档当违例。
+// ② 正向 needle 不因 rustfmt 折行/尾逗号假失败 → `canon` 双侧去空白 + 消尾逗号。
+// ③ 窗的边界由符号定位，不用"符号 + 固定行数/固定字节长"（重构即漂移，且硬字节窗
+//    会在中文字符中间劈开）。函数体截取复用本文件既有 `extract_fn`（char_indices 配平）。
+// =========================================================
+
+/// 剥掉整行注释后的文本（字符串字面量原样保留）。按行处理而不做字符级扫描的理由：
+/// 被锁源码含跨行 raw string（SQL），单行引号配平会把代码文本误当注释吃掉；
+/// 宁少剥（行尾尾注释、块注释不动）不可错剥——错剥会让"必备项"断言假失败。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 规范形（**仅用于正向 contains**）：剔全部空白并消掉闭合定界符前的尾逗号。
+fn canon(src: &str) -> String {
+    let mut out: String = src.chars().filter(|c| !c.is_whitespace()).collect();
+    loop {
+        let next = out.replace(",)", ")").replace(",]", "]").replace(",}", "}");
+        if next == out {
+            break;
+        }
+        out = next;
+    }
+}
+
+/// 取 `callee(...)` 的**第一个字符串字面量实参**（= 面向用户的出参文案构造点）。
+/// 权限键作为 `check_permission(role_id, "user", "delete", …)` 的入参是正当形态，
+/// 真正的缺陷面是"键/内部标识被拼进拒绝文案"，故扫描对象是文案而不是整文件。
+fn string_args_of_call(code: &str, callee: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut from = 0usize;
+    while let Some(rel) = code[from..].find(callee) {
+        let at = from + rel + callee.len();
+        from = at;
+        let rest = code[at..].trim_start();
+        let Some(rest) = rest.strip_prefix('(') else {
+            continue;
+        };
+        let Some(q) = rest.find('"') else {
+            continue;
+        };
+        // 字面量之前先出现 `)` ⇒ 该调用没有文案实参（跳过，不猜）
+        if rest[..q].contains(')') {
+            continue;
+        }
+        let body = &rest[q + 1..];
+        if let Some(close) = body.find('"') {
+            out.push(body[..close].to_string());
+        }
+    }
+    out
+}
+
 /// 定向坐实 1：user_handler 删除权限链路
 /// - `check_permission` 返回 AppError，不得被 internal 伪装成 500 且丢原因（窗口锁兜）；
 /// - 缺角色拒绝保持 permission_denied（403/FORBIDDEN）语义；
-/// - 拒绝文案不含内部权限键（"user:delete" 之类的键拼接外泄）。
+/// - 拒绝出参文案不得拼接/泄露内部权限键（"user:delete" 之类的键外泄）。
 #[test]
 fn g5_user_handler_permission_semantics_locked() {
     let src = src_of("src/handlers/user_handler.rs");
+    // 禁词只看执行体：`user_handler.rs:552`/`:577` 两处 "user:delete" **都在注释里**
+    // （"非自己账户需要 user:delete 权限"是对权限键的说明），按整文件原文判会把
+    // 注释当违例（#4671 判责 B1①）。真实缺陷面是**出参文案构造点**，见下面的正向锁。
+    let code = code_only(src);
     assert!(
-        src.contains("AppError::permission_denied(\"用户未分配角色，无法执行删除操作\")"),
+        code.contains("AppError::permission_denied(\"用户未分配角色，无法执行删除操作\")"),
         "缺角色拒绝必须保持 permission_denied(403) 语义"
     );
     assert!(
-        !src.contains("user:delete") && !src.contains("\"user\", \"delete\" 权限"),
+        !code.contains("user:delete") && !code.contains("\"user\", \"delete\" 权限"),
         "拒绝出参文案不得拼接/泄露内部权限键"
     );
-    let fn_start = src
-        .find("async fn check_delete_user_permission(")
-        .expect("check_delete_user_permission 不存在");
-    let body: String = src[fn_start..]
-        .lines()
-        .take(26)
-        .collect::<Vec<_>>()
-        .join("\n");
+    // 出参构造点正形锁：两个拒绝分支都必须是固定中文文案，且文案内不得含权限键段名
+    // 或内部标识片段（键本身作为 check_permission 入参写在代码里是允许的）。
+    let deny_texts = string_args_of_call(&code, "AppError::permission_denied");
+    assert!(
+        deny_texts.len() >= 2,
+        "user_handler 的 permission_denied 文案构造点至少 2 处（缺角色/无权限），实得 {}",
+        deny_texts.len()
+    );
+    assert!(
+        deny_texts.iter().any(|t| t.contains("用户未分配角色")),
+        "缺角色分支的拒绝文案缺失（出参无因可外显=回潮成脱敏常量或 internal）"
+    );
+    assert!(
+        deny_texts.iter().any(|t| t.contains("没有删除用户的权限")),
+        "无权限分支的拒绝文案缺失"
+    );
+    for text in &deny_texts {
+        for banned in ["user:delete", "user", "delete", "role_id"] {
+            assert!(
+                !text.contains(banned),
+                "拒绝文案 {text:?} 含内部权限键/标识片段 {banned:?}（出参外泄内部信息）"
+            );
+        }
+    }
+
+    // 函数体按符号定位（原先是"符号行起算固定 26 行"，重构即漂移）
+    let body = extract_fn(&code, "async fn check_delete_user_permission(");
     assert!(
         body.contains(".check_permission(") && body.contains(".await?"),
         "check_permission 的 AppError 必须 ? 原样传播（权限系统故障带真实 code，不伪装 500）"
@@ -266,6 +351,14 @@ fn g5_user_handler_permission_semantics_locked() {
     assert!(
         !body.contains("map_err"),
         "check_delete_user_permission 内不得再有 map_err 重包"
+    );
+    // 权限键只能作为**入参**传给 check_permission（正向钉住"确实在按 user/delete 判权限"，
+    // 防止有人为了过禁词检查把键判定整个删掉/换成恒真放行）
+    assert!(
+        canon(&body).contains(&canon(
+            "check_permission(role_id, \"user\", \"delete\", Some(target_id))"
+        )),
+        "跨账户删除必须仍按 user/delete 键判权限（键在代码里合法，禁的是外显到出参）"
     );
 }
 

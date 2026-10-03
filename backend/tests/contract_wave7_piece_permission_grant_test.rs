@@ -57,10 +57,58 @@ fn e2e_seed_src() -> String {
     include_str!("../../frontend/e2e/global-setup.ts").replace('\r', "")
 }
 
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`/`///`/`//!`，TS 侧同样是 `//`）逐行剔除。
+/// 三通道锁里有**禁项**（不得出现 `("pieces", "*")` / `ON CONFLICT` / `CREATE UNIQUE INDEX`）
+/// 与**计数**（read 恰 6 处、print 恰 4 处）两类判据，二者都必须只针对执行体：
+/// 说明性注释（"禁止写 pieces:*"、"为何不用 ON CONFLICT"）不是授予，计入即假判。
+/// 按行处理而不做字符级扫描：迁移里跨行 raw string（SQL）的引号成对但行数多，
+/// 单行配平会把 SQL 文本当代码/注释误判；宁少剥（行尾尾注释、块注释不动）不可错吃代码。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 规范形（**仅用于正向存在性判定**）：剔全部空白并消掉闭合定界符前的尾逗号。
+/// 迁移链注册用的 needle 原本是"符号 + 换行 + 12 空格缩进"的字面量，rustfmt 一改排版
+/// 就假失败——链式调用是否发生与它怎么折行无关，故双侧同一套 canon 后再比。
+fn canon(src: &str) -> String {
+    let mut out: String = src.chars().filter(|c| !c.is_whitespace()).collect();
+    loop {
+        let next = out.replace(",)", ")").replace(",]", "]").replace(",}", "}");
+        if next == out {
+            break;
+        }
+        out = next;
+    }
+}
+
+/// m0069 的 up 执行体：符号定位（`async fn up(` → `async fn down(`），
+/// 不含文件头/函数头文档注释——原写法 `&src[..find("async fn down")]` 从 0 起切，
+/// 把文件头「幂等实现细节」那段解释"为何不用 ON CONFLICT"的说明算进了执行体。
+fn up_execution(code_src: &str) -> String {
+    let start = code_src
+        .find("async fn up(")
+        .expect("m0069 必须有 async fn up（执行体判据的起点符号）");
+    let end_rel = code_src[start..]
+        .find("async fn down(")
+        .expect("m0069 必须有 async fn down（up 执行体的右边界符号）");
+    code_src[start..start + end_rel].to_string()
+}
+
+/// m0069 的 down 执行体：同样从符号起切，切到文件尾（down 是最后一个方法）。
+fn down_execution(code_src: &str) -> String {
+    let start = code_src
+        .find("async fn down(")
+        .expect("m0069 必须有 async fn down（回滚执行体）");
+    code_src[start..].to_string()
+}
+
 /// 通道 ①：矩阵里 pieces 的授予集合必须恰为口径集（数量+最小授权禁项）
 #[test]
 fn role_matrix_grants_exactly_read_and_print_for_pieces() {
-    let src = matrix_src();
+    let src = code_only(&matrix_src());
     assert_eq!(
         src.matches(r#"("pieces", "read")"#).count(),
         6,
@@ -89,7 +137,7 @@ fn role_matrix_grants_exactly_read_and_print_for_pieces() {
 /// 通道 ⓪：资源段必须登记进权限资源注册表（否则权限目录里根本没有该资源）
 #[test]
 fn pieces_resource_is_registered_in_permission_catalog() {
-    let src = registry_src();
+    let src = code_only(&registry_src());
     assert!(
         src.contains(r#"pub const PERMISSION_RESOURCES"#),
         "PERMISSION_RESOURCES 注册表缺失"
@@ -103,11 +151,11 @@ fn pieces_resource_is_registered_in_permission_catalog() {
 /// 通道 ②：迁移按角色码授予，且口径与矩阵一致；幂等实现不得依赖唯一索引
 #[test]
 fn migration_grants_same_role_set_and_is_idempotent_without_on_conflict() {
-    let src = migration_src();
+    let mig = code_only(&migration_src());
     // 角色码全部在迁移常量清单里逐字在场
     for code in READ_ROLES {
         assert!(
-            src.contains(&format!("\"{code}\"")),
+            mig.contains(&format!("\"{code}\"")),
             "m0069 缺少受授角色码: {code}"
         );
     }
@@ -120,30 +168,34 @@ fn migration_grants_same_role_set_and_is_idempotent_without_on_conflict() {
     }
     // 两条 INSERT 各自 NOT EXISTS 幂等；禁止 ON CONFLICT（依赖 v15 才建的唯一索引）
     assert_eq!(
-        src.matches(r#"SELECT r."id", 'pieces'"#).count(),
+        mig.matches(r#"SELECT r."id", 'pieces'"#).count(),
         2,
         "m0069 应恰有 read / print 两条授予 INSERT"
     );
     assert_eq!(
-        src.matches("AND NOT EXISTS (").count(),
+        mig.matches("AND NOT EXISTS (").count(),
         2,
         "两条授予都必须带 NOT EXISTS 幂等守卫"
     );
-    // 禁项只查执行体（文件头注释里出现"ON CONFLICT"是解释为何不用它）
-    let up_body = &src[..src.find("async fn down").expect("m0069 缺 down")];
+    // 禁项只查执行体（文件头注释里出现"ON CONFLICT"是解释为何不用它）——
+    // 执行体的定位必须是**符号**：早先用 `&src[..find("async fn down")]` 从文件 0 起切，
+    // 把 m0069 文件头 §幂等实现细节 那段"用 WHERE NOT EXISTS 而不是 ON CONFLICT (…)
+    // 动全局约束、并可能因存量重复行让迁移链中断"的说明文字算进了执行体（#4671 判责
+    // B1①/B1③ 的同一形态，且本行注释自陈"禁项只查执行体"——实现与意图矛盾）。
+    let up_body = up_execution(&mig);
     for banned in ["ON CONFLICT", "CREATE UNIQUE INDEX"] {
         assert!(
             !up_body.contains(banned),
-            "m0069 执行体不得使用 {banned}（见文件头「幂等实现细节」）"
+            "m0069 执行体不得使用 {banned}（见文件头「幂等实现细节」）：\n{up_body}"
         );
     }
     // 授予结果不得静默：0 命中/缺失角色码都要打 NOTICE
     assert!(
-        src.contains("RAISE NOTICE") && src.contains("hit = 0"),
+        up_body.contains("RAISE NOTICE") && up_body.contains("hit = 0"),
         "m0069 必须把「一条都没授上」的情形可见化（禁止静默通过）"
     );
     // down 真实回滚：按角色码回收 read 与 print 两类行，不留空实现
-    let down = &src[src.find("async fn down").expect("m0069 缺 down")..];
+    let down = down_execution(&mig);
     assert!(
         down.contains("DELETE FROM \"role_permissions\"")
             && down.contains("rp.\"action\" = 'read'")
@@ -155,19 +207,22 @@ fn migration_grants_same_role_set_and_is_idempotent_without_on_conflict() {
 /// 通道 ②：注册在场且顺序正确（本域 up 链尾应用 / down 链首回滚）
 #[test]
 fn migration_is_registered_in_production_domain_chain() {
-    let src = include_str!("../migration/src/domain/production/mod.rs").replace('\r', "");
+    let src = code_only(&include_str!("../migration/src/domain/production/mod.rs").replace('\r', ""));
     assert!(
         src.contains("mod m0069_grant_piece_read_and_print;"),
         "m0069 未在 production 域声明"
     );
     let up = &src[..src.find("async fn down").expect("production mod 缺 down")];
     let down = &src[src.find("async fn down").expect("production mod 缺 down")..];
+    // 链式调用被 rustfmt 拆行是常态（原 needle 把"换行 + 12 空格缩进"写进字面量，
+    // 排版一变就假失败）⇒ 正向存在性判定走 canon，只锁"确实调了 up/down"，不锁排版。
     assert!(
-        up.contains("m0069_grant_piece_read_and_print::Migration\n            .up(manager)"),
+        canon(up).contains(&canon("m0069_grant_piece_read_and_print::Migration.up(manager)")),
         "m0069 未接入 production 域 up 链"
     );
     assert!(
-        down.contains("m0069_grant_piece_read_and_print::Migration\n            .down(manager)"),
+        canon(down)
+            .contains(&canon("m0069_grant_piece_read_and_print::Migration.down(manager)")),
         "m0069 未接入 production 域 down 链（回滚缺口）"
     );
     // 逆序对称：down 里 m0069 必须先于 m0067（后应用者先回滚）
@@ -181,7 +236,7 @@ fn migration_is_registered_in_production_domain_chain() {
 /// 通道 ③：e2e 补建角色的权限码集合与后端同口径（否则 CI 角色账号仍是 403 假绿）
 #[test]
 fn e2e_role_seed_permissions_carry_pieces_keys() {
-    let src = e2e_seed_src();
+    let src = code_only(&e2e_seed_src());
     assert!(
         src.contains("'pieces:read'"),
         "e2e SEED_ROLE_EXTRA_PERMISSIONS 必须授 pieces:read（发货匹号选择器/标签面板）"

@@ -357,11 +357,56 @@ fn extract_block(src: &str, anchor: &str) -> String {
     src[i..i + j + 2].to_string()
 }
 
+/// impl 成员函数版窗（4 空格收口，同 `contract_wave5_purchase_actual_delivery_writeback_test.rs::extract_impl_method` 先例）。
+/// service 两条链路函数是 impl 成员、顶层闭合为 `    }`：若沿用 extract_block 的 `"\n}"`
+/// 收口，第一条函数的窗会吞进第二条函数——两条断言实际共享同一窗，单侧掉链路仍绿
+/// （假绿形态；现按各自函数体判定，收紧判据）。
+fn extract_impl_fn(src: &str, anchor: &str) -> String {
+    let src = src.replace('\r', "");
+    let i = src
+        .find(anchor)
+        .unwrap_or_else(|| panic!("源码锚点丢失: {anchor}"));
+    let j = src[i..]
+        .find("\n    }")
+        .unwrap_or_else(|| panic!("函数结束定位失败: {anchor}"));
+    src[i..i + j + 6].to_string()
+}
+
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
+/// #4671 B1① 判责：本组扫描锁既有"源码不该出现 X"禁项（`AfterSalesInfo {`、
+/// `customer_name:`、`row.customer_id`），极易被"旧实现曾在此构造 …"类说明注释
+/// 假判违例；正向必备项若只在注释出现则是假绿。故**正反判定统一在剥注释文本上**，
+/// 锚点定位也在剥注释文本上进行（防窗起点被注释里的同名符号骗走）。
+/// 按行剥（不做字符级引号配平）的理由同 `contract_wave5_outsource_issue_guard_test.rs`
+/// 先例：宁少剥不误吃代码。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 剔除 HTML 注释 `<!-- … -->`（.vue 模板/样式区的注释形态，`//` 行剥不适用），
+/// 之后再过 code_only 处理 `<script>` 区。简单非嵌套切分——vue 模板注释不嵌套。
+fn strip_html_comments(src: &str) -> String {
+    let mut out = String::with_capacity(src.len());
+    let mut rest = src;
+    while let Some(i) = rest.find("<!--") {
+        out.push_str(&rest[..i]);
+        rest = &rest[i..];
+        let end = rest.find("-->").unwrap_or(rest.len() - 3);
+        rest = &rest[end + 3..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// DTO 锁：customer_name 必须为 Option<String> 且 derive FromQueryResult
 /// （into_model 视图对象的唯一合法形态）
 #[test]
 fn source_scan_dto_customer_name_field() {
-    let src = include_str!("../src/models/custom_order_response_dto.rs").replace('\r', "");
+    // 锚点与 derive 区定位都在剥注释文本上进行（防注释里的同名符号骗走窗起点）
+    let src = code_only(include_str!("../src/models/custom_order_response_dto.rs"));
     let struct_pos = src
         .find("pub struct AfterSalesInfo")
         .expect("AfterSalesInfo 锚点丢失");
@@ -385,18 +430,25 @@ fn source_scan_dto_customer_name_field() {
 /// 且 customer_name 不得出现任何构造期拼装（format! / 常量假名 / into_tuple 旁路）
 #[test]
 fn source_scan_service_join_chain_and_no_fake_name() {
-    let src = include_str!("../src/services/custom_order_aftersales_service.rs");
-    let clean = src.replace('\r', "");
+    // 判据在剥注释文本上执行：service 里"修复前这里是拼装假名"类自述注释
+    // 不是执行体，命中禁词属假判违例（#4671 B1① all_lead_pii 同型）。
+    let clean = code_only(include_str!(
+        "../src/services/custom_order_aftersales_service.rs"
+    ));
     for anchor in ["pub async fn list_by_order", "pub async fn find_dto_by_id"] {
-        let block = extract_block(&clean, anchor);
+        let block = extract_impl_fn(&clean, anchor);
+        // 正向必备项在去空白规范形上比对：`column_as(...)` 被 rustfmt 折行/改对齐
+        // 不参与判定（#4671 B1② 纪律；同 `contract_wave5_outsource_issue_guard_test.rs::canon`）。
+        let block_flat: String = block.chars().filter(|c| !c.is_whitespace()).collect();
         for marker in [
             "column_as(customer::Column::CustomerName, \"customer_name\")",
             "JoinType::LeftJoin",
             "after_sales::Relation::Customer.def()",
             "into_model::<AfterSalesInfo>",
         ] {
+            let flat_marker: String = marker.chars().filter(|c| !c.is_whitespace()).collect();
             assert!(
-                block.contains(marker),
+                block_flat.contains(&flat_marker),
                 "{anchor} 缺富化链路锚点 {marker}，实际块:\n{block}"
             );
         }
@@ -415,8 +467,9 @@ fn source_scan_service_join_chain_and_no_fake_name() {
 /// 必须经 find_dto_by_id 富化回读，禁止 None 蒙混或本地拼装
 #[test]
 fn source_scan_handler_no_literal_construction_and_reads_back() {
-    let src = include_str!("../src/handlers/custom_order_handler.rs");
-    let clean = src.replace('\r', "");
+    // 同 service 锁：禁项与窗定位都在剥注释文本上；handler 的文档注释若描述
+    // "旧形态 AfterSalesInfo { ... } 已移除"，按原文扫描即假判回潮（B1①）。
+    let clean = code_only(include_str!("../src/handlers/custom_order_handler.rs"));
     assert!(
         !clean.contains("AfterSalesInfo {"),
         "handler 不得再残留 AfterSalesInfo 字面量构造点（customer_name 无真实来源）"
@@ -441,14 +494,18 @@ fn source_scan_handler_no_literal_construction_and_reads_back() {
 /// 禁止把 row.customer_id 当名称渲染（本列旧形态回潮）
 #[test]
 fn source_scan_frontend_displays_customer_name_not_id() {
-    let api_src = include_str!("../../frontend/src/api/custom-order.ts");
-    let iface = extract_block(&api_src.replace('\r', ""), "export interface AfterSales {");
+    // TS 侧先剥整行注释再定位接口块；锚点不带 `{`，排版把左花括号挪行不参与判定。
+    let api_src = code_only(include_str!("../../frontend/src/api/custom-order.ts"));
+    let iface = extract_block(&api_src, "export interface AfterSales");
     assert!(
         iface.contains("customer_name: string | null;"),
         "AfterSales 必须声明 customer_name: string | null（后端必出键，null=客户行缺失），实际块:\n{iface}"
     );
 
-    let panel = include_str!("../../frontend/src/components/AfterSalesPanel.vue").replace('\r', "");
+    let panel_raw = include_str!("../../frontend/src/components/AfterSalesPanel.vue");
+    // .vue：先剥 HTML 注释再剥 `//` 行——"旧版本这里显示 row.customer_id"类
+    // 说明注释命中禁词属假判违例（B1① 同型），执行体才是要锁的层。
+    let panel = code_only(&strip_html_comments(panel_raw));
     assert!(
         panel.contains("row.customer_name"),
         "客户列必须渲染 customer_name"

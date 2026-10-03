@@ -821,18 +821,37 @@ async fn ap_invoice_service_aging_analysis_excludes_draft_rows() {
 // 7) 禁回潮源码扫描（include_str!）：AP 域不得再出现裸状态字面量
 // ===========================================================================
 
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
+/// 本节的判据是"裸状态字面量不得出现在**比较/门**里"与"必须绑写入方常量"，两者都
+/// 只有执行体意义：`ap_report_service.rs:375` 的文档注释里正当写着
+/// 「…绑 `payment::PAYMENT_CONFIRMED`，禁止裸 "CONFIRMED" 字面量」，按原文判禁词
+/// 会把这句自我约束当成违例（#4671 判责 B1①）。
+/// 按行处理而不做字符级扫描：被锁文件里 SQL 多为跨行 raw string/多行参数，
+/// 单行引号配平会把代码文本当注释吃掉；宁少剥（行尾尾注释、块注释不动）不可错剥。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn forbidden(src: &str, needles: &[&str], ctx: &str) {
+    let code = code_only(src);
     for n in needles {
         assert!(
-            !src.contains(n),
+            !code.contains(n),
             "{ctx}: 出现被禁的裸状态字面量 {n}——比较/门必须改绑写入方词表常量"
         );
     }
 }
 
 fn required(src: &str, needles: &[&str], ctx: &str) {
+    let code = code_only(src);
     for n in needles {
-        assert!(src.contains(n), "{ctx}: 应包含 {n}（修复形态回潮丢失）");
+        assert!(
+            code.contains(n),
+            "{ctx}: 应包含 {n}（修复形态回潮丢失；注释里复述该片段不算实现）"
+        );
     }
 }
 

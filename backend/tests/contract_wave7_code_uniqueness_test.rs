@@ -241,13 +241,17 @@ async fn w7_category_same_code_reusable_after_soft_delete() {
 async fn w7_chemical_master_duplicate_code_rejected_with_real_message() {
     let app = build_app().await;
     let code = uniq_code("W7CH");
+    // 判重拒绝的出参口径（master.rs::check_chemical_code_uniqueness）：只回显**用户自己
+    // 提交的编码**，既有行的名称/类型等字段一律不外显。因此禁词必须落在"具体记录值"上
+    // ——用裸词「化料」当禁词会被本表正当的字段标签「染化料编码」命中，属假判违例。
+    let existing_name = format!("W7化料{code}");
     let first = send(
         &app,
         "POST",
         "/chemicals",
         Some(json!({
             "chemical_code": code,
-            "chemical_name": format!("W7化料{code}"),
+            "chemical_name": existing_name,
             "chemical_type": "chemical",
             "unit": "kg",
         })),
@@ -261,24 +265,39 @@ async fn w7_chemical_master_duplicate_code_rejected_with_real_message() {
         read.1["data"]["chemical_code"], code,
         "chemical_code 应真实落库"
     );
+    assert_eq!(
+        read.1["data"]["chemical_name"], existing_name,
+        "既有行的名称必须真的落库（否则下方「不回显」断言没有对证物）"
+    );
 
+    let dup_name = "重复化料B";
     let dup = send(
         &app,
         "POST",
         "/chemicals",
         Some(json!({
             "chemical_code": code,
-            "chemical_name": "重复化料B",
+            "chemical_name": dup_name,
             "chemical_type": "chemical",
             "unit": "kg",
         })),
     )
     .await;
     assert_reject_envelope(&dup.1, dup.0, &code);
-    assert!(
-        !dup.1["message"].as_str().unwrap().contains("化料"),
-        "既有行名称不得回显（仅用户自己提交的编码可外显）：{}",
-        dup.1["message"]
+    let msg = dup.1["message"].as_str().unwrap_or_default();
+    // 双向钉：既不得回显既有行名称，也不得回显本次提交但未被落库的名称
+    // （服务端只回显"用户自己提交且与判重直接相关"的编码，名称一律不外显）
+    for leaked in [existing_name.as_str(), dup_name, "chemical" /* 类型字段 */] {
+        assert!(
+            !msg.contains(leaked),
+            "既有行名称/其它记录字段不得回显（仅用户自己提交的编码可外显）：{msg}"
+        );
+    }
+    // 正形：出参文案 = 公开规则模板 + 用户提交的编码，逐字钉死（比"不含某词"更强）
+    assert_eq!(
+        msg,
+        format!("染化料编码 {code} 已存在，请更换编码后重试"),
+        "查重拒绝文案必须是既定的公开规则形态（改形态须同步三端：本测/e2e/前端提示）"
     );
 }
 
