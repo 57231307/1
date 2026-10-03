@@ -290,8 +290,16 @@ test.describe('后端连接状态与 Token 管理', () => {
     const loginBtn = page.locator('form button.el-button--primary').first();
     await loginBtn.waitFor({ state: 'visible', timeout: 20_000 });
     await loginBtn.click();
-    // 等待登录成功跳转
-    await page.waitForURL(/dashboard|purchase|\//, { timeout: 20_000 });
+    // 等待登录成功跳转。原正则 `/dashboard|purchase|\//` 对**任意绝对 URL 恒真**（任何地址都含
+    // "/"），登录没成功也算命中 ⇒ 本用例可以在从未登录的状态下继续往下跑：随后 clearCookies +
+    // goto 受保护页 + 断"被重定向到 /login"于是恒绿，属典型假绿通道。改为与同文件 :43/:81 同式
+    // （必须离开 /login），并回读真实会话 cookie 作为"确实登录成功"的活体证据。
+    await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 20_000 });
+    const sessionCookies = await page.context().cookies();
+    expect(
+      sessionCookies.some(c => c.name === 'access_token'),
+      `登录后必须持有 access_token 会话 cookie，实际 cookie 名=${JSON.stringify(sessionCookies.map(c => c.name))}`
+    ).toBe(true);
     await page.waitForTimeout(2000);
 
     // 清除 cookie 模拟 token 过期（httpOnly cookie 一并被清）
