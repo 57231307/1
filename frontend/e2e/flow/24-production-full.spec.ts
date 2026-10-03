@@ -131,7 +131,42 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/production/energy-consumptions?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/production/energy-rules?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/production/energy-allocations?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/production/energy-rules/effective');
+    // energy-rules/effective 契约：handler energy_handler.rs:380-388 Query<EffectiveRuleQuery>
+    // （结构体 :116-121）workshop(String)/meter_type(String)/date(NaiveDate) 三者皆非 Option、无 serde
+    // 默认 → 缺任一即 serde 400（报告只点了 workshop，代码显示 date/meter_type 同为必填）。
+    // service get_effective_rule(energy_ops/allocation_rule.rs:320-348) 按 workshop+meter_type+
+    // status=ACTIVE(:329)+effective_date<=date 过滤，无命中返回 Ok(None)→200。本 spec 无预置能耗车间
+    // （migration v15/mod.rs:2788 仅 CREATE TABLE，全树无 INSERT 种子），故由本例自建一条带车间的规则
+    // （POST /production/energy-rules，CreateRuleRequest energy_ops/allocation_rule.rs:33-46），再回读其
+    // workshop/meter_type 作 effective 入参——取值来源=本例 POST 响应模型，非臆造。词表取证：
+    // meter_type=electricity（models/energy_meter.rs:24 water/electricity/steam/gas/compressed_air）、
+    // allocation_basis=by_workshop（models/status/wage_energy_chemical_business.rs:102）；再激活
+    // draft→active（energy_ops/allocation_rule.rs:247）使 date 命中真实 ACTIVE 规则。
+    const effToday = new Date().toISOString().slice(0, 10);
+    const effRule = await apiCallRaw<{ id: number; workshop: string | null; meter_type: string }>(
+      page,
+      'POST',
+      '/production/energy-rules',
+      {
+        rule_name: genCode('E2EENR'),
+        meter_type: 'electricity',
+        allocation_basis: 'by_workshop',
+        workshop: `E2E能耗车间${Date.now().toString().slice(-6)}`,
+        effective_date: effToday,
+      }
+    );
+    expect(
+      effRule.id,
+      '自建能耗规则应返回数值 id（CreateRuleRequest→energy_allocation_rule::Model）'
+    ).toBeGreaterThan(0);
+    expect(effRule.workshop, '自建规则应回读出车间（effective 入参取值来源）').toBeTruthy();
+    await safePostAction(page, `/production/energy-rules/${effRule.id}/activate`);
+    await verifyEndpointHealthy(
+      page,
+      `/production/energy-rules/effective?workshop=${encodeURIComponent(
+        effRule.workshop as string
+      )}&meter_type=${effRule.meter_type}&date=${effToday}`
+    );
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',

@@ -24,7 +24,33 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
   test('色卡：CRUD+明细+预警+成本+扫码+报表', async ({ page }) => {
     await apiCallRaw(page, 'GET', '/color-cards?page=1&page_size=5');
     await apiCallRaw(page, 'GET', '/color-cards/warnings');
-    await verifyEndpointHealthy(page, '/color-cards/customer-color-cards?page=1&page_size=5');
+    // customer-color-cards 契约：handler analytics.rs:369-375 required_query_i64("customer_id") 强制
+    // customer_id（缺 → 400「缺少 customer_id 参数」）；service list_customer_color_cards
+    // (color_card_issue_service.rs:782-789) 对不存在的 customer 抛 IssueError::CustomerNotFound
+    // → analytics.rs:355 not_found → 404（verifyEndpointHealthy 对 404 判红）。故必须用【真实存在】的
+    // 客户 id：取自 CRM 客户建实体链（先回读 /crm/customers 列表首个，空则建再取，同 flow/22:30-46 口径），
+    // 绝不塞 1/0。两侧读同一张表 crate::models::customer::Entity（issue 侧 :29 / CRM 侧 cust.rs:16）。
+    const ccCustList = await apiCallRaw<{ items: Array<{ id: number }> }>(
+      page,
+      'GET',
+      '/crm/customers?page=1&page_size=1'
+    );
+    const ccCustomerId =
+      ccCustList.items?.[0]?.id ??
+      (
+        await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+          customer_name: 'E2E 色卡客户 ' + Date.now(),
+        })
+      ).data?.id;
+    if (!ccCustomerId) {
+      throw new Error(
+        '[flow/23] 无真实客户 id（/crm/customers 列表为空且创建失败），拒绝以臆造 customer_id strict 校验'
+      );
+    }
+    await verifyEndpointHealthy(
+      page,
+      `/color-cards/customer-color-cards?page=1&page_size=5&customer_id=${ccCustomerId}`
+    );
     await verifyEndpointHealthy(page, '/color-cards/reorder-dye-lot?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/color-cards/statistics/daily');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
@@ -142,7 +168,36 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       // 空体 → 后端 serde 422 missing field decision，属正当拒绝，不放宽。
       await safePostAction(page, `/color-prices/${priceId}/approve`, { decision: 'APPROVED' });
     }
-    await verifyEndpointHealthy(page, '/color-prices/calculate?product_id=1&quantity=100');
+    // calculate 契约：handler color_price_handler.rs:296-299 Query<PriceCalcQuery>（:324-334）
+    // product_id/color_id 皆 i64 必填（非 Option/无 serde 默认）→ 缺 color_id 400 missing field。
+    // 且 utils/price_calculator.rs find_base_price 命中不到基础价会 Err(BasePriceNotFound)→
+    // handler :315-317 映射 AppError::database → 500（判红）。故 product_id+color_id 必须取自一条
+    // 【真实存在】的通用基础价行：customer_level/season 皆空 + APPROVED（bpm_crm_contract.rs:13，
+    // 新建价目即 approval::APPROVED，见 color_price_crud_service.rs:90）+ is_active + 币种 CNY
+    // （constants.rs:14 DEFAULT_CURRENCY），从 /color-prices 列表回读得到，不臆造；取到后
+    // find_base_price 必命中 → 200。
+    const calcList = await apiCallRaw<{
+      items: Array<{
+        product_id: number;
+        color_id: number;
+        customer_level?: string | null;
+        season?: string | null;
+      }>;
+    }>(
+      page,
+      'GET',
+      '/color-prices?page=1&page_size=50&approval_status=APPROVED&is_active=true&currency=CNY'
+    );
+    const calcBaseRow = calcList.items?.find(p => p.customer_level == null && p.season == null);
+    if (!calcBaseRow) {
+      throw new Error(
+        '[flow/23] /color-prices 无通用（等级/季节空）且 APPROVED+激活+CNY 的基础价行可回读，拒绝臆造 color_id 探测 calculate（真实数据缺口，非端点契约问题）'
+      );
+    }
+    await verifyEndpointHealthy(
+      page,
+      `/color-prices/calculate?product_id=${calcBaseRow.product_id}&color_id=${calcBaseRow.color_id}&quantity=100&currency=CNY`
+    );
   });
 
   // ===== 真实 UI 交互验证 =====

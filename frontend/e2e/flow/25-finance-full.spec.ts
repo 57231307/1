@@ -21,7 +21,16 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
   // ===== API 端点覆盖 =====
   test('资金管理：账户+存取+冻结+转账+审批+报表+预测', async ({ page }) => {
     await verifyEndpointHealthy(page, '/fund-management/accounts?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/fund-management/accounts/by-type');
+    // accounts/by-type 契约（据代码订正判责报告）：报告所称「reports/by-type / report_type /
+    // handlers/report_handler.rs:16 / models/report.rs ReportType 枚举」经全树 grep 均不存在
+    // （backend 无该路由、无 report_handler.rs、无 enum ReportType）。file 25 中本行才是真实 400：
+    // handler fund_management_handler.rs:448-456 AccountsByTypeQuery.account_type:String 必填
+    // （非 Option/无 serde 默认），缺 → serde 400 missing field `account_type`；
+    // service list_accounts_by_type(fund_management_service.rs:706-712) 按 AccountType+ACTIVE 过滤，
+    // 空命中仍 200。按报告本意「取值必须在后端权威词表内」：account_type 权威词表
+    // fund_management_service.rs:23-32（bank/cash/alipay/wechat），取 bank 为合法枚举项
+    // （此为过滤入参，非伪造实体 id；与报告对 report_type 的处理口径一致）。
+    await verifyEndpointHealthy(page, '/fund-management/accounts/by-type?account_type=bank');
     await verifyEndpointHealthy(page, '/fund-management/transfers?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/fund-management/transfers/pending');
     // 资金日报/月报（finance.rs:599/603 已注册）：handler 的 Query 结构体 date / year+month

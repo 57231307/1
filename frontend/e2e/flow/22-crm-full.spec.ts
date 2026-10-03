@@ -238,7 +238,19 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
   test('线索管理：创建+转换+分配+评分+漏斗', async ({ page }) => {
     await apiCallRaw(page, 'GET', '/crm/leads?page=1&page_size=5');
     await apiCallRaw(page, 'GET', '/crm/leads/conversion-stats');
-    await verifyEndpointHealthy(page, '/crm/leads/channel-roi');
+    // channel-roi 契约复核（判责报告有出入，以代码为准）：handler crm_handler.rs:1178-1190 用
+    // Query<ChannelRoiQuery>（结构体 crm_handler.rs:1549-1552，start_date/end_date 皆 Option<NaiveDate>），
+    // 但 handler 对二者各 .ok_or_else(|| AppError::bad_request("...必填"))（crm_handler.rs:1184-1189）
+    // → 二者实为【必填】，缺任一经反序列化落 None → 400；并非报告所称「start_date>end_date 自定义校验」
+    // ——service channel_roi_report(services/crm/lead.rs:1305-1317) 只做 PeriodStart>=start / PeriodEnd<=end
+    // 区间过滤、无大小校验。语义真实修法：补一对合法日期区间（近一年，start<=end，YYYY-MM-DD 供
+    // chrono::NaiveDate 解析），空命中仍 200（lead.rs:1333 Ok(Vec)），不删断言、不放宽。
+    const roiStartStr = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+    const roiEndStr = new Date().toISOString().slice(0, 10);
+    await verifyEndpointHealthy(
+      page,
+      `/crm/leads/channel-roi?start_date=${roiStartStr}&end_date=${roiEndStr}`
+    );
     await verifyEndpointHealthy(page, '/crm/leads/allocation-rules');
     await verifyEndpointHealthy(page, '/crm/leads/nurture-plans');
     await verifyEndpointHealthy(page, '/crm/leads/funnel-report');
