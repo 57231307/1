@@ -5,7 +5,8 @@
 //! （当期 / 1-30 / 31-60 / 61-90 / 90+），输出客户级与整体汇总。
 //! 本模块扩展 `ArReconciliationService` 的 `get_aging_report` 公开方法与
 //! `load_unpaid_invoices` / `group_invoices_by_customer` / `init_aging_buckets` /
-//! `compute_aging_bucket_index` / `build_customer_aging_summaries` 私有辅助。
+//! `build_customer_aging_summaries` 私有辅助；`compute_aging_bucket_index` 为
+//! 公开的纯判定入口（生产调用点在本模块，集成测试同源调用以免另写影子实现）。
 //!
 //! V15 P1 17.4-D1/D2 扩展：
 //! - `save_aging_snapshot`：期末账龄快照入表，支持历史追溯
@@ -126,7 +127,10 @@ impl ArReconciliationService {
         ]
     }
 
-    fn compute_aging_bucket_index(overdue_days: i64) -> usize {
+    /// 账龄逾期天数 → 桶索引（纯判定，不触 DB，生产与集成测试同源调用，
+    /// 禁止测试侧另写复现）：<=0 落第 0 桶（当期）；1-30 第 1 桶；31-60 第 2 桶；
+    /// 61-90 第 3 桶；>90 第 4 桶。返回值恒落在 `init_aging_buckets()` 的 5 桶内。
+    pub fn compute_aging_bucket_index(overdue_days: i64) -> usize {
         if overdue_days <= 0 {
             0
         } else if overdue_days <= 30 {

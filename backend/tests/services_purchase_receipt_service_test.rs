@@ -243,78 +243,134 @@ async fn test_purchasereceiptservice_create_receipt_bczbfherr() {
 
 // ============ update_receipt 状态机校验测试 ============
 
-/// test_purchasereceiptservice_update_receipt_bczfhapperror（业务规则：update_receipt 不存在的入库单返回 AppError::not_found。）
+/// test_purchasereceiptservice_update_receipt_bczfhapperror（业务规则：update_receipt 不存在的入库单返回 AppError::not_found（机器码 NOT_FOUND，crud.rs:389）。）
 #[tokio::test]
 async fn test_purchasereceiptservice_update_receipt_bczfhapperror() {
     let db = setup_test_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
     let req = UpdatePurchaseReceiptRequest::default();
-    let result = svc.update_receipt(9999, req, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .update_receipt(9999, req, 1)
+        .await
+        .expect_err("不存在的入库单 id 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "不存在 id 必须命中 not_found 族（crud.rs:389），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_purchasereceiptservice_delete_receipt_bczfhapperror（业务规则：delete_receipt 不存在的入库单返回 AppError::not_found。）
+/// test_purchasereceiptservice_delete_receipt_bczfhapperror（业务规则：delete_receipt 不存在的入库单返回 AppError::not_found（机器码 NOT_FOUND，crud.rs:460）。）
 #[tokio::test]
 async fn test_purchasereceiptservice_delete_receipt_bczfhapperror() {
     let db = setup_test_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
-    let result = svc.delete_receipt(9999, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .delete_receipt(9999, 1)
+        .await
+        .expect_err("不存在的入库单 id 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "不存在 id 必须命中 not_found 族（crud.rs:460），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_purchasereceiptservice_confirm_receipt_bczfhapperror（业务规则：confirm_receipt 不存在的入库单返回 AppError::not_found。）
+/// test_purchasereceiptservice_confirm_receipt_bczfhapperror（业务规则：confirm_receipt 不存在的入库单返回 AppError::not_found（机器码 NOT_FOUND，state.rs:96）。）
 #[tokio::test]
 async fn test_purchasereceiptservice_confirm_receipt_bczfhapperror() {
     let db = setup_test_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
-    let result = svc.confirm_receipt(9999, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .confirm_receipt(9999, 1)
+        .await
+        .expect_err("不存在的入库单 id 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "不存在 id 必须命中 not_found 族（state.rs:96），实得 {}",
+        err.error_code()
+    );
 }
 
 // ============ 明细操作状态机校验测试 ============
 
 /// test_purchasereceiptservice_add_receipt_item_bczrkdfhapperror
-/// 业务规则：add_receipt_item 不存在的入库单返回 AppError::not_found。
+/// 业务规则：add_receipt_item 不存在的入库单返回 AppError::not_found（机器码 NOT_FOUND，items.rs:46）。
 #[tokio::test]
 async fn test_purchasereceiptservice_add_receipt_item_bczrkdfhapperror() {
     let db = setup_test_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
     let item_req = sample_item();
-    let result = svc.add_receipt_item(9999, item_req, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .add_receipt_item(9999, item_req, 1)
+        .await
+        .expect_err("不存在的入库单 id 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "不存在 id 必须命中 not_found 族（items.rs:46），实得 {}",
+        err.error_code()
+    );
 }
 
 /// test_purchasereceiptservice_update_receipt_item_bczfhapperror
-/// 业务规则：update_receipt_item 不存在的明细返回 AppError::not_found。
+/// 业务规则：update_receipt_item 不存在的明细返回 AppError::not_found（机器码 NOT_FOUND，items.rs:138）。
 #[tokio::test]
 async fn test_purchasereceiptservice_update_receipt_item_bczfhapperror() {
     let db = setup_test_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
     let req = UpdateReceiptItemRequest::default();
-    let result = svc.update_receipt_item(9999, req, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .update_receipt_item(9999, req, 1)
+        .await
+        .expect_err("不存在的明细 id 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "不存在 id 必须命中 not_found 族（items.rs:138），实得 {}",
+        err.error_code()
+    );
 }
 
 /// test_purchasereceiptservice_delete_receipt_item_bczfhapperror
-/// 业务规则：delete_receipt_item 不存在的明细返回 AppError::not_found。
+/// 业务规则：delete_receipt_item 不存在的明细返回 AppError::not_found（机器码 NOT_FOUND，items.rs:272）。
 #[tokio::test]
 async fn test_purchasereceiptservice_delete_receipt_item_bczfhapperror() {
     let db = setup_test_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
-    let result = svc.delete_receipt_item(9999, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .delete_receipt_item(9999, 1)
+        .await
+        .expect_err("不存在的明细 id 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "不存在 id 必须命中 not_found 族（items.rs:272），实得 {}",
+        err.error_code()
+    );
 }
 
 // ============ calculate_receipt_total 测试 ============
 
 /// test_purchasereceiptservice_calculate_receipt_total_bczfhapperror
-/// 业务规则：calculate_receipt_total 不存在的入库单返回 AppError::not_found。
+/// 业务规则：calculate_receipt_total 不存在的入库单返回 AppError::not_found（机器码 NOT_FOUND，items.rs:340）。
 #[tokio::test]
 async fn test_purchasereceiptservice_calculate_receipt_total_bczfhapperror() {
     let db = setup_test_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
-    let result = svc.calculate_receipt_total(9999, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .calculate_receipt_total(9999, 1)
+        .await
+        .expect_err("不存在的入库单 id 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "不存在 id 必须命中 not_found 族（items.rs:340），实得 {}",
+        err.error_code()
+    );
 }
 
 // ============ DTO 字段完整性测试 ============
