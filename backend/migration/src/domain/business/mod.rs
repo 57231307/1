@@ -15,6 +15,11 @@ mod m0013_add_business_process_and_traceability;
 mod m0014_add_saas_notification_report_email_oa;
 mod m0015_seed_supplier_product_catalog;
 mod m0016_add_contract_remark;
+// run #4671 W1：数组语义列 TEXT→text[]/integer[] 归一（12 列，模型无 Json 属性的
+// Vec 字段 vs 生效 DDL 标量 TEXT 的列型漂移族）。注册在域 up 链尾：目标表全部由
+// 本域 m0009/m0012/m0013 建表，必须晚于建表；production 域对 crm_lead.tags 的
+// JSONB ADD IF NOT EXISTS 恒 no-op、不构成生效定义（依据与存量探测策略见文件头注释）。
+mod m0071_normalize_array_columns;
 
 pub struct Migration;
 
@@ -202,11 +207,19 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0015_seed_supplier_product_catalog::Migration
             .up(manager)
             .await?;
+        // run #4671 W1：数组列归一，注册在 business 域 up 链尾——目标表全部由本域
+        // m0009/m0012/m0013 建表（含 attachment_urls/tags/product_* /internal_piece_*
+        // 的生效 TEXT 定义），归一必须晚于建表、且早于任何读写这些列的后续域。
+        m0071_normalize_array_columns::Migration.up(manager).await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // run #4671 W1：逆序首位——数组列回退 TEXT（多元素行存在时拒滚，见 m0071 文件头）
+        m0071_normalize_array_columns::Migration
+            .down(manager)
+            .await?;
         m0015_seed_supplier_product_catalog::Migration
             .down(manager)
             .await?;

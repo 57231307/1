@@ -13,6 +13,10 @@ mod m0005_add_basic_data_and_system_tables;
 mod m0006_add_general_ledger_and_finance_base;
 // 任务 #198 存量归一迁移；pub：集成测试需直接引用其 SQL 常量在 sqlite 上真跑验证
 pub mod m0007_normalize_account_subject_balance_direction;
+// run #4671 W1：customers.owner_id 生效列形态归一（可空无默认 → NOT NULL DEFAULT 0）。
+// 必须在域 up 链尾执行：晚于本域 inline 补列块（:229 裸 INTEGER 为该列生效定义，
+// 历史迁移不可改写），且早于 finance 域 customers_isolation RLS policy 建立。
+mod m0070_normalize_customers_owner_id;
 
 pub struct Migration;
 
@@ -484,12 +488,21 @@ ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "warehouse_code" VARCHAR(255);
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
+        // run #4671 W1：owner_id 归一必须晚于上方 inline 补列（:229）、早于 finance
+        // 域 RLS policy（NULL 行两侧判 unknown 的可见性缺陷在 policy 建立前闭合）。
+        m0070_normalize_customers_owner_id::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // 任务 #198：逆序首位——按备份表精确还原 balance_direction
+        // run #4671 W1：逆序首位——恢复 owner_id 修复前形态（可空、无默认）
+        m0070_normalize_customers_owner_id::Migration
+            .down(manager)
+            .await?;
+        // 任务 #198：按备份表精确还原 balance_direction（m0070 之后、m0006 之前）
         m0007_normalize_account_subject_balance_direction::Migration
             .down(manager)
             .await?;
