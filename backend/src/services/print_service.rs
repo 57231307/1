@@ -229,7 +229,9 @@ impl PrintService {
         );
         data.insert(
             "required_date".to_string(),
-            serde_json::json!(order.required_date.format("%Y-%m-%d").to_string()),
+            serde_json::json!(order
+                .required_date
+                .map(|d| d.format("%Y-%m-%d").to_string())),
         );
         data.insert(
             "ship_date".to_string(),

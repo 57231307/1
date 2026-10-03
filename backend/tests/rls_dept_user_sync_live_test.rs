@@ -179,7 +179,7 @@ async fn seed_five_owned_rows(db: &DatabaseConnection, owner: &user::Model) -> O
         order_no: Set(format!("SO-WS-{nanos}")),
         customer_id: Set(cust.id),
         order_date: Set(so_now),
-        required_date: Set(so_now),
+        required_date: Set(Some(so_now)),
         status: Set("PENDING".to_string()),
         subtotal: Set(Decimal::ZERO),
         tax_amount: Set(Decimal::ZERO),

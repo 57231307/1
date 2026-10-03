@@ -13,7 +13,7 @@ fn make_sales_order_model(id: i32, status: &str) -> SalesOrderModel {
         order_no: format!("SO-2026-{:04}", id),
         customer_id: 1,
         order_date: Utc::now(),
-        required_date: Utc::now(),
+        required_date: Some(Utc::now()),
         total_amount: Decimal::new(10000, 2),
         status: status.to_string(),
         ..Default::default()

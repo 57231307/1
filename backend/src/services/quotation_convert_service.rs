@@ -147,7 +147,9 @@ impl QuotationConvertService {
             customer_id: Set(quotation.customer_id),
             opportunity_id: Set(None),
             order_date: Set(now),
-            required_date: Set(Utc::now() + chrono::Duration::days(30)),
+            // 报价单的 valid_until 是报价有效期、不是交期，不可挪用；转单不带交期（如实 NULL），
+            // 由销售在订单表单补录（前端必填），禁止编造"当前+30 天"。
+            required_date: Set(None),
             ship_date: Set(None),
             status: Set("draft".to_string()),
             subtotal: Set(quotation.subtotal),

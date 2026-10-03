@@ -13,7 +13,9 @@ pub struct Model {
     pub customer_id: i32,
     pub opportunity_id: Option<i32>,
     pub order_date: DateTime<Utc>,
-    pub required_date: DateTime<Utc>,
+    /// 要求交期：生效 DDL 为可空 TIMESTAMPTZ（migration system/mod.rs:420），
+    /// 声明成非 Option 会让任一 NULL 行在读取时 ColumnNull 报错（列表/详情整链 500）
+    pub required_date: Option<DateTime<Utc>>,
     pub ship_date: Option<DateTime<Utc>>,
     pub status: String,
     pub subtotal: Decimal,

@@ -224,7 +224,7 @@ impl SalesService {
             .into();
 
         if let Some(date) = req.required_date {
-            order.required_date = Set(date);
+            order.required_date = Set(Some(date));
         }
         if let Some(status) = req.status {
             order.status = Set(status);
@@ -367,7 +367,7 @@ impl SalesService {
             customer_id: Set(req.customer_id),
             opportunity_id: Set(None),
             order_date: Set(req.order_date),
-            required_date: Set(req.required_date),
+            required_date: Set(Some(req.required_date)),
             ship_date: Set(None),
             status: Set("pending".to_string()),
             subtotal: Set(total_amount),

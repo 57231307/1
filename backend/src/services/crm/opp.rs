@@ -584,7 +584,8 @@ impl CrmService {
             customer_id: Set(customer_id),
             opportunity_id: Set(Some(opportunity_id)),
             order_date: Set(chrono::Utc::now()),
-            required_date: Set(chrono::Utc::now() + chrono::Duration::days(30)),
+            // 商机不带交期：如实留空由销售在订单表单补录（前端为必填），禁止编造"当前+30 天"
+            required_date: Set(None),
             ship_date: Set(None),
             status: Set("draft".to_string()),
             subtotal: Set(rust_decimal::Decimal::ZERO),

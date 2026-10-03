@@ -155,21 +155,20 @@ impl SalesService {
         &self,
         request: &CreateSalesOrderRequest,
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<chrono::DateTime<chrono::Utc>, AppError> {
+    ) -> Result<Option<chrono::DateTime<chrono::Utc>>, AppError> {
         // 业务逻辑验证：检查客户是否存在
         let customer = customer::Entity::find_by_id(request.customer_id)
             .one(txn)
             .await?
             .ok_or_else(|| AppError::business(format!("客户 {} 不存在", request.customer_id)))?;
-        // 业务逻辑验证：日期合理性检查
-        let required_date = request
-            .required_date
-            .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(30));
-        if required_date < chrono::Utc::now() {
-            tracing::error!("Transaction rolled back: 交付日期不能早于当前时间");
-            return Err(AppError::business(
-                "创建面料订单失败: 交付日期不能早于当前时间".to_string(),
-            ));
+        // 业务逻辑验证：日期合理性检查（缺省即如实落 NULL，禁止替用户编造交期）
+        if let Some(required_date) = request.required_date {
+            if required_date < chrono::Utc::now() {
+                tracing::error!("Transaction rolled back: 交付日期不能早于当前时间");
+                return Err(AppError::business(
+                    "创建面料订单失败: 交付日期不能早于当前时间".to_string(),
+                ));
+            }
         }
         let _credit_limit = customer.credit_limit;
         // 计算当前未付应收账款总额
@@ -186,7 +185,7 @@ impl SalesService {
                 Err(_) => rust_decimal::Decimal::ZERO,
             }
         };
-        Ok(required_date)
+        Ok(request.required_date)
     }
 
     /// 计算订单金额（纯函数，无 IO）
@@ -252,7 +251,7 @@ impl SalesService {
     /// 禁止时间戳/随机数拼号（绕过 order_no UNIQUE 语义、制造脏数据）。
     fn build_order_active_model(
         request: &CreateSalesOrderRequest,
-        required_date: chrono::DateTime<chrono::Utc>,
+        required_date: Option<chrono::DateTime<chrono::Utc>>,
         order_no: String,
         user_id: i32,
     ) -> sales_order::ActiveModel {
@@ -618,7 +617,7 @@ impl SalesService {
         // 更新订单主表
         let mut order_update: sales_order::ActiveModel = order.into();
         if let Some(required_date) = request.required_date {
-            order_update.required_date = sea_orm::ActiveValue::Set(required_date);
+            order_update.required_date = sea_orm::ActiveValue::Set(Some(required_date));
         }
         if let Some(status) = &request.status {
             // 状态列只允许写状态机内的取值：越界写入会让工作流判断与列表筛选双双失真
