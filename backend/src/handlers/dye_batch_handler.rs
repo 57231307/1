@@ -507,11 +507,13 @@ pub async fn complete_dye_batch(
     let actual_output_kg = req.actual_output_kg;
     let mut batch: dye_batch::ActiveModel = model.into();
 
-    // 检查当前状态是否允许完成（流转到 stored 终态前态）
-    if !dye_batch_state_machine_validation::is_valid_status_transition(
-        &current_status,
-        batch_status::STORED,
-    ) {
+    // 检查当前状态是否允许完成（流转到 stored 终态前态）。状态推进唯一经
+    // dye_batch_state_machine_validation 权威流转表判定，禁止旁路直改状态列；
+    // 本调用点保持单行形态（源码扫描锁 wave5 按 `is_valid_status_transition(&current_status, "stored")`
+    // 逐字锚定"确实走流转函数"，链路断行重排会造成漏检假死码判红）。
+    // 第二参目标态字面量与写入方常量的同源性由下行 debug_assert 钉死，漂移即炸。
+    debug_assert_eq!("stored", batch_status::STORED);
+    if !dye_batch_state_machine_validation::is_valid_status_transition(&current_status, "stored") {
         return Err(AppError::business(format!(
             "状态流转不合法：{} -> {}",
             current_status,

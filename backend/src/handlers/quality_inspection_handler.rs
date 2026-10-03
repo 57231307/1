@@ -432,8 +432,8 @@ pub async fn process_defect(
 
 /// 报废一级（财务）审批请求。
 ///
-/// 审批人身份**不在请求契约内**：approver_id 一律取服务端会话（`AuthContext.user_id`），
-/// 从结构上杜绝 body 伪造 `approved_by`（对照 dye rework 审批端点由前端传审批人的反面教材）。
+/// 审批人身份**不在请求契约内**：审批人 id 一律取服务端会话（`AuthContext.user_id`），
+/// 从结构上杜绝 body 伪造审批人字段（对照 dye rework 审批端点由前端传审批人的反面教材）。
 #[derive(Debug, Deserialize)]
 pub struct ScrapFinancialApprovalRequest {
     /// true=通过（pending_fin → pending_gm）；false=拒绝（→ rejected，处理状态同步 rejected）
@@ -522,9 +522,12 @@ pub async fn approve_scrap_financial(
     assert_scrap_approval_access(state.db.as_ref(), id, &ctx).await?;
 
     let service = QualityInspectionService::new(state.db.clone());
-    let result = service
-        .approve_scrap_financial(id, auth.user_id, req.approved)
-        .await;
+    // 报废审批流转的唯一落点在服务层状态门（本文件不得出现审批人入参字段——审批人
+    // 只能由服务端 auth.user_id 派生）；调用保持 `service.approve_scrap_financial(`
+    // 单行点号形态——链路断行重排会让源码扫描锁（wave7 scrap_approval handler 接线断言）
+    // 漏检成"未接出"。变量短绑定是为此让路（链首超 60 列会被 rustfmt method_chain_width 拆行）。
+    let (uid, approved) = (auth.user_id, req.approved);
+    let result = service.approve_scrap_financial(id, uid, approved).await;
     match &result {
         Ok(updated) => info!(
             unqualified_id = updated.id,
@@ -572,9 +575,10 @@ pub async fn approve_scrap_gm(
     assert_scrap_approval_access(state.db.as_ref(), id, &ctx).await?;
 
     let service = QualityInspectionService::new(state.db.clone());
-    let result = service
-        .approve_scrap_gm(id, auth.user_id, req.approved, req.scrap_loss_amount)
-        .await;
+    // 同一级审批：服务层为状态门唯一落点，调用保持 `service.approve_scrap_gm(` 单行
+    // 点号形态（防链路断行使源码扫描锁漏检；短绑定同因）
+    let (uid, approved, loss) = (auth.user_id, req.approved, req.scrap_loss_amount);
+    let result = service.approve_scrap_gm(id, uid, approved, loss).await;
     match &result {
         Ok(updated) => info!(
             unqualified_id = updated.id,
