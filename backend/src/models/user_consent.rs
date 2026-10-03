@@ -12,8 +12,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "user_consents")]
 pub struct Model {
+    /// 主键：DDL 为 SERIAL（INT4，migration v15/mod.rs:941），声明 i64 读取即 ColumnDecode
     #[sea_orm(primary_key)]
-    pub id: i64,
+    pub id: i32,
 
     /// 用户 ID
     pub user_id: i32,
