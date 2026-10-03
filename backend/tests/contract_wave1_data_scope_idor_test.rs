@@ -627,7 +627,7 @@ async fn live_sales_ship_owner_gate_matrix() {
         order_no: Set(format!("SO-DS-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
         customer_id: Set(cust.id),
         order_date: Set(Utc::now()),
-        required_date: Set(Utc::now()),
+        required_date: Set(Some(Utc::now())),
         status: Set("PENDING".to_string()),
         subtotal: Set(Decimal::ZERO),
         tax_amount: Set(Decimal::ZERO),

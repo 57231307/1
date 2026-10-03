@@ -106,7 +106,7 @@ async fn seed_reservation_chain(
         order_no: Set("SO-RESV-0001".to_string()),
         customer_id: Set(1),
         order_date: Set(fixed_time()),
-        required_date: Set(fixed_time()),
+        required_date: Set(Some(fixed_time())),
         status: Set(so_status::PENDING.to_string()),
         subtotal: Set(rust_decimal::Decimal::new(100, 0)),
         tax_amount: Set(rust_decimal::Decimal::ZERO),

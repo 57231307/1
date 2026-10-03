@@ -101,7 +101,7 @@ async fn seed_order(db: &sea_orm::DatabaseConnection, id: i32) {
         // 真实父行：customers.id=1 / users.id=7（见 seed_users_and_customer）
         customer_id: Set(1),
         order_date: Set(now),
-        required_date: Set(now),
+        required_date: Set(Some(now)),
         status: Set("approved".to_string()),
         subtotal: Set(Decimal::ZERO),
         tax_amount: Set(Decimal::ZERO),

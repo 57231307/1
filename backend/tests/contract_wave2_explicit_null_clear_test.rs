@@ -465,6 +465,7 @@ async fn live_purchase_update_null_clears_nullable_and_absent_keeps_with_audit_t
                 is_processor: None,
                 processor_type: None,
                 contacts: None,
+                remarks: None,
                 qualifications: None,
             },
             9101,
